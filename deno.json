@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window"],
+    "strict": true
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 80,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false,
+    "proseWrap": "preserve"
+  },
+  "tasks": {
+    "dev": "deno run --allow-net --allow-read --allow-env --watch supabase/functions/server/index.tsx",
+    "serve": "deno run --allow-net --allow-read --allow-env supabase/functions/server/index.tsx"
+  },
+  "imports": {
+    "hono": "npm:hono@^4.0.0",
+    "hono/cors": "npm:hono@^4.0.0/cors",
+    "hono/logger": "npm:hono@^4.0.0/logger",
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@2.49.8"
+  }
+}
