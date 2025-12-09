@@ -245,7 +245,7 @@ tsc --noEmit
 - Self-documenting action payloads
 
 ### 4. **Guideline Compliance** ⭐⭐⭐⭐⭐
-- Now follows \"Use TypeScript strictly - no `any` types\" guideline
+- Now follows "Use TypeScript strictly - no `any` types" guideline
 - Grade improved from **C** to **A** for TypeScript strictness
 
 ---

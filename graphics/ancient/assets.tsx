@@ -1,10 +1,10 @@
 // Graphics asset references for the ancient faction
-// This file provides typed imports for all ancient faction graphics assets
+// Central export hub - imports and re-exports all ancient ship graphics
 
-// Ancient faction assets will be added here
-// Example: export const ancientShip1 = "path/to/ancient-ship-1.png";
-
-// Export as default for easy importing
-export default {
-  // Assets will be added as needed
-};
+// Import individual ship components
+export { MercuryCore } from './MercuryCore';
+export { PlutoCore } from './PlutoCore';
+export { QuantumMystic } from './QuantumMystic';
+export { SolarReserve4, SolarReserve3, SolarReserve2, SolarReserve1, SolarReserve0 } from './SolarReserve';
+export { Spiral } from './Spiral';
+export { UranusCore } from './UranusCore';

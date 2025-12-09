@@ -78,7 +78,7 @@ Last Updated: December 8, 2024
 ### Design & Planning
 
 #### <a name="design-review"></a>DESIGN_REVIEW.md
-**Location**: `/DESIGN_REVIEW.md`  
+**Location**: `/guidelines/DESIGN_REVIEW.md`  
 **Purpose**: Comprehensive design review conducted before Figma import  
 **Read if**: You need to understand the design philosophy or plan Figma integration  
 
@@ -108,7 +108,7 @@ Last Updated: December 8, 2024
 ---
 
 #### <a name="fluid-scaling"></a>FLUID_SCALING_STRATEGY.md
-**Location**: `/FLUID_SCALING_STRATEGY.md`  
+**Location**: `/guidelines/FLUID_SCALING_STRATEGY.md`  
 **Purpose**: Viewport and content scaling strategy (not yet implemented)  
 **Read if**: Implementing responsive scaling or fluid typography  
 
@@ -171,7 +171,7 @@ Last Updated: December 8, 2024
 ---
 
 #### <a name="typescript-fixes"></a>TYPESCRIPT_ANY_FIXES.md
-**Location**: `/TYPESCRIPT_ANY_FIXES.md`  
+**Location**: `/guidelines/TYPESCRIPT_ANY_FIXES.md`  
 **Purpose**: Documentation of TypeScript `any` type removal  
 **Read if**: Understanding the type system or adding new types  
 
@@ -239,7 +239,7 @@ Last Updated: December 8, 2024
 ---
 
 #### <a name="testing-instructions"></a>TESTING_INSTRUCTIONS.md
-**Location**: `/TESTING_INSTRUCTIONS.md`  
+**Location**: `/guidelines/TESTING_INSTRUCTIONS.md`  
 **Purpose**: Setup instructions for Game Test Interface  
 **Read if**: Encountering "Failed to get game state" errors  
 
@@ -282,7 +282,7 @@ const { player, updatePlayerName, toggleSpectatorMode } = usePlayer();
 ### Historical Documentation
 
 #### <a name="reorganization"></a>REORGANIZATION_COMPLETE.md
-**Location**: `/REORGANIZATION_COMPLETE.md`  
+**Location**: `/guidelines/REORGANIZATION_COMPLETE.md`  
 **Purpose**: Historical record of file reorganization  
 **Read if**: Understanding why files are organized the way they are  
 
@@ -323,7 +323,7 @@ const { player, updatePlayerName, toggleSpectatorMode } = usePlayer();
 ### Supporting Files
 
 #### <a name="attributions"></a>Attributions.md
-**Location**: `/Attributions.md`  
+**Location**: `/Attributions.md` *(system-protected file, remains in root)*  
 **Purpose**: License attributions for third-party components  
 
 **Contains:**

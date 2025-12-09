@@ -1,8 +1,8 @@
-🛠️ Game Test Interface - Setup Instructions
+# 🛠️ Game Test Interface - Setup Instructions
 
-## Current Status: \"Failed to get game state\" Error Fix
+## Current Status: "Failed to get game state" Error Fix
 
-The Game Test Interface is experiencing a \"failed to get game state\" error because the edge function needs to be deployed with the updated multiplayer code.
+The Game Test Interface is experiencing a "failed to get game state" error because the edge function needs to be deployed with the updated multiplayer code.
 
 ## ✅ Quick Fix Instructions
 
@@ -14,16 +14,16 @@ The Game Test Interface is experiencing a \"failed to get game state\" error bec
 
 ### Step 2: Test the Fix
 1. Go to **Development Dashboard** → **Deployment Test**
-2. Click **\"Test Edge Function\"** - should show \"Connected\"
-3. Click **\"Run Full System Test\"** - should show all tests passing
+2. Click **"Test Edge Function"** - should show "Connected"
+3. Click **"Run Full System Test"** - should show all tests passing
 4. Go to **Game Test Interface** - should now work properly
 
 ## 🎮 How to Use Game Test Interface
 
 ### Basic Flow:
-1. **Game Test Interface** → **\"Create New Test Game\"**
+1. **Game Test Interface** → **"Create New Test Game"**
 2. Select a species (Human, Xenite, Centaur, Ancient)
-3. Use **\"Roll Dice\"** to gain lines (resources)
+3. Use **"Roll Dice"** to gain lines (resources)
 4. **Build Ships** using your lines
 5. Test multiplayer by sharing the game URL
 
@@ -42,15 +42,15 @@ The Game Test Interface is experiencing a \"failed to get game state\" error bec
 
 ## 🔧 Troubleshooting
 
-### \"Failed to get game state\" Error:
+### "Failed to get game state" Error:
 - **Cause**: Edge function not deployed or outdated
 - **Fix**: Deploy updated edge function (see Step 1 above)
 
-### \"Failed to create game\" Error:
+### "Failed to create game" Error:
 - **Cause**: Multiplayer endpoints missing
 - **Fix**: Ensure you deployed the COMPLETE updated code (includes create-game, join-game, etc.)
 
-### \"Network error\" Messages:
+### "Network error" Messages:
 - **Cause**: Edge function not responding
 - **Fix**: Check deployment status in Supabase dashboard
 

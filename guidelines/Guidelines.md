@@ -84,12 +84,12 @@
 - ✅ **Always available**: No external hosting dependency or failure points
 - ✅ **Version control**: Graphics tracked in Git alongside code
 - ✅ **Simple for geometry**: Ship graphics are basic geometric shapes (triangles, squares, etc.)
-- ✅ **Philosophy alignment**: Matches \"graphics stored within app\" architecture requirement
+- ✅ **Philosophy alignment**: Matches "graphics stored within app" architecture requirement
 
 **Why NOT Figma library import:**
 - ❌ Bundle bloat: Would ship 90% unused graphics
 - ❌ Overkill: Don't need 500+ icons for ~40 geometric ship shapes
-- ❌ External dependency: Violates \"within app\" principle
+- ❌ External dependency: Violates "within app" principle
 
 **Why NOT external hosting:**
 - ❌ Network dependency: Game fails if external host is down
@@ -108,26 +108,26 @@
 // In /graphics/human/assets.tsx
 export const WedgeShip: React.FC<{ className?: string }> = ({ className }) => (
   <svg 
-    width=\"93\" 
-    height=\"51\" 
-    viewBox=\"0 0 93 51\" 
-    fill=\"none\" 
-    xmlns=\"http://www.w3.org/2000/svg\"
+    width="93" 
+    height="51" 
+    viewBox="0 0 93 51" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
     className={className}
   >
-    <polygon points=\"46.5,5 88,46 5,46\" fill=\"black\" stroke=\"#9CFF84\" strokeWidth=\"3\" />
+    <polygon points="46.5,5 88,46 5,46" fill="black" stroke="#9CFF84" strokeWidth="3" />
   </svg>
 );
 
 // Usage with arbitrary pixel values
-<WedgeShip className=\"w-[93px] h-[51px]\" />
-<WedgeShip className=\"w-[186px] h-[102px]\" /> // 2x scale
-<WedgeShip className=\"w-[93px] h-[51px] opacity-50\" /> // with transparency
+<WedgeShip className="w-[93px] h-[51px]" />
+<WedgeShip className="w-[186px] h-[102px]" /> // 2x scale
+<WedgeShip className="w-[93px] h-[51px] opacity-50" /> // with transparency
 ```
 
 **Styling approach:**
 - SVGs accept className prop for Tailwind utilities (opacity, scale, etc.)
-- Use arbitrary pixel values for precise sizing: `className=\"w-[52px] h-[32px]\"`
+- Use arbitrary pixel values for precise sizing: `className="w-[52px] h-[32px]"`
 - Arbitrary values allow exact dimensions without Tailwind spacing constraints
 - No need to design graphics with dimensions divisible by 4
 - No complex effects, filters, or animations required
@@ -218,6 +218,13 @@ export const WedgeShip: React.FC<{ className?: string }> = ({ className }) => (
 - **Trade-offs**: None (old actions can be archived if needed)
 - **When to implement**: Before reaching 300 games/month
 
+```typescript
+// In server/index.tsx
+if (gameData.actions && gameData.actions.length > 50) {
+  gameData = { ...gameData, actions: gameData.actions.slice(-50) };
+}
+```
+
 **Quick Win #2: Adaptive Polling Rate**
 - **Implementation**: Adjust polling speed based on game phase
 - **Complexity**: 30 minutes to implement
@@ -256,11 +263,11 @@ export const WedgeShip: React.FC<{ className?: string }> = ({ className }) => (
 ### Performance Monitoring
 
 **Warning Signs (Check Regularly):**
-- Average response time > 2 seconds
-- Database connection errors in logs
-- Edge Function timeout errors (10s limit)
-- Supabase bandwidth warnings
-- Player complaints about lag
+- [ ] Average response time > 2 seconds
+- [ ] Database connection errors in logs
+- [ ] Edge Function timeout errors (10s limit)
+- [ ] Supabase bandwidth warnings
+- [ ] Player complaints about lag
 
 **Recommended Monitoring:**
 - Log response times in browser console during development
@@ -269,10 +276,10 @@ export const WedgeShip: React.FC<{ className?: string }> = ({ className }) => (
 - Monitor Edge Function execution time in Supabase logs
 
 **Scaling Checklist:**
-- Under 300 games/month: Current setup is fine
-- 300-500 games/month: Implement actions log limiting
-- 500-1000 games/month: Add JSON compression
-- 1000+ games/month: Consider WebSockets + paid tier
+- [ ] Under 300 games/month: Current setup is fine
+- [ ] 300-500 games/month: Implement actions log limiting
+- [ ] 500-1000 games/month: Add JSON compression
+- [ ] 1000+ games/month: Consider WebSockets + paid tier
 
 ### Current Status: Prototype-Optimized
 
@@ -303,12 +310,12 @@ export const WedgeShip: React.FC<{ className?: string }> = ({ className }) => (
 5. Add visual polish last
 
 **Quality Checklist:**
-- Code follows separation of concerns
-- TypeScript interfaces are complete
-- Error handling is comprehensive
-- Multiplayer functionality tested
-- Graphics system validated
-- Development dashboard shows all green status
+- [ ] Code follows separation of concerns
+- [ ] TypeScript interfaces are complete
+- [ ] Error handling is comprehensive
+- [ ] Multiplayer functionality tested
+- [ ] Graphics system validated
+- [ ] Development dashboard shows all green status
 
 ## 🎯 Current Development Priorities
 
@@ -330,7 +337,7 @@ Our game engine, multiplayer system, and data architecture fully support the tar
 - **Status:** MISSING - Placeholder graphics only
 - **Requirement:** Geometric SVG shapes for each ship type
 - **Implementation:** Create SVG components in `/graphics/{species}/assets.tsx`
-- **Design notes:** Ships ARE shapes - the \"Shapeships\" name is literal
+- **Design notes:** Ships ARE shapes - the "Shapeships" name is literal
 - **Color system:** Neon glow effects on geometric forms (glow color indicates ship type, NOT species)
 
 **2. Enhanced Ship Selection Interface**
@@ -376,7 +383,7 @@ Our game engine, multiplayer system, and data architecture fully support the tar
 - **Backend support:** Phase engine ready, just needs UI layer
 
 **6. Lines Breakdown Display**
-- **Status:** Single \"lines\" number only
+- **Status:** Single "lines" number only
 - **Requirement:** Separate tracking and display:
   - Saved lines (carried from previous turns)
   - Bonus lines (from ship powers)
@@ -389,7 +396,7 @@ Our game engine, multiplayer system, and data architecture fully support the tar
 **7. Chess-Clock Timer System**
 - **Status:** NOT IMPLEMENTED
 - **Requirement:** Per-player time tracking
-  - Display format: \"MM:SS\"
+  - Display format: "MM:SS"
   - Active/inactive states
   - Time bank system (if applicable)
 - **Backend update:** Add timer state to game data
@@ -406,10 +413,10 @@ Our game engine, multiplayer system, and data architecture fully support the tar
 **9. Ship Stat Annotations**
 - **Status:** NOT IMPLEMENTED
 - **Requirement:** Visual power display on ships:
-  - \"16 damage (4 x 4not)\" - scaling notation
-  - \"2/3 charges\" - charge tracking
-  - \"+2 lines\" - resource generation
-  - \"2 healing, 1 damage\" - multiple effects
+  - "16 damage (4 x 4not)" - scaling notation
+  - "2/3 charges" - charge tracking
+  - "+2 lines" - resource generation
+  - "2 healing, 1 damage" - multiple effects
 - **Dependency:** Requires ship graphics system first
 
 ### 📊 Implementation Strategy

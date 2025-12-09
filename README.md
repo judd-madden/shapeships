@@ -6,14 +6,13 @@ A minimalist multiplayer turn-based strategy game built with React, Tailwind CSS
 
 ## 📚 **NEW: Documentation Index**
 
-**Looking for documentation?** → See **[DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)** for a complete guide to all project documentation.
+**Looking for documentation?** → See **[DOCUMENTATION_INDEX.md](guidelines/DOCUMENTATION_INDEX.md)** for a complete guide to all project documentation.
 
 **Quick Start for New Developers:**
 1. Read this README for project overview
 2. Read [Guidelines.md](guidelines/Guidelines.md) for development rules ⭐ **MOST IMPORTANT**
-3. Read [DESIGN_REVIEW.md](DESIGN_REVIEW.md) for current design state
-4. Check [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for everything else
-5. **Configure Supabase:** Copy `utils/supabase/info.tsx.template` to `utils/supabase/info.tsx` and add your credentials
+3. Read [DESIGN_REVIEW.md](guidelines/DESIGN_REVIEW.md) for current design state
+4. Check [DOCUMENTATION_INDEX.md](guidelines/DOCUMENTATION_INDEX.md) for everything else
 
 ---
 
@@ -64,29 +63,16 @@ A minimalist multiplayer turn-based strategy game built with React, Tailwind CSS
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/judd-madden/shapeships.git
-   cd shapeships
+   git clone https://github.com/judd-madden/shapeships-figma-make.git
+   cd shapeships-figma-make
    ```
 
-2. **Configure Supabase Credentials**
-   ```bash
-   # Copy the template file
-   cp utils/supabase/info.tsx.template utils/supabase/info.tsx
-   
-   # Edit utils/supabase/info.tsx with your Supabase project credentials
-   # Get these from your Supabase project settings
-   ```
-
-3. **Deploy Supabase Edge Function**
+2. **Configure Supabase**
    - Set up your Supabase project
    - Deploy the edge function from `/supabase/functions/server/index.tsx`
-   - Configure environment variables in Supabase dashboard:
-     - `SUPABASE_URL`
-     - `SUPABASE_ANON_KEY`
-     - `SUPABASE_SERVICE_ROLE_KEY`
-     - `SUPABASE_DB_URL`
+   - Configure environment variables in Supabase dashboard
 
-4. **Development**
+3. **Development**
    - Access the development dashboard at the root URL
    - Test all systems using the built-in testing suite
    - Use the multiplayer test for real-time game validation
@@ -171,12 +157,12 @@ The game engine framework is designed to seamlessly accept game rules while main
 
 ## 🔗 Links
 
-- **Repository:** https://github.com/judd-madden/shapeships
-- **Documentation:** See [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
+- **Repository:** https://github.com/judd-madden/shapeships-figma-make.git
+- **Graphics Host:** https://juddmadden.com/shapeships/images/
 
 ## 📄 License
 
-See [Attributions.md](Attributions.md) for third-party component licenses.
+[Add your license information here]
 
 ---
 

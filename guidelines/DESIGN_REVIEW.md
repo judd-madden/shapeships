@@ -109,18 +109,18 @@ The action panel area defaults to **species ship overviews** and changes based o
 ### Confirmed Design States
 
 ✅ **Default State** - Species ship overview (educational reference)  
-✅ **Automatic Processing** - \"Processing Dice + Lines\" visual feedback  
+✅ **Automatic Processing** - "Processing Dice + Lines" visual feedback  
 ✅ **Charge Declaration** - Grid layout with multiple ship action buttons  
 ✅ **First Strike** - Specific ship actions  
 ✅ **Victory States** - Decisive Victory, Narrow Loss, Draw  
 ✅ **Multiple Ships** - Grid supports multiple simultaneous actions  
-✅ **Event Messages** - \"You Killed a Leviathan\" style battle notifications  
+✅ **Event Messages** - "You Killed a Leviathan" style battle notifications  
 
 ### Icon Clarification
 
-**\"Draw\" Icon** (previously mistaken for \"edit\"):
+**"Draw" Icon** (previously mistaken for "edit"):
 - Represents the **Drawing phase** (Subphase 5)
-- Dual meaning: \"drawing\" ships in game terminology + physical paper-based play
+- Dual meaning: "drawing" ships in game terminology + physical paper-based play
 - Shows which phase is active/relevant
 
 ---
@@ -130,7 +130,7 @@ The action panel area defaults to **species ship overviews** and changes based o
 ### Layout Structure
 
 **Left Sidebar:**
-- **Turn/Phase Navigation** - \"Turn 1 - MAJOR PHASE\" with draw icon
+- **Turn/Phase Navigation** - "Turn 1 - MAJOR PHASE" with draw icon
 - **Battle Log** - Collapsible, auto-scrolling game events
 - **Chat** - Player communication separate from battle log
 
@@ -157,14 +157,14 @@ The action panel area defaults to **species ship overviews** and changes based o
 
 **Bottom Right:**
 - **Species Buttons** - Quick access to ship selection/overview
-- **Spectator Count** - \"1 spectator\" display
+- **Spectator Count** - "1 spectator" display
 - **Menu Button** - Settings/surrender/rules
 
 ### Design Excellence Observations
 
 #### 1. Effect Queue Visualization ⭐ **BRILLIANT**
 The **-3/+2** health preview numbers are the killer feature:
-- Makes abstract \"effect queue\" concept tangible
+- Makes abstract "effect queue" concept tangible
 - Players see queued effects BEFORE Health Resolution
 - Updates in real-time as actions are taken
 - Critical for strategic decision-making
@@ -177,8 +177,8 @@ const queuedHealing = gameState.gameData.turnData.accumulatedHealing[playerId] |
 ```
 
 #### 2. Multiplayer State Visibility
-- **Player 2 Ready** - Green dot + \"Ready\" label + 09:45 timer
-- **Player 1 Active** - Green dot + \"Species\" label + 10:04 timer
+- **Player 2 Ready** - Green dot + "Ready" label + 09:45 timer
+- **Player 1 Active** - Green dot + "Species" label + 10:04 timer
 - Clear visual distinction between waiting and acting players
 
 #### 3. Information Hierarchy
@@ -195,12 +195,12 @@ Natural eye flow: past → present → future
 
 ### Questions Answered by Full Board Design
 
-✅ **\"Declare Ready\" button?** → Bottom-center with conditional note  
+✅ **"Declare Ready" button?** → Bottom-center with conditional note  
 ✅ **Chess-clock timers?** → Top-center, MM:SS format, active/paused states  
 ✅ **Player stats dashboard?** → Right sidebar with comprehensive stats  
 ✅ **Battle log vs chat?** → Separate sections in left sidebar  
-✅ **Opponent readiness?** → Player 2 area shows \"Ready\" status clearly  
-✅ **Spectator count?** → Bottom-right \"1 spectator\" display  
+✅ **Opponent readiness?** → Player 2 area shows "Ready" status clearly  
+✅ **Spectator count?** → Bottom-right "1 spectator" display  
 ✅ **Effect queue preview?** → Red/green numbers next to health  
 
 ---
@@ -297,14 +297,14 @@ return activePlayers.every(player => {
 - Build ships (UI hidden when `isSpectator === true`)
 - Declare ready (doesn't affect phase advancement)
 - Take any game actions
-- Count toward \"2 players needed\" requirement
+- Count toward "2 players needed" requirement
 
 ### Auto-Conversion
 
 Games automatically convert 3rd+ players to spectators:
 - Check player count on join
 - If `activePlayers.length >= 2`, force role to spectator
-- Show toast notification: \"Game is full - you were automatically set as a spectator\"
+- Show toast notification: "Game is full - you were automatically set as a spectator"
 
 ---
 
@@ -395,26 +395,26 @@ Per Guidelines:
 - Ship graphics are **geometric SVGs** (triangles, squares, pentagons)
 - Stored as **React components** in faction `assets.tsx` files
 - Accept **className** prop for Tailwind utilities
-- Use **arbitrary pixel values**: `className=\"w-[52px] h-[32px]\"`
+- Use **arbitrary pixel values**: `className="w-[52px] h-[32px]"`
 
 **Example Ship Component:**
 ```typescript
 export const WedgeShip: React.FC<{ className?: string }> = ({ className }) => (
   <svg 
-    width=\"93\" 
-    height=\"51\" 
-    viewBox=\"0 0 93 51\" 
-    fill=\"none\"
+    width="93" 
+    height="51" 
+    viewBox="0 0 93 51" 
+    fill="none"
     className={className}
   >
-    <polygon points=\"46.5,5 88,46 5,46\" fill=\"black\" stroke=\"#9CFF84\" strokeWidth=\"3\" />
+    <polygon points="46.5,5 88,46 5,46" fill="black" stroke="#9CFF84" strokeWidth="3" />
   </svg>
 );
 
 // Usage
-<WedgeShip className=\"w-[93px] h-[51px]\" />
-<WedgeShip className=\"w-[186px] h-[102px]\" /> // 2x scale
-<WedgeShip className=\"w-[93px] h-[51px] opacity-50\" /> // with transparency
+<WedgeShip className="w-[93px] h-[51px]" />
+<WedgeShip className="w-[186px] h-[102px]" /> // 2x scale
+<WedgeShip className="w-[93px] h-[51px] opacity-50" /> // with transparency
 ```
 
 ---
@@ -483,18 +483,18 @@ const queuedHealing = gameState.gameData.turnData.accumulatedHealing[playerId] |
 
 ### Priority 3: Battle Log Formatting (Week 2-3)
 Transform action history into readable battle log:
-- \"Turn 5 - BUILD PHASE\"
-- \"Dice is a 4\"
-- \"Player 1 has 12 lines available\"
-- \"Amphibeus builds: Tactical Cruiser\"
-- \"Health Resolution: Player 1 takes 3 damage to 25\"
+- "Turn 5 - BUILD PHASE"
+- "Dice is a 4"
+- "Player 1 has 12 lines available"
+- "Amphibeus builds: Tactical Cruiser"
+- "Health Resolution: Player 1 takes 3 damage to 25"
 
 ### Priority 4: Ready State Management (Week 3)
 Implement conditional ready button:
 - Enabled when `canDeclareReady: true`
 - Disabled with note when mandatory actions pending
 - Hidden/changed when already ready
-- Shows \"Waiting for opponent...\" state
+- Shows "Waiting for opponent..." state
 
 ### Priority 5: Phase System Expansion (Week 3-4)
 Expand from 4 phases to 13 subphases:
@@ -538,7 +538,7 @@ Chess-clock backend logic:
 ## 💡 Key Design Decisions
 
 ### 1. Ship Graphics Philosophy
-**Decision**: Ships ARE shapes - \"Shapeships\" is literal
+**Decision**: Ships ARE shapes - "Shapeships" is literal
 - Geometric SVG components (triangles, squares, pentagons)
 - Glow colors indicate ship type/function, NOT species
 - Stored as React components in `/graphics/{species}/assets.tsx`
@@ -556,7 +556,7 @@ Chess-clock backend logic:
 - Updates in real-time as actions are taken
 
 **Rationale**:
-- Makes abstract \"effect queue\" concept tangible
+- Makes abstract "effect queue" concept tangible
 - Critical for strategic decision-making
 - Prevents confusion about when effects apply
 - Industry-standard pattern (Hearthstone, MTG Arena use similar)
@@ -587,8 +587,8 @@ Chess-clock backend logic:
 
 ### 5. Dual-Purpose Icons (Draw)
 **Decision**: Icons serve both digital and paper game
-- \"Draw\" icon for Drawing phase
-- Represents digital \"building ships\" AND paper \"drawing ships\"
+- "Draw" icon for Drawing phase
+- Represents digital "building ships" AND paper "drawing ships"
 
 **Rationale**:
 - Consistent terminology across mediums
@@ -628,7 +628,7 @@ Chess-clock backend logic:
 - Or one file with multiple variants?
 
 ### 2. Dynamic Text/Numbers
-- Placeholder text for replacement (e.g., \"999\" for numbers)?
+- Placeholder text for replacement (e.g., "999" for numbers)?
 - Consistent naming conventions?
 
 ### 3. Interactive Elements
@@ -671,7 +671,7 @@ Chess-clock backend logic:
 
 ## 🔗 Related Documentation
 
-- **Guidelines**: `/Guidelines.md` - Development standards and architecture rules
+- **Guidelines**: `/guidelines/Guidelines.md` - Development standards and architecture rules
 - **Action Resolution**: `/game/engine/ACTION_RESOLUTION_README.md` - Detailed action system docs
 - **Game Test**: `/game/test/GameTestReadme.md` - Test interface documentation
 - **Species Data**: `/game/data/SpeciesData.tsx` - Ship and power definitions

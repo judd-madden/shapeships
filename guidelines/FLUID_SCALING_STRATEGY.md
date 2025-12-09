@@ -57,7 +57,7 @@ Add to `/styles/globals.css`:
 ```tsx
 // Component from Figma import
 <div 
-  className=\"w-[400px]\"  // Keep Figma px value
+  className="w-[400px]"  // Keep Figma px value
   style={{
     fontSize: '1em'  // Inherits scaled font size
   }}
@@ -66,7 +66,7 @@ Add to `/styles/globals.css`:
 </div>
 
 // For dimensions that should scale with viewport:
-<div className=\"w-[28.57em]\">  // 400px ÷ 14px = 28.57em
+<div className="w-[28.57em]">  // 400px ÷ 14px = 28.57em
   {/* Scales with viewport */}
 </div>
 ```
@@ -114,7 +114,7 @@ export function FleetArea({ ships, maxShips = 50 }: FleetAreaProps) {
   
   return (
     <div 
-      className=\"fleet-area\"
+      className="fleet-area"
       style={{ 
         fontSize: `${scale}em`, // Scales all em-based children
         '--ship-scale': scale   // CSS variable for other uses
@@ -125,7 +125,7 @@ export function FleetArea({ ships, maxShips = 50 }: FleetAreaProps) {
           key={ship.id}
           ship={ship}
           // Figma size preserved, but scales with parent font-size
-          className=\"w-[93px] h-[51px]\"
+          className="w-[93px] h-[51px]"
         />
       ))}
     </div>
@@ -171,24 +171,24 @@ Convert ship SVGs to use em units for proportional scaling:
 // BEFORE (fixed px):
 export const WedgeShip: React.FC<{ className?: string }> = ({ className }) => (
   <svg 
-    width=\"93\" 
-    height=\"51\" 
-    viewBox=\"0 0 93 51\"
+    width="93" 
+    height="51" 
+    viewBox="0 0 93 51"
     className={className}
   >
-    <polygon points=\"46.5,5 88,46 5,46\" fill=\"black\" stroke=\"#9CFF84\" strokeWidth=\"3\" />
+    <polygon points="46.5,5 88,46 5,46" fill="black" stroke="#9CFF84" strokeWidth="3" />
   </svg>
 );
 
 // AFTER (em-based):
 export const WedgeShip: React.FC<{ className?: string }> = ({ className }) => (
   <svg 
-    width=\"1em\"      // Relative to parent font-size
-    height=\"0.548em\" // Maintains aspect ratio (51 ÷ 93 = 0.548)
-    viewBox=\"0 0 93 51\"
+    width="1em"      // Relative to parent font-size
+    height="0.548em" // Maintains aspect ratio (51 ÷ 93 = 0.548)
+    viewBox="0 0 93 51"
     className={className}
   >
-    <polygon points=\"46.5,5 88,46 5,46\" fill=\"black\" stroke=\"#9CFF84\" strokeWidth=\"3\" />
+    <polygon points="46.5,5 88,46 5,46" fill="black" stroke="#9CFF84" strokeWidth="3" />
   </svg>
 );
 
@@ -202,7 +202,7 @@ export const WedgeShip: React.FC<{ className?: string }> = ({ className }) => (
 </div>
 
 // With Tailwind arbitrary values:
-<div className=\"text-[93px]\">
+<div className="text-[93px]">
   <WedgeShip />
 </div>
 ```
@@ -249,7 +249,7 @@ export const WedgeShip: React.FC<{ className?: string }> = ({ className }) => (
 
 ```tsx
 <div 
-  className=\"scale-container\"
+  className="scale-container"
   style={{ 
     '--container-scale': '0.8',
     '--scale-factor': 0.8 
@@ -269,16 +269,16 @@ Tailwind supports em-based arbitrary values:
 
 ```tsx
 // Text scales with parent
-<p className=\"text-[1em]\">Scales with container</p>
+<p className="text-[1em]">Scales with container</p>
 
 // Dimensions scale with parent font-size
-<div className=\"w-[20em] h-[15em]\">Container</div>
+<div className="w-[20em] h-[15em]">Container</div>
 
 // Spacing scales with parent
-<div className=\"gap-[0.5em] p-[1em]\">Spaced content</div>
+<div className="gap-[0.5em] p-[1em]">Spaced content</div>
 
 // Combine with Figma px values when needed
-<div className=\"w-[400px]\">Fixed width from Figma</div>
+<div className="w-[400px]">Fixed width from Figma</div>
 ```
 
 ### When to Use What
@@ -422,7 +422,7 @@ const [userZoom, setUserZoom] = useState(1.0);
 - Need for manual zoom controls (wait for user feedback)
 
 **Rejected Approaches:**
-- ❌ Traditional breakpoints (contradicts \"no breakpoints\" requirement)
+- ❌ Traditional breakpoints (contradicts "no breakpoints" requirement)
 - ❌ Transform scale() (causes blurry text, layout issues)
 - ❌ Viewport units everywhere (too aggressive, hard to control)
 

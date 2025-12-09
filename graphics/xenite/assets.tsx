@@ -1,10 +1,21 @@
 // Graphics asset references for the xenite faction
-// This file provides typed imports for all xenite faction graphics assets
+// Central export hub - imports and re-exports all xenite ship graphics
 
-// Xenite faction assets will be added here
-// Example: export const xeniteShip1 = "path/to/xenite-ship-1.png";
-
-// Export as default for easy importing
-export default {
-  // Assets will be added as needed
-};
+// Import individual ship components
+export { AntlionShip1, AntlionShip0 } from './Antlion';
+export { AntlionArrayShip } from './AntlionArray';
+export { AsteriteShip } from './Asterite';
+export { AsteriteFaceShip } from './AsteriteFace';
+export { BugBreeder4Ship, BugBreeder3Ship, BugBreeder2Ship, BugBreeder1Ship, BugBreederDepletedShip } from './BugBreeder';
+export { ChronoswarmShip } from './Chronoswarm';
+export { DefenseSwarmShip } from './DefenseSwarm';
+export { EvolverShip } from './Evolver';
+export { HellHornetShip } from './HellHornet';
+export { HiveShip } from './Hive';
+export { MantisShip } from './Mantis';
+export { OxiteShip } from './Oxite';
+export { OxiteFaceShip } from './OxiteFace';
+export { QueenShip } from './Queen';
+export { SacrificialPoolShip } from './SacrificialPool';
+export { XeniteShip } from './Xenite';
+export { ZenithShip } from './Zenith';
