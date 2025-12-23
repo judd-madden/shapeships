@@ -1,14 +1,11 @@
 // Integration layer between SpeciesData and GamePhases engine
-// Handles ship power requirements and subphase calculations
+// Handles ship power calculations and damage/healing resolution
 
 import { GameState, PlayerShip } from '../types/GameTypes';
-import { SubPhase } from './GamePhases';
 import { 
   Ship, 
   ShipPower, 
-  getShipById, 
-  getShipsRequiringSubPhase,
-  getPowersForSubPhase 
+  getShipById
 } from '../data/SpeciesData';
 
 export class SpeciesIntegration {
@@ -47,58 +44,6 @@ export class SpeciesIntegration {
     });
     
     return shipData;
-  }
-
-  // Check if any ships in play require a specific subphase
-  static hasShipsRequiringSubPhase(gameState: GameState, subPhase: SubPhase): boolean {
-    const shipsInPlay = this.getShipDataInPlay(gameState);
-    return getShipsRequiringSubPhase(shipsInPlay, subPhase).length > 0;
-  }
-
-  // Get player IDs who have ships requiring a specific subphase
-  static getPlayersWithShipsRequiringSubPhase(gameState: GameState, subPhase: SubPhase): string[] {
-    const playerShips = this.getAllShipsInPlay(gameState);
-    const playersWithRequiredShips = new Set<string>();
-    
-    playerShips.forEach(playerShip => {
-      const shipData = this.getShipData(playerShip);
-      if (shipData) {
-        const hasRequiredPower = shipData.powers.some(power => 
-          power.requiredSubPhases.includes(subPhase)
-        );
-        
-        if (hasRequiredPower) {
-          playersWithRequiredShips.add(playerShip.ownerId);
-        }
-      }
-    });
-    
-    return Array.from(playersWithRequiredShips);
-  }
-
-  // Get all active powers for a specific subphase
-  static getActivePowersForSubPhase(gameState: GameState, subPhase: SubPhase): SubPhasePowerInfo[] {
-    const playerShips = this.getAllShipsInPlay(gameState);
-    const activePowers: SubPhasePowerInfo[] = [];
-    
-    playerShips.forEach(playerShip => {
-      const shipData = this.getShipData(playerShip);
-      if (shipData) {
-        shipData.powers.forEach(power => {
-          if (power.requiredSubPhases.includes(subPhase)) {
-            activePowers.push({
-              playerShip,
-              shipData,
-              power,
-              ownerId: playerShip.ownerId
-            });
-          }
-        });
-      }
-    });
-    
-    // Sort by priority (lower numbers first)
-    return activePowers.sort((a, b) => (a.power.priority || 0) - (b.power.priority || 0));
   }
 
   // Check if a player can copy a ship from another species
@@ -252,18 +197,15 @@ export class SpeciesIntegration {
     return totalEnergyGeneration;
   }
 
-  // Get available Solar Powers for Ancient player in specific subphase
-  static getAvailableSolarPowersForPlayer(gameState: GameState, playerId: string, subPhase: SubPhase) {
+  // Get available Solar Powers for Ancient player
+  static getAvailableSolarPowersForPlayer(gameState: GameState, playerId: string) {
     const player = gameState.players.find(p => p.id === playerId);
     if (!player || player.faction !== 'ancient') return [];
     
     // Import here to avoid circular dependencies
-    const { getAvailableSolarPowers, getSolarPowersForSubPhase } = require('../data/SpeciesData');
+    const { getAvailableSolarPowers } = require('../data/SpeciesData');
     
-    const allSolarPowers = getAvailableSolarPowers('ancient');
-    return allSolarPowers.filter(power => 
-      power.requiredSubPhases.includes(subPhase)
-    );
+    return getAvailableSolarPowers('ancient');
   }
 
   // Check if Ancient player can afford a Solar Power
@@ -329,14 +271,6 @@ export class SpeciesIntegration {
     
     return calculateOptimalUpgradePayment(upgradeCost, playerLines, playerJoiningLines);
   }
-}
-
-// Helper interface for organizing power information by subphase
-export interface SubPhasePowerInfo {
-  playerShip: PlayerShip;
-  shipData: Ship;
-  power: ShipPower;
-  ownerId: string;
 }
 
 export default SpeciesIntegration;

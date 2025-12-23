@@ -83,7 +83,6 @@ export interface PlayerActionState {
 export interface PhaseActionState {
   phase: string;              // Current phase name
   phaseIndex: number;
-  subPhase?: number;          // SubPhase enum value if applicable
   
   playerStates: { [playerId: string]: PlayerActionState };
   

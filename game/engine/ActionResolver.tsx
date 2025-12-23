@@ -13,7 +13,6 @@ import {
   ActionOption,
   ActionEffect
 } from '../types/ActionTypes';
-import { SubPhase } from './GamePhases';
 import { Ship } from '../types/ShipTypes';
 import SpeciesIntegration from './SpeciesIntegration';
 
@@ -36,9 +35,11 @@ export class ActionResolver {
     gameState: GameState,
     currentPhase: string,
     phaseIndex: number,
-    subPhase?: number,
     completedActions: CompletedAction[] = []
   ): PhaseActionState {
+    
+    // Ensure completedActions is an array
+    const safeCompletedActions = Array.isArray(completedActions) ? completedActions : [];
     
     const playerStates: { [playerId: string]: PlayerActionState } = {};
     
@@ -50,11 +51,10 @@ export class ActionResolver {
       const pendingActions = this.calculatePlayerPendingActions(
         gameState,
         player.id,
-        subPhase,
-        completedActions.filter(a => a.playerId === player.id)
+        safeCompletedActions.filter(a => a.playerId === player.id)
       );
       
-      const playerCompletedActions = completedActions.filter(a => a.playerId === player.id);
+      const playerCompletedActions = safeCompletedActions.filter(a => a.playerId === player.id);
       const mandatoryActions = pendingActions.filter(a => a.mandatory);
       const hasMandatory = mandatoryActions.length > 0;
       
@@ -88,12 +88,11 @@ export class ActionResolver {
     }
     
     // Determine if this is an automatic phase
-    const isAutomatic = this.isAutomaticPhase(subPhase);
+    const isAutomatic = this.isAutomaticPhase(phaseIndex);
     
     return {
       phase: currentPhase,
       phaseIndex,
-      subPhase,
       playerStates,
       canAdvancePhase: allPlayersReady,
       blockingReason,
@@ -111,11 +110,8 @@ export class ActionResolver {
   private calculatePlayerPendingActions(
     gameState: GameState,
     playerId: string,
-    subPhase: number | undefined,
     completedActions: CompletedAction[]
   ): PendingAction[] {
-    
-    if (!subPhase) return [];
     
     const playerShips = gameState.gameData?.ships?.[playerId] || [];
     const pendingActions: PendingAction[] = [];
@@ -123,436 +119,20 @@ export class ActionResolver {
     // Get completed action IDs for quick lookup
     const completedActionIds = new Set(completedActions.map(a => a.actionId));
     
-    switch (subPhase) {
-      case SubPhase.CHARGE_DECLARATION:
-        pendingActions.push(
-          ...this.calculateChargeActions(playerId, playerShips, completedActionIds)
-        );
-        break;
-        
-      case SubPhase.DRAWING:
-        pendingActions.push(
-          ...this.calculateDrawingPhaseActions(gameState, playerId, playerShips, completedActionIds)
-        );
-        break;
-        
-      case SubPhase.SHIPS_THAT_BUILD:
-        pendingActions.push(
-          ...this.calculateShipBuildActions(gameState, playerId, playerShips, completedActionIds)
-        );
-        break;
-        
-      case SubPhase.DICE_MANIPULATION:
-        pendingActions.push(
-          ...this.calculateDiceManipulationActions(playerId, playerShips, completedActionIds)
-        );
-        break;
-        
-      // Other phases will be implemented as needed
-      default:
-        break;
-    }
+    // TODO: Calculate actions based on new phase system - old phase indices removed
+    // This will be reimplemented when ship powers are defined
     
     return pendingActions;
   }
   
   /**
-   * Calculate charge-based actions (Charge Declaration phase)
-   */
-  private calculateChargeActions(
-    playerId: string,
-    playerShips: PlayerShip[],
-    completedActionIds: Set<string>
-  ): PendingAction[] {
-    
-    const actions: PendingAction[] = [];
-    
-    for (const ship of playerShips) {
-      if (ship.isDestroyed || ship.isConsumedInUpgrade) continue;
-      
-      const shipData = SpeciesIntegration.getShipData(ship);
-      if (!shipData) continue;
-      
-      // Check if ship has charge-based powers in Charge Declaration phase
-      const chargeActions = this.getShipChargeActions(ship, shipData, playerId);
-      
-      for (const action of chargeActions) {
-        if (!completedActionIds.has(action.actionId)) {
-          actions.push(action);
-        }
-      }
-    }
-    
-    return actions;
-  }
-  
-  /**
-   * Get charge actions for a specific ship
-   */
-  private getShipChargeActions(
-    ship: PlayerShip,
-    shipData: Ship,
-    playerId: string
-  ): PendingAction[] {
-    
-    const actions: PendingAction[] = [];
-    
-    // Check if ship has charges
-    if (!shipData.charges || shipData.charges === 0) return actions;
-    
-    // Get current charge count from ship state (TODO: add charge tracking to PlayerShip)
-    const currentCharges = shipData.charges; // Will be dynamic later
-    
-    if (currentCharges === 0) return actions; // No charges left
-    
-    // Check each power for Charge Declaration subphase
-    const powers = shipData.powers || [];
-    const chargePowers = powers.filter(p => 
-      p.subphase === 'Charge Declaration' && 
-      p.description.includes('use 1 charge')
-    );
-    
-    if (chargePowers.length === 0) return actions;
-    
-    // Build options for this charge action
-    const options: ActionOption[] = [];
-    
-    for (const power of chargePowers) {
-      // Parse power description to determine effect
-      const effect = this.parsePowerEffect(power.description);
-      
-      options.push({
-        id: effect.type.toLowerCase() + '_' + (effect.value || 0),
-        label: this.formatPowerLabel(power.description),
-        effect,
-        cost: { charges: 1 }
-      });
-    }
-    
-    // Always add skip option for optional charges
-    options.push({
-      id: 'skip',
-      label: "Don't use charge",
-      effect: undefined
-    });
-    
-    actions.push({
-      actionId: `charge-${ship.id}`,
-      playerId,
-      type: 'CHARGE_USE',
-      shipId: ship.id,
-      mandatory: false, // Charges are optional
-      options,
-      metadata: {
-        charges: currentCharges,
-        maxCharges: shipData.charges,
-        description: shipData.name,
-        canUseMultiple: currentCharges > 1 && chargePowers.length > 1
-      }
-    });
-    
-    return actions;
-  }
-  
-  /**
-   * Calculate actions for Drawing phase (Frigate trigger selection)
-   */
-  private calculateDrawingPhaseActions(
-    gameState: GameState,
-    playerId: string,
-    playerShips: PlayerShip[],
-    completedActionIds: Set<string>
-  ): PendingAction[] {
-    
-    const actions: PendingAction[] = [];
-    
-    for (const ship of playerShips) {
-      if (ship.isDestroyed || ship.isConsumedInUpgrade) continue;
-      
-      const shipData = SpeciesIntegration.getShipData(ship);
-      if (!shipData) continue;
-      
-      // Check for Frigate - needs trigger number selection on first build
-      if (shipData.id === 'FRI') {
-        // TODO: Check if trigger number already set (need to add to ship state)
-        const hasTriggerNumber = false; // Will check ship metadata later
-        
-        if (!hasTriggerNumber) {
-          const actionId = `frigate-trigger-${ship.id}`;
-          if (!completedActionIds.has(actionId)) {
-            actions.push({
-              actionId,
-              playerId,
-              type: 'TRIGGER_SELECTION',
-              shipId: ship.id,
-              mandatory: true, // Must choose trigger number
-              options: [
-                { id: 'trigger_1', label: '1' },
-                { id: 'trigger_2', label: '2' },
-                { id: 'trigger_3', label: '3' },
-                { id: 'trigger_4', label: '4' },
-                { id: 'trigger_5', label: '5' },
-                { id: 'trigger_6', label: '6' }
-              ],
-              metadata: {
-                description: 'Choose trigger number for Frigate'
-              }
-            });
-          }
-        }
-      }
-      
-      // Check for Evolver - can transform Xenite to Oxite/Asterite
-      if (shipData.id === 'EVO') {
-        // Check if player has any Xenites available
-        const hasXenites = playerShips.some(s => {
-          const sd = SpeciesIntegration.getShipData(s);
-          return sd?.id === 'XEN' && !s.isDestroyed && !s.isConsumedInUpgrade;
-        });
-        
-        if (hasXenites) {
-          const actionId = `evolver-transform-${ship.id}`;
-          if (!completedActionIds.has(actionId)) {
-            actions.push({
-              actionId,
-              playerId,
-              type: 'SHIP_TRANSFORM',
-              shipId: ship.id,
-              mandatory: false, // Optional transformation
-              options: [
-                { 
-                  id: 'transform_oxite', 
-                  label: 'Transform Xenite to Oxite',
-                  effect: { type: 'TRANSFORM_SHIP', targetShipType: 'OXI' }
-                },
-                { 
-                  id: 'transform_asterite', 
-                  label: 'Transform Xenite to Asterite',
-                  effect: { type: 'TRANSFORM_SHIP', targetShipType: 'AST' }
-                },
-                { id: 'skip', label: 'Don\'t transform' }
-              ],
-              metadata: {
-                description: 'Transform a Xenite (optional)'
-              }
-            });
-          }
-        }
-      }
-    }
-    
-    return actions;
-  }
-  
-  /**
-   * Calculate ship building actions (Ships That Build phase)
-   */
-  private calculateShipBuildActions(
-    gameState: GameState,
-    playerId: string,
-    playerShips: PlayerShip[],
-    completedActionIds: Set<string>
-  ): PendingAction[] {
-    
-    const actions: PendingAction[] = [];
-    
-    // Ships that can build other ships (Carrier, Bug Breeder, etc.)
-    for (const ship of playerShips) {
-      if (ship.isDestroyed || ship.isConsumedInUpgrade) continue;
-      
-      const shipData = SpeciesIntegration.getShipData(ship);
-      if (!shipData) continue;
-      
-      // Check for "Ships That Build" powers
-      const buildPowers = (shipData.powers || []).filter(p => 
-        p.subphase === 'Ships That Build'
-      );
-      
-      if (buildPowers.length === 0) continue;
-      
-      // Carrier - can make Defender (1 charge) or Fighter (2 charges)
-      if (shipData.id === 'CAR') {
-        const currentCharges = shipData.charges || 0; // TODO: get from ship state
-        
-        if (currentCharges > 0) {
-          const actionId = `carrier-build-${ship.id}`;
-          if (!completedActionIds.has(actionId)) {
-            const options: ActionOption[] = [];
-            
-            if (currentCharges >= 1) {
-              options.push({
-                id: 'build_defender',
-                label: 'Make a Defender (use 1 charge)',
-                effect: { type: 'BUILD_SHIP', targetShipType: 'DEF' },
-                cost: { charges: 1 }
-              });
-            }
-            
-            if (currentCharges >= 2) {
-              options.push({
-                id: 'build_fighter',
-                label: 'Make a Fighter (use 2 charges)',
-                effect: { type: 'BUILD_SHIP', targetShipType: 'FIG' },
-                cost: { charges: 2 }
-              });
-            }
-            
-            options.push({ id: 'skip', label: 'Don\'t build' });
-            
-            actions.push({
-              actionId,
-              playerId,
-              type: 'SHIP_BUILD',
-              shipId: ship.id,
-              mandatory: false,
-              options,
-              metadata: {
-                charges: currentCharges,
-                maxCharges: shipData.charges,
-                description: 'Carrier ship building',
-                canUseMultiple: true // Can use multiple times until charges depleted
-              }
-            });
-          }
-        }
-      }
-      
-      // Bug Breeder - can make Xenite (1 charge each)
-      if (shipData.id === 'BUG') {
-        const currentCharges = shipData.charges || 0;
-        
-        if (currentCharges > 0) {
-          const actionId = `bug-breeder-build-${ship.id}`;
-          if (!completedActionIds.has(actionId)) {
-            actions.push({
-              actionId,
-              playerId,
-              type: 'SHIP_BUILD',
-              shipId: ship.id,
-              mandatory: false,
-              options: [
-                {
-                  id: 'build_xenite',
-                  label: 'Make a Xenite (use 1 charge)',
-                  effect: { type: 'BUILD_SHIP', targetShipType: 'XEN' },
-                  cost: { charges: 1 }
-                },
-                { id: 'skip', label: 'Don\'t build' }
-              ],
-              metadata: {
-                charges: currentCharges,
-                maxCharges: shipData.charges,
-                description: 'Bug Breeder ship building',
-                canUseMultiple: true
-              }
-            });
-          }
-        }
-      }
-    }
-    
-    return actions;
-  }
-  
-  /**
-   * Calculate dice manipulation actions (Leviathan, Ark of Knowledge)
-   */
-  private calculateDiceManipulationActions(
-    playerId: string,
-    playerShips: PlayerShip[],
-    completedActionIds: Set<string>
-  ): PendingAction[] {
-    
-    const actions: PendingAction[] = [];
-    
-    // Check for Ark of Knowledge - can reroll dice
-    const arksOfKnowledge = playerShips.filter(s => {
-      const shipData = SpeciesIntegration.getShipData(s);
-      return shipData?.id === 'KNO' && !s.isDestroyed && !s.isConsumedInUpgrade;
-    });
-    
-    if (arksOfKnowledge.length > 0) {
-      const actionId = `dice-reroll-${playerId}`;
-      if (!completedActionIds.has(actionId)) {
-        const maxRerolls = Math.min(arksOfKnowledge.length, 2); // Max 2 rerolls
-        
-        actions.push({
-          actionId,
-          playerId,
-          type: 'DICE_REROLL',
-          mandatory: false,
-          options: [
-            {
-              id: 'reroll',
-              label: `Reroll dice (${maxRerolls} reroll${maxRerolls > 1 ? 's' : ''} available)`,
-              effect: { type: 'DICE_REROLL' }
-            },
-            { id: 'skip', label: 'Don\'t reroll' }
-          ],
-          metadata: {
-            description: 'Ark of Knowledge dice reroll',
-            maxUses: maxRerolls
-          }
-        });
-      }
-    }
-    
-    return actions;
-  }
-  
-  /**
-   * Parse power description to determine effect type and value
-   */
-  private parsePowerEffect(description: string): ActionEffect {
-    // Simple parsing - will be enhanced later
-    if (description.toLowerCase().includes('heal')) {
-      const match = description.match(/heal\s+(\d+)/i);
-      return {
-        type: 'HEALING',
-        value: match ? parseInt(match[1]) : 0,
-        description
-      };
-    }
-    
-    if (description.toLowerCase().includes('deal') && description.toLowerCase().includes('damage')) {
-      const match = description.match(/deal\s+(\d+)\s+damage/i);
-      return {
-        type: 'DAMAGE',
-        value: match ? parseInt(match[1]) : 0,
-        description
-      };
-    }
-    
-    return {
-      type: 'DAMAGE',
-      value: 0,
-      description
-    };
-  }
-  
-  /**
-   * Format power description for display
-   */
-  private formatPowerLabel(description: string): string {
-    // Remove "(use 1 charge)" text for cleaner labels
-    return description.replace(/\s*\(use \d+ charges?\)/i, '').trim();
-  }
-  
-  /**
    * Check if a phase is automatic (no player input required)
    */
-  private isAutomaticPhase(subPhase: number | undefined): boolean {
-    if (!subPhase) return false;
-    
+  private isAutomaticPhase(phaseIndex: number): boolean {
     // Automatic phases: Roll Dice, Line Generation, Upon Completion, Automatic
-    const automaticPhases = [
-      SubPhase.ROLL_DICE,
-      SubPhase.LINE_GENERATION,
-      SubPhase.UPON_COMPLETION,
-      SubPhase.AUTOMATIC
-    ];
+    const automaticPhases = [1, 2, 3, 4]; // Example indices for automatic phases
     
-    return automaticPhases.includes(subPhase);
+    return automaticPhases.includes(phaseIndex);
   }
   
   /**
@@ -703,7 +283,7 @@ export class ActionResolver {
    */
   autoResolvePhase(
     gameState: GameState,
-    subPhase: number
+    phaseIndex: number
   ): {
     effectsQueued: QueuedEffect[];
     autoAdvance: boolean;
@@ -713,7 +293,7 @@ export class ActionResolver {
     const timestamp = Date.now();
     
     // Automatic phase - calculate all automatic effects
-    if (subPhase === SubPhase.AUTOMATIC) {
+    if (phaseIndex === 4) { // Example index for automatic phase
       const activePlayers = gameState.players.filter(p => p.role === 'player');
       
       for (const player of activePlayers) {
@@ -755,7 +335,7 @@ export class ActionResolver {
     
     return {
       effectsQueued,
-      autoAdvance: this.isAutomaticPhase(subPhase)
+      autoAdvance: this.isAutomaticPhase(phaseIndex)
     };
   }
   

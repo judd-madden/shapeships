@@ -10,7 +10,7 @@ Successfully reorganized Shapeships codebase to separate test/development files 
 ### 1. Created `/game/test/` Directory
 New home for all development and testing interfaces:
 - `GameTestInterface.tsx` - Simplified 4-phase multiplayer test
-- `FullPhaseTest.tsx` - Complete 14-subphase system test with ActionResolver
+- `FullPhaseTest.tsx` - Complete 3-phase system test (Build, Battle, End of Turn Resolution) with ActionResolver
 - `ActionResolverExample.tsx` - Example of ActionResolver integration
 - `GameTestReadme.md` - Documentation for Game Test Interface
 - `README.md` - Directory documentation

@@ -376,10 +376,144 @@ class ServerPhaseEngine {
       newGameData = this.startGamePhase(gameData);
     }
     
+    // Handle Battle Phase simultaneous declaration transitions
+    if (currentMajorPhase === 'battle_phase') {
+      const currentStep = gameData.gameData?.turnData?.currentStep;
+      
+      if (currentStep === 'simultaneous_declaration') {
+        // Both players ready → Reveal declarations → Check if any were made
+        newGameData = this.revealDeclarationsAndTransition(gameData);
+      } else if (currentStep === 'conditional_response') {
+        // Both players ready → Reveal responses → Move to End of Turn Resolution
+        newGameData = this.revealResponsesAndResolve(gameData);
+      }
+    }
+    
     // Clear readiness when advancing
     newGameData = this.clearPlayerReadiness(newGameData);
     
     return newGameData;
+  }
+  
+  // Reveal simultaneous declarations and transition appropriately
+  static revealDeclarationsAndTransition(gameData) {
+    const turnData = gameData.gameData?.turnData;
+    if (!turnData) return gameData;
+    
+    // Check if any declarations were made
+    const pendingCharges = turnData.pendingChargeDeclarations || {};
+    const pendingSolar = turnData.pendingSOLARPowerDeclarations || {};
+    
+    let anyDeclarations = false;
+    for (const playerId in pendingCharges) {
+      if (pendingCharges[playerId] && pendingCharges[playerId].length > 0) {
+        anyDeclarations = true;
+        break;
+      }
+    }
+    if (!anyDeclarations) {
+      for (const playerId in pendingSolar) {
+        if (pendingSolar[playerId] && pendingSolar[playerId].length > 0) {
+          anyDeclarations = true;
+          break;
+        }
+      }
+    }
+    
+    // Merge pending declarations into main arrays
+    const chargeDeclarations = turnData.chargeDeclarations || [];
+    const solarPowerDeclarations = turnData.solarPowerDeclarations || [];
+    
+    for (const playerId in pendingCharges) {
+      if (pendingCharges[playerId]) {
+        chargeDeclarations.push(...pendingCharges[playerId]);
+      }
+    }
+    
+    for (const playerId in pendingSolar) {
+      if (pendingSolar[playerId]) {
+        solarPowerDeclarations.push(...pendingSolar[playerId]);
+      }
+    }
+    
+    if (!anyDeclarations) {
+      // No declarations → Skip to End of Turn Resolution
+      return {
+        ...gameData,
+        gameData: {
+          ...gameData.gameData,
+          turnData: {
+            ...turnData,
+            currentMajorPhase: 'end_of_turn_resolution',
+            currentStep: null,
+            chargeDeclarations,
+            solarPowerDeclarations,
+            pendingChargeDeclarations: {},
+            pendingSOLARPowerDeclarations: {},
+            anyDeclarationsMade: false
+          }
+        }
+      };
+    } else {
+      // Declarations made → Move to Conditional Response
+      return {
+        ...gameData,
+        gameData: {
+          ...gameData.gameData,
+          turnData: {
+            ...turnData,
+            currentMajorPhase: 'battle_phase',
+            currentStep: 'conditional_response',
+            chargeDeclarations,
+            solarPowerDeclarations,
+            pendingChargeDeclarations: {}, // Clear for response step
+            pendingSOLARPowerDeclarations: {}, // Clear for response step
+            anyDeclarationsMade: true
+          }
+        }
+      };
+    }
+  }
+  
+  // Reveal responses and move to End of Turn Resolution
+  static revealResponsesAndResolve(gameData) {
+    const turnData = gameData.gameData?.turnData;
+    if (!turnData) return gameData;
+    
+    // Merge pending responses into main arrays
+    const pendingCharges = turnData.pendingChargeDeclarations || {};
+    const pendingSolar = turnData.pendingSOLARPowerDeclarations || {};
+    
+    const chargeDeclarations = turnData.chargeDeclarations || [];
+    const solarPowerDeclarations = turnData.solarPowerDeclarations || [];
+    
+    for (const playerId in pendingCharges) {
+      if (pendingCharges[playerId]) {
+        chargeDeclarations.push(...pendingCharges[playerId]);
+      }
+    }
+    
+    for (const playerId in pendingSolar) {
+      if (pendingSolar[playerId]) {
+        solarPowerDeclarations.push(...pendingSolar[playerId]);
+      }
+    }
+    
+    return {
+      ...gameData,
+      gameData: {
+        ...gameData.gameData,
+        turnData: {
+          ...turnData,
+          currentMajorPhase: 'end_of_turn_resolution',
+          currentStep: null,
+          chargeDeclarations,
+          solarPowerDeclarations,
+          pendingChargeDeclarations: {},
+          pendingSOLARPowerDeclarations: {}
+        }
+      }
+    };
   }
   
   // Start the actual game after setup
@@ -1094,6 +1228,7 @@ app.post("/make-server-825e19ab/switch-role/:gameId", async (c) => {
 app.get("/make-server-825e19ab/game-state/:gameId", async (c) => {
   try {
     const gameId = c.req.param('gameId');
+    const requestingPlayerId = c.req.query('playerId'); // Optional: filter hidden data by player
     let gameData = await kvGet(`game_${gameId}`);
     
     if (!gameData) {
@@ -1132,6 +1267,63 @@ app.get("/make-server-825e19ab/game-state/:gameId", async (c) => {
         isReady: isReadyForCurrentPhase || false
       };
     });
+
+    // SECURITY: Filter pending declarations to only show requesting player's own pending data
+    if (requestingPlayerId && gameData.gameData?.turnData) {
+      const turnData = gameData.gameData.turnData;
+      
+      // Filter pending charge declarations
+      if (turnData.pendingChargeDeclarations) {
+        const filteredChargeDeclarations = {};
+        // Only include requesting player's pending declarations
+        if (turnData.pendingChargeDeclarations[requestingPlayerId]) {
+          filteredChargeDeclarations[requestingPlayerId] = turnData.pendingChargeDeclarations[requestingPlayerId];
+        }
+        // For opponent, just show that they have pending declarations (count only)
+        for (const playerId in turnData.pendingChargeDeclarations) {
+          if (playerId !== requestingPlayerId) {
+            filteredChargeDeclarations[playerId] = []; // Don't reveal opponent's declarations
+          }
+        }
+        
+        gameData = {
+          ...gameData,
+          gameData: {
+            ...gameData.gameData,
+            turnData: {
+              ...turnData,
+              pendingChargeDeclarations: filteredChargeDeclarations
+            }
+          }
+        };
+      }
+      
+      // Filter pending solar power declarations
+      if (turnData.pendingSOLARPowerDeclarations) {
+        const filteredSolarDeclarations = {};
+        // Only include requesting player's pending declarations
+        if (turnData.pendingSOLARPowerDeclarations[requestingPlayerId]) {
+          filteredSolarDeclarations[requestingPlayerId] = turnData.pendingSOLARPowerDeclarations[requestingPlayerId];
+        }
+        // For opponent, just show that they have pending declarations (count only)
+        for (const playerId in turnData.pendingSOLARPowerDeclarations) {
+          if (playerId !== requestingPlayerId) {
+            filteredSolarDeclarations[playerId] = []; // Don't reveal opponent's declarations
+          }
+        }
+        
+        gameData = {
+          ...gameData,
+          gameData: {
+            ...gameData.gameData,
+            turnData: {
+              ...gameData.gameData.turnData,
+              pendingSOLARPowerDeclarations: filteredSolarDeclarations
+            }
+          }
+        };
+      }
+    }
 
     return c.json(gameData);
 
@@ -1551,6 +1743,99 @@ app.post("/make-server-825e19ab/send-action/:gameId", async (c) => {
         responseMessage = "Message sent";
         break;
 
+      case 'declare_charge':
+        // Only players can declare charges
+        if (originalPlayerRole !== 'player') {
+          return c.json({ error: "Only active players can declare charges" }, 403);
+        }
+        
+        // Initialize pending declarations if needed
+        if (!gameData.gameData) gameData.gameData = {};
+        if (!gameData.gameData.turnData) gameData.gameData.turnData = {};
+        if (!gameData.gameData.turnData.pendingChargeDeclarations) {
+          gameData.gameData.turnData.pendingChargeDeclarations = {};
+        }
+        
+        // Check if player is already ready for current step (cannot modify after ready)
+        const currentStepCharge = gameData.gameData?.turnData?.currentStep;
+        const chargeReadiness = (gameData.gameData?.phaseReadiness || []).find(r => r.playerId === playerId);
+        if (chargeReadiness?.isReady && chargeReadiness?.currentStep === currentStepCharge) {
+          return c.json({ error: "Cannot declare charges after marking ready" }, 400);
+        }
+        
+        // Create charge declaration
+        const chargeDeclaration = {
+          playerId,
+          shipId: content.shipId,
+          powerIndex: content.powerIndex || 0,
+          targetPlayerId: content.targetPlayerId,
+          targetShipId: content.targetShipId,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Add to player's pending declarations (hidden from opponent)
+        if (!gameData.gameData.turnData.pendingChargeDeclarations[playerId]) {
+          gameData.gameData.turnData.pendingChargeDeclarations[playerId] = [];
+        }
+        gameData.gameData.turnData.pendingChargeDeclarations[playerId].push(chargeDeclaration);
+        
+        logContent = `declared a charge (hidden)`;
+        responseMessage = 'Charge declaration added (hidden from opponent)';
+        break;
+
+      case 'use_solar_power':
+        // Only players can use solar powers
+        if (originalPlayerRole !== 'player') {
+          return c.json({ error: "Only active players can use solar powers" }, 403);
+        }
+        
+        // Initialize pending declarations if needed
+        if (!gameData.gameData) gameData.gameData = {};
+        if (!gameData.gameData.turnData) gameData.gameData.turnData = {};
+        if (!gameData.gameData.turnData.pendingSOLARPowerDeclarations) {
+          gameData.gameData.turnData.pendingSOLARPowerDeclarations = {};
+        }
+        
+        // Check if player is already ready for current step
+        const currentStepSolar = gameData.gameData?.turnData?.currentStep;
+        const solarReadiness = (gameData.gameData?.phaseReadiness || []).find(r => r.playerId === playerId);
+        if (solarReadiness?.isReady && solarReadiness?.currentStep === currentStepSolar) {
+          return c.json({ error: "Cannot use solar powers after marking ready" }, 400);
+        }
+        
+        // Create solar power declaration
+        const solarDeclaration = {
+          playerId,
+          powerType: content.powerType || 'unknown',
+          energyCost: content.energyCost || {},
+          targetPlayerId: content.targetPlayerId,
+          targetShipId: content.targetShipId,
+          cubeRepeated: content.cubeRepeated || false,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Add to player's pending declarations (hidden from opponent)
+        if (!gameData.gameData.turnData.pendingSOLARPowerDeclarations[playerId]) {
+          gameData.gameData.turnData.pendingSOLARPowerDeclarations[playerId] = [];
+        }
+        gameData.gameData.turnData.pendingSOLARPowerDeclarations[playerId].push(solarDeclaration);
+        
+        logContent = `used a solar power (hidden)`;
+        responseMessage = 'Solar power declaration added (hidden from opponent)';
+        break;
+
+      case 'pass':
+        // Only players can pass
+        if (originalPlayerRole !== 'player') {
+          return c.json({ error: "Only active players can pass" }, 403);
+        }
+        
+        // Pass means no declarations - just mark ready
+        logContent = 'passed without declaring';
+        responseMessage = 'Passed - no declarations made';
+        // This will trigger setPlayerReady via set_ready action or explicit ready button
+        break;
+
       default:
         console.log("Unhandled action type:", actionType);
         logContent = typeof content === 'string' ? content : JSON.stringify(content);
@@ -1813,7 +2098,7 @@ app.get("/make-server-825e19ab/endpoints", (c) => {
     ],
     timestamp: new Date().toISOString(),
     features: [
-      "Sophisticated 14-subphase game engine",
+      "Sophisticated 3-phase game engine (Build, Battle, End of Turn Resolution)",
       "Automatic dice rolling with shared results",
       "Both players ready detection",
       "Spectator support with role switching",

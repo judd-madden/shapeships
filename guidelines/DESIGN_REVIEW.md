@@ -14,31 +14,15 @@ This document captures the comprehensive design review conducted before finalizi
 
 ## 🎯 Game Rules Architecture Review
 
-### Turn Structure (Implemented)
+### 3-Phase Turn System
 
-**3 Major Phases:**
-1. **BUILD PHASE** - Subphases 1-7
-2. **BATTLE PHASE** - Subphases 8-13  
-3. **HEALTH RESOLUTION** - Apply all damage/healing
-
-### 14 Subphases System
-
-**BUILD PHASE (1-7):**
+**BUILD PHASE (Steps 1-6):**
 1. **Roll Dice** `[always run]` - Automatic d6 for all players
-2. **Dice Manipulation** `[conditional]` - Ships like Ark of Knowledge can reroll
+2. **Dice Manipulation** `[conditional]` - Leviathan, Ark of Knowledge
 3. **Line Generation** `[always run]` - Add dice + bonus lines + saved lines
 4. **Ships That Build** `[conditional]` - Ships build other ships (triggers phase recalculation)
 5. **Drawing** `[always run]` - Players spend lines to build ships (triggers phase recalculation)
 6. **Upon Completion** `[conditional]` - Powers that trigger when ship is built
-7. **End Build Phase** `[conditional]` - Powers that trigger at end of build phase
-
-**BATTLE PHASE (8-13):**
-8. **First Strike** `[conditional]` - Interceptor and ships with first strike
-9. **Charge Declaration** `[conditional]` - Use charge ships, Ancients use Solar Powers
-10. **Charge Response** `[conditional, only if charges declared]` - Response to charges
-11. **Charge Resolution** `[conditional, only if charges declared]` - Resolve all charges
-12. **Automatic** `[always run]` - Count all ship damage/healing
-13. **End of Battle Phase** `[conditional]` - Powers that trigger at end
 
 ### Key Game Mechanics
 

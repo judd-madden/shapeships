@@ -26,7 +26,7 @@ export function useGameState(gameId: string, playerId: string) {
       
       console.log('Fetching game state for:', gameId);
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/game-state/${gameId}`,
+        `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/game-state/${gameId}?playerId=${playerId}`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
@@ -59,7 +59,7 @@ export function useGameState(gameId: string, playerId: string) {
     } finally {
       setLoading(false);
     }
-  }, [gameId]);
+  }, [gameId, playerId]);
 
   // Send action to server (simplified for testing)
   const sendAction = useCallback(async (actionType: string, content?: any) => {

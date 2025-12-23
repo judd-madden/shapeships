@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { DefenderShip, BattlecruiserShip, CarrierShip6, CarrierShip5, CarrierShip4, CarrierShip3, CarrierShip2, CarrierShip1, CarrierShip0, CommanderShip, DreadnoughtShip, EarthShip, FighterShip, FrigateShip, GuardianShip2, GuardianShip1, GuardianShip0, InterceptorShip1, InterceptorShip0, LeviathanShip, OrbitalShip, ScienceVesselShip, StarshipShip, TacticalCruiserShip } from '../graphics/human/assets';
 import { AntlionShip1, AntlionShip0, AntlionArrayShip, AsteriteShip, AsteriteFaceShip, BugBreeder4Ship, BugBreeder3Ship, BugBreeder2Ship, BugBreeder1Ship, BugBreederDepletedShip, ChronoswarmShip, DefenseSwarmShip, EvolverShip, HellHornetShip, HiveShip, MantisShip, OxiteShip, OxiteFaceShip, QueenShip, SacrificialPoolShip, XeniteShip, ZenithShip } from '../graphics/xenite/assets';
 import { ArkOfDestructionShip, ArkOfDominationShip, ArkOfEntropyShip, ArkOfFuryShip, ArkOfKnowledgeShip, ArkOfPowerShip, ArkOfRedemptionShip, ArkOfTerrorShip, ShipOfAngerShip, ShipOfEquality2Ship, ShipOfEquality1Ship, ShipOfEquality0Ship, ShipOfFamily3Ship, ShipOfFamily2Ship, ShipOfFamily1Ship, ShipOfFamily0Ship, ShipOfFearShip, ShipOfLegacyShip, ShipOfVigorShip, ShipOfWisdom2Ship, ShipOfWisdom1Ship, ShipOfWisdom0Ship } from '../graphics/centaur/assets';
-import { MercuryCore, PlutoCore, QuantumMystic, SolarReserve4, SolarReserve3, SolarReserve2, SolarReserve1, SolarReserve0, Spiral, UranusCore } from '../graphics/ancient/assets';
+import { MercuryCore, PlutoCore, QuantumMystic, SolarReserve4, SolarReserve3, SolarReserve2, SolarReserve1, SolarReserve0, Spiral, UranusCore, Cube } from '../graphics/ancient/assets';
 
 // External URL for space background
 const SPACE_BACKGROUND_URL = 'https://juddmadden.com/shapeships/images/space-background.jpg';
@@ -97,14 +97,15 @@ const SHIP_REGISTRY = {
   ancient: {
     name: 'Ancient',
     ships: [
+      { id: 'cube', name: 'Cube', component: Cube, hasCharges: false },
       { id: 'mercurycore', name: 'Mercury Core', component: MercuryCore, hasCharges: false },
       { id: 'plutocore', name: 'Pluto Core', component: PlutoCore, hasCharges: false },
       { id: 'quantummystic', name: 'Quantum Mystic', component: QuantumMystic, hasCharges: false },
-      { id: 'solarreserve4', name: 'Solar Reserve 4', component: SolarReserve4, hasCharges: false },
-      { id: 'solarreserve3', name: 'Solar Reserve 3', component: SolarReserve3, hasCharges: false },
-      { id: 'solarreserve2', name: 'Solar Reserve 2', component: SolarReserve2, hasCharges: false },
-      { id: 'solarreserve1', name: 'Solar Reserve 1', component: SolarReserve1, hasCharges: false },
-      { id: 'solarreserve0', name: 'Solar Reserve 0', component: SolarReserve0, hasCharges: false },
+      { id: 'solarreserve4', name: 'Solar Reserve 4', component: SolarReserve4, hasCharges: true },
+      { id: 'solarreserve3', name: 'Solar Reserve 3', component: SolarReserve3, hasCharges: true },
+      { id: 'solarreserve2', name: 'Solar Reserve 2', component: SolarReserve2, hasCharges: true },
+      { id: 'solarreserve1', name: 'Solar Reserve 1', component: SolarReserve1, hasCharges: true },
+      { id: 'solarreserve0', name: 'Solar Reserve 0', component: SolarReserve0, hasCharges: true },
       { id: 'spiral', name: 'Spiral', component: Spiral, hasCharges: false },
       { id: 'uranuscore', name: 'Uranus Core', component: UranusCore, hasCharges: false }
     ]

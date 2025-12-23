@@ -1,29 +1,29 @@
-// Full Phase Test - Comprehensive test interface for phase system + action resolution
-// Tests the complete integration of GamePhases + ActionResolver + UI
+// Full Phase Test - Comprehensive test interface for 3-phase system
+// Tests BUILD PHASE → BATTLE PHASE → END OF TURN RESOLUTION with simultaneous declarations
 
 import React, { useState, useEffect } from 'react';
 import { GameState, Player, PlayerShip } from '../types/GameTypes';
-import { useActionResolver } from '../hooks/useActionResolver';
-import { ActionPanel } from '../display/ActionPanel';
-import { ActionResolutionResult, QueuedEffect } from '../types/ActionTypes';
 import { Button } from '../../components/ui/button';
-import { Card } from '../../components/ui/card';
-import { SubPhase, MajorPhase } from '../engine/GamePhases';
-import { ArrowLeft } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
+import { MajorPhase, BuildPhaseStep, BattlePhaseStep } from '../engine/GamePhases';
+import { ArrowLeft, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
 
 interface FullPhaseTestProps {
   initialGameState?: GameState;
-  onBack?: () => void; // Callback to navigate back
+  onBack?: () => void;
 }
 
 /**
  * Full Phase Test Interface
  * 
  * Demonstrates complete integration of:
- * - 14-subphase GamePhases system
- * - ActionResolver for managing player actions
- * - Effect queueing for Health Resolution
- * - Dual-ready synchronization
+ * - 3-phase GamePhases system (Build, Battle, End of Turn Resolution)
+ * - Simultaneous hidden declaration system
+ * - Ready state synchronization
+ * - Effect queueing for End of Turn Resolution
+ * 
+ * This is a comprehensive test of the full game engine
+ * with the new Battle Phase interaction model.
  */
 export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) {
   
@@ -32,159 +32,415 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
     initialGameState || createTestGameState()
   );
   
-  // Phase state
-  const [currentPhaseIndex, setCurrentPhaseIndex] = useState(9); // Start at Charge Declaration
-  const [currentSubPhase, setCurrentSubPhase] = useState<SubPhase>(SubPhase.CHARGE_DECLARATION);
-  const [phaseName, setPhaseName] = useState('Charge Declaration');
-  
-  // Effect queue (accumulated throughout turn, applied in Health Resolution)
-  const [effectQueue, setEffectQueue] = useState<QueuedEffect[]>([]);
-  
   // Current player viewing (for demo - switch between players)
   const [viewingPlayerId, setViewingPlayerId] = useState(gameState.players[0].id);
   
-  // Action resolver integration
-  const {
-    phaseActionState,
-    isLoading,
-    resolveAction,
-    declareReady,
-    canAdvancePhase
-  } = useActionResolver(
-    gameState,
-    phaseName,
-    currentPhaseIndex,
-    currentSubPhase,
-    (result: ActionResolutionResult) => {
-      // Action resolved callback
-      console.log('Action resolved:', result);
-      
-      // Add effects to queue
-      if (result.effectsQueued.length > 0) {
-        setEffectQueue(prev => [...prev, ...result.effectsQueued]);
-      }
-      
-      // Update game state with state changes
-      if (result.stateChanges) {
-        updateGameStateFromChanges(result.stateChanges);
-      }
-    }
-    // Removed onPhaseReady callback - we'll check manually instead
+  // Local pending declarations (hidden until both players ready)
+  const [localPendingCharges, setLocalPendingCharges] = useState<any[]>([]);
+  const [localPendingSolarPowers, setLocalPendingSolarPowers] = useState<any[]>([]);
+  const [isLocalPlayerReady, setIsLocalPlayerReady] = useState(false);
+  
+  // Get current phase info from game state
+  const currentMajorPhase = gameState.gameData?.turnData?.currentMajorPhase || MajorPhase.BUILD_PHASE;
+  const currentStep = gameState.gameData?.turnData?.currentStep || BuildPhaseStep.DICE_ROLL;
+  
+  // Get player readiness
+  const phaseReadiness = (gameState.gameData?.phaseReadiness as any[]) || [];
+  const isPlayerReady = phaseReadiness.some(
+    pr => pr.playerId === viewingPlayerId && pr.isReady && pr.currentStep === currentStep
   );
   
-  // Update game state from action state changes
-  const updateGameStateFromChanges = (stateChanges: any) => {
-    setGameState(prev => {
-      const updated = { ...prev };
-      
-      // Update charges
-      if (stateChanges.chargesUsed) {
-        Object.entries(stateChanges.chargesUsed).forEach(([shipId, chargesUsed]) => {
-          const typedChargesUsed = chargesUsed as number;
-          for (const playerId in updated.gameData.ships) {
-            const ship = updated.gameData.ships[playerId].find(s => s.id === shipId);
-            if (ship && ship.currentCharges !== undefined) {
-              ship.currentCharges -= typedChargesUsed;
-            }
-          }
-        });
-      }
-      
-      // Update ships created
-      if (stateChanges.shipsCreated) {
-        // Will implement ship creation logic
-      }
-      
-      return updated;
-    });
+  // Check if opponent is ready
+  const opponentId = gameState.players.find(p => p.id !== viewingPlayerId)?.id;
+  const isOpponentReady = phaseReadiness.some(
+    pr => pr.playerId === opponentId && pr.isReady && pr.currentStep === currentStep
+  );
+  
+  // Get accumulated effects
+  const accumulatedDamage = gameState.gameData?.turnData?.accumulatedDamage || {};
+  const accumulatedHealing = gameState.gameData?.turnData?.accumulatedHealing || {};
+  
+  // Determine if current step is automatic or requires player action
+  const isAutomaticStep = () => {
+    return currentStep === BuildPhaseStep.DICE_ROLL ||
+           currentStep === BuildPhaseStep.LINE_GENERATION ||
+           currentStep === BuildPhaseStep.END_OF_BUILD ||
+           currentStep === BattlePhaseStep.FIRST_STRIKE;
   };
   
-  // Advance to next phase
-  const advancePhase = () => {
-    // In real implementation, this would follow GamePhases logic
-    // For now, simple linear progression through subphases
+  // Determine if this is a simultaneous declaration step
+  const isSimultaneousStep = () => {
+    return currentStep === BattlePhaseStep.SIMULTANEOUS_DECLARATION ||
+           currentStep === BattlePhaseStep.CONDITIONAL_RESPONSE;
+  };
+  
+  // Auto-advance when both players are ready for non-simultaneous interactive steps
+  useEffect(() => {
+    if (!isAutomaticStep() && !isSimultaneousStep() && isPlayerReady && isOpponentReady) {
+      // Both players ready - advance phase after short delay
+      const timer = setTimeout(() => {
+        advancePhase();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isPlayerReady, isOpponentReady, currentStep]);
+  
+  // Auto-advance when both players are ready for simultaneous declaration steps
+  useEffect(() => {
+    if (isSimultaneousStep() && isPlayerReady && isOpponentReady) {
+      // Both players locked in - reveal and advance after short delay
+      const timer = setTimeout(() => {
+        // Reveal declarations
+        const allCharges = gameState.gameData?.turnData?.chargeDeclarations || [];
+        const allSolar = gameState.gameData?.turnData?.solarPowerDeclarations || [];
+        
+        setGameState(prev => ({
+          ...prev,
+          gameData: {
+            ...prev.gameData,
+            turnData: {
+              ...prev.gameData.turnData,
+              chargeDeclarations: [...allCharges, ...localPendingCharges],
+              solarPowerDeclarations: [...allSolar, ...localPendingSolarPowers],
+              anyDeclarationsMade: localPendingCharges.length > 0 || localPendingSolarPowers.length > 0
+            }
+          }
+        }));
+        
+        // Clear pending
+        setLocalPendingCharges([]);
+        setLocalPendingSolarPowers([]);
+        setIsLocalPlayerReady(false);
+        
+        // Advance to next step
+        setTimeout(() => {
+          advancePhase();
+        }, 1000);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isPlayerReady, isOpponentReady, currentStep, isSimultaneousStep]);
+  
+  // Handle declaring a charge (hidden)
+  const handleDeclareCharge = (shipId: string, powerIndex: number) => {
+    if (isPlayerReady) {
+      alert('You have already locked in your declarations!');
+      return;
+    }
     
-    const nextSubPhase = currentSubPhase + 1;
+    const newDeclaration = {
+      playerId: viewingPlayerId,
+      shipId,
+      powerIndex,
+      timestamp: new Date().toISOString()
+    };
     
-    if (nextSubPhase > SubPhase.END_OF_BATTLE_PHASE) {
-      // Move to Health Resolution
-      alert('Turn complete! Applying effects...');
-      applyQueuedEffects();
-      resetForNextTurn();
-    } else {
-      setCurrentSubPhase(nextSubPhase);
-      setCurrentPhaseIndex(currentPhaseIndex + 1);
-      setPhaseName(getSubPhaseName(nextSubPhase));
+    setLocalPendingCharges(prev => [...prev, newDeclaration]);
+  };
+  
+  // Handle declaring a solar power (hidden)
+  const handleDeclareSolarPower = (powerType: string, energyCost: any) => {
+    if (isPlayerReady) {
+      alert('You have already locked in your declarations!');
+      return;
+    }
+    
+    const newDeclaration = {
+      playerId: viewingPlayerId,
+      powerType,
+      energyCost,
+      timestamp: new Date().toISOString()
+    };
+    
+    setLocalPendingSolarPowers(prev => [...prev, newDeclaration]);
+  };
+  
+  // Lock in declarations (mark ready)
+  const handleLockInDeclarations = () => {
+    if (isPlayerReady) {
+      alert('You have already locked in your declarations!');
+      return;
+    }
+    
+    // In real implementation, this would send to server
+    // For now, just mark locally as ready
+    setIsLocalPlayerReady(true);
+    
+    // Add to phase readiness
+    const updatedReadiness = phaseReadiness.filter(pr => pr.playerId !== viewingPlayerId);
+    updatedReadiness.push({
+      playerId: viewingPlayerId,
+      isReady: true,
+      currentStep: currentStep,
+      declaredAt: new Date().toISOString()
+    });
+    
+    setGameState(prev => ({
+      ...prev,
+      gameData: {
+        ...prev.gameData,
+        phaseReadiness: updatedReadiness
+      }
+    }));
+    
+    // Simulate checking if both ready → reveal
+    setTimeout(() => {
+      checkAndRevealDeclarations();
+    }, 500);
+  };
+  
+  // Check if both players ready, then reveal
+  const checkAndRevealDeclarations = () => {
+    const updatedReadiness = gameState.gameData?.phaseReadiness as any[] || [];
+    const allReady = gameState.players.every(player => {
+      return updatedReadiness.some(pr => 
+        pr.playerId === player.id && pr.isReady && pr.currentStep === currentStep
+      );
+    });
+    
+    if (allReady && isSimultaneousStep()) {
+      // Both ready → Reveal declarations
+      alert('Both players ready! Revealing declarations...');
+      
+      // Merge pending into main declarations
+      const allCharges = gameState.gameData?.turnData?.chargeDeclarations || [];
+      const allSolar = gameState.gameData?.turnData?.solarPowerDeclarations || [];
+      
+      setGameState(prev => ({
+        ...prev,
+        gameData: {
+          ...prev.gameData,
+          turnData: {
+            ...prev.gameData.turnData,
+            chargeDeclarations: [...allCharges, ...localPendingCharges],
+            solarPowerDeclarations: [...allSolar, ...localPendingSolarPowers],
+            anyDeclarationsMade: localPendingCharges.length > 0 || localPendingSolarPowers.length > 0
+          }
+        }
+      }));
+      
+      // Clear pending
+      setLocalPendingCharges([]);
+      setLocalPendingSolarPowers([]);
+      setIsLocalPlayerReady(false);
+      
+      // Advance to next step
+      setTimeout(() => {
+        advancePhase();
+      }, 1000);
     }
   };
   
-  // Apply all queued effects (Health Resolution phase)
+  // Handle ready for non-simultaneous steps
+  const handleDeclareReady = () => {
+    const updatedReadiness = phaseReadiness.filter(pr => pr.playerId !== viewingPlayerId);
+    updatedReadiness.push({
+      playerId: viewingPlayerId,
+      isReady: true,
+      currentStep: currentStep,
+      declaredAt: new Date().toISOString()
+    });
+    
+    setGameState(prev => ({
+      ...prev,
+      gameData: {
+        ...prev.gameData,
+        phaseReadiness: updatedReadiness
+      }
+    }));
+  };
+  
+  // Advance to next phase/step
+  const advancePhase = () => {
+    // Clear readiness for next step
+    const clearedState = {
+      ...gameState,
+      gameData: {
+        ...gameState.gameData,
+        phaseReadiness: []
+      }
+    };
+    
+    // Determine next step based on current phase
+    if (currentMajorPhase === MajorPhase.BUILD_PHASE) {
+      switch (currentStep) {
+        case BuildPhaseStep.DICE_ROLL:
+          setGameState({
+            ...clearedState,
+            gameData: {
+              ...clearedState.gameData,
+              turnData: {
+                ...clearedState.gameData.turnData,
+                currentStep: BuildPhaseStep.LINE_GENERATION,
+                diceRoll: Math.floor(Math.random() * 6) + 1
+              }
+            }
+          });
+          break;
+        case BuildPhaseStep.LINE_GENERATION:
+          setGameState({
+            ...clearedState,
+            gameData: {
+              ...clearedState.gameData,
+              turnData: {
+                ...clearedState.gameData.turnData,
+                currentStep: BuildPhaseStep.SHIPS_THAT_BUILD
+              }
+            }
+          });
+          break;
+        case BuildPhaseStep.SHIPS_THAT_BUILD:
+          setGameState({
+            ...clearedState,
+            gameData: {
+              ...clearedState.gameData,
+              turnData: {
+                ...clearedState.gameData.turnData,
+                currentStep: BuildPhaseStep.DRAWING
+              }
+            }
+          });
+          break;
+        case BuildPhaseStep.DRAWING:
+          setGameState({
+            ...clearedState,
+            gameData: {
+              ...clearedState.gameData,
+              turnData: {
+                ...clearedState.gameData.turnData,
+                currentStep: BuildPhaseStep.END_OF_BUILD
+              }
+            }
+          });
+          break;
+        case BuildPhaseStep.END_OF_BUILD:
+          // Move to Battle Phase
+          setGameState({
+            ...clearedState,
+            gameData: {
+              ...clearedState.gameData,
+              turnData: {
+                ...clearedState.gameData.turnData,
+                currentMajorPhase: MajorPhase.BATTLE_PHASE,
+                currentStep: BattlePhaseStep.FIRST_STRIKE
+              }
+            }
+          });
+          break;
+      }
+    } else if (currentMajorPhase === MajorPhase.BATTLE_PHASE) {
+      switch (currentStep) {
+        case BattlePhaseStep.FIRST_STRIKE:
+          setGameState({
+            ...clearedState,
+            gameData: {
+              ...clearedState.gameData,
+              turnData: {
+                ...clearedState.gameData.turnData,
+                currentStep: BattlePhaseStep.SIMULTANEOUS_DECLARATION
+              }
+            }
+          });
+          break;
+        case BattlePhaseStep.SIMULTANEOUS_DECLARATION:
+          // Check if any declarations were made
+          const anyDeclarations = gameState.gameData?.turnData?.anyDeclarationsMade;
+          if (anyDeclarations) {
+            // Move to response
+            setGameState({
+              ...clearedState,
+              gameData: {
+                ...clearedState.gameData,
+                turnData: {
+                  ...clearedState.gameData.turnData,
+                  currentStep: BattlePhaseStep.CONDITIONAL_RESPONSE,
+                  anyDeclarationsMade: false // Reset for response step
+                }
+              }
+            });
+          } else {
+            // Skip response, go to End of Turn Resolution
+            setGameState({
+              ...clearedState,
+              gameData: {
+                ...clearedState.gameData,
+                turnData: {
+                  ...clearedState.gameData.turnData,
+                  currentMajorPhase: MajorPhase.END_OF_TURN_RESOLUTION,
+                  currentStep: null
+                }
+              }
+            });
+          }
+          break;
+        case BattlePhaseStep.CONDITIONAL_RESPONSE:
+          // Move to End of Turn Resolution
+          setGameState({
+            ...clearedState,
+            gameData: {
+              ...clearedState.gameData,
+              turnData: {
+                ...clearedState.gameData.turnData,
+                currentMajorPhase: MajorPhase.END_OF_TURN_RESOLUTION,
+                currentStep: null
+              }
+            }
+          });
+          break;
+      }
+    } else if (currentMajorPhase === MajorPhase.END_OF_TURN_RESOLUTION) {
+      // Apply effects and start new turn
+      applyQueuedEffects();
+      resetForNextTurn();
+    }
+  };
+  
+  // Apply all queued effects (End of Turn Resolution)
   const applyQueuedEffects = () => {
-    console.log('Applying queued effects:', effectQueue);
+    console.log('Applying queued effects...');
     
     setGameState(prev => {
       const updated = { ...prev };
       
-      // Apply damage and healing
-      effectQueue.forEach(effect => {
-        const targetPlayer = updated.players.find(p => p.id === effect.targetPlayerId);
-        if (!targetPlayer) return;
+      // Apply damage and healing to all players
+      updated.players.forEach(player => {
+        const damage = accumulatedDamage[player.id] || 0;
+        const healing = accumulatedHealing[player.id] || 0;
         
-        if (effect.type === 'DAMAGE' && effect.value) {
-          targetPlayer.health = (targetPlayer.health || 100) - effect.value;
-        } else if (effect.type === 'HEALING' && effect.value) {
-          targetPlayer.health = Math.min(
-            (targetPlayer.health || 100) + effect.value,
-            100 // Max health
-          );
-        }
+        const currentHealth = player.health || 25;
+        const newHealth = Math.max(0, Math.min(35, currentHealth - damage + healing));
+        
+        player.health = newHealth;
       });
       
       return updated;
     });
-    
-    // Clear effect queue
-    setEffectQueue([]);
   };
   
   // Reset for next turn
   const resetForNextTurn = () => {
-    setCurrentPhaseIndex(0);
-    setCurrentSubPhase(SubPhase.ROLL_DICE);
-    setPhaseName('Roll Dice');
     setGameState(prev => ({
       ...prev,
-      currentTurn: prev.currentTurn + 1
+      currentTurn: prev.currentTurn + 1,
+      gameData: {
+        ...prev.gameData,
+        turnData: {
+          turnNumber: (prev.gameData?.turnData?.turnNumber || 0) + 1,
+          currentMajorPhase: MajorPhase.BUILD_PHASE,
+          currentStep: BuildPhaseStep.DICE_ROLL,
+          accumulatedDamage: {},
+          accumulatedHealing: {},
+          healthAtTurnStart: {},
+          onceOnlyAutomaticEffects: [],
+          continuousAutomaticShips: [],
+          chargeDeclarations: [],
+          solarPowerDeclarations: [],
+          pendingChargeDeclarations: {},
+          pendingSOLARPowerDeclarations: {}
+        },
+        phaseReadiness: []
+      }
     }));
-  };
-  
-  // Get phase name from SubPhase enum
-  const getSubPhaseName = (subPhase: SubPhase): string => {
-    const names: { [key: number]: string } = {
-      [SubPhase.ROLL_DICE]: 'Roll Dice',
-      [SubPhase.DICE_MANIPULATION]: 'Dice Manipulation',
-      [SubPhase.LINE_GENERATION]: 'Line Generation',
-      [SubPhase.SHIPS_THAT_BUILD]: 'Ships That Build',
-      [SubPhase.DRAWING]: 'Drawing',
-      [SubPhase.UPON_COMPLETION]: 'Upon Completion',
-      [SubPhase.END_BUILD_PHASE]: 'End Build Phase',
-      [SubPhase.FIRST_STRIKE]: 'First Strike',
-      [SubPhase.CHARGE_DECLARATION]: 'Charge Declaration',
-      [SubPhase.CHARGE_RESPONSE]: 'Charge Response',
-      [SubPhase.CHARGE_RESOLUTION]: 'Charge Resolution',
-      [SubPhase.AUTOMATIC]: 'Automatic',
-      [SubPhase.END_OF_BATTLE_PHASE]: 'End of Battle Phase'
-    };
-    return names[subPhase] || 'Unknown Phase';
-  };
-  
-  // Handle manual phase advance (for testing)
-  const handleManualAdvance = () => {
-    if (canAdvancePhase()) {
-      advancePhase();
-    } else {
-      alert('Cannot advance - players not ready');
-    }
   };
   
   // Switch viewing player (for demo)
@@ -192,76 +448,123 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
     const currentIndex = gameState.players.findIndex(p => p.id === viewingPlayerId);
     const nextIndex = (currentIndex + 1) % gameState.players.length;
     setViewingPlayerId(gameState.players[nextIndex].id);
+    
+    // Reset local state when switching
+    setLocalPendingCharges([]);
+    setLocalPendingSolarPowers([]);
+    setIsLocalPlayerReady(false);
   };
   
   const viewingPlayer = gameState.players.find(p => p.id === viewingPlayerId);
+  const opponentPlayer = gameState.players.find(p => p.id !== viewingPlayerId);
+  
+  // Get phase display name
+  const getPhaseDisplayName = () => {
+    if (currentMajorPhase === MajorPhase.BUILD_PHASE) {
+      switch (currentStep) {
+        case BuildPhaseStep.DICE_ROLL: return 'Roll Dice';
+        case BuildPhaseStep.LINE_GENERATION: return 'Line Generation';
+        case BuildPhaseStep.SHIPS_THAT_BUILD: return 'Ships That Build';
+        case BuildPhaseStep.DRAWING: return 'Drawing';
+        case BuildPhaseStep.END_OF_BUILD: return 'End of Build';
+        default: return 'Build Phase';
+      }
+    } else if (currentMajorPhase === MajorPhase.BATTLE_PHASE) {
+      switch (currentStep) {
+        case BattlePhaseStep.FIRST_STRIKE: return 'First Strike';
+        case BattlePhaseStep.SIMULTANEOUS_DECLARATION: return 'Simultaneous Declaration';
+        case BattlePhaseStep.CONDITIONAL_RESPONSE: return 'Conditional Response';
+        default: return 'Battle Phase';
+      }
+    } else if (currentMajorPhase === MajorPhase.END_OF_TURN_RESOLUTION) {
+      return 'End of Turn Resolution';
+    }
+    return 'Unknown Phase';
+  };
   
   return (
-    <div className="min-h-screen bg-shapeships-grey-100 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="container mx-auto p-6 max-w-7xl">
+      <div className="space-y-6">
         
         {/* Header */}
-        <Card className="p-6 bg-shapeships-grey-90 border-shapeships-grey-70">
+        <div className="mb-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               {onBack && (
                 <Button
                   onClick={onBack}
                   variant="outline"
-                  className="bg-shapeships-grey-80 text-shapeships-white border-shapeships-grey-60"
+                  className="mb-4"
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to Dashboard
                 </Button>
               )}
               <div>
-                <h1 className="text-shapeships-white text-2xl mb-2">
-                  Full Phase Test
-                </h1>
-                <p className="text-shapeships-grey-40 text-[rgb(255,255,255)]">
-                  Testing GamePhases + ActionResolver integration
+                <h1>Full Phase Test - 3-Phase System</h1>
+                <p className="text-gray-600">
+                  Testing Build → Battle → End of Turn Resolution with simultaneous declarations
                 </p>
               </div>
             </div>
             <Button
               onClick={switchPlayer}
               variant="outline"
-              className="bg-shapeships-grey-80 text-shapeships-white border-shapeships-grey-60"
             >
-              Switch to {gameState.players.find(p => p.id !== viewingPlayerId)?.name}
+              Switch to {opponentPlayer?.name}
             </Button>
           </div>
-        </Card>
+        </div>
         
         {/* Phase Progress */}
-        <Card className="p-6 bg-shapeships-grey-90 border-shapeships-grey-70">
-          <h2 className="text-shapeships-white mb-4">Phase Progress</h2>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="flex-1">
-              <div className="text-shapeships-grey-40 text-sm mb-1 text-[rgb(255,255,255)]">Turn {gameState.currentTurn}</div>
-              <div className="text-shapeships-white text-xl">
-                Phase {currentPhaseIndex + 1}: {phaseName}
+        <Card>
+          <CardHeader>
+            <CardTitle>Phase Progress</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <div className="text-gray-600 text-sm mb-1">Turn {gameState.currentTurn}</div>
+                <div className="text-lg">
+                  {currentMajorPhase.toUpperCase().replace(/_/g, ' ')}
+                </div>
+                <div className="text-gray-600 text-sm mt-1">
+                  {getPhaseDisplayName()}
+                </div>
               </div>
-              <div className="text-shapeships-grey-40 text-sm mt-1 text-[rgb(255,255,255)]">
-                SubPhase {currentSubPhase} of 14
+              {!isAutomaticStep() && !isSimultaneousStep() && (
+                <Button
+                  onClick={handleDeclareReady}
+                  disabled={isPlayerReady}
+                >
+                  {isPlayerReady ? 'Ready ✓' : 'Declare Ready'}
+                </Button>
+              )}
+              {isAutomaticStep() && (
+                <Button
+                  onClick={advancePhase}
+                >
+                  Auto-Advance →
+                </Button>
+              )}
+            </div>
+            
+            {/* Readiness Status */}
+            <div className="flex gap-4 pt-4 border-t">
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${isPlayerReady ? 'bg-green-600' : 'bg-gray-300'}`} />
+                <span className="text-sm">
+                  {viewingPlayer?.name}: {isPlayerReady ? 'Ready' : 'Not Ready'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${isOpponentReady ? 'bg-green-600' : 'bg-gray-300'}`} />
+                <span className="text-sm">
+                  {opponentPlayer?.name}: {isOpponentReady ? 'Ready' : 'Not Ready'}
+                </span>
               </div>
             </div>
-            <Button
-              onClick={handleManualAdvance}
-              disabled={!canAdvancePhase()}
-              className="bg-shapeships-green hover:bg-shapeships-green/80 text-shapeships-white"
-            >
-              {canAdvancePhase() ? 'Advance Phase →' : 'Waiting for Players...'}
-            </Button>
-          </div>
-          
-          {/* Phase progress bar */}
-          <div className="w-full bg-shapeships-grey-80 rounded-full h-2 bg-[rgba(125,125,125,0.30000000000000004)]">
-            <div
-              className="bg-shapeships-blue h-2 rounded-full transition-all"
-              style={{ width: `${(currentSubPhase / 14) * 100}%` }}
-            />
-          </div>
+          </CardContent>
         </Card>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -270,188 +573,262 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
           <div className="space-y-6">
             
             {/* Player Info */}
-            <Card className="p-4 bg-shapeships-grey-90 border-shapeships-grey-70">
-              <h3 className="text-shapeships-white mb-3">
-                {viewingPlayer?.name} (You)
-              </h3>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-shapeships-grey-40 text-[rgb(255,255,255)]">Health:</span>
-                  <span className="text-shapeships-white">{viewingPlayer?.health || 100}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-shapeships-grey-40 text-[rgb(255,255,255)]">Lines:</span>
-                  <span className="text-shapeships-white">{viewingPlayer?.lines || 0}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-shapeships-grey-40 text-[rgb(255,255,255)]">Ships:</span>
-                  <span className="text-shapeships-white">
-                    {gameState.gameData.ships[viewingPlayerId]?.length || 0}
+            <Card>
+              <CardHeader>
+                <CardTitle>{viewingPlayer?.name} (You)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Health:</span>
+                  <span>
+                    {viewingPlayer?.health || 25}
+                    {accumulatedDamage[viewingPlayerId] ? (
+                      <span className="text-red-600 ml-2">
+                        -{accumulatedDamage[viewingPlayerId]}
+                      </span>
+                    ) : null}
+                    {accumulatedHealing[viewingPlayerId] ? (
+                      <span className="text-green-600 ml-2">
+                        +{accumulatedHealing[viewingPlayerId]}
+                      </span>
+                    ) : null}
                   </span>
                 </div>
-              </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Lines:</span>
+                  <span>{viewingPlayer?.lines || 0}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">Dice Roll:</span>
+                  <span>
+                    {gameState.gameData?.turnData?.diceRoll || '—'}
+                  </span>
+                </div>
+              </CardContent>
             </Card>
             
             {/* Ship List */}
-            <Card className="p-4 bg-shapeships-grey-90 border-shapeships-grey-70">
-              <h3 className="text-shapeships-white mb-3">Your Ships</h3>
-              <div className="space-y-2">
-                {gameState.gameData.ships[viewingPlayerId]?.map(ship => (
-                  <div
-                    key={ship.id}
-                    className="p-2 bg-shapeships-grey-80 rounded border border-shapeships-grey-60"
-                  >
-                    <div className="flex justify-between items-center">
-                      <span className="text-shapeships-white">{ship.shipId}</span>
-                      {ship.currentCharges !== undefined && (
-                        <span className="text-shapeships-grey-40 text-sm text-[rgb(255,255,255)]">
-                          {ship.currentCharges}/{ship.maxCharges} charges
-                        </span>
-                      )}
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Ships</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {gameState.gameData.ships[viewingPlayerId]?.length > 0 ? (
+                  gameState.gameData.ships[viewingPlayerId].map(ship => (
+                    <div
+                      key={ship.id}
+                      className="p-2 bg-gray-50 rounded border"
+                    >
+                      <div className="flex justify-between items-center text-sm">
+                        <span>{ship.shipId}</span>
+                        {ship.currentCharges !== undefined && (
+                          <span className="text-gray-600">
+                            {ship.currentCharges}/{ship.maxCharges} charges
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )) || (
-                  <p className="text-shapeships-grey-40 text-sm">No ships yet</p>
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-sm">No ships yet</p>
                 )}
-              </div>
+              </CardContent>
             </Card>
             
-            {/* Action Panel */}
-            <ActionPanel
-              phaseActionState={phaseActionState}
-              currentPlayerId={viewingPlayerId}
-              onResolveAction={async (actionId, option) => {
-                const result = await resolveAction(viewingPlayerId, actionId, option);
-                if (!result.success) {
-                  alert(`Action failed: ${result.error}`);
-                }
-              }}
-              onDeclareReady={() => declareReady(viewingPlayerId)}
-              isLoading={isLoading}
-            />
+            {/* Simultaneous Declaration Panel */}
+            {isSimultaneousStep() && (
+              <Card className="border-blue-200 bg-blue-50">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>
+                      {currentStep === BattlePhaseStep.SIMULTANEOUS_DECLARATION 
+                        ? 'Declare Charges/Solar Powers' 
+                        : 'Declare Responses'}
+                    </CardTitle>
+                    {isPlayerReady ? (
+                      <Lock className="w-4 h-4 text-orange-600" />
+                    ) : (
+                      <Unlock className="w-4 h-4 text-gray-400" />
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Your pending declarations (visible to you) */}
+                  <div className="space-y-2">
+                    <div className="text-sm text-gray-700">Your Pending Declarations:</div>
+                    {localPendingCharges.map((charge, i) => (
+                      <div key={i} className="p-2 bg-blue-100 rounded text-sm border border-blue-200">
+                        <span>
+                          Charge: {charge.shipId} (Power {charge.powerIndex})
+                        </span>
+                      </div>
+                    ))}
+                    {localPendingSolarPowers.map((power, i) => (
+                      <div key={i} className="p-2 bg-blue-100 rounded text-sm border border-blue-200">
+                        <span>
+                          Solar Power: {power.powerType}
+                        </span>
+                      </div>
+                    ))}
+                    {localPendingCharges.length === 0 && localPendingSolarPowers.length === 0 && (
+                      <div className="text-sm text-gray-500">None yet</div>
+                    )}
+                  </div>
+                  
+                  {/* Opponent's status (hidden) */}
+                  <div className="p-3 bg-white rounded border">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <EyeOff className="w-4 h-4 text-gray-400" />
+                        <span className="text-gray-600 text-sm">
+                          {opponentPlayer?.name}'s declarations: Hidden
+                        </span>
+                      </div>
+                      <span className={`text-sm ${isOpponentReady ? 'text-green-600' : 'text-gray-500'}`}>
+                        {isOpponentReady ? 'Ready ✓' : 'Not Ready'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Test actions */}
+                  <div className="space-y-2">
+                    <Button
+                      onClick={() => handleDeclareCharge('INT', 0)}
+                      disabled={isPlayerReady}
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    >
+                      Test: Declare Interceptor Charge
+                    </Button>
+                    <Button
+                      onClick={() => handleDeclareSolarPower('NOVA', { red: 3 })}
+                      disabled={isPlayerReady}
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                    >
+                      Test: Declare Nova Solar Power
+                    </Button>
+                  </div>
+                  
+                  {/* Lock in button */}
+                  <Button
+                    onClick={handleLockInDeclarations}
+                    disabled={isPlayerReady}
+                    className="w-full"
+                  >
+                    {isPlayerReady ? 'Locked In ✓' : 'Lock In Declarations'}
+                  </Button>
+                  
+                  {isPlayerReady && (
+                    <div className="text-center text-sm text-orange-700 mt-2">
+                      Waiting for {opponentPlayer?.name}...
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
           
           {/* Right Column: Game State View */}
           <div className="space-y-6">
             
-            {/* All Players Status */}
-            <Card className="p-4 bg-shapeships-grey-90 border-shapeships-grey-70">
-              <h3 className="text-shapeships-white mb-3">All Players</h3>
-              <div className="space-y-3">
-                {gameState.players.filter(p => p.role === 'player').map(player => {
-                  const playerActionState = phaseActionState?.playerStates[player.id];
-                  return (
-                    <div
-                      key={player.id}
-                      className={`p-3 rounded border ${
-                        player.id === viewingPlayerId
-                          ? 'bg-shapeships-blue/20 border-shapeships-blue/40'
-                          : 'bg-shapeships-grey-80 border-shapeships-grey-60'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-shapeships-white">
-                          {player.name}
-                          {player.id === viewingPlayerId && ' (You)'}
-                        </span>
-                        <span className="text-shapeships-grey-40 text-sm text-[rgb(255,255,255)]">
-                          HP: {player.health || 100}
-                        </span>
-                      </div>
-                      {playerActionState && (
-                        <div className="space-y-1">
-                          <div className="text-sm">
-                            <span className="text-shapeships-grey-40 text-[rgb(255,255,255)]">Status: </span>
-                            <span className={
-                              playerActionState.status === 'READY'
-                                ? 'text-shapeships-green'
-                                : 'text-shapeships-yellow'
-                            }>
-                              {playerActionState.status}
-                            </span>
-                          </div>
-                          {playerActionState.pendingActions.length > 0 && (
-                            <div className="text-sm text-shapeships-grey-40">
-                              {playerActionState.pendingActions.length} action
-                              {playerActionState.pendingActions.length > 1 ? 's' : ''} pending
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+            {/* Revealed Declarations */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Revealed Declarations</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="text-sm text-gray-700">Charges:</div>
+                {gameState.gameData?.turnData?.chargeDeclarations?.map((charge, i) => (
+                  <div key={i} className="p-2 bg-gray-50 rounded text-sm border">
+                    <span>
+                      {gameState.players.find(p => p.id === charge.playerId)?.name}: {charge.shipId} (Power {charge.powerIndex})
+                    </span>
+                  </div>
+                ))}
+                
+                <div className="text-sm text-gray-700 mt-3">Solar Powers:</div>
+                {gameState.gameData?.turnData?.solarPowerDeclarations?.map((power, i) => (
+                  <div key={i} className="p-2 bg-gray-50 rounded text-sm border">
+                    <span>
+                      {gameState.players.find(p => p.id === power.playerId)?.name}: {power.powerType}
+                    </span>
+                  </div>
+                ))}
+                
+                {(!gameState.gameData?.turnData?.chargeDeclarations || 
+                  gameState.gameData.turnData.chargeDeclarations.length === 0) &&
+                 (!gameState.gameData?.turnData?.solarPowerDeclarations || 
+                  gameState.gameData.turnData.solarPowerDeclarations.length === 0) && (
+                  <div className="text-sm text-gray-500">None yet</div>
+                )}
+              </CardContent>
             </Card>
             
             {/* Effect Queue */}
-            <Card className="p-4 bg-shapeships-grey-90 border-shapeships-grey-70">
-              <h3 className="text-shapeships-white mb-3">
-                Effect Queue ({effectQueue.length})
-              </h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {effectQueue.length === 0 ? (
-                  <p className="text-shapeships-grey-40 text-sm text-[rgb(255,255,255)]">
-                    No effects queued yet
-                  </p>
-                ) : (
-                  effectQueue.map(effect => (
-                    <div
-                      key={effect.id}
-                      className="p-2 bg-shapeships-grey-80 rounded text-sm"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className={
-                          effect.type === 'DAMAGE'
-                            ? 'text-shapeships-red'
-                            : 'text-shapeships-green'
-                        }>
-                          {effect.type === 'DAMAGE' ? '⚔️' : '💚'}
-                        </span>
-                        <span className="text-shapeships-white flex-1">
-                          {effect.description}
-                        </span>
-                        <span className="text-shapeships-grey-40">
-                          {effect.value}
-                        </span>
-                      </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Accumulated Effects (Will Apply at End of Turn)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {Object.entries(accumulatedDamage).map(([playerId, damage]) => {
+                  if (!damage) return null;
+                  const player = gameState.players.find(p => p.id === playerId);
+                  return (
+                    <div key={playerId} className="p-2 bg-red-50 rounded text-sm border border-red-200">
+                      <span className="text-red-700">
+                        ⚔️ {player?.name} will take {damage} damage
+                      </span>
                     </div>
-                  ))
+                  );
+                })}
+                {Object.entries(accumulatedHealing).map(([playerId, healing]) => {
+                  if (!healing) return null;
+                  const player = gameState.players.find(p => p.id === playerId);
+                  return (
+                    <div key={playerId} className="p-2 bg-green-50 rounded text-sm border border-green-200">
+                      <span className="text-green-700">
+                        💚 {player?.name} will heal {healing}
+                      </span>
+                    </div>
+                  );
+                })}
+                {Object.keys(accumulatedDamage).length === 0 && 
+                 Object.keys(accumulatedHealing).length === 0 && (
+                  <div className="text-sm text-gray-500">No effects queued yet</div>
                 )}
-              </div>
-              {effectQueue.length > 0 && (
-                <Button
-                  onClick={applyQueuedEffects}
-                  variant="outline"
-                  className="w-full mt-3 border-shapeships-red text-shapeships-red hover:bg-shapeships-red/20"
-                >
-                  Apply Effects Now (Testing)
-                </Button>
-              )}
+              </CardContent>
             </Card>
             
             {/* Debug Info */}
-            <Card className="p-4 bg-shapeships-grey-90 border-shapeships-grey-70">
-              <h3 className="text-shapeships-white mb-3">Debug Info</h3>
-              <div className="space-y-1 text-sm">
+            <Card>
+              <CardHeader>
+                <CardTitle>Debug Info</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-shapeships-grey-40 text-[rgb(255,255,255)]">Can Advance:</span>
-                  <span className="text-shapeships-white">
-                    {canAdvancePhase() ? 'Yes' : 'No'}
+                  <span className="text-gray-600">Major Phase:</span>
+                  <span>{currentMajorPhase}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Current Step:</span>
+                  <span>{currentStep || '—'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Is Automatic:</span>
+                  <span>
+                    {isAutomaticStep() ? 'Yes' : 'No'}
                   </span>
                 </div>
-                {phaseActionState?.blockingReason && (
-                  <div className="text-shapeships-yellow text-sm mt-2">
-                    {phaseActionState.blockingReason}
-                  </div>
-                )}
-                <div className="flex justify-between mt-2">
-                  <span className="text-shapeships-grey-40 text-[rgb(255,255,255)]">Is Automatic:</span>
-                  <span className="text-shapeships-white">
-                    {phaseActionState?.phaseMetadata?.isAutomatic ? 'Yes' : 'No'}
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Is Simultaneous:</span>
+                  <span>
+                    {isSimultaneousStep() ? 'Yes' : 'No'}
                   </span>
                 </div>
-              </div>
+              </CardContent>
             </Card>
           </div>
         </div>
@@ -474,7 +851,7 @@ function createTestGameState(): GameState {
       isActive: true,
       role: 'player',
       joinedAt: new Date().toISOString(),
-      health: 100,
+      health: 25,
       lines: 10,
       savedLines: 0
     },
@@ -486,7 +863,7 @@ function createTestGameState(): GameState {
       isActive: false,
       role: 'player',
       joinedAt: new Date().toISOString(),
-      health: 100,
+      health: 25,
       lines: 10,
       savedLines: 0
     }
@@ -515,12 +892,6 @@ function createTestGameState(): GameState {
       shipId: 'DEF', // Defender
       ownerId: player1Id,
       originalSpecies: 'human'
-    },
-    {
-      id: 'ship-fig-1',
-      shipId: 'FIG', // Fighter
-      ownerId: player1Id,
-      originalSpecies: 'human'
     }
   ];
   
@@ -535,12 +906,6 @@ function createTestGameState(): GameState {
     },
     {
       id: 'ship-xen-1',
-      shipId: 'XEN', // Xenite
-      ownerId: player2Id,
-      originalSpecies: 'xenite'
-    },
-    {
-      id: 'ship-xen-2',
       shipId: 'XEN', // Xenite
       ownerId: player2Id,
       originalSpecies: 'xenite'
@@ -561,8 +926,23 @@ function createTestGameState(): GameState {
       },
       resources: null,
       turnData: {
-        diceRoll: 4
-      }
+        turnNumber: 1,
+        currentMajorPhase: MajorPhase.BUILD_PHASE,
+        currentStep: BuildPhaseStep.DICE_ROLL,
+        accumulatedDamage: {},
+        accumulatedHealing: {},
+        healthAtTurnStart: {
+          [player1Id]: 25,
+          [player2Id]: 25
+        },
+        onceOnlyAutomaticEffects: [],
+        continuousAutomaticShips: [],
+        chargeDeclarations: [],
+        solarPowerDeclarations: [],
+        pendingChargeDeclarations: {},
+        pendingSOLARPowerDeclarations: {}
+      },
+      phaseReadiness: []
     },
     actions: [],
     settings: {

@@ -1,8 +1,6 @@
 // Centralized species and ship data for Shapeships
 // Supports cross-species ship copying/stealing and future species expansion
 
-import { SubPhase } from '../engine/GamePhases';
-
 // Species categories for organization and future expansion
 export enum SpeciesCategory {
   OFFICIAL = 'official',
@@ -70,16 +68,14 @@ export interface UpgradeRequirement {
   quantity: number; // Number of this ship needed
 }
 
-// Individual ship powers that require specific subphases
+// Individual ship powers - phase requirements will be defined when implementing power system
 export interface ShipPower {
   id: string;
   name: string;
   description: string;
-  // Which subphases this power requires to be active
-  requiredSubPhases: SubPhase[];
   // Power type affects when and how it can be used
-  type: 'passive' | 'activated' | 'triggered' | 'upon_completion';
-  // Timing within subphase (for multiple powers in same subphase)
+  type: 'passive' | 'activated' | 'triggered' | 'once_only_automatic';
+  // Timing priority (for multiple powers in same phase)
   priority?: number;
   // Resource costs
   costs?: PowerCost[];
@@ -113,14 +109,12 @@ export interface PowerCost {
   conditions?: string[];
 }
 
-// Solar Power definition (Ancient species special powers)
+// Solar Power definition (Ancient species special powers) - phase requirements TBD
 export interface SolarPower {
   id: string;
   name: string;
   description: string;
   energyCost: number; // Energy required to use this Solar Power
-  // Which subphases this Solar Power can be used in
-  requiredSubPhases: SubPhase[];
   // Targeting and effects
   targeting?: PowerTargeting;
   effects: PowerEffect[];
@@ -180,7 +174,6 @@ export const OFFICIAL_SPECIES: Species[] = [
             id: 'defender_heal',
             name: 'Heal',
             description: 'Heal 1 during automatic phase',
-            requiredSubPhases: [SubPhase.AUTOMATIC],
             type: 'passive',
             effects: [
               {
@@ -207,7 +200,6 @@ export const OFFICIAL_SPECIES: Species[] = [
             id: 'fighter_attack',
             name: 'Attack',
             description: 'Deal 1 damage during automatic phase',
-            requiredSubPhases: [SubPhase.AUTOMATIC],
             type: 'passive',
             effects: [
               {
@@ -234,7 +226,6 @@ export const OFFICIAL_SPECIES: Species[] = [
             id: 'first_strike',
             name: 'First Strike',
             description: 'Attacks before other ships in battle',
-            requiredSubPhases: [SubPhase.FIRST_STRIKE],
             type: 'activated',
             priority: 1,
             effects: [
@@ -262,7 +253,6 @@ export const OFFICIAL_SPECIES: Species[] = [
             id: 'build_ships',
             name: 'Build Ships',
             description: 'Can build other ships during build phase',
-            requiredSubPhases: [SubPhase.SHIPS_THAT_BUILD],
             type: 'activated',
             costs: [
               {
@@ -315,7 +305,6 @@ export const OFFICIAL_SPECIES: Species[] = [
             id: 'xenite_basic_power',
             name: 'Basic Power',
             description: 'Placeholder power',
-            requiredSubPhases: [SubPhase.AUTOMATIC],
             type: 'passive',
             effects: [
               {
@@ -366,7 +355,6 @@ export const OFFICIAL_SPECIES: Species[] = [
             id: 'centaur_basic_power',
             name: 'Basic Power',
             description: 'Placeholder power',
-            requiredSubPhases: [SubPhase.AUTOMATIC],
             type: 'passive',
             effects: [
               {
@@ -408,7 +396,6 @@ export const OFFICIAL_SPECIES: Species[] = [
         name: 'Solar Blast',
         description: 'Deal damage using energy (not lines)',
         energyCost: 2,
-        requiredSubPhases: [SubPhase.CHARGE_DECLARATION, SubPhase.CHARGE_RESPONSE],
         effects: [
           {
             type: 'damage',
@@ -422,7 +409,6 @@ export const OFFICIAL_SPECIES: Species[] = [
         name: 'Solar Heal',
         description: 'Heal using energy (not lines)',
         energyCost: 1,
-        requiredSubPhases: [SubPhase.CHARGE_DECLARATION],
         effects: [
           {
             type: 'healing',
@@ -449,7 +435,6 @@ export const OFFICIAL_SPECIES: Species[] = [
             id: 'ancient_basic_power',
             name: 'Basic Power',
             description: 'Placeholder power',
-            requiredSubPhases: [SubPhase.AUTOMATIC],
             type: 'passive',
             effects: [
               {
@@ -484,7 +469,6 @@ export const EXAMPLE_GUARDIAN: Ship = {
       id: 'first_strike',
       name: 'First Strike',
       description: 'Acts first in Battle Phase',
-      requiredSubPhases: [SubPhase.FIRST_STRIKE],
       type: 'activated',
       priority: 1,
       effects: [
@@ -498,7 +482,6 @@ export const EXAMPLE_GUARDIAN: Ship = {
       id: 'guardian_damage',
       name: 'Combat Damage',
       description: 'Standard combat damage',
-      requiredSubPhases: [SubPhase.AUTOMATIC],
       type: 'passive',
       effects: [
         {
@@ -526,7 +509,6 @@ export const EXAMPLE_SHIPYARD: Ship = {
       id: 'build_ships',
       name: 'Build Ships',
       description: 'Can build other ships before Drawing phase',
-      requiredSubPhases: [SubPhase.SHIPS_THAT_BUILD],
       type: 'activated',
       costs: [
         {
@@ -574,7 +556,6 @@ export const EXAMPLE_SUPER_GUARDIAN: Ship = {
       id: 'super_first_strike',
       name: 'Enhanced First Strike',
       description: 'Powerful first strike that scales with other ships',
-      requiredSubPhases: [SubPhase.FIRST_STRIKE],
       type: 'activated',
       priority: 1,
       scaling: {
@@ -612,7 +593,6 @@ export const EXAMPLE_ENERGY_GENERATOR: Ship = {
       id: 'energy_boost',
       name: 'Energy Boost',
       description: 'Generate extra energy upon completion (bonus to energy generation)',
-      requiredSubPhases: [SubPhase.UPON_COMPLETION],
       type: 'triggered',
       effects: [
         {
@@ -642,7 +622,6 @@ export const EXAMPLE_CENTAUR_FORGEMASTER: Ship = {
       id: 'forge_enhancement',
       name: 'Forge Enhancement',
       description: 'Generate extra joining lines upon completion (bonus to joining line generation)',
-      requiredSubPhases: [SubPhase.UPON_COMPLETION],
       type: 'triggered',
       effects: [
         {
@@ -690,30 +669,6 @@ export function getAvailableShips(speciesId: string, ownedShips: string[] = []):
   // This would be implemented based on your specific copying/stealing rules
   
   return availableShips;
-}
-
-// Get ships that require a specific subphase
-export function getShipsRequiringSubPhase(ships: Ship[], subPhase: SubPhase): Ship[] {
-  return ships.filter(ship => 
-    ship.powers.some(power => 
-      power.requiredSubPhases.includes(subPhase)
-    )
-  );
-}
-
-// Get all powers that require a specific subphase
-export function getPowersForSubPhase(ships: Ship[], subPhase: SubPhase): ShipPower[] {
-  const powers: ShipPower[] = [];
-  
-  ships.forEach(ship => {
-    ship.powers.forEach(power => {
-      if (power.requiredSubPhases.includes(subPhase)) {
-        powers.push(power);
-      }
-    });
-  });
-  
-  return powers.sort((a, b) => (a.priority || 0) - (b.priority || 0));
 }
 
 // Check if a ship can be copied by a species
@@ -793,14 +748,6 @@ export function getAvailableSolarPowers(speciesId: string): SolarPower[] {
 // Check if player can use a Solar Power (requires sufficient energy)
 export function canUseSolarPower(solarPower: SolarPower, playerEnergy: number): boolean {
   return playerEnergy >= solarPower.energyCost;
-}
-
-// Get Solar Powers available in a specific subphase
-export function getSolarPowersForSubPhase(subPhase: SubPhase): SolarPower[] {
-  const solarPowers = getAvailableSolarPowers('ancient');
-  return solarPowers.filter(power => 
-    power.requiredSubPhases.includes(subPhase)
-  );
 }
 
 // Calculate energy cost for multiple Solar Powers
@@ -919,8 +866,6 @@ export default {
   getAllShips,
   getShipById,
   getAvailableShips,
-  getShipsRequiringSubPhase,
-  getPowersForSubPhase,
   canSpeciesCopyShip,
   canSpeciesStealShip,
   // Ship upgrading mechanics
@@ -931,7 +876,6 @@ export default {
   calculateEnergyGeneration,
   getAvailableSolarPowers,
   canUseSolarPower,
-  getSolarPowersForSubPhase,
   calculateTotalEnergyCost,
   // Centaur joining lines system
   calculateJoiningLinesGeneration,

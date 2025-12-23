@@ -119,7 +119,7 @@ export interface PhaseReadiness {
   playerId: string;
   isReady: boolean;
   declaredAt?: string;
-  subPhase: number;
+  currentStep: string; // BuildPhaseStep | BattlePhaseStep
 }
 
 export interface CombatAction {
@@ -249,6 +249,7 @@ export interface GameState {
 export interface GameSettings {
   maxPlayers: number;
   turnTimeLimit?: number; // seconds
+  maxHealth?: number; // maximum health (default 100)
   boardSize?: string; // will be defined based on your rules
   gameVariant?: string; // different game modes
 }
@@ -279,17 +280,19 @@ export interface DisplayState {
 // RE-EXPORT TurnData from GamePhases (avoid circular dependency)
 // ============================================================================
 
-// This will be properly imported from GamePhases, but we define the interface here
-// to avoid circular dependencies
+// Updated turn structure for new phase system
 export interface TurnData {
   turnNumber: number;
-  currentMajorPhase: string; // MajorPhase enum value
-  currentSubPhase: number; // SubPhase enum value
-  requiredSubPhases: unknown[]; // SubPhaseRequirement[] - avoid circular dep
+  currentMajorPhase: string; // MajorPhase enum value: build_phase | battle_phase | end_of_turn_resolution | end_of_game
+  currentStep: string | null; // BuildPhaseStep | BattlePhaseStep | null
   diceRoll?: number;
-  linesDistributed?: boolean;
+  diceManipulationFinalized?: boolean;
   accumulatedDamage: { [playerId: string]: number };
   accumulatedHealing: { [playerId: string]: number };
   healthAtTurnStart: { [playerId: string]: number };
-  chargesDeclared: boolean;
+  onceOnlyAutomaticEffects: { shipId: string; effectType: string }[]; // Track once-only effects that will resolve at end of turn
+  continuousAutomaticShips: string[]; // Ships that have continuous automatic effects
+  chargeDeclarations: unknown[]; // ChargeDeclaration[] - avoid circular dep
+  solarPowerDeclarations: unknown[]; // SolarPowerDeclaration[] - avoid circular dep
+  chronoswarmExtraPhaseCount?: number; // How many extra build phases triggered this turn
 }

@@ -2,6 +2,7 @@
 // Central export hub - imports and re-exports all ancient ship graphics
 
 // Import individual ship components
+export { Cube } from './Cube';
 export { MercuryCore } from './MercuryCore';
 export { PlutoCore } from './PlutoCore';
 export { QuantumMystic } from './QuantumMystic';

@@ -1836,7 +1836,7 @@ function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymen
               <CardTitle className="text-sm text-green-900">Phase Management</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-green-800">
-              14-subphase engine with dynamic skipping and phase recalculation ready
+              FSM-based turn system with clean 3-phase structure ready
             </CardContent>
           </Card>
           <Card className="border-green-200 bg-green-50">

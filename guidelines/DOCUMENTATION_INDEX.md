@@ -62,7 +62,7 @@ Last Updated: December 8, 2024
 **Key Sections:**
 - **Graphics System** - Ship graphics architecture (SVGs as React components)
 - **Multiplayer Integration** - Server capacity, polling, bandwidth optimization
-- **Phase Management** - 14-subphase system explained
+- **Phase Management** - 3-phase system (Build, Battle, End of Turn Resolution) explained
 - **Ship System** - Ships as power generators, no position data
 - **Development Priorities** - Visual systems, gameplay visualization, polish
 
@@ -83,7 +83,7 @@ Last Updated: December 8, 2024
 **Read if**: You need to understand the design philosophy or plan Figma integration  
 
 **Contains:**
-- 🎯 Game Rules Architecture (14 subphases, mechanics, resources)
+- 🎯 Game Rules Architecture (3-phase system: Build, Battle, End of Turn Resolution)
 - 🎨 Action Panel Design Review (confirmed states)
 - 🖥️ Full Game Board Design Analysis (layout structure)
 - 🔧 Test Interface Clarifications (which test to use)
@@ -233,7 +233,7 @@ Last Updated: December 8, 2024
 
 **Quick Reference:**
 - **GameTestInterface.tsx** - Primary multiplayer test (4-phase simplified)
-- **FullPhaseTest.tsx** - 14-subphase system test with ActionResolver
+- **FullPhaseTest.tsx** - 3-phase system test (Build, Battle, End of Turn Resolution) with ActionResolver
 - **ActionResolverExample.tsx** - Example hook usage
 
 ---

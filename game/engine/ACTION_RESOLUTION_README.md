@@ -27,7 +27,7 @@ The Action Resolution Layer sits between the Phase Engine and the UI, managing p
                   ↓
 ┌─────────────────────────────────────────────┐
 │         Phase Engine (GamePhases)           │
-│  - 14-subphase system                       │
+│  - 3-phase system (Build, Battle, End)     │
 │  - Phase skipping logic                     │
 │  - Phase order/structure                    │
 └─────────────────┬───────────────────────────┘

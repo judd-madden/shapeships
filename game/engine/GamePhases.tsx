@@ -1,310 +1,155 @@
-// Game phases engine - handles Shapeships turn structure with 3 major phases and 13 subphases
-// Dynamic subphase checking based on ships in play, synchronous player progression
-// 
-// IMPORTANT: Phase requirements are recalculated when ships are built during:
-// - SubPhase 4 (Ships that Build): When ships build other ships via powers
-// - SubPhase 5 (Drawing): When players spend lines to build ships
-// This ensures newly built ships can add their required subphases to the current turn
+// Game phases engine - Updated turn system (authoritative)
+// Two interactive phases (Build, Battle) + one non-interactive resolution step
+// All damage/healing resolves together at End of Turn Resolution
+// Health only changes at end of turn
 
 import { GameState, GameAction, Player } from '../types/GameTypes';
 import SpeciesIntegration from './SpeciesIntegration';
 
-// Major phases containing numbered subphases
+// ============================================================================
+// TURN STRUCTURE - Authoritative States
+// ============================================================================
+
 export enum MajorPhase {
   BUILD_PHASE = 'build_phase',
-  BATTLE_PHASE = 'battle_phase', 
-  HEALTH_RESOLUTION = 'health_resolution',
+  BATTLE_PHASE = 'battle_phase',
+  END_OF_TURN_RESOLUTION = 'end_of_turn_resolution',
   END_OF_GAME = 'end_of_game'
 }
 
-// All possible subphases (numbered 1-13)
-export enum SubPhase {
-  ROLL_DICE = 1,              // [always run] 
-  DICE_MANIPULATION = 2,      // conditional
-  LINE_GENERATION = 3,        // [always run]
-  SHIPS_THAT_BUILD = 4,       // conditional
-  DRAWING = 5,                // [always run]
-  UPON_COMPLETION = 6,        // conditional
-  END_BUILD_PHASE = 7,        // conditional
-  FIRST_STRIKE = 8,           // conditional
-  CHARGE_DECLARATION = 9,     // conditional
-  CHARGE_RESPONSE = 10,       // conditional (if charges declared)
-  CHARGE_RESOLUTION = 11,     // conditional (if charges declared)
-  AUTOMATIC = 12,             // [always run]
-  END_OF_BATTLE_PHASE = 13    // conditional
+// Build Phase steps (ordered, simultaneous player actions)
+export enum BuildPhaseStep {
+  DICE_ROLL = 'dice_roll',                    // Roll shared d6 (includes dice manipulation if available)
+  LINE_GENERATION = 'line_generation',        // System: Calculate available lines
+  SHIPS_THAT_BUILD = 'ships_that_build',      // Player actions: Use ship building powers
+  DRAWING = 'drawing',                        // Player actions: Draw ships and/or save lines
+  END_OF_BUILD = 'end_of_build'               // System: Resolve non-interactive effects, check Chronoswarm
 }
 
-// Subphases that always run regardless of ships
-export const ALWAYS_RUN_SUBPHASES = [
-  SubPhase.ROLL_DICE,
-  SubPhase.LINE_GENERATION,
-  SubPhase.DRAWING,
-  SubPhase.AUTOMATIC
-];
-
-export interface SubPhaseRequirement {
-  subPhase: SubPhase;
-  majorPhase: MajorPhase;
-  alwaysRun: boolean;
-  requiredBy: string[]; // Ship types or powers that require this subphase
-  playersWithRequiredShips: string[]; // Player IDs who have ships requiring this subphase
-  description: string;
+// Battle Phase steps (interactive, back-and-forth)
+export enum BattlePhaseStep {
+  FIRST_STRIKE = 'first_strike',              // System: First Strike powers resolve
+  SIMULTANEOUS_DECLARATION = 'simultaneous_declaration',  // Both players simultaneously declare Charges/Solar Powers (hidden)
+  CONDITIONAL_RESPONSE = 'conditional_response' // Both players simultaneously respond (hidden, only if declarations were made)
 }
+
+// ============================================================================
+// READINESS & INPUT MODEL
+// ============================================================================
 
 export interface PlayerReadiness {
   playerId: string;
   isReady: boolean;
   declaredAt?: string;
-  currentSubPhase: number;
+  currentStep: string; // BuildPhaseStep | BattlePhaseStep
 }
 
 export interface TurnData {
   turnNumber: number;
   currentMajorPhase: MajorPhase;
-  currentSubPhase: SubPhase;
-  requiredSubPhases: SubPhaseRequirement[];
+  currentStep: BuildPhaseStep | BattlePhaseStep | null;
   diceRoll?: number;
-  linesDistributed?: boolean;
+  diceManipulationFinalized?: boolean;
   accumulatedDamage: { [playerId: string]: number };
   accumulatedHealing: { [playerId: string]: number };
   healthAtTurnStart: { [playerId: string]: number };
-  chargesDeclared: boolean;
+  onceOnlyAutomaticEffects: { shipId: string; effectType: string }[]; // Track once-only effects that will resolve at end of turn
+  continuousAutomaticShips: string[]; // Ships that have continuous automatic effects
+  chargeDeclarations: ChargeDeclaration[];
+  solarPowerDeclarations: SolarPowerDeclaration[];
+  // Pending declarations (hidden from opponent until both players ready)
+  pendingChargeDeclarations: { [playerId: string]: ChargeDeclaration[] };
+  pendingSOLARPowerDeclarations: { [playerId: string]: SolarPowerDeclaration[] };
+  // Track if any declarations were made in SIMULTANEOUS_DECLARATION step
+  anyDeclarationsMade?: boolean;
+  chronoswarmExtraPhaseCount?: number; // How many extra build phases triggered this turn
 }
 
-export interface SubPhaseTransition {
+export interface ChargeDeclaration {
+  playerId: string;
+  shipId: string;
+  powerIndex: number;
+  targetPlayerId?: string;
+  targetShipId?: string;
+  timestamp: string;
+}
+
+export interface SolarPowerDeclaration {
+  playerId: string;
+  powerType: string;
+  energyCost: { red?: number; green?: number; blue?: number };
+  targetPlayerId?: string;
+  targetShipId?: string;
+  cubeRepeated?: boolean; // If true, this was repeated by Cube
+  timestamp: string;
+}
+
+// ============================================================================
+// PHASE TRANSITION SYSTEM
+// ============================================================================
+
+export interface PhaseTransition {
   fromMajorPhase: MajorPhase;
-  fromSubPhase: SubPhase | null;
+  fromStep: BuildPhaseStep | BattlePhaseStep | null;
   toMajorPhase: MajorPhase;
-  toSubPhase: SubPhase | null;
+  toStep: BuildPhaseStep | BattlePhaseStep | null;
   condition: (gameState: GameState) => boolean;
   onTransition?: (gameState: GameState) => GameState;
 }
 
+// ============================================================================
+// GAME PHASES ENGINE
+// ============================================================================
+
 export class GamePhasesEngine {
 
-  // Get current major phase and subphase
+  // ============================================================================
+  // CURRENT PHASE/STEP GETTERS
+  // ============================================================================
+
   getCurrentMajorPhase(gameState: GameState): MajorPhase {
     return (gameState.gameData?.turnData?.currentMajorPhase as MajorPhase) || MajorPhase.BUILD_PHASE;
   }
 
-  getCurrentSubPhase(gameState: GameState): SubPhase {
-    return (gameState.gameData?.turnData?.currentSubPhase as SubPhase) || SubPhase.ROLL_DICE;
+  getCurrentStep(gameState: GameState): BuildPhaseStep | BattlePhaseStep | null {
+    return (gameState.gameData?.turnData?.currentStep as BuildPhaseStep | BattlePhaseStep) || BuildPhaseStep.DICE_ROLL;
   }
 
-  // Get all required subphases for current turn based on ships in play
-  getRequiredSubPhasesForTurn(gameState: GameState): SubPhaseRequirement[] {
-    const requirements: SubPhaseRequirement[] = [];
+  // ============================================================================
+  // READINESS MANAGEMENT
+  // ============================================================================
 
-    // BUILD PHASE subphases (1-7)
-    requirements.push(...this.getBuildPhaseRequirements(gameState));
-    
-    // BATTLE PHASE subphases (8-13) 
-    requirements.push(...this.getBattlePhaseRequirements(gameState));
-
-    return requirements;
-  }
-
-  private getBuildPhaseRequirements(gameState: GameState): SubPhaseRequirement[] {
-    const requirements: SubPhaseRequirement[] = [];
-
-    // 1. Roll Dice [always run]
-    requirements.push({
-      subPhase: SubPhase.ROLL_DICE,
-      majorPhase: MajorPhase.BUILD_PHASE,
-      alwaysRun: true,
-      requiredBy: ['system'],
-      playersWithRequiredShips: [], // Automatic, no player action needed
-      description: 'Roll d6 automatically for all players'
-    });
-
-    // 2. Dice Manipulation (conditional)
-    if (SpeciesIntegration.hasShipsRequiringSubPhase(gameState, SubPhase.DICE_MANIPULATION)) {
-      requirements.push({
-        subPhase: SubPhase.DICE_MANIPULATION,
-        majorPhase: MajorPhase.BUILD_PHASE,
-        alwaysRun: false,
-        requiredBy: ['dice_manipulation_powers'],
-        playersWithRequiredShips: SpeciesIntegration.getPlayersWithShipsRequiringSubPhase(gameState, SubPhase.DICE_MANIPULATION),
-        description: 'Some ships can interact with dice roll before lines are given'
-      });
-    }
-
-    // 3. Line Generation [always run]
-    requirements.push({
-      subPhase: SubPhase.LINE_GENERATION,
-      majorPhase: MajorPhase.BUILD_PHASE,
-      alwaysRun: true,
-      requiredBy: ['system'],
-      playersWithRequiredShips: [], // Automatic calculation
-      description: 'Add dice roll + bonus lines + saved lines'
-    });
-
-    // 4. Ships That Build (conditional)
-    if (SpeciesIntegration.hasShipsRequiringSubPhase(gameState, SubPhase.SHIPS_THAT_BUILD)) {
-      requirements.push({
-        subPhase: SubPhase.SHIPS_THAT_BUILD,
-        majorPhase: MajorPhase.BUILD_PHASE,
-        alwaysRun: false,
-        requiredBy: ['ship_building_powers'],
-        playersWithRequiredShips: SpeciesIntegration.getPlayersWithShipsRequiringSubPhase(gameState, SubPhase.SHIPS_THAT_BUILD),
-        description: 'Some ships can build other ships before Drawing phase - triggers phase recalculation'
-      });
-    }
-
-    // 5. Drawing [always run]
-    requirements.push({
-      subPhase: SubPhase.DRAWING,
-      majorPhase: MajorPhase.BUILD_PHASE,
-      alwaysRun: true,
-      requiredBy: ['system'],
-      playersWithRequiredShips: gameState.players.map(p => p.id),
-      description: 'Players spend lines to build ships - triggers phase recalculation when ships are built'
-    });
-
-    // 6. Upon Completion (conditional)
-    if (SpeciesIntegration.hasShipsRequiringSubPhase(gameState, SubPhase.UPON_COMPLETION)) {
-      requirements.push({
-        subPhase: SubPhase.UPON_COMPLETION,
-        majorPhase: MajorPhase.BUILD_PHASE,
-        alwaysRun: false,
-        requiredBy: ['upon_completion_powers'],
-        playersWithRequiredShips: SpeciesIntegration.getPlayersWithShipsRequiringSubPhase(gameState, SubPhase.UPON_COMPLETION),
-        description: 'Powers that trigger once when ship is built'
-      });
-    }
-
-    // 7. End Build Phase (conditional)
-    if (SpeciesIntegration.hasShipsRequiringSubPhase(gameState, SubPhase.END_BUILD_PHASE)) {
-      requirements.push({
-        subPhase: SubPhase.END_BUILD_PHASE,
-        majorPhase: MajorPhase.BUILD_PHASE,
-        alwaysRun: false,
-        requiredBy: ['end_build_phase_powers'],
-        playersWithRequiredShips: SpeciesIntegration.getPlayersWithShipsRequiringSubPhase(gameState, SubPhase.END_BUILD_PHASE),
-        description: 'Powers that trigger at end of build phase'
-      });
-    }
-
-    return requirements;
-  }
-
-  private getBattlePhaseRequirements(gameState: GameState): SubPhaseRequirement[] {
-    const requirements: SubPhaseRequirement[] = [];
-
-    // 8. First Strike (conditional)
-    if (SpeciesIntegration.hasShipsRequiringSubPhase(gameState, SubPhase.FIRST_STRIKE)) {
-      requirements.push({
-        subPhase: SubPhase.FIRST_STRIKE,
-        majorPhase: MajorPhase.BATTLE_PHASE,
-        alwaysRun: false,
-        requiredBy: ['first_strike_powers', 'guardian'],
-        playersWithRequiredShips: SpeciesIntegration.getPlayersWithShipsRequiringSubPhase(gameState, SubPhase.FIRST_STRIKE),
-        description: 'Ships get opportunity to act first in Battle Phase'
-      });
-    }
-
-    // 9. Charge Declaration (conditional)
-    if (SpeciesIntegration.hasShipsRequiringSubPhase(gameState, SubPhase.CHARGE_DECLARATION)) {
-      requirements.push({
-        subPhase: SubPhase.CHARGE_DECLARATION,
-        majorPhase: MajorPhase.BATTLE_PHASE,
-        alwaysRun: false,
-        requiredBy: ['charge_powers', 'solar_powers'],
-        playersWithRequiredShips: SpeciesIntegration.getPlayersWithShipsRequiringSubPhase(gameState, SubPhase.CHARGE_DECLARATION),
-        description: 'Players may use ships with charges, Ancients may use Solar Powers'
-      });
-    }
-
-    // 10. Charge Response (conditional - only if charges declared)
-    const chargesDeclared = gameState.gameData?.turnData?.chargesDeclared || false;
-    if (chargesDeclared) {
-      requirements.push({
-        subPhase: SubPhase.CHARGE_RESPONSE,
-        majorPhase: MajorPhase.BATTLE_PHASE,
-        alwaysRun: false,
-        requiredBy: ['charge_response'],
-        playersWithRequiredShips: gameState.players.map(p => p.id),
-        description: 'Each player may use charges or Solar Powers in response'
-      });
-    }
-
-    // 11. Charge Resolution (conditional - only if charges declared)
-    if (chargesDeclared) {
-      requirements.push({
-        subPhase: SubPhase.CHARGE_RESOLUTION,
-        majorPhase: MajorPhase.BATTLE_PHASE,
-        alwaysRun: false,
-        requiredBy: ['charge_resolution'],
-        playersWithRequiredShips: [], // Automatic resolution
-        description: 'Any declared charge powers resolve now'
-      });
-    }
-
-    // 12. Automatic [always run]
-    requirements.push({
-      subPhase: SubPhase.AUTOMATIC,
-      majorPhase: MajorPhase.BATTLE_PHASE,
-      alwaysRun: true,
-      requiredBy: ['system'],
-      playersWithRequiredShips: [], // Automatic calculation
-      description: 'Count all ships damage and healing that occurs in battle phase'
-    });
-
-    // 13. End of Battle Phase (conditional)
-    if (SpeciesIntegration.hasShipsRequiringSubPhase(gameState, SubPhase.END_OF_BATTLE_PHASE)) {
-      requirements.push({
-        subPhase: SubPhase.END_OF_BATTLE_PHASE,
-        majorPhase: MajorPhase.BATTLE_PHASE,
-        alwaysRun: false,
-        requiredBy: ['end_battle_phase_powers'],
-        playersWithRequiredShips: SpeciesIntegration.getPlayersWithShipsRequiringSubPhase(gameState, SubPhase.END_OF_BATTLE_PHASE),
-        description: 'Powers that trigger at end of battle phase'
-      });
-    }
-
-    return requirements;
-  }
-
-  // Check if all players are ready for the current subphase
   areAllPlayersReady(gameState: GameState): boolean {
-    const currentSubPhase = this.getCurrentSubPhase(gameState);
+    const currentStep = this.getCurrentStep(gameState);
     const playerReadiness = gameState.gameData?.phaseReadiness as PlayerReadiness[] || [];
     
-    // Get players who need to act in this subphase
-    const requiredSubPhases = this.getRequiredSubPhasesForTurn(gameState);
-    const currentSubPhaseReq = requiredSubPhases.find(req => req.subPhase === currentSubPhase);
+    // Get players who need to confirm readiness for this step
+    const playersWhoNeedToConfirm = this.getPlayersWhoNeedToConfirm(gameState, currentStep);
     
-    if (!currentSubPhaseReq) {
-      // Subphase not required, can advance
+    // If no players need to confirm (automatic step), advance immediately
+    if (playersWhoNeedToConfirm.length === 0) {
       return true;
     }
 
-    // If no players need to act (automatic subphase), advance immediately
-    if (currentSubPhaseReq.playersWithRequiredShips.length === 0) {
-      return true;
-    }
-
-    // Check if all players who need to act are ready for current subphase
-    const playersWhoNeedToAct = currentSubPhaseReq.playersWithRequiredShips;
-    return playersWhoNeedToAct.every(playerId => {
-      const playerReadiness = playerReadiness.find(pr => pr.playerId === playerId);
-      return playerReadiness?.isReady && playerReadiness?.currentSubPhase === currentSubPhase;
+    // Check if all required players are ready for current step
+    return playersWhoNeedToConfirm.every(playerId => {
+      const playerReady = playerReadiness.find(pr => pr.playerId === playerId);
+      return playerReady?.isReady && playerReady?.currentStep === currentStep;
     });
   }
 
-  // Mark a player as ready for the current subphase
   setPlayerReady(gameState: GameState, playerId: string): GameState {
-    const currentSubPhase = this.getCurrentSubPhase(gameState);
+    const currentStep = this.getCurrentStep(gameState);
     const currentReadiness = gameState.gameData?.phaseReadiness as PlayerReadiness[] || [];
     
     // Remove any existing readiness for this player
     const updatedReadiness = currentReadiness.filter(pr => pr.playerId !== playerId);
     
-    // Add new readiness for current subphase
+    // Add new readiness for current step
     updatedReadiness.push({
       playerId,
       isReady: true,
-      currentSubPhase,
+      currentStep: currentStep || '',
       declaredAt: new Date().toISOString()
     });
 
@@ -317,7 +162,6 @@ export class GamePhasesEngine {
     };
   }
 
-  // Clear all player readiness (when advancing to next subphase)
   clearPlayerReadiness(gameState: GameState): GameState {
     return {
       ...gameState,
@@ -328,222 +172,262 @@ export class GamePhasesEngine {
     };
   }
 
-  // Recalculate required subphases when ships are built during Ships that Build or Drawing phases
-  recalculateRequiredSubPhases(gameState: GameState): GameState {
-    const requiredSubPhases = this.getRequiredSubPhasesForTurn(gameState);
-    
-    return {
-      ...gameState,
-      gameData: {
-        ...gameState.gameData,
-        turnData: {
-          ...gameState.gameData?.turnData,
-          requiredSubPhases
-        }
-      }
-    };
-  }
+  // Get players who need to confirm readiness for a given step
+  private getPlayersWhoNeedToConfirm(gameState: GameState, step: BuildPhaseStep | BattlePhaseStep | null): string[] {
+    if (!step) return [];
 
-  // Check if a ship building action should trigger phase recalculation
-  shouldRecalculateAfterShipBuilding(currentSubPhase: SubPhase): boolean {
-    return currentSubPhase === SubPhase.SHIPS_THAT_BUILD || currentSubPhase === SubPhase.DRAWING;
-  }
+    const allPlayerIds = gameState.players.map(p => p.id);
 
-  // Process ship building action and recalculate phases if needed
-  processShipBuildingAction(gameState: GameState, action: GameAction): GameState {
-    const currentSubPhase = this.getCurrentSubPhase(gameState);
-    
-    // Apply the ship building action to game state first
-    let updatedGameState = gameState; // This would be processed by RulesEngine
-    
-    // Check if we need to recalculate required subphases
-    if (this.shouldRecalculateAfterShipBuilding(currentSubPhase)) {
-      updatedGameState = this.recalculateRequiredSubPhases(updatedGameState);
-      
-      console.log(`Recalculated required subphases after ship building in subphase ${currentSubPhase}`);
+    switch (step) {
+      // Build Phase steps
+      case BuildPhaseStep.DICE_ROLL:
+        // Automatic - no confirmation needed
+        return [];
+
+      case BuildPhaseStep.LINE_GENERATION:
+        // Automatic - no confirmation needed
+        return [];
+
+      case BuildPhaseStep.SHIPS_THAT_BUILD:
+        // Both players must confirm (even if they have no ships, they can pass)
+        return allPlayerIds;
+
+      case BuildPhaseStep.DRAWING:
+        // Both players must confirm
+        return allPlayerIds;
+
+      case BuildPhaseStep.END_OF_BUILD:
+        // Automatic - no confirmation needed
+        return [];
+
+      // Battle Phase steps
+      case BattlePhaseStep.FIRST_STRIKE:
+        // Automatic resolution, but may require target selection
+        return this.getPlayersWithFirstStrikeChoices(gameState);
+
+      case BattlePhaseStep.SIMULTANEOUS_DECLARATION:
+        // Interactive loop - currently acting player(s)
+        return this.getPlayersActiveInChargeSolarLoop(gameState);
+
+      case BattlePhaseStep.CONDITIONAL_RESPONSE:
+        // Interactive loop - currently acting player(s)
+        return this.getPlayersActiveInChargeSolarLoop(gameState);
+
+      default:
+        return [];
     }
-    
-    return updatedGameState;
   }
 
-  // Check if a subphase transition should occur
-  shouldTransitionSubPhase(gameState: GameState): SubPhaseTransition | null {
+  // ============================================================================
+  // STEP-SPECIFIC HELPERS
+  // ============================================================================
+
+  private getPlayersWithFirstStrikeChoices(gameState: GameState): string[] {
+    // If first strike requires target choices, return those players
+    // Otherwise return empty array (automatic resolution)
+    const playersWithChoices: string[] = [];
+    
+    gameState.players.forEach(player => {
+      const playerShips = gameState.gameData?.ships?.[player.id] || [];
+      const hasFirstStrikeChoice = playerShips.some(ship => {
+        // Guardian requires choosing which enemy ship to destroy
+        return ship.shipId === 'GUA' && (ship.currentCharges || 0) > 0;
+      });
+      
+      if (hasFirstStrikeChoice) {
+        playersWithChoices.push(player.id);
+      }
+    });
+
+    return playersWithChoices;
+  }
+
+  private getPlayersActiveInChargeSolarLoop(gameState: GameState): string[] {
+    // In charge/solar loop, return players who haven't passed yet
+    // For now, return all players (they can pass)
+    return gameState.players.map(p => p.id);
+  }
+
+  // ============================================================================
+  // PHASE TRANSITION LOGIC
+  // ============================================================================
+
+  shouldTransitionStep(gameState: GameState): PhaseTransition | null {
     const currentMajorPhase = this.getCurrentMajorPhase(gameState);
-    const currentSubPhase = this.getCurrentSubPhase(gameState);
+    const currentStep = this.getCurrentStep(gameState);
     
     // Check if all players are ready first
     if (!this.areAllPlayersReady(gameState)) {
       return null;
     }
 
-    // Get next subphase in sequence
-    const nextSubPhase = this.getNextRequiredSubPhase(gameState, currentSubPhase);
-    
-    if (nextSubPhase) {
-      // Check if we're transitioning to a new major phase
-      const nextMajorPhase = this.getMajorPhaseForSubPhase(nextSubPhase);
-      
-      return {
-        fromMajorPhase: currentMajorPhase,
-        fromSubPhase: currentSubPhase,
-        toMajorPhase: nextMajorPhase,
-        toSubPhase: nextSubPhase,
-        condition: () => true, // Already checked readiness above
-        onTransition: (state) => this.clearPlayerReadiness(state)
-      };
+    // Build Phase transitions
+    if (currentMajorPhase === MajorPhase.BUILD_PHASE) {
+      return this.getNextBuildPhaseTransition(gameState, currentStep as BuildPhaseStep);
     }
 
-    // Check if we should move to Health Resolution
+    // Battle Phase transitions
     if (currentMajorPhase === MajorPhase.BATTLE_PHASE) {
-      return {
-        fromMajorPhase: currentMajorPhase,
-        fromSubPhase: currentSubPhase,
-        toMajorPhase: MajorPhase.HEALTH_RESOLUTION, 
-        toSubPhase: null, // Health Resolution is not a numbered subphase
-        condition: () => true,
-        onTransition: (state) => this.resolveHealthAndCheckGameEnd(state)
-      };
+      return this.getNextBattlePhaseTransition(gameState, currentStep as BattlePhaseStep);
     }
 
-    // Check for game over conditions during Health Resolution
-    if (currentMajorPhase === MajorPhase.HEALTH_RESOLUTION) {
-      if (this.shouldEndGame(gameState)) {
-        return {
-          fromMajorPhase: currentMajorPhase,
-          fromSubPhase: null,
-          toMajorPhase: MajorPhase.END_OF_GAME,
-          toSubPhase: null,
-          condition: () => true,
-          onTransition: (state) => this.determineVictoryType(state)
-        };
-      } else {
-        // Start new turn
-        return {
-          fromMajorPhase: currentMajorPhase,
-          fromSubPhase: null,
-          toMajorPhase: MajorPhase.BUILD_PHASE,
-          toSubPhase: SubPhase.ROLL_DICE,
-          condition: () => true,
-          onTransition: (state) => this.startNewTurn(state)
-        };
-      }
+    // End of Turn Resolution transitions
+    if (currentMajorPhase === MajorPhase.END_OF_TURN_RESOLUTION) {
+      return this.getEndOfTurnTransition(gameState);
     }
 
     return null;
   }
 
-  // Get the next required subphase in sequence
-  private getNextRequiredSubPhase(gameState: GameState, currentSubPhase: SubPhase): SubPhase | null {
-    const requiredSubPhases = this.getRequiredSubPhasesForTurn(gameState);
-    const currentSubPhaseNum = currentSubPhase as number;
-    
-    // Find the next required subphase after current one
-    for (let i = currentSubPhaseNum + 1; i <= 13; i++) {
-      const subPhase = i as SubPhase;
-      if (requiredSubPhases.some(req => req.subPhase === subPhase)) {
-        return subPhase;
-      }
-    }
-    
-    return null; // No more subphases, ready to transition to Health Resolution
-  }
+  private getNextBuildPhaseTransition(gameState: GameState, currentStep: BuildPhaseStep): PhaseTransition | null {
+    switch (currentStep) {
+      case BuildPhaseStep.DICE_ROLL:
+        return {
+          fromMajorPhase: MajorPhase.BUILD_PHASE,
+          fromStep: currentStep,
+          toMajorPhase: MajorPhase.BUILD_PHASE,
+          toStep: BuildPhaseStep.LINE_GENERATION,
+          condition: () => true,
+          onTransition: (state) => this.clearPlayerReadiness(state)
+        };
 
-  // Get the major phase that contains a given subphase
-  private getMajorPhaseForSubPhase(subPhase: SubPhase): MajorPhase {
-    if (subPhase >= 1 && subPhase <= 7) {
-      return MajorPhase.BUILD_PHASE;
-    } else if (subPhase >= 8 && subPhase <= 13) {
-      return MajorPhase.BATTLE_PHASE;
-    }
-    
-    return MajorPhase.BUILD_PHASE; // Fallback
-  }
+      case BuildPhaseStep.LINE_GENERATION:
+        return {
+          fromMajorPhase: MajorPhase.BUILD_PHASE,
+          fromStep: currentStep,
+          toMajorPhase: MajorPhase.BUILD_PHASE,
+          toStep: BuildPhaseStep.SHIPS_THAT_BUILD,
+          condition: () => true,
+          onTransition: (state) => this.clearPlayerReadiness(state)
+        };
 
-  // Get valid actions for the current subphase
-  getValidActionsForSubPhase(subPhase: SubPhase, playerId: string, gameState: GameState): string[] {
-    // Check if this player needs to act in this subphase
-    const requiredSubPhases = this.getRequiredSubPhasesForTurn(gameState);
-    const currentSubPhaseReq = requiredSubPhases.find(req => req.subPhase === subPhase);
-    
-    if (!currentSubPhaseReq || !currentSubPhaseReq.playersWithRequiredShips.includes(playerId)) {
-      // Player doesn't need to act in this subphase, only allow ready declaration if needed
-      return currentSubPhaseReq?.playersWithRequiredShips.length === 0 ? [] : ['declare_ready'];
-    }
+      case BuildPhaseStep.SHIPS_THAT_BUILD:
+        return {
+          fromMajorPhase: MajorPhase.BUILD_PHASE,
+          fromStep: currentStep,
+          toMajorPhase: MajorPhase.BUILD_PHASE,
+          toStep: BuildPhaseStep.DRAWING,
+          condition: () => true,
+          onTransition: (state) => this.clearPlayerReadiness(state)
+        };
 
-    switch (subPhase) {
-      case SubPhase.ROLL_DICE:
-        return []; // Automatic
-        
-      case SubPhase.DICE_MANIPULATION:
-        return ['use_dice_manipulation', 'declare_ready'];
-        
-      case SubPhase.LINE_GENERATION:
-        return []; // Automatic
-        
-      case SubPhase.SHIPS_THAT_BUILD:
-        // Ships that can build other ships act here - triggers phase recalculation
-        return ['use_ship_building_power', 'build_ship_via_power', 'declare_ready'];
-        
-      case SubPhase.DRAWING:
-        // Regular ship building - also triggers phase recalculation
-        return ['build_ship', 'save_lines', 'use_drawing_phase_power', 'declare_ready'];
-        
-      case SubPhase.UPON_COMPLETION:
-        return ['trigger_upon_completion_power', 'declare_ready'];
-        
-      case SubPhase.END_BUILD_PHASE:
-        return ['use_end_build_phase_power', 'declare_ready'];
-        
-      case SubPhase.FIRST_STRIKE:
-        return ['use_first_strike_power', 'declare_ready'];
-        
-      case SubPhase.CHARGE_DECLARATION:
-        return ['declare_charge', 'use_solar_power', 'declare_ready'];
-        
-      case SubPhase.CHARGE_RESPONSE:
-        return ['respond_with_charge', 'respond_with_solar_power', 'declare_ready'];
-        
-      case SubPhase.CHARGE_RESOLUTION:
-        return []; // Automatic
-        
-      case SubPhase.AUTOMATIC:
-        return []; // Automatic
-        
-      case SubPhase.END_OF_BATTLE_PHASE:
-        return ['use_end_battle_phase_power', 'declare_ready'];
-        
+      case BuildPhaseStep.DRAWING:
+        return {
+          fromMajorPhase: MajorPhase.BUILD_PHASE,
+          fromStep: currentStep,
+          toMajorPhase: MajorPhase.BUILD_PHASE,
+          toStep: BuildPhaseStep.END_OF_BUILD,
+          condition: () => true,
+          onTransition: (state) => this.clearPlayerReadiness(state)
+        };
+
+      case BuildPhaseStep.END_OF_BUILD:
+        // Check if Chronoswarm triggers extra build phase
+        if (this.shouldTriggerChronoswarmExtraPhase(gameState)) {
+          return {
+            fromMajorPhase: MajorPhase.BUILD_PHASE,
+            fromStep: currentStep,
+            toMajorPhase: MajorPhase.BUILD_PHASE,
+            toStep: BuildPhaseStep.DICE_ROLL,
+            condition: () => true,
+            onTransition: (state) => this.setupChronoswarmExtraPhase(state)
+          };
+        }
+        // Transition to Battle Phase
+        return {
+          fromMajorPhase: MajorPhase.BUILD_PHASE,
+          fromStep: currentStep,
+          toMajorPhase: MajorPhase.BATTLE_PHASE,
+          toStep: BattlePhaseStep.FIRST_STRIKE,
+          condition: () => true,
+          onTransition: (state) => this.clearPlayerReadiness(state)
+        };
+
       default:
-        return ['declare_ready'];
+        return null;
     }
   }
 
-  // Check if an action is valid for the current subphase
-  isActionValidForSubPhase(action: GameAction, gameState: GameState): boolean {
-    const currentSubPhase = this.getCurrentSubPhase(gameState);
-    const validActions = this.getValidActionsForSubPhase(currentSubPhase, action.playerId, gameState);
-    return validActions.includes(action.type);
+  private getNextBattlePhaseTransition(gameState: GameState, currentStep: BattlePhaseStep): PhaseTransition | null {
+    switch (currentStep) {
+      case BattlePhaseStep.FIRST_STRIKE:
+        return {
+          fromMajorPhase: MajorPhase.BATTLE_PHASE,
+          fromStep: currentStep,
+          toMajorPhase: MajorPhase.BATTLE_PHASE,
+          toStep: BattlePhaseStep.SIMULTANEOUS_DECLARATION,
+          condition: () => true,
+          onTransition: (state) => this.clearPlayerReadiness(state)
+        };
+
+      case BattlePhaseStep.SIMULTANEOUS_DECLARATION:
+        // Both players ready → Reveal declarations → Check if any were made
+        const turnData = gameState.gameData?.turnData;
+        const anyDeclarationsMade = this.checkIfAnyDeclarationsMade(gameState);
+        
+        if (!anyDeclarationsMade) {
+          // No declarations made → Skip directly to End of Turn Resolution
+          return {
+            fromMajorPhase: MajorPhase.BATTLE_PHASE,
+            fromStep: currentStep,
+            toMajorPhase: MajorPhase.END_OF_TURN_RESOLUTION,
+            toStep: null,
+            condition: () => true,
+            onTransition: (state) => this.revealDeclarationsAndResolve(state)
+          };
+        } else {
+          // Declarations were made → Move to Conditional Response
+          return {
+            fromMajorPhase: MajorPhase.BATTLE_PHASE,
+            fromStep: currentStep,
+            toMajorPhase: MajorPhase.BATTLE_PHASE,
+            toStep: BattlePhaseStep.CONDITIONAL_RESPONSE,
+            condition: () => true,
+            onTransition: (state) => this.revealDeclarationsAndPrepareResponse(state)
+          };
+        }
+
+      case BattlePhaseStep.CONDITIONAL_RESPONSE:
+        // Both players ready → Reveal responses → Move to End of Turn Resolution
+        return {
+          fromMajorPhase: MajorPhase.BATTLE_PHASE,
+          fromStep: currentStep,
+          toMajorPhase: MajorPhase.END_OF_TURN_RESOLUTION,
+          toStep: null,
+          condition: () => true,
+          onTransition: (state) => this.revealDeclarationsAndResolve(state)
+        };
+
+      default:
+        return null;
+    }
   }
 
-  // Check if player can act in current subphase (for timer management)
-  canPlayerActInSubPhase(playerId: string, gameState: GameState): boolean {
-    const currentSubPhase = this.getCurrentSubPhase(gameState);
-    const validActions = this.getValidActionsForSubPhase(currentSubPhase, playerId, gameState);
-    
-    // Player can act if they have any actions available
-    return validActions.length > 0;
+  private getEndOfTurnTransition(gameState: GameState): PhaseTransition | null {
+    // Check if game should end
+    if (this.shouldEndGame(gameState)) {
+      return {
+        fromMajorPhase: MajorPhase.END_OF_TURN_RESOLUTION,
+        fromStep: null,
+        toMajorPhase: MajorPhase.END_OF_GAME,
+        toStep: null,
+        condition: () => true,
+        onTransition: (state) => this.determineVictoryType(state)
+      };
+    }
+
+    // Start new turn
+    return {
+      fromMajorPhase: MajorPhase.END_OF_TURN_RESOLUTION,
+      fromStep: null,
+      toMajorPhase: MajorPhase.BUILD_PHASE,
+      toStep: BuildPhaseStep.DICE_ROLL,
+      condition: () => true,
+      onTransition: (state) => this.startNewTurn(state)
+    };
   }
 
-  // Get players who need to act in current subphase (for timer and UI)
-  getPlayersWhoNeedToActInSubPhase(gameState: GameState): string[] {
-    const currentSubPhase = this.getCurrentSubPhase(gameState);
-    const requiredSubPhases = this.getRequiredSubPhasesForTurn(gameState);
-    const currentSubPhaseReq = requiredSubPhases.find(req => req.subPhase === currentSubPhase);
-    
-    return currentSubPhaseReq?.playersWithRequiredShips || [];
-  }
-
-  // Apply a subphase transition
-  transitionToSubPhase(gameState: GameState, transition: SubPhaseTransition): GameState {
+  transitionToStep(gameState: GameState, transition: PhaseTransition): GameState {
     let newGameState = {
       ...gameState,
       gameData: {
@@ -551,7 +435,7 @@ export class GamePhasesEngine {
         turnData: {
           ...gameState.gameData?.turnData,
           currentMajorPhase: transition.toMajorPhase,
-          currentSubPhase: transition.toSubPhase
+          currentStep: transition.toStep
         },
         phaseStartTime: new Date().toISOString()
       }
@@ -565,34 +449,172 @@ export class GamePhasesEngine {
     return newGameState;
   }
 
-  // Helper methods for health resolution and game end logic
-  private resolveHealthAndCheckGameEnd(gameState: GameState): GameState {
+  // ============================================================================
+  // CHRONOSWARM EXTRA PHASE LOGIC
+  // ============================================================================
+
+  private shouldTriggerChronoswarmExtraPhase(gameState: GameState): boolean {
+    // Check if any player has Chronoswarm and hasn't used it this turn yet
+    const turnData = gameState.gameData?.turnData;
+    const extraPhaseCount = turnData?.chronoswarmExtraPhaseCount || 0;
+
+    // Chronoswarm can only trigger once per turn (or more based on count)
+    // Check if any player has Chronoswarm ships
+    const hasChronoswarm = gameState.players.some(player => {
+      const playerShips = gameState.gameData?.ships?.[player.id] || [];
+      return playerShips.some(ship => ship.shipId === 'CHR' && !ship.isDestroyed);
+    });
+
+    // Only trigger if Chronoswarm exists and hasn't been used yet this turn
+    return hasChronoswarm && extraPhaseCount === 0;
+  }
+
+  private setupChronoswarmExtraPhase(gameState: GameState): GameState {
+    const turnData = gameState.gameData?.turnData;
+    
+    return {
+      ...gameState,
+      gameData: {
+        ...gameState.gameData,
+        turnData: {
+          ...turnData,
+          chronoswarmExtraPhaseCount: (turnData?.chronoswarmExtraPhaseCount || 0) + 1
+        }
+      }
+    };
+  }
+
+  // ============================================================================
+  // CHARGE/SOLAR LOOP LOGIC
+  // ============================================================================
+
+  private haveBothPlayersPassedChargeSolarLoop(gameState: GameState): boolean {
+    // Check if both players have explicitly passed
+    // For now, this will be based on player readiness
+    const playerReadiness = gameState.gameData?.phaseReadiness as PlayerReadiness[] || [];
+    const allPlayerIds = gameState.players.map(p => p.id);
+
+    return allPlayerIds.every(playerId => {
+      const playerReady = playerReadiness.find(pr => pr.playerId === playerId);
+      return playerReady?.isReady && playerReady?.currentStep === BattlePhaseStep.INTERACTION_LOOP;
+    });
+  }
+
+  private checkIfAnyDeclarationsMade(gameState: GameState): boolean {
+    const turnData = gameState.gameData?.turnData;
+    if (!turnData) return false;
+
+    // Check if any charge or solar power declarations were made
+    return turnData.anyDeclarationsMade || false;
+  }
+
+  private revealDeclarationsAndPrepareResponse(gameState: GameState): GameState {
+    const turnData = gameState.gameData?.turnData;
+    if (!turnData) return gameState;
+
+    // Reveal declarations to both players
+    const chargeDeclarations = turnData.pendingChargeDeclarations;
+    const solarPowerDeclarations = turnData.pendingSOLARPowerDeclarations;
+
+    // Merge pending declarations into main declarations
+    const updatedChargeDeclarations: ChargeDeclaration[] = [];
+    const updatedSolarPowerDeclarations: SolarPowerDeclaration[] = [];
+
+    for (const playerId in chargeDeclarations) {
+      updatedChargeDeclarations.push(...chargeDeclarations[playerId]);
+    }
+
+    for (const playerId in solarPowerDeclarations) {
+      updatedSolarPowerDeclarations.push(...solarPowerDeclarations[playerId]);
+    }
+
+    return {
+      ...gameState,
+      gameData: {
+        ...gameState.gameData,
+        turnData: {
+          ...turnData,
+          chargeDeclarations: updatedChargeDeclarations,
+          solarPowerDeclarations: updatedSolarPowerDeclarations,
+          anyDeclarationsMade: true
+        }
+      }
+    };
+  }
+
+  private revealDeclarationsAndResolve(gameState: GameState): GameState {
+    const turnData = gameState.gameData?.turnData;
+    if (!turnData) return gameState;
+
+    // Reveal declarations to both players
+    const chargeDeclarations = turnData.pendingChargeDeclarations;
+    const solarPowerDeclarations = turnData.pendingSOLARPowerDeclarations;
+
+    // Merge pending declarations into main declarations
+    const updatedChargeDeclarations: ChargeDeclaration[] = [];
+    const updatedSolarPowerDeclarations: SolarPowerDeclaration[] = [];
+
+    for (const playerId in chargeDeclarations) {
+      updatedChargeDeclarations.push(...chargeDeclarations[playerId]);
+    }
+
+    for (const playerId in solarPowerDeclarations) {
+      updatedSolarPowerDeclarations.push(...solarPowerDeclarations[playerId]);
+    }
+
+    return {
+      ...gameState,
+      gameData: {
+        ...gameState.gameData,
+        turnData: {
+          ...turnData,
+          chargeDeclarations: updatedChargeDeclarations,
+          solarPowerDeclarations: updatedSolarPowerDeclarations,
+          anyDeclarationsMade: true
+        }
+      }
+    };
+  }
+
+  // ============================================================================
+  // END OF TURN RESOLUTION
+  // ============================================================================
+
+  private resolveEndOfTurn(gameState: GameState): GameState {
     const turnData = gameState.gameData?.turnData;
     if (!turnData) return gameState;
 
     const players = gameState.players;
+    
+    // Calculate all damage and healing (from all sources)
     const updatedPlayers = players.map(player => {
-      // Get damage/healing from accumulated values AND ship calculations
+      // Accumulated damage from charge/solar powers
       const accumulatedDamage = turnData.accumulatedDamage[player.id] || 0;
       const accumulatedHealing = turnData.accumulatedHealing[player.id] || 0;
       
-      // Calculate total damage from all other players' ships
-      const totalDamageReceived = players
-        .filter(p => p.id !== player.id)
-        .reduce((total, otherPlayer) => {
-          return total + SpeciesIntegration.calculatePlayerDamageOutput(gameState, otherPlayer.id);
-        }, 0);
+      // Damage from automatic ship powers (continuous)
+      const continuousAutomaticDamage = this.calculateContinuousAutomaticDamage(gameState, player.id);
       
-      // Calculate healing from own ships
-      const totalHealingReceived = SpeciesIntegration.calculatePlayerHealingOutput(gameState, player.id);
+      // Healing from automatic ship powers (continuous)
+      const continuousAutomaticHealing = this.calculateContinuousAutomaticHealing(gameState, player.id);
       
-      const currentHealth = player.health || 25; // Default starting health
+      // Once-only automatic damage (from ships built this turn)
+      const onceOnlyDamage = this.calculateOnceOnlyAutomaticDamage(gameState, player.id);
       
-      // Apply all damage and healing sources
-      let newHealth = currentHealth - (accumulatedDamage + totalDamageReceived) + (accumulatedHealing + totalHealingReceived);
+      // Once-only automatic healing (from ships built this turn)
+      const onceOnlyHealing = this.calculateOnceOnlyAutomaticHealing(gameState, player.id);
       
-      // Cap at maximum health (35 for Standard Game)
-      newHealth = Math.min(newHealth, 35);
+      const currentHealth = player.health || 100; // Default starting health
+      
+      // Apply all damage and healing sources simultaneously
+      const totalDamage = accumulatedDamage + continuousAutomaticDamage + onceOnlyDamage;
+      const totalHealing = accumulatedHealing + continuousAutomaticHealing + onceOnlyHealing;
+      
+      let newHealth = currentHealth - totalDamage + totalHealing;
+      
+      // Cap at maximum health (100 for Standard Game, or customizable)
+      const maxHealth = gameState.settings.maxHealth || 100;
+      newHealth = Math.min(newHealth, maxHealth);
       
       return {
         ...player,
@@ -609,22 +631,114 @@ export class GamePhasesEngine {
           ...turnData,
           // Clear accumulated damage/healing after resolution
           accumulatedDamage: {},
-          accumulatedHealing: {}
+          accumulatedHealing: {},
+          // Clear once-only effects after resolution
+          onceOnlyAutomaticEffects: []
         }
       }
     };
   }
 
+  private calculateContinuousAutomaticDamage(gameState: GameState, targetPlayerId: string): number {
+    // Calculate damage from all opponent's continuous automatic ship powers
+    let totalDamage = 0;
+    
+    gameState.players.forEach(player => {
+      if (player.id === targetPlayerId) return; // Don't damage yourself
+      
+      const playerShips = gameState.gameData?.ships?.[player.id] || [];
+      playerShips.forEach(ship => {
+        if (ship.isDestroyed) return; // Destroyed ships don't contribute
+        
+        // Calculate damage from this ship's automatic powers
+        const shipDamage = SpeciesIntegration.calculateShipAutomaticDamage(gameState, ship);
+        totalDamage += shipDamage;
+      });
+    });
+    
+    return totalDamage;
+  }
+
+  private calculateContinuousAutomaticHealing(gameState: GameState, playerId: string): number {
+    // Calculate healing from player's own continuous automatic ship powers
+    let totalHealing = 0;
+    
+    const playerShips = gameState.gameData?.ships?.[playerId] || [];
+    playerShips.forEach(ship => {
+      if (ship.isDestroyed) return; // Destroyed ships don't contribute
+      
+      // Calculate healing from this ship's automatic powers
+      const shipHealing = SpeciesIntegration.calculateShipAutomaticHealing(gameState, ship);
+      totalHealing += shipHealing;
+    });
+    
+    return totalHealing;
+  }
+
+  private calculateOnceOnlyAutomaticDamage(gameState: GameState, targetPlayerId: string): number {
+    // Calculate damage from once-only automatic effects (ships built this turn)
+    const turnData = gameState.gameData?.turnData;
+    if (!turnData) return 0;
+    
+    let totalDamage = 0;
+    
+    turnData.onceOnlyAutomaticEffects.forEach(effect => {
+      if (effect.effectType !== 'damage') return;
+      
+      // Find the ship and calculate damage
+      const ship = this.findShipById(gameState, effect.shipId);
+      if (!ship || ship.ownerId === targetPlayerId) return; // Don't damage yourself
+      
+      const shipDamage = SpeciesIntegration.calculateShipOnceOnlyDamage(gameState, ship);
+      totalDamage += shipDamage;
+    });
+    
+    return totalDamage;
+  }
+
+  private calculateOnceOnlyAutomaticHealing(gameState: GameState, playerId: string): number {
+    // Calculate healing from once-only automatic effects (ships built this turn)
+    const turnData = gameState.gameData?.turnData;
+    if (!turnData) return 0;
+    
+    let totalHealing = 0;
+    
+    turnData.onceOnlyAutomaticEffects.forEach(effect => {
+      if (effect.effectType !== 'healing') return;
+      
+      // Find the ship and calculate healing
+      const ship = this.findShipById(gameState, effect.shipId);
+      if (!ship || ship.ownerId !== playerId) return; // Only heal yourself
+      
+      const shipHealing = SpeciesIntegration.calculateShipOnceOnlyHealing(gameState, ship);
+      totalHealing += shipHealing;
+    });
+    
+    return totalHealing;
+  }
+
+  private findShipById(gameState: GameState, shipId: string): any {
+    for (const playerId in gameState.gameData?.ships) {
+      const ship = gameState.gameData.ships[playerId].find(s => s.id === shipId);
+      if (ship) return ship;
+    }
+    return null;
+  }
+
+  // ============================================================================
+  // GAME END LOGIC
+  // ============================================================================
+
   private shouldEndGame(gameState: GameState): boolean {
     const players = gameState.players;
     
     // Check if any player has 0 or below health
-    return players.some(player => (player.health || 25) <= 0);
+    return players.some(player => (player.health || 100) <= 0);
   }
 
   private determineVictoryType(gameState: GameState): GameState {
     const players = gameState.players;
-    const playersAtZeroOrBelow = players.filter(p => (p.health || 25) <= 0);
+    const playersAtZeroOrBelow = players.filter(p => (p.health || 100) <= 0);
     
     let victoryType = '';
     let winner = null;
@@ -634,20 +748,20 @@ export class GamePhasesEngine {
       return gameState;
     } else if (playersAtZeroOrBelow.length === 1) {
       // One player at 0 or below, other player wins decisively
-      winner = players.find(p => (p.health || 25) > 0);
+      winner = players.find(p => (p.health || 100) > 0);
       victoryType = 'Decisive Victory';
     } else if (playersAtZeroOrBelow.length === players.length) {
       // All players at 0 or below
-      const healthValues = playersAtZeroOrBelow.map(p => p.health || 25);
+      const healthValues = playersAtZeroOrBelow.map(p => p.health || 100);
       const minHealth = Math.min(...healthValues);
-      const playersAtMinHealth = playersAtZeroOrBelow.filter(p => (p.health || 25) === minHealth);
+      const playersAtMinHealth = playersAtZeroOrBelow.filter(p => (p.health || 100) === minHealth);
       
       if (playersAtMinHealth.length === playersAtZeroOrBelow.length) {
         // All at same health - draw
         victoryType = 'Draw';
       } else {
         // One player lower than others - narrow victory for higher health player
-        winner = playersAtZeroOrBelow.find(p => (p.health || 25) > minHealth);
+        winner = playersAtZeroOrBelow.find(p => (p.health || 100) > minHealth);
         victoryType = 'Narrow Victory';
       }
     }
@@ -662,29 +776,9 @@ export class GamePhasesEngine {
     };
   }
 
-  // Legacy helper methods - kept for compatibility
-  // Note: These are now replaced by SpeciesIntegration methods but kept for any existing references
-  
-  private getShipsRequiringSubPhase(gameState: GameState, subPhase: SubPhase): any[] {
-    // Redirect to SpeciesIntegration
-    return SpeciesIntegration.hasShipsRequiringSubPhase(gameState, subPhase) ? ['placeholder'] : [];
-  }
-
-  private getPlayersWithShips(ships: any[]): string[] {
-    // This method is deprecated - use SpeciesIntegration.getPlayersWithShipsRequiringSubPhase instead
-    return [];
-  }
-
-  private isCombatRequired(gameState: GameState): boolean {
-    // Check if any combat actions were taken this turn
-    // Placeholder - will implement based on your attack/combat rules
-    return gameState.gameData?.combatActions?.length > 0 || false;
-  }
-
-  private hasWinner(gameState: GameState): boolean {
-    // Check if there's a winner (will be implemented based on win conditions)
-    return gameState.winner !== null;
-  }
+  // ============================================================================
+  // TURN INITIALIZATION
+  // ============================================================================
 
   private startNewTurn(gameState: GameState): GameState {
     const turnNumber = (gameState.gameData?.turnData?.turnNumber || 0) + 1;
@@ -692,7 +786,7 @@ export class GamePhasesEngine {
     // Store health at start of turn for ships that check this
     const healthAtTurnStart: { [playerId: string]: number } = {};
     gameState.players.forEach(player => {
-      healthAtTurnStart[player.id] = player.health || 25;
+      healthAtTurnStart[player.id] = player.health || 100;
     });
 
     return {
@@ -703,14 +797,65 @@ export class GamePhasesEngine {
         turnData: {
           turnNumber,
           currentMajorPhase: MajorPhase.BUILD_PHASE,
-          currentSubPhase: SubPhase.ROLL_DICE,
-          requiredSubPhases: [], // Will be calculated by getRequiredSubPhasesForTurn
+          currentStep: BuildPhaseStep.DICE_ROLL,
           accumulatedDamage: {},
           accumulatedHealing: {},
           healthAtTurnStart,
-          chargesDeclared: false
+          onceOnlyAutomaticEffects: [],
+          continuousAutomaticShips: [],
+          chargeDeclarations: [],
+          solarPowerDeclarations: [],
+          // Initialize pending declarations
+          pendingChargeDeclarations: {},
+          pendingSOLARPowerDeclarations: {},
+          anyDeclarationsMade: false
         }
       }
     };
+  }
+
+  // ============================================================================
+  // VALID ACTIONS
+  // ============================================================================
+
+  getValidActionsForStep(step: BuildPhaseStep | BattlePhaseStep | null, playerId: string, gameState: GameState): string[] {
+    if (!step) return [];
+
+    switch (step) {
+      // Build Phase steps
+      case BuildPhaseStep.DICE_ROLL:
+        return []; // Automatic
+
+      case BuildPhaseStep.LINE_GENERATION:
+        return []; // Automatic
+
+      case BuildPhaseStep.SHIPS_THAT_BUILD:
+        return ['use_ship_building_power', 'declare_ready'];
+
+      case BuildPhaseStep.DRAWING:
+        return ['build_ship', 'upgrade_ship', 'save_lines', 'use_drawing_phase_power', 'declare_ready'];
+
+      case BuildPhaseStep.END_OF_BUILD:
+        return []; // Automatic
+
+      // Battle Phase steps
+      case BattlePhaseStep.FIRST_STRIKE:
+        return ['use_first_strike_power', 'select_target']; // May need target selection
+
+      case BattlePhaseStep.SIMULTANEOUS_DECLARATION:
+        return ['declare_charge', 'use_solar_power', 'pass'];
+
+      case BattlePhaseStep.CONDITIONAL_RESPONSE:
+        return ['declare_charge', 'use_solar_power', 'pass'];
+
+      default:
+        return [];
+    }
+  }
+
+  isActionValidForStep(action: GameAction, gameState: GameState): boolean {
+    const currentStep = this.getCurrentStep(gameState);
+    const validActions = this.getValidActionsForStep(currentStep, action.playerId, gameState);
+    return validActions.includes(action.type);
   }
 }

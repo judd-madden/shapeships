@@ -5,7 +5,7 @@ This directory contains development and testing interfaces for Shapeships.
 ## Files
 
 - **GameTestInterface.tsx** - Simplified 4-phase game test with multiplayer
-- **FullPhaseTest.tsx** - Complete 14-subphase system test with ActionResolver
+- **FullPhaseTest.tsx** - Complete 3-phase system test (Build, Battle, End of Turn Resolution) with ActionResolver
 - **ActionResolverExample.tsx** - Example usage of ActionResolver hook
 - **GameTestReadme.md** - Documentation for Game Test Interface
 

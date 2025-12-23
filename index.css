@@ -467,6 +467,10 @@
     pointer-events: none;
   }
 
+  .visible {
+    visibility: visible;
+  }
+
   .absolute {
     position: absolute;
   }
@@ -633,12 +637,12 @@
     display: grid;
   }
 
-  .inline {
-    display: inline;
+  .hidden {
+    display: none;
   }
 
-  .inline-block {
-    display: inline-block;
+  .inline {
+    display: inline;
   }
 
   .inline-flex {
@@ -660,8 +664,8 @@
     height: calc(var(--spacing) * 9);
   }
 
-  .h-2 {
-    height: calc(var(--spacing) * 2);
+  .h-3 {
+    height: calc(var(--spacing) * 3);
   }
 
   .h-4 {
@@ -730,6 +734,10 @@
 
   .min-h-screen {
     min-height: 100vh;
+  }
+
+  .w-3 {
+    width: calc(var(--spacing) * 3);
   }
 
   .w-4 {
@@ -874,10 +882,6 @@
 
   .justify-center {
     justify-content: center;
-  }
-
-  .justify-start {
-    justify-content: flex-start;
   }
 
   .gap-1 {
@@ -1044,26 +1048,6 @@
     border-color: var(--color-red-300);
   }
 
-  .border-shapeships-blue\/40 {
-    border-color: var(--shapeships-blue);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .border-shapeships-blue\/40 {
-      border-color: color-mix(in oklab, var(--shapeships-blue) 40%, transparent);
-    }
-  }
-
-  .border-shapeships-green\/40 {
-    border-color: var(--shapeships-green);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .border-shapeships-green\/40 {
-      border-color: color-mix(in oklab, var(--shapeships-green) 40%, transparent);
-    }
-  }
-
   .border-shapeships-grey-20 {
     border-color: var(--shapeships-grey-20);
   }
@@ -1076,14 +1060,6 @@
     .border-shapeships-grey-20\/30 {
       border-color: color-mix(in oklab, var(--shapeships-grey-20) 30%, transparent);
     }
-  }
-
-  .border-shapeships-grey-50 {
-    border-color: var(--shapeships-grey-50);
-  }
-
-  .border-shapeships-grey-70 {
-    border-color: var(--shapeships-grey-70);
   }
 
   .border-shapeships-pastel-blue {
@@ -1114,26 +1090,6 @@
     border-color: var(--shapeships-red);
   }
 
-  .border-shapeships-red\/40 {
-    border-color: var(--shapeships-red);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .border-shapeships-red\/40 {
-      border-color: color-mix(in oklab, var(--shapeships-red) 40%, transparent);
-    }
-  }
-
-  .border-shapeships-yellow\/40 {
-    border-color: var(--shapeships-yellow);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .border-shapeships-yellow\/40 {
-      border-color: color-mix(in oklab, var(--shapeships-yellow) 40%, transparent);
-    }
-  }
-
   .border-transparent {
     border-color: #0000;
   }
@@ -1144,10 +1100,6 @@
 
   .border-yellow-300 {
     border-color: var(--color-yellow-300);
-  }
-
-  .bg-\[rgba\(125\,125\,125\,0\.30000000000000004\)\] {
-    background-color: #7d7d7d4d;
   }
 
   .bg-background {
@@ -1206,12 +1158,20 @@
     background-color: var(--color-gray-200);
   }
 
+  .bg-gray-300 {
+    background-color: var(--color-gray-300);
+  }
+
   .bg-green-50 {
     background-color: var(--color-green-50);
   }
 
   .bg-green-100 {
     background-color: var(--color-green-100);
+  }
+
+  .bg-green-600 {
+    background-color: var(--color-green-600);
   }
 
   .bg-input-background {
@@ -1246,28 +1206,8 @@
     background-color: var(--shapeships-blue);
   }
 
-  .bg-shapeships-blue\/20 {
-    background-color: var(--shapeships-blue);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .bg-shapeships-blue\/20 {
-      background-color: color-mix(in oklab, var(--shapeships-blue) 20%, transparent);
-    }
-  }
-
   .bg-shapeships-green {
     background-color: var(--shapeships-green);
-  }
-
-  .bg-shapeships-green\/20 {
-    background-color: var(--shapeships-green);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .bg-shapeships-green\/20 {
-      background-color: color-mix(in oklab, var(--shapeships-green) 20%, transparent);
-    }
   }
 
   .bg-shapeships-grey-20 {
@@ -1292,10 +1232,6 @@
     .bg-shapeships-grey-20\/20 {
       background-color: color-mix(in oklab, var(--shapeships-grey-20) 20%, transparent);
     }
-  }
-
-  .bg-shapeships-grey-90 {
-    background-color: var(--shapeships-grey-90);
   }
 
   .bg-shapeships-orange {
@@ -1344,16 +1280,6 @@
     background-color: var(--shapeships-purple);
   }
 
-  .bg-shapeships-red\/20 {
-    background-color: var(--shapeships-red);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .bg-shapeships-red\/20 {
-      background-color: color-mix(in oklab, var(--shapeships-red) 20%, transparent);
-    }
-  }
-
   .bg-shapeships-white {
     background-color: var(--shapeships-white);
   }
@@ -1366,20 +1292,6 @@
     .bg-shapeships-white\/90 {
       background-color: color-mix(in oklab, var(--shapeships-white) 90%, transparent);
     }
-  }
-
-  .bg-shapeships-yellow\/20 {
-    background-color: var(--shapeships-yellow);
-  }
-
-  @supports (color: color-mix(in lab, red, red)) {
-    .bg-shapeships-yellow\/20 {
-      background-color: color-mix(in oklab, var(--shapeships-yellow) 20%, transparent);
-    }
-  }
-
-  .bg-transparent {
-    background-color: #0000;
   }
 
   .bg-white {
@@ -1482,6 +1394,10 @@
     padding-top: calc(var(--spacing) * 2);
   }
 
+  .pt-4 {
+    padding-top: calc(var(--spacing) * 4);
+  }
+
   .pt-6 {
     padding-top: calc(var(--spacing) * 6);
   }
@@ -1504,10 +1420,6 @@
 
   .text-center {
     text-align: center;
-  }
-
-  .text-left {
-    text-align: left;
   }
 
   .text-right {
@@ -1555,10 +1467,6 @@
 
   .whitespace-nowrap {
     white-space: nowrap;
-  }
-
-  .text-\[rgb\(255\,255\,255\)\] {
-    color: #fff;
   }
 
   .text-amber-600 {
@@ -1713,10 +1621,6 @@
     color: var(--shapeships-white);
   }
 
-  .text-shapeships-yellow {
-    color: var(--shapeships-yellow);
-  }
-
   .text-white {
     color: var(--color-white);
   }
@@ -1761,10 +1665,6 @@
 
   .opacity-50 {
     opacity: .5;
-  }
-
-  .opacity-70 {
-    opacity: .7;
   }
 
   .shadow-md {
@@ -1888,18 +1788,6 @@
   }
 
   @media (hover: hover) {
-    .hover\:bg-shapeships-blue\/80:hover {
-      background-color: var(--shapeships-blue);
-    }
-
-    @supports (color: color-mix(in lab, red, red)) {
-      .hover\:bg-shapeships-blue\/80:hover {
-        background-color: color-mix(in oklab, var(--shapeships-blue) 80%, transparent);
-      }
-    }
-  }
-
-  @media (hover: hover) {
     .hover\:bg-shapeships-blue\/90:hover {
       background-color: var(--shapeships-blue);
     }
@@ -1907,18 +1795,6 @@
     @supports (color: color-mix(in lab, red, red)) {
       .hover\:bg-shapeships-blue\/90:hover {
         background-color: color-mix(in oklab, var(--shapeships-blue) 90%, transparent);
-      }
-    }
-  }
-
-  @media (hover: hover) {
-    .hover\:bg-shapeships-green\/80:hover {
-      background-color: var(--shapeships-green);
-    }
-
-    @supports (color: color-mix(in lab, red, red)) {
-      .hover\:bg-shapeships-green\/80:hover {
-        background-color: color-mix(in oklab, var(--shapeships-green) 80%, transparent);
       }
     }
   }
@@ -1944,12 +1820,6 @@
       .hover\:bg-shapeships-grey-20\/10:hover {
         background-color: color-mix(in oklab, var(--shapeships-grey-20) 10%, transparent);
       }
-    }
-  }
-
-  @media (hover: hover) {
-    .hover\:bg-shapeships-grey-70:hover {
-      background-color: var(--shapeships-grey-70);
     }
   }
 
@@ -2004,18 +1874,6 @@
   @media (hover: hover) {
     .hover\:bg-shapeships-red:hover {
       background-color: var(--shapeships-red);
-    }
-  }
-
-  @media (hover: hover) {
-    .hover\:bg-shapeships-red\/20:hover {
-      background-color: var(--shapeships-red);
-    }
-
-    @supports (color: color-mix(in lab, red, red)) {
-      .hover\:bg-shapeships-red\/20:hover {
-        background-color: color-mix(in oklab, var(--shapeships-red) 20%, transparent);
-      }
     }
   }
 

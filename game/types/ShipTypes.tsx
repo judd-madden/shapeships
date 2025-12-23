@@ -20,7 +20,7 @@ export enum Species {
   ANCIENT = 'ancient'
 }
 
-// Extended phase system - includes subphases from the 14-subphase system
+// Extended phase system - includes subphases from the 3-phase system (Build, Battle, End of Turn Resolution)
 export enum ShipPowerPhase {
   // Simple 4-phase cycle
   DICE_ROLL = 'dice_roll',

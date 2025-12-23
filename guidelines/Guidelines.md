@@ -323,7 +323,11 @@ if (gameData.actions && gameData.actions.length > 50) {
 
 ### ✅ Foundation Complete
 Our game engine, multiplayer system, and data architecture fully support the target game design:
-- Phase management system (14-subphase engine ready)
+- **Updated Turn System**: Simplified state-driven model with 2 interactive phases (Build, Battle) + End of Turn Resolution
+- Phase management: Build Phase (6 steps), Battle Phase (2 steps), End of Turn Resolution (automatic)
+- **Core Invariant**: All damage and healing resolve together at End of Turn Resolution
+- Health only changes at end of turn; players can only lose at end of turn
+- "Upon Completion" replaced with "Once Only Automatic" effects
 - Species-based ship organization (4 species with ship rosters)
 - Ship power framework (damage, healing, scaling effects)
 - Multiplayer synchronization with ready states

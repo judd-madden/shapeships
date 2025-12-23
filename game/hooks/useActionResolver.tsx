@@ -27,7 +27,6 @@ export interface UseActionResolverResult {
  * @param gameState - Current game state
  * @param currentPhase - Current phase name
  * @param phaseIndex - Current phase index
- * @param subPhase - Current subphase (SubPhase enum value)
  * @param onActionResolved - Callback when action is resolved
  * @param onPhaseReady - Callback when phase is ready to advance
  */
@@ -35,7 +34,6 @@ export function useActionResolver(
   gameState: GameState | null,
   currentPhase: string,
   phaseIndex: number,
-  subPhase?: number,
   onActionResolved?: (result: ActionResolutionResult) => void,
   onPhaseReady?: () => void
 ): UseActionResolverResult {
@@ -65,7 +63,6 @@ export function useActionResolver(
       gameState,
       currentPhase,
       phaseIndex,
-      subPhase,
       completedActions
     );
     
@@ -75,7 +72,7 @@ export function useActionResolver(
     if (actionState.canAdvancePhase && onPhaseReadyRef.current) {
       onPhaseReadyRef.current();
     }
-  }, [gameState, currentPhase, phaseIndex, subPhase, completedActions]);
+  }, [gameState, currentPhase, phaseIndex, completedActions]);
   
   /**
    * Resolve a player action
