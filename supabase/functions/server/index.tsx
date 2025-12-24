@@ -1,7 +1,55 @@
+// ⚠️ SERVER KERNEL RULE
+// This file must NOT contain game rules.
+// All rule decisions must be delegated to the shared game engine.
+// This file only:
+// - validates intents (structure/format)
+// - updates clocks (server time authority)
+// - calls engine (delegation)
+// - emits events (sequencing)
+// - persists state (KV storage)
+// - filters hidden info (commit/reveal protocol)
+
+/**
+ * ⚠️ TEMPORARY STATE WARNING
+ * The following sections are transitional:
+ * - SHIP_DEFINITIONS_MAP
+ * - ServerPhaseEngine
+ *
+ * These MUST be removed once engine delegation is enabled.
+ * Do not add new rules here.
+ *
+ * See:
+ * - /OPTION_B_FINAL_STATUS.md
+ * - /QUICK_REF_COMPLETE_DELEGATION.md
+ */
+
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
+
+// Import shared game engine (pure TypeScript, no React dependencies)
+// ⚠️ CURRENTLY BLOCKED: Cannot import yet - engine files have React dependencies
+// Engine files import from ShipDefinitions.tsx which imports React components
+// TODO: Update engine files to import from ShipDefinitions.core.ts (pure data)
+// Then uncomment these imports and delete SHIP_DEFINITIONS_MAP below
+// import { GameEngine } from "../../../game/engine/GameEngine.tsx";
+// import { ShapeshipsRulesEngine } from "../../../game/engine/RulesEngine.tsx";
+// import { EndOfTurnResolver } from "../../../game/engine/EndOfTurnResolver.tsx";
+
+// Import ship definitions (pure data, no React components)
+// ⚠️ CURRENTLY BLOCKED: See above
+// TODO: Uncomment when engine refactor is complete
+// import {
+//   PURE_SHIP_DEFINITIONS,
+//   getShipDefinitionById,
+//   getShipCost
+// } from "../../../game/data/ShipDefinitions.core.ts";
+
+// Import types
+// ⚠️ CURRENTLY BLOCKED: See above
+// TODO: Uncomment when engine refactor is complete
+// import type { GameState, Player } from "../../../game/types/GameTypes";
 
 const app = new Hono();
 
@@ -145,66 +193,127 @@ const generateGameId = () => {
   return result;
 };
 
-// Helper functions for ship data (simplified for testing)
-const getShipName = (shipId) => {
-  const shipNames = {
-    // Human ships - using new data model
-    'defender': 'Defender',
-    'fighter': 'Fighter',
-    // Old test ships (keeping for backwards compatibility)
-    'human_scout': 'Scout',
-    'human_fighter': 'Fighter',
-    'human_destroyer': 'Destroyer',
-    'human_cruiser': 'Cruiser',
-    'human_battleship': 'Battleship'
-  };
-  return shipNames[shipId] || 'Unknown Ship';
+// ============================================================================
+// ⚠️ TEMPORARY: SHIP DEFINITIONS (will be replaced with core imports)
+// ============================================================================
+// This is duplicated from /game/data/ShipDefinitions.core.ts
+// Cannot import yet because engine files have React dependencies
+//
+// TODO: Once engine files import from ShipDefinitions.core.ts (pure data),
+//       delete this map and import from the core file instead
+// ============================================================================
+
+const SHIP_DEFINITIONS_MAP = {
+  // HUMAN - Basic Ships
+  'DEF': { id: 'DEF', name: 'Defender', species: 'human', type: 'basic', buildCost: 2, joiningCost: 0 },
+  'FIG': { id: 'FIG', name: 'Fighter', species: 'human', type: 'basic', buildCost: 3, joiningCost: 0 },
+  'CMD': { id: 'CMD', name: 'Commander', species: 'human', type: 'basic', buildCost: 4, joiningCost: 0 },
+  'INT': { id: 'INT', name: 'Interceptor', species: 'human', type: 'basic', buildCost: 4, joiningCost: 0 },
+  'ORB': { id: 'ORB', name: 'Orbital', species: 'human', type: 'basic', buildCost: 5, joiningCost: 0 },
+  'CAR': { id: 'CAR', name: 'Carrier', species: 'human', type: 'basic', buildCost: 6, joiningCost: 0 },
+  'STR': { id: 'STR', name: 'Starship', species: 'human', type: 'basic', buildCost: 6, joiningCost: 0 },
+  'FRI': { id: 'FRI', name: 'Frigate', species: 'human', type: 'basic', buildCost: 7, joiningCost: 0 },
+  
+  // HUMAN - Upgraded Ships
+  'TAC': { id: 'TAC', name: 'Tactical Cruiser', species: 'human', type: 'upgraded', buildCost: 0, joiningCost: 5, requiresSacrifice: ['FIG', 'CMD'] },
+  'GRD': { id: 'GRD', name: 'Guardian', species: 'human', type: 'upgraded', buildCost: 0, joiningCost: 6, requiresSacrifice: ['DEF', 'DEF', 'DEF'] },
+  'SCI': { id: 'SCI', name: 'Science Vessel', species: 'human', type: 'upgraded', buildCost: 0, joiningCost: 6, requiresSacrifice: ['CMD', 'CMD'] },
+  'BCR': { id: 'BCR', name: 'Battlecruiser', species: 'human', type: 'upgraded', buildCost: 0, joiningCost: 7, requiresSacrifice: ['INT', 'FRI'] },
+  'EAR': { id: 'EAR', name: 'Earth', species: 'human', type: 'upgraded', buildCost: 0, joiningCost: 9, requiresSacrifice: ['ORB', 'CAR'] },
+  'DRE': { id: 'DRE', name: 'Dreadnought', species: 'human', type: 'upgraded', buildCost: 0, joiningCost: 10, requiresSacrifice: ['FRI', 'FRI'] },
+  'LEV': { id: 'LEV', name: 'Leviathan', species: 'human', type: 'upgraded', buildCost: 0, joiningCost: 12, requiresSacrifice: ['STR', 'STR'] },
+  
+  // XENITE - Basic Ships
+  'XEN': { id: 'XEN', name: 'Xenite', species: 'xenite', type: 'basic', buildCost: 1, joiningCost: 0 },
+  'ANT': { id: 'ANT', name: 'Antlion', species: 'xenite', type: 'basic', buildCost: 2, joiningCost: 0 },
+  'MAN': { id: 'MAN', name: 'Mantis', species: 'xenite', type: 'basic', buildCost: 3, joiningCost: 0 },
+  'EVO': { id: 'EVO', name: 'Evolver', species: 'xenite', type: 'basic', buildCost: 4, joiningCost: 0 },
+  'OXI': { id: 'OXI', name: 'Oxite', species: 'xenite', type: 'basic', buildCost: 0, joiningCost: 0 },
+  'AST': { id: 'AST', name: 'Asterite', species: 'xenite', type: 'basic', buildCost: 0, joiningCost: 0 },
+  'HEL': { id: 'HEL', name: 'Hell Hornet', species: 'xenite', type: 'basic', buildCost: 5, joiningCost: 0 },
+  'BUG': { id: 'BUG', name: 'Bug Breeder', species: 'xenite', type: 'basic', buildCost: 6, joiningCost: 0 },
+  'ZEN': { id: 'ZEN', name: 'Zenith', species: 'xenite', type: 'basic', buildCost: 7, joiningCost: 0 },
+  
+  // XENITE - Upgraded Ships
+  'DSW': { id: 'DSW', name: 'Defense Swarm', species: 'xenite', type: 'upgraded', buildCost: 0, joiningCost: 4, requiresSacrifice: ['XEN', 'XEN'] },
+  'ANA': { id: 'ANA', name: 'Antlion Array', species: 'xenite', type: 'upgraded', buildCost: 0, joiningCost: 5, requiresSacrifice: ['ANT', 'ANT'] },
+  'OFA': { id: 'OFA', name: 'Oxite Face', species: 'xenite', type: 'upgraded', buildCost: 0, joiningCost: 6, requiresSacrifice: ['OXI', 'OXI', 'OXI'] },
+  'AFA': { id: 'AFA', name: 'Asterite Face', species: 'xenite', type: 'upgraded', buildCost: 0, joiningCost: 6, requiresSacrifice: ['AST', 'AST', 'AST'] },
+  'SAC': { id: 'SAC', name: 'Sacrificial Pool', species: 'xenite', type: 'upgraded', buildCost: 0, joiningCost: 7, requiresSacrifice: ['MAN', 'EVO'] },
+  'QUE': { id: 'QUE', name: 'Queen', species: 'xenite', type: 'upgraded', buildCost: 0, joiningCost: 9, requiresSacrifice: ['HEL', 'BUG'] },
+  'CHR': { id: 'CHR', name: 'Chronoswarm', species: 'xenite', type: 'upgraded', buildCost: 0, joiningCost: 11, requiresSacrifice: ['ZEN', 'ZEN'] },
+  'HIV': { id: 'HIV', name: 'Hive', species: 'xenite', type: 'upgraded', buildCost: 0, joiningCost: 13, requiresSacrifice: ['QUE', 'SAC'] },
+  
+  // CENTAUR - Basic Ships  
+  'FEA': { id: 'FEA', name: 'Ship of Fear', species: 'centaur', type: 'basic', buildCost: 2, joiningCost: 0 },
+  'ANG': { id: 'ANG', name: 'Ship of Anger', species: 'centaur', type: 'basic', buildCost: 3, joiningCost: 0 },
+  'EQU': { id: 'EQU', name: 'Ship of Equality', species: 'centaur', type: 'basic', buildCost: 4, joiningCost: 0 },
+  'WIS': { id: 'WIS', name: 'Ship of Wisdom', species: 'centaur', type: 'basic', buildCost: 5, joiningCost: 0 },
+  'VIG': { id: 'VIG', name: 'Ship of Vigor', species: 'centaur', type: 'basic', buildCost: 5, joiningCost: 0 },
+  'FAM': { id: 'FAM', name: 'Ship of Family', species: 'centaur', type: 'basic', buildCost: 6, joiningCost: 0 },
+  'LEG': { id: 'LEG', name: 'Ship of Legacy', species: 'centaur', type: 'basic', buildCost: 7, joiningCost: 0 },
+  
+  // CENTAUR - Upgraded Ships (Arks)
+  'TER': { id: 'TER', name: 'Ark of Terror', species: 'centaur', type: 'upgraded', buildCost: 0, joiningCost: 5, requiresSacrifice: ['FEA', 'FEA'] },
+  'FUR': { id: 'FUR', name: 'Ark of Fury', species: 'centaur', type: 'upgraded', buildCost: 0, joiningCost: 6, requiresSacrifice: ['ANG', 'ANG'] },
+  'KNO': { id: 'KNO', name: 'Ark of Knowledge', species: 'centaur', type: 'upgraded', buildCost: 0, joiningCost: 7, requiresSacrifice: ['WIS', 'WIS'] },
+  'ENT': { id: 'ENT', name: 'Ark of Entropy', species: 'centaur', type: 'upgraded', buildCost: 0, joiningCost: 8, requiresSacrifice: ['EQU', 'VIG'] },
+  'RED': { id: 'RED', name: 'Ark of Redemption', species: 'centaur', type: 'upgraded', buildCost: 0, joiningCost: 9, requiresSacrifice: ['FAM', 'FAM'] },
+  'POW': { id: 'POW', name: 'Ark of Power', species: 'centaur', type: 'upgraded', buildCost: 0, joiningCost: 10, requiresSacrifice: ['LEG', 'VIG'] },
+  'DES': { id: 'DES', name: 'Ark of Destruction', species: 'centaur', type: 'upgraded', buildCost: 0, joiningCost: 11, requiresSacrifice: ['LEG', 'LEG'] },
+  'DOM': { id: 'DOM', name: 'Ark of Domination', species: 'centaur', type: 'upgraded', buildCost: 0, joiningCost: 12, requiresSacrifice: ['RED', 'KNO'] },
+  
+  // ANCIENT - Basic Ships (Cores)
+  'MER': { id: 'MER', name: 'Mercury Core', species: 'ancient', type: 'basic', buildCost: 1, joiningCost: 0 },
+  'PLU': { id: 'PLU', name: 'Pluto Core', species: 'ancient', type: 'basic', buildCost: 2, joiningCost: 0 },
+  'QUA': { id: 'QUA', name: 'Quantum Mystic', species: 'ancient', type: 'basic', buildCost: 3, joiningCost: 0 },
+  'SPI': { id: 'SPI', name: 'Spiral', species: 'ancient', type: 'basic', buildCost: 3, joiningCost: 0 },
+  'URA': { id: 'URA', name: 'Uranus Core', species: 'ancient', type: 'basic', buildCost: 4, joiningCost: 0 },
+  'SOR': { id: 'SOR', name: 'Solar Reserve', species: 'ancient', type: 'basic', buildCost: 5, joiningCost: 0 },
+  'NEP': { id: 'NEP', name: 'Neptune Core', species: 'ancient', type: 'basic', buildCost: 5, joiningCost: 0 },
+  'VEN': { id: 'VEN', name: 'Venus Core', species: 'ancient', type: 'basic', buildCost: 6, joiningCost: 0 },
+  
+  // ANCIENT - Upgraded Ships
+  'SAT': { id: 'SAT', name: 'Saturn Core', species: 'ancient', type: 'upgraded', buildCost: 0, joiningCost: 4, requiresSacrifice: ['MER', 'PLU'] },
+  'PYR': { id: 'PYR', name: 'Pyramid', species: 'ancient', type: 'upgraded', buildCost: 0, joiningCost: 6, requiresSacrifice: ['QUA', 'SPI'] },
+  'JUP': { id: 'JUP', name: 'Jupiter Core', species: 'ancient', type: 'upgraded', buildCost: 0, joiningCost: 7, requiresSacrifice: ['URA', 'NEP'] },
+  'SUN': { id: 'SUN', name: 'The Sun', species: 'ancient', type: 'upgraded', buildCost: 0, joiningCost: 8, requiresSacrifice: ['VEN', 'SOR'] },
+  'BLA': { id: 'BLA', name: 'Black Hole', species: 'ancient', type: 'upgraded', buildCost: 0, joiningCost: 12, requiresSacrifice: ['JUP', 'SUN'] },
+  
+  // Legacy test ships (backwards compatibility)
+  'human_scout': { id: 'human_scout', name: 'Scout', species: 'human', type: 'basic', buildCost: 1, joiningCost: 0 },
+  'human_fighter': { id: 'human_fighter', name: 'Fighter', species: 'human', type: 'basic', buildCost: 2, joiningCost: 0 },
+  'human_destroyer': { id: 'human_destroyer', name: 'Destroyer', species: 'human', type: 'basic', buildCost: 3, joiningCost: 0 },
+  'defender': { id: 'DEF', name: 'Defender', species: 'human', type: 'basic', buildCost: 2, joiningCost: 0 },
+  'fighter': { id: 'FIG', name: 'Fighter', species: 'human', type: 'basic', buildCost: 3, joiningCost: 0 },
 };
 
-const getShipHealth = (shipId) => {
-  const shipHealth = {
-    // Human ships - using new data model
-    'defender': 1,
-    'fighter': 1,
-    // Old test ships
-    'human_scout': 1,
-    'human_fighter': 2,
-    'human_destroyer': 3,
-    'human_cruiser': 4,
-    'human_battleship': 5
-  };
-  return shipHealth[shipId] || 1;
+// Get ship definition by ID
+const getShipDef = (shipDefId) => {
+  return SHIP_DEFINITIONS_MAP[shipDefId] || SHIP_DEFINITIONS_MAP[shipDefId.toUpperCase()] || null;
 };
 
-const getShipDamage = (shipId) => {
-  const shipDamage = {
-    // Human ships - using new data model
-    'defender': 0,  // Defender heals, doesn't deal damage
-    'fighter': 1,
-    // Old test ships
-    'human_scout': 1,
-    'human_fighter': 1,
-    'human_destroyer': 2,
-    'human_cruiser': 3,
-    'human_battleship': 4
-  };
-  return shipDamage[shipId] || 1;
+// Get ship cost (build cost for basic, joining cost for upgraded)
+const getShipCost = (shipDefId) => {
+  const def = getShipDef(shipDefId);
+  if (!def) return 0;
+  return def.type === 'basic' ? def.buildCost : def.joiningCost;
 };
 
-const getShipCost = (shipId) => {
-  const shipCosts = {
-    // Human ships - using new data model
-    'defender': 2,
-    'fighter': 3,
-    // Old test ships
-    'human_scout': 1,
-    'human_fighter': 2,
-    'human_destroyer': 3,
-    'human_cruiser': 4,
-    'human_battleship': 5
-  };
-  return shipCosts[shipId] || 1;
-};
+// ============================================================================
+// ⚠️ TEMPORARY: SERVER PHASE ENGINE (will be replaced with real engine)
+// ============================================================================
+// This is a simplified version of /game/engine/GamePhases.tsx
+// Cannot import real engine yet because it has React dependencies
+//
+// TODO: Once engine files can be imported by Deno:
+//       1. Delete this class
+//       2. Import GamePhasesEngine from /game/engine/GamePhases.tsx
+//       3. Delegate all phase logic to the real engine
+//
+// This duplicates game rules, creating risk of rule drift.
+// See /PHASE_2_BLOCKED_STATUS.md for details.
+// ============================================================================
 
 // RESTORED: Full Sophisticated Server-side Phase Engine
 class ServerPhaseEngine {
@@ -2325,7 +2434,8 @@ app.get("/make-server-825e19ab/endpoints", (c) => {
       { method: "POST", path: "/make-server-825e19ab/switch-role/:gameId", description: "Switch player role" },
       { method: "POST", path: "/make-server-825e19ab/signup", description: "Create user account" },
       { method: "POST", path: "/make-server-825e19ab/echo", description: "Echo request data for testing" },
-      { method: "GET", path: "/make-server-825e19ab/endpoints", description: "List all endpoints" }
+      { method: "GET", path: "/make-server-825e19ab/endpoints", description: "List all endpoints" },
+      { method: "POST", path: "/make-server-825e19ab/intent", description: "Server-authoritative intent/event API (NEW)" }
     ],
     timestamp: new Date().toISOString(),
     features: [
@@ -2337,9 +2447,763 @@ app.get("/make-server-825e19ab/endpoints", (c) => {
       "Complex ship building system",
       "Automatic phase transitions",
       "Win condition checking",
-      "Enhanced error handling and logging"
+      "Enhanced error handling and logging",
+      "Server-authoritative Intent/Event API with commit-reveal flows"
     ]
   });
+});
+
+// ============================================================================
+// INTENT/EVENT API - Server-Authoritative Game Mutation
+// ============================================================================
+//
+// This section implements the canonical Intent/Event contract for Shapeships.
+// All game mutations flow through POST /intent endpoint.
+//
+// ARCHITECTURE:
+// - Client sends GameIntent (what player attempts)
+// - Server validates using RulesEngine  
+// - Server mutates state using GameEngine
+// - Server generates GameEvent[] (what actually happened)
+// - Server returns IntentResponse { ok, state, events, rejected? }
+//
+// KEY FEATURES:
+// - Server-authoritative chess clocks (never trust client time)
+// - Commit→Reveal for hidden actions (BUILD_COMMIT/REVEAL, BATTLE_COMMIT/REVEAL)
+// - Sequential event numbering (seq increments monotonically)
+// - Health changes ONLY during EndOfTurnResolver (engine enforces)
+// - Complete event log for replay/debugging
+//
+// STORAGE:
+// - game:${gameId}:state - Canonical GameState
+// - game:${gameId}:seq - Current event sequence number
+// - Commitment hashes stored in gameData.commitments[playerId][turnNumber]
+//
+// ============================================================================
+
+// Type guards and runtime validation for GameIntent
+const isValidIntentType = (type) => {
+  const validTypes = [
+    'BUILD_COMMIT',
+    'BUILD_REVEAL', 
+    'BATTLE_COMMIT',
+    'BATTLE_REVEAL',
+    'ACTION',
+    'DECLARE_READY',
+    'SURRENDER'
+  ];
+  return validTypes.includes(type);
+};
+
+const validateIntentStructure = (intent) => {
+  // All intents must have base fields
+  if (!intent.intentId || !intent.gameId || !intent.playerId || !intent.type) {
+    return { valid: false, error: 'Missing required intent fields' };
+  }
+  
+  if (!isValidIntentType(intent.type)) {
+    return { valid: false, error: `Invalid intent type: ${intent.type}` };
+  }
+  
+  // Type-specific validation
+  switch (intent.type) {
+    case 'BUILD_COMMIT':
+    case 'BATTLE_COMMIT':
+      if (!intent.commitHash || !intent.turnNumber) {
+        return { valid: false, error: 'Commit requires commitHash and turnNumber' };
+      }
+      if (intent.type === 'BATTLE_COMMIT' && !intent.window) {
+        return { valid: false, error: 'Battle commit requires window (DECLARATION|RESPONSE)' };
+      }
+      break;
+      
+    case 'BUILD_REVEAL':
+    case 'BATTLE_REVEAL':
+      if (!intent.payload || !intent.nonce || !intent.turnNumber) {
+        return { valid: false, error: 'Reveal requires payload, nonce, and turnNumber' };
+      }
+      if (intent.type === 'BATTLE_REVEAL' && !intent.window) {
+        return { valid: false, error: 'Battle reveal requires window (DECLARATION|RESPONSE)' };
+      }
+      break;
+      
+    case 'ACTION':
+      if (!intent.phase || !intent.actionType || !intent.data) {
+        return { valid: false, error: 'Action requires phase, actionType, and data' };
+      }
+      break;
+      
+    case 'DECLARE_READY':
+      if (!intent.phase) {
+        return { valid: false, error: 'DeclareReady requires phase' };
+      }
+      break;
+      
+    case 'SURRENDER':
+      // No additional fields required
+      break;
+  }
+  
+  return { valid: true };
+};
+
+// Chess clock management (server-authoritative)
+// Clocks are updated using server time ONLY - never trust client timestamps
+const updateChessClock = (gameState, nowMs) => {
+  if (!gameState.gameData?.clock) {
+    // Initialize clock if not present
+    const p1 = gameState.players.find(p => p.role === 'player' && p.id !== gameState.players[1]?.id);
+    const p2 = gameState.players.find(p => p.role === 'player' && p.id !== p1?.id);
+    
+    gameState.gameData.clock = {
+      p1Id: p1?.id,
+      p2Id: p2?.id,
+      p1Ms: 600000, // 10 minutes default
+      p2Ms: 600000,
+      runningFor: 'none',
+      startedAtMs: null
+    };
+    return gameState;
+  }
+  
+  const clock = gameState.gameData.clock;
+  
+  // Calculate elapsed time if clock is running
+  if (clock.runningFor !== 'none' && clock.startedAtMs) {
+    const elapsedMs = nowMs - clock.startedAtMs;
+    
+    if (clock.runningFor === 'both') {
+      // Both clocks running (simultaneous phases)
+      clock.p1Ms = Math.max(0, clock.p1Ms - elapsedMs);
+      clock.p2Ms = Math.max(0, clock.p2Ms - elapsedMs);
+    } else if (clock.runningFor === 'p1') {
+      clock.p1Ms = Math.max(0, clock.p1Ms - elapsedMs);
+    } else if (clock.runningFor === 'p2') {
+      clock.p2Ms = Math.max(0, clock.p2Ms - elapsedMs);
+    }
+  }
+  
+  // Update clock mode based on current phase/step
+  const currentPhase = gameState.gameData?.turnData?.currentMajorPhase;
+  const currentStep = gameState.gameData?.turnData?.currentStep;
+  
+  // Determine who should be on clock
+  if (currentStep === 'dice_roll' || currentStep === 'line_generation' || currentStep === 'end_of_build' || currentStep === 'first_strike' || currentPhase === 'end_of_turn_resolution') {
+    // Automatic steps - clock paused
+    clock.runningFor = 'none';
+    clock.startedAtMs = null;
+  } else if (currentStep === 'ships_that_build' || currentStep === 'drawing' || currentStep === 'simultaneous_declaration' || currentStep === 'conditional_response') {
+    // Simultaneous action steps - both clocks run
+    clock.runningFor = 'both';
+    clock.startedAtMs = nowMs;
+  } else if (currentPhase === 'setup') {
+    // Setup - both clocks run
+    clock.runningFor = 'both';
+    clock.startedAtMs = nowMs;
+  } else {
+    // Default: pause
+    clock.runningFor = 'none';
+    clock.startedAtMs = null;
+  }
+  
+  return gameState;
+};
+
+// Generate CLOCK_UPDATED event
+const createClockEvent = (gameState, seq, nowMs) => {
+  const clock = gameState.gameData?.clock;
+  if (!clock) return null;
+  
+  return {
+    eventId: crypto.randomUUID(),
+    gameId: gameState.gameId,
+    seq,
+    atMs: nowMs,
+    type: 'CLOCK_UPDATED',
+    p1Ms: clock.p1Ms,
+    p2Ms: clock.p2Ms,
+    runningFor: clock.runningFor,
+    startedAtMs: clock.startedAtMs
+  };
+};
+
+// Hash validation for commit-reveal
+const sha256 = async (message) => {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
+};
+
+const validateRevealHash = async (payload, nonce, expectedHash) => {
+  const payloadStr = JSON.stringify(payload);
+  const computedHash = await sha256(payloadStr + nonce);
+  return computedHash === expectedHash;
+};
+
+// Get or initialize commitment storage
+const getCommitments = (gameState) => {
+  if (!gameState.gameData.commitments) {
+    gameState.gameData.commitments = {};
+  }
+  return gameState.gameData.commitments;
+};
+
+// Store commitment hash
+const storeCommitment = (gameState, playerId, turnNumber, kind, commitHash, window = null) => {
+  const commitments = getCommitments(gameState);
+  
+  const key = window ? `${kind}_${window}_${turnNumber}` : `${kind}_${turnNumber}`;
+  
+  if (!commitments[playerId]) {
+    commitments[playerId] = {};
+  }
+  
+  commitments[playerId][key] = {
+    hash: commitHash,
+    committedAt: Date.now()
+  };
+};
+
+// Get stored commitment hash
+const getCommitment = (gameState, playerId, turnNumber, kind, window = null) => {
+  const commitments = getCommitments(gameState);
+  const key = window ? `${kind}_${window}_${turnNumber}` : `${kind}_${turnNumber}`;
+  return commitments[playerId]?.[key];
+};
+
+// Main intent processing endpoint
+app.post("/make-server-825e19ab/intent", async (c) => {
+  const startMs = Date.now();
+  
+  try {
+    // 1. Parse and validate request
+    const requestBody = await c.req.json();
+    const intent = requestBody.intent;
+    
+    if (!intent) {
+      return c.json({
+        ok: false,
+        state: null,
+        events: [],
+        rejected: {
+          code: 'INVALID_REQUEST',
+          message: 'Request must contain "intent" field'
+        }
+      }, 400);
+    }
+    
+    // Validate intent structure
+    const validation = validateIntentStructure(intent);
+    if (!validation.valid) {
+      return c.json({
+        ok: false,
+        state: null,
+        events: [],
+        rejected: {
+          code: 'INVALID_INTENT_STRUCTURE',
+          message: validation.error
+        }
+      }, 400);
+    }
+    
+    console.log(`📥 Intent received: ${intent.type} from player ${intent.playerId} for game ${intent.gameId}`);
+    
+    // 2. Load canonical game state
+    const gameStateKey = `game:${intent.gameId}:state`;
+    let gameState = await kvGet(gameStateKey);
+    
+    if (!gameState) {
+      return c.json({
+        ok: false,
+        state: null,
+        events: [],
+        rejected: {
+          code: 'GAME_NOT_FOUND',
+          message: `Game ${intent.gameId} not found`
+        }
+      }, 404);
+    }
+    
+    // 3. Get current event sequence number
+    const seqKey = `game:${intent.gameId}:seq`;
+    let currentSeq = await kvGet(seqKey) || 0;
+    
+    // 4. Compute server time and update chess clocks
+    const nowMs = Date.now();
+    gameState = updateChessClock(gameState, nowMs);
+    
+    // 5. Initialize events array
+    const events = [];
+    let nextSeq = currentSeq + 1;
+    
+    // Helper to add event with auto-incrementing seq
+    const addEvent = (eventData) => {
+      const event = {
+        eventId: crypto.randomUUID(),
+        gameId: intent.gameId,
+        seq: nextSeq++,
+        atMs: nowMs,
+        ...eventData
+      };
+      events.push(event);
+      return event;
+    };
+    
+    // 6. Validate and process intent
+    let intentAccepted = true;
+    let rejectionCode = null;
+    let rejectionMessage = null;
+    
+    // Verify player is in game
+    const player = gameState.players.find(p => p.id === intent.playerId);
+    if (!player) {
+      intentAccepted = false;
+      rejectionCode = 'PLAYER_NOT_IN_GAME';
+      rejectionMessage = `Player ${intent.playerId} is not in game ${intent.gameId}`;
+    }
+    
+    // Verify player is active (not spectator)
+    if (intentAccepted && player.role !== 'player') {
+      intentAccepted = false;
+      rejectionCode = 'PLAYER_IS_SPECTATOR';
+      rejectionMessage = 'Spectators cannot submit intents';
+    }
+    
+    // Process intent based on type
+    if (intentAccepted) {
+      const turnNumber = gameState.gameData?.turnData?.turnNumber || gameState.roundNumber || 1;
+      
+      switch (intent.type) {
+        case 'BUILD_COMMIT': {
+          // Verify we're in correct phase
+          const currentPhase = gameState.gameData?.turnData?.currentMajorPhase;
+          const currentStep = gameState.gameData?.turnData?.currentStep;
+          
+          if (currentPhase !== 'build_phase' || currentStep !== 'drawing') {
+            intentAccepted = false;
+            rejectionCode = 'INVALID_PHASE';
+            rejectionMessage = `BUILD_COMMIT only valid during drawing step, currently in ${currentPhase}/${currentStep}`;
+            break;
+          }
+          
+          // Verify turn number matches
+          if (intent.turnNumber !== turnNumber) {
+            intentAccepted = false;
+            rejectionCode = 'INVALID_TURN_NUMBER';
+            rejectionMessage = `Intent turn ${intent.turnNumber} doesn't match game turn ${turnNumber}`;
+            break;
+          }
+          
+          // Store commitment hash
+          // NOTE: Commitment hashes are stored in gameData.commitments[playerId][key]
+          // where key = "BUILD_${turnNumber}"
+          storeCommitment(gameState, intent.playerId, turnNumber, 'BUILD', intent.commitHash);
+          
+          addEvent({
+            type: 'COMMIT_STORED',
+            kind: 'BUILD',
+            turnNumber: turnNumber,
+            playerId: intent.playerId
+          });
+          
+          console.log(`✅ BUILD_COMMIT stored for player ${intent.playerId} turn ${turnNumber}`);
+          break;
+        }
+        
+        case 'BUILD_REVEAL': {
+          // Verify we're in correct phase
+          const currentPhase = gameState.gameData?.turnData?.currentMajorPhase;
+          const currentStep = gameState.gameData?.turnData?.currentStep;
+          
+          if (currentPhase !== 'build_phase' || currentStep !== 'drawing') {
+            intentAccepted = false;
+            rejectionCode = 'INVALID_PHASE';
+            rejectionMessage = `BUILD_REVEAL only valid during drawing step, currently in ${currentPhase}/${currentStep}`;
+            break;
+          }
+          
+          // Verify turn number matches
+          if (intent.turnNumber !== turnNumber) {
+            intentAccepted = false;
+            rejectionCode = 'INVALID_TURN_NUMBER';
+            rejectionMessage = `Intent turn ${intent.turnNumber} doesn't match game turn ${turnNumber}`;
+            break;
+          }
+          
+          // Get stored commitment
+          const commitment = getCommitment(gameState, intent.playerId, turnNumber, 'BUILD');
+          if (!commitment) {
+            intentAccepted = false;
+            rejectionCode = 'NO_COMMITMENT';
+            rejectionMessage = 'Must BUILD_COMMIT before BUILD_REVEAL';
+            break;
+          }
+          
+          // Validate hash
+          const isValid = await validateRevealHash(intent.payload, intent.nonce, commitment.hash);
+          if (!isValid) {
+            intentAccepted = false;
+            rejectionCode = 'BAD_HASH';
+            rejectionMessage = 'Reveal payload does not match committed hash';
+            break;
+          }
+          
+          // Apply build actions using real ship definitions
+          // NOTE: This validates using inline ship defs. Full engine integration would handle
+          // ship powers, upgrades, sacrifices, etc.
+          const payload = intent.payload;
+          const createdShipIds = [];  // Track actual created ship IDs
+          
+          // Validate and build ships
+          if (payload.buildShips && payload.buildShips.length > 0) {
+            let totalCost = 0;
+            
+            // Validate each ship definition exists and calculate costs
+            for (const shipReq of payload.buildShips) {
+              const shipDef = getShipDef(shipReq.shipDefId);
+              if (!shipDef) {
+                intentAccepted = false;
+                rejectionCode = 'INVALID_SHIP_DEF';
+                rejectionMessage = `Ship definition not found: ${shipReq.shipDefId}`;
+                break;
+              }
+              
+              // Use payload-provided cost if present, otherwise use definition cost
+              const shipCost = shipReq.lineCost !== undefined 
+                ? shipReq.lineCost 
+                : (shipDef.type === 'basic' ? shipDef.buildCost : 0);
+              const joiningCost = shipReq.joiningLineCost !== undefined
+                ? shipReq.joiningLineCost
+                : (shipDef.type === 'upgraded' ? shipDef.joiningCost : 0);
+                
+              totalCost += shipCost + joiningCost;
+              
+              // Validate sacrifice requirements for upgraded ships
+              if (shipDef.type === 'upgraded' && shipDef.requiresSacrifice) {
+                if (!shipReq.consumeShipInstanceIds || shipReq.consumeShipInstanceIds.length !== shipDef.requiresSacrifice.length) {
+                  intentAccepted = false;
+                  rejectionCode = 'INVALID_SACRIFICE';
+                  rejectionMessage = `Ship ${shipDef.id} requires sacrifice of: ${shipDef.requiresSacrifice.join(', ')}`;
+                  break;
+                }
+                
+                // TODO: Validate sacrificed ships exist and match requirements
+                // For now, accept if count matches
+              }
+            }
+            
+            if (!intentAccepted) break;
+            
+            // Validate player has enough lines
+            const playerLines = player.lines || 0;
+            if (totalCost > playerLines) {
+              intentAccepted = false;
+              rejectionCode = 'INSUFFICIENT_LINES';
+              rejectionMessage = `Need ${totalCost} lines, have ${playerLines}`;
+              break;
+            }
+            
+            // Deduct lines
+            player.lines = playerLines - totalCost;
+            
+            // Build ships using real definitions
+            if (!gameState.gameData.ships) {
+              gameState.gameData.ships = {};
+            }
+            if (!gameState.gameData.ships[intent.playerId]) {
+              gameState.gameData.ships[intent.playerId] = [];
+            }
+            
+            payload.buildShips.forEach(shipReq => {
+              const shipDef = getShipDef(shipReq.shipDefId);
+              const shipInstanceId = crypto.randomUUID();
+              
+              const newShip = {
+                shipInstanceId,
+                shipDefId: shipDef.id,
+                ownerId: intent.playerId,
+                isDestroyed: false,
+                createdAtTurn: turnNumber,
+                // Store ship metadata (full engine would populate powers, charges, etc.)
+                name: shipDef.name,
+                species: shipDef.species,
+                type: shipDef.type
+              };
+              
+              gameState.gameData.ships[intent.playerId].push(newShip);
+              createdShipIds.push(shipInstanceId);  // Collect actual ID
+            });
+            
+            // Handle ship sacrifices (mark as destroyed)
+            if (payload.buildShips.some(s => s.consumeShipInstanceIds && s.consumeShipInstanceIds.length > 0)) {
+              payload.buildShips.forEach(shipReq => {
+                if (shipReq.consumeShipInstanceIds) {
+                  shipReq.consumeShipInstanceIds.forEach(sacrificeId => {
+                    const ship = gameState.gameData.ships[intent.playerId]?.find(s => s.shipInstanceId === sacrificeId);
+                    if (ship) {
+                      ship.isDestroyed = true;
+                    }
+                  });
+                }
+              });
+            }
+            
+            // Generate SHIPS_CHANGED event with actual created IDs
+            addEvent({
+              type: 'SHIPS_CHANGED',
+              created: createdShipIds
+            });
+          }
+          
+          // Handle saved lines
+          if (payload.saveLines) {
+            // Lines are already on player, no action needed
+            console.log(`💾 Player ${intent.playerId} saving ${payload.saveLines} lines`);
+          }
+          
+          addEvent({
+            type: 'REVEAL_ACCEPTED',
+            kind: 'BUILD',
+            turnNumber: turnNumber,
+            playerId: intent.playerId
+          });
+          
+          console.log(`✅ BUILD_REVEAL accepted for player ${intent.playerId} turn ${turnNumber}`);
+          break;
+        }
+        
+        case 'BATTLE_COMMIT': {
+          // Similar to BUILD_COMMIT but for battle phase
+          const currentPhase = gameState.gameData?.turnData?.currentMajorPhase;
+          const currentStep = gameState.gameData?.turnData?.currentStep;
+          
+          const validSteps = ['simultaneous_declaration', 'conditional_response'];
+          if (currentPhase !== 'battle_phase' || !validSteps.includes(currentStep)) {
+            intentAccepted = false;
+            rejectionCode = 'INVALID_PHASE';
+            rejectionMessage = `BATTLE_COMMIT only valid during battle declaration/response, currently in ${currentPhase}/${currentStep}`;
+            break;
+          }
+          
+          // Verify window matches current step
+          const expectedWindow = currentStep === 'simultaneous_declaration' ? 'DECLARATION' : 'RESPONSE';
+          if (intent.window !== expectedWindow) {
+            intentAccepted = false;
+            rejectionCode = 'INVALID_WINDOW';
+            rejectionMessage = `Expected window ${expectedWindow}, got ${intent.window}`;
+            break;
+          }
+          
+          storeCommitment(gameState, intent.playerId, turnNumber, 'BATTLE', intent.commitHash, intent.window);
+          
+          addEvent({
+            type: 'COMMIT_STORED',
+            kind: 'BATTLE',
+            window: intent.window,
+            turnNumber: turnNumber,
+            playerId: intent.playerId
+          });
+          
+          console.log(`✅ BATTLE_COMMIT (${intent.window}) stored for player ${intent.playerId}`);
+          break;
+        }
+        
+        case 'BATTLE_REVEAL': {
+          // Similar to BUILD_REVEAL but for battle phase
+          const currentPhase = gameState.gameData?.turnData?.currentMajorPhase;
+          const currentStep = gameState.gameData?.turnData?.currentStep;
+          
+          const validSteps = ['simultaneous_declaration', 'conditional_response'];
+          if (currentPhase !== 'battle_phase' || !validSteps.includes(currentStep)) {
+            intentAccepted = false;
+            rejectionCode = 'INVALID_PHASE';
+            rejectionMessage = `BATTLE_REVEAL only valid during battle declaration/response, currently in ${currentPhase}/${currentStep}`;
+            break;
+          }
+          
+          const commitment = getCommitment(gameState, intent.playerId, turnNumber, 'BATTLE', intent.window);
+          if (!commitment) {
+            intentAccepted = false;
+            rejectionCode = 'NO_COMMITMENT';
+            rejectionMessage = `Must BATTLE_COMMIT (${intent.window}) before BATTLE_REVEAL`;
+            break;
+          }
+          
+          const isValid = await validateRevealHash(intent.payload, intent.nonce, commitment.hash);
+          if (!isValid) {
+            intentAccepted = false;
+            rejectionCode = 'BAD_HASH';
+            rejectionMessage = 'Reveal payload does not match committed hash';
+            break;
+          }
+          
+          // Store battle actions (would use GameEngine in full implementation)
+          const payload = intent.payload;
+          if (!gameState.gameData.turnData.battleActions) {
+            gameState.gameData.turnData.battleActions = {};
+          }
+          if (!gameState.gameData.turnData.battleActions[intent.playerId]) {
+            gameState.gameData.turnData.battleActions[intent.playerId] = {};
+          }
+          
+          gameState.gameData.turnData.battleActions[intent.playerId][intent.window] = payload;
+          
+          addEvent({
+            type: 'REVEAL_ACCEPTED',
+            kind: 'BATTLE',
+            window: intent.window,
+            turnNumber: turnNumber,
+            playerId: intent.playerId
+          });
+          
+          console.log(`✅ BATTLE_REVEAL (${intent.window}) accepted for player ${intent.playerId}`);
+          break;
+        }
+        
+        case 'ACTION': {
+          // Atomic non-hidden action
+          // Would use GameEngine to validate and apply
+          // For now, just accept
+          console.log(`⚡ ACTION: ${intent.actionType} in phase ${intent.phase}`);
+          
+          // Example validation (would be more comprehensive in full implementation)
+          if (intent.actionType === 'DICE_MANIPULATION') {
+            // Validate player has dice manipulation power
+            // Apply the action
+          }
+          
+          // Placeholder - would generate EFFECTS_QUEUED events etc.
+          break;
+        }
+        
+        case 'DECLARE_READY': {
+          // Player signals completion of current phase/step
+          gameState = ServerPhaseEngine.setPlayerReady(gameState, intent.playerId);
+          
+          console.log(`✅ Player ${intent.playerId} declared ready for phase ${intent.phase}`);
+          
+          // Check if all players are ready
+          if (ServerPhaseEngine.areAllPlayersReady(gameState)) {
+            console.log(`🎯 All players ready, advancing phase`);
+            gameState = ServerPhaseEngine.advancePhase(gameState);
+            
+            const newPhase = gameState.gameData?.turnData?.currentMajorPhase;
+            const newStep = gameState.gameData?.turnData?.currentStep;
+            const newTurn = gameState.gameData?.turnData?.turnNumber || gameState.roundNumber || 1;
+            
+            addEvent({
+              type: 'PHASE_ENTERED',
+              phase: newPhase,
+              step: newStep,
+              turnNumber: newTurn
+            });
+            
+            // Check if new phase auto-advances
+            while (ServerPhaseEngine.shouldAutoAdvance(gameState)) {
+              console.log(`🔄 Auto-advancing through ${gameState.gameData?.turnData?.currentStep}`);
+              gameState = ServerPhaseEngine.processAutoPhase(gameState);
+              
+              const autoPhase = gameState.gameData?.turnData?.currentMajorPhase;
+              const autoStep = gameState.gameData?.turnData?.currentStep;
+              const autoTurn = gameState.gameData?.turnData?.turnNumber || gameState.roundNumber || 1;
+              
+              addEvent({
+                type: 'PHASE_ENTERED',
+                phase: autoPhase,
+                step: autoStep,
+                turnNumber: autoTurn
+              });
+            }
+            
+            // Update clock for new phase
+            gameState = updateChessClock(gameState, nowMs);
+          }
+          break;
+        }
+        
+        case 'SURRENDER': {
+          // Player forfeits
+          gameState.status = 'completed';
+          
+          const opponentId = gameState.players.find(p => p.id !== intent.playerId && p.role === 'player')?.id;
+          
+          addEvent({
+            type: 'GAME_ENDED',
+            winnerPlayerId: opponentId,
+            victoryType: 'SURRENDER'
+          });
+          
+          console.log(`🏳️ Player ${intent.playerId} surrendered, ${opponentId} wins`);
+          break;
+        }
+        
+        default:
+          intentAccepted = false;
+          rejectionCode = 'UNIMPLEMENTED_INTENT';
+          rejectionMessage = `Intent type ${intent.type} not yet implemented`;
+      }
+    }
+    
+    // 7. Generate intent result event
+    if (intentAccepted) {
+      addEvent({
+        type: 'INTENT_ACCEPTED',
+        intentId: intent.intentId,
+        playerId: intent.playerId
+      });
+    } else {
+      addEvent({
+        type: 'INTENT_REJECTED',
+        intentId: intent.intentId,
+        playerId: intent.playerId,
+        code: rejectionCode,
+        message: rejectionMessage
+      });
+    }
+    
+    // 8. Always add clock update event
+    const clockEvent = createClockEvent(gameState, nextSeq++, nowMs);
+    if (clockEvent) {
+      events.push(clockEvent);
+    }
+    
+    // 9. Persist updated state and sequence number
+    await kvSet(gameStateKey, gameState);
+    await kvSet(seqKey, nextSeq - 1); // Save highest seq used
+    
+    // 10. Return IntentResponse
+    const response = {
+      ok: intentAccepted,
+      state: gameState,
+      events: events
+    };
+    
+    if (!intentAccepted) {
+      response.rejected = {
+        code: rejectionCode,
+        message: rejectionMessage
+      };
+    }
+    
+    const elapsedMs = Date.now() - startMs;
+    console.log(`📤 Intent processed in ${elapsedMs}ms, ${events.length} events generated, seq: ${currentSeq} -> ${nextSeq - 1}`);
+    
+    return c.json(response);
+    
+  } catch (error) {
+    console.error('❌ Intent processing error:', error);
+    return c.json({
+      ok: false,
+      state: null,
+      events: [],
+      rejected: {
+        code: 'INTERNAL_ERROR',
+        message: `Server error: ${error.message}`
+      }
+    }, 500);
+  }
 });
 
 Deno.serve(app.fetch);

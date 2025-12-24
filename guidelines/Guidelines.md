@@ -8,6 +8,12 @@
 - No assumptions about colors, styles, or content - everything explicitly specified
 - Strict separation of concerns between game logic and display components
 
+**AI Development Constraints:**
+- Figma Make can build screens and UI components
+- Figma Make must NOT invent game rules or gameplay mechanics
+- Every interaction follows: **emit Intent → server validates → UI renders state**
+- Game logic lives in the engine/server, never in UI components
+
 ## 🏗️ Architecture Rules
 
 **Game Engine Guidelines:**

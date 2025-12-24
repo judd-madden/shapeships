@@ -2,6 +2,8 @@
 // Comprehensive data model supporting basic ships, upgraded ships, and solar powers
 // ALIGNED WITH CURRENT ENGINE: Build Phase → Battle Phase → End of Turn Resolution
 
+// NOTE: React import only needed for graphics (client-only feature)
+// Server can import this file as long as it doesn't use ShipGraphic type
 import React from 'react';
 import type { GameState } from './GameTypes';
 import { EffectKind } from './EffectTypes';
@@ -370,7 +372,7 @@ export interface ShipDefinition {
   
   // Visual properties
   color: string; // e.g., "Pastel Green", "Cyan"
-  graphics: ShipGraphic[]; // Can have multiple graphics based on state
+  graphics?: ShipGraphic[]; // Can have multiple graphics based on state (client-only)
   
   // Cost structure (only one will be defined based on type)
   basicCost?: BasicShipCost;
