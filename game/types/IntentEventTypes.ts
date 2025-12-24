@@ -21,10 +21,9 @@
 import type { GameState } from './GameTypes';
 import type { TriggeredEffect } from './EffectTypes';
 import type { 
-  ShipDefId, 
   ShipInstanceId, 
   PlayerId 
-} from './ShipTypes.core';
+} from './ShipTypes.engine';
 import type { 
   MajorPhase, 
   BuildPhaseStep, 

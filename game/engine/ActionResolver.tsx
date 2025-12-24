@@ -3,7 +3,7 @@
 // Pure functions - no React dependencies
 
 import SpeciesIntegration from './SpeciesIntegration';
-import { getShipById } from '../data/ShipDefinitions.core';
+import { getShipById } from '../data/ShipDefinitions.engine';
 
 /**
  * 🔒 CRITICAL CONSTRAINTS (ENFORCED BY THIS CLASS):

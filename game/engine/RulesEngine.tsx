@@ -19,7 +19,7 @@
 
 import { GameState, GameAction, Player, GameRules } from '../types/GameTypes';
 import { GamePhasesEngine, MajorPhase, BuildPhaseStep, BattlePhaseStep } from './GamePhases';
-import { getShipById } from '../data/ShipDefinitions.core';
+import { getShipById } from '../data/ShipDefinitions.engine';
 
 export class ShapeshipsRulesEngine implements GameRules {
   

@@ -1844,7 +1844,7 @@ function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymen
               <CardTitle className="text-sm text-green-900">Ship System</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-green-800">
-              Species-based organization, power framework, damage/healing mechanics complete
+              CSV single source of truth with auto-generation pipeline, 70 ships defined, species-based organization
             </CardContent>
           </Card>
           <Card className="border-green-200 bg-green-50">
@@ -1865,10 +1865,18 @@ function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymen
           </Card>
           <Card className="border-green-200 bg-green-50">
             <CardHeader className="pb-3">
+              <CardTitle className="text-sm text-green-900">Type Architecture</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-green-800">
+              Clean 3-layer split (CSV → Core → UI), auto-generation pipeline, server-safe engine code
+            </CardContent>
+          </Card>
+          <Card className="border-green-200 bg-green-50">
+            <CardHeader className="pb-3">
               <CardTitle className="text-sm text-green-900">Test Interface</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-green-800">
-              Simplified 4-phase system validating core multiplayer mechanics
+              3-phase turn system (Build, Battle, End of Turn Resolution) with multiplayer validation
             </CardContent>
           </Card>
           <Card className="border-green-200 bg-green-50">
@@ -1876,7 +1884,7 @@ function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymen
               <CardTitle className="text-sm text-green-900">Backend</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-green-800">
-              Supabase integration, edge functions, KV store, auth system all operational
+              Engine delegation (Option B), Supabase integration, edge functions, KV store, auth ready
             </CardContent>
           </Card>
           <Card className="border-green-200 bg-green-50">

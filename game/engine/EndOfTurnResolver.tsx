@@ -1,22 +1,27 @@
-// ============================================================================
-// END OF TURN RESOLVER
-// ============================================================================
-//
-// The ONLY place where health changes are applied.
-//
-// 🔒 CORE INVARIANTS:
-// 1. Health only changes during End of Turn Resolution
-// 2. All effects resolve simultaneously (order-independent)
-// 3. Once-only/triggered effects resolve even if source ship destroyed
-// 4. Continuous effects only resolve if source ship survives
-// 5. Win/loss checked ONLY after resolution
-//
-// ARCHITECTURAL INTENT:
-// - PowerExecutor: Enqueues triggered effects only, NEVER applies health
-// - PassiveModifiers: Queried during evaluation, never execute/enqueue
-// - EndOfTurnResolver: Only place health/max health/death/victory change
-//
-// ============================================================================
+/**
+ * END OF TURN RESOLVER - REFACTORED
+ * 
+ * The ONLY place where health changes are applied.
+ * 
+ * CORE INVARIANTS:
+ * 1. Health only changes during End of Turn Resolution
+ * 2. All effects resolve simultaneously (order-independent)
+ * 3. Once-only/triggered effects resolve even if source ship destroyed
+ * 4. Continuous effects only resolve if source ship survives
+ * 5. Win/loss checked ONLY after resolution
+ * 
+ * REFACTORED ARCHITECTURE:
+ * This file is now responsible ONLY for:
+ * ✅ Applying triggered effects (enqueued during turn)
+ * ✅ Evaluating continuous Automatic powers (via PowerResolver)
+ * ✅ Applying health changes
+ * ✅ Checking victory conditions
+ * 
+ * NOT RESPONSIBLE FOR:
+ * ❌ Parsing ship power text
+ * ❌ Ship-specific logic
+ * ❌ Effect type switching (delegates to PowerResolver)
+ */
 
 import type { GameState, PlayerShip } from '../types/GameTypes';
 import type { 
@@ -27,18 +32,22 @@ import type {
   EffectTarget
 } from '../types/EffectTypes';
 import { 
-  EffectKind, // ✅ Import as value (not type) for runtime usage
+  EffectKind,
   createEvaluatedEffect, 
   generateEffectId,
   createOpponentTarget,
   createSelfTarget
 } from '../types/EffectTypes';
-import { PowerTiming, ShipPowerPhase, type ShipPower, EffectKind as PowerEffectKind } from '../types/ShipTypes.core';
-import { getShipById } from '../data/ShipDefinitions.core';
+import { PowerTiming, ShipPowerPhase } from '../types/ShipTypes.engine';
+import { getShipById } from '../data/ShipDefinitions.engine';
+import { 
+  resolveShipPower,
+  type PowerResolutionContext 
+} from './PowerResolver';
 import type PassiveModifiers from './PassiveModifiers';
 
 // ============================================================================
-// RESULT TYPE
+// RESULT TYPES
 // ============================================================================
 
 interface HealthDeltas {
@@ -76,7 +85,7 @@ export class EndOfTurnResolver {
    * 
    * Algorithm:
    * 1. Collect all triggered effects (already queued from Build/Battle)
-   * 2. Evaluate continuous Automatic effects (check ship still alive)
+   * 2. Evaluate continuous Automatic effects (using PowerResolver)
    * 3. Apply all effects simultaneously
    * 4. Cap health (accounting for max health modifiers), check win/loss
    */
@@ -144,7 +153,7 @@ export class EndOfTurnResolver {
     }
     
     // ========================================================================
-    // STEP 2: Evaluate continuous Automatic effects (NOT queued earlier)
+    // STEP 2: Evaluate continuous Automatic effects (using PowerResolver)
     // ========================================================================
     
     const continuousEffects = this.evaluateContinuousEffects(gameState);
@@ -154,7 +163,7 @@ export class EndOfTurnResolver {
     for (const effect of continuousEffects) {
       result.effectsApplied.push({
         effectId: effect.id,
-        description: effect.description || 'Unknown effect',
+        description: effect.description || 'Unknown continuous effect',
         applied: true
       });
     }
@@ -163,7 +172,7 @@ export class EndOfTurnResolver {
     // STEP 3: Apply all effects simultaneously
     // ========================================================================
     
-    this.applyAllEffects(gameState, allEffects, result);
+    this.applyAllEffects(gameState, allEffects, result, passiveModifiers);
     
     // ========================================================================
     // STEP 4: Cap health (with passive modifiers), check win/loss
@@ -178,16 +187,12 @@ export class EndOfTurnResolver {
   }
   
   // ==========================================================================
-  // CONTINUOUS EFFECT EVALUATION
+  // CONTINUOUS EFFECT EVALUATION (REFACTORED)
   // ==========================================================================
   
   /**
    * Evaluate continuous Automatic effects from surviving ships
-   * 
-   * ✅ CORRECT: Uses structured power data (NO TEXT PARSING)
-   * ✅ CORRECT: Scans only surviving ships
-   * ✅ CORRECT: Uses PlayerShip (canonical runtime type)
-   * ✅ CORRECT: Uses PowerTiming enum values
+   * NOW USES PowerResolver - no more ship-specific logic here
    */
   private evaluateContinuousEffects(gameState: GameState): EvaluatedEffect[] {
     const effects: EvaluatedEffect[] = [];
@@ -195,246 +200,58 @@ export class EndOfTurnResolver {
     // Scan all players
     for (const playerId in gameState.gameData.ships || {}) {
       const playerShips = gameState.gameData.ships[playerId] || [];
+      const opponentId = this.getOpponentId(gameState, playerId);
       
       for (const ship of playerShips) {
-        // 🔒 CRITICAL: Skip destroyed/consumed ships
+        // Skip destroyed/consumed ships
         if (ship.isDestroyed || ship.isConsumedInUpgrade) continue;
         
-        // Get ship definition (use PlayerShip.shipId = definition ID)
+        // Get ship definition
         const shipDef = getShipById(ship.shipId);
         if (!shipDef) continue;
         
-        // ✅ CORRECT: Filter for continuous Automatic powers using enums
-        // PowerTiming.CONTINUOUS = 'continuous' (lowercase)
+        // Filter for continuous Automatic powers
         const continuousPowers = shipDef.powers.filter(p => 
           p.phase === ShipPowerPhase.AUTOMATIC && 
           p.timing === PowerTiming.CONTINUOUS
         );
         
         for (const power of continuousPowers) {
-          // Evaluate power and create effect(s)
-          const powerEffects = this.evaluatePowerToEffects(power, ship, playerId, gameState);
-          effects.push(...powerEffects);
+          // DELEGATE TO POWER RESOLVER (the interpreter)
+          const context: PowerResolutionContext = {
+            gameState,
+            ship,
+            ownerId: playerId,
+            opponentId,
+            currentPhase: ShipPowerPhase.AUTOMATIC,
+            currentTurn: gameState.roundNumber,
+            diceRoll: gameState.gameData.turnData?.diceRoll
+          };
+          
+          const resolution = resolveShipPower(power, context);
+          
+          // Convert resolved effects to EvaluatedEffects
+          for (const triggeredEffect of resolution.effects) {
+            const evaluatedEffect: EvaluatedEffect = {
+              ...triggeredEffect,
+              // Mark as evaluated (not triggered)
+              isEvaluated: true
+            };
+            effects.push(evaluatedEffect);
+          }
+          
+          // Log warnings if any
+          if (resolution.warnings && resolution.warnings.length > 0) {
+            console.warn(
+              `[EndOfTurnResolver] Warnings evaluating ${ship.shipId} power ${power.powerIndex}:`,
+              resolution.warnings
+            );
+          }
         }
       }
     }
     
     return effects;
-  }
-  
-  /**
-   * Evaluate a ship power to create QueuedEffect(s)
-   * 
-   * Uses structured power fields (NO REGEX PARSING):
-   * - power.effectType
-   * - power.baseAmount
-   * - power.specialLogic
-   * 
-   * Returns array of effects (some powers create multiple effects)
-   */
-  private evaluatePowerToEffects(
-    power: ShipPower,
-    ship: PlayerShip,
-    playerId: string,
-    gameState: GameState
-  ): EvaluatedEffect[] {
-    const effects: EvaluatedEffect[] = [];
-    
-    // Map power effect type to queued effect type
-    const effectKind = this.mapPowerEffectToEffectKind(power.effectType);
-    if (!effectKind) return effects; // Skip if not mappable
-    
-    // Calculate value using structured power data
-    let value = power.baseAmount || 0;
-    
-    // Handle special logic (scaling, counting, etc.)
-    if (power.specialLogic) {
-      value = this.evaluateSpecialLogic(power, ship, gameState, playerId);
-    }
-    
-    // Skip zero-value effects
-    if (value <= 0 && (effectKind === EffectKind.DAMAGE || effectKind === EffectKind.HEAL)) {
-      return effects;
-    }
-    
-    // Determine target player
-    const targetPlayerId = this.determineTarget(power.effectType, playerId, gameState);
-    
-    // Determine energy color (if applicable)
-    let energyColor: 'red' | 'green' | 'blue' | 'all' | undefined;
-    if (effectKind === EffectKind.GAIN_ENERGY && power.specialLogic?.energyColor) {
-      energyColor = power.specialLogic.energyColor as 'red' | 'green' | 'blue' | 'all';
-    }
-    
-    // Create effect source
-    const source: EffectSource = {
-      sourcePlayerId: playerId,
-      sourceShipInstanceId: ship.id,
-      sourceShipDefId: ship.shipId,
-      sourcePowerIndex: power.powerIndex,
-      sourceType: 'ship_power'
-    };
-    
-    // Create effect target
-    const target: EffectTarget = {
-      targetPlayerId
-    };
-    
-    // Create evaluated effect using helper
-    const effect = createEvaluatedEffect({
-      id: generateEffectId(source, effectKind, gameState.roundNumber, effects.length),
-      kind: effectKind,
-      value,
-      energyColor,
-      source,
-      target,
-      description: power.description || `${ship.shipId} continuous power`
-    });
-    
-    effects.push(effect);
-    
-    return effects;
-  }
-  
-  /**
-   * Map PowerEffectType to EffectKind
-   */
-  private mapPowerEffectToEffectKind(powerEffect: PowerEffectKind): EffectKind | null {
-    switch (powerEffect) {
-      case PowerEffectKind.DEAL_DAMAGE: return EffectKind.DAMAGE;
-      case PowerEffectKind.HEAL: return EffectKind.HEAL;
-      case PowerEffectKind.GAIN_LINES: return EffectKind.GAIN_LINES;
-      case PowerEffectKind.GAIN_JOINING_LINES: return EffectKind.GAIN_JOINING_LINES;
-      case PowerEffectKind.GAIN_ENERGY: return EffectKind.GAIN_ENERGY;
-      case PowerEffectKind.SET_HEALTH_MAX: return EffectKind.SET_HEALTH_MAX;
-      case PowerEffectKind.INCREASE_MAX_HEALTH: return EffectKind.INCREASE_MAX_HEALTH;
-      
-      // Not applicable to continuous effects
-      case PowerEffectKind.BUILD_SHIP:
-      case PowerEffectKind.DESTROY_SHIP:
-      case PowerEffectKind.COPY_SHIP:
-      case PowerEffectKind.REROLL_DICE:
-      case PowerEffectKind.CONDITIONAL:
-      case PowerEffectKind.CUSTOM:
-      case PowerEffectKind.PASSIVE:
-      case PowerEffectKind.COUNT_AND_DAMAGE:
-      case PowerEffectKind.COUNT_AND_HEAL:
-        return null;
-    }
-  }
-  
-  /**
-   * Evaluate special logic for complex powers
-   * 
-   * Uses structured specialLogic fields:
-   * - countType: What to count (e.g., 'own_ships', 'opponent_ships')
-   * - countFilter: Filter criteria (e.g., ship type, faction)
-   * - multiplier: Value per counted item
-   * 
-   * TODO: Extract to separate SpecialLogic evaluator module for reuse
-   */
-  private evaluateSpecialLogic(
-    power: ShipPower,
-    ship: PlayerShip,
-    gameState: GameState,
-    playerId: string
-  ): number {
-    const specialLogic = power.specialLogic;
-    if (!specialLogic) return power.baseAmount || 0;
-    
-    // Handle counting logic
-    if (specialLogic.countType) {
-      let count = 0;
-      
-      switch (specialLogic.countType) {
-        case 'own_ships':
-          count = this.countOwnShips(gameState, playerId, specialLogic.countFilter);
-          break;
-        case 'opponent_ships':
-          const opponentId = this.getOpponentId(gameState, playerId);
-          count = this.countOwnShips(gameState, opponentId, specialLogic.countFilter);
-          break;
-        case 'all_ships':
-          count = this.countAllShips(gameState, specialLogic.countFilter);
-          break;
-        default:
-          count = 0;
-      }
-      
-      // Apply multiplier
-      const multiplier = specialLogic.multiplier || 1;
-      return (power.baseAmount || 0) + (count * multiplier);
-    }
-    
-    // Handle other special logic types
-    if (specialLogic.customLogicId) {
-      // Delegate to custom logic handlers
-      // TODO: Implement custom logic registry
-      return power.baseAmount || 0;
-    }
-    
-    // Default: base amount
-    return power.baseAmount || 0;
-  }
-  
-  /**
-   * Count ships matching filter criteria
-   */
-  private countOwnShips(
-    gameState: GameState,
-    playerId: string,
-    filter?: { shipType?: string; faction?: string; excludeSelf?: boolean }
-  ): number {
-    const ships = gameState.gameData.ships?.[playerId] || [];
-    
-    return ships.filter(ship => {
-      // Skip destroyed/consumed
-      if (ship.isDestroyed || ship.isConsumedInUpgrade) return false;
-      
-      // Apply filter if provided
-      if (filter) {
-        const shipDef = getShipById(ship.shipId);
-        if (!shipDef) return false;
-        
-        if (filter.shipType && shipDef.type !== filter.shipType) return false;
-        if (filter.faction && ship.originalSpecies !== filter.faction) return false;
-      }
-      
-      return true;
-    }).length;
-  }
-  
-  /**
-   * Count all ships across all players
-   */
-  private countAllShips(
-    gameState: GameState,
-    filter?: { shipType?: string; faction?: string }
-  ): number {
-    let total = 0;
-    
-    for (const playerId in gameState.gameData.ships || {}) {
-      total += this.countOwnShips(gameState, playerId, filter);
-    }
-    
-    return total;
-  }
-  
-  /**
-   * Determine target player for effect
-   */
-  private determineTarget(
-    effectType: PowerEffectKind,
-    sourcePlayerId: string,
-    gameState: GameState
-  ): string {
-    // Damage targets opponent
-    if (effectType === PowerEffectKind.DEAL_DAMAGE) {
-      return this.getOpponentId(gameState, sourcePlayerId);
-    }
-    
-    // Everything else targets self
-    return sourcePlayerId;
   }
   
   // ==========================================================================
@@ -442,266 +259,219 @@ export class EndOfTurnResolver {
   // ==========================================================================
   
   /**
-   * Apply all effects simultaneously
-   * 
-   * ✅ CORRECT: Tally BEFORE applying (true simultaneous resolution)
-   * ✅ CORRECT: Ignores zero-value effects
-   * ✅ CORRECT: Ensures all values >= 0
+   * Apply all effects to game state
+   * Handles health, max health, resources, etc.
+   * NOW APPLIES SCIENCE VESSEL MULTIPLIERS
    */
   private applyAllEffects(
     gameState: GameState,
     effects: AnyEffect[],
-    result: EndOfTurnResult
+    result: EndOfTurnResult,
+    passiveModifiers: PassiveModifiers
   ): void {
     
-    // Initialize tracking
-    const healthDeltas: HealthDeltas = {};
-    const maxHealthChanges: { [playerId: string]: number } = {};
-    const linesGained: { [playerId: string]: { regular: number; joining: number } } = {};
-    const energyGained: { [playerId: string]: { red: number; green: number; blue: number } } = {};
-    
-    const activePlayers = gameState.players.filter(p => p.role === 'player');
-    for (const player of activePlayers) {
-      healthDeltas[player.id] = { damage: 0, healing: 0, netChange: 0 };
-      maxHealthChanges[player.id] = 0;
-      linesGained[player.id] = { regular: 0, joining: 0 };
-      energyGained[player.id] = { red: 0, green: 0, blue: 0 };
+    // Initialize player deltas
+    for (const player of gameState.players) {
+      result.healthChanges[player.id] = {
+        damage: 0,
+        healing: 0,
+        netChange: 0
+      };
+      result.linesGained[player.id] = {
+        regular: 0,
+        joining: 0
+      };
+      result.energyGained[player.id] = {
+        red: 0,
+        green: 0,
+        blue: 0
+      };
     }
     
-    // Tally all effects
+    // Apply each effect
     for (const effect of effects) {
-      const value = Math.max(0, effect.value || 0); // Ensure >= 0
+      const targetId = effect.target.targetPlayerId;
       
-      // Skip zero-value effects
-      if (value === 0 && (effect.kind === EffectKind.DAMAGE || effect.kind === EffectKind.HEAL)) {
+      if (!targetId) {
+        console.warn('[EndOfTurnResolver] Effect has no target player ID:', effect);
         continue;
       }
       
+      // Get source player for Science Vessel multiplier checking
+      const sourceId = effect.source.sourcePlayerId;
+      let effectValue = effect.value || 0;
+      
       switch (effect.kind) {
         case EffectKind.DAMAGE:
-          if (healthDeltas[effect.target.targetPlayerId]) {
-            healthDeltas[effect.target.targetPlayerId].damage += value;
+          // Apply Science Vessel doubling (2+ SCI)
+          if (sourceId && passiveModifiers.shouldDoubleDamage(sourceId, gameState)) {
+            effectValue *= 2;
           }
+          result.healthChanges[targetId].damage += effectValue;
           break;
-        
+          
         case EffectKind.HEAL:
-          if (healthDeltas[effect.target.targetPlayerId]) {
-            healthDeltas[effect.target.targetPlayerId].healing += value;
+          // Apply Science Vessel doubling (1+ SCI)
+          if (sourceId && passiveModifiers.shouldDoubleHealing(sourceId, gameState)) {
+            effectValue *= 2;
           }
+          result.healthChanges[targetId].healing += effectValue;
           break;
-        
-        case EffectKind.INCREASE_MAX_HEALTH:
-          if (maxHealthChanges[effect.target.targetPlayerId] !== undefined) {
-            maxHealthChanges[effect.target.targetPlayerId] += value;
-          }
-          break;
-        
-        case EffectKind.SET_HEALTH_MAX:
-          // SET overrides INCREASE (last one wins)
-          if (maxHealthChanges[effect.target.targetPlayerId] !== undefined) {
-            maxHealthChanges[effect.target.targetPlayerId] = value;
-          }
-          break;
-        
+          
         case EffectKind.GAIN_LINES:
-          if (linesGained[effect.target.targetPlayerId]) {
-            linesGained[effect.target.targetPlayerId].regular += value;
-          }
+          result.linesGained[targetId].regular += effect.value || 0;
           break;
-        
+          
         case EffectKind.GAIN_JOINING_LINES:
-          if (linesGained[effect.target.targetPlayerId]) {
-            linesGained[effect.target.targetPlayerId].joining += value;
-          }
+          result.linesGained[targetId].joining += effect.value || 0;
           break;
-        
+          
         case EffectKind.GAIN_ENERGY:
-          if (energyGained[effect.target.targetPlayerId] && effect.energyColor) {
-            if (effect.energyColor === 'all') {
-              energyGained[effect.target.targetPlayerId].red += value;
-              energyGained[effect.target.targetPlayerId].green += value;
-              energyGained[effect.target.targetPlayerId].blue += value;
-            } else {
-              energyGained[effect.target.targetPlayerId][effect.energyColor] += value;
-            }
+          if (effect.energyColor === 'red' || effect.energyColor === 'all') {
+            result.energyGained[targetId].red += effect.value || 0;
+          }
+          if (effect.energyColor === 'green' || effect.energyColor === 'all') {
+            result.energyGained[targetId].green += effect.value || 0;
+          }
+          if (effect.energyColor === 'blue' || effect.energyColor === 'all') {
+            result.energyGained[targetId].blue += effect.value || 0;
           }
           break;
+          
+        case EffectKind.SET_HEALTH_MAX:
+          // Set health to maximum
+          const player = gameState.players.find(p => p.id === targetId);
+          if (player) {
+            result.healthChanges[targetId].healing += (player.maxHealth - player.health);
+          }
+          break;
+          
+        case EffectKind.INCREASE_MAX_HEALTH:
+          // Track max health increase
+          const targetPlayer = gameState.players.find(p => p.id === targetId);
+          if (targetPlayer) {
+            const oldMax = result.maxHealthChanges[targetId]?.newMax || targetPlayer.maxHealth;
+            const newMax = oldMax + (effect.value || 0);
+            result.maxHealthChanges[targetId] = { oldMax: targetPlayer.maxHealth, newMax };
+          }
+          break;
+          
+        default:
+          console.warn(`[EndOfTurnResolver] Unhandled effect kind: ${effect.kind}`);
       }
     }
     
     // Calculate net health changes
-    for (const playerId in healthDeltas) {
-      const delta = healthDeltas[playerId];
+    for (const playerId in result.healthChanges) {
+      const delta = result.healthChanges[playerId];
       delta.netChange = delta.healing - delta.damage;
     }
-    
-    // Apply health changes
-    for (const player of gameState.players) {
-      if (player.role !== 'player') continue;
-      
-      const delta = healthDeltas[player.id];
-      if (delta) {
-        const currentHealth = player.health ?? 25;
-        player.health = currentHealth + delta.netChange;
-      }
-    }
-    
-    // Apply max health changes (to player object if supported)
-    for (const player of gameState.players) {
-      if (player.role !== 'player') continue;
-      
-      const change = maxHealthChanges[player.id];
-      if (change > 0) {
-        const oldMax = player.maxHealth || 30;
-        const newMax = oldMax + change;
-        player.maxHealth = newMax;
-        result.maxHealthChanges[player.id] = { oldMax, newMax };
-      }
-    }
-    
-    // Apply lines to player objects
-    for (const player of gameState.players) {
-      if (player.role !== 'player') continue;
-      
-      const gained = linesGained[player.id];
-      if (gained) {
-        if (gained.regular > 0) {
-          player.lines = (player.lines || 0) + gained.regular;
-        }
-        if (gained.joining > 0) {
-          player.joiningLines = (player.joiningLines || 0) + gained.joining;
-        }
-      }
-    }
-    
-    // Apply energy to player objects
-    for (const player of gameState.players) {
-      if (player.role !== 'player') continue;
-      
-      const gained = energyGained[player.id];
-      if (gained && player.energy) {
-        player.energy.red = (player.energy.red || 0) + gained.red;
-        player.energy.green = (player.energy.green || 0) + gained.green;
-        player.energy.blue = (player.energy.blue || 0) + gained.blue;
-      }
-    }
-    
-    // Store results
-    result.healthChanges = healthDeltas;
-    result.linesGained = linesGained;
-    result.energyGained = energyGained;
   }
   
-  // ==========================================================================
-  // HEALTH FINALIZATION
-  // ==========================================================================
-  
   /**
-   * Cap health to [0, maxHealth] and mark dead players
-   * 
-   * ✅ CORRECT: Uses gameData.rules.maxHealth ?? settings.maxHealth ?? player.maxHealth ?? DEFAULT
-   * ✅ CORRECT: Accounts for passive modifiers (Spiral)
-   * ✅ CORRECT: Defeated players set to health = 0, isActive = false
+   * Finalize health changes and apply to game state
+   * Caps health at max, applies passive modifiers
    */
   private finalizeHealth(
     gameState: GameState,
     passiveModifiers: PassiveModifiers,
     result: EndOfTurnResult
   ): void {
-    const DEFAULT_MAX_HEALTH = 30;
     
     for (const player of gameState.players) {
-      if (player.role !== 'player') continue;
+      const playerId = player.id;
       
-      // ✅ CORRECT: Health cap hierarchy (aligned with GameTypes refactoring)
-      const baseMax = player.maxHealth 
-        ?? gameState.gameData.rules?.maxHealth 
-        ?? gameState.settings?.maxHealth 
-        ?? DEFAULT_MAX_HEALTH;
+      // Apply max health changes
+      if (result.maxHealthChanges[playerId]) {
+        const newMax = result.maxHealthChanges[playerId].newMax;
+        player.maxHealth = newMax;
+      }
       
-      // ✅ CORRECT: Account for passive modifiers (Spiral: 2+ → +15)
-      const passiveIncrease = passiveModifiers.getMaxHealthIncrease(player.id);
-      const maxHealth = baseMax + passiveIncrease;
+      // Apply health changes
+      const delta = result.healthChanges[playerId];
+      if (delta) {
+        player.health += delta.netChange;
+        
+        // Cap health at max
+        player.health = Math.max(0, Math.min(player.health, player.maxHealth));
+      }
       
-      // Track max health change if passive modifier active
-      if (passiveIncrease > 0 && !result.maxHealthChanges[player.id]) {
-        result.maxHealthChanges[player.id] = { 
-          oldMax: baseMax, 
-          newMax: maxHealth 
+      // Apply resource changes
+      if (result.linesGained[playerId]) {
+        player.lines = (player.lines || 0) + result.linesGained[playerId].regular;
+        player.joiningLines = (player.joiningLines || 0) + result.linesGained[playerId].joining;
+      }
+      
+      if (result.energyGained[playerId]) {
+        const energy = player.energy || { red: 0, green: 0, blue: 0 };
+        player.energy = {
+          red: energy.red + result.energyGained[playerId].red,
+          green: energy.green + result.energyGained[playerId].green,
+          blue: energy.blue + result.energyGained[playerId].blue
         };
       }
-      
-      const currentHealth = player.health ?? 25;
-      
-      // Cap health to [0, maxHealth]
-      if (currentHealth > maxHealth) {
-        player.health = maxHealth;
-      } else if (currentHealth <= 0) {
-        player.health = 0;
-        player.isActive = false;  // Mark player as defeated
-      }
     }
   }
   
   /**
-   * Check if game has ended
-   * Win condition: Opponent health <= 0
+   * Check if game has ended (player at 0 health)
    */
-  private checkGameEnd(gameState: GameState): {
-    ended: boolean;
-    winner?: string;
-  } {
-    const activePlayers = gameState.players.filter(p => p.role === 'player');
-    const alivePlayers = activePlayers.filter(p => (p.health ?? 25) > 0);
+  private checkGameEnd(gameState: GameState): { ended: boolean; winner?: string } {
+    const players = gameState.players;
     
-    if (alivePlayers.length === 1) {
-      return {
-        ended: true,
-        winner: alivePlayers[0].id
-      };
+    const deadPlayers = players.filter(p => p.health <= 0);
+    
+    if (deadPlayers.length === 0) {
+      return { ended: false };
     }
     
-    if (alivePlayers.length === 0) {
-      // Draw (simultaneous defeat)
-      return {
-        ended: true,
-        winner: undefined
-      };
+    if (deadPlayers.length === 1) {
+      const winner = players.find(p => p.health > 0);
+      return { ended: true, winner: winner?.id };
     }
     
-    return {
-      ended: false
-    };
+    // Both dead - draw (shouldn't happen with simultaneous resolution)
+    return { ended: true, winner: undefined };
   }
   
   // ==========================================================================
-  // UTILITY METHODS
+  // HELPERS
   // ==========================================================================
   
   /**
-   * Find a ship by INSTANCE ID across all players
-   * 
-   * ✅ CORRECT: Uses PlayerShip (canonical runtime type)
-   * ✅ CORRECT: Uses instance ID (PlayerShip.id), not definition ID
+   * Find ship by instance ID
    */
-  private findShipByInstanceId(gameState: GameState, instanceId: string): PlayerShip | undefined {
-    for (const playerId in gameState.gameData?.ships || {}) {
+  private findShipByInstanceId(
+    gameState: GameState,
+    instanceId: string
+  ): PlayerShip | undefined {
+    
+    for (const playerId in gameState.gameData.ships || {}) {
       const ships = gameState.gameData.ships[playerId] || [];
       const ship = ships.find(s => s.id === instanceId);
       if (ship) return ship;
     }
+    
     return undefined;
   }
   
   /**
-   * Get opponent player ID
+   * Get opponent ID
    */
   private getOpponentId(gameState: GameState, playerId: string): string {
-    const activePlayers = gameState.players.filter(p => p.role === 'player');
-    const opponent = activePlayers.find(p => p.id !== playerId);
-    return opponent?.id || playerId;
+    const opponent = gameState.players.find(p => p.id !== playerId);
+    return opponent?.id || '';
   }
 }
 
-// Export singleton instance
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
+export default EndOfTurnResolver;
+
+/**
+ * Singleton instance for convenience
+ * @deprecated Consider using class methods directly for better testability
+ */
 export const endOfTurnResolver = new EndOfTurnResolver();

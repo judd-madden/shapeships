@@ -17,7 +17,7 @@ Human,Upgraded,Earth Ship,EAR,23,7,"DEF, DEF, ORB, CAR(0)",1,,Automatic,Deal 3 d
 Human,Upgraded,Dreadnought,DRE,27,10,"DEF, DEF, FIG, FIG, FIG, COM",2,,Drawing,"When you complete a ship, you may make a FREE additional Fighter.",Automatic,Deal 10 damage.,,,The Dreadnought's build power activates whenever you make a basic ship (including from Carriers) or complete an upgraded ship. It can occur multiple times per turn. Is not activated by itself or other Dreadnoughts.,X damage,Red,1
 Human,Upgraded,Leviathan,LEV,44,12,"DEF, DEF, CAR(0), CAR(0), STA, STA",3,,Dice Manipulation,All dice rolls read as 6 for you.,Automatic,Deal 12 damage.,Automatic,Heal 12.,Carrier charges must all be used before upgrading. Overrides reroll powers.,"X healing, X damage",Purple,1
 ,,,,,,,,,,,,,,,,,,
-Xenite,Basic,Xenite,XEN,2,,,0,,,No power.,,,,,,No caption,White,1
+Xenite,Basic,Xenite,XEN,2,,,0,,,N/A,,,,,,No caption,White,1
 Xenite,Basic,Antlion,ANT,3,,,2,1,Charge Declaration,Heal 3  (use 1 charge).,Charge Declaration,Deal 3 damage (use 1 charge).,,,Can hold charge.,1/1 charges - X damage or X healing (on turn it's used) - no caption when depleted,Pastel Orange,2
 Xenite,Basic,Mantis,MAN,4,,,1,,Automatic,Heal 1 for every TWO of your Xenites.,,,,,Each Mantis can heal a maximum of 10 per turn.,X healing,Pastel Green,1
 Xenite,Basic,Evolver,EVO,4,,,1,,Drawing,"When built and in each future build phase, may turn one Xenite into an Oxite or an Asterite.",,,,,If no Xenites available power cannot be used.,No caption,Pastel Purple,1
@@ -69,8 +69,8 @@ Ancient,Basic,Spiral,SPI,6,,,3,,Automatic,If you have one:
  Also, Deal 1 damage for each red and/or green energy you spent this turn.",,N/A,Pastel Pink,1
 Ancient,Basic,Uranus Core,URA,7,,,1,,Charge Declaration,Gain 1 blue energy each battle phase.,,,,,You can have a maximum of 6 Uranus Cores.,N/A,Pastel Blue,1
 Ancient,Basic,Solar Grid,SOL,8,,,2,4,Charge Declaration,Gain 1 energy of each colour this battle phase 
-(use 1 charge).,,,,,,N/A,Pastel Yellow,5
-Ancient,Basic,Cube,CUB,9,,,1,,Charge Declaration,"Once per turn per Cube, you may repeat the first Solar power you cast this turn.",,,,,,N/A,Pastel Orange,1
+(use 1 charge).,Automatic,"When all charges have been used, heal 2 each turn.",,,,N/A,Pastel Yellow,5
+Ancient,Basic,Cube,CUB,9,,,1,,Charge Declaration,"Once per turn, you may repeat a solar power that you cast (for free).",,,,,,N/A,Pastel Orange,1
 Ancient,Solar Power,Asteroid,SAST,N/A,N/A,1 red energy,1,,Charge Declaration,Deal 1 damage.,,,,,,N/A,N/A,0
 Ancient,Solar Power,Supernova,SSUP,N/A,N/A,3 red energy,1,,Charge Declaration,Deal damage equal to the dice roll +4.,,,,,,N/A,N/A,0
 Ancient,Solar Power,Life,SLIF,N/A,N/A,1 green energy,1,,Charge Declaration,Heal 1.,,,,,,N/A,N/A,0

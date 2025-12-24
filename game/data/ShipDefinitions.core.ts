@@ -1,6 +1,6 @@
 // Ship Definitions - CORE (Auto-Generated from CSV)
 // Generated: 2024-12-24
-// Total Ships: 70
+// Total Ships: 79
 //
 // ⚠️  AUTO-GENERATED - DO NOT EDIT MANUALLY ⚠️
 // 
@@ -15,7 +15,7 @@
 import type { ShipDefinitionCsv } from '../types/ShipTypes.csv';
 
 // ============================================================================
-// PURE SHIP DEFINITIONS (70 ships - NO GRAPHICS)
+// PURE SHIP DEFINITIONS (79 ships - NO GRAPHICS)
 // ============================================================================
 // This is the authoritative source for ship data
 // Graphics are added separately in ShipDefinitions.tsx
@@ -352,12 +352,7 @@ export const PURE_SHIP_DEFINITIONS: ShipDefinitionCsv[] = [
     shipType: 'Basic',
     totalLineCost: 2,
     numberOfPowers: 0,
-    powers: [
-      {
-        subphase: '',
-        text: 'No power.'
-      }
-    ],
+    powers: [],
     stackCaption: 'No caption',
     colour: 'White',
     numberOfGraphics: 1
@@ -1146,6 +1141,10 @@ export const PURE_SHIP_DEFINITIONS: ShipDefinitionCsv[] = [
       {
         subphase: 'Charge Declaration',
         text: 'Gain 1 energy of each colour this battle phase \n(use 1 charge).'
+      },
+      {
+        subphase: 'Automatic',
+        text: 'When all charges have been used, heal 2 each turn.'
       }
     ],
     stackCaption: 'N/A',
@@ -1162,7 +1161,7 @@ export const PURE_SHIP_DEFINITIONS: ShipDefinitionCsv[] = [
     powers: [
       {
         subphase: 'Charge Declaration',
-        text: 'Once per turn per Cube, you may repeat the first Solar power you cast this turn.'
+        text: 'Once per turn, you may repeat a solar power that you cast (for free).'
       }
     ],
     stackCaption: 'N/A',

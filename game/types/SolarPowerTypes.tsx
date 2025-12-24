@@ -19,15 +19,15 @@ import type {
   PlayerId,
   ShipDefId,
   ShipInstanceId,
-  PowerEffectType,
   SpecialLogic
-} from './ShipTypes.core';
+} from './ShipTypes.engine';
+import { EffectKind } from './EffectTypes';
 import type {
   QueuedEffect
 } from './EffectTypes';
 
 // Backward compatibility
-export type ResolvedEffectType = PowerEffectType;
+export type ResolvedEffectType = EffectKind;
 
 // ============================================================================
 // SOLAR POWER IDS (Finite Set)
@@ -128,12 +128,12 @@ export interface TargetRequirement {
  * Restrict to TriggeredEffect-producing types only
  */
 export type SolarPowerEffectType = 
-  | PowerEffectType.DEAL_DAMAGE      // Asteroid
-  | PowerEffectType.HEAL             // Life
-  | PowerEffectType.BUILD_SHIP       // Hypothetical
-  | PowerEffectType.DESTROY_SHIP     // Black Hole
-  | PowerEffectType.COPY_SHIP        // Simulacrum
-  | PowerEffectType.CUSTOM;          // Complex logic
+  | EffectKind.DEAL_DAMAGE      // Asteroid
+  | EffectKind.HEAL             // Life
+  | EffectKind.BUILD_SHIP       // Hypothetical
+  | EffectKind.DESTROY_SHIP     // Black Hole
+  | EffectKind.COPY_SHIP        // Simulacrum
+  | EffectKind.CUSTOM;          // Complex logic
 
 // ============================================================================
 // SOLAR POWER EFFECT
@@ -435,6 +435,5 @@ export type {
   PlayerId,
   ShipDefId,
   ShipInstanceId,
-  PowerEffectType,
   SpecialLogic
 };

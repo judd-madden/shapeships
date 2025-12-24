@@ -196,7 +196,9 @@ export interface Player {
   health?: number; // Current health (25 start, default max 35)
   maxHealth?: number; // Maximum health (default 35, can be increased by Spiral to 50)
   lines?: number; // Current available lines
-  savedLines?: number; // Lines saved from previous turns
+  savedLines?: number; // Lines saved from previous turns (Orbital, etc.)
+  bonusLines?: number; // Bonus lines this turn only (Science Vessel, etc.)
+  diceLines?: number; // Lines from dice roll this turn
   joiningLines?: number; // Current joining lines (Centaur species only - can only be used for upgrades)
   
   // Ancient energy system (red/green/blue ONLY - no pink)
@@ -260,6 +262,8 @@ export interface PlayerShip {
   // ============================================================================
   currentCharges?: number; // Current charges available
   maxCharges?: number; // Maximum charges this ship can hold
+  chargesRemaining?: number; // Alias for currentCharges (for backward compat)
+  chargesDeclaredThisPhase?: string[]; // Power indices used this phase (for "one per subphase" rule)
   
   // ============================================================================
   // POWER USAGE HISTORY

@@ -1,140 +1,76 @@
 /**
- * Ship Types - CSV RAW (Lossless Mirror)
+ * Ship Types - CSV Layer (Lossless)
  * 
- * This file contains LOSSLESS representations of CSV data.
- * NO interpretation, NO enums, NO parsing - just raw strings and numbers.
+ * This module defines the LOSSLESS CSV schema.
+ * - Preserves raw strings exactly as they appear in CSV
+ * - No enums, no interpretation, no inferred meaning
+ * - Server-safe (no React)
+ * - Single source of truth for ship text data
  * 
- * PURPOSE:
- * - Direct mirror of CSV structure
- * - Source of truth for ship data
- * - Used by CSV generator output
- * 
- * NOT FOR:
- * - Engine runtime logic (use ShipTypes.core.ts)
- * - Game state (use GameTypes.ts)
+ * The CSV is parsed into this schema by the auto-generator.
  */
 
-import type { EffectAst } from '../effects/EffectAst';
-
-// ============================================================================
-// CSV RAW POWER
-// ============================================================================
+import type { EffectAst } from './EffectTypes';
 
 /**
- * ShipPowerText - Raw power text from CSV (no interpretation)
- * 
- * AUTHORITATIVE: The `text` field is the source of truth for power behavior.
- * OPTIONAL: `effectAst` provides structured interpretation metadata.
+ * Raw power text from CSV (lossless)
+ * Optional effectAst can be attached later for advanced parsing
  */
-export interface ShipPowerText {
-  /** Exact from CSV: "Automatic", "Ships That Build", "Drawing", etc. */
+export interface ShipPowerTextCsv {
+  /** Raw subphase string from CSV (e.g., "Automatic", "Charge Declaration") */
   subphase: string;
   
-  /** Exact from CSV field, trimmed - AUTHORITATIVE SOURCE OF TRUTH */
+  /** Raw power text from CSV (exact string, uninterpreted) */
   text: string;
   
-  /**
-   * OPTIONAL: Structured interpretation (added gradually, power-by-power)
-   * 
-   * If absent, engine falls back to existing logic or manual handling.
-   * If present, engine MAY use it for interpretation (not required).
-   * 
-   * NOTE: This is designer-friendly AST. Eventually should map to
-   * canonical EffectKind from /game/types/EffectTypes.ts
-   */
+  /** Optional: Pre-parsed effect AST (can be added via annotations) */
   effectAst?: EffectAst;
 }
 
-// ============================================================================
-// CSV RAW SHIP DEFINITION
-// ============================================================================
-
 /**
- * ShipDefinitionCsv - Lossless CSV representation
- * 
- * Fields map directly to CSV columns without interpretation.
- * All enums are strings, all tokens are unparsed.
- * 
- * This is what the CSV generator outputs.
+ * Ship definition from CSV (lossless)
+ * Fields map directly to CSV columns
  */
 export interface ShipDefinitionCsv {
-  // ========================================================================
-  // IDENTITY (CSV Columns: ID, SHIP NAME)
-  // ========================================================================
-  
-  /** Ship ID token: "DEF", "FIG", "CAR", etc. */
+  /** Ship ID (e.g., "DEF", "FIG", "SOL") */
   id: string;
   
-  /** Human-readable name: "Defender", "Fighter", "Carrier" */
+  /** Ship display name (e.g., "Defender", "Solar Grid") */
   name: string;
   
-  // ========================================================================
-  // CLASSIFICATION (CSV Columns: SPECIES, SHIP TYPE)
-  // ========================================================================
-  
-  /** Species string (not enum): "Human", "Xenite", "Centaur", "Ancient" */
+  /** Species string from CSV (e.g., "Human", "Xenite", "Centaur", "Ancient") */
   species: string;
   
-  /** Ship type string (not enum): "Basic", "Upgraded", "Basic - Evolved", "Solar Power" */
+  /** Ship type string from CSV (e.g., "Basic", "Upgraded", "Solar Power", "Basic - Evolved") */
   shipType: string;
   
-  // ========================================================================
-  // COSTS (CSV Columns: TOTAL LINE COST, JOINING LINE COST)
-  // ========================================================================
-  
-  /** Total line cost for basic ships (number or null for N/A) */
+  /** Total line cost for basic ships (null for upgraded/solar) */
   totalLineCost: number | null;
   
-  /** Joining line cost for upgraded ships (number or null if blank/N/A) */
+  /** Joining line cost for upgraded ships (null for basic/solar) */
   joiningLineCost?: number | null;
   
-  // ========================================================================
-  // COMPONENTS (CSV Column: COMPONENT SHIPS)
-  // ========================================================================
-  
-  /**
-   * Component ship tokens (unparsed)
-   * 
-   * Examples:
-   * - ['DEF', 'FIG'] - simple components
-   * - ['CAR(0)', 'ANT(0)'] - must be depleted
-   * - ['1 red energy'] - solar power cost
-   * 
-   * NO PARSING - just raw strings from CSV
-   */
+  /** Component ships (raw strings like "DEF", "FIG", "CAR(0)", "1 red energy") */
   componentShips?: string[];
   
-  // ========================================================================
-  // POWERS (CSV Columns: NUMBER OF POWERS, CHARGES, POWER 1/2/3)
-  // ========================================================================
-  
-  /** Number of powers (from CSV count) */
+  /** Number of powers this ship has */
   numberOfPowers: number;
   
-  /** Charges (number or null if blank) */
+  /** Maximum charges (if applicable) */
   charges?: number | null;
   
-  /** Powers (up to 3, only if fields present in CSV) */
-  powers: ShipPowerText[];
+  /** Power definitions (raw CSV text) */
+  powers: ShipPowerTextCsv[];
   
-  // ========================================================================
-  // METADATA (CSV Columns: EXTRA RULES, STACK CAPTION, COLOUR, etc.)
-  // ========================================================================
-  
-  /** Extra rules text (unparsed) */
+  /** Extra rules text from CSV */
   extraRules?: string;
   
-  /** Stack caption template */
+  /** Stack caption for UI display */
   stackCaption?: string;
   
-  /** Color name string: "Pastel Green", "Yellow", "N/A" */
+  /** Color name from CSV */
   colour?: string;
   
   /** Number of graphics variants */
   numberOfGraphics?: number | null;
 }
-
-/**
- * Alias for clarity in some contexts
- */
-export type ShipDefinitionRaw = ShipDefinitionCsv;

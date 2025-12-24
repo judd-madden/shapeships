@@ -23,8 +23,8 @@
 // ============================================================================
 
 import type { GameState, PlayerShip } from '../types/GameTypes';
-import { PowerTiming } from '../types/ShipTypes.core';
-import { getShipById } from '../data/ShipDefinitions.core';
+import { PowerTiming } from '../types/ShipTypes.engine';
+import { getShipById } from '../data/ShipDefinitions.engine';
 import { PASSIVE_MODIFIER_IDS, PASSIVE_MODIFIER_IDS_SET, type PassiveModifierId } from './PassiveModifierIds';
 
 // ============================================================================
@@ -278,6 +278,54 @@ export class PassiveModifiers {
    */
   doShipsInUpgradesCount(playerId: PlayerId): boolean {
     return this.hasModifier(playerId, PASSIVE_MODIFIER_IDS.HIVE);
+  }
+  
+  /**
+   * Count Science Vessels for passive effects
+   * Used to determine:
+   * - 1 SCI: Double Automatic healing
+   * - 2 SCI: Double Automatic damage
+   * - 3 SCI: Line Generation adds dice roll
+   */
+  countScienceVessels(playerId: PlayerId, gameState: GameState): number {
+    const ships = gameState.gameData.ships[playerId] || [];
+    return ships.filter(s => 
+      s.shipId === 'SCI' && 
+      !s.isDestroyed && 
+      !s.isConsumedInUpgrade
+    ).length;
+  }
+  
+  /**
+   * Check if healing should be doubled (1+ Science Vessel)
+   */
+  shouldDoubleHealing(playerId: PlayerId, gameState: GameState): boolean {
+    return this.countScienceVessels(playerId, gameState) >= 1;
+  }
+  
+  /**
+   * Check if damage should be doubled (2+ Science Vessels)
+   */
+  shouldDoubleDamage(playerId: PlayerId, gameState: GameState): boolean {
+    return this.countScienceVessels(playerId, gameState) >= 2;
+  }
+  
+  /**
+   * Check if should add dice lines (3+ Science Vessels)
+   */
+  shouldAddDiceLines(playerId: PlayerId, gameState: GameState): boolean {
+    return this.countScienceVessels(playerId, gameState) >= 3;
+  }
+  
+  /**
+   * Count unique ship types for Tactical Cruiser
+   * TYPE = unique ship definition IDs
+   */
+  countShipTypes(playerId: PlayerId, gameState: GameState): number {
+    const ships = gameState.gameData.ships[playerId] || [];
+    const aliveShips = ships.filter(s => !s.isDestroyed && !s.isConsumedInUpgrade);
+    const uniqueTypes = new Set(aliveShips.map(s => s.shipId));
+    return uniqueTypes.size;
   }
   
   // ============================================================================

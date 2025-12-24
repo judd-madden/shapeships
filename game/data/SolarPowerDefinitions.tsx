@@ -4,7 +4,8 @@
 // DO NOT EDIT MANUALLY - Regenerate using: npm run gen:ships
 
 import type { SolarPowerDefinition } from '../types/SolarPowerTypes';
-import { ShipPowerPhase, PowerTiming, PowerEffectType } from '../types/ShipTypes.core';
+import { ShipPowerPhase, PowerTiming } from '../types/ShipTypes.engine';
+import { EffectKind } from '../types/EffectTypes';
 
 // ============================================================================
 // SOLAR POWER DEFINITIONS (9 powers)
@@ -19,7 +20,7 @@ export const SOLAR_POWER_DEFINITIONS: SolarPowerDefinition[] = [
       powerIndex: 1,
       phase: ShipPowerPhase.SIMULTANEOUS_DECLARATION,
       timing: PowerTiming.CONTINUOUS,
-      effectType: PowerEffectType.DEAL_DAMAGE,
+      effectType: EffectKind.DEAL_DAMAGE,
       baseAmount: 1,
       description: 'Deal 1 damage.'
     }]
@@ -33,7 +34,7 @@ export const SOLAR_POWER_DEFINITIONS: SolarPowerDefinition[] = [
       powerIndex: 1,
       phase: ShipPowerPhase.SIMULTANEOUS_DECLARATION,
       timing: PowerTiming.CONTINUOUS,
-      effectType: PowerEffectType.CUSTOM,
+      effectType: EffectKind.CUSTOM,
       description: 'Deal damage equal to the dice roll +4.',
       specialLogic: {
         customLogicId: 'supernova_dice_plus_4',
@@ -50,7 +51,7 @@ export const SOLAR_POWER_DEFINITIONS: SolarPowerDefinition[] = [
       powerIndex: 1,
       phase: ShipPowerPhase.SIMULTANEOUS_DECLARATION,
       timing: PowerTiming.CONTINUOUS,
-      effectType: PowerEffectType.HEAL,
+      effectType: EffectKind.HEAL,
       baseAmount: 1,
       description: 'Heal 1.'
     }]
@@ -64,7 +65,7 @@ export const SOLAR_POWER_DEFINITIONS: SolarPowerDefinition[] = [
       powerIndex: 1,
       phase: ShipPowerPhase.SIMULTANEOUS_DECLARATION,
       timing: PowerTiming.CONTINUOUS,
-      effectType: PowerEffectType.CUSTOM,
+      effectType: EffectKind.CUSTOM,
       description: 'Heal equal to the dice roll +5.',
       specialLogic: {
         customLogicId: 'star_birth_dice_plus_5',
@@ -81,7 +82,7 @@ export const SOLAR_POWER_DEFINITIONS: SolarPowerDefinition[] = [
       powerIndex: 1,
       phase: ShipPowerPhase.SIMULTANEOUS_DECLARATION,
       timing: PowerTiming.CONTINUOUS,
-      effectType: PowerEffectType.GAIN_LINES,
+      effectType: EffectKind.GAIN_LINES,
       baseAmount: 1,
       description: 'Generate an additional line next build phase.'
     }],
@@ -96,7 +97,7 @@ export const SOLAR_POWER_DEFINITIONS: SolarPowerDefinition[] = [
       powerIndex: 1,
       phase: ShipPowerPhase.SIMULTANEOUS_DECLARATION,
       timing: PowerTiming.CONTINUOUS,
-      effectType: PowerEffectType.COPY_SHIP,
+      effectType: EffectKind.COPY_SHIP,
       baseAmount: 1,
       description: 'Make a copy of a basic enemy ship. X = Number of lines in ship.',
       requiresPlayerChoice: true,
@@ -118,7 +119,7 @@ export const SOLAR_POWER_DEFINITIONS: SolarPowerDefinition[] = [
       powerIndex: 1,
       phase: ShipPowerPhase.SIMULTANEOUS_DECLARATION,
       timing: PowerTiming.CONTINUOUS,
-      effectType: PowerEffectType.CUSTOM,
+      effectType: EffectKind.CUSTOM,
       description: 'Deal 1 damage for each Core you have. Heal 1 for each Core you have.',
       specialLogic: {
         customLogicId: 'siphon_count_cores',
@@ -137,7 +138,7 @@ export const SOLAR_POWER_DEFINITIONS: SolarPowerDefinition[] = [
       powerIndex: 1,
       phase: ShipPowerPhase.SIMULTANEOUS_DECLARATION,
       timing: PowerTiming.CONTINUOUS,
-      effectType: PowerEffectType.COUNT_AND_DAMAGE,
+      effectType: EffectKind.COUNT_AND_DAMAGE,
       baseAmount: 2,
       description: 'Deal 2 damage for each TYPE of ship you have.',
       specialLogic: {
@@ -156,7 +157,7 @@ export const SOLAR_POWER_DEFINITIONS: SolarPowerDefinition[] = [
       powerIndex: 1,
       phase: ShipPowerPhase.SIMULTANEOUS_DECLARATION,
       timing: PowerTiming.CONTINUOUS,
-      effectType: PowerEffectType.DESTROY_SHIP,
+      effectType: EffectKind.DESTROY_SHIP,
       baseAmount: 2,
       description: 'Destroy TWO of the opponent\'s basic ships. Deal 4 damage.',
       requiresPlayerChoice: true,

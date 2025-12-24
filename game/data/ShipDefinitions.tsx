@@ -4,7 +4,8 @@
 
 import { PURE_SHIP_DEFINITIONS } from './ShipDefinitions.core';
 import type { ShipDefinitionUI } from '../types/ShipTypes.ui';
-import type { ShipDefId, ShipDefinitionCore } from '../types/ShipTypes.core';
+import type { ShipDefId } from '../types/ShipTypes.engine';
+import type { ShipDefinitionCsv } from '../types/ShipTypes.csv';
 import type { ShipGraphic } from '../types/ShipTypes.ui';
 
 // Import all ship graphics
@@ -219,7 +220,7 @@ const GRAPHICS_BY_ID: Record<ShipDefId, ShipGraphic[]> = {
 // Single source of truth for ship stats: ShipDefinitions.core.ts
 
 export const SHIP_DEFINITIONS: ShipDefinitionUI[] = PURE_SHIP_DEFINITIONS.map(
-  (coreDef: ShipDefinitionCore): ShipDefinitionUI => ({
+  (coreDef: ShipDefinitionCsv): ShipDefinitionUI => ({
     ...coreDef,
     graphics: GRAPHICS_BY_ID[coreDef.id]
   })

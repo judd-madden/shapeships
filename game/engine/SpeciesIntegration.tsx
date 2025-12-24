@@ -1,11 +1,10 @@
-// Integration layer between ShipDefinitions and GamePhases engine
 // Handles ship power calculations and damage/healing resolution
 
-import type {
-  ShipDefinition,
-  Species,
-  getShipById
-} from '../data/ShipDefinitions.core';
+import {
+  EngineShipDefinition,
+  Species
+} from '../types/ShipTypes.engine';
+import { getShipById } from '../data/ShipDefinitions.engine';
 import { GameState, PlayerShip } from '../types/GameTypes';
 
 export class SpeciesIntegration {
@@ -27,14 +26,14 @@ export class SpeciesIntegration {
   }
 
   // Get ship data from ShipDefinitions for a player ship instance
-  static getShipData(playerShip: PlayerShip): ShipDefinition | null {
+  static getShipData(playerShip: PlayerShip): EngineShipDefinition | null {
     return getShipById(playerShip.shipId);
   }
 
   // Get all ship data for ships currently in play
-  static getShipDataInPlay(gameState: GameState): ShipDefinition[] {
+  static getShipDataInPlay(gameState: GameState): EngineShipDefinition[] {
     const playerShips = this.getAllShipsInPlay(gameState);
-    const shipData: ShipDefinition[] = [];
+    const shipData: EngineShipDefinition[] = [];
     
     playerShips.forEach(playerShip => {
       const data = this.getShipData(playerShip);
@@ -84,13 +83,13 @@ export class SpeciesIntegration {
   }
 
   // Get ships available for a player to build (including copied/stolen ships)
-  static getAvailableShipsForPlayer(gameState: GameState, playerId: string): ShipDefinition[] {
+  static getAvailableShipsForPlayer(gameState: GameState, playerId: string): EngineShipDefinition[] {
     const player = gameState.players.find(p => p.id === playerId);
     if (!player) return [];
     
     // Start with species' native ships
     // This will be implemented when you provide specific species ship lists
-    const availableShips: ShipDefinition[] = [];
+    const availableShips: EngineShipDefinition[] = [];
     
     // Add copied ships
     if (player.copiedShips) {

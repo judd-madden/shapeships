@@ -15,7 +15,7 @@
  * - Enforce AST existence (never)
  */
 
-import type { ShipPowerText } from '../types/ShipTypes.core';
+import type { ShipPowerTextCsv } from '../types/ShipTypes.csv';
 import type { EffectAst } from './EffectAst';
 
 /**
@@ -39,7 +39,7 @@ import type { EffectAst } from './EffectAst';
  * }
  * ```
  */
-export function interpretEffect(power: ShipPowerText): EffectAst | null {
+export function interpretEffect(power: ShipPowerTextCsv): EffectAst | null {
   // Simply return the AST if present
   // In the future, this could:
   // - Validate AST structure
@@ -59,7 +59,7 @@ export function interpretEffect(power: ShipPowerText): EffectAst | null {
  * 
  * Convenience helper for conditional logic.
  */
-export function hasInterpretation(power: ShipPowerText): boolean {
+export function hasInterpretation(power: ShipPowerTextCsv): boolean {
   return power.effectAst !== undefined;
 }
 
@@ -73,7 +73,7 @@ export function hasInterpretation(power: ShipPowerText): boolean {
  * Use only when you know the power has been annotated.
  * NOT for general engine use (engine must tolerate missing AST).
  */
-export function requireInterpretation(power: ShipPowerText): EffectAst {
+export function requireInterpretation(power: ShipPowerTextCsv): EffectAst {
   const ast = interpretEffect(power);
   if (!ast) {
     throw new Error(
