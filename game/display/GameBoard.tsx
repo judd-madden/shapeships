@@ -82,7 +82,7 @@ export default function GameBoard({
               {currentPlayer?.id === playerId && ' (You)'}
             </div>
             <div className="text-xs text-shapeships-grey-50 mt-1">
-              Turn {gameState.currentTurn + 1}
+              Round {gameState.roundNumber + 1}
             </div>
           </CardContent>
         </Card>

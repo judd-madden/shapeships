@@ -1651,6 +1651,10 @@
     text-transform: capitalize;
   }
 
+  .lowercase {
+    text-transform: lowercase;
+  }
+
   .italic {
     font-style: italic;
   }

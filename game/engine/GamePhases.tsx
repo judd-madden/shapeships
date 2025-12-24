@@ -4,7 +4,6 @@
 // Health only changes at end of turn
 
 import { GameState, GameAction, Player } from '../types/GameTypes';
-import SpeciesIntegration from './SpeciesIntegration';
 
 // ============================================================================
 // TURN STRUCTURE - Authoritative States
@@ -17,20 +16,20 @@ export enum MajorPhase {
   END_OF_GAME = 'end_of_game'
 }
 
-// Build Phase steps (ordered, simultaneous player actions)
+// Build Phase steps (ordered, simultaneous hidden actions - revealed at start of Battle Phase)
 export enum BuildPhaseStep {
   DICE_ROLL = 'dice_roll',                    // Roll shared d6 (includes dice manipulation if available)
   LINE_GENERATION = 'line_generation',        // System: Calculate available lines
-  SHIPS_THAT_BUILD = 'ships_that_build',      // Player actions: Use ship building powers
-  DRAWING = 'drawing',                        // Player actions: Draw ships and/or save lines
+  SHIPS_THAT_BUILD = 'ships_that_build',      // Player actions: Use ship building powers (HIDDEN - revealed at Battle start)
+  DRAWING = 'drawing',                        // Player actions: Draw ships and/or save lines (HIDDEN - revealed at Battle start)
   END_OF_BUILD = 'end_of_build'               // System: Resolve non-interactive effects, check Chronoswarm
 }
 
-// Battle Phase steps (interactive, back-and-forth)
+// Battle Phase steps (simultaneous hidden commitments - revealed immediately when both ready)
 export enum BattlePhaseStep {
   FIRST_STRIKE = 'first_strike',              // System: First Strike powers resolve
-  SIMULTANEOUS_DECLARATION = 'simultaneous_declaration',  // Both players simultaneously declare Charges/Solar Powers (hidden)
-  CONDITIONAL_RESPONSE = 'conditional_response' // Both players simultaneously respond (hidden, only if declarations were made)
+  SIMULTANEOUS_DECLARATION = 'simultaneous_declaration',  // Both players simultaneously declare Charges/Solar Powers (HIDDEN - revealed immediately)
+  CONDITIONAL_RESPONSE = 'conditional_response' // Both players simultaneously respond (HIDDEN - revealed immediately, only if declarations were made)
 }
 
 // ============================================================================
@@ -207,11 +206,11 @@ export class GamePhasesEngine {
 
       case BattlePhaseStep.SIMULTANEOUS_DECLARATION:
         // Interactive loop - currently acting player(s)
-        return this.getPlayersActiveInChargeSolarLoop(gameState);
+        return this.getPlayersEligibleForDeclaration(gameState);
 
       case BattlePhaseStep.CONDITIONAL_RESPONSE:
         // Interactive loop - currently acting player(s)
-        return this.getPlayersActiveInChargeSolarLoop(gameState);
+        return this.getPlayersEligibleForDeclaration(gameState);
 
       default:
         return [];
@@ -242,9 +241,9 @@ export class GamePhasesEngine {
     return playersWithChoices;
   }
 
-  private getPlayersActiveInChargeSolarLoop(gameState: GameState): string[] {
-    // In charge/solar loop, return players who haven't passed yet
-    // For now, return all players (they can pass)
+  private getPlayersEligibleForDeclaration(gameState: GameState): string[] {
+    // Returns players eligible to make declarations/responses in current window
+    // Both players can act (passing is allowed behavior)
     return gameState.players.map(p => p.id);
   }
 
@@ -488,24 +487,20 @@ export class GamePhasesEngine {
   // CHARGE/SOLAR LOOP LOGIC
   // ============================================================================
 
-  private haveBothPlayersPassedChargeSolarLoop(gameState: GameState): boolean {
-    // Check if both players have explicitly passed
-    // For now, this will be based on player readiness
-    const playerReadiness = gameState.gameData?.phaseReadiness as PlayerReadiness[] || [];
-    const allPlayerIds = gameState.players.map(p => p.id);
-
-    return allPlayerIds.every(playerId => {
-      const playerReady = playerReadiness.find(pr => pr.playerId === playerId);
-      return playerReady?.isReady && playerReady?.currentStep === BattlePhaseStep.INTERACTION_LOOP;
-    });
-  }
-
   private checkIfAnyDeclarationsMade(gameState: GameState): boolean {
     const turnData = gameState.gameData?.turnData;
     if (!turnData) return false;
 
-    // Check if any charge or solar power declarations were made
-    return turnData.anyDeclarationsMade || false;
+    // 🔒 CRITICAL: Derive from actual declaration data, don't trust mutable flags
+    // This prevents ghost responses or skipped responses due to flag desync
+    const hasPendingCharges = Object.values(turnData.pendingChargeDeclarations || {}).some(
+      arr => arr && arr.length > 0
+    );
+    const hasPendingSOLAR = Object.values(turnData.pendingSOLARPowerDeclarations || {}).some(
+      arr => arr && arr.length > 0
+    );
+
+    return hasPendingCharges || hasPendingSOLAR;
   }
 
   private revealDeclarationsAndPrepareResponse(gameState: GameState): GameState {
@@ -579,151 +574,12 @@ export class GamePhasesEngine {
   // ============================================================================
   // END OF TURN RESOLUTION
   // ============================================================================
-
-  private resolveEndOfTurn(gameState: GameState): GameState {
-    const turnData = gameState.gameData?.turnData;
-    if (!turnData) return gameState;
-
-    const players = gameState.players;
-    
-    // Calculate all damage and healing (from all sources)
-    const updatedPlayers = players.map(player => {
-      // Accumulated damage from charge/solar powers
-      const accumulatedDamage = turnData.accumulatedDamage[player.id] || 0;
-      const accumulatedHealing = turnData.accumulatedHealing[player.id] || 0;
-      
-      // Damage from automatic ship powers (continuous)
-      const continuousAutomaticDamage = this.calculateContinuousAutomaticDamage(gameState, player.id);
-      
-      // Healing from automatic ship powers (continuous)
-      const continuousAutomaticHealing = this.calculateContinuousAutomaticHealing(gameState, player.id);
-      
-      // Once-only automatic damage (from ships built this turn)
-      const onceOnlyDamage = this.calculateOnceOnlyAutomaticDamage(gameState, player.id);
-      
-      // Once-only automatic healing (from ships built this turn)
-      const onceOnlyHealing = this.calculateOnceOnlyAutomaticHealing(gameState, player.id);
-      
-      const currentHealth = player.health || 100; // Default starting health
-      
-      // Apply all damage and healing sources simultaneously
-      const totalDamage = accumulatedDamage + continuousAutomaticDamage + onceOnlyDamage;
-      const totalHealing = accumulatedHealing + continuousAutomaticHealing + onceOnlyHealing;
-      
-      let newHealth = currentHealth - totalDamage + totalHealing;
-      
-      // Cap at maximum health (100 for Standard Game, or customizable)
-      const maxHealth = gameState.settings.maxHealth || 100;
-      newHealth = Math.min(newHealth, maxHealth);
-      
-      return {
-        ...player,
-        health: newHealth
-      };
-    });
-
-    return {
-      ...gameState,
-      players: updatedPlayers,
-      gameData: {
-        ...gameState.gameData,
-        turnData: {
-          ...turnData,
-          // Clear accumulated damage/healing after resolution
-          accumulatedDamage: {},
-          accumulatedHealing: {},
-          // Clear once-only effects after resolution
-          onceOnlyAutomaticEffects: []
-        }
-      }
-    };
-  }
-
-  private calculateContinuousAutomaticDamage(gameState: GameState, targetPlayerId: string): number {
-    // Calculate damage from all opponent's continuous automatic ship powers
-    let totalDamage = 0;
-    
-    gameState.players.forEach(player => {
-      if (player.id === targetPlayerId) return; // Don't damage yourself
-      
-      const playerShips = gameState.gameData?.ships?.[player.id] || [];
-      playerShips.forEach(ship => {
-        if (ship.isDestroyed) return; // Destroyed ships don't contribute
-        
-        // Calculate damage from this ship's automatic powers
-        const shipDamage = SpeciesIntegration.calculateShipAutomaticDamage(gameState, ship);
-        totalDamage += shipDamage;
-      });
-    });
-    
-    return totalDamage;
-  }
-
-  private calculateContinuousAutomaticHealing(gameState: GameState, playerId: string): number {
-    // Calculate healing from player's own continuous automatic ship powers
-    let totalHealing = 0;
-    
-    const playerShips = gameState.gameData?.ships?.[playerId] || [];
-    playerShips.forEach(ship => {
-      if (ship.isDestroyed) return; // Destroyed ships don't contribute
-      
-      // Calculate healing from this ship's automatic powers
-      const shipHealing = SpeciesIntegration.calculateShipAutomaticHealing(gameState, ship);
-      totalHealing += shipHealing;
-    });
-    
-    return totalHealing;
-  }
-
-  private calculateOnceOnlyAutomaticDamage(gameState: GameState, targetPlayerId: string): number {
-    // Calculate damage from once-only automatic effects (ships built this turn)
-    const turnData = gameState.gameData?.turnData;
-    if (!turnData) return 0;
-    
-    let totalDamage = 0;
-    
-    turnData.onceOnlyAutomaticEffects.forEach(effect => {
-      if (effect.effectType !== 'damage') return;
-      
-      // Find the ship and calculate damage
-      const ship = this.findShipById(gameState, effect.shipId);
-      if (!ship || ship.ownerId === targetPlayerId) return; // Don't damage yourself
-      
-      const shipDamage = SpeciesIntegration.calculateShipOnceOnlyDamage(gameState, ship);
-      totalDamage += shipDamage;
-    });
-    
-    return totalDamage;
-  }
-
-  private calculateOnceOnlyAutomaticHealing(gameState: GameState, playerId: string): number {
-    // Calculate healing from once-only automatic effects (ships built this turn)
-    const turnData = gameState.gameData?.turnData;
-    if (!turnData) return 0;
-    
-    let totalHealing = 0;
-    
-    turnData.onceOnlyAutomaticEffects.forEach(effect => {
-      if (effect.effectType !== 'healing') return;
-      
-      // Find the ship and calculate healing
-      const ship = this.findShipById(gameState, effect.shipId);
-      if (!ship || ship.ownerId !== playerId) return; // Only heal yourself
-      
-      const shipHealing = SpeciesIntegration.calculateShipOnceOnlyHealing(gameState, ship);
-      totalHealing += shipHealing;
-    });
-    
-    return totalHealing;
-  }
-
-  private findShipById(gameState: GameState, shipId: string): any {
-    for (const playerId in gameState.gameData?.ships) {
-      const ship = gameState.gameData.ships[playerId].find(s => s.id === shipId);
-      if (ship) return ship;
-    }
-    return null;
-  }
+  
+  // ⚠️ ARCHITECTURAL NOTE:
+  // GamePhasesEngine does NOT resolve End of Turn effects.
+  // It ONLY transitions TO End of Turn Resolution phase.
+  // The actual resolution is handled by EndOfTurnResolver.
+  // This enforces separation: GamePhasesEngine manages phases, EndOfTurnResolver manages effects.
 
   // ============================================================================
   // GAME END LOGIC

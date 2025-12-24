@@ -1,3 +1,7 @@
+// ⚠️ DEPRECATED - This file is kept for GameTestInterface.tsx only
+// Production code should use ShipDefinitions.tsx instead
+// This file will be removed when test interface is migrated
+//
 // Centralized species and ship data for Shapeships
 // Supports cross-species ship copying/stealing and future species expansion
 

@@ -7,6 +7,10 @@ import { Button } from '../../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
 import { MajorPhase, BuildPhaseStep, BattlePhaseStep } from '../engine/GamePhases';
 import { ArrowLeft, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
+import { actionResolver } from '../engine/ActionResolver';
+import { endOfTurnResolver } from '../engine/EndOfTurnResolver';
+import { BattleCommitmentState, HiddenBattleActions } from '../types/BattleTypes';
+import { TriggeredEffect } from '../types/EffectTypes'; // ✅ Use canonical EffectTypes
 
 interface FullPhaseTestProps {
   initialGameState?: GameState;
@@ -18,7 +22,9 @@ interface FullPhaseTestProps {
  * 
  * Demonstrates complete integration of:
  * - 3-phase GamePhases system (Build, Battle, End of Turn Resolution)
- * - Simultaneous hidden declaration system
+ * - Hidden declaration system with two reveal timings:
+ *   • Build Phase declarations (Ships That Build + Drawing) → revealed at start of Battle Phase
+ *   • Battle Phase declarations (Simultaneous Declaration + Conditional Response) → revealed immediately when both ready
  * - Ready state synchronization
  * - Effect queueing for End of Turn Resolution
  * 
@@ -42,7 +48,9 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
   
   // Get current phase info from game state
   const currentMajorPhase = gameState.gameData?.turnData?.currentMajorPhase || MajorPhase.BUILD_PHASE;
-  const currentStep = gameState.gameData?.turnData?.currentStep || BuildPhaseStep.DICE_ROLL;
+  const currentStep = gameState.gameData?.turnData?.currentStep || (
+    currentMajorPhase === MajorPhase.BUILD_PHASE ? BuildPhaseStep.DICE_ROLL : null
+  );
   
   // Get player readiness
   const phaseReadiness = (gameState.gameData?.phaseReadiness as any[]) || [];
@@ -65,18 +73,28 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
     return currentStep === BuildPhaseStep.DICE_ROLL ||
            currentStep === BuildPhaseStep.LINE_GENERATION ||
            currentStep === BuildPhaseStep.END_OF_BUILD ||
-           currentStep === BattlePhaseStep.FIRST_STRIKE;
+           currentStep === BattlePhaseStep.FIRST_STRIKE ||
+           currentMajorPhase === MajorPhase.END_OF_TURN_RESOLUTION; // Auto-advance through resolution
   };
   
-  // Determine if this is a simultaneous declaration step
-  const isSimultaneousStep = () => {
-    return currentStep === BattlePhaseStep.SIMULTANEOUS_DECLARATION ||
+  // Determine if this is a hidden declaration step
+  // Build Phase: Ships That Build + Drawing (revealed at start of Battle)
+  // Battle Phase: Simultaneous Declaration + Conditional Response (revealed immediately)
+  const isHiddenDeclarationStep = () => {
+    return currentStep === BuildPhaseStep.SHIPS_THAT_BUILD ||
+           currentStep === BuildPhaseStep.DRAWING ||
+           currentStep === BattlePhaseStep.SIMULTANEOUS_DECLARATION ||
            currentStep === BattlePhaseStep.CONDITIONAL_RESPONSE;
   };
   
-  // Auto-advance when both players are ready for non-simultaneous interactive steps
+  // Check if players act synchronously (all interactive steps are synchronous)
+  const isSynchronousStep = () => {
+    return !isAutomaticStep() && currentMajorPhase !== MajorPhase.END_OF_GAME;
+  };
+  
+  // Auto-advance when both players are ready for non-hidden-declaration interactive steps
   useEffect(() => {
-    if (!isAutomaticStep() && !isSimultaneousStep() && isPlayerReady && isOpponentReady) {
+    if (!isAutomaticStep() && !isHiddenDeclarationStep() && isPlayerReady && isOpponentReady) {
       // Both players ready - advance phase after short delay
       const timer = setTimeout(() => {
         advancePhase();
@@ -85,9 +103,9 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
     }
   }, [isPlayerReady, isOpponentReady, currentStep]);
   
-  // Auto-advance when both players are ready for simultaneous declaration steps
+  // Auto-advance when both players are ready for hidden declaration steps
   useEffect(() => {
-    if (isSimultaneousStep() && isPlayerReady && isOpponentReady) {
+    if (isHiddenDeclarationStep() && isPlayerReady && isOpponentReady) {
       // Both players locked in - reveal and advance after short delay
       const timer = setTimeout(() => {
         // Reveal declarations
@@ -119,7 +137,7 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [isPlayerReady, isOpponentReady, currentStep, isSimultaneousStep]);
+  }, [isPlayerReady, isOpponentReady, currentStep, isHiddenDeclarationStep]);
   
   // Handle declaring a charge (hidden)
   const handleDeclareCharge = (shipId: string, powerIndex: number) => {
@@ -198,7 +216,7 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
       );
     });
     
-    if (allReady && isSimultaneousStep()) {
+    if (allReady && isHiddenDeclarationStep()) {
       // Both ready → Reveal declarations
       alert('Both players ready! Revealing declarations...');
       
@@ -345,6 +363,12 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
         case BattlePhaseStep.SIMULTANEOUS_DECLARATION:
           // Check if any declarations were made
           const anyDeclarations = gameState.gameData?.turnData?.anyDeclarationsMade;
+          
+          // 🔒 EXPLICIT GATE: Response window only happens if declarations made
+          if (!anyDeclarations) {
+            console.log('⏭️ No declarations made - skipping Response window');
+          }
+          
           if (anyDeclarations) {
             // Move to response
             setGameState({
@@ -360,6 +384,7 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
             });
           } else {
             // Skip response, go to End of Turn Resolution
+            console.log('🎯 No declarations - advancing directly to End of Turn Resolution');
             setGameState({
               ...clearedState,
               gameData: {
@@ -397,21 +422,30 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
   
   // Apply all queued effects (End of Turn Resolution)
   const applyQueuedEffects = () => {
-    console.log('Applying queued effects...');
+    console.log('🔄 Running End of Turn Resolution...');
     
+    // Get triggered effects from game state
+    const triggeredEffects = (gameState.gameData?.turnData?.triggeredEffects || []) as TriggeredEffect[];
+    
+    // Call EndOfTurnResolver
+    const result = endOfTurnResolver.resolveEndOfTurn(gameState, triggeredEffects);
+    
+    console.log('✅ End of Turn Resolution complete:', result);
+    
+    // Update game state with results
     setGameState(prev => {
       const updated = { ...prev };
       
-      // Apply damage and healing to all players
-      updated.players.forEach(player => {
-        const damage = accumulatedDamage[player.id] || 0;
-        const healing = accumulatedHealing[player.id] || 0;
-        
-        const currentHealth = player.health || 25;
-        const newHealth = Math.max(0, Math.min(35, currentHealth - damage + healing));
-        
-        player.health = newHealth;
-      });
+      // Health changes already applied by resolver
+      // Just need to check for game end
+      if (result.gameEnded) {
+        updated.status = 'completed';
+        if (result.winner) {
+          alert(`Game Over! ${gameState.players.find(p => p.id === result.winner)?.name} wins!`);
+        } else {
+          alert('Game Over! Draw!');
+        }
+      }
       
       return updated;
     });
@@ -421,13 +455,14 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
   const resetForNextTurn = () => {
     setGameState(prev => ({
       ...prev,
-      currentTurn: prev.currentTurn + 1,
+      roundNumber: prev.roundNumber + 1,
       gameData: {
         ...prev.gameData,
         turnData: {
           turnNumber: (prev.gameData?.turnData?.turnNumber || 0) + 1,
           currentMajorPhase: MajorPhase.BUILD_PHASE,
           currentStep: BuildPhaseStep.DICE_ROLL,
+          triggeredEffects: [], // NEW: Reset triggered effects
           accumulatedDamage: {},
           accumulatedHealing: {},
           healthAtTurnStart: {},
@@ -524,7 +559,7 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                <div className="text-gray-600 text-sm mb-1">Turn {gameState.currentTurn}</div>
+                <div className="text-gray-600 text-sm mb-1">Round {gameState.roundNumber}</div>
                 <div className="text-lg">
                   {currentMajorPhase.toUpperCase().replace(/_/g, ' ')}
                 </div>
@@ -532,7 +567,7 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
                   {getPhaseDisplayName()}
                 </div>
               </div>
-              {!isAutomaticStep() && !isSimultaneousStep() && (
+              {!isAutomaticStep() && !isHiddenDeclarationStep() && (
                 <Button
                   onClick={handleDeclareReady}
                   disabled={isPlayerReady}
@@ -636,7 +671,7 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
             </Card>
             
             {/* Simultaneous Declaration Panel */}
-            {isSimultaneousStep() && (
+            {isHiddenDeclarationStep() && (
               <Card className="border-blue-200 bg-blue-50">
                 <CardHeader>
                   <div className="flex items-center justify-between">
@@ -823,9 +858,15 @@ export function FullPhaseTest({ initialGameState, onBack }: FullPhaseTestProps) 
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Is Simultaneous:</span>
+                  <span className="text-gray-600">Is Synchronous:</span>
                   <span>
-                    {isSimultaneousStep() ? 'Yes' : 'No'}
+                    {isSynchronousStep() ? 'Yes' : 'No'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Hidden Declaration:</span>
+                  <span>
+                    {isHiddenDeclarationStep() ? 'Yes' : 'No'}
                   </span>
                 </div>
               </CardContent>
@@ -916,7 +957,7 @@ function createTestGameState(): GameState {
     gameId: 'test-game',
     status: 'active',
     players,
-    currentTurn: 1,
+    roundNumber: 1, // Tracks complete Build→Battle→Resolution cycles
     currentPlayerId: player1Id,
     gameData: {
       board: null,
@@ -929,6 +970,7 @@ function createTestGameState(): GameState {
         turnNumber: 1,
         currentMajorPhase: MajorPhase.BUILD_PHASE,
         currentStep: BuildPhaseStep.DICE_ROLL,
+        triggeredEffects: [], // NEW: Triggered effects queue
         accumulatedDamage: {},
         accumulatedHealing: {},
         healthAtTurnStart: {

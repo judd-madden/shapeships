@@ -209,9 +209,32 @@ const getShipCost = (shipId) => {
 // RESTORED: Full Sophisticated Server-side Phase Engine
 class ServerPhaseEngine {
   
-  // Check if all eligible players are ready for current subphase
+  // Phase and Step Enums (matching /game/engine/GamePhases.tsx)
+  static MajorPhase = {
+    SETUP: 'setup',
+    BUILD_PHASE: 'build_phase',
+    BATTLE_PHASE: 'battle_phase',
+    END_OF_TURN_RESOLUTION: 'end_of_turn_resolution',
+    END_OF_GAME: 'end_of_game'
+  };
+  
+  static BuildPhaseStep = {
+    DICE_ROLL: 'dice_roll',
+    LINE_GENERATION: 'line_generation',
+    SHIPS_THAT_BUILD: 'ships_that_build',
+    DRAWING: 'drawing',
+    END_OF_BUILD: 'end_of_build'
+  };
+  
+  static BattlePhaseStep = {
+    FIRST_STRIKE: 'first_strike',
+    SIMULTANEOUS_DECLARATION: 'simultaneous_declaration',
+    CONDITIONAL_RESPONSE: 'conditional_response'
+  };
+  
+  // Check if all eligible players are ready for current step
   static areAllPlayersReady(gameData) {
-    const currentSubPhase = gameData.gameData?.turnData?.currentSubPhase;
+    const currentStep = gameData.gameData?.turnData?.currentStep;
     const currentMajorPhase = gameData.gameData?.turnData?.currentMajorPhase;
     const simplePhase = gameData.gameData?.currentPhase || gameData.currentPhase;
     const phaseReadiness = gameData.gameData?.phaseReadiness || [];
@@ -228,7 +251,7 @@ class ServerPhaseEngine {
         return activePlayers.every(player => {
           const hasSpecies = !!player.faction;
           const readiness = phaseReadiness.find(r => r.playerId === player.id);
-          const isReady = readiness?.isReady && readiness?.currentSubPhase === simplePhase;
+          const isReady = readiness?.isReady && readiness?.currentStep === simplePhase;
           return hasSpecies && isReady;
         });
       }
@@ -240,13 +263,13 @@ class ServerPhaseEngine {
         }
         return activePlayers.every(player => {
           const readiness = phaseReadiness.find(r => r.playerId === player.id);
-          return readiness?.isReady && readiness?.currentSubPhase === simplePhase;
+          return readiness?.isReady && readiness?.currentStep === simplePhase;
         });
       }
     }
     
-    // During complex setup, all active players (not spectators) need to be ready
-    if (currentMajorPhase === 'setup') {
+    // During setup, all active players (not spectators) need to be ready
+    if (currentMajorPhase === this.MajorPhase.SETUP) {
       if (activePlayers.length < 2) {
         return false; // Need both players to have joined and selected species
       }
@@ -254,29 +277,68 @@ class ServerPhaseEngine {
       // Check if all active players are ready
       return activePlayers.every(player => {
         const readiness = phaseReadiness.find(r => r.playerId === player.id);
-        return readiness?.isReady && readiness?.currentSubPhase === currentSubPhase;
+        return readiness?.isReady && readiness?.currentStep === currentStep;
       });
     }
     
-    // For complex game phases, check based on subphase requirements
+    // For complex game phases, check based on step requirements
     if (activePlayers.length < 2) {
       return false;
     }
     
-    return activePlayers.every(player => {
-      const readiness = phaseReadiness.find(r => r.playerId === player.id);
-      return readiness?.isReady && readiness?.currentSubPhase === currentSubPhase;
+    // Check if current step requires player readiness
+    const playersWhoNeedToConfirm = this.getPlayersWhoNeedToConfirm(gameData, currentStep);
+    
+    // If no players need to confirm (automatic step), advance immediately
+    if (playersWhoNeedToConfirm.length === 0) {
+      return true;
+    }
+    
+    return playersWhoNeedToConfirm.every(playerId => {
+      const readiness = phaseReadiness.find(r => r.playerId === playerId);
+      return readiness?.isReady && readiness?.currentStep === currentStep;
     });
   }
   
-  // Set player ready for current subphase
+  // Get players who need to confirm readiness for a given step
+  static getPlayersWhoNeedToConfirm(gameData, step) {
+    if (!step) return [];
+    
+    const allPlayerIds = gameData.players.filter(p => p.role === 'player').map(p => p.id);
+    
+    // Build Phase steps
+    if (step === this.BuildPhaseStep.DICE_ROLL || step === this.BuildPhaseStep.LINE_GENERATION || step === this.BuildPhaseStep.END_OF_BUILD) {
+      // Automatic steps - no confirmation needed
+      return [];
+    }
+    
+    if (step === this.BuildPhaseStep.SHIPS_THAT_BUILD || step === this.BuildPhaseStep.DRAWING) {
+      // Both players must confirm (even if they have no actions, they can pass)
+      return allPlayerIds;
+    }
+    
+    // Battle Phase steps
+    if (step === this.BattlePhaseStep.FIRST_STRIKE) {
+      // Automatic resolution (unless ships require target selection)
+      return [];
+    }
+    
+    if (step === this.BattlePhaseStep.SIMULTANEOUS_DECLARATION || step === this.BattlePhaseStep.CONDITIONAL_RESPONSE) {
+      // Both players can act (passing is allowed)
+      return allPlayerIds;
+    }
+    
+    return [];
+  }
+  
+  // Set player ready for current step
   static setPlayerReady(gameData, playerId) {
-    const currentSubPhase = gameData.gameData?.turnData?.currentSubPhase;
+    const currentStep = gameData.gameData?.turnData?.currentStep;
     const simplePhase = gameData.gameData?.currentPhase || gameData.currentPhase;
     const phaseReadiness = gameData.gameData?.phaseReadiness || [];
     
-    // Use simple phase if available, otherwise complex subphase
-    const phaseKey = simplePhase || currentSubPhase;
+    // Use simple phase if available, otherwise complex step
+    const phaseKey = simplePhase || currentStep;
     
     // Remove existing readiness for this player
     const updatedReadiness = phaseReadiness.filter(r => r.playerId !== playerId);
@@ -285,7 +347,7 @@ class ServerPhaseEngine {
     updatedReadiness.push({
       playerId,
       isReady: true,
-      currentSubPhase: phaseKey,
+      currentStep: phaseKey,
       declaredAt: new Date().toISOString()
     });
     
@@ -328,10 +390,10 @@ class ServerPhaseEngine {
     };
   }
   
-  // Advance to next phase/subphase
+  // Advance to next phase/step
   static advancePhase(gameData) {
     const currentMajorPhase = gameData.gameData?.turnData?.currentMajorPhase;
-    const currentSubPhase = gameData.gameData?.turnData?.currentSubPhase;
+    const currentStep = gameData.gameData?.turnData?.currentStep;
     const simplePhase = gameData.gameData?.currentPhase || gameData.currentPhase;
     
     let newGameData = gameData;
@@ -370,20 +432,49 @@ class ServerPhaseEngine {
       }
     }
     
-    // Handle complex phase system
-    if (currentMajorPhase === 'setup' && currentSubPhase === 'species_selection') {
+    // Handle complex phase system - Build Phase
+    if (currentMajorPhase === this.MajorPhase.SETUP) {
       // Both players selected species, start the game
       newGameData = this.startGamePhase(gameData);
-    }
-    
-    // Handle Battle Phase simultaneous declaration transitions
-    if (currentMajorPhase === 'battle_phase') {
-      const currentStep = gameData.gameData?.turnData?.currentStep;
-      
-      if (currentStep === 'simultaneous_declaration') {
+    } else if (currentMajorPhase === this.MajorPhase.BUILD_PHASE) {
+      // Build Phase step transitions
+      switch (currentStep) {
+        case this.BuildPhaseStep.SHIPS_THAT_BUILD:
+          // Both players ready → Advance to DRAWING
+          newGameData = {
+            ...gameData,
+            gameData: {
+              ...gameData.gameData,
+              turnData: {
+                ...gameData.gameData.turnData,
+                currentStep: this.BuildPhaseStep.DRAWING
+              }
+            }
+          };
+          break;
+        case this.BuildPhaseStep.DRAWING:
+          // Both players ready → Advance to END_OF_BUILD (auto-processes)
+          newGameData = {
+            ...gameData,
+            gameData: {
+              ...gameData.gameData,
+              turnData: {
+                ...gameData.gameData.turnData,
+                currentStep: this.BuildPhaseStep.END_OF_BUILD
+              }
+            }
+          };
+          break;
+        default:
+          // Other Build Phase steps auto-advance
+          break;
+      }
+    } else if (currentMajorPhase === this.MajorPhase.BATTLE_PHASE) {
+      // Battle Phase simultaneous declaration transitions
+      if (currentStep === this.BattlePhaseStep.SIMULTANEOUS_DECLARATION) {
         // Both players ready → Reveal declarations → Check if any were made
         newGameData = this.revealDeclarationsAndTransition(gameData);
-      } else if (currentStep === 'conditional_response') {
+      } else if (currentStep === this.BattlePhaseStep.CONDITIONAL_RESPONSE) {
         // Both players ready → Reveal responses → Move to End of Turn Resolution
         newGameData = this.revealResponsesAndResolve(gameData);
       }
@@ -444,7 +535,7 @@ class ServerPhaseEngine {
           ...gameData.gameData,
           turnData: {
             ...turnData,
-            currentMajorPhase: 'end_of_turn_resolution',
+            currentMajorPhase: this.MajorPhase.END_OF_TURN_RESOLUTION,
             currentStep: null,
             chargeDeclarations,
             solarPowerDeclarations,
@@ -462,8 +553,8 @@ class ServerPhaseEngine {
           ...gameData.gameData,
           turnData: {
             ...turnData,
-            currentMajorPhase: 'battle_phase',
-            currentStep: 'conditional_response',
+            currentMajorPhase: this.MajorPhase.BATTLE_PHASE,
+            currentStep: this.BattlePhaseStep.CONDITIONAL_RESPONSE,
             chargeDeclarations,
             solarPowerDeclarations,
             pendingChargeDeclarations: {}, // Clear for response step
@@ -505,7 +596,7 @@ class ServerPhaseEngine {
         ...gameData.gameData,
         turnData: {
           ...turnData,
-          currentMajorPhase: 'end_of_turn_resolution',
+          currentMajorPhase: this.MajorPhase.END_OF_TURN_RESOLUTION,
           currentStep: null,
           chargeDeclarations,
           solarPowerDeclarations,
@@ -536,25 +627,31 @@ class ServerPhaseEngine {
         turnData: {
           ...gameData.gameData.turnData,
           turnNumber,
-          currentMajorPhase: 'build_phase',
-          currentSubPhase: 1, // ROLL_DICE
-          requiredSubPhases: [], // Will be calculated dynamically
+          currentMajorPhase: this.MajorPhase.BUILD_PHASE,
+          currentStep: this.BuildPhaseStep.DICE_ROLL,
           accumulatedDamage: {},
           accumulatedHealing: {},
           healthAtTurnStart,
-          chargesDeclared: false,
           diceRoll: null,
-          linesDistributed: false
+          linesDistributed: false,
+          // Battle Phase declarations (hidden until revealed)
+          chargeDeclarations: [],
+          solarPowerDeclarations: [],
+          pendingChargeDeclarations: {},
+          pendingSOLARPowerDeclarations: {},
+          anyDeclarationsMade: false,
+          // Build Phase hidden declarations (revealed at Battle start)
+          pendingBuildPhaseShips: {} // { playerId: [shipIds] }
         },
         phaseStartTime: new Date().toISOString()
       },
       // Update legacy fields
       currentPhase: 'build_phase',
-      currentSubPhase: 1
+      currentStep: this.BuildPhaseStep.DICE_ROLL
     };
   }
   
-  // Roll dice for all players (subphase 1)
+  // Roll dice for all players (DICE_ROLL step)
   static rollDice(gameData) {
     const diceRoll = Math.floor(Math.random() * 6) + 1;
     
@@ -565,14 +662,14 @@ class ServerPhaseEngine {
         turnData: {
           ...gameData.gameData.turnData,
           diceRoll,
-          currentSubPhase: 3 // Skip to LINE_GENERATION (dice manipulation not implemented yet)
+          currentStep: this.BuildPhaseStep.LINE_GENERATION
         }
       },
-      currentSubPhase: 3
+      currentStep: this.BuildPhaseStep.LINE_GENERATION
     };
   }
   
-  // Distribute lines to players (subphase 3)
+  // Distribute lines to players (LINE_GENERATION step)
   static distributeLines(gameData) {
     const diceRoll = gameData.gameData?.turnData?.diceRoll || 0;
     
@@ -595,17 +692,17 @@ class ServerPhaseEngine {
         turnData: {
           ...gameData.gameData.turnData,
           linesDistributed: true,
-          currentSubPhase: 6 // Move to DRAWING phase
+          currentStep: this.BuildPhaseStep.SHIPS_THAT_BUILD
         }
       },
-      currentSubPhase: 6
+      currentStep: this.BuildPhaseStep.SHIPS_THAT_BUILD
     };
   }
   
-  // Get valid actions for current subphase
-  static getValidActionsForCurrentSubPhase(gameData, playerId) {
+  // Get valid actions for current step
+  static getValidActionsForCurrentStep(gameData, playerId) {
     const currentMajorPhase = gameData.gameData?.turnData?.currentMajorPhase;
-    const currentSubPhase = gameData.gameData?.turnData?.currentSubPhase;
+    const currentStep = gameData.gameData?.turnData?.currentStep;
     const player = gameData.players.find(p => p.id === playerId);
     
     // Check for simplified game phase system first
@@ -636,20 +733,37 @@ class ServerPhaseEngine {
     }
     
     // Handle complex phase system (for full game)
-    if (currentMajorPhase === 'setup') {
-      if (currentSubPhase === 'species_selection') {
-        return player.faction ? ['set_ready', 'message'] : ['select_species', 'message'];
+    if (currentMajorPhase === this.MajorPhase.SETUP) {
+      return player.faction ? ['set_ready', 'message'] : ['select_species', 'message'];
+    }
+    
+    if (currentMajorPhase === this.MajorPhase.BUILD_PHASE) {
+      switch (currentStep) {
+        case this.BuildPhaseStep.DICE_ROLL:
+        case this.BuildPhaseStep.LINE_GENERATION:
+        case this.BuildPhaseStep.END_OF_BUILD:
+          // Automatic steps
+          return ['message'];
+        case this.BuildPhaseStep.SHIPS_THAT_BUILD:
+          // Use ship building powers (hidden until Battle)
+          return ['use_ship_building_power', 'set_ready', 'message'];
+        case this.BuildPhaseStep.DRAWING:
+          // Build ships, save lines (hidden until Battle)
+          return ['build_ship', 'save_lines', 'set_ready', 'message'];
+        default:
+          return ['set_ready', 'message'];
       }
     }
     
-    if (currentMajorPhase === 'build_phase') {
-      switch (currentSubPhase) {
-        case 1: // ROLL_DICE - automatic  
+    if (currentMajorPhase === this.MajorPhase.BATTLE_PHASE) {
+      switch (currentStep) {
+        case this.BattlePhaseStep.FIRST_STRIKE:
+          // Automatic (unless target selection needed)
           return ['message'];
-        case 3: // LINE_GENERATION - automatic
-          return ['message'];
-        case 5: // DRAWING - players build ships
-          return ['build_ship', 'save_lines', 'set_ready', 'message'];
+        case this.BattlePhaseStep.SIMULTANEOUS_DECLARATION:
+        case this.BattlePhaseStep.CONDITIONAL_RESPONSE:
+          // Declare charges/solar powers (hidden until both ready)
+          return ['declare_charge', 'use_solar_power', 'set_ready', 'message'];
         default:
           return ['set_ready', 'message'];
       }
@@ -658,10 +772,15 @@ class ServerPhaseEngine {
     return ['set_ready', 'message'];
   }
   
-  // Check if subphase should advance automatically
+  // Backwards compatibility alias
+  static getValidActionsForCurrentSubPhase(gameData, playerId) {
+    return this.getValidActionsForCurrentStep(gameData, playerId);
+  }
+  
+  // Check if step should advance automatically
   static shouldAutoAdvance(gameData) {
     const currentMajorPhase = gameData.gameData?.turnData?.currentMajorPhase;
-    const currentSubPhase = gameData.gameData?.turnData?.currentSubPhase;
+    const currentStep = gameData.gameData?.turnData?.currentStep;
     const simplePhase = gameData.gameData?.currentPhase || gameData.currentPhase;
     
     // Handle simplified game phases with automatic transitions
@@ -682,24 +801,41 @@ class ServerPhaseEngine {
     }
     
     // Handle complex phase system (for full game)
-    if (currentMajorPhase === 'build_phase') {
-      switch (currentSubPhase) {
-        case 1: // ROLL_DICE - auto advance when dice needs to be rolled
+    if (currentMajorPhase === this.MajorPhase.BUILD_PHASE) {
+      switch (currentStep) {
+        case this.BuildPhaseStep.DICE_ROLL:
+          // Auto advance when dice needs to be rolled
           return !gameData.gameData?.turnData?.diceRoll;
-        case 3: // LINE_GENERATION - auto advance when lines need to be distributed
+        case this.BuildPhaseStep.LINE_GENERATION:
+          // Auto advance when lines need to be distributed
           return !gameData.gameData?.turnData?.linesDistributed;
+        case this.BuildPhaseStep.END_OF_BUILD:
+          // Auto advance (always processes automatically)
+          return true;
         default:
           return false;
       }
     }
     
+    if (currentMajorPhase === this.MajorPhase.BATTLE_PHASE) {
+      if (currentStep === this.BattlePhaseStep.FIRST_STRIKE) {
+        // Auto advance (unless target selection needed - not implemented yet)
+        return true;
+      }
+    }
+    
+    if (currentMajorPhase === this.MajorPhase.END_OF_TURN_RESOLUTION) {
+      // Always auto advance
+      return true;
+    }
+    
     return false;
   }
   
-  // Process automatic subphases
+  // Process automatic steps
   static processAutoPhase(gameData) {
     const currentMajorPhase = gameData.gameData?.turnData?.currentMajorPhase;
-    const currentSubPhase = gameData.gameData?.turnData?.currentSubPhase;
+    const currentStep = gameData.gameData?.turnData?.currentStep;
     const simplePhase = gameData.gameData?.currentPhase || gameData.currentPhase;
     
     // Handle simplified game phases with automatic processing
@@ -717,18 +853,113 @@ class ServerPhaseEngine {
     }
     
     // Handle complex phase system (for full game)
-    if (currentMajorPhase === 'build_phase') {
-      switch (currentSubPhase) {
-        case 1: // ROLL_DICE
+    if (currentMajorPhase === this.MajorPhase.BUILD_PHASE) {
+      switch (currentStep) {
+        case this.BuildPhaseStep.DICE_ROLL:
           return this.rollDice(gameData);
-        case 3: // LINE_GENERATION  
+        case this.BuildPhaseStep.LINE_GENERATION:
           return this.distributeLines(gameData);
+        case this.BuildPhaseStep.END_OF_BUILD:
+          return this.processEndOfBuild(gameData);
         default:
           return gameData;
       }
     }
     
+    if (currentMajorPhase === this.MajorPhase.BATTLE_PHASE) {
+      if (currentStep === this.BattlePhaseStep.FIRST_STRIKE) {
+        return this.processFirstStrike(gameData);
+      }
+    }
+    
+    if (currentMajorPhase === this.MajorPhase.END_OF_TURN_RESOLUTION) {
+      return this.processEndOfTurnResolution(gameData);
+    }
+    
     return gameData;
+  }
+  
+  // Process END_OF_BUILD step (checks Chronoswarm, reveals ships at Battle start)
+  static processEndOfBuild(gameData) {
+    console.log("⚙️ Processing END_OF_BUILD step");
+    
+    // TODO: Check for Chronoswarm trigger (extra build phase)
+    // For now, always advance to Battle Phase
+    
+    return {
+      ...gameData,
+      gameData: {
+        ...gameData.gameData,
+        turnData: {
+          ...gameData.gameData.turnData,
+          currentMajorPhase: this.MajorPhase.BATTLE_PHASE,
+          currentStep: this.BattlePhaseStep.FIRST_STRIKE
+        }
+      }
+    };
+  }
+  
+  // Process FIRST_STRIKE step (automatic unless target selection needed)
+  static processFirstStrike(gameData) {
+    console.log("⚔️ Processing FIRST_STRIKE step");
+    
+    // 🎭 REVEAL: Build Phase ships are now visible!
+    // (pendingBuildPhaseShips would be merged into main ships array here)
+    
+    // TODO: Process First Strike powers (e.g., Guardian)
+    // For now, auto-advance to Simultaneous Declaration
+    
+    return {
+      ...gameData,
+      gameData: {
+        ...gameData.gameData,
+        turnData: {
+          ...gameData.gameData.turnData,
+          currentStep: this.BattlePhaseStep.SIMULTANEOUS_DECLARATION,
+          // Clear pending build phase ships (now revealed)
+          pendingBuildPhaseShips: {}
+        }
+      }
+    };
+  }
+  
+  // Process END_OF_TURN_RESOLUTION (apply all damage/healing, check win conditions)
+  static processEndOfTurnResolution(gameData) {
+    console.log("❤️ Processing END_OF_TURN_RESOLUTION");
+    
+    const turnData = gameData.gameData?.turnData;
+    const currentTurn = turnData?.turnNumber || 1;
+    
+    // TODO: Apply all queued triggered effects
+    // TODO: Apply continuous automatic effects
+    // TODO: Update player health
+    // TODO: Check win conditions
+    
+    // For now, just start a new turn
+    const newTurnNumber = currentTurn + 1;
+    
+    return {
+      ...gameData,
+      gameData: {
+        ...gameData.gameData,
+        turnData: {
+          turnNumber: newTurnNumber,
+          currentMajorPhase: this.MajorPhase.BUILD_PHASE,
+          currentStep: this.BuildPhaseStep.DICE_ROLL,
+          accumulatedDamage: {},
+          accumulatedHealing: {},
+          healthAtTurnStart: {},
+          diceRoll: null,
+          linesDistributed: false,
+          chargeDeclarations: [],
+          solarPowerDeclarations: [],
+          pendingChargeDeclarations: {},
+          pendingSOLARPowerDeclarations: {},
+          anyDeclarationsMade: false,
+          pendingBuildPhaseShips: {}
+        }
+      }
+    };
   }
 
   // Process simplified dice roll for both players automatically
@@ -1254,13 +1485,13 @@ app.get("/make-server-825e19ab/game-state/:gameId", async (c) => {
 
     // FIXED: Populate player.isReady from phaseReadiness array for frontend display
     const currentSimplePhase = gameData.gameData?.currentPhase || gameData.currentPhase;
-    const currentSubPhase = gameData.gameData?.turnData?.currentSubPhase;
+    const currentStep = gameData.gameData?.turnData?.currentStep;
     const phaseReadiness = gameData.gameData?.phaseReadiness || [];
     
     gameData.players = gameData.players.map(player => {
       const readiness = phaseReadiness.find(r => r.playerId === player.id);
       const isReadyForCurrentPhase = readiness?.isReady && 
-        (readiness?.currentSubPhase === currentSimplePhase || readiness?.currentSubPhase === currentSubPhase);
+        (readiness?.currentStep === currentSimplePhase || readiness?.currentStep === currentStep);
       
       return {
         ...player,
@@ -1366,19 +1597,19 @@ app.post("/make-server-825e19ab/send-action/:gameId", async (c) => {
       return c.json({ error: "Spectators can only send messages and select species (if slots available)" }, 403);
     }
 
-    // Validate action is allowed for current subphase
-    const validActions = ServerPhaseEngine.getValidActionsForCurrentSubPhase(gameData, playerId);
+    // Validate action is allowed for current step
+    const validActions = ServerPhaseEngine.getValidActionsForCurrentStep(gameData, playerId);
     
     // Debug logging for phase validation issues
     const currentSimplePhase = gameData.gameData?.currentPhase || gameData.currentPhase;
     const currentMajorPhase = gameData.gameData?.turnData?.currentMajorPhase;
-    const currentSubPhase = gameData.gameData?.turnData?.currentSubPhase;
+    const currentStep = gameData.gameData?.turnData?.currentStep;
     
     console.log("Phase validation debug:", {
       actionType,
       currentSimplePhase,
       currentMajorPhase, 
-      currentSubPhase,
+      currentStep,
       validActions,
       playerRole: originalPlayerRole,
       gameDataPhase: gameData.gameData?.currentPhase,
@@ -1419,7 +1650,7 @@ app.post("/make-server-825e19ab/send-action/:gameId", async (c) => {
       playerName: originalPlayerName, 
       playerRole: originalPlayerRole, 
       currentPhase: gameData.gameData?.turnData?.currentMajorPhase,
-      currentSubPhase: gameData.gameData?.turnData?.currentSubPhase,
+      currentStep: gameData.gameData?.turnData?.currentStep,
       content: content
     });
 

@@ -59,6 +59,12 @@
 - Use descriptive file names that indicate purpose
 - Export components and functions with clear naming conventions
 - Maintain the established folder structure
+- **Documentation Organization:**
+  - All `.md` files (except `README.md` and version files) must be in designated documentation folders
+  - Keep project root clean - no loose documentation files
+  - Engine documentation goes in `/game/engine/documentation/`
+  - General project guidelines and specifications go in `/guidelines/`
+  - Type system documentation goes in `/game/types/documentation/`
 
 ## 🎮 Game Development Specific
 

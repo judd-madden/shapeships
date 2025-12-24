@@ -1,351 +1,386 @@
 // Action Resolution Layer
-// Manages player actions within phases and determines when phases can advance
+// Manages player actions within phases using the correct 3-phase model
 // Pure functions - no React dependencies
 
-import { GameState, PlayerShip } from '../types/GameTypes';
-import { 
-  PhaseActionState, 
-  PlayerActionState, 
-  PendingAction, 
-  CompletedAction,
-  QueuedEffect,
-  ActionResolutionResult,
-  ActionOption,
-  ActionEffect
-} from '../types/ActionTypes';
-import { Ship } from '../types/ShipTypes';
+import { MajorPhase, BuildPhaseStep, BattlePhaseStep } from './GamePhases';
 import SpeciesIntegration from './SpeciesIntegration';
+import { getShipById } from '../data/ShipDefinitions';
 
 /**
- * ActionResolver - Core logic for managing player actions within game phases
+ * 🔒 CRITICAL CONSTRAINTS (ENFORCED BY THIS CLASS):
+ * 
+ * 1. There are exactly THREE turn stages: Build Phase, Battle Phase, End of Turn Resolution
+ * 2. AUTOMATIC is NOT a phase - it means "non-interactive"
+ * 3. All damage and healing resolve ONLY during End of Turn Resolution
+ * 4. Health never changes mid-turn
+ * 5. Battle Phase uses simultaneous hidden commitments (not sequential actions)
+ * 6. Battle Phase has exactly TWO windows max: Declaration + Response (conditional)
+ * 7. Once-only effects trigger earlier but resolve at End of Turn Resolution
+ * 8. Continuous effects only apply if ship survives to End of Turn Resolution
+ */
+
+/**
+ * ActionResolver - Core logic for managing player actions
  * 
  * Responsibilities:
- * 1. Calculate what actions are available/required for each player in current phase
+ * 1. Calculate what actions are available for each player in current step
  * 2. Validate and process player action choices
- * 3. Determine when a phase can advance (both players ready)
- * 4. Queue effects for Health Resolution phase
+ * 3. Manage Battle Phase commitment state (hidden until both ready)
+ * 4. Queue triggered effects for End of Turn Resolution
+ * 5. Determine when a step can advance (both players ready)
  */
 export class ActionResolver {
   
   /**
-   * PRIMARY METHOD: Calculate what actions are needed right now
-   * Called when entering a phase, or after a player completes an action
+   * Calculate action state for current phase step
+   * Returns what each player needs to do right now
    */
   calculatePhaseActions(
     gameState: GameState,
-    currentPhase: string,
-    phaseIndex: number,
-    completedActions: CompletedAction[] = []
+    currentMajorPhase: MajorPhase,
+    currentStep: BuildPhaseStep | BattlePhaseStep | null
   ): PhaseActionState {
     
-    // Ensure completedActions is an array
-    const safeCompletedActions = Array.isArray(completedActions) ? completedActions : [];
-    
     const playerStates: { [playerId: string]: PlayerActionState } = {};
-    
-    // Get active players (role = 'player', not spectators)
     const activePlayers = gameState.players.filter(p => p.role === 'player');
     
-    // Calculate pending actions for each player based on current phase
+    // Get phase readiness
+    const phaseReadiness = (gameState.gameData?.phaseReadiness as any[]) || [];
+    
     for (const player of activePlayers) {
-      const pendingActions = this.calculatePlayerPendingActions(
-        gameState,
-        player.id,
-        safeCompletedActions.filter(a => a.playerId === player.id)
+      const isReady = phaseReadiness.some(
+        pr => pr.playerId === player.id && pr.isReady && pr.currentStep === currentStep
       );
       
-      const playerCompletedActions = safeCompletedActions.filter(a => a.playerId === player.id);
-      const mandatoryActions = pendingActions.filter(a => a.mandatory);
-      const hasMandatory = mandatoryActions.length > 0;
+      // For now, no pending actions (will be implemented when ship powers defined)
+      const pendingActions: PendingAction[] = [];
       
       playerStates[player.id] = {
         playerId: player.id,
-        status: hasMandatory ? 'AWAITING_MANDATORY' : 
-                (pendingActions.length > 0 ? 'AWAITING_OPTIONAL' : 'READY'),
+        status: isReady ? 'READY' : (pendingActions.length > 0 ? 'AWAITING_OPTIONAL' : 'READY'),
         pendingActions,
-        completedActions: playerCompletedActions,
-        canDeclareReady: !hasMandatory,
-        mustResolveFirst: mandatoryActions.map(a => a.actionId)
+        completedActions: [],
+        canDeclareReady: !isReady,
+        mustResolveFirst: []
       };
     }
     
     // Determine if phase can advance
-    const allPlayersReady = Object.values(playerStates).every(ps => ps.status === 'READY');
-    const blockingPlayers = Object.values(playerStates)
-      .filter(ps => ps.status !== 'READY')
-      .map(ps => {
-        const player = activePlayers.find(p => p.id === ps.playerId);
-        return player?.name || ps.playerId;
-      });
+    const allReady = Object.values(playerStates).every(ps => ps.status === 'READY');
     
-    let blockingReason: string | undefined;
-    if (!allPlayersReady) {
-      if (blockingPlayers.length === 1) {
-        blockingReason = `Waiting for ${blockingPlayers[0]}`;
-      } else {
-        blockingReason = `Waiting for ${blockingPlayers.join(' and ')}`;
-      }
-    }
-    
-    // Determine if this is an automatic phase
-    const isAutomatic = this.isAutomaticPhase(phaseIndex);
+    // Check if this is a system-driven step (NOTE: Not related to "Automatic" ship powers)
+    const isSystemDriven = this.isSystemDrivenStep(currentMajorPhase, currentStep);
     
     return {
-      phase: currentPhase,
-      phaseIndex,
+      phase: `${currentMajorPhase}:${currentStep || 'RESOLUTION'}`,
       playerStates,
-      canAdvancePhase: allPlayersReady,
-      blockingReason,
+      canAdvancePhase: allReady,
+      blockingReason: allReady ? undefined : 'Waiting for players',
       phaseMetadata: {
-        diceRoll: gameState.gameData?.turnData?.diceRoll,
-        isAutomatic,
-        requiresPlayerInput: !isAutomatic
+        isSystemDrivenStep: isSystemDriven,
+        acceptsPlayerInput: !isSystemDriven
       }
     };
   }
   
   /**
-   * Calculate pending actions for a specific player in the current phase
+   * Check if current step is system-driven (no player input required)
+   * 
+   * NOTE: This means "system-driven step", NOT "Automatic ship powers"
+   * - System-driven: Dice Roll, Line Generation, End of Build, First Strike
+   * - Automatic powers: Ship powers with timing="Continuous" (unrelated to step type)
    */
-  private calculatePlayerPendingActions(
-    gameState: GameState,
-    playerId: string,
-    completedActions: CompletedAction[]
-  ): PendingAction[] {
+  private isSystemDrivenStep(
+    majorPhase: MajorPhase,
+    step: BuildPhaseStep | BattlePhaseStep | null
+  ): boolean {
     
-    const playerShips = gameState.gameData?.ships?.[playerId] || [];
-    const pendingActions: PendingAction[] = [];
+    if (majorPhase === MajorPhase.BUILD_PHASE) {
+      return step === BuildPhaseStep.DICE_ROLL ||
+             step === BuildPhaseStep.LINE_GENERATION ||
+             step === BuildPhaseStep.END_OF_BUILD;
+    }
     
-    // Get completed action IDs for quick lookup
-    const completedActionIds = new Set(completedActions.map(a => a.actionId));
+    if (majorPhase === MajorPhase.BATTLE_PHASE) {
+      return step === BattlePhaseStep.FIRST_STRIKE;
+    }
     
-    // TODO: Calculate actions based on new phase system - old phase indices removed
-    // This will be reimplemented when ship powers are defined
+    if (majorPhase === MajorPhase.END_OF_TURN_RESOLUTION) {
+      return true; // Entire phase is system-driven
+    }
     
-    return pendingActions;
+    return false;
   }
   
   /**
-   * Check if a phase is automatic (no player input required)
+   * Process Battle Phase commitment
+   * 
+   * This handles the simultaneous hidden declaration model:
+   * 1. Players submit hidden actions (charges, solar powers)
+   * 2. When both ready, reveal simultaneously
+   * 3. Create triggered effects for End of Turn Resolution
    */
-  private isAutomaticPhase(phaseIndex: number): boolean {
-    // Automatic phases: Roll Dice, Line Generation, Upon Completion, Automatic
-    const automaticPhases = [1, 2, 3, 4]; // Example indices for automatic phases
-    
-    return automaticPhases.includes(phaseIndex);
-  }
-  
-  /**
-   * Validate and apply a player's action
-   * Returns updated game state and new action resolution state
-   */
-  resolvePlayerAction(
+  processBattleCommitment(
     gameState: GameState,
-    phaseActionState: PhaseActionState,
     playerId: string,
-    actionId: string,
-    chosenOption: string
-  ): ActionResolutionResult {
+    actions: HiddenBattleActions,
+    window: 'declaration' | 'response'
+  ): {
+    success: boolean;
+    error?: string;
+    triggeredEffects: TriggeredEffect[];
+  } {
     
-    // Find the pending action
-    const playerState = phaseActionState.playerStates[playerId];
-    if (!playerState) {
-      return {
-        success: false,
-        error: 'Player not found',
-        effectsQueued: []
-      };
-    }
+    const triggeredEffects: TriggeredEffect[] = [];
+    const timestamp = new Date().toISOString();
     
-    const pendingAction = playerState.pendingActions.find(a => a.actionId === actionId);
-    if (!pendingAction) {
-      return {
-        success: false,
-        error: 'Action not found',
-        effectsQueued: []
-      };
-    }
-    
-    // Find the chosen option
-    const option = pendingAction.options.find(o => o.id === chosenOption);
-    if (!option) {
-      return {
-        success: false,
-        error: 'Invalid option',
-        effectsQueued: []
-      };
-    }
-    
-    // Create queued effects
-    const effectsQueued: QueuedEffect[] = [];
-    const timestamp = Date.now();
-    
-    if (option.effect) {
-      effectsQueued.push({
-        id: `effect-${actionId}-${timestamp}`,
-        type: option.effect.type,
+    // Process charge declarations
+    for (const charge of actions.charges) {
+      // Find the ship
+      const ship = this.findPlayerShip(gameState, playerId, charge.shipId);
+      if (!ship) {
+        return {
+          success: false,
+          error: `Ship ${charge.shipId} not found`,
+          triggeredEffects: []
+        };
+      }
+      
+      // Get ship data
+      const shipData = SpeciesIntegration.getShipData(ship);
+      if (!shipData) {
+        return {
+          success: false,
+          error: `Ship data not found for ${charge.shipId}`,
+          triggeredEffects: []
+        };
+      }
+      
+      // Validate power index
+      const powers = shipData.powers || [];
+      const chargePowers = powers.filter(p => p.cost?.charges && p.cost.charges > 0);
+      
+      if (charge.powerIndex >= chargePowers.length) {
+        return {
+          success: false,
+          error: `Invalid power index ${charge.powerIndex}`,
+          triggeredEffects: []
+        };
+      }
+      
+      const power = chargePowers[charge.powerIndex];
+      
+      // Check charges available
+      if ((ship.currentCharges || 0) < (power.cost?.charges || 0)) {
+        return {
+          success: false,
+          error: `Not enough charges on ${charge.shipId}`,
+          triggeredEffects: []
+        };
+      }
+      
+      // Create triggered effect
+      const effect = this.parsePowerEffect(power.description);
+      const targetPlayerId = effect.effectType === 'DAMAGE'
+        ? this.getOpponentId(gameState, playerId)
+        : playerId;
+      
+      triggeredEffects.push({
+        id: `charge-${ship.id}-${timestamp}-${triggeredEffects.length}`,
+        sourceShipId: ship.id,
         sourcePlayerId: playerId,
-        sourceShipId: pendingAction.shipId,
-        targetPlayerId: option.effect.targetPlayerId || playerId,
-        value: option.effect.value,
-        description: option.label,
-        timestamp
+        targetPlayerId,
+        effectType: effect.effectType,
+        value: effect.value,
+        persistsIfSourceDestroyed: true, // Charges always resolve
+        description: `${shipData.name}: ${power.description}`,
+        triggeredAt: timestamp
       });
     }
     
-    // Track state changes
-    const stateChanges: ActionResolutionResult['stateChanges'] = {};
-    
-    // Handle charge consumption
-    if (option.cost?.charges && pendingAction.shipId) {
-      stateChanges.chargesUsed = {
-        [pendingAction.shipId]: option.cost.charges
-      };
+    // Process Solar Power declarations
+    for (const solar of actions.solarPowers) {
+      // TODO: Implement Solar Power effect creation
+      // For now, just acknowledge
+      console.log(`Solar Power declared: ${solar.powerType}`);
     }
     
     return {
       success: true,
-      effectsQueued,
-      stateChanges
+      triggeredEffects
     };
   }
   
   /**
-   * Mark player as explicitly ready (forfeiting optional actions)
+   * Initialize Battle Commitment State for a new Battle Phase
    */
-  declarePlayerReady(
-    phaseActionState: PhaseActionState,
-    playerId: string
-  ): PhaseActionState {
-    
-    const playerState = phaseActionState.playerStates[playerId];
-    if (!playerState) return phaseActionState;
-    
-    // Cannot declare ready if mandatory actions pending
-    if (playerState.status === 'AWAITING_MANDATORY') {
-      return phaseActionState;
-    }
-    
-    // Create skip actions for all pending optional actions
-    const completedActions: CompletedAction[] = [
-      ...playerState.completedActions
-    ];
-    
-    for (const pending of playerState.pendingActions) {
-      completedActions.push({
-        actionId: pending.actionId,
-        playerId,
-        chosenOption: 'skip',
-        timestamp: Date.now()
-      });
-    }
-    
-    // Update player state
-    const updatedPlayerState: PlayerActionState = {
-      ...playerState,
-      status: 'READY',
-      pendingActions: [],
-      completedActions,
-      canDeclareReady: false
-    };
-    
-    const updatedPlayerStates = {
-      ...phaseActionState.playerStates,
-      [playerId]: updatedPlayerState
-    };
-    
-    // Check if all players ready
-    const allReady = Object.values(updatedPlayerStates).every(ps => ps.status === 'READY');
-    
+  initializeBattleCommitments(): BattleCommitmentState {
     return {
-      ...phaseActionState,
-      playerStates: updatedPlayerStates,
-      canAdvancePhase: allReady,
-      blockingReason: allReady ? undefined : phaseActionState.blockingReason
+      declaration: undefined,
+      response: undefined,
+      declarationRevealed: false,
+      responseRevealed: false,
+      anyDeclarationsMade: false
     };
   }
   
   /**
-   * Check if phase can advance
+   * Submit hidden Battle Phase actions for a player
    */
-  canAdvancePhase(phaseActionState: PhaseActionState): {
-    canAdvance: boolean;
-    reason?: string;
-  } {
-    return {
-      canAdvance: phaseActionState.canAdvancePhase,
-      reason: phaseActionState.blockingReason
-    };
-  }
-  
-  /**
-   * Auto-resolve phases with no player input needed
-   */
-  autoResolvePhase(
-    gameState: GameState,
-    phaseIndex: number
-  ): {
-    effectsQueued: QueuedEffect[];
-    autoAdvance: boolean;
-  } {
+  submitBattleActions(
+    commitmentState: BattleCommitmentState,
+    playerId: string,
+    actions: HiddenBattleActions,
+    window: 'declaration' | 'response'
+  ): BattleCommitmentState {
     
-    const effectsQueued: QueuedEffect[] = [];
-    const timestamp = Date.now();
+    const updated = { ...commitmentState };
     
-    // Automatic phase - calculate all automatic effects
-    if (phaseIndex === 4) { // Example index for automatic phase
-      const activePlayers = gameState.players.filter(p => p.role === 'player');
+    if (window === 'declaration') {
+      updated.declaration = {
+        ...updated.declaration,
+        [playerId]: actions
+      };
       
-      for (const player of activePlayers) {
-        const playerShips = gameState.gameData?.ships?.[player.id] || [];
-        
-        for (const ship of playerShips) {
-          if (ship.isDestroyed || ship.isConsumedInUpgrade) continue;
-          
-          const shipData = SpeciesIntegration.getShipData(ship);
-          if (!shipData) continue;
-          
-          // Check for Automatic powers
-          const automaticPowers = (shipData.powers || []).filter(p => 
-            p.subphase === 'Automatic'
-          );
-          
-          for (const power of automaticPowers) {
-            const effect = this.parsePowerEffect(power.description);
-            
-            // Determine target based on effect type
-            const targetPlayerId = effect.type === 'DAMAGE' 
-              ? this.getOpponentId(gameState, player.id)
-              : player.id;
-            
-            effectsQueued.push({
-              id: `auto-${ship.id}-${timestamp}-${effectsQueued.length}`,
-              type: effect.type,
-              sourcePlayerId: player.id,
-              sourceShipId: ship.id,
-              targetPlayerId,
-              value: effect.value,
-              description: `${shipData.name}: ${power.description}`,
-              timestamp
-            });
-          }
-        }
+      // Check if any actions were declared
+      if (actions.charges.length > 0 || actions.solarPowers.length > 0) {
+        updated.anyDeclarationsMade = true;
+      }
+    } else {
+      updated.response = {
+        ...updated.response,
+        [playerId]: actions
+      };
+    }
+    
+    return updated;
+  }
+  
+  /**
+   * Reveal Battle Phase actions
+   * Called when both players are ready
+   */
+  revealBattleActions(
+    commitmentState: BattleCommitmentState,
+    window: 'declaration' | 'response'
+  ): BattleCommitmentState {
+    
+    const updated = { ...commitmentState };
+    
+    if (window === 'declaration') {
+      updated.declarationRevealed = true;
+    } else {
+      updated.responseRevealed = true;
+    }
+    
+    return updated;
+  }
+  
+  /**
+   * Check if both players have submitted actions for current window
+   */
+  areBothPlayersReady(
+    gameState: GameState,
+    commitmentState: BattleCommitmentState,
+    window: 'declaration' | 'response'
+  ): boolean {
+    
+    const activePlayers = gameState.players.filter(p => p.role === 'player');
+    const actionsMap = window === 'declaration' 
+      ? commitmentState.declaration 
+      : commitmentState.response;
+    
+    if (!actionsMap) return false;
+    
+    return activePlayers.every(p => actionsMap[p.id] !== undefined);
+  }
+  
+  /**
+   * Resolve Build Phase action (ship building, etc.)
+   * Creates triggered effects for once-only ship completion effects
+   */
+  resolveBuildAction(
+    gameState: GameState,
+    playerId: string,
+    actionType: 'BUILD_SHIP' | 'TRANSFORM_SHIP',
+    shipId: string
+  ): {
+    success: boolean;
+    error?: string;
+    triggeredEffects: TriggeredEffect[];
+  } {
+    
+    const triggeredEffects: TriggeredEffect[] = [];
+    const timestamp = new Date().toISOString();
+    
+    if (actionType === 'BUILD_SHIP') {
+      // Get ship data
+      const shipData = getShipById(shipId);
+      if (!shipData) {
+        return {
+          success: false,
+          error: `Ship ${shipId} not found`,
+          triggeredEffects: []
+        };
       }
     }
     
     return {
-      effectsQueued,
-      autoAdvance: this.isAutomaticPhase(phaseIndex)
+      success: true,
+      triggeredEffects
     };
   }
   
   /**
-   * Helper to get opponent player ID
+   * Helper: Find player's ship
+   */
+  private findPlayerShip(
+    gameState: GameState,
+    playerId: string,
+    shipId: string
+  ): PlayerShip | undefined {
+    const ships = gameState.gameData?.ships?.[playerId] || [];
+    return ships.find(s => s.shipId === shipId || s.id === shipId);
+  }
+  
+  /**
+   * Helper: Get opponent ID
    */
   private getOpponentId(gameState: GameState, playerId: string): string {
     const activePlayers = gameState.players.filter(p => p.role === 'player');
     const opponent = activePlayers.find(p => p.id !== playerId);
     return opponent?.id || playerId;
+  }
+  
+  /**
+   * Helper: Parse power description to extract effect
+   * TODO: Replace with proper power data structure
+   */
+  private parsePowerEffect(description: string): {
+    effectType: 'DAMAGE' | 'HEAL';
+    value: number;
+  } {
+    // Simple parser - replace with real implementation
+    const damageMatch = description.match(/(\d+)\s*damage/i);
+    if (damageMatch) {
+      return {
+        effectType: 'DAMAGE',
+        value: parseInt(damageMatch[1])
+      };
+    }
+    
+    const healMatch = description.match(/(\d+)\s*heal/i);
+    if (healMatch) {
+      return {
+        effectType: 'HEAL',
+        value: parseInt(healMatch[1])
+      };
+    }
+    
+    return {
+      effectType: 'DAMAGE',
+      value: 0
+    };
   }
 }
 

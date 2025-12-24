@@ -25,8 +25,8 @@ export class GameEngine {
       gameId,
       status: 'waiting',
       players: [creator],
-      currentTurn: 0,
-      currentPlayerId: creator.id,
+      roundNumber: 0, // Tracks complete Build→Battle→Resolution cycles
+      currentPlayerId: creator.id, // UI hint only - not a control gate
       gameData: {
         board: this.initializeBoard(),
         ships: this.initializeShips(),
@@ -72,20 +72,26 @@ export class GameEngine {
       throw new Error('Need at least 2 players to start');
     }
 
-    // Set first player as active
+    // Set first player as UI hint
     const firstPlayer = gameState.players[0];
     
     return {
       ...gameState,
       status: 'active',
       currentPlayerId: firstPlayer.id,
-      players: gameState.players.map(p => ({ ...p, isActive: p.id === firstPlayer.id })),
+      // Both players are active - End of Turn Resolution deactivates when health hits 0
+      players: gameState.players.map(p => ({ ...p, isActive: true })),
       lastUpdated: new Date().toISOString()
     };
   }
 
   // Process a game action
   processAction(gameState: GameState, action: GameAction): GameState {
+    // Guard against post-mortem mutations
+    if (gameState.status === 'completed') {
+      throw new Error('Game has ended - no further actions allowed');
+    }
+    
     // Validate the action
     if (!this.rules.validateAction(action, gameState)) {
       throw new Error(`Invalid action: ${action.type}`);
@@ -101,41 +107,27 @@ export class GameEngine {
       lastUpdated: new Date().toISOString()
     };
 
-    // Check for win condition
-    const winner = this.rules.checkWinCondition(newState);
-    if (winner) {
+    // 🔒 CRITICAL: Win condition checked ONLY in EndOfTurnResolver
+    // Accept result from resolver if game ended
+    if (newState.gameData.endOfTurnResult?.gameEnded) {
       newState = {
         ...newState,
-        status: 'completed'
+        status: 'completed',
+        winner: newState.gameData.endOfTurnResult.winner
       };
-    } else if (action.type === 'end_turn') {
-      // Advance to next turn
-      newState = this.advanceTurn(newState);
     }
 
     return newState;
   }
 
-  // Advance to the next player's turn
-  private advanceTurn(gameState: GameState): GameState {
-    const currentIndex = gameState.players.findIndex(p => p.id === gameState.currentPlayerId);
-    const nextIndex = (currentIndex + 1) % gameState.players.length;
-    const nextPlayer = gameState.players[nextIndex];
-
-    return {
-      ...gameState,
-      currentTurn: gameState.currentTurn + 1,
-      currentPlayerId: nextPlayer.id,
-      players: gameState.players.map(p => ({ ...p, isActive: p.id === nextPlayer.id }))
-    };
-  }
-
   // Get valid actions for a player
+  // In Shapeships: Phase system controls legality, NOT turn order
   getValidActions(playerId: string, gameState: GameState): GameAction[] {
-    if (gameState.status !== 'active' || gameState.currentPlayerId !== playerId) {
+    if (gameState.status !== 'active') {
       return [];
     }
 
+    // Let rules engine determine if player can act (based on phase, not turn order)
     return this.rules.getValidMoves(playerId, gameState);
   }
 

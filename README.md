@@ -109,6 +109,10 @@ Access by running the project and visiting the dashboard at the root URL.
 ```
 ├── /game/                    # Game engine and logic
 │   ├── /engine/             # Core game logic (rules-ready)
+│   │   ├── /documentation/  # 📚 Engine architecture docs
+│   │   ├── GameEngine.tsx
+│   │   ├── GamePhases.tsx
+│   │   └── RulesEngine.tsx
 │   ├── /display/            # UI components
 │   ├── /hooks/              # React state management
 │   └── /types/              # TypeScript interfaces
@@ -116,8 +120,22 @@ Access by running the project and visiting the dashboard at the root URL.
 ├── /components/             # React components
 ├── /supabase/               # Backend edge functions
 ├── /utils/                  # Utilities and helpers
+├── /guidelines/             # 📚 Project documentation
 └── /styles/                 # Global CSS and design tokens
 ```
+
+## 📚 Documentation
+
+**Engine Architecture:**  
+→ See `/game/engine/documentation/` for comprehensive game engine documentation
+
+**Project Guidelines:**  
+→ See `/guidelines/DOCUMENTATION_INDEX.md` for complete documentation index
+
+**Quick Start:**
+1. Read [Guidelines.md](guidelines/Guidelines.md) for development rules ⭐ **MOST IMPORTANT**
+2. Read [Engine Architecture Summary](/game/engine/documentation/ENGINE_ARCHITECTURE_SUMMARY.md) for engine overview
+3. Read [System Constraints](/game/engine/documentation/SYSTEM_CONSTRAINTS.md) for hard invariants
 
 ## 🔧 Technology Stack
 

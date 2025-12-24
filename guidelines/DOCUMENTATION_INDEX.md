@@ -41,6 +41,7 @@ Last Updated: December 8, 2024
 - Starting point for new developers
 - Lists all completed foundational systems
 - Explains development tools vs player interface separation
+- **NEW:** Links to engine documentation at `/game/engine/documentation/`
 
 ---
 
@@ -141,8 +142,42 @@ Last Updated: December 8, 2024
 
 ### Technical Documentation
 
+#### <a name="engine-docs"></a>Game Engine Documentation
+**Location**: `/game/engine/documentation/`  
+**Purpose**: Comprehensive game engine architecture and implementation docs  
+**Read if**: Working on game engine, phases, rules, or resolution logic  
+
+**Contents:**
+- 📚 **[Documentation Index](../game/engine/documentation/README.md)** - Complete engine docs guide
+- 🔒 **[System Constraints](../game/engine/documentation/SYSTEM_CONSTRAINTS.md)** - Hard invariants (READ FIRST)
+- 🏗️ **[Engine Architecture Summary](../game/engine/documentation/ENGINE_ARCHITECTURE_SUMMARY.md)** - Complete overview
+- ⚡ **[Quick Reference](../game/engine/documentation/QUICK_REFERENCE.md)** - Fast lookup guide
+- ⚔️ **[Battle Phase Spec](../game/engine/documentation/BATTLE_PHASE_SPEC.md)** - Battle mechanics
+- 🔚 **[End of Turn Spec](../game/engine/documentation/END_OF_TURN_SPEC.md)** - Resolution mechanics
+- 📋 **[RulesEngine Refactor](../game/engine/documentation/RULESENGINE_REFACTOR.md)** - Rules engine documentation
+- 🔧 **[GamePhases Architecture Fixes](../game/engine/documentation/GAMEPHASES_ARCHITECTURE_FIXES.md)** - Phase management
+- ✅ **[GameEngine Architecture Fixes](../game/engine/documentation/GAMEENGINE_ARCHITECTURE_FIXES.md)** - Core engine
+- 🛠️ **[Implementation Summary](../game/engine/documentation/IMPLEMENTATION_SUMMARY.md)** - Complete implementation guide
+- 🐛 **Bug Fix Docs** - Critical fixes, surgical fixes, import fixes, etc.
+
+**Key Invariants:**
+- Health changes ONLY in EndOfTurnResolver
+- Win/loss determination ONLY in EndOfTurnResolver
+- Phase transitions ONLY in GamePhasesEngine
+- Three major phases: Build, Battle, End of Turn Resolution
+- Battle Phase: Simultaneous commitments (max 2 windows)
+
+**When to Reference:**
+- Before modifying any engine code
+- When implementing new game mechanics
+- Debugging phase transitions or action validation
+- Understanding effect resolution timing
+- Learning the architecture
+
+---
+
 #### <a name="action-resolution"></a>ACTION_RESOLUTION_README.md
-**Location**: `/game/engine/ACTION_RESOLUTION_README.md`  
+**Location**: `/game/engine/documentation/ACTION_RESOLUTION_README.md`  
 **Purpose**: Deep dive into action resolution system  
 **Read if**: Working with game actions, phases, or power activation  
 
@@ -349,9 +384,11 @@ const { player, updatePlayerName, toggleSpectatorMode } = usePlayer();
 
 #### **I'm working on game logic** →
 1. Guidelines.md (architecture rules)
-2. ACTION_RESOLUTION_README.md (action system)
-3. TYPESCRIPT_ANY_FIXES.md (type system)
-4. GameTestReadme.md (testing)
+2. **[Engine Documentation Index](../game/engine/documentation/README.md)** (game engine architecture)
+3. **[System Constraints](../game/engine/documentation/SYSTEM_CONSTRAINTS.md)** (hard invariants)
+4. ACTION_RESOLUTION_README.md (action system)
+5. TYPESCRIPT_ANY_FIXES.md (type system)
+6. GameTestReadme.md (testing)
 
 #### **I'm debugging multiplayer** →
 1. Guidelines.md (polling architecture)
