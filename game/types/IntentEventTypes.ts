@@ -24,7 +24,7 @@ import type {
   ShipDefId, 
   ShipInstanceId, 
   PlayerId 
-} from './ShipTypes';
+} from './ShipTypes.core';
 import type { 
   MajorPhase, 
   BuildPhaseStep, 

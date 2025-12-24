@@ -3,7 +3,7 @@
 // They enqueue effects for EndOfTurnResolution
 //
 // ARCHITECTURAL ALIGNMENT:
-// - Uses canonical ResolvedEffectType and QueuedEffect from ShipTypes
+// - Uses canonical ResolvedEffectType and QueuedEffect from EffectTypes
 // - Uses explicit ship identity types (PlayerId, ShipDefId, ShipInstanceId)
 // - Standardized energy system (red/green/blue, matching GameTypes)
 // - Clear targeting model
@@ -16,14 +16,18 @@
 // ✅ Enqueued TriggeredEffect persists to End of Turn Resolution
 
 import type { 
-  ResolvedEffectType,
-  QueuedEffect,
   PlayerId,
   ShipDefId,
   ShipInstanceId,
   PowerEffectType,
   SpecialLogic
-} from './ShipTypes';
+} from './ShipTypes.core';
+import type {
+  QueuedEffect
+} from './EffectTypes';
+
+// Backward compatibility
+export type ResolvedEffectType = PowerEffectType;
 
 // ============================================================================
 // SOLAR POWER IDS (Finite Set)

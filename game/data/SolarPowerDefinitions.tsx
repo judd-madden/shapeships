@@ -1,10 +1,10 @@
 // Solar Power Definitions - Auto-generated from CSV
 // Generated: 2024-12-23
 // Total Solar Powers: 9
-// DO NOT EDIT MANUALLY - Regenerate using: npx tsx scripts/generateShipFiles.ts
+// DO NOT EDIT MANUALLY - Regenerate using: npm run gen:ships
 
 import type { SolarPowerDefinition } from '../types/SolarPowerTypes';
-import { ShipPowerPhase, PowerTiming, PowerEffectType } from '../types/ShipTypes';
+import { ShipPowerPhase, PowerTiming, PowerEffectType } from '../types/ShipTypes.core';
 
 // ============================================================================
 // SOLAR POWER DEFINITIONS (9 powers)

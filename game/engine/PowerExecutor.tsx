@@ -11,13 +11,18 @@
 
 import type { GameState, PlayerShip } from '../types/GameTypes';
 import type { 
-  ShipPower, 
-  PowerExecutionContext,
-  GameContext,
-  PlayerId,
   ShipDefId,
   ShipInstanceId
-} from '../types/ShipTypes';
+} from '../types/ShipTypes.core';
+import type {
+  ShipPower,
+  SpecialLogic
+} from '../types/ShipTypes.core';
+import {
+  PowerTiming,
+  ShipPowerPhase 
+} from '../types/ShipTypes.core';
+import { getShipById } from '../data/ShipDefinitions.core';
 import type {
   TriggeredEffect,
   EffectSource,
@@ -33,10 +38,7 @@ import {
 } from '../types/EffectTypes';
 import { 
   PowerEffectType, 
-  PowerTiming,
-  ShipPowerPhase 
-} from '../types/ShipTypes';
-import { getShipById } from '../data/ShipDefinitions';
+} from '../types/ShipTypes.core';
 import { SpecialLogic } from './SpecialLogic';
 
 // ============================================================================

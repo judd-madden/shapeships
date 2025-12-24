@@ -2,7 +2,7 @@
 // This is separate from PassiveModifiers which only queries rule state
 
 import type { GameState } from '../types/GameTypes';
-import { getShipById } from '../data/ShipDefinitions';
+import { getShipById } from '../data/ShipDefinitions.core';
 
 /**
  * ARCHITECTURAL BOUNDARY

@@ -4,10 +4,9 @@
 import type { GameState } from '../types/GameTypes';
 import type {
   ShipPower,
-  ShipInstance,
   PowerExecutionContext
-} from '../types/ShipTypes';
-import { getShipById } from '../data/ShipDefinitions';
+} from '../types/ShipTypes.core';
+import { getShipById } from '../data/ShipDefinitions.core';
 
 // ============================================================================
 // ROUTER

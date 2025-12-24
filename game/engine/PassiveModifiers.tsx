@@ -23,8 +23,8 @@
 // ============================================================================
 
 import type { GameState, PlayerShip } from '../types/GameTypes';
-import { PowerTiming } from '../types/ShipTypes';
-import { getShipById } from '../data/ShipDefinitions';
+import { PowerTiming } from '../types/ShipTypes.core';
+import { getShipById } from '../data/ShipDefinitions.core';
 import { PASSIVE_MODIFIER_IDS, PASSIVE_MODIFIER_IDS_SET, type PassiveModifierId } from './PassiveModifierIds';
 
 // ============================================================================

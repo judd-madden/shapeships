@@ -2,9 +2,8 @@
 // Manages player actions within phases using the correct 3-phase model
 // Pure functions - no React dependencies
 
-import { MajorPhase, BuildPhaseStep, BattlePhaseStep } from './GamePhases';
 import SpeciesIntegration from './SpeciesIntegration';
-import { getShipById } from '../data/ShipDefinitions';
+import { getShipById } from '../data/ShipDefinitions.core';
 
 /**
  * 🔒 CRITICAL CONSTRAINTS (ENFORCED BY THIS CLASS):

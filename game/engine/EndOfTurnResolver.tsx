@@ -33,8 +33,8 @@ import {
   createOpponentTarget,
   createSelfTarget
 } from '../types/EffectTypes';
-import { PowerTiming, ShipPowerPhase, type ShipPower, EffectKind as PowerEffectKind } from '../types/ShipTypes';
-import { getShipById } from '../data/ShipDefinitions';
+import { PowerTiming, ShipPowerPhase, type ShipPower, EffectKind as PowerEffectKind } from '../types/ShipTypes.core';
+import { getShipById } from '../data/ShipDefinitions.core';
 import type PassiveModifiers from './PassiveModifiers';
 
 // ============================================================================

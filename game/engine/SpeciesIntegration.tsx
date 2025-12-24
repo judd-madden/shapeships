@@ -1,11 +1,12 @@
 // Integration layer between ShipDefinitions and GamePhases engine
 // Handles ship power calculations and damage/healing resolution
 
-import { GameState, PlayerShip } from '../types/GameTypes';
-import { 
+import type {
   ShipDefinition,
+  Species,
   getShipById
-} from '../data/ShipDefinitions';
+} from '../data/ShipDefinitions.core';
+import { GameState, PlayerShip } from '../types/GameTypes';
 
 export class SpeciesIntegration {
 
