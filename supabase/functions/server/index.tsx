@@ -9,6 +9,12 @@
 // - persists state (KV storage)
 // - filters hidden info (commit/reveal protocol)
 
+// ============================================================================
+// ALPHA v3 FEATURE FLAGS
+// ============================================================================
+// Set to false Post-Alpha to re-enable authentication endpoints
+const ALPHA_DISABLE_AUTH = true;
+
 /**
  * ⚠️ TEMPORARY STATE WARNING
  * The following sections are transitional:
@@ -125,6 +131,91 @@ const kvGetByPrefix = async (prefix) => {
   return data?.map(d => d.value) ?? [];
 };
 
+// ============================================================================
+// ALPHA v3 SESSION IDENTITY SYSTEM
+// ============================================================================
+// Server-minted session tokens for Alpha v3
+// Client cannot send authoritative playerId - server derives identity from token
+// ============================================================================
+
+// Generate cryptographically secure session token
+const generateSessionToken = () => {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+};
+
+// Generate stable session ID (internal identity key)
+const generateSessionId = () => {
+  return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
+
+// Validate session token and return session identity
+// Returns { sessionId, createdAt } on success, null on failure
+const validateSessionToken = async (token: string) => {
+  if (!token) {
+    console.error('Session validation failed: No token provided');
+    return null;
+  }
+
+  try {
+    const sessionData = await kvGet(`session_token_${token}`);
+    
+    if (!sessionData) {
+      console.error('Session validation failed: Token not found');
+      return null;
+    }
+
+    // Alpha v3: Use long TTL (24 hours)
+    // Post-Alpha: Implement shorter TTLs and refresh tokens
+    const createdAt = new Date(sessionData.createdAt);
+    const now = new Date();
+    const ageInHours = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60);
+    
+    if (ageInHours > 24) {
+      console.error('Session validation failed: Token expired');
+      return null;
+    }
+
+    return {
+      sessionId: sessionData.sessionId,
+      createdAt: sessionData.createdAt
+    };
+  } catch (error) {
+    console.error('Session validation error:', error);
+    return null;
+  }
+};
+
+// Middleware helper: Extract and validate session token from custom header
+// Returns session identity or sends 401 response
+// ⚠️ IMPORTANT: Uses X-Session-Token header, NOT Authorization
+// Authorization header must contain Supabase anon key for edge function access
+const requireSession = async (c: any) => {
+  // Check custom session token header
+  const sessionToken = c.req.header('X-Session-Token');
+  
+  if (!sessionToken) {
+    console.error('Authorization error: Missing X-Session-Token header');
+    return c.json({ 
+      error: 'Unauthorized',
+      message: 'Missing X-Session-Token header. Session token required for this endpoint.'
+    }, 401);
+  }
+
+  const session = await validateSessionToken(sessionToken);
+  
+  if (!session) {
+    console.error('Authorization error: Invalid or expired session token');
+    return c.json({ 
+      error: 'Unauthorized',
+      message: 'Invalid or expired session token'
+    }, 401);
+  }
+
+  return session; // Return session identity for use in endpoint
+};
+
 // Enable logger
 app.use('*', logger(console.log));
 
@@ -133,7 +224,7 @@ app.use(
   "/*",
   cors({
     origin: "*",
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "apikey", "X-Session-Token"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
@@ -144,6 +235,45 @@ app.use(
 app.get("/make-server-825e19ab/health", (c) => {
   console.log("Health check called");
   return c.json({ status: "ok", supabase: "connected" });
+});
+
+// ============================================================================
+// ALPHA v3: Session Management
+// ============================================================================
+// POST /session/start - Create new session token
+// Returns: { sessionToken: string }
+// Client must store token and include in all subsequent requests as:
+//   Authorization: Bearer <sessionToken>
+// ============================================================================
+app.post("/make-server-825e19ab/session/start", async (c) => {
+  try {
+    const sessionToken = generateSessionToken();
+    const sessionId = generateSessionId();
+    const createdAt = new Date().toISOString();
+
+    // Store session data in KV store
+    const sessionData = {
+      sessionId,
+      sessionToken,
+      createdAt
+    };
+
+    await kvSet(`session_token_${sessionToken}`, sessionData);
+    
+    // Also store by sessionId for reverse lookup if needed
+    await kvSet(`session_id_${sessionId}`, sessionData);
+
+    console.log(`✅ Session created: ${sessionId}`);
+
+    return c.json({ 
+      sessionToken,
+      message: "Session created successfully"
+    });
+
+  } catch (error) {
+    console.error("Session creation error:", error);
+    return c.json({ error: "Failed to create session" }, 500);
+  }
 });
 
 // Test endpoint to verify connection works
@@ -1304,25 +1434,37 @@ class ServerPhaseEngine {
 }
 
 // Create new game with enhanced game state structure
+// ⚠️ ALPHA v3: Requires sessionToken for identity
+// Client-sent playerId is IGNORED - server derives identity from sessionToken
 app.post("/make-server-825e19ab/create-game", async (c) => {
   try {
-    const { playerName, playerId, role = 'player' } = await c.req.json();
+    // Validate session token and get server-side identity
+    const session = await requireSession(c);
+    if (session.error) return session; // Return 401 if validation failed
+
+    const { playerName } = await c.req.json();
     
-    if (!playerName || !playerId) {
-      return c.json({ error: "Player name and ID are required" }, 400);
+    // Note: Client may send playerId for backward compat, but it's IGNORED
+    // Server-side identity is derived from sessionToken only
+    const playerId = session.sessionId; // AUTHORITY: Server-minted identity
+    
+    if (!playerName) {
+      return c.json({ error: "Player name is required" }, 400);
     }
+
+    console.log(`Creating game - Session: ${session.sessionId}, Display name: ${playerName}`);
 
     const gameId = generateGameId();
     const gameData = {
       gameId,
       players: [
         {
-          id: playerId,
-          name: playerName,
+          id: playerId, // Server-derived from sessionToken
+          name: playerName, // Client-provided metadata
           faction: null, // Species to be selected
           isReady: false,
-          isActive: role === 'player', // Only active if joining as player
-          role: role, // Use provided role
+          isActive: true,
+          role: 'player',
           joinedAt: new Date().toISOString(),
           health: 25,
           lines: 0, // FIXED: Players start with 0 lines
@@ -1383,14 +1525,26 @@ app.post("/make-server-825e19ab/create-game", async (c) => {
 });
 
 // Join existing game with spectator support
+// ⚠️ ALPHA v3: Requires sessionToken for identity
+// Client-sent playerId is IGNORED - server derives identity from sessionToken
 app.post("/make-server-825e19ab/join-game/:gameId", async (c) => {
   try {
+    // Validate session token and get server-side identity
+    const session = await requireSession(c);
+    if (session.error) return session; // Return 401 if validation failed
+
     const gameId = c.req.param('gameId');
-    const { playerName, playerId, role = 'player' } = await c.req.json();
+    const { playerName, role = 'player' } = await c.req.json();
     
-    if (!playerName || !playerId) {
-      return c.json({ error: "Player name and ID are required" }, 400);
+    // Note: Client may send playerId for backward compat, but it's IGNORED
+    // Server-side identity is derived from sessionToken only
+    const playerId = session.sessionId; // AUTHORITY: Server-minted identity
+    
+    if (!playerName) {
+      return c.json({ error: "Player name is required" }, 400);
     }
+
+    console.log(`Joining game ${gameId} - Session: ${session.sessionId}, Display name: ${playerName}`);
 
     let gameData = await kvGet(`game_${gameId}`);
     if (!gameData) {
@@ -1407,8 +1561,8 @@ app.post("/make-server-825e19ab/join-game/:gameId", async (c) => {
       const finalRole = (role === 'player' && activePlayers.length >= 2) ? 'spectator' : role;
 
       const newPlayer = {
-        id: playerId,
-        name: playerName,
+        id: playerId, // Server-derived from sessionToken
+        name: playerName, // Client-provided metadata
         faction: null, // Species to be selected
         isReady: false,
         isActive: finalRole === 'player' && activePlayers.length === 0, // First player is active
@@ -1468,18 +1622,30 @@ app.post("/make-server-825e19ab/join-game/:gameId", async (c) => {
 });
 
 // Switch player role between player and spectator
+// ⚠️ ALPHA v3: Requires sessionToken for identity
+// Client-sent playerId is IGNORED - server derives identity from sessionToken
 app.post("/make-server-825e19ab/switch-role/:gameId", async (c) => {
   try {
+    // Validate session token and get server-side identity
+    const session = await requireSession(c);
+    if (session.error) return session; // Return 401 if validation failed
+
     const gameId = c.req.param('gameId');
-    const { playerId, newRole } = await c.req.json();
+    const { newRole } = await c.req.json();
     
-    if (!playerId || !newRole) {
-      return c.json({ error: "Player ID and new role are required" }, 400);
+    // Note: Client may send playerId for backward compat, but it's IGNORED
+    // Server-side identity is derived from sessionToken only
+    const playerId = session.sessionId; // AUTHORITY: Server-minted identity
+    
+    if (!newRole) {
+      return c.json({ error: "New role is required" }, 400);
     }
 
     if (!['player', 'spectator'].includes(newRole)) {
       return c.json({ error: "Role must be 'player' or 'spectator'" }, 400);
     }
+
+    console.log(`Role switch from session ${session.sessionId}: ${newRole} in game ${gameId}`);
 
     const gameData = await kvGet(`game_${gameId}`);
     if (!gameData) {
@@ -1488,7 +1654,7 @@ app.post("/make-server-825e19ab/switch-role/:gameId", async (c) => {
 
     const player = gameData.players.find(p => p.id === playerId);
     if (!player) {
-      return c.json({ error: "Player not in game" }, 403);
+      return c.json({ error: "Player not in game (session not recognized)" }, 403);
     }
 
     // Check if switching to player but game already has 2 players
@@ -1565,14 +1731,30 @@ app.post("/make-server-825e19ab/switch-role/:gameId", async (c) => {
 });
 
 // Get game state with automatic processing
+// ⚠️ ALPHA v3: Requires sessionToken (game state contains private information)
+// Client-sent playerId query param is IGNORED - server derives identity from sessionToken
 app.get("/make-server-825e19ab/game-state/:gameId", async (c) => {
   try {
+    // Validate session token and get server-side identity
+    const session = await requireSession(c);
+    if (session.error) return session; // Return 401 if validation failed
+
     const gameId = c.req.param('gameId');
-    const requestingPlayerId = c.req.query('playerId'); // Optional: filter hidden data by player
+    
+    // Note: Client may send playerId query for backward compat, but it's IGNORED
+    // Server-side identity is derived from sessionToken only
+    const requestingPlayerId = session.sessionId; // AUTHORITY: Server-minted identity
+    
     let gameData = await kvGet(`game_${gameId}`);
     
     if (!gameData) {
       return c.json({ error: "Game not found" }, 404);
+    }
+
+    // Verify session is a participant in this game (or spectator)
+    const participant = gameData.players.find(p => p.id === requestingPlayerId);
+    if (!participant) {
+      return c.json({ error: "Not authorized to view this game" }, 403);
     }
 
     // Process automatic phases if needed
@@ -1674,18 +1856,30 @@ app.get("/make-server-825e19ab/game-state/:gameId", async (c) => {
 });
 
 // Send action/message to game with enhanced game logic
+// ⚠️ ALPHA v3: Requires sessionToken for identity
+// Client-sent playerId is IGNORED - server derives identity from sessionToken
 app.post("/make-server-825e19ab/send-action/:gameId", async (c) => {
   try {
+    // Validate session token and get server-side identity
+    const session = await requireSession(c);
+    if (session.error) return session; // Return 401 if validation failed
+
     const gameId = c.req.param('gameId');
     const requestBody = await c.req.json();
-    const playerId = requestBody.playerId;
+    
+    // Note: Client may send playerId for backward compat, but it's IGNORED
+    // Server-side identity is derived from sessionToken only
+    const playerId = session.sessionId; // AUTHORITY: Server-minted identity
+    
     const actionType = requestBody.actionType;
     const content = requestBody.content;
     const timestamp = requestBody.timestamp;
     
-    if (!playerId || !actionType) {
-      return c.json({ error: "Player ID and action type are required" }, 400);
+    if (!actionType) {
+      return c.json({ error: "Action type is required" }, 400);
     }
+
+    console.log(`Action from session ${session.sessionId}: ${actionType} in game ${gameId}`);
 
     let gameData = await kvGet(`game_${gameId}`);
     if (!gameData) {
@@ -1694,7 +1888,7 @@ app.post("/make-server-825e19ab/send-action/:gameId", async (c) => {
 
     const player = gameData.players.find(p => p.id === playerId);
     if (!player) {
-      return c.json({ error: "Player not in game" }, 403);
+      return c.json({ error: "Player not in game (session not recognized)" }, 403);
     }
 
     // Store player information that we'll need later (to avoid const reference issues)
@@ -2375,8 +2569,19 @@ app.get("/make-server-825e19ab/system-test", async (c) => {
   return c.json(results);
 });
 
-// User signup endpoint
+// User signup endpoint (POST-ALPHA)
+// Disabled in Alpha v3 - session-only authentication
 app.post("/make-server-825e19ab/signup", async (c) => {
+  // ALPHA v3: Disable auth endpoint
+  if (ALPHA_DISABLE_AUTH) {
+    console.log("Signup endpoint called but disabled in Alpha v3");
+    return c.json({ 
+      error: "Authentication disabled in Alpha v3",
+      message: "This feature will be available in future releases. Use session-only entry for now."
+    }, 501); // 501 Not Implemented
+  }
+
+  // POST-ALPHA: Full implementation (preserved)
   try {
     const { email, password, name } = await c.req.json();
     
@@ -2424,18 +2629,19 @@ app.post("/make-server-825e19ab/echo", async (c) => {
 app.get("/make-server-825e19ab/endpoints", (c) => {
   return c.json({
     endpoints: [
-      { method: "GET", path: "/make-server-825e19ab/health", description: "Basic health check" },
-      { method: "GET", path: "/make-server-825e19ab/test-connection", description: "Test Supabase connection" },
-      { method: "GET", path: "/make-server-825e19ab/system-test", description: "Comprehensive system test" },
-      { method: "POST", path: "/make-server-825e19ab/create-game", description: "Create new multiplayer game" },
-      { method: "POST", path: "/make-server-825e19ab/join-game/:gameId", description: "Join existing game" },
-      { method: "GET", path: "/make-server-825e19ab/game-state/:gameId", description: "Get current game state" },
-      { method: "POST", path: "/make-server-825e19ab/send-action/:gameId", description: "Send action to game" },
-      { method: "POST", path: "/make-server-825e19ab/switch-role/:gameId", description: "Switch player role" },
-      { method: "POST", path: "/make-server-825e19ab/signup", description: "Create user account" },
-      { method: "POST", path: "/make-server-825e19ab/echo", description: "Echo request data for testing" },
-      { method: "GET", path: "/make-server-825e19ab/endpoints", description: "List all endpoints" },
-      { method: "POST", path: "/make-server-825e19ab/intent", description: "Server-authoritative intent/event API (NEW)" }
+      { method: "GET", path: "/make-server-825e19ab/health", description: "Basic health check (public)" },
+      { method: "GET", path: "/make-server-825e19ab/test-connection", description: "Test Supabase connection (public)" },
+      { method: "GET", path: "/make-server-825e19ab/system-test", description: "Comprehensive system test (public)" },
+      { method: "POST", path: "/make-server-825e19ab/session/start", description: "Create session token (public, required before game actions)" },
+      { method: "POST", path: "/make-server-825e19ab/create-game", description: "Create new private game (requires session token)" },
+      { method: "POST", path: "/make-server-825e19ab/join-game/:gameId", description: "Join existing game (requires session token)" },
+      { method: "GET", path: "/make-server-825e19ab/game-state/:gameId", description: "Get current game state (requires session token)" },
+      { method: "POST", path: "/make-server-825e19ab/send-action/:gameId", description: "Send action to game (requires session token)" },
+      { method: "POST", path: "/make-server-825e19ab/switch-role/:gameId", description: "Switch player role (requires session token)" },
+      { method: "POST", path: "/make-server-825e19ab/intent", description: "Server-authoritative intent/event API (requires session token)" },
+      { method: "POST", path: "/make-server-825e19ab/signup", description: "Create user account (DISABLED in Alpha v3)" },
+      { method: "POST", path: "/make-server-825e19ab/echo", description: "Echo request data for testing (public)" },
+      { method: "GET", path: "/make-server-825e19ab/endpoints", description: "List all endpoints (public)" }
     ],
     timestamp: new Date().toISOString(),
     features: [
@@ -2674,10 +2880,16 @@ const getCommitment = (gameState, playerId, turnNumber, kind, window = null) => 
 };
 
 // Main intent processing endpoint
+// ⚠️ ALPHA v3: Requires sessionToken for identity
+// Client-sent playerId in intent is IGNORED - server derives identity from sessionToken
 app.post("/make-server-825e19ab/intent", async (c) => {
   const startMs = Date.now();
   
   try {
+    // Validate session token and get server-side identity
+    const session = await requireSession(c);
+    if (session.error) return session; // Return 401 if validation failed
+
     // 1. Parse and validate request
     const requestBody = await c.req.json();
     const intent = requestBody.intent;
@@ -2694,6 +2906,10 @@ app.post("/make-server-825e19ab/intent", async (c) => {
       }, 400);
     }
     
+    // Override playerId in intent with server-minted identity
+    // Note: Client may send playerId in intent, but it's IGNORED
+    intent.playerId = session.sessionId; // AUTHORITY: Server-minted identity
+    
     // Validate intent structure
     const validation = validateIntentStructure(intent);
     if (!validation.valid) {
@@ -2708,7 +2924,7 @@ app.post("/make-server-825e19ab/intent", async (c) => {
       }, 400);
     }
     
-    console.log(`📥 Intent received: ${intent.type} from player ${intent.playerId} for game ${intent.gameId}`);
+    console.log(`📥 Intent received: ${intent.type} from session ${session.sessionId} for game ${intent.gameId}`);
     
     // 2. Load canonical game state
     const gameStateKey = `game:${intent.gameId}:state`;

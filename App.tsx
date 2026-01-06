@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { Separator } from './components/ui/separator';
 import { Toaster } from './components/ui/sonner';
+import { Input } from './components/ui/input';
 import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
 import ScreenManager from './components/ScreenManager';
@@ -12,6 +13,7 @@ import GameScreen from './game/display/GameScreen';
 import GameTestInterface from './game/test/GameTestInterface';
 import { FullPhaseTest } from './game/test/FullPhaseTest';
 import { usePlayer } from './game/hooks/usePlayer';
+import { getSessionToken, ensureSession, authenticatedPost, authenticatedFetch } from './utils/sessionManager';
 
 // Configuration for the live published URL
 const LIVE_BASE_URL = 'https://semi-folk-76756080.figma.site'; // Replace with your actual live URL
@@ -194,7 +196,7 @@ export default function App() {
 
   const developmentViews = [
     { id: 'deployment', name: 'Deployment Test', status: 'ready' },
-    { id: 'auth', name: 'Authentication', status: 'ready' },
+    { id: 'auth', name: 'Authentication', status: 'alpha-disabled' },
     { id: 'multiplayer', name: 'Multiplayer Test', status: 'ready' },
     { id: 'game-test', name: 'Game Test Interface', status: 'ready' },
     { id: 'full-phase-test', name: 'Full Phase Test', status: 'ready' },
@@ -1712,6 +1714,447 @@ Deno.serve(app.fetch);`;
   );
 }
 
+// ============================================================================
+// SESSION + GAME DEBUG CARD (DEV-ONLY)
+// ============================================================================
+// Alpha v3 E2E test harness for session and game endpoints
+// Provides quick testing without navigating to player UI
+// ============================================================================
+
+function SessionDebugCard() {
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [currentGameId, setCurrentGameId] = useState<string>('');
+  const [joinGameInput, setJoinGameInput] = useState<string>('');
+  const [lastResult, setLastResult] = useState<{ success: boolean; message: string; status?: number } | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Action submission state (Phase 6)
+  const [selectedAction, setSelectedAction] = useState<string>('set_ready');
+  const [actionContent, setActionContent] = useState<any>({});
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const token = getSessionToken();
+    setSessionToken(token);
+  }, []);
+
+  const handleStartSession = async () => {
+    setIsLoading(true);
+    setLastResult(null);
+    
+    try {
+      const token = await ensureSession();
+      setSessionToken(token);
+      setLastResult({ 
+        success: true, 
+        message: `Session created/refreshed successfully`,
+        status: 200
+      });
+      console.log('✅ Session token:', token.substring(0, 6) + '...');
+    } catch (error) {
+      console.error('Session creation error:', error);
+      setLastResult({ 
+        success: false, 
+        message: `Error: ${error.message}`,
+        status: 0
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateGame = async () => {
+    setIsLoading(true);
+    setLastResult(null);
+    
+    try {
+      const response = await authenticatedPost('/create-game', {
+        playerName: 'Debug Test Player'
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      setCurrentGameId(data.gameId);
+      setLastResult({ 
+        success: true, 
+        message: `Game created: ${data.gameId}`,
+        status: response.status
+      });
+      console.log('✅ Game created:', data);
+    } catch (error) {
+      console.error('Create game error:', error);
+      setLastResult({ 
+        success: false, 
+        message: `Error: ${error.message}`,
+        status: 0
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleJoinGame = async () => {
+    setIsLoading(true);
+    setLastResult(null);
+    
+    try {
+      // Extract gameId from input (could be raw ID or full invite URL)
+      let gameIdToJoin = joinGameInput.trim();
+      if (gameIdToJoin.includes('game=')) {
+        const urlParams = new URLSearchParams(gameIdToJoin.split('?')[1]);
+        gameIdToJoin = urlParams.get('game') || gameIdToJoin;
+      }
+      
+      const response = await authenticatedPost(`/join-game/${gameIdToJoin}`, {
+        playerName: 'Debug Test Player 2',
+        role: 'player'
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      setCurrentGameId(gameIdToJoin);
+      setLastResult({ 
+        success: true, 
+        message: `Joined game: ${gameIdToJoin}`,
+        status: response.status
+      });
+      console.log('✅ Joined game:', data);
+    } catch (error) {
+      console.error('Join game error:', error);
+      setLastResult({ 
+        success: false, 
+        message: `Error: ${error.message}`,
+        status: 0
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFetchGameState = async () => {
+    if (!currentGameId) {
+      setLastResult({ 
+        success: false, 
+        message: 'No gameId set. Create or join a game first.',
+        status: 0
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    setLastResult(null);
+    
+    try {
+      const response = await authenticatedFetch(`/game-state/${currentGameId}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      setLastResult({ 
+        success: true, 
+        message: `Game state fetched (${data.players?.length || 0} players)`,
+        status: response.status
+      });
+      console.log('✅ Game state:', data);
+    } catch (error) {
+      console.error('Fetch game state error:', error);
+      setLastResult({ 
+        success: false, 
+        message: `Error: ${error.message}`,
+        status: 0
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmitAction = async () => {
+    if (!currentGameId) {
+      setLastResult({ 
+        success: false, 
+        message: 'No gameId set. Create or join a game first.',
+        status: 0
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    setLastResult(null);
+    
+    try {
+      // Build payload based on selected action type
+      const payload: any = { actionType: selectedAction };
+      
+      // Add content field if action requires it, with validation
+      if (selectedAction === 'select_species') {
+        if (!actionContent.species) {
+          throw new Error('Please select a species from the dropdown');
+        }
+        payload.content = { species: actionContent.species };
+      } else if (selectedAction === 'build_ship') {
+        if (!actionContent.shipId) {
+          throw new Error('Please enter a ship ID');
+        }
+        payload.content = { shipId: actionContent.shipId };
+      } else if (selectedAction === 'save_lines') {
+        if (!actionContent.amount) {
+          throw new Error('Please enter an amount');
+        }
+        payload.content = { amount: parseInt(actionContent.amount) };
+      } else if (selectedAction === 'message') {
+        if (!actionContent.message) {
+          throw new Error('Please enter a message');
+        }
+        payload.content = actionContent.message;
+      } else if (selectedAction === 'phase_action') {
+        if (!actionContent.action) {
+          throw new Error('Please select a phase action from the dropdown');
+        }
+        payload.content = { action: actionContent.action };
+      }
+      
+      console.log('📤 Submitting action:', payload);
+      
+      const response = await authenticatedPost(`/send-action/${currentGameId}`, payload);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+      
+      const data = await response.json();
+      setLastResult({ 
+        success: true, 
+        message: `Action submitted: ${selectedAction} → ${data.message || 'Success'}`,
+        status: response.status
+      });
+      console.log('✅ Action result:', data);
+      
+      // Immediately fetch updated game state
+      setTimeout(() => handleFetchGameState(), 200);
+      
+    } catch (error) {
+      console.error('Submit action error:', error);
+      setLastResult({ 
+        success: false, 
+        message: `Error: ${error.message}`,
+        status: 0
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const tokenPreview = sessionToken ? sessionToken.substring(0, 6) + '...' : 'None';
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Session + Game Debug</CardTitle>
+        <p className="text-xs text-gray-500">Alpha v3 E2E Test Harness (DEV-only)</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Status Display */}
+        <div className="grid grid-cols-2 gap-2 p-3 bg-gray-50 rounded text-xs">
+          <div>
+            <span className="font-semibold">App Mode:</span>
+            <Badge variant="secondary" className="ml-2">DEV</Badge>
+          </div>
+          <div>
+            <span className="font-semibold">Session Token:</span>
+            <Badge variant={sessionToken ? 'default' : 'outline'} className="ml-2">
+              {sessionToken ? 'Yes' : 'No'}
+            </Badge>
+          </div>
+          <div className="col-span-2">
+            <span className="font-semibold">Token Preview:</span>
+            <code className="ml-2 text-xs bg-white px-1 py-0.5 rounded">{tokenPreview}</code>
+          </div>
+          <div className="col-span-2">
+            <span className="font-semibold">Current GameId:</span>
+            <code className="ml-2 text-xs bg-white px-1 py-0.5 rounded">{currentGameId || 'None'}</code>
+          </div>
+        </div>
+
+        {/* Last Result */}
+        {lastResult && (
+          <div className={`p-2 rounded text-xs ${lastResult.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
+            <div className="font-semibold">{lastResult.success ? '✅ Success' : '❌ Error'} {lastResult.status ? `(${lastResult.status})` : ''}</div>
+            <div className="mt-1">{lastResult.message}</div>
+          </div>
+        )}
+
+        {/* Controls */}
+        <div className="space-y-2">
+          <Button 
+            onClick={handleStartSession} 
+            disabled={isLoading}
+            variant="outline" 
+            size="sm" 
+            className="w-full text-xs"
+          >
+            {isLoading ? 'Loading...' : 'Start / Refresh Session'}
+          </Button>
+          
+          <Button 
+            onClick={handleCreateGame} 
+            disabled={isLoading || !sessionToken}
+            variant="outline" 
+            size="sm" 
+            className="w-full text-xs"
+          >
+            {isLoading ? 'Loading...' : 'Create Private Game'}
+          </Button>
+          
+          <div className="flex gap-2">
+            <Input 
+              placeholder="Game ID or invite URL"
+              value={joinGameInput}
+              onChange={(e) => setJoinGameInput(e.target.value)}
+              disabled={isLoading}
+              className="text-xs h-8"
+            />
+            <Button 
+              onClick={handleJoinGame} 
+              disabled={isLoading || !sessionToken || !joinGameInput.trim()}
+              variant="outline" 
+              size="sm" 
+              className="text-xs whitespace-nowrap"
+            >
+              Join Game
+            </Button>
+          </div>
+          
+          <Button 
+            onClick={handleFetchGameState} 
+            disabled={isLoading || !sessionToken || !currentGameId}
+            variant="outline" 
+            size="sm" 
+            className="w-full text-xs"
+          >
+            {isLoading ? 'Loading...' : 'Fetch Game State'}
+          </Button>
+        </div>
+
+        {/* Submit Action (Phase 6) */}
+        <Separator />
+        <div className="space-y-2">
+          <div className="text-xs font-semibold text-gray-700">Submit Action (Alpha E2E)</div>
+          
+          <select 
+            value={selectedAction}
+            onChange={(e) => {
+              setSelectedAction(e.target.value);
+              setActionContent({}); // Reset content when action type changes
+            }}
+            disabled={isLoading}
+            className="w-full text-xs h-8 border rounded px-2"
+          >
+            <option value="set_ready">set_ready (no content)</option>
+            <option value="select_species">select_species</option>
+            <option value="build_ship">build_ship</option>
+            <option value="save_lines">save_lines</option>
+            <option value="roll_dice">roll_dice (no content)</option>
+            <option value="phase_action">phase_action</option>
+            <option value="message">message</option>
+          </select>
+
+          {/* Dynamic content fields based on selected action */}
+          {selectedAction === 'select_species' && (
+            <select
+              value={actionContent.species || ''}
+              onChange={(e) => setActionContent({ species: e.target.value })}
+              disabled={isLoading}
+              className="w-full text-xs h-8 border rounded px-2"
+            >
+              <option value="">Select species...</option>
+              <option value="human">human</option>
+              <option value="xenite">xenite</option>
+              <option value="centaur">centaur</option>
+              <option value="ancient">ancient</option>
+            </select>
+          )}
+
+          {selectedAction === 'build_ship' && (
+            <Input
+              placeholder="Ship ID (e.g., hu_wedge)"
+              value={actionContent.shipId || ''}
+              onChange={(e) => setActionContent({ shipId: e.target.value })}
+              disabled={isLoading}
+              className="text-xs h-8"
+            />
+          )}
+
+          {selectedAction === 'save_lines' && (
+            <Input
+              type="number"
+              placeholder="Amount (e.g., 1)"
+              value={actionContent.amount || ''}
+              onChange={(e) => setActionContent({ amount: e.target.value })}
+              disabled={isLoading}
+              className="text-xs h-8"
+            />
+          )}
+
+          {selectedAction === 'message' && (
+            <Input
+              placeholder="Message text"
+              value={actionContent.message || ''}
+              onChange={(e) => setActionContent({ message: e.target.value })}
+              disabled={isLoading}
+              className="text-xs h-8"
+            />
+          )}
+
+          {selectedAction === 'phase_action' && (
+            <select
+              value={actionContent.action || ''}
+              onChange={(e) => setActionContent({ action: e.target.value })}
+              disabled={isLoading}
+              className="w-full text-xs h-8 border rounded px-2"
+            >
+              <option value="">Select phase action...</option>
+              <option value="roll_dice">roll_dice</option>
+              <option value="advance_phase">advance_phase</option>
+              <option value="pass_turn">pass_turn</option>
+              <option value="end_turn">end_turn</option>
+            </select>
+          )}
+
+          <Button 
+            onClick={handleSubmitAction} 
+            disabled={isLoading || !sessionToken || !currentGameId}
+            variant="default" 
+            size="sm" 
+            className="w-full text-xs"
+          >
+            {isLoading ? 'Loading...' : 'Submit Action'}
+          </Button>
+          
+          <div className="text-xs text-gray-400 italic">
+            Submits to POST /send-action/:gameId, then auto-fetches new state
+          </div>
+        </div>
+
+        <div className="text-xs text-gray-500 italic">
+          Note: Errors include server response body in console logs.
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymentStatus, errorMessage, onTestConnection, onTestSupabase }) {
   const [supabaseTest, setSupabaseTest] = useState(null);
 
@@ -1789,6 +2232,16 @@ function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymen
             {errorMessage}
           </div>
         )}
+      </div>
+
+      <Separator className="my-8" />
+
+      {/* Session + Game Debug (Alpha v3) */}
+      <div className="mb-8">
+        <h2 className="mb-4">Alpha v3 Session Testing</h2>
+        <div className="max-w-md">
+          <SessionDebugCard />
+        </div>
       </div>
 
       <Separator className="my-8" />
@@ -2044,52 +2497,6 @@ function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymen
 }
 
 function AuthenticationView({ onBack }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [isLogin, setIsLogin] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-
-  const handleAuth = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setMessage('');
-
-    try {
-      if (isLogin) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        
-        if (error) throw error;
-        setMessage('Login successful!');
-      } else {
-        const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/signup`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify({ email, password, name }),
-        });
-
-        if (response.ok) {
-          setMessage('Account created successfully! You can now login.');
-          setIsLogin(true);
-        } else {
-          const error = await response.text();
-          throw new Error(error);
-        }
-      }
-    } catch (error) {
-      setMessage(`Error: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="container mx-auto p-6 max-w-md">
       <div className="mb-6">
@@ -2100,78 +2507,34 @@ function AuthenticationView({ onBack }) {
         <p className="text-gray-600">Test login and account creation functionality</p>
       </div>
 
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex mb-6">
-            <Button 
-              variant={isLogin ? 'default' : 'outline'} 
-              onClick={() => setIsLogin(true)}
-              className="flex-1 mr-2"
-            >
-              Login
-            </Button>
-            <Button 
-              variant={!isLogin ? 'default' : 'outline'} 
-              onClick={() => setIsLogin(false)}
-              className="flex-1 ml-2"
-            >
-              Sign Up
-            </Button>
+      <Card className="border-amber-300 bg-amber-50">
+        <CardHeader>
+          <CardTitle className="text-amber-900">⚠️ Alpha v3 - Disabled</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3 text-sm text-amber-800">
+            <p>
+              <strong>Authentication is disabled in Alpha v3.</strong>
+            </p>
+            <p>
+              Players use session-only display names instead of accounts.
+            </p>
+            <div className="p-3 bg-amber-100 rounded-md">
+              <p className="text-amber-900 text-xs">
+                <strong>Implementation Status:</strong>
+              </p>
+              <ul className="list-disc list-inside text-xs text-amber-800 mt-1 space-y-1">
+                <li>Email/password login: Disabled</li>
+                <li>Account creation: Disabled</li>
+                <li>Password reset: Disabled</li>
+                <li>Session-only names: ✅ Active in PLAYER mode</li>
+              </ul>
+            </div>
+            <p className="text-xs italic">
+              Full authentication system will be re-enabled Post-Alpha.
+              All code is preserved via feature flags.
+            </p>
           </div>
-
-          <form onSubmit={handleAuth} className="space-y-4">
-            {!isLogin && (
-              <div>
-                <label className="block text-sm mb-1">Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required={!isLogin}
-                  className="w-full px-3 py-2 border rounded-md"
-                  placeholder="Your name"
-                />
-              </div>
-            )}
-            
-            <div>
-              <label className="block text-sm mb-1">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-3 py-2 border rounded-md"
-                placeholder="your@email.com"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm mb-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-3 py-2 border rounded-md"
-                placeholder="••••••••"
-              />
-            </div>
-            
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? 'Processing...' : isLogin ? 'Login' : 'Create Account'}
-            </Button>
-          </form>
-
-          {message && (
-            <div className={`mt-4 p-3 rounded-md text-sm ${
-              message.includes('Error') 
-                ? 'bg-red-100 text-red-700' 
-                : 'bg-green-100 text-green-700'
-            }`}>
-              {message}
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>
