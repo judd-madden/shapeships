@@ -1,231 +1,260 @@
-import React, { useState } from 'react';
-import { Button } from '../ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { Separator } from '../ui/separator';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
-import { usePlayer } from '../../game/hooks/usePlayer';
-import { authenticatedPost } from '../../utils/sessionManager';
+/**
+ * MENU SHELL
+ * 
+ * Canonical Shell for main menu/lobby
+ * Matches "Menu Screen with placeholder lobby text" Figma design
+ */
 
-// ============================================================================
-// MENU SHELL
-// ============================================================================
-// Canonical Shell for main menu/lobby
-// Owns layout with left navigation and main content area
-// ============================================================================
+import React, { useState } from 'react';
+import { MenuButton } from '../ui/primitives/buttons/MenuButton';
+import { MultiplayerPanel } from '../panels/MultiplayerPanel';
+import { RulesPanel } from '../panels/RulesPanel';
+import { CreatePrivateGamePanel } from '../panels/CreatePrivateGamePanel';
+import svgPaths from '../../imports/svg-zvdkaa3igi';
 
 interface MenuShellProps {
-  onNavigate: (destination: string) => void;
+  onNavigate: (shell: string) => void;
   onExit: () => void;
   onLogout: () => void;
   onGameCreated: (gameId: string) => void;
+  onCreatePrivateGame: () => Promise<string>;
   user: any;
   player: any;
   alphaDisableAuth: boolean;
 }
 
-export function MenuShell({ onNavigate, onExit, onLogout, onGameCreated, user, player, alphaDisableAuth }: MenuShellProps) {
+export function MenuShell({ 
+  onNavigate, 
+  onExit, 
+  onLogout, 
+  onGameCreated, 
+  onCreatePrivateGame,
+  user, 
+  player, 
+  alphaDisableAuth 
+}: MenuShellProps) {
   const [activePanel, setActivePanel] = useState('multiplayer');
-
-  const displayName = player?.name || user?.user_metadata?.name || user?.email || 'Player';
-
-  return (
-    <div className="container mx-auto p-6 max-w-6xl">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-white drop-shadow-lg">Shapeships</h1>
-        <p className="text-white/90 drop-shadow-md">Welcome, {displayName}</p>
-        {alphaDisableAuth && (
-          <Badge variant="outline" className="mt-2 bg-shapeships-white/20 text-white border-white/30">
-            Alpha v3 - Private Games Only
-          </Badge>
-        )}
-      </div>
-
-      {/* Main Layout: Sidebar + Content */}
-      <div className="flex gap-6">
-        {/* Left Navigation */}
-        <div className="w-64 flex-shrink-0">
-          <Card className="backdrop-blur-sm border-shapeships-grey-20/30" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
-            <CardContent className="p-4">
-              <nav className="space-y-2">
-                <Button
-                  variant={activePanel === 'multiplayer' ? 'default' : 'ghost'}
-                  className="w-full justify-start text-left"
-                  onClick={() => setActivePanel('multiplayer')}
-                >
-                  Multiplayer
-                </Button>
-                <Button
-                  variant={activePanel === 'rules' ? 'default' : 'ghost'}
-                  className="w-full justify-start text-left"
-                  onClick={() => setActivePanel('rules')}
-                >
-                  Rules & Codex
-                </Button>
-                <Separator className="my-2" />
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-left text-shapeships-red hover:text-shapeships-red hover:bg-shapeships-pastel-red/10"
-                  onClick={alphaDisableAuth ? onExit : onLogout}
-                >
-                  {alphaDisableAuth ? 'Exit' : 'Logout'}
-                </Button>
-              </nav>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content Area */}
-        <div className="flex-1">
-          {activePanel === 'multiplayer' && <MultiplayerPanel alphaDisableAuth={alphaDisableAuth} onGameCreated={onGameCreated} />}
-          {activePanel === 'rules' && <RulesPanel />}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ============================================================================
-// MENU SHELL PANELS
-// ============================================================================
-
-// ============================================================================
-// ALPHA v3 ENDPOINT CONFIGURATION
-// ============================================================================
-// Private game creation endpoint (Alpha v3 only)
-// Post-Alpha: Will add /create-public-game or /quick-match endpoints
-const CREATE_PRIVATE_GAME_ENDPOINT = '/make-server-825e19ab/create-game';
-// ============================================================================
-
-// ALPHA v3: MultiplayerPanel (Private Games Only)
-function MultiplayerPanel({ alphaDisableAuth, onGameCreated }: { alphaDisableAuth: boolean; onGameCreated: (gameId: string) => void }) {
-  const [gameId, setGameId] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState('');
-  const { player } = usePlayer();
 
-  const handleCreatePrivateGame = async () => {
-    if (!player) {
-      setError('Player not initialized');
-      return;
-    }
+  const displayName = player?.name || user?.user_metadata?.name || user?.email || 'Guest 234';
 
+  const handleCreatePrivateGameClick = async () => {
+    // Switch to the Create Private Game panel
+    setActivePanel('createPrivateGame');
+  };
+
+  const handleCreateGameWithSettings = async (settings: any) => {
+    // For now, settings are ignored - backend will use them in future
+    // This wrapper maintains the callback pattern while preparing for settings integration
+    console.log('Game settings (ready for backend):', settings);
+    
     setIsCreating(true);
-    setError('');
-
     try {
-      // Alpha v3: Create private game with server-minted session identity
-      // sessionToken is handled automatically by authenticatedPost
-      // playerId is derived server-side from sessionToken (NOT sent by client)
-      const response = await authenticatedPost(CREATE_PRIVATE_GAME_ENDPOINT, {
-        playerName: player.name // Metadata only - server derives identity from token
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        setGameId(result.gameId);
-        
-        console.log(`✅ Game created: ${result.gameId}`);
-        
-        // Trigger navigation to GameShell via callback
-        onGameCreated(result.gameId);
-      } else {
-        const errorText = await response.text();
-        console.error(`❌ Failed to create game: ${errorText}`);
-        setError(`Failed to create game: ${errorText}`);
-      }
+      const gameId = await onCreatePrivateGame();
+      onGameCreated(gameId);
     } catch (error: any) {
-      console.error(`❌ Network error creating game:`, error);
-      setError(`Network error: ${error.message}`);
+      console.error('Failed to create game:', error);
+      throw error; // Re-throw so panel can handle it
     } finally {
       setIsCreating(false);
     }
   };
 
   return (
-    <Card className="backdrop-blur-sm border-shapeships-grey-20/30" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
-      <CardHeader>
-        <CardTitle className="text-shapeships-grey-90">Multiplayer</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Alpha v3: Private Game Creation */}
-        <div>
-          <h3 className="font-semibold text-shapeships-grey-90 mb-2">Private Games</h3>
-          <p className="text-sm text-shapeships-grey-70 mb-3">
-            Create a private game and share the link with a friend
-          </p>
-          <Button 
-            onClick={handleCreatePrivateGame}
-            disabled={isCreating}
-            className="w-full bg-shapeships-green text-shapeships-white hover:bg-shapeships-green/90"
-          >
-            {isCreating ? 'Creating Game...' : 'Create Private Game'}
-          </Button>
-          {error && (
-            <div className="mt-2 p-3 bg-shapeships-pastel-red/20 text-shapeships-red text-sm rounded-md border border-shapeships-pastel-red/30">
-              {error}
+    <div className="content-stretch flex flex-col items-center pb-[120px] pt-[60px] px-4 md:px-8 lg:px-[240px] relative size-full">
+      <div className="content-stretch flex flex-col gap-[50px] items-center relative shrink-0 w-full max-w-[1920px]">
+        {/* Menu Header */}
+        <div className="content-stretch flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-0 relative shrink-0 w-full">
+          {/* Logo */}
+          <div className="grid-cols-[max-content] grid-rows-[max-content] inline-grid leading-[0] place-items-start relative shrink-0">
+            <p className="[grid-area:1_/_1] font-['Inter:Bold',sans-serif] font-bold leading-[normal] ml-[80px] md:ml-[130.04px] mt-[0.31px] not-italic relative text-[48px] md:text-[67.563px] text-nowrap text-white">
+              SHAPESHIPS
+            </p>
+            <div className="[grid-area:1_/_1] flex h-[60px] md:h-[86.748px] items-center justify-center ml-0 mt-0 relative w-[70px] md:w-[101.762px]">
+              <div className="flex-none rotate-[180deg] scale-y-[-100%]">
+                <div className="h-[60px] md:h-[86.748px] relative w-[70px] md:w-[101.762px]">
+                  <div className="absolute inset-[-9.5%_-12.13%_-14.76%_-12.13%]">
+                    <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 126.453 107.796">
+                      <path d={svgPaths.p1e5c7100} fill="black" stroke="#CD8CFF" strokeMiterlimit="10" strokeWidth="8.34112" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
+
+          {/* Right Header */}
+          <div className="content-stretch flex flex-col md:flex-row gap-6 md:gap-[36px] items-center justify-end relative shrink-0">
+            {/* Social Links */}
+            <div className="content-stretch flex font-['Roboto:Regular',sans-serif] font-normal gap-[34px] items-center leading-[normal] relative shrink-0 text-[18px] text-nowrap text-white underline">
+              <a 
+                href="https://discord.gg/MjPtf4G6Gt" 
+                target="_blank" 
+                rel="noreferrer"
+                className="[text-underline-position:from-font] decoration-solid relative shrink-0 cursor-pointer hover:opacity-80" 
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                Discord
+              </a>
+              <a 
+                href="https://www.youtube.com/@Shapeships" 
+                target="_blank" 
+                rel="noreferrer"
+                className="[text-underline-position:from-font] decoration-solid relative shrink-0 cursor-pointer hover:opacity-80" 
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                YouTube
+              </a>
+              <a 
+                href="https://www.reddit.com/r/shapeships/" 
+                target="_blank" 
+                rel="noreferrer"
+                className="[text-underline-position:from-font] decoration-solid relative shrink-0 cursor-pointer hover:opacity-80" 
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                Reddit
+              </a>
+            </div>
+
+            {/* Create Private Game Button */}
+            <MenuButton 
+              variant="private" 
+              onClick={handleCreatePrivateGameClick}
+              selected={activePanel === 'createPrivateGame'}
+              disabled={isCreating || activePanel === 'createPrivateGame'}
+              className="w-full md:w-auto"
+            >
+              {isCreating ? 'CREATING...' : 'CREATE PRIVATE GAME'}
+            </MenuButton>
+          </div>
         </div>
 
-        <Separator />
+        {/* Header Divider */}
+        <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] h-px opacity-70 shrink-0 to-[rgba(255,255,255,0)] via-50% via-[#ffffff] w-full" />
 
-        {/* Post-Alpha: Public Lobby (Disabled in Alpha) */}
-        {/* No routing, no functionality - placeholder only */}
-        <div className="opacity-50">
-          <h3 className="font-semibold text-shapeships-grey-90 mb-2">Public Lobby</h3>
-          <p className="text-sm text-shapeships-grey-70 mb-3 italic">
-            Coming in future release - match with random opponents
-          </p>
-          <Button 
-            disabled
-            variant="outline"
-            className="w-full"
-          >
-            Quick Match (Coming Soon)
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+        {/* Main Wrapper */}
+        <div className="content-stretch flex flex-col lg:flex-row gap-[50px] items-start relative shrink-0 w-full pr-0">
+          {/* Sidebar */}
+          <div className="content-stretch flex flex-col gap-[50px] lg:gap-[80px] items-start relative shrink-0 w-full lg:w-auto lg:min-w-[340px]">
+            {/* Player Name */}
+            <div className="content-stretch flex gap-[18px] items-center justify-start lg:justify-end relative shrink-0">
+              {/* Online Status Dot */}
+              <div className="relative shrink-0 size-[22px]">
+                <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 22 22">
+                  <circle cx="11" cy="11" fill="#00BD13" r="11" />
+                </svg>
+              </div>
 
-// ALPHA v3: RulesPanel (Stub - To be implemented)
-function RulesPanel() {
-  return (
-    <Card className="backdrop-blur-sm border-shapeships-grey-20/30" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
-      <CardHeader>
-        <CardTitle className="text-shapeships-grey-90">Rules & Codex</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-shapeships-grey-70 mb-4">
-          Learn how to play Shapeships and master the tactics of each species.
-        </p>
-        <div className="space-y-2">
-          <Button variant="outline" disabled className="w-full justify-start">
-            Core Rules
-          </Button>
-          <Button variant="outline" disabled className="w-full justify-start">
-            Human Species Guide
-          </Button>
-          <Button variant="outline" disabled className="w-full justify-start">
-            Xenite Species Guide
-          </Button>
-          <Button variant="outline" disabled className="w-full justify-start">
-            Centaur Species Guide
-          </Button>
-          <Button variant="outline" disabled className="w-full justify-start">
-            Ancient Species Guide
-          </Button>
-          <Button variant="outline" disabled className="w-full justify-start">
-            Turn Timing Reference
-          </Button>
+              {/* Name and Notes */}
+              <div className="content-stretch flex flex-col items-start justify-center relative shrink-0">
+                <p className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[32px] md:text-[56px] text-white max-w-[340px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  {displayName}
+                </p>
+                <div className="content-stretch flex items-center pl-[4px] pr-0 py-0 relative shrink-0">
+                  <p className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[#888] text-[16px] max-w-[340px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                    Waiting for lobby opponent
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Nav */}
+            <div className="content-stretch flex flex-col gap-[30px] lg:gap-[50px] items-start lg:pl-[40px] pr-0 py-0 relative shrink-0">
+              {/* Multiplayer */}
+              <div 
+                className="content-stretch flex items-center justify-center pb-[5px] pt-0 px-0 relative shrink-0 cursor-pointer"
+                onClick={() => setActivePanel('multiplayer')}
+              >
+                {activePanel === 'multiplayer' && (
+                  <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
+                )}
+                <p 
+                  className={`font-['Roboto:Black',sans-serif] font-black leading-[32px] relative shrink-0 text-[24px] md:text-[28px] text-nowrap uppercase ${
+                    activePanel === 'multiplayer' ? 'text-[#cd8cff]' : 'text-white hover:text-[#cd8cff]/80'
+                  }`}
+                  style={{ fontVariationSettings: "'wdth' 100" }}
+                >
+                  Multiplayer
+                </p>
+              </div>
+
+              {/* Rules & Codex */}
+              <div 
+                className="content-stretch flex items-center justify-center pb-[5px] pt-0 px-0 relative shrink-0 cursor-pointer"
+                onClick={() => setActivePanel('rules')}
+              >
+                {activePanel === 'rules' && (
+                  <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
+                )}
+                <p 
+                  className={`font-['Roboto:Black',sans-serif] font-black leading-[32px] relative shrink-0 text-[24px] md:text-[28px] text-nowrap uppercase ${
+                    activePanel === 'rules' ? 'text-[#cd8cff]' : 'text-white hover:text-[#cd8cff]/80'
+                  }`}
+                  style={{ fontVariationSettings: "'wdth' 100" }}
+                >
+                  {`Rules & Codex`}
+                </p>
+              </div>
+
+              {/* Back */}
+              <p 
+                className="font-['Roboto:ExtraBold',sans-serif] font-extrabold leading-[normal] relative shrink-0 text-[20px] text-nowrap text-white uppercase cursor-pointer hover:text-white/80" 
+                style={{ fontVariationSettings: "'wdth' 100" }}
+                onClick={alphaDisableAuth ? onExit : onLogout}
+              >
+                BACK
+              </p>
+
+              {/* Future Menu */}
+              <div className="content-stretch flex flex-col gap-[25px] items-start relative shrink-0 w-full">
+                <p className="font-['Roboto:Medium',sans-serif] font-medium leading-[normal] relative shrink-0 text-[#888] text-[18px] uppercase w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  IN Future:
+                </p>
+                
+                <div className="content-stretch flex items-start pb-[5px] pt-0 px-0 relative shrink-0 w-full">
+                  <p className="font-['Roboto:ExtraBold',sans-serif] font-extrabold leading-[22px] relative shrink-0 text-[#888] text-[20px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+                    Game History<br />& Stats
+                  </p>
+                </div>
+
+                <div className="content-stretch flex items-start pb-[5px] pt-0 px-0 relative shrink-0 w-full">
+                  <p className="font-['Roboto:ExtraBold',sans-serif] font-extrabold leading-[22px] relative shrink-0 text-[#888] text-[20px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+                    Play Computer
+                  </p>
+                </div>
+
+                <div className="content-stretch flex items-start pb-[5px] pt-0 px-0 relative shrink-0 w-full">
+                  <p className="font-['Roboto:ExtraBold',sans-serif] font-extrabold leading-[22px] relative shrink-0 text-[#888] text-[20px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+                    Single Player<br />Campaign
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Menu Screen Content */}
+          <div className="content-stretch flex flex-col items-start relative shrink-0 w-full lg:w-auto lg:flex-1 max-w-full lg:max-w-[1000px]">
+            {/* Render active panel */}
+            {activePanel === 'multiplayer' && (
+              <MultiplayerPanel
+                alphaDisableAuth={alphaDisableAuth}
+                onGameCreated={onGameCreated}
+                onCreatePrivateGame={onCreatePrivateGame}
+                onNavigateToCreateGame={() => setActivePanel('createPrivateGame')}
+              />
+            )}
+            {activePanel === 'rules' && (
+              <RulesPanel />
+            )}
+            {activePanel === 'createPrivateGame' && (
+              <CreatePrivateGamePanel
+                onCreatePrivateGame={handleCreateGameWithSettings}
+                onBack={() => setActivePanel('multiplayer')}
+              />
+            )}
+          </div>
         </div>
-        <p className="text-xs text-shapeships-grey-50 mt-4 italic">
-          Full rules system implementation coming soon
-        </p>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

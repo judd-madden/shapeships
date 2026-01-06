@@ -14,6 +14,7 @@ import GameTestInterface from './game/test/GameTestInterface';
 import { FullPhaseTest } from './game/test/FullPhaseTest';
 import { usePlayer } from './game/hooks/usePlayer';
 import { getSessionToken, ensureSession, authenticatedPost, authenticatedFetch } from './utils/sessionManager';
+import { BuildKitShowcase } from './components/dev/BuildKitShowcase';
 
 // Configuration for the live published URL
 const LIVE_BASE_URL = 'https://semi-folk-76756080.figma.site'; // Replace with your actual live URL
@@ -201,6 +202,7 @@ export default function App() {
     { id: 'game-test', name: 'Game Test Interface', status: 'ready' },
     { id: 'full-phase-test', name: 'Full Phase Test', status: 'ready' },
     { id: 'graphics', name: 'Graphics Test', status: 'ready' },
+    { id: 'build-kit', name: 'Build Kit', status: 'ready' },
     { id: 'game', name: 'Game Screen', status: 'ready' },
     { id: 'rules', name: 'Rules & Help', status: 'pending' },
   ];
@@ -256,6 +258,15 @@ export default function App() {
         /> : <div>Loading player...</div>;
       case 'full-phase-test':
         return <FullPhaseTest onBack={() => setCurrentView('dashboard')} />;
+      case 'build-kit':
+        return (
+          <div>
+            <Button onClick={() => setCurrentView('dashboard')} className="m-4">
+              ← Back to Dashboard
+            </Button>
+            <BuildKitShowcase />
+          </div>
+        );
       case 'game':
         return playerReady ? <GameScreen 
           gameId={gameId || 'demo_game'} 

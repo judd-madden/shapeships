@@ -1,13 +1,13 @@
+/**
+ * GAME SHELL
+ * 
+ * Canonical Shell for in-game experience
+ * Owns layout with game canvas and control panel
+ */
+
 import React from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
-
-// ============================================================================
-// GAME SHELL
-// ============================================================================
-// Canonical Shell for in-game experience
-// Owns layout with game canvas and control panel
-// ============================================================================
 
 interface GameShellProps {
   onExit: () => void;
@@ -20,25 +20,18 @@ export function GameShell({ onExit, gameId }: GameShellProps) {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-white drop-shadow-lg">Shapeships</h1>
-        <p className="text-white/90 drop-shadow-md">Game ID: {gameId || 'Unknown'}</p>
+        <p className="text-white/90 drop-shadow-md">Game ID: {gameId}</p>
       </div>
 
       {/* Main Layout: Game Canvas + Control Panel */}
       <div className="flex gap-6">
-        {/* Game Canvas - Placeholder for now */}
+        {/* Game Canvas */}
         <div className="flex-1">
           <Card className="backdrop-blur-sm border-shapeships-grey-20/30" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
             <CardContent className="p-4">
-              <div className="w-full h-96 bg-shapeships-grey-20/10 flex items-center justify-center">
-                <div className="text-center">
-                  <p className="text-shapeships-grey-90 mb-2">Game Canvas Placeholder</p>
-                  <p className="text-sm text-shapeships-grey-70">
-                    Full game UI integration coming soon
-                  </p>
-                  <p className="text-xs text-shapeships-grey-50 mt-4">
-                    Game ID: {gameId}
-                  </p>
-                </div>
+              <div className="w-full h-96 bg-shapeships-grey-20/10">
+                {/* Placeholder for game canvas */}
+                <p className="text-center text-shapeships-grey-90">Game Canvas</p>
               </div>
             </CardContent>
           </Card>

@@ -29,6 +29,13 @@
 - Faction-specific graphics in `/graphics/{faction}/assets.tsx`
 - Helper functions and utilities in separate files
 - Keep file sizes small and focused on single responsibilities
+- **Player-facing UI architecture:**
+  - `/components/ScreenManager.tsx` - Coordinator (app-level state & navigation)
+  - `/components/shells/` - Layout shells (LoginShell, MenuShell, GameShell)
+  - `/components/panels/` - Content panels (MultiplayerPanel, RulesPanel, etc.)
+  - `/screens/` - Full-screen components (LoginScreen, GameScreen)
+  - Backend calls live in ScreenManager, not in UI components
+  - Panels receive callbacks, never call APIs directly
 
 ## 🎨 Design System
 
