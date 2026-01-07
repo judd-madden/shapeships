@@ -19,9 +19,7 @@
   },
   "tasks": {
     "dev": "deno run --allow-net --allow-read --allow-env --watch supabase/functions/server/index.tsx",
-    "serve": "deno run --allow-net --allow-read --allow-env supabase/functions/server/index.tsx",
-    "gen:ships": "deno run --allow-read --allow-write scripts/generateShipDefinitionsFromCsv.ts",
-    "test:drift": "deno test --allow-read scripts/testShipDrift.ts"
+    "serve": "deno run --allow-net --allow-read --allow-env supabase/functions/server/index.tsx"
   },
   "imports": {
     "hono": "npm:hono@^4.0.0",

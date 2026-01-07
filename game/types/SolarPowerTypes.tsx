@@ -54,14 +54,12 @@ export type BrandedSolarPowerId = SolarPowerId & { readonly __brand: 'SolarPower
 
 /**
  * Energy cost/payment structure
- * ✅ CANONICAL: Matches GameTypes Player.energy (red/green/blue)
+ * @deprecated Import EnergyCost from EnergyCostTypes.ts instead
+ * 
+ * ✅ CANONICAL: Use EnergyCostTypes.ts for the unified schema
  * ❌ DO NOT use 'pink' - that's Chronoswarm dice color, not energy
  */
-export interface EnergyCost {
-  red?: number;
-  green?: number;
-  blue?: number;
-}
+export type { EnergyCost } from './EnergyCostTypes';
 
 /**
  * Energy color type

@@ -2305,15 +2305,15 @@ function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymen
               <CardTitle className="text-sm text-green-900">Phase Management</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-green-800">
-              FSM-based turn system with clean 3-phase structure ready
+              3-phase turn system (Build, Battle, End of Turn Resolution) with ready states and phase transitions
             </CardContent>
           </Card>
           <Card className="border-green-200 bg-green-50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-green-900">Ship System</CardTitle>
+              <CardTitle className="text-sm text-green-900">Ship Data System</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-green-800">
-              CSV single source of truth with auto-generation pipeline, 70 ships defined, species-based organization
+              JSON-authoritative data layer: 70 ships, 4 species, clean JSON→Core→Engine flow
             </CardContent>
           </Card>
           <Card className="border-green-200 bg-green-50">
@@ -2321,15 +2321,15 @@ function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymen
               <CardTitle className="text-sm text-green-900">Multiplayer Sync</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-green-800">
-              Ready states, shared dice rolls, dual-ready system, backend infrastructure ready
+              5-second polling, dual-ready system, shared dice rolls, action synchronization
             </CardContent>
           </Card>
           <Card className="border-green-200 bg-green-50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-green-900">Game Data</CardTitle>
+              <CardTitle className="text-sm text-green-900">Game State</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-green-800">
-              Lines system, health tracking, victory conditions all working
+              Lines system, health tracking, victory conditions, End of Turn Resolution damage/healing
             </CardContent>
           </Card>
           <Card className="border-green-200 bg-green-50">
@@ -2337,23 +2337,15 @@ function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymen
               <CardTitle className="text-sm text-green-900">Type Architecture</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-green-800">
-              Clean 3-layer split (CSV → Core → UI), auto-generation pipeline, server-safe engine code
+              Clean separation: JSON (data) → Core (indexing) → Engine (runtime) → UI (graphics)
             </CardContent>
           </Card>
           <Card className="border-green-200 bg-green-50">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-green-900">Test Interface</CardTitle>
+              <CardTitle className="text-sm text-green-900">Backend Infrastructure</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-green-800">
-              3-phase turn system (Build, Battle, End of Turn Resolution) with multiplayer validation
-            </CardContent>
-          </Card>
-          <Card className="border-green-200 bg-green-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-green-900">Backend</CardTitle>
-            </CardHeader>
-            <CardContent className="text-xs text-green-800">
-              Engine delegation (Option B), Supabase integration, edge functions, KV store, auth ready
+              Supabase edge functions, KV store, session-based auth, requireSession validation
             </CardContent>
           </Card>
           <Card className="border-green-200 bg-green-50">
@@ -2361,7 +2353,15 @@ function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymen
               <CardTitle className="text-sm text-green-900">Ship Graphics</CardTitle>
             </CardHeader>
             <CardContent className="text-xs text-green-800">
-              Complete SVG graphics library: 21 Human, 22 Xenite, 22 Centaur, 6 Ancient ships (all with charge states)
+              Complete SVG library: 21 Human, 22 Xenite, 22 Centaur, 6 Ancient (with charge variants)
+            </CardContent>
+          </Card>
+          <Card className="border-green-200 bg-green-50">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm text-green-900">Build Kit UI</CardTitle>
+            </CardHeader>
+            <CardContent className="text-xs text-green-800">
+              20+ reusable primitives: PhaseIndicator, ShipGrid, LineCounter, ReadyButton, PlayerStats
             </CardContent>
           </Card>
         </div>

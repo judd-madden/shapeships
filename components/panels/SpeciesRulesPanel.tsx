@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { SHIP_DEFINITIONS } from '../../game/data/ShipDefinitions';
+import { SHIP_DEFINITIONS } from '../../game/data/ShipDefinitionsUI';
 import type { ShipDefinitionUI } from '../../game/types/ShipTypes.ui';
 import { BuildIcon } from '../ui/primitives/icons/BuildIcon';
 import { BattleIcon } from '../ui/primitives/icons/BattleIcon';
@@ -77,17 +77,45 @@ function getSubphaseLabel(ship: ShipDefinitionUI): string {
   return uniqueSubphases.join(', ');
 }
 
-// Get energy cost label (Ancient Solar Powers only, CSV-driven)
+// Convert literal \\n sequences to real newlines at UI boundary
+// Power text is stored with literal "\\n" sequences in the data layer
+function renderPowerText(text: string): string {
+  return text.replace(/\\n/g, '\n');
+}
+
+// Get energy cost label (Ancient Solar Powers only)
+// Reads from ship.energyCost field (canonical JSON data)
 function getEnergyCostLabel(ship: ShipDefinitionUI): string | null {
   if (ship.species !== 'Ancient' || ship.shipType !== 'Solar Power') {
     return null;
   }
   
-  if (!ship.componentShips || ship.componentShips.length === 0) {
+  if (!ship.energyCost) {
     return null;
   }
   
-  return ship.componentShips.map(part => part.trim()).join(', ');
+  const labels: string[] = [];
+  const cost = ship.energyCost;
+  
+  // Red energy
+  if (cost.red > 0) {
+    labels.push(`${cost.red} red energy`);
+  }
+  
+  // Green energy
+  if (cost.green > 0) {
+    labels.push(`${cost.green} green energy`);
+  }
+  
+  // Blue energy (either X blue or numeric blue)
+  if (cost.xBlue) {
+    labels.push('X blue energy');
+  } else if (cost.blue > 0) {
+    labels.push(`${cost.blue} blue energy`);
+  }
+  
+  // Return multi-line string (will be rendered with whitespace-pre-line)
+  return labels.length > 0 ? labels.join('\n') : null;
 }
 
 // Section header component
@@ -102,9 +130,6 @@ function SectionHeader({
   showPhaseLegend?: boolean;
   battleOnly?: boolean;
 }) {
-  // Special case: Solar Powers shows note BELOW the header with battle-only legend
-  const showNoteBelow = note && showPhaseLegend && battleOnly;
-  
   return (
     <>
       <div className="bg-[#555] h-[80px] relative shrink-0 w-full">
@@ -145,17 +170,12 @@ function SectionHeader({
                 </div>
               </div>
             )}
-            {note && !showNoteBelow && (
-              <p className="font-['Roboto'] font-normal leading-[22px] relative shrink-0 text-[14px] text-right text-white max-w-[400px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                {note}
-              </p>
-            )}
           </div>
         </div>
       </div>
-      {showNoteBelow && (
-        <div className="bg-[#3a3a3a] relative shrink-0 w-full py-[12px] px-[32px]">
-          <p className="font-['Roboto'] font-normal leading-[20px] text-[13px] text-white italic" style={{ fontVariationSettings: "'wdth' 100" }}>
+      {note && (
+        <div className="bg-[#212121] relative shrink-0 w-full h-[52px] flex items-center px-[32px]">
+          <p className="font-['Roboto'] font-normal italic leading-[20px] text-[16px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
             {note}
           </p>
         </div>
@@ -209,7 +229,7 @@ function ShipRow({
                 {ship.name}
               </p>
               {energyCostLabel && (
-                <p className="font-['Roboto'] font-normal leading-[18px] pb-[4px] relative shrink-0 text-[#d4d4d4] text-[14px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className="font-['Roboto'] font-normal leading-[18px] pb-[4px] relative shrink-0 text-[#d4d4d4] text-[14px] whitespace-pre-line" style={{ fontVariationSettings: "'wdth' 100" }}>
                   {energyCostLabel}
                 </p>
               )}
@@ -246,7 +266,7 @@ function ShipRow({
                   
                   {/* Power text (preserve CSV wording exactly) */}
                   <p className="basis-0 font-['Roboto'] font-normal grow leading-[26px] min-h-px min-w-px relative shrink-0 text-[18px] pb-[10px] text-white whitespace-pre-wrap" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    {power.text}
+                    {renderPowerText(power.text)}
                   </p>
                 </div>
               );
@@ -257,7 +277,7 @@ function ShipRow({
               <div className="relative shrink-0 w-full mt-[10px]">
                 <div className="flex flex-col gap-[16px] pb-[20px]">
                   {/* Evolved ships grid */}
-                  <div className="flex gap-[32px] items-start">
+                  <div className="flex gap-[32px] pl-[35px] items-start">
                     {evolvedShips.map((evolvedShip) => {
                       const evolvedGraphic = evolvedShip.graphics?.find(g => g.condition === 'default') || evolvedShip.graphics?.[0];
                       const EvolvedShipGraphic = evolvedGraphic?.component;
@@ -294,7 +314,7 @@ function ShipRow({
                                     )}
                                   </div>
                                   <p className="font-['Roboto'] font-normal leading-[18px] text-[14px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
-                                    {power.text}
+                                    {renderPowerText(power.text)}
                                   </p>
                                 </div>
                               );

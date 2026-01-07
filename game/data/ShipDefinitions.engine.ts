@@ -1,29 +1,29 @@
 /**
- * Ship Definitions - ENGINE LAYER (CSV → Engine Conversion)
+ * SHIP DEFINITIONS ENGINE LAYER
  * 
- * PURPOSE:
- * Converts CSV-shaped definitions (lossless raw text) into engine-ready
- * definitions (typed enums, parsed costs, structured powers).
+ * Converts core ship definitions into engine-safe runtime types.
  * 
- * ARCHITECTURE:
- * CSV (source of truth) → [THIS FILE] → Engine runtime
+ * DATA FLOW:
+ * JSON (source of truth) → Core → [THIS FILE] → Engine runtime
  * 
- * INPUT:  ShipDefinitionCsv (from ShipDefinitions.core.ts)
+ * INPUT:  ShipDefinitionCore (from ShipDefinitions.core.ts)
  * OUTPUT: EngineShipDefinition (canonical engine type)
  * 
  * RULES:
- * - Deterministic and reproducible: same CSV => same engine output
+ * - Deterministic and reproducible: same JSON => same engine output
  * - No React imports (server-safe for Deno edge functions)
  * - Always preserves rawSubphase and rawText in powers
  * - Does NOT default to EffectKind.CUSTOM - leaves kind undefined when unknown
  * - Manual overrides are minimal and explicit
  * - Validation errors logged to ENGINE_CONVERSION_ERRORS
- * 
- * GENERATED: 2024-12-24
  */
 
-import { PURE_SHIP_DEFINITIONS } from './ShipDefinitions.core';
-import type { ShipDefinitionCsv, ShipPowerTextCsv } from '../types/ShipTypes.csv';
+// ============================================================================
+// IMPORTS
+// ============================================================================
+
+import { SHIP_DEFINITIONS_CORE } from './ShipDefinitions.core';
+import type { ShipDefinitionCore, ShipPowerCore } from '../types/ShipTypes.core';
 import type {
   EngineShipDefinition,
   EngineShipPower,
@@ -35,7 +35,6 @@ import type {
   BasicShipCost,
   UpgradedShipCost,
   EnergyCost,
-  ComponentShipRequirement,
   SpecialLogic
 } from '../types/ShipTypes.engine';
 import {
@@ -64,7 +63,7 @@ function logError(message: string): void {
 const SHIP_NAME_TO_ID_MAP: Record<string, ShipDefId> = {};
 
 function buildShipNameLookup(): void {
-  for (const ship of PURE_SHIP_DEFINITIONS) {
+  for (const ship of SHIP_DEFINITIONS_CORE) {
     const normalized = ship.name.toLowerCase().replace(/[^a-z0-9]/g, '');
     SHIP_NAME_TO_ID_MAP[normalized] = ship.id;
     SHIP_NAME_TO_ID_MAP[ship.name.toLowerCase()] = ship.id;
@@ -121,13 +120,11 @@ function mapShipType(csvShipType: string): ShipType {
 // PHASE 2: COST PARSING
 // ============================================================================
 
-function parseComponentShips(components: string[], shipId: string): ComponentShipRequirement[] {
+function parseComponentShips(components: string[], shipId: string): UpgradedShipCost['components'] {
   const grouped: Record<string, { quantity: number; mustBeDepleted: boolean }> = {};
   
   for (const comp of components) {
-    if (comp.includes('energy')) continue; // Skip energy strings
-    
-    const depletedMatch = comp.match(/^([A-Z]+)\(0\)$/);
+    const depletedMatch = comp.match(/^([A-Z0-9]+)\(0\)$/);
     if (depletedMatch) {
       const componentShipId = depletedMatch[1];
       if (!grouped[componentShipId]) {
@@ -150,29 +147,24 @@ function parseComponentShips(components: string[], shipId: string): ComponentShi
   }));
 }
 
-function parseSolarEnergyCost(components: string[]): EnergyCost | undefined {
-  const cost: EnergyCost = {};
+/**
+ * Convert core energyCost to engine EnergyCost
+ * Solar Powers use the energyCost field from JSON (not componentShips)
+ */
+function convertEnergyCost(energyCost: { red: number; green: number; blue: number; xBlue: boolean } | null): EnergyCost | undefined {
+  if (!energyCost) return undefined;
   
-  for (const comp of components) {
-    const lowerComp = comp.toLowerCase();
-    
-    if (lowerComp.includes('x ')) {
-      cost.variable = 'ship_line_cost';
-      continue;
-    }
-    
-    const match = lowerComp.match(/(\d+)\s*(red|green|blue)/);
-    if (match) {
-      const amount = parseInt(match[1], 10);
-      const color = match[2] as 'red' | 'green' | 'blue';
-      cost[color] = (cost[color] || 0) + amount;
-    }
-  }
+  const result: EnergyCost = {};
   
-  return Object.keys(cost).length > 0 ? cost : undefined;
+  if (energyCost.red > 0) result.red = energyCost.red;
+  if (energyCost.green > 0) result.green = energyCost.green;
+  if (energyCost.blue > 0) result.blue = energyCost.blue;
+  if (energyCost.xBlue) result.variable = 'ship_line_cost';
+  
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function convertCost(csvShip: ShipDefinitionCsv, shipType: ShipType): {
+function convertCost(csvShip: ShipDefinitionCore, shipType: ShipType): {
   basicCost?: BasicShipCost;
   upgradedCost?: UpgradedShipCost;
   energyCost?: EnergyCost;
@@ -190,8 +182,8 @@ function convertCost(csvShip: ShipDefinitionCsv, shipType: ShipType): {
       components
     };
   } else if (shipType === ShipTypeEnum.SOLAR_POWER) {
-    const energyCost = parseSolarEnergyCost(csvShip.componentShips || []);
-    result.energyCost = energyCost;
+    // Solar Powers read directly from energyCost field (not componentShips)
+    result.energyCost = convertEnergyCost(csvShip.energyCost);
   }
   
   return result;
@@ -213,14 +205,18 @@ function mapSubphaseToPhase(subphase: string): ShipPowerPhase {
   if (normalized === 'Dice Manipulation') return PhaseEnum.DICE_MANIPULATION;
   if (normalized === 'Automatic') return PhaseEnum.AUTOMATIC;
   
-  if (normalized.includes('(Passive)') || normalized.includes('(passive)')) {
-    return PhaseEnum.EVENT;
-  }
-  if (normalized.includes('Upon Destruction')) {
+  // Passive powers (event-triggered)
+  if (normalized === 'Passive' || normalized.includes('(Passive)') || normalized.includes('(passive)')) {
     return PhaseEnum.EVENT;
   }
   
-  if (!normalized || normalized === '') {
+  // N/A or no power
+  if (normalized === 'N/A' || normalized === '' || !normalized) {
+    return PhaseEnum.EVENT;
+  }
+  
+  // Upon Destruction (event-triggered)
+  if (normalized.includes('Upon Destruction')) {
     return PhaseEnum.EVENT;
   }
   
@@ -232,7 +228,7 @@ function mapSubphaseToPhase(subphase: string): ShipPowerPhase {
 // PHASE 4: TIMING INFERENCE
 // ============================================================================
 
-function inferTiming(csvPower: ShipPowerTextCsv): PowerTiming {
+function inferTiming(csvPower: ShipPowerCore): PowerTiming {
   const subphase = csvPower.subphase.trim();
   const text = csvPower.text.toLowerCase();
   
@@ -244,7 +240,13 @@ function inferTiming(csvPower: ShipPowerTextCsv): PowerTiming {
     return TimingEnum.ONCE_ONLY_AUTOMATIC;
   }
   
-  if (subphase.includes('(Passive)') || subphase.includes('(passive)')) {
+  // Passive powers (always active, no trigger needed)
+  if (subphase === 'Passive' || subphase.includes('(Passive)') || subphase.includes('(passive)')) {
+    return TimingEnum.PASSIVE;
+  }
+  
+  // N/A or no power (treat as passive/inactive)
+  if (subphase === 'N/A') {
     return TimingEnum.PASSIVE;
   }
   
@@ -419,7 +421,7 @@ const MANUAL_POWER_OVERRIDES: Record<string, Record<number, Partial<EngineShipPo
 // ============================================================================
 
 function compilePower(
-  csvPower: ShipPowerTextCsv,
+  csvPower: ShipPowerCore,
   powerIndex: number,
   shipId: string
 ): EngineShipPower {
@@ -470,7 +472,7 @@ function inferMaxQuantity(extraRules?: string): number | undefined {
 // PHASE 9: CONVERT SHIP
 // ============================================================================
 
-function convertShipDefinition(csvShip: ShipDefinitionCsv): EngineShipDefinition {
+function convertShipDefinition(csvShip: ShipDefinitionCore): EngineShipDefinition {
   const species = mapSpecies(csvShip.species);
   const shipType = mapShipType(csvShip.shipType);
   const costs = convertCost(csvShip, shipType);
@@ -507,7 +509,7 @@ function convertShipDefinition(csvShip: ShipDefinitionCsv): EngineShipDefinition
 // ============================================================================
 
 export const ENGINE_SHIP_DEFINITIONS: EngineShipDefinition[] = 
-  PURE_SHIP_DEFINITIONS.map(convertShipDefinition);
+  SHIP_DEFINITIONS_CORE.map(convertShipDefinition);
 
 export const ENGINE_SHIP_DEFINITIONS_MAP: Record<ShipDefId, EngineShipDefinition> =
   ENGINE_SHIP_DEFINITIONS.reduce((map, def) => {
@@ -544,6 +546,10 @@ export function getShipCost(shipDefId: ShipDefId): number | null {
   if (ship.upgradedCost) return ship.upgradedCost.joiningLines;
   if (ship.basicCost) return ship.basicCost.totalLines;
   return null;
+}
+
+export function getShipsBySpecies(species: Species): EngineShipDefinition[] {
+  return ENGINE_SHIP_DEFINITIONS.filter(ship => ship.species === species);
 }
 
 // ============================================================================

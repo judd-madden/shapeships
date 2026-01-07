@@ -514,6 +514,10 @@
     position: relative;
   }
 
+  .static {
+    position: static;
+  }
+
   .inset-0 {
     inset: calc(var(--spacing) * 0);
   }
@@ -954,6 +958,10 @@
 
   .h-\[50px\] {
     height: 50px;
+  }
+
+  .h-\[52px\] {
+    height: 52px;
   }
 
   .h-\[60px\] {
@@ -1924,10 +1932,6 @@
     background-color: #000;
   }
 
-  .bg-\[\#3a3a3a\] {
-    background-color: #3a3a3a;
-  }
-
   .bg-\[\#9CFF84\] {
     background-color: #9cff84;
   }
@@ -2337,10 +2341,6 @@
 
   .py-\[10px\] {
     padding-block: 10px;
-  }
-
-  .py-\[12px\] {
-    padding-block: 12px;
   }
 
   .py-\[17px\] {
@@ -2843,6 +2843,10 @@
 
   .whitespace-nowrap {
     white-space: nowrap;
+  }
+
+  .whitespace-pre-line {
+    white-space: pre-line;
   }
 
   .whitespace-pre-wrap {

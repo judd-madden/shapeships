@@ -3,7 +3,7 @@
 // Server/engine should NOT import this file
 
 import type { ComponentType } from 'react';
-import type { ShipDefinitionCsv } from './ShipTypes.csv';
+import type { ShipDefinitionCore } from './ShipTypes.core';
 
 // ============================================================================
 // GRAPHICS TYPES (UI-ONLY)
@@ -35,7 +35,7 @@ export interface ShipGraphics {
  * ShipDefinitionUI - Client-side ship definition with graphics
  * Extends core definition with optional graphics for rendering
  */
-export interface ShipDefinitionUI extends ShipDefinitionCsv {
+export interface ShipDefinitionUI extends ShipDefinitionCore {
   graphics?: ShipGraphic[]; // Can have multiple graphics based on state
 }
 

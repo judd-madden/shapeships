@@ -385,15 +385,64 @@ export class ShapeshipsRulesEngine implements GameRules {
       return false;
     }
     
-    const { powerType, energyCost, targetPlayerId, targetShipId } = action.data || {};
-    if (!powerType || !energyCost) return false;
+    const { powerType, targetPlayerId, targetShipId } = action.data || {};
+    if (!powerType) return false;
     
-    // Check if player has enough solar energy
+    // Get solar power ship definition
+    const solarPowerShip = getShipById(powerType);
+    if (!solarPowerShip || !solarPowerShip.energyCost) {
+      console.error(`[RulesEngine] Solar power ${powerType} not found or missing energyCost`);
+      return false;
+    }
+    
+    // Get player's current energy
     const playerSolarEnergy = gameState.gameData?.solarEnergy?.[action.playerId] || { red: 0, green: 0, blue: 0 };
     
-    if ((energyCost.red || 0) > playerSolarEnergy.red) return false;
-    if ((energyCost.green || 0) > playerSolarEnergy.green) return false;
-    if ((energyCost.blue || 0) > playerSolarEnergy.blue) return false;
+    // Calculate required energy costs
+    let requiredRed = solarPowerShip.energyCost.red || 0;
+    let requiredGreen = solarPowerShip.energyCost.green || 0;
+    let requiredBlue = solarPowerShip.energyCost.blue || 0;
+    
+    // Handle X blue (variable cost based on target ship line cost)
+    if (solarPowerShip.energyCost.variable === 'ship_line_cost') {
+      if (!targetShipId) {
+        console.error(`[RulesEngine] Solar power ${powerType} requires X blue but no target ship specified`);
+        return false;
+      }
+      
+      // Find target ship in game state
+      const targetPlayerShips = gameState.gameData?.ships?.[targetPlayerId || ''] || [];
+      const targetShip = targetPlayerShips.find(ship => ship.id === targetShipId);
+      
+      if (!targetShip) {
+        console.error(`[RulesEngine] Target ship ${targetShipId} not found`);
+        return false;
+      }
+      
+      // Get target ship definition to determine line cost
+      const targetShipDef = getShipById(targetShip.definitionId || targetShip.shipId);
+      if (!targetShipDef || !targetShipDef.basicCost) {
+        console.error(`[RulesEngine] Target ship definition not found or not a basic ship`);
+        return false;
+      }
+      
+      // X blue = target ship's total line cost
+      requiredBlue = targetShipDef.basicCost.totalLines;
+    }
+    
+    // Validate player has enough energy
+    if (requiredRed > playerSolarEnergy.red) {
+      console.log(`[RulesEngine] Insufficient red energy: need ${requiredRed}, have ${playerSolarEnergy.red}`);
+      return false;
+    }
+    if (requiredGreen > playerSolarEnergy.green) {
+      console.log(`[RulesEngine] Insufficient green energy: need ${requiredGreen}, have ${playerSolarEnergy.green}`);
+      return false;
+    }
+    if (requiredBlue > playerSolarEnergy.blue) {
+      console.log(`[RulesEngine] Insufficient blue energy: need ${requiredBlue}, have ${playerSolarEnergy.blue}`);
+      return false;
+    }
     
     return true;
   }
@@ -563,7 +612,7 @@ export class ShapeshipsRulesEngine implements GameRules {
   }
   
   private applyUseSolarPower(action: GameAction, gameState: GameState): GameState {
-    const { powerType, energyCost, targetPlayerId, targetShipId } = action.data || {};
+    const { powerType, targetPlayerId, targetShipId } = action.data || {};
     
     // Store solar power declaration in pending declarations (hidden until both players ready)
     const turnData = gameState.gameData?.turnData;
@@ -573,7 +622,6 @@ export class ShapeshipsRulesEngine implements GameRules {
     playerPendingSOLAR.push({
       playerId: action.playerId,
       powerType,
-      energyCost,
       targetPlayerId,
       targetShipId,
       timestamp: new Date().toISOString()

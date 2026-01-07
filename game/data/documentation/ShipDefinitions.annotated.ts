@@ -1,14 +1,16 @@
 /**
  * Ship Definitions with Effect AST Annotations
  * 
- * ⚠️ OPTIONAL/WIP – Not used by engine yet
+ * ⚠️ EXPERIMENTAL / NOT USED AT RUNTIME
+ * 
+ * This file demonstrates how effectAst annotations can be added to ship powers.
+ * Currently NOT imported by the engine - kept for future reference only.
  * 
  * DEMONSTRATION ONLY: Shows how effectAst can be added to powers.
  * 
  * WORKFLOW:
- * 1. Import PURE_SHIP_DEFINITIONS from auto-generated core file
+ * 1. Import SHIP_DEFINITIONS_CORE from core file
  * 2. Add effectAst to specific powers (gradual migration)
- * 3. Export annotated definitions for engine use
  * 
  * CRITICAL PRINCIPLES:
  * - CSV text remains authoritative (never modified)
@@ -23,13 +25,13 @@
  * ```
  * // In engine/display code:
  * import { SHIP_DEFINITIONS_WITH_AST } from './ShipDefinitions.annotated';
- * // OR continue using PURE_SHIP_DEFINITIONS if AST not needed
+ * // OR continue using SHIP_DEFINITIONS_CORE if AST not needed
  * ```
  */
 
-import { PURE_SHIP_DEFINITIONS, SHIP_DEFINITIONS_CORE_MAP } from './ShipDefinitions.core';
-import type { ShipDefinitionCsv, ShipPowerText } from '../types/ShipTypes.csv';
-import type { EffectAst } from '../effects/EffectAst';
+import { SHIP_DEFINITIONS_CORE, SHIP_DEFINITIONS_CORE_MAP } from '../ShipDefinitions.core';
+import type { ShipDefinitionCore, ShipPowerCore } from '../../types/ShipTypes.core';
+import type { EffectAst } from '../../effects/EffectAst';
 
 // ============================================================================
 // AST ANNOTATIONS (Gradual Migration)
@@ -144,8 +146,8 @@ const POWER_AST_ANNOTATIONS: Record<string, Record<number, EffectAst>> = {
  * 3. Leaves unannotated powers unchanged
  */
 function applyAstAnnotations(
-  definitions: ShipDefinitionCsv[]
-): ShipDefinitionCsv[] {
+  definitions: ShipDefinitionCore[]
+): ShipDefinitionCore[] {
   return definitions.map(ship => {
     const annotations = POWER_AST_ANNOTATIONS[ship.id];
     
@@ -169,7 +171,7 @@ function applyAstAnnotations(
         return {
           ...power,
           effectAst: ast
-        } as ShipPowerText;
+        } as ShipPowerCore;
       })
     };
   });
@@ -185,22 +187,22 @@ function applyAstAnnotations(
  * Use this if you want to take advantage of structured effect interpretation.
  * Falls back gracefully - unannotated powers still work.
  */
-export const SHIP_DEFINITIONS_WITH_AST: ShipDefinitionCsv[] = 
-  applyAstAnnotations(PURE_SHIP_DEFINITIONS);
+export const SHIP_DEFINITIONS_WITH_AST: ShipDefinitionCore[] = 
+  applyAstAnnotations(SHIP_DEFINITIONS_CORE);
 
 /**
  * Lookup map with AST annotations
  */
-export const SHIP_DEFINITIONS_WITH_AST_MAP: Record<string, ShipDefinitionCsv> = 
+export const SHIP_DEFINITIONS_WITH_AST_MAP: Record<string, ShipDefinitionCore> = 
   SHIP_DEFINITIONS_WITH_AST.reduce((map, def) => {
     map[def.id] = def;
     return map;
-  }, {} as Record<string, ShipDefinitionCsv>);
+  }, {} as Record<string, ShipDefinitionCore>);
 
 /**
  * Get ship definition with AST annotations
  */
-export function getShipWithAst(shipDefId: string): ShipDefinitionCsv | undefined {
+export function getShipWithAst(shipDefId: string): ShipDefinitionCore | undefined {
   return SHIP_DEFINITIONS_WITH_AST_MAP[shipDefId];
 }
 
@@ -214,13 +216,13 @@ export function getShipWithAst(shipDefId: string): ShipDefinitionCsv | undefined
  * Useful for tracking migration progress.
  */
 export function getAnnotationStats() {
-  const totalShips = PURE_SHIP_DEFINITIONS.length;
+  const totalShips = SHIP_DEFINITIONS_CORE.length;
   const annotatedShips = Object.keys(POWER_AST_ANNOTATIONS).length;
   
   let totalPowers = 0;
   let annotatedPowers = 0;
   
-  PURE_SHIP_DEFINITIONS.forEach(ship => {
+  SHIP_DEFINITIONS_CORE.forEach(ship => {
     totalPowers += ship.powers.length;
     const annotations = POWER_AST_ANNOTATIONS[ship.id];
     if (annotations) {

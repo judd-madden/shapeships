@@ -1,11 +1,21 @@
-// Ship Definitions - UI DECORATOR (Adds Graphics to Core)
-// This file imports pure ship data and decorates it with React graphics components
-// Server/engine should import from ShipDefinitions.core.ts instead
+/**
+ * SHIP DEFINITIONS UI LAYER
+ * 
+ * Decorates core ship definitions with React graphics components for UI rendering.
+ * 
+ * NAMING CONVENTION:
+ * - UI components import from this file (ShipDefinitionsUI.tsx)
+ * - Engine/server code imports from ShipDefinitions.core.ts
+ * - Raw data source: ShipDefinitions.json.ts
+ * 
+ * This file is UI-ONLY and contains React component imports.
+ * DO NOT import this file from engine/server code.
+ */
 
-import { PURE_SHIP_DEFINITIONS } from './ShipDefinitions.core';
+import { SHIP_DEFINITIONS_CORE } from './ShipDefinitions.core';
 import type { ShipDefinitionUI } from '../types/ShipTypes.ui';
 import type { ShipDefId } from '../types/ShipTypes.engine';
-import type { ShipDefinitionCsv } from '../types/ShipTypes.csv';
+import type { ShipDefinitionCore } from '../types/ShipTypes.core';
 import type { ShipGraphic } from '../types/ShipTypes.ui';
 
 // Import all ship graphics
@@ -219,8 +229,8 @@ const GRAPHICS_BY_ID: Record<ShipDefId, ShipGraphic[]> = {
 // Decorates core definitions with graphics
 // Single source of truth for ship stats: ShipDefinitions.core.ts
 
-export const SHIP_DEFINITIONS: ShipDefinitionUI[] = PURE_SHIP_DEFINITIONS.map(
-  (coreDef: ShipDefinitionCsv): ShipDefinitionUI => ({
+export const SHIP_DEFINITIONS: ShipDefinitionUI[] = SHIP_DEFINITIONS_CORE.map(
+  (coreDef: ShipDefinitionCore): ShipDefinitionUI => ({
     ...coreDef,
     graphics: GRAPHICS_BY_ID[coreDef.id]
   })
@@ -239,7 +249,7 @@ if (process.env.NODE_ENV === 'development') {
   
   if (shipsWithoutGraphics.length > 0) {
     console.warn(
-      '⚠️ ShipDefinitions: The following ships are missing graphics:',
+      '⚠️ ShipDefinitionsUI: The following ships are missing graphics:',
       shipsWithoutGraphics.map(ship => `${ship.id} (${ship.name})`).join(', ')
     );
     console.warn('Check that GRAPHICS_BY_ID keys match the canonical ship IDs in ShipDefinitions.core.ts');
