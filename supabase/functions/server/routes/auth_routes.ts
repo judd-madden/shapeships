@@ -27,14 +27,24 @@ export function registerAuthRoutes(
   // ALPHA v3: Session Management
   // ============================================================================
   // POST /session/start - Create new session token
-  // Returns: { sessionToken: string }
+  // Returns: { sessionToken: string, sessionId: string, displayName?: string }
   // Client must store token and include in all subsequent requests via:
   //   X-Session-Token: <sessionToken>
   // 
+  // Accepts optional displayName in body to associate with session
   // Note: Authorization header should contain Supabase anon key for edge function access
   // ============================================================================
   app.post("/make-server-825e19ab/session/start", async (c) => {
     try {
+      // Parse request body (optional displayName)
+      let displayName: string | undefined;
+      try {
+        const body = await c.req.json();
+        displayName = body?.displayName;
+      } catch {
+        // No body provided, that's fine - displayName is optional
+      }
+
       const sessionToken = generateSessionToken();
       const sessionId = generateSessionId();
       const createdAt = new Date().toISOString();
@@ -43,7 +53,8 @@ export function registerAuthRoutes(
       const sessionData = {
         sessionId,
         sessionToken,
-        createdAt
+        createdAt,
+        displayName: displayName || null  // Store displayName if provided
       };
 
       await kvSet(`session_token_${sessionToken}`, sessionData);
@@ -51,10 +62,12 @@ export function registerAuthRoutes(
       // Also store by sessionId for reverse lookup if needed
       await kvSet(`session_id_${sessionId}`, sessionData);
 
-      console.log(`✅ Session created: ${sessionId}`);
+      console.log(`✅ Session created: ${sessionId}${displayName ? ` (${displayName})` : ''}`);
 
       return c.json({ 
         sessionToken,
+        sessionId,
+        displayName: displayName || null,
         message: "Session created successfully"
       });
 

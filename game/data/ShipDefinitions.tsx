@@ -125,16 +125,16 @@ const GRAPHICS_BY_ID: Record<ShipDefId, ShipGraphic[]> = {
     { component: CarrierShip1, condition: 'charges_1' },
     { component: CarrierShip0, condition: 'charges_0' }
   ],
-  'STR': [{ component: StarshipShip, condition: 'default' }],
+  'STA': [{ component: StarshipShip, condition: 'default' }],
   'FRI': [{ component: FrigateShip, condition: 'default' }],
   'TAC': [{ component: TacticalCruiserShip, condition: 'default' }],
-  'GRD': [
+  'GUA': [
     { component: GuardianShip2, condition: 'charges_2' },
     { component: GuardianShip1, condition: 'charges_1' },
     { component: GuardianShip0, condition: 'charges_0' }
   ],
   'SCI': [{ component: ScienceVesselShip, condition: 'default' }],
-  'BCR': [{ component: BattlecruiserShip, condition: 'default' }],
+  'BAT': [{ component: BattlecruiserShip, condition: 'default' }],
   'EAR': [{ component: EarthShip, condition: 'default' }],
   'DRE': [{ component: DreadnoughtShip, condition: 'default' }],
   'LEV': [{ component: LeviathanShip, condition: 'default' }],
@@ -159,13 +159,13 @@ const GRAPHICS_BY_ID: Record<ShipDefId, ShipGraphic[]> = {
   ],
   'ZEN': [{ component: ZenithShip, condition: 'default' }],
   'DSW': [{ component: DefenseSwarmShip, condition: 'default' }],
-  'ANA': [{ component: AntlionArrayShip, condition: 'default' }],
-  'OFA': [{ component: OxiteFaceShip, condition: 'default' }],
-  'AFA': [{ component: AsteriteFaceShip, condition: 'default' }],
+  'AAR': [{ component: AntlionArrayShip, condition: 'default' }],
+  'OXF': [{ component: OxiteFaceShip, condition: 'default' }],
+  'ASF': [{ component: AsteriteFaceShip, condition: 'default' }],
   'SAC': [{ component: SacrificialPoolShip, condition: 'default' }],
   'QUE': [{ component: QueenShip, condition: 'default' }],
   'CHR': [{ component: ChronoswarmShip, condition: 'default' }],
-  'HIV': [{ component: HiveShip, condition: 'default' }],
+  'HVE': [{ component: HiveShip, condition: 'default' }],
 
   // CENTAUR
   'FEA': [{ component: ShipOfFearShip, condition: 'default' }],
@@ -200,7 +200,7 @@ const GRAPHICS_BY_ID: Record<ShipDefId, ShipGraphic[]> = {
   // ANCIENT
   'MER': [{ component: MercuryCore, condition: 'default' }],
   'PLU': [{ component: PlutoCore, condition: 'default' }],
-  'QUM': [{ component: QuantumMystic, condition: 'default' }],
+  'QUA': [{ component: QuantumMystic, condition: 'default' }],
   'SPI': [{ component: Spiral, condition: 'default' }],
   'URA': [{ component: UranusCore, condition: 'default' }],
   'SOL': [
@@ -225,6 +225,26 @@ export const SHIP_DEFINITIONS: ShipDefinitionUI[] = PURE_SHIP_DEFINITIONS.map(
     graphics: GRAPHICS_BY_ID[coreDef.id]
   })
 );
+
+// DEV-ONLY: Warn about ships with missing graphics
+if (process.env.NODE_ENV === 'development') {
+  // Known missing graphics (post-alpha): Ancient Solar Powers
+  const knownMissingGraphics = new Set([
+    'SAST', 'SSUP', 'SLIF', 'SSTA', 'SCON', 'SSIM', 'SSIP', 'SVOR', 'SBLA'
+  ]);
+  
+  const shipsWithoutGraphics = SHIP_DEFINITIONS.filter(
+    ship => !ship.graphics || ship.graphics.length === 0
+  ).filter(ship => !knownMissingGraphics.has(ship.id));
+  
+  if (shipsWithoutGraphics.length > 0) {
+    console.warn(
+      '⚠️ ShipDefinitions: The following ships are missing graphics:',
+      shipsWithoutGraphics.map(ship => `${ship.id} (${ship.name})`).join(', ')
+    );
+    console.warn('Check that GRAPHICS_BY_ID keys match the canonical ship IDs in ShipDefinitions.core.ts');
+  }
+}
 
 // Build lookup map
 export const SHIP_DEFINITIONS_MAP: Record<ShipDefId, ShipDefinitionUI> = 

@@ -1,5 +1,5 @@
 /**
- * Login Screen
+ * Alpha Entry Screen
  * 
  * CANONICAL ENTRY POINT for PlayerMode in Alpha v3
  * 
@@ -10,6 +10,7 @@
  * 
  * Responsibilities:
  * - Collect temporary player name (local state only)
+ * - Validate player name client-side (3-20 alphanumeric chars)
  * - Trigger onPlay callback with player name
  * - Display game features and branding
  * - Provide links to external resources
@@ -26,17 +27,43 @@ import { InputField } from '../components/ui/primitives/inputs/InputField';
 import { PrimaryButton } from '../components/ui/primitives/buttons/PrimaryButton';
 import svgPaths from '../imports/svg-sgmbdp397k';
 
-interface LoginScreenProps {
+interface AlphaEntryScreenProps {
   onPlay: (playerName: string) => void;
 }
 
-export function LoginScreen({ onPlay }: LoginScreenProps) {
+/**
+ * Validates player name (client-side only)
+ * Rules: 3-20 characters, A-Z, a-z, 0-9 only (no spaces or special characters)
+ */
+function validatePlayerName(name: string): boolean {
+  const regex = /^[A-Za-z0-9]{3,20}$/;
+  return regex.test(name);
+}
+
+export function AlphaEntryScreen({ onPlay }: AlphaEntryScreenProps) {
   const [playerName, setPlayerName] = useState('');
 
+  // Validation logic
+  const onlyValidChars = /^[A-Za-z0-9]*$/.test(playerName);
+  const hasInvalidChars = playerName.length > 0 && !onlyValidChars;
+  const isTooLong = playerName.length > 20;
+  
+  // Show error if:
+  // 1. Has invalid characters (immediate error)
+  // 2. OR (has only valid chars AND length >= 3 AND too long) (deferred error)
+  const showError = hasInvalidChars || (onlyValidChars && playerName.length >= 3 && isTooLong);
+  
+  // Button enabled only when fully valid (3-20 alphanumeric characters)
+  const isValid = validatePlayerName(playerName);
+
   const handlePlay = () => {
-    if (playerName.trim()) {
+    if (isValid) {
       onPlay(playerName.trim());
     }
+  };
+
+  const handleNameChange = (value: string) => {
+    setPlayerName(value);
   };
 
   return (
@@ -141,21 +168,29 @@ export function LoginScreen({ onPlay }: LoginScreenProps) {
               <div className="content-stretch flex flex-col gap-[29px] items-start relative shrink-0 w-full">
                 
                 {/* Input Field */}
-                <InputField
-                  value={playerName}
-                  onChange={setPlayerName}
-                  placeholder="Player name"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handlePlay();
-                    }
-                  }}
-                />
+                <div className="w-full">
+                  <InputField
+                    value={playerName}
+                    onChange={handleNameChange}
+                    placeholder="Player name"
+                    error={showError}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handlePlay();
+                      }
+                    }}
+                  />
+                  {showError && (
+                    <p className="font-['Roboto'] font-normal text-[14px] text-[#FF8282] mt-2">
+                      Name must be 3–20 letters or numbers only (no spaces or symbols)
+                    </p>
+                  )}
+                </div>
                 
                 {/* Play Button */}
                 <PrimaryButton
                   onClick={handlePlay}
-                  disabled={!playerName.trim()}
+                  disabled={!isValid}
                   className="w-full"
                 >
                   PLAY
@@ -179,6 +214,8 @@ export function LoginScreen({ onPlay }: LoginScreenProps) {
                 <span>
                   <br aria-hidden="true" />
                   Name is just for this session.
+                  <br aria-hidden="true" />
+                  3–20 letters or numbers, no spaces or symbols
                   <br aria-hidden="true" />
                   Games are not tracked.
                   <br aria-hidden="true" />

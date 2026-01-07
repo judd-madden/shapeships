@@ -3,6 +3,10 @@
  * 
  * Canonical Shell for main menu/lobby
  * Matches "Menu Screen with placeholder lobby text" Figma design
+ * 
+ * SESSION INVARIANT (Alpha v3):
+ * This component assumes a valid session + player identity already exists.
+ * If player is missing, it returns null (parent handles state management).
  */
 
 import React, { useState } from 'react';
@@ -36,7 +40,18 @@ export function MenuShell({
   const [activePanel, setActivePanel] = useState('multiplayer');
   const [isCreating, setIsCreating] = useState(false);
 
-  const displayName = player?.name || user?.user_metadata?.name || user?.email || 'Guest 234';
+  // SESSION INVARIANT GUARD:
+  // MenuShell should only render when a valid player exists
+  // If player is missing during render, show nothing (parent handles state management)
+  if (!player || !player.name) {
+    // DEV-ONLY: Log warning if this happens (shouldn't in normal flow)
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('⚠️ [MenuShell] Player not ready, returning null', { player });
+    }
+    return null;
+  }
+
+  const displayName = player.name;
 
   const handleCreatePrivateGameClick = async () => {
     // Switch to the Create Private Game panel
@@ -61,8 +76,8 @@ export function MenuShell({
   };
 
   return (
-    <div className="content-stretch flex flex-col items-center pb-[120px] pt-[60px] px-4 md:px-8 lg:px-[240px] relative size-full">
-      <div className="content-stretch flex flex-col gap-[50px] items-center relative shrink-0 w-full max-w-[1920px]">
+    <div className="content-stretch flex flex-col items-center pb-[120px] pt-[60px] px-[5%] relative size-full">
+      <div className="content-stretch flex flex-col gap-[50px] items-center relative shrink-0 w-full max-w-[1430px]">
         {/* Menu Header */}
         <div className="content-stretch flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-0 relative shrink-0 w-full">
           {/* Logo */}
@@ -121,10 +136,10 @@ export function MenuShell({
               variant="private" 
               onClick={handleCreatePrivateGameClick}
               selected={activePanel === 'createPrivateGame'}
-              disabled={isCreating || activePanel === 'createPrivateGame'}
+              disabled={isCreating}
               className="w-full md:w-auto"
             >
-              {isCreating ? 'CREATING...' : 'CREATE PRIVATE GAME'}
+              CREATE PRIVATE GAME
             </MenuButton>
           </div>
         </div>
@@ -152,7 +167,7 @@ export function MenuShell({
                 </p>
                 <div className="content-stretch flex items-center pl-[4px] pr-0 py-0 relative shrink-0">
                   <p className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[#888] text-[16px] max-w-[340px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    Waiting for lobby opponent
+                    Testing the alpha!
                   </p>
                 </div>
               </div>
@@ -233,7 +248,7 @@ export function MenuShell({
           </div>
 
           {/* Menu Screen Content */}
-          <div className="content-stretch flex flex-col items-start relative shrink-0 w-full lg:w-auto lg:flex-1 max-w-full lg:max-w-[1000px]">
+          <div className="content-stretch flex flex-col items-start relative shrink-0 w-full lg:w-auto lg:flex-1 max-w-full">
             {/* Render active panel */}
             {activePanel === 'multiplayer' && (
               <MultiplayerPanel

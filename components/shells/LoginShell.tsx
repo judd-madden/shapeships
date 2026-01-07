@@ -2,11 +2,11 @@
  * LOGIN SHELL
  * 
  * Canonical Shell for entry/authentication flows
- * Delegates to LoginScreen (Alpha v3) or auth panels (Post-Alpha)
+ * Delegates to AlphaEntryScreen (Alpha v3) or auth panels (Post-Alpha)
  */
 
 import React, { useState } from 'react';
-import { LoginScreen } from '../../screens/LoginScreen';
+import { AlphaEntryScreen } from '../../screens/AlphaEntryScreen';
 import { EnterNamePanel } from '../panels/EnterNamePanel';
 import { LoginPanel } from '../panels/LoginPanel';
 import { CreateAccountPanel } from '../panels/CreateAccountPanel';
@@ -20,9 +20,9 @@ interface LoginShellProps {
 }
 
 export function LoginShell({ onNavigate, onNameSubmit, onLogin, alphaDisableAuth }: LoginShellProps) {
-  // Alpha v3: Use canonical LoginScreen component
+  // Alpha v3: Use canonical AlphaEntryScreen component
   if (alphaDisableAuth) {
-    return <LoginScreen onPlay={onNameSubmit} />;
+    return <AlphaEntryScreen onPlay={onNameSubmit} />;
   }
 
   // Post-Alpha: Full auth flow with panels

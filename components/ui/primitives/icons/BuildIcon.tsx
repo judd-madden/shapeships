@@ -9,14 +9,14 @@ interface BuildIconProps {
 
 export function BuildIcon({ className = "", color = "#D5D5D5" }: BuildIconProps) {
   return (
-    <div className={`relative w-[19.533px] h-[11.091px] ${className}`}>
-      <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 19.5333 11.0914">
+    <div className={`relative size-[24px] ${className}`}>
+      <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 16 16">
         <path 
-          d="M1 8.23951V10.0914H2.78571L8.05238 4.62963L6.26666 2.77778L1 8.23951ZM9.76666 2.85185L7.98095 1L6.77619 2.25432L8.5619 4.10617L9.76666 2.85185V2.85185Z" 
+          d="M1.42871 8.51856V10.3704H3.21442L8.48109 4.90868L6.69538 3.05683L1.42871 8.51856ZM10.1954 3.13091L8.40966 1.27905L7.2049 2.53337L8.99061 4.38523L10.1954 3.13091Z" 
           fill={color} 
         />
         <path 
-          d="M9.76666 8.23951V10.0914H11.5524L16.819 4.62963L15.0333 2.77778L9.76666 8.23951ZM18.5333 2.85185L16.7476 1L15.5429 2.25432L17.3286 4.10617L18.5333 2.85185V2.85185Z" 
+          d="M6.00002 12.667V14.5189H7.78574L13.0524 9.05712L11.2667 7.20527L6.00002 12.667ZM14.7667 7.27934L12.981 5.42749L11.7762 6.68181L13.5619 8.53367L14.7667 7.27934Z" 
           fill={color} 
         />
       </svg>

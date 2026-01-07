@@ -22,16 +22,16 @@ export function PrimaryButton({
       onClick={onClick}
       disabled={disabled}
       className={`
-        bg-white
+        ${disabled ? 'bg-[#555555]' : 'bg-white'}
         content-stretch flex items-center justify-center 
         px-[20px] py-[17px] 
         relative rounded-[10px] 
         shadow-[0px_0px_10px_0px_rgba(0,0,0,0.25)] 
         w-full
-        hover:scale-105
+        hover:scale-[1.03]
         transition-transform
         cursor-pointer
-        disabled:opacity-50 disabled:cursor-not-allowed
+        disabled:cursor-pointer
         ${className}
       `}
     >

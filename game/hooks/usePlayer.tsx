@@ -61,9 +61,30 @@ export function usePlayer() {
 
   const updatePlayerName = (newName: string) => {
     if (player) {
+      // Player exists, update it
       const updatedPlayer = { ...player, name: newName };
       setPlayer(updatedPlayer);
       sessionStorage.setItem('shapeships-player-name', newName);
+      console.log('👤 [usePlayer] Updated existing player name:', newName);
+    } else {
+      // Player doesn't exist, create minimal player object
+      // ID will be session-derived in future, for now use temp client ID
+      const existingId = sessionStorage.getItem('shapeships-player-id');
+      const playerId = existingId || `player_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 5)}`;
+      
+      const newPlayer = {
+        id: playerId,
+        name: newName,
+        isSpectator: false
+      };
+      
+      // Store in session storage
+      sessionStorage.setItem('shapeships-player-id', playerId);
+      sessionStorage.setItem('shapeships-player-name', newName);
+      sessionStorage.setItem('shapeships-is-spectator', 'false');
+      
+      setPlayer(newPlayer);
+      console.log('👤 [usePlayer] Created new player:', { id: playerId, name: newName });
     }
   };
 
@@ -80,6 +101,7 @@ export function usePlayer() {
     sessionStorage.removeItem('shapeships-player-name');
     sessionStorage.removeItem('shapeships-is-spectator');
     setPlayer(null);
+    console.log('🗑️ [usePlayer] Player cleared from session storage');
   };
 
   return {

@@ -123,7 +123,8 @@ const kvGetByPrefix = async (prefix) => {
 // ============================================================================
 
 // Validate session token and return session identity
-// Returns { sessionId, createdAt } on success, null on failure
+// Alpha v3: Check token exists and isn't expired
+// Returns { sessionId, createdAt, displayName } on success, null on failure
 const validateSessionToken = async (token: string) => {
   if (!token) {
     console.error('Session validation failed: No token provided');
@@ -151,7 +152,8 @@ const validateSessionToken = async (token: string) => {
 
     return {
       sessionId: sessionData.sessionId,
-      createdAt: sessionData.createdAt
+      createdAt: sessionData.createdAt,
+      displayName: sessionData.displayName || null
     };
   } catch (error) {
     console.error('Session validation error:', error);
@@ -229,6 +231,48 @@ registerAuthRoutes(app, kvGet, kvSet);
 registerTestRoutes(app, kvGet, kvSet, kvDel);
 registerGameRoutes(app, kvGet, kvSet, requireSession, generateGameId, ServerPhaseEngine, getShipDef, getShipCost, getShipName, getShipHealth, getShipDamage);
 registerIntentRoutes(app, kvGet, kvSet, requireSession, supabase);
+
+// ============================================================================
+// SESSION METADATA ENDPOINT (ADDITIONAL)
+// ============================================================================
+// GET /session/me - Resolve session metadata for existing token
+// Client calls this to get truthful sessionId/displayName when token exists
+// Uses validateSessionToken() from above (no duplication of validation logic)
+// ============================================================================
+app.get("/make-server-825e19ab/session/me", async (c) => {
+  try {
+    const sessionToken = c.req.header('X-Session-Token');
+    
+    if (!sessionToken) {
+      console.error('Session metadata error: Missing X-Session-Token header');
+      return c.json({ 
+        error: 'Unauthorized',
+        message: 'Missing X-Session-Token header'
+      }, 401);
+    }
+
+    const session = await validateSessionToken(sessionToken);
+    
+    if (!session) {
+      console.error('Session metadata error: Invalid or expired token');
+      return c.json({ 
+        error: 'Unauthorized',
+        message: 'Invalid or expired session token'
+      }, 401);
+    }
+
+    // Return session metadata
+    return c.json({
+      sessionId: session.sessionId,
+      createdAt: session.createdAt,
+      displayName: session.displayName || null
+    });
+
+  } catch (error) {
+    console.error('Session metadata error:', error);
+    return c.json({ error: 'Failed to retrieve session metadata' }, 500);
+  }
+});
 
 // ============================================================================
 // START SERVER - MUST NOT CHANGE

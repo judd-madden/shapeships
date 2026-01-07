@@ -2,55 +2,110 @@
 
 A minimalist multiplayer turn-based strategy game built with React, Tailwind CSS, and Supabase.
 
----
-
-## 📚 **NEW: Documentation Index**
-
-**Looking for documentation?** → See **[DOCUMENTATION_INDEX.md](guidelines/DOCUMENTATION_INDEX.md)** for a complete guide to all project documentation.
-
-**Quick Start for New Developers:**
-1. Read this README for project overview
-2. Read [Guidelines.md](guidelines/Guidelines.md) for development rules ⭐ **MOST IMPORTANT**
-3. Read [DESIGN_REVIEW.md](guidelines/DESIGN_REVIEW.md) for current design state
-4. Check [DOCUMENTATION_INDEX.md](guidelines/DOCUMENTATION_INDEX.md) for everything else
+**Version:** Make 444 | Git Commit: 260106-5  
+**Development Status:** Active development with GPT as director
 
 ---
 
-## 🎮 Current Status: Major Version 1.0 ✅
+## 📚 **START HERE: Canonical Handoff Document**
 
-**Complete multiplayer framework with game engine ready for rules implementation**
+🎯 **For all developers and AI assistants:**  
+→ Read **[/documentation/architecture/canonical-handoff.md](documentation/architecture/canonical-handoff.md)** first
 
-### ✅ Implemented Features
+This document is the single source of truth for:
+- System architecture and design decisions
+- Implementation patterns and constraints
+- Phase structure and game mechanics
+- Critical invariants and safety rules
 
-- **🔐 Authentication System** - Complete Supabase auth with signup/login
-- **🚀 Multiplayer Framework** - Real-time game creation, joining, and state sync
-- **⚡ Edge Functions** - Robust backend with comprehensive API endpoints
-- **🎨 Graphics System** - Modular asset management with faction-based organization
-- **🏗️ Game Engine** - Separated logic/display architecture ready for rules
-- **🛠️ Development Tools** - Comprehensive testing dashboard and deployment system
-- **📱 Responsive Design** - Clean, minimalist interface with Roboto typography
+---
 
-### 🏗️ Architecture
+## 📋 Quick Navigation
 
-**Game Engine Framework:**
-- `GameEngine.tsx` - Core game logic (pure functions)
-- `RulesEngine.tsx` - Game-specific rules implementation (ready for Shapeships rules)
-- `GameTypes.tsx` - Complete TypeScript interfaces
-- `GameBoard.tsx` - Pure UI components for game rendering
-- `useGameState.tsx` - React hooks bridging engine and UI
+**For New Developers:**
+1. ⭐ [Canonical Handoff Document](documentation/architecture/canonical-handoff.md) - **MOST IMPORTANT**
+2. [Guidelines.md](Guidelines.md) - Development rules and standards
+3. [DOCUMENTATION_INDEX.md](guidelines/DOCUMENTATION_INDEX.md) - Complete documentation map
 
-**Multiplayer Backend:**
-- Supabase Edge Functions with KV store
-- Real-time game state synchronization
-- Player management and URL sharing
-- Comprehensive system testing endpoints
+**Key Documentation:**
+- **Architecture:** `/documentation/architecture/` - System design and patterns
+- **Engine Docs:** `/game/engine/documentation/` - Game engine architecture
+- **Guidelines:** `/guidelines/` - Project specifications and rules
 
-**Graphics Organization:**
-- `/graphics/global/` - Shared assets (space background)
-- `/graphics/human/` - Human faction assets
-- `/graphics/xenite/` - Xenite faction assets  
-- `/graphics/centaur/` - Centaur faction assets
-- `/graphics/ancient/` - Ancient faction assets
+---
+
+## 🎮 Current Status: Alpha Development
+
+**Active Features:**
+- ✅ Complete authentication system (Supabase)
+- ✅ Multiplayer framework with real-time sync
+- ✅ Game engine with 3-phase turn structure
+- ✅ 71 ship graphics across 4 species (Human, Xenite, Centaur, Ancient)
+- ✅ Rules panel with Core Rules content
+- ✅ Build Kit UI primitives library
+- ✅ Space background and color palette system
+
+**In Active Development:**
+- 🚧 Species-specific rules pages
+- 🚧 Enhanced game interface components
+- 🚧 Turn timing visualizations
+
+---
+
+## 🏗️ Architecture Overview
+
+### Core Systems
+
+**Frontend:**
+- React + TypeScript + Tailwind CSS v4
+- Modular component architecture (shells → panels → primitives)
+- Central Build Kit for reusable UI components
+
+**Backend:**
+- Supabase Edge Functions (Hono web server)
+- KV store for game state
+- Real-time polling (5-second intervals)
+- RESTful API with comprehensive endpoints
+
+**Game Engine:**
+- Pure function design (no React dependencies)
+- Separated logic (`/game/engine/`) and display (`/game/display/`)
+- 3-phase turn system: Build → Battle → End of Turn Resolution
+- Species-based ship mechanics with CSV auto-generation
+
+### Directory Structure
+
+```
+├── /game/                       # Game engine and logic
+│   ├── /engine/                 # Core game logic
+│   │   ├── /documentation/      # Engine architecture docs
+│   │   ├── GameEngine.tsx       # Main engine
+│   │   ├── GamePhases.tsx       # Phase management
+│   │   └── RulesEngine.tsx      # Rules implementation
+│   ├── /display/                # UI components
+│   ├── /hooks/                  # React state management
+│   └── /types/                  # TypeScript interfaces
+├── /graphics/                   # SVG React components by species
+│   ├── /global/                 # Shared assets
+│   ├── /human/                  # Human faction (21 ships)
+│   ├── /xenite/                 # Xenite faction (22 ships)
+│   ├── /centaur/                # Centaur faction (22 ships)
+│   └── /ancient/                # Ancient faction (6 ships)
+├── /components/                 # React components
+│   ├── /ui/primitives/          # Build Kit - reusable UI components
+│   ├── /shells/                 # Layout shells (LoginShell, MenuShell, GameShell)
+│   ├── /panels/                 # Content panels (MultiplayerPanel, RulesPanel, etc.)
+│   └── /dev/                    # Development tools
+├── /supabase/                   # Backend edge functions
+│   └── /functions/server/       # Hono server implementation
+├── /documentation/              # Project documentation
+│   └── /architecture/           # 📚 System architecture docs (START HERE)
+├── /guidelines/                 # 📚 Development guidelines
+├── /utils/                      # Utilities and helpers
+└── /styles/                     # Global CSS and design tokens
+```
+
+---
 
 ## 🚀 Getting Started
 
@@ -77,6 +132,8 @@ A minimalist multiplayer turn-based strategy game built with React, Tailwind CSS
    - Test all systems using the built-in testing suite
    - Use the multiplayer test for real-time game validation
 
+---
+
 ## 🎯 Development Dashboard
 
 The project includes a comprehensive development dashboard with:
@@ -86,9 +143,12 @@ The project includes a comprehensive development dashboard with:
 - **Authentication** - Test user signup and login functionality
 - **Multiplayer Test** - Create games, share URLs, test real-time communication
 - **Graphics Test** - Validate asset loading and display
-- **Game Screen** - Preview game interface (ready for rules implementation)
+- **Build Kit Showcase** - View all UI primitives
+- **Game Screen** - Live game interface preview
 
 Access by running the project and visiting the dashboard at the root URL.
+
+---
 
 ## 🎮 Multiplayer System
 
@@ -98,53 +158,13 @@ Access by running the project and visiting the dashboard at the root URL.
 3. Other players join via URL → real-time state sync
 4. Game actions → validated and distributed to all players
 
-**Real-time Features:**
-- Live player joining/leaving
-- Message system between players
-- Game state synchronization
-- Action validation and processing
+**Technical Details:**
+- 5-second polling architecture (appropriate for turn-based gameplay)
+- KV store for persistent game state
+- Session management with requireSession pattern
+- Supports 1-30 simultaneous games on free tier
 
-## 📁 Project Structure
-
-```
-├── /game/                    # Game engine and logic
-│   ├── /engine/             # Core game logic (rules-ready)
-│   │   ├── /documentation/  # 📚 Engine architecture docs
-│   │   ├── GameEngine.tsx
-│   │   ├── GamePhases.tsx
-│   │   └── RulesEngine.tsx
-│   ├── /display/            # UI components
-│   ├── /hooks/              # React state management
-│   └── /types/              # TypeScript interfaces
-├── /graphics/               # Asset management by faction
-├── /components/             # React components
-├── /supabase/               # Backend edge functions
-├── /utils/                  # Utilities and helpers
-├── /guidelines/             # 📚 Project documentation
-└── /styles/                 # Global CSS and design tokens
-```
-
-## 📚 Documentation
-
-**Engine Architecture:**  
-→ See `/game/engine/documentation/` for comprehensive game engine documentation
-
-**Project Guidelines:**  
-→ See `/guidelines/DOCUMENTATION_INDEX.md` for complete documentation index
-
-**Quick Start:**
-1. Read [Guidelines.md](guidelines/Guidelines.md) for development rules ⭐ **MOST IMPORTANT**
-2. Read [Engine Architecture Summary](/game/engine/documentation/ENGINE_ARCHITECTURE_SUMMARY.md) for engine overview
-3. Read [System Constraints](/game/engine/documentation/SYSTEM_CONSTRAINTS.md) for hard invariants
-
-## 🔧 Technology Stack
-
-- **Frontend:** React, TypeScript, Tailwind CSS v4
-- **Backend:** Supabase (Database, Auth, Edge Functions)
-- **Real-time:** Supabase KV Store with polling
-- **Styling:** Custom Shapeships color palette with Roboto typography
-- **State Management:** Custom React hooks with game engine
-- **Testing:** Built-in comprehensive testing suite
+---
 
 ## 🎨 Design System
 
@@ -153,35 +173,76 @@ Access by running the project and visiting the dashboard at the root URL.
 - **Vibrant:** Standard colors for accents and highlights
 - **Greys:** 90, 70, 50, 20 for text and backgrounds
 - **Core:** Black and White for base elements
+- **Special:** Shapeships colors defined in globals.css
 
-**Typography:** Roboto font family with 14px base size
+**Typography:**
+- Roboto font family (already configured)
+- Base font size: 14px
+- Font variation settings for width control
 
-## 🚧 Next Development Phase
+**Build Kit Components:**
+- Buttons: Primary, Menu, Ready, Action (standard & small)
+- Inputs: InputField
+- Controls: RadioButton, Checkbox
+- Navigation: Tab, SecondaryNavItem
+- Icons: BuildIcon, BattleIcon, HeartIcon, ChevronDown
+- Lobby: LobbyRow
+- Dice: Dice display component
 
-**Ready for Implementation:**
-1. **Game Rules** - Shapeships-specific mechanics in `RulesEngine.tsx`
-2. **Ship Graphics** - Integration of faction-specific ship assets
-3. **Game Interface** - Detailed game board and interaction screens
-4. **Polish** - Final UI refinements and animations
+---
 
-The game engine framework is designed to seamlessly accept game rules while maintaining the established multiplayer and graphics systems.
+## 🔧 Technology Stack
 
-## 📝 Development Approach
+- **Frontend:** React, TypeScript, Tailwind CSS v4
+- **Backend:** Supabase (Database, Auth, Edge Functions)
+- **Real-time:** KV Store with 5-second polling
+- **Server:** Hono web framework (Deno runtime)
+- **Styling:** Custom Shapeships color palette with Roboto typography
+- **State Management:** Custom React hooks with game engine
+- **Testing:** Built-in comprehensive testing suite
 
-- **Minimalist Philosophy** - Clean, focused implementation
-- **Step-by-step** - Build and test incrementally
-- **No Assumptions** - Explicit specifications for all content and styling
-- **Supabase Integration** - Only when necessary, with comprehensive testing
+---
+
+## 📚 Key Documentation Files
+
+**Must-Read for Development:**
+- [Canonical Handoff](documentation/architecture/canonical-handoff.md) ⭐ PRIMARY
+- [Guidelines.md](Guidelines.md) - Development rules
+- [Engine Architecture Summary](/game/engine/documentation/ENGINE_ARCHITECTURE_SUMMARY.md)
+- [System Constraints](/game/engine/documentation/SYSTEM_CONSTRAINTS.md)
+
+**For Deep Dives:**
+- [Alpha v3 Implementation Summary](documentation/architecture/alpha-v3-implementation-summary.md)
+- [Phase 3.5 Corrective Summary](documentation/architecture/phase-3-5-corrective-summary.md)
+- [Documentation Index](guidelines/DOCUMENTATION_INDEX.md)
+
+---
+
+## 📝 Development Philosophy
+
+- **Minimalist Approach:** Clean, focused implementation without complexity
+- **Step-by-step:** Comprehensive testing at each stage
+- **No Assumptions:** Everything explicitly specified
+- **Separation of Concerns:** Game logic separated from display components
+- **AI-Safe Architecture:** Pure functions, comprehensive TypeScript interfaces
+- **GPT as Director:** Active development with AI-assisted iteration
+
+---
 
 ## 🔗 Links
 
 - **Repository:** https://github.com/judd-madden/shapeships-figma-make.git
 - **Graphics Host:** https://juddmadden.com/shapeships/images/
 
-## 📄 License
+---
 
-[Add your license information here]
+## 📄 Version History
+
+See [VERSION.md](VERSION.md) for detailed version history.
+
+**Current:** Make 444 | Git Commit: 260106-5  
+**Status:** Alpha development with active iteration
 
 ---
 
-**Ready for the next phase: Game rules implementation and ship graphics integration**
+**Ready for development: GPT-directed iteration with solid architectural foundation**

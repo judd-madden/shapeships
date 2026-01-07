@@ -15,6 +15,12 @@ import { projectId, publicAnonKey } from './supabase/info';
 const SESSION_TOKEN_KEY = 'ss_sessionToken';
 const SESSION_STORAGE = 'localStorage'; // or 'sessionStorage' for tab-only
 
+// Safe dev mode check (import.meta may be undefined in some environments)
+const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
+
+// Storage selector: honor SESSION_STORAGE setting
+const storage = SESSION_STORAGE === 'sessionStorage' ? sessionStorage : localStorage;
+
 /**
  * Guard against accidentally using session token in Authorization header
  * This would be a security issue and architectural violation
@@ -28,7 +34,7 @@ function guardAgainstSessionTokenMisuse(headers: Record<string, string>) {
     console.error('Got:', authHeader);
     
     // In development, throw error to catch bugs immediately
-    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+    if (isDev) {
       throw new Error(errorMsg);
     }
   }
@@ -37,19 +43,80 @@ function guardAgainstSessionTokenMisuse(headers: Record<string, string>) {
 /**
  * Ensure a valid session token exists
  * If no token exists, creates one by calling POST /session/start
- * @returns {Promise<string>} The session token
+ * If token exists but displayName is provided, clears and creates fresh session (Alpha-safe)
+ * If token exists and no displayName, resolves metadata from server via GET /session/me
+ * @param {string} [displayName] - Optional display name to associate with session
+ * @returns {Promise<{ sessionToken: string, sessionId: string, displayName: string | null }>} The session data
  */
-export async function ensureSession(): Promise<string> {
+export async function ensureSession(displayName?: string): Promise<{ sessionToken: string, sessionId: string, displayName: string | null }> {
   // Check for existing token
-  const existingToken = localStorage.getItem(SESSION_TOKEN_KEY);
+  const existingToken = storage.getItem(SESSION_TOKEN_KEY);
   
   if (existingToken) {
-    console.log('✅ Existing session token found');
-    return existingToken;
+    // Case A: Token exists AND displayName provided → force fresh session
+    if (displayName) {
+      if (isDev) {
+        console.log('[Session] displayName provided with existing token → clearing and minting fresh');
+      }
+      clearSession();
+      // Fall through to create new session with displayName
+    } else {
+      // Case B: Token exists, no displayName → resolve metadata from server
+      try {
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/session/me`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${publicAnonKey}`,
+              'apikey': publicAnonKey,
+              'X-Session-Token': existingToken,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (isDev) {
+            console.log('[Session] resolved existing token via /session/me', {
+              sessionId: data.sessionId,
+              displayName: data.displayName
+            });
+          }
+          return {
+            sessionToken: existingToken,
+            sessionId: data.sessionId,
+            displayName: data.displayName
+          };
+        } else if (response.status === 401 || response.status === 403) {
+          // Token is invalid or expired - clear and create new session
+          if (isDev) {
+            console.log('[Session] existing token invalid → cleared');
+          }
+          clearSession();
+          // Fall through to create new session
+        } else {
+          // Server error (5xx) or other non-auth error - keep token, throw error
+          const errorText = await response.text().catch(() => 'Unknown error');
+          if (isDev) {
+            console.log(`[Session] failed to resolve session metadata (status ${response.status}) - keeping token`);
+          }
+          throw new Error(`Session metadata resolution failed: ${response.status} ${errorText}`);
+        }
+      } catch (error) {
+        // Network error or other exception - do NOT clear token, re-throw
+        if (isDev) {
+          console.log('[Session] network error while resolving token - keeping token');
+        }
+        throw error;
+      }
+    }
   }
 
-  // No token found - create new session
-  console.log('⚠️ No session token found, creating new session...');
+  // No token (or was cleared above) - create new session
+  if (isDev) {
+    console.log(`[Session] creating new session${displayName ? ` for ${displayName}` : ''}`);
+  }
   
   try {
     const response = await fetch(
@@ -61,6 +128,7 @@ export async function ensureSession(): Promise<string> {
           'Authorization': `Bearer ${publicAnonKey}`, // Supabase anon key for edge function access
           'apikey': publicAnonKey,                    // Supabase anon key (alternative header)
         },
+        body: displayName ? JSON.stringify({ displayName }) : undefined,
       }
     );
 
@@ -70,17 +138,19 @@ export async function ensureSession(): Promise<string> {
     }
 
     const data = await response.json();
-    const { sessionToken } = data;
+    const { sessionToken, sessionId, displayName: returnedDisplayName } = data;
 
     if (!sessionToken) {
       throw new Error('Server did not return sessionToken');
     }
 
     // Store token
-    localStorage.setItem(SESSION_TOKEN_KEY, sessionToken);
-    console.log('✅ New session created and stored');
+    storage.setItem(SESSION_TOKEN_KEY, sessionToken);
+    if (isDev) {
+      console.log(`[Session] new session created and stored${returnedDisplayName ? ` (${returnedDisplayName})` : ''}`);
+    }
 
-    return sessionToken;
+    return { sessionToken, sessionId, displayName: returnedDisplayName };
   } catch (error) {
     console.error('❌ Session creation failed:', error);
     throw error;
@@ -92,7 +162,7 @@ export async function ensureSession(): Promise<string> {
  * @returns {string | null} The session token if it exists, null otherwise
  */
 export function getSessionToken(): string | null {
-  return localStorage.getItem(SESSION_TOKEN_KEY);
+  return storage.getItem(SESSION_TOKEN_KEY);
 }
 
 /**
@@ -100,8 +170,10 @@ export function getSessionToken(): string | null {
  * Use when player explicitly logs out or session should be reset
  */
 export function clearSession(): void {
-  localStorage.removeItem(SESSION_TOKEN_KEY);
-  console.log('🗑️ Session token cleared');
+  storage.removeItem(SESSION_TOKEN_KEY);
+  if (isDev) {
+    console.log('🗑️ [Session] token cleared');
+  }
 }
 
 /**
@@ -113,15 +185,14 @@ export function clearSession(): void {
  * Authorization header contains Supabase anon key (for edge function access)
  * 
  * @param {string} endpoint - The endpoint path (e.g., '/create-game')
- * @param {RequestInit} options - Fetch options (method, body, etc.)
- * @returns {Promise<Response>} The fetch response
+ * @param {RequestInit} options - Fetch options (method, body, etc.)\n * @returns {Promise<Response>} The fetch response
  */
 export async function authenticatedFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<Response> {
   // Ensure we have a valid session token
-  const sessionToken = await ensureSession();
+  const sessionData = await ensureSession();
 
   // Build full URL
   const url = `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab${endpoint}`;
@@ -132,13 +203,15 @@ export async function authenticatedFetch(
     ...options.headers,
     'Authorization': `Bearer ${publicAnonKey}`, // Supabase anon key (edge function access)
     'apikey': publicAnonKey,                    // Supabase anon key (alternative header)
-    'X-Session-Token': sessionToken,            // Session token (application identity)
+    'X-Session-Token': sessionData.sessionToken, // Session token (application identity)
   };
 
   // Guard against misuse of session token in Authorization header
   guardAgainstSessionTokenMisuse(headers);
 
-  console.log(`🔐 Authenticated request to ${endpoint}`);
+  if (isDev) {
+    console.log(`🔐 Authenticated request to ${endpoint}`);
+  }
 
   return fetch(url, {
     ...options,

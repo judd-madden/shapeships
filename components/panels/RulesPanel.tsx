@@ -1,48 +1,68 @@
 /**
  * RULES PANEL
  * 
- * Alpha v3: Stub - To be implemented
- * Placeholder for game rules and species guides
+ * Container for all Rules pages
+ * Owns secondary navigation tabs and routes to individual page panels
  */
 
-import React from 'react';
-import { Button } from '../ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import React, { useState } from 'react';
+import { SecondaryNavItem } from '../ui/primitives/navigation/SecondaryNavItem';
+import { CoreRulesPanel } from './CoreRulesPanel';
+import { TurnTimingsPanel } from './TurnTimingsPanel';
+import { SpeciesRulesPanel } from './SpeciesRulesPanel';
+
+type RulesTab = 'core' | 'human' | 'xenite' | 'centaur' | 'ancient' | 'timings';
 
 export function RulesPanel() {
+  const [activeTab, setActiveTab] = useState<RulesTab>('core');
+
+  const handleNavigate = (tab: RulesTab) => {
+    setActiveTab(tab);
+  };
+
   return (
-    <Card className="backdrop-blur-sm border-shapeships-grey-20/30" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
-      <CardHeader>
-        <CardTitle className="text-shapeships-grey-90">Rules & Codex</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-sm text-shapeships-grey-70 mb-4">
-          Learn how to play Shapeships and master the tactics of each species.
-        </p>
-        <div className="space-y-2">
-          <Button variant="outline" disabled className="w-full justify-start">
-            Core Rules
-          </Button>
-          <Button variant="outline" disabled className="w-full justify-start">
-            Human Species Guide
-          </Button>
-          <Button variant="outline" disabled className="w-full justify-start">
-            Xenite Species Guide
-          </Button>
-          <Button variant="outline" disabled className="w-full justify-start">
-            Centaur Species Guide
-          </Button>
-          <Button variant="outline" disabled className="w-full justify-start">
-            Ancient Species Guide
-          </Button>
-          <Button variant="outline" disabled className="w-full justify-start">
-            Turn Timing Reference
-          </Button>
-        </div>
-        <p className="text-xs text-shapeships-grey-50 mt-4 italic">
-          Full rules system implementation coming soon
-        </p>
-      </CardContent>
-    </Card>
+    <div className="content-stretch flex flex-col gap-[90px] items-start relative w-full max-w-[1200px]">
+      {/* Secondary Navigation */}
+      <div className="content-center flex flex-wrap gap-[10px] items-center pb-[24px] relative shrink-0 w-full">
+        <SecondaryNavItem 
+          label="Core Rules" 
+          selected={activeTab === 'core'} 
+          onClick={() => handleNavigate('core')} 
+        />
+        <SecondaryNavItem 
+          label="Human" 
+          selected={activeTab === 'human'} 
+          onClick={() => handleNavigate('human')} 
+        />
+        <SecondaryNavItem 
+          label="Xenite" 
+          selected={activeTab === 'xenite'} 
+          onClick={() => handleNavigate('xenite')} 
+        />
+        <SecondaryNavItem 
+          label="Centaur" 
+          selected={activeTab === 'centaur'} 
+          onClick={() => handleNavigate('centaur')} 
+        />
+        <SecondaryNavItem 
+          label="Ancient" 
+          selected={activeTab === 'ancient'} 
+          onClick={() => handleNavigate('ancient')} 
+        />
+        <SecondaryNavItem 
+          label="Turn Timings" 
+          selected={activeTab === 'timings'} 
+          onClick={() => handleNavigate('timings')} 
+        />
+      </div>
+
+      {/* Page Content */}
+      {activeTab === 'core' && <CoreRulesPanel onNavigate={handleNavigate} />}
+      {activeTab === 'human' && <SpeciesRulesPanel species="Human" onNavigate={handleNavigate} />}
+      {activeTab === 'xenite' && <SpeciesRulesPanel species="Xenite" onNavigate={handleNavigate} />}
+      {activeTab === 'centaur' && <SpeciesRulesPanel species="Centaur" onNavigate={handleNavigate} />}
+      {activeTab === 'ancient' && <SpeciesRulesPanel species="Ancient" onNavigate={handleNavigate} />}
+      {activeTab === 'timings' && <TurnTimingsPanel onNavigate={handleNavigate} />}
+    </div>
   );
 }

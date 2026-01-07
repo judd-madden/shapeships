@@ -28,6 +28,7 @@ export { SecondaryNavItem } from './navigation/SecondaryNavItem';
 export { ChevronDown } from './icons/ChevronDown';
 export { BuildIcon } from './icons/BuildIcon';
 export { BattleIcon } from './icons/BattleIcon';
+export { HeartIcon } from './icons/HeartIcon';
 
 // Dice
 export { Dice } from './dice/Dice';

@@ -20,6 +20,7 @@ import {
   ChevronDown,
   BuildIcon,
   BattleIcon,
+  HeartIcon,
   Dice
 } from '../ui/primitives';
 
@@ -145,6 +146,10 @@ export function BuildKitShowcase() {
             <div>
               <p className="text-sm text-[#888888] mb-2">Battle</p>
               <BattleIcon />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Heart</p>
+              <HeartIcon />
             </div>
           </div>
         </section>

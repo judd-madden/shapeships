@@ -53,8 +53,8 @@ export function MenuButton({
           relative rounded-[10px] 
           w-[280px]
           before:absolute before:border-[3px] before:border-solid before:border-white before:inset-[-3px] before:pointer-events-none before:rounded-[13px]
-          cursor-pointer
-          disabled:opacity-50 disabled:cursor-not-allowed
+          cursor-default
+          disabled:cursor-pointer
           ${className}
         `}
       >
@@ -73,7 +73,7 @@ export function MenuButton({
       onClick={onClick}
       disabled={disabled}
       className={`
-        ${styles.default}
+        ${disabled ? 'bg-[#555555]' : styles.default}
         content-stretch flex h-[72px] items-center justify-center 
         p-[20px] 
         relative rounded-[10px] 
@@ -81,7 +81,7 @@ export function MenuButton({
         hover:scale-105
         transition-transform
         cursor-pointer
-        disabled:opacity-50 disabled:cursor-not-allowed
+        disabled:cursor-pointer
         ${className}
       `}
     >

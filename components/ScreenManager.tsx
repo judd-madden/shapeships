@@ -29,7 +29,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { usePlayer } from '../game/hooks/usePlayer';
-import { clearSession, authenticatedPost } from '../utils/sessionManager';
+import { clearSession, authenticatedPost, ensureSession } from '../utils/sessionManager';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { LoginShell } from './shells/LoginShell';
 import { MenuShell } from './shells/MenuShell';
@@ -53,6 +53,7 @@ export default function ScreenManager({ onSwitchToDevMode }: ScreenManagerProps)
   const [currentShell, setCurrentShell] = useState('login');
   const [user, setUser] = useState(null);
   const [activeGameId, setActiveGameId] = useState<string | null>(null);
+  const [isStartingSession, setIsStartingSession] = useState(false);
   const { player, updatePlayerName, clearPlayer } = usePlayer();
 
   // Check URL parameters on mount (for direct game links)
@@ -77,9 +78,42 @@ export default function ScreenManager({ onSwitchToDevMode }: ScreenManagerProps)
     setCurrentShell(shell);
   };
 
-  const handleNameSubmit = (displayName: string) => {
-    updatePlayerName(displayName);
-    setCurrentShell('menu');
+  const handleNameSubmit = async (displayName: string) => {
+    // ALPHA v3 ENTRY SEMANTICS:
+    // Entry screen submission is an atomic "begin session" operation:
+    // 1. Create server session (mint session token) with displayName
+    // 2. Update local player state with session-derived identity
+    // 3. Navigate to menu only after session + player are ready
+    // This ensures MenuShell never renders without valid session + player identity
+    
+    console.log('🎮 [Entry] Starting session for player:', displayName);
+    setIsStartingSession(true);
+    
+    try {
+      // Step 1: Ensure session token exists with displayName
+      const sessionData = await ensureSession(displayName);
+      console.log('✅ [Entry] Session created/validated:', {
+        hasToken: !!sessionData.sessionToken,
+        sessionId: sessionData.sessionId,
+        displayName: sessionData.displayName
+      });
+      
+      // Step 2: Update player name in local state
+      // This will create a new player if one doesn't exist
+      updatePlayerName(displayName);
+      console.log('✅ [Entry] Player name set:', displayName);
+      
+      // Step 3: Navigate to menu (session + player are now ready)
+      setCurrentShell('menu');
+      console.log('✅ [Entry] Navigation to menu complete');
+      
+    } catch (error) {
+      console.error('❌ [Entry] Failed to start session:', error);
+      // TODO: Show error UI to user
+      alert('Failed to start session. Please try again.');
+    } finally {
+      setIsStartingSession(false);
+    }
   };
 
   const handleGameCreated = (gameId: string) => {

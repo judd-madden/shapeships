@@ -72,7 +72,7 @@ export function CreatePrivateGamePanel({
           variant="private" 
           onClick={handleCreateGame}
           disabled={isCreating}
-          className="w-full md:w-auto"
+          className="w-full md:w-auto md:min-w-[300px]"
         >
           {isCreating ? 'CREATING...' : 'CREATE PRIVATE GAME'}
         </MenuButton>

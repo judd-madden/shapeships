@@ -1754,14 +1754,19 @@ function SessionDebugCard() {
     setLastResult(null);
     
     try {
-      const token = await ensureSession();
-      setSessionToken(token);
+      // Pass a debug display name for test harness sessions
+      const sessionData = await ensureSession('Debug Tester');
+      setSessionToken(sessionData.sessionToken);
       setLastResult({ 
         success: true, 
-        message: `Session created/refreshed successfully`,
+        message: `Session created/refreshed successfully (${sessionData.displayName || 'no name'})`,
         status: 200
       });
-      console.log('✅ Session token:', token.substring(0, 6) + '...');
+      console.log('✅ Session created:', {
+        token: sessionData.sessionToken.substring(0, 6) + '...',
+        sessionId: sessionData.sessionId,
+        displayName: sessionData.displayName
+      });
     } catch (error) {
       console.error('Session creation error:', error);
       setLastResult({ 
@@ -2362,147 +2367,7 @@ function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymen
         </div>
       </div>
 
-      <Separator className="my-8" />
 
-      {/* Priority 1: Visual Systems */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <h2>🚧 Priority 1: Visual Systems</h2>
-          <Badge variant="secondary">In Progress</Badge>
-        </div>
-        <div className="grid gap-4 md:grid-cols-1">
-          <Card className="border-green-200 bg-green-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-green-900">1. Ship Graphics System ✅</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-xs text-green-800">
-                <p><strong>Status:</strong> COMPLETE - All faction graphics implemented</p>
-                <p><strong>Implementation:</strong> Embedded SVG React components with arbitrary pixel sizing support</p>
-                <p><strong>Coverage:</strong> Human (21), Xenite (22), Centaur (22), Ancient (6) = 71 total ship graphics</p>
-                <p><strong>Location:</strong> /graphics/{`{species}`}/assets.tsx</p>
-                <p><strong>Bundle size:</strong> ~40 KB total, zero external HTTP requests</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-red-200 bg-red-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-red-900">2. Enhanced Ship Selection Interface</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-xs text-red-800">
-                <p><strong>Status:</strong> Basic dropdown exists, needs redesign</p>
-                <p><strong>Need:</strong> Visual grid picker with species tabs, category tabs, ship preview cards</p>
-                <p><strong>Gap:</strong> Current Select dropdown not suitable for rich ship data</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-red-200 bg-red-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-red-900">3. Player Stats Dashboard</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-xs text-red-800">
-                <p><strong>Status:</strong> Basic health tracking only</p>
-                <p><strong>Need:</strong> Comprehensive stats (health bar, aggregate damage/healing, charges, Lines breakdown)</p>
-                <p><strong>Note:</strong> Backend already calculates these values</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      <Separator className="my-8" />
-
-      {/* Priority 2: Gameplay Visualization */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <h2>🚧 Priority 2: Gameplay Visualization</h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-1">
-          <Card className="border-yellow-200 bg-yellow-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-yellow-900">4. Battlefield Visualization System</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-xs text-yellow-800">
-                <p><strong>Status:</strong> MISSING - Ships stored in arrays only</p>
-                <p><strong>Need:</strong> Auto-positioning algorithm + visual display with stat annotations</p>
-                <p><strong>Note:</strong> Ships have NO position data in game state - positioning is pure presentation layer</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-yellow-200 bg-yellow-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-yellow-900">5. Enhanced Phase Indicators</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-xs text-yellow-800">
-                <p><strong>Status:</strong> Basic text display only</p>
-                <p><strong>Need:</strong> Visual phase system with current highlight, next phase preview, action prompts</p>
-                <p><strong>Note:</strong> Phase engine ready, just needs UI layer</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-yellow-200 bg-yellow-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-yellow-900">6. Lines Breakdown Display</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-xs text-yellow-800">
-                <p><strong>Status:</strong> Single "lines" number only</p>
-                <p><strong>Need:</strong> Separate tracking for Saved + Bonus + Dice = Total</p>
-                <p><strong>Note:</strong> Data model needs update to track line sources</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      <Separator className="my-8" />
-
-      {/* Priority 3: Polish & UX */}
-      <div className="mb-8">
-        <div className="flex items-center gap-2 mb-4">
-          <h2>🚧 Priority 3: Polish & UX</h2>
-        </div>
-        <div className="grid gap-4 md:grid-cols-1">
-          <Card className="border-blue-200 bg-blue-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-blue-900">7. Chess-Clock Timer System</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-xs text-blue-800">
-                <p><strong>Status:</strong> NOT IMPLEMENTED</p>
-                <p><strong>Need:</strong> Per-player time tracking with MM:SS format, active/inactive states</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-blue-200 bg-blue-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-blue-900">8. Battle Log & Chat Interface</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-xs text-blue-800">
-                <p><strong>Status:</strong> Basic message system exists</p>
-                <p><strong>Need:</strong> Formatted display for chat, battle events, system messages with timestamps</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-blue-200 bg-blue-50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm text-blue-900">9. Ship Stat Annotations</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 text-xs text-blue-800">
-                <p><strong>Status:</strong> NOT IMPLEMENTED</p>
-                <p><strong>Need:</strong> Visual power display on ships (e.g., "16 damage (4 x 4not)", "2/3 charges")</p>
-                <p><strong>Dependency:</strong> Requires ship graphics system first</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
     </div>
   );
 }
