@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { MenuButton } from '../ui/primitives/buttons/MenuButton';
 import { RadioButton } from '../ui/primitives/controls/RadioButton';
 import { Checkbox } from '../ui/primitives/controls/Checkbox';
-import svgPaths from '../../imports/svg-sa2kpiv0ww';
+import { ChevronDown } from '../ui/primitives/icons/ChevronDown';
 
 interface CreatePrivateGameSettings {
   timed: boolean;
@@ -60,7 +60,7 @@ export function CreatePrivateGamePanel({
     <div className="content-stretch flex flex-col gap-[40px] items-start relative w-full">
       {/* Header */}
       <div className="content-stretch flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative shrink-0 w-full">
-        <div className="content-stretch flex flex-col gap-[9px] items-start leading-[normal] relative shrink-0 text-white">
+        <div className="content-stretch flex flex-col gap-[9px] items-start leading-[normal] relative shrink-0">
           <p className="font-['Roboto:Black',sans-serif] font-black relative shrink-0 text-[36px] text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
             Create Private Game
           </p>
@@ -80,7 +80,7 @@ export function CreatePrivateGamePanel({
 
       {/* Error Display */}
       {error && (
-        <div className="w-full p-4 bg-red-500/20 border border-red-500/50 rounded-lg text-white">
+        <div className="w-full p-4 bg-red-500/20 border border-red-500/50 rounded-lg">
           {error}
         </div>
       )}
@@ -100,7 +100,7 @@ export function CreatePrivateGamePanel({
                 onClick={() => setIsTimed(false)}
               >
                 <RadioButton selected={!isTimed} />
-                <p className="font-['Roboto:Bold',sans-serif] font-bold leading-[normal] relative shrink-0 text-[26px] text-nowrap text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className="font-['Roboto:Bold',sans-serif] font-bold leading-[normal] relative shrink-0 text-[26px] text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
                   Not timed
                 </p>
               </div>
@@ -110,7 +110,7 @@ export function CreatePrivateGamePanel({
                 onClick={() => setIsTimed(true)}
               >
                 <RadioButton selected={isTimed} />
-                <p className="font-['Roboto:Bold',sans-serif] font-bold leading-[normal] relative shrink-0 text-[26px] text-nowrap text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className="font-['Roboto:Bold',sans-serif] font-bold leading-[normal] relative shrink-0 text-[26px] text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
                   Timed
                 </p>
               </div>
@@ -123,19 +123,15 @@ export function CreatePrivateGamePanel({
                 <div className="content-stretch flex flex-col gap-[12px] items-start justify-center relative shrink-0">
                   <div className="bg-black content-stretch flex items-center justify-between p-[10px] relative rounded-[10px] shrink-0 w-[180px]">
                     <div aria-hidden="true" className="absolute border-2 border-[#555] border-solid inset-0 pointer-events-none rounded-[10px]" />
-                    <p className="font-['Roboto:Black',sans-serif] font-black leading-[36px] relative shrink-0 text-[36px] text-nowrap text-white flex-1" style={{ fontVariationSettings: "'wdth' 100" }}>
+                    <p className="font-['Roboto:Black',sans-serif] font-black leading-[36px] relative shrink-0 text-[36px] text-nowrap flex-1" style={{ fontVariationSettings: "'wdth' 100" }}>
                       <span>{minutes} </span>
                       <span className="font-['Roboto:Regular',sans-serif] font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>
                         min
                       </span>
                     </p>
-                    <div className="relative shrink-0 size-[40px]">
-                      <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 40 40">
-                        <path d={svgPaths.pd09fd80} fill="white" />
-                      </svg>
-                    </div>
+                    <ChevronDown />
                   </div>
-                  <p className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[20px] text-nowrap text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[20px] text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Each player
                   </p>
                 </div>
@@ -144,19 +140,15 @@ export function CreatePrivateGamePanel({
                 <div className="content-stretch flex flex-col gap-[12px] items-start justify-center relative shrink-0">
                   <div className="bg-black content-stretch flex items-center justify-between p-[10px] relative rounded-[10px] shrink-0 w-[180px]">
                     <div aria-hidden="true" className="absolute border-2 border-[#555] border-solid inset-0 pointer-events-none rounded-[10px]" />
-                    <p className="font-['Roboto:Black',sans-serif] font-black leading-[36px] relative shrink-0 text-[36px] text-nowrap text-white flex-1" style={{ fontVariationSettings: "'wdth' 100" }}>
+                    <p className="font-['Roboto:Black',sans-serif] font-black leading-[36px] relative shrink-0 text-[36px] text-nowrap flex-1" style={{ fontVariationSettings: "'wdth' 100" }}>
                       <span>{incrementSeconds} </span>
                       <span className="font-['Roboto:Regular',sans-serif] font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>
                         sec
                       </span>
                     </p>
-                    <div className="relative shrink-0 size-[40px]">
-                      <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 40 40">
-                        <path d={svgPaths.pd09fd80} fill="white" />
-                      </svg>
-                    </div>
+                    <ChevronDown />
                   </div>
-                  <p className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[20px] text-nowrap text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[20px] text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Increment per turn
                   </p>
                 </div>
@@ -171,13 +163,8 @@ export function CreatePrivateGamePanel({
         <div aria-hidden="true" className="absolute border-[6px] border-solid border-white inset-[-6px] pointer-events-none rounded-[20px]" />
         <div className="content-stretch flex flex-col items-start px-[37px] py-[34px] relative w-full">
           <div className="content-stretch flex gap-[4px] items-center relative shrink-0">
-            <div className="relative shrink-0 size-[60px]">
-              <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 60 60">
-                <path d={svgPaths.p251e2300} fill="white" />
-                <path d={svgPaths.p20f2f8c0} fill="white" />
-              </svg>
-            </div>
-            <p className="font-['Roboto:Bold',sans-serif] font-bold leading-[normal] relative shrink-0 text-[36px] text-nowrap text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <RadioButton selected={true} color="white" className="size-[60px]" />
+            <p className="font-['Roboto:Bold',sans-serif] font-bold leading-[normal] relative shrink-0 text-[36px] text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
               1v1 Standard
             </p>
           </div>
@@ -190,12 +177,8 @@ export function CreatePrivateGamePanel({
         <div className="content-stretch flex flex-col gap-[40px] items-start px-[40px] py-[35px] relative w-full">
           {/* Variant Heading */}
           <div className="content-stretch flex gap-[4px] items-center relative shrink-0">
-            <div className="relative shrink-0 size-[60px]">
-              <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 60 60">
-                <path d={svgPaths.p389a6b80} fill="white" />
-              </svg>
-            </div>
-            <p className="font-['Roboto:Bold',sans-serif] font-bold leading-[normal] relative shrink-0 text-[36px] text-nowrap text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <RadioButton selected={false} color="white" className="size-[60px]" />
+            <p className="font-['Roboto:Bold',sans-serif] font-bold leading-[normal] relative shrink-0 text-[36px] text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
               1v1 Variant
               <span className="font-['Roboto:Light',sans-serif] font-light" style={{ fontVariationSettings: "'wdth' 100" }}>
                 {` (future)`}
@@ -210,12 +193,12 @@ export function CreatePrivateGamePanel({
               <div className="content-stretch flex flex-col gap-[5px] items-start relative shrink-0">
                 <div className="content-stretch flex gap-[10px] items-center justify-start relative shrink-0 w-full">
                   <Checkbox checked={true} disabled />
-                  <p className="basis-0 font-['Inter:Semi_Bold',sans-serif] font-semibold grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[18px] text-white">
+                  <p className="basis-0 font-['Inter:Semi_Bold',sans-serif] font-semibold grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[18px]">
                     Quick Start
                   </p>
                 </div>
                 <div className="content-stretch flex items-center pl-[40px] pr-0 py-0 relative shrink-0 w-full">
-                  <p className="basis-0 font-['Inter:Regular',sans-serif] font-normal grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[16px] text-white">
+                  <p className="basis-0 font-['Inter:Regular',sans-serif] font-normal grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[16px]">
                     On the first turn, roll the dice three times and add, both players receive this many lines.
                   </p>
                 </div>
@@ -225,12 +208,12 @@ export function CreatePrivateGamePanel({
               <div className="content-stretch flex flex-col gap-[5px] items-start relative shrink-0">
                 <div className="content-stretch flex gap-[10px] items-center justify-start relative shrink-0 w-full">
                   <Checkbox checked={false} disabled />
-                  <p className="basis-0 font-['Inter:Semi_Bold',sans-serif] font-semibold grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[18px] text-white">
+                  <p className="basis-0 font-['Inter:Semi_Bold',sans-serif] font-semibold grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[18px]">
                     Accelerated Game
                   </p>
                 </div>
                 <div className="content-stretch flex items-center pl-[40px] pr-0 py-0 relative shrink-0 w-full">
-                  <p className="basis-0 font-['Inter:Regular',sans-serif] font-normal grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[16px] text-white">
+                  <p className="basis-0 font-['Inter:Regular',sans-serif] font-normal grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[16px]">
                     Roll two dice per turn. Any dice interactions occur on the second dice only.
                   </p>
                 </div>
@@ -240,12 +223,12 @@ export function CreatePrivateGamePanel({
               <div className="content-stretch flex flex-col gap-[5px] items-start relative shrink-0">
                 <div className="content-stretch flex gap-[10px] items-center justify-start relative shrink-0 w-full">
                   <Checkbox checked={false} disabled />
-                  <p className="basis-0 font-['Inter:Semi_Bold',sans-serif] font-semibold grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[18px] text-white">
+                  <p className="basis-0 font-['Inter:Semi_Bold',sans-serif] font-semibold grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[18px]">
                     No Destroy Powers
                   </p>
                 </div>
                 <div className="content-stretch flex items-center pl-[40px] pr-0 py-0 relative shrink-0 w-full">
-                  <p className="basis-0 font-['Inter:Regular',sans-serif] font-normal grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[16px] text-white">
+                  <p className="basis-0 font-['Inter:Regular',sans-serif] font-normal grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[16px]">
                     <span className="font-['Inter:Italic',sans-serif] italic">Guardian</span>
                     {` and `}
                     <span className="font-['Inter:Italic',sans-serif] italic">Black Hole</span>
@@ -260,12 +243,12 @@ export function CreatePrivateGamePanel({
               <div className="content-stretch flex flex-col gap-[5px] items-start relative shrink-0">
                 <div className="content-stretch flex gap-[10px] items-center justify-start relative shrink-0 w-full">
                   <Checkbox checked={false} disabled />
-                  <p className="basis-0 font-['Inter:Semi_Bold',sans-serif] font-semibold grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[18px] text-white">
+                  <p className="basis-0 font-['Inter:Semi_Bold',sans-serif] font-semibold grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[18px]">
                     Less 1s
                   </p>
                 </div>
                 <div className="content-stretch flex items-center pl-[40px] pr-0 py-0 relative shrink-0 w-full">
-                  <p className="basis-0 font-['Inter:Regular',sans-serif] font-normal grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[16px] text-white">
+                  <p className="basis-0 font-['Inter:Regular',sans-serif] font-normal grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[16px]">
                     {`Reroll 1's. Until a 6 is rolled, then the next 1 is not rerolled.`}
                   </p>
                 </div>
@@ -275,12 +258,12 @@ export function CreatePrivateGamePanel({
               <div className="content-stretch flex flex-col gap-[5px] items-start relative shrink-0">
                 <div className="content-stretch flex gap-[10px] items-center justify-start relative shrink-0 w-full">
                   <Checkbox checked={false} disabled />
-                  <p className="basis-0 font-['Inter:Semi_Bold',sans-serif] font-semibold grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[18px] text-white">
+                  <p className="basis-0 font-['Inter:Semi_Bold',sans-serif] font-semibold grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[18px]">
                     Epic Battle
                   </p>
                 </div>
                 <div className="content-stretch flex items-center pl-[40px] pr-0 py-0 relative shrink-0 w-full">
-                  <p className="basis-0 font-['Inter:Regular',sans-serif] font-normal grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[16px] text-white">
+                  <p className="basis-0 font-['Inter:Regular',sans-serif] font-normal grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[16px]">
                     Players start with 50 health, 70 max.
                   </p>
                 </div>
@@ -290,12 +273,12 @@ export function CreatePrivateGamePanel({
               <div className="content-stretch flex flex-col gap-[5px] items-start relative shrink-0">
                 <div className="content-stretch flex gap-[10px] items-center justify-start relative shrink-0 w-full">
                   <Checkbox checked={false} disabled />
-                  <p className="basis-0 font-['Inter:Semi_Bold',sans-serif] font-semibold grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[18px] text-white">
+                  <p className="basis-0 font-['Inter:Semi_Bold',sans-serif] font-semibold grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[18px]">
                     Antimatter Species
                   </p>
                 </div>
                 <div className="content-stretch flex items-center pl-[40px] pr-0 py-0 relative shrink-0 w-full">
-                  <p className="basis-0 font-['Inter:Regular',sans-serif] font-normal grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[16px] text-white">
+                  <p className="basis-0 font-['Inter:Regular',sans-serif] font-normal grow leading-[24px] min-h-px min-w-px not-italic relative shrink-0 text-[16px]">
                     One player draws lines equal to 7 minus the dice roll, resulting in asymmetrical line amounts.
                   </p>
                 </div>

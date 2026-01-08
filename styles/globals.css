@@ -248,3 +248,9 @@
 html {
   font-size: var(--font-size);
 }
+
+/* Player-facing UI root wrapper - sets default text color for all player screens */
+.ss-playerRoot {
+  color: white;
+  font-family: Roboto, sans-serif;
+}

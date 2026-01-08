@@ -9,6 +9,9 @@ export { MenuButton } from './buttons/MenuButton';
 export { ReadyButton } from './buttons/ReadyButton';
 export { ActionButton } from './buttons/ActionButton';
 export { ActionButtonSmall } from './buttons/ActionButtonSmall';
+export { GameMenuButton } from './buttons/GameMenuButton';
+export { InChatButton } from './buttons/InChatButton';
+export { ChatSendButton } from './buttons/ChatSendButton';
 
 // Inputs
 export { InputField } from './inputs/InputField';

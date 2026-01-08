@@ -23,6 +23,17 @@ import {
   HeartIcon,
   Dice
 } from '../ui/primitives';
+import { ClockIcon } from '../ui/primitives/icons/ClockIcon';
+import { CloseIcon } from '../ui/primitives/icons/CloseIcon';
+import { CopyIcon } from '../ui/primitives/icons/CopyIcon';
+import { DrawIcon } from '../ui/primitives/icons/DrawIcon';
+import { OpenFullIcon } from '../ui/primitives/icons/OpenFullIcon';
+import { PlayersIcon } from '../ui/primitives/icons/PlayersIcon';
+import { LogoIcon } from '../ui/primitives/icons/LogoIcon';
+import { OnlineStatusIcon } from '../ui/primitives/icons/OnlineStatusIcon';
+import { GameMenuButton } from '../ui/primitives/buttons/GameMenuButton';
+import { InChatButton } from '../ui/primitives/buttons/InChatButton';
+import { ChatSendButton } from '../ui/primitives/buttons/ChatSendButton';
 
 export function BuildKitShowcase() {
   const [inputValue, setInputValue] = useState('');
@@ -88,8 +99,11 @@ export function BuildKitShowcase() {
               <MenuButton variant="public" selected>CREATE LOBBY GAME</MenuButton>
             </div>
             <div className="space-y-4">
-              <p className="text-sm text-[#888888]">Join (Default / Available)</p>
+              <p className="text-sm text-[#888888]">Join - Default (Grey, not clickable)</p>
               <MenuButton variant="join">JOIN LOBBY GAME</MenuButton>
+              <p className="text-sm text-[#888888] mt-4">Join - Active (White, clickable)</p>
+              <MenuButton variant="join" active>JOIN LOBBY GAME</MenuButton>
+              <p className="text-sm text-[#888888] mt-4">Join - Selected (Outline)</p>
               <MenuButton variant="join" selected>JOIN LOBBY GAME</MenuButton>
             </div>
           </div>
@@ -150,6 +164,38 @@ export function BuildKitShowcase() {
             <div>
               <p className="text-sm text-[#888888] mb-2">Heart</p>
               <HeartIcon />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Clock</p>
+              <ClockIcon />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Close</p>
+              <CloseIcon />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Copy</p>
+              <CopyIcon />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Draw</p>
+              <DrawIcon />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Open Full</p>
+              <OpenFullIcon />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Players</p>
+              <PlayersIcon />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Logo</p>
+              <LogoIcon />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Online Status</p>
+              <OnlineStatusIcon />
             </div>
           </div>
         </section>
@@ -249,6 +295,39 @@ export function BuildKitShowcase() {
               <p className="text-sm text-[#888888] mt-4">Small - Selected (Blue ship, white text)</p>
               <ActionButtonSmall label="Hold Charge" selected backgroundColor="#2555FF" textColor="white" />
             </div>
+          </div>
+        </section>
+
+        {/* Game Menu Button */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-bold text-[#DA41B9]">Game Menu Button</h2>
+          <div className="grid grid-cols-2 gap-4 max-w-[500px]">
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Default (hover for white bg)</p>
+              <GameMenuButton>Return to Main Menu</GameMenuButton>
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Requires Confirm (2 clicks - red state)</p>
+              <GameMenuButton requiresConfirm>Resign Game</GameMenuButton>
+            </div>
+          </div>
+        </section>
+
+        {/* In Chat Button */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-bold text-[#DA41B9]">In-Chat Button</h2>
+          <div className="max-w-[200px]">
+            <p className="text-sm text-[#888888] mb-2">Default (hover for white bg)</p>
+            <InChatButton>Accept</InChatButton>
+          </div>
+        </section>
+
+        {/* Chat Send Button */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-bold text-[#DA41B9]">Chat Send Button</h2>
+          <div className="max-w-[200px]">
+            <p className="text-sm text-[#888888] mb-2">Default (hover for dark grey bg)</p>
+            <ChatSendButton>SEND</ChatSendButton>
           </div>
         </section>
 

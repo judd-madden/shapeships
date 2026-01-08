@@ -10,7 +10,12 @@ import { AlphaEntryPanel } from '../panels/AlphaEntryPanel';
 import { LoginPanel } from '../panels/LoginPanel';
 import { CreateAccountPanel } from '../panels/CreateAccountPanel';
 import { ForgotPasswordPanel } from '../panels/ForgotPasswordPanel';
-import svgPaths from '../../imports/svg-sgmbdp397k';
+import { DrawIcon } from '../ui/primitives/icons/DrawIcon';
+import { PlayersIcon } from '../ui/primitives/icons/PlayersIcon';
+import { BuildIcon } from '../ui/primitives/icons/BuildIcon';
+import { ClockIcon } from '../ui/primitives/icons/ClockIcon';
+import { LogoIcon } from '../ui/primitives/icons/LogoIcon';
+import { Dice } from '../ui/primitives/dice/Dice';
 
 interface LoginShellProps {
   onNavigate: (shell: string) => void;
@@ -23,7 +28,7 @@ export function LoginShell({ onNavigate, onNameSubmit, onLogin, alphaDisableAuth
   // Alpha v3: Full-page layout with header + panel + footer
   if (alphaDisableAuth) {
     return (
-      <div className="content-stretch flex flex-col items-center pb-[120px] pt-[60px] px-[240px] relative size-full overflow-y-auto">
+      <div className="ss-playerRoot content-stretch flex flex-col items-center pb-[120px] pt-[60px] px-[240px] relative size-full overflow-y-auto">
         <div className="content-stretch flex flex-col gap-[80px] items-center relative shrink-0 w-full">
           
           {/* Logo + Title + Feature Highlights */}
@@ -31,18 +36,12 @@ export function LoginShell({ onNavigate, onNameSubmit, onLogin, alphaDisableAuth
             
             {/* Logo */}
             <div className="grid-cols-[max-content] grid-rows-[max-content] inline-grid leading-[0] place-items-start relative shrink-0">
-              <p className="[grid-area:1_/_1] font-['Inter'] font-bold leading-[normal] ml-[203.9px] mt-[0.49px] not-italic relative text-[105.935px] text-nowrap text-white">
+              <p className="[grid-area:1_/_1] font-['Inter'] font-bold leading-[normal] ml-[203.9px] mt-[0.49px] not-italic relative text-[105.935px] text-nowrap">
                 SHAPESHIPS
               </p>
               <div className="[grid-area:1_/_1] flex h-[136.015px] items-center justify-center ml-0 mt-0 relative w-[159.556px]">
                 <div className="flex-none rotate-[180deg] scale-y-[-100%]">
-                  <div className="h-[136.015px] relative w-[159.556px]">
-                    <div className="absolute inset-[-9.5%_-12.13%_-14.76%_-12.13%]">
-                      <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 198.271 169.018">
-                        <path d={svgPaths.p2f58ad30} fill="black" stroke="#CD8CFF" strokeMiterlimit="10" strokeWidth="13.0784" />
-                      </svg>
-                    </div>
-                  </div>
+                  <LogoIcon className="h-[136.015px] w-[159.556px]" />
                 </div>
               </div>
             </div>
@@ -52,54 +51,32 @@ export function LoginShell({ onNavigate, onNameSubmit, onLogin, alphaDisableAuth
               
               {/* Feature 1: Free space battle game */}
               <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
-                <div className="relative shrink-0 size-[48px]">
-                  <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 48 48">
-                    <path d={svgPaths.p35f60d00} fill="white" />
-                  </svg>
-                </div>
-                <p className="font-['Inter'] font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] text-nowrap text-white">
-                  A free space
-                  <br aria-hidden="true" />
-                  battle game
+                <BuildIcon className="relative shrink-0 size-[48px]" />
+                <p className="font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] text-nowrap">
+                  Free strategy game
                 </p>
               </div>
 
               {/* Feature 2: 1v1 Online */}
               <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
-                <div className="relative shrink-0 size-[48px]">
-                  <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 48 48">
-                    <path d={svgPaths.p79642e0} fill="white" />
-                  </svg>
-                </div>
-                <p className="font-['Inter'] font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] text-white w-[127.2px]">
+                <PlayersIcon className="relative shrink-0 size-[48px]" />
+                <p className="font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] w-[127.2px]">
                   1v1 Online
                 </p>
               </div>
 
               {/* Feature 3: Simultaneous turns */}
               <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
-                <div className="h-[40.215px] relative shrink-0 w-[42.014px]">
-                  <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 42.0144 40.2151">
-                    <path d={svgPaths.pf9ce800} fill="white" />
-                    <path d={svgPaths.p10b2b780} fill="white" />
-                  </svg>
-                </div>
-                <p className="font-['Inter'] font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] text-white w-[146.4px]">
-                  Simultaneous
-                  <br aria-hidden="true" />
-                  turns
+                <Dice value={3} className="w-[52px] h-[50px]" />
+                <p className="font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] w-[146.4px]">
+                  Shared dice each turn
                 </p>
               </div>
 
               {/* Feature 4: 10-30 minute games */}
               <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
-                <div className="relative shrink-0 size-[48px]">
-                  <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 48 48">
-                    <path d={svgPaths.p32df6780} fill="white" />
-                    <path d={svgPaths.p1c23b200} fill="white" />
-                  </svg>
-                </div>
-                <p className="font-['Inter'] font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] text-white w-[144px]">
+                <ClockIcon className="relative shrink-0 size-[48px]" />
+                <p className="font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] w-[144px]">
                   10-30 minute games
                 </p>
               </div>
@@ -111,7 +88,7 @@ export function LoginShell({ onNavigate, onNameSubmit, onLogin, alphaDisableAuth
           <AlphaEntryPanel onPlay={onNameSubmit} />
 
           {/* Footer Links */}
-          <div className="content-stretch flex font-['Roboto'] font-normal gap-[45px] items-center leading-[normal] relative shrink-0 text-[22px] text-nowrap text-white">
+          <div className="content-stretch flex font-normal gap-[45px] items-center leading-[normal] relative shrink-0 text-[22px] text-nowrap">
             <a
               href="https://juddmadden.com/shapeships/"
               target="_blank"
@@ -181,9 +158,9 @@ export function LoginShell({ onNavigate, onNameSubmit, onLogin, alphaDisableAuth
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-md">
+    <div className="ss-playerRoot container mx-auto p-6 max-w-md">
       <div className="mb-8">
-        <h1 className="text-white drop-shadow-lg">Shapeships</h1>
+        <h1 className="drop-shadow-lg">Shapeships</h1>
       </div>
       {renderPanel()}
     </div>

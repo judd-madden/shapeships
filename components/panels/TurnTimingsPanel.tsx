@@ -30,7 +30,7 @@ function PhaseHeader({
     <div className="bg-[#555] h-[75.576px] relative shrink-0 w-full">
       <div className="content-stretch flex items-center px-[41.986px] py-[18.894px] relative size-full">
         <div className="content-stretch flex gap-[16.795px] items-center relative shrink-0">
-          <p className="font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[20.993px] text-nowrap text-white uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-bold leading-[normal] relative shrink-0 text-[20.993px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
             {title}
           </p>
           {icon}
@@ -70,14 +70,14 @@ function TimingRow({
   return (
     <div className={`${backgroundColor} relative shrink-0 w-full`}>
       <div className={`content-stretch flex flex-col gap-[8.397px] items-start ${leftPadding} pr-[75.576px] ${verticalPadding} relative w-full`}>
-        <p className={`font-['Roboto'] ${titleBold ? 'font-black' : 'font-semibold'} leading-[20.993px] min-w-full relative shrink-0 text-[18.894px] text-white w-[min-content]`} style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className={`${titleBold ? 'font-black' : 'font-semibold'} leading-[20.993px] min-w-full relative shrink-0 text-[18.894px] w-[min-content]`} style={{ fontVariationSettings: "'wdth' 100" }}>
           {title}
         </p>
-        <div className="font-['Roboto'] font-normal leading-[23.093px] min-w-full relative shrink-0 text-[16.795px] text-white w-[min-content]" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <div className="font-normal leading-[23.093px] min-w-full relative shrink-0 text-[16.795px] w-[min-content]" style={{ fontVariationSettings: "'wdth' 100" }}>
           {description}
         </div>
         {exampleShips && (
-          <p className="font-['Roboto'] font-normal leading-[23.093px] min-w-full relative shrink-0 text-[#888] text-[14.8px] w-[min-content]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-normal leading-[23.093px] min-w-full relative shrink-0 text-[#888] text-[14.8px] w-[min-content]" style={{ fontVariationSettings: "'wdth' 100" }}>
             {exampleShips}
           </p>
         )}
@@ -99,21 +99,21 @@ function TimingRow({
 
 export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
   return (
-    <div className="content-stretch flex flex-col gap-[48px] items-start relative shrink-0 w-full text-white">
+    <div className="content-stretch flex flex-col gap-[48px] items-start relative shrink-0 w-full">
       {/* Page Header */}
       <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
         <div className="content-stretch flex gap-[20px] items-center relative shrink-0">
-          <p className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[36px] text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-black leading-[normal] relative shrink-0 text-[36px] text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
             Turn Timings
           </p>
         </div>
-        <p className="font-['Roboto'] font-normal h-[49px] leading-[22px] relative shrink-0 text-[16px] text-right w-[215px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className="font-normal h-[49px] leading-[22px] relative shrink-0 text-[16px] text-right w-[215px]" style={{ fontVariationSettings: "'wdth' 100" }}>
           A breakdown of the phases that can occur during a turn.
         </p>
       </div>
 
       {/* START OF TURN */}
-      <p className="font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[20.993px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+      <p className="font-bold leading-[normal] relative shrink-0 text-[20.993px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
         START OF TURN
       </p>
 
@@ -262,7 +262,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
       </div>
 
       {/* END OF TURN */}
-      <p className="font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[20.993px] text-nowrap text-right uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+      <p className="font-bold leading-[normal] relative shrink-0 text-[20.993px] text-nowrap text-right uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
         END OF TURN
       </p>
 
@@ -272,7 +272,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           className="bg-white content-stretch flex items-center justify-center px-[30px] py-[20px] relative rounded-[10px] shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
           onClick={() => onNavigate?.('core')}
         >
-          <p className="font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-bold leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
             Next: Core Rules
           </p>
         </button>

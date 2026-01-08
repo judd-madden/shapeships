@@ -66,7 +66,7 @@ export function AlphaEntryPanel({ onPlay }: AlphaEntryPanelProps) {
         {/* Name Entry Form */}
         <div className="content-stretch flex flex-col gap-[20px] items-center px-[40px] py-[25px] relative w-full">
           <p 
-            className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[36px] text-center text-white w-full"
+            className="font-black leading-[normal] relative shrink-0 text-[36px] text-center w-full"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             Enter your name
@@ -89,7 +89,7 @@ export function AlphaEntryPanel({ onPlay }: AlphaEntryPanelProps) {
                 }}
               />
               {showError && (
-                <p className="font-['Roboto'] font-normal text-[14px] text-[#FF8282] mt-2">
+                <p className="font-normal text-[14px] text-[#FF8282] mt-2">
                   Name must be 3–20 letters or numbers only (no spaces or symbols)
                 </p>
               )}
@@ -110,11 +110,11 @@ export function AlphaEntryPanel({ onPlay }: AlphaEntryPanelProps) {
         {/* Session Disclaimer */}
         <div className="content-stretch flex flex-col gap-[20px] items-center px-[40px] py-[25px] relative w-full">
           <p 
-            className="font-['Roboto'] font-normal leading-[22px] relative shrink-0 text-[16px] text-center text-white w-full"
+            className="font-normal leading-[22px] relative shrink-0 text-[16px] text-center w-full"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             <span 
-              className="font-['Roboto'] font-semibold"
+              className="font-semibold"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Online Client - Alpha Version 3.

@@ -135,7 +135,7 @@ function SectionHeader({
       <div className="bg-[#555] h-[80px] relative shrink-0 w-full">
         <div className="flex flex-row items-center size-full">
           <div className="content-stretch flex items-center justify-between px-[32px] py-[19px] relative size-full">
-            <p className="font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[22px] text-nowrap text-white uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-bold leading-[normal] relative shrink-0 text-[22px] text-nowrap text-white uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
               {title}
             </p>
             {showPhaseLegend && battleOnly && (
@@ -144,7 +144,7 @@ function SectionHeader({
                   <div className="relative shrink-0 size-[36.994px]">
                     <BattleIcon className="w-full h-full" color="white" />
                   </div>
-                  <p className="font-['Roboto'] font-medium leading-[20.809px] relative shrink-0 text-[15.029px] text-white w-[145.666px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-medium leading-[20.809px] relative shrink-0 text-[15.029px] text-white w-[145.666px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Powers that occur in the <span className="font-extrabold">Battle Phase.</span>
                   </p>
                 </div>
@@ -156,7 +156,7 @@ function SectionHeader({
                   <div className="relative shrink-0 size-[36.994px]">
                     <BuildIcon className="w-full h-full" color="#D5D5D5" />
                   </div>
-                  <p className="font-['Roboto'] font-medium leading-[20.809px] relative shrink-0 text-[15.029px] text-white w-[141.041px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-medium leading-[20.809px] relative shrink-0 text-[15.029px] text-white w-[141.041px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Powers that occur in the <span className="font-extrabold">Build Phase.</span>
                   </p>
                 </div>
@@ -164,7 +164,7 @@ function SectionHeader({
                   <div className="relative shrink-0 size-[36.994px]">
                     <BattleIcon className="w-full h-full" color="white" />
                   </div>
-                  <p className="font-['Roboto'] font-medium leading-[20.809px] relative shrink-0 text-[15.029px] text-white w-[145.666px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-medium leading-[20.809px] relative shrink-0 text-[15.029px] text-white w-[145.666px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Powers that occur in the <span className="font-extrabold">Battle Phase.</span>
                   </p>
                 </div>
@@ -175,7 +175,7 @@ function SectionHeader({
       </div>
       {note && (
         <div className="bg-[#212121] relative shrink-0 w-full h-[52px] flex items-center px-[32px]">
-          <p className="font-['Roboto'] font-normal italic leading-[20px] text-[16px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-normal italic leading-[20px] text-[16px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
             {note}
           </p>
         </div>
@@ -218,27 +218,27 @@ function ShipRow({
           <div className="content-stretch flex gap-[16px] items-start relative shrink-0 w-[210px]">
             {/* Cost display */}
             {totalCost !== null && (
-              <p className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[25.691px] text-right text-white w-[30px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <p className="font-black leading-[normal] relative shrink-0 text-[25.691px] text-right text-white w-[30px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 {totalCost}
               </p>
             )}
             
             {/* Name, Energy Cost (Ancient Solar Powers), Joining Cost (if upgraded), and Subphase */}
             <div className="basis-0 content-stretch flex flex-col gap-[2px] grow items-start min-h-px min-w-px relative shrink-0">
-              <p className="font-['Roboto'] font-bold leading-[25.691px] relative shrink-0 text-[20px] text-white w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <p className="font-bold leading-[25.691px] relative shrink-0 text-[20px] text-white w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
                 {ship.name}
               </p>
               {energyCostLabel && (
-                <p className="font-['Roboto'] font-normal leading-[18px] pb-[4px] relative shrink-0 text-[#d4d4d4] text-[14px] whitespace-pre-line" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className="font-normal leading-[18px] pb-[6px] relative shrink-0 text-[#d4d4d4] text-[14px] whitespace-pre-line" style={{ fontVariationSettings: "'wdth' 100" }}>
                   {energyCostLabel}
                 </p>
               )}
               {isUpgradedShip && joiningCost !== null && joiningCost !== undefined && (
-                <p className="font-['Roboto'] font-normal leading-[24px] relative shrink-0 text-[#d4d4d4] text-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className="font-normal leading-[24px] pb-[6px] relative shrink-0 text-[#d4d4d4] text-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                   (+{joiningCost})
                 </p>
               )}
-              <p className="font-['Roboto'] font-normal leading-[14.13px] relative shrink-0 text-[#d4d4d4] text-[13px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <p className="font-normal leading-[14.13px] relative shrink-0 text-[#d4d4d4] text-[13px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
                 {getSubphaseLabel(ship)}
               </p>
             </div>
@@ -265,7 +265,7 @@ function ShipRow({
                   </div>
                   
                   {/* Power text (preserve CSV wording exactly) */}
-                  <p className="basis-0 font-['Roboto'] font-normal grow leading-[26px] min-h-px min-w-px relative shrink-0 text-[18px] pb-[10px] text-white whitespace-pre-wrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="basis-0 font-normal grow leading-[26px] min-h-px min-w-px relative shrink-0 text-[18px] pb-[10px] text-white whitespace-pre-wrap" style={{ fontVariationSettings: "'wdth' 100" }}>
                     {renderPowerText(power.text)}
                   </p>
                 </div>
@@ -292,10 +292,10 @@ function ShipRow({
                           
                           {/* Evolved ship info */}
                           <div className="flex flex-col gap-[2px]">
-                            <p className="font-['Roboto'] font-bold leading-[20px] text-[16px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+                            <p className="font-bold leading-[20px] text-[16px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
                               {evolvedShip.name}
                             </p>
-                            <p className="font-['Roboto'] font-normal leading-[16px] text-[12px] text-[#d4d4d4]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                            <p className="font-normal leading-[16px] text-[12px] text-[#d4d4d4]" style={{ fontVariationSettings: "'wdth' 100" }}>
                               {evolvedSubphase}
                             </p>
                             {evolvedShip.powers.map((power, idx) => {
@@ -313,7 +313,7 @@ function ShipRow({
                                       </div>
                                     )}
                                   </div>
-                                  <p className="font-['Roboto'] font-normal leading-[18px] text-[14px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+                                  <p className="font-normal leading-[18px] text-[14px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
                                     {renderPowerText(power.text)}
                                   </p>
                                 </div>
@@ -326,7 +326,7 @@ function ShipRow({
                   </div>
                   
                   {/* Evolved ships note */}
-                  <p className="font-['Roboto'] font-normal italic leading-[18px] pl-[35px] text-[16px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-normal italic leading-[18px] pl-[35px] text-[16px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
                     These ships still count as Xenite ship type, with a cost of 2.
                   </p>
                 </div>
@@ -338,7 +338,7 @@ function ShipRow({
               <div className="relative shrink-0 w-full">
                 <div className="flex flex-row items-center size-full">
                   <div className="content-stretch flex items-center pl-[35px] pr-0 py-0 relative w-full">
-                    <p className="basis-0 font-['Roboto'] font-normal grow italic leading-[20px] min-h-px min-w-px relative shrink-0 text-[16px] text-white whitespace-pre-wrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+                    <p className="basis-0 font-normal grow italic leading-[20px] min-h-px min-w-px relative shrink-0 text-[16px] text-white whitespace-pre-wrap" style={{ fontVariationSettings: "'wdth' 100" }}>
                       {ship.extraRules}
                     </p>
                   </div>
@@ -374,14 +374,106 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
   // Navigation
   const navigation = SPECIES_NAVIGATION[species];
   
+  // Species-specific metadata (hardcoded)
+  const speciesMetadata: Record<string, { origin: string; tagline: string }> = {
+    'Human': { 
+      origin: 'Sol', 
+      tagline: 'Metal. Explosions. Expansion.\nOnward and upward.' 
+    },
+    'Xenite': { 
+      origin: 'Xenon', 
+      tagline: 'Swarm. Queen. Hive.\nAlways growing.' 
+    },
+    'Centaur': { 
+      origin: 'Alpha Centauri', 
+      tagline: 'Power. Timing. Domination.\nCull the weak.' 
+    },
+    'Ancient': { 
+      origin: 'Sol', 
+      tagline: 'Energy. Solar Powers.\nEver present.' 
+    }
+  };
+  
+  const metadata = speciesMetadata[species] || { origin: '', tagline: '' };
+  
+  // Helper functions to get species origin and tagline
+  function getSpeciesOrigin(species: SpeciesName): string {
+    return speciesMetadata[species]?.origin || '';
+  }
+
+  function getSpeciesTagline(species: SpeciesName): string {
+    return speciesMetadata[species]?.tagline || '';
+  }
+
+  // Species display name mapping
+  const speciesDisplayName: Record<SpeciesName, string> = {
+    'Human': 'Human',
+    'Xenite': 'Xenite',
+    'Centaur': 'Centaur',
+    'Ancient': 'Ancient'
+  };
+
+  const speciesData = {
+    displayName: speciesDisplayName[species] || species
+  };
+  
   return (
-    <div className="content-stretch flex flex-col gap-[48px] items-start relative shrink-0 w-full text-white">
+    <div className="content-stretch flex flex-col gap-[48px] items-start relative shrink-0 w-full">
       {/* Page Header */}
-      <div className="content-stretch flex items-center justify-between relative shrink-0 text-white w-full">
-        <div className="content-stretch flex gap-[20px] items-center relative shrink-0 text-nowrap">
-          <p className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[36px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-            {species}
+      <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
+        <div className="content-stretch flex items-center relative shrink-0">
+          <p className="font-black leading-[normal] relative shrink-0 text-[36px] text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+            {speciesData.displayName}
+            <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>from </span>
+            {getSpeciesOrigin(species)}
           </p>
+        </div>
+        <p className="font-normal italic leading-[20px] text-[16px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          {getSpeciesTagline(species)}
+        </p>
+      </div>
+
+      {/* Navigation Button Bar */}
+      <div className="content-stretch flex gap-[18px] items-center justify-between relative shrink-0 w-full\">
+        <p className="font-bold leading-[normal] relative shrink-0 text-[22px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+          Ship Codex
+        </p>
+
+        <div className="content-stretch flex gap-[18px] items-center relative shrink-0">
+          {/* Build Icon Legend */}
+          <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
+            <div className="flex items-center justify-center relative shrink-0 size-[36px]">
+              <BuildIcon className="w-[36px] h-[36px]" color="#888888" />
+            </div>
+            <div className="content-stretch flex flex-col items-start justify-center relative shrink-0">
+              <p className="font-medium leading-[20.809px] relative shrink-0 text-[15.029px] w-[145.666px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <span className="text-[#9CFF84]">Build </span>
+                <span className="text-[#888]">Phase</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Battle Icon Legend */}
+          <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
+            <div className="flex items-center justify-center relative shrink-0 size-[36px]">
+              <BattleIcon className="w-[36px] h-[36px]" color="#888888" />
+            </div>
+            <div className="content-stretch flex flex-col items-start justify-center relative shrink-0">
+              <p className="font-medium leading-[20.809px] relative shrink-0 text-[15.029px] w-[141.041px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <span className="text-[#FF8282]">Battle </span>
+                <span className="text-[#888]">Phase</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Tagline - Optional */}
+          <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
+            <div className="content-stretch flex flex-col items-start justify-center relative shrink-0">
+              <p className="font-medium leading-[20.809px] relative shrink-0 text-[15.029px] w-[145.666px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <span className="text-[#888]">({speciesShips.length} ships)</span>
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -443,7 +535,7 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
           className="bg-white content-stretch flex items-center justify-center px-[30px] py-[20px] relative rounded-[10px] shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
           onClick={() => onNavigate?.(navigation.next)}
         >
-          <p className="font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-bold leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
             Next: {navigation.label}
           </p>
         </button>

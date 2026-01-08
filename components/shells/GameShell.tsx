@@ -16,10 +16,10 @@ interface GameShellProps {
 
 export function GameShell({ onExit, gameId }: GameShellProps) {
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
+    <div className="ss-playerRoot container mx-auto p-6 max-w-6xl">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-white drop-shadow-lg">Shapeships</h1>
+        <h1 className="drop-shadow-lg">Shapeships</h1>
         <p className="text-white/90 drop-shadow-md">Game ID: {gameId}</p>
       </div>
 

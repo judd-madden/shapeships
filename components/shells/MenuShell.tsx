@@ -14,7 +14,8 @@ import { MenuButton } from '../ui/primitives/buttons/MenuButton';
 import { MultiplayerPanel } from '../panels/MultiplayerPanel';
 import { RulesPanel } from '../panels/RulesPanel';
 import { CreatePrivateGamePanel } from '../panels/CreatePrivateGamePanel';
-import svgPaths from '../../imports/svg-zvdkaa3igi';
+import { LogoIcon } from '../ui/primitives/icons/LogoIcon';
+import { OnlineStatusIcon } from '../ui/primitives/icons/OnlineStatusIcon';
 
 interface MenuShellProps {
   onNavigate: (shell: string) => void;
@@ -76,24 +77,18 @@ export function MenuShell({
   };
 
   return (
-    <div className="content-stretch flex flex-col items-center pb-[120px] pt-[60px] px-[5%] relative size-full">
+    <div className="ss-playerRoot content-stretch flex flex-col items-center pb-[120px] pt-[60px] px-[5%] relative size-full">
       <div className="content-stretch flex flex-col gap-[50px] items-center relative shrink-0 w-full max-w-[1430px]">
         {/* Menu Header */}
         <div className="content-stretch flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-0 relative shrink-0 w-full">
           {/* Logo */}
           <div className="grid-cols-[max-content] grid-rows-[max-content] inline-grid leading-[0] place-items-start relative shrink-0">
-            <p className="[grid-area:1_/_1] font-['Inter:Bold',sans-serif] font-bold leading-[normal] ml-[80px] md:ml-[130.04px] mt-[0.31px] not-italic relative text-[48px] md:text-[67.563px] text-nowrap text-white">
+            <p className="[grid-area:1_/_1] font-['Inter:Bold',sans-serif] font-bold leading-[normal] ml-[80px] md:ml-[130.04px] mt-[0.31px] not-italic relative text-[48px] md:text-[67.563px] text-nowrap">
               SHAPESHIPS
             </p>
             <div className="[grid-area:1_/_1] flex h-[60px] md:h-[86.748px] items-center justify-center ml-0 mt-0 relative w-[70px] md:w-[101.762px]">
               <div className="flex-none rotate-[180deg] scale-y-[-100%]">
-                <div className="h-[60px] md:h-[86.748px] relative w-[70px] md:w-[101.762px]">
-                  <div className="absolute inset-[-9.5%_-12.13%_-14.76%_-12.13%]">
-                    <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 126.453 107.796">
-                      <path d={svgPaths.p1e5c7100} fill="black" stroke="#CD8CFF" strokeMiterlimit="10" strokeWidth="8.34112" />
-                    </svg>
-                  </div>
-                </div>
+                <LogoIcon className="h-[60px] md:h-[86.748px] w-[70px] md:w-[101.762px]" />
               </div>
             </div>
           </div>
@@ -101,7 +96,7 @@ export function MenuShell({
           {/* Right Header */}
           <div className="content-stretch flex flex-col md:flex-row gap-6 md:gap-[36px] items-center justify-end relative shrink-0">
             {/* Social Links */}
-            <div className="content-stretch flex font-['Roboto:Regular',sans-serif] font-normal gap-[34px] items-center leading-[normal] relative shrink-0 text-[18px] text-nowrap text-white underline">
+            <div className="content-stretch flex font-['Roboto:Regular',sans-serif] font-normal gap-[34px] items-center leading-[normal] relative shrink-0 text-[18px] text-nowrap underline">
               <a 
                 href="https://discord.gg/MjPtf4G6Gt" 
                 target="_blank" 
@@ -137,7 +132,7 @@ export function MenuShell({
               onClick={handleCreatePrivateGameClick}
               selected={activePanel === 'createPrivateGame'}
               disabled={isCreating}
-              className="w-full md:w-auto"
+              className="w-full md:w-auto md:min-w-[300px]"
             >
               CREATE PRIVATE GAME
             </MenuButton>
@@ -154,15 +149,11 @@ export function MenuShell({
             {/* Player Name */}
             <div className="content-stretch flex gap-[18px] items-center justify-start lg:justify-end relative shrink-0">
               {/* Online Status Dot */}
-              <div className="relative shrink-0 size-[22px]">
-                <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 22 22">
-                  <circle cx="11" cy="11" fill="#00BD13" r="11" />
-                </svg>
-              </div>
+              <OnlineStatusIcon status="online" />
 
               {/* Name and Notes */}
               <div className="content-stretch flex flex-col items-start justify-center relative shrink-0">
-                <p className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[32px] md:text-[56px] text-white max-w-[340px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[32px] md:text-[56px] max-w-[340px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                   {displayName}
                 </p>
                 <div className="content-stretch flex items-center pl-[4px] pr-0 py-0 relative shrink-0">
@@ -185,7 +176,7 @@ export function MenuShell({
                 )}
                 <p 
                   className={`font-['Roboto:Black',sans-serif] font-black leading-[32px] relative shrink-0 text-[24px] md:text-[28px] text-nowrap uppercase ${
-                    activePanel === 'multiplayer' ? 'text-[#cd8cff]' : 'text-white hover:text-[#cd8cff]/80'
+                    activePanel === 'multiplayer' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
                 >
@@ -203,7 +194,7 @@ export function MenuShell({
                 )}
                 <p 
                   className={`font-['Roboto:Black',sans-serif] font-black leading-[32px] relative shrink-0 text-[24px] md:text-[28px] text-nowrap uppercase ${
-                    activePanel === 'rules' ? 'text-[#cd8cff]' : 'text-white hover:text-[#cd8cff]/80'
+                    activePanel === 'rules' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
                 >
@@ -213,7 +204,7 @@ export function MenuShell({
 
               {/* Back */}
               <p 
-                className="font-['Roboto:ExtraBold',sans-serif] font-extrabold leading-[normal] relative shrink-0 text-[20px] text-nowrap text-white uppercase cursor-pointer hover:text-white/80" 
+                className="font-['Roboto:ExtraBold',sans-serif] font-extrabold leading-[normal] relative shrink-0 text-[20px] text-nowrap uppercase cursor-pointer hover:text-white/80" 
                 style={{ fontVariationSettings: "'wdth' 100" }}
                 onClick={alphaDisableAuth ? onExit : onLogout}
               >
