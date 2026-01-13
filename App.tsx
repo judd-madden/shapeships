@@ -12,6 +12,7 @@ import GraphicsTest from './components/dev/GraphicsTest';
 import GameScreen from './game/display/GameScreen';
 import GameTestInterface from './game/test/GameTestInterface';
 import { FullPhaseTest } from './game/test/FullPhaseTest';
+import { IntentVerification } from './game/test/IntentVerification';
 import { usePlayer } from './game/hooks/usePlayer';
 import { getSessionToken, ensureSession, authenticatedPost, authenticatedFetch } from './utils/sessionManager';
 import { BuildKitShowcase } from './components/dev/BuildKitShowcase';
@@ -199,6 +200,7 @@ export default function App() {
     { id: 'deployment', name: 'Deployment Test', status: 'ready' },
     { id: 'auth', name: 'Authentication', status: 'alpha-disabled' },
     { id: 'multiplayer', name: 'Multiplayer Test', status: 'ready' },
+    { id: 'intent-verify', name: 'Intent Verification', status: 'ready' },
     { id: 'game-test', name: 'Game Test Interface', status: 'ready' },
     { id: 'full-phase-test', name: 'Full Phase Test', status: 'ready' },
     { id: 'graphics', name: 'Graphics Test', status: 'ready' },
@@ -257,6 +259,15 @@ export default function App() {
         /> : <div>Loading player...</div>;
       case 'full-phase-test':
         return <FullPhaseTest onBack={() => setCurrentView('dashboard')} />;
+      case 'intent-verify':
+        return (
+          <div className="container mx-auto p-6 max-w-4xl">
+            <Button onClick={() => setCurrentView('dashboard')} className="mb-4">
+              ← Back to Dashboard
+            </Button>
+            <IntentVerification />
+          </div>
+        );
       case 'build-kit':
         return (
           <div>

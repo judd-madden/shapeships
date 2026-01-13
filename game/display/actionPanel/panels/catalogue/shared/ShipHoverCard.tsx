@@ -15,10 +15,11 @@ import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
 import type { ShipDefinitionUI } from '../../../../../types/ShipTypes.ui';
 import type { ShipEligibility } from './ShipBuildEligibility';
 import { SHIP_DEFINITIONS_MAP } from '../../../../../data/ShipDefinitionsUI';
+import { parseShipToken } from '../../../../graphics/shipToken';
+import { resolveShipGraphic } from '../../../../graphics/resolveShipGraphic';
 
 // NOTE (PASS 2): This hover card is now a smart component with portal rendering.
 // Positioning is anchored to the ship hitbox via anchorRect.
-// The card escapes ActionPanel bounds via portal to #ship-hover-layer.
 
 interface ShipHoverCardProps {
   shipId: ShipDefId;
@@ -43,7 +44,7 @@ interface ShipHoverModel {
   phaseLabel?: string;
   powers: ShipPowerViewModel[];
   italicNotes?: string;
-  componentShipIds: ShipDefId[];
+  componentShipIds: string[]; // Ship tokens, not ShipDefId[] - can include CAR(0) etc
 }
 
 function getPhaseIcon(subphase: string): PowerIcon {
@@ -138,49 +139,61 @@ function getShipHoverModel(shipId: ShipDefId): ShipHoverModel | null {
 }
 
 /**
- * Group duplicate ship IDs into counts
- * Input: ["DEF","DEF","FIG"] → Output: [{id:"DEF",count:2},{id:"FIG",count:1}]
+ * Group duplicate ship tokens into counts
+ * Input: ["DEF","DEF","CAR(0)"] → Output: [{token:"DEF",count:2},{token:"CAR(0)",count:1}]
  * Preserves first-seen order for predictable display
  */
-function groupShipCounts(shipIds: ShipDefId[]): Array<{ id: ShipDefId; count: number }> {
-  const seen = new Map<ShipDefId, number>();
-  const order: ShipDefId[] = [];
+function groupShipCounts(shipTokens: string[]): Array<{ token: string; count: number }> {
+  const seen = new Map<string, number>();
+  const order: string[] = [];
   
-  for (const id of shipIds) {
-    if (!seen.has(id)) {
-      order.push(id);
-      seen.set(id, 1);
+  for (const token of shipTokens) {
+    if (!seen.has(token)) {
+      order.push(token);
+      seen.set(token, 1);
     } else {
-      seen.set(id, seen.get(id)! + 1);
+      seen.set(token, seen.get(token)! + 1);
     }
   }
   
-  return order.map(id => ({ id, count: seen.get(id)! }));
+  return order.map(token => ({ token, count: seen.get(token)! }));
 }
 
 /**
  * Component ship display (graphics only, no text names)
- * Single ships: Just the graphic
- * Multiple ships: Graphic + count number
+ * Token-aware: Parses CAR(0) → baseId CAR + explicitCharges 0
+ * Hover context: Shows depleted graphics for charge ships
  */
-function ComponentShips({ shipIds }: { shipIds: ShipDefId[] }) {
+function ComponentShips({ shipIds }: { shipIds: string[] }) {
   if (shipIds.length === 0) return null;
   
   const grouped = groupShipCounts(shipIds);
   
   return (
     <div className="content-center flex flex-wrap gap-[16px] items-center relative shrink-0">
-      {grouped.map(({ id, count }) => {
-        const ship = SHIP_DEFINITIONS_MAP?.[id];
-        if (!ship) return null;
+      {grouped.map(({ token, count }) => {
+        // Parse token to get base ID and explicit charges
+        const { baseId, explicitCharges } = parseShipToken(token);
         
-        const graphic = ship.graphics?.find(g => g.condition === 'default') || ship.graphics?.[0];
+        // Lookup ship by canonical base ID
+        const ship = SHIP_DEFINITIONS_MAP?.[baseId as ShipDefId];
+        if (!ship) {
+          console.warn(`[ShipHoverCard] Ship not found for token: ${token} (baseId: ${baseId})`);
+          return null;
+        }
+        
+        // Resolve graphic using hover context + explicit charges from token
+        const graphic = resolveShipGraphic(ship, {
+          context: 'hover',
+          explicitCharges
+        });
+        
         const ShipGraphic = graphic?.component;
         
         // Single ship: Just the graphic
         if (count === 1) {
           return (
-            <div key={id} className="relative shrink-0 size-[22px]">
+            <div key={token} className="relative shrink-0 size-[22px]">
               {ShipGraphic && <ShipGraphic className="max-w-full max-h-full" />}
             </div>
           );
@@ -188,7 +201,7 @@ function ComponentShips({ shipIds }: { shipIds: ShipDefId[] }) {
         
         // Multiple ships: Graphic + count number
         return (
-          <div key={id} className="content-stretch flex gap-[6px] items-center relative shrink-0">
+          <div key={token} className="content-stretch flex gap-[6px] items-center relative shrink-0">
             <div className="relative shrink-0 size-[22px]">
               {ShipGraphic && <ShipGraphic className="max-w-full max-h-full" />}
             </div>
@@ -275,7 +288,7 @@ function PowerText({ text }: { text: string }) {
   return (
     <div className="basis-0 content-stretch flex grow items-center justify-center min-h-px min-w-px pb-0 pt-[2px] px-0 relative shrink-0">
       <p
-        className="basis-0 font-normal grow leading-[18px] min-h-px min-w-px relative shrink-0 text-[16px] text-white whitespace-pre-wrap"
+        className="basis-0 font-normal grow leading-[20px] min-h-px min-w-px relative shrink-0 text-[16px] text-white whitespace-pre-wrap"
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {text}
@@ -386,7 +399,7 @@ export function ShipHoverCard({ shipId, anchorRect, isOpponentView, eligibility 
       {model.italicNotes && (
         <div className="content-stretch flex items-center relative shrink-0 w-full">
           <p
-            className="basis-0 font-normal grow italic leading-[18px] min-h-px min-w-px relative shrink-0 text-[13px] text-white"
+            className="basis-0 font-normal grow italic leading-[17px] min-h-px min-w-px relative shrink-0 text-[13px] text-white"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {model.italicNotes}

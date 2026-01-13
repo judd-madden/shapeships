@@ -11,6 +11,7 @@ import { SHIP_DEFINITIONS } from '../../game/data/ShipDefinitionsUI';
 import type { ShipDefinitionUI } from '../../game/types/ShipTypes.ui';
 import { BuildIcon } from '../ui/primitives/icons/BuildIcon';
 import { BattleIcon } from '../ui/primitives/icons/BattleIcon';
+import { resolveShipGraphic } from '../../game/display/graphics/resolveShipGraphic';
 
 type RulesTab = 'core' | 'human' | 'xenite' | 'centaur' | 'ancient' | 'timings';
 type SpeciesName = 'Human' | 'Xenite' | 'Centaur' | 'Ancient';
@@ -194,9 +195,8 @@ function ShipRow({
   isAlternate: boolean;
   evolvedShips?: ShipDefinitionUI[];
 }) {
-  // Robustly select a default graphic for display
-  // Prefer 'default' condition, fall back to first available
-  const defaultGraphic = ship.graphics?.find(g => g.condition === 'default') || ship.graphics?.[0];
+  // Robustly select a default graphic for display (default context = full charges)
+  const defaultGraphic = resolveShipGraphic(ship, { context: 'default' });
   const ShipGraphic = defaultGraphic?.component;
   
   // Calculate cost display
@@ -279,7 +279,7 @@ function ShipRow({
                   {/* Evolved ships grid */}
                   <div className="flex gap-[32px] pl-[35px] items-start">
                     {evolvedShips.map((evolvedShip) => {
-                      const evolvedGraphic = evolvedShip.graphics?.find(g => g.condition === 'default') || evolvedShip.graphics?.[0];
+                      const evolvedGraphic = resolveShipGraphic(evolvedShip, { context: 'default' });
                       const EvolvedShipGraphic = evolvedGraphic?.component;
                       const evolvedSubphase = getSubphaseLabel(evolvedShip);
                       

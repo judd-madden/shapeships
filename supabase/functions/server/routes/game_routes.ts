@@ -445,6 +445,47 @@ export function registerGameRoutes(
             }
           };
         }
+        
+        // Filter commit/reveal data (new commit/reveal protocol)
+        if (turnData.commitments) {
+          const filteredCommitments: any = {};
+          
+          // For each commitment key (e.g., SPECIES_1, BUILD_2, etc.)
+          for (const commitKey in turnData.commitments) {
+            const keyRecords = turnData.commitments[commitKey];
+            filteredCommitments[commitKey] = {};
+            
+            // For each player in this commitment key
+            for (const playerId in keyRecords) {
+              const record = keyRecords[playerId];
+              
+              if (playerId === requestingPlayerId) {
+                // Show requesting player's own commit/reveal data
+                filteredCommitments[commitKey][playerId] = record;
+              } else {
+                // For opponent: hide reveal payload and nonce, but show status booleans
+                filteredCommitments[commitKey][playerId] = {
+                  hasCommitted: record.commitHash !== undefined,
+                  hasRevealed: record.revealPayload !== undefined,
+                  committedAt: record.committedAt,
+                  revealedAt: record.revealedAt
+                  // Do NOT include: commitHash, revealPayload, nonce
+                };
+              }
+            }
+          }
+          
+          gameData = {
+            ...gameData,
+            gameData: {
+              ...gameData.gameData,
+              turnData: {
+                ...gameData.gameData.turnData,
+                commitments: filteredCommitments
+              }
+            }
+          };
+        }
       }
 
       return c.json(gameData);
@@ -458,8 +499,10 @@ export function registerGameRoutes(
   // ============================================================================
   // SEND ACTION
   // ============================================================================
-  // Lines 1861-2425 from index.tsx
-  // NOTE: This is a massive endpoint (~564 lines) - extracted verbatim
+  // ⚠️ LEGACY HARNESS ONLY - PlayerMode must NOT call this endpoint
+  // Use /intent endpoint for commit/reveal protocol instead
+  // This endpoint remains for development dashboard and testing
+  // ============================================================================
   app.post("/make-server-825e19ab/send-action/:gameId", async (c) => {
     try {
       // Validate session token and get server-side identity

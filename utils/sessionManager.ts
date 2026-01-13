@@ -233,6 +233,31 @@ export async function authenticatedPost(
 }
 
 /**
+ * Helper: Create authenticated POST request to /intent endpoint
+ * Handles commit/reveal protocol payloads.
+ */
+export async function authenticatedPostIntent(
+  gameId: string,
+  intentType: string,
+  turnNumber: number,
+  intentPayload: {
+    commitHash?: string;
+    payload?: any;
+    nonce?: string;
+  }
+): Promise<Response> {
+  return authenticatedFetch('/intent', {
+    method: 'POST',
+    body: JSON.stringify({
+      gameId,
+      intentType,
+      turnNumber,
+      ...intentPayload
+    }),
+  });
+}
+
+/**
  * Helper: Create authenticated GET request
  */
 export async function authenticatedGet(endpoint: string): Promise<Response> {
