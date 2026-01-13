@@ -20,17 +20,6 @@ import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
 
-// Import legacy rules and engine
-import { 
-  SHIP_DEFINITIONS_MAP,
-  getShipDef, 
-  getShipCost,
-  getShipName,
-  getShipHealth,
-  getShipDamage,
-  ServerPhaseEngine 
-} from "./legacy/legacy_rules.ts";
-
 // Import route registration functions
 import { registerAuthRoutes } from "./routes/auth_routes.ts";
 import { registerTestRoutes } from "./routes/test_routes.ts";
@@ -229,7 +218,7 @@ app.use(
 
 registerAuthRoutes(app, kvGet, kvSet);
 registerTestRoutes(app, kvGet, kvSet, kvDel);
-registerGameRoutes(app, kvGet, kvSet, requireSession, generateGameId, ServerPhaseEngine, getShipDef, getShipCost, getShipName, getShipHealth, getShipDamage);
+registerGameRoutes(app, kvGet, kvSet, requireSession, generateGameId);
 registerIntentRoutes(app, kvGet, kvSet, requireSession, supabase);
 
 // ============================================================================

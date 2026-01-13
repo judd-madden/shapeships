@@ -5,7 +5,7 @@
 // - Uses canonical EffectKind from EffectTypes (single source of truth)
 // - Uses canonical TriggeredEffect from EffectTypes (matches TurnData.triggeredEffects)
 // - Uses explicit ship identity types (PlayerId, ShipDefId, ShipInstanceId)
-// - Uses typed phase enums (MajorPhase, BuildPhaseStep, BattlePhaseStep)
+// - Phase values are strings read from gameState
 // - Outputs effects that queue to TurnData.triggeredEffects for EndOfTurnResolver
 
 import type { 
@@ -19,8 +19,6 @@ import type {
 
 // Re-export for backward compatibility
 export type { TriggeredEffect as QueuedEffect } from './EffectTypes';
-
-import { MajorPhase, BuildPhaseStep, BattlePhaseStep } from '../engine/GamePhases';
 
 // ============================================================================
 // ACTION TYPES
@@ -220,20 +218,13 @@ export interface PlayerActionState {
 /**
  * PhaseActionState - Action state for the current phase
  * 
- * ✅ Uses typed phase enums (not string)
+ * Phase values are strings read from gameState
  */
 export interface PhaseActionState {
   /**
-   * Current major phase
-   * ✅ Typed enum instead of string
+   * Current major phase as string (e.g., 'build', 'battle')
    */
-  majorPhase: MajorPhase;
-  
-  /**
-   * Current step within the major phase
-   * ✅ Typed union instead of string
-   */
-  step: BuildPhaseStep | BattlePhaseStep | null;
+  phase: string;
   
   /**
    * Per-player action states
@@ -258,13 +249,13 @@ export interface PhaseActionState {
     
     /**
      * Does this step auto-resolve without player input?
-     * Examples: DICE_ROLL, LINE_GENERATION, END_OF_BUILD
+     * Examples: dice_roll, line_generation, end_of_build
      */
     isSystemDrivenStep?: boolean;
     
     /**
      * Can players take actions in this step?
-     * Examples: SHIPS_THAT_BUILD, DRAWING, SIMULTANEOUS_DECLARATION
+     * Examples: ships_that_build, drawing, charge_declaration
      */
     acceptsPlayerInput?: boolean;
     
@@ -273,7 +264,7 @@ export interface PhaseActionState {
      * Allows conditional responses to previous actions.
      * 
      * Examples: 
-     * - CONDITIONAL_RESPONSE phase (after charge declarations)
+     * - charge_response phase (after charge declarations)
      * - Future: Combat response windows, interrupt mechanics
      */
     isResponseWindow?: boolean;
@@ -337,5 +328,3 @@ export type {
   ShipDefId,
   ShipInstanceId
 };
-
-export { MajorPhase, BuildPhaseStep, BattlePhaseStep };

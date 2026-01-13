@@ -1,3 +1,17 @@
+/**
+ * CLIENT ENGINE (LEGACY / NON-AUTHORITATIVE)
+ *
+ * WARNING:
+ * The server is authoritative for game rules and phase progression.
+ * This file must NOT be constructed or used by active UI runtime.
+ *
+ * Allowed usage:
+ * - legacy tests
+ * - historical reference
+ *
+ * If you need valid actions, read them from server state.
+ */
+
 // Core game engine - handles all game logic without UI concerns
 // This is the brain of Shapeships, managing state transitions and rule enforcement
 

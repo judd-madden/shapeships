@@ -35,3 +35,6 @@ export { HeartIcon } from './icons/HeartIcon';
 
 // Dice
 export { Dice } from './dice/Dice';
+
+// Layout
+export { GameVerticalLine } from './layout/GameVerticalLine';

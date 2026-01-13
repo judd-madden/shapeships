@@ -4,6 +4,7 @@
 
 :root {
   --font-size: 14px;
+  font-family: Roboto, sans-serif;
   
   /* Shapeships Color Palette - Player-facing screens only */
   --shapeships-black: #000000;
@@ -178,16 +179,6 @@
   * {
     @apply border-border outline-ring/50;
   }
-
-  body {
-    @apply bg-background text-foreground;
-    font-family: 'Roboto', sans-serif;
-    background-image: url('https://juddmadden.com/shapeships/images/space-background.jpg');
-    background-attachment: fixed;
-    background-size: cover;
-    background-position: top center;
-    background-repeat: no-repeat;
-  }
 }
 
 /**
@@ -253,4 +244,11 @@ html {
 .ss-playerRoot {
   color: white;
   font-family: Roboto, sans-serif;
+
+    background-image: url('https://juddmadden.com/shapeships/images/space-background.jpg');
+    background-attachment: fixed;
+    background-size: cover;
+    background-position: top center;
+    background-repeat: no-repeat;
+  
 }

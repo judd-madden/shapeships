@@ -67,6 +67,26 @@
 - Detailed console logging for debugging multiplayer interactions
 - Comment complex game logic and state transitions
 
+## 🔒 Locked Components (Do Not Modify)
+
+**Components that match Figma designs exactly and are considered complete:**
+
+These components should NOT be modified unless explicitly requested with new Figma references or specific user instructions. Do not add features, navigation elements, legends, or other UI elements not present in the original design.
+
+**Rules System (Complete - Do Not Modify):**
+- `/components/panels/CoreRulesPanel.tsx` - Core game rules display
+- `/components/panels/SpeciesRulesPanel.tsx` - Species-specific ship reference
+- `/components/panels/TimingsPanel.tsx` - Turn timing reference
+- `/imports/RulesHeader.tsx` - Figma-imported header component
+
+**Protected Pattern:**
+When working on locked components:
+- ❌ Do NOT add navigation bars, legends, or helper UI
+- ❌ Do NOT invent additional sections or features
+- ❌ Do NOT modify styling unless explicitly requested
+- ✅ Only fix bugs or update data sources (e.g., ship definitions)
+- ✅ Only make changes when user provides new Figma references
+
 **File Structure:**
 - Keep related functionality grouped in logical directories
 - Use descriptive file names that indicate purpose
@@ -354,7 +374,7 @@ Our game engine, multiplayer system, and data architecture fully support the tar
 - Health tracking and victory conditions
 - Backend multiplayer infrastructure (Supabase integration)
 
-### 🚧 Priority 1: Visual Systems (Critical Gap)
+### �� Priority 1: Visual Systems (Critical Gap)
 
 **1. Ship Graphics System**
 - **Status:** MISSING - Placeholder graphics only

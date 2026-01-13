@@ -1,9 +1,13 @@
-// Example component showing Action Resolution Layer integration
-// This demonstrates how to use the ActionResolver in a real game component
+// LEGACY TEST — Uses Quarantined Client Hook
+//
+// WARNING: This test uses quarantined useActionResolver hook.
+// The server is now authoritative for action validation.
+//
+// This file remains for historical reference only.
 
 import React from 'react';
 import { GameState } from '../types/GameTypes';
-import { useActionResolver } from '../hooks/useActionResolver';
+import { useActionResolver } from '../legacy/hooks/useActionResolver.legacy';
 import { ActionPanel } from '../display/ActionPanel';
 import { ActionResolutionResult } from '../types/ActionTypes';
 

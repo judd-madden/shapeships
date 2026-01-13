@@ -82,7 +82,7 @@ function TimingRow({
           </p>
         )}
         {showChevron && (
-          <div className={`absolute ${chevronLeft} size-[50.384px] ${chevronTop || 'top-[30px]'}`}>
+          <div className="absolute left-[56px] size-[50.384px] top-[24px]">
             <ChevronDown className="-rotate-90" color="#555555" />
           </div>
         )}
@@ -239,7 +239,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
                 </p>
               </>
             }
-            leftPadding="pl-[146.953px]"
+            leftPadding="pl-[110px]"
             chevronLeft="left-[100px]"
             chevronTop="top-[24px]"
           />

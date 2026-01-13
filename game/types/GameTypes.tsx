@@ -9,13 +9,10 @@
 // - PlayerShip is the ONLY runtime ship instance structure
 // - No `unknown` types for core engine fields
 // - Import shared types from other modules (avoid duplication)
-// - Phase enums imported from GamePhases.tsx
+// - Phase values are strings read from gameData.currentPhase/currentSubPhase
 // - Effect types imported from EffectTypes.ts (canonical)
 //
 // ============================================================================
-
-// Import phase enums from GamePhases (canonical source)
-import type { MajorPhase, BuildPhaseStep, BattlePhaseStep } from '../engine/GamePhases';
 
 // Import effect types from canonical EffectTypes module
 import type { TriggeredEffect } from './EffectTypes';
@@ -141,7 +138,7 @@ export interface PhaseReadiness {
   playerId: string;
   isReady: boolean;
   declaredAt?: string;
-  currentStep: BuildPhaseStep | BattlePhaseStep | string; // Typed step
+  currentStep: string; // Phase step as string (e.g., 'dice_roll', 'drawing', etc.)
 }
 
 export interface CombatAction {
@@ -408,18 +405,18 @@ export interface DisplayState {
  * TurnData - Current turn state
  * 
  * ARCHITECTURAL ALIGNMENT:
- * - currentMajorPhase: Uses MajorPhase enum from GamePhases
- * - currentStep: Uses BuildPhaseStep | BattlePhaseStep unions
- * - triggeredEffects: Uses QueuedEffect[] from ShipTypes (canonical effect type)
+ * - currentMajorPhase: String phase value ('build', 'battle', 'setup')
+ * - currentStep: String subphase value ('dice_roll', 'drawing', etc.)
+ * - triggeredEffects: Uses TriggeredEffect[] (canonical effect type)
  * - battleCommitments: Uses BattleCommitmentState from BattleTypes
  * - NO UNKNOWN TYPES for core engine fields
  */
 export interface TurnData {
   turnNumber: number;
   
-  // ✅ TYPED: Phase state using canonical enums
-  currentMajorPhase: MajorPhase; // Enum: build_phase | battle_phase | end_of_turn_resolution | end_of_game
-  currentStep: BuildPhaseStep | BattlePhaseStep | null; // Typed union of phase steps
+  // Phase state using string values
+  currentMajorPhase: string; // 'build', 'battle', 'setup', etc.
+  currentStep: string | null; // 'dice_roll', 'drawing', 'first_strike', etc.
   
   // Dice state
   diceRoll?: number;
@@ -492,7 +489,6 @@ export interface TurnData {
 // RE-EXPORTS (for convenience)
 // ============================================================================
 
-// Re-export phase enums so consumers can import from GameTypes
-export type { MajorPhase, BuildPhaseStep, BattlePhaseStep };
+// Re-export effect types so consumers can import from GameTypes
 export type { TriggeredEffect };
 export type { BattleCommitmentState };

@@ -8,19 +8,25 @@
 // ============================================================================
 
 import type { Hono } from "npm:hono";
+import { advancePhase } from '../engine/phase/advancePhase.ts';
+import { syncPhaseFields } from '../engine/phase/syncPhaseFields.ts';
+
+// ============================================================================
+// HELPER: Get current phase key for readiness checking
+// ============================================================================
+function getPhaseKey(state: any) {
+  syncPhaseFields(state);
+  const major = state?.gameData?.currentPhase ?? 'setup';
+  const sub = state?.gameData?.currentSubPhase ?? 'unknown';
+  return `${major}:${sub}`;
+}
 
 export function registerGameRoutes(
   app: Hono,
   kvGet: (key: string) => Promise<any>,
   kvSet: (key: string, value: any) => Promise<void>,
   requireSession: (c: any) => Promise<any>,
-  generateGameId: () => string,
-  ServerPhaseEngine: any,
-  getShipDef: (shipDefId: string) => any,
-  getShipCost: (shipDefId: string) => number,
-  getShipName: (shipId: string) => string,
-  getShipHealth: (shipId: string) => number,
-  getShipDamage: (shipId: string) => number
+  generateGameId: () => string
 ) {
   
   // ============================================================================
@@ -46,7 +52,7 @@ export function registerGameRoutes(
       console.log(`Creating game - Session: ${session.sessionId}, Display name: ${playerName}`);
 
       const gameId = generateGameId();
-      const gameData = {
+      let gameData = {
         gameId,
         players: [
           {
@@ -69,6 +75,7 @@ export function registerGameRoutes(
           },
           // Simplified game state for test interface
           currentPhase: 'setup',
+          currentSubPhase: 'species_selection',
           turnNumber: 1,
           diceRoll: null,
           // Enhanced phase management (kept for compatibility)
@@ -103,6 +110,9 @@ export function registerGameRoutes(
         status: "waiting", // 'waiting', 'active', 'finished'
         createdAt: new Date().toISOString()
       };
+
+      // Normalize phase fields before saving
+      gameData = syncPhaseFields(gameData);
 
       await kvSet(`game_${gameId}`, gameData);
       
@@ -202,6 +212,9 @@ export function registerGameRoutes(
         }
       }
 
+      // Normalize phase fields before saving
+      gameData = syncPhaseFields(gameData);
+
       await kvSet(`game_${gameId}`, gameData);
       
       console.log("Player joined game:", gameId, playerName);
@@ -240,7 +253,7 @@ export function registerGameRoutes(
 
       console.log(`Role switch from session ${session.sessionId}: ${newRole} in game ${gameId}`);
 
-      const gameData = await kvGet(`game_${gameId}`);
+      let gameData = await kvGet(`game_${gameId}`);
       if (!gameData) {
         return c.json({ error: "Game not found" }, 404);
       }
@@ -312,6 +325,9 @@ export function registerGameRoutes(
         timestamp: new Date().toISOString()
       });
 
+      // Normalize phase fields before saving
+      gameData = syncPhaseFields(gameData);
+
       await kvSet(`game_${gameId}`, gameData);
       
       console.log("Player switched role:", gameId, player.name, oldRole, "->", newRole);
@@ -345,42 +361,32 @@ export function registerGameRoutes(
         return c.json({ error: "Game not found" }, 404);
       }
 
+      // Normalize phase fields immediately after load
+      if (gameData) {
+        gameData = syncPhaseFields(gameData);
+      }
+
       // Verify session is a participant in this game (or spectator)
       const participant = gameData.players.find(p => p.id === requestingPlayerId);
       if (!participant) {
         return c.json({ error: "Not authorized to view this game" }, 403);
       }
 
-      // Process automatic phases if needed
-      const currentPhase = gameData.gameData?.currentPhase || gameData.currentPhase;
-      const diceRoll = gameData.gameData?.diceRoll;
-      
-      console.log(`Game state fetch - Phase: ${currentPhase}, DiceRoll: ${diceRoll}, ShouldAutoAdvance: ${ServerPhaseEngine.shouldAutoAdvance(gameData)}`);
-      
-      if (ServerPhaseEngine.shouldAutoAdvance(gameData)) {
-        console.log("🎲 Auto-advancing phase during game state fetch");
-        gameData = ServerPhaseEngine.processAutoPhase(gameData);
-        await kvSet(`game_${gameId}`, gameData);
-        
-        // Log the result
-        const newPhase = gameData.gameData?.currentPhase || gameData.currentPhase;
-        const newDiceRoll = gameData.gameData?.diceRoll;
-        console.log(`After auto-advance - Phase: ${newPhase}, DiceRoll: ${newDiceRoll}`);
-      }
-
-      // FIXED: Populate player.isReady from phaseReadiness array for frontend display
-      const currentSimplePhase = gameData.gameData?.currentPhase || gameData.currentPhase;
-      const currentStep = gameData.gameData?.turnData?.currentStep;
+      const phaseKey = getPhaseKey(gameData);
+      const sub = gameData.gameData.currentSubPhase;
       const phaseReadiness = gameData.gameData?.phaseReadiness || [];
-      
+
       gameData.players = gameData.players.map(player => {
         const readiness = phaseReadiness.find(r => r.playerId === player.id);
-        const isReadyForCurrentPhase = readiness?.isReady && 
-          (readiness?.currentStep === currentSimplePhase || readiness?.currentStep === currentStep);
-        
+
+        // Support both new (major:sub) and older (sub only)
+        const readyMatch =
+          readiness?.currentStep === phaseKey ||
+          readiness?.currentStep === sub;
+
         return {
           ...player,
-          isReady: isReadyForCurrentPhase || false
+          isReady: Boolean(readiness?.isReady && readyMatch)
         };
       });
 
@@ -496,52 +502,28 @@ export function registerGameRoutes(
         return c.json({ error: "Spectators can only send messages and select species (if slots available)" }, 403);
       }
 
-      // Validate action is allowed for current step
-      const validActions = ServerPhaseEngine.getValidActionsForCurrentStep(gameData, playerId);
-      
-      // Debug logging for phase validation issues
-      const currentSimplePhase = gameData.gameData?.currentPhase || gameData.currentPhase;
-      const currentMajorPhase = gameData.gameData?.turnData?.currentMajorPhase;
-      const currentStep = gameData.gameData?.turnData?.currentStep;
-      
-      console.log("Phase validation debug:", {
-        actionType,
-        currentSimplePhase,
-        currentMajorPhase, 
-        currentStep,
-        validActions,
-        playerRole: originalPlayerRole,
-        gameDataPhase: gameData.gameData?.currentPhase,
-        legacyPhase: gameData.currentPhase
-      });
-      
-      // More permissive validation for key game actions
-      const isKeyGameAction = ['build_ship', 'save_lines', 'select_species', 'roll_dice'].includes(actionType);
-      const isValidAction = validActions.includes(actionType);
-      
-      // Allow key game actions if they make contextual sense, even if not in valid actions list
-      if (!isValidAction && isKeyGameAction) {
-        if (actionType === 'build_ship' && (currentSimplePhase === 'ship_building' || gameData.gameData?.currentPhase === 'ship_building')) {
-          console.log("Allowing build_ship action due to ship_building phase override");
-        } else if (actionType === 'select_species' && (currentSimplePhase === 'setup' || currentMajorPhase === 'setup')) {
-          console.log("Allowing select_species action due to setup phase override");
-        } else if (actionType === 'roll_dice' && (currentSimplePhase === 'dice_roll')) {
-          console.log("Allowing roll_dice action due to dice_roll phase override");
-        } else {
-          return c.json({ 
-            error: `Action '${actionType}' not allowed in current subphase. Valid actions: ${validActions.join(', ')}. Current phase: ${currentSimplePhase || currentMajorPhase}. Debug: simplePhase=${currentSimplePhase}, gameData.currentPhase=${gameData.gameData?.currentPhase}` 
-          }, 400);
-        }
-      } else if (!isValidAction) {
-        return c.json({ 
-          error: `Action '${actionType}' not allowed in current subphase. Valid actions: ${validActions.join(', ')}. Current phase: ${currentSimplePhase || currentMajorPhase}. Debug: simplePhase=${currentSimplePhase}, gameData.currentPhase=${gameData.gameData?.currentPhase}` 
-        }, 400);
+      // Simple action validation - allowlist of known actions
+      const ALLOWED_ACTIONS = new Set([
+        'select_species',
+        'set_ready',
+        'build_ship',
+        'save_lines',
+        'phase_action',
+        'roll_dice',
+        'advance_phase',
+        'message',
+        'declare_charge',
+        'use_solar_power',
+        'pass'
+      ]);
+
+      if (!ALLOWED_ACTIONS.has(actionType)) {
+        return c.json({ error: `Unknown actionType '${actionType}'` }, 400);
       }
 
       // Handle different action types
       let responseMessage = "Action processed successfully";
       let logContent = content;
-      let shouldCheckPhaseAdvancement = false;
       
       console.log("Processing action:", { 
         actionType, 
@@ -639,11 +621,29 @@ export function registerGameRoutes(
               logContent = `selected ${selectedSpecies} species`;
               responseMessage = `Species ${selectedSpecies} selected`;
               
-              // Auto-set ready after species selection during setup
+              // Manual readiness update for setup phase
               if (gameData.gameData?.turnData?.currentMajorPhase === 'setup') {
                 console.log("Auto-setting player ready after species selection");
-                gameData = ServerPhaseEngine.setPlayerReady(gameData, playerId);
-                shouldCheckPhaseAdvancement = true;
+                // Ensure phaseReadiness array exists
+                if (!gameData.gameData.phaseReadiness) {
+                  gameData.gameData.phaseReadiness = [];
+                }
+                const phaseKey = getPhaseKey(gameData);
+                // Upsert readiness entry
+                const existingIndex = gameData.gameData.phaseReadiness.findIndex(r => r.playerId === playerId);
+                if (existingIndex !== -1) {
+                  gameData.gameData.phaseReadiness[existingIndex] = {
+                    playerId,
+                    isReady: true,
+                    currentStep: phaseKey
+                  };
+                } else {
+                  gameData.gameData.phaseReadiness.push({
+                    playerId,
+                    isReady: true,
+                    currentStep: phaseKey
+                  });
+                }
               }
             } else {
               console.error("Player role not valid for species selection:", currentPlayer?.role);
@@ -663,10 +663,30 @@ export function registerGameRoutes(
             return c.json({ error: "Only active players can set ready status" }, 403);
           }
           
-          gameData = ServerPhaseEngine.setPlayerReady(gameData, playerId);
+          // Manual readiness update using stable phase key
+          if (!gameData.gameData) gameData.gameData = {};
+          if (!gameData.gameData.phaseReadiness) {
+            gameData.gameData.phaseReadiness = [];
+          }
+          const phaseKey = getPhaseKey(gameData);
+          // Upsert readiness entry
+          const existingReadyIndex = gameData.gameData.phaseReadiness.findIndex(r => r.playerId === playerId);
+          if (existingReadyIndex !== -1) {
+            gameData.gameData.phaseReadiness[existingReadyIndex] = {
+              playerId,
+              isReady: true,
+              currentStep: phaseKey
+            };
+          } else {
+            gameData.gameData.phaseReadiness.push({
+              playerId,
+              isReady: true,
+              currentStep: phaseKey
+            });
+          }
+          
           logContent = 'is ready to advance';
           responseMessage = 'Marked as ready';
-          shouldCheckPhaseAdvancement = true;
           break;
 
         case 'build_ship':
@@ -675,13 +695,13 @@ export function registerGameRoutes(
             return c.json({ error: "Only active players can build ships" }, 403);
           }
           
-          // Simple ship building logic
+          // Simple ship building logic - UI-agnostic placeholders
           const shipData = {
             id: `ship_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
-            name: getShipName(content.shipId),
+            name: `Ship ${content.shipId}`,
             shipId: content.shipId,
-            healthValue: getShipHealth(content.shipId),
-            damageValue: getShipDamage(content.shipId),
+            healthValue: 0,
+            damageValue: 0,
             isDestroyed: false,
             ownerId: playerId
           };
@@ -692,19 +712,8 @@ export function registerGameRoutes(
           
           gameData.gameData.ships[playerId].push(shipData);
           
-          // Deduct lines cost (simple implementation) - immutable update
-          const lineCost = getShipCost(content.shipId);
-          const buildPlayerIndex = gameData.players.findIndex(p => p.id === playerId);
-          if (buildPlayerIndex !== -1) {
-            gameData = {
-              ...gameData,
-              players: gameData.players.map((p, idx) => 
-                idx === buildPlayerIndex 
-                  ? { ...p, lines: Math.max(0, (p.lines || 0) - lineCost) }
-                  : p
-              )
-            };
-          }
+          // No cost deduction for now (UI-agnostic server)
+          const lineCost = 0;
           
           logContent = `built ${shipData.name}`;
           responseMessage = `${shipData.name} built successfully`;
@@ -737,7 +746,6 @@ export function registerGameRoutes(
           
           logContent = `saved ${amount} line${amount > 1 ? 's' : ''}`;
           responseMessage = `Saved ${amount} line${amount > 1 ? 's' : ''}`;
-          shouldCheckPhaseAdvancement = true;
           break;
 
         case 'phase_action':
@@ -764,17 +772,17 @@ export function registerGameRoutes(
               responseMessage = `Rolled ${diceRoll}! Gained ${diceRoll} lines`;
               break;
             case 'advance_phase':
-              logContent = 'advanced the phase';
-              responseMessage = 'Phase advanced';
-              break;
+              return c.json({
+                error: "Invalid action. Use actionType 'advance_phase' to advance the phase."
+              }, 400);
             case 'pass_turn':
-              logContent = 'passed their turn';
-              responseMessage = 'Turn passed';
-              break;
+              return c.json({
+                error: "Invalid action. Use actionType 'set_ready' or 'pass' instead."
+              }, 400);
             case 'end_turn':
-              logContent = 'ended their turn';
-              responseMessage = 'Turn ended';
-              break;
+              return c.json({
+                error: "Invalid action. Use actionType 'advance_phase' to end the turn."
+              }, 400);
             default:
               logContent = `performed ${content.action}`;
           }
@@ -805,7 +813,6 @@ export function registerGameRoutes(
           
           logContent = `rolled ${diceRoll} - all players gained ${diceRoll} lines`;
           responseMessage = `Rolled ${diceRoll}! All players gained ${diceRoll} lines`;
-          shouldCheckPhaseAdvancement = true; // This should trigger auto-advance to ship building
           break;
 
         case 'advance_phase':
@@ -814,59 +821,44 @@ export function registerGameRoutes(
             return c.json({ error: "Only active players can advance phases" }, 403);
           }
           
-          // Simple phase advancement for simplified game
-          const currentPhase = gameData.gameData?.currentPhase || 'setup';
-          const currentTurnNumber = gameData.gameData?.turnNumber || 1;
-          let newPhase = currentPhase;
-          let newTurnNumber = currentTurnNumber;
-          
-          switch (currentPhase) {
-            case 'setup':
-              // Setup only happens once, then start turn 1
-              newPhase = 'dice_roll';
-              newTurnNumber = 1;
-              break;
-            case 'dice_roll':
-              newPhase = 'ship_building';
-              break;
-            case 'ship_building':
-              newPhase = 'automatic_powers';
-              break;
-            case 'automatic_powers':
-              newPhase = 'health_resolution';
-              break;
-            case 'health_resolution':
-              // Check for game end conditions first
-              const playersAlive = gameData.players.filter(p => p.role === 'player' && (p.health || 25) > 0);
-              if (playersAlive.length < 2) {
-                newPhase = 'end_of_game';
-                // Determine winner
-                if (playersAlive.length === 1) {
-                  gameData.winner = playersAlive[0];
-                }
-              } else {
-                // Continue to next turn cycle
-                newPhase = 'dice_roll';
-                newTurnNumber = currentTurnNumber + 1;
-              }
-              break;
-            case 'end_of_game':
-              // Game is over, no advancement
-              logContent = 'attempted to advance from final phase';
-              responseMessage = 'Game is over';
-              break;
+          // Use canonical phase engine for advancement
+          const result = advancePhase(gameData);
+          if (!result.ok) {
+            console.log(`Phase advance blocked: ${result.error}`);
+            return c.json({ error: result.error }, 400);
           }
           
-          if (!gameData.gameData) gameData.gameData = {};
-          gameData.gameData.currentPhase = newPhase;
-          gameData.gameData.turnNumber = newTurnNumber;
-          gameData.currentPhase = newPhase; // Legacy field
-          gameData.turnNumber = newTurnNumber; // Legacy field
+          // Update game state with advanced phase
+          gameData = result.state;
           
-          if (currentPhase !== 'end_of_game') {
-            logContent = `advanced from ${currentPhase} to ${newPhase}${newTurnNumber !== currentTurnNumber ? ` (Turn ${newTurnNumber})` : ''}`;
-            responseMessage = `Phase advanced to ${newPhase}${newTurnNumber !== currentTurnNumber ? ` (Turn ${newTurnNumber})` : ''}`;
-          }
+          // Normalize phase fields after advancement
+          gameData = syncPhaseFields(gameData);
+          
+          console.log(`Phase advanced successfully: ${result.from} → ${result.to}`);
+          
+          logContent = `advanced phase from ${result.from} to ${result.to}`;
+          responseMessage = 'Phase advanced';
+          
+          // Add action to log
+          gameData.actions.push({
+            playerId,
+            playerName: originalPlayerName,
+            actionType,
+            content: logContent,
+            timestamp: timestamp || new Date().toISOString()
+          });
+          
+          // Save state before returning
+          await kvSet(`game_${gameId}`, gameData);
+          
+          console.log("Phase advanced and saved successfully:", actionType, "by", originalPlayerName);
+          
+          // Include debug info in response
+          return c.json({ 
+            message: responseMessage,
+            debug: { from: result.from, to: result.to },
+            gameState: gameData 
+          });
           break;
 
         case 'message':
@@ -986,34 +978,13 @@ export function registerGameRoutes(
         timestamp: timestamp || new Date().toISOString()
       });
 
-      // Check for automatic phase advancement
-      try {
-        if (ServerPhaseEngine.shouldAutoAdvance(gameData)) {
-          console.log("Processing automatic phase advancement...");
-          gameData = ServerPhaseEngine.processAutoPhase(gameData);
-        }
-        
-        // FIXED: Check for player readiness phase advancement after EVERY action
-        // This ensures that when the second player becomes ready, the phase auto-advances
-        if (ServerPhaseEngine.areAllPlayersReady(gameData)) {
-          console.log("All players ready - auto-advancing phase...");
-          gameData = ServerPhaseEngine.advancePhase(gameData);
-          
-          // Check again for auto-advance after manual advancement
-          if (ServerPhaseEngine.shouldAutoAdvance(gameData)) {
-            console.log("Processing secondary automatic phase advancement...");
-            gameData = ServerPhaseEngine.processAutoPhase(gameData);
-          }
-        }
-      } catch (phaseError) {
-        console.error("Error in phase advancement:", { error: phaseError.message, stack: phaseError.stack });
-        // Continue execution - don't fail the entire action due to phase advancement errors
-      }
+      // Normalize phase fields before saving
+      const normalizedGameData = syncPhaseFields(gameData);
 
-      await kvSet(`game_${gameId}`, gameData);
+      await kvSet(`game_${gameId}`, normalizedGameData);
       
       console.log("Action processed successfully:", actionType, "by", originalPlayerName);
-      return c.json({ message: responseMessage });
+      return c.json({ message: responseMessage, gameState: gameData });
 
     } catch (error) {
       console.error("Send action error:", error);

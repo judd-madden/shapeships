@@ -8,7 +8,7 @@ import { Input } from './components/ui/input';
 import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
 import ScreenManager from './components/ScreenManager';
-import GraphicsTest from './components/GraphicsTest';
+import GraphicsTest from './components/dev/GraphicsTest';
 import GameScreen from './game/display/GameScreen';
 import GameTestInterface from './game/test/GameTestInterface';
 import { FullPhaseTest } from './game/test/FullPhaseTest';
@@ -204,7 +204,6 @@ export default function App() {
     { id: 'graphics', name: 'Graphics Test', status: 'ready' },
     { id: 'build-kit', name: 'Build Kit', status: 'ready' },
     { id: 'game', name: 'Game Screen', status: 'ready' },
-    { id: 'rules', name: 'Rules & Help', status: 'pending' },
   ];
 
   const renderCurrentView = () => {
@@ -1933,12 +1932,8 @@ function SessionDebugCard() {
           throw new Error('Please enter a message');
         }
         payload.content = actionContent.message;
-      } else if (selectedAction === 'phase_action') {
-        if (!actionContent.action) {
-          throw new Error('Please select a phase action from the dropdown');
-        }
-        payload.content = { action: actionContent.action };
       }
+      // advance_phase and other no-content actions don't need special handling
       
       console.log('📤 Submitting action:', payload);
       
@@ -2082,7 +2077,7 @@ function SessionDebugCard() {
             <option value="build_ship">build_ship</option>
             <option value="save_lines">save_lines</option>
             <option value="roll_dice">roll_dice (no content)</option>
-            <option value="phase_action">phase_action</option>
+            <option value="advance_phase">advance_phase (no content)</option>
             <option value="message">message</option>
           </select>
 
@@ -2131,21 +2126,6 @@ function SessionDebugCard() {
               disabled={isLoading}
               className="text-xs h-8"
             />
-          )}
-
-          {selectedAction === 'phase_action' && (
-            <select
-              value={actionContent.action || ''}
-              onChange={(e) => setActionContent({ action: e.target.value })}
-              disabled={isLoading}
-              className="w-full text-xs h-8 border rounded px-2"
-            >
-              <option value="">Select phase action...</option>
-              <option value="roll_dice">roll_dice</option>
-              <option value="advance_phase">advance_phase</option>
-              <option value="pass_turn">pass_turn</option>
-              <option value="end_turn">end_turn</option>
-            </select>
           )}
 
           <Button 
@@ -2252,43 +2232,42 @@ function DevelopmentDashboard({ views, onViewChange, connectionStatus, deploymen
 
       <Separator className="my-8" />
 
-      {/* Session + Game Debug (Alpha v3) */}
-      <div className="mb-8">
-        <h2 className="mb-4">Alpha v3 Session Testing</h2>
-        <div className="max-w-md">
+      {/* Session Testing & Development Tools (2-column layout) */}
+      <div className="mb-8 grid gap-6 md:grid-cols-2">
+        {/* Alpha v3 Session Testing */}
+        <div>
+          <h2 className="mb-4">Alpha v3 Session Testing</h2>
           <SessionDebugCard />
         </div>
-      </div>
 
-      <Separator className="my-8" />
-
-      {/* Development Views */}
-      <div className="mb-8">
-        <h2 className="mb-4">Development Tools</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {views.map((view) => (
-            <Card key={view.id} className="cursor-pointer hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm">{view.name}</CardTitle>
-                  <Badge variant={view.status === 'ready' ? 'default' : 'secondary'} className="text-xs">
-                    {view.status}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Button 
-                  onClick={() => onViewChange(view.id)}
-                  variant={view.status === 'ready' ? 'default' : 'outline'}
-                  className="w-full"
-                  size="sm"
-                  disabled={view.status === 'pending'}
-                >
-                  {view.status === 'ready' ? 'Open' : 'Coming Soon'}
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
+        {/* Development Tools */}
+        <div>
+          <h2 className="mb-4">Development Tools</h2>
+          <div className="grid gap-4 grid-cols-2">
+            {views.map((view) => (
+              <Card key={view.id} className="cursor-pointer hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm">{view.name}</CardTitle>
+                    <Badge variant={view.status === 'ready' ? 'default' : 'secondary'} className="text-xs">
+                      {view.status}
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Button 
+                    onClick={() => onViewChange(view.id)}
+                    variant={view.status === 'ready' ? 'default' : 'outline'}
+                    className="w-full"
+                    size="sm"
+                    disabled={view.status === 'pending'}
+                  >
+                    {view.status === 'ready' ? 'Open' : 'Coming Soon'}
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -2419,21 +2398,20 @@ function AuthenticationView({ onBack }) {
 
 function GameView({ onBack }) {
   return (
-    <div className="container mx-auto p-6 max-w-6xl">
-      <div className="mb-6">
-        <Button variant="outline" onClick={onBack} className="mb-4">
+    <div className="fixed inset-0 flex flex-col bg-black">
+      {/* Back button overlay - positioned absolutely over the game screen */}
+      <div className="absolute top-4 left-4 z-50">
+        <Button 
+          variant="outline" 
+          onClick={onBack}
+          className="bg-black/80 backdrop-blur-sm border-white/20 text-white hover:bg-white/10"
+        >
           Back to Dashboard
         </Button>
-        <h1>Game Screen</h1>
-        <p className="text-gray-600">Main game interface - Awaiting rules and design</p>
       </div>
-
-      <Card>
-        <CardContent className="p-8 text-center">
-          <p className="text-gray-500 mb-4">Game interface will be implemented here</p>
-          <p className="text-sm text-gray-400">This will be the main game board and interaction area</p>
-        </CardContent>
-      </Card>
+      
+      {/* GameScreen fills entire viewport */}
+      <GameScreen />
     </div>
   );
 }

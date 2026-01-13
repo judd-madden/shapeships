@@ -420,61 +420,21 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
   return (
     <div className="content-stretch flex flex-col gap-[48px] items-start relative shrink-0 w-full">
       {/* Page Header */}
-      <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
-        <div className="content-stretch flex items-center relative shrink-0">
-          <p className="font-black leading-[normal] relative shrink-0 text-[36px] text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+      <div className="content-stretch flex items-center justify-between relative size-full text-white" data-name="Rules Header">
+        <div className="content-stretch flex gap-[20px] items-center relative shrink-0 text-nowrap" data-name="Species">
+          <p className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[36px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             {speciesData.displayName}
-            <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>from </span>
-            {getSpeciesOrigin(species)}
+          </p>
+          <p className="font-['Roboto'] font-semibold leading-[normal] not-italic relative shrink-0 text-[20px] text-right">
+            <span className="font-['Roboto'] font-normal text-white" style={{ fontVariationSettings: "'wdth' 100" }}>{`from `}</span>
+            <span className="font-['Roboto'] font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>
+              {getSpeciesOrigin(species)}
+            </span>
           </p>
         </div>
-        <p className="font-normal italic leading-[20px] text-[16px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className="font-['Roboto'] font-normal h-[49px] leading-[22px] relative shrink-0 text-[16px] text-right w-[255px] whitespace-pre-line" style={{ fontVariationSettings: "'wdth' 100" }}>
           {getSpeciesTagline(species)}
         </p>
-      </div>
-
-      {/* Navigation Button Bar */}
-      <div className="content-stretch flex gap-[18px] items-center justify-between relative shrink-0 w-full\">
-        <p className="font-bold leading-[normal] relative shrink-0 text-[22px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
-          Ship Codex
-        </p>
-
-        <div className="content-stretch flex gap-[18px] items-center relative shrink-0">
-          {/* Build Icon Legend */}
-          <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
-            <div className="flex items-center justify-center relative shrink-0 size-[36px]">
-              <BuildIcon className="w-[36px] h-[36px]" color="#888888" />
-            </div>
-            <div className="content-stretch flex flex-col items-start justify-center relative shrink-0">
-              <p className="font-medium leading-[20.809px] relative shrink-0 text-[15.029px] w-[145.666px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                <span className="text-[#9CFF84]">Build </span>
-                <span className="text-[#888]">Phase</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Battle Icon Legend */}
-          <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
-            <div className="flex items-center justify-center relative shrink-0 size-[36px]">
-              <BattleIcon className="w-[36px] h-[36px]" color="#888888" />
-            </div>
-            <div className="content-stretch flex flex-col items-start justify-center relative shrink-0">
-              <p className="font-medium leading-[20.809px] relative shrink-0 text-[15.029px] w-[141.041px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                <span className="text-[#FF8282]">Battle </span>
-                <span className="text-[#888]">Phase</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Tagline - Optional */}
-          <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
-            <div className="content-stretch flex flex-col items-start justify-center relative shrink-0">
-              <p className="font-medium leading-[20.809px] relative shrink-0 text-[15.029px] w-[145.666px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                <span className="text-[#888]">({speciesShips.length} ships)</span>
-              </p>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* BASIC SHIPS */}

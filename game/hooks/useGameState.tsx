@@ -1,15 +1,9 @@
 // React hooks for managing game state
-// Connects the game engine to React components
+// Connects to server for authoritative game state
 
 import { useState, useEffect, useCallback } from 'react';
-import { GameState, GameAction, Player } from '../types/GameTypes';
-import { GameEngine } from '../engine/GameEngine';
-import { ShapeshipsRulesEngine } from '../engine/RulesEngine';
+import { GameState } from '../types/GameTypes';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
-
-// Initialize game engine with rules
-const rulesEngine = new ShapeshipsRulesEngine();
-const gameEngine = new GameEngine(rulesEngine);
 
 export function useGameState(gameId: string, playerId: string) {
   const [gameState, setGameState] = useState<GameState | null>(null);
@@ -97,7 +91,10 @@ export function useGameState(gameId: string, playerId: string) {
         
         // For phase-critical actions, refresh immediately
         // For regular actions, use a delay to batch updates
-        const isPhaseAction = actionType === 'set_ready' || actionType === 'advance_phase' || actionType === 'select_species';
+        const isPhaseAction = 
+          actionType === 'set_ready' ||
+          actionType === 'select_species' ||
+          actionType === 'advance_phase';
         const delay = isPhaseAction ? 500 : 200;
         
         setTimeout(() => {
@@ -120,10 +117,19 @@ export function useGameState(gameId: string, playerId: string) {
     }
   }, [gameId, playerId, fetchGameState]);
 
-  // Get valid actions for current player
+  // Get valid actions for current player (server-authoritative)
   const getValidActions = useCallback(() => {
     if (!gameState) return [];
-    return gameEngine.getValidActions(playerId, gameState);
+    const anyState: any = gameState as any;
+
+    // Prefer server-provided actions if present
+    const byPlayer = anyState?.gameData?.validActionsByPlayer?.[playerId];
+    if (Array.isArray(byPlayer)) return byPlayer;
+
+    const flat = anyState?.gameData?.validActions;
+    if (Array.isArray(flat)) return flat;
+
+    return [];
   }, [gameState, playerId]);
 
   // Check if it's current player's turn
@@ -146,18 +152,28 @@ export function useGameState(gameId: string, playerId: string) {
     // Set up intelligent polling based on game state
     const interval = setInterval(() => {
       // Get the current phase for checking
-      const currentPhase = gameState?.gameData?.currentPhase || gameState?.currentPhase;
-      
+      const major =
+        (gameState as any)?.gameData?.currentPhase ??
+        (gameState as any)?.gameData?.turnData?.currentMajorPhase ??
+        (gameState as any)?.currentPhase;
+
+      const sub =
+        (gameState as any)?.gameData?.currentSubPhase ??
+        (gameState as any)?.gameData?.turnData?.currentSubPhase ??
+        (gameState as any)?.currentSubPhase;
+
       // Only poll frequently if:
       // 1. Game is active and it's our turn, OR
-      // 2. We're waiting for phase transitions, OR 
-      // 3. Game is in setup phase with < 2 players, OR
-      // 4. Game is in ship_building phase (to see other player's ready status)
-      const shouldPollFrequently = 
-        gameState?.status === 'active' && gameState?.currentPlayerId === playerId ||
-        gameState?.waitingForPhaseAdvance ||
+      // 2. Game is waiting for players, OR
+      // 3. Game is in setup phase, OR
+      // 4. During interactive phases where players can act
+      const shouldPollFrequently =
+        (gameState?.status === 'active' && gameState?.currentPlayerId === playerId) ||
         gameState?.status === 'waiting' ||
-        currentPhase === 'ship_building' ||
+        major === 'setup' ||
+        // During "ready / advance" windows, poll a bit more
+        (major === 'build' && (sub === 'ships_that_build' || sub === 'drawing')) ||
+        (major === 'battle' && (sub === 'charge_declaration' || sub === 'charge_response')) ||
         !gameState?.players || gameState.players.length < 2;
       
       if (shouldPollFrequently) {
@@ -170,7 +186,7 @@ export function useGameState(gameId: string, playerId: string) {
     }, 5000); // Check every 5 seconds, but only fetch when needed
 
     return () => clearInterval(interval);
-  }, [gameId, fetchGameState, gameState?.status, gameState?.currentPlayerId, gameState?.players?.length, gameState?.gameData?.currentPhase, gameState?.currentPhase, playerId]);
+  }, [gameId, fetchGameState, gameState?.status, gameState?.currentPlayerId, gameState?.players?.length, playerId]);
 
   return {
     gameState,

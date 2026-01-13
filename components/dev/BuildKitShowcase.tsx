@@ -31,6 +31,10 @@ import { OpenFullIcon } from '../ui/primitives/icons/OpenFullIcon';
 import { PlayersIcon } from '../ui/primitives/icons/PlayersIcon';
 import { LogoIcon } from '../ui/primitives/icons/LogoIcon';
 import { OnlineStatusIcon } from '../ui/primitives/icons/OnlineStatusIcon';
+import { BlackCarrierIcon } from '../ui/primitives/icons/BlackCarrierIcon';
+import { BlackMercuryCoreIcon } from '../ui/primitives/icons/BlackMercuryCoreIcon';
+import { BlackShipOfWisdomIcon } from '../ui/primitives/icons/BlackShipOfWisdomIcon';
+import { BlackXeniteIcon } from '../ui/primitives/icons/BlackXeniteIcon';
 import { GameMenuButton } from '../ui/primitives/buttons/GameMenuButton';
 import { InChatButton } from '../ui/primitives/buttons/InChatButton';
 import { ChatSendButton } from '../ui/primitives/buttons/ChatSendButton';
@@ -46,7 +50,7 @@ export function BuildKitShowcase() {
   const [selectedNav, setSelectedNav] = useState('nav1');
 
   return (
-    <div className="bg-black p-8 min-h-screen text-white">
+    <div className="bg-[#101010] p-8 min-h-screen text-white">
       <div className="max-w-[1200px] mx-auto space-y-12">
         
         <section>
@@ -196,6 +200,30 @@ export function BuildKitShowcase() {
             <div>
               <p className="text-sm text-[#888888] mb-2">Online Status</p>
               <OnlineStatusIcon />
+            </div>
+          </div>
+        </section>
+
+        {/* Species Heroes */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-bold text-[#DA41B9]">Species Heroes</h2>
+          <p className="text-sm text-[#888888]">Special treatment icons at original sizes</p>
+          <div className="flex gap-8 items-start">
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Black Carrier</p>
+              <BlackCarrierIcon className="w-[63px] h-[55px]" />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Black Mercury Core</p>
+              <BlackMercuryCoreIcon className="w-[32px] h-[61px]" />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Black Ship of Wisdom</p>
+              <BlackShipOfWisdomIcon className="w-[60px] h-[60px]" />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Black Xenite</p>
+              <BlackXeniteIcon className="w-[42px] h-[42px]" />
             </div>
           </div>
         </section>

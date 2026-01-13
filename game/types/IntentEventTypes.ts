@@ -24,11 +24,6 @@ import type {
   ShipInstanceId, 
   PlayerId 
 } from './ShipTypes.engine';
-import type { 
-  MajorPhase, 
-  BuildPhaseStep, 
-  BattlePhaseStep 
-} from '../engine/GamePhases';
 import type { HiddenBattleActions } from './BattleTypes';
 import type { ActionType } from './ActionTypes';
 
@@ -157,8 +152,8 @@ export type AtomicActionData =
  */
 export type AtomicActionIntent = IntentBase & {
   type: 'ACTION';
-  phase: MajorPhase;
-  step: BuildPhaseStep | BattlePhaseStep | null;
+  phase: string;  // Major phase as string (e.g., 'build', 'battle')
+  step: string | null;  // Subphase as string (e.g., 'dice_roll', 'first_strike')
 
   actionType: ActionType;
   data: AtomicActionData;
@@ -173,8 +168,8 @@ export type AtomicActionIntent = IntentBase & {
  */
 export type DeclareReadyIntent = IntentBase & {
   type: 'DECLARE_READY';
-  phase: MajorPhase;
-  step: BuildPhaseStep | BattlePhaseStep | null;
+  phase: string;  // Major phase as string
+  step: string | null;  // Subphase as string
 };
 
 /**
@@ -245,8 +240,8 @@ export type IntentRejectedEvent = EventBase & {
  */
 export type PhaseEnteredEvent = EventBase & {
   type: 'PHASE_ENTERED';
-  phase: MajorPhase;
-  step: BuildPhaseStep | BattlePhaseStep | null;
+  phase: string;  // Major phase as string
+  step: string | null;  // Subphase as string
   turnNumber: number;
 };
 

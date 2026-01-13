@@ -1,3 +1,12 @@
+/**
+ * LEGACY TEST — Uses Quarantined Client Engine
+ *
+ * WARNING: This test uses client-side phase engine files that are quarantined.
+ * The server is now authoritative for phase progression.
+ *
+ * This file remains for historical reference only.
+ */
+
 // Full Phase Test - Comprehensive test interface for 3-phase system
 // Tests BUILD PHASE → BATTLE PHASE → END OF TURN RESOLUTION with simultaneous declarations
 
@@ -5,9 +14,9 @@ import React, { useState, useEffect } from 'react';
 import { GameState, Player, PlayerShip } from '../types/GameTypes';
 import { Button } from '../../components/ui/button';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
-import { MajorPhase, BuildPhaseStep, BattlePhaseStep } from '../engine/GamePhases';
+import { MajorPhase, BuildPhaseStep, BattlePhaseStep } from '../engine/GamePhases.clientLegacy';
 import { ArrowLeft, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
-import { actionResolver } from '../engine/ActionResolver';
+import { actionResolver } from '../engine/ActionResolver.clientLegacy';
 import { endOfTurnResolver } from '../engine/EndOfTurnResolver';
 import { BattleCommitmentState, HiddenBattleActions } from '../types/BattleTypes';
 import { TriggeredEffect } from '../types/EffectTypes'; // ✅ Use canonical EffectTypes
