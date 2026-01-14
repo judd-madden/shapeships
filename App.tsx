@@ -16,6 +16,7 @@ import { IntentVerification } from './game/test/IntentVerification';
 import { usePlayer } from './game/hooks/usePlayer';
 import { getSessionToken, ensureSession, authenticatedPost, authenticatedFetch } from './utils/sessionManager';
 import { BuildKitShowcase } from './components/dev/BuildKitShowcase';
+import { runFullSimulation } from './game/engine/battle/BattleSimulation.test';
 
 // Configuration for the live published URL
 const LIVE_BASE_URL = 'https://semi-folk-76756080.figma.site'; // Replace with your actual live URL
@@ -203,6 +204,7 @@ export default function App() {
     { id: 'intent-verify', name: 'Intent Verification', status: 'ready' },
     { id: 'game-test', name: 'Game Test Interface', status: 'ready' },
     { id: 'full-phase-test', name: 'Full Phase Test', status: 'ready' },
+    { id: 'battle-sim', name: 'Battle Simulation', status: 'ready' },
     { id: 'graphics', name: 'Graphics Test', status: 'ready' },
     { id: 'build-kit', name: 'Build Kit', status: 'ready' },
     { id: 'game', name: 'Game Screen', status: 'ready' },
@@ -259,6 +261,38 @@ export default function App() {
         /> : <div>Loading player...</div>;
       case 'full-phase-test':
         return <FullPhaseTest onBack={() => setCurrentView('dashboard')} />;
+      case 'battle-sim':
+        return (
+          <div className="container mx-auto p-6 max-w-4xl">
+            <Button onClick={() => setCurrentView('dashboard')} className="mb-4">
+              ← Back to Dashboard
+            </Button>
+            <div className="space-y-4">
+              <h1 className="text-2xl font-bold">Battle Simulation Test</h1>
+              <p className="text-gray-600">
+                Validates Effects + BattleReducer architecture with a fixed scenario.
+              </p>
+              <Button 
+                onClick={() => {
+                  console.clear();
+                  runFullSimulation();
+                }}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                Run Battle Simulation
+              </Button>
+              <div className="bg-gray-100 p-4 rounded">
+                <p className="text-sm text-gray-700">
+                  Check the browser console for detailed simulation output.
+                </p>
+                <p className="text-sm text-gray-700 mt-2">
+                  <strong>Scenario:</strong> 2 players with various ships (Defenders, Fighters, Interceptor).
+                  Tests automatic damage/healing and charge-based effects.
+                </p>
+              </div>
+            </div>
+          </div>
+        );
       case 'intent-verify':
         return (
           <div className="container mx-auto p-6 max-w-4xl">

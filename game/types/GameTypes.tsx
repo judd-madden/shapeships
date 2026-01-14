@@ -15,7 +15,7 @@
 // ============================================================================
 
 // Import effect types from canonical EffectTypes module
-import type { TriggeredEffect } from './EffectTypes';
+import type { TriggeredEffect } from './EffectTypes'; // LEGACY EFFECTS — migrate to /game/engine/effects/ when touching this file
 
 // Import battle types
 import type { BattleCommitmentState } from './BattleTypes';

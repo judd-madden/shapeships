@@ -1,4 +1,36 @@
 // ============================================================================
+// ⚠️ LEGACY FILE — DO NOT EXTEND ⚠️
+// ============================================================================
+//
+// This file is part of a PREVIOUS effects architecture.
+//
+// It is NOT the canonical Effects model.
+// It is NOT used by the current battle reducer.
+// It should NOT be extended, reused, or depended on for new features.
+//
+// The canonical Effects system now lives in:
+//   /game/engine/effects/
+//
+// DEPRECATED CONCEPTS IN THIS FILE:
+// - TriggeredEffect / EvaluatedEffect (old resolution model)
+// - resolution: 'triggered' | 'evaluated' (replaced by timing + survivability)
+// - persistsIfSourceDestroyed (now SurvivabilityRule enum)
+// - requiresShipAlive / requiresOwnershipUnchanged (superseded by phase system)
+//
+// The new model uses:
+// - BattlePhase (FirstStrike, ChargeDeclaration, ChargeResponse, Resolution)
+// - EffectTiming (Automatic, OnceOnly, Charge)
+// - SurvivabilityRule (DiesWithSource, ResolvesIfDestroyed)
+//
+// This file is retained ONLY for:
+// - historical reference
+// - migration support
+// - legacy code that hasn't been migrated yet
+//
+// New logic MUST use /game/engine/effects/ instead.
+// ============================================================================
+
+// ============================================================================
 // EFFECT TYPES - CANONICAL SOURCE OF TRUTH
 // ============================================================================
 //

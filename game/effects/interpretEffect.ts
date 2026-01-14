@@ -1,4 +1,30 @@
 /**
+ * ============================================================================
+ * ⚠️ LEGACY FILE — DO NOT EXTEND ⚠️
+ * ============================================================================
+ *
+ * This file is part of a PREVIOUS effects architecture.
+ *
+ * It is NOT the canonical Effects model.
+ * It is NOT used by the current battle reducer.
+ * It should NOT be extended, reused, or depended on for new features.
+ *
+ * The canonical Effects system now lives in:
+ *   /game/engine/effects/
+ *
+ * This file is retained ONLY for:
+ * - historical reference
+ * - migration support
+ * - UI-facing interpretation layers (if still in use)
+ *
+ * This was part of an EXPERIMENTAL effect interpretation layer that is NOT
+ * part of the engine rules kernel.
+ *
+ * New logic MUST use the engine effects layer.
+ * ============================================================================
+ */
+
+/**
  * Effect Interpretation Helper
  * 
  * FUTURE-FACING: Provides a single hook for engine to access structured AST.

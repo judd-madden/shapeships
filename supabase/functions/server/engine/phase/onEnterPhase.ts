@@ -1,4 +1,32 @@
 /**
+ * SERVER PHASE ENTRY HOOK (AUTHORITATIVE)
+ *
+ * This file executes authoritative game logic when the server
+ * advances into a new phase or subphase.
+ *
+ * Responsibilities:
+ * - Enforce game rules and legality
+ * - Resolve authoritative state transitions
+ * - Apply irreversible outcomes (damage, destruction, victory)
+ * - Advance turns and phases
+ * - Validate assumptions about game state
+ *
+ * Non-responsibilities:
+ * - NO UI concerns
+ * - NO client-side simulation
+ * - NO visualisation or debug-only logic
+ * - NO intent translation (intent → effect translation lives elsewhere)
+ *
+ * Architectural Notes:
+ * - This file is SECURITY-CRITICAL
+ * - This file is the source of truth for phase effects
+ * - Client/game-layer phase hooks MUST NOT duplicate logic here
+ *
+ * DO NOT import from /game.
+ * DO NOT loosen validation for convenience.
+ */
+
+/**
  * ON-ENTER PHASE HOOKS
  * 
  * Automatic effects triggered when entering specific phases.
@@ -69,6 +97,7 @@ export function onEnterPhase(
     const diceRoll = state.gameData?.diceRoll || state.gameData?.turnData?.diceRoll || 0;
     
     if (diceRoll > 0) {
+      // Authoritative resolution — outcomes applied here are final and irreversible
       // Grant lines to all active players
       const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
       

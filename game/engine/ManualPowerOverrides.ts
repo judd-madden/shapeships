@@ -22,14 +22,14 @@
 
 import type { GameState, PlayerShip } from '../types/GameTypes';
 import type { EngineShipPower, ShipDefId } from '../types/ShipTypes.engine';
-import type { TriggeredEffect } from '../types/EffectTypes';
+import type { TriggeredEffect } from '../types/EffectTypes'; // LEGACY EFFECTS — migrate to /game/engine/effects/ when touching this file
 import { 
   EffectKind, 
   createTriggeredEffect, 
   generateEffectId,
   createSelfTarget,
   createOpponentTarget 
-} from '../types/EffectTypes';
+} from '../types/EffectTypes'; // LEGACY EFFECTS — migrate to /game/engine/effects/ when touching this file
 
 // ============================================================================
 // TYPES

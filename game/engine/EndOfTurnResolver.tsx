@@ -30,14 +30,14 @@ import type {
   AnyEffect,
   EffectSource,
   EffectTarget
-} from '../types/EffectTypes';
+} from '../types/EffectTypes'; // LEGACY EFFECTS — migrate to /game/engine/effects/ when touching this file
 import { 
   EffectKind,
   createEvaluatedEffect, 
   generateEffectId,
   createOpponentTarget,
   createSelfTarget
-} from '../types/EffectTypes';
+} from '../types/EffectTypes'; // LEGACY EFFECTS — migrate to /game/engine/effects/ when touching this file
 import { PowerTiming, ShipPowerPhase } from '../types/ShipTypes.engine';
 import { getShipById } from '../data/ShipDefinitions.engine';
 import { 

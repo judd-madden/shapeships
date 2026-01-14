@@ -15,10 +15,10 @@ import type {
   ShipDefId,
   ShipInstanceId,
   EnergyColor
-} from './EffectTypes';
+} from './EffectTypes'; // LEGACY EFFECTS — migrate to /game/engine/effects/ when touching this file
 
 // Re-export for backward compatibility
-export type { TriggeredEffect as QueuedEffect } from './EffectTypes';
+export type { TriggeredEffect as QueuedEffect } from './EffectTypes'; // LEGACY EFFECTS — migrate to /game/engine/effects/ when touching this file
 
 // ============================================================================
 // ACTION TYPES

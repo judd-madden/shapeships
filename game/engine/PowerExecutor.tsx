@@ -31,7 +31,7 @@ import {
   ShipPowerPhase 
 } from '../types/ShipTypes.engine';
 import { getShipById } from '../data/ShipDefinitions.engine';
-import type { TriggeredEffect } from '../types/EffectTypes';
+import type { TriggeredEffect } from '../types/EffectTypes'; // LEGACY EFFECTS — migrate to /game/engine/effects/ when touching this file
 import { 
   resolveShipPower, 
   type PowerResolutionContext,

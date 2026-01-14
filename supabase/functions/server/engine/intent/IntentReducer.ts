@@ -9,6 +9,27 @@
  * - Enforce turn number matching
  * - Call syncPhaseFields after mutations
  * - Return ok/state/events or rejection
+ * 
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * ARCHITECTURAL BOUNDARY:
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ * 
+ * - IntentReducer records and validates player intent and mutates state accordingly
+ * - IntentReducer MUST NOT compute battle effects, damage/heal math, or ship rules
+ * - Battle law lives in BattleReducer (game/engine/battle/BattleReducer.ts)
+ * - Translation of intents → effects belongs in separate bridge (e.g., onEnterPhase hook)
+ * 
+ * This reducer focuses on:
+ *   ✓ Commit/reveal protocol enforcement
+ *   ✓ State mutation (ships, health, resources)
+ *   ✓ Phase advancement and readiness tracking
+ *   ✓ Turn order and player validation
+ * 
+ * This reducer DOES NOT:
+ *   ✗ Calculate damage/healing values
+ *   ✗ Apply survivability rules
+ *   ✗ Process battle phases (FirstStrike, Resolution, etc.)
+ *   ✗ Interpret ship power definitions
  */
 
 import { syncPhaseFields } from '../phase/syncPhaseFields.ts';

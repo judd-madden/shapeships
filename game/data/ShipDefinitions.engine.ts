@@ -43,7 +43,7 @@ import {
   ShipPowerPhase as PhaseEnum,
   PowerTiming as TimingEnum
 } from '../types/ShipTypes.engine';
-import { EffectKind } from '../types/EffectTypes';
+import { EffectKind } from '../types/EffectTypes'; // LEGACY EFFECTS — migrate to /game/engine/effects/ when touching this file
 
 // ============================================================================
 // CONVERSION ERRORS (EXPORTED FOR SERVER LOGGING)
