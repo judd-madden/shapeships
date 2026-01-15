@@ -125,9 +125,10 @@ export function AlphaEntryPanel({ onPlay }: AlphaEntryPanelProps) {
               <br aria-hidden="true" />
               3–20 letters or numbers, no spaces or symbols
               <br aria-hidden="true" />
-              Games are not tracked.
-              <br aria-hidden="true" />
               Private games only (send link to friend).
+              <br aria-hidden="true" />
+              <br aria-hidden="true" />
+              1600px+ screen resolution recommended.
             </span>
           </p>
         </div>
