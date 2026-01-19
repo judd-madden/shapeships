@@ -16,6 +16,9 @@ import { BuildKitShowcase } from './components/dev/BuildKitShowcase';
 import { runFullSimulation } from './game/engine/battle/BattleSimulationHarness';
 import AlphaV3E2EHarness from './components/dev/AlphaV3E2EHarness';
 
+// Feature flags for legacy harnesses
+const ENABLE_BATTLE_SIM = false; // Legacy harness disabled. Real engine is server/engine_shared.
+
 // Dashboard view type
 type DashboardViewId = 'deployment' | 'auth' | 'alphaE2E' | 'intentVerification' | 'battleSimulation' | 'graphicsTest' | 'buildKit' | 'gameScreen';
 
@@ -25,7 +28,7 @@ const DASHBOARD_ENTRIES: Array<{ id: DashboardViewId; label: string; alphaDisabl
   { id: 'auth', label: 'Authentication', alphaDisabled: true },
   { id: 'alphaE2E', label: 'Alpha v3 E2E Harness' },
   { id: 'intentVerification', label: 'Intent Verification' },
-  { id: 'battleSimulation', label: 'Battle Simulation' },
+  { id: 'battleSimulation', label: 'Battle Simulation', alphaDisabled: !ENABLE_BATTLE_SIM },
   { id: 'graphicsTest', label: 'Graphics Test' },
   { id: 'buildKit', label: 'Build Kit' },
   { id: 'gameScreen', label: 'Game Screen' },

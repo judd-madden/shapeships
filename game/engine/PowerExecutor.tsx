@@ -1,23 +1,11 @@
 /**
- * Power Executor - ORCHESTRATOR FOR SHIP POWER EXECUTION
- * 
- * REFACTORED ARCHITECTURE:
- * This file is now an ORCHESTRATOR, not an interpreter.
- * 
- * RESPONSIBILITIES:
- * 1. Manage charge spending
- * 2. Track power usage (once-only)
- * 3. Route to PowerResolver for interpretation
- * 4. Enqueue effects into TurnData
- * 5. Apply immediate state mutations (non-health)
- * 
- * NOT RESPONSIBLE FOR:
- * ❌ Parsing power text
- * ❌ Ship-specific branching
- * ❌ Effect type switching
- * ❌ Interpreting power logic
- * 
- * All power interpretation delegated to PowerResolver.
+ * DEPRECATED — LEGACY CLIENT ENGINE
+ *
+ * This file is part of an old client-authoritative engine.
+ * It must not be used for authoritative gameplay.
+ *
+ * Canonical shared engine code lives in /engine.
+ * This file is retained for reference only.
  */
 
 import type { GameState, PlayerShip } from '../types/GameTypes';

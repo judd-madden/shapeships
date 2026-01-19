@@ -18,7 +18,7 @@ function getPhaseKey(state: any) {
   syncPhaseFields(state);
   const major = state?.gameData?.currentPhase ?? 'setup';
   const sub = state?.gameData?.currentSubPhase ?? 'unknown';
-  return `${major}:${sub}`;
+  return `${major}.${sub}`;
 }
 
 export function registerGameRoutes(

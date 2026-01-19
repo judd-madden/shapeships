@@ -1,4 +1,4 @@
-import { PHASE_SEQUENCE, type PhaseKey, type MajorPhase, type SubPhase } from './PhaseTable.ts';
+import { PHASE_SEQUENCE, type PhaseKey, type MajorPhase, type SubPhase } from '../../engine_shared/phase/PhaseTable.ts';
 
 // Minimal server-side GameState interface (derived from actual game state structure)
 interface GameState {
@@ -83,7 +83,9 @@ function clearReadiness(state: GameState): GameState {
 function allPlayersReady(state: GameState): boolean {
   const gd: any = state.gameData || {};
   const readiness = (gd.phaseReadiness || []) as Array<{ playerId: string; isReady: boolean }>;
-  const playerIds = (state.players || []).map((p: any) => p.id);
+  const playerIds = (state.players || [])
+    .filter((p: any) => p.role === 'player')
+    .map((p: any) => p.id);
   return playerIds.every(pid => readiness.some(r => r.playerId === pid && r.isReady));
 }
 

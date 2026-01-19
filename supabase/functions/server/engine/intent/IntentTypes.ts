@@ -88,6 +88,12 @@ export type RejectionCodeType = typeof RejectionCode[keyof typeof RejectionCode]
 // ============================================================================
 
 /**
+ * Commit keys are NOT globally unique by themselves.
+ * CommitStore namespaces by (commitKey, playerId) within a game.
+ * These keys represent logical "channels" per turn, not storage IDs.
+ */
+
+/**
  * Generate commitment key for species selection
  */
 export function getSpeciesCommitKey(turnNumber: number): string {

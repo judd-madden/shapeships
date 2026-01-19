@@ -38,7 +38,10 @@ import {
   EffectTiming,
   EffectKind,
   SurvivabilityRule,
+  type DamageEffect,
+  type HealEffect,
 } from '../effects/Effect.ts';
+import type { PhaseKey } from '../../../supabase/functions/server/engine_shared/phase/PhaseTable.ts';
 
 // ============================================================================
 // TYPES
@@ -285,32 +288,50 @@ export function translateBattleIntentsToEffects(
     // Deterministic effect ID
     const effectId = `charge-${input.turnNumber}-${intent.ownerPlayerId}-${intent.shipInstanceId}-${intent.mode.toLowerCase()}`;
 
-    // Map declared phase to effect phase (Path B: charges created in their declared phase)
-    const effectPhase = intent.declaredPhase === 'ChargeDeclaration' 
-      ? BattlePhase.ChargeDeclaration 
+    // Map declared phase to PhaseKey timing
+    const timing: PhaseKey = intent.declaredPhase === 'ChargeDeclaration' 
+      ? 'battle.charge_declaration'
+      : 'battle.charge_response';
+
+    // Map to legacy BattlePhase for BattleReducer compatibility
+    const phase: BattlePhase = intent.declaredPhase === 'ChargeDeclaration'
+      ? BattlePhase.ChargeDeclaration
       : BattlePhase.ChargeResponse;
 
-    const effect: Effect = {
+    // Base effect fields
+    const baseEffect = {
       id: effectId,
       ownerPlayerId: intent.ownerPlayerId,
       source: {
-        type: 'ship',
+        type: 'ship' as const,
         instanceId: intent.shipInstanceId,
         shipDefId: ship.shipDefId,
       },
-      phase: effectPhase,
-      timing: EffectTiming.Charge,
-      kind: effectKind,
-      magnitude: INTERCEPTOR_CHARGE_MAGNITUDE,
+      timing,
+      phase, // Legacy field for BattleReducer
+      activationTag: EffectTiming.Charge,
       target: {
         playerId: intent.target.playerId,
       },
       survivability: SurvivabilityRule.ResolvesIfDestroyed,
     };
 
+    // Create typed effect based on kind
+    const effect: Effect = intent.mode === 'DAMAGE'
+      ? {
+          ...baseEffect,
+          kind: EffectKind.Damage,
+          amount: INTERCEPTOR_CHARGE_MAGNITUDE,
+        } as DamageEffect
+      : {
+          ...baseEffect,
+          kind: EffectKind.Heal,
+          amount: INTERCEPTOR_CHARGE_MAGNITUDE,
+        } as HealEffect;
+
     effects.push(effect);
     debugLog.push(
-      `[Translator] Intent ${index}: TRANSLATED to ${effectKind} effect in ${effectPhase} phase (magnitude ${INTERCEPTOR_CHARGE_MAGNITUDE})`
+      `[Translator] Intent ${index}: TRANSLATED to ${effectKind} effect in ${timing} phase (amount ${INTERCEPTOR_CHARGE_MAGNITUDE})`
     );
   }
 

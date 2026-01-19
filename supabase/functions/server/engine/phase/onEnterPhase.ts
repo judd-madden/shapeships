@@ -1,32 +1,4 @@
 /**
- * SERVER PHASE ENTRY HOOK (AUTHORITATIVE)
- *
- * This file executes authoritative game logic when the server
- * advances into a new phase or subphase.
- *
- * Responsibilities:
- * - Enforce game rules and legality
- * - Resolve authoritative state transitions
- * - Apply irreversible outcomes (damage, destruction, victory)
- * - Advance turns and phases
- * - Validate assumptions about game state
- *
- * Non-responsibilities:
- * - NO UI concerns
- * - NO client-side simulation
- * - NO visualisation or debug-only logic
- * - NO intent translation (intent → effect translation lives elsewhere)
- *
- * Architectural Notes:
- * - This file is SECURITY-CRITICAL
- * - This file is the source of truth for phase effects
- * - Client/game-layer phase hooks MUST NOT duplicate logic here
- *
- * DO NOT import from /game.
- * DO NOT loosen validation for convenience.
- */
-
-/**
  * ON-ENTER PHASE HOOKS
  * 
  * Automatic effects triggered when entering specific phases.
@@ -35,11 +7,16 @@
  * Returns updated state and any events generated.
  */
 
-import type { PhaseKey } from './PhaseTable.ts';
+import { PHASE_SEQUENCE, type PhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
+import { resolvePhase } from '../../engine_shared/resolve/resolvePhase.ts';
 
 export interface OnEnterResult {
   state: any;
   events: any[];
+}
+
+function isPhaseKey(value: string): value is PhaseKey {
+  return (PHASE_SEQUENCE as readonly string[]).includes(value);
 }
 
 /**
@@ -58,6 +35,8 @@ export function onEnterPhase(
   nowMs: number
 ): OnEnterResult {
   const events: any[] = [];
+  // Always treat state as mutable local variable; we will return the final reference.
+  let workingState: any = state;
   
   console.log(`[OnEnterPhase] Entering: ${toKey} (from: ${fromKey || 'initial'})`);
   
@@ -69,22 +48,22 @@ export function onEnterPhase(
     const diceRoll = Math.floor(Math.random() * 6) + 1; // 1-6
     
     // Store in both locations for compatibility
-    if (!state.gameData) {
-      state.gameData = {};
+    if (!workingState.gameData) {
+      workingState.gameData = {};
     }
-    if (!state.gameData.turnData) {
-      state.gameData.turnData = {};
+    if (!workingState.gameData.turnData) {
+      workingState.gameData.turnData = {};
     }
     
-    state.gameData.diceRoll = diceRoll;
-    state.gameData.turnData.diceRoll = diceRoll;
+    workingState.gameData.diceRoll = diceRoll;
+    workingState.gameData.turnData.diceRoll = diceRoll;
     
     console.log(`[OnEnterPhase] Rolled dice: ${diceRoll}`);
     
     events.push({
       type: 'DICE_ROLLED',
       value: diceRoll,
-      turnNumber: state.gameData.turnNumber || 1,
+      turnNumber: workingState.gameData.turnNumber || 1,
       atMs: nowMs
     });
   }
@@ -94,12 +73,12 @@ export function onEnterPhase(
   // ============================================================================
   
   if (toKey === 'build.line_generation') {
-    const diceRoll = state.gameData?.diceRoll || state.gameData?.turnData?.diceRoll || 0;
+    const diceRoll = workingState.gameData?.diceRoll || workingState.gameData?.turnData?.diceRoll || 0;
     
     if (diceRoll > 0) {
       // Authoritative resolution — outcomes applied here are final and irreversible
       // Grant lines to all active players
-      const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
+      const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
       
       for (const player of activePlayers) {
         const currentLines = player.lines || 0;
@@ -117,13 +96,39 @@ export function onEnterPhase(
       }
       
       // Mark lines as distributed
-      if (!state.gameData.turnData) {
-        state.gameData.turnData = {};
+      if (!workingState.gameData.turnData) {
+        workingState.gameData.turnData = {};
       }
-      state.gameData.turnData.linesDistributed = true;
+      workingState.gameData.turnData.linesDistributed = true;
     } else {
       console.log(`[OnEnterPhase] Warning: No dice roll found for line generation`);
     }
+  }
+  
+  // ============================================================================
+  // STRUCTURED POWERS RESOLUTION (PhaseKey-Based)
+  // ============================================================================
+  
+  // Call resolvePhase for all phase entries to process structured powers
+  // resolvePhase will handle phase-specific logic internally
+  try {
+    if (!isPhaseKey(toKey)) {
+      console.warn(`[OnEnterPhase] Skipping resolvePhase: toKey is not a valid PhaseKey: ${toKey}`);
+    } else {
+      const resolutionResult = resolvePhase(workingState, toKey);
+
+      // resolvePhase returns a new state object reference
+      workingState = resolutionResult.state;
+
+      if (resolutionResult.events && resolutionResult.events.length > 0) {
+        events.push(...resolutionResult.events);
+        console.log(
+          `[OnEnterPhase] Structured powers resolution for ${toKey} generated ${resolutionResult.events.length} events`
+        );
+      }
+    }
+  } catch (error) {
+    console.error(`[OnEnterPhase] Error during structured powers resolution:`, error);
   }
   
   // ============================================================================
@@ -133,8 +138,7 @@ export function onEnterPhase(
   // Add more on-enter effects here as needed:
   // - Clock tick updates
   // - Automatic charge restoration
-  // - End of turn damage/healing resolution
   // - etc.
   
-  return { state, events };
+  return { state: workingState, events };
 }

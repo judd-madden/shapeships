@@ -447,7 +447,7 @@ function processChargeDeclaration(
   state.queuedEffects = state.queuedEffects || [];
 
   for (const effect of effects) {
-    if (effect.timing === 'Charge') {
+    if (effect.activationTag === 'Charge') {
       // Validate source ship is still alive
       if (!isChargeSourceAlive(state, effect)) {
         battleLog.push({
@@ -487,7 +487,7 @@ function processChargeResponse(
   state.queuedEffects = state.queuedEffects || [];
 
   for (const effect of effects) {
-    if (effect.timing === 'Charge') {
+    if (effect.activationTag === 'Charge') {
       // Validate source ship is still alive
       if (!isChargeSourceAlive(state, effect)) {
         battleLog.push({
@@ -636,9 +636,10 @@ function aggregateDamage(effects: Effect[]): Record<string, number> {
 
   for (const effect of effects) {
     const playerId = effect.target.playerId;
-    const magnitude = effect.magnitude ?? 0;
+    // Only DamageEffect has amount field
+    const amount = effect.kind === EffectKind.Damage ? effect.amount : 0;
 
-    totals[playerId] = (totals[playerId] || 0) + magnitude;
+    totals[playerId] = (totals[playerId] || 0) + amount;
   }
 
   return totals;
@@ -653,9 +654,10 @@ function aggregateHealing(effects: Effect[]): Record<string, number> {
 
   for (const effect of effects) {
     const playerId = effect.target.playerId;
-    const magnitude = effect.magnitude ?? 0;
+    // Only HealEffect has amount field
+    const amount = effect.kind === EffectKind.Heal ? effect.amount : 0;
 
-    totals[playerId] = (totals[playerId] || 0) + magnitude;
+    totals[playerId] = (totals[playerId] || 0) + amount;
   }
 
   return totals;

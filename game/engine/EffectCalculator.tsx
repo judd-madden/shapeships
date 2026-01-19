@@ -1,3 +1,13 @@
+/**
+ * DEPRECATED — LEGACY CLIENT ENGINE
+ *
+ * This file is part of an old client-authoritative engine.
+ * It must not be used for authoritative gameplay.
+ *
+ * Canonical shared engine code lives in /engine.
+ * This file is retained for reference only.
+ */
+
 // Effect Calculator - Calculates effect outcomes (NOT rule legality)
 // This is separate from PassiveModifiers which only queries rule state
 

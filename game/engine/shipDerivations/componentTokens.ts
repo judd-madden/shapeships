@@ -1,20 +1,16 @@
 /**
- * COMPONENT SHIP TOKEN DSL PARSER
- * 
- * Component ships use a small DSL for expressing requirements:
- * 
- * - Plain ID:     "DEF"      → Just requires a Defender ship
- * - Depleted:     "CAR(0)"   → Requires a Carrier with 0 charges remaining
- * 
- * The "(0)" token means the component ship must have its charges depleted.
- * Only ships with charges != null can be used with "(0)" notation.
- * 
- * ARCHITECTURE:
- * - This is an ENGINE module (not data layer)
- * - Used by cost calculators and ship building logic
- * - Validates tokens in dev mode to catch authoring errors early
+ * DEPRECATED — LEGACY CLIENT ENGINE
+ *
+ * This file is part of an old client-authoritative engine.
+ * It must not be used for authoritative gameplay.
+ *
+ * Canonical shared engine code lives in /engine.
+ * This file is retained for reference only.
  */
 
+/**
+ * Component Tokens
+ */
 export type ComponentToken = 
   | { kind: 'id'; id: string }
   | { kind: 'requirement'; id: string; chargeState: 'depleted' };

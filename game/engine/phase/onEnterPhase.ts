@@ -35,7 +35,7 @@
 import type { GameData } from '../../types/GameTypes';
 import { translateBattleIntentsToEffects, type TranslationInput, type ShipReference } from '../battle/translateBattleIntentsToEffects';
 import { resolveBattle, type BattleState, type BattleResult } from '../battle/BattleReducer';
-import { type PhaseKey, isValidPhaseKey } from './PhaseTable';
+import { type PhaseKey, isValidPhaseKey } from '/engine/phase/PhaseTable';
 
 // ============================================================================
 // TYPES

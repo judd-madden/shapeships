@@ -24,3 +24,69 @@ export type ShipInstance = {
   /** Turn number when ship was created */
   createdTurn?: number;
 };
+
+/**
+ * Player state in the game
+ */
+export type PlayerState = {
+  /** Unique player identifier */
+  id: string;
+  
+  /** Player role */
+  role: 'player' | 'spectator';
+  
+  /** Player display name */
+  name?: string;
+  
+  /** Current health */
+  health: number;
+  
+  /** Current lines (build resources) */
+  lines: number;
+  
+  /** Species selection */
+  species?: string | null;
+};
+
+/**
+ * Game data container
+ */
+export type GameData = {
+  /** Current turn number */
+  turnNumber: number;
+  
+  /** Dice roll result */
+  diceRoll?: number;
+  
+  /** Ship fleets indexed by player ID */
+  ships?: Record<string, ShipInstance[]>;
+  
+  /** Turn-specific data */
+  turnData?: {
+    diceRoll?: number;
+    linesDistributed?: boolean;
+  };
+};
+
+/**
+ * Complete game state
+ */
+export type GameState = {
+  /** Unique game identifier */
+  gameId: string;
+  
+  /** Game status */
+  status: 'waiting' | 'active' | 'finished';
+  
+  /** Player states */
+  players: PlayerState[];
+  
+  /** Game data container */
+  gameData: GameData;
+  
+  /** Action log (optional) */
+  actions?: any[];
+};
+
+// Runtime anchor: ensures this module exists in the deployed bundle even though it is mostly types.
+export const GAME_STATE_TYPES_VERSION = '1';

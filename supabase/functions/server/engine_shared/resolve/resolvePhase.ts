@@ -1,0 +1,375 @@
+/**
+ * RESOLVE PHASE
+ *
+ * Single entry point for shared phase resolution.
+ * Orchestrates: Ship Powers → Effects → Application
+ *
+ * WORKFLOW:
+ * 1. Collect structured powers from active ships
+ * 2. Translate powers to effects for current phase
+ * 3. Apply effects to game state
+ * 4. Return updated state + events
+ *
+ * This pass implements only battle.end_of_turn_resolution.
+ * Future passes will expand to other phases.
+ */
+
+import type { GameState, ShipInstance } from '../../engine/state/GameStateTypes.ts';
+import { GAME_STATE_TYPES_VERSION } from '../../engine/state/GameStateTypes.ts';
+import type { PhaseKey } from '../phase/PhaseTable.ts';
+import type { Effect } from '../effects/Effect.ts';
+import { translateShipPowers, type TranslateContext } from '../effects/translateShipPowers.ts';
+import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
+import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
+
+// ============================================================================
+// RESOLVE PHASE
+// ============================================================================
+
+/**
+ * Resolve a phase by processing all ship powers and applying effects
+ *
+ * @param state - Current game state
+ * @param phaseKey - Phase key to resolve
+ * @returns Updated state and events
+ */
+export function resolvePhase(
+  state: GameState,
+  phaseKey: PhaseKey
+): { state: GameState; events: EffectEvent[] } {
+  console.log(`[resolvePhase] Resolving phase: ${phaseKey}`);
+  console.log(`[resolvePhase] GameStateTypes version: ${GAME_STATE_TYPES_VERSION}`);
+
+  // Only implement battle.end_of_turn_resolution for this pass
+  if (phaseKey !== 'battle.end_of_turn_resolution') {
+    console.log(`[resolvePhase] No resolution logic for phase: ${phaseKey}`);
+    return { state, events: [] };
+  }
+
+  // Collect all effects from all ships
+  const effects = collectEffectsForPhase(state, phaseKey);
+
+  console.log(`[resolvePhase] Collected ${effects.length} effects for ${phaseKey}`);
+
+  // Apply effects to state
+  const result = applyEffects(state, effects);
+
+  console.log(`[resolvePhase] Applied effects, generated ${result.events.length} events`);
+
+  // Health clamping, victory evaluation, and terminal state (end-of-turn only)
+  const finalResult = evaluateVictoryConditions(result.state, result.events, phaseKey);
+
+  return finalResult;
+}
+
+// ============================================================================
+// EFFECT COLLECTION
+// ============================================================================
+
+/**
+ * Collect all effects from all ships for a specific phase
+ *
+ * @param state - Current game state
+ * @param phaseKey - Phase key to collect effects for
+ * @returns Array of effects
+ */
+function collectEffectsForPhase(
+  state: GameState,
+  phaseKey: PhaseKey
+): Effect[] {
+  const effects: Effect[] = [];
+
+  // Get active players (role === 'player')
+  const activePlayers = state.players.filter(p => p.role === 'player');
+
+  if (activePlayers.length !== 2) {
+    console.warn(`[collectEffectsForPhase] Expected 2 active players, found ${activePlayers.length}`);
+  }
+
+  // Determine opponent for each player
+  const playerIds = activePlayers.map(p => p.id);
+  const opponentMap = new Map<string, string>();
+
+  if (playerIds.length === 2) {
+    opponentMap.set(playerIds[0], playerIds[1]);
+    opponentMap.set(playerIds[1], playerIds[0]);
+  }
+
+  // Process each player's fleet
+  for (const player of activePlayers) {
+    const playerId = player.id;
+    const opponentId = opponentMap.get(playerId);
+
+    if (!opponentId) {
+      console.warn(`[collectEffectsForPhase] No opponent found for player ${playerId}`);
+      continue;
+    }
+
+    // Get player's ships
+    const ships = state.gameData.ships?.[playerId] || [];
+
+    console.log(`[collectEffectsForPhase] Processing ${ships.length} ships for player ${playerId}`);
+
+    // Process each ship
+    for (const ship of ships) {
+      const shipEffects = collectEffectsFromShip(
+        ship,
+        playerId,
+        opponentId,
+        phaseKey
+      );
+
+      effects.push(...shipEffects);
+    }
+  }
+
+  return effects;
+}
+
+// ============================================================================
+// SHIP EFFECT COLLECTION
+// ============================================================================
+
+/**
+ * Collect effects from a single ship for a specific phase
+ *
+ * @param ship - Ship instance
+ * @param ownerPlayerId - Owner player ID
+ * @param opponentPlayerId - Opponent player ID
+ * @param phaseKey - Phase key
+ * @returns Array of effects
+ */
+function collectEffectsFromShip(
+  ship: ShipInstance,
+  ownerPlayerId: string,
+  opponentPlayerId: string,
+  phaseKey: PhaseKey
+): Effect[] {
+  // Get ship definition (joined view with structured powers)
+  const shipDef = getShipDefinition(ship.shipDefId);
+
+  if (!shipDef) {
+    console.warn(`[collectEffectsFromShip] Ship definition not found: ${ship.shipDefId}`);
+    return [];
+  }
+
+  // Use ship-level flattened structured powers (deterministic join output)
+  const allStructuredPowers = shipDef.structuredPowers;
+
+  if (!allStructuredPowers || allStructuredPowers.length === 0) {
+    // No structured powers for this ship (expected for ships not yet implemented)
+    return [];
+  }
+
+  // Create translation context
+  const ctx: TranslateContext = {
+    shipInstanceId: ship.instanceId,
+    shipDefId: ship.shipDefId,
+    ownerPlayerId,
+    opponentPlayerId
+  };
+
+  // Translate structured powers to effects
+  const effects = translateShipPowers(allStructuredPowers, phaseKey, ctx);
+
+  if (effects.length > 0) {
+    console.log(
+      `[collectEffectsFromShip] Ship ${ship.shipDefId} (${ship.instanceId}) ` +
+      `produced ${effects.length} effects for ${phaseKey}`
+    );
+  }
+
+  return effects;
+}
+
+// ============================================================================
+// VICTORY EVALUATION
+// ============================================================================
+
+/**
+ * Evaluate victory conditions after end-of-turn resolution
+ *
+ * Order:
+ * 1. Clamp health to [no minimum, max 35]
+ * 2. Evaluate victory conditions (player health, not ship health)
+ * 3. Emit GAME_OVER if terminal
+ *
+ * @param state - Current game state after effects
+ * @param events - Events generated during effect application
+ * @param phaseKey - Phase key
+ * @returns Updated state and events
+ */
+function evaluateVictoryConditions(
+  state: GameState,
+  events: EffectEvent[],
+  phaseKey: PhaseKey
+): { state: GameState; events: EffectEvent[] } {
+  // Only apply victory evaluation for end-of-turn resolution
+  if (phaseKey !== 'battle.end_of_turn_resolution') {
+    return { state, events };
+  }
+
+  // Skip if game is already finished (idempotent)
+  if (state.status === 'finished') {
+    return { state, events };
+  }
+
+  // Step 1: Clamp health to maximum 35 (no minimum clamp)
+  let updatedState = clampPlayerHealth(state);
+
+  // Step 2: Evaluate victory conditions
+  const victoryResult = checkVictoryConditions(updatedState);
+
+  // Step 3: If terminal, apply terminal state and emit GAME_OVER
+  if (victoryResult.isTerminal) {
+    updatedState = {
+      ...updatedState,
+      status: 'finished',
+      winnerPlayerId: victoryResult.winnerPlayerId,
+      result: victoryResult.result,
+    };
+
+    const gameOverEvent: any = {
+      type: 'GAME_OVER',
+      phaseKey,
+      winnerPlayerId: victoryResult.winnerPlayerId,
+      result: victoryResult.result,
+      finalHealth: victoryResult.finalHealth,
+    };
+
+    console.log(
+      `[Victory] Game over: ${victoryResult.result}, winner=${victoryResult.winnerPlayerId || 'null'}, ` +
+      `health=${JSON.stringify(victoryResult.finalHealth)}`
+    );
+
+    return {
+      state: updatedState,
+      events: [...events, gameOverEvent],
+    };
+  }
+
+  return { state: updatedState, events };
+}
+
+/**
+ * Clamp player health to maximum of 35
+ * Minimum is not clamped (negative values allowed for victory comparison)
+ *
+ * @param state - Current game state
+ * @returns Updated state with clamped health
+ */
+function clampPlayerHealth(state: GameState): GameState {
+  const MAX_HEALTH = 35;
+
+  const updatedPlayers = state.players.map(player => {
+    if (player.health > MAX_HEALTH) {
+      return { ...player, health: MAX_HEALTH };
+    }
+    return player;
+  });
+
+  return {
+    ...state,
+    players: updatedPlayers,
+  };
+}
+
+/**
+ * Check victory conditions based on player health
+ *
+ * Rules:
+ * - Decisive victory: One player health <= 0, other >= 1 (winner = survivor)
+ * - Narrow victory: Both health <= 0, winner has higher health
+ * - Draw: Both health <= 0 and equal
+ * - No result: Game continues
+ *
+ * @param state - Current game state (after health clamp)
+ * @returns Victory result
+ */
+function checkVictoryConditions(state: GameState): {
+  isTerminal: boolean;
+  winnerPlayerId: string | null;
+  result: 'win' | 'draw';
+  finalHealth: Record<string, number>;
+} {
+  // Get active players (role === 'player')
+  const activePlayers = state.players.filter(p => p.role === 'player');
+
+  if (activePlayers.length !== 2) {
+    console.warn(`[checkVictoryConditions] Expected 2 active players, found ${activePlayers.length}`);
+    return {
+      isTerminal: false,
+      winnerPlayerId: null,
+      result: 'draw',
+      finalHealth: {},
+    };
+  }
+
+  const p1 = activePlayers[0];
+  const p2 = activePlayers[1];
+  const h1 = p1.health;
+  const h2 = p2.health;
+
+  const finalHealth: Record<string, number> = {
+    [p1.id]: h1,
+    [p2.id]: h2,
+  };
+
+  // Case 1: Decisive victory (one survivor)
+  if (h1 <= 0 && h2 >= 1) {
+    return {
+      isTerminal: true,
+      winnerPlayerId: p2.id,
+      result: 'win',
+      finalHealth,
+    };
+  }
+
+  if (h2 <= 0 && h1 >= 1) {
+    return {
+      isTerminal: true,
+      winnerPlayerId: p1.id,
+      result: 'win',
+      finalHealth,
+    };
+  }
+
+  // Case 2: Both dead - check for narrow victory or draw
+  if (h1 <= 0 && h2 <= 0) {
+    if (h1 > h2) {
+      // P1 has higher (less negative) health
+      return {
+        isTerminal: true,
+        winnerPlayerId: p1.id,
+        result: 'win',
+        finalHealth,
+      };
+    }
+
+    if (h2 > h1) {
+      // P2 has higher (less negative) health
+      return {
+        isTerminal: true,
+        winnerPlayerId: p2.id,
+        result: 'win',
+        finalHealth,
+      };
+    }
+
+    // Equal health - draw
+    return {
+      isTerminal: true,
+      winnerPlayerId: null,
+      result: 'draw',
+      finalHealth,
+    };
+  }
+
+  // Case 3: No terminal condition met - game continues
+  return {
+    isTerminal: false,
+    winnerPlayerId: null,
+    result: 'draw',
+    finalHealth,
+  };
+}

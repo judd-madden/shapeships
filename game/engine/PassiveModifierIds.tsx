@@ -2,14 +2,17 @@
 // This is the SINGLE SOURCE OF TRUTH for valid passive modifier IDs
 
 /**
- * PASSIVE_MODIFIER_IDS
- * 
- * Centrally defined modifier IDs used by the PassiveModifiers system.
- * These IDs are referenced in ship definitions (power.specialLogic.customLogicId)
- * and validated during modifier registration.
- * 
- * DO NOT invent new IDs at runtime.
- * Add new modifiers here when creating new passive powers.
+ * DEPRECATED — LEGACY CLIENT ENGINE
+ *
+ * This file is part of an old client-authoritative engine.
+ * It must not be used for authoritative gameplay.
+ *
+ * Canonical shared engine code lives in /engine.
+ * This file is retained for reference only.
+ */
+
+/**
+ * Passive Modifier IDs
  */
 export const PASSIVE_MODIFIER_IDS = {
   // Destruction protection

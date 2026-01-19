@@ -1,29 +1,14 @@
 /**
- * END OF TURN RESOLVER - REFACTORED
- * 
- * The ONLY place where health changes are applied.
- * 
- * CORE INVARIANTS:
- * 1. Health only changes during End of Turn Resolution
- * 2. All effects resolve simultaneously (order-independent)
- * 3. Once-only/triggered effects resolve even if source ship destroyed
- * 4. Continuous effects only resolve if source ship survives
- * 5. Win/loss checked ONLY after resolution
- * 
- * REFACTORED ARCHITECTURE:
- * This file is now responsible ONLY for:
- * ✅ Applying triggered effects (enqueued during turn)
- * ✅ Evaluating continuous Automatic powers (via PowerResolver)
- * ✅ Applying health changes
- * ✅ Checking victory conditions
- * 
- * NOT RESPONSIBLE FOR:
- * ❌ Parsing ship power text
- * ❌ Ship-specific logic
- * ❌ Effect type switching (delegates to PowerResolver)
+ * DEPRECATED — LEGACY CLIENT ENGINE
+ *
+ * This file is part of an old client-authoritative engine.
+ * It must not be used for authoritative gameplay.
+ *
+ * Canonical shared engine code lives in /engine.
+ * This file is retained for reference only.
  */
 
-import type { GameState, PlayerShip } from '../types/GameTypes';
+import type { GameState } from '../types/GameTypes';
 import type { 
   TriggeredEffect, 
   EvaluatedEffect, 

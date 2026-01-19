@@ -1,4 +1,9 @@
 /**
+ * ⚠️ LEGACY HARNESS DISABLED ⚠️
+ * 
+ * This harness is no longer active in the dev dashboard.
+ * Real engine is server/engine_shared.
+ * 
  * BATTLE SIMULATION HARNESS
  * 
  * Minimal validation tool for Effects + BattleReducer architecture.

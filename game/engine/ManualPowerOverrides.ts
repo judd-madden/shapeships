@@ -1,23 +1,15 @@
 /**
- * Manual Power Overrides - SINGLE LOCATION FOR SHIP-SPECIFIC LOGIC
- * 
- * PURPOSE:
- * This is the ONLY place where ship-specific power logic may live.
- * Used when a power has neither:
- *   - effectAst (structured interpretation)
- *   - kind (effect type classification)
- * 
- * RULES:
- * - Keyed by: shipId → powerIndex
- * - Must be explicitly documented
- * - Should be minimal (prefer AST or kind when possible)
- * - No CSV text parsing here
- * 
- * ARCHITECTURE:
- * This is a fallback system. Most ships should eventually have:
- *   1. AST interpretation (ideal)
- *   2. Effect kind classification (good)
- *   3. Manual override (last resort)
+ * DEPRECATED — LEGACY CLIENT ENGINE
+ *
+ * This file is part of an old client-authoritative engine.
+ * It must not be used for authoritative gameplay.
+ *
+ * Canonical shared engine code lives in /engine.
+ * This file is retained for reference only.
+ */
+
+/**
+ * Manual Power Overrides
  */
 
 import type { GameState, PlayerShip } from '../types/GameTypes';

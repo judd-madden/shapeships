@@ -1,15 +1,26 @@
 /**
- * CANONICAL SHIP DEFINITIONS (JSON SOURCE)
+ * SERVER-SIDE SHIP DEFINITIONS (JSON COPY)
  * 
- * Single source of truth for all ship data.
- * Imported from authoritative JSON specification.
+ * ⚠️ WARNING: DO NOT IMPORT THIS FILE OUTSIDE OF /supabase/functions/server/**
  * 
- * CRITICAL: Power text contains literal "\n" escape sequences.
- * Do NOT convert these to real newlines - preserve exactly as provided.
- * The UI layer is responsible for interpreting these sequences.
+ * This is a self-contained copy of the canonical ship definitions JSON
+ * for server-side edge function bundling. The client maintains its own
+ * copy at /game/data/ShipDefinitions.json.ts for UI purposes.
  * 
- * Created: 2026-01-16
- * Replaces: Legacy CSV-based ship definitions (archived)
+ * CRITICAL INVARIANTS:
+ * - Power text contains literal "\\n" escape sequences (not real newlines)
+ * - This file must be kept in sync with client JSON manually
+ * - Any schema changes must be applied to BOTH copies
+ * 
+ * DATA FLOW (SERVER):
+ * - THIS FILE (server JSON source)
+ * - → ShipDefinitions.core.ts (server bridge)
+ * - → ShipDefinitions.withStructuredPowers.ts (join layer)
+ * - → engine_shared resolution logic
+ * 
+ * VERSION: 2026-01-16
+ * Last synced with: /game/data/ShipDefinitions.json.ts
+ * 
  */
 
 export const SHIP_DEFINITIONS_JSON = [
@@ -1636,8 +1647,8 @@ export const SHIP_DEFINITIONS_JSON = [
  * Version identifier for client-side ship definitions
  * Format: YYYY-MM-DDx (x = letter for multiple updates same day)
  * 
- * IMPORTANT: This version should match the server-side version when synced.
- * Server version is in: /supabase/functions/server/engine_shared/defs/ShipDefinitions.json.ts
+ * IMPORTANT: This version should match the client-side version when synced.
+ * Client version is in: /game/data/ShipDefinitions.json.ts
  */
 export const SHIP_DEFS_VERSION = '2026-01-16';
 
@@ -1648,92 +1659,3 @@ export const SHIP_DEFS_VERSION = '2026-01-16';
 export type ShipDefinitionJSON = typeof SHIP_DEFINITIONS_JSON[number];
 export type ShipPowerJSON = ShipDefinitionJSON['powers'][number];
 export type EnergyCostJSON = NonNullable<ShipDefinitionJSON['energyCost']>;
-
-// ============================================================================
-// DEV-ONLY VALIDATION
-// ============================================================================
-
-/**
- * Minimal schema validation for ship definitions.
- * 
- * WHY DEV-ONLY:
- * - These checks guard against authoring errors during development
- * - Production runtime doesn't need to re-validate static data
- * 
- * WHY PRESERVE LITERAL "\\n":
- * - Power text must remain as-authored from the JSON source
- * - The UI rendering layer handles escape sequence interpretation
- * - Prevents data corruption from auto-conversion
- * 
- * VALIDATION SCOPE (MINIMAL):
- * - Unique ship IDs (prevents duplicate definitions)
- * - No real newline characters in power text (must use literal "\\n")
- */
-
-if (process.env.NODE_ENV !== 'production') {
-  const errors: string[] = [];
-  
-  // ==========================================================================
-  // UNIQUE SHIP IDs
-  // ==========================================================================
-  
-  const seenIds = new Set<string>();
-  const duplicateIds = new Set<string>();
-  
-  for (const ship of SHIP_DEFINITIONS_JSON) {
-    if (seenIds.has(ship.id)) {
-      duplicateIds.add(ship.id);
-    }
-    seenIds.add(ship.id);
-  }
-  
-  if (duplicateIds.size > 0) {
-    errors.push(
-      `Duplicate ship IDs found: ${Array.from(duplicateIds).join(', ')}`
-    );
-  }
-  
-  // ==========================================================================
-  // NO REAL NEWLINES IN POWER TEXT
-  // ==========================================================================
-  
-  for (const ship of SHIP_DEFINITIONS_JSON) {
-    for (const power of ship.powers) {
-      // Check for ACTUAL newline characters (not the literal sequence)
-      if (power.text.includes('\n')) {
-        errors.push(
-          `Ship "${ship.id}" power "${power.subphase}" contains real newline character. ` +
-          `Must use literal "\\\\n" escape sequence instead.`
-        );
-      }
-    }
-  }
-  
-  // ==========================================================================
-  // REPORT VALIDATION ERRORS
-  // ==========================================================================
-  
-  if (errors.length > 0) {
-    const errorReport = [
-      '',
-      '═══════════════════════════════════════════════════════════════',
-      '  SHIP DEFINITIONS VALIDATION FAILED',
-      '═══════════════════════════════════════════════════════════════',
-      '',
-      `Found ${errors.length} error(s):`,
-      '',
-      ...errors.map((err, i) => `${i + 1}. ${err}`),
-      '',
-      '═══════════════════════════════════════════════════════════════',
-      ''
-    ].join('\n');
-    
-    throw new Error(errorReport);
-  }
-  
-  // Success message
-  console.log(
-    `✓ Ship definitions validated: ${SHIP_DEFINITIONS_JSON.length} ships, ` +
-    `${SHIP_DEFINITIONS_JSON.reduce((sum, s) => sum + s.powers.length, 0)} powers`
-  );
-}

@@ -14,10 +14,9 @@
  * ARCHITECTURAL BOUNDARY:
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  * 
- * - IntentReducer records and validates player intent and mutates state accordingly
- * - IntentReducer MUST NOT compute battle effects, damage/heal math, or ship rules
- * - Battle law lives in BattleReducer (game/engine/battle/BattleReducer.ts)
- * - Translation of intents → effects belongs in separate bridge (e.g., onEnterPhase hook)
+ * IntentReducer handles commit/reveal enforcement and state mutation only.
+ * Battle/effect resolution is triggered by phase entry via onEnterPhase → engine_shared resolvePhase.
+ * Authoritative rules/effects live in engine_shared (not /game/**).
  * 
  * This reducer focuses on:
  *   ✓ Commit/reveal protocol enforcement
@@ -35,6 +34,7 @@
 import { syncPhaseFields } from '../phase/syncPhaseFields.ts';
 import { advancePhase } from '../phase/advancePhase.ts';
 import { onEnterPhase } from '../phase/onEnterPhase.ts';
+import { buildPhaseKey } from '../phase/PhaseTable.ts';
 import {
   type IntentType,
   type SpeciesRevealPayload,
@@ -54,6 +54,7 @@ import {
   allPlayersRevealed,
 } from './CommitStore.ts';
 import type { ShipInstance } from '../state/GameStateTypes.ts';
+import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 
 export interface IntentRequest {
   gameId: string;
@@ -581,6 +582,20 @@ async function handleBuildReveal(
       };
     }
     
+    // Validate shipDefId exists in authoritative server definitions
+    const shipDef = getShipById(build.shipDefId);
+    if (!shipDef) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.INVALID_SHIP,
+          message: `Unknown shipDefId: ${build.shipDefId}`
+        }
+      };
+    }
+    
     // Validate count bounds (FIX 4)
     if (build.count !== undefined) {
       // Check if count is an integer
@@ -947,15 +962,15 @@ function handleSurrender(
 // ============================================================================
 
 /**
- * Get stable phase key: ${currentPhase}:${currentSubPhase}
+ * Get canonical phase key using buildPhaseKey
  */
 function getPhaseKey(state: any): string | null {
-  const currentPhase = state.gameData?.currentPhase;
-  const currentSubPhase = state.gameData?.currentSubPhase;
+  const major = state.gameData?.currentPhase;
+  const sub = state.gameData?.currentSubPhase;
   
-  if (!currentPhase || !currentSubPhase) {
+  if (!major || !sub) {
     return null;
   }
   
-  return `${currentPhase}:${currentSubPhase}`;
+  return buildPhaseKey(major, sub);
 }
