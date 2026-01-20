@@ -16,16 +16,27 @@ import type { LeftRailViewModel, GameSessionActions } from '../../client/useGame
 interface LeftRailProps {
   vm: LeftRailViewModel;
   actions: GameSessionActions;
+  onBack?: () => void;
 }
 
-export function LeftRail({ vm, actions }: LeftRailProps) {
+export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
   return (
     <div className="w-[290px] h-full flex flex-col gap-5 pt-[25px] pb-[30px] shrink-0">
       {/* Brand / Title */}
-      <div className="shrink-0">
-        <p className="font-['Inter'] font-bold text-[45px] leading-[45px] text-white text-center">
-          SHAPESHIPS
-        </p>
+      <div className="shrink-0 flex items-center justify-between">
+        <div className="flex-1">
+          <p className="font-['Inter'] font-bold text-[45px] leading-[45px] text-white text-center">
+            SHAPESHIPS
+          </p>
+        </div>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="fixed top-[25px] right-[30px] bg-black text-white px-4 py-2 rounded-md border-2 border-[#555] hover:bg-[#212121] transition-colors text-sm font-medium z-50"
+          >
+            Back
+          </button>
+        )}
       </div>
 
       {/* Dice Area */}

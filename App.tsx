@@ -22,6 +22,9 @@ const ENABLE_BATTLE_SIM = false; // Legacy harness disabled. Real engine is serv
 // Dashboard view type
 type DashboardViewId = 'deployment' | 'auth' | 'alphaE2E' | 'intentVerification' | 'battleSimulation' | 'graphicsTest' | 'buildKit' | 'gameScreen';
 
+// App view mode
+type ViewMode = 'dashboard' | 'playerMode' | 'gameFullscreen';
+
 // Dashboard entries configuration
 const DASHBOARD_ENTRIES: Array<{ id: DashboardViewId; label: string; alphaDisabled?: boolean }> = [
   { id: 'deployment', label: 'Deployment Test' },
@@ -55,7 +58,7 @@ function readGameIdFromUrl(): string | null {
 }
 
 export default function App() {
-  const [isPlayerMode, setIsPlayerMode] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
   const [currentView, setCurrentView] = useState<DashboardViewId>(() => readDashboardViewFromUrl());
   const [deploymentStatus, setDeploymentStatus] = useState<'unknown' | 'ready' | 'error'>('unknown');
   const [gameId, setGameId] = useState<string | null>(() => readGameIdFromUrl());
@@ -120,16 +123,43 @@ export default function App() {
   };
 
   const switchToDevMode = () => {
-    setIsPlayerMode(false);
+    setViewMode('dashboard');
     setGameId(null);
     setView('deployment');
   };
 
-  // Check if we should show player mode or development mode
-  if (isPlayerMode) {
+  const openGameBoardFullscreen = () => {
+    setViewMode('gameFullscreen');
+  };
+
+  const returnToDashboard = () => {
+    setViewMode('dashboard');
+  };
+
+  // Render full-screen GameBoard mode
+  if (viewMode === 'gameFullscreen') {
+    if (!playerReady) {
+      return <div className="w-screen h-screen flex items-center justify-center">Loading player...</div>;
+    }
+    
+    return (
+      <div className="w-screen h-screen overflow-hidden">
+        <GameScreen
+          gameId={gameId || 'demo_game'}
+          playerId={player!.id}
+          playerName={player!.name}
+          onBack={returnToDashboard}
+        />
+      </div>
+    );
+  }
+
+  // Render Player Mode (ScreenManager)
+  if (viewMode === 'playerMode') {
     return <ScreenManager onSwitchToDevMode={switchToDevMode} />;
   }
 
+  // Render Dashboard mode
   return (
     <div className="min-h-screen bg-gray-50">
       <Toaster />
@@ -138,7 +168,7 @@ export default function App() {
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Shapeships Dev Dashboard</h1>
-          <Button onClick={() => setIsPlayerMode(true)}>
+          <Button onClick={() => setViewMode('playerMode')}>
             Switch to Player Mode
           </Button>
         </div>
@@ -273,16 +303,27 @@ export default function App() {
           )}
           
           {currentView === 'gameScreen' && (
-            playerReady ? (
-              <GameScreen
-                gameId={gameId || 'demo_game'}
-                playerId={player!.id}
-                playerName={player!.name}
-                onBack={() => setView('deployment')}
-              />
-            ) : (
-              <div>Loading player...</div>
-            )
+            <div className="container mx-auto max-w-4xl">
+              <div className="space-y-4">
+                <Button onClick={() => setView('deployment')} className="mb-4">
+                  ← Back to Dashboard
+                </Button>
+                <Button onClick={openGameBoardFullscreen} size="lg" className="w-full">
+                  Open GameBoard Full-Screen
+                </Button>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>GameBoard Preview</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600">
+                      Click "Open GameBoard Full-Screen" to launch the game interface in full-screen mode.
+                      Use the Back button to return to this dashboard.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           )}
         </div>
       </div>

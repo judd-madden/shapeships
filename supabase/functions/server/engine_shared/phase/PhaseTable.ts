@@ -56,14 +56,20 @@ export type MajorPhase = PhaseKey extends `${infer M}.${string}` ? M : never;
 export type SubPhase = PhaseKey extends `${string}.${infer S}` ? S : never;
 
 /**
- * Validates whether a string is a valid PhaseKey
+ * Check if string is a valid PhaseKey.
  * 
- * @param key - String to validate
+ * @param key - Phase key string to validate
  * @returns True if key is in PHASE_SEQUENCE
  */
 export function isValidPhaseKey(key: string): key is PhaseKey {
   return PHASE_SEQUENCE.includes(key as PhaseKey);
 }
+
+/**
+ * Compatibility alias for isValidPhaseKey.
+ * Used by server code that imports isPhaseKey.
+ */
+export const isPhaseKey = isValidPhaseKey;
 
 /**
  * Constructs a phase key from major and subphase components

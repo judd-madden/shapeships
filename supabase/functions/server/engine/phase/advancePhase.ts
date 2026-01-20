@@ -26,6 +26,15 @@ type AdvanceResult =
   | { ok: true; state: GameState; from: PhaseKey; to: PhaseKey }
   | { ok: false; error: string };
 
+/**
+ * DEPRECATED: Use advancePhase or advancePhaseCore instead
+ * @deprecated
+ */
+export interface AdvancePhaseOptions {
+  /** Skip readiness check (used for server-driven auto-advance) */
+  ignoreReadiness?: boolean;
+}
+
 function getCurrentPhaseKey(state: GameState): PhaseKey | null {
   const gd: any = state.gameData || {};
 
@@ -93,21 +102,64 @@ function allPlayersSelectedSpecies(state: GameState): boolean {
   return (state.players || []).every((p: any) => !!p.faction);
 }
 
-export function advancePhase(state: GameState): AdvanceResult {
+/**
+ * Core phase advancement logic (no readiness checks).
+ * 
+ * Used for:
+ * - System-driven auto-advance (e.g., species selection exit)
+ * - Readiness-gated advancement via advancePhase
+ * 
+ * Progresses to next phase in PHASE_SEQUENCE.
+ * Handles turn bumping at end of sequence.
+ * Clears readiness on successful advance.
+ * 
+ * @param state - Current game state
+ * @returns Result with updated state or error
+ */
+export function advancePhaseCore(state: GameState): AdvanceResult {
   const from = getCurrentPhaseKey(state);
   if (!from) return { ok: false, error: 'Missing current phase/subphase in game state.' };
 
-  if (from === 'setup.species_selection' && !allPlayersSelectedSpecies(state)) {
-    return { ok: false, error: 'Cannot advance: not all players selected species.' };
-  }
-
-  // Strict gating for now (no auto steps yet)
-  if (!allPlayersReady(state)) {
-    return { ok: false, error: 'Cannot advance: not all players are ready.' };
-  }
-
   const idx = PHASE_SEQUENCE.indexOf(from);
   if (idx === -1) return { ok: false, error: `Unknown phase key: ${from}` };
+
+  // Special handling: Setup exit (setup.species_selection → build.dice_roll with turn = 1)
+  if (from === 'setup.species_selection') {
+    const gd: any = state.gameData || {};
+    const currentTurn = gd.turnNumber ?? state.turnNumber ?? 0;
+    
+    // If still in setup (turn 0 or unset), transition to turn 1
+    const turnNumber = currentTurn === 0 ? 1 : currentTurn;
+    
+    const next = setPhase(state, 'build', 'dice_roll');
+    const nextGd: any = next.gameData || {};
+    const nextTd: any = nextGd.turnData || {};
+    
+    const setupExit: GameState = {
+      ...next,
+      turnNumber,
+      gameData: {
+        ...nextGd,
+        turnNumber,
+        diceRoll: null,
+        turnData: {
+          ...nextTd,
+          turnNumber,
+          diceRolled: false,
+          diceFinalized: false,
+          diceRoll: null,
+          linesDistributed: false,
+          anyChargesDeclared: false,
+        },
+      },
+    };
+    
+    const cleared = clearReadiness(setupExit);
+    
+    console.log(`[advancePhaseCore] Setup exit: ${from} → build.dice_roll (turn set to ${turnNumber})`);
+    
+    return { ok: true, state: cleared, from, to: 'build.dice_roll' };
+  }
 
   // End of sequence: new turn -> build.dice_roll
   if (idx === PHASE_SEQUENCE.length - 1) {
@@ -123,17 +175,62 @@ export function advancePhase(state: GameState): AdvanceResult {
       gameData: {
         ...gd,
         turnNumber,
-        turnData: { ...td, turnNumber },
+        diceRoll: null, // Clear mirrored dice roll
+        turnData: {
+          ...td,
+          turnNumber,
+          // Reset turn-scoped flags for new turn
+          diceRolled: false,
+          diceFinalized: false,
+          diceRoll: null,
+          linesDistributed: false,
+          anyChargesDeclared: false, // Reset charge declaration tracking
+        },
       },
     };
 
     const cleared = clearReadiness(bumped);
+    
+    console.log(`[advancePhaseCore] Turn bump: ${from} → build.dice_roll (turn ${prevTurn} → ${turnNumber})`);
+    
     return { ok: true, state: cleared, from, to: 'build.dice_roll' };
   }
 
+  // Normal phase progression
   const to = PHASE_SEQUENCE[idx + 1];
   const [major, sub] = to.split('.') as [MajorPhase, SubPhase];
 
   const advanced = clearReadiness(setPhase(state, major, sub));
+  
+  console.log(`[advancePhaseCore] Phase advance: ${from} → ${to}`);
+  
   return { ok: true, state: advanced, from, to };
+}
+
+/**
+ * Readiness-gated phase advancement.
+ * 
+ * Requires all active players to be ready before advancing.
+ * Delegates to advancePhaseCore for actual phase progression.
+ * 
+ * @param state - Current game state
+ * @param options - Options (deprecated, use advancePhaseCore for ignoreReadiness)
+ * @returns Result with updated state or error
+ */
+export function advancePhase(state: GameState, options?: AdvancePhaseOptions): AdvanceResult {
+  const from = getCurrentPhaseKey(state);
+  if (!from) return { ok: false, error: 'Missing current phase/subphase in game state.' };
+
+  // Species selection validation
+  if (from === 'setup.species_selection' && !allPlayersSelectedSpecies(state)) {
+    return { ok: false, error: 'Cannot advance: not all players selected species.' };
+  }
+
+  // Readiness check (can be bypassed with deprecated option)
+  if (!options?.ignoreReadiness && !allPlayersReady(state)) {
+    return { ok: false, error: 'Cannot advance: not all players are ready.' };
+  }
+
+  // Delegate to core advancement logic
+  return advancePhaseCore(state);
 }

@@ -16,13 +16,20 @@ import { useGameSession } from '../client/useGameSession';
 import { LeftRail } from './layout/LeftRail';
 import { MainStage } from './layout/MainStage';
 
-export default function GameScreen() {
+interface GameScreenProps {
+  gameId?: string;
+  playerId?: string;
+  playerName?: string;
+  onBack?: () => void;
+}
+
+export default function GameScreen({ gameId, playerId, playerName, onBack }: GameScreenProps = {}) {
   const { vm, actions } = useGameSession();
 
   return (
     <div className="ss-playerRoot w-full h-screen overflow-hidden flex gap-5 px-[30px]">
       {/* Left Rail - fixed width */}
-      <LeftRail vm={vm.leftRail} actions={actions} />
+      <LeftRail vm={vm.leftRail} actions={actions} onBack={onBack} />
 
       {/* Main Stage - fills remaining width */}
       <MainStage 

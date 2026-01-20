@@ -64,6 +64,7 @@ export const RejectionCode = {
   // Turn validation
   BAD_TURN: 'BAD_TURN',
   WRONG_PHASE: 'WRONG_PHASE',
+  PHASE_NOT_ALLOWED: 'PHASE_NOT_ALLOWED',
   
   // Commit/Reveal protocol
   DUPLICATE_COMMIT: 'DUPLICATE_COMMIT',

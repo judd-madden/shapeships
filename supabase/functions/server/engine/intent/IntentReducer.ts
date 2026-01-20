@@ -32,17 +32,20 @@
  */
 
 import { syncPhaseFields } from '../phase/syncPhaseFields.ts';
-import { advancePhase } from '../phase/advancePhase.ts';
+import { advancePhase, advancePhaseCore } from '../phase/advancePhase.ts';
 import { onEnterPhase } from '../phase/onEnterPhase.ts';
 import { buildPhaseKey } from '../phase/PhaseTable.ts';
 import {
   type IntentType,
   type SpeciesRevealPayload,
   type BuildRevealPayload,
+  type BattleRevealPayload,
   type ActionPayload,
+  type BattleWindow,
   RejectionCode,
   getSpeciesCommitKey,
   getBuildCommitKey,
+  getBattleCommitKey,
 } from './IntentTypes.ts';
 import { validateReveal } from './Hash.ts';
 import {
@@ -149,6 +152,34 @@ export async function applyIntent(
   }
   
   // ============================================================================
+  // VALIDATION: Phase-based intent gating
+  // ============================================================================
+  
+  // Compute current phase key
+  const phaseKey = 
+    state.phaseKey ??
+    (state.gameData?.currentPhase && state.gameData?.currentSubPhase
+      ? `${state.gameData.currentPhase}.${state.gameData.currentSubPhase}`
+      : null);
+  
+  // Enforce species selection phase restriction
+  if (phaseKey === 'setup.species_selection') {
+    const allowedInSpeciesSelection = new Set(['SPECIES_COMMIT', 'SPECIES_REVEAL']);
+    
+    if (!allowedInSpeciesSelection.has(intent.intentType)) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.PHASE_NOT_ALLOWED,
+          message: `Intent ${intent.intentType} not allowed during setup.species_selection. Allowed: SPECIES_COMMIT, SPECIES_REVEAL`
+        }
+      };
+    }
+  }
+  
+  // ============================================================================
   // ROUTE BY INTENT TYPE
   // ============================================================================
   
@@ -164,6 +195,12 @@ export async function applyIntent(
       
     case 'BUILD_REVEAL':
       return await handleBuildReveal(state, sessionPlayerId, intent, nowMs, events);
+      
+    case 'BATTLE_COMMIT':
+      return await handleBattleCommit(state, sessionPlayerId, intent, nowMs, events);
+      
+    case 'BATTLE_REVEAL':
+      return await handleBattleReveal(state, sessionPlayerId, intent, nowMs, events);
       
     case 'DECLARE_READY':
       return handleDeclareReady(state, sessionPlayerId, intent, nowMs, events);
@@ -367,16 +404,51 @@ async function handleSpeciesReveal(
     atMs: nowMs
   });
   
+  // ============================================================================
+  // DEBUG + EXPLICIT ALL-REVEALED CHECK
+  // ============================================================================
+  
+  // Compute active players and revealed count
+  const activePlayers = state.players.filter((p: any) => p.role === 'player');
+  const revealedCount = activePlayers.filter((p: any) => hasRevealed(state, commitKey, p.id)).length;
+  const phaseKeyBefore = state.phaseKey ?? 
+    (state.gameData?.currentPhase && state.gameData?.currentSubPhase
+      ? `${state.gameData.currentPhase}.${state.gameData.currentSubPhase}`
+      : 'UNKNOWN');
+  
+  // DEBUG EVENT: Log reveal status
+  events.push({
+    type: 'DEBUG_SPECIES_REVEAL_STATUS',
+    activePlayers: activePlayers.length,
+    revealedCount,
+    phaseKeyBefore,
+    atMs: nowMs
+  });
+  
+  console.log('[SPECIES_REVEAL_STATUS]', {
+    activePlayers: activePlayers.length,
+    revealedCount,
+    phaseKeyBefore,
+    allPlayerIds: activePlayers.map(p => p.id),
+    revealedPlayerIds: activePlayers.filter(p => hasRevealed(state, commitKey, p.id)).map(p => p.id)
+  });
+  
+  // Explicit all-revealed check (replace allPlayersRevealed helper)
+  const allRevealed = activePlayers.every((p: any) => hasRevealed(state, commitKey, p.id));
+  
+  console.log('[SPECIES_ALL_REVEALED_CHECK]', { allRevealed });
+  
   // Check if all players have revealed
-  if (allPlayersRevealed(state, commitKey)) {
-    // Resolve species for all players
-    const activePlayers = state.players.filter((p: any) => p.role === 'player');
+  if (allRevealed) {
+    console.log('[SPECIES_RESOLUTION] All players revealed, resolving species and auto-advancing...');
     
+    // Resolve species for all players
     for (const p of activePlayers) {
       const pRecord = getCommitRecord(state, commitKey, p.id);
       if (pRecord && pRecord.revealPayload) {
         const pPayload = pRecord.revealPayload as SpeciesRevealPayload;
         p.faction = pPayload.species;
+        console.log(`[SPECIES_RESOLUTION] Player ${p.id} → faction: ${pPayload.species}`);
       }
     }
     
@@ -385,6 +457,90 @@ async function handleSpeciesReveal(
       turnNumber: intent.turnNumber,
       atMs: nowMs
     });
+    
+    // --- AUTO-ADVANCE OUT OF SPECIES SELECTION ---
+    const from = state.phaseKey ?? 
+      (state.gameData?.currentPhase && state.gameData?.currentSubPhase
+        ? `${state.gameData.currentPhase}.${state.gameData.currentSubPhase}`
+        : 'UNKNOWN');
+    
+    console.log('[SPECIES_AUTO_ADVANCE] Starting auto-advance from:', from);
+    
+    // Advance phase using core (system-driven) advancement - NO readiness check
+    const advanceResult = advancePhaseCore(state);
+    
+    if (advanceResult.ok) {
+      state = advanceResult.state;
+      
+      // Sync phase fields after advancement
+      state = syncPhaseFields(state);
+      
+      // Get new phase key
+      const to = state.phaseKey ?? 
+        (state.gameData?.currentPhase && state.gameData?.currentSubPhase
+          ? `${state.gameData.currentPhase}.${state.gameData.currentSubPhase}`
+          : 'UNKNOWN');
+      
+      console.log('[SPECIES_AUTO_ADVANCE] Phase advanced:', { from, to });
+      
+      // DEBUG EVENT: Log auto-advance result
+      events.push({
+        type: 'DEBUG_SPECIES_AUTO_ADVANCE',
+        from,
+        to,
+        atMs: nowMs
+      });
+      
+      events.push({
+        type: 'PHASE_ADVANCED',
+        from,
+        to,
+        atMs: nowMs
+      });
+      
+      // Trigger on-enter hooks for new phase
+      const toKey = getPhaseKey(state);
+      if (toKey) {
+        console.log('[SPECIES_AUTO_ADVANCE] Calling onEnterPhase for:', toKey);
+        const onEnterResult = onEnterPhase(state, from, toKey, nowMs);
+        state = onEnterResult.state;
+        events.push(...onEnterResult.events);
+        console.log('[SPECIES_AUTO_ADVANCE] onEnterPhase complete, events:', onEnterResult.events.length);
+      }
+      
+      // Verify phase actually changed
+      if (to === from || to === 'setup.species_selection') {
+        console.error('[SPECIES_AUTO_ADVANCE] ❌ CRITICAL: Phase did not advance! Still at:', to);
+        events.push({
+          type: 'DEBUG_SPECIES_AUTO_ADVANCE_FAILED',
+          from,
+          to,
+          reason: 'Phase did not change',
+          atMs: nowMs
+        });
+      } else {
+        console.log('[SPECIES_AUTO_ADVANCE] ✓ Phase successfully advanced to:', to);
+      }
+    } else {
+      console.error('[SPECIES_AUTO_ADVANCE] ❌ advancePhase failed:', advanceResult.error);
+      
+      events.push({
+        type: 'DEBUG_SPECIES_AUTO_ADVANCE_FAILED',
+        from,
+        to: from,
+        reason: advanceResult.error,
+        atMs: nowMs
+      });
+      
+      events.push({
+        type: 'PHASE_ADVANCE_BLOCKED',
+        from,
+        reason: advanceResult.error,
+        atMs: nowMs
+      });
+    }
+  } else {
+    console.log('[SPECIES_REVEAL] Not all players revealed yet, waiting...');
   }
   
   state = syncPhaseFields(state);
@@ -596,6 +752,30 @@ async function handleBuildReveal(
       };
     }
     
+    // Validate component ships for Drawing builds (Upgraded ships)
+    // Component ships must exist in player's current fleet at time of validation
+    if (shipDef.componentShips && shipDef.componentShips.length > 0) {
+      const playerFleet = state?.gameData?.ships?.[playerId] || [];
+      const fleetShipDefIds = playerFleet.map((s: any) => s.shipDefId);
+      
+      for (const componentDefId of shipDef.componentShips) {
+        const availableCount = fleetShipDefIds.filter((id: string) => id === componentDefId).length;
+        const requiredCount = shipDef.componentShips.filter((id: string) => id === componentDefId).length;
+        
+        if (availableCount < requiredCount) {
+          return {
+            ok: false,
+            state,
+            events: [],
+            rejected: {
+              code: RejectionCode.INVALID_SHIP,
+              message: `Cannot build ${build.shipDefId}: requires ${requiredCount}× ${componentDefId}, but only ${availableCount} available in fleet`
+            }
+          };
+        }
+      }
+    }
+    
     // Validate count bounds (FIX 4)
     if (build.count !== undefined) {
       // Check if count is an integer
@@ -691,6 +871,63 @@ async function handleBuildReveal(
     ok: true,
     state,
     events
+  };
+}
+
+// ============================================================================
+// BATTLE_COMMIT
+// ============================================================================
+
+async function handleBattleCommit(
+  state: any,
+  playerId: string,
+  intent: IntentRequest,
+  nowMs: number,
+  events: any[]
+): Promise<IntentResult> {
+  // TODO: Implement full battle commit/reveal protocol
+  // For now, return "not yet implemented"
+  return {
+    ok: false,
+    state,
+    events: [],
+    rejected: {
+      code: RejectionCode.INTERNAL_ERROR,
+      message: 'Battle intents not yet implemented'
+    }
+  };
+}
+
+// ============================================================================
+// BATTLE_REVEAL
+// ============================================================================
+
+async function handleBattleReveal(
+  state: any,
+  playerId: string,
+  intent: IntentRequest,
+  nowMs: number,
+  events: any[]
+): Promise<IntentResult> {
+  // TODO: Implement full battle reveal protocol
+  // When implemented, this should:
+  // 1. Validate payload contains declarations array
+  // 2. Check if any declarations are present (not empty or all "hold")
+  // 3. If ANY player makes declarations, set turnData.anyChargesDeclared = true
+  // 4. This flag gates battle.charge_response phase
+  // 
+  // NOTE: anyChargesDeclared is a turn-scoped gating flag, intentionally unset
+  // until battle intents are implemented. Charge Response gating is therefore
+  // dormant but correct.
+  
+  return {
+    ok: false,
+    state,
+    events: [],
+    rejected: {
+      code: RejectionCode.INTERNAL_ERROR,
+      message: 'Battle intents not yet implemented'
+    }
   };
 }
 

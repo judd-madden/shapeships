@@ -22,19 +22,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Separator } from '../ui/separator';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import {
+  createSession,
+  createGame,
+  joinGame,
+  fetchGameState,
+  submitIntentChecked,
+  submitIntent,
+  generateCommitHash,
+  generateNonce,
+  type PlayerSession,
+  type Species,
+} from './alphaHarness/alphaClient';
 
 // ============================================================================
 // TYPES
 // ============================================================================
-
-type Species = 'human' | 'xenite' | 'centaur' | 'ancient';
-
-interface PlayerSession {
-  sessionToken: string;
-  sessionId: string;
-  displayName: string;
-}
 
 interface LogEntry {
   timestamp: number;
@@ -62,199 +65,6 @@ interface GameStateSnapshot {
     createdTurn?: number;
   }>>;
   events?: any[];
-}
-
-// ============================================================================
-// HASHING UTILITIES (MUST MATCH SERVER)
-// ============================================================================
-
-/**
- * Generate commit hash using Web Crypto API
- * MUST MATCH: /supabase/functions/server/engine/intent/Hash.ts
- * 
- * Formula: SHA-256( JSON.stringify(payload) + nonce )
- */
-async function generateCommitHash(payload: any, nonce: string): Promise<string> {
-  const payloadStr = JSON.stringify(payload);
-  const combined = payloadStr + nonce;
-  
-  const encoder = new TextEncoder();
-  const data = encoder.encode(combined);
-  
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  return hashHex;
-}
-
-/**
- * Generate a random nonce
- */
-function generateNonce(): string {
-  return crypto.randomUUID();
-}
-
-// ============================================================================
-// SESSION MANAGEMENT
-// ============================================================================
-
-/**
- * Create a new session token
- */
-async function createSession(displayName: string): Promise<PlayerSession> {
-  const response = await fetch(
-    `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/session/start`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${publicAnonKey}`,
-        'apikey': publicAnonKey,
-      },
-      body: JSON.stringify({ displayName }),
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Session creation failed: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  return {
-    sessionToken: data.sessionToken,
-    sessionId: data.sessionId,
-    displayName: data.displayName || displayName,
-  };
-}
-
-/**
- * Make an authenticated request with session token
- */
-async function authenticatedRequest(
-  endpoint: string,
-  sessionToken: string,
-  options: RequestInit = {}
-): Promise<Response> {
-  const url = `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab${endpoint}`;
-  
-  return fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-      'Authorization': `Bearer ${publicAnonKey}`,
-      'apikey': publicAnonKey,
-      'X-Session-Token': sessionToken,
-    },
-  });
-}
-
-// ============================================================================
-// GAME API
-// ============================================================================
-
-/**
- * Create a new game
- */
-async function createGame(session: PlayerSession): Promise<string> {
-  const response = await authenticatedRequest(
-    '/create-game',
-    session.sessionToken,
-    {
-      method: 'POST',
-      body: JSON.stringify({ playerName: session.displayName }),
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Create game failed: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  return data.gameId || data.game?.gameId || data.id;
-}
-
-/**
- * Join an existing game
- */
-async function joinGame(gameId: string, session: PlayerSession): Promise<void> {
-  const response = await authenticatedRequest(
-    `/join-game/${gameId}`,
-    session.sessionToken,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        playerName: session.displayName,
-        role: 'player',
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Join game failed: ${response.status} ${errorText}`);
-  }
-}
-
-/**
- * Fetch game state
- */
-async function fetchGameState(gameId: string, session: PlayerSession): Promise<any> {
-  const response = await authenticatedRequest(
-    `/game-state/${gameId}`,
-    session.sessionToken,
-    { method: 'GET' }
-  );
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Fetch game state failed: ${response.status} ${errorText}`);
-  }
-
-  return response.json();
-}
-
-/**
- * Submit an intent to the server
- */
-async function submitIntent(
-  gameId: string,
-  session: PlayerSession,
-  intentType: string,
-  turnNumber: number,
-  intentPayload: {
-    commitHash?: string;
-    payload?: any;
-    nonce?: string;
-  }
-): Promise<any> {
-  const response = await authenticatedRequest(
-    '/intent',
-    session.sessionToken,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        gameId,
-        intentType,
-        turnNumber,
-        ...intentPayload,
-      }),
-    }
-  );
-
-  const data = await response.json();
-
-  if (!response.ok || !data.ok) {
-    // Server rejected the intent
-    throw new Error(
-      `Intent rejected: ${data.rejected?.code || 'UNKNOWN'} - ${data.rejected?.message || 'No message'}`
-    );
-  }
-
-  return data;
 }
 
 // ============================================================================
@@ -373,6 +183,25 @@ function getPhaseKey(state: any): string {
 }
 
 /**
+ * Phase shape helpers - no hardcoded exact phase strings in scenarios
+ */
+function isSpeciesSelection(phaseKey: string): boolean {
+  return phaseKey === 'setup.species_selection';
+}
+
+function isBuildPhase(phaseKey: string): boolean {
+  return phaseKey.startsWith('build.');
+}
+
+function isBattlePhase(phaseKey: string): boolean {
+  return phaseKey.startsWith('battle.');
+}
+
+function isResolutionLike(phaseKey: string): boolean {
+  return phaseKey.includes('resolution') || phaseKey.startsWith('battle.');
+}
+
+/**
  * Parse game state into snapshot
  */
 function parseGameState(state: any): GameStateSnapshot {
@@ -440,6 +269,136 @@ async function waitForPhase(
   }
   
   throw new Error(`Failed to reach phase ${targetPhase} after ${maxAttempts} attempts`);
+}
+
+/**
+ * Wait for species selection to auto-exit (contract: no DECLARE_READY in species selection)
+ */
+async function waitForSpeciesSelectionExit(
+  gameId: string,
+  session: PlayerSession,
+  log: (msg: string, level?: string, data?: any) => void
+): Promise<GameStateSnapshot> {
+  log('Waiting for species selection to auto-exit...', 'info');
+  
+  const MAX_ATTEMPTS = 30;
+  let attempts = 0;
+  
+  while (attempts < MAX_ATTEMPTS) {
+    const state = await fetchGameState(gameId, session);
+    const snapshot = parseGameState(state);
+    const phaseKey = snapshot.phaseKey;
+    
+    if (!isSpeciesSelection(phaseKey)) {
+      log(`✓ Exited species selection, now in: ${phaseKey}`, 'success');
+      return snapshot;
+    }
+    
+    attempts++;
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  
+  throw new Error('CONTRACT_VIOLATION: did not exit setup.species_selection after both reveals');
+}
+
+/**
+ * Resolve until progress is detected (health change, turn change, or game finished)
+ * 
+ * Uses state diffs to detect progress instead of hardcoded phase names.
+ * Returns reason for exit and final state.
+ */
+async function resolveUntilProgress(
+  gameId: string,
+  player1: PlayerSession,
+  player2: PlayerSession,
+  baselineSnapshot: GameStateSnapshot,
+  maxSteps: number,
+  log: (msg: string, level?: string, data?: any) => void
+): Promise<{ state: any; snapshot: GameStateSnapshot; reason: string }> {
+  const baselineP1Health = baselineSnapshot.players.find(p => p.id === player1.sessionId)?.health || 0;
+  const baselineP2Health = baselineSnapshot.players.find(p => p.id === player2.sessionId)?.health || 0;
+  const baselineTurn = baselineSnapshot.turnNumber || 1;
+  
+  for (let step = 0; step < maxSteps; step++) {
+    // Fetch fresh state
+    const state = await fetchGameState(gameId, player1);
+    const snapshot = parseGameState(state);
+    const phaseKey = snapshot.phaseKey;
+    
+    // Check for finished
+    if (snapshot.status === 'finished') {
+      log('✓ Game finished', 'success');
+      return { state, snapshot, reason: 'finished' };
+    }
+    
+    // Send DECLARE_READY for both players using submitIntentChecked
+    log(`  Step ${step + 1}/${maxSteps}: phase=${phaseKey}, sending DECLARE_READY...`, 'info');
+    
+    // Aggregate events from all sources
+    let aggregatedEvents: any[] = [...(snapshot.events || [])];
+    
+    try {
+      const p1Response = await submitIntentChecked(gameId, player1, 'DECLARE_READY', {}, log);
+      const p2Response = await submitIntentChecked(gameId, player2, 'DECLARE_READY', {}, log);
+      
+      // Aggregate events from intent responses
+      aggregatedEvents = [
+        ...aggregatedEvents,
+        ...(p1Response.events || []),
+        ...(p2Response.events || []),
+      ];
+    } catch (error: any) {
+      // If contract violation, re-throw
+      if (error.message.includes('CONTRACT_VIOLATION')) {
+        throw error;
+      }
+      // Otherwise log and continue (server may reject stale turns)
+      log(`  Intent submission warning: ${error.message}`, 'warning');
+    }
+    
+    // Wait and fetch state again to check for changes
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    const postIntentState = await fetchGameState(gameId, player1);
+    const postIntentSnapshot = parseGameState(postIntentState);
+    
+    // Check for health changes (use sessionIds, not name matching)
+    const p1Health = postIntentSnapshot.players.find(p => p.id === player1.sessionId)?.health || 0;
+    const p2Health = postIntentSnapshot.players.find(p => p.id === player2.sessionId)?.health || 0;
+    
+    if (p1Health !== baselineP1Health || p2Health !== baselineP2Health) {
+      log(`✓ Health changed: P1 ${baselineP1Health}→${p1Health}, P2 ${baselineP2Health}→${p2Health}`, 'info');
+      
+      // Diagnostic: Check for EFFECT_APPLIED in aggregated events
+      const effectCount = aggregatedEvents.filter(e => e?.type === 'EFFECT_APPLIED').length;
+      if (effectCount > 0) {
+        log(`  EFFECT_APPLIED events observed: ${effectCount}`, 'info');
+      } else {
+        log(`  Health changed (events unavailable for diagnostics)`, 'info');
+      }
+      
+      return { state: postIntentState, snapshot: postIntentSnapshot, reason: 'health_changed' };
+    }
+    
+    // Check for turn advancement
+    const currentTurn = postIntentSnapshot.turnNumber || 1;
+    if (currentTurn > baselineTurn) {
+      log(`✓ Turn advanced: ${baselineTurn} → ${currentTurn}`, 'info');
+      return { state: postIntentState, snapshot: postIntentSnapshot, reason: 'turn_advanced' };
+    }
+    
+    // Contract violation check: should not be in species selection mid-turn
+    if (isSpeciesSelection(postIntentSnapshot.phaseKey)) {
+      throw new Error('CONTRACT_VIOLATION: entered species selection mid-turn resolution');
+    }
+  }
+  
+  // Max steps exceeded without progress
+  const state = await fetchGameState(gameId, player1);
+  const snapshot = parseGameState(state);
+  
+  log(`❌ No progress after ${maxSteps} steps, final phase: ${snapshot.phaseKey}`, 'error');
+  throw new Error(`FAILED_TO_RESOLVE: no progress after ${maxSteps} steps (final phase: ${snapshot.phaseKey})`);
 }
 
 // ============================================================================
@@ -813,10 +772,16 @@ export default function AlphaV3E2EHarness() {
   };
 
   /**
-   * SCENARIO 4: Kill test
+   * SCENARIO 4: Kill test (CONTRACT-COMPLIANT VERSION)
    * P1: FIG × 10
    * P2: none
-   * Loop turns until P2 health <= 0 or 10 turns max
+   * Loop turns until P2 health <= 0 or game finishes
+   * 
+   * Uses:
+   * - submitIntentChecked for contract enforcement
+   * - waitForSpeciesSelectionExit (no DECLARE_READY in species selection)
+   * - resolveUntilProgress (state diffs, not hardcoded phase names)
+   * - Health as truth (events are diagnostic only)
    */
   const runScenario4 = async () => {
     if (!gameId || !player1 || !player2) {
@@ -827,166 +792,178 @@ export default function AlphaV3E2EHarness() {
     try {
       setIsRunning(true);
       clearLogs();
-      log('═══ SCENARIO 4: Kill Test ═══', 'info');
-      log('Setup: P1 builds FIG×10, loop until P2 health <= 0', 'info');
+      log('═══ SCENARIO 4: Kill Test (Contract-Compliant) ═══', 'info');
+      log('Setup: P1 builds FIG×10, P2 builds nothing', 'info');
+      log('Contract: Species selection auto-exits, health is truth, no hardcoded phases', 'info');
 
-      // Fetch initial state and get server turn
+      // Track last build reveal turn per player to prevent duplicate submissions
+      const lastBuildRevealTurn: Record<string, number> = {};
+
+      // === STEP 1: Fetch initial state ===
       let state = await fetchGameState(gameId, player1);
-      let serverTurn = getServerTurnNumber(state);
-      log(`Initial server turn: ${serverTurn}`, 'info');
-
-      // Species selection
-      await speciesCommitReveal(gameId, player1, serverTurn, 'human', log);
-      await speciesCommitReveal(gameId, player2, serverTurn, 'human', log);
-
-      // Build phase
-      await buildCommitReveal(gameId, player1, serverTurn, [{ shipDefId: 'FIG', count: 10 }], log);
-      await buildCommitReveal(gameId, player2, serverTurn, [], log);
-
-      // Helper: Advance to a target phase using current server turn
-      const advanceToPhase = async (targetPhase: string, maxAttempts: number = 30) => {
-        for (let attempt = 0; attempt < maxAttempts; attempt++) {
-          // Fetch fresh state to get current phase and turn
-          const currentState = await fetchGameState(gameId, player1);
-          const currentPhase = getPhaseKey(currentState);
-          const currentTurn = getServerTurnNumber(currentState);
-          
-          if (currentPhase === targetPhase) {
-            log(`✓ Reached ${targetPhase}`, 'info');
-            return currentState;
-          }
-          
-          // Send DECLARE_READY with current server turn
-          log(`Advancing from ${currentPhase} (turn ${currentTurn})`, 'info');
-          await submitIntent(gameId, player1, 'DECLARE_READY', currentTurn, {});
-          await submitIntent(gameId, player2, 'DECLARE_READY', currentTurn, {});
-          
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-        
-        throw new Error(`Failed to reach ${targetPhase} after ${maxAttempts} attempts`);
-      };
-
-      // Helper: Capture EFFECT_APPLIED events from intent response when advancing INTO end_of_turn_resolution
-      const advanceAndCaptureEffects = async (): Promise<{ state: any; effectCount: number }> => {
-        // Keep advancing until we're one step before end_of_turn_resolution
-        let currentState = await fetchGameState(gameId, player1);
-        let currentPhase = getPhaseKey(currentState);
-        let currentTurn = getServerTurnNumber(currentState);
-        let lastIntentResponse: any = null;
-        
-        while (currentPhase !== 'battle.end_of_turn_resolution') {
-          // Send DECLARE_READY and capture response
-          const p1Response = await submitIntent(gameId, player1, 'DECLARE_READY', currentTurn, {});
-          const p2Response = await submitIntent(gameId, player2, 'DECLARE_READY', currentTurn, {});
-          
-          // Check if either response advanced to end_of_turn_resolution
-          const p1Advanced = findEvent(p1Response.events, 'PHASE_ADVANCED');
-          const p2Advanced = findEvent(p2Response.events, 'PHASE_ADVANCED');
-          
-          if (p1Advanced?.to === 'battle.end_of_turn_resolution') {
-            lastIntentResponse = p1Response;
-          } else if (p2Advanced?.to === 'battle.end_of_turn_resolution') {
-            lastIntentResponse = p2Response;
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          // Refresh state
-          currentState = await fetchGameState(gameId, player1);
-          currentPhase = getPhaseKey(currentState);
-          currentTurn = getServerTurnNumber(currentState);
-        }
-        
-        // Count EFFECT_APPLIED events from the intent response that advanced into end_of_turn_resolution
-        const effectCount = lastIntentResponse ? countEvents(lastIntentResponse.events, 'EFFECT_APPLIED') : 0;
-        
-        return { state: currentState, effectCount };
-      };
-
-      // Loop turns until P2 dies or max turns reached
-      const MAX_TURNS = 10;
-      let loopsCompleted = 0;
+      let snapshot = parseGameState(state);
       
-      for (let i = 0; i < MAX_TURNS; i++) {
-        // Fetch current state at start of loop
-        const loopState = await fetchGameState(gameId, player1);
-        const loopTurn = getServerTurnNumber(loopState);
-        const loopPhase = getPhaseKey(loopState);
-        
-        log(`─── Turn ${loopTurn} (loop ${i + 1}) ───`, 'info');
-        log(`Starting phase: ${loopPhase}`, 'info');
-        
-        // Advance to battle.end_of_turn_resolution and capture effects
-        const { state: resolutionState, effectCount } = await advanceAndCaptureEffects();
-        
-        log(`EFFECT_APPLIED events: ${effectCount}`, 'info');
-        
-        // Check health after resolution
-        const p1Player = resolutionState.players.find((p: any) => p.name?.includes('Player 1'));
-        const p2Player = resolutionState.players.find((p: any) => p.name?.includes('Player 2'));
-        
-        log(`P1 health: ${p1Player?.health}, P2 health: ${p2Player?.health}`, 'info');
-        
-        setCurrentState(parseGameState(resolutionState));
-        
-        // Check win condition
-        if (resolutionState.status === 'finished') {
-          log('✓ Game marked finished by server', 'success');
-          log('✓ SCENARIO 4 PASSED: Game completed', 'success');
-          loopsCompleted = i + 1;
-          break;
-        }
-        
-        if ((p2Player?.health || 0) <= 0) {
-          log('✓ P2 health reduced to 0', 'success');
-          log('✓ SCENARIO 4 PASSED: Kill condition met', 'success');
-          loopsCompleted = i + 1;
-          break;
-        }
-        
-        // Advance OUT of end_of_turn_resolution to trigger turn bump
-        log('Advancing out of end_of_turn_resolution to bump turn...', 'info');
-        
-        const currentTurnBeforeBump = getServerTurnNumber(resolutionState);
-        const expectedNextTurn = currentTurnBeforeBump + 1;
-        
-        // Send DECLARE_READY to leave end_of_turn_resolution
-        await submitIntent(gameId, player1, 'DECLARE_READY', currentTurnBeforeBump, {});
-        await submitIntent(gameId, player2, 'DECLARE_READY', currentTurnBeforeBump, {});
-        
-        // Wait for phase to become build.dice_roll AND turn to increment
-        let bumpAttempts = 0;
-        const MAX_BUMP_ATTEMPTS = 20;
-        let bumped = false;
-        
-        while (bumpAttempts < MAX_BUMP_ATTEMPTS) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          const checkState = await fetchGameState(gameId, player1);
-          const checkPhase = getPhaseKey(checkState);
-          const checkTurn = getServerTurnNumber(checkState);
-          
-          if (checkPhase === 'build.dice_roll' && checkTurn === expectedNextTurn) {
-            log(`✓ Turn bumped to ${checkTurn}, phase: ${checkPhase}`, 'success');
-            bumped = true;
-            break;
-          }
-          
-          bumpAttempts++;
-        }
-        
-        if (!bumped) {
-          log(`⚠ Warning: Turn may not have bumped correctly`, 'warning');
-        }
-        
-        loopsCompleted = i + 1;
+      // Verify we're in species selection
+      if (!isSpeciesSelection(snapshot.phaseKey)) {
+        log(`⚠ Warning: Expected species selection, got ${snapshot.phaseKey}`, 'warning');
       }
       
-      log(`✓ Scenario 4 complete: ${loopsCompleted} turn(s) executed`, 'success');
+      log(`Initial phase: ${snapshot.phaseKey}, turn: ${snapshot.turnNumber}`, 'info');
+
+      // === STEP 2: Species selection (with contract enforcement) ===
+      log('─── Species Selection ───', 'info');
+      
+      // Use submitIntentChecked - will enforce species selection contract
+      const p1SpeciesPayload = { species: 'human' as Species };
+      const p1SpeciesNonce = generateNonce();
+      const p1SpeciesHash = await generateCommitHash(p1SpeciesPayload, p1SpeciesNonce);
+      
+      await submitIntentChecked(gameId, player1, 'SPECIES_COMMIT', { commitHash: p1SpeciesHash }, log);
+      await submitIntentChecked(gameId, player1, 'SPECIES_REVEAL', { payload: p1SpeciesPayload, nonce: p1SpeciesNonce }, log);
+      
+      const p2SpeciesPayload = { species: 'human' as Species };
+      const p2SpeciesNonce = generateNonce();
+      const p2SpeciesHash = await generateCommitHash(p2SpeciesPayload, p2SpeciesNonce);
+      
+      await submitIntentChecked(gameId, player2, 'SPECIES_COMMIT', { commitHash: p2SpeciesHash }, log);
+      await submitIntentChecked(gameId, player2, 'SPECIES_REVEAL', { payload: p2SpeciesPayload, nonce: p2SpeciesNonce }, log);
+
+      // Wait for species selection to auto-exit (contract: NO DECLARE_READY)
+      snapshot = await waitForSpeciesSelectionExit(gameId, player1, log);
+      
+      // === STEP 3: Build phase ===
+      log('─── Build Phase ───', 'info');
+      
+      // Build commits/reveals using submitIntentChecked
+      const p1BuildPayload = { builds: [{ shipDefId: 'FIG', count: 10 }] };
+      const p1BuildNonce = generateNonce();
+      const p1BuildHash = await generateCommitHash(p1BuildPayload, p1BuildNonce);
+      
+      await submitIntentChecked(gameId, player1, 'BUILD_COMMIT', { commitHash: p1BuildHash }, log);
+      await submitIntentChecked(gameId, player1, 'BUILD_REVEAL', { payload: p1BuildPayload, nonce: p1BuildNonce }, log);
+      
+      // Track initial build submission
+      lastBuildRevealTurn[player1.sessionId] = snapshot.turnNumber || 1;
+      
+      const p2BuildPayload = { builds: [] };
+      const p2BuildNonce = generateNonce();
+      const p2BuildHash = await generateCommitHash(p2BuildPayload, p2BuildNonce);
+      
+      await submitIntentChecked(gameId, player2, 'BUILD_COMMIT', { commitHash: p2BuildHash }, log);
+      await submitIntentChecked(gameId, player2, 'BUILD_REVEAL', { payload: p2BuildPayload, nonce: p2BuildNonce }, log);
+      
+      // Track initial build submission
+      lastBuildRevealTurn[player2.sessionId] = snapshot.turnNumber || 1;
+
+      // === STEP 4: Turn loop (contract-compliant resolution) ===
+      log('─── Turn Loop ───', 'info');
+      
+      const MAX_TURNS = 10;
+      let turnCount = 0;
+      
+      for (let i = 0; i < MAX_TURNS; i++) {
+        turnCount = i + 1;
+        
+        // Fetch baseline state for this turn
+        const baselineState = await fetchGameState(gameId, player1);
+        const baselineSnapshot = parseGameState(baselineState);
+        
+        const baselineP1 = baselineSnapshot.players.find(p => p.id === player1.sessionId);
+        const baselineP2 = baselineSnapshot.players.find(p => p.id === player2.sessionId);
+        
+        log(`═══ Turn Loop ${turnCount}/${MAX_TURNS} ═══`, 'info');
+        log(`  Baseline: phase=${baselineSnapshot.phaseKey}, turn=${baselineSnapshot.turnNumber}`, 'info');
+        log(`  Health: P1=${baselineP1?.health}, P2=${baselineP2?.health}`, 'info');
+        
+        // Resolve until progress (health change, turn change, or finished)
+        const { snapshot: resolvedSnapshot, reason } = await resolveUntilProgress(
+          gameId,
+          player1,
+          player2,
+          baselineSnapshot,
+          40, // maxSteps
+          log
+        );
+        
+        const resolvedP1 = resolvedSnapshot.players.find(p => p.id === player1.sessionId);
+        const resolvedP2 = resolvedSnapshot.players.find(p => p.id === player2.sessionId);
+        
+        log(`  After resolution: phase=${resolvedSnapshot.phaseKey}, turn=${resolvedSnapshot.turnNumber}`, 'info');
+        log(`  Health: P1=${resolvedP1?.health}, P2=${resolvedP2?.health}`, 'info');
+        log(`  Progress reason: ${reason}`, 'info');
+        
+        // Update UI with current state
+        setCurrentState(resolvedSnapshot);
+        
+        // === STEP 5: Check win conditions (health is truth) ===
+        if (resolvedSnapshot.status === 'finished') {
+          log('✓ Game status: FINISHED', 'success');
+          log(`✓ SCENARIO 4 PASSED: Game completed in ${turnCount} turn(s)`, 'success');
+          return;
+        }
+        
+        if ((resolvedP2?.health || 0) <= 0) {
+          log('✓ P2 health reduced to 0 or below', 'success');
+          log(`✓ SCENARIO 4 PASSED: Kill condition met in ${turnCount} turn(s)`, 'success');
+          return;
+        }
+        
+        if ((resolvedP1?.health || 0) <= 0) {
+          log('⚠ P1 health reduced to 0 (unexpected)', 'warning');
+          log(`⚠ SCENARIO 4: P1 died instead of P2 in ${turnCount} turn(s)`, 'warning');
+          return;
+        }
+        
+        // === STEP 6: Check if we need to build again ===
+        // Only submit builds if in build.drawing AND we haven't submitted for this turn yet
+        const currentTurn = resolvedSnapshot.turnNumber || 1;
+        const currentPhase = resolvedSnapshot.phaseKey;
+        
+        if (currentPhase === 'build.drawing') {
+          // Check if player1 needs to submit build for this turn
+          if (lastBuildRevealTurn[player1.sessionId] !== currentTurn) {
+            log('  P1: Submitting build for new turn...', 'info');
+            
+            const nextP1BuildPayload = { builds: [] }; // No more builds needed
+            const nextP1BuildNonce = generateNonce();
+            const nextP1BuildHash = await generateCommitHash(nextP1BuildPayload, nextP1BuildNonce);
+            
+            await submitIntentChecked(gameId, player1, 'BUILD_COMMIT', { commitHash: nextP1BuildHash }, log);
+            await submitIntentChecked(gameId, player1, 'BUILD_REVEAL', { payload: nextP1BuildPayload, nonce: nextP1BuildNonce }, log);
+            
+            lastBuildRevealTurn[player1.sessionId] = currentTurn;
+          }
+          
+          // Check if player2 needs to submit build for this turn
+          if (lastBuildRevealTurn[player2.sessionId] !== currentTurn) {
+            log('  P2: Submitting build for new turn...', 'info');
+            
+            const nextP2BuildPayload = { builds: [] };
+            const nextP2BuildNonce = generateNonce();
+            const nextP2BuildHash = await generateCommitHash(nextP2BuildPayload, nextP2BuildNonce);
+            
+            await submitIntentChecked(gameId, player2, 'BUILD_COMMIT', { commitHash: nextP2BuildHash }, log);
+            await submitIntentChecked(gameId, player2, 'BUILD_REVEAL', { payload: nextP2BuildPayload, nonce: nextP2BuildNonce }, log);
+            
+            lastBuildRevealTurn[player2.sessionId] = currentTurn;
+          }
+        }
+        
+        // Continue to next turn
+        log(`  Turn ${turnCount} complete, continuing...`, 'info');
+      }
+      
+      // Max turns reached without kill
+      log(`⚠ Reached max turns (${MAX_TURNS}) without kill or finish`, 'warning');
+      log(`⚠ SCENARIO 4: Incomplete - max turns exceeded`, 'warning');
       
     } catch (error: any) {
       log(`❌ Scenario 4 failed: ${error.message}`, 'error');
+      
+      // If contract violation, show it prominently
+      if (error.message.includes('CONTRACT_VIOLATION')) {
+        log('❌ CONTRACT VIOLATION DETECTED ❌', 'error');
+      }
     } finally {
       setIsRunning(false);
     }

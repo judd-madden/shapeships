@@ -40,21 +40,77 @@ export function resolvePhase(
   console.log(`[resolvePhase] Resolving phase: ${phaseKey}`);
   console.log(`[resolvePhase] GameStateTypes version: ${GAME_STATE_TYPES_VERSION}`);
 
-  // Only implement battle.end_of_turn_resolution for this pass
-  if (phaseKey !== 'battle.end_of_turn_resolution') {
-    console.log(`[resolvePhase] No resolution logic for phase: ${phaseKey}`);
-    return { state, events: [] };
+  // Handle ships_that_build phase (create ships from ship-building powers)
+  if (phaseKey === 'build.ships_that_build') {
+    return resolveShipsThatBuild(state, phaseKey);
   }
+
+  // Handle battle end-of-turn resolution (damage/heal effects)
+  if (phaseKey === 'battle.end_of_turn_resolution') {
+    return resolveBattleEndOfTurn(state, phaseKey);
+  }
+
+  // No resolution logic for other phases
+  console.log(`[resolvePhase] No resolution logic for phase: ${phaseKey}`);
+  return { state, events: [] };
+}
+
+// ============================================================================
+// SHIPS THAT BUILD RESOLUTION
+// ============================================================================
+
+/**
+ * Resolve the ships_that_build phase by creating ships from ship-building powers
+ *
+ * @param state - Current game state
+ * @param phaseKey - Phase key to resolve
+ * @returns Updated state and events
+ */
+function resolveShipsThatBuild(
+  state: GameState,
+  phaseKey: PhaseKey
+): { state: GameState; events: EffectEvent[] } {
+  console.log(`[resolveShipsThatBuild] Resolving phase: ${phaseKey}`);
 
   // Collect all effects from all ships
   const effects = collectEffectsForPhase(state, phaseKey);
 
-  console.log(`[resolvePhase] Collected ${effects.length} effects for ${phaseKey}`);
+  console.log(`[resolveShipsThatBuild] Collected ${effects.length} effects for ${phaseKey}`);
 
   // Apply effects to state
   const result = applyEffects(state, effects);
 
-  console.log(`[resolvePhase] Applied effects, generated ${result.events.length} events`);
+  console.log(`[resolveShipsThatBuild] Applied effects, generated ${result.events.length} events`);
+
+  return result;
+}
+
+// ============================================================================
+// BATTLE END-OF-TURN RESOLUTION
+// ============================================================================
+
+/**
+ * Resolve the battle.end_of_turn_resolution phase by applying damage/heal effects
+ *
+ * @param state - Current game state
+ * @param phaseKey - Phase key to resolve
+ * @returns Updated state and events
+ */
+function resolveBattleEndOfTurn(
+  state: GameState,
+  phaseKey: PhaseKey
+): { state: GameState; events: EffectEvent[] } {
+  console.log(`[resolveBattleEndOfTurn] Resolving phase: ${phaseKey}`);
+
+  // Collect all effects from all ships
+  const effects = collectEffectsForPhase(state, phaseKey);
+
+  console.log(`[resolveBattleEndOfTurn] Collected ${effects.length} effects for ${phaseKey}`);
+
+  // Apply effects to state
+  const result = applyEffects(state, effects);
+
+  console.log(`[resolveBattleEndOfTurn] Applied effects, generated ${result.events.length} events`);
 
   // Health clamping, victory evaluation, and terminal state (end-of-turn only)
   const finalResult = evaluateVictoryConditions(result.state, result.events, phaseKey);
