@@ -2,8 +2,8 @@
 
 A minimalist multiplayer turn-based strategy game built with React, Tailwind CSS, and Supabase.
 
-**Version:** Make 444 | Git Commit: 260106-5  
-**Development Status:** Active development with GPT as director
+**Version:** Client Wiring Phase 1 Complete + Turn-Aware Visibility Patch  
+**Development Status:** Active alpha development with fully functional turn cycle
 
 ---
 
@@ -34,21 +34,34 @@ This document is the single source of truth for:
 
 ---
 
-## 🎮 Current Status: Alpha Development
+## 🎮 Current Status: Alpha Development with Functional Turn Cycle
 
-**Active Features:**
+**Completed Core Systems:**
 - ✅ Complete authentication system (Supabase)
 - ✅ Multiplayer framework with real-time sync
-- ✅ Game engine with 3-phase turn structure
+- ✅ Full turn cycle implementation (setup → build → battle)
+- ✅ Commit/Reveal Intent Protocol (B) with client-side concealment
+- ✅ Ship instance system with phase-instance tracking
+- ✅ Build phase with preview, commit, and reveal
+- ✅ Ready button system with BUILD_COMMIT → BUILD_REVEAL → DECLARE_READY flow
+- ✅ Turn-aware opponent fleet visibility (old ships visible, new ships hidden until battle)
 - ✅ 71 ship graphics across 4 species (Human, Xenite, Centaur, Ancient)
 - ✅ Rules panel with Core Rules content
 - ✅ Build Kit UI primitives library
 - ✅ Space background and color palette system
 
-**In Active Development:**
-- 🚧 Species-specific rules pages
-- 🚧 Enhanced game interface components
-- 🚧 Turn timing visualizations
+**Active Gameplay Features:**
+- ✅ Species selection phase with commit/reveal mechanics
+- ✅ Build phase with ship catalogue and preview system
+- ✅ Fleet display with proper turn-aware visibility rules
+- ✅ Health tracking and HUD display
+- ✅ Phase transitions with automatic progression
+- ✅ No duplicate submissions via phase-instance tracking
+
+**In Development:**
+- 🚧 Battle phase interaction UI
+- 🚧 Ship power execution interface
+- 🚧 Enhanced battle visualizations
 
 ---
 
@@ -60,29 +73,64 @@ This document is the single source of truth for:
 - React + TypeScript + Tailwind CSS v4
 - Modular component architecture (shells → panels → primitives)
 - Central Build Kit for reusable UI components
+- Game session hook (useGameSession) as single source of state
 
 **Backend:**
 - Supabase Edge Functions (Hono web server)
 - KV store for game state
 - Real-time polling (5-second intervals)
 - RESTful API with comprehensive endpoints
+- Commit/Reveal Intent Protocol for hidden information
 
 **Game Engine:**
 - Pure function design (no React dependencies)
 - Separated logic (`/game/engine/`) and display (`/game/display/`)
-- 3-phase turn system: Build → Battle → End of Turn Resolution
-- Species-based ship mechanics with CSV auto-generation
+- Server-authoritative with client preview
+- Phase-driven routing via PhaseTable.ts
+- Ship instances with createdTurn tracking
+
+### Turn Cycle Flow
+
+```
+Turn N:
+  1. setup.species_selection
+     - Players commit species choice (hashed)
+     - Both players reveal → species locked in
+     
+  2. build.drawing
+     - Players see ship catalogue
+     - Build preview shown locally (not submitted yet)
+     - Opponent fleet: ships from prior turns visible, current turn hidden
+     
+  3. build.commit (triggered by Ready button)
+     - BUILD_COMMIT: Submit hashed fleet
+     - BUILD_REVEAL: Submit actual fleet
+     - DECLARE_READY: Mark player ready
+     - Preview buffer cleared after reveal
+     
+  4. battle.* phases
+     - Opponent's new ships become visible
+     - Battle mechanics execute
+     - Phase auto-advances when both ready
+     
+  5. End of turn → Turn N+1
+```
 
 ### Directory Structure
 
 ```
 ├── /game/                       # Game engine and logic
+│   ├── /client/                 # Client-side game session
+│   │   └── useGameSession.ts    # Single source of state
 │   ├── /engine/                 # Core game logic
 │   │   ├── /documentation/      # Engine architecture docs
-│   │   ├── GameEngine.tsx       # Main engine
-│   │   ├── GamePhases.tsx       # Phase management
-│   │   └── RulesEngine.tsx      # Rules implementation
-│   ├── /display/                # UI components
+│   │   ├── /battle/             # Battle reducer and mechanics
+│   │   ├── /phase/              # Phase management (PhaseTable.ts)
+│   │   └── /effects/            # Effect system
+│   ├── /display/                # UI components (rendering only)
+│   │   ├── GameScreen.tsx       # Main game interface
+│   │   └── /actionPanel/        # Phase-specific action panels
+│   ├── /data/                   # Ship definitions (JSON-authoritative)
 │   ├── /hooks/                  # React state management
 │   └── /types/                  # TypeScript interfaces
 ├── /graphics/                   # SVG React components by species
@@ -98,6 +146,8 @@ This document is the single source of truth for:
 │   └── /dev/                    # Development tools
 ├── /supabase/                   # Backend edge functions
 │   └── /functions/server/       # Hono server implementation
+│       └── /engine/             # Server-side game engine
+│           └── /intent/         # Commit/Reveal protocol
 ├── /documentation/              # Project documentation
 │   └── /architecture/           # 📚 System architecture docs (START HERE)
 ├── /guidelines/                 # 📚 Development guidelines
@@ -163,6 +213,7 @@ Access by running the project and visiting the dashboard at the root URL.
 - KV store for persistent game state
 - Session management with requireSession pattern
 - Supports 1-30 simultaneous games on free tier
+- Commit/Reveal protocol for hidden information (species, fleet builds)
 
 ---
 
@@ -224,6 +275,7 @@ Access by running the project and visiting the dashboard at the root URL.
 - **Step-by-step:** Comprehensive testing at each stage
 - **No Assumptions:** Everything explicitly specified
 - **Separation of Concerns:** Game logic separated from display components
+- **Server Authority:** All game rules validated server-side, UI renders state only
 - **AI-Safe Architecture:** Pure functions, comprehensive TypeScript interfaces
 - **GPT as Director:** Active development with AI-assisted iteration
 
@@ -240,9 +292,9 @@ Access by running the project and visiting the dashboard at the root URL.
 
 See [VERSION.md](VERSION.md) for detailed version history.
 
-**Current:** Make 444 | Git Commit: 260106-5  
-**Status:** Alpha development with active iteration
+**Current:** Client Wiring Phase 1 Complete  
+**Status:** Alpha development with functional turn cycle
 
 ---
 
-**Ready for development: GPT-directed iteration with solid architectural foundation**
+**Ready for development: Complete turn cycle with commit/reveal mechanics, species selection, build phase with preview, and turn-aware fleet visibility.**

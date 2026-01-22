@@ -4,14 +4,15 @@
  */
 
 import { ACTION_PANEL_DISPLAY_NAMES } from './ActionPanelRegistry';
-import type { ActionPanelViewModel } from '../../client/useGameSession';
+import type { ActionPanelViewModel, GameSessionActions } from '../../client/useGameSession';
 import { HumanShipCataloguePanel } from './panels/catalogue/human/HumanShipCataloguePanel';
 
 interface ActionPanelFrameProps {
   vm: ActionPanelViewModel;
+  actions: GameSessionActions;
 }
 
-export function ActionPanelFrame({ vm }: ActionPanelFrameProps) {
+export function ActionPanelFrame({ vm, actions }: ActionPanelFrameProps) {
   const displayName = ACTION_PANEL_DISPLAY_NAMES[vm.activePanelId];
 
   // TODO (PASS 2+): Replace this if/else panel selection with a mapping object
@@ -21,7 +22,7 @@ export function ActionPanelFrame({ vm }: ActionPanelFrameProps) {
   if (vm.activePanelId === 'ap.catalog.ships.human') {
     return (
       <div className="size-full">
-        <HumanShipCataloguePanel />
+        <HumanShipCataloguePanel actions={actions} />
       </div>
     );
   }

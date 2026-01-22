@@ -13,7 +13,10 @@
 import { projectId, publicAnonKey } from './supabase/info';
 
 const SESSION_TOKEN_KEY = 'ss_sessionToken';
-const SESSION_STORAGE = 'localStorage'; // or 'sessionStorage' for tab-only
+const SESSION_ID_KEY = 'ss_sessionId';
+const DISPLAY_NAME_KEY = 'ss_displayName';
+// Part A: Use sessionStorage for tab-isolated session tokens (prevents cross-tab clobbering)
+const SESSION_STORAGE = 'sessionStorage'; // tab-isolated (not shared across tabs)
 
 // Safe dev mode check (import.meta may be undefined in some environments)
 const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
@@ -41,79 +44,94 @@ function guardAgainstSessionTokenMisuse(headers: Record<string, string>) {
 }
 
 /**
- * Ensure a valid session token exists
- * If no token exists, creates one by calling POST /session/start
- * If token exists but displayName is provided, clears and creates fresh session (Alpha-safe)
- * If token exists and no displayName, resolves metadata from server via GET /session/me
- * @param {string} [displayName] - Optional display name to associate with session
+ * Ensure a valid session token exists (IDEMPOTENT)
+ * Returns cached session immediately if token exists in storage
+ * Creates new session only if no token exists or token is invalid
+ * @param {string} [displayName] - Optional display name to associate with session (used only when creating new session)
  * @returns {Promise<{ sessionToken: string, sessionId: string, displayName: string | null }>} The session data
  */
 export async function ensureSession(displayName?: string): Promise<{ sessionToken: string, sessionId: string, displayName: string | null }> {
-  // Check for existing token
+  // Step A: Check for cached session in storage
   const existingToken = storage.getItem(SESSION_TOKEN_KEY);
+  const existingSessionId = storage.getItem(SESSION_ID_KEY);
+  const existingDisplayName = storage.getItem(DISPLAY_NAME_KEY);
   
-  if (existingToken) {
-    // Case A: Token exists AND displayName provided → force fresh session
-    if (displayName) {
-      if (isDev) {
-        console.log('[Session] displayName provided with existing token → clearing and minting fresh');
-      }
-      clearSession();
-      // Fall through to create new session with displayName
-    } else {
-      // Case B: Token exists, no displayName → resolve metadata from server
-      try {
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/session/me`,
-          {
-            method: 'GET',
-            headers: {
-              'Authorization': `Bearer ${publicAnonKey}`,
-              'apikey': publicAnonKey,
-              'X-Session-Token': existingToken,
-            },
-          }
-        );
+  // Step A: If we have cached token + sessionId, return immediately (idempotent)
+  if (existingToken && existingSessionId) {
+    if (isDev) {
+      console.log('[Session] reusing cached session', {
+        sessionId: existingSessionId,
+        displayName: existingDisplayName || displayName
+      });
+    }
+    return {
+      sessionToken: existingToken,
+      sessionId: existingSessionId,
+      displayName: existingDisplayName || displayName || null
+    };
+  }
+  
+  // Step A: If we have token but no sessionId, try to resolve from server
+  if (existingToken && !existingSessionId) {
+    try {
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/session/me`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'apikey': publicAnonKey,
+            'X-Session-Token': existingToken,
+          },
+        }
+      );
 
-        if (response.ok) {
-          const data = await response.json();
-          if (isDev) {
-            console.log('[Session] resolved existing token via /session/me', {
-              sessionId: data.sessionId,
-              displayName: data.displayName
-            });
-          }
-          return {
-            sessionToken: existingToken,
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Cache sessionId and displayName for future calls
+        storage.setItem(SESSION_ID_KEY, data.sessionId);
+        if (data.displayName) {
+          storage.setItem(DISPLAY_NAME_KEY, data.displayName);
+        }
+        
+        if (isDev) {
+          console.log('[Session] resolved sessionId from server', {
             sessionId: data.sessionId,
             displayName: data.displayName
-          };
-        } else if (response.status === 401 || response.status === 403) {
-          // Token is invalid or expired - clear and create new session
-          if (isDev) {
-            console.log('[Session] existing token invalid → cleared');
-          }
-          clearSession();
-          // Fall through to create new session
-        } else {
-          // Server error (5xx) or other non-auth error - keep token, throw error
-          const errorText = await response.text().catch(() => 'Unknown error');
-          if (isDev) {
-            console.log(`[Session] failed to resolve session metadata (status ${response.status}) - keeping token`);
-          }
-          throw new Error(`Session metadata resolution failed: ${response.status} ${errorText}`);
+          });
         }
-      } catch (error) {
-        // Network error or other exception - do NOT clear token, re-throw
+        
+        return {
+          sessionToken: existingToken,
+          sessionId: data.sessionId,
+          displayName: data.displayName
+        };
+      } else if (response.status === 401 || response.status === 403) {
+        // Token is invalid or expired - clear and create new session
         if (isDev) {
-          console.log('[Session] network error while resolving token - keeping token');
+          console.log('[Session] existing token invalid → cleared');
         }
-        throw error;
+        clearSession();
+        // Fall through to create new session
+      } else {
+        // Server error (5xx) or other non-auth error - keep token, throw error
+        const errorText = await response.text().catch(() => 'Unknown error');
+        if (isDev) {
+          console.log(`[Session] failed to resolve session metadata (status ${response.status}) - keeping token`);
+        }
+        throw new Error(`Session metadata resolution failed: ${response.status} ${errorText}`);
       }
+    } catch (error) {
+      // Network error or other exception - do NOT clear token, re-throw
+      if (isDev) {
+        console.log('[Session] network error while resolving token - keeping token');
+      }
+      throw error;
     }
   }
 
-  // No token (or was cleared above) - create new session
+  // Step A: No token (or was cleared above) - create new session
   if (isDev) {
     console.log(`[Session] creating new session${displayName ? ` for ${displayName}` : ''}`);
   }
@@ -144,8 +162,12 @@ export async function ensureSession(displayName?: string): Promise<{ sessionToke
       throw new Error('Server did not return sessionToken');
     }
 
-    // Store token
+    // Step A: Store token, sessionId, and displayName in storage
     storage.setItem(SESSION_TOKEN_KEY, sessionToken);
+    storage.setItem(SESSION_ID_KEY, sessionId);
+    if (returnedDisplayName) {
+      storage.setItem(DISPLAY_NAME_KEY, returnedDisplayName);
+    }
     if (isDev) {
       console.log(`[Session] new session created and stored${returnedDisplayName ? ` (${returnedDisplayName})` : ''}`);
     }
@@ -171,6 +193,8 @@ export function getSessionToken(): string | null {
  */
 export function clearSession(): void {
   storage.removeItem(SESSION_TOKEN_KEY);
+  storage.removeItem(SESSION_ID_KEY);
+  storage.removeItem(DISPLAY_NAME_KEY);
   if (isDev) {
     console.log('🗑️ [Session] token cleared');
   }
@@ -209,8 +233,10 @@ export async function authenticatedFetch(
   // Guard against misuse of session token in Authorization header
   guardAgainstSessionTokenMisuse(headers);
 
+  // Part B: Debug log to confirm which token/session is used
   if (isDev) {
-    console.log(`🔐 Authenticated request to ${endpoint}`);
+    const tokenPrefix = sessionData.sessionToken.substring(0, 6);
+    console.log(`[sessionManager] request to ${endpoint} using sessionId=${sessionData.sessionId} token=${tokenPrefix}...`);
   }
 
   return fetch(url, {

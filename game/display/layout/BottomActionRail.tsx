@@ -60,7 +60,11 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
           <div className="w-[130px]" />
         )}
         <div className="w-[300px]">
-          <ReadyButton note={vm.readyButtonNote} onClick={actions.onReadyToggle} />
+          <ReadyButton 
+            disabled={vm.readyDisabled}
+            note={vm.readyDisabled ? vm.readyDisabledReason : vm.readyButtonNote} 
+            onClick={actions.onReadyToggle} 
+          />
         </div>
         <p
           className="font-['Roboto'] font-semibold leading-[normal] relative shrink-0 text-[0px] text-[16px] text-white w-[130px]"
@@ -87,12 +91,14 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
         className="basis-0 content-stretch flex flex-col grow items-start min-h-px min-w-px pb-0 pt-[10px] px-0 relative shrink-0"
         data-name="Misc"
       >
-        <p
-          className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[16px] text-right text-white w-full"
-          style={{ fontVariationSettings: "'wdth' 100" }}
-        >
-          {vm.spectatorCount} spectator{vm.spectatorCount !== 1 ? 's' : ''}
-        </p>
+        {vm.spectatorCount > 0 && (
+          <p
+            className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[16px] text-right text-white w-full"
+            style={{ fontVariationSettings: "'wdth' 100" }}
+          >
+            {vm.spectatorCount} spectator{vm.spectatorCount !== 1 ? 's' : ''}
+          </p>
+        )}
       </div>
     </div>
   );

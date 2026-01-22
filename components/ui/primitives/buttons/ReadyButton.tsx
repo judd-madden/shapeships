@@ -79,14 +79,12 @@ export function ReadyButton({
       onClick={onClick}
       disabled={disabled}
       className={`
-        bg-white
+        ${disabled ? 'bg-[#888888]' : 'bg-white'}
         h-[50px] 
         relative rounded-[10px] 
         w-full
-        hover:scale-105
+        ${disabled ? 'cursor-not-allowed' : 'hover:scale-105 cursor-pointer'}
         transition-transform
-        cursor-pointer
-        disabled:opacity-50 disabled:cursor-not-allowed
         ${className}
       `}
     >

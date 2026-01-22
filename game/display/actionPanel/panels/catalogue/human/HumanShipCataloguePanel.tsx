@@ -10,6 +10,7 @@
  * NO backend calls, NO rules validation, NO engine imports in PASS 2
  */
 
+import type { GameSessionActions } from '../../../../../client/useGameSession';
 import { ActionPanelScrollArea } from '../../../primitives/ActionPanelScrollArea';
 import { CatalogueShipSlot } from '../shared/CatalogueShipSlot';
 import { CatalogueCostNumber } from '../shared/CatalogueCostNumber';
@@ -43,7 +44,11 @@ const MAX_LIMIT_SHIPS: Partial<Record<ShipDefId, boolean>> = {
   // CHR will be added when Chronoswarm is implemented
 };
 
-export function HumanShipCataloguePanel() {
+interface HumanShipCataloguePanelProps {
+  actions: GameSessionActions;
+}
+
+export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProps) {
   // PASS 2: Hover state controller
   const hover = useShipCatalogueHover();
   
@@ -123,6 +128,7 @@ export function HumanShipCataloguePanel() {
                   </div>
                 }
                 canAfford={canAfford}
+                onClick={() => actions.onBuildShip('DEF')}
               >
                 <CatalogueCostNumber cost={2} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
@@ -143,6 +149,7 @@ export function HumanShipCataloguePanel() {
                   </div>
                 }
                 canAfford={canAfford}
+                onClick={() => actions.onBuildShip('FIG')}
               >
                 <CatalogueCostNumber cost={3} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>

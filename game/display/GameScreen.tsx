@@ -17,14 +17,13 @@ import { LeftRail } from './layout/LeftRail';
 import { MainStage } from './layout/MainStage';
 
 interface GameScreenProps {
-  gameId?: string;
-  playerId?: string;
-  playerName?: string;
-  onBack?: () => void;
+  gameId: string;
+  playerName: string;
+  onBack: () => void;
 }
 
-export default function GameScreen({ gameId, playerId, playerName, onBack }: GameScreenProps = {}) {
-  const { vm, actions } = useGameSession();
+export default function GameScreen({ gameId, playerName, onBack }: GameScreenProps) {
+  const { vm, actions } = useGameSession(gameId, playerName);
 
   return (
     <div className="ss-playerRoot w-full h-screen overflow-hidden flex gap-5 px-[30px]">

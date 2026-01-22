@@ -7,6 +7,7 @@ import { Toaster } from './components/ui/sonner';
 import { Input } from './components/ui/input';
 import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
+import { ensureSession, authenticatedFetch, getSessionToken, clearSession } from './utils/sessionManager';
 import ScreenManager from './components/ScreenManager';
 import GraphicsTest from './components/dev/GraphicsTest';
 import GameScreen from './game/display/GameScreen';
@@ -57,8 +58,21 @@ function readGameIdFromUrl(): string | null {
   return params.get('game');
 }
 
+function readViewModeFromUrl(): ViewMode {
+  const params = new URLSearchParams(window.location.search);
+  const view = params.get('view');
+  
+  // If view=gameScreen, switch to gameFullscreen mode
+  if (view === 'gameScreen') {
+    return 'gameFullscreen';
+  }
+  
+  // Default to dashboard
+  return 'dashboard';
+}
+
 export default function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => readViewModeFromUrl());
   const [currentView, setCurrentView] = useState<DashboardViewId>(() => readDashboardViewFromUrl());
   const [deploymentStatus, setDeploymentStatus] = useState<'unknown' | 'ready' | 'error'>('unknown');
   const [gameId, setGameId] = useState<string | null>(() => readGameIdFromUrl());
@@ -74,6 +88,7 @@ export default function App() {
     const onPopState = () => {
       setCurrentView(readDashboardViewFromUrl());
       setGameId(readGameIdFromUrl());
+      setViewMode(readViewModeFromUrl());
     };
 
     window.addEventListener('popstate', onPopState);
@@ -146,7 +161,6 @@ export default function App() {
       <div className="w-screen h-screen overflow-hidden">
         <GameScreen
           gameId={gameId || 'demo_game'}
-          playerId={player!.id}
           playerName={player!.name}
           onBack={returnToDashboard}
         />
@@ -308,8 +322,30 @@ export default function App() {
                 <Button onClick={() => setView('deployment')} className="mb-4">
                   ← Back to Dashboard
                 </Button>
-                <Button onClick={openGameBoardFullscreen} size="lg" className="w-full">
-                  Open GameBoard Full-Screen
+                
+                <CreateTestGameSection
+                  player={player}
+                  playerReady={playerReady}
+                  gameId={gameId}
+                  onGameCreated={(newGameId) => {
+                    setGameId(newGameId);
+                    // Update URL param
+                    const params = new URLSearchParams(window.location.search);
+                    params.set('game', newGameId);
+                    const newUrl = `${window.location.pathname}?${params.toString()}`;
+                    window.history.pushState({}, document.title, newUrl);
+                    // Open fullscreen
+                    setViewMode('gameFullscreen');
+                  }}
+                />
+                
+                <SessionManagementSection
+                  player={player}
+                  playerReady={playerReady}
+                />
+                
+                <Button onClick={openGameBoardFullscreen} size="lg" className="w-full" disabled={!gameId}>
+                  Open GameBoard Full-Screen {gameId ? `(${gameId.substring(0, 8)}...)` : '(No Game)'}
                 </Button>
                 <Card>
                   <CardHeader>
@@ -317,8 +353,7 @@ export default function App() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-gray-600">
-                      Click "Open GameBoard Full-Screen" to launch the game interface in full-screen mode.
-                      Use the Back button to return to this dashboard.
+                      Click "Create Test Game" to create a new game on the server, or use "Open GameBoard Full-Screen" if you already have a gameId.
                     </p>
                   </CardContent>
                 </Card>
@@ -583,5 +618,245 @@ function AuthenticationView({ onBack }: { onBack: () => void }) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// Create Test Game Section
+function CreateTestGameSection({
+  player,
+  playerReady,
+  gameId,
+  onGameCreated,
+}: {
+  player: any;
+  playerReady: boolean;
+  gameId: string | null;
+  onGameCreated: (newGameId: string) => void;
+}) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  const createTestGame = async () => {
+    if (!playerReady) {
+      setError('Player is not ready.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Only call ensureSession with player name if no token exists
+      // This prevents session churn
+      const existingToken = getSessionToken();
+      if (!existingToken) {
+        await ensureSession(player.name);
+      } else {
+        // Token exists, just ensure it's valid (no displayName = no clear)
+        await ensureSession();
+      }
+      
+      // Create game using authenticatedFetch
+      const response = await authenticatedFetch('/create-game', {
+        method: 'POST',
+        body: JSON.stringify({
+          playerName: player.name,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        onGameCreated(result.gameId);
+      } else {
+        const errorText = await response.text();
+        setError(`HTTP ${response.status}: ${errorText}`);
+      }
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const copyGameUrl = () => {
+    const currentUrl = window.location.href;
+    navigator.clipboard.writeText(currentUrl);
+    setCopySuccess(true);
+    setTimeout(() => setCopySuccess(false), 2000);
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Create Test Game</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Button
+          onClick={createTestGame}
+          size="lg"
+          className="w-full"
+          disabled={isLoading || !playerReady}
+        >
+          {isLoading ? 'Creating...' : 'Create Test Game → Open GameScreen'}
+        </Button>
+        
+        {gameId && (
+          <div className="space-y-2">
+            <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-sm font-medium text-green-900">Current gameId:</p>
+              <p className="font-mono text-xs text-green-700 break-all">{gameId}</p>
+            </div>
+            <Button
+              onClick={copyGameUrl}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              {copySuccess ? '✓ Copied!' : 'Copy Game URL'}
+            </Button>
+          </div>
+        )}
+        
+        {error && (
+          <div className="p-3 rounded-md bg-red-50 border border-red-200">
+            <p className="text-sm font-medium text-red-900">Error:</p>
+            <pre className="text-xs text-red-700 overflow-auto mt-1">{error}</pre>
+          </div>
+        )}
+        
+        {!playerReady && (
+          <p className="text-sm text-gray-500">Waiting for player to be ready...</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Session Management Section (Dev-only)
+function SessionManagementSection({
+  player,
+  playerReady,
+}: {
+  player: any;
+  playerReady: boolean;
+}) {
+  const [displayName, setDisplayName] = useState(player?.name || '');
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentToken, setCurrentToken] = useState(getSessionToken());
+
+  // Update display name when player changes
+  useEffect(() => {
+    if (player?.name) {
+      setDisplayName(player.name);
+    }
+  }, [player?.name]);
+
+  // Update token display when it changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentToken(getSessionToken());
+    }, 500);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleClearSession = () => {
+    clearSession();
+    setCurrentToken(null);
+    setStatusMessage('Session cleared. Reload or create a session.');
+    setTimeout(() => setStatusMessage(null), 3000);
+  };
+
+  const handleResetSession = async () => {
+    if (!displayName.trim()) {
+      setStatusMessage('Please enter a display name.');
+      setTimeout(() => setStatusMessage(null), 3000);
+      return;
+    }
+
+    setIsLoading(true);
+    setStatusMessage(null);
+
+    try {
+      // Clear existing session
+      clearSession();
+      
+      // Create new session with display name
+      await ensureSession(displayName.trim());
+      
+      // Update token display
+      setCurrentToken(getSessionToken());
+      
+      setStatusMessage(`New session created as "${displayName.trim()}"`);
+      setTimeout(() => setStatusMessage(null), 3000);
+    } catch (error: any) {
+      setStatusMessage(`Error: ${error.message}`);
+      setTimeout(() => setStatusMessage(null), 3000);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Session Management (Dev-only)</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div>
+          <label htmlFor="session-display-name" className="text-sm font-medium text-gray-700 block mb-1">
+            Session display name
+          </label>
+          <Input
+            id="session-display-name"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Enter display name"
+            className="mb-2"
+          />
+        </div>
+        
+        <div className="flex gap-2">
+          <Button
+            onClick={handleClearSession}
+            variant="outline"
+            className="flex-1"
+            disabled={isLoading}
+          >
+            Clear Session
+          </Button>
+          
+          <Button
+            onClick={handleResetSession}
+            className="flex-1"
+            disabled={isLoading || !displayName.trim()}
+          >
+            {isLoading ? 'Resetting...' : 'Reset Session (set name)'}
+          </Button>
+        </div>
+        
+        {statusMessage && (
+          <div className="p-3 rounded-md bg-blue-50 border border-blue-200">
+            <p className="text-sm text-blue-900">{statusMessage}</p>
+          </div>
+        )}
+        
+        {currentToken && (
+          <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
+            <p className="text-xs font-medium text-gray-700 mb-1">Current token (truncated):</p>
+            <p className="font-mono text-xs text-gray-600 break-all">
+              {currentToken.substring(0, 40)}...
+            </p>
+          </div>
+        )}
+        
+        {!currentToken && (
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+            <p className="text-xs text-yellow-800">No session token. Next authenticated request will create one.</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

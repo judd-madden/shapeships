@@ -48,7 +48,14 @@ export function ChooseSpeciesStage({
               <div className="content-stretch flex flex-col items-start pl-[4px] pr-0 py-0 relative shrink-0">
                 <button
                   onClick={onConfirmSpecies}
-                  className="bg-white content-stretch flex gap-[4px] h-[50px] items-center justify-center leading-[normal] px-[20px] py-[19px] relative rounded-[10px] shrink-0 text-[18px] text-black text-nowrap w-[300px] cursor-pointer hover:bg-gray-100 transition-colors"
+                  disabled={!vm.canConfirmSpecies}
+                  className={`
+                    content-stretch flex gap-[4px] h-[50px] items-center justify-center leading-[normal] 
+                    px-[20px] py-[19px] relative rounded-[10px] shrink-0 text-[18px] text-nowrap w-[300px] 
+                    ${vm.canConfirmSpecies 
+                      ? 'bg-white text-black cursor-pointer hover:bg-gray-100 transition-colors' 
+                      : 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-50'}
+                  `}
                   type="button"
                 >
                   <p
@@ -64,6 +71,12 @@ export function ChooseSpeciesStage({
                     - {selectedSpeciesName}
                   </p>
                 </button>
+                {/* Show disabled reason if button is disabled */}
+                {!vm.canConfirmSpecies && vm.confirmDisabledReason && (
+                  <p className="text-gray-400 text-[12px] mt-[4px] pl-[4px]">
+                    {vm.confirmDisabledReason}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -102,7 +115,7 @@ export function ChooseSpeciesStage({
               title="ANCIENT"
               blurbLines={['Energy. Solar Powers.', 'Ever present.']}
               backgroundClassName="bg-[#cd8cff]"
-              icon={<BlackMercuryCoreIcon className="w-[27px] h-[59px]" color="black" />}
+              icon={<BlackMercuryCoreIcon className="w-[32px] h-[61px]" color="black" />}
               selected={vm.selectedSpecies === 'ancient'}
               onClick={() => onSelectSpecies('ancient')}
             />

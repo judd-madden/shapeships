@@ -16,17 +16,26 @@ function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
 }
 
-function FleetPlaceholder({ title }: { title: string }) {
+function FleetPlaceholder({ title, ships }: { title: string; ships?: Array<{ shipDefId: string; count: number }> }) {
   return (
     <div className="basis-0 bg-[rgba(255,255,255,0.05)] grow h-full min-h-px min-w-px relative shrink-0">
       <div className="flex flex-row items-center justify-center size-full">
-        <div className="content-stretch flex items-center justify-center px-[225px] py-[186px] relative size-full">
+        <div className="content-stretch flex flex-col items-center justify-center px-[225px] py-[186px] relative size-full gap-2">
           <p
             className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[21.6px] text-nowrap text-white"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {title}
           </p>
+          {ships && ships.length > 0 && (
+            <div className="flex flex-col gap-1 text-white text-sm">
+              {ships.map(ship => (
+                <div key={ship.shipDefId}>
+                  {ship.shipDefId} × {ship.count}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -144,7 +153,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
       className="content-stretch flex gap-[8px] items-start justify-center px-0 py-[12px] relative size-full"
       data-name="Board Stage"
     >
-      <FleetPlaceholder title="PLAYER 1 FLEET" />
+      <FleetPlaceholder title="MY FLEET" ships={vm.myFleet} />
 
       <div
         className="content-stretch flex flex-col h-full items-center justify-between relative shrink-0 w-[230px]"
@@ -160,10 +169,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             data-name="P1 Health Group"
           >
             <p className="leading-[64px] relative shrink-0 text-[64px] text-white w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
-              25
-            </p>
-            <p className="leading-[28px] relative shrink-0 text-[#ff8282] text-[28px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
-              -3
+              {vm.myHealth}
             </p>
           </div>
 
@@ -176,21 +182,12 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
                 Health
                 <br aria-hidden="true" />
               </span>
-              <span className="font-['Roboto'] font-bold text-[#888] text-[13px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                35
-              </span>
             </p>
           </div>
 
           <div className="content-stretch flex flex-col font-['Roboto'] font-bold items-start relative shrink-0" data-name="P2 Health Group">
             <p className="leading-[64px] relative shrink-0 text-[64px] text-white w-[100px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-              25
-            </p>
-            <p
-              className="leading-[28px] min-w-full relative shrink-0 text-[#9cff84] text-[28px] w-[min-content]"
-              style={{ fontVariationSettings: "'wdth' 100" }}
-            >
-              +2
+              {vm.opponentHealth}
             </p>
           </div>
         </div>
@@ -250,12 +247,9 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             </div>
           </div>
         </div>
-
-        {/* VM-driven placeholder - shows BoardViewModel is connected */}
-        <p className="text-[#888] text-[9px] opacity-30 text-center max-w-[200px]">{vm.placeholder}</p>
       </div>
 
-      <FleetPlaceholder title="PLAYER 2 FLEET" />
+      <FleetPlaceholder title="OPPONENT FLEET" ships={vm.opponentFleet} />
     </div>
   );
 }

@@ -91,7 +91,7 @@ export function MainStage({
             aria-hidden="true"
             className="absolute border-2 border-[#555] border-solid inset-[-2px] pointer-events-none rounded-bl-[12px] rounded-br-[12px] rounded-tl-[12px]"
           />
-          <ActionPanelFrame vm={actionPanelVm} />
+          <ActionPanelFrame vm={actionPanelVm} actions={actions} />
         </div>
       </div>
     </div>
