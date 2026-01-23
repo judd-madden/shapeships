@@ -3,9 +3,12 @@
  * Main in-match layout shell for Alpha
  * NO LOGIC - composition only (Pass 1.25)
  * 
+ * CHUNK 9.1: BOOT GATING (Loading screen until valid server state)
+ * 
  * LAYOUT:
  * - Full viewport (100vw x 100vh, overflow hidden)
  * - Two columns: LeftRail (fixed width) + MainStage (flex)
+ * - Loading screen: centered "LOADING GAME" until first valid server state
  * 
  * CONTROLLER:
  * - Uses useGameSession hook for ALL state and actions
@@ -24,6 +27,24 @@ interface GameScreenProps {
 
 export default function GameScreen({ gameId, playerName, onBack }: GameScreenProps) {
   const { vm, actions } = useGameSession(gameId, playerName);
+
+  // ============================================================================
+  // CHUNK 9.1: BOOT GATING — Show loading screen until valid server state
+  // ============================================================================
+  
+  if (vm.isBootstrapping) {
+    return (
+      <div className="w-full h-screen flex items-center justify-center bg-black">
+        <div className="text-sm font-semibold tracking-wide text-white">
+          LOADING GAME
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================================================
+  // NORMAL GAME UI (After bootstrap complete)
+  // ============================================================================
 
   return (
     <div className="ss-playerRoot w-full h-screen overflow-hidden flex gap-5 px-[30px]">

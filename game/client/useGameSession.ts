@@ -31,6 +31,89 @@ import type { SpeciesId } from '../../components/ui/primitives/buttons/SpeciesCa
 import type { ShipDefId } from '../types/ShipTypes.engine';
 import { PUBLIC_APP_ORIGIN } from './config';
 import { generateNonce, makeCommitHash } from './hashUtils';
+import { isValidPhaseKey } from '../../engine/phase/PhaseTable';
+
+// ============================================================================
+// PHASE LABEL HELPERS (INLINE - from phaseLabels.ts)
+// ============================================================================
+
+// Major phase labels mapping
+const MAJOR_PHASE_LABELS: Record<string, string> = {
+  'setup': 'SETUP',
+  'build': 'BUILD',
+  'battle': 'BATTLE',
+};
+
+// Subphase label overrides (for special cases)
+const SUBPHASE_LABEL_OVERRIDES: Record<string, string> = {
+  'setup.species_selection': 'Species Selection',
+  'build.dice_roll': 'Dice Roll',
+  'build.line_generation': 'Line Generation',
+  'build.ships_that_build': 'Ships That Build',
+  'build.drawing': 'Drawing',
+  'build.end_of_build': 'End of Build',
+  'battle.reveal': 'Reveal',
+  'battle.first_strike': 'First Strike',
+  'battle.charge_declaration': 'Charge Declaration',
+  'battle.charge_response': 'Charge Response',
+  'battle.end_of_turn_resolution': 'End of Turn Resolution',
+};
+
+// Title case helper
+function titleCase(str: string): string {
+  return str.replace(/\w\S*/g, (txt) => 
+    txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
+  );
+}
+
+/**
+ * Extract major phase label from phaseKey
+ * Returns "UNKNOWN PHASE" if invalid or during bootstrap
+ */
+function getMajorPhaseLabel(phaseKey: string): string {
+  // Don't log errors for empty/null/undefined during bootstrap
+  if (!phaseKey || phaseKey.length === 0 || phaseKey === 'unknown') {
+    return 'UNKNOWN PHASE';
+  }
+  
+  // Extract major phase segment (before first dot)
+  const majorSegment = phaseKey.split('.')[0];
+  
+  // If this is a valid major phase, return the label
+  if (majorSegment && MAJOR_PHASE_LABELS[majorSegment]) {
+    return `${MAJOR_PHASE_LABELS[majorSegment]} PHASE`;
+  }
+  
+  // Invalid phase key - return safe placeholder
+  return 'UNKNOWN PHASE';
+}
+
+/**
+ * Extract subphase label from phaseKey
+ * Returns "Unknown" if invalid or during bootstrap
+ */
+function getSubphaseLabelFromPhaseKey(phaseKey: string): string {
+  // Don't log errors for empty/null/undefined during bootstrap
+  if (!phaseKey || phaseKey.length === 0 || phaseKey === 'unknown') {
+    return 'Unknown';
+  }
+  
+  // Check if we have an explicit override
+  if (SUBPHASE_LABEL_OVERRIDES[phaseKey]) {
+    return SUBPHASE_LABEL_OVERRIDES[phaseKey]!;
+  }
+  
+  // Fallback: extract last segment, title-case, replace underscores
+  const segments = phaseKey.split('.');
+  const lastSegment = segments[segments.length - 1];
+  
+  if (!lastSegment) {
+    return 'Unknown';
+  }
+  
+  // Replace underscores with spaces and title-case
+  return titleCase(lastSegment.replace(/_/g, ' '));
+}
 
 // ============================================================================
 // PLAYER NAME UTILITIES
@@ -189,6 +272,7 @@ export interface ActionPanelViewModel {
 }
 
 export interface GameSessionViewModel {
+  isBootstrapping: boolean; // true until valid server state with valid phaseKey
   hud: HudViewModel;
   leftRail: LeftRailViewModel;
   board: BoardViewModel;
@@ -263,6 +347,89 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   console.log('[useGameSession] effectiveGameId resolved:', effectiveGameId, '(props:', gameId, ')');
   
+  // ============================================================================
+  // CHUNK 9.1: NULL GAMEID GUARD (DEMO_GAME BOOTSTRAP SAFETY)
+  // ============================================================================
+  
+  // If no gameId is available (demo_game path), return early with bootstrap VM
+  // This prevents noisy errors and crashes from attempting join/poll logic
+  if (!effectiveGameId) {
+    console.log('[useGameSession] No gameId provided - returning bootstrap VM');
+    
+    // Minimal safe VM that triggers "LOADING GAME" screen
+    const bootstrapVm: GameSessionViewModel = {
+      isBootstrapping: true,
+      hud: {
+        p1Name: 'Player 1',
+        p1Species: 'Unknown',
+        p1IsOnline: false,
+        p1Clock: '00:00',
+        p1IsReady: false,
+        p1ReadyLabel: '',
+        p2Name: 'Player 2',
+        p2Species: 'Unknown',
+        p2IsOnline: false,
+        p2Clock: '00:00',
+        p2IsReady: false,
+        p2ReadyLabel: '',
+      },
+      leftRail: {
+        diceValue: 1,
+        turn: 1,
+        phase: 'UNKNOWN PHASE',
+        phaseIcon: 'build',
+        subphase: 'Unknown',
+        gameCode: 'NOGAME',
+        chatMessages: [],
+        drawOffer: null,
+        battleLogEntries: [],
+      },
+      board: {
+        mode: 'board',
+        leftPlayerFleet: [],
+        rightPlayerFleet: [],
+        speciesOptions: null,
+        gameOverInfo: null,
+      },
+      bottomActionRail: {
+        subphaseTitle: '',
+        subphaseSubheading: '',
+        canUndoActions: false,
+        readyButtonNote: null,
+        nextPhaseLabel: 'NEXT PHASE',
+        readyDisabled: true,
+        readyDisabledReason: 'No game loaded',
+        spectatorCount: 0,
+      },
+      actionPanel: {
+        activePanelId: 'ap.catalog.ships.human',
+        tabs: [],
+      },
+    };
+    
+    const bootstrapActions: GameSessionActions = {
+      onReadyToggle: async () => {},
+      onBoardModeToggle: () => {},
+      onSwitchToPanel: () => {},
+      onShipClick: () => {},
+      onSendChat: () => {},
+      onAcceptDraw: () => {},
+      onRefuseDraw: () => {},
+      onOpenBattleLogFullscreen: () => {},
+      onSelectSpecies: () => {},
+      onConfirmSpecies: () => {},
+      onCopyGameUrl: () => {},
+      onBuildShip: () => {},
+    };
+    
+    return {
+      vm: bootstrapVm,
+      actions: bootstrapActions,
+      loading: false,
+      error: 'No gameId provided',
+    };
+  }
+  
   // Server state
   const [rawState, setRawState] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -312,6 +479,48 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [speciesCommitDoneByPhase, setSpeciesCommitDoneByPhase] = useState<Record<string, boolean>>({});
   const [speciesRevealDoneByPhase, setSpeciesRevealDoneByPhase] = useState<Record<string, boolean>>({});
   
+  // Store commit inputs per phase instance so SPECIES_REVEAL can be retried safely
+  const [speciesCommitPayloadByPhase, setSpeciesCommitPayloadByPhase] =
+    useState<Record<string, { species: SpeciesId }>>({});
+  const [speciesCommitNonceByPhase, setSpeciesCommitNonceByPhase] =
+    useState<Record<string, string>>({});
+  
+  // IMPORTANT: refs are used for same-tick reliability (setState is async)
+  const speciesCommitPayloadRef = useRef<Record<string, { species: SpeciesId }>>({});
+  const speciesCommitNonceRef = useRef<Record<string, string>>({});
+  
+  // Helper functions for species commit cache (ref + state sync)
+  const setSpeciesCommitCache = (phaseInstanceKey: string, payload: { species: SpeciesId }, nonce: string) => {
+    speciesCommitPayloadRef.current[phaseInstanceKey] = payload;
+    speciesCommitNonceRef.current[phaseInstanceKey] = nonce;
+
+    setSpeciesCommitPayloadByPhase(prev => ({ ...prev, [phaseInstanceKey]: payload }));
+    setSpeciesCommitNonceByPhase(prev => ({ ...prev, [phaseInstanceKey]: nonce }));
+  };
+
+  const getSpeciesCommitCache = (phaseInstanceKey: string) => {
+    return {
+      payload: speciesCommitPayloadRef.current[phaseInstanceKey] ?? speciesCommitPayloadByPhase[phaseInstanceKey],
+      nonce: speciesCommitNonceRef.current[phaseInstanceKey] ?? speciesCommitNonceByPhase[phaseInstanceKey],
+    };
+  };
+
+  const clearSpeciesCommitCache = (phaseInstanceKey: string) => {
+    delete speciesCommitPayloadRef.current[phaseInstanceKey];
+    delete speciesCommitNonceRef.current[phaseInstanceKey];
+
+    setSpeciesCommitPayloadByPhase(prev => {
+      const next = { ...prev };
+      delete next[phaseInstanceKey];
+      return next;
+    });
+    setSpeciesCommitNonceByPhase(prev => {
+      const next = { ...prev };
+      delete next[phaseInstanceKey];
+      return next;
+    });
+  };
+  
   // ============================================================================
   // LOCAL COMPLETION TRACKING (Chunk 7: Build commit/reveal)
   // ============================================================================
@@ -319,6 +528,48 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Track build submission by phase instance key
   const [buildCommitDoneByPhase, setBuildCommitDoneByPhase] = useState<Record<string, boolean>>({});
   const [buildRevealDoneByPhase, setBuildRevealDoneByPhase] = useState<Record<string, boolean>>({});
+  
+  // Store commit inputs per phase instance so BUILD_REVEAL can be retried safely
+  const [buildCommitPayloadByPhase, setBuildCommitPayloadByPhase] =
+    useState<Record<string, { ships: Record<string, number> }>>({});
+  const [buildCommitNonceByPhase, setBuildCommitNonceByPhase] =
+    useState<Record<string, string>>({});
+  
+  // IMPORTANT: refs are used for same-tick reliability (setState is async)
+  const buildCommitPayloadRef = useRef<Record<string, { ships: Record<string, number> }>>({});
+  const buildCommitNonceRef = useRef<Record<string, string>>({});
+  
+  // Helper functions for build commit cache (ref + state sync)
+  const setBuildCommitCache = (phaseInstanceKey: string, payload: { ships: Record<string, number> }, nonce: string) => {
+    buildCommitPayloadRef.current[phaseInstanceKey] = payload;
+    buildCommitNonceRef.current[phaseInstanceKey] = nonce;
+
+    setBuildCommitPayloadByPhase(prev => ({ ...prev, [phaseInstanceKey]: payload }));
+    setBuildCommitNonceByPhase(prev => ({ ...prev, [phaseInstanceKey]: nonce }));
+  };
+
+  const getBuildCommitCache = (phaseInstanceKey: string) => {
+    return {
+      payload: buildCommitPayloadRef.current[phaseInstanceKey] ?? buildCommitPayloadByPhase[phaseInstanceKey],
+      nonce: buildCommitNonceRef.current[phaseInstanceKey] ?? buildCommitNonceByPhase[phaseInstanceKey],
+    };
+  };
+
+  const clearBuildCommitCache = (phaseInstanceKey: string) => {
+    delete buildCommitPayloadRef.current[phaseInstanceKey];
+    delete buildCommitNonceRef.current[phaseInstanceKey];
+
+    setBuildCommitPayloadByPhase(prev => {
+      const next = { ...prev };
+      delete next[phaseInstanceKey];
+      return next;
+    });
+    setBuildCommitNonceByPhase(prev => {
+      const next = { ...prev };
+      delete next[phaseInstanceKey];
+      return next;
+    });
+  };
   
   // ============================================================================
   // EVENT TAPE (Chunk 2: Dev-only plumbing)
@@ -828,9 +1079,28 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const phaseKey = rawState ? getPhaseKey(rawState) : 'unknown';
   const turnNumber = rawState ? getTurnNumber(rawState) : 1;
   
+  // ============================================================================
+  // CHUNK 9.1: BOOTSTRAP READINESS CHECK (BOOT GATING)
+  // ============================================================================
+  
+  // Determine if we have a valid server state with valid phaseKey
+  // - true = still bootstrapping (no valid state yet)
+  // - false = ready to render game UI
+  // Defensive: check typeof to prevent crashes if import resolution fails
+  const hasValidPhaseKey = 
+    typeof phaseKey === 'string' && 
+    phaseKey.length > 0 && 
+    phaseKey !== 'unknown' &&
+    typeof isValidPhaseKey === 'function' &&
+    isValidPhaseKey(phaseKey);
+  
+  const isBootstrapping = !rawState || !hasValidPhaseKey;
+  
   // Phase instance key for completion tracking
   // MUST be defined early — used by preview merge, build gating, and ready logic
   const phaseInstanceKey = `${turnNumber}::${phaseKey}`;
+  // BUILD intents are keyed by TURN (not subphase), because reveal happens later in battle.
+  const buildInstanceKey = `${turnNumber}::build`;
   
   // Determine major phase for icon
   const majorPhase = phaseKey.split('.')[0] || 'build';
@@ -937,32 +1207,116 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const opponentFleet = aggregateFleet(opponentShipsVisible);
   
   // ============================================================================
-  // CHUNK 6: MERGE PREVIEW COUNTS INTO FLEET (BUILD.DRAWING ONLY)
+  // CHUNK 6: MERGE PREVIEW COUNTS INTO FLEET (ENTIRE BUILD PHASE)
   // ============================================================================
   
-  // Determine if we're in build.drawing phase
-  const isInBuildDrawing = phaseKey === 'build.drawing';
+  // Determine if we're in build major phase (any build subphase)
+  const isInBuildPhase = majorPhase === 'build';
   
   // ============================================================================
-  // CHUNK 6.1: RESET PREVIEW BUFFER ON PHASE-INSTANCE TRANSITION
+  // CHUNK 6.1: RESET PREVIEW BUFFER ON TURN TRANSITION
   // ============================================================================
   
   // Reset preview buffer when:
-  // - phaseKey changes away from build.drawing
-  // - turnNumber changes
-  // - effectiveGameId changes
+  // - turnNumber changes (new turn begins)
+  // - effectiveGameId changes (switched games)
+  // 
+  // IMPORTANT: We must NOT reset on phaseKey changes because clicking Ready
+  // advances subphases within BUILD (e.g. build.drawing → build.end_of_build),
+  // and we want preview to persist through the entire BUILD major phase.
+  // 
   // This effect does NOT depend on buildPreviewCounts (avoids noise)
   useEffect(() => {
-    // Reset when leaving build.drawing phase OR when turn/game changes
+    // Reset only on turn or game change (NOT on phase/subphase changes)
     setBuildPreviewCounts({});
-  }, [phaseKey, turnNumber, effectiveGameId]);
+  }, [turnNumber, effectiveGameId]);
+  
+  // ============================================================================
+  // CHUNK 6.2: AUTO-SUBMIT BUILD_REVEAL WHEN ENTERING BATTLE.REVEAL PHASE
+  // ============================================================================
+  
+  // When the game enters battle.reveal phase, auto-submit BUILD_REVEAL if we have a cached commit
+  useEffect(() => {
+    // Only run during battle.reveal phase (not broadly on entering battle)
+    if (phaseKey !== 'battle.reveal') return;
+    if (!effectiveGameId) return; // Need valid game
+    
+    const buildCommitDone = !!buildCommitDoneByPhase[buildInstanceKey];
+    const buildRevealDone = !!buildRevealDoneByPhase[buildInstanceKey];
+    
+    // Only auto-reveal if commit is done but reveal is not
+    if (!buildCommitDone || buildRevealDone) return;
+    
+    console.log('[useGameSession] Auto-submitting BUILD_REVEAL (battle.reveal phase)...');
+    
+    const submitBuildReveal = async () => {
+      try {
+        const cached = getBuildCommitCache(buildInstanceKey);
+        const cachedPayload = cached.payload;
+        const cachedNonce = cached.nonce;
+        
+        if (!cachedPayload || !cachedNonce) {
+          console.error(
+            '[useGameSession] Cannot auto-reveal: missing cached payload/nonce. ' +
+            'This indicates the client lost its nonce after committing.'
+          );
+          return;
+        }
+        
+        // Convert ships object back to builds array format for server
+        const buildsArray: Array<{ shipDefId: string; count: number }> = [];
+        for (const [shipDefId, count] of Object.entries(cachedPayload.ships)) {
+          buildsArray.push({ shipDefId, count });
+        }
+        const payload = { builds: buildsArray };
+        
+        const revealResponse = await authenticatedPost('/intent', {
+          gameId: effectiveGameId,
+          intentType: 'BUILD_REVEAL',
+          turnNumber,
+          payload,
+          nonce: cachedNonce,
+        });
+        
+        if (!revealResponse.ok) {
+          const errorText = await revealResponse.text();
+          console.error('[useGameSession] Auto BUILD_REVEAL failed:', errorText);
+          return; // keep cache for retry
+        }
+        
+        const revealResult = await revealResponse.json();
+        
+        if (!revealResult.ok) {
+          console.error('[useGameSession] Auto BUILD_REVEAL rejected:', revealResult.rejected);
+          return; // keep cache for retry
+        }
+        
+        appendEvents(revealResult.events || [], {
+          label: 'BUILD_REVEAL (auto @ battle.reveal)',
+          turn: turnNumber,
+          phaseKey,
+        });
+        
+        setBuildRevealDoneByPhase(prev => ({ ...prev, [buildInstanceKey]: true }));
+        clearBuildCommitCache(buildInstanceKey);
+        
+        console.log('✅ [useGameSession] Auto BUILD_REVEAL succeeded');
+        
+        await refreshGameStateOnce();
+      } catch (err: any) {
+        console.error('[useGameSession] Auto BUILD_REVEAL error:', err);
+      }
+    };
+    
+    submitBuildReveal();
+  }, [phaseKey, buildInstanceKey, effectiveGameId, turnNumber, buildCommitDoneByPhase, buildRevealDoneByPhase]);
   
   // Check if build reveal is done for this phase instance
-  const buildRevealDoneThisPhase = !!buildRevealDoneByPhase[phaseInstanceKey];
+  const buildRevealDoneThisPhase = !!buildRevealDoneByPhase[buildInstanceKey];
   
-  // Merge preview counts into my fleet (if in build.drawing AND reveal not done)
+  // Merge preview counts into my fleet (if in build phase AND reveal not done)
   const myFleetWithPreview: BoardFleetSummary[] =
-    (isInBuildDrawing && !buildRevealDoneThisPhase)
+    (isInBuildPhase && !buildRevealDoneThisPhase)
       ? (() => {
           // Start with canonical fleet counts
           const merged: Record<string, number> = {};
@@ -1148,6 +1502,14 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   } else if (isInSpeciesSelection && !mySpeciesSelectionComplete) {
     readyEnabled = false;
     readyDisabledReason = 'Select and confirm your species first.';
+  } else if (
+    phaseKey === 'battle.reveal' &&
+    buildCommitDoneByPhase[buildInstanceKey] === true &&
+    buildRevealDoneByPhase[buildInstanceKey] === false
+  ) {
+    // Prevent spamming DECLARE_READY while reveal is pending
+    readyEnabled = false;
+    readyDisabledReason = 'Revealing build…';
   } else {
     readyEnabled = true;
     readyDisabledReason = null;
@@ -1158,6 +1520,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // ============================================================================
   
   const vm: GameSessionViewModel = {
+    isBootstrapping,
+    
     hud: {
       p1Name: me?.name || 'Player 1',
       p1Species: mySpeciesLabel, // STEP E: Use leftSpecies from server mapping
@@ -1177,9 +1541,9 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     leftRail: {
       diceValue: 1,
       turn: turnNumber,
-      phase: phaseIcon === 'build' ? 'BUILD PHASE' : 'BATTLE PHASE',
+      phase: getMajorPhaseLabel(phaseKey),
       phaseIcon,
-      subphase: phaseKey,
+      subphase: getSubphaseLabelFromPhaseKey(phaseKey),
       gameCode: effectiveGameId ? effectiveGameId.substring(0, 6).toUpperCase() : 'NOGAME',
       chatMessages: [],
       drawOffer: null,
@@ -1235,16 +1599,15 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       }
       
       try {
-        // E2) If in build.drawing AND player role, do build submission first
+        // E2) If in build.drawing AND player role, do BUILD_COMMIT only (defer reveal to battle)
         const isBuildDrawing = phaseKey === 'build.drawing';
         
         if (isBuildDrawing && myRole === 'player') {
-          // Check if build already submitted for this phase instance
-          const buildCommitDone = !!buildCommitDoneByPhase[phaseInstanceKey];
-          const buildRevealDone = !!buildRevealDoneByPhase[phaseInstanceKey];
+          // Check if build commit already done for this phase instance
+          const buildCommitDone = !!buildCommitDoneByPhase[buildInstanceKey];
           
-          if (!(buildCommitDone && buildRevealDone)) {
-            console.log('[useGameSession] Performing BUILD flow before DECLARE_READY...');
+          if (!buildCommitDone) {
+            console.log('[useGameSession] Performing BUILD_COMMIT before DECLARE_READY...');
             
             // ====================================================================
             // BUILD PAYLOAD CONSTRUCTION
@@ -1272,40 +1635,51 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
             console.log('[useGameSession] Build payload:', payload);
             
             // ====================================================================
-            // COMMIT + REVEAL HASHING
+            // STEP 1: BUILD_COMMIT ONLY (defer reveal until battle phase)
             // ====================================================================
             
-            // Generate nonce and compute commit hash
+            console.log('[useGameSession] Submitting BUILD_COMMIT...');
+            
             const nonce = generateNonce();
+            
+            // Convert builds array to ships object for cache (matching expected format)
+            const shipsObject: Record<string, number> = {};
+            for (const build of buildsArray) {
+              shipsObject[build.shipDefId] = build.count;
+            }
+            const cachePayload = { ships: shipsObject };
+            
+            // Cache payload + nonce BEFORE awaiting network
+            setBuildCommitCache(buildInstanceKey, cachePayload, nonce);
+            
             const commitHash = await makeCommitHash(payload, nonce);
             
-            // ====================================================================
-            // STEP 1: BUILD_COMMIT
-            // ====================================================================
+            const commitResponse = await authenticatedPost('/intent', {
+              gameId: effectiveGameId,
+              intentType: 'BUILD_COMMIT',
+              turnNumber,
+              commitHash,
+            });
             
-            if (!buildCommitDone) {
-              console.log('[useGameSession] Submitting BUILD_COMMIT...');
-              
-              const commitResponse = await authenticatedPost('/intent', {
-                gameId: effectiveGameId,
-                intentType: 'BUILD_COMMIT',
-                turnNumber,
-                commitHash,
-              });
-              
-              if (!commitResponse.ok) {
-                const errorText = await commitResponse.text();
-                console.error('[useGameSession] BUILD_COMMIT failed:', errorText);
-                return; // Fail early
-              }
-              
-              const commitResult = await commitResponse.json();
-              
-              if (!commitResult.ok) {
+            if (!commitResponse.ok) {
+              const errorText = await commitResponse.text();
+              console.error('[useGameSession] BUILD_COMMIT failed:', errorText);
+              return; // Fail early
+            }
+            
+            const commitResult = await commitResponse.json();
+            
+            if (!commitResult.ok) {
+              // Handle DUPLICATE_COMMIT: server already has a commitment.
+              if (commitResult.rejected?.code === 'DUPLICATE_COMMIT') {
+                console.warn('[useGameSession] DUPLICATE_COMMIT: treating commit as already done');
+                setBuildCommitDoneByPhase(prev => ({ ...prev, [buildInstanceKey]: true }));
+                // Do NOT clear cache; we may need it for reveal.
+              } else {
                 console.error('[useGameSession] BUILD_COMMIT rejected:', commitResult.rejected);
                 return; // Fail early
               }
-              
+            } else {
               // Append events to tape
               appendEvents(commitResult.events || [], {
                 label: 'BUILD_COMMIT',
@@ -1314,67 +1688,16 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
               });
               
               // Mark commit done for this phase instance
-              setBuildCommitDoneByPhase(prev => ({
-                ...prev,
-                [phaseInstanceKey]: true,
-              }));
+              setBuildCommitDoneByPhase(prev => ({ ...prev, [buildInstanceKey]: true }));
               
               console.log('✅ [useGameSession] BUILD_COMMIT succeeded');
             }
             
-            // ====================================================================
-            // STEP 2: BUILD_REVEAL
-            // ====================================================================
-            
-            if (!buildRevealDone) {
-              console.log('[useGameSession] Submitting BUILD_REVEAL...');
-              
-              const revealResponse = await authenticatedPost('/intent', {
-                gameId: effectiveGameId,
-                intentType: 'BUILD_REVEAL',
-                turnNumber,
-                payload,
-                nonce,
-              });
-              
-              if (!revealResponse.ok) {
-                const errorText = await revealResponse.text();
-                console.error('[useGameSession] BUILD_REVEAL failed:', errorText);
-                return; // Fail early
-              }
-              
-              const revealResult = await revealResponse.json();
-              
-              if (!revealResult.ok) {
-                console.error('[useGameSession] BUILD_REVEAL rejected:', revealResult.rejected);
-                return; // Fail early
-              }
-              
-              // Append events to tape
-              appendEvents(revealResult.events || [], {
-                label: 'BUILD_REVEAL',
-                turn: turnNumber,
-                phaseKey,
-              });
-              
-              // Mark reveal done for this phase instance
-              setBuildRevealDoneByPhase(prev => ({
-                ...prev,
-                [phaseInstanceKey]: true,
-              }));
-              
-              console.log('✅ [useGameSession] BUILD_REVEAL succeeded');
-              
-              // Clear local preview buffer once the reveal is accepted.
-              // After reveal, the server will persist these ships into gameData.ships,
-              // so keeping the preview causes double counting.
-              setBuildPreviewCounts({});
-              
-              // Refresh game state immediately after build reveal
-              await refreshGameStateOnce();
-            }
+            // NOTE: We do NOT submit BUILD_REVEAL here.
+            // BUILD_REVEAL will be auto-submitted when the game enters battle phase.
+            // This allows the preview to persist throughout the entire BUILD phase.
           } else {
-            console.log('[useGameSession] Build already submitted for this phase instance, skipping BUILD flow');
+            console.log('[useGameSession] Build commit already done for this phase instance, skipping BUILD_COMMIT');
           }
         }
         
@@ -1499,104 +1822,121 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       }
       
       try {
-        // ========================================================================
-        // STEP 1: SPECIES_COMMIT
-        // ========================================================================
-        
-        if (!isCommitDone) {
+        const payload = { species: selectedSpecies };
+
+        const commitDone = !!speciesCommitDoneByPhase[phaseInstanceKey];
+        const revealDone = !!speciesRevealDoneByPhase[phaseInstanceKey];
+
+        console.log('[useGameSession] onConfirmSpecies', phaseInstanceKey, { commitDone, revealDone });
+
+        if (commitDone && revealDone) return;
+
+        // ------------------------------------------------------------------
+        // STEP 1: COMMIT (only if we don't think we've committed yet)
+        // IMPORTANT: generate nonce and cache it BEFORE awaiting the network.
+        // ------------------------------------------------------------------
+        if (!commitDone) {
           console.log('[useGameSession] Submitting SPECIES_COMMIT...');
-          
-          // Build payload
-          const payload = { species: selectedSpecies };
-          
-          // Generate nonce and compute commit hash
+
           const nonce = generateNonce();
+          setSpeciesCommitCache(phaseInstanceKey, payload, nonce);
+
           const commitHash = await makeCommitHash(payload, nonce);
-          
-          // POST SPECIES_COMMIT intent
+
           const commitResponse = await authenticatedPost('/intent', {
             gameId: effectiveGameId,
             intentType: 'SPECIES_COMMIT',
             turnNumber,
             commitHash,
           });
-          
+
           if (!commitResponse.ok) {
             const errorText = await commitResponse.text();
             console.error('[useGameSession] SPECIES_COMMIT failed:', errorText);
             return;
           }
-          
+
           const commitResult = await commitResponse.json();
-          
+
           if (!commitResult.ok) {
-            console.error('[useGameSession] SPECIES_COMMIT rejected:', commitResult.rejected);
+            // Handle DUPLICATE_COMMIT: server already has a commitment.
+            if (commitResult.rejected?.code === 'DUPLICATE_COMMIT') {
+              console.warn('[useGameSession] DUPLICATE_COMMIT: treating commit as already done');
+              setSpeciesCommitDoneByPhase(prev => ({ ...prev, [phaseInstanceKey]: true }));
+              // Do NOT clear cache; we may need it for reveal.
+            } else {
+              console.error('[useGameSession] SPECIES_COMMIT rejected:', commitResult.rejected);
+              return;
+            }
+          } else {
+            appendEvents(commitResult.events || [], {
+              label: `SPECIES_COMMIT (${selectedSpecies.toUpperCase()})`,
+              turn: turnNumber,
+              phaseKey,
+            });
+
+            setSpeciesCommitDoneByPhase(prev => ({ ...prev, [phaseInstanceKey]: true }));
+            console.log('✅ [useGameSession] SPECIES_COMMIT succeeded');
+          }
+        }
+
+        // ------------------------------------------------------------------
+        // STEP 2: REVEAL (only if not revealed yet)
+        // IMPORTANT: use ref-backed cache so this works immediately after commit.
+        // ------------------------------------------------------------------
+        const revealDoneNow = !!speciesRevealDoneByPhase[phaseInstanceKey];
+        if (!revealDoneNow) {
+          console.log('[useGameSession] Submitting SPECIES_REVEAL...');
+
+          const cached = getSpeciesCommitCache(phaseInstanceKey);
+          const cachedPayload = cached.payload;
+          const cachedNonce = cached.nonce;
+
+          if (!cachedPayload || !cachedNonce) {
+            // Do NOT flip commitDone back to false; that causes client/server drift.
+            console.error(
+              '[useGameSession] Cannot reveal: missing cached payload/nonce. ' +
+              'This indicates the client lost its nonce after committing. ' +
+              'You cannot reveal without it.'
+            );
             return;
           }
-          
-          // Append events to tape
-          appendEvents(commitResult.events || [], {
-            label: `SPECIES_COMMIT (${selectedSpecies.toUpperCase()})`,
-            turn: turnNumber,
-            phaseKey,
-          });
-          
-          // Mark commit done for this phase instance
-          setSpeciesCommitDoneByPhase(prev => ({
-            ...prev,
-            [phaseInstanceKey]: true,
-          }));
-          
-          console.log('✅ [useGameSession] SPECIES_COMMIT succeeded');
-          
-          // ========================================================================
-          // STEP 2: SPECIES_REVEAL
-          // ========================================================================
-          
-          console.log('[useGameSession] Submitting SPECIES_REVEAL...');
-          
-          // POST SPECIES_REVEAL intent (with same payload and nonce)
+
           const revealResponse = await authenticatedPost('/intent', {
             gameId: effectiveGameId,
             intentType: 'SPECIES_REVEAL',
             turnNumber,
-            payload,
-            nonce,
+            payload: cachedPayload,
+            nonce: cachedNonce,
           });
-          
+
           if (!revealResponse.ok) {
             const errorText = await revealResponse.text();
             console.error('[useGameSession] SPECIES_REVEAL failed:', errorText);
-            return;
+            return; // keep cache for retry
           }
-          
+
           const revealResult = await revealResponse.json();
-          
+
           if (!revealResult.ok) {
             console.error('[useGameSession] SPECIES_REVEAL rejected:', revealResult.rejected);
-            return;
+            return; // keep cache for retry
           }
-          
-          // Append events to tape
+
           appendEvents(revealResult.events || [], {
             label: `SPECIES_REVEAL (${selectedSpecies.toUpperCase()})`,
             turn: turnNumber,
             phaseKey,
           });
-          
-          // Mark reveal done for this phase instance
-          setSpeciesRevealDoneByPhase(prev => ({
-            ...prev,
-            [phaseInstanceKey]: true,
-          }));
-          
+
+          setSpeciesRevealDoneByPhase(prev => ({ ...prev, [phaseInstanceKey]: true }));
+          clearSpeciesCommitCache(phaseInstanceKey);
+
           console.log('✅ [useGameSession] SPECIES_REVEAL succeeded');
           console.log('✅ [useGameSession] Species selection complete!');
-          
-          // Refresh game state immediately after species reveal
+
           await refreshGameStateOnce();
         }
-        
       } catch (err: any) {
         console.error('[useGameSession] Species confirmation error:', err);
       }
@@ -1644,7 +1984,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       // ========================================================================
       
       // Gate 4: Prevent adding ships after build submission for this phase instance
-      const buildDone = !!buildCommitDoneByPhase[phaseInstanceKey] && !!buildRevealDoneByPhase[phaseInstanceKey];
+      const buildDone = !!buildCommitDoneByPhase[buildInstanceKey] && !!buildRevealDoneByPhase[buildInstanceKey];
       if (buildDone) {
         return; // Silent no-op if build already submitted
       }

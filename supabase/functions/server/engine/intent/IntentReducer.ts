@@ -55,6 +55,7 @@ import {
   hasCommitted,
   hasRevealed,
   allPlayersRevealed,
+  allCommittedPlayersRevealed,
 } from './CommitStore.ts';
 import type { ShipInstance } from '../state/GameStateTypes.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
@@ -653,6 +654,20 @@ async function handleBuildReveal(
     };
   }
   
+  // Phase gate: BUILD_REVEAL only allowed during battle.reveal
+  const phaseKey = getPhaseKey(state);
+  if (phaseKey !== 'battle.reveal') {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.WRONG_PHASE,
+        message: 'BUILD_REVEAL is only allowed during battle.reveal phase'
+      }
+    };
+  }
+  
   if (!intent.payload || !intent.nonce) {
     return {
       ok: false,
@@ -817,7 +832,7 @@ async function handleBuildReveal(
   });
   
   // Check if all players have revealed
-  if (allPlayersRevealed(state, commitKey)) {
+  if (allCommittedPlayersRevealed(state, commitKey)) {
     // Resolve builds for all players - create ship instances
     const activePlayers = state.players.filter((p: any) => p.role === 'player');
     
@@ -863,6 +878,50 @@ async function handleBuildReveal(
       turnNumber: intent.turnNumber,
       atMs: nowMs
     });
+    
+    // Auto-advance from battle.reveal once all required reveals are complete
+    // IMPORTANT: normalize phase fields first (protects against missing/stale gameData phase fields)
+    state = syncPhaseFields(state);
+
+    const currentKey = getPhaseKey(state);
+    if (currentKey === 'battle.reveal' && allCommittedPlayersRevealed(state, commitKey)) {
+      const fromKey = currentKey;
+
+      const adv = advancePhaseCore(state);
+
+      if (!adv.ok) {
+        // Do not silently fail — this is the exact "stuck in battle.reveal" symptom.
+        events.push({
+          type: 'PHASE_ADVANCE_BLOCKED',
+          from: fromKey,
+          reason: adv.error,
+          atMs: nowMs,
+        });
+
+        console.log(`[IntentReducer] BUILD_REVEAL auto-advance blocked: ${adv.error}`);
+      } else {
+        state = adv.state;
+
+        // Clear readiness on successful phase advance
+        state.gameData.phaseReadiness = [];
+        state = syncPhaseFields(state);
+
+        const toKey = getPhaseKey(state);
+
+        events.push({
+          type: 'PHASE_ADVANCED',
+          from: fromKey,
+          to: toKey,
+          atMs: nowMs
+        });
+
+        if (toKey) {
+          const onEnter = onEnterPhase(state, fromKey, toKey, nowMs);
+          state = onEnter.state;
+          events.push(...onEnter.events);
+        }
+      }
+    }
   }
   
   state = syncPhaseFields(state);

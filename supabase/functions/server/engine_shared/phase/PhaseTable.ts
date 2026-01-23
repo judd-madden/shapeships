@@ -24,6 +24,7 @@ export const PHASE_SEQUENCE = [
   'build.drawing',
   'build.end_of_build',
 
+  'battle.reveal',
   'battle.first_strike',
   'battle.charge_declaration',
   'battle.charge_response',

@@ -134,6 +134,7 @@
     --font-weight-bold: 700;
     --font-weight-extrabold: 800;
     --font-weight-black: 900;
+    --tracking-wide: .025em;
     --drop-shadow-md: 0 3px 3px #0000001f;
     --drop-shadow-lg: 0 4px 4px #00000026;
     --blur-sm: 8px;
@@ -787,6 +788,10 @@
 
   .inline-grid {
     display: inline-grid;
+  }
+
+  .table {
+    display: table;
   }
 
   .size-4 {
@@ -3042,6 +3047,11 @@
     letter-spacing: -.1584px;
   }
 
+  .tracking-wide {
+    --tw-tracking: var(--tracking-wide);
+    letter-spacing: var(--tracking-wide);
+  }
+
   .text-nowrap {
     text-wrap: nowrap;
   }
@@ -3250,6 +3260,10 @@
 
   .capitalize {
     text-transform: capitalize;
+  }
+
+  .lowercase {
+    text-transform: lowercase;
   }
 
   .uppercase {

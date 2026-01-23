@@ -12,13 +12,14 @@
  */
 
 import { syncPhaseFields } from './syncPhaseFields.ts';
-import { fleetHasAvailablePowers } from './fleetHasAvailablePowers.ts';
-import { resolvePhase } from '../../engine_shared/resolve/resolvePhase.ts';
-import { isPhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
-import { computeLineBonusForPlayer } from '../lines/computeLineBonusForPlayer.ts';
-import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { advancePhase } from './advancePhase.ts';
-import type { PhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
+import { fleetHasAvailablePowers } from './fleetHasAvailablePowers.ts';
+import { hasCommitted, hasRevealed, allCommittedPlayersRevealed } from '../intent/CommitStore.ts';
+import { getBuildCommitKey } from '../intent/IntentTypes.ts';
+import { computeLineBonusForPlayer } from '../lines/computeLineBonusForPlayer.ts';
+import { resolvePhase } from '../../engine_shared/resolve/resolvePhase.ts';
+import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
+import { isPhaseKey, type PhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 
 export interface OnEnterResult {
   state: any;
@@ -68,6 +69,7 @@ const PHASE_TO_SUBPHASE_MAP: Record<PhaseKey, string[]> = {
   'build.ships_that_build': ['Ships That Build'],
   'build.drawing': [], // Handled separately (lines > 0)
   'build.end_of_build': [],
+  'battle.reveal': [], // Handled separately (commit/reveal gating)
   'battle.first_strike': ['First Strike'], // Declarable (e.g., Guardian)
   'battle.charge_declaration': [], // Uses dedicated charge/solar gating
   'battle.charge_response': [], // Uses dedicated charge/solar gating
@@ -148,8 +150,7 @@ function playerHasAvailableChargeOrSolarOption(state: any, player: any): boolean
 
 /**
  * Check if ANY player has available charge or solar power options.
- * 
- * @param state - Game state
+ * \n * @param state - Game state
  * @returns true if at least one player has charge/solar options
  */
 function anyPlayerHasAvailableChargeOrSolarOption(state: any): boolean {
@@ -162,6 +163,38 @@ function anyPlayerHasAvailableChargeOrSolarOption(state: any): boolean {
   }
   
   return false;
+}
+
+/**
+ * Check if any player is missing BUILD_REVEAL for the current turn.
+ * 
+ * A player "needs reveal" if:
+ * - They have a commitHash stored for build::<turnNumber> AND
+ * - They do NOT have revealPayload stored for that same key
+ * 
+ * @param state - Game state
+ * @returns true if at least one player still needs to reveal
+ */
+function anyPlayerMissingBuildReveal(state: any): boolean {
+  const turnNumber = state.gameData?.turnNumber || 1;
+  const commitKey = getBuildCommitKey(turnNumber);
+  const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
+  
+  for (const player of activePlayers) {
+    // Check if this player has committed
+    const committed = hasCommitted(state, commitKey, player.id);
+    if (!committed) {
+      continue; // Player didn't commit, no reveal needed
+    }
+    
+    // Player committed - check if they've revealed
+    const revealed = hasRevealed(state, commitKey, player.id);
+    if (!revealed) {
+      return true; // Found a player who committed but hasn't revealed
+    }
+  }
+  
+  return false; // All committed players have revealed (or no one committed)
 }
 
 /**
@@ -220,6 +253,13 @@ function phaseRequiresPlayerInput(state: any, phaseKey: PhaseKey): boolean {
   // build.end_of_build: no player input (server processes)
   if (phaseKey === 'build.end_of_build') {
     return false;
+  }
+
+  // battle.reveal: requires input if any player has committed but not revealed
+  if (phaseKey === 'battle.reveal') {
+    const turnNumber = state.gameData?.turnNumber || 1;
+    const commitKey = getBuildCommitKey(turnNumber);
+    return !allCommittedPlayersRevealed(state, commitKey);
   }
 
   // battle.first_strike: requires input only if fleet has first strike powers

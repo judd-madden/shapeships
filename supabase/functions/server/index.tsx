@@ -20,6 +20,9 @@ import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
 
+// Runtime bundle anchor - prevents Supabase tree-shaking from dropping engine modules
+import './engine/bundleAnchors.ts';
+
 // Import route registration functions
 import { registerAuthRoutes } from "./routes/auth_routes.ts";
 import { registerTestRoutes } from "./routes/test_routes.ts";

@@ -161,3 +161,25 @@ export function allPlayersRevealed(
   
   return activePlayers.every((p: any) => revealedPlayers.includes(p.id));
 }
+
+/**
+ * Returns true if every active player who has COMMITTED for `commitKey`
+ * has also REVEALED for `commitKey`.
+ *
+ * - Players who did not commit are NOT required to reveal.
+ * - If nobody committed, returns true (no reveals required).
+ */
+export function allCommittedPlayersRevealed(state: any, commitKey: string): boolean {
+  const activePlayers = (state.players ?? []).filter((p: any) => p.role === 'player');
+
+  for (const p of activePlayers) {
+    const entry = state?.gameData?.turnData?.commitments?.[commitKey]?.[p.id];
+    const hasCommit = !!entry?.commitHash;
+    if (!hasCommit) continue;
+
+    const hasReveal = !!entry?.revealPayload;
+    if (!hasReveal) return false;
+  }
+
+  return true;
+}

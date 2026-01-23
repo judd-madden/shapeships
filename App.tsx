@@ -62,9 +62,17 @@ function readViewModeFromUrl(): ViewMode {
   const params = new URLSearchParams(window.location.search);
   const view = params.get('view');
   
-  // If view=gameScreen, switch to gameFullscreen mode
-  if (view === 'gameScreen') {
+  // If view=gameScreenFull, always fullscreen
+  if (view === 'gameScreenFull') {
     return 'gameFullscreen';
+  }
+  
+  // Backward compatibility: view=gameScreen with game param → fullscreen
+  if (view === 'gameScreen') {
+    const game = params.get('game');
+    if (game && game.length > 0) {
+      return 'gameFullscreen';
+    }
   }
   
   // Default to dashboard
@@ -144,6 +152,19 @@ export default function App() {
   };
 
   const openGameBoardFullscreen = () => {
+    // Only proceed if gameId exists
+    if (!gameId) {
+      return;
+    }
+    
+    // Update URL to use view=gameScreenFull
+    const params = new URLSearchParams(window.location.search);
+    params.set('view', 'gameScreenFull');
+    params.set('game', gameId); // Ensure game param is set
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.pushState({}, document.title, newUrl);
+    
+    // Switch to fullscreen mode
     setViewMode('gameFullscreen');
   };
 
@@ -157,10 +178,31 @@ export default function App() {
       return <div className="w-screen h-screen flex items-center justify-center">Loading player...</div>;
     }
     
+    // If no gameId, show error screen with back button
+    if (!gameId) {
+      return (
+        <div className="w-screen h-screen flex items-center justify-center bg-gray-50">
+          <Card className="max-w-md">
+            <CardHeader>
+              <CardTitle>No Game Loaded</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-gray-600">
+                No gameId was provided. Please create a game or open an existing game from the dashboard.
+              </p>
+              <Button onClick={returnToDashboard} className="w-full">
+                Back to Dashboard
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+    
     return (
       <div className="w-screen h-screen overflow-hidden">
         <GameScreen
-          gameId={gameId || 'demo_game'}
+          gameId={gameId}
           playerName={player!.name}
           onBack={returnToDashboard}
         />
@@ -329,8 +371,9 @@ export default function App() {
                   gameId={gameId}
                   onGameCreated={(newGameId) => {
                     setGameId(newGameId);
-                    // Update URL param
+                    // Update URL with view=gameScreenFull and game param
                     const params = new URLSearchParams(window.location.search);
+                    params.set('view', 'gameScreenFull');
                     params.set('game', newGameId);
                     const newUrl = `${window.location.pathname}?${params.toString()}`;
                     window.history.pushState({}, document.title, newUrl);
