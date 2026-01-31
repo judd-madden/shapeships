@@ -24,6 +24,29 @@ const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
 // Storage selector: honor SESSION_STORAGE setting
 const storage = SESSION_STORAGE === 'sessionStorage' ? sessionStorage : localStorage;
 
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  // If timeoutMs <= 0, behave like normal fetch
+  if (!timeoutMs || timeoutMs <= 0) {
+    return fetch(input, init);
+  }
+
+  const controller = new AbortController();
+  const id = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(id);
+  }
+}
+
 /**
  * Guard against accidentally using session token in Authorization header
  * This would be a security issue and architectural violation
@@ -74,7 +97,7 @@ export async function ensureSession(displayName?: string): Promise<{ sessionToke
   // Step A: If we have token but no sessionId, try to resolve from server
   if (existingToken && !existingSessionId) {
     try {
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/session/me`,
         {
           method: 'GET',
@@ -83,7 +106,8 @@ export async function ensureSession(displayName?: string): Promise<{ sessionToke
             'apikey': publicAnonKey,
             'X-Session-Token': existingToken,
           },
-        }
+        },
+        5000 // 5 seconds timeout
       );
 
       if (response.ok) {
@@ -137,7 +161,7 @@ export async function ensureSession(displayName?: string): Promise<{ sessionToke
   }
   
   try {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/session/start`,
       {
         method: 'POST',
@@ -147,7 +171,8 @@ export async function ensureSession(displayName?: string): Promise<{ sessionToke
           'apikey': publicAnonKey,                    // Supabase anon key (alternative header)
         },
         body: displayName ? JSON.stringify({ displayName }) : undefined,
-      }
+      },
+      5000 // 5 seconds timeout
     );
 
     if (!response.ok) {
@@ -209,11 +234,12 @@ export function clearSession(): void {
  * Authorization header contains Supabase anon key (for edge function access)
  * 
  * @param {string} endpoint - The endpoint path (e.g., '/create-game')
- * @param {RequestInit} options - Fetch options (method, body, etc.)\n * @returns {Promise<Response>} The fetch response
+ * @param {RequestInit} options - Fetch options (method, body, etc.)\\n * @returns {Promise<Response>} The fetch response
  */
 export async function authenticatedFetch(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  timeoutMs?: number
 ): Promise<Response> {
   // Ensure we have a valid session token
   const sessionData = await ensureSession();
@@ -239,10 +265,10 @@ export async function authenticatedFetch(
     console.log(`[sessionManager] request to ${endpoint} using sessionId=${sessionData.sessionId} token=${tokenPrefix}...`);
   }
 
-  return fetch(url, {
+  return fetchWithTimeout(url, {
     ...options,
     headers,
-  });
+  }, timeoutMs ?? 0);
 }
 
 /**
@@ -250,12 +276,13 @@ export async function authenticatedFetch(
  */
 export async function authenticatedPost(
   endpoint: string,
-  body: any
+  body: any,
+  timeoutMs?: number
 ): Promise<Response> {
   return authenticatedFetch(endpoint, {
     method: 'POST',
     body: JSON.stringify(body),
-  });
+  }, timeoutMs);
 }
 
 /**
@@ -270,7 +297,8 @@ export async function authenticatedPostIntent(
     commitHash?: string;
     payload?: any;
     nonce?: string;
-  }
+  },
+  timeoutMs?: number
 ): Promise<Response> {
   return authenticatedFetch('/intent', {
     method: 'POST',
@@ -280,14 +308,14 @@ export async function authenticatedPostIntent(
       turnNumber,
       ...intentPayload
     }),
-  });
+  }, timeoutMs);
 }
 
 /**
  * Helper: Create authenticated GET request
  */
-export async function authenticatedGet(endpoint: string): Promise<Response> {
+export async function authenticatedGet(endpoint: string, timeoutMs?: number): Promise<Response> {
   return authenticatedFetch(endpoint, {
     method: 'GET',
-  });
+  }, timeoutMs);
 }

@@ -31,14 +31,17 @@
  *   ✗ Interpret ship power definitions
  */
 
-import { syncPhaseFields } from '../phase/syncPhaseFields.ts';
-import { advancePhase, advancePhaseCore } from '../phase/advancePhase.ts';
+import { advancePhaseCore } from '../phase/advancePhase.ts';
 import { onEnterPhase } from '../phase/onEnterPhase.ts';
-import { buildPhaseKey } from '../phase/PhaseTable.ts';
+import { syncPhaseFields } from '../phase/syncPhaseFields.ts';
+import { accrueClocks } from '../clock/clock.ts';
+import { buildPhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
+
 import {
   type IntentType,
   type SpeciesRevealPayload,
   type BuildRevealPayload,
+  type BuildSubmitPayload,
   type BattleRevealPayload,
   type ActionPayload,
   type BattleWindow,
@@ -100,6 +103,9 @@ export async function applyIntent(
 ): Promise<IntentResult> {
   const events: any[] = [];
   
+  // Accrue server-authoritative clocks before applying intent (authoritative timekeeping)
+  state = accrueClocks(state, nowMs);
+  
   // ============================================================================
   // VALIDATION: Game state
   // ============================================================================
@@ -138,7 +144,17 @@ export async function applyIntent(
   // VALIDATION: Turn number
   // ============================================================================
   
-  const currentTurn = state.gameData?.turnNumber ?? 1;
+  const currentTurn = state.gameData?.turnNumber ?? 0;
+
+  // BUILD_SUBMIT is allowed to arrive with a stale client turn due to polling drift.
+  // Server is authoritative: normalize to currentTurn before routing.
+  if (intent.intentType === 'BUILD_SUBMIT' && intent.turnNumber !== currentTurn) {
+    console.warn('[IntentReducer] Normalizing BUILD_SUBMIT turnNumber', {
+      provided: intent.turnNumber,
+      canonical: currentTurn,
+    });
+    intent = { ...intent, turnNumber: currentTurn };
+  }
   
   if (intent.turnNumber !== currentTurn) {
     return {
@@ -165,7 +181,7 @@ export async function applyIntent(
   
   // Enforce species selection phase restriction
   if (phaseKey === 'setup.species_selection') {
-    const allowedInSpeciesSelection = new Set(['SPECIES_COMMIT', 'SPECIES_REVEAL']);
+    const allowedInSpeciesSelection = new Set(['SPECIES_SELECT', 'SPECIES_COMMIT', 'SPECIES_REVEAL']);
     
     if (!allowedInSpeciesSelection.has(intent.intentType)) {
       return {
@@ -174,7 +190,7 @@ export async function applyIntent(
         events: [],
         rejected: {
           code: RejectionCode.PHASE_NOT_ALLOWED,
-          message: `Intent ${intent.intentType} not allowed during setup.species_selection. Allowed: SPECIES_COMMIT, SPECIES_REVEAL`
+          message: `Intent ${intent.intentType} not allowed during setup.species_selection. Allowed: SPECIES_SELECT, SPECIES_COMMIT, SPECIES_REVEAL`
         }
       };
     }
@@ -185,6 +201,9 @@ export async function applyIntent(
   // ============================================================================
   
   switch (intent.intentType) {
+    case 'SPECIES_SELECT':
+      return await handleSpeciesSelect(state, sessionPlayerId, intent, nowMs, events);
+      
     case 'SPECIES_COMMIT':
       return await handleSpeciesCommit(state, sessionPlayerId, intent, nowMs, events);
       
@@ -196,6 +215,9 @@ export async function applyIntent(
       
     case 'BUILD_REVEAL':
       return await handleBuildReveal(state, sessionPlayerId, intent, nowMs, events);
+      
+    case 'BUILD_SUBMIT':
+      return await handleBuildSubmit(state, sessionPlayerId, intent, nowMs, events);
       
     case 'BATTLE_COMMIT':
       return await handleBattleCommit(state, sessionPlayerId, intent, nowMs, events);
@@ -223,6 +245,160 @@ export async function applyIntent(
         }
       };
   }
+}
+
+// ============================================================================
+// SPECIES_SELECT (Atomic species selection - no separate commit/reveal)
+// ============================================================================
+
+async function handleSpeciesSelect(
+  state: any,
+  playerId: string,
+  intent: IntentRequest,
+  nowMs: number,
+  events: any[]
+): Promise<IntentResult> {
+  const player = state.players.find((p: any) => p.id === playerId);
+  
+  // Only players can select species
+  if (player.role !== 'player') {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.SPECTATOR_RESTRICTED,
+        message: 'Spectators cannot select species'
+      }
+    };
+  }
+  
+  // Must be in setup.species_selection phase
+  const currentPhase = state.gameData?.currentPhase ?? state.currentPhase;
+  const currentSubPhase = state.gameData?.currentSubPhase ?? state.currentSubPhase;
+  
+  if (currentPhase !== 'setup' || currentSubPhase !== 'species_selection') {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.PHASE_NOT_ALLOWED,
+        message: 'Can only select species during setup.species_selection phase'
+      }
+    };
+  }
+  
+  // Check if player already selected species
+  if (player.faction) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.DUPLICATE_COMMIT,
+        message: 'Species already selected'
+      }
+    };
+  }
+  
+  // Validate payload
+  if (!intent.payload || typeof intent.payload !== 'object') {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'Missing payload'
+      }
+    };
+  }
+  
+  const payload = intent.payload as { species: string };
+  const validSpecies = ['human', 'xenite', 'centaur', 'ancient'];
+  
+  if (!payload.species || !validSpecies.includes(payload.species)) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.INVALID_SPECIES,
+        message: `Invalid species: ${payload.species}`
+      }
+    };
+  }
+  
+  // Store species selection
+  player.faction = payload.species;
+  
+  events.push({
+    type: 'SPECIES_SELECTED',
+    playerId,
+    species: payload.species,
+    atMs: nowMs
+  });
+  
+  // Check if all players have selected species
+  const activePlayers = state.players.filter((p: any) => p.role === 'player');
+  const allSelected = activePlayers.every((p: any) => !!p.faction);
+  
+  if (allSelected) {
+    console.log('[SPECIES_SELECT] All players have selected species, auto-advancing...');
+    
+    const fromKey = state.phaseKey ?? 
+      (state.gameData?.currentPhase && state.gameData?.currentSubPhase
+        ? `${state.gameData.currentPhase}.${state.gameData.currentSubPhase}`
+        : 'UNKNOWN');
+    
+    // Advance phase using core (system-driven) advancement
+    const advanceResult = advancePhaseCore(state);
+    
+    if (advanceResult.ok) {
+      state = advanceResult.state;
+      state = syncPhaseFields(state);
+      
+      const toKey = state.phaseKey ?? 
+        (state.gameData?.currentPhase && state.gameData?.currentSubPhase
+          ? `${state.gameData.currentPhase}.${state.gameData.currentSubPhase}`
+          : 'UNKNOWN');
+      
+      console.log('[SPECIES_SELECT] Phase advanced:', { fromKey, toKey });
+      
+      events.push({
+        type: 'PHASE_ADVANCED',
+        from: fromKey,
+        to: toKey,
+        atMs: nowMs
+      });
+      
+      // Trigger on-enter hooks for new phase
+      const phaseKey = getPhaseKey(state);
+      if (phaseKey) {
+        const onEnterResult = onEnterPhase(state, fromKey, phaseKey, nowMs);
+        state = onEnterResult.state;
+        events.push(...onEnterResult.events);
+      }
+    } else {
+      console.error('[SPECIES_SELECT] Phase advance failed:', advanceResult.error);
+      
+      events.push({
+        type: 'PHASE_ADVANCE_BLOCKED',
+        from: fromKey,
+        reason: advanceResult.error,
+        atMs: nowMs
+      });
+    }
+  }
+  
+  state = syncPhaseFields(state);
+  
+  return {
+    ok: true,
+    state,
+    events
+  };
 }
 
 // ============================================================================
@@ -934,6 +1110,296 @@ async function handleBuildReveal(
 }
 
 // ============================================================================
+// BUILD_SUBMIT
+// ============================================================================
+
+async function handleBuildSubmit(
+  state: any,
+  playerId: string,
+  intent: IntentRequest,
+  nowMs: number,
+  events: any[]
+): Promise<IntentResult> {
+  const player = state.players.find((p: any) => p.id === playerId);
+  
+  // Only players can submit build
+  if (player.role !== 'player') {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.SPECTATOR_RESTRICTED,
+        message: 'Spectators cannot submit build'
+      }
+    };
+  }
+  
+  // B1) Phase gate: BUILD_SUBMIT only allowed during build.drawing
+  const phaseKey = getPhaseKey(state);
+  if (phaseKey !== 'build.drawing') {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.WRONG_PHASE,
+        message: 'BUILD_SUBMIT is only allowed during build.drawing phase'
+      }
+    };
+  }
+  
+  // B2) Validate payload
+  if (!intent.payload || !intent.nonce) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'Missing payload or nonce'
+      }
+    };
+  }
+  
+  const payload = intent.payload as BuildSubmitPayload;
+  
+  if (!payload.builds || !Array.isArray(payload.builds)) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'Invalid build payload: must have builds array'
+      }
+    };
+  }
+  
+  // Basic validation of build entries
+  for (const build of payload.builds) {
+    if (!build.shipDefId || typeof build.shipDefId !== 'string') {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.INVALID_SHIP,
+          message: 'Each build must have a valid shipDefId'
+        }
+      };
+    }
+    
+    // Validate shipDefId exists in authoritative server definitions
+    const shipDef = getShipById(build.shipDefId);
+    if (!shipDef) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.INVALID_SHIP,
+          message: `Unknown shipDefId: ${build.shipDefId}`
+        }
+      };
+    }
+    
+    // Validate count is positive integer
+    if (!Number.isInteger(build.count) || build.count < 1) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: `Invalid build count for ship ${build.shipDefId}: ${build.count}. Must be positive integer.`
+        }
+      };
+    }
+    
+    // Check bounds: 1 <= count <= MAX_BUILD_COUNT
+    if (build.count > MAX_BUILD_COUNT) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: `Invalid build count for ship ${build.shipDefId}: ${build.count}. Must be 1..${MAX_BUILD_COUNT}`
+        }
+      };
+    }
+  }
+  
+  // B3) Compute commit hash and store submission
+  const turnNumber = intent.turnNumber;
+  const commitKey = getBuildCommitKey(turnNumber);
+  
+  // Check for duplicate commit
+  if (hasCommitted(state, commitKey, playerId)) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.DUPLICATE_COMMIT,
+        message: 'Build already submitted for this turn'
+      }
+    };
+  }
+  
+  // Compute commit hash
+  const { makeCommitHash } = await import('./Hash.ts');
+  const commitHash = await makeCommitHash(intent.payload, intent.nonce);
+  
+  // Store commit and reveal together (atomic submission)
+  storeCommit(state, commitKey, playerId, commitHash, nowMs);
+  storeReveal(state, commitKey, playerId, intent.payload, intent.nonce, nowMs);
+  
+  // Mark player as ready for this phase (stops clock and updates status)
+  if (!state.gameData) {
+    state.gameData = {};
+  }
+  if (!state.gameData.phaseReadiness) {
+    state.gameData.phaseReadiness = [];
+  }
+  
+  // Upsert readiness entry (one record per player)
+  const existingIndex = state.gameData.phaseReadiness.findIndex(
+    (r: any) => r.playerId === playerId
+  );
+  
+  if (existingIndex >= 0) {
+    // Update existing record: set ready for current phase
+    state.gameData.phaseReadiness[existingIndex].isReady = true;
+    state.gameData.phaseReadiness[existingIndex].currentStep = phaseKey;
+  } else {
+    // Create new record
+    state.gameData.phaseReadiness.push({
+      playerId,
+      isReady: true,
+      currentStep: phaseKey
+    });
+  }
+  
+  events.push({
+    type: 'BUILD_SUBMITTED',
+    playerId,
+    turnNumber: turnNumber,
+    atMs: nowMs
+  });
+  
+  events.push({
+    type: 'PLAYER_READY',
+    playerId,
+    step: phaseKey,
+    atMs: nowMs
+  });
+  
+  // B4) Completion check: if all active players have submitted
+  const activePlayers = state.players.filter((p: any) => p.role === 'player');
+  const allSubmitted = activePlayers.every((p: any) => hasRevealed(state, commitKey, p.id));
+  
+  if (allSubmitted) {
+    console.log('[BUILD_SUBMIT] All players submitted, applying builds and advancing phase...');
+    
+    // B5) Apply builds for all players
+    // Initialize ships storage if needed
+    if (!state.gameData) {
+      state.gameData = {};
+    }
+    if (!state.gameData.ships) {
+      state.gameData.ships = {};
+    }
+    
+    for (const p of activePlayers) {
+      const pRecord = getCommitRecord(state, commitKey, p.id);
+      if (pRecord && pRecord.revealPayload) {
+        const pPayload = pRecord.revealPayload as BuildSubmitPayload;
+        
+        // Ensure player has a ship array
+        if (!state.gameData.ships[p.id]) {
+          state.gameData.ships[p.id] = [];
+        }
+        
+        // Create ship instances for each build
+        for (const buildEntry of pPayload.builds) {
+          const count = buildEntry.count;
+          
+          for (let i = 0; i < count; i++) {
+            // TODO (upgrades): if shipDef has componentShips, consume component instances from fleet before adding upgraded ship.
+            
+            const shipInstance: ShipInstance = {
+              instanceId: crypto.randomUUID(),
+              shipDefId: buildEntry.shipDefId,
+              createdTurn: state.gameData.turnNumber
+            };
+            
+            state.gameData.ships[p.id].push(shipInstance);
+          }
+        }
+      }
+    }
+    
+    events.push({
+      type: 'BUILD_RESOLVED',
+      turnNumber: turnNumber,
+      atMs: nowMs
+    });
+    
+    // B6) Advance phase
+    const fromKey = phaseKey;
+    
+    const advanceResult = advancePhaseCore(state);
+    
+    if (advanceResult.ok) {
+      state = advanceResult.state;
+      
+      // Clear readiness on successful phase advance
+      state.gameData.phaseReadiness = [];
+      state = syncPhaseFields(state);
+      
+      const toKey = getPhaseKey(state);
+      
+      console.log(`[BUILD_SUBMIT] Phase advanced: ${fromKey} → ${toKey}`);
+      
+      events.push({
+        type: 'PHASE_ADVANCED',
+        from: fromKey,
+        to: toKey,
+        atMs: nowMs
+      });
+      
+      // Trigger on-enter hooks for new phase
+      if (toKey) {
+        const onEnterResult = onEnterPhase(state, fromKey, toKey, nowMs);
+        state = onEnterResult.state;
+        events.push(...onEnterResult.events);
+      }
+    } else {
+      console.error(`[BUILD_SUBMIT] Phase advance blocked: ${advanceResult.error}`);
+      
+      events.push({
+        type: 'PHASE_ADVANCE_BLOCKED',
+        from: fromKey,
+        reason: advanceResult.error,
+        atMs: nowMs
+      });
+    }
+  } else {
+    console.log('[BUILD_SUBMIT] Waiting for other player(s) to submit...');
+  }
+  
+  state = syncPhaseFields(state);
+  
+  return {
+    ok: true,
+    state,
+    events
+  };
+}
+
+// ============================================================================
 // BATTLE_COMMIT
 // ============================================================================
 
@@ -1067,7 +1533,7 @@ function handleDeclareReady(
     const fromKey = phaseKey;
     
     // Advance phase using canonical phase engine
-    const advanceResult = advancePhase(state);
+    const advanceResult = advancePhaseCore(state);
     
     if (advanceResult.ok) {
       state = advanceResult.state;

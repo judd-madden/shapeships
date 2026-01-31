@@ -14,6 +14,7 @@ export type IntentType =
   | 'SPECIES_REVEAL'
   | 'BUILD_COMMIT'
   | 'BUILD_REVEAL'
+  | 'BUILD_SUBMIT'
   | 'BATTLE_COMMIT'
   | 'BATTLE_REVEAL'
   | 'DECLARE_READY'
@@ -36,6 +37,10 @@ export type SpeciesRevealPayload = {
 
 export type BuildRevealPayload = {
   builds: Array<{ shipDefId: string; count?: number }>;
+};
+
+export type BuildSubmitPayload = {
+  builds: Array<{ shipDefId: string; count: number }>;
 };
 
 export type BattleRevealPayload = {

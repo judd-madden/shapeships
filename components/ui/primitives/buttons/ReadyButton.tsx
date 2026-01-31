@@ -46,7 +46,7 @@ export function ReadyButton({
           hover:scale-105
           transition-transform
           cursor-pointer
-          disabled:opacity-50 disabled:cursor-not-allowed
+          disabled:cursor-not-allowed
           ${className}
         `}
       >

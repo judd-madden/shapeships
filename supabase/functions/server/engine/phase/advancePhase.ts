@@ -1,4 +1,5 @@
 import { PHASE_SEQUENCE, type PhaseKey, type MajorPhase, type SubPhase } from '../../engine_shared/phase/PhaseTable.ts';
+import { applyIncrementForTurn } from '../clock/clock.ts';
 
 // Minimal server-side GameState interface (derived from actual game state structure)
 interface GameState {
@@ -169,7 +170,7 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
     const prevTurn = td.turnNumber ?? gd.turnNumber ?? next.turnNumber ?? 1;
     const turnNumber = prevTurn + 1;
 
-    const bumped: GameState = {
+    let bumped: GameState = {
       ...next,
       turnNumber,
       gameData: {
@@ -188,6 +189,9 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
         },
       },
     };
+
+    // Apply clock increment ONCE per player per turn
+    bumped = applyIncrementForTurn(bumped, turnNumber);
 
     const cleared = clearReadiness(bumped);
     

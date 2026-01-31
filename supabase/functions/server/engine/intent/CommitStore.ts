@@ -172,14 +172,22 @@ export function allPlayersRevealed(
 export function allCommittedPlayersRevealed(state: any, commitKey: string): boolean {
   const activePlayers = (state.players ?? []).filter((p: any) => p.role === 'player');
 
+  let sawAnyCommit = false;
+
   for (const p of activePlayers) {
     const entry = state?.gameData?.turnData?.commitments?.[commitKey]?.[p.id];
     const hasCommit = !!entry?.commitHash;
     if (!hasCommit) continue;
 
+    sawAnyCommit = true;
+
     const hasReveal = !!entry?.revealPayload;
     if (!hasReveal) return false;
   }
 
+  // If no one committed, return true (allow auto-advance)
+  if (!sawAnyCommit) return true;
+
+  // All committed players have revealed
   return true;
 }

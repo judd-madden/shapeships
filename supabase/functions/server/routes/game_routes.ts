@@ -10,12 +10,12 @@
 import type { Hono } from "npm:hono";
 import { advancePhase } from '../engine/phase/advancePhase.ts';
 import { syncPhaseFields } from '../engine/phase/syncPhaseFields.ts';
+import { initializeClocks, ensurePlayerClock, accrueClocks, clocksAreLive } from '../engine/clock/clock.ts';
 
 // ============================================================================
 // HELPER: Get current phase key for readiness checking
 // ============================================================================
 function getPhaseKey(state: any) {
-  syncPhaseFields(state);
   const major = state?.gameData?.currentPhase ?? 'setup';
   const sub = state?.gameData?.currentSubPhase ?? 'unknown';
   return `${major}.${sub}`;
@@ -76,11 +76,11 @@ export function registerGameRoutes(
           // Simplified game state for test interface
           currentPhase: 'setup',
           currentSubPhase: 'species_selection',
-          turnNumber: 1,
+          turnNumber: 0,
           diceRoll: null,
           // Enhanced phase management (kept for compatibility)
           turnData: {
-            turnNumber: 1,
+            turnNumber: 0,
             currentMajorPhase: 'setup', // 'setup', 'build_phase', 'battle_phase', 'health_resolution'
             currentSubPhase: 'species_selection', // For setup phase
             requiredSubPhases: [],
@@ -97,7 +97,7 @@ export function registerGameRoutes(
         // Legacy fields for compatibility
         currentPhase: 'setup',
         currentSubPhase: 'species_selection', 
-        turnNumber: 1,
+        turnNumber: 0,
         actions: [
           {
             playerId: "system",
@@ -110,6 +110,9 @@ export function registerGameRoutes(
         status: "waiting", // 'waiting', 'active', 'finished'
         createdAt: new Date().toISOString()
       };
+
+      // Initialize clocks for the game
+      gameData = initializeClocks(gameData);
 
       // Normalize phase fields before saving
       gameData = syncPhaseFields(gameData);
@@ -183,6 +186,11 @@ export function registerGameRoutes(
           if (!gameData.gameData) gameData.gameData = { ships: {} };
           if (!gameData.gameData.ships) gameData.gameData.ships = {};
           gameData.gameData.ships[playerId] = [];
+          
+          // Ensure clock is initialized for this player using immutable helper
+          if (gameData.gameData?.clock) {
+            gameData.gameData.clock = ensurePlayerClock(gameData.gameData.clock, playerId);
+          }
         }
 
         // Add appropriate join message
@@ -365,6 +373,13 @@ export function registerGameRoutes(
       if (gameData) {
         gameData = syncPhaseFields(gameData);
       }
+      
+      // Accrue clocks before sending state to client
+      const nowMs = Date.now();
+      gameData = accrueClocks(gameData, nowMs);
+      
+      // Persist the accrued state so reload doesn't rewind clocks
+      await kvSet(`game_${gameId}`, gameData);
 
       // Verify session is a participant in this game (or spectator)
       const participant = gameData.players.find(p => p.id === requestingPlayerId);
@@ -488,7 +503,19 @@ export function registerGameRoutes(
         }
       }
 
-      return c.json(gameData);
+      // Expose clock snapshot to client (STEP F)
+      const clockData = gameData.gameData?.gameData?.clock;
+      const clockSnapshot = clockData ? {
+        remainingMsByPlayerId: clockData.remainingMsByPlayerId,
+        timeControl: clockData.timeControl,
+        clocksAreLive: clocksAreLive(gameData),
+        serverNowMs: nowMs,
+      } : null;
+      
+      return c.json({
+        ...gameData,
+        clock: clockSnapshot,
+      });
 
     } catch (error) {
       console.error("Get game state error:", error);
@@ -627,6 +654,11 @@ export function registerGameRoutes(
                 gameData.gameData.ships = {};
               }
               gameData.gameData.ships[playerId] = [];
+              
+              // Ensure clock is initialized for this player using immutable helper
+              if (gameData.gameData?.clock) {
+                gameData.gameData.clock = ensurePlayerClock(gameData.gameData.clock, playerId);
+              }
               
               console.log("Promoted spectator to player:", playerId);
               

@@ -12,6 +12,7 @@
 
 import type { Hono } from "npm:hono";
 import { applyIntent, type IntentRequest } from '../engine/intent/IntentReducer.ts';
+import { accrueClocks } from '../engine/clock/clock.ts';
 
 export function registerIntentRoutes(
   app: Hono,
@@ -88,10 +89,16 @@ export function registerIntentRoutes(
       }
       
       // ========================================================================
-      // APPLY INTENT (reducer handles all validation and logic)
+      // CLOCK ACCRUAL (STEP E: Accrue before applying intent)
       // ========================================================================
       
       const nowMs = Date.now();
+      gameState = accrueClocks(gameState, nowMs);
+      
+      // ========================================================================
+      // APPLY INTENT (reducer handles all validation and logic)
+      // ========================================================================
+      
       const result = await applyIntent(gameState, sessionPlayerId, intentRequest, nowMs);
       
       // ========================================================================

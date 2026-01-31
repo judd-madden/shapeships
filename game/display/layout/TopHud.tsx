@@ -4,8 +4,8 @@
  * NO LOGIC - displays view-model data only (Pass 1.25)
  * 
  * PLAYER-RELATIVE ORIENTATION:
- * - Local player (Player 1) is ALWAYS on the LEFT
- * - Opponent (Player 2) is ALWAYS on the RIGHT
+ * - Local player (Me) is ALWAYS on the LEFT
+ * - Opponent is ALWAYS on the RIGHT
  */
 
 import type React from 'react';
@@ -51,21 +51,27 @@ export function TopHud({ vm }: TopHudProps) {
       className="content-stretch flex items-start justify-between max-w-[1120px] relative shrink-0 w-full"
       data-name="Top Hud"
     >
-      {/* P1 Player Status and Time */}
+      {/* Me Status and Time */}
       <div
         className="content-stretch flex flex-col gap-[5px] items-center relative shrink-0 w-[200px]"
-        data-name="P1 Player Status and Time"
+        data-name="Me Status and Time"
       >
-        <StatusWrapper>
-          <p
-            className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap text-white"
-            style={{ fontVariationSettings: "'wdth' 100" }}
-          >
-            {vm.p1ReadyLabel}
-          </p>
-        </StatusWrapper>
+        {vm.p1StatusTone !== 'hidden' && (
+          <StatusWrapper>
+            <p
+              className={`font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
+                vm.p1StatusTone === 'ready' ? 'text-[#9cff84]' : 'text-white'
+              }`}
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              {vm.p1StatusText}
+            </p>
+          </StatusWrapper>
+        )}
         <p
-          className="font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[#d4d4d4] text-[28px] text-center w-full"
+          className={`font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[28px] text-center w-full ${
+            vm.p1IsReady ? 'text-[#888]' : 'text-[#d4d4d4]'
+          }`}
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {vm.p1Clock}
@@ -77,14 +83,14 @@ export function TopHud({ vm }: TopHudProps) {
         className="content-stretch flex gap-[79px] items-start justify-center relative shrink-0 w-[595px]"
         data-name="Player Names"
       >
-        {/* P1 Name Species */}
+        {/* Me Name Species */}
         <div
           className="basis-0 content-stretch flex flex-col gap-px grow items-end min-h-px min-w-px relative shrink-0"
-          data-name="P1 Name Species"
+          data-name="Me Name Species"
         >
           <div
             className="content-stretch flex gap-[8px] items-center justify-end relative shrink-0 w-full"
-            data-name="Player 1 Name"
+            data-name="Me Name"
           >
             <OnlineStatus isOnline={vm.p1IsOnline} />
             <p
@@ -102,14 +108,14 @@ export function TopHud({ vm }: TopHudProps) {
           </p>
         </div>
 
-        {/* P2 Name Species */}
+        {/* Opponent Name Species */}
         <div
           className="basis-0 content-stretch flex flex-col grow items-start min-h-px min-w-px relative shrink-0"
-          data-name="P2 Name Species"
+          data-name="Opponent Name Species"
         >
           <div
             className="content-stretch flex gap-[8px] items-center relative shrink-0 w-full"
-            data-name="Player 2 Name"
+            data-name="Opponent Name"
           >
             <p
               className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[36px] text-nowrap text-white"
@@ -128,21 +134,23 @@ export function TopHud({ vm }: TopHudProps) {
         </div>
       </div>
 
-      {/* P2 Player Status and Time */}
+      {/* Opponent Status and Time */}
       <div
         className="content-stretch flex flex-col gap-[5px] items-center relative shrink-0 w-[200px]"
-        data-name="P2 Player Status and Time"
+        data-name="Opponent Status and Time"
       >
-        <StatusWrapper>
-          <p
-            className={`font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
-              vm.p2IsReady ? 'text-[#9cff84]' : 'text-white'
-            }`}
-            style={{ fontVariationSettings: "'wdth' 100" }}
-          >
-            {vm.p2ReadyLabel}
-          </p>
-        </StatusWrapper>
+        {vm.p2StatusTone !== 'hidden' && (
+          <StatusWrapper>
+            <p
+              className={`font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
+                vm.p2StatusTone === 'ready' ? 'text-[#9cff84]' : 'text-white'
+              }`}
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              {vm.p2StatusText}
+            </p>
+          </StatusWrapper>
+        )}
         <p
           className={`font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[28px] text-center w-full ${
             vm.p2IsReady ? 'text-[#888]' : 'text-[#d4d4d4]'

@@ -4,6 +4,7 @@
  * Pure UI component - receives VM and actions from parent
  */
 
+import { useState } from 'react';
 import { type SpeciesId } from '../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { SpeciesCardButton } from '../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { BlackCarrierIcon } from '../../../../components/ui/primitives/icons/BlackCarrierIcon';
@@ -27,6 +28,15 @@ export function ChooseSpeciesStage({
   onCopyGameUrl,
 }: ChooseSpeciesStageProps) {
   const selectedSpeciesName = vm.selectedSpecies.toUpperCase();
+  const [showCopiedToast, setShowCopiedToast] = useState(false);
+
+  const handleCopyUrl = () => {
+    onCopyGameUrl();
+    setShowCopiedToast(true);
+    setTimeout(() => {
+      setShowCopiedToast(false);
+    }, 5000);
+  };
 
   return (
     <div
@@ -133,7 +143,7 @@ export function ChooseSpeciesStage({
             Share Game URL
           </p>
           <button
-            onClick={onCopyGameUrl}
+            onClick={handleCopyUrl}
             className="bg-white content-stretch flex gap-[13.3px] items-center px-[21px] py-[7px] relative rounded-[7px] shrink-0 cursor-pointer hover:bg-gray-100 transition-colors"
             type="button"
           >
@@ -153,6 +163,26 @@ export function ChooseSpeciesStage({
               COPY URL
             </p>
           </button>
+          {showCopiedToast && (
+            <div
+              className="mt-[20px] animate-[slideDown_0.3s_ease-in,fadeOut_0.3s_ease-out_4.7s_forwards]"
+              style={{
+                backgroundColor: 'var(--shapeships-green)',
+                paddingTop: '8px',
+                paddingBottom: '8px',
+                paddingLeft: '16px',
+                paddingRight: '16px',
+                borderRadius: '7px',
+              }}
+            >
+              <p
+                className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] text-[16px] text-black text-center text-nowrap"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                Copied!
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

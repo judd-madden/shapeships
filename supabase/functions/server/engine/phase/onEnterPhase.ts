@@ -216,82 +216,74 @@ function phaseRequiresPlayerInput(state: any, phaseKey: PhaseKey): boolean {
     return !allSelected;
   }
 
-  // build.dice_roll: requires input only if fleet has dice-mod powers AND dice not finalized
-  if (phaseKey === 'build.dice_roll') {
-    if (turnData.diceFinalized === true) {
-      return false; // Dice already finalized
-    }
-    // Check if any player has dice-mod powers
-    return phaseHasAvailableFleetPowers(state, phaseKey);
-  }
+  // ═════════════════════════════════════════════════════════════════════════
+  // BUILD PHASES
+  // ═════════════════════════════════════════════════════════════════════════
 
-  // build.line_generation: no player input (automatic), but block if dice not finalized
-  if (phaseKey === 'build.line_generation') {
-    // Don't allow entering this phase if dice not finalized
-    // This is handled by returning false (no input), but the phase shouldn't be entered
-    // until diceFinalized is true. The auto-advance will respect this.
+  // build.dice_roll: auto-advance (dice-mod powers not yet implemented)
+  if (phaseKey === 'build.dice_roll') {
     return false;
   }
 
-  // build.ships_that_build: requires input only if fleet has ship-build powers
+  // build.line_generation: auto-advance (server-driven calculation)
+  if (phaseKey === 'build.line_generation') {
+    return false;
+  }
+
+  // build.ships_that_build: pause only if at least one player has eligible powers
   if (phaseKey === 'build.ships_that_build') {
     return phaseHasAvailableFleetPowers(state, phaseKey);
   }
 
-  // build.drawing: requires input if player has lines > 0
+  // build.drawing: ONLY manual phase - always requires READY
   if (phaseKey === 'build.drawing') {
-    const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
-    for (const player of activePlayers) {
-      const lines = player.lines || 0;
-      if (lines > 0) {
-        return true; // Player has lines, requires build submission
-      }
-    }
-    return false;
+    return true;
   }
 
-  // build.end_of_build: no player input (server processes)
+  // build.end_of_build: auto-advance (server processes)
   if (phaseKey === 'build.end_of_build') {
     return false;
   }
 
-  // battle.reveal: requires input if any player has committed but not revealed
+  // ═════════════════════════════════════════════════════════════════════════
+  // BATTLE PHASES
+  // ═════════════════════════════════════════════════════════════════════════
+
+  // battle.reveal: auto-advance always (Build reveal removed in favor of BUILD_SUBMIT applied in build.drawing)
   if (phaseKey === 'battle.reveal') {
-    const turnNumber = state.gameData?.turnNumber || 1;
-    const commitKey = getBuildCommitKey(turnNumber);
-    return !allCommittedPlayersRevealed(state, commitKey);
+    return false;
   }
 
-  // battle.first_strike: requires input only if fleet has first strike powers
+  // battle.first_strike: auto-advance (first strike powers not yet implemented)
   if (phaseKey === 'battle.first_strike') {
-    return phaseHasAvailableFleetPowers(state, phaseKey);
+    return false;
   }
 
-  // battle.charge_declaration: requires input only if any player can declare charges/solar
+  // battle.charge_declaration: requires input only if charge/solar options exist
   if (phaseKey === 'battle.charge_declaration') {
     return anyPlayerHasAvailableChargeOrSolarOption(state);
   }
 
-  // battle.charge_response: requires input only if:
-  //   1. Charges were declared in charge_declaration phase AND
-  //   2. Any player can still declare charges/solar (same availability check)
+  // battle.charge_response: requires input only if charges declared AND options exist
   if (phaseKey === 'battle.charge_response') {
     // Auto-skip if no charges were declared
     if (turnData.anyChargesDeclared !== true) {
-      return false; // No charges declared, auto-skip this phase
+      return false;
     }
     // If charges were declared, check if any player can still respond
     return anyPlayerHasAvailableChargeOrSolarOption(state);
   }
 
-  // battle.end_of_turn_resolution: no player input (server resolves)
+  // battle.end_of_turn_resolution: auto-advance (server resolves)
   if (phaseKey === 'battle.end_of_turn_resolution') {
     return false;
   }
 
-  // Default: assume input required for unknown phases (conservative)
-  console.warn(`[phaseRequiresPlayerInput] Unknown phase: ${phaseKey}, assuming input required`);
-  return true;
+  // ═════════════════════════════════════════════════════════════════════════
+  // DEFAULT: AUTO-ADVANCE ALL UNKNOWN PHASES
+  // ═════════════════════════════════════════════════════════════════════════
+  
+  return false;
 }
 
 /**
@@ -418,6 +410,61 @@ function enterPhaseOnce(
         
         // Mark lines as distributed
         turnData.linesDistributed = true;
+      }
+    }
+  }
+  
+  // ============================================================================
+  // SHIPS THAT BUILD - build.ships_that_build
+  // ============================================================================
+  // Responsibilities:
+  // 1. Auto-ready all ineligible players (no ships with "Ships That Build" powers)
+  // 2. Only eligible players must click Ready to advance
+  
+  if (toKey === 'build.ships_that_build') {
+    // Ensure phaseReadiness array exists
+    if (!workingState.gameData.phaseReadiness) {
+      workingState.gameData.phaseReadiness = [];
+    }
+    
+    const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
+    
+    for (const player of activePlayers) {
+      // Check if player has eligible fleet powers for this phase
+      const eligible = fleetHasAvailablePowers(
+        workingState,
+        'build.ships_that_build',
+        player.id,
+        ['Ships That Build']
+      );
+      
+      if (!eligible) {
+        // Player is ineligible - auto-ready them
+        const existingIndex = workingState.gameData.phaseReadiness.findIndex(
+          (r: any) => r.playerId === player.id && r.currentStep === 'build.ships_that_build'
+        );
+        
+        if (existingIndex >= 0) {
+          // Update existing record
+          workingState.gameData.phaseReadiness[existingIndex].isReady = true;
+        } else {
+          // Add new readiness record
+          workingState.gameData.phaseReadiness.push({
+            playerId: player.id,
+            isReady: true,
+            currentStep: 'build.ships_that_build'
+          });
+        }
+        
+        console.log(`[OnEnterPhase] Auto-readied ineligible player: ${player.id}`);
+        
+        events.push({
+          type: 'PLAYER_AUTO_READY',
+          playerId: player.id,
+          step: 'build.ships_that_build',
+          reason: 'no_available_powers',
+          atMs: nowMs
+        });
       }
     }
   }

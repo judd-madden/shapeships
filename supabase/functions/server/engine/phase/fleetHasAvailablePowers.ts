@@ -62,17 +62,16 @@ export function fleetHasAvailablePowers(
       /**
        * Fallback power eligibility matching rules:
        * - If power declares an explicit phaseKey, match exactly
-       * - If power declares a subphase string, match currentSubPhase
+       * - If power declares a subphase string, derive subphase from phaseKey and match
        */
       if (power.phaseKey && power.phaseKey === phaseKey) {
         return true;
       }
 
-      const currentSubPhase =
-        state?.currentSubPhase ??
-        state?.gameData?.currentSubPhase;
+      // Derive subphase from phaseKey (deterministic, no state dependency)
+      const phaseSub = String(phaseKey).split('.')[1];
 
-      if (power.subphase && power.subphase === currentSubPhase) {
+      if (power.subphase && power.subphase === phaseSub) {
         return true;
       }
     }

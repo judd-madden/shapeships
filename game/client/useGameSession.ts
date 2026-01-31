@@ -32,154 +32,49 @@ import type { ShipDefId } from '../types/ShipTypes.engine';
 import { PUBLIC_APP_ORIGIN } from './config';
 import { generateNonce, makeCommitHash } from './hashUtils';
 import { isValidPhaseKey } from '../../engine/phase/PhaseTable';
-
-// ============================================================================
-// PHASE LABEL HELPERS (INLINE - from phaseLabels.ts)
-// ============================================================================
-
-// Major phase labels mapping
-const MAJOR_PHASE_LABELS: Record<string, string> = {
-  'setup': 'SETUP',
-  'build': 'BUILD',
-  'battle': 'BATTLE',
-};
-
-// Subphase label overrides (for special cases)
-const SUBPHASE_LABEL_OVERRIDES: Record<string, string> = {
-  'setup.species_selection': 'Species Selection',
-  'build.dice_roll': 'Dice Roll',
-  'build.line_generation': 'Line Generation',
-  'build.ships_that_build': 'Ships That Build',
-  'build.drawing': 'Drawing',
-  'build.end_of_build': 'End of Build',
-  'battle.reveal': 'Reveal',
-  'battle.first_strike': 'First Strike',
-  'battle.charge_declaration': 'Charge Declaration',
-  'battle.charge_response': 'Charge Response',
-  'battle.end_of_turn_resolution': 'End of Turn Resolution',
-};
-
-// Title case helper
-function titleCase(str: string): string {
-  return str.replace(/\w\S*/g, (txt) => 
-    txt.charAt(0).toUpperCase() + txt.substring(1).toLowerCase()
-  );
-}
-
-/**
- * Extract major phase label from phaseKey
- * Returns "UNKNOWN PHASE" if invalid or during bootstrap
- */
-function getMajorPhaseLabel(phaseKey: string): string {
-  // Don't log errors for empty/null/undefined during bootstrap
-  if (!phaseKey || phaseKey.length === 0 || phaseKey === 'unknown') {
-    return 'UNKNOWN PHASE';
-  }
-  
-  // Extract major phase segment (before first dot)
-  const majorSegment = phaseKey.split('.')[0];
-  
-  // If this is a valid major phase, return the label
-  if (majorSegment && MAJOR_PHASE_LABELS[majorSegment]) {
-    return `${MAJOR_PHASE_LABELS[majorSegment]} PHASE`;
-  }
-  
-  // Invalid phase key - return safe placeholder
-  return 'UNKNOWN PHASE';
-}
-
-/**
- * Extract subphase label from phaseKey
- * Returns "Unknown" if invalid or during bootstrap
- */
-function getSubphaseLabelFromPhaseKey(phaseKey: string): string {
-  // Don't log errors for empty/null/undefined during bootstrap
-  if (!phaseKey || phaseKey.length === 0 || phaseKey === 'unknown') {
-    return 'Unknown';
-  }
-  
-  // Check if we have an explicit override
-  if (SUBPHASE_LABEL_OVERRIDES[phaseKey]) {
-    return SUBPHASE_LABEL_OVERRIDES[phaseKey]!;
-  }
-  
-  // Fallback: extract last segment, title-case, replace underscores
-  const segments = phaseKey.split('.');
-  const lastSegment = segments[segments.length - 1];
-  
-  if (!lastSegment) {
-    return 'Unknown';
-  }
-  
-  // Replace underscores with spaces and title-case
-  return titleCase(lastSegment.replace(/_/g, ' '));
-}
-
-// ============================================================================
-// PLAYER NAME UTILITIES
-// ============================================================================
-
-const PLAYER_NAME_KEY = 'ss_playerName';
-
-// Two-word random name generation (friendly style)
-const ADJECTIVES = [
-  'Swift', 'Brave', 'Clever', 'Bold', 'Wise', 'Calm', 'Noble', 'Fierce',
-  'Bright', 'Quick', 'Strong', 'Silent', 'Wild', 'Keen', 'Sharp', 'Steady'
-];
-
-const FIRST_NAMES = [
-  'Alex', 'Blake', 'Casey', 'Drew', 'Ellis', 'Finley', 'Gray', 'Harper',
-  'Iris', 'Jordan', 'Kai', 'Logan', 'Morgan', 'Nico', 'Parker', 'Quinn'
-];
-
-function generateRandomName(): string {
-  const adjective = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const firstName = FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)];
-  return `${adjective} ${firstName}`;
-}
-
-function getPlayerName(propsPlayerName: string): string {
-  // Priority 1: props.playerName (if provided by dashboard launcher)
-  if (propsPlayerName && propsPlayerName.trim() && propsPlayerName !== 'Guest') {
-    return propsPlayerName;
-  }
-  
-  // Priority 2: localStorage stored name
-  const storedName = localStorage.getItem(PLAYER_NAME_KEY);
-  if (storedName && storedName.trim()) {
-    return storedName;
-  }
-  
-  // Priority 3: Generate random friendly name
-  const randomName = generateRandomName();
-  
-  // Store to localStorage for stability across refresh
-  localStorage.setItem(PLAYER_NAME_KEY, randomName);
-  console.log('[useGameSession] Generated random player name:', randomName);
-  
-  return randomName;
-}
+import { getPlayerName } from './gameSession/playerName';
+import { getMajorPhaseLabel, getSubphaseLabelFromPhaseKey } from './gameSession/phaseLabels';
+import { getPhaseKey, getTurnNumber, formatClock, formatClockMs, getClockData } from './gameSession/selectors';
+import { deriveIdentity } from './gameSession/identity';
+import { deriveFleets } from './gameSession/fleets';
+import { appendEventsToTape, formatTapeEntry } from './gameSession/eventTape';
+import { usePhaseCommitCache } from './gameSession/commitCache';
+import { mapGameSessionVm } from './gameSession/mapVm';
+import { runSpeciesConfirmFlow, runReadyToggleFlow, maybeAutoRevealBuild } from './gameSession/intents';
+import {
+  usePollMarkerEffect,
+  useFinishedMarkerEffect,
+  useRoleCheckLoggingEffect,
+  usePlayersFullSnapshotEffect,
+  useSpectatorCountDebugEffect,
+} from './gameSession/clienteffects/useDevEffects';
+import { useAutoJoinEffect, usePollingEffect } from './gameSession/clienteffects/useNetworkingEffects';
+import { useBuildPreviewResetEffect, useAutoRevealBuildEffect } from './gameSession/clienteffects/usePhaseAutomationEffects';
 
 // ============================================================================
 // VIEW-MODEL TYPES
 // ============================================================================
+
+export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
 
 export interface HudViewModel {
   // Player 1 (local, always left)
   p1Name: string;
   p1Species: string;
   p1IsOnline: boolean;
-  p1Clock: string; // \"MM:SS\"
+  p1Clock: string; // "MM:SS"
   p1IsReady: boolean;
-  p1ReadyLabel: string; // \"Ready\", \"Subphase / Ready\", etc.
+  p1StatusText?: string;       // "Ready" or subphase label; undefined hides pill
+  p1StatusTone: HudStatusTone; // ready | neutral | hidden
   
   // Player 2 (opponent, always right)
   p2Name: string;
   p2Species: string;
   p2IsOnline: boolean;
-  p2Clock: string; // \"MM:SS\"
+  p2Clock: string; // "MM:SS"
   p2IsReady: boolean;
-  p2ReadyLabel: string; // \"Ready\", \"Subphase / Ready\", etc.
+  p2StatusText?: string;
+  p2StatusTone: HudStatusTone;
 }
 
 export interface LeftRailViewModel {
@@ -188,7 +83,7 @@ export interface LeftRailViewModel {
   
   // Phase card
   turn: number;
-  phase: string; // \"BUILD PHASE\", \"BATTLE PHASE\"
+  phase: string; // "BUILD PHASE", "BATTLE PHASE"
   phaseIcon: 'build' | 'battle';
   subphase: string;
   
@@ -248,6 +143,9 @@ export interface BottomActionRailViewModel {
   readyDisabled: boolean;
   readyDisabledReason: string | null;
   
+  // NEW: server-authoritative ready indicator for button selected state
+  readySelected: boolean;
+  
   // Misc
   spectatorCount: number;
 }
@@ -261,7 +159,7 @@ export type ActionPanelTabId =
 
 export interface ActionPanelTabVm {
   tabId: ActionPanelTabId;
-  label: string;              // e.g. \"[Species 1]\" \"[Species 2]\" \"Menu\"
+  label: string;              // e.g. "[Species 1]" "[Species 2]" "Menu"
   visible: boolean;           // opponent tab hidden when same species
   targetPanelId: ActionPanelId; // which panel this tab jumps to
 }
@@ -305,6 +203,10 @@ export interface GameSessionActions {
 // ============================================================================
 
 export function useGameSession(gameId: string, propsPlayerName: string) {
+  // Post-game polling interval:
+  // Keep polling alive for future post-game chat/rematch UI, but slower to reduce load.
+  const POSTGAME_POLL_MS = 5000;
+  
   // ============================================================================
   // EFFECTIVE PLAYER NAME RESOLUTION
   // ============================================================================
@@ -314,8 +216,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // 2. localStorage stored name (key: ss_playerName)
   // 3. Generate random friendly name and store to localStorage
   const effectivePlayerName = getPlayerName(propsPlayerName);
-  
-  console.log('[useGameSession] effectivePlayerName resolved:', effectivePlayerName, '(props:', propsPlayerName, ')');
   
   // ============================================================================
   // EFFECTIVE GAMEID RESOLUTION (Part B: Deep link support)
@@ -345,8 +245,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     return null;
   })();
   
-  console.log('[useGameSession] effectiveGameId resolved:', effectiveGameId, '(props:', gameId, ')');
-  
   // ============================================================================
   // CHUNK 9.1: NULL GAMEID GUARD (DEMO_GAME BOOTSTRAP SAFETY)
   // ============================================================================
@@ -365,13 +263,15 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         p1IsOnline: false,
         p1Clock: '00:00',
         p1IsReady: false,
-        p1ReadyLabel: '',
+        p1StatusText: undefined,
+        p1StatusTone: 'hidden',
         p2Name: 'Player 2',
         p2Species: 'Unknown',
         p2IsOnline: false,
         p2Clock: '00:00',
         p2IsReady: false,
-        p2ReadyLabel: '',
+        p2StatusText: undefined,
+        p2StatusTone: 'hidden',
       },
       leftRail: {
         diceValue: 1,
@@ -386,10 +286,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       },
       board: {
         mode: 'board',
-        leftPlayerFleet: [],
-        rightPlayerFleet: [],
-        speciesOptions: null,
-        gameOverInfo: null,
+        myHealth: 25,
+        opponentHealth: 25,
+        myFleet: [],
+        opponentFleet: [],
       },
       bottomActionRail: {
         subphaseTitle: '',
@@ -399,6 +299,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         nextPhaseLabel: 'NEXT PHASE',
         readyDisabled: true,
         readyDisabledReason: 'No game loaded',
+        readySelected: false,
         spectatorCount: 0,
       },
       actionPanel: {
@@ -408,9 +309,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     };
     
     const bootstrapActions: GameSessionActions = {
-      onReadyToggle: async () => {},
-      onBoardModeToggle: () => {},
-      onSwitchToPanel: () => {},
+      onReadyToggle: () => {},
+      onUndoActions: () => {},
+      onOpenMenu: () => {},
+      onActionPanelTabClick: () => {},
       onShipClick: () => {},
       onSendChat: () => {},
       onAcceptDraw: () => {},
@@ -443,6 +345,20 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [boardMode, setBoardMode] = useState<BoardViewModel['mode']>('board');
   
   // ============================================================================
+  // CLOCK INTERPOLATION STATE (DISPLAY-ONLY, NON-AUTHORITATIVE)
+  // ============================================================================
+  
+  // Store last server clock snapshot for interpolation
+  const lastClockRef = useRef<{
+    serverNowMs: number;
+    remainingMsByPlayerId: Record<string, number>;
+    clocksAreLive: boolean;
+  } | null>(null);
+  
+  // Tick driver for smooth clock display (forces rerenders)
+  const [clockTick, setClockTick] = useState(0);
+  
+  // ============================================================================
   // CHUNK 6: LOCAL BUILD PREVIEW BUFFER (NON-AUTHORITATIVE)
   // ============================================================================
   
@@ -450,6 +366,18 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Simple count map: { DEF: 2, FIG: 1, ... }
   // Reset when phase changes away from build.drawing
   const [buildPreviewCounts, setBuildPreviewCounts] = useState<Record<string, number>>({});
+  
+  // Ref-backed draft buffer: authoritative source for BUILD_SUBMIT payload
+  // Prevents race condition when Ready is clicked immediately after building
+  const buildPreviewCountsRef = useRef<Record<string, number>>({});
+  
+  // Build submitted tracking: maps turnNumber → submitted flag
+  // Used to gate ship clicks after submission
+  const [buildSubmittedByTurn, setBuildSubmittedByTurn] = useState<Record<number, boolean>>({});
+  
+  // Reveal-sync latch: true when BUILD_REVEAL submitted but server fleet not yet updated
+  // Prevents flicker by keeping preview overlay active until server catches up
+  const [awaitingBuildRevealSync, setAwaitingBuildRevealSync] = useState(false);
   
   // ============================================================================
   // POLL GATING STATE (Part A: State-based gating to trigger re-renders)
@@ -479,47 +407,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [speciesCommitDoneByPhase, setSpeciesCommitDoneByPhase] = useState<Record<string, boolean>>({});
   const [speciesRevealDoneByPhase, setSpeciesRevealDoneByPhase] = useState<Record<string, boolean>>({});
   
-  // Store commit inputs per phase instance so SPECIES_REVEAL can be retried safely
-  const [speciesCommitPayloadByPhase, setSpeciesCommitPayloadByPhase] =
-    useState<Record<string, { species: SpeciesId }>>({});
-  const [speciesCommitNonceByPhase, setSpeciesCommitNonceByPhase] =
-    useState<Record<string, string>>({});
-  
-  // IMPORTANT: refs are used for same-tick reliability (setState is async)
-  const speciesCommitPayloadRef = useRef<Record<string, { species: SpeciesId }>>({});
-  const speciesCommitNonceRef = useRef<Record<string, string>>({});
-  
-  // Helper functions for species commit cache (ref + state sync)
-  const setSpeciesCommitCache = (phaseInstanceKey: string, payload: { species: SpeciesId }, nonce: string) => {
-    speciesCommitPayloadRef.current[phaseInstanceKey] = payload;
-    speciesCommitNonceRef.current[phaseInstanceKey] = nonce;
-
-    setSpeciesCommitPayloadByPhase(prev => ({ ...prev, [phaseInstanceKey]: payload }));
-    setSpeciesCommitNonceByPhase(prev => ({ ...prev, [phaseInstanceKey]: nonce }));
-  };
-
-  const getSpeciesCommitCache = (phaseInstanceKey: string) => {
-    return {
-      payload: speciesCommitPayloadRef.current[phaseInstanceKey] ?? speciesCommitPayloadByPhase[phaseInstanceKey],
-      nonce: speciesCommitNonceRef.current[phaseInstanceKey] ?? speciesCommitNonceByPhase[phaseInstanceKey],
-    };
-  };
-
-  const clearSpeciesCommitCache = (phaseInstanceKey: string) => {
-    delete speciesCommitPayloadRef.current[phaseInstanceKey];
-    delete speciesCommitNonceRef.current[phaseInstanceKey];
-
-    setSpeciesCommitPayloadByPhase(prev => {
-      const next = { ...prev };
-      delete next[phaseInstanceKey];
-      return next;
-    });
-    setSpeciesCommitNonceByPhase(prev => {
-      const next = { ...prev };
-      delete next[phaseInstanceKey];
-      return next;
-    });
-  };
+  // Species commit cache (payload + nonce storage with ref-backed same-tick reliability)
+  const speciesCommitCache = usePhaseCommitCache<{ species: SpeciesId }>();
   
   // ============================================================================
   // LOCAL COMPLETION TRACKING (Chunk 7: Build commit/reveal)
@@ -529,47 +418,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [buildCommitDoneByPhase, setBuildCommitDoneByPhase] = useState<Record<string, boolean>>({});
   const [buildRevealDoneByPhase, setBuildRevealDoneByPhase] = useState<Record<string, boolean>>({});
   
-  // Store commit inputs per phase instance so BUILD_REVEAL can be retried safely
-  const [buildCommitPayloadByPhase, setBuildCommitPayloadByPhase] =
-    useState<Record<string, { ships: Record<string, number> }>>({});
-  const [buildCommitNonceByPhase, setBuildCommitNonceByPhase] =
-    useState<Record<string, string>>({});
-  
-  // IMPORTANT: refs are used for same-tick reliability (setState is async)
-  const buildCommitPayloadRef = useRef<Record<string, { ships: Record<string, number> }>>({});
-  const buildCommitNonceRef = useRef<Record<string, string>>({});
-  
-  // Helper functions for build commit cache (ref + state sync)
-  const setBuildCommitCache = (phaseInstanceKey: string, payload: { ships: Record<string, number> }, nonce: string) => {
-    buildCommitPayloadRef.current[phaseInstanceKey] = payload;
-    buildCommitNonceRef.current[phaseInstanceKey] = nonce;
-
-    setBuildCommitPayloadByPhase(prev => ({ ...prev, [phaseInstanceKey]: payload }));
-    setBuildCommitNonceByPhase(prev => ({ ...prev, [phaseInstanceKey]: nonce }));
-  };
-
-  const getBuildCommitCache = (phaseInstanceKey: string) => {
-    return {
-      payload: buildCommitPayloadRef.current[phaseInstanceKey] ?? buildCommitPayloadByPhase[phaseInstanceKey],
-      nonce: buildCommitNonceRef.current[phaseInstanceKey] ?? buildCommitNonceByPhase[phaseInstanceKey],
-    };
-  };
-
-  const clearBuildCommitCache = (phaseInstanceKey: string) => {
-    delete buildCommitPayloadRef.current[phaseInstanceKey];
-    delete buildCommitNonceRef.current[phaseInstanceKey];
-
-    setBuildCommitPayloadByPhase(prev => {
-      const next = { ...prev };
-      delete next[phaseInstanceKey];
-      return next;
-    });
-    setBuildCommitNonceByPhase(prev => {
-      const next = { ...prev };
-      delete next[phaseInstanceKey];
-      return next;
-    });
-  };
+  // Build commit cache (payload + nonce storage with ref-backed same-tick reliability)
+  const buildCommitCache = usePhaseCommitCache<{ builds: Array<{ shipDefId: string; count: number }> }>();
   
   // ============================================================================
   // EVENT TAPE (Chunk 2: Dev-only plumbing)
@@ -577,6 +427,9 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Event tape: client-only event log, reset on refresh
   const [eventTape, setEventTape] = useState<any[]>([]);
+  
+  // Track if we've shown the finished marker (one-time only)
+  const finishedMarkerShownRef = useRef(false);
   
   // Track last seen phase/turn for poll markers
   const lastSeenRef = useRef<{ turn?: number; phaseKey?: string }>({});
@@ -588,292 +441,54 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Track auto-join attempts by gameId (allows new attempt when gameId changes)
   const attemptedJoinForGameRef = useRef<Set<string>>(new Set());
   
-  // Append events to tape (resilient to null/undefined)
-  const appendEvents = (events: any[], meta?: { label?: string; turn?: number; phaseKey?: string }) => {
-    const newEntries: any[] = [];
-    
-    // Optional: Add marker entry if label provided
-    if (meta?.label) {
-      newEntries.push({
-        type: 'client.marker',
-        text: meta.label,
-        turn: meta.turn,
-        phaseKey: meta.phaseKey,
-      });
-    }
-    
-    // Append all events (if provided)
-    if (events && events.length > 0) {
-      newEntries.push(...events);
-    }
-    
-    // Only update if we have something to add
-    if (newEntries.length === 0) return;
-    
-    setEventTape(prev => {
-      const updated = [...prev, ...newEntries];
-      // Keep last ~200 entries to prevent unbounded growth
-      return updated.slice(-200);
-    });
-  };
+  // ============================================================================
+  // TASK B: TURN-SCOPED AUTO BUILD_REVEAL TRACKING
+  // ============================================================================
   
-  // Clear event tape (optional, not surfaced yet)
-  const clearEventTape = () => {
-    setEventTape([]);
-  };
+  // Track which turnNumbers have already had auto-reveal submitted
+  // Prevents duplicate auto-reveal attempts for the same turn (fixes BAD_TURN spam)
+  const autoBuildRevealSubmittedTurnsRef = useRef<Set<number>>(new Set());
   
-  // Format a tape entry for display
-  function formatTapeEntry(entry: any): string {
-    if (!entry) return '(null)';
-    
-    // Marker entries
-    if (entry.type === 'client.marker' && entry.text) {
-      return entry.text;
-    }
-    
-    // Build a compact representation
-    const parts: string[] = [];
-    
-    if (entry.type) {
-      parts.push(`[${entry.type}]`);
-    }
-    
-    // Common fields
-    if (entry.playerId) parts.push(`player=${entry.playerId}`);
-    if (entry.from) parts.push(`from=${entry.from}`);
-    if (entry.to) parts.push(`to=${entry.to}`);
-    if (entry.amount !== undefined) parts.push(`amt=${entry.amount}`);
-    if (entry.shipId) parts.push(`ship=${entry.shipId}`);
-    if (entry.targetId) parts.push(`target=${entry.targetId}`);
-    
-    // If we have parts, return them
-    if (parts.length > 0) {
-      return parts.join(' ');
-    }
-    
-    // Fallback: JSON stringify (compact)
-    try {
-      return JSON.stringify(entry);
-    } catch {
-      return String(entry);
-    }
-  }
+  // ============================================================================
+  // DEV LOGGING: LOG EFFECTIVE NAMES/IDS ON CHANGE ONLY
+  // ============================================================================
+  
+  // Log effectivePlayerName only when it changes
+  useEffect(() => {
+    console.log('[useGameSession] effectivePlayerName resolved:', effectivePlayerName, '(props:', propsPlayerName, ')');
+  }, [effectivePlayerName, propsPlayerName]);
+  
+  // Log effectiveGameId only when it changes
+  useEffect(() => {
+    console.log('[useGameSession] effectiveGameId resolved:', effectiveGameId, '(props:', gameId, ')');
+  }, [effectiveGameId, gameId]);
   
   // ============================================================================
   // AUTO-JOIN ON MOUNT (Chunk 3: Fire-and-forget join attempt)
   // ============================================================================
   
-  useEffect(() => {
-    // Guard: only attempt once per gameId
-    if (effectiveGameId && attemptedJoinForGameRef.current.has(effectiveGameId)) return;
-    
-    // Guard: require gameId
-    if (!effectiveGameId) return;
-    
-    // Mark as attempted immediately to prevent re-runs
-    attemptedJoinForGameRef.current.add(effectiveGameId);
-    
-    // Fire-and-forget auto-join attempt
-    const attemptJoin = async () => {
-      try {
-        console.log(`[useGameSession] Auto-join attempt for gameId=${effectiveGameId}, playerName=${effectivePlayerName}`);
-        
-        // Ensure session BEFORE join (remove race condition)
-        const sessionData = await ensureSession(effectivePlayerName);
-        console.log(`[useGameSession] Session ensured before join (sessionId: ${sessionData.sessionId})`);
-        
-        // Store sessionId for "me" detection in polled state
-        setMySessionId(sessionData.sessionId);
-        
-        // Step 1: Attempt to join as player first
-        console.log(`[useGameSession] Attempting join as player...`);
-        
-        let response = await authenticatedPost(`/join-game/${effectiveGameId}`, {
-          playerName: effectivePlayerName,
-          role: 'player', // Request player role explicitly
-        });
-        
-        // Step 2: If game is full, fallback to spectator
-        if (!response.ok) {
-          const errorText = await response.text();
-          
-          // Check for benign "already joined" errors
-          const isBenignError = 
-            errorText.toLowerCase().includes('already joined') ||
-            errorText.toLowerCase().includes('already in game') ||
-            response.status === 409; // Conflict (already joined)
-          
-          if (isBenignError) {
-            console.log(`✅ [useGameSession] Already joined gameId=${effectiveGameId} (benign)`);
-            console.log(`[useGameSession] Poll unlocked for gameId=${effectiveGameId}`);
-            setHasJoinedCurrentGame(true);
-            return; // Exit early - already joined
-          }
-          
-          // Check for "game full" / "no slots" errors
-          const isGameFull = 
-            errorText.toLowerCase().includes('game full') ||
-            errorText.toLowerCase().includes('no slots') ||
-            errorText.toLowerCase().includes('full') ||
-            response.status === 403;
-          
-          if (isGameFull) {
-            console.log(`⚠️ [useGameSession] Game full - falling back to spectator join...`);
-            
-            // Retry as spectator
-            response = await authenticatedPost(`/join-game/${effectiveGameId}`, {
-              playerName: effectivePlayerName,
-              role: 'spectator',
-            });
-            
-            if (response.ok) {
-              // Part A: Do not claim role from join response (await polled game-state)
-              console.log(`✅ [useGameSession] Auto-join request ok (awaiting role confirmation via game-state)`);
-              console.log(`[useGameSession] Poll unlocked for gameId=${effectiveGameId}`);
-              setHasJoinedCurrentGame(true);
-              return;
-            } else {
-              const spectatorErrorText = await response.text();
-              console.error(`❌ [useGameSession] Spectator join failed: ${response.status} ${spectatorErrorText}`);
-              return;
-            }
-          }
-          
-          // Other real failure (e.g., "Player name is required")
-          console.warn(`⚠️ [useGameSession] Auto-join failed for gameId=${effectiveGameId}: ${response.status} ${errorText}`);
-          return;
-        }
-        
-        // Part A: Join request succeeded - do not claim role yet (await polled game-state)
-        console.log(`✅ [useGameSession] Auto-join request ok (awaiting role confirmation via game-state)`);
-        console.log(`[useGameSession] Poll unlocked for gameId=${effectiveGameId}`);
-        setHasJoinedCurrentGame(true);
-        
-      } catch (err: any) {
-        // Network error or other exception
-        console.error(`❌ [useGameSession] Auto-join error for gameId=${effectiveGameId}:`, err.message);
-      }
-    };
-    
-    // Execute join attempt (non-blocking)
-    attemptJoin();
-  }, [effectiveGameId, effectivePlayerName]);
+  useAutoJoinEffect({
+    effectiveGameId,
+    effectivePlayerName,
+    attemptedJoinForGameRef,
+    ensureSession,
+    authenticatedPost,
+    authenticatedGet,
+    setMySessionId,
+    setHasJoinedCurrentGame,
+  });
   
   // ============================================================================
-  // LIVE POLLING
+  // DEV EFFECTS: POLL MARKERS
   // ============================================================================
   
-  useEffect(() => {
-    // Don't poll without a usable gameId
-    if (!effectiveGameId) {
-      setLoading(false);
-      setError('No gameId provided');
-      return;
-    }
-    
-    // Part C: Gate polling until join succeeds (avoid 403)
-    // Use state variable hasJoinedCurrentGame to trigger re-renders
-    if (!hasJoinedCurrentGame) {
-      console.log(`[useGameSession] Polling gated for gameId=${effectiveGameId} (waiting for join to succeed)`);
-      setLoading(true);
-      return;
-    }
-    
-    let mounted = true;
-    let pollTimer: NodeJS.Timeout | null = null;
-    let shouldStopPolling = false;
-    
-    const poll = async () => {
-      // Stop if flag is set
-      if (shouldStopPolling) {
-        return;
-      }
-      
-      try {
-        // Fetch game state (authenticatedGet handles session automatically)
-        const response = await authenticatedGet(`/game-state/${effectiveGameId}`);
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          
-          // Stop polling on 404 Game not found
-          if (response.status === 404 && errorText.toLowerCase().includes('game not found')) {
-            console.error(`❌ [useGameSession] Poll error gameId=${effectiveGameId}: Game not found (404) - stopping polling`);
-            shouldStopPolling = true;
-            if (mounted) {
-              setError(`Game not found: ${effectiveGameId}`);
-              setLoading(false);
-            }
-            return;
-          }
-          
-          throw new Error(`Failed to fetch game state: ${response.status} ${errorText}`);
-        }
-        
-        const data = await response.json();
-        
-        if (mounted) {
-          setRawState(data);
-          setLoading(false);
-          setError(null);
-        }
-      } catch (err: any) {
-        console.error(`❌ [useGameSession] Poll error gameId=${effectiveGameId}:`, err);
-        if (mounted) {
-          setError(err.message);
-          setLoading(false);
-        }
-      }
-      
-      // Schedule next poll (only if not stopped)
-      if (mounted && !shouldStopPolling) {
-        pollTimer = setTimeout(poll, 1200); // ~1.2s interval
-      }
-    };
-    
-    // Start polling
-    poll();
-    
-    return () => {
-      mounted = false;
-      shouldStopPolling = true;
-      if (pollTimer) {
-        clearTimeout(pollTimer);
-      }
-    };
-  }, [effectiveGameId, hasJoinedCurrentGame]);
-  
-  // ============================================================================
-  // POLL MARKERS (Chunk 2: Dev-only tape markers on phase/turn changes)
-  // ============================================================================
-  
-  useEffect(() => {
-    if (!rawState) return;
-    
-    const currentTurn = getTurnNumber(rawState);
-    const currentPhaseKey = getPhaseKey(rawState);
-    
-    const lastTurn = lastSeenRef.current.turn;
-    const lastPhaseKey = lastSeenRef.current.phaseKey;
-    
-    // Only append marker when turn or phase changes (not on every poll)
-    if (currentTurn !== lastTurn || currentPhaseKey !== lastPhaseKey) {
-      appendEvents(
-        [], // No actual events, just a marker
-        {
-          label: `TURN ${currentTurn} — ${currentPhaseKey}`,
-          turn: currentTurn,
-          phaseKey: currentPhaseKey,
-        }
-      );
-      
-      // Update last seen
-      lastSeenRef.current = {
-        turn: currentTurn,
-        phaseKey: currentPhaseKey,
-      };
-    }
-  }, [rawState]);
+  usePollMarkerEffect({
+    rawState,
+    lastSeenRef,
+    appendEventsToTape: (events, meta) => appendEventsToTape(setEventTape, events, meta),
+    getTurnNumber,
+    getPhaseKey,
+  });
   
   // ============================================================================
   // CHUNK 8: END-OF-GAME LOCKOUT (SERVER AUTHORITATIVE) — DERIVED FLAGS
@@ -888,113 +503,57 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const finishedResultText = 'GAME OVER';
   
   // ============================================================================
-  // CHUNK 8: ADD ONE-TIME GAME OVER MARKER (CLIENT EVENT TAPE)
+  // LIVE POLLING (AFTER isFinished IS DERIVED)
   // ============================================================================
   
-  const finishedMarkerShownRef = useRef(false);
-
-  useEffect(() => {
-    if (!isFinished) {
-      finishedMarkerShownRef.current = false;
-      return;
-    }
-
-    if (finishedMarkerShownRef.current) return;
-    finishedMarkerShownRef.current = true;
-
-    appendEvents([], {
-      label: finishedResultText,
-      turn: rawState ? getTurnNumber(rawState) : undefined,
-      phaseKey: rawState ? getPhaseKey(rawState) : undefined,
-    });
-  }, [isFinished, finishedResultText, rawState]);
+  usePollingEffect({
+    effectiveGameId,
+    hasJoinedCurrentGame,
+    authenticatedGet,
+    setRawState,
+    setLoading,
+    setError,
+    isFinished,
+    postGamePollMs: POSTGAME_POLL_MS,
+  });
   
   // ============================================================================
-  // ROLE CHECK + JOIN OUTCOME LOGGING (Step 2: Make join outcome explicit)
+  // DEV EFFECTS: ONE-TIME GAME OVER MARKER
   // ============================================================================
   
-  useEffect(() => {
-    // Guard: require both rawState and sessionId
-    if (!rawState || !mySessionId) return;
-    
-    const players = rawState.players || [];
-    
-    // Find "me" in the player list
-    const me = players.find((p: any) => p.id === mySessionId);
-    const meRole = me?.role || 'missing';
-    
-    // Count players with role='player'
-    const numPlayers = players.filter((p: any) => p.role === 'player').length;
-    
-    // Log role check (one-time after first poll)
-    console.log(`[useGameSession] role-check: meRole=${meRole} numPlayers=${numPlayers} sessionId=${mySessionId}`);
-    
-    // 1) Players Debug: Show which two sessions occupy player slots
-    const playerSlots = players.filter((p: any) => p.role === 'player');
-    if (playerSlots.length > 0) {
-      const slot1 = playerSlots[0];
-      const slot2 = playerSlots[1];
-      
-      // Step C: Shorten IDs to last 8 chars (prevents collision in logs)
-      const short = (id: string) => id ? id.slice(-8) : 'NONE';
-      
-      const slot1Str = `${short(slot1.id)} ${slot1.displayName || slot1.playerName || 'Unknown'}`;
-      const slot2Str = slot2 ? `${short(slot2.id)} ${slot2.displayName || slot2.playerName || 'Unknown'}` : 'empty';
-      
-      console.log(`[useGameSession] player-slots: #1=${slot1Str} | #2=${slot2Str}`);
-    }
-    
-    // Show "me" info with shortened ID (last 8 chars)
-    const shortMyId = mySessionId ? mySessionId.slice(-8) : 'NONE';
-    const myName = me?.displayName || me?.playerName || effectivePlayerName || 'Unknown';
-    console.log(`[useGameSession] me=${shortMyId} ${myName} role=${myRole}`);
-    
-    // Explain spectator status
-    if (meRole === 'spectator' && numPlayers >= 2) {
-      console.log(`[useGameSession] spectator because player slots full (${numPlayers}/2 players)`);
-    } else if (meRole === 'spectator' && numPlayers < 2) {
-      console.warn(`[useGameSession] spectator unexpectedly — join bug (only ${numPlayers}/2 players)`);
-    }
-    
-    // Update canonical role state
-    setMyRole(meRole as 'player' | 'spectator' | 'unknown');
-  }, [rawState, mySessionId, effectivePlayerName]); // Trigger on first poll or sessionId change
+  useFinishedMarkerEffect({
+    isFinished,
+    finishedResultText,
+    rawState,
+    finishedMarkerShownRef,
+    appendEventsToTape: (events, meta) => appendEventsToTape(setEventTape, events, meta),
+    getTurnNumber,
+    getPhaseKey,
+  });
   
   // ============================================================================
-  // FULL PLAYER SNAPSHOT (Debug-only: unambiguous player state logging)
+  // DEV EFFECTS: ROLE CHECK + JOIN OUTCOME LOGGING
   // ============================================================================
   
-  useEffect(() => {
-    if (!rawState?.players) return;
-
-    console.log(
-      '[useGameSession] PLAYERS_FULL',
-      rawState.players.map((p: any) => ({
-        id: p.id,
-        role: p.role,
-        name: p.name,
-        isActive: p.isActive,
-        joinedAt: p.joinedAt,
-      }))
-    );
-  }, [rawState]);
+  useRoleCheckLoggingEffect({
+    rawState,
+    mySessionId,
+    effectivePlayerName,
+    myRole,
+    setMyRole,
+  });
   
   // ============================================================================
-  // SPECTATOR COUNT DEBUG LOG (Step A: Dev-only spectator count logging)
+  // DEV EFFECTS: FULL PLAYER SNAPSHOT
   // ============================================================================
   
-  useEffect(() => {
-    if (!rawState) return;
-    
-    const players = rawState.players || [];
-    const spectatorCount = players.filter((p: any) => p?.role === 'spectator').length;
-    
-    console.log('[useGameSession] spectator-count:', {
-      gameId: effectiveGameId,
-      totalPlayers: players.length,
-      spectatorCount,
-    });
-  }, [rawState, effectiveGameId]);
+  usePlayersFullSnapshotEffect({ rawState });
+  
+  // ============================================================================
+  // DEV EFFECTS: SPECTATOR COUNT DEBUG LOG
+  // ============================================================================
+  
+  useSpectatorCountDebugEffect({ rawState, effectiveGameId });
   
   // ============================================================================
   // CHUNK 7: INTERNAL REFRESH HELPER
@@ -1022,29 +581,11 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     }
   }
   
-  // ============================================================================
-  // PHASE KEY NORMALIZATION
-  // ============================================================================
-  
-  function getPhaseKey(state: any): string {
-    // Prefer server-provided phaseKey
-    if (state?.phaseKey) {
-      return state.phaseKey;
-    }
-    
-    // Otherwise construct from major.sub
-    const major = state?.gameData?.currentPhase || state?.currentPhase;
-    const sub = state?.gameData?.currentSubPhase || state?.currentSubPhase;
-    
-    if (major && sub) {
-      return `${major}.${sub}`;
-    }
-    
-    return 'unknown';
-  }
-  
-  function getTurnNumber(state: any): number {
-    return state?.gameData?.turnNumber ?? state?.turnNumber ?? 1;
+  /**
+   * Submit intent wrapper (delegates to authenticatedPost)
+   */
+  async function submitIntent(body: any, timeoutMs?: number): Promise<Response> {
+    return authenticatedPost('/intent', body, timeoutMs);
   }
   
   // ============================================================================
@@ -1055,21 +596,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // IDENTITY DERIVATION (AUTHORITATIVE - ME VS OPPONENT)
   // ============================================================================
   
-  // Extract all players from server state
-  const allPlayers = rawState?.players ?? [];
-  
-  // Filter to role='player' only
-  const playerUsers = allPlayers.filter((p: any) => p.role === 'player');
-  
-  // Find "me" in the player list (using mySessionId for stable identity)
-  // "me" is the player whose id === mySessionId
-  const me = mySessionId ? allPlayers.find((p: any) => p.id === mySessionId) : null;
-  
-  // Find "opponent" (the other player, if I'm a player)
-  // Opponent is ONLY valid if I'm a player myself
-  const opponent = (me?.role === 'player' && mySessionId)
-    ? playerUsers.find((p: any) => p.id !== mySessionId) || null
-    : null;
+  const { allPlayers, playerUsers, me, opponent } = deriveIdentity(rawState, mySessionId);
   
   // ============================================================================
   // GAME LOGIC - USE ME/OPPONENT (NOT LEFT/RIGHT)
@@ -1078,6 +605,25 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Phase data
   const phaseKey = rawState ? getPhaseKey(rawState) : 'unknown';
   const turnNumber = rawState ? getTurnNumber(rawState) : 1;
+  
+  // ============================================================================
+  // TASK A: HARD RESET PREVIEW STATE ON TURN CHANGE
+  // ============================================================================
+  
+  // When server turnNumber changes, clear all local build preview state
+  // This prevents cross-turn contamination (e.g., turn 1 preview overlaying turn 2 fleet)
+  useEffect(() => {
+    if (!rawState) return;
+    
+    const serverTurnNumber = getTurnNumber(rawState);
+    
+    // Turn boundary: any local build preview is now invalid
+    setBuildPreviewCounts({});
+    buildPreviewCountsRef.current = {};
+    setAwaitingBuildRevealSync(false);
+    
+    console.log('[useGameSession] Turn boundary reset: cleared preview state for turn', serverTurnNumber);
+  }, [rawState?.gameData?.turnNumber ?? rawState?.turnNumber]);
   
   // ============================================================================
   // CHUNK 9.1: BOOTSTRAP READINESS CHECK (BOOT GATING)
@@ -1099,19 +645,16 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Phase instance key for completion tracking
   // MUST be defined early — used by preview merge, build gating, and ready logic
   const phaseInstanceKey = `${turnNumber}::${phaseKey}`;
-  // BUILD intents are keyed by TURN (not subphase), because reveal happens later in battle.
-  const buildInstanceKey = `${turnNumber}::build`;
+  
+  // Client-only key (UI gating / local phase completion concept)
+  const buildPhaseInstanceKey = `${turnNumber}::build`;
+  
+  // Server-facing commitments key (MUST match turnData.commitments keys)
+  const buildServerKey = `BUILD_${turnNumber}`;
   
   // Determine major phase for icon
   const majorPhase = phaseKey.split('.')[0] || 'build';
   const phaseIcon: 'build' | 'battle' = majorPhase === 'battle' ? 'battle' : 'build';
-  
-  // Format clock time as MM:SS
-  function formatClock(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }
   
   // Determine if we're in species selection phase
   const isInSpeciesSelection = phaseKey === 'setup.species_selection';
@@ -1163,48 +706,21 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // My species label and opponent species label for HUD
   const mySpeciesLabel = me ? getSpeciesLabelForHud(me, mySpecies) : 'Human';
-  const opponentSpeciesLabel = opponent ? getSpeciesLabelForHud(opponent, opponentSpecies) : 'Human';
+  const p2HasJoined = opponent?.role === 'player';
+  const opponentSpeciesLabel =
+    p2HasJoined ? getSpeciesLabelForHud(opponent, opponentSpecies) : '';
   
   // ============================================================================
   // SHIP OWNERSHIP (ME/OPPONENT)
   // ============================================================================
   
-  // Extract ships from server state
-  const shipsData = rawState?.gameData?.ships || rawState?.ships || {};
-  
-  // Map ships to me/opponent (not server array order)
-  const myShips = me?.id ? (shipsData[me.id] || []) : [];
-  const opponentShips = opponent?.id ? (shipsData[opponent.id] || []) : [];
-  
-  // Use majorPhase already defined earlier (line ~798)
-  const isInBattlePhase = majorPhase === 'battle';
-  
-  // Opponent visibility rule:
-  // - Always show opponent ships from prior turns
-  // - Hide opponent ships created this turn until battle
-  const opponentShipsVisible = opponentShips.filter((ship: any) => {
-    const createdTurn = ship?.createdTurn;
-    // If createdTurn is missing, treat as "old" (visible). This avoids accidental hiding due to incomplete data.
-    if (typeof createdTurn !== 'number') return true;
-    if (createdTurn < turnNumber) return true;
-    // createdTurn === turnNumber -> visible only in battle
-    return isInBattlePhase;
+  const { myShips, opponentShips, opponentShipsVisible, myFleet, opponentFleet } = deriveFleets({
+    rawState,
+    me,
+    opponent,
+    turnNumber,
+    majorPhase,
   });
-  
-  // Aggregate fleet summaries
-  function aggregateFleet(ships: any[]): BoardFleetSummary[] {
-    const counts: Record<string, number> = {};
-    
-    for (const ship of ships) {
-      const defId = ship.shipDefId || 'UNKNOWN';
-      counts[defId] = (counts[defId] || 0) + 1;
-    }
-    
-    return Object.entries(counts).map(([shipDefId, count]) => ({ shipDefId, count }));
-  }
-  
-  const myFleet = aggregateFleet(myShips);
-  const opponentFleet = aggregateFleet(opponentShipsVisible);
   
   // ============================================================================
   // CHUNK 6: MERGE PREVIEW COUNTS INTO FLEET (ENTIRE BUILD PHASE)
@@ -1226,124 +742,58 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // and we want preview to persist through the entire BUILD major phase.
   // 
   // This effect does NOT depend on buildPreviewCounts (avoids noise)
+  useBuildPreviewResetEffect({
+    turnNumber,
+    effectiveGameId,
+    setBuildPreviewCounts,
+  });
+  
+  // Keep ref aligned with state reset (same deps as useBuildPreviewResetEffect)
   useEffect(() => {
-    // Reset only on turn or game change (NOT on phase/subphase changes)
-    setBuildPreviewCounts({});
+    buildPreviewCountsRef.current = {};
   }, [turnNumber, effectiveGameId]);
   
   // ============================================================================
   // CHUNK 6.2: AUTO-SUBMIT BUILD_REVEAL WHEN ENTERING BATTLE.REVEAL PHASE
   // ============================================================================
   
-  // When the game enters battle.reveal phase, auto-submit BUILD_REVEAL if we have a cached commit
-  useEffect(() => {
-    // Only run during battle.reveal phase (not broadly on entering battle)
-    if (phaseKey !== 'battle.reveal') return;
-    if (!effectiveGameId) return; // Need valid game
-    
-    const buildCommitDone = !!buildCommitDoneByPhase[buildInstanceKey];
-    const buildRevealDone = !!buildRevealDoneByPhase[buildInstanceKey];
-    
-    // Only auto-reveal if commit is done but reveal is not
-    if (!buildCommitDone || buildRevealDone) return;
-    
-    console.log('[useGameSession] Auto-submitting BUILD_REVEAL (battle.reveal phase)...');
-    
-    const submitBuildReveal = async () => {
-      try {
-        const cached = getBuildCommitCache(buildInstanceKey);
-        const cachedPayload = cached.payload;
-        const cachedNonce = cached.nonce;
-        
-        if (!cachedPayload || !cachedNonce) {
-          console.error(
-            '[useGameSession] Cannot auto-reveal: missing cached payload/nonce. ' +
-            'This indicates the client lost its nonce after committing.'
-          );
-          return;
-        }
-        
-        // Convert ships object back to builds array format for server
-        const buildsArray: Array<{ shipDefId: string; count: number }> = [];
-        for (const [shipDefId, count] of Object.entries(cachedPayload.ships)) {
-          buildsArray.push({ shipDefId, count });
-        }
-        const payload = { builds: buildsArray };
-        
-        const revealResponse = await authenticatedPost('/intent', {
-          gameId: effectiveGameId,
-          intentType: 'BUILD_REVEAL',
-          turnNumber,
-          payload,
-          nonce: cachedNonce,
-        });
-        
-        if (!revealResponse.ok) {
-          const errorText = await revealResponse.text();
-          console.error('[useGameSession] Auto BUILD_REVEAL failed:', errorText);
-          return; // keep cache for retry
-        }
-        
-        const revealResult = await revealResponse.json();
-        
-        if (!revealResult.ok) {
-          console.error('[useGameSession] Auto BUILD_REVEAL rejected:', revealResult.rejected);
-          return; // keep cache for retry
-        }
-        
-        appendEvents(revealResult.events || [], {
-          label: 'BUILD_REVEAL (auto @ battle.reveal)',
-          turn: turnNumber,
-          phaseKey,
-        });
-        
-        setBuildRevealDoneByPhase(prev => ({ ...prev, [buildInstanceKey]: true }));
-        clearBuildCommitCache(buildInstanceKey);
-        
-        console.log('✅ [useGameSession] Auto BUILD_REVEAL succeeded');
-        
-        await refreshGameStateOnce();
-      } catch (err: any) {
-        console.error('[useGameSession] Auto BUILD_REVEAL error:', err);
-      }
-    };
-    
-    submitBuildReveal();
-  }, [phaseKey, buildInstanceKey, effectiveGameId, turnNumber, buildCommitDoneByPhase, buildRevealDoneByPhase]);
+  // REMOVED: Build reveal automation removed in favor of BUILD_SUBMIT
+  // BUILD_SUBMIT is applied during build.drawing phase only
   
   // Check if build reveal is done for this phase instance
-  const buildRevealDoneThisPhase = !!buildRevealDoneByPhase[buildInstanceKey];
+  const buildRevealDoneThisPhase = !!buildRevealDoneByPhase[buildServerKey];
   
-  // Merge preview counts into my fleet (if in build phase AND reveal not done)
-  const myFleetWithPreview: BoardFleetSummary[] =
-    (isInBuildPhase && !buildRevealDoneThisPhase)
-      ? (() => {
-          // Start with canonical fleet counts
-          const merged: Record<string, number> = {};
-          for (const entry of myFleet) {
-            merged[entry.shipDefId] = entry.count;
-          }
-          
-          // Add preview counts
-          for (const [shipDefId, previewCount] of Object.entries(buildPreviewCounts)) {
-            merged[shipDefId] = (merged[shipDefId] || 0) + previewCount;
-          }
-          
-          // Convert back to array format
-          const result = Object.entries(merged).map(([shipDefId, count]) => ({ shipDefId, count }));
-          
-          // Debug log when preview is active (only if buffer is non-empty)
-          if (Object.keys(buildPreviewCounts).length > 0) {
-            console.log('[useGameSession] Build preview active:', {
-              canonical: myFleet,
-              preview: buildPreviewCounts,
-              merged: result,
-            });
-          }
-          
-          return result;
-        })()
-      : myFleet;
+  // ============================================================================
+  // B3) STABLE PREVIEW OVERLAY RULE (SIMPLIFIED)
+  // ============================================================================
+  
+  // Single derived rule for preview display:
+  // - If majorPhase === 'build': Display serverFleet + buildPreviewCounts (overlay)
+  // - Else: Display serverFleet only
+  
+  const shouldShowPreview = majorPhase === 'build';
+  
+  // Merge preview counts into my fleet (if shouldShowPreview is true)
+  const myFleetWithPreview: BoardFleetSummary[] = shouldShowPreview
+    ? (() => {
+        // Start with canonical fleet counts
+        const merged: Record<string, number> = {};
+        for (const entry of myFleet) {
+          merged[entry.shipDefId] = entry.count;
+        }
+        
+        // Apply preview overlay using Math.max to prevent subtraction
+        for (const [shipDefId, previewCount] of Object.entries(buildPreviewCounts)) {
+          const base = merged[shipDefId] || 0;
+          merged[shipDefId] = base + Math.max(0, previewCount);
+        }
+        
+        // Convert back to array format
+        const result = Object.entries(merged).map(([shipDefId, count]) => ({ shipDefId, count }));
+        
+        return result;
+      })()
+    : myFleet;
   
   // ============================================================================
   // BOARD MODE + COMPLETION TRACKING (ME/OPPONENT)
@@ -1504,8 +954,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     readyDisabledReason = 'Select and confirm your species first.';
   } else if (
     phaseKey === 'battle.reveal' &&
-    buildCommitDoneByPhase[buildInstanceKey] === true &&
-    buildRevealDoneByPhase[buildInstanceKey] === false
+    buildCommitDoneByPhase[buildServerKey] === true &&
+    buildRevealDoneByPhase[buildServerKey] === false
   ) {
     // Prevent spamming DECLARE_READY while reveal is pending
     readyEnabled = false;
@@ -1519,58 +969,146 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // VIEW-MODEL CONSTRUCTION
   // ============================================================================
   
-  const vm: GameSessionViewModel = {
+  // ============================================================================
+  // CHUNK 10: PLAYER STATUS DERIVATION (READINESS + STATUS TEXT/TONE)
+  // ============================================================================
+  
+  // Extract phaseReadiness from server state (defensive)
+  const phaseReadiness: any[] =
+    (rawState?.phaseReadiness ??
+     rawState?.gameData?.phaseReadiness ??
+     []) as any[];
+  
+  // Helper: Check if a player is ready for the current phase
+  function isPlayerReady(playerId: string | null | undefined): boolean {
+    if (!playerId) return false;
+    return phaseReadiness.some((r: any) => r?.playerId === playerId && r?.isReady === true);
+  }
+  
+  // Compute joined state
+  const p1HasJoined = me?.role === 'player';
+  // p2HasJoined already defined earlier (line 632) for species label logic
+  
+  // Compute readiness
+  const p1IsReady = p1HasJoined ? isPlayerReady(me?.id) : false;
+  const p2IsReady = p2HasJoined ? isPlayerReady(opponent?.id) : false;
+  
+  // Get current subphase label for status indicators
+  const currentSubphaseLabel =
+    isBootstrapping ? 'Loading…' : getSubphaseLabelFromPhaseKey(phaseKey);
+  
+  // Compute status text: undefined if not joined, "Ready" if ready, subphase label otherwise
+  const p1StatusText =
+    !p1HasJoined ? undefined : (p1IsReady ? 'Ready' : currentSubphaseLabel);
+  
+  const p2StatusText =
+    !p2HasJoined ? undefined : (p2IsReady ? 'Ready' : currentSubphaseLabel);
+  
+  // Compute status tone: hidden if no text, 'ready' if "Ready", 'neutral' otherwise
+  const p1StatusTone: HudStatusTone =
+    !p1StatusText ? 'hidden' : (p1StatusText === 'Ready' ? 'ready' : 'neutral');
+  
+  const p2StatusTone: HudStatusTone =
+    !p2StatusText ? 'hidden' : (p2StatusText === 'Ready' ? 'ready' : 'neutral');
+  
+  // ============================================================================
+  // CLOCK DATA EXTRACTION
+  // ============================================================================
+  
+  // Extract clock data from server state (only when rawState changes)
+  // Store in ref for interpolation - this anchors to server poll updates
+  useEffect(() => {
+    if (!rawState) return;
+    const clockData = getClockData(rawState);
+    lastClockRef.current = clockData;
+  }, [rawState]);
+  
+  // Determine if clocks should tick (display-only animation driver)
+  const shouldTick =
+    !isFinished &&
+    lastClockRef.current &&
+    lastClockRef.current.clocksAreLive &&
+    ((p1HasJoined && !p1IsReady) || (p2HasJoined && !p2IsReady));
+  
+  // Tick driver effect (forces rerenders for smooth clock animation)
+  // Use 250ms interval for smoother visual updates (still displays as MM:SS)
+  useEffect(() => {
+    if (!shouldTick) return;
+    const id = window.setInterval(() => setClockTick(t => t + 1), 250);
+    return () => window.clearInterval(id);
+  }, [shouldTick]);
+  
+  // Display-only interpolation helper
+  // Snaps to server on every poll, interpolates between polls
+  function getDisplayMs(playerId?: string, isReady?: boolean): number | undefined {
+    const snap = lastClockRef.current;
+    if (!snap || !playerId) return undefined;
+
+    const base = snap.remainingMsByPlayerId[playerId];
+    if (base == null) return undefined;
+
+    // Game over: freeze display at last server snapshot (no interpolation)
+    if (isFinished) return base;
+
+    if (!snap.clocksAreLive) return base;
+    if (isReady) return base;
+
+    const elapsed = Math.max(0, Date.now() - snap.serverNowMs);
+    return Math.max(0, base - elapsed);
+  }
+  
+  // Get interpolated display values for both players
+  const p1DisplayMs = getDisplayMs(me?.id, p1IsReady);
+  const p2DisplayMs = getDisplayMs(opponent?.id, p2IsReady);
+  
+  // Format clock times (show "--:--" when undefined, never fake "00:00")
+  const p1ClockFormatted = p1DisplayMs == null ? '--:--' : formatClockMs(p1DisplayMs);
+  const p2ClockFormatted = p2DisplayMs == null ? '--:--' : formatClockMs(p2DisplayMs);
+  
+  const vm: GameSessionViewModel = mapGameSessionVm({
     isBootstrapping,
+
+    me,
+    opponent,
+    mySpeciesLabel,
+    opponentSpeciesLabel,
+
+    p1HasJoined,
+    p2HasJoined,
+
+    p1IsReady,
+    p2IsReady,
     
-    hud: {
-      p1Name: me?.name || 'Player 1',
-      p1Species: mySpeciesLabel, // STEP E: Use leftSpecies from server mapping
-      p1IsOnline: true,
-      p1Clock: formatClock(604), // Placeholder clock
-      p1IsReady: false,
-      p1ReadyLabel: 'Subphase / Ready',
-      
-      p2Name: opponent?.name || 'Player 2',
-      p2Species: opponentSpeciesLabel, // STEP E: Use rightSpecies from server mapping
-      p2IsOnline: true,
-      p2Clock: formatClock(585), // Placeholder clock
-      p2IsReady: true,
-      p2ReadyLabel: 'Ready',
-    },
-    
-    leftRail: {
-      diceValue: 1,
-      turn: turnNumber,
-      phase: getMajorPhaseLabel(phaseKey),
-      phaseIcon,
-      subphase: getSubphaseLabelFromPhaseKey(phaseKey),
-      gameCode: effectiveGameId ? effectiveGameId.substring(0, 6).toUpperCase() : 'NOGAME',
-      chatMessages: [],
-      drawOffer: null,
-      battleLogEntries: eventTape.map(entry => ({
-        type: 'event' as const,
-        text: formatTapeEntry(entry),
-      })),
-    },
-    
+    p1ClockFormatted,
+    p2ClockFormatted,
+
+    p1StatusText,
+    p2StatusText,
+
+    p1StatusTone,
+    p2StatusTone,
+
+    turnNumber,
+    phaseKey,
+    phaseIcon,
+
+    effectiveGameId,
+    allPlayers,
+
+    activePanelId,
+    tabs,
+
     board,
-    
-    bottomActionRail: {
-      subphaseTitle: 'Subphase information',
-      subphaseSubheading: phaseKey,
-      canUndoActions: false,
-      readyButtonNote: null,
-      nextPhaseLabel: 'NEXT PHASE',
-      readyDisabled: !readyEnabled,
-      readyDisabledReason,
-      spectatorCount: allPlayers.filter((p: any) => p?.role === 'spectator').length,
-    },
-    
-    actionPanel: {
-      activePanelId,
-      tabs,
-    },
-  };
+
+    readyEnabled,
+    readyDisabledReason,
+
+    eventTape,
+    formatTapeEntry,
+
+    getMajorPhaseLabel,
+    getSubphaseLabelFromPhaseKey,
+  });
   
   // ============================================================================
   // ACTION CALLBACKS (NO-OPS)
@@ -1578,166 +1116,44 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   const actions: GameSessionActions = {
     onReadyToggle: async () => {
-      // CHUNK 8: Hard stop if game finished
-      if (isFinished) {
-        console.log('[useGameSession] onReadyToggle ignored: game finished');
-        return;
-      }
+      // Snapshot build preview before async flow to prevent race conditions
+      const buildPreviewSnapshot = { ...buildPreviewCountsRef.current };
       
-      // ========================================================================
-      // CHUNK 7: BUILD COMMIT + REVEAL + DECLARE_READY SEQUENCE
-      // ========================================================================
-      
-      console.log(
-        `[useGameSession] onReadyToggle clicked (enabled=${readyEnabled}) reason=${readyDisabledReason ?? 'none'}`
-      );
-      
-      // E1) Keep existing readyEnabled guard (from Chunk 5)
-      if (!readyEnabled) {
-        console.log(`[useGameSession] Ready disabled: ${readyDisabledReason}`);
-        return;
-      }
-      
-      try {
-        // E2) If in build.drawing AND player role, do BUILD_COMMIT only (defer reveal to battle)
-        const isBuildDrawing = phaseKey === 'build.drawing';
-        
-        if (isBuildDrawing && myRole === 'player') {
-          // Check if build commit already done for this phase instance
-          const buildCommitDone = !!buildCommitDoneByPhase[buildInstanceKey];
-          
-          if (!buildCommitDone) {
-            console.log('[useGameSession] Performing BUILD_COMMIT before DECLARE_READY...');
-            
-            // ====================================================================
-            // BUILD PAYLOAD CONSTRUCTION
-            // ====================================================================
-            
-            // Convert buildPreviewCounts to builds array
-            const buildsArray: Array<{ shipDefId: string; count: number }> = [];
-            
-            for (const [shipDefId, count] of Object.entries(buildPreviewCounts)) {
-              // Only include entries with count > 0
-              if (count <= 0) continue;
-              
-              // Only allow DEF and FIG for Chunk 7 (temporary constraint)
-              if (shipDefId !== 'DEF' && shipDefId !== 'FIG') {
-                console.warn(`[useGameSession] Skipping disallowed shipDefId: ${shipDefId}`);
-                continue;
-              }
-              
-              buildsArray.push({ shipDefId, count });
-            }
-            
-            // Build payload (empty builds array is valid if player built nothing)
-            const payload = { builds: buildsArray };
-            
-            console.log('[useGameSession] Build payload:', payload);
-            
-            // ====================================================================
-            // STEP 1: BUILD_COMMIT ONLY (defer reveal until battle phase)
-            // ====================================================================
-            
-            console.log('[useGameSession] Submitting BUILD_COMMIT...');
-            
-            const nonce = generateNonce();
-            
-            // Convert builds array to ships object for cache (matching expected format)
-            const shipsObject: Record<string, number> = {};
-            for (const build of buildsArray) {
-              shipsObject[build.shipDefId] = build.count;
-            }
-            const cachePayload = { ships: shipsObject };
-            
-            // Cache payload + nonce BEFORE awaiting network
-            setBuildCommitCache(buildInstanceKey, cachePayload, nonce);
-            
-            const commitHash = await makeCommitHash(payload, nonce);
-            
-            const commitResponse = await authenticatedPost('/intent', {
-              gameId: effectiveGameId,
-              intentType: 'BUILD_COMMIT',
-              turnNumber,
-              commitHash,
-            });
-            
-            if (!commitResponse.ok) {
-              const errorText = await commitResponse.text();
-              console.error('[useGameSession] BUILD_COMMIT failed:', errorText);
-              return; // Fail early
-            }
-            
-            const commitResult = await commitResponse.json();
-            
-            if (!commitResult.ok) {
-              // Handle DUPLICATE_COMMIT: server already has a commitment.
-              if (commitResult.rejected?.code === 'DUPLICATE_COMMIT') {
-                console.warn('[useGameSession] DUPLICATE_COMMIT: treating commit as already done');
-                setBuildCommitDoneByPhase(prev => ({ ...prev, [buildInstanceKey]: true }));
-                // Do NOT clear cache; we may need it for reveal.
-              } else {
-                console.error('[useGameSession] BUILD_COMMIT rejected:', commitResult.rejected);
-                return; // Fail early
-              }
-            } else {
-              // Append events to tape
-              appendEvents(commitResult.events || [], {
-                label: 'BUILD_COMMIT',
-                turn: turnNumber,
-                phaseKey,
-              });
-              
-              // Mark commit done for this phase instance
-              setBuildCommitDoneByPhase(prev => ({ ...prev, [buildInstanceKey]: true }));
-              
-              console.log('✅ [useGameSession] BUILD_COMMIT succeeded');
-            }
-            
-            // NOTE: We do NOT submit BUILD_REVEAL here.
-            // BUILD_REVEAL will be auto-submitted when the game enters battle phase.
-            // This allows the preview to persist throughout the entire BUILD phase.
-          } else {
-            console.log('[useGameSession] Build commit already done for this phase instance, skipping BUILD_COMMIT');
-          }
-        }
-        
-        // E3) Always send DECLARE_READY after build flow (or immediately if not build.drawing)
-        console.log('[useGameSession] Submitting DECLARE_READY...');
-        
-        const response = await authenticatedPost('/intent', {
-          gameId: effectiveGameId,
-          intentType: 'DECLARE_READY',
-          turnNumber,
-        });
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[useGameSession] DECLARE_READY failed:', errorText);
-          return;
-        }
-        
-        const result = await response.json();
-        
-        if (!result.ok) {
-          console.error('[useGameSession] DECLARE_READY rejected:', result.rejected);
-          return;
-        }
-        
-        // Append events to tape
-        appendEvents(result.events || [], {
-          label: 'DECLARE_READY',
-          turn: turnNumber,
-          phaseKey,
-        });
-        
-        console.log('✅ [useGameSession] DECLARE_READY accepted');
-        
-        // Refresh game state immediately after declare ready
-        await refreshGameStateOnce();
-        
-      } catch (err: any) {
-        console.error('[useGameSession] onReadyToggle error:', err);
-      }
+      await runReadyToggleFlow({
+        isFinished,
+        readyEnabled,
+        readyDisabledReason,
+
+        phaseKey,
+        myRole,
+        mySessionId,
+
+        effectiveGameId,
+        turnNumber,
+
+        buildInstanceKey: buildServerKey,
+        buildPreviewCounts: buildPreviewSnapshot,
+
+        setBuildSubmittedByTurn,
+
+        buildCommitDoneByPhase,
+        buildRevealDoneByPhase,
+        setBuildCommitDoneByPhase,
+        setBuildRevealDoneByPhase,
+
+        buildCommitCache,
+
+        rawState,
+        me,
+        setAwaitingBuildRevealSync,
+
+        generateNonce,
+        makeCommitHash,
+        submitIntent,
+        appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
+        refreshGameStateOnce,
+        maybeAutoRevealBuild,
+      });
     },
     
     onUndoActions: () => {
@@ -1787,159 +1203,26 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     },
     
     onConfirmSpecies: async () => {
-      // CHUNK 8: Hard stop if game finished
-      if (isFinished) {
-        console.log('[useGameSession] onConfirmSpecies ignored: game finished');
-        return;
-      }
-      
-      console.log('[useGameSession] Confirm species:', selectedSpecies);
-      
-      // ========================================================================
-      // CHUNK 4: SPECIES COMMIT + REVEAL SEQUENCE
-      // ========================================================================
-      
-      // Part C: Guard using canonical myRole state (confirmed from polled game-state)
-      if (myRole !== 'player') {
-        const numPlayers = allPlayers.filter((p: any) => p.role === 'player').length;
-        console.warn(
-          '[useGameSession] Only players can submit species selection intents',
-          `| myRole=${myRole} numPlayers=${numPlayers} sessionId=${mySessionId}`
-        );
-        return;
-      }
-      
-      // Guard: Human-only constraint for Phase 1
-      if (selectedSpecies !== 'human') {
-        console.warn('[useGameSession] Non-Human species not supported in Phase 1');
-        return;
-      }
-      
-      // Guard: Don't re-submit if already complete for this phase instance
-      if (isSpeciesSelectionComplete) {
-        console.log('[useGameSession] Species selection already complete for this phase instance');
-        return;
-      }
-      
-      try {
-        const payload = { species: selectedSpecies };
+      await runSpeciesConfirmFlow({
+        selectedSpecies,
+        phaseKey,
+        phaseInstanceKey,
+        effectiveGameId,
+        turnNumber,
 
-        const commitDone = !!speciesCommitDoneByPhase[phaseInstanceKey];
-        const revealDone = !!speciesRevealDoneByPhase[phaseInstanceKey];
+        speciesCommitDoneByPhase,
+        speciesRevealDoneByPhase,
+        setSpeciesCommitDoneByPhase,
+        setSpeciesRevealDoneByPhase,
 
-        console.log('[useGameSession] onConfirmSpecies', phaseInstanceKey, { commitDone, revealDone });
+        speciesCommitCache,
 
-        if (commitDone && revealDone) return;
-
-        // ------------------------------------------------------------------
-        // STEP 1: COMMIT (only if we don't think we've committed yet)
-        // IMPORTANT: generate nonce and cache it BEFORE awaiting the network.
-        // ------------------------------------------------------------------
-        if (!commitDone) {
-          console.log('[useGameSession] Submitting SPECIES_COMMIT...');
-
-          const nonce = generateNonce();
-          setSpeciesCommitCache(phaseInstanceKey, payload, nonce);
-
-          const commitHash = await makeCommitHash(payload, nonce);
-
-          const commitResponse = await authenticatedPost('/intent', {
-            gameId: effectiveGameId,
-            intentType: 'SPECIES_COMMIT',
-            turnNumber,
-            commitHash,
-          });
-
-          if (!commitResponse.ok) {
-            const errorText = await commitResponse.text();
-            console.error('[useGameSession] SPECIES_COMMIT failed:', errorText);
-            return;
-          }
-
-          const commitResult = await commitResponse.json();
-
-          if (!commitResult.ok) {
-            // Handle DUPLICATE_COMMIT: server already has a commitment.
-            if (commitResult.rejected?.code === 'DUPLICATE_COMMIT') {
-              console.warn('[useGameSession] DUPLICATE_COMMIT: treating commit as already done');
-              setSpeciesCommitDoneByPhase(prev => ({ ...prev, [phaseInstanceKey]: true }));
-              // Do NOT clear cache; we may need it for reveal.
-            } else {
-              console.error('[useGameSession] SPECIES_COMMIT rejected:', commitResult.rejected);
-              return;
-            }
-          } else {
-            appendEvents(commitResult.events || [], {
-              label: `SPECIES_COMMIT (${selectedSpecies.toUpperCase()})`,
-              turn: turnNumber,
-              phaseKey,
-            });
-
-            setSpeciesCommitDoneByPhase(prev => ({ ...prev, [phaseInstanceKey]: true }));
-            console.log('✅ [useGameSession] SPECIES_COMMIT succeeded');
-          }
-        }
-
-        // ------------------------------------------------------------------
-        // STEP 2: REVEAL (only if not revealed yet)
-        // IMPORTANT: use ref-backed cache so this works immediately after commit.
-        // ------------------------------------------------------------------
-        const revealDoneNow = !!speciesRevealDoneByPhase[phaseInstanceKey];
-        if (!revealDoneNow) {
-          console.log('[useGameSession] Submitting SPECIES_REVEAL...');
-
-          const cached = getSpeciesCommitCache(phaseInstanceKey);
-          const cachedPayload = cached.payload;
-          const cachedNonce = cached.nonce;
-
-          if (!cachedPayload || !cachedNonce) {
-            // Do NOT flip commitDone back to false; that causes client/server drift.
-            console.error(
-              '[useGameSession] Cannot reveal: missing cached payload/nonce. ' +
-              'This indicates the client lost its nonce after committing. ' +
-              'You cannot reveal without it.'
-            );
-            return;
-          }
-
-          const revealResponse = await authenticatedPost('/intent', {
-            gameId: effectiveGameId,
-            intentType: 'SPECIES_REVEAL',
-            turnNumber,
-            payload: cachedPayload,
-            nonce: cachedNonce,
-          });
-
-          if (!revealResponse.ok) {
-            const errorText = await revealResponse.text();
-            console.error('[useGameSession] SPECIES_REVEAL failed:', errorText);
-            return; // keep cache for retry
-          }
-
-          const revealResult = await revealResponse.json();
-
-          if (!revealResult.ok) {
-            console.error('[useGameSession] SPECIES_REVEAL rejected:', revealResult.rejected);
-            return; // keep cache for retry
-          }
-
-          appendEvents(revealResult.events || [], {
-            label: `SPECIES_REVEAL (${selectedSpecies.toUpperCase()})`,
-            turn: turnNumber,
-            phaseKey,
-          });
-
-          setSpeciesRevealDoneByPhase(prev => ({ ...prev, [phaseInstanceKey]: true }));
-          clearSpeciesCommitCache(phaseInstanceKey);
-
-          console.log('✅ [useGameSession] SPECIES_REVEAL succeeded');
-          console.log('✅ [useGameSession] Species selection complete!');
-
-          await refreshGameStateOnce();
-        }
-      } catch (err: any) {
-        console.error('[useGameSession] Species confirmation error:', err);
-      }
+        generateNonce,
+        makeCommitHash,
+        submitIntent,
+        appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
+        refreshGameStateOnce,
+      });
     },
     
     onCopyGameUrl: () => {
@@ -1961,7 +1244,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       if (isFinished) return;
       
       // ========================================================================
-      // CHUNK 6.1: GATED LOCAL BUILD PREVIEW
+      // B) GATED LOCAL BUILD PREVIEW WITH AUTHORITATIVE TURN GATING
       // ========================================================================
       
       // Gate 1: Only in build.drawing phase
@@ -1979,22 +1262,26 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         return; // Silent no-op for other ships
       }
       
-      // ========================================================================
-      // CHUNK 7: PREVENT ADDING SHIPS AFTER BUILD SUBMISSION
-      // ========================================================================
+      // Gate 4: Use the UI-driving turnNumber for gating.
+      // rawState can lag between polls and incorrectly block ship clicks.
+      const uiTurnNumber = turnNumber;
       
-      // Gate 4: Prevent adding ships after build submission for this phase instance
-      const buildDone = !!buildCommitDoneByPhase[buildInstanceKey] && !!buildRevealDoneByPhase[buildInstanceKey];
-      if (buildDone) {
-        return; // Silent no-op if build already submitted
+      const buildSubmitted = buildSubmittedByTurn[uiTurnNumber] === true;
+      if (buildSubmitted) {
+        return; // Silent no-op if build already submitted for this turn
       }
       
       // All gates passed - update preview buffer
-      console.log('[useGameSession] onBuildShip:', shipDefId);
-      setBuildPreviewCounts(prev => ({
-        ...prev,
-        [shipDefId]: (prev[shipDefId] || 0) + 1,
-      }));
+      console.log('[useGameSession] onBuildShip:', shipDefId, 'turn:', uiTurnNumber);
+      setBuildPreviewCounts(prev => {
+        const next = {
+          ...prev,
+          [shipDefId]: (prev[shipDefId] || 0) + 1,
+        };
+        
+        buildPreviewCountsRef.current = next;
+        return next;
+      });
     },
   };
   

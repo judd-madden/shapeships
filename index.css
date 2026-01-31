@@ -270,6 +270,9 @@
     letter-spacing: inherit;
     color: inherit;
     opacity: 1;
+    --lightningcss-light: initial;
+    --lightningcss-dark: ;
+    color-scheme: light;
     background-color: #0000;
     border-radius: 0;
   }
@@ -281,6 +284,9 @@
     letter-spacing: inherit;
     color: inherit;
     opacity: 1;
+    --lightningcss-light: initial;
+    --lightningcss-dark: ;
+    color-scheme: light;
     background-color: #0000;
     border-radius: 0;
   }
@@ -684,6 +690,10 @@
 
   .mt-\[10px\] {
     margin-top: 10px;
+  }
+
+  .mt-\[20px\] {
+    margin-top: 20px;
   }
 
   .mr-2 {
@@ -1442,6 +1452,10 @@
 
   .transform {
     transform: var(--tw-rotate-x) var(--tw-rotate-y) var(--tw-rotate-z) var(--tw-skew-x) var(--tw-skew-y);
+  }
+
+  .animate-\[slideDown_0\.3s_ease-in\,fadeOut_0\.3s_ease-out_4\.7s_forwards\] {
+    animation: .3s ease-in slideDown, .3s ease-out 4.7s forwards fadeOut;
   }
 
   .cursor-default {
@@ -4247,6 +4261,37 @@ html {
   background-size: cover;
   background-attachment: fixed;
   font-family: Roboto, sans-serif;
+}
+
+@keyframes slideDown {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  60% {
+    opacity: 1;
+    transform: translateY(2px);
+  }
+
+  80% {
+    transform: translateY(-1px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }
 
 @property --tw-scale-x {

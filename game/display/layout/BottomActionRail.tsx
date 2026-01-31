@@ -60,10 +60,11 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
           <div className="w-[130px]" />
         )}
         <div className="w-[300px]">
-          <ReadyButton 
-            disabled={vm.readyDisabled}
-            note={vm.readyDisabled ? vm.readyDisabledReason : vm.readyButtonNote} 
-            onClick={actions.onReadyToggle} 
+          <ReadyButton
+            selected={vm.readySelected}
+            disabled={vm.readyDisabled || vm.readySelected}
+            note={vm.readyDisabled ? vm.readyDisabledReason : vm.readyButtonNote}
+            onClick={actions.onReadyToggle}
           />
         </div>
         <p
