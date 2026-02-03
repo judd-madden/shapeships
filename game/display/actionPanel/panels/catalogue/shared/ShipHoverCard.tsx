@@ -193,8 +193,8 @@ function ComponentShips({ shipIds }: { shipIds: string[] }) {
         // Single ship: Just the graphic
         if (count === 1) {
           return (
-            <div key={token} className="relative shrink-0 size-[22px]">
-              {ShipGraphic && <ShipGraphic className="max-w-full max-h-full" />}
+            <div key={token} className="relative shrink-0 h-[22px]">
+              {ShipGraphic && <ShipGraphic className="h-full w-auto max-w-none" />}
             </div>
           );
         }
@@ -202,8 +202,8 @@ function ComponentShips({ shipIds }: { shipIds: string[] }) {
         // Multiple ships: Graphic + count number
         return (
           <div key={token} className="content-stretch flex gap-[6px] items-center relative shrink-0">
-            <div className="relative shrink-0 size-[22px]">
-              {ShipGraphic && <ShipGraphic className="max-w-full max-h-full" />}
+            <div className="relative shrink-0 h-[22px]">
+              {ShipGraphic && <ShipGraphic className="h-full w-auto max-w-none" />}
             </div>
             <p
               className="font-black leading-[normal] relative shrink-0 text-[20px] text-nowrap text-white"

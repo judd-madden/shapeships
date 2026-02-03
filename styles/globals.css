@@ -280,3 +280,8 @@ html {
     opacity: 0;
   }
 }
+
+.catalogue-ship-fit > svg {
+  width: 100%;
+  height: 100%;
+}

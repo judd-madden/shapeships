@@ -8,17 +8,134 @@
 // ============================================================================
 
 import type { Hono } from "npm:hono";
-import { advancePhase } from '../engine/phase/advancePhase.ts';
+import { advancePhase, advancePhaseCore } from '../engine/phase/advancePhase.ts';
+import { onEnterPhase } from '../engine/phase/onEnterPhase.ts';
 import { syncPhaseFields } from '../engine/phase/syncPhaseFields.ts';
 import { initializeClocks, ensurePlayerClock, accrueClocks, clocksAreLive } from '../engine/clock/clock.ts';
+import { getBuildCommitKey } from '../engine/intent/IntentTypes.ts';
+import { getCommitRecord, hasRevealed } from '../engine/intent/CommitStore.ts';
+import type { ShipInstance } from '../engine/state/GameStateTypes.ts';
+import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
 
 // ============================================================================
 // HELPER: Get current phase key for readiness checking
 // ============================================================================
-function getPhaseKey(state: any) {
-  const major = state?.gameData?.currentPhase ?? 'setup';
-  const sub = state?.gameData?.currentSubPhase ?? 'unknown';
-  return `${major}.${sub}`;
+function getPhaseKey(state: any): string | null {
+  const major = state?.gameData?.currentPhase;
+  const sub = state?.gameData?.currentSubPhase;
+  if (!major || !sub) return null;
+  return buildPhaseKey(major, sub);
+}
+
+// ============================================================================
+// HELPER: Reconcile build.drawing if complete (Anti-Wedge Safety Net)
+// ============================================================================
+function reconcileBuildDrawingIfComplete(state: any, nowMs: number) {
+  const phaseKey = getPhaseKey(state);
+  if (!phaseKey || phaseKey !== 'build.drawing') return state;
+
+  const turnNumber = state?.gameData?.turnNumber ?? state?.turnNumber ?? 0;
+  const commitKey = getBuildCommitKey(turnNumber);
+
+  const activePlayers = (state.players || []).filter((p: any) => p.role === 'player');
+  if (activePlayers.length === 0) return state;
+
+  // Completion condition: all active players have revealed BUILD_${turnNumber}
+  const allSubmitted = activePlayers.every((p: any) => hasRevealed(state, commitKey, p.id));
+  if (!allSubmitted) return state;
+
+  // Ensure turnData exists
+  if (!state.gameData) state.gameData = {};
+  if (!state.gameData.turnData) state.gameData.turnData = {};
+
+  // Idempotency flag: builds applied exactly once per turn
+  const alreadyAppliedTurn = state.gameData.turnData.buildAppliedTurnNumber;
+  const alreadyApplied = alreadyAppliedTurn === turnNumber;
+
+  if (!state.gameData.ships) state.gameData.ships = {};
+
+  if (!alreadyApplied) {
+    console.warn('[reconcileBuildDrawingIfComplete] Detected completed BUILD_SUBMIT but not resolved. Applying builds now.', {
+      gameId: state.gameId,
+      turnNumber,
+      commitKey,
+    });
+
+    // Apply builds for each player from their stored reveal payload
+    for (const p of activePlayers) {
+      const rec = getCommitRecord(state, commitKey, p.id);
+      const payload = rec?.revealPayload;
+
+      if (!payload?.builds || !Array.isArray(payload.builds)) continue;
+
+      if (!state.gameData.ships[p.id]) state.gameData.ships[p.id] = [];
+
+      for (const buildEntry of payload.builds) {
+        const shipDefId = buildEntry?.shipDefId;
+        const countRaw = buildEntry?.count;
+
+        if (typeof shipDefId !== 'string' || shipDefId.length === 0) continue;
+        if (!Number.isInteger(countRaw) || countRaw < 1) continue;
+
+        // Defensive cap (matches MAX_BUILD_COUNT intent)
+        const count = Math.min(countRaw, 20);
+
+        for (let i = 0; i < count; i++) {
+          const ship: ShipInstance = {
+            instanceId: crypto.randomUUID(),
+            shipDefId,
+            createdTurn: turnNumber,
+          };
+          state.gameData.ships[p.id].push(ship);
+        }
+      }
+    }
+
+    // Mark applied so this never duplicates even if poll runs again
+    state.gameData.turnData.buildAppliedTurnNumber = turnNumber;
+  } else {
+    // Completed + already applied, so we only need to ensure phase advances
+    console.warn('[reconcileBuildDrawingIfComplete] Builds already applied; attempting phase advance only.', {
+      gameId: state.gameId,
+      turnNumber,
+      commitKey,
+    });
+  }
+
+  // Attempt phase advance (same approach as IntentReducer: core advance + onEnter)
+  const fromKey = phaseKey;
+  const adv = advancePhaseCore(state);
+
+  if (!adv.ok) {
+    console.error('[reconcileBuildDrawingIfComplete] Phase advance blocked:', adv.error);
+    return state;
+  }
+
+  state = adv.state;
+
+  // Clear readiness + sync after advance
+  if (state?.gameData) {
+    state.gameData.phaseReadiness = [];
+  }
+  state = syncPhaseFields(state);
+
+  const toKey = getPhaseKey(state);
+
+  // Trigger on-enter hooks
+  if (toKey) {
+    const onEnter = onEnterPhase(state, fromKey, toKey, nowMs);
+    state = onEnter.state;
+    // We do NOT push events into actions log here (GET route), just reconcile state.
+  }
+
+  console.warn('[reconcileBuildDrawingIfComplete] Phase advanced via reconciliation.', {
+    gameId: state.gameId,
+    from: fromKey,
+    to: toKey,
+    turnNumber,
+  });
+
+  return state;
 }
 
 export function registerGameRoutes(
@@ -158,19 +275,33 @@ export function registerGameRoutes(
 
       // Check if player already exists
       const existingPlayer = gameData.players.find(p => p.id === playerId);
-      if (!existingPlayer) {
-        // Count current active players (not spectators)
-        const activePlayers = gameData.players.filter(p => p.role === 'player');
-        
-        // If user wants to be a player but game is full (2 players), force them to spectator
-        const finalRole = (role === 'player' && activePlayers.length >= 2) ? 'spectator' : role;
+      
+      // Count current active players (not spectators) for slot allocation
+      // IMPORTANT: exclude "me" so refresh/rejoin cannot demote an existing player.
+      const activePlayersExcludingMe = gameData.players.filter(
+        p => p.role === 'player' && p.id !== playerId
+      );
 
+      // Returning players keep their player slot even if the game is full.
+      const isReturningPlayer = !!(existingPlayer && existingPlayer.role === 'player');
+
+      // Determine final role:
+      // - If I'm already a player, remain a player (refresh-safe).
+      // - Otherwise, if requesting player but two other players already exist, force spectator.
+      const finalRole =
+        isReturningPlayer
+          ? 'player'
+          : (role === 'player' && activePlayersExcludingMe.length >= 2)
+            ? 'spectator'
+            : role;
+      
+      if (!existingPlayer) {
         const newPlayer = {
           id: playerId, // Server-derived from sessionToken
           name: playerName, // Client-provided metadata
           faction: null, // Species to be selected
           isReady: false,
-          isActive: finalRole === 'player' && activePlayers.length === 0, // First player is active
+          isActive: finalRole === 'player', // PART C: All players are active (no longer just first player)
           role: finalRole,
           joinedAt: new Date().toISOString(),
           health: 25,
@@ -217,6 +348,37 @@ export function registerGameRoutes(
             content: "Game started! Players select species.",
             timestamp: new Date().toISOString()
           });
+        }
+        
+        // PART C: Log activation
+        console.log("JOIN_GAME_ACTIVATED_PLAYER", {
+          gameId,
+          sessionId: playerId,
+          role: finalRole,
+          isActive: finalRole === 'player',
+        });
+      } else {
+        // PART C: Rejoin - idempotently re-activate existing players or promote spectators
+        
+        // If finalRole is 'player', ensure the existing player is active
+        if (finalRole === 'player') {
+          // Promote spectator to player if needed (only if role is missing or spectator)
+          if (!existingPlayer.role || existingPlayer.role === 'spectator') {
+            existingPlayer.role = 'player';
+          }
+          
+          // Always set isActive=true for players (idempotent)
+          existingPlayer.isActive = true;
+          
+          console.log("JOIN_GAME_REACTIVATED_PLAYER", {
+            gameId,
+            sessionId: playerId,
+            role: existingPlayer.role,
+            isActive: true,
+          });
+        } else {
+          // finalRole is 'spectator' - ensure isActive is false
+          existingPlayer.isActive = false;
         }
       }
 
@@ -378,6 +540,9 @@ export function registerGameRoutes(
       const nowMs = Date.now();
       gameData = accrueClocks(gameData, nowMs);
       
+      // Reconcile build.drawing if complete (Anti-Wedge Safety Net)
+      gameData = reconcileBuildDrawingIfComplete(gameData, nowMs);
+      
       // Persist the accrued state so reload doesn't rewind clocks
       await kvSet(`game_${gameId}`, gameData);
 
@@ -504,7 +669,7 @@ export function registerGameRoutes(
       }
 
       // Expose clock snapshot to client (STEP F)
-      const clockData = gameData.gameData?.gameData?.clock;
+      const clockData = gameData.gameData?.clock;
       const clockSnapshot = clockData ? {
         remainingMsByPlayerId: clockData.remainingMsByPlayerId,
         timeControl: clockData.timeControl,

@@ -24,6 +24,7 @@
  * Layout components remain PURE UI.
  */
 
+
 import { useState, useEffect, useRef } from 'react';
 import { authenticatedGet, authenticatedPost, ensureSession } from '../../utils/sessionManager';
 import type { ActionPanelId } from '../display/actionPanel/ActionPanelRegistry';
@@ -122,10 +123,15 @@ export type BoardViewModel =
     }
   | {
       mode: 'board';
+      mySpeciesId: SpeciesId;
+      opponentSpeciesId: SpeciesId;
+      
       myHealth: number;
       opponentHealth: number;
       myFleet: BoardFleetSummary[];
       opponentFleet: BoardFleetSummary[];
+      myFleetOrder: ShipDefId[];
+      opponentFleetOrder: ShipDefId[];
     };
 
 // Type alias for choose species board mode
@@ -285,12 +291,16 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         battleLogEntries: [],
       },
       board: {
-        mode: 'board',
-        myHealth: 25,
-        opponentHealth: 25,
-        myFleet: [],
-        opponentFleet: [],
-      },
+  mode: 'board',
+  mySpeciesId: 'human',
+  opponentSpeciesId: 'human',
+  myHealth: 25,
+  opponentHealth: 25,
+  myFleet: [],
+  opponentFleet: [],
+  myFleetOrder: [],
+  opponentFleetOrder: [],
+},
       bottomActionRail: {
         subphaseTitle: '',
         subphaseSubheading: '',
@@ -378,6 +388,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Reveal-sync latch: true when BUILD_REVEAL submitted but server fleet not yet updated
   // Prevents flicker by keeping preview overlay active until server catches up
   const [awaitingBuildRevealSync, setAwaitingBuildRevealSync] = useState(false);
+  
+  // UI-only persistent ship-type order (append-only)
+  const [myFleetOrder, setMyFleetOrder] = useState<ShipDefId[]>([]);
+  const [opponentFleetOrder, setOpponentFleetOrder] = useState<ShipDefId[]>([]);
   
   // ============================================================================
   // POLL GATING STATE (Part A: State-based gating to trigger re-renders)
@@ -796,6 +810,24 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     : myFleet;
   
   // ============================================================================
+  // UI-ONLY: DISCOVER SHIP TYPES FROM FLEETS (APPEND-ONLY)
+  // ============================================================================
+  
+  useEffect(() => {
+    const myShipIds = myFleetWithPreview.map((s) => s.shipDefId as ShipDefId);
+    setMyFleetOrder((prev) => {
+      const newIds = myShipIds.filter((id) => !prev.includes(id));
+      return newIds.length > 0 ? [...prev, ...newIds] : prev;
+    });
+
+    const opponentShipIds = opponentFleet.map((s) => s.shipDefId as ShipDefId);
+    setOpponentFleetOrder((prev) => {
+      const newIds = opponentShipIds.filter((id) => !prev.includes(id));
+      return newIds.length > 0 ? [...prev, ...newIds] : prev;
+    });
+  }, [myFleetWithPreview, opponentFleet]);
+  
+  // ============================================================================
   // BOARD MODE + COMPLETION TRACKING (ME/OPPONENT)
   // ============================================================================
   
@@ -803,21 +835,27 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const isCommitDone = speciesCommitDoneByPhase[phaseInstanceKey] || false;
   const isRevealDone = speciesRevealDoneByPhase[phaseInstanceKey] || false;
   const isSpeciesSelectionComplete = isCommitDone && isRevealDone;
-  
+
   // Compute board mode based on server phase
   let board: BoardViewModel;
-  
+
   if (isInSpeciesSelection) {
     // Choose species mode
     const shareGameUrl = `${PUBLIC_APP_ORIGIN}/?game=${effectiveGameId}&view=gameScreen`;
-    
+
     // Determine if Confirm button should be enabled
-    const canConfirmSpecies = !isSpeciesSelectionComplete && myRole === 'player';
-    const confirmDisabledReason = 
+    // Strict gating: requires phase, player role, and active status
+    const canConfirmSpecies =
+      !isSpeciesSelectionComplete &&
+      myRole === 'player' &&
+      me?.isActive === true;
+
+    const confirmDisabledReason =
       myRole !== 'player' ? 'Only players can confirm species' :
+      me?.isActive !== true ? 'Inactive player cannot confirm' :
       isSpeciesSelectionComplete ? 'Already confirmed' :
       undefined;
-    
+
     board = {
       mode: 'choose_species',
       selectedSpecies,
@@ -826,14 +864,26 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       confirmDisabledReason,
     };
   } else {
-    // Normal board mode
-    
+    // Normal board mode (REAL DATA WIRING)
+    const effectiveMySpecies: SpeciesId = mySpecies ?? 'human';
+    const effectiveOpponentSpecies: SpeciesId = opponentSpecies ?? 'human';
+
     board = {
       mode: 'board',
-      myHealth: me?.health ?? 35,
-      opponentHealth: opponent?.health ?? 35,
+      mySpeciesId: effectiveMySpecies,
+      opponentSpeciesId: effectiveOpponentSpecies,
+
+      // TODO: wire real health later (server authoritative once available)
+      myHealth: 25,
+      opponentHealth: 25,
+
+      // Fleet data: server + local preview overlay (build phase only)
       myFleet: myFleetWithPreview,
-      opponentFleet, // already filtered by createdTurn
+      opponentFleet: opponentFleet,
+
+      // UI-only stable ordering (append-only)
+      myFleetOrder: myFleetOrder,
+      opponentFleetOrder: opponentFleetOrder,
     };
   }
   
@@ -1203,6 +1253,36 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     },
     
     onConfirmSpecies: async () => {
+      // PART E: Diagnostic logging before submission
+      console.log('[useGameSession] onConfirmSpecies clicked:', {
+        gameId: effectiveGameId,
+        phaseKey,
+        meRole: me?.role,
+        meIsActive: me?.isActive,
+        selectedSpecies,
+      });
+      
+      // PART D4: Strict client gating - button should be disabled but extra safety
+      if (phaseKey !== 'setup.species_selection') {
+        console.error('[useGameSession] SPECIES_SUBMIT blocked: wrong phase', { phaseKey });
+        return;
+      }
+      
+      if (me?.role !== 'player') {
+        console.error('[useGameSession] SPECIES_SUBMIT blocked: not a player', { role: me?.role });
+        return;
+      }
+      
+      if (me?.isActive !== true) {
+        console.error('[useGameSession] SPECIES_SUBMIT blocked: not active', { isActive: me?.isActive });
+        return;
+      }
+      
+      if (!selectedSpecies) {
+        console.error('[useGameSession] SPECIES_SUBMIT blocked: no species selected');
+        return;
+      }
+      
       await runSpeciesConfirmFlow({
         selectedSpecies,
         phaseKey,
@@ -1257,12 +1337,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         return; // Silent no-op for spectators
       }
       
-      // Gate 3: Only DEF and FIG for Chunk 6 (temporary constraint)
-      if (shipDefId !== 'DEF' && shipDefId !== 'FIG') {
-        return; // Silent no-op for other ships
-      }
-      
-      // Gate 4: Use the UI-driving turnNumber for gating.
+      // Gate 3: Use the UI-driving turnNumber for gating.
       // rawState can lag between polls and incorrectly block ship clicks.
       const uiTurnNumber = turnNumber;
       
@@ -1273,6 +1348,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       
       // All gates passed - update preview buffer
       console.log('[useGameSession] onBuildShip:', shipDefId, 'turn:', uiTurnNumber);
+      
+      // Update persistent order (append-only, first time only)
+      setMyFleetOrder((prev) => (prev.includes(shipDefId) ? prev : [...prev, shipDefId]));
+      
       setBuildPreviewCounts(prev => {
         const next = {
           ...prev,

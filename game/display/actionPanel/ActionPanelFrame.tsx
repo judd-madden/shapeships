@@ -6,6 +6,9 @@
 import { ACTION_PANEL_DISPLAY_NAMES } from './ActionPanelRegistry';
 import type { ActionPanelViewModel, GameSessionActions } from '../../client/useGameSession';
 import { HumanShipCataloguePanel } from './panels/catalogue/human/HumanShipCataloguePanel';
+import { XeniteShipCataloguePanel } from './panels/catalogue/xenite/XeniteShipCataloguePanel';
+import { CentaurShipCataloguePanel } from './panels/catalogue/centaur/CentaurShipCataloguePanel';
+import { AncientShipCataloguePanel } from './panels/catalogue/ancient/AncientShipCataloguePanel';
 
 interface ActionPanelFrameProps {
   vm: ActionPanelViewModel;
@@ -23,6 +26,30 @@ export function ActionPanelFrame({ vm, actions }: ActionPanelFrameProps) {
     return (
       <div className="size-full">
         <HumanShipCataloguePanel actions={actions} />
+      </div>
+    );
+  }
+
+  if (vm.activePanelId === 'ap.catalog.ships.xenite') {
+    return (
+      <div className="size-full">
+        <XeniteShipCataloguePanel actions={actions} />
+      </div>
+    );
+  }
+
+  if (vm.activePanelId === 'ap.catalog.ships.centaur') {
+    return (
+      <div className="size-full">
+        <CentaurShipCataloguePanel actions={actions} />
+      </div>
+    );
+  }
+
+  if (vm.activePanelId === 'ap.catalog.ships.ancient') {
+    return (
+      <div className="size-full">
+        <AncientShipCataloguePanel actions={actions} />
       </div>
     );
   }

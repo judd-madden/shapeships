@@ -41,11 +41,7 @@ function makeCanonicalBuildPayload(buildPreviewCounts: Record<string, number>): 
     // Only include entries with count > 0
     if (count <= 0) continue;
     
-    // Only allow DEF and FIG for Chunk 7 (temporary constraint)
-    if (shipDefId !== 'DEF' && shipDefId !== 'FIG') {
-      console.warn(`[useGameSession] Skipping disallowed shipDefId: ${shipDefId}`);
-      continue;
-    }
+    // Include any shipDefId with count > 0 (UI-only; server remains authoritative)
     
     buildsArray.push({ shipDefId, count });
   }
@@ -83,57 +79,57 @@ export async function runSpeciesConfirmFlow(args: {
       effectiveGameId,
       turnNumber,
       speciesCommitDoneByPhase,
-      speciesRevealDoneByPhase,
       setSpeciesCommitDoneByPhase,
-      setSpeciesRevealDoneByPhase,
-      speciesCommitCache,
       generateNonce,
       makeCommitHash,
       submitIntent,
       appendEvents,
-      refreshGameStateOnce,
     } = args;
 
     const payload = { species: selectedSpecies };
     
-    // Check if already selected (using commit done flag for backward compatibility)
+    // Check if already submitted (using commit done flag for backward compatibility)
     const commitDone = !!speciesCommitDoneByPhase[phaseInstanceKey];
 
     console.log('[useGameSession] onConfirmSpecies', phaseInstanceKey, { commitDone });
 
     if (commitDone) return;
 
-    // Submit SPECIES_SELECT (single atomic intent)
-    console.log('[useGameSession] Submitting SPECIES_SELECT...');
+    // PART D: Submit SPECIES_SUBMIT (single atomic intent with nonce)
+    console.log('[useGameSession] Submitting SPECIES_SUBMIT...');
+
+    // Generate nonce
+    const nonce = generateNonce();
 
     const response = await submitIntent({
       gameId: effectiveGameId,
-      intentType: 'SPECIES_SELECT',
+      intentType: 'SPECIES_SUBMIT',
       turnNumber,
       payload,
+      nonce,
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[useGameSession] SPECIES_SELECT failed:', errorText);
+      console.error('[useGameSession] SPECIES_SUBMIT failed:', errorText);
       return;
     }
 
     const result = await response.json();
 
     if (!result.ok) {
-      console.error('[useGameSession] SPECIES_SELECT rejected:', result.rejected);
+      console.error('[useGameSession] SPECIES_SUBMIT rejected:', result.rejected);
       return;
     }
 
     appendEvents(result.events || [], {
-      label: `SPECIES_SELECT (${selectedSpecies.toUpperCase()})`,
+      label: `SPECIES_SUBMIT (${selectedSpecies.toUpperCase()})`,
       turn: turnNumber,
       phaseKey,
     });
 
     setSpeciesCommitDoneByPhase(prev => ({ ...prev, [phaseInstanceKey]: true }));
-    console.log('✅ [useGameSession] SPECIES_SELECT succeeded');
+    console.log('✅ [useGameSession] SPECIES_SUBMIT succeeded');
     console.log('✅ [useGameSession] Species selection complete!');
   } catch (err: any) {
     console.error('[useGameSession] Species confirmation error:', err);

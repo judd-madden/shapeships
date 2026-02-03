@@ -264,11 +264,12 @@ export const SHIP_DEFINITIONS_MAP: Record<ShipDefId, ShipDefinitionUI> =
   }, {} as Record<ShipDefId, ShipDefinitionUI>);
 
 // Helper functions (UI versions - delegate to core for logic)
-export { 
-  getShipDefinitionById as getShipById,
-  getBasicShipCost,
-  getUpgradedShipCost,
-  getShipCost
+export {
+  getShipById,
+  getShipByIdOrThrow,
+  getAllShips,
+  getShipsBySpecies,
+  getShipsByType,
 } from './ShipDefinitions.core';
 
 // Get UI definition with graphics

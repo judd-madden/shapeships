@@ -1,13 +1,13 @@
 /**
- * Human Ship Catalogue Panel
+ * Xenite Ship Catalogue Panel
  * 
- * PASS 2 - Hover + Eligibility Implementation
+ * Cloned from HumanShipCataloguePanel.tsx
  * - Portal-based hover cards with ship rules from JSON
  * - Build eligibility feedback (UI-only, no backend)
  * - Uses canonical ship IDs from ShipDefinitionsUI
- * - Hand-authored layout matching design exactly
+ * - Hand-authored layout matching Figma design exactly
  * 
- * NO backend calls, NO rules validation, NO engine imports in PASS 2
+ * NO backend calls, NO rules validation, NO engine imports
  */
 
 import type { GameSessionActions } from '../../../../../client/useGameSession';
@@ -20,45 +20,43 @@ import { computeShipEligibility } from '../shared/ShipBuildEligibility';
 import { SHIP_DEFINITIONS_MAP } from '../../../../../data/ShipDefinitionsUI';
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
 import {
-  DefenderShip,
-  FighterShip,
-  CommanderShip,
-  InterceptorShip1,
-  OrbitalShip,
-  CarrierShip6,
-  StarshipShip,
-  FrigateShip,
-  TacticalCruiserShip,
-  ScienceVesselShip,
-  GuardianShip2,
-  EarthShip,
-  BattlecruiserShip,
-  DreadnoughtShip,
-  LeviathanShip,
-} from '../../../../../../graphics/human/assets';
+  XeniteShip,
+  AntlionShip1,
+  MantisShip,
+  EvolverShip,
+  HellHornetShip,
+  BugBreeder4Ship,
+  ZenithShip,
+  DefenseSwarmShip,
+  AntlionArrayShip,
+  OxiteFaceShip,
+  AsteriteFaceShip,
+  SacrificialPoolShip,
+  QueenShip,
+  ChronoswarmShip,
+  HiveShip,
+} from '../../../../../../graphics/xenite/assets';
 
 // PASS 2: Max ship limit stub (TODO: formalize limits in rules/engine)
 const MAX_LIMIT_SHIPS: Partial<Record<ShipDefId, boolean>> = {
-  ORB: true,  // Orbital
-  SCI: true,  // Science Vessel
-  // CHR will be added when Chronoswarm is implemented
+  CHR: true,  // Chronoswarm
 };
 
-interface HumanShipCataloguePanelProps {
+interface XeniteShipCataloguePanelProps {
   actions: GameSessionActions;
 }
 
-export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProps) {
-  // PASS 2: Hover state controller
+export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelProps) {
+  // Hover state controller
   const hover = useShipCatalogueHover();
   
-  // PASS 2 Stubs: Replace with VM data in PASS 3
+  // Stubs: Replace with VM data in future passes
   const isOpponentView = false; // TODO: Get from VM
   const ownedShipsById: Record<ShipDefId, number> = {}; // TODO: Get from VM
   const availableLines = 999; // TODO: Get from VM
   const availableJoiningLines = 999; // TODO: Get from VM
   
-  // PASS 2: Hardcoded affordability for visual validation (will be replaced by eligibility)
+  // Hardcoded affordability for visual validation (will be replaced by eligibility)
   const canAfford = true;
   
   // Compute eligibility for hovered ship
@@ -90,14 +88,14 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
             className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
             style={{ left: '0', top: '0', fontVariationSettings: "'wdth' 100" }}
           >
-            Human Basic Ships
+            Xenite Basic Ships
           </p>
           
           <p
             className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
             style={{ left: '427px', top: '0', fontVariationSettings: "'wdth' 100" }}
           >
-            Human Upgraded Ships
+            Xenite Upgraded Ships
           </p>
 
           {/* Vertical Divider */}
@@ -108,341 +106,339 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
 
           {/* ================ BASIC SHIPS ================ */}
           
-          {/* Basic Row 1 */}
+          {/* Basic Row 1: XEN, ANT, MAN, EVO */}
           <div
             className="absolute content-stretch flex items-end justify-between"
-            style={{ left: '0', top: '38px', width: '371px' }}
+            style={{ left: '0', top: '61px', width: '378px' }}
           >
-            {/* Defender */}
+            {/* Xenite */}
             <div
               className="content-stretch flex flex-col items-center relative shrink-0"
-              style={{ width: '52px' }}
-              onMouseEnter={(e) => hover.onEnter('DEF', e.currentTarget)}
-              onMouseLeave={() => hover.onLeave('DEF')}
+              style={{ width: '36px' }}
+              onMouseEnter={(e) => hover.onEnter('XEN', e.currentTarget)}
+              onMouseLeave={() => hover.onLeave('XEN')}
             >
               <CatalogueShipSlot
-                shipId="DEF"
+                shipId="XEN"
                 graphic={
-                  <div className="relative shrink-0" style={{ height: '32px', width: '52px' }}>
-                    <DefenderShip />
+                  <div className="relative shrink-0" style={{ height: '36px', width: '36px' }}>
+                    <XeniteShip />
                   </div>
                 }
                 canAfford={canAfford}
-                onClick={() => actions.onBuildShip('DEF')}
+                onClick={() => actions.onBuildShip('XEN')}
               >
                 <CatalogueCostNumber cost={2} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
-            {/* Fighter */}
+            {/* Antlion */}
             <div
               className="content-stretch flex flex-col items-center relative shrink-0"
-              style={{ width: '52px' }}
-              onMouseEnter={(e) => hover.onEnter('FIG', e.currentTarget)}
-              onMouseLeave={() => hover.onLeave('FIG')}
+              style={{ width: '44px' }}
+              onMouseEnter={(e) => hover.onEnter('ANT', e.currentTarget)}
+              onMouseLeave={() => hover.onLeave('ANT')}
             >
               <CatalogueShipSlot
-                shipId="FIG"
+                shipId="ANT"
                 graphic={
-                  <div className="relative shrink-0" style={{ height: '45px', width: '52px' }}>
-                    <FighterShip />
+                  <div className="relative shrink-0" style={{ height: '40px', width: '44px' }}>
+                    <AntlionShip1 />
                   </div>
                 }
                 canAfford={canAfford}
-                onClick={() => actions.onBuildShip('FIG')}
+                onClick={() => actions.onBuildShip('ANT')}
               >
                 <CatalogueCostNumber cost={3} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
-            {/* Commander */}
+            {/* Mantis */}
             <div
               className="content-stretch flex flex-col items-center relative shrink-0"
-              style={{ width: '48px' }}
-              onMouseEnter={(e) => hover.onEnter('COM', e.currentTarget)}
-              onMouseLeave={() => hover.onLeave('COM')}
+              style={{ width: '40px' }}
+              onMouseEnter={(e) => hover.onEnter('MAN', e.currentTarget)}
+              onMouseLeave={() => hover.onLeave('MAN')}
             >
               <CatalogueShipSlot
-                shipId="COM"
+                shipId="MAN"
                 graphic={
-                  <div className="relative shrink-0" style={{ width: '48px', height: '48px' }}>
-                    <CommanderShip />
+                  <div className="relative shrink-0" style={{ width: '40px', height: '40px' }}>
+                    <MantisShip />
                   </div>
                 }
                 canAfford={canAfford}
-                onClick={() => actions.onBuildShip('COM')}
+                onClick={() => actions.onBuildShip('MAN')}
               >
                 <CatalogueCostNumber cost={4} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
-            {/* Interceptor */}
+            {/* Evolver */}
             <div
               className="content-stretch flex flex-col items-center relative shrink-0"
-              style={{ width: '61px' }}
-              onMouseEnter={(e) => hover.onEnter('INT', e.currentTarget)}
-              onMouseLeave={() => hover.onLeave('INT')}
+              style={{ width: '40px' }}
+              onMouseEnter={(e) => hover.onEnter('EVO', e.currentTarget)}
+              onMouseLeave={() => hover.onLeave('EVO')}
             >
               <CatalogueShipSlot
-                shipId="INT"
+                shipId="EVO"
                 graphic={
-                  <div className="relative shrink-0" style={{ height: '52px', width: '61px' }}>
-                    <div style={{ position: 'absolute', inset: '-7.6% -9.71% -11.81% -9.71%' }}>
-                      <InterceptorShip1 />
-                    </div>
+                  <div className="relative shrink-0" style={{ height: '40px', width: '40px' }}>
+                    <EvolverShip />
                   </div>
                 }
                 canAfford={canAfford}
-                onClick={() => actions.onBuildShip('INT')}
+                onClick={() => actions.onBuildShip('EVO')}
               >
                 <CatalogueCostNumber cost={4} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
           </div>
 
-          {/* Basic Row 2 */}
+          {/* Basic Row 2: HEL, BUG, ZEN */}
           <div
-            className="absolute content-stretch flex items-center justify-between"
-            style={{ left: '3px', top: '127px', width: '368px' }}
+            className="absolute content-stretch flex items-end justify-between"
+            style={{ left: '6px', top: '175px', width: '372px' }}
           >
-            {/* Orbital */}
+            {/* Hell Hornet */}
             <div
               className="content-stretch flex flex-col items-center relative shrink-0"
-              style={{ width: '79px' }}
-              onMouseEnter={(e) => hover.onEnter('ORB', e.currentTarget)}
-              onMouseLeave={() => hover.onLeave('ORB')}
+              style={{ width: '90px' }}
+              onMouseEnter={(e) => hover.onEnter('HEL', e.currentTarget)}
+              onMouseLeave={() => hover.onLeave('HEL')}
             >
               <CatalogueShipSlot
-                shipId="ORB"
+                shipId="HEL"
                 graphic={
-                  <div className="relative shrink-0" style={{ height: '70px', width: '79px' }}>
-                    <OrbitalShip />
+                  <div className="relative shrink-0" style={{ height: '40px', width: '90px' }}>
+                    <HellHornetShip />
                   </div>
                 }
                 canAfford={canAfford}
-                onClick={() => actions.onBuildShip('ORB')}
+                onClick={() => actions.onBuildShip('HEL')}
               >
                 <CatalogueCostNumber cost={6} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
-            {/* Carrier */}
+            {/* Bug Breeder */}
             <div
               className="content-stretch flex flex-col items-center relative shrink-0"
-              style={{ width: '93px' }}
-              onMouseEnter={(e) => hover.onEnter('CAR', e.currentTarget)}
-              onMouseLeave={() => hover.onLeave('CAR')}
+              style={{ width: '90px' }}
+              onMouseEnter={(e) => hover.onEnter('BUG', e.currentTarget)}
+              onMouseLeave={() => hover.onLeave('BUG')}
             >
               <CatalogueShipSlot
-                shipId="CAR"
+                shipId="BUG"
                 graphic={
-                  <div className="relative shrink-0" style={{ height: '90px', width: '93px' }}>
-                    <CarrierShip6 />
+                  <div className="relative shrink-0" style={{ height: '40px', width: '90px' }}>
+                    <BugBreeder4Ship />
                   </div>
                 }
                 canAfford={canAfford}
-                onClick={() => actions.onBuildShip('CAR')}
+                onClick={() => actions.onBuildShip('BUG')}
               >
                 <CatalogueCostNumber cost={6} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
-            {/* Starship */}
+            {/* Zenith */}
             <div
               className="content-stretch flex flex-col items-center relative shrink-0"
-              style={{ width: '102px' }}
-              onMouseEnter={(e) => hover.onEnter('STA', e.currentTarget)}
-              onMouseLeave={() => hover.onLeave('STA')}
+              style={{ width: '132px' }}
+              onMouseEnter={(e) => hover.onEnter('ZEN', e.currentTarget)}
+              onMouseLeave={() => hover.onLeave('ZEN')}
             >
               <CatalogueShipSlot
-                shipId="STA"
+                shipId="ZEN"
                 graphic={
-                  <div className="relative shrink-0" style={{ width: '102px', height: '102px' }}>
-                    <StarshipShip />
+                  <div className="relative shrink-0" style={{ width: '132px', height: '40px' }}>
+                    <ZenithShip />
                   </div>
                 }
                 canAfford={canAfford}
-                onClick={() => actions.onBuildShip('STA')}
+                onClick={() => actions.onBuildShip('ZEN')}
               >
-                <CatalogueCostNumber cost={8} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={9} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
           </div>
 
           {/* ================ UPGRADED SHIPS ================ */}
 
-          {/* Frigate */}
+          {/* Defense Swarm */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '451px', top: '53px', width: '52px' }}
-            onMouseEnter={(e) => hover.onEnter('FRI', e.currentTarget)}
-            onMouseLeave={() => hover.onLeave('FRI')}
+            style={{ left: '431px', top: '45px', width: '130px' }}
+            onMouseEnter={(e) => hover.onEnter('DSW', e.currentTarget)}
+            onMouseLeave={() => hover.onLeave('DSW')}
           >
             <CatalogueShipSlot
-              shipId="FRI"
+              shipId="DSW"
               graphic={
-                <div className="relative shrink-0" style={{ height: '88px' }}>
-                  <FrigateShip />
+                <div className="relative shrink-0" style={{ height: '110px', width: '130px' }}>
+                  <DefenseSwarmShip />
                 </div>
               }
               canAfford={canAfford}
-              onClick={() => actions.onBuildShip('FRI')}
+              onClick={() => actions.onBuildShip('DSW')}
             >
-              <CatalogueCostNumber cost={8} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={9} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
-          {/* Tactical Cruiser */}
+          {/* Antlion Array */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '530px', top: '31px', width: '129px' }}
-            onMouseEnter={(e) => hover.onEnter('TAC', e.currentTarget)}
-            onMouseLeave={() => hover.onLeave('TAC')}
+            style={{ left: '510px', top: '106px', width: '130px' }}
+            onMouseEnter={(e) => hover.onEnter('AAR', e.currentTarget)}
+            onMouseLeave={() => hover.onLeave('AAR')}
           >
             <CatalogueShipSlot
-              shipId="TAC"
+              shipId="AAR"
               graphic={
-                <div className="relative shrink-0" style={{ height: '112px' }}>
-                  <TacticalCruiserShip />
+                <div className="relative shrink-0" style={{ height: '110px', width: '130px' }}>
+                  <AntlionArrayShip />
                 </div>
               }
               canAfford={canAfford}
-              onClick={() => actions.onBuildShip('TAC')}
-            >
-              <CatalogueCostNumber cost={10} className="relative shrink-0 w-full" />
-            </CatalogueShipSlot>
-          </div>
-
-          {/* Guardian */}
-          <div
-            className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '448px', top: '181px', width: '180px' }}
-            onMouseEnter={(e) => hover.onEnter('GUA', e.currentTarget)}
-            onMouseLeave={() => hover.onLeave('GUA')}
-          >
-            <CatalogueShipSlot
-              shipId="GUA"
-              graphic={
-                <div className="relative shrink-0" style={{ height: '48px' }}>
-                  <GuardianShip2 />
-                </div>
-              }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('GUA')}
+              onClick={() => actions.onBuildShip('AAR')}
             >
               <CatalogueCostNumber cost={12} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
-          {/* Science Vessel */}
+          {/* Sacrificial Pool */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '642px', top: '116px', width: '138px' }}
-            onMouseEnter={(e) => hover.onEnter('SCI', e.currentTarget)}
-            onMouseLeave={() => hover.onLeave('SCI')}
+            style={{ left: '625px', top: '44px', width: '106px' }}
+            onMouseEnter={(e) => hover.onEnter('SAC', e.currentTarget)}
+            onMouseLeave={() => hover.onLeave('SAC')}
           >
             <CatalogueShipSlot
-              shipId="SCI"
+              shipId="SAC"
               graphic={
-                <div className="relative shrink-0" style={{ height: '113px' }}>
-                  <ScienceVesselShip />
+                <div className="relative shrink-0" style={{ height: '106px', width: '110px' }}>
+                  <SacrificialPoolShip />
                 </div>
               }
               canAfford={canAfford}
-              onClick={() => actions.onBuildShip('SCI')}
+              onClick={() => actions.onBuildShip('SAC')}
             >
-              <CatalogueCostNumber cost={17} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={12} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
-          {/* Battlecruiser */}
+          {/* Asterite Face */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '689px', top: '0', width: '183px' }}
-            onMouseEnter={(e) => hover.onEnter('BAT', e.currentTarget)}
-            onMouseLeave={() => hover.onLeave('BAT')}
+            style={{ left: '754px', top: '143px', width: '110px' }}
+            onMouseEnter={(e) => hover.onEnter('ASF', e.currentTarget)}
+            onMouseLeave={() => hover.onLeave('ASF')}
           >
             <CatalogueShipSlot
-              shipId="BAT"
+              shipId="ASF"
               graphic={
-                <div className="relative shrink-0" style={{ height: '114px' }}>
-                  <BattlecruiserShip />
+                <div className="relative shrink-0" style={{ height: '106px', width: '110px' }}>
+                  <AsteriteFaceShip />
                 </div>
               }
               canAfford={canAfford}
-              onClick={() => actions.onBuildShip('BAT')}
+              onClick={() => actions.onBuildShip('ASF')}
+            >
+              <CatalogueCostNumber cost={12} className="relative shrink-0 w-full" />
+            </CatalogueShipSlot>
+          </div>
+
+          {/* Oxite Face */}
+          <div
+            className="absolute content-stretch flex flex-col items-center"
+            style={{ left: '754px', top: '0', width: '110px' }}
+            onMouseEnter={(e) => hover.onEnter('OXF', e.currentTarget)}
+            onMouseLeave={() => hover.onLeave('OXF')}
+          >
+            <CatalogueShipSlot
+              shipId="OXF"
+              graphic={
+                <div className="relative shrink-0" style={{ height: '106px', width: '110px' }}>
+                  <OxiteFaceShip />
+                </div>
+              }
+              canAfford={canAfford}
+              onClick={() => actions.onBuildShip('OXF')}
+            >
+              <CatalogueCostNumber cost={12} className="relative shrink-0 w-full" />
+            </CatalogueShipSlot>
+          </div>
+
+          {/* Queen */}
+          <div
+            className="absolute content-stretch flex flex-col items-center"
+            style={{ left: '880px', top: '74px', width: '150px' }}
+            onMouseEnter={(e) => hover.onEnter('QUE', e.currentTarget)}
+            onMouseLeave={() => hover.onLeave('QUE')}
+          >
+            <CatalogueShipSlot
+              shipId="QUE"
+              graphic={
+                <div className="relative shrink-0" style={{ height: '128px', width: '150px' }}>
+                  <QueenShip />
+                </div>
+              }
+              canAfford={canAfford}
+              onClick={() => actions.onBuildShip('QUE')}
             >
               <CatalogueCostNumber cost={20} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
-          {/* Earth Ship */}
+          {/* Chronoswarm */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '813px', top: '32px', width: '211px' }}
-            onMouseEnter={(e) => hover.onEnter('EAR', e.currentTarget)}
-            onMouseLeave={() => hover.onLeave('EAR')}
+            style={{ left: '1049px', top: '0', width: '150px' }}
+            onMouseEnter={(e) => hover.onEnter('CHR', e.currentTarget)}
+            onMouseLeave={() => hover.onLeave('CHR')}
           >
             <CatalogueShipSlot
-              shipId="EAR"
+              shipId="CHR"
               graphic={
-                <div className="relative shrink-0" style={{ height: '166px' }}>
-                  <EarthShip />
+                <div className="relative shrink-0" style={{ height: '140px', width: '150px' }}>
+                  <ChronoswarmShip />
                 </div>
               }
               canAfford={canAfford}
-              onClick={() => actions.onBuildShip('EAR')}
+              onClick={() => actions.onBuildShip('CHR')}
             >
-              <CatalogueCostNumber cost={23} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={25} className="relative shrink-0" />
             </CatalogueShipSlot>
           </div>
 
-          {/* Dreadnought */}
+          {/* Hive */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '994px', top: '0', width: '198px' }}
-            onMouseEnter={(e) => hover.onEnter('DRE', e.currentTarget)}
-            onMouseLeave={() => hover.onLeave('DRE')}
+            style={{ left: '969px', top: '166px', width: '255px' }}
+            onMouseEnter={(e) => hover.onEnter('HVE', e.currentTarget)}
+            onMouseLeave={() => hover.onLeave('HVE')}
           >
             <CatalogueShipSlot
-              shipId="DRE"
+              shipId="HVE"
               graphic={
-                <div className="relative shrink-0" style={{ height: '105px' }}>
-                  <DreadnoughtShip />
+                <div className="relative shrink-0" style={{ height: '255px', width: '255px' }}>
+                  <HiveShip />
                 </div>
               }
               canAfford={canAfford}
-              onClick={() => actions.onBuildShip('DRE')}
+              onClick={() => actions.onBuildShip('HVE')}
             >
-              <CatalogueCostNumber cost={27} className="relative shrink-0 w-full" />
-            </CatalogueShipSlot>
-          </div>
-
-          {/* Leviathan */}
-          <div
-            className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '955px', top: '143px' }}
-            onMouseEnter={(e) => hover.onEnter('LEV', e.currentTarget)}
-            onMouseLeave={() => hover.onLeave('LEV')}
-          >
-            <CatalogueShipSlot
-              shipId="LEV"
-              graphic={
-                <div className="relative shrink-0" style={{ height: '222.123px', width: '239px' }}>
-                  <LeviathanShip />
-                </div>
-              }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('LEV')}
-            >
-              <CatalogueCostNumber cost={44} className="relative shrink-0" />
+              <CatalogueCostNumber cost={35} className="relative shrink-0" />
             </CatalogueShipSlot>
           </div>
 
         </div>
       </ActionPanelScrollArea>
       
-      {/* PASS 2: Single hover card rendered via portal */}
+      {/* Single hover card rendered via portal */}
       {hover.state.activeShipId && hover.state.anchorRect && hoveredShipEligibility && (
         <ShipHoverCard
           shipId={hover.state.activeShipId}

@@ -12,6 +12,7 @@
 export type IntentType =
   | 'SPECIES_COMMIT'
   | 'SPECIES_REVEAL'
+  | 'SPECIES_SUBMIT'
   | 'BUILD_COMMIT'
   | 'BUILD_REVEAL'
   | 'BUILD_SUBMIT'
@@ -65,6 +66,7 @@ export const RejectionCode = {
   // Player validation
   NOT_PARTICIPANT: 'NOT_PARTICIPANT',
   SPECTATOR_RESTRICTED: 'SPECTATOR_RESTRICTED',
+  PLAYER_NOT_ACTIVE: 'PLAYER_NOT_ACTIVE',
   
   // Turn validation
   BAD_TURN: 'BAD_TURN',
@@ -85,6 +87,7 @@ export const RejectionCode = {
   
   // Generic
   INTERNAL_ERROR: 'INTERNAL_ERROR',
+  DEPRECATED_INTENT: 'DEPRECATED_INTENT',
 } as const;
 
 export type RejectionCodeType = typeof RejectionCode[keyof typeof RejectionCode];
