@@ -47,7 +47,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
   // ============================================================================
 
   return (
-    <div className="ss-playerRoot w-full h-screen overflow-hidden flex gap-5 px-[30px]">
+    <div className="ss-playerRoot w-full h-screen min-h-0 overflow-hidden flex items-stretch gap-5 px-[30px]">
       {/* Left Rail - fixed width */}
       <LeftRail vm={vm.leftRail} actions={actions} onBack={onBack} />
 

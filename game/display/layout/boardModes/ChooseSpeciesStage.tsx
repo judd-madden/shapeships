@@ -12,6 +12,7 @@ import { BlackXeniteIcon } from '../../../../components/ui/primitives/icons/Blac
 import { BlackShipOfWisdomIcon } from '../../../../components/ui/primitives/icons/BlackShipOfWisdomIcon';
 import { BlackMercuryCoreIcon } from '../../../../components/ui/primitives/icons/BlackMercuryCoreIcon';
 import { CopyIcon } from '../../../../components/ui/primitives/icons/CopyIcon';
+import { CopiedToast } from '../../../../components/ui/primitives/CopiedToast';
 import type { ChooseSpeciesBoardVm } from '../../../client/useGameSession';
 
 interface ChooseSpeciesStageProps {
@@ -50,7 +51,7 @@ export function ChooseSpeciesStage({
           <div className="content-stretch flex flex-col gap-[12px] items-center relative shrink-0 w-full">
             <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
               <p
-                className="font-['Roboto:Black',sans-serif] font-black leading-[normal] relative shrink-0 text-[30px] text-nowrap text-white"
+                className="font-['Roboto',sans-serif] font-black leading-[normal] relative shrink-0 text-[30px] text-nowrap text-white"
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Choose Your Species
@@ -148,7 +149,7 @@ export function ChooseSpeciesStage({
             type="button"
           >
             <p
-              className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
+              className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {vm.gameUrl}
@@ -157,30 +158,15 @@ export function ChooseSpeciesStage({
               <CopyIcon className="w-[42px] h-[42px]" color="black" />
             </div>
             <p
-              className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[15.4px] text-black text-center text-nowrap"
+              className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[15.4px] text-black text-center text-nowrap"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               COPY URL
             </p>
           </button>
           {showCopiedToast && (
-            <div
-              className="mt-[20px] animate-[slideDown_0.3s_ease-in,fadeOut_0.3s_ease-out_4.7s_forwards]"
-              style={{
-                backgroundColor: 'var(--shapeships-green)',
-                paddingTop: '8px',
-                paddingBottom: '8px',
-                paddingLeft: '16px',
-                paddingRight: '16px',
-                borderRadius: '7px',
-              }}
-            >
-              <p
-                className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] text-[16px] text-black text-center text-nowrap"
-                style={{ fontVariationSettings: "'wdth' 100" }}
-              >
-                Copied!
-              </p>
+            <div className="relative">
+              <CopiedToast className="absolute top-[100%] mt-[20px]" />
             </div>
           )}
         </div>

@@ -48,18 +48,45 @@ async function fetchWithTimeout(
 }
 
 /**
+ * Fetch with timeout and single retry on AbortError or network failure
+ * Used for session creation to handle edge function cold starts
+ */
+async function fetchWithTimeoutRetryOnce(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  try {
+    return await fetchWithTimeout(input, init, timeoutMs);
+  } catch (err: any) {
+    const name = err?.name ?? '';
+    const msg = String(err?.message ?? '');
+
+    const isAbort = name === 'AbortError' || msg.includes('signal is aborted');
+    const isNetwork = name === 'TypeError';
+
+    if (!isAbort && !isNetwork) throw err;
+
+    // Single retry only
+    return await fetchWithTimeout(input, init, timeoutMs);
+  }
+}
+
+/**
  * Guard against accidentally using session token in Authorization header
  * This would be a security issue and architectural violation
  */
 function guardAgainstSessionTokenMisuse(headers: Record<string, string>) {
   const authHeader = headers['Authorization'];
-  if (authHeader && !authHeader.includes(publicAnonKey)) {
-    const errorMsg = '🚨 SECURITY ERROR: Authorization header must contain Supabase anon key, not session token!';
+  const expected = `Bearer ${publicAnonKey}`;
+
+  if (authHeader && authHeader !== expected) {
+    const errorMsg =
+      '🚨 SECURITY ERROR: Authorization header must be exactly Supabase anon key bearer token (never session token).';
     console.error(errorMsg);
-    console.error('Expected:', `Bearer ${publicAnonKey.substring(0, 20)}...`);
+    console.error('Expected:', `${expected.substring(0, 30)}...`);
     console.error('Got:', authHeader);
-    
-    // In development, throw error to catch bugs immediately
+
     if (isDev) {
       throw new Error(errorMsg);
     }
@@ -97,7 +124,7 @@ export async function ensureSession(displayName?: string): Promise<{ sessionToke
   // Step A: If we have token but no sessionId, try to resolve from server
   if (existingToken && !existingSessionId) {
     try {
-      const response = await fetchWithTimeout(
+      const response = await fetchWithTimeoutRetryOnce(
         `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/session/me`,
         {
           method: 'GET',
@@ -107,7 +134,7 @@ export async function ensureSession(displayName?: string): Promise<{ sessionToke
             'X-Session-Token': existingToken,
           },
         },
-        5000 // 5 seconds timeout
+        12000 // 12 seconds timeout (increased from 5s to handle edge function cold starts)
       );
 
       if (response.ok) {
@@ -161,7 +188,7 @@ export async function ensureSession(displayName?: string): Promise<{ sessionToke
   }
   
   try {
-    const response = await fetchWithTimeout(
+    const response = await fetchWithTimeoutRetryOnce(
       `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/session/start`,
       {
         method: 'POST',
@@ -172,7 +199,7 @@ export async function ensureSession(displayName?: string): Promise<{ sessionToke
         },
         body: displayName ? JSON.stringify({ displayName }) : undefined,
       },
-      5000 // 5 seconds timeout
+      12000 // 12 seconds timeout (increased from 5s to handle edge function cold starts)
     );
 
     if (!response.ok) {
@@ -265,10 +292,28 @@ export async function authenticatedFetch(
     console.log(`[sessionManager] request to ${endpoint} using sessionId=${sessionData.sessionId} token=${tokenPrefix}...`);
   }
 
-  return fetchWithTimeout(url, {
-    ...options,
-    headers,
-  }, timeoutMs ?? 0);
+  // Use retry-once if timeout is provided, otherwise use normal fetch
+  const effectiveTimeout = timeoutMs ?? 0;
+
+  if (effectiveTimeout > 0) {
+    return fetchWithTimeoutRetryOnce(
+      url,
+      {
+        ...options,
+        headers,
+      },
+      effectiveTimeout
+    );
+  }
+
+  return fetchWithTimeout(
+    url,
+    {
+      ...options,
+      headers,
+    },
+    0
+  );
 }
 
 /**

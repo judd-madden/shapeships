@@ -35,7 +35,7 @@ export function MainStage({
 }: MainStageProps) {
   return (
     <div
-      className="content-stretch flex flex-col items-center relative flex-1 min-w-0 h-full py-[30px]"
+      className="content-stretch flex flex-col items-center relative flex-1 min-w-0 min-h-0 h-full py-[30px]"
       data-name="Main Stage"
     >
       {/* Background vertical line */}
