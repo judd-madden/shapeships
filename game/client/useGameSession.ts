@@ -30,6 +30,10 @@ import { authenticatedGet, authenticatedPost, ensureSession } from '../../utils/
 import type { ActionPanelId } from '../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../types/ShipTypes.engine';
+import type { ShipChoicesPanelGroup } from '../types/ShipChoiceTypes';
+import type { FleetAnimVM } from '../display/graphics/animation';
+import type { OpponentFleetEntryPlan, ActivationStaggerPlan } from '../display/graphics/animation-stagger';
+import { computeOpponentEntryPlan, computeActivationStaggerPlan } from '../display/graphics/animation-stagger';
 import { PUBLIC_APP_ORIGIN } from './config';
 import { generateNonce, makeCommitHash } from './hashUtils';
 import { isValidPhaseKey } from '../../engine/phase/PhaseTable';
@@ -132,6 +136,11 @@ export type BoardViewModel =
       opponentFleet: BoardFleetSummary[];
       myFleetOrder: ShipDefId[];
       opponentFleetOrder: ShipDefId[];
+      fleetAnim: FleetAnimVM; // Animation tokens (DEF/FIG only)
+      
+      // Animation stagger plans
+      opponentFleetEntryPlan: OpponentFleetEntryPlan;
+      activationStaggerPlan: ActivationStaggerPlan;
     };
 
 // Type alias for choose species board mode
@@ -161,6 +170,7 @@ export type ActionPanelTabId =
   | 'tab.catalog.selected'   // choose_species mode only
   | 'tab.catalog.self'       // in-game reference tab
   | 'tab.catalog.opponent'   // in-game reference tab (conditional)
+  | 'tab.actions'            // ship choice actions (conditional)
   | 'tab.menu';
 
 export interface ActionPanelTabVm {
@@ -173,6 +183,27 @@ export interface ActionPanelTabVm {
 export interface ActionPanelViewModel {
   activePanelId: ActionPanelId;
   tabs: ActionPanelTabVm[];
+  menu: {
+    title: string;
+    subtitle: string;
+  };
+  endOfGame?: {
+    bannerText: string;
+    bannerBgCssVar: string; // "var(--shapeships-...)"
+    metaLeftText: string;
+    metaRightText: string;
+  };
+
+  // NEW (UI-derivations for panels)
+  frigateDrawing?: { frigateCount: number };
+  evolverDrawing?: { evolverCount: number };
+
+  shipChoices?: {
+    groups: ShipChoicesPanelGroup[];
+    showOpponentAlsoHasCharges?: boolean;
+    opponentAlsoHasChargesHeading?: string;
+    opponentAlsoHasChargesLines?: string[];
+  };
 }
 
 export interface GameSessionViewModel {
@@ -202,6 +233,10 @@ export interface GameSessionActions {
   onConfirmSpecies: () => void;
   onCopyGameUrl: () => void;
   onBuildShip: (shipDefId: ShipDefId) => void; // Chunk 6: Local build preview
+  onOfferDraw: () => void;
+  onResignGame: () => void;
+  onRematch: () => void;
+  onDownloadBattleLog: () => void;
 }
 
 // ============================================================================
@@ -300,6 +335,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   opponentFleet: [],
   myFleetOrder: [],
   opponentFleetOrder: [],
+  fleetAnim: {
+    my: {},
+    opponent: {},
+  },
 },
       bottomActionRail: {
         subphaseTitle: '',
@@ -315,6 +354,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       actionPanel: {
         activePanelId: 'ap.catalog.ships.human',
         tabs: [],
+        menu: {
+          title: 'Menu',
+          subtitle: 'Game Options',
+        },
       },
     };
     
@@ -332,6 +375,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       onConfirmSpecies: () => {},
       onCopyGameUrl: () => {},
       onBuildShip: () => {},
+      onOfferDraw: () => {},
+      onResignGame: () => {},
+      onRematch: () => {},
+      onDownloadBattleLog: () => {},
     };
     
     return {
@@ -346,6 +393,15 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [rawState, setRawState] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Chat state (separate from game state)
+  const [chatEntries, setChatEntries] = useState<Array<{
+    type: 'message';
+    playerId: string;
+    playerName: string;
+    content: string;
+    timestamp: number;
+  }>>([]);
   
   // Client-only active panel tracking
   const [activePanelId, setActivePanelId] = useState<ActionPanelId>('ap.catalog.ships.human');
@@ -364,6 +420,9 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     remainingMsByPlayerId: Record<string, number>;
     clocksAreLive: boolean;
   } | null>(null);
+  
+  // Track previous opponent fleet IDs for entry animation stagger
+  const prevOpponentFleetIdsRef = useRef<Set<string>>(new Set());
   
   // Tick driver for smooth clock display (forces rerenders)
   const [clockTick, setClockTick] = useState(0);
@@ -392,6 +451,113 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // UI-only persistent ship-type order (append-only)
   const [myFleetOrder, setMyFleetOrder] = useState<ShipDefId[]>([]);
   const [opponentFleetOrder, setOpponentFleetOrder] = useState<ShipDefId[]>([]);
+  
+  // ============================================================================
+  // SHIP ANIMATION TOKENS (DEF/FIG/INT - live fleet area only)
+  // ============================================================================
+  
+  // Track entry, activation, and stack-add nonces for ships with animation presets
+  // entryNonce: bumped when ship goes from 0 to 1+
+  // activationNonce: bumped on explicit triggers (not yet wired)
+  // stackAddNonce: bumped when count increases on existing stack (N→N+1 where N>0)
+  const [myAnimTokens, setMyAnimTokens] = useState<Record<string, { entryNonce: number; activationNonce: number; stackAddNonce: number }>>({
+    DEF: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    FIG: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    INT: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    COM: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    ORB: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    CAR: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    STA: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    FRI: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    TAC: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    GUA: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    SCI: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    BAT: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    EAR: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    DRE: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    LEV: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    XEN: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    ANT: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    MAN: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    EVO: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    HEL: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    BUG: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    ZEN: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    DSW: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    AAR: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    OXF: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    ASF: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    SAC: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    QUE: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    CHR: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    HVE: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    FEA: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    ANG: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    EQU: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    WIS: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    VIG: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    FAM: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    LEG: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    TER: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    FUR: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    KNO: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    ENT: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    RED: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    POW: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    DES: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    DOM: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+  });
+  const [opponentAnimTokens, setOpponentAnimTokens] = useState<Record<string, { entryNonce: number; activationNonce: number; stackAddNonce: number }>>({
+    DEF: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    FIG: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    INT: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    COM: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    ORB: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    CAR: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    STA: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    FRI: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    TAC: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    GUA: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    SCI: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    BAT: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    EAR: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    DRE: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    LEV: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    XEN: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    ANT: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    MAN: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    EVO: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    HEL: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    BUG: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    ZEN: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    DSW: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    AAR: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    OXF: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    ASF: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    SAC: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    QUE: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    CHR: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    HVE: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    FEA: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    ANG: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    EQU: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    WIS: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    VIG: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    FAM: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    LEG: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    TER: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    FUR: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    KNO: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    ENT: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    RED: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    POW: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    DES: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+    DOM: { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 },
+  });
+  
+  // Track previous counts for entry detection
+  const prevMyCountsRef = useRef<Record<string, number>>({ DEF: 0, FIG: 0, INT: 0, COM: 0, ORB: 0, CAR: 0, STA: 0, FRI: 0, TAC: 0, GUA: 0, SCI: 0, BAT: 0, EAR: 0, DRE: 0, LEV: 0, XEN: 0, ANT: 0, MAN: 0, EVO: 0, HEL: 0, BUG: 0, ZEN: 0, DSW: 0, AAR: 0, OXF: 0, ASF: 0, SAC: 0, QUE: 0, CHR: 0, HVE: 0, FEA: 0, ANG: 0, EQU: 0, WIS: 0, VIG: 0, FAM: 0, LEG: 0, TER: 0, FUR: 0, KNO: 0, ENT: 0, RED: 0, POW: 0, DES: 0, DOM: 0 });
+  const prevOpponentCountsRef = useRef<Record<string, number>>({ DEF: 0, FIG: 0, INT: 0, COM: 0, ORB: 0, CAR: 0, STA: 0, FRI: 0, TAC: 0, GUA: 0, SCI: 0, BAT: 0, EAR: 0, DRE: 0, LEV: 0, XEN: 0, ANT: 0, MAN: 0, EVO: 0, HEL: 0, BUG: 0, ZEN: 0, DSW: 0, AAR: 0, OXF: 0, ASF: 0, SAC: 0, QUE: 0, CHR: 0, HVE: 0, FEA: 0, ANG: 0, EQU: 0, WIS: 0, VIG: 0, FAM: 0, LEG: 0, TER: 0, FUR: 0, KNO: 0, ENT: 0, RED: 0, POW: 0, DES: 0, DOM: 0 });
   
   // ============================================================================
   // POLL GATING STATE (Part A: State-based gating to trigger re-renders)
@@ -530,6 +696,61 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     isFinished,
     postGamePollMs: POSTGAME_POLL_MS,
   });
+  
+  // ============================================================================
+  // CHAT POLLING (SEPARATE 5s CADENCE)
+  // ============================================================================
+  
+  // Poll chat every 5 seconds (slower than game-state to reduce load)
+  useEffect(() => {
+    // Don't poll without a usable gameId
+    if (!effectiveGameId) return;
+    
+    // Gate until join succeeds (same as game-state polling)
+    if (!hasJoinedCurrentGame) return;
+    
+    const CHAT_POLL_MS = 5000; // Fixed 5 second interval (both active and finished)
+    
+    let mounted = true;
+    let chatPollTimer: NodeJS.Timeout | null = null;
+    
+    const pollChat = async () => {
+      try {
+        const response = await authenticatedGet(`/chat-state/${effectiveGameId}`);
+        
+        if (!response.ok) {
+          // Log error but don't crash or throw
+          const errorText = await response.text();
+          console.warn(`[useGameSession] Chat poll error: ${response.status} ${errorText}`);
+          return;
+        }
+        
+        const data = await response.json();
+        
+        if (mounted && data.ok && Array.isArray(data.entries)) {
+          setChatEntries(data.entries);
+        }
+      } catch (err: any) {
+        console.warn(`[useGameSession] Chat poll error:`, err.message);
+        // Don't throw - continue polling
+      }
+      
+      // Schedule next poll
+      if (mounted) {
+        chatPollTimer = setTimeout(pollChat, CHAT_POLL_MS);
+      }
+    };
+    
+    // Start polling immediately
+    pollChat();
+    
+    return () => {
+      mounted = false;
+      if (chatPollTimer) {
+        clearTimeout(chatPollTimer);
+      }
+    };
+  }, [effectiveGameId, hasJoinedCurrentGame]);
   
   // ============================================================================
   // DEV EFFECTS: ONE-TIME GAME OVER MARKER
@@ -828,6 +1049,73 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   }, [myFleetWithPreview, opponentFleet]);
   
   // ============================================================================
+  // SHIP ANIMATION: ENTRY & STACK-ADD DETECTION (Human Basic ships - poll-based)
+  // ============================================================================
+  
+  // Detect when animated ships count changes (entry: 0→1+, stack-add: N→N+1 where N>0)
+  useEffect(() => {
+    const animatedShips: ShipDefId[] = ['DEF', 'FIG', 'INT', 'COM', 'ORB', 'CAR', 'STA', 'FRI', 'TAC', 'GUA', 'SCI', 'BAT', 'EAR', 'DRE', 'LEV', 'XEN', 'ANT', 'MAN', 'EVO', 'HEL', 'BUG', 'ZEN', 'DSW', 'AAR', 'OXF', 'ASF', 'SAC', 'QUE', 'CHR', 'HVE', 'FEA', 'ANG', 'EQU', 'WIS', 'VIG', 'FAM', 'LEG', 'TER', 'FUR', 'KNO', 'ENT', 'RED', 'POW', 'DES', 'DOM'];
+    
+    // Check my fleet
+    for (const shipDefId of animatedShips) {
+      const currentCount = myFleetWithPreview.find(s => s.shipDefId === shipDefId)?.count ?? 0;
+      const prevCount = prevMyCountsRef.current[shipDefId] ?? 0;
+      
+      if (prevCount === 0 && currentCount > 0) {
+        // Entry detected (0→1+) - bump entry nonce
+        setMyAnimTokens(prev => ({
+          ...prev,
+          [shipDefId]: {
+            ...prev[shipDefId],
+            entryNonce: prev[shipDefId].entryNonce + 1,
+          },
+        }));
+      } else if (prevCount > 0 && currentCount > prevCount) {
+        // Stack-add detected (N→N+1 where N>0) - bump stack-add nonce
+        setMyAnimTokens(prev => ({
+          ...prev,
+          [shipDefId]: {
+            ...prev[shipDefId],
+            stackAddNonce: prev[shipDefId].stackAddNonce + 1,
+          },
+        }));
+      }
+      
+      // Update prev count
+      prevMyCountsRef.current[shipDefId] = currentCount;
+    }
+    
+    // Check opponent fleet
+    for (const shipDefId of animatedShips) {
+      const currentCount = opponentFleet.find(s => s.shipDefId === shipDefId)?.count ?? 0;
+      const prevCount = prevOpponentCountsRef.current[shipDefId] ?? 0;
+      
+      if (prevCount === 0 && currentCount > 0) {
+        // Entry detected (0→1+) - bump entry nonce
+        setOpponentAnimTokens(prev => ({
+          ...prev,
+          [shipDefId]: {
+            ...prev[shipDefId],
+            entryNonce: prev[shipDefId].entryNonce + 1,
+          },
+        }));
+      } else if (prevCount > 0 && currentCount > prevCount) {
+        // Stack-add detected (N→N+1 where N>0) - bump stack-add nonce
+        setOpponentAnimTokens(prev => ({
+          ...prev,
+          [shipDefId]: {
+            ...prev[shipDefId],
+            stackAddNonce: prev[shipDefId].stackAddNonce + 1,
+          },
+        }));
+      }
+      
+      // Update prev count
+      prevOpponentCountsRef.current[shipDefId] = currentCount;
+    }
+  }, [myFleetWithPreview, opponentFleet]);
+  
+  // ============================================================================
   // BOARD MODE + COMPLETION TRACKING (ME/OPPONENT)
   // ============================================================================
   
@@ -884,6 +1172,390 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       // UI-only stable ordering (append-only)
       myFleetOrder: myFleetOrder,
       opponentFleetOrder: opponentFleetOrder,
+      
+      // Animation tokens (Human Basic ships)
+      fleetAnim: {
+        my: {
+          DEF: {
+            ...myAnimTokens.DEF,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'DEF')?.count ?? 0,
+          },
+          FIG: {
+            ...myAnimTokens.FIG,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'FIG')?.count ?? 0,
+          },
+          INT: {
+            ...myAnimTokens.INT,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'INT')?.count ?? 0,
+          },
+          COM: {
+            ...myAnimTokens.COM,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'COM')?.count ?? 0,
+          },
+          ORB: {
+            ...myAnimTokens.ORB,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'ORB')?.count ?? 0,
+          },
+          CAR: {
+            ...myAnimTokens.CAR,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'CAR')?.count ?? 0,
+          },
+          STA: {
+            ...myAnimTokens.STA,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'STA')?.count ?? 0,
+          },
+          FRI: {
+            ...myAnimTokens.FRI,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'FRI')?.count ?? 0,
+          },
+          TAC: {
+            ...myAnimTokens.TAC,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'TAC')?.count ?? 0,
+          },
+          GUA: {
+            ...myAnimTokens.GUA,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'GUA')?.count ?? 0,
+          },
+          SCI: {
+            ...myAnimTokens.SCI,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'SCI')?.count ?? 0,
+          },
+          BAT: {
+            ...myAnimTokens.BAT,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'BAT')?.count ?? 0,
+          },
+          EAR: {
+            ...myAnimTokens.EAR,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'EAR')?.count ?? 0,
+          },
+          DRE: {
+            ...myAnimTokens.DRE,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'DRE')?.count ?? 0,
+          },
+          LEV: {
+            ...myAnimTokens.LEV,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'LEV')?.count ?? 0,
+          },
+          XEN: {
+            ...myAnimTokens.XEN,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'XEN')?.count ?? 0,
+          },
+          ANT: {
+            ...myAnimTokens.ANT,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'ANT')?.count ?? 0,
+          },
+          MAN: {
+            ...myAnimTokens.MAN,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'MAN')?.count ?? 0,
+          },
+          EVO: {
+            ...myAnimTokens.EVO,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'EVO')?.count ?? 0,
+          },
+          HEL: {
+            ...myAnimTokens.HEL,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'HEL')?.count ?? 0,
+          },
+          BUG: {
+            ...myAnimTokens.BUG,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'BUG')?.count ?? 0,
+          },
+          ZEN: {
+            ...myAnimTokens.ZEN,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'ZEN')?.count ?? 0,
+          },
+          DSW: {
+            ...myAnimTokens.DSW,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'DSW')?.count ?? 0,
+          },
+          AAR: {
+            ...myAnimTokens.AAR,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'AAR')?.count ?? 0,
+          },
+          OXF: {
+            ...myAnimTokens.OXF,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'OXF')?.count ?? 0,
+          },
+          ASF: {
+            ...myAnimTokens.ASF,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'ASF')?.count ?? 0,
+          },
+          SAC: {
+            ...myAnimTokens.SAC,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'SAC')?.count ?? 0,
+          },
+          QUE: {
+            ...myAnimTokens.QUE,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'QUE')?.count ?? 0,
+          },
+          CHR: {
+            ...myAnimTokens.CHR,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'CHR')?.count ?? 0,
+          },
+          HVE: {
+            ...myAnimTokens.HVE,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'HVE')?.count ?? 0,
+          },
+          FEA: {
+            ...myAnimTokens.FEA,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'FEA')?.count ?? 0,
+          },
+          ANG: {
+            ...myAnimTokens.ANG,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'ANG')?.count ?? 0,
+          },
+          EQU: {
+            ...myAnimTokens.EQU,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'EQU')?.count ?? 0,
+          },
+          WIS: {
+            ...myAnimTokens.WIS,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'WIS')?.count ?? 0,
+          },
+          VIG: {
+            ...myAnimTokens.VIG,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'VIG')?.count ?? 0,
+          },
+          FAM: {
+            ...myAnimTokens.FAM,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'FAM')?.count ?? 0,
+          },
+          LEG: {
+            ...myAnimTokens.LEG,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'LEG')?.count ?? 0,
+          },
+          TER: {
+            ...myAnimTokens.TER,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'TER')?.count ?? 0,
+          },
+          FUR: {
+            ...myAnimTokens.FUR,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'FUR')?.count ?? 0,
+          },
+          KNO: {
+            ...myAnimTokens.KNO,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'KNO')?.count ?? 0,
+          },
+          ENT: {
+            ...myAnimTokens.ENT,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'ENT')?.count ?? 0,
+          },
+          RED: {
+            ...myAnimTokens.RED,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'RED')?.count ?? 0,
+          },
+          POW: {
+            ...myAnimTokens.POW,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'POW')?.count ?? 0,
+          },
+          DES: {
+            ...myAnimTokens.DES,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'DES')?.count ?? 0,
+          },
+          DOM: {
+            ...myAnimTokens.DOM,
+            stackCount: myFleetWithPreview.find(s => s.shipDefId === 'DOM')?.count ?? 0,
+          },
+        },
+        opponent: {
+          DEF: {
+            ...opponentAnimTokens.DEF,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'DEF')?.count ?? 0,
+          },
+          FIG: {
+            ...opponentAnimTokens.FIG,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'FIG')?.count ?? 0,
+          },
+          INT: {
+            ...opponentAnimTokens.INT,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'INT')?.count ?? 0,
+          },
+          COM: {
+            ...opponentAnimTokens.COM,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'COM')?.count ?? 0,
+          },
+          ORB: {
+            ...opponentAnimTokens.ORB,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'ORB')?.count ?? 0,
+          },
+          CAR: {
+            ...opponentAnimTokens.CAR,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'CAR')?.count ?? 0,
+          },
+          STA: {
+            ...opponentAnimTokens.STA,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'STA')?.count ?? 0,
+          },
+          FRI: {
+            ...opponentAnimTokens.FRI,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'FRI')?.count ?? 0,
+          },
+          TAC: {
+            ...opponentAnimTokens.TAC,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'TAC')?.count ?? 0,
+          },
+          GUA: {
+            ...opponentAnimTokens.GUA,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'GUA')?.count ?? 0,
+          },
+          SCI: {
+            ...opponentAnimTokens.SCI,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'SCI')?.count ?? 0,
+          },
+          BAT: {
+            ...opponentAnimTokens.BAT,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'BAT')?.count ?? 0,
+          },
+          EAR: {
+            ...opponentAnimTokens.EAR,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'EAR')?.count ?? 0,
+          },
+          DRE: {
+            ...opponentAnimTokens.DRE,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'DRE')?.count ?? 0,
+          },
+          LEV: {
+            ...opponentAnimTokens.LEV,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'LEV')?.count ?? 0,
+          },
+          XEN: {
+            ...opponentAnimTokens.XEN,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'XEN')?.count ?? 0,
+          },
+          ANT: {
+            ...opponentAnimTokens.ANT,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'ANT')?.count ?? 0,
+          },
+          MAN: {
+            ...opponentAnimTokens.MAN,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'MAN')?.count ?? 0,
+          },
+          EVO: {
+            ...opponentAnimTokens.EVO,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'EVO')?.count ?? 0,
+          },
+          HEL: {
+            ...opponentAnimTokens.HEL,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'HEL')?.count ?? 0,
+          },
+          BUG: {
+            ...opponentAnimTokens.BUG,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'BUG')?.count ?? 0,
+          },
+          ZEN: {
+            ...opponentAnimTokens.ZEN,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'ZEN')?.count ?? 0,
+          },
+          DSW: {
+            ...opponentAnimTokens.DSW,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'DSW')?.count ?? 0,
+          },
+          AAR: {
+            ...opponentAnimTokens.AAR,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'AAR')?.count ?? 0,
+          },
+          OXF: {
+            ...opponentAnimTokens.OXF,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'OXF')?.count ?? 0,
+          },
+          ASF: {
+            ...opponentAnimTokens.ASF,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'ASF')?.count ?? 0,
+          },
+          SAC: {
+            ...opponentAnimTokens.SAC,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'SAC')?.count ?? 0,
+          },
+          QUE: {
+            ...opponentAnimTokens.QUE,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'QUE')?.count ?? 0,
+          },
+          CHR: {
+            ...opponentAnimTokens.CHR,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'CHR')?.count ?? 0,
+          },
+          HVE: {
+            ...opponentAnimTokens.HVE,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'HVE')?.count ?? 0,
+          },
+          FEA: {
+            ...opponentAnimTokens.FEA,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'FEA')?.count ?? 0,
+          },
+          ANG: {
+            ...opponentAnimTokens.ANG,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'ANG')?.count ?? 0,
+          },
+          EQU: {
+            ...opponentAnimTokens.EQU,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'EQU')?.count ?? 0,
+          },
+          WIS: {
+            ...opponentAnimTokens.WIS,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'WIS')?.count ?? 0,
+          },
+          VIG: {
+            ...opponentAnimTokens.VIG,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'VIG')?.count ?? 0,
+          },
+          FAM: {
+            ...opponentAnimTokens.FAM,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'FAM')?.count ?? 0,
+          },
+          LEG: {
+            ...opponentAnimTokens.LEG,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'LEG')?.count ?? 0,
+          },
+          TER: {
+            ...opponentAnimTokens.TER,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'TER')?.count ?? 0,
+          },
+          FUR: {
+            ...opponentAnimTokens.FUR,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'FUR')?.count ?? 0,
+          },
+          KNO: {
+            ...opponentAnimTokens.KNO,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'KNO')?.count ?? 0,
+          },
+          ENT: {
+            ...opponentAnimTokens.ENT,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'ENT')?.count ?? 0,
+          },
+          RED: {
+            ...opponentAnimTokens.RED,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'RED')?.count ?? 0,
+          },
+          POW: {
+            ...opponentAnimTokens.POW,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'POW')?.count ?? 0,
+          },
+          DES: {
+            ...opponentAnimTokens.DES,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'DES')?.count ?? 0,
+          },
+          DOM: {
+            ...opponentAnimTokens.DOM,
+            stackCount: opponentFleet.find(s => s.shipDefId === 'DOM')?.count ?? 0,
+          },
+        },
+      },
+      
+      // Compute animation stagger plans
+      opponentFleetEntryPlan: (() => {
+        const { plan, nextPrevIds } = computeOpponentEntryPlan(
+          prevOpponentFleetIdsRef.current,
+          opponentFleetOrder,
+          400
+        );
+        prevOpponentFleetIdsRef.current = nextPrevIds;
+        return plan;
+      })(),
+      
+      activationStaggerPlan: computeActivationStaggerPlan(
+        myFleetOrder,
+        opponentFleetOrder
+      ),
     };
   }
   
@@ -905,6 +1577,73 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     }
   }
   
+  // Map phase + species to action panel ID (UI routing for ship choice panels)
+  function phaseToActionPanelId(
+    phaseKey: string,
+    mySpecies: SpeciesId | null
+  ): ActionPanelId | null {
+    switch (phaseKey) {
+      case 'build.dice_roll':
+        // Only Centaur has this panel
+        return mySpecies === 'centaur' ? 'ap.build.dice_roll.centaur' : null;
+      
+      case 'build.ships_that_build':
+        if (mySpecies === 'human') return 'ap.build.ships_that_build.human';
+        if (mySpecies === 'xenite') return 'ap.build.ships_that_build.xenite';
+        return null;
+      
+      case 'build.drawing':
+        if (mySpecies === 'human') return 'ap.build.drawing.human';
+        if (mySpecies === 'xenite') return 'ap.build.drawing.xenite';
+        return null;
+      
+      case 'battle.first_strike':
+        if (mySpecies === 'human') return 'ap.battle.first_strike.human';
+        if (mySpecies === 'centaur') return 'ap.battle.first_strike.centaur';
+        return null;
+      
+      case 'battle.charge_declaration':
+      case 'battle.charge_response':
+        if (mySpecies === 'human') return 'ap.battle.charges.human';
+        if (mySpecies === 'xenite') return 'ap.battle.charges.xenite';
+        if (mySpecies === 'centaur') {
+          // ROUTING ORDER GUARANTEE (PRESCRIPTIVE):
+          // ap.battle.charges.centaur must be selected before
+          // ap.battle.charges.centaur.ship_of_equality
+          // 
+          // Logic: Show ship_of_equality ONLY if player has EQU but NO WIS/FAM.
+          // Otherwise, show the main centaur charges panel.
+          const myFleet = rawState?.myFleet;
+          const hasWIS = myFleet?.some((entry: any) => entry?.shipDefId === 'WIS' && entry?.count > 0);
+          const hasFAM = myFleet?.some((entry: any) => entry?.shipDefId === 'FAM' && entry?.count > 0);
+          const hasEQU = myFleet?.some((entry: any) => entry?.shipDefId === 'EQU' && entry?.count > 0);
+          
+          // If player has WIS or FAM, always show the main panel (which includes both)
+          if (hasWIS || hasFAM) {
+            return 'ap.battle.charges.centaur';
+          }
+          
+          // If player ONLY has EQU, show the ship_of_equality panel
+          if (hasEQU) {
+            return 'ap.battle.charges.centaur.ship_of_equality';
+          }
+          
+          // Otherwise, default to main centaur panel
+          return 'ap.battle.charges.centaur';
+        }
+        if (mySpecies === 'ancient') return 'ap.battle.charges.ancient.black_hole'; // Placeholder
+        return null;
+      
+      default:
+        return null;
+    }
+  }
+  
+  // Helper: Check if a panel ID is a catalogue panel
+  function isCataloguePanel(id: ActionPanelId): boolean {
+    return id.startsWith('ap.catalog.ships.');
+  }
+  
   // Helper: Get species display label (Title Case)
   function getSpeciesLabel(species: SpeciesId): string {
     switch (species) {
@@ -914,6 +1653,16 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       case 'ancient': return 'Ancient';
     }
   }
+  
+  // ============================================================================
+  // ACTIONS TAB: COMPUTE AVAILABILITY (UI-ONLY)
+  // ============================================================================
+  
+  // Determine target panel ID for Actions tab
+  const actionsTargetPanelId = phaseToActionPanelId(phaseKey, mySpecies);
+  
+  // Compute if Actions tab should be visible (based on target panel existence)
+  const hasActionsAvailable = !!actionsTargetPanelId && !isBootstrapping;
   
   // Build tabs based on phase
   let tabs: ActionPanelTabVm[];
@@ -952,6 +1701,13 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     const showOpponentTab = opponentSpecies !== null && !bothSameSpecies;
     
     tabs = [
+      // Actions tab (conditional - first position when visible)
+      {
+        tabId: 'tab.actions',
+        label: 'Actions',
+        visible: hasActionsAvailable,
+        targetPanelId: actionsTargetPanelId ?? speciesToCataloguePanelId(effectiveMySpecies),
+      },
       // My species tab (always visible in post-selection)
       {
         tabId: 'tab.catalog.self',
@@ -1088,6 +1844,54 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     return () => window.clearInterval(id);
   }, [shouldTick]);
   
+  // ============================================================================
+  // AUTO-SELECT ACTIONS TAB WHEN IT BECOMES AVAILABLE
+  // ============================================================================
+  
+  // When Actions tab becomes available and user is on a catalogue panel,
+  // automatically switch to the action panel for that phase
+  // EXCEPTION: Do NOT auto-switch during build.drawing (stay on catalogue)
+  useEffect(() => {
+    if (phaseKey === 'build.drawing') return;
+    
+    if (hasActionsAvailable && actionsTargetPanelId && isCataloguePanel(activePanelId)) {
+      console.log('[useGameSession] Actions available, auto-selecting:', actionsTargetPanelId);
+      setActivePanelId(actionsTargetPanelId);
+    }
+  }, [phaseKey, hasActionsAvailable, actionsTargetPanelId]);
+  
+  // ============================================================================
+  // FORCE SELF CATALOGUE DURING BUILD.DRAWING
+  // ============================================================================
+  
+  // During build.drawing, always show self catalogue (not actions)
+  useEffect(() => {
+    if (phaseKey !== 'build.drawing') return;
+    
+    const selfCatalogue = speciesToCataloguePanelId(mySpecies ?? 'human');
+    if (activePanelId !== selfCatalogue) {
+      console.log('[useGameSession] build.drawing: forcing self catalogue panel:', selfCatalogue);
+      setActivePanelId(selfCatalogue);
+    }
+  }, [phaseKey, mySpecies]);
+  
+  // ============================================================================
+  // FALLBACK TO SELF CATALOGUE WHEN NO ACTIONS AVAILABLE
+  // ============================================================================
+  
+  // When actions are not available, fall back to self catalogue
+  // (unless user is already on a catalogue panel or menu)
+  useEffect(() => {
+    if (hasActionsAvailable) return;
+    
+    if (isCataloguePanel(activePanelId)) return;
+    if (activePanelId === 'ap.menu.root') return;
+    
+    const selfCatalogue = speciesToCataloguePanelId(mySpecies ?? 'human');
+    console.log('[useGameSession] No actions available: falling back to self catalogue:', selfCatalogue);
+    setActivePanelId(selfCatalogue);
+  }, [hasActionsAvailable, activePanelId, mySpecies]);
+  
   // Display-only interpolation helper
   // Snaps to server on every poll, interpolates between polls
   function getDisplayMs(playerId?: string, isReady?: boolean): number | undefined {
@@ -1158,6 +1962,13 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
 
     getMajorPhaseLabel,
     getSubphaseLabelFromPhaseKey,
+    
+    chatEntries,
+
+    // New params for menu/end-of-game panels
+    isFinished,
+    mySpeciesId: mySpecies,
+    opponentSpeciesId: opponentSpecies,
   });
   
   // ============================================================================
@@ -1229,8 +2040,48 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       console.log('[useGameSession] Ship clicked (no-op):', shipId);
     },
     
-    onSendChat: (text: string) => {
-      console.log('[useGameSession] Send chat (no-op):', text);
+    onSendChat: async (text: string) => {
+      // Trim text; if empty, return early
+      const trimmedText = text.trim();
+      
+      if (!trimmedText) {
+        console.log('[useGameSession] onSendChat: Empty message, ignoring');
+        return;
+      }
+      
+      try {
+        console.log('[useGameSession] onSendChat: Sending message via ACTION intent');
+        
+        // Submit ACTION intent with message payload
+        const response = await submitIntent({
+          gameId: effectiveGameId,
+          intentType: 'ACTION',
+          turnNumber, // Current authoritative turn number
+          payload: {
+            actionType: 'message',
+            content: trimmedText,
+          },
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[useGameSession] onSendChat failed:', response.status, errorText);
+          return;
+        }
+        
+        const result = await response.json();
+        
+        if (!result.ok) {
+          console.error('[useGameSession] onSendChat rejected:', result.rejected?.code, result.rejected?.message);
+          return;
+        }
+        
+        console.log('[useGameSession] onSendChat: Message sent successfully');
+        // Do NOT optimistically append to chat UI; rely on chat poll refresh
+        
+      } catch (err: any) {
+        console.error('[useGameSession] onSendChat error:', err.message);
+      }
     },
     
     onAcceptDraw: () => {
@@ -1361,6 +2212,58 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         buildPreviewCountsRef.current = next;
         return next;
       });
+      
+      // ANIMATION: Trigger entry or stack-add animation for ships with presets (Human + Xenite + Centaur ships)
+      if (shipDefId === 'DEF' || shipDefId === 'FIG' || shipDefId === 'INT' || 
+          shipDefId === 'COM' || shipDefId === 'ORB' || shipDefId === 'CAR' || shipDefId === 'STA' ||
+          shipDefId === 'FRI' || shipDefId === 'TAC' || shipDefId === 'GUA' || shipDefId === 'SCI' ||
+          shipDefId === 'BAT' || shipDefId === 'EAR' || shipDefId === 'DRE' || shipDefId === 'LEV' ||
+          shipDefId === 'XEN' || shipDefId === 'ANT' || shipDefId === 'MAN' || shipDefId === 'EVO' ||
+          shipDefId === 'HEL' || shipDefId === 'BUG' || shipDefId === 'ZEN' || shipDefId === 'DSW' ||
+          shipDefId === 'AAR' || shipDefId === 'OXF' || shipDefId === 'ASF' || shipDefId === 'SAC' ||
+          shipDefId === 'QUE' || shipDefId === 'CHR' || shipDefId === 'HVE' ||
+          shipDefId === 'FEA' || shipDefId === 'ANG' || shipDefId === 'EQU' || shipDefId === 'WIS' ||
+          shipDefId === 'VIG' || shipDefId === 'FAM' || shipDefId === 'LEG' || shipDefId === 'TER' ||
+          shipDefId === 'FUR' || shipDefId === 'KNO' || shipDefId === 'ENT' || shipDefId === 'RED' ||
+          shipDefId === 'POW' || shipDefId === 'DES' || shipDefId === 'DOM') {
+        // Check merged fleet count (preview + server) to determine animation
+        const currentCount = myFleetWithPreview.find(s => s.shipDefId === shipDefId)?.count ?? 0;
+        if (currentCount === 0) {
+          // This click will make it 1 - bump entry nonce immediately for instant feedback
+          setMyAnimTokens(prev => ({
+            ...prev,
+            [shipDefId]: {
+              ...prev[shipDefId],
+              entryNonce: prev[shipDefId].entryNonce + 1,
+            },
+          }));
+        } else {
+          // Already have ships - this is a stack-add
+          setMyAnimTokens(prev => ({
+            ...prev,
+            [shipDefId]: {
+              ...prev[shipDefId],
+              stackAddNonce: prev[shipDefId].stackAddNonce + 1,
+            },
+          }));
+        }
+      }
+    },
+    
+    onOfferDraw: () => {
+      console.log('[useGameSession] Offer draw (no-op)');
+    },
+    
+    onResignGame: () => {
+      console.log('[useGameSession] Resign game (no-op)');
+    },
+    
+    onRematch: () => {
+      console.log('[useGameSession] Rematch (no-op)');
+    },
+    
+    onDownloadBattleLog: () => {
+      console.log('[useGameSession] Download battle log (no-op)');
     },
   };
   

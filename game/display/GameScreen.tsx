@@ -18,6 +18,7 @@
 import { useGameSession } from '../client/useGameSession';
 import { LeftRail } from './layout/LeftRail';
 import { MainStage } from './layout/MainStage';
+import { StarsBackground } from './graphics/StarsBackground';
 
 interface GameScreenProps {
   gameId: string;
@@ -47,24 +48,33 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
   // ============================================================================
 
   return (
-    <div className="ss-playerRoot w-full h-screen min-h-0 overflow-hidden flex items-stretch gap-5 px-[30px]">
-      {/* Left Rail - fixed width */}
-      <LeftRail vm={vm.leftRail} actions={actions} onBack={onBack} />
+    <div className="ss-playerRoot relative w-full h-screen min-h-0 overflow-hidden">
+      {/* Stars background layer (behind everything in this screen) */}
+      <div className="absolute inset-0 z-0">
+        <StarsBackground />
+      </div>
 
-      {/* Main Stage - fills remaining width */}
-      <MainStage 
-        hudVm={vm.hud}
-        boardVm={vm.board}
-        bottomActionRailVm={vm.bottomActionRail}
-        actionPanelVm={vm.actionPanel}
-        actions={actions}
-      />
-      
-      {/* Global Ship Hover Layer (PASS 2) - Portal target for catalogue hover cards */}
-      <div
-        id="ship-hover-layer"
-        className="fixed inset-0 z-[40] pointer-events-none"
-      />
+      {/* Foreground layout (existing UI) */}
+      <div className="relative z-10 w-full h-full min-h-0 flex items-stretch gap-5 px-[30px]">
+        {/* Left Rail - fixed width */}
+        <LeftRail vm={vm.leftRail} actions={actions} onBack={onBack} />
+
+        {/* Main Stage - fills remaining width */}
+        <MainStage 
+          hudVm={vm.hud}
+          boardVm={vm.board}
+          bottomActionRailVm={vm.bottomActionRail}
+          actionPanelVm={vm.actionPanel}
+          actions={actions}
+          onReturnToMainMenu={onBack}
+        />
+        
+        {/* Global Ship Hover Layer (PASS 2) - Portal target for catalogue hover cards */}
+        <div
+          id="ship-hover-layer"
+          className="fixed inset-0 z-[40] pointer-events-none"
+        />
+      </div>
     </div>
   );
 }

@@ -157,12 +157,12 @@ export function ChooseSpeciesStage({
             <div className="relative shrink-0 size-[42px]">
               <CopyIcon className="w-[42px] h-[42px]" color="black" />
             </div>
-            <p
+            {/*<p
               className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[15.4px] text-black text-center text-nowrap"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               COPY URL
-            </p>
+            </p>*/}
           </button>
           {showCopiedToast && (
             <div className="relative">

@@ -224,8 +224,15 @@ export async function applyIntent(
   
   // Enforce species selection phase restriction
   if (phaseKey === 'setup.species_selection') {
-    const allowedInSpeciesSelection = new Set(['SPECIES_SELECT', 'SPECIES_COMMIT', 'SPECIES_REVEAL', 'SPECIES_SUBMIT']);
-    
+    const allowedInSpeciesSelection = new Set([
+      'SPECIES_SELECT',
+      'SPECIES_COMMIT',
+      'SPECIES_REVEAL',
+      'SPECIES_SUBMIT',
+      'ACTION',        // ✅ allow chat at all times
+      'SURRENDER',   // optional, if you want resign to work during setup
+    ]);
+  
     if (!allowedInSpeciesSelection.has(intent.intentType)) {
       return {
         ok: false,
@@ -233,7 +240,7 @@ export async function applyIntent(
         events: [],
         rejected: {
           code: RejectionCode.PHASE_NOT_ALLOWED,
-          message: `Intent ${intent.intentType} not allowed during setup.species_selection. Allowed: SPECIES_SELECT, SPECIES_COMMIT, SPECIES_REVEAL, SPECIES_SUBMIT`
+          message: `Intent ${intent.intentType} not allowed during setup.species_selection. Allowed: SPECIES_SELECT, SPECIES_COMMIT, SPECIES_REVEAL, SPECIES_SUBMIT, ACTION, SURRENDER`
         }
       };
     }
@@ -1590,26 +1597,15 @@ function handleAction(
     };
   }
   
-  // Append to actions log
-  if (!state.actions) {
-    state.actions = [];
-  }
-  
+  // Emit CHAT_MESSAGE event for route layer to persist separately
   const player = state.players.find((p: any) => p.id === playerId);
   
-  state.actions.push({
-    type: 'message',
+  events.push({
+    type: 'CHAT_MESSAGE',
     playerId,
     playerName: player?.name || 'Unknown',
     content: payload.content,
     timestamp: nowMs
-  });
-  
-  events.push({
-    type: 'MESSAGE_SENT',
-    playerId,
-    content: payload.content,
-    atMs: nowMs
   });
   
   state = syncPhaseFields(state);

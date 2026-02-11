@@ -15,6 +15,7 @@ interface GameMenuButtonProps {
   onClick?: () => void;
   disabled?: boolean;
   requiresConfirm?: boolean; // Requires two clicks to activate (shows red on first click)
+  confirmLabel?: string; // Custom label shown during confirmation state
   className?: string;
   children: React.ReactNode;
 }
@@ -23,6 +24,7 @@ export function GameMenuButton({
   onClick, 
   disabled = false,
   requiresConfirm = false,
+  confirmLabel = 'Confirm?',
   className = "", 
   children 
 }: GameMenuButtonProps) {
@@ -86,7 +88,7 @@ export function GameMenuButton({
         className="font-bold leading-[normal] relative shrink-0 text-[16px] text-black text-nowrap"
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
-        {awaitingConfirm ? 'Confirm?' : children}
+        {awaitingConfirm ? confirmLabel : children}
       </p>
     </button>
   );

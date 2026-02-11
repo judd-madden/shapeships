@@ -9,6 +9,8 @@ import { ChooseSpeciesStage } from './boardModes/ChooseSpeciesStage';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import { FitToBox } from './FitToBox';
+import { ShipAnimationWrapper, type ShipAnimToken } from '../graphics/animation';
+import { useFlipLayout } from '../graphics/useFlipLayout';
 
 interface BoardStageProps {
   vm: BoardViewModel;
@@ -115,18 +117,47 @@ function groupShipsIntoRows(
   return { row1, row2, row3, row4 };
 }
 
-function ShipStack({ ship }: { ship: { shipDefId: string; count: number } }) {
+function ShipStack({ 
+  ship, 
+  animToken,
+  side,
+  opponentEntryDelays,
+  activationIndexMap,
+}: { 
+  ship: { shipDefId: string; count: number };
+  animToken?: ShipAnimToken;
+  side: 'my' | 'opponent';
+  opponentEntryDelays?: Record<string, number>;
+  activationIndexMap?: Record<string, number>;
+}) {
   const def = getShipDefinitionUI(ship.shipDefId as ShipDefId);
   const ShipGraphic = def?.graphics?.[0]?.component;
   const numberColour = toCssVarFromColourName(def?.colour);
+  
+  // Enable hover activation for ships with animation presets (Human + Xenite + Centaur ships)
+  const enableHover = ['DEF', 'FIG', 'INT', 'COM', 'ORB', 'CAR', 'STA', 'FRI', 'TAC', 'GUA', 'SCI', 'BAT', 'EAR', 'DRE', 'LEV', 'XEN', 'ANT', 'MAN', 'EVO', 'HEL', 'BUG', 'ZEN', 'DSW', 'AAR', 'OXF', 'ASF', 'SAC', 'QUE', 'CHR', 'HVE', 'FEA', 'ANG', 'EQU', 'WIS', 'VIG', 'FAM', 'LEG', 'TER', 'FUR', 'KNO', 'ENT', 'RED', 'POW', 'DES', 'DOM'].includes(ship.shipDefId);
+
+  const showCount = ship.count > 1;
+
+  // Compute animation delays
+  const entryDelayMs = side === 'opponent' ? (opponentEntryDelays?.[ship.shipDefId] ?? 0) : 0;
+  const activationDelayMs = (activationIndexMap?.[ship.shipDefId] ?? 0) * 400;
 
   return (
-    <div className="flex flex-row items-center gap-[8px]">
+    <div className="flex flex-row items-center">
       <div className="flex items-center justify-center">
-        {ShipGraphic ? <ShipGraphic /> : <span className="text-white text-sm">{ship.shipDefId}</span>}
+        <ShipAnimationWrapper 
+          shipDefId={ship.shipDefId as ShipDefId} 
+          token={animToken}
+          enableHoverActivation={enableHover}
+          entryDelayMs={entryDelayMs}
+          activationDelayMs={activationDelayMs}
+        >
+          {ShipGraphic ? <ShipGraphic /> : <span className="text-white text-sm">{ship.shipDefId}</span>}
+        </ShipAnimationWrapper>
       </div>
 
-      {ship.count > 1 ? (
+      {showCount ? (
         <div
           className="font-['Roboto'] font-semibold"
           style={{
@@ -134,6 +165,22 @@ function ShipStack({ ship }: { ship: { shipDefId: string; count: number } }) {
             lineHeight: 1,
             fontVariationSettings: "'wdth' 100",
             color: numberColour ?? 'white',
+
+            display: 'inline-block',
+            whiteSpace: 'nowrap',
+            textAlign: 'left',
+            marginLeft: '8px',
+
+            transformOrigin: 'left center',
+            transform: 'scaleX(1)',
+            opacity: 1,
+            transitionProperty: 'transform, opacity',
+            transitionDuration: '100ms, 200ms',
+            transitionTimingFunction: 'ease-out, ease-in-out',
+            transitionDelay: '0ms, 100ms',
+
+            pointerEvents: 'none',
+            userSelect: 'none',
           }}
         >
           {ship.count}
@@ -148,42 +195,92 @@ function FleetArea({
   ships,
   order,
   species,
+  animTokens,
+  flipEnabled = false,
+  side,
+  opponentEntryDelays,
+  activationIndexMap,
 }: {
   title: string;
   ships?: Array<{ shipDefId: string; count: number }>;
   order?: string[];
   species: SpeciesKey;
+  animTokens?: Partial<Record<ShipDefId, ShipAnimToken>>;
+  flipEnabled?: boolean;
+  side: 'my' | 'opponent';
+  opponentEntryDelays?: Record<string, number>;
+  activationIndexMap?: Record<string, number>;
 }) {
   const rowSets = ROW_SETS_BY_SPECIES[species];
   const grouped = ships && ships.length > 0 ? groupShipsIntoRows(ships, order, rowSets) : null;
 
+  // FLIP layout animation for smooth repositioning (live fleet only)
+  // Derive keys from rendered ships in stable order
+  const renderedShips = grouped
+    ? [...grouped.row1, ...grouped.row2, ...grouped.row3, ...grouped.row4]
+    : [];
+  const allShipIds = renderedShips.map(s => s.shipDefId);
+  const getFlipRef = useFlipLayout(allShipIds, flipEnabled, { durationMs: 400, easing: 'ease-in-out' });
+
   return (
-    <div className="basis-0 bg-[rgba(255,255,255,0.05)] grow h-full min-h-px min-w-px relative shrink-0 pl-[12px]">
+    <div className="basis-0 grow h-full min-h-px min-w-px relative shrink-0 px-[8px]">
       {/* FleetArea: {title} (title intentionally not rendered) */}
       <FitToBox minScale={0.4} className="w-full h-full">
         {grouped ? (
           <div className="flex flex-col items-center gap-[18px]">
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
               {grouped.row1.map((ship) => (
-                <ShipStack key={ship.shipDefId} ship={ship} />
+                <div key={ship.shipDefId} ref={getFlipRef(ship.shipDefId)}>
+                  <ShipStack 
+                    ship={ship}
+                    animToken={animTokens?.[ship.shipDefId as ShipDefId]}
+                    side={side}
+                    opponentEntryDelays={opponentEntryDelays}
+                    activationIndexMap={activationIndexMap}
+                  />
+                </div>
               ))}
             </div>
 
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
               {grouped.row2.map((ship) => (
-                <ShipStack key={ship.shipDefId} ship={ship} />
+                <div key={ship.shipDefId} ref={getFlipRef(ship.shipDefId)}>
+                  <ShipStack 
+                    ship={ship}
+                    animToken={animTokens?.[ship.shipDefId as ShipDefId]}
+                    side={side}
+                    opponentEntryDelays={opponentEntryDelays}
+                    activationIndexMap={activationIndexMap}
+                  />
+                </div>
               ))}
             </div>
 
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
               {grouped.row3.map((ship) => (
-                <ShipStack key={ship.shipDefId} ship={ship} />
+                <div key={ship.shipDefId} ref={getFlipRef(ship.shipDefId)}>
+                  <ShipStack 
+                    ship={ship}
+                    animToken={animTokens?.[ship.shipDefId as ShipDefId]}
+                    side={side}
+                    opponentEntryDelays={opponentEntryDelays}
+                    activationIndexMap={activationIndexMap}
+                  />
+                </div>
               ))}
             </div>
 
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
               {grouped.row4.map((ship) => (
-                <ShipStack key={ship.shipDefId} ship={ship} />
+                <div key={ship.shipDefId} ref={getFlipRef(ship.shipDefId)}>
+                  <ShipStack 
+                    ship={ship}
+                    animToken={animTokens?.[ship.shipDefId as ShipDefId]}
+                    side={side}
+                    opponentEntryDelays={opponentEntryDelays}
+                    activationIndexMap={activationIndexMap}
+                  />
+                </div>
               ))}
             </div>
           </div>
@@ -314,7 +411,17 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
       className="content-stretch flex gap-[8px] items-start justify-center px-0 py-[12px] relative size-full"
       data-name="Board Stage"
     >
-      <FleetArea title="MY FLEET" ships={vm.myFleet} order={vm.myFleetOrder} species={mySpeciesKey} />
+      <FleetArea 
+        title="MY FLEET" 
+        ships={vm.myFleet} 
+        order={vm.myFleetOrder} 
+        species={mySpeciesKey}
+        animTokens={vm.fleetAnim.my}
+        flipEnabled={vm.mode === 'board'}
+        side="my"
+        opponentEntryDelays={undefined}
+        activationIndexMap={vm.activationStaggerPlan?.myIndexByShipId}
+      />
 
       <div
         className="content-stretch flex flex-col h-full items-center justify-between relative shrink-0 w-[230px]"
@@ -329,26 +436,70 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             className="content-stretch flex flex-col font-['Roboto'] font-bold gap-px items-end relative shrink-0 text-right w-[100px]"
             data-name="P1 Health Group"
           >
-            <p className="leading-[64px] relative shrink-0 text-[64px] text-white w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
-              {vm.myHealth}
-            </p>
-          </div>
-
-          <div className="content-stretch flex items-center justify-center pb-0 pt-[22px] px-0 relative shrink-0" data-name="Health Label">
             <p
-              className="font-['Roboto'] font-normal leading-[1.25] relative shrink-0 text-[0px] text-center text-white w-[64px]"
+              className="leading-[64px] relative shrink-0 text-[64px] text-white w-full"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
-              <span className="text-[15px]">
-                Health
-                <br aria-hidden="true" />
-              </span>
+              {vm.myHealth}
+            </p>
+
+            {/* Delta (UI placeholder) */}
+            <p
+              className="font-['Roboto'] font-semibold leading-[28px] relative shrink-0 text-[28px] w-full text-right"
+              style={{
+                fontVariationSettings: "'wdth' 100",
+                color: 'var(--shapeships-pastel-red)',
+              }}
+            >
+              -3
             </p>
           </div>
 
-          <div className="content-stretch flex flex-col font-['Roboto'] font-bold items-start relative shrink-0" data-name="P2 Health Group">
-            <p className="leading-[64px] relative shrink-0 text-[64px] text-white w-[100px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <div
+            className="content-stretch flex items-center justify-center pb-0 pt-[22px] px-0 relative shrink-0"
+            data-name="Health Label"
+          >
+            <div className="flex flex-col items-center justify-start w-[64px] text-center">
+              <p
+                className="font-['Roboto'] font-normal leading-[1.25] relative shrink-0 text-white text-[15px]"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                Health
+              </p>
+
+              {/* Max Health (UI placeholder) */}
+              <p
+                className="font-['Roboto'] font-semibold leading-[13px] relative shrink-0 text-[13px]"
+                style={{
+                  fontVariationSettings: "'wdth' 100",
+                  color: 'rgba(255,255,255,0.45)',
+                }}
+              >
+                35
+              </p>
+            </div>
+          </div>
+
+          <div
+            className="content-stretch flex flex-col font-['Roboto'] font-bold items-start relative shrink-0 w-[100px]"
+            data-name="P2 Health Group"
+          >
+            <p
+              className="leading-[64px] relative shrink-0 text-[64px] text-white w-[100px] text-left"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
               {vm.opponentHealth}
+            </p>
+
+            {/* Delta (UI placeholder) */}
+            <p
+              className="font-['Roboto'] font-semibold leading-[28px] relative shrink-0 text-[28px] w-[100px] text-left"
+              style={{
+                fontVariationSettings: "'wdth' 100",
+                color: 'var(--shapeships-pastel-green)',
+              }}
+            >
+              +2
             </p>
           </div>
         </div>
@@ -360,8 +511,9 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             {/* P1 */}
             <div className="content-stretch flex items-start justify-end relative shrink-0 w-[100px]" data-name="P1 Saved Wrapper">
               <div className="content-stretch flex items-start relative shrink-0">
-                <Metric value="99" align="right" toneClass="text-white" />
-                <Metric value="99" label="JOINING" align="right" toneClass="text-white" />
+                <Metric value="0" align="right" toneClass="text-white" />
+                {/* Joining lines, will turn on if player has saved joining lines */}
+                {/* <Metric value="0" label="JOINING" align="right" toneClass="text-white" /> */}
               </div>
             </div>
           
@@ -377,20 +529,22 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             {/* P2 */}
             <div className="content-stretch flex items-start relative shrink-0 w-[100px]" data-name="P2 Saved Wrapper">
               <div className="content-stretch flex items-start relative shrink-0">
-                <Metric value="99" align="left" toneClass="text-white" />
-                <Metric value="99" label="JOINING" align="left" toneClass="text-white" />
+                <Metric value="0" align="left" toneClass="text-white" />
+                {/* Joining lines, will turn on if player has saved joining lines */}
+                {/* <Metric value="0" label="JOINING" align="left" toneClass="text-white" /> */}
               </div>
             </div>
           </div>
 
-          <StatTripletRow left="999" centerLabel="Damage" right="999" toneClass="text-[#ff8282]" />
-          <StatTripletRow left="999" centerLabel="Healing" right="999" toneClass="text-[#9cff84]" />
+          <StatTripletRow left="0" centerLabel="Damage" right="0" toneClass="text-[#ff8282]" />
+          <StatTripletRow left="0" centerLabel="Healing" right="0" toneClass="text-[#9cff84]" />
 
           {/* Bonus */}
           <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Bonus Group">
             <div className="content-stretch flex gap-[4px] items-center justify-end relative shrink-0 w-[100px]" data-name="P1 Bonuses">
-              <Metric value="99" label="Lines" label2="on EVEN" align="right" toneClass="text-[#62fff6]" />
-              <Metric value="99" label="JOINING" label2="LINES" align="right" toneClass="text-[#62fff6]" />
+              <Metric value="0" label="Lines" label2="on EVEN" align="right" toneClass="text-[#62fff6]" />
+              {/* Joining lines, will turn on if player has bonus joining lines */}
+              {/* <Metric value="0" label="JOINING" label2="LINES" align="right" toneClass="text-[#62fff6]" /> */}
             </div>
 
             <div className="content-stretch flex items-center justify-center pb-0 pt-[8px] px-0 relative shrink-0">
@@ -403,14 +557,25 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             </div>
 
             <div className="content-stretch flex gap-[4px] items-start relative shrink-0 w-[100px]" data-name="P2 Bonuses">
-              <Metric value="99" label="Lines" align="left" toneClass="text-[#62fff6]" />
-              <Metric value="99" label="JOINING" label2="LINES" align="left" toneClass="text-[#62fff6]" />
+              <Metric value="0" label="Lines" align="left" toneClass="text-[#62fff6]" />
+              {/* Joining lines, will turn on if player has bonus joining lines */}
+              {/* <Metric value="0" label="JOINING" label2="LINES" align="left" toneClass="text-[#62fff6]" /> */}
             </div>
           </div>
         </div>
       </div>
 
-      <FleetArea title="OPPONENT FLEET" ships={vm.opponentFleet} order={vm.opponentFleetOrder} species={opponentSpeciesKey} />
+      <FleetArea 
+        title="OPPONENT FLEET" 
+        ships={vm.opponentFleet} 
+        order={vm.opponentFleetOrder} 
+        species={opponentSpeciesKey}
+        animTokens={vm.fleetAnim.opponent}
+        flipEnabled={vm.mode === 'board'}
+        side="opponent"
+        opponentEntryDelays={vm.opponentFleetEntryPlan?.opponent}
+        activationIndexMap={vm.activationStaggerPlan?.opponentIndexByShipId}
+      />
     </div>
   );
 }

@@ -24,6 +24,7 @@ interface LeftRailProps {
 
 export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
   const [showCopiedToast, setShowCopiedToast] = useState(false);
+  const [chatDraft, setChatDraft] = useState('');
 
   function handleCopyUrl() {
     actions.onCopyGameUrl();
@@ -86,7 +87,7 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
             <CopyIcon />
           </button>
           {showCopiedToast && (
-            <CopiedToast className="absolute right-0 top-full mt-[6px]" />
+            <CopiedToast className="absolute right-5 top-full mt-[6px]" />
           )}
         </div>
       
@@ -94,6 +95,7 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
         <LeftRailScrollArea
           outerClassName="h-[154px] px-5 pb-2"
           innerClassName="justify-end gap-1 text-[15px]"
+          stickToBottomOnChange
         >
           {vm.chatMessages.map((msg, idx) => (
             <p key={idx} className="text-[#d4d4d4] leading-[18px]">
@@ -125,8 +127,42 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
         <div className="h-[47px]">
           <div className="h-[1px] bg-[#555] mx-5" />
           <div className="px-5 py-2 flex items-center justify-between">
-            <p className="text-[#888] text-[16px] italic">Be nice in chat</p>
-            <ChatSendButton onClick={() => actions.onSendChat('test')}>SEND</ChatSendButton>
+            <input
+              type="text"
+              value={chatDraft}
+              onChange={(e) => setChatDraft(e.target.value)}
+              placeholder="Be nice in chat"
+              className="
+                flex-1
+                bg-transparent
+                outline-none
+                text-white
+                text-[16px]
+                not-italic
+                placeholder:text-[#888]
+                placeholder:italic
+                mr-3
+              "
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const text = chatDraft.trim();
+                  if (text.length === 0) return;
+                  actions.onSendChat(text);
+                  setChatDraft('');
+                }
+              }}
+            />
+            <ChatSendButton
+              onClick={() => {
+                const text = chatDraft.trim();
+                if (text.length === 0) return;
+                actions.onSendChat(text);
+                setChatDraft('');
+              }}
+            >
+              SEND
+            </ChatSendButton>
           </div>
         </div>
       </div>
@@ -150,6 +186,7 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
         <LeftRailScrollArea
           outerClassName="basis-0 flex-1 px-5 pb-3"
           innerClassName="justify-end gap-[10px] text-[15px] text-[#d4d4d4]"
+          stickToBottomOnChange
         >
           {vm.battleLogEntries.map((entry, idx) => {
             if (entry.type === 'turn-marker') {

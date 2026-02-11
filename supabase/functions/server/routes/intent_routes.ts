@@ -14,6 +14,53 @@ import type { Hono } from "npm:hono";
 import { applyIntent, type IntentRequest } from '../engine/intent/IntentReducer.ts';
 import { accrueClocks } from '../engine/clock/clock.ts';
 
+// ============================================================================
+// CHAT HELPER - Separate KV Storage (Cap: 50 messages)
+// ============================================================================
+
+type ChatEntry = {
+  type: 'message';
+  playerId: string;
+  playerName: string;
+  content: string;
+  timestamp: number;
+};
+
+type ChatStore = {
+  entries: ChatEntry[];
+};
+
+async function appendChatMessage(
+  gameId: string,
+  entry: ChatEntry,
+  kvGet: (key: string) => Promise<any>,
+  kvSet: (key: string, value: any) => Promise<void>
+): Promise<void> {
+  try {
+    const chatKey = `game_${gameId}_chat`;
+    let chatStore: ChatStore = await kvGet(chatKey);
+    
+    // Initialize if missing or malformed
+    if (!chatStore || !Array.isArray(chatStore.entries)) {
+      chatStore = { entries: [] };
+    }
+    
+    // Append new entry
+    chatStore.entries.push(entry);
+    
+    // Cap to last 50 messages
+    if (chatStore.entries.length > 50) {
+      chatStore.entries = chatStore.entries.slice(-50);
+    }
+    
+    await kvSet(chatKey, chatStore);
+    console.log(`[Chat] Message appended to ${chatKey}, total: ${chatStore.entries.length}`);
+  } catch (error) {
+    console.warn(`[Chat] Failed to append message for game ${gameId}:`, error);
+    // Don't throw - chat failure shouldn't break intent processing
+  }
+}
+
 export function registerIntentRoutes(
   app: Hono,
   kvGet: (key: string) => Promise<any>,
@@ -118,6 +165,29 @@ export function registerIntentRoutes(
       const retry = await applyIntent(latestState, sessionPlayerId, intentRequest, nowMs);
 
       if (retry.ok) {
+        // ========================================================================
+        // CHAT SEPARATION: Scan events for CHAT_MESSAGE
+        // ========================================================================
+        
+        // Scan returned events for CHAT_MESSAGE (emitted by reducer)
+        for (const event of retry.events) {
+          if (event.type === 'CHAT_MESSAGE') {
+            // Append to separate chat KV using data from event
+            await appendChatMessage(
+              intentRequest.gameId,
+              {
+                type: 'message',
+                playerId: event.playerId,
+                playerName: event.playerName,
+                content: event.content,
+                timestamp: event.timestamp
+              },
+              kvGet,
+              kvSet
+            );
+          }
+        }
+        
         // Save the merged/latest-applied state
         await kvSet(gameKey, retry.state);
         console.log(`[Intent] Success (merged): ${intentRequest.intentType}, Events: ${retry.events.length}`);
@@ -173,6 +243,48 @@ export function registerIntentRoutes(
           code: 'INTERNAL_ERROR',
           message
         }
+      }, 500);
+    }
+  });
+  
+  // ============================================================================
+  // GET /chat-state/:gameId - Fetch Chat Messages
+  // ============================================================================
+  
+  app.get("/make-server-825e19ab/chat-state/:gameId", async (c) => {
+    try {
+      // Validate session
+      const session = await requireSession(c);
+      if (session instanceof Response) return session;
+      
+      const gameId = c.req.param('gameId');
+      
+      if (!gameId) {
+        return c.json({ ok: false, entries: [], error: 'Missing gameId' }, 400);
+      }
+      
+      console.log(`[Chat] Fetch request for game: ${gameId}`);
+      
+      const chatKey = `game_${gameId}_chat`;
+      let chatStore: ChatStore = await kvGet(chatKey);
+      
+      // Default to empty if missing or malformed
+      if (!chatStore || !Array.isArray(chatStore.entries)) {
+        chatStore = { entries: [] };
+      }
+      
+      return c.json({
+        ok: true,
+        entries: chatStore.entries
+      }, 200);
+      
+    } catch (error) {
+      console.error("[Chat] Error fetching chat:", error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return c.json({
+        ok: false,
+        entries: [],
+        error: message
       }, 500);
     }
   });

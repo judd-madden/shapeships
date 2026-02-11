@@ -85,7 +85,7 @@ export function FitToBox({ children, minScale = 0.4, className }: FitToBoxProps)
           overflow: 'hidden',
         }}
       >
-        <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center' }}>
+        <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center', transition: 'transform 0.4s ease-out', }}>
           {/* This element is measured using offsetWidth/offsetHeight (transform-safe) */}
           <div ref={innerMeasureRef}>{children}</div>
         </div>

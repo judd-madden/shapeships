@@ -414,13 +414,13 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "N/A",
-        "text": "No power."
+        "subphase": "Automatic",
+        "text": "Heal 1, once only on the turn it is built."
       }
     ],
     "energyCost": null,
     "extraRules": "",
-    "stackCaption": "No caption",
+    "stackCaption": "1 healing (only on turn it's built, then no caption)",
     "colour": "White",
     "numberOfGraphics": 1
   },

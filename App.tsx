@@ -18,12 +18,13 @@ import { usePlayer } from './game/hooks/usePlayer';
 import { BuildKitShowcase } from './components/dev/BuildKitShowcase';
 import { runFullSimulation } from './game/engine/battle/BattleSimulationHarness';
 import AlphaV3E2EHarness from './components/dev/AlphaV3E2EHarness';
+import { ActionPanelsGallery } from './components/dev/ActionPanelsGallery';
 
 // Feature flags for legacy harnesses
 const ENABLE_BATTLE_SIM = false; // Legacy harness disabled. Real engine is server/engine_shared.
 
 // Dashboard view type
-type DashboardViewId = 'deployment' | 'auth' | 'alphaE2E' | 'intentVerification' | 'battleSimulation' | 'graphicsTest' | 'buildKit' | 'gameScreen';
+type DashboardViewId = 'deployment' | 'auth' | 'alphaE2E' | 'intentVerification' | 'battleSimulation' | 'graphicsTest' | 'buildKit' | 'gameScreen' | 'actionPanelsGallery';
 
 // App view mode
 type ViewMode = 'dashboard' | 'playerMode' | 'gameFullscreen';
@@ -38,6 +39,7 @@ const DASHBOARD_ENTRIES: Array<{ id: DashboardViewId; label: string; alphaDisabl
   { id: 'graphicsTest', label: 'Graphics Test' },
   { id: 'buildKit', label: 'Build Kit' },
   { id: 'gameScreen', label: 'Game Screen' },
+  { id: 'actionPanelsGallery', label: 'Action Panels Gallery' },
 ];
 
 // URL helper functions
@@ -46,7 +48,7 @@ function readDashboardViewFromUrl(): DashboardViewId {
   const view = params.get('view') as DashboardViewId | null;
   
   // Validate view is a known dashboard view
-  const validViews: DashboardViewId[] = ['deployment', 'auth', 'alphaE2E', 'intentVerification', 'battleSimulation', 'graphicsTest', 'buildKit', 'gameScreen'];
+  const validViews: DashboardViewId[] = ['deployment', 'auth', 'alphaE2E', 'intentVerification', 'battleSimulation', 'graphicsTest', 'buildKit', 'gameScreen', 'actionPanelsGallery'];
   
   if (view && validViews.includes(view)) {
     return view;
@@ -403,6 +405,15 @@ export default function App() {
                   </CardContent>
                 </Card>
               </div>
+            </div>
+          )}
+          
+          {currentView === 'actionPanelsGallery' && (
+            <div className="container w-1200px">
+              <Button onClick={() => setView('deployment')} className="mb-4">
+                ← Back to Dashboard
+              </Button>
+              <ActionPanelsGallery />
             </div>
           )}
         </div>

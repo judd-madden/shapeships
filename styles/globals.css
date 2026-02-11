@@ -285,3 +285,171 @@ html {
   width: 100%;
   height: 100%;
 }
+
+/* ============================================================================
+   Ship Animation System (Live Fleet Only)
+   ========================================================================== */
+
+/* Animation root wrapper */
+.ss-shipAnimRoot {
+  transform-origin: center;
+  --ss-act-scale: 1.2;
+}
+
+.ss-shipEntryLayer,
+.ss-shipActivateLayer {
+  display: inline-block;
+}
+
+/* Keyframes: Defender */
+@keyframes ssDefEntry {
+  0%   { opacity: 0; transform: scaleY(0.5); }
+  33%  { opacity: 1; }
+  100% { opacity: 1; transform: scaleY(1); }
+}
+
+/* Keyframes: Default (formerly Fighter) */
+@keyframes ssDefaultEntry {
+  0%   { opacity: 0; transform: translateY(20px); }
+  33%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ssDefaultActivate {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(var(--ss-act-scale)); }
+  100% { transform: scale(1); }
+}
+
+/* Keyframes: Commander */
+@keyframes ssComEntry {
+  0%   { opacity: 0; transform: rotate(-90deg); }
+  33%  { opacity: 1; }
+  100% { opacity: 1; transform: rotate(0deg); }
+}
+
+/* Keyframes: Carrier */
+@keyframes ssCarEntry {
+  0%   { opacity: 0; transform: rotate(-120deg); }
+  33%  { opacity: 1; }
+  100% { opacity: 1; transform: rotate(0deg); }
+}
+
+@keyframes ssCarActivate {
+  0%   { transform: rotate(0deg); }
+  60%  { transform: rotate(-60deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* Keyframes: Starship */
+@keyframes ssStaEntry {
+  0%   { opacity: 0; transform: rotate(-90deg) scale(0.5); }
+  33%  { opacity: 1; }
+  100% { opacity: 1; transform: rotate(0deg) scale(1); }
+}
+
+/* Preset: Defender */
+.ss-entry-defender {
+  animation: ssDefEntry 0.4s ease-out both;
+}
+
+/* Preset: Default (formerly Fighter) */
+.ss-entry-default {
+  animation: ssDefaultEntry 0.4s ease-out both;
+}
+
+.ss-activate-default {
+  animation: ssDefaultActivate 0.4s ease-in-out both;
+}
+
+/* Preset: Commander */
+.ss-entry-commander {
+  animation: ssComEntry 0.4s ease-out both;
+}
+
+/* Preset: Carrier */
+.ss-entry-carrier {
+  animation: ssCarEntry 0.7s ease-out both;
+}
+
+.ss-activate-carrier {
+  animation: ssCarActivate 0.6s ease-in-out both;
+}
+
+/* Preset: Starship */
+.ss-entry-starship {
+  animation: ssStaEntry 0.7s ease-out both;
+}
+
+/* Preset-driven hover activation */
+.ss-shipAnimRoot[data-anim="default"][data-anim-hover="1"]:hover .ss-shipActivateLayer {
+  animation: ssDefaultActivate 0.4s ease-in-out both;
+}
+
+.ss-shipAnimRoot[data-anim="carrier"][data-anim-hover="1"]:hover .ss-shipActivateLayer {
+  animation: ssCarActivate 0.6s ease-in-out both;
+}
+
+/* Stack-add pulse (when count increases on existing stack) */
+@keyframes ssStackAddPulse {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.ss-stack-add {
+  animation: ssStackAddPulse 0.4s ease-in-out both;
+}
+
+/* Xenite Entry (spiral-pop-bounce with 4 diminishing bounces) */
+@keyframes ssXenEntry {
+  /* Start: small + rotated (spiral-in), invisible */
+  0%   { opacity: 0; transform: scale(0.5) rotate(-12deg); }
+  25%  { opacity: 1; }
+
+  /* Spiral/pop towards overshoot */
+  55%  { opacity: 1; transform: scale(1.08) rotate(6deg); }
+
+  /* 4 diminishing bounces around the final state (~80% onward) */
+  70%  { transform: scale(0.96) rotate(-4deg); }  /* bounce 1 */
+  78%  { transform: scale(1.03) rotate(2deg); }   /* bounce 2 */
+  86%  { transform: scale(0.99) rotate(-1deg); }  /* bounce 3 */
+  93%  { transform: scale(1.01) rotate(0.5deg); } /* bounce 4 */
+
+  /* Settle */
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+.ss-entry-xenite {
+  animation: ssXenEntry 0.9s ease-out both;
+}
+
+/* Xenite Activation (jiggle ±15deg) */
+@keyframes ssXenJiggle {
+  0%   { transform: rotate(0deg); }
+  20%  { transform: rotate(-8deg); }
+  40%  { transform: rotate(8deg); }
+  60%  { transform: rotate(-4deg); }
+  80%  { transform: rotate(4deg); }
+  100% { transform: rotate(0deg); }
+}
+
+.ss-activate-xenite {
+  animation: ssXenJiggle 0.5s ease-in-out both;
+}
+
+/* Hover harness for Xenite activation */
+.ss-shipAnimRoot[data-anim="xenite"][data-anim-hover="1"]:hover .ss-shipActivateLayer {
+  animation: ssXenJiggle 0.6s ease-in-out both;
+}
+
+/* To-Right Entry (slide in from left with fade) */
+@keyframes ssToRightEntry {
+  0%   { opacity: 0; transform: translateX(-20px); }
+  25%  { opacity: 1; }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+.ss-entry-to-right {
+  animation: ssToRightEntry 0.4s ease-out both;
+}

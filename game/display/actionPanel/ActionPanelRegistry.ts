@@ -28,8 +28,6 @@ export type ActionPanelId =
   | 'ap.battle.charges.centaur.ship_of_equality'
   | 'ap.battle.charges.ancient.black_hole'
   | 'ap.battle.charges.ancient.simulacrum'
-  // End of turn resolution
-  | 'ap.end_of_turn_resolution.health'
   // End of game result (single panel, variants via props)
   | 'ap.end_of_game.result';
 
@@ -53,7 +51,6 @@ export const ACTION_PANEL_IDS: ActionPanelId[] = [
   'ap.battle.charges.centaur.ship_of_equality',
   'ap.battle.charges.ancient.black_hole',
   'ap.battle.charges.ancient.simulacrum',
-  'ap.end_of_turn_resolution.health',
   'ap.end_of_game.result',
 ] as const;
 
@@ -86,6 +83,5 @@ export const ACTION_PANEL_DISPLAY_NAMES = {
   'ap.battle.charges.centaur.ship_of_equality': 'AP - Charges - Centaur - Ship of Equality',
   'ap.battle.charges.ancient.black_hole': 'AP - Charges - Ancient - Black Hole',
   'ap.battle.charges.ancient.simulacrum': 'AP - Charges - Ancient - Simulacrum',
-  'ap.end_of_turn_resolution.health': 'AP - Health Resolution',
   'ap.end_of_game.result': 'AP - Game Result',
 } satisfies Record<ActionPanelId, string>;
