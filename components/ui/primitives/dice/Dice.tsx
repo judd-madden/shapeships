@@ -1,6 +1,7 @@
 /**
  * Dice (1-6)
  * Displays dice face images
+ * TO DO - Move Assets once we're out of Figma workflow
  */
 
 import imgD1 from "figma:asset/1c079466ca4622fc310a4f4ac8a31668545f5746.png";

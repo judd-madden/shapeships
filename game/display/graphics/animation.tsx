@@ -34,6 +34,7 @@ export type FleetAnimVM = {
 // ============================================================================
 // ANIMATION PRESETS (SPLIT: ENTRY + ACTIVATION)
 // ============================================================================
+// These classes are in globals.css
 
 type EntryPresetId = 'default' | 'defender' | 'commander' | 'carrier' | 'starship' | 'xenite' | 'to-right';
 type ActivationPresetId = 'default' | 'carrier' | 'xenite';
@@ -137,7 +138,7 @@ const SHIP_ANIM: Partial<Record<ShipDefId, {
 export function computeActivationScale(stackCount: number): number {
   const base = 1.1;
   const scale = base + 0.05 * stackCount;
-  return Math.min(scale, 1.6);
+  return Math.min(scale, 1.8);
 }
 
 // ============================================================================

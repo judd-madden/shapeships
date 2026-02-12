@@ -4543,11 +4543,11 @@ html {
 
   60% {
     opacity: 1;
-    transform: translateY(2px);
+    transform: translateY(3px);
   }
 
   80% {
-    transform: translateY(-1px);
+    transform: translateY(-2px);
   }
 
   100% {
@@ -4780,7 +4780,7 @@ html {
 }
 
 .ss-entry-xenite {
-  animation: .9s ease-out both ssXenEntry;
+  animation: .7s ease-out both ssXenEntry;
 }
 
 @keyframes ssXenJiggle {
@@ -4809,18 +4809,14 @@ html {
   }
 }
 
-.ss-activate-xenite {
+.ss-activate-xenite, .ss-shipAnimRoot[data-anim="xenite"][data-anim-hover="1"]:hover .ss-shipActivateLayer {
   animation: .5s ease-in-out both ssXenJiggle;
-}
-
-.ss-shipAnimRoot[data-anim="xenite"][data-anim-hover="1"]:hover .ss-shipActivateLayer {
-  animation: .6s ease-in-out both ssXenJiggle;
 }
 
 @keyframes ssToRightEntry {
   0% {
     opacity: 0;
-    transform: translateX(-20px);
+    transform: translateX(20px);
   }
 
   25% {

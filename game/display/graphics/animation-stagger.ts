@@ -37,7 +37,7 @@ export type ActivationStaggerPlan = {
 export function computeOpponentEntryPlan(
   prevOpponentIds: ReadonlySet<string>,
   opponentOrderedShipIds: readonly string[],
-  stepMs: number = 400
+  stepMs: number = 700
 ): { plan: OpponentFleetEntryPlan; nextPrevIds: Set<string> } {
   // Build current IDs set
   const currentIds = new Set(opponentOrderedShipIds);
