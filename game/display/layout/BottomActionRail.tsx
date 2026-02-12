@@ -61,6 +61,7 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
         )}
         <div className="w-[300px]">
           <ReadyButton
+            label={vm.readyButtonLabel}
             selected={vm.readySelected}
             disabled={vm.readyDisabled || vm.readySelected}
             note={vm.readyDisabled ? vm.readyDisabledReason : vm.readyButtonNote}

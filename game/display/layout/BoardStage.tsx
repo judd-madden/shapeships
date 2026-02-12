@@ -157,7 +157,15 @@ function ShipStack({
         </ShipAnimationWrapper>
       </div>
 
-      {showCount ? (
+      {/* Count wrapper: collapses to zero width when count === 1 */}
+      <div
+        style={{
+          overflow: 'hidden',
+          maxWidth: showCount ? '80px' : '0px',
+          marginLeft: showCount ? '8px' : '0px',
+          transition: 'max-width 100ms ease-out, margin-left 100ms ease-out',
+        }}
+      >
         <div
           className="font-['Roboto'] font-semibold"
           style={{
@@ -169,7 +177,6 @@ function ShipStack({
             display: 'inline-block',
             whiteSpace: 'nowrap',
             textAlign: 'left',
-            marginLeft: '8px',
 
             transformOrigin: 'left center',
             transform: 'scaleX(1)',
@@ -185,7 +192,7 @@ function ShipStack({
         >
           {ship.count}
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }

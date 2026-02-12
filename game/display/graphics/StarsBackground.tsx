@@ -132,8 +132,7 @@ export function StarsBackground() {
                 width: `${STARS_CONFIG.blackHoleSizePx}px`,
                 height: `${STARS_CONFIG.blackHoleSizePx}px`,
                 borderRadius: 9999,
-                background:
-                  'radial-gradient(50% 50% at 50% 50%, #000 60%, rgba(0, 0, 0, 0.00) 100%)',
+                background: 'radial-gradient(circle at 50% 50%, #000 0 55%, rgba(140, 190, 255, 0.25) 60%, rgba(0,0,0,0) 75%)',
               }}
             />
           );

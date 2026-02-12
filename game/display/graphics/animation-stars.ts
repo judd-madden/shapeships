@@ -43,29 +43,29 @@ export type StarsConfig = {
 };
 
 export const STARS_CONFIG: StarsConfig = {
-  minStars: 3,
-  maxStars: 6,
+  minStars: 8,
+  maxStars: 11,
 
   starMinSizePx: 1,
-  starMaxSizePx: 5,
+  starMaxSizePx: 7,
 
-  spawnMarginPx: 100,
+  spawnMarginPx: 200,
   driftExtraPx: 300,
 
-  // 5–30 minutes
-  minDurationMs: 6 * 60 * 1000,
-  maxDurationMs: 30 * 60 * 1000,
+  // 10–50 minutes
+  minDurationMs: 10 * 60 * 1000,
+  maxDurationMs: 50 * 60 * 1000,
 
-  maxDelayMs: 5000,
+  maxDelayMs: 0,
 
-  blackHoleChance: 1 / 30,
-  saturnChance: 1 / 30,
+  blackHoleChance: 1 / 5,
+  saturnChance: 1 / 2,
 
-  blackHoleSizePx: 30,
-  saturnPlanetSizePx: 6,
-  saturnRingWidthPx: 12,
-  saturnRingHeightPx: 2,
-  saturnRingRotationDeg: 25,
+  blackHoleSizePx: 60,
+  saturnPlanetSizePx: 8,
+  saturnRingWidthPx: 16,
+  saturnRingHeightPx: 3,
+  saturnRingRotationDeg: 20,
 };
 
 export type StarsViewport = { width: number; height: number };

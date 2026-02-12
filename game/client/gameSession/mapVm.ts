@@ -71,6 +71,9 @@ export function mapGameSessionVm(args: {
   isFinished: boolean;
   mySpeciesId: SpeciesId | null;
   opponentSpeciesId: SpeciesId | null;
+  
+  // Ready flash state (visual-only)
+  readyFlashSelected: boolean;
 }): GameSessionViewModel {
   const {
     isBootstrapping,
@@ -106,6 +109,7 @@ export function mapGameSessionVm(args: {
     isFinished,
     mySpeciesId,
     opponentSpeciesId,
+    readyFlashSelected,
   } = args;
   
   // Map chat entries to LeftRail VM format
@@ -227,6 +231,31 @@ export function mapGameSessionVm(args: {
   const evolverCount = getFleetCount(myFleet, 'EVO');
   const evolverDrawing = evolverCount > 0 ? { evolverCount } : undefined;
 
+  // ============================================================================
+  // READY BUTTON LABEL DERIVATION
+  // ============================================================================
+  
+  let readyButtonLabel = 'READY';
+  let finalReadyDisabled = !readyEnabled;
+  let finalReadyDisabledReason = readyDisabledReason;
+  let finalReadySelected = p1IsReady;
+  
+  if (isFinished) {
+    // Game over: button shows "GAME OVER" and is disabled
+    readyButtonLabel = 'GAME OVER';
+    finalReadyDisabled = true;
+    finalReadySelected = false;
+    finalReadyDisabledReason = 'Game over.';
+  }
+  // TODO: "WAITING" label when player has no required action this phase
+  // Requires server to expose a per-player "needsInputThisPhase" flag.
+  // If server adds this flag, derive here:
+  // else if (!playerNeedsInputThisPhase && !p2IsReady) {
+  //   readyButtonLabel = 'WAITING';
+  //   finalReadyDisabled = true;
+  //   finalReadySelected = false;
+  // }
+  
   // Ship choices (derive groups from registry spec)
   let shipChoices:
     | {
@@ -344,11 +373,13 @@ export function mapGameSessionVm(args: {
       subphaseTitle: 'Subphase information',
       subphaseSubheading: phaseKey,
       canUndoActions: false,
+      readyButtonLabel,
       readyButtonNote: null,
       nextPhaseLabel: 'NEXT PHASE',
-      readyDisabled: !readyEnabled,
-      readyDisabledReason,
-      readySelected: p1IsReady,
+      readyDisabled: finalReadyDisabled,
+      readyDisabledReason: finalReadyDisabledReason,
+      readySelected: finalReadySelected || readyFlashSelected, // Combine server ready + visual flash
+      readyFlashSelected, // Pass through for debugging/future use
       spectatorCount: allPlayers.filter((p: any) => p?.role === 'spectator').length,
     },
     

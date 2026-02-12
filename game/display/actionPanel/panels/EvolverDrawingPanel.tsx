@@ -102,7 +102,7 @@ export function EvolverDrawingPanel({
 
   return (
     <div
-      className={`content-stretch flex flex-col gap-[32px] items-center pb-[20px] size-full ${className ?? ''}`}
+      className={`content-stretch flex flex-col gap-[32px] items-center py-[20px] size-full ${className ?? ''}`}
       data-name="Evolver Drawing Panel"
     >
       {/* Heading Text (Top) */}

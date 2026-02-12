@@ -94,7 +94,7 @@ export function FrigateDrawingPanel({
 
   return (
     <div
-      className={`content-stretch flex flex-col gap-[32px] items-center justify-center pb-[20px] size-full ${className ?? ''}`}
+      className={`content-stretch flex flex-col gap-[32px] items-center justify-center py-[20px] size-full ${className ?? ''}`}
       data-name="Frigate Drawing Panel"
     >
       {/* Instruction Text (Top) */}

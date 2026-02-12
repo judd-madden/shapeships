@@ -291,13 +291,13 @@ export function BuildKitShowcase() {
             <div>
               <p className="text-sm text-[#888888] mb-2">Default</p>
               <div className="w-[300px]">
-                <ReadyButton note="[Conditional note]" />
+                <ReadyButton label="READY" note="[Conditional note]" />
               </div>
             </div>
             <div>
               <p className="text-sm text-[#888888] mb-2">Selected</p>
               <div className="w-[300px]">
-                <ReadyButton selected note="[Conditional note]" />
+                <ReadyButton label="READY" selected note="[Conditional note]" />
               </div>
             </div>
           </div>

@@ -11,6 +11,7 @@ export function FitToBox({ children, minScale = 0.4, className }: FitToBoxProps)
   const innerMeasureRef = useRef<HTMLDivElement | null>(null);
 
   const rafRef = useRef<number | null>(null);
+  const delayedTimeoutRef = useRef<number | null>(null);
   const [scale, setScale] = useState(1);
 
   useLayoutEffect(() => {
@@ -41,10 +42,28 @@ export function FitToBox({ children, minScale = 0.4, className }: FitToBoxProps)
     };
 
     const scheduleCompute = () => {
-      if (rafRef.current != null) return;
+      // Cancel any pending RAF
+      if (rafRef.current != null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+
+      // Cancel any pending delayed timeout
+      if (delayedTimeoutRef.current != null) {
+        window.clearTimeout(delayedTimeoutRef.current);
+        delayedTimeoutRef.current = null;
+      }
+
+      // Immediate compute (RAF-scheduled)
       rafRef.current = window.requestAnimationFrame(() => {
         rafRef.current = null;
         compute();
+
+        // Schedule second compute after FLIP animation completes (450ms)
+        delayedTimeoutRef.current = window.setTimeout(() => {
+          delayedTimeoutRef.current = null;
+          compute();
+        }, 450);
       });
     };
 
@@ -60,6 +79,10 @@ export function FitToBox({ children, minScale = 0.4, className }: FitToBoxProps)
       if (rafRef.current != null) {
         window.cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
+      }
+      if (delayedTimeoutRef.current != null) {
+        window.clearTimeout(delayedTimeoutRef.current);
+        delayedTimeoutRef.current = null;
       }
     };
   }, [minScale]);
