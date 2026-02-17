@@ -370,8 +370,10 @@ export function mapGameSessionVm(args: {
     board,
     
     bottomActionRail: {
-      subphaseTitle: 'Subphase information',
-      subphaseSubheading: phaseKey,
+      // Future: build.drawing custom heading "X/Y lines available" + breakdown "Saved + Bonus + Dice" must come from server-authoritative fields (do not compute client-side).
+      // Future: charge declaration/response subtexts should be gated by server-projected availability (e.g. availableActions / boolean), not guessed client-side.
+      subphaseTitle: isFinished ? 'Game Over' : getSubphaseLabelFromPhaseKey(phaseKey),
+      subphaseSubheading: isFinished ? '' : getMajorPhaseLabel(phaseKey),
       canUndoActions: false,
       readyButtonLabel,
       readyButtonNote: null,

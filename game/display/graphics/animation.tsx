@@ -115,7 +115,7 @@ const SHIP_ANIM: Partial<Record<ShipDefId, {
   EQU: { entry: 'to-right', activation: 'default' },
   WIS: { entry: 'defender', activation: 'default' },
   VIG: { entry: 'default', activation: 'default' },
-  FAM: { entry: 'starship', activation: 'default' },
+  FAM: { entry: 'starship', activation: 'carrier' },
   LEG: { entry: 'to-right', activation: 'default' },
   TER: { entry: 'to-right', activation: 'default' },
   FUR: { entry: 'to-right', activation: 'default' },

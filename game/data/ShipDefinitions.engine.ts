@@ -495,7 +495,7 @@ function convertShipDefinition(csvShip: ShipDefinitionCore): EngineShipDefinitio
     powers,
     
     maxCharges: csvShip.charges ?? undefined,
-    maxQuantity: inferMaxQuantity(csvShip.extraRules),
+    maxQuantity: csvShip.maxQuantity ?? inferMaxQuantity(csvShip.extraRules),
     
     rulesNotes: csvShip.extraRules,
     stackCaption: csvShip.stackCaption

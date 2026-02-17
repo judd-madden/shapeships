@@ -51,7 +51,8 @@ export enum EffectKind {
   ModifyDamage = 'ModifyDamage',
   ModifyHeal = 'ModifyHeal',
   Shield = 'Shield',
-  Redirect = 'Redirect'
+  Redirect = 'Redirect',
+  SpendCharge = 'SpendCharge'
 }
 
 export enum SurvivabilityRule {
@@ -186,6 +187,11 @@ export type RedirectEffect = BaseEffect & {
   newTargetShipInstanceId?: string;
 };
 
+export type SpendChargeEffect = BaseEffect & {
+  kind: EffectKind.SpendCharge;
+  amount: number;
+};
+
 // ============================================================================
 // EFFECT (UNION)
 // ============================================================================
@@ -204,4 +210,5 @@ export type Effect =
   | ModifyDamageEffect
   | ModifyHealEffect
   | ShieldEffect
-  | RedirectEffect;
+  | RedirectEffect
+  | SpendChargeEffect;

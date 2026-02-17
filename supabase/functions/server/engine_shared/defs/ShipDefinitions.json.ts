@@ -117,6 +117,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "joiningLineCost": null,
     "componentShips": [],
     "charges": null,
+    "maxQuantity": 6,
     "powers": [
       {
         "subphase": "Line Generation",
@@ -266,6 +267,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "STA"
     ],
     "charges": null,
+    "maxQuantity": 3,
     "powers": [
       {
         "subphase": "Automatic",
@@ -799,6 +801,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "ZEN"
     ],
     "charges": null,
+    "maxQuantity": 3,
     "powers": [
       {
         "subphase": "End of Build Phase",
@@ -949,6 +952,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "joiningLineCost": null,
     "componentShips": [],
     "charges": null,
+    "maxQuantity": 3,
     "powers": [
       {
         "subphase": "Line Generation",
@@ -1071,10 +1075,11 @@ export const SHIP_DEFINITIONS_JSON = [
       "FAM(0)"
     ],
     "charges": null,
+    "maxQuantity": 3,
     "powers": [
       {
         "subphase": "Dice Manipulation",
-        "text": "If you have one: You may reroll the dice during build phase.\\nIf you have two: You may reroll the dice TWICE during build phase"
+        "text": "If you have one: You may reroll the dice during build phase.\\\\nIf you have two: You may reroll the dice TWICE during build phase"
       },
       {
         "subphase": "Automatic",
@@ -1162,6 +1167,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "VIG"
     ],
     "charges": null,
+    "maxQuantity": 2,
     "powers": [
       {
         "subphase": "Line Generation",
@@ -1295,6 +1301,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "joiningLineCost": null,
     "componentShips": [],
     "charges": null,
+    "maxQuantity": 6,
     "powers": [
       {
         "subphase": "Charge Declaration",
@@ -1349,6 +1356,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "joiningLineCost": null,
     "componentShips": [],
     "charges": null,
+    "maxQuantity": 6,
     "powers": [
       {
         "subphase": "Charge Declaration",

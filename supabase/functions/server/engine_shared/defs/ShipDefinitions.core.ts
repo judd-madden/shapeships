@@ -51,6 +51,7 @@ export interface ShipDefinitionCore {
   joiningLineCost: number | null;
   componentShips: string[];
   charges: number | null;
+  maxQuantity?: number;
   powers: ShipPowerCore[];
   energyCost: {
     red: number;

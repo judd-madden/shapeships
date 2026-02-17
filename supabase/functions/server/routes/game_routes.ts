@@ -16,6 +16,9 @@ import { getBuildCommitKey } from '../engine/intent/IntentTypes.ts';
 import { getCommitRecord, hasRevealed } from '../engine/intent/CommitStore.ts';
 import type { ShipInstance } from '../engine/state/GameStateTypes.ts';
 import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
+import { computeLineBonusForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
+import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers.ts';
+import { getShipById } from '../engine_shared/defs/ShipDefinitions.core.ts';
 
 // ============================================================================
 // HELPER: Get current phase key for readiness checking
@@ -25,6 +28,73 @@ function getPhaseKey(state: any): string | null {
   const sub = state?.gameData?.currentSubPhase;
   if (!major || !sub) return null;
   return buildPhaseKey(major, sub);
+}
+
+// ============================================================================
+// HELPER: Get subphases for available actions check
+// ============================================================================
+function getSubphasesForAvailableActions(phaseKey: string | null): string[] {
+  switch (phaseKey) {
+    case 'build.ships_that_build': return ['Ships That Build'];
+    case 'battle.first_strike': return ['First Strike'];
+    // Keep this minimal for now. Add more as you implement more player-input phases.
+    default: return [];
+  }
+}
+
+// ============================================================================
+// HELPER: Check if player has available charge or solar option
+// ============================================================================
+function playerHasAvailableChargeOrSolarOption(state: any, playerId: string): boolean {
+  const fleet = state?.ships?.[playerId] ?? state?.gameData?.ships?.[playerId] ?? [];
+  const players = state?.players ?? state?.gameData?.players ?? [];
+  const player = players.find((p: any) => p?.id === playerId);
+  const playerEnergy = player?.energy ?? 0;
+
+  for (const shipInstance of fleet) {
+    const shipDef = getShipById(shipInstance.shipDefId);
+    if (!shipDef) continue;
+
+    // Must have a power that is declarable in charge declaration window
+    const hasChargePower = shipDef.powers?.some((p: any) => p?.subphase === 'Charge Declaration');
+    if (!hasChargePower) continue;
+
+    // Solar Power ships require energy
+    if (shipDef.shipType === 'Solar Power') {
+      if (playerEnergy > 0) return true;
+      continue;
+    }
+
+    // Normal charge ships require chargesCurrent > 0 (fallback to 0 if absent)
+    const chargesCurrent = shipInstance?.chargesCurrent ?? 0;
+    if (chargesCurrent > 0) return true;
+  }
+
+  return false;
+}
+
+// ============================================================================
+// HELPER: Compute available actions for requesting player
+// ============================================================================
+function computeAvailableActionsForRequestingPlayer(state: any, playerId: string): any[] {
+  const phaseKey = getPhaseKey(state);
+
+  if (!phaseKey) return [];
+
+  // Charge phases have special eligibility (charges/energy)
+  if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+    return playerHasAvailableChargeOrSolarOption(state, playerId)
+      ? [{ kind: 'phase_input', phaseKey }]
+      : [];
+  }
+
+  // Other phases: use fleetHasAvailablePowers with canonical subphase labels
+  const subphases = getSubphasesForAvailableActions(phaseKey);
+  if (subphases.length === 0) return [];
+
+  return fleetHasAvailablePowers(state, phaseKey as any, playerId, subphases)
+    ? [{ kind: 'phase_input', phaseKey }]
+    : [];
 }
 
 // ============================================================================
@@ -136,6 +206,17 @@ function reconcileBuildDrawingIfComplete(state: any, nowMs: number) {
   });
 
   return state;
+}
+
+// ============================================================================
+// HELPER: Apply game-state maintenance pipeline (merge-safe)
+// ============================================================================
+function applyGameStateMaintenance(state: any, nowMs: number): any {
+  let s = state;
+  s = syncPhaseFields(s);
+  s = accrueClocks(s, nowMs);
+  s = reconcileBuildDrawingIfComplete(s, nowMs);
+  return s;
 }
 
 export function registerGameRoutes(
@@ -531,20 +612,48 @@ export function registerGameRoutes(
         return c.json({ error: "Game not found" }, 404);
       }
 
-      // Normalize phase fields immediately after load
-      if (gameData) {
-        gameData = syncPhaseFields(gameData);
+      // Capture pre-mutation status and baseline state
+      const nowMs = Date.now();
+      const baseState = gameData;
+      const prevStatus = baseState?.status;
+      
+      // Apply maintenance pipeline to base state
+      const fromBase = applyGameStateMaintenance(baseState, nowMs);
+      
+      // Determine if persistence is needed (maintenance changed state)
+      const shouldPersist =
+        fromBase.gameData?.clock?.lastUpdateAtMs !== baseState.gameData?.clock?.lastUpdateAtMs ||
+        fromBase.gameData?.currentPhase !== baseState.gameData?.currentPhase ||
+        fromBase.gameData?.currentSubPhase !== baseState.gameData?.currentSubPhase ||
+        fromBase.gameData?.phaseStartTime !== baseState.gameData?.phaseStartTime;
+      
+      // Merge-safe persist: reload latest and reapply maintenance
+      let finalState = fromBase;
+      if (shouldPersist) {
+        const latestState = await kvGet(`game_${gameId}`);
+        if (latestState) {
+          finalState = applyGameStateMaintenance(latestState, nowMs);
+          await kvSet(`game_${gameId}`, finalState);
+        }
       }
       
-      // Accrue clocks before sending state to client
-      const nowMs = Date.now();
-      gameData = accrueClocks(gameData, nowMs);
+      // Use finalState for all subsequent operations
+      gameData = finalState;
       
-      // Reconcile build.drawing if complete (Anti-Wedge Safety Net)
-      gameData = reconcileBuildDrawingIfComplete(gameData, nowMs);
+      // Detect terminal transition after all mutations
+      const events: any[] = [];
+      const nextStatus = gameData?.status;
+      const terminalOccurred = prevStatus !== 'finished' && nextStatus === 'finished';
       
-      // Persist the accrued state so reload doesn't rewind clocks
-      await kvSet(`game_${gameId}`, gameData);
+      if (terminalOccurred) {
+        events.push({
+          type: 'GAME_OVER',
+          result: gameData.result ?? 'draw',
+          resultReason: gameData.resultReason,
+          winnerPlayerId: gameData.winnerPlayerId ?? null,
+          atMs: nowMs,
+        });
+      }
 
       // Verify session is a participant in this game (or spectator)
       const participant = gameData.players.find(p => p.id === requestingPlayerId);
@@ -555,6 +664,7 @@ export function registerGameRoutes(
       const phaseKey = getPhaseKey(gameData);
       const sub = gameData.gameData.currentSubPhase;
       const phaseReadiness = gameData.gameData?.phaseReadiness || [];
+      const inSpeciesSelection = phaseKey === 'setup.species_selection';
 
       gameData.players = gameData.players.map(player => {
         const readiness = phaseReadiness.find(r => r.playerId === player.id);
@@ -566,7 +676,9 @@ export function registerGameRoutes(
 
         return {
           ...player,
-          isReady: Boolean(readiness?.isReady && readyMatch)
+          isReady: inSpeciesSelection
+            ? false
+            : Boolean(readiness?.isReady && readyMatch)
         };
       });
 
@@ -677,9 +789,29 @@ export function registerGameRoutes(
         serverNowMs: nowMs,
       } : null;
       
+      // Compute bonus lines for all players
+      const bonusLinesByPlayerId: Record<string, number> = {};
+      const playersInGame = gameData.players || [];
+      for (const player of playersInGame) {
+        if (player.role === 'player') {
+          try {
+            bonusLinesByPlayerId[player.id] = computeLineBonusForPlayer(gameData.gameData, player.id);
+          } catch (err) {
+            console.error(`[GET game-state] Failed to compute bonus lines for ${player.id}:`, err);
+            bonusLinesByPlayerId[player.id] = 0; // Default to 0 on error
+          }
+        }
+      }
+      
+      // Compute available actions for requesting player
+      const availableActions = computeAvailableActionsForRequestingPlayer(gameData, requestingPlayerId);
+      
       return c.json({
         ...gameData,
         clock: clockSnapshot,
+        events,
+        availableActions,
+        bonusLinesByPlayerId,
       });
 
     } catch (error) {

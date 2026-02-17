@@ -52,8 +52,8 @@ const XENITE_ROW_SETS: RowSets = {
 const CENTAUR_ROW_SETS: RowSets = {
   1: new Set<ShipDefId>(['VIG', 'POW', 'RED', 'KNO']),
   2: new Set<ShipDefId>(['LEG', 'FEA', 'ANG', 'TER', 'FUR', 'ENT']),
-  3: new Set<ShipDefId>(['EQU', 'WIS', 'FAM']),
-  4: new Set<ShipDefId>(['DES', 'DOM']),
+  3: new Set<ShipDefId>(['WIS', 'FAM']),
+  4: new Set<ShipDefId>(['EQU', 'DES', 'DOM']),
 };
 
 const ANCIENT_ROW_SETS: RowSets = {
@@ -163,7 +163,7 @@ function ShipStack({
           overflow: 'hidden',
           maxWidth: showCount ? '80px' : '0px',
           marginLeft: showCount ? '8px' : '0px',
-          transition: 'max-width 100ms ease-out, margin-left 100ms ease-out',
+          transition: 'max-width 300ms ease-out, margin-left 100ms ease-out',
         }}
       >
         <div
@@ -182,7 +182,7 @@ function ShipStack({
             transform: 'scaleX(1)',
             opacity: 1,
             transitionProperty: 'transform, opacity',
-            transitionDuration: '100ms, 200ms',
+            transitionDuration: '300ms, 200ms',
             transitionTimingFunction: 'ease-out, ease-in-out',
             transitionDelay: '0ms, 100ms',
 
@@ -412,6 +412,9 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
   const mySpeciesKey = toSpeciesKey(vm.mySpeciesId);
   const opponentSpeciesKey = toSpeciesKey(vm.opponentSpeciesId);
 
+  // Hide deltas on turn 1 only
+  const showDeltas = vm.turnNumber > 1;
+
   // Board mode (existing placeholder layout)
   return (
     <div
@@ -450,15 +453,21 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
               {vm.myHealth}
             </p>
 
-            {/* Delta (UI placeholder) */}
+            {/* Delta (server-authoritative) */}
             <p
               className="font-['Roboto'] font-semibold leading-[28px] relative shrink-0 text-[28px] w-full text-right"
               style={{
                 fontVariationSettings: "'wdth' 100",
-                color: 'var(--shapeships-pastel-red)',
+                color: vm.myLastTurnNet > 0 
+                  ? 'var(--shapeships-pastel-green)' 
+                  : vm.myLastTurnNet < 0 
+                  ? 'var(--shapeships-pastel-red)' 
+                  : 'var(--shapeships-grey-50)',
+                opacity: showDeltas ? 1 : 0,
+                pointerEvents: showDeltas ? 'auto' : 'none',
               }}
             >
-              -3
+              {showDeltas ? (vm.myLastTurnNet > 0 ? `+${vm.myLastTurnNet}` : vm.myLastTurnNet === 0 ? '±0' : vm.myLastTurnNet) : ''}
             </p>
           </div>
 
@@ -498,15 +507,21 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
               {vm.opponentHealth}
             </p>
 
-            {/* Delta (UI placeholder) */}
+            {/* Delta (server-authoritative) */}
             <p
               className="font-['Roboto'] font-semibold leading-[28px] relative shrink-0 text-[28px] w-[100px] text-left"
               style={{
                 fontVariationSettings: "'wdth' 100",
-                color: 'var(--shapeships-pastel-green)',
+                color: vm.opponentLastTurnNet > 0 
+                  ? 'var(--shapeships-pastel-green)' 
+                  : vm.opponentLastTurnNet < 0 
+                  ? 'var(--shapeships-pastel-red)' 
+                  : 'var(--shapeships-grey-50)',
+                opacity: showDeltas ? 1 : 0,
+                pointerEvents: showDeltas ? 'auto' : 'none',
               }}
             >
-              +2
+              {showDeltas ? (vm.opponentLastTurnNet > 0 ? `+${vm.opponentLastTurnNet}` : vm.opponentLastTurnNet === 0 ? '±0' : vm.opponentLastTurnNet) : ''}
             </p>
           </div>
         </div>
@@ -543,13 +558,24 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             </div>
           </div>
 
-          <StatTripletRow left="0" centerLabel="Damage" right="0" toneClass="text-[#ff8282]" />
-          <StatTripletRow left="0" centerLabel="Healing" right="0" toneClass="text-[#9cff84]" />
+          <StatTripletRow
+            left={String(vm.myLastTurnDamage ?? 0)}
+            centerLabel="Damage"
+            right={String(vm.opponentLastTurnDamage ?? 0)}
+            toneClass="text-[#ff8282]"
+          />
+          <StatTripletRow
+            left={String(vm.myLastTurnHeal ?? 0)}
+            centerLabel="Healing"
+            right={String(vm.opponentLastTurnHeal ?? 0)}
+            toneClass="text-[#9cff84]"
+          />
 
           {/* Bonus */}
           <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Bonus Group">
             <div className="content-stretch flex gap-[4px] items-center justify-end relative shrink-0 w-[100px]" data-name="P1 Bonuses">
-              <Metric value="0" label="Lines" label2="on EVEN" align="right" toneClass="text-[#62fff6]" />
+              {/* TODO (Centaur pass): show secondary label like "on EVEN" only for Centaur bonus-line rules */}
+              <Metric value={String(vm.myBonusLines ?? 0)} label="Lines" align="right" toneClass="text-[#62fff6]" />
               {/* Joining lines, will turn on if player has bonus joining lines */}
               {/* <Metric value="0" label="JOINING" label2="LINES" align="right" toneClass="text-[#62fff6]" /> */}
             </div>
@@ -564,7 +590,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             </div>
 
             <div className="content-stretch flex gap-[4px] items-start relative shrink-0 w-[100px]" data-name="P2 Bonuses">
-              <Metric value="0" label="Lines" align="left" toneClass="text-[#62fff6]" />
+              <Metric value={String(vm.opponentBonusLines ?? 0)} label="Lines" align="left" toneClass="text-[#62fff6]" />
               {/* Joining lines, will turn on if player has bonus joining lines */}
               {/* <Metric value="0" label="JOINING" label2="LINES" align="left" toneClass="text-[#62fff6]" /> */}
             </div>

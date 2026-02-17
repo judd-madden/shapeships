@@ -92,6 +92,13 @@ function resolveShipsThatBuild(
 /**
  * Resolve the battle.end_of_turn_resolution phase by applying damage/heal effects
  *
+ * PHASE 3.0A: Deterministic aggregation via single pipeline
+ * - applyEffects() accumulates Damage/Heal into state.gameData.pendingTurn
+ * - Read totals from pendingTurn (no manual aggregation)
+ * - Apply health mutations simultaneously (no order dependence)
+ * - Store last turn deltas for UI/debug
+ * - Clear pendingTurn for next turn
+ *
  * @param state - Current game state
  * @param phaseKey - Phase key to resolve
  * @returns Updated state and events
@@ -102,20 +109,149 @@ function resolveBattleEndOfTurn(
 ): { state: GameState; events: EffectEvent[] } {
   console.log(`[resolveBattleEndOfTurn] Resolving phase: ${phaseKey}`);
 
-  // Collect all effects from all ships
+  // Initialize pendingTurn if not present
+  if (!state.gameData.pendingTurn) {
+    state = {
+      ...state,
+      gameData: {
+        ...state.gameData,
+        pendingTurn: {
+          damageByPlayerId: {},
+          healByPlayerId: {},
+        },
+      },
+    };
+  }
+
+  // Step 1: Collect all effects from all ships
   const effects = collectEffectsForPhase(state, phaseKey);
 
   console.log(`[resolveBattleEndOfTurn] Collected ${effects.length} effects for ${phaseKey}`);
 
-  // Apply effects to state
-  const result = applyEffects(state, effects);
+  // Step 2: Apply effects (accumulates Damage/Heal into pendingTurn)
+  const applied = applyEffects(state, effects);
 
-  console.log(`[resolveBattleEndOfTurn] Applied effects, generated ${result.events.length} events`);
+  console.log(`[resolveBattleEndOfTurn] Applied effects, generated ${applied.events.length} events`);
 
-  // Health clamping, victory evaluation, and terminal state (end-of-turn only)
-  const finalResult = evaluateVictoryConditions(result.state, result.events, phaseKey);
+  // Step 3: Extract totals from pendingTurn (canonical accumulation source)
+  const totals = {
+    damageByPlayerId: { ...(applied.state.gameData.pendingTurn?.damageByPlayerId || {}) },
+    healByPlayerId: { ...(applied.state.gameData.pendingTurn?.healByPlayerId || {}) },
+  };
 
-  return finalResult;
+  console.log(`[resolveBattleEndOfTurn] Pending turn totals:`, totals);
+
+  // Step 4: Apply aggregated health changes simultaneously
+  const healthResult = applyAggregatedHealth(applied.state, totals);
+
+  console.log(`[resolveBattleEndOfTurn] Applied aggregated health, generated ${healthResult.events.length} events`);
+
+  // Step 5: Health clamping, victory evaluation, and terminal state
+  const victoryResult = evaluateVictoryConditions(healthResult.state, [], phaseKey);
+
+  // Step 6: Clear pendingTurn for next turn
+  const clearedState = {
+    ...victoryResult.state,
+    gameData: {
+      ...victoryResult.state.gameData,
+      pendingTurn: {
+        damageByPlayerId: {},
+        healByPlayerId: {},
+      },
+    },
+  };
+
+  // Combine events: accumulation events + health change events + game over event (if any)
+  const allEvents = [
+    ...applied.events,
+    ...healthResult.events,
+    ...victoryResult.events,
+  ];
+
+  return { state: clearedState, events: allEvents };
+}
+
+// ============================================================================
+// AGGREGATION STAGE
+// ============================================================================
+
+/**
+ * Apply aggregated health changes simultaneously to all players
+ *
+ * @param state - Current game state
+ * @param totals - Aggregated damage/heal totals
+ * @returns Updated state with health applied and events generated
+ */
+function applyAggregatedHealth(
+  state: GameState,
+  totals: { damageByPlayerId: Record<string, number>; healByPlayerId: Record<string, number> }
+): { state: GameState; events: EffectEvent[] } {
+  const MAX_HEALTH = 35;
+  const events: EffectEvent[] = [];
+  const nowMs = Date.now();
+
+  // Clone state
+  const newState: GameState = { ...state };
+  newState.players = [...state.players];
+  newState.gameData = { ...state.gameData };
+
+  // Track last turn deltas
+  const lastTurnDamage: Record<string, number> = {};
+  const lastTurnHeal: Record<string, number> = {};
+  const lastTurnNet: Record<string, number> = {};
+
+  // Apply aggregated health changes simultaneously
+  for (let i = 0; i < newState.players.length; i++) {
+    const player = { ...newState.players[i] };
+    const playerId = player.id;
+
+    const damage = totals.damageByPlayerId[playerId] || 0;
+    const heal = totals.healByPlayerId[playerId] || 0;
+
+    const previousHealth = player.health;
+    const rawNewHealth = previousHealth - damage + heal;
+    const newHealth = Math.min(rawNewHealth, MAX_HEALTH); // Clamp to max
+
+    player.health = newHealth;
+    newState.players[i] = player;
+
+    // Store deltas
+    lastTurnDamage[playerId] = damage;
+    lastTurnHeal[playerId] = heal;
+    lastTurnNet[playerId] = newHealth - previousHealth;
+
+    console.log(
+      `[applyAggregatedHealth] Player ${playerId}: ${previousHealth} - ${damage} + ${heal} = ${rawNewHealth} (clamped to ${newHealth})`
+    );
+
+    // Generate event if there was a change
+    if (damage > 0 || heal > 0) {
+      events.push({
+        type: 'EFFECT_APPLIED',
+        effectId: `aggregated_${playerId}`,
+        kind: 'AggregatedHealthChange',
+        targetPlayerId: playerId,
+        details: {
+          damage,
+          heal,
+          previousHealth,
+          newHealth,
+          net: newHealth - previousHealth,
+        },
+        atMs: nowMs,
+      });
+    }
+  }
+
+  // Store last turn deltas on state
+  newState.gameData = {
+    ...newState.gameData,
+    lastTurnDamageByPlayerId: lastTurnDamage,
+    lastTurnHealByPlayerId: lastTurnHeal,
+    lastTurnNetByPlayerId: lastTurnNet,
+  };
+
+  return { state: newState, events };
 }
 
 // ============================================================================
@@ -283,6 +419,7 @@ function evaluateVictoryConditions(
       status: 'finished',
       winnerPlayerId: victoryResult.winnerPlayerId,
       result: victoryResult.result,
+      resultReason: victoryResult.reason,
     };
 
     const gameOverEvent: any = {
@@ -346,6 +483,7 @@ function checkVictoryConditions(state: GameState): {
   isTerminal: boolean;
   winnerPlayerId: string | null;
   result: 'win' | 'draw';
+  reason?: 'decisive' | 'narrow' | 'mutual_destruction';
   finalHealth: Record<string, number>;
 } {
   // Get active players (role === 'player')
@@ -377,6 +515,7 @@ function checkVictoryConditions(state: GameState): {
       isTerminal: true,
       winnerPlayerId: p2.id,
       result: 'win',
+      reason: 'decisive',
       finalHealth,
     };
   }
@@ -386,6 +525,7 @@ function checkVictoryConditions(state: GameState): {
       isTerminal: true,
       winnerPlayerId: p1.id,
       result: 'win',
+      reason: 'decisive',
       finalHealth,
     };
   }
@@ -398,6 +538,7 @@ function checkVictoryConditions(state: GameState): {
         isTerminal: true,
         winnerPlayerId: p1.id,
         result: 'win',
+        reason: 'narrow',
         finalHealth,
       };
     }
@@ -408,6 +549,7 @@ function checkVictoryConditions(state: GameState): {
         isTerminal: true,
         winnerPlayerId: p2.id,
         result: 'win',
+        reason: 'narrow',
         finalHealth,
       };
     }
@@ -417,6 +559,7 @@ function checkVictoryConditions(state: GameState): {
       isTerminal: true,
       winnerPlayerId: null,
       result: 'draw',
+      reason: 'mutual_destruction',
       finalHealth,
     };
   }

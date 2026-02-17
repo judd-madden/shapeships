@@ -225,9 +225,6 @@ export async function applyIntent(
   // Enforce species selection phase restriction
   if (phaseKey === 'setup.species_selection') {
     const allowedInSpeciesSelection = new Set([
-      'SPECIES_SELECT',
-      'SPECIES_COMMIT',
-      'SPECIES_REVEAL',
       'SPECIES_SUBMIT',
       'ACTION',        // ✅ allow chat at all times
       'SURRENDER',   // optional, if you want resign to work during setup
@@ -240,7 +237,7 @@ export async function applyIntent(
         events: [],
         rejected: {
           code: RejectionCode.PHASE_NOT_ALLOWED,
-          message: `Intent ${intent.intentType} not allowed during setup.species_selection. Allowed: SPECIES_SELECT, SPECIES_COMMIT, SPECIES_REVEAL, SPECIES_SUBMIT, ACTION, SURRENDER`
+          message: `Intent ${intent.intentType} not allowed during setup.species_selection. Allowed: SPECIES_SUBMIT, ACTION, SURRENDER`
         }
       };
     }
@@ -302,6 +299,12 @@ export async function applyIntent(
       
     case 'SURRENDER':
       return handleSurrender(state, sessionPlayerId, intent, nowMs, events);
+      
+    case 'DRAW_OFFER':
+      return handleDrawOffer(state, sessionPlayerId, intent, nowMs, events);
+      
+    case 'DRAW_ACCEPT':
+      return handleDrawAccept(state, sessionPlayerId, intent, nowMs, events);
       
     default:
       return {
@@ -607,6 +610,10 @@ async function handleSpeciesSubmit(
   
   if (allSubmitted) {
     console.log('[SPECIES_SUBMIT] All players submitted, resolving species and advancing phase...');
+    console.log('[SPECIES] allSubmitted -> advancing', {
+      turnNumber: state.gameData.turnNumber,
+      phase: getPhaseKey(state),
+    });
     
     // Resolve species for all players
     for (const p of activePlayers) {
@@ -614,7 +621,7 @@ async function handleSpeciesSubmit(
       if (pRecord && pRecord.revealPayload) {
         const pPayload = pRecord.revealPayload as SpeciesRevealPayload;
         p.faction = pPayload.species;
-        console.log(`[SPECIES_RESOLUTION] Player ${p.id} → faction: ${pPayload.species}`);
+        console.log(`[SPECIES_SUBMIT] applied`, { playerId: p.id, faction: pPayload.species });
       }
     }
     
@@ -1549,7 +1556,7 @@ function handleDeclareReady(
 }
 
 // ============================================================================
-// ACTION (message only)
+// ACTION (message + power scaffold)
 // ============================================================================
 
 function handleAction(
@@ -1573,47 +1580,75 @@ function handleAction(
   
   const payload = intent.payload as ActionPayload;
   
-  if (payload.actionType !== 'message') {
+  // Handle message actions
+  if (payload.actionType === 'message') {
+    if (!payload.content || typeof payload.content !== 'string') {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Missing or invalid message content'
+        }
+      };
+    }
+    
+    // Emit CHAT_MESSAGE event for route layer to persist separately
+    const player = state.players.find((p: any) => p.id === playerId);
+    
+    events.push({
+      type: 'CHAT_MESSAGE',
+      playerId,
+      playerName: player?.name || 'Unknown',
+      content: payload.content,
+      timestamp: nowMs
+    });
+    
+    state = syncPhaseFields(state);
+    
+    return {
+      ok: true,
+      state,
+      events
+    };
+  }
+  
+  // Handle power actions (Phase 3.0B: scaffold only, reject for now)
+  if (payload.actionType === 'power') {
+    if (!payload.actionId || typeof payload.actionId !== 'string' || payload.actionId.trim() === '') {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Missing or invalid actionId'
+        }
+      };
+    }
+    
+    // Phase 3.0B: Power actions not yet enabled
     return {
       ok: false,
       state,
       events: [],
       rejected: {
-        code: RejectionCode.BAD_PAYLOAD,
-        message: `Unsupported action type: ${payload.actionType}`
+        code: RejectionCode.PHASE_NOT_ALLOWED,
+        message: 'Power actions not enabled yet'
       }
     };
   }
   
-  if (!payload.content || typeof payload.content !== 'string') {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.BAD_PAYLOAD,
-        message: 'Missing or invalid message content'
-      }
-    };
-  }
-  
-  // Emit CHAT_MESSAGE event for route layer to persist separately
-  const player = state.players.find((p: any) => p.id === playerId);
-  
-  events.push({
-    type: 'CHAT_MESSAGE',
-    playerId,
-    playerName: player?.name || 'Unknown',
-    content: payload.content,
-    timestamp: nowMs
-  });
-  
-  state = syncPhaseFields(state);
-  
+  // Unknown action type
   return {
-    ok: true,
+    ok: false,
     state,
-    events
+    events: [],
+    rejected: {
+      code: RejectionCode.BAD_PAYLOAD,
+      message: `Unsupported action type: ${payload.actionType}`
+    }
   };
 }
 
@@ -1643,23 +1678,171 @@ function handleSurrender(
     };
   }
   
-  // Mark game as finished
-  state.status = 'finished';
-  
-  // Set winner to the other player
+  // Find opponent
   const activePlayers = state.players.filter((p: any) => p.role === 'player');
   const opponent = activePlayers.find((p: any) => p.id !== playerId);
   
-  if (opponent) {
-    state.winner = opponent.id;
+  if (!opponent) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'Cannot surrender: no opponent found'
+      }
+    };
+  }
+  
+  // Apply canonical Phase 3.0A victory model
+  state.status = 'finished';
+  state.winnerPlayerId = opponent.id;
+  state.result = 'win';
+  state.resultReason = 'resignation';
+  
+  // Emit canonical GAME_OVER event with resultReason
+  events.push({
+    type: 'GAME_OVER',
+    result: 'win',
+    resultReason: 'resignation',
+    winnerPlayerId: opponent.id,
+    atMs: nowMs
+  });
+  
+  state = syncPhaseFields(state);
+  
+  return {
+    ok: true,
+    state,
+    events
+  };
+}
+
+// ============================================================================
+// DRAW_OFFER
+// ============================================================================
+
+function handleDrawOffer(
+  state: any,
+  playerId: string,
+  intent: IntentRequest,
+  nowMs: number,
+  events: any[]
+): IntentResult {
+  const player = state.players.find((p: any) => p.id === playerId);
+  
+  // Only players can offer a draw
+  if (player.role !== 'player') {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.SPECTATOR_RESTRICTED,
+        message: 'Spectators cannot offer a draw'
+      }
+    };
+  }
+  
+  // Initialize gameData.drawAgreement
+  if (!state.gameData) {
+    state.gameData = {};
+  }
+  
+  state.gameData.drawAgreement = {
+    offeredBy: playerId,
+    acceptedBy: [playerId]
+  };
+  
+  events.push({
+    type: 'DRAW_OFFERED',
+    playerId,
+    atMs: nowMs
+  });
+  
+  state = syncPhaseFields(state);
+  
+  return {
+    ok: true,
+    state,
+    events
+  };
+}
+
+// ============================================================================
+// DRAW_ACCEPT
+// ============================================================================
+
+function handleDrawAccept(
+  state: any,
+  playerId: string,
+  intent: IntentRequest,
+  nowMs: number,
+  events: any[]
+): IntentResult {
+  const player = state.players.find((p: any) => p.id === playerId);
+  
+  // Only players can accept a draw
+  if (player.role !== 'player') {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.SPECTATOR_RESTRICTED,
+        message: 'Spectators cannot accept a draw'
+      }
+    };
+  }
+  
+  // Check if there is an active draw offer
+  if (!state.gameData?.drawAgreement?.offeredBy) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'No active draw offer'
+      }
+    };
+  }
+  
+  // Add playerId to acceptedBy (if not already present)
+  const acceptedBy = state.gameData.drawAgreement.acceptedBy || [];
+  if (!acceptedBy.includes(playerId)) {
+    acceptedBy.push(playerId);
+    state.gameData.drawAgreement.acceptedBy = acceptedBy;
   }
   
   events.push({
-    type: 'GAME_SURRENDERED',
+    type: 'DRAW_ACCEPTED',
     playerId,
-    winner: state.winner,
     atMs: nowMs
   });
+  
+  // Check if both active players have accepted
+  const activePlayers = state.players.filter((p: any) => p.role === 'player');
+  const allAccepted = activePlayers.every((p: any) => 
+    acceptedBy.includes(p.id)
+  );
+  
+  if (allAccepted) {
+    // Apply canonical Phase 3.0A victory model
+    state.status = 'finished';
+    state.winnerPlayerId = null;
+    state.result = 'draw';
+    state.resultReason = 'agreement';
+    
+    // Emit canonical GAME_OVER event with resultReason
+    events.push({
+      type: 'GAME_OVER',
+      result: 'draw',
+      resultReason: 'agreement',
+      winnerPlayerId: null,
+      atMs: nowMs
+    });
+  }
   
   state = syncPhaseFields(state);
   

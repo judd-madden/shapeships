@@ -20,7 +20,9 @@ export type IntentType =
   | 'BATTLE_REVEAL'
   | 'DECLARE_READY'
   | 'ACTION'
-  | 'SURRENDER';
+  | 'SURRENDER'
+  | 'DRAW_OFFER'
+  | 'DRAW_ACCEPT';
 
 // ============================================================================
 // BATTLE WINDOWS
@@ -48,10 +50,15 @@ export type BattleRevealPayload = {
   declarations: any[]; // Placeholder for now
 };
 
-export type ActionPayload = {
-  actionType: 'message';
-  content: string;
-};
+export type ActionPayload =
+  | { actionType: 'message'; content: string }
+  | {
+      actionType: 'power';
+      actionId: string;
+      sourceInstanceId?: string;
+      choiceId?: string;
+      targetInstanceId?: string;
+    };
 
 // ============================================================================
 // REJECTION CODES

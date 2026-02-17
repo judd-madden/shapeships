@@ -25,13 +25,7 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
             className="font-['Roboto'] font-black relative shrink-0 text-[36px] w-full"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
-            <span>Subphase </span>
-            <span
-              className="font-['Roboto'] font-normal"
-              style={{ fontVariationSettings: "'wdth' 100" }}
-            >
-              information
-            </span>
+            {vm.subphaseTitle}
           </p>
           <p
             className="font-['Roboto'] font-normal relative shrink-0 text-[16px] w-full"

@@ -58,193 +58,41 @@ import { useBuildPreviewResetEffect, useAutoRevealBuildEffect } from './gameSess
 import { useReadyFlash } from './gameSession/clienteffects/useReadyFlash';
 import { useFleetOrder } from './gameSession/clienteffects/useFleetOrder';
 import { useFleetAnimTokens } from './gameSession/clienteffects/useFleetAnimTokens';
+import type {
+  HudStatusTone,
+  HudViewModel,
+  LeftRailViewModel,
+  BoardFleetSummary,
+  BoardViewModel,
+  ChooseSpeciesBoardVm,
+  BottomActionRailViewModel,
+  ActionPanelTabId,
+  ActionPanelTabVm,
+  ActionPanelViewModel,
+  GameSessionViewModel,
+  GameSessionActions,
+} from './gameSession/types';
+
+export type {
+  HudStatusTone,
+  HudViewModel,
+  LeftRailViewModel,
+  BoardFleetSummary,
+  BoardViewModel,
+  ChooseSpeciesBoardVm,
+  BottomActionRailViewModel,
+  ActionPanelTabId,
+  ActionPanelTabVm,
+  ActionPanelViewModel,
+  GameSessionViewModel,
+  GameSessionActions,
+} from './gameSession/types';
+
+import { decideAutoPanelRouting, isCataloguePanel, speciesToCataloguePanelId } from './gameSession/availableActions';
+import { buildMessageAction } from './gameSession/powerIntents';
+
 
 // ============================================================================
-// VIEW-MODEL TYPES
-// ============================================================================
-
-export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
-
-export interface HudViewModel {
-  // Player 1 (local, always left)
-  p1Name: string;
-  p1Species: string;
-  p1IsOnline: boolean;
-  p1Clock: string; // "MM:SS"
-  p1IsReady: boolean;
-  p1StatusText?: string;       // "Ready" or subphase label; undefined hides pill
-  p1StatusTone: HudStatusTone; // ready | neutral | hidden
-  
-  // Player 2 (opponent, always right)
-  p2Name: string;
-  p2Species: string;
-  p2IsOnline: boolean;
-  p2Clock: string; // "MM:SS"
-  p2IsReady: boolean;
-  p2StatusText?: string;
-  p2StatusTone: HudStatusTone;
-}
-
-export interface LeftRailViewModel {
-  // Dice
-  diceValue: number; // 1-6
-  
-  // Phase card
-  turn: number;
-  phase: string; // "BUILD PHASE", "BATTLE PHASE"
-  phaseIcon: 'build' | 'battle';
-  subphase: string;
-  
-  // Chat
-  gameCode: string;
-  chatMessages: Array<{
-    type: 'player' | 'system';
-    playerName?: string;
-    text: string;
-  }>;
-  drawOffer: {
-    fromPlayer: string;
-  } | null;
-  
-  // Battle log
-  battleLogEntries: Array<{
-    type: 'event' | 'turn-marker';
-    text?: string;
-    turn?: number;
-    phase?: string;
-  }>;
-}
-
-export interface BoardFleetSummary {
-  shipDefId: string;
-  count: number;
-}
-
-export type BoardViewModel =
-  | {
-      mode: 'choose_species';
-      selectedSpecies: SpeciesId;
-      gameUrl: string;
-      canConfirmSpecies: boolean;
-      confirmDisabledReason?: string;
-    }
-  | {
-      mode: 'board';
-      mySpeciesId: SpeciesId;
-      opponentSpeciesId: SpeciesId;
-      
-      myHealth: number;
-      opponentHealth: number;
-      myFleet: BoardFleetSummary[];
-      opponentFleet: BoardFleetSummary[];
-      myFleetOrder: ShipDefId[];
-      opponentFleetOrder: ShipDefId[];
-      fleetAnim: FleetAnimVM; // Animation tokens (DEF/FIG only)
-      
-      // Animation stagger plans
-      opponentFleetEntryPlan: OpponentFleetEntryPlan;
-      activationStaggerPlan: ActivationStaggerPlan;
-    };
-
-// Type alias for choose species board mode
-export type ChooseSpeciesBoardVm = Extract<BoardViewModel, { mode: 'choose_species' }>;
-
-export interface BottomActionRailViewModel {
-  // Subphase info
-  subphaseTitle: string; // e.g., "Subphase information"
-  subphaseSubheading: string;
-  
-  // Ready controls
-  canUndoActions: boolean;
-  readyButtonLabel: string; // e.g., "READY", "WAITING", "GAME OVER"
-  readyButtonNote: string | null;
-  nextPhaseLabel: string; // e.g., "BATTLE PHASE"
-  readyDisabled: boolean;
-  readyDisabledReason: string | null;
-  
-  // NEW: server-authoritative ready indicator for button selected state
-  readySelected: boolean;
-  
-  // Visual-only flash when second to ready
-  readyFlashSelected: boolean;
-  
-  // Misc
-  spectatorCount: number;
-}
-
-// Action Panel Tab ID (fixed set of reference tabs)
-export type ActionPanelTabId =
-  | 'tab.catalog.selected'   // choose_species mode only
-  | 'tab.catalog.self'       // in-game reference tab
-  | 'tab.catalog.opponent'   // in-game reference tab (conditional)
-  | 'tab.actions'            // ship choice actions (conditional)
-  | 'tab.menu';
-
-export interface ActionPanelTabVm {
-  tabId: ActionPanelTabId;
-  label: string;              // e.g. "[Species 1]" "[Species 2]" "Menu"
-  visible: boolean;           // opponent tab hidden when same species
-  targetPanelId: ActionPanelId; // which panel this tab jumps to
-}
-
-export interface ActionPanelViewModel {
-  activePanelId: ActionPanelId;
-  tabs: ActionPanelTabVm[];
-  menu: {
-    title: string;
-    subtitle: string;
-  };
-  endOfGame?: {
-    bannerText: string;
-    bannerBgCssVar: string; // "var(--shapeships-...)"
-    metaLeftText: string;
-    metaRightText: string;
-  };
-
-  // NEW (UI-derivations for panels)
-  frigateDrawing?: { frigateCount: number };
-  evolverDrawing?: { evolverCount: number };
-
-  shipChoices?: {
-    groups: ShipChoicesPanelGroup[];
-    showOpponentAlsoHasCharges?: boolean;
-    opponentAlsoHasChargesHeading?: string;
-    opponentAlsoHasChargesLines?: string[];
-  };
-}
-
-export interface GameSessionViewModel {
-  isBootstrapping: boolean; // true until valid server state with valid phaseKey
-  hud: HudViewModel;
-  leftRail: LeftRailViewModel;
-  board: BoardViewModel;
-  bottomActionRail: BottomActionRailViewModel;
-  actionPanel: ActionPanelViewModel;
-}
-
-// ============================================================================
-// ACTION CALLBACKS
-// ============================================================================
-
-export interface GameSessionActions {
-  onReadyToggle: () => void;
-  onUndoActions: () => void;
-  onOpenMenu: () => void;
-  onActionPanelTabClick: (tabId: ActionPanelTabId) => void;
-  onShipClick: (shipId: string) => void;
-  onSendChat: (text: string) => void;
-  onAcceptDraw: () => void;
-  onRefuseDraw: () => void;
-  onOpenBattleLogFullscreen: () => void;
-  onSelectSpecies: (species: SpeciesId) => void;
-  onConfirmSpecies: () => void;
-  onCopyGameUrl: () => void;
-  onBuildShip: (shipDefId: ShipDefId) => void; // Chunk 6: Local build preview
-  onOfferDraw: () => void;
-  onResignGame: () => void;
-  onRematch: () => void;
-  onDownloadBattleLog: () => void;
-}
 
 // ============================================================================
 // HOOK
@@ -908,14 +756,41 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     const effectiveMySpecies: SpeciesId = mySpecies ?? 'human';
     const effectiveOpponentSpecies: SpeciesId = opponentSpecies ?? 'human';
 
+    // Extract server-authoritative health
+    const myHealth = typeof me?.health === 'number' ? me.health : 25;
+    const opponentHealth = typeof opponent?.health === 'number' ? opponent.health : 25;
+
+    // Extract server-authoritative deltas (last turn heal/damage/net)
+    const lastTurnHealById = rawState?.gameData?.lastTurnHealByPlayerId as Record<string, number> | undefined;
+    const lastTurnDamageById = rawState?.gameData?.lastTurnDamageByPlayerId as Record<string, number> | undefined;
+    const lastTurnNetById = rawState?.gameData?.lastTurnNetByPlayerId as Record<string, number> | undefined;
+
+    const myLastTurnHeal = me?.id ? (lastTurnHealById?.[me.id] ?? 0) : 0;
+    // NOTE: server lastTurnDamageByPlayerId is damage TAKEN (target).
+    // UI "Damage" row is damage DEALT, so we swap sides:
+    const myLastTurnDamage = opponent?.id ? (lastTurnDamageById?.[opponent.id] ?? 0) : 0;
+    const myLastTurnNet = me?.id ? (lastTurnNetById?.[me.id] ?? 0) : 0;
+
+    const opponentLastTurnHeal = opponent?.id ? (lastTurnHealById?.[opponent.id] ?? 0) : 0;
+    const opponentLastTurnDamage = me?.id ? (lastTurnDamageById?.[me.id] ?? 0) : 0;
+    const opponentLastTurnNet = opponent?.id ? (lastTurnNetById?.[opponent.id] ?? 0) : 0;
+
+    // Server-authoritative bonus lines (top-level response projection)
+    const bonusLinesByPlayerId = rawState?.bonusLinesByPlayerId as Record<string, number> | undefined;
+
+    const myBonusLines = me?.id ? (bonusLinesByPlayerId?.[me.id] ?? 0) : 0;
+    const opponentBonusLines = opponent?.id ? (bonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
+
     board = {
       mode: 'board',
       mySpeciesId: effectiveMySpecies,
       opponentSpeciesId: effectiveOpponentSpecies,
 
-      // TODO: wire real health later (server authoritative once available)
-      myHealth: 25,
-      opponentHealth: 25,
+      turnNumber,
+
+      // Server-authoritative health
+      myHealth,
+      opponentHealth,
 
       // Fleet data: server + local preview overlay (build phase only)
       myFleet: myFleetWithPreview,
@@ -944,6 +819,18 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         };
       })(),
 
+      // Last turn deltas (server-authoritative)
+      myLastTurnHeal,
+      myLastTurnDamage,
+      myLastTurnNet,
+      opponentLastTurnHeal,
+      opponentLastTurnDamage,
+      opponentLastTurnNet,
+
+      // Bonus lines (server-authoritative)
+      myBonusLines,
+      opponentBonusLines,
+
       // Compute animation stagger plans
       opponentFleetEntryPlan: (() => {
         const { plan, nextPrevIds } = computeOpponentEntryPlan(
@@ -967,18 +854,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // ============================================================================
   
   // Map species to canonical catalog panel ID
-  function speciesToCataloguePanelId(species: SpeciesId): ActionPanelId {
-    switch (species) {
-      case 'human':
-        return 'ap.catalog.ships.human';
-      case 'xenite':
-        return 'ap.catalog.ships.xenite';
-      case 'centaur':
-        return 'ap.catalog.ships.centaur';
-      case 'ancient':
-        return 'ap.catalog.ships.ancient';
-    }
-  }
   
   // Map phase + species to action panel ID (UI routing for ship choice panels)
   function phaseToActionPanelId(
@@ -1043,9 +918,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   }
   
   // Helper: Check if a panel ID is a catalogue panel
-  function isCataloguePanel(id: ActionPanelId): boolean {
-    return id.startsWith('ap.catalog.ships.');
-  }
   
   // Helper: Get species display label (Title Case)
   function getSpeciesLabel(species: SpeciesId): string {
@@ -1061,11 +933,17 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // ACTIONS TAB: COMPUTE AVAILABILITY (UI-ONLY)
   // ============================================================================
   
-  // Determine target panel ID for Actions tab
+  // Determine target panel ID for Actions tab (panel routing target when actions exist)
   const actionsTargetPanelId = phaseToActionPanelId(phaseKey, mySpecies);
   
-  // Compute if Actions tab should be visible (based on target panel existence)
-  const hasActionsAvailable = !!actionsTargetPanelId && !isBootstrapping;
+  // Phase 3.0B: server-authoritative actions availability
+  const availableActions = rawState?.availableActions;
+  const hasServerActionsAvailable =
+    Array.isArray(availableActions) && availableActions.length > 0;
+  
+  // Actions tab is visible only if server says we have actions AND we have a target panel for this phase/species
+  const hasActionsAvailable =
+    !isBootstrapping && hasServerActionsAvailable && !!actionsTargetPanelId;
   
   // Build tabs based on phase
   let tabs: ActionPanelTabVm[];
@@ -1109,7 +987,9 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         tabId: 'tab.actions',
         label: 'Actions',
         visible: hasActionsAvailable,
-        targetPanelId: actionsTargetPanelId ?? speciesToCataloguePanelId(effectiveMySpecies),
+        targetPanelId: hasActionsAvailable && actionsTargetPanelId
+          ? actionsTargetPanelId
+          : speciesToCataloguePanelId(effectiveMySpecies),
       },
       // My species tab (always visible in post-selection)
       {
@@ -1247,53 +1127,30 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     return () => window.clearInterval(id);
   }, [shouldTick]);
   
+
   // ============================================================================
-  // AUTO-SELECT ACTIONS TAB WHEN IT BECOMES AVAILABLE
+  // ACTION PANEL ROUTING (UI-ONLY)
   // ============================================================================
-  
-  // When Actions tab becomes available and user is on a catalogue panel,
-  // automatically switch to the action panel for that phase
-  // EXCEPTION: Do NOT auto-switch during build.drawing (stay on catalogue)
+
+  // Mirrors the previous routing behavior:
+  // - Force self catalogue during build.drawing
+  // - Auto-switch from catalogue -> Actions when available (except build.drawing)
+  // - Fall back to self catalogue when no actions are available (unless already catalogue/menu)
   useEffect(() => {
-    if (phaseKey === 'build.drawing') return;
-    
-    if (hasActionsAvailable && actionsTargetPanelId && isCataloguePanel(activePanelId)) {
-      console.log('[useGameSession] Actions available, auto-selecting:', actionsTargetPanelId);
-      setActivePanelId(actionsTargetPanelId);
+    const decision = decideAutoPanelRouting({
+      phaseKey,
+      hasActionsAvailable,
+      actionsTargetPanelId,
+      activePanelId,
+      mySpecies,
+    });
+
+    if (decision.kind === 'setActivePanelId') {
+      console.log(decision.log);
+      setActivePanelId(decision.nextPanelId);
     }
-  }, [phaseKey, hasActionsAvailable, actionsTargetPanelId]);
-  
-  // ============================================================================
-  // FORCE SELF CATALOGUE DURING BUILD.DRAWING
-  // ============================================================================
-  
-  // During build.drawing, always show self catalogue (not actions)
-  useEffect(() => {
-    if (phaseKey !== 'build.drawing') return;
-    
-    const selfCatalogue = speciesToCataloguePanelId(mySpecies ?? 'human');
-    if (activePanelId !== selfCatalogue) {
-      console.log('[useGameSession] build.drawing: forcing self catalogue panel:', selfCatalogue);
-      setActivePanelId(selfCatalogue);
-    }
-  }, [phaseKey, mySpecies]);
-  
-  // ============================================================================
-  // FALLBACK TO SELF CATALOGUE WHEN NO ACTIONS AVAILABLE
-  // ============================================================================
-  
-  // When actions are not available, fall back to self catalogue
-  // (unless user is already on a catalogue panel or menu)
-  useEffect(() => {
-    if (hasActionsAvailable) return;
-    
-    if (isCataloguePanel(activePanelId)) return;
-    if (activePanelId === 'ap.menu.root') return;
-    
-    const selfCatalogue = speciesToCataloguePanelId(mySpecies ?? 'human');
-    console.log('[useGameSession] No actions available: falling back to self catalogue:', selfCatalogue);
-    setActivePanelId(selfCatalogue);
-  }, [hasActionsAvailable, activePanelId, mySpecies]);
+  }, [phaseKey, hasActionsAvailable, actionsTargetPanelId, activePanelId, mySpecies]);
+
   
   // Display-only interpolation helper
   // Snaps to server on every poll, interpolates between polls
@@ -1469,10 +1326,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
           gameId: effectiveGameId,
           intentType: 'ACTION',
           turnNumber, // Current authoritative turn number
-          payload: {
-            actionType: 'message',
-            content: trimmedText,
-          },
+          payload: buildMessageAction(trimmedText),
         });
         
         if (!response.ok) {
@@ -1692,6 +1546,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         mode: 'board',
         mySpeciesId: 'human',
         opponentSpeciesId: 'human',
+        turnNumber: 1,
         myHealth: 25,
         opponentHealth: 25,
         myFleet: [],
@@ -1702,6 +1557,14 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
           my: {},
           opponent: {},
         },
+        myLastTurnHeal: 0,
+        myLastTurnDamage: 0,
+        myLastTurnNet: 0,
+        opponentLastTurnHeal: 0,
+        opponentLastTurnDamage: 0,
+        opponentLastTurnNet: 0,
+        opponentFleetEntryPlan: { opponent: {} },
+        activationStaggerPlan: { myIndexByShipId: {}, opponentIndexByShipId: {} },
       },
       bottomActionRail: {
         subphaseTitle: '',

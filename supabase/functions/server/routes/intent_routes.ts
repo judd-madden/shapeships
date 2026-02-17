@@ -159,6 +159,7 @@ export function registerIntentRoutes(
       if (!latestState) latestState = result.state;
 
       // Accrue clocks on latest using SAME nowMs (deterministic for this request)
+      const prevStatus = latestState?.status;
       latestState = accrueClocks(latestState, nowMs);
 
       // 4) Re-apply intent on latest
@@ -166,11 +167,36 @@ export function registerIntentRoutes(
 
       if (retry.ok) {
         // ========================================================================
+        // TERMINAL DETECTION: Emit GAME_OVER if terminal transition occurred
+        // ========================================================================
+        
+        const nextStatus = retry.state?.status;
+        const terminalOccurred = prevStatus !== 'finished' && nextStatus === 'finished';
+        const allEvents = [...retry.events];
+        
+        if (terminalOccurred) {
+          // Check if GAME_OVER already present (avoid duplicates)
+          const alreadyHasGameOver = allEvents.some(e => e?.type === 'GAME_OVER');
+          
+          if (!alreadyHasGameOver) {
+            const gameOverEvent = {
+              type: 'GAME_OVER',
+              result: retry.state?.result ?? 'draw',
+              resultReason: retry.state?.resultReason,
+              winnerPlayerId: retry.state?.winnerPlayerId ?? null,
+              atMs: nowMs,
+            };
+            
+            allEvents.push(gameOverEvent);
+          }
+        }
+        
+        // ========================================================================
         // CHAT SEPARATION: Scan events for CHAT_MESSAGE
         // ========================================================================
         
         // Scan returned events for CHAT_MESSAGE (emitted by reducer)
-        for (const event of retry.events) {
+        for (const event of allEvents) {
           if (event.type === 'CHAT_MESSAGE') {
             // Append to separate chat KV using data from event
             await appendChatMessage(
@@ -190,13 +216,13 @@ export function registerIntentRoutes(
         
         // Save the merged/latest-applied state
         await kvSet(gameKey, retry.state);
-        console.log(`[Intent] Success (merged): ${intentRequest.intentType}, Events: ${retry.events.length}`);
+        console.log(`[Intent] Success (merged): ${intentRequest.intentType}, Events: ${allEvents.length}`);
 
         return c.json(
           {
             ok: true,
             state: retry.state,
-            events: retry.events,
+            events: allEvents,
             rejected: null,
           },
           200

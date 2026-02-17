@@ -66,6 +66,17 @@ export type GameData = {
     diceRoll?: number;
     linesDistributed?: boolean;
   };
+  
+  /** Pending turn accumulators (for aggregated end-of-turn resolution) */
+  pendingTurn?: {
+    damageByPlayerId: Record<string, number>;
+    healByPlayerId: Record<string, number>;
+  };
+  
+  /** Last turn deltas (for UI/debug) */
+  lastTurnDamageByPlayerId?: Record<string, number>;
+  lastTurnHealByPlayerId?: Record<string, number>;
+  lastTurnNetByPlayerId?: Record<string, number>;
 };
 
 /**
@@ -77,6 +88,22 @@ export type GameState = {
   
   /** Game status */
   status: 'waiting' | 'active' | 'finished';
+  
+  /** Winner player ID (if finished) */
+  winnerPlayerId?: string | null;
+  
+  /** Result (if finished) */
+  result?: 'win' | 'draw';
+  
+  /** Canonical terminal reason */
+  resultReason?:
+    | 'decisive'
+    | 'narrow'
+    | 'mutual_destruction'
+    | 'resignation'
+    | 'timeout'
+    | 'timeout_draw'
+    | 'agreement';
   
   /** Player states */
   players: PlayerState[];

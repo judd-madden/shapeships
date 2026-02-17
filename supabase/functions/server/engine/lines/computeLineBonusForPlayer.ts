@@ -15,7 +15,16 @@
  * - Deterministic and idempotent
  * 
  * CURRENT BONUS LINE SOURCES:
- * - ORB (Orbital): +1 line per Orbital (max 6)
+ * - ORB (Orbital): +1 line per Orbital (capped by shipDef.maxQuantity)
+ *   - Power: "Generate an additional line in each future build phase."
+ *   - Subphase: "Line Generation"
+ * - BAT (Battle Cruiser): +2 lines per Battlecruiser (uncapped)
+ *   - Power: "Generate two additional lines in each future build phase."
+ *   - Subphase: "Line Generation"
+ * - OXF (Oxite Face): +1 line per instance (uncapped)
+ *   - Power: "Generate an additional line in each future build phase."
+ *   - Subphase: "Line Generation"
+ * - ASF (Asteroid Field): +1 line per instance (uncapped)
  *   - Power: "Generate an additional line in each future build phase."
  *   - Subphase: "Line Generation"
  * 
@@ -44,17 +53,38 @@ import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
  * - Will be replaced by structured powers overlay
  */
 const BONUS_LINES_PER_SHIP: Record<string, number> = {
-  'ORB': 1, // Orbital: +1 line per instance
+  'ORB': 1, // Orbital: +1 line per instance (capped via shipDef.maxQuantity)
+  'BAT': 2, // Battle Cruiser: +2 lines per instance (uncapped)
+  'OXF': 1, // Oxite Face: +1 line per instance (uncapped)
+  'ASF': 1, // Asteroid Field: +1 line per instance (uncapped)
 };
 
 /**
- * Ship-specific caps for bonus line sources
- * 
- * Some ships have maximum fleet counts that affect bonus lines.
+ * FUTURE: COMPLEX BONUS LINE RULES (NOT IMPLEMENTED YET)
+ *
+ * These are still "bonus lines" but require turn context (dice roll) or special thresholds,
+ * so they are NOT part of the simple per-ship registry above.
+ *
+ * - SCI#3 (Science Vessel threshold):
+ *   If the player has at least 3x SCI in their fleet, gain bonus lines equal to the dice roll this turn.
+ *   (Triggers once when threshold is met; not per additional SCI beyond 3, unless rules change.)
+ *
+ * - VIG (Ship of Vigor):
+ *   Gain +2 bonus lines when the dice roll is EVEN this turn.
+ *   (Clarify later whether multiple VIG stack; for now treat as a future decision.)
+ *
+ * - POW (Ark of Power):
+ *   Gain +4 bonus lines when the dice roll is EVEN this turn.
+ *   (Clarify later whether multiple POW stack; for now treat as a future decision.)
+ *
+ * FUTURE: JOINING LINES (CENTAUR) (NOT IMPLEMENTED YET)
+ *
+ * Joining lines are a separate resource from bonus lines and likely need separate computation/projection.
+ *
+ * - LEG: +4 joining lines once, immediately during build.drawing
+ * - RED: +2 joining lines each future build phase
+ * - DOM: +2 joining lines each future build phase
  */
-const BONUS_LINES_CAPS: Record<string, number> = {
-  'ORB': 6, // Max 6 Orbitals (from ship extraRules)
-};
 
 // ============================================================================
 // COMPUTE BONUS LINES
@@ -65,13 +95,16 @@ const BONUS_LINES_CAPS: Record<string, number> = {
  * 
  * This is the authoritative server-side computation.
  * 
- * @param state - Current game state
+ * @param gameData - Game data object containing ships
  * @param playerId - Player ID to compute bonus for
  * @returns Total bonus lines (integer >= 0)
  */
-export function computeLineBonusForPlayer(state: any, playerId: string): number {
-  // Get player's ship instances from state
-  const ships = state.gameData?.ships?.[playerId] || [];
+export function computeLineBonusForPlayer(gameData: any, playerId: string): number {
+  // Get player's ship instances from gameData (supports both state shapes)
+  const ships =
+    gameData?.ships?.[playerId] ??
+    gameData?.gameData?.ships?.[playerId] ??
+    [];
   
   if (ships.length === 0) {
     return 0;
@@ -82,15 +115,6 @@ export function computeLineBonusForPlayer(state: any, playerId: string): number 
   
   for (const shipInstance of ships) {
     const shipDefId = shipInstance.shipDefId;
-    
-    // Validate ship definition exists (defensive)
-    const shipDef = getShipById(shipDefId);
-    if (!shipDef) {
-      console.warn(`[computeLineBonusForPlayer] Unknown shipDefId: ${shipDefId}, skipping`);
-      continue;
-    }
-    
-    // Count this ship
     shipCounts[shipDefId] = (shipCounts[shipDefId] || 0) + 1;
   }
   
@@ -105,22 +129,22 @@ export function computeLineBonusForPlayer(state: any, playerId: string): number 
       continue;
     }
     
-    // Apply cap if defined
-    const cap = BONUS_LINES_CAPS[shipDefId];
-    const effectiveCount = cap ? Math.min(count, cap) : count;
+    // Get maxQuantity from ship definitions (cap for this ship type)
+    const shipDef = getShipById(shipDefId);
+    if (!shipDef) {
+      console.warn(`[computeLineBonusForPlayer] Unknown shipDefId: ${shipDefId}, skipping`);
+      continue;
+    }
+    
+    const maxQuantity = shipDef.maxQuantity;
+    
+    // Apply cap from ship definition if defined, otherwise treat as uncapped
+    const effectiveCount = typeof maxQuantity === 'number' ? Math.min(count, maxQuantity) : count;
     
     // Add bonus contribution
     const bonus = bonusPerShip * effectiveCount;
     totalBonus += bonus;
-    
-    console.log(
-      `[computeLineBonusForPlayer] Player ${playerId}: ` +
-      `${effectiveCount}x ${shipDefId} = +${bonus} lines` +
-      (cap && count > cap ? ` (capped at ${cap})` : '')
-    );
   }
-  
-  console.log(`[computeLineBonusForPlayer] Player ${playerId}: Total bonus = ${totalBonus} lines`);
   
   return totalBonus;
 }
@@ -133,8 +157,8 @@ export function computeLineBonusForPlayer(state: any, playerId: string): number 
  * Future implementation pattern (once structured powers expand):
  * 
  * ```typescript
- * export function computeLineBonusForPlayer(state: any, playerId: string): number {
- *   const ships = state.gameData?.ships?.[playerId] || [];
+ * export function computeLineBonusForPlayer(gameData: any, playerId: string): number {
+ *   const ships = gameData?.ships?.[playerId] || [];
  *   let totalBonus = 0;
  *   
  *   for (const shipInstance of ships) {

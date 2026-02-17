@@ -69,6 +69,9 @@ export interface ShipDefinitionCore {
   /** Maximum charges (null if ship has no charges) */
   charges: number | null;
   
+  /** Maximum quantity of this ship allowed in fleet (optional) */
+  maxQuantity?: number;
+  
   /** Ship powers (can be empty array) */
   powers: ShipPowerCore[];
   

@@ -248,7 +248,9 @@ export function accrueClocks(state: any, nowMs: number): any {
       return {
         ...state,
         status: 'finished',
-        winner: winnerId,
+        winnerPlayerId: winnerId,
+        result: 'win',
+        resultReason: 'timeout',
         endReason: 'timeout',
         timeoutLoserId: loserId,
         gameData: {
@@ -279,7 +281,9 @@ export function accrueClocks(state: any, nowMs: number): any {
     return {
       ...state,
       status: 'finished',
-      winner: null,
+      winnerPlayerId: null,
+      result: 'draw',
+      resultReason: 'timeout_draw',
       endReason: 'timeout_draw',
       timeoutLoserId: null,
       gameData: {
