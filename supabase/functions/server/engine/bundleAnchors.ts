@@ -43,6 +43,7 @@ import '../engine_shared/phase/PhaseTable.ts';
 
 // resolve
 import '../engine_shared/resolve/resolvePhase.ts';
+import '../engine_shared/resolve/resolvePowerAction.ts';
 
 // defs
 import '../engine_shared/defs/ShipDefinitions.core.ts';

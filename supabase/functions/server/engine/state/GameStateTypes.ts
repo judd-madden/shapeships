@@ -65,6 +65,17 @@ export type GameData = {
   turnData?: {
     diceRoll?: number;
     linesDistributed?: boolean;
+    
+    /** Track once-per-turn charge power usage by ship instance */
+    chargePowerUsedByInstanceId?: Record<string, number>;
+    
+    /** Existing turn flags used elsewhere (present at runtime even if not typed) */
+    anyChargesSpentInDeclaration?: boolean;
+    anyChargesDeclared?: boolean;
+    chargeDeclarationEligibleByPlayerId?: Record<string, boolean>;
+    
+    /** Allow future turn-scoped flags */
+    [key: string]: any;
   };
   
   /** Pending turn accumulators (for aggregated end-of-turn resolution) */

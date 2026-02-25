@@ -36,6 +36,8 @@ import { onEnterPhase } from '../phase/onEnterPhase.ts';
 import { syncPhaseFields } from '../phase/syncPhaseFields.ts';
 import { accrueClocks } from '../clock/clock.ts';
 import { buildPhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
+import { resolvePowerAction } from '../../engine_shared/resolve/resolvePowerAction.ts';
+import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 
 import {
   type IntentType,
@@ -61,7 +63,6 @@ import {
   allCommittedPlayersRevealed,
 } from './CommitStore.ts';
 import type { ShipInstance } from '../state/GameStateTypes.ts';
-import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 
 export interface IntentRequest {
   gameId: string;
@@ -102,6 +103,17 @@ export async function applyIntent(
   nowMs: number
 ): Promise<IntentResult> {
   const events: any[] = [];
+  
+  // Normalize legacy ships container → canonical gameData.ships
+  if (!state.gameData) state.gameData = {};
+  const legacyShips = (state as any).ships;
+
+  if (!state.gameData.ships && legacyShips) {
+    state.gameData.ships = legacyShips;
+  }
+
+  // Always keep legacy alias aligned
+  (state as any).ships = state.gameData.ships;
   
   // Accrue server-authoritative clocks before applying intent (authoritative timekeeping)
   state = accrueClocks(state, nowMs);
@@ -541,6 +553,37 @@ async function handleSpeciesSubmit(
     };
   }
   
+  // Idempotent check: if player already has faction set
+  if (player.faction) {
+    if (player.faction === payload.species) {
+      // Same species - treat as no-op success
+      console.log('[SPECIES_SUBMIT] applied', { playerId, species: payload.species, idempotent: true });
+      
+      state = syncPhaseFields(state);
+      return {
+        ok: true,
+        state,
+        events: []
+      };
+    } else {
+      // Different species - reject
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_STATE,
+          message: 'Species already selected'
+        }
+      };
+    }
+  }
+  
+  // Immediately set faction on submit (CANONICAL)
+  player.faction = payload.species;
+  
+  console.log('[SPECIES_SUBMIT] applied', { playerId, species: payload.species });
+  
   const commitKey = getSpeciesCommitKey(intent.turnNumber);
   
   // Check for duplicate commit
@@ -604,26 +647,12 @@ async function handleSpeciesSubmit(
     atMs: nowMs
   });
   
-  // Completion check: if all active players have submitted
+  // Completion check: advance when both players have faction set (not based on commit store)
   const activePlayers = state.players.filter((p: any) => p.role === 'player');
-  const allSubmitted = activePlayers.every((p: any) => hasRevealed(state, commitKey, p.id));
+  const bothChosen = activePlayers.length === 2 && activePlayers.every((p: any) => p.faction != null);
   
-  if (allSubmitted) {
-    console.log('[SPECIES_SUBMIT] All players submitted, resolving species and advancing phase...');
-    console.log('[SPECIES] allSubmitted -> advancing', {
-      turnNumber: state.gameData.turnNumber,
-      phase: getPhaseKey(state),
-    });
-    
-    // Resolve species for all players
-    for (const p of activePlayers) {
-      const pRecord = getCommitRecord(state, commitKey, p.id);
-      if (pRecord && pRecord.revealPayload) {
-        const pPayload = pRecord.revealPayload as SpeciesRevealPayload;
-        p.faction = pPayload.species;
-        console.log(`[SPECIES_SUBMIT] applied`, { playerId: p.id, faction: pPayload.species });
-      }
-    }
+  if (bothChosen) {
+    console.log('[SPECIES_SUBMIT] both chosen -> advance', { turnNumber: state.gameData.turnNumber });
     
     events.push({
       type: 'SPECIES_RESOLVED',
@@ -989,13 +1018,18 @@ async function handleBuildReveal(
           const count = buildEntry.count ?? 1;
           
           for (let i = 0; i < count; i++) {
+            const shipDef = getShipById(buildEntry.shipDefId);
+
             const shipInstance: ShipInstance = {
               instanceId: crypto.randomUUID(),
               shipDefId: buildEntry.shipDefId,
               createdTurn: state.gameData.turnNumber
             };
             
-            // Note: chargesCurrent will be set later if needed by ship def logic
+            // Initialize charges for ships that have them
+            if (shipDef && typeof shipDef.charges === 'number') {
+              shipInstance.chargesCurrent = shipDef.charges;
+            }
             
             state.gameData.ships[p.id].push(shipInstance);
           }
@@ -1290,11 +1324,18 @@ async function handleBuildSubmit(
             for (let i = 0; i < count; i++) {
               // TODO (upgrades): if shipDef has componentShips, consume component instances from fleet before adding upgraded ship.
               
+              const shipDef = getShipById(buildEntry.shipDefId);
+
               const shipInstance: ShipInstance = {
                 instanceId: crypto.randomUUID(),
                 shipDefId: buildEntry.shipDefId,
                 createdTurn: state.gameData.turnNumber
               };
+              
+              // Initialize charges for ships that have them
+              if (shipDef && typeof shipDef.charges === 'number') {
+                shipInstance.chargesCurrent = shipDef.charges;
+              }
               
               state.gameData.ships[p.id].push(shipInstance);
             }
@@ -1447,6 +1488,22 @@ function handleDeclareReady(
       rejected: {
         code: RejectionCode.WRONG_PHASE,
         message: 'Cannot determine current phase'
+      }
+    };
+  }
+  
+  // Validate turn number matches current server turn (reject stale DECLARE_READY)
+  const stateTurnNumber = state?.gameData?.turnData?.turnNumber ?? state?.gameData?.turnNumber ?? state?.turnNumber;
+  const intentTurnNumber = intent.turnNumber;
+  
+  if (intentTurnNumber !== stateTurnNumber) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_TURN,
+        message: `Stale DECLARE_READY: intent turn ${intentTurnNumber} but current turn is ${stateTurnNumber}`
       }
     };
   }
@@ -1614,8 +1671,11 @@ function handleAction(
     };
   }
   
-  // Handle power actions (Phase 3.0B: scaffold only, reject for now)
+  // Handle power actions
   if (payload.actionType === 'power') {
+    // ============================================================================
+    // VALIDATION: Required fields
+    // ============================================================================
     if (!payload.actionId || typeof payload.actionId !== 'string' || payload.actionId.trim() === '') {
       return {
         ok: false,
@@ -1623,21 +1683,115 @@ function handleAction(
         events: [],
         rejected: {
           code: RejectionCode.BAD_PAYLOAD,
-          message: 'Missing or invalid actionId'
+          message: 'Missing actionId'
         }
       };
     }
     
-    // Phase 3.0B: Power actions not yet enabled
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.PHASE_NOT_ALLOWED,
-        message: 'Power actions not enabled yet'
+    if (!payload.sourceInstanceId || typeof payload.sourceInstanceId !== 'string' || payload.sourceInstanceId.trim() === '') {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Missing sourceInstanceId'
+        }
+      };
+    }
+    
+    if (!payload.choiceId || typeof payload.choiceId !== 'string' || payload.choiceId.trim() === '') {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Missing choiceId'
+        }
+      };
+    }
+    
+    // ============================================================================
+    // DELEGATE TO RESOLVER (timing enforced there)
+    // ============================================================================
+    const phaseKey = getPhaseKey(state);
+    if (!phaseKey) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Cannot determine current phase'
+        }
+      };
+    }
+    
+    try {
+      const outcome = resolvePowerAction({
+        state,
+        playerId,
+        phaseKey,
+        actionId: payload.actionId,
+        sourceInstanceId: payload.sourceInstanceId,
+        choiceId: payload.choiceId,
+      });
+      
+      state = outcome.state;
+      
+      // ============================================================================
+      // FLIP DECLARATION-SPENT FLAG (only in charge_declaration)
+      // ============================================================================
+      if (phaseKey === 'battle.charge_declaration' && outcome.spentCharge === true) {
+        // Ensure turnData exists
+        if (!state.gameData) state.gameData = {};
+        if (!state.gameData.turnData) state.gameData.turnData = {};
+        
+        state.gameData.turnData.anyChargesSpentInDeclaration = true;
       }
-    };
+      
+      // ============================================================================
+      // EMIT GENERIC EVENT
+      // ============================================================================
+      events.push({
+        type: 'POWER_USED',
+        playerId,
+        phaseKey,
+        actionId: payload.actionId,
+        sourceInstanceId: payload.sourceInstanceId,
+        choiceId: payload.choiceId,
+        spentCharge: outcome.spentCharge,
+        atMs: nowMs
+      });
+      
+      state = syncPhaseFields(state);
+      
+      return {
+        ok: true,
+        state,
+        events
+      };
+    } catch (err: any) {
+      // ============================================================================
+      // ERROR → REJECTION MAPPING
+      // ============================================================================
+      const msg = err?.message ?? String(err);
+      
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: msg === 'CHARGE_ALREADY_USED_THIS_TURN'
+            ? RejectionCode.CHARGE_ALREADY_USED_THIS_TURN
+            : RejectionCode.BAD_PAYLOAD,
+          message: msg === 'CHARGE_ALREADY_USED_THIS_TURN'
+            ? 'This ship has already used a charge this turn.'
+            : msg
+        }
+      };
+    }
   }
   
   // Unknown action type

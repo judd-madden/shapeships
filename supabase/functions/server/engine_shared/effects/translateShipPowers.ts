@@ -35,7 +35,8 @@ import type {
   DestroyEffect,
   CreateShipEffect,
   GainLinesEffect,
-  GainEnergyEffect
+  GainEnergyEffect,
+  SpendChargeEffect
 } from './Effect.ts';
 import { 
   EffectTiming as EffectTimingEnum, 
@@ -51,8 +52,8 @@ import {
  * Base structured power definition
  */
 type BaseStructuredPower = {
-  /** Which phase this power activates in */
-  timing: PhaseKey;
+  /** Which phases this power activates in */
+  timings: PhaseKey[];
   
   /** Does this power require spending charges? */
   requiresCharge?: boolean;
@@ -89,9 +90,20 @@ type EffectPower = BaseStructuredPower & {
  * Choice option for choice-based powers
  */
 export type StructuredChoiceOption = {
+  /**
+   * Semantic option id, never parsed for amounts.
+   * Examples: "damage", "heal", "hold"
+   */
+  choiceId: string;
+
+  /** UI label for panels */
   label: string;
+
+  /** Optional per-option override */
   requiresCharge?: boolean;
   chargeCost?: number;
+
+  /** Effects emitted if this option is chosen */
   effects: EffectPower[];
 };
 
@@ -141,7 +153,7 @@ export function translateShipPowers(
 
   // Filter powers that activate in this phase
   const relevantPowers = structuredPowers.filter(
-    power => power.timing === phaseKey
+    power => power.timings.includes(phaseKey)
   );
 
   // Translate each power to effects
@@ -165,6 +177,50 @@ export function translateShipPowers(
   }
 
   return effects;
+}
+
+/**
+ * Translate choice option effects into canonical Effects.
+ * 
+ * @param optionEffects - Effects from the chosen option
+ * @param powerIndex - Power index in ship definition
+ * @param phaseKey - Current phase
+ * @param ctx - Translation context
+ * @param optionSalt - Option choiceId for deterministic salting
+ * @returns Array of Effects
+ */
+export function translateChoiceOptionEffects(
+  optionEffects: EffectPower[],
+  powerIndex: number,
+  phaseKey: PhaseKey,
+  ctx: TranslateContext,
+  optionSalt: string
+): Effect[] {
+  const out: Effect[] = [];
+
+  for (let i = 0; i < optionEffects.length; i++) {
+    const effectPower = optionEffects[i];
+
+    // We need deterministic effect IDs that won't collide with other effects.
+    // We reuse the existing deterministic generator via translateEffectPower().
+    // We pass a composite "powerIndex" that incorporates powerIndex + optionSalt + local index.
+    //
+    // IMPORTANT: Keep deterministic; no hashing libs; no randomness.
+    const compositeIndex = powerIndex * 1000 + stableSmallSalt(optionSalt) * 100 + i;
+
+    if (effectPower.type !== 'effect') continue;
+
+    const translated = translateEffectPower(
+      effectPower,
+      compositeIndex,
+      phaseKey,
+      ctx
+    );
+
+    if (translated) out.push(translated);
+  }
+
+  return out;
 }
 
 // ============================================================================
@@ -273,6 +329,14 @@ function translateEffectPower(
         amount: power.amount
       } as GainEnergyEffect;
 
+    case EffectKindEnum.SpendCharge:
+      if (power.amount === undefined) return null;
+      return {
+        ...baseEffect,
+        kind: EffectKindEnum.SpendCharge,
+        amount: power.amount
+      } as SpendChargeEffect;
+
     // TODO: Handle other effect kinds (ModifyDamage, ModifyHeal, Shield, Redirect)
     default:
       console.warn(`[translateShipPowers] Unhandled effect kind: ${power.kind}`);
@@ -342,6 +406,7 @@ function determineTargetPlayer(
     case EffectKindEnum.GainEnergy:
     case EffectKindEnum.GainLines:
     case EffectKindEnum.CreateShip:
+    case EffectKindEnum.SpendCharge:
       return ownerPlayerId;
     
     case EffectKindEnum.Damage:
@@ -379,4 +444,18 @@ function generateDeterministicEffectId(
   phaseKey: PhaseKey
 ): string {
   return `eff:${shipDefId}:${shipInstanceId}:p${powerIndex}:${phaseKey}`;
+}
+
+/**
+ * Small stable salt for deterministic effect ID generation.
+ * 
+ * @param salt - Input string to hash
+ * @returns Small integer salt (0-99)
+ */
+function stableSmallSalt(salt: string): number {
+  let hash = 0;
+  for (let i = 0; i < salt.length; i++) {
+    hash = (hash * 31 + salt.charCodeAt(i)) % 100;
+  }
+  return hash;
 }

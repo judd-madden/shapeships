@@ -13,14 +13,21 @@ export function deriveIdentity(rawState: any, mySessionId: string | null) {
   const playerUsers = allPlayers.filter((p: any) => p.role === 'player');
   
   // Find "me" in the player list (using mySessionId for stable identity)
-  // "me" is the player whose id === mySessionId
-  const me = mySessionId ? allPlayers.find((p: any) => p.id === mySessionId) : null;
+  // Match on either p.id === mySessionId OR p.sessionId === mySessionId (defensive)
+  const me = mySessionId 
+    ? allPlayers.find((p: any) => p.id === mySessionId || p.sessionId === mySessionId) 
+    : null;
   
   // Find "opponent" (the other player, if I'm a player)
   // Opponent is ONLY valid if I'm a player myself
   const opponent = (me?.role === 'player' && mySessionId)
-    ? playerUsers.find((p: any) => p.id !== mySessionId) || null
+    ? playerUsers.find((p: any) => p.id !== mySessionId && p.sessionId !== mySessionId) || null
     : null;
   
-  return { allPlayers, playerUsers, me, opponent };
+  // Compute ready keys that align with phaseReadiness[].playerId
+  // Prefer playerId if present, otherwise fall back to id
+  const meReadyKey = me?.playerId ?? me?.id ?? null;
+  const opponentReadyKey = opponent?.playerId ?? opponent?.id ?? null;
+  
+  return { allPlayers, playerUsers, me, opponent, meReadyKey, opponentReadyKey };
 }

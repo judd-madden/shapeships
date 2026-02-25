@@ -152,9 +152,14 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
           <div className="w-fit">
             <ShipChoicesPanel
               groups={vm.shipChoices.groups}
-              showOpponentAlsoHasCharges={vm.shipChoices.showOpponentAlsoHasCharges ?? false}
+              showOpponentAlsoHasCharges={
+                (vm.shipChoices.showOpponentAlsoHasCharges ?? false) &&
+                (vm.shipChoices.opponentEligibleAtDeclarationStart ?? false)
+              }
               opponentAlsoHasChargesHeading={vm.shipChoices.opponentAlsoHasChargesHeading}
               opponentAlsoHasChargesLines={vm.shipChoices.opponentAlsoHasChargesLines}
+              selectedChoiceIdBySourceInstanceId={vm.shipChoices.selectedChoiceIdBySourceInstanceId}
+              onSelectChoiceForInstance={actions.onSelectShipChoiceForInstance}
             />
           </div>
         </ActionPanelScrollArea>

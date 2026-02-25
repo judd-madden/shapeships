@@ -27,8 +27,8 @@ export type ShipAnimToken = {
 };
 
 export type FleetAnimVM = {
-  my: Partial<Record<ShipDefId, ShipAnimToken>>;
-  opponent: Partial<Record<ShipDefId, ShipAnimToken>>;
+  my: Partial<Record<string, ShipAnimToken>>;       // stackKey -> token
+  opponent: Partial<Record<string, ShipAnimToken>>; // stackKey -> token
 };
 
 // ============================================================================

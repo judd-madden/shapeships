@@ -151,6 +151,9 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
           diceRoll: null,
           linesDistributed: false,
           anyChargesDeclared: false,
+          anyChargesSpentInDeclaration: false,
+          chargeDeclarationEligibleByPlayerId: {},
+          chargePowerUsedByInstanceId: {},
         },
       },
     };
@@ -186,6 +189,9 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
           diceRoll: null,
           linesDistributed: false,
           anyChargesDeclared: false, // Reset charge declaration tracking
+          anyChargesSpentInDeclaration: false,
+          chargeDeclarationEligibleByPlayerId: {},
+          chargePowerUsedByInstanceId: {},
         },
       },
     };

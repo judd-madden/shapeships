@@ -75,12 +75,18 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
   }
 
 
-  // 2) AUTO-SELECT ACTIONS TAB WHEN IT BECOMES AVAILABLE
-  if (hasActionsAvailable && actionsTargetPanelId && isCataloguePanel(activePanelId)) {
+  // 2) DEFAULT TO ACTIONS ON PHASE ENTRY (if available)
+  // Only applies on phase transition (caller controls effect trigger).
+  if (hasActionsAvailable && actionsTargetPanelId) {
+    // Respect Menu — do not auto-route away from Menu
+    if (activePanelId === 'ap.menu.root') {
+      return { kind: 'none' };
+    }
+  
     return {
       kind: 'setActivePanelId',
       nextPanelId: actionsTargetPanelId,
-      log: `[useGameSession] Actions available, auto-selecting: ${actionsTargetPanelId}`,
+      log: `[useGameSession] Phase entry: defaulting to Actions: ${actionsTargetPanelId}`,
     };
   }
 

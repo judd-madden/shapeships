@@ -74,6 +74,18 @@ export function mapGameSessionVm(args: {
   
   // Ready flash state (visual-only)
   readyFlashSelected: boolean;
+  
+  // Ready UX state (SENDING/WAITING labels)
+  readyUx: { clickedThisPhase: boolean; sendingNow: boolean };
+
+  // Server availableActions for charge panels
+  availableActions: any[] | null;
+
+  // Selection state for ship choice panels
+  selectedChoiceIdBySourceInstanceId: Record<string, string>;
+  
+  // Raw gameData for server truth
+  gameData: any;
 }): GameSessionViewModel {
   const {
     isBootstrapping,
@@ -110,6 +122,10 @@ export function mapGameSessionVm(args: {
     mySpeciesId,
     opponentSpeciesId,
     readyFlashSelected,
+    readyUx,
+    availableActions,
+    selectedChoiceIdBySourceInstanceId,
+    gameData,
   } = args;
   
   // Map chat entries to LeftRail VM format
@@ -232,7 +248,18 @@ export function mapGameSessionVm(args: {
   const evolverDrawing = evolverCount > 0 ? { evolverCount } : undefined;
 
   // ============================================================================
-  // READY BUTTON LABEL DERIVATION
+  // READY BUTTON LABEL DERIVATION (CLIENT UX LAYER)
+  // ============================================================================
+  //
+  // Goals:
+  // - Server remains authority on readiness (p1IsReady/p2IsReady)
+  // - Client can show "SENDING..." while awaiting the ready intent flow
+  // - Client can show "WAITING..." when player was auto-readied because they have no actions
+  //
+  // IMPORTANT: ReadyButton primitive shows grey background only when selected=false and disabled=true.
+  // Selected branch is always green in ReadyButton.tsx.
+  // So for SENDING/WAITING we force selected=false.
+  //
   // ============================================================================
   
   let readyButtonLabel = 'READY';
@@ -240,93 +267,207 @@ export function mapGameSessionVm(args: {
   let finalReadyDisabledReason = readyDisabledReason;
   let finalReadySelected = p1IsReady;
   
+  // Helper: detect whether I have any actionable input this phase
+  // Conservative rule: any availableActions means "I have something".
+  // In your current code, availableActions is authoritative for charge phases and null otherwise.
+  // This is enough for the WAITING heuristic without server changes.
+  const iHaveActionsThisPhase =
+    Array.isArray(availableActions) && availableActions.length > 0;
+  
   if (isFinished) {
     // Game over: button shows "GAME OVER" and is disabled
     readyButtonLabel = 'GAME OVER';
     finalReadyDisabled = true;
     finalReadySelected = false;
     finalReadyDisabledReason = 'Game over.';
+  } else if (readyUx?.sendingNow) {
+    // Case 1: user clicked Ready and we are awaiting server validation/refresh
+    readyButtonLabel = 'SENDING...';
+    finalReadyDisabled = true;
+    finalReadySelected = false;
+    finalReadyDisabledReason = null;
+  } else {
+    // Case 2: auto-ready because I have no actions; show WAITING if opponent not ready yet.
+    //
+    // Condition:
+    // - server says I'm ready (p1IsReady)
+    // - I did NOT explicitly click ready this phase (clickedThisPhase false)
+    // - I have no actions this phase (no availableActions)
+    // - opponent not ready (still waiting on them)
+    const autoReadyWaiting =
+      p1IsReady &&
+      !readyUx?.clickedThisPhase &&
+      !iHaveActionsThisPhase &&
+      !p2IsReady;
+    
+    if (autoReadyWaiting) {
+      readyButtonLabel = 'WAITING...';
+      finalReadyDisabled = true;
+      finalReadySelected = false;
+      finalReadyDisabledReason = null;
+    }
   }
-  // TODO: "WAITING" label when player has no required action this phase
-  // Requires server to expose a per-player "needsInputThisPhase" flag.
-  // If server adds this flag, derive here:
-  // else if (!playerNeedsInputThisPhase && !p2IsReady) {
-  //   readyButtonLabel = 'WAITING';
-  //   finalReadyDisabled = true;
-  //   finalReadySelected = false;
-  // }
   
   // Ship choices (derive groups from registry spec)
   let shipChoices:
     | {
         groups: ShipChoicesPanelGroup[];
         showOpponentAlsoHasCharges?: boolean;
+        opponentEligibleAtDeclarationStart?: boolean;
         opponentAlsoHasChargesHeading?: string;
         opponentAlsoHasChargesLines?: string[];
+        selectedChoiceIdBySourceInstanceId?: Record<string, string>;
       }
     | undefined;
 
   const shipChoiceSpec = getShipChoicePanelSpec(finalActivePanelId);
 
   if (shipChoiceSpec && shipChoiceSpec.kind === 'buttons') {
+    // Check if this is a charge phase (use server availableActions)
+    const isChargePhase = 
+      phaseKey === 'battle.charge_declaration' || 
+      phaseKey === 'battle.charge_response';
+
     const derivedGroups: ShipChoicesPanelGroup[] = [];
 
-    for (const groupSpec of shipChoiceSpec.groups) {
-      if (groupSpec.kind === 'counted') {
-        // Counted group: derive count from fleet
-        const count = getFleetCount(myFleet, groupSpec.shipDefId);
-        if (count === 0) continue; // skip if player has none
+    if (isChargePhase && Array.isArray(availableActions)) {
+      // CHARGE PHASES: Derive from server availableActions
+      // Filter to choice actions with required fields
+      const choiceActions = availableActions.filter(
+        (a: any) =>
+          a?.kind === 'choice' &&
+          typeof a?.sourceInstanceId === 'string' &&
+          typeof a?.actionId === 'string' &&
+          typeof a?.shipDefId === 'string' &&
+          Array.isArray(a?.choices)
+      );
 
-        const heading = groupSpec.headingTemplate.replace('{count}', String(count));
-        const ships = Array.from({ length: count }, () => ({
-          shipDefId: groupSpec.shipDefId,
-          buttons: groupSpec.buttons,
-        }));
+      for (const groupSpec of shipChoiceSpec.groups) {
+        if (groupSpec.kind === 'counted') {
+          // Find all matching server actions for this shipDefId
+          const matches = choiceActions.filter(
+            (a: any) => a.shipDefId === groupSpec.shipDefId
+          );
 
-        derivedGroups.push({
-          heading,
-          ships,
-          groupHelpText: groupSpec.groupHelpText,
-        });
-      } else if (groupSpec.kind === 'named') {
-        // Named group: expand each ship by its fleet count
-        const expandedShips: Array<{
-          shipDefId: string;
-          buttons: typeof groupSpec.ships[number]['buttons'];
-        }> = [];
+          if (matches.length === 0) continue;
 
-        for (const ship of groupSpec.ships) {
-          const count = getFleetCount(myFleet, ship.shipDefId);
-          if (count === 0) continue; // skip if player has none
+          const count = matches.length;
+          const heading = groupSpec.headingTemplate.replace('{count}', String(count));
+          const ships = matches.map((m: any) => ({
+            shipDefId: groupSpec.shipDefId,
+            buttons: groupSpec.buttons,
+            sourceInstanceId: m.sourceInstanceId,
+            actionId: m.actionId,
+            availableChoiceIds: m.choices.map((c: any) => c.choiceId),
+          }));
 
-          // Expand to count instances
-          for (let i = 0; i < count; i++) {
-            expandedShips.push({
-              shipDefId: ship.shipDefId,
-              buttons: ship.buttons,
+          derivedGroups.push({
+            heading,
+            ships,
+            groupHelpText: groupSpec.groupHelpText,
+          });
+        } else if (groupSpec.kind === 'named') {
+          // Named group: expand each ship per server action instance
+          const expandedShips: Array<{
+            shipDefId: string;
+            buttons: typeof groupSpec.ships[number]['buttons'];
+            sourceInstanceId: string;
+            actionId: string;
+            availableChoiceIds: string[];
+          }> = [];
+
+          for (const ship of groupSpec.ships) {
+            const matches = choiceActions.filter(
+              (a: any) => a.shipDefId === ship.shipDefId
+            );
+
+            for (const m of matches) {
+              expandedShips.push({
+                shipDefId: ship.shipDefId,
+                buttons: ship.buttons,
+                sourceInstanceId: m.sourceInstanceId,
+                actionId: m.actionId,
+                availableChoiceIds: m.choices.map((c: any) => c.choiceId),
+              });
+            }
+          }
+
+          if (expandedShips.length > 0) {
+            derivedGroups.push({
+              heading: groupSpec.heading,
+              ships: expandedShips,
+              groupHelpText: groupSpec.groupHelpText,
             });
           }
         }
+      }
+    } else {
+      // NON-CHARGE PHASES: Derive from fleet counts (existing behavior)
+      for (const groupSpec of shipChoiceSpec.groups) {
+        if (groupSpec.kind === 'counted') {
+          // Counted group: derive count from fleet
+          const count = getFleetCount(myFleet, groupSpec.shipDefId);
+          if (count === 0) continue; // skip if player has none
 
-        // Only include group if at least one ship present
-        if (expandedShips.length > 0) {
+          const heading = groupSpec.headingTemplate.replace('{count}', String(count));
+          const ships = Array.from({ length: count }, () => ({
+            shipDefId: groupSpec.shipDefId,
+            buttons: groupSpec.buttons,
+          }));
+
           derivedGroups.push({
-            heading: groupSpec.heading,
-            ships: expandedShips,
+            heading,
+            ships,
             groupHelpText: groupSpec.groupHelpText,
           });
+        } else if (groupSpec.kind === 'named') {
+          // Named group: expand each ship by its fleet count
+          const expandedShips: Array<{
+            shipDefId: string;
+            buttons: typeof groupSpec.ships[number]['buttons'];
+          }> = [];
+
+          for (const ship of groupSpec.ships) {
+            const count = getFleetCount(myFleet, ship.shipDefId);
+            if (count === 0) continue; // skip if player has none
+
+            // Expand to count instances
+            for (let i = 0; i < count; i++) {
+              expandedShips.push({
+                shipDefId: ship.shipDefId,
+                buttons: ship.buttons,
+              });
+            }
+          }
+
+          // Only include group if at least one ship present
+          if (expandedShips.length > 0) {
+            derivedGroups.push({
+              heading: groupSpec.heading,
+              ships: expandedShips,
+              groupHelpText: groupSpec.groupHelpText,
+            });
+          }
         }
       }
     }
 
     // Only set shipChoices if we have groups
     if (derivedGroups.length > 0) {
+      const eligibleSnapshot =
+        gameData?.turnData?.chargeDeclarationEligibleByPlayerId as Record<string, boolean> | undefined;
+
+      const opponentEligibleAtDeclarationStart =
+        phaseKey === 'battle.charge_declaration' &&
+        !!(opponent?.id && eligibleSnapshot && eligibleSnapshot[opponent.id] === true);
+
       shipChoices = {
         groups: derivedGroups,
         showOpponentAlsoHasCharges: shipChoiceSpec.showOpponentAlsoHasCharges ?? false,
-        // Leave heading/lines undefined for now (no opponent callout copy yet)
+        opponentEligibleAtDeclarationStart,
         opponentAlsoHasChargesHeading: undefined,
         opponentAlsoHasChargesLines: undefined,
+        selectedChoiceIdBySourceInstanceId,
       };
     }
   }
@@ -375,6 +516,7 @@ export function mapGameSessionVm(args: {
       subphaseTitle: isFinished ? 'Game Over' : getSubphaseLabelFromPhaseKey(phaseKey),
       subphaseSubheading: isFinished ? '' : getMajorPhaseLabel(phaseKey),
       canUndoActions: false,
+      readyButtonVisible: !isFinished,
       readyButtonLabel,
       readyButtonNote: null,
       nextPhaseLabel: 'NEXT PHASE',
@@ -401,6 +543,8 @@ export function mapGameSessionVm(args: {
       frigateDrawing,
       evolverDrawing,
       shipChoices,
+      availableActions,
+      selectedChoiceIdBySourceInstanceId,
     },
   };
 

@@ -43,7 +43,7 @@ export const STRUCTURED_POWERS_HUMAN: Record<ShipPowerKey, StructuredShipPower[]
   'DEF#0': [
     {
       type: 'effect',
-      timing: 'battle.end_of_turn_resolution',
+      timings: ['battle.end_of_turn_resolution'],
       kind: EffectKind.Heal,
       amount: 1,
       targetPlayer: 'self'
@@ -58,7 +58,7 @@ export const STRUCTURED_POWERS_HUMAN: Record<ShipPowerKey, StructuredShipPower[]
   'FIG#0': [
     {
       type: 'effect',
-      timing: 'battle.end_of_turn_resolution',
+      timings: ['battle.end_of_turn_resolution'],
       kind: EffectKind.Damage,
       amount: 1,
       targetPlayer: 'opponent'
@@ -72,7 +72,7 @@ export const STRUCTURED_POWERS_HUMAN: Record<ShipPowerKey, StructuredShipPower[]
   'BAT#1': [
     {
       type: 'effect',
-      timing: 'battle.end_of_turn_resolution',
+      timings: ['battle.end_of_turn_resolution'],
       kind: EffectKind.Heal,
       amount: 3,
       targetPlayer: 'self',
@@ -83,11 +83,72 @@ export const STRUCTURED_POWERS_HUMAN: Record<ShipPowerKey, StructuredShipPower[]
   'BAT#2': [
     {
       type: 'effect',
-      timing: 'battle.end_of_turn_resolution',
+      timings: ['battle.end_of_turn_resolution'],
       kind: EffectKind.Damage,
       amount: 2,
       targetPlayer: 'opponent',
     },
+  ],
+
+  // ==========================================================================
+  // INTERCEPTOR (INT)
+  // ==========================================================================
+  // JSON power index 0: Choice power (Charge Declaration, Charge Response)
+  // Options: damage (5 damage), heal (5 heal), hold (no effect)
+  'INT#0': [
+    {
+      type: 'choice',
+      timings: ['battle.charge_declaration', 'battle.charge_response'],
+      requiresCharge: true,
+      chargeCost: 1,
+      options: [
+        {
+          choiceId: 'damage',
+          label: '', // UI copy in ShipChoiceRegistry only
+          effects: [
+            {
+              type: 'effect',
+              timings: [], // Inherited from parent
+              kind: EffectKind.SpendCharge,
+              amount: 1,
+              targetPlayer: 'self'
+            },
+            {
+              type: 'effect',
+              timings: [], // Inherited from parent
+              kind: EffectKind.Damage,
+              amount: 5,
+              targetPlayer: 'opponent'
+            }
+          ]
+        },
+        {
+          choiceId: 'heal',
+          label: '', // UI copy in ShipChoiceRegistry only
+          effects: [
+            {
+              type: 'effect',
+              timings: [], // Inherited from parent
+              kind: EffectKind.SpendCharge,
+              amount: 1,
+              targetPlayer: 'self'
+            },
+            {
+              type: 'effect',
+              timings: [], // Inherited from parent
+              kind: EffectKind.Heal,
+              amount: 5,
+              targetPlayer: 'self'
+            }
+          ]
+        },
+        {
+          choiceId: 'hold',
+          label: '', // UI copy in ShipChoiceRegistry only
+          effects: []
+        }
+      ]
+    }
   ]
 };
 

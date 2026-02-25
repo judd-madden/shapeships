@@ -19,6 +19,8 @@ import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
 import { computeLineBonusForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
 import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers.ts';
 import { getShipById } from '../engine_shared/defs/ShipDefinitions.core.ts';
+import { getShipDefinition } from '../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
+import type { StructuredShipPower } from '../engine_shared/effects/translateShipPowers.ts';
 
 // ============================================================================
 // HELPER: Get current phase key for readiness checking
@@ -81,14 +83,85 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
 
   if (!phaseKey) return [];
 
-  // Charge phases have special eligibility (charges/energy)
+  // ============================================================================
+  // CHARGE PHASES: Derive choice actions from structured powers
+  // ============================================================================
   if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
-    return playerHasAvailableChargeOrSolarOption(state, playerId)
-      ? [{ kind: 'phase_input', phaseKey }]
-      : [];
+    const actions: any[] = [];
+    
+    // Phase 3.1 Slice 2 — Patch C: Hide charge actions already used this turn (server truth)
+    const turnNumber: number = state?.gameData?.turnNumber ?? 1;
+    const usedMap: Record<string, number> =
+      state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
+    
+    // Get player's ship instances
+    const fleet = state?.ships?.[playerId] ?? state?.gameData?.ships?.[playerId] ?? [];
+    
+    // For each ship instance, find eligible choice powers
+    for (const shipInstance of fleet) {
+      const shipDefId = shipInstance.shipDefId;
+      const sourceInstanceId = shipInstance.instanceId;
+      
+      // Load ship definition with structured powers
+      const shipDef = getShipDefinition(shipDefId);
+      if (!shipDef || !shipDef.structuredPowers) continue;
+      
+      // For each structured power (powerIndex = array position)
+      for (let powerIndex = 0; powerIndex < shipDef.structuredPowers.length; powerIndex++) {
+        const power: StructuredShipPower = shipDef.structuredPowers[powerIndex];
+        
+        // Only consider choice powers
+        if (power.type !== 'choice') continue;
+        
+        // Only consider powers whose timings include current phase
+        if (!power.timings.includes(phaseKey)) continue;
+        
+        // Check charge eligibility
+        const actionRequiresCharge =
+          (power.requiresCharge ?? false) ||
+          (Array.isArray(power.options) && power.options.some((o: any) => o?.requiresCharge === true));
+        
+        // Patch C: If this power requires charge and this ship already spent a charge this turn, it is not eligible.
+        if (actionRequiresCharge && usedMap[sourceInstanceId] === turnNumber) continue;
+        
+        if (actionRequiresCharge) {
+          const chargesCurrent = shipInstance.chargesCurrent ?? 0;
+          // If power-level chargeCost exists use it, otherwise default to 1
+          const chargeCost = power.chargeCost ?? 1;
+          if (chargesCurrent < chargeCost) continue; // Not eligible
+        }
+        
+        // Emit choice action
+        const actionId = `${shipDefId}#${powerIndex}`;
+        const choices = power.options.map(opt => ({ choiceId: opt.choiceId }));
+        
+        actions.push({
+          kind: 'choice',
+          actionId,
+          shipDefId,
+          sourceInstanceId,
+          choices
+        });
+      }
+    }
+    
+    // Stable ordering: by shipDefId, then instanceId, then actionId
+    actions.sort((a, b) => {
+      if (a.shipDefId !== b.shipDefId) {
+        return a.shipDefId.localeCompare(b.shipDefId);
+      }
+      if (a.sourceInstanceId !== b.sourceInstanceId) {
+        return a.sourceInstanceId.localeCompare(b.sourceInstanceId);
+      }
+      return a.actionId.localeCompare(b.actionId);
+    });
+    
+    return actions;
   }
 
-  // Other phases: use fleetHasAvailablePowers with canonical subphase labels
+  // ============================================================================
+  // OTHER PHASES: Use fleetHasAvailablePowers (unchanged)
+  // ============================================================================
   const subphases = getSubphasesForAvailableActions(phaseKey);
   if (subphases.length === 0) return [];
 

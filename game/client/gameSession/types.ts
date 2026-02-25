@@ -12,6 +12,11 @@ import type { ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
 import type { FleetAnimVM } from '../../display/graphics/animation';
 import type { OpponentFleetEntryPlan, ActivationStaggerPlan } from '../../display/graphics/animation-stagger';
 
+export type ReadyUxState = {
+  clickedThisPhase: boolean; // user explicitly clicked Ready in this phase instance
+  sendingNow: boolean;       // client is awaiting server response for the Ready flow
+};
+
 export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
 
 export interface HudViewModel {
@@ -67,6 +72,21 @@ export interface LeftRailViewModel {
 export interface BoardFleetSummary {
   shipDefId: string;
   count: number;
+
+  /**
+   * Stable unique key for rendered fleet stack.
+   * - default: shipDefId
+   * - maxCharges=1 split: `${shipDefId}__charges_1` / `${shipDefId}__charges_0`
+   * - maxCharges>1 active: `${shipDefId}__inst_${instanceId}`
+   * - maxCharges>1 depleted bucket: `${shipDefId}__charges_0`
+   */
+  stackKey: string;
+
+  /**
+   * Optional condition (used later for graphics selection).
+   * Only required for charge-split/bucket stacks.
+   */
+  condition?: 'charges_1' | 'charges_0';
 }
 
 export type BoardViewModel =
@@ -118,6 +138,8 @@ export interface BottomActionRailViewModel {
   
   // Ready controls
   canUndoActions: boolean;
+  /** If false, BottomActionRail must not render the Ready button at all (game finished). */
+  readyButtonVisible: boolean;
   readyButtonLabel: string; // e.g., "READY", "WAITING", "GAME OVER"
   readyButtonNote: string | null;
   nextPhaseLabel: string; // e.g., "BATTLE PHASE"
@@ -170,8 +192,10 @@ export interface ActionPanelViewModel {
   shipChoices?: {
     groups: ShipChoicesPanelGroup[];
     showOpponentAlsoHasCharges?: boolean;
+    opponentEligibleAtDeclarationStart?: boolean;
     opponentAlsoHasChargesHeading?: string;
     opponentAlsoHasChargesLines?: string[];
+    selectedChoiceIdBySourceInstanceId?: Record<string, string>;
   };
 }
 
@@ -206,4 +230,5 @@ export interface GameSessionActions {
   onResignGame: () => void;
   onRematch: () => void;
   onDownloadBattleLog: () => void;
+  onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;
 }

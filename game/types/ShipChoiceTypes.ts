@@ -24,6 +24,13 @@ export interface ShipChoiceButtonSpec {
   detail?: string; // only used for large button; ignore for small
 
   /**
+   * Semantic choice identifier used for server power submission.
+   * Examples: 'damage' | 'heal' | 'hold'
+   * UI strings (label/detail) remain authoritative in ShipChoiceRegistry.
+   */
+  choiceId?: string;
+
+  /**
    * Semantic flag (UI-only, no behavior yet).
    * Indicates this action will later require selecting a target
    * in the fleet area before Ready is allowed.
@@ -62,6 +69,23 @@ export interface ShipChoiceGroupSpec {
    */
   explicitCharges?: number;
   currentCharges?: number | null;
+
+  /**
+   * Server-derived actionable instance identity for ShipChoice phases.
+   * Present for charge panels (battle.charge_*).
+   */
+  sourceInstanceId?: string;
+
+  /**
+   * Server action identifier (e.g. "INT#0")
+   */
+  actionId?: string;
+
+  /**
+   * Allowed semantic choices for this instance, from server availableActions.
+   * Example: ['damage','heal','hold']
+   */
+  availableChoiceIds?: string[];
 }
 
 export interface ShipChoicesPanelGroup {

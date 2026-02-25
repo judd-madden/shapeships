@@ -4,14 +4,14 @@
  * Client-only animation token controller for fleet stacks.
  *
  * Purpose:
- * - Track per-ship animation nonces for both local and opponent fleets:
- *   - entryNonce: bump when a ship stack transitions 0 -> 1+
- *   - stackAddNonce: bump when a ship stack increases N -> N+1 (where N > 0)
+ * - Track per-stack animation nonces for both local and opponent fleets:
+ *   - entryNonce: bump when a stack transitions 0 -> 1+
+ *   - stackAddNonce: bump when a stack increases N -> N+1 (where N > 0)
  *   - activationNonce: reserved for future explicit activation triggers (not wired yet)
  *
  * Inputs:
- * - myCountsByShipId: map of shipDefId -> count for local player's visible fleet
- * - opponentCountsByShipId: map of shipDefId -> count for opponent's visible fleet
+ * - myCountsByStackKey: map of stackKey -> count for local player's visible fleet
+ * - opponentCountsByStackKey: map of stackKey -> count for opponent's visible fleet
  *
  * Outputs:
  * - myAnimTokens / opponentAnimTokens: token maps consumed by Board VM fleetAnim
@@ -23,119 +23,109 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import type { ShipDefId } from '../../types/ShipTypes.engine';
 
 export type AnimToken = { entryNonce: number; activationNonce: number; stackAddNonce: number };
 export type AnimTokenMap = Record<string, AnimToken>;
 
-// Keep in sync with the animated ship set currently used in useGameSession.
-const ANIMATED_SHIPS: ShipDefId[] = [
-  'DEF', 'FIG', 'INT', 'COM', 'ORB', 'CAR', 'STA', 'FRI', 'TAC', 'GUA', 'SCI', 'BAT', 'EAR', 'DRE',
-  'LEV', 'XEN', 'ANT', 'MAN', 'EVO', 'HEL', 'BUG', 'ZEN', 'DSW', 'AAR', 'OXF', 'ASF', 'SAC', 'QUE',
-  'CHR', 'HVE', 'FEA', 'ANG', 'EQU', 'WIS', 'VIG', 'FAM', 'LEG', 'TER', 'FUR', 'KNO', 'ENT', 'RED',
-  'POW', 'DES', 'DOM',
-];
-
-function makeInitialTokenMap(): AnimTokenMap {
-  const base: AnimTokenMap = {};
-  for (const id of ANIMATED_SHIPS) {
-    base[id] = { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 };
-  }
-  return base;
-}
-
-function makeZeroCounts(): Record<string, number> {
-  const base: Record<string, number> = {};
-  for (const id of ANIMATED_SHIPS) base[id] = 0;
-  return base;
+// Initial token for any new stackKey
+function makeEmptyToken(): AnimToken {
+  return { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 };
 }
 
 export function useFleetAnimTokens(params: {
-  myCountsByShipId: Record<string, number>;
-  opponentCountsByShipId: Record<string, number>;
+  myCountsByStackKey: Record<string, number>;
+  opponentCountsByStackKey: Record<string, number>;
 }) {
-  const { myCountsByShipId, opponentCountsByShipId } = params;
+  const { myCountsByStackKey, opponentCountsByStackKey } = params;
 
-  const [myAnimTokens, setMyAnimTokens] = useState<AnimTokenMap>(() => makeInitialTokenMap());
-  const [opponentAnimTokens, setOpponentAnimTokens] = useState<AnimTokenMap>(() => makeInitialTokenMap());
+  const [myAnimTokens, setMyAnimTokens] = useState<AnimTokenMap>({});
+  const [opponentAnimTokens, setOpponentAnimTokens] = useState<AnimTokenMap>({});
 
-  const prevMyCountsRef = useRef<Record<string, number>>(makeZeroCounts());
-  const prevOpponentCountsRef = useRef<Record<string, number>>(makeZeroCounts());
+  const prevMyCountsRef = useRef<Record<string, number>>({});
+  const prevOpponentCountsRef = useRef<Record<string, number>>({});
 
   // Detect entry (0→1+) and stack-add (N→N+1 where N>0)
   useEffect(() => {
-    // My fleet
-    for (const shipDefId of ANIMATED_SHIPS) {
-      const currentCount = myCountsByShipId[shipDefId] ?? 0;
-      const prevCount = prevMyCountsRef.current[shipDefId] ?? 0;
+    // My fleet - detect changes for all stackKeys
+    const allMyStackKeys = new Set([
+      ...Object.keys(myCountsByStackKey),
+      ...Object.keys(prevMyCountsRef.current),
+    ]);
+    
+    for (const stackKey of allMyStackKeys) {
+      const currentCount = myCountsByStackKey[stackKey] ?? 0;
+      const prevCount = prevMyCountsRef.current[stackKey] ?? 0;
 
       if (prevCount === 0 && currentCount > 0) {
         setMyAnimTokens((prev) => ({
           ...prev,
-          [shipDefId]: {
-            ...prev[shipDefId],
-            entryNonce: prev[shipDefId].entryNonce + 1,
+          [stackKey]: {
+            ...(prev[stackKey] ?? makeEmptyToken()),
+            entryNonce: (prev[stackKey]?.entryNonce ?? 0) + 1,
           },
         }));
       } else if (prevCount > 0 && currentCount > prevCount) {
         setMyAnimTokens((prev) => ({
           ...prev,
-          [shipDefId]: {
-            ...prev[shipDefId],
-            stackAddNonce: prev[shipDefId].stackAddNonce + 1,
+          [stackKey]: {
+            ...(prev[stackKey] ?? makeEmptyToken()),
+            stackAddNonce: (prev[stackKey]?.stackAddNonce ?? 0) + 1,
           },
         }));
       }
 
-      prevMyCountsRef.current[shipDefId] = currentCount;
+      prevMyCountsRef.current[stackKey] = currentCount;
     }
 
-    // Opponent fleet
-    for (const shipDefId of ANIMATED_SHIPS) {
-      const currentCount = opponentCountsByShipId[shipDefId] ?? 0;
-      const prevCount = prevOpponentCountsRef.current[shipDefId] ?? 0;
+    // Opponent fleet - detect changes for all stackKeys
+    const allOpponentStackKeys = new Set([
+      ...Object.keys(opponentCountsByStackKey),
+      ...Object.keys(prevOpponentCountsRef.current),
+    ]);
+    
+    for (const stackKey of allOpponentStackKeys) {
+      const currentCount = opponentCountsByStackKey[stackKey] ?? 0;
+      const prevCount = prevOpponentCountsRef.current[stackKey] ?? 0;
 
       if (prevCount === 0 && currentCount > 0) {
         setOpponentAnimTokens((prev) => ({
           ...prev,
-          [shipDefId]: {
-            ...prev[shipDefId],
-            entryNonce: prev[shipDefId].entryNonce + 1,
+          [stackKey]: {
+            ...(prev[stackKey] ?? makeEmptyToken()),
+            entryNonce: (prev[stackKey]?.entryNonce ?? 0) + 1,
           },
         }));
       } else if (prevCount > 0 && currentCount > prevCount) {
         setOpponentAnimTokens((prev) => ({
           ...prev,
-          [shipDefId]: {
-            ...prev[shipDefId],
-            stackAddNonce: prev[shipDefId].stackAddNonce + 1,
+          [stackKey]: {
+            ...(prev[stackKey] ?? makeEmptyToken()),
+            stackAddNonce: (prev[stackKey]?.stackAddNonce ?? 0) + 1,
           },
         }));
       }
 
-      prevOpponentCountsRef.current[shipDefId] = currentCount;
+      prevOpponentCountsRef.current[stackKey] = currentCount;
     }
-  }, [myCountsByShipId, opponentCountsByShipId]);
+  }, [myCountsByStackKey, opponentCountsByStackKey]);
 
   // Helpers for immediate click feedback (used by onBuildShip)
-  function bumpMyEntry(shipDefId: ShipDefId) {
-    if (!ANIMATED_SHIPS.includes(shipDefId)) return;
+  function bumpMyEntry(stackKey: string) {
     setMyAnimTokens((prev) => ({
       ...prev,
-      [shipDefId]: {
-        ...prev[shipDefId],
-        entryNonce: prev[shipDefId].entryNonce + 1,
+      [stackKey]: {
+        ...(prev[stackKey] ?? makeEmptyToken()),
+        entryNonce: (prev[stackKey]?.entryNonce ?? 0) + 1,
       },
     }));
   }
 
-  function bumpMyStackAdd(shipDefId: ShipDefId) {
-    if (!ANIMATED_SHIPS.includes(shipDefId)) return;
+  function bumpMyStackAdd(stackKey: string) {
     setMyAnimTokens((prev) => ({
       ...prev,
-      [shipDefId]: {
-        ...prev[shipDefId],
-        stackAddNonce: prev[shipDefId].stackAddNonce + 1,
+      [stackKey]: {
+        ...(prev[stackKey] ?? makeEmptyToken()),
+        stackAddNonce: (prev[stackKey]?.stackAddNonce ?? 0) + 1,
       },
     }));
   }

@@ -30,6 +30,9 @@ interface ShipChoicesPanelProps {
   showOpponentAlsoHasCharges?: boolean;
   opponentAlsoHasChargesHeading?: string;
   opponentAlsoHasChargesLines?: string[];
+
+  selectedChoiceIdBySourceInstanceId?: Record<string, string>;
+  onSelectChoiceForInstance?: (sourceInstanceId: string, choiceId: string) => void;
 }
 
 // ============================================================================
@@ -42,6 +45,8 @@ export function ShipChoicesPanel({
   showOpponentAlsoHasCharges = false,
   opponentAlsoHasChargesHeading,
   opponentAlsoHasChargesLines,
+  selectedChoiceIdBySourceInstanceId,
+  onSelectChoiceForInstance,
 }: ShipChoicesPanelProps) {
   // ============================================================================
   // LAYOUT: TWO MODES
@@ -55,7 +60,12 @@ export function ShipChoicesPanel({
         data-name="Ship Choices Panel"
       >
         {groups.map((group, groupIndex) => (
-          <ShipGroupRenderer key={groupIndex} group={group} />
+          <ShipGroupRenderer 
+            key={groupIndex} 
+            group={group}
+            selectedChoiceIdBySourceInstanceId={selectedChoiceIdBySourceInstanceId}
+            onSelectChoiceForInstance={onSelectChoiceForInstance}
+          />
         ))}
       </div>
     );
@@ -70,7 +80,12 @@ export function ShipChoicesPanel({
       {/* Left: Ship Groups Content (flex-1 allows shrinking) */}
       <div className="flex-initial flex gap-[36px] items-start justify-center">
         {groups.map((group, groupIndex) => (
-          <ShipGroupRenderer key={groupIndex} group={group} />
+          <ShipGroupRenderer 
+            key={groupIndex} 
+            group={group}
+            selectedChoiceIdBySourceInstanceId={selectedChoiceIdBySourceInstanceId}
+            onSelectChoiceForInstance={onSelectChoiceForInstance}
+          />
         ))}
       </div>
 
@@ -91,9 +106,11 @@ export function ShipChoicesPanel({
 
 interface ShipGroupRendererProps {
   group: ShipChoicesPanelGroup;
+  selectedChoiceIdBySourceInstanceId?: Record<string, string>;
+  onSelectChoiceForInstance?: (sourceInstanceId: string, choiceId: string) => void;
 }
 
-function ShipGroupRenderer({ group }: ShipGroupRendererProps) {
+function ShipGroupRenderer({ group, selectedChoiceIdBySourceInstanceId, onSelectChoiceForInstance }: ShipGroupRendererProps) {
   // If no groupHelpText, use standard single-column layout
   if (!group.groupHelpText) {
     return (
@@ -108,15 +125,27 @@ function ShipGroupRenderer({ group }: ShipGroupRendererProps) {
 
         {/* ShipChoiceGroup Instances (centered, wrapping) */}
         <div className="flex flex-wrap justify-center gap-[36px]">
-          {group.ships.map((ship, shipIndex) => (
-            <ShipChoiceGroup
-              key={shipIndex}
-              shipDefId={ship.shipDefId}
-              buttons={ship.buttons}
-              explicitCharges={ship.explicitCharges}
-              currentCharges={ship.currentCharges}
-            />
-          ))}
+          {group.ships.map((ship, shipIndex) => {
+            const selectedChoiceId = ship.sourceInstanceId 
+              ? selectedChoiceIdBySourceInstanceId?.[ship.sourceInstanceId]
+              : undefined;
+            
+            const handleSelect = ship.sourceInstanceId && onSelectChoiceForInstance
+              ? (choiceId: string) => onSelectChoiceForInstance(ship.sourceInstanceId!, choiceId)
+              : undefined;
+
+            return (
+              <ShipChoiceGroup
+                key={shipIndex}
+                shipDefId={ship.shipDefId}
+                buttons={ship.buttons}
+                explicitCharges={ship.explicitCharges}
+                currentCharges={ship.currentCharges}
+                selectedChoiceId={selectedChoiceId}
+                onSelectChoiceId={handleSelect}
+              />
+            );
+          })}
         </div>
       </div>
     );
@@ -137,15 +166,27 @@ function ShipGroupRenderer({ group }: ShipGroupRendererProps) {
       <div className="flex gap-[40px] items-center relative shrink-0">
         {/* Left: Ship Choices (centered, wrapping) */}
         <div className="flex flex-wrap justify-center gap-[36px]">
-          {group.ships.map((ship, shipIndex) => (
-            <ShipChoiceGroup
-              key={shipIndex}
-              shipDefId={ship.shipDefId}
-              buttons={ship.buttons}
-              explicitCharges={ship.explicitCharges}
-              currentCharges={ship.currentCharges}
-            />
-          ))}
+          {group.ships.map((ship, shipIndex) => {
+            const selectedChoiceId = ship.sourceInstanceId 
+              ? selectedChoiceIdBySourceInstanceId?.[ship.sourceInstanceId]
+              : undefined;
+            
+            const handleSelect = ship.sourceInstanceId && onSelectChoiceForInstance
+              ? (choiceId: string) => onSelectChoiceForInstance(ship.sourceInstanceId!, choiceId)
+              : undefined;
+
+            return (
+              <ShipChoiceGroup
+                key={shipIndex}
+                shipDefId={ship.shipDefId}
+                buttons={ship.buttons}
+                explicitCharges={ship.explicitCharges}
+                currentCharges={ship.currentCharges}
+                selectedChoiceId={selectedChoiceId}
+                onSelectChoiceId={handleSelect}
+              />
+            );
+          })}
         </div>
 
         {/* Right: Group Help Text (grey, 18px, 270px width) */}

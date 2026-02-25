@@ -11,6 +11,7 @@ import type { ShipDefId } from '../../types/ShipTypes.engine';
 import { FitToBox } from './FitToBox';
 import { ShipAnimationWrapper, type ShipAnimToken } from '../graphics/animation';
 import { useFlipLayout } from '../graphics/useFlipLayout';
+import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 
 interface BoardStageProps {
   vm: BoardViewModel;
@@ -124,14 +125,33 @@ function ShipStack({
   opponentEntryDelays,
   activationIndexMap,
 }: { 
-  ship: { shipDefId: string; count: number };
+  ship: { shipDefId: string; count: number; condition?: 'charges_1' | 'charges_0' };
   animToken?: ShipAnimToken;
   side: 'my' | 'opponent';
   opponentEntryDelays?: Record<string, number>;
   activationIndexMap?: Record<string, number>;
 }) {
   const def = getShipDefinitionUI(ship.shipDefId as ShipDefId);
-  const ShipGraphic = def?.graphics?.[0]?.component;
+
+  // If this fleet stack has a condition like 'charges_1' or 'charges_0',
+  // force that exact charge graphic on the live board via explicitCharges.
+  let explicitCharges: number | undefined = undefined;
+  if (ship.condition && ship.condition.startsWith('charges_')) {
+    const match = ship.condition.match(/^charges_(\d+)$/);
+    if (match) {
+      explicitCharges = parseInt(match[1], 10);
+    }
+  }
+
+  const resolvedGraphic = def
+    ? resolveShipGraphic(def, {
+        context: 'live',
+        explicitCharges,
+        currentCharges: null,
+      })
+    : null;
+
+  const ShipGraphic = resolvedGraphic?.component;
   const numberColour = toCssVarFromColourName(def?.colour);
   
   // Enable hover activation for ships with animation presets (Human + Xenite + Centaur ships)
@@ -157,42 +177,24 @@ function ShipStack({
         </ShipAnimationWrapper>
       </div>
 
-      {/* Count wrapper: collapses to zero width when count === 1 */}
-      <div
-        style={{
-          overflow: 'hidden',
-          maxWidth: showCount ? '80px' : '0px',
-          marginLeft: showCount ? '8px' : '0px',
-          transition: 'max-width 300ms ease-out, margin-left 100ms ease-out',
-        }}
-      >
-        <div
-          className="font-['Roboto'] font-semibold"
-          style={{
-            fontSize: '50px',
-            lineHeight: 1,
-            fontVariationSettings: "'wdth' 100",
-            color: numberColour ?? 'white',
-
-            display: 'inline-block',
-            whiteSpace: 'nowrap',
-            textAlign: 'left',
-
-            transformOrigin: 'left center',
-            transform: 'scaleX(1)',
-            opacity: 1,
-            transitionProperty: 'transform, opacity',
-            transitionDuration: '300ms, 200ms',
-            transitionTimingFunction: 'ease-out, ease-in-out',
-            transitionDelay: '0ms, 100ms',
-
-            pointerEvents: 'none',
-            userSelect: 'none',
-          }}
-        >
-          {ship.count}
+      {/* Count: only render when count > 1 */}
+      {showCount ? (
+        <div className="ml-[8px]">
+          <div
+            className="font-['Roboto'] font-semibold"
+            style={{
+              fontSize: '50px',
+              lineHeight: 1,
+              fontVariationSettings: "'wdth' 100",
+              color: numberColour ?? 'white',
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          >
+            {ship.count}
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
@@ -209,10 +211,10 @@ function FleetArea({
   activationIndexMap,
 }: {
   title: string;
-  ships?: Array<{ shipDefId: string; count: number }>;
+  ships?: Array<{ shipDefId: string; count: number; stackKey: string; condition?: 'charges_1' | 'charges_0' }>;
   order?: string[];
   species: SpeciesKey;
-  animTokens?: Partial<Record<ShipDefId, ShipAnimToken>>;
+  animTokens?: Partial<Record<string, ShipAnimToken>>; // keyed by stackKey
   flipEnabled?: boolean;
   side: 'my' | 'opponent';
   opponentEntryDelays?: Record<string, number>;
@@ -226,8 +228,8 @@ function FleetArea({
   const renderedShips = grouped
     ? [...grouped.row1, ...grouped.row2, ...grouped.row3, ...grouped.row4]
     : [];
-  const allShipIds = renderedShips.map(s => s.shipDefId);
-  const getFlipRef = useFlipLayout(allShipIds, flipEnabled, { durationMs: 400, easing: 'ease-in-out' });
+  const allStackKeys = renderedShips.map(s => s.stackKey);
+  const getFlipRef = useFlipLayout(allStackKeys, flipEnabled, { durationMs: 400, easing: 'ease-in-out' });
 
   return (
     <div className="basis-0 grow h-full min-h-px min-w-px relative shrink-0 px-[8px]">
@@ -237,10 +239,10 @@ function FleetArea({
           <div className="flex flex-col items-center gap-[18px]">
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
               {grouped.row1.map((ship) => (
-                <div key={ship.shipDefId} ref={getFlipRef(ship.shipDefId)}>
+                <div key={ship.stackKey} ref={getFlipRef(ship.stackKey)}>
                   <ShipStack 
                     ship={ship}
-                    animToken={animTokens?.[ship.shipDefId as ShipDefId]}
+                    animToken={animTokens?.[ship.stackKey]}
                     side={side}
                     opponentEntryDelays={opponentEntryDelays}
                     activationIndexMap={activationIndexMap}
@@ -251,10 +253,10 @@ function FleetArea({
 
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
               {grouped.row2.map((ship) => (
-                <div key={ship.shipDefId} ref={getFlipRef(ship.shipDefId)}>
+                <div key={ship.stackKey} ref={getFlipRef(ship.stackKey)}>
                   <ShipStack 
                     ship={ship}
-                    animToken={animTokens?.[ship.shipDefId as ShipDefId]}
+                    animToken={animTokens?.[ship.stackKey]}
                     side={side}
                     opponentEntryDelays={opponentEntryDelays}
                     activationIndexMap={activationIndexMap}
@@ -265,10 +267,10 @@ function FleetArea({
 
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
               {grouped.row3.map((ship) => (
-                <div key={ship.shipDefId} ref={getFlipRef(ship.shipDefId)}>
+                <div key={ship.stackKey} ref={getFlipRef(ship.stackKey)}>
                   <ShipStack 
                     ship={ship}
-                    animToken={animTokens?.[ship.shipDefId as ShipDefId]}
+                    animToken={animTokens?.[ship.stackKey]}
                     side={side}
                     opponentEntryDelays={opponentEntryDelays}
                     activationIndexMap={activationIndexMap}
@@ -279,10 +281,10 @@ function FleetArea({
 
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
               {grouped.row4.map((ship) => (
-                <div key={ship.shipDefId} ref={getFlipRef(ship.shipDefId)}>
+                <div key={ship.stackKey} ref={getFlipRef(ship.stackKey)}>
                   <ShipStack 
                     ship={ship}
-                    animToken={animTokens?.[ship.shipDefId as ShipDefId]}
+                    animToken={animTokens?.[ship.stackKey]}
                     side={side}
                     opponentEntryDelays={opponentEntryDelays}
                     activationIndexMap={activationIndexMap}

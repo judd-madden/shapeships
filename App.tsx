@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './components/ui/button';
 
-// Test comment - checking edit functionality
+// Force rebuild - fixed intents.ts species verification
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { Separator } from './components/ui/separator';

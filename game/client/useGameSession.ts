@@ -46,6 +46,7 @@ import { appendEventsToTape, formatTapeEntry } from './gameSession/eventTape';
 import { usePhaseCommitCache } from './gameSession/commitCache';
 import { mapGameSessionVm } from './gameSession/mapVm';
 import { runSpeciesConfirmFlow, runReadyToggleFlow, maybeAutoRevealBuild } from './gameSession/intents';
+import { getShipDefinitionById } from '../data/ShipDefinitions.engine';
 import {
   usePollMarkerEffect,
   useFinishedMarkerEffect,
@@ -88,7 +89,7 @@ export type {
   GameSessionActions,
 } from './gameSession/types';
 
-import { decideAutoPanelRouting, isCataloguePanel, speciesToCataloguePanelId } from './gameSession/availableActions';
+import { decideAutoPanelRouting, speciesToCataloguePanelId } from './gameSession/availableActions';
 import { buildMessageAction } from './gameSession/powerIntents';
 
 
@@ -252,6 +253,17 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Build commit cache (payload + nonce storage with ref-backed same-tick reliability)
   const buildCommitCache = usePhaseCommitCache<{ builds: Array<{ shipDefId: string; count: number }> }>();
+  
+  // ============================================================================
+  // READY UX STATE (CLIENT-ONLY UI TRACKING)
+  // ============================================================================
+  
+  // Track per-phase ready UX state: explicit clicks + sending status
+  // Used to show "SENDING..." while awaiting server response
+  // and "WAITING..." when auto-readied with no actions
+  const [readyUxByPhaseInstanceKey, setReadyUxByPhaseInstanceKey] = useState<
+    Record<string, { clickedThisPhase: boolean; sendingNow: boolean }>
+  >({});
   
   // ============================================================================
   // EVENT TAPE (Chunk 2: Dev-only plumbing)
@@ -483,7 +495,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // IDENTITY DERIVATION (AUTHORITATIVE - ME VS OPPONENT)
   // ============================================================================
   
-  const { allPlayers, playerUsers, me, opponent } = deriveIdentity(rawState, mySessionId);
+  const { allPlayers, playerUsers, me, opponent, meReadyKey, opponentReadyKey } = deriveIdentity(rawState, mySessionId);
   
   // ============================================================================
   // GAME LOGIC - USE ME/OPPONENT (NOT LEFT/RIGHT)
@@ -493,11 +505,22 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const phaseKey = rawState ? getPhaseKey(rawState) : 'unknown';
   const turnNumber = rawState ? getTurnNumber(rawState) : 1;
   
+  // Phase 3.x: server-authoritative actions availability (declare early to avoid TDZ)
+  const availableActions = rawState?.availableActions;
+  const hasServerActionsAvailable =
+    Array.isArray(availableActions) && availableActions.length > 0;
+  
   // ============================================================================
   // READY FLASH ANIMATION HOOK
   // ============================================================================
   
   const { readyFlashSelected, pendingReadyFlashRef } = useReadyFlash(phaseKey);
+  
+  // ============================================================================
+  // SHIP CHOICE SELECTION STATE (for charge panels)
+  // ============================================================================
+  
+  const [shipChoiceSelectionByInstanceId, setShipChoiceSelectionByInstanceId] = useState<Record<string, string>>({});
   
   // ============================================================================
   // TASK A: HARD RESET PREVIEW STATE ON TURN CHANGE
@@ -519,6 +542,56 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   }, [rawState?.gameData?.turnNumber ?? rawState?.turnNumber]);
   
   // ============================================================================
+  // SHIP CHOICE SELECTION EFFECT (maintain defaults for charge phases)
+  // ============================================================================
+  
+  useEffect(() => {
+    // Only for charge phases
+    if (phaseKey !== 'battle.charge_declaration' && phaseKey !== 'battle.charge_response') {
+      return;
+    }
+    
+    // Extract choice actions from availableActions
+    const choiceActions = Array.isArray(availableActions)
+      ? availableActions.filter(
+          (a: any) =>
+            a?.kind === 'choice' &&
+            typeof a?.sourceInstanceId === 'string' &&
+            Array.isArray(a?.choices) &&
+            a.choices.length > 0
+        )
+      : [];
+    
+    if (choiceActions.length === 0) {
+      // No actions available, clear selection
+      setShipChoiceSelectionByInstanceId({});
+      return;
+    }
+    
+    // Build new selection map
+    const newSelection: Record<string, string> = {};
+    
+    for (const action of choiceActions) {
+      const instanceId = action.sourceInstanceId;
+      const allowedChoiceIds = action.choices.map((c: any) => c.choiceId);
+      
+      // Keep existing selection if still valid
+      const existingChoice = shipChoiceSelectionByInstanceId[instanceId];
+      if (existingChoice && allowedChoiceIds.includes(existingChoice)) {
+        newSelection[instanceId] = existingChoice;
+      } else {
+        // Default to 'damage' if available, else first choice
+        const defaultChoice = allowedChoiceIds.includes('damage') 
+          ? 'damage' 
+          : allowedChoiceIds[0];
+        newSelection[instanceId] = defaultChoice;
+      }
+    }
+    
+    setShipChoiceSelectionByInstanceId(newSelection);
+  }, [phaseKey, availableActions]);
+  
+  // ============================================================================
   // CHUNK 9.1: BOOTSTRAP READINESS CHECK (BOOT GATING)
   // ============================================================================
   
@@ -538,6 +611,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Phase instance key for completion tracking
   // MUST be defined early — used by preview merge, build gating, and ready logic
   const phaseInstanceKey = `${turnNumber}::${phaseKey}`;
+  
+  // Ready UX state for current phase (for SENDING/WAITING labels)
+  const readyUxForCurrentPhase =
+    readyUxByPhaseInstanceKey[phaseInstanceKey] ?? { clickedThisPhase: false, sendingNow: false };
   
   // Client-only key (UI gating / local phase completion concept)
   const buildPhaseInstanceKey = `${turnNumber}::build`;
@@ -669,20 +746,61 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Merge preview counts into my fleet (if shouldShowPreview is true)
   const myFleetWithPreview: BoardFleetSummary[] = shouldShowPreview
     ? (() => {
-        // Start with canonical fleet counts
-        const merged: Record<string, number> = {};
-        for (const entry of myFleet) {
-          merged[entry.shipDefId] = entry.count;
-        }
-        
-        // Apply preview overlay using Math.max to prevent subtraction
+        // Start from the existing aggregated myFleet (already has stackKey + condition)
+        const byStackKey = new Map(myFleet.map(s => [s.stackKey, { ...s }]));
+
+        // Apply preview overlay
         for (const [shipDefId, previewCount] of Object.entries(buildPreviewCounts)) {
-          const base = merged[shipDefId] || 0;
-          merged[shipDefId] = base + Math.max(0, previewCount);
+          const delta = Math.max(0, previewCount);
+
+          // Check ship definition for maxCharges
+          const def = getShipDefinitionById(shipDefId as any);
+          const maxCharges = def?.maxCharges ?? 0;
+
+          // For charge ships (maxCharges === 1), always target charges_1 stack
+          if (maxCharges === 1) {
+            const chargedKey = `${shipDefId}__charges_1`;
+            const anyCharged = byStackKey.get(chargedKey);
+
+            if (anyCharged) {
+              // Increment existing charged stack
+              anyCharged.count += delta;
+              byStackKey.set(chargedKey, anyCharged);
+            } else {
+              // Create new charged stack
+              byStackKey.set(chargedKey, {
+                shipDefId,
+                count: delta,
+                stackKey: chargedKey,
+                condition: 'charges_1',
+              });
+            }
+            continue;
+          }
+
+          // For non-charge ships: prefer adding preview ships into an existing charges_1 stack if present
+          const chargedKey = `${shipDefId}__charges_1`;
+          const anyCharged = byStackKey.get(chargedKey);
+
+          if (anyCharged) {
+            anyCharged.count += delta;
+            byStackKey.set(chargedKey, anyCharged);
+            continue;
+          }
+
+          // Otherwise add to first matching stack by shipDefId (stable existing stack)
+          const existing = Array.from(byStackKey.values()).find(s => s.shipDefId === shipDefId);
+          if (existing) {
+            existing.count += delta;
+            byStackKey.set(existing.stackKey, existing);
+            continue;
+          }
+
+          // Otherwise create a new stable stack (no condition)
+          byStackKey.set(shipDefId, { shipDefId, count: delta, stackKey: shipDefId });
         }
-        
-        // Convert back to array format
-        const result = Object.entries(merged).map(([shipDefId, count]) => ({ shipDefId, count }));
+
+        const result = Array.from(byStackKey.values()).filter(s => s.count > 0);
         
         return result;
       })()
@@ -701,16 +819,41 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // ============================================================================
   // FLEET ANIMATION TOKENS (client-only; extracted from useGameSession)
   // ============================================================================
-  // Build count maps for the token hook (server fleet + preview overlay for "me")
-  const myCountsByShipId: Record<string, number> = {};
-  for (const entry of myFleetWithPreview) myCountsByShipId[entry.shipDefId] = entry.count;
+  
+  // Helper to pick the best stackKey for local build click feedback
+  function getPreferredStackKeyForLocalBuild(
+    shipDefId: string,
+    myFleet: Array<{ shipDefId: string; stackKey: string }>
+  ): string {
+    // Check if ship has maxCharges === 1
+    const def = getShipDefinitionById(shipDefId as any);
+    const maxCharges = def?.maxCharges ?? 0;
 
-  const opponentCountsByShipId: Record<string, number> = {};
-  for (const entry of opponentFleet) opponentCountsByShipId[entry.shipDefId] = entry.count;
+    // For charge ships, always return charges_1 stack (even if not currently present)
+    if (maxCharges === 1) {
+      return `${shipDefId}__charges_1`;
+    }
+
+    // For other ships: prefer charged stack if present
+    const chargedKey = `${shipDefId}__charges_1`;
+    if (myFleet.some(s => s.stackKey === chargedKey)) return chargedKey;
+
+    const any = myFleet.find(s => s.shipDefId === shipDefId);
+    if (any) return any.stackKey;
+
+    return shipDefId;
+  }
+  
+  // Build count maps for the token hook (server fleet + preview overlay for "me")
+  const myCountsByStackKey: Record<string, number> = {};
+  for (const entry of myFleetWithPreview) myCountsByStackKey[entry.stackKey] = entry.count;
+
+  const opponentCountsByStackKey: Record<string, number> = {};
+  for (const entry of opponentFleet) opponentCountsByStackKey[entry.stackKey] = entry.count;
 
   const { myAnimTokens, opponentAnimTokens, bumpMyEntry, bumpMyStackAdd } = useFleetAnimTokens({
-    myCountsByShipId,
-    opponentCountsByShipId,
+    myCountsByStackKey,
+    opponentCountsByStackKey,
   });
 
   
@@ -804,10 +947,12 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       fleetAnim: (() => {
         const makeSide = (tokens: Record<string, any>, fleet: BoardFleetSummary[]) => {
           const out: any = {};
-          for (const shipDefId of Object.keys(tokens)) {
-            out[shipDefId] = {
-              ...tokens[shipDefId],
-              stackCount: fleet.find((s) => s.shipDefId === shipDefId)?.count ?? 0,
+          for (const s of fleet) {
+            const t = tokens[s.stackKey];
+            if (!t) continue;
+            out[s.stackKey] = {
+              ...t,
+              stackCount: s.count,
             };
           }
           return out;
@@ -935,11 +1080,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Determine target panel ID for Actions tab (panel routing target when actions exist)
   const actionsTargetPanelId = phaseToActionPanelId(phaseKey, mySpecies);
-  
-  // Phase 3.0B: server-authoritative actions availability
-  const availableActions = rawState?.availableActions;
-  const hasServerActionsAvailable =
-    Array.isArray(availableActions) && availableActions.length > 0;
   
   // Actions tab is visible only if server says we have actions AND we have a target panel for this phase/species
   const hasActionsAvailable =
@@ -1079,8 +1219,29 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // p2HasJoined already defined earlier (line 632) for species label logic
   
   // Compute readiness
-  const p1IsReady = p1HasJoined ? isPlayerReady(me?.id) : false;
-  const p2IsReady = p2HasJoined ? isPlayerReady(opponent?.id) : false;
+  const p1IsReady = p1HasJoined ? isPlayerReady(meReadyKey) : false;
+  const p2IsReady = p2HasJoined ? isPlayerReady(opponentReadyKey) : false;
+  
+  // DEV: Diagnostic log for identity key alignment (only when values change)
+  const prevReadyKeysRef = useRef<string>('');
+  useEffect(() => {
+    const current = JSON.stringify({
+      meId: me?.id,
+      mePlayerId: me?.playerId,
+      meReadyKey,
+      opponentId: opponent?.id,
+      opponentPlayerId: opponent?.playerId,
+      opponentReadyKey,
+    });
+    
+    if (current !== prevReadyKeysRef.current) {
+      prevReadyKeysRef.current = current;
+      console.log('[useGameSession] Identity key alignment:', {
+        me: { id: me?.id, playerId: me?.playerId, readyKey: meReadyKey },
+        opponent: { id: opponent?.id, playerId: opponent?.playerId, readyKey: opponentReadyKey },
+      });
+    }
+  }, [me?.id, me?.playerId, meReadyKey, opponent?.id, opponent?.playerId, opponentReadyKey]);
   
   // Get current subphase label for status indicators
   const currentSubphaseLabel =
@@ -1129,14 +1290,15 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
 
   // ============================================================================
-  // ACTION PANEL ROUTING (UI-ONLY)
+  // ACTION PANEL ROUTING (PHASE-DRIVEN ONLY)
+  // ============================================================================
+  // Default to Actions on phase entry if actions are available.
+  // Respect user panel clicks within the same phase.
   // ============================================================================
 
-  // Mirrors the previous routing behavior:
-  // - Force self catalogue during build.drawing
-  // - Auto-switch from catalogue -> Actions when available (except build.drawing)
-  // - Fall back to self catalogue when no actions are available (unless already catalogue/menu)
   useEffect(() => {
+    if (!phaseKey) return;
+
     const decision = decideAutoPanelRouting({
       phaseKey,
       hasActionsAvailable,
@@ -1145,11 +1307,16 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       mySpecies,
     });
 
-    if (decision.kind === 'setActivePanelId') {
+    if (decision.kind === 'setActivePanelId' && decision.nextPanelId !== activePanelId) {
       console.log(decision.log);
       setActivePanelId(decision.nextPanelId);
     }
-  }, [phaseKey, hasActionsAvailable, actionsTargetPanelId, activePanelId, mySpecies]);
+
+    // IMPORTANT:
+    // This effect intentionally depends ONLY on phaseKey.
+    // We do not depend on activePanelId or hasActionsAvailable,
+    // otherwise polling would re-trigger routing.
+  }, [phaseKey]);
 
   
   // Display-only interpolation helper
@@ -1232,6 +1399,18 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     
     // Ready flash state (visual-only)
     readyFlashSelected,
+    
+    // Ready UX state (SENDING/WAITING labels)
+    readyUx: readyUxForCurrentPhase,
+
+    // Server availableActions for charge panels
+    availableActions: Array.isArray(availableActions) ? availableActions : null,
+
+    // Selection state for ship choice panels
+    selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
+    
+    // Raw gameData for server truth
+    gameData: rawState?.gameData,
   });
   
   // ============================================================================
@@ -1243,47 +1422,76 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       // Snapshot build preview before async flow to prevent race conditions
       const buildPreviewSnapshot = { ...buildPreviewCountsRef.current };
       
-      // Arm flash latch if this is a valid ready action (not blocked by gating)
-      // Only arm if: player role, game not finished, ready is enabled
-      if (myRole === 'player' && !isFinished && readyEnabled && !readyDisabledReason) {
+      // Capture the phase key at click time (important: don't drift if phase advances mid-await)
+      const clickedPhaseInstanceKey = phaseInstanceKey;
+      
+      // Only show "SENDING..." if this click is actually allowed to send
+      const willAttemptSend =
+        myRole === 'player' && !isFinished && readyEnabled && !readyDisabledReason;
+      
+      if (willAttemptSend) {
+        // Mark that player explicitly acted this phase, and we are now waiting on server.
+        setReadyUxByPhaseInstanceKey(prev => ({
+          ...prev,
+          [clickedPhaseInstanceKey]: { clickedThisPhase: true, sendingNow: true },
+        }));
+        
+        // Existing flash latch behavior unchanged
         pendingReadyFlashRef.current = true;
       }
       
-      await runReadyToggleFlow({
-        isFinished,
-        readyEnabled,
-        readyDisabledReason,
+      try {
+        await runReadyToggleFlow({
+          isFinished,
+          readyEnabled,
+          readyDisabledReason,
 
-        phaseKey,
-        myRole,
-        mySessionId,
+          phaseKey,
+          myRole,
+          mySessionId,
 
-        effectiveGameId,
-        turnNumber,
+          effectiveGameId,
+          turnNumber,
 
-        buildInstanceKey: buildServerKey,
-        buildPreviewCounts: buildPreviewSnapshot,
+          buildInstanceKey: buildServerKey,
+          buildPreviewCounts: buildPreviewSnapshot,
 
-        setBuildSubmittedByTurn,
+          setBuildSubmittedByTurn,
 
-        buildCommitDoneByPhase,
-        buildRevealDoneByPhase,
-        setBuildCommitDoneByPhase,
-        setBuildRevealDoneByPhase,
+          buildCommitDoneByPhase,
+          buildRevealDoneByPhase,
+          setBuildCommitDoneByPhase,
+          setBuildRevealDoneByPhase,
 
-        buildCommitCache,
+          buildCommitCache,
 
-        rawState,
-        me,
-        setAwaitingBuildRevealSync,
+          rawState,
+          me,
+          setAwaitingBuildRevealSync,
 
-        generateNonce,
-        makeCommitHash,
-        submitIntent,
-        appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
-        refreshGameStateOnce,
-        maybeAutoRevealBuild,
-      });
+          generateNonce,
+          makeCommitHash,
+          submitIntent,
+          appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
+          refreshGameStateOnce,
+          maybeAutoRevealBuild,
+
+          // Charge panel context (Prompt 9)
+          availableActions: Array.isArray(availableActions) ? availableActions : null,
+          selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
+        });
+      } finally {
+        if (willAttemptSend) {
+          // Clear SENDING... regardless of success/failure so the UI can't get stuck.
+          setReadyUxByPhaseInstanceKey(prev => ({
+            ...prev,
+            [clickedPhaseInstanceKey]: {
+              ...(prev[clickedPhaseInstanceKey] ?? { clickedThisPhase: true, sendingNow: false }),
+              sendingNow: false,
+            },
+          }));
+        }
+      }
     },
     
     onUndoActions: () => {
@@ -1419,6 +1627,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         submitIntent,
         appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
         refreshGameStateOnce,
+        mySessionId: mySessionId!,
+        getLatestRawState: () => rawState,
       });
     },
     
@@ -1480,10 +1690,11 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       });
       
       // ANIMATION: instant local click feedback for entry / stack-add
-      // (hook no-ops for ship IDs that aren't animated)
-      const currentCount = myCountsByShipId[shipDefId] ?? 0;
-      if (currentCount === 0) bumpMyEntry(shipDefId);
-      else bumpMyStackAdd(shipDefId);
+      // (use stackKey to prevent jolt when charged stacks are split)
+      const targetStackKey = getPreferredStackKeyForLocalBuild(shipDefId, myFleetWithPreview);
+      const currentCount = myCountsByStackKey[targetStackKey] ?? 0;
+      if (currentCount === 0) bumpMyEntry(targetStackKey);
+      else bumpMyStackAdd(targetStackKey);
     },
     
     onOfferDraw: () => {
@@ -1500,6 +1711,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     
     onDownloadBattleLog: () => {
       console.log('[useGameSession] Download battle log (no-op)');
+    },
+    
+    onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
+      setShipChoiceSelectionByInstanceId(prev => ({ ...prev, [sourceInstanceId]: choiceId }));
     },
   };
   
@@ -1570,6 +1785,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         subphaseTitle: '',
         subphaseSubheading: '',
         canUndoActions: false,
+        readyButtonVisible: true,
         readyButtonLabel: 'READY',
         readyButtonNote: null,
         nextPhaseLabel: 'NEXT PHASE',

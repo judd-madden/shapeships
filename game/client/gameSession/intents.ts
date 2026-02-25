@@ -8,6 +8,7 @@
 
 import type React from 'react';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
+import { buildPowerAction } from './powerIntents';
 
 const INTENT_TIMEOUT_MS = 8000; // fail fast to avoid wedged commits
 
@@ -70,6 +71,8 @@ export async function runSpeciesConfirmFlow(args: {
   submitIntent: (body: any) => Promise<Response>;
   appendEvents: (events: any[], meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
   refreshGameStateOnce: () => Promise<void>;
+  mySessionId: string;
+  getLatestRawState: () => any;
 }) {
   try {
     const {
@@ -84,6 +87,9 @@ export async function runSpeciesConfirmFlow(args: {
       makeCommitHash,
       submitIntent,
       appendEvents,
+      refreshGameStateOnce,
+      mySessionId,
+      getLatestRawState,
     } = args;
 
     const payload = { species: selectedSpecies };
@@ -127,6 +133,34 @@ export async function runSpeciesConfirmFlow(args: {
       turn: turnNumber,
       phaseKey,
     });
+
+    // Refresh game state immediately to pull server's updated commitments
+    await refreshGameStateOnce();
+
+    // Verify server state reflects the selection via commitments (authoritative)
+    const s = getLatestRawState();
+
+    // Keep a correct player lookup available for debugging (server uses players[].id)
+    const me = s?.players?.find((p: any) => p?.id === mySessionId);
+
+    const commitKey = `SPECIES_${turnNumber}`;
+    const commitment = s?.turnData?.commitments?.[commitKey]?.[mySessionId];
+    const serverCommitDone = !!(commitment?.hasCommitted && commitment?.hasRevealed);
+
+    if (!serverCommitDone) {
+      console.warn('[SPECIES_SUBMIT] server commitments did not reflect selection after refresh', {
+        mySessionId,
+        selectedSpecies,
+        turnNumber: s?.gameData?.turnNumber ?? turnNumber,
+        phaseKey: s?.gameData?.phaseKey ?? phaseKey,
+        commitKey,
+        commitment: commitment ?? null,
+        commitmentKeys: Object.keys(s?.turnData?.commitments?.[commitKey] ?? {}),
+        debugPlayerId: me?.id,
+      });
+      // Do not mark as done - allow user to retry
+      return;
+    }
 
     setSpeciesCommitDoneByPhase(prev => ({ ...prev, [phaseInstanceKey]: true }));
     console.log('✅ [useGameSession] SPECIES_SUBMIT succeeded');
@@ -179,6 +213,10 @@ export async function runReadyToggleFlow(args: {
   appendEvents: (events: any[], meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
   refreshGameStateOnce: () => Promise<void>;
   maybeAutoRevealBuild: (args: any) => Promise<void>;
+
+  // charge panel context (Prompt 9)
+  availableActions: any[] | null;
+  selectedChoiceIdBySourceInstanceId: Record<string, string>;
 }): Promise<void> {
   const {
     isFinished,
@@ -231,6 +269,118 @@ export async function runReadyToggleFlow(args: {
   }
   
   try {
+    // ========================================================================
+    // CHARGE PHASES: Batch submit ACTIONs for all selected choices, then DECLARE_READY
+    // ========================================================================
+    if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+      console.log(`[useGameSession] ${phaseKey}: batch submitting charge choices...`);
+      
+      // Validate availableActions is array
+      if (!Array.isArray(args.availableActions)) {
+        console.log('[useGameSession] No availableActions array, falling through to DECLARE_READY only');
+        // Fall through to DECLARE_READY
+      } else {
+        // Filter to choice actions with required fields
+        const choiceActions = args.availableActions.filter(
+          (a: any) =>
+            a?.kind === 'choice' &&
+            typeof a?.sourceInstanceId === 'string' &&
+            typeof a?.actionId === 'string' &&
+            Array.isArray(a?.choices)
+        );
+        
+        console.log(`[useGameSession] Found ${choiceActions.length} choice actions to process`);
+        
+        // Submit ACTION for each instance (skip 'hold')
+        for (const action of choiceActions) {
+          const { sourceInstanceId, actionId, choices } = action;
+          
+          // Determine selected choiceId
+          const selectedChoiceId = args.selectedChoiceIdBySourceInstanceId[sourceInstanceId];
+          const choiceId = selectedChoiceId || choices[0]?.choiceId;
+          
+          // Skip if choice is 'hold' (no ACTION sent)
+          if (choiceId === 'hold') {
+            console.log(`[useGameSession] Instance ${sourceInstanceId}: skipping 'hold' choice (no ACTION)`);
+            continue;
+          }
+          
+          console.log(`[useGameSession] Submitting ACTION for instance ${sourceInstanceId}, choice: ${choiceId}`);
+          
+          // Build power action payload
+          const payload = buildPowerAction({
+            actionId,
+            sourceInstanceId,
+            choiceId,
+          });
+          
+          // Submit ACTION intent
+          const actionResponse = await submitIntent({
+            gameId: effectiveGameId,
+            intentType: 'ACTION',
+            turnNumber,
+            payload,
+          });
+          
+          if (!actionResponse.ok) {
+            const errorText = await actionResponse.text();
+            console.error(`[useGameSession] ACTION failed for ${sourceInstanceId}:`, errorText);
+            // Stop on first failure
+            return;
+          }
+          
+          const actionResult = await actionResponse.json();
+          
+          if (!actionResult.ok) {
+            console.error(`[useGameSession] ACTION rejected for ${sourceInstanceId}:`, actionResult.rejected);
+            // Stop on first failure
+            return;
+          }
+          
+          // Append events
+          appendEvents(actionResult.events || [], {
+            label: `ACTION (${actionId}, ${choiceId})`,
+            turn: turnNumber,
+            phaseKey,
+          });
+          
+          console.log(`✅ [useGameSession] ACTION accepted for ${sourceInstanceId}`);
+        }
+      }
+      
+      // After all ACTIONs (or if no actions), submit DECLARE_READY
+      console.log(`[useGameSession] ${phaseKey}: submitting DECLARE_READY...`);
+      
+      const readyResponse = await submitIntent({
+        gameId: effectiveGameId,
+        intentType: 'DECLARE_READY',
+        turnNumber,
+      });
+      
+      if (!readyResponse.ok) {
+        const errorText = await readyResponse.text();
+        console.error('[useGameSession] DECLARE_READY failed:', errorText);
+        return;
+      }
+      
+      const readyResult = await readyResponse.json();
+      
+      if (!readyResult.ok) {
+        console.error('[useGameSession] DECLARE_READY rejected:', readyResult.rejected);
+        return;
+      }
+      
+      appendEvents(readyResult.events || [], {
+        label: 'DECLARE_READY',
+        turn: turnNumber,
+        phaseKey,
+      });
+      
+      console.log('✅ [useGameSession] DECLARE_READY accepted');
+      await refreshGameStateOnce();
+      return;
+    }
+    
     // A1) build.ships_that_build → DECLARE_READY always (server auto-ready handles ineligible)
     if (phaseKey === 'build.ships_that_build') {
       console.log('[useGameSession] build.ships_that_build: submitting DECLARE_READY...');
@@ -342,7 +492,7 @@ export async function runReadyToggleFlow(args: {
           // Mark as submitted locally using the turn we actually submitted
           setBuildSubmittedByTurn(prev => ({ ...prev, [submittedTurnNumber]: true }));
           
-          // Refresh state to get latest
+          // Refresh state to get latest (server already set readiness via BUILD_SUBMIT)
           await refreshGameStateOnce();
           return;
         }
@@ -362,7 +512,7 @@ export async function runReadyToggleFlow(args: {
       // Mark as submitted locally using the turn we actually submitted
       setBuildSubmittedByTurn(prev => ({ ...prev, [submittedTurnNumber]: true }));
       
-      // Refresh state to get latest
+      // Refresh state to get latest (server already set readiness via BUILD_SUBMIT)
       await refreshGameStateOnce();
       return;
     }

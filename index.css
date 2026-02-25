@@ -795,6 +795,10 @@
     margin-left: calc(var(--spacing) * 4);
   }
 
+  .ml-\[8px\] {
+    margin-left: 8px;
+  }
+
   .ml-\[80px\] {
     margin-left: 80px;
   }
@@ -825,10 +829,6 @@
 
   .inline {
     display: inline;
-  }
-
-  .inline-block {
-    display: inline-block;
   }
 
   .inline-flex {

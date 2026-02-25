@@ -53,15 +53,20 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
         {!vm.canUndoActions && (
           <div className="w-[130px]" />
         )}
-        <div className="w-[300px]">
-          <ReadyButton
-            label={vm.readyButtonLabel}
-            selected={vm.readySelected}
-            disabled={vm.readyDisabled || vm.readySelected}
-            note={vm.readyDisabled ? vm.readyDisabledReason : vm.readyButtonNote}
-            onClick={actions.onReadyToggle}
-          />
-        </div>
+        {vm.readyButtonVisible ? (
+          <div className="w-[300px]">
+            <ReadyButton
+              label={vm.readyButtonLabel}
+              selected={vm.readySelected}
+              disabled={vm.readyDisabled || vm.readySelected}
+              note={vm.readyDisabled ? vm.readyDisabledReason : vm.readyButtonNote}
+              onClick={actions.onReadyToggle}
+            />
+          </div>
+        ) : (
+          // Keep layout stable when hidden
+          <div className="w-[300px]" />
+        )}
         <p
           className="font-['Roboto'] font-semibold leading-[normal] relative shrink-0 text-[0px] text-[16px] text-white w-[130px]"
           style={{ fontVariationSettings: "'wdth' 100" }}

@@ -63,6 +63,21 @@ export function applyEffects(
   // Clone gameData object (required to avoid mutating input state)
   newState.gameData = { ...state.gameData };
 
+  // Normalize legacy ships container → canonical gameData.ships
+  const legacyShips = (state as any).ships as Record<string, any[]> | undefined;
+
+  if (!newState.gameData.ships && legacyShips) {
+    newState.gameData.ships = { ...legacyShips };
+  }
+
+  // Clone ships container if it exists (required for CreateShip/Destroy/SpendCharge)
+  if (newState.gameData.ships) {
+    newState.gameData.ships = { ...newState.gameData.ships };
+  }
+
+  // Maintain legacy alias for any code paths still reading state.ships
+  (newState as any).ships = newState.gameData.ships;
+
   // Ensure pendingTurn exists AND clone its maps
   if (state.gameData.pendingTurn) {
     // Clone the object and both maps
@@ -76,11 +91,6 @@ export function applyEffects(
       damageByPlayerId: {},
       healByPlayerId: {},
     };
-  }
-
-  // Clone ships container if it exists (required for CreateShip/Destroy/SpendCharge)
-  if (newState.gameData.ships) {
-    newState.gameData.ships = { ...newState.gameData.ships };
   }
 
   for (const effect of effects) {

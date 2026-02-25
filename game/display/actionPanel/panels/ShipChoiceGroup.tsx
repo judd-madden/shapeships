@@ -49,6 +49,16 @@ interface ShipChoiceGroupProps {
   // Buttons, rendered in order, first is selected by default
   buttons: ShipChoiceButtonSpec[];
 
+  /**
+   * When provided, selection is controlled externally using semantic choiceId.
+   */
+  selectedChoiceId?: string;
+
+  /**
+   * Called when user selects a choice (UI-only; parent decides what to do).
+   */
+  onSelectChoiceId?: (choiceId: string) => void;
+
   className?: string;
 }
 
@@ -76,13 +86,27 @@ export function ShipChoiceGroup({
   explicitCharges,
   currentCharges,
   buttons,
+  selectedChoiceId,
+  onSelectChoiceId,
   className,
 }: ShipChoiceGroupProps) {
   // ============================================================================
   // STATE: SELECTED BUTTON INDEX
   // ============================================================================
   
-  const [selectedIndex, setSelectedIndex] = useState(0);
+  // Internal fallback state for uncontrolled mode
+  const [internalSelectedIndex, setInternalSelectedIndex] = useState(0);
+
+  // Determine effective selectedIndex
+  let effectiveSelectedIndex: number;
+  if (selectedChoiceId !== undefined) {
+    // Controlled mode: find button index by choiceId
+    const foundIndex = buttons.findIndex(b => b.choiceId === selectedChoiceId);
+    effectiveSelectedIndex = foundIndex >= 0 ? foundIndex : 0;
+  } else {
+    // Uncontrolled mode: use internal state
+    effectiveSelectedIndex = internalSelectedIndex;
+  }
 
   // ============================================================================
   // SHIP GRAPHIC RESOLUTION
@@ -108,7 +132,7 @@ export function ShipChoiceGroup({
   // INSTRUCTIONS VISIBILITY
   // ============================================================================
   
-  const selectedButton = buttons[selectedIndex];
+  const selectedButton = buttons[effectiveSelectedIndex];
   const showInstructions =
     selectedButton?.showsInstructions === true &&
     typeof selectedButton?.instructionText === 'string' &&
@@ -137,9 +161,19 @@ export function ShipChoiceGroup({
         {/* Buttons (Right) */}
         <div className="content-stretch flex flex-col gap-[12px] items-start relative shrink-0 w-[250px]">
           {buttons.map((spec, index) => {
-            const isSelected = selectedIndex === index;
+            const isSelected = effectiveSelectedIndex === index;
             const isDisabled = spec.disabled ?? false;
             const backgroundColor = isSelected ? selectedBackgroundColor : undefined;
+
+            // Handle button click
+            const handleClick = () => {
+              if (spec.choiceId && onSelectChoiceId) {
+                // Controlled mode with choiceId
+                onSelectChoiceId(spec.choiceId);
+              }
+              // Always update internal state (for uncontrolled fallback)
+              setInternalSelectedIndex(index);
+            };
 
             if (spec.size === 'large') {
               return (
@@ -150,7 +184,7 @@ export function ShipChoiceGroup({
                   selected={isSelected}
                   disabled={isDisabled}
                   backgroundColor={backgroundColor}
-                  onClick={() => setSelectedIndex(index)}
+                  onClick={handleClick}
                 />
               );
             } else {
@@ -161,7 +195,7 @@ export function ShipChoiceGroup({
                   selected={isSelected}
                   disabled={isDisabled}
                   backgroundColor={backgroundColor}
-                  onClick={() => setSelectedIndex(index)}
+                  onClick={handleClick}
                 />
               );
             }

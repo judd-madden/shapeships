@@ -19,6 +19,8 @@ import { getBuildCommitKey } from '../intent/IntentTypes.ts';
 import { computeLineBonusForPlayer } from '../lines/computeLineBonusForPlayer.ts';
 import { resolvePhase } from '../../engine_shared/resolve/resolvePhase.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
+import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
+import type { StructuredShipPower } from '../../engine_shared/effects/translateShipPowers.ts';
 import { isPhaseKey, type PhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 
 export interface OnEnterResult {
@@ -118,33 +120,60 @@ function phaseHasAvailableFleetPowers(state: any, phaseKey: PhaseKey): boolean {
  * @returns true if player can declare at least one charge or solar power
  */
 function playerHasAvailableChargeOrSolarOption(state: any, player: any): boolean {
+  const phaseKey = getCurrentPhaseKey(state);
+  if (phaseKey !== 'battle.charge_declaration' && phaseKey !== 'battle.charge_response') {
+    return false;
+  }
+
   const fleet = state?.ships?.[player.id] ?? state?.gameData?.ships?.[player.id] ?? [];
-  
+
+  const turnNumber: number = state?.gameData?.turnNumber ?? 1;
+  const usedMap: Record<string, number> =
+    state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
+
+  const playerEnergy = player?.energy ?? 0;
+
   for (const shipInstance of fleet) {
-    const shipDef = getShipById(shipInstance.shipDefId);
-    if (!shipDef) continue;
-    
-    // Check if ship has any charge-declarable power
-    const hasChargePower = shipDef.powers.some(p => p.subphase === 'Charge Declaration');
-    if (!hasChargePower) continue;
-    
-    // Solar Power ships require energy
-    if (shipDef.shipType === 'Solar Power') {
-      const playerEnergy = player.energy || 0;
-      if (playerEnergy > 0) {
-        return true; // Can use solar power
-      }
-      // No energy, cannot use this ship
+    const sourceInstanceId = shipInstance.instanceId;
+    const shipDefId = shipInstance.shipDefId;
+
+    // Use structured powers (authoritative)
+    const shipDef = getShipDefinition(shipDefId);
+    if (!shipDef || !Array.isArray((shipDef as any).structuredPowers)) continue;
+
+    const structuredPowers: StructuredShipPower[] = (shipDef as any).structuredPowers;
+
+    // Find any choice power that is timed for this charge phase
+    const timedChoicePowers = structuredPowers.filter((p) => {
+      return p?.type === 'choice' && Array.isArray((p as any).timings) && (p as any).timings.includes(phaseKey);
+    });
+
+    if (timedChoicePowers.length === 0) continue;
+
+    // Solar Power: eligible if timed choice exists and player has energy > 0
+    if ((shipDef as any).shipType === 'Solar Power') {
+      if (playerEnergy > 0) return true;
       continue;
     }
-    
-    // Normal charge ships require charges
+
+    // For charge ships, require that at least one timed choice actually requires charge
+    const hasChargeTimedChoice = timedChoicePowers.some((p: any) => {
+      const actionRequiresCharge =
+        (p.requiresCharge ?? false) ||
+        (Array.isArray(p.options) && p.options.some((o: any) => o?.requiresCharge === true));
+      return actionRequiresCharge === true;
+    });
+
+    if (!hasChargeTimedChoice) continue;
+
+    // Patch D/E: cannot act if this ship already used a charge this turn
+    if (usedMap[sourceInstanceId] === turnNumber) continue;
+
+    // Must have charges available
     const chargesCurrent = shipInstance.chargesCurrent ?? 0;
-    if (chargesCurrent > 0) {
-      return true; // Can use charge
-    }
+    if (chargesCurrent > 0) return true;
   }
-  
+
   return false;
 }
 
@@ -266,11 +295,27 @@ function phaseRequiresPlayerInput(state: any, phaseKey: PhaseKey): boolean {
 
   // battle.charge_response: requires input only if charges declared AND options exist
   if (phaseKey === 'battle.charge_response') {
-    // Auto-skip if no charges were declared
-    if (turnData.anyChargesDeclared !== true) {
+    // THREE-CONDITION GATE (paper-play accurate):
+    // 1. At least one charge/solar was spent during declaration
+    if (turnData.anyChargesSpentInDeclaration !== true) {
       return false;
     }
-    // If charges were declared, check if any player can still respond
+    
+    // 2. Both players were eligible at declaration start (snapshot check)
+    const snapshot = turnData.chargeDeclarationEligibleByPlayerId || {};
+    const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
+    
+    // Conservative: require exactly 2 active players for 1v1 gating
+    if (activePlayers.length !== 2) {
+      return false;
+    }
+    
+    const bothEligible = activePlayers.every((p: any) => snapshot[p.id] === true);
+    if (!bothEligible) {
+      return false; // At least one player was ineligible at declaration start
+    }
+    
+    // 3. After declaration, someone still has charge/solar available
     return anyPlayerHasAvailableChargeOrSolarOption(state);
   }
 
@@ -315,6 +360,25 @@ function enterPhaseOnce(
   }
   
   const turnData = workingState.gameData.turnData;
+  
+  // ============================================================================
+  // CHARGE DECLARATION SNAPSHOT - battle.charge_declaration
+  // ============================================================================
+  // Snapshot which players had available charge/solar options at declaration start.
+  // This snapshot gates battle.charge_response later.
+  
+  if (toKey === 'battle.charge_declaration') {
+    const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
+    const snapshot: Record<string, boolean> = {};
+    
+    for (const player of activePlayers) {
+      snapshot[player.id] = playerHasAvailableChargeOrSolarOption(workingState, player);
+    }
+    
+    turnData.chargeDeclarationEligibleByPlayerId = snapshot;
+    
+    console.log(`[OnEnterPhase] Charge declaration snapshot:`, snapshot);
+  }
   
   // ============================================================================
   // DICE ROLL - build.dice_roll
@@ -463,6 +527,52 @@ function enterPhaseOnce(
           playerId: player.id,
           step: 'build.ships_that_build',
           reason: 'no_available_powers',
+          atMs: nowMs
+        });
+      }
+    }
+  }
+  
+  // ============================================================================
+  // AUTO-READY INELIGIBLE PLAYERS - battle.charge_declaration / battle.charge_response
+  // ============================================================================
+  // Responsibilities:
+  // 1. Auto-ready players who have no available charge/solar options this phase
+  // 2. Only eligible players must click Ready to advance
+
+  if (toKey === 'battle.charge_declaration' || toKey === 'battle.charge_response') {
+    // Ensure phaseReadiness array exists
+    if (!workingState.gameData.phaseReadiness) {
+      workingState.gameData.phaseReadiness = [];
+    }
+
+    const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
+
+    for (const player of activePlayers) {
+      const eligible = playerHasAvailableChargeOrSolarOption(workingState, player);
+
+      if (!eligible) {
+        const existingIndex = workingState.gameData.phaseReadiness.findIndex(
+          (r: any) => r.playerId === player.id && r.currentStep === toKey
+        );
+
+        if (existingIndex >= 0) {
+          workingState.gameData.phaseReadiness[existingIndex].isReady = true;
+        } else {
+          workingState.gameData.phaseReadiness.push({
+            playerId: player.id,
+            isReady: true,
+            currentStep: toKey
+          });
+        }
+
+        console.log(`[OnEnterPhase] Auto-readied ineligible player: ${player.id}`);
+
+        events.push({
+          type: 'PLAYER_AUTO_READY',
+          playerId: player.id,
+          step: toKey,
+          reason: 'no_available_charge_or_solar',
           atMs: nowMs
         });
       }
