@@ -1,7 +1,9 @@
 
-  # SS AI 3
+  # Shapeships Multiplayer App
 
-  This is a code bundle for SS AI 3. The original project is available at https://www.figma.com/design/Lmcf7kG54CFo7sNagOl7xA/SS-AI-3.
+  This is a code bundle for the Shapeships Multiplayer App.
+
+  See /src/README.md for project documentation.
 
   ## Running the code
 
