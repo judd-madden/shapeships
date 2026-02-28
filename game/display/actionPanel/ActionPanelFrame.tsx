@@ -108,7 +108,11 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
     return (
       <div className="size-full flex justify-center">
         <div className="w-fit">
-        <FrigateDrawingPanel frigateCount={vm.frigateDrawing?.frigateCount ?? 0} />
+        <FrigateDrawingPanel
+          frigateCount={vm.frigateDrawing?.frigateCount ?? 0}
+          selectedTriggers={vm.frigateDrawing?.selectedTriggers ?? []}
+          onSelectTrigger={actions.onSelectFrigateTrigger}
+        />
         </div>
       </div>
     );

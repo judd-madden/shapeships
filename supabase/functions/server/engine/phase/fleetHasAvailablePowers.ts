@@ -50,6 +50,15 @@ export function fleetHasAvailablePowers(
     const def = getShipById(ship.shipDefId);
     if (!def?.powers || def.powers.length === 0) continue;
 
+    // Charge-awareness: ships with charges only count if they have charges remaining
+    const maxCharges = Number((def as any)?.charges ?? 0);
+    const chargesCurrent = Number((ship as any)?.chargesCurrent ?? 0);
+    
+    // Skip depleted charge ships (they cannot use their powers)
+    if (maxCharges > 0 && chargesCurrent <= 0) {
+      continue;
+    }
+
     for (const power of def.powers) {
       // If allowedSubphases provided, check if power.subphase is in that list
       if (allowedSubphases && allowedSubphases.length > 0) {

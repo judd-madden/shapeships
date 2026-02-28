@@ -22,6 +22,7 @@ import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 import type { StructuredShipPower } from '../../engine_shared/effects/translateShipPowers.ts';
 import { isPhaseKey, type PhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
+import { rollD6 } from '../util/rollD6.ts';
 
 export interface OnEnterResult {
   state: any;
@@ -385,27 +386,31 @@ function enterPhaseOnce(
   // ============================================================================
   // Responsibilities:
   // 1. Generate base dice roll if not yet rolled
-  // 2. Set diceRolled flag
-  // 3. Finalize dice if no dice-mod powers available
-  // 4. DO NOT grant lines here (that happens in line_generation)
+  // 2. Set canonical dice fields (baseDiceRoll, effectiveDiceRoll)
+  // 3. Set diceRolled flag
+  // 4. Finalize dice if no dice-mod powers available
+  // 5. DO NOT grant lines here (that happens in line_generation)
   
   if (toKey === 'build.dice_roll') {
     // Check if dice already rolled this turn
     if (!turnData.diceRolled) {
-      const diceRoll = Math.floor(Math.random() * 6) + 1; // 1-6
+      const base = rollD6();
       
-      turnData.diceRoll = diceRoll;
+      // Set canonical dice fields
+      turnData.baseDiceRoll = base;
+      turnData.effectiveDiceRoll = base;
+      turnData.diceRoll = base; // Compatibility mirror
       turnData.diceRolled = true;
       turnData.diceFinalized = false; // Initially not finalized
       
-      // Mirror to gameData for compatibility
-      workingState.gameData.diceRoll = diceRoll;
+      // Mirror effectiveDiceRoll to gameData for compatibility
+      workingState.gameData.diceRoll = base;
       
-      console.log(`[OnEnterPhase] Rolled dice: ${diceRoll}`);
+      console.log(`[OnEnterPhase] Rolled dice: ${base}`);
       
       events.push({
         type: 'DICE_ROLLED',
-        value: diceRoll,
+        value: base,
         turnNumber: workingState.gameData.turnNumber || 1,
         atMs: nowMs
       });
@@ -419,7 +424,13 @@ function enterPhaseOnce(
         console.log(`[OnEnterPhase] Dice finalized automatically (no dice-mod powers)`);
       }
     } else {
-      console.log(`[OnEnterPhase] Dice already rolled this turn (${turnData.diceRoll})`);
+      // Dice already rolled - use canonical value
+      const canonicalDice = turnData.effectiveDiceRoll ?? turnData.baseDiceRoll ?? turnData.diceRoll;
+      
+      // Ensure gameData mirror is synced
+      workingState.gameData.diceRoll = canonicalDice;
+      
+      console.log(`[OnEnterPhase] Dice already rolled this turn (${canonicalDice})`);
     }
   }
   
@@ -437,7 +448,7 @@ function enterPhaseOnce(
       console.log(`[OnEnterPhase] Lines already distributed this turn, skipping`);
     } else {
       // Validation: dice must be rolled
-      if (!turnData.diceRolled || turnData.diceRoll == null) {
+      if (!turnData.diceRolled) {
         console.warn(`[OnEnterPhase] Cannot distribute lines: dice not yet rolled`);
       }
       // Validation: dice must be finalized
@@ -446,7 +457,8 @@ function enterPhaseOnce(
       }
       // Proceed with line distribution
       else {
-        const baseLines = turnData.diceRoll;
+        // Use canonical dice value (prefer effectiveDiceRoll)
+        const baseLines = turnData.effectiveDiceRoll ?? turnData.baseDiceRoll ?? turnData.diceRoll;
         const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
         
         for (const player of activePlayers) {

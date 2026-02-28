@@ -120,12 +120,12 @@ function groupShipsIntoRows(
 
 function ShipStack({ 
   ship, 
-  animToken,
-  side,
-  opponentEntryDelays,
-  activationIndexMap,
+  animToken, 
+  side, 
+  opponentEntryDelays, 
+  activationIndexMap 
 }: { 
-  ship: { shipDefId: string; count: number; condition?: 'charges_1' | 'charges_0' };
+  ship: { shipDefId: string; count: number; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null };
   animToken?: ShipAnimToken;
   side: 'my' | 'opponent';
   opponentEntryDelays?: Record<string, number>;
@@ -147,7 +147,7 @@ function ShipStack({
     ? resolveShipGraphic(def, {
         context: 'live',
         explicitCharges,
-        currentCharges: null,
+        currentCharges: ship.currentCharges ?? null,
       })
     : null;
 
@@ -211,7 +211,7 @@ function FleetArea({
   activationIndexMap,
 }: {
   title: string;
-  ships?: Array<{ shipDefId: string; count: number; stackKey: string; condition?: 'charges_1' | 'charges_0' }>;
+  ships?: Array<{ shipDefId: string; count: number; stackKey: string; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null }>;
   order?: string[];
   species: SpeciesKey;
   animTokens?: Partial<Record<string, ShipAnimToken>>; // keyed by stackKey

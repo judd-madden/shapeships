@@ -25,6 +25,13 @@ interface BoardFleetSummary {
    * Only required for charge-split/bucket stacks.
    */
   condition?: 'charges_1' | 'charges_0';
+
+  /**
+   * Current charge count for maxCharges>1 active instance entries.
+   * Used to select charges_X graphic variant (e.g. charges_6, charges_4, charges_0).
+   * Only populated for active instances with maxCharges > 1.
+   */
+  currentCharges?: number | null;
 }
 
 export function deriveFleets(args: {
@@ -64,8 +71,11 @@ export function deriveFleets(args: {
   
   // Aggregate fleet summaries with charge-aware stacking
   function aggregateFleet(ships: any[]): BoardFleetSummary[] {
-    // Buckets: stackKey -> { shipDefId, count, condition? }
-    const buckets = new Map<string, { shipDefId: string; count: number; condition?: 'charges_1' | 'charges_0' }>();
+    // Buckets: stackKey -> { shipDefId, count, condition?, currentCharges? }
+    const buckets = new Map<
+      string,
+      { shipDefId: string; count: number; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null }
+    >();
     
     for (const ship of ships) {
       const shipDefId = (ship.shipDefId || 'UNKNOWN') as ShipDefId;
@@ -96,9 +106,9 @@ export function deriveFleets(args: {
       } else if (maxCharges > 1) {
         // Rule 2: maxCharges > 1
         if (chargesCurrent > 0) {
-          // Active: do not stack, emit one entry per instance
+          // Active: do not stack, emit one entry per instance with currentCharges
           stackKey = `${shipDefId}__inst_${instanceId}`;
-          buckets.set(stackKey, { shipDefId, count: 1, condition: undefined });
+          buckets.set(stackKey, { shipDefId, count: 1, condition: undefined, currentCharges: chargesCurrent });
         } else {
           // Depleted: accumulate into depleted bucket
           stackKey = `${shipDefId}__charges_0`;
@@ -130,6 +140,7 @@ export function deriveFleets(args: {
       count: data.count,
       stackKey,
       condition: data.condition,
+      currentCharges: data.currentCharges ?? null,
     }));
     
     // Stable ordering:

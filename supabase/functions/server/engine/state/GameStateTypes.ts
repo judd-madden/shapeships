@@ -66,6 +66,15 @@ export type GameData = {
     diceRoll?: number;
     linesDistributed?: boolean;
     
+    /** Canonical dice roll (1-6, rolled once per turn) */
+    baseDiceRoll?: number;
+    /** Effective dice roll after modifiers (1-6) */
+    effectiveDiceRoll?: number;
+    /** Flag: dice has been rolled this turn */
+    diceRolled?: boolean;
+    /** Flag: dice modifiers have been finalized */
+    diceFinalized?: boolean;
+    
     /** Track once-per-turn charge power usage by ship instance */
     chargePowerUsedByInstanceId?: Record<string, number>;
     
@@ -88,6 +97,18 @@ export type GameData = {
   lastTurnDamageByPlayerId?: Record<string, number>;
   lastTurnHealByPlayerId?: Record<string, number>;
   lastTurnNetByPlayerId?: Record<string, number>;
+  
+  /** Persistent power memory (never cleared) */
+  powerMemory?: {
+    /** Track once-only powers that have fired (key: instanceId::powerId) */
+    onceOnlyFired?: Record<string, boolean>;
+
+    /**
+     * Frigate (FRI) chosen trigger number per ship instance.
+     * Stored when the ship is created during BUILD_SUBMIT.
+     */
+    frigateTriggerByInstanceId?: Record<string, number>;
+  };
 };
 
 /**
@@ -127,4 +148,4 @@ export type GameState = {
 };
 
 // Runtime anchor: ensures this module exists in the deployed bundle even though it is mostly types.
-export const GAME_STATE_TYPES_VERSION = '1';
+export const GAME_STATE_TYPES_VERSION = '3';

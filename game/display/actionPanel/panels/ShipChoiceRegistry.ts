@@ -154,15 +154,18 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
             size: 'large',
             label: 'Make Defender',
             detail: '(1 charge)',
+            choiceId: 'defender',
           },
           {
             size: 'large',
             label: 'Make Fighter',
             detail: '(2 charges)',
+            choiceId: 'fighter',
           },
           {
             size: 'small',
             label: 'Hold Charge',
+            choiceId: 'hold',
           },
         ],
       },

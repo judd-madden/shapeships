@@ -56,7 +56,6 @@ import {
 } from './gameSession/clienteffects/useDevEffects';
 import { useAutoJoinEffect, usePollingEffect } from './gameSession/clienteffects/useNetworkingEffects';
 import { useBuildPreviewResetEffect, useAutoRevealBuildEffect } from './gameSession/clienteffects/usePhaseAutomationEffects';
-import { useReadyFlash } from './gameSession/clienteffects/useReadyFlash';
 import { useFleetOrder } from './gameSession/clienteffects/useFleetOrder';
 import { useFleetAnimTokens } from './gameSession/clienteffects/useFleetAnimTokens';
 import type {
@@ -166,6 +165,11 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Client-only active panel tracking
   const [activePanelId, setActivePanelId] = useState<ActionPanelId>('ap.catalog.ships.human');
+
+  // Auto panel routing pulse: allows one controlled re-route when client-only actions appear mid-phase
+  const [panelRoutingPulse, setPanelRoutingPulse] = useState(0);
+  const prevHasClientActionsRef = useRef(false);
+
   
   // Choose species state (client-only for now)
   const [selectedSpecies, setSelectedSpecies] = useState<SpeciesId>('human');
@@ -197,6 +201,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Reset when phase changes away from build.drawing
   const [buildPreviewCounts, setBuildPreviewCounts] = useState<Record<string, number>>({});
   
+
+  // Frigate trigger selections for Frigates built THIS TURN (ordered list, length = buildPreviewCounts.FRI)
+  const [frigateSelectedTriggers, setFrigateSelectedTriggers] = useState<number[]>([]);
+  const frigateSelectedTriggersRef = useRef<number[]>([]);
   // Ref-backed draft buffer: authoritative source for BUILD_SUBMIT payload
   // Prevents race condition when Ready is clicked immediately after building
   const buildPreviewCountsRef = useRef<Record<string, number>>({});
@@ -264,6 +272,9 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [readyUxByPhaseInstanceKey, setReadyUxByPhaseInstanceKey] = useState<
     Record<string, { clickedThisPhase: boolean; sendingNow: boolean }>
   >({});
+  
+  // Client-only dice roll sequence counter (increments on each DICE_ROLLED event)
+  const [diceRollSeq, setDiceRollSeq] = useState(0);
   
   // ============================================================================
   // EVENT TAPE (Chunk 2: Dev-only plumbing)
@@ -511,12 +522,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     Array.isArray(availableActions) && availableActions.length > 0;
   
   // ============================================================================
-  // READY FLASH ANIMATION HOOK
-  // ============================================================================
-  
-  const { readyFlashSelected, pendingReadyFlashRef } = useReadyFlash(phaseKey);
-  
-  // ============================================================================
   // SHIP CHOICE SELECTION STATE (for charge panels)
   // ============================================================================
   
@@ -542,16 +547,19 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   }, [rawState?.gameData?.turnNumber ?? rawState?.turnNumber]);
   
   // ============================================================================
-  // SHIP CHOICE SELECTION EFFECT (maintain defaults for charge phases)
+  // SHIP CHOICE SELECTION EFFECT (maintain defaults for server-choice phases)
   // ============================================================================
   
   useEffect(() => {
-    // Only for charge phases
-    if (phaseKey !== 'battle.charge_declaration' && phaseKey !== 'battle.charge_response') {
+    // Only for server-choice phases
+    if (
+      phaseKey !== 'build.ships_that_build' &&
+      phaseKey !== 'battle.charge_declaration' &&
+      phaseKey !== 'battle.charge_response'
+    ) {
       return;
     }
     
-    // Extract choice actions from availableActions
     const choiceActions = Array.isArray(availableActions)
       ? availableActions.filter(
           (a: any) =>
@@ -562,33 +570,51 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         )
       : [];
     
+    // If server says there are no choice actions, clear our local selection map.
     if (choiceActions.length === 0) {
-      // No actions available, clear selection
       setShipChoiceSelectionByInstanceId({});
       return;
     }
     
-    // Build new selection map
-    const newSelection: Record<string, string> = {};
-    
-    for (const action of choiceActions) {
-      const instanceId = action.sourceInstanceId;
-      const allowedChoiceIds = action.choices.map((c: any) => c.choiceId);
+    // Functional update so we can compare with prev and avoid unnecessary state churn.
+    setShipChoiceSelectionByInstanceId((prev) => {
+      const next: Record<string, string> = {};
+      let changed = false;
       
-      // Keep existing selection if still valid
-      const existingChoice = shipChoiceSelectionByInstanceId[instanceId];
-      if (existingChoice && allowedChoiceIds.includes(existingChoice)) {
-        newSelection[instanceId] = existingChoice;
-      } else {
-        // Default to 'damage' if available, else first choice
-        const defaultChoice = allowedChoiceIds.includes('damage') 
-          ? 'damage' 
-          : allowedChoiceIds[0];
-        newSelection[instanceId] = defaultChoice;
+      for (const action of choiceActions) {
+        const instanceId = action.sourceInstanceId as string;
+        const allowedChoiceIds: string[] = (action.choices as any[])
+          .map((c: any) => c?.choiceId)
+          .filter((cid: any): cid is string => typeof cid === 'string');
+        
+        if (allowedChoiceIds.length === 0) continue;
+        
+        const existing = prev[instanceId];
+        if (existing && allowedChoiceIds.includes(existing)) {
+          next[instanceId] = existing;
+        } else {
+          next[instanceId] = allowedChoiceIds[0]; // Always default to the first valid option
+          if (prev[instanceId] !== next[instanceId]) changed = true;
+        }
       }
-    }
-    
-    setShipChoiceSelectionByInstanceId(newSelection);
+      
+      // Also detect removals (prev had keys that are no longer present)
+      const prevKeys = Object.keys(prev);
+      if (!changed) {
+        if (prevKeys.length !== Object.keys(next).length) {
+          changed = true;
+        } else {
+          for (const k of prevKeys) {
+            if (prev[k] !== next[k]) {
+              changed = true;
+              break;
+            }
+          }
+        }
+      }
+      
+      return changed ? next : prev;
+    });
   }, [phaseKey, availableActions]);
   
   // ============================================================================
@@ -722,6 +748,25 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   useEffect(() => {
     buildPreviewCountsRef.current = {};
   }, [turnNumber, effectiveGameId]);
+
+// Keep Frigate trigger selections ref in sync
+useEffect(() => {
+  frigateSelectedTriggersRef.current = frigateSelectedTriggers;
+}, [frigateSelectedTriggers]);
+
+// Ensure frigateSelectedTriggers length matches build preview FRI count (default new entries to 1)
+useEffect(() => {
+  const friCount = Number.isInteger(buildPreviewCountsRef.current?.FRI)
+    ? Math.max(0, buildPreviewCountsRef.current.FRI)
+    : 0;
+
+  setFrigateSelectedTriggers(prev => {
+    if (prev.length === friCount) return prev;
+    const next = prev.slice(0, friCount);
+    while (next.length < friCount) next.push(1);
+    return next;
+  });
+}, [buildPreviewCounts]);
   
   // ============================================================================
   // CHUNK 6.2: AUTO-SUBMIT BUILD_REVEAL WHEN ENTERING BATTLE.REVEAL PHASE
@@ -778,7 +823,22 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
             continue;
           }
 
-          // For non-charge ships: prefer adding preview ships into an existing charges_1 stack if present
+          // For multi-charge ships (maxCharges > 1), emit separate singles (never stack)
+          if (maxCharges > 1) {
+            for (let i = 0; i < delta; i++) {
+              const previewKey = `${shipDefId}__preview_${turnNumber}_${i}`;
+              byStackKey.set(previewKey, {
+                shipDefId,
+                count: 1,
+                stackKey: previewKey,
+                condition: undefined,
+                currentCharges: maxCharges,
+              });
+            }
+            continue;
+          }
+
+          // For non-charge ships (maxCharges === 0): prefer adding preview ships into an existing charges_1 stack if present
           const chargedKey = `${shipDefId}__charges_1`;
           const anyCharged = byStackKey.get(chargedKey);
 
@@ -1081,9 +1141,20 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Determine target panel ID for Actions tab (panel routing target when actions exist)
   const actionsTargetPanelId = phaseToActionPanelId(phaseKey, mySpecies);
   
-  // Actions tab is visible only if server says we have actions AND we have a target panel for this phase/species
+  // Client-only "special actions" that should make Actions tab visible even if server reports none.
+  // Today: Human Frigate (FRI) trigger selection in build.drawing, Xenite Evolver (EVO) choices in build.drawing.
+  const hasClientActionsAvailable =
+    phaseKey === 'build.drawing' &&
+    ((mySpecies === 'human' &&
+      (Number.isInteger(buildPreviewCountsRef.current?.FRI) ? buildPreviewCountsRef.current.FRI : 0) > 0) ||
+     (mySpecies === 'xenite' &&
+      (Number.isInteger(buildPreviewCountsRef.current?.EVO) ? buildPreviewCountsRef.current.EVO : 0) > 0));
+
+  // Actions tab is visible if we have a target panel and either:
+  // - server says actions exist, OR
+  // - client has special actions (build preview driven panels)
   const hasActionsAvailable =
-    !isBootstrapping && hasServerActionsAvailable && !!actionsTargetPanelId;
+    !isBootstrapping && !!actionsTargetPanelId && (hasServerActionsAvailable || hasClientActionsAvailable);
   
   // Build tabs based on phase
   let tabs: ActionPanelTabVm[];
@@ -1190,8 +1261,19 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     readyEnabled = false;
     readyDisabledReason = 'Revealing build…';
   } else {
-    readyEnabled = true;
-    readyDisabledReason = null;
+    // Gate Ready in server-choice phases until availableActions arrives
+    const isServerChoicePhase = 
+      phaseKey === 'build.ships_that_build' ||
+      phaseKey === 'battle.charge_declaration' ||
+      phaseKey === 'battle.charge_response';
+    
+    if (isServerChoicePhase && availableActions == null) {
+      readyEnabled = false;
+      readyDisabledReason = 'Loading actions…';
+    } else {
+      readyEnabled = true;
+      readyDisabledReason = null;
+    }
   }
   
   // ============================================================================
@@ -1289,6 +1371,18 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   }, [shouldTick]);
   
 
+  // Pulse routing when client-only actions become available mid-phase (edge: false -> true).
+  // This lets decideAutoPanelRouting switch to Actions once, without re-triggering on polling.
+  useEffect(() => {
+    const prev = prevHasClientActionsRef.current;
+    const next = hasClientActionsAvailable;
+    prevHasClientActionsRef.current = next;
+
+    if (prev !== next) {
+      setPanelRoutingPulse(p => p + 1);
+    }
+  }, [hasClientActionsAvailable]);
+
   // ============================================================================
   // ACTION PANEL ROUTING (PHASE-DRIVEN ONLY)
   // ============================================================================
@@ -1316,7 +1410,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     // This effect intentionally depends ONLY on phaseKey.
     // We do not depend on activePanelId or hasActionsAvailable,
     // otherwise polling would re-trigger routing.
-  }, [phaseKey]);
+  }, [phaseKey, panelRoutingPulse]);
 
   
   // Display-only interpolation helper
@@ -1397,9 +1491,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     mySpeciesId: mySpecies,
     opponentSpeciesId: opponentSpecies,
     
-    // Ready flash state (visual-only)
-    readyFlashSelected,
-    
     // Ready UX state (SENDING/WAITING labels)
     readyUx: readyUxForCurrentPhase,
 
@@ -1411,7 +1502,14 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     
     // Raw gameData for server truth
     gameData: rawState?.gameData,
-  });
+    
+    // Client-only dice roll sequence for animation
+  diceRollSeq,
+
+  // Client-only: build preview + Frigate triggers for build.drawing special panels
+  buildPreviewCounts: buildPreviewCountsRef.current,
+  frigateSelectedTriggers: frigateSelectedTriggersRef.current,
+});
   
   // ============================================================================
   // ACTION CALLBACKS (NO-OPS)
@@ -1435,9 +1533,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
           ...prev,
           [clickedPhaseInstanceKey]: { clickedThisPhase: true, sendingNow: true },
         }));
-        
-        // Existing flash latch behavior unchanged
-        pendingReadyFlashRef.current = true;
       }
       
       try {
@@ -1455,6 +1550,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
 
           buildInstanceKey: buildServerKey,
           buildPreviewCounts: buildPreviewSnapshot,
+          frigateSelectedTriggers: frigateSelectedTriggersRef.current,
 
           setBuildSubmittedByTurn,
 
@@ -1475,6 +1571,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
           appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
           refreshGameStateOnce,
           maybeAutoRevealBuild,
+          bumpDiceRollSeq: (n: number) => setDiceRollSeq(prev => prev + n),
 
           // Charge panel context (Prompt 9)
           availableActions: Array.isArray(availableActions) ? availableActions : null,
@@ -1629,6 +1726,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         refreshGameStateOnce,
         mySessionId: mySessionId!,
         getLatestRawState: () => rawState,
+        bumpDiceRollSeq: (n: number) => setDiceRollSeq(prev => prev + n),
       });
     },
     
@@ -1713,7 +1811,17 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       console.log('[useGameSession] Download battle log (no-op)');
     },
     
-    onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
+onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
+  setFrigateSelectedTriggers(prev => {
+    if (!Number.isInteger(triggerNumber) || triggerNumber < 1 || triggerNumber > 6) return prev;
+    if (frigateIndex < 0 || frigateIndex >= prev.length) return prev;
+    const next = [...prev];
+    next[frigateIndex] = triggerNumber;
+    return next;
+  });
+},
+
+onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
       setShipChoiceSelectionByInstanceId(prev => ({ ...prev, [sourceInstanceId]: choiceId }));
     },
   };
@@ -1748,6 +1856,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       },
       leftRail: {
         diceValue: 1,
+        diceAnimateKey: 0,
         turn: 1,
         phase: 'UNKNOWN PHASE',
         phaseIcon: 'build',
@@ -1792,7 +1901,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         readyDisabled: true,
         readyDisabledReason: 'No game loaded',
         readySelected: false,
-        readyFlashSelected: false,
         spectatorCount: 0,
       },
       actionPanel: {

@@ -72,12 +72,9 @@ export function mapGameSessionVm(args: {
   mySpeciesId: SpeciesId | null;
   opponentSpeciesId: SpeciesId | null;
   
-  // Ready flash state (visual-only)
-  readyFlashSelected: boolean;
-  
   // Ready UX state (SENDING/WAITING labels)
   readyUx: { clickedThisPhase: boolean; sendingNow: boolean };
-
+  
   // Server availableActions for charge panels
   availableActions: any[] | null;
 
@@ -86,6 +83,15 @@ export function mapGameSessionVm(args: {
   
   // Raw gameData for server truth
   gameData: any;
+  
+  // Client-only dice roll sequence (for animation)
+  diceRollSeq: number;
+
+  // Client-only build preview counts (used for special panels like Frigate trigger selection)
+  buildPreviewCounts: Record<string, number>;
+
+  // Client-only Frigate trigger selections (ordered list, length = buildPreviewCounts.FRI)
+  frigateSelectedTriggers: number[];
 }): GameSessionViewModel {
   const {
     isBootstrapping,
@@ -121,11 +127,13 @@ export function mapGameSessionVm(args: {
     isFinished,
     mySpeciesId,
     opponentSpeciesId,
-    readyFlashSelected,
     readyUx,
     availableActions,
     selectedChoiceIdBySourceInstanceId,
     gameData,
+    diceRollSeq,
+    buildPreviewCounts,
+    frigateSelectedTriggers,
   } = args;
   
   // Map chat entries to LeftRail VM format
@@ -239,12 +247,12 @@ export function mapGameSessionVm(args: {
 
   const myFleet = board.mode === 'board' ? board.myFleet : undefined;
 
-  // Frigate drawing
-  const frigateCount = getFleetCount(myFleet, 'FRI');
-  const frigateDrawing = frigateCount > 0 ? { frigateCount } : undefined;
+  // Frigate drawing (build preview count, not fleet count)
+  const frigateCount = Number.isInteger(buildPreviewCounts?.FRI) ? Math.max(0, buildPreviewCounts.FRI) : 0;
+  const frigateDrawing = frigateCount > 0 ? { frigateCount, selectedTriggers: frigateSelectedTriggers } : undefined;
 
-  // Evolver drawing
-  const evolverCount = getFleetCount(myFleet, 'EVO');
+  // Evolver drawing (build preview count, not fleet count)
+  const evolverCount = Number.isInteger(buildPreviewCounts?.EVO) ? Math.max(0, buildPreviewCounts.EVO) : 0;
   const evolverDrawing = evolverCount > 0 ? { evolverCount } : undefined;
 
   // ============================================================================
@@ -323,14 +331,15 @@ export function mapGameSessionVm(args: {
   const shipChoiceSpec = getShipChoicePanelSpec(finalActivePanelId);
 
   if (shipChoiceSpec && shipChoiceSpec.kind === 'buttons') {
-    // Check if this is a charge phase (use server availableActions)
-    const isChargePhase = 
+    // Check if this is a server-choice phase (use server availableActions)
+    const isServerChoicePhase = 
+      phaseKey === 'build.ships_that_build' ||
       phaseKey === 'battle.charge_declaration' || 
       phaseKey === 'battle.charge_response';
 
     const derivedGroups: ShipChoicesPanelGroup[] = [];
 
-    if (isChargePhase && Array.isArray(availableActions)) {
+    if (isServerChoicePhase && Array.isArray(availableActions)) {
       // CHARGE PHASES: Derive from server availableActions
       // Filter to choice actions with required fields
       const choiceActions = availableActions.filter(
@@ -341,6 +350,16 @@ export function mapGameSessionVm(args: {
           typeof a?.shipDefId === 'string' &&
           Array.isArray(a?.choices)
       );
+
+      // Build map of instanceId -> currentCharges for phase-start snapshot
+      const chargesByInstanceId = new Map<string, number>();
+      const myShips = gameData?.ships?.[me?.id] ?? [];
+      for (const ship of myShips) {
+        const instanceId = ship?.instanceId ?? ship?.id;
+        if (instanceId) {
+          chargesByInstanceId.set(instanceId, Number(ship?.chargesCurrent ?? 0));
+        }
+      }
 
       for (const groupSpec of shipChoiceSpec.groups) {
         if (groupSpec.kind === 'counted') {
@@ -359,6 +378,7 @@ export function mapGameSessionVm(args: {
             sourceInstanceId: m.sourceInstanceId,
             actionId: m.actionId,
             availableChoiceIds: m.choices.map((c: any) => c.choiceId),
+            currentCharges: chargesByInstanceId.get(m.sourceInstanceId) ?? null,
           }));
 
           derivedGroups.push({
@@ -374,6 +394,7 @@ export function mapGameSessionVm(args: {
             sourceInstanceId: string;
             actionId: string;
             availableChoiceIds: string[];
+            currentCharges: number | null;
           }> = [];
 
           for (const ship of groupSpec.ships) {
@@ -388,6 +409,7 @@ export function mapGameSessionVm(args: {
                 sourceInstanceId: m.sourceInstanceId,
                 actionId: m.actionId,
                 availableChoiceIds: m.choices.map((c: any) => c.choiceId),
+                currentCharges: chargesByInstanceId.get(m.sourceInstanceId) ?? null,
               });
             }
           }
@@ -494,7 +516,21 @@ export function mapGameSessionVm(args: {
     },
     
     leftRail: {
-      diceValue: 1,
+      diceValue: (() => {
+        // Read server-derived dice value with priority cascade
+        const raw = 
+          gameData?.turnData?.effectiveDiceRoll ??
+          gameData?.turnData?.baseDiceRoll ??
+          gameData?.turnData?.diceRoll ??
+          gameData?.diceRoll ??
+          1;
+        
+        // Clamp to 1-6, non-number -> 1
+        const num = Number(raw);
+        if (!Number.isInteger(num) || num < 1 || num > 6) return 1;
+        return num as 1 | 2 | 3 | 4 | 5 | 6;
+      })(),
+      diceAnimateKey: diceRollSeq,
       turn: turnNumber,
       phase: getMajorPhaseLabel(phaseKey),
       phaseIcon,
@@ -522,8 +558,7 @@ export function mapGameSessionVm(args: {
       nextPhaseLabel: 'NEXT PHASE',
       readyDisabled: finalReadyDisabled,
       readyDisabledReason: finalReadyDisabledReason,
-      readySelected: finalReadySelected || readyFlashSelected, // Combine server ready + visual flash
-      readyFlashSelected, // Pass through for debugging/future use
+      readySelected: finalReadySelected,
       spectatorCount: allPlayers.filter((p: any) => p?.role === 'spectator').length,
     },
     

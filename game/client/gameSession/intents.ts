@@ -30,11 +30,31 @@ function isRetryableIntentError(err: any): boolean {
 }
 
 /**
+ * Count DICE_ROLLED events in an event array
+ * Supports multiple naming conventions: DICE_ROLLED, dice.rolled, dice_rolled
+ */
+function countDiceRolledEvents(events: any[]): number {
+  if (!Array.isArray(events)) return 0;
+  let n = 0;
+  for (const e of events) {
+    const t = e?.type;
+    if (t === 'DICE_ROLLED' || t === 'dice.rolled' || t === 'dice_rolled') {
+      n++;
+    }
+  }
+  return n;
+}
+
+/**
  * Canonical build payload builder
  * Ensures consistent ordering and structure for hash computation
  */
-function makeCanonicalBuildPayload(buildPreviewCounts: Record<string, number>): {
+function makeCanonicalBuildPayload(
+  buildPreviewCounts: Record<string, number>,
+  frigateTriggers: number[]
+): {
   builds: Array<{ shipDefId: string; count: number }>;
+  frigateTriggers?: number[];
 } {
   const buildsArray: Array<{ shipDefId: string; count: number }> = [];
   
@@ -50,6 +70,14 @@ function makeCanonicalBuildPayload(buildPreviewCounts: Record<string, number>): 
   // Sort by shipDefId ascending for consistent ordering
   buildsArray.sort((a, b) => a.shipDefId.localeCompare(b.shipDefId));
   
+  const frigateCount = buildsArray.find(b => b.shipDefId === 'FRI')?.count ?? 0;
+
+  // Only include frigateTriggers when we are actually building Frigates.
+  // Length must match; otherwise omit (server will default triggers to 1).
+  if (frigateCount > 0 && Array.isArray(frigateTriggers) && frigateTriggers.length === frigateCount) {
+    return { builds: buildsArray, frigateTriggers: [...frigateTriggers] };
+  }
+
   return { builds: buildsArray };
 }
 
@@ -73,6 +101,7 @@ export async function runSpeciesConfirmFlow(args: {
   refreshGameStateOnce: () => Promise<void>;
   mySessionId: string;
   getLatestRawState: () => any;
+  bumpDiceRollSeq: (n: number) => void;
 }) {
   try {
     const {
@@ -90,6 +119,7 @@ export async function runSpeciesConfirmFlow(args: {
       refreshGameStateOnce,
       mySessionId,
       getLatestRawState,
+      bumpDiceRollSeq,
     } = args;
 
     const payload = { species: selectedSpecies };
@@ -128,11 +158,17 @@ export async function runSpeciesConfirmFlow(args: {
       return;
     }
 
-    appendEvents(result.events || [], {
+    const events = result.events || [];
+    appendEvents(events, {
       label: `SPECIES_SUBMIT (${selectedSpecies.toUpperCase()})`,
       turn: turnNumber,
       phaseKey,
     });
+    
+    const diceCount = countDiceRolledEvents(events);
+    if (diceCount > 0) {
+      bumpDiceRollSeq(diceCount);
+    }
 
     // Refresh game state immediately to pull server's updated commitments
     await refreshGameStateOnce();
@@ -189,6 +225,7 @@ export async function runReadyToggleFlow(args: {
   buildInstanceKey: string;
   buildPreviewCounts: Record<string, number>;
 
+  frigateSelectedTriggers: number[];
   // build submitted tracking
   setBuildSubmittedByTurn: React.Dispatch<React.SetStateAction<Record<number, boolean>>>;
 
@@ -213,6 +250,7 @@ export async function runReadyToggleFlow(args: {
   appendEvents: (events: any[], meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
   refreshGameStateOnce: () => Promise<void>;
   maybeAutoRevealBuild: (args: any) => Promise<void>;
+  bumpDiceRollSeq: (n: number) => void;
 
   // charge panel context (Prompt 9)
   availableActions: any[] | null;
@@ -229,6 +267,7 @@ export async function runReadyToggleFlow(args: {
     turnNumber,
     buildInstanceKey,
     buildPreviewCounts,
+    frigateSelectedTriggers,
     setBuildSubmittedByTurn,
     buildCommitDoneByPhase,
     buildRevealDoneByPhase,
@@ -241,6 +280,7 @@ export async function runReadyToggleFlow(args: {
     appendEvents,
     refreshGameStateOnce,
     maybeAutoRevealBuild,
+    bumpDiceRollSeq,
     rawState,
     me,
     setAwaitingBuildRevealSync,
@@ -270,10 +310,10 @@ export async function runReadyToggleFlow(args: {
   
   try {
     // ========================================================================
-    // CHARGE PHASES: Batch submit ACTIONs for all selected choices, then DECLARE_READY
+    // CHARGE PHASES: Batch submit ACTIONS_SUBMIT for all selected choices, then DECLARE_READY
     // ========================================================================
     if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
-      console.log(`[useGameSession] ${phaseKey}: batch submitting charge choices...`);
+      console.log(`[useGameSession] ${phaseKey}: preparing batch submission...`);
       
       // Validate availableActions is array
       if (!Array.isArray(args.availableActions)) {
@@ -291,7 +331,9 @@ export async function runReadyToggleFlow(args: {
         
         console.log(`[useGameSession] Found ${choiceActions.length} choice actions to process`);
         
-        // Submit ACTION for each instance (skip 'hold')
+        // Build batch actions array (skip 'hold')
+        const actions: any[] = [];
+        
         for (const action of choiceActions) {
           const { sourceInstanceId, actionId, choices } = action;
           
@@ -301,54 +343,61 @@ export async function runReadyToggleFlow(args: {
           
           // Skip if choice is 'hold' (no ACTION sent)
           if (choiceId === 'hold') {
-            console.log(`[useGameSession] Instance ${sourceInstanceId}: skipping 'hold' choice (no ACTION)`);
             continue;
           }
           
-          console.log(`[useGameSession] Submitting ACTION for instance ${sourceInstanceId}, choice: ${choiceId}`);
-          
-          // Build power action payload
-          const payload = buildPowerAction({
+          // Add to batch
+          actions.push({
+            actionType: 'power',
             actionId,
             sourceInstanceId,
             choiceId,
           });
+        }
+        
+        // Submit batch if any actions exist
+        if (actions.length > 0) {
+          console.log(`[useGameSession] ${phaseKey}: submitting ACTIONS_SUBMIT count=${actions.length}`);
           
-          // Submit ACTION intent
-          const actionResponse = await submitIntent({
+          const batchResponse = await submitIntent({
             gameId: effectiveGameId,
-            intentType: 'ACTION',
+            intentType: 'ACTIONS_SUBMIT',
             turnNumber,
-            payload,
+            payload: { actions },
           });
           
-          if (!actionResponse.ok) {
-            const errorText = await actionResponse.text();
-            console.error(`[useGameSession] ACTION failed for ${sourceInstanceId}:`, errorText);
-            // Stop on first failure
+          if (!batchResponse.ok) {
+            const errorText = await batchResponse.text();
+            console.error('[useGameSession] ACTIONS_SUBMIT failed:', errorText);
             return;
           }
           
-          const actionResult = await actionResponse.json();
+          const result = await batchResponse.json();
           
-          if (!actionResult.ok) {
-            console.error(`[useGameSession] ACTION rejected for ${sourceInstanceId}:`, actionResult.rejected);
-            // Stop on first failure
+          if (!result.ok) {
+            console.error('[useGameSession] ACTIONS_SUBMIT rejected:', result.rejected);
             return;
           }
           
-          // Append events
-          appendEvents(actionResult.events || [], {
-            label: `ACTION (${actionId}, ${choiceId})`,
+          const events = result.events || [];
+          appendEvents(events, {
+            label: `ACTIONS_SUBMIT (${actions.length})`,
             turn: turnNumber,
             phaseKey,
           });
           
-          console.log(`✅ [useGameSession] ACTION accepted for ${sourceInstanceId}`);
+          const diceCount = countDiceRolledEvents(events);
+          if (diceCount > 0) {
+            bumpDiceRollSeq(diceCount);
+          }
+          
+          console.log(`✅ [useGameSession] ACTIONS_SUBMIT accepted (${actions.length})`);
+        } else {
+          console.log('[useGameSession] No actions to submit (all hold or no choices)');
         }
       }
       
-      // After all ACTIONs (or if no actions), submit DECLARE_READY
+      // After ACTIONS_SUBMIT (or if no actions), submit DECLARE_READY
       console.log(`[useGameSession] ${phaseKey}: submitting DECLARE_READY...`);
       
       const readyResponse = await submitIntent({
@@ -370,45 +419,154 @@ export async function runReadyToggleFlow(args: {
         return;
       }
       
-      appendEvents(readyResult.events || [], {
+      const readyEvents = readyResult.events || [];
+      appendEvents(readyEvents, {
         label: 'DECLARE_READY',
         turn: turnNumber,
         phaseKey,
       });
+      
+      const readyDiceCount = countDiceRolledEvents(readyEvents);
+      if (readyDiceCount > 0) {
+        bumpDiceRollSeq(readyDiceCount);
+      }
       
       console.log('✅ [useGameSession] DECLARE_READY accepted');
       await refreshGameStateOnce();
       return;
     }
     
-    // A1) build.ships_that_build → DECLARE_READY always (server auto-ready handles ineligible)
+    // ========================================================================
+    // BUILD.SHIPS_THAT_BUILD: Batch submit ACTIONS_SUBMIT for all selected choices, then DECLARE_READY
+    // ========================================================================
     if (phaseKey === 'build.ships_that_build') {
-      console.log('[useGameSession] build.ships_that_build: submitting DECLARE_READY...');
+      console.log(`[useGameSession] ${phaseKey}: preparing batch submission...`);
       
-      const response = await submitIntent({
+      // Validate availableActions is array
+      if (!Array.isArray(args.availableActions)) {
+        console.log('[useGameSession] No availableActions array, refreshing once then proceeding...');
+        await refreshGameStateOnce();
+        
+        // After refresh, check again
+        if (!Array.isArray(args.availableActions)) {
+          console.log('[useGameSession] Still no availableActions after refresh, falling through to DECLARE_READY only');
+          // Fall through to DECLARE_READY
+        } else {
+          // After refresh it became available, but we won't process it in this flow
+          // Just fall through to DECLARE_READY (user can click again if needed)
+          console.log('[useGameSession] availableActions now available after refresh, falling through to DECLARE_READY');
+        }
+      } else {
+        // Filter to choice actions with required fields
+        const choiceActions = args.availableActions.filter(
+          (a: any) =>
+            a?.kind === 'choice' &&
+            typeof a?.sourceInstanceId === 'string' &&
+            typeof a?.actionId === 'string' &&
+            Array.isArray(a?.choices)
+        );
+        
+        console.log(`[useGameSession] Found ${choiceActions.length} choice actions to process`);
+        
+        // Build batch actions array (skip 'hold')
+        const actions: any[] = [];
+        
+        for (const action of choiceActions) {
+          const { sourceInstanceId, actionId, choices } = action;
+          
+          // Determine selected choiceId
+          const selectedChoiceId = args.selectedChoiceIdBySourceInstanceId[sourceInstanceId];
+          const choiceId = selectedChoiceId || choices[0]?.choiceId;
+          
+          // Skip if choice is 'hold' (no ACTION sent)
+          if (choiceId === 'hold') {
+            continue;
+          }
+          
+          // Add to batch
+          actions.push({
+            actionType: 'power',
+            actionId,
+            sourceInstanceId,
+            choiceId,
+          });
+        }
+        
+        // Submit batch if any actions exist
+        if (actions.length > 0) {
+          console.log(`[useGameSession] ${phaseKey}: submitting ACTIONS_SUBMIT count=${actions.length}`);
+          
+          const batchResponse = await submitIntent({
+            gameId: effectiveGameId,
+            intentType: 'ACTIONS_SUBMIT',
+            turnNumber,
+            payload: { actions },
+          });
+          
+          if (!batchResponse.ok) {
+            const errorText = await batchResponse.text();
+            console.error('[useGameSession] ACTIONS_SUBMIT failed:', errorText);
+            return;
+          }
+          
+          const result = await batchResponse.json();
+          
+          if (!result.ok) {
+            console.error('[useGameSession] ACTIONS_SUBMIT rejected:', result.rejected);
+            return;
+          }
+          
+          const events = result.events || [];
+          appendEvents(events, {
+            label: `ACTIONS_SUBMIT (${actions.length})`,
+            turn: turnNumber,
+            phaseKey,
+          });
+          
+          const diceCount = countDiceRolledEvents(events);
+          if (diceCount > 0) {
+            bumpDiceRollSeq(diceCount);
+          }
+          
+          console.log(`✅ [useGameSession] ACTIONS_SUBMIT accepted (${actions.length})`);
+        } else {
+          console.log('[useGameSession] No actions to submit (all hold or no choices)');
+        }
+      }
+      
+      // After ACTIONS_SUBMIT (or if no actions), submit DECLARE_READY
+      console.log(`[useGameSession] ${phaseKey}: submitting DECLARE_READY...`);
+      
+      const readyResponse = await submitIntent({
         gameId: effectiveGameId,
         intentType: 'DECLARE_READY',
         turnNumber,
       });
       
-      if (!response.ok) {
-        const errorText = await response.text();
+      if (!readyResponse.ok) {
+        const errorText = await readyResponse.text();
         console.error('[useGameSession] DECLARE_READY failed:', errorText);
         return;
       }
       
-      const result = await response.json();
+      const readyResult = await readyResponse.json();
       
-      if (!result.ok) {
-        console.error('[useGameSession] DECLARE_READY rejected:', result.rejected);
+      if (!readyResult.ok) {
+        console.error('[useGameSession] DECLARE_READY rejected:', readyResult.rejected);
         return;
       }
       
-      appendEvents(result.events || [], {
+      const readyEvents = readyResult.events || [];
+      appendEvents(readyEvents, {
         label: 'DECLARE_READY',
         turn: turnNumber,
         phaseKey,
       });
+      
+      const readyDiceCount = countDiceRolledEvents(readyEvents);
+      if (readyDiceCount > 0) {
+        bumpDiceRollSeq(readyDiceCount);
+      }
       
       console.log('✅ [useGameSession] DECLARE_READY accepted');
       await refreshGameStateOnce();
@@ -432,7 +590,7 @@ export async function runReadyToggleFlow(args: {
       const submittedTurnNumber = serverTurnNumber;
       
       // Construct canonical payload from current local preview counts
-      const canonicalPayload = makeCanonicalBuildPayload(buildPreviewCounts);
+      const canonicalPayload = makeCanonicalBuildPayload(buildPreviewCounts, frigateSelectedTriggers);
       const payload = canonicalPayload;
       
       console.log('[useGameSession] BUILD_SUBMIT payload:', payload);
@@ -501,11 +659,17 @@ export async function runReadyToggleFlow(args: {
         return;
       }
       
-      appendEvents(result.events || [], {
+      const events = result.events || [];
+      appendEvents(events, {
         label: 'BUILD_SUBMIT',
         turn: canonicalTurnNumber,
         phaseKey,
       });
+      
+      const diceCount = countDiceRolledEvents(events);
+      if (diceCount > 0) {
+        bumpDiceRollSeq(diceCount);
+      }
       
       console.log('✅ [useGameSession] BUILD_SUBMIT accepted');
       
@@ -540,11 +704,17 @@ export async function runReadyToggleFlow(args: {
     }
     
     // Append events to tape
-    appendEvents(result.events || [], {
+    const events = result.events || [];
+    appendEvents(events, {
       label: 'DECLARE_READY',
       turn: turnNumber,
       phaseKey,
     });
+    
+    const diceCount = countDiceRolledEvents(events);
+    if (diceCount > 0) {
+      bumpDiceRollSeq(diceCount);
+    }
     
     console.log('✅ [useGameSession] DECLARE_READY accepted');
     
@@ -585,6 +755,7 @@ export async function maybeAutoRevealBuild(args: {
   submitIntent: (body: any) => Promise<Response>;
   appendEvents: (events: any[], meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
   refreshGameStateOnce: () => Promise<void>;
+  bumpDiceRollSeq: (n: number) => void;
 }): Promise<void> {
   const {
     phaseKey,
@@ -602,6 +773,7 @@ export async function maybeAutoRevealBuild(args: {
     submitIntent,
     appendEvents,
     refreshGameStateOnce,
+    bumpDiceRollSeq,
   } = args;
 
   try {
@@ -695,11 +867,17 @@ export async function maybeAutoRevealBuild(args: {
       return; // keep cache for retry
     }
     
-    appendEvents(revealResult.events || [], {
+    const events = revealResult.events || [];
+    appendEvents(events, {
       label: 'BUILD_REVEAL (auto @ battle.reveal)',
       turn: turnNumber,
       phaseKey,
     });
+    
+    const diceCount = countDiceRolledEvents(events);
+    if (diceCount > 0) {
+      bumpDiceRollSeq(diceCount);
+    }
     
     setBuildRevealDoneByPhase(prev => ({ ...prev, [buildInstanceKey]: true }));
     buildCommitCache.clearCache(buildCacheKey);

@@ -18,7 +18,7 @@
  * - Trigger number is chosen ONCE when Frigate is first drawn (permanent choice)
  */
 
-import { useState } from 'react';
+import type React from 'react';
 import { getShipDefinitionUI } from '../../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../../graphics/resolveShipGraphic';
 import { ActionButton } from '../../../../components/ui/primitives/buttons/ActionButton';
@@ -30,9 +30,21 @@ import { ActionButton } from '../../../../components/ui/primitives/buttons/Actio
 interface FrigateDrawingPanelProps {
   /**
    * Number of Frigates requiring trigger selection this turn.
-   * Typically derived from vm.board or a temporary VM field for this phase.
+   * This should come from the build preview (how many FRI are being built this turn),
+   * not from the existing fleet count.
    */
   frigateCount: number;
+
+  /**
+   * Controlled selection state: index corresponds to the Nth Frigate built this turn.
+   * Must be length >= frigateCount (extra entries ignored).
+   */
+  selectedTriggers: number[];
+
+  /**
+   * Called when user selects a trigger for a specific Frigate index.
+   */
+  onSelectTrigger: (frigateIndex: number, triggerNumber: number) => void;
 
   className?: string;
 }
@@ -43,6 +55,8 @@ interface FrigateDrawingPanelProps {
 
 export function FrigateDrawingPanel({
   frigateCount,
+  selectedTriggers,
+  onSelectTrigger,
   className,
 }: FrigateDrawingPanelProps) {
   // ============================================================================
@@ -50,10 +64,6 @@ export function FrigateDrawingPanel({
   // ============================================================================
 
   // Track selected trigger number for each Frigate (defaults to 1)
-  const [selectedTriggers, setSelectedTriggers] = useState<number[]>(
-    Array.from({ length: frigateCount }, () => 1)
-  );
-
   // ============================================================================
   // RESOLVE FRIGATE GRAPHIC
   // ============================================================================
@@ -114,12 +124,8 @@ export function FrigateDrawingPanel({
           <FrigateSelectorBlock
             key={index}
             frigateIndex={index}
-            selectedTrigger={selectedTriggers[index]}
-            onTriggerSelect={(triggerNumber) => {
-              const newTriggers = [...selectedTriggers];
-              newTriggers[index] = triggerNumber;
-              setSelectedTriggers(newTriggers);
-            }}
+            selectedTrigger={selectedTriggers[index] ?? 1}
+            onTriggerSelect={(triggerNumber) => onSelectTrigger(index, triggerNumber)}
             FrigateGraphic={FrigateGraphic}
           />
         ))}

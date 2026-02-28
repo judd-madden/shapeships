@@ -68,6 +68,7 @@ export const STRUCTURED_POWERS_HUMAN: Record<ShipPowerKey, StructuredShipPower[]
   // ==========================================================================
   // BATTLE CRUISER (BAT)
   // ==========================================================================
+  // See /engine/lines/ for line bonus logic.
   // JSON power index 1: "Heal 3." (Automatic)
   'BAT#1': [
     {
@@ -149,7 +150,91 @@ export const STRUCTURED_POWERS_HUMAN: Record<ShipPowerKey, StructuredShipPower[]
         }
       ]
     }
-  ]
+  ],
+
+  // ==========================================================================
+  // CARRIER (CAR)
+  // ==========================================================================
+  // Choice power in build.ships_that_build:
+  // - defender: SpendCharge(1) + CreateShip('DEF')
+  // - fighter:  SpendCharge(2) + CreateShip('FIG')
+  // - hold:     no effect
+  'CAR#0': [
+    {
+      type: 'choice',
+      timings: ['build.ships_that_build'],
+      requiresCharge: true,
+      // NOTE: power-level chargeCost is NOT used for gating here (options have different costs)
+      options: [
+        {
+          choiceId: 'defender',
+          label: '', // UI copy in ShipChoiceRegistry only
+          requiresCharge: true,
+          chargeCost: 1,
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.SpendCharge,
+              amount: 1,
+              targetPlayer: 'self',
+            },
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.CreateShip,
+              shipDefId: 'DEF',
+              targetPlayer: 'self',
+            },
+          ],
+        },
+        {
+          choiceId: 'fighter',
+          label: '', // UI copy in ShipChoiceRegistry only
+          requiresCharge: true,
+          chargeCost: 2,
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.SpendCharge,
+              amount: 2,
+              targetPlayer: 'self',
+            },
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.CreateShip,
+              shipDefId: 'FIG',
+              targetPlayer: 'self',
+            },
+          ],
+        },
+        {
+          choiceId: 'hold',
+          label: '',
+          requiresCharge: false,
+          chargeCost: 0,
+          effects: [],
+        },
+      ],
+    },
+  ],
+
+
+// ==========================================================================
+// FRIGATE (FRI)
+// ==========================================================================
+// JSON power index 2: "Heal 2." (Automatic)
+'FRI#2': [
+  {
+    type: 'effect',
+    timings: ['battle.end_of_turn_resolution'],
+    kind: EffectKind.Heal,
+    amount: 2,
+    targetPlayer: 'self',
+  },
+]
 };
 
 // ============================================================================

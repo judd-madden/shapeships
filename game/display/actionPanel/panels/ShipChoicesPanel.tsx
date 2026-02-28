@@ -134,11 +134,20 @@ function ShipGroupRenderer({ group, selectedChoiceIdBySourceInstanceId, onSelect
               ? (choiceId: string) => onSelectChoiceForInstance(ship.sourceInstanceId!, choiceId)
               : undefined;
 
+            // Disable buttons when not eligible (use availableChoiceIds)
+            const buttonsWithDisabled = ship.availableChoiceIds
+              ? ship.buttons.map(b => ({
+                  ...b,
+                  disabled: b.choiceId ? !ship.availableChoiceIds!.includes(b.choiceId) : b.disabled,
+                }))
+              : ship.buttons;
+
             return (
               <ShipChoiceGroup
                 key={shipIndex}
                 shipDefId={ship.shipDefId}
-                buttons={ship.buttons}
+                buttons={buttonsWithDisabled}
+                graphicContext={ship.currentCharges != null ? 'live' : undefined}
                 explicitCharges={ship.explicitCharges}
                 currentCharges={ship.currentCharges}
                 selectedChoiceId={selectedChoiceId}
@@ -175,11 +184,20 @@ function ShipGroupRenderer({ group, selectedChoiceIdBySourceInstanceId, onSelect
               ? (choiceId: string) => onSelectChoiceForInstance(ship.sourceInstanceId!, choiceId)
               : undefined;
 
+            // Disable buttons when not eligible (use availableChoiceIds)
+            const buttonsWithDisabled = ship.availableChoiceIds
+              ? ship.buttons.map(b => ({
+                  ...b,
+                  disabled: b.choiceId ? !ship.availableChoiceIds!.includes(b.choiceId) : b.disabled,
+                }))
+              : ship.buttons;
+
             return (
               <ShipChoiceGroup
                 key={shipIndex}
                 shipDefId={ship.shipDefId}
-                buttons={ship.buttons}
+                buttons={buttonsWithDisabled}
+                graphicContext={ship.currentCharges != null ? 'live' : undefined}
                 explicitCharges={ship.explicitCharges}
                 currentCharges={ship.currentCharges}
                 selectedChoiceId={selectedChoiceId}

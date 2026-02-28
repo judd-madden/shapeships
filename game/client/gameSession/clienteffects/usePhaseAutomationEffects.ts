@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type React from 'react';
 
 export function useBuildPreviewResetEffect(args: {
   turnNumber: number;
@@ -49,33 +50,27 @@ export function useAutoRevealBuildEffect(args: {
 
   appendEvents: (events: any[], meta?: any) => void;
   refreshGameStateOnce: () => Promise<void>;
+  bumpDiceRollSeq: (n: number) => void;
   
   autoBuildRevealSubmittedTurnsRef: React.MutableRefObject<Set<number>>;
 }) {
   const {
     phaseKey,
     effectiveGameId,
-    turnNumber,
     buildInstanceKey,
-
     buildCommitDoneByPhase,
     buildRevealDoneByPhase,
     setBuildRevealDoneByPhase,
-
     buildCommitCache,
-    
     rawState,
     me,
     mySessionId,
-    
     setAwaitingBuildRevealSync,
-
     submitIntent,
     maybeAutoRevealBuild,
-
     appendEvents,
     refreshGameStateOnce,
-    
+    bumpDiceRollSeq,
     autoBuildRevealSubmittedTurnsRef,
   } = args;
 
@@ -156,6 +151,7 @@ export function useAutoRevealBuildEffect(args: {
           submitIntent,
           appendEvents,
           refreshGameStateOnce,
+          bumpDiceRollSeq,
         });
 
         // Only mark as submitted AFTER the call succeeds.

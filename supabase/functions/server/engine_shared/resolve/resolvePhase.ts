@@ -18,9 +18,11 @@ import type { GameState, ShipInstance } from '../../engine/state/GameStateTypes.
 import { GAME_STATE_TYPES_VERSION } from '../../engine/state/GameStateTypes.ts';
 import type { PhaseKey } from '../phase/PhaseTable.ts';
 import type { Effect } from '../effects/Effect.ts';
+import { EffectTiming, EffectKind, SurvivabilityRule } from '../effects/Effect.ts';
 import { translateShipPowers, type TranslateContext } from '../effects/translateShipPowers.ts';
 import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
+import { computePhaseComputedEffects } from './phaseComputedEffects.ts';
 
 // ============================================================================
 // RESOLVE PHASE
@@ -123,17 +125,51 @@ function resolveBattleEndOfTurn(
     };
   }
 
-  // Step 1: Collect all effects from all ships
-  const effects = collectEffectsForPhase(state, phaseKey);
+  // Initialize powerMemory if not present
+  if (!state.gameData.powerMemory) {
+    state = {
+      ...state,
+      gameData: {
+        ...state.gameData,
+        powerMemory: {
+          onceOnlyFired: {},
+        },
+      },
+    };
+  }
 
-  console.log(`[resolveBattleEndOfTurn] Collected ${effects.length} effects for ${phaseKey}`);
+  if (!state.gameData.powerMemory.onceOnlyFired) {
+    state = {
+      ...state,
+      gameData: {
+        ...state.gameData,
+        powerMemory: {
+          ...state.gameData.powerMemory,
+          onceOnlyFired: {},
+        },
+      },
+    };
+  }
 
-  // Step 2: Apply effects (accumulates Damage/Heal into pendingTurn)
+  // Step 1: Compute all computed effects for this phase (once-only, tiered, triggers, etc.)
+  const computed = computePhaseComputedEffects(state, phaseKey);
+  state = computed.state;
+  const computedEffects = computed.effects;
+
+  // Step 2: Collect all effects from ship powers
+  const shipEffects = collectEffectsForPhase(state, phaseKey);
+
+  console.log(`[resolveBattleEndOfTurn] Collected ${shipEffects.length} ship effects + ${computedEffects.length} computed effects for ${phaseKey}`);
+
+  // Step 3: Merge computed effects with ship effects
+  const effects = [...computedEffects, ...shipEffects];
+
+  // Step 4: Apply effects (accumulates Damage/Heal into pendingTurn)
   const applied = applyEffects(state, effects);
 
   console.log(`[resolveBattleEndOfTurn] Applied effects, generated ${applied.events.length} events`);
 
-  // Step 3: Extract totals from pendingTurn (canonical accumulation source)
+  // Step 5: Extract totals from pendingTurn (canonical accumulation source)
   const totals = {
     damageByPlayerId: { ...(applied.state.gameData.pendingTurn?.damageByPlayerId || {}) },
     healByPlayerId: { ...(applied.state.gameData.pendingTurn?.healByPlayerId || {}) },
@@ -141,15 +177,15 @@ function resolveBattleEndOfTurn(
 
   console.log(`[resolveBattleEndOfTurn] Pending turn totals:`, totals);
 
-  // Step 4: Apply aggregated health changes simultaneously
+  // Step 6: Apply aggregated health changes simultaneously
   const healthResult = applyAggregatedHealth(applied.state, totals);
 
   console.log(`[resolveBattleEndOfTurn] Applied aggregated health, generated ${healthResult.events.length} events`);
 
-  // Step 5: Health clamping, victory evaluation, and terminal state
+  // Step 7: Health clamping, victory evaluation, and terminal state
   const victoryResult = evaluateVictoryConditions(healthResult.state, [], phaseKey);
 
-  // Step 6: Clear pendingTurn for next turn
+  // Step 8: Clear pendingTurn for next turn
   const clearedState = {
     ...victoryResult.state,
     gameData: {

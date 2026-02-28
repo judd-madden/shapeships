@@ -42,6 +42,7 @@ export interface HudViewModel {
 export interface LeftRailViewModel {
   // Dice
   diceValue: number; // 1-6
+  diceAnimateKey: number; // increments on each DICE_ROLLED event (drives animation)
   
   // Phase card
   turn: number;
@@ -149,9 +150,6 @@ export interface BottomActionRailViewModel {
   // NEW: server-authoritative ready indicator for button selected state
   readySelected: boolean;
   
-  // Visual-only flash when second to ready
-  readyFlashSelected: boolean;
-  
   // Misc
   spectatorCount: number;
 }
@@ -186,7 +184,7 @@ export interface ActionPanelViewModel {
   };
 
   // NEW (UI-derivations for panels)
-  frigateDrawing?: { frigateCount: number };
+  frigateDrawing?: { frigateCount: number; selectedTriggers: number[] };
   evolverDrawing?: { evolverCount: number };
 
   shipChoices?: {
@@ -231,4 +229,5 @@ export interface GameSessionActions {
   onRematch: () => void;
   onDownloadBattleLog: () => void;
   onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;
+  onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => void;
 }

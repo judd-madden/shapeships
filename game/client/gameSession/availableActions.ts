@@ -63,6 +63,17 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
       return { kind: 'none' };
     }
 
+    // If Actions are available in build.drawing (server OR client special actions),
+    // and we're currently on self catalogue, prefer switching to Actions.
+    // Caller should only re-run routing on an edge (e.g. 0 -> >0) to avoid fighting user navigation.
+    if (hasActionsAvailable && actionsTargetPanelId && activePanelId === selfCatalogue) {
+      return {
+        kind: 'setActivePanelId',
+        nextPanelId: actionsTargetPanelId,
+        log: `[useGameSession] build.drawing: actions available; switching to Actions: ${actionsTargetPanelId}`,
+      };
+    }
+
     // Otherwise, keep defaulting to self catalogue
     if (activePanelId !== selfCatalogue) {
       return {

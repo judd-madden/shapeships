@@ -46,6 +46,7 @@ import {
   type BuildSubmitPayload,
   type BattleRevealPayload,
   type ActionPayload,
+  type ActionsBatchPayload,
   type BattleWindow,
   RejectionCode,
   getSpeciesCommitKey,
@@ -167,7 +168,9 @@ export async function applyIntent(
     'BUILD_SUBMIT',
     'BATTLE_COMMIT',
     'BATTLE_REVEAL',
-    'DECLARE_READY'
+    'DECLARE_READY',
+    'ACTION',
+    'ACTIONS_SUBMIT'
   ]);
   
   if (playerAuthoredIntents.has(intent.intentType)) {
@@ -308,6 +311,9 @@ export async function applyIntent(
       
     case 'ACTION':
       return handleAction(state, sessionPlayerId, intent, nowMs, events);
+      
+    case 'ACTIONS_SUBMIT':
+      return handleActionsSubmit(state, sessionPlayerId, intent, nowMs, events);
       
     case 'SURRENDER':
       return handleSurrender(state, sessionPlayerId, intent, nowMs, events);
@@ -789,7 +795,7 @@ async function handleBuildCommit(
 // ============================================================================
 
 // Maximum build count per ship type to prevent state bloat
-const MAX_BUILD_COUNT = 20;
+const MAX_BUILD_COUNT = 50;
 
 async function handleBuildReveal(
   state: any,
@@ -1218,6 +1224,51 @@ async function handleBuildSubmit(
       };
     }
   }
+
+  // Validate optional Frigate triggers payload
+  const frigateBuildCount = payload.builds
+    .filter(b => b.shipDefId === 'FRI')
+    .reduce((sum, b) => sum + (b.count ?? 0), 0);
+
+  if (payload.frigateTriggers !== undefined) {
+    if (!Array.isArray(payload.frigateTriggers)) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Invalid build payload: frigateTriggers must be an array',
+        },
+      };
+    }
+
+    if (payload.frigateTriggers.length !== frigateBuildCount) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: `Invalid frigateTriggers length: expected ${frigateBuildCount}, got ${payload.frigateTriggers.length}`,
+        },
+      };
+    }
+
+    for (const t of payload.frigateTriggers) {
+      if (!Number.isInteger(t) || t < 1 || t > 6) {
+        return {
+          ok: false,
+          state,
+          events: [],
+          rejected: {
+            code: RejectionCode.BAD_PAYLOAD,
+            message: `Invalid frigateTriggers entry: ${t}. Must be integer 1..6`,
+          },
+        };
+      }
+    }
+  }
   
   // B3) Compute commit hash and store submission
   const turnNumber = intent.turnNumber;
@@ -1311,6 +1362,16 @@ async function handleBuildSubmit(
         const pRecord = getCommitRecord(state, commitKey, p.id);
         if (pRecord && pRecord.revealPayload) {
           const pPayload = pRecord.revealPayload as BuildSubmitPayload;
+
+          // Frigate trigger cursor for this player's build payload
+          let frigateTriggerCursor = 0;
+          const frigateTriggers = pPayload.frigateTriggers;
+
+          // Ensure powerMemory + map exists
+          if (!state.gameData.powerMemory) state.gameData.powerMemory = {};
+          if (!state.gameData.powerMemory.frigateTriggerByInstanceId) {
+            state.gameData.powerMemory.frigateTriggerByInstanceId = {};
+          }
           
           // Ensure player has a ship array
           if (!state.gameData.ships[p.id]) {
@@ -1335,6 +1396,12 @@ async function handleBuildSubmit(
               // Initialize charges for ships that have them
               if (shipDef && typeof shipDef.charges === 'number') {
                 shipInstance.chargesCurrent = shipDef.charges;
+              }
+
+              // Store Frigate trigger if this is a Frigate
+              if (shipInstance.shipDefId === 'FRI') {
+                const trigger = frigateTriggers?.[frigateTriggerCursor++] ?? 1;
+                state.gameData.powerMemory!.frigateTriggerByInstanceId![shipInstance.instanceId] = trigger;
               }
               
               state.gameData.ships[p.id].push(shipInstance);
@@ -1803,6 +1870,188 @@ function handleAction(
       code: RejectionCode.BAD_PAYLOAD,
       message: `Unsupported action type: ${payload.actionType}`
     }
+  };
+}
+
+// ============================================================================
+// ACTIONS_SUBMIT (batch power actions)
+// ============================================================================
+
+function handleActionsSubmit(
+  state: any,
+  playerId: string,
+  intent: IntentRequest,
+  nowMs: number,
+  events: any[]
+): IntentResult {
+  // ============================================================================
+  // VALIDATION: Payload structure
+  // ============================================================================
+  if (!intent.payload) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'Missing payload'
+      }
+    };
+  }
+  
+  const payload = intent.payload as ActionsBatchPayload;
+  
+  if (!Array.isArray(payload.actions)) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'Payload must have actions array'
+      }
+    };
+  }
+  
+  // ============================================================================
+  // GET CURRENT PHASE
+  // ============================================================================
+  const phaseKey = getPhaseKey(state);
+  if (!phaseKey) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'Cannot determine current phase'
+      }
+    };
+  }
+  
+  // ============================================================================
+  // BATCH PROCESSING: Apply each action atomically
+  // ============================================================================
+  for (const item of payload.actions) {
+    // Validate action type
+    if (item.actionType !== 'power') {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Only power actions are supported in batch'
+        }
+      };
+    }
+    
+    // Validate required fields
+    if (!item.actionId || typeof item.actionId !== 'string' || item.actionId.trim() === '') {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Missing actionId'
+        }
+      };
+    }
+    
+    if (!item.sourceInstanceId || typeof item.sourceInstanceId !== 'string' || item.sourceInstanceId.trim() === '') {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Missing sourceInstanceId'
+        }
+      };
+    }
+    
+    if (!item.choiceId || typeof item.choiceId !== 'string' || item.choiceId.trim() === '') {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Missing choiceId'
+        }
+      };
+    }
+    
+    // Apply the power action
+    try {
+      const outcome = resolvePowerAction({
+        state,
+        playerId,
+        phaseKey,
+        actionId: item.actionId,
+        sourceInstanceId: item.sourceInstanceId,
+        choiceId: item.choiceId,
+      });
+      
+      state = outcome.state;
+      
+      // Flip declaration-spent flag if in charge_declaration
+      if (phaseKey === 'battle.charge_declaration' && outcome.spentCharge === true) {
+        if (!state.gameData) state.gameData = {};
+        if (!state.gameData.turnData) state.gameData.turnData = {};
+        
+        state.gameData.turnData.anyChargesSpentInDeclaration = true;
+      }
+      
+      // Emit individual POWER_USED event
+      events.push({
+        type: 'POWER_USED',
+        playerId,
+        phaseKey,
+        actionId: item.actionId,
+        sourceInstanceId: item.sourceInstanceId,
+        choiceId: item.choiceId,
+        spentCharge: outcome.spentCharge,
+        atMs: nowMs
+      });
+    } catch (err: any) {
+      // ERROR → Atomic rejection (entire batch fails)
+      const msg = err?.message ?? String(err);
+      
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: msg === 'CHARGE_ALREADY_USED_THIS_TURN'
+            ? RejectionCode.CHARGE_ALREADY_USED_THIS_TURN
+            : RejectionCode.BAD_PAYLOAD,
+          message: msg === 'CHARGE_ALREADY_USED_THIS_TURN'
+            ? 'This ship has already used a charge this turn.'
+            : msg
+        }
+      };
+    }
+  }
+  
+  // ============================================================================
+  // BATCH COMPLETION: Emit wrapper event and sync once
+  // ============================================================================
+  events.push({
+    type: 'POWERS_BATCH_SUBMITTED',
+    playerId,
+    phaseKey,
+    count: payload.actions.length,
+    atMs: nowMs
+  });
+  
+  state = syncPhaseFields(state);
+  
+  return {
+    ok: true,
+    state,
+    events
   };
 }
 

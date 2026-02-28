@@ -55,7 +55,7 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
 
       {/* Dice Area */}
       <div className="shrink-0 flex justify-center">
-        <Dice value={vm.diceValue} />
+        <Dice value={vm.diceValue} animateKey={vm.diceAnimateKey} />
       </div>
 
       {/* Turn / Phase / Subphase Card */}

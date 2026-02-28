@@ -20,6 +20,7 @@ export type IntentType =
   | 'BATTLE_REVEAL'
   | 'DECLARE_READY'
   | 'ACTION'
+  | 'ACTIONS_SUBMIT'
   | 'SURRENDER'
   | 'DRAW_OFFER'
   | 'DRAW_ACCEPT';
@@ -44,6 +45,15 @@ export type BuildRevealPayload = {
 
 export type BuildSubmitPayload = {
   builds: Array<{ shipDefId: string; count: number }>;
+
+  /**
+   * Optional Frigate (FRI) trigger selections for Frigates built this turn.
+   * Must be length == total number of FRI instances created from builds.
+   * Each entry must be integer 1..6.
+   *
+   * Order: consumed in creation order within the build loop.
+   */
+  frigateTriggers?: number[];
 };
 
 export type BattleRevealPayload = {
@@ -85,6 +95,18 @@ export type PowerActionPayload = {
 export type ActionPayload =
   | { actionType: 'message'; content: string }
   | PowerActionPayload;
+
+// ============================================================================
+// BATCH ACTION PAYLOAD (for ACTIONS_SUBMIT)
+// ============================================================================
+
+/**
+ * Batch payload for ACTIONS_SUBMIT intent.
+ * Contains an array of PowerActionPayload items to be applied atomically.
+ */
+export type ActionsBatchPayload = {
+  actions: PowerActionPayload[];
+};
 
 // ============================================================================
 // REJECTION CODES

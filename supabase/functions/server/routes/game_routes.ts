@@ -21,6 +21,7 @@ import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers
 import { getShipById } from '../engine_shared/defs/ShipDefinitions.core.ts';
 import { getShipDefinition } from '../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 import type { StructuredShipPower } from '../engine_shared/effects/translateShipPowers.ts';
+import { rollD6 } from '../engine/util/rollD6.ts';
 
 // ============================================================================
 // HELPER: Get current phase key for readiness checking
@@ -160,6 +161,76 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
   }
 
   // ============================================================================
+  // BUILD.ShipsThatBuild: Derive choice actions from structured powers (Carrier, future builders)
+  // ============================================================================
+  if (phaseKey === 'build.ships_that_build') {
+    const actions: any[] = [];
+
+    const turnNumber: number = state?.gameData?.turnNumber ?? 1;
+    const usedMap: Record<string, number> =
+      state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
+
+    const fleet = state?.ships?.[playerId] ?? state?.gameData?.ships?.[playerId] ?? [];
+
+    for (const shipInstance of fleet) {
+      const shipDefId = shipInstance.shipDefId;
+      const sourceInstanceId = shipInstance.instanceId;
+
+      const shipDef = getShipDefinition(shipDefId);
+      if (!shipDef || !shipDef.structuredPowers) continue;
+
+      for (let powerIndex = 0; powerIndex < shipDef.structuredPowers.length; powerIndex++) {
+        const power: StructuredShipPower = shipDef.structuredPowers[powerIndex];
+        if (power.type !== 'choice') continue;
+        if (!power.timings.includes(phaseKey)) continue;
+
+        // Once-per-turn lock for any charge-spending choice power
+        const requiresCharge =
+          (power.requiresCharge ?? false) ||
+          (Array.isArray((power as any).options) && (power as any).options.some((o: any) => (o?.requiresCharge ?? false) === true));
+
+        if (requiresCharge && usedMap[sourceInstanceId] === turnNumber) continue;
+
+        const chargesCurrent = shipInstance.chargesCurrent ?? 0;
+
+        // Option-level eligibility (Carrier has mixed costs)
+        const eligibleChoices = (power as any).options
+          .filter((opt: any) => {
+            const cid = opt?.choiceId;
+            if (cid === 'hold') return true;
+
+            const optRequiresCharge = (opt?.requiresCharge ?? false) || (power.requiresCharge ?? false);
+            if (!optRequiresCharge) return true;
+
+            const cost = opt?.chargeCost ?? power.chargeCost ?? 1;
+            return chargesCurrent >= cost;
+          })
+          .map((opt: any) => ({ choiceId: opt.choiceId }));
+
+        // Only emit if there is at least one real (non-hold) option
+        const hasNonHold = eligibleChoices.some((c: any) => c.choiceId !== 'hold');
+        if (!hasNonHold) continue;
+
+        actions.push({
+          kind: 'choice',
+          actionId: `${shipDefId}#${powerIndex}`,
+          shipDefId,
+          sourceInstanceId,
+          choices: eligibleChoices,
+        });
+      }
+    }
+
+    actions.sort((a, b) => {
+      if (a.shipDefId !== b.shipDefId) return a.shipDefId.localeCompare(b.shipDefId);
+      if (a.sourceInstanceId !== b.sourceInstanceId) return a.sourceInstanceId.localeCompare(b.sourceInstanceId);
+      return a.actionId.localeCompare(b.actionId);
+    });
+
+    return actions;
+  }
+
+  // ============================================================================
   // OTHER PHASES: Use fleetHasAvailablePowers (unchanged)
   // ============================================================================
   const subphases = getSubphasesForAvailableActions(phaseKey);
@@ -282,13 +353,16 @@ function reconcileBuildDrawingIfComplete(state: any, nowMs: number) {
 }
 
 // ============================================================================
-// HELPER: Apply game-state maintenance pipeline (merge-safe)
+// HELPER: Apply game-state maintenance pipeline for GET responses (read-only; no persistence)
 // ============================================================================
 function applyGameStateMaintenance(state: any, nowMs: number): any {
   let s = state;
+  // Safe maintenance for GET responses only:
+  // - syncPhaseFields: keep derived phase fields consistent
+  // - accrueClocks: compute up-to-date clock view
+  // IMPORTANT: Do NOT run reconciliation that can advance phases in GET.
   s = syncPhaseFields(s);
   s = accrueClocks(s, nowMs);
-  s = reconcileBuildDrawingIfComplete(s, nowMs);
   return s;
 }
 
@@ -690,28 +764,8 @@ export function registerGameRoutes(
       const baseState = gameData;
       const prevStatus = baseState?.status;
       
-      // Apply maintenance pipeline to base state
-      const fromBase = applyGameStateMaintenance(baseState, nowMs);
-      
-      // Determine if persistence is needed (maintenance changed state)
-      const shouldPersist =
-        fromBase.gameData?.clock?.lastUpdateAtMs !== baseState.gameData?.clock?.lastUpdateAtMs ||
-        fromBase.gameData?.currentPhase !== baseState.gameData?.currentPhase ||
-        fromBase.gameData?.currentSubPhase !== baseState.gameData?.currentSubPhase ||
-        fromBase.gameData?.phaseStartTime !== baseState.gameData?.phaseStartTime;
-      
-      // Merge-safe persist: reload latest and reapply maintenance
-      let finalState = fromBase;
-      if (shouldPersist) {
-        const latestState = await kvGet(`game_${gameId}`);
-        if (latestState) {
-          finalState = applyGameStateMaintenance(latestState, nowMs);
-          await kvSet(`game_${gameId}`, finalState);
-        }
-      }
-      
-      // Use finalState for all subsequent operations
-      gameData = finalState;
+      // Apply maintenance pipeline for RESPONSE ONLY (read-only; no KV persistence)
+      gameData = applyGameStateMaintenance(baseState, nowMs);
       
       // Detect terminal transition after all mutations
       const events: any[] = [];
@@ -1201,7 +1255,7 @@ export function registerGameRoutes(
           switch (content.action) {
             case 'roll_dice':
               // Simple dice roll simulation
-              const diceRoll = Math.floor(Math.random() * 6) + 1;
+              const diceRoll = rollD6();
               const rollPlayerIndex = gameData.players.findIndex(p => p.id === playerId);
               if (rollPlayerIndex !== -1) {
                 gameData = {
@@ -1240,7 +1294,7 @@ export function registerGameRoutes(
           }
           
           // Simple dice roll for simplified game - shared by both players
-          const diceRoll = Math.floor(Math.random() * 6) + 1;
+          const diceRoll = rollD6();
           
           if (!gameData.gameData) gameData.gameData = {};
           gameData.gameData.diceRoll = diceRoll;

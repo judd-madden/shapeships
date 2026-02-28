@@ -4837,6 +4837,48 @@ html {
   animation: .4s ease-out both ssToRightEntry;
 }
 
+@keyframes ssDiceRollSpring {
+  0% {
+    transform: scale(1);
+  }
+
+  12% {
+    transform: scale(1.35);
+  }
+
+  28% {
+    transform: scale(.92);
+  }
+
+  48% {
+    transform: scale(1.18);
+  }
+
+  68% {
+    transform: scale(.97);
+  }
+
+  85% {
+    transform: scale(1.06);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.ss-dice-roll-bounce {
+  transform-origin: center;
+  will-change: transform;
+  animation: .9s cubic-bezier(.22, 1, .36, 1) ssDiceRollSpring;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-dice-roll-bounce {
+    animation: none;
+  }
+}
+
 @property --tw-scale-x {
   syntax: "*";
   inherits: false;

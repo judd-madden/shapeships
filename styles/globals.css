@@ -453,3 +453,43 @@ html {
 .ss-entry-to-right {
   animation: ssToRightEntry 0.4s ease-out both;
 }
+
+/* ============================================================================
+   Dice Roll Animation
+   ========================================================================== */
+
+/* Heavy spring-style dice roll.
+   JS ROLL_MS must match 900ms exactly. */
+
+@keyframes ssDiceRollSpring {
+  0%   { transform: scale(1); }
+
+  /* big launch */
+  12%  { transform: scale(1.35); }
+
+  /* deep compression */
+  28%  { transform: scale(0.92); }
+
+  /* rebound */
+  48%  { transform: scale(1.18); }
+
+  /* smaller rebound */
+  68%  { transform: scale(0.97); }
+
+  /* settle overshoot */
+  85%  { transform: scale(1.06); }
+
+  100% { transform: scale(1); }
+}
+
+.ss-dice-roll-bounce {
+  transform-origin: center;
+  animation: ssDiceRollSpring 900ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-dice-roll-bounce {
+    animation: none;
+  }
+}
