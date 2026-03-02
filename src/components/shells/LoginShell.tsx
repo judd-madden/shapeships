@@ -36,7 +36,7 @@ export function LoginShell({ onNavigate, onNameSubmit, onLogin, alphaDisableAuth
             
             {/* Logo */}
             <div className="grid-cols-[max-content] grid-rows-[max-content] inline-grid leading-[0] place-items-start relative shrink-0">
-              <p className="[grid-area:1_/_1] font-['Inter'] font-bold leading-[normal] ml-[203.9px] mt-[0.49px] not-italic relative text-[105.935px] text-nowrap">
+              <p className="[grid-area:1_/_1] font-['Roboto'] font-bold leading-[normal] ml-[203.9px] mt-[0.49px] not-italic relative text-[105.935px] text-nowrap">
                 SHAPESHIPS
               </p>
               <div className="[grid-area:1_/_1] flex h-[136.015px] items-center justify-center ml-0 mt-0 relative w-[159.556px]">

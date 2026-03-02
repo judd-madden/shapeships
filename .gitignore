@@ -4,6 +4,9 @@ src/utils/supabase/info.tsx
 # Dependencies
 node_modules/
 
+# Patches
+patches/
+
 # Build outputs
 dist/
 build/

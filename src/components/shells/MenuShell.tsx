@@ -83,7 +83,7 @@ export function MenuShell({
         <div className="content-stretch flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-0 relative shrink-0 w-full">
           {/* Logo */}
           <div className="grid-cols-[max-content] grid-rows-[max-content] inline-grid leading-[0] place-items-start relative shrink-0">
-            <p className="[grid-area:1_/_1] font-['Inter:Bold',sans-serif] font-bold leading-[normal] ml-[80px] md:ml-[130.04px] mt-[0.31px] not-italic relative text-[48px] md:text-[67.563px] text-nowrap">
+            <p className="[grid-area:1_/_1] font-['Roboto',sans-serif] font-bold leading-[normal] ml-[80px] md:ml-[130.04px] mt-[0.31px] not-italic relative text-[48px] md:text-[67.563px] text-nowrap">
               SHAPESHIPS
             </p>
             <div className="[grid-area:1_/_1] flex h-[60px] md:h-[86.748px] items-center justify-center ml-0 mt-0 relative w-[70px] md:w-[101.762px]">
@@ -175,7 +175,7 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`font-['Roboto:Black',sans-serif] font-black leading-[32px] relative shrink-0 text-[24px] md:text-[28px] text-nowrap uppercase ${
+                  className={`font-['Roboto',sans-serif] font-black leading-[32px] relative shrink-0 text-[24px] md:text-[28px] text-nowrap uppercase ${
                     activePanel === 'multiplayer' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
@@ -193,7 +193,7 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`font-['Roboto:Black',sans-serif] font-black leading-[32px] relative shrink-0 text-[24px] md:text-[28px] text-nowrap uppercase ${
+                  className={`font-['Roboto',sans-serif] font-black leading-[32px] relative shrink-0 text-[24px] md:text-[28px] text-nowrap uppercase ${
                     activePanel === 'rules' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}

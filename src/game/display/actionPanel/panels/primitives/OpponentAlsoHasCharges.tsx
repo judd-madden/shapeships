@@ -51,7 +51,7 @@ export function OpponentAlsoHasCharges({
     >
       {/* Large Red Exclamation Mark (Text Character) */}
       <p
-        className="font-['Roboto:Black',sans-serif] font-black leading-[normal] relative shrink-0 text-[var(--shapeships-pastel-red)] text-[40px]"
+        className="font-['Roboto',sans-serif] font-black leading-[normal] relative shrink-0 text-[var(--shapeships-pastel-red)] text-[40px]"
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
         !
@@ -64,7 +64,7 @@ export function OpponentAlsoHasCharges({
       >
         {/* Heading (Bold White) */}
         <p
-          className="font-['Roboto:Bold',sans-serif] font-bold leading-[normal] relative shrink-0 text-white w-full"
+          className="font-['Roboto',sans-serif] font-bold leading-[normal] relative shrink-0 text-white w-full"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {heading}
@@ -72,7 +72,7 @@ export function OpponentAlsoHasCharges({
 
         {/* Paragraphs (Grey 50) */}
         <div
-          className="font-['Roboto:Regular',sans-serif] font-normal leading-[0] relative shrink-0 text-[var(--shapeships-grey-50)] w-full"
+          className="font-['Roboto',sans-serif] font-normal leading-[0] relative shrink-0 text-[var(--shapeships-grey-50)] w-full"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {lines.map((line, index) => (

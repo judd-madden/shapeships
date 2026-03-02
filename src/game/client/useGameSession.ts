@@ -34,7 +34,7 @@ import type { ShipChoicesPanelGroup } from '../types/ShipChoiceTypes';
 import type { FleetAnimVM } from '../display/graphics/animation';
 import type { OpponentFleetEntryPlan, ActivationStaggerPlan } from '../display/graphics/animation-stagger';
 import { computeOpponentEntryPlan, computeActivationStaggerPlan } from '../display/graphics/animation-stagger';
-import { PUBLIC_APP_ORIGIN } from './config';
+import { buildShareGameUrl } from './config';
 import { generateNonce, makeCommitHash } from './hashUtils';
 import { isValidPhaseKey } from '../../engine/phase/PhaseTable';
 import { getPlayerName } from './gameSession/playerName';
@@ -932,7 +932,7 @@ useEffect(() => {
 
   if (isInSpeciesSelection) {
     // Choose species mode
-    const shareGameUrl = `${PUBLIC_APP_ORIGIN}/?game=${effectiveGameId}&view=gameScreen`;
+      const shareGameUrl = buildShareGameUrl(effectiveGameId);
 
     // Determine if Confirm button should be enabled
     // Strict gating: requires phase, player role, and active status
@@ -1733,7 +1733,7 @@ useEffect(() => {
     onCopyGameUrl: () => {
       // Copy the shareable game URL to clipboard
       // Include view=gameScreen to land directly on GameScreen (not dashboard)
-      const shareGameUrl = `${PUBLIC_APP_ORIGIN}/?game=${effectiveGameId}&view=gameScreen`;
+       const shareGameUrl = buildShareGameUrl(effectiveGameId);
       
       navigator.clipboard.writeText(shareGameUrl)
         .then(() => {

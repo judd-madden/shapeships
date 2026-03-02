@@ -205,7 +205,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
               <div className="h-[77.97px] relative shrink-0 w-[90.098px] flex items-center justify-center">
                 <FighterShip className="w-[90px] h-[78px]" />
               </div>
-              <p className="font-['Inter'] font-medium leading-[24.365px] min-w-full text-[15.838px] text-center text-white tracking-[-0.1584px] w-[min-content]">
+              <p className="font-['Roboto'] font-medium leading-[24.365px] min-w-full text-[15.838px] text-center text-white tracking-[-0.1584px] w-[min-content]">
                 Fighter
               </p>
             </div>
@@ -215,7 +215,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
               <div className="h-[38.887px] relative shrink-0 w-[74.664px] flex items-center justify-center">
                 <ShipOfEquality2Ship className="w-[87px] h-[45px]" />
               </div>
-              <p className="font-['Inter'] font-medium leading-[21.929px] min-w-full text-[15.838px] text-center text-white tracking-[-0.1584px] w-[min-content]">
+              <p className="font-['Roboto'] font-medium leading-[21.929px] min-w-full text-[15.838px] text-center text-white tracking-[-0.1584px] w-[min-content]">
                 Ship of Equality
               </p>
             </div>
@@ -225,7 +225,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
               <div className="h-[38.887px] relative shrink-0 w-[74.664px] flex items-center justify-center">
                 <ShipOfEquality1Ship className="w-[87px] h-[45px]" />
               </div>
-              <p className="font-['Inter'] font-medium leading-[21.929px] min-w-full text-[15.838px] text-center text-white tracking-[-0.1584px] w-[min-content]">
+              <p className="font-['Roboto'] font-medium leading-[21.929px] min-w-full text-[15.838px] text-center text-white tracking-[-0.1584px] w-[min-content]">
                 1 (of 2) charges
                 <br />
                 used

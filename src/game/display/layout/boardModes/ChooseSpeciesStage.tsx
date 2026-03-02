@@ -70,13 +70,13 @@ export function ChooseSpeciesStage({
                   type="button"
                 >
                   <p
-                    className="font-['Roboto:Black',sans-serif] font-black relative shrink-0"
+                    className="font-['Roboto',sans-serif] font-black relative shrink-0"
                     style={{ fontVariationSettings: "'wdth' 100" }}
                   >
                     CONFIRM
                   </p>
                   <p
-                    className="font-['Roboto:Regular',sans-serif] font-normal relative shrink-0"
+                    className="font-['Roboto',sans-serif] font-normal relative shrink-0"
                     style={{ fontVariationSettings: "'wdth' 100" }}
                   >
                     - {selectedSpeciesName}
@@ -138,7 +138,7 @@ export function ChooseSpeciesStage({
       <div className="basis-0 content-stretch flex flex-col grow h-full items-center min-h-px min-w-px relative shrink-0">
         <div className="content-stretch flex flex-col gap-[24px] items-center pb-0 pt-[130px] px-0 relative shrink-0 w-[657.6px]">
           <p
-            className="font-['Roboto:Black',sans-serif] font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
+            className="font-['Roboto',sans-serif] font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             Share Game URL

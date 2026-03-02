@@ -335,7 +335,7 @@ export function AncientShipCataloguePanel({
             className="absolute content-stretch flex gap-[32px] items-center"
             style={{ right: "2px", top: "4px" }}
           >
-            <p className="font-['Inter'] font-normal leading-[20px] text-[15px] text-white">
+            <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-white">
               Available Energy:
             </p>
             <div className="content-stretch flex gap-[29px] items-center">
@@ -466,7 +466,7 @@ export function AncientShipCataloguePanel({
                     </div>
                   </div>
                 </div>
-                <p className="font-['Inter'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
+                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
                   Deal 1 damage
                 </p>
               </div>
@@ -505,7 +505,7 @@ export function AncientShipCataloguePanel({
                     </div>
                   </div>
                 </div>
-                <p className="font-['Inter'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
+                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
                   Heal 1
                 </p>
               </div>
@@ -544,7 +544,7 @@ export function AncientShipCataloguePanel({
                     </div>
                   </div>
                 </div>
-                <p className="font-['Inter'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
+                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
                   +1 Line
                 </p>
               </div>
@@ -618,7 +618,7 @@ export function AncientShipCataloguePanel({
                     </div>
                   </div>
                 </div>
-                <p className="font-['Inter'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
+                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
                   Deal X damage, heal X
                 </p>
               </div>
@@ -679,7 +679,7 @@ export function AncientShipCataloguePanel({
                     </div>
                   </div>
                 </div>
-                <p className="font-['Inter'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
+                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
                   Deal X damage
                 </p>
               </div>
@@ -734,7 +734,7 @@ export function AncientShipCataloguePanel({
                     </div>
                   </div>
                 </div>
-                <p className="font-['Inter'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
+                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
                   Heal X
                 </p>
               </div>
@@ -773,7 +773,7 @@ export function AncientShipCataloguePanel({
                     </div>
                   </div>
                 </div>
-                <p className="font-['Inter'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
+                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
                   Copy basic enemy ship
                 </p>
               </div>
@@ -865,7 +865,7 @@ export function AncientShipCataloguePanel({
                     </div>
                   </div>
                 </div>
-                <p className="font-['Inter'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
+                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
                   Deal X damage
                 </p>
               </div>
@@ -1063,10 +1063,10 @@ export function AncientShipCataloguePanel({
                 </div>
               </div>
               <div className="content-stretch flex flex-col gap-[4px] items-center w-full">
-                <p className="font-['Inter'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
+                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
                   Destroy TWO of the opponent's basic ships.
                 </p>
-                <p className="font-['Inter'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
+                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
                   Deal 4 damage.
                 </p>
               </div>
