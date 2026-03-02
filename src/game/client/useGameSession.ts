@@ -798,6 +798,43 @@ useEffect(() => {
         for (const [shipDefId, previewCount] of Object.entries(buildPreviewCounts)) {
           const delta = Math.max(0, previewCount);
 
+
+        // Special case: Frigate preview overlay respects per-ship trigger selection
+        if (shipDefId === 'FRI') {
+          const triggers = Array.isArray(frigateSelectedTriggersRef.current)
+            ? frigateSelectedTriggersRef.current
+            : [];
+
+          const countsByCaption: Record<string, number> = {};
+
+          for (let i = 0; i < delta; i++) {
+            const tRaw = triggers[i] ?? 1;
+            let t = Number(tRaw);
+
+            if (!Number.isFinite(t)) t = 1;
+            t = Math.max(1, Math.min(6, Math.floor(t)));
+
+            const cap = String(t);
+            countsByCaption[cap] = (countsByCaption[cap] ?? 0) + 1;
+          }
+
+          for (const [cap, n] of Object.entries(countsByCaption)) {
+            const key = `FRI__cap_${cap}`;
+            const existing = byStackKey.get(key);
+            if (existing) {
+              existing.count += n;
+              (existing as any).caption = cap;
+            } else {
+              byStackKey.set(key, {
+                shipDefId,
+                count: n,
+                stackKey: key,
+                caption: cap,
+              } as any);
+            }
+          }
+          continue;
+        }
           // Check ship definition for maxCharges
           const def = getShipDefinitionById(shipDefId as any);
           const maxCharges = def?.maxCharges ?? 0;

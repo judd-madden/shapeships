@@ -165,7 +165,7 @@ function ShipStack({
 
   return (
     <div className="flex flex-row items-center">
-      <div className="flex items-center justify-center">
+      <div className="flex flex-col items-center justify-center">
         <ShipAnimationWrapper 
           shipDefId={ship.shipDefId as ShipDefId} 
           token={animToken}
@@ -175,6 +175,19 @@ function ShipStack({
         >
           {ShipGraphic ? <ShipGraphic /> : <span className="text-white text-sm">{ship.shipDefId}</span>}
         </ShipAnimationWrapper>
+
+        {ship.caption ? (
+          <div
+            className="mt-[4px] font-['Roboto'] font-normal text-[14px] leading-none text-center"
+            style={{
+              color: numberColour ?? 'white',
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          >
+            {ship.caption}
+          </div>
+        ) : null}
       </div>
 
       {/* Count: only render when count > 1 */}

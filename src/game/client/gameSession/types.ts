@@ -88,6 +88,19 @@ export interface BoardFleetSummary {
    * Only required for charge-split/bucket stacks.
    */
   condition?: 'charges_1' | 'charges_0';
+
+  /**
+   * Current charge count for maxCharges>1 active instance entries.
+   * Used to select charges_X graphic variant (e.g. charges_6, charges_4, charges_0).
+   * Only populated for active instances with maxCharges > 1.
+   */
+  currentCharges?: number | null;
+
+  /**
+   * Optional small caption rendered under the ship graphic.
+   * Purely presentational (client-side).
+   */
+  caption?: string | null;
 }
 
 export type BoardViewModel =

@@ -1064,7 +1064,7 @@ export function AncientShipCataloguePanel({
               </div>
               <div className="content-stretch flex flex-col gap-[4px] items-center w-full">
                 <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
-                  Destroy TWO of the opponent's basic ships.
+                  Destroy TWO of the opponent&apos;s basic ships.
                 </p>
                 <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
                   Deal 4 damage.

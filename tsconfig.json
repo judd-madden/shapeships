@@ -1,0 +1,45 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [ "ES2022", "DOM", "DOM.Iterable" ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "useDefineForClassFields": true,
+
+    "types": [ "vite/client" ],
+    "baseUrl": "."
+  },
+  "include": [
+    "src/game/client/**/*.ts",
+    "src/game/client/**/*.tsx",
+    "src/game/display/**/*.ts",
+    "src/game/display/**/*.tsx",
+    "src/game/data/**/*.ts",
+    "src/game/data/**/*.tsx",
+    "src/game/types/**/*.ts",
+    "src/game/types/**/*.tsx",
+    "src/components/shells/**/*.ts",
+    "src/components/shells/**/*.tsx",
+    "src/utils/**/*.ts",
+    "src/utils/**/*.tsx"
+  ],
+  "exclude": [
+    "src/components/dev/**",
+    "src/game/engine/**",
+    "src/game/legacy/**",
+    "src/supabase/**",
+    "src/graphics/**",
+    "src/components/ui/**/*.ts",
+    "src/components/ui/**/*.tsx",
+    "src/game/types/**/*engine*.ts",
+    "src/game/types/**/*engine*.tsx"
+  ]
+}

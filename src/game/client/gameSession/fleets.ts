@@ -31,9 +31,14 @@ interface BoardFleetSummary {
    * Used to select charges_X graphic variant (e.g. charges_6, charges_4, charges_0).
    * Only populated for active instances with maxCharges > 1.
    */
-  currentCharges?: number | null;
-}
+    currentCharges?: number | null;
 
+    /**
+     * Optional small caption rendered under the ship graphic.
+     * Purely presentational (client-side).
+     */
+    caption?: string | null;
+}
 export function deriveFleets(args: {
   rawState: any;
   me: any;
@@ -43,6 +48,10 @@ export function deriveFleets(args: {
 }) {
   const { rawState, me, opponent, turnNumber, majorPhase } = args;
   
+
+  const frigateTriggerByInstanceId =
+    rawState?.gameData?.powerMemory?.frigateTriggerByInstanceId ?? {};
+
   // ============================================================================
   // SHIP OWNERSHIP (ME/OPPONENT)
   // ============================================================================
@@ -74,7 +83,7 @@ export function deriveFleets(args: {
     // Buckets: stackKey -> { shipDefId, count, condition?, currentCharges? }
     const buckets = new Map<
       string,
-      { shipDefId: string; count: number; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null }
+      { shipDefId: string; count: number; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null; caption?: string | null }
     >();
     
     for (const ship of ships) {
@@ -123,15 +132,40 @@ export function deriveFleets(args: {
         }
       } else {
         // Rule 3: maxCharges === 0 (normal stacking)
-        stackKey = shipDefId;
         
-        const existing = buckets.get(stackKey);
-        if (existing) {
-          existing.count++;
-        } else {
-          buckets.set(stackKey, { shipDefId, count: 1, condition: undefined });
-        }
-      }
+                if (shipDefId === 'FRI') {
+                  const rawTrig = (frigateTriggerByInstanceId as any)?.[instanceId];
+                  let trig = Number(rawTrig ?? 1);
+        
+                  if (!Number.isFinite(trig)) trig = 1;
+                  trig = Math.max(1, Math.min(6, Math.floor(trig)));
+        
+                  const caption = String(trig);
+                  const stackKey = `FRI__cap_${caption}`;
+        
+                  const existing = buckets.get(stackKey);
+                  if (existing) {
+                    existing.count++;
+                    existing.caption = caption;
+                  } else {
+                    buckets.set(stackKey, {
+                      shipDefId,
+                      count: 1,
+                      condition: undefined,
+                      caption,
+                    });
+                  }
+                } else {
+                  stackKey = shipDefId;
+        
+                  const existing = buckets.get(stackKey);
+                  if (existing) {
+                    existing.count++;
+                  } else {
+                    buckets.set(stackKey, { shipDefId, count: 1, condition: undefined });
+                  }
+                }
+}
     }
     
     // Convert to array and sort for stable ordering
@@ -141,6 +175,7 @@ export function deriveFleets(args: {
       stackKey,
       condition: data.condition,
       currentCharges: data.currentCharges ?? null,
+      caption: data.caption ?? null,
     }));
     
     // Stable ordering:
