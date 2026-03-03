@@ -19,7 +19,7 @@ import type {
   ShipInstanceId
 } from './EffectTypes';
 
-import type { EnergyCost } from './SolarPowerTypes';
+import type { EnergyCost } from './EnergyCostTypes';
 
 // Re-export for backward compatibility
 export type { TriggeredEffect as QueuedEffect } from './EffectTypes';

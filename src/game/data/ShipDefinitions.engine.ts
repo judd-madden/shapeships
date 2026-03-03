@@ -120,7 +120,7 @@ function mapShipType(csvShipType: string): ShipType {
 // PHASE 2: COST PARSING
 // ============================================================================
 
-function parseComponentShips(components: string[], shipId: string): UpgradedShipCost['components'] {
+function parseComponentShips(components: readonly string[], shipId: string): UpgradedShipCost['components'] {
   const grouped: Record<string, { quantity: number; mustBeDepleted: boolean }> = {};
   
   for (const comp of components) {
@@ -438,7 +438,6 @@ function compilePower(
     rawText: csvPower.text,
     
     // Optional fields (only set when known)
-    effectAst: csvPower.effectAst,
     kind: override?.kind ?? inferred.kind,
     baseAmount: override?.baseAmount ?? inferred.baseAmount,
     specialLogic: override?.specialLogic ?? inferred.specialLogic,

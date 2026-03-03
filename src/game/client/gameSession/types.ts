@@ -41,7 +41,7 @@ export interface HudViewModel {
 
 export interface LeftRailViewModel {
   // Dice
-  diceValue: number; // 1-6
+  diceValue: 1 | 2 | 3 | 4 | 5 | 6;
   diceAnimateKey: number; // increments on each DICE_ROLLED event (drives animation)
   
   // Phase card
@@ -207,7 +207,13 @@ export interface ActionPanelViewModel {
     opponentAlsoHasChargesHeading?: string;
     opponentAlsoHasChargesLines?: string[];
     selectedChoiceIdBySourceInstanceId?: Record<string, string>;
-  };
+    };
+
+  // Server-projected actions for this phase (empty array when none)
+  availableActions: any[];
+
+  // Selection state for server-choice panels
+  selectedChoiceIdBySourceInstanceId: Record<string, string>;
 }
 
 export interface GameSessionViewModel {

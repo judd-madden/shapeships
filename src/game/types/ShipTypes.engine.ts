@@ -12,7 +12,7 @@
  * Effect kind is optional - only set when confidently known.
  */
 
-import type { EffectKind, EffectAst } from './EffectTypes';
+import type { EffectKind } from './EffectTypes';
 
 // ============================================================================
 // ENUMS - Typed classifications
@@ -203,10 +203,7 @@ export interface EngineShipPower {
   rawText: string;
   
   // OPTIONAL STRUCTURED DATA (only set when known/overridden)
-  
-  /** Pre-parsed effect AST (optional, can come from annotations) */
-  effectAst?: EffectAst;
-  
+    
   /** Effect kind (optional - only set when confidently inferred or manually overridden) */
   kind?: EffectKind;
   

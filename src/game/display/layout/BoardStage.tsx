@@ -79,43 +79,43 @@ function getRowFromSets(shipDefId: ShipDefId, rowSets: RowSets): FleetRow {
   return 4; // fallback for unknown/copied ships
 }
 
-function sortByPersistentOrder(
-  ships: Array<{ shipDefId: string; count: number }>,
-  order?: string[]
-) {
-  const index = new Map<string, number>();
-  (order ?? []).forEach((id, i) => index.set(id, i));
+function sortByPersistentOrder<T extends { shipDefId: string; count: number }>(
+    ships: T[],
+    order?: string[]
+): T[] {
+    const index = new Map<string, number>();
+    (order ?? []).forEach((id, i) => index.set(id, i));
 
-  return [...ships].sort((a, b) => {
-    const ai = index.has(a.shipDefId) ? index.get(a.shipDefId)! : Number.POSITIVE_INFINITY;
-    const bi = index.has(b.shipDefId) ? index.get(b.shipDefId)! : Number.POSITIVE_INFINITY;
-    if (ai !== bi) return ai - bi;
-    return a.shipDefId.localeCompare(b.shipDefId);
-  });
+    return [...ships].sort((a, b) => {
+        const ai = index.has(a.shipDefId) ? index.get(a.shipDefId)! : Number.POSITIVE_INFINITY;
+        const bi = index.has(b.shipDefId) ? index.get(b.shipDefId)! : Number.POSITIVE_INFINITY;
+        if (ai !== bi) return ai - bi;
+        return a.shipDefId.localeCompare(b.shipDefId);
+    });
 }
 
-function groupShipsIntoRows(
-  ships: Array<{ shipDefId: string; count: number }>,
-  order: string[] | undefined,
-  rowSets: RowSets
+function groupShipsIntoRows<T extends { shipDefId: string; count: number }>(
+    ships: T[],
+    order: string[] | undefined,
+    rowSets: RowSets
 ) {
-  const sorted = sortByPersistentOrder(ships, order);
+    const sorted = sortByPersistentOrder(ships, order);
 
-  const row1: typeof sorted = [];
-  const row2: typeof sorted = [];
-  const row3: typeof sorted = [];
-  const row4: typeof sorted = [];
+    const row1: T[] = [];
+    const row2: T[] = [];
+    const row3: T[] = [];
+    const row4: T[] = [];
 
-  for (const s of sorted) {
-    const id = s.shipDefId as ShipDefId;
-    const row = getRowFromSets(id, rowSets);
-    if (row === 1) row1.push(s);
-    else if (row === 2) row2.push(s);
-    else if (row === 3) row3.push(s);
-    else row4.push(s);
-  }
+    for (const s of sorted) {
+        const id = s.shipDefId as ShipDefId;
+        const row = getRowFromSets(id, rowSets);
+        if (row === 1) row1.push(s);
+        else if (row === 2) row2.push(s);
+        else if (row === 3) row3.push(s);
+        else row4.push(s);
+    }
 
-  return { row1, row2, row3, row4 };
+    return { row1, row2, row3, row4 };
 }
 
 function ShipStack({ 
@@ -125,7 +125,8 @@ function ShipStack({
   opponentEntryDelays, 
   activationIndexMap 
 }: { 
-  ship: { shipDefId: string; count: number; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null };
+        ship: {
+            shipDefId: string; count: number; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null; caption?: string | null; };
   animToken?: ShipAnimToken;
   side: 'my' | 'opponent';
   opponentEntryDelays?: Record<string, number>;
@@ -176,18 +177,18 @@ function ShipStack({
           {ShipGraphic ? <ShipGraphic /> : <span className="text-white text-sm">{ship.shipDefId}</span>}
         </ShipAnimationWrapper>
 
-        {ship.caption ? (
-          <div
-            className="mt-[4px] font-['Roboto'] font-normal text-[14px] leading-none text-center"
-            style={{
-              color: numberColour ?? 'white',
-              pointerEvents: 'none',
-              userSelect: 'none',
-            }}
-          >
-            {ship.caption}
-          </div>
-        ) : null}
+              {ship.shipDefId === 'FRI' && ship.caption ? (
+                  <div
+                      className="mt-[4px] font-['Roboto'] font-normal text-[14px] leading-none text-center"
+                      style={{
+                          color: numberColour ?? 'white',
+                          pointerEvents: 'none',
+                          userSelect: 'none',
+                      }}
+                  >
+                      {ship.caption}
+                  </div>
+              ) : null}
       </div>
 
       {/* Count: only render when count > 1 */}
@@ -224,7 +225,7 @@ function FleetArea({
   activationIndexMap,
 }: {
   title: string;
-  ships?: Array<{ shipDefId: string; count: number; stackKey: string; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null }>;
+        ships?: Array<{ shipDefId: string; count: number; stackKey: string; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null; caption?: string | null; }>;
   order?: string[];
   species: SpeciesKey;
   animTokens?: Partial<Record<string, ShipAnimToken>>; // keyed by stackKey

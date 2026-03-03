@@ -5,12 +5,13 @@
  */
 
 import type {
-  GameSessionViewModel,
-  BoardViewModel,
-  ActionPanelTabVm,
-  ActionPanelId,
-  HudStatusTone,
+    GameSessionViewModel,
+    BoardViewModel,
+    ActionPanelTabVm,
+    HudStatusTone,
 } from '../useGameSession';
+
+import type { ActionPanelId } from '../../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
 import { getShipChoicePanelSpec } from '../../display/actionPanel/panels/ShipChoiceRegistry';
@@ -42,7 +43,7 @@ export function mapGameSessionVm(args: {
   phaseKey: string;
   phaseIcon: 'build' | 'battle';
 
-  effectiveGameId: string;
+  effectiveGameId: string | null;
   allPlayers: any[];
 
   activePanelId: ActionPanelId;
@@ -242,7 +243,7 @@ export function mapGameSessionVm(args: {
     if (!myFleet) return 0;
     const found = myFleet.find(e => e?.shipDefId === shipDefId);
     const n = found?.count;
-    return Number.isInteger(n) && n > 0 ? n : 0;
+    return typeof n === 'number' && Number.isInteger(n) && n > 0 ? n : 0;
   }
 
   const myFleet = board.mode === 'board' ? board.myFleet : undefined;
@@ -578,7 +579,7 @@ export function mapGameSessionVm(args: {
       frigateDrawing,
       evolverDrawing,
       shipChoices,
-      availableActions,
+      availableActions: availableActions ?? [],
       selectedChoiceIdBySourceInstanceId,
     },
   };

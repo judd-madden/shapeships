@@ -46,7 +46,7 @@ export function MenuShell({
   // If player is missing during render, show nothing (parent handles state management)
   if (!player || !player.name) {
     // DEV-ONLY: Log warning if this happens (shouldn't in normal flow)
-    if (process.env.NODE_ENV === 'development') {
+     if (import.meta.env.DEV) {
       console.warn('⚠️ [MenuShell] Player not ready, returning null', { player });
     }
     return null;
@@ -204,7 +204,7 @@ export function MenuShell({
 
               {/* Back */}
               <p 
-                className="font-['Roboto:ExtraBold',sans-serif] font-extrabold leading-[normal] relative shrink-0 text-[20px] text-nowrap uppercase cursor-pointer hover:text-white/80" 
+                className="font-['Roboto',sans-serif] font-extrabold leading-[normal] relative shrink-0 text-[20px] text-nowrap uppercase cursor-pointer hover:text-white/80" 
                 style={{ fontVariationSettings: "'wdth' 100" }}
                 onClick={alphaDisableAuth ? onExit : onLogout}
               >
@@ -218,19 +218,19 @@ export function MenuShell({
                 </p>
                 
                 <div className="content-stretch flex items-start pb-[5px] pt-0 px-0 relative shrink-0 w-full">
-                  <p className="font-['Roboto:ExtraBold',sans-serif] font-extrabold leading-[22px] relative shrink-0 text-[#888] text-[20px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-['Roboto',sans-serif] font-extrabold leading-[22px] relative shrink-0 text-[#888] text-[20px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Game History<br />& Stats
                   </p>
                 </div>
 
                 <div className="content-stretch flex items-start pb-[5px] pt-0 px-0 relative shrink-0 w-full">
-                  <p className="font-['Roboto:ExtraBold',sans-serif] font-extrabold leading-[22px] relative shrink-0 text-[#888] text-[20px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-['Roboto',sans-serif] font-extrabold leading-[22px] relative shrink-0 text-[#888] text-[20px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Play Computer
                   </p>
                 </div>
 
                 <div className="content-stretch flex items-start pb-[5px] pt-0 px-0 relative shrink-0 w-full">
-                  <p className="font-['Roboto:ExtraBold',sans-serif] font-extrabold leading-[22px] relative shrink-0 text-[#888] text-[20px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-['Roboto',sans-serif] font-extrabold leading-[22px] relative shrink-0 text-[#888] text-[20px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Single Player<br />Campaign
                   </p>
                 </div>

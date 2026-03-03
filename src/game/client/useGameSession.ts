@@ -387,7 +387,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     const CHAT_POLL_MS = 5000; // Fixed 5 second interval (both active and finished)
     
     let mounted = true;
-    let chatPollTimer: NodeJS.Timeout | null = null;
+    let chatPollTimer: ReturnType<typeof setTimeout> | null = null;
     
     const pollChat = async () => {
       try {
@@ -969,7 +969,7 @@ useEffect(() => {
 
   if (isInSpeciesSelection) {
     // Choose species mode
-      const shareGameUrl = buildShareGameUrl(effectiveGameId);
+    const shareGameUrl = effectiveGameId ? buildShareGameUrl(effectiveGameId) : '';
 
     // Determine if Confirm button should be enabled
     // Strict gating: requires phase, player role, and active status
@@ -1770,7 +1770,8 @@ useEffect(() => {
     onCopyGameUrl: () => {
       // Copy the shareable game URL to clipboard
       // Include view=gameScreen to land directly on GameScreen (not dashboard)
-       const shareGameUrl = buildShareGameUrl(effectiveGameId);
+      if (!effectiveGameId) return;
+      const shareGameUrl = buildShareGameUrl(effectiveGameId);
       
       navigator.clipboard.writeText(shareGameUrl)
         .then(() => {
@@ -1910,6 +1911,8 @@ onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
         turnNumber: 1,
         myHealth: 25,
         opponentHealth: 25,
+        myBonusLines: 0,
+        opponentBonusLines: 0,
         myFleet: [],
         opponentFleet: [],
         myFleetOrder: [],
@@ -1946,7 +1949,9 @@ onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
         menu: {
           title: 'Menu',
           subtitle: 'Game Options',
-        },
+          },
+        availableActions: [],
+        selectedChoiceIdBySourceInstanceId: {},
       },
     };
     
@@ -1967,7 +1972,9 @@ onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
       onOfferDraw: () => {},
       onResignGame: () => {},
       onRematch: () => {},
-      onDownloadBattleLog: () => {},
+      onDownloadBattleLog: () => { },
+      onSelectShipChoiceForInstance: () => { },
+      onSelectFrigateTrigger: () => { },
     };
     
     return {

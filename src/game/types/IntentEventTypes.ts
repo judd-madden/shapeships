@@ -26,6 +26,7 @@ import type {
 } from './ShipTypes.engine';
 import type { HiddenBattleActions } from './BattleTypes';
 import type { ActionType } from './ActionTypes';
+import type { ShipDefId } from './ShipTypes.engine';
 
 // ============================================================================
 // INTENT MODEL (CLIENT → SERVER)

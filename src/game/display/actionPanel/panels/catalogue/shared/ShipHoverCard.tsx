@@ -44,7 +44,7 @@ interface ShipHoverModel {
   phaseLabel?: string;
   powers: ShipPowerViewModel[];
   italicNotes?: string;
-  componentShipIds: string[]; // Ship tokens, not ShipDefId[] - can include CAR(0) etc
+  componentShipIds: readonly string[]; // Ship tokens, not ShipDefId[] - can include CAR(0) etc
 }
 
 function getPhaseIcon(subphase: string): PowerIcon {
@@ -106,7 +106,7 @@ function getShipHoverModel(shipId: ShipDefId): ShipHoverModel | null {
   
   if (!ship) {
     console.warn(`[ShipHoverCard] Ship not found: ${shipId}`);
-    if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
       console.log('[ShipHoverCard] SHIP_DEFINITIONS_MAP keys sample:', Object.keys(SHIP_DEFINITIONS_MAP || {}).slice(0, 10));
     }
     return null;
@@ -125,7 +125,7 @@ function getShipHoverModel(shipId: ShipDefId): ShipHoverModel | null {
   }));
   
   const italicNotes = ship.extraRules || undefined;
-  const componentShipIds = ship.componentShips || [];
+  const componentShipIds = ship.componentShips ?? [];
   
   return {
     name: ship.name,
@@ -143,7 +143,7 @@ function getShipHoverModel(shipId: ShipDefId): ShipHoverModel | null {
  * Input: ["DEF","DEF","CAR(0)"] → Output: [{token:"DEF",count:2},{token:"CAR(0)",count:1}]
  * Preserves first-seen order for predictable display
  */
-function groupShipCounts(shipTokens: string[]): Array<{ token: string; count: number }> {
+function groupShipCounts(shipTokens: readonly string[]): Array<{ token: string; count: number }> {
   const seen = new Map<string, number>();
   const order: string[] = [];
   
@@ -164,7 +164,7 @@ function groupShipCounts(shipTokens: string[]): Array<{ token: string; count: nu
  * Token-aware: Parses CAR(0) → baseId CAR + explicitCharges 0
  * Hover context: Shows depleted graphics for charge ships
  */
-function ComponentShips({ shipIds }: { shipIds: string[] }) {
+function ComponentShips({ shipIds }: { shipIds: readonly string[] }) {
   if (shipIds.length === 0) return null;
   
   const grouped = groupShipCounts(shipIds);

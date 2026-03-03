@@ -76,21 +76,22 @@ async function fetchWithTimeoutRetryOnce(
  * Guard against accidentally using session token in Authorization header
  * This would be a security issue and architectural violation
  */
-function guardAgainstSessionTokenMisuse(headers: Record<string, string>) {
-  const authHeader = headers['Authorization'];
-  const expected = `Bearer ${publicAnonKey}`;
+function guardAgainstSessionTokenMisuse(headers: HeadersInit) {
+    const h = new Headers(headers);
+    const authHeader = h.get('Authorization');
+    const expected = `Bearer ${publicAnonKey}`;
 
-  if (authHeader && authHeader !== expected) {
-    const errorMsg =
-      '🚨 SECURITY ERROR: Authorization header must be exactly Supabase anon key bearer token (never session token).';
-    console.error(errorMsg);
-    console.error('Expected:', `${expected.substring(0, 30)}...`);
-    console.error('Got:', authHeader);
+    if (authHeader && authHeader !== expected) {
+        const errorMsg =
+            '🚨 SECURITY ERROR: Authorization header must be exactly Supabase anon key bearer token (never session token).';
+        console.error(errorMsg);
+        console.error('Expected:', `${expected.substring(0, 30)}...`);
+        console.error('Got:', authHeader);
 
-    if (isDev) {
-      throw new Error(errorMsg);
+        if (isDev) {
+            throw new Error(errorMsg);
+        }
     }
-  }
 }
 
 /**

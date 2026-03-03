@@ -187,13 +187,14 @@ export function usePlayersFullSnapshotEffect(args: { rawState: any }) {
 }
 
 // 5) SPECTATOR COUNT DEBUG LOG
-export function useSpectatorCountDebugEffect(args: { rawState: any; effectiveGameId: string }) {
+export function useSpectatorCountDebugEffect(args: { rawState: any; effectiveGameId: string | null }) {
   const { rawState, effectiveGameId } = args;
   
   const lastCountsRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!rawState) return;
+    if (!effectiveGameId) return;
 
     const players = rawState.players || [];
     const spectatorCount = players.filter((p: any) => p?.role === 'spectator').length;

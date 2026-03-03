@@ -111,7 +111,7 @@ function validateNoRealNewlines(ships: ShipDefinitionCore[]): void {
 }
 
 // Run validations in development only
-if (process.env.NODE_ENV !== 'production') {
+if (import.meta.env.MODE !== 'production') {
   validateShipIdUniqueness(SHIP_DEFINITIONS_CORE);
   validateNoRealNewlines(SHIP_DEFINITIONS_CORE);
   

@@ -44,7 +44,7 @@ export function resolveShipGraphic(
   
   // Check if ship has charge-based graphics
   const chargeGraphics = ship.graphics.filter(g => 
-    g.condition.startsWith('charges_')
+    g.condition?.startsWith('charges_')
   );
   
   const isChargeBased = chargeGraphics.length > 0;
@@ -95,7 +95,7 @@ export function resolveShipGraphic(
 function getMaxCharges(chargeGraphics: ShipGraphic[]): number {
   let max = 0;
   for (const graphic of chargeGraphics) {
-    const match = graphic.condition.match(/^charges_(\d+)$/);
+    const match = graphic.condition?.match(/^charges_(\d+)$/);
     if (match) {
       const charges = parseInt(match[1], 10);
       if (charges > max) {
@@ -120,7 +120,7 @@ function findClosestChargeGraphic(
   
   // Extract charge numbers from graphics
   const available = chargeGraphics.map(g => {
-    const match = g.condition.match(/^charges_(\d+)$/);
+    const match = g.condition?.match(/^charges_(\d+)$/);
     return {
       graphic: g,
       charges: match ? parseInt(match[1], 10) : 0

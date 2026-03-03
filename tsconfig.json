@@ -36,10 +36,6 @@
     "src/game/engine/**",
     "src/game/legacy/**",
     "src/supabase/**",
-    "src/graphics/**",
-    "src/components/ui/**/*.ts",
-    "src/components/ui/**/*.tsx",
-    "src/game/types/**/*engine*.ts",
-    "src/game/types/**/*engine*.tsx"
+    "src/game/types/SolarPowerTypes.tsx"
   ]
 }

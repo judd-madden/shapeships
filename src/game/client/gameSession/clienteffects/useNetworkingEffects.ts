@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type React from 'react';
 
 export function useAutoJoinEffect(args: {
-  effectiveGameId: string;
+  effectiveGameId: string | null;
   effectivePlayerName: string;
 
   attemptedJoinForGameRef: React.MutableRefObject<Set<string>>;
@@ -190,7 +190,7 @@ export function useAutoJoinEffect(args: {
 }
 
 export function usePollingEffect(args: {
-  effectiveGameId: string;
+  effectiveGameId: string | null;
   hasJoinedCurrentGame: boolean;
 
   authenticatedGet: (path: string, timeoutMs?: number) => Promise<Response>;
@@ -251,7 +251,7 @@ export function usePollingEffect(args: {
     }
 
     let mounted = true;
-    let pollTimer: NodeJS.Timeout | null = null;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let shouldStopPolling = false;
 
     const poll = async () => {

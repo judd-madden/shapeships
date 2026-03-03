@@ -59,7 +59,7 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
               label={vm.readyButtonLabel}
               selected={vm.readySelected}
               disabled={vm.readyDisabled || vm.readySelected}
-              note={vm.readyDisabled ? vm.readyDisabledReason : vm.readyButtonNote}
+              note={(vm.readyDisabled ? vm.readyDisabledReason : vm.readyButtonNote) ?? undefined}
               onClick={actions.onReadyToggle}
             />
           </div>

@@ -322,7 +322,6 @@ export interface ActionResolutionResult {
  * Consumers can import from ActionTypes without needing to import from EffectTypes
  */
 export type { 
-  TriggeredEffect as QueuedEffect,
   EffectKind,
   PlayerId,
   ShipDefId,

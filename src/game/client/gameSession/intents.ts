@@ -85,7 +85,7 @@ export async function runSpeciesConfirmFlow(args: {
   selectedSpecies: string;
   phaseKey: string;
   phaseInstanceKey: string;
-  effectiveGameId: string;
+  effectiveGameId: string | null;
   turnNumber: number;
 
   speciesCommitDoneByPhase: Record<string, boolean>;
@@ -93,7 +93,7 @@ export async function runSpeciesConfirmFlow(args: {
   setSpeciesCommitDoneByPhase: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   setSpeciesRevealDoneByPhase: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 
-  speciesCommitCache: PhaseCommitCache<{ species: string }>;
+  speciesCommitCache: PhaseCommitCache<{ species: SpeciesId }>;
   generateNonce: () => string;
   makeCommitHash: (payload: any, nonce: string) => Promise<string>;
   submitIntent: (body: any) => Promise<Response>;
@@ -121,6 +121,12 @@ export async function runSpeciesConfirmFlow(args: {
       getLatestRawState,
       bumpDiceRollSeq,
     } = args;
+
+    // Guard: cannot submit intents without a usable gameId
+    if (!effectiveGameId) {
+      console.warn('[intents] runSpeciesConfirmFlow called without effectiveGameId');
+      return;
+    }
 
     const payload = { species: selectedSpecies };
     
@@ -218,7 +224,7 @@ export async function runReadyToggleFlow(args: {
   mySessionId: string | null;
 
   // core routing
-  effectiveGameId: string;
+  effectiveGameId: string | null;
   turnNumber: number;
 
   // build commit context
@@ -285,6 +291,11 @@ export async function runReadyToggleFlow(args: {
     me,
     setAwaitingBuildRevealSync,
   } = args;
+
+  if (!effectiveGameId) {
+    console.warn('[intents] runReadyToggleFlow called without effectiveGameId');
+    return;
+  }
 
   // Hard stop if game finished
   if (isFinished) {
@@ -729,7 +740,7 @@ export async function runReadyToggleFlow(args: {
 export async function maybeAutoRevealBuild(args: {
   // guards
   phaseKey: string;
-  effectiveGameId: string;
+  effectiveGameId: string | null;
 
   // core routing
   turnNumber: number;
@@ -777,6 +788,11 @@ export async function maybeAutoRevealBuild(args: {
   } = args;
 
   try {
+    if (!effectiveGameId) {
+      console.warn('[maybeAutoRevealBuild] Cannot auto-reveal: effectiveGameId is not set');
+      return;
+    }
+
     // Early guard: mySessionId required for cache key stability
     if (!mySessionId) {
       console.warn('[maybeAutoRevealBuild] Cannot auto-reveal: mySessionId is not set');
@@ -824,7 +840,9 @@ export async function maybeAutoRevealBuild(args: {
             cachedPayload = { builds: parsed.builds };
             cachedNonce = parsed.nonce;
             // Repopulate in-memory cache for the rest of this session
-            buildCommitCache.setCache(buildCacheKey, cachedPayload, cachedNonce);
+            if (cachedNonce) {
+                buildCommitCache.setCache(buildCacheKey, cachedPayload, cachedNonce);
+            }
             console.log('[maybeAutoRevealBuild] Loaded build cache from localStorage');
           }
         }

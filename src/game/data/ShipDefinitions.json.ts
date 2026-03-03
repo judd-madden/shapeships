@@ -1678,7 +1678,7 @@ export type EnergyCostJSON = NonNullable<ShipDefinitionJSON['energyCost']>;
  * - No real newline characters in power text (must use literal "\\n")
  */
 
-if (process.env.NODE_ENV !== 'production') {
+if (import.meta.env.MODE !== 'production') {
   const errors: string[] = [];
   
   // ==========================================================================

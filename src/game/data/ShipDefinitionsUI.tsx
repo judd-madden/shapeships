@@ -237,7 +237,7 @@ export const SHIP_DEFINITIONS: ShipDefinitionUI[] = SHIP_DEFINITIONS_CORE.map(
 );
 
 // DEV-ONLY: Warn about ships with missing graphics
-if (process.env.NODE_ENV === 'development') {
+if (import.meta.env.DEV) {
   // Known missing graphics (post-alpha): Ancient Solar Powers
   const knownMissingGraphics = new Set([
     'SAST', 'SSUP', 'SLIF', 'SSTA', 'SCON', 'SSIM', 'SSIP', 'SVOR', 'SBLA'

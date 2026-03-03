@@ -8,7 +8,7 @@
  * All inputs are provided by UI layer (VM or stubs).
  */
 
-import type { ShipDefId } from '../../../../types/ShipTypes.engine';
+import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
 
 /**
  * Ship build eligibility states
@@ -58,7 +58,7 @@ export interface ShipEligibilityInputs {
   maxLimitReachedById: Partial<Record<ShipDefId, boolean>>;
   
   /** Required component ship IDs */
-  componentShipIds: ShipDefId[];
+    componentShipIds: readonly ShipDefId[];
 }
 
 /**

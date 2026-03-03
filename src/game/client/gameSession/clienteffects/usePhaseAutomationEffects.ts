@@ -3,7 +3,7 @@ import type React from 'react';
 
 export function useBuildPreviewResetEffect(args: {
   turnNumber: number;
-  effectiveGameId: string;
+  effectiveGameId: string | null;
   setBuildPreviewCounts: (v: Record<string, number>) => void;
 }) {
   const { turnNumber, effectiveGameId, setBuildPreviewCounts } = args;
@@ -29,7 +29,7 @@ export function useBuildPreviewResetEffect(args: {
 
 export function useAutoRevealBuildEffect(args: {
   phaseKey: string;
-  effectiveGameId: string;
+  effectiveGameId: string | null;
   turnNumber: number;
   buildInstanceKey: string;
 

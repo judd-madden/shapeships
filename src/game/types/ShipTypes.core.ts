@@ -64,7 +64,7 @@ export interface ShipDefinitionCore {
   joiningLineCost: number | null;
   
   /** Component ship IDs required for upgrades (can include DSL tokens like "CAR(0)") */
-  componentShips: ShipId[];
+  componentShips: readonly ShipId[];
   
   /** Maximum charges (null if ship has no charges) */
   charges: number | null;
@@ -73,7 +73,7 @@ export interface ShipDefinitionCore {
   maxQuantity?: number;
   
   /** Ship powers (can be empty array) */
-  powers: ShipPowerCore[];
+  powers: readonly ShipPowerCore[];
   
   /** Energy cost (non-null only for Solar Powers) */
   energyCost: EnergyCostCore | null;
