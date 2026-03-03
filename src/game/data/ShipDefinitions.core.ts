@@ -17,6 +17,7 @@
 
 import { SHIP_DEFINITIONS_JSON } from './ShipDefinitions.json';
 import type { ShipDefinitionCore } from '../types/ShipTypes.core';
+import type { ShipDefId } from '../types/ShipTypes.engine';
 
 // ============================================================================
 // CORE SHIP DEFINITIONS
@@ -48,6 +49,23 @@ export const SHIP_DEFINITIONS_CORE_MAP: Record<string, ShipDefinitionCore> =
     map[ship.id] = ship;
     return map;
   }, {} as Record<string, ShipDefinitionCore>);
+// ============================================================================
+// ID GUARDS (RUNTIME NARROWING)
+// ============================================================================
+
+/**
+ * Runtime set of all known ship definition IDs (for narrowing raw strings to ShipDefId).
+ * Used at client boundaries to safely drop unknown IDs.
+ */
+export const SHIP_DEF_ID_SET: ReadonlySet<string> = new Set(
+  SHIP_DEFINITIONS_CORE.map((s) => s.id)
+);
+
+/** Runtime type guard for ShipDefId */
+export function isShipDefId(id: string): id is ShipDefId {
+  return SHIP_DEF_ID_SET.has(id);
+}
+
 
 // ============================================================================
 // DEV-ONLY VALIDATIONS

@@ -30,6 +30,7 @@ import { authenticatedGet, authenticatedPost, ensureSession } from '../../utils/
 import type { ActionPanelId } from '../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../types/ShipTypes.engine';
+import { isShipDefId } from '../data/ShipDefinitions.core';
 import type { ShipChoicesPanelGroup } from '../types/ShipChoiceTypes';
 import type { FleetAnimVM } from '../display/graphics/animation';
 import type { OpponentFleetEntryPlan, ActivationStaggerPlan } from '../display/graphics/animation-stagger';
@@ -796,6 +797,7 @@ useEffect(() => {
 
         // Apply preview overlay
         for (const [shipDefId, previewCount] of Object.entries(buildPreviewCounts)) {
+          if (!isShipDefId(shipDefId)) continue;
           const delta = Math.max(0, previewCount);
 
 

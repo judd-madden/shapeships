@@ -13,6 +13,7 @@
  */
 
 import type { EffectKind } from './EffectTypes';
+import type { SHIP_DEFINITIONS_JSON } from '../data/ShipDefinitions.json';
 
 // ============================================================================
 // ENUMS - Typed classifications
@@ -70,7 +71,7 @@ export enum PowerTiming {
 // ============================================================================
 
 /** Ship definition ID (e.g., "DEF", "FIG", "SOL") */
-export type ShipDefId = string;
+export type ShipDefId = (typeof SHIP_DEFINITIONS_JSON)[number]['id'];
 
 /** Runtime ship instance ID (e.g., "ship_abc123") */
 export type ShipInstanceId = string;

@@ -12,7 +12,7 @@
  * DO NOT import this file from engine/server code.
  */
 
-import { SHIP_DEFINITIONS_CORE } from './ShipDefinitions.core';
+import { SHIP_DEFINITIONS_CORE, isShipDefId } from './ShipDefinitions.core';
 import type { ShipDefinitionUI } from '../types/ShipTypes.ui';
 import type { ShipDefId } from '../types/ShipTypes.engine';
 import type { ShipDefinitionCore } from '../types/ShipTypes.core';
@@ -116,7 +116,7 @@ import {
 // This is the ONLY place where ship IDs are associated with graphics
 // NO duplication of ship stats/rules - those come from core
 
-const GRAPHICS_BY_ID: Record<ShipDefId, ShipGraphic[]> = {
+const GRAPHICS_BY_ID: Partial<Record<ShipDefId, ShipGraphic[]>> = {
   // HUMAN
   'DEF': [{ component: DefenderShip, condition: 'default' }],
   'FIG': [{ component: FighterShip, condition: 'default' }],
@@ -232,7 +232,7 @@ const GRAPHICS_BY_ID: Record<ShipDefId, ShipGraphic[]> = {
 export const SHIP_DEFINITIONS: ShipDefinitionUI[] = SHIP_DEFINITIONS_CORE.map(
   (coreDef: ShipDefinitionCore): ShipDefinitionUI => ({
     ...coreDef,
-    graphics: GRAPHICS_BY_ID[coreDef.id]
+    graphics: (GRAPHICS_BY_ID[coreDef.id as ShipDefId] ?? [])
   })
 );
 
@@ -257,11 +257,13 @@ if (import.meta.env.DEV) {
 }
 
 // Build lookup map
-export const SHIP_DEFINITIONS_MAP: Record<ShipDefId, ShipDefinitionUI> = 
-  SHIP_DEFINITIONS.reduce((map, def) => {
-    map[def.id] = def;
-    return map;
-  }, {} as Record<ShipDefId, ShipDefinitionUI>);
+export const SHIP_DEFINITIONS_MAP: Partial<Record<ShipDefId, ShipDefinitionUI>> =
+    SHIP_DEFINITIONS.reduce((map, def) => {
+        if (isShipDefId(def.id)) {
+            map[def.id] = def;
+        }
+        return map;
+    }, {} as Partial<Record<ShipDefId, ShipDefinitionUI>>);
 
 // Helper functions (UI versions - delegate to core for logic)
 export {

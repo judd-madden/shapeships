@@ -9,6 +9,7 @@
  */
 
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
+import { isShipDefId } from '../../../../../data/ShipDefinitions.core';
 
 /**
  * Ship build eligibility states
@@ -26,7 +27,7 @@ export type ShipEligibilityState =
 export interface ShipEligibility {
   state: ShipEligibilityState;
   /** Missing component ship IDs (only populated for NEED_COMPONENTS state) */
-  missingComponentShipIds?: ShipDefId[];
+  missingComponentShipIds?: string[];
 }
 
 /**
@@ -40,7 +41,7 @@ export interface ShipEligibilityInputs {
   isOpponentView: boolean;
   
   /** Map of owned ship IDs to counts */
-  ownedShipsById: Record<ShipDefId, number>;
+  ownedShipsById: Partial<Record<ShipDefId, number>>;
   
   /** Total line cost required for this ship */
   totalLineCost: number;
@@ -58,7 +59,7 @@ export interface ShipEligibilityInputs {
   maxLimitReachedById: Partial<Record<ShipDefId, boolean>>;
   
   /** Required component ship IDs */
-    componentShipIds: readonly ShipDefId[];
+    componentShipIds: readonly string[];
 }
 
 /**
@@ -83,11 +84,16 @@ export function computeShipEligibility(inputs: ShipEligibilityInputs): ShipEligi
   }
   
   // 3. Component ships check
-  const missingComponents: ShipDefId[] = [];
-  for (const componentId of inputs.componentShipIds) {
-    const owned = inputs.ownedShipsById[componentId] || 0;
+  const missingComponents: string[] = [];
+  for (const componentToken of inputs.componentShipIds) {
+    // componentShips may contain token forms like "CAR(0)".
+    const baseId = String(componentToken).split('(')[0];
+    if (!isShipDefId(baseId)) continue;
+
+    const owned = inputs.ownedShipsById[baseId] ?? 0;
     if (owned === 0) {
-      missingComponents.push(componentId);
+      // Preserve the original token for downstream token-aware rendering.
+      missingComponents.push(componentToken);
     }
   }
   

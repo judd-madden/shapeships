@@ -39,7 +39,7 @@ export function AncientShipCataloguePanel({
 
   // Stubs: Replace with VM data in future passes
   const isOpponentView = false; // TODO: Get from VM
-  const ownedShipsById: Record<ShipDefId, number> = {}; // TODO: Get from VM
+  const ownedShipsById: Partial<Record<ShipDefId, number>> = {}; // TODO: Get from VM
   const availableLines = 999; // TODO: Get from VM
   const availableJoiningLines = 999; // TODO: Get from VM
 

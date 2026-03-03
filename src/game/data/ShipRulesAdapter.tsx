@@ -36,7 +36,7 @@ export interface ShipHoverModel {
   phaseLabel?: string;
   powers: ShipPowerViewModel[];
   italicNotes?: string;
-  componentShipIds: readonly ShipDefId[];
+  componentShipIds: readonly string[];
 }
 
 /**

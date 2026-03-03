@@ -13,6 +13,7 @@ import type {
 
 import type { ActionPanelId } from '../../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
+import type { ShipDefId } from '../../types/ShipTypes.engine';
 import type { ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
 import { getShipChoicePanelSpec } from '../../display/actionPanel/panels/ShipChoiceRegistry';
 
@@ -390,7 +391,7 @@ export function mapGameSessionVm(args: {
         } else if (groupSpec.kind === 'named') {
           // Named group: expand each ship per server action instance
           const expandedShips: Array<{
-            shipDefId: string;
+            shipDefId: ShipDefId;
             buttons: typeof groupSpec.ships[number]['buttons'];
             sourceInstanceId: string;
             actionId: string;
@@ -446,7 +447,7 @@ export function mapGameSessionVm(args: {
         } else if (groupSpec.kind === 'named') {
           // Named group: expand each ship by its fleet count
           const expandedShips: Array<{
-            shipDefId: string;
+            shipDefId: ShipDefId;
             buttons: typeof groupSpec.ships[number]['buttons'];
           }> = [];
 

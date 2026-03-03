@@ -17,6 +17,7 @@ import type { ShipEligibility } from './ShipBuildEligibility';
 import { SHIP_DEFINITIONS_MAP } from '../../../../../data/ShipDefinitionsUI';
 import { parseShipToken } from '../../../../graphics/shipToken';
 import { resolveShipGraphic } from '../../../../graphics/resolveShipGraphic';
+import { isShipDefId } from '../../../../../data/ShipDefinitions.core';
 
 // NOTE (PASS 2): This hover card is now a smart component with portal rendering.
 // Positioning is anchored to the ship hitbox via anchorRect.
@@ -176,7 +177,12 @@ function ComponentShips({ shipIds }: { shipIds: readonly string[] }) {
         const { baseId, explicitCharges } = parseShipToken(token);
         
         // Lookup ship by canonical base ID
-        const ship = SHIP_DEFINITIONS_MAP?.[baseId as ShipDefId];
+        if (!isShipDefId(baseId)) {
+          console.warn(`[ShipHoverCard] Invalid ship id for token: ${token} (baseId: ${baseId})`);
+          return null;
+        }
+
+        const ship = SHIP_DEFINITIONS_MAP?.[baseId];
         if (!ship) {
           console.warn(`[ShipHoverCard] Ship not found for token: ${token} (baseId: ${baseId})`);
           return null;

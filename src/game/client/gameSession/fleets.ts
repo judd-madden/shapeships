@@ -5,10 +5,11 @@
  */
 
 import { getShipDefinitionById } from '../../data/ShipDefinitions.engine';
+import { isShipDefId } from '../../data/ShipDefinitions.core';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 
 interface BoardFleetSummary {
-  shipDefId: string;
+  shipDefId: ShipDefId;
   count: number;
 
   /**
@@ -83,11 +84,15 @@ export function deriveFleets(args: {
     // Buckets: stackKey -> { shipDefId, count, condition?, currentCharges? }
     const buckets = new Map<
       string,
-      { shipDefId: string; count: number; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null; caption?: string | null }
+      { shipDefId: ShipDefId; count: number; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null; caption?: string | null }
     >();
     
     for (const ship of ships) {
-      const shipDefId = (ship.shipDefId || 'UNKNOWN') as ShipDefId;
+      const rawShipDefId = String(ship.shipDefId ?? '');
+      if (!isShipDefId(rawShipDefId)) {
+        continue;
+      }
+      const shipDefId = rawShipDefId;
       const def = getShipDefinitionById(shipDefId);
       const maxCharges = def?.maxCharges ?? 0;
       const chargesCurrent = Number((ship as any).chargesCurrent ?? 0);

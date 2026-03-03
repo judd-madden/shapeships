@@ -22,7 +22,7 @@
 // IMPORTS
 // ============================================================================
 
-import { SHIP_DEFINITIONS_CORE } from './ShipDefinitions.core';
+import { SHIP_DEFINITIONS_CORE, isShipDefId } from './ShipDefinitions.core';
 import type { ShipDefinitionCore, ShipPowerCore } from '../types/ShipTypes.core';
 import type {
   EngineShipDefinition,
@@ -64,6 +64,7 @@ const SHIP_NAME_TO_ID_MAP: Record<string, ShipDefId> = {};
 
 function buildShipNameLookup(): void {
   for (const ship of SHIP_DEFINITIONS_CORE) {
+    if (!isShipDefId(ship.id)) continue;
     const normalized = ship.name.toLowerCase().replace(/[^a-z0-9]/g, '');
     SHIP_NAME_TO_ID_MAP[normalized] = ship.id;
     SHIP_NAME_TO_ID_MAP[ship.name.toLowerCase()] = ship.id;
@@ -481,7 +482,7 @@ function convertShipDefinition(csvShip: ShipDefinitionCore): EngineShipDefinitio
   );
   
   const engineShip: EngineShipDefinition = {
-    id: csvShip.id,
+    id: csvShip.id as ShipDefId,
     name: csvShip.name,
     species,
     type: shipType,
@@ -507,8 +508,10 @@ function convertShipDefinition(csvShip: ShipDefinitionCore): EngineShipDefinitio
 // PUBLIC API: ENGINE SHIP DEFINITIONS
 // ============================================================================
 
-export const ENGINE_SHIP_DEFINITIONS: EngineShipDefinition[] = 
-  SHIP_DEFINITIONS_CORE.map(convertShipDefinition);
+export const ENGINE_SHIP_DEFINITIONS: EngineShipDefinition[] =
+  SHIP_DEFINITIONS_CORE
+    .filter((s) => isShipDefId(s.id))
+    .map((s) => convertShipDefinition(s as ShipDefinitionCore & { id: ShipDefId }));
 
 export const ENGINE_SHIP_DEFINITIONS_MAP: Record<ShipDefId, EngineShipDefinition> =
   ENGINE_SHIP_DEFINITIONS.reduce((map, def) => {
