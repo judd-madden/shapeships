@@ -6,10 +6,10 @@
 // This file remains for historical reference only.
 
 import React from 'react';
-import { GameState } from '../types/GameTypes';
-import { useActionResolver } from '../legacy/hooks/useActionResolver.legacy';
-import { ActionPanel } from '../display/ActionPanel';
-import { ActionResolutionResult } from '../types/ActionTypes';
+import { GameState } from '../../types/GameTypes';
+import { useActionResolver } from '../../legacy/hooks/useActionResolver.legacy';
+import { ActionPanel } from '../../display/ActionPanel';
+import { ActionResolutionResult } from '../../types/ActionTypes';
 
 interface ActionResolverExampleProps {
   gameState: GameState;

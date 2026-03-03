@@ -13,7 +13,7 @@ import { ensureSession, authenticatedFetch, getSessionToken, clearSession } from
 import ScreenManager from './components/ScreenManager';
 import GraphicsTest from './components/dev/GraphicsTest';
 import GameScreen from './game/display/GameScreen';
-import { IntentVerification } from './game/test/IntentVerification';
+import { IntentVerification } from './game/legacy/test/IntentVerification';
 import { usePlayer } from './game/hooks/usePlayer';
 import { BuildKitShowcase } from './components/dev/BuildKitShowcase';
 import { runFullSimulation } from './game/engine/battle/BattleSimulationHarness';

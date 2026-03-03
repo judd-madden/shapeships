@@ -13,10 +13,10 @@
  */
 
 import React, { useState } from 'react';
-import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
-import { sha256, generateNonce, createSpeciesIntent } from '../../utils/intentHelper';
+import { Button } from '../../../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../../components/ui/card';
+import { projectId, publicAnonKey } from '../../../utils/supabase/info';
+import { sha256, generateNonce, createSpeciesIntent } from '../../../utils/intentHelper';
 
 interface TestResult {
   step: string;
