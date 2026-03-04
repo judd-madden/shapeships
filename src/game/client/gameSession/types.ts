@@ -188,6 +188,11 @@ export interface ActionPanelViewModel {
   menu: {
     title: string;
     subtitle: string;
+
+    // Turn Flow widget (Menu panel)
+    turnNumber: number;
+    phaseKey: string;
+    hasActionsForMe: boolean;
   };
   endOfGame?: {
     bannerText: string;

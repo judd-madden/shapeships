@@ -495,6 +495,11 @@ export function mapGameSessionVm(args: {
       };
     }
   }
+
+  // Server-projected actions for the CURRENT phase (safe default)
+  const availableActionsSafe = availableActions ?? [];
+  const hasActionsForMe = Array.isArray(availableActionsSafe) && availableActionsSafe.length > 0;
+
   
   const vm: GameSessionViewModel = {
     isBootstrapping,
@@ -570,6 +575,9 @@ export function mapGameSessionVm(args: {
       menu: {
         title,
         subtitle: inProgressSubtitle,
+        turnNumber,
+        phaseKey,
+        hasActionsForMe,
       },
       endOfGame: isFinished ? {
         bannerText,
@@ -580,7 +588,7 @@ export function mapGameSessionVm(args: {
       frigateDrawing,
       evolverDrawing,
       shipChoices,
-      availableActions: availableActions ?? [],
+      availableActions: availableActionsSafe,
       selectedChoiceIdBySourceInstanceId,
     },
   };

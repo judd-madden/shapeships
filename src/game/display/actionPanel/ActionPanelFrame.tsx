@@ -69,6 +69,9 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
         <MenuActionPanel
           title={vm.menu.title}
           subtitle={vm.menu.subtitle}
+          turnNumber={vm.menu.turnNumber}
+          phaseKey={vm.menu.phaseKey}
+          hasActionsForMe={vm.menu.hasActionsForMe}
           onOfferDraw={actions.onOfferDraw}
           onResignGame={actions.onResignGame}
         />

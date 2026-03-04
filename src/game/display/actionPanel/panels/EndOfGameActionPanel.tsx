@@ -29,7 +29,7 @@ export function EndOfGameActionPanel({
     <div className="flex-row items-center w-full h-[280px]">
       {/* Top Banner */}
       <div 
-        className="content-stretch flex flex-col font-bold gap-[12px] h-[150px] items-center justify-center px-[20px] py-[27px] rounded-tl-[10px] rounded-tr-[10px] text-black w-full"
+        className="content-stretch flex flex-col font-bold gap-[12px] h-[150px] items-center justify-center px-[20px] py-[27px] rounded-tl-[10px] text-black w-full"
         style={{ background: bannerBgCssVar }}
       >
         {/* Headline */}
