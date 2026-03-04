@@ -13,33 +13,27 @@ import { ensureSession, authenticatedFetch, getSessionToken, clearSession } from
 import ScreenManager from './components/ScreenManager';
 import GraphicsTest from './components/dev/GraphicsTest';
 import GameScreen from './game/display/GameScreen';
-import { IntentVerification } from './game/legacy/test/IntentVerification';
 import { usePlayer } from './game/hooks/usePlayer';
 import { BuildKitShowcase } from './components/dev/BuildKitShowcase';
-import { runFullSimulation } from './game/engine/battle/BattleSimulationHarness';
 import AlphaV3E2EHarness from './components/dev/AlphaV3E2EHarness';
 import { ActionPanelsGallery } from './components/dev/ActionPanelsGallery';
 
-// Feature flags for legacy harnesses
-const ENABLE_BATTLE_SIM = false; // Legacy harness disabled. Real engine is server/engine_shared.
 
 // Dashboard view type
-type DashboardViewId = 'deployment' | 'auth' | 'alphaE2E' | 'intentVerification' | 'battleSimulation' | 'graphicsTest' | 'buildKit' | 'gameScreen' | 'actionPanelsGallery';
+type DashboardViewId = 'deployment' | 'auth' | 'alphaE2E' |  'graphicsTest' | 'buildKit' | 'gameScreen' | 'actionPanelsGallery';
 
 // App view mode
 type ViewMode = 'dashboard' | 'playerMode' | 'gameFullscreen';
 
 // Dashboard entries configuration
 const DASHBOARD_ENTRIES: Array<{ id: DashboardViewId; label: string; alphaDisabled?: boolean }> = [
-  { id: 'deployment', label: 'Deployment Test' },
-  { id: 'auth', label: 'Authentication', alphaDisabled: true },
-  { id: 'alphaE2E', label: 'Alpha v3 E2E Harness' },
-  { id: 'intentVerification', label: 'Intent Verification' },
-  { id: 'battleSimulation', label: 'Battle Simulation', alphaDisabled: !ENABLE_BATTLE_SIM },
+  { id: 'gameScreen', label: 'Game Screen' },
   { id: 'graphicsTest', label: 'Graphics Test' },
   { id: 'buildKit', label: 'Build Kit' },
-  { id: 'gameScreen', label: 'Game Screen' },
-  { id: 'actionPanelsGallery', label: 'Action Panels Gallery' },
+    { id: 'actionPanelsGallery', label: 'Action Panels Gallery' },
+    { id: 'deployment', label: 'Deployment Test' },
+  { id: 'auth', label: 'Authentication', alphaDisabled: true },
+    { id: 'alphaE2E', label: 'Alpha Harness', alphaDisabled: true },
 ];
 
 // URL helper functions
@@ -48,13 +42,13 @@ function readDashboardViewFromUrl(): DashboardViewId {
   const view = params.get('view') as DashboardViewId | null;
   
   // Validate view is a known dashboard view
-  const validViews: DashboardViewId[] = ['deployment', 'auth', 'alphaE2E', 'intentVerification', 'battleSimulation', 'graphicsTest', 'buildKit', 'gameScreen', 'actionPanelsGallery'];
+  const validViews: DashboardViewId[] = ['deployment', 'auth', 'alphaE2E', 'graphicsTest', 'buildKit', 'gameScreen', 'actionPanelsGallery'];
   
   if (view && validViews.includes(view)) {
     return view;
   }
   
-  return 'deployment';
+    return 'gameScreen';
 }
 
 function readGameIdFromUrl(): string | null {
@@ -308,56 +302,14 @@ export default function App() {
             </div>
           )}
           
-          {currentView === 'intentVerification' && (
-            <div className="container mx-auto max-w-4xl">
-              <Button onClick={() => setView('deployment')} className="mb-4">
-                ← Back to Dashboard
-              </Button>
-              <IntentVerification />
-            </div>
-          )}
-          
-          {currentView === 'battleSimulation' && (
-            <div className="container mx-auto max-w-4xl">
-              <Button onClick={() => setView('deployment')} className="mb-4">
-                ← Back to Dashboard
-              </Button>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Battle Simulation Harness</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Button
-                    onClick={() => {
-                      console.log('Running full battle simulation...');
-                      runFullSimulation();
-                    }}
-                  >
-                    Run Full Simulation
-                  </Button>
-                  <p className="text-sm text-gray-700 mt-2">
-                    <strong>Scenario:</strong> 2 players with various ships (Defenders, Fighters, Interceptor).
-                    Tests automatic damage/healing and charge-based effects.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-          
           {currentView === 'graphicsTest' && (
             <div>
-              <Button onClick={() => setView('deployment')} className="mb-4">
-                ← Back to Dashboard
-              </Button>
               <GraphicsTest />
             </div>
           )}
           
           {currentView === 'buildKit' && (
             <div>
-              <Button onClick={() => setView('deployment')} className="mb-4">
-                ← Back to Dashboard
-              </Button>
               <BuildKitShowcase />
             </div>
           )}
@@ -365,9 +317,6 @@ export default function App() {
           {currentView === 'gameScreen' && (
             <div className="container mx-auto max-w-4xl">
               <div className="space-y-4">
-                <Button onClick={() => setView('deployment')} className="mb-4">
-                  ← Back to Dashboard
-                </Button>
                 
                 <CreateTestGameSection
                   player={player}
@@ -410,9 +359,6 @@ export default function App() {
           
           {currentView === 'actionPanelsGallery' && (
             <div className="container w-1200px">
-              <Button onClick={() => setView('deployment')} className="mb-4">
-                ← Back to Dashboard
-              </Button>
               <ActionPanelsGallery />
             </div>
           )}

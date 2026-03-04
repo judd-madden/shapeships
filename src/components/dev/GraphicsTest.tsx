@@ -116,9 +116,6 @@ export default function GraphicsTest({ onBack }) {
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       <div className="mb-6">
-        <Button variant="outline" onClick={onBack} className="mb-4">
-          Back to Dashboard
-        </Button>
         <h1>Graphics Test</h1>
         <p className="text-gray-600">Testing embedded SVG ship graphics system</p>
       </div>
