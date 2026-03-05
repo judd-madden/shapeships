@@ -22,7 +22,7 @@ import { EffectTiming, EffectKind, SurvivabilityRule } from '../effects/Effect.t
 import { translateShipPowers, type TranslateContext } from '../effects/translateShipPowers.ts';
 import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
-import { computePhaseComputedEffects } from './phaseComputedEffects.ts';
+import { computePhaseComputedEffects, applyComputedEffectModifiers } from './phaseComputedEffects.ts';
 
 // ============================================================================
 // RESOLVE PHASE
@@ -162,7 +162,10 @@ function resolveBattleEndOfTurn(
   console.log(`[resolveBattleEndOfTurn] Collected ${shipEffects.length} ship effects + ${computedEffects.length} computed effects for ${phaseKey}`);
 
   // Step 3: Merge computed effects with ship effects
-  const effects = [...computedEffects, ...shipEffects];
+  let effects = [...computedEffects, ...shipEffects];
+
+  // Step 3.1: Apply computed effect modifiers (tiered multipliers, etc.)
+  effects = applyComputedEffectModifiers(state, phaseKey, effects);
 
   // Step 4: Apply effects (accumulates Damage/Heal into pendingTurn)
   const applied = applyEffects(state, effects);

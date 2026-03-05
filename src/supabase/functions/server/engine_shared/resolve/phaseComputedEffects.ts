@@ -153,9 +153,86 @@ function groupedCount(count: number, groupSize: number): number {
  * - returns 0 if below first threshold, else 1..thresholds.length
  */
 function tierFromCount(count: number, thresholds: number[]): number {
-  let tier = 0;
-  for (const t of thresholds) if (count >= t) tier++;
-  return tier;
+    let tier = 0;
+    for (const t of thresholds) if (count >= t) tier++;
+    return tier;
+}
+
+/**
+ * Copy-tier helper (a.k.a. "tiered ship counter"):
+ * tier is derived from how many copies of a shipDefId you have, clamped to maxTier.
+ *
+ * This is intentionally shallow-typed so it can be reused by non-resolve subsystems
+ * (e.g. line generation) without importing GameState types.
+ */
+export function getCopyTierFromFleet(
+    ships: Array<{ shipDefId: string }>,
+    shipDefId: string,
+    maxTier = 3
+): number {
+    let n = 0;
+    for (const s of ships) if (s.shipDefId === shipDefId) n++;
+    return Math.min(n, maxTier);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPUTED EFFECT MODIFIERS
+// Some tiered/conditional ships don't emit "new" effects; they *modify* existing
+// structured/computed effects before application (e.g. SCI doubling Automatic heal/dmg).
+// Keep these modifiers centralized here so resolvePhase only calls ONE hook.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export function applyComputedEffectModifiers(
+  state: GameState,
+  phaseKey: PhaseKey,
+  effects: Effect[]
+): Effect[] {
+  // Currently only needed for battle.end_of_turn_resolution.
+  if (phaseKey !== 'battle.end_of_turn_resolution') return effects;
+
+  const activePlayers = getActivePlayers(state);
+
+  // Precompute any modifier tiers/counters we need.
+  const sciTierByPlayerId: Record<string, number> = {};
+  for (const p of activePlayers) {
+    const ships = getShips(state, p.id);
+    const tier = getCopyTierFromFleet(ships, 'SCI', 3);
+    if (tier > 0) sciTierByPlayerId[p.id] = tier;
+  }
+
+  // Fast exit if no modifiers present.
+  if (Object.keys(sciTierByPlayerId).length === 0) return effects;
+
+  let changed = false;
+  const out: Effect[] = new Array(effects.length);
+
+  for (let i = 0; i < effects.length; i++) {
+    const e = effects[i];
+
+    // --- SCIENCE VESSEL (SCI) tiers ---
+    // Tier 1+: double your Automatic healing (excludes Charge + OnceOnly)
+    // Tier 2+: also double your Automatic damage (excludes Charge + OnceOnly)
+    //
+    // "Your" is keyed off ownerPlayerId (source owner), not target.
+    const sciTier = sciTierByPlayerId[e.ownerPlayerId] ?? 0;
+
+    if (sciTier > 0 && e.activationTag === EffectTiming.Automatic) {
+      if (e.kind === EffectKind.Heal && sciTier >= 1) {
+        changed = true;
+        out[i] = { ...e, amount: e.amount * 2 };
+        continue;
+      }
+      if (e.kind === EffectKind.Damage && sciTier >= 2) {
+        changed = true;
+        out[i] = { ...e, amount: e.amount * 2 };
+        continue;
+      }
+    }
+
+    out[i] = e;
+  }
+
+  return changed ? out : effects;
 }
 
 function countShipsBuiltThisTurn(ships: ShipInstance[], turnNumber: number): number {

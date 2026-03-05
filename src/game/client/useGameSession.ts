@@ -1948,9 +1948,12 @@ onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
       actionPanel: {
         activePanelId: 'ap.catalog.ships.human',
         tabs: [],
-        menu: {
-          title: 'Menu',
-          subtitle: 'Game Options',
+          menu: {
+              title: 'Menu',
+              subtitle: 'Game Options',
+              turnNumber: 0,
+              phaseKey: 'setup.loading',
+              hasActionsForMe: false,
           },
         availableActions: [],
         selectedChoiceIdBySourceInstanceId: {},

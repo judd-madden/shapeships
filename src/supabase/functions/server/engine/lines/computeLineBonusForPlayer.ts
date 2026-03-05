@@ -36,6 +36,7 @@
  */
 
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
+import { getCopyTierFromFleet } from '../../engine_shared/resolve/phaseComputedEffects.ts';
 
 // ============================================================================
 // BONUS LINE SOURCE MAPPING (INTERIM)
@@ -99,6 +100,15 @@ const BONUS_LINES_PER_SHIP: Record<string, number> = {
  * @param playerId - Player ID to compute bonus for
  * @returns Total bonus lines (integer >= 0)
  */
+
+
+function getEffectiveDiceRollFromGameData(gameData: any): number | undefined {
+  const gd = gameData?.gameData ?? gameData;
+  const td = gd?.turnData;
+  const roll = td?.effectiveDiceRoll ?? td?.baseDiceRoll ?? td?.diceRoll ?? gd?.diceRoll;
+  return typeof roll === 'number' ? roll : undefined;
+}
+
 export function computeLineBonusForPlayer(gameData: any, playerId: string): number {
   // Get player's ship instances from gameData (supports both state shapes)
   const ships =
@@ -146,6 +156,18 @@ export function computeLineBonusForPlayer(gameData: any, playerId: string): numb
     totalBonus += bonus;
   }
   
+
+
+  // === SCIENCE VESSEL (SCI) tier 3: gain bonus lines equal to effective dice roll (does not modify dice)
+  // Implemented here (Option A) as part of line bonus computation.
+  const sciTier = getCopyTierFromFleet(ships, 'SCI', 3);
+  if (sciTier >= 3) {
+    const roll = getEffectiveDiceRollFromGameData(gameData);
+    if (typeof roll === 'number') {
+      totalBonus += roll;
+    }
+  }
+
   return totalBonus;
 }
 

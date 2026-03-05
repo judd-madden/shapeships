@@ -71,19 +71,6 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
           className="font-['Roboto'] font-semibold leading-[normal] relative shrink-0 text-[0px] text-[16px] text-white w-[130px]"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
-          <span
-            className="font-['Roboto'] font-normal"
-            style={{ fontVariationSettings: "'wdth' 100" }}
-          >
-            Next:
-            <br aria-hidden="true" />
-          </span>
-          <span
-            className="font-['Roboto'] font-bold"
-            style={{ fontVariationSettings: "'wdth' 100" }}
-          >
-            {vm.nextPhaseLabel}
-          </span>
         </p>
       </div>
 

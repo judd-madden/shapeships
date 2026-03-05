@@ -455,41 +455,58 @@ html {
 }
 
 /* ============================================================================
-   Dice Roll Animation
+   Dice: continuous slow rotation (whole game)
    ========================================================================== */
 
-/* Heavy spring-style dice roll.
-   JS ROLL_MS must match 900ms exactly. */
+@keyframes ssDiceSlowSpin {
+    from {
+        transform: rotate(0deg);
+    }
 
-@keyframes ssDiceRollSpring {
-  0%   { transform: scale(1); }
-
-  /* big launch */
-  12%  { transform: scale(1.35); }
-
-  /* deep compression */
-  28%  { transform: scale(0.92); }
-
-  /* rebound */
-  48%  { transform: scale(1.18); }
-
-  /* smaller rebound */
-  68%  { transform: scale(0.97); }
-
-  /* settle overshoot */
-  85%  { transform: scale(1.06); }
-
-  100% { transform: scale(1); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
-.ss-dice-roll-bounce {
-  transform-origin: center;
-  animation: ssDiceRollSpring 900ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform;
+/* Put on the rotating inner wrapper */
+.ss-dice-slow-spin {
+    transform-origin: center;
+    animation: ssDiceSlowSpin 1800s linear infinite; /* 30 minutes = 1800 seconds */
+    will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ss-dice-roll-bounce {
-    animation: none;
-  }
+    .ss-dice-slow-spin {
+        animation: none;
+    }
+}
+
+/* ============================================================================
+   Dice: pulse on roll (quick)
+   ========================================================================== */
+
+@keyframes ssDiceRollPulse {
+    0% {
+        transform: scale(1);
+    }
+
+    35% {
+        transform: scale(1.35);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+.ss-dice-roll-pulse {
+    transform-origin: center;
+    animation: ssDiceRollPulse 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ss-dice-roll-pulse {
+        animation: none;
+    }
 }
