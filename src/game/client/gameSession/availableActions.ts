@@ -37,6 +37,13 @@ export function speciesToCataloguePanelId(species: SpeciesId): ActionPanelId {
   }
 }
 
+// TODO(BETA): Early-drawing during build.ships_that_build
+// If phaseKey === 'build.ships_that_build' AND I have zero actions available in that phase,
+// route me to the same panel used for build.drawing (catalogue/drawing UI) BUT keep it draft-only:
+// - do not submit intents
+// - revalidate draft when phaseKey becomes 'build.drawing'
+
+
 /**
  * Mirrors the 3 routing effects that previously lived inline in useGameSession.ts.
  * We keep the decisions separated by returning a single highest-priority action.

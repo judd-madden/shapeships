@@ -88,6 +88,12 @@ function getEffectiveDiceRoll(state: GameState): number | undefined {
   return td?.effectiveDiceRoll ?? td?.baseDiceRoll ?? td?.diceRoll ?? state.gameData.diceRoll;
 }
 
+function getEffectiveDiceRollForPlayer(state: GameState, playerId: string): number | undefined {
+  const td = state.gameData.turnData;
+  const perPlayer = td?.effectiveDiceRollByPlayerId?.[playerId];
+  return typeof perPlayer === 'number' ? perPlayer : getEffectiveDiceRoll(state);
+}
+
 function diceIsEven(roll: number | undefined): boolean {
   return typeof roll === 'number' && roll % 2 === 0;
 }
@@ -348,6 +354,8 @@ export function computePhaseComputedEffects(
     const opponentId = opponentMap.get(ownerPlayerId);
     if (!opponentId) continue;
 
+    const roll = getEffectiveDiceRollForPlayer(state, ownerPlayerId);
+
     const ships = getShips(state, ownerPlayerId);
 
     for (const ship of ships) {
@@ -486,7 +494,6 @@ export function computePhaseComputedEffects(
   }
 
   // === FRIGATE (FRI) conditional: If dice roll matches chosen trigger (1..6), deal 6 damage ===
-  const roll = getEffectiveDiceRoll(state);
 
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
@@ -494,6 +501,7 @@ export function computePhaseComputedEffects(
     if (!opponentId) continue;
 
     const ships = getShips(state, ownerPlayerId);
+    const roll = getEffectiveDiceRollForPlayer(state, ownerPlayerId);
 
     for (const ship of ships) {
       if (ship.shipDefId !== 'FRI') continue;

@@ -1,11 +1,6 @@
 /**
  * useGameSession - Game Controller Hook
  * 
- * LIVE READ-ONLY INTEGRATION (Chunk 0-1)
- * EVENT TAPE PLUMBING (Chunk 2)
- * AUTO-JOIN ON MOUNT (Chunk 3)
- * SPECIES SELECTION WIRING (Chunk 4)
- * 
  * This is the ONLY place allowed to:
  * - Poll /game-state/:gameId
  * - Map server state to view-models

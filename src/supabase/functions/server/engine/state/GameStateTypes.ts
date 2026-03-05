@@ -70,6 +70,10 @@ export type GameData = {
     baseDiceRoll?: number;
     /** Effective dice roll after modifiers (1-6) */
     effectiveDiceRoll?: number;
+    /** Effective dice roll as read by each player (post-modifiers, per-player) */
+    effectiveDiceRollByPlayerId?: Record<string, number>;
+    /** Optional: source ship that caused a dice override for a player (e.g., 'LEV') */
+    diceOverrideSourceByPlayerId?: Record<string, string>;
     /** Flag: dice has been rolled this turn */
     diceRolled?: boolean;
     /** Flag: dice modifiers have been finalized */

@@ -102,9 +102,13 @@ const BONUS_LINES_PER_SHIP: Record<string, number> = {
  */
 
 
-function getEffectiveDiceRollFromGameData(gameData: any): number | undefined {
+function getEffectiveDiceRollFromGameData(gameData: any, playerId: string): number | undefined {
   const gd = gameData?.gameData ?? gameData;
   const td = gd?.turnData;
+
+  const perPlayer = td?.effectiveDiceRollByPlayerId?.[playerId];
+  if (typeof perPlayer === 'number') return perPlayer;
+
   const roll = td?.effectiveDiceRoll ?? td?.baseDiceRoll ?? td?.diceRoll ?? gd?.diceRoll;
   return typeof roll === 'number' ? roll : undefined;
 }
@@ -162,7 +166,7 @@ export function computeLineBonusForPlayer(gameData: any, playerId: string): numb
   // Implemented here (Option A) as part of line bonus computation.
   const sciTier = getCopyTierFromFleet(ships, 'SCI', 3);
   if (sciTier >= 3) {
-    const roll = getEffectiveDiceRollFromGameData(gameData);
+    const roll = getEffectiveDiceRollFromGameData(gameData, playerId);
     if (typeof roll === 'number') {
       totalBonus += roll;
     }

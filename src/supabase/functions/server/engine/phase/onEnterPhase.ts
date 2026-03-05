@@ -402,6 +402,30 @@ function enterPhaseOnce(
       turnData.diceRoll = base; // Compatibility mirror
       turnData.diceRolled = true;
       turnData.diceFinalized = false; // Initially not finalized
+
+      // Compute per-player effective dice read values (e.g., Leviathan)
+      const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
+      const effectiveByPlayerId: Record<string, number> = {};
+      const overrideSourceByPlayerId: Record<string, string> = {};
+
+      for (const player of activePlayers) {
+        const fleet = workingState.gameData?.ships?.[player.id] ?? [];
+        const hasLeviathan = Array.isArray(fleet) && fleet.some((s: any) => s?.shipDefId === 'LEV');
+
+        if (hasLeviathan) {
+          effectiveByPlayerId[player.id] = 6;
+          overrideSourceByPlayerId[player.id] = 'LEV';
+        } else {
+          effectiveByPlayerId[player.id] = base;
+        }
+      }
+
+      turnData.effectiveDiceRollByPlayerId = effectiveByPlayerId;
+      if (Object.keys(overrideSourceByPlayerId).length > 0) {
+        turnData.diceOverrideSourceByPlayerId = overrideSourceByPlayerId;
+      } else {
+        delete turnData.diceOverrideSourceByPlayerId;
+      }
       
       // Mirror effectiveDiceRoll to gameData for compatibility
       workingState.gameData.diceRoll = base;
@@ -430,6 +454,30 @@ function enterPhaseOnce(
       // Ensure gameData mirror is synced
       workingState.gameData.diceRoll = canonicalDice;
       
+      // Ensure per-player effective dice map exists (backfill for older states)
+      if (!turnData.effectiveDiceRollByPlayerId) {
+        const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
+        const effectiveByPlayerId: Record<string, number> = {};
+        const overrideSourceByPlayerId: Record<string, string> = {};
+
+        for (const player of activePlayers) {
+          const fleet = workingState.gameData?.ships?.[player.id] ?? [];
+          const hasLeviathan = Array.isArray(fleet) && fleet.some((s: any) => s?.shipDefId === 'LEV');
+
+          if (hasLeviathan) {
+            effectiveByPlayerId[player.id] = 6;
+            overrideSourceByPlayerId[player.id] = 'LEV';
+          } else {
+            effectiveByPlayerId[player.id] = canonicalDice;
+          }
+        }
+
+        turnData.effectiveDiceRollByPlayerId = effectiveByPlayerId;
+        if (Object.keys(overrideSourceByPlayerId).length > 0) {
+          turnData.diceOverrideSourceByPlayerId = overrideSourceByPlayerId;
+        }
+      }
+
       console.log(`[OnEnterPhase] Dice already rolled this turn (${canonicalDice})`);
     }
   }
@@ -457,11 +505,12 @@ function enterPhaseOnce(
       }
       // Proceed with line distribution
       else {
-        // Use canonical dice value (prefer effectiveDiceRoll)
-        const baseLines = turnData.effectiveDiceRoll ?? turnData.baseDiceRoll ?? turnData.diceRoll;
+        // Use canonical dice value; if per-player dice read values exist, use those.
+        const canonicalBaseLines = turnData.effectiveDiceRoll ?? turnData.baseDiceRoll ?? turnData.diceRoll;
         const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
         
         for (const player of activePlayers) {
+          const baseLines = turnData.effectiveDiceRollByPlayerId?.[player.id] ?? canonicalBaseLines;
           const bonusLines = computeLineBonusForPlayer(workingState, player.id);
           const totalLines = baseLines + bonusLines;
           

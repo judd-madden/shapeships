@@ -222,6 +222,32 @@ export const STRUCTURED_POWERS_HUMAN: Record<ShipPowerKey, StructuredShipPower[]
   ],
 
 
+  // ==========================================================================
+  // LEVIATHAN (LEV)
+  // ==========================================================================
+  // JSON power index 1: "Deal 12 damage." (Automatic)
+  'LEV#1': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Damage,
+      amount: 12,
+      targetPlayer: 'opponent'
+    }
+  ],
+
+  // JSON power index 2: "Heal 12." (Automatic)
+  'LEV#2': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Heal,
+      amount: 12,
+      targetPlayer: 'self'
+    }
+  ],
+
+
 // ==========================================================================
 // FRIGATE (FRI)
 // ==========================================================================
