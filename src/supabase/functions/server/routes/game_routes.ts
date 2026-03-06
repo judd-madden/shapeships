@@ -662,7 +662,7 @@ export function registerGameRoutes(
       }
 
       // Check if switching to player but game already has 2 players
-      const activePlayers = gameData.players.filter(p => p.role === 'player');
+      const activePlayers = gameData.players.filter((p: any) => p.role === 'player');
       if (newRole === 'player' && activePlayers.length >= 2 && player.role !== 'player') {
         return c.json({ error: "Game already has 2 active players" }, 400);
       }
@@ -670,7 +670,7 @@ export function registerGameRoutes(
       const oldRole = player.role;
       
       // Find player index to update the player properly
-      const playerIndex = gameData.players.findIndex(p => p.id === playerId);
+      const playerIndex = gameData.players.findIndex((p: any) => p.id === playerId);
       if (playerIndex === -1) {
         return c.json({ error: "Player not found in game" }, 404);
       }
@@ -783,7 +783,7 @@ export function registerGameRoutes(
       }
 
       // Verify session is a participant in this game (or spectator)
-      const participant = gameData.players.find(p => p.id === requestingPlayerId);
+      const participant = gameData.players.find((p: any) => p.id === requestingPlayerId);
       if (!participant) {
         return c.json({ error: "Not authorized to view this game" }, 403);
       }
@@ -1049,11 +1049,11 @@ export function registerGameRoutes(
           }
           
           // Find player index once for all updates  
-          let playerIndex = gameData.players.findIndex(p => p.id === playerId);
+          let playerIndex = gameData.players.findIndex((p: any) => p.id === playerId);
           
           // Handle spectator promotion to player
           if (originalPlayerRole === 'spectator') {
-            const activePlayers = gameData.players.filter(p => p.role === 'player');
+            const activePlayers = gameData.players.filter((p: any) => p.role === 'player');
             console.log("Spectator trying to select species:", { activePlayerCount: activePlayers.length });
             
             if (activePlayers.length < 2) {
@@ -1095,7 +1095,7 @@ export function registerGameRoutes(
               });
               
               // Refresh playerIndex after promotion since array was modified
-              playerIndex = gameData.players.findIndex(p => p.id === playerId);
+              playerIndex = gameData.players.findIndex((p: any) => p.id === playerId);
             } else {
               console.error("Cannot promote spectator - game full:", activePlayers.length);
               return c.json({ error: "Cannot select species as spectator - game already has 2 active players" }, 400);
@@ -1231,7 +1231,7 @@ export function registerGameRoutes(
           }
           
           // For now, just deduct lines without implementing saved lines storage - immutable update
-          const savePlayerIndex = gameData.players.findIndex(p => p.id === playerId);
+          const savePlayerIndex = gameData.players.findIndex((p: any) => p.id === playerId);
           if (savePlayerIndex !== -1) {
             gameData = {
               ...gameData,
@@ -1256,7 +1256,7 @@ export function registerGameRoutes(
             case 'roll_dice':
               // Simple dice roll simulation
               const diceRoll = rollD6();
-              const rollPlayerIndex = gameData.players.findIndex(p => p.id === playerId);
+              const rollPlayerIndex = gameData.players.findIndex((p: any) => p.id === playerId);
               if (rollPlayerIndex !== -1) {
                 gameData = {
                   ...gameData,

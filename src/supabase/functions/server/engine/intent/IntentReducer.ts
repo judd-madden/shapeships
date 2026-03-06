@@ -162,7 +162,6 @@ export async function applyIntent(
     'SPECIES_SUBMIT',
     'SPECIES_COMMIT',
     'SPECIES_REVEAL',
-    'SPECIES_SELECT',
     'BUILD_COMMIT',
     'BUILD_REVEAL',
     'BUILD_SUBMIT',
@@ -263,9 +262,6 @@ export async function applyIntent(
   // ============================================================================
   
   switch (intent.intentType) {
-    case 'SPECIES_SELECT':
-      return await handleSpeciesSelect(state, sessionPlayerId, intent, nowMs, events);
-      
     case 'SPECIES_SUBMIT':
       return await handleSpeciesSubmit(state, sessionPlayerId, intent, nowMs, events);
       
@@ -578,7 +574,7 @@ async function handleSpeciesSubmit(
         state,
         events: [],
         rejected: {
-          code: RejectionCode.BAD_STATE,
+          code: RejectionCode.DUPLICATE_COMMIT,
           message: 'Species already selected'
         }
       };
@@ -1868,7 +1864,7 @@ function handleAction(
     events: [],
     rejected: {
       code: RejectionCode.BAD_PAYLOAD,
-      message: `Unsupported action type: ${payload.actionType}`
+      message: 'Unsupported action type'
     }
   };
 }
@@ -2263,7 +2259,7 @@ function handleDrawAccept(
 /**
  * Get canonical phase key using buildPhaseKey
  */
-function getPhaseKey(state: any): string | null {
+function getPhaseKey(state: any) {
   const major = state.gameData?.currentPhase;
   const sub = state.gameData?.currentSubPhase;
   

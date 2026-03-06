@@ -68,15 +68,6 @@ export function fleetHasAvailablePowers(
         continue; // Skip fallback matching if allowedSubphases was provided
       }
       
-      /**
-       * Fallback power eligibility matching rules:
-       * - If power declares an explicit phaseKey, match exactly
-       * - If power declares a subphase string, derive subphase from phaseKey and match
-       */
-      if (power.phaseKey && power.phaseKey === phaseKey) {
-        return true;
-      }
-
       // Derive subphase from phaseKey (deterministic, no state dependency)
       const phaseSub = String(phaseKey).split('.')[1];
 

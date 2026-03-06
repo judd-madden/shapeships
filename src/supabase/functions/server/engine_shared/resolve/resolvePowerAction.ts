@@ -64,7 +64,7 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
   // 2. FIND SHIP INSTANCE
   // ============================================================================
 
-  const fleet = state?.ships?.[playerId] ?? state?.gameData?.ships?.[playerId] ?? [];
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
   const shipInstance = fleet.find((s: ShipInstance) => s.instanceId === sourceInstanceId);
 
   if (!shipInstance) {
