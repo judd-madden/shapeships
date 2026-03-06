@@ -63,7 +63,7 @@ function attachStructuredPowers(): ShipDefinitionWithStructuredPowers[] {
 
     const powersWithStructured: ShipPowerWithStructured[] = ship.powers.map((power, powerIndex) => {
       const key = `${ship.id}#${powerIndex}`;
-      const structuredPowers = STRUCTURED_POWERS_HUMAN[key];
+      const structuredPowers = STRUCTURED_POWERS_HUMAN[key as keyof typeof STRUCTURED_POWERS_HUMAN];
 
       if (structuredPowers && structuredPowers.length > 0) {
         usedKeys.add(key);

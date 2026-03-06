@@ -40,7 +40,7 @@ const supabase = createClient(
 // ============================================================================
 // KV STORE UTILITIES - ALL INLINE, NO IMPORTS (FIXED)
 // ============================================================================
-const kvGet = async (key) => {
+const kvGet = async (key: string) => {
   const { data, error } = await supabase
     .from('kv_store_825e19ab')
     .select('value')
@@ -51,7 +51,7 @@ const kvGet = async (key) => {
   return data?.value;
 };
 
-const kvSet = async (key, value) => {
+const kvSet = async (key: string, value: unknown) => {
   const { error } = await supabase
     .from('kv_store_825e19ab')
     .upsert({ key, value });
@@ -59,7 +59,7 @@ const kvSet = async (key, value) => {
   if (error) throw error;
 };
 
-const kvDel = async (key) => {
+const kvDel = async (key: string) => {
   const { error } = await supabase
     .from('kv_store_825e19ab')
     .delete()
@@ -68,7 +68,7 @@ const kvDel = async (key) => {
   if (error) throw error;
 };
 
-const kvMget = async (keys) => {
+const kvMget = async (keys: string[]) => {
   const { data, error } = await supabase
     .from('kv_store_825e19ab')
     .select('value')
@@ -78,15 +78,15 @@ const kvMget = async (keys) => {
   return data?.map(d => d.value) ?? [];
 };
 
-const kvMset = async (keys, values) => {
+const kvMset = async (keys: string[], values: unknown[]) => {
   const { error } = await supabase
     .from('kv_store_825e19ab')
-    .upsert(keys.map((k, i) => ({ key: k, value: values[i] })));
+    .upsert(keys.map((k: string, i: number) => ({ key: k, value: values[i] })));
   
   if (error) throw error;
 };
 
-const kvMdel = async (keys) => {
+const kvMdel = async (keys: string[]) => {
   const { error } = await supabase
     .from('kv_store_825e19ab')
     .delete()
@@ -95,7 +95,7 @@ const kvMdel = async (keys) => {
   if (error) throw error;
 };
 
-const kvGetByPrefix = async (prefix) => {
+const kvGetByPrefix = async (prefix: string) => {
   const { data, error } = await supabase
     .from('kv_store_825e19ab')
     .select('key, value')

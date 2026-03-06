@@ -138,13 +138,14 @@ function resolveBattleEndOfTurn(
     };
   }
 
-  if (!state.gameData.powerMemory.onceOnlyFired) {
+  const powerMemory = state.gameData.powerMemory;
+  if (!powerMemory?.onceOnlyFired) {
     state = {
       ...state,
       gameData: {
         ...state.gameData,
         powerMemory: {
-          ...state.gameData.powerMemory,
+          ...powerMemory,
           onceOnlyFired: {},
         },
       },

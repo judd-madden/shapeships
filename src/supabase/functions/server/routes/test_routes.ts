@@ -45,11 +45,13 @@ export function registerTestRoutes(
         }
       });
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const details = error instanceof Error ? error.toString() : String(error);
       console.error("Connection test error:", error);
       return c.json({ 
         status: "error", 
-        message: error.message,
-        details: error.toString(),
+        message,
+        details,
         timestamp: new Date().toISOString()
       }, 500);
     }
@@ -120,7 +122,7 @@ export function registerTestRoutes(
       results.tests.push({
         name: "Environment Variables",
         status: "error",
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
     }
 
@@ -142,7 +144,7 @@ export function registerTestRoutes(
       results.tests.push({
         name: "KV Store Operations",
         status: "error",
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
     }
 
@@ -168,7 +170,7 @@ export function registerTestRoutes(
       results.tests.push({
         name: "Session Management",
         status: "error",
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       });
     }
 

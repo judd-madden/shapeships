@@ -43,6 +43,19 @@ export interface LeftRailViewModel {
   // Dice
   diceValue: 1 | 2 | 3 | 4 | 5 | 6;
   diceAnimateKey: number; // increments on each DICE_ROLLED event (drives animation)
+
+  /**
+   * Optional overlay dice + ship icon for dice modifiers.
+   *
+   * IMPORTANT UX: the BIG dice always shows the shared "normal" roll for the turn.
+   * The overlay dice indicates a special rule (e.g. Leviathan reads as 6).
+   */
+  diceOverlay?: {
+    value: 1 | 2 | 3 | 4 | 5 | 6;
+    sourceShipDefId: ShipDefId;
+    /** Optional animation key for overlay-only rerolls (not used for LEV). */
+    animateKey?: number;
+  } | null;
   
   // Phase card
   turn: number;

@@ -502,12 +502,12 @@ export function registerGameRoutes(
       }
 
       // Check if player already exists
-      const existingPlayer = gameData.players.find(p => p.id === playerId);
+      const existingPlayer = gameData.players.find((p: any) => p.id === playerId);
       
       // Count current active players (not spectators) for slot allocation
       // IMPORTANT: exclude "me" so refresh/rejoin cannot demote an existing player.
       const activePlayersExcludingMe = gameData.players.filter(
-        p => p.role === 'player' && p.id !== playerId
+        (p: any) => p.role === 'player' && p.id !== playerId
       );
 
       // Returning players keep their player slot even if the game is full.
@@ -566,7 +566,7 @@ export function registerGameRoutes(
         });
 
         // Start the game if we have 2 active players
-        const newActivePlayerCount = gameData.players.filter(p => p.role === 'player').length;
+        const newActivePlayerCount = gameData.players.filter((p: any) => p.role === 'player').length;
         if (newActivePlayerCount >= 2 && gameData.status === 'waiting') {
           gameData.status = 'active';
           gameData.actions.push({
@@ -656,7 +656,7 @@ export function registerGameRoutes(
         return c.json({ error: "Game not found" }, 404);
       }
 
-      const player = gameData.players.find(p => p.id === playerId);
+      const player = gameData.players.find((p: any) => p.id === playerId);
       if (!player) {
         return c.json({ error: "Player not in game (session not recognized)" }, 403);
       }
@@ -686,7 +686,7 @@ export function registerGameRoutes(
         
         gameData = {
           ...gameData,
-          players: gameData.players.map((p, idx) => 
+          players: gameData.players.map((p: any, idx: number) => 
             idx === playerIndex 
               ? {
                   ...p,
@@ -701,7 +701,7 @@ export function registerGameRoutes(
         // Switching to spectator - keep current resources but don't give new ones
         gameData = {
           ...gameData,
-          players: gameData.players.map((p, idx) => 
+          players: gameData.players.map((p: any, idx: number) => 
             idx === playerIndex 
               ? {
                   ...p,
@@ -793,8 +793,8 @@ export function registerGameRoutes(
       const phaseReadiness = gameData.gameData?.phaseReadiness || [];
       const inSpeciesSelection = phaseKey === 'setup.species_selection';
 
-      gameData.players = gameData.players.map(player => {
-        const readiness = phaseReadiness.find(r => r.playerId === player.id);
+      gameData.players = gameData.players.map((player: any) => {
+        const readiness = phaseReadiness.find((r: any) => r.playerId === player.id);
 
         // Support both new (major:sub) and older (sub only)
         const readyMatch =
@@ -815,7 +815,7 @@ export function registerGameRoutes(
         
         // Filter pending charge declarations
         if (turnData.pendingChargeDeclarations) {
-          const filteredChargeDeclarations = {};
+          const filteredChargeDeclarations: Record<string, any[]> = {};
           // Only include requesting player's pending declarations
           if (turnData.pendingChargeDeclarations[requestingPlayerId]) {
             filteredChargeDeclarations[requestingPlayerId] = turnData.pendingChargeDeclarations[requestingPlayerId];
@@ -841,7 +841,7 @@ export function registerGameRoutes(
         
         // Filter pending solar power declarations
         if (turnData.pendingSOLARPowerDeclarations) {
-          const filteredSolarDeclarations = {};
+          const filteredSolarDeclarations: Record<string, any[]> = {};
           // Only include requesting player's pending declarations
           if (turnData.pendingSOLARPowerDeclarations[requestingPlayerId]) {
             filteredSolarDeclarations[requestingPlayerId] = turnData.pendingSOLARPowerDeclarations[requestingPlayerId];
@@ -982,7 +982,7 @@ export function registerGameRoutes(
         return c.json({ error: "Game not found" }, 404);
       }
 
-      const player = gameData.players.find(p => p.id === playerId);
+      const player = gameData.players.find((p: any) => p.id === playerId);
       if (!player) {
         return c.json({ error: "Player not in game (session not recognized)" }, 403);
       }
@@ -1112,7 +1112,7 @@ export function registerGameRoutes(
               // Update the faction immutably by creating a new players array
               gameData = {
                 ...gameData,
-                players: gameData.players.map((p, idx) => 
+                players: gameData.players.map((p: any, idx: number) => 
                   idx === playerIndex ? { ...p, faction: selectedSpecies } : p
                 )
               };
@@ -1129,7 +1129,7 @@ export function registerGameRoutes(
                 }
                 const phaseKey = getPhaseKey(gameData);
                 // Upsert readiness entry
-                const existingIndex = gameData.gameData.phaseReadiness.findIndex(r => r.playerId === playerId);
+                const existingIndex = gameData.gameData.phaseReadiness.findIndex((r: any) => r.playerId === playerId);
                 if (existingIndex !== -1) {
                   gameData.gameData.phaseReadiness[existingIndex] = {
                     playerId,
@@ -1169,7 +1169,7 @@ export function registerGameRoutes(
           }
           const phaseKey = getPhaseKey(gameData);
           // Upsert readiness entry
-          const existingReadyIndex = gameData.gameData.phaseReadiness.findIndex(r => r.playerId === playerId);
+          const existingReadyIndex = gameData.gameData.phaseReadiness.findIndex((r: any) => r.playerId === playerId);
           if (existingReadyIndex !== -1) {
             gameData.gameData.phaseReadiness[existingReadyIndex] = {
               playerId,
@@ -1225,7 +1225,7 @@ export function registerGameRoutes(
           }
           
           const amount = content.amount || 1;
-          const savingPlayer = gameData.players.find(p => p.id === playerId);
+          const savingPlayer = gameData.players.find((p: any) => p.id === playerId);
           if ((savingPlayer?.lines || 0) < amount) {
             return c.json({ error: "Not enough lines to save" }, 400);
           }
@@ -1235,7 +1235,7 @@ export function registerGameRoutes(
           if (savePlayerIndex !== -1) {
             gameData = {
               ...gameData,
-              players: gameData.players.map((p, idx) => 
+              players: gameData.players.map((p: any, idx: number) => 
                 idx === savePlayerIndex 
                   ? { ...p, lines: Math.max(0, (p.lines || 0) - amount) }
                   : p
@@ -1260,7 +1260,7 @@ export function registerGameRoutes(
               if (rollPlayerIndex !== -1) {
                 gameData = {
                   ...gameData,
-                  players: gameData.players.map((p, idx) => 
+                  players: gameData.players.map((p: any, idx: number) => 
                     idx === rollPlayerIndex 
                       ? { ...p, lines: (p.lines || 0) + diceRoll }
                       : p
@@ -1300,7 +1300,7 @@ export function registerGameRoutes(
           gameData.gameData.diceRoll = diceRoll;
           
           // Give lines to ALL active players (dice roll is shared)
-          gameData.players = gameData.players.map(player => {
+          gameData.players = gameData.players.map((player: any) => {
             if (player.role === 'player') {
               return {
                 ...player,
@@ -1380,7 +1380,7 @@ export function registerGameRoutes(
           
           // Check if player is already ready for current step (cannot modify after ready)
           const currentStepCharge = gameData.gameData?.turnData?.currentStep;
-          const chargeReadiness = (gameData.gameData?.phaseReadiness || []).find(r => r.playerId === playerId);
+          const chargeReadiness = (gameData.gameData?.phaseReadiness || []).find((r: any) => r.playerId === playerId);
           if (chargeReadiness?.isReady && chargeReadiness?.currentStep === currentStepCharge) {
             return c.json({ error: "Cannot declare charges after marking ready" }, 400);
           }
@@ -1420,7 +1420,7 @@ export function registerGameRoutes(
           
           // Check if player is already ready for current step
           const currentStepSolar = gameData.gameData?.turnData?.currentStep;
-          const solarReadiness = (gameData.gameData?.phaseReadiness || []).find(r => r.playerId === playerId);
+          const solarReadiness = (gameData.gameData?.phaseReadiness || []).find((r: any) => r.playerId === playerId);
           if (solarReadiness?.isReady && solarReadiness?.currentStep === currentStepSolar) {
             return c.json({ error: "Cannot use solar powers after marking ready" }, 400);
           }
@@ -1464,8 +1464,10 @@ export function registerGameRoutes(
       }
       
       } catch (actionError) {
-        console.error("Error processing action:", { actionType, error: actionError.message, stack: actionError.stack });
-        return c.json({ error: `Failed to process ${actionType} action: ${actionError.message}` }, 500);
+        const actionErrorMessage = actionError instanceof Error ? actionError.message : String(actionError);
+        const actionErrorStack = actionError instanceof Error ? actionError.stack : undefined;
+        console.error("Error processing action:", { actionType, error: actionErrorMessage, stack: actionErrorStack });
+        return c.json({ error: `Failed to process ${actionType} action: ${actionErrorMessage}` }, 500);
       }
 
       // Add action to log (use stored player name to avoid const reference issues)

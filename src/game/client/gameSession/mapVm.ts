@@ -254,6 +254,11 @@ export function mapGameSessionVm(args: {
 
   const myFleet = board.mode === 'board' ? board.myFleet : undefined;
 
+  // Dice overlay visibility scaffolding (server-driven)
+  // - LEV: show to both players unless the VIEWER has KNO or HVE (per UX rules)
+  const viewerHasKno = getFleetCount(myFleet, 'KNO') > 0;
+  const viewerHasHve = getFleetCount(myFleet, 'HVE') > 0;
+
   // Frigate drawing (build preview count, not fleet count)
   const frigateCount = Number.isInteger(buildPreviewCounts?.FRI) ? Math.max(0, buildPreviewCounts.FRI) : 0;
   const frigateDrawing = frigateCount > 0 ? { frigateCount, selectedTriggers: frigateSelectedTriggers } : undefined;
@@ -543,6 +548,24 @@ export function mapGameSessionVm(args: {
         return num as 1 | 2 | 3 | 4 | 5 | 6;
       })(),
       diceAnimateKey: diceRollSeq,
+      diceOverlay: (() => {
+        const overrideMap = gameData?.turnData?.diceOverrideSourceByPlayerId as
+          | Record<string, string>
+          | undefined;
+
+        if (!overrideMap) return null;
+
+        const hasLev = Object.values(overrideMap).some(v => v === 'LEV');
+        if (!hasLev) return null;
+
+        // UX rule: LEV overlay is hidden from a viewer who has KNO or HVE.
+        if (viewerHasKno || viewerHasHve) return null;
+
+        return {
+          value: 6 as 1 | 2 | 3 | 4 | 5 | 6,
+          sourceShipDefId: 'LEV' as const,
+        };
+      })(),
       turn: turnNumber,
       phase: getMajorPhaseLabel(phaseKey),
       phaseIcon,

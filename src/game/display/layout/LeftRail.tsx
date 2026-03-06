@@ -15,6 +15,8 @@ import { InChatButton } from '../../../components/ui/primitives/buttons/InChatBu
 import { CopiedToast } from '../../../components/ui/primitives/CopiedToast';
 import type { LeftRailViewModel, GameSessionActions } from '../../client/useGameSession';
 import { LeftRailScrollArea } from './LeftRailScrollArea';
+import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
+import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 
 interface LeftRailProps {
   vm: LeftRailViewModel;
@@ -26,6 +28,14 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
   const [showCopiedToast, setShowCopiedToast] = useState(false);
   const [chatDraft, setChatDraft] = useState('');
 
+  const overlayShipGraphic = (() => {
+    if (!vm.diceOverlay) return null;
+    const def = getShipDefinitionUI(vm.diceOverlay.sourceShipDefId);
+    if (!def) return null;
+    const graphic = resolveShipGraphic(def, { context: 'default' });
+    return graphic?.component ?? null;
+  })();
+
   function handleCopyUrl() {
     actions.onCopyGameUrl();
     setShowCopiedToast(true);
@@ -35,7 +45,7 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
   }
 
   return (
-    <div className="w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0">
+    <div className="relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0">
       {/* Brand / Title */}
       <div className="shrink-0 flex items-center justify-between">
         <div className="flex-1">
@@ -57,6 +67,39 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
       <div className="shrink-0 flex justify-center">
         <Dice value={vm.diceValue} animateKey={vm.diceAnimateKey} />
       </div>
+
+      {/* Dice Overlay (e.g. Leviathan) */}
+      {vm.diceOverlay && (
+              <div
+                  style={{
+                      position: "absolute",
+                      top: 110,
+                      right: -12,     // or use left: 235
+                      zIndex: 40,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      pointerEvents: "none",
+                  }}
+              >
+                  <Dice
+                      value={vm.diceOverlay.value}
+                      animateKey={vm.diceOverlay.animateKey}
+                      className="w-[60px] h-[60px]"
+                      enableRotate={false}
+                  />
+          {overlayShipGraphic && (
+                      <div className="w-[52px] h-[52px]">
+                          {(() => {
+                              const Cmp = overlayShipGraphic;
+                              return <Cmp className="w-[52px] h-[52px]" />;
+                          })()}
+                      </div>
+          )}
+        </div>
+      )}
 
       {/* Turn / Phase / Subphase Card */}
       <div className="shrink-0 rounded-[10px] border-2 border-[#555] overflow-hidden">
