@@ -1,13 +1,14 @@
 {
+  "nodeModulesDir": "auto",
   "compilerOptions": {
     "allowJs": true,
     "allowImportingTsExtensions": true,
-    "lib": ["deno.window"],
+    "lib": [ "deno.window" ],
     "strict": true
   },
   "lint": {
     "rules": {
-      "tags": ["recommended"]
+      "tags": [ "recommended" ]
     }
   },
   "fmt": {
@@ -19,8 +20,9 @@
     "proseWrap": "preserve"
   },
   "tasks": {
-    "dev": "deno run --allow-net --allow-read --allow-env --watch supabase/functions/server/index.tsx",
-    "serve": "deno run --allow-net --allow-read --allow-env supabase/functions/server/index.tsx"
+    "dev": "deno run --allow-net --allow-read --allow-env --watch src/supabase/functions/server/index.tsx",
+    "serve": "deno run --allow-net --allow-read --allow-env src/supabase/functions/server/index.tsx",
+    "check": "deno check src/supabase/functions/server/index.tsx"
   },
   "imports": {
     "hono": "npm:hono@^4.0.0",

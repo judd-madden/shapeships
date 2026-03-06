@@ -109,12 +109,12 @@ export async function ensureSession(displayName?: string): Promise<{ sessionToke
   
   // Step A: If we have cached token + sessionId, return immediately (idempotent)
   if (existingToken && existingSessionId) {
-    if (isDev) {
-      console.log('[Session] reusing cached session', {
-        sessionId: existingSessionId,
-        displayName: existingDisplayName || displayName
-      });
-    }
+      if (isDev) {
+          console.debug('[Session] reusing cached session', {
+              sessionId: existingSessionId,
+              displayName: existingDisplayName || displayName,
+          });
+      }
     return {
       sessionToken: existingToken,
       sessionId: existingSessionId,
@@ -290,7 +290,7 @@ export async function authenticatedFetch(
   // Part B: Debug log to confirm which token/session is used
   if (isDev) {
     const tokenPrefix = sessionData.sessionToken.substring(0, 6);
-    console.log(`[sessionManager] request to ${endpoint} using sessionId=${sessionData.sessionId} token=${tokenPrefix}...`);
+    console.debug(`[sessionManager] request to ${endpoint} using sessionId=${sessionData.sessionId} token=${tokenPrefix}...`);
   }
 
   // Use retry-once if timeout is provided, otherwise use normal fetch

@@ -149,14 +149,19 @@ export function mapGameSessionVm(args: {
   // E2) DERIVE DISPLAY NAMES (MY NAME FIRST)
   // ============================================================================
   
-  const myName = me?.name || 'Player 1';
-  const opponentName = opponent?.name || 'Player 2';
-  
-  // Compose title: always myName first
-  const title = `Shapeships Game: ${myName} v ${opponentName}`;
-  
-  // Compose in-progress subtitle
-  const inProgressSubtitle = `In Progress. Turn ${turnNumber}.`;
+    const myName = me?.name || 'Player 1';
+    const opponentName = opponent?.name || 'Player 2';
+
+    // Use the same derivation as vm.gameCode (mapVm does not have `gameId`)
+    const gameCode = effectiveGameId
+        ? effectiveGameId.substring(0, 6).toUpperCase()
+        : 'NOGAME';
+
+    // Big heading
+    const title = `${myName} vs ${opponentName}`;
+
+    // Small line under it
+    const inProgressSubtitle = `Shapeships Game #${gameCode} - Turn ${turnNumber}`;
   
   // ============================================================================
   // E4) SWITCH PANEL ID WHEN FINISHED

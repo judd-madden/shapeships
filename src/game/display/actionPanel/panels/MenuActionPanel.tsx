@@ -62,7 +62,7 @@ function TurnFlowWidget({
         const isCurrent = row.key === phaseKey;
 
         return (
-            <div key={row.key} className="flex items-center gap-[6px]" style={{ lineHeight: '20px' }}>
+            <div key={row.key} className="flex items-center gap-[6px] leading-[20px]">
                 {/* Dot gutter (always takes space) */}
                 <span style={{ display: 'inline-flex', width: 10, height: 10, alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>
                     {isCurrent ? (
@@ -93,17 +93,15 @@ function TurnFlowWidget({
 
   return (
     <div
-      className="flex items-start gap-[30px] rounded-[10px] shrink-0"
+      className="flex items-start gap-[30px] rounded-[10px] shrink-0 px-[40px] py-[30px] pl-[30px] "
       style={{
-        padding: '30px 40px 30px 30px',
-        background: 'rgba(33, 33, 33, 0.5)',
+        background: 'rgba(33, 33, 33, 0.7)',
       }}
     >
       {/* Turn badge */}
       <div
-        className="flex items-center justify-center rounded-[10px]"
+        className="flex items-center justify-center rounded-[10px] px-[20px] py-[10px]"
         style={{
-          padding: '10px 20px',
           background: 'var(--shapeships-grey-90)',
         }}
       >
@@ -116,9 +114,9 @@ function TurnFlowWidget({
       </div>
 
       {/* Phase columns */}
-       <div className="flex w-full" style={{ gap: 20 }}>
+       <div className="flex w-full gap-[20px]">
         {/* Build */}
-        <div className="flex flex-col" style={{ gap: '4px' }}>
+              <div className="flex flex-col gap-[4px]">
           <div className="flex items-center gap-[10px] mb-[4px]">
             <span
               className="text-[18px] font-bold text-white"
@@ -128,13 +126,13 @@ function TurnFlowWidget({
             </span>
             <BuildIcon className="size-[26px]" color="#FFFFFF" />
           </div>
-          <div className="flex flex-col" style={{ gap: '4px' }}>
+                  <div className="flex flex-col gap-[4px]">
             {buildRows.map(renderRow)}
           </div>
         </div>
 
         {/* Battle */}
-        <div className="flex flex-col" style={{ gap: '4px' }}>
+        <div className="flex flex-col gap-[4px]">
           <div className="flex items-center gap-[10px] mb-[4px]">
             <span
               className="text-[18px] font-bold text-white"
@@ -144,7 +142,7 @@ function TurnFlowWidget({
             </span>
             <BattleIcon className="size-[26px]" color="#FFFFFF" />
           </div>
-          <div className="flex flex-col" style={{ gap: '4px' }}>
+          <div className="flex flex-col gap-[4px]">
             {battleRows.map(renderRow)}
           </div>
         </div>
