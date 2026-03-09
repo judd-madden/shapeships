@@ -1,157 +1,66 @@
-# Shapeships Development Guidelines (Protected Pointer Doc)
+# Shapeships Development Guidelines
 
-> **This file is protected.**  
-> It must remain short, strict, and non-duplicative.
->
-> **Normative source of truth:**  
-> `/documentation/architecture/canonical-handoff.md`
->
-> If anything in this file conflicts with canonical-handoff, **canonical-handoff wins**.
+This document is a short guardrail layer for contributors and AI agents.
 
----
+**Architecture source of truth:**
+- [contracts/canonical-handoff.md](contracts/canonical-handoff.md)
+- [contracts/code-ownership-map.md](contracts/code-ownership-map.md)
+
+**Operational agent rules:**
+- [../../AGENTS.md](../../AGENTS.md)
+
+If anything here conflicts with the canonical architecture docs, the canonical docs win.
 
 ## Purpose
+This file exists to:
+- reinforce hard invariants during fast iteration
+- keep AI-assisted changes inside architectural boundaries
+- prevent accidental drift across server, client, and display layers
 
-This document exists to:
-- Enforce **hard invariants** during rapid iteration
-- Constrain **AI-assisted development tools** (especially Figma Make)
-- Define **what must not be modified** without explicit instruction
+It is not a roadmap, changelog, or long-form architecture document.
 
-This file is **not** an architecture spec, rules reference, roadmap, or performance plan.  
-Those belong in `/documentation/**`.
+## Hard Invariants
 
----
+### Authority and data flow
+- All gameplay interactions follow: **UI emits intent -> server validates/applies -> client/UI renders state**
+- No player-facing UI becomes authoritative
+- No gameplay rules are invented in display code
+- The server is the final authority
 
-## Hard Invariants (Do Not Break)
+### Separation of concerns
+- authoritative rules belong on the server
+- networking belongs in the client runtime layer
+- display code renders state and gathers input
+- shared graphics/primitives stay reusable and presentation-oriented
 
-### Authority & Data Flow
-- All interactions follow: **UI emits Intent → server validates/applies → UI renders state**
-- **No gameplay rules in UI components**
-- Client-side logic is **non-authoritative** (preview only)
-- Server is the sole source of truth
+### No guessing
+AI tools must not invent:
+- ship behavior
+- rule legality
+- phase timing
+- targeting legality
+- hidden architecture changes
 
-### Separation of Concerns
-- Engine code must be **pure TypeScript** (no React imports)
-- Layer boundaries are strict:
-  - `/game/engine/` → deterministic game logic only
-  - `/game/display/` → rendering only (no rules)
-  - `/server/` → validation, persistence, authority
+If information is missing, preserve the existing pattern and surface the uncertainty.
 
-### No Guessing
-- AI tools must **not invent**:
-  - game rules
-  - ship behavior
-  - phase timing
-  - eligibility logic
-- If information is missing, add a TODO and reference canonical-handoff.
+## Pass discipline
+Preferred pass types:
+- **Server Pass**
+- **Client/UI Pass**
+- **Tooling Pass**
+- **Mixed Pass** only by explicit approval
 
----
+Do not quietly expand the scope of a pass.
 
-## Figma Make (AI) Constraints — CRITICAL
+## Tailwind / Vite guardrails
+- follow existing Tailwind patterns used nearby
+- do not introduce alternate styling systems casually
+- do not change Vite, Tailwind, tsconfig, or Deno config during ordinary feature work
+- config changes belong in a dedicated tooling pass
 
-### What Figma Make **MAY** do
-Figma Make is allowed to create or modify UI **ONLY** in:
+## Documentation placement
+- canonical architecture rules belong in `contracts/`
+- workflow/process templates belong in `workflows/`
+- infrastructure notes belong in `infrastructure/`
 
-- Development-facing tools and screens, including:
-  - Dev Dashboard
-  - Test harnesses
-  - Debug views
-  - Build Kit / component showcases
-  - Deployment or diagnostics screens
-
-These are **DEV MODE ONLY** surfaces.
-
-### What Figma Make **MUST NOT** do
-Figma Make must **never**:
-- Create or modify UI components in **player-facing screens**
-- Alter layouts, panels, or flows in:
-  - GameScreen
-  - MenuShell
-  - RulesShell
-  - Login / Entry screens
-- Introduce new player-facing UI without explicit instruction and Figma reference
-- Add navigation, affordances, or UX logic to player UI
-- Add gameplay logic, validation, or derived state
-
-If a change affects **PLAYER MODE**, it requires explicit approval.
-
----
-
-## Locked Components (Do Not Modify)
-
-The following components are considered complete unless new Figma references are provided.
-
-### Rules System
-- `/components/panels/CoreRulesPanel.tsx`
-- `/components/panels/SpeciesRulesPanel.tsx`
-- `/components/panels/TimingsPanel.tsx`
-- `/imports/RulesHeader.tsx`
-
-### Protected Pattern
-- ✅ Bug fixes and data wiring only
-- ❌ No new UI, navigation, legends, or helper elements
-- ❌ No styling changes without explicit request
-
----
-
-## Graphics System Rules (Non-Negotiable)
-
-- Ship graphics are **React SVG components**
-- Location: `/graphics/{faction}/assets.tsx`
-- **No external image hosting**
-- **No runtime asset fetching**
-- Graphics accept `className` for size/opacity only
-- Import graphics via assets modules, never via direct paths
-
----
-
-## Code Quality Rules
-
-- TypeScript strictly enforced (avoid `any`)
-- Keep files small and single-purpose
-- Prefer explicitness over abstraction
-- Log freely in dev harnesses, not in player UI
-
----
-
-## Documentation Placement Rules
-
-- No long documentation inside `/game/`
-  - Exception: small README + active hard specs/contracts
-- All documentation belongs under `/documentation/**`
-- Historical, migration, and progress docs should be deleted or archived
-- This file should remain a **pointer**, not a knowledge dump
-
----
-
-## Where Things Live
-
-- **Architecture & invariants:** `/documentation/architecture/canonical-handoff.md`
-- **Engine specs:** `/documentation/engine/`
-- **Testing & dev harness notes:** `/documentation/testing/`
-- **Data docs:** `/documentation/data/`
-- **Archive:** `/documentation/archive/`
-
----
-
-## Notes
-
-- Chronoswarm: **Pink Dice** (reminder only)
-- Any implementation detail must live in canonical-handoff or a proper spec doc
-
----
-
-## Infrastructure & Performance Notes
-
-Details about polling, capacity estimates, and scaling strategies
-are intentionally **not** defined here.
-
-See:
-- `/documentation/infrastructure/polling-and-scaling.md`
-
-This file may change as the project evolves and is not normative.
-
----
-
-**Guiding reminder:**  
-If a change “seems reasonable” but is not explicitly allowed, **do not make it**.
+Keep this file short.

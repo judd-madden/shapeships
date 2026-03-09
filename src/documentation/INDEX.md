@@ -1,28 +1,38 @@
-# Shapeships Documentation
+# Shapeships Documentation Index
 
-This repository uses **contracts-first documentation**.
+This directory contains the current documentation spine for the Shapeships codebase.
+
+## Reading Order
+
+1. [Canonical handoff](contracts/canonical-handoff.md)
+2. [Code ownership map](contracts/code-ownership-map.md)
+3. [Guidelines](Guidelines.md)
+4. [Server/client turn-phase contract](contracts/ServerClientTurnPhaseContract.md)
+
+For AI agents and implementation rules, also read:
+- [../../AGENTS.md](../../AGENTS.md)
 
 ## Structure
 
-### `/contracts/`
-Normative, binding architectural rules.
+### `contracts/`
+Binding architecture and integration rules.
 
-- [**canonical-handoff.md**](contracts/canonical-handoff.md) — The authoritative architectural constitution. If anything conflicts with this document, this document wins.
+- [canonical-handoff.md](contracts/canonical-handoff.md) — architectural invariants and ownership boundaries
+- [code-ownership-map.md](contracts/code-ownership-map.md) — quick ownership map for where changes belong
+- [ServerClientTurnPhaseContract.md](contracts/ServerClientTurnPhaseContract.md) — turn/phase integration contract
 
-### `/howto/`
-Operational guidance for development workflows.
+### `workflows/`
+Operational templates and pass formats.
 
-Currently empty. Guides will be added as needed.
+- [CodexPassTemplate.md](workflows/CodexPassTemplate.md) — reusable template for implementation passes
 
-### `/reference/`
-Lookup material for technical details.
+### `infrastructure/`
+Non-normative operational notes.
 
-Currently empty. References will be added as needed.
+- [polling-and-scaling.md](infrastructure/polling-and-scaling.md)
 
-## Explicit Policy
-
-**Status updates, migration summaries, and implementation plans do not belong in documentation.**
-
-Git history is the archive.
-
-This documentation directory contains only current, binding, non-temporal information required to maintain architectural integrity.
+## Documentation policy
+- Keep architecture docs current and concise.
+- Prefer updating canonical docs over creating scattered one-off notes.
+- Put workflow/process guidance in `workflows/`, not in architecture contracts.
+- Non-normative operational notes belong under `infrastructure/`.

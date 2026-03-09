@@ -1,443 +1,151 @@
-SHAPESHIPS
-Canonical Architecture & Implementation Handoff
+# Shapeships Canonical Handoff
 
-(Normative / Enforced / AI-Safe)
+This document defines the architectural invariants of the Shapeships codebase.
 
-Purpose
+It is intended for both human developers and AI agents.
 
-This document defines the authoritative architectural, UI, data, graphics, and backend decisions for the Shapeships project.
+Operational execution rules live in:
+- [../../../AGENTS.md](../../../AGENTS.md)
 
-It exists to prevent accidental reinvention, duplication, or structural drift—especially when using AI-assisted code generation tools (Figma Make, Claude, Copilot, etc.).
+Supporting ownership reference:
+- [code-ownership-map.md](code-ownership-map.md)
 
-This document is normative, not descriptive.
+## 1. Purpose
+This file defines:
+- architectural invariants
+- responsibility boundaries
+- non-negotiable constraints
 
-If something conflicts with this document, this document wins.
+It does **not** define day-to-day pass templates or detailed workflow instructions.
 
-0. Core Constraints & Philosophy
-What Shapeships is
+## 2. Core Architectural Invariants
 
-A 1v1 simultaneous-turn online strategy game
+### 2.1 Server Authority
+The server is the authoritative source of game truth.
 
-Ruleset is stable (minor balance tweaks only)
+The server determines:
+- rule legality
+- turn resolution
+- combat outcomes
+- effect application
+- canonical game state transitions
 
-High UI complexity, very high logic complexity
+The client may render previews, but must not determine authoritative outcomes.
 
-Multiplayer-first, anonymous-friendly, secure by default
+### 2.2 Client Is Non-Authoritative
+Client responsibilities include:
+- rendering game state
+- player interaction
+- UI state
+- network requests
+- preview projections
 
-What Shapeships is not
+The client must never determine final legality or final state.
 
-Not a single-player prototype
+### 2.3 Display Layer Is Presentation Only
+Directories such as:
+- `src/game/display/**`
+- `src/components/**`
+- `src/graphics/**`
 
-Not a free-form rules sandbox
+are presentation layers.
 
-Not a heavy animation or effects-driven game
+They may:
+- render state
+- present interaction controls
+- display previews
 
-Not a traditional REST backend with client authority
+They must not contain authoritative game logic.
 
-1. File Structure vs Architectural Role
+### 2.4 Reuse Before Reinvention
+If logic already exists elsewhere in the system, reuse it.
 
-The filesystem layout is not authoritative.
+Duplicating rule logic increases the risk of server/client drift.
 
-Tools such as Figma Make may generate their own folder structures. This is acceptable and expected.
+### 2.5 Determinism
+Game logic must remain deterministic.
 
-Folder location does not define architectural role.
+Identical authoritative inputs should produce identical authoritative outcomes.
+Randomization must be explicit and controlled.
 
-Architectural role is defined by:
+## 3. Code Ownership Boundaries
 
-What the component owns (layout, navigation, content, logic)
+### 3.1 Server Engine
+Primary authority lives under:
+- `src/supabase/functions/server/**`
 
-How it is used (shell vs panel vs primitive)
+Responsibilities:
+- authoritative rules
+- intent resolution
+- effect application
+- canonical state transitions
 
-What it is allowed to contain
+### 3.2 Client Runtime
+Primary client/runtime ownership lives under:
+- `src/game/client/**`
 
-If a conflict arises, architectural role overrides folder location.
+Responsibilities:
+- session lifecycle
+- server communication
+- view-model creation
+- client-side orchestration
 
-Filesystem refactors may occur later but are not required during active development.
+### 3.3 Display Layer
+Primary display ownership lives under:
+- `src/game/display/**`
+- `src/components/**`
+- `src/graphics/**`
 
-2. Documentation Rules
+Responsibilities:
+- rendering
+- layout
+- animation
+- visual feedback
 
-All project documentation lives under /documentation/
+Display layers consume view models but do not own authoritative rules.
 
-/documentation/INDEX.md is the sole canonical entry point
+### 3.4 Data Definitions
+Canonical ship definitions live on the server.
 
-Documentation categories are:
+The client maintains a mirrored local copy for rendering and preview purposes.
 
-contracts/ — normative, binding rules
+The mirror should remain aligned with the server definitions, but the server remains authoritative if discrepancies occur.
 
-howto/ — operational guidance
+## 4. File Structure as a Signal
+File structure is not the only source of architectural truth, but directory boundaries are strong ownership signals and should be respected.
 
-reference/ — lookup material
+Avoid moving files or creating new folders unless the pass explicitly includes structural refactoring.
 
-Status updates, plans, and migrations do not belong in documentation
+## 5. UI Architecture Principles
 
-Git history is the archive
+### Shells
+Shells define structural layout for major application states.
 
-3. UI Architecture: Shell-First, Content-Driven
-Definition: Shell
+### Panels
+Panels are interaction surfaces that gather user intent and hand it to the client/runtime layer.
 
-A Shell is a top-level layout component that:
+### Primitives and Graphics
+Reusable UI primitives and ship graphics should stay generic and presentation-oriented.
 
-Owns layout, navigation, and chrome
+## 6. Tooling Environment
+The project currently uses:
+- Vite for local development
+- Tailwind for styling
+- TypeScript across the codebase
+- Supabase Edge Functions for the server
 
-Persists while content panels swap
+Tooling configuration should remain stable during normal feature work.
 
-Contains no rules or game logic
+## 7. AI-Assisted Development
+AI agents should:
+- inspect files before editing
+- preserve ownership boundaries
+- keep changes small and targeted
+- avoid silent architectural drift
 
-Is never duplicated per state
+Detailed agent operating rules are in [../../../AGENTS.md](../../../AGENTS.md).
 
-Canonical Shells
+## 8. Architecture Evolution
+Architecture may evolve, but structural changes should be deliberate, reviewed, and documented.
 
-LoginShell
-
-MenuShell
-
-RulesShell
-
-GameShell
-
-Fundamental Rule
-
-Shells own structure. Content panels swap inside them.
-
-Do not create new pages for state changes
-
-Do not duplicate layout per state
-
-Use panel swapping via local state or props
-
-4. Routing Exception Rule (Strict)
-
-Routes are permitted only for:
-
-Entering the app (root)
-
-Entering a game context (game by id)
-
-Leaving the app for rules (if routed)
-
-All intra-screen state changes must occur via panel swaps, not routes.
-
-5. Login & Entry UI
-Canonical Entry Flow (Unauthenticated Mode)
-
-When authentication is disabled:
-
-App boots in PLAYER mode
-
-LoginShell renders EnterNamePanel
-
-Player enters a session-only display name
-
-On submit, PLAYER navigates to MenuShell
-
-No account creation or authentication UI is active in this mode.
-
-Authentication Panels (Defined, Gated by Mode)
-
-LoginDefaultPanel
-
-CreateAccountPanel
-
-ForgotPasswordPanel
-
-Rules:
-
-No separate routes for login flows
-
-No duplicated layout chrome
-
-Panel switching handled by local state
-
-6. Menu Architecture
-
-MenuShell is the post-entry hub.
-
-MenuShell owns:
-
-Persistent navigation
-
-Main content panel swapping
-
-Panels may include:
-
-Multiplayer (private games)
-
-Rules & Codex
-
-Exit / Back
-
-Other panels may exist but must follow the same architectural rules.
-
-7. Rules System (Critical)
-Decision: One RulesShell, Two Page Types
-
-RulesShell owns navigation, tabs, and layout.
-
-Tabs include:
-
-Core Rules
-
-Human
-
-Xenite
-
-Centaur
-
-Ancient
-
-Turn Timings
-
-Page Type A: Global Rules Pages
-
-Component: RulesGlobalPage
-
-Characteristics:
-
-Narrative text
-
-Section headers
-
-Callout blocks
-
-Optional ship references
-
-Page Type B: Species Rules Pages
-
-Component: SpeciesRulesPage
-
-Characteristics:
-
-Identical layout for all species
-
-Data-driven ship tables
-
-Two sections: Basic Ships and Upgraded Ships
-
-Rules:
-
-No per-species layouts
-
-No hardcoded ship rows
-
-Species passed as a prop
-
-8. Rules Data Sources
-Ship Rules
-
-Authoritative source: ShipDefinitions
-
-Used by:
-
-Rules pages
-
-Tooltips
-
-Action Panels
-
-Build validation
-
-Server logic
-
-Historical Note (Non-Runtime)
-
-CSV was previously used as a lossless authoring format.
-
-CSV is not a runtime or authoritative source and must not be reintroduced without explicit architectural change.
-
-Global Rules Content
-
-Location: rulesContent.ts
-
-Hand-authored
-
-Narrative
-
-Small
-
-Not forced into tabular data formats
-
-9. Graphics System
-Zero External Assets Policy
-
-No external image URLs
-
-No runtime asset fetching
-
-All graphics bundled with the app
-
-Implementation Rules
-
-Ship graphics are React components
-
-SVG code embedded directly in TSX
-
-No external SVG files
-
-No direct path imports
-
-Import only via assets modules
-
-Styling Rules
-
-SVGs accept className
-
-Opacity and scale only
-
-No animations, filters, or effects
-
-10. UI Primitives
-
-This project uses component primitives, not a global style system.
-
-Rules:
-
-One React component per primitive
-
-Variants via props
-
-No near-duplicate forks
-
-No local recreation
-
-Add to library if missing
-
-11. Game Screen Architecture
-
-GameShell owns:
-
-Sidebar (chat, battle log, phase info)
-
-Main play area
-
-Action Panel
-
-Action Panel rules:
-
-All victory and draw states render here
-
-No modals
-
-No route changes on game end
-
-12. Backend & Identity
-
-Server is authoritative
-
-Client is never trusted
-
-Identity is derived server-side
-
-Client never sends authoritative player identifiers
-
-13. Server & Edge Functions
-
-Server enforces:
-
-Turn order
-
-Phase legality
-
-Action legality
-
-Resolution
-
-Explicitly forbidden:
-
-Client-side damage calculation
-
-Client-side turn resolution
-
-Client-sent authoritative IDs
-
-14. Persistence Responsibilities
-
-Persistence supports:
-
-Game records
-
-Player identities
-
-Game state snapshots
-
-Append-only action logs
-
-Lobby discovery indexing
-
-The server remains the source of truth.
-
-15. AI Code Generation Rules
-
-When starting any AI session:
-
-Import UI primitives first
-
-State that shells already exist
-
-Reuse components
-
-Build order: Shell → Panels → Data wiring
-
-Generated output must comply with:
-
-Shell rules
-
-Rules system
-
-Graphics system
-
-Server authority
-
-16. Application Modes
-
-The application operates in exactly one global mode at a time.
-
-PLAYER mode
-
-Real player experience
-
-Boot entry: Enter Name screen
-
-Post-entry hub: Main Menu
-
-No debug affordances
-
-DEV mode
-
-Development-only
-
-Entry: Dev Dashboard
-
-Screen registry access
-
-Mode is global and cannot be overridden by screens.
-
-17. Dev Dashboard & Screen Registry
-
-Dev Dashboard exists only in DEV mode.
-
-It owns:
-
-App mode switching
-
-Screen registry navigation
-
-Development visibility
-
-Screen Registry rules:
-
-All screens must be registered
-
-Each entry has name, key, status, and open action
-
-Unimplemented screens require stub components
-
-Registry navigation never switches to PLAYER mode
-
-18. Guiding Principle
-
-Data drives UI.
-Shells own structure.
-Server owns truth.
-Reuse beats invention.
-
-Any code violating this document is incorrect, even if functional.
+Avoid accidental drift caused by convenience edits.
