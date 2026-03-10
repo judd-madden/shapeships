@@ -4,6 +4,7 @@
  * NO LOGIC - displays view-model data only (Pass 1.25)
  */
 
+import { useEffect, useRef, useState } from 'react';
 import type { BoardViewModel, GameSessionActions } from '../../client/useGameSession';
 import { ChooseSpeciesStage } from './boardModes/ChooseSpeciesStage';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
@@ -20,6 +21,61 @@ interface BoardStageProps {
 
 function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
+}
+
+function useAnimatedHealth(targetValue: number): number {
+  const [displayedValue, setDisplayedValue] = useState(targetValue);
+  const rafRef = useRef<number | null>(null);
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      setDisplayedValue(targetValue);
+      return;
+    }
+
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+
+    setDisplayedValue((currentValue) => {
+      if (currentValue === targetValue) return currentValue;
+
+      const direction = targetValue > currentValue ? 1 : -1;
+      const distance = Math.abs(targetValue - currentValue);
+      const totalDurationMs = Math.min(300, Math.max(180, distance * 36));
+      const stepDurationMs = totalDurationMs / distance;
+      const animationStart = performance.now();
+
+      const tick = (now: number) => {
+        const elapsed = now - animationStart;
+        const stepsCompleted = Math.min(distance, Math.max(1, Math.floor(elapsed / stepDurationMs)));
+        const nextValue = currentValue + (stepsCompleted * direction);
+
+        setDisplayedValue(nextValue);
+
+        if (nextValue !== targetValue) {
+          rafRef.current = requestAnimationFrame(tick);
+        } else {
+          rafRef.current = null;
+        }
+      };
+
+      rafRef.current = requestAnimationFrame(tick);
+      return currentValue;
+    });
+
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [targetValue]);
+
+  return displayedValue;
 }
 
 function toCssVarFromColourName(colour?: string): string | undefined {
@@ -430,6 +486,10 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
 
   // Hide deltas on turn 1 only
   const showDeltas = vm.turnNumber > 1;
+  const myDeltaKey = showDeltas ? `my:${vm.turnNumber}:${vm.myLastTurnNet}` : 'my:hidden';
+  const opponentDeltaKey = showDeltas ? `opp:${vm.turnNumber}:${vm.opponentLastTurnNet}` : 'opp:hidden';
+  const displayedMyHealth = useAnimatedHealth(vm.myHealth);
+  const displayedOpponentHealth = useAnimatedHealth(vm.opponentHealth);
 
   // Board mode (existing placeholder layout)
   return (
@@ -466,7 +526,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
               className="leading-[64px] relative shrink-0 text-[64px] text-white w-full"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
-              {vm.myHealth}
+              {displayedMyHealth}
             </p>
 
             {/* Delta (server-authoritative) */}
@@ -483,7 +543,9 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
                 pointerEvents: showDeltas ? 'auto' : 'none',
               }}
             >
-              {showDeltas ? (vm.myLastTurnNet > 0 ? `+${vm.myLastTurnNet}` : vm.myLastTurnNet === 0 ? '±0' : vm.myLastTurnNet) : ''}
+              <span key={myDeltaKey} className={showDeltas ? 'ss-health-delta-pop-in' : undefined}>
+                {showDeltas ? (vm.myLastTurnNet > 0 ? `+${vm.myLastTurnNet}` : vm.myLastTurnNet === 0 ? '±0' : vm.myLastTurnNet) : ''}
+              </span>
             </p>
           </div>
 
@@ -520,7 +582,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
               className="leading-[64px] relative shrink-0 text-[64px] text-white w-[100px] text-left"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
-              {vm.opponentHealth}
+              {displayedOpponentHealth}
             </p>
 
             {/* Delta (server-authoritative) */}
@@ -537,7 +599,9 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
                 pointerEvents: showDeltas ? 'auto' : 'none',
               }}
             >
-              {showDeltas ? (vm.opponentLastTurnNet > 0 ? `+${vm.opponentLastTurnNet}` : vm.opponentLastTurnNet === 0 ? '±0' : vm.opponentLastTurnNet) : ''}
+              <span key={opponentDeltaKey} className={showDeltas ? 'ss-health-delta-pop-in' : undefined}>
+                {showDeltas ? (vm.opponentLastTurnNet > 0 ? `+${vm.opponentLastTurnNet}` : vm.opponentLastTurnNet === 0 ? '±0' : vm.opponentLastTurnNet) : ''}
+              </span>
             </p>
           </div>
         </div>

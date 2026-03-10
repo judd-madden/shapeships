@@ -281,9 +281,33 @@ html {
   }
 }
 
+@keyframes ssHealthDeltaPopIn {
+  0% {
+    opacity: 0;
+    transform: scale(4);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ss-health-delta-pop-in {
+  display: inline-block;
+  transform-origin: top center;
+  animation: ssHealthDeltaPopIn 0.3s ease-in both;
+}
+
 .catalogue-ship-fit > svg {
   width: 100%;
   height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-health-delta-pop-in {
+    animation: none;
+  }
 }
 
 /* ============================================================================
