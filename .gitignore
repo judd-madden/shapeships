@@ -61,4 +61,4 @@ imports/
 supabase/.temp/
 
 # Keep actual Supabase project config tracked
-# supabase/config.toml
+# supabase/config.tomlg
