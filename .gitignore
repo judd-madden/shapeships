@@ -56,3 +56,9 @@ patches/
 # Legacy / Make artifacts
 # =========================
 imports/
+
+# Supabase CLI local temp state
+supabase/.temp/
+
+# Keep actual Supabase project config tracked
+# supabase/config.toml

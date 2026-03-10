@@ -1,0 +1,4 @@
+project_id = "zleyobvzbipeowmdmpxl"
+
+[functions.make-server-825e19ab]
+entrypoint = "../src/supabase/functions/server/index.tsx"
