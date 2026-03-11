@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
+import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
 export default defineConfig(({ mode }) => ({
@@ -7,7 +8,7 @@ export default defineConfig(({ mode }) => ({
     // Production build targets your FTP subfolder, e.g. https://juddmadden.com/dev/
     base: mode === 'production' ? '/dev/' : '/',
 
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     resolve: {
         extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
         alias: {
