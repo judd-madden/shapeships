@@ -125,6 +125,7 @@ export interface BoardDestroyTargetState {
 export interface BoardDestroyTargetingViewModel {
   activeSourceInstanceId: string | null;
   targetStatesByStackKey: Record<string, BoardDestroyTargetState>;
+  previewShipDefIdByStackKey: Partial<Record<string, ShipDefId>>;
 }
 
 export type BoardViewModel =

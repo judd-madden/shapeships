@@ -887,6 +887,49 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       ? selectedDestroyTargetStackKeyBySourceInstanceId[activeDestroyTargetSourceInstanceId] ?? null
       : null;
 
+  function getDestroyPreviewShipDefIdForSource(sourceInstanceId: string | null): ShipDefId | null {
+    if (sourceInstanceId == null) {
+      return null;
+    }
+
+    const rawActionShipDefId = String(
+      destroyTargetActionsBySourceInstanceId.get(sourceInstanceId)?.shipDefId ?? ''
+    );
+    if (isShipDefId(rawActionShipDefId)) {
+      return rawActionShipDefId;
+    }
+
+    const sourceShip = myShips.find((ship: any) => {
+      const instanceId = ship?.instanceId ?? ship?.id;
+      return typeof instanceId === 'string' && instanceId === sourceInstanceId;
+    });
+    const rawSourceShipDefId = String(sourceShip?.shipDefId ?? '');
+
+    return isShipDefId(rawSourceShipDefId) ? rawSourceShipDefId : null;
+  }
+
+  const activeDestroyPreviewShipDefId = getDestroyPreviewShipDefIdForSource(activeDestroyTargetSourceInstanceId);
+
+  const allocatedDestroySourceInstanceIdsByStackKey: Record<string, string[]> = {};
+  for (const [sourceInstanceId, targetInstanceId] of Object.entries(allocatedDestroyTargetIdBySourceInstanceId).sort(
+    ([a], [b]) => a.localeCompare(b)
+  )) {
+    const stackKey = opponentVisibleStackKeyByInstanceId.get(targetInstanceId);
+    if (!stackKey) {
+      continue;
+    }
+
+    if (!allocatedDestroySourceInstanceIdsByStackKey[stackKey]) {
+      allocatedDestroySourceInstanceIdsByStackKey[stackKey] = [];
+    }
+
+    allocatedDestroySourceInstanceIdsByStackKey[stackKey].push(sourceInstanceId);
+  }
+
+  const persistentlySelectedDestroyStackKeys = new Set(
+    Object.keys(allocatedDestroySourceInstanceIdsByStackKey)
+  );
+
   useEffect(() => {
     if (destroyTargetActionsBySourceInstanceId.size === 0) {
       setActiveDestroyTargetSourceInstanceId(null);
@@ -1255,12 +1298,52 @@ useEffect(() => {
     const opponentBonusLines = opponent?.id ? (bonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
 
     const destroyTargetStatesByStackKey: Record<string, { isTargetable: boolean; isHovered: boolean; isSelected: boolean }> = {};
+    for (const stackKey of persistentlySelectedDestroyStackKeys) {
+      destroyTargetStatesByStackKey[stackKey] = {
+        isTargetable: false,
+        isHovered: false,
+        isSelected: true,
+      };
+    }
+
     for (const stackKey of activeDestroyValidTargetStackKeys) {
+      const existingState = destroyTargetStatesByStackKey[stackKey];
       destroyTargetStatesByStackKey[stackKey] = {
         isTargetable: true,
         isHovered: hoveredDestroyTargetStackKey === stackKey,
-        isSelected: activeDestroySelectedStackKey === stackKey,
+        isSelected:
+          existingState?.isSelected === true ||
+          activeDestroySelectedStackKey === stackKey,
       };
+    }
+
+    const destroyTargetPreviewShipDefIdByStackKey: Partial<Record<string, ShipDefId>> = {};
+    for (const [stackKey, sourceInstanceIds] of Object.entries(allocatedDestroySourceInstanceIdsByStackKey)) {
+      const previewShipDefIds = Array.from(new Set(
+        sourceInstanceIds
+          .map((sourceInstanceId) => getDestroyPreviewShipDefIdForSource(sourceInstanceId))
+          .filter((shipDefId): shipDefId is ShipDefId => shipDefId != null)
+      ));
+
+      if (previewShipDefIds.length === 1) {
+        destroyTargetPreviewShipDefIdByStackKey[stackKey] = previewShipDefIds[0];
+      }
+    }
+
+    if (activeDestroyPreviewShipDefId) {
+      if (
+        hoveredDestroyTargetStackKey &&
+        activeDestroyValidTargetStackKeys.has(hoveredDestroyTargetStackKey)
+      ) {
+        destroyTargetPreviewShipDefIdByStackKey[hoveredDestroyTargetStackKey] = activeDestroyPreviewShipDefId;
+      }
+
+      if (
+        activeDestroySelectedStackKey &&
+        activeDestroyValidTargetStackKeys.has(activeDestroySelectedStackKey)
+      ) {
+        destroyTargetPreviewShipDefIdByStackKey[activeDestroySelectedStackKey] = activeDestroyPreviewShipDefId;
+      }
     }
 
     board = {
@@ -1334,6 +1417,7 @@ useEffect(() => {
       destroyTargeting: {
         activeSourceInstanceId: activeDestroyTargetSourceInstanceId,
         targetStatesByStackKey: destroyTargetStatesByStackKey,
+        previewShipDefIdByStackKey: destroyTargetPreviewShipDefIdByStackKey,
       },
     };
   }

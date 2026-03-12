@@ -325,6 +325,44 @@ html {
   display: inline-block;
 }
 
+/* TARGETING */
+@keyframes ssTargetingPulse {
+  0% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+
+  100% {
+    opacity: 0.4;
+  }
+}
+
+.ss-targeting-glow {
+  border-radius: 9999px;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  will-change: opacity;
+}
+
+.ss-targeting-glow-pulse {
+  animation: ssTargetingPulse 1.6s ease-in-out infinite;
+}
+
+.ss-targeting-preview {
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transition: opacity 120ms ease-out;
+  will-change: transform, opacity;
+}
+
 /* Keyframes: Defender */
 @keyframes ssDefEntry {
   0%   { opacity: 0; transform: scaleY(0.5); }
@@ -500,6 +538,7 @@ html {
 }
 
 @media (prefers-reduced-motion: reduce) {
+    .ss-targeting-glow-pulse,
     .ss-dice-slow-spin {
         animation: none;
     }

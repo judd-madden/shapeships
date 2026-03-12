@@ -32,6 +32,70 @@ export type FleetAnimVM = {
 };
 
 // ============================================================================
+// TARGETING
+// ============================================================================
+
+export type TargetingVisualState = 'available' | 'hovered' | 'selected';
+
+export const TARGETING_GLOW_SIZE_PX = 200;
+export const TARGETING_PREVIEW_SCALE = 0.5;
+export const TARGETING_PREVIEW_OFFSET_TOP_PX = 10;
+
+const TARGETING_WHITE_GLOW =
+  'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 60%)';
+const TARGETING_RED_GLOW =
+  'radial-gradient(circle, rgba(221,0,0,1) 0%, rgba(221,0,0,0) 60%)';
+
+export function getTargetingVisualState(targetState?: {
+  isTargetable: boolean;
+  isHovered: boolean;
+  isSelected: boolean;
+} | null): TargetingVisualState | null {
+  if (!targetState) {
+    return null;
+  }
+
+  if (targetState.isSelected) {
+    return 'selected';
+  }
+
+  if (targetState.isHovered && targetState.isTargetable) {
+    return 'hovered';
+  }
+
+  if (targetState.isTargetable) {
+    return 'available';
+  }
+
+  return null;
+}
+
+export function getTargetingGlowClassName(visualState: TargetingVisualState): string {
+  return visualState === 'available'
+    ? 'ss-targeting-glow ss-targeting-glow-pulse'
+    : 'ss-targeting-glow';
+}
+
+export function getTargetingGlowStyle(visualState: TargetingVisualState): React.CSSProperties {
+  return {
+    width: `${TARGETING_GLOW_SIZE_PX}px`,
+    height: `${TARGETING_GLOW_SIZE_PX}px`,
+    backgroundImage: visualState === 'selected' ? TARGETING_RED_GLOW : TARGETING_WHITE_GLOW,
+    opacity: visualState === 'available' ? 0.55 : 1,
+    pointerEvents: 'none',
+  };
+}
+
+export function getTargetingPreviewStyle(visualState: Extract<TargetingVisualState, 'hovered' | 'selected'>): React.CSSProperties {
+  return {
+    opacity: visualState === 'selected' ? 1 : 0.5,
+    pointerEvents: 'none',
+    transform: `translate(-50%, calc(-100% - ${TARGETING_PREVIEW_OFFSET_TOP_PX}px)) scale(${TARGETING_PREVIEW_SCALE})`,
+    transformOrigin: 'bottom center',
+  };
+}
+
+// ============================================================================
 // ANIMATION PRESETS (SPLIT: ENTRY + ACTIVATION)
 // ============================================================================
 // These classes are in globals.css

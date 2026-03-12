@@ -10,7 +10,14 @@ import { ChooseSpeciesStage } from './boardModes/ChooseSpeciesStage';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import { FitToBox } from './FitToBox';
-import { ShipAnimationWrapper, type ShipAnimToken } from '../graphics/animation';
+import {
+  ShipAnimationWrapper,
+  type ShipAnimToken,
+  getTargetingGlowClassName,
+  getTargetingGlowStyle,
+  getTargetingPreviewStyle,
+  getTargetingVisualState,
+} from '../graphics/animation';
 import { useFlipLayout } from '../graphics/useFlipLayout';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 
@@ -174,51 +181,37 @@ function groupShipsIntoRows<T extends { shipDefId: string; count: number }>(
     return { row1, row2, row3, row4 };
 }
 
-function getDestroyTargetSurfaceStyle(targetState?: {
+type FleetStackVm = {
+  shipDefId: string;
+  count: number;
+  stackKey: string;
+  condition?: 'charges_1' | 'charges_0';
+  currentCharges?: number | null;
+  caption?: string | null;
+};
+
+type DestroyTargetStateVm = {
   isTargetable: boolean;
   isHovered: boolean;
   isSelected: boolean;
-}) {
-  if (!targetState?.isTargetable) {
-    return undefined;
-  }
-
-  if (targetState.isSelected) {
-    return {
-      backgroundColor: 'rgba(255, 82, 82, 0.14)',
-      borderColor: 'rgba(255, 110, 110, 0.95)',
-      boxShadow: '0 0 0 2px rgba(255, 110, 110, 0.95), 0 0 22px rgba(255, 82, 82, 0.4)',
-    };
-  }
-
-  if (targetState.isHovered) {
-    return {
-      backgroundColor: 'rgba(255, 255, 255, 0.13)',
-      borderColor: 'rgba(255, 255, 255, 0.95)',
-      boxShadow: '0 0 0 2px rgba(255, 255, 255, 0.92), 0 0 20px rgba(255, 255, 255, 0.32)',
-    };
-  }
-
-  return {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderColor: 'rgba(255, 255, 255, 0.58)',
-    boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.58), 0 0 14px rgba(255, 255, 255, 0.18)',
-  };
-}
+};
 
 function ShipStack({ 
   ship, 
   animToken, 
   side, 
   opponentEntryDelays, 
-  activationIndexMap 
+  activationIndexMap,
+  targetState,
+  previewShipDefId,
 }: { 
-        ship: {
-            shipDefId: string; count: number; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null; caption?: string | null; };
+  ship: FleetStackVm;
   animToken?: ShipAnimToken;
   side: 'my' | 'opponent';
   opponentEntryDelays?: Record<string, number>;
   activationIndexMap?: Record<string, number>;
+  targetState?: DestroyTargetStateVm;
+  previewShipDefId?: ShipDefId;
 }) {
   const def = getShipDefinitionUI(ship.shipDefId as ShipDefId);
 
@@ -241,6 +234,12 @@ function ShipStack({
     : null;
 
   const ShipGraphic = resolvedGraphic?.component;
+  const targetingVisualState = getTargetingVisualState(targetState);
+  const previewDef = previewShipDefId ? getShipDefinitionUI(previewShipDefId) : undefined;
+  const previewGraphic = previewDef
+    ? resolveShipGraphic(previewDef, { context: 'default' })
+    : null;
+  const PreviewShipGraphic = previewGraphic?.component;
   const numberColour = toCssVarFromColourName(def?.colour);
   
   // Enable hover activation for ships with animation presets (Human + Xenite + Centaur ships)
@@ -255,33 +254,53 @@ function ShipStack({
   return (
     <div className="flex flex-row items-center">
       <div className="flex flex-col items-center justify-center">
-        <ShipAnimationWrapper 
-          shipDefId={ship.shipDefId as ShipDefId} 
-          token={animToken}
-          enableHoverActivation={enableHover}
-          entryDelayMs={entryDelayMs}
-          activationDelayMs={activationDelayMs}
-        >
-          {ShipGraphic ? <ShipGraphic /> : <span className="text-white text-sm">{ship.shipDefId}</span>}
-        </ShipAnimationWrapper>
+        <div className="relative flex items-center justify-center">
+          {targetingVisualState ? (
+            <div
+              className={getTargetingGlowClassName(targetingVisualState)}
+              style={getTargetingGlowStyle(targetingVisualState)}
+            />
+          ) : null}
 
-              {ship.shipDefId === 'FRI' && ship.caption ? (
-                  <div
-                      className="mt-[4px] font-['Roboto'] font-normal text-[14px] leading-none text-center"
-                      style={{
-                          color: numberColour ?? 'white',
-                          pointerEvents: 'none',
-                          userSelect: 'none',
-                      }}
-                  >
-                      {ship.caption}
-                  </div>
-              ) : null}
+          {PreviewShipGraphic && targetingVisualState && targetingVisualState !== 'available' ? (
+            <div
+              className="ss-targeting-preview z-20"
+              style={getTargetingPreviewStyle(targetingVisualState)}
+            >
+              <PreviewShipGraphic />
+            </div>
+          ) : null}
+
+          <div className="relative z-10">
+            <ShipAnimationWrapper 
+              shipDefId={ship.shipDefId as ShipDefId} 
+              token={animToken}
+              enableHoverActivation={enableHover}
+              entryDelayMs={entryDelayMs}
+              activationDelayMs={activationDelayMs}
+            >
+              {ShipGraphic ? <ShipGraphic /> : <span className="text-white text-sm">{ship.shipDefId}</span>}
+            </ShipAnimationWrapper>
+          </div>
+        </div>
+
+        {ship.shipDefId === 'FRI' && ship.caption ? (
+          <div
+            className="relative z-10 mt-[4px] font-['Roboto'] font-normal text-[14px] leading-none text-center"
+            style={{
+              color: numberColour ?? 'white',
+              pointerEvents: 'none',
+              userSelect: 'none',
+            }}
+          >
+            {ship.caption}
+          </div>
+        ) : null}
       </div>
 
       {/* Count: only render when count > 1 */}
       {showCount ? (
-        <div className="ml-[8px]">
+        <div className="relative z-10 ml-[8px]">
           <div
             className="font-['Roboto'] font-semibold"
             style={{
@@ -312,11 +331,12 @@ function FleetArea({
   opponentEntryDelays,
   activationIndexMap,
   targetStatesByStackKey,
+  previewShipDefIdByStackKey,
   onDestroyTargetHoverChange,
   onDestroyTargetMouseDown,
 }: {
   title: string;
-        ships?: Array<{ shipDefId: string; count: number; stackKey: string; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null; caption?: string | null; }>;
+  ships?: FleetStackVm[];
   order?: string[];
   species: SpeciesKey;
   animTokens?: Partial<Record<string, ShipAnimToken>>; // keyed by stackKey
@@ -324,7 +344,8 @@ function FleetArea({
   side: 'my' | 'opponent';
   opponentEntryDelays?: Record<string, number>;
   activationIndexMap?: Record<string, number>;
-  targetStatesByStackKey?: Record<string, { isTargetable: boolean; isHovered: boolean; isSelected: boolean }>;
+  targetStatesByStackKey?: Record<string, DestroyTargetStateVm>;
+  previewShipDefIdByStackKey?: Partial<Record<string, ShipDefId>>;
   onDestroyTargetHoverChange?: (stackKey: string | null) => void;
   onDestroyTargetMouseDown?: (stackKey: string) => void;
 }) {
@@ -339,6 +360,48 @@ function FleetArea({
   const allStackKeys = renderedShips.map(s => s.stackKey);
   const getFlipRef = useFlipLayout(allStackKeys, flipEnabled, { durationMs: 400, easing: 'ease-in-out' });
 
+  const renderShipCell = (ship: FleetStackVm) => {
+    const targetState = targetStatesByStackKey?.[ship.stackKey];
+    const isTargetable = targetState?.isTargetable === true;
+
+    return (
+      <div
+        key={ship.stackKey}
+        ref={getFlipRef(ship.stackKey)}
+        className={cx(
+          'relative px-[10px] py-[8px]',
+          isTargetable && 'cursor-pointer'
+        )}
+        onMouseEnter={
+          isTargetable
+            ? () => onDestroyTargetHoverChange?.(ship.stackKey)
+            : undefined
+        }
+        onMouseLeave={
+          isTargetable
+            ? () => onDestroyTargetHoverChange?.(null)
+            : undefined
+        }
+        onMouseDown={(event) => {
+          event.stopPropagation();
+          if (isTargetable) {
+            onDestroyTargetMouseDown?.(ship.stackKey);
+          }
+        }}
+      >
+        <ShipStack 
+          ship={ship}
+          animToken={animTokens?.[ship.stackKey]}
+          side={side}
+          opponentEntryDelays={opponentEntryDelays}
+          activationIndexMap={activationIndexMap}
+          targetState={targetState}
+          previewShipDefId={previewShipDefIdByStackKey?.[ship.stackKey]}
+        />
+      </div>
+    );
+  };
+
   return (
     <div className="basis-0 grow h-full min-h-px min-w-px relative shrink-0 px-[8px]">
       {/* FleetArea: {title} (title intentionally not rendered) */}
@@ -346,155 +409,19 @@ function FleetArea({
         {grouped ? (
           <div className="flex flex-col items-center gap-[18px]">
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
-              {grouped.row1.map((ship) => (
-                <div
-                  key={ship.stackKey}
-                  ref={getFlipRef(ship.stackKey)}
-                  className={cx(
-                    'rounded-[18px] border border-transparent px-[10px] py-[8px] transition-[background-color,border-color,box-shadow] duration-100',
-                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable && 'cursor-pointer'
-                  )}
-                  style={getDestroyTargetSurfaceStyle(targetStatesByStackKey?.[ship.stackKey])}
-                  onMouseEnter={
-                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
-                      ? () => onDestroyTargetHoverChange?.(ship.stackKey)
-                      : undefined
-                  }
-                  onMouseLeave={
-                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
-                      ? () => onDestroyTargetHoverChange?.(null)
-                      : undefined
-                  }
-                  onMouseDown={(event) => {
-                    event.stopPropagation();
-                    if (targetStatesByStackKey?.[ship.stackKey]?.isTargetable) {
-                      onDestroyTargetMouseDown?.(ship.stackKey);
-                    }
-                  }}
-                >
-                  <ShipStack 
-                    ship={ship}
-                    animToken={animTokens?.[ship.stackKey]}
-                    side={side}
-                    opponentEntryDelays={opponentEntryDelays}
-                    activationIndexMap={activationIndexMap}
-                  />
-                </div>
-              ))}
+              {grouped.row1.map(renderShipCell)}
             </div>
 
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
-              {grouped.row2.map((ship) => (
-                <div
-                  key={ship.stackKey}
-                  ref={getFlipRef(ship.stackKey)}
-                  className={cx(
-                    'rounded-[18px] border border-transparent px-[10px] py-[8px] transition-[background-color,border-color,box-shadow] duration-100',
-                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable && 'cursor-pointer'
-                  )}
-                  style={getDestroyTargetSurfaceStyle(targetStatesByStackKey?.[ship.stackKey])}
-                  onMouseEnter={
-                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
-                      ? () => onDestroyTargetHoverChange?.(ship.stackKey)
-                      : undefined
-                  }
-                  onMouseLeave={
-                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
-                      ? () => onDestroyTargetHoverChange?.(null)
-                      : undefined
-                  }
-                  onMouseDown={(event) => {
-                    event.stopPropagation();
-                    if (targetStatesByStackKey?.[ship.stackKey]?.isTargetable) {
-                      onDestroyTargetMouseDown?.(ship.stackKey);
-                    }
-                  }}
-                >
-                  <ShipStack 
-                    ship={ship}
-                    animToken={animTokens?.[ship.stackKey]}
-                    side={side}
-                    opponentEntryDelays={opponentEntryDelays}
-                    activationIndexMap={activationIndexMap}
-                  />
-                </div>
-              ))}
+              {grouped.row2.map(renderShipCell)}
             </div>
 
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
-              {grouped.row3.map((ship) => (
-                <div
-                  key={ship.stackKey}
-                  ref={getFlipRef(ship.stackKey)}
-                  className={cx(
-                    'rounded-[18px] border border-transparent px-[10px] py-[8px] transition-[background-color,border-color,box-shadow] duration-100',
-                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable && 'cursor-pointer'
-                  )}
-                  style={getDestroyTargetSurfaceStyle(targetStatesByStackKey?.[ship.stackKey])}
-                  onMouseEnter={
-                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
-                      ? () => onDestroyTargetHoverChange?.(ship.stackKey)
-                      : undefined
-                  }
-                  onMouseLeave={
-                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
-                      ? () => onDestroyTargetHoverChange?.(null)
-                      : undefined
-                  }
-                  onMouseDown={(event) => {
-                    event.stopPropagation();
-                    if (targetStatesByStackKey?.[ship.stackKey]?.isTargetable) {
-                      onDestroyTargetMouseDown?.(ship.stackKey);
-                    }
-                  }}
-                >
-                  <ShipStack 
-                    ship={ship}
-                    animToken={animTokens?.[ship.stackKey]}
-                    side={side}
-                    opponentEntryDelays={opponentEntryDelays}
-                    activationIndexMap={activationIndexMap}
-                  />
-                </div>
-              ))}
+              {grouped.row3.map(renderShipCell)}
             </div>
 
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
-              {grouped.row4.map((ship) => (
-                <div
-                  key={ship.stackKey}
-                  ref={getFlipRef(ship.stackKey)}
-                  className={cx(
-                    'rounded-[18px] border border-transparent px-[10px] py-[8px] transition-[background-color,border-color,box-shadow] duration-100',
-                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable && 'cursor-pointer'
-                  )}
-                  style={getDestroyTargetSurfaceStyle(targetStatesByStackKey?.[ship.stackKey])}
-                  onMouseEnter={
-                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
-                      ? () => onDestroyTargetHoverChange?.(ship.stackKey)
-                      : undefined
-                  }
-                  onMouseLeave={
-                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
-                      ? () => onDestroyTargetHoverChange?.(null)
-                      : undefined
-                  }
-                  onMouseDown={(event) => {
-                    event.stopPropagation();
-                    if (targetStatesByStackKey?.[ship.stackKey]?.isTargetable) {
-                      onDestroyTargetMouseDown?.(ship.stackKey);
-                    }
-                  }}
-                >
-                  <ShipStack 
-                    ship={ship}
-                    animToken={animTokens?.[ship.stackKey]}
-                    side={side}
-                    opponentEntryDelays={opponentEntryDelays}
-                    activationIndexMap={activationIndexMap}
-                  />
-                </div>
-              ))}
+              {grouped.row4.map(renderShipCell)}
             </div>
           </div>
         ) : null}
@@ -825,6 +752,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
         opponentEntryDelays={vm.opponentFleetEntryPlan?.opponent}
         activationIndexMap={vm.activationStaggerPlan?.opponentIndexByShipId}
         targetStatesByStackKey={vm.destroyTargeting?.targetStatesByStackKey}
+        previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdByStackKey}
         onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
         onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
       />
