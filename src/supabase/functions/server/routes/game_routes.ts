@@ -161,6 +161,77 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
   }
 
   // ============================================================================
+  // BATTLE.FirstStrike: Derive targeted destroy actions from structured powers (Guardian)
+  // ============================================================================
+  if (phaseKey === 'battle.first_strike') {
+    const actions: any[] = [];
+
+    const turnNumber: number = state?.gameData?.turnNumber ?? 1;
+    const usedMap: Record<string, number> =
+      state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
+
+    const fleet = state?.ships?.[playerId] ?? state?.gameData?.ships?.[playerId] ?? [];
+    const opponentId = (state?.players || []).find((p: any) => p.role === 'player' && p.id !== playerId)?.id;
+    const opponentFleet = opponentId
+      ? (state?.ships?.[opponentId] ?? state?.gameData?.ships?.[opponentId] ?? [])
+      : [];
+
+    for (const shipInstance of fleet) {
+      const shipDefId = shipInstance.shipDefId;
+      const sourceInstanceId = shipInstance.instanceId;
+
+      const shipDef = getShipDefinition(shipDefId);
+      if (!shipDef || !shipDef.structuredPowers) continue;
+
+      for (let powerIndex = 0; powerIndex < shipDef.structuredPowers.length; powerIndex++) {
+        const power: StructuredShipPower = shipDef.structuredPowers[powerIndex];
+        if (power.type !== 'choice') continue;
+        if (!power.timings.includes(phaseKey)) continue;
+
+        const requiresCharge =
+          (power.requiresCharge ?? false) ||
+          (Array.isArray((power as any).options) && (power as any).options.some((o: any) => (o?.requiresCharge ?? false) === true));
+
+        if (requiresCharge && usedMap[sourceInstanceId] === turnNumber) continue;
+        if (requiresCharge) {
+          const chargesCurrent = shipInstance.chargesCurrent ?? 0;
+          const chargeCost = power.chargeCost ?? 1;
+          if (chargesCurrent < chargeCost) continue;
+        }
+
+        const choices = power.options.map((opt: any) => ({ choiceId: opt.choiceId }));
+        const validTargets = opponentFleet
+          .filter((target: any) => {
+            const targetDef = getShipById(target.shipDefId);
+            return targetDef?.shipType === 'Basic';
+          })
+          .map((target: any) => ({
+            instanceId: target.instanceId,
+            shipDefId: target.shipDefId,
+            ownerPlayerId: opponentId,
+          }));
+
+        actions.push({
+          kind: 'destroy_target',
+          actionId: `${shipDefId}#${powerIndex}`,
+          shipDefId,
+          sourceInstanceId,
+          choices,
+          validTargets,
+        });
+      }
+    }
+
+    actions.sort((a, b) => {
+      if (a.shipDefId !== b.shipDefId) return a.shipDefId.localeCompare(b.shipDefId);
+      if (a.sourceInstanceId !== b.sourceInstanceId) return a.sourceInstanceId.localeCompare(b.sourceInstanceId);
+      return a.actionId.localeCompare(b.actionId);
+    });
+
+    return actions;
+  }
+
+  // ============================================================================
   // BUILD.ShipsThatBuild: Derive choice actions from structured powers (Carrier, future builders)
   // ============================================================================
   if (phaseKey === 'build.ships_that_build') {
@@ -865,6 +936,25 @@ export function registerGameRoutes(
           };
         }
         
+        // Filter pending first strike selections
+        if (turnData.pendingFirstStrikeSelectionsByPlayerId) {
+          const filteredSelections: Record<string, any> = {};
+          if (turnData.pendingFirstStrikeSelectionsByPlayerId[requestingPlayerId]) {
+            filteredSelections[requestingPlayerId] = turnData.pendingFirstStrikeSelectionsByPlayerId[requestingPlayerId];
+          }
+
+          gameData = {
+            ...gameData,
+            gameData: {
+              ...gameData.gameData,
+              turnData: {
+                ...turnData,
+                pendingFirstStrikeSelectionsByPlayerId: filteredSelections
+              }
+            }
+          };
+        }
+
         // Filter commit/reveal data (new commit/reveal protocol)
         if (turnData.commitments) {
           const filteredCommitments: any = {};

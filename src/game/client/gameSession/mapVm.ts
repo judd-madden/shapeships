@@ -16,6 +16,19 @@ import type { SpeciesId } from '../../../components/ui/primitives/buttons/Specie
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import type { ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
 import { getShipChoicePanelSpec } from '../../display/actionPanel/panels/ShipChoiceRegistry';
+import { getRenderableActionChoiceIds, getRenderableServerChoiceActions } from './availableActions';
+
+function getCountedGroupHeading(groupSpec: {
+  headingTemplate: string;
+  singularHeadingTemplate?: string;
+}, count: number): string {
+  const template =
+    count === 1 && groupSpec.singularHeadingTemplate
+      ? groupSpec.singularHeadingTemplate
+      : groupSpec.headingTemplate;
+
+  return template.replace('{count}', String(count));
+}
 
 export function mapGameSessionVm(args: {
   isBootstrapping: boolean;
@@ -82,6 +95,7 @@ export function mapGameSessionVm(args: {
 
   // Selection state for ship choice panels
   selectedChoiceIdBySourceInstanceId: Record<string, string>;
+  allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
   
   // Raw gameData for server truth
   gameData: any;
@@ -132,6 +146,7 @@ export function mapGameSessionVm(args: {
     readyUx,
     availableActions,
     selectedChoiceIdBySourceInstanceId,
+    allocatedDestroyTargetIdBySourceInstanceId,
     gameData,
     diceRollSeq,
     buildPreviewCounts,
@@ -346,22 +361,15 @@ export function mapGameSessionVm(args: {
     // Check if this is a server-choice phase (use server availableActions)
     const isServerChoicePhase = 
       phaseKey === 'build.ships_that_build' ||
+      phaseKey === 'battle.first_strike' ||
       phaseKey === 'battle.charge_declaration' || 
       phaseKey === 'battle.charge_response';
 
     const derivedGroups: ShipChoicesPanelGroup[] = [];
 
     if (isServerChoicePhase && Array.isArray(availableActions)) {
-      // CHARGE PHASES: Derive from server availableActions
-      // Filter to choice actions with required fields
-      const choiceActions = availableActions.filter(
-        (a: any) =>
-          a?.kind === 'choice' &&
-          typeof a?.sourceInstanceId === 'string' &&
-          typeof a?.actionId === 'string' &&
-          typeof a?.shipDefId === 'string' &&
-          Array.isArray(a?.choices)
-      );
+      // Server-choice phases: derive from authoritative availableActions
+      const choiceActions = getRenderableServerChoiceActions(phaseKey, availableActions);
 
       // Build map of instanceId -> currentCharges for phase-start snapshot
       const chargesByInstanceId = new Map<string, number>();
@@ -383,13 +391,37 @@ export function mapGameSessionVm(args: {
           if (matches.length === 0) continue;
 
           const count = matches.length;
-          const heading = groupSpec.headingTemplate.replace('{count}', String(count));
+          const heading = getCountedGroupHeading(groupSpec, count);
           const ships = matches.map((m: any) => ({
             shipDefId: groupSpec.shipDefId,
-            buttons: groupSpec.buttons,
+            buttons: groupSpec.shipDefId === 'GUA'
+              ? groupSpec.buttons.map((button) => {
+                  if (button.choiceId !== 'destroy') {
+                    return button;
+                  }
+
+                  const selectedChoiceId = selectedChoiceIdBySourceInstanceId[m.sourceInstanceId];
+                  const hasAllocatedTarget =
+                    typeof allocatedDestroyTargetIdBySourceInstanceId[m.sourceInstanceId] === 'string';
+
+                  if (selectedChoiceId !== 'destroy') {
+                    return {
+                      ...button,
+                      instructionText: undefined,
+                    };
+                  }
+
+                  return {
+                    ...button,
+                    instructionText: hasAllocatedTarget
+                      ? 'Will destroy selected ship.'
+                      : "You must select an enemy ship on the battlefield to destroy. That ship's battle phase powers will not occur.",
+                  };
+                })
+              : groupSpec.buttons,
             sourceInstanceId: m.sourceInstanceId,
             actionId: m.actionId,
-            availableChoiceIds: m.choices.map((c: any) => c.choiceId),
+            availableChoiceIds: getRenderableActionChoiceIds(m),
             currentCharges: chargesByInstanceId.get(m.sourceInstanceId) ?? null,
           }));
 
@@ -420,7 +452,7 @@ export function mapGameSessionVm(args: {
                 buttons: ship.buttons,
                 sourceInstanceId: m.sourceInstanceId,
                 actionId: m.actionId,
-                availableChoiceIds: m.choices.map((c: any) => c.choiceId),
+                availableChoiceIds: getRenderableActionChoiceIds(m),
                 currentCharges: chargesByInstanceId.get(m.sourceInstanceId) ?? null,
               });
             }
@@ -443,7 +475,7 @@ export function mapGameSessionVm(args: {
           const count = getFleetCount(myFleet, groupSpec.shipDefId);
           if (count === 0) continue; // skip if player has none
 
-          const heading = groupSpec.headingTemplate.replace('{count}', String(count));
+          const heading = getCountedGroupHeading(groupSpec, count);
           const ships = Array.from({ length: count }, () => ({
             shipDefId: groupSpec.shipDefId,
             buttons: groupSpec.buttons,

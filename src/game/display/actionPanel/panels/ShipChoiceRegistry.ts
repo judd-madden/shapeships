@@ -56,6 +56,12 @@ export interface ShipChoiceCountedShipGroupSpec {
   headingTemplate: string;
 
   /**
+   * Optional grammar override for singular count headings.
+   * When omitted, headingTemplate is used for all counts.
+   */
+  singularHeadingTemplate?: string;
+
+  /**
    * Buttons used by each instance of this ship type.
    */
   buttons: ShipChoiceButtonSpec[];
@@ -239,6 +245,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
         kind: 'counted',
         shipDefId: 'GUA',
         headingTemplate: '{count} Guardians may destroy enemy basic ships.',
+        singularHeadingTemplate: '{count} Guardian may destroy an enemy basic ship.',
         buttons: [
           {
             size: 'large',
@@ -247,10 +254,12 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
             requiresTargeting: true,
             showsInstructions: true,
             instructionText: 'You must select an enemy ship on the battlefield to destroy!',
+            choiceId: 'destroy',
           },
           {
             size: 'small',
             label: 'Hold Charge',
+            choiceId: 'hold',
           },
         ],
       },

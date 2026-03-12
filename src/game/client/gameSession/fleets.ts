@@ -40,6 +40,83 @@ interface BoardFleetSummary {
      */
     caption?: string | null;
 }
+
+export interface DerivedFleetStackInfo {
+  shipDefId: ShipDefId;
+  stackKey: string;
+  condition?: 'charges_1' | 'charges_0';
+  currentCharges?: number | null;
+  caption?: string | null;
+}
+
+export function deriveFleetStackInfo(
+  ship: any,
+  frigateTriggerByInstanceId: Record<string, unknown> = {}
+): DerivedFleetStackInfo | null {
+  const rawShipDefId = String(ship?.shipDefId ?? '');
+  if (!isShipDefId(rawShipDefId)) {
+    return null;
+  }
+
+  const shipDefId = rawShipDefId;
+  const def = getShipDefinitionById(shipDefId);
+  const maxCharges = def?.maxCharges ?? 0;
+  const chargesCurrent = Number(ship?.chargesCurrent ?? 0);
+  const instanceId = ship?.instanceId ?? ship?.id ?? '';
+
+  if (maxCharges === 1) {
+    if (chargesCurrent >= 1) {
+      return {
+        shipDefId,
+        stackKey: `${shipDefId}__charges_1`,
+        condition: 'charges_1',
+      };
+    }
+
+    return {
+      shipDefId,
+      stackKey: `${shipDefId}__charges_0`,
+      condition: 'charges_0',
+    };
+  }
+
+  if (maxCharges > 1) {
+    if (chargesCurrent > 0) {
+      return {
+        shipDefId,
+        stackKey: `${shipDefId}__inst_${instanceId}`,
+        currentCharges: chargesCurrent,
+      };
+    }
+
+    return {
+      shipDefId,
+      stackKey: `${shipDefId}__charges_0`,
+      condition: 'charges_0',
+    };
+  }
+
+  if (shipDefId === 'FRI') {
+    const rawTrig = frigateTriggerByInstanceId?.[instanceId];
+    let trig = Number(rawTrig ?? 1);
+
+    if (!Number.isFinite(trig)) trig = 1;
+    trig = Math.max(1, Math.min(6, Math.floor(trig)));
+
+    const caption = String(trig);
+    return {
+      shipDefId,
+      stackKey: `FRI__cap_${caption}`,
+      caption,
+    };
+  }
+
+  return {
+    shipDefId,
+    stackKey: shipDefId,
+  };
+}
+
 export function deriveFleets(args: {
   rawState: any;
   me: any;
@@ -88,89 +165,27 @@ export function deriveFleets(args: {
     >();
     
     for (const ship of ships) {
-      const rawShipDefId = String(ship.shipDefId ?? '');
-      if (!isShipDefId(rawShipDefId)) {
+      const stackInfo = deriveFleetStackInfo(ship, frigateTriggerByInstanceId);
+      if (!stackInfo) {
         continue;
       }
-      const shipDefId = rawShipDefId;
-      const def = getShipDefinitionById(shipDefId);
-      const maxCharges = def?.maxCharges ?? 0;
-      const chargesCurrent = Number((ship as any).chargesCurrent ?? 0);
-      const instanceId = (ship as any).instanceId ?? (ship as any).id ?? '';
-      
-      let stackKey: string;
-      let condition: 'charges_1' | 'charges_0' | undefined = undefined;
-      
-      if (maxCharges === 1) {
-        // Rule 1: maxCharges === 1 (split into 2 stacks)
-        if (chargesCurrent >= 1) {
-          stackKey = `${shipDefId}__charges_1`;
-          condition = 'charges_1';
-        } else {
-          stackKey = `${shipDefId}__charges_0`;
-          condition = 'charges_0';
-        }
-        
-        const existing = buckets.get(stackKey);
-        if (existing) {
-          existing.count++;
-        } else {
-          buckets.set(stackKey, { shipDefId, count: 1, condition });
-        }
-      } else if (maxCharges > 1) {
-        // Rule 2: maxCharges > 1
-        if (chargesCurrent > 0) {
-          // Active: do not stack, emit one entry per instance with currentCharges
-          stackKey = `${shipDefId}__inst_${instanceId}`;
-          buckets.set(stackKey, { shipDefId, count: 1, condition: undefined, currentCharges: chargesCurrent });
-        } else {
-          // Depleted: accumulate into depleted bucket
-          stackKey = `${shipDefId}__charges_0`;
-          condition = 'charges_0';
-          
-          const existing = buckets.get(stackKey);
-          if (existing) {
-            existing.count++;
-          } else {
-            buckets.set(stackKey, { shipDefId, count: 1, condition });
-          }
+      const { shipDefId, stackKey, condition, currentCharges, caption } = stackInfo;
+      const existing = buckets.get(stackKey);
+
+      if (existing) {
+        existing.count++;
+        if (caption != null) {
+          existing.caption = caption;
         }
       } else {
-        // Rule 3: maxCharges === 0 (normal stacking)
-        
-                if (shipDefId === 'FRI') {
-                  const rawTrig = (frigateTriggerByInstanceId as any)?.[instanceId];
-                  let trig = Number(rawTrig ?? 1);
-        
-                  if (!Number.isFinite(trig)) trig = 1;
-                  trig = Math.max(1, Math.min(6, Math.floor(trig)));
-        
-                  const caption = String(trig);
-                  const stackKey = `FRI__cap_${caption}`;
-        
-                  const existing = buckets.get(stackKey);
-                  if (existing) {
-                    existing.count++;
-                    existing.caption = caption;
-                  } else {
-                    buckets.set(stackKey, {
-                      shipDefId,
-                      count: 1,
-                      condition: undefined,
-                      caption,
-                    });
-                  }
-                } else {
-                  stackKey = shipDefId;
-        
-                  const existing = buckets.get(stackKey);
-                  if (existing) {
-                    existing.count++;
-                  } else {
-                    buckets.set(stackKey, { shipDefId, count: 1, condition: undefined });
-                  }
-                }
-}
+        buckets.set(stackKey, {
+          shipDefId,
+          count: 1,
+          condition,
+          currentCharges,
+          caption,
+        });
+      }
     }
     
     // Convert to array and sort for stable ordering

@@ -37,6 +37,7 @@ import { syncPhaseFields } from '../phase/syncPhaseFields.ts';
 import { accrueClocks } from '../clock/clock.ts';
 import { buildPhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { resolvePowerAction } from '../../engine_shared/resolve/resolvePowerAction.ts';
+import { applyEffects } from '../../engine_shared/effects/applyEffects.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 
 import {
@@ -1529,6 +1530,89 @@ async function handleBattleReveal(
   };
 }
 
+function stageFirstStrikeSelection(state: any, playerId: string, payload: ActionPayload) {
+  if (payload.actionType !== 'power') return;
+  if (!state.gameData) state.gameData = {};
+  if (!state.gameData.turnData) state.gameData.turnData = {};
+
+  const pending = state.gameData.turnData.pendingFirstStrikeSelectionsByPlayerId || {};
+  const playerPending = pending[playerId] || {};
+
+  playerPending[payload.sourceInstanceId!] = {
+    actionId: payload.actionId,
+    sourceInstanceId: payload.sourceInstanceId!,
+    choiceId: payload.choiceId!,
+    targetInstanceId: payload.targetInstanceId,
+  };
+
+  pending[playerId] = playerPending;
+  state.gameData.turnData.pendingFirstStrikeSelectionsByPlayerId = pending;
+}
+
+function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: any[]) {
+  const pendingByPlayerId = state?.gameData?.turnData?.pendingFirstStrikeSelectionsByPlayerId || {};
+  const phaseKey = 'battle.first_strike' as const;
+  const selections = Object.entries(pendingByPlayerId)
+    .flatMap(([playerId, entries]) => Object.values(entries as Record<string, any>).map((entry: any) => ({ playerId, ...entry })));
+
+  if (selections.length === 0) {
+    return state;
+  }
+
+  let workingState = state;
+  const prepared = selections.map((selection: any) => ({
+    selection,
+    outcome: resolvePowerAction({
+      state,
+      playerId: selection.playerId,
+      phaseKey,
+      actionId: selection.actionId,
+      sourceInstanceId: selection.sourceInstanceId,
+      choiceId: selection.choiceId,
+      targetInstanceId: selection.targetInstanceId,
+      apply: false,
+    })
+  }));
+
+  const allEffects = prepared.flatMap((item: any) => item.outcome.effects || []);
+  if (allEffects.length > 0) {
+    const applied = applyEffects(workingState, allEffects);
+    workingState = applied.state;
+    events.push(...applied.events);
+  }
+
+  for (const item of prepared) {
+    if (item.outcome.spentCharge) {
+      const gd: any = workingState.gameData ?? (workingState.gameData = {});
+      const td: any = gd.turnData ?? (gd.turnData = {});
+      const turnNumber: number = gd.turnNumber ?? (workingState as any).turnNumber ?? 1;
+      const usedMap: Record<string, number> = td.chargePowerUsedByInstanceId || {};
+      td.chargePowerUsedByInstanceId = {
+        ...usedMap,
+        [item.selection.sourceInstanceId]: turnNumber,
+      };
+    }
+
+    events.push({
+      type: 'POWER_USED',
+      playerId: item.selection.playerId,
+      phaseKey,
+      actionId: item.selection.actionId,
+      sourceInstanceId: item.selection.sourceInstanceId,
+      choiceId: item.selection.choiceId,
+      targetInstanceId: item.selection.targetInstanceId,
+      spentCharge: item.outcome.spentCharge,
+      atMs: nowMs,
+    });
+  }
+
+  if (!workingState.gameData) workingState.gameData = {};
+  if (!workingState.gameData.turnData) workingState.gameData.turnData = {};
+  delete workingState.gameData.turnData.pendingFirstStrikeSelectionsByPlayerId;
+
+  return workingState;
+}
+
 // ============================================================================
 // DECLARE_READY
 // ============================================================================
@@ -1617,6 +1701,10 @@ function handleDeclareReady(
   
   if (allReady) {
     console.log(`[IntentReducer] All players ready for ${phaseKey}, advancing phase...`);
+
+    if (phaseKey === 'battle.first_strike') {
+      state = resolvePendingFirstStrikeSelections(state, nowMs, events);
+    }
     
     // Store current phase key for onEnterPhase
     const fromKey = phaseKey;
@@ -1792,6 +1880,28 @@ function handleAction(
     }
     
     try {
+      if (phaseKey === 'battle.first_strike') {
+        resolvePowerAction({
+          state,
+          playerId,
+          phaseKey,
+          actionId: payload.actionId,
+          sourceInstanceId: payload.sourceInstanceId,
+          choiceId: payload.choiceId,
+          targetInstanceId: payload.targetInstanceId,
+          apply: false,
+        });
+
+        stageFirstStrikeSelection(state, playerId, payload);
+        state = syncPhaseFields(state);
+
+        return {
+          ok: true,
+          state,
+          events
+        };
+      }
+
       const outcome = resolvePowerAction({
         state,
         playerId,
@@ -1799,6 +1909,7 @@ function handleAction(
         actionId: payload.actionId,
         sourceInstanceId: payload.sourceInstanceId,
         choiceId: payload.choiceId,
+        targetInstanceId: payload.targetInstanceId,
       });
       
       state = outcome.state;
@@ -1824,6 +1935,7 @@ function handleAction(
         actionId: payload.actionId,
         sourceInstanceId: payload.sourceInstanceId,
         choiceId: payload.choiceId,
+        targetInstanceId: payload.targetInstanceId,
         spentCharge: outcome.spentCharge,
         atMs: nowMs
       });
@@ -1988,6 +2100,7 @@ function handleActionsSubmit(
         actionId: item.actionId,
         sourceInstanceId: item.sourceInstanceId,
         choiceId: item.choiceId,
+        targetInstanceId: item.targetInstanceId,
       });
       
       state = outcome.state;
@@ -2008,6 +2121,7 @@ function handleActionsSubmit(
         actionId: item.actionId,
         sourceInstanceId: item.sourceInstanceId,
         choiceId: item.choiceId,
+        targetInstanceId: item.targetInstanceId,
         spentCharge: outcome.spentCharge,
         atMs: nowMs
       });

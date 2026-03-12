@@ -153,6 +153,48 @@ export const STRUCTURED_POWERS_HUMAN: Record<ShipPowerKey, StructuredShipPower[]
   ],
 
   // ==========================================================================
+  // GUARDIAN (GUA)
+  // ==========================================================================
+  // JSON power index 0: Choice power (First Strike)
+  // Options: destroy target basic enemy ship, or hold charge
+  'GUA#0': [
+    {
+      type: 'choice',
+      timings: ['battle.first_strike'],
+      requiresCharge: true,
+      chargeCost: 1,
+      options: [
+        {
+          choiceId: 'destroy',
+          label: '', // UI copy in ShipChoiceRegistry only
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.SpendCharge,
+              amount: 1,
+              targetPlayer: 'self'
+            },
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.Destroy,
+              restriction: 'basic_only',
+              count: 1,
+              targetPlayer: 'opponent'
+            }
+          ]
+        },
+        {
+          choiceId: 'hold',
+          label: '', // UI copy in ShipChoiceRegistry only
+          effects: []
+        }
+      ]
+    }
+  ],
+
+  // ==========================================================================
   // CARRIER (CAR)
   // ==========================================================================
   // Choice power in build.ships_that_build:

@@ -377,6 +377,8 @@ function applyDestroyShip(
     return {};
   }
 
+  const destroyedShip = currentFleet[shipIndex];
+
   // Create NEW fleet array without the destroyed ship (never mutate existing)
   const newFleet = [
     ...currentFleet.slice(0, shipIndex),
@@ -385,6 +387,10 @@ function applyDestroyShip(
   
   state.gameData.ships![targetPlayerId] = newFleet;
   const afterCount = newFleet.length;
+
+  const voidShips = state.gameData.voidShipsByPlayerId ?? (state.gameData.voidShipsByPlayerId = {});
+  const currentVoid = voidShips[targetPlayerId] ?? [];
+  voidShips[targetPlayerId] = [...currentVoid, destroyedShip];
 
   console.log(
     `[applyEffects] Destroyed ship ${shipInstanceId} for ${targetPlayerId}: ${beforeCount} → ${afterCount}`

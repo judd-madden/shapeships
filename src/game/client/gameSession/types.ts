@@ -116,6 +116,17 @@ export interface BoardFleetSummary {
   caption?: string | null;
 }
 
+export interface BoardDestroyTargetState {
+  isTargetable: boolean;
+  isHovered: boolean;
+  isSelected: boolean;
+}
+
+export interface BoardDestroyTargetingViewModel {
+  activeSourceInstanceId: string | null;
+  targetStatesByStackKey: Record<string, BoardDestroyTargetState>;
+}
+
 export type BoardViewModel =
   | {
       mode: 'choose_species';
@@ -153,6 +164,9 @@ export type BoardViewModel =
       // Animation stagger plans
       opponentFleetEntryPlan: OpponentFleetEntryPlan;
       activationStaggerPlan: ActivationStaggerPlan;
+
+      // Client-only targeting affordances derived from server-provided validTargets
+      destroyTargeting?: BoardDestroyTargetingViewModel;
     };
 
 // Type alias for choose species board mode
@@ -267,4 +281,7 @@ export interface GameSessionActions {
   onDownloadBattleLog: () => void;
   onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;
   onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => void;
+  onBoardBackgroundMouseDown: () => void;
+  onDestroyTargetStackHoverChange: (stackKey: string | null) => void;
+  onDestroyTargetStackMouseDown: (stackKey: string) => void;
 }

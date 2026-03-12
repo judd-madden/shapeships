@@ -18,6 +18,7 @@ import type { PhaseKey } from '../phase/PhaseTable.ts';
 import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
 import { Effect, EffectKind } from '../effects/Effect.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
+import { getShipById } from '../defs/ShipDefinitions.core.ts';
 import { 
   translateChoiceOptionEffects, 
   type StructuredShipPower, 
@@ -36,12 +37,15 @@ export type ResolvePowerActionInput = {
   actionId: string;
   sourceInstanceId: string;
   choiceId: string;
+  targetInstanceId?: string;
+  apply?: boolean;
 };
 
 export type ResolvePowerActionOutcome = {
   state: GameState;
   events: EffectEvent[];
   spentCharge: boolean;
+  effects: Effect[];
 };
 
 /**
@@ -52,7 +56,7 @@ export type ResolvePowerActionOutcome = {
  * @throws Error if validation fails
  */
 export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePowerActionOutcome {
-  const { state, playerId, phaseKey, actionId, sourceInstanceId, choiceId } = input;
+  const { state, playerId, phaseKey, actionId, sourceInstanceId, choiceId, targetInstanceId, apply = true } = input;
 
   // ============================================================================
   // 1. PARSE ACTION ID
@@ -154,14 +158,45 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
   const opponentPlayerId = activePlayers.find((p: any) => p.id !== playerId)?.id || playerId;
 
   // ============================================================================
-  // 11. TRANSLATE OPTION EFFECTS → EFFECT[]
+  // 11. VALIDATE EXPLICIT TARGET (for targeted destroy actions)
+  // ============================================================================
+
+  const destroyEffect = option.effects.find((effect) => effect.kind === EffectKind.Destroy);
+
+  if (destroyEffect) {
+    if (!targetInstanceId) {
+      throw new Error('Missing targetInstanceId');
+    }
+
+    const opponentFleet = state?.gameData?.ships?.[opponentPlayerId] ?? [];
+    const targetShip = opponentFleet.find((ship: ShipInstance) => ship.instanceId === targetInstanceId);
+
+    if (!targetShip) {
+      throw new Error(`Target ship not found: ${targetInstanceId}`);
+    }
+
+    const targetShipDef = getShipById(targetShip.shipDefId);
+    const targetShipType = targetShipDef?.shipType ?? '';
+
+    if (destroyEffect.restriction === 'basic_only' && targetShipType !== 'Basic') {
+      throw new Error('Target ship must be basic');
+    }
+
+    if (destroyEffect.restriction === 'upgraded_only' && targetShipType !== 'Upgraded') {
+      throw new Error('Target ship must be upgraded');
+    }
+  }
+
+  // ============================================================================
+  // 12. TRANSLATE OPTION EFFECTS → EFFECT[]
   // ============================================================================
 
   const ctx: TranslateContext = {
     shipInstanceId: sourceInstanceId,
     shipDefId,
     ownerPlayerId: playerId,
-    opponentPlayerId
+    opponentPlayerId,
+    targetInstanceId
   };
 
   const effects: Effect[] = translateChoiceOptionEffects(
@@ -173,7 +208,7 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
   );
 
   // ============================================================================
-  // 12. COMPUTE SPENT CHARGE FLAG
+  // 13. COMPUTE SPENT CHARGE FLAG
   // ============================================================================
 
   const spentCharge = effects.some(
@@ -195,8 +230,17 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
   }
 
   // ============================================================================
-  // 13. APPLY EFFECTS
+  // 14. APPLY EFFECTS
   // ============================================================================
+
+  if (!apply) {
+    return {
+      state,
+      events: [],
+      spentCharge,
+      effects
+    };
+  }
 
   const applied = applyEffects(state, effects);
 
@@ -216,13 +260,14 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
   }
 
   // ============================================================================
-  // 14. RETURN OUTCOME
+  // 15. RETURN OUTCOME
   // ============================================================================
 
   return {
     state: applied.state,
     events: applied.events,
-    spentCharge
+    spentCharge,
+    effects
   };
 }
 

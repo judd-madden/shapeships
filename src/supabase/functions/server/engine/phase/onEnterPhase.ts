@@ -284,9 +284,9 @@ function phaseRequiresPlayerInput(state: any, phaseKey: PhaseKey): boolean {
     return false;
   }
 
-  // battle.first_strike: auto-advance (first strike powers not yet implemented)
+  // battle.first_strike: pause only if at least one player has eligible powers
   if (phaseKey === 'battle.first_strike') {
-    return false;
+    return phaseHasAvailableFleetPowers(state, phaseKey);
   }
 
   // battle.charge_declaration: requires input only if charge/solar options exist
@@ -594,6 +594,56 @@ function enterPhaseOnce(
     }
   }
   
+  // ============================================================================
+  // FIRST STRIKE - battle.first_strike
+  // ============================================================================
+  // Responsibilities:
+  // 1. Auto-ready all ineligible players (no ships with "First Strike" powers)
+  // 2. Only eligible players must click Ready to advance
+
+  if (toKey === 'battle.first_strike') {
+    if (!workingState.gameData.phaseReadiness) {
+      workingState.gameData.phaseReadiness = [];
+    }
+
+    const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
+
+    for (const player of activePlayers) {
+      const eligible = fleetHasAvailablePowers(
+        workingState,
+        'battle.first_strike',
+        player.id,
+        ['First Strike']
+      );
+
+      if (!eligible) {
+        const existingIndex = workingState.gameData.phaseReadiness.findIndex(
+          (r: any) => r.playerId === player.id && r.currentStep === 'battle.first_strike'
+        );
+
+        if (existingIndex >= 0) {
+          workingState.gameData.phaseReadiness[existingIndex].isReady = true;
+        } else {
+          workingState.gameData.phaseReadiness.push({
+            playerId: player.id,
+            isReady: true,
+            currentStep: 'battle.first_strike'
+          });
+        }
+
+        console.log(`[OnEnterPhase] Auto-readied ineligible player: ${player.id}`);
+
+        events.push({
+          type: 'PLAYER_AUTO_READY',
+          playerId: player.id,
+          step: 'battle.first_strike',
+          reason: 'no_available_powers',
+          atMs: nowMs
+        });
+      }
+    }
+  }
+
   // ============================================================================
   // AUTO-READY INELIGIBLE PLAYERS - battle.charge_declaration / battle.charge_response
   // ============================================================================

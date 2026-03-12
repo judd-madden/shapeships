@@ -86,10 +86,21 @@ export type GameData = {
     anyChargesSpentInDeclaration?: boolean;
     anyChargesDeclared?: boolean;
     chargeDeclarationEligibleByPlayerId?: Record<string, boolean>;
+
+    /** Staged first-strike selections, scoped by player and source instance */
+    pendingFirstStrikeSelectionsByPlayerId?: Record<string, Record<string, {
+      actionId: string;
+      sourceInstanceId: string;
+      choiceId: string;
+      targetInstanceId?: string;
+    }>>;
     
     /** Allow future turn-scoped flags */
     [key: string]: any;
   };
+
+  /** Destroyed ships kept out of play but preserved for UI/history */
+  voidShipsByPlayerId?: Record<string, ShipInstance[]>;
   
   /** Pending turn accumulators (for aggregated end-of-turn resolution) */
   pendingTurn?: {

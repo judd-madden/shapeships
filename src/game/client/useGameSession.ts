@@ -37,7 +37,7 @@ import { getPlayerName } from './gameSession/playerName';
 import { getMajorPhaseLabel, getSubphaseLabelFromPhaseKey } from './gameSession/phaseLabels';
 import { getPhaseKey, getTurnNumber, formatClock, formatClockMs, getClockData } from './gameSession/selectors';
 import { deriveIdentity } from './gameSession/identity';
-import { deriveFleets } from './gameSession/fleets';
+import { deriveFleetStackInfo, deriveFleets } from './gameSession/fleets';
 import { appendEventsToTape, formatTapeEntry } from './gameSession/eventTape';
 import { usePhaseCommitCache } from './gameSession/commitCache';
 import { mapGameSessionVm } from './gameSession/mapVm';
@@ -84,7 +84,13 @@ export type {
   GameSessionActions,
 } from './gameSession/types';
 
-import { decideAutoPanelRouting, speciesToCataloguePanelId } from './gameSession/availableActions';
+import {
+  decideAutoPanelRouting,
+  getDefaultChoiceIdForRenderableAction,
+  getRenderableActionChoiceIds,
+  getRenderableServerChoiceActions,
+  speciesToCataloguePanelId,
+} from './gameSession/availableActions';
 import { buildMessageAction } from './gameSession/powerIntents';
 
 
@@ -511,6 +517,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Phase data
   const phaseKey = rawState ? getPhaseKey(rawState) : 'unknown';
   const turnNumber = rawState ? getTurnNumber(rawState) : 1;
+  const phaseInstanceKey = `${turnNumber}::${phaseKey}`;
   
   // Phase 3.x: server-authoritative actions availability (declare early to avoid TDZ)
   const availableActions = rawState?.availableActions;
@@ -522,6 +529,18 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // ============================================================================
   
   const [shipChoiceSelectionByInstanceId, setShipChoiceSelectionByInstanceId] = useState<Record<string, string>>({});
+  const [activeDestroyTargetSourceInstanceId, setActiveDestroyTargetSourceInstanceId] = useState<string | null>(null);
+  const [selectedDestroyTargetStackKeyBySourceInstanceId, setSelectedDestroyTargetStackKeyBySourceInstanceId] = useState<Record<string, string>>({});
+  const [hoveredDestroyTargetStackKey, setHoveredDestroyTargetStackKey] = useState<string | null>(null);
+  const pendingFirstStrikeDestroyResetPhaseInstanceKeyRef = useRef<string | null>(null);
+  const lastFirstStrikePhaseInstanceKeyRef = useRef<string | null>(null);
+
+  const renderableChoiceActions = getRenderableServerChoiceActions(phaseKey, availableActions);
+  const destroyTargetActionsBySourceInstanceId = new Map(
+    renderableChoiceActions
+      .filter((action) => action.kind === 'destroy_target')
+      .map((action) => [action.sourceInstanceId, action] as const)
+  );
   
   // ============================================================================
   // TASK A: HARD RESET PREVIEW STATE ON TURN CHANGE
@@ -550,27 +569,26 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     // Only for server-choice phases
     if (
       phaseKey !== 'build.ships_that_build' &&
+      phaseKey !== 'battle.first_strike' &&
       phaseKey !== 'battle.charge_declaration' &&
       phaseKey !== 'battle.charge_response'
     ) {
       return;
     }
     
-    const choiceActions = Array.isArray(availableActions)
-      ? availableActions.filter(
-          (a: any) =>
-            a?.kind === 'choice' &&
-            typeof a?.sourceInstanceId === 'string' &&
-            Array.isArray(a?.choices) &&
-            a.choices.length > 0
-        )
-      : [];
+    const choiceActions = getRenderableServerChoiceActions(phaseKey, availableActions).filter(
+      (action) => getRenderableActionChoiceIds(action).length > 0
+    );
     
     // If server says there are no choice actions, clear our local selection map.
     if (choiceActions.length === 0) {
       setShipChoiceSelectionByInstanceId({});
       return;
     }
+
+    const shouldResetFirstStrikeDestroyRows =
+      phaseKey === 'battle.first_strike' &&
+      pendingFirstStrikeDestroyResetPhaseInstanceKeyRef.current === phaseInstanceKey;
     
     // Functional update so we can compare with prev and avoid unnecessary state churn.
     setShipChoiceSelectionByInstanceId((prev) => {
@@ -579,18 +597,22 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       
       for (const action of choiceActions) {
         const instanceId = action.sourceInstanceId as string;
-        const allowedChoiceIds: string[] = (action.choices as any[])
-          .map((c: any) => c?.choiceId)
-          .filter((cid: any): cid is string => typeof cid === 'string');
+        const allowedChoiceIds = getRenderableActionChoiceIds(action);
         
         if (allowedChoiceIds.length === 0) continue;
         
-        const existing = prev[instanceId];
+        const existing =
+          shouldResetFirstStrikeDestroyRows && action.kind === 'destroy_target'
+            ? undefined
+            : prev[instanceId];
         if (existing && allowedChoiceIds.includes(existing)) {
           next[instanceId] = existing;
         } else {
-          next[instanceId] = allowedChoiceIds[0]; // Always default to the first valid option
-          if (prev[instanceId] !== next[instanceId]) changed = true;
+          const defaultChoiceId = getDefaultChoiceIdForRenderableAction(action);
+          if (!defaultChoiceId) continue;
+
+          next[instanceId] = defaultChoiceId;
+          if (prev[instanceId] !== defaultChoiceId) changed = true;
         }
       }
       
@@ -611,7 +633,17 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       
       return changed ? next : prev;
     });
-  }, [phaseKey, availableActions]);
+
+    if (shouldResetFirstStrikeDestroyRows) {
+      pendingFirstStrikeDestroyResetPhaseInstanceKeyRef.current = null;
+    }
+  }, [phaseKey, phaseInstanceKey, availableActions]);
+
+  useEffect(() => {
+    if (activeDestroyTargetSourceInstanceId == null) {
+      setHoveredDestroyTargetStackKey(null);
+    }
+  }, [activeDestroyTargetSourceInstanceId]);
   
   // ============================================================================
   // CHUNK 9.1: BOOTSTRAP READINESS CHECK (BOOT GATING)
@@ -632,11 +664,30 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Phase instance key for completion tracking
   // MUST be defined early — used by preview merge, build gating, and ready logic
-  const phaseInstanceKey = `${turnNumber}::${phaseKey}`;
-  
   // Ready UX state for current phase (for SENDING/WAITING labels)
   const readyUxForCurrentPhase =
     readyUxByPhaseInstanceKey[phaseInstanceKey] ?? { clickedThisPhase: false, sendingNow: false };
+
+  useEffect(() => {
+    if (phaseKey !== 'battle.first_strike') {
+      lastFirstStrikePhaseInstanceKeyRef.current = null;
+      pendingFirstStrikeDestroyResetPhaseInstanceKeyRef.current = null;
+      return;
+    }
+
+    if (lastFirstStrikePhaseInstanceKeyRef.current === phaseInstanceKey) {
+      return;
+    }
+
+    lastFirstStrikePhaseInstanceKeyRef.current = phaseInstanceKey;
+    pendingFirstStrikeDestroyResetPhaseInstanceKeyRef.current = phaseInstanceKey;
+    setActiveDestroyTargetSourceInstanceId(null);
+    setHoveredDestroyTargetStackKey(null);
+    setSelectedDestroyTargetStackKeyBySourceInstanceId((prev) =>
+      Object.keys(prev).length === 0 ? prev : {}
+    );
+  }, [phaseKey, phaseInstanceKey]);
+
   
   // Client-only key (UI gating / local phase completion concept)
   const buildPhaseInstanceKey = `${turnNumber}::build`;
@@ -713,6 +764,191 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     turnNumber,
     majorPhase,
   });
+
+  const frigateTriggerByInstanceId =
+    rawState?.gameData?.powerMemory?.frigateTriggerByInstanceId ?? {};
+
+  const opponentVisibleStackKeyByInstanceId = new Map<string, string>();
+  for (const ship of opponentShipsVisible) {
+    const instanceId = ship?.instanceId ?? ship?.id;
+    if (typeof instanceId !== 'string') {
+      continue;
+    }
+
+    const stackInfo = deriveFleetStackInfo(ship, frigateTriggerByInstanceId);
+    if (!stackInfo) {
+      continue;
+    }
+
+    opponentVisibleStackKeyByInstanceId.set(instanceId, stackInfo.stackKey);
+  }
+
+  const visibleTargetIdsByStackKey: Record<string, string[]> = {};
+  for (const [instanceId, stackKey] of opponentVisibleStackKeyByInstanceId.entries()) {
+    if (!visibleTargetIdsByStackKey[stackKey]) {
+      visibleTargetIdsByStackKey[stackKey] = [];
+    }
+
+    visibleTargetIdsByStackKey[stackKey].push(instanceId);
+  }
+
+  for (const targetIds of Object.values(visibleTargetIdsByStackKey)) {
+    targetIds.sort((a, b) => a.localeCompare(b));
+  }
+
+  const validDestroyTargetStackKeysBySourceInstanceId: Record<string, string[]> = {};
+  for (const [sourceInstanceId, action] of destroyTargetActionsBySourceInstanceId.entries()) {
+    const validTargetIds = new Set(
+      Array.isArray(action.validTargets)
+        ? action.validTargets
+            .map((target: any) => target?.instanceId)
+            .filter((instanceId: unknown): instanceId is string => typeof instanceId === 'string')
+        : []
+    );
+
+    const stackKeys = new Set<string>();
+    for (const [instanceId, stackKey] of opponentVisibleStackKeyByInstanceId.entries()) {
+      if (validTargetIds.has(instanceId)) {
+        stackKeys.add(stackKey);
+      }
+    }
+
+    validDestroyTargetStackKeysBySourceInstanceId[sourceInstanceId] = Array.from(stackKeys).sort((a, b) =>
+      a.localeCompare(b)
+    );
+  }
+
+  const selectedDestroySourcesByStackKey: Record<string, string[]> = {};
+  for (const [sourceInstanceId] of destroyTargetActionsBySourceInstanceId.entries()) {
+    if (shipChoiceSelectionByInstanceId[sourceInstanceId] !== 'destroy') {
+      continue;
+    }
+
+    const selectedStackKey = selectedDestroyTargetStackKeyBySourceInstanceId[sourceInstanceId];
+    if (!selectedStackKey) {
+      continue;
+    }
+
+    if (!selectedDestroySourcesByStackKey[selectedStackKey]) {
+      selectedDestroySourcesByStackKey[selectedStackKey] = [];
+    }
+
+    selectedDestroySourcesByStackKey[selectedStackKey].push(sourceInstanceId);
+  }
+
+  const allocatedDestroyTargetIdBySourceInstanceId: Record<string, string> = {};
+  for (const stackKey of Object.keys(selectedDestroySourcesByStackKey).sort((a, b) => a.localeCompare(b))) {
+    const sourceInstanceIds = [...selectedDestroySourcesByStackKey[stackKey]].sort((a, b) => a.localeCompare(b));
+    const visibleTargetIds = visibleTargetIdsByStackKey[stackKey] ?? [];
+    const usedTargetIds = new Set<string>();
+
+    for (const sourceInstanceId of sourceInstanceIds) {
+      const action = destroyTargetActionsBySourceInstanceId.get(sourceInstanceId);
+      if (!action) {
+        continue;
+      }
+
+      const validTargetIds = new Set(
+        Array.isArray(action.validTargets)
+          ? action.validTargets
+              .map((target: any) => target?.instanceId)
+              .filter((instanceId: unknown): instanceId is string => typeof instanceId === 'string')
+          : []
+      );
+
+      const candidateTargetId = visibleTargetIds.find(
+        (targetInstanceId) =>
+          validTargetIds.has(targetInstanceId) &&
+          !usedTargetIds.has(targetInstanceId)
+      );
+
+      if (!candidateTargetId) {
+        continue;
+      }
+
+      usedTargetIds.add(candidateTargetId);
+      allocatedDestroyTargetIdBySourceInstanceId[sourceInstanceId] = candidateTargetId;
+    }
+  }
+
+  const activeDestroyTargetAction =
+    activeDestroyTargetSourceInstanceId != null
+      ? destroyTargetActionsBySourceInstanceId.get(activeDestroyTargetSourceInstanceId) ?? null
+      : null;
+
+  const activeDestroyValidTargetStackKeys = new Set(
+    activeDestroyTargetSourceInstanceId != null
+      ? validDestroyTargetStackKeysBySourceInstanceId[activeDestroyTargetSourceInstanceId] ?? []
+      : []
+  );
+
+  const activeDestroySelectedStackKey =
+    activeDestroyTargetSourceInstanceId != null
+      ? selectedDestroyTargetStackKeyBySourceInstanceId[activeDestroyTargetSourceInstanceId] ?? null
+      : null;
+
+  useEffect(() => {
+    if (destroyTargetActionsBySourceInstanceId.size === 0) {
+      setActiveDestroyTargetSourceInstanceId(null);
+      setHoveredDestroyTargetStackKey(null);
+      setSelectedDestroyTargetStackKeyBySourceInstanceId((prev) =>
+        Object.keys(prev).length === 0 ? prev : {}
+      );
+      return;
+    }
+
+    setSelectedDestroyTargetStackKeyBySourceInstanceId((prev) => {
+      const next: Record<string, string> = {};
+      let changed = false;
+
+      for (const [sourceInstanceId] of destroyTargetActionsBySourceInstanceId.entries()) {
+        const selectedStackKey = prev[sourceInstanceId];
+        if (!selectedStackKey) {
+          continue;
+        }
+
+        const validStackKeys = validDestroyTargetStackKeysBySourceInstanceId[sourceInstanceId] ?? [];
+        if (validStackKeys.includes(selectedStackKey)) {
+          next[sourceInstanceId] = selectedStackKey;
+        } else {
+          changed = true;
+        }
+      }
+
+      if (!changed) {
+        const prevKeys = Object.keys(prev);
+        if (prevKeys.length !== Object.keys(next).length) {
+          changed = true;
+        } else {
+          for (const key of prevKeys) {
+            if (prev[key] !== next[key]) {
+              changed = true;
+              break;
+            }
+          }
+        }
+      }
+
+      return changed ? next : prev;
+    });
+
+    setActiveDestroyTargetSourceInstanceId((prev) => {
+      if (
+        prev &&
+        destroyTargetActionsBySourceInstanceId.has(prev) &&
+        shipChoiceSelectionByInstanceId[prev] === 'destroy'
+      ) {
+        return prev;
+      }
+
+      return null;
+    });
+  }, [
+    phaseKey,
+    availableActions,
+    shipChoiceSelectionByInstanceId,
+    validDestroyTargetStackKeysBySourceInstanceId,
+  ]);
   
   // ============================================================================
   // CHUNK 6: MERGE PREVIEW COUNTS INTO FLEET (ENTIRE BUILD PHASE)
@@ -1018,6 +1254,15 @@ useEffect(() => {
     const myBonusLines = me?.id ? (bonusLinesByPlayerId?.[me.id] ?? 0) : 0;
     const opponentBonusLines = opponent?.id ? (bonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
 
+    const destroyTargetStatesByStackKey: Record<string, { isTargetable: boolean; isHovered: boolean; isSelected: boolean }> = {};
+    for (const stackKey of activeDestroyValidTargetStackKeys) {
+      destroyTargetStatesByStackKey[stackKey] = {
+        isTargetable: true,
+        isHovered: hoveredDestroyTargetStackKey === stackKey,
+        isSelected: activeDestroySelectedStackKey === stackKey,
+      };
+    }
+
     board = {
       mode: 'board',
       mySpeciesId: effectiveMySpecies,
@@ -1085,6 +1330,11 @@ useEffect(() => {
         myFleetOrder,
         opponentFleetOrder
       ),
+
+      destroyTargeting: {
+        activeSourceInstanceId: activeDestroyTargetSourceInstanceId,
+        targetStatesByStackKey: destroyTargetStatesByStackKey,
+      },
     };
   }
   
@@ -1298,6 +1548,7 @@ useEffect(() => {
     // Gate Ready in server-choice phases until availableActions arrives
     const isServerChoicePhase = 
       phaseKey === 'build.ships_that_build' ||
+      phaseKey === 'battle.first_strike' ||
       phaseKey === 'battle.charge_declaration' ||
       phaseKey === 'battle.charge_response';
     
@@ -1533,6 +1784,7 @@ useEffect(() => {
 
     // Selection state for ship choice panels
     selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
+    allocatedDestroyTargetIdBySourceInstanceId,
     
     // Raw gameData for server truth
     gameData: rawState?.gameData,
@@ -1610,6 +1862,7 @@ useEffect(() => {
           // Charge panel context (Prompt 9)
           availableActions: Array.isArray(availableActions) ? availableActions : null,
           selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
+          allocatedDestroyTargetIdBySourceInstanceId,
         });
       } finally {
         if (willAttemptSend) {
@@ -1856,8 +2109,65 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
   });
 },
 
-onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
+    onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
       setShipChoiceSelectionByInstanceId(prev => ({ ...prev, [sourceInstanceId]: choiceId }));
+
+      if (!destroyTargetActionsBySourceInstanceId.has(sourceInstanceId)) {
+        return;
+      }
+
+      if (choiceId === 'destroy') {
+        setActiveDestroyTargetSourceInstanceId(sourceInstanceId);
+        return;
+      }
+
+      setHoveredDestroyTargetStackKey(null);
+      setActiveDestroyTargetSourceInstanceId(prev => (
+        prev === sourceInstanceId ? null : prev
+      ));
+    },
+
+    onBoardBackgroundMouseDown: () => {
+      setActiveDestroyTargetSourceInstanceId(null);
+      setHoveredDestroyTargetStackKey(null);
+    },
+
+    onDestroyTargetStackHoverChange: (stackKey: string | null) => {
+      if (activeDestroyTargetSourceInstanceId == null) {
+        if (stackKey == null) {
+          setHoveredDestroyTargetStackKey(null);
+        }
+        return;
+      }
+
+      if (stackKey == null) {
+        setHoveredDestroyTargetStackKey(null);
+        return;
+      }
+
+      if (!activeDestroyValidTargetStackKeys.has(stackKey)) {
+        return;
+      }
+
+      setHoveredDestroyTargetStackKey(stackKey);
+    },
+
+    onDestroyTargetStackMouseDown: (stackKey: string) => {
+      if (activeDestroyTargetSourceInstanceId == null) {
+        return;
+      }
+
+      setSelectedDestroyTargetStackKeyBySourceInstanceId(prev => {
+        if (prev[activeDestroyTargetSourceInstanceId] === stackKey) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [activeDestroyTargetSourceInstanceId]: stackKey,
+        };
+      });
+      setHoveredDestroyTargetStackKey(stackKey);
     },
   };
   
@@ -1975,6 +2285,9 @@ onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
       onDownloadBattleLog: () => { },
       onSelectShipChoiceForInstance: () => { },
       onSelectFrigateTrigger: () => { },
+      onBoardBackgroundMouseDown: () => { },
+      onDestroyTargetStackHoverChange: () => { },
+      onDestroyTargetStackMouseDown: () => { },
     };
     
     return {

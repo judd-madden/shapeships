@@ -130,6 +130,7 @@ export type TranslateContext = {
   shipDefId: string;
   ownerPlayerId: string;
   opponentPlayerId: string;
+  targetInstanceId?: string;
 };
 
 // ============================================================================
@@ -300,6 +301,10 @@ function translateEffectPower(
       return {
         ...baseEffect,
         kind: EffectKindEnum.Destroy,
+        target: {
+          ...baseEffect.target,
+          shipInstanceId: ctx.targetInstanceId
+        },
         restriction: power.restriction ?? 'any',
         count: power.count ?? 1
       } as DestroyEffect;

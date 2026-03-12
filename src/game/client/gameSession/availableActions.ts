@@ -24,6 +24,15 @@ export type AutoPanelRoutingDecision =
   | { kind: 'none' }
   | { kind: 'setActivePanelId'; nextPanelId: ActionPanelId; log: string };
 
+export type RenderableServerAction = {
+  kind: string;
+  actionId: string;
+  shipDefId: string;
+  sourceInstanceId: string;
+  choices: Array<{ choiceId?: string }>;
+  validTargets?: any[];
+};
+
 export function isCataloguePanel(id: ActionPanelId): boolean {
   return id.startsWith('ap.catalog.ships.');
 }
@@ -35,6 +44,52 @@ export function speciesToCataloguePanelId(species: SpeciesId): ActionPanelId {
     case 'centaur': return 'ap.catalog.ships.centaur';
     case 'ancient': return 'ap.catalog.ships.ancient';
   }
+}
+
+export function getRenderableServerChoiceActions(
+  phaseKey: PhaseKey,
+  availableActions: any[] | null | undefined
+): RenderableServerAction[] {
+  if (!Array.isArray(availableActions)) return [];
+
+  return availableActions.filter((action: any): action is RenderableServerAction => {
+    const hasBaseFields =
+      typeof action?.sourceInstanceId === 'string' &&
+      typeof action?.actionId === 'string' &&
+      typeof action?.shipDefId === 'string' &&
+      Array.isArray(action?.choices);
+
+    if (!hasBaseFields) return false;
+
+    if (phaseKey === 'battle.first_strike') {
+      return action.kind === 'choice' || action.kind === 'destroy_target';
+    }
+
+    return action.kind === 'choice';
+  });
+}
+
+export function getRenderableActionChoiceIds(action: {
+  choices?: Array<{ choiceId?: string }>;
+}): string[] {
+  return Array.isArray(action?.choices)
+    ? action.choices
+        .map((choice) => choice?.choiceId)
+        .filter((choiceId): choiceId is string => typeof choiceId === 'string')
+    : [];
+}
+
+export function getDefaultChoiceIdForRenderableAction(action: RenderableServerAction): string | undefined {
+  const choiceIds = getRenderableActionChoiceIds(action);
+  if (choiceIds.length === 0) return undefined;
+
+  // First-strike targeted destroy actions require an explicit targetInstanceId.
+  // Default to hold so Guardian rows can render without auto-submitting an invalid destroy.
+  if (action.kind === 'destroy_target') {
+    return choiceIds.find((choiceId) => choiceId === 'hold') ?? choiceIds[0];
+  }
+
+  return choiceIds[0];
 }
 
 // TODO(BETA): Early-drawing during build.ships_that_build

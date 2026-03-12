@@ -174,6 +174,38 @@ function groupShipsIntoRows<T extends { shipDefId: string; count: number }>(
     return { row1, row2, row3, row4 };
 }
 
+function getDestroyTargetSurfaceStyle(targetState?: {
+  isTargetable: boolean;
+  isHovered: boolean;
+  isSelected: boolean;
+}) {
+  if (!targetState?.isTargetable) {
+    return undefined;
+  }
+
+  if (targetState.isSelected) {
+    return {
+      backgroundColor: 'rgba(255, 82, 82, 0.14)',
+      borderColor: 'rgba(255, 110, 110, 0.95)',
+      boxShadow: '0 0 0 2px rgba(255, 110, 110, 0.95), 0 0 22px rgba(255, 82, 82, 0.4)',
+    };
+  }
+
+  if (targetState.isHovered) {
+    return {
+      backgroundColor: 'rgba(255, 255, 255, 0.13)',
+      borderColor: 'rgba(255, 255, 255, 0.95)',
+      boxShadow: '0 0 0 2px rgba(255, 255, 255, 0.92), 0 0 20px rgba(255, 255, 255, 0.32)',
+    };
+  }
+
+  return {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.58)',
+    boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.58), 0 0 14px rgba(255, 255, 255, 0.18)',
+  };
+}
+
 function ShipStack({ 
   ship, 
   animToken, 
@@ -279,6 +311,9 @@ function FleetArea({
   side,
   opponentEntryDelays,
   activationIndexMap,
+  targetStatesByStackKey,
+  onDestroyTargetHoverChange,
+  onDestroyTargetMouseDown,
 }: {
   title: string;
         ships?: Array<{ shipDefId: string; count: number; stackKey: string; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null; caption?: string | null; }>;
@@ -289,6 +324,9 @@ function FleetArea({
   side: 'my' | 'opponent';
   opponentEntryDelays?: Record<string, number>;
   activationIndexMap?: Record<string, number>;
+  targetStatesByStackKey?: Record<string, { isTargetable: boolean; isHovered: boolean; isSelected: boolean }>;
+  onDestroyTargetHoverChange?: (stackKey: string | null) => void;
+  onDestroyTargetMouseDown?: (stackKey: string) => void;
 }) {
   const rowSets = ROW_SETS_BY_SPECIES[species];
   const grouped = ships && ships.length > 0 ? groupShipsIntoRows(ships, order, rowSets) : null;
@@ -309,7 +347,31 @@ function FleetArea({
           <div className="flex flex-col items-center gap-[18px]">
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
               {grouped.row1.map((ship) => (
-                <div key={ship.stackKey} ref={getFlipRef(ship.stackKey)}>
+                <div
+                  key={ship.stackKey}
+                  ref={getFlipRef(ship.stackKey)}
+                  className={cx(
+                    'rounded-[18px] border border-transparent px-[10px] py-[8px] transition-[background-color,border-color,box-shadow] duration-100',
+                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable && 'cursor-pointer'
+                  )}
+                  style={getDestroyTargetSurfaceStyle(targetStatesByStackKey?.[ship.stackKey])}
+                  onMouseEnter={
+                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
+                      ? () => onDestroyTargetHoverChange?.(ship.stackKey)
+                      : undefined
+                  }
+                  onMouseLeave={
+                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
+                      ? () => onDestroyTargetHoverChange?.(null)
+                      : undefined
+                  }
+                  onMouseDown={(event) => {
+                    event.stopPropagation();
+                    if (targetStatesByStackKey?.[ship.stackKey]?.isTargetable) {
+                      onDestroyTargetMouseDown?.(ship.stackKey);
+                    }
+                  }}
+                >
                   <ShipStack 
                     ship={ship}
                     animToken={animTokens?.[ship.stackKey]}
@@ -323,7 +385,31 @@ function FleetArea({
 
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
               {grouped.row2.map((ship) => (
-                <div key={ship.stackKey} ref={getFlipRef(ship.stackKey)}>
+                <div
+                  key={ship.stackKey}
+                  ref={getFlipRef(ship.stackKey)}
+                  className={cx(
+                    'rounded-[18px] border border-transparent px-[10px] py-[8px] transition-[background-color,border-color,box-shadow] duration-100',
+                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable && 'cursor-pointer'
+                  )}
+                  style={getDestroyTargetSurfaceStyle(targetStatesByStackKey?.[ship.stackKey])}
+                  onMouseEnter={
+                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
+                      ? () => onDestroyTargetHoverChange?.(ship.stackKey)
+                      : undefined
+                  }
+                  onMouseLeave={
+                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
+                      ? () => onDestroyTargetHoverChange?.(null)
+                      : undefined
+                  }
+                  onMouseDown={(event) => {
+                    event.stopPropagation();
+                    if (targetStatesByStackKey?.[ship.stackKey]?.isTargetable) {
+                      onDestroyTargetMouseDown?.(ship.stackKey);
+                    }
+                  }}
+                >
                   <ShipStack 
                     ship={ship}
                     animToken={animTokens?.[ship.stackKey]}
@@ -337,7 +423,31 @@ function FleetArea({
 
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
               {grouped.row3.map((ship) => (
-                <div key={ship.stackKey} ref={getFlipRef(ship.stackKey)}>
+                <div
+                  key={ship.stackKey}
+                  ref={getFlipRef(ship.stackKey)}
+                  className={cx(
+                    'rounded-[18px] border border-transparent px-[10px] py-[8px] transition-[background-color,border-color,box-shadow] duration-100',
+                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable && 'cursor-pointer'
+                  )}
+                  style={getDestroyTargetSurfaceStyle(targetStatesByStackKey?.[ship.stackKey])}
+                  onMouseEnter={
+                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
+                      ? () => onDestroyTargetHoverChange?.(ship.stackKey)
+                      : undefined
+                  }
+                  onMouseLeave={
+                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
+                      ? () => onDestroyTargetHoverChange?.(null)
+                      : undefined
+                  }
+                  onMouseDown={(event) => {
+                    event.stopPropagation();
+                    if (targetStatesByStackKey?.[ship.stackKey]?.isTargetable) {
+                      onDestroyTargetMouseDown?.(ship.stackKey);
+                    }
+                  }}
+                >
                   <ShipStack 
                     ship={ship}
                     animToken={animTokens?.[ship.stackKey]}
@@ -351,7 +461,31 @@ function FleetArea({
 
             <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
               {grouped.row4.map((ship) => (
-                <div key={ship.stackKey} ref={getFlipRef(ship.stackKey)}>
+                <div
+                  key={ship.stackKey}
+                  ref={getFlipRef(ship.stackKey)}
+                  className={cx(
+                    'rounded-[18px] border border-transparent px-[10px] py-[8px] transition-[background-color,border-color,box-shadow] duration-100',
+                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable && 'cursor-pointer'
+                  )}
+                  style={getDestroyTargetSurfaceStyle(targetStatesByStackKey?.[ship.stackKey])}
+                  onMouseEnter={
+                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
+                      ? () => onDestroyTargetHoverChange?.(ship.stackKey)
+                      : undefined
+                  }
+                  onMouseLeave={
+                    targetStatesByStackKey?.[ship.stackKey]?.isTargetable
+                      ? () => onDestroyTargetHoverChange?.(null)
+                      : undefined
+                  }
+                  onMouseDown={(event) => {
+                    event.stopPropagation();
+                    if (targetStatesByStackKey?.[ship.stackKey]?.isTargetable) {
+                      onDestroyTargetMouseDown?.(ship.stackKey);
+                    }
+                  }}
+                >
                   <ShipStack 
                     ship={ship}
                     animToken={animTokens?.[ship.stackKey]}
@@ -462,6 +596,9 @@ function StatTripletRow({
 }
 
 export function BoardStage({ vm, actions }: BoardStageProps) {
+  const displayedMyHealth = useAnimatedHealth(vm.mode === 'board' ? vm.myHealth : 25);
+  const displayedOpponentHealth = useAnimatedHealth(vm.mode === 'board' ? vm.opponentHealth : 25);
+
   // Choose species mode
   if (vm.mode === 'choose_species') {
     return (
@@ -488,14 +625,13 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
   const showDeltas = vm.turnNumber > 1;
   const myDeltaKey = showDeltas ? `my:${vm.turnNumber}:${vm.myLastTurnNet}` : 'my:hidden';
   const opponentDeltaKey = showDeltas ? `opp:${vm.turnNumber}:${vm.opponentLastTurnNet}` : 'opp:hidden';
-  const displayedMyHealth = useAnimatedHealth(vm.myHealth);
-  const displayedOpponentHealth = useAnimatedHealth(vm.opponentHealth);
 
   // Board mode (existing placeholder layout)
   return (
     <div
       className="content-stretch flex gap-[8px] items-start justify-center px-0 py-[12px] relative size-full"
       data-name="Board Stage"
+      onMouseDown={actions.onBoardBackgroundMouseDown}
     >
       <FleetArea 
         title="MY FLEET" 
@@ -688,6 +824,9 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
         side="opponent"
         opponentEntryDelays={vm.opponentFleetEntryPlan?.opponent}
         activationIndexMap={vm.activationStaggerPlan?.opponentIndexByShipId}
+        targetStatesByStackKey={vm.destroyTargeting?.targetStatesByStackKey}
+        onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
+        onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
       />
     </div>
   );

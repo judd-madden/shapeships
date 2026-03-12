@@ -9,6 +9,7 @@
 import type React from 'react';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { buildPowerAction } from './powerIntents';
+import { getRenderableActionChoiceIds, getRenderableServerChoiceActions } from './availableActions';
 
 const INTENT_TIMEOUT_MS = 8000; // fail fast to avoid wedged commits
 
@@ -261,6 +262,7 @@ export async function runReadyToggleFlow(args: {
   // charge panel context (Prompt 9)
   availableActions: any[] | null;
   selectedChoiceIdBySourceInstanceId: Record<string, string>;
+  allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
 }): Promise<void> {
   const {
     isFinished,
@@ -323,7 +325,11 @@ export async function runReadyToggleFlow(args: {
     // ========================================================================
     // CHARGE PHASES: Batch submit ACTIONS_SUBMIT for all selected choices, then DECLARE_READY
     // ========================================================================
-    if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+    if (
+      phaseKey === 'battle.first_strike' ||
+      phaseKey === 'battle.charge_declaration' ||
+      phaseKey === 'battle.charge_response'
+    ) {
       console.log(`[useGameSession] ${phaseKey}: preparing batch submission...`);
       
       // Validate availableActions is array
@@ -331,39 +337,49 @@ export async function runReadyToggleFlow(args: {
         console.log('[useGameSession] No availableActions array, falling through to DECLARE_READY only');
         // Fall through to DECLARE_READY
       } else {
-        // Filter to choice actions with required fields
-        const choiceActions = args.availableActions.filter(
-          (a: any) =>
-            a?.kind === 'choice' &&
-            typeof a?.sourceInstanceId === 'string' &&
-            typeof a?.actionId === 'string' &&
-            Array.isArray(a?.choices)
-        );
+        const choiceActions = getRenderableServerChoiceActions(phaseKey, args.availableActions);
         
-        console.log(`[useGameSession] Found ${choiceActions.length} choice actions to process`);
+        console.log(`[useGameSession] Found ${choiceActions.length} renderable server actions to process`);
         
         // Build batch actions array (skip 'hold')
         const actions: any[] = [];
         
         for (const action of choiceActions) {
-          const { sourceInstanceId, actionId, choices } = action;
+          const { sourceInstanceId, actionId } = action;
           
           // Determine selected choiceId
           const selectedChoiceId = args.selectedChoiceIdBySourceInstanceId[sourceInstanceId];
-          const choiceId = selectedChoiceId || choices[0]?.choiceId;
+          const choiceId = selectedChoiceId || getRenderableActionChoiceIds(action)[0];
           
           // Skip if choice is 'hold' (no ACTION sent)
           if (choiceId === 'hold') {
             continue;
           }
+
+          if (action.kind === 'destroy_target') {
+            const targetInstanceId = args.allocatedDestroyTargetIdBySourceInstanceId[sourceInstanceId];
+            if (!targetInstanceId) {
+              console.log(
+                `[useGameSession] Skipping incomplete targeted first-strike action for ${sourceInstanceId}: no allocated target available`
+              );
+              continue;
+            }
+
+            actions.push(buildPowerAction({
+              actionId,
+              sourceInstanceId,
+              choiceId,
+              targetInstanceId,
+            }));
+            continue;
+          }
           
           // Add to batch
-          actions.push({
-            actionType: 'power',
+          actions.push(buildPowerAction({
             actionId,
             sourceInstanceId,
             choiceId,
-          });
+          }));
         }
         
         // Submit batch if any actions exist
