@@ -4,8 +4,8 @@
  * Flattened overlay for ship structured powers.
  * Keyed by `${shipDefId}#${powerIndex}`.
  * 
- * This pass implements only DEF and FIG for Human species.
- * Future passes will expand to all 15 Human ships and other species.
+ * This pass implements the current Human overlays plus the Phase 4A Xenite
+ * "easy mapper" overlays.
  * 
  * PHASE KEY MAPPING:
  * - JSON "Automatic" subphase → 'battle.end_of_turn_resolution'
@@ -25,16 +25,17 @@ import { EffectKind } from '../effects/Effect.ts';
 export type ShipPowerKey = `${string}#${number}`;
 
 // ============================================================================
-// HUMAN SPECIES STRUCTURED POWERS
+// STRUCTURED POWERS REGISTRY
 // ============================================================================
 
 /**
- * Structured power definitions for Human ships
- * 
- * Current coverage: DEF, FIG, BAT
- * Pending: COM, INT, CAR, GUA, BOM, MIN, CRU, DES, REP, SCO, FRI
+ * Structured power definitions keyed by `{shipDefId}#{powerIndex}`.
+ *
+ * Current coverage includes:
+ * - Human: DEF, FIG, BAT, INT, GUA, CAR, DRE, LEV, FRI
+ * - Xenite: OXI, AST, ANT, BUG
  */
-export const STRUCTURED_POWERS_HUMAN: Record<ShipPowerKey, StructuredShipPower[]> = {
+export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPower[]> = {
   // ==========================================================================
   // DEFENDER (DEF)
   // ==========================================================================
@@ -316,8 +317,144 @@ export const STRUCTURED_POWERS_HUMAN: Record<ShipPowerKey, StructuredShipPower[]
     amount: 2,
     targetPlayer: 'self',
   },
-]
+],
+
+  // ==========================================================================
+  // OXITE (OXI)
+  // ==========================================================================
+  // JSON: "Heal 1." (Automatic)
+  'OXI#0': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Heal,
+      amount: 1,
+      targetPlayer: 'self',
+    },
+  ],
+
+  // ==========================================================================
+  // ASTERITE (AST)
+  // ==========================================================================
+  // JSON: "Deal 1 damage." (Automatic)
+  'AST#0': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Damage,
+      amount: 1,
+      targetPlayer: 'opponent',
+    },
+  ],
+
+  // ==========================================================================
+  // ANTLION (ANT)
+  // ==========================================================================
+  // Choice power (Charge Declaration, Charge Response)
+  // - damage: SpendCharge(1) + Damage(3)
+  // - heal: SpendCharge(1) + Heal(4)
+  // - hold: no effect
+  'ANT#0': [
+    {
+      type: 'choice',
+      timings: ['battle.charge_declaration', 'battle.charge_response'],
+      requiresCharge: true,
+      chargeCost: 1,
+      options: [
+        {
+          choiceId: 'damage',
+          label: '',
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.SpendCharge,
+              amount: 1,
+              targetPlayer: 'self',
+            },
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.Damage,
+              amount: 3,
+              targetPlayer: 'opponent',
+            },
+          ],
+        },
+        {
+          choiceId: 'heal',
+          label: '',
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.SpendCharge,
+              amount: 1,
+              targetPlayer: 'self',
+            },
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.Heal,
+              amount: 4,
+              targetPlayer: 'self',
+            },
+          ],
+        },
+        {
+          choiceId: 'hold',
+          label: '',
+          effects: [],
+        },
+      ],
+    },
+  ],
+
+  // ==========================================================================
+  // BUG BREEDER (BUG)
+  // ==========================================================================
+  // Choice power in build.ships_that_build:
+  // - xenite: SpendCharge(1) + CreateShip('XEN')
+  // - hold:   no effect
+  'BUG#0': [
+    {
+      type: 'choice',
+      timings: ['build.ships_that_build'],
+      requiresCharge: true,
+      chargeCost: 1,
+      options: [
+        {
+          choiceId: 'xenite',
+          label: '',
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.SpendCharge,
+              amount: 1,
+              targetPlayer: 'self',
+            },
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.CreateShip,
+              shipDefId: 'XEN',
+              targetPlayer: 'self',
+            },
+          ],
+        },
+        {
+          choiceId: 'hold',
+          label: '',
+          effects: [],
+        },
+      ],
+    },
+  ],
 };
+
+// Back-compat export retained while callers migrate to the species-agnostic name.
+export const STRUCTURED_POWERS_HUMAN = STRUCTURED_POWERS_OVERLAYS;
 
 // ============================================================================
 // VALIDATION & LOOKUP
@@ -335,7 +472,7 @@ export function getStructuredPowers(
   powerIndex: number
 ): StructuredShipPower[] | undefined {
   const key: ShipPowerKey = `${shipDefId}#${powerIndex}`;
-  return STRUCTURED_POWERS_HUMAN[key];
+  return STRUCTURED_POWERS_OVERLAYS[key];
 }
 
 /**
@@ -350,5 +487,5 @@ export function hasStructuredPowers(
   powerIndex: number
 ): boolean {
   const key: ShipPowerKey = `${shipDefId}#${powerIndex}`;
-  return key in STRUCTURED_POWERS_HUMAN;
+  return key in STRUCTURED_POWERS_OVERLAYS;
 }

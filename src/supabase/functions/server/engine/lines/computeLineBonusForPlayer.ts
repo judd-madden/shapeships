@@ -24,7 +24,7 @@
  * - OXF (Oxite Face): +1 line per instance (uncapped)
  *   - Power: "Generate an additional line in each future build phase."
  *   - Subphase: "Line Generation"
- * - ASF (Asteroid Field): +1 line per instance (uncapped)
+ * - ASF (Asterite Face): +1 line per instance (uncapped)
  *   - Power: "Generate an additional line in each future build phase."
  *   - Subphase: "Line Generation"
  * 

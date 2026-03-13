@@ -391,6 +391,81 @@ export function computePhaseComputedEffects(
       );
     }
   }
+
+  // === XENITE (XEN) once-only: heal 1 on the turn it is built ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const ships = getShips(state, ownerPlayerId);
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'XEN') continue;
+      if (ship.createdTurn !== currentTurn) continue;
+
+      const onceKey = `${ship.instanceId}::XEN#0`;
+      if (wasOnceOnlyFired(state, onceKey)) continue;
+
+      computedEffects.push({
+        id: `xenite_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: {
+          type: 'ship',
+          instanceId: ship.instanceId,
+          shipDefId: ship.shipDefId,
+        },
+        timing: phaseKey,
+        activationTag: EffectTiming.OnceOnly,
+        survivability: SurvivabilityRule.ResolvesIfDestroyed,
+        target: { playerId: ownerPlayerId },
+        kind: EffectKind.Heal,
+        amount: 1,
+      });
+
+      firedKeys.push(onceKey);
+
+      console.log(
+        `[computePhaseComputedEffects] Xenite fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} heal=1`
+      );
+    }
+  }
+
+  // === HELL HORNET (HEL) once-only: deal 3 damage on the turn it is built ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const opponentId = opponentMap.get(ownerPlayerId);
+    if (!opponentId) continue;
+
+    const ships = getShips(state, ownerPlayerId);
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'HEL') continue;
+      if (ship.createdTurn !== currentTurn) continue;
+
+      const onceKey = `${ship.instanceId}::HEL#0`;
+      if (wasOnceOnlyFired(state, onceKey)) continue;
+
+      computedEffects.push({
+        id: `hellhornet_once_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: {
+          type: 'ship',
+          instanceId: ship.instanceId,
+          shipDefId: ship.shipDefId,
+        },
+        timing: phaseKey,
+        activationTag: EffectTiming.OnceOnly,
+        survivability: SurvivabilityRule.ResolvesIfDestroyed,
+        target: { playerId: opponentId },
+        kind: EffectKind.Damage,
+        amount: 3,
+      });
+
+      firedKeys.push(onceKey);
+
+      console.log(
+        `[computePhaseComputedEffects] HellHornet fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} dmg=3 target=${opponentId}`
+      );
+    }
+  }
   
   // === COMMANDER (COM) automatic: Deal 1 damage for every THREE of your Fighters ===
   for (const player of activePlayers) {
@@ -421,6 +496,69 @@ export function computePhaseComputedEffects(
 
       console.log(
         `[computePhaseComputedEffects] Commander automatic: owner=${ownerPlayerId} instance=${ship.instanceId} fighters=${fighters} dmg=${dmgPerCommander} target=${opponentId}`
+      );
+    }
+  }
+
+  // === MANTIS (MAN) automatic: Heal 1 for every TWO of your Xenites (cap 10 per MAN) ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const ships = getShips(state, ownerPlayerId);
+    const xenites = countByDefId(ships, 'XEN');
+    const healPerMantis = Math.min(groupedCount(xenites, 2), 10);
+
+    if (healPerMantis <= 0) continue;
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'MAN') continue;
+
+      computedEffects.push({
+        id: `mantis_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: ownerPlayerId },
+        kind: EffectKind.Heal,
+        amount: healPerMantis,
+      });
+
+      console.log(
+        `[computePhaseComputedEffects] Mantis automatic: owner=${ownerPlayerId} instance=${ship.instanceId} xenites=${xenites} heal=${healPerMantis}`
+      );
+    }
+  }
+
+  // === HELL HORNET (HEL) automatic: Deal 1 damage for every TWO of your Xenites ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const opponentId = opponentMap.get(ownerPlayerId);
+    if (!opponentId) continue;
+
+    const ships = getShips(state, ownerPlayerId);
+    const xenites = countByDefId(ships, 'XEN');
+    const dmgPerHellHornet = groupedCount(xenites, 2);
+
+    if (dmgPerHellHornet <= 0) continue;
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'HEL') continue;
+
+      computedEffects.push({
+        id: `hellhornet_grouped_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: opponentId },
+        kind: EffectKind.Damage,
+        amount: dmgPerHellHornet,
+      });
+
+      console.log(
+        `[computePhaseComputedEffects] HellHornet automatic: owner=${ownerPlayerId} instance=${ship.instanceId} xenites=${xenites} dmg=${dmgPerHellHornet} target=${opponentId}`
       );
     }
   }
@@ -489,6 +627,72 @@ export function computePhaseComputedEffects(
 
       console.log(
         `[computePhaseComputedEffects] EarthShip automatic: owner=${ownerPlayerId} instance=${ship.instanceId} carriers=${carriers} dmg=${dmgPerEarth} target=${opponentId}`
+      );
+    }
+  }
+
+  // === OXITE FACE (OXF) automatic: Heal 1 for each TYPE of ship your opponent has ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const opponentId = opponentMap.get(ownerPlayerId);
+    if (!opponentId) continue;
+
+    const ships = getShips(state, ownerPlayerId);
+    const opponentShips = getShips(state, opponentId);
+    const healPerOxiteFace = countDistinctTypes(opponentShips);
+
+    if (healPerOxiteFace <= 0) continue;
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'OXF') continue;
+
+      computedEffects.push({
+        id: `oxiteface_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: ownerPlayerId },
+        kind: EffectKind.Heal,
+        amount: healPerOxiteFace,
+      });
+
+      console.log(
+        `[computePhaseComputedEffects] OxiteFace automatic: owner=${ownerPlayerId} instance=${ship.instanceId} opponentTypes=${healPerOxiteFace} heal=${healPerOxiteFace}`
+      );
+    }
+  }
+
+  // === ASTERITE FACE (ASF) automatic: Deal 1 damage for each TYPE of ship your opponent has ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const opponentId = opponentMap.get(ownerPlayerId);
+    if (!opponentId) continue;
+
+    const ships = getShips(state, ownerPlayerId);
+    const opponentShips = getShips(state, opponentId);
+    const dmgPerAsteriteFace = countDistinctTypes(opponentShips);
+
+    if (dmgPerAsteriteFace <= 0) continue;
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'ASF') continue;
+
+      computedEffects.push({
+        id: `asteriteface_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: opponentId },
+        kind: EffectKind.Damage,
+        amount: dmgPerAsteriteFace,
+      });
+
+      console.log(
+        `[computePhaseComputedEffects] AsteriteFace automatic: owner=${ownerPlayerId} instance=${ship.instanceId} opponentTypes=${dmgPerAsteriteFace} dmg=${dmgPerAsteriteFace} target=${opponentId}`
       );
     }
   }

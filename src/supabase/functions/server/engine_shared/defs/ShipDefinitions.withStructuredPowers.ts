@@ -19,7 +19,7 @@
 import type { ShipDefinitionCore } from './ShipDefinitions.core.ts';
 import { SHIP_DEFINITIONS_CORE_SERVER } from './ShipDefinitions.core.ts';
 import type { StructuredShipPower } from '../effects/translateShipPowers.ts';
-import { STRUCTURED_POWERS_HUMAN } from './StructuredPowers.overlays.ts';
+import { STRUCTURED_POWERS_OVERLAYS } from './StructuredPowers.overlays.ts';
 
 // ============================================================================
 // TYPES
@@ -63,7 +63,7 @@ function attachStructuredPowers(): ShipDefinitionWithStructuredPowers[] {
 
     const powersWithStructured: ShipPowerWithStructured[] = ship.powers.map((power, powerIndex) => {
       const key = `${ship.id}#${powerIndex}`;
-      const structuredPowers = STRUCTURED_POWERS_HUMAN[key as keyof typeof STRUCTURED_POWERS_HUMAN];
+      const structuredPowers = STRUCTURED_POWERS_OVERLAYS[key as keyof typeof STRUCTURED_POWERS_OVERLAYS];
 
       if (structuredPowers && structuredPowers.length > 0) {
         usedKeys.add(key);
@@ -82,7 +82,7 @@ function attachStructuredPowers(): ShipDefinitionWithStructuredPowers[] {
   });
 
   // GUARDRAIL: Check for unused overlay keys
-  const allOverlayKeys = Object.keys(STRUCTURED_POWERS_HUMAN);
+  const allOverlayKeys = Object.keys(STRUCTURED_POWERS_OVERLAYS);
   const unusedKeys = allOverlayKeys.filter((k) => !usedKeys.has(k));
 
   if (unusedKeys.length > 0) {
