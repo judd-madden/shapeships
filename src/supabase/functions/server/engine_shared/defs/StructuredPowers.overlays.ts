@@ -32,7 +32,7 @@ export type ShipPowerKey = `${string}#${number}`;
  * Structured power definitions for Human ships
  * 
  * Current coverage: DEF, FIG, BAT
- * Pending: COM, INT, CAR, GUA, DRE, BOM, MIN, CRU, DES, REP, SCO, FRI
+ * Pending: COM, INT, CAR, GUA, BOM, MIN, CRU, DES, REP, SCO, FRI
  */
 export const STRUCTURED_POWERS_HUMAN: Record<ShipPowerKey, StructuredShipPower[]> = {
   // ==========================================================================
@@ -260,6 +260,20 @@ export const STRUCTURED_POWERS_HUMAN: Record<ShipPowerKey, StructuredShipPower[]
           effects: [],
         },
       ],
+    },
+  ],
+
+  // ==========================================================================
+  // DREADNOUGHT (DRE)
+  // ==========================================================================
+  // JSON power index 1: "Deal 10 damage." (Automatic)
+  'DRE#1': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Damage,
+      amount: 10,
+      targetPlayer: 'opponent',
     },
   ],
 

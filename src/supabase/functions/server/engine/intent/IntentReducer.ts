@@ -89,6 +89,30 @@ export interface IntentResult {
   };
 }
 
+function countCreatedShipsFromEffects(effects: any[] | undefined): number {
+  if (!Array.isArray(effects)) return 0;
+  return effects.filter((effect: any) => effect?.kind === 'CreateShip').length;
+}
+
+function incrementShipsMadeThisBuildPhaseCounter(
+  state: any,
+  playerId: string,
+  amount: number
+) {
+  if (!Number.isInteger(amount) || amount <= 0) return;
+
+  if (!state.gameData) state.gameData = {};
+  if (!state.gameData.turnData) state.gameData.turnData = {};
+
+  const currentMap = state.gameData.turnData.shipsMadeThisBuildPhaseByPlayerId || {};
+  const currentCount = currentMap[playerId] || 0;
+
+  state.gameData.turnData.shipsMadeThisBuildPhaseByPlayerId = {
+    ...currentMap,
+    [playerId]: currentCount + amount,
+  };
+}
+
 /**
  * Apply an intent to game state.
  * 
@@ -1402,6 +1426,7 @@ async function handleBuildSubmit(
               }
               
               state.gameData.ships[p.id].push(shipInstance);
+              incrementShipsMadeThisBuildPhaseCounter(state, p.id, 1);
             }
           }
         }
@@ -1913,6 +1938,14 @@ function handleAction(
       });
       
       state = outcome.state;
+
+      if (phaseKey === 'build.ships_that_build') {
+        incrementShipsMadeThisBuildPhaseCounter(
+          state,
+          playerId,
+          countCreatedShipsFromEffects(outcome.effects)
+        );
+      }
       
       // ============================================================================
       // FLIP DECLARATION-SPENT FLAG (only in charge_declaration)
@@ -2104,6 +2137,14 @@ function handleActionsSubmit(
       });
       
       state = outcome.state;
+
+      if (phaseKey === 'build.ships_that_build') {
+        incrementShipsMadeThisBuildPhaseCounter(
+          state,
+          playerId,
+          countCreatedShipsFromEffects(outcome.effects)
+        );
+      }
       
       // Flip declaration-spent flag if in charge_declaration
       if (phaseKey === 'battle.charge_declaration' && outcome.spentCharge === true) {

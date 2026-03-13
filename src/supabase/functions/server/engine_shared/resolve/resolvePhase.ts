@@ -17,7 +17,7 @@
 import type { GameState, ShipInstance } from '../../engine/state/GameStateTypes.ts';
 import { GAME_STATE_TYPES_VERSION } from '../../engine/state/GameStateTypes.ts';
 import type { PhaseKey } from '../phase/PhaseTable.ts';
-import type { Effect } from '../effects/Effect.ts';
+import type { Effect, CreateShipEffect } from '../effects/Effect.ts';
 import { EffectTiming, EffectKind, SurvivabilityRule } from '../effects/Effect.ts';
 import { translateShipPowers, type TranslateContext } from '../effects/translateShipPowers.ts';
 import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
@@ -45,6 +45,11 @@ export function resolvePhase(
   // Handle ships_that_build phase (create ships from ship-building powers)
   if (phaseKey === 'build.ships_that_build') {
     return resolveShipsThatBuild(state, phaseKey);
+  }
+
+  // Handle end-of-build automatic ship creation
+  if (phaseKey === 'build.end_of_build') {
+    return resolveBuildEndOfBuild(state, phaseKey);
   }
 
   // Handle battle end-of-turn resolution (damage/heal effects)
@@ -85,6 +90,92 @@ function resolveShipsThatBuild(
   console.log(`[resolveShipsThatBuild] Applied effects, generated ${result.events.length} events`);
 
   return result;
+}
+
+// ============================================================================
+// BUILD END-OF-BUILD RESOLUTION
+// ============================================================================
+
+function resolveBuildEndOfBuild(
+  state: GameState,
+  phaseKey: PhaseKey
+): { state: GameState; events: EffectEvent[] } {
+  console.log(`[resolveBuildEndOfBuild] Resolving phase: ${phaseKey}`);
+
+  const currentTurn =
+    state.gameData?.turnData?.turnNumber ??
+    state.gameData?.turnNumber ??
+    1;
+
+  const priorTurnData = state.gameData.turnData || {};
+  if (priorTurnData.dreadnoughtEndOfBuildAppliedTurnNumber === currentTurn) {
+    console.log(`[resolveBuildEndOfBuild] Already applied for turn ${currentTurn}, skipping`);
+    return { state, events: [] };
+  }
+
+  let workingState: GameState = {
+    ...state,
+    gameData: {
+      ...state.gameData,
+      turnData: {
+        ...priorTurnData,
+        dreadnoughtEndOfBuildAppliedTurnNumber: currentTurn,
+      },
+    },
+  };
+
+  const activePlayers = workingState.players.filter((player) => player.role === 'player');
+  const fighterEffects: CreateShipEffect[] = [];
+
+  for (const player of activePlayers) {
+    const fleet = workingState.gameData.ships?.[player.id] || [];
+    const dreadnoughts = fleet.filter(
+      (ship) => ship.shipDefId === 'DRE' && (ship.createdTurn ?? 0) < currentTurn
+    );
+    const shipsMade =
+      workingState.gameData.turnData?.shipsMadeThisBuildPhaseByPlayerId?.[player.id] || 0;
+
+    if (dreadnoughts.length <= 0 || shipsMade <= 0) continue;
+
+    for (const dreadnought of dreadnoughts) {
+      for (let i = 0; i < shipsMade; i++) {
+        fighterEffects.push({
+          id: `dreadnought_build_${currentTurn}_${dreadnought.instanceId}_${i}`,
+          ownerPlayerId: player.id,
+          source: {
+            type: 'ship',
+            instanceId: dreadnought.instanceId,
+            shipDefId: dreadnought.shipDefId,
+          },
+          timing: phaseKey,
+          activationTag: EffectTiming.Automatic,
+          target: { playerId: player.id },
+          survivability: SurvivabilityRule.DiesWithSource,
+          kind: EffectKind.CreateShip,
+          shipDefId: 'FIG',
+          free: true,
+          createdBy: 'dreadnought',
+        });
+      }
+
+      console.log(
+        `[resolveBuildEndOfBuild] Dreadnought ${dreadnought.instanceId} spawning ${shipsMade} fighter(s) for player ${player.id}`
+      );
+    }
+  }
+
+  if (fighterEffects.length === 0) {
+    console.log('[resolveBuildEndOfBuild] No Dreadnought fighters to spawn');
+    return { state: workingState, events: [] };
+  }
+
+  const applied = applyEffects(workingState, fighterEffects);
+
+  console.log(
+    `[resolveBuildEndOfBuild] Spawned ${fighterEffects.length} fighter(s), generated ${applied.events.length} events`
+  );
+
+  return applied;
 }
 
 // ============================================================================

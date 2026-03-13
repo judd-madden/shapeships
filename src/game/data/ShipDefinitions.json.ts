@@ -355,8 +355,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Drawing",
-        "text": "When you complete a ship, you may make a FREE additional Fighter."
+        "subphase": "End of Build Phase",
+        "text": "Make one Fighter for each ship you made this turn."
       },
       {
         "subphase": "Automatic",
@@ -364,7 +364,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "The Dreadnought's build power activates whenever you make a basic ship (including from Carriers) or complete an upgraded ship. It can occur multiple times per turn. Is not activated by itself or other Dreadnoughts.",
+    "extraRules": "Includes Carrier-made ships, basic ships, and upgraded ships. Fighters made by its power are not counted as ships made for its power.",
     "stackCaption": "X damage",
     "colour": "Red",
     "numberOfGraphics": 1

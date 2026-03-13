@@ -81,6 +81,18 @@ export type GameData = {
     
     /** Track once-per-turn charge power usage by ship instance */
     chargePowerUsedByInstanceId?: Record<string, number>;
+
+    /**
+     * Authoritative count of ships that materially entered each player's fleet
+     * during the current build phase. Used by end-of-build powers such as Dreadnought.
+     */
+    shipsMadeThisBuildPhaseByPlayerId?: Record<string, number>;
+
+    /**
+     * Idempotency flag for server-only build.end_of_build application.
+     * Stores the turn number whose Dreadnought spawn step has already resolved.
+     */
+    dreadnoughtEndOfBuildAppliedTurnNumber?: number;
     
     /** Existing turn flags used elsewhere (present at runtime even if not typed) */
     anyChargesSpentInDeclaration?: boolean;

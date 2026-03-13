@@ -154,6 +154,8 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
           anyChargesSpentInDeclaration: false,
           chargeDeclarationEligibleByPlayerId: {},
           chargePowerUsedByInstanceId: {},
+          shipsMadeThisBuildPhaseByPlayerId: {},
+          dreadnoughtEndOfBuildAppliedTurnNumber: 0,
         },
       },
     };
@@ -192,6 +194,8 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
           anyChargesSpentInDeclaration: false,
           chargeDeclarationEligibleByPlayerId: {},
           chargePowerUsedByInstanceId: {},
+          shipsMadeThisBuildPhaseByPlayerId: {},
+          dreadnoughtEndOfBuildAppliedTurnNumber: 0,
         },
       },
     };
