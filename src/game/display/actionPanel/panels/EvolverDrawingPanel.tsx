@@ -16,50 +16,40 @@
  * - This panel appears only when evolution choices are available
  * 
  * ARCHITECTURAL NOTES:
- * - UI pass only (no server calls, no intent wiring)
- * - Selection state is local only (not yet wired to intents)
+ * - Presentation-only panel
+ * - Selection state is owned by client runtime
  * - Uses existing ActionButton and ActionButtonSmall primitives
  */
 
-import { useState } from 'react';
+import type { ComponentType } from 'react';
 import { getShipDefinitionUI } from '../../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../../graphics/resolveShipGraphic';
 import { ActionButton } from '../../../../components/ui/primitives/buttons/ActionButton';
 import { ActionButtonSmall } from '../../../../components/ui/primitives/buttons/ActionButtonSmall';
+import type { EvolverChoiceId } from '../../../client/gameSession/types';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
 interface EvolverDrawingPanelProps {
-  /**
-   * Number of Evolvers available for evolution choices this turn.
-   * Typically derived from vm.board.myFleet for EVO count.
-   */
-  evolverCount: number;
-
+  rows: Array<{
+    rowId: string;
+    choiceId: EvolverChoiceId;
+  }>;
+  onSelectChoice: (rowId: string, choiceId: EvolverChoiceId) => void;
   className?: string;
 }
-
-type EvolverChoice = 'oxite' | 'asterite' | 'none';
 
 // ============================================================================
 // COMPONENT
 // ============================================================================
 
 export function EvolverDrawingPanel({
-  evolverCount,
+  rows,
+  onSelectChoice,
   className,
 }: EvolverDrawingPanelProps) {
-  // ============================================================================
-  // LOCAL STATE (UI-only, not yet wired to intents)
-  // ============================================================================
-
-  // Track selected evolution choice for each Evolver (defaults to 'none')
-  const [selectedChoices, setSelectedChoices] = useState<EvolverChoice[]>(
-    Array.from({ length: evolverCount }, () => 'none')
-  );
-
   // ============================================================================
   // RESOLVE SHIP GRAPHICS
   // ============================================================================
@@ -83,7 +73,7 @@ export function EvolverDrawingPanel({
   // EMPTY STATE
   // ============================================================================
 
-  if (evolverCount === 0) {
+  if (rows.length === 0) {
     return (
       <div className="size-full flex flex-col items-center justify-center">
         <p className="text-[var(--shapeships-grey-50)] text-[18px]">
@@ -98,6 +88,7 @@ export function EvolverDrawingPanel({
   // ============================================================================
 
   // Dynamic heading with count
+  const evolverCount = rows.length;
   const headingText = `${evolverCount} ${evolverCount === 1 ? 'Evolver' : 'Evolvers'} may evolve Xenites into Oxites (1 healing each turn) or Asterites (1 damage each turn).`;
 
   return (
@@ -118,16 +109,11 @@ export function EvolverDrawingPanel({
         className="content-center flex flex-wrap gap-[36px] items-center justify-center shrink-0 w-full"
         data-name="Evolver Choice Blocks"
       >
-        {Array.from({ length: evolverCount }, (_, index) => (
+        {rows.map((row) => (
           <EvolverChoiceBlock
-            key={index}
-            evolverIndex={index}
-            selectedChoice={selectedChoices[index]}
-            onChoiceSelect={(choice) => {
-              const newChoices = [...selectedChoices];
-              newChoices[index] = choice;
-              setSelectedChoices(newChoices);
-            }}
+            key={row.rowId}
+            selectedChoice={row.choiceId}
+            onChoiceSelect={(choice) => onSelectChoice(row.rowId, choice)}
             EvoGraphic={EvoGraphic}
             OxiGraphic={OxiGraphic}
             AstGraphic={AstGraphic}
@@ -144,13 +130,12 @@ export function EvolverDrawingPanel({
 // ============================================================================
 
 interface EvolverChoiceBlockProps {
-  evolverIndex: number;
-  selectedChoice: EvolverChoice;
-  onChoiceSelect: (choice: EvolverChoice) => void;
-  EvoGraphic: React.ComponentType | undefined;
-  OxiGraphic: React.ComponentType | undefined;
-  AstGraphic: React.ComponentType | undefined;
-  XenGraphic: React.ComponentType | undefined;
+  selectedChoice: EvolverChoiceId;
+  onChoiceSelect: (choice: EvolverChoiceId) => void;
+  EvoGraphic: ComponentType | undefined;
+  OxiGraphic: ComponentType | undefined;
+  AstGraphic: ComponentType | undefined;
+  XenGraphic: ComponentType | undefined;
 }
 
 function EvolverChoiceBlock({
@@ -227,7 +212,7 @@ function EvolverChoiceBlock({
       >
         {/* Evolve Oxite (Large Button) */}
         <ActionButton
-          label="Evolve Oxite"
+          label="Oxite"
           selected={selectedChoice === 'oxite'}
           backgroundColor={selectedChoice === 'oxite' ? 'var(--shapeships-pastel-purple)' : 'var(--shapeships-grey-20)'}
           textColor="black"
@@ -236,7 +221,7 @@ function EvolverChoiceBlock({
 
         {/* Evolve Asterite (Large Button) */}
         <ActionButton
-          label="Evolve Asterite"
+          label="Asterite"
           selected={selectedChoice === 'asterite'}
           backgroundColor={selectedChoice === 'asterite' ? 'var(--shapeships-pastel-purple)' : 'var(--shapeships-grey-20)'}
           textColor="black"
@@ -245,11 +230,11 @@ function EvolverChoiceBlock({
 
         {/* Do not evolve (Small Button) */}
         <ActionButtonSmall
-          label="Do not evolve"
-          selected={selectedChoice === 'none'}
-          backgroundColor={selectedChoice === 'none' ? 'var(--shapeships-pastel-purple)' : 'var(--shapeships-grey-20)'}
+          label="Hold"
+          selected={selectedChoice === 'hold'}
+          backgroundColor={selectedChoice === 'hold' ? 'var(--shapeships-pastel-purple)' : 'var(--shapeships-grey-20)'}
           textColor="black"
-          onClick={() => onChoiceSelect('none')}
+          onClick={() => onChoiceSelect('hold')}
         />
       </div>
     </div>

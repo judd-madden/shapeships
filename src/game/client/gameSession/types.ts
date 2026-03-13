@@ -17,6 +17,8 @@ export type ReadyUxState = {
   sendingNow: boolean;       // client is awaiting server response for the Ready flow
 };
 
+export type EvolverChoiceId = 'hold' | 'oxite' | 'asterite';
+
 export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
 
 export interface HudViewModel {
@@ -231,7 +233,12 @@ export interface ActionPanelViewModel {
 
   // NEW (UI-derivations for panels)
   frigateDrawing?: { frigateCount: number; selectedTriggers: number[] };
-  evolverDrawing?: { evolverCount: number };
+  evolverDrawing?: {
+    rows: Array<{
+      rowId: string;
+      choiceId: EvolverChoiceId;
+    }>;
+  };
 
   shipChoices?: {
     groups: ShipChoicesPanelGroup[];
@@ -282,6 +289,7 @@ export interface GameSessionActions {
   onDownloadBattleLog: () => void;
   onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;
   onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => void;
+  onSelectEvolverChoice: (rowId: string, choiceId: EvolverChoiceId) => void;
   onBoardBackgroundMouseDown: () => void;
   onDestroyTargetStackHoverChange: (stackKey: string | null) => void;
   onDestroyTargetStackMouseDown: (stackKey: string) => void;

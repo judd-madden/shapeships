@@ -43,6 +43,13 @@ export type BuildRevealPayload = {
   builds: Array<{ shipDefId: string; count?: number }>;
 };
 
+export type EvolverBuildChoiceId = 'hold' | 'oxite' | 'asterite';
+
+export type EvolverBuildChoiceEntry = {
+  sourceKey: string;
+  choiceId: EvolverBuildChoiceId;
+};
+
 export type BuildSubmitPayload = {
   builds: Array<{ shipDefId: string; count: number }>;
 
@@ -54,6 +61,12 @@ export type BuildSubmitPayload = {
    * Order: consumed in creation order within the build loop.
    */
   frigateTriggers?: number[];
+
+  /**
+   * Optional Evolver (EVO) selections for build.drawing.
+   * Each non-hold selection authoritatively converts one available XEN into OXI or AST.
+   */
+  evolverChoices?: EvolverBuildChoiceEntry[];
 };
 
 export type BattleRevealPayload = {

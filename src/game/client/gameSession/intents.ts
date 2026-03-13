@@ -8,10 +8,17 @@
 
 import type React from 'react';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
+import type { EvolverChoiceId } from './types';
 import { buildPowerAction } from './powerIntents';
 import { getRenderableActionChoiceIds, getRenderableServerChoiceActions } from './availableActions';
 
 const INTENT_TIMEOUT_MS = 8000; // fail fast to avoid wedged commits
+
+export type CanonicalBuildSubmitPayload = {
+  builds: Array<{ shipDefId: string; count: number }>;
+  frigateTriggers?: number[];
+  evolverChoices?: Array<{ sourceKey: string; choiceId: EvolverChoiceId }>;
+};
 
 export type PhaseCommitCache<TPayload extends object> = {
   setCache: (key: string, payload: TPayload, nonce: string) => void;
@@ -52,11 +59,10 @@ function countDiceRolledEvents(events: any[]): number {
  */
 function makeCanonicalBuildPayload(
   buildPreviewCounts: Record<string, number>,
-  frigateTriggers: number[]
-): {
-  builds: Array<{ shipDefId: string; count: number }>;
-  frigateTriggers?: number[];
-} {
+  frigateTriggers: number[],
+  evolverRowIds: string[],
+  evolverChoicesByRowId: Record<string, EvolverChoiceId>
+): CanonicalBuildSubmitPayload {
   const buildsArray: Array<{ shipDefId: string; count: number }> = [];
   
   for (const [shipDefId, count] of Object.entries(buildPreviewCounts)) {
@@ -72,14 +78,22 @@ function makeCanonicalBuildPayload(
   buildsArray.sort((a, b) => a.shipDefId.localeCompare(b.shipDefId));
   
   const frigateCount = buildsArray.find(b => b.shipDefId === 'FRI')?.count ?? 0;
+  const payload: CanonicalBuildSubmitPayload = { builds: buildsArray };
 
   // Only include frigateTriggers when we are actually building Frigates.
   // Length must match; otherwise omit (server will default triggers to 1).
   if (frigateCount > 0 && Array.isArray(frigateTriggers) && frigateTriggers.length === frigateCount) {
-    return { builds: buildsArray, frigateTriggers: [...frigateTriggers] };
+    payload.frigateTriggers = [...frigateTriggers];
   }
 
-  return { builds: buildsArray };
+  if (Array.isArray(evolverRowIds) && evolverRowIds.length > 0) {
+    payload.evolverChoices = evolverRowIds.map((sourceKey) => ({
+      sourceKey,
+      choiceId: evolverChoicesByRowId[sourceKey] ?? 'hold',
+    }));
+  }
+
+  return payload;
 }
 
 export async function runSpeciesConfirmFlow(args: {
@@ -233,6 +247,8 @@ export async function runReadyToggleFlow(args: {
   buildPreviewCounts: Record<string, number>;
 
   frigateSelectedTriggers: number[];
+  evolverRowIds: string[];
+  evolverChoicesByRowId: Record<string, EvolverChoiceId>;
   // build submitted tracking
   setBuildSubmittedByTurn: React.Dispatch<React.SetStateAction<Record<number, boolean>>>;
 
@@ -243,7 +259,7 @@ export async function runReadyToggleFlow(args: {
   setBuildRevealDoneByPhase: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 
   // cache
-  buildCommitCache: PhaseCommitCache<{ builds: Array<{ shipDefId: string; count: number }> }>;
+  buildCommitCache: PhaseCommitCache<CanonicalBuildSubmitPayload>;
 
   // raw state + reveal sync latch
   rawState: any;
@@ -276,6 +292,8 @@ export async function runReadyToggleFlow(args: {
     buildInstanceKey,
     buildPreviewCounts,
     frigateSelectedTriggers,
+    evolverRowIds,
+    evolverChoicesByRowId,
     setBuildSubmittedByTurn,
     buildCommitDoneByPhase,
     buildRevealDoneByPhase,
@@ -617,7 +635,12 @@ export async function runReadyToggleFlow(args: {
       const submittedTurnNumber = serverTurnNumber;
       
       // Construct canonical payload from current local preview counts
-      const canonicalPayload = makeCanonicalBuildPayload(buildPreviewCounts, frigateSelectedTriggers);
+      const canonicalPayload = makeCanonicalBuildPayload(
+        buildPreviewCounts,
+        frigateSelectedTriggers,
+        evolverRowIds,
+        evolverChoicesByRowId
+      );
       const payload = canonicalPayload;
       
       console.log('[useGameSession] BUILD_SUBMIT payload:', payload);
@@ -768,7 +791,7 @@ export async function maybeAutoRevealBuild(args: {
   setBuildRevealDoneByPhase: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 
   // cache
-  buildCommitCache: PhaseCommitCache<{ builds: Array<{ shipDefId: string; count: number }> }>;
+  buildCommitCache: PhaseCommitCache<CanonicalBuildSubmitPayload>;
 
   // server state for truth checking
   rawState: any;

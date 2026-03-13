@@ -126,8 +126,12 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
     return (
       <div className="size-full flex justify-center">
       <div className="w-fit">
-        <EvolverDrawingPanel evolverCount={vm.evolverDrawing?.evolverCount ?? 0} />
+        <EvolverDrawingPanel
+          rows={vm.evolverDrawing?.rows ?? []}
+          onSelectChoice={actions.onSelectEvolverChoice}
+        />
         </div>
+        <div className="absolute top-[20px] right-[50px]">^ Return to Drawing</div>
       </div>
     );
   }

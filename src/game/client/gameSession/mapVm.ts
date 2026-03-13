@@ -15,6 +15,7 @@ import type { ActionPanelId } from '../../display/actionPanel/ActionPanelRegistr
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import type { ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
+import type { EvolverChoiceId } from './types';
 import { getShipChoicePanelSpec } from '../../display/actionPanel/panels/ShipChoiceRegistry';
 import { getRenderableActionChoiceIds, getRenderableServerChoiceActions } from './availableActions';
 
@@ -108,6 +109,10 @@ export function mapGameSessionVm(args: {
 
   // Client-only Frigate trigger selections (ordered list, length = buildPreviewCounts.FRI)
   frigateSelectedTriggers: number[];
+
+  // Client-only Evolver selections (existing EVO instances + preview EVO rows)
+  evolverRowIds: string[];
+  evolverChoicesByRowId: Record<string, EvolverChoiceId>;
 }): GameSessionViewModel {
   const {
     isBootstrapping,
@@ -151,6 +156,8 @@ export function mapGameSessionVm(args: {
     diceRollSeq,
     buildPreviewCounts,
     frigateSelectedTriggers,
+    evolverRowIds,
+    evolverChoicesByRowId,
   } = args;
   
   // Map chat entries to LeftRail VM format
@@ -278,9 +285,14 @@ export function mapGameSessionVm(args: {
   const frigateCount = Number.isInteger(buildPreviewCounts?.FRI) ? Math.max(0, buildPreviewCounts.FRI) : 0;
   const frigateDrawing = frigateCount > 0 ? { frigateCount, selectedTriggers: frigateSelectedTriggers } : undefined;
 
-  // Evolver drawing (build preview count, not fleet count)
-  const evolverCount = Number.isInteger(buildPreviewCounts?.EVO) ? Math.max(0, buildPreviewCounts.EVO) : 0;
-  const evolverDrawing = evolverCount > 0 ? { evolverCount } : undefined;
+  const evolverDrawing = evolverRowIds.length > 0
+    ? {
+        rows: evolverRowIds.map((rowId) => ({
+          rowId,
+          choiceId: evolverChoicesByRowId[rowId] ?? 'hold',
+        })),
+      }
+    : undefined;
 
   // ============================================================================
   // READY BUTTON LABEL DERIVATION (CLIENT UX LAYER)

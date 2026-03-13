@@ -41,7 +41,7 @@ import { deriveFleets } from './gameSession/fleets';
 import { appendEventsToTape, formatTapeEntry } from './gameSession/eventTape';
 import { usePhaseCommitCache } from './gameSession/commitCache';
 import { mapGameSessionVm } from './gameSession/mapVm';
-import { runSpeciesConfirmFlow, runReadyToggleFlow, maybeAutoRevealBuild } from './gameSession/intents';
+import { runSpeciesConfirmFlow, runReadyToggleFlow, maybeAutoRevealBuild, type CanonicalBuildSubmitPayload } from './gameSession/intents';
 import { getShipDefinitionById } from '../data/ShipDefinitions.engine';
 import {
   usePollMarkerEffect,
@@ -68,6 +68,7 @@ import type {
   ActionPanelViewModel,
   GameSessionViewModel,
   GameSessionActions,
+  EvolverChoiceId,
 } from './gameSession/types';
 
 export type {
@@ -208,6 +209,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Frigate trigger selections for Frigates built THIS TURN (ordered list, length = buildPreviewCounts.FRI)
   const [frigateSelectedTriggers, setFrigateSelectedTriggers] = useState<number[]>([]);
   const frigateSelectedTriggersRef = useRef<number[]>([]);
+  const [evolverChoicesByRowId, setEvolverChoicesByRowId] = useState<Record<string, EvolverChoiceId>>({});
+  const evolverChoicesByRowIdRef = useRef<Record<string, EvolverChoiceId>>({});
   // Ref-backed draft buffer: authoritative source for BUILD_SUBMIT payload
   // Prevents race condition when Ready is clicked immediately after building
   const buildPreviewCountsRef = useRef<Record<string, number>>({});
@@ -263,7 +266,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [buildRevealDoneByPhase, setBuildRevealDoneByPhase] = useState<Record<string, boolean>>({});
   
   // Build commit cache (payload + nonce storage with ref-backed same-tick reliability)
-  const buildCommitCache = usePhaseCommitCache<{ builds: Array<{ shipDefId: string; count: number }> }>();
+  const buildCommitCache = usePhaseCommitCache<CanonicalBuildSubmitPayload>();
   
   // ============================================================================
   // READY UX STATE (CLIENT-ONLY UI TRACKING)
@@ -545,6 +548,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     // Turn boundary: any local build preview is now invalid
     setBuildPreviewCounts({});
     buildPreviewCountsRef.current = {};
+    setFrigateSelectedTriggers([]);
+    frigateSelectedTriggersRef.current = [];
+    setEvolverChoicesByRowId({});
+    evolverChoicesByRowIdRef.current = {};
     setAwaitingBuildRevealSync(false);
     
     console.log('[useGameSession] Turn boundary reset: cleared preview state for turn', serverTurnNumber);
@@ -786,6 +793,10 @@ useEffect(() => {
   frigateSelectedTriggersRef.current = frigateSelectedTriggers;
 }, [frigateSelectedTriggers]);
 
+useEffect(() => {
+  evolverChoicesByRowIdRef.current = evolverChoicesByRowId;
+}, [evolverChoicesByRowId]);
+
 // Ensure frigateSelectedTriggers length matches build preview FRI count (default new entries to 1)
 useEffect(() => {
   const friCount = Number.isInteger(buildPreviewCountsRef.current?.FRI)
@@ -799,6 +810,75 @@ useEffect(() => {
     return next;
   });
 }, [buildPreviewCounts]);
+
+  useEffect(() => {
+    setEvolverChoicesByRowId({});
+    evolverChoicesByRowIdRef.current = {};
+  }, [turnNumber, effectiveGameId]);
+
+  const existingEvolverRowIds = myShips
+    .map((ship: any) => (ship?.shipDefId === 'EVO' ? ship?.instanceId ?? ship?.id : null))
+    .filter((rowId: unknown): rowId is string => typeof rowId === 'string' && rowId.length > 0);
+  const previewEvolverCount = Number.isInteger(buildPreviewCounts?.EVO)
+    ? Math.max(0, buildPreviewCounts.EVO)
+    : 0;
+  const previewEvolverRowIds = Array.from(
+    { length: previewEvolverCount },
+    (_, index) => `preview_evo_${turnNumber}_${index}`
+  );
+  const evolverRowIds = [...existingEvolverRowIds, ...previewEvolverRowIds];
+  const evolverRowIdsKey = evolverRowIds.join('|');
+
+  useEffect(() => {
+    setEvolverChoicesByRowId((prev) => {
+      const next: Record<string, EvolverChoiceId> = {};
+      let changed = evolverRowIds.length !== Object.keys(prev).length;
+
+      for (const rowId of evolverRowIds) {
+        const choiceId = prev[rowId] ?? 'hold';
+        next[rowId] = choiceId;
+        if (prev[rowId] !== choiceId) {
+          changed = true;
+        }
+      }
+
+      if (!changed) {
+        for (const key of Object.keys(prev)) {
+          if (!(key in next)) {
+            changed = true;
+            break;
+          }
+        }
+      }
+
+      if (!changed) {
+        evolverChoicesByRowIdRef.current = prev;
+        return prev;
+      }
+
+      evolverChoicesByRowIdRef.current = next;
+      return next;
+    });
+  }, [evolverRowIdsKey]);
+
+  const appliedEvolverPreviewChoices = (() => {
+    const baseAvailableXen =
+      myShips.filter((ship: any) => ship?.shipDefId === 'XEN').length +
+      (Number.isInteger(buildPreviewCounts?.XEN) ? Math.max(0, buildPreviewCounts.XEN) : 0);
+
+    let remainingXen = baseAvailableXen;
+    const appliedChoices: Array<'oxite' | 'asterite'> = [];
+
+    for (const rowId of evolverRowIds) {
+      const choiceId = evolverChoicesByRowId[rowId] ?? 'hold';
+      if ((choiceId === 'oxite' || choiceId === 'asterite') && remainingXen > 0) {
+        appliedChoices.push(choiceId);
+        remainingXen -= 1;
+      }
+    }
+
+    return appliedChoices;
+  })();
   
   // ============================================================================
   // CHUNK 6.2: AUTO-SUBMIT BUILD_REVEAL WHEN ENTERING BATTLE.REVEAL PHASE
@@ -825,6 +905,41 @@ useEffect(() => {
     ? (() => {
         // Start from the existing aggregated myFleet (already has stackKey + condition)
         const byStackKey = new Map(myFleet.map(s => [s.stackKey, { ...s }]));
+
+        const incrementSimpleStack = (shipDefId: ShipDefId, amount: number) => {
+          if (amount <= 0) return;
+
+          const chargedKey = `${shipDefId}__charges_1`;
+          const anyCharged = byStackKey.get(chargedKey);
+          if (anyCharged) {
+            anyCharged.count += amount;
+            byStackKey.set(chargedKey, anyCharged);
+            return;
+          }
+
+          const existing = Array.from(byStackKey.values()).find(s => s.shipDefId === shipDefId);
+          if (existing) {
+            existing.count += amount;
+            byStackKey.set(existing.stackKey, existing);
+            return;
+          }
+
+          byStackKey.set(shipDefId, { shipDefId, count: amount, stackKey: shipDefId });
+        };
+
+        const consumeSimpleStack = (shipDefId: ShipDefId): boolean => {
+          const existing = Array.from(byStackKey.values()).find(s => s.shipDefId === shipDefId && s.count > 0);
+          if (!existing) return false;
+
+          existing.count -= 1;
+          if (existing.count <= 0) {
+            byStackKey.delete(existing.stackKey);
+          } else {
+            byStackKey.set(existing.stackKey, existing);
+          }
+
+          return true;
+        };
 
         // Apply preview overlay
         for (const [shipDefId, previewCount] of Object.entries(buildPreviewCounts)) {
@@ -909,25 +1024,14 @@ useEffect(() => {
           }
 
           // For non-charge ships (maxCharges === 0): prefer adding preview ships into an existing charges_1 stack if present
-          const chargedKey = `${shipDefId}__charges_1`;
-          const anyCharged = byStackKey.get(chargedKey);
+          incrementSimpleStack(shipDefId, delta);
+        }
 
-          if (anyCharged) {
-            anyCharged.count += delta;
-            byStackKey.set(chargedKey, anyCharged);
-            continue;
+        for (const choiceId of appliedEvolverPreviewChoices) {
+          if (!consumeSimpleStack('XEN')) {
+            break;
           }
-
-          // Otherwise add to first matching stack by shipDefId (stable existing stack)
-          const existing = Array.from(byStackKey.values()).find(s => s.shipDefId === shipDefId);
-          if (existing) {
-            existing.count += delta;
-            byStackKey.set(existing.stackKey, existing);
-            continue;
-          }
-
-          // Otherwise create a new stable stack (no condition)
-          byStackKey.set(shipDefId, { shipDefId, count: delta, stackKey: shipDefId });
+          incrementSimpleStack(choiceId === 'oxite' ? 'OXI' : 'AST', 1);
         }
 
         const result = Array.from(byStackKey.values()).filter(s => s.count > 0);
@@ -1220,7 +1324,7 @@ useEffect(() => {
     ((mySpecies === 'human' &&
       (Number.isInteger(buildPreviewCountsRef.current?.FRI) ? buildPreviewCountsRef.current.FRI : 0) > 0) ||
      (mySpecies === 'xenite' &&
-      (Number.isInteger(buildPreviewCountsRef.current?.EVO) ? buildPreviewCountsRef.current.EVO : 0) > 0));
+      evolverRowIds.length > 0));
 
   // Actions tab is visible if we have a target panel and either:
   // - server says actions exist, OR
@@ -1583,6 +1687,8 @@ useEffect(() => {
   // Client-only: build preview + Frigate triggers for build.drawing special panels
   buildPreviewCounts: buildPreviewCountsRef.current,
   frigateSelectedTriggers: frigateSelectedTriggersRef.current,
+  evolverRowIds,
+  evolverChoicesByRowId,
 });
   
   // ============================================================================
@@ -1625,6 +1731,8 @@ useEffect(() => {
           buildInstanceKey: buildServerKey,
           buildPreviewCounts: buildPreviewSnapshot,
           frigateSelectedTriggers: frigateSelectedTriggersRef.current,
+          evolverRowIds,
+          evolverChoicesByRowId: evolverChoicesByRowIdRef.current,
 
           setBuildSubmittedByTurn,
 
@@ -1897,6 +2005,19 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
   });
 },
 
+    onSelectEvolverChoice: (rowId: string, choiceId: EvolverChoiceId) => {
+      if (choiceId !== 'hold' && choiceId !== 'oxite' && choiceId !== 'asterite') {
+        return;
+      }
+
+      setEvolverChoicesByRowId(prev => {
+        if (!evolverRowIds.includes(rowId)) return prev;
+        const next = { ...prev, [rowId]: choiceId };
+        evolverChoicesByRowIdRef.current = next;
+        return next;
+      });
+    },
+
     onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
       setShipChoiceSelectionByInstanceId(prev => ({ ...prev, [sourceInstanceId]: choiceId }));
       applyDestroyTargetingChoiceSideEffects(sourceInstanceId, choiceId);
@@ -2029,6 +2150,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       onDownloadBattleLog: () => { },
       onSelectShipChoiceForInstance: () => { },
       onSelectFrigateTrigger: () => { },
+      onSelectEvolverChoice: () => { },
       onBoardBackgroundMouseDown: () => { },
       onDestroyTargetStackHoverChange: () => { },
       onDestroyTargetStackMouseDown: () => { },

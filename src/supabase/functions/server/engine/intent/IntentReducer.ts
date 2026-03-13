@@ -38,6 +38,7 @@ import { accrueClocks } from '../clock/clock.ts';
 import { buildPhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { resolvePowerAction } from '../../engine_shared/resolve/resolvePowerAction.ts';
 import { applyEffects } from '../../engine_shared/effects/applyEffects.ts';
+import { EffectKind, EffectTiming, SurvivabilityRule, type Effect } from '../../engine_shared/effects/Effect.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 
 import {
@@ -45,6 +46,7 @@ import {
   type SpeciesRevealPayload,
   type BuildRevealPayload,
   type BuildSubmitPayload,
+  type EvolverBuildChoiceEntry,
   type BattleRevealPayload,
   type ActionPayload,
   type ActionsBatchPayload,
@@ -111,6 +113,132 @@ function incrementShipsMadeThisBuildPhaseCounter(
     ...currentMap,
     [playerId]: currentCount + amount,
   };
+}
+
+function countFleetShipsByDefId(state: any, playerId: string, shipDefId: string): number {
+  const fleet = state?.gameData?.ships?.[playerId] ?? state?.ships?.[playerId] ?? [];
+  let count = 0;
+  for (const ship of fleet) {
+    if (ship?.shipDefId === shipDefId) count++;
+  }
+  return count;
+}
+
+function validateEvolverChoicesPayload(
+  payload: BuildSubmitPayload,
+  totalEvolverCount: number,
+  totalXenCount: number
+): { ok: true; choices: EvolverBuildChoiceEntry[] } | { ok: false; message: string } {
+  if (payload.evolverChoices === undefined) {
+    return { ok: true, choices: [] };
+  }
+
+  if (!Array.isArray(payload.evolverChoices)) {
+    return { ok: false, message: 'Invalid build payload: evolverChoices must be an array' };
+  }
+
+  if (payload.evolverChoices.length > totalEvolverCount) {
+    return {
+      ok: false,
+      message: `Invalid evolverChoices length: expected at most ${totalEvolverCount}, got ${payload.evolverChoices.length}`,
+    };
+  }
+
+  const seenSourceKeys = new Set<string>();
+  let nonHoldCount = 0;
+
+  for (const entry of payload.evolverChoices) {
+    if (!entry || typeof entry !== 'object') {
+      return { ok: false, message: 'Invalid evolverChoices entry: expected object' };
+    }
+
+    if (typeof entry.sourceKey !== 'string' || entry.sourceKey.trim() === '') {
+      return { ok: false, message: 'Invalid evolverChoices entry: sourceKey must be a non-empty string' };
+    }
+
+    if (seenSourceKeys.has(entry.sourceKey)) {
+      return { ok: false, message: `Duplicate evolverChoices sourceKey: ${entry.sourceKey}` };
+    }
+    seenSourceKeys.add(entry.sourceKey);
+
+    if (entry.choiceId !== 'hold' && entry.choiceId !== 'oxite' && entry.choiceId !== 'asterite') {
+      return {
+        ok: false,
+        message: `Invalid evolver choiceId: ${String((entry as any).choiceId)}. Must be hold, oxite, or asterite.`,
+      };
+    }
+
+    if (entry.choiceId !== 'hold') {
+      nonHoldCount++;
+    }
+  }
+
+  if (nonHoldCount > totalXenCount) {
+    return {
+      ok: false,
+      message: `Invalid evolverChoices: requested ${nonHoldCount} conversions but only ${totalXenCount} Xenite(s) are available.`,
+    };
+  }
+
+  return { ok: true, choices: payload.evolverChoices };
+}
+
+function applyEvolverConversionsForBuild(args: {
+  state: any;
+  playerId: string;
+  turnNumber: number;
+  choices: EvolverBuildChoiceEntry[];
+  events: any[];
+}): any {
+  let { state } = args;
+  let effectIndex = 0;
+
+  for (const entry of args.choices) {
+    if (entry.choiceId === 'hold') continue;
+
+    const currentFleet = state?.gameData?.ships?.[args.playerId] ?? [];
+    const xenite = currentFleet.find((ship: ShipInstance) => ship.shipDefId === 'XEN');
+
+    if (!xenite) {
+      throw new Error('EVOLVER_CONVERSION_XENITE_MISSING');
+    }
+
+    const createdShipDefId = entry.choiceId === 'oxite' ? 'OXI' : 'AST';
+    const effectBaseId = `build_submit_evolver_${args.turnNumber}_${args.playerId}_${effectIndex++}`;
+    const effects: Effect[] = [
+      {
+        id: `${effectBaseId}_destroy`,
+        ownerPlayerId: args.playerId,
+        source: { type: 'system', reason: 'build_submit_evolver' },
+        timing: 'build.drawing',
+        activationTag: EffectTiming.OnceOnly,
+        target: { playerId: args.playerId, shipInstanceId: xenite.instanceId },
+        survivability: SurvivabilityRule.ResolvesIfDestroyed,
+        kind: EffectKind.Destroy,
+        restriction: 'any',
+        count: 1,
+      },
+      {
+        id: `${effectBaseId}_create`,
+        ownerPlayerId: args.playerId,
+        source: { type: 'system', reason: 'build_submit_evolver' },
+        timing: 'build.drawing',
+        activationTag: EffectTiming.OnceOnly,
+        target: { playerId: args.playerId },
+        survivability: SurvivabilityRule.ResolvesIfDestroyed,
+        kind: EffectKind.CreateShip,
+        shipDefId: createdShipDefId,
+        createdBy: 'manual',
+      },
+    ];
+
+    const applied = applyEffects(state, effects);
+    state = applied.state;
+    args.events.push(...applied.events);
+    incrementShipsMadeThisBuildPhaseCounter(state, args.playerId, 1);
+  }
+
+  return state;
 }
 
 /**
@@ -1290,6 +1418,33 @@ async function handleBuildSubmit(
       }
     }
   }
+
+  const existingEvolverCount = countFleetShipsByDefId(state, playerId, 'EVO');
+  const existingXenCount = countFleetShipsByDefId(state, playerId, 'XEN');
+  const builtEvolverCount = payload.builds
+    .filter((build) => build.shipDefId === 'EVO')
+    .reduce((sum, build) => sum + build.count, 0);
+  const builtXenCount = payload.builds
+    .filter((build) => build.shipDefId === 'XEN')
+    .reduce((sum, build) => sum + build.count, 0);
+
+  const evolverValidation = validateEvolverChoicesPayload(
+    payload,
+    existingEvolverCount + builtEvolverCount,
+    existingXenCount + builtXenCount
+  );
+
+  if (!evolverValidation.ok) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: evolverValidation.message,
+      },
+    };
+  }
   
   // B3) Compute commit hash and store submission
   const turnNumber = intent.turnNumber;
@@ -1387,6 +1542,7 @@ async function handleBuildSubmit(
           // Frigate trigger cursor for this player's build payload
           let frigateTriggerCursor = 0;
           const frigateTriggers = pPayload.frigateTriggers;
+          const evolverChoices = Array.isArray(pPayload.evolverChoices) ? pPayload.evolverChoices : [];
 
           // Ensure powerMemory + map exists
           if (!state.gameData.powerMemory) state.gameData.powerMemory = {};
@@ -1428,6 +1584,16 @@ async function handleBuildSubmit(
               state.gameData.ships[p.id].push(shipInstance);
               incrementShipsMadeThisBuildPhaseCounter(state, p.id, 1);
             }
+          }
+
+          if (evolverChoices.length > 0) {
+            state = applyEvolverConversionsForBuild({
+              state,
+              playerId: p.id,
+              turnNumber,
+              choices: evolverChoices,
+              events,
+            });
           }
         }
       }
