@@ -235,7 +235,6 @@ function applyEvolverConversionsForBuild(args: {
     const applied = applyEffects(state, effects);
     state = applied.state;
     args.events.push(...applied.events);
-    incrementShipsMadeThisBuildPhaseCounter(state, args.playerId, 1);
   }
 
   return state;

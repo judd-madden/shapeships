@@ -304,7 +304,86 @@ html {
   height: 100%;
 }
 
+/* ============================================================================
+   Turn Change Indicator / LeftRail takeover animation
+   ========================================================================== */
+
+.ss-leftRailTurnTakeover {
+  inset: 0;
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  z-index: 10;
+}
+
+.ss-leftRailTurnTakeover[data-active='1'] {
+  opacity: 1;
+}
+
+.ss-leftRailTurnTakeover__wipe {
+  background: var(--shapeships-white);
+  inset: 0;
+  position: absolute;
+  transform: translate3d(-102%, 0, 0);
+  transform-origin: left center;
+  will-change: transform;
+}
+
+.ss-leftRailTurnTakeover__textWrap {
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  position: absolute;
+  z-index: 1;
+}
+
+.ss-leftRailTurnTakeover__text {
+  color: var(--shapeships-black);
+  opacity: 0;
+  transform: translate3d(-80px, 0, 0);
+  white-space: nowrap;
+  will-change: transform, opacity;
+}
+
+.ss-leftRailTurnTakeover[data-stage='entering'] .ss-leftRailTurnTakeover__wipe,
+.ss-leftRailTurnTakeover[data-stage='hold'] .ss-leftRailTurnTakeover__wipe {
+  transform: translate3d(0, 0, 0);
+  transition: transform var(--ss-turn-takeover-wipe-in) cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ss-leftRailTurnTakeover[data-stage='exiting'] .ss-leftRailTurnTakeover__wipe {
+  transform: translate3d(102%, 0, 0);
+  transition:
+    transform var(--ss-turn-takeover-wipe-out) cubic-bezier(0.7, 0, 0.84, 0)
+    var(--ss-turn-takeover-wipe-out-delay);
+}
+
+.ss-leftRailTurnTakeover[data-stage='entering'] .ss-leftRailTurnTakeover__text,
+.ss-leftRailTurnTakeover[data-stage='hold'] .ss-leftRailTurnTakeover__text {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  transition:
+    transform var(--ss-turn-takeover-text-in) cubic-bezier(0.22, 1, 0.36, 1)
+    var(--ss-turn-takeover-text-in-delay),
+    opacity 140ms linear var(--ss-turn-takeover-text-in-delay);
+}
+
+.ss-leftRailTurnTakeover[data-stage='exiting'] .ss-leftRailTurnTakeover__text {
+  opacity: 0;
+  transform: translate3d(200px, 0, 0);
+  transition:
+    transform var(--ss-turn-takeover-text-out) cubic-bezier(0.33, 1, 0.68, 1),
+    opacity 180ms linear;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .ss-leftRailTurnTakeover__wipe,
+  .ss-leftRailTurnTakeover__text {
+    transition: none !important;
+  }
+
   .ss-health-delta-pop-in {
     animation: none;
   }

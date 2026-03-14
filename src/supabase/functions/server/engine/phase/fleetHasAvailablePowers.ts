@@ -21,6 +21,36 @@
 
 import type { PhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
+import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
+
+function shipHasInteractiveShipsThatBuildChoice(ship: any, phaseKey: PhaseKey): boolean {
+  if (phaseKey !== 'build.ships_that_build') return false;
+
+  const shipDef = getShipDefinition(ship?.shipDefId);
+  if (!shipDef?.structuredPowers) return false;
+
+  for (const power of shipDef.structuredPowers) {
+    if (power.type !== 'choice') continue;
+    if (!power.timings.includes(phaseKey)) continue;
+
+    const chargesCurrent = Number(ship?.chargesCurrent ?? 0);
+    const eligibleChoices = power.options.filter((option) => {
+      if (option.choiceId === 'hold') return true;
+
+      const requiresCharge = (option.requiresCharge ?? false) || (power.requiresCharge ?? false);
+      if (!requiresCharge) return true;
+
+      const chargeCost = option.chargeCost ?? power.chargeCost ?? 1;
+      return chargesCurrent >= chargeCost;
+    });
+
+    if (eligibleChoices.some((option) => option.choiceId !== 'hold')) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 /**
  * Returns true if the given player has at least one fleet power
@@ -47,6 +77,13 @@ export function fleetHasAvailablePowers(
     [];
 
   for (const ship of ships) {
+    if (phaseKey === 'build.ships_that_build') {
+      if (shipHasInteractiveShipsThatBuildChoice(ship, phaseKey)) {
+        return true;
+      }
+      continue;
+    }
+
     const def = getShipById(ship.shipDefId);
     if (!def?.powers || def.powers.length === 0) continue;
 

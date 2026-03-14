@@ -17,6 +17,7 @@ import type { LeftRailViewModel, GameSessionActions } from '../../client/useGame
 import { LeftRailScrollArea } from './LeftRailScrollArea';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
+import { TURN_TAKEOVER_TIMING_STYLE, useLeftRailTurnTakeover } from '../graphics/animation';
 
 interface LeftRailProps {
   vm: LeftRailViewModel;
@@ -27,6 +28,7 @@ interface LeftRailProps {
 export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
   const [showCopiedToast, setShowCopiedToast] = useState(false);
   const [chatDraft, setChatDraft] = useState('');
+  const turnTakeover = useLeftRailTurnTakeover(vm.turn);
 
   const overlayShipGraphic = (() => {
     if (!vm.diceOverlay) return null;
@@ -102,7 +104,7 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
       )}
 
       {/* Turn / Phase / Subphase Card */}
-      <div className="shrink-0 rounded-[10px] border-2 border-[#555] overflow-hidden">
+      <div className="relative shrink-0 rounded-[10px] border-2 border-[#555] overflow-hidden">
         {/* Turn and Major Phase */}
         <div className="bg-black p-[10px] flex items-center justify-center gap-[10px]">
           <p className="text-white text-[18px] font-bold">Turn {vm.turn} -</p>
@@ -113,6 +115,21 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
         {/* Subphase */}
         <div className="bg-[#212121] px-[10px] py-[10px] pb-[12px]">
           <p className="text-white text-[18px] font-medium text-center">{vm.subphase}</p>
+        </div>
+
+        <div
+          aria-hidden="true"
+          className="ss-leftRailTurnTakeover"
+          data-active={turnTakeover.stage === 'idle' ? '0' : '1'}
+          data-stage={turnTakeover.stage}
+          style={TURN_TAKEOVER_TIMING_STYLE}
+        >
+          <div className="ss-leftRailTurnTakeover__wipe" />
+          <div className="ss-leftRailTurnTakeover__textWrap">
+            <p className="ss-leftRailTurnTakeover__text font-['Roboto'] text-[60px] leading-none font-black italic">
+              Turn <span className="tracking-tighter">{turnTakeover.turn}</span>
+            </p>
+          </div>
         </div>
       </div>
 

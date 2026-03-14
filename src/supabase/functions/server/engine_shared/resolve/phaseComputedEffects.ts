@@ -253,6 +253,10 @@ function countShipsBuiltThisTurnByDefId(ships: ShipInstance[], turnNumber: numbe
   return n;
 }
 
+function getShipsMadeThisBuildPhase(state: GameState, playerId: string): number {
+  return state.gameData.turnData?.shipsMadeThisBuildPhaseByPlayerId?.[playerId] ?? 0;
+}
+
 /**
  * Power memory helpers (once-only and future per-turn/per-ship memories).
  * Keep key formats stable to avoid migrations.
@@ -693,6 +697,46 @@ export function computePhaseComputedEffects(
 
       console.log(
         `[computePhaseComputedEffects] AsteriteFace automatic: owner=${ownerPlayerId} instance=${ship.instanceId} opponentTypes=${dmgPerAsteriteFace} dmg=${dmgPerAsteriteFace} target=${opponentId}`
+      );
+    }
+  }
+
+  // === QUEEN (QUE) automatic: Deal 3 damage per eligible ship you made this turn ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const opponentId = opponentMap.get(ownerPlayerId);
+    if (!opponentId) continue;
+
+    const ships = getShips(state, ownerPlayerId);
+    const shipsMadeThisTurn = getShipsMadeThisBuildPhase(state, ownerPlayerId);
+
+    if (shipsMadeThisTurn <= 0) continue;
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'QUE') continue;
+
+      const countedShips =
+        ship.createdTurn === currentTurn
+          ? shipsMadeThisTurn
+          : Math.max(shipsMadeThisTurn - 1, 0);
+      const damage = countedShips * 3;
+
+      if (damage <= 0) continue;
+
+      computedEffects.push({
+        id: `queen_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: opponentId },
+        kind: EffectKind.Damage,
+        amount: damage,
+      });
+
+      console.log(
+        `[computePhaseComputedEffects] Queen automatic: owner=${ownerPlayerId} instance=${ship.instanceId} shipsMade=${shipsMadeThisTurn} countedShips=${countedShips} dmg=${damage} target=${opponentId}`
       );
     }
   }

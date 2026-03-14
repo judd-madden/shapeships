@@ -13,6 +13,7 @@
  * Animations here are driven by fleet state + UX tokens, NOT rules logic.
  */
 
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 
 // ============================================================================
@@ -282,4 +283,121 @@ export function ShipAnimationWrapper({
       </div>
     </div>
   );
+}
+
+// ============================================================================
+// LEFT RAIL TURN TAKEOVER
+// ============================================================================
+
+export type TurnTakeoverStage = 'idle' | 'pre-enter' | 'entering' | 'hold' | 'exiting';
+
+export interface TurnTakeoverState {
+  stage: TurnTakeoverStage;
+  turn: number;
+}
+
+export const TURN_TAKEOVER_WIPE_IN_MS = 280;
+export const TURN_TAKEOVER_TEXT_IN_DELAY_MS = 48;
+export const TURN_TAKEOVER_TEXT_IN_MS = 320;
+export const TURN_TAKEOVER_HOLD_MS = 1300;
+export const TURN_TAKEOVER_TEXT_OUT_MS = 360;
+export const TURN_TAKEOVER_WIPE_OUT_DELAY_MS = 30;
+export const TURN_TAKEOVER_WIPE_OUT_MS = 180;
+export const TURN_TAKEOVER_ENTER_SETTLE_MS = Math.max(
+  TURN_TAKEOVER_WIPE_IN_MS,
+  TURN_TAKEOVER_TEXT_IN_DELAY_MS + TURN_TAKEOVER_TEXT_IN_MS,
+);
+export const TURN_TAKEOVER_EXIT_SETTLE_MS = Math.max(
+  TURN_TAKEOVER_TEXT_OUT_MS,
+  TURN_TAKEOVER_WIPE_OUT_DELAY_MS + TURN_TAKEOVER_WIPE_OUT_MS,
+);
+
+export const TURN_TAKEOVER_TIMING_STYLE = {
+  '--ss-turn-takeover-wipe-in': `${TURN_TAKEOVER_WIPE_IN_MS}ms`,
+  '--ss-turn-takeover-text-in-delay': `${TURN_TAKEOVER_TEXT_IN_DELAY_MS}ms`,
+  '--ss-turn-takeover-text-in': `${TURN_TAKEOVER_TEXT_IN_MS}ms`,
+  '--ss-turn-takeover-text-out': `${TURN_TAKEOVER_TEXT_OUT_MS}ms`,
+  '--ss-turn-takeover-wipe-out-delay': `${TURN_TAKEOVER_WIPE_OUT_DELAY_MS}ms`,
+  '--ss-turn-takeover-wipe-out': `${TURN_TAKEOVER_WIPE_OUT_MS}ms`,
+} as CSSProperties;
+
+export function useLeftRailTurnTakeover(turn: number): TurnTakeoverState {
+  const [turnTakeover, setTurnTakeover] = useState<TurnTakeoverState>({
+    stage: 'idle',
+    turn,
+  });
+  const previousTurnRef = useRef<number | null>(null);
+  const turnTakeoverFrameRef = useRef<number | null>(null);
+  const turnTakeoverTimersRef = useRef<Array<ReturnType<typeof window.setTimeout>>>([]);
+  const turnTakeoverSequenceRef = useRef(0);
+
+  function clearTurnTakeoverSequence() {
+    if (turnTakeoverFrameRef.current !== null) {
+      window.cancelAnimationFrame(turnTakeoverFrameRef.current);
+      turnTakeoverFrameRef.current = null;
+    }
+
+    for (const timerId of turnTakeoverTimersRef.current) {
+      window.clearTimeout(timerId);
+    }
+    turnTakeoverTimersRef.current = [];
+  }
+
+  useEffect(() => {
+    return () => {
+      turnTakeoverSequenceRef.current += 1;
+      clearTurnTakeoverSequence();
+    };
+  }, []);
+
+  useEffect(() => {
+    const nextTurn = turn;
+    const previousTurn = previousTurnRef.current;
+
+    if (previousTurn === null) {
+      previousTurnRef.current = nextTurn;
+      setTurnTakeover({ stage: 'idle', turn: nextTurn });
+      return;
+    }
+
+    previousTurnRef.current = nextTurn;
+
+    if (nextTurn <= previousTurn) {
+      return;
+    }
+
+    clearTurnTakeoverSequence();
+
+    const sequenceId = turnTakeoverSequenceRef.current + 1;
+    turnTakeoverSequenceRef.current = sequenceId;
+
+    const setTurnTakeoverStage = (stage: TurnTakeoverStage) => {
+      if (turnTakeoverSequenceRef.current !== sequenceId) {
+        return;
+      }
+
+      setTurnTakeover({ stage, turn: nextTurn });
+    };
+
+    setTurnTakeoverStage('pre-enter');
+
+    turnTakeoverFrameRef.current = window.requestAnimationFrame(() => {
+      turnTakeoverFrameRef.current = null;
+      setTurnTakeoverStage('entering');
+    });
+
+    turnTakeoverTimersRef.current = [
+      window.setTimeout(() => {
+        setTurnTakeoverStage('hold');
+      }, TURN_TAKEOVER_ENTER_SETTLE_MS),
+      window.setTimeout(() => {
+        setTurnTakeoverStage('exiting');
+      }, TURN_TAKEOVER_ENTER_SETTLE_MS + TURN_TAKEOVER_HOLD_MS),
+      window.setTimeout(() => {
+        setTurnTakeoverStage('idle');
+      }, TURN_TAKEOVER_ENTER_SETTLE_MS + TURN_TAKEOVER_HOLD_MS + TURN_TAKEOVER_EXIT_SETTLE_MS),
+    ];
+  }, [turn]);
+
+  return turnTakeover;
 }

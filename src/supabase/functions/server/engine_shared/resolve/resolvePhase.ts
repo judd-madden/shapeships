@@ -24,6 +24,91 @@ import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
 import { computePhaseComputedEffects, applyComputedEffectModifiers } from './phaseComputedEffects.ts';
 
+function countCreatedShipsByTargetPlayerId(
+  effects: Effect[]
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+
+  for (const effect of effects) {
+    if (effect.kind !== EffectKind.CreateShip) continue;
+
+    const playerId = effect.target.playerId;
+    counts[playerId] = (counts[playerId] || 0) + 1;
+  }
+
+  return counts;
+}
+
+function incrementShipsMadeThisBuildPhaseCounter(
+  state: GameState,
+  countsByPlayerId: Record<string, number>
+): GameState {
+  const entries = Object.entries(countsByPlayerId).filter(([, amount]) =>
+    Number.isInteger(amount) && amount > 0
+  );
+
+  if (entries.length === 0) return state;
+
+  const priorTurnData = state.gameData.turnData || {};
+  const priorCounts = priorTurnData.shipsMadeThisBuildPhaseByPlayerId || {};
+  const nextCounts = { ...priorCounts };
+
+  for (const [playerId, amount] of entries) {
+    nextCounts[playerId] = (nextCounts[playerId] || 0) + amount;
+  }
+
+  return {
+    ...state,
+    gameData: {
+      ...state.gameData,
+      turnData: {
+        ...priorTurnData,
+        shipsMadeThisBuildPhaseByPlayerId: nextCounts,
+      },
+    },
+  };
+}
+
+function collectQueenAutoBuildEffects(
+  state: GameState,
+  phaseKey: PhaseKey
+): CreateShipEffect[] {
+  const currentTurn =
+    state.gameData?.turnData?.turnNumber ??
+    state.gameData?.turnNumber ??
+    1;
+
+  const activePlayers = state.players.filter((player) => player.role === 'player');
+  const effects: CreateShipEffect[] = [];
+
+  for (const player of activePlayers) {
+    const fleet = state.gameData.ships?.[player.id] || [];
+    const eligibleQueens = fleet.filter(
+      (ship) => ship.shipDefId === 'QUE' && (ship.createdTurn ?? 0) < currentTurn
+    );
+
+    for (const queen of eligibleQueens) {
+      effects.push({
+        id: `queen_build_${currentTurn}_${queen.instanceId}`,
+        ownerPlayerId: player.id,
+        source: {
+          type: 'ship',
+          instanceId: queen.instanceId,
+          shipDefId: queen.shipDefId,
+        },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        target: { playerId: player.id },
+        survivability: SurvivabilityRule.DiesWithSource,
+        kind: EffectKind.CreateShip,
+        shipDefId: 'XEN',
+      });
+    }
+  }
+
+  return effects;
+}
+
 // ============================================================================
 // RESOLVE PHASE
 // ============================================================================
@@ -80,12 +165,23 @@ function resolveShipsThatBuild(
   console.log(`[resolveShipsThatBuild] Resolving phase: ${phaseKey}`);
 
   // Collect all effects from all ships
-  const effects = collectEffectsForPhase(state, phaseKey);
+  const effects = [
+    ...collectEffectsForPhase(state, phaseKey),
+    ...collectQueenAutoBuildEffects(state, phaseKey),
+  ];
 
   console.log(`[resolveShipsThatBuild] Collected ${effects.length} effects for ${phaseKey}`);
 
   // Apply effects to state
-  const result = applyEffects(state, effects);
+  let result = applyEffects(state, effects);
+  const createdShipsByPlayerId = countCreatedShipsByTargetPlayerId(effects);
+  result = {
+    ...result,
+    state: incrementShipsMadeThisBuildPhaseCounter(
+      result.state,
+      createdShipsByPlayerId
+    ),
+  };
 
   console.log(`[resolveShipsThatBuild] Applied effects, generated ${result.events.length} events`);
 
