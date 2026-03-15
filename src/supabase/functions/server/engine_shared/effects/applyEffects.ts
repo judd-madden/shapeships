@@ -277,41 +277,29 @@ function applyGainLines(
 // CREATE SHIP
 // ============================================================================
 
-function applyCreateShip(
+function appendShipToFleet(
   state: GameState,
-  effect: Effect & { kind: EffectKind.CreateShip; shipDefId: string },
-  nowMs: number
-): { event?: EffectEvent } {
-  const targetPlayerId = (effect as any).target.playerId as string;
-  const shipDefId = (effect as any).shipDefId as string;
-
-  // Ensure ships structure exists
+  targetPlayerId: string,
+  shipDefId: string
+): ShipInstance {
   if (!state.gameData.ships) {
     state.gameData.ships = {};
   }
 
-  // Get current fleet (or empty array)
   const currentFleet = state.gameData.ships[targetPlayerId] ?? [];
+  const newShip: ShipInstance = {
+    instanceId: crypto.randomUUID(),
+    shipDefId,
+    createdTurn: state.gameData.turnNumber
+  };
 
-  // Generate unique instance ID
-  const instanceId = crypto.randomUUID();
-  
-  // Get ship definition to check for initial charges
   let shipDef;
   try {
     shipDef = getShipById(shipDefId);
   } catch (err) {
     console.warn(`[applyEffects] Error loading ship definition for CreateShip: ${shipDefId}`, err);
   }
-  
-  // Build ship instance
-  const newShip: ShipInstance = {
-    instanceId,
-    shipDefId,
-    createdTurn: state.gameData.turnNumber
-  };
 
-  // Initialize chargesCurrent if ship def has charges
   if (shipDef && typeof shipDef.charges === 'number' && shipDef.charges > 0) {
     newShip.chargesCurrent = shipDef.charges;
   }
@@ -320,11 +308,21 @@ function applyCreateShip(
     console.warn(`[applyEffects] Ship definition not found for CreateShip: ${shipDefId} (creating instance anyway)`);
   }
 
-  // Create NEW fleet array (never mutate existing)
   state.gameData.ships[targetPlayerId] = [...currentFleet, newShip];
+  return newShip;
+}
+
+function applyCreateShip(
+  state: GameState,
+  effect: Effect & { kind: EffectKind.CreateShip; shipDefId: string },
+  nowMs: number
+): { event?: EffectEvent } {
+  const targetPlayerId = (effect as any).target.playerId as string;
+  const shipDefId = (effect as any).shipDefId as string;
+  const newShip = appendShipToFleet(state, targetPlayerId, shipDefId);
 
   console.log(
-    `[applyEffects] Created ship ${shipDefId} (${instanceId}) for ${targetPlayerId} with ${newShip.chargesCurrent ?? 'no'} charges`
+    `[applyEffects] Created ship ${shipDefId} (${newShip.instanceId}) for ${targetPlayerId} with ${newShip.chargesCurrent ?? 'no'} charges`
   );
 
   return {
@@ -335,7 +333,7 @@ function applyCreateShip(
       targetPlayerId,
       details: {
         shipDefId,
-        instanceId,
+        instanceId: newShip.instanceId,
         createdTurn: state.gameData.turnNumber,
         chargesCurrent: newShip.chargesCurrent,
       },
@@ -386,11 +384,32 @@ function applyDestroyShip(
   ];
   
   state.gameData.ships![targetPlayerId] = newFleet;
-  const afterCount = newFleet.length;
+  let afterCount = newFleet.length;
 
   const voidShips = state.gameData.voidShipsByPlayerId ?? (state.gameData.voidShipsByPlayerId = {});
   const currentVoid = voidShips[targetPlayerId] ?? [];
   voidShips[targetPlayerId] = [...currentVoid, destroyedShip];
+
+  if (destroyedShip.shipDefId === 'ZEN') {
+    appendShipToFleet(state, targetPlayerId, 'XEN');
+    appendShipToFleet(state, targetPlayerId, 'XEN');
+
+    if (typeof effect.timing === 'string' && effect.timing.startsWith('build.')) {
+      if (!state.gameData.turnData) {
+        state.gameData.turnData = {};
+      }
+
+      const currentMap = state.gameData.turnData.shipsMadeThisBuildPhaseByPlayerId || {};
+      const currentCount = currentMap[targetPlayerId] || 0;
+
+      state.gameData.turnData.shipsMadeThisBuildPhaseByPlayerId = {
+        ...currentMap,
+        [targetPlayerId]: currentCount + 2,
+      };
+    }
+
+    afterCount = state.gameData.ships?.[targetPlayerId]?.length ?? afterCount;
+  }
 
   console.log(
     `[applyEffects] Destroyed ship ${shipInstanceId} for ${targetPlayerId}: ${beforeCount} → ${afterCount}`

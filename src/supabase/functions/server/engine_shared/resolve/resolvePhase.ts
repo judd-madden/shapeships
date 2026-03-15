@@ -22,7 +22,11 @@ import { EffectTiming, EffectKind, SurvivabilityRule } from '../effects/Effect.t
 import { translateShipPowers, type TranslateContext } from '../effects/translateShipPowers.ts';
 import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
-import { computePhaseComputedEffects, applyComputedEffectModifiers } from './phaseComputedEffects.ts';
+import {
+  computePhaseComputedEffects,
+  applyComputedEffectModifiers,
+  getEffectiveDiceRollForPlayer,
+} from './phaseComputedEffects.ts';
 
 function countCreatedShipsByTargetPlayerId(
   effects: Effect[]
@@ -109,6 +113,89 @@ function collectQueenAutoBuildEffects(
   return effects;
 }
 
+function collectZenithAutoBuildEffects(
+  state: GameState,
+  phaseKey: PhaseKey
+): CreateShipEffect[] {
+  const currentTurn =
+    state.gameData?.turnData?.turnNumber ??
+    state.gameData?.turnNumber ??
+    1;
+
+  const activePlayers = state.players.filter((player) => player.role === 'player');
+  const effects: CreateShipEffect[] = [];
+
+  for (const player of activePlayers) {
+    const fleet = state.gameData.ships?.[player.id] || [];
+    const eligibleZeniths = fleet.filter(
+      (ship) => ship.shipDefId === 'ZEN' && (ship.createdTurn ?? 0) < currentTurn
+    );
+    const roll = getEffectiveDiceRollForPlayer(state, player.id);
+
+    for (const zenith of eligibleZeniths) {
+      if (roll === 2) {
+        effects.push({
+          id: `zenith_build_${currentTurn}_${zenith.instanceId}_xen_0`,
+          ownerPlayerId: player.id,
+          source: {
+            type: 'ship',
+            instanceId: zenith.instanceId,
+            shipDefId: zenith.shipDefId,
+          },
+          timing: phaseKey,
+          activationTag: EffectTiming.Automatic,
+          target: { playerId: player.id },
+          survivability: SurvivabilityRule.DiesWithSource,
+          kind: EffectKind.CreateShip,
+          shipDefId: 'XEN',
+        });
+        continue;
+      }
+
+      if (roll === 3) {
+        effects.push({
+          id: `zenith_build_${currentTurn}_${zenith.instanceId}_ant_0`,
+          ownerPlayerId: player.id,
+          source: {
+            type: 'ship',
+            instanceId: zenith.instanceId,
+            shipDefId: zenith.shipDefId,
+          },
+          timing: phaseKey,
+          activationTag: EffectTiming.Automatic,
+          target: { playerId: player.id },
+          survivability: SurvivabilityRule.DiesWithSource,
+          kind: EffectKind.CreateShip,
+          shipDefId: 'ANT',
+        });
+        continue;
+      }
+
+      if (roll === 4) {
+        for (let i = 0; i < 2; i++) {
+          effects.push({
+            id: `zenith_build_${currentTurn}_${zenith.instanceId}_xen_${i}`,
+            ownerPlayerId: player.id,
+            source: {
+              type: 'ship',
+              instanceId: zenith.instanceId,
+              shipDefId: zenith.shipDefId,
+            },
+            timing: phaseKey,
+            activationTag: EffectTiming.Automatic,
+            target: { playerId: player.id },
+            survivability: SurvivabilityRule.DiesWithSource,
+            kind: EffectKind.CreateShip,
+            shipDefId: 'XEN',
+          });
+        }
+      }
+    }
+  }
+
+  return effects;
+}
+
 // ============================================================================
 // RESOLVE PHASE
 // ============================================================================
@@ -168,6 +255,7 @@ function resolveShipsThatBuild(
   const effects = [
     ...collectEffectsForPhase(state, phaseKey),
     ...collectQueenAutoBuildEffects(state, phaseKey),
+    ...collectZenithAutoBuildEffects(state, phaseKey),
   ];
 
   console.log(`[resolveShipsThatBuild] Collected ${effects.length} effects for ${phaseKey}`);

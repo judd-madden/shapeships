@@ -115,6 +115,45 @@ function incrementShipsMadeThisBuildPhaseCounter(
   };
 }
 
+function appendBuiltShipInstance(args: {
+  state: any;
+  playerId: string;
+  shipDefId: string;
+  createdTurn: number;
+  frigateTrigger?: number;
+}): ShipInstance {
+  const { state, playerId, shipDefId, createdTurn, frigateTrigger } = args;
+  const shipDef = getShipById(shipDefId);
+  const shipInstance: ShipInstance = {
+    instanceId: crypto.randomUUID(),
+    shipDefId,
+    createdTurn,
+  };
+
+  if (shipDef && typeof shipDef.charges === 'number') {
+    shipInstance.chargesCurrent = shipDef.charges;
+  }
+
+  if (!state.gameData.ships[playerId]) {
+    state.gameData.ships[playerId] = [];
+  }
+
+  if (shipDefId === 'FRI') {
+    if (!state.gameData.powerMemory) state.gameData.powerMemory = {};
+    if (!state.gameData.powerMemory.frigateTriggerByInstanceId) {
+      state.gameData.powerMemory.frigateTriggerByInstanceId = {};
+    }
+
+    state.gameData.powerMemory.frigateTriggerByInstanceId[shipInstance.instanceId] =
+      frigateTrigger ?? 1;
+  }
+
+  state.gameData.ships[playerId].push(shipInstance);
+  incrementShipsMadeThisBuildPhaseCounter(state, playerId, 1);
+
+  return shipInstance;
+}
+
 function countFleetShipsByDefId(state: any, playerId: string, shipDefId: string): number {
   const fleet = state?.gameData?.ships?.[playerId] ?? state?.ships?.[playerId] ?? [];
   let count = 0;
@@ -1560,28 +1599,18 @@ async function handleBuildSubmit(
             
             for (let i = 0; i < count; i++) {
               // TODO (upgrades): if shipDef has componentShips, consume component instances from fleet before adding upgraded ship.
-              
-              const shipDef = getShipById(buildEntry.shipDefId);
+              const frigateTrigger =
+                buildEntry.shipDefId === 'FRI'
+                  ? frigateTriggers?.[frigateTriggerCursor++] ?? 1
+                  : undefined;
 
-              const shipInstance: ShipInstance = {
-                instanceId: crypto.randomUUID(),
+              appendBuiltShipInstance({
+                state,
+                playerId: p.id,
                 shipDefId: buildEntry.shipDefId,
-                createdTurn: state.gameData.turnNumber
-              };
-              
-              // Initialize charges for ships that have them
-              if (shipDef && typeof shipDef.charges === 'number') {
-                shipInstance.chargesCurrent = shipDef.charges;
-              }
-
-              // Store Frigate trigger if this is a Frigate
-              if (shipInstance.shipDefId === 'FRI') {
-                const trigger = frigateTriggers?.[frigateTriggerCursor++] ?? 1;
-                state.gameData.powerMemory!.frigateTriggerByInstanceId![shipInstance.instanceId] = trigger;
-              }
-              
-              state.gameData.ships[p.id].push(shipInstance);
-              incrementShipsMadeThisBuildPhaseCounter(state, p.id, 1);
+                createdTurn: state.gameData.turnNumber,
+                frigateTrigger,
+              });
             }
           }
 

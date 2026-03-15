@@ -1966,10 +1966,13 @@ useEffect(() => {
       setMyFleetOrder((prev) => (prev.includes(shipDefId) ? prev : [...prev, shipDefId]));
       
       setBuildPreviewCounts(prev => {
-        const next = {
-          ...prev,
-          [shipDefId]: (prev[shipDefId] || 0) + 1,
-        };
+        const next = { ...prev };
+
+        next[shipDefId] = (prev[shipDefId] || 0) + 1;
+
+        if (shipDefId === 'ZEN') {
+          next.ANT = (prev.ANT || 0) + 1;
+        }
         
         buildPreviewCountsRef.current = next;
         return next;

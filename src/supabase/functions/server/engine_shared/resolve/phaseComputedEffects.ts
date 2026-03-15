@@ -88,7 +88,10 @@ function getEffectiveDiceRoll(state: GameState): number | undefined {
   return td?.effectiveDiceRoll ?? td?.baseDiceRoll ?? td?.diceRoll ?? state.gameData.diceRoll;
 }
 
-function getEffectiveDiceRollForPlayer(state: GameState, playerId: string): number | undefined {
+export function getEffectiveDiceRollForPlayer(
+  state: GameState,
+  playerId: string
+): number | undefined {
   const td = state.gameData.turnData;
   const perPlayer = td?.effectiveDiceRollByPlayerId?.[playerId];
   return typeof perPlayer === 'number' ? perPlayer : getEffectiveDiceRoll(state);
