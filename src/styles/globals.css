@@ -309,25 +309,50 @@ html {
    ========================================================================== */
 
 .ss-leftRailTurnTakeover {
+  animation: ssLeftRailTurnTakeoverLifecycle var(--ss-turn-takeover-total) linear both;
   inset: 0;
-  opacity: 0;
   overflow: hidden;
   pointer-events: none;
   position: absolute;
   z-index: 10;
 }
 
-.ss-leftRailTurnTakeover[data-active='1'] {
-  opacity: 1;
+@keyframes ssLeftRailTurnTakeoverLifecycle {
+  0%,
+  100% {
+    opacity: 1;
+  }
 }
 
 .ss-leftRailTurnTakeover__wipe {
+  animation: ssLeftRailTurnTakeoverWipe var(--ss-turn-takeover-total) linear both;
   background: var(--shapeships-white);
   inset: 0;
   position: absolute;
   transform: translate3d(-102%, 0, 0);
   transform-origin: left center;
   will-change: transform;
+}
+
+@keyframes ssLeftRailTurnTakeoverWipe {
+  0% {
+    transform: translate3d(-102%, 0, 0);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  13.8% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  83.7% {
+    transform: translate3d(0, 0, 0);
+    animation-timing-function: cubic-bezier(0.7, 0, 0.84, 0);
+  }
+
+  92.6%,
+  100% {
+    transform: translate3d(102%, 0, 0);
+  }
 }
 
 .ss-leftRailTurnTakeover__textWrap {
@@ -340,6 +365,7 @@ html {
 }
 
 .ss-leftRailTurnTakeover__text {
+  animation: ssLeftRailTurnTakeoverText var(--ss-turn-takeover-total) linear both;
   color: var(--shapeships-black);
   opacity: 0;
   transform: translate3d(-80px, 0, 0);
@@ -347,41 +373,40 @@ html {
   will-change: transform, opacity;
 }
 
-.ss-leftRailTurnTakeover[data-stage='entering'] .ss-leftRailTurnTakeover__wipe,
-.ss-leftRailTurnTakeover[data-stage='hold'] .ss-leftRailTurnTakeover__wipe {
-  transform: translate3d(0, 0, 0);
-  transition: transform var(--ss-turn-takeover-wipe-in) cubic-bezier(0.16, 1, 0.3, 1);
-}
+@keyframes ssLeftRailTurnTakeoverText {
+  0%,
+  2.4% {
+    opacity: 0;
+    transform: translate3d(-80px, 0, 0);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
 
-.ss-leftRailTurnTakeover[data-stage='exiting'] .ss-leftRailTurnTakeover__wipe {
-  transform: translate3d(102%, 0, 0);
-  transition:
-    transform var(--ss-turn-takeover-wipe-out) cubic-bezier(0.7, 0, 0.84, 0)
-    var(--ss-turn-takeover-wipe-out-delay);
-}
+  18.1% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
 
-.ss-leftRailTurnTakeover[data-stage='entering'] .ss-leftRailTurnTakeover__text,
-.ss-leftRailTurnTakeover[data-stage='hold'] .ss-leftRailTurnTakeover__text {
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
-  transition:
-    transform var(--ss-turn-takeover-text-in) cubic-bezier(0.22, 1, 0.36, 1)
-    var(--ss-turn-takeover-text-in-delay),
-    opacity 140ms linear var(--ss-turn-takeover-text-in-delay);
-}
+  82.2% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
+  }
 
-.ss-leftRailTurnTakeover[data-stage='exiting'] .ss-leftRailTurnTakeover__text {
-  opacity: 0;
-  transform: translate3d(200px, 0, 0);
-  transition:
-    transform var(--ss-turn-takeover-text-out) cubic-bezier(0.33, 1, 0.68, 1),
-    opacity 180ms linear;
+  91.1% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(200px, 0, 0);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ss-leftRailTurnTakeover,
   .ss-leftRailTurnTakeover__wipe,
   .ss-leftRailTurnTakeover__text {
-    transition: none !important;
+    animation-duration: 1ms !important;
   }
 
   .ss-health-delta-pop-in {

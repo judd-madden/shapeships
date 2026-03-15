@@ -17,7 +17,7 @@ import type { LeftRailViewModel, GameSessionActions } from '../../client/useGame
 import { LeftRailScrollArea } from './LeftRailScrollArea';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
-import { TURN_TAKEOVER_TIMING_STYLE, useLeftRailTurnTakeover } from '../graphics/animation';
+import { useLeftRailTurnTakeover } from '../graphics/animation';
 
 interface LeftRailProps {
   vm: LeftRailViewModel;
@@ -117,20 +117,23 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
           <p className="text-white text-[18px] font-medium text-center">{vm.subphase}</p>
         </div>
 
-        <div
-          aria-hidden="true"
-          className="ss-leftRailTurnTakeover"
-          data-active={turnTakeover.stage === 'idle' ? '0' : '1'}
-          data-stage={turnTakeover.stage}
-          style={TURN_TAKEOVER_TIMING_STYLE}
-        >
-          <div className="ss-leftRailTurnTakeover__wipe" />
-          <div className="ss-leftRailTurnTakeover__textWrap">
-            <p className="ss-leftRailTurnTakeover__text font-['Roboto'] text-[60px] leading-none font-black italic">
-              Turn <span className="tracking-tighter">{turnTakeover.turn}</span>
-            </p>
+        {turnTakeover.turn !== null && (
+          <div
+            key={turnTakeover.runKey}
+            aria-hidden="true"
+            className="ss-leftRailTurnTakeover"
+            data-run-key={turnTakeover.runKey}
+            style={turnTakeover.timingStyle}
+            onAnimationEnd={turnTakeover.onOverlayAnimationEnd}
+          >
+            <div className="ss-leftRailTurnTakeover__wipe" />
+            <div className="ss-leftRailTurnTakeover__textWrap">
+              <p className="ss-leftRailTurnTakeover__text font-['Roboto'] text-[60px] leading-none font-black italic">
+                Turn <span className="tracking-tighter">{turnTakeover.turn}</span>
+              </p>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Chat Area (fixed height, scrollable) */}

@@ -13,7 +13,13 @@
  * Animations here are driven by fleet state + UX tokens, NOT rules logic.
  */
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type AnimationEvent,
+  type CSSProperties,
+} from 'react';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 
 // ============================================================================
@@ -289,13 +295,14 @@ export function ShipAnimationWrapper({
 // LEFT RAIL TURN TAKEOVER
 // ============================================================================
 
-export type TurnTakeoverStage = 'idle' | 'pre-enter' | 'entering' | 'hold' | 'exiting';
-
 export interface TurnTakeoverState {
-  stage: TurnTakeoverStage;
-  turn: number;
+  turn: number | null;
+  runKey: number;
+  timingStyle: CSSProperties;
+  onOverlayAnimationEnd: (event: AnimationEvent<HTMLDivElement>) => void;
 }
 
+export const TURN_TAKEOVER_LIFECYCLE_ANIMATION_NAME = 'ssLeftRailTurnTakeoverLifecycle';
 export const TURN_TAKEOVER_WIPE_IN_MS = 280;
 export const TURN_TAKEOVER_TEXT_IN_DELAY_MS = 48;
 export const TURN_TAKEOVER_TEXT_IN_MS = 320;
@@ -311,8 +318,11 @@ export const TURN_TAKEOVER_EXIT_SETTLE_MS = Math.max(
   TURN_TAKEOVER_TEXT_OUT_MS,
   TURN_TAKEOVER_WIPE_OUT_DELAY_MS + TURN_TAKEOVER_WIPE_OUT_MS,
 );
+export const TURN_TAKEOVER_TOTAL_MS =
+  TURN_TAKEOVER_ENTER_SETTLE_MS + TURN_TAKEOVER_HOLD_MS + TURN_TAKEOVER_EXIT_SETTLE_MS;
 
 export const TURN_TAKEOVER_TIMING_STYLE = {
+  '--ss-turn-takeover-total': `${TURN_TAKEOVER_TOTAL_MS}ms`,
   '--ss-turn-takeover-wipe-in': `${TURN_TAKEOVER_WIPE_IN_MS}ms`,
   '--ss-turn-takeover-text-in-delay': `${TURN_TAKEOVER_TEXT_IN_DELAY_MS}ms`,
   '--ss-turn-takeover-text-in': `${TURN_TAKEOVER_TEXT_IN_MS}ms`,
@@ -322,33 +332,9 @@ export const TURN_TAKEOVER_TIMING_STYLE = {
 } as CSSProperties;
 
 export function useLeftRailTurnTakeover(turn: number): TurnTakeoverState {
-  const [turnTakeover, setTurnTakeover] = useState<TurnTakeoverState>({
-    stage: 'idle',
-    turn,
-  });
   const previousTurnRef = useRef<number | null>(null);
-  const turnTakeoverFrameRef = useRef<number | null>(null);
-  const turnTakeoverTimersRef = useRef<Array<ReturnType<typeof window.setTimeout>>>([]);
-  const turnTakeoverSequenceRef = useRef(0);
-
-  function clearTurnTakeoverSequence() {
-    if (turnTakeoverFrameRef.current !== null) {
-      window.cancelAnimationFrame(turnTakeoverFrameRef.current);
-      turnTakeoverFrameRef.current = null;
-    }
-
-    for (const timerId of turnTakeoverTimersRef.current) {
-      window.clearTimeout(timerId);
-    }
-    turnTakeoverTimersRef.current = [];
-  }
-
-  useEffect(() => {
-    return () => {
-      turnTakeoverSequenceRef.current += 1;
-      clearTurnTakeoverSequence();
-    };
-  }, []);
+  const [displayedTurn, setDisplayedTurn] = useState<number | null>(null);
+  const [runKey, setRunKey] = useState(0);
 
   useEffect(() => {
     const nextTurn = turn;
@@ -356,7 +342,6 @@ export function useLeftRailTurnTakeover(turn: number): TurnTakeoverState {
 
     if (previousTurn === null) {
       previousTurnRef.current = nextTurn;
-      setTurnTakeover({ stage: 'idle', turn: nextTurn });
       return;
     }
 
@@ -366,38 +351,26 @@ export function useLeftRailTurnTakeover(turn: number): TurnTakeoverState {
       return;
     }
 
-    clearTurnTakeoverSequence();
-
-    const sequenceId = turnTakeoverSequenceRef.current + 1;
-    turnTakeoverSequenceRef.current = sequenceId;
-
-    const setTurnTakeoverStage = (stage: TurnTakeoverStage) => {
-      if (turnTakeoverSequenceRef.current !== sequenceId) {
-        return;
-      }
-
-      setTurnTakeover({ stage, turn: nextTurn });
-    };
-
-    setTurnTakeoverStage('pre-enter');
-
-    turnTakeoverFrameRef.current = window.requestAnimationFrame(() => {
-      turnTakeoverFrameRef.current = null;
-      setTurnTakeoverStage('entering');
-    });
-
-    turnTakeoverTimersRef.current = [
-      window.setTimeout(() => {
-        setTurnTakeoverStage('hold');
-      }, TURN_TAKEOVER_ENTER_SETTLE_MS),
-      window.setTimeout(() => {
-        setTurnTakeoverStage('exiting');
-      }, TURN_TAKEOVER_ENTER_SETTLE_MS + TURN_TAKEOVER_HOLD_MS),
-      window.setTimeout(() => {
-        setTurnTakeoverStage('idle');
-      }, TURN_TAKEOVER_ENTER_SETTLE_MS + TURN_TAKEOVER_HOLD_MS + TURN_TAKEOVER_EXIT_SETTLE_MS),
-    ];
+    setDisplayedTurn(nextTurn);
+    setRunKey((current) => current + 1);
   }, [turn]);
 
-  return turnTakeover;
+  function onOverlayAnimationEnd(event: AnimationEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    if (event.animationName !== TURN_TAKEOVER_LIFECYCLE_ANIMATION_NAME) {
+      return;
+    }
+
+    setDisplayedTurn(null);
+  }
+
+  return {
+    turn: displayedTurn,
+    runKey,
+    timingStyle: TURN_TAKEOVER_TIMING_STYLE,
+    onOverlayAnimationEnd,
+  };
 }
