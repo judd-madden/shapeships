@@ -154,6 +154,15 @@ function groupedCount(count: number, groupSize: number): number {
 }
 
 /**
+ * During end-of-turn resolution, computed effects are generated before pending
+ * turn totals are applied to player health, so current player.health still
+ * reflects the unresolved turn health used by DSW/AAR for this comparison.
+ */
+function getPhaseStartHealthConditionalAmount(ownerHealth: number, opponentHealth: number): number {
+  return ownerHealth < opponentHealth ? 7 : 3;
+}
+
+/**
  * Tier helpers:
  * - thresholds is ascending, e.g. [1,2,3]
  * - returns 0 if below first threshold, else 1..thresholds.length
@@ -347,6 +356,7 @@ export function computePhaseComputedEffects(
   // Active players only (role === 'player')
   const activePlayers = getActivePlayers(state);
   const opponentMap = getOpponentIdMap(state);
+  const playerById = new Map(activePlayers.map((player) => [player.id, player]));
 
   // Track fired powers for idempotent memory update
   const firedKeys: string[] = [];
@@ -697,6 +707,72 @@ export function computePhaseComputedEffects(
 
       console.log(
         `[computePhaseComputedEffects] AsteriteFace automatic: owner=${ownerPlayerId} instance=${ship.instanceId} opponentTypes=${dmgPerAsteriteFace} dmg=${dmgPerAsteriteFace} target=${opponentId}`
+      );
+    }
+  }
+
+  // === DEFENSE SWARM (DSW) automatic: Heal 3, or Heal 7 if your health is lower than your opponent's ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const opponentId = opponentMap.get(ownerPlayerId);
+    if (!opponentId) continue;
+
+    const opponent = playerById.get(opponentId);
+    if (!opponent) continue;
+
+    const ships = getShips(state, ownerPlayerId);
+    const healPerDefenseSwarm = getPhaseStartHealthConditionalAmount(player.health, opponent.health);
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'DSW') continue;
+
+      computedEffects.push({
+        id: `defenseswarm_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: ownerPlayerId },
+        kind: EffectKind.Heal,
+        amount: healPerDefenseSwarm,
+      });
+
+      console.log(
+        `[computePhaseComputedEffects] DefenseSwarm automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownerHealth=${player.health} opponentHealth=${opponent.health} heal=${healPerDefenseSwarm}`
+      );
+    }
+  }
+
+  // === ANTLION ARRAY (AAR) automatic: Deal 3 damage, or Deal 7 if your health is lower than your opponent's ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const opponentId = opponentMap.get(ownerPlayerId);
+    if (!opponentId) continue;
+
+    const opponent = playerById.get(opponentId);
+    if (!opponent) continue;
+
+    const ships = getShips(state, ownerPlayerId);
+    const damagePerAntlionArray = getPhaseStartHealthConditionalAmount(player.health, opponent.health);
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'AAR') continue;
+
+      computedEffects.push({
+        id: `antlionarray_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: opponentId },
+        kind: EffectKind.Damage,
+        amount: damagePerAntlionArray,
+      });
+
+      console.log(
+        `[computePhaseComputedEffects] AntlionArray automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownerHealth=${player.health} opponentHealth=${opponent.health} dmg=${damagePerAntlionArray} target=${opponentId}`
       );
     }
   }
