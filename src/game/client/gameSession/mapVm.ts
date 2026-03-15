@@ -87,6 +87,16 @@ export function mapGameSessionVm(args: {
   isFinished: boolean;
   mySpeciesId: SpeciesId | null;
   opponentSpeciesId: SpeciesId | null;
+  winnerPlayerId: string | null;
+  resultReason:
+    | 'decisive'
+    | 'narrow'
+    | 'mutual_destruction'
+    | 'resignation'
+    | 'timeout'
+    | 'timeout_draw'
+    | 'agreement'
+    | null;
   
   // Ready UX state (SENDING/WAITING labels)
   readyUx: { clickedThisPhase: boolean; sendingNow: boolean };
@@ -148,6 +158,8 @@ export function mapGameSessionVm(args: {
     isFinished,
     mySpeciesId,
     opponentSpeciesId,
+    winnerPlayerId,
+    resultReason,
     readyUx,
     availableActions,
     selectedChoiceIdBySourceInstanceId,
@@ -228,28 +240,87 @@ export function mapGameSessionVm(args: {
         return 'var(--shapeships-pastel-blue)';
     }
   }
+
+  function normalizeSpecies(species: unknown): SpeciesId | null {
+    switch (typeof species === 'string' ? species.toLowerCase() : null) {
+      case 'human':
+        return 'human';
+      case 'xenite':
+        return 'xenite';
+      case 'centaur':
+        return 'centaur';
+      case 'ancient':
+        return 'ancient';
+      default:
+        return null;
+    }
+  }
   
   // ============================================================================
   // E6) RESULT HEADLINE TEXT RULES
   // ============================================================================
-  
-  // Stub: default to 'win' for testing (engine will wire later)
-  const resultKind: 'win' | 'draw_agreement' | 'draw_mutual_destruction' = 'win';
-  
+
+  const winnerPlayer = winnerPlayerId
+    ? allPlayers.find((player: any) =>
+        player?.id === winnerPlayerId ||
+        player?.playerId === winnerPlayerId ||
+        player?.sessionId === winnerPlayerId
+      ) ?? null
+    : null;
+  const meIdentityKey = me?.playerId ?? me?.id ?? me?.sessionId ?? null;
+  const opponentIdentityKey = opponent?.playerId ?? opponent?.id ?? opponent?.sessionId ?? null;
+  const winnerName = winnerPlayer?.name
+    ?? (winnerPlayerId && winnerPlayerId === meIdentityKey ? me?.name : undefined)
+    ?? (winnerPlayerId && winnerPlayerId === opponentIdentityKey ? opponent?.name : undefined)
+    ?? 'Unknown player';
+  const winnerSpeciesId =
+    winnerPlayerId && winnerPlayerId === meIdentityKey
+      ? mySpeciesId
+      : winnerPlayerId && winnerPlayerId === opponentIdentityKey
+        ? opponentSpeciesId
+        : normalizeSpecies(winnerPlayer?.faction ?? winnerPlayer?.species);
+
   let bannerText: string;
   let bannerBgCssVar: string;
-  
-  if (resultKind === 'win') {
-    // Default to "me" winning for testing
-    bannerText = `Decisive Victory! ${myName} wins!`;
-    bannerBgCssVar = speciesToBannerBgCssVar(mySpeciesId);
-  } else if (resultKind === 'draw_agreement') {
-    bannerText = 'Draw by agreement! Live long and prosper.';
-    bannerBgCssVar = 'var(--shapeships-grey-50)';
-  } else {
-    // draw_mutual_destruction
-    bannerText = 'Draw! You both blew up.';
-    bannerBgCssVar = 'var(--shapeships-grey-50)';
+
+  switch (resultReason) {
+    case 'decisive':
+      bannerText = `Decisive Victory! ${winnerName} wins!`;
+      bannerBgCssVar = speciesToBannerBgCssVar(winnerSpeciesId);
+      break;
+    case 'narrow':
+      bannerText = `Narrow Victory! ${winnerName} wins!`;
+      bannerBgCssVar = speciesToBannerBgCssVar(winnerSpeciesId);
+      break;
+    case 'timeout':
+      bannerText = `Time Victory! ${winnerName} wins!`;
+      bannerBgCssVar = speciesToBannerBgCssVar(winnerSpeciesId);
+      break;
+    case 'resignation':
+      bannerText = `Victory! ${winnerName} wins!`;
+      bannerBgCssVar = speciesToBannerBgCssVar(winnerSpeciesId);
+      break;
+    case 'agreement':
+      bannerText = 'Draw by agreement! Live long and prosper.';
+      bannerBgCssVar = 'var(--shapeships-grey-50)';
+      break;
+    case 'mutual_destruction':
+      bannerText = 'Draw! You both blew up.';
+      bannerBgCssVar = 'var(--shapeships-grey-50)';
+      break;
+    case 'timeout_draw':
+      bannerText = 'Draw! Time expired.';
+      bannerBgCssVar = 'var(--shapeships-grey-50)';
+      break;
+    default:
+      if (winnerPlayerId) {
+        bannerText = `Victory! ${winnerName} wins!`;
+        bannerBgCssVar = speciesToBannerBgCssVar(winnerSpeciesId);
+      } else {
+        bannerText = 'Draw!';
+        bannerBgCssVar = 'var(--shapeships-grey-50)';
+      }
+      break;
   }
   
   // ============================================================================

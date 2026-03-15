@@ -358,6 +358,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const isFinished =
     rawState?.status === 'finished' ||
     rawState?.gameData?.status === 'finished';
+  const terminalWinnerPlayerId = rawState?.winnerPlayerId ?? null;
+  const terminalResultReason = rawState?.resultReason ?? null;
 
   // Keep result text minimal and TDZ-safe.
   // (Winner mapping can be added later, but do not depend on me/opponent here.)
@@ -1667,6 +1669,8 @@ useEffect(() => {
     isFinished,
     mySpeciesId: mySpecies,
     opponentSpeciesId: opponentSpecies,
+    winnerPlayerId: terminalWinnerPlayerId,
+    resultReason: terminalResultReason,
     
     // Ready UX state (SENDING/WAITING labels)
     readyUx: readyUxForCurrentPhase,
