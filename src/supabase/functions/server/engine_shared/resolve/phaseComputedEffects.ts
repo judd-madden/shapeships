@@ -138,63 +138,69 @@ const XENITE_FAMILY_DEF_IDS = new Set(['XEN', 'OXI', 'AST']);
 const shipDefinitionsById = new Map(
   SHIP_DEFINITIONS_CORE_SERVER.map((shipDef) => [shipDef.id, shipDef])
 );
-const xeniteContributionByShipDefId = new Map<string, number>();
+const embeddedXeniteFamilyCountByUpgradedShipDefId = new Map<string, number>();
 
 function normalizeComponentShipDefId(componentShipDefId: string): string {
   const suffixStart = componentShipDefId.indexOf('(');
   return suffixStart >= 0 ? componentShipDefId.slice(0, suffixStart) : componentShipDefId;
 }
 
-/**
- * Canonical easy-mapper Xenite count for MAN/HEL:
- * - literal XEN/OXI/AST each contribute 1
- * - upgraded ships contribute the Xenite-family requirements encoded in the
- *   canonical server ship definitions
- *
- * This intentionally does NOT implement later global counting-rule overrides
- * such as Hive behavior; it is only the local count input for MAN/HEL.
- */
-function getXeniteContributionForShipDefId(shipDefId: string, visiting = new Set<string>()): number {
-  const cached = xeniteContributionByShipDefId.get(shipDefId);
-  if (typeof cached === 'number') return cached;
-
-  if (XENITE_FAMILY_DEF_IDS.has(shipDefId)) {
-    xeniteContributionByShipDefId.set(shipDefId, 1);
-    return 1;
-  }
-
-  if (visiting.has(shipDefId)) {
-    throw new Error(
-      `[computePhaseComputedEffects] Circular ship component dependency while counting Xenites for "${shipDefId}".`
-    );
-  }
-
+function getShipDefinitionOrThrow(shipDefId: string) {
   const shipDef = shipDefinitionsById.get(shipDefId);
   if (!shipDef) {
     throw new Error(
-      `[computePhaseComputedEffects] Missing canonical ship definition for "${shipDefId}" while counting Xenites.`
+      `[computePhaseComputedEffects] Missing canonical ship definition for "${shipDefId}".`
     );
   }
+  return shipDef;
+}
 
-  visiting.add(shipDefId);
-
+function countLiteralXeniteFamilyShips(ships: ShipInstance[]): number {
   let total = 0;
-  for (const componentShipDefId of shipDef.componentShips) {
-    total += getXeniteContributionForShipDefId(
-      normalizeComponentShipDefId(componentShipDefId),
-      visiting
-    );
+  for (const ship of ships) {
+    if (XENITE_FAMILY_DEF_IDS.has(ship.shipDefId)) total++;
   }
-
-  visiting.delete(shipDefId);
-  xeniteContributionByShipDefId.set(shipDefId, total);
   return total;
 }
 
-function countEffectiveXenites(ships: ShipInstance[]): number {
+// HVE counts embedded Xenite-family components by reading canonical upgraded-ship recipes.
+function countEmbeddedXeniteFamilyComponentsForUpgradedShipDefId(shipDefId: string): number {
+  const cached = embeddedXeniteFamilyCountByUpgradedShipDefId.get(shipDefId);
+  if (typeof cached === 'number') return cached;
+
+  const shipDef = getShipDefinitionOrThrow(shipDefId);
+  if (shipDef.shipType !== 'Upgraded') {
+    embeddedXeniteFamilyCountByUpgradedShipDefId.set(shipDefId, 0);
+    return 0;
+  }
+
   let total = 0;
-  for (const ship of ships) total += getXeniteContributionForShipDefId(ship.shipDefId);
+  for (const componentShipDefId of shipDef.componentShips) {
+    if (XENITE_FAMILY_DEF_IDS.has(normalizeComponentShipDefId(componentShipDefId))) {
+      total++;
+    }
+  }
+
+  embeddedXeniteFamilyCountByUpgradedShipDefId.set(shipDefId, total);
   return total;
+}
+
+function countEmbeddedXeniteFamilyComponentsInUpgradedShips(ships: ShipInstance[]): number {
+  let total = 0;
+  for (const ship of ships) {
+    total += countEmbeddedXeniteFamilyComponentsForUpgradedShipDefId(ship.shipDefId);
+  }
+  return total;
+}
+
+// MAN/HEL always count literal XEN/OXI/AST, and only add embedded upgraded-ship
+// Xenite-family components when the owner has at least one HVE.
+function countEffectiveXenitesForPowers(ships: ShipInstance[]): number {
+  const literalXeniteFamilyShips = countLiteralXeniteFamilyShips(ships);
+  const hasHive = countByDefId(ships, 'HVE') > 0;
+  if (!hasHive) return literalXeniteFamilyShips;
+
+  return literalXeniteFamilyShips + countEmbeddedXeniteFamilyComponentsInUpgradedShips(ships);
 }
 
 /**
@@ -660,7 +666,7 @@ export function computePhaseComputedEffects(
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
     const ships = getShips(state, ownerPlayerId);
-    const effectiveXenites = countEffectiveXenites(ships);
+    const effectiveXenites = countEffectiveXenitesForPowers(ships);
     const healPerMantis = Math.min(groupedCount(effectiveXenites, 2), 10);
 
     if (healPerMantis <= 0) continue;
@@ -693,7 +699,7 @@ export function computePhaseComputedEffects(
     if (!opponentId) continue;
 
     const ships = getShips(state, ownerPlayerId);
-    const effectiveXenites = countEffectiveXenites(ships);
+    const effectiveXenites = countEffectiveXenitesForPowers(ships);
     const dmgPerHellHornet = groupedCount(effectiveXenites, 2);
 
     if (dmgPerHellHornet <= 0) continue;
@@ -715,6 +721,50 @@ export function computePhaseComputedEffects(
 
       console.log(
         `[computePhaseComputedEffects] HellHornet automatic: owner=${ownerPlayerId} instance=${ship.instanceId} effectiveXenites=${effectiveXenites} dmg=${dmgPerHellHornet} target=${opponentId}`
+      );
+    }
+  }
+
+  // === HIVE (HVE) automatic: Deal 1 damage and Heal 1 for each of your ships ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const opponentId = opponentMap.get(ownerPlayerId);
+    const ships = getShips(state, ownerPlayerId);
+    const ownedShipCount = countTotalShips(ships);
+
+    if (ownedShipCount <= 0) continue;
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'HVE') continue;
+
+      if (opponentId) {
+        computedEffects.push({
+          id: `hive_damage_${currentTurn}_${ship.instanceId}`,
+          ownerPlayerId,
+          source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+          timing: phaseKey,
+          activationTag: EffectTiming.Automatic,
+          survivability: SurvivabilityRule.DiesWithSource,
+          target: { playerId: opponentId },
+          kind: EffectKind.Damage,
+          amount: ownedShipCount,
+        });
+      }
+
+      computedEffects.push({
+        id: `hive_heal_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: ownerPlayerId },
+        kind: EffectKind.Heal,
+        amount: ownedShipCount,
+      });
+
+      console.log(
+        `[computePhaseComputedEffects] Hive automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownedShips=${ownedShipCount}${opponentId ? ` dmg=${ownedShipCount} target=${opponentId}` : ''} heal=${ownedShipCount}`
       );
     }
   }
