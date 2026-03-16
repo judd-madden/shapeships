@@ -525,48 +525,6 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   ],
 
   // ==========================================================================
-  // BUG BREEDER (BUG)
-  // ==========================================================================
-  // Choice power in build.ships_that_build:
-  // - xenite: SpendCharge(1) + CreateShip('XEN')
-  // - hold:   no effect
-  'BUG#0': [
-    {
-      type: 'choice',
-      timings: ['build.ships_that_build'],
-      requiresCharge: true,
-      chargeCost: 1,
-      options: [
-        {
-          choiceId: 'xenite',
-          label: '',
-          effects: [
-            {
-              type: 'effect',
-              timings: [],
-              kind: EffectKind.SpendCharge,
-              amount: 1,
-              targetPlayer: 'self',
-            },
-            {
-              type: 'effect',
-              timings: [],
-              kind: EffectKind.CreateShip,
-              shipDefId: 'XEN',
-              targetPlayer: 'self',
-            },
-          ],
-        },
-        {
-          choiceId: 'hold',
-          label: '',
-          effects: [],
-        },
-      ],
-    },
-  ],
-
-  // ==========================================================================
   // SACRIFICIAL POOL (SAC)
   // ==========================================================================
   // Choice power in build.ships_that_build:

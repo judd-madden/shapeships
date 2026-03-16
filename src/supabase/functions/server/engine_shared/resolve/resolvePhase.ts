@@ -113,6 +113,65 @@ function collectQueenAutoBuildEffects(
   return effects;
 }
 
+function collectBugBreederAutoBuildEffects(
+  state: GameState,
+  phaseKey: PhaseKey
+): Effect[] {
+  const currentTurn =
+    state.gameData?.turnData?.turnNumber ??
+    state.gameData?.turnNumber ??
+    1;
+
+  const activePlayers = state.players.filter((player) => player.role === 'player');
+  const effects: Effect[] = [];
+
+  for (const player of activePlayers) {
+    const fleet = state.gameData.ships?.[player.id] || [];
+    const eligibleBugBreeders = fleet.filter(
+      (ship) =>
+        ship.shipDefId === 'BUG' &&
+        (ship.createdTurn ?? 0) < currentTurn &&
+        (ship.chargesCurrent ?? 0) >= 1
+    );
+
+    for (const bugBreeder of eligibleBugBreeders) {
+      effects.push({
+        id: `bug_build_${currentTurn}_${bugBreeder.instanceId}_charge`,
+        ownerPlayerId: player.id,
+        source: {
+          type: 'ship',
+          instanceId: bugBreeder.instanceId,
+          shipDefId: bugBreeder.shipDefId,
+        },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        target: { playerId: player.id },
+        survivability: SurvivabilityRule.DiesWithSource,
+        kind: EffectKind.SpendCharge,
+        amount: 1,
+      });
+
+      effects.push({
+        id: `bug_build_${currentTurn}_${bugBreeder.instanceId}_xenite`,
+        ownerPlayerId: player.id,
+        source: {
+          type: 'ship',
+          instanceId: bugBreeder.instanceId,
+          shipDefId: bugBreeder.shipDefId,
+        },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        target: { playerId: player.id },
+        survivability: SurvivabilityRule.DiesWithSource,
+        kind: EffectKind.CreateShip,
+        shipDefId: 'XEN',
+      });
+    }
+  }
+
+  return effects;
+}
+
 function collectZenithAutoBuildEffects(
   state: GameState,
   phaseKey: PhaseKey
@@ -254,6 +313,7 @@ function resolveShipsThatBuild(
   // Collect all effects from all ships
   const effects = [
     ...collectEffectsForPhase(state, phaseKey),
+    ...collectBugBreederAutoBuildEffects(state, phaseKey),
     ...collectQueenAutoBuildEffects(state, phaseKey),
     ...collectZenithAutoBuildEffects(state, phaseKey),
   ];

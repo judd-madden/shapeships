@@ -568,7 +568,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Ships That Build",
-        "text": "Has 4 charges. In each future build phase, may:\\n- Make a Xenite (use 1 charge)"
+        "text": "Each future build phase, this makes 1 Xenite and uses 1 charge, until all charges are used."
       }
     ],
     "energyCost": null,

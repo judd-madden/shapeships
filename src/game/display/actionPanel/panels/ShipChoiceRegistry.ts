@@ -182,24 +182,6 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
     kind: 'buttons',
     groups: [
       {
-        kind: 'counted',
-        shipDefId: 'BUG',
-        headingTemplate: '{count} Bug Breeders with charges available',
-        buttons: [
-          {
-            size: 'large',
-            label: 'Make Xenite',
-            detail: '(1 charge)',
-            choiceId: 'xenite',
-          },
-          {
-            size: 'small',
-            label: 'Hold Charge',
-            choiceId: 'hold',
-          },
-        ],
-      },
-      {
         kind: 'named',
         heading: 'Sacrificial Pool',
         ships: [
