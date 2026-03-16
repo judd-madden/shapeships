@@ -717,8 +717,13 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
           {/* Bonus */}
           <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Bonus Group">
             <div className="content-stretch flex gap-[4px] items-center justify-end relative shrink-0 w-[100px]" data-name="P1 Bonuses">
-              {/* TODO (Centaur pass): show secondary label like "on EVEN" only for Centaur bonus-line rules */}
-              <Metric value={String(vm.myBonusLines ?? 0)} label="Lines" align="right" toneClass="text-[#62fff6]" />
+              <Metric
+                value={String(vm.myBonusLines ?? 0)}
+                label="LINES"
+                label2={mySpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
+                align="right"
+                toneClass="text-[#62fff6]"
+              />
               {/* Joining lines, will turn on if player has bonus joining lines */}
               {/* <Metric value="0" label="JOINING" label2="LINES" align="right" toneClass="text-[#62fff6]" /> */}
             </div>
@@ -733,7 +738,13 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             </div>
 
             <div className="content-stretch flex gap-[4px] items-start relative shrink-0 w-[100px]" data-name="P2 Bonuses">
-              <Metric value={String(vm.opponentBonusLines ?? 0)} label="Lines" align="left" toneClass="text-[#62fff6]" />
+              <Metric
+                value={String(vm.opponentBonusLines ?? 0)}
+                label="LINES"
+                label2={opponentSpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
+                align="left"
+                toneClass="text-[#62fff6]"
+              />
               {/* Joining lines, will turn on if player has bonus joining lines */}
               {/* <Metric value="0" label="JOINING" label2="LINES" align="left" toneClass="text-[#62fff6]" /> */}
             </div>

@@ -27,6 +27,12 @@
  * - ASF (Asterite Face): +1 line per instance (uncapped)
  *   - Power: "Generate an additional line in each future build phase."
  *   - Subphase: "Line Generation"
+ * - VIG (Ship of Vigor): +2 lines per instance on even effective dice (capped by shipDef.maxQuantity)
+ *   - Power: "Each future build phase, if dice roll is even (2, 4, 6) generate TWO additional lines."
+ *   - Subphase: "Line Generation"
+ * - POW (Ark of Power): +4 lines per instance on even effective dice (capped by shipDef.maxQuantity)
+ *   - Power: "Each future build phase, if dice roll is even (2, 4, 6) generate FOUR additional lines."
+ *   - Subphase: "Line Generation"
  * 
  * FUTURE: Structured powers overlay for bonus lines
  * When structured powers expand beyond DEF/FIG, this function should:
@@ -70,14 +76,6 @@ const BONUS_LINES_PER_SHIP: Record<string, number> = {
  *   If the player has at least 3x SCI in their fleet, gain bonus lines equal to the dice roll this turn.
  *   (Triggers once when threshold is met; not per additional SCI beyond 3, unless rules change.)
  *
- * - VIG (Ship of Vigor):
- *   Gain +2 bonus lines when the dice roll is EVEN this turn.
- *   (Clarify later whether multiple VIG stack; for now treat as a future decision.)
- *
- * - POW (Ark of Power):
- *   Gain +4 bonus lines when the dice roll is EVEN this turn.
- *   (Clarify later whether multiple POW stack; for now treat as a future decision.)
- *
  * FUTURE: JOINING LINES (CENTAUR) (NOT IMPLEMENTED YET)
  *
  * Joining lines are a separate resource from bonus lines and likely need separate computation/projection.
@@ -113,6 +111,17 @@ function getEffectiveDiceRollFromGameData(gameData: any, playerId: string): numb
   return typeof roll === 'number' ? roll : undefined;
 }
 
+function getCappedContributingCount(shipDefId: string, count: number): number {
+  const shipDef = getShipById(shipDefId);
+  if (!shipDef) {
+    console.warn(`[computeLineBonusForPlayer] Unknown shipDefId: ${shipDefId}, skipping`);
+    return 0;
+  }
+
+  const maxQuantity = shipDef.maxQuantity;
+  return typeof maxQuantity === 'number' ? Math.min(count, maxQuantity) : count;
+}
+
 export function computeLineBonusForPlayer(gameData: any, playerId: string): number {
   // Get player's ship instances from gameData (supports both state shapes)
   const ships =
@@ -131,6 +140,10 @@ export function computeLineBonusForPlayer(gameData: any, playerId: string): numb
     const shipDefId = shipInstance.shipDefId;
     shipCounts[shipDefId] = (shipCounts[shipDefId] || 0) + 1;
   }
+
+  const effectiveDiceRoll = getEffectiveDiceRollFromGameData(gameData, playerId);
+  const hasEvenEffectiveDiceRoll =
+    typeof effectiveDiceRoll === 'number' && effectiveDiceRoll % 2 === 0;
   
   // Compute total bonus lines
   let totalBonus = 0;
@@ -143,32 +156,33 @@ export function computeLineBonusForPlayer(gameData: any, playerId: string): numb
       continue;
     }
     
-    // Get maxQuantity from ship definitions (cap for this ship type)
-    const shipDef = getShipById(shipDefId);
-    if (!shipDef) {
-      console.warn(`[computeLineBonusForPlayer] Unknown shipDefId: ${shipDefId}, skipping`);
-      continue;
-    }
-    
-    const maxQuantity = shipDef.maxQuantity;
-    
     // Apply cap from ship definition if defined, otherwise treat as uncapped
-    const effectiveCount = typeof maxQuantity === 'number' ? Math.min(count, maxQuantity) : count;
+    const effectiveCount = getCappedContributingCount(shipDefId, count);
+    if (effectiveCount <= 0) continue;
     
     // Add bonus contribution
     const bonus = bonusPerShip * effectiveCount;
     totalBonus += bonus;
   }
-  
 
+  if (hasEvenEffectiveDiceRoll) {
+    const vigorCount = shipCounts.VIG ?? 0;
+    if (vigorCount > 0) {
+      totalBonus += 2 * getCappedContributingCount('VIG', vigorCount);
+    }
+
+    const powerArkCount = shipCounts.POW ?? 0;
+    if (powerArkCount > 0) {
+      totalBonus += 4 * getCappedContributingCount('POW', powerArkCount);
+    }
+  }
 
   // === SCIENCE VESSEL (SCI) tier 3: gain bonus lines equal to effective dice roll (does not modify dice)
   // Implemented here (Option A) as part of line bonus computation.
   const sciTier = getCopyTierFromFleet(ships, 'SCI', 3);
   if (sciTier >= 3) {
-    const roll = getEffectiveDiceRollFromGameData(gameData, playerId);
-    if (typeof roll === 'number') {
-      totalBonus += roll;
+    if (typeof effectiveDiceRoll === 'number') {
+      totalBonus += effectiveDiceRoll;
     }
   }
 

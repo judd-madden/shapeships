@@ -34,7 +34,7 @@ export type ShipPowerKey = `${string}#${number}`;
  * Current coverage includes:
  * - Human: DEF, FIG, BAT, INT, GUA, CAR, DRE, LEV, FRI
  * - Xenite: OXI, AST, ANT, BUG
- * - Centaur: WIS, ENT
+ * - Centaur: WIS, ENT, POW
  */
 export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPower[]> = {
   // ==========================================================================
@@ -495,6 +495,31 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
       timings: ['battle.end_of_turn_resolution'],
       kind: EffectKind.Damage,
       amount: 4,
+      targetPlayer: 'self',
+    },
+  ],
+
+  // ==========================================================================
+  // ARK OF POWER (POW)
+  // ==========================================================================
+  // JSON power index 1: "Deal 2 damage." (Automatic)
+  'POW#1': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Damage,
+      amount: 2,
+      targetPlayer: 'opponent',
+    },
+  ],
+
+  // JSON power index 2: "Heal 3." (Automatic)
+  'POW#2': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Heal,
+      amount: 3,
       targetPlayer: 'self',
     },
   ],
