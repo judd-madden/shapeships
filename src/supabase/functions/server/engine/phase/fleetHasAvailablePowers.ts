@@ -80,6 +80,59 @@ function shipHasInteractiveShipsThatBuildChoice(
   return false;
 }
 
+function shipHasInteractiveTargetedDestroyChoice(
+  state: any,
+  playerId: string,
+  ship: any,
+  phaseKey: PhaseKey
+): boolean | null {
+  const shipDef = getShipDefinition(ship?.shipDefId);
+  if (!shipDef?.structuredPowers) return null;
+
+  let foundTargetedDestroyChoice = false;
+
+  for (const power of shipDef.structuredPowers) {
+    if (power.type !== 'choice') continue;
+    if (!power.timings.includes(phaseKey)) continue;
+
+    const chargesCurrent = Number(ship?.chargesCurrent ?? 0);
+    const eligibleChoices = power.options.filter((option) => {
+      if (option.choiceId === 'hold') return true;
+
+      const requiresCharge = (option.requiresCharge ?? false) || (power.requiresCharge ?? false);
+      if (!requiresCharge) return true;
+
+      const chargeCost = option.chargeCost ?? power.chargeCost ?? 1;
+      return chargesCurrent >= chargeCost;
+    });
+
+    const nonHoldChoices = eligibleChoices.filter((option) => option.choiceId !== 'hold');
+    if (nonHoldChoices.length === 0) continue;
+
+    const destroyOption = nonHoldChoices.find((option) =>
+      option.effects.some((effect) => effect.kind === EffectKind.Destroy)
+    );
+
+    if (!destroyOption) continue;
+    foundTargetedDestroyChoice = true;
+
+    const destroyEffect = destroyOption.effects.find((effect) => effect.kind === EffectKind.Destroy);
+    if (!destroyEffect) continue;
+
+    const validTargets = getValidDestroyTargets(state, {
+      sourcePlayerId: playerId,
+      targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
+      restriction: destroyEffect.restriction ?? 'any',
+    });
+
+    if (validTargets.length > 0) {
+      return true;
+    }
+  }
+
+  return foundTargetedDestroyChoice ? false : null;
+}
+
 /**
  * Returns true if the given player has at least one fleet power
  * that is eligible to act in the current phase.
@@ -110,6 +163,23 @@ export function fleetHasAvailablePowers(
         return true;
       }
       continue;
+    }
+
+    if (phaseKey === 'battle.first_strike') {
+      const targetedDestroyAvailability = shipHasInteractiveTargetedDestroyChoice(
+        state,
+        playerId,
+        ship,
+        phaseKey
+      );
+
+      if (targetedDestroyAvailability === true) {
+        return true;
+      }
+
+      if (targetedDestroyAvailability === false) {
+        continue;
+      }
     }
 
     const def = getShipById(ship.shipDefId);

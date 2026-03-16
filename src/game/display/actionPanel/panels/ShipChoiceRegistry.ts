@@ -190,10 +190,12 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
             size: 'large',
             label: 'Make Xenite',
             detail: '(1 charge)',
+            choiceId: 'xenite',
           },
           {
             size: 'small',
             label: 'Hold Charge',
+            choiceId: 'hold',
           },
         ],
       },

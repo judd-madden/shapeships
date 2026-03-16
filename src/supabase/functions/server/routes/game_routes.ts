@@ -215,6 +215,10 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
           minimumFullLineCost: shipDefId === 'SAC' ? 3 : undefined,
         });
 
+        if (validTargets.length === 0) {
+          continue;
+        }
+
         actions.push({
           kind: 'destroy_target',
           actionId: `${shipDefId}#${powerIndex}`,

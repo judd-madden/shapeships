@@ -7,6 +7,7 @@
 import { getShipDefinitionById } from '../../data/ShipDefinitions.engine';
 import { isShipDefId } from '../../data/ShipDefinitions.core';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
+import type { PublicVisibleShipSnapshot } from './publicShipSnapshot';
 
 interface BoardFleetSummary {
   shipDefId: ShipDefId;
@@ -123,8 +124,16 @@ export function deriveFleets(args: {
   opponent: any;
   turnNumber: number;
   majorPhase: string;
+  lastKnownOpponentShipsVisible?: ReadonlyArray<Readonly<PublicVisibleShipSnapshot>> | null;
 }) {
-  const { rawState, me, opponent, turnNumber, majorPhase } = args;
+  const {
+    rawState,
+    me,
+    opponent,
+    turnNumber,
+    majorPhase,
+    lastKnownOpponentShipsVisible,
+  } = args;
   
 
   const frigateTriggerByInstanceId =
@@ -147,7 +156,7 @@ export function deriveFleets(args: {
   // Opponent visibility rule:
   // - Always show opponent ships from prior turns
   // - Hide opponent ships created this turn until battle
-  const opponentShipsVisible = opponentShips.filter((ship: any) => {
+  const opponentShipsAuthoritativeVisible = opponentShips.filter((ship: any) => {
     const createdTurn = ship?.createdTurn;
     // If createdTurn is missing, treat as "old" (visible). This avoids accidental hiding due to incomplete data.
     if (typeof createdTurn !== 'number') return true;
@@ -155,6 +164,13 @@ export function deriveFleets(args: {
     // createdTurn === turnNumber -> visible only in battle
     return isInBattlePhase;
   });
+
+  // Outside battle, keep rendering the last public opponent snapshot if we have one.
+  // This prevents hidden current-turn removals from leaking before their paired build outcomes reveal.
+  const opponentShipsVisible =
+    !isInBattlePhase && Array.isArray(lastKnownOpponentShipsVisible)
+      ? lastKnownOpponentShipsVisible
+      : opponentShipsAuthoritativeVisible;
   
   // Aggregate fleet summaries with charge-aware stacking
   function aggregateFleet(ships: any[]): BoardFleetSummary[] {
@@ -239,6 +255,7 @@ export function deriveFleets(args: {
   return {
     myShips,
     opponentShips,
+    opponentShipsAuthoritativeVisible,
     opponentShipsVisible,
     myFleet,
     opponentFleet,
