@@ -38,10 +38,6 @@ import { getMajorPhaseLabel, getSubphaseLabelFromPhaseKey } from './gameSession/
 import { getPhaseKey, getTurnNumber, formatClock, formatClockMs, getClockData } from './gameSession/selectors';
 import { deriveIdentity } from './gameSession/identity';
 import { deriveFleets } from './gameSession/fleets';
-import {
-  createPublicVisibleShipSnapshots,
-  type PublicVisibleShipSnapshot,
-} from './gameSession/publicShipSnapshot';
 import { appendEventsToTape, formatTapeEntry } from './gameSession/eventTape';
 import { usePhaseCommitCache } from './gameSession/commitCache';
 import { mapGameSessionVm } from './gameSession/mapVm';
@@ -196,9 +192,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Track previous opponent fleet IDs for entry animation stagger
   const prevOpponentFleetIdsRef = useRef<Set<string>>(new Set());
-  const lastPublicOpponentShipsVisibleRef = useRef<
-    ReadonlyArray<Readonly<PublicVisibleShipSnapshot>> | null
-  >(null);
   
   // Tick driver for smooth clock display (forces rerenders)
   const [clockTick, setClockTick] = useState(0);
@@ -526,10 +519,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // ============================================================================
   // GAME LOGIC - USE ME/OPPONENT (NOT LEFT/RIGHT)
   // ============================================================================
-
-  useEffect(() => {
-    lastPublicOpponentShipsVisibleRef.current = null;
-  }, [effectiveGameId, opponent?.id]);
   
   // Phase data
   const phaseKey = rawState ? getPhaseKey(rawState) : 'unknown';
@@ -661,42 +650,13 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // SHIP OWNERSHIP (ME/OPPONENT)
   // ============================================================================
   
-  const {
-    myShips,
-    opponentShips,
-    opponentShipsAuthoritativeVisible,
-    opponentShipsVisible,
-    myFleet,
-    opponentFleet,
-  } = deriveFleets({
+  const { myShips, opponentShips, opponentShipsVisible, myFleet, opponentFleet } = deriveFleets({
     rawState,
     me,
     opponent,
     turnNumber,
     majorPhase,
-    lastKnownOpponentShipsVisible: lastPublicOpponentShipsVisibleRef.current,
   });
-
-  useEffect(() => {
-    if (!opponent?.id) {
-      lastPublicOpponentShipsVisibleRef.current = null;
-      return;
-    }
-
-    const hasRecoverableEmptyPublicOpponentCache =
-      Array.isArray(lastPublicOpponentShipsVisibleRef.current) &&
-      lastPublicOpponentShipsVisibleRef.current.length === 0 &&
-      opponentShipsAuthoritativeVisible.length > 0;
-
-    if (
-      majorPhase === 'battle' ||
-      lastPublicOpponentShipsVisibleRef.current == null ||
-      hasRecoverableEmptyPublicOpponentCache
-    ) {
-      lastPublicOpponentShipsVisibleRef.current =
-        createPublicVisibleShipSnapshots(opponentShipsAuthoritativeVisible);
-    }
-  }, [majorPhase, opponent?.id, opponentShipsAuthoritativeVisible]);
 
   const frigateTriggerByInstanceId =
     rawState?.gameData?.powerMemory?.frigateTriggerByInstanceId ?? {};
