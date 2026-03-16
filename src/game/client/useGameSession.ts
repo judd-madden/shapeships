@@ -683,7 +683,16 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       return;
     }
 
-    if (majorPhase === 'battle' || lastPublicOpponentShipsVisibleRef.current == null) {
+    const hasRecoverableEmptyPublicOpponentCache =
+      Array.isArray(lastPublicOpponentShipsVisibleRef.current) &&
+      lastPublicOpponentShipsVisibleRef.current.length === 0 &&
+      opponentShipsAuthoritativeVisible.length > 0;
+
+    if (
+      majorPhase === 'battle' ||
+      lastPublicOpponentShipsVisibleRef.current == null ||
+      hasRecoverableEmptyPublicOpponentCache
+    ) {
       lastPublicOpponentShipsVisibleRef.current =
         createPublicVisibleShipSnapshots(opponentShipsAuthoritativeVisible);
     }

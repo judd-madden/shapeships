@@ -166,9 +166,15 @@ export function deriveFleets(args: {
   });
 
   // Outside battle, keep rendering the last public opponent snapshot if we have one.
+  // Empty caches are treated as recoverable stale state so they cannot suppress a
+  // newly visible authoritative fleet after later refreshes.
+  const hasUsableLastKnownOpponentShipsVisible =
+    Array.isArray(lastKnownOpponentShipsVisible) &&
+    lastKnownOpponentShipsVisible.length > 0;
+
   // This prevents hidden current-turn removals from leaking before their paired build outcomes reveal.
   const opponentShipsVisible =
-    !isInBattlePhase && Array.isArray(lastKnownOpponentShipsVisible)
+    !isInBattlePhase && hasUsableLastKnownOpponentShipsVisible
       ? lastKnownOpponentShipsVisible
       : opponentShipsAuthoritativeVisible;
   
