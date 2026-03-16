@@ -12,6 +12,7 @@
  */
 
 import type { GameState, ShipInstance } from '../../engine/state/GameStateTypes.ts';
+import { SHIP_DEFINITIONS_CORE_SERVER } from '../defs/ShipDefinitions.core.ts';
 import type { PhaseKey } from '../phase/PhaseTable.ts';
 import type { Effect } from '../effects/Effect.ts';
 import { EffectTiming, EffectKind, SurvivabilityRule } from '../effects/Effect.ts';
@@ -131,6 +132,69 @@ function countByDefId(ships: ShipInstance[], shipDefId: string): number {
   let n = 0;
   for (const s of ships) if (s.shipDefId === shipDefId) n++;
   return n;
+}
+
+const XENITE_FAMILY_DEF_IDS = new Set(['XEN', 'OXI', 'AST']);
+const shipDefinitionsById = new Map(
+  SHIP_DEFINITIONS_CORE_SERVER.map((shipDef) => [shipDef.id, shipDef])
+);
+const xeniteContributionByShipDefId = new Map<string, number>();
+
+function normalizeComponentShipDefId(componentShipDefId: string): string {
+  const suffixStart = componentShipDefId.indexOf('(');
+  return suffixStart >= 0 ? componentShipDefId.slice(0, suffixStart) : componentShipDefId;
+}
+
+/**
+ * Canonical easy-mapper Xenite count for MAN/HEL:
+ * - literal XEN/OXI/AST each contribute 1
+ * - upgraded ships contribute the Xenite-family requirements encoded in the
+ *   canonical server ship definitions
+ *
+ * This intentionally does NOT implement later global counting-rule overrides
+ * such as Hive behavior; it is only the local count input for MAN/HEL.
+ */
+function getXeniteContributionForShipDefId(shipDefId: string, visiting = new Set<string>()): number {
+  const cached = xeniteContributionByShipDefId.get(shipDefId);
+  if (typeof cached === 'number') return cached;
+
+  if (XENITE_FAMILY_DEF_IDS.has(shipDefId)) {
+    xeniteContributionByShipDefId.set(shipDefId, 1);
+    return 1;
+  }
+
+  if (visiting.has(shipDefId)) {
+    throw new Error(
+      `[computePhaseComputedEffects] Circular ship component dependency while counting Xenites for "${shipDefId}".`
+    );
+  }
+
+  const shipDef = shipDefinitionsById.get(shipDefId);
+  if (!shipDef) {
+    throw new Error(
+      `[computePhaseComputedEffects] Missing canonical ship definition for "${shipDefId}" while counting Xenites.`
+    );
+  }
+
+  visiting.add(shipDefId);
+
+  let total = 0;
+  for (const componentShipDefId of shipDef.componentShips) {
+    total += getXeniteContributionForShipDefId(
+      normalizeComponentShipDefId(componentShipDefId),
+      visiting
+    );
+  }
+
+  visiting.delete(shipDefId);
+  xeniteContributionByShipDefId.set(shipDefId, total);
+  return total;
+}
+
+function countEffectiveXenites(ships: ShipInstance[]): number {
+  let total = 0;
+  for (const ship of ships) total += getXeniteContributionForShipDefId(ship.shipDefId);
+  return total;
 }
 
 /**
@@ -596,8 +660,8 @@ export function computePhaseComputedEffects(
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
     const ships = getShips(state, ownerPlayerId);
-    const xenites = countByDefId(ships, 'XEN');
-    const healPerMantis = Math.min(groupedCount(xenites, 2), 10);
+    const effectiveXenites = countEffectiveXenites(ships);
+    const healPerMantis = Math.min(groupedCount(effectiveXenites, 2), 10);
 
     if (healPerMantis <= 0) continue;
 
@@ -617,7 +681,7 @@ export function computePhaseComputedEffects(
       });
 
       console.log(
-        `[computePhaseComputedEffects] Mantis automatic: owner=${ownerPlayerId} instance=${ship.instanceId} xenites=${xenites} heal=${healPerMantis}`
+        `[computePhaseComputedEffects] Mantis automatic: owner=${ownerPlayerId} instance=${ship.instanceId} effectiveXenites=${effectiveXenites} heal=${healPerMantis}`
       );
     }
   }
@@ -629,8 +693,8 @@ export function computePhaseComputedEffects(
     if (!opponentId) continue;
 
     const ships = getShips(state, ownerPlayerId);
-    const xenites = countByDefId(ships, 'XEN');
-    const dmgPerHellHornet = groupedCount(xenites, 2);
+    const effectiveXenites = countEffectiveXenites(ships);
+    const dmgPerHellHornet = groupedCount(effectiveXenites, 2);
 
     if (dmgPerHellHornet <= 0) continue;
 
@@ -650,7 +714,7 @@ export function computePhaseComputedEffects(
       });
 
       console.log(
-        `[computePhaseComputedEffects] HellHornet automatic: owner=${ownerPlayerId} instance=${ship.instanceId} xenites=${xenites} dmg=${dmgPerHellHornet} target=${opponentId}`
+        `[computePhaseComputedEffects] HellHornet automatic: owner=${ownerPlayerId} instance=${ship.instanceId} effectiveXenites=${effectiveXenites} dmg=${dmgPerHellHornet} target=${opponentId}`
       );
     }
   }
