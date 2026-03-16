@@ -34,6 +34,7 @@ export type ShipPowerKey = `${string}#${number}`;
  * Current coverage includes:
  * - Human: DEF, FIG, BAT, INT, GUA, CAR, DRE, LEV, FRI
  * - Xenite: OXI, AST, ANT, BUG
+ * - Centaur: WIS, ENT
  */
 export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPower[]> = {
   // ==========================================================================
@@ -407,6 +408,94 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
           effects: [],
         },
       ],
+    },
+  ],
+
+  // ==========================================================================
+  // SHIP OF WISDOM (WIS)
+  // ==========================================================================
+  // Choice power (Charge Declaration, Charge Response)
+  // - damage: SpendCharge(1) + Damage(3)
+  // - heal: SpendCharge(1) + Heal(4)
+  // - hold: no effect
+  'WIS#0': [
+    {
+      type: 'choice',
+      timings: ['battle.charge_declaration', 'battle.charge_response'],
+      requiresCharge: true,
+      chargeCost: 1,
+      options: [
+        {
+          choiceId: 'damage',
+          label: '',
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.SpendCharge,
+              amount: 1,
+              targetPlayer: 'self',
+            },
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.Damage,
+              amount: 3,
+              targetPlayer: 'opponent',
+            },
+          ],
+        },
+        {
+          choiceId: 'heal',
+          label: '',
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.SpendCharge,
+              amount: 1,
+              targetPlayer: 'self',
+            },
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.Heal,
+              amount: 4,
+              targetPlayer: 'self',
+            },
+          ],
+        },
+        {
+          choiceId: 'hold',
+          label: '',
+          effects: [],
+        },
+      ],
+    },
+  ],
+
+  // ==========================================================================
+  // ARK OF ENTROPY (ENT)
+  // ==========================================================================
+  // JSON power index 0: "Deal 7 damage." (Automatic)
+  'ENT#0': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Damage,
+      amount: 7,
+      targetPlayer: 'opponent',
+    },
+  ],
+
+  // JSON power index 1: "Take 4 damage." (Automatic)
+  'ENT#1': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Damage,
+      amount: 4,
+      targetPlayer: 'self',
     },
   ],
 

@@ -483,6 +483,81 @@ export function computePhaseComputedEffects(
       );
     }
   }
+
+  // === SHIP OF FEAR (FEA) once-only: heal 4 on the turn it is built ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const ships = getShips(state, ownerPlayerId);
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'FEA') continue;
+      if (ship.createdTurn !== currentTurn) continue;
+
+      const onceKey = `${ship.instanceId}::FEA#0`;
+      if (wasOnceOnlyFired(state, onceKey)) continue;
+
+      computedEffects.push({
+        id: `fear_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: {
+          type: 'ship',
+          instanceId: ship.instanceId,
+          shipDefId: ship.shipDefId,
+        },
+        timing: phaseKey,
+        activationTag: EffectTiming.OnceOnly,
+        survivability: SurvivabilityRule.ResolvesIfDestroyed,
+        target: { playerId: ownerPlayerId },
+        kind: EffectKind.Heal,
+        amount: 4,
+      });
+
+      firedKeys.push(onceKey);
+
+      console.log(
+        `[computePhaseComputedEffects] ShipOfFear fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} heal=4`
+      );
+    }
+  }
+
+  // === SHIP OF ANGER (ANG) once-only: deal 4 damage on the turn it is built ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const opponentId = opponentMap.get(ownerPlayerId);
+    if (!opponentId) continue;
+
+    const ships = getShips(state, ownerPlayerId);
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'ANG') continue;
+      if (ship.createdTurn !== currentTurn) continue;
+
+      const onceKey = `${ship.instanceId}::ANG#0`;
+      if (wasOnceOnlyFired(state, onceKey)) continue;
+
+      computedEffects.push({
+        id: `anger_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: {
+          type: 'ship',
+          instanceId: ship.instanceId,
+          shipDefId: ship.shipDefId,
+        },
+        timing: phaseKey,
+        activationTag: EffectTiming.OnceOnly,
+        survivability: SurvivabilityRule.ResolvesIfDestroyed,
+        target: { playerId: opponentId },
+        kind: EffectKind.Damage,
+        amount: 4,
+      });
+
+      firedKeys.push(onceKey);
+
+      console.log(
+        `[computePhaseComputedEffects] ShipOfAnger fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} dmg=4 target=${opponentId}`
+      );
+    }
+  }
   
   // === COMMANDER (COM) automatic: Deal 1 damage for every THREE of your Fighters ===
   for (const player of activePlayers) {
@@ -816,6 +891,100 @@ export function computePhaseComputedEffects(
 
       console.log(
         `[computePhaseComputedEffects] Queen automatic: owner=${ownerPlayerId} instance=${ship.instanceId} shipsMade=${shipsMadeThisTurn} countedShips=${countedShips} dmg=${damage} target=${opponentId}`
+      );
+    }
+  }
+
+  // === ARK OF TERROR (TER) automatic: Heal equal to your effective dice roll ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const ships = getShips(state, ownerPlayerId);
+    const roll = getEffectiveDiceRollForPlayer(state, ownerPlayerId);
+
+    if (typeof roll !== 'number' || roll <= 0) continue;
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'TER') continue;
+
+      computedEffects.push({
+        id: `terror_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: ownerPlayerId },
+        kind: EffectKind.Heal,
+        amount: roll,
+      });
+
+      console.log(
+        `[computePhaseComputedEffects] ArkOfTerror automatic: owner=${ownerPlayerId} instance=${ship.instanceId} roll=${roll} heal=${roll}`
+      );
+    }
+  }
+
+  // === ARK OF FURY (FUR) automatic: Deal damage equal to your effective dice roll ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const opponentId = opponentMap.get(ownerPlayerId);
+    if (!opponentId) continue;
+
+    const ships = getShips(state, ownerPlayerId);
+    const roll = getEffectiveDiceRollForPlayer(state, ownerPlayerId);
+
+    if (typeof roll !== 'number' || roll <= 0) continue;
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'FUR') continue;
+
+      computedEffects.push({
+        id: `fury_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: opponentId },
+        kind: EffectKind.Damage,
+        amount: roll,
+      });
+
+      console.log(
+        `[computePhaseComputedEffects] ArkOfFury automatic: owner=${ownerPlayerId} instance=${ship.instanceId} roll=${roll} dmg=${roll} target=${opponentId}`
+      );
+    }
+  }
+
+  // === ARK OF DESTRUCTION (DES) automatic: Deal 3 damage for each of your other ships ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const opponentId = opponentMap.get(ownerPlayerId);
+    if (!opponentId) continue;
+
+    const ships = getShips(state, ownerPlayerId);
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'DES') continue;
+
+      const otherShips = countOtherShips(ships, ship.instanceId);
+      const damage = otherShips * 3;
+      if (damage <= 0) continue;
+
+      computedEffects.push({
+        id: `destruction_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: opponentId },
+        kind: EffectKind.Damage,
+        amount: damage,
+      });
+
+      console.log(
+        `[computePhaseComputedEffects] ArkOfDestruction automatic: owner=${ownerPlayerId} instance=${ship.instanceId} otherShips=${otherShips} dmg=${damage} target=${opponentId}`
       );
     }
   }
