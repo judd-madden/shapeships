@@ -502,39 +502,48 @@ export async function runReadyToggleFlow(args: {
           console.log('[useGameSession] availableActions now available after refresh, falling through to DECLARE_READY');
         }
       } else {
-        // Filter to choice actions with required fields
-        const choiceActions = args.availableActions.filter(
-          (a: any) =>
-            a?.kind === 'choice' &&
-            typeof a?.sourceInstanceId === 'string' &&
-            typeof a?.actionId === 'string' &&
-            Array.isArray(a?.choices)
-        );
+        const choiceActions = getRenderableServerChoiceActions(phaseKey, args.availableActions);
         
-        console.log(`[useGameSession] Found ${choiceActions.length} choice actions to process`);
+        console.log(`[useGameSession] Found ${choiceActions.length} renderable server actions to process`);
         
         // Build batch actions array (skip 'hold')
         const actions: any[] = [];
         
         for (const action of choiceActions) {
-          const { sourceInstanceId, actionId, choices } = action;
+          const { sourceInstanceId, actionId } = action;
           
           // Determine selected choiceId
           const selectedChoiceId = args.selectedChoiceIdBySourceInstanceId[sourceInstanceId];
-          const choiceId = selectedChoiceId || choices[0]?.choiceId;
+          const choiceId = selectedChoiceId || getRenderableActionChoiceIds(action)[0];
           
           // Skip if choice is 'hold' (no ACTION sent)
           if (choiceId === 'hold') {
             continue;
           }
-          
-          // Add to batch
-          actions.push({
-            actionType: 'power',
+
+          if (action.kind === 'destroy_target') {
+            const targetInstanceId = args.allocatedDestroyTargetIdBySourceInstanceId[sourceInstanceId];
+            if (!targetInstanceId) {
+              console.log(
+                `[useGameSession] Skipping incomplete targeted build action for ${sourceInstanceId}: no allocated target available`
+              );
+              continue;
+            }
+
+            actions.push(buildPowerAction({
+              actionId,
+              sourceInstanceId,
+              choiceId,
+              targetInstanceId,
+            }));
+            continue;
+          }
+
+          actions.push(buildPowerAction({
             actionId,
             sourceInstanceId,
             choiceId,
-          });
+          }));
         }
         
         // Submit batch if any actions exist

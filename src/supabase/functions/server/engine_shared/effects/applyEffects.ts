@@ -22,6 +22,10 @@ import type { Effect } from './Effect.ts';
 import { EffectKind } from './Effect.ts';
 import { getShipById } from '../defs/ShipDefinitions.core.ts';
 import type { ShipInstance } from '../../engine/state/GameStateTypes.ts';
+import {
+  getSacSpawnCountForShipDef,
+  isOpponentDestroyBlockedBySacProtection,
+} from '../resolve/destroyRules.ts';
 
 // ============================================================================
 // EVENT TYPES
@@ -312,6 +316,25 @@ function appendShipToFleet(
   return newShip;
 }
 
+function incrementShipsMadeThisBuildPhaseCounter(
+  state: GameState,
+  playerId: string,
+  amount: number
+) {
+  if (!Number.isInteger(amount) || amount <= 0) return;
+
+  if (!state.gameData.turnData) {
+    state.gameData.turnData = {};
+  }
+
+  const currentMap = state.gameData.turnData.shipsMadeThisBuildPhaseByPlayerId || {};
+  const currentCount = currentMap[playerId] || 0;
+  state.gameData.turnData.shipsMadeThisBuildPhaseByPlayerId = {
+    ...currentMap,
+    [playerId]: currentCount + amount,
+  };
+}
+
 function applyCreateShip(
   state: GameState,
   effect: Effect & { kind: EffectKind.CreateShip; shipDefId: string },
@@ -353,10 +376,18 @@ function applyDestroyShip(
 ): { event?: EffectEvent } {
   const targetPlayerId = (effect as any).target.playerId as string;
   const shipInstanceId = (effect as any).target.shipInstanceId as string | undefined;
+  const sourcePlayerId = (effect as any).ownerPlayerId as string;
 
   // Must have explicit target
   if (!shipInstanceId) {
     console.warn(`[applyEffects] Skipping Destroy effect without target.shipInstanceId`);
+    return {};
+  }
+
+  if (isOpponentDestroyBlockedBySacProtection(state, sourcePlayerId, targetPlayerId)) {
+    console.log(
+      `[applyEffects] Blocked opponent destroy effect against SAC-protected fleet: source=${sourcePlayerId} target=${targetPlayerId}`
+    );
     return {};
   }
 
@@ -389,25 +420,38 @@ function applyDestroyShip(
   const voidShips = state.gameData.voidShipsByPlayerId ?? (state.gameData.voidShipsByPlayerId = {});
   const currentVoid = voidShips[targetPlayerId] ?? [];
   voidShips[targetPlayerId] = [...currentVoid, destroyedShip];
+  let createdShipsFromDestroy = 0;
 
   if (destroyedShip.shipDefId === 'ZEN') {
     appendShipToFleet(state, targetPlayerId, 'XEN');
     appendShipToFleet(state, targetPlayerId, 'XEN');
+    createdShipsFromDestroy += 2;
 
     if (typeof effect.timing === 'string' && effect.timing.startsWith('build.')) {
-      if (!state.gameData.turnData) {
-        state.gameData.turnData = {};
-      }
+      incrementShipsMadeThisBuildPhaseCounter(state, targetPlayerId, 2);
+    }
+  }
 
-      const currentMap = state.gameData.turnData.shipsMadeThisBuildPhaseByPlayerId || {};
-      const currentCount = currentMap[targetPlayerId] || 0;
+  const destroySourceShipDefId =
+    (effect as any).source?.type === 'ship'
+      ? (effect as any).source.shipDefId as string | undefined
+      : undefined;
 
-      state.gameData.turnData.shipsMadeThisBuildPhaseByPlayerId = {
-        ...currentMap,
-        [targetPlayerId]: currentCount + 2,
-      };
+  if (destroySourceShipDefId === 'SAC' && sourcePlayerId === targetPlayerId) {
+    const sacSpawnCount = getSacSpawnCountForShipDef(destroyedShip.shipDefId);
+
+    for (let i = 0; i < sacSpawnCount; i++) {
+      appendShipToFleet(state, targetPlayerId, 'XEN');
     }
 
+    createdShipsFromDestroy += sacSpawnCount;
+
+    if (typeof effect.timing === 'string' && effect.timing.startsWith('build.')) {
+      incrementShipsMadeThisBuildPhaseCounter(state, targetPlayerId, sacSpawnCount);
+    }
+  }
+
+  if (createdShipsFromDestroy > 0) {
     afterCount = state.gameData.ships?.[targetPlayerId]?.length ?? afterCount;
   }
 
@@ -425,6 +469,7 @@ function applyDestroyShip(
         shipInstanceId,
         beforeCount,
         afterCount,
+        createdShipsFromDestroy,
       },
       atMs: nowMs,
     },

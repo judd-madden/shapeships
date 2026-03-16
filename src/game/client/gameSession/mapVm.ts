@@ -14,7 +14,7 @@ import type {
 import type { ActionPanelId } from '../../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
-import type { ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
+import type { ShipChoiceGroupSpec, ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
 import type { EvolverChoiceId } from './types';
 import { getShipChoicePanelSpec } from '../../display/actionPanel/panels/ShipChoiceRegistry';
 import { getRenderableActionChoiceIds, getRenderableServerChoiceActions } from './availableActions';
@@ -29,6 +29,47 @@ function getCountedGroupHeading(groupSpec: {
       : groupSpec.headingTemplate;
 
   return template.replace('{count}', String(count));
+}
+
+function getTargetedActionButtons(args: {
+  buttons: ShipChoiceGroupSpec['buttons'];
+  action: any;
+  sourceInstanceId: string;
+  selectedChoiceIdBySourceInstanceId: Record<string, string>;
+  allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
+}) {
+  const {
+    buttons,
+    action,
+    sourceInstanceId,
+    selectedChoiceIdBySourceInstanceId,
+    allocatedDestroyTargetIdBySourceInstanceId,
+  } = args;
+
+  if (action?.kind !== 'destroy_target') {
+    return buttons;
+  }
+
+  const selectedChoiceId = selectedChoiceIdBySourceInstanceId[sourceInstanceId];
+  const hasAllocatedTarget =
+    typeof allocatedDestroyTargetIdBySourceInstanceId[sourceInstanceId] === 'string';
+
+  return buttons.map((button) => {
+    if (button.choiceId == null || button.choiceId !== selectedChoiceId) {
+      return button;
+    }
+
+    if (button.requiresTargeting !== true) {
+      return button;
+    }
+
+    return {
+      ...button,
+      instructionText: hasAllocatedTarget
+        ? 'Will destroy selected ship.'
+        : button.instructionText,
+    };
+  });
 }
 
 export function mapGameSessionVm(args: {
@@ -477,31 +518,13 @@ export function mapGameSessionVm(args: {
           const heading = getCountedGroupHeading(groupSpec, count);
           const ships = matches.map((m: any) => ({
             shipDefId: groupSpec.shipDefId,
-            buttons: groupSpec.shipDefId === 'GUA'
-              ? groupSpec.buttons.map((button) => {
-                  if (button.choiceId !== 'destroy') {
-                    return button;
-                  }
-
-                  const selectedChoiceId = selectedChoiceIdBySourceInstanceId[m.sourceInstanceId];
-                  const hasAllocatedTarget =
-                    typeof allocatedDestroyTargetIdBySourceInstanceId[m.sourceInstanceId] === 'string';
-
-                  if (selectedChoiceId !== 'destroy') {
-                    return {
-                      ...button,
-                      instructionText: undefined,
-                    };
-                  }
-
-                  return {
-                    ...button,
-                    instructionText: hasAllocatedTarget
-                      ? 'Will destroy selected ship.'
-                      : "You must select an enemy ship on the battlefield to destroy. That ship's battle phase powers will not occur.",
-                  };
-                })
-              : groupSpec.buttons,
+            buttons: getTargetedActionButtons({
+              buttons: groupSpec.buttons,
+              action: m,
+              sourceInstanceId: m.sourceInstanceId,
+              selectedChoiceIdBySourceInstanceId,
+              allocatedDestroyTargetIdBySourceInstanceId,
+            }),
             sourceInstanceId: m.sourceInstanceId,
             actionId: m.actionId,
             availableChoiceIds: getRenderableActionChoiceIds(m),
@@ -532,7 +555,13 @@ export function mapGameSessionVm(args: {
             for (const m of matches) {
               expandedShips.push({
                 shipDefId: ship.shipDefId,
-                buttons: ship.buttons,
+                buttons: getTargetedActionButtons({
+                  buttons: ship.buttons,
+                  action: m,
+                  sourceInstanceId: m.sourceInstanceId,
+                  selectedChoiceIdBySourceInstanceId,
+                  allocatedDestroyTargetIdBySourceInstanceId,
+                }),
                 sourceInstanceId: m.sourceInstanceId,
                 actionId: m.actionId,
                 availableChoiceIds: getRenderableActionChoiceIds(m),

@@ -28,7 +28,9 @@ export function ChooseSpeciesStage({
   onConfirmSpecies,
   onCopyGameUrl,
 }: ChooseSpeciesStageProps) {
+  const isAncientSelected = vm.selectedSpecies === 'ancient';
   const selectedSpeciesName = vm.selectedSpecies.toUpperCase();
+  const confirmButtonPrefix = isAncientSelected ? 'DISABLED' : 'CONFIRM';
   const [showCopiedToast, setShowCopiedToast] = useState(false);
 
   const handleCopyUrl = () => {
@@ -73,7 +75,7 @@ export function ChooseSpeciesStage({
                     className="font-['Roboto',sans-serif] font-black relative shrink-0"
                     style={{ fontVariationSettings: "'wdth' 100" }}
                   >
-                    CONFIRM
+                    {confirmButtonPrefix}
                   </p>
                   <p
                     className="font-['Roboto',sans-serif] font-normal relative shrink-0"

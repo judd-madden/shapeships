@@ -21,6 +21,8 @@ import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers
 import { getShipById } from '../engine_shared/defs/ShipDefinitions.core.ts';
 import { getShipDefinition } from '../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 import type { StructuredShipPower } from '../engine_shared/effects/translateShipPowers.ts';
+import { EffectKind } from '../engine_shared/effects/Effect.ts';
+import { getValidDestroyTargets } from '../engine_shared/resolve/destroyRules.ts';
 import { rollD6 } from '../engine/util/rollD6.ts';
 
 // ============================================================================
@@ -172,9 +174,6 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
 
     const fleet = state?.ships?.[playerId] ?? state?.gameData?.ships?.[playerId] ?? [];
     const opponentId = (state?.players || []).find((p: any) => p.role === 'player' && p.id !== playerId)?.id;
-    const opponentFleet = opponentId
-      ? (state?.ships?.[opponentId] ?? state?.gameData?.ships?.[opponentId] ?? [])
-      : [];
 
     for (const shipInstance of fleet) {
       const shipDefId = shipInstance.shipDefId;
@@ -200,16 +199,21 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
         }
 
         const choices = power.options.map((opt: any) => ({ choiceId: opt.choiceId }));
-        const validTargets = opponentFleet
-          .filter((target: any) => {
-            const targetDef = getShipById(target.shipDefId);
-            return targetDef?.shipType === 'Basic';
-          })
-          .map((target: any) => ({
-            instanceId: target.instanceId,
-            shipDefId: target.shipDefId,
-            ownerPlayerId: opponentId,
-          }));
+        const destroyOption = power.options.find((opt: any) =>
+          Array.isArray(opt?.effects) &&
+          opt.effects.some((effect: any) => effect?.kind === EffectKind.Destroy)
+        );
+        if (!destroyOption || !opponentId) continue;
+
+        const destroyEffect = destroyOption.effects.find((effect: any) => effect?.kind === EffectKind.Destroy);
+        if (!destroyEffect) continue;
+
+        const validTargets = getValidDestroyTargets(state, {
+          sourcePlayerId: playerId,
+          targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
+          restriction: destroyEffect.restriction ?? 'any',
+          minimumFullLineCost: shipDefId === 'SAC' ? 3 : undefined,
+        });
 
         actions.push({
           kind: 'destroy_target',
@@ -278,9 +282,47 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
           })
           .map((opt: any) => ({ choiceId: opt.choiceId }));
 
+        const eligibleChoiceIds = new Set(
+          eligibleChoices
+            .map((choice: any) => choice?.choiceId)
+            .filter((choiceId: unknown): choiceId is string => typeof choiceId === 'string')
+        );
+
         // Only emit if there is at least one real (non-hold) option
         const hasNonHold = eligibleChoices.some((c: any) => c.choiceId !== 'hold');
         if (!hasNonHold) continue;
+
+        const destroyOption = power.options.find((opt: any) =>
+          eligibleChoiceIds.has(opt?.choiceId) &&
+          Array.isArray(opt?.effects) &&
+          opt.effects.some((effect: any) => effect?.kind === EffectKind.Destroy)
+        );
+
+        if (destroyOption) {
+          const destroyEffect = destroyOption.effects.find((effect: any) => effect?.kind === EffectKind.Destroy);
+          if (!destroyEffect) continue;
+
+          const validTargets = getValidDestroyTargets(state, {
+            sourcePlayerId: playerId,
+            targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
+            restriction: destroyEffect.restriction ?? 'any',
+            minimumFullLineCost: shipDefId === 'SAC' ? 3 : undefined,
+          });
+
+          if (validTargets.length === 0) {
+            continue;
+          }
+
+          actions.push({
+            kind: 'destroy_target',
+            actionId: `${shipDefId}#${powerIndex}`,
+            shipDefId,
+            sourceInstanceId,
+            choices: eligibleChoices,
+            validTargets,
+          });
+          continue;
+        }
 
         actions.push({
           kind: 'choice',

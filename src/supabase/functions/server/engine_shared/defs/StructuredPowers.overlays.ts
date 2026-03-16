@@ -565,6 +565,40 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
       ],
     },
   ],
+
+  // ==========================================================================
+  // SACRIFICIAL POOL (SAC)
+  // ==========================================================================
+  // Choice power in build.ships_that_build:
+  // - destroy: Destroy one of your own legal basic ships
+  // - hold:    do nothing
+  'SAC#0': [
+    {
+      type: 'choice',
+      timings: ['build.ships_that_build'],
+      options: [
+        {
+          choiceId: 'destroy',
+          label: '',
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.Destroy,
+              restriction: 'basic_only',
+              count: 1,
+              targetPlayer: 'self',
+            },
+          ],
+        },
+        {
+          choiceId: 'hold',
+          label: '',
+          effects: [],
+        },
+      ],
+    },
+  ],
 };
 
 // Back-compat export retained while callers migrate to the species-agnostic name.

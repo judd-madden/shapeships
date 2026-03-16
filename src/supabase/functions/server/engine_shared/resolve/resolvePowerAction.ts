@@ -18,13 +18,13 @@ import type { PhaseKey } from '../phase/PhaseTable.ts';
 import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
 import { Effect, EffectKind } from '../effects/Effect.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
-import { getShipById } from '../defs/ShipDefinitions.core.ts';
 import { 
   translateChoiceOptionEffects, 
   type StructuredShipPower, 
   type StructuredChoiceOption,
   type TranslateContext
 } from '../effects/translateShipPowers.ts';
+import { getValidDestroyTargets } from './destroyRules.ts';
 
 // ============================================================================
 // PUBLIC API
@@ -168,22 +168,17 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
       throw new Error('Missing targetInstanceId');
     }
 
-    const opponentFleet = state?.gameData?.ships?.[opponentPlayerId] ?? [];
-    const targetShip = opponentFleet.find((ship: ShipInstance) => ship.instanceId === targetInstanceId);
+    const validTargets = getValidDestroyTargets(state, {
+      sourcePlayerId: playerId,
+      targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
+      restriction: destroyEffect.restriction ?? 'any',
+      minimumFullLineCost: shipDefId === 'SAC' ? 3 : undefined,
+    });
+
+    const targetShip = validTargets.find((target) => target.instanceId === targetInstanceId);
 
     if (!targetShip) {
-      throw new Error(`Target ship not found: ${targetInstanceId}`);
-    }
-
-    const targetShipDef = getShipById(targetShip.shipDefId);
-    const targetShipType = targetShipDef?.shipType ?? '';
-
-    if (destroyEffect.restriction === 'basic_only' && targetShipType !== 'Basic') {
-      throw new Error('Target ship must be basic');
-    }
-
-    if (destroyEffect.restriction === 'upgraded_only' && targetShipType !== 'Upgraded') {
-      throw new Error('Target ship must be upgraded');
+      throw new Error(`Target ship not valid: ${targetInstanceId}`);
     }
   }
 

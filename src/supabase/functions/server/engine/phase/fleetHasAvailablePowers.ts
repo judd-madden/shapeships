@@ -22,8 +22,15 @@
 import type { PhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
+import { EffectKind } from '../../engine_shared/effects/Effect.ts';
+import { getValidDestroyTargets } from '../../engine_shared/resolve/destroyRules.ts';
 
-function shipHasInteractiveShipsThatBuildChoice(ship: any, phaseKey: PhaseKey): boolean {
+function shipHasInteractiveShipsThatBuildChoice(
+  state: any,
+  playerId: string,
+  ship: any,
+  phaseKey: PhaseKey
+): boolean {
   if (phaseKey !== 'build.ships_that_build') return false;
 
   const shipDef = getShipDefinition(ship?.shipDefId);
@@ -44,7 +51,28 @@ function shipHasInteractiveShipsThatBuildChoice(ship: any, phaseKey: PhaseKey): 
       return chargesCurrent >= chargeCost;
     });
 
-    if (eligibleChoices.some((option) => option.choiceId !== 'hold')) {
+    const nonHoldChoices = eligibleChoices.filter((option) => option.choiceId !== 'hold');
+    if (nonHoldChoices.length === 0) continue;
+
+    const destroyOption = nonHoldChoices.find((option) =>
+      option.effects.some((effect) => effect.kind === EffectKind.Destroy)
+    );
+
+    if (!destroyOption) {
+      return true;
+    }
+
+    const destroyEffect = destroyOption.effects.find((effect) => effect.kind === EffectKind.Destroy);
+    if (!destroyEffect) continue;
+
+    const validTargets = getValidDestroyTargets(state, {
+      sourcePlayerId: playerId,
+      targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
+      restriction: destroyEffect.restriction ?? 'any',
+      minimumFullLineCost: ship?.shipDefId === 'SAC' ? 3 : undefined,
+    });
+
+    if (validTargets.length > 0) {
       return true;
     }
   }
@@ -78,7 +106,7 @@ export function fleetHasAvailablePowers(
 
   for (const ship of ships) {
     if (phaseKey === 'build.ships_that_build') {
-      if (shipHasInteractiveShipsThatBuildChoice(ship, phaseKey)) {
+      if (shipHasInteractiveShipsThatBuildChoice(state, playerId, ship, phaseKey)) {
         return true;
       }
       continue;

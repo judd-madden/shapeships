@@ -61,7 +61,7 @@ export function getRenderableServerChoiceActions(
 
     if (!hasBaseFields) return false;
 
-    if (phaseKey === 'battle.first_strike') {
+    if (phaseKey === 'battle.first_strike' || phaseKey === 'build.ships_that_build') {
       return action.kind === 'choice' || action.kind === 'destroy_target';
     }
 
@@ -83,8 +83,8 @@ export function getDefaultChoiceIdForRenderableAction(action: RenderableServerAc
   const choiceIds = getRenderableActionChoiceIds(action);
   if (choiceIds.length === 0) return undefined;
 
-  // First-strike targeted destroy actions require an explicit targetInstanceId.
-  // Default to hold so Guardian rows can render without auto-submitting an invalid destroy.
+  // Targeted destroy actions require an explicit targetInstanceId.
+  // Default to hold so destroy-target rows can render without auto-submitting an invalid destroy.
   if (action.kind === 'destroy_target') {
     return choiceIds.find((choiceId) => choiceId === 'hold') ?? choiceIds[0];
   }

@@ -210,10 +210,12 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
                 requiresTargeting: true,
                 showsInstructions: true,
                 instructionText: 'You must select a basic ship of yours.',
+                choiceId: 'destroy',
               },
               {
                 size: 'small',
                 label: 'Do Nothing',
+                choiceId: 'hold',
               },
             ],
           },

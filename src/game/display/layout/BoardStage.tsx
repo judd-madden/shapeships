@@ -346,8 +346,8 @@ function FleetArea({
   activationIndexMap?: Record<string, number>;
   targetStatesByStackKey?: Record<string, DestroyTargetStateVm>;
   previewShipDefIdByStackKey?: Partial<Record<string, ShipDefId>>;
-  onDestroyTargetHoverChange?: (stackKey: string | null) => void;
-  onDestroyTargetMouseDown?: (stackKey: string) => void;
+  onDestroyTargetHoverChange?: (side: 'my' | 'opponent', stackKey: string | null) => void;
+  onDestroyTargetMouseDown?: (side: 'my' | 'opponent', stackKey: string) => void;
 }) {
   const rowSets = ROW_SETS_BY_SPECIES[species];
   const grouped = ships && ships.length > 0 ? groupShipsIntoRows(ships, order, rowSets) : null;
@@ -374,18 +374,18 @@ function FleetArea({
         )}
         onMouseEnter={
           isTargetable
-            ? () => onDestroyTargetHoverChange?.(ship.stackKey)
+            ? () => onDestroyTargetHoverChange?.(side, ship.stackKey)
             : undefined
         }
         onMouseLeave={
           isTargetable
-            ? () => onDestroyTargetHoverChange?.(null)
+            ? () => onDestroyTargetHoverChange?.(side, null)
             : undefined
         }
         onMouseDown={(event) => {
           event.stopPropagation();
           if (isTargetable) {
-            onDestroyTargetMouseDown?.(ship.stackKey);
+            onDestroyTargetMouseDown?.(side, ship.stackKey);
           }
         }}
       >
@@ -507,7 +507,7 @@ function StatTripletRow({
         {left}
       </p>
       <p
-        className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[15px] text-center w-[64px]"
+        className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[14px] text-center w-[64px]"
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {centerLabel}
@@ -570,6 +570,10 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
         side="my"
         opponentEntryDelays={undefined}
         activationIndexMap={vm.activationStaggerPlan?.myIndexByShipId}
+        targetStatesByStackKey={vm.destroyTargeting?.targetStatesBySide.my}
+        previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdBySide.my}
+        onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
+        onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
       />
 
       <div
@@ -703,13 +707,13 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
 
           <StatTripletRow
             left={String(vm.myLastTurnDamage ?? 0)}
-            centerLabel="Damage"
+            centerLabel="Last Damage"
             right={String(vm.opponentLastTurnDamage ?? 0)}
             toneClass="text-[#ff8282]"
           />
           <StatTripletRow
             left={String(vm.myLastTurnHeal ?? 0)}
-            centerLabel="Healing"
+            centerLabel="Last Healing"
             right={String(vm.opponentLastTurnHeal ?? 0)}
             toneClass="text-[#9cff84]"
           />
@@ -762,8 +766,8 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
         side="opponent"
         opponentEntryDelays={vm.opponentFleetEntryPlan?.opponent}
         activationIndexMap={vm.activationStaggerPlan?.opponentIndexByShipId}
-        targetStatesByStackKey={vm.destroyTargeting?.targetStatesByStackKey}
-        previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdByStackKey}
+        targetStatesByStackKey={vm.destroyTargeting?.targetStatesBySide.opponent}
+        previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdBySide.opponent}
         onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
         onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
       />

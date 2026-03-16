@@ -5,11 +5,19 @@ import { getRenderableServerChoiceActions } from './availableActions';
 import { deriveFleetStackInfo } from './fleets';
 import type { BoardDestroyTargetingViewModel } from './types';
 
+type DestroyTargetSide = 'my' | 'opponent';
+type DestroyTargetLocator = {
+  side: DestroyTargetSide;
+  stackKey: string;
+};
+
 export interface UseDestroyTargetingRuntimeParams {
   phaseKey: string;
   phaseInstanceKey: string;
   availableActions: any[] | null | undefined;
   shipChoiceSelectionByInstanceId: Record<string, string>;
+  myPlayerId?: string | null;
+  opponentPlayerId?: string | null;
   myShips: any[];
   opponentShipsVisible: any[];
   frigateTriggerByInstanceId: Record<string, number>;
@@ -18,12 +26,36 @@ export interface UseDestroyTargetingRuntimeParams {
 export interface UseDestroyTargetingRuntimeResult {
   allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
   boardDestroyTargeting: BoardDestroyTargetingViewModel;
-  shouldResetFirstStrikeDestroyRows: boolean;
-  consumePendingFirstStrikeDestroyReset: () => void;
+  shouldResetDestroyTargetRows: boolean;
+  consumePendingDestroyTargetReset: () => void;
   applyDestroyTargetingChoiceSideEffects: (sourceInstanceId: string, choiceId: string) => void;
   onBoardBackgroundMouseDown: () => void;
-  onDestroyTargetStackHoverChange: (stackKey: string | null) => void;
-  onDestroyTargetStackMouseDown: (stackKey: string) => void;
+  onDestroyTargetStackHoverChange: (side: DestroyTargetSide, stackKey: string | null) => void;
+  onDestroyTargetStackMouseDown: (side: DestroyTargetSide, stackKey: string) => void;
+}
+
+function makeLocatorKey(side: DestroyTargetSide, stackKey: string): string {
+  return `${side}::${stackKey}`;
+}
+
+function splitLocatorKey(locatorKey: string): DestroyTargetLocator | null {
+  const [side, stackKey] = locatorKey.split('::');
+  if ((side !== 'my' && side !== 'opponent') || !stackKey) return null;
+  return { side, stackKey };
+}
+
+function makeEmptyBoardDestroyTargeting(): BoardDestroyTargetingViewModel {
+  return {
+    activeSourceInstanceId: null,
+    targetStatesBySide: {
+      my: {},
+      opponent: {},
+    },
+    previewShipDefIdBySide: {
+      my: {},
+      opponent: {},
+    },
+  };
 }
 
 export function useDestroyTargetingRuntime(
@@ -34,16 +66,18 @@ export function useDestroyTargetingRuntime(
     phaseInstanceKey,
     availableActions,
     shipChoiceSelectionByInstanceId,
+    myPlayerId,
+    opponentPlayerId,
     myShips,
     opponentShipsVisible,
     frigateTriggerByInstanceId,
   } = params;
 
   const [activeDestroyTargetSourceInstanceId, setActiveDestroyTargetSourceInstanceId] = useState<string | null>(null);
-  const [selectedDestroyTargetStackKeyBySourceInstanceId, setSelectedDestroyTargetStackKeyBySourceInstanceId] = useState<Record<string, string>>({});
-  const [hoveredDestroyTargetStackKey, setHoveredDestroyTargetStackKey] = useState<string | null>(null);
-  const pendingFirstStrikeDestroyResetPhaseInstanceKeyRef = useRef<string | null>(null);
-  const lastFirstStrikePhaseInstanceKeyRef = useRef<string | null>(null);
+  const [selectedDestroyTargetLocatorKeyBySourceInstanceId, setSelectedDestroyTargetLocatorKeyBySourceInstanceId] = useState<Record<string, string>>({});
+  const [hoveredDestroyTargetLocatorKey, setHoveredDestroyTargetLocatorKey] = useState<string | null>(null);
+  const pendingDestroyTargetResetPhaseInstanceKeyRef = useRef<string | null>(null);
+  const lastDestroyTargetPhaseInstanceKeyRef = useRef<string | null>(null);
 
   const destroyTargetActionsBySourceInstanceId = new Map(
     getRenderableServerChoiceActions(phaseKey, availableActions)
@@ -51,71 +85,85 @@ export function useDestroyTargetingRuntime(
       .map((action) => [action.sourceInstanceId, action] as const)
   );
 
-  const shouldResetFirstStrikeDestroyRows =
-    phaseKey === 'battle.first_strike' &&
-    pendingFirstStrikeDestroyResetPhaseInstanceKeyRef.current === phaseInstanceKey;
+  const shouldResetDestroyTargetRows =
+    destroyTargetActionsBySourceInstanceId.size > 0 &&
+    pendingDestroyTargetResetPhaseInstanceKeyRef.current === phaseInstanceKey;
 
-  const consumePendingFirstStrikeDestroyReset = () => {
-    if (shouldResetFirstStrikeDestroyRows) {
-      pendingFirstStrikeDestroyResetPhaseInstanceKeyRef.current = null;
+  const consumePendingDestroyTargetReset = () => {
+    if (shouldResetDestroyTargetRows) {
+      pendingDestroyTargetResetPhaseInstanceKeyRef.current = null;
     }
   };
 
   useEffect(() => {
     if (activeDestroyTargetSourceInstanceId == null) {
-      setHoveredDestroyTargetStackKey(null);
+      setHoveredDestroyTargetLocatorKey(null);
     }
   }, [activeDestroyTargetSourceInstanceId]);
 
   useEffect(() => {
-    if (phaseKey !== 'battle.first_strike') {
-      lastFirstStrikePhaseInstanceKeyRef.current = null;
-      pendingFirstStrikeDestroyResetPhaseInstanceKeyRef.current = null;
+    if (destroyTargetActionsBySourceInstanceId.size === 0) {
+      lastDestroyTargetPhaseInstanceKeyRef.current = null;
+      pendingDestroyTargetResetPhaseInstanceKeyRef.current = null;
       return;
     }
 
-    if (lastFirstStrikePhaseInstanceKeyRef.current === phaseInstanceKey) {
+    if (lastDestroyTargetPhaseInstanceKeyRef.current === phaseInstanceKey) {
       return;
     }
 
-    lastFirstStrikePhaseInstanceKeyRef.current = phaseInstanceKey;
-    pendingFirstStrikeDestroyResetPhaseInstanceKeyRef.current = phaseInstanceKey;
+    lastDestroyTargetPhaseInstanceKeyRef.current = phaseInstanceKey;
+    pendingDestroyTargetResetPhaseInstanceKeyRef.current = phaseInstanceKey;
     setActiveDestroyTargetSourceInstanceId(null);
-    setHoveredDestroyTargetStackKey(null);
-    setSelectedDestroyTargetStackKeyBySourceInstanceId((prev) =>
+    setHoveredDestroyTargetLocatorKey(null);
+    setSelectedDestroyTargetLocatorKeyBySourceInstanceId((prev) =>
       Object.keys(prev).length === 0 ? prev : {}
     );
-  }, [phaseKey, phaseInstanceKey]);
+  }, [destroyTargetActionsBySourceInstanceId.size, phaseInstanceKey]);
 
-  const opponentVisibleStackKeyByInstanceId = new Map<string, string>();
-  for (const ship of opponentShipsVisible) {
+  const stackKeyByInstanceId = new Map<string, DestroyTargetLocator>();
+
+  for (const ship of myShips) {
     const instanceId = ship?.instanceId ?? ship?.id;
-    if (typeof instanceId !== 'string') {
-      continue;
-    }
+    if (typeof instanceId !== 'string') continue;
 
     const stackInfo = deriveFleetStackInfo(ship, frigateTriggerByInstanceId);
-    if (!stackInfo) {
-      continue;
-    }
+    if (!stackInfo) continue;
 
-    opponentVisibleStackKeyByInstanceId.set(instanceId, stackInfo.stackKey);
+    stackKeyByInstanceId.set(instanceId, {
+      side: 'my',
+      stackKey: stackInfo.stackKey,
+    });
   }
 
-  const visibleTargetIdsByStackKey: Record<string, string[]> = {};
-  for (const [instanceId, stackKey] of opponentVisibleStackKeyByInstanceId.entries()) {
-    if (!visibleTargetIdsByStackKey[stackKey]) {
-      visibleTargetIdsByStackKey[stackKey] = [];
-    }
+  for (const ship of opponentShipsVisible) {
+    const instanceId = ship?.instanceId ?? ship?.id;
+    if (typeof instanceId !== 'string') continue;
 
-    visibleTargetIdsByStackKey[stackKey].push(instanceId);
+    const stackInfo = deriveFleetStackInfo(ship, frigateTriggerByInstanceId);
+    if (!stackInfo) continue;
+
+    stackKeyByInstanceId.set(instanceId, {
+      side: 'opponent',
+      stackKey: stackInfo.stackKey,
+    });
   }
 
-  for (const targetIds of Object.values(visibleTargetIdsByStackKey)) {
+  const visibleTargetIdsByLocatorKey: Record<string, string[]> = {};
+  for (const [instanceId, locator] of stackKeyByInstanceId.entries()) {
+    const locatorKey = makeLocatorKey(locator.side, locator.stackKey);
+    if (!visibleTargetIdsByLocatorKey[locatorKey]) {
+      visibleTargetIdsByLocatorKey[locatorKey] = [];
+    }
+
+    visibleTargetIdsByLocatorKey[locatorKey].push(instanceId);
+  }
+
+  for (const targetIds of Object.values(visibleTargetIdsByLocatorKey)) {
     targetIds.sort((a, b) => a.localeCompare(b));
   }
 
-  const validDestroyTargetStackKeysBySourceInstanceId: Record<string, string[]> = {};
+  const validDestroyTargetLocatorKeysBySourceInstanceId: Record<string, string[]> = {};
   for (const [sourceInstanceId, action] of destroyTargetActionsBySourceInstanceId.entries()) {
     const validTargetIds = new Set(
       Array.isArray(action.validTargets)
@@ -125,47 +173,42 @@ export function useDestroyTargetingRuntime(
         : []
     );
 
-    const stackKeys = new Set<string>();
-    for (const [instanceId, stackKey] of opponentVisibleStackKeyByInstanceId.entries()) {
-      if (validTargetIds.has(instanceId)) {
-        stackKeys.add(stackKey);
-      }
+    const locatorKeys = new Set<string>();
+    for (const [instanceId, locator] of stackKeyByInstanceId.entries()) {
+      if (!validTargetIds.has(instanceId)) continue;
+      locatorKeys.add(makeLocatorKey(locator.side, locator.stackKey));
     }
 
-    validDestroyTargetStackKeysBySourceInstanceId[sourceInstanceId] = Array.from(stackKeys).sort((a, b) =>
+    validDestroyTargetLocatorKeysBySourceInstanceId[sourceInstanceId] = Array.from(locatorKeys).sort((a, b) =>
       a.localeCompare(b)
     );
   }
 
-  const selectedDestroySourcesByStackKey: Record<string, string[]> = {};
+  const selectedDestroySourcesByLocatorKey: Record<string, string[]> = {};
   for (const [sourceInstanceId] of destroyTargetActionsBySourceInstanceId.entries()) {
     if (shipChoiceSelectionByInstanceId[sourceInstanceId] !== 'destroy') {
       continue;
     }
 
-    const selectedStackKey = selectedDestroyTargetStackKeyBySourceInstanceId[sourceInstanceId];
-    if (!selectedStackKey) {
-      continue;
+    const selectedLocatorKey = selectedDestroyTargetLocatorKeyBySourceInstanceId[sourceInstanceId];
+    if (!selectedLocatorKey) continue;
+
+    if (!selectedDestroySourcesByLocatorKey[selectedLocatorKey]) {
+      selectedDestroySourcesByLocatorKey[selectedLocatorKey] = [];
     }
 
-    if (!selectedDestroySourcesByStackKey[selectedStackKey]) {
-      selectedDestroySourcesByStackKey[selectedStackKey] = [];
-    }
-
-    selectedDestroySourcesByStackKey[selectedStackKey].push(sourceInstanceId);
+    selectedDestroySourcesByLocatorKey[selectedLocatorKey].push(sourceInstanceId);
   }
 
   const allocatedDestroyTargetIdBySourceInstanceId: Record<string, string> = {};
-  for (const stackKey of Object.keys(selectedDestroySourcesByStackKey).sort((a, b) => a.localeCompare(b))) {
-    const sourceInstanceIds = [...selectedDestroySourcesByStackKey[stackKey]].sort((a, b) => a.localeCompare(b));
-    const visibleTargetIds = visibleTargetIdsByStackKey[stackKey] ?? [];
+  for (const locatorKey of Object.keys(selectedDestroySourcesByLocatorKey).sort((a, b) => a.localeCompare(b))) {
+    const sourceInstanceIds = [...selectedDestroySourcesByLocatorKey[locatorKey]].sort((a, b) => a.localeCompare(b));
+    const visibleTargetIds = visibleTargetIdsByLocatorKey[locatorKey] ?? [];
     const usedTargetIds = new Set<string>();
 
     for (const sourceInstanceId of sourceInstanceIds) {
       const action = destroyTargetActionsBySourceInstanceId.get(sourceInstanceId);
-      if (!action) {
-        continue;
-      }
+      if (!action) continue;
 
       const validTargetIds = new Set(
         Array.isArray(action.validTargets)
@@ -181,30 +224,26 @@ export function useDestroyTargetingRuntime(
           !usedTargetIds.has(targetInstanceId)
       );
 
-      if (!candidateTargetId) {
-        continue;
-      }
+      if (!candidateTargetId) continue;
 
       usedTargetIds.add(candidateTargetId);
       allocatedDestroyTargetIdBySourceInstanceId[sourceInstanceId] = candidateTargetId;
     }
   }
 
-  const activeDestroyValidTargetStackKeys = new Set(
+  const activeDestroyValidTargetLocatorKeys = new Set(
     activeDestroyTargetSourceInstanceId != null
-      ? validDestroyTargetStackKeysBySourceInstanceId[activeDestroyTargetSourceInstanceId] ?? []
+      ? validDestroyTargetLocatorKeysBySourceInstanceId[activeDestroyTargetSourceInstanceId] ?? []
       : []
   );
 
-  const activeDestroySelectedStackKey =
+  const activeDestroySelectedLocatorKey =
     activeDestroyTargetSourceInstanceId != null
-      ? selectedDestroyTargetStackKeyBySourceInstanceId[activeDestroyTargetSourceInstanceId] ?? null
+      ? selectedDestroyTargetLocatorKeyBySourceInstanceId[activeDestroyTargetSourceInstanceId] ?? null
       : null;
 
   function getDestroyPreviewShipDefIdForSource(sourceInstanceId: string | null): ShipDefId | null {
-    if (sourceInstanceId == null) {
-      return null;
-    }
+    if (sourceInstanceId == null) return null;
 
     const rawActionShipDefId = String(
       destroyTargetActionsBySourceInstanceId.get(sourceInstanceId)?.shipDefId ?? ''
@@ -224,49 +263,46 @@ export function useDestroyTargetingRuntime(
 
   const activeDestroyPreviewShipDefId = getDestroyPreviewShipDefIdForSource(activeDestroyTargetSourceInstanceId);
 
-  const allocatedDestroySourceInstanceIdsByStackKey: Record<string, string[]> = {};
+  const allocatedDestroySourceInstanceIdsByLocatorKey: Record<string, string[]> = {};
   for (const [sourceInstanceId, targetInstanceId] of Object.entries(allocatedDestroyTargetIdBySourceInstanceId).sort(
     ([a], [b]) => a.localeCompare(b)
   )) {
-    const stackKey = opponentVisibleStackKeyByInstanceId.get(targetInstanceId);
-    if (!stackKey) {
-      continue;
+    const locator = stackKeyByInstanceId.get(targetInstanceId);
+    if (!locator) continue;
+
+    const locatorKey = makeLocatorKey(locator.side, locator.stackKey);
+    if (!allocatedDestroySourceInstanceIdsByLocatorKey[locatorKey]) {
+      allocatedDestroySourceInstanceIdsByLocatorKey[locatorKey] = [];
     }
 
-    if (!allocatedDestroySourceInstanceIdsByStackKey[stackKey]) {
-      allocatedDestroySourceInstanceIdsByStackKey[stackKey] = [];
-    }
-
-    allocatedDestroySourceInstanceIdsByStackKey[stackKey].push(sourceInstanceId);
+    allocatedDestroySourceInstanceIdsByLocatorKey[locatorKey].push(sourceInstanceId);
   }
 
-  const persistentlySelectedDestroyStackKeys = new Set(
-    Object.keys(allocatedDestroySourceInstanceIdsByStackKey)
+  const persistentlySelectedLocatorKeys = new Set(
+    Object.keys(allocatedDestroySourceInstanceIdsByLocatorKey)
   );
 
   useEffect(() => {
     if (destroyTargetActionsBySourceInstanceId.size === 0) {
       setActiveDestroyTargetSourceInstanceId(null);
-      setHoveredDestroyTargetStackKey(null);
-      setSelectedDestroyTargetStackKeyBySourceInstanceId((prev) =>
+      setHoveredDestroyTargetLocatorKey(null);
+      setSelectedDestroyTargetLocatorKeyBySourceInstanceId((prev) =>
         Object.keys(prev).length === 0 ? prev : {}
       );
       return;
     }
 
-    setSelectedDestroyTargetStackKeyBySourceInstanceId((prev) => {
+    setSelectedDestroyTargetLocatorKeyBySourceInstanceId((prev) => {
       const next: Record<string, string> = {};
       let changed = false;
 
       for (const [sourceInstanceId] of destroyTargetActionsBySourceInstanceId.entries()) {
-        const selectedStackKey = prev[sourceInstanceId];
-        if (!selectedStackKey) {
-          continue;
-        }
+        const selectedLocatorKey = prev[sourceInstanceId];
+        if (!selectedLocatorKey) continue;
 
-        const validStackKeys = validDestroyTargetStackKeysBySourceInstanceId[sourceInstanceId] ?? [];
-        if (validStackKeys.includes(selectedStackKey)) {
-          next[sourceInstanceId] = selectedStackKey;
+        const validLocatorKeys = validDestroyTargetLocatorKeysBySourceInstanceId[sourceInstanceId] ?? [];
+        if (validLocatorKeys.includes(selectedLocatorKey)) {
+          next[sourceInstanceId] = selectedLocatorKey;
         } else {
           changed = true;
         }
@@ -301,34 +337,50 @@ export function useDestroyTargetingRuntime(
       return null;
     });
   }, [
-    phaseKey,
-    availableActions,
+    destroyTargetActionsBySourceInstanceId,
     shipChoiceSelectionByInstanceId,
-    validDestroyTargetStackKeysBySourceInstanceId,
+    validDestroyTargetLocatorKeysBySourceInstanceId,
   ]);
 
-  const destroyTargetStatesByStackKey: BoardDestroyTargetingViewModel['targetStatesByStackKey'] = {};
-  for (const stackKey of persistentlySelectedDestroyStackKeys) {
-    destroyTargetStatesByStackKey[stackKey] = {
+  const targetStatesBySide: BoardDestroyTargetingViewModel['targetStatesBySide'] = {
+    my: {},
+    opponent: {},
+  };
+
+  for (const locatorKey of persistentlySelectedLocatorKeys) {
+    const locator = splitLocatorKey(locatorKey);
+    if (!locator) continue;
+
+    targetStatesBySide[locator.side][locator.stackKey] = {
       isTargetable: false,
       isHovered: false,
       isSelected: true,
     };
   }
 
-  for (const stackKey of activeDestroyValidTargetStackKeys) {
-    const existingState = destroyTargetStatesByStackKey[stackKey];
-    destroyTargetStatesByStackKey[stackKey] = {
+  for (const locatorKey of activeDestroyValidTargetLocatorKeys) {
+    const locator = splitLocatorKey(locatorKey);
+    if (!locator) continue;
+
+    const existingState = targetStatesBySide[locator.side][locator.stackKey];
+    targetStatesBySide[locator.side][locator.stackKey] = {
       isTargetable: true,
-      isHovered: hoveredDestroyTargetStackKey === stackKey,
+      isHovered: hoveredDestroyTargetLocatorKey === locatorKey,
       isSelected:
         existingState?.isSelected === true ||
-        activeDestroySelectedStackKey === stackKey,
+        activeDestroySelectedLocatorKey === locatorKey,
     };
   }
 
-  const destroyTargetPreviewShipDefIdByStackKey: BoardDestroyTargetingViewModel['previewShipDefIdByStackKey'] = {};
-  for (const [stackKey, sourceInstanceIds] of Object.entries(allocatedDestroySourceInstanceIdsByStackKey)) {
+  const previewShipDefIdBySide: BoardDestroyTargetingViewModel['previewShipDefIdBySide'] = {
+    my: {},
+    opponent: {},
+  };
+
+  for (const [locatorKey, sourceInstanceIds] of Object.entries(allocatedDestroySourceInstanceIdsByLocatorKey)) {
+    const locator = splitLocatorKey(locatorKey);
+    if (!locator) continue;
+
     const previewShipDefIds = Array.from(new Set(
       sourceInstanceIds
         .map((sourceInstanceId) => getDestroyPreviewShipDefIdForSource(sourceInstanceId))
@@ -336,23 +388,23 @@ export function useDestroyTargetingRuntime(
     ));
 
     if (previewShipDefIds.length === 1) {
-      destroyTargetPreviewShipDefIdByStackKey[stackKey] = previewShipDefIds[0];
+      previewShipDefIdBySide[locator.side][locator.stackKey] = previewShipDefIds[0];
     }
   }
 
   if (activeDestroyPreviewShipDefId) {
-    if (
-      hoveredDestroyTargetStackKey &&
-      activeDestroyValidTargetStackKeys.has(hoveredDestroyTargetStackKey)
-    ) {
-      destroyTargetPreviewShipDefIdByStackKey[hoveredDestroyTargetStackKey] = activeDestroyPreviewShipDefId;
+    if (hoveredDestroyTargetLocatorKey && activeDestroyValidTargetLocatorKeys.has(hoveredDestroyTargetLocatorKey)) {
+      const hoveredLocator = splitLocatorKey(hoveredDestroyTargetLocatorKey);
+      if (hoveredLocator) {
+        previewShipDefIdBySide[hoveredLocator.side][hoveredLocator.stackKey] = activeDestroyPreviewShipDefId;
+      }
     }
 
-    if (
-      activeDestroySelectedStackKey &&
-      activeDestroyValidTargetStackKeys.has(activeDestroySelectedStackKey)
-    ) {
-      destroyTargetPreviewShipDefIdByStackKey[activeDestroySelectedStackKey] = activeDestroyPreviewShipDefId;
+    if (activeDestroySelectedLocatorKey && activeDestroyValidTargetLocatorKeys.has(activeDestroySelectedLocatorKey)) {
+      const selectedLocator = splitLocatorKey(activeDestroySelectedLocatorKey);
+      if (selectedLocator) {
+        previewShipDefIdBySide[selectedLocator.side][selectedLocator.stackKey] = activeDestroyPreviewShipDefId;
+      }
     }
   }
 
@@ -366,7 +418,7 @@ export function useDestroyTargetingRuntime(
       return;
     }
 
-    setHoveredDestroyTargetStackKey(null);
+    setHoveredDestroyTargetLocatorKey(null);
     setActiveDestroyTargetSourceInstanceId((prev) => (
       prev === sourceInstanceId ? null : prev
     ));
@@ -374,56 +426,65 @@ export function useDestroyTargetingRuntime(
 
   const onBoardBackgroundMouseDown = () => {
     setActiveDestroyTargetSourceInstanceId(null);
-    setHoveredDestroyTargetStackKey(null);
+    setHoveredDestroyTargetLocatorKey(null);
   };
 
-  const onDestroyTargetStackHoverChange = (stackKey: string | null) => {
+  const onDestroyTargetStackHoverChange = (side: DestroyTargetSide, stackKey: string | null) => {
     if (activeDestroyTargetSourceInstanceId == null) {
       if (stackKey == null) {
-        setHoveredDestroyTargetStackKey(null);
+        setHoveredDestroyTargetLocatorKey(null);
       }
       return;
     }
 
     if (stackKey == null) {
-      setHoveredDestroyTargetStackKey(null);
+      setHoveredDestroyTargetLocatorKey(null);
       return;
     }
 
-    if (!activeDestroyValidTargetStackKeys.has(stackKey)) {
+    const locatorKey = makeLocatorKey(side, stackKey);
+    if (!activeDestroyValidTargetLocatorKeys.has(locatorKey)) {
       return;
     }
 
-    setHoveredDestroyTargetStackKey(stackKey);
+    setHoveredDestroyTargetLocatorKey(locatorKey);
   };
 
-  const onDestroyTargetStackMouseDown = (stackKey: string) => {
+  const onDestroyTargetStackMouseDown = (side: DestroyTargetSide, stackKey: string) => {
     if (activeDestroyTargetSourceInstanceId == null) {
       return;
     }
 
-    setSelectedDestroyTargetStackKeyBySourceInstanceId((prev) => {
-      if (prev[activeDestroyTargetSourceInstanceId] === stackKey) {
+    const locatorKey = makeLocatorKey(side, stackKey);
+    if (!activeDestroyValidTargetLocatorKeys.has(locatorKey)) {
+      return;
+    }
+
+    setSelectedDestroyTargetLocatorKeyBySourceInstanceId((prev) => {
+      if (prev[activeDestroyTargetSourceInstanceId] === locatorKey) {
         return prev;
       }
 
       return {
         ...prev,
-        [activeDestroyTargetSourceInstanceId]: stackKey,
+        [activeDestroyTargetSourceInstanceId]: locatorKey,
       };
     });
-    setHoveredDestroyTargetStackKey(stackKey);
+    setHoveredDestroyTargetLocatorKey(locatorKey);
   };
 
   return {
     allocatedDestroyTargetIdBySourceInstanceId,
-    boardDestroyTargeting: {
-      activeSourceInstanceId: activeDestroyTargetSourceInstanceId,
-      targetStatesByStackKey: destroyTargetStatesByStackKey,
-      previewShipDefIdByStackKey: destroyTargetPreviewShipDefIdByStackKey,
-    },
-    shouldResetFirstStrikeDestroyRows,
-    consumePendingFirstStrikeDestroyReset,
+    boardDestroyTargeting:
+      myPlayerId || opponentPlayerId
+        ? {
+            activeSourceInstanceId: activeDestroyTargetSourceInstanceId,
+            targetStatesBySide,
+            previewShipDefIdBySide,
+          }
+        : makeEmptyBoardDestroyTargeting(),
+    shouldResetDestroyTargetRows,
+    consumePendingDestroyTargetReset,
     applyDestroyTargetingChoiceSideEffects,
     onBoardBackgroundMouseDown,
     onDestroyTargetStackHoverChange,

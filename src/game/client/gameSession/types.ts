@@ -126,8 +126,14 @@ export interface BoardDestroyTargetState {
 
 export interface BoardDestroyTargetingViewModel {
   activeSourceInstanceId: string | null;
-  targetStatesByStackKey: Record<string, BoardDestroyTargetState>;
-  previewShipDefIdByStackKey: Partial<Record<string, ShipDefId>>;
+  targetStatesBySide: {
+    my: Record<string, BoardDestroyTargetState>;
+    opponent: Record<string, BoardDestroyTargetState>;
+  };
+  previewShipDefIdBySide: {
+    my: Partial<Record<string, ShipDefId>>;
+    opponent: Partial<Record<string, ShipDefId>>;
+  };
 }
 
 export type BoardViewModel =
@@ -291,6 +297,6 @@ export interface GameSessionActions {
   onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => void;
   onSelectEvolverChoice: (rowId: string, choiceId: EvolverChoiceId) => void;
   onBoardBackgroundMouseDown: () => void;
-  onDestroyTargetStackHoverChange: (stackKey: string | null) => void;
-  onDestroyTargetStackMouseDown: (stackKey: string) => void;
+  onDestroyTargetStackHoverChange: (side: 'my' | 'opponent', stackKey: string | null) => void;
+  onDestroyTargetStackMouseDown: (side: 'my' | 'opponent', stackKey: string) => void;
 }

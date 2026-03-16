@@ -664,8 +664,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const {
     allocatedDestroyTargetIdBySourceInstanceId,
     boardDestroyTargeting,
-    shouldResetFirstStrikeDestroyRows,
-    consumePendingFirstStrikeDestroyReset,
+    shouldResetDestroyTargetRows,
+    consumePendingDestroyTargetReset,
     applyDestroyTargetingChoiceSideEffects,
     onBoardBackgroundMouseDown: handleDestroyTargetingBoardBackgroundMouseDown,
     onDestroyTargetStackHoverChange: handleDestroyTargetStackHoverChange,
@@ -675,6 +675,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     phaseInstanceKey,
     availableActions,
     shipChoiceSelectionByInstanceId,
+    myPlayerId: me?.id,
+    opponentPlayerId: opponent?.id,
     myShips,
     opponentShipsVisible,
     frigateTriggerByInstanceId,
@@ -717,7 +719,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         if (allowedChoiceIds.length === 0) continue;
         
         const existing =
-          shouldResetFirstStrikeDestroyRows && action.kind === 'destroy_target'
+          shouldResetDestroyTargetRows && action.kind === 'destroy_target'
             ? undefined
             : prev[instanceId];
         if (existing && allowedChoiceIds.includes(existing)) {
@@ -749,14 +751,14 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       return changed ? next : prev;
     });
 
-    if (shouldResetFirstStrikeDestroyRows) {
-      consumePendingFirstStrikeDestroyReset();
+    if (shouldResetDestroyTargetRows) {
+      consumePendingDestroyTargetReset();
     }
   }, [
     phaseKey,
     availableActions,
     phaseInstanceKey,
-    shouldResetFirstStrikeDestroyRows,
+    shouldResetDestroyTargetRows,
   ]);
   
   // ============================================================================
@@ -1115,12 +1117,14 @@ useEffect(() => {
     const canConfirmSpecies =
       !isSpeciesSelectionComplete &&
       myRole === 'player' &&
-      me?.isActive === true;
+      me?.isActive === true &&
+      selectedSpecies !== 'ancient';
 
     const confirmDisabledReason =
-      myRole !== 'player' ? 'Only players can confirm species' :
+      myRole !== 'player' ? 'Two players already present. You are spectating.' :
       me?.isActive !== true ? 'Inactive player cannot confirm' :
       isSpeciesSelectionComplete ? 'Already confirmed' :
+      selectedSpecies === 'ancient' ? '' :
       undefined;
 
     board = {
@@ -1891,6 +1895,11 @@ useEffect(() => {
         console.error('[useGameSession] SPECIES_SUBMIT blocked: no species selected');
         return;
       }
+
+      if (selectedSpecies === 'ancient') {
+        console.error('[useGameSession] SPECIES_SUBMIT blocked: species disabled', { selectedSpecies });
+        return;
+      }
       
       await runSpeciesConfirmFlow({
         selectedSpecies,
@@ -2034,12 +2043,12 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       handleDestroyTargetingBoardBackgroundMouseDown();
     },
 
-    onDestroyTargetStackHoverChange: (stackKey: string | null) => {
-      handleDestroyTargetStackHoverChange(stackKey);
+    onDestroyTargetStackHoverChange: (side: 'my' | 'opponent', stackKey: string | null) => {
+      handleDestroyTargetStackHoverChange(side, stackKey);
     },
 
-    onDestroyTargetStackMouseDown: (stackKey: string) => {
-      handleDestroyTargetStackMouseDown(stackKey);
+    onDestroyTargetStackMouseDown: (side: 'my' | 'opponent', stackKey: string) => {
+      handleDestroyTargetStackMouseDown(side, stackKey);
     },
   };
   
