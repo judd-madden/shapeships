@@ -16,7 +16,7 @@ import { advancePhase } from './advancePhase.ts';
 import { fleetHasAvailablePowers } from './fleetHasAvailablePowers.ts';
 import { hasCommitted, hasRevealed, allCommittedPlayersRevealed } from '../intent/CommitStore.ts';
 import { getBuildCommitKey } from '../intent/IntentTypes.ts';
-import { computeLineBonusForPlayer } from '../lines/computeLineBonusForPlayer.ts';
+import { computeLineBonusesForPlayer } from '../lines/computeLineBonusForPlayer.ts';
 import { resolvePhase } from '../../engine_shared/resolve/resolvePhase.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
@@ -511,7 +511,7 @@ function enterPhaseOnce(
         
         for (const player of activePlayers) {
           const baseLines = turnData.effectiveDiceRollByPlayerId?.[player.id] ?? canonicalBaseLines;
-          const bonusLines = computeLineBonusForPlayer(workingState, player.id);
+          const { bonusLines } = computeLineBonusesForPlayer(workingState, player.id);
           const totalLines = baseLines + bonusLines;
           
           const currentLines = player.lines || 0;

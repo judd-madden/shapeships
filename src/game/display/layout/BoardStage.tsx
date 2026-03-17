@@ -728,8 +728,15 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
                 align="right"
                 toneClass="text-[#62fff6]"
               />
-              {/* Joining lines, will turn on if player has bonus joining lines */}
-              {/* <Metric value="0" label="JOINING" label2="LINES" align="right" toneClass="text-[#62fff6]" /> */}
+              {vm.myJoiningBonusLines > 0 ? (
+                <Metric
+                  value={String(vm.myJoiningBonusLines)}
+                  label="JOINING"
+                  label2="LINES"
+                  align="right"
+                  toneClass="text-[#62fff6]"
+                />
+              ) : null}
             </div>
 
             <div className="content-stretch flex items-center justify-center pb-0 pt-[8px] px-0 relative shrink-0">
@@ -749,8 +756,15 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
                 align="left"
                 toneClass="text-[#62fff6]"
               />
-              {/* Joining lines, will turn on if player has bonus joining lines */}
-              {/* <Metric value="0" label="JOINING" label2="LINES" align="left" toneClass="text-[#62fff6]" /> */}
+              {vm.opponentJoiningBonusLines > 0 ? (
+                <Metric
+                  value={String(vm.opponentJoiningBonusLines)}
+                  label="JOINING"
+                  label2="LINES"
+                  align="left"
+                  toneClass="text-[#62fff6]"
+                />
+              ) : null}
             </div>
           </div>
         </div>

@@ -16,7 +16,7 @@ import { getBuildCommitKey } from '../engine/intent/IntentTypes.ts';
 import { getCommitRecord, hasRevealed } from '../engine/intent/CommitStore.ts';
 import type { ShipInstance } from '../engine/state/GameStateTypes.ts';
 import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
-import { computeLineBonusForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
+import { computeLineBonusesForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
 import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers.ts';
 import { getShipById } from '../engine_shared/defs/ShipDefinitions.core.ts';
 import { getShipDefinition } from '../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
@@ -1070,16 +1070,20 @@ export function registerGameRoutes(
         serverNowMs: nowMs,
       } : null;
       
-      // Compute bonus lines for all players
+      // Compute projected build-phase line bonuses for all players
       const bonusLinesByPlayerId: Record<string, number> = {};
+      const joiningBonusLinesByPlayerId: Record<string, number> = {};
       const playersInGame = gameData.players || [];
       for (const player of playersInGame) {
         if (player.role === 'player') {
           try {
-            bonusLinesByPlayerId[player.id] = computeLineBonusForPlayer(gameData.gameData, player.id);
+            const lineBonuses = computeLineBonusesForPlayer(gameData.gameData, player.id);
+            bonusLinesByPlayerId[player.id] = lineBonuses.bonusLines;
+            joiningBonusLinesByPlayerId[player.id] = lineBonuses.joiningBonusLines;
           } catch (err) {
             console.error(`[GET game-state] Failed to compute bonus lines for ${player.id}:`, err);
             bonusLinesByPlayerId[player.id] = 0; // Default to 0 on error
+            joiningBonusLinesByPlayerId[player.id] = 0;
           }
         }
       }
@@ -1093,6 +1097,7 @@ export function registerGameRoutes(
         events,
         availableActions,
         bonusLinesByPlayerId,
+        joiningBonusLinesByPlayerId,
       });
 
     } catch (error) {

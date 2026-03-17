@@ -1160,9 +1160,12 @@ useEffect(() => {
 
     // Server-authoritative bonus lines (top-level response projection)
     const bonusLinesByPlayerId = rawState?.bonusLinesByPlayerId as Record<string, number> | undefined;
+    const joiningBonusLinesByPlayerId = rawState?.joiningBonusLinesByPlayerId as Record<string, number> | undefined;
 
     const myBonusLines = me?.id ? (bonusLinesByPlayerId?.[me.id] ?? 0) : 0;
     const opponentBonusLines = opponent?.id ? (bonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
+    const myJoiningBonusLines = me?.id ? (joiningBonusLinesByPlayerId?.[me.id] ?? 0) : 0;
+    const opponentJoiningBonusLines = opponent?.id ? (joiningBonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
 
     board = {
       mode: 'board',
@@ -1215,6 +1218,8 @@ useEffect(() => {
       // Bonus lines (server-authoritative)
       myBonusLines,
       opponentBonusLines,
+      myJoiningBonusLines,
+      opponentJoiningBonusLines,
 
       // Compute animation stagger plans
       opponentFleetEntryPlan: (() => {
@@ -2101,6 +2106,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         opponentHealth: 25,
         myBonusLines: 0,
         opponentBonusLines: 0,
+        myJoiningBonusLines: 0,
+        opponentJoiningBonusLines: 0,
         myFleet: [],
         opponentFleet: [],
         myFleetOrder: [],
