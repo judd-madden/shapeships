@@ -72,6 +72,52 @@ function getTargetedActionButtons(args: {
   });
 }
 
+function getProjectedChoiceAmount(
+  action: { choices?: Array<{ choiceId?: string; projectedAmount?: number }> },
+  choiceId: string
+): number | null {
+  if (!Array.isArray(action?.choices)) return null;
+
+  const match = action.choices.find((choice) => choice?.choiceId === choiceId);
+  const projectedAmount = match?.projectedAmount;
+
+  if (typeof projectedAmount !== 'number' || !Number.isInteger(projectedAmount)) {
+    return null;
+  }
+
+  return projectedAmount;
+}
+
+function getProjectedActionButtons(args: {
+  buttons: ShipChoiceGroupSpec['buttons'];
+  action: any;
+  shipDefId: ShipDefId;
+}) {
+  const { buttons, action, shipDefId } = args;
+
+  if (shipDefId !== 'FAM') {
+    return buttons;
+  }
+
+  return buttons.map((button) => {
+    if (button.choiceId !== 'damage' && button.choiceId !== 'heal') {
+      return button;
+    }
+
+    const projectedAmount = getProjectedChoiceAmount(action, button.choiceId);
+    if (projectedAmount == null) {
+      return button;
+    }
+
+    return {
+      ...button,
+      label: button.choiceId === 'damage'
+        ? `Deal ${projectedAmount} Damage`
+        : `Heal ${projectedAmount}`,
+    };
+  });
+}
+
 export function mapGameSessionVm(args: {
   isBootstrapping: boolean;
 
@@ -518,12 +564,16 @@ export function mapGameSessionVm(args: {
           const heading = getCountedGroupHeading(groupSpec, count);
           const ships = matches.map((m: any) => ({
             shipDefId: groupSpec.shipDefId,
-            buttons: getTargetedActionButtons({
-              buttons: groupSpec.buttons,
+            buttons: getProjectedActionButtons({
+              buttons: getTargetedActionButtons({
+                buttons: groupSpec.buttons,
+                action: m,
+                sourceInstanceId: m.sourceInstanceId,
+                selectedChoiceIdBySourceInstanceId,
+                allocatedDestroyTargetIdBySourceInstanceId,
+              }),
               action: m,
-              sourceInstanceId: m.sourceInstanceId,
-              selectedChoiceIdBySourceInstanceId,
-              allocatedDestroyTargetIdBySourceInstanceId,
+              shipDefId: groupSpec.shipDefId,
             }),
             sourceInstanceId: m.sourceInstanceId,
             actionId: m.actionId,
@@ -555,12 +605,16 @@ export function mapGameSessionVm(args: {
             for (const m of matches) {
               expandedShips.push({
                 shipDefId: ship.shipDefId,
-                buttons: getTargetedActionButtons({
-                  buttons: ship.buttons,
+                buttons: getProjectedActionButtons({
+                  buttons: getTargetedActionButtons({
+                    buttons: ship.buttons,
+                    action: m,
+                    sourceInstanceId: m.sourceInstanceId,
+                    selectedChoiceIdBySourceInstanceId,
+                    allocatedDestroyTargetIdBySourceInstanceId,
+                  }),
                   action: m,
-                  sourceInstanceId: m.sourceInstanceId,
-                  selectedChoiceIdBySourceInstanceId,
-                  allocatedDestroyTargetIdBySourceInstanceId,
+                  shipDefId: ship.shipDefId,
                 }),
                 sourceInstanceId: m.sourceInstanceId,
                 actionId: m.actionId,

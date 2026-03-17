@@ -23,6 +23,7 @@ import { getShipDefinition } from '../engine_shared/defs/ShipDefinitions.withStr
 import type { StructuredShipPower } from '../engine_shared/effects/translateShipPowers.ts';
 import { EffectKind } from '../engine_shared/effects/Effect.ts';
 import { getValidDestroyTargets } from '../engine_shared/resolve/destroyRules.ts';
+import { countDistinctTypes } from '../engine_shared/resolve/phaseComputedEffects.ts';
 import { rollD6 } from '../engine/util/rollD6.ts';
 
 // ============================================================================
@@ -76,6 +77,21 @@ function playerHasAvailableChargeOrSolarOption(state: any, playerId: string): bo
   }
 
   return false;
+}
+
+function getProjectedChoiceMetadataForChargeAction(
+  shipDefId: string,
+  playerFleet: ShipInstance[],
+  choiceId: string
+) {
+  if (shipDefId === 'FAM' && (choiceId === 'damage' || choiceId === 'heal')) {
+    return {
+      choiceId,
+      projectedAmount: countDistinctTypes(playerFleet),
+    };
+  }
+
+  return { choiceId };
 }
 
 // ============================================================================
@@ -136,7 +152,9 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
         
         // Emit choice action
         const actionId = `${shipDefId}#${powerIndex}`;
-        const choices = power.options.map(opt => ({ choiceId: opt.choiceId }));
+        const choices = power.options.map((opt) =>
+          getProjectedChoiceMetadataForChargeAction(shipDefId, fleet, opt.choiceId)
+        );
         
         actions.push({
           kind: 'choice',

@@ -206,7 +206,7 @@ function countEffectiveXenitesForPowers(ships: ShipInstance[]): number {
 /**
  * TYPE of ship = distinct shipDefId in fleet (per rules text).
  */
-function countDistinctTypes(ships: ShipInstance[]): number {
+export function countDistinctTypes(ships: ShipInstance[]): number {
   const set = new Set<string>();
   for (const s of ships) set.add(s.shipDefId);
   return set.size;

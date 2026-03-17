@@ -29,7 +29,7 @@ export type RenderableServerAction = {
   actionId: string;
   shipDefId: string;
   sourceInstanceId: string;
-  choices: Array<{ choiceId?: string }>;
+  choices: Array<{ choiceId?: string; projectedAmount?: number }>;
   validTargets?: any[];
 };
 
@@ -70,7 +70,7 @@ export function getRenderableServerChoiceActions(
 }
 
 export function getRenderableActionChoiceIds(action: {
-  choices?: Array<{ choiceId?: string }>;
+  choices?: Array<{ choiceId?: string; projectedAmount?: number }>;
 }): string[] {
   return Array.isArray(action?.choices)
     ? action.choices

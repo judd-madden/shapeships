@@ -25,6 +25,7 @@ import {
   type TranslateContext
 } from '../effects/translateShipPowers.ts';
 import { getValidDestroyTargets } from './destroyRules.ts';
+import { countDistinctTypes } from './phaseComputedEffects.ts';
 
 // ============================================================================
 // PUBLIC API
@@ -201,6 +202,20 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
     ctx,
     choiceId // Use choiceId as salt for deterministic IDs
   );
+
+  if (shipDefId === 'FAM' && (choiceId === 'damage' || choiceId === 'heal')) {
+    const lockedAmount = countDistinctTypes(fleet);
+
+    for (const effect of effects) {
+      if (choiceId === 'damage' && effect.kind === EffectKind.Damage) {
+        (effect as any).amount = lockedAmount;
+      }
+
+      if (choiceId === 'heal' && effect.kind === EffectKind.Heal) {
+        (effect as any).amount = lockedAmount;
+      }
+    }
+  }
 
   // ============================================================================
   // 13. COMPUTE SPENT CHARGE FLAG

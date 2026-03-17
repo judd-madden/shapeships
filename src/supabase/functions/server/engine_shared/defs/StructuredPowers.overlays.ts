@@ -475,6 +475,70 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   ],
 
   // ==========================================================================
+  // SHIP OF FAMILY (FAM)
+  // ==========================================================================
+  // Choice power (Charge Declaration, Charge Response)
+  // - damage: SpendCharge(1) + Damage(distinct owned ship types)
+  // - heal: SpendCharge(1) + Heal(distinct owned ship types)
+  // - hold: no effect
+  // NOTE: Damage/Heal amount is authoritatively concretized in resolvePowerAction.
+  'FAM#0': [
+    {
+      type: 'choice',
+      timings: ['battle.charge_declaration', 'battle.charge_response'],
+      requiresCharge: true,
+      chargeCost: 1,
+      options: [
+        {
+          choiceId: 'damage',
+          label: '',
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.SpendCharge,
+              amount: 1,
+              targetPlayer: 'self',
+            },
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.Damage,
+              amount: 0,
+              targetPlayer: 'opponent',
+            },
+          ],
+        },
+        {
+          choiceId: 'heal',
+          label: '',
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.SpendCharge,
+              amount: 1,
+              targetPlayer: 'self',
+            },
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.Heal,
+              amount: 0,
+              targetPlayer: 'self',
+            },
+          ],
+        },
+        {
+          choiceId: 'hold',
+          label: '',
+          effects: [],
+        },
+      ],
+    },
+  ],
+
+  // ==========================================================================
   // ARK OF ENTROPY (ENT)
   // ==========================================================================
   // JSON power index 0: "Deal 7 damage." (Automatic)

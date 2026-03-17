@@ -357,13 +357,13 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
         buttons: [
           {
             size: 'large',
-            label: 'Deal 6 Damage',
+            label: 'Deal Damage',
             detail: '(uses 1 charge)',
             choiceId: 'damage',
           },
           {
             size: 'large',
-            label: 'Heal 6',
+            label: 'Heal',
             detail: '(uses 1 charge)',
             choiceId: 'heal',
           },
