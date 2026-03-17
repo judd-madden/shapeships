@@ -206,9 +206,9 @@ const SHIP_ANIM: Partial<Record<ShipDefId, {
  * Compute activation scale based on stack count
  */
 export function computeActivationScale(stackCount: number): number {
-  const base = 1.1;
-  const max = 2.4; // slightly higher since these are mostly small ships
-  const k = 0.25;  // tuned so ~50 is close to max
+  const base = 0.944;
+  const k = 0.206;
+  const max = 2.4;
 
   const scale = base + k * Math.sqrt(Math.max(0, stackCount));
   return Math.min(scale, max);
