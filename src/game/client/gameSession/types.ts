@@ -169,6 +169,8 @@ export type BoardViewModel =
       // Bonus lines (server-authoritative)
       myBonusLines: number;
       opponentBonusLines: number;
+      mySavedJoiningLines: number;
+      opponentSavedJoiningLines: number;
       myJoiningBonusLines: number;
       opponentJoiningBonusLines: number;
       

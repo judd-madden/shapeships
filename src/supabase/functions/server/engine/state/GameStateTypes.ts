@@ -43,6 +43,9 @@ export type PlayerState = {
   
   /** Current lines (build resources) */
   lines: number;
+
+  /** Stored joining lines (Centaur-only saved upgrade resource) */
+  joiningLines: number;
   
   /** Species selection */
   species?: string | null;

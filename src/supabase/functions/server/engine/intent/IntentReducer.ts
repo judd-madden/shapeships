@@ -149,6 +149,22 @@ function appendBuiltShipInstance(args: {
   }
 
   state.gameData.ships[playerId].push(shipInstance);
+
+  if (shipDefId === 'LEG') {
+    // LEG grants 4 stored joining lines when built. We persist the authoritative
+    // resource here, but build.drawing is still previewed/batched, so newly granted
+    // joining lines are not yet usable for same-phase drawing/economy decisions.
+    // Immediate same-phase spend is deferred to a later server-authoritative pass.
+    const playerIndex = state.players.findIndex((p: any) => p.id === playerId);
+    if (playerIndex >= 0) {
+      const currentJoiningLines = state.players[playerIndex].joiningLines ?? 0;
+      state.players[playerIndex] = {
+        ...state.players[playerIndex],
+        joiningLines: currentJoiningLines + 4,
+      };
+    }
+  }
+
   incrementShipsMadeThisBuildPhaseCounter(state, playerId, 1);
 
   return shipInstance;

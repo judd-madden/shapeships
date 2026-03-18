@@ -681,8 +681,15 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             <div className="content-stretch flex items-start justify-end relative shrink-0 w-[100px]" data-name="P1 Saved Wrapper">
               <div className="content-stretch flex items-start relative shrink-0">
                 <Metric value="0" align="right" toneClass="text-white" />
-                {/* Joining lines, will turn on if player has saved joining lines */}
-                {/* <Metric value="0" label="JOINING" align="right" toneClass="text-white" /> */}
+                {/* Saved joining lines shown here are authoritative projected state only; we do not invent local same-phase LEG availability, and immediate same-phase use is deferred. */}
+                {vm.mySavedJoiningLines > 0 ? (
+                  <Metric
+                    value={String(vm.mySavedJoiningLines)}
+                    label="JOINING"
+                    align="right"
+                    toneClass="text-white"
+                  />
+                ) : null}
               </div>
             </div>
           
@@ -699,8 +706,14 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             <div className="content-stretch flex items-start relative shrink-0 w-[100px]" data-name="P2 Saved Wrapper">
               <div className="content-stretch flex items-start relative shrink-0">
                 <Metric value="0" align="left" toneClass="text-white" />
-                {/* Joining lines, will turn on if player has saved joining lines */}
-                {/* <Metric value="0" label="JOINING" align="left" toneClass="text-white" /> */}
+                {vm.opponentSavedJoiningLines > 0 ? (
+                  <Metric
+                    value={String(vm.opponentSavedJoiningLines)}
+                    label="JOINING"
+                    align="left"
+                    toneClass="text-white"
+                  />
+                ) : null}
               </div>
             </div>
           </div>

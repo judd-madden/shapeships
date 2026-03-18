@@ -589,6 +589,31 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   ],
 
   // ==========================================================================
+  // SHIP OF LEGACY (LEG)
+  // ==========================================================================
+  // JSON power index 1: "Deal 1 damage." (Automatic)
+  'LEG#1': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Damage,
+      amount: 1,
+      targetPlayer: 'opponent',
+    },
+  ],
+
+  // JSON power index 2: "Heal 2." (Automatic)
+  'LEG#2': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Heal,
+      amount: 2,
+      targetPlayer: 'self',
+    },
+  ],
+
+  // ==========================================================================
   // SACRIFICIAL POOL (SAC)
   // ==========================================================================
   // Choice power in build.ships_that_build:
