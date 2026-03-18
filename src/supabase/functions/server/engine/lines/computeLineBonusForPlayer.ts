@@ -61,6 +61,7 @@ const JOINING_BONUS_LINES_PER_SHIP: Record<string, number> = {
 
 export type LineBonusBreakdown = {
   bonusLines: number;
+  bonusLinesOnEven: number;
   joiningBonusLines: number;
 };
 
@@ -107,6 +108,7 @@ export function computeLineBonusesForPlayer(
   if (ships.length === 0) {
     return {
       bonusLines: 0,
+      bonusLinesOnEven: 0,
       joiningBonusLines: 0,
     };
   }
@@ -123,6 +125,7 @@ export function computeLineBonusesForPlayer(
     typeof effectiveDiceRoll === 'number' && effectiveDiceRoll % 2 === 0;
 
   let bonusLines = 0;
+  let bonusLinesOnEven = 0;
   let joiningBonusLines = 0;
 
   for (const [shipDefId, count] of Object.entries(shipCounts)) {
@@ -140,16 +143,18 @@ export function computeLineBonusesForPlayer(
     }
   }
 
-  if (hasEvenEffectiveDiceRoll) {
-    const vigorCount = shipCounts.VIG ?? 0;
-    if (vigorCount > 0) {
-      bonusLines += 2 * getCappedContributingCount('VIG', vigorCount);
-    }
+  const vigorCount = shipCounts.VIG ?? 0;
+  if (vigorCount > 0) {
+    bonusLinesOnEven += 2 * getCappedContributingCount('VIG', vigorCount);
+  }
 
-    const powerArkCount = shipCounts.POW ?? 0;
-    if (powerArkCount > 0) {
-      bonusLines += 4 * getCappedContributingCount('POW', powerArkCount);
-    }
+  const powerArkCount = shipCounts.POW ?? 0;
+  if (powerArkCount > 0) {
+    bonusLinesOnEven += 4 * getCappedContributingCount('POW', powerArkCount);
+  }
+
+  if (hasEvenEffectiveDiceRoll) {
+    bonusLines += bonusLinesOnEven;
   }
 
   const sciTier = getCopyTierFromFleet(ships, 'SCI', 3);
@@ -159,6 +164,7 @@ export function computeLineBonusesForPlayer(
 
   return {
     bonusLines,
+    bonusLinesOnEven,
     joiningBonusLines,
   };
 }

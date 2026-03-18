@@ -547,6 +547,12 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
 
   const mySpeciesKey = toSpeciesKey(vm.mySpeciesId);
   const opponentSpeciesKey = toSpeciesKey(vm.opponentSpeciesId);
+  const myDisplayedBonusLines =
+    mySpeciesKey === 'centaur' ? vm.myBonusLinesOnEven : vm.myBonusLines;
+  const opponentDisplayedBonusLines =
+    opponentSpeciesKey === 'centaur'
+      ? vm.opponentBonusLinesOnEven
+      : vm.opponentBonusLines;
 
   // Hide deltas on turn 1 only
   const showDeltas = vm.turnNumber > 1;
@@ -735,7 +741,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
           <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Bonus Group">
             <div className="content-stretch flex gap-[4px] items-center justify-end relative shrink-0 w-[100px]" data-name="P1 Bonuses">
               <Metric
-                value={String(vm.myBonusLines ?? 0)}
+                value={String(myDisplayedBonusLines ?? 0)}
                 label="LINES"
                 label2={mySpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
                 align="right"
@@ -763,7 +769,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
 
             <div className="content-stretch flex gap-[4px] items-start relative shrink-0 w-[100px]" data-name="P2 Bonuses">
               <Metric
-                value={String(vm.opponentBonusLines ?? 0)}
+                value={String(opponentDisplayedBonusLines ?? 0)}
                 label="LINES"
                 label2={opponentSpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
                 align="left"

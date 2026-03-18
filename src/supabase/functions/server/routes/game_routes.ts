@@ -1072,6 +1072,7 @@ export function registerGameRoutes(
       
       // Compute projected build-phase line bonuses for all players
       const bonusLinesByPlayerId: Record<string, number> = {};
+      const bonusLinesOnEvenByPlayerId: Record<string, number> = {};
       const joiningLinesByPlayerId: Record<string, number> = {};
       const joiningBonusLinesByPlayerId: Record<string, number> = {};
       const playersInGame = gameData.players || [];
@@ -1081,10 +1082,12 @@ export function registerGameRoutes(
           try {
             const lineBonuses = computeLineBonusesForPlayer(gameData.gameData, player.id);
             bonusLinesByPlayerId[player.id] = lineBonuses.bonusLines;
+            bonusLinesOnEvenByPlayerId[player.id] = lineBonuses.bonusLinesOnEven;
             joiningBonusLinesByPlayerId[player.id] = lineBonuses.joiningBonusLines;
           } catch (err) {
             console.error(`[GET game-state] Failed to compute bonus lines for ${player.id}:`, err);
             bonusLinesByPlayerId[player.id] = 0; // Default to 0 on error
+            bonusLinesOnEvenByPlayerId[player.id] = 0;
             joiningBonusLinesByPlayerId[player.id] = 0;
           }
         }
@@ -1099,6 +1102,7 @@ export function registerGameRoutes(
         events,
         availableActions,
         bonusLinesByPlayerId,
+        bonusLinesOnEvenByPlayerId,
         joiningLinesByPlayerId,
         joiningBonusLinesByPlayerId,
       });

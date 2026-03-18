@@ -1160,11 +1160,14 @@ useEffect(() => {
 
     // Server-authoritative bonus lines (top-level response projection)
     const bonusLinesByPlayerId = rawState?.bonusLinesByPlayerId as Record<string, number> | undefined;
+    const bonusLinesOnEvenByPlayerId = rawState?.bonusLinesOnEvenByPlayerId as Record<string, number> | undefined;
     const joiningLinesByPlayerId = rawState?.joiningLinesByPlayerId as Record<string, number> | undefined;
     const joiningBonusLinesByPlayerId = rawState?.joiningBonusLinesByPlayerId as Record<string, number> | undefined;
 
     const myBonusLines = me?.id ? (bonusLinesByPlayerId?.[me.id] ?? 0) : 0;
     const opponentBonusLines = opponent?.id ? (bonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
+    const myBonusLinesOnEven = me?.id ? (bonusLinesOnEvenByPlayerId?.[me.id] ?? 0) : 0;
+    const opponentBonusLinesOnEven = opponent?.id ? (bonusLinesOnEvenByPlayerId?.[opponent.id] ?? 0) : 0;
     const mySavedJoiningLines = me?.id ? (joiningLinesByPlayerId?.[me.id] ?? 0) : 0;
     const opponentSavedJoiningLines = opponent?.id ? (joiningLinesByPlayerId?.[opponent.id] ?? 0) : 0;
     const myJoiningBonusLines = me?.id ? (joiningBonusLinesByPlayerId?.[me.id] ?? 0) : 0;
@@ -1221,6 +1224,8 @@ useEffect(() => {
       // Bonus lines (server-authoritative)
       myBonusLines,
       opponentBonusLines,
+      myBonusLinesOnEven,
+      opponentBonusLinesOnEven,
       mySavedJoiningLines,
       opponentSavedJoiningLines,
       myJoiningBonusLines,
@@ -2111,6 +2116,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         opponentHealth: 25,
         myBonusLines: 0,
         opponentBonusLines: 0,
+        myBonusLinesOnEven: 0,
+        opponentBonusLinesOnEven: 0,
         mySavedJoiningLines: 0,
         opponentSavedJoiningLines: 0,
         myJoiningBonusLines: 0,
