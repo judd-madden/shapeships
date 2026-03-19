@@ -69,7 +69,7 @@ export const STARS_CONFIG: StarsConfig = {
 };
 
 export type StarsViewport = { width: number; height: number };
-export type StarKind = 'star' | 'blackHole' | 'saturn';
+export type StarKind = 'star' | 'shootingStar' | 'blackHole' | 'saturn';
 
 export type StarSpec = {
   id: string;
@@ -79,7 +79,7 @@ export type StarSpec = {
   x: number;
   y: number;
 
-  // only used for normal stars (blackHole/saturn use config sizes)
+  // Used for the rendered body size; saturn ring dimensions still come from config.
   sizePx: number;
 
   // drift vector in px
@@ -88,16 +88,6 @@ export type StarSpec = {
 
   durationMs: number;
   delayMs: number;
-};
-
-export type ShootingStarSpec = {
-  id: string;
-  x: number;
-  y: number;
-  dx: number;
-  dy: number;
-  durationMs: number;
-  sizePx: number;
 };
 
 function rand01(): number {
@@ -118,6 +108,48 @@ function hypot(a: number, b: number): number {
   return Math.sqrt(a * a + b * b);
 }
 
+function createStarId(prefix: string): string {
+  return `${prefix}_${Math.floor(rand01() * 1e9)}`;
+}
+
+function randomSpawnPosition(viewport: StarsViewport, cfg: StarsConfig) {
+  const { width, height } = viewport;
+  const m = cfg.spawnMarginPx;
+  return {
+    x: randFloat(-m, width + m),
+    y: randFloat(-m, height + m),
+  };
+}
+
+type CreateDriftingStarSpecOptions = {
+  idPrefix: string;
+  kind: StarKind;
+  sizePx: number;
+  durationMs: number;
+  delayMs: number;
+};
+
+function createDriftingStarSpec(
+  viewport: StarsViewport,
+  cfg: StarsConfig,
+  options: CreateDriftingStarSpecOptions,
+): StarSpec {
+  const { x, y } = randomSpawnPosition(viewport, cfg);
+  const { dx, dy } = computeDriftVector(viewport, cfg);
+
+  return {
+    id: createStarId(options.idPrefix),
+    kind: options.kind,
+    x,
+    y,
+    sizePx: options.sizePx,
+    dx,
+    dy,
+    durationMs: options.durationMs,
+    delayMs: options.delayMs,
+  };
+}
+
 export function computeDriftVector(viewport: StarsViewport, cfg: StarsConfig) {
   const angle = randFloat(0, Math.PI * 2);
   const diagonal = hypot(viewport.width, viewport.height);
@@ -129,57 +161,45 @@ export function computeDriftVector(viewport: StarsViewport, cfg: StarsConfig) {
 }
 
 export function generateStars(viewport: StarsViewport, cfg: StarsConfig = STARS_CONFIG): StarSpec[] {
-  const { width, height } = viewport;
-  const m = cfg.spawnMarginPx;
-
   const count = randIntInclusive(cfg.minStars, cfg.maxStars);
   const out: StarSpec[] = [];
 
   for (let i = 0; i < count; i++) {
-    const { dx, dy } = computeDriftVector(viewport, cfg);
-    out.push({
-      id: `star_${i}_${Math.floor(rand01() * 1e9)}`,
-      kind: 'star',
-      x: randFloat(-m, width + m),
-      y: randFloat(-m, height + m),
-      sizePx: randFloat(cfg.starMinSizePx, cfg.starMaxSizePx),
-      dx,
-      dy,
-      durationMs: randFloat(cfg.minDurationMs, cfg.maxDurationMs),
-      delayMs: randFloat(0, cfg.maxDelayMs),
-    });
+    out.push(
+      createDriftingStarSpec(viewport, cfg, {
+        idPrefix: `star_${i}`,
+        kind: 'star',
+        sizePx: randFloat(cfg.starMinSizePx, cfg.starMaxSizePx),
+        durationMs: randFloat(cfg.minDurationMs, cfg.maxDurationMs),
+        delayMs: randFloat(0, cfg.maxDelayMs),
+      }),
+    );
   }
 
   // Rare: black hole (independent roll)
   if (rand01() < cfg.blackHoleChance) {
-    const { dx, dy } = computeDriftVector(viewport, cfg);
-    out.push({
-      id: `blackhole_${Math.floor(rand01() * 1e9)}`,
-      kind: 'blackHole',
-      x: randFloat(-m, width + m),
-      y: randFloat(-m, height + m),
-      sizePx: randFloat(cfg.blackHoleSizePx, cfg.blackHoleSizePx * 3),
-      dx,
-      dy,
-      durationMs: randFloat(cfg.minDurationMs, cfg.maxDurationMs),
-      delayMs: randFloat(0, cfg.maxDelayMs),
-    });
+    out.push(
+      createDriftingStarSpec(viewport, cfg, {
+        idPrefix: 'blackhole',
+        kind: 'blackHole',
+        sizePx: randFloat(cfg.blackHoleSizePx, cfg.blackHoleSizePx * 3),
+        durationMs: randFloat(cfg.minDurationMs, cfg.maxDurationMs),
+        delayMs: randFloat(0, cfg.maxDelayMs),
+      }),
+    );
   }
 
   // Rare: saturn (independent roll)
   if (rand01() < cfg.saturnChance) {
-    const { dx, dy } = computeDriftVector(viewport, cfg);
-    out.push({
-      id: `saturn_${Math.floor(rand01() * 1e9)}`,
-      kind: 'saturn',
-      x: randFloat(-m, width + m),
-      y: randFloat(-m, height + m),
-      sizePx: cfg.saturnPlanetSizePx,
-      dx,
-      dy,
-      durationMs: randFloat(cfg.minDurationMs, cfg.maxDurationMs),
-      delayMs: randFloat(0, cfg.maxDelayMs),
-    });
+    out.push(
+      createDriftingStarSpec(viewport, cfg, {
+        idPrefix: 'saturn',
+        kind: 'saturn',
+        sizePx: cfg.saturnPlanetSizePx,
+        durationMs: randFloat(cfg.minDurationMs, cfg.maxDurationMs),
+        delayMs: randFloat(0, cfg.maxDelayMs),
+      }),
+    );
   }
 
   return out;
@@ -188,23 +208,12 @@ export function generateStars(viewport: StarsViewport, cfg: StarsConfig = STARS_
 export function generateShootingStar(
   viewport: StarsViewport,
   cfg: StarsConfig = STARS_CONFIG,
-): ShootingStarSpec {
-  const { width, height } = viewport;
-  const diagonal = hypot(width, height);
-  const travelDistance = Math.min(Math.max(diagonal * 0.16, 140), 260);
-  const travelsRight = rand01() < 0.5;
-  const padding = Math.min(cfg.spawnMarginPx * 0.25, 50);
-  const baseAngle = travelsRight ? Math.PI / 4 : (3 * Math.PI) / 4;
-  const angleJitter = randFloat(-Math.PI / 18, Math.PI / 18);
-  const angle = baseAngle + angleJitter;
-
-  return {
-    id: `shooting_star_${Math.floor(rand01() * 1e9)}`,
-    x: travelsRight ? randFloat(-padding, width * 0.45) : randFloat(width * 0.55, width + padding),
-    y: randFloat(-padding, height * 0.4),
-    dx: Math.cos(angle) * travelDistance,
-    dy: Math.sin(angle) * travelDistance,
-    durationMs: randFloat(550, 900),
-    sizePx: randFloat(1, 2),
-  };
+): StarSpec {
+  return createDriftingStarSpec(viewport, cfg, {
+    idPrefix: 'shooting_star',
+    kind: 'shootingStar',
+    sizePx: randFloat(1, 3),
+    durationMs: randFloat(1000, 3000),
+    delayMs: 0,
+  });
 }
