@@ -335,8 +335,12 @@ function countShipsBuiltThisTurnByDefId(ships: ShipInstance[], turnNumber: numbe
   return n;
 }
 
-function getShipsMadeThisBuildPhase(state: GameState, playerId: string): number {
-  return state.gameData.turnData?.shipsMadeThisBuildPhaseByPlayerId?.[playerId] ?? 0;
+function getShipsMadeThisTurn(state: GameState, playerId: string): number {
+  return state.gameData.turnData?.shipsMadeThisTurnByPlayerId?.[playerId] ?? 0;
+}
+
+function getQueenCreatedXenitesThisTurn(state: GameState, queenInstanceId: string): number {
+  return state.gameData.turnData?.queenCreatedXenitesThisTurnByInstanceId?.[queenInstanceId] ?? 0;
 }
 
 /**
@@ -976,17 +980,15 @@ export function computePhaseComputedEffects(
     if (!opponentId) continue;
 
     const ships = getShips(state, ownerPlayerId);
-    const shipsMadeThisTurn = getShipsMadeThisBuildPhase(state, ownerPlayerId);
+    const shipsMadeThisTurn = getShipsMadeThisTurn(state, ownerPlayerId);
 
     if (shipsMadeThisTurn <= 0) continue;
 
     for (const ship of ships) {
       if (ship.shipDefId !== 'QUE') continue;
 
-      const countedShips =
-        ship.createdTurn === currentTurn
-          ? shipsMadeThisTurn
-          : Math.max(shipsMadeThisTurn - 1, 0);
+      const selfMadeByThisQueen = getQueenCreatedXenitesThisTurn(state, ship.instanceId);
+      const countedShips = Math.max(shipsMadeThisTurn - selfMadeByThisQueen, 0);
       const damage = countedShips * 3;
 
       if (damage <= 0) continue;
@@ -1004,7 +1006,7 @@ export function computePhaseComputedEffects(
       });
 
       console.log(
-        `[computePhaseComputedEffects] Queen automatic: owner=${ownerPlayerId} instance=${ship.instanceId} shipsMade=${shipsMadeThisTurn} countedShips=${countedShips} dmg=${damage} target=${opponentId}`
+        `[computePhaseComputedEffects] Queen automatic: owner=${ownerPlayerId} instance=${ship.instanceId} shipsMade=${shipsMadeThisTurn} selfMade=${selfMadeByThisQueen} countedShips=${countedShips} dmg=${damage} target=${opponentId}`
       );
     }
   }

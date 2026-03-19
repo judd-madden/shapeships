@@ -316,7 +316,7 @@ function appendShipToFleet(
   return newShip;
 }
 
-function incrementShipsMadeThisBuildPhaseCounter(
+function incrementShipsMadeThisTurnCounter(
   state: GameState,
   playerId: string,
   amount: number
@@ -327,11 +327,31 @@ function incrementShipsMadeThisBuildPhaseCounter(
     state.gameData.turnData = {};
   }
 
-  const currentMap = state.gameData.turnData.shipsMadeThisBuildPhaseByPlayerId || {};
+  const currentMap = state.gameData.turnData.shipsMadeThisTurnByPlayerId || {};
   const currentCount = currentMap[playerId] || 0;
-  state.gameData.turnData.shipsMadeThisBuildPhaseByPlayerId = {
+  state.gameData.turnData.shipsMadeThisTurnByPlayerId = {
     ...currentMap,
     [playerId]: currentCount + amount,
+  };
+}
+
+function incrementQueenCreatedXenitesThisTurnCounter(
+  state: GameState,
+  queenInstanceId: string,
+  amount: number
+) {
+  if (!queenInstanceId || !Number.isInteger(amount) || amount <= 0) return;
+
+  if (!state.gameData.turnData) {
+    state.gameData.turnData = {};
+  }
+
+  const currentMap =
+    state.gameData.turnData.queenCreatedXenitesThisTurnByInstanceId || {};
+  const currentCount = currentMap[queenInstanceId] || 0;
+  state.gameData.turnData.queenCreatedXenitesThisTurnByInstanceId = {
+    ...currentMap,
+    [queenInstanceId]: currentCount + amount,
   };
 }
 
@@ -347,6 +367,14 @@ function applyCreateShip(
   console.log(
     `[applyEffects] Created ship ${shipDefId} (${newShip.instanceId}) for ${targetPlayerId} with ${newShip.chargesCurrent ?? 'no'} charges`
   );
+
+  if (
+    shipDefId === 'XEN' &&
+    effect.source.type === 'ship' &&
+    effect.source.shipDefId === 'QUE'
+  ) {
+    incrementQueenCreatedXenitesThisTurnCounter(state, effect.source.instanceId, 1);
+  }
 
   return {
     event: {
@@ -428,7 +456,7 @@ function applyDestroyShip(
     createdShipsFromDestroy += 2;
 
     if (typeof effect.timing === 'string' && effect.timing.startsWith('build.')) {
-      incrementShipsMadeThisBuildPhaseCounter(state, targetPlayerId, 2);
+      incrementShipsMadeThisTurnCounter(state, targetPlayerId, 2);
     }
   }
 
@@ -447,7 +475,7 @@ function applyDestroyShip(
     createdShipsFromDestroy += sacSpawnCount;
 
     if (typeof effect.timing === 'string' && effect.timing.startsWith('build.')) {
-      incrementShipsMadeThisBuildPhaseCounter(state, targetPlayerId, sacSpawnCount);
+      incrementShipsMadeThisTurnCounter(state, targetPlayerId, sacSpawnCount);
     }
   }
 

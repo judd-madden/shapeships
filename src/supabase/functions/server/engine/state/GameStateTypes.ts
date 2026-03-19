@@ -87,9 +87,13 @@ export type GameData = {
 
     /**
      * Authoritative count of ships that materially entered each player's fleet
-     * during the current build phase. Used by end-of-build powers such as Dreadnought.
+     * during the current turn. Used by turn-scoped powers such as Queen and
+     * by end-of-build powers such as Dreadnought in the current phase layout.
      */
-    shipsMadeThisBuildPhaseByPlayerId?: Record<string, number>;
+    shipsMadeThisTurnByPlayerId?: Record<string, number>;
+
+    /** Queen-created Xenites this turn, keyed by the creating Queen instance */
+    queenCreatedXenitesThisTurnByInstanceId?: Record<string, number>;
 
     /**
      * Idempotency flag for server-only build.end_of_build application.

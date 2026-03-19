@@ -43,7 +43,7 @@ function countCreatedShipsByTargetPlayerId(
   return counts;
 }
 
-function incrementShipsMadeThisBuildPhaseCounter(
+function incrementShipsMadeThisTurnCounter(
   state: GameState,
   countsByPlayerId: Record<string, number>
 ): GameState {
@@ -54,7 +54,7 @@ function incrementShipsMadeThisBuildPhaseCounter(
   if (entries.length === 0) return state;
 
   const priorTurnData = state.gameData.turnData || {};
-  const priorCounts = priorTurnData.shipsMadeThisBuildPhaseByPlayerId || {};
+  const priorCounts = priorTurnData.shipsMadeThisTurnByPlayerId || {};
   const nextCounts = { ...priorCounts };
 
   for (const [playerId, amount] of entries) {
@@ -67,7 +67,7 @@ function incrementShipsMadeThisBuildPhaseCounter(
       ...state.gameData,
       turnData: {
         ...priorTurnData,
-        shipsMadeThisBuildPhaseByPlayerId: nextCounts,
+        shipsMadeThisTurnByPlayerId: nextCounts,
       },
     },
   };
@@ -325,7 +325,7 @@ function resolveShipsThatBuild(
   const createdShipsByPlayerId = countCreatedShipsByTargetPlayerId(effects);
   result = {
     ...result,
-    state: incrementShipsMadeThisBuildPhaseCounter(
+    state: incrementShipsMadeThisTurnCounter(
       result.state,
       createdShipsByPlayerId
     ),
@@ -377,7 +377,7 @@ function resolveBuildEndOfBuild(
       (ship) => ship.shipDefId === 'DRE' && (ship.createdTurn ?? 0) < currentTurn
     );
     const shipsMade =
-      workingState.gameData.turnData?.shipsMadeThisBuildPhaseByPlayerId?.[player.id] || 0;
+      workingState.gameData.turnData?.shipsMadeThisTurnByPlayerId?.[player.id] || 0;
 
     if (dreadnoughts.length <= 0 || shipsMade <= 0) continue;
 

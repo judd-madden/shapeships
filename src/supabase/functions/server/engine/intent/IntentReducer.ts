@@ -96,7 +96,7 @@ function countCreatedShipsFromEffects(effects: any[] | undefined): number {
   return effects.filter((effect: any) => effect?.kind === 'CreateShip').length;
 }
 
-function incrementShipsMadeThisBuildPhaseCounter(
+function incrementShipsMadeThisTurnCounter(
   state: any,
   playerId: string,
   amount: number
@@ -106,10 +106,10 @@ function incrementShipsMadeThisBuildPhaseCounter(
   if (!state.gameData) state.gameData = {};
   if (!state.gameData.turnData) state.gameData.turnData = {};
 
-  const currentMap = state.gameData.turnData.shipsMadeThisBuildPhaseByPlayerId || {};
+  const currentMap = state.gameData.turnData.shipsMadeThisTurnByPlayerId || {};
   const currentCount = currentMap[playerId] || 0;
 
-  state.gameData.turnData.shipsMadeThisBuildPhaseByPlayerId = {
+  state.gameData.turnData.shipsMadeThisTurnByPlayerId = {
     ...currentMap,
     [playerId]: currentCount + amount,
   };
@@ -165,7 +165,7 @@ function appendBuiltShipInstance(args: {
     }
   }
 
-  incrementShipsMadeThisBuildPhaseCounter(state, playerId, 1);
+  incrementShipsMadeThisTurnCounter(state, playerId, 1);
 
   return shipInstance;
 }
@@ -2150,7 +2150,7 @@ function handleAction(
       state = outcome.state;
 
       if (phaseKey === 'build.ships_that_build') {
-        incrementShipsMadeThisBuildPhaseCounter(
+        incrementShipsMadeThisTurnCounter(
           state,
           playerId,
           countCreatedShipsFromEffects(outcome.effects)
@@ -2349,7 +2349,7 @@ function handleActionsSubmit(
       state = outcome.state;
 
       if (phaseKey === 'build.ships_that_build') {
-        incrementShipsMadeThisBuildPhaseCounter(
+        incrementShipsMadeThisTurnCounter(
           state,
           playerId,
           countCreatedShipsFromEffects(outcome.effects)
