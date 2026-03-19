@@ -58,7 +58,7 @@ export const STARS_CONFIG: StarsConfig = {
 
   maxDelayMs: 0,
 
-  blackHoleChance: 1 / 5,
+  blackHoleChance: 1 / 7,
   saturnChance: 1 / 2,
 
   blackHoleSizePx: 60,
@@ -88,6 +88,16 @@ export type StarSpec = {
 
   durationMs: number;
   delayMs: number;
+};
+
+export type ShootingStarSpec = {
+  id: string;
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  durationMs: number;
+  sizePx: number;
 };
 
 function rand01(): number {
@@ -148,7 +158,7 @@ export function generateStars(viewport: StarsViewport, cfg: StarsConfig = STARS_
       kind: 'blackHole',
       x: randFloat(-m, width + m),
       y: randFloat(-m, height + m),
-      sizePx: cfg.blackHoleSizePx,
+      sizePx: randFloat(cfg.blackHoleSizePx, cfg.blackHoleSizePx * 3),
       dx,
       dy,
       durationMs: randFloat(cfg.minDurationMs, cfg.maxDurationMs),
@@ -173,4 +183,28 @@ export function generateStars(viewport: StarsViewport, cfg: StarsConfig = STARS_
   }
 
   return out;
+}
+
+export function generateShootingStar(
+  viewport: StarsViewport,
+  cfg: StarsConfig = STARS_CONFIG,
+): ShootingStarSpec {
+  const { width, height } = viewport;
+  const diagonal = hypot(width, height);
+  const travelDistance = Math.min(Math.max(diagonal * 0.16, 140), 260);
+  const travelsRight = rand01() < 0.5;
+  const padding = Math.min(cfg.spawnMarginPx * 0.25, 50);
+  const baseAngle = travelsRight ? Math.PI / 4 : (3 * Math.PI) / 4;
+  const angleJitter = randFloat(-Math.PI / 18, Math.PI / 18);
+  const angle = baseAngle + angleJitter;
+
+  return {
+    id: `shooting_star_${Math.floor(rand01() * 1e9)}`,
+    x: travelsRight ? randFloat(-padding, width * 0.45) : randFloat(width * 0.55, width + padding),
+    y: randFloat(-padding, height * 0.4),
+    dx: Math.cos(angle) * travelDistance,
+    dy: Math.sin(angle) * travelDistance,
+    durationMs: randFloat(550, 900),
+    sizePx: randFloat(1, 2),
+  };
 }

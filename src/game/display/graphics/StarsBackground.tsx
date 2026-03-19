@@ -12,7 +12,13 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { generateStars, STARS_CONFIG, type StarSpec } from './animation-stars';
+import {
+  generateShootingStar,
+  generateStars,
+  STARS_CONFIG,
+  type ShootingStarSpec,
+  type StarSpec,
+} from './animation-stars';
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -32,6 +38,9 @@ export function StarsBackground() {
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [viewport, setViewport] = useState<{ width: number; height: number } | null>(null);
+  const [shootingStar, setShootingStar] = useState<ShootingStarSpec | null>(null);
+  const shootingStarSpawnTimeoutRef = useRef<number | null>(null);
+  const shootingStarCleanupTimeoutRef = useRef<number | null>(null);
 
   // Measure container
   useEffect(() => {
@@ -63,9 +72,8 @@ export function StarsBackground() {
 
   const stars = starsRef.current ?? [];
 
-  const keyframesCss = useMemo(() => {
-    if (!stars.length) return '';
-    return stars
+  const localStylesCss = useMemo(() => {
+    const driftKeyframesCss = stars
       .map(
         (s) => `
 @keyframes ss_star_drift_${s.id} {
@@ -74,7 +82,112 @@ export function StarsBackground() {
 }`
       )
       .join('\n');
+
+    const shootingStarCss = `
+@keyframes ss_shooting_star_travel {
+  0% {
+    opacity: 0;
+    transform: translate3d(0px, 0px, 0px) scale(0.85);
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(var(--ss-shooting-star-dx), var(--ss-shooting-star-dy), 0px) scale(1);
+  }
+}
+
+.ss-shooting-star {
+  animation-duration: var(--ss-shooting-star-duration);
+  animation-fill-mode: forwards;
+  animation-iteration-count: 1;
+  animation-name: ss_shooting_star_travel;
+  animation-timing-function: linear;
+  background: #FFF;
+  border-radius: 9999px;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-shooting-star {
+    animation: none !important;
+    opacity: 0;
+  }
+}`;
+
+    return [driftKeyframesCss, shootingStarCss].filter(Boolean).join('\n');
   }, [stars]);
+
+  // Temporary test path: set both cadence constants to 5000 for immediate shooting-star spawns.
+  // const SHOOTING_STAR_MIN_DELAY_MS = 3 * 60 * 1000;
+  // const SHOOTING_STAR_MAX_DELAY_MS = 8 * 60 * 1000;
+  const SHOOTING_STAR_MIN_DELAY_MS = 1000;
+  const SHOOTING_STAR_MAX_DELAY_MS = 1000;
+
+  useEffect(() => {
+    if (!prefersReducedMotion) return;
+    setShootingStar((current) => (current ? null : current));
+  }, [prefersReducedMotion]);
+
+  useEffect(() => {
+    if (!viewport || prefersReducedMotion || shootingStar) return;
+
+    const delayRangeMs = SHOOTING_STAR_MAX_DELAY_MS - SHOOTING_STAR_MIN_DELAY_MS;
+    const delayMs =
+      SHOOTING_STAR_MIN_DELAY_MS +
+      (delayRangeMs <= 0 ? 0 : Math.random() * delayRangeMs);
+
+    shootingStarSpawnTimeoutRef.current = window.setTimeout(() => {
+      shootingStarSpawnTimeoutRef.current = null;
+      setShootingStar(generateShootingStar(viewport, STARS_CONFIG));
+    }, Math.round(delayMs));
+
+    return () => {
+      if (shootingStarSpawnTimeoutRef.current !== null) {
+        window.clearTimeout(shootingStarSpawnTimeoutRef.current);
+        shootingStarSpawnTimeoutRef.current = null;
+      }
+    };
+  }, [
+    SHOOTING_STAR_MAX_DELAY_MS,
+    SHOOTING_STAR_MIN_DELAY_MS,
+    prefersReducedMotion,
+    shootingStar,
+    viewport,
+  ]);
+
+  useEffect(() => {
+    if (!shootingStar || prefersReducedMotion) return;
+
+    shootingStarCleanupTimeoutRef.current = window.setTimeout(() => {
+      shootingStarCleanupTimeoutRef.current = null;
+      setShootingStar((current) => (current?.id === shootingStar.id ? null : current));
+    }, Math.round(shootingStar.durationMs) + 120);
+
+    return () => {
+      if (shootingStarCleanupTimeoutRef.current !== null) {
+        window.clearTimeout(shootingStarCleanupTimeoutRef.current);
+        shootingStarCleanupTimeoutRef.current = null;
+      }
+    };
+  }, [prefersReducedMotion, shootingStar]);
+
+  const shootingStarStyle = shootingStar
+    ? ({
+        '--ss-shooting-star-dx': `${shootingStar.dx.toFixed(2)}px`,
+        '--ss-shooting-star-dy': `${shootingStar.dy.toFixed(2)}px`,
+        '--ss-shooting-star-duration': `${Math.round(shootingStar.durationMs)}ms`,
+        position: 'absolute',
+        left: `${shootingStar.x}px`,
+        top: `${shootingStar.y}px`,
+        width: `${shootingStar.sizePx}px`,
+        height: `${shootingStar.sizePx}px`,
+      } as React.CSSProperties)
+    : undefined;
 
   return (
     <div
@@ -86,7 +199,7 @@ export function StarsBackground() {
       }}
       aria-hidden="true"
     >
-      {keyframesCss ? <style>{keyframesCss}</style> : null}
+      {localStylesCss ? <style>{localStylesCss}</style> : null}
 
       {stars.map((s) => {
         const animStyle: React.CSSProperties = prefersReducedMotion
@@ -129,8 +242,8 @@ export function StarsBackground() {
               key={s.id}
               style={{
                 ...common,
-                width: `${STARS_CONFIG.blackHoleSizePx}px`,
-                height: `${STARS_CONFIG.blackHoleSizePx}px`,
+                width: `${s.sizePx}px`,
+                height: `${s.sizePx}px`,
                 borderRadius: 9999,
                 background: 'radial-gradient(circle at 50% 50%, #000 0 55%, rgba(140, 190, 255, 0.25) 60%, rgba(0,0,0,0) 75%)',
               }}
@@ -165,6 +278,21 @@ export function StarsBackground() {
           </div>
         );
       })}
+
+      {shootingStar && !prefersReducedMotion ? (
+        <div
+          key={shootingStar.id}
+          className="ss-shooting-star"
+          style={shootingStarStyle}
+          onAnimationEnd={() => {
+            if (shootingStarCleanupTimeoutRef.current !== null) {
+              window.clearTimeout(shootingStarCleanupTimeoutRef.current);
+              shootingStarCleanupTimeoutRef.current = null;
+            }
+            setShootingStar((current) => (current?.id === shootingStar.id ? null : current));
+          }}
+        />
+      ) : null}
     </div>
   );
 }

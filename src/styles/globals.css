@@ -245,7 +245,8 @@ html {
   color: white;
   font-family: Roboto, sans-serif;
 
-    background-image: url('https://juddmadden.com/shapeships/images/space-background.jpg');
+    /* background-image: url('https://juddmadden.com/shapeships/images/space-background.jpg');*/
+    background-image: url('../graphics/global/space-background.jpg');
     background-attachment: fixed;
     background-size: cover;
     background-position: top center;
