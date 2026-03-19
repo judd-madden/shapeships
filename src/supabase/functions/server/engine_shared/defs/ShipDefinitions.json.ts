@@ -375,7 +375,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Includes Carrier-made ships, basic ships, and upgraded ships. Fighters made by its power are not counted as ships made for its power.",
+    "extraRules": "Includes Carrier-made ships, basic ships, and upgraded ships. Does not include itself. Fighters made by its power are not counted as ships made for its power.",
     "stackCaption": "X damage",
     "colour": "Red",
     "numberOfGraphics": 1

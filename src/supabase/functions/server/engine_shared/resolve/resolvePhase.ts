@@ -373,15 +373,20 @@ function resolveBuildEndOfBuild(
 
   for (const player of activePlayers) {
     const fleet = workingState.gameData.ships?.[player.id] || [];
-    const dreadnoughts = fleet.filter(
-      (ship) => ship.shipDefId === 'DRE' && (ship.createdTurn ?? 0) < currentTurn
-    );
-    const shipsMade =
-      workingState.gameData.turnData?.shipsMadeThisTurnByPlayerId?.[player.id] || 0;
+    const dreadnoughts = fleet.filter((ship) => ship.shipDefId === 'DRE');
+    const totalShipsMadeThisTurn =
+      workingState.gameData.turnData?.shipsMadeThisTurnByPlayerId?.[player.id] ?? 0;
 
-    if (dreadnoughts.length <= 0 || shipsMade <= 0) continue;
+    if (dreadnoughts.length <= 0 || totalShipsMadeThisTurn <= 0) continue;
 
     for (const dreadnought of dreadnoughts) {
+      const shipsMade =
+        (dreadnought.createdTurn ?? 0) === currentTurn
+          ? Math.max(totalShipsMadeThisTurn - 1, 0)
+          : totalShipsMadeThisTurn;
+
+      if (shipsMade <= 0) continue;
+
       for (let i = 0; i < shipsMade; i++) {
         fighterEffects.push({
           id: `dreadnought_build_${currentTurn}_${dreadnought.instanceId}_${i}`,
