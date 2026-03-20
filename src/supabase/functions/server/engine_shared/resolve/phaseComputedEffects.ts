@@ -1126,6 +1126,36 @@ export function computePhaseComputedEffects(
     }
   }
 
+  // === ARK OF DOMINATION (DOM) automatic: Heal 3 for each of your ships ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const ships = getShips(state, ownerPlayerId);
+    const ownedShipCount = countTotalShips(ships);
+    const healPerDom = ownedShipCount * 3;
+
+    if (healPerDom <= 0) continue;
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'DOM') continue;
+
+      computedEffects.push({
+        id: `domination_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: ship.shipDefId },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: ownerPlayerId },
+        kind: EffectKind.Heal,
+        amount: healPerDom,
+      });
+
+      console.log(
+        `[computePhaseComputedEffects] ArkOfDomination automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownedShips=${ownedShipCount} heal=${healPerDom}`
+      );
+    }
+  }
+
   // === FRIGATE (FRI) conditional: If dice roll matches chosen trigger (1..6), deal 6 damage ===
 
   for (const player of activePlayers) {
