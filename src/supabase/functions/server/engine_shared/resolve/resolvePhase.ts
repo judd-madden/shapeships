@@ -26,6 +26,7 @@ import {
   computePhaseComputedEffects,
   applyComputedEffectModifiers,
   getEffectiveDiceRollForPlayer,
+  getCopyTierFromFleet,
 } from './phaseComputedEffects.ts';
 
 function countCreatedShipsByTargetPlayerId(
@@ -546,6 +547,8 @@ function resolveBattleEndOfTurn(
     healByPlayerId: { ...(applied.state.gameData.pendingTurn?.healByPlayerId || {}) },
   };
 
+  applyKnoTierThreeTurnTotalModifiers(applied.state, totals);
+
   console.log(`[resolveBattleEndOfTurn] Pending turn totals:`, totals);
 
   // Step 6: Apply aggregated health changes simultaneously
@@ -576,6 +579,38 @@ function resolveBattleEndOfTurn(
   ];
 
   return { state: clearedState, events: allEvents };
+}
+
+function applyKnoTierThreeTurnTotalModifiers(
+  state: GameState,
+  totals: { damageByPlayerId: Record<string, number>; healByPlayerId: Record<string, number> }
+): void {
+  const activePlayers = state.players.filter((player) => player.role === 'player');
+  const opponentIdByPlayerId = new Map<string, string>();
+
+  if (activePlayers.length === 2) {
+    opponentIdByPlayerId.set(activePlayers[0].id, activePlayers[1].id);
+    opponentIdByPlayerId.set(activePlayers[1].id, activePlayers[0].id);
+  }
+
+  for (const player of activePlayers) {
+    const ships = state.gameData.ships?.[player.id] || [];
+    const knoTier = getCopyTierFromFleet(ships, 'KNO', 3);
+    const opponentId = opponentIdByPlayerId.get(player.id);
+
+    if (knoTier < 3 || !opponentId) continue;
+
+    const currentDamage = totals.damageByPlayerId[opponentId] || 0;
+    const currentHeal = totals.healByPlayerId[player.id] || 0;
+    const equalizedTotal = Math.max(currentDamage, currentHeal);
+
+    totals.damageByPlayerId[opponentId] = equalizedTotal;
+    totals.healByPlayerId[player.id] = equalizedTotal;
+
+    console.log(
+      `[applyKnoTierThreeTurnTotalModifiers] Player ${player.id}: tier=${knoTier} opponent=${opponentId} damageDealt=${currentDamage} heal=${currentHeal} equalized=${equalizedTotal}`
+    );
+  }
 }
 
 // ============================================================================

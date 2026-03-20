@@ -614,6 +614,20 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   ],
 
   // ==========================================================================
+  // ARK OF KNOWLEDGE (KNO)
+  // ==========================================================================
+  // JSON power index 2: "Heal 2." (Automatic)
+  'KNO#2': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Heal,
+      amount: 2,
+      targetPlayer: 'self',
+    },
+  ],
+
+  // ==========================================================================
   // SACRIFICIAL POOL (SAC)
   // ==========================================================================
   // Choice power in build.ships_that_build:
