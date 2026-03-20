@@ -124,6 +124,27 @@ function getShips(state: GameState, playerId: string): ShipInstance[] {
   return state.gameData.ships?.[playerId] ?? [];
 }
 
+function getShipsForOnceOnlyResolution(state: GameState, playerId: string): ShipInstance[] {
+  const liveShips = state.gameData.ships?.[playerId] ?? [];
+  const voidShips = state.gameData.voidShipsByPlayerId?.[playerId] ?? [];
+  const seenInstanceIds = new Set<string>();
+  const ships: ShipInstance[] = [];
+
+  for (const ship of liveShips) {
+    if (seenInstanceIds.has(ship.instanceId)) continue;
+    seenInstanceIds.add(ship.instanceId);
+    ships.push(ship);
+  }
+
+  for (const ship of voidShips) {
+    if (seenInstanceIds.has(ship.instanceId)) continue;
+    seenInstanceIds.add(ship.instanceId);
+    ships.push(ship);
+  }
+
+  return ships;
+}
+
 function countTotalShips(ships: ShipInstance[]): number {
   return ships.length;
 }
@@ -447,7 +468,7 @@ export function computePhaseComputedEffects(
 
     const roll = getEffectiveDiceRollForPlayer(state, ownerPlayerId);
 
-    const ships = getShips(state, ownerPlayerId);
+    const ships = getShipsForOnceOnlyResolution(state, ownerPlayerId);
 
     for (const ship of ships) {
       if (ship.shipDefId !== 'STA') continue;
@@ -486,7 +507,7 @@ export function computePhaseComputedEffects(
   // === XENITE (XEN) once-only: heal 1 on the turn it is built ===
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
-    const ships = getShips(state, ownerPlayerId);
+    const ships = getShipsForOnceOnlyResolution(state, ownerPlayerId);
 
     for (const ship of ships) {
       if (ship.shipDefId !== 'XEN') continue;
@@ -525,7 +546,7 @@ export function computePhaseComputedEffects(
     const opponentId = opponentMap.get(ownerPlayerId);
     if (!opponentId) continue;
 
-    const ships = getShips(state, ownerPlayerId);
+    const ships = getShipsForOnceOnlyResolution(state, ownerPlayerId);
 
     for (const ship of ships) {
       if (ship.shipDefId !== 'HEL') continue;
@@ -561,7 +582,7 @@ export function computePhaseComputedEffects(
   // === SHIP OF FEAR (FEA) once-only: heal 4 on the turn it is built ===
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
-    const ships = getShips(state, ownerPlayerId);
+    const ships = getShipsForOnceOnlyResolution(state, ownerPlayerId);
 
     for (const ship of ships) {
       if (ship.shipDefId !== 'FEA') continue;
@@ -600,7 +621,7 @@ export function computePhaseComputedEffects(
     const opponentId = opponentMap.get(ownerPlayerId);
     if (!opponentId) continue;
 
-    const ships = getShips(state, ownerPlayerId);
+    const ships = getShipsForOnceOnlyResolution(state, ownerPlayerId);
 
     for (const ship of ships) {
       if (ship.shipDefId !== 'ANG') continue;
