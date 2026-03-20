@@ -96,10 +96,10 @@ export type GameData = {
     queenCreatedXenitesThisTurnByInstanceId?: Record<string, number>;
 
     /**
-     * Idempotency flag for server-only build.end_of_build application.
-     * Stores the turn number whose Dreadnought spawn step has already resolved.
+     * Idempotency flag for server-only build.end_of_build resolution.
+     * Stores the turn number whose build.end_of_build phase has already resolved.
      */
-    dreadnoughtEndOfBuildAppliedTurnNumber?: number;
+    buildEndOfBuildAppliedTurnNumber?: number;
     
     /** Existing turn flags used elsewhere (present at runtime even if not typed) */
     anyChargesSpentInDeclaration?: boolean;

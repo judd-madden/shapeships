@@ -156,7 +156,7 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
           chargePowerUsedByInstanceId: {},
           shipsMadeThisTurnByPlayerId: {},
           queenCreatedXenitesThisTurnByInstanceId: {},
-          dreadnoughtEndOfBuildAppliedTurnNumber: 0,
+          buildEndOfBuildAppliedTurnNumber: 0,
         },
       },
     };
@@ -197,7 +197,7 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
           chargePowerUsedByInstanceId: {},
           shipsMadeThisTurnByPlayerId: {},
           queenCreatedXenitesThisTurnByInstanceId: {},
-          dreadnoughtEndOfBuildAppliedTurnNumber: 0,
+          buildEndOfBuildAppliedTurnNumber: 0,
         },
       },
     };

@@ -255,6 +255,10 @@ function collectZenithAutoBuildEffects(
   return effects;
 }
 
+function getPlayerMaxHealth(): number {
+  return 35;
+}
+
 // ============================================================================
 // RESOLVE PHASE
 // ============================================================================
@@ -352,7 +356,7 @@ function resolveBuildEndOfBuild(
     1;
 
   const priorTurnData = state.gameData.turnData || {};
-  if (priorTurnData.dreadnoughtEndOfBuildAppliedTurnNumber === currentTurn) {
+  if (priorTurnData.buildEndOfBuildAppliedTurnNumber === currentTurn) {
     console.log(`[resolveBuildEndOfBuild] Already applied for turn ${currentTurn}, skipping`);
     return { state, events: [] };
   }
@@ -363,12 +367,35 @@ function resolveBuildEndOfBuild(
       ...state.gameData,
       turnData: {
         ...priorTurnData,
-        dreadnoughtEndOfBuildAppliedTurnNumber: currentTurn,
+        buildEndOfBuildAppliedTurnNumber: currentTurn,
       },
     },
   };
 
   const activePlayers = workingState.players.filter((player) => player.role === 'player');
+
+  workingState = {
+    ...workingState,
+    players: workingState.players.map((player) => {
+      if (player.role !== 'player') return player;
+
+      const fleet = workingState.gameData.ships?.[player.id] || [];
+      const builtRedThisTurn = fleet.some(
+        (ship) =>
+          ship.shipDefId === 'RED' &&
+          (ship.createdTurn ?? 0) === currentTurn
+      );
+
+      if (!builtRedThisTurn) return player;
+
+      // RED sets health directly during build.end_of_build; this is not healing.
+      return {
+        ...player,
+        health: getPlayerMaxHealth(),
+      };
+    }),
+  };
+
   const fighterEffects: CreateShipEffect[] = [];
 
   for (const player of activePlayers) {
