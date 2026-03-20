@@ -169,7 +169,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
               Players draw ships, and/or save lines. Drawing powers occur in this phase. Note that any 'Ships That Build' drawn <span className="italic">now</span> will not be active until next turn.
             </p>
           }
-          exampleShips="Frigate, Dreadnought, Evolver, Zenith, Ship of Legacy."
+          exampleShips="Frigate, Evolver, Zenith, Ship of Legacy."
           backgroundColor="bg-[#212121]"
           chevronTop="top-[20px]"
         />
@@ -179,7 +179,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           description={
             <p>Some special powers occur now, before the Battle Phase begins.</p>
           }
-          exampleShips="Chronoswarm, Ark of Redemption."
+          exampleShips="Dreadnought, Chronoswarm, Ark of Redemption."
           chevronTop="top-[20px]"
         />
       </div>
@@ -194,7 +194,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
         <TimingRow
           title="First Strike"
           description={
-            <p>Ship powers with First Strike occur. Any ships that are destroyed during this phase will not activate their Battle Phase powers. Any ships that are stolen during this phase will be active for their owner.</p>
+            <p>Ship powers with First Strike occur. Any ships that are destroyed during this phase will not activate their Battle Phase powers (except 'once only' powers). Any ships that are stolen during this phase will be active for their owner.</p>
           }
           exampleShips="Guardian, Ark of Domination."
           chevronTop="top-[20px]"
