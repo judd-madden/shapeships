@@ -114,6 +114,66 @@ export interface ShipChoicePlaceholderSpec {
   message: string;
 }
 
+const CAR_BUILD_BUTTONS: ShipChoiceButtonSpec[] = [
+  {
+    size: 'large',
+    label: 'Make Defender',
+    detail: '(1 charge)',
+    choiceId: 'defender',
+  },
+  {
+    size: 'large',
+    label: 'Make Fighter',
+    detail: '(2 charges)',
+    choiceId: 'fighter',
+  },
+  {
+    size: 'small',
+    label: 'Hold Charge',
+    choiceId: 'hold',
+  },
+];
+
+const INT_CHARGE_BUTTONS: ShipChoiceButtonSpec[] = [
+  {
+    size: 'large',
+    label: 'Deal 5 Damage',
+    detail: '(uses charge)',
+    choiceId: 'damage',
+  },
+  {
+    size: 'large',
+    label: 'Heal 5',
+    detail: '(uses charge)',
+    choiceId: 'heal',
+  },
+  {
+    size: 'small',
+    label: 'Hold Charge',
+    choiceId: 'hold',
+  },
+];
+
+const ANT_CHARGE_BUTTONS: ShipChoiceButtonSpec[] = [
+  {
+    size: 'large',
+    label: 'Deal 3 Damage',
+    detail: '(uses charge)',
+    choiceId: 'damage',
+  },
+  {
+    size: 'large',
+    label: 'Heal 4',
+    detail: '(uses charge)',
+    choiceId: 'heal',
+  },
+  {
+    size: 'small',
+    label: 'Hold Charge',
+    choiceId: 'hold',
+  },
+];
+
 // ============================================================================
 // REGISTRY
 // ============================================================================
@@ -155,25 +215,19 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
         kind: 'counted',
         shipDefId: 'CAR',
         headingTemplate: '{count} Carriers with charges available',
-        buttons: [
-          {
-            size: 'large',
-            label: 'Make Defender',
-            detail: '(1 charge)',
-            choiceId: 'defender',
-          },
-          {
-            size: 'large',
-            label: 'Make Fighter',
-            detail: '(2 charges)',
-            choiceId: 'fighter',
-          },
-          {
-            size: 'small',
-            label: 'Hold Charge',
-            choiceId: 'hold',
-          },
-        ],
+        buttons: CAR_BUILD_BUTTONS,
+      },
+    ],
+  },
+
+  'ap.build.ships_that_build.centaur.mixed': {
+    kind: 'buttons',
+    groups: [
+      {
+        kind: 'counted',
+        shipDefId: 'CAR',
+        headingTemplate: '{count} Carriers with charges available',
+        buttons: CAR_BUILD_BUTTONS,
       },
     ],
   },
@@ -268,25 +322,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
         kind: 'counted',
         shipDefId: 'INT',
         headingTemplate: '{count} Interceptors may use their charge.',
-        buttons: [
-          {
-            size: 'large',
-            label: 'Deal 5 Damage',
-            detail: '(uses charge)',
-            choiceId: 'damage',
-          },
-          {
-            size: 'large',
-            label: 'Heal 5',
-            detail: '(uses charge)',
-            choiceId: 'heal',
-          },
-          {
-            size: 'small',
-            label: 'Hold Charge',
-            choiceId: 'hold',
-          },
-        ],
+        buttons: INT_CHARGE_BUTTONS,
       },
     ],
   },
@@ -299,25 +335,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
         kind: 'counted',
         shipDefId: 'ANT',
         headingTemplate: '{count} Antlions may use their charge.',
-        buttons: [
-          {
-            size: 'large',
-            label: 'Deal 3 Damage',
-            detail: '(uses charge)',
-            choiceId: 'damage',
-          },
-          {
-            size: 'large',
-            label: 'Heal 4',
-            detail: '(uses charge)',
-            choiceId: 'heal',
-          },
-          {
-            size: 'small',
-            label: 'Hold Charge',
-            choiceId: 'hold',
-          },
-        ],
+        buttons: ANT_CHARGE_BUTTONS,
       },
     ],
   },
@@ -373,6 +391,18 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
             choiceId: 'hold',
           },
         ],
+      },
+      {
+        kind: 'counted',
+        shipDefId: 'INT',
+        headingTemplate: '{count} Interceptors may use their charge.',
+        buttons: INT_CHARGE_BUTTONS,
+      },
+      {
+        kind: 'counted',
+        shipDefId: 'ANT',
+        headingTemplate: '{count} Antlions may use their charge.',
+        buttons: ANT_CHARGE_BUTTONS,
       },
     ],
   },

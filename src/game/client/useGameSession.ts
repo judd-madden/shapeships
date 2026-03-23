@@ -89,6 +89,7 @@ export type {
 import {
   decideAutoPanelRouting,
   getDefaultChoiceIdForRenderableAction,
+  getRenderableActionShipPresence,
   getRenderableActionChoiceIds,
   getRenderableServerChoiceActions,
   isRenderableTargetedActionComplete,
@@ -1262,8 +1263,14 @@ useEffect(() => {
   // Map phase + species to action panel ID (UI routing for ship choice panels)
   function phaseToActionPanelId(
     phaseKey: string,
-    mySpecies: SpeciesId | null
+    mySpecies: SpeciesId | null,
+    availableActionsForPhase: any[] | null | undefined
   ): ActionPanelId | null {
+    const renderableActionShipPresence = getRenderableActionShipPresence(
+      phaseKey,
+      availableActionsForPhase
+    );
+
     switch (phaseKey) {
       case 'build.dice_roll':
         // Only Centaur has this panel
@@ -1271,6 +1278,9 @@ useEffect(() => {
       
       case 'build.ships_that_build':
         if (mySpecies === 'human') return 'ap.build.ships_that_build.human';
+        if (mySpecies === 'centaur' && renderableActionShipPresence.hasCarBuildAction) {
+          return 'ap.build.ships_that_build.centaur.mixed';
+        }
         if (mySpecies === 'xenite') return 'ap.build.ships_that_build.xenite';
         return null;
       
@@ -1292,25 +1302,18 @@ useEffect(() => {
           // ROUTING ORDER GUARANTEE (PRESCRIPTIVE):
           // ap.battle.charges.centaur must be selected before
           // ap.battle.charges.centaur.ship_of_equality
-          // 
-          // Logic: Show ship_of_equality ONLY if player has EQU but NO WIS/FAM.
-          // Otherwise, show the main centaur charges panel.
-          const myFleet = rawState?.myFleet;
-          const hasWIS = myFleet?.some((entry: any) => entry?.shipDefId === 'WIS' && entry?.count > 0);
-          const hasFAM = myFleet?.some((entry: any) => entry?.shipDefId === 'FAM' && entry?.count > 0);
-          const hasEQU = myFleet?.some((entry: any) => entry?.shipDefId === 'EQU' && entry?.count > 0);
-          
-          // If player has WIS or FAM, always show the main panel (which includes both)
-          if (hasWIS || hasFAM) {
+          //
+          // Route the main Centaur panel for any renderable non-EQU charge action
+          // (WIS / FAM / stolen INT / stolen ANT). Only surface ship_of_equality
+          // after the non-EQU panel is no longer the active routed choice.
+          if (renderableActionShipPresence.hasCentaurNonEquChargeAction) {
             return 'ap.battle.charges.centaur';
           }
-          
-          // If player ONLY has EQU, show the ship_of_equality panel
-          if (hasEQU) {
+
+          if (renderableActionShipPresence.hasCentaurEquChargeAction) {
             return 'ap.battle.charges.centaur.ship_of_equality';
           }
-          
-          // Otherwise, default to main centaur panel
+
           return 'ap.battle.charges.centaur';
         }
         if (mySpecies === 'ancient') return 'ap.battle.charges.ancient.black_hole'; // Placeholder
@@ -1338,7 +1341,7 @@ useEffect(() => {
   // ============================================================================
   
   // Determine target panel ID for Actions tab (panel routing target when actions exist)
-  const actionsTargetPanelId = phaseToActionPanelId(phaseKey, mySpecies);
+  const actionsTargetPanelId = phaseToActionPanelId(phaseKey, mySpecies, availableActions);
   
   // Client-only "special actions" that should make Actions tab visible even if server reports none.
   // Today: Human Frigate (FRI) trigger selection in build.drawing, Xenite Evolver (EVO) choices in build.drawing.

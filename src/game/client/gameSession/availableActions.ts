@@ -34,6 +34,12 @@ export type RenderableServerAction = {
   requiredTargetCount?: number;
 };
 
+export interface RenderableActionShipPresence {
+  hasCarBuildAction: boolean;
+  hasCentaurNonEquChargeAction: boolean;
+  hasCentaurEquChargeAction: boolean;
+}
+
 export function isCataloguePanel(id: ActionPanelId): boolean {
   return id.startsWith('ap.catalog.ships.');
 }
@@ -68,6 +74,45 @@ export function getRenderableServerChoiceActions(
 
     return action.kind === 'choice';
   });
+}
+
+export function getRenderableActionShipPresence(
+  phaseKey: PhaseKey,
+  availableActions: any[] | null | undefined
+): RenderableActionShipPresence {
+  const renderableActions = getRenderableServerChoiceActions(phaseKey, availableActions);
+
+  return renderableActions.reduce<RenderableActionShipPresence>(
+    (presence, action) => {
+      if (phaseKey === 'build.ships_that_build' && action.shipDefId === 'CAR') {
+        presence.hasCarBuildAction = true;
+      }
+
+      if (
+        (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') &&
+        (action.shipDefId === 'WIS' ||
+          action.shipDefId === 'FAM' ||
+          action.shipDefId === 'INT' ||
+          action.shipDefId === 'ANT')
+      ) {
+        presence.hasCentaurNonEquChargeAction = true;
+      }
+
+      if (
+        (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') &&
+        action.shipDefId === 'EQU'
+      ) {
+        presence.hasCentaurEquChargeAction = true;
+      }
+
+      return presence;
+    },
+    {
+      hasCarBuildAction: false,
+      hasCentaurNonEquChargeAction: false,
+      hasCentaurEquChargeAction: false,
+    }
+  );
 }
 
 export function getRenderableActionChoiceIds(action: {
