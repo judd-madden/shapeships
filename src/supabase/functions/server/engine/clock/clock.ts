@@ -196,54 +196,60 @@ export function accrueClocks(state: any, nowMs: number): any {
       isReadyMap[r.playerId] = true;
     }
   }
-  
-  // Decrement time for players who exist and are NOT ready
-  const players = state?.players ?? [];
-  const updatedRemainingMs: Record<string, number> = { ...clock.remainingMsByPlayerId };
-  
-  for (const player of players) {
-    const playerId = player.id;
-    
-    // Skip if player doesn't have a clock entry
-    if (updatedRemainingMs[playerId] === undefined) {
-      continue;
-    }
-    
-    // If player is ready, don't decrement
-    if (isReadyMap[playerId]) {
-      continue;
-    }
-    
-    // Decrement time, clamped at 0
-    const currentTime = updatedRemainingMs[playerId];
-    const newTime = Math.max(0, currentTime - elapsedMs);
-    updatedRemainingMs[playerId] = newTime;
-  }
-  
-  // ============================================================================
-  // TIMEOUT LOSS: If any player's remaining time reaches 0, they lose immediately
-  // ============================================================================
+
   const activePlayers = (state?.players ?? []).filter((p: any) => p?.role === 'player');
-  const timedOut = activePlayers.filter((p: any) => {
-    const ms = updatedRemainingMs[p.id];
+  const runningPlayers = activePlayers.filter((player: any) => {
+    const playerId = player?.id;
+    return (
+      playerId !== undefined &&
+      clock.remainingMsByPlayerId[playerId] !== undefined &&
+      !isReadyMap[playerId]
+    );
+  });
+
+  const earliestTimeoutBoundaryMs =
+    runningPlayers.length > 0
+      ? Math.min(
+          ...runningPlayers.map((player: any) => {
+            const ms = clock.remainingMsByPlayerId[player.id];
+            return typeof ms === 'number' ? ms : Number.POSITIVE_INFINITY;
+          })
+        )
+      : null;
+
+  const applyElapsedMs =
+    earliestTimeoutBoundaryMs !== null && elapsedMs >= earliestTimeoutBoundaryMs
+      ? earliestTimeoutBoundaryMs
+      : elapsedMs;
+
+  const terminalAtMs = lastUpdateAtMs + applyElapsedMs;
+  const updatedRemainingMs: Record<string, number> = {
+    ...clock.remainingMsByPlayerId,
+  };
+
+  for (const player of runningPlayers) {
+    const playerId = player.id;
+    const currentTime = updatedRemainingMs[playerId];
+    updatedRemainingMs[playerId] = Math.max(0, currentTime - applyElapsedMs);
+  }
+
+  const timedOut = runningPlayers.filter((player: any) => {
+    const ms = updatedRemainingMs[player.id];
     return typeof ms === 'number' && ms <= 0;
   });
 
-  // If any timeout occurred, end the game immediately (no further accrual)
   if (timedOut.length > 0) {
-    const atMs = nowMs;
+    const nextClock = {
+      ...clock,
+      remainingMsByPlayerId: updatedRemainingMs,
+      lastUpdateAtMs: terminalAtMs,
+    };
 
     // Case A: Single timeout -> that player loses
     if (timedOut.length === 1) {
       const loserId = timedOut[0].id;
       const winner = activePlayers.find((p: any) => p.id !== loserId);
       const winnerId = winner?.id ?? null;
-
-      const nextClock = {
-        ...clock,
-        remainingMsByPlayerId: updatedRemainingMs,
-        lastUpdateAtMs: nowMs,
-      };
 
       return {
         ...state,
@@ -265,19 +271,13 @@ export function accrueClocks(state: any, nowMs: number): any {
             playerId: 'system',
             playerName: 'System',
             content: `Game ended by timeout. Loser: ${loserId}${winnerId ? `, Winner: ${winnerId}` : ''}`,
-            timestamp: new Date(atMs).toISOString(),
+            timestamp: new Date(terminalAtMs).toISOString(),
           },
         ],
       };
     }
 
-    // Case B: Both players timeout simultaneously -> draw
-    const nextClock = {
-      ...clock,
-      remainingMsByPlayerId: updatedRemainingMs,
-      lastUpdateAtMs: nowMs,
-    };
-
+    // Case B: Multiple running players timeout at the same earliest instant -> draw
     return {
       ...state,
       status: 'finished',
@@ -298,7 +298,7 @@ export function accrueClocks(state: any, nowMs: number): any {
           playerId: 'system',
           playerName: 'System',
           content: `Game ended by simultaneous timeout (draw).`,
-          timestamp: new Date(atMs).toISOString(),
+          timestamp: new Date(terminalAtMs).toISOString(),
         },
       ],
     };
@@ -312,7 +312,7 @@ export function accrueClocks(state: any, nowMs: number): any {
       clock: {
         ...clock,
         remainingMsByPlayerId: updatedRemainingMs,
-        lastUpdateAtMs: nowMs,
+        lastUpdateAtMs: terminalAtMs,
       },
     },
   };

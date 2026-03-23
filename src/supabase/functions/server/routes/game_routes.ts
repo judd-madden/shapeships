@@ -888,32 +888,42 @@ export function registerGameRoutes(
       // Server-side identity is derived from sessionToken only
       const requestingPlayerId = session.sessionId; // AUTHORITY: Server-minted identity
       
-      let gameData = await kvGet(`game_${gameId}`);
+      const storedState = await kvGet(`game_${gameId}`);
       
-      if (!gameData) {
+      if (!storedState) {
         return c.json({ error: "Game not found" }, 404);
       }
 
       // Capture pre-mutation status and baseline state
       const nowMs = Date.now();
-      const baseState = gameData;
-      const prevStatus = baseState?.status;
+      const prevStatus = storedState?.status;
       
-      // Apply maintenance pipeline for RESPONSE ONLY (read-only; no KV persistence)
-      gameData = applyGameStateMaintenance(baseState, nowMs);
+      // Apply maintenance pipeline, then persist only if it newly finishes the game.
+      const maintainedState = applyGameStateMaintenance(storedState, nowMs);
       
       // Detect terminal transition after all mutations
       const events: any[] = [];
-      const nextStatus = gameData?.status;
+      const nextStatus = maintainedState?.status;
       const terminalOccurred = prevStatus !== 'finished' && nextStatus === 'finished';
-      
+
       if (terminalOccurred) {
+        await kvSet(`game_${gameId}`, maintainedState);
+      }
+
+      let gameData = maintainedState;
+
+      if (terminalOccurred) {
+        const terminalAtMs =
+          typeof maintainedState?.gameData?.clock?.lastUpdateAtMs === 'number'
+            ? maintainedState.gameData.clock.lastUpdateAtMs
+            : nowMs;
+
         events.push({
           type: 'GAME_OVER',
-          result: gameData.result ?? 'draw',
-          resultReason: gameData.resultReason,
-          winnerPlayerId: gameData.winnerPlayerId ?? null,
-          atMs: nowMs,
+          result: maintainedState.result ?? 'draw',
+          resultReason: maintainedState.resultReason,
+          winnerPlayerId: maintainedState.winnerPlayerId ?? null,
+          atMs: terminalAtMs,
         });
       }
 
