@@ -48,7 +48,7 @@ function matchesDestroyRestriction(
 }
 
 export function hasSacDestroyProtection(state: GameState | any, playerId: string): boolean {
-  const fleet = state?.gameData?.ships?.[playerId] ?? state?.ships?.[playerId] ?? [];
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
   return Array.isArray(fleet) && fleet.some((ship: any) => ship?.shipDefId === 'SAC');
 }
 
@@ -94,7 +94,7 @@ export function getValidDestroyTargets(
     return [];
   }
 
-  const targetFleet = state?.gameData?.ships?.[targetPlayerId] ?? state?.ships?.[targetPlayerId] ?? [];
+  const targetFleet = state?.gameData?.ships?.[targetPlayerId] ?? [];
   if (!Array.isArray(targetFleet)) return [];
 
   return targetFleet

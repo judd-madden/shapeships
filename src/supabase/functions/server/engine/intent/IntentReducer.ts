@@ -171,7 +171,7 @@ function appendBuiltShipInstance(args: {
 }
 
 function countFleetShipsByDefId(state: any, playerId: string, shipDefId: string): number {
-  const fleet = state?.gameData?.ships?.[playerId] ?? state?.ships?.[playerId] ?? [];
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
   let count = 0;
   for (const ship of fleet) {
     if (ship?.shipDefId === shipDefId) count++;
@@ -311,17 +311,8 @@ export async function applyIntent(
   nowMs: number
 ): Promise<IntentResult> {
   const events: any[] = [];
-  
-  // Normalize legacy ships container → canonical gameData.ships
+
   if (!state.gameData) state.gameData = {};
-  const legacyShips = (state as any).ships;
-
-  if (!state.gameData.ships && legacyShips) {
-    state.gameData.ships = legacyShips;
-  }
-
-  // Always keep legacy alias aligned
-  (state as any).ships = state.gameData.ships;
   
   // Accrue server-authoritative clocks before applying intent (authoritative timekeeping)
   state = accrueClocks(state, nowMs);

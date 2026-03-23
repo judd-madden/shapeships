@@ -52,7 +52,7 @@ function getSubphasesForAvailableActions(phaseKey: string | null): string[] {
 // HELPER: Check if player has available charge or solar option
 // ============================================================================
 function playerHasAvailableChargeOrSolarOption(state: any, playerId: string): boolean {
-  const fleet = state?.ships?.[playerId] ?? state?.gameData?.ships?.[playerId] ?? [];
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
   const players = state?.players ?? state?.gameData?.players ?? [];
   const player = players.find((p: any) => p?.id === playerId);
   const playerEnergy = player?.energy ?? 0;
@@ -114,7 +114,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
       state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
     
     // Get player's ship instances
-    const fleet = state?.ships?.[playerId] ?? state?.gameData?.ships?.[playerId] ?? [];
+    const fleet = state?.gameData?.ships?.[playerId] ?? [];
     
     // For each ship instance, find eligible choice powers
     for (const shipInstance of fleet) {
@@ -190,7 +190,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
     const usedMap: Record<string, number> =
       state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
 
-    const fleet = state?.ships?.[playerId] ?? state?.gameData?.ships?.[playerId] ?? [];
+    const fleet = state?.gameData?.ships?.[playerId] ?? [];
     const opponentId = (state?.players || []).find((p: any) => p.role === 'player' && p.id !== playerId)?.id;
 
     for (const shipInstance of fleet) {
@@ -267,7 +267,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
     const usedMap: Record<string, number> =
       state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
 
-    const fleet = state?.ships?.[playerId] ?? state?.gameData?.ships?.[playerId] ?? [];
+    const fleet = state?.gameData?.ships?.[playerId] ?? [];
 
     for (const shipInstance of fleet) {
       const shipDefId = shipInstance.shipDefId;
@@ -1105,9 +1105,10 @@ export function registerGameRoutes(
       
       // Compute available actions for requesting player
       const availableActions = computeAvailableActionsForRequestingPlayer(gameData, requestingPlayerId);
+      const { ships: _omitShips, ...responseState } = gameData;
       
       return c.json({
-        ...gameData,
+        ...responseState,
         clock: clockSnapshot,
         events,
         availableActions,

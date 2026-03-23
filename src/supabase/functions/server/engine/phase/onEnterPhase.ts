@@ -126,7 +126,7 @@ function playerHasAvailableChargeOrSolarOption(state: any, player: any): boolean
     return false;
   }
 
-  const fleet = state?.ships?.[player.id] ?? state?.gameData?.ships?.[player.id] ?? [];
+  const fleet = state?.gameData?.ships?.[player.id] ?? [];
 
   const turnNumber: number = state?.gameData?.turnNumber ?? 1;
   const usedMap: Record<string, number> =

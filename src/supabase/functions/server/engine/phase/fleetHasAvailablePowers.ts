@@ -152,10 +152,7 @@ export function fleetHasAvailablePowers(
   playerId: string,
   allowedSubphases?: string[]
 ): boolean {
-  const ships =
-    state?.ships?.[playerId] ??
-    state?.gameData?.ships?.[playerId] ??
-    [];
+  const ships = state?.gameData?.ships?.[playerId] ?? [];
 
   for (const ship of ships) {
     if (phaseKey === 'build.ships_that_build') {
