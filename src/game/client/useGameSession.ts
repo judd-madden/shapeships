@@ -91,6 +91,7 @@ import {
   getDefaultChoiceIdForRenderableAction,
   getRenderableActionChoiceIds,
   getRenderableServerChoiceActions,
+  isRenderableTargetedActionComplete,
   speciesToCataloguePanelId,
 } from './gameSession/availableActions';
 import { buildMessageAction } from './gameSession/powerIntents';
@@ -663,6 +664,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
 
   const {
     allocatedDestroyTargetIdBySourceInstanceId,
+    allocatedDestroyTargetIdsBySourceInstanceId,
     boardDestroyTargeting,
     shouldResetDestroyTargetRows,
     consumePendingDestroyTargetReset,
@@ -1436,6 +1438,18 @@ useEffect(() => {
     !!speciesRevealDoneByPhase[phaseInstanceKey];
   
   // Ready gating logic
+  const hasIncompleteTargetedAction =
+    Array.isArray(availableActions) &&
+    getRenderableServerChoiceActions(phaseKey, availableActions).some((action) =>
+      action.kind === 'destroy_target' &&
+      !isRenderableTargetedActionComplete({
+        action,
+        selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
+        allocatedDestroyTargetIdsBySourceInstanceId,
+        allocatedDestroyTargetIdBySourceInstanceId,
+      })
+    );
+
   let readyEnabled = true;
   let readyDisabledReason: string | null = null;
   
@@ -1468,6 +1482,9 @@ useEffect(() => {
     if (isServerChoicePhase && availableActions == null) {
       readyEnabled = false;
       readyDisabledReason = 'Loading actions…';
+    } else if (hasIncompleteTargetedAction) {
+      readyEnabled = false;
+      readyDisabledReason = 'Complete all required target selections first.';
     } else {
       readyEnabled = true;
       readyDisabledReason = null;
@@ -1699,6 +1716,7 @@ useEffect(() => {
 
     // Selection state for ship choice panels
     selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
+    allocatedDestroyTargetIdsBySourceInstanceId,
     allocatedDestroyTargetIdBySourceInstanceId,
     
     // Raw gameData for server truth
@@ -1781,6 +1799,7 @@ useEffect(() => {
           // Charge panel context (Prompt 9)
           availableActions: Array.isArray(availableActions) ? availableActions : null,
           selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
+          allocatedDestroyTargetIdsBySourceInstanceId,
           allocatedDestroyTargetIdBySourceInstanceId,
         });
       } finally {

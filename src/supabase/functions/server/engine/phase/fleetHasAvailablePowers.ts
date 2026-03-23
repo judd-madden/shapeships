@@ -25,6 +25,36 @@ import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.with
 import { EffectKind } from '../../engine_shared/effects/Effect.ts';
 import { getValidDestroyTargets } from '../../engine_shared/resolve/destroyRules.ts';
 
+function getTargetedChoiceEffect(option: any) {
+  return option?.effects?.find(
+    (effect: any) =>
+      effect?.kind === EffectKind.Destroy ||
+      effect?.kind === EffectKind.TransferShip
+  ) ?? null;
+}
+
+function shouldApplyOpponentSacProtectionForTargetedEffect(effect: any): boolean {
+  return effect?.kind !== EffectKind.TransferShip;
+}
+
+function isTargetedChoicePowerAvailableForShip(state: any, ship: any, actionId: string, power: any): boolean {
+  if (power?.onceOnly === 'on_build_turn') {
+    const currentTurnNumber: number = state?.gameData?.turnNumber ?? 1;
+    if (ship?.createdTurn !== currentTurnNumber) {
+      return false;
+    }
+  }
+
+  if (power?.onceOnly) {
+    const onceOnlyFired = state?.gameData?.powerMemory?.onceOnlyFired ?? {};
+    if (onceOnlyFired[`${ship.instanceId}::${actionId}`] === true) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function shipHasInteractiveShipsThatBuildChoice(
   state: any,
   playerId: string,
@@ -54,15 +84,13 @@ function shipHasInteractiveShipsThatBuildChoice(
     const nonHoldChoices = eligibleChoices.filter((option) => option.choiceId !== 'hold');
     if (nonHoldChoices.length === 0) continue;
 
-    const destroyOption = nonHoldChoices.find((option) =>
-      option.effects.some((effect) => effect.kind === EffectKind.Destroy)
-    );
+    const destroyOption = nonHoldChoices.find((option) => getTargetedChoiceEffect(option) != null);
 
     if (!destroyOption) {
       return true;
     }
 
-    const destroyEffect = destroyOption.effects.find((effect) => effect.kind === EffectKind.Destroy);
+    const destroyEffect = getTargetedChoiceEffect(destroyOption);
     if (!destroyEffect) continue;
 
     const validTargets = getValidDestroyTargets(state, {
@@ -91,9 +119,18 @@ function shipHasInteractiveTargetedDestroyChoice(
 
   let foundTargetedDestroyChoice = false;
 
-  for (const power of shipDef.structuredPowers) {
+  for (let powerIndex = 0; powerIndex < shipDef.structuredPowers.length; powerIndex++) {
+    const power = shipDef.structuredPowers[powerIndex];
     if (power.type !== 'choice') continue;
     if (!power.timings.includes(phaseKey)) continue;
+
+    const targetedOption = power.options.find((option) => getTargetedChoiceEffect(option) != null);
+    if (!targetedOption) continue;
+
+    foundTargetedDestroyChoice = true;
+
+    const actionId = `${ship.shipDefId}#${powerIndex}`;
+    if (!isTargetedChoicePowerAvailableForShip(state, ship, actionId, power)) continue;
 
     const chargesCurrent = Number(ship?.chargesCurrent ?? 0);
     const eligibleChoices = power.options.filter((option) => {
@@ -109,20 +146,18 @@ function shipHasInteractiveTargetedDestroyChoice(
     const nonHoldChoices = eligibleChoices.filter((option) => option.choiceId !== 'hold');
     if (nonHoldChoices.length === 0) continue;
 
-    const destroyOption = nonHoldChoices.find((option) =>
-      option.effects.some((effect) => effect.kind === EffectKind.Destroy)
-    );
+    const destroyOption = nonHoldChoices.find((option) => option === targetedOption);
 
     if (!destroyOption) continue;
-    foundTargetedDestroyChoice = true;
 
-    const destroyEffect = destroyOption.effects.find((effect) => effect.kind === EffectKind.Destroy);
+    const destroyEffect = getTargetedChoiceEffect(destroyOption);
     if (!destroyEffect) continue;
 
     const validTargets = getValidDestroyTargets(state, {
       sourcePlayerId: playerId,
       targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
       restriction: destroyEffect.restriction ?? 'any',
+      applyOpponentSacProtection: shouldApplyOpponentSacProtectionForTargetedEffect(destroyEffect),
     });
 
     if (validTargets.length > 0) {

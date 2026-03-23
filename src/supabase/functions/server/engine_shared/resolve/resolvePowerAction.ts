@@ -1,15 +1,15 @@
 /**
  * GENERIC POWER ACTION RESOLVER
- * 
+ *
  * Data-driven resolver for structured type:'choice' powers.
- * 
+ *
  * Responsibilities:
  * - Parse { actionId, sourceInstanceId, choiceId }
  * - Validate timing, ownership, charges
- * - Translate chosen option → Effects
+ * - Translate chosen option -> Effects
  * - Apply via applyEffects
  * - Return outcome { state, events, spentCharge }
- * 
+ *
  * NO ship-specific logic - all specificity in structured power data.
  */
 
@@ -18,14 +18,18 @@ import type { PhaseKey } from '../phase/PhaseTable.ts';
 import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
 import { Effect, EffectKind } from '../effects/Effect.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
-import { 
-  translateChoiceOptionEffects, 
-  type StructuredShipPower, 
+import {
+  translateChoiceOptionEffects,
+  type StructuredShipPower,
   type StructuredChoiceOption,
-  type TranslateContext
+  type TranslateContext,
 } from '../effects/translateShipPowers.ts';
 import { getValidDestroyTargets } from './destroyRules.ts';
 import { countDistinctTypes } from './phaseComputedEffects.ts';
+
+function shouldApplyOpponentSacProtectionForTargetedEffect(effect: StructuredChoiceOption['effects'][number]): boolean {
+  return effect.kind !== EffectKind.TransferShip;
+}
 
 // ============================================================================
 // PUBLIC API
@@ -39,6 +43,7 @@ export type ResolvePowerActionInput = {
   sourceInstanceId: string;
   choiceId: string;
   targetInstanceId?: string;
+  targetInstanceIds?: string[];
   apply?: boolean;
 };
 
@@ -47,17 +52,28 @@ export type ResolvePowerActionOutcome = {
   events: EffectEvent[];
   spentCharge: boolean;
   effects: Effect[];
+  onceOnlyFiredKeys: string[];
 };
 
 /**
  * Resolve a power action (choice-based power).
- * 
+ *
  * @param input - Power action input
  * @returns Outcome with updated state, events, and charge flag
  * @throws Error if validation fails
  */
 export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePowerActionOutcome {
-  const { state, playerId, phaseKey, actionId, sourceInstanceId, choiceId, targetInstanceId, apply = true } = input;
+  const {
+    state,
+    playerId,
+    phaseKey,
+    actionId,
+    sourceInstanceId,
+    choiceId,
+    targetInstanceId,
+    targetInstanceIds,
+    apply = true,
+  } = input;
 
   // ============================================================================
   // 1. PARSE ACTION ID
@@ -137,6 +153,28 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
   }
 
   // ============================================================================
+  // 8.5. VALIDATE ONCE-ONLY MEMORY / BUILD-TURN GATES
+  // ============================================================================
+
+  const onceOnlyFiredKeys: string[] = [];
+  const powerMemoryKey = power.onceOnly ? `${sourceInstanceId}::${actionId}` : null;
+
+  if (power.onceOnly === 'on_build_turn') {
+    const currentTurnNumber = state?.gameData?.turnNumber ?? (state as any)?.turnNumber ?? 1;
+    if (shipInstance.createdTurn !== currentTurnNumber) {
+      throw new Error('This power is only available on the turn the ship was built.');
+    }
+  }
+
+  if (powerMemoryKey) {
+    if (state.gameData?.powerMemory?.onceOnlyFired?.[powerMemoryKey] === true) {
+      throw new Error('This power has already been used.');
+    }
+
+    onceOnlyFiredKeys.push(powerMemoryKey);
+  }
+
+  // ============================================================================
   // 9. VALIDATE CHARGES (if required)
   // ============================================================================
 
@@ -145,7 +183,7 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
 
   if (effectiveRequiresCharge) {
     const chargesCurrent = shipInstance.chargesCurrent ?? 0;
-    
+
     if (chargesCurrent < effectiveChargeCost) {
       throw new Error('Not enough charges');
     }
@@ -159,32 +197,64 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
   const opponentPlayerId = activePlayers.find((p: any) => p.id !== playerId)?.id || playerId;
 
   // ============================================================================
-  // 11. VALIDATE EXPLICIT TARGET (for targeted destroy actions)
+  // 11. VALIDATE EXPLICIT TARGET(S) (for targeted actions)
   // ============================================================================
 
-  const destroyEffect = option.effects.find((effect) => effect.kind === EffectKind.Destroy);
+  const targetedEffect = option.effects.find(
+    (effect) =>
+      effect.kind === EffectKind.Destroy ||
+      effect.kind === EffectKind.TransferShip
+  );
 
-  if (destroyEffect) {
-    if (!targetInstanceId) {
-      throw new Error('Missing targetInstanceId');
-    }
+  let resolvedTargetInstanceId = targetInstanceId;
+  let resolvedTargetInstanceIds = Array.isArray(targetInstanceIds)
+    ? targetInstanceIds.filter(
+        (candidate): candidate is string => typeof candidate === 'string' && candidate.length > 0
+      )
+    : undefined;
 
+  if (targetedEffect) {
     const validTargets = getValidDestroyTargets(state, {
       sourcePlayerId: playerId,
-      targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
-      restriction: destroyEffect.restriction ?? 'any',
+      targetScope: targetedEffect.targetPlayer === 'self' ? 'self' : 'opponent',
+      restriction: targetedEffect.restriction ?? 'any',
       minimumFullLineCost: shipDefId === 'SAC' ? 3 : undefined,
+      applyOpponentSacProtection: shouldApplyOpponentSacProtectionForTargetedEffect(targetedEffect),
     });
+    const requiredTargetCount = getRequiredTargetCount(targetedEffect, validTargets.length);
 
-    const targetShip = validTargets.find((target) => target.instanceId === targetInstanceId);
-
-    if (!targetShip) {
-      throw new Error(`Target ship not valid: ${targetInstanceId}`);
+    if (requiredTargetCount <= 0) {
+      throw new Error('No valid targets available.');
     }
+
+    const requestedTargetIds = resolvedTargetInstanceIds?.length
+      ? resolvedTargetInstanceIds
+      : typeof resolvedTargetInstanceId === 'string'
+        ? [resolvedTargetInstanceId]
+        : [];
+
+    if (requestedTargetIds.length !== requiredTargetCount) {
+      throw new Error(`Expected exactly ${requiredTargetCount} target ship(s).`);
+    }
+
+    const distinctRequestedTargetIds = Array.from(new Set(requestedTargetIds));
+    if (distinctRequestedTargetIds.length !== requestedTargetIds.length) {
+      throw new Error('Target ship ids must be distinct.');
+    }
+
+    for (const requestedTargetId of distinctRequestedTargetIds) {
+      const targetShip = validTargets.find((target) => target.instanceId === requestedTargetId);
+      if (!targetShip) {
+        throw new Error(`Target ship not valid: ${requestedTargetId}`);
+      }
+    }
+
+    resolvedTargetInstanceIds = distinctRequestedTargetIds;
+    resolvedTargetInstanceId = distinctRequestedTargetIds[0];
   }
 
   // ============================================================================
-  // 12. TRANSLATE OPTION EFFECTS → EFFECT[]
+  // 12. TRANSLATE OPTION EFFECTS -> EFFECT[]
   // ============================================================================
 
   const ctx: TranslateContext = {
@@ -192,7 +262,8 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
     shipDefId,
     ownerPlayerId: playerId,
     opponentPlayerId,
-    targetInstanceId
+    targetInstanceId: resolvedTargetInstanceId,
+    targetInstanceIds: resolvedTargetInstanceIds,
   };
 
   const effects: Effect[] = translateChoiceOptionEffects(
@@ -200,7 +271,7 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
     powerIndex,
     phaseKey,
     ctx,
-    choiceId // Use choiceId as salt for deterministic IDs
+    choiceId
   );
 
   if (shipDefId === 'FAM' && (choiceId === 'damage' || choiceId === 'heal')) {
@@ -222,10 +293,9 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
   // ============================================================================
 
   const spentCharge = effects.some(
-    (e) => e.kind === EffectKind.SpendCharge && ((e as any).amount ?? 0) > 0
+    (effect) => effect.kind === EffectKind.SpendCharge && ((effect as any).amount ?? 0) > 0
   );
 
-  // Phase 3.1 Slice 2 — Patch B: Once-per-turn charge power lock (charge-spending only)
   if (spentCharge) {
     const gd: any = state.gameData ?? (state.gameData = {} as any);
     const td: any = gd.turnData ?? (gd.turnData = {});
@@ -234,7 +304,6 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
     const usedMap: Record<string, number> = td.chargePowerUsedByInstanceId || {};
 
     if (usedMap[sourceInstanceId] === turnNumber) {
-      // Throw sentinel error; IntentReducer maps this to a deterministic rejection code.
       throw new Error('CHARGE_ALREADY_USED_THIS_TURN');
     }
   }
@@ -248,24 +317,44 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
       state,
       events: [],
       spentCharge,
-      effects
+      effects,
+      onceOnlyFiredKeys,
     };
   }
 
   const applied = applyEffects(state, effects);
+  let resolvedState = applied.state;
 
-  // Phase 3.1 Slice 2 — Patch B: Mark charge usage on success
+  if (onceOnlyFiredKeys.length > 0) {
+    const powerMemory = resolvedState.gameData.powerMemory ?? {};
+    const nextOnceOnlyFired = { ...(powerMemory.onceOnlyFired ?? {}) };
+
+    for (const key of onceOnlyFiredKeys) {
+      nextOnceOnlyFired[key] = true;
+    }
+
+    resolvedState = {
+      ...resolvedState,
+      gameData: {
+        ...resolvedState.gameData,
+        powerMemory: {
+          ...powerMemory,
+          onceOnlyFired: nextOnceOnlyFired,
+        },
+      },
+    };
+  }
+
   if (spentCharge) {
-    const gd: any =
-      applied.state.gameData ?? (applied.state.gameData = {} as any);
+    const gd: any = resolvedState.gameData ?? (resolvedState.gameData = {} as any);
     const td: any = gd.turnData ?? (gd.turnData = {});
 
-    const turnNumber: number = gd.turnNumber ?? (applied.state as any).turnNumber ?? 1;
+    const turnNumber: number = gd.turnNumber ?? (resolvedState as any).turnNumber ?? 1;
     const usedMap: Record<string, number> = td.chargePowerUsedByInstanceId || {};
 
     td.chargePowerUsedByInstanceId = {
       ...usedMap,
-      [sourceInstanceId]: turnNumber
+      [sourceInstanceId]: turnNumber,
     };
   }
 
@@ -274,10 +363,11 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
   // ============================================================================
 
   return {
-    state: applied.state,
+    state: resolvedState,
     events: applied.events,
     spentCharge,
-    effects
+    effects,
+    onceOnlyFiredKeys,
   };
 }
 
@@ -288,7 +378,7 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
 /**
  * Parse power actionId locally.
  * Format: "{ShipDefId}#{powerIndex}"
- * 
+ *
  * @param actionId - Action ID to parse
  * @returns Parsed components
  * @throws Error if format is invalid
@@ -312,4 +402,26 @@ function parsePowerActionIdLocal(actionId: string): { shipDefId: string; powerIn
   }
 
   return { shipDefId, powerIndex };
+}
+
+function getRequiredTargetCount(
+  effect: StructuredChoiceOption['effects'][number],
+  validTargetCount: number
+): number {
+  const rawRequiredTargetCount: number | undefined =
+    typeof effect.requiredTargetCount === 'number'
+      ? effect.requiredTargetCount
+      : effect.count;
+  const baseRequiredTargetCount =
+    rawRequiredTargetCount !== undefined &&
+    Number.isInteger(rawRequiredTargetCount) &&
+    rawRequiredTargetCount > 0
+      ? rawRequiredTargetCount
+      : 1;
+
+  if (validTargetCount <= 0) {
+    return 0;
+  }
+
+  return Math.min(baseRequiredTargetCount, validTargetCount);
 }

@@ -589,6 +589,34 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   ],
 
   // ==========================================================================
+  // ARK OF DOMINATION (DOM)
+  // ==========================================================================
+  'DOM#1': [
+    {
+      type: 'choice',
+      timings: ['battle.first_strike'],
+      onceOnly: 'on_build_turn',
+      options: [
+        {
+          choiceId: 'steal',
+          label: '',
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.TransferShip,
+              restriction: 'basic_only',
+              count: 2,
+              requiredTargetCount: 2,
+              targetPlayer: 'opponent',
+            },
+          ],
+        },
+      ],
+    },
+  ],
+
+  // ==========================================================================
   // SHIP OF LEGACY (LEG)
   // ==========================================================================
   // JSON power index 1: "Deal 1 damage." (Automatic)

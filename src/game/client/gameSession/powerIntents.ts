@@ -14,13 +14,15 @@ export function buildPowerAction(params: {
   sourceInstanceId?: string;
   choiceId?: string;
   targetInstanceId?: string;
+  targetInstanceIds?: string[];
 }): {
   actionType: 'power';
   actionId: string;
   sourceInstanceId?: string;
   choiceId?: string;
   targetInstanceId?: string;
+  targetInstanceIds?: string[];
 } {
-  const { actionId, sourceInstanceId, choiceId, targetInstanceId } = params;
-  return { actionType: 'power', actionId, sourceInstanceId, choiceId, targetInstanceId };
+  const { actionId, sourceInstanceId, choiceId, targetInstanceId, targetInstanceIds } = params;
+  return { actionType: 'power', actionId, sourceInstanceId, choiceId, targetInstanceId, targetInstanceIds };
 }

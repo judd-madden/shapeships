@@ -31,6 +31,7 @@ export type RenderableServerAction = {
   sourceInstanceId: string;
   choices: Array<{ choiceId?: string; projectedAmount?: number }>;
   validTargets?: any[];
+  requiredTargetCount?: number;
 };
 
 export function isCataloguePanel(id: ActionPanelId): boolean {
@@ -90,6 +91,75 @@ export function getDefaultChoiceIdForRenderableAction(action: RenderableServerAc
   }
 
   return choiceIds[0];
+}
+
+export function getRenderableActionRequiredTargetCount(action: RenderableServerAction): number {
+  const requiredTargetCount = Number(action?.requiredTargetCount);
+  return Number.isInteger(requiredTargetCount) && requiredTargetCount > 0
+    ? requiredTargetCount
+    : 1;
+}
+
+export function getSelectedChoiceIdForRenderableAction(
+  action: RenderableServerAction,
+  selectedChoiceIdBySourceInstanceId: Record<string, string>
+): string | undefined {
+  return (
+    selectedChoiceIdBySourceInstanceId[action.sourceInstanceId] ??
+    getDefaultChoiceIdForRenderableAction(action)
+  );
+}
+
+export function isRenderableTargetedActionSelected(
+  action: RenderableServerAction,
+  selectedChoiceIdBySourceInstanceId: Record<string, string>
+): boolean {
+  if (action.kind !== 'destroy_target') return false;
+
+  const selectedChoiceId = getSelectedChoiceIdForRenderableAction(
+    action,
+    selectedChoiceIdBySourceInstanceId
+  );
+
+  return typeof selectedChoiceId === 'string' && selectedChoiceId !== 'hold';
+}
+
+export function getAllocatedTargetIdsForRenderableAction(
+  action: RenderableServerAction,
+  allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]>,
+  allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>
+): string[] {
+  const multi = allocatedDestroyTargetIdsBySourceInstanceId[action.sourceInstanceId];
+  if (Array.isArray(multi) && multi.length > 0) {
+    return multi.filter((targetInstanceId): targetInstanceId is string => typeof targetInstanceId === 'string');
+  }
+
+  const single = allocatedDestroyTargetIdBySourceInstanceId[action.sourceInstanceId];
+  return typeof single === 'string' ? [single] : [];
+}
+
+export function isRenderableTargetedActionComplete(args: {
+  action: RenderableServerAction;
+  selectedChoiceIdBySourceInstanceId: Record<string, string>;
+  allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]>;
+  allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
+}): boolean {
+  const {
+    action,
+    selectedChoiceIdBySourceInstanceId,
+    allocatedDestroyTargetIdsBySourceInstanceId,
+    allocatedDestroyTargetIdBySourceInstanceId,
+  } = args;
+
+  if (!isRenderableTargetedActionSelected(action, selectedChoiceIdBySourceInstanceId)) {
+    return true;
+  }
+
+  return getAllocatedTargetIdsForRenderableAction(
+    action,
+    allocatedDestroyTargetIdsBySourceInstanceId,
+    allocatedDestroyTargetIdBySourceInstanceId
+  ).length === getRenderableActionRequiredTargetCount(action);
 }
 
 // TODO(BETA): Early-drawing during build.ships_that_build

@@ -17,7 +17,13 @@ import type { ShipDefId } from '../../types/ShipTypes.engine';
 import type { ShipChoiceGroupSpec, ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
 import type { EvolverChoiceId } from './types';
 import { getShipChoicePanelSpec } from '../../display/actionPanel/panels/ShipChoiceRegistry';
-import { getRenderableActionChoiceIds, getRenderableServerChoiceActions } from './availableActions';
+import {
+  getAllocatedTargetIdsForRenderableAction,
+  getRenderableActionChoiceIds,
+  getRenderableActionRequiredTargetCount,
+  getRenderableServerChoiceActions,
+  isRenderableTargetedActionComplete,
+} from './availableActions';
 
 function getCountedGroupHeading(groupSpec: {
   headingTemplate: string;
@@ -36,6 +42,7 @@ function getTargetedActionButtons(args: {
   action: any;
   sourceInstanceId: string;
   selectedChoiceIdBySourceInstanceId: Record<string, string>;
+  allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]>;
   allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
 }) {
   const {
@@ -43,6 +50,7 @@ function getTargetedActionButtons(args: {
     action,
     sourceInstanceId,
     selectedChoiceIdBySourceInstanceId,
+    allocatedDestroyTargetIdsBySourceInstanceId,
     allocatedDestroyTargetIdBySourceInstanceId,
   } = args;
 
@@ -52,7 +60,11 @@ function getTargetedActionButtons(args: {
 
   const selectedChoiceId = selectedChoiceIdBySourceInstanceId[sourceInstanceId];
   const hasAllocatedTarget =
-    typeof allocatedDestroyTargetIdBySourceInstanceId[sourceInstanceId] === 'string';
+    getAllocatedTargetIdsForRenderableAction(
+      action,
+      allocatedDestroyTargetIdsBySourceInstanceId,
+      allocatedDestroyTargetIdBySourceInstanceId
+    ).length === getRenderableActionRequiredTargetCount(action);
 
   return buttons.map((button) => {
     if (button.choiceId == null || button.choiceId !== selectedChoiceId) {
@@ -193,6 +205,7 @@ export function mapGameSessionVm(args: {
 
   // Selection state for ship choice panels
   selectedChoiceIdBySourceInstanceId: Record<string, string>;
+  allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]>;
   allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
   
   // Raw gameData for server truth
@@ -250,6 +263,7 @@ export function mapGameSessionVm(args: {
     readyUx,
     availableActions,
     selectedChoiceIdBySourceInstanceId,
+    allocatedDestroyTargetIdsBySourceInstanceId,
     allocatedDestroyTargetIdBySourceInstanceId,
     gameData,
     diceRollSeq,
@@ -564,15 +578,16 @@ export function mapGameSessionVm(args: {
           const heading = getCountedGroupHeading(groupSpec, count);
           const ships = matches.map((m: any) => ({
             shipDefId: groupSpec.shipDefId,
-            buttons: getProjectedActionButtons({
-              buttons: getTargetedActionButtons({
-                buttons: groupSpec.buttons,
-                action: m,
-                sourceInstanceId: m.sourceInstanceId,
-                selectedChoiceIdBySourceInstanceId,
-                allocatedDestroyTargetIdBySourceInstanceId,
-              }),
-              action: m,
+                buttons: getProjectedActionButtons({
+                  buttons: getTargetedActionButtons({
+                    buttons: groupSpec.buttons,
+                    action: m,
+                    sourceInstanceId: m.sourceInstanceId,
+                    selectedChoiceIdBySourceInstanceId,
+                    allocatedDestroyTargetIdsBySourceInstanceId,
+                    allocatedDestroyTargetIdBySourceInstanceId,
+                  }),
+                  action: m,
               shipDefId: groupSpec.shipDefId,
             }),
             sourceInstanceId: m.sourceInstanceId,
@@ -611,6 +626,7 @@ export function mapGameSessionVm(args: {
                     action: m,
                     sourceInstanceId: m.sourceInstanceId,
                     selectedChoiceIdBySourceInstanceId,
+                    allocatedDestroyTargetIdsBySourceInstanceId,
                     allocatedDestroyTargetIdBySourceInstanceId,
                   }),
                   action: m,
@@ -707,6 +723,49 @@ export function mapGameSessionVm(args: {
   // Server-projected actions for the CURRENT phase (safe default)
   const availableActionsSafe = availableActions ?? [];
   const hasActionsForMe = Array.isArray(availableActionsSafe) && availableActionsSafe.length > 0;
+  const domLargeChoiceInstruction = (() => {
+    if (finalActivePanelId !== 'ap.battle.first_strike.centaur') {
+      return undefined;
+    }
+
+    const domActions = getRenderableServerChoiceActions(phaseKey, availableActions).filter(
+      (action) => action.kind === 'destroy_target' && action.shipDefId === 'DOM'
+    );
+
+    if (domActions.length === 0) {
+      return undefined;
+    }
+
+    const domAction =
+      domActions.find((action) =>
+        !isRenderableTargetedActionComplete({
+          action,
+          selectedChoiceIdBySourceInstanceId,
+          allocatedDestroyTargetIdsBySourceInstanceId,
+          allocatedDestroyTargetIdBySourceInstanceId,
+        })
+      ) ?? domActions[0];
+
+    const requiredTargetCount = getRenderableActionRequiredTargetCount(domAction);
+    const isComplete = isRenderableTargetedActionComplete({
+      action: domAction,
+      selectedChoiceIdBySourceInstanceId,
+      allocatedDestroyTargetIdsBySourceInstanceId,
+      allocatedDestroyTargetIdBySourceInstanceId,
+    });
+
+    if (!isComplete && requiredTargetCount === 2) {
+      return 'You must select two basic enemy ships on the battlefield to steal!';
+    }
+
+    if (!isComplete) {
+      return 'You must select one basic enemy ship on the battlefield to steal!';
+    }
+
+    return requiredTargetCount === 2
+      ? 'Steal opponent ships'
+      : 'Steal opponent ship';
+  })();
 
   
   const vm: GameSessionViewModel = {
@@ -814,6 +873,11 @@ export function mapGameSessionVm(args: {
       frigateDrawing,
       evolverDrawing,
       shipChoices,
+      largeChoicePanel: domLargeChoiceInstruction
+        ? {
+            instruction: domLargeChoiceInstruction,
+          }
+        : undefined,
       availableActions: availableActionsSafe,
       selectedChoiceIdBySourceInstanceId,
     },

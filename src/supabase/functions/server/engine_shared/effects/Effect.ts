@@ -45,6 +45,7 @@ export enum EffectKind {
   Damage = 'Damage',
   Heal = 'Heal',
   Destroy = 'Destroy',
+  TransferShip = 'TransferShip',
   CreateShip = 'CreateShip',
   GainEnergy = 'GainEnergy',
   GainLines = 'GainLines',
@@ -84,6 +85,7 @@ export type EffectSource = ShipSource | SystemSource;
 export type EffectTarget = {
   playerId: string;
   shipInstanceId?: string;
+  shipInstanceIds?: string[];
 };
 
 // ============================================================================
@@ -146,6 +148,13 @@ export type DestroyEffect = BaseEffect & {
   count: number; // usually 1
 };
 
+export type TransferShipEffect = BaseEffect & {
+  kind: EffectKind.TransferShip;
+  restriction: 'basic_only' | 'upgraded_only' | 'any';
+  count: number;
+  requiredTargetCount?: number;
+};
+
 export type CreateShipEffect = BaseEffect & {
   kind: EffectKind.CreateShip;
   shipDefId: string; // e.g. 'DEF'
@@ -204,6 +213,7 @@ export type Effect =
   | DamageEffect
   | HealEffect
   | DestroyEffect
+  | TransferShipEffect
   | CreateShipEffect
   | GainLinesEffect
   | GainEnergyEffect

@@ -259,7 +259,11 @@ export interface ActionPanelViewModel {
     opponentAlsoHasChargesHeading?: string;
     opponentAlsoHasChargesLines?: string[];
     selectedChoiceIdBySourceInstanceId?: Record<string, string>;
-    };
+  };
+
+  largeChoicePanel?: {
+    instruction?: string;
+  };
 
   // Server-projected actions for this phase (empty array when none)
   availableActions: any[];

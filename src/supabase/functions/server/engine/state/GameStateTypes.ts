@@ -112,6 +112,7 @@ export type GameData = {
       sourceInstanceId: string;
       choiceId: string;
       targetInstanceId?: string;
+      targetInstanceIds?: string[];
     }>>;
     
     /** Allow future turn-scoped flags */

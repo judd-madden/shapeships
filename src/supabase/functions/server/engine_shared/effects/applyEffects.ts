@@ -140,6 +140,9 @@ function applySingleEffect(
     case EffectKind.Destroy:
       return applyDestroyShip(state, effect as any, nowMs);
 
+    case EffectKind.TransferShip:
+      return applyTransferShip(state, effect as any, nowMs);
+
     case EffectKind.SpendCharge:
       return applySpendCharge(state, effect as any, nowMs);
 
@@ -488,6 +491,72 @@ function applyDestroyShip(
         beforeCount,
         afterCount,
         createdShipsFromDestroy,
+      },
+      atMs: nowMs,
+    },
+  };
+}
+
+function applyTransferShip(
+  state: GameState,
+  effect: Effect & { kind: EffectKind.TransferShip },
+  nowMs: number
+): { event?: EffectEvent } {
+  if (!state.gameData.ships) {
+    state.gameData.ships = {};
+  }
+
+  const fromPlayerId = (effect as any).target.playerId as string;
+  const toPlayerId = (effect as any).ownerPlayerId as string;
+  const shipInstanceIds = Array.isArray((effect as any).target.shipInstanceIds)
+    ? (effect as any).target.shipInstanceIds
+    : [((effect as any).target.shipInstanceId as string | undefined)].filter(
+        (shipInstanceId): shipInstanceId is string => typeof shipInstanceId === 'string'
+      );
+
+  if (shipInstanceIds.length === 0) {
+    console.warn('[applyEffects] Skipping TransferShip effect without target ship ids');
+    return {};
+  }
+
+  const sourceFleet = state.gameData.ships?.[fromPlayerId];
+  if (!Array.isArray(sourceFleet)) {
+    console.warn(`[applyEffects] Fleet not found for TransferShip effect: ${fromPlayerId}`);
+    return {};
+  }
+
+  const destinationFleet = state.gameData.ships?.[toPlayerId] ?? [];
+  const transferredShips: ShipInstance[] = [];
+  let nextSourceFleet = sourceFleet;
+
+  for (const shipInstanceId of shipInstanceIds) {
+    const shipIndex = nextSourceFleet.findIndex((ship) => ship.instanceId === shipInstanceId);
+    if (shipIndex === -1) {
+      console.warn(`[applyEffects] Ship instance not found for TransferShip effect: ${shipInstanceId}`);
+      return {};
+    }
+
+    const transferredShip = nextSourceFleet[shipIndex];
+    transferredShips.push(transferredShip);
+    nextSourceFleet = [
+      ...nextSourceFleet.slice(0, shipIndex),
+      ...nextSourceFleet.slice(shipIndex + 1),
+    ];
+  }
+
+  state.gameData.ships![fromPlayerId] = nextSourceFleet;
+  state.gameData.ships![toPlayerId] = [...destinationFleet, ...transferredShips];
+
+  return {
+    event: {
+      type: 'EFFECT_APPLIED',
+      effectId: (effect as any).id,
+      kind: 'TransferShip',
+      targetPlayerId: toPlayerId,
+      details: {
+        fromPlayerId,
+        toPlayerId,
+        shipInstanceIds,
       },
       atMs: nowMs,
     },

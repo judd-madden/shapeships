@@ -10,7 +10,12 @@ import type React from 'react';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { EvolverChoiceId } from './types';
 import { buildPowerAction } from './powerIntents';
-import { getRenderableActionChoiceIds, getRenderableServerChoiceActions } from './availableActions';
+import {
+  getAllocatedTargetIdsForRenderableAction,
+  getRenderableActionChoiceIds,
+  getRenderableServerChoiceActions,
+  isRenderableTargetedActionComplete,
+} from './availableActions';
 
 const INTENT_TIMEOUT_MS = 8000; // fail fast to avoid wedged commits
 
@@ -278,6 +283,7 @@ export async function runReadyToggleFlow(args: {
   // charge panel context (Prompt 9)
   availableActions: any[] | null;
   selectedChoiceIdBySourceInstanceId: Record<string, string>;
+  allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]>;
   allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
 }): Promise<void> {
   const {
@@ -356,6 +362,23 @@ export async function runReadyToggleFlow(args: {
         // Fall through to DECLARE_READY
       } else {
         const choiceActions = getRenderableServerChoiceActions(phaseKey, args.availableActions);
+
+        const incompleteTargetedAction = choiceActions.find((action) =>
+          action.kind === 'destroy_target' &&
+          !isRenderableTargetedActionComplete({
+            action,
+            selectedChoiceIdBySourceInstanceId: args.selectedChoiceIdBySourceInstanceId,
+            allocatedDestroyTargetIdsBySourceInstanceId: args.allocatedDestroyTargetIdsBySourceInstanceId,
+            allocatedDestroyTargetIdBySourceInstanceId: args.allocatedDestroyTargetIdBySourceInstanceId,
+          })
+        );
+
+        if (incompleteTargetedAction) {
+          console.warn(
+            `[useGameSession] ${phaseKey}: blocking ready because targeted action is incomplete for ${incompleteTargetedAction.sourceInstanceId}`
+          );
+          return;
+        }
         
         console.log(`[useGameSession] Found ${choiceActions.length} renderable server actions to process`);
         
@@ -375,8 +398,12 @@ export async function runReadyToggleFlow(args: {
           }
 
           if (action.kind === 'destroy_target') {
-            const targetInstanceId = args.allocatedDestroyTargetIdBySourceInstanceId[sourceInstanceId];
-            if (!targetInstanceId) {
+            const targetInstanceIds = getAllocatedTargetIdsForRenderableAction(
+              action,
+              args.allocatedDestroyTargetIdsBySourceInstanceId,
+              args.allocatedDestroyTargetIdBySourceInstanceId
+            );
+            if (targetInstanceIds.length === 0) {
               console.log(
                 `[useGameSession] Skipping incomplete targeted first-strike action for ${sourceInstanceId}: no allocated target available`
               );
@@ -387,7 +414,8 @@ export async function runReadyToggleFlow(args: {
               actionId,
               sourceInstanceId,
               choiceId,
-              targetInstanceId,
+              targetInstanceId: targetInstanceIds[0],
+              targetInstanceIds,
             }));
             continue;
           }
@@ -503,6 +531,23 @@ export async function runReadyToggleFlow(args: {
         }
       } else {
         const choiceActions = getRenderableServerChoiceActions(phaseKey, args.availableActions);
+
+        const incompleteTargetedAction = choiceActions.find((action) =>
+          action.kind === 'destroy_target' &&
+          !isRenderableTargetedActionComplete({
+            action,
+            selectedChoiceIdBySourceInstanceId: args.selectedChoiceIdBySourceInstanceId,
+            allocatedDestroyTargetIdsBySourceInstanceId: args.allocatedDestroyTargetIdsBySourceInstanceId,
+            allocatedDestroyTargetIdBySourceInstanceId: args.allocatedDestroyTargetIdBySourceInstanceId,
+          })
+        );
+
+        if (incompleteTargetedAction) {
+          console.warn(
+            `[useGameSession] ${phaseKey}: blocking ready because targeted action is incomplete for ${incompleteTargetedAction.sourceInstanceId}`
+          );
+          return;
+        }
         
         console.log(`[useGameSession] Found ${choiceActions.length} renderable server actions to process`);
         
@@ -522,8 +567,12 @@ export async function runReadyToggleFlow(args: {
           }
 
           if (action.kind === 'destroy_target') {
-            const targetInstanceId = args.allocatedDestroyTargetIdBySourceInstanceId[sourceInstanceId];
-            if (!targetInstanceId) {
+            const targetInstanceIds = getAllocatedTargetIdsForRenderableAction(
+              action,
+              args.allocatedDestroyTargetIdsBySourceInstanceId,
+              args.allocatedDestroyTargetIdBySourceInstanceId
+            );
+            if (targetInstanceIds.length === 0) {
               console.log(
                 `[useGameSession] Skipping incomplete targeted build action for ${sourceInstanceId}: no allocated target available`
               );
@@ -534,7 +583,8 @@ export async function runReadyToggleFlow(args: {
               actionId,
               sourceInstanceId,
               choiceId,
-              targetInstanceId,
+              targetInstanceId: targetInstanceIds[0],
+              targetInstanceIds,
             }));
             continue;
           }

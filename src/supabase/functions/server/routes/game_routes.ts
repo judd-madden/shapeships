@@ -26,6 +26,49 @@ import { getValidDestroyTargets } from '../engine_shared/resolve/destroyRules.ts
 import { countDistinctTypes } from '../engine_shared/resolve/phaseComputedEffects.ts';
 import { rollD6 } from '../engine/util/rollD6.ts';
 
+function getTargetedChoiceEffect(option: any) {
+  if (!Array.isArray(option?.effects)) return null;
+  return option.effects.find(
+    (effect: any) =>
+      effect?.kind === EffectKind.Destroy ||
+      effect?.kind === EffectKind.TransferShip
+  ) ?? null;
+}
+
+function shouldApplyOpponentSacProtectionForTargetedEffect(effect: any): boolean {
+  return effect?.kind !== EffectKind.TransferShip;
+}
+
+function getProjectedRequiredTargetCount(effect: any, validTargetCount: number): number {
+  const rawRequiredTargetCount =
+    typeof effect?.requiredTargetCount === 'number'
+      ? effect.requiredTargetCount
+      : effect?.count;
+  const baseRequiredTargetCount =
+    Number.isInteger(rawRequiredTargetCount) && rawRequiredTargetCount > 0
+      ? rawRequiredTargetCount
+      : 1;
+  return Math.min(baseRequiredTargetCount, Math.max(1, validTargetCount));
+}
+
+function isFirstStrikePowerAvailableForShip(state: any, shipInstance: ShipInstance, actionId: string, power: any): boolean {
+  if (power?.onceOnly === 'on_build_turn') {
+    const currentTurnNumber: number = state?.gameData?.turnNumber ?? 1;
+    if (shipInstance?.createdTurn !== currentTurnNumber) {
+      return false;
+    }
+  }
+
+  if (power?.onceOnly) {
+    const onceOnlyFired = state?.gameData?.powerMemory?.onceOnlyFired ?? {};
+    if (onceOnlyFired[`${shipInstance.instanceId}::${actionId}`] === true) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 // ============================================================================
 // HELPER: Get current phase key for readiness checking
 // ============================================================================
@@ -216,21 +259,22 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
           if (chargesCurrent < chargeCost) continue;
         }
 
-        const choices = power.options.map((opt: any) => ({ choiceId: opt.choiceId }));
-        const destroyOption = power.options.find((opt: any) =>
-          Array.isArray(opt?.effects) &&
-          opt.effects.some((effect: any) => effect?.kind === EffectKind.Destroy)
-        );
-        if (!destroyOption || !opponentId) continue;
+        const actionId = `${shipDefId}#${powerIndex}`;
+        if (!isFirstStrikePowerAvailableForShip(state, shipInstance, actionId, power)) continue;
 
-        const destroyEffect = destroyOption.effects.find((effect: any) => effect?.kind === EffectKind.Destroy);
-        if (!destroyEffect) continue;
+        const choices = power.options.map((opt: any) => ({ choiceId: opt.choiceId }));
+        const targetedOption = power.options.find((opt: any) => getTargetedChoiceEffect(opt) != null);
+        if (!targetedOption || !opponentId) continue;
+
+        const targetedEffect = getTargetedChoiceEffect(targetedOption);
+        if (!targetedEffect) continue;
 
         const validTargets = getValidDestroyTargets(state, {
           sourcePlayerId: playerId,
-          targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
-          restriction: destroyEffect.restriction ?? 'any',
+          targetScope: targetedEffect.targetPlayer === 'self' ? 'self' : 'opponent',
+          restriction: targetedEffect.restriction ?? 'any',
           minimumFullLineCost: shipDefId === 'SAC' ? 3 : undefined,
+          applyOpponentSacProtection: shouldApplyOpponentSacProtectionForTargetedEffect(targetedEffect),
         });
 
         if (validTargets.length === 0) {
@@ -244,6 +288,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
           sourceInstanceId,
           choices,
           validTargets,
+          requiredTargetCount: getProjectedRequiredTargetCount(targetedEffect, validTargets.length),
         });
       }
     }
@@ -316,12 +361,11 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
 
         const destroyOption = power.options.find((opt: any) =>
           eligibleChoiceIds.has(opt?.choiceId) &&
-          Array.isArray(opt?.effects) &&
-          opt.effects.some((effect: any) => effect?.kind === EffectKind.Destroy)
+          getTargetedChoiceEffect(opt) != null
         );
 
         if (destroyOption) {
-          const destroyEffect = destroyOption.effects.find((effect: any) => effect?.kind === EffectKind.Destroy);
+          const destroyEffect = getTargetedChoiceEffect(destroyOption);
           if (!destroyEffect) continue;
 
           const validTargets = getValidDestroyTargets(state, {
@@ -329,6 +373,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
             targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
             restriction: destroyEffect.restriction ?? 'any',
             minimumFullLineCost: shipDefId === 'SAC' ? 3 : undefined,
+            applyOpponentSacProtection: shouldApplyOpponentSacProtectionForTargetedEffect(destroyEffect),
           });
 
           if (validTargets.length === 0) {
@@ -342,6 +387,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
             sourceInstanceId,
             choices: eligibleChoices,
             validTargets,
+            requiredTargetCount: getProjectedRequiredTargetCount(destroyEffect, validTargets.length),
           });
           continue;
         }

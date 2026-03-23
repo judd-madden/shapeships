@@ -1769,6 +1769,7 @@ function stageFirstStrikeSelection(state: any, playerId: string, payload: Action
     sourceInstanceId: payload.sourceInstanceId!,
     choiceId: payload.choiceId!,
     targetInstanceId: payload.targetInstanceId,
+    targetInstanceIds: payload.targetInstanceIds,
   };
 
   pending[playerId] = playerPending;
@@ -1796,6 +1797,7 @@ function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: 
       sourceInstanceId: selection.sourceInstanceId,
       choiceId: selection.choiceId,
       targetInstanceId: selection.targetInstanceId,
+      targetInstanceIds: selection.targetInstanceIds,
       apply: false,
     })
   }));
@@ -1805,6 +1807,18 @@ function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: 
     const applied = applyEffects(workingState, allEffects);
     workingState = applied.state;
     events.push(...applied.events);
+  }
+
+  const onceOnlyFiredKeys = prepared.flatMap((item: any) => item.outcome.onceOnlyFiredKeys || []);
+  if (onceOnlyFiredKeys.length > 0) {
+    if (!workingState.gameData) workingState.gameData = {};
+    if (!workingState.gameData.powerMemory) workingState.gameData.powerMemory = {};
+
+    const currentOnceOnlyFired = workingState.gameData.powerMemory.onceOnlyFired || {};
+    workingState.gameData.powerMemory.onceOnlyFired = {
+      ...currentOnceOnlyFired,
+      ...Object.fromEntries(onceOnlyFiredKeys.map((key: string) => [key, true])),
+    };
   }
 
   for (const item of prepared) {
@@ -1827,6 +1841,7 @@ function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: 
       sourceInstanceId: item.selection.sourceInstanceId,
       choiceId: item.selection.choiceId,
       targetInstanceId: item.selection.targetInstanceId,
+      targetInstanceIds: item.selection.targetInstanceIds,
       spentCharge: item.outcome.spentCharge,
       atMs: nowMs,
     });
@@ -2115,6 +2130,7 @@ function handleAction(
           sourceInstanceId: payload.sourceInstanceId,
           choiceId: payload.choiceId,
           targetInstanceId: payload.targetInstanceId,
+          targetInstanceIds: payload.targetInstanceIds,
           apply: false,
         });
 
@@ -2136,6 +2152,7 @@ function handleAction(
         sourceInstanceId: payload.sourceInstanceId,
         choiceId: payload.choiceId,
         targetInstanceId: payload.targetInstanceId,
+        targetInstanceIds: payload.targetInstanceIds,
       });
       
       state = outcome.state;
@@ -2170,6 +2187,7 @@ function handleAction(
         sourceInstanceId: payload.sourceInstanceId,
         choiceId: payload.choiceId,
         targetInstanceId: payload.targetInstanceId,
+        targetInstanceIds: payload.targetInstanceIds,
         spentCharge: outcome.spentCharge,
         atMs: nowMs
       });
@@ -2325,8 +2343,24 @@ function handleActionsSubmit(
       };
     }
     
-    // Apply the power action
     try {
+      if (phaseKey === 'battle.first_strike') {
+        resolvePowerAction({
+          state,
+          playerId,
+          phaseKey,
+          actionId: item.actionId,
+          sourceInstanceId: item.sourceInstanceId,
+          choiceId: item.choiceId,
+          targetInstanceId: item.targetInstanceId,
+          targetInstanceIds: item.targetInstanceIds,
+          apply: false,
+        });
+
+        stageFirstStrikeSelection(state, playerId, item);
+        continue;
+      }
+
       const outcome = resolvePowerAction({
         state,
         playerId,
@@ -2335,8 +2369,9 @@ function handleActionsSubmit(
         sourceInstanceId: item.sourceInstanceId,
         choiceId: item.choiceId,
         targetInstanceId: item.targetInstanceId,
+        targetInstanceIds: item.targetInstanceIds,
       });
-      
+
       state = outcome.state;
 
       if (phaseKey === 'build.ships_that_build') {
@@ -2346,16 +2381,14 @@ function handleActionsSubmit(
           countCreatedShipsFromEffects(outcome.effects)
         );
       }
-      
-      // Flip declaration-spent flag if in charge_declaration
+
       if (phaseKey === 'battle.charge_declaration' && outcome.spentCharge === true) {
         if (!state.gameData) state.gameData = {};
         if (!state.gameData.turnData) state.gameData.turnData = {};
-        
+
         state.gameData.turnData.anyChargesSpentInDeclaration = true;
       }
-      
-      // Emit individual POWER_USED event
+
       events.push({
         type: 'POWER_USED',
         playerId,
@@ -2364,6 +2397,7 @@ function handleActionsSubmit(
         sourceInstanceId: item.sourceInstanceId,
         choiceId: item.choiceId,
         targetInstanceId: item.targetInstanceId,
+        targetInstanceIds: item.targetInstanceIds,
         spentCharge: outcome.spentCharge,
         atMs: nowMs
       });

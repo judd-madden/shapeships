@@ -33,6 +33,7 @@ import type {
   DamageEffect,
   HealEffect,
   DestroyEffect,
+  TransferShipEffect,
   CreateShipEffect,
   GainLinesEffect,
   GainEnergyEffect,
@@ -83,6 +84,7 @@ type EffectPower = BaseStructuredPower & {
   shipDefId?: string;             // For CreateShip
   restriction?: 'basic_only' | 'upgraded_only' | 'any'; // For Destroy
   count?: number;                 // For Destroy
+  requiredTargetCount?: number;   // For projected targeted actions (e.g. DOM)
   appliesToFutureBuildPhases?: boolean; // For GainLines
 };
 
@@ -131,6 +133,7 @@ export type TranslateContext = {
   ownerPlayerId: string;
   opponentPlayerId: string;
   targetInstanceId?: string;
+  targetInstanceIds?: string[];
 };
 
 // ============================================================================
@@ -309,6 +312,20 @@ function translateEffectPower(
         count: power.count ?? 1
       } as DestroyEffect;
 
+    case EffectKindEnum.TransferShip:
+      return {
+        ...baseEffect,
+        kind: EffectKindEnum.TransferShip,
+        target: {
+          ...baseEffect.target,
+          shipInstanceId: ctx.targetInstanceId,
+          shipInstanceIds: ctx.targetInstanceIds,
+        },
+        restriction: power.restriction ?? 'any',
+        count: power.count ?? 1,
+        requiredTargetCount: power.requiredTargetCount,
+      } as TransferShipEffect;
+
     case EffectKindEnum.CreateShip:
       if (!power.shipDefId) return null;
       return {
@@ -416,6 +433,7 @@ function determineTargetPlayer(
     
     case EffectKindEnum.Damage:
     case EffectKindEnum.Destroy:
+    case EffectKindEnum.TransferShip:
       return opponentPlayerId;
     
     // Modifiers and special effects default to owner

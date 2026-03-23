@@ -188,7 +188,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
             <LargeStyleChoicePanel
               shipDefId={shipChoiceSpec.shipDefId}
               title={shipChoiceSpec.title}
-              instruction={shipChoiceSpec.instruction}
+              instruction={vm.largeChoicePanel?.instruction ?? shipChoiceSpec.instruction}
               helpText={shipChoiceSpec.helpText}
               className="w-auto h-auto"
             />

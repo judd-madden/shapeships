@@ -103,6 +103,7 @@ export type PowerActionPayload = {
    * Reserved for later targeting (not used in Slice 2 yet).
    */
   targetInstanceId?: string;
+  targetInstanceIds?: string[];
 };
 
 export type ActionPayload =

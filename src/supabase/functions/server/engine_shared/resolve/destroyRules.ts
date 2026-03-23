@@ -78,6 +78,7 @@ export function getValidDestroyTargets(
     targetScope: DestroyTargetScope;
     restriction: DestroyRestriction;
     minimumFullLineCost?: number;
+    applyOpponentSacProtection?: boolean;
   }
 ): DestroyTargetDescriptor[] {
   const {
@@ -85,12 +86,16 @@ export function getValidDestroyTargets(
     targetScope,
     restriction,
     minimumFullLineCost,
+    applyOpponentSacProtection = true,
   } = args;
 
   const targetPlayerId = getDestroyTargetPlayerId(state, sourcePlayerId, targetScope);
   if (!targetPlayerId) return [];
 
-  if (isOpponentDestroyBlockedBySacProtection(state, sourcePlayerId, targetPlayerId)) {
+  if (
+    applyOpponentSacProtection &&
+    isOpponentDestroyBlockedBySacProtection(state, sourcePlayerId, targetPlayerId)
+  ) {
     return [];
   }
 
