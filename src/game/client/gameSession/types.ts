@@ -154,6 +154,8 @@ export type BoardViewModel =
       opponentHealth: number;
       myFleet: BoardFleetSummary[];
       opponentFleet: BoardFleetSummary[];
+      myVoidFleet: BoardFleetSummary[];
+      opponentVoidFleet: BoardFleetSummary[];
       myFleetOrder: ShipDefId[];
       opponentFleetOrder: ShipDefId[];
       fleetAnim: FleetAnimVM; // Animation tokens (DEF/FIG only)

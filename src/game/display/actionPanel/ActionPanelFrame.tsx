@@ -117,7 +117,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
           onSelectTrigger={actions.onSelectFrigateTrigger}
         />
         </div>
-        <div className="absolute top-[20px] right-[50px]">^ Return to Drawing</div>
+        <div className="absolute top-[20px] right-[50px] text-[#ff8282]">^ Return to Drawing</div>
       </div>
     );
   }
@@ -131,7 +131,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
           onSelectChoice={actions.onSelectEvolverChoice}
         />
         </div>
-        <div className="absolute top-[20px] right-[50px]">^ Return to Drawing</div>
+        <div className="absolute top-[20px] right-[50px] text-[#ff8282]">^ Return to Drawing</div>
       </div>
     );
   }

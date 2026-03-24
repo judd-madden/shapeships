@@ -190,6 +190,8 @@ type FleetStackVm = {
   caption?: string | null;
 };
 
+type ShipDisplayMode = 'live' | 'void';
+
 type DestroyTargetStateVm = {
   isTargetable: boolean;
   isHovered: boolean;
@@ -204,6 +206,7 @@ function ShipStack({
   activationIndexMap,
   targetState,
   previewShipDefId,
+  displayMode = 'live',
 }: { 
   ship: FleetStackVm;
   animToken?: ShipAnimToken;
@@ -212,8 +215,10 @@ function ShipStack({
   activationIndexMap?: Record<string, number>;
   targetState?: DestroyTargetStateVm;
   previewShipDefId?: ShipDefId;
+  displayMode?: ShipDisplayMode;
 }) {
   const def = getShipDefinitionUI(ship.shipDefId as ShipDefId);
+  const isVoid = displayMode === 'void';
 
   // If this fleet stack has a condition like 'charges_1' or 'charges_0',
   // force that exact charge graphic on the live board via explicitCharges.
@@ -234,8 +239,9 @@ function ShipStack({
     : null;
 
   const ShipGraphic = resolvedGraphic?.component;
-  const targetingVisualState = getTargetingVisualState(targetState);
-  const previewDef = previewShipDefId ? getShipDefinitionUI(previewShipDefId) : undefined;
+  const targetingVisualState = isVoid ? null : getTargetingVisualState(targetState);
+  const previewDef =
+    !isVoid && previewShipDefId ? getShipDefinitionUI(previewShipDefId) : undefined;
   const previewGraphic = previewDef
     ? resolveShipGraphic(previewDef, { context: 'default' })
     : null;
@@ -243,7 +249,9 @@ function ShipStack({
   const numberColour = toCssVarFromColourName(def?.colour);
   
   // Enable hover activation for ships with animation presets (Human + Xenite + Centaur ships)
-  const enableHover = ['DEF', 'FIG', 'INT', 'COM', 'ORB', 'CAR', 'STA', 'FRI', 'TAC', 'GUA', 'SCI', 'BAT', 'EAR', 'DRE', 'LEV', 'XEN', 'ANT', 'MAN', 'EVO', 'HEL', 'BUG', 'ZEN', 'DSW', 'AAR', 'OXF', 'ASF', 'SAC', 'QUE', 'CHR', 'HVE', 'FEA', 'ANG', 'EQU', 'WIS', 'VIG', 'FAM', 'LEG', 'TER', 'FUR', 'KNO', 'ENT', 'RED', 'POW', 'DES', 'DOM'].includes(ship.shipDefId);
+  const enableHover =
+    !isVoid &&
+    ['DEF', 'FIG', 'INT', 'COM', 'ORB', 'CAR', 'STA', 'FRI', 'TAC', 'GUA', 'SCI', 'BAT', 'EAR', 'DRE', 'LEV', 'XEN', 'ANT', 'MAN', 'EVO', 'HEL', 'BUG', 'ZEN', 'DSW', 'AAR', 'OXF', 'ASF', 'SAC', 'QUE', 'CHR', 'HVE', 'FEA', 'ANG', 'EQU', 'WIS', 'VIG', 'FAM', 'LEG', 'TER', 'FUR', 'KNO', 'ENT', 'RED', 'POW', 'DES', 'DOM'].includes(ship.shipDefId);
 
   const showCount = ship.count > 1;
 
@@ -252,7 +260,7 @@ function ShipStack({
   const activationDelayMs = (activationIndexMap?.[ship.shipDefId] ?? 0) * 400;
 
   return (
-    <div className="flex flex-row items-center">
+    <div className={cx('flex flex-row items-center', isVoid && 'opacity-25')}>
       <div className="flex flex-col items-center justify-center">
         <div className="relative flex items-center justify-center">
           {targetingVisualState ? (
@@ -271,7 +279,12 @@ function ShipStack({
             </div>
           ) : null}
 
-          <div className="relative z-10">
+          <div
+            className={cx(
+              'relative z-10',
+              isVoid && '[&_svg]:h-auto [&_svg]:w-auto'
+            )}
+          >
             <ShipAnimationWrapper 
               shipDefId={ship.shipDefId as ShipDefId} 
               token={animToken}
@@ -279,14 +292,20 @@ function ShipStack({
               entryDelayMs={entryDelayMs}
               activationDelayMs={activationDelayMs}
             >
-              {ShipGraphic ? <ShipGraphic /> : <span className="text-white text-sm">{ship.shipDefId}</span>}
+              {ShipGraphic ? (
+                <ShipGraphic />
+              ) : (
+                <span className={cx('text-sm text-white')}>{ship.shipDefId}</span>
+              )}
             </ShipAnimationWrapper>
           </div>
         </div>
 
         {ship.shipDefId === 'FRI' && ship.caption ? (
           <div
-            className="relative z-10 mt-[4px] font-['Roboto'] font-normal text-[14px] leading-none text-center"
+            className={cx(
+              "relative z-10 mt-[4px] font-['Roboto'] font-normal leading-none text-center text-[14px]"
+            )}
             style={{
               color: numberColour ?? 'white',
               pointerEvents: 'none',
@@ -300,9 +319,9 @@ function ShipStack({
 
       {/* Count: only render when count > 1 */}
       {showCount ? (
-        <div className="relative z-10 ml-[8px]">
+        <div className={cx('relative z-10 ml-[8px]')}>
           <div
-            className="font-['Roboto'] font-semibold"
+            className={cx("font-['Roboto'] font-semibold")}
             style={{
               fontSize: '50px',
               lineHeight: 1,
@@ -323,6 +342,7 @@ function ShipStack({
 function FleetArea({
   title,
   ships,
+  voidShips,
   order,
   species,
   animTokens,
@@ -337,6 +357,7 @@ function FleetArea({
 }: {
   title: string;
   ships?: FleetStackVm[];
+  voidShips?: FleetStackVm[];
   order?: string[];
   species: SpeciesKey;
   animTokens?: Partial<Record<string, ShipAnimToken>>; // keyed by stackKey
@@ -351,6 +372,7 @@ function FleetArea({
 }) {
   const rowSets = ROW_SETS_BY_SPECIES[species];
   const grouped = ships && ships.length > 0 ? groupShipsIntoRows(ships, order, rowSets) : null;
+  const sortedVoidShips = voidShips && voidShips.length > 0 ? sortByPersistentOrder(voidShips, order) : [];
 
   // FLIP layout animation for smooth repositioning (live fleet only)
   // Derive keys from rendered ships in stable order
@@ -360,72 +382,104 @@ function FleetArea({
   const allStackKeys = renderedShips.map(s => s.stackKey);
   const getFlipRef = useFlipLayout(allStackKeys, flipEnabled, { durationMs: 400, easing: 'ease-in-out' });
 
-  const renderShipCell = (ship: FleetStackVm) => {
-    const targetState = targetStatesByStackKey?.[ship.stackKey];
+  const renderShipCell = (ship: FleetStackVm, displayMode: ShipDisplayMode = 'live') => {
+    const targetState = displayMode === 'live' ? targetStatesByStackKey?.[ship.stackKey] : undefined;
     const isTargetable = targetState?.isTargetable === true;
 
     return (
       <div
         key={ship.stackKey}
-        ref={getFlipRef(ship.stackKey)}
+        ref={displayMode === 'live' ? getFlipRef(ship.stackKey) : undefined}
         className={cx(
-          'relative px-[10px] py-[8px]',
+          displayMode === 'void' ? 'relative py-[2px]' : 'relative px-[10px] py-[8px]',
           isTargetable && 'cursor-pointer'
         )}
         onMouseEnter={
-          isTargetable
+          displayMode === 'live' && isTargetable
             ? () => onDestroyTargetHoverChange?.(side, ship.stackKey)
             : undefined
         }
         onMouseLeave={
-          isTargetable
+          displayMode === 'live' && isTargetable
             ? () => onDestroyTargetHoverChange?.(side, null)
             : undefined
         }
         onMouseDown={(event) => {
-          event.stopPropagation();
-          if (isTargetable) {
+          if (displayMode === 'live') {
+            event.stopPropagation();
+          }
+          if (displayMode === 'live' && isTargetable) {
             onDestroyTargetMouseDown?.(side, ship.stackKey);
           }
         }}
       >
         <ShipStack 
           ship={ship}
-          animToken={animTokens?.[ship.stackKey]}
+          animToken={displayMode === 'live' ? animTokens?.[ship.stackKey] : undefined}
           side={side}
-          opponentEntryDelays={opponentEntryDelays}
-          activationIndexMap={activationIndexMap}
+          opponentEntryDelays={displayMode === 'live' ? opponentEntryDelays : undefined}
+          activationIndexMap={displayMode === 'live' ? activationIndexMap : undefined}
           targetState={targetState}
-          previewShipDefId={previewShipDefIdByStackKey?.[ship.stackKey]}
+          previewShipDefId={displayMode === 'live' ? previewShipDefIdByStackKey?.[ship.stackKey] : undefined}
+          displayMode={displayMode}
         />
       </div>
     );
   };
 
+  const hasLiveShips = renderedShips.length > 0;
+  const hasVoidShips = sortedVoidShips.length > 0;
+
   return (
     <div className="basis-0 grow h-full min-h-px min-w-px relative shrink-0 px-[8px]">
       {/* FleetArea: {title} (title intentionally not rendered) */}
-      <FitToBox minScale={0.4} className="w-full h-full">
-        {grouped ? (
-          <div className="flex flex-col items-center gap-[18px]">
-            <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
-              {grouped.row1.map(renderShipCell)}
-            </div>
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="grow min-h-0">
+          <FitToBox minScale={0.4} className="w-full h-full">
+            {hasLiveShips ? (
+              <div className="flex flex-col items-center gap-[18px]">
+                {grouped ? (
+                  <>
+                    <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
+                      {grouped.row1.map((ship) => renderShipCell(ship, 'live'))}
+                    </div>
 
-            <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
-              {grouped.row2.map(renderShipCell)}
-            </div>
+                    <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
+                      {grouped.row2.map((ship) => renderShipCell(ship, 'live'))}
+                    </div>
 
-            <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
-              {grouped.row3.map(renderShipCell)}
-            </div>
+                    <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
+                      {grouped.row3.map((ship) => renderShipCell(ship, 'live'))}
+                    </div>
 
-            <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
-              {grouped.row4.map(renderShipCell)}
+                    <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
+                      {grouped.row4.map((ship) => renderShipCell(ship, 'live'))}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </FitToBox>
+        </div>
+
+         {hasVoidShips ? (
+          <div
+            className={cx(
+              'mt-[6px] h-[44px] overflow-visible',
+              side === 'opponent' ? 'flex justify-end' : 'flex justify-start'
+            )}
+          >
+            <div
+              className={cx(
+                'flex flex-row flex-nowrap items-center gap-[20px] scale-50',
+                side === 'opponent' ? 'origin-right' : 'origin-left'
+              )}
+            >
+              {sortedVoidShips.map((ship) => renderShipCell(ship, 'void'))}
             </div>
           </div>
         ) : null}
-      </FitToBox>
+      </div>
     </div>
   );
 }
@@ -569,6 +623,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
       <FleetArea 
         title="MY FLEET" 
         ships={vm.myFleet} 
+        voidShips={vm.myVoidFleet}
         order={vm.myFleetOrder} 
         species={mySpeciesKey}
         animTokens={vm.fleetAnim.my}
@@ -792,6 +847,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
       <FleetArea 
         title="OPPONENT FLEET" 
         ships={vm.opponentFleet} 
+        voidShips={vm.opponentVoidFleet}
         order={vm.opponentFleetOrder} 
         species={opponentSpeciesKey}
         animTokens={vm.fleetAnim.opponent}

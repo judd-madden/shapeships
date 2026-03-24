@@ -652,7 +652,15 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // SHIP OWNERSHIP (ME/OPPONENT)
   // ============================================================================
   
-  const { myShips, opponentShips, opponentShipsVisible, myFleet, opponentFleet } = deriveFleets({
+  const {
+    myShips,
+    opponentShips,
+    opponentShipsVisible,
+    myFleet,
+    opponentFleet,
+    myVoidFleet,
+    opponentVoidFleet,
+  } = deriveFleets({
     rawState,
     me,
     opponent,
@@ -1190,6 +1198,8 @@ useEffect(() => {
       // Fleet data: server + local preview overlay (build phase only)
       myFleet: myFleetWithPreview,
       opponentFleet: opponentFleet,
+      myVoidFleet,
+      opponentVoidFleet,
 
       // UI-only stable ordering (append-only)
       myFleetOrder: myFleetOrder,
@@ -2146,6 +2156,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         opponentJoiningBonusLines: 0,
         myFleet: [],
         opponentFleet: [],
+        myVoidFleet: [],
+        opponentVoidFleet: [],
         myFleetOrder: [],
         opponentFleetOrder: [],
         fleetAnim: {

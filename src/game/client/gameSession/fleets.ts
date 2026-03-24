@@ -125,7 +125,6 @@ export function deriveFleets(args: {
   majorPhase: string;
 }) {
   const { rawState, me, opponent, turnNumber, majorPhase } = args;
-  
 
   const frigateTriggerByInstanceId =
     rawState?.gameData?.powerMemory?.frigateTriggerByInstanceId ?? {};
@@ -136,28 +135,35 @@ export function deriveFleets(args: {
   
   // Extract ships from server state
   const shipsData = rawState?.gameData?.ships || rawState?.ships || {};
+  const voidShipsData = rawState?.gameData?.voidShipsByPlayerId ?? {};
   
   // Map ships to me/opponent (not server array order)
   const myShips = me?.id ? (shipsData[me.id] || []) : [];
   const opponentShips = opponent?.id ? (shipsData[opponent.id] || []) : [];
+  const myVoidShips = me?.id ? (voidShipsData[me.id] || []) : [];
+  const opponentVoidShips = opponent?.id ? (voidShipsData[opponent.id] || []) : [];
   
   // Use majorPhase already defined earlier (line ~798)
   const isInBattlePhase = majorPhase === 'battle';
-  
-  // Opponent visibility rule:
-  // - Always show opponent ships from prior turns
-  // - Hide opponent ships created this turn until battle
-  const opponentShipsVisible = opponentShips.filter((ship: any) => {
+
+  function isShipVisibleToViewer(ship: any): boolean {
     const createdTurn = ship?.createdTurn;
     // If createdTurn is missing, treat as "old" (visible). This avoids accidental hiding due to incomplete data.
     if (typeof createdTurn !== 'number') return true;
     if (createdTurn < turnNumber) return true;
     // createdTurn === turnNumber -> visible only in battle
     return isInBattlePhase;
-  });
+  }
+  
+  // Opponent visibility rule:
+  // - Always show opponent ships from prior turns
+  // - Hide opponent ships created this turn until battle
+  const opponentShipsVisible = opponentShips.filter(isShipVisibleToViewer);
+  const myVoidShipsVisible = myVoidShips;
+  const opponentVoidShipsVisible = opponentVoidShips.filter(isShipVisibleToViewer);
   
   // Aggregate fleet summaries with charge-aware stacking
-  function aggregateFleet(ships: any[]): BoardFleetSummary[] {
+  function aggregateFleet(ships: any[], stackKeyPrefix = ''): BoardFleetSummary[] {
     // Buckets: stackKey -> { shipDefId, count, condition?, currentCharges? }
     const buckets = new Map<
       string,
@@ -170,7 +176,8 @@ export function deriveFleets(args: {
         continue;
       }
       const { shipDefId, stackKey, condition, currentCharges, caption } = stackInfo;
-      const existing = buckets.get(stackKey);
+      const renderedStackKey = stackKeyPrefix ? `${stackKeyPrefix}${stackKey}` : stackKey;
+      const existing = buckets.get(renderedStackKey);
 
       if (existing) {
         existing.count++;
@@ -178,7 +185,7 @@ export function deriveFleets(args: {
           existing.caption = caption;
         }
       } else {
-        buckets.set(stackKey, {
+        buckets.set(renderedStackKey, {
           shipDefId,
           count: 1,
           condition,
@@ -235,12 +242,20 @@ export function deriveFleets(args: {
   
   const myFleet = aggregateFleet(myShips);
   const opponentFleet = aggregateFleet(opponentShipsVisible);
+  const myVoidFleet = aggregateFleet(myVoidShipsVisible, 'void__');
+  const opponentVoidFleet = aggregateFleet(opponentVoidShipsVisible, 'void__');
   
   return {
     myShips,
     opponentShips,
     opponentShipsVisible,
+    myVoidShips,
+    opponentVoidShips,
+    myVoidShipsVisible,
+    opponentVoidShipsVisible,
     myFleet,
     opponentFleet,
+    myVoidFleet,
+    opponentVoidFleet,
   };
 }
