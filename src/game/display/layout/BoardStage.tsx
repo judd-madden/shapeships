@@ -260,7 +260,7 @@ function ShipStack({
   const activationDelayMs = (activationIndexMap?.[ship.shipDefId] ?? 0) * 400;
 
   return (
-    <div className={cx('flex flex-row items-center', isVoid && 'opacity-25')}>
+    <div className={cx('flex flex-row items-center', isVoid && 'opacity-35')}>
       <div className="flex flex-col items-center justify-center">
         <div className="relative flex items-center justify-center">
           {targetingVisualState ? (
@@ -471,7 +471,7 @@ function FleetArea({
           >
             <div
               className={cx(
-                'flex flex-row flex-nowrap items-center gap-[20px] scale-50',
+                'flex flex-row flex-nowrap items-center gap-[20px] scale-60',
                 side === 'opponent' ? 'origin-right' : 'origin-left'
               )}
             >

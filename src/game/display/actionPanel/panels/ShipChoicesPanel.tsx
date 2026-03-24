@@ -58,7 +58,7 @@ export function ShipChoicesPanel({
 }: ShipChoicesPanelProps) {
   const hasCentaurChargeTabs =
     Array.isArray(centaurChargeTabs?.availableTabs) &&
-    centaurChargeTabs.availableTabs.length > 0;
+    centaurChargeTabs.availableTabs.length > 1;
 
   const content = !showOpponentAlsoHasCharges ? (
     <div

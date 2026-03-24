@@ -124,8 +124,10 @@ function allocateConcreteTargetIdsForLocators(args: {
   action: RenderableServerAction;
   locatorKeys: string[];
   visibleTargetIdsByLocatorKey: Record<string, string[]>;
+  reservedTargetIds?: ReadonlySet<string>;
 }): string[] {
-  const { action, locatorKeys, visibleTargetIdsByLocatorKey } = args;
+  const { action, locatorKeys, visibleTargetIdsByLocatorKey, reservedTargetIds } = args;
+  const globallyReservedTargetIds = reservedTargetIds ?? new Set<string>();
 
   if (action.kind === 'paired_destroy_target') {
     const { ownDescriptorsByLocatorKey, opponentDescriptorsByLocatorKey } =
@@ -143,7 +145,9 @@ function allocateConcreteTargetIdsForLocators(args: {
       firstLocator.side === 'my'
         ? ownDescriptorsByLocatorKey.get(firstLocatorKey) ?? []
         : opponentDescriptorsByLocatorKey.get(firstLocatorKey) ?? [];
-    const firstTarget = firstCandidates[0];
+    const firstTarget = firstCandidates.find(
+      (target) => !globallyReservedTargetIds.has(target.instanceId)
+    );
     if (!firstTarget) return [];
 
     if (locatorKeys.length === 1) {
@@ -161,7 +165,10 @@ function allocateConcreteTargetIdsForLocators(args: {
         ? ownDescriptorsByLocatorKey.get(secondLocatorKey) ?? []
         : opponentDescriptorsByLocatorKey.get(secondLocatorKey) ?? [];
     const secondTarget = secondCandidates.find(
-      (target) => target.totalLineCost === firstTarget.totalLineCost
+      (target) =>
+        target.totalLineCost === firstTarget.totalLineCost &&
+        target.instanceId !== firstTarget.instanceId &&
+        !globallyReservedTargetIds.has(target.instanceId)
     );
 
     return secondTarget
@@ -178,6 +185,7 @@ function allocateConcreteTargetIdsForLocators(args: {
     const candidateTargetId = visibleTargetIds.find(
       (targetInstanceId) =>
         validTargetIds.has(targetInstanceId) &&
+        !globallyReservedTargetIds.has(targetInstanceId) &&
         !usedTargetIds.has(targetInstanceId)
     );
 
@@ -488,6 +496,7 @@ export function useDestroyTargetingRuntime(
 
   const allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]> = {};
   const selectedDestroySourcesByLocatorKey: Record<string, string[]> = {};
+  const reservedConcreteTargetIds = new Set<string>();
 
   for (const [sourceInstanceId, action] of destroyTargetActionsBySourceInstanceId.entries()) {
     if (!isRenderableTargetedActionSelected(action, shipChoiceSelectionByInstanceId)) {
@@ -499,10 +508,17 @@ export function useDestroyTargetingRuntime(
       action,
       locatorKeys: selectedLocatorKeys,
       visibleTargetIdsByLocatorKey,
+      reservedTargetIds: reservedConcreteTargetIds,
     });
 
     if (allocatedTargetIds.length > 0) {
       allocatedDestroyTargetIdsBySourceInstanceId[sourceInstanceId] = allocatedTargetIds;
+    }
+
+    if (allocatedTargetIds.length === getRenderableActionRequiredTargetCount(action)) {
+      for (const allocatedTargetId of allocatedTargetIds) {
+        reservedConcreteTargetIds.add(allocatedTargetId);
+      }
     }
 
     for (const locatorKey of selectedLocatorKeys) {
