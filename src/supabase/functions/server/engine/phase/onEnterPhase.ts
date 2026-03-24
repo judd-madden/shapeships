@@ -22,6 +22,7 @@ import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 import type { StructuredShipPower } from '../../engine_shared/effects/translateShipPowers.ts';
 import { isPhaseKey, type PhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
+import { getValidShipOfEqualityTargets } from '../../engine_shared/resolve/destroyRules.ts';
 import { rollD6 } from '../util/rollD6.ts';
 
 export interface OnEnterResult {
@@ -133,6 +134,9 @@ function playerHasAvailableChargeOrSolarOption(state: any, player: any): boolean
     state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
 
   const playerEnergy = player?.energy ?? 0;
+  let cachedShipOfEqualityTargets:
+    | ReturnType<typeof getValidShipOfEqualityTargets>
+    | null = null;
 
   for (const shipInstance of fleet) {
     const sourceInstanceId = shipInstance.instanceId;
@@ -172,7 +176,22 @@ function playerHasAvailableChargeOrSolarOption(state: any, player: any): boolean
 
     // Must have charges available
     const chargesCurrent = shipInstance.chargesCurrent ?? 0;
-    if (chargesCurrent > 0) return true;
+    if (chargesCurrent <= 0) continue;
+
+    if (shipDefId !== 'EQU') {
+      return true;
+    }
+
+    if (cachedShipOfEqualityTargets == null) {
+      cachedShipOfEqualityTargets = getValidShipOfEqualityTargets(state, player.id);
+    }
+
+    if (
+      cachedShipOfEqualityTargets.validOwnTargets.length > 0 &&
+      cachedShipOfEqualityTargets.validOpponentTargets.length > 0
+    ) {
+      return true;
+    }
   }
 
   return false;
