@@ -8,6 +8,12 @@ export type DestroyTargetDescriptor = {
   instanceId: string;
   shipDefId: string;
   ownerPlayerId: string;
+  totalLineCost: number;
+};
+
+export type ShipOfEqualityTargetSets = {
+  validOwnTargets: DestroyTargetDescriptor[];
+  validOpponentTargets: DestroyTargetDescriptor[];
 };
 
 export function getAuthoritativeFullLineCostForShipDef(shipDefId: string): number | null {
@@ -107,11 +113,12 @@ export function getValidDestroyTargets(
       const shipDefId = ship?.shipDefId;
       const instanceId = ship?.instanceId;
       if (typeof shipDefId !== 'string' || typeof instanceId !== 'string') return false;
+      const fullLineCost = getAuthoritativeFullLineCostForShipDef(shipDefId);
+      if (fullLineCost == null) return false;
       if (!matchesDestroyRestriction(shipDefId, restriction)) return false;
 
       if (minimumFullLineCost != null) {
-        const fullLineCost = getAuthoritativeFullLineCostForShipDef(shipDefId);
-        if (fullLineCost == null || fullLineCost < minimumFullLineCost) {
+        if (fullLineCost < minimumFullLineCost) {
           return false;
         }
       }
@@ -122,5 +129,47 @@ export function getValidDestroyTargets(
       instanceId: ship.instanceId,
       shipDefId: ship.shipDefId,
       ownerPlayerId: targetPlayerId,
+      totalLineCost: getAuthoritativeFullLineCostForShipDef(ship.shipDefId) ?? 0,
     }));
+}
+
+export function getValidShipOfEqualityTargets(
+  state: GameState | any,
+  sourcePlayerId: string
+): ShipOfEqualityTargetSets {
+  const validOwnTargets = getValidDestroyTargets(state, {
+    sourcePlayerId,
+    targetScope: 'self',
+    restriction: 'basic_only',
+    applyOpponentSacProtection: false,
+  }).filter((target) => target.shipDefId !== 'EQU');
+
+  const validOpponentTargets = getValidDestroyTargets(state, {
+    sourcePlayerId,
+    targetScope: 'opponent',
+    restriction: 'basic_only',
+    applyOpponentSacProtection: true,
+  }).filter((target) => target.shipDefId !== 'EQU');
+
+  if (validOwnTargets.length === 0 || validOpponentTargets.length === 0) {
+    return { validOwnTargets: [], validOpponentTargets: [] };
+  }
+
+  const sharedLineCosts = new Set<number>();
+  const ownLineCosts = new Set(validOwnTargets.map((target) => target.totalLineCost));
+
+  for (const target of validOpponentTargets) {
+    if (ownLineCosts.has(target.totalLineCost)) {
+      sharedLineCosts.add(target.totalLineCost);
+    }
+  }
+
+  if (sharedLineCosts.size === 0) {
+    return { validOwnTargets: [], validOpponentTargets: [] };
+  }
+
+  return {
+    validOwnTargets: validOwnTargets.filter((target) => sharedLineCosts.has(target.totalLineCost)),
+    validOpponentTargets: validOpponentTargets.filter((target) => sharedLineCosts.has(target.totalLineCost)),
+  };
 }

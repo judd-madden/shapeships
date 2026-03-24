@@ -18,6 +18,7 @@ export type ReadyUxState = {
 };
 
 export type EvolverChoiceId = 'hold' | 'oxite' | 'asterite';
+export type CentaurChargeSubTabId = 'charges' | 'ship_of_equality';
 
 export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
 
@@ -261,6 +262,10 @@ export interface ActionPanelViewModel {
     opponentAlsoHasChargesHeading?: string;
     opponentAlsoHasChargesLines?: string[];
     selectedChoiceIdBySourceInstanceId?: Record<string, string>;
+    centaurChargeTabs?: {
+      activeTab: CentaurChargeSubTabId;
+      availableTabs: CentaurChargeSubTabId[];
+    };
   };
 
   largeChoicePanel?: {
@@ -306,6 +311,7 @@ export interface GameSessionActions {
   onRematch: () => void;
   onDownloadBattleLog: () => void;
   onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;
+  onSelectCentaurChargeSubTab: (tabId: CentaurChargeSubTabId) => void;
   onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => void;
   onSelectEvolverChoice: (rowId: string, choiceId: EvolverChoiceId) => void;
   onBoardBackgroundMouseDown: () => void;

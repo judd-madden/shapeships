@@ -539,6 +539,41 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   ],
 
   // ==========================================================================
+  // SHIP OF EQUALITY (EQU)
+  // ==========================================================================
+  // Choice power (Charge Declaration, Charge Response)
+  // - damage: SpendCharge(1) + paired destroy resolved authoritatively in resolvePowerAction
+  // - hold: no effect
+  'EQU#0': [
+    {
+      type: 'choice',
+      timings: ['battle.charge_declaration', 'battle.charge_response'],
+      requiresCharge: true,
+      chargeCost: 1,
+      options: [
+        {
+          choiceId: 'damage',
+          label: '',
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.SpendCharge,
+              amount: 1,
+              targetPlayer: 'self',
+            },
+          ],
+        },
+        {
+          choiceId: 'hold',
+          label: '',
+          effects: [],
+        },
+      ],
+    },
+  ],
+
+  // ==========================================================================
   // ARK OF ENTROPY (ENT)
   // ==========================================================================
   // JSON power index 0: "Deal 7 damage." (Automatic)

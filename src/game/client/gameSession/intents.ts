@@ -14,6 +14,7 @@ import {
   getAllocatedTargetIdsForRenderableAction,
   getRenderableActionChoiceIds,
   getRenderableServerChoiceActions,
+  isRenderableTargetedAction,
   isRenderableTargetedActionComplete,
 } from './availableActions';
 
@@ -364,7 +365,7 @@ export async function runReadyToggleFlow(args: {
         const choiceActions = getRenderableServerChoiceActions(phaseKey, args.availableActions);
 
         const incompleteTargetedAction = choiceActions.find((action) =>
-          action.kind === 'destroy_target' &&
+          isRenderableTargetedAction(action) &&
           !isRenderableTargetedActionComplete({
             action,
             selectedChoiceIdBySourceInstanceId: args.selectedChoiceIdBySourceInstanceId,
@@ -397,7 +398,7 @@ export async function runReadyToggleFlow(args: {
             continue;
           }
 
-          if (action.kind === 'destroy_target') {
+          if (isRenderableTargetedAction(action)) {
             const targetInstanceIds = getAllocatedTargetIdsForRenderableAction(
               action,
               args.allocatedDestroyTargetIdsBySourceInstanceId,
@@ -533,7 +534,7 @@ export async function runReadyToggleFlow(args: {
         const choiceActions = getRenderableServerChoiceActions(phaseKey, args.availableActions);
 
         const incompleteTargetedAction = choiceActions.find((action) =>
-          action.kind === 'destroy_target' &&
+          isRenderableTargetedAction(action) &&
           !isRenderableTargetedActionComplete({
             action,
             selectedChoiceIdBySourceInstanceId: args.selectedChoiceIdBySourceInstanceId,
@@ -566,7 +567,7 @@ export async function runReadyToggleFlow(args: {
             continue;
           }
 
-          if (action.kind === 'destroy_target') {
+          if (isRenderableTargetedAction(action)) {
             const targetInstanceIds = getAllocatedTargetIdsForRenderableAction(
               action,
               args.allocatedDestroyTargetIdsBySourceInstanceId,

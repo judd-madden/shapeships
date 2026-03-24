@@ -5,6 +5,7 @@ import {
   getRenderableActionChoiceIds,
   getRenderableActionRequiredTargetCount,
   getRenderableServerChoiceActions,
+  isRenderableTargetedAction,
   isRenderableTargetedActionSelected,
   type RenderableServerAction,
 } from './availableActions';
@@ -66,6 +67,14 @@ function makeEmptyBoardDestroyTargeting(): BoardDestroyTargetingViewModel {
 }
 
 function getActionValidTargetIds(action: RenderableServerAction): Set<string> {
+  if (action.kind === 'paired_destroy_target') {
+    return new Set(
+      [...(Array.isArray(action.validOwnTargets) ? action.validOwnTargets : []), ...(Array.isArray(action.validOpponentTargets) ? action.validOpponentTargets : [])]
+        .map((target: any) => target?.instanceId)
+        .filter((instanceId: unknown): instanceId is string => typeof instanceId === 'string')
+    );
+  }
+
   return new Set(
     Array.isArray(action.validTargets)
       ? action.validTargets
@@ -75,12 +84,91 @@ function getActionValidTargetIds(action: RenderableServerAction): Set<string> {
   );
 }
 
+function getPairedTargetDescriptorsByLocatorKey(args: {
+  action: RenderableServerAction;
+  visibleTargetIdsByLocatorKey: Record<string, string[]>;
+}) {
+  const { action, visibleTargetIdsByLocatorKey } = args;
+  const ownById = new Map(
+    (Array.isArray(action.validOwnTargets) ? action.validOwnTargets : [])
+      .map((target: any) => [target.instanceId, target] as const)
+  );
+  const opponentById = new Map(
+    (Array.isArray(action.validOpponentTargets) ? action.validOpponentTargets : [])
+      .map((target: any) => [target.instanceId, target] as const)
+  );
+
+  const ownDescriptorsByLocatorKey = new Map<string, any[]>();
+  const opponentDescriptorsByLocatorKey = new Map<string, any[]>();
+
+  for (const [locatorKey, visibleTargetIds] of Object.entries(visibleTargetIdsByLocatorKey)) {
+    const ownMatches = visibleTargetIds
+      .map((instanceId) => ownById.get(instanceId) ?? null)
+      .filter((target): target is NonNullable<typeof target> => target != null);
+    const opponentMatches = visibleTargetIds
+      .map((instanceId) => opponentById.get(instanceId) ?? null)
+      .filter((target): target is NonNullable<typeof target> => target != null);
+
+    if (ownMatches.length > 0) {
+      ownDescriptorsByLocatorKey.set(locatorKey, ownMatches);
+    }
+    if (opponentMatches.length > 0) {
+      opponentDescriptorsByLocatorKey.set(locatorKey, opponentMatches);
+    }
+  }
+
+  return { ownDescriptorsByLocatorKey, opponentDescriptorsByLocatorKey };
+}
+
 function allocateConcreteTargetIdsForLocators(args: {
   action: RenderableServerAction;
   locatorKeys: string[];
   visibleTargetIdsByLocatorKey: Record<string, string[]>;
 }): string[] {
   const { action, locatorKeys, visibleTargetIdsByLocatorKey } = args;
+
+  if (action.kind === 'paired_destroy_target') {
+    const { ownDescriptorsByLocatorKey, opponentDescriptorsByLocatorKey } =
+      getPairedTargetDescriptorsByLocatorKey({ action, visibleTargetIdsByLocatorKey });
+
+    if (locatorKeys.length === 0) {
+      return [];
+    }
+
+    const firstLocatorKey = locatorKeys[0];
+    const firstLocator = splitLocatorKey(firstLocatorKey);
+    if (!firstLocator) return [];
+
+    const firstCandidates =
+      firstLocator.side === 'my'
+        ? ownDescriptorsByLocatorKey.get(firstLocatorKey) ?? []
+        : opponentDescriptorsByLocatorKey.get(firstLocatorKey) ?? [];
+    const firstTarget = firstCandidates[0];
+    if (!firstTarget) return [];
+
+    if (locatorKeys.length === 1) {
+      return [firstTarget.instanceId];
+    }
+
+    const secondLocatorKey = locatorKeys[1];
+    const secondLocator = splitLocatorKey(secondLocatorKey);
+    if (!secondLocator || secondLocator.side === firstLocator.side) {
+      return [firstTarget.instanceId];
+    }
+
+    const secondCandidates =
+      secondLocator.side === 'my'
+        ? ownDescriptorsByLocatorKey.get(secondLocatorKey) ?? []
+        : opponentDescriptorsByLocatorKey.get(secondLocatorKey) ?? [];
+    const secondTarget = secondCandidates.find(
+      (target) => target.totalLineCost === firstTarget.totalLineCost
+    );
+
+    return secondTarget
+      ? [firstTarget.instanceId, secondTarget.instanceId]
+      : [firstTarget.instanceId];
+  }
+
   const validTargetIds = getActionValidTargetIds(action);
   const usedTargetIds = new Set<string>();
   const allocatedTargetIds: string[] = [];
@@ -144,7 +232,7 @@ export function useDestroyTargetingRuntime(
 
   const destroyTargetActionsBySourceInstanceId = new Map(
     getRenderableServerChoiceActions(phaseKey, availableActions)
-      .filter((action) => action.kind === 'destroy_target')
+      .filter((action) => isRenderableTargetedAction(action))
       .map((action) => [action.sourceInstanceId, action] as const)
   );
 
@@ -228,12 +316,36 @@ export function useDestroyTargetingRuntime(
 
   const validDestroyTargetLocatorKeysBySourceInstanceId: Record<string, string[]> = {};
   for (const [sourceInstanceId, action] of destroyTargetActionsBySourceInstanceId.entries()) {
-    const validTargetIds = getActionValidTargetIds(action);
     const locatorKeys = new Set<string>();
 
-    for (const [instanceId, locator] of stackKeyByInstanceId.entries()) {
-      if (!validTargetIds.has(instanceId)) continue;
-      locatorKeys.add(makeLocatorKey(locator.side, locator.stackKey));
+    if (action.kind === 'paired_destroy_target') {
+      const ownTargetIds = new Set(
+        (Array.isArray(action.validOwnTargets) ? action.validOwnTargets : [])
+          .map((target: any) => target?.instanceId)
+          .filter((instanceId: unknown): instanceId is string => typeof instanceId === 'string')
+      );
+      const opponentTargetIds = new Set(
+        (Array.isArray(action.validOpponentTargets) ? action.validOpponentTargets : [])
+          .map((target: any) => target?.instanceId)
+          .filter((instanceId: unknown): instanceId is string => typeof instanceId === 'string')
+      );
+
+      for (const [instanceId, locator] of stackKeyByInstanceId.entries()) {
+        if (locator.side === 'my' && ownTargetIds.has(instanceId)) {
+          locatorKeys.add(makeLocatorKey(locator.side, locator.stackKey));
+        }
+
+        if (locator.side === 'opponent' && opponentTargetIds.has(instanceId)) {
+          locatorKeys.add(makeLocatorKey(locator.side, locator.stackKey));
+        }
+      }
+    } else {
+      const validTargetIds = getActionValidTargetIds(action);
+
+      for (const [instanceId, locator] of stackKeyByInstanceId.entries()) {
+        if (!validTargetIds.has(instanceId)) continue;
+        locatorKeys.add(makeLocatorKey(locator.side, locator.stackKey));
+      }
     }
 
     validDestroyTargetLocatorKeysBySourceInstanceId[sourceInstanceId] = Array.from(locatorKeys).sort((a, b) =>
@@ -421,9 +533,14 @@ export function useDestroyTargetingRuntime(
 
   if (activeDestroyAction) {
     const requiredTargetCount = getRenderableActionRequiredTargetCount(activeDestroyAction);
-    if (activeDestroySelectedLocatorKeys.length < requiredTargetCount) {
+    const canReseedPair =
+      activeDestroyAction.kind === 'paired_destroy_target' &&
+      activeDestroySelectedLocatorKeys.length >= requiredTargetCount;
+
+    if (activeDestroySelectedLocatorKeys.length < requiredTargetCount || canReseedPair) {
       for (const locatorKey of validDestroyTargetLocatorKeysBySourceInstanceId[activeDestroyAction.sourceInstanceId] ?? []) {
-        const proposedSelection = [...activeDestroySelectedLocatorKeys, locatorKey];
+        const proposedSelection =
+          canReseedPair ? [locatorKey] : [...activeDestroySelectedLocatorKeys, locatorKey];
         const allocatedTargetIds = allocateConcreteTargetIdsForLocators({
           action: activeDestroyAction,
           locatorKeys: proposedSelection,
@@ -537,6 +654,15 @@ export function useDestroyTargetingRuntime(
       return;
     }
 
+    setSelectedDestroyTargetLocatorKeysBySourceInstanceId((prev) => {
+      if (!(sourceInstanceId in prev)) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[sourceInstanceId];
+      return next;
+    });
     setHoveredDestroyTargetLocatorKey(null);
     setActiveDestroyTargetSourceInstanceId((prev) => (
       prev === sourceInstanceId ? null : prev
@@ -552,6 +678,21 @@ export function useDestroyTargetingRuntime(
       selectedDestroyTargetLocatorKeysBySourceInstanceId[activeDestroyTargetSourceInstanceId] ?? [];
 
     if (currentSelection.length === 0) {
+      setActiveDestroyTargetSourceInstanceId(null);
+      setHoveredDestroyTargetLocatorKey(null);
+      return;
+    }
+
+    if (activeDestroyAction?.kind === 'paired_destroy_target') {
+      setSelectedDestroyTargetLocatorKeysBySourceInstanceId((prev) => {
+        if (!(activeDestroyTargetSourceInstanceId in prev)) {
+          return prev;
+        }
+
+        const next = { ...prev };
+        delete next[activeDestroyTargetSourceInstanceId];
+        return next;
+      });
       setActiveDestroyTargetSourceInstanceId(null);
       setHoveredDestroyTargetLocatorKey(null);
       return;
@@ -612,18 +753,32 @@ export function useDestroyTargetingRuntime(
     setSelectedDestroyTargetLocatorKeysBySourceInstanceId((prev) => {
       const currentSelection = prev[activeDestroyTargetSourceInstanceId] ?? [];
       const requiredTargetCount = getRenderableActionRequiredTargetCount(activeDestroyAction);
+      let nextSelection: string[];
 
-      if (currentSelection.length >= requiredTargetCount) {
-        return prev;
+      if (activeDestroyAction.kind === 'paired_destroy_target' && currentSelection.length >= requiredTargetCount) {
+        nextSelection = [locatorKey];
+      } else {
+        if (currentSelection.length >= requiredTargetCount) {
+          return prev;
+        }
+
+        nextSelection = [...currentSelection, locatorKey];
       }
 
-      const nextSelection = [...currentSelection, locatorKey];
       if (
         allocateConcreteTargetIdsForLocators({
           action: activeDestroyAction,
           locatorKeys: nextSelection,
           visibleTargetIdsByLocatorKey,
         }).length !== nextSelection.length
+      ) {
+        return prev;
+      }
+
+      const previousSelection = prev[activeDestroyTargetSourceInstanceId] ?? [];
+      if (
+        previousSelection.length === nextSelection.length &&
+        previousSelection.every((candidate, index) => candidate === nextSelection[index])
       ) {
         return prev;
       }

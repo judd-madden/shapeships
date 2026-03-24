@@ -16,7 +16,7 @@
 import type { GameState, ShipInstance } from '../../engine/state/GameStateTypes.ts';
 import type { PhaseKey } from '../phase/PhaseTable.ts';
 import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
-import { Effect, EffectKind } from '../effects/Effect.ts';
+import { Effect, EffectKind, EffectTiming, SurvivabilityRule } from '../effects/Effect.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
 import {
   translateChoiceOptionEffects,
@@ -24,7 +24,7 @@ import {
   type StructuredChoiceOption,
   type TranslateContext,
 } from '../effects/translateShipPowers.ts';
-import { getValidDestroyTargets } from './destroyRules.ts';
+import { getValidDestroyTargets, getValidShipOfEqualityTargets } from './destroyRules.ts';
 import { countDistinctTypes } from './phaseComputedEffects.ts';
 
 function shouldApplyOpponentSacProtectionForTargetedEffect(effect: StructuredChoiceOption['effects'][number]): boolean {
@@ -205,6 +205,7 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
       effect.kind === EffectKind.Destroy ||
       effect.kind === EffectKind.TransferShip
   );
+  const isShipOfEqualityDamage = shipDefId === 'EQU' && choiceId === 'damage';
 
   let resolvedTargetInstanceId = targetInstanceId;
   let resolvedTargetInstanceIds = Array.isArray(targetInstanceIds)
@@ -213,7 +214,61 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
       )
     : undefined;
 
-  if (targetedEffect) {
+  if (isShipOfEqualityDamage) {
+    const { validOwnTargets, validOpponentTargets } = getValidShipOfEqualityTargets(state, playerId);
+
+    if (validOwnTargets.length === 0 || validOpponentTargets.length === 0) {
+      throw new Error('No valid targets available.');
+    }
+
+    const requestedTargetIds = resolvedTargetInstanceIds?.length
+      ? resolvedTargetInstanceIds
+      : typeof resolvedTargetInstanceId === 'string'
+        ? [resolvedTargetInstanceId]
+        : [];
+
+    if (requestedTargetIds.length !== 2) {
+      throw new Error('Expected exactly 2 target ship(s).');
+    }
+
+    const distinctRequestedTargetIds = Array.from(new Set(requestedTargetIds));
+    if (distinctRequestedTargetIds.length !== requestedTargetIds.length) {
+      throw new Error('Target ship ids must be distinct.');
+    }
+
+    const requestedOwnTargets = distinctRequestedTargetIds
+      .map((requestedTargetId) =>
+        validOwnTargets.find((target) => target.instanceId === requestedTargetId) ?? null
+      )
+      .filter((target): target is NonNullable<typeof target> => target != null);
+    const requestedOpponentTargets = distinctRequestedTargetIds
+      .map((requestedTargetId) =>
+        validOpponentTargets.find((target) => target.instanceId === requestedTargetId) ?? null
+      )
+      .filter((target): target is NonNullable<typeof target> => target != null);
+
+    if (requestedOwnTargets.length !== 1 || requestedOpponentTargets.length !== 1) {
+      throw new Error('Ship of Equality requires exactly one self target and one opponent target.');
+    }
+
+    const selfTarget = requestedOwnTargets[0];
+    const opponentTarget = requestedOpponentTargets[0];
+
+    if (selfTarget.instanceId === opponentTarget.instanceId) {
+      throw new Error('Target ship ids must be distinct.');
+    }
+
+    if (selfTarget.shipDefId === 'EQU' || opponentTarget.shipDefId === 'EQU') {
+      throw new Error('Ship of Equality cannot target another Ship of Equality.');
+    }
+
+    if (selfTarget.totalLineCost !== opponentTarget.totalLineCost) {
+      throw new Error('Ship of Equality targets must have equal authoritative total line cost.');
+    }
+
+    resolvedTargetInstanceIds = [selfTarget.instanceId, opponentTarget.instanceId];
+    resolvedTargetInstanceId = selfTarget.instanceId;
+  } else if (targetedEffect) {
     const validTargets = getValidDestroyTargets(state, {
       sourcePlayerId: playerId,
       targetScope: targetedEffect.targetPlayer === 'self' ? 'self' : 'opponent',
@@ -286,6 +341,37 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
         (effect as any).amount = lockedAmount;
       }
     }
+  }
+
+  if (isShipOfEqualityDamage) {
+    const [selfTargetInstanceId, opponentTargetInstanceId] = resolvedTargetInstanceIds ?? [];
+
+    if (!selfTargetInstanceId || !opponentTargetInstanceId) {
+      throw new Error('Ship of Equality requires exactly 2 target ship(s).');
+    }
+
+    effects.push(
+      buildShipOfEqualityDestroyEffect({
+        actionId,
+        sourceInstanceId,
+        shipDefId,
+        ownerPlayerId: playerId,
+        phaseKey,
+        targetPlayerId: playerId,
+        targetInstanceId: selfTargetInstanceId,
+        effectSalt: 'self',
+      }),
+      buildShipOfEqualityDestroyEffect({
+        actionId,
+        sourceInstanceId,
+        shipDefId,
+        ownerPlayerId: playerId,
+        phaseKey,
+        targetPlayerId: opponentPlayerId,
+        targetInstanceId: opponentTargetInstanceId,
+        effectSalt: 'opponent',
+      })
+    );
   }
 
   // ============================================================================
@@ -424,4 +510,46 @@ function getRequiredTargetCount(
   }
 
   return Math.min(baseRequiredTargetCount, validTargetCount);
+}
+
+function buildShipOfEqualityDestroyEffect(args: {
+  actionId: string;
+  sourceInstanceId: string;
+  shipDefId: string;
+  ownerPlayerId: string;
+  phaseKey: PhaseKey;
+  targetPlayerId: string;
+  targetInstanceId: string;
+  effectSalt: 'self' | 'opponent';
+}): Effect {
+  const {
+    actionId,
+    sourceInstanceId,
+    shipDefId,
+    ownerPlayerId,
+    phaseKey,
+    targetPlayerId,
+    targetInstanceId,
+    effectSalt,
+  } = args;
+
+  return {
+    id: `${actionId}::${sourceInstanceId}::${phaseKey}::ship_of_equality::${effectSalt}::${targetInstanceId}`,
+    ownerPlayerId,
+    source: {
+      type: 'ship',
+      instanceId: sourceInstanceId,
+      shipDefId,
+    },
+    timing: phaseKey,
+    activationTag: EffectTiming.Charge,
+    target: {
+      playerId: targetPlayerId,
+      shipInstanceId: targetInstanceId,
+    },
+    survivability: SurvivabilityRule.DiesWithSource,
+    kind: EffectKind.Destroy,
+    restriction: 'basic_only',
+    count: 1,
+  };
 }

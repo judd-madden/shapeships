@@ -11,6 +11,7 @@ import type { ActionPanelId } from '../../display/actionPanel/ActionPanelRegistr
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 
 export type PhaseKey = string;
+export type RenderableTargetedActionKind = 'destroy_target' | 'paired_destroy_target';
 
 export interface AutoPanelRoutingInput {
   phaseKey: PhaseKey;
@@ -31,8 +32,18 @@ export type RenderableServerAction = {
   sourceInstanceId: string;
   choices: Array<{ choiceId?: string; projectedAmount?: number }>;
   validTargets?: any[];
+  validOwnTargets?: any[];
+  validOpponentTargets?: any[];
   requiredTargetCount?: number;
 };
+
+export function isRenderableTargetedActionKind(kind: string): kind is RenderableTargetedActionKind {
+  return kind === 'destroy_target' || kind === 'paired_destroy_target';
+}
+
+export function isRenderableTargetedAction(action: { kind?: string } | null | undefined): action is RenderableServerAction {
+  return isRenderableTargetedActionKind(String(action?.kind ?? ''));
+}
 
 export interface RenderableActionShipPresence {
   hasCarBuildAction: boolean;
@@ -70,6 +81,10 @@ export function getRenderableServerChoiceActions(
 
     if (phaseKey === 'battle.first_strike' || phaseKey === 'build.ships_that_build') {
       return action.kind === 'choice' || action.kind === 'destroy_target';
+    }
+
+    if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+      return action.kind === 'choice' || action.kind === 'paired_destroy_target';
     }
 
     return action.kind === 'choice';
@@ -131,7 +146,7 @@ export function getDefaultChoiceIdForRenderableAction(action: RenderableServerAc
 
   // Targeted destroy actions require an explicit targetInstanceId.
   // Default to hold so destroy-target rows can render without auto-submitting an invalid destroy.
-  if (action.kind === 'destroy_target') {
+  if (isRenderableTargetedAction(action)) {
     return choiceIds.find((choiceId) => choiceId === 'hold') ?? choiceIds[0];
   }
 
@@ -159,7 +174,7 @@ export function isRenderableTargetedActionSelected(
   action: RenderableServerAction,
   selectedChoiceIdBySourceInstanceId: Record<string, string>
 ): boolean {
-  if (action.kind !== 'destroy_target') return false;
+  if (!isRenderableTargetedAction(action)) return false;
 
   const selectedChoiceId = getSelectedChoiceIdForRenderableAction(
     action,

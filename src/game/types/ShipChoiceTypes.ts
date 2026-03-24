@@ -86,6 +86,12 @@ export interface ShipChoiceGroupSpec {
    * Example: ['damage','heal','hold']
    */
   availableChoiceIds?: string[];
+
+  /**
+   * Optional internal-action-surface tab bucket for grouped panels.
+   * Used by the Centaur charge panel to split Charges vs Ship of Equality.
+   */
+  internalTab?: 'charges' | 'ship_of_equality';
 }
 
 export interface ShipChoicesPanelGroup {

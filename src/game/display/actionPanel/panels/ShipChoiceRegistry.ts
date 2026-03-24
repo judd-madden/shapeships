@@ -72,6 +72,7 @@ export interface ShipChoiceCountedShipGroupSpec {
    * Example: "If a charge-based ship is destroyed, its charge still occurs."
    */
   groupHelpText?: string;
+  internalTab?: 'charges' | 'ship_of_equality';
 }
 
 export interface ShipChoiceNamedShipGroupSpec {
@@ -98,6 +99,7 @@ export interface ShipChoiceNamedShipGroupSpec {
    * Example: "If a charge-based ship is destroyed, its charge still occurs."
    */
   groupHelpText?: string;
+  internalTab?: 'charges' | 'ship_of_equality';
 }
 
 export interface ShipChoiceLargePanelSpec {
@@ -348,6 +350,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
         kind: 'counted',
         shipDefId: 'WIS',
         headingTemplate: '{count} Ships of Wisdom may use a charge.',
+        internalTab: 'charges',
         buttons: [
           {
             size: 'large',
@@ -372,6 +375,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
         kind: 'counted',
         shipDefId: 'FAM',
         headingTemplate: '{count} Ships of Family may use a charge.',
+        internalTab: 'charges',
         buttons: [
           {
             size: 'large',
@@ -396,13 +400,38 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
         kind: 'counted',
         shipDefId: 'INT',
         headingTemplate: '{count} Interceptors may use their charge.',
+        internalTab: 'charges',
         buttons: INT_CHARGE_BUTTONS,
       },
       {
         kind: 'counted',
         shipDefId: 'ANT',
         headingTemplate: '{count} Antlions may use their charge.',
+        internalTab: 'charges',
         buttons: ANT_CHARGE_BUTTONS,
+      },
+      {
+        kind: 'counted',
+        shipDefId: 'EQU',
+        headingTemplate: '{count} Ships of Equality may destroy.',
+        internalTab: 'ship_of_equality',
+        buttons: [
+          {
+            size: 'large',
+            label: 'Destroy Both',
+            detail: '(use 1 charge)',
+            requiresTargeting: true,
+            showsInstructions: true,
+            instructionText: 'Select one basic ship of yours and one basic ship of your opponent\'s with equal total lines.',
+            choiceId: 'damage',
+          },
+          {
+            size: 'small',
+            label: 'Hold Charge',
+            choiceId: 'hold',
+          },
+        ],
+        groupHelpText: 'If a charge-based ship is destroyed, it\'s charge still occurs.\n\nIf a ship with Automatic damage and healing is destroyed, it\'s power does NOT occur (except \'once only\' powers).',
       },
     ],
   },

@@ -69,6 +69,7 @@ import type {
   GameSessionViewModel,
   GameSessionActions,
   EvolverChoiceId,
+  CentaurChargeSubTabId,
 } from './gameSession/types';
 
 export type {
@@ -84,6 +85,7 @@ export type {
   ActionPanelViewModel,
   GameSessionViewModel,
   GameSessionActions,
+  CentaurChargeSubTabId,
 } from './gameSession/types';
 
 import {
@@ -92,6 +94,7 @@ import {
   getRenderableActionShipPresence,
   getRenderableActionChoiceIds,
   getRenderableServerChoiceActions,
+  isRenderableTargetedAction,
   isRenderableTargetedActionComplete,
   speciesToCataloguePanelId,
 } from './gameSession/availableActions';
@@ -171,6 +174,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Client-only active panel tracking
   const [activePanelId, setActivePanelId] = useState<ActionPanelId>('ap.catalog.ships.human');
+  const [centaurChargeSubTabByPhaseInstanceKey, setCentaurChargeSubTabByPhaseInstanceKey] =
+    useState<Record<string, CentaurChargeSubTabId>>({});
 
   // Auto panel routing pulse: allows one controlled re-route when client-only actions appear mid-phase
   const [panelRoutingPulse, setPanelRoutingPulse] = useState(0);
@@ -730,7 +735,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
         if (allowedChoiceIds.length === 0) continue;
         
         const existing =
-          shouldResetDestroyTargetRows && action.kind === 'destroy_target'
+          shouldResetDestroyTargetRows && isRenderableTargetedAction(action)
             ? undefined
             : prev[instanceId];
         if (existing && allowedChoiceIds.includes(existing)) {
@@ -1309,19 +1314,11 @@ useEffect(() => {
         if (mySpecies === 'human') return 'ap.battle.charges.human';
         if (mySpecies === 'xenite') return 'ap.battle.charges.xenite';
         if (mySpecies === 'centaur') {
-          // ROUTING ORDER GUARANTEE (PRESCRIPTIVE):
-          // ap.battle.charges.centaur must be selected before
-          // ap.battle.charges.centaur.ship_of_equality
-          //
-          // Route the main Centaur panel for any renderable non-EQU charge action
-          // (WIS / FAM / stolen INT / stolen ANT). Only surface ship_of_equality
-          // after the non-EQU panel is no longer the active routed choice.
-          if (renderableActionShipPresence.hasCentaurNonEquChargeAction) {
+          if (
+            renderableActionShipPresence.hasCentaurNonEquChargeAction ||
+            renderableActionShipPresence.hasCentaurEquChargeAction
+          ) {
             return 'ap.battle.charges.centaur';
-          }
-
-          if (renderableActionShipPresence.hasCentaurEquChargeAction) {
-            return 'ap.battle.charges.centaur.ship_of_equality';
           }
 
           return 'ap.battle.charges.centaur';
@@ -1349,6 +1346,53 @@ useEffect(() => {
   // ============================================================================
   // ACTIONS TAB: COMPUTE AVAILABILITY (UI-ONLY)
   // ============================================================================
+
+  const renderableActionShipPresence = getRenderableActionShipPresence(
+    phaseKey,
+    availableActions
+  );
+
+  const centaurChargeAvailableTabs: CentaurChargeSubTabId[] = [];
+  if (renderableActionShipPresence.hasCentaurNonEquChargeAction) {
+    centaurChargeAvailableTabs.push('charges');
+  }
+  if (renderableActionShipPresence.hasCentaurEquChargeAction) {
+    centaurChargeAvailableTabs.push('ship_of_equality');
+  }
+
+  const defaultCentaurChargeSubTab: CentaurChargeSubTabId =
+    centaurChargeAvailableTabs.includes('charges') ? 'charges' : 'ship_of_equality';
+
+  useEffect(() => {
+    const isCentaurChargePhase =
+      mySpecies === 'centaur' &&
+      (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response');
+
+    if (!isCentaurChargePhase || centaurChargeAvailableTabs.length === 0) {
+      return;
+    }
+
+    setCentaurChargeSubTabByPhaseInstanceKey((prev) => {
+      const current = prev[phaseInstanceKey];
+      if (current && centaurChargeAvailableTabs.includes(current)) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [phaseInstanceKey]: defaultCentaurChargeSubTab,
+      };
+    });
+  }, [
+    mySpecies,
+    phaseKey,
+    phaseInstanceKey,
+    defaultCentaurChargeSubTab,
+    centaurChargeAvailableTabs.join('|'),
+  ]);
+
+  const activeCentaurChargeSubTab =
+    centaurChargeSubTabByPhaseInstanceKey[phaseInstanceKey] ?? defaultCentaurChargeSubTab;
   
   // Determine target panel ID for Actions tab (panel routing target when actions exist)
   const actionsTargetPanelId = phaseToActionPanelId(phaseKey, mySpecies, availableActions);
@@ -1454,7 +1498,7 @@ useEffect(() => {
   const hasIncompleteTargetedAction =
     Array.isArray(availableActions) &&
     getRenderableServerChoiceActions(phaseKey, availableActions).some((action) =>
-      action.kind === 'destroy_target' &&
+      isRenderableTargetedAction(action) &&
       !isRenderableTargetedActionComplete({
         action,
         selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
@@ -1743,6 +1787,8 @@ useEffect(() => {
   frigateSelectedTriggers: frigateSelectedTriggersRef.current,
   evolverRowIds,
   evolverChoicesByRowId,
+  centaurChargeSubTab: activeCentaurChargeSubTab,
+  centaurChargeAvailableTabs,
 });
   
   // ============================================================================
@@ -2086,6 +2132,17 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       applyDestroyTargetingChoiceSideEffects(sourceInstanceId, choiceId);
     },
 
+    onSelectCentaurChargeSubTab: (tabId: CentaurChargeSubTabId) => {
+      if (!centaurChargeAvailableTabs.includes(tabId)) {
+        return;
+      }
+
+      setCentaurChargeSubTabByPhaseInstanceKey((prev) => ({
+        ...prev,
+        [phaseInstanceKey]: tabId,
+      }));
+    },
+
     onBoardBackgroundMouseDown: () => {
       handleDestroyTargetingBoardBackgroundMouseDown();
     },
@@ -2220,6 +2277,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       onRematch: () => {},
       onDownloadBattleLog: () => { },
       onSelectShipChoiceForInstance: () => { },
+      onSelectCentaurChargeSubTab: () => { },
       onSelectFrigateTrigger: () => { },
       onSelectEvolverChoice: () => { },
       onBoardBackgroundMouseDown: () => { },

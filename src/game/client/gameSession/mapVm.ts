@@ -22,8 +22,10 @@ import {
   getRenderableActionChoiceIds,
   getRenderableActionRequiredTargetCount,
   getRenderableServerChoiceActions,
+  isRenderableTargetedAction,
   isRenderableTargetedActionComplete,
 } from './availableActions';
+import type { CentaurChargeSubTabId } from './types';
 
 function getCountedGroupHeading(groupSpec: {
   headingTemplate: string;
@@ -54,7 +56,7 @@ function getTargetedActionButtons(args: {
     allocatedDestroyTargetIdBySourceInstanceId,
   } = args;
 
-  if (action?.kind !== 'destroy_target') {
+  if (!isRenderableTargetedAction(action)) {
     return buttons;
   }
 
@@ -78,7 +80,9 @@ function getTargetedActionButtons(args: {
     return {
       ...button,
       instructionText: hasAllocatedTarget
-        ? 'Will destroy selected ship.'
+        ? action.kind === 'paired_destroy_target'
+          ? 'Will destroy both selected ships.'
+          : 'Will destroy selected ship.'
         : button.instructionText,
     };
   });
@@ -223,6 +227,8 @@ export function mapGameSessionVm(args: {
   // Client-only Evolver selections (existing EVO instances + preview EVO rows)
   evolverRowIds: string[];
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
+  centaurChargeSubTab?: CentaurChargeSubTabId;
+  centaurChargeAvailableTabs?: CentaurChargeSubTabId[];
 }): GameSessionViewModel {
   const {
     isBootstrapping,
@@ -271,6 +277,8 @@ export function mapGameSessionVm(args: {
     frigateSelectedTriggers,
     evolverRowIds,
     evolverChoicesByRowId,
+    centaurChargeSubTab,
+    centaurChargeAvailableTabs,
   } = args;
   
   // Map chat entries to LeftRail VM format
@@ -536,6 +544,10 @@ export function mapGameSessionVm(args: {
         opponentAlsoHasChargesHeading?: string;
         opponentAlsoHasChargesLines?: string[];
         selectedChoiceIdBySourceInstanceId?: Record<string, string>;
+        centaurChargeTabs?: {
+          activeTab: CentaurChargeSubTabId;
+          availableTabs: CentaurChargeSubTabId[];
+        };
       }
     | undefined;
 
@@ -566,6 +578,15 @@ export function mapGameSessionVm(args: {
       }
 
       for (const groupSpec of shipChoiceSpec.groups) {
+        if (
+          finalActivePanelId === 'ap.battle.charges.centaur' &&
+          groupSpec.internalTab &&
+          centaurChargeSubTab &&
+          groupSpec.internalTab !== centaurChargeSubTab
+        ) {
+          continue;
+        }
+
         if (groupSpec.kind === 'counted') {
           // Find all matching server actions for this shipDefId
           const matches = choiceActions.filter(
@@ -716,6 +737,16 @@ export function mapGameSessionVm(args: {
         opponentAlsoHasChargesHeading: undefined,
         opponentAlsoHasChargesLines: undefined,
         selectedChoiceIdBySourceInstanceId,
+        centaurChargeTabs:
+          finalActivePanelId === 'ap.battle.charges.centaur' &&
+          centaurChargeSubTab &&
+          Array.isArray(centaurChargeAvailableTabs) &&
+          centaurChargeAvailableTabs.length > 0
+            ? {
+                activeTab: centaurChargeSubTab,
+                availableTabs: centaurChargeAvailableTabs,
+              }
+            : undefined,
       };
     }
   }

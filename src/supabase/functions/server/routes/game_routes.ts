@@ -22,7 +22,7 @@ import { getShipById } from '../engine_shared/defs/ShipDefinitions.core.ts';
 import { getShipDefinition } from '../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 import type { StructuredShipPower } from '../engine_shared/effects/translateShipPowers.ts';
 import { EffectKind } from '../engine_shared/effects/Effect.ts';
-import { getValidDestroyTargets } from '../engine_shared/resolve/destroyRules.ts';
+import { getValidDestroyTargets, getValidShipOfEqualityTargets } from '../engine_shared/resolve/destroyRules.ts';
 import { countDistinctTypes } from '../engine_shared/resolve/phaseComputedEffects.ts';
 import { rollD6 } from '../engine/util/rollD6.ts';
 
@@ -198,6 +198,29 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
         const choices = power.options.map((opt) =>
           getProjectedChoiceMetadataForChargeAction(shipDefId, fleet, opt.choiceId)
         );
+
+        if (shipDefId === 'EQU') {
+          const { validOwnTargets, validOpponentTargets } = getValidShipOfEqualityTargets(
+            state,
+            playerId
+          );
+
+          if (validOwnTargets.length === 0 || validOpponentTargets.length === 0) {
+            continue;
+          }
+
+          actions.push({
+            kind: 'paired_destroy_target',
+            actionId,
+            shipDefId,
+            sourceInstanceId,
+            choices,
+            validOwnTargets,
+            validOpponentTargets,
+            requiredTargetCount: 2,
+          });
+          continue;
+        }
         
         actions.push({
           kind: 'choice',
