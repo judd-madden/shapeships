@@ -530,7 +530,11 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Phase data
   const phaseKey = rawState ? getPhaseKey(rawState) : 'unknown';
   const turnNumber = rawState ? getTurnNumber(rawState) : 1;
-  const phaseInstanceKey = `${turnNumber}::${phaseKey}`;
+  const knoRerollPassIndex = rawState?.gameData?.turnData?.knoRerollPassIndex;
+  const phaseInstanceKey =
+    phaseKey === 'build.dice_roll' && (knoRerollPassIndex === 1 || knoRerollPassIndex === 2)
+      ? `${turnNumber}::${phaseKey}::kno${knoRerollPassIndex}`
+      : `${turnNumber}::${phaseKey}`;
   
   // Phase 3.x: server-authoritative actions availability (declare early to avoid TDZ)
   const availableActions = rawState?.availableActions;
@@ -705,6 +709,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   useEffect(() => {
     // Only for server-choice phases
     if (
+      phaseKey !== 'build.dice_roll' &&
       phaseKey !== 'build.ships_that_build' &&
       phaseKey !== 'battle.first_strike' &&
       phaseKey !== 'battle.charge_declaration' &&
@@ -1281,6 +1286,10 @@ useEffect(() => {
     mySpecies: SpeciesId | null,
     availableActionsForPhase: any[] | null | undefined
   ): ActionPanelId | null {
+    const renderableChoiceActions = getRenderableServerChoiceActions(
+      phaseKey,
+      availableActionsForPhase
+    );
     const renderableActionShipPresence = getRenderableActionShipPresence(
       phaseKey,
       availableActionsForPhase
@@ -1288,8 +1297,7 @@ useEffect(() => {
 
     switch (phaseKey) {
       case 'build.dice_roll':
-        // Only Centaur has this panel
-        return mySpecies === 'centaur' ? 'ap.build.dice_roll.centaur' : null;
+        return renderableChoiceActions.length > 0 ? 'ap.build.dice_roll.centaur' : null;
       
       case 'build.ships_that_build':
         if (mySpecies === 'human') return 'ap.build.ships_that_build.human';
@@ -1531,6 +1539,7 @@ useEffect(() => {
   } else {
     // Gate Ready in server-choice phases until availableActions arrives
     const isServerChoicePhase = 
+      phaseKey === 'build.dice_roll' ||
       phaseKey === 'build.ships_that_build' ||
       phaseKey === 'battle.first_strike' ||
       phaseKey === 'battle.charge_declaration' ||

@@ -39,6 +39,23 @@ function getCountedGroupHeading(groupSpec: {
   return template.replace('{count}', String(count));
 }
 
+function getNamedGroupHeading(
+  phaseKey: string,
+  heading: string,
+  gameData: any
+): string {
+  const knoRerollPassIndex = gameData?.turnData?.knoRerollPassIndex;
+  if (
+    phaseKey === 'build.dice_roll' &&
+    heading === 'Ark of Knowledge' &&
+    (knoRerollPassIndex === 1 || knoRerollPassIndex === 2)
+  ) {
+    return `Ark of Knowledge ${knoRerollPassIndex}`;
+  }
+
+  return heading;
+}
+
 function getTargetedActionButtons(args: {
   buttons: ShipChoiceGroupSpec['buttons'];
   action: any;
@@ -551,6 +568,7 @@ export function mapGameSessionVm(args: {
   if (shipChoiceSpec && shipChoiceSpec.kind === 'buttons') {
     // Check if this is a server-choice phase (use server availableActions)
     const isServerChoicePhase = 
+      phaseKey === 'build.dice_roll' ||
       phaseKey === 'build.ships_that_build' ||
       phaseKey === 'battle.first_strike' ||
       phaseKey === 'battle.charge_declaration' || 
@@ -658,7 +676,7 @@ export function mapGameSessionVm(args: {
 
           if (expandedShips.length > 0) {
             derivedGroups.push({
-              heading: groupSpec.heading,
+              heading: getNamedGroupHeading(phaseKey, groupSpec.heading, gameData),
               ships: expandedShips,
               groupHelpText: groupSpec.groupHelpText,
             });
@@ -707,7 +725,7 @@ export function mapGameSessionVm(args: {
           // Only include group if at least one ship present
           if (expandedShips.length > 0) {
             derivedGroups.push({
-              heading: groupSpec.heading,
+              heading: getNamedGroupHeading(phaseKey, groupSpec.heading, gameData),
               ships: expandedShips,
               groupHelpText: groupSpec.groupHelpText,
             });
@@ -852,7 +870,7 @@ export function mapGameSessionVm(args: {
         const chronoswarmRolls = Array.isArray(gameData?.turnData?.chronoswarmRolls)
           ? gameData.turnData.chronoswarmRolls.filter(
               (roll: unknown): roll is 1 | 2 | 3 | 4 | 5 | 6 =>
-                Number.isInteger(roll) && roll >= 1 && roll <= 6
+                typeof roll === 'number' && Number.isInteger(roll) && roll >= 1 && roll <= 6
             )
           : [];
 

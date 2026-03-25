@@ -198,10 +198,12 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
               {
                 size: 'large',
                 label: 'Reroll Dice',
+                choiceId: 'reroll',
               },
               {
                 size: 'small',
                 label: 'Keep Dice Roll',
+                choiceId: 'hold',
               },
             ],
           },

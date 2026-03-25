@@ -144,6 +144,10 @@ export function getDefaultChoiceIdForRenderableAction(action: RenderableServerAc
   const choiceIds = getRenderableActionChoiceIds(action);
   if (choiceIds.length === 0) return undefined;
 
+  if (action.actionId === 'KNO#0') {
+    return choiceIds.find((choiceId) => choiceId === 'hold') ?? choiceIds[0];
+  }
+
   // Targeted destroy actions require an explicit targetInstanceId.
   // Default to hold so destroy-target rows can render without auto-submitting an invalid destroy.
   if (isRenderableTargetedAction(action)) {

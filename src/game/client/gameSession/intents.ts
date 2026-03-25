@@ -348,9 +348,10 @@ export async function runReadyToggleFlow(args: {
   
   try {
     // ========================================================================
-    // CHARGE PHASES: Batch submit ACTIONS_SUBMIT for all selected choices, then DECLARE_READY
+    // SERVER-CHOICE PHASES: Batch submit ACTIONS_SUBMIT for all selected choices, then DECLARE_READY
     // ========================================================================
     if (
+      phaseKey === 'build.dice_roll' ||
       phaseKey === 'battle.first_strike' ||
       phaseKey === 'battle.charge_declaration' ||
       phaseKey === 'battle.charge_response'
