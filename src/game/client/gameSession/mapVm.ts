@@ -873,6 +873,20 @@ export function mapGameSessionVm(args: {
                 typeof roll === 'number' && Number.isInteger(roll) && roll >= 1 && roll <= 6
             )
           : [];
+        const chronoswarmSharedRollCountRaw = gameData?.turnData?.chronoswarmSharedRollCount;
+        const chronoswarmSharedRollCount =
+          typeof chronoswarmSharedRollCountRaw === 'number' &&
+          Number.isInteger(chronoswarmSharedRollCountRaw)
+            ? chronoswarmSharedRollCountRaw
+            : 0;
+        const chronoswarmRollSignature = chronoswarmRolls.reduce(
+          (acc: number, roll: 1 | 2 | 3 | 4 | 5 | 6) => acc * 7 + roll,
+          chronoswarmRolls.length
+        );
+        const chronoswarmAnimateKey =
+          turnNumber * 1_000_000_000 +
+          chronoswarmSharedRollCount * 1_000_000 +
+          chronoswarmRollSignature;
 
         const levSlot = presentShipDefIds.has('LEV')
           ? {
@@ -891,6 +905,7 @@ export function mapGameSessionVm(args: {
           ? {
               sourceShipDefId: 'CHR' as const,
               diceValues: chronoswarmRolls,
+              animateKey: chronoswarmAnimateKey,
             }
           : null;
 

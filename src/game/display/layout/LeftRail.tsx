@@ -68,7 +68,6 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
             pointerEvents: 'none' as const,
           };
 
-    const shouldAnimateDice = slot.sourceShipDefId === 'CHR';
     const diceValues = Array.isArray(slot.diceValues) ? slot.diceValues : [];
     const showDiceSpacer = slot.sourceShipDefId === 'KNO' && diceValues.length === 0;
 
@@ -80,7 +79,7 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
               <Dice
                 key={`${slot.sourceShipDefId}-${index}`}
                 value={value}
-                animateKey={shouldAnimateDice ? vm.diceAnimateKey : undefined}
+                animateKey={slot.sourceShipDefId === 'CHR' ? slot.animateKey : undefined}
                 className="w-[60px] h-[60px]"
                 enableRotate={false}
               />

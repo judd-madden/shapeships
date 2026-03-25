@@ -27,6 +27,7 @@ export type LeftRailDiceManipulationShipDefId = 'LEV' | 'KNO' | 'CHR';
 export interface LeftRailDiceManipulationSlotViewModel {
   sourceShipDefId: LeftRailDiceManipulationShipDefId;
   diceValues?: Array<1 | 2 | 3 | 4 | 5 | 6>;
+  animateKey?: number;
 }
 
 export interface HudViewModel {
