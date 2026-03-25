@@ -141,6 +141,34 @@ function getShipsThatBuildPassIndex(state: any): 1 | 2 {
   return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
 }
 
+function getKnoRerollPassIndex(state: any): 1 | 2 {
+  return state?.gameData?.turnData?.knoRerollPassIndex === 2 ? 2 : 1;
+}
+
+function getKnoCountForPlayer(state: any, playerId: string): number {
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
+  return Array.isArray(fleet)
+    ? fleet.filter((ship: any) => ship?.shipDefId === 'KNO').length
+    : 0;
+}
+
+function playerHasKnoRerollForPass(state: any, playerId: string, passIndex: 1 | 2): boolean {
+  return getKnoCountForPlayer(state, playerId) >= passIndex;
+}
+
+function getRepresentativeKnoInstanceIdForPass(state: any, playerId: string, passIndex: 1 | 2): string | null {
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
+  const knoInstanceIds = Array.isArray(fleet)
+    ? fleet
+      .filter((ship: any) => ship?.shipDefId === 'KNO' && typeof ship?.instanceId === 'string')
+      .map((ship: any) => ship.instanceId)
+      .sort((a: string, b: string) => a.localeCompare(b))
+    : [];
+
+  if (knoInstanceIds.length === 0) return null;
+  return knoInstanceIds[passIndex - 1] ?? knoInstanceIds[0];
+}
+
 function getChronoswarmCountForPlayer(state: any, playerId: string): number {
   const raw = state?.gameData?.turnData?.chronoswarmCountByPlayerId?.[playerId];
   return Number.isInteger(raw) && raw > 0 ? raw : 0;
@@ -156,9 +184,15 @@ function shipAlreadyUsedInShipsThatBuildPass(state: any, sourceInstanceId: strin
   return state?.gameData?.turnData?.shipsThatBuildPassUsageByInstanceId?.[sourceInstanceId]?.[passIndex] === true;
 }
 
-function projectChronoswarmTurnData(gameData: any): any {
+function projectChronoswarmTurnData(gameData: any, requestingPlayerId: string): any {
   const turnData = gameData?.gameData?.turnData;
   if (!turnData) return gameData;
+
+  const filteredPendingKnoRerollChoiceByPassByPlayerId: Record<string, Partial<Record<1 | 2, 'reroll' | 'hold'>>> = {};
+  if (turnData.pendingKnoRerollChoiceByPassByPlayerId?.[requestingPlayerId]) {
+    filteredPendingKnoRerollChoiceByPassByPlayerId[requestingPlayerId] =
+      turnData.pendingKnoRerollChoiceByPassByPlayerId[requestingPlayerId];
+  }
 
   return {
     ...gameData,
@@ -172,6 +206,13 @@ function projectChronoswarmTurnData(gameData: any): any {
         chronoswarmCountByPlayerId: {
           ...(turnData.chronoswarmCountByPlayerId || {}),
         },
+        knoRerollPassIndex:
+          turnData.knoRerollPassIndex === 2
+            ? 2
+            : turnData.knoRerollPassIndex === 1
+              ? 1
+              : undefined,
+        pendingKnoRerollChoiceByPassByPlayerId: filteredPendingKnoRerollChoiceByPassByPlayerId,
         shipsThatBuildPassIndex:
           turnData.shipsThatBuildPassIndex === 2
             ? 2
@@ -194,6 +235,28 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
   const phaseKey = getPhaseKey(state);
 
   if (!phaseKey) return [];
+
+  if (phaseKey === 'build.dice_roll') {
+    const passIndex = getKnoRerollPassIndex(state);
+    if (!playerHasKnoRerollForPass(state, playerId, passIndex)) {
+      return [];
+    }
+
+    const sourceInstanceId = getRepresentativeKnoInstanceIdForPass(state, playerId, passIndex);
+    if (!sourceInstanceId) {
+      return [];
+    }
+
+    return [
+      {
+        kind: 'choice',
+        actionId: 'KNO#0',
+        shipDefId: 'KNO',
+        sourceInstanceId,
+        choices: [{ choiceId: 'reroll' }, { choiceId: 'hold' }],
+      },
+    ];
+  }
 
   // ============================================================================
   // CHARGE PHASES: Derive choice actions from structured powers
@@ -1183,7 +1246,7 @@ export function registerGameRoutes(
         }
       }
 
-      gameData = projectChronoswarmTurnData(gameData);
+      gameData = projectChronoswarmTurnData(gameData, requestingPlayerId);
 
       // Expose clock snapshot to client (STEP F)
       const clockData = gameData.gameData?.clock;

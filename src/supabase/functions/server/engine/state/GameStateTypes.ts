@@ -88,6 +88,10 @@ export type GameData = {
     chronoswarmCountByPlayerId?: Record<string, number>;
     /** Convenience mirror of chronoswarmRolls.length */
     chronoswarmSharedRollCount?: number;
+    /** Internal pass index for the shared Ark of Knowledge reroll window */
+    knoRerollPassIndex?: 1 | 2;
+    /** Hidden staged Ark of Knowledge reroll choices by player and pass */
+    pendingKnoRerollChoiceByPassByPlayerId?: Record<string, Partial<Record<1 | 2, 'reroll' | 'hold'>>>;
     /** Internal pass index for the single build.ships_that_build phase */
     shipsThatBuildPassIndex?: 1 | 2;
     /** Tracks interactive Ships That Build usage by ship instance and pass */

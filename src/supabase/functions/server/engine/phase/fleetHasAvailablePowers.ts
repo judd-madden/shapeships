@@ -41,6 +41,27 @@ function getShipsThatBuildPassIndex(state: any): 1 | 2 {
   return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
 }
 
+function getKnoRerollPassIndex(state: any): 1 | 2 {
+  return state?.gameData?.turnData?.knoRerollPassIndex === 2 ? 2 : 1;
+}
+
+function getKnoCountForPlayer(state: any, playerId: string): number {
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
+  return Array.isArray(fleet)
+    ? fleet.filter((ship: any) => ship?.shipDefId === 'KNO').length
+    : 0;
+}
+
+function playerHasKnoRerollForPass(state: any, playerId: string, passIndex: 1 | 2): boolean {
+  return getKnoCountForPlayer(state, playerId) >= passIndex;
+}
+
+function anyPlayerHasKnoRerollForCurrentPass(state: any): boolean {
+  const passIndex = getKnoRerollPassIndex(state);
+  const activePlayers = state?.players?.filter((p: any) => p.role === 'player') ?? [];
+  return activePlayers.some((player: any) => playerHasKnoRerollForPass(state, player.id, passIndex));
+}
+
 function getChronoswarmCountForPlayer(state: any, playerId: string): number {
   const raw = state?.gameData?.turnData?.chronoswarmCountByPlayerId?.[playerId];
   return Number.isInteger(raw) && raw > 0 ? raw : 0;
@@ -208,6 +229,14 @@ export function fleetHasAvailablePowers(
   playerId: string,
   allowedSubphases?: string[]
 ): boolean {
+  if (phaseKey === 'build.dice_roll') {
+    const passIndex = getKnoRerollPassIndex(state);
+    if (!playerHasKnoRerollForPass(state, playerId, passIndex)) {
+      return false;
+    }
+    return anyPlayerHasKnoRerollForCurrentPass(state);
+  }
+
   const ships = state?.gameData?.ships?.[playerId] ?? [];
 
   for (const ship of ships) {

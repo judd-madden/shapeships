@@ -103,6 +103,23 @@ function allPlayersSelectedSpecies(state: GameState): boolean {
   return (state.players || []).every((p: any) => !!p.faction);
 }
 
+function getKnoRerollPassIndex(state: GameState): 1 | 2 {
+  return state?.gameData?.turnData?.knoRerollPassIndex === 2 ? 2 : 1;
+}
+
+function getKnoCountForPlayer(state: GameState, playerId: string): number {
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
+  return Array.isArray(fleet)
+    ? fleet.filter((ship: any) => ship?.shipDefId === 'KNO').length
+    : 0;
+}
+
+function hasAnyKnoSecondPass(state: GameState): boolean {
+  return (state.players || [])
+    .filter((p: any) => p.role === 'player')
+    .some((p: any) => getKnoCountForPlayer(state, p.id) >= 2);
+}
+
 /**
  * Core phase advancement logic (no readiness checks).
  * 
@@ -157,6 +174,8 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           chronoswarmRolls: [],
           chronoswarmCountByPlayerId: {},
           chronoswarmSharedRollCount: 0,
+          knoRerollPassIndex: undefined,
+          pendingKnoRerollChoiceByPassByPlayerId: {},
           shipsThatBuildPassIndex: undefined,
           shipsThatBuildPassUsageByInstanceId: {},
           shipsMadeThisTurnByPlayerId: {},
@@ -171,6 +190,43 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
     console.log(`[advancePhaseCore] Setup exit: ${from} → build.dice_roll (turn set to ${turnNumber})`);
     
     return { ok: true, state: cleared, from, to: 'build.dice_roll', events: [] };
+  }
+
+  if (from === 'build.dice_roll') {
+    const passIndex = getKnoRerollPassIndex(state);
+    if (passIndex === 1 && hasAnyKnoSecondPass(state)) {
+      const next = setPhase(state, 'build', 'dice_roll');
+      const nextGd: any = next.gameData || {};
+      const nextTd: any = nextGd.turnData || {};
+      const passAdvanced: GameState = {
+        ...next,
+        gameData: {
+          ...nextGd,
+          turnData: {
+            ...nextTd,
+            knoRerollPassIndex: 2,
+          },
+        },
+      };
+      const cleared = clearReadiness(passAdvanced);
+
+      console.log('[advancePhaseCore] KNO second pass: build.dice_roll pass 1 -> pass 2');
+
+      return {
+        ok: true,
+        state: cleared,
+        from,
+        to: 'build.dice_roll',
+        events: [
+          {
+            type: 'KNO_REROLL_PASS_ADVANCED',
+            fromPassIndex: 1,
+            toPassIndex: 2,
+            atMs: nowMs ?? Date.now(),
+          },
+        ],
+      };
+    }
   }
 
   if (from === 'build.ships_that_build') {
@@ -247,6 +303,8 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           chronoswarmRolls: [],
           chronoswarmCountByPlayerId: {},
           chronoswarmSharedRollCount: 0,
+          knoRerollPassIndex: undefined,
+          pendingKnoRerollChoiceByPassByPlayerId: {},
           shipsThatBuildPassIndex: undefined,
           shipsThatBuildPassUsageByInstanceId: {},
           shipsMadeThisTurnByPlayerId: {},

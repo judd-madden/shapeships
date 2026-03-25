@@ -40,6 +40,7 @@ import { resolvePowerAction } from '../../engine_shared/resolve/resolvePowerActi
 import { applyEffects } from '../../engine_shared/effects/applyEffects.ts';
 import { EffectKind, EffectTiming, SurvivabilityRule, type Effect } from '../../engine_shared/effects/Effect.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
+import { rollD6 } from '../util/rollD6.ts';
 
 import {
   type IntentType,
@@ -177,6 +178,170 @@ function countFleetShipsByDefId(state: any, playerId: string, shipDefId: string)
     if (ship?.shipDefId === shipDefId) count++;
   }
   return count;
+}
+
+function getKnoRerollPassIndex(state: any): 1 | 2 {
+  return state?.gameData?.turnData?.knoRerollPassIndex === 2 ? 2 : 1;
+}
+
+function getKnoCountForPlayer(state: any, playerId: string): number {
+  return countFleetShipsByDefId(state, playerId, 'KNO');
+}
+
+function playerHasKnoRerollForPass(state: any, playerId: string, passIndex: 1 | 2): boolean {
+  return getKnoCountForPlayer(state, playerId) >= passIndex;
+}
+
+function hasAnyKnoSecondPass(state: any): boolean {
+  const activePlayers = state?.players?.filter((p: any) => p.role === 'player') || [];
+  return activePlayers.some((player: any) => getKnoCountForPlayer(state, player.id) >= 2);
+}
+
+function getRepresentativeKnoInstanceIdForPass(
+  state: any,
+  playerId: string,
+  passIndex: 1 | 2
+): string | null {
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
+  const knoInstanceIds = Array.isArray(fleet)
+    ? fleet
+      .filter((ship: any) => ship?.shipDefId === 'KNO' && typeof ship?.instanceId === 'string')
+      .map((ship: any) => ship.instanceId)
+      .sort((a: string, b: string) => a.localeCompare(b))
+    : [];
+
+  if (knoInstanceIds.length === 0) return null;
+  return knoInstanceIds[passIndex - 1] ?? knoInstanceIds[0];
+}
+
+function recomputeDiceReadState(state: any, baseDice: number) {
+  const activePlayers = state?.players?.filter((p: any) => p.role === 'player') || [];
+  const effectiveByPlayerId: Record<string, number> = {};
+  const overrideSourceByPlayerId: Record<string, string> = {};
+
+  for (const player of activePlayers) {
+    const fleet = state?.gameData?.ships?.[player.id] ?? [];
+    const hasLeviathan = Array.isArray(fleet) && fleet.some((ship: any) => ship?.shipDefId === 'LEV');
+
+    if (hasLeviathan) {
+      effectiveByPlayerId[player.id] = 6;
+      overrideSourceByPlayerId[player.id] = 'LEV';
+    } else {
+      effectiveByPlayerId[player.id] = baseDice;
+    }
+  }
+
+  return { effectiveByPlayerId, overrideSourceByPlayerId };
+}
+
+function stageKnoRerollChoice(
+  state: any,
+  playerId: string,
+  sourceInstanceId: string,
+  actionId: string,
+  choiceId: string
+) {
+  const phaseKey = getPhaseKey(state);
+  if (phaseKey !== 'build.dice_roll') {
+    throw new Error('WRONG_PHASE');
+  }
+  if (actionId !== 'KNO#0') {
+    throw new Error('INVALID_KNO_ACTION');
+  }
+  if (choiceId !== 'reroll' && choiceId !== 'hold') {
+    throw new Error('INVALID_KNO_CHOICE');
+  }
+
+  const passIndex = getKnoRerollPassIndex(state);
+  if (!playerHasKnoRerollForPass(state, playerId, passIndex)) {
+    throw new Error('KNO_REROLL_NOT_AVAILABLE');
+  }
+
+  const representativeSourceInstanceId = getRepresentativeKnoInstanceIdForPass(state, playerId, passIndex);
+  if (!representativeSourceInstanceId || representativeSourceInstanceId !== sourceInstanceId) {
+    throw new Error('INVALID_KNO_SOURCE');
+  }
+
+  if (!state.gameData) state.gameData = {};
+  if (!state.gameData.turnData) state.gameData.turnData = {};
+
+  const pendingByPlayerId = state.gameData.turnData.pendingKnoRerollChoiceByPassByPlayerId || {};
+  const playerPending = pendingByPlayerId[playerId] || {};
+  state.gameData.turnData.pendingKnoRerollChoiceByPassByPlayerId = {
+    ...pendingByPlayerId,
+    [playerId]: {
+      ...playerPending,
+      [passIndex]: choiceId,
+    },
+  };
+}
+
+function clearResolvedKnoPassChoices(state: any, passIndex: 1 | 2) {
+  const pendingByPlayerId = state?.gameData?.turnData?.pendingKnoRerollChoiceByPassByPlayerId;
+  if (!pendingByPlayerId) return;
+
+  const nextPendingByPlayerId: Record<string, Partial<Record<1 | 2, 'reroll' | 'hold'>>> = {};
+  for (const [playerId, choicesByPass] of Object.entries(pendingByPlayerId)) {
+    const nextChoicesByPass = { ...(choicesByPass as Partial<Record<1 | 2, 'reroll' | 'hold'>>) };
+    delete nextChoicesByPass[passIndex];
+    if (Object.keys(nextChoicesByPass).length > 0) {
+      nextPendingByPlayerId[playerId] = nextChoicesByPass;
+    }
+  }
+
+  state.gameData.turnData.pendingKnoRerollChoiceByPassByPlayerId = nextPendingByPlayerId;
+}
+
+function resolvePendingKnoRerollPass(state: any, nowMs: number, events: any[]) {
+  if (!state.gameData) state.gameData = {};
+  if (!state.gameData.turnData) state.gameData.turnData = {};
+
+  const turnData = state.gameData.turnData;
+  const passIndex = getKnoRerollPassIndex(state);
+  const activePlayers = state.players.filter((p: any) => p.role === 'player');
+  const eligiblePlayerIds = activePlayers
+    .map((player: any) => player.id)
+    .filter((currentPlayerId: string) => playerHasKnoRerollForPass(state, currentPlayerId, passIndex));
+
+  if (eligiblePlayerIds.length === 0) {
+    turnData.diceFinalized = passIndex === 2 || !hasAnyKnoSecondPass(state);
+    return state;
+  }
+
+  const pendingByPlayerId = turnData.pendingKnoRerollChoiceByPassByPlayerId || {};
+  const anyReroll = eligiblePlayerIds.some((currentPlayerId: string) => {
+    const playerChoices = pendingByPlayerId[currentPlayerId] || {};
+    return playerChoices[passIndex] === 'reroll';
+  });
+
+  if (anyReroll) {
+    const nextBaseDice = rollD6();
+    const { effectiveByPlayerId, overrideSourceByPlayerId } = recomputeDiceReadState(state, nextBaseDice);
+
+    turnData.baseDiceRoll = nextBaseDice;
+    turnData.effectiveDiceRoll = nextBaseDice;
+    turnData.diceRoll = nextBaseDice;
+    turnData.diceRolled = true;
+    turnData.effectiveDiceRollByPlayerId = effectiveByPlayerId;
+    if (Object.keys(overrideSourceByPlayerId).length > 0) {
+      turnData.diceOverrideSourceByPlayerId = overrideSourceByPlayerId;
+    } else {
+      delete turnData.diceOverrideSourceByPlayerId;
+    }
+    state.gameData.diceRoll = nextBaseDice;
+
+    events.push({
+      type: 'DICE_ROLLED',
+      value: nextBaseDice,
+      turnNumber: state.gameData.turnNumber || 1,
+      atMs: nowMs
+    });
+  }
+
+  clearResolvedKnoPassChoices(state, passIndex);
+  turnData.diceFinalized = passIndex === 2 || !hasAnyKnoSecondPass(state);
+
+  return state;
 }
 
 function validateEvolverChoicesPayload(
@@ -1946,6 +2111,9 @@ function handleDeclareReady(
     if (phaseKey === 'battle.first_strike') {
       state = resolvePendingFirstStrikeSelections(state, nowMs, events);
     }
+    if (phaseKey === 'build.dice_roll') {
+      state = resolvePendingKnoRerollPass(state, nowMs, events);
+    }
     
     // Store current phase key for onEnterPhase
     const fromKey = phaseKey;
@@ -2122,6 +2290,23 @@ function handleAction(
     }
     
     try {
+      if (phaseKey === 'build.dice_roll') {
+        stageKnoRerollChoice(
+          state,
+          playerId,
+          payload.sourceInstanceId,
+          payload.actionId,
+          payload.choiceId
+        );
+        state = syncPhaseFields(state);
+
+        return {
+          ok: true,
+          state,
+          events
+        };
+      }
+
       if (phaseKey === 'battle.first_strike') {
         resolvePowerAction({
           state,
@@ -2345,6 +2530,17 @@ function handleActionsSubmit(
     }
     
     try {
+      if (phaseKey === 'build.dice_roll') {
+        stageKnoRerollChoice(
+          state,
+          playerId,
+          item.sourceInstanceId,
+          item.actionId,
+          item.choiceId
+        );
+        continue;
+      }
+
       if (phaseKey === 'battle.first_strike') {
         resolvePowerAction({
           state,
@@ -2425,13 +2621,15 @@ function handleActionsSubmit(
   // ============================================================================
   // BATCH COMPLETION: Emit wrapper event and sync once
   // ============================================================================
-  events.push({
-    type: 'POWERS_BATCH_SUBMITTED',
-    playerId,
-    phaseKey,
-    count: payload.actions.length,
-    atMs: nowMs
-  });
+  if (phaseKey !== 'build.dice_roll') {
+    events.push({
+      type: 'POWERS_BATCH_SUBMITTED',
+      playerId,
+      phaseKey,
+      count: payload.actions.length,
+      atMs: nowMs
+    });
+  }
   
   state = syncPhaseFields(state);
   

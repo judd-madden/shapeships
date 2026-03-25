@@ -83,6 +83,52 @@ function getChronoswarmBonusLinesForPlayer(state: any, playerId: string): number
   return total;
 }
 
+function getKnoRerollPassIndex(state: any): 1 | 2 {
+  return state?.gameData?.turnData?.knoRerollPassIndex === 2 ? 2 : 1;
+}
+
+function getKnoCountForPlayer(state: any, playerId: string): number {
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
+  return Array.isArray(fleet)
+    ? fleet.filter((ship: any) => ship?.shipDefId === 'KNO').length
+    : 0;
+}
+
+function anyPlayerHasKno(state: any): boolean {
+  const activePlayers = state?.players?.filter((p: any) => p.role === 'player') || [];
+  return activePlayers.some((player: any) => getKnoCountForPlayer(state, player.id) > 0);
+}
+
+function playerHasKnoRerollForPass(state: any, playerId: string, passIndex: 1 | 2): boolean {
+  return getKnoCountForPlayer(state, playerId) >= passIndex;
+}
+
+function anyPlayerHasKnoRerollForCurrentPass(state: any): boolean {
+  const passIndex = getKnoRerollPassIndex(state);
+  const activePlayers = state?.players?.filter((p: any) => p.role === 'player') || [];
+  return activePlayers.some((player: any) => playerHasKnoRerollForPass(state, player.id, passIndex));
+}
+
+function computeEffectiveDiceStateForPlayers(state: any, baseDice: number) {
+  const activePlayers = state?.players?.filter((p: any) => p.role === 'player') || [];
+  const effectiveByPlayerId: Record<string, number> = {};
+  const overrideSourceByPlayerId: Record<string, string> = {};
+
+  for (const player of activePlayers) {
+    const fleet = state?.gameData?.ships?.[player.id] ?? [];
+    const hasLeviathan = Array.isArray(fleet) && fleet.some((ship: any) => ship?.shipDefId === 'LEV');
+
+    if (hasLeviathan) {
+      effectiveByPlayerId[player.id] = 6;
+      overrideSourceByPlayerId[player.id] = 'LEV';
+    } else {
+      effectiveByPlayerId[player.id] = baseDice;
+    }
+  }
+
+  return { effectiveByPlayerId, overrideSourceByPlayerId };
+}
+
 // ============================================================================
 // PHASE-TO-SUBPHASE MAPPING
 // ============================================================================
@@ -299,9 +345,9 @@ function phaseRequiresPlayerInput(state: any, phaseKey: PhaseKey): boolean {
   // BUILD PHASES
   // ═════════════════════════════════════════════════════════════════════════
 
-  // build.dice_roll: auto-advance (dice-mod powers not yet implemented)
+  // build.dice_roll: pause only for Ark of Knowledge reroll windows
   if (phaseKey === 'build.dice_roll') {
-    return false;
+    return phaseHasAvailableFleetPowers(state, phaseKey);
   }
 
   // build.line_generation: auto-advance (server-driven calculation)
@@ -441,6 +487,12 @@ function enterPhaseOnce(
   // 5. DO NOT grant lines here (that happens in line_generation)
   
   if (toKey === 'build.dice_roll') {
+    if (anyPlayerHasKno(workingState)) {
+      if (turnData.knoRerollPassIndex !== 1 && turnData.knoRerollPassIndex !== 2) {
+        turnData.knoRerollPassIndex = 1;
+      }
+    }
+
     // Check if dice already rolled this turn
     if (!turnData.diceRolled) {
       const base = rollD6();
@@ -452,22 +504,8 @@ function enterPhaseOnce(
       turnData.diceRolled = true;
       turnData.diceFinalized = false; // Initially not finalized
 
-      // Compute per-player effective dice read values (e.g., Leviathan)
-      const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
-      const effectiveByPlayerId: Record<string, number> = {};
-      const overrideSourceByPlayerId: Record<string, string> = {};
-
-      for (const player of activePlayers) {
-        const fleet = workingState.gameData?.ships?.[player.id] ?? [];
-        const hasLeviathan = Array.isArray(fleet) && fleet.some((s: any) => s?.shipDefId === 'LEV');
-
-        if (hasLeviathan) {
-          effectiveByPlayerId[player.id] = 6;
-          overrideSourceByPlayerId[player.id] = 'LEV';
-        } else {
-          effectiveByPlayerId[player.id] = base;
-        }
-      }
+      const { effectiveByPlayerId, overrideSourceByPlayerId } =
+        computeEffectiveDiceStateForPlayers(workingState, base);
 
       turnData.effectiveDiceRollByPlayerId = effectiveByPlayerId;
       if (Object.keys(overrideSourceByPlayerId).length > 0) {
@@ -488,13 +526,11 @@ function enterPhaseOnce(
         atMs: nowMs
       });
       
-      // Check if dice should be immediately finalized
-      // (no dice-mod powers available)
-      const hasDiceModPowers = phaseHasAvailableFleetPowers(workingState, 'build.dice_roll');
-      
-      if (!hasDiceModPowers) {
+      const hasKnoRerollWindow = anyPlayerHasKnoRerollForCurrentPass(workingState);
+
+      if (!hasKnoRerollWindow) {
         turnData.diceFinalized = true;
-        console.log(`[OnEnterPhase] Dice finalized automatically (no dice-mod powers)`);
+        console.log('[OnEnterPhase] Dice finalized automatically (no KNO reroll window)');
       }
     } else {
       // Dice already rolled - use canonical value
@@ -505,26 +541,17 @@ function enterPhaseOnce(
       
       // Ensure per-player effective dice map exists (backfill for older states)
       if (!turnData.effectiveDiceRollByPlayerId) {
-        const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
-        const effectiveByPlayerId: Record<string, number> = {};
-        const overrideSourceByPlayerId: Record<string, string> = {};
-
-        for (const player of activePlayers) {
-          const fleet = workingState.gameData?.ships?.[player.id] ?? [];
-          const hasLeviathan = Array.isArray(fleet) && fleet.some((s: any) => s?.shipDefId === 'LEV');
-
-          if (hasLeviathan) {
-            effectiveByPlayerId[player.id] = 6;
-            overrideSourceByPlayerId[player.id] = 'LEV';
-          } else {
-            effectiveByPlayerId[player.id] = canonicalDice;
-          }
-        }
+        const { effectiveByPlayerId, overrideSourceByPlayerId } =
+          computeEffectiveDiceStateForPlayers(workingState, canonicalDice);
 
         turnData.effectiveDiceRollByPlayerId = effectiveByPlayerId;
         if (Object.keys(overrideSourceByPlayerId).length > 0) {
           turnData.diceOverrideSourceByPlayerId = overrideSourceByPlayerId;
         }
+      }
+
+      if (anyPlayerHasKnoRerollForCurrentPass(workingState)) {
+        turnData.diceFinalized = false;
       }
 
       console.log(`[OnEnterPhase] Dice already rolled this turn (${canonicalDice})`);
@@ -559,6 +586,42 @@ function enterPhaseOnce(
     } else {
       turnData.chronoswarmRolls = existingChronoswarmRolls;
       turnData.chronoswarmSharedRollCount = existingChronoswarmRolls.length;
+    }
+
+    if (anyPlayerHasKnoRerollForCurrentPass(workingState)) {
+      if (!workingState.gameData.phaseReadiness) {
+        workingState.gameData.phaseReadiness = [];
+      }
+
+      const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
+      const passIndex = getKnoRerollPassIndex(workingState);
+
+      for (const player of activePlayers) {
+        const eligible = playerHasKnoRerollForPass(workingState, player.id, passIndex);
+        if (eligible) continue;
+
+        const existingIndex = workingState.gameData.phaseReadiness.findIndex(
+          (r: any) => r.playerId === player.id && r.currentStep === 'build.dice_roll'
+        );
+
+        if (existingIndex >= 0) {
+          workingState.gameData.phaseReadiness[existingIndex].isReady = true;
+        } else {
+          workingState.gameData.phaseReadiness.push({
+            playerId: player.id,
+            isReady: true,
+            currentStep: 'build.dice_roll'
+          });
+        }
+
+        events.push({
+          type: 'PLAYER_AUTO_READY',
+          playerId: player.id,
+          step: 'build.dice_roll',
+          reason: 'no_available_kno_reroll',
+          atMs: nowMs
+        });
+      }
     }
   }
   
