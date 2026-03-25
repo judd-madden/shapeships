@@ -24,7 +24,7 @@ interface GameState {
 }
 
 type AdvanceResult =
-  | { ok: true; state: GameState; from: PhaseKey; to: PhaseKey }
+  | { ok: true; state: GameState; from: PhaseKey; to: PhaseKey; events: any[] }
   | { ok: false; error: string };
 
 /**
@@ -117,7 +117,7 @@ function allPlayersSelectedSpecies(state: GameState): boolean {
  * @param state - Current game state
  * @returns Result with updated state or error
  */
-export function advancePhaseCore(state: GameState): AdvanceResult {
+export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResult {
   const from = getCurrentPhaseKey(state);
   if (!from) return { ok: false, error: 'Missing current phase/subphase in game state.' };
 
@@ -154,6 +154,11 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
           anyChargesSpentInDeclaration: false,
           chargeDeclarationEligibleByPlayerId: {},
           chargePowerUsedByInstanceId: {},
+          chronoswarmRolls: [],
+          chronoswarmCountByPlayerId: {},
+          chronoswarmSharedRollCount: 0,
+          shipsThatBuildPassIndex: undefined,
+          shipsThatBuildPassUsageByInstanceId: {},
           shipsMadeThisTurnByPlayerId: {},
           queenCreatedXenitesThisTurnByInstanceId: {},
           buildEndOfBuildAppliedTurnNumber: 0,
@@ -165,7 +170,51 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
     
     console.log(`[advancePhaseCore] Setup exit: ${from} → build.dice_roll (turn set to ${turnNumber})`);
     
-    return { ok: true, state: cleared, from, to: 'build.dice_roll' };
+    return { ok: true, state: cleared, from, to: 'build.dice_roll', events: [] };
+  }
+
+  if (from === 'build.ships_that_build') {
+    const gd: any = state.gameData || {};
+    const td: any = gd.turnData || {};
+    const passIndex: 1 | 2 = td.shipsThatBuildPassIndex === 2 ? 2 : 1;
+    const chronoswarmCountByPlayerId = td.chronoswarmCountByPlayerId || {};
+    const hasChronoswarmSecondPass = (state.players || [])
+      .filter((p: any) => p.role === 'player')
+      .some((p: any) => (chronoswarmCountByPlayerId[p.id] || 0) > 0);
+
+    if (passIndex === 1 && hasChronoswarmSecondPass) {
+      const next = setPhase(state, 'build', 'ships_that_build');
+      const nextGd: any = next.gameData || {};
+      const nextTd: any = nextGd.turnData || {};
+      const passAdvanced: GameState = {
+        ...next,
+        gameData: {
+          ...nextGd,
+          turnData: {
+            ...nextTd,
+            shipsThatBuildPassIndex: 2,
+          },
+        },
+      };
+      const cleared = clearReadiness(passAdvanced);
+
+      console.log('[advancePhaseCore] Chronoswarm second pass: build.ships_that_build pass 1 → pass 2');
+
+      return {
+        ok: true,
+        state: cleared,
+        from,
+        to: 'build.ships_that_build',
+        events: [
+          {
+            type: 'SHIPS_THAT_BUILD_PASS_ADVANCED',
+            fromPassIndex: 1,
+            toPassIndex: 2,
+            atMs: nowMs ?? Date.now(),
+          },
+        ],
+      };
+    }
   }
 
   // End of sequence: new turn -> build.dice_roll
@@ -195,6 +244,11 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
           anyChargesSpentInDeclaration: false,
           chargeDeclarationEligibleByPlayerId: {},
           chargePowerUsedByInstanceId: {},
+          chronoswarmRolls: [],
+          chronoswarmCountByPlayerId: {},
+          chronoswarmSharedRollCount: 0,
+          shipsThatBuildPassIndex: undefined,
+          shipsThatBuildPassUsageByInstanceId: {},
           shipsMadeThisTurnByPlayerId: {},
           queenCreatedXenitesThisTurnByInstanceId: {},
           buildEndOfBuildAppliedTurnNumber: 0,
@@ -209,7 +263,7 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
     
     console.log(`[advancePhaseCore] Turn bump: ${from} → build.dice_roll (turn ${prevTurn} → ${turnNumber})`);
     
-    return { ok: true, state: cleared, from, to: 'build.dice_roll' };
+    return { ok: true, state: cleared, from, to: 'build.dice_roll', events: [] };
   }
 
   // Normal phase progression
@@ -220,7 +274,7 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
   
   console.log(`[advancePhaseCore] Phase advance: ${from} → ${to}`);
   
-  return { ok: true, state: advanced, from, to };
+  return { ok: true, state: advanced, from, to, events: [] };
 }
 
 /**
@@ -233,7 +287,7 @@ export function advancePhaseCore(state: GameState): AdvanceResult {
  * @param options - Options (deprecated, use advancePhaseCore for ignoreReadiness)
  * @returns Result with updated state or error
  */
-export function advancePhase(state: GameState, options?: AdvancePhaseOptions): AdvanceResult {
+export function advancePhase(state: GameState, options?: AdvancePhaseOptions, nowMs?: number): AdvanceResult {
   const from = getCurrentPhaseKey(state);
   if (!from) return { ok: false, error: 'Missing current phase/subphase in game state.' };
 
@@ -248,5 +302,5 @@ export function advancePhase(state: GameState, options?: AdvancePhaseOptions): A
   }
 
   // Delegate to core advancement logic
-  return advancePhaseCore(state);
+  return advancePhaseCore(state, nowMs);
 }

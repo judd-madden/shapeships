@@ -53,6 +53,36 @@ function getCurrentPhaseKey(state: any): PhaseKey | null {
   return null;
 }
 
+function getChronoswarmCountByPlayerId(state: any): Record<string, number> {
+  const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
+  const counts: Record<string, number> = {};
+
+  for (const player of activePlayers) {
+    const fleet = state?.gameData?.ships?.[player.id] ?? [];
+    counts[player.id] = Array.isArray(fleet)
+      ? fleet.filter((ship: any) => ship?.shipDefId === 'CHR').length
+      : 0;
+  }
+
+  return counts;
+}
+
+function getChronoswarmBonusLinesForPlayer(state: any, playerId: string): number {
+  const rolls = Array.isArray(state?.gameData?.turnData?.chronoswarmRolls)
+    ? state.gameData.turnData.chronoswarmRolls
+    : [];
+  const countRaw = state?.gameData?.turnData?.chronoswarmCountByPlayerId?.[playerId];
+  const count = Number.isInteger(countRaw) && countRaw > 0
+    ? Math.min(countRaw, rolls.length)
+    : 0;
+
+  let total = 0;
+  for (let i = 0; i < count; i++) {
+    total += rolls[i] ?? 0;
+  }
+  return total;
+}
+
 // ============================================================================
 // PHASE-TO-SUBPHASE MAPPING
 // ============================================================================
@@ -499,6 +529,37 @@ function enterPhaseOnce(
 
       console.log(`[OnEnterPhase] Dice already rolled this turn (${canonicalDice})`);
     }
+
+    const chronoswarmCountByPlayerId = getChronoswarmCountByPlayerId(workingState);
+    const sharedRollCount = Math.min(
+      3,
+      Math.max(0, ...Object.values(chronoswarmCountByPlayerId))
+    );
+    const existingChronoswarmRolls = Array.isArray(turnData.chronoswarmRolls)
+      ? turnData.chronoswarmRolls.filter((roll: unknown): roll is number => typeof roll === 'number')
+      : [];
+
+    turnData.chronoswarmCountByPlayerId = chronoswarmCountByPlayerId;
+
+    if (existingChronoswarmRolls.length === 0 && sharedRollCount > 0) {
+      const chronoswarmRolls = Array.from({ length: sharedRollCount }, () => rollD6());
+      turnData.chronoswarmRolls = chronoswarmRolls;
+      turnData.chronoswarmSharedRollCount = chronoswarmRolls.length;
+
+      console.log(`[OnEnterPhase] Rolled Chronoswarm dice: ${chronoswarmRolls.join(', ')}`);
+
+      events.push({
+        type: 'CHRONOSWARM_ROLLED',
+        rolls: [...chronoswarmRolls],
+        chronoswarmCountByPlayerId,
+        sharedRollCount: chronoswarmRolls.length,
+        turnNumber: workingState.gameData.turnNumber || 1,
+        atMs: nowMs,
+      });
+    } else {
+      turnData.chronoswarmRolls = existingChronoswarmRolls;
+      turnData.chronoswarmSharedRollCount = existingChronoswarmRolls.length;
+    }
   }
   
   // ============================================================================
@@ -531,14 +592,15 @@ function enterPhaseOnce(
         for (const player of activePlayers) {
           const baseLines = turnData.effectiveDiceRollByPlayerId?.[player.id] ?? canonicalBaseLines;
           const { bonusLines } = computeLineBonusesForPlayer(workingState, player.id);
-          const totalLines = baseLines + bonusLines;
+          const chronoswarmBonusLines = getChronoswarmBonusLinesForPlayer(workingState, player.id);
+          const totalLines = baseLines + bonusLines + chronoswarmBonusLines;
           
           const currentLines = player.lines || 0;
           player.lines = currentLines + totalLines;
           
           console.log(
             `[OnEnterPhase] Granted ${totalLines} lines to player ${player.id} ` +
-            `(base: ${baseLines}, bonus: ${bonusLines}, total: ${player.lines})`
+            `(base: ${baseLines}, bonus: ${bonusLines}, chronoswarm: ${chronoswarmBonusLines}, total: ${player.lines})`
           );
           
           events.push({
@@ -546,6 +608,7 @@ function enterPhaseOnce(
             playerId: player.id,
             baseLines,
             bonusLines,
+            chronoswarmBonusLines,
             totalGranted: totalLines,
             newTotal: player.lines,
             atMs: nowMs
@@ -566,6 +629,10 @@ function enterPhaseOnce(
   // 2. Only eligible players must click Ready to advance
   
   if (toKey === 'build.ships_that_build') {
+    if (turnData.shipsThatBuildPassIndex !== 1 && turnData.shipsThatBuildPassIndex !== 2) {
+      turnData.shipsThatBuildPassIndex = 1;
+    }
+
     // Ensure phaseReadiness array exists
     if (!workingState.gameData.phaseReadiness) {
       workingState.gameData.phaseReadiness = [];
@@ -796,7 +863,7 @@ export function onEnterPhase(
     // Phase requires no input -> auto-advance
     console.log(`[OnEnterPhase] Phase ${currentKey} requires no input, auto-advancing...`);
     
-    const advanceResult = advancePhase(workingState, { ignoreReadiness: true });
+    const advanceResult = advancePhase(workingState, { ignoreReadiness: true }, nowMs);
     
     if (!advanceResult.ok) {
       console.log(`[OnEnterPhase] Auto-advance blocked: ${advanceResult.error}`);
@@ -805,6 +872,7 @@ export function onEnterPhase(
     
     // Update state and sync fields
     workingState = advanceResult.state;
+    allEvents.push(...advanceResult.events);
     workingState = syncPhaseFields(workingState);
     
     // Update current key for next iteration

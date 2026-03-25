@@ -81,6 +81,17 @@ export type GameData = {
     diceRolled?: boolean;
     /** Flag: dice modifiers have been finalized */
     diceFinalized?: boolean;
+
+    /** Shared/public Chronoswarm rolls captured at build.dice_roll for this turn */
+    chronoswarmRolls?: number[];
+    /** Live Chronoswarm counts by player at build.dice_roll timing */
+    chronoswarmCountByPlayerId?: Record<string, number>;
+    /** Convenience mirror of chronoswarmRolls.length */
+    chronoswarmSharedRollCount?: number;
+    /** Internal pass index for the single build.ships_that_build phase */
+    shipsThatBuildPassIndex?: 1 | 2;
+    /** Tracks interactive Ships That Build usage by ship instance and pass */
+    shipsThatBuildPassUsageByInstanceId?: Record<string, Partial<Record<1 | 2, true>>>;
     
     /** Track once-per-turn charge power usage by ship instance */
     chargePowerUsedByInstanceId?: Record<string, number>;

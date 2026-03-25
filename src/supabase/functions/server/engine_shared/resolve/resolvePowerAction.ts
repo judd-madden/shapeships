@@ -31,6 +31,26 @@ function shouldApplyOpponentSacProtectionForTargetedEffect(effect: StructuredCho
   return effect.kind !== EffectKind.TransferShip;
 }
 
+function getShipsThatBuildPassIndex(state: GameState): 1 | 2 {
+  return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
+}
+
+function getChronoswarmCountForPlayer(state: GameState, playerId: string): number {
+  const raw = state?.gameData?.turnData?.chronoswarmCountByPlayerId?.[playerId];
+  const value = typeof raw === 'number' ? raw : 0;
+  return Number.isInteger(value) && value > 0 ? value : 0;
+}
+
+function playerParticipatesInShipsThatBuildPass(state: GameState, playerId: string): boolean {
+  const passIndex = getShipsThatBuildPassIndex(state);
+  return passIndex === 1 || getChronoswarmCountForPlayer(state, playerId) > 0;
+}
+
+function shipAlreadyUsedInShipsThatBuildPass(state: GameState, sourceInstanceId: string): boolean {
+  const passIndex = getShipsThatBuildPassIndex(state);
+  return state?.gameData?.turnData?.shipsThatBuildPassUsageByInstanceId?.[sourceInstanceId]?.[passIndex] === true;
+}
+
 // ============================================================================
 // PUBLIC API
 // ============================================================================
@@ -150,6 +170,18 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
 
   if (!option) {
     throw new Error(`Choice option not found: choiceId=${choiceId} for power ${actionId}`);
+  }
+
+  const isShipsThatBuildPhase = phaseKey === 'build.ships_that_build';
+
+  if (isShipsThatBuildPhase) {
+    if (!playerParticipatesInShipsThatBuildPass(state, playerId)) {
+      throw new Error('This player is not eligible for the current Ships That Build pass.');
+    }
+
+    if (shipAlreadyUsedInShipsThatBuildPass(state, sourceInstanceId)) {
+      throw new Error('This ship has already acted in the current Ships That Build pass.');
+    }
   }
 
   // ============================================================================
@@ -382,7 +414,7 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
     (effect) => effect.kind === EffectKind.SpendCharge && ((effect as any).amount ?? 0) > 0
   );
 
-  if (spentCharge) {
+  if (spentCharge && !isShipsThatBuildPhase) {
     const gd: any = state.gameData ?? (state.gameData = {} as any);
     const td: any = gd.turnData ?? (gd.turnData = {});
 
@@ -431,7 +463,7 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
     };
   }
 
-  if (spentCharge) {
+  if (spentCharge && !isShipsThatBuildPhase) {
     const gd: any = resolvedState.gameData ?? (resolvedState.gameData = {} as any);
     const td: any = gd.turnData ?? (gd.turnData = {});
 
@@ -441,6 +473,22 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
     td.chargePowerUsedByInstanceId = {
       ...usedMap,
       [sourceInstanceId]: turnNumber,
+    };
+  }
+
+  if (isShipsThatBuildPhase && choiceId !== 'hold') {
+    const gd: any = resolvedState.gameData ?? (resolvedState.gameData = {} as any);
+    const td: any = gd.turnData ?? (gd.turnData = {});
+    const passIndex = getShipsThatBuildPassIndex(resolvedState);
+    const usageByInstanceId = td.shipsThatBuildPassUsageByInstanceId || {};
+    const instanceUsage = usageByInstanceId[sourceInstanceId] || {};
+
+    td.shipsThatBuildPassUsageByInstanceId = {
+      ...usageByInstanceId,
+      [sourceInstanceId]: {
+        ...instanceUsage,
+        [passIndex]: true,
+      },
     };
   }
 

@@ -74,6 +74,24 @@ function incrementShipsMadeThisTurnCounter(
   };
 }
 
+function getShipsThatBuildPassIndex(state: GameState): 1 | 2 {
+  return state.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
+}
+
+function getChronoswarmCountForPlayer(state: GameState, playerId: string): number {
+  const raw = state.gameData?.turnData?.chronoswarmCountByPlayerId?.[playerId];
+  const value = typeof raw === 'number' ? raw : 0;
+  return Number.isInteger(value) && value > 0 ? value : 0;
+}
+
+function playerParticipatesInShipsThatBuildPass(
+  state: GameState,
+  playerId: string
+): boolean {
+  const passIndex = getShipsThatBuildPassIndex(state);
+  return passIndex === 1 || getChronoswarmCountForPlayer(state, playerId) > 0;
+}
+
 function collectQueenAutoBuildEffects(
   state: GameState,
   phaseKey: PhaseKey
@@ -87,6 +105,8 @@ function collectQueenAutoBuildEffects(
   const effects: CreateShipEffect[] = [];
 
   for (const player of activePlayers) {
+    if (!playerParticipatesInShipsThatBuildPass(state, player.id)) continue;
+
     const fleet = state.gameData.ships?.[player.id] || [];
     const eligibleQueens = fleet.filter(
       (ship) => ship.shipDefId === 'QUE' && (ship.createdTurn ?? 0) < currentTurn
@@ -127,6 +147,8 @@ function collectBugBreederAutoBuildEffects(
   const effects: Effect[] = [];
 
   for (const player of activePlayers) {
+    if (!playerParticipatesInShipsThatBuildPass(state, player.id)) continue;
+
     const fleet = state.gameData.ships?.[player.id] || [];
     const eligibleBugBreeders = fleet.filter(
       (ship) =>
@@ -184,13 +206,18 @@ function collectZenithAutoBuildEffects(
 
   const activePlayers = state.players.filter((player) => player.role === 'player');
   const effects: CreateShipEffect[] = [];
+  const passIndex = getShipsThatBuildPassIndex(state);
 
   for (const player of activePlayers) {
+    if (!playerParticipatesInShipsThatBuildPass(state, player.id)) continue;
+
     const fleet = state.gameData.ships?.[player.id] || [];
     const eligibleZeniths = fleet.filter(
       (ship) => ship.shipDefId === 'ZEN' && (ship.createdTurn ?? 0) < currentTurn
     );
-    const roll = getEffectiveDiceRollForPlayer(state, player.id);
+    const roll = passIndex === 2
+      ? state.gameData?.turnData?.chronoswarmRolls?.[0]
+      : getEffectiveDiceRollForPlayer(state, player.id);
 
     for (const zenith of eligibleZeniths) {
       if (roll === 2) {

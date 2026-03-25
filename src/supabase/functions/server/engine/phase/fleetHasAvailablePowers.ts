@@ -37,6 +37,25 @@ function shouldApplyOpponentSacProtectionForTargetedEffect(effect: any): boolean
   return effect?.kind !== EffectKind.TransferShip;
 }
 
+function getShipsThatBuildPassIndex(state: any): 1 | 2 {
+  return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
+}
+
+function getChronoswarmCountForPlayer(state: any, playerId: string): number {
+  const raw = state?.gameData?.turnData?.chronoswarmCountByPlayerId?.[playerId];
+  return Number.isInteger(raw) && raw > 0 ? raw : 0;
+}
+
+function playerParticipatesInShipsThatBuildPass(state: any, playerId: string): boolean {
+  const passIndex = getShipsThatBuildPassIndex(state);
+  return passIndex === 1 || getChronoswarmCountForPlayer(state, playerId) > 0;
+}
+
+function shipAlreadyUsedInShipsThatBuildPass(state: any, sourceInstanceId: string): boolean {
+  const passIndex = getShipsThatBuildPassIndex(state);
+  return state?.gameData?.turnData?.shipsThatBuildPassUsageByInstanceId?.[sourceInstanceId]?.[passIndex] === true;
+}
+
 function isTargetedChoicePowerAvailableForShip(state: any, ship: any, actionId: string, power: any): boolean {
   if (power?.onceOnly === 'on_build_turn') {
     const currentTurnNumber: number = state?.gameData?.turnNumber ?? 1;
@@ -62,6 +81,8 @@ function shipHasInteractiveShipsThatBuildChoice(
   phaseKey: PhaseKey
 ): boolean {
   if (phaseKey !== 'build.ships_that_build') return false;
+  if (!playerParticipatesInShipsThatBuildPass(state, playerId)) return false;
+  if (shipAlreadyUsedInShipsThatBuildPass(state, ship?.instanceId)) return false;
 
   const shipDef = getShipDefinition(ship?.shipDefId);
   if (!shipDef?.structuredPowers) return false;

@@ -137,6 +137,56 @@ function getProjectedChoiceMetadataForChargeAction(
   return { choiceId };
 }
 
+function getShipsThatBuildPassIndex(state: any): 1 | 2 {
+  return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
+}
+
+function getChronoswarmCountForPlayer(state: any, playerId: string): number {
+  const raw = state?.gameData?.turnData?.chronoswarmCountByPlayerId?.[playerId];
+  return Number.isInteger(raw) && raw > 0 ? raw : 0;
+}
+
+function playerParticipatesInShipsThatBuildPass(state: any, playerId: string): boolean {
+  const passIndex = getShipsThatBuildPassIndex(state);
+  return passIndex === 1 || getChronoswarmCountForPlayer(state, playerId) > 0;
+}
+
+function shipAlreadyUsedInShipsThatBuildPass(state: any, sourceInstanceId: string): boolean {
+  const passIndex = getShipsThatBuildPassIndex(state);
+  return state?.gameData?.turnData?.shipsThatBuildPassUsageByInstanceId?.[sourceInstanceId]?.[passIndex] === true;
+}
+
+function projectChronoswarmTurnData(gameData: any): any {
+  const turnData = gameData?.gameData?.turnData;
+  if (!turnData) return gameData;
+
+  return {
+    ...gameData,
+    gameData: {
+      ...gameData.gameData,
+      turnData: {
+        ...turnData,
+        chronoswarmRolls: Array.isArray(turnData.chronoswarmRolls)
+          ? turnData.chronoswarmRolls.filter((roll: unknown): roll is number => typeof roll === 'number')
+          : [],
+        chronoswarmCountByPlayerId: {
+          ...(turnData.chronoswarmCountByPlayerId || {}),
+        },
+        shipsThatBuildPassIndex:
+          turnData.shipsThatBuildPassIndex === 2
+            ? 2
+            : turnData.shipsThatBuildPassIndex === 1
+              ? 1
+              : undefined,
+        chronoswarmSharedRollCount:
+          typeof turnData.chronoswarmSharedRollCount === 'number'
+            ? turnData.chronoswarmSharedRollCount
+            : undefined,
+      },
+    },
+  };
+}
+
 // ============================================================================
 // HELPER: Compute available actions for requesting player
 // ============================================================================
@@ -330,16 +380,16 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
   // ============================================================================
   if (phaseKey === 'build.ships_that_build') {
     const actions: any[] = [];
-
-    const turnNumber: number = state?.gameData?.turnNumber ?? 1;
-    const usedMap: Record<string, number> =
-      state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
+    if (!playerParticipatesInShipsThatBuildPass(state, playerId)) {
+      return [];
+    }
 
     const fleet = state?.gameData?.ships?.[playerId] ?? [];
 
     for (const shipInstance of fleet) {
       const shipDefId = shipInstance.shipDefId;
       const sourceInstanceId = shipInstance.instanceId;
+      if (shipAlreadyUsedInShipsThatBuildPass(state, sourceInstanceId)) continue;
 
       const shipDef = getShipDefinition(shipDefId);
       if (!shipDef || !shipDef.structuredPowers) continue;
@@ -348,13 +398,6 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
         const power: StructuredShipPower = shipDef.structuredPowers[powerIndex];
         if (power.type !== 'choice') continue;
         if (!power.timings.includes(phaseKey)) continue;
-
-        // Once-per-turn lock for any charge-spending choice power
-        const requiresCharge =
-          (power.requiresCharge ?? false) ||
-          (Array.isArray((power as any).options) && (power as any).options.some((o: any) => (o?.requiresCharge ?? false) === true));
-
-        if (requiresCharge && usedMap[sourceInstanceId] === turnNumber) continue;
 
         const chargesCurrent = shipInstance.chargesCurrent ?? 0;
 
@@ -1139,6 +1182,8 @@ export function registerGameRoutes(
           };
         }
       }
+
+      gameData = projectChronoswarmTurnData(gameData);
 
       // Expose clock snapshot to client (STEP F)
       const clockData = gameData.gameData?.clock;

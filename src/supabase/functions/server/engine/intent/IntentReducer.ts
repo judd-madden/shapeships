@@ -637,7 +637,7 @@ async function handleSpeciesSelect(
         : 'UNKNOWN');
     
     // Advance phase using core (system-driven) advancement
-    const advanceResult = advancePhaseCore(state);
+    const advanceResult = advancePhaseCore(state, nowMs);
     
     if (advanceResult.ok) {
       state = advanceResult.state;
@@ -863,7 +863,7 @@ async function handleSpeciesSubmit(
     // Advance phase
     const fromKey = phaseKey;
     
-    const advanceResult = advancePhaseCore(state);
+    const advanceResult = advancePhaseCore(state, nowMs);
     
     if (advanceResult.ok) {
       state = advanceResult.state;
@@ -1958,6 +1958,7 @@ function handleDeclareReady(
       
       // FIX 3: Clear readiness on successful phase advance
       state.gameData.phaseReadiness = [];
+      events.push(...advanceResult.events);
       
       // Sync phase fields
       state = syncPhaseFields(state);
