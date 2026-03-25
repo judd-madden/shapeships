@@ -30,13 +30,74 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
   const [chatDraft, setChatDraft] = useState('');
   const turnTakeover = useLeftRailTurnTakeover(vm.turn);
 
-  const overlayShipGraphic = (() => {
-    if (!vm.diceOverlay) return null;
-    const def = getShipDefinitionUI(vm.diceOverlay.sourceShipDefId);
+  function renderDiceManipulationSlot(side: 'left' | 'right') {
+    const slot = vm.diceManipulationSlots[side];
+    if (!slot) return null;
+
+    const def = getShipDefinitionUI(slot.sourceShipDefId);
     if (!def) return null;
     const graphic = resolveShipGraphic(def, { context: 'default' });
-    return graphic?.component ?? null;
-  })();
+    const ShipGraphic = graphic?.component ?? null;
+
+    const slotStyle =
+      side === 'left'
+        ? {
+            position: 'absolute' as const,
+            top: 110,
+            left: 0,
+            zIndex: 40,
+            display: 'flex',
+            flexDirection: 'column' as const,
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            width: 'max-content',
+            pointerEvents: 'none' as const,
+          }
+        : {
+            position: 'absolute' as const,
+            top: 110,
+            left: 230,
+            zIndex: 40,
+            display: 'flex',
+            flexDirection: 'column' as const,
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            width: 'max-content',
+            pointerEvents: 'none' as const,
+          };
+
+    const shouldAnimateDice = slot.sourceShipDefId === 'CHR';
+    const diceValues = Array.isArray(slot.diceValues) ? slot.diceValues : [];
+    const showDiceSpacer = slot.sourceShipDefId === 'KNO' && diceValues.length === 0;
+
+    return (
+      <div style={slotStyle}>
+        {diceValues.length > 0 ? (
+          <div className="flex flex-nowrap items-center gap-0" style={{ width: 'max-content' }}>
+            {diceValues.map((value, index) => (
+              <Dice
+                key={`${slot.sourceShipDefId}-${index}`}
+                value={value}
+                animateKey={shouldAnimateDice ? vm.diceAnimateKey : undefined}
+                className="w-[60px] h-[60px]"
+                enableRotate={false}
+              />
+            ))}
+          </div>
+        ) : showDiceSpacer ? (
+          <div className="w-[60px] h-[60px]" aria-hidden="true" />
+        ) : null}
+
+        {ShipGraphic && (
+          <div className="w-[52px] h-[52px]">
+            <ShipGraphic className="w-[52px] h-[52px]" />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   function handleCopyUrl() {
     actions.onCopyGameUrl();
@@ -70,38 +131,8 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
         <Dice value={vm.diceValue} animateKey={vm.diceAnimateKey} />
       </div>
 
-      {/* Dice Overlay (e.g. Leviathan) */}
-      {vm.diceOverlay && (
-              <div
-                  style={{
-                      position: "absolute",
-                      top: 110,
-                      right: -12,     // or use left: 235
-                      zIndex: 40,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 8,
-                      pointerEvents: "none",
-                  }}
-              >
-                  <Dice
-                      value={vm.diceOverlay.value}
-                      animateKey={vm.diceOverlay.animateKey}
-                      className="w-[60px] h-[60px]"
-                      enableRotate={false}
-                  />
-          {overlayShipGraphic && (
-                      <div className="w-[52px] h-[52px]">
-                          {(() => {
-                              const Cmp = overlayShipGraphic;
-                              return <Cmp className="w-[52px] h-[52px]" />;
-                          })()}
-                      </div>
-          )}
-        </div>
-      )}
+      {renderDiceManipulationSlot('left')}
+      {renderDiceManipulationSlot('right')}
 
       {/* Turn / Phase / Subphase Card */}
       <div className="relative shrink-0 rounded-[10px] border-2 border-[#555] overflow-hidden">

@@ -2187,6 +2187,10 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       leftRail: {
         diceValue: 1,
         diceAnimateKey: 0,
+        diceManipulationSlots: {
+          left: null,
+          right: null,
+        },
         turn: 1,
         phase: 'UNKNOWN PHASE',
         phaseIcon: 'build',

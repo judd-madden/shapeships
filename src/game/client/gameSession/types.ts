@@ -22,6 +22,13 @@ export type CentaurChargeSubTabId = 'charges' | 'ship_of_equality';
 
 export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
 
+export type LeftRailDiceManipulationShipDefId = 'LEV' | 'KNO' | 'CHR';
+
+export interface LeftRailDiceManipulationSlotViewModel {
+  sourceShipDefId: LeftRailDiceManipulationShipDefId;
+  diceValues?: Array<1 | 2 | 3 | 4 | 5 | 6>;
+}
+
 export interface HudViewModel {
   // Player 1 (local, always left)
   p1Name: string;
@@ -47,18 +54,10 @@ export interface LeftRailViewModel {
   diceValue: 1 | 2 | 3 | 4 | 5 | 6;
   diceAnimateKey: number; // increments on each DICE_ROLLED event (drives animation)
 
-  /**
-   * Optional overlay dice + ship icon for dice modifiers.
-   *
-   * IMPORTANT UX: the BIG dice always shows the shared "normal" roll for the turn.
-   * The overlay dice indicates a special rule (e.g. Leviathan reads as 6).
-   */
-  diceOverlay?: {
-    value: 1 | 2 | 3 | 4 | 5 | 6;
-    sourceShipDefId: ShipDefId;
-    /** Optional animation key for overlay-only rerolls (not used for LEV). */
-    animateKey?: number;
-  } | null;
+  diceManipulationSlots: {
+    left: LeftRailDiceManipulationSlotViewModel | null;
+    right: LeftRailDiceManipulationSlotViewModel | null;
+  };
   
   // Phase card
   turn: number;

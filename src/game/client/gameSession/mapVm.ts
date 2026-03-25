@@ -456,11 +456,6 @@ export function mapGameSessionVm(args: {
 
   const myFleet = board.mode === 'board' ? board.myFleet : undefined;
 
-  // Dice overlay visibility scaffolding (server-driven)
-  // - LEV: show to both players unless the VIEWER has KNO or HVE (per UX rules)
-  const viewerHasKno = getFleetCount(myFleet, 'KNO') > 0;
-  const viewerHasHve = getFleetCount(myFleet, 'HVE') > 0;
-
   // Frigate drawing (build preview count, not fleet count)
   const frigateCount = Number.isInteger(buildPreviewCounts?.FRI) ? Math.max(0, buildPreviewCounts.FRI) : 0;
   const frigateDrawing = frigateCount > 0 ? { frigateCount, selectedTriggers: frigateSelectedTriggers } : undefined;
@@ -836,22 +831,68 @@ export function mapGameSessionVm(args: {
         return num as 1 | 2 | 3 | 4 | 5 | 6;
       })(),
       diceAnimateKey: diceRollSeq,
-      diceOverlay: (() => {
-        const overrideMap = gameData?.turnData?.diceOverrideSourceByPlayerId as
-          | Record<string, string>
-          | undefined;
+      diceManipulationSlots: (() => {
+        const authoritativeShipsByPlayerId =
+          gameData?.ships ??
+          gameData?.gameData?.ships ??
+          {};
 
-        if (!overrideMap) return null;
+        const liveShips = Object.values(authoritativeShipsByPlayerId).flatMap((ships) =>
+          Array.isArray(ships) ? ships : []
+        );
 
-        const hasLev = Object.values(overrideMap).some(v => v === 'LEV');
-        if (!hasLev) return null;
+        const presentShipDefIds = new Set(
+          liveShips
+            .map((ship) => String(ship?.shipDefId ?? ''))
+            .filter((shipDefId): shipDefId is 'LEV' | 'KNO' | 'CHR' =>
+              shipDefId === 'LEV' || shipDefId === 'KNO' || shipDefId === 'CHR'
+            )
+        );
 
-        // UX rule: LEV overlay is hidden from a viewer who has KNO or HVE.
-        if (viewerHasKno || viewerHasHve) return null;
+        const chronoswarmRolls = Array.isArray(gameData?.turnData?.chronoswarmRolls)
+          ? gameData.turnData.chronoswarmRolls.filter(
+              (roll: unknown): roll is 1 | 2 | 3 | 4 | 5 | 6 =>
+                Number.isInteger(roll) && roll >= 1 && roll <= 6
+            )
+          : [];
+
+        const levSlot = presentShipDefIds.has('LEV')
+          ? {
+              sourceShipDefId: 'LEV' as const,
+              diceValues: [6 as const],
+            }
+          : null;
+
+        const knoSlot = presentShipDefIds.has('KNO')
+          ? {
+              sourceShipDefId: 'KNO' as const,
+            }
+          : null;
+
+        const chrSlot = presentShipDefIds.has('CHR')
+          ? {
+              sourceShipDefId: 'CHR' as const,
+              diceValues: chronoswarmRolls,
+            }
+          : null;
+
+        if (chrSlot) {
+          return {
+            left: knoSlot ?? levSlot,
+            right: chrSlot,
+          };
+        }
+
+        if (knoSlot && levSlot) {
+          return {
+            left: knoSlot,
+            right: levSlot,
+          };
+        }
 
         return {
-          value: 6 as 1 | 2 | 3 | 4 | 5 | 6,
-          sourceShipDefId: 'LEV' as const,
+          left: knoSlot ?? levSlot,
+          right: null,
         };
       })(),
       turn: turnNumber,
