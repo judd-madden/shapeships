@@ -25,7 +25,6 @@ import { authenticatedGet, authenticatedPost, ensureSession } from '../../utils/
 import type { ActionPanelId } from '../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../types/ShipTypes.engine';
-import { isShipDefId } from '../data/ShipDefinitions.core';
 import type { ShipChoicesPanelGroup } from '../types/ShipChoiceTypes';
 import type { FleetAnimVM } from '../display/graphics/animation';
 import type { OpponentFleetEntryPlan, ActivationStaggerPlan } from '../display/graphics/animation-stagger';
@@ -43,6 +42,11 @@ import { usePhaseCommitCache } from './gameSession/commitCache';
 import { mapGameSessionVm } from './gameSession/mapVm';
 import { runSpeciesConfirmFlow, runReadyToggleFlow, maybeAutoRevealBuild, type CanonicalBuildSubmitPayload } from './gameSession/intents';
 import { getShipDefinitionById } from '../data/ShipDefinitions.engine';
+import {
+  addShipToBuildDraft,
+  canProvisionallyAddShip,
+  evaluateProvisionalBuild,
+} from './gameSession/provisionalBuild';
 import {
   usePollMarkerEffect,
   useFinishedMarkerEffect,
@@ -841,17 +845,22 @@ useEffect(() => {
     evolverChoicesByRowIdRef.current = {};
   }, [turnNumber, effectiveGameId]);
 
-  const existingEvolverRowIds = myShips
-    .map((ship: any) => (ship?.shipDefId === 'EVO' ? ship?.instanceId ?? ship?.id : null))
-    .filter((rowId: unknown): rowId is string => typeof rowId === 'string' && rowId.length > 0);
-  const previewEvolverCount = Number.isInteger(buildPreviewCounts?.EVO)
-    ? Math.max(0, buildPreviewCounts.EVO)
-    : 0;
-  const previewEvolverRowIds = Array.from(
-    { length: previewEvolverCount },
-    (_, index) => `preview_evo_${turnNumber}_${index}`
-  );
-  const evolverRowIds = [...existingEvolverRowIds, ...previewEvolverRowIds];
+  const buildEconomyForMe =
+    me?.id && rawState?.buildEconomyByPlayerId
+      ? rawState.buildEconomyByPlayerId[me.id]
+      : null;
+
+  const provisionalBuild = evaluateProvisionalBuild({
+    turnNumber,
+    myShips,
+    draftCounts: buildPreviewCounts,
+    buildEconomy: buildEconomyForMe,
+    frigateSelectedTriggers,
+    evolverChoicesByRowId,
+    frigateTriggerByInstanceId,
+  });
+
+  const evolverRowIds = provisionalBuild.evolverRowIds;
   const evolverRowIdsKey = evolverRowIds.join('|');
 
   useEffect(() => {
@@ -886,25 +895,6 @@ useEffect(() => {
     });
   }, [evolverRowIdsKey]);
 
-  const appliedEvolverPreviewChoices = (() => {
-    const baseAvailableXen =
-      myShips.filter((ship: any) => ship?.shipDefId === 'XEN').length +
-      (Number.isInteger(buildPreviewCounts?.XEN) ? Math.max(0, buildPreviewCounts.XEN) : 0);
-
-    let remainingXen = baseAvailableXen;
-    const appliedChoices: Array<'oxite' | 'asterite'> = [];
-
-    for (const rowId of evolverRowIds) {
-      const choiceId = evolverChoicesByRowId[rowId] ?? 'hold';
-      if ((choiceId === 'oxite' || choiceId === 'asterite') && remainingXen > 0) {
-        appliedChoices.push(choiceId);
-        remainingXen -= 1;
-      }
-    }
-
-    return appliedChoices;
-  })();
-  
   // ============================================================================
   // CHUNK 6.2: AUTO-SUBMIT BUILD_REVEAL WHEN ENTERING BATTLE.REVEAL PHASE
   // ============================================================================
@@ -920,149 +910,13 @@ useEffect(() => {
   // ============================================================================
   
   // Single derived rule for preview display:
-  // - If majorPhase === 'build': Display serverFleet + buildPreviewCounts (overlay)
+  // - If majorPhase === 'build': Display requester-only provisional fleet preview
   // - Else: Display serverFleet only
   
   const shouldShowPreview = majorPhase === 'build';
   
-  // Merge preview counts into my fleet (if shouldShowPreview is true)
   const myFleetWithPreview: BoardFleetSummary[] = shouldShowPreview
-    ? (() => {
-        // Start from the existing aggregated myFleet (already has stackKey + condition)
-        const byStackKey = new Map(myFleet.map(s => [s.stackKey, { ...s }]));
-
-        const incrementSimpleStack = (shipDefId: ShipDefId, amount: number) => {
-          if (amount <= 0) return;
-
-          const chargedKey = `${shipDefId}__charges_1`;
-          const anyCharged = byStackKey.get(chargedKey);
-          if (anyCharged) {
-            anyCharged.count += amount;
-            byStackKey.set(chargedKey, anyCharged);
-            return;
-          }
-
-          const existing = Array.from(byStackKey.values()).find(s => s.shipDefId === shipDefId);
-          if (existing) {
-            existing.count += amount;
-            byStackKey.set(existing.stackKey, existing);
-            return;
-          }
-
-          byStackKey.set(shipDefId, { shipDefId, count: amount, stackKey: shipDefId });
-        };
-
-        const consumeSimpleStack = (shipDefId: ShipDefId): boolean => {
-          const existing = Array.from(byStackKey.values()).find(s => s.shipDefId === shipDefId && s.count > 0);
-          if (!existing) return false;
-
-          existing.count -= 1;
-          if (existing.count <= 0) {
-            byStackKey.delete(existing.stackKey);
-          } else {
-            byStackKey.set(existing.stackKey, existing);
-          }
-
-          return true;
-        };
-
-        // Apply preview overlay
-        for (const [shipDefId, previewCount] of Object.entries(buildPreviewCounts)) {
-          if (!isShipDefId(shipDefId)) continue;
-          const delta = Math.max(0, previewCount);
-
-
-        // Special case: Frigate preview overlay respects per-ship trigger selection
-        if (shipDefId === 'FRI') {
-          const triggers = Array.isArray(frigateSelectedTriggersRef.current)
-            ? frigateSelectedTriggersRef.current
-            : [];
-
-          const countsByCaption: Record<string, number> = {};
-
-          for (let i = 0; i < delta; i++) {
-            const tRaw = triggers[i] ?? 1;
-            let t = Number(tRaw);
-
-            if (!Number.isFinite(t)) t = 1;
-            t = Math.max(1, Math.min(6, Math.floor(t)));
-
-            const cap = String(t);
-            countsByCaption[cap] = (countsByCaption[cap] ?? 0) + 1;
-          }
-
-          for (const [cap, n] of Object.entries(countsByCaption)) {
-            const key = `FRI__cap_${cap}`;
-            const existing = byStackKey.get(key);
-            if (existing) {
-              existing.count += n;
-              (existing as any).caption = cap;
-            } else {
-              byStackKey.set(key, {
-                shipDefId,
-                count: n,
-                stackKey: key,
-                caption: cap,
-              } as any);
-            }
-          }
-          continue;
-        }
-          // Check ship definition for maxCharges
-          const def = getShipDefinitionById(shipDefId as any);
-          const maxCharges = def?.maxCharges ?? 0;
-
-          // For charge ships (maxCharges === 1), always target charges_1 stack
-          if (maxCharges === 1) {
-            const chargedKey = `${shipDefId}__charges_1`;
-            const anyCharged = byStackKey.get(chargedKey);
-
-            if (anyCharged) {
-              // Increment existing charged stack
-              anyCharged.count += delta;
-              byStackKey.set(chargedKey, anyCharged);
-            } else {
-              // Create new charged stack
-              byStackKey.set(chargedKey, {
-                shipDefId,
-                count: delta,
-                stackKey: chargedKey,
-                condition: 'charges_1',
-              });
-            }
-            continue;
-          }
-
-          // For multi-charge ships (maxCharges > 1), emit separate singles (never stack)
-          if (maxCharges > 1) {
-            for (let i = 0; i < delta; i++) {
-              const previewKey = `${shipDefId}__preview_${turnNumber}_${i}`;
-              byStackKey.set(previewKey, {
-                shipDefId,
-                count: 1,
-                stackKey: previewKey,
-                condition: undefined,
-                currentCharges: maxCharges,
-              });
-            }
-            continue;
-          }
-
-          // For non-charge ships (maxCharges === 0): prefer adding preview ships into an existing charges_1 stack if present
-          incrementSimpleStack(shipDefId, delta);
-        }
-
-        for (const choiceId of appliedEvolverPreviewChoices) {
-          if (!consumeSimpleStack('XEN')) {
-            break;
-          }
-          incrementSimpleStack(choiceId === 'oxite' ? 'OXI' : 'AST', 1);
-        }
-
-        const result = Array.from(byStackKey.values()).filter(s => s.count > 0);
-        
-        return result;
-      })()
+    ? provisionalBuild.myFleetPreview
     : myFleet;
   
   // ============================================================================
@@ -2070,28 +1924,44 @@ useEffect(() => {
         return; // Silent no-op if build already submitted for this turn
       }
       
+      const nextDraftCounts = addShipToBuildDraft(buildPreviewCountsRef.current, shipDefId);
+      const canAddShip = canProvisionallyAddShip({
+        turnNumber: uiTurnNumber,
+        myShips,
+        draftCounts: buildPreviewCountsRef.current,
+        shipDefId,
+        buildEconomy: buildEconomyForMe,
+        frigateSelectedTriggers: frigateSelectedTriggersRef.current,
+        evolverChoicesByRowId: evolverChoicesByRowIdRef.current,
+        frigateTriggerByInstanceId,
+      });
+
+      if (!canAddShip) {
+        return;
+      }
+
       // All gates passed - update preview buffer
       console.log('[useGameSession] onBuildShip:', shipDefId, 'turn:', uiTurnNumber);
-      
+
+      const nextProvisionalBuild = evaluateProvisionalBuild({
+        turnNumber: uiTurnNumber,
+        myShips,
+        draftCounts: nextDraftCounts,
+        buildEconomy: buildEconomyForMe,
+        frigateSelectedTriggers: frigateSelectedTriggersRef.current,
+        evolverChoicesByRowId: evolverChoicesByRowIdRef.current,
+        frigateTriggerByInstanceId,
+      });
+
       // Update persistent order (append-only, first time only)
       setMyFleetOrder((prev) => (prev.includes(shipDefId) ? prev : [...prev, shipDefId]));
-      
-      setBuildPreviewCounts(prev => {
-        const next = { ...prev };
 
-        next[shipDefId] = (prev[shipDefId] || 0) + 1;
+      buildPreviewCountsRef.current = nextDraftCounts;
+      setBuildPreviewCounts(() => nextDraftCounts);
 
-        if (shipDefId === 'ZEN') {
-          next.ANT = (prev.ANT || 0) + 1;
-        }
-        
-        buildPreviewCountsRef.current = next;
-        return next;
-      });
-      
       // ANIMATION: instant local click feedback for entry / stack-add
       // (use stackKey to prevent jolt when charged stacks are split)
-      const targetStackKey = getPreferredStackKeyForLocalBuild(shipDefId, myFleetWithPreview);
+      const targetStackKey = getPreferredStackKeyForLocalBuild(shipDefId, nextProvisionalBuild.myFleetPreview);
       const currentCount = myCountsByStackKey[targetStackKey] ?? 0;
       if (currentCount === 0) bumpMyEntry(targetStackKey);
       else bumpMyStackAdd(targetStackKey);
