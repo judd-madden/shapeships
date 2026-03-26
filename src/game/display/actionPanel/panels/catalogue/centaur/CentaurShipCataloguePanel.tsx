@@ -287,7 +287,7 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
               canAfford={canAfford}
               onClick={() => actions.onBuildShip('TER')}
             >
-              <CatalogueCostNumber cost={10} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={7} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -308,7 +308,7 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
               canAfford={canAfford}
               onClick={() => actions.onBuildShip('FUR')}
             >
-              <CatalogueCostNumber cost={12} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={10} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 

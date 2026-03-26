@@ -480,7 +480,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Drawing",
-        "text": "When built and in each future build phase, may turn one Xenite into an Oxite or an Asterite."
+        "text": "When built and in each future Drawing phase, may turn one Xenite into an Oxite or an Asterite."
       }
     ],
     "energyCost": null,
@@ -568,7 +568,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Ships That Build",
-        "text": "Each future build phase, this makes 1 Xenite and uses 1 charge, until all charges are used."
+        "text": "Has 4 charges. Each Ships That Build phase, make a Xenite and use 1 charge."
       }
     ],
     "energyCost": null,
@@ -593,7 +593,7 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "Ships That Build",
-        "text": "Each future build phase:\\nIf dice roll is a 2, make a Xenite.\\nIf dice roll is a 3, make an Antlion.\\nIf dice roll is a 4, make two Xenites."
+        "text": "Each Ships That Build phase:\\nIf dice roll is a 2, make a Xenite.\\nIf dice roll is a 3, make an Antlion.\\nIf dice roll is a 4, make two Xenites."
       },
       {
         "subphase": "Upon Destruction",
@@ -680,7 +680,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Types are counted during End of Turn Resolution. Does NOT include Chronoswarm build phase.",
+    "extraRules": "Types are counted during End of Turn Resolution.",
     "stackCaption": "+X lines, X healing",
     "colour": "Yellow",
     "numberOfGraphics": 1
@@ -709,7 +709,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Types are counted during End of Turn Resolution. Does NOT include Chronoswarm build phase.",
+    "extraRules": "Types are counted during End of Turn Resolution.",
     "stackCaption": "+X lines, X damage",
     "colour": "Blue",
     "numberOfGraphics": 1
@@ -730,7 +730,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Ships That Build",
-        "text": "Each future build phase, may destroy one basic ship of yours and make a Xenite for every 3 lines in that ship (round down)."
+        "text": "Each Ships That Build phase, may destroy one basic ship of yours and make a Xenite for every 3 lines in that ship (round down)."
       },
       {
         "subphase": "Passive",
@@ -760,11 +760,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Ships That Build",
-        "text": "Each future build phase, make a Xenite."
+        "text": "Each Ships That Build phase, make a Xenite."
       },
       {
         "subphase": "Automatic",
-        "text": "Deal 3 damage for each ship you made this turn (not including the Xenite from this Queen)."
+        "text": "Deal 3 damage for each ship you made this turn (not including Xenites from this Queen)."
       }
     ],
     "energyCost": null,
@@ -793,16 +793,16 @@ export const SHIP_DEFINITIONS_JSON = [
     "maxQuantity": 3,
     "powers": [
       {
-        "subphase": "End of Build Phase",
-        "text": "Each turn, before the battle phase, you take an extra build phase. (Includes Dice Roll, Ships That Build and Drawing, but not Face lines.)"
+        "subphase": "Ships That Build",
+        "text": "If you have 1: Roll an extra dice each turn. The Ships That Build phase occurs TWICE for you each turn."
       },
       {
-        "subphase": "End of Build Phase",
-        "text": "If you have 2: Roll 2 dice in the extra build phase."
+        "subphase": "Dice Manipulation",
+        "text": "If you have 2: Roll 2 dice in the each turn."
       },
       {
-        "subphase": "End of Build Phase",
-        "text": "If you have 3: Roll 3 dice in the extra build phase."
+        "subphase": "Dice Manipulation",
+        "text": "If you have 3: Roll 3 dice in the each turn."
       }
     ],
     "energyCost": null,
