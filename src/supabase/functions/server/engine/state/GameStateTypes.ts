@@ -115,6 +115,12 @@ export type GameData = {
      * Stores the turn number whose build.end_of_build phase has already resolved.
      */
     buildEndOfBuildAppliedTurnNumber?: number;
+
+    /**
+     * Narrow idempotency flag for authoritative BUILD_SUBMIT resolution in
+     * build.drawing. Stores the turn number already resolved for drawing builds.
+     */
+    buildAppliedTurnNumber?: number;
     
     /** Existing turn flags used elsewhere (present at runtime even if not typed) */
     anyChargesSpentInDeclaration?: boolean;

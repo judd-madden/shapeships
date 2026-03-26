@@ -38,9 +38,9 @@ import { accrueClocks } from '../clock/clock.ts';
 import { buildPhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { resolvePowerAction } from '../../engine_shared/resolve/resolvePowerAction.ts';
 import { applyEffects } from '../../engine_shared/effects/applyEffects.ts';
-import { EffectKind, EffectTiming, SurvivabilityRule, type Effect } from '../../engine_shared/effects/Effect.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { rollD6 } from '../util/rollD6.ts';
+import { resolveBuildSubmitAuthoritatively } from './buildSubmitResolution.ts';
 
 import {
   type IntentType,
@@ -114,61 +114,6 @@ function incrementShipsMadeThisTurnCounter(
     ...currentMap,
     [playerId]: currentCount + amount,
   };
-}
-
-function appendBuiltShipInstance(args: {
-  state: any;
-  playerId: string;
-  shipDefId: string;
-  createdTurn: number;
-  frigateTrigger?: number;
-}): ShipInstance {
-  const { state, playerId, shipDefId, createdTurn, frigateTrigger } = args;
-  const shipDef = getShipById(shipDefId);
-  const shipInstance: ShipInstance = {
-    instanceId: crypto.randomUUID(),
-    shipDefId,
-    createdTurn,
-  };
-
-  if (shipDef && typeof shipDef.charges === 'number') {
-    shipInstance.chargesCurrent = shipDef.charges;
-  }
-
-  if (!state.gameData.ships[playerId]) {
-    state.gameData.ships[playerId] = [];
-  }
-
-  if (shipDefId === 'FRI') {
-    if (!state.gameData.powerMemory) state.gameData.powerMemory = {};
-    if (!state.gameData.powerMemory.frigateTriggerByInstanceId) {
-      state.gameData.powerMemory.frigateTriggerByInstanceId = {};
-    }
-
-    state.gameData.powerMemory.frigateTriggerByInstanceId[shipInstance.instanceId] =
-      frigateTrigger ?? 1;
-  }
-
-  state.gameData.ships[playerId].push(shipInstance);
-
-  if (shipDefId === 'LEG') {
-    // LEG grants 4 stored joining lines when built. We persist the authoritative
-    // resource here, but build.drawing is still previewed/batched, so newly granted
-    // joining lines are not yet usable for same-phase drawing/economy decisions.
-    // Immediate same-phase spend is deferred to a later server-authoritative pass.
-    const playerIndex = state.players.findIndex((p: any) => p.id === playerId);
-    if (playerIndex >= 0) {
-      const currentJoiningLines = state.players[playerIndex].joiningLines ?? 0;
-      state.players[playerIndex] = {
-        ...state.players[playerIndex],
-        joiningLines: currentJoiningLines + 4,
-      };
-    }
-  }
-
-  incrementShipsMadeThisTurnCounter(state, playerId, 1);
-
-  return shipInstance;
 }
 
 function countFleetShipsByDefId(state: any, playerId: string, shipDefId: string): number {
@@ -401,63 +346,6 @@ function validateEvolverChoicesPayload(
   }
 
   return { ok: true, choices: payload.evolverChoices };
-}
-
-function applyEvolverConversionsForBuild(args: {
-  state: any;
-  playerId: string;
-  turnNumber: number;
-  choices: EvolverBuildChoiceEntry[];
-  events: any[];
-}): any {
-  let { state } = args;
-  let effectIndex = 0;
-
-  for (const entry of args.choices) {
-    if (entry.choiceId === 'hold') continue;
-
-    const currentFleet = state?.gameData?.ships?.[args.playerId] ?? [];
-    const xenite = currentFleet.find((ship: ShipInstance) => ship.shipDefId === 'XEN');
-
-    if (!xenite) {
-      throw new Error('EVOLVER_CONVERSION_XENITE_MISSING');
-    }
-
-    const createdShipDefId = entry.choiceId === 'oxite' ? 'OXI' : 'AST';
-    const effectBaseId = `build_submit_evolver_${args.turnNumber}_${args.playerId}_${effectIndex++}`;
-    const effects: Effect[] = [
-      {
-        id: `${effectBaseId}_destroy`,
-        ownerPlayerId: args.playerId,
-        source: { type: 'system', reason: 'build_submit_evolver' },
-        timing: 'build.drawing',
-        activationTag: EffectTiming.OnceOnly,
-        target: { playerId: args.playerId, shipInstanceId: xenite.instanceId },
-        survivability: SurvivabilityRule.ResolvesIfDestroyed,
-        kind: EffectKind.Destroy,
-        restriction: 'any',
-        count: 1,
-      },
-      {
-        id: `${effectBaseId}_create`,
-        ownerPlayerId: args.playerId,
-        source: { type: 'system', reason: 'build_submit_evolver' },
-        timing: 'build.drawing',
-        activationTag: EffectTiming.OnceOnly,
-        target: { playerId: args.playerId },
-        survivability: SurvivabilityRule.ResolvesIfDestroyed,
-        kind: EffectKind.CreateShip,
-        shipDefId: createdShipDefId,
-        createdBy: 'manual',
-      },
-    ];
-
-    const applied = applyEffects(state, effects);
-    state = applied.state;
-    args.events.push(...applied.events);
-  }
-
-  return state;
 }
 
 /**
@@ -1731,76 +1619,16 @@ async function handleBuildSubmit(
     // Ensure turnData exists (idempotency)
     if (!state.gameData) state.gameData = {};
     if (!state.gameData.turnData) state.gameData.turnData = {};
-    
-    const alreadyApplied = state.gameData.turnData.buildAppliedTurnNumber === turnNumber;
-    
-    // Ensure ships map exists before any possible apply
-    if (!state.gameData.ships) state.gameData.ships = {};
-    
-    if (!alreadyApplied) {
-      // B5) Apply builds for all players
-      // Initialize ships storage if needed
-      if (!state.gameData.ships) {
-        state.gameData.ships = {};
-      }
-      
-      for (const p of activePlayers) {
-        const pRecord = getCommitRecord(state, commitKey, p.id);
-        if (pRecord && pRecord.revealPayload) {
-          const pPayload = pRecord.revealPayload as BuildSubmitPayload;
 
-          // Frigate trigger cursor for this player's build payload
-          let frigateTriggerCursor = 0;
-          const frigateTriggers = pPayload.frigateTriggers;
-          const evolverChoices = Array.isArray(pPayload.evolverChoices) ? pPayload.evolverChoices : [];
+    const resolution = resolveBuildSubmitAuthoritatively({
+      state,
+      turnNumber,
+      nowMs,
+    });
+    state = resolution.state;
+    events.push(...resolution.events);
 
-          // Ensure powerMemory + map exists
-          if (!state.gameData.powerMemory) state.gameData.powerMemory = {};
-          if (!state.gameData.powerMemory.frigateTriggerByInstanceId) {
-            state.gameData.powerMemory.frigateTriggerByInstanceId = {};
-          }
-          
-          // Ensure player has a ship array
-          if (!state.gameData.ships[p.id]) {
-            state.gameData.ships[p.id] = [];
-          }
-          
-          // Create ship instances for each build
-          for (const buildEntry of pPayload.builds) {
-            const count = buildEntry.count;
-            
-            for (let i = 0; i < count; i++) {
-              // TODO (upgrades): if shipDef has componentShips, consume component instances from fleet before adding upgraded ship.
-              const frigateTrigger =
-                buildEntry.shipDefId === 'FRI'
-                  ? frigateTriggers?.[frigateTriggerCursor++] ?? 1
-                  : undefined;
-
-              appendBuiltShipInstance({
-                state,
-                playerId: p.id,
-                shipDefId: buildEntry.shipDefId,
-                createdTurn: state.gameData.turnNumber,
-                frigateTrigger,
-              });
-            }
-          }
-
-          if (evolverChoices.length > 0) {
-            state = applyEvolverConversionsForBuild({
-              state,
-              playerId: p.id,
-              turnNumber,
-              choices: evolverChoices,
-              events,
-            });
-          }
-        }
-      }
-      
-      // Mark applied so this turn can't double-apply (even if we reconcile later)
-      state.gameData.turnData.buildAppliedTurnNumber = turnNumber;
-    } else {
+    if (resolution.alreadyApplied) {
       console.warn('[BUILD_SUBMIT] Builds already applied for this turn; attempting phase advance only.', {
         turnNumber
       });

@@ -13,7 +13,8 @@ import { onEnterPhase } from '../engine/phase/onEnterPhase.ts';
 import { syncPhaseFields } from '../engine/phase/syncPhaseFields.ts';
 import { initializeClocks, ensurePlayerClock, accrueClocks, clocksAreLive } from '../engine/clock/clock.ts';
 import { getBuildCommitKey } from '../engine/intent/IntentTypes.ts';
-import { getCommitRecord, hasRevealed } from '../engine/intent/CommitStore.ts';
+import { hasRevealed } from '../engine/intent/CommitStore.ts';
+import { resolveBuildSubmitAuthoritatively } from '../engine/intent/buildSubmitResolution.ts';
 import type { ShipInstance } from '../engine/state/GameStateTypes.ts';
 import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
 import { computeLineBonusesForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
@@ -621,55 +622,22 @@ function reconcileBuildDrawingIfComplete(state: any, nowMs: number) {
   // Ensure turnData exists
   if (!state.gameData) state.gameData = {};
   if (!state.gameData.turnData) state.gameData.turnData = {};
+  const resolution = resolveBuildSubmitAuthoritatively({
+    state,
+    turnNumber,
+    nowMs,
+  });
+  state = resolution.state;
 
-  // Idempotency flag: builds applied exactly once per turn
-  const alreadyAppliedTurn = state.gameData.turnData.buildAppliedTurnNumber;
-  const alreadyApplied = alreadyAppliedTurn === turnNumber;
-
-  if (!state.gameData.ships) state.gameData.ships = {};
-
-  if (!alreadyApplied) {
-    console.warn('[reconcileBuildDrawingIfComplete] Detected completed BUILD_SUBMIT but not resolved. Applying builds now.', {
+  if (resolution.alreadyApplied) {
+    // Completed + already applied, so we only need to ensure phase advances
+    console.warn('[reconcileBuildDrawingIfComplete] Builds already applied; attempting phase advance only.', {
       gameId: state.gameId,
       turnNumber,
       commitKey,
     });
-
-    // Apply builds for each player from their stored reveal payload
-    for (const p of activePlayers) {
-      const rec = getCommitRecord(state, commitKey, p.id);
-      const payload = rec?.revealPayload;
-
-      if (!payload?.builds || !Array.isArray(payload.builds)) continue;
-
-      if (!state.gameData.ships[p.id]) state.gameData.ships[p.id] = [];
-
-      for (const buildEntry of payload.builds) {
-        const shipDefId = buildEntry?.shipDefId;
-        const countRaw = buildEntry?.count;
-
-        if (typeof shipDefId !== 'string' || shipDefId.length === 0) continue;
-        if (!Number.isInteger(countRaw) || countRaw < 1) continue;
-
-        // Defensive cap (matches MAX_BUILD_COUNT intent)
-        const count = Math.min(countRaw, 20);
-
-        for (let i = 0; i < count; i++) {
-          const ship: ShipInstance = {
-            instanceId: crypto.randomUUID(),
-            shipDefId,
-            createdTurn: turnNumber,
-          };
-          state.gameData.ships[p.id].push(ship);
-        }
-      }
-    }
-
-    // Mark applied so this never duplicates even if poll runs again
-    state.gameData.turnData.buildAppliedTurnNumber = turnNumber;
   } else {
-    // Completed + already applied, so we only need to ensure phase advances
-    console.warn('[reconcileBuildDrawingIfComplete] Builds already applied; attempting phase advance only.', {
+    console.warn('[reconcileBuildDrawingIfComplete] Detected completed BUILD_SUBMIT but not resolved. Applying authoritative build resolution now.', {
       gameId: state.gameId,
       turnNumber,
       commitKey,
