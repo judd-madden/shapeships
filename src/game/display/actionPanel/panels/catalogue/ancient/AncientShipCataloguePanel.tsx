@@ -8,14 +8,13 @@
  * NO backend calls, NO rules validation, NO engine imports
  */
 
-import type { GameSessionActions } from "../../../../../client/useGameSession";
+import type { ActionPanelViewModel, GameSessionActions } from "../../../../../client/useGameSession";
 import { ActionPanelScrollArea } from "../../../primitives/ActionPanelScrollArea";
 import { CatalogueShipSlot } from "../shared/CatalogueShipSlot";
 import { CatalogueCostNumber } from "../shared/CatalogueCostNumber";
 import { ShipHoverCard } from "../shared/ShipHoverCard";
 import { useShipCatalogueHover } from "../shared/useShipCatalogueHover";
-import { computeShipEligibility } from "../shared/ShipBuildEligibility";
-import { SHIP_DEFINITIONS_MAP } from "../../../../../data/ShipDefinitionsUI";
+import { getShipEligibilityForHover } from "../shared/ShipBuildEligibility";
 import type { ShipDefId } from "../../../../../types/ShipTypes.engine";
 import {
   MercuryCore,
@@ -29,40 +28,36 @@ import {
 
 interface AncientShipCataloguePanelProps {
   actions: GameSessionActions;
+  buildCatalogue: ActionPanelViewModel['buildCatalogue'];
 }
 
 export function AncientShipCataloguePanel({
   actions,
+  buildCatalogue,
 }: AncientShipCataloguePanelProps) {
-  // Hover state controller
   const hover = useShipCatalogueHover();
+  const isBuildableContext = buildCatalogue.context === 'buildable';
 
-  // Stubs: Replace with VM data in future passes
-  const isOpponentView = false; // TODO: Get from VM
-  const ownedShipsById: Partial<Record<ShipDefId, number>> = {}; // TODO: Get from VM
-  const availableLines = 999; // TODO: Get from VM
-  const availableJoiningLines = 999; // TODO: Get from VM
+  function getSlotProps(shipId: ShipDefId) {
+    const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
+    return {
+      isDimmed: isBuildableContext && !canAddShip,
+      isClickable: isBuildableContext && canAddShip,
+      onClick: () => actions.onBuildShip(shipId),
+    };
+  }
 
-  // Hardcoded affordability for visual validation (will be replaced by eligibility)
-  const canAfford = true;
+  function getDisplayCost(shipId: ShipDefId, fallbackCost: number): number {
+    return isBuildableContext
+      ? (buildCatalogue.displayCostByShipId[shipId] ?? fallbackCost)
+      : fallbackCost;
+  }
 
-  // Compute eligibility for hovered ship
   const hoveredShipEligibility = hover.state.activeShipId
-    ? (() => {
-        const ship =
-          SHIP_DEFINITIONS_MAP[hover.state.activeShipId];
-        return computeShipEligibility({
-          shipId: hover.state.activeShipId,
-          isOpponentView,
-          ownedShipsById,
-          totalLineCost: ship?.totalLineCost ?? 0,
-          joiningLineCost: ship?.joiningLineCost ?? 0,
-          availableLines,
-          availableJoiningLines,
-          maxLimitReachedById: {},
-          componentShipIds: ship?.componentShips ?? [],
-        });
-      })()
+    ? getShipEligibilityForHover({
+        shipId: hover.state.activeShipId,
+        buildCatalogue,
+      })
     : null;
 
   return (
@@ -133,11 +128,10 @@ export function AncientShipCataloguePanel({
                     <MercuryCore />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip("MER")}
+                {...getSlotProps("MER")}
               >
                 <CatalogueCostNumber
-                  cost={4}
+                  cost={getDisplayCost("MER", 4)}
                   className="relative shrink-0 w-full"
                 />
               </CatalogueShipSlot>
@@ -162,11 +156,10 @@ export function AncientShipCataloguePanel({
                     <PlutoCore />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip("PLU")}
+                {...getSlotProps("PLU")}
               >
                 <CatalogueCostNumber
-                  cost={4}
+                  cost={getDisplayCost("PLU", 4)}
                   className="relative shrink-0 w-full"
                 />
               </CatalogueShipSlot>
@@ -191,11 +184,10 @@ export function AncientShipCataloguePanel({
                     <QuantumMystic />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip("QUA")}
+                {...getSlotProps("QUA")}
               >
                 <CatalogueCostNumber
-                  cost={5}
+                  cost={getDisplayCost("QUA", 5)}
                   className="relative shrink-0 w-full"
                 />
               </CatalogueShipSlot>
@@ -220,11 +212,10 @@ export function AncientShipCataloguePanel({
                     <Spiral />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip("SPI")}
+                {...getSlotProps("SPI")}
               >
                 <CatalogueCostNumber
-                  cost={6}
+                  cost={getDisplayCost("SPI", 6)}
                   className="relative shrink-0 w-full"
                 />
               </CatalogueShipSlot>
@@ -259,11 +250,10 @@ export function AncientShipCataloguePanel({
                     <UranusCore />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip("URA")}
+                {...getSlotProps("URA")}
               >
                 <CatalogueCostNumber
-                  cost={7}
+                  cost={getDisplayCost("URA", 7)}
                   className="relative shrink-0 w-full"
                 />
               </CatalogueShipSlot>
@@ -288,11 +278,10 @@ export function AncientShipCataloguePanel({
                     <SolarReserve4 />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip("SOL")}
+                {...getSlotProps("SOL")}
               >
                 <CatalogueCostNumber
-                  cost={8}
+                  cost={getDisplayCost("SOL", 8)}
                   className="relative shrink-0 w-full"
                 />
               </CatalogueShipSlot>
@@ -317,11 +306,10 @@ export function AncientShipCataloguePanel({
                     <Cube />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip("CUB")}
+                {...getSlotProps("CUB")}
               >
                 <CatalogueCostNumber
-                  cost={9}
+                  cost={getDisplayCost("CUB", 9)}
                   className="relative shrink-0 w-full"
                 />
               </CatalogueShipSlot>
@@ -1082,7 +1070,6 @@ export function AncientShipCataloguePanel({
           <ShipHoverCard
             shipId={hover.state.activeShipId}
             anchorRect={hover.state.anchorRect}
-            isOpponentView={isOpponentView}
             eligibility={hoveredShipEligibility}
           />
         )}

@@ -34,7 +34,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   if (vm.activePanelId === 'ap.catalog.ships.human') {
     return (
       <div className="size-full">
-        <HumanShipCataloguePanel actions={actions} />
+        <HumanShipCataloguePanel actions={actions} buildCatalogue={vm.buildCatalogue} />
       </div>
     );
   }
@@ -42,7 +42,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   if (vm.activePanelId === 'ap.catalog.ships.xenite') {
     return (
       <div className="size-full">
-        <XeniteShipCataloguePanel actions={actions} />
+        <XeniteShipCataloguePanel actions={actions} buildCatalogue={vm.buildCatalogue} />
       </div>
     );
   }
@@ -50,7 +50,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   if (vm.activePanelId === 'ap.catalog.ships.centaur') {
     return (
       <div className="size-full">
-        <CentaurShipCataloguePanel actions={actions} />
+        <CentaurShipCataloguePanel actions={actions} buildCatalogue={vm.buildCatalogue} />
       </div>
     );
   }
@@ -58,7 +58,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   if (vm.activePanelId === 'ap.catalog.ships.ancient') {
     return (
       <div className="size-full">
-        <AncientShipCataloguePanel actions={actions} />
+        <AncientShipCataloguePanel actions={actions} buildCatalogue={vm.buildCatalogue} />
       </div>
     );
   }

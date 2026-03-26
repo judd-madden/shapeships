@@ -25,7 +25,6 @@ import { isShipDefId } from '../../../../../data/ShipDefinitions.core';
 interface ShipHoverCardProps {
   shipId: ShipDefId;
   anchorRect: DOMRect;
-  isOpponentView: boolean;
   eligibility: ShipEligibility;
 }
 
@@ -228,8 +227,7 @@ function ComponentShips({ shipIds }: { shipIds: readonly string[] }) {
  * Eligibility footer section
  */
 function EligibilityFooter({ eligibility }: { eligibility: ShipEligibility }) {
-  // Opponent view: no footer
-  if (eligibility.state === 'OPPONENT_VIEW') {
+  if (eligibility.state === 'REFERENCE_ONLY') {
     return null;
   }
   
@@ -306,7 +304,7 @@ function PowerText({ text }: { text: string }) {
 /**
  * Main hover card component
  */
-export function ShipHoverCard({ shipId, anchorRect, isOpponentView, eligibility }: ShipHoverCardProps) {
+export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCardProps) {
   const model = getShipHoverModel(shipId);
   
   if (!model) {

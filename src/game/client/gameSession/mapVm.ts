@@ -183,6 +183,7 @@ export function mapGameSessionVm(args: {
 
   activePanelId: ActionPanelId;
   tabs: ActionPanelTabVm[];
+  buildCatalogue: GameSessionViewModel['actionPanel']['buildCatalogue'];
 
   board: BoardViewModel;
 
@@ -270,6 +271,7 @@ export function mapGameSessionVm(args: {
     allPlayers,
     activePanelId,
     tabs,
+    buildCatalogue,
     board,
     readyEnabled,
     readyDisabledReason,
@@ -962,6 +964,7 @@ export function mapGameSessionVm(args: {
     actionPanel: {
       activePanelId: finalActivePanelId,
       tabs: finalTabs,
+      buildCatalogue,
       menu: {
         title,
         subtitle: inProgressSubtitle,

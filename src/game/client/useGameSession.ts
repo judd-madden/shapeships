@@ -1204,6 +1204,21 @@ useEffect(() => {
       case 'ancient': return 'Ancient';
     }
   }
+
+  function getCatalogueSpeciesFromPanelId(panelId: ActionPanelId): SpeciesId | null {
+    switch (panelId) {
+      case 'ap.catalog.ships.human':
+        return 'human';
+      case 'ap.catalog.ships.xenite':
+        return 'xenite';
+      case 'ap.catalog.ships.centaur':
+        return 'centaur';
+      case 'ap.catalog.ships.ancient':
+        return 'ancient';
+      default:
+        return null;
+    }
+  }
   
   // ============================================================================
   // ACTIONS TAB: COMPUTE AVAILABILITY (UI-ONLY)
@@ -1343,6 +1358,23 @@ useEffect(() => {
       },
     ];
   }
+
+  const activeCatalogueSpecies = getCatalogueSpeciesFromPanelId(activePanelId);
+  const buildCatalogueContext =
+    !isInSpeciesSelection &&
+    myRole === 'player' &&
+    buildEconomyForMe != null &&
+    activeCatalogueSpecies != null &&
+    activeCatalogueSpecies === mySpecies
+      ? 'buildable'
+      : 'reference_only';
+
+  const buildCatalogue = {
+    context: buildCatalogueContext,
+    canAddShipById: provisionalBuild.canAddShipById,
+    displayCostByShipId: provisionalBuild.displayCostByShipId,
+    eligibilityByShipId: provisionalBuild.eligibilityByShipId,
+  } as const;
   
   // ============================================================================
   // CHUNK 5: READY BUTTON GATING
@@ -1607,6 +1639,7 @@ useEffect(() => {
 
     activePanelId,
     tabs,
+    buildCatalogue,
 
     board,
 
@@ -2129,6 +2162,12 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       actionPanel: {
         activePanelId: 'ap.catalog.ships.human',
         tabs: [],
+        buildCatalogue: {
+          context: 'reference_only',
+          canAddShipById: {},
+          displayCostByShipId: {},
+          eligibilityByShipId: {},
+        },
           menu: {
               title: 'Menu',
               subtitle: 'Game Options',

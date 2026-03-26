@@ -12,7 +12,8 @@ import type React from 'react';
 interface CatalogueShipSlotProps {
   shipId: string;
   graphic: React.ReactNode;
-  canAfford: boolean;
+  isDimmed: boolean;
+  isClickable: boolean;
   onClick?: () => void;
   children?: React.ReactNode;
 }
@@ -20,18 +21,19 @@ interface CatalogueShipSlotProps {
 export function CatalogueShipSlot({
   shipId,
   graphic,
-  canAfford,
+  isDimmed,
+  isClickable,
   onClick,
   children,
 }: CatalogueShipSlotProps) {
-  const opacity = canAfford ? 1 : 0.4;
-  const cursor = canAfford ? 'pointer' : 'default';
+  const opacity = isDimmed ? 0.4 : 1;
+  const cursor = isClickable ? 'pointer' : 'default';
 
   return (
     <div
       data-ship-id={shipId}
       style={{ opacity, cursor }}
-      onClick={canAfford ? onClick : undefined}
+      onClick={isClickable ? onClick : undefined}
       className="relative"
     >
       {graphic}

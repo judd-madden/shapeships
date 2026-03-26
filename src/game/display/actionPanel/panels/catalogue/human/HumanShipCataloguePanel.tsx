@@ -10,14 +10,13 @@
  * NO backend calls, NO rules validation, NO engine imports in PASS 2
  */
 
-import type { GameSessionActions } from '../../../../../client/useGameSession';
+import type { ActionPanelViewModel, GameSessionActions } from '../../../../../client/useGameSession';
 import { ActionPanelScrollArea } from '../../../primitives/ActionPanelScrollArea';
 import { CatalogueShipSlot } from '../shared/CatalogueShipSlot';
 import { CatalogueCostNumber } from '../shared/CatalogueCostNumber';
 import { ShipHoverCard } from '../shared/ShipHoverCard';
 import { useShipCatalogueHover } from '../shared/useShipCatalogueHover';
-import { computeShipEligibility } from '../shared/ShipBuildEligibility';
-import { SHIP_DEFINITIONS_MAP } from '../../../../../data/ShipDefinitionsUI';
+import { getShipEligibilityForHover } from '../shared/ShipBuildEligibility';
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
 import {
   DefenderShip,
@@ -37,46 +36,35 @@ import {
   LeviathanShip,
 } from '../../../../../../graphics/human/assets';
 
-// PASS 2: Max ship limit stub (TODO: formalize limits in rules/engine)
-const MAX_LIMIT_SHIPS: Partial<Record<ShipDefId, boolean>> = {
-  ORB: true,  // Orbital
-  SCI: true,  // Science Vessel
-  // CHR will be added when Chronoswarm is implemented
-};
-
 interface HumanShipCataloguePanelProps {
   actions: GameSessionActions;
+  buildCatalogue: ActionPanelViewModel['buildCatalogue'];
 }
 
-export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProps) {
-  // PASS 2: Hover state controller
+export function HumanShipCataloguePanel({ actions, buildCatalogue }: HumanShipCataloguePanelProps) {
   const hover = useShipCatalogueHover();
-  
-  // PASS 2 Stubs: Replace with VM data in PASS 3
-  const isOpponentView = false; // TODO: Get from VM
-  const ownedShipsById: Partial<Record<ShipDefId, number>> = {}; // TODO: Get from VM
-  const availableLines = 999; // TODO: Get from VM
-  const availableJoiningLines = 999; // TODO: Get from VM
-  
-  // PASS 2: Hardcoded affordability for visual validation (will be replaced by eligibility)
-  const canAfford = true;
-  
-  // Compute eligibility for hovered ship
+  const isBuildableContext = buildCatalogue.context === 'buildable';
+
+  function getSlotProps(shipId: ShipDefId) {
+    const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
+    return {
+      isDimmed: isBuildableContext && !canAddShip,
+      isClickable: isBuildableContext && canAddShip,
+      onClick: () => actions.onBuildShip(shipId),
+    };
+  }
+
+  function getDisplayCost(shipId: ShipDefId, fallbackCost: number): number {
+    return isBuildableContext
+      ? (buildCatalogue.displayCostByShipId[shipId] ?? fallbackCost)
+      : fallbackCost;
+  }
+
   const hoveredShipEligibility = hover.state.activeShipId
-    ? (() => {
-        const ship = SHIP_DEFINITIONS_MAP[hover.state.activeShipId];
-        return computeShipEligibility({
-          shipId: hover.state.activeShipId,
-          isOpponentView,
-          ownedShipsById,
-          totalLineCost: ship?.totalLineCost ?? 0,
-          joiningLineCost: ship?.joiningLineCost ?? 0,
-          availableLines,
-          availableJoiningLines,
-          maxLimitReachedById: MAX_LIMIT_SHIPS,
-          componentShipIds: ship?.componentShips ?? []
-        });
-      })()
+    ? getShipEligibilityForHover({
+        shipId: hover.state.activeShipId,
+        buildCatalogue,
+      })
     : null;
 
   return (
@@ -127,10 +115,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                     <DefenderShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('DEF')}
+                {...getSlotProps('DEF')}
               >
-                <CatalogueCostNumber cost={2} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('DEF', 2)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -148,10 +135,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                     <FighterShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('FIG')}
+                {...getSlotProps('FIG')}
               >
-                <CatalogueCostNumber cost={3} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('FIG', 3)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -169,10 +155,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                     <CommanderShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('COM')}
+                {...getSlotProps('COM')}
               >
-                <CatalogueCostNumber cost={4} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('COM', 4)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -192,10 +177,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                     </div>
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('INT')}
+                {...getSlotProps('INT')}
               >
-                <CatalogueCostNumber cost={4} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('INT', 4)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
           </div>
@@ -219,10 +203,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                     <OrbitalShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('ORB')}
+                {...getSlotProps('ORB')}
               >
-                <CatalogueCostNumber cost={6} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('ORB', 6)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -240,10 +223,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                     <CarrierShip6 />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('CAR')}
+                {...getSlotProps('CAR')}
               >
-                <CatalogueCostNumber cost={6} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('CAR', 6)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -261,10 +243,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                     <StarshipShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('STA')}
+                {...getSlotProps('STA')}
               >
-                <CatalogueCostNumber cost={8} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('STA', 8)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
           </div>
@@ -285,10 +266,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                   <FrigateShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('FRI')}
+              {...getSlotProps('FRI')}
             >
-              <CatalogueCostNumber cost={8} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('FRI', 8)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -306,10 +286,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                   <TacticalCruiserShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('TAC')}
+              {...getSlotProps('TAC')}
             >
-              <CatalogueCostNumber cost={10} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('TAC', 10)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -327,10 +306,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                   <GuardianShip2 />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('GUA')}
+              {...getSlotProps('GUA')}
             >
-              <CatalogueCostNumber cost={12} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('GUA', 12)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -348,10 +326,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                   <ScienceVesselShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('SCI')}
+              {...getSlotProps('SCI')}
             >
-              <CatalogueCostNumber cost={17} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('SCI', 17)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -369,10 +346,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                   <BattlecruiserShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('BAT')}
+              {...getSlotProps('BAT')}
             >
-              <CatalogueCostNumber cost={20} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('BAT', 20)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -390,10 +366,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                   <EarthShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('EAR')}
+              {...getSlotProps('EAR')}
             >
-              <CatalogueCostNumber cost={23} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('EAR', 23)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -411,10 +386,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                   <DreadnoughtShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('DRE')}
+              {...getSlotProps('DRE')}
             >
-              <CatalogueCostNumber cost={27} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('DRE', 27)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -432,10 +406,9 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
                   <LeviathanShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('LEV')}
+              {...getSlotProps('LEV')}
             >
-              <CatalogueCostNumber cost={44} className="relative shrink-0" />
+              <CatalogueCostNumber cost={getDisplayCost('LEV', 44)} className="relative shrink-0" />
             </CatalogueShipSlot>
           </div>
 
@@ -447,7 +420,6 @@ export function HumanShipCataloguePanel({ actions }: HumanShipCataloguePanelProp
         <ShipHoverCard
           shipId={hover.state.activeShipId}
           anchorRect={hover.state.anchorRect}
-          isOpponentView={isOpponentView}
           eligibility={hoveredShipEligibility}
         />
       )}

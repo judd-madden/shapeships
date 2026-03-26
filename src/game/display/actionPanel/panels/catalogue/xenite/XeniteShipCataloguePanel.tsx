@@ -10,14 +10,13 @@
  * NO backend calls, NO rules validation, NO engine imports
  */
 
-import type { GameSessionActions } from '../../../../../client/useGameSession';
+import type { ActionPanelViewModel, GameSessionActions } from '../../../../../client/useGameSession';
 import { ActionPanelScrollArea } from '../../../primitives/ActionPanelScrollArea';
 import { CatalogueShipSlot } from '../shared/CatalogueShipSlot';
 import { CatalogueCostNumber } from '../shared/CatalogueCostNumber';
 import { ShipHoverCard } from '../shared/ShipHoverCard';
 import { useShipCatalogueHover } from '../shared/useShipCatalogueHover';
-import { computeShipEligibility } from '../shared/ShipBuildEligibility';
-import { SHIP_DEFINITIONS_MAP } from '../../../../../data/ShipDefinitionsUI';
+import { getShipEligibilityForHover } from '../shared/ShipBuildEligibility';
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
 import {
   XeniteShip,
@@ -37,44 +36,35 @@ import {
   HiveShip,
 } from '../../../../../../graphics/xenite/assets';
 
-// PASS 2: Max ship limit stub (TODO: formalize limits in rules/engine)
-const MAX_LIMIT_SHIPS: Partial<Record<ShipDefId, boolean>> = {
-  CHR: true,  // Chronoswarm
-};
-
 interface XeniteShipCataloguePanelProps {
   actions: GameSessionActions;
+  buildCatalogue: ActionPanelViewModel['buildCatalogue'];
 }
 
-export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelProps) {
-  // Hover state controller
+export function XeniteShipCataloguePanel({ actions, buildCatalogue }: XeniteShipCataloguePanelProps) {
   const hover = useShipCatalogueHover();
-  
-  // Stubs: Replace with VM data in future passes
-  const isOpponentView = false; // TODO: Get from VM
-  const ownedShipsById: Partial<Record<ShipDefId, number>> = {}; // TODO: Get from VM
-  const availableLines = 999; // TODO: Get from VM
-  const availableJoiningLines = 999; // TODO: Get from VM
-  
-  // Hardcoded affordability for visual validation (will be replaced by eligibility)
-  const canAfford = true;
-  
-  // Compute eligibility for hovered ship
+  const isBuildableContext = buildCatalogue.context === 'buildable';
+
+  function getSlotProps(shipId: ShipDefId) {
+    const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
+    return {
+      isDimmed: isBuildableContext && !canAddShip,
+      isClickable: isBuildableContext && canAddShip,
+      onClick: () => actions.onBuildShip(shipId),
+    };
+  }
+
+  function getDisplayCost(shipId: ShipDefId, fallbackCost: number): number {
+    return isBuildableContext
+      ? (buildCatalogue.displayCostByShipId[shipId] ?? fallbackCost)
+      : fallbackCost;
+  }
+
   const hoveredShipEligibility = hover.state.activeShipId
-    ? (() => {
-        const ship = SHIP_DEFINITIONS_MAP[hover.state.activeShipId];
-        return computeShipEligibility({
-          shipId: hover.state.activeShipId,
-          isOpponentView,
-          ownedShipsById,
-          totalLineCost: ship?.totalLineCost ?? 0,
-          joiningLineCost: ship?.joiningLineCost ?? 0,
-          availableLines,
-          availableJoiningLines,
-          maxLimitReachedById: MAX_LIMIT_SHIPS,
-          componentShipIds: ship?.componentShips ?? []
-        });
-      })()
+    ? getShipEligibilityForHover({
+        shipId: hover.state.activeShipId,
+        buildCatalogue,
+      })
     : null;
 
   return (
@@ -125,10 +115,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                     <XeniteShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('XEN')}
+                {...getSlotProps('XEN')}
               >
-                <CatalogueCostNumber cost={2} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('XEN', 2)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -146,10 +135,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                     <AntlionShip1 />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('ANT')}
+                {...getSlotProps('ANT')}
               >
-                <CatalogueCostNumber cost={3} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('ANT', 3)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -167,10 +155,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                     <MantisShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('MAN')}
+                {...getSlotProps('MAN')}
               >
-                <CatalogueCostNumber cost={4} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('MAN', 4)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -188,10 +175,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                     <EvolverShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('EVO')}
+                {...getSlotProps('EVO')}
               >
-                <CatalogueCostNumber cost={4} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('EVO', 4)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
           </div>
@@ -215,10 +201,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                     <HellHornetShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('HEL')}
+                {...getSlotProps('HEL')}
               >
-                <CatalogueCostNumber cost={6} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('HEL', 6)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -236,10 +221,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                     <BugBreeder4Ship />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('BUG')}
+                {...getSlotProps('BUG')}
               >
-                <CatalogueCostNumber cost={6} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('BUG', 6)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -257,10 +241,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                     <ZenithShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('ZEN')}
+                {...getSlotProps('ZEN')}
               >
-                <CatalogueCostNumber cost={9} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('ZEN', 9)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
           </div>
@@ -281,10 +264,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                   <DefenseSwarmShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('DSW')}
+              {...getSlotProps('DSW')}
             >
-              <CatalogueCostNumber cost={9} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('DSW', 9)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -302,10 +284,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                   <AntlionArrayShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('AAR')}
+              {...getSlotProps('AAR')}
             >
-              <CatalogueCostNumber cost={12} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('AAR', 12)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -323,10 +304,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                   <SacrificialPoolShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('SAC')}
+              {...getSlotProps('SAC')}
             >
-              <CatalogueCostNumber cost={12} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('SAC', 12)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -344,10 +324,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                   <AsteriteFaceShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('ASF')}
+              {...getSlotProps('ASF')}
             >
-              <CatalogueCostNumber cost={12} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('ASF', 12)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -365,10 +344,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                   <OxiteFaceShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('OXF')}
+              {...getSlotProps('OXF')}
             >
-              <CatalogueCostNumber cost={12} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('OXF', 12)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -386,10 +364,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                   <QueenShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('QUE')}
+              {...getSlotProps('QUE')}
             >
-              <CatalogueCostNumber cost={20} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('QUE', 20)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -407,10 +384,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                   <ChronoswarmShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('CHR')}
+              {...getSlotProps('CHR')}
             >
-              <CatalogueCostNumber cost={25} className="relative shrink-0" />
+              <CatalogueCostNumber cost={getDisplayCost('CHR', 25)} className="relative shrink-0" />
             </CatalogueShipSlot>
           </div>
 
@@ -428,10 +404,9 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
                   <HiveShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('HVE')}
+              {...getSlotProps('HVE')}
             >
-              <CatalogueCostNumber cost={35} className="relative shrink-0" />
+              <CatalogueCostNumber cost={getDisplayCost('HVE', 35)} className="relative shrink-0" />
             </CatalogueShipSlot>
           </div>
 
@@ -443,7 +418,6 @@ export function XeniteShipCataloguePanel({ actions }: XeniteShipCataloguePanelPr
         <ShipHoverCard
           shipId={hover.state.activeShipId}
           anchorRect={hover.state.anchorRect}
-          isOpponentView={isOpponentView}
           eligibility={hoveredShipEligibility}
         />
       )}

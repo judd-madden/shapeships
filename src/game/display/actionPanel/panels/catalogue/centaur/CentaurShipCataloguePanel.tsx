@@ -10,14 +10,13 @@
  * NO backend calls, NO rules validation, NO engine imports
  */
 
-import type { GameSessionActions } from '../../../../../client/useGameSession';
+import type { ActionPanelViewModel, GameSessionActions } from '../../../../../client/useGameSession';
 import { ActionPanelScrollArea } from '../../../primitives/ActionPanelScrollArea';
 import { CatalogueShipSlot } from '../shared/CatalogueShipSlot';
 import { CatalogueCostNumber } from '../shared/CatalogueCostNumber';
 import { ShipHoverCard } from '../shared/ShipHoverCard';
 import { useShipCatalogueHover } from '../shared/useShipCatalogueHover';
-import { computeShipEligibility } from '../shared/ShipBuildEligibility';
-import { SHIP_DEFINITIONS_MAP } from '../../../../../data/ShipDefinitionsUI';
+import { getShipEligibilityForHover } from '../shared/ShipBuildEligibility';
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
 import {
   ShipOfFearShip,
@@ -37,47 +36,35 @@ import {
   ArkOfDominationShip,
 } from '../../../../../../graphics/centaur/assets';
 
-// PASS 2: Max ship limit stub (TODO: formalize limits in rules/engine)
-// Centaur limits per rules:
-const MAX_LIMIT_SHIPS: Partial<Record<ShipDefId, boolean>> = {
-  VIG: true, // Ship of Vigor
-  POW: true, // Ark of Power
-  KNO: true, // Ark of Knowledge
-};
-
 interface CentaurShipCataloguePanelProps {
   actions: GameSessionActions;
+  buildCatalogue: ActionPanelViewModel['buildCatalogue'];
 }
 
-export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanelProps) {
-  // Hover state controller
+export function CentaurShipCataloguePanel({ actions, buildCatalogue }: CentaurShipCataloguePanelProps) {
   const hover = useShipCatalogueHover();
-  
-  // Stubs: Replace with VM data in future passes
-  const isOpponentView = false; // TODO: Get from VM
-  const ownedShipsById: Partial<Record<ShipDefId, number>> = {}; // TODO: Get from VM
-  const availableLines = 999; // TODO: Get from VM
-  const availableJoiningLines = 999; // TODO: Get from VM
-  
-  // Hardcoded affordability for visual validation (will be replaced by eligibility)
-  const canAfford = true;
-  
-  // Compute eligibility for hovered ship
+  const isBuildableContext = buildCatalogue.context === 'buildable';
+
+  function getSlotProps(shipId: ShipDefId) {
+    const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
+    return {
+      isDimmed: isBuildableContext && !canAddShip,
+      isClickable: isBuildableContext && canAddShip,
+      onClick: () => actions.onBuildShip(shipId),
+    };
+  }
+
+  function getDisplayCost(shipId: ShipDefId, fallbackCost: number): number {
+    return isBuildableContext
+      ? (buildCatalogue.displayCostByShipId[shipId] ?? fallbackCost)
+      : fallbackCost;
+  }
+
   const hoveredShipEligibility = hover.state.activeShipId
-    ? (() => {
-        const ship = SHIP_DEFINITIONS_MAP[hover.state.activeShipId];
-        return computeShipEligibility({
-          shipId: hover.state.activeShipId,
-          isOpponentView,
-          ownedShipsById,
-          totalLineCost: ship?.totalLineCost ?? 0,
-          joiningLineCost: ship?.joiningLineCost ?? 0,
-          availableLines,
-          availableJoiningLines,
-          maxLimitReachedById: MAX_LIMIT_SHIPS,
-          componentShipIds: ship?.componentShips ?? []
-        });
-      })()
+    ? getShipEligibilityForHover({
+        shipId: hover.state.activeShipId,
+        buildCatalogue,
+      })
     : null;
 
   return (
@@ -128,10 +115,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                     <ShipOfFearShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('FEA')}
+                {...getSlotProps('FEA')}
               >
-                <CatalogueCostNumber cost={2} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('FEA', 2)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -149,10 +135,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                     <ShipOfAngerShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('ANG')}
+                {...getSlotProps('ANG')}
               >
-                <CatalogueCostNumber cost={3} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('ANG', 3)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -170,10 +155,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                     <ShipOfEquality2Ship />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('EQU')}
+                {...getSlotProps('EQU')}
               >
-                <CatalogueCostNumber cost={4} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('EQU', 4)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -191,10 +175,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                     <ShipOfWisdom2Ship />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('WIS')}
+                {...getSlotProps('WIS')}
               >
-                <CatalogueCostNumber cost={4} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('WIS', 4)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
           </div>
@@ -218,10 +201,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                     <ShipOfVigorShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('VIG')}
+                {...getSlotProps('VIG')}
               >
-                <CatalogueCostNumber cost={6} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('VIG', 6)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -239,10 +221,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                     <ShipOfFamily3Ship />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('FAM')}
+                {...getSlotProps('FAM')}
               >
-                <CatalogueCostNumber cost={6} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('FAM', 6)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
 
@@ -260,10 +241,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                     <ShipOfLegacyShip />
                   </div>
                 }
-                canAfford={canAfford}
-                onClick={() => actions.onBuildShip('LEG')}
+                {...getSlotProps('LEG')}
               >
-                <CatalogueCostNumber cost={8} className="min-w-full relative shrink-0 w-[min-content]" />
+                <CatalogueCostNumber cost={getDisplayCost('LEG', 8)} className="min-w-full relative shrink-0 w-[min-content]" />
               </CatalogueShipSlot>
             </div>
           </div>
@@ -284,10 +264,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                   <ArkOfTerrorShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('TER')}
+              {...getSlotProps('TER')}
             >
-              <CatalogueCostNumber cost={7} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('TER', 7)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -305,10 +284,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                   <ArkOfFuryShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('FUR')}
+              {...getSlotProps('FUR')}
             >
-              <CatalogueCostNumber cost={10} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('FUR', 10)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -326,10 +304,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                   <ArkOfEntropyShip />
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('ENT')}
+              {...getSlotProps('ENT')}
             >
-              <CatalogueCostNumber cost={12} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('ENT', 12)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -349,10 +326,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                     </div>
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('KNO')}
+              {...getSlotProps('KNO')}
             >
-              <CatalogueCostNumber cost={12} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('KNO', 12)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -373,10 +349,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                   </div>
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('RED')}
+              {...getSlotProps('RED')}
             >
-              <CatalogueCostNumber cost={15} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('RED', 15)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
           
@@ -396,10 +371,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                   </div>
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('POW')}
+              {...getSlotProps('POW')}
             >
-              <CatalogueCostNumber cost={20} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('POW', 20)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 
@@ -419,10 +393,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                   </div>
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('DES')}
+              {...getSlotProps('DES')}
             >
-              <CatalogueCostNumber cost={31} className="relative shrink-0" />
+              <CatalogueCostNumber cost={getDisplayCost('DES', 31)} className="relative shrink-0" />
             </CatalogueShipSlot>
           </div>
 
@@ -442,10 +415,9 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
                   </div>
                 </div>
               }
-              canAfford={canAfford}
-              onClick={() => actions.onBuildShip('DOM')}
+              {...getSlotProps('DOM')}
             >
-              <CatalogueCostNumber cost={40} className="relative shrink-0" />
+              <CatalogueCostNumber cost={getDisplayCost('DOM', 40)} className="relative shrink-0" />
             </CatalogueShipSlot>
           </div>
 
@@ -457,7 +429,6 @@ export function CentaurShipCataloguePanel({ actions }: CentaurShipCataloguePanel
         <ShipHoverCard
           shipId={hover.state.activeShipId}
           anchorRect={hover.state.anchorRect}
-          isOpponentView={isOpponentView}
           eligibility={hoveredShipEligibility}
         />
       )}

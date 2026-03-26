@@ -1,118 +1,35 @@
-/**
- * Ship Build Eligibility
- * 
- * UI-only eligibility computation for ship catalogue hover cards.
- * Determines if a ship can be built and provides user-facing feedback.
- * 
- * PASS 2: No engine validation, no backend calls.
- * All inputs are provided by UI layer (VM or stubs).
- */
-
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
-import { isShipDefId } from '../../../../../data/ShipDefinitions.core';
+import type { ActionPanelBuildCatalogueViewModel } from '../../../../../client/gameSession/types';
 
-/**
- * Ship build eligibility states
- */
 export type ShipEligibilityState =
-  | 'CAN_BUILD'           // All requirements met
-  | 'NEED_COMPONENTS'     // Missing required component ships
-  | 'NOT_ENOUGH_LINES'    // Insufficient lines or joining lines
-  | 'MAX_LIMIT'           // Ship limit reached (e.g., Orbital, Science Vessel, Chronoswarm)
-  | 'OPPONENT_VIEW';      // Viewing opponent's catalogue
+  | 'CAN_BUILD'
+  | 'NEED_COMPONENTS'
+  | 'NOT_ENOUGH_LINES'
+  | 'MAX_LIMIT'
+  | 'REFERENCE_ONLY';
 
-/**
- * Eligibility computation result
- */
 export interface ShipEligibility {
   state: ShipEligibilityState;
-  /** Missing component ship IDs (only populated for NEED_COMPONENTS state) */
   missingComponentShipIds?: string[];
 }
 
-/**
- * Inputs for eligibility computation
- */
-export interface ShipEligibilityInputs {
-  /** Ship ID to check */
+export function getShipEligibilityForHover(args: {
   shipId: ShipDefId;
-  
-  /** Is this the opponent's catalogue view? */
-  isOpponentView: boolean;
-  
-  /** Map of owned ship IDs to counts */
-  ownedShipsById: Partial<Record<ShipDefId, number>>;
-  
-  /** Total line cost required for this ship */
-  totalLineCost: number;
-  
-  /** Joining line cost required (0 if not an upgrade) */
-  joiningLineCost: number;
-  
-  /** Available lines (regular + bonus + dice) */
-  availableLines: number;
-  
-  /** Available joining lines from owned ships */
-  availableJoiningLines: number;
-  
-  /** Ships that have reached max limit (UI-only stub in PASS 2) */
-  maxLimitReachedById: Partial<Record<ShipDefId, boolean>>;
-  
-  /** Required component ship IDs */
-    componentShipIds: readonly string[];
-}
+  buildCatalogue: ActionPanelBuildCatalogueViewModel;
+}): ShipEligibility {
+  const { shipId, buildCatalogue } = args;
 
-/**
- * Compute ship build eligibility
- * 
- * Logic order (first match wins):
- * 1. Opponent view → OPPONENT_VIEW
- * 2. Max limit reached → MAX_LIMIT
- * 3. Missing components → NEED_COMPONENTS
- * 4. Insufficient lines → NOT_ENOUGH_LINES
- * 5. Else → CAN_BUILD
- */
-export function computeShipEligibility(inputs: ShipEligibilityInputs): ShipEligibility {
-  // 1. Opponent view check
-  if (inputs.isOpponentView) {
-    return { state: 'OPPONENT_VIEW' };
+  if (buildCatalogue.context !== 'buildable') {
+    return { state: 'REFERENCE_ONLY' };
   }
-  
-  // 2. Max limit check
-  if (inputs.maxLimitReachedById[inputs.shipId]) {
-    return { state: 'MAX_LIMIT' };
-  }
-  
-  // 3. Component ships check
-  const missingComponents: string[] = [];
-  for (const componentToken of inputs.componentShipIds) {
-    // componentShips may contain token forms like "CAR(0)".
-    const baseId = String(componentToken).split('(')[0];
-    if (!isShipDefId(baseId)) continue;
 
-    const owned = inputs.ownedShipsById[baseId] ?? 0;
-    if (owned === 0) {
-      // Preserve the original token for downstream token-aware rendering.
-      missingComponents.push(componentToken);
-    }
-  }
-  
-  if (missingComponents.length > 0) {
-    return {
-      state: 'NEED_COMPONENTS',
-      missingComponentShipIds: missingComponents
-    };
-  }
-  
-  // 4. Line cost check
-  const totalCostRequired = inputs.totalLineCost + inputs.joiningLineCost;
-  const canAffordRegularLines = inputs.availableLines >= inputs.totalLineCost;
-  const canAffordJoiningLines = inputs.availableJoiningLines >= inputs.joiningLineCost;
-  
-  if (!canAffordRegularLines || !canAffordJoiningLines) {
+  const eligibility = buildCatalogue.eligibilityByShipId[shipId];
+  if (!eligibility) {
     return { state: 'NOT_ENOUGH_LINES' };
   }
-  
-  // 5. Can build
-  return { state: 'CAN_BUILD' };
+
+  return {
+    state: eligibility.state,
+    missingComponentShipIds: eligibility.missingComponentTokens,
+  };
 }

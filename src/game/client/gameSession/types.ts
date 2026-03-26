@@ -11,6 +11,7 @@ import type { ShipDefId } from '../../types/ShipTypes.engine';
 import type { ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
 import type { FleetAnimVM } from '../../display/graphics/animation';
 import type { OpponentFleetEntryPlan, ActivationStaggerPlan } from '../../display/graphics/animation-stagger';
+import type { ProvisionalShipEligibility } from './provisionalBuild';
 
 export type ReadyUxState = {
   clickedThisPhase: boolean; // user explicitly clicked Ready in this phase instance
@@ -227,9 +228,17 @@ export interface ActionPanelTabVm {
   targetPanelId: ActionPanelId; // which panel this tab jumps to
 }
 
+export interface ActionPanelBuildCatalogueViewModel {
+  context: 'buildable' | 'reference_only';
+  canAddShipById: Partial<Record<ShipDefId, boolean>>;
+  displayCostByShipId: Partial<Record<ShipDefId, number>>;
+  eligibilityByShipId: Partial<Record<ShipDefId, ProvisionalShipEligibility>>;
+}
+
 export interface ActionPanelViewModel {
   activePanelId: ActionPanelId;
   tabs: ActionPanelTabVm[];
+  buildCatalogue: ActionPanelBuildCatalogueViewModel;
   menu: {
     title: string;
     subtitle: string;

@@ -1,5 +1,5 @@
 import { getShipDefinitionById, ENGINE_SHIP_DEFINITIONS } from '../../data/ShipDefinitions.engine';
-import { isShipDefId } from '../../data/ShipDefinitions.core';
+import { isShipDefId, SHIP_DEFINITIONS_CORE_MAP } from '../../data/ShipDefinitions.core';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import { deriveFleetStackInfo } from './fleets';
 import type { BoardFleetSummary, EvolverChoiceId } from './types';
@@ -38,6 +38,20 @@ export interface ProvisionalBuildResult {
   myFleetPreview: BoardFleetSummary[];
   provisionalShipCountsById: Partial<Record<ShipDefId, number>>;
   evolverRowIds: string[];
+  canAddShipById: Partial<Record<ShipDefId, boolean>>;
+  displayCostByShipId: Partial<Record<ShipDefId, number>>;
+  eligibilityByShipId: Partial<Record<ShipDefId, ProvisionalShipEligibility>>;
+}
+
+export type ProvisionalShipEligibilityState =
+  | 'CAN_BUILD'
+  | 'NEED_COMPONENTS'
+  | 'NOT_ENOUGH_LINES'
+  | 'MAX_LIMIT';
+
+export interface ProvisionalShipEligibility {
+  state: ProvisionalShipEligibilityState;
+  missingComponentTokens?: string[];
 }
 
 const FIXED_BUILD_ORDER: ShipDefId[] = ENGINE_SHIP_DEFINITIONS.map((shipDef) => shipDef.id);
@@ -97,6 +111,28 @@ function countShipsById(
   }
 
   return counts;
+}
+
+function countShipEntriesById(entries: InternalFleetEntry[], shipDefId: ShipDefId): number {
+  let count = 0;
+
+  for (const entry of entries) {
+    if (entry.shipDefId === shipDefId) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+function getPrintedShipTotalLineCost(shipDefId: ShipDefId): number {
+  const shipDef = SHIP_DEFINITIONS_CORE_MAP[shipDefId];
+  const totalLineCost = Number(shipDef?.totalLineCost);
+  return Number.isFinite(totalLineCost) && totalLineCost > 0 ? totalLineCost : 0;
+}
+
+function getComponentToken(shipId: ShipDefId, mustBeDepleted?: boolean): string {
+  return mustBeDepleted ? `${shipId}(0)` : shipId;
 }
 
 function makePreviewRowId(
@@ -273,11 +309,32 @@ function reserveUpgradeComponents(
   entries: InternalFleetEntry[],
   shipDefId: ShipDefId
 ): number[] | null {
+  const reservation = reserveUpgradeComponentsDetailed(entries, shipDefId, false);
+  return reservation.missingComponentTokens.length > 0 ? null : reservation.reservedIndices;
+}
+
+function reserveUpgradeComponentsDetailed(
+  entries: InternalFleetEntry[],
+  shipDefId: ShipDefId,
+  allowPartial: boolean
+): {
+  reservedIndices: number[];
+  missingComponentTokens: string[];
+  reservedComponentValue: number;
+} {
   const shipDef = getShipDefinitionById(shipDefId);
   const upgradedCost = shipDef?.upgradedCost;
-  if (!upgradedCost) return [];
+  if (!upgradedCost) {
+    return {
+      reservedIndices: [],
+      missingComponentTokens: [],
+      reservedComponentValue: 0,
+    };
+  }
 
   const reservedIndices = new Set<number>();
+  const missingComponentTokens: string[] = [];
+  let reservedComponentValue = 0;
 
   for (const component of upgradedCost.components) {
     for (let i = 0; i < component.quantity; i++) {
@@ -289,14 +346,136 @@ function reserveUpgradeComponents(
       });
 
       if (nextIndex < 0) {
-        return null;
+        missingComponentTokens.push(getComponentToken(component.shipId, component.mustBeDepleted));
+        if (!allowPartial) {
+          return {
+            reservedIndices: [],
+            missingComponentTokens,
+            reservedComponentValue,
+          };
+        }
+        continue;
       }
 
       reservedIndices.add(nextIndex);
+      reservedComponentValue += getPrintedShipTotalLineCost(component.shipId);
     }
   }
 
-  return Array.from(reservedIndices).sort((a, b) => a - b);
+  return {
+    reservedIndices: Array.from(reservedIndices).sort((a, b) => a - b),
+    missingComponentTokens,
+    reservedComponentValue,
+  };
+}
+
+function evaluateCatalogueEligibility(args: {
+  entries: InternalFleetEntry[];
+  shipDefId: ShipDefId;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): {
+  eligibility: ProvisionalShipEligibility;
+  canAdd: boolean;
+  displayCost: number;
+} {
+  const { entries, shipDefId, remainingOrdinaryLines, remainingJoiningLines } = args;
+  const shipDef = getShipDefinitionById(shipDefId);
+  const printedTotalCost = getPrintedShipTotalLineCost(shipDefId);
+  const currentShipCount = countShipEntriesById(entries, shipDefId);
+  const maxQuantityReached =
+    typeof shipDef?.maxQuantity === 'number' && currentShipCount >= shipDef.maxQuantity;
+
+  if (!shipDef) {
+    return {
+      eligibility: { state: 'NOT_ENOUGH_LINES' },
+      canAdd: false,
+      displayCost: printedTotalCost,
+    };
+  }
+
+  if (shipDef.basicCost) {
+    const canAdd = remainingOrdinaryLines >= shipDef.basicCost.totalLines;
+    return {
+      eligibility: { state: maxQuantityReached ? 'MAX_LIMIT' : canAdd ? 'CAN_BUILD' : 'NOT_ENOUGH_LINES' },
+      canAdd: !maxQuantityReached && canAdd,
+      displayCost: shipDef.basicCost.totalLines,
+    };
+  }
+
+  if (shipDef.upgradedCost) {
+    const reservation = reserveUpgradeComponentsDetailed(entries, shipDefId, true);
+    const displayCost = Math.max(0, printedTotalCost - reservation.reservedComponentValue);
+
+    if (maxQuantityReached) {
+      return {
+        eligibility: { state: 'MAX_LIMIT' },
+        canAdd: false,
+        displayCost,
+      };
+    }
+
+    if (reservation.missingComponentTokens.length > 0) {
+      return {
+        eligibility: {
+          state: 'NEED_COMPONENTS',
+          missingComponentTokens: reservation.missingComponentTokens,
+        },
+        canAdd: false,
+        displayCost,
+      };
+    }
+
+    const joiningCost = shipDef.upgradedCost.joiningLines;
+    const joiningSpend = Math.min(remainingJoiningLines, joiningCost);
+    const ordinaryShortfall = joiningCost - joiningSpend;
+    const canAdd = remainingOrdinaryLines >= ordinaryShortfall;
+
+    return {
+      eligibility: { state: canAdd ? 'CAN_BUILD' : 'NOT_ENOUGH_LINES' },
+      canAdd,
+      displayCost,
+    };
+  }
+
+  return {
+    eligibility: { state: 'NOT_ENOUGH_LINES' },
+    canAdd: false,
+    displayCost: printedTotalCost,
+  };
+}
+
+function deriveCatalogueState(args: {
+  entries: InternalFleetEntry[];
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): Pick<
+  ProvisionalBuildResult,
+  'canAddShipById' | 'displayCostByShipId' | 'eligibilityByShipId'
+> {
+  const { entries, remainingOrdinaryLines, remainingJoiningLines } = args;
+  const canAddShipById: Partial<Record<ShipDefId, boolean>> = {};
+  const displayCostByShipId: Partial<Record<ShipDefId, number>> = {};
+  const eligibilityByShipId: Partial<Record<ShipDefId, ProvisionalShipEligibility>> = {};
+
+  for (const shipDef of ENGINE_SHIP_DEFINITIONS) {
+    const evaluated = evaluateCatalogueEligibility({
+      entries,
+      shipDefId: shipDef.id,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
+
+    canAddShipById[shipDef.id] = evaluated.canAdd;
+    displayCostByShipId[shipDef.id] = evaluated.displayCost;
+    eligibilityByShipId[shipDef.id] = evaluated.eligibility;
+  }
+
+  return {
+    canAddShipById,
+    displayCostByShipId,
+    eligibilityByShipId,
+  };
 }
 
 function applyEvolverPreviewParity(args: {
@@ -374,9 +553,7 @@ export function evaluateProvisionalBuild(args: {
       break;
     }
 
-    const currentShipCount = workingFleetEntries.filter(
-      (entry) => entry.shipDefId === buildEntry.shipDefId
-    ).length;
+    const currentShipCount = countShipEntriesById(workingFleetEntries, buildEntry.shipDefId);
 
     if (
       typeof shipDef.maxQuantity === 'number' &&
@@ -451,6 +628,12 @@ export function evaluateProvisionalBuild(args: {
     turnNumber,
   });
 
+  const catalogueState = deriveCatalogueState({
+    entries: fleetAfterEvolverParity,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  });
+
   return {
     draftCounts,
     isValid,
@@ -459,6 +642,9 @@ export function evaluateProvisionalBuild(args: {
     myFleetPreview: buildPreviewFleetSummary(fleetAfterEvolverParity),
     provisionalShipCountsById: countShipsById(fleetAfterEvolverParity),
     evolverRowIds,
+    canAddShipById: catalogueState.canAddShipById,
+    displayCostByShipId: catalogueState.displayCostByShipId,
+    eligibilityByShipId: catalogueState.eligibilityByShipId,
   };
 }
 
@@ -472,14 +658,15 @@ export function canProvisionallyAddShip(args: {
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
   frigateTriggerByInstanceId?: Record<string, unknown>;
 }): boolean {
-  const nextDraft = addShipToBuildDraft(args.draftCounts, args.shipDefId);
-  return evaluateProvisionalBuild({
+  const provisionalBuild = evaluateProvisionalBuild({
     turnNumber: args.turnNumber,
     myShips: args.myShips,
-    draftCounts: nextDraft,
+    draftCounts: args.draftCounts,
     buildEconomy: args.buildEconomy,
     frigateSelectedTriggers: args.frigateSelectedTriggers,
     evolverChoicesByRowId: args.evolverChoicesByRowId,
     frigateTriggerByInstanceId: args.frigateTriggerByInstanceId,
-  }).isValid;
+  });
+
+  return provisionalBuild.canAddShipById[args.shipDefId] === true;
 }
