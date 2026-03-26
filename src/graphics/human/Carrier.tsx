@@ -7,8 +7,8 @@ import React from 'react';
 export const CarrierShip6: React.FC<{ className?: string }> = ({ className }) => (
   <svg 
     width="93" 
-    height="97" 
-    viewBox="0 0 93 97" 
+    height="98" 
+    viewBox="0 0 93 98" 
     fill="none" 
     xmlns="http://www.w3.org/2000/svg"
     className={className}
@@ -21,8 +21,8 @@ export const CarrierShip6: React.FC<{ className?: string }> = ({ className }) =>
 export const CarrierShip5: React.FC<{ className?: string }> = ({ className }) => (
   <svg 
     width="93" 
-    height="97" 
-    viewBox="0 0 93 97" 
+    height="98" 
+    viewBox="0 0 93 98" 
     fill="none" 
     xmlns="http://www.w3.org/2000/svg"
     className={className}
@@ -36,8 +36,8 @@ export const CarrierShip5: React.FC<{ className?: string }> = ({ className }) =>
 export const CarrierShip4: React.FC<{ className?: string }> = ({ className }) => (
   <svg 
     width="93" 
-    height="97" 
-    viewBox="0 0 93 97" 
+    height="98" 
+    viewBox="0 0 93 98" 
     fill="none" 
     xmlns="http://www.w3.org/2000/svg"
     className={className}
@@ -52,8 +52,8 @@ export const CarrierShip4: React.FC<{ className?: string }> = ({ className }) =>
 export const CarrierShip3: React.FC<{ className?: string }> = ({ className }) => (
   <svg 
     width="93" 
-    height="97" 
-    viewBox="0 0 93 97" 
+    height="98" 
+    viewBox="0 0 93 98" 
     fill="none" 
     xmlns="http://www.w3.org/2000/svg"
     className={className}
