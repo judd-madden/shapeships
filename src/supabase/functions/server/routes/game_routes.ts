@@ -1312,20 +1312,71 @@ export function registerGameRoutes(
       const bonusLinesOnEvenByPlayerId: Record<string, number> = {};
       const joiningLinesByPlayerId: Record<string, number> = {};
       const joiningBonusLinesByPlayerId: Record<string, number> = {};
+      const buildEconomyByPlayerId: Record<string, {
+        ordinaryLinesAvailable: number;
+        joiningLinesAvailable: number;
+        baseRollLines: number;
+        ordinaryBonusLines: number;
+        ordinaryBonusLinesOnEven: number;
+        joiningBonusLines: number;
+        chronoswarmBonusLines: number;
+        linesDistributed: boolean;
+      }> = {};
+      const turnData = gameData.gameData?.turnData || {};
+      const canonicalBaseRollLines =
+        turnData.effectiveDiceRoll ??
+        turnData.baseDiceRoll ??
+        turnData.diceRoll;
+      const chronoswarmRolls = Array.isArray(turnData.chronoswarmRolls)
+        ? turnData.chronoswarmRolls.filter((roll: unknown): roll is number => typeof roll === 'number')
+        : [];
       const playersInGame = gameData.players || [];
       for (const player of playersInGame) {
         if (player.role === 'player') {
+          const ordinaryLinesAvailable = player.lines ?? 0;
+          const joiningLinesAvailable = player.joiningLines ?? 0;
+          const baseRollLines = turnData.effectiveDiceRollByPlayerId?.[player.id] ?? canonicalBaseRollLines ?? 0;
+          const chronoswarmCountRaw = turnData.chronoswarmCountByPlayerId?.[player.id];
+          const chronoswarmCount =
+            Number.isInteger(chronoswarmCountRaw) && chronoswarmCountRaw > 0
+              ? Math.min(chronoswarmCountRaw, chronoswarmRolls.length)
+              : 0;
+          let chronoswarmBonusLines = 0;
+          for (let i = 0; i < chronoswarmCount; i++) {
+            chronoswarmBonusLines += chronoswarmRolls[i] ?? 0;
+          }
+
           joiningLinesByPlayerId[player.id] = player.joiningLines ?? 0;
           try {
             const lineBonuses = computeLineBonusesForPlayer(gameData.gameData, player.id);
             bonusLinesByPlayerId[player.id] = lineBonuses.bonusLines;
             bonusLinesOnEvenByPlayerId[player.id] = lineBonuses.bonusLinesOnEven;
             joiningBonusLinesByPlayerId[player.id] = lineBonuses.joiningBonusLines;
+            buildEconomyByPlayerId[player.id] = {
+              ordinaryLinesAvailable,
+              joiningLinesAvailable,
+              baseRollLines,
+              ordinaryBonusLines: lineBonuses.bonusLines,
+              ordinaryBonusLinesOnEven: lineBonuses.bonusLinesOnEven,
+              joiningBonusLines: lineBonuses.joiningBonusLines,
+              chronoswarmBonusLines,
+              linesDistributed: turnData.linesDistributed === true,
+            };
           } catch (err) {
             console.error(`[GET game-state] Failed to compute bonus lines for ${player.id}:`, err);
             bonusLinesByPlayerId[player.id] = 0; // Default to 0 on error
             bonusLinesOnEvenByPlayerId[player.id] = 0;
             joiningBonusLinesByPlayerId[player.id] = 0;
+            buildEconomyByPlayerId[player.id] = {
+              ordinaryLinesAvailable,
+              joiningLinesAvailable,
+              baseRollLines,
+              ordinaryBonusLines: 0,
+              ordinaryBonusLinesOnEven: 0,
+              joiningBonusLines: 0,
+              chronoswarmBonusLines,
+              linesDistributed: turnData.linesDistributed === true,
+            };
           }
         }
       }
@@ -1341,6 +1392,7 @@ export function registerGameRoutes(
         availableActions,
         bonusLinesByPlayerId,
         bonusLinesOnEvenByPlayerId,
+        buildEconomyByPlayerId,
         joiningLinesByPlayerId,
         joiningBonusLinesByPlayerId,
       });

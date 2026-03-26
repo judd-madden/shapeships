@@ -723,16 +723,18 @@ function enterPhaseOnce(
         
         for (const player of activePlayers) {
           const baseLines = turnData.effectiveDiceRollByPlayerId?.[player.id] ?? canonicalBaseLines;
-          const { bonusLines } = computeLineBonusesForPlayer(workingState, player.id);
+          const { bonusLines, joiningBonusLines } = computeLineBonusesForPlayer(workingState, player.id);
           const chronoswarmBonusLines = getChronoswarmBonusLinesForPlayer(workingState, player.id);
           const totalLines = baseLines + bonusLines + chronoswarmBonusLines;
           
           const currentLines = player.lines || 0;
+          const currentJoiningLines = player.joiningLines || 0;
           player.lines = currentLines + totalLines;
+          player.joiningLines = currentJoiningLines + joiningBonusLines;
           
           console.log(
             `[OnEnterPhase] Granted ${totalLines} lines to player ${player.id} ` +
-            `(base: ${baseLines}, bonus: ${bonusLines}, chronoswarm: ${chronoswarmBonusLines}, total: ${player.lines})`
+            `(base: ${baseLines}, bonus: ${bonusLines}, chronoswarm: ${chronoswarmBonusLines}, total: ${player.lines}, joiningBonus: ${joiningBonusLines}, joiningTotal: ${player.joiningLines})`
           );
           
           events.push({
@@ -740,9 +742,11 @@ function enterPhaseOnce(
             playerId: player.id,
             baseLines,
             bonusLines,
+            joiningBonusLines,
             chronoswarmBonusLines,
             totalGranted: totalLines,
             newTotal: player.lines,
+            newJoiningTotal: player.joiningLines,
             atMs: nowMs
           });
         }
