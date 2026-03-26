@@ -122,6 +122,55 @@ function playerHasAvailableChargeOrSolarOption(state: any, playerId: string): bo
   return false;
 }
 
+function getSnappedChargeResponseSourceIds(state: any, playerId: string): string[] {
+  const rawSourceIds = state?.gameData?.turnData?.chargeDeclarationEligibleSourceIdsByPlayerId?.[playerId];
+  if (!Array.isArray(rawSourceIds)) {
+    return [];
+  }
+
+  const sourceIds: string[] = [];
+  const seen = new Set<string>();
+
+  for (const sourceId of rawSourceIds) {
+    if (typeof sourceId !== 'string' || sourceId.length === 0 || seen.has(sourceId)) continue;
+    seen.add(sourceId);
+    sourceIds.push(sourceId);
+  }
+
+  return sourceIds;
+}
+
+function resolveChargeResponseSource(state: any, playerId: string, sourceInstanceId: string): ShipInstance | null {
+  const liveFleet = state?.gameData?.ships?.[playerId] ?? [];
+  const liveShip = liveFleet.find((ship: ShipInstance) => ship.instanceId === sourceInstanceId);
+  if (liveShip) {
+    return liveShip;
+  }
+
+  const voidFleet = state?.gameData?.voidShipsByPlayerId?.[playerId] ?? [];
+  return voidFleet.find((ship: ShipInstance) => ship.instanceId === sourceInstanceId) ?? null;
+}
+
+function getChargeSourceShipsForPhase(state: any, playerId: string, phaseKey: string): ShipInstance[] {
+  if (phaseKey === 'battle.charge_declaration') {
+    return state?.gameData?.ships?.[playerId] ?? [];
+  }
+
+  if (phaseKey !== 'battle.charge_response') {
+    return [];
+  }
+
+  const sourceShips: ShipInstance[] = [];
+
+  for (const sourceInstanceId of getSnappedChargeResponseSourceIds(state, playerId)) {
+    const ship = resolveChargeResponseSource(state, playerId, sourceInstanceId);
+    if (!ship) continue;
+    sourceShips.push(ship);
+  }
+
+  return sourceShips;
+}
+
 function getProjectedChoiceMetadataForChargeAction(
   shipDefId: string,
   playerFleet: ShipInstance[],
@@ -269,11 +318,12 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
     const usedMap: Record<string, number> =
       state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
     
-    // Get player's ship instances
+    // Keep live fleet for response-time legality and projections.
     const fleet = state?.gameData?.ships?.[playerId] ?? [];
+    const sourceShips = getChargeSourceShipsForPhase(state, playerId, phaseKey);
     
     // For each ship instance, find eligible choice powers
-    for (const shipInstance of fleet) {
+    for (const shipInstance of sourceShips) {
       const shipDefId = shipInstance.shipDefId;
       const sourceInstanceId = shipInstance.instanceId;
       

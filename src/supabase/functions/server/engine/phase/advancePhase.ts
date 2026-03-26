@@ -170,6 +170,7 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           anyChargesDeclared: false,
           anyChargesSpentInDeclaration: false,
           chargeDeclarationEligibleByPlayerId: {},
+          chargeDeclarationEligibleSourceIdsByPlayerId: {},
           chargePowerUsedByInstanceId: {},
           chronoswarmRolls: [],
           chronoswarmCountByPlayerId: {},
@@ -299,6 +300,7 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           anyChargesDeclared: false, // Reset charge declaration tracking
           anyChargesSpentInDeclaration: false,
           chargeDeclarationEligibleByPlayerId: {},
+          chargeDeclarationEligibleSourceIdsByPlayerId: {},
           chargePowerUsedByInstanceId: {},
           chronoswarmRolls: [],
           chronoswarmCountByPlayerId: {},

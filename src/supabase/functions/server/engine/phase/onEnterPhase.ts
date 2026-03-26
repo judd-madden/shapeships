@@ -197,80 +197,138 @@ function phaseHasAvailableFleetPowers(state: any, phaseKey: PhaseKey): boolean {
  * @param player - Player to check
  * @returns true if player can declare at least one charge or solar power
  */
+function getSnappedChargeResponseSourceIds(state: any, playerId: string): string[] {
+  const rawSourceIds = state?.gameData?.turnData?.chargeDeclarationEligibleSourceIdsByPlayerId?.[playerId];
+  if (!Array.isArray(rawSourceIds)) {
+    return [];
+  }
+
+  const sourceIds: string[] = [];
+  const seen = new Set<string>();
+
+  for (const sourceId of rawSourceIds) {
+    if (typeof sourceId !== 'string' || sourceId.length === 0 || seen.has(sourceId)) continue;
+    seen.add(sourceId);
+    sourceIds.push(sourceId);
+  }
+
+  return sourceIds;
+}
+
+function resolveChargeResponseSource(state: any, playerId: string, sourceInstanceId: string): any | null {
+  const liveFleet = state?.gameData?.ships?.[playerId] ?? [];
+  const liveShip = liveFleet.find((ship: any) => ship?.instanceId === sourceInstanceId);
+  if (liveShip) {
+    return liveShip;
+  }
+
+  const voidFleet = state?.gameData?.voidShipsByPlayerId?.[playerId] ?? [];
+  return voidFleet.find((ship: any) => ship?.instanceId === sourceInstanceId) ?? null;
+}
+
+function getChargePhaseSourceShips(
+  state: any,
+  playerId: string,
+  phaseKey: 'battle.charge_declaration' | 'battle.charge_response'
+): any[] {
+  if (phaseKey === 'battle.charge_declaration') {
+    return state?.gameData?.ships?.[playerId] ?? [];
+  }
+
+  const sourceShips: any[] = [];
+
+  for (const sourceInstanceId of getSnappedChargeResponseSourceIds(state, playerId)) {
+    const ship = resolveChargeResponseSource(state, playerId, sourceInstanceId);
+    if (!ship) continue;
+    sourceShips.push(ship);
+  }
+
+  return sourceShips;
+}
+
+function getEligibleChargeOrSolarSourceIds(
+  state: any,
+  playerId: string,
+  phaseKey: 'battle.charge_declaration' | 'battle.charge_response'
+): string[] {
+  const players = state?.players ?? state?.gameData?.players ?? [];
+  const player = players.find((candidate: any) => candidate?.id === playerId);
+  const playerEnergy = player?.energy ?? 0;
+  const turnNumber: number = state?.gameData?.turnNumber ?? 1;
+  const usedMap: Record<string, number> =
+    state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
+  let cachedShipOfEqualityTargets:
+    | ReturnType<typeof getValidShipOfEqualityTargets>
+    | null = null;
+
+  const eligibleSourceIds: string[] = [];
+
+  for (const shipInstance of getChargePhaseSourceShips(state, playerId, phaseKey)) {
+    const sourceInstanceId = shipInstance?.instanceId;
+    const shipDefId = shipInstance?.shipDefId;
+    if (typeof sourceInstanceId !== 'string' || typeof shipDefId !== 'string') continue;
+
+    const shipDef = getShipDefinition(shipDefId);
+    if (!shipDef || !Array.isArray((shipDef as any).structuredPowers)) continue;
+
+    const structuredPowers: StructuredShipPower[] = (shipDef as any).structuredPowers;
+    let sourceHasEligibleChoice = false;
+
+    for (const power of structuredPowers) {
+      if (power?.type !== 'choice') continue;
+      if (!Array.isArray((power as any).timings) || !(power as any).timings.includes(phaseKey)) continue;
+
+      if ((shipDef as any).shipType === 'Solar Power') {
+        if (playerEnergy > 0) {
+          sourceHasEligibleChoice = true;
+          break;
+        }
+        continue;
+      }
+
+      const actionRequiresCharge =
+        (power.requiresCharge ?? false) ||
+        (Array.isArray(power.options) && power.options.some((option: any) => option?.requiresCharge === true));
+
+      if (!actionRequiresCharge) continue;
+      if (usedMap[sourceInstanceId] === turnNumber) continue;
+
+      const chargesCurrent = shipInstance.chargesCurrent ?? 0;
+      const chargeCost = power.chargeCost ?? 1;
+      if (chargesCurrent < chargeCost) continue;
+
+      if (shipDefId === 'EQU') {
+        if (cachedShipOfEqualityTargets == null) {
+          cachedShipOfEqualityTargets = getValidShipOfEqualityTargets(state, playerId);
+        }
+
+        if (
+          cachedShipOfEqualityTargets.validOwnTargets.length === 0 ||
+          cachedShipOfEqualityTargets.validOpponentTargets.length === 0
+        ) {
+          continue;
+        }
+      }
+
+      sourceHasEligibleChoice = true;
+      break;
+    }
+
+    if (sourceHasEligibleChoice) {
+      eligibleSourceIds.push(sourceInstanceId);
+    }
+  }
+
+  return eligibleSourceIds;
+}
+
 function playerHasAvailableChargeOrSolarOption(state: any, player: any): boolean {
   const phaseKey = getCurrentPhaseKey(state);
   if (phaseKey !== 'battle.charge_declaration' && phaseKey !== 'battle.charge_response') {
     return false;
   }
 
-  const fleet = state?.gameData?.ships?.[player.id] ?? [];
-
-  const turnNumber: number = state?.gameData?.turnNumber ?? 1;
-  const usedMap: Record<string, number> =
-    state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
-
-  const playerEnergy = player?.energy ?? 0;
-  let cachedShipOfEqualityTargets:
-    | ReturnType<typeof getValidShipOfEqualityTargets>
-    | null = null;
-
-  for (const shipInstance of fleet) {
-    const sourceInstanceId = shipInstance.instanceId;
-    const shipDefId = shipInstance.shipDefId;
-
-    // Use structured powers (authoritative)
-    const shipDef = getShipDefinition(shipDefId);
-    if (!shipDef || !Array.isArray((shipDef as any).structuredPowers)) continue;
-
-    const structuredPowers: StructuredShipPower[] = (shipDef as any).structuredPowers;
-
-    // Find any choice power that is timed for this charge phase
-    const timedChoicePowers = structuredPowers.filter((p) => {
-      return p?.type === 'choice' && Array.isArray((p as any).timings) && (p as any).timings.includes(phaseKey);
-    });
-
-    if (timedChoicePowers.length === 0) continue;
-
-    // Solar Power: eligible if timed choice exists and player has energy > 0
-    if ((shipDef as any).shipType === 'Solar Power') {
-      if (playerEnergy > 0) return true;
-      continue;
-    }
-
-    // For charge ships, require that at least one timed choice actually requires charge
-    const hasChargeTimedChoice = timedChoicePowers.some((p: any) => {
-      const actionRequiresCharge =
-        (p.requiresCharge ?? false) ||
-        (Array.isArray(p.options) && p.options.some((o: any) => o?.requiresCharge === true));
-      return actionRequiresCharge === true;
-    });
-
-    if (!hasChargeTimedChoice) continue;
-
-    // Patch D/E: cannot act if this ship already used a charge this turn
-    if (usedMap[sourceInstanceId] === turnNumber) continue;
-
-    // Must have charges available
-    const chargesCurrent = shipInstance.chargesCurrent ?? 0;
-    if (chargesCurrent <= 0) continue;
-
-    if (shipDefId !== 'EQU') {
-      return true;
-    }
-
-    if (cachedShipOfEqualityTargets == null) {
-      cachedShipOfEqualityTargets = getValidShipOfEqualityTargets(state, player.id);
-    }
-
-    if (
-      cachedShipOfEqualityTargets.validOwnTargets.length > 0 &&
-      cachedShipOfEqualityTargets.validOpponentTargets.length > 0
-    ) {
-      return true;
-    }
-  }
-
-  return false;
+  return getEligibleChargeOrSolarSourceIds(state, player.id, phaseKey).length > 0;
 }
 
 /**
@@ -466,14 +524,25 @@ function enterPhaseOnce(
   if (toKey === 'battle.charge_declaration') {
     const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
     const snapshot: Record<string, boolean> = {};
+    const snapshotSourceIdsByPlayerId: Record<string, string[]> = {};
     
     for (const player of activePlayers) {
-      snapshot[player.id] = playerHasAvailableChargeOrSolarOption(workingState, player);
+      const eligibleSourceIds = getEligibleChargeOrSolarSourceIds(
+        workingState,
+        player.id,
+        'battle.charge_declaration'
+      );
+      snapshotSourceIdsByPlayerId[player.id] = eligibleSourceIds;
+      snapshot[player.id] = eligibleSourceIds.length > 0;
     }
     
+    turnData.chargeDeclarationEligibleSourceIdsByPlayerId = snapshotSourceIdsByPlayerId;
     turnData.chargeDeclarationEligibleByPlayerId = snapshot;
     
-    console.log(`[OnEnterPhase] Charge declaration snapshot:`, snapshot);
+    console.log(`[OnEnterPhase] Charge declaration snapshot:`, {
+      eligibleByPlayerId: snapshot,
+      eligibleSourceIdsByPlayerId: snapshotSourceIdsByPlayerId,
+    });
   }
   
   // ============================================================================

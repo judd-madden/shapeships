@@ -431,7 +431,7 @@ function FleetArea({
   const hasVoidShips = sortedVoidShips.length > 0;
 
   return (
-    <div className="basis-0 grow h-full min-h-px min-w-px relative shrink-0 px-[8px]">
+    <div className="basis-0 grow h-full min-h-px min-w-px relative shrink-0 px-[8px] overflow-visible">
       {/* FleetArea: {title} (title intentionally not rendered) */}
       <div className="flex h-full min-h-0 flex-col">
         <div className="grow min-h-0">
@@ -465,7 +465,7 @@ function FleetArea({
          {hasVoidShips ? (
           <div
             className={cx(
-              'mt-[6px] h-[44px] overflow-visible',
+              'h-[44px] overflow-visible',
               side === 'opponent' ? 'flex justify-end' : 'flex justify-start'
             )}
           >

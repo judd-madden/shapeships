@@ -51,6 +51,24 @@ function shipAlreadyUsedInShipsThatBuildPass(state: GameState, sourceInstanceId:
   return state?.gameData?.turnData?.shipsThatBuildPassUsageByInstanceId?.[sourceInstanceId]?.[passIndex] === true;
 }
 
+function getSnappedChargeResponseSourceIds(state: GameState, playerId: string): string[] {
+  const rawSourceIds = state?.gameData?.turnData?.chargeDeclarationEligibleSourceIdsByPlayerId?.[playerId];
+  if (!Array.isArray(rawSourceIds)) {
+    return [];
+  }
+
+  const sourceIds: string[] = [];
+  const seen = new Set<string>();
+
+  for (const sourceId of rawSourceIds) {
+    if (typeof sourceId !== 'string' || sourceId.length === 0 || seen.has(sourceId)) continue;
+    seen.add(sourceId);
+    sourceIds.push(sourceId);
+  }
+
+  return sourceIds;
+}
+
 // ============================================================================
 // PUBLIC API
 // ============================================================================
@@ -106,7 +124,15 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
   // ============================================================================
 
   const fleet = state?.gameData?.ships?.[playerId] ?? [];
-  const shipInstance = fleet.find((s: ShipInstance) => s.instanceId === sourceInstanceId);
+  let shipInstance = fleet.find((s: ShipInstance) => s.instanceId === sourceInstanceId);
+
+  if (!shipInstance && phaseKey === 'battle.charge_response') {
+    const snappedSourceIds = getSnappedChargeResponseSourceIds(state, playerId);
+    if (snappedSourceIds.includes(sourceInstanceId)) {
+      const voidFleet = state?.gameData?.voidShipsByPlayerId?.[playerId] ?? [];
+      shipInstance = voidFleet.find((s: ShipInstance) => s.instanceId === sourceInstanceId);
+    }
+  }
 
   if (!shipInstance) {
     throw new Error(`Ship instance not found: ${sourceInstanceId}`);
