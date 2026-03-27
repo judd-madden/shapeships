@@ -24,15 +24,38 @@
  *   next diff does not replay the same pulse.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 export type AnimToken = { entryNonce: number; activationNonce: number; stackAddNonce: number };
 export type AnimTokenMap = Record<string, AnimToken>;
 type PendingStackAddSuppression = { prevCount: number; nextCount: number };
+type TokenNonceField = 'entryNonce' | 'stackAddNonce';
 
 // Initial token for any new renderKey
 function makeEmptyToken(): AnimToken {
   return { entryNonce: 0, activationNonce: 0, stackAddNonce: 0 };
+}
+
+function bumpTokenNonces(
+  previousTokens: AnimTokenMap,
+  renderKeys: string[],
+  field: TokenNonceField
+): AnimTokenMap {
+  if (renderKeys.length === 0) {
+    return previousTokens;
+  }
+
+  const nextTokens = { ...previousTokens };
+
+  for (const renderKey of renderKeys) {
+    const currentToken = nextTokens[renderKey] ?? makeEmptyToken();
+    nextTokens[renderKey] = {
+      ...currentToken,
+      [field]: currentToken[field] + 1,
+    };
+  }
+
+  return nextTokens;
 }
 
 export function useFleetAnimTokens(params: {
@@ -46,17 +69,27 @@ export function useFleetAnimTokens(params: {
 
   const prevMyCountsRef = useRef<Record<string, number>>({});
   const prevOpponentCountsRef = useRef<Record<string, number>>({});
+  const didInitializeCountsRef = useRef(false);
   const pendingMyStackAddSuppressionRef =
     useRef<Record<string, PendingStackAddSuppression>>({});
 
   // Detect entry (0->1+) and stack-add (N->N+1 where N>0).
   // True entry remains fully diff-owned; only local manual stack-add is deduped.
-  useEffect(() => {
+  useLayoutEffect(() => {
+    if (!didInitializeCountsRef.current) {
+      prevMyCountsRef.current = { ...myCountsByRenderKey };
+      prevOpponentCountsRef.current = { ...opponentCountsByRenderKey };
+      didInitializeCountsRef.current = true;
+      return;
+    }
+
     const allMyRenderKeys = new Set([
       ...Object.keys(myCountsByRenderKey),
       ...Object.keys(prevMyCountsRef.current),
       ...Object.keys(pendingMyStackAddSuppressionRef.current),
     ]);
+    const myEntryRenderKeys: string[] = [];
+    const myStackAddRenderKeys: string[] = [];
 
     for (const renderKey of allMyRenderKeys) {
       const currentCount = myCountsByRenderKey[renderKey] ?? 0;
@@ -64,13 +97,7 @@ export function useFleetAnimTokens(params: {
       const pendingSuppression = pendingMyStackAddSuppressionRef.current[renderKey];
 
       if (prevCount === 0 && currentCount > 0) {
-        setMyAnimTokens((prev) => ({
-          ...prev,
-          [renderKey]: {
-            ...(prev[renderKey] ?? makeEmptyToken()),
-            entryNonce: (prev[renderKey]?.entryNonce ?? 0) + 1,
-          },
-        }));
+        myEntryRenderKeys.push(renderKey);
       } else if (prevCount > 0 && currentCount > prevCount) {
         const matchesPendingStackAdd =
           pendingSuppression?.prevCount === prevCount &&
@@ -87,13 +114,7 @@ export function useFleetAnimTokens(params: {
             delete pendingMyStackAddSuppressionRef.current[renderKey];
           }
 
-          setMyAnimTokens((prev) => ({
-            ...prev,
-            [renderKey]: {
-              ...(prev[renderKey] ?? makeEmptyToken()),
-              stackAddNonce: (prev[renderKey]?.stackAddNonce ?? 0) + 1,
-            },
-          }));
+          myStackAddRenderKeys.push(renderKey);
         }
       } else if (
         pendingSuppression &&
@@ -103,39 +124,51 @@ export function useFleetAnimTokens(params: {
       ) {
         delete pendingMyStackAddSuppressionRef.current[renderKey];
       }
-
-      prevMyCountsRef.current[renderKey] = currentCount;
     }
+
+    if (myEntryRenderKeys.length > 0 || myStackAddRenderKeys.length > 0) {
+      setMyAnimTokens((prev) => {
+        let next = prev;
+
+        next = bumpTokenNonces(next, myEntryRenderKeys, 'entryNonce');
+        next = bumpTokenNonces(next, myStackAddRenderKeys, 'stackAddNonce');
+
+        return next;
+      });
+    }
+
+    prevMyCountsRef.current = { ...myCountsByRenderKey };
 
     const allOpponentRenderKeys = new Set([
       ...Object.keys(opponentCountsByRenderKey),
       ...Object.keys(prevOpponentCountsRef.current),
     ]);
+    const opponentEntryRenderKeys: string[] = [];
+    const opponentStackAddRenderKeys: string[] = [];
 
     for (const renderKey of allOpponentRenderKeys) {
       const currentCount = opponentCountsByRenderKey[renderKey] ?? 0;
       const prevCount = prevOpponentCountsRef.current[renderKey] ?? 0;
 
       if (prevCount === 0 && currentCount > 0) {
-        setOpponentAnimTokens((prev) => ({
-          ...prev,
-          [renderKey]: {
-            ...(prev[renderKey] ?? makeEmptyToken()),
-            entryNonce: (prev[renderKey]?.entryNonce ?? 0) + 1,
-          },
-        }));
+        opponentEntryRenderKeys.push(renderKey);
       } else if (prevCount > 0 && currentCount > prevCount) {
-        setOpponentAnimTokens((prev) => ({
-          ...prev,
-          [renderKey]: {
-            ...(prev[renderKey] ?? makeEmptyToken()),
-            stackAddNonce: (prev[renderKey]?.stackAddNonce ?? 0) + 1,
-          },
-        }));
+        opponentStackAddRenderKeys.push(renderKey);
       }
-
-      prevOpponentCountsRef.current[renderKey] = currentCount;
     }
+
+    if (opponentEntryRenderKeys.length > 0 || opponentStackAddRenderKeys.length > 0) {
+      setOpponentAnimTokens((prev) => {
+        let next = prev;
+
+        next = bumpTokenNonces(next, opponentEntryRenderKeys, 'entryNonce');
+        next = bumpTokenNonces(next, opponentStackAddRenderKeys, 'stackAddNonce');
+
+        return next;
+      });
+    }
+
+    prevOpponentCountsRef.current = { ...opponentCountsByRenderKey };
   }, [myCountsByRenderKey, opponentCountsByRenderKey]);
 
   // Immediate local entry still means "true new rendered stack" and is not
