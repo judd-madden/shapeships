@@ -510,6 +510,7 @@ export function mapGameSessionVm(args: {
   // ============================================================================
   
   let readyButtonLabel = 'READY';
+  let readyButtonNote: string | null = null;
   let finalReadyDisabled = !readyEnabled;
   let finalReadyDisabledReason = readyDisabledReason;
   let finalReadySelected = p1IsReady;
@@ -568,7 +569,8 @@ export function mapGameSessionVm(args: {
       : 'Spend lines to build ships';
 
     if (!readyUx?.sendingNow && !autoReadyWaiting && !p1IsReady) {
-      readyButtonLabel = `READY — Save ${buildDrawingEconomyDisplay.projectedSavedCombined} Lines`;
+      readyButtonLabel = 'READY';
+      readyButtonNote = `Save ${buildDrawingEconomyDisplay.projectedSavedCombined} Lines`;
     }
   }
   
@@ -977,7 +979,7 @@ export function mapGameSessionVm(args: {
       canUndoActions: false,
       readyButtonVisible: !isFinished,
       readyButtonLabel,
-      readyButtonNote: null,
+      readyButtonNote,
       nextPhaseLabel: 'NEXT PHASE',
       readyDisabled: finalReadyDisabled,
       readyDisabledReason: finalReadyDisabledReason,

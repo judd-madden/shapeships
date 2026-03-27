@@ -63,10 +63,10 @@ export function ReadyButton({
             </p>
             {note && (
               <p 
-                className="font-['Roboto'] font-black font-normal leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
+                className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
-                <span style={{ fontVariationSettings: "'wdth' 100" }}>- </span>
+                <span style={{ fontVariationSettings: "'wdth' 100" }}> — </span>
                 <span style={{ fontVariationSettings: "'wdth' 100" }}>{note}</span>
               </p>
             )}
@@ -97,7 +97,7 @@ export function ReadyButton({
           </p>
           {note && (
             <p className="font-normal leading-[normal] relative shrink-0" style={{ fontVariationSettings: "'wdth' 100" }}>
-              <span style={{ fontVariationSettings: "'wdth' 100" }}>- </span>
+              <span style={{ fontVariationSettings: "'wdth' 100" }}> — </span>
               <span style={{ fontVariationSettings: "'wdth' 100" }}>{note}</span>
             </p>
           )}
