@@ -338,9 +338,9 @@ function persistSavedResources(
   const playerIndex = state.players.findIndex((player: any) => player.id === playerId);
   if (playerIndex < 0) return;
 
-  const clampedJoiningLines = Math.max(0, Math.min(remainingJoiningLines, SAVED_LINE_CAP));
-  const remainingCapacity = Math.max(0, SAVED_LINE_CAP - clampedJoiningLines);
-  const clampedOrdinaryLines = Math.max(0, Math.min(remainingOrdinaryLines, remainingCapacity));
+  const clampedOrdinaryLines = Math.max(0, Math.min(remainingOrdinaryLines, SAVED_LINE_CAP));
+  const remainingCapacity = Math.max(0, SAVED_LINE_CAP - clampedOrdinaryLines);
+  const clampedJoiningLines = Math.max(0, Math.min(remainingJoiningLines, remainingCapacity));
 
   state.players[playerIndex] = {
     ...state.players[playerIndex],

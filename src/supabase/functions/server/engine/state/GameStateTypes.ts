@@ -82,6 +82,16 @@ export type GameData = {
     /** Flag: dice modifiers have been finalized */
     diceFinalized?: boolean;
 
+    /**
+     * Visibility-only snapshot captured on the first authoritative entry into
+     * build.drawing for the current turn. Preserves the public drawing-start
+     * Saved Lines view through hidden build.drawing without affecting spend.
+     */
+    buildDrawingPublicSavedResourcesByPlayerId?: Record<string, {
+      savedLines: number;
+      savedJoiningLines: number;
+    }>;
+
     /** Shared/public Chronoswarm rolls captured at build.dice_roll for this turn */
     chronoswarmRolls?: number[];
     /** Live Chronoswarm counts by player at build.dice_roll timing */

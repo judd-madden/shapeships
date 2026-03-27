@@ -741,11 +741,11 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             {/* P1 */}
             <div className="content-stretch flex items-start justify-end relative shrink-0 w-[100px]" data-name="P1 Saved Wrapper">
               <div className="content-stretch flex items-start relative shrink-0">
-                <Metric value="0" align="right" toneClass="text-white" />
+                <Metric value={String(vm.myDisplayedSavedLines)} align="right" toneClass="text-white" />
                 {/* Saved joining lines shown here are authoritative projected state only; we do not invent local same-phase LEG availability, and immediate same-phase use is deferred. */}
-                {vm.mySavedJoiningLines > 0 ? (
+                {vm.myDisplayedSavedJoiningLines > 0 ? (
                   <Metric
-                    value={String(vm.mySavedJoiningLines)}
+                    value={String(vm.myDisplayedSavedJoiningLines)}
                     label="JOINING"
                     align="right"
                     toneClass="text-white"
@@ -766,10 +766,10 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             {/* P2 */}
             <div className="content-stretch flex items-start relative shrink-0 w-[100px]" data-name="P2 Saved Wrapper">
               <div className="content-stretch flex items-start relative shrink-0">
-                <Metric value="0" align="left" toneClass="text-white" />
-                {vm.opponentSavedJoiningLines > 0 ? (
+                <Metric value={String(vm.opponentDisplayedSavedLines)} align="left" toneClass="text-white" />
+                {vm.opponentDisplayedSavedJoiningLines > 0 ? (
                   <Metric
-                    value={String(vm.opponentSavedJoiningLines)}
+                    value={String(vm.opponentDisplayedSavedJoiningLines)}
                     label="JOINING"
                     align="left"
                     toneClass="text-white"

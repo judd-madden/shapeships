@@ -9,6 +9,8 @@ type BuildEconomySnapshot = {
   joiningLinesAvailable?: number | null;
 };
 
+const SAVED_LINE_CAP = 12;
+
 type InternalFleetEntry = {
   rowId: string;
   shipDefId: ShipDefId;
@@ -35,6 +37,9 @@ export interface ProvisionalBuildResult {
   isValid: boolean;
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
+  projectedSavedOrdinaryLines: number;
+  projectedSavedJoiningLines: number;
+  projectedSavedCombinedLines: number;
   myFleetPreview: BoardFleetSummary[];
   provisionalShipCountsById: Partial<Record<ShipDefId, number>>;
   evolverRowIds: string[];
@@ -369,6 +374,25 @@ function reserveUpgradeComponentsDetailed(
   };
 }
 
+function projectPersistedSavedResources(
+  remainingOrdinaryLines: number,
+  remainingJoiningLines: number
+): {
+  ordinaryLines: number;
+  joiningLines: number;
+  combinedLines: number;
+} {
+  const ordinaryLines = Math.max(0, Math.min(remainingOrdinaryLines, SAVED_LINE_CAP));
+  const remainingCapacity = Math.max(0, SAVED_LINE_CAP - ordinaryLines);
+  const joiningLines = Math.max(0, Math.min(remainingJoiningLines, remainingCapacity));
+
+  return {
+    ordinaryLines,
+    joiningLines,
+    combinedLines: ordinaryLines + joiningLines,
+  };
+}
+
 function evaluateCatalogueEligibility(args: {
   entries: InternalFleetEntry[];
   shipDefId: ShipDefId;
@@ -633,12 +657,19 @@ export function evaluateProvisionalBuild(args: {
     remainingOrdinaryLines,
     remainingJoiningLines,
   });
+  const projectedSavedResources = projectPersistedSavedResources(
+    remainingOrdinaryLines,
+    remainingJoiningLines
+  );
 
   return {
     draftCounts,
     isValid,
     remainingOrdinaryLines,
     remainingJoiningLines,
+    projectedSavedOrdinaryLines: projectedSavedResources.ordinaryLines,
+    projectedSavedJoiningLines: projectedSavedResources.joiningLines,
+    projectedSavedCombinedLines: projectedSavedResources.combinedLines,
     myFleetPreview: buildPreviewFleetSummary(fleetAfterEvolverParity),
     provisionalShipCountsById: countShipsById(fleetAfterEvolverParity),
     evolverRowIds,

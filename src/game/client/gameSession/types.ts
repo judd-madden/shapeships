@@ -175,6 +175,10 @@ export type BoardViewModel =
       opponentBonusLines: number;
       myBonusLinesOnEven: number;
       opponentBonusLinesOnEven: number;
+      myDisplayedSavedLines: number;
+      opponentDisplayedSavedLines: number;
+      myDisplayedSavedJoiningLines: number;
+      opponentDisplayedSavedJoiningLines: number;
       mySavedJoiningLines: number;
       opponentSavedJoiningLines: number;
       myJoiningBonusLines: number;
@@ -194,6 +198,7 @@ export type ChooseSpeciesBoardVm = Extract<BoardViewModel, { mode: 'choose_speci
 export interface BottomActionRailViewModel {
   // Subphase info
   subphaseTitle: string; // e.g., "Subphase information"
+  subphaseTitleSuffix?: string | null;
   subphaseSubheading: string;
   
   // Ready controls

@@ -247,6 +247,11 @@ export function mapGameSessionVm(args: {
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
   centaurChargeSubTab?: CentaurChargeSubTabId;
   centaurChargeAvailableTabs?: CentaurChargeSubTabId[];
+  buildDrawingEconomyDisplay?: {
+    ordinaryAvailable: number;
+    joiningAvailable: number;
+    projectedSavedCombined: number;
+  } | null;
 }): GameSessionViewModel {
   const {
     isBootstrapping,
@@ -298,6 +303,7 @@ export function mapGameSessionVm(args: {
     evolverChoicesByRowId,
     centaurChargeSubTab,
     centaurChargeAvailableTabs,
+    buildDrawingEconomyDisplay,
   } = args;
   
   // Map chat entries to LeftRail VM format
@@ -507,6 +513,7 @@ export function mapGameSessionVm(args: {
   let finalReadyDisabled = !readyEnabled;
   let finalReadyDisabledReason = readyDisabledReason;
   let finalReadySelected = p1IsReady;
+  let autoReadyWaiting = false;
   
   // Helper: detect whether I have any actionable input this phase
   // Conservative rule: any availableActions means "I have something".
@@ -535,7 +542,7 @@ export function mapGameSessionVm(args: {
     // - I did NOT explicitly click ready this phase (clickedThisPhase false)
     // - I have no actions this phase (no availableActions)
     // - opponent not ready (still waiting on them)
-    const autoReadyWaiting =
+    autoReadyWaiting =
       p1IsReady &&
       !readyUx?.clickedThisPhase &&
       !iHaveActionsThisPhase &&
@@ -546,6 +553,22 @@ export function mapGameSessionVm(args: {
       finalReadyDisabled = true;
       finalReadySelected = false;
       finalReadyDisabledReason = null;
+    }
+  }
+
+  let subphaseTitle = isFinished ? 'Game Over' : getSubphaseLabelFromPhaseKey(phaseKey);
+  let subphaseTitleSuffix: string | null = null;
+  let subphaseSubheading = isFinished ? '' : getMajorPhaseLabel(phaseKey);
+
+  if (!isFinished && buildDrawingEconomyDisplay != null) {
+    subphaseTitle = String(buildDrawingEconomyDisplay.ordinaryAvailable);
+    subphaseTitleSuffix = 'lines available';
+    subphaseSubheading = buildDrawingEconomyDisplay.joiningAvailable > 0
+      ? `${buildDrawingEconomyDisplay.joiningAvailable} joining lines available`
+      : 'Spend lines to build ships';
+
+    if (!readyUx?.sendingNow && !autoReadyWaiting && !p1IsReady) {
+      readyButtonLabel = `READY — Save ${buildDrawingEconomyDisplay.projectedSavedCombined} Lines`;
     }
   }
   
@@ -948,8 +971,9 @@ export function mapGameSessionVm(args: {
     bottomActionRail: {
       // Future: build.drawing custom heading "X/Y lines available" + breakdown "Saved + Bonus + Dice" must come from server-authoritative fields (do not compute client-side).
       // Future: charge declaration/response subtexts should be gated by server-projected availability (e.g. availableActions / boolean), not guessed client-side.
-      subphaseTitle: isFinished ? 'Game Over' : getSubphaseLabelFromPhaseKey(phaseKey),
-      subphaseSubheading: isFinished ? '' : getMajorPhaseLabel(phaseKey),
+      subphaseTitle,
+      subphaseTitleSuffix,
+      subphaseSubheading,
       canUndoActions: false,
       readyButtonVisible: !isFinished,
       readyButtonLabel,

@@ -26,6 +26,9 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {vm.subphaseTitle}
+            {vm.subphaseTitleSuffix ? (
+              <span className="font-['Roboto'] font-normal"> {vm.subphaseTitleSuffix}</span>
+            ) : null}
           </p>
           <p
             className="font-['Roboto'] font-normal relative shrink-0 text-[16px] w-full"

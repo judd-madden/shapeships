@@ -862,6 +862,14 @@ useEffect(() => {
 
   const evolverRowIds = provisionalBuild.evolverRowIds;
   const evolverRowIdsKey = evolverRowIds.join('|');
+  const isLocalBuildDrawing = phaseKey === 'build.drawing' && myRole === 'player';
+  const buildDrawingEconomyDisplay = isLocalBuildDrawing
+    ? {
+        ordinaryAvailable: provisionalBuild.remainingOrdinaryLines,
+        joiningAvailable: provisionalBuild.remainingJoiningLines,
+        projectedSavedCombined: provisionalBuild.projectedSavedCombinedLines,
+      }
+    : null;
 
   useEffect(() => {
     setEvolverChoicesByRowId((prev) => {
@@ -1036,6 +1044,7 @@ useEffect(() => {
     // Server-authoritative bonus lines (top-level response projection)
     const bonusLinesByPlayerId = rawState?.bonusLinesByPlayerId as Record<string, number> | undefined;
     const bonusLinesOnEvenByPlayerId = rawState?.bonusLinesOnEvenByPlayerId as Record<string, number> | undefined;
+    const savedLinesByPlayerId = rawState?.savedLinesByPlayerId as Record<string, number> | undefined;
     const joiningLinesByPlayerId = rawState?.joiningLinesByPlayerId as Record<string, number> | undefined;
     const joiningBonusLinesByPlayerId = rawState?.joiningBonusLinesByPlayerId as Record<string, number> | undefined;
 
@@ -1043,10 +1052,16 @@ useEffect(() => {
     const opponentBonusLines = opponent?.id ? (bonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
     const myBonusLinesOnEven = me?.id ? (bonusLinesOnEvenByPlayerId?.[me.id] ?? 0) : 0;
     const opponentBonusLinesOnEven = opponent?.id ? (bonusLinesOnEvenByPlayerId?.[opponent.id] ?? 0) : 0;
+    const mySavedLines = me?.id ? (savedLinesByPlayerId?.[me.id] ?? 0) : 0;
+    const opponentSavedLines = opponent?.id ? (savedLinesByPlayerId?.[opponent.id] ?? 0) : 0;
     const mySavedJoiningLines = me?.id ? (joiningLinesByPlayerId?.[me.id] ?? 0) : 0;
     const opponentSavedJoiningLines = opponent?.id ? (joiningLinesByPlayerId?.[opponent.id] ?? 0) : 0;
     const myJoiningBonusLines = me?.id ? (joiningBonusLinesByPlayerId?.[me.id] ?? 0) : 0;
     const opponentJoiningBonusLines = opponent?.id ? (joiningBonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
+    const myDisplayedSavedLines = isLocalBuildDrawing ? 0 : mySavedLines;
+    const opponentDisplayedSavedLines = opponentSavedLines;
+    const myDisplayedSavedJoiningLines = isLocalBuildDrawing ? 0 : mySavedJoiningLines;
+    const opponentDisplayedSavedJoiningLines = opponentSavedJoiningLines;
 
     board = {
       mode: 'board',
@@ -1103,6 +1118,10 @@ useEffect(() => {
       opponentBonusLines,
       myBonusLinesOnEven,
       opponentBonusLinesOnEven,
+      myDisplayedSavedLines,
+      opponentDisplayedSavedLines,
+      myDisplayedSavedJoiningLines,
+      opponentDisplayedSavedJoiningLines,
       mySavedJoiningLines,
       opponentSavedJoiningLines,
       myJoiningBonusLines,
@@ -1436,7 +1455,7 @@ useEffect(() => {
       readyDisabledReason = 'Loading actions…';
     } else if (hasIncompleteTargetedAction) {
       readyEnabled = false;
-      readyDisabledReason = 'Complete all required target selections first.';
+      readyDisabledReason = 'Must complete actions';
     } else {
       readyEnabled = true;
       readyDisabledReason = null;
@@ -1683,8 +1702,9 @@ useEffect(() => {
   frigateSelectedTriggers: frigateSelectedTriggersRef.current,
   evolverRowIds,
   evolverChoicesByRowId,
-  centaurChargeSubTab: activeCentaurChargeSubTab,
-  centaurChargeAvailableTabs,
+    centaurChargeSubTab: activeCentaurChargeSubTab,
+    centaurChargeAvailableTabs,
+    buildDrawingEconomyDisplay,
 });
   
   // ============================================================================
@@ -2123,6 +2143,10 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         opponentBonusLines: 0,
         myBonusLinesOnEven: 0,
         opponentBonusLinesOnEven: 0,
+        myDisplayedSavedLines: 0,
+        opponentDisplayedSavedLines: 0,
+        myDisplayedSavedJoiningLines: 0,
+        opponentDisplayedSavedJoiningLines: 0,
         mySavedJoiningLines: 0,
         opponentSavedJoiningLines: 0,
         myJoiningBonusLines: 0,
@@ -2148,6 +2172,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       },
       bottomActionRail: {
         subphaseTitle: '',
+        subphaseTitleSuffix: null,
         subphaseSubheading: '',
         canUndoActions: false,
         readyButtonVisible: true,

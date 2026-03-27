@@ -815,6 +815,35 @@ function enterPhaseOnce(
       }
     }
   }
+
+  // ============================================================================
+  // BUILD DRAWING PUBLIC SAVED-RESOURCE SNAPSHOT - build.drawing
+  // ============================================================================
+  // Capture the public Saved Lines view exactly once per turn on the first
+  // authoritative entry into build.drawing. Re-entry paths in the same turn
+  // must preserve the original drawing-start totals.
+  if (toKey === 'build.drawing') {
+    const existingSnapshot = turnData.buildDrawingPublicSavedResourcesByPlayerId;
+    const hasExistingSnapshot =
+      existingSnapshot != null &&
+      Object.keys(existingSnapshot).length > 0;
+
+    if (!hasExistingSnapshot) {
+      const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
+      const snapshot: Record<string, { savedLines: number; savedJoiningLines: number }> = {};
+
+      for (const player of activePlayers) {
+        snapshot[player.id] = {
+          savedLines: player.lines ?? 0,
+          savedJoiningLines: player.joiningLines ?? 0,
+        };
+      }
+
+      turnData.buildDrawingPublicSavedResourcesByPlayerId = snapshot;
+
+      console.log('[OnEnterPhase] Captured build.drawing public saved-resource snapshot:', snapshot);
+    }
+  }
   
   // ============================================================================
   // FIRST STRIKE - battle.first_strike

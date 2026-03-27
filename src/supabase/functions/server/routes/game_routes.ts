@@ -278,6 +278,22 @@ function projectChronoswarmTurnData(gameData: any, requestingPlayerId: string): 
   };
 }
 
+function getPublicSavedResourcesForPlayer(state: any, phaseKey: string | null, playerId: string): {
+  savedLines: number;
+  savedJoiningLines: number;
+} {
+  const player = (state?.players || []).find((candidate: any) => candidate?.id === playerId);
+  const snapshot =
+    phaseKey === 'build.drawing'
+      ? state?.gameData?.turnData?.buildDrawingPublicSavedResourcesByPlayerId?.[playerId]
+      : null;
+
+  return {
+    savedLines: snapshot?.savedLines ?? player?.lines ?? 0,
+    savedJoiningLines: snapshot?.savedJoiningLines ?? player?.joiningLines ?? 0,
+  };
+}
+
 // ============================================================================
 // HELPER: Compute available actions for requesting player
 // ============================================================================
@@ -1278,6 +1294,7 @@ export function registerGameRoutes(
       // Compute projected build-phase line bonuses for all players
       const bonusLinesByPlayerId: Record<string, number> = {};
       const bonusLinesOnEvenByPlayerId: Record<string, number> = {};
+      const savedLinesByPlayerId: Record<string, number> = {};
       const joiningLinesByPlayerId: Record<string, number> = {};
       const joiningBonusLinesByPlayerId: Record<string, number> = {};
       const buildEconomyByPlayerId: Record<string, {
@@ -1301,6 +1318,7 @@ export function registerGameRoutes(
       const playersInGame = gameData.players || [];
       for (const player of playersInGame) {
         if (player.role === 'player') {
+          const publicSavedResources = getPublicSavedResourcesForPlayer(gameData, phaseKey, player.id);
           const ordinaryLinesAvailable = player.lines ?? 0;
           const joiningLinesAvailable = player.joiningLines ?? 0;
           const baseRollLines = turnData.effectiveDiceRollByPlayerId?.[player.id] ?? canonicalBaseRollLines ?? 0;
@@ -1314,7 +1332,8 @@ export function registerGameRoutes(
             chronoswarmBonusLines += chronoswarmRolls[i] ?? 0;
           }
 
-          joiningLinesByPlayerId[player.id] = player.joiningLines ?? 0;
+          savedLinesByPlayerId[player.id] = publicSavedResources.savedLines;
+          joiningLinesByPlayerId[player.id] = publicSavedResources.savedJoiningLines;
           try {
             const lineBonuses = computeLineBonusesForPlayer(gameData.gameData, player.id);
             bonusLinesByPlayerId[player.id] = lineBonuses.bonusLines;
@@ -1361,6 +1380,7 @@ export function registerGameRoutes(
         bonusLinesByPlayerId,
         bonusLinesOnEvenByPlayerId,
         buildEconomyByPlayerId,
+        savedLinesByPlayerId,
         joiningLinesByPlayerId,
         joiningBonusLinesByPlayerId,
       });
