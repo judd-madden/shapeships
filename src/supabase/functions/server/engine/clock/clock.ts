@@ -2,8 +2,8 @@
  * SERVER AUTHORITATIVE CHESS CLOCK
  * 
  * Rules:
- * - Base time: 10 minutes (600,000 ms)
- * - Increment: 15 seconds per turn (15,000 ms)
+ * - Base time: 15 minutes (900,000 ms)
+ * - Increment: 30 seconds per turn (30,000 ms)
  * - Clocks do NOT run until both players have confirmed species AND turnNumber >= 1
  * - Time decrements only when player is NOT ready
  * - Increment is applied ONCE per player per turn (not per ready press)
@@ -16,8 +16,8 @@
 
 export interface ClockState {
   timeControl: {
-    baseMs: number;       // default 600_000 (10 minutes)
-    incrementMs: number;  // default 15_000 (15 seconds)
+    baseMs: number;       // default 900_000 (15 minutes)
+    incrementMs: number;  // default 30_000 (30 seconds)
   };
   remainingMsByPlayerId: Record<string, number>;
   lastUpdateAtMs: number;
@@ -43,8 +43,8 @@ export function initializeClocks(gameData: any): any {
   
   const clock: ClockState = {
     timeControl: {
-      baseMs: 600_000,      // 10 minutes
-      incrementMs: 15_000,  // 15 seconds
+      baseMs: 900_000,      // 15 minutes
+      incrementMs: 30_000,  // 30 seconds
     },
     remainingMsByPlayerId: {},
     lastUpdateAtMs: Date.now(),
