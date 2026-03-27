@@ -72,6 +72,10 @@ export function applyEffects(
     newState.gameData.ships = { ...newState.gameData.ships };
   }
 
+  if (newState.gameData.voidShipsByPlayerId) {
+    newState.gameData.voidShipsByPlayerId = { ...newState.gameData.voidShipsByPlayerId };
+  }
+
   // Ensure pendingTurn exists AND clone its maps
   if (state.gameData.pendingTurn) {
     // Clone the object and both maps
@@ -590,23 +594,32 @@ function applySpendCharge(
     return {};
   }
 
-  // Find fleet (try owner first, then target) and track which playerId we're using
   let currentFleet = state.gameData.ships?.[ownerPlayerId];
   let fleetPlayerId = ownerPlayerId;
-  
-  if (!currentFleet) {
+  let isVoidFleet = false;
+  let shipIndex = currentFleet?.findIndex((s) => s.instanceId === shipInstanceId) ?? -1;
+
+  if (shipIndex === -1) {
     currentFleet = state.gameData.ships?.[targetPlayerId];
     fleetPlayerId = targetPlayerId;
+    shipIndex = currentFleet?.findIndex((s) => s.instanceId === shipInstanceId) ?? -1;
   }
 
-  if (!currentFleet) {
-    console.warn(`[applyEffects] Fleet not found for SpendCharge effect`);
-    return {};
-  }
-
-  // Find ship instance
-  const shipIndex = currentFleet.findIndex((s) => s.instanceId === shipInstanceId);
   if (shipIndex === -1) {
+    currentFleet = state.gameData.voidShipsByPlayerId?.[ownerPlayerId];
+    fleetPlayerId = ownerPlayerId;
+    isVoidFleet = true;
+    shipIndex = currentFleet?.findIndex((s) => s.instanceId === shipInstanceId) ?? -1;
+  }
+
+  if (shipIndex === -1) {
+    currentFleet = state.gameData.voidShipsByPlayerId?.[targetPlayerId];
+    fleetPlayerId = targetPlayerId;
+    isVoidFleet = true;
+    shipIndex = currentFleet?.findIndex((s) => s.instanceId === shipInstanceId) ?? -1;
+  }
+
+  if (!currentFleet || shipIndex === -1) {
     console.warn(`[applyEffects] Ship instance not found for SpendCharge effect: ${shipInstanceId}`);
     return {};
   }
@@ -627,8 +640,12 @@ function applySpendCharge(
   const newFleet = [...currentFleet];
   newFleet[shipIndex] = updatedShip;
 
-  // Assign new fleet back to ships map
-  state.gameData.ships![fleetPlayerId] = newFleet;
+  if (isVoidFleet) {
+    const voidShips = state.gameData.voidShipsByPlayerId ?? (state.gameData.voidShipsByPlayerId = {});
+    voidShips[fleetPlayerId] = newFleet;
+  } else {
+    state.gameData.ships![fleetPlayerId] = newFleet;
+  }
 
   console.log(
     `[applyEffects] Ship ${shipInstanceId} spent ${amount} charge(s): ${beforeCharges} → ${afterCharges}`

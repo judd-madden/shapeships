@@ -123,7 +123,7 @@ function playerHasAvailableChargeOrSolarOption(state: any, playerId: string): bo
   return false;
 }
 
-function getSnappedChargeResponseSourceIds(state: any, playerId: string): string[] {
+function getSnappedChargeSourceIds(state: any, playerId: string): string[] {
   const rawSourceIds = state?.gameData?.turnData?.chargeDeclarationEligibleSourceIdsByPlayerId?.[playerId];
   if (!Array.isArray(rawSourceIds)) {
     return [];
@@ -141,7 +141,7 @@ function getSnappedChargeResponseSourceIds(state: any, playerId: string): string
   return sourceIds;
 }
 
-function resolveChargeResponseSource(state: any, playerId: string, sourceInstanceId: string): ShipInstance | null {
+function resolveSnappedChargeSource(state: any, playerId: string, sourceInstanceId: string): ShipInstance | null {
   const liveFleet = state?.gameData?.ships?.[playerId] ?? [];
   const liveShip = liveFleet.find((ship: ShipInstance) => ship.instanceId === sourceInstanceId);
   if (liveShip) {
@@ -153,18 +153,14 @@ function resolveChargeResponseSource(state: any, playerId: string, sourceInstanc
 }
 
 function getChargeSourceShipsForPhase(state: any, playerId: string, phaseKey: string): ShipInstance[] {
-  if (phaseKey === 'battle.charge_declaration') {
-    return state?.gameData?.ships?.[playerId] ?? [];
-  }
-
-  if (phaseKey !== 'battle.charge_response') {
+  if (phaseKey !== 'battle.charge_declaration' && phaseKey !== 'battle.charge_response') {
     return [];
   }
 
   const sourceShips: ShipInstance[] = [];
 
-  for (const sourceInstanceId of getSnappedChargeResponseSourceIds(state, playerId)) {
-    const ship = resolveChargeResponseSource(state, playerId, sourceInstanceId);
+  for (const sourceInstanceId of getSnappedChargeSourceIds(state, playerId)) {
+    const ship = resolveSnappedChargeSource(state, playerId, sourceInstanceId);
     if (!ship) continue;
     sourceShips.push(ship);
   }
