@@ -247,7 +247,7 @@ function ShipGroupRenderer({ group, selectedChoiceIdBySourceInstanceId, onSelect
 
         {/* Right: Group Help Text (grey, 18px, 270px width) */}
         <div
-          className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-grey-50)] text-[18px] w-[270px] whitespace-pre-wrap"
+          className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-grey-50)] text-[18px] w-[270px] whitespace-pre-wrap"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {group.groupHelpText}

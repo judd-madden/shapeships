@@ -106,7 +106,7 @@ export function LargeStyleChoicePanel({
 
       {/* Center Column: Title + Instruction */}
       <div
-        className="content-stretch flex flex-col font-['Roboto:Bold',sans-serif] font-bold gap-[16px] items-start leading-[normal] relative shrink-0 text-[18px] w-[300px]"
+        className="content-stretch flex flex-col font-['Roboto',sans-serif] font-bold gap-[16px] items-start leading-[normal] relative shrink-0 text-[18px] w-[300px]"
         data-name="Title and Instruction"
       >
         {/* Title (White, Centered) */}
@@ -129,7 +129,7 @@ export function LargeStyleChoicePanel({
       {/* Right Column: Help Text (Grey 50) */}
       {helpText && (
         <p
-          className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-grey-50)] text-[18px] w-[270px] whitespace-pre-wrap"
+          className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-grey-50)] text-[18px] w-[270px] whitespace-pre-wrap"
           style={{ fontVariationSettings: "'wdth' 100" }}
           data-name="Help Text"
         >

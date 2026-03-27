@@ -133,7 +133,7 @@ export function FrigateDrawingPanel({
 
       {/* Bottom Explanatory Text */}
       <p
-        className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] shrink-0 text-[16px] text-center text-white w-full whitespace-pre-wrap"
+        className="font-['Roboto',sans-serif] font-normal leading-[normal] shrink-0 text-[16px] text-center text-white w-full whitespace-pre-wrap"
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {explanationText}

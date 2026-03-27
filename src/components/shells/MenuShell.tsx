@@ -96,7 +96,7 @@ export function MenuShell({
           {/* Right Header */}
           <div className="content-stretch flex flex-col md:flex-row gap-6 md:gap-[36px] items-center justify-end relative shrink-0">
             {/* Social Links */}
-            <div className="content-stretch flex font-['Roboto:Regular',sans-serif] font-normal gap-[34px] items-center leading-[normal] relative shrink-0 text-[18px] text-nowrap underline">
+            <div className="content-stretch flex font-['Roboto',sans-serif] font-normal gap-[34px] items-center leading-[normal] relative shrink-0 text-[18px] text-nowrap underline">
               <a 
                 href="https://discord.gg/MjPtf4G6Gt" 
                 target="_blank" 
@@ -153,11 +153,11 @@ export function MenuShell({
 
               {/* Name and Notes */}
               <div className="content-stretch flex flex-col items-start justify-center relative shrink-0">
-                <p className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[32px] md:text-[56px] max-w-[340px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[32px] md:text-[56px] max-w-[340px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                   {displayName}
                 </p>
                 <div className="content-stretch flex items-center pl-[4px] pr-0 py-0 relative shrink-0">
-                  <p className="font-['Roboto:Regular',sans-serif] font-normal leading-[normal] relative shrink-0 text-[#888] text-[16px] max-w-[340px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[#888] text-[16px] max-w-[340px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Testing the alpha!
                   </p>
                 </div>
@@ -213,8 +213,8 @@ export function MenuShell({
 
               {/* Future Menu */}
               <div className="content-stretch flex flex-col gap-[25px] items-start relative shrink-0 w-full">
-                <p className="font-['Roboto:Medium',sans-serif] font-medium leading-[normal] relative shrink-0 text-[#888] text-[18px] uppercase w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
-                  IN Future:
+                <p className="font-['Roboto',sans-serif] font-medium leading-[normal] relative shrink-0 text-[#888] text-[18px] uppercase w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  In Future:
                 </p>
                 
                 <div className="content-stretch flex items-start pb-[5px] pt-0 px-0 relative shrink-0 w-full">
