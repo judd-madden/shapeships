@@ -1,44 +1,24 @@
 /**
  * FLEET DERIVATION
- * 
- * Extract ship ownership, apply visibility rules, and aggregate fleet summaries.
+ *
+ * Extract ship ownership, apply visibility rules, aggregate semantic fleet
+ * summaries, and reconcile live render identity for board consumption.
  */
 
 import { getShipDefinitionById } from '../../data/ShipDefinitions.engine';
 import { isShipDefId } from '../../data/ShipDefinitions.core';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
+import type { BoardFleetSummary } from './types';
 
-interface BoardFleetSummary {
+type FleetSummarySortFields = Pick<BoardFleetSummary, 'shipDefId' | 'stackKey' | 'condition'>;
+
+interface FleetBucket {
   shipDefId: ShipDefId;
   count: number;
-
-  /**
-   * Stable unique key for rendered fleet stack.
-   * - default: shipDefId
-   * - maxCharges=1 split: `${shipDefId}__charges_1` / `${shipDefId}__charges_0`
-   * - maxCharges>1 active: `${shipDefId}__inst_${instanceId}`
-   * - maxCharges>1 depleted bucket: `${shipDefId}__charges_0`
-   */
-  stackKey: string;
-
-  /**
-   * Optional condition (used later for graphics selection).
-   * Only required for charge-split/bucket stacks.
-   */
   condition?: 'charges_1' | 'charges_0';
-
-  /**
-   * Current charge count for maxCharges>1 active instance entries.
-   * Used to select charges_X graphic variant (e.g. charges_6, charges_4, charges_0).
-   * Only populated for active instances with maxCharges > 1.
-   */
-    currentCharges?: number | null;
-
-    /**
-     * Optional small caption rendered under the ship graphic.
-     * Purely presentational (client-side).
-     */
-    caption?: string | null;
+  currentCharges?: number | null;
+  caption?: string | null;
+  memberInstanceIds: string[];
 }
 
 export interface DerivedFleetStackInfo {
@@ -117,6 +97,228 @@ export function deriveFleetStackInfo(
   };
 }
 
+function getShipInstanceId(ship: any): string | null {
+  const instanceId = ship?.instanceId ?? ship?.id ?? null;
+  return typeof instanceId === 'string' && instanceId.length > 0 ? instanceId : null;
+}
+
+function makeSeedRenderKey(stackKey: string): string {
+  return `render__${stackKey}`;
+}
+
+function getSemanticCategoryRank(summary: FleetSummarySortFields): number {
+  if (summary.stackKey.includes('__inst_')) return 0;
+  if (summary.condition === 'charges_1') return 1;
+  if (summary.condition === 'charges_0') return 2;
+  return 3;
+}
+
+export function sortFleetSummariesBySemanticOrder<T extends FleetSummarySortFields>(fleet: T[]): T[] {
+  return [...fleet].sort((a, b) => {
+    if (a.shipDefId !== b.shipDefId) {
+      return a.shipDefId.localeCompare(b.shipDefId);
+    }
+
+    const categoryDelta = getSemanticCategoryRank(a) - getSemanticCategoryRank(b);
+    if (categoryDelta !== 0) {
+      return categoryDelta;
+    }
+
+    return a.stackKey.localeCompare(b.stackKey);
+  });
+}
+
+function buildFleetSummaryFromBuckets(buckets: Map<string, FleetBucket>): BoardFleetSummary[] {
+  return sortFleetSummariesBySemanticOrder(
+    Array.from(buckets.entries()).map(([stackKey, bucket]) => ({
+      shipDefId: bucket.shipDefId,
+      count: bucket.count,
+      stackKey,
+      renderKey: makeSeedRenderKey(stackKey),
+      memberInstanceIds: [...bucket.memberInstanceIds].sort((a, b) => a.localeCompare(b)),
+      condition: bucket.condition,
+      currentCharges: bucket.currentCharges ?? null,
+      caption: bucket.caption ?? null,
+    }))
+  );
+}
+
+function getRenderTransitionPriority(previous: BoardFleetSummary, current: BoardFleetSummary): number {
+  const previousIsActiveInstance = previous.stackKey.includes('__inst_');
+  const currentIsDepleted = current.condition === 'charges_0';
+
+  if (currentIsDepleted && previousIsActiveInstance) {
+    return 2;
+  }
+
+  if (currentIsDepleted && previous.condition === 'charges_1') {
+    return 1;
+  }
+
+  return 0;
+}
+
+function getMemberOverlapCount(previous: BoardFleetSummary, current: BoardFleetSummary): number {
+  if (previous.memberInstanceIds.length === 0 || current.memberInstanceIds.length === 0) {
+    return 0;
+  }
+
+  const currentMembers = new Set(current.memberInstanceIds);
+  let overlapCount = 0;
+  for (const memberId of previous.memberInstanceIds) {
+    if (currentMembers.has(memberId)) {
+      overlapCount += 1;
+    }
+  }
+
+  return overlapCount;
+}
+
+type RenderMatchCandidate = {
+  currentIndex: number;
+  previousIndex: number;
+  overlapCount: number;
+  transitionPriority: number;
+};
+
+export function reconcileFleetRenderKeys(
+  currentFleet: BoardFleetSummary[],
+  previousFleet: BoardFleetSummary[]
+): BoardFleetSummary[] {
+  const current = currentFleet.map((summary) => ({
+    ...summary,
+    renderKey: summary.renderKey || makeSeedRenderKey(summary.stackKey),
+    memberInstanceIds: [...summary.memberInstanceIds].sort((a, b) => a.localeCompare(b)),
+  }));
+  const previous = previousFleet.map((summary) => ({
+    ...summary,
+    renderKey: summary.renderKey || makeSeedRenderKey(summary.stackKey),
+    memberInstanceIds: [...summary.memberInstanceIds].sort((a, b) => a.localeCompare(b)),
+  }));
+
+  const matchedCurrentIndices = new Set<number>();
+  const matchedPreviousIndices = new Set<number>();
+
+  // Prefer exact semantic stack matches first so unchanged buckets keep their render identity.
+  for (let currentIndex = 0; currentIndex < current.length; currentIndex += 1) {
+    const summary = current[currentIndex];
+    const previousIndex = previous.findIndex(
+      (candidate, index) =>
+        !matchedPreviousIndices.has(index) && candidate.stackKey === summary.stackKey
+    );
+
+    if (previousIndex < 0) {
+      continue;
+    }
+
+    current[currentIndex].renderKey = previous[previousIndex].renderKey;
+    matchedCurrentIndices.add(currentIndex);
+    matchedPreviousIndices.add(previousIndex);
+  }
+
+  const overlapCandidates: RenderMatchCandidate[] = [];
+  for (let currentIndex = 0; currentIndex < current.length; currentIndex += 1) {
+    if (matchedCurrentIndices.has(currentIndex)) {
+      continue;
+    }
+
+    for (let previousIndex = 0; previousIndex < previous.length; previousIndex += 1) {
+      if (matchedPreviousIndices.has(previousIndex)) {
+        continue;
+      }
+
+      if (previous[previousIndex].shipDefId !== current[currentIndex].shipDefId) {
+        continue;
+      }
+
+      const overlapCount = getMemberOverlapCount(previous[previousIndex], current[currentIndex]);
+      if (overlapCount <= 0) {
+        continue;
+      }
+
+      overlapCandidates.push({
+        currentIndex,
+        previousIndex,
+        overlapCount,
+        transitionPriority: getRenderTransitionPriority(previous[previousIndex], current[currentIndex]),
+      });
+    }
+  }
+
+  overlapCandidates.sort((a, b) => {
+    if (a.transitionPriority !== b.transitionPriority) {
+      return b.transitionPriority - a.transitionPriority;
+    }
+
+    if (a.overlapCount !== b.overlapCount) {
+      return b.overlapCount - a.overlapCount;
+    }
+
+    if (a.previousIndex !== b.previousIndex) {
+      return a.previousIndex - b.previousIndex;
+    }
+
+    return a.currentIndex - b.currentIndex;
+  });
+
+  for (const candidate of overlapCandidates) {
+    if (matchedCurrentIndices.has(candidate.currentIndex) || matchedPreviousIndices.has(candidate.previousIndex)) {
+      continue;
+    }
+
+    current[candidate.currentIndex].renderKey = previous[candidate.previousIndex].renderKey;
+    matchedCurrentIndices.add(candidate.currentIndex);
+    matchedPreviousIndices.add(candidate.previousIndex);
+  }
+
+  // Any newly visible semantic bucket receives a deterministic new render identity.
+  const usedRenderKeys = new Set(
+    current
+      .filter((_, index) => matchedCurrentIndices.has(index))
+      .map((summary) => summary.renderKey)
+  );
+
+  for (let currentIndex = 0; currentIndex < current.length; currentIndex += 1) {
+    if (matchedCurrentIndices.has(currentIndex)) {
+      continue;
+    }
+
+    const summary = current[currentIndex];
+    const baseRenderKey = makeSeedRenderKey(summary.stackKey);
+    let nextRenderKey = baseRenderKey;
+    let suffix = 1;
+
+    while (usedRenderKeys.has(nextRenderKey)) {
+      nextRenderKey = `${baseRenderKey}__${suffix}`;
+      suffix += 1;
+    }
+
+    current[currentIndex].renderKey = nextRenderKey;
+    usedRenderKeys.add(nextRenderKey);
+  }
+
+  return current;
+}
+
+export function orderFleetSummariesByRenderKey<T extends Pick<BoardFleetSummary, 'renderKey'>>(
+  fleet: T[],
+  renderOrder: string[]
+): T[] {
+  const orderIndex = new Map<string, number>();
+  renderOrder.forEach((renderKey, index) => orderIndex.set(renderKey, index));
+
+  return [...fleet].sort((a, b) => {
+    const aIndex = orderIndex.get(a.renderKey) ?? Number.POSITIVE_INFINITY;
+    const bIndex = orderIndex.get(b.renderKey) ?? Number.POSITIVE_INFINITY;
+
+    if (aIndex !== bIndex) {
+      return aIndex - bIndex;
+    }
+
+    return a.renderKey.localeCompare(b.renderKey);
+  });
+}
+
 export function deriveFleets(args: {
   rawState: any;
   me: any;
@@ -129,122 +331,70 @@ export function deriveFleets(args: {
   const frigateTriggerByInstanceId =
     rawState?.gameData?.powerMemory?.frigateTriggerByInstanceId ?? {};
 
-  // ============================================================================
-  // SHIP OWNERSHIP (ME/OPPONENT)
-  // ============================================================================
-  
-  // Extract ships from server state
   const shipsData = rawState?.gameData?.ships || rawState?.ships || {};
   const voidShipsData = rawState?.gameData?.voidShipsByPlayerId ?? {};
-  
-  // Map ships to me/opponent (not server array order)
+
   const myShips = me?.id ? (shipsData[me.id] || []) : [];
   const opponentShips = opponent?.id ? (shipsData[opponent.id] || []) : [];
   const myVoidShips = me?.id ? (voidShipsData[me.id] || []) : [];
   const opponentVoidShips = opponent?.id ? (voidShipsData[opponent.id] || []) : [];
-  
-  // Use majorPhase already defined earlier (line ~798)
+
   const isInBattlePhase = majorPhase === 'battle';
 
   function isShipVisibleToViewer(ship: any): boolean {
     const createdTurn = ship?.createdTurn;
-    // If createdTurn is missing, treat as "old" (visible). This avoids accidental hiding due to incomplete data.
     if (typeof createdTurn !== 'number') return true;
     if (createdTurn < turnNumber) return true;
-    // createdTurn === turnNumber -> visible only in battle
     return isInBattlePhase;
   }
-  
-  // Opponent visibility rule:
-  // - Always show opponent ships from prior turns
-  // - Hide opponent ships created this turn until battle
+
   const opponentShipsVisible = opponentShips.filter(isShipVisibleToViewer);
   const myVoidShipsVisible = myVoidShips;
   const opponentVoidShipsVisible = opponentVoidShips.filter(isShipVisibleToViewer);
-  
-  // Aggregate fleet summaries with charge-aware stacking
+
   function aggregateFleet(ships: any[], stackKeyPrefix = ''): BoardFleetSummary[] {
-    // Buckets: stackKey -> { shipDefId, count, condition?, currentCharges? }
-    const buckets = new Map<
-      string,
-      { shipDefId: ShipDefId; count: number; condition?: 'charges_1' | 'charges_0'; currentCharges?: number | null; caption?: string | null }
-    >();
-    
+    const buckets = new Map<string, FleetBucket>();
+
     for (const ship of ships) {
       const stackInfo = deriveFleetStackInfo(ship, frigateTriggerByInstanceId);
       if (!stackInfo) {
         continue;
       }
+
       const { shipDefId, stackKey, condition, currentCharges, caption } = stackInfo;
-      const renderedStackKey = stackKeyPrefix ? `${stackKeyPrefix}${stackKey}` : stackKey;
-      const existing = buckets.get(renderedStackKey);
+      const bucketKey = stackKeyPrefix ? `${stackKeyPrefix}${stackKey}` : stackKey;
+      const instanceId = getShipInstanceId(ship);
+      const existing = buckets.get(bucketKey);
 
       if (existing) {
-        existing.count++;
+        existing.count += 1;
         if (caption != null) {
           existing.caption = caption;
         }
-      } else {
-        buckets.set(renderedStackKey, {
-          shipDefId,
-          count: 1,
-          condition,
-          currentCharges,
-          caption,
-        });
+        if (instanceId) {
+          existing.memberInstanceIds.push(instanceId);
+        }
+        continue;
       }
+
+      buckets.set(bucketKey, {
+        shipDefId,
+        count: 1,
+        condition,
+        currentCharges,
+        caption,
+        memberInstanceIds: instanceId ? [instanceId] : [],
+      });
     }
-    
-    // Convert to array and sort for stable ordering
-    const result: BoardFleetSummary[] = Array.from(buckets.entries()).map(([stackKey, data]) => ({
-      shipDefId: data.shipDefId,
-      count: data.count,
-      stackKey,
-      condition: data.condition,
-      currentCharges: data.currentCharges ?? null,
-      caption: data.caption ?? null,
-    }));
-    
-    // Stable ordering:
-    // 1. Sort by shipDefId
-    // 2. Within same shipDefId, sort by stack category:
-    //    - For maxCharges > 1: active instances (__inst_) before depleted bucket (__charges_0)
-    //    - For maxCharges === 1: charges_1 before charges_0
-    // 3. Within same category, sort by stackKey (covers instanceId stability)
-    result.sort((a, b) => {
-      // Primary: shipDefId
-      if (a.shipDefId !== b.shipDefId) {
-        return a.shipDefId.localeCompare(b.shipDefId);
-      }
-      
-      // Secondary: stack category order
-      const aIsActive = a.stackKey.includes('__inst_');
-      const bIsActive = b.stackKey.includes('__inst_');
-      const aIsCharged = a.condition === 'charges_1';
-      const bIsCharged = b.condition === 'charges_1';
-      const aIsDepleted = a.condition === 'charges_0';
-      const bIsDepleted = b.condition === 'charges_0';
-      
-      // Active instances or charged stacks come first
-      if (aIsActive && !bIsActive) return -1;
-      if (!aIsActive && bIsActive) return 1;
-      if (aIsCharged && !bIsCharged) return -1;
-      if (!aIsCharged && bIsCharged) return 1;
-      if (aIsDepleted && !bIsDepleted) return 1;
-      if (!aIsDepleted && bIsDepleted) return -1;
-      
-      // Tertiary: stackKey
-      return a.stackKey.localeCompare(b.stackKey);
-    });
-    
-    return result;
+
+    return buildFleetSummaryFromBuckets(buckets);
   }
-  
+
   const myFleet = aggregateFleet(myShips);
   const opponentFleet = aggregateFleet(opponentShipsVisible);
   const myVoidFleet = aggregateFleet(myVoidShipsVisible, 'void__');
   const opponentVoidFleet = aggregateFleet(opponentVoidShipsVisible, 'void__');
-  
+
   return {
     myShips,
     opponentShips,

@@ -27,8 +27,8 @@ import type { SpeciesId } from '../../components/ui/primitives/buttons/SpeciesCa
 import type { ShipDefId } from '../types/ShipTypes.engine';
 import type { ShipChoicesPanelGroup } from '../types/ShipChoiceTypes';
 import type { FleetAnimVM } from '../display/graphics/animation';
-import type { OpponentFleetEntryPlan, ActivationStaggerPlan } from '../display/graphics/animation-stagger';
-import { computeOpponentEntryPlan, computeActivationStaggerPlan } from '../display/graphics/animation-stagger';
+import type { ActivationStaggerPlan } from '../display/graphics/animation-stagger';
+import { computeActivationStaggerPlan } from '../display/graphics/animation-stagger';
 import { buildShareGameUrl } from './config';
 import { generateNonce, makeCommitHash } from './hashUtils';
 import { isValidPhaseKey } from '../../engine/phase/PhaseTable';
@@ -36,12 +36,15 @@ import { getPlayerName } from './gameSession/playerName';
 import { getMajorPhaseLabel, getSubphaseLabelFromPhaseKey } from './gameSession/phaseLabels';
 import { getPhaseKey, getTurnNumber, formatClock, formatClockMs, getClockData } from './gameSession/selectors';
 import { deriveIdentity } from './gameSession/identity';
-import { deriveFleets } from './gameSession/fleets';
+import {
+  deriveFleets,
+  orderFleetSummariesByRenderKey,
+  reconcileFleetRenderKeys,
+} from './gameSession/fleets';
 import { appendEventsToTape, formatTapeEntry } from './gameSession/eventTape';
 import { usePhaseCommitCache } from './gameSession/commitCache';
 import { mapGameSessionVm } from './gameSession/mapVm';
 import { runSpeciesConfirmFlow, runReadyToggleFlow, maybeAutoRevealBuild, type CanonicalBuildSubmitPayload } from './gameSession/intents';
-import { getShipDefinitionById } from '../data/ShipDefinitions.engine';
 import {
   addShipToBuildDraft,
   canProvisionallyAddShip,
@@ -201,8 +204,9 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     clocksAreLive: boolean;
   } | null>(null);
   
-  // Track previous opponent fleet IDs for entry animation stagger
-  const prevOpponentFleetIdsRef = useRef<Set<string>>(new Set());
+  // Previous rendered fleets are runtime-owned so pure helpers can reconcile the next frame.
+  const prevMyRenderedFleetRef = useRef<BoardFleetSummary[]>([]);
+  const prevOpponentRenderedFleetRef = useRef<BoardFleetSummary[]>([]);
   
   // Tick driver for smooth clock display (forces rerenders)
   const [clockTick, setClockTick] = useState(0);
@@ -922,59 +926,77 @@ useEffect(() => {
   // - Else: Display serverFleet only
   
   const shouldShowPreview = majorPhase === 'build';
-  
-  const myFleetWithPreview: BoardFleetSummary[] = shouldShowPreview
+
+  const mySemanticFleetForBoard: BoardFleetSummary[] = shouldShowPreview
     ? provisionalBuild.myFleetPreview
     : myFleet;
+
+  const myFleetWithPreview: BoardFleetSummary[] = reconcileFleetRenderKeys(
+    mySemanticFleetForBoard,
+    prevMyRenderedFleetRef.current
+  );
+  const opponentFleetRendered: BoardFleetSummary[] = reconcileFleetRenderKeys(
+    opponentFleet,
+    prevOpponentRenderedFleetRef.current
+  );
   
   // ============================================================================
   // FLEET ORDER HOOK (UI-only stable ordering, append-only)
   // ============================================================================
   
-  const myFleetIds = myFleetWithPreview.map((s) => s.shipDefId as ShipDefId);
-  const opponentFleetIds = opponentFleet.map((s) => s.shipDefId as ShipDefId);
-  
-  const { myFleetOrder, opponentFleetOrder, setMyFleetOrder, setOpponentFleetOrder } =
-    useFleetOrder({ myFleetIds, opponentFleetIds });
+  const myFleetRenderKeys = myFleetWithPreview.map((summary) => summary.renderKey);
+  const opponentFleetRenderKeys = opponentFleetRendered.map((summary) => summary.renderKey);
+
+  const { myFleetRenderOrder, opponentFleetRenderOrder } = useFleetOrder({
+    myFleetRenderKeys,
+    opponentFleetRenderKeys,
+  });
+
+  useEffect(() => {
+    prevMyRenderedFleetRef.current = orderFleetSummariesByRenderKey(
+      myFleetWithPreview,
+      myFleetRenderOrder
+    );
+  }, [myFleetWithPreview, myFleetRenderOrder]);
+
+  useEffect(() => {
+    prevOpponentRenderedFleetRef.current = orderFleetSummariesByRenderKey(
+      opponentFleetRendered,
+      opponentFleetRenderOrder
+    );
+  }, [opponentFleetRendered, opponentFleetRenderOrder]);
 
   // ============================================================================
   // FLEET ANIMATION TOKENS (client-only; extracted from useGameSession)
   // ============================================================================
   
-  // Helper to pick the best stackKey for local build click feedback
-  function getPreferredStackKeyForLocalBuild(
+  // Existing rendered stacks can still pulse immediately on local build when
+  // we can identify the exact currently-visible bucket that will grow.
+  // Otherwise we fall back to the normal diff-owned path on the next render.
+  function getExistingRenderKeyForLocalBuild(
     shipDefId: string,
-    myFleet: Array<{ shipDefId: string; stackKey: string }>
-  ): string {
-    // Check if ship has maxCharges === 1
-    const def = getShipDefinitionById(shipDefId as any);
-    const maxCharges = def?.maxCharges ?? 0;
-
-    // For charge ships, always return charges_1 stack (even if not currently present)
-    if (maxCharges === 1) {
-      return `${shipDefId}__charges_1`;
+    myRenderedFleet: Array<{ shipDefId: string; stackKey: string; renderKey: string }>
+  ): string | null {
+    const chargedKey = `${shipDefId}__charges_1`;
+    const charged = myRenderedFleet.find((summary) => summary.stackKey === chargedKey);
+    if (charged) {
+      return charged.renderKey;
     }
 
-    // For other ships: prefer charged stack if present
-    const chargedKey = `${shipDefId}__charges_1`;
-    if (myFleet.some(s => s.stackKey === chargedKey)) return chargedKey;
-
-    const any = myFleet.find(s => s.shipDefId === shipDefId);
-    if (any) return any.stackKey;
-
-    return shipDefId;
+    const unsplit = myRenderedFleet.find((summary) => summary.stackKey === shipDefId);
+    return unsplit?.renderKey ?? null;
   }
   
   // Build count maps for the token hook (server fleet + preview overlay for "me")
-  const myCountsByStackKey: Record<string, number> = {};
-  for (const entry of myFleetWithPreview) myCountsByStackKey[entry.stackKey] = entry.count;
+  const myCountsByRenderKey: Record<string, number> = {};
+  for (const entry of myFleetWithPreview) myCountsByRenderKey[entry.renderKey] = entry.count;
 
-  const opponentCountsByStackKey: Record<string, number> = {};
-  for (const entry of opponentFleet) opponentCountsByStackKey[entry.stackKey] = entry.count;
+  const opponentCountsByRenderKey: Record<string, number> = {};
+  for (const entry of opponentFleetRendered) opponentCountsByRenderKey[entry.renderKey] = entry.count;
 
-  const { myAnimTokens, opponentAnimTokens, bumpMyEntry, bumpMyStackAdd } = useFleetAnimTokens({
-    myCountsByStackKey,
-    opponentCountsByStackKey,
+  const { myAnimTokens, opponentAnimTokens, bumpMyStackAdd } = useFleetAnimTokens({
+    myCountsByRenderKey,
+    opponentCountsByRenderKey,
   });
 
   
@@ -1076,22 +1098,22 @@ useEffect(() => {
 
       // Fleet data: server + local preview overlay (build phase only)
       myFleet: myFleetWithPreview,
-      opponentFleet: opponentFleet,
+      opponentFleet: opponentFleetRendered,
       myVoidFleet,
       opponentVoidFleet,
 
       // UI-only stable ordering (append-only)
-      myFleetOrder: myFleetOrder,
-      opponentFleetOrder: opponentFleetOrder,
+      myFleetRenderOrder,
+      opponentFleetRenderOrder,
       
       // Animation tokens (client-only)
       fleetAnim: (() => {
         const makeSide = (tokens: Record<string, any>, fleet: BoardFleetSummary[]) => {
           const out: any = {};
           for (const s of fleet) {
-            const t = tokens[s.stackKey];
+            const t = tokens[s.renderKey];
             if (!t) continue;
-            out[s.stackKey] = {
+            out[s.renderKey] = {
               ...t,
               stackCount: s.count,
             };
@@ -1101,7 +1123,7 @@ useEffect(() => {
 
         return {
           my: makeSide(myAnimTokens, myFleetWithPreview),
-          opponent: makeSide(opponentAnimTokens, opponentFleet),
+          opponent: makeSide(opponentAnimTokens, opponentFleetRendered),
         };
       })(),
 
@@ -1127,20 +1149,10 @@ useEffect(() => {
       myJoiningBonusLines,
       opponentJoiningBonusLines,
 
-      // Compute animation stagger plans
-      opponentFleetEntryPlan: (() => {
-        const { plan, nextPrevIds } = computeOpponentEntryPlan(
-          prevOpponentFleetIdsRef.current,
-          opponentFleetOrder,
-          400
-        );
-        prevOpponentFleetIdsRef.current = nextPrevIds;
-        return plan;
-      })(),
-      
+      // Compute activation stagger plan
       activationStaggerPlan: computeActivationStaggerPlan(
-        myFleetOrder,
-        opponentFleetOrder
+        myFleetRenderOrder,
+        opponentFleetRenderOrder
       ),
 
       destroyTargeting: boardDestroyTargeting,
@@ -1996,28 +2008,15 @@ useEffect(() => {
       // All gates passed - update preview buffer
       console.log('[useGameSession] onBuildShip:', shipDefId, 'turn:', uiTurnNumber);
 
-      const nextProvisionalBuild = evaluateProvisionalBuild({
-        turnNumber: uiTurnNumber,
-        myShips,
-        draftCounts: nextDraftCounts,
-        buildEconomy: buildEconomyForMe,
-        frigateSelectedTriggers: frigateSelectedTriggersRef.current,
-        evolverChoicesByRowId: evolverChoicesByRowIdRef.current,
-        frigateTriggerByInstanceId,
-      });
-
-      // Update persistent order (append-only, first time only)
-      setMyFleetOrder((prev) => (prev.includes(shipDefId) ? prev : [...prev, shipDefId]));
-
       buildPreviewCountsRef.current = nextDraftCounts;
       setBuildPreviewCounts(() => nextDraftCounts);
 
-      // ANIMATION: instant local click feedback for entry / stack-add
-      // (use stackKey to prevent jolt when charged stacks are split)
-      const targetStackKey = getPreferredStackKeyForLocalBuild(shipDefId, nextProvisionalBuild.myFleetPreview);
-      const currentCount = myCountsByStackKey[targetStackKey] ?? 0;
-      if (currentCount === 0) bumpMyEntry(targetStackKey);
-      else bumpMyStackAdd(targetStackKey);
+      // Existing rendered stacks keep immediate local stack-add feedback.
+      // Brand-new rendered stacks stay on the normal diff-owned entry path.
+      const targetRenderKey = getExistingRenderKeyForLocalBuild(shipDefId, myFleetWithPreview);
+      if (targetRenderKey) {
+        bumpMyStackAdd(targetRenderKey);
+      }
     },
     
     onOfferDraw: () => {
@@ -2155,8 +2154,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         opponentFleet: [],
         myVoidFleet: [],
         opponentVoidFleet: [],
-        myFleetOrder: [],
-        opponentFleetOrder: [],
+        myFleetRenderOrder: [],
+        opponentFleetRenderOrder: [],
         fleetAnim: {
           my: {},
           opponent: {},
@@ -2167,7 +2166,6 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         opponentLastTurnHeal: 0,
         opponentLastTurnDamage: 0,
         opponentLastTurnNet: 0,
-        opponentFleetEntryPlan: { opponent: {} },
         activationStaggerPlan: { myIndexByShipId: {}, opponentIndexByShipId: {} },
       },
       bottomActionRail: {

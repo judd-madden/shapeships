@@ -34,8 +34,8 @@ export type ShipAnimToken = {
 };
 
 export type FleetAnimVM = {
-  my: Partial<Record<string, ShipAnimToken>>;       // stackKey -> token
-  opponent: Partial<Record<string, ShipAnimToken>>; // stackKey -> token
+  my: Partial<Record<string, ShipAnimToken>>;       // renderKey -> token
+  opponent: Partial<Record<string, ShipAnimToken>>; // renderKey -> token
 };
 
 // ============================================================================
@@ -222,7 +222,6 @@ interface ShipAnimationWrapperProps {
   shipDefId: ShipDefId;
   token?: ShipAnimToken;
   enableHoverActivation?: boolean;
-  entryDelayMs?: number; // Opponent entry stagger delay
   activationDelayMs?: number; // Paired activation stagger delay
   children: React.ReactNode;
 }
@@ -231,7 +230,6 @@ export function ShipAnimationWrapper({
   shipDefId,
   token,
   enableHoverActivation = false,
-  entryDelayMs = 0,
   activationDelayMs = 0,
   children,
 }: ShipAnimationWrapperProps) {
@@ -262,13 +260,9 @@ export function ShipAnimationWrapper({
       style={{ '--ss-act-scale': actScale } as React.CSSProperties}
     >
       {/* Entry animation layer (keyed by entryNonce) */}
-      <div 
-        key={`entry-${token.entryNonce}`} 
+      <div
+        key={`entry-${token.entryNonce}`}
         className={`ss-shipEntryLayer ${entryPreset.entryClass}`}
-        style={{
-          animationDelay: entryDelayMs > 0 ? `${entryDelayMs}ms` : undefined,
-          animationFillMode: entryDelayMs > 0 ? 'both' : undefined,
-        }}
       >
         {/* Stack-add pulse layer (keyed by stackAddNonce) */}
         <div

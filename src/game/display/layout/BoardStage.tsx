@@ -142,7 +142,7 @@ function getRowFromSets(shipDefId: ShipDefId, rowSets: RowSets): FleetRow {
   return 4; // fallback for unknown/copied ships
 }
 
-function sortByPersistentOrder<T extends { shipDefId: string; count: number }>(
+function sortByPersistentOrder<T extends { shipDefId: string; renderKey: string }>(
     ships: T[],
     order?: string[]
 ): T[] {
@@ -150,14 +150,14 @@ function sortByPersistentOrder<T extends { shipDefId: string; count: number }>(
     (order ?? []).forEach((id, i) => index.set(id, i));
 
     return [...ships].sort((a, b) => {
-        const ai = index.has(a.shipDefId) ? index.get(a.shipDefId)! : Number.POSITIVE_INFINITY;
-        const bi = index.has(b.shipDefId) ? index.get(b.shipDefId)! : Number.POSITIVE_INFINITY;
+        const ai = index.has(a.renderKey) ? index.get(a.renderKey)! : Number.POSITIVE_INFINITY;
+        const bi = index.has(b.renderKey) ? index.get(b.renderKey)! : Number.POSITIVE_INFINITY;
         if (ai !== bi) return ai - bi;
-        return a.shipDefId.localeCompare(b.shipDefId);
+        return a.renderKey.localeCompare(b.renderKey);
     });
 }
 
-function groupShipsIntoRows<T extends { shipDefId: string; count: number }>(
+function groupShipsIntoRows<T extends { shipDefId: string; renderKey: string }>(
     ships: T[],
     order: string[] | undefined,
     rowSets: RowSets
@@ -185,6 +185,7 @@ type FleetStackVm = {
   shipDefId: string;
   count: number;
   stackKey: string;
+  renderKey: string;
   condition?: 'charges_1' | 'charges_0';
   currentCharges?: number | null;
   caption?: string | null;
@@ -201,8 +202,6 @@ type DestroyTargetStateVm = {
 function ShipStack({ 
   ship, 
   animToken, 
-  side, 
-  opponentEntryDelays, 
   activationIndexMap,
   targetState,
   previewShipDefId,
@@ -210,8 +209,6 @@ function ShipStack({
 }: { 
   ship: FleetStackVm;
   animToken?: ShipAnimToken;
-  side: 'my' | 'opponent';
-  opponentEntryDelays?: Record<string, number>;
   activationIndexMap?: Record<string, number>;
   targetState?: DestroyTargetStateVm;
   previewShipDefId?: ShipDefId;
@@ -255,9 +252,7 @@ function ShipStack({
 
   const showCount = ship.count > 1;
 
-  // Compute animation delays
-  const entryDelayMs = side === 'opponent' ? (opponentEntryDelays?.[ship.shipDefId] ?? 0) : 0;
-  const activationDelayMs = (activationIndexMap?.[ship.shipDefId] ?? 0) * 400;
+  const activationDelayMs = (activationIndexMap?.[ship.renderKey] ?? 0) * 400;
 
   return (
     <div className={cx('flex flex-row items-center', isVoid && 'opacity-35')}>
@@ -289,7 +284,6 @@ function ShipStack({
               shipDefId={ship.shipDefId as ShipDefId} 
               token={animToken}
               enableHoverActivation={enableHover}
-              entryDelayMs={entryDelayMs}
               activationDelayMs={activationDelayMs}
             >
               {ShipGraphic ? (
@@ -348,7 +342,6 @@ function FleetArea({
   animTokens,
   flipEnabled = false,
   side,
-  opponentEntryDelays,
   activationIndexMap,
   targetStatesByStackKey,
   previewShipDefIdByStackKey,
@@ -360,10 +353,9 @@ function FleetArea({
   voidShips?: FleetStackVm[];
   order?: string[];
   species: SpeciesKey;
-  animTokens?: Partial<Record<string, ShipAnimToken>>; // keyed by stackKey
+  animTokens?: Partial<Record<string, ShipAnimToken>>; // keyed by renderKey
   flipEnabled?: boolean;
   side: 'my' | 'opponent';
-  opponentEntryDelays?: Record<string, number>;
   activationIndexMap?: Record<string, number>;
   targetStatesByStackKey?: Record<string, DestroyTargetStateVm>;
   previewShipDefIdByStackKey?: Partial<Record<string, ShipDefId>>;
@@ -379,8 +371,8 @@ function FleetArea({
   const renderedShips = grouped
     ? [...grouped.row1, ...grouped.row2, ...grouped.row3, ...grouped.row4]
     : [];
-  const allStackKeys = renderedShips.map(s => s.stackKey);
-  const getFlipRef = useFlipLayout(allStackKeys, flipEnabled, { durationMs: 400, easing: 'ease-in-out' });
+  const allRenderKeys = renderedShips.map((s) => s.renderKey);
+  const getFlipRef = useFlipLayout(allRenderKeys, flipEnabled, { durationMs: 400, easing: 'ease-in-out' });
 
   const renderShipCell = (ship: FleetStackVm, displayMode: ShipDisplayMode = 'live') => {
     const targetState = displayMode === 'live' ? targetStatesByStackKey?.[ship.stackKey] : undefined;
@@ -388,8 +380,8 @@ function FleetArea({
 
     return (
       <div
-        key={ship.stackKey}
-        ref={displayMode === 'live' ? getFlipRef(ship.stackKey) : undefined}
+        key={ship.renderKey}
+        ref={displayMode === 'live' ? getFlipRef(ship.renderKey) : undefined}
         className={cx(
           displayMode === 'void' ? 'relative py-[2px]' : 'relative px-[10px] py-[8px]',
           isTargetable && 'cursor-pointer'
@@ -415,9 +407,7 @@ function FleetArea({
       >
         <ShipStack 
           ship={ship}
-          animToken={displayMode === 'live' ? animTokens?.[ship.stackKey] : undefined}
-          side={side}
-          opponentEntryDelays={displayMode === 'live' ? opponentEntryDelays : undefined}
+          animToken={displayMode === 'live' ? animTokens?.[ship.renderKey] : undefined}
           activationIndexMap={displayMode === 'live' ? activationIndexMap : undefined}
           targetState={targetState}
           previewShipDefId={displayMode === 'live' ? previewShipDefIdByStackKey?.[ship.stackKey] : undefined}
@@ -624,12 +614,11 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
         title="MY FLEET" 
         ships={vm.myFleet} 
         voidShips={vm.myVoidFleet}
-        order={vm.myFleetOrder} 
+        order={vm.myFleetRenderOrder} 
         species={mySpeciesKey}
         animTokens={vm.fleetAnim.my}
         flipEnabled={vm.mode === 'board'}
         side="my"
-        opponentEntryDelays={undefined}
         activationIndexMap={vm.activationStaggerPlan?.myIndexByShipId}
         targetStatesByStackKey={vm.destroyTargeting?.targetStatesBySide.my}
         previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdBySide.my}
@@ -847,12 +836,11 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
         title="OPPONENT FLEET" 
         ships={vm.opponentFleet} 
         voidShips={vm.opponentVoidFleet}
-        order={vm.opponentFleetOrder} 
+        order={vm.opponentFleetRenderOrder} 
         species={opponentSpeciesKey}
         animTokens={vm.fleetAnim.opponent}
         flipEnabled={vm.mode === 'board'}
         side="opponent"
-        opponentEntryDelays={vm.opponentFleetEntryPlan?.opponent}
         activationIndexMap={vm.activationStaggerPlan?.opponentIndexByShipId}
         targetStatesByStackKey={vm.destroyTargeting?.targetStatesBySide.opponent}
         previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdBySide.opponent}

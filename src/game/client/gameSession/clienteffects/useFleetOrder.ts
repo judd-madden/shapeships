@@ -1,26 +1,44 @@
-import { useEffect, useState } from 'react';
-import type { ShipDefId } from '../../../types/ShipTypes.engine';
+import { useLayoutEffect, useRef } from 'react';
+
+function deriveStableRenderOrder(previousOrder: string[], currentKeys: string[]): string[] {
+  const currentKeySet = new Set(currentKeys);
+  const retained = previousOrder.filter((renderKey) => currentKeySet.has(renderKey));
+  const retainedSet = new Set(retained);
+  const appended = currentKeys.filter((renderKey) => !retainedSet.has(renderKey));
+  const nextOrder = [...retained, ...appended];
+
+  if (
+    nextOrder.length === previousOrder.length &&
+    nextOrder.every((renderKey, index) => renderKey === previousOrder[index])
+  ) {
+    return previousOrder;
+  }
+
+  return nextOrder;
+}
 
 export function useFleetOrder(params: {
-  myFleetIds: ShipDefId[];
-  opponentFleetIds: ShipDefId[];
+  myFleetRenderKeys: string[];
+  opponentFleetRenderKeys: string[];
 }) {
-  const { myFleetIds, opponentFleetIds } = params;
+  const { myFleetRenderKeys, opponentFleetRenderKeys } = params;
 
-  const [myFleetOrder, setMyFleetOrder] = useState<ShipDefId[]>([]);
-  const [opponentFleetOrder, setOpponentFleetOrder] = useState<ShipDefId[]>([]);
+  const prevMyOrderRef = useRef<string[]>([]);
+  const prevOpponentOrderRef = useRef<string[]>([]);
 
-  useEffect(() => {
-    setMyFleetOrder((prev) => {
-      const newIds = myFleetIds.filter((id) => !prev.includes(id));
-      return newIds.length > 0 ? [...prev, ...newIds] : prev;
-    });
+  const myFleetRenderOrder = deriveStableRenderOrder(
+    prevMyOrderRef.current,
+    myFleetRenderKeys
+  );
+  const opponentFleetRenderOrder = deriveStableRenderOrder(
+    prevOpponentOrderRef.current,
+    opponentFleetRenderKeys
+  );
 
-    setOpponentFleetOrder((prev) => {
-      const newIds = opponentFleetIds.filter((id) => !prev.includes(id));
-      return newIds.length > 0 ? [...prev, ...newIds] : prev;
-    });
-  }, [myFleetIds, opponentFleetIds]);
+  useLayoutEffect(() => {
+    prevMyOrderRef.current = myFleetRenderOrder;
+    prevOpponentOrderRef.current = opponentFleetRenderOrder;
+  }, [myFleetRenderOrder, opponentFleetRenderOrder]);
 
-  return { myFleetOrder, opponentFleetOrder, setMyFleetOrder, setOpponentFleetOrder };
+  return { myFleetRenderOrder, opponentFleetRenderOrder };
 }

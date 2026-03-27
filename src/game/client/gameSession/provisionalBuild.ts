@@ -1,7 +1,7 @@
 import { getShipDefinitionById, ENGINE_SHIP_DEFINITIONS } from '../../data/ShipDefinitions.engine';
 import { isShipDefId, SHIP_DEFINITIONS_CORE_MAP } from '../../data/ShipDefinitions.core';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
-import { deriveFleetStackInfo } from './fleets';
+import { deriveFleetStackInfo, sortFleetSummariesBySemanticOrder } from './fleets';
 import type { BoardFleetSummary, EvolverChoiceId } from './types';
 
 type BuildEconomySnapshot = {
@@ -243,6 +243,7 @@ function buildPreviewFleetSummary(
       condition?: 'charges_1' | 'charges_0';
       currentCharges?: number | null;
       caption?: string | null;
+      memberInstanceIds: string[];
     }
   >();
 
@@ -264,6 +265,7 @@ function buildPreviewFleetSummary(
       if (stackInfo.caption != null) {
         existing.caption = stackInfo.caption;
       }
+      existing.memberInstanceIds.push(entry.rowId);
       continue;
     }
 
@@ -273,41 +275,22 @@ function buildPreviewFleetSummary(
       condition: stackInfo.condition,
       currentCharges: stackInfo.currentCharges ?? null,
       caption: stackInfo.caption ?? null,
+      memberInstanceIds: [entry.rowId],
     });
   }
 
-  const summary: BoardFleetSummary[] = Array.from(buckets.entries()).map(([stackKey, bucket]) => ({
-    shipDefId: bucket.shipDefId,
-    count: bucket.count,
-    stackKey,
-    condition: bucket.condition,
-    currentCharges: bucket.currentCharges ?? null,
-    caption: bucket.caption ?? null,
-  }));
-
-  summary.sort((a, b) => {
-    if (a.shipDefId !== b.shipDefId) {
-      return a.shipDefId.localeCompare(b.shipDefId);
-    }
-
-    const aIsActive = a.stackKey.includes('__inst_');
-    const bIsActive = b.stackKey.includes('__inst_');
-    const aIsCharged = a.condition === 'charges_1';
-    const bIsCharged = b.condition === 'charges_1';
-    const aIsDepleted = a.condition === 'charges_0';
-    const bIsDepleted = b.condition === 'charges_0';
-
-    if (aIsActive && !bIsActive) return -1;
-    if (!aIsActive && bIsActive) return 1;
-    if (aIsCharged && !bIsCharged) return -1;
-    if (!aIsCharged && bIsCharged) return 1;
-    if (aIsDepleted && !bIsDepleted) return 1;
-    if (!aIsDepleted && bIsDepleted) return -1;
-
-    return a.stackKey.localeCompare(b.stackKey);
-  });
-
-  return summary;
+  return sortFleetSummariesBySemanticOrder(
+    Array.from(buckets.entries()).map(([stackKey, bucket]) => ({
+      shipDefId: bucket.shipDefId,
+      count: bucket.count,
+      stackKey,
+      renderKey: `render__${stackKey}`,
+      memberInstanceIds: [...bucket.memberInstanceIds].sort((a, b) => a.localeCompare(b)),
+      condition: bucket.condition,
+      currentCharges: bucket.currentCharges ?? null,
+      caption: bucket.caption ?? null,
+    }))
+  );
 }
 
 function reserveUpgradeComponents(

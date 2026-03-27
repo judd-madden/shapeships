@@ -10,7 +10,7 @@ import type { SpeciesId } from '../../../components/ui/primitives/buttons/Specie
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import type { ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
 import type { FleetAnimVM } from '../../display/graphics/animation';
-import type { OpponentFleetEntryPlan, ActivationStaggerPlan } from '../../display/graphics/animation-stagger';
+import type { ActivationStaggerPlan } from '../../display/graphics/animation-stagger';
 import type { ProvisionalShipEligibility } from './provisionalBuild';
 
 export type ReadyUxState = {
@@ -92,13 +92,28 @@ export interface BoardFleetSummary {
   count: number;
 
   /**
-   * Stable unique key for rendered fleet stack.
+   * Semantic fleet bucket identity.
    * - default: shipDefId
    * - maxCharges=1 split: `${shipDefId}__charges_1` / `${shipDefId}__charges_0`
    * - maxCharges>1 active: `${shipDefId}__inst_${instanceId}`
    * - maxCharges>1 depleted bucket: `${shipDefId}__charges_0`
+   *
+   * This remains the semantic key used by targeting and preview lookup paths.
    */
   stackKey: string;
+
+  /**
+   * Live board/render identity.
+   * Owned by client-runtime reconciliation and used for React keys, FLIP, and
+   * animation bookkeeping.
+   */
+  renderKey: string;
+
+  /**
+   * Lightweight runtime metadata used to reconcile render identity across
+   * semantic stack changes.
+   */
+  memberInstanceIds: string[];
 
   /**
    * Optional condition (used later for graphics selection).
@@ -158,8 +173,8 @@ export type BoardViewModel =
       opponentFleet: BoardFleetSummary[];
       myVoidFleet: BoardFleetSummary[];
       opponentVoidFleet: BoardFleetSummary[];
-      myFleetOrder: ShipDefId[];
-      opponentFleetOrder: ShipDefId[];
+      myFleetRenderOrder: string[];
+      opponentFleetRenderOrder: string[];
       fleetAnim: FleetAnimVM; // Animation tokens (DEF/FIG only)
       
       // Last turn deltas (server-authoritative)
@@ -184,8 +199,7 @@ export type BoardViewModel =
       myJoiningBonusLines: number;
       opponentJoiningBonusLines: number;
       
-      // Animation stagger plans
-      opponentFleetEntryPlan: OpponentFleetEntryPlan;
+      // Animation stagger plan
       activationStaggerPlan: ActivationStaggerPlan;
 
       // Client-only targeting affordances derived from server-provided validTargets
