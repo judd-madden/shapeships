@@ -607,6 +607,11 @@ function resolveDraftBuildStage(args: {
         chargesCurrent: shipDef.maxCharges ?? 0,
         frigateTrigger: buildEntry.frigateTrigger,
       });
+
+      if (buildEntry.shipDefId === 'LEG') {
+        remainingJoiningLines += 4;
+      }
+
       continue;
     }
 

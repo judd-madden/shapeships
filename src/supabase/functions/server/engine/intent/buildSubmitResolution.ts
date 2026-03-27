@@ -411,7 +411,6 @@ function resolveBuildAttempt(args: {
 }): {
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
-  deferredJoiningLinesGained: number;
 } {
   const {
     state,
@@ -437,7 +436,6 @@ function resolveBuildAttempt(args: {
     return {
       remainingOrdinaryLines,
       remainingJoiningLines,
-      deferredJoiningLinesGained: 0,
     };
   }
 
@@ -454,7 +452,6 @@ function resolveBuildAttempt(args: {
     return {
       remainingOrdinaryLines,
       remainingJoiningLines,
-      deferredJoiningLinesGained: 0,
     };
   }
 
@@ -475,7 +472,6 @@ function resolveBuildAttempt(args: {
       return {
         remainingOrdinaryLines,
         remainingJoiningLines,
-        deferredJoiningLinesGained: 0,
       };
     }
 
@@ -489,10 +485,13 @@ function resolveBuildAttempt(args: {
       frigateTrigger: attempt.frigateTrigger,
     });
 
+    if (attempt.shipDefId === 'LEG') {
+      remainingJoiningLines += 4;
+    }
+
     return {
       remainingOrdinaryLines,
       remainingJoiningLines,
-      deferredJoiningLinesGained: attempt.shipDefId === 'LEG' ? 4 : 0,
     };
   }
 
@@ -509,7 +508,6 @@ function resolveBuildAttempt(args: {
     return {
       remainingOrdinaryLines,
       remainingJoiningLines,
-      deferredJoiningLinesGained: 0,
     };
   }
 
@@ -529,7 +527,6 @@ function resolveBuildAttempt(args: {
     return {
       remainingOrdinaryLines,
       remainingJoiningLines,
-      deferredJoiningLinesGained: 0,
     };
   }
 
@@ -549,7 +546,6 @@ function resolveBuildAttempt(args: {
   return {
     remainingOrdinaryLines,
     remainingJoiningLines,
-    deferredJoiningLinesGained: 0,
   };
 }
 
@@ -566,13 +562,11 @@ function resolveBuildAttemptsStage(args: {
 }): {
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
-  deferredJoiningLinesGained: number;
 } {
   const {
     buildAttempts,
   } = args;
   let { remainingOrdinaryLines, remainingJoiningLines } = args;
-  let deferredJoiningLinesGained = 0;
 
   for (const attempt of buildAttempts) {
     const result = resolveBuildAttempt({
@@ -583,13 +577,11 @@ function resolveBuildAttemptsStage(args: {
     });
     remainingOrdinaryLines = result.remainingOrdinaryLines;
     remainingJoiningLines = result.remainingJoiningLines;
-    deferredJoiningLinesGained += result.deferredJoiningLinesGained;
   }
 
   return {
     remainingOrdinaryLines,
     remainingJoiningLines,
-    deferredJoiningLinesGained,
   };
 }
 
@@ -610,7 +602,6 @@ function resolvePlayerBuildSubmit(args: {
 
   let remainingOrdinaryLines = normalizeResource(player.lines);
   let remainingJoiningLines = normalizeResource(player.joiningLines);
-  let deferredJoiningLines = 0;
 
   const workingFleet = buildWorkingFleetEntries(state.gameData.ships[playerId] ?? []);
   const buildAttempts = payload ? expandBuildAttempts(payload) : [];
@@ -628,7 +619,6 @@ function resolvePlayerBuildSubmit(args: {
   });
   remainingOrdinaryLines = nonUpgradedStageResolution.remainingOrdinaryLines;
   remainingJoiningLines = nonUpgradedStageResolution.remainingJoiningLines;
-  deferredJoiningLines += nonUpgradedStageResolution.deferredJoiningLinesGained;
 
   for (const evolverChoice of payload?.evolverChoices ?? []) {
     if (evolverChoice?.choiceId !== 'oxite' && evolverChoice?.choiceId !== 'asterite') {
@@ -679,13 +669,12 @@ function resolvePlayerBuildSubmit(args: {
   });
   remainingOrdinaryLines = upgradedStageResolution.remainingOrdinaryLines;
   remainingJoiningLines = upgradedStageResolution.remainingJoiningLines;
-  deferredJoiningLines += upgradedStageResolution.deferredJoiningLinesGained;
 
   persistSavedResources(
     state,
     playerId,
     remainingOrdinaryLines,
-    remainingJoiningLines + deferredJoiningLines,
+    remainingJoiningLines,
   );
 
   events.push({

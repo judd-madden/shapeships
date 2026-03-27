@@ -742,7 +742,6 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             <div className="content-stretch flex items-start justify-end relative shrink-0 w-[100px]" data-name="P1 Saved Wrapper">
               <div className="content-stretch flex items-start relative shrink-0">
                 <Metric value={String(vm.myDisplayedSavedLines)} align="right" toneClass="text-white" />
-                {/* Saved joining lines shown here are authoritative projected state only; we do not invent local same-phase LEG availability, and immediate same-phase use is deferred. */}
                 {vm.myDisplayedSavedJoiningLines > 0 ? (
                   <Metric
                     value={String(vm.myDisplayedSavedJoiningLines)}
