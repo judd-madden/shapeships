@@ -367,6 +367,232 @@ function pushSkippedAttemptEvent(args: {
   });
 }
 
+function isUpgradedBuildAttempt(attempt: ExpandedBuildAttempt): boolean {
+  const shipDef = getShipById(attempt.shipDefId);
+  return Boolean(
+    Array.isArray(shipDef?.componentShips) &&
+    shipDef.componentShips.length > 0 &&
+    typeof shipDef.joiningLineCost === 'number'
+  );
+}
+
+function partitionBuildAttempts(buildAttempts: ExpandedBuildAttempt[]): {
+  nonUpgradedAttempts: ExpandedBuildAttempt[];
+  upgradedAttempts: ExpandedBuildAttempt[];
+} {
+  const nonUpgradedAttempts: ExpandedBuildAttempt[] = [];
+  const upgradedAttempts: ExpandedBuildAttempt[] = [];
+
+  for (const attempt of buildAttempts) {
+    if (isUpgradedBuildAttempt(attempt)) {
+      upgradedAttempts.push(attempt);
+      continue;
+    }
+
+    nonUpgradedAttempts.push(attempt);
+  }
+
+  return {
+    nonUpgradedAttempts,
+    upgradedAttempts,
+  };
+}
+
+function resolveBuildAttempt(args: {
+  state: any;
+  events: any[];
+  playerId: string;
+  turnNumber: number;
+  nowMs: number;
+  attempt: ExpandedBuildAttempt;
+  workingFleet: WorkingFleetEntry[];
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): {
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+  deferredJoiningLinesGained: number;
+} {
+  const {
+    state,
+    events,
+    playerId,
+    turnNumber,
+    nowMs,
+    attempt,
+    workingFleet,
+  } = args;
+  let { remainingOrdinaryLines, remainingJoiningLines } = args;
+
+  const shipDef = getShipById(attempt.shipDefId);
+  if (!shipDef) {
+    pushSkippedAttemptEvent({
+      events,
+      playerId,
+      shipDefId: attempt.shipDefId,
+      attemptIndex: attempt.attemptIndex,
+      reason: 'unknown_ship',
+      nowMs,
+    });
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      deferredJoiningLinesGained: 0,
+    };
+  }
+
+  const currentShipCount = countWorkingFleetShips(workingFleet, attempt.shipDefId);
+  if (typeof shipDef.maxQuantity === 'number' && currentShipCount >= shipDef.maxQuantity) {
+    pushSkippedAttemptEvent({
+      events,
+      playerId,
+      shipDefId: attempt.shipDefId,
+      attemptIndex: attempt.attemptIndex,
+      reason: 'max_quantity_reached',
+      nowMs,
+    });
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      deferredJoiningLinesGained: 0,
+    };
+  }
+
+  if (!isUpgradedBuildAttempt(attempt)) {
+    const ordinaryCost = attempt.freeReason === 'zenith_antlion'
+      ? 0
+      : normalizeResource(shipDef.totalLineCost);
+
+    if (remainingOrdinaryLines < ordinaryCost) {
+      pushSkippedAttemptEvent({
+        events,
+        playerId,
+        shipDefId: attempt.shipDefId,
+        attemptIndex: attempt.attemptIndex,
+        reason: 'insufficient_ordinary_lines',
+        nowMs,
+      });
+      return {
+        remainingOrdinaryLines,
+        remainingJoiningLines,
+        deferredJoiningLinesGained: 0,
+      };
+    }
+
+    remainingOrdinaryLines -= ordinaryCost;
+    appendCreatedShip({
+      state,
+      playerId,
+      shipDefId: attempt.shipDefId,
+      turnNumber,
+      workingFleet,
+      frigateTrigger: attempt.frigateTrigger,
+    });
+
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      deferredJoiningLinesGained: attempt.shipDefId === 'LEG' ? 4 : 0,
+    };
+  }
+
+  const reservation = reserveUpgradeComponents(workingFleet, attempt.shipDefId);
+  if (!reservation.ok) {
+    pushSkippedAttemptEvent({
+      events,
+      playerId,
+      shipDefId: attempt.shipDefId,
+      attemptIndex: attempt.attemptIndex,
+      reason: reservation.reason,
+      nowMs,
+    });
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      deferredJoiningLinesGained: 0,
+    };
+  }
+
+  const joiningCost = normalizeResource(shipDef.joiningLineCost);
+  const joiningSpend = Math.min(remainingJoiningLines, joiningCost);
+  const ordinaryShortfall = joiningCost - joiningSpend;
+
+  if (remainingOrdinaryLines < ordinaryShortfall) {
+    pushSkippedAttemptEvent({
+      events,
+      playerId,
+      shipDefId: attempt.shipDefId,
+      attemptIndex: attempt.attemptIndex,
+      reason: 'insufficient_joining_lines',
+      nowMs,
+    });
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      deferredJoiningLinesGained: 0,
+    };
+  }
+
+  removeWorkingFleetEntries(state, playerId, workingFleet, reservation.reservedIndices);
+  remainingJoiningLines -= joiningSpend;
+  remainingOrdinaryLines -= ordinaryShortfall;
+
+  appendCreatedShip({
+    state,
+    playerId,
+    shipDefId: attempt.shipDefId,
+    turnNumber,
+    workingFleet,
+    frigateTrigger: attempt.frigateTrigger,
+  });
+
+  return {
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+    deferredJoiningLinesGained: 0,
+  };
+}
+
+function resolveBuildAttemptsStage(args: {
+  state: any;
+  events: any[];
+  playerId: string;
+  turnNumber: number;
+  nowMs: number;
+  buildAttempts: ExpandedBuildAttempt[];
+  workingFleet: WorkingFleetEntry[];
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): {
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+  deferredJoiningLinesGained: number;
+} {
+  const {
+    buildAttempts,
+  } = args;
+  let { remainingOrdinaryLines, remainingJoiningLines } = args;
+  let deferredJoiningLinesGained = 0;
+
+  for (const attempt of buildAttempts) {
+    const result = resolveBuildAttempt({
+      ...args,
+      attempt,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
+    remainingOrdinaryLines = result.remainingOrdinaryLines;
+    remainingJoiningLines = result.remainingJoiningLines;
+    deferredJoiningLinesGained += result.deferredJoiningLinesGained;
+  }
+
+  return {
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+    deferredJoiningLinesGained,
+  };
+}
+
 function resolvePlayerBuildSubmit(args: {
   state: any;
   playerId: string;
@@ -388,115 +614,21 @@ function resolvePlayerBuildSubmit(args: {
 
   const workingFleet = buildWorkingFleetEntries(state.gameData.ships[playerId] ?? []);
   const buildAttempts = payload ? expandBuildAttempts(payload) : [];
-
-  for (const attempt of buildAttempts) {
-    const shipDef = getShipById(attempt.shipDefId);
-    if (!shipDef) {
-      pushSkippedAttemptEvent({
-        events,
-        playerId,
-        shipDefId: attempt.shipDefId,
-        attemptIndex: attempt.attemptIndex,
-        reason: 'unknown_ship',
-        nowMs,
-      });
-      continue;
-    }
-
-    const currentShipCount = countWorkingFleetShips(workingFleet, attempt.shipDefId);
-    if (typeof shipDef.maxQuantity === 'number' && currentShipCount >= shipDef.maxQuantity) {
-      pushSkippedAttemptEvent({
-        events,
-        playerId,
-        shipDefId: attempt.shipDefId,
-        attemptIndex: attempt.attemptIndex,
-        reason: 'max_quantity_reached',
-        nowMs,
-      });
-      continue;
-    }
-
-    const isUpgradedShip =
-      Array.isArray(shipDef.componentShips) &&
-      shipDef.componentShips.length > 0 &&
-      typeof shipDef.joiningLineCost === 'number';
-
-    if (!isUpgradedShip) {
-      const ordinaryCost = attempt.freeReason === 'zenith_antlion'
-        ? 0
-        : normalizeResource(shipDef.totalLineCost);
-
-      if (remainingOrdinaryLines < ordinaryCost) {
-        pushSkippedAttemptEvent({
-          events,
-          playerId,
-          shipDefId: attempt.shipDefId,
-          attemptIndex: attempt.attemptIndex,
-          reason: 'insufficient_ordinary_lines',
-          nowMs,
-        });
-        continue;
-      }
-
-      remainingOrdinaryLines -= ordinaryCost;
-      appendCreatedShip({
-        state,
-        playerId,
-        shipDefId: attempt.shipDefId,
-        turnNumber,
-        workingFleet,
-        frigateTrigger: attempt.frigateTrigger,
-      });
-
-      if (attempt.shipDefId === 'LEG') {
-        deferredJoiningLines += 4;
-      }
-
-      continue;
-    }
-
-    const reservation = reserveUpgradeComponents(workingFleet, attempt.shipDefId);
-    if (!reservation.ok) {
-      pushSkippedAttemptEvent({
-        events,
-        playerId,
-        shipDefId: attempt.shipDefId,
-        attemptIndex: attempt.attemptIndex,
-        reason: reservation.reason,
-        nowMs,
-      });
-      continue;
-    }
-
-    const joiningCost = normalizeResource(shipDef.joiningLineCost);
-    const joiningSpend = Math.min(remainingJoiningLines, joiningCost);
-    const ordinaryShortfall = joiningCost - joiningSpend;
-
-    if (remainingOrdinaryLines < ordinaryShortfall) {
-      pushSkippedAttemptEvent({
-        events,
-        playerId,
-        shipDefId: attempt.shipDefId,
-        attemptIndex: attempt.attemptIndex,
-        reason: 'insufficient_joining_lines',
-        nowMs,
-      });
-      continue;
-    }
-
-    removeWorkingFleetEntries(state, playerId, workingFleet, reservation.reservedIndices);
-    remainingJoiningLines -= joiningSpend;
-    remainingOrdinaryLines -= ordinaryShortfall;
-
-    appendCreatedShip({
-      state,
-      playerId,
-      shipDefId: attempt.shipDefId,
-      turnNumber,
-      workingFleet,
-      frigateTrigger: attempt.frigateTrigger,
-    });
-  }
+  const { nonUpgradedAttempts, upgradedAttempts } = partitionBuildAttempts(buildAttempts);
+  const nonUpgradedStageResolution = resolveBuildAttemptsStage({
+    state,
+    events,
+    playerId,
+    turnNumber,
+    nowMs,
+    buildAttempts: nonUpgradedAttempts,
+    workingFleet,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  });
+  remainingOrdinaryLines = nonUpgradedStageResolution.remainingOrdinaryLines;
+  remainingJoiningLines = nonUpgradedStageResolution.remainingJoiningLines;
+  deferredJoiningLines += nonUpgradedStageResolution.deferredJoiningLinesGained;
 
   for (const evolverChoice of payload?.evolverChoices ?? []) {
     if (evolverChoice?.choiceId !== 'oxite' && evolverChoice?.choiceId !== 'asterite') {
@@ -533,6 +665,21 @@ function resolvePlayerBuildSubmit(args: {
       atMs: nowMs,
     });
   }
+
+  const upgradedStageResolution = resolveBuildAttemptsStage({
+    state,
+    events,
+    playerId,
+    turnNumber,
+    nowMs,
+    buildAttempts: upgradedAttempts,
+    workingFleet,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  });
+  remainingOrdinaryLines = upgradedStageResolution.remainingOrdinaryLines;
+  remainingJoiningLines = upgradedStageResolution.remainingJoiningLines;
+  deferredJoiningLines += upgradedStageResolution.deferredJoiningLinesGained;
 
   persistSavedResources(
     state,

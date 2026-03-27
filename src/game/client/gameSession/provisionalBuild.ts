@@ -530,6 +530,131 @@ function applyEvolverPreviewParity(args: {
   return nextEntries;
 }
 
+function isUpgradedDraftBuildEntry(buildEntry: DraftBuildEntry): boolean {
+  return Boolean(getShipDefinitionById(buildEntry.shipDefId)?.upgradedCost);
+}
+
+function partitionDraftBuildEntries(draftBuildEntries: DraftBuildEntry[]): {
+  nonUpgradedEntries: DraftBuildEntry[];
+  upgradedEntries: DraftBuildEntry[];
+} {
+  const nonUpgradedEntries: DraftBuildEntry[] = [];
+  const upgradedEntries: DraftBuildEntry[] = [];
+
+  for (const buildEntry of draftBuildEntries) {
+    if (isUpgradedDraftBuildEntry(buildEntry)) {
+      upgradedEntries.push(buildEntry);
+      continue;
+    }
+
+    nonUpgradedEntries.push(buildEntry);
+  }
+
+  return {
+    nonUpgradedEntries,
+    upgradedEntries,
+  };
+}
+
+function resolveDraftBuildStage(args: {
+  buildEntries: DraftBuildEntry[];
+  workingFleetEntries: InternalFleetEntry[];
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): {
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+  isStageValid: boolean;
+} {
+  const {
+    buildEntries,
+    workingFleetEntries,
+  } = args;
+  let { remainingOrdinaryLines, remainingJoiningLines } = args;
+  let isStageValid = true;
+
+  for (const buildEntry of buildEntries) {
+    const shipDef = getShipDefinitionById(buildEntry.shipDefId);
+    if (!shipDef) {
+      isStageValid = false;
+      break;
+    }
+
+    const currentShipCount = countShipEntriesById(workingFleetEntries, buildEntry.shipDefId);
+
+    if (
+      typeof shipDef.maxQuantity === 'number' &&
+      currentShipCount >= shipDef.maxQuantity
+    ) {
+      isStageValid = false;
+      break;
+    }
+
+    if (shipDef.basicCost) {
+      const ordinaryCost = buildEntry.freeReason === 'zenith_antlion'
+        ? 0
+        : shipDef.basicCost.totalLines;
+
+      if (remainingOrdinaryLines < ordinaryCost) {
+        isStageValid = false;
+        break;
+      }
+
+      remainingOrdinaryLines -= ordinaryCost;
+      workingFleetEntries.push({
+        rowId: buildEntry.rowId!,
+        shipDefId: buildEntry.shipDefId,
+        chargesCurrent: shipDef.maxCharges ?? 0,
+        frigateTrigger: buildEntry.frigateTrigger,
+      });
+      continue;
+    }
+
+    if (shipDef.upgradedCost) {
+      const reservedComponentIndices = reserveUpgradeComponents(
+        workingFleetEntries,
+        buildEntry.shipDefId
+      );
+
+      if (reservedComponentIndices == null) {
+        isStageValid = false;
+        break;
+      }
+
+      const joiningCost = shipDef.upgradedCost.joiningLines;
+      const joiningSpend = Math.min(remainingJoiningLines, joiningCost);
+      const ordinaryShortfall = joiningCost - joiningSpend;
+
+      if (remainingOrdinaryLines < ordinaryShortfall) {
+        isStageValid = false;
+        break;
+      }
+
+      for (let i = reservedComponentIndices.length - 1; i >= 0; i--) {
+        workingFleetEntries.splice(reservedComponentIndices[i], 1);
+      }
+
+      remainingJoiningLines -= joiningSpend;
+      remainingOrdinaryLines -= ordinaryShortfall;
+      workingFleetEntries.push({
+        rowId: buildEntry.rowId!,
+        shipDefId: buildEntry.shipDefId,
+        chargesCurrent: shipDef.maxCharges ?? 0,
+      });
+      continue;
+    }
+
+    isStageValid = false;
+    break;
+  }
+
+  return {
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+    isStageValid,
+  };
+}
+
 export function addShipToBuildDraft(
   draftCounts: Record<string, number>,
   shipDefId: ShipDefId
@@ -567,93 +692,41 @@ export function evaluateProvisionalBuild(args: {
   let remainingJoiningLines = toNonNegativeInt(buildEconomy?.joiningLinesAvailable);
   let isValid = true;
 
-  const workingFleetEntries = buildAuthoritativeFleetEntries(myShips, frigateTriggerByInstanceId);
+  let workingFleetEntries = buildAuthoritativeFleetEntries(myShips, frigateTriggerByInstanceId);
   const draftBuildEntries = expandDraftBuildEntries(draftCounts, turnNumber, frigateSelectedTriggers);
-
-  for (const buildEntry of draftBuildEntries) {
-    const shipDef = getShipDefinitionById(buildEntry.shipDefId);
-    if (!shipDef) {
-      isValid = false;
-      break;
-    }
-
-    const currentShipCount = countShipEntriesById(workingFleetEntries, buildEntry.shipDefId);
-
-    if (
-      typeof shipDef.maxQuantity === 'number' &&
-      currentShipCount >= shipDef.maxQuantity
-    ) {
-      isValid = false;
-      break;
-    }
-
-    if (shipDef.basicCost) {
-      const ordinaryCost = buildEntry.freeReason === 'zenith_antlion'
-        ? 0
-        : shipDef.basicCost.totalLines;
-
-      if (remainingOrdinaryLines < ordinaryCost) {
-        isValid = false;
-        break;
-      }
-
-      remainingOrdinaryLines -= ordinaryCost;
-      workingFleetEntries.push({
-        rowId: buildEntry.rowId!,
-        shipDefId: buildEntry.shipDefId,
-        chargesCurrent: shipDef.maxCharges ?? 0,
-        frigateTrigger: buildEntry.frigateTrigger,
-      });
-      continue;
-    }
-
-    if (shipDef.upgradedCost) {
-      const reservedComponentIndices = reserveUpgradeComponents(
-        workingFleetEntries,
-        buildEntry.shipDefId
-      );
-
-      if (reservedComponentIndices == null) {
-        isValid = false;
-        break;
-      }
-
-      const joiningCost = shipDef.upgradedCost.joiningLines;
-      const joiningSpend = Math.min(remainingJoiningLines, joiningCost);
-      const ordinaryShortfall = joiningCost - joiningSpend;
-
-      if (remainingOrdinaryLines < ordinaryShortfall) {
-        isValid = false;
-        break;
-      }
-
-      for (let i = reservedComponentIndices.length - 1; i >= 0; i--) {
-        workingFleetEntries.splice(reservedComponentIndices[i], 1);
-      }
-
-      remainingJoiningLines -= joiningSpend;
-      remainingOrdinaryLines -= ordinaryShortfall;
-      workingFleetEntries.push({
-        rowId: buildEntry.rowId!,
-        shipDefId: buildEntry.shipDefId,
-        chargesCurrent: shipDef.maxCharges ?? 0,
-      });
-    }
-  }
+  const { nonUpgradedEntries, upgradedEntries } = partitionDraftBuildEntries(draftBuildEntries);
+  const basicStageResolution = resolveDraftBuildStage({
+    buildEntries: nonUpgradedEntries,
+    workingFleetEntries,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  });
+  remainingOrdinaryLines = basicStageResolution.remainingOrdinaryLines;
+  remainingJoiningLines = basicStageResolution.remainingJoiningLines;
+  isValid = basicStageResolution.isStageValid && isValid;
 
   const evolverRowIds = workingFleetEntries
     .filter((entry) => entry.shipDefId === 'EVO')
     .map((entry) => entry.rowId);
 
-  const fleetAfterEvolverParity = applyEvolverPreviewParity({
+  workingFleetEntries = applyEvolverPreviewParity({
     entries: workingFleetEntries,
     evolverRowIds,
     evolverChoicesByRowId,
     turnNumber,
   });
+  const upgradedStageResolution = resolveDraftBuildStage({
+    buildEntries: upgradedEntries,
+    workingFleetEntries,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  });
+  remainingOrdinaryLines = upgradedStageResolution.remainingOrdinaryLines;
+  remainingJoiningLines = upgradedStageResolution.remainingJoiningLines;
+  isValid = upgradedStageResolution.isStageValid && isValid;
 
   const catalogueState = deriveCatalogueState({
-    entries: fleetAfterEvolverParity,
+    entries: workingFleetEntries,
     remainingOrdinaryLines,
     remainingJoiningLines,
   });
@@ -670,8 +743,8 @@ export function evaluateProvisionalBuild(args: {
     projectedSavedOrdinaryLines: projectedSavedResources.ordinaryLines,
     projectedSavedJoiningLines: projectedSavedResources.joiningLines,
     projectedSavedCombinedLines: projectedSavedResources.combinedLines,
-    myFleetPreview: buildPreviewFleetSummary(fleetAfterEvolverParity),
-    provisionalShipCountsById: countShipsById(fleetAfterEvolverParity),
+    myFleetPreview: buildPreviewFleetSummary(workingFleetEntries),
+    provisionalShipCountsById: countShipsById(workingFleetEntries),
     evolverRowIds,
     canAddShipById: catalogueState.canAddShipById,
     displayCostByShipId: catalogueState.displayCostByShipId,
