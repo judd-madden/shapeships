@@ -187,6 +187,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Auto panel routing pulse: allows one controlled re-route when client-only actions appear mid-phase
   const [panelRoutingPulse, setPanelRoutingPulse] = useState(0);
   const prevHasClientActionsRef = useRef(false);
+  const finishedRedirectHandledGameIdRef = useRef<string | null>(null);
 
   
   // Choose species state (client-only for now)
@@ -258,6 +259,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   useEffect(() => {
     setHasJoinedCurrentGame(false);
     setMyRole('unknown'); // Reset role when switching games
+  }, [effectiveGameId]);
+
+  useEffect(() => {
+    finishedRedirectHandledGameIdRef.current = null;
   }, [effectiveGameId]);
   
   // ============================================================================
@@ -1318,7 +1323,10 @@ useEffect(() => {
   // - server says actions exist, OR
   // - client has special actions (build preview driven panels)
   const hasActionsAvailable =
-    !isBootstrapping && !!actionsTargetPanelId && (hasServerActionsAvailable || hasClientActionsAvailable);
+    !isFinished &&
+    !isBootstrapping &&
+    !!actionsTargetPanelId &&
+    (hasServerActionsAvailable || hasClientActionsAvailable);
   
   // Build tabs based on phase
   let tabs: ActionPanelTabVm[];
@@ -1392,6 +1400,7 @@ useEffect(() => {
 
   const activeCatalogueSpecies = getCatalogueSpeciesFromPanelId(activePanelId);
   const buildCatalogueContext =
+    !isFinished &&
     !isInSpeciesSelection &&
     myRole === 'player' &&
     buildEconomyForMe != null &&
@@ -1581,6 +1590,14 @@ useEffect(() => {
     }
   }, [hasClientActionsAvailable]);
 
+  useEffect(() => {
+    if (!effectiveGameId || !isFinished) return;
+    if (finishedRedirectHandledGameIdRef.current === effectiveGameId) return;
+
+    finishedRedirectHandledGameIdRef.current = effectiveGameId;
+    setActivePanelId('ap.end_of_game.result');
+  }, [effectiveGameId, isFinished]);
+
   // ============================================================================
   // ACTION PANEL ROUTING (PHASE-DRIVEN ONLY)
   // ============================================================================
@@ -1590,6 +1607,7 @@ useEffect(() => {
 
   useEffect(() => {
     if (!phaseKey) return;
+    if (isFinished) return;
 
     const decision = decideAutoPanelRouting({
       phaseKey,
@@ -1608,7 +1626,7 @@ useEffect(() => {
     // This effect intentionally depends ONLY on phaseKey.
     // We do not depend on activePanelId or hasActionsAvailable,
     // otherwise polling would re-trigger routing.
-  }, [phaseKey, panelRoutingPulse]);
+  }, [phaseKey, panelRoutingPulse, isFinished]);
 
   
   // Display-only interpolation helper

@@ -339,9 +339,6 @@ export function mapGameSessionVm(args: {
   let finalTabs = tabs;
   
   if (isFinished) {
-    // Force activePanelId to end-of-game result panel
-    finalActivePanelId = 'ap.end_of_game.result';
-    
     // Update Menu tab to point to end-of-game panel
     finalTabs = tabs.map(tab => {
       if (tab.tabId === 'tab.menu') {
