@@ -27,6 +27,8 @@ import { getValidDestroyTargets, getValidShipOfEqualityTargets } from '../engine
 import { countDistinctTypes } from '../engine_shared/resolve/phaseComputedEffects.ts';
 import { rollD6 } from '../engine/util/rollD6.ts';
 
+const INITIAL_SAVED_LINES = 3;
+
 function getTargetedChoiceEffect(option: any) {
   if (!Array.isArray(option?.effects)) return null;
   return option.effects.find(
@@ -749,7 +751,7 @@ export function registerGameRoutes(
             role: 'player',
             joinedAt: new Date().toISOString(),
             health: 25,
-            lines: 0, // FIXED: Players start with 0 lines
+            lines: INITIAL_SAVED_LINES,
             joiningLines: 0,
             energy: 0
           }
@@ -873,7 +875,7 @@ export function registerGameRoutes(
           role: finalRole,
           joinedAt: new Date().toISOString(),
           health: 25,
-          lines: 0, // FIXED: Players start with 0 lines
+          lines: finalRole === 'player' ? INITIAL_SAVED_LINES : 0,
           joiningLines: 0,
           energy: 0
         };
@@ -933,6 +935,7 @@ export function registerGameRoutes(
           // Promote spectator to player if needed (only if role is missing or spectator)
           if (!existingPlayer.role || existingPlayer.role === 'spectator') {
             existingPlayer.role = 'player';
+            existingPlayer.lines = INITIAL_SAVED_LINES;
           }
           
           // Always set isActive=true for players (idempotent)
@@ -1008,6 +1011,7 @@ export function registerGameRoutes(
       }
 
       const oldRole = player.role;
+      const isPromotingToPlayer = oldRole !== 'player' && newRole === 'player';
       
       // Find player index to update the player properly
       const playerIndex = gameData.players.findIndex((p: any) => p.id === playerId);
@@ -1031,7 +1035,7 @@ export function registerGameRoutes(
               ? {
                   ...p,
                   role: newRole,
-                  lines: p.lines || 5, // Give lines to new players
+                  lines: isPromotingToPlayer ? (p.lines || INITIAL_SAVED_LINES) : p.lines,
                   health: 25
                 }
               : p
@@ -1503,7 +1507,7 @@ export function registerGameRoutes(
                   ...gameData.players[playerIndex],
                   role: 'player',
                   health: 25,
-                  lines: 0, // FIXED: Players start with 0 lines
+                  lines: INITIAL_SAVED_LINES,
                   isActive: activePlayers.length === 0 // First promoted becomes active
                 };
               }

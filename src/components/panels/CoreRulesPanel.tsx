@@ -75,6 +75,9 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
               <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>maximum of 35</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>.</span>
             </p>
+            <p className="font-normal mb-[9.75px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+              Players each start with <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>3 lines.</span>
+            </p>
             <p className="font-semibold mb-[9.75px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Each player chooses a Species, and play begins.
             </p>
