@@ -264,6 +264,44 @@ function incrementShipsMadeThisTurnCounter(state: any, playerId: string, amount:
   };
 }
 
+function snapshotBuildPhaseNonDestroyRemovedShips(
+  state: any,
+  playerId: string,
+  instanceIds: string[],
+) {
+  if (instanceIds.length === 0) return;
+
+  if (!state.gameData) state.gameData = {};
+  if (!state.gameData.turnData) state.gameData.turnData = {};
+
+  const currentFleet = ensureShipsContainer(state, playerId);
+  const currentLedger = state.gameData.turnData.buildPhaseNonDestroyRemovedShipsByPlayerId || {};
+  const currentPlayerLedger = currentLedger[playerId] || {};
+  const pendingIds = new Set(
+    instanceIds.filter((instanceId): instanceId is string => typeof instanceId === 'string')
+  );
+
+  if (pendingIds.size === 0) return;
+
+  const nextPlayerLedger: Record<string, ShipInstance> = { ...currentPlayerLedger };
+  let hasNewSnapshot = false;
+
+  for (const ship of currentFleet) {
+    if (!pendingIds.has(ship.instanceId)) continue;
+    if (currentPlayerLedger[ship.instanceId]) continue;
+
+    nextPlayerLedger[ship.instanceId] = ship;
+    hasNewSnapshot = true;
+  }
+
+  if (!hasNewSnapshot) return;
+
+  state.gameData.turnData.buildPhaseNonDestroyRemovedShipsByPlayerId = {
+    ...currentLedger,
+    [playerId]: nextPlayerLedger,
+  };
+}
+
 function appendCreatedShip(args: {
   state: any;
   playerId: string;
@@ -530,6 +568,10 @@ function resolveBuildAttempt(args: {
     };
   }
 
+  const consumedInstanceIds = reservation.reservedIndices
+    .map((index) => workingFleet[index]?.instanceId)
+    .filter((instanceId): instanceId is string => typeof instanceId === 'string');
+  snapshotBuildPhaseNonDestroyRemovedShips(state, playerId, consumedInstanceIds);
   removeWorkingFleetEntries(state, playerId, workingFleet, reservation.reservedIndices);
   remainingJoiningLines -= joiningSpend;
   remainingOrdinaryLines -= ordinaryShortfall;
@@ -637,6 +679,10 @@ function resolvePlayerBuildSubmit(args: {
       continue;
     }
 
+    const xeniteInstanceId = workingFleet[xeniteIndex]?.instanceId;
+    if (typeof xeniteInstanceId === 'string') {
+      snapshotBuildPhaseNonDestroyRemovedShips(state, playerId, [xeniteInstanceId]);
+    }
     removeWorkingFleetEntries(state, playerId, workingFleet, [xeniteIndex]);
     const createdShipDefId = evolverChoice.choiceId === 'oxite' ? 'OXI' : 'AST';
     appendCreatedShip({

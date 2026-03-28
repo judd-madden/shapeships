@@ -226,9 +226,19 @@ function ComponentShips({ shipIds }: { shipIds: readonly string[] }) {
 /**
  * Eligibility footer section
  */
-function EligibilityFooter({ eligibility }: { eligibility: ShipEligibility }) {
+function EligibilityFooter({
+  eligibility,
+  componentShipIds,
+}: {
+  eligibility: ShipEligibility;
+  componentShipIds: readonly string[];
+}) {
   if (eligibility.state === 'REFERENCE_ONLY') {
-    return null;
+    if (componentShipIds.length === 0) {
+      return null;
+    }
+
+    return <ComponentShips shipIds={componentShipIds} />;
   }
   
   // CAN_BUILD
@@ -421,7 +431,10 @@ export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCard
       </div>
       
       {/* Eligibility Footer */}
-      <EligibilityFooter eligibility={eligibility} />
+      <EligibilityFooter
+        eligibility={eligibility}
+        componentShipIds={model.componentShipIds}
+      />
     </div>
   );
   

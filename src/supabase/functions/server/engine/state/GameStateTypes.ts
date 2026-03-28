@@ -117,6 +117,13 @@ export type GameData = {
      */
     shipsMadeThisTurnByPlayerId?: Record<string, number>;
 
+    /**
+     * Turn-scoped snapshot ledger for ships removed from the live fleet during
+     * build by non-destroy paths such as upgrade consumption or conversion.
+     * Used only to extend once-only resolution source visibility.
+     */
+    buildPhaseNonDestroyRemovedShipsByPlayerId?: Record<string, Record<string, ShipInstance>>;
+
     /** Queen-created Xenites this turn, keyed by the creating Queen instance */
     queenCreatedXenitesThisTurnByInstanceId?: Record<string, number>;
 

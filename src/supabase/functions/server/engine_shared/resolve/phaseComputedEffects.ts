@@ -127,6 +127,9 @@ function getShips(state: GameState, playerId: string): ShipInstance[] {
 function getShipsForOnceOnlyResolution(state: GameState, playerId: string): ShipInstance[] {
   const liveShips = state.gameData.ships?.[playerId] ?? [];
   const voidShips = state.gameData.voidShipsByPlayerId?.[playerId] ?? [];
+  const buildPhaseRemovedShipsByInstanceId =
+    state.gameData.turnData?.buildPhaseNonDestroyRemovedShipsByPlayerId?.[playerId] ?? {};
+  const buildPhaseRemovedShips = Object.values(buildPhaseRemovedShipsByInstanceId);
   const seenInstanceIds = new Set<string>();
   const ships: ShipInstance[] = [];
 
@@ -137,6 +140,12 @@ function getShipsForOnceOnlyResolution(state: GameState, playerId: string): Ship
   }
 
   for (const ship of voidShips) {
+    if (seenInstanceIds.has(ship.instanceId)) continue;
+    seenInstanceIds.add(ship.instanceId);
+    ships.push(ship);
+  }
+
+  for (const ship of buildPhaseRemovedShips) {
     if (seenInstanceIds.has(ship.instanceId)) continue;
     seenInstanceIds.add(ship.instanceId);
     ships.push(ship);
