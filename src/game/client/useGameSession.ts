@@ -1327,6 +1327,10 @@ useEffect(() => {
     !isBootstrapping &&
     !!actionsTargetPanelId &&
     (hasServerActionsAvailable || hasClientActionsAvailable);
+
+  const menuTargetPanelId: ActionPanelId = isFinished
+    ? 'ap.end_of_game.result'
+    : 'ap.menu.root';
   
   // Build tabs based on phase
   let tabs: ActionPanelTabVm[];
@@ -1345,7 +1349,7 @@ useEffect(() => {
         tabId: 'tab.menu',
         label: 'Menu',
         visible: true,
-        targetPanelId: 'ap.menu.root',
+        targetPanelId: menuTargetPanelId,
       },
     ];
   } else {
@@ -1393,7 +1397,7 @@ useEffect(() => {
         tabId: 'tab.menu',
         label: 'Menu',
         visible: true,
-        targetPanelId: 'ap.menu.root',
+        targetPanelId: menuTargetPanelId,
       },
     ];
   }
@@ -1827,7 +1831,7 @@ useEffect(() => {
     
     onOpenMenu: () => {
       console.log('[useGameSession] Open menu clicked');
-      setActivePanelId('ap.menu.root');
+      setActivePanelId(menuTargetPanelId);
     },
     
     onActionPanelTabClick: (tabId: ActionPanelTabId) => {
