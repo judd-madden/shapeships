@@ -46,7 +46,7 @@ export type TargetingVisualState = 'available' | 'hovered' | 'selected';
 
 export const TARGETING_GLOW_SIZE_PX = 200;
 export const TARGETING_PREVIEW_SCALE = 0.5;
-export const TARGETING_PREVIEW_OFFSET_TOP_PX = 10;
+export const TARGETING_PREVIEW_OFFSET_PX = 10;
 
 const TARGETING_WHITE_GLOW =
   'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 60%)';
@@ -95,10 +95,11 @@ export function getTargetingGlowStyle(visualState: TargetingVisualState): React.
 
 export function getTargetingPreviewStyle(visualState: Extract<TargetingVisualState, 'hovered' | 'selected'>): React.CSSProperties {
   return {
+    top: '100%',
     opacity: visualState === 'selected' ? 1 : 0.5,
     pointerEvents: 'none',
-    transform: `translate(-50%, calc(-100% - ${TARGETING_PREVIEW_OFFSET_TOP_PX}px)) scale(${TARGETING_PREVIEW_SCALE})`,
-    transformOrigin: 'bottom center',
+    transform: `translate(-50%, ${TARGETING_PREVIEW_OFFSET_PX}px) scale(${TARGETING_PREVIEW_SCALE})`,
+    transformOrigin: 'top center',
   };
 }
 

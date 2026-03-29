@@ -20,6 +20,8 @@ import {
 } from '../graphics/animation';
 import { useFlipLayout } from '../graphics/useFlipLayout';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
+import { FleetShipHoverCard } from './FleetShipHoverCard';
+import { useFleetShipHover } from './useFleetShipHover';
 
 interface BoardStageProps {
   vm: BoardViewModel;
@@ -206,6 +208,8 @@ function ShipStack({
   targetState,
   previewShipDefId,
   displayMode = 'live',
+  onFleetHoverEnter,
+  onFleetHoverLeave,
 }: { 
   ship: FleetStackVm;
   animToken?: ShipAnimToken;
@@ -213,8 +217,11 @@ function ShipStack({
   targetState?: DestroyTargetStateVm;
   previewShipDefId?: ShipDefId;
   displayMode?: ShipDisplayMode;
+  onFleetHoverEnter?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
+  onFleetHoverLeave?: (shipId: ShipDefId) => void;
 }) {
-  const def = getShipDefinitionUI(ship.shipDefId as ShipDefId);
+  const shipDefId = ship.shipDefId as ShipDefId;
+  const def = getShipDefinitionUI(shipDefId);
   const isVoid = displayMode === 'void';
 
   // If this fleet stack has a condition like 'charges_1' or 'charges_0',
@@ -274,14 +281,24 @@ function ShipStack({
             </div>
           ) : null}
 
-          <div
+            <div
             className={cx(
               'relative z-10',
               isVoid && '[&_svg]:h-auto [&_svg]:w-auto'
             )}
+            onMouseEnter={
+              !isVoid
+                ? (event) => onFleetHoverEnter?.(shipDefId, event.currentTarget)
+                : undefined
+            }
+            onMouseLeave={
+              !isVoid
+                ? () => onFleetHoverLeave?.(shipDefId)
+                : undefined
+            }
           >
             <ShipAnimationWrapper 
-              shipDefId={ship.shipDefId as ShipDefId} 
+              shipDefId={shipDefId} 
               token={animToken}
               enableHoverActivation={enableHover}
               activationDelayMs={activationDelayMs}
@@ -347,6 +364,8 @@ function FleetArea({
   previewShipDefIdByStackKey,
   onDestroyTargetHoverChange,
   onDestroyTargetMouseDown,
+  onFleetHoverEnter,
+  onFleetHoverLeave,
 }: {
   title: string;
   ships?: FleetStackVm[];
@@ -361,6 +380,8 @@ function FleetArea({
   previewShipDefIdByStackKey?: Partial<Record<string, ShipDefId>>;
   onDestroyTargetHoverChange?: (side: 'my' | 'opponent', stackKey: string | null) => void;
   onDestroyTargetMouseDown?: (side: 'my' | 'opponent', stackKey: string) => void;
+  onFleetHoverEnter?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
+  onFleetHoverLeave?: (shipId: ShipDefId) => void;
 }) {
   const rowSets = ROW_SETS_BY_SPECIES[species];
   const grouped = ships && ships.length > 0 ? groupShipsIntoRows(ships, order, rowSets) : null;
@@ -412,6 +433,8 @@ function FleetArea({
           targetState={targetState}
           previewShipDefId={displayMode === 'live' ? previewShipDefIdByStackKey?.[ship.stackKey] : undefined}
           displayMode={displayMode}
+          onFleetHoverEnter={displayMode === 'live' ? onFleetHoverEnter : undefined}
+          onFleetHoverLeave={displayMode === 'live' ? onFleetHoverLeave : undefined}
         />
       </div>
     );
@@ -567,6 +590,7 @@ function StatTripletRow({
 }
 
 export function BoardStage({ vm, actions }: BoardStageProps) {
+  const fleetHover = useFleetShipHover();
   const displayedMyHealth = useAnimatedHealth(vm.mode === 'board' ? vm.myHealth : 25);
   const displayedOpponentHealth = useAnimatedHealth(vm.mode === 'board' ? vm.opponentHealth : 25);
 
@@ -624,6 +648,8 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
         previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdBySide.my}
         onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
         onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
+        onFleetHoverEnter={fleetHover.onEnter}
+        onFleetHoverLeave={fleetHover.onLeave}
       />
 
       <div
@@ -846,7 +872,16 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
         previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdBySide.opponent}
         onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
         onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
+        onFleetHoverEnter={fleetHover.onEnter}
+        onFleetHoverLeave={fleetHover.onLeave}
       />
+
+      {fleetHover.state.activeShipId && fleetHover.state.anchorRect ? (
+        <FleetShipHoverCard
+          shipId={fleetHover.state.activeShipId}
+          anchorRect={fleetHover.state.anchorRect}
+        />
+      ) : null}
     </div>
   );
 }
