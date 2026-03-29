@@ -453,6 +453,57 @@ export function mapGameSessionVm(args: {
       }
       break;
   }
+
+  const isDrawResult =
+    resultReason === 'mutual_destruction' ||
+    resultReason === 'agreement' ||
+    resultReason === 'timeout_draw';
+
+  const p1Won = Boolean(
+    winnerPlayerId &&
+    (
+      winnerPlayerId === me?.playerId ||
+      winnerPlayerId === me?.id ||
+      winnerPlayerId === me?.sessionId
+    )
+  );
+
+  const p2Won = Boolean(
+    winnerPlayerId &&
+    (
+      winnerPlayerId === opponent?.playerId ||
+      winnerPlayerId === opponent?.id ||
+      winnerPlayerId === opponent?.sessionId
+    )
+  );
+
+  const finalP1StatusText =
+    !p1HasJoined
+      ? undefined
+      : !isFinished
+        ? p1StatusText
+        : !winnerPlayerId || isDrawResult
+          ? 'Draw'
+          : p1Won
+            ? 'Won'
+            : 'Lost';
+
+  const finalP2StatusText =
+    !p2HasJoined
+      ? undefined
+      : !isFinished
+        ? p2StatusText
+        : !winnerPlayerId || isDrawResult
+          ? 'Draw'
+          : p2Won
+            ? 'Won'
+            : 'Lost';
+
+  const finalP1StatusTone: HudStatusTone =
+    !finalP1StatusText ? 'hidden' : (!isFinished && finalP1StatusText === 'Ready' ? 'ready' : 'neutral');
+
+  const finalP2StatusTone: HudStatusTone =
+    !finalP2StatusText ? 'hidden' : (!isFinished && finalP2StatusText === 'Ready' ? 'ready' : 'neutral');
   
   // ============================================================================
   // E7) RESULT META LINE STRINGS
@@ -845,16 +896,16 @@ export function mapGameSessionVm(args: {
       p1IsOnline: true,
       p1Clock: p1ClockFormatted, // Placeholder clock
       p1IsReady,
-      p1StatusText,
-      p1StatusTone,
+      p1StatusText: finalP1StatusText,
+      p1StatusTone: finalP1StatusTone,
       
       p2Name: p2HasJoined ? (opponent?.name || 'Player 2') : 'Waiting...',
       p2Species: opponentSpeciesLabel, // STEP E: Use rightSpecies from server mapping
       p2IsOnline: true,
       p2Clock: p2ClockFormatted, // Placeholder clock
       p2IsReady,
-      p2StatusText,
-      p2StatusTone,
+      p2StatusText: finalP2StatusText,
+      p2StatusTone: finalP2StatusTone,
     },
     
     leftRail: {

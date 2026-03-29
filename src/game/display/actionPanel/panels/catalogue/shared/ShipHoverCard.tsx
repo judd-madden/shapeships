@@ -233,66 +233,81 @@ function EligibilityFooter({
   eligibility: ShipEligibility;
   componentShipIds: readonly string[];
 }) {
-  if (eligibility.state === 'REFERENCE_ONLY') {
-    if (componentShipIds.length === 0) {
-      return null;
+  const footerContent = (() => {
+    if (eligibility.state === 'REFERENCE_ONLY') {
+      if (componentShipIds.length === 0) {
+        return null;
+      }
+
+      return <ComponentShips shipIds={componentShipIds} />;
     }
 
-    return <ComponentShips shipIds={componentShipIds} />;
-  }
-  
-  // CAN_BUILD
-  if (eligibility.state === 'CAN_BUILD') {
-    return (
-      <p
-        className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
-        style={{ fontVariationSettings: "'wdth' 100" }}
-      >
-        Click to build
-      </p>
-    );
-  }
-  
-  // NEED_COMPONENTS
-  if (eligibility.state === 'NEED_COMPONENTS') {
-    return (
-      <>
+    if (eligibility.state === 'CAN_BUILD') {
+      return (
         <p
           className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
-          Need component ships
+          Click to build
         </p>
-        <ComponentShips shipIds={eligibility.missingComponentShipIds || []} />
-      </>
-    );
+      );
+    }
+
+    if (eligibility.state === 'NEED_COMPONENTS') {
+      return (
+        <>
+          <p
+            className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
+            style={{ fontVariationSettings: "'wdth' 100" }}
+          >
+            Need component ships
+          </p>
+          <ComponentShips shipIds={eligibility.missingComponentShipIds || []} />
+        </>
+      );
+    }
+
+    if (eligibility.state === 'NOT_ENOUGH_LINES') {
+      return (
+        <p
+          className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
+          style={{ fontVariationSettings: "'wdth' 100" }}
+        >
+          Not enough lines
+        </p>
+      );
+    }
+
+    if (eligibility.state === 'MAX_LIMIT') {
+      return (
+        <p
+          className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
+          style={{ fontVariationSettings: "'wdth' 100" }}
+        >
+          Maximum ship limit, cannot build
+        </p>
+      );
+    }
+
+    return null;
+  })();
+
+  if (!footerContent) {
+    return null;
   }
-  
-  // NOT_ENOUGH_LINES
-  if (eligibility.state === 'NOT_ENOUGH_LINES') {
-    return (
-      <p
-        className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
-        style={{ fontVariationSettings: "'wdth' 100" }}
-      >
-        Not enough lines
-      </p>
-    );
-  }
-  
-  // MAX_LIMIT
-  if (eligibility.state === 'MAX_LIMIT') {
-    return (
-      <p
-        className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
-        style={{ fontVariationSettings: "'wdth' 100" }}
-      >
-        Maximum ship limit, cannot build
-      </p>
-    );
-  }
-  
-  return null;
+
+  return (
+    <>
+      <div className="h-0 relative shrink-0 w-full">
+        <div className="absolute inset-[-1px_0_0_0]">
+          <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 260 1">
+            <line stroke="#555555" x2="260" y1="0.5" y2="0.5" />
+          </svg>
+        </div>
+      </div>
+      {footerContent}
+    </>
+  );
 }
 
 /**
@@ -420,15 +435,6 @@ export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCard
           </p>
         </div>
       )}
-      
-      {/* Divider */}
-      <div className="h-0 relative shrink-0 w-full">
-        <div className="absolute inset-[-1px_0_0_0]">
-          <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 260 1">
-            <line stroke="#555555" x2="260" y1="0.5" y2="0.5" />
-          </svg>
-        </div>
-      </div>
       
       {/* Eligibility Footer */}
       <EligibilityFooter
