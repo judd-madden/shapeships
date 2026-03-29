@@ -1019,7 +1019,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Automatic",
-        "text": "Heal equal to the dice roll this turn."
+        "text": "Heal equal to the dice roll."
       }
     ],
     "energyCost": null,
@@ -1043,7 +1043,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Automatic",
-        "text": "Deal damage equal to the dice roll this turn."
+        "text": "Deal damage equal to the dice roll."
       }
     ],
     "energyCost": null,
