@@ -562,6 +562,7 @@ function Metric({
 function HoverAnchor({
   hoverKey,
   enabled,
+  anchorRef,
   className,
   onHoverEnter,
   onHoverLeave,
@@ -569,6 +570,7 @@ function HoverAnchor({
 }: {
   hoverKey: BoardStatHoverKey;
   enabled: boolean;
+  anchorRef?: { current: HTMLElement | null };
   className?: string;
   onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
   onHoverLeave: (key: BoardStatHoverKey) => void;
@@ -577,7 +579,11 @@ function HoverAnchor({
   return (
     <div
       className={className}
-      onMouseEnter={enabled ? (event) => onHoverEnter(hoverKey, event.currentTarget) : undefined}
+      onMouseEnter={
+        enabled
+          ? (event) => onHoverEnter(hoverKey, anchorRef?.current ?? event.currentTarget)
+          : undefined
+      }
       onMouseLeave={enabled ? () => onHoverLeave(hoverKey) : undefined}
     >
       {children}
@@ -681,6 +687,9 @@ function StatTripletRow({
 export function BoardStage({ vm, actions }: BoardStageProps) {
   const fleetHover = useFleetShipHover();
   const statHover = useBoardStatHover();
+  const myBonusAnchorRef = useRef<HTMLDivElement | null>(null);
+  const opponentBonusPrimaryAnchorRef = useRef<HTMLDivElement | null>(null);
+  const opponentBonusJoiningAnchorRef = useRef<HTMLDivElement | null>(null);
   const displayedMyHealth = useAnimatedHealth(vm.mode === 'board' ? vm.myHealth : 25);
   const displayedOpponentHealth = useAnimatedHealth(vm.mode === 'board' ? vm.opponentHealth : 25);
 
@@ -728,6 +737,8 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
     myBonusClusterHasVisibleContent && vm.myBonusBreakdownRows.length > 0;
   const opponentBonusHoverEnabled =
     opponentBonusClusterHasVisibleContent && vm.opponentBonusBreakdownRows.length > 0;
+  const opponentBonusAnchorRef =
+    vm.opponentJoiningBonusLines > 0 ? opponentBonusJoiningAnchorRef : opponentBonusPrimaryAnchorRef;
   const statHoverRowsByKey: Record<BoardStatHoverKey, { rows: typeof vm.myLastDamageBreakdownRows; side: 'left' | 'right' }> = {
     'my-last-damage': { rows: vm.myLastDamageBreakdownRows, side: 'left' },
     'opponent-last-damage': { rows: vm.opponentLastDamageBreakdownRows, side: 'right' },
@@ -936,17 +947,20 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
               <HoverAnchor
                 hoverKey="my-bonus"
                 enabled={myBonusHoverEnabled}
+                anchorRef={myBonusAnchorRef}
                 onHoverEnter={statHover.onEnter}
                 onHoverLeave={statHover.onLeave}
                 className="flex gap-[4px] items-center justify-end"
               >
-                <Metric
-                  value={String(myDisplayedBonusLines ?? 0)}
-                  label="LINES"
-                  label2={mySpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
-                  align="right"
-                  toneClass="text-[#62fff6]"
-                />
+                <div ref={myBonusAnchorRef} className="shrink-0">
+                  <Metric
+                    value={String(myDisplayedBonusLines ?? 0)}
+                    label="LINES"
+                    label2={mySpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
+                    align="right"
+                    toneClass="text-[#62fff6]"
+                  />
+                </div>
                 {vm.myJoiningBonusLines > 0 ? (
                   <Metric
                     value={String(vm.myJoiningBonusLines)}
@@ -972,25 +986,30 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
               <HoverAnchor
                 hoverKey="opponent-bonus"
                 enabled={opponentBonusHoverEnabled}
+                anchorRef={opponentBonusAnchorRef}
                 onHoverEnter={statHover.onEnter}
                 onHoverLeave={statHover.onLeave}
                 className="flex gap-[4px] items-start"
               >
-                <Metric
-                  value={String(opponentDisplayedBonusLines ?? 0)}
-                  label="LINES"
-                  label2={opponentSpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
-                  align="left"
-                  toneClass="text-[#62fff6]"
-                />
-                {vm.opponentJoiningBonusLines > 0 ? (
+                <div ref={opponentBonusPrimaryAnchorRef} className="shrink-0">
                   <Metric
-                    value={String(vm.opponentJoiningBonusLines)}
-                    label="JOINING"
-                    label2="LINES"
+                    value={String(opponentDisplayedBonusLines ?? 0)}
+                    label="LINES"
+                    label2={opponentSpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
                     align="left"
                     toneClass="text-[#62fff6]"
                   />
+                </div>
+                {vm.opponentJoiningBonusLines > 0 ? (
+                  <div ref={opponentBonusJoiningAnchorRef} className="shrink-0">
+                    <Metric
+                      value={String(vm.opponentJoiningBonusLines)}
+                      label="JOINING"
+                      label2="LINES"
+                      align="left"
+                      toneClass="text-[#62fff6]"
+                    />
+                  </div>
                 ) : null}
               </HoverAnchor>
             </div>
