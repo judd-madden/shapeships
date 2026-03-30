@@ -59,6 +59,33 @@ function countDiceRolledEvents(events: any[]): number {
   return n;
 }
 
+function maybeAdoptAuthoritativeFailureState(
+  payload: any,
+  applyAuthoritativeRawState: (nextState: any) => void
+): void {
+  if (payload?.state == null) {
+    return;
+  }
+
+  applyAuthoritativeRawState(payload.state);
+}
+
+async function readFailureResponseText(
+  response: Response,
+  applyAuthoritativeRawState: (nextState: any) => void
+): Promise<string> {
+  const errorText = await response.text();
+
+  try {
+    const payload = JSON.parse(errorText);
+    maybeAdoptAuthoritativeFailureState(payload, applyAuthoritativeRawState);
+  } catch {
+    // Non-JSON failure bodies should keep existing text/error logging behavior.
+  }
+
+  return errorText;
+}
+
 /**
  * Canonical build payload builder
  * Ensures consistent ordering and structure for hash computation
@@ -119,6 +146,7 @@ export async function runSpeciesConfirmFlow(args: {
   makeCommitHash: (payload: any, nonce: string) => Promise<string>;
   submitIntent: (body: any) => Promise<Response>;
   appendEvents: (events: any[], meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
+  applyAuthoritativeRawState: (nextState: any) => void;
   refreshGameStateOnce: () => Promise<void>;
   mySessionId: string;
   getLatestRawState: () => any;
@@ -137,6 +165,7 @@ export async function runSpeciesConfirmFlow(args: {
       makeCommitHash,
       submitIntent,
       appendEvents,
+      applyAuthoritativeRawState,
       refreshGameStateOnce,
       mySessionId,
       getLatestRawState,
@@ -173,7 +202,7 @@ export async function runSpeciesConfirmFlow(args: {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
+      const errorText = await readFailureResponseText(response, applyAuthoritativeRawState);
       console.error('[useGameSession] SPECIES_SUBMIT failed:', errorText);
       return;
     }
@@ -181,6 +210,7 @@ export async function runSpeciesConfirmFlow(args: {
     const result = await response.json();
 
     if (!result.ok) {
+      maybeAdoptAuthoritativeFailureState(result, applyAuthoritativeRawState);
       console.error('[useGameSession] SPECIES_SUBMIT rejected:', result.rejected);
       return;
     }
@@ -277,6 +307,7 @@ export async function runReadyToggleFlow(args: {
   makeCommitHash: (payload: any, nonce: string) => Promise<string>;
   submitIntent: (body: any, timeoutMs?: number) => Promise<Response>;
   appendEvents: (events: any[], meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
+  applyAuthoritativeRawState: (nextState: any) => void;
   refreshGameStateOnce: () => Promise<void>;
   maybeAutoRevealBuild: (args: any) => Promise<void>;
   bumpDiceRollSeq: (n: number) => void;
@@ -311,6 +342,7 @@ export async function runReadyToggleFlow(args: {
     makeCommitHash,
     submitIntent,
     appendEvents,
+    applyAuthoritativeRawState,
     refreshGameStateOnce,
     maybeAutoRevealBuild,
     bumpDiceRollSeq,
@@ -442,7 +474,7 @@ export async function runReadyToggleFlow(args: {
           });
           
           if (!batchResponse.ok) {
-            const errorText = await batchResponse.text();
+            const errorText = await readFailureResponseText(batchResponse, applyAuthoritativeRawState);
             console.error('[useGameSession] ACTIONS_SUBMIT failed:', errorText);
             return;
           }
@@ -450,6 +482,7 @@ export async function runReadyToggleFlow(args: {
           const result = await batchResponse.json();
           
           if (!result.ok) {
+            maybeAdoptAuthoritativeFailureState(result, applyAuthoritativeRawState);
             console.error('[useGameSession] ACTIONS_SUBMIT rejected:', result.rejected);
             return;
           }
@@ -482,7 +515,7 @@ export async function runReadyToggleFlow(args: {
       });
       
       if (!readyResponse.ok) {
-        const errorText = await readyResponse.text();
+        const errorText = await readFailureResponseText(readyResponse, applyAuthoritativeRawState);
         console.error('[useGameSession] DECLARE_READY failed:', errorText);
         return;
       }
@@ -490,6 +523,7 @@ export async function runReadyToggleFlow(args: {
       const readyResult = await readyResponse.json();
       
       if (!readyResult.ok) {
+        maybeAdoptAuthoritativeFailureState(readyResult, applyAuthoritativeRawState);
         console.error('[useGameSession] DECLARE_READY rejected:', readyResult.rejected);
         return;
       }
@@ -610,7 +644,7 @@ export async function runReadyToggleFlow(args: {
           });
           
           if (!batchResponse.ok) {
-            const errorText = await batchResponse.text();
+            const errorText = await readFailureResponseText(batchResponse, applyAuthoritativeRawState);
             console.error('[useGameSession] ACTIONS_SUBMIT failed:', errorText);
             return;
           }
@@ -618,6 +652,7 @@ export async function runReadyToggleFlow(args: {
           const result = await batchResponse.json();
           
           if (!result.ok) {
+            maybeAdoptAuthoritativeFailureState(result, applyAuthoritativeRawState);
             console.error('[useGameSession] ACTIONS_SUBMIT rejected:', result.rejected);
             return;
           }
@@ -650,7 +685,7 @@ export async function runReadyToggleFlow(args: {
       });
       
       if (!readyResponse.ok) {
-        const errorText = await readyResponse.text();
+        const errorText = await readFailureResponseText(readyResponse, applyAuthoritativeRawState);
         console.error('[useGameSession] DECLARE_READY failed:', errorText);
         return;
       }
@@ -658,6 +693,7 @@ export async function runReadyToggleFlow(args: {
       const readyResult = await readyResponse.json();
       
       if (!readyResult.ok) {
+        maybeAdoptAuthoritativeFailureState(readyResult, applyAuthoritativeRawState);
         console.error('[useGameSession] DECLARE_READY rejected:', readyResult.rejected);
         return;
       }
@@ -733,7 +769,7 @@ export async function runReadyToggleFlow(args: {
       }
       
       if (!response.ok) {
-        const errorText = await response.text();
+        const errorText = await readFailureResponseText(response, applyAuthoritativeRawState);
         console.error('[useGameSession] BUILD_SUBMIT failed:', errorText);
         return;
       }
@@ -747,6 +783,8 @@ export async function runReadyToggleFlow(args: {
         serverTurnNumber;
       
       if (!result.ok) {
+        maybeAdoptAuthoritativeFailureState(result, applyAuthoritativeRawState);
+
         // Handle DUPLICATE_SUBMIT/DUPLICATE_COMMIT: treat as success locally
         if (
           result.rejected?.code === 'DUPLICATE_SUBMIT' ||
@@ -802,7 +840,7 @@ export async function runReadyToggleFlow(args: {
     });
     
     if (!response.ok) {
-      const errorText = await response.text();
+      const errorText = await readFailureResponseText(response, applyAuthoritativeRawState);
       console.error('[useGameSession] DECLARE_READY failed:', errorText);
       return;
     }
@@ -810,6 +848,7 @@ export async function runReadyToggleFlow(args: {
     const result = await response.json();
     
     if (!result.ok) {
+      maybeAdoptAuthoritativeFailureState(result, applyAuthoritativeRawState);
       console.error('[useGameSession] DECLARE_READY rejected:', result.rejected);
       return;
     }

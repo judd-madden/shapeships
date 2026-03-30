@@ -218,6 +218,11 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [centaurChargeSubTabByPhaseInstanceKey, setCentaurChargeSubTabByPhaseInstanceKey] =
     useState<Record<string, CentaurChargeSubTabId>>({});
 
+  function applyAuthoritativeRawState(nextState: any): void {
+    rawStateRef.current = nextState;
+    setRawState(nextState);
+  }
+
   useEffect(() => {
     rawStateRef.current = rawState;
   }, [rawState]);
@@ -550,7 +555,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       }
       
       const data = await response.json();
-      setRawState(data);
+      applyAuthoritativeRawState(data);
       console.log('[useGameSession] refreshGameStateOnce succeeded');
     } catch (err: any) {
       console.error('[useGameSession] refreshGameStateOnce error:', err.message);
@@ -1921,6 +1926,7 @@ useEffect(() => {
           makeCommitHash,
           submitIntent,
           appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
+          applyAuthoritativeRawState,
           refreshGameStateOnce,
           maybeAutoRevealBuild,
           bumpDiceRollSeq: (n: number) => setDiceRollSeq(prev => prev + n),
@@ -2082,9 +2088,10 @@ useEffect(() => {
         makeCommitHash,
         submitIntent,
         appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
+        applyAuthoritativeRawState,
         refreshGameStateOnce,
         mySessionId: mySessionId!,
-        getLatestRawState: () => rawState,
+        getLatestRawState: () => rawStateRef.current,
         bumpDiceRollSeq: (n: number) => setDiceRollSeq(prev => prev + n),
       });
     },
