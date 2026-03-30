@@ -720,8 +720,14 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
   const opponentDamageHoverEnabled = vm.opponentLastTurnDamage !== 0 && vm.opponentLastDamageBreakdownRows.length > 0;
   const myHealingHoverEnabled = vm.myLastTurnHeal !== 0 && vm.myLastHealingBreakdownRows.length > 0;
   const opponentHealingHoverEnabled = vm.opponentLastTurnHeal !== 0 && vm.opponentLastHealingBreakdownRows.length > 0;
-  const myBonusHoverEnabled = myDisplayedBonusLines !== 0 && vm.myBonusBreakdownRows.length > 0;
-  const opponentBonusHoverEnabled = opponentDisplayedBonusLines !== 0 && vm.opponentBonusBreakdownRows.length > 0;
+  const myBonusClusterHasVisibleContent =
+    myDisplayedBonusLines !== 0 || vm.myJoiningBonusLines > 0;
+  const opponentBonusClusterHasVisibleContent =
+    opponentDisplayedBonusLines !== 0 || vm.opponentJoiningBonusLines > 0;
+  const myBonusHoverEnabled =
+    myBonusClusterHasVisibleContent && vm.myBonusBreakdownRows.length > 0;
+  const opponentBonusHoverEnabled =
+    opponentBonusClusterHasVisibleContent && vm.opponentBonusBreakdownRows.length > 0;
   const statHoverRowsByKey: Record<BoardStatHoverKey, { rows: typeof vm.myLastDamageBreakdownRows; side: 'left' | 'right' }> = {
     'my-last-damage': { rows: vm.myLastDamageBreakdownRows, side: 'left' },
     'opponent-last-damage': { rows: vm.opponentLastDamageBreakdownRows, side: 'right' },
