@@ -76,6 +76,7 @@ export interface LeftRailViewModel {
   }>;
   drawOffer: {
     fromPlayer: string;
+    canRespond: boolean;
   } | null;
   
   // Battle log
@@ -280,6 +281,8 @@ export interface ActionPanelViewModel {
     turnNumber: number;
     phaseKey: string;
     hasActionsForMe: boolean;
+    canOfferDraw: boolean;
+    canResign: boolean;
   };
   endOfGame?: {
     bannerText: string;

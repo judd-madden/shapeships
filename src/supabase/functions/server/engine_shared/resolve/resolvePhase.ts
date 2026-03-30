@@ -1097,6 +1097,11 @@ function evaluateVictoryConditions(
       winnerPlayerId: victoryResult.winnerPlayerId,
       result: victoryResult.result,
       resultReason: victoryResult.reason,
+      gameData: {
+        ...updatedState.gameData,
+        pendingDrawOffer: null,
+        drawAgreement: null,
+      },
     };
 
     const gameOverEvent: any = {

@@ -23,7 +23,8 @@ export type IntentType =
   | 'ACTIONS_SUBMIT'
   | 'SURRENDER'
   | 'DRAW_OFFER'
-  | 'DRAW_ACCEPT';
+  | 'DRAW_ACCEPT'
+  | 'DRAW_REFUSE';
 
 // ============================================================================
 // BATTLE WINDOWS

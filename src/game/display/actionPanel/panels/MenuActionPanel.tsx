@@ -16,6 +16,8 @@ interface MenuActionPanelProps {
   turnNumber: number;
   phaseKey: string;
   hasActionsForMe: boolean;
+  canOfferDraw: boolean;
+  canResign: boolean;
   onOfferDraw: () => void;
   onResignGame: () => void;
 }
@@ -157,6 +159,8 @@ export function MenuActionPanel({
   turnNumber,
   phaseKey,
   hasActionsForMe,
+  canOfferDraw,
+  canResign,
   onOfferDraw,
   onResignGame,
 }: MenuActionPanelProps) {
@@ -187,6 +191,7 @@ export function MenuActionPanel({
           {/* Buttons */}
           <div className="content-stretch flex gap-[20px] items-center justify-center pt-[8px] relative shrink-0 w-full">
             <GameMenuButton
+              disabled={!canOfferDraw}
               requiresConfirm={true}
               confirmLabel="Offer Draw (Confirm)"
               onClick={onOfferDraw}
@@ -195,6 +200,7 @@ export function MenuActionPanel({
             </GameMenuButton>
 
             <GameMenuButton
+              disabled={!canResign}
               requiresConfirm={true}
               confirmLabel="Resign Game (Confirm)"
               onClick={onResignGame}

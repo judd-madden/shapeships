@@ -71,6 +71,17 @@ export type LastTurnBreakdownRow = {
   amountText: string;
 };
 
+export type PendingDrawOffer = {
+  offererPlayerId: string;
+  offereePlayerId: string;
+  offeredTurnNumber: number;
+};
+
+export type LegacyDrawAgreement = {
+  offeredBy: string;
+  acceptedBy: string[];
+};
+
 /**
  * Game data container
  */
@@ -177,6 +188,15 @@ export type GameData = {
     /** Allow future turn-scoped flags */
     [key: string]: any;
   };
+
+  /** Authoritative pending draw offer state, if one exists */
+  pendingDrawOffer?: PendingDrawOffer | null;
+
+  /** Legacy draw agreement state kept temporarily for compatibility */
+  drawAgreement?: LegacyDrawAgreement | null;
+
+  /** Per-player turn stamp for once-per-turn draw offer validation */
+  lastDrawOfferTurnByPlayerId?: Record<string, number>;
 
   /** Destroyed ships kept out of play but preserved for UI/history */
   voidShipsByPlayerId?: Record<string, ShipInstance[]>;

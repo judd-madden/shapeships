@@ -846,6 +846,67 @@ export function mapGameSessionVm(args: {
   // Server-projected actions for the CURRENT phase (safe default)
   const availableActionsSafe = availableActions ?? [];
   const hasActionsForMe = Array.isArray(availableActionsSafe) && availableActionsSafe.length > 0;
+  const currentPlayerId = me?.id ?? null;
+  const activePlayers = Array.isArray(allPlayers)
+    ? allPlayers.filter((player: any) => player?.role === 'player')
+    : [];
+  const authoritativePendingDrawOffer = (() => {
+    const pendingDrawOffer = gameData?.pendingDrawOffer;
+    if (
+      pendingDrawOffer &&
+      typeof pendingDrawOffer.offererPlayerId === 'string' &&
+      typeof pendingDrawOffer.offereePlayerId === 'string'
+    ) {
+      return pendingDrawOffer;
+    }
+
+    const legacyOfferedBy = gameData?.drawAgreement?.offeredBy;
+    if (typeof legacyOfferedBy !== 'string' || legacyOfferedBy.length === 0) {
+      return null;
+    }
+
+    const inferredOfferee = activePlayers.find((player: any) => player?.id !== legacyOfferedBy);
+    if (!inferredOfferee?.id) {
+      return null;
+    }
+
+    return {
+      offererPlayerId: legacyOfferedBy,
+      offereePlayerId: inferredOfferee.id,
+      offeredTurnNumber: turnNumber,
+    };
+  })();
+  const drawOffererName = (() => {
+    if (!authoritativePendingDrawOffer) {
+      return null;
+    }
+
+    const offererId = authoritativePendingDrawOffer.offererPlayerId;
+    if (offererId === me?.id) {
+      return me?.name ?? 'Player 1';
+    }
+    if (offererId === opponent?.id) {
+      return opponent?.name ?? 'Player 2';
+    }
+
+    const matchingPlayer = activePlayers.find((player: any) => player?.id === offererId);
+    return matchingPlayer?.name ?? 'Unknown player';
+  })();
+  const canRespondToDrawOffer =
+    !isFinished &&
+    currentPlayerId != null &&
+    authoritativePendingDrawOffer?.offereePlayerId === currentPlayerId;
+  const currentTurnLastDrawOffer =
+    currentPlayerId != null
+      ? gameData?.lastDrawOfferTurnByPlayerId?.[currentPlayerId]
+      : null;
+  const canOfferDraw =
+    !isFinished &&
+    me?.role === 'player' &&
+    Boolean(opponent?.id) &&
+    authoritativePendingDrawOffer == null &&
+    currentTurnLastDrawOffer !== turnNumber;
+  const canResign = !isFinished && me?.role === 'player';
   const domLargeChoiceInstruction = (() => {
     if (finalActivePanelId !== 'ap.battle.first_strike.centaur') {
       return undefined;
@@ -1013,7 +1074,13 @@ export function mapGameSessionVm(args: {
       subphase: getSubphaseLabelFromPhaseKey(phaseKey),
       gameCode: effectiveGameId ? effectiveGameId.substring(0, 6).toUpperCase() : 'NOGAME',
       chatMessages,
-      drawOffer: null,
+      drawOffer:
+        authoritativePendingDrawOffer && drawOffererName
+          ? {
+              fromPlayer: drawOffererName,
+              canRespond: canRespondToDrawOffer,
+            }
+          : null,
       battleLogEntries: eventTape.map(entry => ({
         type: 'event' as const,
         text: formatTapeEntry(entry),
@@ -1049,6 +1116,8 @@ export function mapGameSessionVm(args: {
         turnNumber,
         phaseKey,
         hasActionsForMe,
+        canOfferDraw,
+        canResign,
       },
       endOfGame: isFinished ? {
         bannerText,

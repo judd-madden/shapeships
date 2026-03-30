@@ -68,6 +68,14 @@ export function initializeClocks(gameData: any): any {
   };
 }
 
+function withClearedPendingDrawOffer(gameData: any) {
+  return {
+    ...gameData,
+    pendingDrawOffer: null,
+    drawAgreement: null,
+  };
+}
+
 /**
  * Ensure player has a clock entry when joining
  * Does NOT overwrite existing entries
@@ -260,7 +268,7 @@ export function accrueClocks(state: any, nowMs: number): any {
         endReason: 'timeout',
         timeoutLoserId: loserId,
         gameData: {
-          ...state.gameData,
+          ...withClearedPendingDrawOffer(state.gameData),
           clock: nextClock,
         },
         actions: [
@@ -287,7 +295,7 @@ export function accrueClocks(state: any, nowMs: number): any {
       endReason: 'timeout_draw',
       timeoutLoserId: null,
       gameData: {
-        ...state.gameData,
+        ...withClearedPendingDrawOffer(state.gameData),
         clock: nextClock,
       },
       actions: [

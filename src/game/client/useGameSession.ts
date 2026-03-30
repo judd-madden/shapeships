@@ -200,6 +200,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Server state
   const [rawState, setRawState] = useState<any>(null);
+  const rawStateRef = useRef<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -216,6 +217,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [activePanelId, setActivePanelId] = useState<ActionPanelId>('ap.catalog.ships.human');
   const [centaurChargeSubTabByPhaseInstanceKey, setCentaurChargeSubTabByPhaseInstanceKey] =
     useState<Record<string, CentaurChargeSubTabId>>({});
+
+  useEffect(() => {
+    rawStateRef.current = rawState;
+  }, [rawState]);
 
   // Auto panel routing pulse: allows one controlled re-route when client-only actions appear mid-phase
   const [panelRoutingPulse, setPanelRoutingPulse] = useState(0);
@@ -557,6 +562,58 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
    */
   async function submitIntent(body: any, timeoutMs?: number): Promise<Response> {
     return authenticatedPost('/intent', body, timeoutMs);
+  }
+
+  function getLatestIntentContext() {
+    const latestRawState = rawStateRef.current;
+    const latestTurnNumber = latestRawState ? getTurnNumber(latestRawState) : turnNumber;
+
+    return {
+      gameId: effectiveGameId,
+      turnNumber: latestTurnNumber,
+    };
+  }
+
+  async function submitMenuIntent(intentType: 'SURRENDER' | 'DRAW_OFFER' | 'DRAW_ACCEPT' | 'DRAW_REFUSE') {
+    const latest = getLatestIntentContext();
+
+    if (!latest.gameId) {
+      console.error(`[useGameSession] ${intentType} blocked: missing gameId`);
+      return;
+    }
+
+    try {
+      const response = await submitIntent({
+        gameId: latest.gameId,
+        intentType,
+        turnNumber: latest.turnNumber,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[useGameSession] ${intentType} failed:`, response.status, errorText);
+        await refreshGameStateOnce();
+        return;
+      }
+
+      const result = await response.json();
+
+      if (!result.ok) {
+        console.error(
+          `[useGameSession] ${intentType} rejected:`,
+          result.rejected?.code,
+          result.rejected?.message
+        );
+        await refreshGameStateOnce();
+        return;
+      }
+
+      appendEventsToTape(setEventTape, result.events ?? [], { label: intentType });
+      await refreshGameStateOnce();
+    } catch (err: any) {
+      console.error(`[useGameSession] ${intentType} error:`, err.message);
+      await refreshGameStateOnce();
+    }
   }
   
   // ============================================================================
@@ -1952,12 +2009,12 @@ useEffect(() => {
       }
     },
     
-    onAcceptDraw: () => {
-      console.log('[useGameSession] Accept draw (no-op)');
+    onAcceptDraw: async () => {
+      await submitMenuIntent('DRAW_ACCEPT');
     },
     
-    onRefuseDraw: () => {
-      console.log('[useGameSession] Refuse draw (no-op)');
+    onRefuseDraw: async () => {
+      await submitMenuIntent('DRAW_REFUSE');
     },
     
     onOpenBattleLogFullscreen: () => {
@@ -2104,12 +2161,12 @@ useEffect(() => {
       }
     },
     
-    onOfferDraw: () => {
-      console.log('[useGameSession] Offer draw (no-op)');
+    onOfferDraw: async () => {
+      await submitMenuIntent('DRAW_OFFER');
     },
     
-    onResignGame: () => {
-      console.log('[useGameSession] Resign game (no-op)');
+    onResignGame: async () => {
+      await submitMenuIntent('SURRENDER');
     },
     
     onRematch: () => {
@@ -2288,6 +2345,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
               turnNumber: 0,
               phaseKey: 'setup.loading',
               hasActionsForMe: false,
+              canOfferDraw: false,
+              canResign: false,
           },
         availableActions: [],
         selectedChoiceIdBySourceInstanceId: {},

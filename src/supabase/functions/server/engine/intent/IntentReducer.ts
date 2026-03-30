@@ -125,6 +125,79 @@ function countFleetShipsByDefId(state: any, playerId: string, shipDefId: string)
   return count;
 }
 
+function clearPendingDrawOfferState(state: any) {
+  if (!state.gameData) state.gameData = {};
+  state.gameData.pendingDrawOffer = null;
+
+  if ('drawAgreement' in state.gameData) {
+    state.gameData.drawAgreement = null;
+  }
+}
+
+function getLegacyCompatiblePendingDrawOffer(state: any) {
+  const pendingDrawOffer = state?.gameData?.pendingDrawOffer;
+  if (
+    pendingDrawOffer &&
+    typeof pendingDrawOffer.offererPlayerId === 'string' &&
+    typeof pendingDrawOffer.offereePlayerId === 'string'
+  ) {
+    return pendingDrawOffer;
+  }
+
+  const offeredBy = state?.gameData?.drawAgreement?.offeredBy;
+  if (typeof offeredBy !== 'string' || offeredBy.length === 0) {
+    return null;
+  }
+
+  const activePlayers = Array.isArray(state?.players)
+    ? state.players.filter((player: any) => player?.role === 'player')
+    : [];
+  const offeree = activePlayers.find((player: any) => player?.id !== offeredBy);
+
+  if (!offeree?.id) {
+    return null;
+  }
+
+  return {
+    offererPlayerId: offeredBy,
+    offereePlayerId: offeree.id,
+    offeredTurnNumber: state?.gameData?.turnNumber ?? state?.turnNumber ?? 0,
+  };
+}
+
+function finishGameWithCanonicalResult(args: {
+  state: any;
+  result: 'win' | 'draw';
+  winnerPlayerId: string | null;
+  resultReason: 'resignation' | 'agreement';
+  nowMs: number;
+  events: any[];
+}): IntentResult {
+  const { state, result, winnerPlayerId, resultReason, nowMs, events } = args;
+
+  state.status = 'finished';
+  state.winnerPlayerId = winnerPlayerId;
+  state.result = result;
+  state.resultReason = resultReason;
+  clearPendingDrawOfferState(state);
+
+  events.push({
+    type: 'GAME_OVER',
+    result,
+    resultReason,
+    winnerPlayerId,
+    atMs: nowMs,
+  });
+
+  const syncedState = syncPhaseFields(state);
+
+  return {
+    ok: true,
+    state: syncedState,
+    events,
+  };
+}
+
 function getKnoRerollPassIndex(state: any): 1 | 2 {
   return state?.gameData?.turnData?.knoRerollPassIndex === 2 ? 2 : 1;
 }
@@ -570,6 +643,9 @@ export async function applyIntent(
       
     case 'DRAW_ACCEPT':
       return handleDrawAccept(state, sessionPlayerId, intent, nowMs, events);
+
+    case 'DRAW_REFUSE':
+      return handleDrawRefuse(state, sessionPlayerId, intent, nowMs, events);
       
     default:
       return {
@@ -2509,29 +2585,15 @@ function handleSurrender(
       }
     };
   }
-  
-  // Apply canonical Phase 3.0A victory model
-  state.status = 'finished';
-  state.winnerPlayerId = opponent.id;
-  state.result = 'win';
-  state.resultReason = 'resignation';
-  
-  // Emit canonical GAME_OVER event with resultReason
-  events.push({
-    type: 'GAME_OVER',
-    result: 'win',
-    resultReason: 'resignation',
-    winnerPlayerId: opponent.id,
-    atMs: nowMs
-  });
-  
-  state = syncPhaseFields(state);
-  
-  return {
-    ok: true,
+
+  return finishGameWithCanonicalResult({
     state,
-    events
-  };
+    result: 'win',
+    winnerPlayerId: opponent.id,
+    resultReason: 'resignation',
+    nowMs,
+    events,
+  });
 }
 
 // ============================================================================
@@ -2559,25 +2621,75 @@ function handleDrawOffer(
       }
     };
   }
-  
-  // Initialize gameData.drawAgreement
+
+  const activePlayers = state.players.filter((p: any) => p.role === 'player');
+  const opponent = activePlayers.find((p: any) => p.id !== playerId);
+
+  if (!opponent) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'Cannot offer a draw: no opponent found'
+      }
+    };
+  }
+
+  if (getLegacyCompatiblePendingDrawOffer(state)) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'A draw offer is already pending'
+      }
+    };
+  }
+
+  const currentTurn = state.gameData?.turnNumber ?? state.turnNumber ?? 0;
+  const lastDrawOfferTurn = state.gameData?.lastDrawOfferTurnByPlayerId?.[playerId];
+  if (lastDrawOfferTurn === currentTurn) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'You have already offered a draw this turn'
+      }
+    };
+  }
+
   if (!state.gameData) {
     state.gameData = {};
   }
-  
+
+  state.gameData.pendingDrawOffer = {
+    offererPlayerId: playerId,
+    offereePlayerId: opponent.id,
+    offeredTurnNumber: currentTurn,
+  };
+  state.gameData.lastDrawOfferTurnByPlayerId = {
+    ...(state.gameData.lastDrawOfferTurnByPlayerId ?? {}),
+    [playerId]: currentTurn,
+  };
   state.gameData.drawAgreement = {
     offeredBy: playerId,
-    acceptedBy: [playerId]
+    acceptedBy: [playerId],
   };
-  
+
   events.push({
     type: 'DRAW_OFFERED',
     playerId,
+    offereePlayerId: opponent.id,
     atMs: nowMs
   });
-  
+
   state = syncPhaseFields(state);
-  
+
   return {
     ok: true,
     state,
@@ -2610,9 +2722,9 @@ function handleDrawAccept(
       }
     };
   }
-  
-  // Check if there is an active draw offer
-  if (!state.gameData?.drawAgreement?.offeredBy) {
+
+  const pendingDrawOffer = getLegacyCompatiblePendingDrawOffer(state);
+  if (!pendingDrawOffer) {
     return {
       ok: false,
       state,
@@ -2623,45 +2735,108 @@ function handleDrawAccept(
       }
     };
   }
-  
-  // Add playerId to acceptedBy (if not already present)
-  const acceptedBy = state.gameData.drawAgreement.acceptedBy || [];
+
+  if (pendingDrawOffer.offereePlayerId !== playerId) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'Only the offeree may accept the pending draw offer'
+      }
+    };
+  }
+
+  const acceptedBy = state.gameData?.drawAgreement?.acceptedBy || [];
   if (!acceptedBy.includes(playerId)) {
     acceptedBy.push(playerId);
-    state.gameData.drawAgreement.acceptedBy = acceptedBy;
+    if (!state.gameData.drawAgreement) {
+      state.gameData.drawAgreement = {
+        offeredBy: pendingDrawOffer.offererPlayerId,
+        acceptedBy,
+      };
+    } else {
+      state.gameData.drawAgreement.acceptedBy = acceptedBy;
+    }
   }
-  
+
   events.push({
     type: 'DRAW_ACCEPTED',
     playerId,
     atMs: nowMs
   });
-  
-  // Check if both active players have accepted
-  const activePlayers = state.players.filter((p: any) => p.role === 'player');
-  const allAccepted = activePlayers.every((p: any) => 
-    acceptedBy.includes(p.id)
-  );
-  
-  if (allAccepted) {
-    // Apply canonical Phase 3.0A victory model
-    state.status = 'finished';
-    state.winnerPlayerId = null;
-    state.result = 'draw';
-    state.resultReason = 'agreement';
-    
-    // Emit canonical GAME_OVER event with resultReason
-    events.push({
-      type: 'GAME_OVER',
-      result: 'draw',
-      resultReason: 'agreement',
-      winnerPlayerId: null,
-      atMs: nowMs
-    });
+
+  return finishGameWithCanonicalResult({
+    state,
+    result: 'draw',
+    winnerPlayerId: null,
+    resultReason: 'agreement',
+    nowMs,
+    events,
+  });
+}
+
+// ============================================================================
+// DRAW_REFUSE
+// ============================================================================
+
+function handleDrawRefuse(
+  state: any,
+  playerId: string,
+  intent: IntentRequest,
+  nowMs: number,
+  events: any[]
+): IntentResult {
+  const player = state.players.find((p: any) => p.id === playerId);
+
+  if (player.role !== 'player') {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.SPECTATOR_RESTRICTED,
+        message: 'Spectators cannot refuse a draw'
+      }
+    };
   }
-  
+
+  const pendingDrawOffer = getLegacyCompatiblePendingDrawOffer(state);
+  if (!pendingDrawOffer) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'No active draw offer'
+      }
+    };
+  }
+
+  if (pendingDrawOffer.offereePlayerId !== playerId) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'Only the offeree may refuse the pending draw offer'
+      }
+    };
+  }
+
+  clearPendingDrawOfferState(state);
+
+  events.push({
+    type: 'DRAW_REFUSED',
+    playerId,
+    atMs: nowMs
+  });
+
   state = syncPhaseFields(state);
-  
+
   return {
     ok: true,
     state,

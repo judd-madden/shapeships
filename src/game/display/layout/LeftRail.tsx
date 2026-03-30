@@ -207,10 +207,12 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
               <p className="text-[#9cff84] font-bold leading-[18px] mb-2">
                 {vm.drawOffer.fromPlayer} offers a draw
               </p>
-              <div className="flex gap-[10px]">
-                <InChatButton onClick={actions.onAcceptDraw}>Accept</InChatButton>
-                <InChatButton onClick={actions.onRefuseDraw}>Refuse</InChatButton>
-              </div>
+              {vm.drawOffer.canRespond && (
+                <div className="flex gap-[10px]">
+                  <InChatButton onClick={actions.onAcceptDraw}>Accept</InChatButton>
+                  <InChatButton onClick={actions.onRefuseDraw}>Refuse</InChatButton>
+                </div>
+              )}
             </div>
           )}
         </LeftRailScrollArea>
