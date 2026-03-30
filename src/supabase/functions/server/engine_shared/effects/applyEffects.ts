@@ -17,7 +17,7 @@
  * This module assumes effects have already been validated and filtered.
  */
 
-import type { GameState } from '../../engine/state/GameStateTypes.ts';
+import type { GameState, PendingTurnBreakdownEntry } from '../../engine/state/GameStateTypes.ts';
 import type { Effect } from './Effect.ts';
 import { EffectKind } from './Effect.ts';
 import { getShipById } from '../defs/ShipDefinitions.core.ts';
@@ -40,6 +40,10 @@ export type EffectEvent = {
   atMs: number;
 };
 
+type ApplyEffectsOptions = {
+  baseAmountByEffectId?: Record<string, number>;
+};
+
 // ============================================================================
 // MAIN APPLIER
 // ============================================================================
@@ -53,7 +57,8 @@ export type EffectEvent = {
  */
 export function applyEffects(
   state: GameState,
-  effects: Effect[]
+  effects: Effect[],
+  options: ApplyEffectsOptions = {}
 ): { state: GameState; events: EffectEvent[] } {
   const events: EffectEvent[] = [];
   const nowMs = Date.now();
@@ -82,17 +87,19 @@ export function applyEffects(
     newState.gameData.pendingTurn = {
       damageByPlayerId: { ...state.gameData.pendingTurn.damageByPlayerId },
       healByPlayerId: { ...state.gameData.pendingTurn.healByPlayerId },
+      breakdownEntries: [...(state.gameData.pendingTurn.breakdownEntries || [])],
     };
   } else {
     // Create fresh structure
     newState.gameData.pendingTurn = {
       damageByPlayerId: {},
       healByPlayerId: {},
+      breakdownEntries: [],
     };
   }
 
   for (const effect of effects) {
-    const result = applySingleEffect(newState, effect, nowMs);
+    const result = applySingleEffect(newState, effect, nowMs, options);
     if (result.event) events.push(result.event);
   }
 
@@ -114,7 +121,8 @@ export function applyEffects(
 function applySingleEffect(
   state: GameState,
   effect: Effect,
-  nowMs: number
+  nowMs: number,
+  options: ApplyEffectsOptions
 ): { event?: EffectEvent } {
   // SAFETY: Ensure translator produced a target playerId
   // (We do not throw; we skip and warn to preserve server stability.)
@@ -130,10 +138,10 @@ function applySingleEffect(
 
   switch (effect.kind) {
     case EffectKind.Damage:
-      return accumulateDamage(state, effect as any, nowMs);
+      return accumulateDamage(state, effect as any, nowMs, options);
 
     case EffectKind.Heal:
-      return accumulateHeal(state, effect as any, nowMs);
+      return accumulateHeal(state, effect as any, nowMs, options);
 
     case EffectKind.GainLines:
       return applyGainLines(state, effect as any, nowMs);
@@ -163,7 +171,8 @@ function applySingleEffect(
 function accumulateDamage(
   state: GameState,
   effect: Effect & { kind: EffectKind.Damage; amount: number },
-  nowMs: number
+  nowMs: number,
+  options: ApplyEffectsOptions
 ): { event?: EffectEvent } {
   const targetPlayerId = (effect as any).target.playerId as string;
   const amount = effect.amount;
@@ -171,6 +180,7 @@ function accumulateDamage(
   // Accumulate damage into pendingTurn (DO NOT mutate health)
   const currentDamage = state.gameData.pendingTurn!.damageByPlayerId[targetPlayerId] || 0;
   state.gameData.pendingTurn!.damageByPlayerId[targetPlayerId] = currentDamage + amount;
+  capturePendingTurnBreakdownEntry(state, effect, 'Damage', amount, options);
 
   console.log(
     `[applyEffects] Accumulated ${amount} damage for ${targetPlayerId}: ${currentDamage} → ${currentDamage + amount}`
@@ -198,7 +208,8 @@ function accumulateDamage(
 function accumulateHeal(
   state: GameState,
   effect: Effect & { kind: EffectKind.Heal; amount: number },
-  nowMs: number
+  nowMs: number,
+  options: ApplyEffectsOptions
 ): { event?: EffectEvent } {
   const targetPlayerId = (effect as any).target.playerId as string;
   const amount = effect.amount;
@@ -206,6 +217,7 @@ function accumulateHeal(
   // Accumulate heal into pendingTurn (DO NOT mutate health)
   const currentHeal = state.gameData.pendingTurn!.healByPlayerId[targetPlayerId] || 0;
   state.gameData.pendingTurn!.healByPlayerId[targetPlayerId] = currentHeal + amount;
+  capturePendingTurnBreakdownEntry(state, effect, 'Heal', amount, options);
 
   console.log(
     `[applyEffects] Accumulated ${amount} heal for ${targetPlayerId}: ${currentHeal} → ${currentHeal + amount}`
@@ -330,6 +342,33 @@ function incrementShipsMadeThisTurnCounter(
     ...currentMap,
     [playerId]: currentCount + amount,
   };
+}
+
+function capturePendingTurnBreakdownEntry(
+  state: GameState,
+  effect: Effect,
+  kind: PendingTurnBreakdownEntry['kind'],
+  finalAmount: number,
+  options: ApplyEffectsOptions
+) {
+  const targetPlayerId = effect.target.playerId;
+  const sourceShipDefId = effect.source.type === 'ship' ? effect.source.shipDefId : undefined;
+  const sourceInstanceId = effect.source.type === 'ship' ? effect.source.instanceId : undefined;
+  const sourceLabel = effect.source.type === 'system' ? effect.source.reason : undefined;
+  const rawBaseAmount = options.baseAmountByEffectId?.[effect.id];
+  const baseAmount = typeof rawBaseAmount === 'number' ? rawBaseAmount : finalAmount;
+
+  state.gameData.pendingTurn!.breakdownEntries.push({
+    effectId: effect.id,
+    kind,
+    ownerPlayerId: effect.ownerPlayerId,
+    targetPlayerId,
+    sourceShipDefId,
+    sourceInstanceId,
+    sourceLabel,
+    baseAmount,
+    finalAmount,
+  });
 }
 
 function incrementQueenCreatedXenitesThisTurnCounter(

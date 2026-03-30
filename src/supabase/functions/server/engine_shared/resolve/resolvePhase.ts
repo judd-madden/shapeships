@@ -14,13 +14,19 @@
  * Future passes will expand to other phases.
  */
 
-import type { GameState, ShipInstance } from '../../engine/state/GameStateTypes.ts';
+import type {
+  GameState,
+  LastTurnBreakdownRow,
+  PendingTurnBreakdownEntry,
+  ShipInstance,
+} from '../../engine/state/GameStateTypes.ts';
 import { GAME_STATE_TYPES_VERSION } from '../../engine/state/GameStateTypes.ts';
 import type { PhaseKey } from '../phase/PhaseTable.ts';
 import type { Effect, CreateShipEffect } from '../effects/Effect.ts';
 import { EffectTiming, EffectKind, SurvivabilityRule } from '../effects/Effect.ts';
 import { translateShipPowers, type TranslateContext } from '../effects/translateShipPowers.ts';
 import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
+import { getShipById } from '../defs/ShipDefinitions.core.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
 import {
   computePhaseComputedEffects,
@@ -287,6 +293,195 @@ function getPlayerMaxHealth(): number {
   return 35;
 }
 
+type TurnTotals = {
+  damageByPlayerId: Record<string, number>;
+  healByPlayerId: Record<string, number>;
+};
+
+type LastTurnBreakdownSnapshots = {
+  damageDealtByPlayerId: Record<string, LastTurnBreakdownRow[]>;
+  healingReceivedByPlayerId: Record<string, LastTurnBreakdownRow[]>;
+};
+
+function buildBaseAmountByEffectId(effects: Effect[]): Record<string, number> {
+  const baseAmountByEffectId: Record<string, number> = {};
+
+  for (const effect of effects) {
+    if (effect.kind !== EffectKind.Damage && effect.kind !== EffectKind.Heal) continue;
+    baseAmountByEffectId[effect.id] = effect.amount;
+  }
+
+  return baseAmountByEffectId;
+}
+
+function formatAmountText(amount: number): string {
+  return String(amount);
+}
+
+function pluralizeShipName(name: string): string {
+  if (/[^aeiou]y$/i.test(name)) {
+    return `${name.slice(0, -1)}ies`;
+  }
+
+  if (/(s|x|z|ch|sh)$/i.test(name)) {
+    return `${name}es`;
+  }
+
+  return `${name}s`;
+}
+
+function getShipFamilyDisplayName(shipDefId: string, count: number): string {
+  const shipDef = getShipById(shipDefId);
+  const shipName = shipDef?.name ?? shipDefId;
+  return count === 1 ? shipName : pluralizeShipName(shipName);
+}
+
+function sortBreakdownRows(rows: LastTurnBreakdownRow[]): LastTurnBreakdownRow[] {
+  return [...rows].sort((a, b) => {
+    if (b.amount !== a.amount) return b.amount - a.amount;
+    return a.label.localeCompare(b.label);
+  });
+}
+
+function playerHasKnoTierThree(state: GameState, playerId: string): boolean {
+  const ships = state.gameData.ships?.[playerId] || [];
+  return getCopyTierFromFleet(ships, 'KNO', 3) >= 3;
+}
+
+function buildRowsForPendingEntries(
+  entries: PendingTurnBreakdownEntry[],
+  sciLabel: string,
+  displayedTotal: number,
+  allowKnoAdjustment: boolean
+): LastTurnBreakdownRow[] {
+  const shipBuckets = new Map<string, { shipDefId: string; instanceIds: Set<string>; amount: number }>();
+  const syntheticBuckets = new Map<string, number>();
+  let sciAdjustmentAmount = 0;
+
+  for (const entry of entries) {
+    const baseAmount = Number.isFinite(entry.baseAmount) ? entry.baseAmount : 0;
+    const finalAmount = Number.isFinite(entry.finalAmount) ? entry.finalAmount : baseAmount;
+    const sciDelta = Math.max(0, finalAmount - baseAmount);
+    sciAdjustmentAmount += sciDelta;
+
+    if (baseAmount <= 0) continue;
+
+    if (entry.sourceShipDefId) {
+      const existing = shipBuckets.get(entry.sourceShipDefId) ?? {
+        shipDefId: entry.sourceShipDefId,
+        instanceIds: new Set<string>(),
+        amount: 0,
+      };
+
+      if (entry.sourceInstanceId) {
+        existing.instanceIds.add(entry.sourceInstanceId);
+      }
+
+      existing.amount += baseAmount;
+      shipBuckets.set(entry.sourceShipDefId, existing);
+      continue;
+    }
+
+    const syntheticLabel = entry.sourceLabel || 'System';
+    syntheticBuckets.set(syntheticLabel, (syntheticBuckets.get(syntheticLabel) || 0) + baseAmount);
+  }
+
+  const rows: LastTurnBreakdownRow[] = [];
+
+  for (const bucket of shipBuckets.values()) {
+    if (bucket.amount <= 0) continue;
+    const count = Math.max(bucket.instanceIds.size, 1);
+    rows.push({
+      rowKind: 'ship',
+      label: getShipFamilyDisplayName(bucket.shipDefId, count),
+      count,
+      amount: bucket.amount,
+      amountText: formatAmountText(bucket.amount),
+    });
+  }
+
+  for (const [label, amount] of syntheticBuckets.entries()) {
+    if (amount <= 0) continue;
+    rows.push({
+      rowKind: 'adjustment',
+      label,
+      amount,
+      amountText: formatAmountText(amount),
+    });
+  }
+
+  if (sciAdjustmentAmount > 0) {
+    rows.push({
+      rowKind: 'adjustment',
+      label: sciLabel,
+      amount: sciAdjustmentAmount,
+      amountText: formatAmountText(sciAdjustmentAmount),
+    });
+  }
+
+  const currentSum = rows.reduce((sum, row) => sum + row.amount, 0);
+  const knoAdjustmentAmount = displayedTotal - currentSum;
+
+  if (allowKnoAdjustment && knoAdjustmentAmount > 0) {
+    rows.push({
+      rowKind: 'adjustment',
+      label: 'Ark of Knowledge',
+      amount: knoAdjustmentAmount,
+      amountText: formatAmountText(knoAdjustmentAmount),
+    });
+  }
+
+  return sortBreakdownRows(rows.filter((row) => row.amount > 0));
+}
+
+function buildLastTurnBreakdownSnapshots(
+  state: GameState,
+  totals: TurnTotals
+): LastTurnBreakdownSnapshots {
+  const activePlayers = state.players.filter((player) => player.role === 'player');
+  const damageDealtByPlayerId: Record<string, LastTurnBreakdownRow[]> = {};
+  const healingReceivedByPlayerId: Record<string, LastTurnBreakdownRow[]> = {};
+  const opponentIdByPlayerId = new Map<string, string>();
+
+  if (activePlayers.length === 2) {
+    opponentIdByPlayerId.set(activePlayers[0].id, activePlayers[1].id);
+    opponentIdByPlayerId.set(activePlayers[1].id, activePlayers[0].id);
+  }
+
+  const pendingEntries = state.gameData.pendingTurn?.breakdownEntries || [];
+
+  for (const player of activePlayers) {
+    const opponentId = opponentIdByPlayerId.get(player.id);
+    const damageEntries = pendingEntries.filter(
+      (entry) => entry.kind === 'Damage' && entry.ownerPlayerId === player.id
+    );
+    const healEntries = pendingEntries.filter(
+      (entry) => entry.kind === 'Heal' && entry.targetPlayerId === player.id
+    );
+    const displayedDamageTotal = opponentId ? totals.damageByPlayerId[opponentId] || 0 : 0;
+    const displayedHealTotal = totals.healByPlayerId[player.id] || 0;
+    const hasKnoTierThree = playerHasKnoTierThree(state, player.id);
+
+    damageDealtByPlayerId[player.id] = buildRowsForPendingEntries(
+      damageEntries,
+      'Science Vessel',
+      displayedDamageTotal,
+      hasKnoTierThree
+    );
+    healingReceivedByPlayerId[player.id] = buildRowsForPendingEntries(
+      healEntries,
+      'Science Vessel',
+      displayedHealTotal,
+      hasKnoTierThree
+    );
+  }
+
+  return {
+    damageDealtByPlayerId,
+    healingReceivedByPlayerId,
+  };
+}
+
 // ============================================================================
 // RESOLVE PHASE
 // ============================================================================
@@ -515,6 +710,7 @@ function resolveBattleEndOfTurn(
         pendingTurn: {
           damageByPlayerId: {},
           healByPlayerId: {},
+          breakdownEntries: [],
         },
       },
     };
@@ -558,13 +754,15 @@ function resolveBattleEndOfTurn(
   console.log(`[resolveBattleEndOfTurn] Collected ${shipEffects.length} ship effects + ${computedEffects.length} computed effects for ${phaseKey}`);
 
   // Step 3: Merge computed effects with ship effects
-  let effects = [...computedEffects, ...shipEffects];
+  const baseEffects = [...computedEffects, ...shipEffects];
+  const baseAmountByEffectId = buildBaseAmountByEffectId(baseEffects);
+  let effects = [...baseEffects];
 
   // Step 3.1: Apply computed effect modifiers (tiered multipliers, etc.)
   effects = applyComputedEffectModifiers(state, phaseKey, effects);
 
   // Step 4: Apply effects (accumulates Damage/Heal into pendingTurn)
-  const applied = applyEffects(state, effects);
+  const applied = applyEffects(state, effects, { baseAmountByEffectId });
 
   console.log(`[resolveBattleEndOfTurn] Applied effects, generated ${applied.events.length} events`);
 
@@ -575,16 +773,25 @@ function resolveBattleEndOfTurn(
   };
 
   applyKnoTierThreeTurnTotalModifiers(applied.state, totals);
+  const lastTurnBreakdowns = buildLastTurnBreakdownSnapshots(applied.state, totals);
 
   console.log(`[resolveBattleEndOfTurn] Pending turn totals:`, totals);
 
   // Step 6: Apply aggregated health changes simultaneously
   const healthResult = applyAggregatedHealth(applied.state, totals);
+  const stateWithBreakdowns: GameState = {
+    ...healthResult.state,
+    gameData: {
+      ...healthResult.state.gameData,
+      lastTurnDamageDealtBreakdownByPlayerId: lastTurnBreakdowns.damageDealtByPlayerId,
+      lastTurnHealingReceivedBreakdownByPlayerId: lastTurnBreakdowns.healingReceivedByPlayerId,
+    },
+  };
 
   console.log(`[resolveBattleEndOfTurn] Applied aggregated health, generated ${healthResult.events.length} events`);
 
   // Step 7: Health clamping, victory evaluation, and terminal state
-  const victoryResult = evaluateVictoryConditions(healthResult.state, [], phaseKey);
+  const victoryResult = evaluateVictoryConditions(stateWithBreakdowns, [], phaseKey);
 
   // Step 8: Clear pendingTurn for next turn
   const clearedState = {
@@ -594,6 +801,7 @@ function resolveBattleEndOfTurn(
       pendingTurn: {
         damageByPlayerId: {},
         healByPlayerId: {},
+        breakdownEntries: [],
       },
     },
   };

@@ -153,6 +153,14 @@ export interface BoardDestroyTargetingViewModel {
   };
 }
 
+export interface BoardStatBreakdownRowVm {
+  rowKind: 'ship' | 'adjustment';
+  label: string;
+  count?: number;
+  amount: number;
+  amountText: string;
+}
+
 export type BoardViewModel =
   | {
       mode: 'choose_species';
@@ -184,6 +192,10 @@ export type BoardViewModel =
       opponentLastTurnHeal: number;
       opponentLastTurnDamage: number;
       opponentLastTurnNet: number;
+      myLastDamageBreakdownRows: BoardStatBreakdownRowVm[];
+      opponentLastDamageBreakdownRows: BoardStatBreakdownRowVm[];
+      myLastHealingBreakdownRows: BoardStatBreakdownRowVm[];
+      opponentLastHealingBreakdownRows: BoardStatBreakdownRowVm[];
       
       // Bonus lines (server-authoritative)
       myBonusLines: number;
@@ -198,6 +210,8 @@ export type BoardViewModel =
       opponentSavedJoiningLines: number;
       myJoiningBonusLines: number;
       opponentJoiningBonusLines: number;
+      myBonusBreakdownRows: BoardStatBreakdownRowVm[];
+      opponentBonusBreakdownRows: BoardStatBreakdownRowVm[];
       
       // Animation stagger plan
       activationStaggerPlan: ActivationStaggerPlan;

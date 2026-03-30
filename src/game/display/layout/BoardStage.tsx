@@ -4,7 +4,7 @@
  * NO LOGIC - displays view-model data only (Pass 1.25)
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { BoardViewModel, GameSessionActions } from '../../client/useGameSession';
 import { ChooseSpeciesStage } from './boardModes/ChooseSpeciesStage';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
@@ -22,6 +22,8 @@ import { useFlipLayout } from '../graphics/useFlipLayout';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 import { FleetShipHoverCard } from './FleetShipHoverCard';
 import { useFleetShipHover } from './useFleetShipHover';
+import { BoardStatBreakdownHoverCard } from './BoardStatBreakdownHoverCard';
+import { useBoardStatHover, type BoardStatHoverKey } from './useBoardStatHover';
 
 interface BoardStageProps {
   vm: BoardViewModel;
@@ -557,45 +559,128 @@ function Metric({
   );
 }
 
+function HoverAnchor({
+  hoverKey,
+  enabled,
+  className,
+  onHoverEnter,
+  onHoverLeave,
+  children,
+}: {
+  hoverKey: BoardStatHoverKey;
+  enabled: boolean;
+  className?: string;
+  onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
+  onHoverLeave: (key: BoardStatHoverKey) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={className}
+      onMouseEnter={enabled ? (event) => onHoverEnter(hoverKey, event.currentTarget) : undefined}
+      onMouseLeave={enabled ? () => onHoverLeave(hoverKey) : undefined}
+    >
+      {children}
+    </div>
+  );
+}
+
+function TripletStatValue({
+  value,
+  align,
+  hoverKey,
+  hoverEnabled,
+  onHoverEnter,
+  onHoverLeave,
+}: {
+  value: string;
+  align: 'left' | 'right';
+  hoverKey: BoardStatHoverKey;
+  hoverEnabled: boolean;
+  onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
+  onHoverLeave: (key: BoardStatHoverKey) => void;
+}) {
+  const isRight = align === 'right';
+
+  return (
+    <div className={cx('flex w-[80px]', isRight ? 'justify-end text-right' : 'justify-start text-left')}>
+      <HoverAnchor
+        hoverKey={hoverKey}
+        enabled={hoverEnabled}
+        onHoverEnter={onHoverEnter}
+        onHoverLeave={onHoverLeave}
+        className="inline-block"
+      >
+        <p
+          className={cx(
+            "font-['Roboto'] font-semibold leading-[36px] relative shrink-0 text-[36px]",
+            isRight && 'text-right'
+          )}
+          style={{ fontVariationSettings: "'wdth' 100" }}
+        >
+          {value}
+        </p>
+      </HoverAnchor>
+    </div>
+  );
+}
+
 function StatTripletRow({
   left,
   centerLabel,
   right,
   toneClass,
   className,
+  leftHoverKey,
+  leftHoverEnabled = false,
+  rightHoverKey,
+  rightHoverEnabled = false,
+  onHoverEnter,
+  onHoverLeave,
 }: {
   left: string;
   centerLabel: string;
   right: string;
   toneClass?: string;
   className?: string;
+  leftHoverKey: BoardStatHoverKey;
+  leftHoverEnabled?: boolean;
+  rightHoverKey: BoardStatHoverKey;
+  rightHoverEnabled?: boolean;
+  onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
+  onHoverLeave: (key: BoardStatHoverKey) => void;
 }) {
   return (
     <div className={cx('content-stretch flex gap-[10px] items-center justify-center relative shrink-0', className, toneClass)}>
-      <p
-        className="font-['Roboto'] font-semibold leading-[36px] relative shrink-0 text-[36px] text-right w-[80px]"
-        style={{ fontVariationSettings: "'wdth' 100" }}
-      >
-        {left}
-      </p>
+      <TripletStatValue
+        value={left}
+        align="right"
+        hoverKey={leftHoverKey}
+        hoverEnabled={leftHoverEnabled}
+        onHoverEnter={onHoverEnter}
+        onHoverLeave={onHoverLeave}
+      />
       <p
         className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[14px] text-center w-[64px]"
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {centerLabel}
       </p>
-      <p
-        className="font-['Roboto'] font-semibold leading-[36px] relative shrink-0 text-[36px] w-[80px]"
-        style={{ fontVariationSettings: "'wdth' 100" }}
-      >
-        {right}
-      </p>
+      <TripletStatValue
+        value={right}
+        align="left"
+        hoverKey={rightHoverKey}
+        hoverEnabled={rightHoverEnabled}
+        onHoverEnter={onHoverEnter}
+        onHoverLeave={onHoverLeave}
+      />
     </div>
   );
 }
 
 export function BoardStage({ vm, actions }: BoardStageProps) {
   const fleetHover = useFleetShipHover();
+  const statHover = useBoardStatHover();
   const displayedMyHealth = useAnimatedHealth(vm.mode === 'board' ? vm.myHealth : 25);
   const displayedOpponentHealth = useAnimatedHealth(vm.mode === 'board' ? vm.opponentHealth : 25);
 
@@ -631,6 +716,22 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
   const showDeltas = vm.turnNumber > 1;
   const myDeltaKey = showDeltas ? `my:${vm.turnNumber}:${vm.myLastTurnNet}` : 'my:hidden';
   const opponentDeltaKey = showDeltas ? `opp:${vm.turnNumber}:${vm.opponentLastTurnNet}` : 'opp:hidden';
+  const myDamageHoverEnabled = vm.myLastTurnDamage !== 0 && vm.myLastDamageBreakdownRows.length > 0;
+  const opponentDamageHoverEnabled = vm.opponentLastTurnDamage !== 0 && vm.opponentLastDamageBreakdownRows.length > 0;
+  const myHealingHoverEnabled = vm.myLastTurnHeal !== 0 && vm.myLastHealingBreakdownRows.length > 0;
+  const opponentHealingHoverEnabled = vm.opponentLastTurnHeal !== 0 && vm.opponentLastHealingBreakdownRows.length > 0;
+  const myBonusHoverEnabled = myDisplayedBonusLines !== 0 && vm.myBonusBreakdownRows.length > 0;
+  const opponentBonusHoverEnabled = opponentDisplayedBonusLines !== 0 && vm.opponentBonusBreakdownRows.length > 0;
+  const statHoverRowsByKey: Record<BoardStatHoverKey, { rows: typeof vm.myLastDamageBreakdownRows; side: 'left' | 'right' }> = {
+    'my-last-damage': { rows: vm.myLastDamageBreakdownRows, side: 'left' },
+    'opponent-last-damage': { rows: vm.opponentLastDamageBreakdownRows, side: 'right' },
+    'my-last-healing': { rows: vm.myLastHealingBreakdownRows, side: 'left' },
+    'opponent-last-healing': { rows: vm.opponentLastHealingBreakdownRows, side: 'right' },
+    'my-bonus': { rows: vm.myBonusBreakdownRows, side: 'left' },
+    'opponent-bonus': { rows: vm.opponentBonusBreakdownRows, side: 'right' },
+  };
+  const activeStatHover =
+    statHover.state.activeKey ? statHoverRowsByKey[statHover.state.activeKey] : null;
 
   // Board mode (existing placeholder layout)
   return (
@@ -803,33 +904,53 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             centerLabel="Last Damage"
             right={String(vm.opponentLastTurnDamage ?? 0)}
             toneClass="text-[#ff8282]"
+            leftHoverKey="my-last-damage"
+            leftHoverEnabled={myDamageHoverEnabled}
+            rightHoverKey="opponent-last-damage"
+            rightHoverEnabled={opponentDamageHoverEnabled}
+            onHoverEnter={statHover.onEnter}
+            onHoverLeave={statHover.onLeave}
           />
           <StatTripletRow
             left={String(vm.myLastTurnHeal ?? 0)}
             centerLabel="Last Healing"
             right={String(vm.opponentLastTurnHeal ?? 0)}
             toneClass="text-[#9cff84]"
+            leftHoverKey="my-last-healing"
+            leftHoverEnabled={myHealingHoverEnabled}
+            rightHoverKey="opponent-last-healing"
+            rightHoverEnabled={opponentHealingHoverEnabled}
+            onHoverEnter={statHover.onEnter}
+            onHoverLeave={statHover.onLeave}
           />
 
           {/* Bonus */}
           <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Bonus Group">
             <div className="content-stretch flex gap-[4px] items-center justify-end relative shrink-0 w-[100px]" data-name="P1 Bonuses">
-              <Metric
-                value={String(myDisplayedBonusLines ?? 0)}
-                label="LINES"
-                label2={mySpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
-                align="right"
-                toneClass="text-[#62fff6]"
-              />
-              {vm.myJoiningBonusLines > 0 ? (
+              <HoverAnchor
+                hoverKey="my-bonus"
+                enabled={myBonusHoverEnabled}
+                onHoverEnter={statHover.onEnter}
+                onHoverLeave={statHover.onLeave}
+                className="flex gap-[4px] items-center justify-end"
+              >
                 <Metric
-                  value={String(vm.myJoiningBonusLines)}
-                  label="JOINING"
-                  label2="LINES"
+                  value={String(myDisplayedBonusLines ?? 0)}
+                  label="LINES"
+                  label2={mySpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
                   align="right"
                   toneClass="text-[#62fff6]"
                 />
-              ) : null}
+                {vm.myJoiningBonusLines > 0 ? (
+                  <Metric
+                    value={String(vm.myJoiningBonusLines)}
+                    label="JOINING"
+                    label2="LINES"
+                    align="right"
+                    toneClass="text-[#62fff6]"
+                  />
+                ) : null}
+              </HoverAnchor>
             </div>
 
             <div className="content-stretch flex items-center justify-center pb-0 pt-[8px] px-0 relative shrink-0">
@@ -842,22 +963,30 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
             </div>
 
             <div className="content-stretch flex gap-[4px] items-start relative shrink-0 w-[100px]" data-name="P2 Bonuses">
-              <Metric
-                value={String(opponentDisplayedBonusLines ?? 0)}
-                label="LINES"
-                label2={opponentSpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
-                align="left"
-                toneClass="text-[#62fff6]"
-              />
-              {vm.opponentJoiningBonusLines > 0 ? (
+              <HoverAnchor
+                hoverKey="opponent-bonus"
+                enabled={opponentBonusHoverEnabled}
+                onHoverEnter={statHover.onEnter}
+                onHoverLeave={statHover.onLeave}
+                className="flex gap-[4px] items-start"
+              >
                 <Metric
-                  value={String(vm.opponentJoiningBonusLines)}
-                  label="JOINING"
-                  label2="LINES"
+                  value={String(opponentDisplayedBonusLines ?? 0)}
+                  label="LINES"
+                  label2={opponentSpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
                   align="left"
                   toneClass="text-[#62fff6]"
                 />
-              ) : null}
+                {vm.opponentJoiningBonusLines > 0 ? (
+                  <Metric
+                    value={String(vm.opponentJoiningBonusLines)}
+                    label="JOINING"
+                    label2="LINES"
+                    align="left"
+                    toneClass="text-[#62fff6]"
+                  />
+                ) : null}
+              </HoverAnchor>
             </div>
           </div>
         </div>
@@ -885,6 +1014,14 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
         <FleetShipHoverCard
           shipId={fleetHover.state.activeShipId}
           anchorRect={fleetHover.state.anchorRect}
+        />
+      ) : null}
+
+      {activeStatHover && statHover.state.anchorRect ? (
+        <BoardStatBreakdownHoverCard
+          anchorRect={statHover.state.anchorRect}
+          side={activeStatHover.side}
+          rows={activeStatHover.rows}
         />
       ) : null}
     </div>

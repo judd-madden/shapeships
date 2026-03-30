@@ -1297,6 +1297,13 @@ export function registerGameRoutes(
       const savedLinesByPlayerId: Record<string, number> = {};
       const joiningLinesByPlayerId: Record<string, number> = {};
       const joiningBonusLinesByPlayerId: Record<string, number> = {};
+      const bonusBreakdownByPlayerId: Record<string, Array<{
+        rowKind: 'ship' | 'adjustment';
+        label: string;
+        count?: number;
+        amount: number;
+        amountText: string;
+      }>> = {};
       const buildEconomyByPlayerId: Record<string, {
         ordinaryLinesAvailable: number;
         joiningLinesAvailable: number;
@@ -1336,9 +1343,20 @@ export function registerGameRoutes(
           joiningLinesByPlayerId[player.id] = publicSavedResources.savedJoiningLines;
           try {
             const lineBonuses = computeLineBonusesForPlayer(gameData.gameData, player.id);
+            const playerSpecies = String((player as any)?.faction ?? (player as any)?.species ?? '')
+              .trim()
+              .toLowerCase();
+            const displayedBonusRows =
+              playerSpecies === 'centaur'
+                ? [...lineBonuses.evenOnlyRows]
+                : [...lineBonuses.ordinaryRows, ...lineBonuses.evenOnlyRows];
             bonusLinesByPlayerId[player.id] = lineBonuses.bonusLines;
             bonusLinesOnEvenByPlayerId[player.id] = lineBonuses.bonusLinesOnEven;
             joiningBonusLinesByPlayerId[player.id] = lineBonuses.joiningBonusLines;
+            bonusBreakdownByPlayerId[player.id] = [...displayedBonusRows, ...lineBonuses.joiningRows].sort((a, b) => {
+              if (b.amount !== a.amount) return b.amount - a.amount;
+              return a.label.localeCompare(b.label);
+            });
             buildEconomyByPlayerId[player.id] = {
               ordinaryLinesAvailable,
               joiningLinesAvailable,
@@ -1354,6 +1372,7 @@ export function registerGameRoutes(
             bonusLinesByPlayerId[player.id] = 0; // Default to 0 on error
             bonusLinesOnEvenByPlayerId[player.id] = 0;
             joiningBonusLinesByPlayerId[player.id] = 0;
+            bonusBreakdownByPlayerId[player.id] = [];
             buildEconomyByPlayerId[player.id] = {
               ordinaryLinesAvailable,
               joiningLinesAvailable,
@@ -1379,6 +1398,9 @@ export function registerGameRoutes(
         availableActions,
         bonusLinesByPlayerId,
         bonusLinesOnEvenByPlayerId,
+        lastTurnDamageDealtBreakdownByPlayerId: gameData.gameData?.lastTurnDamageDealtBreakdownByPlayerId ?? {},
+        lastTurnHealingReceivedBreakdownByPlayerId: gameData.gameData?.lastTurnHealingReceivedBreakdownByPlayerId ?? {},
+        bonusBreakdownByPlayerId,
         buildEconomyByPlayerId,
         savedLinesByPlayerId,
         joiningLinesByPlayerId,

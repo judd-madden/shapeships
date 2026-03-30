@@ -51,6 +51,26 @@ export type PlayerState = {
   species?: string | null;
 };
 
+export type PendingTurnBreakdownEntry = {
+  effectId: string;
+  kind: 'Damage' | 'Heal';
+  ownerPlayerId: string;
+  targetPlayerId: string;
+  sourceShipDefId?: string;
+  sourceInstanceId?: string;
+  sourceLabel?: string;
+  baseAmount: number;
+  finalAmount: number;
+};
+
+export type LastTurnBreakdownRow = {
+  rowKind: 'ship' | 'adjustment';
+  label: string;
+  count?: number;
+  amount: number;
+  amountText: string;
+};
+
 /**
  * Game data container
  */
@@ -165,12 +185,15 @@ export type GameData = {
   pendingTurn?: {
     damageByPlayerId: Record<string, number>;
     healByPlayerId: Record<string, number>;
+    breakdownEntries: PendingTurnBreakdownEntry[];
   };
   
   /** Last turn deltas (for UI/debug) */
   lastTurnDamageByPlayerId?: Record<string, number>;
   lastTurnHealByPlayerId?: Record<string, number>;
   lastTurnNetByPlayerId?: Record<string, number>;
+  lastTurnDamageDealtBreakdownByPlayerId?: Record<string, LastTurnBreakdownRow[]>;
+  lastTurnHealingReceivedBreakdownByPlayerId?: Record<string, LastTurnBreakdownRow[]>;
   
   /** Persistent power memory (never cleared) */
   powerMemory?: {

@@ -63,7 +63,80 @@ export type LineBonusBreakdown = {
   bonusLines: number;
   bonusLinesOnEven: number;
   joiningBonusLines: number;
+  ordinaryRows: Array<{
+    rowKind: 'ship' | 'adjustment';
+    label: string;
+    count?: number;
+    amount: number;
+    amountText: string;
+  }>;
+  evenOnlyRows: Array<{
+    rowKind: 'ship' | 'adjustment';
+    label: string;
+    count?: number;
+    amount: number;
+    amountText: string;
+  }>;
+  joiningRows: Array<{
+    rowKind: 'ship' | 'adjustment';
+    label: string;
+    count?: number;
+    amount: number;
+    amountText: string;
+  }>;
 };
+
+function pluralizeShipName(name: string): string {
+  if (/[^aeiou]y$/i.test(name)) {
+    return `${name.slice(0, -1)}ies`;
+  }
+
+  if (/(s|x|z|ch|sh)$/i.test(name)) {
+    return `${name}es`;
+  }
+
+  return `${name}s`;
+}
+
+function getShipDisplayName(shipDefId: string, count: number): string {
+  const shipDef = getShipById(shipDefId);
+  const shipName = shipDef?.name ?? shipDefId;
+  return count === 1 ? shipName : pluralizeShipName(shipName);
+}
+
+function buildShipBreakdownRow(
+  shipDefId: string,
+  count: number,
+  amount: number,
+  suffix = '',
+): LineBonusBreakdown['ordinaryRows'][number] {
+  return {
+    rowKind: 'ship',
+    label: getShipDisplayName(shipDefId, count),
+    count,
+    amount,
+    amountText: `${amount}${suffix}`,
+  };
+}
+
+function buildAdjustmentRow(
+  label: string,
+  amount: number,
+): LineBonusBreakdown['ordinaryRows'][number] {
+  return {
+    rowKind: 'adjustment',
+    label,
+    amount,
+    amountText: String(amount),
+  };
+}
+
+function sortRows<T extends { amount: number; label: string }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => {
+    if (b.amount !== a.amount) return b.amount - a.amount;
+    return a.label.localeCompare(b.label);
+  });
+}
 
 function getEffectiveDiceRollFromGameData(
   gameData: any,
@@ -110,6 +183,9 @@ export function computeLineBonusesForPlayer(
       bonusLines: 0,
       bonusLinesOnEven: 0,
       joiningBonusLines: 0,
+      ordinaryRows: [],
+      evenOnlyRows: [],
+      joiningRows: [],
     };
   }
 
@@ -127,6 +203,9 @@ export function computeLineBonusesForPlayer(
   let bonusLines = 0;
   let bonusLinesOnEven = 0;
   let joiningBonusLines = 0;
+  const ordinaryRows: LineBonusBreakdown['ordinaryRows'] = [];
+  const evenOnlyRows: LineBonusBreakdown['evenOnlyRows'] = [];
+  const joiningRows: LineBonusBreakdown['joiningRows'] = [];
 
   for (const [shipDefId, count] of Object.entries(shipCounts)) {
     const effectiveCount = getCappedContributingCount(shipDefId, count);
@@ -134,37 +213,49 @@ export function computeLineBonusesForPlayer(
 
     const bonusPerShip = BONUS_LINES_PER_SHIP[shipDefId];
     if (bonusPerShip) {
-      bonusLines += bonusPerShip * effectiveCount;
+      const amount = bonusPerShip * effectiveCount;
+      bonusLines += amount;
+      ordinaryRows.push(buildShipBreakdownRow(shipDefId, effectiveCount, amount));
     }
 
     const joiningBonusPerShip = JOINING_BONUS_LINES_PER_SHIP[shipDefId];
     if (joiningBonusPerShip) {
-      joiningBonusLines += joiningBonusPerShip * effectiveCount;
+      const amount = joiningBonusPerShip * effectiveCount;
+      joiningBonusLines += amount;
+      joiningRows.push(buildShipBreakdownRow(shipDefId, effectiveCount, amount, 'j'));
     }
   }
 
   const vigorCount = shipCounts.VIG ?? 0;
-  if (vigorCount > 0) {
-    bonusLinesOnEven += 2 * getCappedContributingCount('VIG', vigorCount);
+  if (vigorCount > 0 && hasEvenEffectiveDiceRoll) {
+    const effectiveCount = getCappedContributingCount('VIG', vigorCount);
+    const amount = 2 * effectiveCount;
+    bonusLinesOnEven += amount;
+    evenOnlyRows.push(buildShipBreakdownRow('VIG', effectiveCount, amount, 'e'));
   }
 
   const powerArkCount = shipCounts.POW ?? 0;
-  if (powerArkCount > 0) {
-    bonusLinesOnEven += 4 * getCappedContributingCount('POW', powerArkCount);
+  if (powerArkCount > 0 && hasEvenEffectiveDiceRoll) {
+    const effectiveCount = getCappedContributingCount('POW', powerArkCount);
+    const amount = 4 * effectiveCount;
+    bonusLinesOnEven += amount;
+    evenOnlyRows.push(buildShipBreakdownRow('POW', effectiveCount, amount, 'e'));
   }
 
-  if (hasEvenEffectiveDiceRoll) {
-    bonusLines += bonusLinesOnEven;
-  }
+  bonusLines += bonusLinesOnEven;
 
   const sciTier = getCopyTierFromFleet(ships, 'SCI', 3);
   if (sciTier >= 3 && typeof effectiveDiceRoll === 'number') {
     bonusLines += effectiveDiceRoll;
+    ordinaryRows.push(buildAdjustmentRow('Science Vessel', effectiveDiceRoll));
   }
 
   return {
     bonusLines,
     bonusLinesOnEven,
     joiningBonusLines,
+    ordinaryRows: sortRows(ordinaryRows),
+    evenOnlyRows: sortRows(evenOnlyRows),
+    joiningRows: sortRows(joiningRows),
   };
 }

@@ -67,6 +67,7 @@ import type {
   HudViewModel,
   LeftRailViewModel,
   BoardFleetSummary,
+  BoardStatBreakdownRowVm,
   BoardViewModel,
   ChooseSpeciesBoardVm,
   BottomActionRailViewModel,
@@ -84,6 +85,7 @@ export type {
   HudViewModel,
   LeftRailViewModel,
   BoardFleetSummary,
+  BoardStatBreakdownRowVm,
   BoardViewModel,
   ChooseSpeciesBoardVm,
   BottomActionRailViewModel,
@@ -113,6 +115,37 @@ import { buildMessageAction } from './gameSession/powerIntents';
 // ============================================================================
 // HOOK
 // ============================================================================
+
+function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRowVm[] {
+  if (!Array.isArray(rawRows)) {
+    return [];
+  }
+
+  return rawRows.flatMap((row): BoardStatBreakdownRowVm[] => {
+    if (!row || typeof row !== 'object') {
+      return [];
+    }
+
+    const rawRecord = row as Record<string, unknown>;
+    const rowKind = rawRecord.rowKind === 'adjustment' ? 'adjustment' : 'ship';
+    const label = typeof rawRecord.label === 'string' ? rawRecord.label : '';
+    const amount = typeof rawRecord.amount === 'number' ? rawRecord.amount : 0;
+    const amountText = typeof rawRecord.amountText === 'string' ? rawRecord.amountText : String(amount);
+    const count = typeof rawRecord.count === 'number' ? rawRecord.count : undefined;
+
+    if (!label || amount <= 0) {
+      return [];
+    }
+
+    return [{
+      rowKind,
+      label,
+      count,
+      amount,
+      amountText,
+    }];
+  });
+}
 
 export function useGameSession(gameId: string, propsPlayerName: string) {
   // Post-game polling interval:
@@ -1067,6 +1100,22 @@ useEffect(() => {
     const opponentLastTurnHeal = opponent?.id ? (lastTurnHealById?.[opponent.id] ?? 0) : 0;
     const opponentLastTurnDamage = me?.id ? (lastTurnDamageById?.[me.id] ?? 0) : 0;
     const opponentLastTurnNet = opponent?.id ? (lastTurnNetById?.[opponent.id] ?? 0) : 0;
+    const lastTurnDamageDealtBreakdownById =
+      rawState?.lastTurnDamageDealtBreakdownByPlayerId as Record<string, unknown> | undefined;
+    const lastTurnHealingReceivedBreakdownById =
+      rawState?.lastTurnHealingReceivedBreakdownByPlayerId as Record<string, unknown> | undefined;
+    const myLastDamageBreakdownRows = me?.id
+      ? normalizeBoardStatBreakdownRows(lastTurnDamageDealtBreakdownById?.[me.id])
+      : [];
+    const opponentLastDamageBreakdownRows = opponent?.id
+      ? normalizeBoardStatBreakdownRows(lastTurnDamageDealtBreakdownById?.[opponent.id])
+      : [];
+    const myLastHealingBreakdownRows = me?.id
+      ? normalizeBoardStatBreakdownRows(lastTurnHealingReceivedBreakdownById?.[me.id])
+      : [];
+    const opponentLastHealingBreakdownRows = opponent?.id
+      ? normalizeBoardStatBreakdownRows(lastTurnHealingReceivedBreakdownById?.[opponent.id])
+      : [];
 
     // Server-authoritative bonus lines (top-level response projection)
     const bonusLinesByPlayerId = rawState?.bonusLinesByPlayerId as Record<string, number> | undefined;
@@ -1074,6 +1123,8 @@ useEffect(() => {
     const savedLinesByPlayerId = rawState?.savedLinesByPlayerId as Record<string, number> | undefined;
     const joiningLinesByPlayerId = rawState?.joiningLinesByPlayerId as Record<string, number> | undefined;
     const joiningBonusLinesByPlayerId = rawState?.joiningBonusLinesByPlayerId as Record<string, number> | undefined;
+    const bonusBreakdownByPlayerId =
+      rawState?.bonusBreakdownByPlayerId as Record<string, unknown> | undefined;
 
     const myBonusLines = me?.id ? (bonusLinesByPlayerId?.[me.id] ?? 0) : 0;
     const opponentBonusLines = opponent?.id ? (bonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
@@ -1085,6 +1136,12 @@ useEffect(() => {
     const opponentSavedJoiningLines = opponent?.id ? (joiningLinesByPlayerId?.[opponent.id] ?? 0) : 0;
     const myJoiningBonusLines = me?.id ? (joiningBonusLinesByPlayerId?.[me.id] ?? 0) : 0;
     const opponentJoiningBonusLines = opponent?.id ? (joiningBonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
+    const myBonusBreakdownRows = me?.id
+      ? normalizeBoardStatBreakdownRows(bonusBreakdownByPlayerId?.[me.id])
+      : [];
+    const opponentBonusBreakdownRows = opponent?.id
+      ? normalizeBoardStatBreakdownRows(bonusBreakdownByPlayerId?.[opponent.id])
+      : [];
     const myDisplayedSavedLines = isLocalBuildDrawing ? 0 : mySavedLines;
     const opponentDisplayedSavedLines = opponentSavedLines;
     const myDisplayedSavedJoiningLines = isLocalBuildDrawing ? 0 : mySavedJoiningLines;
@@ -1139,6 +1196,10 @@ useEffect(() => {
       opponentLastTurnHeal,
       opponentLastTurnDamage,
       opponentLastTurnNet,
+      myLastDamageBreakdownRows,
+      opponentLastDamageBreakdownRows,
+      myLastHealingBreakdownRows,
+      opponentLastHealingBreakdownRows,
 
       // Bonus lines (server-authoritative)
       myBonusLines,
@@ -1153,6 +1214,8 @@ useEffect(() => {
       opponentSavedJoiningLines,
       myJoiningBonusLines,
       opponentJoiningBonusLines,
+      myBonusBreakdownRows,
+      opponentBonusBreakdownRows,
 
       // Compute activation stagger plan
       activationStaggerPlan: computeActivationStaggerPlan(
@@ -2188,6 +2251,12 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         opponentLastTurnHeal: 0,
         opponentLastTurnDamage: 0,
         opponentLastTurnNet: 0,
+        myLastDamageBreakdownRows: [],
+        opponentLastDamageBreakdownRows: [],
+        myLastHealingBreakdownRows: [],
+        opponentLastHealingBreakdownRows: [],
+        myBonusBreakdownRows: [],
+        opponentBonusBreakdownRows: [],
         activationStaggerPlan: { myIndexByShipId: {}, opponentIndexByShipId: {} },
       },
       bottomActionRail: {
