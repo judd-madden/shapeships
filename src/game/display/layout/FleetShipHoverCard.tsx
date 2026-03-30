@@ -9,11 +9,15 @@ interface FleetShipHoverCardProps {
   anchorRect: DOMRect;
 }
 
+const HOVER_GAP_PX = 8;
+const TAIL_SIZE_PX = 12;
+const TAIL_APEX_OFFSET_PX = TAIL_SIZE_PX / Math.sqrt(2);
+
 function PowerText({ text }: { text: string }) {
   return (
-    <div className="min-w-0 grow pb-0 pt-[2px]">
+    <div className="basis-0 content-stretch flex grow items-center justify-center min-h-px min-w-px pb-0 pt-[2px] px-0 relative shrink-0">
       <p
-        className="font-normal leading-[20px] text-[16px] text-white whitespace-pre-wrap"
+        className="basis-0 font-normal grow leading-[20px] min-h-px min-w-px relative shrink-0 text-[16px] text-white whitespace-pre-wrap"
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {text}
@@ -34,9 +38,8 @@ export function FleetShipHoverCard({ shipId, anchorRect }: FleetShipHoverCardPro
     return null;
   }
 
-  const gap = 8;
   const left = anchorRect.left + (anchorRect.width / 2);
-  const top = anchorRect.top - gap;
+  const top = anchorRect.top - HOVER_GAP_PX - TAIL_APEX_OFFSET_PX;
 
   return ReactDOM.createPortal(
     <div
@@ -44,12 +47,16 @@ export function FleetShipHoverCard({ shipId, anchorRect }: FleetShipHoverCardPro
       style={{
         left: `${left}px`,
         top: `${top}px`,
-        transform: 'translate(-50%, -100%)',
+        width: '0px',
+        height: '0px',
       }}
     >
       <div
         className="relative flex w-max max-w-[300px] flex-col items-start gap-[12px] rounded-[10px] bg-[#212121] px-[20px] pb-[20px] pt-[16px]"
-        style={{ pointerEvents: 'none' }}
+        style={{
+          pointerEvents: 'none',
+          transform: 'translate(-50%, -100%)',
+        }}
       >
         <div
           aria-hidden="true"
@@ -69,10 +76,17 @@ export function FleetShipHoverCard({ shipId, anchorRect }: FleetShipHoverCardPro
         </p>
 
         {model.powers.length > 0 ? (
-          <div className="flex w-full flex-col items-start gap-[8px]">
+          <div className="content-stretch flex flex-col gap-[8px] items-start relative shrink-0 w-full">
             {model.powers.map((power, index) => (
-              <div key={`${power.icon}-${index}`} className="flex w-full items-start gap-[6px]">
-                {power.icon === 'pencil' ? <BuildIcon /> : <BattleIcon />}
+              <div
+                key={`${power.icon}-${index}`}
+                className="content-stretch flex gap-[6px] items-start relative shrink-0 w-full"
+              >
+                {power.icon === 'pencil' ? (
+                  <BuildIcon className="shrink-0" />
+                ) : (
+                  <BattleIcon className="shrink-0" />
+                )}
                 <PowerText text={power.text} />
               </div>
             ))}

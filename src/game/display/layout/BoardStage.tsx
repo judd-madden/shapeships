@@ -281,21 +281,11 @@ function ShipStack({
             </div>
           ) : null}
 
-            <div
+          <div
             className={cx(
               'relative z-10',
               isVoid && '[&_svg]:h-auto [&_svg]:w-auto'
             )}
-            onMouseEnter={
-              !isVoid
-                ? (event) => onFleetHoverEnter?.(shipDefId, event.currentTarget)
-                : undefined
-            }
-            onMouseLeave={
-              !isVoid
-                ? () => onFleetHoverLeave?.(shipDefId)
-                : undefined
-            }
           >
             <ShipAnimationWrapper 
               shipDefId={shipDefId} 
@@ -303,11 +293,26 @@ function ShipStack({
               enableHoverActivation={enableHover}
               activationDelayMs={activationDelayMs}
             >
-              {ShipGraphic ? (
-                <ShipGraphic />
-              ) : (
-                <span className={cx('text-sm text-white')}>{ship.shipDefId}</span>
-              )}
+              <div
+                className="inline-block shrink-0 align-top p-0 m-0"
+                style={{ lineHeight: 0 }}
+                onMouseEnter={
+                  !isVoid
+                    ? (event) => onFleetHoverEnter?.(shipDefId, event.currentTarget)
+                    : undefined
+                }
+                onMouseLeave={
+                  !isVoid
+                    ? () => onFleetHoverLeave?.(shipDefId)
+                    : undefined
+                }
+              >
+                {ShipGraphic ? (
+                  <ShipGraphic />
+                ) : (
+                  <span className={cx('text-sm text-white')}>{ship.shipDefId}</span>
+                )}
+              </div>
             </ShipAnimationWrapper>
           </div>
         </div>

@@ -28,6 +28,10 @@ interface ShipHoverCardProps {
   eligibility: ShipEligibility;
 }
 
+const HOVER_GAP_PX = 8;
+const TAIL_SIZE_PX = 12;
+const TAIL_APEX_OFFSET_PX = TAIL_SIZE_PX / Math.sqrt(2);
+
 // Helper functions (inlined from ShipRulesAdapter to avoid module loading issues)
 
 type PowerIcon = 'build' | 'battle';
@@ -350,7 +354,7 @@ export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCard
   // Position card centered horizontally with ship, above by small margin
   const shipCenterX = anchorRect.left + (anchorRect.width / 2);
   const left = shipCenterX - (CARD_WIDTH / 2);
-  const top = anchorRect.top - 8; // 8px margin above ship (card grows upward from this point)
+  const top = anchorRect.top - HOVER_GAP_PX - TAIL_APEX_OFFSET_PX;
   
   const cardContent = (
     <div
@@ -366,6 +370,12 @@ export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCard
       <div
         aria-hidden="true"
         className="absolute border border-[#555] border-solid inset-0 pointer-events-none rounded-[10px]"
+      />
+
+      <div
+        aria-hidden="true"
+        className="absolute left-1/2 top-full -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-solid border-[#555] bg-[#212121] pointer-events-none"
+        style={{ width: `${TAIL_SIZE_PX}px`, height: `${TAIL_SIZE_PX}px` }}
       />
       
       {/* Top Section: Cost + Name + Phase */}
