@@ -9,6 +9,7 @@ interface BoardStatBreakdownHoverCardProps {
 
 const HOVER_GAP_PX = 8;
 const TAIL_SIZE_PX = 12;
+const TAIL_PROTRUSION_PX = TAIL_SIZE_PX / 2;
 
 function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
   return (
@@ -16,7 +17,7 @@ function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
       {row.rowKind === 'ship' ? (
         <div
           className="min-w-0 flex items-center gap-[4px] text-left text-white"
-          style={{ fontSize: '14px', lineHeight: 1, fontVariationSettings: "'wdth' 100" }}
+          style={{ fontSize: '14px', lineHeight: 1.4, fontVariationSettings: "'wdth' 100" }}
         >
           <span className="font-normal">{row.count ?? 0}</span>
           <span className="font-normal" style={{ color: 'var(--shapeships-grey-50)' }}>
@@ -27,7 +28,7 @@ function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
       ) : (
         <div
           className="min-w-0 truncate text-left font-normal text-white"
-          style={{ fontSize: '14px', lineHeight: 1, fontVariationSettings: "'wdth' 100" }}
+          style={{ fontSize: '14px', lineHeight: 1.4, fontVariationSettings: "'wdth' 100" }}
         >
           {row.label}
         </div>
@@ -35,7 +36,7 @@ function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
 
       <div
         className="shrink-0 text-right font-black text-white"
-        style={{ fontSize: '14px', lineHeight: 1, fontVariationSettings: "'wdth' 100" }}
+        style={{ fontSize: '14px', lineHeight: 1.4, fontVariationSettings: "'wdth' 100" }}
       >
         {row.amountText}
       </div>
@@ -57,9 +58,10 @@ export function BoardStatBreakdownHoverCard({
     return null;
   }
 
+  const anchorOffsetX = HOVER_GAP_PX + TAIL_PROTRUSION_PX;
   const anchorX = side === 'left'
-    ? anchorRect.left - HOVER_GAP_PX
-    : anchorRect.right + HOVER_GAP_PX;
+    ? anchorRect.left - anchorOffsetX
+    : anchorRect.right + anchorOffsetX;
   const anchorY = anchorRect.top + (anchorRect.height / 2);
   const isLeft = side === 'left';
 
@@ -74,7 +76,7 @@ export function BoardStatBreakdownHoverCard({
       }}
     >
       <div
-        className="relative flex w-[200px] flex-col gap-[8px] rounded-[10px] bg-[#212121] px-[20px] py-[16px]"
+        className="relative flex w-[220px] flex-col gap-[4px] rounded-[10px] bg-[#212121] px-[20px] py-[16px]"
         style={{
           pointerEvents: 'none',
           transform: isLeft ? 'translate(-100%, -50%)' : 'translate(0, -50%)',
