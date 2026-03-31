@@ -49,6 +49,7 @@ import {
   addShipToBuildDraft,
   canProvisionallyAddShip,
   evaluateProvisionalBuild,
+  getDraftPreviewFrigateRowIds,
 } from './gameSession/provisionalBuild';
 import {
   usePollMarkerEffect,
@@ -146,6 +147,30 @@ function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRo
       amountText,
     }];
   });
+}
+
+function normalizeFrigateTriggerSelection(value: unknown): number {
+  let triggerNumber = Number(value);
+
+  if (!Number.isFinite(triggerNumber)) {
+    triggerNumber = 1;
+  }
+
+  return Math.max(1, Math.min(6, Math.floor(triggerNumber)));
+}
+
+function buildDraftPreviewFrigateTriggerByRowId(
+  turnNumber: number,
+  selections: number[]
+): Record<string, number> {
+  const previewRowIds = getDraftPreviewFrigateRowIds(turnNumber, selections.length);
+  const triggerByRowId: Record<string, number> = {};
+
+  previewRowIds.forEach((rowId, index) => {
+    triggerByRowId[rowId] = normalizeFrigateTriggerSelection(selections[index]);
+  });
+
+  return triggerByRowId;
 }
 
 export function useGameSession(gameId: string, propsPlayerName: string) {
@@ -272,6 +297,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Frigate trigger selections for Frigates built THIS TURN (ordered list, length = buildPreviewCounts.FRI)
   const [frigateSelectedTriggers, setFrigateSelectedTriggers] = useState<number[]>([]);
   const frigateSelectedTriggersRef = useRef<number[]>([]);
+  const frigatePreviewTriggerByRowIdRef = useRef<Record<string, number>>({});
   const [evolverChoicesByRowId, setEvolverChoicesByRowId] = useState<Record<string, EvolverChoiceId>>({});
   const evolverChoicesByRowIdRef = useRef<Record<string, EvolverChoiceId>>({});
   // Ref-backed draft buffer: authoritative source for BUILD_SUBMIT payload
@@ -675,6 +701,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     buildPreviewCountsRef.current = {};
     setFrigateSelectedTriggers([]);
     frigateSelectedTriggersRef.current = [];
+    frigatePreviewTriggerByRowIdRef.current = {};
     setEvolverChoicesByRowId({});
     evolverChoicesByRowIdRef.current = {};
     setAwaitingBuildRevealSync(false);
@@ -928,7 +955,11 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
 // Keep Frigate trigger selections ref in sync
 useEffect(() => {
   frigateSelectedTriggersRef.current = frigateSelectedTriggers;
-}, [frigateSelectedTriggers]);
+  frigatePreviewTriggerByRowIdRef.current = buildDraftPreviewFrigateTriggerByRowId(
+    turnNumber,
+    frigateSelectedTriggers
+  );
+}, [frigateSelectedTriggers, turnNumber]);
 
 useEffect(() => {
   evolverChoicesByRowIdRef.current = evolverChoicesByRowId;
@@ -944,9 +975,11 @@ useEffect(() => {
     if (prev.length === friCount) return prev;
     const next = prev.slice(0, friCount);
     while (next.length < friCount) next.push(1);
+    frigateSelectedTriggersRef.current = next;
+    frigatePreviewTriggerByRowIdRef.current = buildDraftPreviewFrigateTriggerByRowId(turnNumber, next);
     return next;
   });
-}, [buildPreviewCounts]);
+}, [buildPreviewCounts, turnNumber]);
 
   useEffect(() => {
     setEvolverChoicesByRowId({});
@@ -957,13 +990,17 @@ useEffect(() => {
     me?.id && rawState?.buildEconomyByPlayerId
       ? rawState.buildEconomyByPlayerId[me.id]
       : null;
+  const frigateSelectedTriggersForPreview = frigateSelectedTriggersRef.current;
+  const frigatePreviewTriggerByRowIdForPreview = frigatePreviewTriggerByRowIdRef.current;
 
   const provisionalBuild = evaluateProvisionalBuild({
     turnNumber,
     myShips,
     draftCounts: buildPreviewCounts,
     buildEconomy: buildEconomyForMe,
-    frigateSelectedTriggers,
+    // Use the ref-backed snapshot so same-click preview rerenders see the latest trigger choice.
+    frigateSelectedTriggers: frigateSelectedTriggersForPreview,
+    frigatePreviewTriggerByRowId: frigatePreviewTriggerByRowIdForPreview,
     evolverChoicesByRowId,
     frigateTriggerByInstanceId,
   });
@@ -2262,9 +2299,19 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     return;
   }
 
+  const currentPreviewFrigateRowIds = getDraftPreviewFrigateRowIds(turnNumber, currentSelections.length);
+  const targetPreviewRowId = currentPreviewFrigateRowIds[frigateIndex];
+  if (!targetPreviewRowId) {
+    return;
+  }
+
+  const normalizedTriggerNumber = normalizeFrigateTriggerSelection(triggerNumber);
   const nextSelections = [...currentSelections];
-  nextSelections[frigateIndex] = triggerNumber;
+  nextSelections[frigateIndex] = normalizedTriggerNumber;
   frigateSelectedTriggersRef.current = nextSelections;
+  const nextPreviewTriggerByRowId = buildDraftPreviewFrigateTriggerByRowId(turnNumber, nextSelections);
+  nextPreviewTriggerByRowId[targetPreviewRowId] = normalizedTriggerNumber;
+  frigatePreviewTriggerByRowIdRef.current = nextPreviewTriggerByRowId;
   setFrigateSelectedTriggers(nextSelections);
   setActivePanelId(selfCataloguePanelId);
 },

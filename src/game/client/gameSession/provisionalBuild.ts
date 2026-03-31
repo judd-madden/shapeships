@@ -155,10 +155,26 @@ function makePreviewRowId(
   return `preview_${shipDefId.toLowerCase()}_${turnNumber}_${nextIndex}`;
 }
 
+export function getDraftPreviewFrigateRowIds(
+  turnNumber: number,
+  frigateCount: number
+): string[] {
+  const previewIndexByShipDefId: Partial<Record<ShipDefId, number>> = {};
+  const rowIds: string[] = [];
+  const safeFrigateCount = Math.max(0, Math.floor(frigateCount));
+
+  for (let index = 0; index < safeFrigateCount; index += 1) {
+    rowIds.push(makePreviewRowId('FRI', turnNumber, previewIndexByShipDefId));
+  }
+
+  return rowIds;
+}
+
 function expandDraftBuildEntries(
   draftCounts: Record<string, number>,
   turnNumber: number,
-  frigateSelectedTriggers: number[]
+  frigateSelectedTriggers: number[],
+  frigatePreviewTriggerByRowId?: Record<string, number>
 ): DraftBuildEntry[] {
   const entries: DraftBuildEntry[] = [];
   const previewCountByShipDefId: Partial<Record<ShipDefId, number>> = {};
@@ -166,7 +182,8 @@ function expandDraftBuildEntries(
   const antCount = toNonNegativeInt(draftCounts.ANT);
   const freeAntCount = Math.min(antCount, zenCount);
   const paidAntCount = Math.max(0, antCount - freeAntCount);
-  let frigateCursor = 0;
+  const frigateRowIds = getDraftPreviewFrigateRowIds(turnNumber, toNonNegativeInt(draftCounts.FRI));
+  let frigateIndex = 0;
 
   for (const shipDefId of FIXED_BUILD_ORDER) {
     const totalCount = toNonNegativeInt(draftCounts[shipDefId]);
@@ -191,16 +208,22 @@ function expandDraftBuildEntries(
 
     if (shipDefId === 'FRI') {
       for (let i = 0; i < totalCount; i++) {
-        const triggerRaw = frigateSelectedTriggers[frigateCursor] ?? 1;
+        const rowId =
+          frigateRowIds[frigateIndex] ??
+          makePreviewRowId(shipDefId, turnNumber, previewCountByShipDefId);
+        const triggerRaw =
+          frigatePreviewTriggerByRowId?.[rowId] ??
+          frigateSelectedTriggers[frigateIndex] ??
+          1;
         let frigateTrigger = Number(triggerRaw);
         if (!Number.isFinite(frigateTrigger)) frigateTrigger = 1;
         frigateTrigger = Math.max(1, Math.min(6, Math.floor(frigateTrigger)));
-        frigateCursor += 1;
+        frigateIndex += 1;
 
         entries.push({
           shipDefId,
           frigateTrigger,
-          rowId: makePreviewRowId(shipDefId, turnNumber, previewCountByShipDefId),
+          rowId,
         });
       }
       continue;
@@ -663,6 +686,7 @@ export function evaluateProvisionalBuild(args: {
   draftCounts: Record<string, number>;
   buildEconomy: BuildEconomySnapshot | null | undefined;
   frigateSelectedTriggers: number[];
+  frigatePreviewTriggerByRowId?: Record<string, number>;
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
   frigateTriggerByInstanceId?: Record<string, unknown>;
 }): ProvisionalBuildResult {
@@ -672,6 +696,7 @@ export function evaluateProvisionalBuild(args: {
     draftCounts,
     buildEconomy,
     frigateSelectedTriggers,
+    frigatePreviewTriggerByRowId,
     evolverChoicesByRowId,
     frigateTriggerByInstanceId = {},
   } = args;
@@ -681,7 +706,12 @@ export function evaluateProvisionalBuild(args: {
   let isValid = true;
 
   let workingFleetEntries = buildAuthoritativeFleetEntries(myShips, frigateTriggerByInstanceId);
-  const draftBuildEntries = expandDraftBuildEntries(draftCounts, turnNumber, frigateSelectedTriggers);
+  const draftBuildEntries = expandDraftBuildEntries(
+    draftCounts,
+    turnNumber,
+    frigateSelectedTriggers,
+    frigatePreviewTriggerByRowId
+  );
   const { nonUpgradedEntries, upgradedEntries } = partitionDraftBuildEntries(draftBuildEntries);
   const basicStageResolution = resolveDraftBuildStage({
     buildEntries: nonUpgradedEntries,

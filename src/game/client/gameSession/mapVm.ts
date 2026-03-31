@@ -632,6 +632,18 @@ export function mapGameSessionVm(args: {
       readyButtonNote = `Save ${buildDrawingEconomyDisplay.projectedSavedCombined} Lines`;
     }
   }
+
+  if (
+    phaseKey === 'build.ships_that_build' &&
+    !isFinished &&
+    !readyUx?.sendingNow &&
+    !autoReadyWaiting &&
+    !p1IsReady &&
+    readyEnabled
+  ) {
+    readyButtonLabel = 'READY';
+    readyButtonNote = 'Proceed to Drawing';
+  }
   
   // Ship choices (derive groups from registry spec)
   let shipChoices:
