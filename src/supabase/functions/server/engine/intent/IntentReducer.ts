@@ -2121,6 +2121,7 @@ function handleAction(
     
     events.push({
       type: 'CHAT_MESSAGE',
+      chatEntryType: 'message',
       playerId,
       playerName: player?.name || 'Unknown',
       content: payload.content,
@@ -2833,6 +2834,13 @@ function handleDrawRefuse(
     type: 'DRAW_REFUSED',
     playerId,
     atMs: nowMs
+  });
+
+  events.push({
+    type: 'CHAT_MESSAGE',
+    chatEntryType: 'system',
+    content: 'Draw offer refused',
+    timestamp: nowMs
   });
 
   state = syncPhaseFields(state);

@@ -197,9 +197,9 @@ export function mapGameSessionVm(args: {
   getSubphaseLabelFromPhaseKey: (phaseKey: string) => string;
   
   chatEntries: Array<{
-    type: 'message';
-    playerId: string;
-    playerName: string;
+    type: 'message' | 'system';
+    playerId?: string;
+    playerName?: string;
     content: string;
     timestamp: number;
   }>;
@@ -307,11 +307,18 @@ export function mapGameSessionVm(args: {
   } = args;
   
   // Map chat entries to LeftRail VM format
-  const chatMessages = chatEntries.map(entry => ({
-    type: 'player' as const,
-    playerName: entry.playerName ?? 'Unknown',
-    text: entry.content ?? '',
-  }));
+  const chatMessages = chatEntries.map(entry =>
+    entry.type === 'system'
+      ? {
+          type: 'system' as const,
+          text: entry.content ?? '',
+        }
+      : {
+          type: 'player' as const,
+          playerName: entry.playerName ?? 'Unknown',
+          text: entry.content ?? '',
+        }
+  );
 
   // ============================================================================
   // E2) DERIVE DISPLAY NAMES (MY NAME FIRST)

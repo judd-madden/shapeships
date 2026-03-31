@@ -26,7 +26,7 @@ import type { Effect, CreateShipEffect } from '../effects/Effect.ts';
 import { EffectTiming, EffectKind, SurvivabilityRule } from '../effects/Effect.ts';
 import { translateShipPowers, type TranslateContext } from '../effects/translateShipPowers.ts';
 import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
-import { getShipById } from '../defs/ShipDefinitions.core.ts';
+import { getCanonicalShipFamilyDisplayName } from '../defs/ShipDefinitionNames.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
 import {
   computePhaseComputedEffects,
@@ -318,24 +318,6 @@ function formatAmountText(amount: number): string {
   return String(amount);
 }
 
-function pluralizeShipName(name: string): string {
-  if (/[^aeiou]y$/i.test(name)) {
-    return `${name.slice(0, -1)}ies`;
-  }
-
-  if (/(s|x|z|ch|sh)$/i.test(name)) {
-    return `${name}es`;
-  }
-
-  return `${name}s`;
-}
-
-function getShipFamilyDisplayName(shipDefId: string, count: number): string {
-  const shipDef = getShipById(shipDefId);
-  const shipName = shipDef?.name ?? shipDefId;
-  return count === 1 ? shipName : pluralizeShipName(shipName);
-}
-
 function sortBreakdownRows(rows: LastTurnBreakdownRow[]): LastTurnBreakdownRow[] {
   return [...rows].sort((a, b) => {
     if (b.amount !== a.amount) return b.amount - a.amount;
@@ -393,7 +375,7 @@ function buildRowsForPendingEntries(
     const count = Math.max(bucket.instanceIds.size, 1);
     rows.push({
       rowKind: 'ship',
-      label: getShipFamilyDisplayName(bucket.shipDefId, count),
+      label: getCanonicalShipFamilyDisplayName(bucket.shipDefId, count),
       count,
       amount: bucket.amount,
       amountText: formatAmountText(bucket.amount),

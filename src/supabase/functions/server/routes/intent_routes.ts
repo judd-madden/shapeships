@@ -18,13 +18,21 @@ import { accrueClocks } from '../engine/clock/clock.ts';
 // CHAT HELPER - Separate KV Storage (Cap: 50 messages)
 // ============================================================================
 
-type ChatEntry = {
+type PlayerChatEntry = {
   type: 'message';
   playerId: string;
   playerName: string;
   content: string;
   timestamp: number;
 };
+
+type SystemChatEntry = {
+  type: 'system';
+  content: string;
+  timestamp: number;
+};
+
+type ChatEntry = PlayerChatEntry | SystemChatEntry;
 
 type ChatStore = {
   entries: ChatEntry[];
@@ -198,16 +206,24 @@ export function registerIntentRoutes(
         // Scan returned events for CHAT_MESSAGE (emitted by reducer)
         for (const event of allEvents) {
           if (event.type === 'CHAT_MESSAGE') {
+            const chatEntryType = event.chatEntryType === 'system' ? 'system' : 'message';
+
             // Append to separate chat KV using data from event
             await appendChatMessage(
               intentRequest.gameId,
-              {
-                type: 'message',
-                playerId: event.playerId,
-                playerName: event.playerName,
-                content: event.content,
-                timestamp: event.timestamp
-              },
+              chatEntryType === 'system'
+                ? {
+                    type: 'system',
+                    content: event.content,
+                    timestamp: event.timestamp
+                  }
+                : {
+                    type: 'message',
+                    playerId: event.playerId,
+                    playerName: event.playerName ?? 'Unknown',
+                    content: event.content,
+                    timestamp: event.timestamp
+                  },
               kvGet,
               kvSet
             );

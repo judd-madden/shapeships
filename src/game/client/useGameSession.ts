@@ -206,9 +206,9 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Chat state (separate from game state)
   const [chatEntries, setChatEntries] = useState<Array<{
-    type: 'message';
-    playerId: string;
-    playerName: string;
+    type: 'message' | 'system';
+    playerId?: string;
+    playerName?: string;
     content: string;
     timestamp: number;
   }>>([]);

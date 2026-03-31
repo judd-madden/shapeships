@@ -38,6 +38,7 @@
  */
 
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
+import { getCanonicalShipFamilyDisplayName } from '../../engine_shared/defs/ShipDefinitionNames.ts';
 import { getCopyTierFromFleet } from '../../engine_shared/resolve/phaseComputedEffects.ts';
 
 const BONUS_LINES_PER_SHIP: Record<string, number> = {
@@ -86,24 +87,6 @@ export type LineBonusBreakdown = {
   }>;
 };
 
-function pluralizeShipName(name: string): string {
-  if (/[^aeiou]y$/i.test(name)) {
-    return `${name.slice(0, -1)}ies`;
-  }
-
-  if (/(s|x|z|ch|sh)$/i.test(name)) {
-    return `${name}es`;
-  }
-
-  return `${name}s`;
-}
-
-function getShipDisplayName(shipDefId: string, count: number): string {
-  const shipDef = getShipById(shipDefId);
-  const shipName = shipDef?.name ?? shipDefId;
-  return count === 1 ? shipName : pluralizeShipName(shipName);
-}
-
 function buildShipBreakdownRow(
   shipDefId: string,
   count: number,
@@ -112,7 +95,7 @@ function buildShipBreakdownRow(
 ): LineBonusBreakdown['ordinaryRows'][number] {
   return {
     rowKind: 'ship',
-    label: getShipDisplayName(shipDefId, count),
+    label: getCanonicalShipFamilyDisplayName(shipDefId, count),
     count,
     amount,
     amountText: `${amount}${suffix}`,
