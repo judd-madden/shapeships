@@ -65,7 +65,7 @@ export function EndOfGameActionPanel({
           </GameMenuButton>
 
           <div className="flex w-[210px] flex-col items-center">
-            <GameMenuButton onClick={onRematch}>
+            <GameMenuButton onClick={onRematch} pendingLabel="CREATING...">
               New Game
             </GameMenuButton>
             <p
