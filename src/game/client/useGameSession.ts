@@ -2221,7 +2221,7 @@ useEffect(() => {
       const canAddShip = canProvisionallyAddShip({
         turnNumber: uiTurnNumber,
         myShips,
-        draftCounts: buildPreviewCountsRef.current,
+        draftCounts: nextDraftCounts,
         shipDefId,
         buildEconomy: buildEconomyForMe,
         frigateSelectedTriggers: frigateSelectedTriggersRef.current,

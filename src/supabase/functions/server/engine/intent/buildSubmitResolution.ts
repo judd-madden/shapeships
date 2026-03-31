@@ -28,6 +28,13 @@ type WorkingFleetEntry = {
   createdTurn?: number;
 };
 
+type EvolverBuildChoiceEntry = NonNullable<BuildSubmitPayload['evolverChoices']>[number];
+
+type FutureDemandContext = {
+  upgradedAttempts: ExpandedBuildAttempt[];
+  evolverChoices: EvolverBuildChoiceEntry[];
+};
+
 type ComponentRequirement = {
   shipDefId: string;
   mustBeDepleted: boolean;
@@ -436,6 +443,271 @@ function partitionBuildAttempts(buildAttempts: ExpandedBuildAttempt[]): {
   };
 }
 
+function cloneWorkingFleetEntries(entries: WorkingFleetEntry[]): WorkingFleetEntry[] {
+  return entries.map((entry) => ({ ...entry }));
+}
+
+function applyBasicBuildAttemptSimulation(args: {
+  attempt: ExpandedBuildAttempt;
+  workingFleet: WorkingFleetEntry[];
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): {
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+  didApply: boolean;
+} {
+  const { attempt, workingFleet } = args;
+  let { remainingOrdinaryLines, remainingJoiningLines } = args;
+  const shipDef = getShipById(attempt.shipDefId);
+
+  if (!shipDef || isUpgradedBuildAttempt(attempt)) {
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      didApply: false,
+    };
+  }
+
+  const ordinaryCost = attempt.freeReason === 'zenith_antlion'
+    ? 0
+    : normalizeResource(shipDef.totalLineCost);
+
+  if (remainingOrdinaryLines < ordinaryCost) {
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      didApply: false,
+    };
+  }
+
+  remainingOrdinaryLines -= ordinaryCost;
+  workingFleet.push({
+    instanceId: `sim_${attempt.shipDefId}_${workingFleet.length}`,
+    shipDefId: attempt.shipDefId,
+    chargesCurrent: typeof shipDef.charges === 'number' ? normalizeResource(shipDef.charges) : 0,
+  });
+
+  if (attempt.shipDefId === 'LEG') {
+    remainingJoiningLines += 4;
+  }
+
+  return {
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+    didApply: true,
+  };
+}
+
+function applySimulatedEvolverConversions(
+  workingFleet: WorkingFleetEntry[],
+  evolverChoices: EvolverBuildChoiceEntry[],
+) {
+  for (const evolverChoice of evolverChoices) {
+    if (evolverChoice?.choiceId !== 'oxite' && evolverChoice?.choiceId !== 'asterite') {
+      continue;
+    }
+
+    const xeniteIndex = workingFleet.findIndex((entry) => entry.shipDefId === 'XEN');
+    if (xeniteIndex < 0) {
+      continue;
+    }
+
+    workingFleet.splice(xeniteIndex, 1);
+    const createdShipDefId = evolverChoice.choiceId === 'oxite' ? 'OXI' : 'AST';
+    const createdShipDef = getShipById(createdShipDefId);
+    workingFleet.push({
+      instanceId: `sim_${createdShipDefId}_${workingFleet.length}`,
+      shipDefId: createdShipDefId,
+      chargesCurrent: typeof createdShipDef?.charges === 'number'
+        ? normalizeResource(createdShipDef.charges)
+        : 0,
+    });
+  }
+}
+
+function simulateResolvedUpgradedDemand(args: {
+  targetShipDefId: string;
+  upgradedAttempts: ExpandedBuildAttempt[];
+  workingFleet: WorkingFleetEntry[];
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): number {
+  const {
+    targetShipDefId,
+    upgradedAttempts,
+    workingFleet,
+  } = args;
+  let { remainingOrdinaryLines, remainingJoiningLines } = args;
+  let freeingDemand = 0;
+
+  for (const attempt of upgradedAttempts) {
+    const shipDef = getShipById(attempt.shipDefId);
+    if (!shipDef || !isUpgradedBuildAttempt(attempt)) {
+      continue;
+    }
+
+    const maxQuantity = shipDef.maxQuantity;
+    const currentShipCount = countWorkingFleetShips(workingFleet, attempt.shipDefId);
+    if (typeof maxQuantity === 'number' && currentShipCount >= maxQuantity) {
+      continue;
+    }
+
+    const reservation = reserveUpgradeComponents(workingFleet, attempt.shipDefId);
+    if (!reservation.ok) {
+      continue;
+    }
+
+    const joiningCost = normalizeResource(shipDef.joiningLineCost);
+    const joiningSpend = Math.min(remainingJoiningLines, joiningCost);
+    const ordinaryShortfall = joiningCost - joiningSpend;
+    if (remainingOrdinaryLines < ordinaryShortfall) {
+      continue;
+    }
+
+    freeingDemand += reservation.reservedIndices.reduce((count, reservedIndex) => {
+      return count + (workingFleet[reservedIndex]?.shipDefId === targetShipDefId ? 1 : 0);
+    }, 0);
+
+    for (let i = reservation.reservedIndices.length - 1; i >= 0; i--) {
+      workingFleet.splice(reservation.reservedIndices[i], 1);
+    }
+
+    remainingJoiningLines -= joiningSpend;
+    remainingOrdinaryLines -= ordinaryShortfall;
+    workingFleet.push({
+      instanceId: `sim_${attempt.shipDefId}_${workingFleet.length}`,
+      shipDefId: attempt.shipDefId,
+      chargesCurrent: typeof shipDef.charges === 'number' ? normalizeResource(shipDef.charges) : 0,
+    });
+  }
+
+  return freeingDemand;
+}
+
+function simulateNonUpgradedAttempts(args: {
+  buildAttempts: ExpandedBuildAttempt[];
+  workingFleet: WorkingFleetEntry[];
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+  futureDemandContext: FutureDemandContext;
+}): {
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+} {
+  const {
+    buildAttempts,
+    workingFleet,
+    futureDemandContext,
+  } = args;
+  let { remainingOrdinaryLines, remainingJoiningLines } = args;
+
+  for (let attemptIndex = 0; attemptIndex < buildAttempts.length; attemptIndex += 1) {
+    const attempt = buildAttempts[attemptIndex];
+    const shipDef = getShipById(attempt.shipDefId);
+    if (!shipDef || isUpgradedBuildAttempt(attempt)) {
+      continue;
+    }
+
+    const maxQuantity = shipDef.maxQuantity;
+    const currentShipCount = countWorkingFleetShips(workingFleet, attempt.shipDefId);
+    let maxQuantityReached =
+      typeof maxQuantity === 'number' &&
+      currentShipCount >= maxQuantity;
+
+    if (maxQuantityReached) {
+      const freeingDemand = simulateFutureResolvedUpgradedDemandForBasicAttempt({
+        targetShipDefId: attempt.shipDefId,
+        currentAttempt: attempt,
+        remainingNonUpgradedAttempts: buildAttempts.slice(attemptIndex + 1),
+        futureDemandContext,
+        workingFleet,
+        remainingOrdinaryLines,
+        remainingJoiningLines,
+      });
+      maxQuantityReached = currentShipCount - freeingDemand >= maxQuantity!;
+    }
+
+    if (maxQuantityReached) {
+      continue;
+    }
+
+    const resolution = applyBasicBuildAttemptSimulation({
+      attempt,
+      workingFleet,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
+
+    if (!resolution.didApply) {
+      continue;
+    }
+
+    remainingOrdinaryLines = resolution.remainingOrdinaryLines;
+    remainingJoiningLines = resolution.remainingJoiningLines;
+  }
+
+  return {
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  };
+}
+
+function simulateFutureResolvedUpgradedDemandForBasicAttempt(args: {
+  targetShipDefId: string;
+  currentAttempt: ExpandedBuildAttempt;
+  remainingNonUpgradedAttempts: ExpandedBuildAttempt[];
+  futureDemandContext: FutureDemandContext;
+  workingFleet: WorkingFleetEntry[];
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): number {
+  const {
+    targetShipDefId,
+    currentAttempt,
+    remainingNonUpgradedAttempts,
+    futureDemandContext,
+    workingFleet,
+  } = args;
+  let { remainingOrdinaryLines, remainingJoiningLines } = args;
+  const simulatedWorkingFleet = cloneWorkingFleetEntries(workingFleet);
+
+  const currentAttemptResolution = applyBasicBuildAttemptSimulation({
+    attempt: currentAttempt,
+    workingFleet: simulatedWorkingFleet,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  });
+
+  if (!currentAttemptResolution.didApply) {
+    return 0;
+  }
+
+  remainingOrdinaryLines = currentAttemptResolution.remainingOrdinaryLines;
+  remainingJoiningLines = currentAttemptResolution.remainingJoiningLines;
+
+  const remainingBasicResolution = simulateNonUpgradedAttempts({
+    buildAttempts: remainingNonUpgradedAttempts,
+    workingFleet: simulatedWorkingFleet,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+    futureDemandContext,
+  });
+
+  applySimulatedEvolverConversions(
+    simulatedWorkingFleet,
+    futureDemandContext.evolverChoices,
+  );
+
+  return simulateResolvedUpgradedDemand({
+    targetShipDefId,
+    upgradedAttempts: futureDemandContext.upgradedAttempts,
+    workingFleet: simulatedWorkingFleet,
+    remainingOrdinaryLines: remainingBasicResolution.remainingOrdinaryLines,
+    remainingJoiningLines: remainingBasicResolution.remainingJoiningLines,
+  });
+}
+
 function resolveBuildAttempt(args: {
   state: any;
   events: any[];
@@ -446,6 +718,8 @@ function resolveBuildAttempt(args: {
   workingFleet: WorkingFleetEntry[];
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
+  futureDemandContext?: FutureDemandContext;
+  remainingNonUpgradedAttempts?: ExpandedBuildAttempt[];
 }): {
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
@@ -458,6 +732,8 @@ function resolveBuildAttempt(args: {
     nowMs,
     attempt,
     workingFleet,
+    futureDemandContext,
+    remainingNonUpgradedAttempts = [],
   } = args;
   let { remainingOrdinaryLines, remainingJoiningLines } = args;
 
@@ -477,8 +753,26 @@ function resolveBuildAttempt(args: {
     };
   }
 
+  const maxQuantity = shipDef.maxQuantity;
   const currentShipCount = countWorkingFleetShips(workingFleet, attempt.shipDefId);
-  if (typeof shipDef.maxQuantity === 'number' && currentShipCount >= shipDef.maxQuantity) {
+  let maxQuantityReached =
+    typeof maxQuantity === 'number' &&
+    currentShipCount >= maxQuantity;
+
+  if (maxQuantityReached && !isUpgradedBuildAttempt(attempt) && futureDemandContext && typeof maxQuantity === 'number') {
+    const freeingDemand = simulateFutureResolvedUpgradedDemandForBasicAttempt({
+      targetShipDefId: attempt.shipDefId,
+      currentAttempt: attempt,
+      remainingNonUpgradedAttempts,
+      futureDemandContext,
+      workingFleet,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
+    maxQuantityReached = currentShipCount - freeingDemand >= maxQuantity!;
+  }
+
+  if (maxQuantityReached) {
     pushSkippedAttemptEvent({
       events,
       playerId,
@@ -601,21 +895,28 @@ function resolveBuildAttemptsStage(args: {
   workingFleet: WorkingFleetEntry[];
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
+  futureDemandContext?: FutureDemandContext;
 }): {
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
 } {
   const {
     buildAttempts,
+    futureDemandContext,
   } = args;
   let { remainingOrdinaryLines, remainingJoiningLines } = args;
 
-  for (const attempt of buildAttempts) {
+  for (let attemptIndex = 0; attemptIndex < buildAttempts.length; attemptIndex += 1) {
+    const attempt = buildAttempts[attemptIndex];
     const result = resolveBuildAttempt({
       ...args,
       attempt,
       remainingOrdinaryLines,
       remainingJoiningLines,
+      futureDemandContext,
+      remainingNonUpgradedAttempts: futureDemandContext
+        ? buildAttempts.slice(attemptIndex + 1)
+        : [],
     });
     remainingOrdinaryLines = result.remainingOrdinaryLines;
     remainingJoiningLines = result.remainingJoiningLines;
@@ -648,6 +949,10 @@ function resolvePlayerBuildSubmit(args: {
   const workingFleet = buildWorkingFleetEntries(state.gameData.ships[playerId] ?? []);
   const buildAttempts = payload ? expandBuildAttempts(payload) : [];
   const { nonUpgradedAttempts, upgradedAttempts } = partitionBuildAttempts(buildAttempts);
+  const futureDemandContext: FutureDemandContext = {
+    upgradedAttempts,
+    evolverChoices: payload?.evolverChoices ?? [],
+  };
   const nonUpgradedStageResolution = resolveBuildAttemptsStage({
     state,
     events,
@@ -658,6 +963,7 @@ function resolvePlayerBuildSubmit(args: {
     workingFleet,
     remainingOrdinaryLines,
     remainingJoiningLines,
+    futureDemandContext,
   });
   remainingOrdinaryLines = nonUpgradedStageResolution.remainingOrdinaryLines;
   remainingJoiningLines = nonUpgradedStageResolution.remainingJoiningLines;

@@ -540,6 +540,12 @@ function isUpgradedDraftBuildEntry(buildEntry: DraftBuildEntry): boolean {
   return Boolean(getShipDefinitionById(buildEntry.shipDefId)?.upgradedCost);
 }
 
+type FutureDemandContext = {
+  turnNumber: number;
+  evolverChoicesByRowId: Record<string, EvolverChoiceId>;
+  upgradedEntries: DraftBuildEntry[];
+};
+
 function partitionDraftBuildEntries(draftBuildEntries: DraftBuildEntry[]): {
   nonUpgradedEntries: DraftBuildEntry[];
   upgradedEntries: DraftBuildEntry[];
@@ -562,11 +568,201 @@ function partitionDraftBuildEntries(draftBuildEntries: DraftBuildEntry[]): {
   };
 }
 
+function cloneInternalFleetEntries(entries: InternalFleetEntry[]): InternalFleetEntry[] {
+  return entries.map((entry) => ({ ...entry }));
+}
+
+function applyBasicDraftBuildEntry(args: {
+  buildEntry: DraftBuildEntry;
+  workingFleetEntries: InternalFleetEntry[];
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): {
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+  didApply: boolean;
+} {
+  const { buildEntry, workingFleetEntries } = args;
+  let { remainingOrdinaryLines, remainingJoiningLines } = args;
+  const shipDef = getShipDefinitionById(buildEntry.shipDefId);
+
+  if (!shipDef?.basicCost) {
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      didApply: false,
+    };
+  }
+
+  const ordinaryCost = buildEntry.freeReason === 'zenith_antlion'
+    ? 0
+    : shipDef.basicCost.totalLines;
+
+  if (remainingOrdinaryLines < ordinaryCost) {
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      didApply: false,
+    };
+  }
+
+  remainingOrdinaryLines -= ordinaryCost;
+  workingFleetEntries.push({
+    rowId: buildEntry.rowId!,
+    shipDefId: buildEntry.shipDefId,
+    chargesCurrent: shipDef.maxCharges ?? 0,
+    frigateTrigger: buildEntry.frigateTrigger,
+  });
+
+  if (buildEntry.shipDefId === 'LEG') {
+    remainingJoiningLines += 4;
+  }
+
+  return {
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+    didApply: true,
+  };
+}
+
+function simulateResolvedUpgradedDemand(args: {
+  targetShipDefId: ShipDefId;
+  upgradedEntries: DraftBuildEntry[];
+  workingFleetEntries: InternalFleetEntry[];
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): number {
+  const {
+    targetShipDefId,
+    upgradedEntries,
+    workingFleetEntries,
+  } = args;
+  let { remainingOrdinaryLines, remainingJoiningLines } = args;
+  let freeingDemand = 0;
+
+  for (const buildEntry of upgradedEntries) {
+    const shipDef = getShipDefinitionById(buildEntry.shipDefId);
+    if (!shipDef?.upgradedCost) {
+      continue;
+    }
+
+    const currentShipCount = countShipEntriesById(workingFleetEntries, buildEntry.shipDefId);
+    if (
+      typeof shipDef.maxQuantity === 'number' &&
+      currentShipCount >= shipDef.maxQuantity
+    ) {
+      continue;
+    }
+
+    const reservedComponentIndices = reserveUpgradeComponents(
+      workingFleetEntries,
+      buildEntry.shipDefId
+    );
+
+    if (reservedComponentIndices == null) {
+      continue;
+    }
+
+    const joiningCost = shipDef.upgradedCost.joiningLines;
+    const joiningSpend = Math.min(remainingJoiningLines, joiningCost);
+    const ordinaryShortfall = joiningCost - joiningSpend;
+
+    if (remainingOrdinaryLines < ordinaryShortfall) {
+      continue;
+    }
+
+    freeingDemand += reservedComponentIndices.reduce((count, reservedIndex) => {
+      return count + (workingFleetEntries[reservedIndex]?.shipDefId === targetShipDefId ? 1 : 0);
+    }, 0);
+
+    for (let i = reservedComponentIndices.length - 1; i >= 0; i--) {
+      workingFleetEntries.splice(reservedComponentIndices[i], 1);
+    }
+
+    remainingJoiningLines -= joiningSpend;
+    remainingOrdinaryLines -= ordinaryShortfall;
+    workingFleetEntries.push({
+      rowId: buildEntry.rowId!,
+      shipDefId: buildEntry.shipDefId,
+      chargesCurrent: shipDef.maxCharges ?? 0,
+      frigateTrigger: buildEntry.frigateTrigger,
+    });
+  }
+
+  return freeingDemand;
+}
+
+function simulateFutureResolvedUpgradedDemandForBasicAttempt(args: {
+  targetShipDefId: ShipDefId;
+  currentBuildEntry: DraftBuildEntry;
+  remainingNonUpgradedEntries: DraftBuildEntry[];
+  futureDemandContext: FutureDemandContext;
+  workingFleetEntries: InternalFleetEntry[];
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): number {
+  const {
+    targetShipDefId,
+    currentBuildEntry,
+    remainingNonUpgradedEntries,
+    futureDemandContext,
+    workingFleetEntries,
+  } = args;
+  let { remainingOrdinaryLines, remainingJoiningLines } = args;
+  const simulatedWorkingFleetEntries = cloneInternalFleetEntries(workingFleetEntries);
+
+  const currentAttemptResolution = applyBasicDraftBuildEntry({
+    buildEntry: currentBuildEntry,
+    workingFleetEntries: simulatedWorkingFleetEntries,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  });
+
+  if (!currentAttemptResolution.didApply) {
+    return 0;
+  }
+
+  remainingOrdinaryLines = currentAttemptResolution.remainingOrdinaryLines;
+  remainingJoiningLines = currentAttemptResolution.remainingJoiningLines;
+
+  const remainingBasicStageResolution = resolveDraftBuildStage({
+    buildEntries: remainingNonUpgradedEntries,
+    workingFleetEntries: simulatedWorkingFleetEntries,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+    futureDemandContext,
+  });
+
+  if (!remainingBasicStageResolution.isStageValid) {
+    return 0;
+  }
+
+  const evolverRowIds = simulatedWorkingFleetEntries
+    .filter((entry) => entry.shipDefId === 'EVO')
+    .map((entry) => entry.rowId);
+
+  const postEvolverFleetEntries = applyEvolverPreviewParity({
+    entries: simulatedWorkingFleetEntries,
+    evolverRowIds,
+    evolverChoicesByRowId: futureDemandContext.evolverChoicesByRowId,
+    turnNumber: futureDemandContext.turnNumber,
+  });
+
+  return simulateResolvedUpgradedDemand({
+    targetShipDefId,
+    upgradedEntries: futureDemandContext.upgradedEntries,
+    workingFleetEntries: postEvolverFleetEntries,
+    remainingOrdinaryLines: remainingBasicStageResolution.remainingOrdinaryLines,
+    remainingJoiningLines: remainingBasicStageResolution.remainingJoiningLines,
+  });
+}
+
 function resolveDraftBuildStage(args: {
   buildEntries: DraftBuildEntry[];
   workingFleetEntries: InternalFleetEntry[];
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
+  futureDemandContext?: FutureDemandContext;
 }): {
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
@@ -575,48 +771,58 @@ function resolveDraftBuildStage(args: {
   const {
     buildEntries,
     workingFleetEntries,
+    futureDemandContext,
   } = args;
   let { remainingOrdinaryLines, remainingJoiningLines } = args;
   let isStageValid = true;
 
-  for (const buildEntry of buildEntries) {
+  for (let buildEntryIndex = 0; buildEntryIndex < buildEntries.length; buildEntryIndex += 1) {
+    const buildEntry = buildEntries[buildEntryIndex];
     const shipDef = getShipDefinitionById(buildEntry.shipDefId);
     if (!shipDef) {
       isStageValid = false;
       break;
     }
 
+    const maxQuantity = shipDef.maxQuantity;
     const currentShipCount = countShipEntriesById(workingFleetEntries, buildEntry.shipDefId);
+    let maxQuantityReached =
+      typeof maxQuantity === 'number' &&
+      currentShipCount >= maxQuantity;
 
-    if (
-      typeof shipDef.maxQuantity === 'number' &&
-      currentShipCount >= shipDef.maxQuantity
-    ) {
+    if (maxQuantityReached && shipDef.basicCost && futureDemandContext && typeof maxQuantity === 'number') {
+      const freeingDemand = simulateFutureResolvedUpgradedDemandForBasicAttempt({
+        targetShipDefId: buildEntry.shipDefId,
+        currentBuildEntry: buildEntry,
+        remainingNonUpgradedEntries: buildEntries.slice(buildEntryIndex + 1),
+        futureDemandContext,
+        workingFleetEntries,
+        remainingOrdinaryLines,
+        remainingJoiningLines,
+      });
+      maxQuantityReached = currentShipCount - freeingDemand >= maxQuantity;
+    }
+
+    if (maxQuantityReached) {
       isStageValid = false;
       break;
     }
 
     if (shipDef.basicCost) {
-      const ordinaryCost = buildEntry.freeReason === 'zenith_antlion'
-        ? 0
-        : shipDef.basicCost.totalLines;
+      const basicResolution = applyBasicDraftBuildEntry({
+        buildEntry,
+        workingFleetEntries,
+        remainingOrdinaryLines,
+        remainingJoiningLines,
+      });
 
-      if (remainingOrdinaryLines < ordinaryCost) {
+      if (!basicResolution.didApply) {
         isStageValid = false;
         break;
       }
 
-      remainingOrdinaryLines -= ordinaryCost;
-      workingFleetEntries.push({
-        rowId: buildEntry.rowId!,
-        shipDefId: buildEntry.shipDefId,
-        chargesCurrent: shipDef.maxCharges ?? 0,
-        frigateTrigger: buildEntry.frigateTrigger,
-      });
-
-      if (buildEntry.shipDefId === 'LEG') {
-        remainingJoiningLines += 4;
-      }
+      remainingOrdinaryLines = basicResolution.remainingOrdinaryLines;
+      remainingJoiningLines = basicResolution.remainingJoiningLines;
 
       continue;
     }
@@ -719,6 +925,11 @@ export function evaluateProvisionalBuild(args: {
     workingFleetEntries,
     remainingOrdinaryLines,
     remainingJoiningLines,
+    futureDemandContext: {
+      turnNumber,
+      evolverChoicesByRowId,
+      upgradedEntries,
+    },
   });
   remainingOrdinaryLines = basicStageResolution.remainingOrdinaryLines;
   remainingJoiningLines = basicStageResolution.remainingJoiningLines;
@@ -791,5 +1002,5 @@ export function canProvisionallyAddShip(args: {
     frigateTriggerByInstanceId: args.frigateTriggerByInstanceId,
   });
 
-  return provisionalBuild.canAddShipById[args.shipDefId] === true;
+  return toNonNegativeInt(args.draftCounts[args.shipDefId]) > 0 && provisionalBuild.isValid;
 }
