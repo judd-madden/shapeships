@@ -2176,8 +2176,34 @@ useEffect(() => {
       await submitMenuIntent('SURRENDER');
     },
     
-    onRematch: () => {
-      console.log('[useGameSession] Rematch (no-op)');
+    onRematch: async () => {
+      if (!effectiveGameId) {
+        console.error('[useGameSession] New game blocked: missing effectiveGameId');
+        return;
+      }
+
+      try {
+        const response = await authenticatedPost(`/new-game-from/${effectiveGameId}`, {});
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[useGameSession] New game request failed:', response.status, errorText);
+          return;
+        }
+
+        const result = await response.json();
+        const newGameId = typeof result?.gameId === 'string' ? result.gameId : null;
+
+        if (!newGameId) {
+          console.error('[useGameSession] New game request returned invalid payload:', result);
+          return;
+        }
+
+        const shareGameUrl = buildShareGameUrl(newGameId);
+        window.location.assign(shareGameUrl);
+      } catch (err: any) {
+        console.error('[useGameSession] New game request error:', err?.message ?? err);
+      }
     },
     
     onDownloadBattleLog: () => {

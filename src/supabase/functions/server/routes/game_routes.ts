@@ -29,6 +29,71 @@ import { rollD6 } from '../engine/util/rollD6.ts';
 
 const INITIAL_SAVED_LINES = 3;
 
+function createFreshGameData(gameId: string, playerId: string, playerName: string) {
+  const nowIso = new Date().toISOString();
+
+  let gameData = {
+    gameId,
+    players: [
+      {
+        id: playerId,
+        name: playerName,
+        faction: null,
+        isReady: false,
+        isActive: true,
+        role: 'player',
+        joinedAt: nowIso,
+        health: 25,
+        lines: INITIAL_SAVED_LINES,
+        joiningLines: 0,
+        energy: 0
+      }
+    ],
+    gameData: {
+      ships: {
+        [playerId]: []
+      },
+      currentPhase: 'setup',
+      currentSubPhase: 'species_selection',
+      turnNumber: 0,
+      diceRoll: null,
+      turnData: {
+        turnNumber: 0,
+        currentMajorPhase: 'setup',
+        currentSubPhase: 'species_selection',
+        requiredSubPhases: [],
+        accumulatedDamage: {},
+        accumulatedHealing: {},
+        healthAtTurnStart: {},
+        chargesDeclared: false,
+        diceRoll: null,
+        linesDistributed: false
+      },
+      phaseReadiness: [],
+      phaseStartTime: nowIso
+    },
+    currentPhase: 'setup',
+    currentSubPhase: 'species_selection',
+    turnNumber: 0,
+    actions: [
+      {
+        playerId: "system",
+        playerName: "System",
+        actionType: "system",
+        content: `${playerName} created the game`,
+        timestamp: nowIso
+      }
+    ],
+    status: "waiting",
+    createdAt: nowIso
+  };
+
+  gameData = initializeClocks(gameData);
+  gameData = syncPhaseFields(gameData);
+
+  return gameData;
+}
+
 function getTargetedChoiceEffect(option: any) {
   if (!Array.isArray(option?.effects)) return null;
   return option.effects.find(
@@ -739,70 +804,7 @@ export function registerGameRoutes(
       console.log(`Creating game - Session: ${session.sessionId}, Display name: ${playerName}`);
 
       const gameId = generateGameId();
-      let gameData = {
-        gameId,
-        players: [
-          {
-            id: playerId, // Server-derived from sessionToken
-            name: playerName, // Client-provided metadata
-            faction: null, // Species to be selected
-            isReady: false,
-            isActive: true,
-            role: 'player',
-            joinedAt: new Date().toISOString(),
-            health: 25,
-            lines: INITIAL_SAVED_LINES,
-            joiningLines: 0,
-            energy: 0
-          }
-        ],
-        gameData: {
-          ships: {
-            [playerId]: []
-          },
-          // Simplified game state for test interface
-          currentPhase: 'setup',
-          currentSubPhase: 'species_selection',
-          turnNumber: 0,
-          diceRoll: null,
-          // Enhanced phase management (kept for compatibility)
-          turnData: {
-            turnNumber: 0,
-            currentMajorPhase: 'setup', // 'setup', 'build_phase', 'battle_phase', 'health_resolution'
-            currentSubPhase: 'species_selection', // For setup phase
-            requiredSubPhases: [],
-            accumulatedDamage: {},
-            accumulatedHealing: {},
-            healthAtTurnStart: {},
-            chargesDeclared: false,
-            diceRoll: null,
-            linesDistributed: false
-          },
-          phaseReadiness: [], // Player ready states for current subphase
-          phaseStartTime: new Date().toISOString()
-        },
-        // Legacy fields for compatibility
-        currentPhase: 'setup',
-        currentSubPhase: 'species_selection', 
-        turnNumber: 0,
-        actions: [
-          {
-            playerId: "system",
-            playerName: "System",
-            actionType: "system",
-            content: `${playerName} created the game`,
-            timestamp: new Date().toISOString()
-          }
-        ],
-        status: "waiting", // 'waiting', 'active', 'finished'
-        createdAt: new Date().toISOString()
-      };
-
-      // Initialize clocks for the game
-      gameData = initializeClocks(gameData);
-
-      // Normalize phase fields before saving
-      gameData = syncPhaseFields(gameData);
+      const gameData = createFreshGameData(gameId, playerId, playerName);
 
       await kvSet(`game_${gameId}`, gameData);
       
@@ -811,6 +813,56 @@ export function registerGameRoutes(
 
     } catch (error) {
       console.error("Create game error:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  });
+
+  app.post("/make-server-825e19ab/new-game-from/:gameId", async (c) => {
+    try {
+      const session = await requireSession(c);
+      if (session instanceof Response) return session;
+
+      const sourceGameId = c.req.param('gameId');
+      const sourceGame = await kvGet(`game_${sourceGameId}`);
+
+      if (!sourceGame) {
+        return c.json({ error: "Game not found" }, 404);
+      }
+
+      const playerId = session.sessionId;
+      const sourcePlayer = sourceGame.players.find((player: any) => player?.id === playerId);
+
+      if (!sourcePlayer || sourcePlayer.role !== 'player') {
+        return c.json({ error: "Only players from this finished game can create a new game" }, 403);
+      }
+
+      const playerName =
+        typeof sourcePlayer.name === 'string'
+          ? sourcePlayer.name.trim()
+          : '';
+
+      if (!playerName) {
+        return c.json({ error: "Player name is required" }, 400);
+      }
+
+      if (sourceGame.status !== 'finished') {
+        return c.json({ error: "New game can only be created from a finished game" }, 400);
+      }
+
+      const newGameId = generateGameId();
+      const newGameData = createFreshGameData(newGameId, playerId, playerName);
+
+      await kvSet(`game_${newGameId}`, newGameData);
+
+      console.log("New game created from finished game:", {
+        sourceGameId,
+        newGameId,
+        playerId,
+      });
+
+      return c.json({ gameId: newGameId });
+    } catch (error) {
+      console.error("New game from finished game error:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
   });

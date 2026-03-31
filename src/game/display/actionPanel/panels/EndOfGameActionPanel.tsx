@@ -59,14 +59,22 @@ export function EndOfGameActionPanel({
 
       {/* Buttons (centered below banner) */}
       <div className="content-stretch flex items-center w-full pt-[40px]">
-        <div className="content-stretch flex gap-[20px] items-center justify-center w-full">
+        <div className="content-stretch flex gap-[20px] items-start justify-center w-full">
           <GameMenuButton onClick={onReturnToMainMenu}>
             Return to Main Menu
           </GameMenuButton>
 
-          <GameMenuButton onClick={onRematch}>
-            Rematch
-          </GameMenuButton>
+          <div className="flex w-[210px] flex-col items-center">
+            <GameMenuButton onClick={onRematch}>
+              New Game
+            </GameMenuButton>
+            <p
+              className="mt-[8px] text-center text-[16px] font-normal leading-[1.3] text-white"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              Share the new URL with your opponent
+            </p>
+          </div>
 
           <GameMenuButton onClick={onDownloadBattleLog}>
             Download Battle Log
