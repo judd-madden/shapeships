@@ -651,6 +651,7 @@ function resolveDraftBuildStage(args: {
         rowId: buildEntry.rowId!,
         shipDefId: buildEntry.shipDefId,
         chargesCurrent: shipDef.maxCharges ?? 0,
+        frigateTrigger: buildEntry.frigateTrigger,
       });
       continue;
     }
