@@ -98,6 +98,7 @@ export type {
 } from './gameSession/types';
 
 import {
+  type BuildDrawingRouteRequest,
   decideAutoPanelRouting,
   getDefaultChoiceIdForRenderableAction,
   getRenderableActionShipPresence,
@@ -227,9 +228,12 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     rawStateRef.current = rawState;
   }, [rawState]);
 
-  // Auto panel routing pulse: allows one controlled re-route when client-only actions appear mid-phase
-  const [panelRoutingPulse, setPanelRoutingPulse] = useState(0);
-  const prevHasClientActionsRef = useRef(false);
+  // One-shot build.drawing routing request that survives until the routing effect consumes it.
+  const [buildDrawingRouteRequest, setBuildDrawingRouteRequest] =
+    useState<BuildDrawingRouteRequest>(null);
+  const prevPhaseKeyRef = useRef<string | null>(null);
+  const prevFrigateDemandCountRef = useRef(0);
+  const prevEvolverRowIdsRef = useRef<Set<string>>(new Set());
   const finishedRedirectHandledGameIdRef = useRef<string | null>(null);
 
   
@@ -965,7 +969,8 @@ useEffect(() => {
   });
 
   const evolverRowIds = provisionalBuild.evolverRowIds;
-  const evolverRowIdsKey = evolverRowIds.join('|');
+  const evolverRowIdsSet = new Set(evolverRowIds);
+  const evolverRowIdsKey = Array.from(evolverRowIdsSet).sort().join('|');
   const isLocalBuildDrawing = phaseKey === 'build.drawing' && myRole === 'player';
   const buildDrawingEconomyDisplay = isLocalBuildDrawing
     ? {
@@ -1434,15 +1439,18 @@ useEffect(() => {
   
   // Determine target panel ID for Actions tab (panel routing target when actions exist)
   const actionsTargetPanelId = phaseToActionPanelId(phaseKey, mySpecies, availableActions);
+  const selfCataloguePanelId = speciesToCataloguePanelId(mySpecies ?? 'human');
+
+  const frigateDemandCount = Number.isInteger(buildPreviewCountsRef.current?.FRI)
+    ? Math.max(0, buildPreviewCountsRef.current.FRI)
+    : 0;
   
   // Client-only "special actions" that should make Actions tab visible even if server reports none.
   // Today: Human Frigate (FRI) trigger selection in build.drawing, Xenite Evolver (EVO) choices in build.drawing.
   const hasClientActionsAvailable =
     phaseKey === 'build.drawing' &&
-    ((mySpecies === 'human' &&
-      (Number.isInteger(buildPreviewCountsRef.current?.FRI) ? buildPreviewCountsRef.current.FRI : 0) > 0) ||
-     (mySpecies === 'xenite' &&
-      evolverRowIds.length > 0));
+    ((mySpecies === 'human' && frigateDemandCount > 0) ||
+     (mySpecies === 'xenite' && evolverRowIdsSet.size > 0));
 
   // Actions tab is visible if we have a target panel and either:
   // - server says actions exist, OR
@@ -1707,17 +1715,45 @@ useEffect(() => {
   }, [shouldTick]);
   
 
-  // Pulse routing when client-only actions become available mid-phase (edge: false -> true).
-  // This lets decideAutoPanelRouting switch to Actions once, without re-triggering on polling.
+  // Detect build.drawing routing requests from live state and previous snapshots.
+  // This effect is the sole owner of the previous-demand refs, and it latches
+  // a durable one-shot route request before advancing those refs.
   useEffect(() => {
-    const prev = prevHasClientActionsRef.current;
-    const next = hasClientActionsAvailable;
-    prevHasClientActionsRef.current = next;
+    const wasBuildDrawing = prevPhaseKeyRef.current === 'build.drawing';
+    const isBuildDrawing = phaseKey === 'build.drawing';
+    const previousFrigateDemandCount = prevFrigateDemandCountRef.current;
+    const previousEvolverRowIds = prevEvolverRowIdsRef.current;
 
-    if (prev !== next) {
-      setPanelRoutingPulse(p => p + 1);
+    let nextRouteRequest: BuildDrawingRouteRequest = null;
+
+    if (isBuildDrawing) {
+      if (mySpecies === 'xenite' && !wasBuildDrawing && evolverRowIdsSet.size > 0) {
+        nextRouteRequest = 'evolver-entry';
+      } else if (
+        mySpecies === 'human' &&
+        wasBuildDrawing &&
+        frigateDemandCount > previousFrigateDemandCount
+      ) {
+        nextRouteRequest = 'frigate-demand';
+      } else if (
+        mySpecies === 'xenite' &&
+        wasBuildDrawing &&
+        Array.from(evolverRowIdsSet).some((rowId) => !previousEvolverRowIds.has(rowId))
+      ) {
+        nextRouteRequest = 'evolver-added';
+      }
     }
-  }, [hasClientActionsAvailable]);
+
+    if (nextRouteRequest !== null) {
+      setBuildDrawingRouteRequest(nextRouteRequest);
+    }
+
+    prevPhaseKeyRef.current = phaseKey;
+    prevFrigateDemandCountRef.current = isBuildDrawing ? frigateDemandCount : 0;
+    prevEvolverRowIdsRef.current = isBuildDrawing
+      ? new Set(evolverRowIdsSet)
+      : new Set();
+  }, [evolverRowIdsKey, frigateDemandCount, mySpecies, phaseKey]);
 
   useEffect(() => {
     if (!effectiveGameId || !isFinished) return;
@@ -1744,6 +1780,7 @@ useEffect(() => {
       actionsTargetPanelId,
       activePanelId,
       mySpecies,
+      buildDrawingRouteRequest,
     });
 
     if (decision.kind === 'setActivePanelId' && decision.nextPanelId !== activePanelId) {
@@ -1751,11 +1788,16 @@ useEffect(() => {
       setActivePanelId(decision.nextPanelId);
     }
 
+    if (buildDrawingRouteRequest !== null) {
+      setBuildDrawingRouteRequest(null);
+    }
+
     // IMPORTANT:
-    // This effect intentionally depends ONLY on phaseKey.
+    // This effect intentionally depends only on phase changes, finish state,
+    // and the durable build.drawing request token.
     // We do not depend on activePanelId or hasActionsAvailable,
     // otherwise polling would re-trigger routing.
-  }, [phaseKey, panelRoutingPulse, isFinished]);
+  }, [phaseKey, buildDrawingRouteRequest, isFinished]);
 
   
   // Display-only interpolation helper
@@ -2211,13 +2253,20 @@ useEffect(() => {
     },
     
 onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
-  setFrigateSelectedTriggers(prev => {
-    if (!Number.isInteger(triggerNumber) || triggerNumber < 1 || triggerNumber > 6) return prev;
-    if (frigateIndex < 0 || frigateIndex >= prev.length) return prev;
-    const next = [...prev];
-    next[frigateIndex] = triggerNumber;
-    return next;
-  });
+  if (!Number.isInteger(triggerNumber) || triggerNumber < 1 || triggerNumber > 6) {
+    return;
+  }
+
+  const currentSelections = frigateSelectedTriggersRef.current;
+  if (frigateIndex < 0 || frigateIndex >= currentSelections.length) {
+    return;
+  }
+
+  const nextSelections = [...currentSelections];
+  nextSelections[frigateIndex] = triggerNumber;
+  frigateSelectedTriggersRef.current = nextSelections;
+  setFrigateSelectedTriggers(nextSelections);
+  setActivePanelId(selfCataloguePanelId);
 },
 
     onSelectEvolverChoice: (rowId: string, choiceId: EvolverChoiceId) => {
@@ -2225,12 +2274,16 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         return;
       }
 
-      setEvolverChoicesByRowId(prev => {
-        if (!evolverRowIds.includes(rowId)) return prev;
-        const next = { ...prev, [rowId]: choiceId };
-        evolverChoicesByRowIdRef.current = next;
-        return next;
-      });
+      if (!evolverRowIdsSet.has(rowId)) {
+        return;
+      }
+
+      const nextChoicesByRowId = {
+        ...evolverChoicesByRowIdRef.current,
+        [rowId]: choiceId,
+      };
+      evolverChoicesByRowIdRef.current = nextChoicesByRowId;
+      setEvolverChoicesByRowId(nextChoicesByRowId);
     },
 
     onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {

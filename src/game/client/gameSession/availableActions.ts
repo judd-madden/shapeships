@@ -12,6 +12,11 @@ import type { SpeciesId } from '../../../components/ui/primitives/buttons/Specie
 
 export type PhaseKey = string;
 export type RenderableTargetedActionKind = 'destroy_target' | 'paired_destroy_target';
+export type BuildDrawingRouteRequest =
+  | null
+  | 'frigate-demand'
+  | 'evolver-entry'
+  | 'evolver-added';
 
 export interface AutoPanelRoutingInput {
   phaseKey: PhaseKey;
@@ -19,6 +24,7 @@ export interface AutoPanelRoutingInput {
   actionsTargetPanelId: ActionPanelId | null;
   activePanelId: ActionPanelId;
   mySpecies: SpeciesId | null;
+  buildDrawingRouteRequest: BuildDrawingRouteRequest;
 }
 
 export type AutoPanelRoutingDecision =
@@ -243,7 +249,14 @@ export function isRenderableTargetedActionComplete(args: {
  * 3) Fallback to self catalogue when no actions are available
  */
 export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelRoutingDecision {
-  const { phaseKey, hasActionsAvailable, actionsTargetPanelId, activePanelId, mySpecies } = input;
+  const {
+    phaseKey,
+    hasActionsAvailable,
+    actionsTargetPanelId,
+    activePanelId,
+    mySpecies,
+    buildDrawingRouteRequest,
+  } = input;
 
   const selfCatalogue = speciesToCataloguePanelId(mySpecies ?? 'human');
 
@@ -259,14 +272,27 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
       return { kind: 'none' };
     }
 
-    // If Actions are available in build.drawing (server OR client special actions),
-    // and we're currently on self catalogue, prefer switching to Actions.
-    // Caller should only re-run routing on an edge (e.g. 0 -> >0) to avoid fighting user navigation.
-    if (hasActionsAvailable && actionsTargetPanelId && activePanelId === selfCatalogue) {
+    if (
+      hasActionsAvailable &&
+      actionsTargetPanelId &&
+      (
+        (mySpecies === 'human' && buildDrawingRouteRequest === 'frigate-demand') ||
+        (mySpecies === 'xenite' &&
+          (buildDrawingRouteRequest === 'evolver-entry' ||
+            buildDrawingRouteRequest === 'evolver-added'))
+      )
+    ) {
+      const logReason =
+        buildDrawingRouteRequest === 'frigate-demand'
+          ? 'new Frigate demand'
+          : buildDrawingRouteRequest === 'evolver-entry'
+            ? 'phase entry with Evolver rows available'
+            : 'new Evolver row ids added';
+
       return {
         kind: 'setActivePanelId',
         nextPanelId: actionsTargetPanelId,
-        log: `[useGameSession] build.drawing: actions available; switching to Actions: ${actionsTargetPanelId}`,
+        log: `[useGameSession] build.drawing: ${logReason}; switching to Actions: ${actionsTargetPanelId}`,
       };
     }
 
