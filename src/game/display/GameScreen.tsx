@@ -84,6 +84,15 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
         <StarsBackground celebrateOnFinish={celebrateOnFinish} />
       </div>
 
+      <div
+        aria-hidden="true"
+        className={`absolute inset-0 z-[1] pointer-events-none bg-black transition-opacity ease-linear ${
+          celebrateOnFinish
+            ? 'opacity-50 delay-[1400ms] duration-[2200ms]'
+            : 'opacity-0 delay-0 duration-300'
+        }`}
+      />
+
       {/* Foreground layout (existing UI) */}
       <div className="relative z-10 w-full h-full min-h-0 flex items-stretch gap-5 px-[30px]">
         <div className="fixed right-[10px] top-[10px] z-50">
