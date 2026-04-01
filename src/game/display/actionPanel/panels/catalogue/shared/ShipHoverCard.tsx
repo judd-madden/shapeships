@@ -18,6 +18,7 @@ import { SHIP_DEFINITIONS_MAP } from '../../../../../data/ShipDefinitionsUI';
 import { parseShipToken } from '../../../../graphics/shipToken';
 import { resolveShipGraphic } from '../../../../graphics/resolveShipGraphic';
 import { isShipDefId } from '../../../../../data/ShipDefinitions.core';
+import { useAnchoredHoverPlacement } from '../../../../shared/useAnchoredHoverPlacement';
 
 // NOTE (PASS 2): This hover card is now a smart component with portal rendering.
 // Positioning is anchored to the ship hitbox via anchorRect.
@@ -28,9 +29,7 @@ interface ShipHoverCardProps {
   eligibility: ShipEligibility;
 }
 
-const HOVER_GAP_PX = 8;
 const TAIL_SIZE_PX = 12;
-const TAIL_APEX_OFFSET_PX = TAIL_SIZE_PX / Math.sqrt(2);
 
 // Helper functions (inlined from ShipRulesAdapter to avoid module loading issues)
 
@@ -335,6 +334,8 @@ function PowerText({ text }: { text: string }) {
  */
 export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCardProps) {
   const model = getShipHoverModel(shipId);
+  const { placement, anchorX, anchorY, cardTransform, cardRef } =
+    useAnchoredHoverPlacement(anchorRect);
   
   if (!model) {
     console.warn(`[ShipHoverCard] No model for ship: ${shipId}`);
@@ -348,109 +349,130 @@ export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCard
     return null;
   }
   
-  // FIXED WIDTH: All hover cards are 320px wide
-  const CARD_WIDTH = 320;
-  
-  // Position card centered horizontally with ship, above by small margin
-  const shipCenterX = anchorRect.left + (anchorRect.width / 2);
-  const left = shipCenterX - (CARD_WIDTH / 2);
-  const top = anchorRect.top - HOVER_GAP_PX - TAIL_APEX_OFFSET_PX;
-  
   const cardContent = (
     <div
-      className="absolute bg-[#212121] content-stretch flex flex-col gap-[12px] items-start pb-[20px] pt-[16px] px-[20px] rounded-[10px]"
-      style={{ 
-        left: `${left}px`, 
-        top: `${top}px`,
-        width: `${CARD_WIDTH}px`,
-        transform: 'translateY(-100%)' // Shift card up by its own height so bottom edge is at 'top'
+      className="absolute pointer-events-none"
+      style={{
+        left: `${anchorX}px`,
+        top: `${anchorY}px`,
+        width: '0px',
+        height: '0px',
       }}
     >
-      {/* Border overlay */}
       <div
-        aria-hidden="true"
-        className="absolute border border-[#555] border-solid inset-0 pointer-events-none rounded-[10px]"
-      />
+        ref={cardRef}
+        className="relative bg-[#212121] content-stretch flex w-[320px] flex-col gap-[12px] items-start rounded-[10px] px-[20px] pb-[20px] pt-[16px]"
+        style={{
+          pointerEvents: 'none',
+          transform: cardTransform,
+        }}
+      >
+        {/* Border overlay */}
+        <div
+          aria-hidden="true"
+          className="absolute border border-[#555] border-solid inset-0 pointer-events-none rounded-[10px]"
+        />
 
-      <div
-        aria-hidden="true"
-        className="absolute left-1/2 top-full -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-solid border-[#555] bg-[#212121] pointer-events-none"
-        style={{ width: `${TAIL_SIZE_PX}px`, height: `${TAIL_SIZE_PX}px` }}
-      />
+        <div
+          aria-hidden="true"
+          className="absolute rotate-45 border-solid border-[#555] bg-[#212121] pointer-events-none"
+          style={
+            placement === 'left'
+              ? {
+                  top: '50%',
+                  right: '-6px',
+                  width: `${TAIL_SIZE_PX}px`,
+                  height: `${TAIL_SIZE_PX}px`,
+                  transform: 'translateY(-50%)',
+                  borderTopWidth: '1px',
+                  borderRightWidth: '1px',
+                }
+              : {
+                  left: '50%',
+                  top: '100%',
+                  width: `${TAIL_SIZE_PX}px`,
+                  height: `${TAIL_SIZE_PX}px`,
+                  transform: 'translate(-50%, -50%)',
+                  borderBottomWidth: '1px',
+                  borderRightWidth: '1px',
+                }
+          }
+        />
       
-      {/* Top Section: Cost + Name + Phase */}
-      <div className="content-stretch flex flex-col gap-[6px] items-start relative shrink-0 w-full">
-        {/* Cost + Name */}
-        <div className="content-stretch flex gap-[6px] items-center leading-[normal] relative shrink-0 text-[20px] text-nowrap text-white w-full">
-          <p
-            className="font-black relative shrink-0"
-            style={{ fontVariationSettings: "'wdth' 100" }}
-          >
-            {model.cost}
-          </p>
-          <p
-            className="font-bold relative shrink-0"
-            style={{ fontVariationSettings: "'wdth' 100" }}
-          >
-            {model.name}
-          </p>
+        {/* Top Section: Cost + Name + Phase */}
+        <div className="content-stretch flex flex-col gap-[6px] items-start relative shrink-0 w-full">
+          {/* Cost + Name */}
+          <div className="content-stretch flex gap-[6px] items-center leading-[normal] relative shrink-0 text-[20px] text-nowrap text-white w-full">
+            <p
+              className="font-black relative shrink-0"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              {model.cost}
+            </p>
+            <p
+              className="font-bold relative shrink-0"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              {model.name}
+            </p>
+          </div>
+          
+          {/* Phase Label */}
+          {model.phaseLabel && (
+            <p
+              className="font-normal leading-[15px] relative shrink-0 text-[#d4d4d4] text-[13px] w-full"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              {model.phaseLabel}
+            </p>
+          )}
         </div>
-        
-        {/* Phase Label */}
-        {model.phaseLabel && (
+
+        {/* Joining Lines */}
+        {model.joiningLines && (
           <p
-            className="font-normal leading-[15px] relative shrink-0 text-[#d4d4d4] text-[13px] w-full"
+            className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
-            {model.phaseLabel}
+            <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>
+              {model.joiningLines}
+            </span>
+            <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>
+              {' joining lines'}
+            </span>
           </p>
         )}
+        
+        {/* Powers */}
+        {model.powers.length > 0 && (
+          <div className="content-stretch flex flex-col gap-[8px] items-start relative shrink-0 w-full">
+            {model.powers.map((power, index) => (
+              <div key={index} className="content-stretch flex gap-[6px] items-start relative shrink-0 w-full">
+                {power.icon === 'build' ? <BuildIcon /> : <BattleIcon />}
+                <PowerText text={power.text} />
+              </div>
+            ))}
+          </div>
+        )}
+        
+        {/* Italic Notes */}
+        {model.italicNotes && (
+          <div className="content-stretch flex items-center relative shrink-0 w-full">
+            <p
+              className="basis-0 font-normal grow italic leading-[17px] min-h-px min-w-px relative shrink-0 text-[13px] text-white"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              {model.italicNotes}
+            </p>
+          </div>
+        )}
+        
+        {/* Eligibility Footer */}
+        <EligibilityFooter
+          eligibility={eligibility}
+          componentShipIds={model.componentShipIds}
+        />
       </div>
-      
-      {/* Joining Lines */}
-      {model.joiningLines && (
-        <p
-          className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
-          style={{ fontVariationSettings: "'wdth' 100" }}
-        >
-          <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>
-            {model.joiningLines}
-          </span>
-          <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>
-            {' joining lines'}
-          </span>
-        </p>
-      )}
-      
-      {/* Powers */}
-      {model.powers.length > 0 && (
-        <div className="content-stretch flex flex-col gap-[8px] items-start relative shrink-0 w-full">
-          {model.powers.map((power, index) => (
-            <div key={index} className="content-stretch flex gap-[6px] items-start relative shrink-0 w-full">
-              {power.icon === 'build' ? <BuildIcon /> : <BattleIcon />}
-              <PowerText text={power.text} />
-            </div>
-          ))}
-        </div>
-      )}
-      
-      {/* Italic Notes */}
-      {model.italicNotes && (
-        <div className="content-stretch flex items-center relative shrink-0 w-full">
-          <p
-            className="basis-0 font-normal grow italic leading-[17px] min-h-px min-w-px relative shrink-0 text-[13px] text-white"
-            style={{ fontVariationSettings: "'wdth' 100" }}
-          >
-            {model.italicNotes}
-          </p>
-        </div>
-      )}
-      
-      {/* Eligibility Footer */}
-      <EligibilityFooter
-        eligibility={eligibility}
-        componentShipIds={model.componentShipIds}
-      />
     </div>
   );
   
