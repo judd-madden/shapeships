@@ -289,7 +289,7 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
       type: 'effect',
       timings: ['battle.end_of_turn_resolution'],
       kind: EffectKind.Damage,
-      amount: 12,
+      amount: 10,
       targetPlayer: 'opponent'
     }
   ],
@@ -300,7 +300,7 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
       type: 'effect',
       timings: ['battle.end_of_turn_resolution'],
       kind: EffectKind.Heal,
-      amount: 12,
+      amount: 10,
       targetPlayer: 'self'
     }
   ],
