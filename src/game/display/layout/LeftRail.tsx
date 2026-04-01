@@ -22,10 +22,9 @@ import { useLeftRailTurnTakeover } from '../graphics/animation';
 interface LeftRailProps {
   vm: LeftRailViewModel;
   actions: GameSessionActions;
-  onBack?: () => void;
 }
 
-export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
+export function LeftRail({ vm, actions }: LeftRailProps) {
   const [showCopiedToast, setShowCopiedToast] = useState(false);
   const [chatDraft, setChatDraft] = useState('');
   const turnTakeover = useLeftRailTurnTakeover(vm.turn);
@@ -115,14 +114,6 @@ export function LeftRail({ vm, actions, onBack }: LeftRailProps) {
             SHAPESHIPS
           </p>
         </div>
-        {onBack && (
-          <button
-            onClick={onBack}
-            className="fixed top-[25px] right-[30px] bg-black text-white px-4 py-2 rounded-md border-2 border-[#555] hover:bg-[#212121] transition-colors text-sm font-medium z-50"
-          >
-            Back
-          </button>
-        )}
       </div>
 
       {/* Dice Area */}

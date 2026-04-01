@@ -24,6 +24,7 @@ interface MainStageProps {
   bottomActionRailVm: BottomActionRailViewModel;
   actionPanelVm: ActionPanelViewModel;
   actions: GameSessionActions;
+  turnBlurEnabled: boolean;
   onReturnToMainMenu: () => void;
 }
 
@@ -33,6 +34,7 @@ export function MainStage({
   bottomActionRailVm, 
   actionPanelVm, 
   actions,
+  turnBlurEnabled,
   onReturnToMainMenu
 }: MainStageProps) {
   return (
@@ -56,7 +58,7 @@ export function MainStage({
         <TopHud vm={hudVm} />
 
         {/* Board Stage */}
-        <BoardStage vm={boardVm} actions={actions} />
+        <BoardStage vm={boardVm} actions={actions} turnBlurEnabled={turnBlurEnabled} />
 
         {/* Bottom Action Rail - hidden during choose species */}
         {boardVm.mode !== 'choose_species' && (

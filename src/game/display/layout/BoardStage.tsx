@@ -30,6 +30,7 @@ import { useBoardStatHover, type BoardStatHoverKey } from './useBoardStatHover';
 interface BoardStageProps {
   vm: BoardViewModel;
   actions: GameSessionActions;
+  turnBlurEnabled: boolean;
 }
 
 function cx(...parts: Array<string | undefined | false>) {
@@ -695,7 +696,7 @@ function StatTripletRow({
   );
 }
 
-export function BoardStage({ vm, actions }: BoardStageProps) {
+export function BoardStage({ vm, actions, turnBlurEnabled }: BoardStageProps) {
   const fleetHover = useFleetShipHover();
   const statHover = useBoardStatHover();
   const myBonusAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -704,7 +705,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
   const displayedMyHealth = useAnimatedHealth(vm.mode === 'board' ? vm.myHealth : 25);
   const displayedOpponentHealth = useAnimatedHealth(vm.mode === 'board' ? vm.opponentHealth : 25);
   const turnPulse = useTurnIncrementPulse({
-    enabled: vm.mode === 'board',
+    enabled: vm.mode === 'board' && turnBlurEnabled,
     turn: vm.mode === 'board' ? vm.turnNumber : null,
   });
 
