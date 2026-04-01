@@ -403,11 +403,63 @@ html {
   }
 }
 
+/* ============================================================================
+   Board live-fleet turn pulse
+   ========================================================================== */
+
+.ss-boardTurnPulse {
+  --ss-board-turn-pulse-duration: 640ms;
+  --ss-board-turn-pulse-peak-scale: 0.955;
+  --ss-board-turn-pulse-peak-blur: 4px;
+  --ss-board-turn-pulse-peak-brightness: 1.08;
+  --ss-board-turn-pulse-peak-opacity: 0.95;
+  transform-origin: center center;
+  will-change: transform, filter, opacity;
+}
+
+.ss-boardTurnPulse-active {
+  animation: ssBoardTurnPulseLifecycle var(--ss-board-turn-pulse-duration) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes ssBoardTurnPulseLifecycle {
+  0% {
+    filter: blur(0px) brightness(1);
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  32% {
+    filter: blur(var(--ss-board-turn-pulse-peak-blur)) brightness(var(--ss-board-turn-pulse-peak-brightness));
+    opacity: var(--ss-board-turn-pulse-peak-opacity);
+    transform: scale(var(--ss-board-turn-pulse-peak-scale));
+  }
+
+  58% {
+    filter: blur(1.8px) brightness(1.035);
+    opacity: 0.98;
+    transform: scale(0.984);
+  }
+
+  100% {
+    filter: blur(0px) brightness(1);
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ss-leftRailTurnTakeover,
   .ss-leftRailTurnTakeover__wipe,
   .ss-leftRailTurnTakeover__text {
     animation-duration: 1ms !important;
+  }
+
+  .ss-boardTurnPulse {
+    --ss-board-turn-pulse-duration: 180ms;
+    --ss-board-turn-pulse-peak-scale: 1;
+    --ss-board-turn-pulse-peak-blur: 0px;
+    --ss-board-turn-pulse-peak-brightness: 1.03;
+    --ss-board-turn-pulse-peak-opacity: 1;
   }
 
   .ss-health-delta-pop-in {

@@ -287,6 +287,74 @@ export function ShipAnimationWrapper({
 }
 
 // ============================================================================
+// TURN INCREMENT PULSE
+// ============================================================================
+
+export interface TurnIncrementPulseOptions {
+  enabled: boolean;
+  turn: number | null;
+}
+
+export interface TurnIncrementPulseState {
+  isActive: boolean;
+  runKey: number;
+  onAnimationEnd: (event: AnimationEvent<HTMLDivElement>) => void;
+}
+
+export const BOARD_TURN_PULSE_LIFECYCLE_ANIMATION_NAME = 'ssBoardTurnPulseLifecycle';
+
+export function useTurnIncrementPulse({
+  enabled,
+  turn,
+}: TurnIncrementPulseOptions): TurnIncrementPulseState {
+  const previousTurnRef = useRef<number | null>(null);
+  const [isActive, setIsActive] = useState(false);
+  const [runKey, setRunKey] = useState(0);
+
+  useEffect(() => {
+    if (!enabled || turn === null) {
+      previousTurnRef.current = null;
+      setIsActive(false);
+      return;
+    }
+
+    const previousTurn = previousTurnRef.current;
+
+    if (previousTurn === null) {
+      previousTurnRef.current = turn;
+      return;
+    }
+
+    previousTurnRef.current = turn;
+
+    if (turn <= previousTurn) {
+      return;
+    }
+
+    setIsActive(true);
+    setRunKey((current) => current + 1);
+  }, [enabled, turn]);
+
+  function onAnimationEnd(event: AnimationEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    if (event.animationName !== BOARD_TURN_PULSE_LIFECYCLE_ANIMATION_NAME) {
+      return;
+    }
+
+    setIsActive(false);
+  }
+
+  return {
+    isActive,
+    runKey,
+    onAnimationEnd,
+  };
+}
+
+// ============================================================================
 // LEFT RAIL TURN TAKEOVER
 // ============================================================================
 

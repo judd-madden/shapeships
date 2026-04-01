@@ -13,10 +13,12 @@ import { FitToBox } from './FitToBox';
 import {
   ShipAnimationWrapper,
   type ShipAnimToken,
+  type TurnIncrementPulseState,
   getTargetingGlowClassName,
   getTargetingGlowStyle,
   getTargetingPreviewStyle,
   getTargetingVisualState,
+  useTurnIncrementPulse,
 } from '../graphics/animation';
 import { useFlipLayout } from '../graphics/useFlipLayout';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
@@ -373,6 +375,7 @@ function FleetArea({
   onDestroyTargetMouseDown,
   onFleetHoverEnter,
   onFleetHoverLeave,
+  turnPulse,
 }: {
   title: string;
   ships?: FleetStackVm[];
@@ -389,6 +392,7 @@ function FleetArea({
   onDestroyTargetMouseDown?: (side: 'my' | 'opponent', stackKey: string) => void;
   onFleetHoverEnter?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
   onFleetHoverLeave?: (shipId: ShipDefId) => void;
+  turnPulse: TurnIncrementPulseState;
 }) {
   const rowSets = ROW_SETS_BY_SPECIES[species];
   const grouped = ships && ships.length > 0 ? groupShipsIntoRows(ships, order, rowSets) : null;
@@ -457,7 +461,14 @@ function FleetArea({
         <div className="grow min-h-0">
           <FitToBox minScale={0.4} className="w-full h-full">
             {hasLiveShips ? (
-              <div className="flex flex-col items-center gap-[18px]">
+              <div
+                className={cx(
+                  'ss-boardTurnPulse flex flex-col items-center gap-[18px]',
+                  turnPulse.isActive && 'ss-boardTurnPulse-active'
+                )}
+                data-run-key={turnPulse.runKey}
+                onAnimationEnd={turnPulse.onAnimationEnd}
+              >
                 {grouped ? (
                   <>
                     <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
@@ -692,6 +703,10 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
   const opponentBonusJoiningAnchorRef = useRef<HTMLDivElement | null>(null);
   const displayedMyHealth = useAnimatedHealth(vm.mode === 'board' ? vm.myHealth : 25);
   const displayedOpponentHealth = useAnimatedHealth(vm.mode === 'board' ? vm.opponentHealth : 25);
+  const turnPulse = useTurnIncrementPulse({
+    enabled: vm.mode === 'board',
+    turn: vm.mode === 'board' ? vm.turnNumber : null,
+  });
 
   // Choose species mode
   if (vm.mode === 'choose_species') {
@@ -773,6 +788,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
         onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
         onFleetHoverEnter={fleetHover.onEnter}
         onFleetHoverLeave={fleetHover.onLeave}
+        turnPulse={turnPulse}
       />
 
       <div
@@ -1033,6 +1049,7 @@ export function BoardStage({ vm, actions }: BoardStageProps) {
         onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
         onFleetHoverEnter={fleetHover.onEnter}
         onFleetHoverLeave={fleetHover.onLeave}
+        turnPulse={turnPulse}
       />
 
       {fleetHover.state.activeShipId && fleetHover.state.anchorRect ? (
