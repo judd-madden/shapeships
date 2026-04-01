@@ -251,7 +251,7 @@ html {
     background-size: cover;
     background-position: top center;
     background-repeat: no-repeat;
-  
+    background-color: #000000;
 }
 
 /* Toast notification animations */

@@ -57,6 +57,8 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
     setTurnBlurEnabled((current) => !current);
   }
 
+  const celebrateOnFinish = Boolean(vm.actionPanel.endOfGame);
+
   // ============================================================================
   // CHUNK 9.1: BOOT GATING — Show loading screen until valid server state
   // ============================================================================
@@ -79,7 +81,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
     <div className="ss-playerRoot relative w-full h-screen min-h-0 overflow-hidden">
       {/* Stars background layer (behind everything in this screen) */}
       <div className="absolute inset-0 z-0">
-        <StarsBackground />
+        <StarsBackground celebrateOnFinish={celebrateOnFinish} />
       </div>
 
       {/* Foreground layout (existing UI) */}

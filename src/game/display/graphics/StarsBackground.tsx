@@ -19,6 +19,11 @@ import {
   type StarSpec,
 } from './animation-stars';
 
+const SHOOTING_STAR_MIN_DELAY_MS = 0.5 * 60 * 1000;
+const SHOOTING_STAR_MAX_DELAY_MS = 3 * 60 * 1000;
+const ENDGAME_BURST_STAR_COUNT = 30;
+const ENDGAME_BURST_WINDOW_MS = 1100;
+
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
@@ -32,14 +37,21 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-export function StarsBackground() {
+interface StarsBackgroundProps {
+  celebrateOnFinish?: boolean;
+}
+
+export function StarsBackground({ celebrateOnFinish = false }: StarsBackgroundProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [viewport, setViewport] = useState<{ width: number; height: number } | null>(null);
   const [shootingStar, setShootingStar] = useState<StarSpec | null>(null);
+  const [celebrationStars, setCelebrationStars] = useState<StarSpec[]>([]);
+  const previousCelebrateOnFinishRef = useRef(celebrateOnFinish);
   const shootingStarSpawnTimeoutRef = useRef<number | null>(null);
   const shootingStarCleanupTimeoutRef = useRef<number | null>(null);
+  const celebrationCleanupTimeoutRef = useRef<number | null>(null);
 
   // Measure container
   useEffect(() => {
@@ -70,7 +82,13 @@ export function StarsBackground() {
   }
 
   const stars = starsRef.current ?? [];
-  const animatedStars = !prefersReducedMotion && shootingStar ? [...stars, shootingStar] : stars;
+  const animatedStars = prefersReducedMotion
+    ? stars
+    : [
+        ...stars,
+        ...(shootingStar ? [shootingStar] : []),
+        ...celebrationStars,
+      ];
 
   const localStylesCss = useMemo(() => {
     return animatedStars
@@ -84,14 +102,41 @@ export function StarsBackground() {
       .join('\n');
   }, [animatedStars]);
 
-  // Shooting star every 30s-3min. Temporary test path: set both cadence constants to 1000 for immediate shooting-star spawns.
-  const SHOOTING_STAR_MIN_DELAY_MS = 0.5 * 60 * 1000;
-  const SHOOTING_STAR_MAX_DELAY_MS = 3 * 60 * 1000;
-
   useEffect(() => {
     if (!prefersReducedMotion) return;
     setShootingStar((current) => (current ? null : current));
+    setCelebrationStars((current) => (current.length > 0 ? [] : current));
   }, [prefersReducedMotion]);
+
+  useEffect(() => {
+    const wasFinished = previousCelebrateOnFinishRef.current;
+    const didJustFinish = !wasFinished && celebrateOnFinish;
+
+    if (!didJustFinish) {
+      previousCelebrateOnFinishRef.current = celebrateOnFinish;
+      return;
+    }
+
+    if (prefersReducedMotion) {
+      previousCelebrateOnFinishRef.current = celebrateOnFinish;
+      return;
+    }
+
+    if (!viewport) {
+      return;
+    }
+
+    const burstStars = Array.from({ length: ENDGAME_BURST_STAR_COUNT }, () => {
+      const shootingStar = generateShootingStar(viewport, STARS_CONFIG);
+      return {
+        ...shootingStar,
+        delayMs: Math.round(Math.random() * ENDGAME_BURST_WINDOW_MS),
+      };
+    });
+
+    setCelebrationStars(burstStars);
+    previousCelebrateOnFinishRef.current = celebrateOnFinish;
+  }, [celebrateOnFinish, prefersReducedMotion, viewport]);
 
   useEffect(() => {
     if (!viewport || prefersReducedMotion || shootingStar) return;
@@ -135,6 +180,32 @@ export function StarsBackground() {
       }
     };
   }, [prefersReducedMotion, shootingStar]);
+
+  useEffect(() => {
+    if (celebrationCleanupTimeoutRef.current !== null) {
+      window.clearTimeout(celebrationCleanupTimeoutRef.current);
+      celebrationCleanupTimeoutRef.current = null;
+    }
+
+    if (celebrationStars.length === 0 || prefersReducedMotion) {
+      return;
+    }
+
+    const cleanupDelayMs =
+      Math.max(...celebrationStars.map((star) => star.delayMs + star.durationMs)) + 120;
+
+    celebrationCleanupTimeoutRef.current = window.setTimeout(() => {
+      celebrationCleanupTimeoutRef.current = null;
+      setCelebrationStars((current) => (current === celebrationStars ? [] : current));
+    }, Math.round(cleanupDelayMs));
+
+    return () => {
+      if (celebrationCleanupTimeoutRef.current !== null) {
+        window.clearTimeout(celebrationCleanupTimeoutRef.current);
+        celebrationCleanupTimeoutRef.current = null;
+      }
+    };
+  }, [celebrationStars, prefersReducedMotion]);
 
   return (
     <div
