@@ -308,7 +308,7 @@ function buildPreviewFleetSummary(
       count: bucket.count,
       stackKey,
       renderKey: `render__${stackKey}`,
-      memberInstanceIds: [...bucket.memberInstanceIds].sort((a, b) => a.localeCompare(b)),
+      memberInstanceIds: [...bucket.memberInstanceIds],
       condition: bucket.condition,
       currentCharges: bucket.currentCharges ?? null,
       caption: bucket.caption ?? null,

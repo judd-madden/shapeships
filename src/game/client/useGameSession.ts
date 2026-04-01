@@ -20,7 +20,7 @@
  */
 
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { authenticatedGet, authenticatedPost, ensureSession } from '../../utils/sessionManager';
 import type { ActionPanelId } from '../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../components/ui/primitives/buttons/SpeciesCardButton';
@@ -280,6 +280,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Previous rendered fleets are runtime-owned so pure helpers can reconcile the next frame.
   const prevMyRenderedFleetRef = useRef<BoardFleetSummary[]>([]);
   const prevOpponentRenderedFleetRef = useRef<BoardFleetSummary[]>([]);
+  const prevShouldShowPreviewRef = useRef(false);
+  const lastCommittedPreviewRenderedMyFleetRef = useRef<BoardFleetSummary[]>([]);
   
   // Tick driver for smooth clock display (forces rerenders)
   const [clockTick, setClockTick] = useState(0);
@@ -1068,6 +1070,8 @@ useEffect(() => {
   // - Else: Display serverFleet only
   
   const shouldShowPreview = majorPhase === 'build';
+  const shouldHandoffPreviewFleetToAuthoritative =
+    prevShouldShowPreviewRef.current && !shouldShowPreview;
 
   const mySemanticFleetForBoard: BoardFleetSummary[] = shouldShowPreview
     ? provisionalBuild.myFleetPreview
@@ -1075,7 +1079,14 @@ useEffect(() => {
 
   const myFleetWithPreview: BoardFleetSummary[] = reconcileFleetRenderKeys(
     mySemanticFleetForBoard,
-    prevMyRenderedFleetRef.current
+    prevMyRenderedFleetRef.current,
+    shouldHandoffPreviewFleetToAuthoritative &&
+      lastCommittedPreviewRenderedMyFleetRef.current.length > 0
+      ? {
+          previewToAuthoritativeHandoffFleet:
+            lastCommittedPreviewRenderedMyFleetRef.current,
+        }
+      : undefined
   );
   const opponentFleetRendered: BoardFleetSummary[] = reconcileFleetRenderKeys(
     opponentFleet,
@@ -1094,14 +1105,21 @@ useEffect(() => {
     opponentFleetRenderKeys,
   });
 
-  useEffect(() => {
-    prevMyRenderedFleetRef.current = orderFleetSummariesByRenderKey(
+  useLayoutEffect(() => {
+    const orderedMyRenderedFleet = orderFleetSummariesByRenderKey(
       myFleetWithPreview,
       myFleetRenderOrder
     );
-  }, [myFleetWithPreview, myFleetRenderOrder]);
+    prevMyRenderedFleetRef.current = orderedMyRenderedFleet;
 
-  useEffect(() => {
+    if (shouldShowPreview) {
+      lastCommittedPreviewRenderedMyFleetRef.current = orderedMyRenderedFleet;
+    }
+
+    prevShouldShowPreviewRef.current = shouldShowPreview;
+  }, [myFleetWithPreview, myFleetRenderOrder, shouldShowPreview]);
+
+  useLayoutEffect(() => {
     prevOpponentRenderedFleetRef.current = orderFleetSummariesByRenderKey(
       opponentFleetRendered,
       opponentFleetRenderOrder

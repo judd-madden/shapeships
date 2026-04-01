@@ -135,7 +135,7 @@ function buildFleetSummaryFromBuckets(buckets: Map<string, FleetBucket>): BoardF
       count: bucket.count,
       stackKey,
       renderKey: makeSeedRenderKey(stackKey),
-      memberInstanceIds: [...bucket.memberInstanceIds].sort((a, b) => a.localeCompare(b)),
+      memberInstanceIds: [...bucket.memberInstanceIds],
       condition: bucket.condition,
       currentCharges: bucket.currentCharges ?? null,
       caption: bucket.caption ?? null,
@@ -174,59 +174,92 @@ function getMemberOverlapCount(previous: BoardFleetSummary, current: BoardFleetS
   return overlapCount;
 }
 
+function getOrderAnchor(summary: Pick<BoardFleetSummary, 'memberInstanceIds'>): string | null {
+  return summary.memberInstanceIds[0] ?? null;
+}
+
+function hasAnchorContinuity(previous: BoardFleetSummary, current: BoardFleetSummary): boolean {
+  const currentAnchor = getOrderAnchor(current);
+  return currentAnchor != null && previous.memberInstanceIds.includes(currentAnchor);
+}
+
+function getStackPresentationFamily(
+  summary: Pick<BoardFleetSummary, 'stackKey'>
+): 'instance' | 'charges' | 'caption' | 'default' {
+  if (summary.stackKey.includes('__inst_')) return 'instance';
+  if (summary.stackKey.includes('__charges_')) return 'charges';
+  if (summary.stackKey.includes('__cap_')) return 'caption';
+  return 'default';
+}
+
+function getPreviewHandoffCompatibilityScore(
+  previous: BoardFleetSummary,
+  current: BoardFleetSummary
+): number {
+  if (previous.shipDefId !== current.shipDefId) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  if (getStackPresentationFamily(previous) !== getStackPresentationFamily(current)) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  let score = 0;
+
+  if (previous.stackKey === current.stackKey) {
+    score += 8;
+  }
+
+  if (previous.condition === current.condition) {
+    score += 4;
+  }
+
+  if ((previous.caption ?? null) === (current.caption ?? null)) {
+    score += 2;
+  }
+
+  if (previous.count === current.count) {
+    score += 1;
+  }
+
+  return score;
+}
+
 type RenderMatchCandidate = {
   currentIndex: number;
   previousIndex: number;
+  anchorContinuity: number;
   overlapCount: number;
   transitionPriority: number;
 };
 
+interface ReconcileFleetRenderKeysOptions {
+  previewToAuthoritativeHandoffFleet?: BoardFleetSummary[];
+}
+
 export function reconcileFleetRenderKeys(
   currentFleet: BoardFleetSummary[],
-  previousFleet: BoardFleetSummary[]
+  previousFleet: BoardFleetSummary[],
+  options: ReconcileFleetRenderKeysOptions = {}
 ): BoardFleetSummary[] {
+  const { previewToAuthoritativeHandoffFleet } = options;
   const current = currentFleet.map((summary) => ({
     ...summary,
     renderKey: summary.renderKey || makeSeedRenderKey(summary.stackKey),
-    memberInstanceIds: [...summary.memberInstanceIds].sort((a, b) => a.localeCompare(b)),
+    memberInstanceIds: [...summary.memberInstanceIds],
   }));
   const previous = previousFleet.map((summary) => ({
     ...summary,
     renderKey: summary.renderKey || makeSeedRenderKey(summary.stackKey),
-    memberInstanceIds: [...summary.memberInstanceIds].sort((a, b) => a.localeCompare(b)),
+    memberInstanceIds: [...summary.memberInstanceIds],
   }));
 
   const matchedCurrentIndices = new Set<number>();
   const matchedPreviousIndices = new Set<number>();
 
-  // Prefer exact semantic stack matches first so unchanged buckets keep their render identity.
-  for (let currentIndex = 0; currentIndex < current.length; currentIndex += 1) {
-    const summary = current[currentIndex];
-    const previousIndex = previous.findIndex(
-      (candidate, index) =>
-        !matchedPreviousIndices.has(index) && candidate.stackKey === summary.stackKey
-    );
-
-    if (previousIndex < 0) {
-      continue;
-    }
-
-    current[currentIndex].renderKey = previous[previousIndex].renderKey;
-    matchedCurrentIndices.add(currentIndex);
-    matchedPreviousIndices.add(previousIndex);
-  }
-
   const overlapCandidates: RenderMatchCandidate[] = [];
   for (let currentIndex = 0; currentIndex < current.length; currentIndex += 1) {
-    if (matchedCurrentIndices.has(currentIndex)) {
-      continue;
-    }
-
     for (let previousIndex = 0; previousIndex < previous.length; previousIndex += 1) {
-      if (matchedPreviousIndices.has(previousIndex)) {
-        continue;
-      }
-
       if (previous[previousIndex].shipDefId !== current[currentIndex].shipDefId) {
         continue;
       }
@@ -239,6 +272,7 @@ export function reconcileFleetRenderKeys(
       overlapCandidates.push({
         currentIndex,
         previousIndex,
+        anchorContinuity: hasAnchorContinuity(previous[previousIndex], current[currentIndex]) ? 1 : 0,
         overlapCount,
         transitionPriority: getRenderTransitionPriority(previous[previousIndex], current[currentIndex]),
       });
@@ -246,6 +280,10 @@ export function reconcileFleetRenderKeys(
   }
 
   overlapCandidates.sort((a, b) => {
+    if (a.anchorContinuity !== b.anchorContinuity) {
+      return b.anchorContinuity - a.anchorContinuity;
+    }
+
     if (a.transitionPriority !== b.transitionPriority) {
       return b.transitionPriority - a.transitionPriority;
     }
@@ -269,6 +307,57 @@ export function reconcileFleetRenderKeys(
     current[candidate.currentIndex].renderKey = previous[candidate.previousIndex].renderKey;
     matchedCurrentIndices.add(candidate.currentIndex);
     matchedPreviousIndices.add(candidate.previousIndex);
+  }
+
+  const handoffFleet = previewToAuthoritativeHandoffFleet?.map((summary) => ({
+    ...summary,
+    renderKey: summary.renderKey || makeSeedRenderKey(summary.stackKey),
+    memberInstanceIds: [...summary.memberInstanceIds],
+  })) ?? [];
+  const matchedHandoffPreviousIndices = new Set<number>();
+  const renderKeysAlreadyClaimed = new Set(
+    current
+      .filter((_, index) => matchedCurrentIndices.has(index))
+      .map((summary) => summary.renderKey)
+  );
+
+  for (let currentIndex = 0; currentIndex < current.length; currentIndex += 1) {
+    if (matchedCurrentIndices.has(currentIndex)) {
+      continue;
+    }
+
+    let bestHandoffPreviousIndex = -1;
+    let bestHandoffScore = Number.NEGATIVE_INFINITY;
+
+    for (let previousIndex = 0; previousIndex < handoffFleet.length; previousIndex += 1) {
+      if (matchedHandoffPreviousIndices.has(previousIndex)) {
+        continue;
+      }
+
+      const candidate = handoffFleet[previousIndex];
+      if (renderKeysAlreadyClaimed.has(candidate.renderKey)) {
+        continue;
+      }
+
+      const compatibilityScore = getPreviewHandoffCompatibilityScore(candidate, current[currentIndex]);
+      if (compatibilityScore === Number.NEGATIVE_INFINITY) {
+        continue;
+      }
+
+      if (compatibilityScore > bestHandoffScore) {
+        bestHandoffScore = compatibilityScore;
+        bestHandoffPreviousIndex = previousIndex;
+      }
+    }
+
+    if (bestHandoffPreviousIndex < 0) {
+      continue;
+    }
+
+    current[currentIndex].renderKey = handoffFleet[bestHandoffPreviousIndex].renderKey;
+    matchedCurrentIndices.add(currentIndex);
+    matchedHandoffPreviousIndices.add(bestHandoffPreviousIndex);
+    renderKeysAlreadyClaimed.add(current[currentIndex].renderKey);
   }
 
   // Any newly visible semantic bucket receives a deterministic new render identity.
