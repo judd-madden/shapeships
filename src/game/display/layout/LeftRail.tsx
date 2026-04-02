@@ -1,10 +1,10 @@
 /**
  * Left Rail
  * Fixed-width left sidebar with brand, dice, turn/phase, chat, and battle log
- * NO LOGIC - displays view-model data only (Pass 1.25)
+ * Presentation-first layout with small local UI timing for rail-only effects.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Dice } from '../../../components/ui/primitives';
 import { BuildIcon } from '../../../components/ui/primitives/icons/BuildIcon';
 import { BattleIcon } from '../../../components/ui/primitives/icons/BattleIcon';
@@ -22,12 +22,93 @@ import { useLeftRailTurnTakeover } from '../graphics/animation';
 interface LeftRailProps {
   vm: LeftRailViewModel;
   actions: GameSessionActions;
+  firstTurnBuildHelperEligible?: boolean;
+  firstTurnBuildHelperDismissSignal?: number;
+  onFirstTurnBuildHelperDismiss?: () => void;
 }
 
-export function LeftRail({ vm, actions }: LeftRailProps) {
+const FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS = 500;
+const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
+
+export function LeftRail({
+  vm,
+  actions,
+  firstTurnBuildHelperEligible = false,
+  firstTurnBuildHelperDismissSignal = 0,
+  onFirstTurnBuildHelperDismiss,
+}: LeftRailProps) {
   const [showCopiedToast, setShowCopiedToast] = useState(false);
   const [chatDraft, setChatDraft] = useState('');
+  const [isFirstTurnBuildHelperMounted, setIsFirstTurnBuildHelperMounted] = useState(false);
+  const [isFirstTurnBuildHelperVisible, setIsFirstTurnBuildHelperVisible] = useState(false);
+  const firstTurnBuildHelperShowTimeoutRef = useRef<number | null>(null);
+  const firstTurnBuildHelperDismissTimeoutRef = useRef<number | null>(null);
   const turnTakeover = useLeftRailTurnTakeover(vm.turn);
+
+  function clearFirstTurnBuildHelperShowTimeout() {
+    if (firstTurnBuildHelperShowTimeoutRef.current !== null) {
+      window.clearTimeout(firstTurnBuildHelperShowTimeoutRef.current);
+      firstTurnBuildHelperShowTimeoutRef.current = null;
+    }
+  }
+
+  function clearFirstTurnBuildHelperDismissTimeout() {
+    if (firstTurnBuildHelperDismissTimeoutRef.current !== null) {
+      window.clearTimeout(firstTurnBuildHelperDismissTimeoutRef.current);
+      firstTurnBuildHelperDismissTimeoutRef.current = null;
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      clearFirstTurnBuildHelperShowTimeout();
+      clearFirstTurnBuildHelperDismissTimeout();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (firstTurnBuildHelperDismissSignal === 0) {
+      return;
+    }
+
+    setIsFirstTurnBuildHelperMounted(true);
+    clearFirstTurnBuildHelperShowTimeout();
+    clearFirstTurnBuildHelperDismissTimeout();
+    setIsFirstTurnBuildHelperVisible(false);
+
+    firstTurnBuildHelperDismissTimeoutRef.current = window.setTimeout(() => {
+      firstTurnBuildHelperDismissTimeoutRef.current = null;
+      setIsFirstTurnBuildHelperMounted(false);
+    }, FIRST_TURN_BUILD_HELPER_FADE_MS);
+  }, [firstTurnBuildHelperDismissSignal]);
+
+  useEffect(() => {
+    if (!firstTurnBuildHelperEligible) {
+      clearFirstTurnBuildHelperShowTimeout();
+      clearFirstTurnBuildHelperDismissTimeout();
+      setIsFirstTurnBuildHelperMounted(false);
+      setIsFirstTurnBuildHelperVisible(false);
+      return;
+    }
+
+    if (firstTurnBuildHelperDismissSignal > 0) {
+      clearFirstTurnBuildHelperShowTimeout();
+      return;
+    }
+
+    clearFirstTurnBuildHelperShowTimeout();
+    setIsFirstTurnBuildHelperMounted(true);
+    setIsFirstTurnBuildHelperVisible(false);
+
+    firstTurnBuildHelperShowTimeoutRef.current = window.setTimeout(() => {
+      firstTurnBuildHelperShowTimeoutRef.current = null;
+      setIsFirstTurnBuildHelperVisible(true);
+    }, FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS);
+
+    return () => {
+      clearFirstTurnBuildHelperShowTimeout();
+    };
+  }, [firstTurnBuildHelperEligible, firstTurnBuildHelperDismissSignal]);
 
   function renderDiceManipulationSlot(side: 'left' | 'right') {
     const slot = vm.diceManipulationSlots[side];
@@ -107,6 +188,46 @@ export function LeftRail({ vm, actions }: LeftRailProps) {
 
   return (
     <div className="relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0">
+      {isFirstTurnBuildHelperMounted && (
+        <div
+          className="pointer-events-none absolute left-[250px] top-[100px] z-30"
+          style={{
+            opacity: isFirstTurnBuildHelperVisible ? 1 : 0,
+            transition: `opacity ${FIRST_TURN_BUILD_HELPER_FADE_MS}ms ease-out`,
+          }}
+        >
+          <div
+            className="pointer-events-auto relative flex w-max max-w-[290px] flex-col gap-[12px] rounded-[10px] bg-[var(--shapeships-pastel-green)] pb-[20px] pl-[24px] pr-[24px] pt-[16px] text-left text-[var(--shapeships-black)]"
+            onClick={onFirstTurnBuildHelperDismiss}
+          >
+            <div
+              aria-hidden="true"
+              className="absolute left-[-6px] top-[50px] size-[12px] rotate-45 bg-[var(--shapeships-pastel-green)]"
+            />
+            <p
+              className="font-['Roboto'] text-[26px] font-black leading-[1.05]"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              The dice gives lines to both players.
+            </p>
+            <div className="flex flex-col gap-[12px]">
+              <p
+                className="font-['Roboto'] text-[18px] font-normal leading-[1.2]"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                You start with <span className="font-bold">3 saved lines</span>.
+              </p>
+              <p
+                className="font-['Roboto'] text-[18px] font-normal leading-[1.2]"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                Spend lines to build ships. Unspent lines are saved.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Brand / Title */}
       <div className="shrink-0 flex items-center justify-between">
         <div className="flex-1">

@@ -1,7 +1,7 @@
 /**
  * Game Screen
  * Main in-match layout shell for Alpha
- * NO LOGIC - composition only (Pass 1.25)
+ * Composition with light display orchestration for screen-level UI timing.
  * 
  * CHUNK 9.1: BOOT GATING (Loading screen until valid server state)
  * 
@@ -15,14 +15,15 @@
  * - Passes view-models down to layout components
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Checkbox } from '../../components/ui/primitives/controls/Checkbox';
-import { useGameSession } from '../client/useGameSession';
+import { type GameSessionViewModel, useGameSession } from '../client/useGameSession';
 import { LeftRail } from './layout/LeftRail';
 import { MainStage } from './layout/MainStage';
 import { StarsBackground } from './graphics/StarsBackground';
 
 const TURN_BLUR_STORAGE_KEY = 'shapeships.turnBlurEnabled';
+const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 
 interface GameScreenProps {
   gameId: string;
@@ -44,6 +45,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
       return true;
     }
   });
+  const firstTurnBuildHelper = useFirstTurnBuildHelper(gameId, vm, actions.onReadyToggle);
 
   useEffect(() => {
     try {
@@ -56,6 +58,11 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
   function toggleTurnBlur() {
     setTurnBlurEnabled((current) => !current);
   }
+
+  const mainStageActions = {
+    ...actions,
+    onReadyToggle: firstTurnBuildHelper.handleReadyToggle,
+  };
 
   const celebrateOnFinish = Boolean(vm.actionPanel.endOfGame);
 
@@ -88,7 +95,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
         aria-hidden="true"
         className={`absolute inset-0 z-[1] pointer-events-none bg-black transition-opacity ease-linear ${
           celebrateOnFinish
-            ? 'opacity-50 delay-[1400ms] duration-[2200ms]'
+            ? 'opacity-65 delay-[1400ms] duration-[2200ms]'
             : 'opacity-0 delay-0 duration-300'
         }`}
       />
@@ -110,7 +117,13 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
         </div>
 
         {/* Left Rail - fixed width */}
-        <LeftRail vm={vm.leftRail} actions={actions} />
+        <LeftRail
+          vm={vm.leftRail}
+          actions={actions}
+          firstTurnBuildHelperEligible={firstTurnBuildHelper.firstTurnBuildHelperEligible}
+          firstTurnBuildHelperDismissSignal={firstTurnBuildHelper.firstTurnBuildHelperDismissSignal}
+          onFirstTurnBuildHelperDismiss={firstTurnBuildHelper.dismissFirstTurnBuildHelper}
+        />
 
         {/* Main Stage - fills remaining width */}
         <MainStage 
@@ -118,7 +131,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
           boardVm={vm.board}
           bottomActionRailVm={vm.bottomActionRail}
           actionPanelVm={vm.actionPanel}
-          actions={actions}
+          actions={mainStageActions}
           turnBlurEnabled={turnBlurEnabled}
           onReturnToMainMenu={onBack}
         />
@@ -131,4 +144,112 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
       </div>
     </div>
   );
+}
+
+function useFirstTurnBuildHelper(
+  gameId: string,
+  vm: GameSessionViewModel,
+  onReadyToggle: () => void
+) {
+  const [hasDismissedFirstTurnBuildHelper, setHasDismissedFirstTurnBuildHelper] = useState(false);
+  const [firstTurnBuildHelperDismissSignal, setFirstTurnBuildHelperDismissSignal] = useState(0);
+  const isFirstTurnBuildHelperReadyPassInFlightRef = useRef(false);
+  const firstTurnBuildHelperReadyDelayRef = useRef<number | null>(null);
+  const firstTurnBuildHelperInvalidationTokenRef = useRef(0);
+
+  const phaseKey = vm.actionPanel.menu.phaseKey;
+  const firstTurnBuildHelperEligible =
+    vm.board.mode !== 'choose_species' &&
+    vm.leftRail.turn === 1 &&
+    typeof phaseKey === 'string' &&
+    phaseKey.startsWith('build.') &&
+    vm.actionPanel.menu.canResign === true;
+
+  function dismissFirstTurnBuildHelperInternal(): boolean {
+    if (!firstTurnBuildHelperEligible || hasDismissedFirstTurnBuildHelper) {
+      return false;
+    }
+
+    setHasDismissedFirstTurnBuildHelper(true);
+    setFirstTurnBuildHelperDismissSignal((current) => current + 1);
+    return true;
+  }
+
+  useEffect(() => {
+    firstTurnBuildHelperInvalidationTokenRef.current += 1;
+    isFirstTurnBuildHelperReadyPassInFlightRef.current = false;
+    if (firstTurnBuildHelperReadyDelayRef.current !== null) {
+      window.clearTimeout(firstTurnBuildHelperReadyDelayRef.current);
+      firstTurnBuildHelperReadyDelayRef.current = null;
+    }
+    setHasDismissedFirstTurnBuildHelper(false);
+    setFirstTurnBuildHelperDismissSignal(0);
+  }, [gameId]);
+
+  useEffect(() => {
+    return () => {
+      firstTurnBuildHelperInvalidationTokenRef.current += 1;
+      isFirstTurnBuildHelperReadyPassInFlightRef.current = false;
+      if (firstTurnBuildHelperReadyDelayRef.current !== null) {
+        window.clearTimeout(firstTurnBuildHelperReadyDelayRef.current);
+        firstTurnBuildHelperReadyDelayRef.current = null;
+      }
+    };
+  }, []);
+
+  function dismissFirstTurnBuildHelper() {
+    dismissFirstTurnBuildHelperInternal();
+  }
+
+  async function handleReadyToggle() {
+    if (!firstTurnBuildHelperEligible || hasDismissedFirstTurnBuildHelper) {
+      await Promise.resolve(onReadyToggle());
+      return;
+    }
+
+    if (isFirstTurnBuildHelperReadyPassInFlightRef.current) {
+      return;
+    }
+
+    isFirstTurnBuildHelperReadyPassInFlightRef.current = true;
+    const didDismiss = dismissFirstTurnBuildHelperInternal();
+    const invalidationToken = firstTurnBuildHelperInvalidationTokenRef.current;
+
+    if (!didDismiss) {
+      try {
+        await Promise.resolve(onReadyToggle());
+      } finally {
+        if (firstTurnBuildHelperInvalidationTokenRef.current === invalidationToken) {
+          isFirstTurnBuildHelperReadyPassInFlightRef.current = false;
+        }
+      }
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      firstTurnBuildHelperReadyDelayRef.current = window.setTimeout(() => {
+        firstTurnBuildHelperReadyDelayRef.current = null;
+        resolve();
+      }, FIRST_TURN_BUILD_HELPER_FADE_MS);
+    });
+
+    try {
+      if (firstTurnBuildHelperInvalidationTokenRef.current !== invalidationToken) {
+        return;
+      }
+
+      await Promise.resolve(onReadyToggle());
+    } finally {
+      if (firstTurnBuildHelperInvalidationTokenRef.current === invalidationToken) {
+        isFirstTurnBuildHelperReadyPassInFlightRef.current = false;
+      }
+    }
+  }
+
+  return {
+    firstTurnBuildHelperEligible,
+    firstTurnBuildHelperDismissSignal,
+    dismissFirstTurnBuildHelper,
+    handleReadyToggle,
+  };
 }
