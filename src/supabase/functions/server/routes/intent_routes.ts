@@ -96,6 +96,101 @@ async function persistGameStateAndHistoryTogether(
   }
 }
 
+function getBattleLogDebugPhaseKey(state: any): string | null {
+  const gameData = state?.gameData;
+  const majorPhase = gameData?.currentPhase;
+  const subPhase = gameData?.currentSubPhase;
+
+  if (
+    typeof majorPhase === 'string' &&
+    majorPhase.length > 0 &&
+    typeof subPhase === 'string' &&
+    subPhase.length > 0
+  ) {
+    return `${majorPhase}.${subPhase}`;
+  }
+
+  const turnData = gameData?.turnData;
+  const turnMajorPhase = turnData?.currentMajorPhase;
+  const turnSubPhase = turnData?.currentSubPhase;
+
+  if (
+    typeof turnMajorPhase === 'string' &&
+    turnMajorPhase.length > 0 &&
+    typeof turnSubPhase === 'string' &&
+    turnSubPhase.length > 0
+  ) {
+    return `${turnMajorPhase}.${turnSubPhase}`;
+  }
+
+  return null;
+}
+
+function summarizeBattleLogDebugState(state: any) {
+  return {
+    turnNumber: state?.gameData?.turnNumber ?? null,
+    status: state?.status ?? null,
+    phaseKey: getBattleLogDebugPhaseKey(state),
+  };
+}
+
+function summarizeBattleLogHistoryStore(historyStore: any) {
+  return {
+    revision: historyStore?.revision ?? null,
+    completedTurnCount: historyStore?.completedTurnCount ?? null,
+    currentTurnCaptureTurnNumber:
+      historyStore?.currentTurnCapture?.turnNumber ?? null,
+  };
+}
+
+function processBattleLogHistoryFromTransition(args: {
+  previousState: any,
+  nextState: any,
+  events: any[],
+  historyStore: any,
+}) {
+  const {
+    previousState,
+    nextState,
+    events,
+    historyStore,
+  } = args;
+
+  const finalizedTurnNumber = detectCompletedBattleTurnFromStateTransition(
+    previousState,
+    nextState,
+  );
+
+  if (finalizedTurnNumber === null) {
+    return {
+      historyStore: foldBattleLogCaptureEvents(historyStore, events),
+      finalizedTurnNumber: null,
+    };
+  }
+
+  const finalizedTurnEvents = events.filter((event) => {
+    const turnNumber = getBattleLogCaptureTurnNumber(event);
+    return turnNumber !== null && turnNumber <= finalizedTurnNumber;
+  });
+
+  let nextHistoryStore = foldBattleLogCaptureEvents(historyStore, finalizedTurnEvents);
+  nextHistoryStore = finalizeBattleLogTurn(
+    nextHistoryStore,
+    finalizedTurnNumber,
+    nextState,
+  );
+
+  const nextTurnEvents = events.filter((event) => {
+    const turnNumber = getBattleLogCaptureTurnNumber(event);
+    return turnNumber !== null && turnNumber > finalizedTurnNumber;
+  });
+
+  return {
+    historyStore: foldBattleLogCaptureEvents(nextHistoryStore, nextTurnEvents),
+    finalizedTurnNumber,
+  };
+}
+
 export function registerIntentRoutes(
   app: Hono,
   kvGet: (key: string) => Promise<any>,
@@ -174,6 +269,7 @@ export function registerIntentRoutes(
       }
 
       // 2) Apply against snapshot (no clock accrue here; clocks accrue on latestState only)
+      const baseStateBeforeInitialApply = structuredClone(baseState);
       let result = await applyIntent(baseState, sessionPlayerId, intentRequest, nowMs);
 
       if (!result.ok) {
@@ -198,6 +294,7 @@ export function registerIntentRoutes(
       latestState = accrueClocks(latestState, nowMs);
 
       // 4) Re-apply intent on latest
+      const latestStateBeforeRetryApply = structuredClone(latestState);
       const retry = await applyIntent(latestState, sessionPlayerId, intentRequest, nowMs);
 
       if (retry.ok) {
@@ -231,31 +328,30 @@ export function registerIntentRoutes(
           intentRequest.gameId,
           await kvGet(historyKey),
         );
-        const finalizedTurnNumber = detectCompletedBattleTurnFromStateTransition(
-          latestState,
-          retry.state,
-        );
-
-        if (finalizedTurnNumber !== null) {
-          const finalizedTurnEvents = allEvents.filter((event) => {
-            const turnNumber = getBattleLogCaptureTurnNumber(event);
-            return turnNumber !== null && turnNumber <= finalizedTurnNumber;
-          });
-          historyStore = foldBattleLogCaptureEvents(historyStore, finalizedTurnEvents);
-          historyStore = finalizeBattleLogTurn(
-            historyStore,
-            finalizedTurnNumber,
-            retry.state,
-          );
-
-          const nextTurnEvents = allEvents.filter((event) => {
-            const turnNumber = getBattleLogCaptureTurnNumber(event);
-            return turnNumber !== null && turnNumber > finalizedTurnNumber;
-          });
-          historyStore = foldBattleLogCaptureEvents(historyStore, nextTurnEvents);
-        } else {
-          historyStore = foldBattleLogCaptureEvents(historyStore, allEvents);
-        }
+        const historyBeforeProcessing = summarizeBattleLogHistoryStore(historyStore);
+        const previousStateSummary = summarizeBattleLogDebugState(latestStateBeforeRetryApply);
+        const livePreviousStateSummary = summarizeBattleLogDebugState(latestState);
+        const historyProcessingResult = processBattleLogHistoryFromTransition({
+          previousState: latestStateBeforeRetryApply,
+          nextState: retry.state,
+          events: allEvents,
+          historyStore,
+        });
+        historyStore = historyProcessingResult.historyStore;
+        const historyAfterProcessing = summarizeBattleLogHistoryStore(historyStore);
+        console.log('[BattleLog][IntentRoute]', {
+          branch: 'retry.ok',
+          intentType: intentRequest.intentType,
+          requestTurnNumber: intentRequest.turnNumber,
+          previousState: previousStateSummary,
+          nextState: summarizeBattleLogDebugState(retry.state),
+          finalizedTurnNumber: historyProcessingResult.finalizedTurnNumber,
+          historyBeforeProcessing,
+          historyAfterProcessing,
+          previousStateMutatedSinceSnapshot:
+            JSON.stringify(previousStateSummary) !== JSON.stringify(livePreviousStateSummary),
+          livePreviousStateAtProcessing: livePreviousStateSummary,
+        });
         
         // ========================================================================
         // CHAT SEPARATION: Scan events for CHAT_MESSAGE
@@ -296,6 +392,11 @@ export function registerIntentRoutes(
           historyKey,
           historyStore,
         );
+        console.log('[BattleLog][IntentRoute]', {
+          branch: 'retry.ok',
+          persistedStateTurnNumber: retry.state?.gameData?.turnNumber ?? null,
+          persistedHistory: summarizeBattleLogHistoryStore(historyStore),
+        });
         console.log(`[Intent] Success (merged): ${intentRequest.intentType}, Events: ${allEvents.length}`);
 
         return c.json(
@@ -312,7 +413,48 @@ export function registerIntentRoutes(
       // If the retry failed ONLY because our commit is already present, treat as success.
       // This is the expected outcome if another request already persisted our submission.
       if (retry.rejected?.code === 'DUPLICATE_COMMIT') {
-        await kvSet(gameKey, latestState);
+        const historyKey = getBattleLogHistoryKey(intentRequest.gameId);
+        let historyStore = normalizeBattleLogHistoryStore(
+          intentRequest.gameId,
+          await kvGet(historyKey),
+        );
+        const historyBeforeProcessing = summarizeBattleLogHistoryStore(historyStore);
+        const previousStateSummary = summarizeBattleLogDebugState(baseStateBeforeInitialApply);
+        const livePreviousStateSummary = summarizeBattleLogDebugState(baseState);
+        const historyProcessingResult = processBattleLogHistoryFromTransition({
+          previousState: baseStateBeforeInitialApply,
+          nextState: latestState,
+          events: result.events,
+          historyStore,
+        });
+        historyStore = historyProcessingResult.historyStore;
+        const historyAfterProcessing = summarizeBattleLogHistoryStore(historyStore);
+        console.log('[BattleLog][IntentRoute]', {
+          branch: 'duplicate-safe',
+          intentType: intentRequest.intentType,
+          requestTurnNumber: intentRequest.turnNumber,
+          previousState: previousStateSummary,
+          nextState: summarizeBattleLogDebugState(latestState),
+          finalizedTurnNumber: historyProcessingResult.finalizedTurnNumber,
+          historyBeforeProcessing,
+          historyAfterProcessing,
+          previousStateMutatedSinceSnapshot:
+            JSON.stringify(previousStateSummary) !== JSON.stringify(livePreviousStateSummary),
+          livePreviousStateAtProcessing: livePreviousStateSummary,
+        });
+
+        await persistGameStateAndHistoryTogether(
+          supabase,
+          gameKey,
+          latestState,
+          historyKey,
+          historyStore,
+        );
+        console.log('[BattleLog][IntentRoute]', {
+          branch: 'duplicate-safe',
+          persistedStateTurnNumber: latestState?.gameData?.turnNumber ?? null,
+          persistedHistory: summarizeBattleLogHistoryStore(historyStore),
+        });
         console.log(`[Intent] Success (idempotent duplicate): ${intentRequest.intentType}`);
 
         return c.json(

@@ -199,9 +199,11 @@ function isStartOfNextTurnBuild(
   state: GameStateLike | null | undefined,
   previousTurnNumber: number,
 ): boolean {
+  const phaseKey = getPhaseKeyFromState(state);
   return (
     getCurrentTurnNumber(state) === previousTurnNumber + 1 &&
-    getPhaseKeyFromState(state) === "build.dice_roll"
+    typeof phaseKey === "string" &&
+    phaseKey.startsWith("build.")
   );
 }
 
@@ -623,14 +625,19 @@ export function detectCompletedBattleTurnFromStateTransition(
   const previousTurnNumber = getCurrentTurnNumber(previousState);
   const nextTurnNumber = getCurrentTurnNumber(nextState);
   const previousPhaseKey = getPhaseKeyFromState(previousState);
+  const nextPhaseKey = getPhaseKeyFromState(nextState);
   const previousStatus = previousState?.status;
   const nextStatus = nextState?.status;
+  const previousTurnIsPositive = previousTurnNumber > 0;
+  const previousStatusIsNotFinished = previousStatus !== "finished";
+  const previousStateIsBattlePhase = isBattlePhaseKey(previousPhaseKey);
+  const nextStateIsNextTurnBuild = isStartOfNextTurnBuild(nextState, previousTurnNumber);
 
   if (
-    previousTurnNumber > 0 &&
-    previousStatus !== "finished" &&
-    isBattlePhaseKey(previousPhaseKey) &&
-    isStartOfNextTurnBuild(nextState, previousTurnNumber)
+    previousTurnIsPositive &&
+    previousStatusIsNotFinished &&
+    previousStateIsBattlePhase &&
+    nextStateIsNextTurnBuild
   ) {
     return previousTurnNumber;
   }
@@ -642,14 +649,35 @@ export function detectCompletedBattleTurnFromStateTransition(
     resultReason === "mutual_destruction";
 
   if (
-    previousTurnNumber > 0 &&
-    isBattlePhaseKey(previousPhaseKey) &&
-    previousStatus !== "finished" &&
+    previousTurnIsPositive &&
+    previousStateIsBattlePhase &&
+    previousStatusIsNotFinished &&
     nextStatus === "finished" &&
     isBattleTerminalReason &&
     nextTurnNumber === previousTurnNumber
   ) {
     return nextTurnNumber;
+  }
+
+  if (previousTurnIsPositive && previousStatusIsNotFinished) {
+    console.log("[BattleLog][Detector] Non-terminal finalization missed", {
+      previousState: {
+        turnNumber: previousTurnNumber,
+        status: previousStatus ?? null,
+        phaseKey: previousPhaseKey,
+      },
+      nextState: {
+        turnNumber: nextTurnNumber,
+        status: nextStatus ?? null,
+        phaseKey: nextPhaseKey,
+      },
+      checks: {
+        previousTurnNumberIsPositive: previousTurnIsPositive,
+        previousStatusIsNotFinished,
+        previousStateIsBattlePhase,
+        nextStateIsNextTurnBuild,
+      },
+    });
   }
 
   return null;
