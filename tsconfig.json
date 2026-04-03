@@ -14,8 +14,7 @@
     "isolatedModules": true,
     "useDefineForClassFields": true,
 
-    "types": [ "vite/client" ],
-    "baseUrl": "."
+    "types": [ "vite/client" ]
   },
   "include": [
     "src/game/client/**/*.ts",

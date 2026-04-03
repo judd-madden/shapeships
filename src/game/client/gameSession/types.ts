@@ -25,6 +25,28 @@ export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
 
 export type LeftRailDiceManipulationShipDefId = 'LEV' | 'KNO' | 'CHR';
 
+export interface BattleLogTurnPlayerSummary {
+  playerId: string;
+  name: string;
+  healthEnd: number;
+  healthDelta: number;
+}
+
+export interface BattleLogTurnSummary {
+  turnNumber: number;
+  diceValue: number | null;
+  players: BattleLogTurnPlayerSummary[];
+  buildLinesByPlayerId: Record<string, string[]>;
+  battleLinesByPlayerId: Record<string, string[]>;
+}
+
+export interface BattleLogHistoryResponse {
+  gameId: string;
+  revision: number;
+  completedTurnCount: number;
+  turns: BattleLogTurnSummary[];
+}
+
 export interface LeftRailDiceManipulationSlotViewModel {
   sourceShipDefId: LeftRailDiceManipulationShipDefId;
   diceValues?: Array<1 | 2 | 3 | 4 | 5 | 6>;

@@ -15,7 +15,7 @@ import type { ActionPanelId } from '../../display/actionPanel/ActionPanelRegistr
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import type { ShipChoiceGroupSpec, ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
-import type { EvolverChoiceId } from './types';
+import type { BattleLogHistoryResponse, EvolverChoiceId, LeftRailViewModel } from './types';
 import { getShipChoicePanelSpec } from '../../display/actionPanel/panels/ShipChoiceRegistry';
 import {
   getAllocatedTargetIdsForRenderableAction,
@@ -26,6 +26,65 @@ import {
   isRenderableTargetedActionComplete,
 } from './availableActions';
 import type { CentaurChargeSubTabId } from './types';
+
+function formatSignedDelta(delta: number): string {
+  if (delta > 0) return `+${delta}`;
+  if (delta < 0) return String(delta);
+  return '0';
+}
+
+function mapBattleLogEntries(
+  battleLogHistory: BattleLogHistoryResponse | null,
+): LeftRailViewModel['battleLogEntries'] {
+  const turns = Array.isArray(battleLogHistory?.turns)
+    ? [...battleLogHistory.turns].sort((left, right) => left.turnNumber - right.turnNumber)
+    : [];
+  const entries: LeftRailViewModel['battleLogEntries'] = [];
+
+  for (const turn of turns) {
+    entries.push({
+      type: 'turn-marker',
+      turn: turn.turnNumber,
+      phase: 'Summary',
+    });
+
+    entries.push({
+      type: 'event',
+      text: `Dice: ${typeof turn.diceValue === 'number' ? turn.diceValue : '-'}`,
+    });
+
+    for (const player of turn.players) {
+      entries.push({
+        type: 'event',
+        text: `${player.name} ${player.healthEnd} (${formatSignedDelta(player.healthDelta)})`,
+      });
+
+      const buildLines = Array.isArray(turn.buildLinesByPlayerId?.[player.playerId])
+        ? turn.buildLinesByPlayerId[player.playerId]
+        : [];
+      for (const line of buildLines) {
+        if (!line) continue;
+        entries.push({
+          type: 'event',
+          text: `BUILD - ${player.name}: ${line}`,
+        });
+      }
+
+      const battleLines = Array.isArray(turn.battleLinesByPlayerId?.[player.playerId])
+        ? turn.battleLinesByPlayerId[player.playerId]
+        : [];
+      for (const line of battleLines) {
+        if (!line) continue;
+        entries.push({
+          type: 'event',
+          text: `BATTLE - ${player.name}: ${line}`,
+        });
+      }
+    }
+  }
+
+  return entries;
+}
 
 function getCountedGroupHeading(groupSpec: {
   headingTemplate: string;
@@ -190,8 +249,7 @@ export function mapGameSessionVm(args: {
   readyEnabled: boolean;
   readyDisabledReason: string | null;
 
-  eventTape: any[];
-  formatTapeEntry: (entry: any) => string;
+  battleLogHistory: BattleLogHistoryResponse | null;
 
   getMajorPhaseLabel: (phaseKey: string) => string;
   getSubphaseLabelFromPhaseKey: (phaseKey: string) => string;
@@ -280,8 +338,7 @@ export function mapGameSessionVm(args: {
     board,
     readyEnabled,
     readyDisabledReason,
-    eventTape,
-    formatTapeEntry,
+    battleLogHistory,
     getMajorPhaseLabel,
     getSubphaseLabelFromPhaseKey,
     chatEntries,
@@ -1100,10 +1157,7 @@ export function mapGameSessionVm(args: {
               canRespond: canRespondToDrawOffer,
             }
           : null,
-      battleLogEntries: eventTape.map(entry => ({
-        type: 'event' as const,
-        text: formatTapeEntry(entry),
-      })),
+      battleLogEntries: mapBattleLogEntries(battleLogHistory),
     },
     
     board,

@@ -41,7 +41,7 @@ import {
   orderFleetSummariesByRenderKey,
   reconcileFleetRenderKeys,
 } from './gameSession/fleets';
-import { appendEventsToTape, formatTapeEntry } from './gameSession/eventTape';
+import { appendEventsToTape } from './gameSession/eventTape';
 import { usePhaseCommitCache } from './gameSession/commitCache';
 import { mapGameSessionVm } from './gameSession/mapVm';
 import { runSpeciesConfirmFlow, runReadyToggleFlow, maybeAutoRevealBuild, type CanonicalBuildSubmitPayload } from './gameSession/intents';
@@ -75,6 +75,7 @@ import type {
   ActionPanelTabId,
   ActionPanelTabVm,
   ActionPanelViewModel,
+  BattleLogHistoryResponse,
   GameSessionViewModel,
   GameSessionActions,
   EvolverChoiceId,
@@ -173,6 +174,72 @@ function buildDraftPreviewFrigateTriggerByRowId(
   return triggerByRowId;
 }
 
+function isBattleLogTurnPlayerSummary(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.playerId === 'string' &&
+    typeof record.name === 'string' &&
+    typeof record.healthEnd === 'number' &&
+    typeof record.healthDelta === 'number'
+  );
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
+function isBattleLogHistoryResponse(value: unknown): value is BattleLogHistoryResponse {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.gameId !== 'string' ||
+    typeof record.revision !== 'number' ||
+    typeof record.completedTurnCount !== 'number' ||
+    !Array.isArray(record.turns)
+  ) {
+    return false;
+  }
+
+  return record.turns.every((turn) => {
+    if (!turn || typeof turn !== 'object') {
+      return false;
+    }
+
+    const turnRecord = turn as Record<string, unknown>;
+    if (
+      typeof turnRecord.turnNumber !== 'number' ||
+      (turnRecord.diceValue !== null && typeof turnRecord.diceValue !== 'number') ||
+      !Array.isArray(turnRecord.players)
+    ) {
+      return false;
+    }
+
+    const buildLinesByPlayerId = turnRecord.buildLinesByPlayerId;
+    const battleLinesByPlayerId = turnRecord.battleLinesByPlayerId;
+    if (
+      !buildLinesByPlayerId ||
+      typeof buildLinesByPlayerId !== 'object' ||
+      !battleLinesByPlayerId ||
+      typeof battleLinesByPlayerId !== 'object'
+    ) {
+      return false;
+    }
+
+    return (
+      turnRecord.players.every(isBattleLogTurnPlayerSummary) &&
+      Object.values(buildLinesByPlayerId as Record<string, unknown>).every(isStringArray) &&
+      Object.values(battleLinesByPlayerId as Record<string, unknown>).every(isStringArray)
+    );
+  });
+}
+
 export function useGameSession(gameId: string, propsPlayerName: string) {
   // Post-game polling interval:
   // Keep polling alive for future post-game chat/rematch UI, but slower to reduce load.
@@ -238,6 +305,12 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     content: string;
     timestamp: number;
   }>>([]);
+  const [battleLogHistory, setBattleLogHistory] = useState<BattleLogHistoryResponse | null>(null);
+  const battleLogHistoryRequestSeqRef = useRef(0);
+  const lastBattleLogFetchGameIdRef = useRef<string | null>(null);
+  const lastBattleLogFetchTurnNumberRef = useRef<number | null>(null);
+  const lastBattleLogFetchFinishedRef = useRef(false);
+  const isBattleLogHistoryAliveRef = useRef(true);
   
   // Client-only active panel tracking
   const [activePanelId, setActivePanelId] = useState<ActionPanelId>('ap.catalog.ships.human');
@@ -252,6 +325,15 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   useEffect(() => {
     rawStateRef.current = rawState;
   }, [rawState]);
+
+  useEffect(() => {
+    isBattleLogHistoryAliveRef.current = true;
+
+    return () => {
+      isBattleLogHistoryAliveRef.current = false;
+      battleLogHistoryRequestSeqRef.current += 1;
+    };
+  }, []);
 
   // One-shot build.drawing routing request that survives until the routing effect consumes it.
   const [buildDrawingRouteRequest, setBuildDrawingRouteRequest] =
@@ -338,6 +420,14 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
 
   useEffect(() => {
     finishedRedirectHandledGameIdRef.current = null;
+  }, [effectiveGameId]);
+
+  useEffect(() => {
+    setBattleLogHistory(null);
+    battleLogHistoryRequestSeqRef.current += 1;
+    lastBattleLogFetchGameIdRef.current = null;
+    lastBattleLogFetchTurnNumberRef.current = null;
+    lastBattleLogFetchFinishedRef.current = false;
   }, [effectiveGameId]);
   
   // ============================================================================
@@ -567,6 +657,67 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // ============================================================================
   
   useSpectatorCountDebugEffect({ rawState, effectiveGameId });
+
+  async function fetchBattleLogHistoryOnce(gameIdToFetch: string, requestSeq: number): Promise<void> {
+    if (!gameIdToFetch) {
+      return;
+    }
+
+    try {
+      const response = await authenticatedGet(`/game-history/${gameIdToFetch}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn(`[useGameSession] Battle log history fetch failed: ${response.status} ${errorText}`);
+        return;
+      }
+
+      const data: unknown = await response.json();
+      if (!isBattleLogHistoryResponse(data)) {
+        console.warn('[useGameSession] Battle log history fetch returned invalid payload');
+        return;
+      }
+
+      if (
+        !isBattleLogHistoryAliveRef.current ||
+        battleLogHistoryRequestSeqRef.current !== requestSeq ||
+        effectiveGameId !== gameIdToFetch ||
+        data.gameId !== gameIdToFetch
+      ) {
+        return;
+      }
+
+      setBattleLogHistory(data);
+    } catch (err: any) {
+      console.warn('[useGameSession] Battle log history fetch error:', err?.message ?? err);
+    }
+  }
+
+  useEffect(() => {
+    if (!effectiveGameId || !rawState) {
+      return;
+    }
+
+    const authoritativeTurnNumber = getTurnNumber(rawState);
+    const shouldFetchInitial =
+      lastBattleLogFetchGameIdRef.current !== effectiveGameId;
+    const shouldFetchTurnChange =
+      lastBattleLogFetchTurnNumberRef.current !== authoritativeTurnNumber;
+    const shouldFetchFinished =
+      isFinished && !lastBattleLogFetchFinishedRef.current;
+
+    if (!shouldFetchInitial && !shouldFetchTurnChange && !shouldFetchFinished) {
+      return;
+    }
+
+    lastBattleLogFetchGameIdRef.current = effectiveGameId;
+    lastBattleLogFetchTurnNumberRef.current = authoritativeTurnNumber;
+    lastBattleLogFetchFinishedRef.current = isFinished;
+
+    battleLogHistoryRequestSeqRef.current += 1;
+    const requestSeq = battleLogHistoryRequestSeqRef.current;
+    fetchBattleLogHistoryOnce(effectiveGameId, requestSeq);
+  }, [effectiveGameId, rawState, isFinished]);
   
   // ============================================================================
   // CHUNK 7: INTERNAL REFRESH HELPER
@@ -1921,8 +2072,7 @@ useEffect(() => {
     readyEnabled,
     readyDisabledReason,
 
-    eventTape,
-    formatTapeEntry,
+    battleLogHistory,
 
     getMajorPhaseLabel,
     getSubphaseLabelFromPhaseKey,
