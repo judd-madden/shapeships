@@ -26,6 +26,12 @@ import { EffectKind } from '../engine_shared/effects/Effect.ts';
 import { getValidDestroyTargets, getValidShipOfEqualityTargets } from '../engine_shared/resolve/destroyRules.ts';
 import { countDistinctTypes } from '../engine_shared/resolve/phaseComputedEffects.ts';
 import { rollD6 } from '../engine/util/rollD6.ts';
+import {
+  createEmptyBattleLogHistoryStore,
+  getBattleLogHistoryKey,
+  normalizeBattleLogHistoryStore,
+  toBattleLogHistoryResponse,
+} from '../engine/state/battleLogHistory.ts';
 
 const INITIAL_SAVED_LINES = 3;
 
@@ -807,6 +813,10 @@ export function registerGameRoutes(
       const gameData = createFreshGameData(gameId, playerId, playerName);
 
       await kvSet(`game_${gameId}`, gameData);
+      await kvSet(
+        getBattleLogHistoryKey(gameId),
+        createEmptyBattleLogHistoryStore(gameId),
+      );
       
       console.log("Game created:", gameId);
       return c.json({ gameId, message: "Game created successfully" });
@@ -853,6 +863,10 @@ export function registerGameRoutes(
       const newGameData = createFreshGameData(newGameId, playerId, playerName);
 
       await kvSet(`game_${newGameId}`, newGameData);
+      await kvSet(
+        getBattleLogHistoryKey(newGameId),
+        createEmptyBattleLogHistoryStore(newGameId),
+      );
 
       console.log("New game created from finished game:", {
         sourceGameId,
@@ -1461,6 +1475,33 @@ export function registerGameRoutes(
 
     } catch (error) {
       console.error("Get game state error:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  });
+
+  app.get("/make-server-825e19ab/game-history/:gameId", async (c) => {
+    try {
+      const session = await requireSession(c);
+      if (session instanceof Response) return session;
+
+      const gameId = c.req.param('gameId');
+      const requestingPlayerId = session.sessionId;
+      const gameData = await kvGet(`game_${gameId}`);
+
+      if (!gameData) {
+        return c.json({ error: "Game not found" }, 404);
+      }
+
+      const participant = gameData.players.find((p: any) => p.id === requestingPlayerId);
+      if (!participant) {
+        return c.json({ error: "Not authorized to view this game" }, 403);
+      }
+
+      const rawHistory = await kvGet(getBattleLogHistoryKey(gameId));
+      const historyStore = normalizeBattleLogHistoryStore(gameId, rawHistory);
+      return c.json(toBattleLogHistoryResponse(historyStore));
+    } catch (error) {
+      console.error("Get game history error:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
   });

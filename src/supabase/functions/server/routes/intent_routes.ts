@@ -13,6 +13,14 @@
 import type { Hono } from "npm:hono";
 import { applyIntent, type IntentRequest } from '../engine/intent/IntentReducer.ts';
 import { accrueClocks } from '../engine/clock/clock.ts';
+import {
+  detectCompletedBattleTurnFromStateTransition,
+  finalizeBattleLogTurn,
+  foldBattleLogCaptureEvents,
+  getBattleLogCaptureTurnNumber,
+  getBattleLogHistoryKey,
+  normalizeBattleLogHistoryStore,
+} from '../engine/state/battleLogHistory.ts';
 
 // ============================================================================
 // CHAT HELPER - Separate KV Storage (Cap: 50 messages)
@@ -66,6 +74,25 @@ async function appendChatMessage(
   } catch (error) {
     console.warn(`[Chat] Failed to append message for game ${gameId}:`, error);
     // Don't throw - chat failure shouldn't break intent processing
+  }
+}
+
+async function persistGameStateAndHistoryTogether(
+  supabase: any,
+  gameKey: string,
+  gameState: any,
+  historyKey: string,
+  historyStore: any,
+): Promise<void> {
+  const { error } = await supabase
+    .from('kv_store_825e19ab')
+    .upsert([
+      { key: gameKey, value: gameState },
+      { key: historyKey, value: historyStore },
+    ]);
+
+  if (error) {
+    throw error;
   }
 }
 
@@ -198,6 +225,37 @@ export function registerIntentRoutes(
             allEvents.push(gameOverEvent);
           }
         }
+
+        const historyKey = getBattleLogHistoryKey(intentRequest.gameId);
+        let historyStore = normalizeBattleLogHistoryStore(
+          intentRequest.gameId,
+          await kvGet(historyKey),
+        );
+        const finalizedTurnNumber = detectCompletedBattleTurnFromStateTransition(
+          latestState,
+          retry.state,
+        );
+
+        if (finalizedTurnNumber !== null) {
+          const finalizedTurnEvents = allEvents.filter((event) => {
+            const turnNumber = getBattleLogCaptureTurnNumber(event);
+            return turnNumber !== null && turnNumber <= finalizedTurnNumber;
+          });
+          historyStore = foldBattleLogCaptureEvents(historyStore, finalizedTurnEvents);
+          historyStore = finalizeBattleLogTurn(
+            historyStore,
+            finalizedTurnNumber,
+            retry.state,
+          );
+
+          const nextTurnEvents = allEvents.filter((event) => {
+            const turnNumber = getBattleLogCaptureTurnNumber(event);
+            return turnNumber !== null && turnNumber > finalizedTurnNumber;
+          });
+          historyStore = foldBattleLogCaptureEvents(historyStore, nextTurnEvents);
+        } else {
+          historyStore = foldBattleLogCaptureEvents(historyStore, allEvents);
+        }
         
         // ========================================================================
         // CHAT SEPARATION: Scan events for CHAT_MESSAGE
@@ -230,8 +288,14 @@ export function registerIntentRoutes(
           }
         }
         
-        // Save the merged/latest-applied state
-        await kvSet(gameKey, retry.state);
+        // Persist authoritative game state + history together to avoid skew.
+        await persistGameStateAndHistoryTogether(
+          supabase,
+          gameKey,
+          retry.state,
+          historyKey,
+          historyStore,
+        );
         console.log(`[Intent] Success (merged): ${intentRequest.intentType}, Events: ${allEvents.length}`);
 
         return c.json(

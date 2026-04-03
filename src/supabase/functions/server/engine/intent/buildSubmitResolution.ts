@@ -5,6 +5,10 @@ import {
   getShipById,
 } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import type { ShipInstance } from '../state/GameStateTypes.ts';
+import {
+  createBattleLogBuildManualCaptureEvent,
+  createBattleLogBuildProducedCaptureEvent,
+} from '../state/battleLogHistory.ts';
 
 type BuildAttemptSkipReason =
   | 'unknown_ship'
@@ -816,6 +820,13 @@ function resolveBuildAttempt(args: {
       workingFleet,
       frigateTrigger: attempt.frigateTrigger,
     });
+    events.push(
+      createBattleLogBuildManualCaptureEvent({
+        turnNumber,
+        playerId,
+        shipDefId: attempt.shipDefId,
+      }),
+    );
 
     if (attempt.shipDefId === 'LEG') {
       remainingJoiningLines += 4;
@@ -878,6 +889,13 @@ function resolveBuildAttempt(args: {
     workingFleet,
     frigateTrigger: attempt.frigateTrigger,
   });
+  events.push(
+    createBattleLogBuildManualCaptureEvent({
+      turnNumber,
+      playerId,
+      shipDefId: attempt.shipDefId,
+    }),
+  );
 
   return {
     remainingOrdinaryLines,
@@ -1006,6 +1024,14 @@ function resolvePlayerBuildSubmit(args: {
       createdShipDefId,
       atMs: nowMs,
     });
+    events.push(
+      createBattleLogBuildProducedCaptureEvent({
+        turnNumber,
+        playerId,
+        shipDefId: createdShipDefId,
+        sourceShipDefId: 'EVO',
+      }),
+    );
   }
 
   const upgradedStageResolution = resolveBuildAttemptsStage({

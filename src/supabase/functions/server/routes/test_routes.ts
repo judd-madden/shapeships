@@ -84,6 +84,7 @@ export function registerTestRoutes(
         { method: "POST", path: "/make-server-825e19ab/join-game/:gameId", description: "Join existing game" },
         { method: "POST", path: "/make-server-825e19ab/switch-role/:gameId", description: "Switch between player/spectator" },
         { method: "GET", path: "/make-server-825e19ab/game-state/:gameId", description: "Get current game state" },
+        { method: "GET", path: "/make-server-825e19ab/game-history/:gameId", description: "Get persisted battle log history" },
         { method: "POST", path: "/make-server-825e19ab/send-action/:gameId", description: "Submit game action" },
         { method: "POST", path: "/make-server-825e19ab/intent", description: "Submit game intent (Alpha v6)" },
         { method: "POST", path: "/make-server-825e19ab/echo", description: "Echo test endpoint" },

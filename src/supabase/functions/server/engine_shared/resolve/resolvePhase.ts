@@ -26,6 +26,7 @@ import type { Effect, CreateShipEffect } from '../effects/Effect.ts';
 import { EffectTiming, EffectKind, SurvivabilityRule } from '../effects/Effect.ts';
 import { translateShipPowers, type TranslateContext } from '../effects/translateShipPowers.ts';
 import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
+import { createBattleLogBuildCaptureEventsFromResolution } from '../../engine/state/battleLogHistory.ts';
 import { getCanonicalShipFamilyDisplayName } from '../defs/ShipDefinitionNames.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
 import {
@@ -478,7 +479,7 @@ function buildLastTurnBreakdownSnapshots(
 export function resolvePhase(
   state: GameState,
   phaseKey: PhaseKey
-): { state: GameState; events: EffectEvent[] } {
+): { state: GameState; events: any[] } {
   console.log(`[resolvePhase] Resolving phase: ${phaseKey}`);
   console.log(`[resolvePhase] GameStateTypes version: ${GAME_STATE_TYPES_VERSION}`);
 
@@ -516,8 +517,13 @@ export function resolvePhase(
 function resolveShipsThatBuild(
   state: GameState,
   phaseKey: PhaseKey
-): { state: GameState; events: EffectEvent[] } {
+): { state: GameState; events: any[] } {
   console.log(`[resolveShipsThatBuild] Resolving phase: ${phaseKey}`);
+  const stateBeforeResolution = state;
+  const turnNumber =
+    stateBeforeResolution.gameData?.turnData?.turnNumber ??
+    stateBeforeResolution.gameData?.turnNumber ??
+    1;
 
   // Collect all effects from all ships
   const effects = [
@@ -531,6 +537,7 @@ function resolveShipsThatBuild(
 
   // Apply effects to state
   let result = applyEffects(state, effects);
+  const allEvents: any[] = [...result.events];
   const createdShipsByPlayerId = countCreatedShipsByTargetPlayerId(effects);
   result = {
     ...result,
@@ -542,7 +549,23 @@ function resolveShipsThatBuild(
 
   console.log(`[resolveShipsThatBuild] Applied effects, generated ${result.events.length} events`);
 
-  return result;
+  for (const player of state.players.filter((entry) => entry.role === 'player')) {
+    const playerEffects = effects.filter((effect) => effect.ownerPlayerId === player.id);
+    allEvents.push(
+      ...createBattleLogBuildCaptureEventsFromResolution({
+        stateBeforeResolution,
+        turnNumber,
+        playerId: player.id,
+        effects: playerEffects,
+        effectEvents: result.events,
+      }),
+    );
+  }
+
+  return {
+    ...result,
+    events: allEvents,
+  };
 }
 
 // ============================================================================
@@ -552,8 +575,9 @@ function resolveShipsThatBuild(
 function resolveBuildEndOfBuild(
   state: GameState,
   phaseKey: PhaseKey
-): { state: GameState; events: EffectEvent[] } {
+): { state: GameState; events: any[] } {
   console.log(`[resolveBuildEndOfBuild] Resolving phase: ${phaseKey}`);
+  const stateBeforeResolution = state;
 
   const currentTurn =
     state.gameData?.turnData?.turnNumber ??
@@ -651,12 +675,29 @@ function resolveBuildEndOfBuild(
   }
 
   const applied = applyEffects(workingState, fighterEffects);
+  const allEvents: any[] = [...applied.events];
+
+  for (const player of activePlayers) {
+    const playerEffects = fighterEffects.filter((effect) => effect.ownerPlayerId === player.id);
+    allEvents.push(
+      ...createBattleLogBuildCaptureEventsFromResolution({
+        stateBeforeResolution,
+        turnNumber: currentTurn,
+        playerId: player.id,
+        effects: playerEffects,
+        effectEvents: applied.events,
+      }),
+    );
+  }
 
   console.log(
     `[resolveBuildEndOfBuild] Spawned ${fighterEffects.length} fighter(s), generated ${applied.events.length} events`
   );
 
-  return applied;
+  return {
+    ...applied,
+    events: allEvents,
+  };
 }
 
 // ============================================================================

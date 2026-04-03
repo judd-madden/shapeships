@@ -37,10 +37,15 @@ import { syncPhaseFields } from '../phase/syncPhaseFields.ts';
 import { accrueClocks } from '../clock/clock.ts';
 import { buildPhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { resolvePowerAction } from '../../engine_shared/resolve/resolvePowerAction.ts';
-import { applyEffects } from '../../engine_shared/effects/applyEffects.ts';
+import { applyEffects, type EffectEvent } from '../../engine_shared/effects/applyEffects.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { rollD6 } from '../util/rollD6.ts';
 import { resolveBuildSubmitAuthoritatively } from './buildSubmitResolution.ts';
+import {
+  createBattleLogBattleCaptureEventsFromResolution,
+  createBattleLogBuildCaptureEventsFromResolution,
+  createBattleLogBuildRerollCaptureEvents,
+} from '../state/battleLogHistory.ts';
 
 import {
   type IntentType,
@@ -95,6 +100,11 @@ export interface IntentResult {
 function countCreatedShipsFromEffects(effects: any[] | undefined): number {
   if (!Array.isArray(effects)) return 0;
   return effects.filter((effect: any) => effect?.kind === 'CreateShip').length;
+}
+
+function getEffectEventsFromOutcomeEvents(events: any[] | undefined): EffectEvent[] {
+  if (!Array.isArray(events)) return [];
+  return events.filter((event: any): event is EffectEvent => event?.type === 'EFFECT_APPLIED');
 }
 
 function incrementShipsMadeThisTurnCounter(
@@ -327,12 +337,17 @@ function resolvePendingKnoRerollPass(state: any, nowMs: number, events: any[]) {
   }
 
   const pendingByPlayerId = turnData.pendingKnoRerollChoiceByPassByPlayerId || {};
+  const rerollingPlayerIds = eligiblePlayerIds.filter((currentPlayerId: string) => {
+    const playerChoices = pendingByPlayerId[currentPlayerId] || {};
+    return playerChoices[passIndex] === 'reroll';
+  });
   const anyReroll = eligiblePlayerIds.some((currentPlayerId: string) => {
     const playerChoices = pendingByPlayerId[currentPlayerId] || {};
     return playerChoices[passIndex] === 'reroll';
   });
 
   if (anyReroll) {
+    const baseValueBeforeReroll = turnData.baseDiceRoll ?? turnData.effectiveDiceRoll ?? turnData.diceRoll ?? 0;
     const nextBaseDice = rollD6();
     const { effectiveByPlayerId, overrideSourceByPlayerId } = recomputeDiceReadState(state, nextBaseDice);
 
@@ -354,6 +369,14 @@ function resolvePendingKnoRerollPass(state: any, nowMs: number, events: any[]) {
       turnNumber: state.gameData.turnNumber || 1,
       atMs: nowMs
     });
+    events.push(
+      ...createBattleLogBuildRerollCaptureEvents({
+        turnNumber: state.gameData.turnNumber || 1,
+        baseValueBeforeReroll,
+        rerollingPlayerIds,
+        newValue: nextBaseDice,
+      }),
+    );
   }
 
   clearResolvedKnoPassChoices(state, passIndex);
@@ -1848,6 +1871,7 @@ function stageFirstStrikeSelection(state: any, playerId: string, payload: Action
 function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: any[]) {
   const pendingByPlayerId = state?.gameData?.turnData?.pendingFirstStrikeSelectionsByPlayerId || {};
   const phaseKey = 'battle.first_strike' as const;
+  const stateBeforeResolution = state;
   const selections = Object.entries(pendingByPlayerId)
     .flatMap(([playerId, entries]) => Object.values(entries as Record<string, any>).map((entry: any) => ({ playerId, ...entry })));
 
@@ -1876,6 +1900,21 @@ function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: 
     const applied = applyEffects(workingState, allEffects);
     workingState = applied.state;
     events.push(...applied.events);
+
+    const effectEvents = getEffectEventsFromOutcomeEvents(applied.events);
+    for (const item of prepared) {
+      events.push(
+        ...createBattleLogBattleCaptureEventsFromResolution({
+          stateBeforeResolution,
+          turnNumber: stateBeforeResolution?.gameData?.turnNumber || 1,
+          playerId: item.selection.playerId,
+          phaseKey,
+          choiceId: item.selection.choiceId,
+          effects: item.outcome.effects || [],
+          effectEvents,
+        }),
+      );
+    }
   }
 
   const onceOnlyFiredKeys = prepared.flatMap((item: any) => item.outcome.onceOnlyFiredKeys || []);
@@ -2235,6 +2274,7 @@ function handleAction(
         };
       }
 
+      const stateBeforeResolution = state;
       const outcome = resolvePowerAction({
         state,
         playerId,
@@ -2247,12 +2287,36 @@ function handleAction(
       });
       
       state = outcome.state;
+      const effectEvents = getEffectEventsFromOutcomeEvents(outcome.events);
 
       if (phaseKey === 'build.ships_that_build') {
         incrementShipsMadeThisTurnCounter(
           state,
           playerId,
           countCreatedShipsFromEffects(outcome.effects)
+        );
+        events.push(
+          ...createBattleLogBuildCaptureEventsFromResolution({
+            stateBeforeResolution,
+            turnNumber: stateBeforeResolution?.gameData?.turnNumber || 1,
+            playerId,
+            effects: outcome.effects || [],
+            effectEvents,
+          }),
+        );
+      }
+
+      if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+        events.push(
+          ...createBattleLogBattleCaptureEventsFromResolution({
+            stateBeforeResolution,
+            turnNumber: stateBeforeResolution?.gameData?.turnNumber || 1,
+            playerId,
+            phaseKey,
+            choiceId: payload.choiceId,
+            effects: outcome.effects || [],
+            effectEvents,
+          }),
         );
       }
       
@@ -2463,6 +2527,7 @@ function handleActionsSubmit(
         continue;
       }
 
+      const stateBeforeResolution = state;
       const outcome = resolvePowerAction({
         state,
         playerId,
@@ -2475,12 +2540,36 @@ function handleActionsSubmit(
       });
 
       state = outcome.state;
+      const effectEvents = getEffectEventsFromOutcomeEvents(outcome.events);
 
       if (phaseKey === 'build.ships_that_build') {
         incrementShipsMadeThisTurnCounter(
           state,
           playerId,
           countCreatedShipsFromEffects(outcome.effects)
+        );
+        events.push(
+          ...createBattleLogBuildCaptureEventsFromResolution({
+            stateBeforeResolution,
+            turnNumber: stateBeforeResolution?.gameData?.turnNumber || 1,
+            playerId,
+            effects: outcome.effects || [],
+            effectEvents,
+          }),
+        );
+      }
+
+      if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+        events.push(
+          ...createBattleLogBattleCaptureEventsFromResolution({
+            stateBeforeResolution,
+            turnNumber: stateBeforeResolution?.gameData?.turnNumber || 1,
+            playerId,
+            phaseKey,
+            choiceId: item.choiceId,
+            effects: outcome.effects || [],
+            effectEvents,
+          }),
         );
       }
 
