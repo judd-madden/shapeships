@@ -1,9 +1,9 @@
 import * as ReactDOM from 'react-dom';
-import { BuildIcon } from '../../../components/ui/primitives/icons/BuildIcon';
-import { BattleIcon } from '../../../components/ui/primitives/icons/BattleIcon';
-import { getShipHoverModel } from '../../data/ShipRulesAdapter';
-import type { ShipDefId } from '../../types/ShipTypes.engine';
-import { useAnchoredHoverPlacement } from '../shared/useAnchoredHoverPlacement';
+import { BuildIcon } from '../../../../components/ui/primitives/icons/BuildIcon';
+import { BattleIcon } from '../../../../components/ui/primitives/icons/BattleIcon';
+import { getShipHoverModel } from '../../../data/ShipRulesAdapter';
+import type { ShipDefId } from '../../../types/ShipTypes.engine';
+import { useAnchoredHoverPlacement } from '../../shared/useAnchoredHoverPlacement';
 
 interface FleetShipHoverCardProps {
   shipId: ShipDefId;

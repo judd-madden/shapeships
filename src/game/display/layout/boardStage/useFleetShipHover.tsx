@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { ShipDefId } from '../../types/ShipTypes.engine';
+import type { ShipDefId } from '../../../types/ShipTypes.engine';
 
 export interface FleetShipHoverState {
   activeShipId: ShipDefId | null;

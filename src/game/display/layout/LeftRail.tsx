@@ -14,7 +14,7 @@ import { ChatSendButton } from '../../../components/ui/primitives/buttons/ChatSe
 import { InChatButton } from '../../../components/ui/primitives/buttons/InChatButton';
 import { CopiedToast } from '../../../components/ui/primitives/CopiedToast';
 import type { LeftRailViewModel, GameSessionActions } from '../../client/useGameSession';
-import { LeftRailScrollArea } from './LeftRailScrollArea';
+import { LeftRailScrollArea } from './leftRail/LeftRailScrollArea';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 import { useLeftRailTurnTakeover } from '../graphics/animation';

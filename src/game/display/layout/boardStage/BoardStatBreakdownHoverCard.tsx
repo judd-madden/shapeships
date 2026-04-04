@@ -1,5 +1,5 @@
 import * as ReactDOM from 'react-dom';
-import type { BoardStatBreakdownRowVm } from '../../client/gameSession/types';
+import type { BoardStatBreakdownRowVm } from '../../../client/gameSession/types';
 
 interface BoardStatBreakdownHoverCardProps {
   anchorRect: DOMRect;

@@ -9,7 +9,7 @@ import type { BoardViewModel, GameSessionActions } from '../../client/useGameSes
 import { ChooseSpeciesStage } from './boardModes/ChooseSpeciesStage';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
-import { FitToBox } from './FitToBox';
+import { FitToBox } from './boardStage/FitToBox';
 import {
   ShipAnimationWrapper,
   type ShipAnimToken,
@@ -22,10 +22,10 @@ import {
 } from '../graphics/animation';
 import { useFlipLayout } from '../graphics/useFlipLayout';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
-import { FleetShipHoverCard } from './FleetShipHoverCard';
-import { useFleetShipHover } from './useFleetShipHover';
-import { BoardStatBreakdownHoverCard } from './BoardStatBreakdownHoverCard';
-import { useBoardStatHover, type BoardStatHoverKey } from './useBoardStatHover';
+import { FleetShipHoverCard } from './boardStage/FleetShipHoverCard';
+import { useFleetShipHover } from './boardStage/useFleetShipHover';
+import { BoardStatBreakdownHoverCard } from './boardStage/BoardStatBreakdownHoverCard';
+import { useBoardStatHover, type BoardStatHoverKey } from './boardStage/useBoardStatHover';
 
 interface BoardStageProps {
   vm: BoardViewModel;
