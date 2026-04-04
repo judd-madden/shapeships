@@ -388,8 +388,8 @@ export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCard
                   borderRightWidth: '1px',
                 }
               : {
-                  left: '50%',
-                  top: '100%',
+                  left: 'calc(50% - 6px)',
+                  top: 'calc(100% + 2px)',
                   width: `${TAIL_SIZE_PX}px`,
                   height: `${TAIL_SIZE_PX}px`,
                   transform: 'translate(-50%, -50%)',
