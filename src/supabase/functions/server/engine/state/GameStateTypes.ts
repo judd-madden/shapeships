@@ -1,3 +1,7 @@
+import type {
+  BattleLogScratch,
+} from "./battleLogHistory.ts";
+
 /**
  * GAME STATE TYPES
  * 
@@ -259,6 +263,12 @@ export type GameState = {
   
   /** Game data container */
   gameData: GameData;
+
+  /**
+   * Server-only authoritative scratch for unfinished battle-log capture.
+   * This stays outside gameData and must be stripped from public state reads.
+   */
+  battleLogScratch?: BattleLogScratch;
   
   /** Action log (optional) */
   actions?: any[];

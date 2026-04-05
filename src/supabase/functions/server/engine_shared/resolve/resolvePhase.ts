@@ -26,7 +26,10 @@ import type { Effect, CreateShipEffect } from '../effects/Effect.ts';
 import { EffectTiming, EffectKind, SurvivabilityRule } from '../effects/Effect.ts';
 import { translateShipPowers, type TranslateContext } from '../effects/translateShipPowers.ts';
 import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
-import { createBattleLogBuildCaptureEventsFromResolution } from '../../engine/state/battleLogHistory.ts';
+import {
+  createBattleLogBuildCaptureEventsFromResolution,
+  createBattleLogFinalizeTurnEvent,
+} from '../../engine/state/battleLogHistory.ts';
 import { getCanonicalShipFamilyDisplayName } from '../defs/ShipDefinitionNames.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
 import {
@@ -721,7 +724,7 @@ function resolveBuildEndOfBuild(
 function resolveBattleEndOfTurn(
   state: GameState,
   phaseKey: PhaseKey
-): { state: GameState; events: EffectEvent[] } {
+): { state: GameState; events: any[] } {
   console.log(`[resolveBattleEndOfTurn] Resolving phase: ${phaseKey}`);
 
   // Initialize pendingTurn if not present
@@ -1095,7 +1098,7 @@ function evaluateVictoryConditions(
   state: GameState,
   events: EffectEvent[],
   phaseKey: PhaseKey
-): { state: GameState; events: EffectEvent[] } {
+): { state: GameState; events: any[] } {
   // Only apply victory evaluation for end-of-turn resolution
   if (phaseKey !== 'battle.end_of_turn_resolution') {
     return { state, events };
@@ -1114,6 +1117,11 @@ function evaluateVictoryConditions(
 
   // Step 3: If terminal, apply terminal state and emit GAME_OVER
   if (victoryResult.isTerminal) {
+    const finalizedTurnNumber =
+      updatedState.gameData?.turnData?.turnNumber ??
+      updatedState.gameData?.turnNumber ??
+      1;
+
     updatedState = {
       ...updatedState,
       status: 'finished',
@@ -1142,7 +1150,16 @@ function evaluateVictoryConditions(
 
     return {
       state: updatedState,
-      events: [...events, gameOverEvent],
+      events: [
+        ...events,
+        createBattleLogFinalizeTurnEvent({
+          finalizedTurnNumber,
+          terminal: true,
+          reason: 'terminal_victory',
+          atMs: Date.now(),
+        }),
+        gameOverEvent,
+      ],
     };
   }
 

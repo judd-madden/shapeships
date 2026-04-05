@@ -65,6 +65,24 @@ export type BattleLogCurrentTurnCapture = {
   battleAtomsByPlayerId: Record<string, BattleCaptureAtom[]>;
 };
 
+export type BattleLogScratch = {
+  currentTurnCapture: BattleLogCurrentTurnCapture | null;
+  lastFinalizedTurnNumber?: number | null;
+};
+
+export type BattleLogFinalizeTurnReason =
+  | "turn_bump"
+  | "terminal_victory";
+
+export type BattleLogFinalizeTurnEvent = {
+  type: "BATTLE_LOG_FINALIZE_TURN";
+  finalizedTurnNumber: number;
+  terminal: boolean;
+  nextTurnNumber?: number;
+  reason?: BattleLogFinalizeTurnReason;
+  atMs?: number;
+};
+
 type BattleLogCaptureEvent =
   | {
       type: "BATTLE_LOG_CAPTURE_BUILD_REROLL";
@@ -117,6 +135,14 @@ export type BattleLogHistoryStore = {
   revision: number;
   completedTurnCount: number;
   turns: BattleLogTurnSummary[];
+  /**
+   * Legacy-only compatibility field.
+   * New writes should keep mutable capture in top-level state.battleLogScratch.
+   */
+  currentTurnCapture: BattleLogCurrentTurnCapture | null;
+};
+
+type BattleLogCaptureHolder = {
   currentTurnCapture: BattleLogCurrentTurnCapture | null;
 };
 
@@ -130,6 +156,7 @@ type PlayerWithState = {
 type GameStateLike = {
   status?: string;
   resultReason?: string | null;
+  battleLogScratch?: unknown;
   players?: PlayerWithState[];
   gameData?: {
     turnNumber?: number;
@@ -137,7 +164,10 @@ type GameStateLike = {
     currentSubPhase?: string;
     lastTurnNetByPlayerId?: Record<string, number>;
     ships?: Record<string, Array<{ instanceId?: string; shipDefId?: string }>>;
-    voidShipsByPlayerId?: Record<string, Array<{ instanceId?: string; shipDefId?: string }>>;
+    voidShipsByPlayerId?: Record<
+      string,
+      Array<{ instanceId?: string; shipDefId?: string }>
+    >;
     turnData?: Record<string, unknown> & {
       currentMajorPhase?: string;
       currentSubPhase?: string;
@@ -157,11 +187,217 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function cloneBuildCaptureAtom(atom: BuildCaptureAtom): BuildCaptureAtom {
+  if (atom.kind === "reroll") {
+    return {
+      kind: "reroll",
+      sourceShipDefId: atom.sourceShipDefId,
+      values: [...atom.values],
+    };
+  }
+
+  if (atom.kind === "manual_build") {
+    return {
+      kind: "manual_build",
+      shipDefId: atom.shipDefId,
+    };
+  }
+
+  return {
+    kind: "produced_build",
+    shipDefId: atom.shipDefId,
+    sourceShipDefId: atom.sourceShipDefId,
+    count: atom.count,
+  };
+}
+
+function cloneBattleCaptureAtom(atom: BattleCaptureAtom): BattleCaptureAtom {
+  if (atom.kind === "charge_action") {
+    return {
+      kind: "charge_action",
+      sourceShipDefId: atom.sourceShipDefId,
+      actionLabel: atom.actionLabel,
+      bucket: atom.bucket,
+    };
+  }
+
+  if (atom.kind === "destroy") {
+    return {
+      kind: "destroy",
+      sourceShipDefId: atom.sourceShipDefId,
+      targetShipDefIds: [...atom.targetShipDefIds],
+      bucket: atom.bucket,
+    };
+  }
+
+  return {
+    kind: "steal",
+    sourceShipDefId: atom.sourceShipDefId,
+    targetShipDefIds: [...atom.targetShipDefIds],
+    bucket: atom.bucket,
+  };
+}
+
+function normalizeBuildAtomsByPlayerId(
+  rawValue: unknown,
+): Record<string, BuildCaptureAtom[]> {
+  if (!rawValue || typeof rawValue !== "object") {
+    return {};
+  }
+
+  const next: Record<string, BuildCaptureAtom[]> = {};
+  for (const [playerId, rawAtoms] of Object.entries(
+    rawValue as Record<string, unknown>,
+  )) {
+    if (!Array.isArray(rawAtoms)) continue;
+    next[playerId] = rawAtoms
+      .filter((atom): atom is BuildCaptureAtom => {
+        if (!atom || typeof atom !== "object") return false;
+        const kind = (atom as { kind?: string }).kind;
+        if (kind === "reroll") {
+          return (
+            typeof (atom as { sourceShipDefId?: unknown }).sourceShipDefId ===
+              "string" &&
+            Array.isArray((atom as { values?: unknown }).values)
+          );
+        }
+        if (kind === "manual_build") {
+          return typeof (atom as { shipDefId?: unknown }).shipDefId === "string";
+        }
+        if (kind === "produced_build") {
+          return (
+            typeof (atom as { shipDefId?: unknown }).shipDefId === "string" &&
+            typeof (atom as { sourceShipDefId?: unknown }).sourceShipDefId ===
+              "string" &&
+            isFiniteNumber((atom as { count?: unknown }).count)
+          );
+        }
+        return false;
+      })
+      .map(cloneBuildCaptureAtom);
+  }
+
+  return next;
+}
+
+function normalizeBattleAtomsByPlayerId(
+  rawValue: unknown,
+): Record<string, BattleCaptureAtom[]> {
+  if (!rawValue || typeof rawValue !== "object") {
+    return {};
+  }
+
+  const next: Record<string, BattleCaptureAtom[]> = {};
+  for (const [playerId, rawAtoms] of Object.entries(
+    rawValue as Record<string, unknown>,
+  )) {
+    if (!Array.isArray(rawAtoms)) continue;
+    next[playerId] = rawAtoms
+      .filter((atom): atom is BattleCaptureAtom => {
+        if (!atom || typeof atom !== "object") return false;
+        const kind = (atom as { kind?: string }).kind;
+        if (kind === "charge_action") {
+          return (
+            typeof (atom as { sourceShipDefId?: unknown }).sourceShipDefId ===
+              "string" &&
+            ((atom as { actionLabel?: unknown }).actionLabel === "Heal" ||
+              (atom as { actionLabel?: unknown }).actionLabel === "Damage") &&
+            ((atom as { bucket?: unknown }).bucket === 2)
+          );
+        }
+        if (kind === "destroy" || kind === "steal") {
+          return (
+            typeof (atom as { sourceShipDefId?: unknown }).sourceShipDefId ===
+              "string" &&
+            Array.isArray((atom as { targetShipDefIds?: unknown }).targetShipDefIds) &&
+            (((atom as { bucket?: unknown }).bucket === 1) ||
+              ((atom as { bucket?: unknown }).bucket === 2))
+          );
+        }
+        return false;
+      })
+      .map(cloneBattleCaptureAtom);
+  }
+
+  return next;
+}
+
+function normalizeBattleLogCurrentTurnCapture(
+  rawCapture: unknown,
+): BattleLogCurrentTurnCapture | null {
+  if (!rawCapture || typeof rawCapture !== "object") {
+    return null;
+  }
+
+  const capture = rawCapture as Partial<BattleLogCurrentTurnCapture>;
+  if (!isFiniteNumber(capture.turnNumber)) {
+    return null;
+  }
+
+  return {
+    turnNumber: capture.turnNumber,
+    diceValue: isFiniteNumber(capture.diceValue) ? capture.diceValue : null,
+    buildAtomsByPlayerId: normalizeBuildAtomsByPlayerId(
+      capture.buildAtomsByPlayerId,
+    ),
+    battleAtomsByPlayerId: normalizeBattleAtomsByPlayerId(
+      capture.battleAtomsByPlayerId,
+    ),
+  };
+}
+
+function cloneBattleLogTurnSummary(
+  summary: BattleLogTurnSummary,
+): BattleLogTurnSummary {
+  return {
+    turnNumber: summary.turnNumber,
+    diceValue: summary.diceValue,
+    players: summary.players.map((player) => ({
+      playerId: player.playerId,
+      name: player.name,
+      healthEnd: player.healthEnd,
+      healthDelta: player.healthDelta,
+    })),
+    buildLinesByPlayerId: Object.fromEntries(
+      Object.entries(summary.buildLinesByPlayerId).map(([playerId, lines]) => [
+        playerId,
+        [...lines],
+      ]),
+    ),
+    battleLinesByPlayerId: Object.fromEntries(
+      Object.entries(summary.battleLinesByPlayerId).map(([playerId, lines]) => [
+        playerId,
+        [...lines],
+      ]),
+    ),
+  };
+}
+
+function createCurrentTurnCapture(
+  turnNumber: number,
+): BattleLogCurrentTurnCapture {
+  return {
+    turnNumber,
+    diceValue: null,
+    buildAtomsByPlayerId: {},
+    battleAtomsByPlayerId: {},
+  };
+}
+
+function getLatestTurnNumberFromHistoryStore(
+  store: BattleLogHistoryStore,
+): number | null {
+  const latestTurn = store.turns[store.turns.length - 1];
+  return isFiniteNumber(latestTurn?.turnNumber) ? latestTurn.turnNumber : null;
+}
+
 function getCurrentTurnNumber(state: GameStateLike | null | undefined): number {
   return state?.gameData?.turnNumber ?? 0;
 }
 
-function getPhaseKeyFromState(state: GameStateLike | null | undefined): string | null {
+function getPhaseKeyFromState(
+  state: GameStateLike | null | undefined,
+): string | null {
   const gameData = state?.gameData;
   const majorPhase = gameData?.currentPhase;
   const subPhase = gameData?.currentSubPhase;
@@ -207,9 +443,11 @@ function isStartOfNextTurnBuild(
   );
 }
 
-function getActivePlayers(state: GameStateLike | null | undefined): PlayerWithState[] {
+function getActivePlayers(
+  state: GameStateLike | null | undefined,
+): PlayerWithState[] {
   return Array.isArray(state?.players)
-    ? state!.players!.filter((player) => player?.role === "player")
+    ? state.players.filter((player) => player?.role === "player")
     : [];
 }
 
@@ -244,6 +482,37 @@ function isCaptureEvent(event: unknown): event is BattleLogCaptureEvent {
   return typeof type === "string" && type.startsWith("BATTLE_LOG_CAPTURE_");
 }
 
+export function isBattleLogFinalizeTurnEvent(
+  event: unknown,
+): event is BattleLogFinalizeTurnEvent {
+  if (!event || typeof event !== "object") return false;
+  const candidate = event as Partial<BattleLogFinalizeTurnEvent>;
+  return (
+    candidate.type === "BATTLE_LOG_FINALIZE_TURN" &&
+    isFiniteNumber(candidate.finalizedTurnNumber) &&
+    typeof candidate.terminal === "boolean"
+  );
+}
+
+export function createBattleLogFinalizeTurnEvent(args: {
+  finalizedTurnNumber: number;
+  terminal: boolean;
+  nextTurnNumber?: number;
+  reason?: BattleLogFinalizeTurnReason;
+  atMs?: number;
+}): BattleLogFinalizeTurnEvent {
+  return {
+    type: "BATTLE_LOG_FINALIZE_TURN",
+    finalizedTurnNumber: args.finalizedTurnNumber,
+    terminal: args.terminal,
+    nextTurnNumber: isFiniteNumber(args.nextTurnNumber)
+      ? args.nextTurnNumber
+      : undefined,
+    reason: args.reason,
+    atMs: isFiniteNumber(args.atMs) ? args.atMs : undefined,
+  };
+}
+
 function getEffectEventKind(event: EffectEvent): string {
   return typeof event?.kind === "string" ? event.kind : "";
 }
@@ -268,15 +537,6 @@ function getMatchedEffectEvents(
   return matches;
 }
 
-function createCurrentTurnCapture(turnNumber: number): BattleLogCurrentTurnCapture {
-  return {
-    turnNumber,
-    diceValue: null,
-    buildAtomsByPlayerId: {},
-    battleAtomsByPlayerId: {},
-  };
-}
-
 function getOrCreateBuildAtomsForPlayer(
   capture: BattleLogCurrentTurnCapture,
   playerId: string,
@@ -298,16 +558,17 @@ function getOrCreateBattleAtomsForPlayer(
 }
 
 function ensureCaptureForTurn(
-  store: BattleLogHistoryStore,
+  holder: BattleLogCaptureHolder,
   turnNumber: number,
 ): BattleLogCurrentTurnCapture {
   if (
-    !store.currentTurnCapture ||
-    store.currentTurnCapture.turnNumber !== turnNumber
+    !holder.currentTurnCapture ||
+    holder.currentTurnCapture.turnNumber !== turnNumber
   ) {
-    store.currentTurnCapture = createCurrentTurnCapture(turnNumber);
+    holder.currentTurnCapture = createCurrentTurnCapture(turnNumber);
   }
-  return store.currentTurnCapture;
+
+  return holder.currentTurnCapture;
 }
 
 function pushBuildRerollAtom(
@@ -370,8 +631,12 @@ function collapseCountLines<T>(
 
 function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
   const rerollLines: string[] = [];
-  const manualBuilds: Array<Extract<BuildCaptureAtom, { kind: "manual_build" }>> = [];
-  const producedBuilds: Array<Extract<BuildCaptureAtom, { kind: "produced_build" }>> = [];
+  const manualBuilds: Array<
+    Extract<BuildCaptureAtom, { kind: "manual_build" }>
+  > = [];
+  const producedBuilds: Array<
+    Extract<BuildCaptureAtom, { kind: "produced_build" }>
+  > = [];
 
   for (const atom of buildAtoms) {
     if (atom.kind === "reroll") {
@@ -380,10 +645,12 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
       );
       continue;
     }
+
     if (atom.kind === "manual_build") {
       manualBuilds.push(atom);
       continue;
     }
+
     producedBuilds.push(atom);
   }
 
@@ -396,7 +663,10 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
   const producedLines: string[] = [];
   const producedCounts = new Map<string, number>();
   const producedOrder: string[] = [];
-  const producedSamples = new Map<string, Extract<BuildCaptureAtom, { kind: "produced_build" }>>();
+  const producedSamples = new Map<
+    string,
+    Extract<BuildCaptureAtom, { kind: "produced_build" }>
+  >();
 
   for (const atom of producedBuilds) {
     const key = `${atom.shipDefId}::${atom.sourceShipDefId}`;
@@ -420,9 +690,13 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
 }
 
 function formatBattleLines(battleAtoms: BattleCaptureAtom[]): string[] {
-  const orderedAtoms = [...battleAtoms].sort((left, right) => left.bucket - right.bucket);
+  const orderedAtoms = [...battleAtoms].sort((left, right) =>
+    left.bucket - right.bucket
+  );
   const earlyRows: string[] = [];
-  const chargeActionAtoms: Array<Extract<BattleCaptureAtom, { kind: "charge_action" }>> = [];
+  const chargeActionAtoms: Array<
+    Extract<BattleCaptureAtom, { kind: "charge_action" }>
+  > = [];
 
   for (const atom of orderedAtoms) {
     if (atom.kind === "charge_action") {
@@ -479,6 +753,13 @@ export function createEmptyBattleLogHistoryStore(
   };
 }
 
+export function createEmptyBattleLogScratch(): BattleLogScratch {
+  return {
+    currentTurnCapture: null,
+    lastFinalizedTurnNumber: null,
+  };
+}
+
 export function normalizeBattleLogHistoryStore(
   gameId: string,
   rawStore: unknown,
@@ -488,30 +769,82 @@ export function normalizeBattleLogHistoryStore(
   }
 
   const store = rawStore as Partial<BattleLogHistoryStore>;
+  const turns = Array.isArray(store.turns)
+    ? store.turns
+        .filter((summary): summary is BattleLogTurnSummary =>
+          !!summary &&
+          typeof summary === "object" &&
+          isFiniteNumber((summary as { turnNumber?: unknown }).turnNumber)
+        )
+        .map(cloneBattleLogTurnSummary)
+    : [];
+
   return {
     gameId,
     revision: isFiniteNumber(store.revision) ? store.revision : 0,
     completedTurnCount: isFiniteNumber(store.completedTurnCount)
       ? store.completedTurnCount
-      : Array.isArray(store.turns)
-        ? store.turns.length
-        : 0,
-    turns: Array.isArray(store.turns) ? store.turns : [],
-    currentTurnCapture:
-      store.currentTurnCapture &&
-        typeof store.currentTurnCapture === "object" &&
-        isFiniteNumber(store.currentTurnCapture.turnNumber)
-        ? {
-            turnNumber: store.currentTurnCapture.turnNumber,
-            diceValue: isFiniteNumber(store.currentTurnCapture.diceValue)
-              ? store.currentTurnCapture.diceValue
-              : null,
-            buildAtomsByPlayerId:
-              store.currentTurnCapture.buildAtomsByPlayerId ?? {},
-            battleAtomsByPlayerId:
-              store.currentTurnCapture.battleAtomsByPlayerId ?? {},
-          }
-        : null,
+      : turns.length,
+    turns,
+    currentTurnCapture: normalizeBattleLogCurrentTurnCapture(
+      store.currentTurnCapture,
+    ),
+  };
+}
+
+export function normalizeBattleLogScratch(
+  rawScratch: unknown,
+): BattleLogScratch {
+  if (!rawScratch || typeof rawScratch !== "object") {
+    return createEmptyBattleLogScratch();
+  }
+
+  const scratch = rawScratch as Partial<BattleLogScratch>;
+  return {
+    currentTurnCapture: normalizeBattleLogCurrentTurnCapture(
+      scratch.currentTurnCapture,
+    ),
+    lastFinalizedTurnNumber: isFiniteNumber(scratch.lastFinalizedTurnNumber)
+      ? scratch.lastFinalizedTurnNumber
+      : null,
+  };
+}
+
+export function getBattleLogScratchFromState(
+  state: GameStateLike | null | undefined,
+): BattleLogScratch {
+  return normalizeBattleLogScratch(state?.battleLogScratch);
+}
+
+export function createBattleLogScratchFromLegacyHistoryStore(
+  store: BattleLogHistoryStore,
+): BattleLogScratch | null {
+  if (!store.currentTurnCapture) {
+    return null;
+  }
+
+  return {
+    currentTurnCapture: normalizeBattleLogCurrentTurnCapture(
+      store.currentTurnCapture,
+    ),
+    lastFinalizedTurnNumber: getLatestTurnNumberFromHistoryStore(store),
+  };
+}
+
+export function clearBattleLogScratchAfterFinalization(
+  scratch: BattleLogScratch,
+  finalizedTurnNumber: number,
+): BattleLogScratch {
+  const normalizedScratch = normalizeBattleLogScratch(scratch);
+  const priorFinalizedTurnNumber = normalizedScratch.lastFinalizedTurnNumber;
+
+  return {
+    currentTurnCapture: null,
+    lastFinalizedTurnNumber:
+      isFiniteNumber(priorFinalizedTurnNumber) &&
+        priorFinalizedTurnNumber > finalizedTurnNumber
+        ? priorFinalizedTurnNumber
+        : finalizedTurnNumber,
   };
 }
 
@@ -522,7 +855,7 @@ export function toBattleLogHistoryResponse(
     gameId: store.gameId,
     revision: store.revision,
     completedTurnCount: store.completedTurnCount,
-    turns: store.turns,
+    turns: store.turns.map(cloneBattleLogTurnSummary),
   };
 }
 
@@ -538,11 +871,93 @@ export function getBattleLogCaptureTurnNumber(event: unknown): number | null {
   return isFiniteNumber(event.turnNumber) ? event.turnNumber : null;
 }
 
-export function foldBattleLogCaptureEvents(
-  store: BattleLogHistoryStore,
+export function selectBattleLogFinalizeTurnEvent(events: unknown[]): {
+  event: BattleLogFinalizeTurnEvent | null;
+  candidates: BattleLogFinalizeTurnEvent[];
+  distinctTurnNumbers: number[];
+} {
+  const candidates = events.filter(isBattleLogFinalizeTurnEvent);
+  if (candidates.length <= 0) {
+    return {
+      event: null,
+      candidates: [],
+      distinctTurnNumbers: [],
+    };
+  }
+
+  const deduped = new Map<string, BattleLogFinalizeTurnEvent>();
+  for (const candidate of candidates) {
+    const key = [
+      candidate.finalizedTurnNumber,
+      candidate.terminal ? "terminal" : "non_terminal",
+      candidate.nextTurnNumber ?? "none",
+      candidate.reason ?? "none",
+    ].join(":");
+    if (!deduped.has(key)) {
+      deduped.set(key, candidate);
+    }
+  }
+
+  const uniqueCandidates = [...deduped.values()];
+  const distinctTurnNumbers = [...new Set(
+    uniqueCandidates.map((candidate) => candidate.finalizedTurnNumber),
+  )].sort((left, right) => left - right);
+
+  const selectedEvent = [...uniqueCandidates].sort((left, right) => {
+    if (left.terminal !== right.terminal) {
+      return left.terminal ? -1 : 1;
+    }
+    return right.finalizedTurnNumber - left.finalizedTurnNumber;
+  })[0] ?? null;
+
+  return {
+    event: selectedEvent,
+    candidates: uniqueCandidates,
+    distinctTurnNumbers,
+  };
+}
+
+export function partitionBattleLogCaptureEventsByFinalizedTurn(
   events: unknown[],
-): BattleLogHistoryStore {
-  const nextStore = normalizeBattleLogHistoryStore(store.gameId, store);
+  finalizedTurnNumber: number,
+): {
+  finalizedTurnEvents: unknown[];
+  laterTurnEvents: unknown[];
+  earlierTurnEvents: unknown[];
+} {
+  const finalizedTurnEvents: unknown[] = [];
+  const laterTurnEvents: unknown[] = [];
+  const earlierTurnEvents: unknown[] = [];
+
+  for (const event of events) {
+    const turnNumber = getBattleLogCaptureTurnNumber(event);
+    if (turnNumber === null) continue;
+
+    if (turnNumber === finalizedTurnNumber) {
+      finalizedTurnEvents.push(event);
+      continue;
+    }
+
+    if (turnNumber > finalizedTurnNumber) {
+      laterTurnEvents.push(event);
+      continue;
+    }
+
+    earlierTurnEvents.push(event);
+  }
+
+  return {
+    finalizedTurnEvents,
+    laterTurnEvents,
+    earlierTurnEvents,
+  };
+}
+
+export function foldBattleLogCaptureEventsIntoScratch(
+  scratch: BattleLogScratch,
+  events: unknown[],
+): BattleLogScratch {
+  const nextScratch = normalizeBattleLogScratch(scratch);
 
   for (const rawEvent of events) {
     if (!rawEvent || typeof rawEvent !== "object") continue;
@@ -551,14 +966,14 @@ export function foldBattleLogCaptureEvents(
       const turnNumber = getBattleLogCaptureTurnNumber(rawEvent);
       const diceValue = (rawEvent as { value?: number }).value;
       if (turnNumber === null || !isFiniteNumber(diceValue)) continue;
-      const capture = ensureCaptureForTurn(nextStore, turnNumber);
+      const capture = ensureCaptureForTurn(nextScratch, turnNumber);
       capture.diceValue = diceValue;
       continue;
     }
 
     if (!isCaptureEvent(rawEvent)) continue;
 
-    const capture = ensureCaptureForTurn(nextStore, rawEvent.turnNumber);
+    const capture = ensureCaptureForTurn(nextScratch, rawEvent.turnNumber);
 
     switch (rawEvent.type) {
       case "BATTLE_LOG_CAPTURE_BUILD_REROLL": {
@@ -600,7 +1015,7 @@ export function foldBattleLogCaptureEvents(
         getOrCreateBattleAtomsForPlayer(capture, rawEvent.playerId).push({
           kind: "destroy",
           sourceShipDefId: rawEvent.sourceShipDefId,
-          targetShipDefIds: rawEvent.targetShipDefIds,
+          targetShipDefIds: [...rawEvent.targetShipDefIds],
           bucket: rawEvent.bucket,
         });
         break;
@@ -608,13 +1023,30 @@ export function foldBattleLogCaptureEvents(
         getOrCreateBattleAtomsForPlayer(capture, rawEvent.playerId).push({
           kind: "steal",
           sourceShipDefId: rawEvent.sourceShipDefId,
-          targetShipDefIds: rawEvent.targetShipDefIds,
+          targetShipDefIds: [...rawEvent.targetShipDefIds],
           bucket: rawEvent.bucket,
         });
         break;
     }
   }
 
+  return nextScratch;
+}
+
+export function foldBattleLogCaptureEvents(
+  store: BattleLogHistoryStore,
+  events: unknown[],
+): BattleLogHistoryStore {
+  const nextStore = normalizeBattleLogHistoryStore(store.gameId, store);
+  const nextScratch = foldBattleLogCaptureEventsIntoScratch(
+    {
+      currentTurnCapture: nextStore.currentTurnCapture,
+      lastFinalizedTurnNumber: getLatestTurnNumberFromHistoryStore(nextStore),
+    },
+    events,
+  );
+
+  nextStore.currentTurnCapture = nextScratch.currentTurnCapture;
   return nextStore;
 }
 
@@ -622,6 +1054,8 @@ export function detectCompletedBattleTurnFromStateTransition(
   previousState: GameStateLike,
   nextState: GameStateLike,
 ): number | null {
+  // Deprecated: battle-log finalization now uses explicit
+  // BATTLE_LOG_FINALIZE_TURN engine events instead of route-time state diffs.
   const previousTurnNumber = getCurrentTurnNumber(previousState);
   const nextTurnNumber = getCurrentTurnNumber(nextState);
   const previousPhaseKey = getPhaseKeyFromState(previousState);
@@ -631,7 +1065,10 @@ export function detectCompletedBattleTurnFromStateTransition(
   const previousTurnIsPositive = previousTurnNumber > 0;
   const previousStatusIsNotFinished = previousStatus !== "finished";
   const previousStateIsBattlePhase = isBattlePhaseKey(previousPhaseKey);
-  const nextStateIsNextTurnBuild = isStartOfNextTurnBuild(nextState, previousTurnNumber);
+  const nextStateIsNextTurnBuild = isStartOfNextTurnBuild(
+    nextState,
+    previousTurnNumber,
+  );
 
   if (
     previousTurnIsPositive &&
@@ -683,30 +1120,19 @@ export function detectCompletedBattleTurnFromStateTransition(
   return null;
 }
 
-export function finalizeBattleLogTurn(
-  store: BattleLogHistoryStore,
-  finalizedTurnNumber: number,
-  finalizedState: GameStateLike,
-): BattleLogHistoryStore {
-  const nextStore = normalizeBattleLogHistoryStore(store.gameId, store);
-  const latestTurn = nextStore.turns[nextStore.turns.length - 1];
-
-  if (latestTurn?.turnNumber === finalizedTurnNumber) {
-    if (
-      nextStore.currentTurnCapture?.turnNumber === finalizedTurnNumber
-    ) {
-      nextStore.currentTurnCapture = null;
-    }
-    return nextStore;
-  }
-
+export function buildBattleLogTurnSummaryFromScratch(args: {
+  scratch: BattleLogScratch;
+  finalizedTurnNumber: number;
+  finalizedState: GameStateLike;
+}): BattleLogTurnSummary {
+  const normalizedScratch = normalizeBattleLogScratch(args.scratch);
   const capture =
-    nextStore.currentTurnCapture?.turnNumber === finalizedTurnNumber
-      ? nextStore.currentTurnCapture
+    normalizedScratch.currentTurnCapture?.turnNumber === args.finalizedTurnNumber
+      ? normalizedScratch.currentTurnCapture
       : null;
-
-  const activePlayers = getActivePlayers(finalizedState);
-  const lastTurnNetByPlayerId = finalizedState?.gameData?.lastTurnNetByPlayerId ?? {};
+  const activePlayers = getActivePlayers(args.finalizedState);
+  const lastTurnNetByPlayerId =
+    args.finalizedState?.gameData?.lastTurnNetByPlayerId ?? {};
 
   const buildLinesByPlayerId: Record<string, string[]> = {};
   const battleLinesByPlayerId: Record<string, string[]> = {};
@@ -718,8 +1144,8 @@ export function finalizeBattleLogTurn(
     battleLinesByPlayerId[player.id] = formatBattleLines(battleAtoms);
   }
 
-  const summary: BattleLogTurnSummary = {
-    turnNumber: finalizedTurnNumber,
+  return {
+    turnNumber: args.finalizedTurnNumber,
     diceValue: capture?.diceValue ?? null,
     players: activePlayers.map((player) => ({
       playerId: player.id,
@@ -732,16 +1158,55 @@ export function finalizeBattleLogTurn(
     buildLinesByPlayerId,
     battleLinesByPlayerId,
   };
+}
 
-  nextStore.turns = [...nextStore.turns, summary];
-  nextStore.completedTurnCount = nextStore.turns.length;
-  nextStore.revision += 1;
+export function appendBattleLogTurnSummaryIdempotently(
+  store: BattleLogHistoryStore,
+  summary: BattleLogTurnSummary,
+): { historyStore: BattleLogHistoryStore; appended: boolean } {
+  const nextStore = normalizeBattleLogHistoryStore(store.gameId, store);
+  const turnAlreadyPresent = nextStore.turns.some(
+    (turn) => turn.turnNumber === summary.turnNumber,
+  );
 
-  if (nextStore.currentTurnCapture?.turnNumber === finalizedTurnNumber) {
+  if (turnAlreadyPresent) {
+    nextStore.completedTurnCount = nextStore.turns.length;
     nextStore.currentTurnCapture = null;
+    return {
+      historyStore: nextStore,
+      appended: false,
+    };
   }
 
-  return nextStore;
+  nextStore.turns = [...nextStore.turns, cloneBattleLogTurnSummary(summary)];
+  nextStore.completedTurnCount = nextStore.turns.length;
+  nextStore.revision += 1;
+  nextStore.currentTurnCapture = null;
+
+  return {
+    historyStore: nextStore,
+    appended: true,
+  };
+}
+
+export function finalizeBattleLogTurn(
+  store: BattleLogHistoryStore,
+  finalizedTurnNumber: number,
+  finalizedState: GameStateLike,
+): BattleLogHistoryStore {
+  const normalizedStore = normalizeBattleLogHistoryStore(store.gameId, store);
+  const summary = buildBattleLogTurnSummaryFromScratch({
+    scratch: {
+      currentTurnCapture: normalizedStore.currentTurnCapture,
+      lastFinalizedTurnNumber: getLatestTurnNumberFromHistoryStore(
+        normalizedStore,
+      ),
+    },
+    finalizedTurnNumber,
+    finalizedState,
+  });
+
+  return appendBattleLogTurnSummaryIdempotently(store, summary).historyStore;
 }
 
 export function createBattleLogBuildManualCaptureEvent(args: {
@@ -825,7 +1290,10 @@ export function createBattleLogBuildCaptureEventsFromResolution(
   for (const match of destroyMatches) {
     if (match.effect.source.type !== "ship") continue;
     const createdShipsFromDestroy = match.event.details?.createdShipsFromDestroy;
-    if (!isFiniteNumber(createdShipsFromDestroy) || createdShipsFromDestroy <= 0) {
+    if (
+      !isFiniteNumber(createdShipsFromDestroy) ||
+      createdShipsFromDestroy <= 0
+    ) {
       continue;
     }
     events.push(
@@ -871,7 +1339,7 @@ export function createBattleLogBattleCaptureEventsFromResolution(args: {
       : [];
     const targetShipDefIds = shipInstanceIds
       .map((instanceId: string) =>
-        getShipDefIdByInstanceId(args.stateBeforeResolution, instanceId),
+        getShipDefIdByInstanceId(args.stateBeforeResolution, instanceId)
       )
       .filter((shipDefId: string | null): shipDefId is string =>
         typeof shipDefId === "string"
@@ -922,7 +1390,9 @@ export function createBattleLogBattleCaptureEventsFromResolution(args: {
     return captureEvents;
   }
 
-  const sourceEffect = args.effects.find((effect) => effect.source.type === "ship");
+  const sourceEffect = args.effects.find(
+    (effect) => effect.source.type === "ship",
+  );
   const sourceShipDefId = sourceEffect?.source.type === "ship"
     ? sourceEffect.source.shipDefId
     : null;

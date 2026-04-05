@@ -1,5 +1,6 @@
 import { PHASE_SEQUENCE, type PhaseKey, type MajorPhase, type SubPhase } from '../../engine_shared/phase/PhaseTable.ts';
 import { applyIncrementForTurn } from '../clock/clock.ts';
+import { createBattleLogFinalizeTurnEvent } from '../state/battleLogHistory.ts';
 
 // Minimal server-side GameState interface (derived from actual game state structure)
 interface GameState {
@@ -327,7 +328,21 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
     
     console.log(`[advancePhaseCore] Turn bump: ${from} → build.dice_roll (turn ${prevTurn} → ${turnNumber})`);
     
-    return { ok: true, state: cleared, from, to: 'build.dice_roll', events: [] };
+    return {
+      ok: true,
+      state: cleared,
+      from,
+      to: 'build.dice_roll',
+      events: [
+        createBattleLogFinalizeTurnEvent({
+          finalizedTurnNumber: prevTurn,
+          terminal: false,
+          nextTurnNumber: turnNumber,
+          reason: 'turn_bump',
+          atMs: nowMs ?? Date.now(),
+        }),
+      ],
+    };
   }
 
   // Normal phase progression

@@ -1455,7 +1455,11 @@ export function registerGameRoutes(
       
       // Compute available actions for requesting player
       const availableActions = computeAvailableActionsForRequestingPlayer(gameData, requestingPlayerId);
-      const { ships: _omitShips, ...responseState } = gameData;
+      const {
+        ships: _omitShips,
+        battleLogScratch: _omitBattleLogScratch,
+        ...responseState
+      } = gameData;
       
       return c.json({
         ...responseState,
