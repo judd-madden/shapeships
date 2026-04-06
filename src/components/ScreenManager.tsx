@@ -116,15 +116,7 @@ export default function ScreenManager({
 
   return (
     <div
-      className="min-h-screen relative"
-      style={{
-        backgroundImage: 'url(https://juddmadden.com/shapeships/images/space-background.jpg)',
-        backgroundAttachment: 'fixed',
-        backgroundSize: 'cover',
-        backgroundPosition: 'top center',
-        backgroundRepeat: 'no-repeat',
-        backgroundColor: '#000033',
-      }}
+      className="ss-playerRoot min-h-screen relative"
     >
       <div className="fixed top-4 right-4 z-50">
         <Button
@@ -132,7 +124,7 @@ export default function ScreenManager({
           size="sm"
           onClick={onSwitchToDevMode}
           disabled={isStartingSession}
-          className="bg-shapeships-white shadow-md border-shapeships-grey-20 text-shapeships-grey-90 hover:bg-shapeships-grey-20/10"
+          className="bg-shapeships-grey-90 shadow-md text-shapeships-grey-50 hover:bg-shapeships-grey-20"
         >
           Dev Mode
         </Button>

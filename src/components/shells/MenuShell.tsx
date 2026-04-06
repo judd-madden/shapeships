@@ -77,7 +77,7 @@ export function MenuShell({
   };
 
   return (
-    <div className="ss-playerRoot content-stretch flex flex-col items-center pb-[120px] pt-[60px] px-[5%] relative size-full">
+    <div className="content-stretch flex flex-col items-center pb-[120px] pt-[60px] px-[5%] relative size-full">
       <div className="content-stretch flex flex-col gap-[50px] items-center relative shrink-0 w-full max-w-[1430px]">
         {/* Menu Header */}
         <div className="content-stretch flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-0 relative shrink-0 w-full">

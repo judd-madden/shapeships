@@ -228,12 +228,13 @@ export default function App() {
   };
 
   const switchToDevMode = () => {
-    const params = new URLSearchParams();
-    params.set('view', currentView);
-    pushUrl(params);
-    setMode('dev');
-    setPendingInviteGameId(null);
-  };
+  const params = new URLSearchParams();
+  params.set('view', 'gameScreen');
+  pushUrl(params);
+  setCurrentView('gameScreen');
+  setMode('dev');
+  setPendingInviteGameId(null);
+};
 
   const switchToPlayerMode = (initialShell: PlayerShellId = 'login') => {
     pushUrl(new URLSearchParams());
