@@ -250,7 +250,7 @@ type ChatEntry = {
 };
 
 const CHAT_BASELINE_POLL_MS = 5000;
-const CHAT_BURST_POLL_MS = 1200;
+const CHAT_BURST_POLL_MS = 800;
 const CHAT_BURST_WINDOW_MS = 15000;
 
 function getLatestChatEntrySignature(entries: ChatEntry[]): string {

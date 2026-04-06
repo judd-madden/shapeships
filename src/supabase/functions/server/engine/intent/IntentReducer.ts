@@ -97,6 +97,13 @@ export interface IntentResult {
   };
 }
 
+function isFinishedGameChatMessageIntent(intent: IntentRequest): boolean {
+  if (intent.intentType !== 'ACTION') return false;
+
+  const payload = intent.payload;
+  return !!payload && typeof payload === 'object' && payload.actionType === 'message';
+}
+
 function countCreatedShipsFromEffects(effects: any[] | undefined): number {
   if (!Array.isArray(effects)) return 0;
   return effects.filter((effect: any) => effect?.kind === 'CreateShip').length;
@@ -461,6 +468,18 @@ export async function applyIntent(
 ): Promise<IntentResult> {
   const events: any[] = [];
 
+  if (!state) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.GAME_FINISHED,
+        message: 'Game is finished'
+      }
+    };
+  }
+
   if (!state.gameData) state.gameData = {};
   
   // Accrue server-authoritative clocks before applying intent (authoritative timekeeping)
@@ -470,7 +489,7 @@ export async function applyIntent(
   // VALIDATION: Game state
   // ============================================================================
   
-  if (!state || state.status === 'finished') {
+  if (state.status === 'finished' && !isFinishedGameChatMessageIntent(intent)) {
     return {
       ok: false,
       state,
