@@ -2345,7 +2345,7 @@ useEffect(() => {
     
     onCopyGameUrl: () => {
       // Copy the shareable game URL to clipboard
-      // Include view=gameScreen to land directly on GameScreen (not dashboard)
+      // Use the active ?game=<id> route shape for direct game entry.
       if (!effectiveGameId) return;
       const shareGameUrl = buildShareGameUrl(effectiveGameId);
       

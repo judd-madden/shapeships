@@ -9,7 +9,7 @@ import { Toaster } from './components/ui/sonner';
 import { Input } from './components/ui/input';
 import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
-import { ensureSession, authenticatedFetch, getSessionToken, clearSession } from './utils/sessionManager';
+import { ensureSession, authenticatedFetch, authenticatedPost, getSessionToken, clearSession } from './utils/sessionManager';
 import ScreenManager from './components/ScreenManager';
 import GraphicsTest from './components/dev/GraphicsTest';
 import GameScreen from './game/display/GameScreen';
@@ -22,8 +22,24 @@ import { ActionPanelsGallery } from './components/dev/ActionPanelsGallery';
 // Dashboard view type
 type DashboardViewId = 'deployment' | 'auth' | 'alphaE2E' |  'graphicsTest' | 'buildKit' | 'gameScreen' | 'actionPanelsGallery';
 
-// App view mode
-type ViewMode = 'dashboard' | 'playerMode' | 'gameFullscreen';
+type AppMode = 'dev' | 'player' | 'game';
+type PlayerShellId = 'login' | 'menu';
+
+interface RouteState {
+  mode: AppMode;
+  dashboardView: DashboardViewId;
+  pendingInviteGameId: string | null;
+}
+
+const DASHBOARD_VIEW_IDS: DashboardViewId[] = [
+  'deployment',
+  'auth',
+  'alphaE2E',
+  'graphicsTest',
+  'buildKit',
+  'gameScreen',
+  'actionPanelsGallery',
+];
 
 // Dashboard entries configuration
 const DASHBOARD_ENTRIES: Array<{ id: DashboardViewId; label: string; alphaDisabled?: boolean }> = [
@@ -40,15 +56,12 @@ const DASHBOARD_ENTRIES: Array<{ id: DashboardViewId; label: string; alphaDisabl
 function readDashboardViewFromUrl(): DashboardViewId {
   const params = new URLSearchParams(window.location.search);
   const view = params.get('view') as DashboardViewId | null;
-  
-  // Validate view is a known dashboard view
-  const validViews: DashboardViewId[] = ['deployment', 'auth', 'alphaE2E', 'graphicsTest', 'buildKit', 'gameScreen', 'actionPanelsGallery'];
-  
-  if (view && validViews.includes(view)) {
+
+  if (view && DASHBOARD_VIEW_IDS.includes(view)) {
     return view;
   }
-  
-    return 'gameScreen';
+
+  return 'deployment';
 }
 
 function readGameIdFromUrl(): string | null {
@@ -56,7 +69,7 @@ function readGameIdFromUrl(): string | null {
   return params.get('game');
 }
 
-function readViewModeFromUrl(): ViewMode {
+function readViewModeFromUrl(): 'dashboard' | 'playerMode' | 'gameFullscreen' {
   const params = new URLSearchParams(window.location.search);
   const view = params.get('view');
   
@@ -77,29 +90,103 @@ function readViewModeFromUrl(): ViewMode {
   return 'dashboard';
 }
 
+function hasStoredPlayerIdentity(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return Boolean(
+      window.sessionStorage.getItem('shapeships-player-id') &&
+      window.sessionStorage.getItem('shapeships-player-name')
+    );
+  } catch {
+    return false;
+  }
+}
+
+function hasDirectGameAccess(hasUsablePlayerIdentity: boolean): boolean {
+  return Boolean(getSessionToken() && hasUsablePlayerIdentity);
+}
+
+function readRouteStateFromUrl(hasUsablePlayerIdentity: boolean = hasStoredPlayerIdentity()): RouteState {
+  const params = new URLSearchParams(window.location.search);
+  const view = params.get('view');
+  const requestedGameId = params.get('game');
+
+  if (view && DASHBOARD_VIEW_IDS.includes(view as DashboardViewId)) {
+    return {
+      mode: 'dev',
+      dashboardView: view as DashboardViewId,
+      pendingInviteGameId: null,
+    };
+  }
+
+  if (requestedGameId && requestedGameId.length > 0) {
+    return {
+      mode: hasDirectGameAccess(hasUsablePlayerIdentity) ? 'game' : 'player',
+      dashboardView: readDashboardViewFromUrl(),
+      pendingInviteGameId: hasDirectGameAccess(hasUsablePlayerIdentity) ? null : requestedGameId,
+    };
+  }
+
+  if (view === 'gameScreenFull') {
+    return {
+      mode: 'game',
+      dashboardView: readDashboardViewFromUrl(),
+      pendingInviteGameId: null,
+    };
+  }
+
+  return {
+    mode: 'player',
+    dashboardView: readDashboardViewFromUrl(),
+    pendingInviteGameId: null,
+  };
+}
+
+function buildUrl(params: URLSearchParams): string {
+  const query = params.toString();
+  return query ? `${window.location.pathname}?${query}` : window.location.pathname;
+}
+
+function pushUrl(params: URLSearchParams) {
+  window.history.pushState({}, document.title, buildUrl(params));
+}
+
 export default function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>(() => readViewModeFromUrl());
-  const [currentView, setCurrentView] = useState<DashboardViewId>(() => readDashboardViewFromUrl());
+  const initialStoredPlayerIdentity = hasStoredPlayerIdentity();
+  const initialRoute = readRouteStateFromUrl(initialStoredPlayerIdentity);
+  const [mode, setMode] = useState<AppMode>(initialRoute.mode);
+  const [currentView, setCurrentView] = useState<DashboardViewId>(initialRoute.dashboardView);
+  const [pendingInviteGameId, setPendingInviteGameId] = useState<string | null>(initialRoute.pendingInviteGameId);
+  const [playerShellStart, setPlayerShellStart] = useState<PlayerShellId>('login');
+  const [hasUsablePlayerIdentity, setHasUsablePlayerIdentity] = useState(initialStoredPlayerIdentity);
   const [deploymentStatus, setDeploymentStatus] = useState<'unknown' | 'ready' | 'error'>('unknown');
   const [gameId, setGameId] = useState<string | null>(() => readGameIdFromUrl());
-  
-  // Centralized player management
-  const { player, isReady: playerReady } = usePlayer();
+
+  const {
+    player,
+    updatePlayerName,
+    clearPlayer,
+    isReady: playerReady,
+  } = usePlayer();
 
   useEffect(() => {
-    // Initial status check
     checkDeploymentStatus();
 
-    // Keep state in sync when user uses browser back/forward
     const onPopState = () => {
-      setCurrentView(readDashboardViewFromUrl());
+      const nextRoute = readRouteStateFromUrl(hasUsablePlayerIdentity);
+      setMode(nextRoute.mode);
+      setCurrentView(nextRoute.dashboardView);
+      setPendingInviteGameId(nextRoute.pendingInviteGameId);
       setGameId(readGameIdFromUrl());
-      setViewMode(readViewModeFromUrl());
+      setPlayerShellStart('login');
     };
 
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, []);
+  }, [hasUsablePlayerIdentity]);
 
   const checkDeploymentStatus = async () => {
     const url = `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/health`;
@@ -132,51 +219,85 @@ export default function App() {
   };
 
   const setView = (viewId: DashboardViewId) => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams();
     params.set('view', viewId);
-
-    // Preserve any existing ?game=... param
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
-    window.history.pushState({}, document.title, newUrl);
-
-    // Update React state (this is what actually makes the UI change)
+    pushUrl(params);
     setCurrentView(viewId);
+    setMode('dev');
+    setPendingInviteGameId(null);
   };
 
   const switchToDevMode = () => {
-    setViewMode('dashboard');
-    setGameId(null);
-    setView('deployment');
+    const params = new URLSearchParams();
+    params.set('view', currentView);
+    pushUrl(params);
+    setMode('dev');
+    setPendingInviteGameId(null);
+  };
+
+  const switchToPlayerMode = (initialShell: PlayerShellId = 'login') => {
+    pushUrl(new URLSearchParams());
+    setMode('player');
+    setPendingInviteGameId(null);
+    setPlayerShellStart(initialShell);
+  };
+
+  const launchGame = (nextGameId: string) => {
+    const params = new URLSearchParams();
+    params.set('game', nextGameId);
+    pushUrl(params);
+    setGameId(nextGameId);
+    setPendingInviteGameId(null);
+    setPlayerShellStart('menu');
+    setMode('game');
+  };
+
+  const startPlayerSession = async (displayName: string) => {
+    await ensureSession(displayName);
+    updatePlayerName(displayName);
+    setHasUsablePlayerIdentity(true);
+  };
+
+  const createPrivateGame = async (): Promise<string> => {
+    if (!player?.name) {
+      throw new Error('Player not initialized');
+    }
+
+    const response = await authenticatedPost('/create-game', {
+      playerName: player.name,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create game: ${errorText}`);
+    }
+
+    const result = await response.json();
+    return result.gameId;
+  };
+
+  const resetPlayerSession = () => {
+    clearPlayer();
+    clearSession();
+    setHasUsablePlayerIdentity(false);
+    switchToPlayerMode('login');
+  };
+
+  const exitGame = () => {
+    switchToPlayerMode('menu');
   };
 
   const openGameBoardFullscreen = () => {
-    // Only proceed if gameId exists
-    if (!gameId) {
-      return;
+    if (gameId) {
+      launchGame(gameId);
     }
-    
-    // Update URL to use view=gameScreenFull
-    const params = new URLSearchParams(window.location.search);
-    params.set('view', 'gameScreenFull');
-    params.set('game', gameId); // Ensure game param is set
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
-    window.history.pushState({}, document.title, newUrl);
-    
-    // Switch to fullscreen mode
-    setViewMode('gameFullscreen');
   };
 
-  const returnToDashboard = () => {
-    setViewMode('dashboard');
-  };
-
-  // Render full-screen GameBoard mode
-  if (viewMode === 'gameFullscreen') {
+  if (mode === 'game') {
     if (!playerReady) {
       return <div className="w-screen h-screen flex items-center justify-center">Loading player...</div>;
     }
-    
-    // If no gameId, show error screen with back button
+
     if (!gameId) {
       return (
         <div className="w-screen h-screen flex items-center justify-center bg-gray-50">
@@ -188,8 +309,8 @@ export default function App() {
               <p className="text-gray-600">
                 No gameId was provided. Please create a game or open an existing game from the dashboard.
               </p>
-              <Button onClick={returnToDashboard} className="w-full">
-                Back to Dashboard
+              <Button onClick={exitGame} className="w-full">
+                Back to Menu
               </Button>
             </CardContent>
           </Card>
@@ -202,18 +323,30 @@ export default function App() {
         <GameScreen
           gameId={gameId}
           playerName={player!.name}
-          onBack={returnToDashboard}
+          onBack={exitGame}
         />
       </div>
     );
   }
 
-  // Render Player Mode (ScreenManager)
-  if (viewMode === 'playerMode') {
-    return <ScreenManager onSwitchToDevMode={switchToDevMode} />;
+  if (mode === 'player') {
+    return (
+      <>
+        <Toaster />
+        <ScreenManager
+          player={player}
+          initialShell={playerShellStart}
+          pendingInviteGameId={pendingInviteGameId}
+          onCreatePrivateGame={createPrivateGame}
+          onLaunchGame={launchGame}
+          onResetPlayerSession={resetPlayerSession}
+          onStartSession={startPlayerSession}
+          onSwitchToDevMode={switchToDevMode}
+        />
+      </>
+    );
   }
 
-  // Render Dashboard mode
   return (
     <div className="min-h-screen bg-gray-50">
       <Toaster />
@@ -222,7 +355,7 @@ export default function App() {
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-black">Shapeships Dev Dashboard</h1>
-          <Button onClick={() => setViewMode('playerMode')}>
+          <Button onClick={() => switchToPlayerMode('login')}>
             Switch to Player Mode
           </Button>
         </div>
@@ -322,17 +455,7 @@ export default function App() {
                   player={player}
                   playerReady={playerReady}
                   gameId={gameId}
-                  onGameCreated={(newGameId) => {
-                    setGameId(newGameId);
-                    // Update URL with view=gameScreenFull and game param
-                    const params = new URLSearchParams(window.location.search);
-                    params.set('view', 'gameScreenFull');
-                    params.set('game', newGameId);
-                    const newUrl = `${window.location.pathname}?${params.toString()}`;
-                    window.history.pushState({}, document.title, newUrl);
-                    // Open fullscreen
-                    setViewMode('gameFullscreen');
-                  }}
+                  onGameCreated={launchGame}
                 />
                 
                 <SessionManagementSection

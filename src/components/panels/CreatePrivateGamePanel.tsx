@@ -74,7 +74,7 @@ export function CreatePrivateGamePanel({
           disabled={isCreating}
           className="w-full md:w-auto md:min-w-[300px]"
         >
-          {isCreating ? 'CREATING...' : 'CREATE PRIVATE GAME'}
+          {isCreating ? 'CREATING...' : 'CREATE GAME'}
         </MenuButton>
       </div>
 

@@ -25,11 +25,11 @@ export function getPublicAppBaseUrl(): string {
 }
 
 /**
- * Build the shareable game URL, landing directly on GameScreen (not dashboard).
+ * Build the shareable game URL using the active game route shape.
  */
 export function buildShareGameUrl(gameId: string): string {
     const baseUrl = getPublicAppBaseUrl();
     // If baseUrl is empty (shouldn't happen), fall back to a relative path.
-    if (!baseUrl) return `/?game=${encodeURIComponent(gameId)}&view=gameScreen`;
-    return `${baseUrl}?game=${encodeURIComponent(gameId)}&view=gameScreen`;
+    if (!baseUrl) return `/?game=${encodeURIComponent(gameId)}`;
+    return `${baseUrl}?game=${encodeURIComponent(gameId)}`;
 }

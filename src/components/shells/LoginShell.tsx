@@ -22,9 +22,16 @@ interface LoginShellProps {
   onNameSubmit: (displayName: string) => void;
   onLogin: (userData: any) => void;
   alphaDisableAuth: boolean;
+  alphaPrimaryCtaLabel?: string;
 }
 
-export function LoginShell({ onNavigate, onNameSubmit, onLogin, alphaDisableAuth }: LoginShellProps) {
+export function LoginShell({
+  onNavigate,
+  onNameSubmit,
+  onLogin,
+  alphaDisableAuth,
+  alphaPrimaryCtaLabel = 'PLAY',
+}: LoginShellProps) {
   // Alpha v3: Full-page layout with header + panel + footer
   if (alphaDisableAuth) {
     return (
@@ -85,7 +92,7 @@ export function LoginShell({ onNavigate, onNameSubmit, onLogin, alphaDisableAuth
           </div>
 
           {/* Alpha Entry Panel (Form Body) */}
-          <AlphaEntryPanel onPlay={onNameSubmit} />
+          <AlphaEntryPanel onPlay={onNameSubmit} primaryButtonLabel={alphaPrimaryCtaLabel} />
 
           {/* Footer Links */}
           <div className="content-stretch flex font-normal gap-[45px] items-center leading-[normal] relative shrink-0 text-[22px] text-nowrap">

@@ -22,6 +22,7 @@ import { PrimaryButton } from '../ui/primitives/buttons/PrimaryButton';
 
 interface AlphaEntryPanelProps {
   onPlay: (playerName: string) => void;
+  primaryButtonLabel?: string;
 }
 
 /**
@@ -33,7 +34,7 @@ function validatePlayerName(name: string): boolean {
   return regex.test(name);
 }
 
-export function AlphaEntryPanel({ onPlay }: AlphaEntryPanelProps) {
+export function AlphaEntryPanel({ onPlay, primaryButtonLabel = 'PLAY' }: AlphaEntryPanelProps) {
   const [playerName, setPlayerName] = useState('');
 
   // Validation logic
@@ -101,7 +102,7 @@ export function AlphaEntryPanel({ onPlay }: AlphaEntryPanelProps) {
               disabled={!isValid}
               className="w-full"
             >
-              PLAY
+              {primaryButtonLabel}
             </PrimaryButton>
 
           </div>
