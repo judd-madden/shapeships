@@ -15,6 +15,7 @@ import { InChatButton } from '../../../components/ui/primitives/buttons/InChatBu
 import { CopiedToast } from '../../../components/ui/primitives/CopiedToast';
 import type { LeftRailViewModel, GameSessionActions } from '../../client/useGameSession';
 import { LeftRailScrollArea } from './leftRail/LeftRailScrollArea';
+import { BattleLogTurnCard } from './leftRail/BattleLogTurnCard';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 import { useLeftRailTurnTakeover } from '../graphics/animation';
@@ -376,41 +377,30 @@ export function LeftRail({
 
       {/* Battle Log Area (fills remaining height, scrollable) */}
       <div className="basis-0 flex-1 bg-black rounded-[10px] border-2 border-[#555] flex flex-col min-h-0">
-        {/* Battle Log Header */}
-        <div className="px-5 pt-3 pb-2 flex items-center justify-between shrink-0">
-          <p className="text-white text-[18px] font-black">Battle Log</p>
-          <div className="flex items-center gap-[5px]">
-            <button 
+        <div className="shrink-0 bg-black border-b border-[var(--shapeships-grey-70)] px-[20px] py-[12px] flex flex-col gap-[8px]">
+          <div className="flex items-center justify-between">
+            <p className="text-white text-[18px] font-black">Battle Log</p>
+            <button
               className="bg-black rounded-[7px] p-0 opacity-50 hover:opacity-100 transition-opacity cursor-pointer"
               onClick={actions.onOpenBattleLogFullscreen}
             >
               <OpenFullIcon />
             </button>
           </div>
+          <div className="grid grid-cols-2 gap-[20px] text-[15px] font-bold leading-none text-[var(--shapeships-grey-20)]">
+            <p className="text-left">{vm.battleLogNames.me}</p>
+            <p className="text-right">{vm.battleLogNames.opponent}</p>
+          </div>
         </div>
 
-        {/* Battle Log Content (scrollable) */}
         <LeftRailScrollArea
-          outerClassName="basis-0 flex-1 px-5 pb-3"
-          innerClassName="justify-end gap-[10px] text-[15px] text-[#d4d4d4]"
-          stickToBottomOnChange
+          outerClassName="basis-0 flex-1 pb-3"
+          innerClassName="justify-end"
+          forceScrollOnChangeKey={vm.battleLogAutoScrollKey}
         >
-          {vm.battleLogEntries.map((entry, idx) => {
-            if (entry.type === 'turn-marker') {
-              return (
-                <div key={idx} className="flex items-center gap-2">
-                  <p className="text-[#888] text-[15px] shrink-0">
-                    <span className="font-bold">Turn {entry.turn} - </span>{entry.phase}
-                  </p>
-                  <div className="flex-1 h-[1px] bg-[#555]" />
-                </div>
-              );
-            }
-            
-            return (
-              <p key={idx} className="leading-[normal]">{entry.text}</p>
-            );
-          })}
+          {vm.battleLogTurns.map((turn) => (
+            <BattleLogTurnCard key={turn.turnNumber} turn={turn} />
+          ))}
         </LeftRailScrollArea>
       </div>
     </div>

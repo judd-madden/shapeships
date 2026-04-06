@@ -47,6 +47,43 @@ export interface BattleLogHistoryResponse {
   turns: BattleLogTurnSummary[];
 }
 
+export type BattleLogTokenVm =
+  | {
+      kind: 'text';
+      text: string;
+    }
+  | {
+      kind: 'multiplier';
+      text: 'x';
+    }
+  | {
+      kind: 'ship';
+      text: string;
+      shipDefId: string;
+      allowUpgradeColor: boolean;
+      upgradeColorName?: string | null;
+    };
+
+export interface BattleLogLineVm {
+  tokens: BattleLogTokenVm[];
+}
+
+export interface BattleLogTurnSideVm {
+  healthEnd: number;
+  healthDelta: number;
+  buildLines: BattleLogLineVm[];
+  battleLines: BattleLogLineVm[];
+}
+
+export interface BattleLogTurnVm {
+  turnNumber: number;
+  diceValue: number | null;
+  showBuildSection: boolean;
+  showBattleSection: boolean;
+  me: BattleLogTurnSideVm;
+  opponent: BattleLogTurnSideVm;
+}
+
 export interface LeftRailDiceManipulationSlotViewModel {
   sourceShipDefId: LeftRailDiceManipulationShipDefId;
   diceValues?: Array<1 | 2 | 3 | 4 | 5 | 6>;
@@ -102,12 +139,12 @@ export interface LeftRailViewModel {
   } | null;
   
   // Battle log
-  battleLogEntries: Array<{
-    type: 'event' | 'turn-marker';
-    text?: string;
-    turn?: number;
-    phase?: string;
-  }>;
+  battleLogNames: {
+    me: string;
+    opponent: string;
+  };
+  battleLogTurns: BattleLogTurnVm[];
+  battleLogAutoScrollKey: string;
 }
 
 export interface BoardFleetSummary {

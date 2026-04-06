@@ -2692,7 +2692,12 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         gameCode: 'NOGAME',
         chatMessages: [],
         drawOffer: null,
-        battleLogEntries: [],
+        battleLogNames: {
+          me: 'Player 1',
+          opponent: 'Player 2',
+        },
+        battleLogTurns: [],
+        battleLogAutoScrollKey: 'battle:bootstrap:0',
       },
       board: {
         mode: 'board',
