@@ -97,7 +97,16 @@ export function MenuShell({
           <div className="content-stretch flex flex-col md:flex-row gap-6 md:gap-[36px] items-center justify-end relative shrink-0">
             {/* Social Links */}
             <div className="content-stretch flex font-['Roboto',sans-serif] font-normal gap-[34px] items-center leading-[normal] relative shrink-0 text-[18px] text-nowrap underline">
-              <a 
+              <a
+              href="https://juddmadden.com/shapeships/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="[text-underline-position:from-font] decoration-solid relative shrink-0 underline cursor-pointer hover:opacity-80"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              Official
+            </a>
+            <a 
                 href="https://discord.gg/MjPtf4G6Gt" 
                 target="_blank" 
                 rel="noreferrer"
@@ -125,17 +134,6 @@ export function MenuShell({
                 Reddit
               </a>
             </div>
-
-            {/* Create Private Game Button */}
-            <MenuButton 
-              variant="private" 
-              onClick={handleCreatePrivateGameClick}
-              selected={activePanel === 'createPrivateGame'}
-              disabled={isCreating}
-              className="w-full md:w-auto md:min-w-[300px]"
-            >
-              CREATE PRIVATE GAME
-            </MenuButton>
           </div>
         </div>
 
@@ -198,7 +196,7 @@ export function MenuShell({
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
                 >
-                  {`Rules & Codex`}
+                  How to Play
                 </p>
               </div>
 
@@ -211,30 +209,6 @@ export function MenuShell({
                 BACK
               </p>
 
-              {/* Future Menu */}
-              <div className="content-stretch flex flex-col gap-[25px] items-start relative shrink-0 w-full">
-                <p className="font-['Roboto',sans-serif] font-medium leading-[normal] relative shrink-0 text-[#888] text-[18px] uppercase w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
-                  In Future:
-                </p>
-                
-                <div className="content-stretch flex items-start pb-[5px] pt-0 px-0 relative shrink-0 w-full">
-                  <p className="font-['Roboto',sans-serif] font-extrabold leading-[22px] relative shrink-0 text-[#888] text-[20px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    Game History<br />& Stats
-                  </p>
-                </div>
-
-                <div className="content-stretch flex items-start pb-[5px] pt-0 px-0 relative shrink-0 w-full">
-                  <p className="font-['Roboto',sans-serif] font-extrabold leading-[22px] relative shrink-0 text-[#888] text-[20px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    Play Computer
-                  </p>
-                </div>
-
-                <div className="content-stretch flex items-start pb-[5px] pt-0 px-0 relative shrink-0 w-full">
-                  <p className="font-['Roboto',sans-serif] font-extrabold leading-[22px] relative shrink-0 text-[#888] text-[20px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    Single Player<br />Campaign
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
 

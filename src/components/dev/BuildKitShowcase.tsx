@@ -278,7 +278,7 @@ export function BuildKitShowcase() {
             {([1, 2, 3, 4, 5, 6] as const).map(value => (
               <div key={value}>
                 <p className="text-sm text-[#888888] mb-2">Dice {value}</p>
-                <Dice value={value} />
+                <Dice value={value} enableRotate={false}/>
               </div>
             ))}
           </div>

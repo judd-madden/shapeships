@@ -1,14 +1,13 @@
 /**
  * MULTIPLAYER PANEL
- * 
- * Alpha v3: Private Games Only
- * Displays game creation controls and delegates backend calls to parent
+ *
+ * Temporary alpha multiplayer / welcome hub for private games and community links.
  */
 
-import React, { useState } from 'react';
-import { Button } from '../ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Separator } from '../ui/separator';
+import React from 'react';
+import { BattlecruiserShip } from '../../graphics/human/Battlecruiser';
+import { GameMenuButton } from '../ui/primitives/buttons/GameMenuButton';
+import { MenuButton } from '../ui/primitives/buttons/MenuButton';
 
 interface MultiplayerPanelProps {
   alphaDisableAuth: boolean;
@@ -17,50 +16,137 @@ interface MultiplayerPanelProps {
   onNavigateToCreateGame?: () => void;
 }
 
-export function MultiplayerPanel({ 
-  alphaDisableAuth, 
-  onGameCreated, 
-  onCreatePrivateGame,
-  onNavigateToCreateGame
+const DISCORD_URL = 'https://discord.gg/MjPtf4G6Gt';
+
+const ALPHA_BULLETS = [
+  'Play private games against friends',
+  'Play against bots',
+  'Choose from Human, Xenite, and Centaur',
+] as const;
+
+const ROADMAP_LEFT = [
+  'Player Accounts',
+  'Public Multiplayer Lobby',
+  'Game History & Stats',
+] as const;
+
+const ROADMAP_RIGHT = [
+  'Single Player Campaign',
+  'Ancient Species',
+  'Rankings & Tournaments',
+] as const;
+
+export function MultiplayerPanel({
+  onNavigateToCreateGame,
 }: MultiplayerPanelProps) {
-  const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleCreatePrivateGame = async () => {
-    setIsCreating(true);
-    setError('');
-
-    try {
-      const gameId = await onCreatePrivateGame();
-      onGameCreated(gameId);
-    } catch (error: any) {
-      setError(error.message || 'Failed to create game');
-    } finally {
-      setIsCreating(false);
-    }
+  const handleOpenDiscord = () => {
+    window.open(DISCORD_URL, '_blank', 'noopener,noreferrer');
   };
 
   return (
-    <Card className="backdrop-blur-sm border-shapeships-grey-20/30" style={{ backgroundColor: 'rgba(255, 255, 255, 0.95)' }}>
-      <CardHeader>
-        <CardTitle className="text-shapeships-grey-90">Multiplayer</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Post-Alpha: Public Lobby (Disabled in Alpha) */}
-        <div className="opacity-50">
-          <h3 className="font-semibold text-shapeships-grey-90 mb-2">Public Lobby</h3>
-          <p className="text-sm text-shapeships-grey-70 mb-3 italic">
-            Coming in future release - match with random opponents
-          </p>
-          <Button 
-            disabled
-            variant="outline"
-            className="w-full"
-          >
-            Quick Match (Coming Soon)
-          </Button>
+    <div className="w-full">
+      <div className="w-full max-w-[800px] pt-[60px]">
+        <div className="flex flex-wrap items-start gap-[40px]">
+          <div className="max-w-full shrink-0">
+            <BattlecruiserShip className="max-w-full" />
+          </div>
+
+          <div className="min-w-[280px] flex-1">
+            <h2
+              className="mb-[30px] font-['Roboto',sans-serif] text-[36px] font-normal leading-[normal] text-shapeships-white"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              Welcome to the Shapeships Alpha
+            </h2>
+
+            <div className="flex flex-col gap-[12px]">
+              {ALPHA_BULLETS.map((bullet) => (
+                <div
+                  key={bullet}
+                  className="flex items-start gap-[6px] font-['Roboto',sans-serif] text-[20px] font-normal leading-[normal] text-shapeships-white"
+                  style={{ fontVariationSettings: "'wdth' 100" }}
+                >
+                  <span aria-hidden="true">&bull;</span>
+                  <span>{bullet}</span>
+                </div>
+              ))}
+
+              <div
+                className="flex items-start gap-[6px] font-['Roboto',sans-serif] text-[20px] font-normal leading-[normal] text-shapeships-white"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                <span aria-hidden="true">&bull;</span>
+                <span>
+                  <a
+                    href={DISCORD_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline decoration-solid hover:opacity-80"
+                  >
+                    Join Discord
+                  </a>
+                  <span>{` for feedback and bugs`}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-[40px] flex flex-wrap items-center gap-[30px]">
+              <MenuButton
+                variant="private"
+                onClick={() => onNavigateToCreateGame?.()}
+              >
+                CREATE PRIVATE GAME
+              </MenuButton>
+
+              <GameMenuButton
+                onClick={handleOpenDiscord}
+                className="w-[240px]"
+              >
+                Find Opponents on Discord
+              </GameMenuButton>
+            </div>
+
+            <div className="mt-[80px]">
+              <h3
+                className="mb-[20px] font-['Roboto',sans-serif] text-[18px] font-bold leading-[normal] text-shapeships-grey-50"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                Development Roadmap
+              </h3>
+
+              <div className="flex flex-wrap gap-x-[20px] gap-y-[20px]">
+                <div className="w-[260px]">
+                  <div className="flex flex-col gap-[12px]">
+                    {ROADMAP_LEFT.map((item) => (
+                      <p
+                        key={item}
+                        className="font-['Roboto',sans-serif] text-[18px] font-normal leading-[normal] text-shapeships-grey-50"
+                        style={{ fontVariationSettings: "'wdth' 100" }}
+                      >
+                        <span aria-hidden="true">&bull;</span> {item}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="w-[260px]">
+                  <div className="flex flex-col gap-[12px]">
+                    {ROADMAP_RIGHT.map((item) => (
+                      <p
+                        key={item}
+                        className="font-['Roboto',sans-serif] text-[18px] font-normal leading-[normal] text-shapeships-grey-50"
+                        style={{ fontVariationSettings: "'wdth' 100" }}
+                      >
+                        <span aria-hidden="true">&bull;</span> {item}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

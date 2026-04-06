@@ -138,7 +138,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           showChevron={false}
         >
           <div className="absolute h-[50px] left-[31px] top-[33.42px] w-[52px]">
-            <Dice value={6} className="w-[52px] h-[50px]" />
+            <Dice value={6} className="w-[52px] h-[50px]" enableRotate={false} />
           </div>
         </TimingRow>
 

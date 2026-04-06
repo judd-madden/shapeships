@@ -18,6 +18,10 @@ export function RulesPanel() {
 
   const handleNavigate = (tab: RulesTab) => {
     setActiveTab(tab);
+
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    });
   };
 
   return (
