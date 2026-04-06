@@ -195,7 +195,7 @@ export function usePollingEffect(args: {
 
   authenticatedGet: (path: string, timeoutMs?: number) => Promise<Response>;
 
-  setRawState: (s: any) => void;
+  applyAuthoritativeRawState: (s: any) => void;
   setLoading: (v: boolean) => void;
   setError: (v: string | null) => void;
   
@@ -206,7 +206,7 @@ export function usePollingEffect(args: {
     effectiveGameId,
     hasJoinedCurrentGame,
     authenticatedGet,
-    setRawState,
+    applyAuthoritativeRawState,
     setLoading,
     setError,
     isFinished,
@@ -260,6 +260,8 @@ export function usePollingEffect(args: {
         return;
       }
 
+      let nextPollDelayMs = intervalMs;
+
       try {
         // Fetch game state (authenticatedGet handles session automatically)
         const response = await authenticatedGet(`/game-state/${effectiveGameId}`);
@@ -293,11 +295,21 @@ export function usePollingEffect(args: {
         }
 
         const data = await response.json();
+        const fetchedIsFinished =
+          data?.status === 'finished' ||
+          data?.gameData?.status === 'finished';
+        const nextIntervalMs = fetchedIsFinished ? POSTGAME_POLL_MS : ACTIVE_POLL_MS;
+        nextPollDelayMs = nextIntervalMs;
 
         if (mounted) {
-          setRawState(data);
+          applyAuthoritativeRawState(data);
           setLoading(false);
           setError(null);
+        }
+
+        if (fetchedIsFinished && nextIntervalMs <= 0) {
+          shouldStopPolling = true;
+          return;
         }
       } catch (err: any) {
         console.error(`❌ [useGameSession] Poll error gameId=${effectiveGameId}:`, err);
@@ -309,7 +321,7 @@ export function usePollingEffect(args: {
 
       // Schedule next poll (only if not stopped)
       if (mounted && !shouldStopPolling) {
-        pollTimer = setTimeout(poll, intervalMs);
+        pollTimer = setTimeout(poll, nextPollDelayMs);
       }
     };
 
