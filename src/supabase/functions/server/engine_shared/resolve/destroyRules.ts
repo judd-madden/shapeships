@@ -38,6 +38,11 @@ export function isCanonicalTrueBasicShip(shipDefId: string): boolean {
   return shipDef?.shipType === 'Basic';
 }
 
+function isCanonicalBasicOnlyTargetShip(shipDefId: string): boolean {
+  const shipDef = getShipById(shipDefId);
+  return shipDef?.shipType === 'Basic' || shipDef?.shipType === 'Basic - Evolved';
+}
+
 function isCanonicalUpgradedShip(shipDefId: string): boolean {
   const shipDef = getShipById(shipDefId);
   return shipDef?.shipType === 'Upgraded';
@@ -48,7 +53,7 @@ function matchesDestroyRestriction(
   restriction: DestroyRestriction
 ): boolean {
   if (restriction === 'any') return true;
-  if (restriction === 'basic_only') return isCanonicalTrueBasicShip(shipDefId);
+  if (restriction === 'basic_only') return isCanonicalBasicOnlyTargetShip(shipDefId);
   if (restriction === 'upgraded_only') return isCanonicalUpgradedShip(shipDefId);
   return false;
 }
