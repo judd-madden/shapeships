@@ -32,8 +32,8 @@ export function CreatePrivateGamePanel({
   onBack 
 }: CreatePrivateGamePanelProps) {
   const [isTimed, setIsTimed] = useState(false); // Default: Not Timed
-  const [minutes, setMinutes] = useState(10);
-  const [incrementSeconds, setIncrementSeconds] = useState(15);
+  const [minutes, setMinutes] = useState(15);
+  const [incrementSeconds, setIncrementSeconds] = useState(30);
   const [variantKey] = useState<'1v1_standard'>('1v1_standard');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');

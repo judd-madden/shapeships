@@ -74,7 +74,7 @@ export function LoginShell({
 
               {/* Feature 3: Simultaneous turns */}
               <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
-                <Dice value={3} className="w-[52px] h-[50px]" />
+                <Dice value={3} className="w-[52px] h-[50px]" enableRotate={false}/>
                 <p className="font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] w-[146.4px]">
                   Shared dice each turn
                 </p>
@@ -103,7 +103,7 @@ export function LoginShell({
               className="[text-underline-position:from-font] decoration-solid relative shrink-0 underline cursor-pointer hover:opacity-80"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
-              How to Play
+              Official
             </a>
             <a
               href="https://discord.gg/MjPtf4G6Gt"

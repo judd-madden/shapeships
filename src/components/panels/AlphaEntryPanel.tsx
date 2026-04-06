@@ -114,22 +114,13 @@ export function AlphaEntryPanel({ onPlay, primaryButtonLabel = 'PLAY' }: AlphaEn
             className="font-normal leading-[22px] relative shrink-0 text-[16px] text-center w-full"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
-            <span 
-              className="font-semibold"
-              style={{ fontVariationSettings: "'wdth' 100" }}
-            >
-              Online Client - Alpha Version 3.
-            </span>
             <span>
               <br aria-hidden="true" />
               Name is just for this session.
               <br aria-hidden="true" />
-              3–20 letters or numbers, no spaces or symbols
+              3–20 letters or numbers, no spaces or symbols.
               <br aria-hidden="true" />
-              Private games only (send link to friend).
-              <br aria-hidden="true" />
-              <br aria-hidden="true" />
-              1600px+ screen resolution recommended.
+              1440px+ screen resolution required.
             </span>
           </p>
         </div>
