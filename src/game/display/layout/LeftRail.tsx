@@ -377,7 +377,7 @@ export function LeftRail({
 
       {/* Battle Log Area (fills remaining height, scrollable) */}
       <div className="basis-0 flex-1 bg-black rounded-[10px] border-2 border-[#555] flex flex-col min-h-0">
-        <div className="shrink-0 bg-black border-b border-[var(--shapeships-grey-70)] px-[20px] py-[12px] flex flex-col gap-[8px]">
+        <div className="shrink-0 bg-black rounded-t-[10px] border-b border-[var(--shapeships-grey-70)] px-[20px] py-[12px] flex flex-col gap-[8px]">
           <div className="flex items-center justify-between">
             <p className="text-white text-[18px] font-black">Battle Log</p>
             <button
@@ -387,15 +387,14 @@ export function LeftRail({
               <OpenFullIcon />
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-[20px] text-[15px] font-bold leading-none text-[var(--shapeships-grey-20)]">
-            <p className="text-left">{vm.battleLogNames.me}</p>
-            <p className="text-right">{vm.battleLogNames.opponent}</p>
+          <div className="grid grid-cols-2 gap-[20px] text-[15px] leading-none text-[var(--shapeships-grey-20)]">
+            <p className="text-left font-bold">{vm.battleLogNames.me}</p>
+            <p className="text-right font-bold">{vm.battleLogNames.opponent}</p>
           </div>
         </div>
 
         <LeftRailScrollArea
-          outerClassName="basis-0 flex-1 pb-3"
-          innerClassName="justify-end"
+          outerClassName="basis-0 rounded-b-[10px] flex-1 pb-3"
           forceScrollOnChangeKey={vm.battleLogAutoScrollKey}
         >
           {vm.battleLogTurns.map((turn) => (

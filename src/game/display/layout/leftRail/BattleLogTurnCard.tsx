@@ -41,7 +41,7 @@ function SectionHeader({ label }: { label: string }) {
 }
 
 export function BattleLogTurnCard({ turn }: BattleLogTurnCardProps) {
-  const backgroundColor = turn.turnNumber % 2 === 1 ? '#101010' : 'black';
+  const backgroundColor = turn.turnNumber % 2 === 1 ? '#171717' : 'black';
 
   return (
     <div className="w-full px-[20px] py-[12px] flex flex-col gap-[8px]" style={{ backgroundColor }}>
