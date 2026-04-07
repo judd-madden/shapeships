@@ -26,61 +26,7 @@ import {
   partitionBattleLogCaptureEventsByFinalizedTurn,
   selectBattleLogFinalizeTurnEvent,
 } from '../engine/state/battleLogHistory.ts';
-
-// ============================================================================
-// CHAT HELPER - Separate KV Storage (Cap: 50 messages)
-// ============================================================================
-
-type PlayerChatEntry = {
-  type: 'message';
-  playerId: string;
-  playerName: string;
-  content: string;
-  timestamp: number;
-};
-
-type SystemChatEntry = {
-  type: 'system';
-  content: string;
-  timestamp: number;
-};
-
-type ChatEntry = PlayerChatEntry | SystemChatEntry;
-
-type ChatStore = {
-  entries: ChatEntry[];
-};
-
-async function appendChatMessage(
-  gameId: string,
-  entry: ChatEntry,
-  kvGet: (key: string) => Promise<any>,
-  kvSet: (key: string, value: any) => Promise<void>
-): Promise<void> {
-  try {
-    const chatKey = `game_${gameId}_chat`;
-    let chatStore: ChatStore = await kvGet(chatKey);
-    
-    // Initialize if missing or malformed
-    if (!chatStore || !Array.isArray(chatStore.entries)) {
-      chatStore = { entries: [] };
-    }
-    
-    // Append new entry
-    chatStore.entries.push(entry);
-    
-    // Cap to last 50 messages
-    if (chatStore.entries.length > 50) {
-      chatStore.entries = chatStore.entries.slice(-50);
-    }
-    
-    await kvSet(chatKey, chatStore);
-    console.log(`[Chat] Message appended to ${chatKey}, total: ${chatStore.entries.length}`);
-  } catch (error) {
-    console.warn(`[Chat] Failed to append message for game ${gameId}:`, error);
-    // Don't throw - chat failure shouldn't break intent processing
-  }
-}
+import { appendChatEntry, type ChatStore } from './chat_kv.ts';
 
 async function persistGameStateAndHistoryTogether(
   supabase: any,
@@ -518,24 +464,28 @@ export function registerIntentRoutes(
             const chatEntryType = event.chatEntryType === 'system' ? 'system' : 'message';
 
             // Append to separate chat KV using data from event
-            await appendChatMessage(
-              intentRequest.gameId,
-              chatEntryType === 'system'
-                ? {
-                    type: 'system',
-                    content: event.content,
-                    timestamp: event.timestamp
-                  }
-                : {
-                    type: 'message',
-                    playerId: event.playerId,
-                    playerName: event.playerName ?? 'Unknown',
-                    content: event.content,
-                    timestamp: event.timestamp
-                  },
-              kvGet,
-              kvSet
-            );
+            try {
+              await appendChatEntry(
+                intentRequest.gameId,
+                chatEntryType === 'system'
+                  ? {
+                      type: 'system',
+                      content: event.content,
+                      timestamp: event.timestamp
+                    }
+                  : {
+                      type: 'message',
+                      playerId: event.playerId,
+                      playerName: event.playerName ?? 'Unknown',
+                      content: event.content,
+                      timestamp: event.timestamp
+                    },
+                kvGet,
+                kvSet
+              );
+            } catch (error) {
+              console.warn(`[Chat] Failed to append message for game ${intentRequest.gameId}:`, error);
+            }
           }
         }
         

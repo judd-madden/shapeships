@@ -47,6 +47,47 @@ export interface BattleLogHistoryResponse {
   turns: BattleLogTurnSummary[];
 }
 
+export type GameSessionChatEntry =
+  | {
+      id?: string;
+      type: 'message';
+      playerId?: string;
+      playerName?: string;
+      content: string;
+      timestamp: number;
+    }
+  | {
+      id?: string;
+      type: 'system';
+      content: string;
+      timestamp: number;
+    }
+  | {
+      id?: string;
+      type: 'rematch_invite';
+      playerId?: string;
+      playerName?: string;
+      content: string;
+      newGameId: string | null;
+      timestamp: number;
+    };
+
+export type LeftRailChatMessageVm =
+  | {
+      type: 'player';
+      playerName: string;
+      text: string;
+    }
+  | {
+      type: 'system';
+      text: string;
+    }
+  | {
+      type: 'rematch_invite';
+      text: string;
+      targetGameId: string | null;
+    };
+
 export type BattleLogTokenVm =
   | {
       kind: 'text';
@@ -128,11 +169,7 @@ export interface LeftRailViewModel {
   
   // Chat
   gameCode: string;
-  chatMessages: Array<{
-    type: 'player' | 'system';
-    playerName?: string;
-    text: string;
-  }>;
+  chatMessages: LeftRailChatMessageVm[];
   drawOffer: {
     fromPlayer: string;
     canRespond: boolean;
@@ -413,6 +450,7 @@ export interface GameSessionActions {
   onOfferDraw: () => void;
   onResignGame: () => void;
   onRematch: () => void;
+  onJoinRematchInvite?: (gameId: string) => void;
   onDownloadBattleLog: () => void;
   onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;
   onSelectCentaurChargeSubTab: (tabId: CentaurChargeSubTabId) => void;

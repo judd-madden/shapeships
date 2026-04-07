@@ -58,6 +58,7 @@ import {
   usePlayersFullSnapshotEffect,
   useSpectatorCountDebugEffect,
 } from './gameSession/clienteffects/useDevEffects';
+import { useChatPolling } from './gameSession/clienteffects/useChatPolling';
 import { useAutoJoinEffect, usePollingEffect } from './gameSession/clienteffects/useNetworkingEffects';
 import { useBuildPreviewResetEffect, useAutoRevealBuildEffect } from './gameSession/clienteffects/usePhaseAutomationEffects';
 import { useFleetOrder } from './gameSession/clienteffects/useFleetOrder';
@@ -76,6 +77,7 @@ import type {
   ActionPanelTabVm,
   ActionPanelViewModel,
   BattleLogHistoryResponse,
+  GameSessionChatEntry,
   GameSessionViewModel,
   GameSessionActions,
   EvolverChoiceId,
@@ -240,46 +242,6 @@ function isBattleLogHistoryResponse(value: unknown): value is BattleLogHistoryRe
   });
 }
 
-type ChatEntry = {
-  id?: string;
-  type: 'message' | 'system';
-  playerId?: string;
-  playerName?: string;
-  content: string;
-  timestamp: number;
-};
-
-const CHAT_BASELINE_POLL_MS = 5000;
-const CHAT_BURST_POLL_MS = 800;
-const CHAT_BURST_WINDOW_MS = 15000;
-
-function getLatestChatEntrySignature(entries: ChatEntry[]): string {
-  if (entries.length <= 0) {
-    return 'count:0';
-  }
-
-  const latestEntry = entries[entries.length - 1];
-  const latestEntryId = typeof latestEntry?.id === 'string' ? latestEntry.id : null;
-
-  if (latestEntryId) {
-    return `count:${entries.length}|id:${latestEntryId}`;
-  }
-
-  const senderKey =
-    typeof latestEntry?.playerId === 'string' && latestEntry.playerId
-      ? latestEntry.playerId
-      : typeof latestEntry?.playerName === 'string' && latestEntry.playerName
-        ? latestEntry.playerName
-        : '';
-
-  return [
-    `count:${entries.length}`,
-    `timestamp:${latestEntry?.timestamp ?? ''}`,
-    `sender:${senderKey}`,
-    `content:${latestEntry?.content ?? ''}`,
-  ].join('|');
-}
-
 export function useGameSession(gameId: string, propsPlayerName: string) {
   // Stop /game-state polling once an authoritative finished payload has been stored.
   const POSTGAME_POLL_MS = 0;
@@ -337,7 +299,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [error, setError] = useState<string | null>(null);
   
   // Chat state (separate from game state)
-  const [chatEntries, setChatEntries] = useState<ChatEntry[]>([]);
+  const [chatEntries, setChatEntries] = useState<GameSessionChatEntry[]>([]);
   const [battleLogHistory, setBattleLogHistory] = useState<BattleLogHistoryResponse | null>(null);
   const battleLogHistoryRequestSeqRef = useRef(0);
   const lastBattleLogFetchGameIdRef = useRef<string | null>(null);
@@ -615,122 +577,20 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     isFinished,
     postGamePollMs: POSTGAME_POLL_MS,
   });
-  
-  // ============================================================================
-  // CHAT POLLING (SEPARATE 5s CADENCE)
-  // ============================================================================
-  
-  function extendChatBurstWindow(): void {
-    chatBurstUntilRef.current = Math.max(
-      chatBurstUntilRef.current,
-      Date.now() + CHAT_BURST_WINDOW_MS
-    );
-  }
 
-  function getNextChatPollDelayMs(): number {
-    return chatBurstUntilRef.current > Date.now()
-      ? CHAT_BURST_POLL_MS
-      : CHAT_BASELINE_POLL_MS;
-  }
-
-  async function fetchChatOnce(options?: {
-    gameIdToFetch?: string | null;
-    triggerBurstOnNewTail?: boolean;
-  }): Promise<void> {
-    const gameIdToFetch = options?.gameIdToFetch ?? effectiveGameId;
-    const triggerBurstOnNewTail = options?.triggerBurstOnNewTail === true;
-
-    if (!gameIdToFetch || !hasJoinedCurrentGame) {
-      return;
-    }
-
-    try {
-      const response = await authenticatedGet(`/chat-state/${gameIdToFetch}`);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.warn(`[useGameSession] Chat poll error: ${response.status} ${errorText}`);
-        return;
-      }
-
-      const data = await response.json();
-
-      if (!data.ok || !Array.isArray(data.entries)) {
-        return;
-      }
-
-      if (!isChatAliveRef.current || currentChatGameIdRef.current !== gameIdToFetch) {
-        return;
-      }
-
-      const nextEntries = data.entries as ChatEntry[];
-      const nextTailSignature = getLatestChatEntrySignature(nextEntries);
-      const previousTailSignature = lastChatEntrySignatureRef.current;
-      const shouldBurstForNewTail =
-        triggerBurstOnNewTail &&
-        hasLoadedChatEntriesRef.current &&
-        previousTailSignature !== null &&
-        previousTailSignature !== nextTailSignature;
-
-      setChatEntries(nextEntries);
-      lastChatEntrySignatureRef.current = nextTailSignature;
-      hasLoadedChatEntriesRef.current = true;
-
-      if (shouldBurstForNewTail) {
-        extendChatBurstWindow();
-      }
-    } catch (err: any) {
-      console.warn(`[useGameSession] Chat poll error:`, err.message);
-    }
-  }
-
-  useEffect(() => {
-    if (!effectiveGameId) return;
-    if (!hasJoinedCurrentGame) return;
-
-    let mounted = true;
-
-    const clearChatPollTimer = () => {
-      if (chatPollTimerRef.current) {
-        clearTimeout(chatPollTimerRef.current);
-        chatPollTimerRef.current = null;
-      }
-    };
-
-    const scheduleNextChatPoll = (delayMs = getNextChatPollDelayMs()) => {
-      clearChatPollTimer();
-
-      if (!mounted) {
-        return;
-      }
-
-      chatPollTimerRef.current = setTimeout(() => {
-        void pollChat();
-      }, delayMs);
-    };
-
-    const pollChat = async () => {
-      await fetchChatOnce({
-        gameIdToFetch: effectiveGameId,
-        triggerBurstOnNewTail: true,
-      });
-
-      if (mounted) {
-        scheduleNextChatPoll();
-      }
-    };
-
-    scheduleNextChatPollRef.current = scheduleNextChatPoll;
-    void pollChat();
-
-    return () => {
-      mounted = false;
-      if (scheduleNextChatPollRef.current === scheduleNextChatPoll) {
-        scheduleNextChatPollRef.current = null;
-      }
-      clearChatPollTimer();
-    };
-  }, [effectiveGameId, hasJoinedCurrentGame]);
+  const { extendChatBurstWindow, getNextChatPollDelayMs, fetchChatOnce } = useChatPolling({
+    effectiveGameId,
+    hasJoinedCurrentGame,
+    authenticatedGet,
+    setChatEntries,
+    currentChatGameIdRef,
+    isChatAliveRef,
+    lastChatEntrySignatureRef,
+    hasLoadedChatEntriesRef,
+    chatBurstUntilRef,
+    chatPollTimerRef,
+    scheduleNextChatPollRef,
+  });
   
   // ============================================================================
   // DEV EFFECTS: ONE-TIME GAME OVER MARKER
@@ -2571,6 +2431,15 @@ useEffect(() => {
       } catch (err: any) {
         console.error('[useGameSession] New game request error:', err?.message ?? err);
       }
+    },
+
+    onJoinRematchInvite: (gameIdToJoin: string) => {
+      if (!gameIdToJoin) {
+        return;
+      }
+
+      const shareGameUrl = buildShareGameUrl(gameIdToJoin);
+      window.location.assign(shareGameUrl);
     },
     
     onDownloadBattleLog: () => {

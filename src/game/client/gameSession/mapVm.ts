@@ -15,7 +15,11 @@ import type { ActionPanelId } from '../../display/actionPanel/ActionPanelRegistr
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import type { ShipChoiceGroupSpec, ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
-import type { BattleLogHistoryResponse, EvolverChoiceId } from './types';
+import type {
+  BattleLogHistoryResponse,
+  EvolverChoiceId,
+  GameSessionChatEntry,
+} from './types';
 import { getShipChoicePanelSpec } from '../../display/actionPanel/panels/ShipChoiceRegistry';
 import { mapBattleLogTurns } from './battleLog';
 import {
@@ -196,13 +200,7 @@ export function mapGameSessionVm(args: {
   getMajorPhaseLabel: (phaseKey: string) => string;
   getSubphaseLabelFromPhaseKey: (phaseKey: string) => string;
   
-  chatEntries: Array<{
-    type: 'message' | 'system';
-    playerId?: string;
-    playerName?: string;
-    content: string;
-    timestamp: number;
-  }>;
+  chatEntries: GameSessionChatEntry[];
 
   // New params for menu/end-of-game panels
   isFinished: boolean;
@@ -312,11 +310,17 @@ export function mapGameSessionVm(args: {
           type: 'system' as const,
           text: entry.content ?? '',
         }
-      : {
-          type: 'player' as const,
-          playerName: entry.playerName ?? 'Unknown',
-          text: entry.content ?? '',
-        }
+      : entry.type === 'rematch_invite'
+        ? {
+            type: 'rematch_invite' as const,
+            text: entry.content ?? (entry.playerName ? `${entry.playerName} wants to play again` : 'Rematch invite'),
+            targetGameId: entry.newGameId ?? null,
+          }
+        : {
+            type: 'player' as const,
+            playerName: entry.playerName ?? 'Unknown',
+            text: entry.content ?? '',
+          }
   );
 
   // ============================================================================

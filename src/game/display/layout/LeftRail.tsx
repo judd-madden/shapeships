@@ -432,17 +432,34 @@ export function LeftRail({
           innerClassName="justify-end gap-1 text-[15px]"
           stickToBottomOnChange
         >
-          {vm.chatMessages.map((msg, idx) => (
-            <p key={idx} className="text-[#d4d4d4] leading-[18px]">
-              {msg.type === 'player' && (
-                <>
-                  <span className="font-bold">{msg.playerName}:</span>{' '}
-                  <span className="font-normal">{msg.text}</span>
-                </>
-              )}
-              {msg.type === 'system' && <span className="font-normal">{msg.text}</span>}
-            </p>
-          ))}
+          {vm.chatMessages.map((msg, idx) => {
+            if (msg.type === 'rematch_invite') {
+              const targetGameId = msg.targetGameId;
+
+              return (
+                <div key={idx} className="mt-2">
+                  <p className="text-[#9cff84] font-bold leading-[18px] mb-2">{msg.text}</p>
+                  {targetGameId && actions.onJoinRematchInvite && (
+                    <InChatButton onClick={() => actions.onJoinRematchInvite?.(targetGameId)}>
+                      Join Game
+                    </InChatButton>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <p key={idx} className="text-[#d4d4d4] leading-[18px]">
+                {msg.type === 'player' && (
+                  <>
+                    <span className="font-bold">{msg.playerName}:</span>{' '}
+                    <span className="font-normal">{msg.text}</span>
+                  </>
+                )}
+                {msg.type === 'system' && <span className="font-normal">{msg.text}</span>}
+              </p>
+            );
+          })}
         
           {vm.drawOffer && (
             <div className="mt-2">

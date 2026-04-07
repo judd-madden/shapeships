@@ -32,6 +32,7 @@ import {
   normalizeBattleLogHistoryStore,
   toBattleLogHistoryResponse,
 } from '../engine/state/battleLogHistory.ts';
+import { appendChatEntry } from './chat_kv.ts';
 
 const INITIAL_SAVED_LINES = 3;
 
@@ -867,6 +868,29 @@ export function registerGameRoutes(
         getBattleLogHistoryKey(newGameId),
         createEmptyBattleLogHistoryStore(newGameId),
       );
+
+      try {
+        await appendChatEntry(
+          sourceGameId,
+          {
+            type: 'rematch_invite',
+            playerId,
+            playerName,
+            content: `${playerName} wants to play again`,
+            newGameId,
+            timestamp: Date.now(),
+          },
+          kvGet,
+          kvSet,
+        );
+      } catch (error) {
+        console.warn("Failed to append rematch invite to source game chat:", {
+          sourceGameId,
+          newGameId,
+          playerId,
+          error,
+        });
+      }
 
       console.log("New game created from finished game:", {
         sourceGameId,
