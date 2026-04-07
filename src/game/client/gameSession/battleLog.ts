@@ -250,12 +250,15 @@ function tokenizeBuildLine(line: string): BattleLogTokenVm[] {
     return tokenizeGenericLine(line);
   }
 
-  const tokens: BattleLogTokenVm[] = [
-    makeTextToken(`${count} `),
-    makeMultiplierToken(),
-    makeTextToken(' '),
-    makeShipToken(builtShipDefId, true),
-  ];
+  const tokens: BattleLogTokenVm[] = [];
+
+  if (count !== '1') {
+    tokens.push(makeTextToken(`${count} `));
+    tokens.push(makeMultiplierToken());
+    tokens.push(makeTextToken(' '));
+  }
+
+  tokens.push(makeShipToken(builtShipDefId, true));
 
   if (sourceShipDefId) {
     tokens.push(makeTextToken(' ('));
