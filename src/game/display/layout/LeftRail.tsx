@@ -4,10 +4,11 @@
  * Presentation-first layout with small local UI timing for rail-only effects.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Dice } from '../../../components/ui/primitives';
 import { BuildIcon } from '../../../components/ui/primitives/icons/BuildIcon';
 import { BattleIcon } from '../../../components/ui/primitives/icons/BattleIcon';
+import { CloseIcon } from '../../../components/ui/primitives/icons/CloseIcon';
 import { CopyIcon } from '../../../components/ui/primitives/icons/CopyIcon';
 import { OpenFullIcon } from '../../../components/ui/primitives/icons/OpenFullIcon';
 import { ChatSendButton } from '../../../components/ui/primitives/buttons/ChatSendButton';
@@ -30,6 +31,8 @@ interface LeftRailProps {
 
 const FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS = 500;
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
+const BATTLE_LOG_OVERLAY_BOTTOM_INSET_PX = 25;
+const BATTLE_LOG_TRANSITION_MS = 160;
 
 export function LeftRail({
   vm,
@@ -40,11 +43,76 @@ export function LeftRail({
 }: LeftRailProps) {
   const [showCopiedToast, setShowCopiedToast] = useState(false);
   const [chatDraft, setChatDraft] = useState('');
+  const [isBattleLogExpanded, setIsBattleLogExpanded] = useState(false);
+  const [collapsedBattleLogTop, setCollapsedBattleLogTop] = useState<number | null>(null);
   const [isFirstTurnBuildHelperMounted, setIsFirstTurnBuildHelperMounted] = useState(false);
   const [isFirstTurnBuildHelperVisible, setIsFirstTurnBuildHelperVisible] = useState(false);
+  const railRootRef = useRef<HTMLDivElement | null>(null);
+  const battleLogSlotRef = useRef<HTMLDivElement | null>(null);
+  const battleLogViewportRef = useRef<HTMLDivElement | null>(null);
+  const pendingBattleLogScrollRestoreRef = useRef<{ distanceFromBottom: number } | null>(null);
+  const battleLogScrollRestoreFrameRef = useRef<number | null>(null);
+  const battleLogScrollRestoreTimeoutRef = useRef<number | null>(null);
   const firstTurnBuildHelperShowTimeoutRef = useRef<number | null>(null);
   const firstTurnBuildHelperDismissTimeoutRef = useRef<number | null>(null);
   const turnTakeover = useLeftRailTurnTakeover(vm.turn);
+
+  function clearBattleLogScrollRestoreTimers() {
+    if (battleLogScrollRestoreFrameRef.current !== null) {
+      window.cancelAnimationFrame(battleLogScrollRestoreFrameRef.current);
+      battleLogScrollRestoreFrameRef.current = null;
+    }
+
+    if (battleLogScrollRestoreTimeoutRef.current !== null) {
+      window.clearTimeout(battleLogScrollRestoreTimeoutRef.current);
+      battleLogScrollRestoreTimeoutRef.current = null;
+    }
+  }
+
+  function restoreBattleLogScrollPosition() {
+    const snapshot = pendingBattleLogScrollRestoreRef.current;
+    const viewport = battleLogViewportRef.current;
+    if (!snapshot || !viewport) {
+      return;
+    }
+
+    if (viewport.scrollHeight <= viewport.clientHeight) {
+      return;
+    }
+
+    const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+    const nextScrollTop = viewport.scrollHeight - viewport.clientHeight - snapshot.distanceFromBottom;
+    viewport.scrollTop = Math.max(0, Math.min(maxScrollTop, nextScrollTop));
+  }
+
+  function scheduleBattleLogScrollRestore() {
+    if (!pendingBattleLogScrollRestoreRef.current) {
+      return;
+    }
+
+    clearBattleLogScrollRestoreTimers();
+    restoreBattleLogScrollPosition();
+
+    const endTime = performance.now() + BATTLE_LOG_TRANSITION_MS + 40;
+    const tick = () => {
+      restoreBattleLogScrollPosition();
+
+      if (performance.now() >= endTime) {
+        battleLogScrollRestoreFrameRef.current = null;
+        pendingBattleLogScrollRestoreRef.current = null;
+        return;
+      }
+
+      battleLogScrollRestoreFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    battleLogScrollRestoreFrameRef.current = window.requestAnimationFrame(tick);
+    battleLogScrollRestoreTimeoutRef.current = window.setTimeout(() => {
+      restoreBattleLogScrollPosition();
+      pendingBattleLogScrollRestoreRef.current = null;
+      clearBattleLogScrollRestoreTimers();
+    }, BATTLE_LOG_TRANSITION_MS + 80);
+  }
 
   function clearFirstTurnBuildHelperShowTimeout() {
     if (firstTurnBuildHelperShowTimeoutRef.current !== null) {
@@ -62,10 +130,53 @@ export function LeftRail({
 
   useEffect(() => {
     return () => {
+      clearBattleLogScrollRestoreTimers();
       clearFirstTurnBuildHelperShowTimeout();
       clearFirstTurnBuildHelperDismissTimeout();
     };
   }, []);
+
+  useLayoutEffect(() => {
+    const railRoot = railRootRef.current;
+    const battleLogSlot = battleLogSlotRef.current;
+    if (!railRoot || !battleLogSlot) {
+      return;
+    }
+
+    const measureCollapsedBattleLogTop = () => {
+      const railRect = railRoot.getBoundingClientRect();
+      const slotRect = battleLogSlot.getBoundingClientRect();
+      const nextTop = Math.max(0, slotRect.top - railRect.top);
+
+      setCollapsedBattleLogTop((currentTop) =>
+        currentTop !== null && Math.abs(currentTop - nextTop) < 0.5 ? currentTop : nextTop
+      );
+    };
+
+    measureCollapsedBattleLogTop();
+
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measureCollapsedBattleLogTop) : null;
+    resizeObserver?.observe(railRoot);
+    resizeObserver?.observe(battleLogSlot);
+
+    window.addEventListener('resize', measureCollapsedBattleLogTop);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', measureCollapsedBattleLogTop);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!pendingBattleLogScrollRestoreRef.current) {
+      return;
+    }
+
+    scheduleBattleLogScrollRestore();
+    return () => {
+      clearBattleLogScrollRestoreTimers();
+    };
+  }, [isBattleLogExpanded, collapsedBattleLogTop]);
 
   useEffect(() => {
     if (firstTurnBuildHelperDismissSignal === 0) {
@@ -187,8 +298,26 @@ export function LeftRail({
     }, 5000);
   }
 
+  function handleBattleLogExpandToggle() {
+    const viewport = battleLogViewportRef.current;
+    if (viewport && viewport.scrollHeight > viewport.clientHeight) {
+      pendingBattleLogScrollRestoreRef.current = {
+        distanceFromBottom: viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight,
+      };
+    } else {
+      pendingBattleLogScrollRestoreRef.current = null;
+    }
+
+    setIsBattleLogExpanded((current) => !current);
+  }
+
+  const battleLogOverlayTop = isBattleLogExpanded ? 20 : (collapsedBattleLogTop ?? 0);
+
   return (
-    <div className="relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0">
+    <div
+      ref={railRootRef}
+      className="relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0"
+    >
       {isFirstTurnBuildHelperMounted && (
         <div
           className="pointer-events-none absolute left-[250px] top-[100px] z-30"
@@ -375,16 +504,26 @@ export function LeftRail({
         </div>
       </div>
 
-      {/* Battle Log Area (fills remaining height, scrollable) */}
-      <div className="basis-0 flex-1 bg-black rounded-[10px] border-2 border-[#555] flex flex-col min-h-0">
+      {/* Battle Log slot preserves layout while the real card overlays above it. */}
+      <div ref={battleLogSlotRef} className="basis-0 flex-1 min-h-0" aria-hidden="true" />
+
+      <div
+        className="absolute left-0 right-0 z-50 flex min-h-0 flex-col rounded-[10px] border-2 border-[#555] bg-black"
+        style={{
+          top: battleLogOverlayTop,
+          // Match the current rail pb-[25px] inset so the overlay never drops below the collapsed card.
+          bottom: BATTLE_LOG_OVERLAY_BOTTOM_INSET_PX,
+          transition: collapsedBattleLogTop === null ? undefined : `top ${BATTLE_LOG_TRANSITION_MS}ms ease-out`,
+        }}
+      >
         <div className="shrink-0 bg-black rounded-t-[10px] border-b border-[var(--shapeships-grey-70)] px-[20px] py-[12px] flex flex-col gap-[8px]">
           <div className="flex items-center justify-between">
             <p className="text-white text-[18px] font-black">Battle Log</p>
             <button
               className="bg-black rounded-[7px] p-0 opacity-50 hover:opacity-100 transition-opacity cursor-pointer"
-              onClick={actions.onOpenBattleLogFullscreen}
+              onClick={handleBattleLogExpandToggle}
             >
-              <OpenFullIcon />
+              {isBattleLogExpanded ? <CloseIcon /> : <OpenFullIcon />}
             </button>
           </div>
           <div className="grid grid-cols-2 gap-[20px] text-[15px] leading-none text-[var(--shapeships-grey-20)]">
@@ -394,6 +533,7 @@ export function LeftRail({
         </div>
 
         <LeftRailScrollArea
+          viewportRef={battleLogViewportRef}
           outerClassName="basis-0 rounded-b-[10px] flex-1 pb-3"
           forceScrollOnChangeKey={vm.battleLogAutoScrollKey}
         >

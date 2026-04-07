@@ -7,10 +7,24 @@ interface LeftRailScrollAreaProps {
   innerClassName?: string;
   stickToBottomOnChange?: boolean;
   forceScrollOnChangeKey?: string | number;
+  viewportRef?: React.Ref<HTMLDivElement | null>;
 }
 
 function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
+}
+
+function assignRef<T>(ref: React.Ref<T> | undefined, value: T) {
+  if (!ref) {
+    return;
+  }
+
+  if (typeof ref === 'function') {
+    ref(value);
+    return;
+  }
+
+  (ref as React.MutableRefObject<T>).current = value;
 }
 
 export function LeftRailScrollArea({
@@ -19,8 +33,9 @@ export function LeftRailScrollArea({
   innerClassName,
   stickToBottomOnChange,
   forceScrollOnChangeKey,
+  viewportRef,
 }: LeftRailScrollAreaProps) {
-  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const localViewportRef = useRef<HTMLDivElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const wasNearBottomRef = useRef(true);
 
@@ -28,7 +43,7 @@ export function LeftRailScrollArea({
   useEffect(() => {
     if (!stickToBottomOnChange) return;
 
-    const el = viewportRef.current;
+    const el = localViewportRef.current;
     if (!el) return;
 
     const onScroll = () => {
@@ -59,7 +74,10 @@ export function LeftRailScrollArea({
 
   return (
     <div
-      ref={viewportRef}
+      ref={(node) => {
+        localViewportRef.current = node;
+        assignRef(viewportRef, node);
+      }}
       className={cx('min-h-0 overflow-y-auto overflow-x-hidden break-words', outerClassName)}
     >
       <div className={cx('min-h-full flex flex-col', innerClassName)}>
