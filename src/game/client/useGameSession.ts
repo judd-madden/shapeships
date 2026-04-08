@@ -30,6 +30,7 @@ import type { FleetAnimVM } from '../display/graphics/animation';
 import type { ActivationStaggerPlan } from '../display/graphics/animation-stagger';
 import { computeActivationStaggerPlan } from '../display/graphics/animation-stagger';
 import { buildShareGameUrl } from './config';
+import { downloadBattleLog } from './downloadBattleLog';
 import { generateNonce, makeCommitHash } from './hashUtils';
 import { isValidPhaseKey } from '../../engine/phase/PhaseTable';
 import { getPlayerName } from './gameSession/playerName';
@@ -2443,7 +2444,32 @@ useEffect(() => {
     },
     
     onDownloadBattleLog: () => {
-      console.log('[useGameSession] Download battle log (no-op)');
+      if (!effectiveGameId) {
+        console.warn('[useGameSession] Download battle log blocked: missing gameId');
+        return;
+      }
+
+      if (battleLogHistory == null) {
+        console.warn('[useGameSession] Download battle log blocked: missing battleLogHistory');
+        return;
+      }
+
+      downloadBattleLog({
+        battleLogHistory,
+        gameId: effectiveGameId,
+        me: {
+          identityKey: me?.playerId ?? me?.id ?? me?.sessionId ?? null,
+          name: me?.name ?? null,
+          species: mySpecies,
+        },
+        opponent: {
+          identityKey: opponent?.playerId ?? opponent?.id ?? opponent?.sessionId ?? null,
+          name: opponent?.name ?? null,
+          species: opponentSpecies,
+        },
+        winnerPlayerId: terminalWinnerPlayerId,
+        resultReason: terminalResultReason,
+      });
     },
     
 onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
