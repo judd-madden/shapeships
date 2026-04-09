@@ -64,6 +64,7 @@ import { useAutoJoinEffect, usePollingEffect } from './gameSession/clienteffects
 import { useBuildPreviewResetEffect, useAutoRevealBuildEffect } from './gameSession/clienteffects/usePhaseAutomationEffects';
 import { useFleetOrder } from './gameSession/clienteffects/useFleetOrder';
 import { useFleetAnimTokens } from './gameSession/clienteffects/useFleetAnimTokens';
+import { useUntimedPollingThrottle } from './gameSession/clienteffects/useUntimedPollingThrottle';
 import { useDestroyTargetingRuntime } from './gameSession/destroyTargeting';
 import type {
   HudStatusTone,
@@ -554,9 +555,16 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // CHUNK 8: END-OF-GAME LOCKOUT (SERVER AUTHORITATIVE) — DERIVED FLAGS
   // ============================================================================
 
+  const {
+    mode: untimedPollingMode,
+    resumeToken: untimedResumeToken,
+  } = useUntimedPollingThrottle();
   const isFinished =
     rawState?.status === 'finished' ||
     rawState?.gameData?.status === 'finished';
+  const isUntimedAuthoritative =
+    rawState?.gameData != null &&
+    rawState.gameData.clock == null;
   const terminalWinnerPlayerId = rawState?.winnerPlayerId ?? null;
   const terminalResultReason = rawState?.resultReason ?? null;
 
@@ -576,6 +584,9 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     setLoading,
     setError,
     isFinished,
+    isUntimedAuthoritative,
+    untimedPollingMode,
+    untimedResumeToken,
     postGamePollMs: POSTGAME_POLL_MS,
   });
 
@@ -591,6 +602,9 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     chatBurstUntilRef,
     chatPollTimerRef,
     scheduleNextChatPollRef,
+    isUntimedAuthoritative,
+    untimedPollingMode,
+    untimedResumeToken,
   });
   
   // ============================================================================

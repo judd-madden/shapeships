@@ -1,10 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import type { GameSessionChatEntry } from '../types';
+import type { UntimedPollingMode } from './useUntimedPollingThrottle';
 
 const CHAT_BASELINE_POLL_MS = 5000;
 const CHAT_BURST_POLL_MS = 800;
 const CHAT_BURST_WINDOW_MS = 15000;
+const UNTIMED_IDLE_CHAT_POLL_MS = 12000;
 
 function normalizeTimestamp(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
@@ -121,6 +123,9 @@ export function useChatPolling(args: {
   chatBurstUntilRef: MutableRefObject<number>;
   chatPollTimerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>;
   scheduleNextChatPollRef: MutableRefObject<((delayMs?: number) => void) | null>;
+  isUntimedAuthoritative: boolean;
+  untimedPollingMode: UntimedPollingMode;
+  untimedResumeToken: number;
 }) {
   const {
     effectiveGameId,
@@ -134,7 +139,15 @@ export function useChatPolling(args: {
     chatBurstUntilRef,
     chatPollTimerRef,
     scheduleNextChatPollRef,
+    isUntimedAuthoritative,
+    untimedPollingMode,
+    untimedResumeToken,
   } = args;
+  const lastHandledResumeTokenRef = useRef(untimedResumeToken);
+
+  useEffect(() => {
+    lastHandledResumeTokenRef.current = untimedResumeToken;
+  }, [effectiveGameId]);
 
   function extendChatBurstWindow(): void {
     chatBurstUntilRef.current = Math.max(
@@ -144,9 +157,15 @@ export function useChatPolling(args: {
   }
 
   function getNextChatPollDelayMs(): number {
-    return chatBurstUntilRef.current > Date.now()
+    const nextDelayMs = chatBurstUntilRef.current > Date.now()
       ? CHAT_BURST_POLL_MS
       : CHAT_BASELINE_POLL_MS;
+
+    if (isUntimedAuthoritative && untimedPollingMode === 'idle') {
+      return Math.max(nextDelayMs, UNTIMED_IDLE_CHAT_POLL_MS);
+    }
+
+    return nextDelayMs;
   }
 
   async function fetchChatOnce(options?: {
@@ -203,8 +222,12 @@ export function useChatPolling(args: {
   useEffect(() => {
     if (!effectiveGameId) return;
     if (!hasJoinedCurrentGame) return;
+    if (isUntimedAuthoritative && untimedPollingMode === 'hidden') return;
 
     let mounted = true;
+    const hasResumeEvent =
+      isUntimedAuthoritative &&
+      lastHandledResumeTokenRef.current !== untimedResumeToken;
 
     const clearChatPollTimer = () => {
       if (chatPollTimerRef.current) {
@@ -220,10 +243,23 @@ export function useChatPolling(args: {
         return;
       }
 
+      if (isUntimedAuthoritative && untimedPollingMode === 'hidden') {
+        return;
+      }
+
       chatPollTimerRef.current = setTimeout(() => {
         void pollChat();
       }, delayMs);
     };
+
+    const shouldFetchImmediately =
+      !isUntimedAuthoritative ||
+      untimedPollingMode === 'active' ||
+      hasResumeEvent;
+
+    if (hasResumeEvent) {
+      lastHandledResumeTokenRef.current = untimedResumeToken;
+    }
 
     const pollChat = async () => {
       await fetchChatOnce({
@@ -237,7 +273,11 @@ export function useChatPolling(args: {
     };
 
     scheduleNextChatPollRef.current = scheduleNextChatPoll;
-    void pollChat();
+    if (shouldFetchImmediately) {
+      void pollChat();
+    } else {
+      scheduleNextChatPoll();
+    }
 
     return () => {
       mounted = false;
@@ -246,7 +286,13 @@ export function useChatPolling(args: {
       }
       clearChatPollTimer();
     };
-  }, [effectiveGameId, hasJoinedCurrentGame]);
+  }, [
+    effectiveGameId,
+    hasJoinedCurrentGame,
+    isUntimedAuthoritative,
+    untimedPollingMode,
+    untimedResumeToken,
+  ]);
 
   return {
     extendChatBurstWindow,

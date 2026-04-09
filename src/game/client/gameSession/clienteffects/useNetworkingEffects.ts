@@ -1,5 +1,9 @@
 import { useEffect, useRef } from 'react';
 import type React from 'react';
+import type { UntimedPollingMode } from './useUntimedPollingThrottle';
+
+const ACTIVE_POLL_MS = 1200;
+const UNTIMED_IDLE_POLL_MS = 12000;
 
 export function useAutoJoinEffect(args: {
   effectiveGameId: string | null;
@@ -200,6 +204,9 @@ export function usePollingEffect(args: {
   setError: (v: string | null) => void;
   
   isFinished: boolean;
+  isUntimedAuthoritative: boolean;
+  untimedPollingMode: UntimedPollingMode;
+  untimedResumeToken: number;
   postGamePollMs?: number;
 }) {
   const {
@@ -210,11 +217,23 @@ export function usePollingEffect(args: {
     setLoading,
     setError,
     isFinished,
+    isUntimedAuthoritative,
+    untimedPollingMode,
+    untimedResumeToken,
     postGamePollMs,
   } = args;
 
   // Track last gameId we logged "Polling gated" for (prevents spam)
   const lastGatedGameIdRef = useRef<string | null>(null);
+  const terminalStopGameIdRef = useRef<string | null>(null);
+  const terminalStopReasonRef = useRef<'finished' | '403' | '404' | null>(null);
+  const lastHandledResumeTokenRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    terminalStopGameIdRef.current = effectiveGameId;
+    terminalStopReasonRef.current = null;
+    lastHandledResumeTokenRef.current = untimedResumeToken;
+  }, [effectiveGameId]);
 
   useEffect(() => {
     // Don't poll without a usable gameId
@@ -239,28 +258,92 @@ export function usePollingEffect(args: {
     // Clear gated ref when polling starts (allows re-logging if we gate again)
     lastGatedGameIdRef.current = null;
 
-    const ACTIVE_POLL_MS = 1200; // ~1.2s interval during active game
     const POSTGAME_POLL_MS = postGamePollMs ?? 5000; // default to 5s if not specified
-    
-    // Determine polling interval based on game state
-    const intervalMs = isFinished ? POSTGAME_POLL_MS : ACTIVE_POLL_MS;
-    
-    // If game finished and polling disabled (postGamePollMs <= 0), stop polling
-    if (isFinished && intervalMs <= 0) {
+
+    if (terminalStopGameIdRef.current === effectiveGameId && terminalStopReasonRef.current) {
+      return;
+    }
+
+    const getRecurringDelayMs = (nextIsFinished: boolean): number | null => {
+      if (nextIsFinished) {
+        return POSTGAME_POLL_MS > 0 ? POSTGAME_POLL_MS : null;
+      }
+
+      if (!isUntimedAuthoritative) {
+        return ACTIVE_POLL_MS;
+      }
+
+      if (untimedPollingMode === 'hidden') {
+        return null;
+      }
+
+      return untimedPollingMode === 'idle'
+        ? UNTIMED_IDLE_POLL_MS
+        : ACTIVE_POLL_MS;
+    };
+
+    const initialDelayMs = getRecurringDelayMs(isFinished);
+    const hasResumeEvent =
+      isUntimedAuthoritative &&
+      lastHandledResumeTokenRef.current !== untimedResumeToken;
+
+    if (isFinished && initialDelayMs == null) {
+      terminalStopReasonRef.current = 'finished';
+      return;
+    }
+
+    if (isUntimedAuthoritative && untimedPollingMode === 'hidden') {
       return;
     }
 
     let mounted = true;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
     let shouldStopPolling = false;
+    let isPolling = false;
 
-    const poll = async () => {
-      // Stop if flag is set
-      if (shouldStopPolling) {
+    const clearPollTimer = () => {
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+    };
+
+    const stopPolling = (reason: 'finished' | '403' | '404') => {
+      terminalStopGameIdRef.current = effectiveGameId;
+      terminalStopReasonRef.current = reason;
+      shouldStopPolling = true;
+      clearPollTimer();
+    };
+
+    const scheduleNextPoll = (delayMs: number | null) => {
+      clearPollTimer();
+
+      if (!mounted || shouldStopPolling || delayMs == null) {
         return;
       }
 
-      let nextPollDelayMs = intervalMs;
+      pollTimer = setTimeout(() => {
+        void poll();
+      }, delayMs);
+    };
+
+    const shouldFetchImmediately =
+      !isUntimedAuthoritative ||
+      untimedPollingMode === 'active' ||
+      hasResumeEvent;
+
+    if (hasResumeEvent) {
+      lastHandledResumeTokenRef.current = untimedResumeToken;
+    }
+
+    const poll = async () => {
+      // Stop if flag is set
+      if (shouldStopPolling || isPolling) {
+        return;
+      }
+
+      isPolling = true;
+      let nextPollDelayMs = initialDelayMs;
 
       try {
         // Fetch game state (authenticatedGet handles session automatically)
@@ -272,7 +355,7 @@ export function usePollingEffect(args: {
           // Stop polling on 403 Not authorized
           if (response.status === 403) {
             console.error(`❌ [useGameSession] Poll error gameId=${effectiveGameId}: Not authorized (403) - stopping polling`);
-            shouldStopPolling = true;
+            stopPolling('403');
             if (mounted) {
               setError(`Not authorized to view this game`);
               setLoading(false);
@@ -283,7 +366,7 @@ export function usePollingEffect(args: {
           // Stop polling on 404 Game not found
           if (response.status === 404 && errorText.toLowerCase().includes('game not found')) {
             console.error(`❌ [useGameSession] Poll error gameId=${effectiveGameId}: Game not found (404) - stopping polling`);
-            shouldStopPolling = true;
+            stopPolling('404');
             if (mounted) {
               setError(`Game not found: ${effectiveGameId}`);
               setLoading(false);
@@ -298,8 +381,7 @@ export function usePollingEffect(args: {
         const fetchedIsFinished =
           data?.status === 'finished' ||
           data?.gameData?.status === 'finished';
-        const nextIntervalMs = fetchedIsFinished ? POSTGAME_POLL_MS : ACTIVE_POLL_MS;
-        nextPollDelayMs = nextIntervalMs;
+        nextPollDelayMs = getRecurringDelayMs(fetchedIsFinished);
 
         if (mounted) {
           applyAuthoritativeRawState(data);
@@ -307,8 +389,8 @@ export function usePollingEffect(args: {
           setError(null);
         }
 
-        if (fetchedIsFinished && nextIntervalMs <= 0) {
-          shouldStopPolling = true;
+        if (fetchedIsFinished && nextPollDelayMs == null) {
+          stopPolling('finished');
           return;
         }
       } catch (err: any) {
@@ -317,23 +399,35 @@ export function usePollingEffect(args: {
           setError(err.message);
           setLoading(false);
         }
+      } finally {
+        isPolling = false;
       }
 
       // Schedule next poll (only if not stopped)
       if (mounted && !shouldStopPolling) {
-        pollTimer = setTimeout(poll, nextPollDelayMs);
+        scheduleNextPoll(nextPollDelayMs);
       }
     };
 
     // Start polling
-    poll();
+    if (shouldFetchImmediately) {
+      void poll();
+    } else {
+      scheduleNextPoll(initialDelayMs);
+    }
 
     return () => {
       mounted = false;
       shouldStopPolling = true;
-      if (pollTimer) {
-        clearTimeout(pollTimer);
-      }
+      clearPollTimer();
     };
-  }, [effectiveGameId, hasJoinedCurrentGame, isFinished, postGamePollMs]);
+  }, [
+    effectiveGameId,
+    hasJoinedCurrentGame,
+    isFinished,
+    isUntimedAuthoritative,
+    untimedPollingMode,
+    untimedResumeToken,
+    postGamePollMs,
+  ]);
 }
