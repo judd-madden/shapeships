@@ -282,6 +282,10 @@ export default function App() {
     return result.gameId;
   };
 
+  const createComputerGame = async (_settings: CreatePrivateGameSettings): Promise<void> => {
+    throw new Error('Play Computer not wired yet');
+  };
+
   const resetPlayerSession = () => {
     clearPlayer();
     clearSession();
@@ -344,6 +348,7 @@ export default function App() {
           initialShell={playerShellStart}
           pendingInviteGameId={pendingInviteGameId}
           onCreatePrivateGame={createPrivateGame}
+          onCreateComputerGame={createComputerGame}
           onLaunchGame={launchGame}
           onResetPlayerSession={resetPlayerSession}
           onStartSession={startPlayerSession}

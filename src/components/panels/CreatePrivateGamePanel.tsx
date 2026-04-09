@@ -17,8 +17,12 @@ export interface CreatePrivateGameSettings {
 }
 
 interface CreatePrivateGamePanelProps {
-  onCreatePrivateGame: (settings: CreatePrivateGameSettings) => Promise<void>;
+  onSubmit: (settings: CreatePrivateGameSettings) => Promise<void>;
   onBack?: () => void;
+  heading?: string;
+  subheading?: string;
+  primaryActionLabel?: string;
+  primaryActionStyle?: 'private' | 'emphasisWhite';
 }
 
 type TimerPresetKey = '5_0' | '10_5' | '15_10' | '30_20';
@@ -136,7 +140,11 @@ function ModeToggleRow({ label, selected, onSelect }: ModeToggleRowProps) {
 }
 
 export function CreatePrivateGamePanel({
-  onCreatePrivateGame,
+  onSubmit,
+  heading = 'Create Private Game',
+  subheading = 'Share the game URL with a friend.',
+  primaryActionLabel = 'CREATE PRIVATE GAME',
+  primaryActionStyle = 'private',
 }: CreatePrivateGamePanelProps) {
   const [isTimed, setIsTimed] = useState(true);
   const [selectedPresetKey, setSelectedPresetKey] = useState<TimerPresetKey>('15_10');
@@ -151,7 +159,7 @@ export function CreatePrivateGamePanel({
     setError('');
 
     try {
-      await onCreatePrivateGame({
+      await onSubmit({
         timed: isTimed,
         minutes: isTimed ? preset.minutes : null,
         incrementSeconds: isTimed ? preset.incrementSeconds : null,
@@ -164,6 +172,11 @@ export function CreatePrivateGamePanel({
     }
   };
 
+  const primaryActionButtonProps =
+    primaryActionStyle === 'emphasisWhite'
+      ? { variant: 'join' as const, active: !isCreating }
+      : { variant: 'private' as const };
+
   return (
     <div className="content-stretch flex w-full flex-col gap-[50px]">
       <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[9px] leading-[normal]">
@@ -171,13 +184,13 @@ export function CreatePrivateGamePanel({
           className="font-['Roboto',sans-serif] text-[36px] font-black text-nowrap"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
-          Create Private Game
+          {heading}
         </p>
         <p
           className="font-['Roboto',sans-serif] text-[20px] font-normal"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
-          Share the game URL with a friend.
+          {subheading}
         </p>
       </div>
 
@@ -228,12 +241,12 @@ export function CreatePrivateGamePanel({
         )}
 
         <MenuButton
-          variant="private"
+          {...primaryActionButtonProps}
           onClick={handleCreateGame}
           disabled={isCreating}
           className="w-full max-w-[320px]"
         >
-          {isCreating ? 'CREATING...' : 'CREATE PRIVATE GAME'}
+          {isCreating ? 'CREATING...' : primaryActionLabel}
         </MenuButton>
       </div>
 

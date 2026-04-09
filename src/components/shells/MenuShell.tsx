@@ -22,10 +22,13 @@ interface MenuShellProps {
   onLogout: () => void;
   onGameCreated: (gameId: string) => void;
   onCreatePrivateGame: (settings: CreatePrivateGameSettings) => Promise<string>;
+  onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<void>;
   user: any;
   player: any;
   alphaDisableAuth: boolean;
 }
+
+type ActivePanel = 'multiplayer' | 'createPrivateGame' | 'playComputer' | 'rules';
 
 export function MenuShell({ 
   onNavigate, 
@@ -33,11 +36,12 @@ export function MenuShell({
   onLogout, 
   onGameCreated, 
   onCreatePrivateGame,
+  onCreateComputerGame,
   user, 
   player, 
   alphaDisableAuth 
 }: MenuShellProps) {
-  const [activePanel, setActivePanel] = useState('multiplayer');
+  const [activePanel, setActivePanel] = useState<ActivePanel>('multiplayer');
   const [isCreating, setIsCreating] = useState(false);
 
   // SESSION INVARIANT GUARD:
@@ -61,6 +65,18 @@ export function MenuShell({
     } catch (error: any) {
       console.error('Failed to create game:', error);
       throw error; // Re-throw so panel can handle it
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleCreateComputerGameWithSettings = async (settings: CreatePrivateGameSettings) => {
+    setIsCreating(true);
+    try {
+      await onCreateComputerGame(settings);
+    } catch (error: any) {
+      console.error('Failed to create computer game:', error);
+      throw error;
     } finally {
       setIsCreating(false);
     }
@@ -172,6 +188,24 @@ export function MenuShell({
                 </p>
               </div>
 
+              {/* Play Computer */}
+              <div 
+                className="content-stretch flex items-center justify-center pb-[5px] pt-0 px-0 relative shrink-0 cursor-pointer"
+                onClick={() => setActivePanel('playComputer')}
+              >
+                {activePanel === 'playComputer' && (
+                  <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
+                )}
+                <p 
+                  className={`font-['Roboto',sans-serif] font-black leading-[32px] relative shrink-0 text-[24px] md:text-[28px] text-nowrap uppercase ${
+                    activePanel === 'playComputer' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
+                  }`}
+                  style={{ fontVariationSettings: "'wdth' 100" }}
+                >
+                  Play Computer
+                </p>
+              </div>
+
               {/* Rules & Codex */}
               <div 
                 className="content-stretch flex items-center justify-center pb-[5px] pt-0 px-0 relative shrink-0 cursor-pointer"
@@ -196,7 +230,7 @@ export function MenuShell({
                 style={{ fontVariationSettings: "'wdth' 100" }}
                 onClick={alphaDisableAuth ? onExit : onLogout}
               >
-                BACK
+                Change Name
               </p>
 
             </div>
@@ -215,8 +249,17 @@ export function MenuShell({
             )}
             {activePanel === 'createPrivateGame' && (
               <CreatePrivateGamePanel
-                onCreatePrivateGame={handleCreateGameWithSettings}
+                onSubmit={handleCreateGameWithSettings}
                 onBack={() => setActivePanel('multiplayer')}
+              />
+            )}
+            {activePanel === 'playComputer' && (
+              <CreatePrivateGamePanel
+                onSubmit={handleCreateComputerGameWithSettings}
+                heading="PLAY COMPUTER"
+                subheading="Start a game against a computer opponent."
+                primaryActionLabel="PLAY COMPUTER"
+                primaryActionStyle="emphasisWhite"
               />
             )}
           </div>

@@ -14,6 +14,7 @@ interface ScreenManagerProps {
   initialShell: ShellId;
   pendingInviteGameId: string | null;
   onCreatePrivateGame: (settings: CreatePrivateGameSettings) => Promise<string>;
+  onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<void>;
   onLaunchGame: (gameId: string) => void;
   onResetPlayerSession: () => void;
   onStartSession: (displayName: string) => Promise<void>;
@@ -25,6 +26,7 @@ export default function ScreenManager({
   initialShell,
   pendingInviteGameId,
   onCreatePrivateGame,
+  onCreateComputerGame,
   onLaunchGame,
   onResetPlayerSession,
   onStartSession,
@@ -96,6 +98,7 @@ export default function ScreenManager({
             onLogout={handleLogout}
             onGameCreated={handleGameCreated}
             onCreatePrivateGame={onCreatePrivateGame}
+            onCreateComputerGame={onCreateComputerGame}
             user={user}
             player={player}
             alphaDisableAuth={ALPHA_DISABLE_AUTH}
