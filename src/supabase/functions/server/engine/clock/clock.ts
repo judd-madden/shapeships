@@ -2,8 +2,7 @@
  * SERVER AUTHORITATIVE CHESS CLOCK
  * 
  * Rules:
- * - Base time: 15 minutes (900,000 ms)
- * - Increment: 30 seconds per turn (30,000 ms)
+ * - Time control can be explicit per game, or legacy-defaulted for untouched callers
  * - Clocks do NOT run until both players have confirmed species AND turnNumber >= 1
  * - Time decrements only when player is NOT ready
  * - Increment is applied ONCE per player per turn (not per ready press)
@@ -14,15 +13,22 @@
 // CLOCK STATE INTERFACE
 // ============================================================================
 
+export interface TimeControlConfig {
+  baseMs: number;
+  incrementMs: number;
+}
+
 export interface ClockState {
-  timeControl: {
-    baseMs: number;       // default 900_000 (15 minutes)
-    incrementMs: number;  // default 30_000 (30 seconds)
-  };
+  timeControl: TimeControlConfig;
   remainingMsByPlayerId: Record<string, number>;
   lastUpdateAtMs: number;
   incrementAppliedTurnByPlayerId: Record<string, number>;
 }
+
+const LEGACY_DEFAULT_TIME_CONTROL: TimeControlConfig = {
+  baseMs: 900_000,
+  incrementMs: 30_000,
+};
 
 // ============================================================================
 // CLOCK INITIALIZATION
@@ -33,19 +39,24 @@ export interface ClockState {
  * Clocks are created but do not start accruing until conditions are met
  * 
  * @param gameData - The game state to initialize clocks for
+ * @param timeControl - Explicit clock config, null for untimed, omitted for legacy fallback
  * @returns Updated game state with initialized clocks
  */
-export function initializeClocks(gameData: any): any {
+export function initializeClocks(gameData: any, timeControl?: TimeControlConfig | null): any {
   // If clock already exists, don't overwrite
   if (gameData?.gameData?.clock) {
     return gameData;
   }
+
+  // Explicit untimed games do not create a clock object.
+  if (timeControl === null) {
+    return gameData;
+  }
+
+  const resolvedTimeControl = timeControl ?? LEGACY_DEFAULT_TIME_CONTROL;
   
   const clock: ClockState = {
-    timeControl: {
-      baseMs: 900_000,      // 15 minutes
-      incrementMs: 30_000,  // 30 seconds
-    },
+    timeControl: resolvedTimeControl,
     remainingMsByPlayerId: {},
     lastUpdateAtMs: Date.now(),
     incrementAppliedTurnByPlayerId: {},

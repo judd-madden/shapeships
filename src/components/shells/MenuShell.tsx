@@ -10,10 +10,9 @@
  */
 
 import React, { useState } from 'react';
-import { MenuButton } from '../ui/primitives/buttons/MenuButton';
 import { MultiplayerPanel } from '../panels/MultiplayerPanel';
 import { RulesPanel } from '../panels/RulesPanel';
-import { CreatePrivateGamePanel } from '../panels/CreatePrivateGamePanel';
+import { CreatePrivateGamePanel, type CreatePrivateGameSettings } from '../panels/CreatePrivateGamePanel';
 import { LogoIcon } from '../ui/primitives/icons/LogoIcon';
 import { OnlineStatusIcon } from '../ui/primitives/icons/OnlineStatusIcon';
 
@@ -22,7 +21,7 @@ interface MenuShellProps {
   onExit: () => void;
   onLogout: () => void;
   onGameCreated: (gameId: string) => void;
-  onCreatePrivateGame: () => Promise<string>;
+  onCreatePrivateGame: (settings: CreatePrivateGameSettings) => Promise<string>;
   user: any;
   player: any;
   alphaDisableAuth: boolean;
@@ -54,19 +53,10 @@ export function MenuShell({
 
   const displayName = player.name;
 
-  const handleCreatePrivateGameClick = async () => {
-    // Switch to the Create Private Game panel
-    setActivePanel('createPrivateGame');
-  };
-
-  const handleCreateGameWithSettings = async (settings: any) => {
-    // For now, settings are ignored - backend will use them in future
-    // This wrapper maintains the callback pattern while preparing for settings integration
-    console.log('Game settings (ready for backend):', settings);
-    
+  const handleCreateGameWithSettings = async (settings: CreatePrivateGameSettings) => {
     setIsCreating(true);
     try {
-      const gameId = await onCreatePrivateGame();
+      const gameId = await onCreatePrivateGame(settings);
       onGameCreated(gameId);
     } catch (error: any) {
       console.error('Failed to create game:', error);
@@ -217,9 +207,6 @@ export function MenuShell({
             {/* Render active panel */}
             {activePanel === 'multiplayer' && (
               <MultiplayerPanel
-                alphaDisableAuth={alphaDisableAuth}
-                onGameCreated={onGameCreated}
-                onCreatePrivateGame={onCreatePrivateGame}
                 onNavigateToCreateGame={() => setActivePanel('createPrivateGame')}
               />
             )}

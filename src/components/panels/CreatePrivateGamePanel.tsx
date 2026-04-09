@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { MenuButton } from '../ui/primitives/buttons/MenuButton';
 import { RadioButton } from '../ui/primitives/controls/RadioButton';
 
-interface CreatePrivateGameSettings {
+export interface CreatePrivateGameSettings {
   timed: boolean;
   minutes: number | null;
   incrementSeconds: number | null;

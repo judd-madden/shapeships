@@ -10,9 +10,6 @@ import { GameMenuButton } from '../ui/primitives/buttons/GameMenuButton';
 import { MenuButton } from '../ui/primitives/buttons/MenuButton';
 
 interface MultiplayerPanelProps {
-  alphaDisableAuth: boolean;
-  onGameCreated: (gameId: string) => void;
-  onCreatePrivateGame: () => Promise<string>;
   onNavigateToCreateGame?: () => void;
 }
 

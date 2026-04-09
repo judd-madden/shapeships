@@ -12,6 +12,7 @@ import { advancePhase, advancePhaseCore } from '../engine/phase/advancePhase.ts'
 import { onEnterPhase } from '../engine/phase/onEnterPhase.ts';
 import { syncPhaseFields } from '../engine/phase/syncPhaseFields.ts';
 import { initializeClocks, ensurePlayerClock, accrueClocks, clocksAreLive } from '../engine/clock/clock.ts';
+import type { TimeControlConfig } from '../engine/clock/clock.ts';
 import { getBuildCommitKey } from '../engine/intent/IntentTypes.ts';
 import { hasRevealed } from '../engine/intent/CommitStore.ts';
 import { resolveBuildSubmitAuthoritatively } from '../engine/intent/buildSubmitResolution.ts';
@@ -36,7 +37,70 @@ import { appendChatEntry } from './chat_kv.ts';
 
 const INITIAL_SAVED_LINES = 3;
 
-function createFreshGameData(gameId: string, playerId: string, playerName: string) {
+const PRIVATE_GAME_TIMED_PRESETS = {
+  '5_0': { minutes: 5, incrementSeconds: 0, baseMs: 300_000, incrementMs: 0 },
+  '10_5': { minutes: 10, incrementSeconds: 5, baseMs: 600_000, incrementMs: 5_000 },
+  '15_10': { minutes: 15, incrementSeconds: 10, baseMs: 900_000, incrementMs: 10_000 },
+  '30_20': { minutes: 30, incrementSeconds: 20, baseMs: 1_800_000, incrementMs: 20_000 },
+} as const;
+
+const LEGACY_PRIVATE_GAME_PRESET_KEY = '15_10' as const;
+
+type CreateGameRequestBody = {
+  playerName?: unknown;
+  timed?: unknown;
+  minutes?: unknown;
+  incrementSeconds?: unknown;
+  variantKey?: unknown;
+};
+
+function toTimeControlConfig(preset: (typeof PRIVATE_GAME_TIMED_PRESETS)[keyof typeof PRIVATE_GAME_TIMED_PRESETS]): TimeControlConfig {
+  return {
+    baseMs: preset.baseMs,
+    incrementMs: preset.incrementMs,
+  };
+}
+
+function resolveTimedPrivateGamePreset(
+  minutes: unknown,
+  incrementSeconds: unknown,
+): TimeControlConfig | null {
+  for (const preset of Object.values(PRIVATE_GAME_TIMED_PRESETS)) {
+    if (preset.minutes === minutes && preset.incrementSeconds === incrementSeconds) {
+      return toTimeControlConfig(preset);
+    }
+  }
+
+  return null;
+}
+
+function resolveCreateGameTimeControl(body: CreateGameRequestBody): TimeControlConfig | null {
+  if (body.timed === undefined) {
+    return toTimeControlConfig(PRIVATE_GAME_TIMED_PRESETS[LEGACY_PRIVATE_GAME_PRESET_KEY]);
+  }
+
+  if (body.timed === false) {
+    return null;
+  }
+
+  if (body.timed !== true) {
+    throw new Error('timed must be a boolean when provided');
+  }
+
+  const timeControl = resolveTimedPrivateGamePreset(body.minutes, body.incrementSeconds);
+  if (!timeControl) {
+    throw new Error('Invalid timed preset. Supported presets are 5+0, 10+5, 15+10, and 30+20.');
+  }
+
+  return timeControl;
+}
+
+function createFreshGameData(
+  gameId: string,
+  playerId: string,
+  playerName: string,
+  timeControl?: TimeControlConfig | null,
+) {
   const nowIso = new Date().toISOString();
 
   let gameData = {
@@ -95,7 +159,7 @@ function createFreshGameData(gameId: string, playerId: string, playerName: strin
     createdAt: nowIso
   };
 
-  gameData = initializeClocks(gameData);
+  gameData = initializeClocks(gameData, timeControl);
   gameData = syncPhaseFields(gameData);
 
   return gameData;
@@ -798,20 +862,32 @@ export function registerGameRoutes(
       const session = await requireSession(c);
       if (session instanceof Response) return session; // Return 401 if validation failed
 
-      const { playerName } = await c.req.json();
+      const requestBody = await c.req.json() as CreateGameRequestBody;
       
       // Note: Client may send playerId for backward compat, but it's IGNORED
       // Server-side identity is derived from sessionToken only
       const playerId = session.sessionId; // AUTHORITY: Server-minted identity
+      const playerName =
+        typeof requestBody?.playerName === 'string'
+          ? requestBody.playerName.trim()
+          : '';
       
       if (!playerName) {
         return c.json({ error: "Player name is required" }, 400);
       }
 
+      let timeControl: TimeControlConfig | null;
+      try {
+        timeControl = resolveCreateGameTimeControl(requestBody);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Invalid create-game settings';
+        return c.json({ error: message }, 400);
+      }
+
       console.log(`Creating game - Session: ${session.sessionId}, Display name: ${playerName}`);
 
       const gameId = generateGameId();
-      const gameData = createFreshGameData(gameId, playerId, playerName);
+      const gameData = createFreshGameData(gameId, playerId, playerName, timeControl);
 
       await kvSet(`game_${gameId}`, gameData);
       await kvSet(

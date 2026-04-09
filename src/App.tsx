@@ -11,6 +11,7 @@ import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
 import { ensureSession, authenticatedFetch, authenticatedPost, getSessionToken, clearSession } from './utils/sessionManager';
 import ScreenManager from './components/ScreenManager';
+import type { CreatePrivateGameSettings } from './components/panels/CreatePrivateGamePanel';
 import GraphicsTest from './components/dev/GraphicsTest';
 import GameScreen from './game/display/GameScreen';
 import { usePlayer } from './game/hooks/usePlayer';
@@ -259,13 +260,17 @@ export default function App() {
     setHasUsablePlayerIdentity(true);
   };
 
-  const createPrivateGame = async (): Promise<string> => {
+  const createPrivateGame = async (settings: CreatePrivateGameSettings): Promise<string> => {
     if (!player?.name) {
       throw new Error('Player not initialized');
     }
 
     const response = await authenticatedPost('/create-game', {
       playerName: player.name,
+      timed: settings.timed,
+      minutes: settings.minutes,
+      incrementSeconds: settings.incrementSeconds,
+      variantKey: settings.variantKey,
     });
 
     if (!response.ok) {

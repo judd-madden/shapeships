@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import type { Player } from '../game/hooks/usePlayer';
+import type { CreatePrivateGameSettings } from './panels/CreatePrivateGamePanel';
 import { LoginShell } from './shells/LoginShell';
 import { MenuShell } from './shells/MenuShell';
 
@@ -12,7 +13,7 @@ interface ScreenManagerProps {
   player: Player | null;
   initialShell: ShellId;
   pendingInviteGameId: string | null;
-  onCreatePrivateGame: () => Promise<string>;
+  onCreatePrivateGame: (settings: CreatePrivateGameSettings) => Promise<string>;
   onLaunchGame: (gameId: string) => void;
   onResetPlayerSession: () => void;
   onStartSession: (displayName: string) => Promise<void>;
