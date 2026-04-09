@@ -140,7 +140,7 @@ function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRo
     const amountText = typeof rawRecord.amountText === 'string' ? rawRecord.amountText : String(amount);
     const count = typeof rawRecord.count === 'number' ? rawRecord.count : undefined;
 
-    if (!label || amount <= 0) {
+    if (!label || amount === 0) {
       return [];
     }
 
@@ -152,6 +152,10 @@ function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRo
       amountText,
     }];
   });
+}
+
+function sumBoardStatBreakdownRows(rows: BoardStatBreakdownRowVm[]): number {
+  return rows.reduce((sum, row) => sum + row.amount, 0);
 }
 
 function normalizeFrigateTriggerSelection(value: unknown): number {
@@ -1354,14 +1358,14 @@ useEffect(() => {
     const lastTurnDamageById = rawState?.gameData?.lastTurnDamageByPlayerId as Record<string, number> | undefined;
     const lastTurnNetById = rawState?.gameData?.lastTurnNetByPlayerId as Record<string, number> | undefined;
 
-    const myLastTurnHeal = me?.id ? (lastTurnHealById?.[me.id] ?? 0) : 0;
+    const fallbackMyLastTurnHeal = me?.id ? (lastTurnHealById?.[me.id] ?? 0) : 0;
     // NOTE: server lastTurnDamageByPlayerId is damage TAKEN (target).
     // UI "Damage" row is damage DEALT, so we swap sides:
-    const myLastTurnDamage = opponent?.id ? (lastTurnDamageById?.[opponent.id] ?? 0) : 0;
+    const fallbackMyLastTurnDamage = opponent?.id ? (lastTurnDamageById?.[opponent.id] ?? 0) : 0;
     const myLastTurnNet = me?.id ? (lastTurnNetById?.[me.id] ?? 0) : 0;
 
-    const opponentLastTurnHeal = opponent?.id ? (lastTurnHealById?.[opponent.id] ?? 0) : 0;
-    const opponentLastTurnDamage = me?.id ? (lastTurnDamageById?.[me.id] ?? 0) : 0;
+    const fallbackOpponentLastTurnHeal = opponent?.id ? (lastTurnHealById?.[opponent.id] ?? 0) : 0;
+    const fallbackOpponentLastTurnDamage = me?.id ? (lastTurnDamageById?.[me.id] ?? 0) : 0;
     const opponentLastTurnNet = opponent?.id ? (lastTurnNetById?.[opponent.id] ?? 0) : 0;
     const lastTurnDamageDealtBreakdownById =
       rawState?.lastTurnDamageDealtBreakdownByPlayerId as Record<string, unknown> | undefined;
@@ -1379,6 +1383,26 @@ useEffect(() => {
     const opponentLastHealingBreakdownRows = opponent?.id
       ? normalizeBoardStatBreakdownRows(lastTurnHealingReceivedBreakdownById?.[opponent.id])
       : [];
+    const myHasHealingBreakdown = me?.id ? Array.isArray(lastTurnHealingReceivedBreakdownById?.[me.id]) : false;
+    const myHasDamageBreakdown = me?.id ? Array.isArray(lastTurnDamageDealtBreakdownById?.[me.id]) : false;
+    const opponentHasDamageBreakdown = opponent?.id
+      ? Array.isArray(lastTurnDamageDealtBreakdownById?.[opponent.id])
+      : false;
+    const opponentHasHealingBreakdown = opponent?.id
+      ? Array.isArray(lastTurnHealingReceivedBreakdownById?.[opponent.id])
+      : false;
+    const myLastTurnDamage = myHasDamageBreakdown
+      ? sumBoardStatBreakdownRows(myLastDamageBreakdownRows)
+      : fallbackMyLastTurnDamage;
+    const myLastTurnHeal = myHasHealingBreakdown
+      ? sumBoardStatBreakdownRows(myLastHealingBreakdownRows)
+      : fallbackMyLastTurnHeal;
+    const opponentLastTurnDamage = opponentHasDamageBreakdown
+      ? sumBoardStatBreakdownRows(opponentLastDamageBreakdownRows)
+      : fallbackOpponentLastTurnDamage;
+    const opponentLastTurnHeal = opponentHasHealingBreakdown
+      ? sumBoardStatBreakdownRows(opponentLastHealingBreakdownRows)
+      : fallbackOpponentLastTurnHeal;
 
     // Server-authoritative bonus lines (top-level response projection)
     const bonusLinesByPlayerId = rawState?.bonusLinesByPlayerId as Record<string, number> | undefined;

@@ -334,23 +334,40 @@ function playerHasKnoTierThree(state: GameState, playerId: string): boolean {
   return getCopyTierFromFleet(ships, 'KNO', 3) >= 3;
 }
 
+function getSanitizedEntryAmount(rawAmount: number): number {
+  return Number.isFinite(rawAmount) ? rawAmount : 0;
+}
+
+function getSignedFinalAmountForPendingEntry(
+  entry: PendingTurnBreakdownEntry,
+  mapAmount: (entry: PendingTurnBreakdownEntry, amount: number) => number
+): number {
+  const baseAmount = getSanitizedEntryAmount(entry.baseAmount);
+  const fallbackFinalAmount = baseAmount;
+  const finalAmount = getSanitizedEntryAmount(
+    Number.isFinite(entry.finalAmount) ? entry.finalAmount : fallbackFinalAmount
+  );
+  return mapAmount(entry, finalAmount);
+}
+
 function buildRowsForPendingEntries(
   entries: PendingTurnBreakdownEntry[],
   sciLabel: string,
   displayedTotal: number,
-  allowKnoAdjustment: boolean
+  allowKnoAdjustment: boolean,
+  mapAmount: (entry: PendingTurnBreakdownEntry, amount: number) => number = (_, amount) => amount
 ): LastTurnBreakdownRow[] {
   const shipBuckets = new Map<string, { shipDefId: string; instanceIds: Set<string>; amount: number }>();
   const syntheticBuckets = new Map<string, number>();
   let sciAdjustmentAmount = 0;
 
   for (const entry of entries) {
-    const baseAmount = Number.isFinite(entry.baseAmount) ? entry.baseAmount : 0;
-    const finalAmount = Number.isFinite(entry.finalAmount) ? entry.finalAmount : baseAmount;
-    const sciDelta = Math.max(0, finalAmount - baseAmount);
+    const baseAmount = mapAmount(entry, getSanitizedEntryAmount(entry.baseAmount));
+    const finalAmount = getSignedFinalAmountForPendingEntry(entry, mapAmount);
+    const sciDelta = finalAmount - baseAmount;
     sciAdjustmentAmount += sciDelta;
 
-    if (baseAmount <= 0) continue;
+    if (baseAmount === 0) continue;
 
     if (entry.sourceShipDefId) {
       const existing = shipBuckets.get(entry.sourceShipDefId) ?? {
@@ -375,7 +392,7 @@ function buildRowsForPendingEntries(
   const rows: LastTurnBreakdownRow[] = [];
 
   for (const bucket of shipBuckets.values()) {
-    if (bucket.amount <= 0) continue;
+    if (bucket.amount === 0) continue;
     const count = Math.max(bucket.instanceIds.size, 1);
     rows.push({
       rowKind: 'ship',
@@ -387,7 +404,7 @@ function buildRowsForPendingEntries(
   }
 
   for (const [label, amount] of syntheticBuckets.entries()) {
-    if (amount <= 0) continue;
+    if (amount === 0) continue;
     rows.push({
       rowKind: 'adjustment',
       label,
@@ -396,7 +413,7 @@ function buildRowsForPendingEntries(
     });
   }
 
-  if (sciAdjustmentAmount > 0) {
+  if (sciAdjustmentAmount !== 0) {
     rows.push({
       rowKind: 'adjustment',
       label: sciLabel,
@@ -408,7 +425,7 @@ function buildRowsForPendingEntries(
   const currentSum = rows.reduce((sum, row) => sum + row.amount, 0);
   const knoAdjustmentAmount = displayedTotal - currentSum;
 
-  if (allowKnoAdjustment && knoAdjustmentAmount > 0) {
+  if (allowKnoAdjustment && knoAdjustmentAmount !== 0) {
     rows.push({
       rowKind: 'adjustment',
       label: 'Ark of Knowledge',
@@ -417,7 +434,7 @@ function buildRowsForPendingEntries(
     });
   }
 
-  return sortBreakdownRows(rows.filter((row) => row.amount > 0));
+  return sortBreakdownRows(rows.filter((row) => row.amount !== 0));
 }
 
 function buildLastTurnBreakdownSnapshots(
@@ -439,13 +456,28 @@ function buildLastTurnBreakdownSnapshots(
   for (const player of activePlayers) {
     const opponentId = opponentIdByPlayerId.get(player.id);
     const damageEntries = pendingEntries.filter(
-      (entry) => entry.kind === 'Damage' && entry.ownerPlayerId === player.id
+      (entry) =>
+        entry.kind === 'Damage' &&
+        entry.ownerPlayerId === player.id &&
+        entry.targetPlayerId === opponentId
     );
-    const healEntries = pendingEntries.filter(
-      (entry) => entry.kind === 'Heal' && entry.targetPlayerId === player.id
+    const sustainEntries = pendingEntries.filter(
+      (entry) =>
+        (entry.kind === 'Heal' && entry.targetPlayerId === player.id) ||
+        (
+          entry.kind === 'Damage' &&
+          entry.ownerPlayerId === player.id &&
+          entry.targetPlayerId === player.id
+        )
     );
     const displayedDamageTotal = opponentId ? totals.damageByPlayerId[opponentId] || 0 : 0;
-    const displayedHealTotal = totals.healByPlayerId[player.id] || 0;
+    const displayedSustainTotal = sustainEntries.reduce((sum, entry) => {
+      const signedAmount = getSignedFinalAmountForPendingEntry(
+        entry,
+        (pendingEntry, amount) => pendingEntry.kind === 'Damage' ? -amount : amount
+      );
+      return sum + signedAmount;
+    }, 0);
     const hasKnoTierThree = playerHasKnoTierThree(state, player.id);
 
     damageDealtByPlayerId[player.id] = buildRowsForPendingEntries(
@@ -455,10 +487,11 @@ function buildLastTurnBreakdownSnapshots(
       hasKnoTierThree
     );
     healingReceivedByPlayerId[player.id] = buildRowsForPendingEntries(
-      healEntries,
+      sustainEntries,
       'Science Vessel',
-      displayedHealTotal,
-      hasKnoTierThree
+      displayedSustainTotal,
+      hasKnoTierThree,
+      (entry, amount) => entry.kind === 'Damage' ? -amount : amount
     );
   }
 
