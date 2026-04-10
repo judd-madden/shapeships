@@ -22,7 +22,7 @@ interface MenuShellProps {
   onLogout: () => void;
   onGameCreated: (gameId: string) => void;
   onCreatePrivateGame: (settings: CreatePrivateGameSettings) => Promise<string>;
-  onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<void>;
+  onCreateComputerGame: (settings: CreatePrivateGameSettings) => Promise<string>;
   user: any;
   player: any;
   alphaDisableAuth: boolean;
@@ -73,7 +73,8 @@ export function MenuShell({
   const handleCreateComputerGameWithSettings = async (settings: CreatePrivateGameSettings) => {
     setIsCreating(true);
     try {
-      await onCreateComputerGame(settings);
+      const gameId = await onCreateComputerGame(settings);
+      onGameCreated(gameId);
     } catch (error: any) {
       console.error('Failed to create computer game:', error);
       throw error;

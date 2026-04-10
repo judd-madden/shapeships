@@ -1,6 +1,7 @@
 import type {
   BattleLogScratch,
 } from "./battleLogHistory.ts";
+import type { SeatController } from "../bot/botTypes.ts";
 
 /**
  * GAME STATE TYPES
@@ -50,8 +51,11 @@ export type PlayerState = {
 
   /** Stored joining lines (Centaur-only saved upgrade resource) */
   joiningLines: number;
+
+  /** Authoritative selected faction/species on the live server state */
+  faction?: string | null;
   
-  /** Species selection */
+  /** Compatibility typing for older state readers */
   species?: string | null;
 };
 
@@ -260,6 +264,9 @@ export type GameState = {
   
   /** Player states */
   players: PlayerState[];
+
+  /** Authoritative seat controller metadata */
+  controllersByPlayerId?: Record<string, SeatController>;
   
   /** Game data container */
   gameData: GameData;

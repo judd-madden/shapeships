@@ -282,8 +282,26 @@ export default function App() {
     return result.gameId;
   };
 
-  const createComputerGame = async (_settings: CreatePrivateGameSettings): Promise<void> => {
-    throw new Error('Play Computer not wired yet');
+  const createComputerGame = async (settings: CreatePrivateGameSettings): Promise<string> => {
+    if (!player?.name) {
+      throw new Error('Player not initialized');
+    }
+
+    const response = await authenticatedPost('/create-computer-game', {
+      playerName: player.name,
+      timed: settings.timed,
+      minutes: settings.minutes,
+      incrementSeconds: settings.incrementSeconds,
+      variantKey: settings.variantKey,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to create computer game: ${errorText}`);
+    }
+
+    const result = await response.json();
+    return result.gameId;
   };
 
   const resetPlayerSession = () => {

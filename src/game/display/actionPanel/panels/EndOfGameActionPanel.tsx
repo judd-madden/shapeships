@@ -72,7 +72,7 @@ export function EndOfGameActionPanel({
               className="mt-[8px] text-center text-[16px] font-normal leading-[1.3] text-white"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
-              Share the new URL with your opponent
+              Link will be posted in chat
             </p>
           </div>
 

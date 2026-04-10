@@ -17,6 +17,7 @@ import { getBuildCommitKey } from '../engine/intent/IntentTypes.ts';
 import { hasRevealed } from '../engine/intent/CommitStore.ts';
 import { resolveBuildSubmitAuthoritatively } from '../engine/intent/buildSubmitResolution.ts';
 import type { ShipInstance } from '../engine/state/GameStateTypes.ts';
+import { chooseDeterministicHumanBotPlanId, getHumanBotPlanById } from '../engine/bot/humanPlans.ts';
 import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
 import { computeLineBonusesForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
 import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers.ts';
@@ -52,6 +53,10 @@ type CreateGameRequestBody = {
   minutes?: unknown;
   incrementSeconds?: unknown;
   variantKey?: unknown;
+};
+
+type CreateComputerGameRequestBody = CreateGameRequestBody & {
+  planId?: unknown;
 };
 
 function toTimeControlConfig(preset: (typeof PRIVATE_GAME_TIMED_PRESETS)[keyof typeof PRIVATE_GAME_TIMED_PRESETS]): TimeControlConfig {
@@ -157,6 +162,107 @@ function createFreshGameData(
     ],
     status: "waiting",
     createdAt: nowIso
+  };
+
+  gameData = initializeClocks(gameData, timeControl);
+  gameData = syncPhaseFields(gameData);
+
+  return gameData;
+}
+
+function createFreshComputerGameData(
+  gameId: string,
+  playerId: string,
+  playerName: string,
+  chosenPlanId: string,
+  timeControl?: TimeControlConfig | null,
+){
+  const nowIso = new Date().toISOString();
+  const botPlayerId = `bot_${gameId}`;
+
+  let gameData = {
+    gameId,
+    players: [
+      {
+        id: playerId,
+        name: playerName,
+        faction: null,
+        isReady: false,
+        isActive: true,
+        role: 'player',
+        joinedAt: nowIso,
+        health: 25,
+        lines: INITIAL_SAVED_LINES,
+        joiningLines: 0,
+        energy: 0,
+      },
+      {
+        id: botPlayerId,
+        name: 'Computer',
+        faction: null,
+        isReady: false,
+        isActive: true,
+        role: 'player',
+        joinedAt: nowIso,
+        health: 25,
+        lines: INITIAL_SAVED_LINES,
+        joiningLines: 0,
+        energy: 0,
+      },
+    ],
+    controllersByPlayerId: {
+      [playerId]: { kind: 'human' },
+      [botPlayerId]: {
+        kind: 'bot',
+        speciesId: 'HUM',
+        chosenPlanId,
+      },
+    },
+    gameData: {
+      ships: {
+        [playerId]: [],
+        [botPlayerId]: [],
+      },
+      currentPhase: 'setup',
+      currentSubPhase: 'species_selection',
+      turnNumber: 0,
+      diceRoll: null,
+      turnData: {
+        turnNumber: 0,
+        currentMajorPhase: 'setup',
+        currentSubPhase: 'species_selection',
+        requiredSubPhases: [],
+        accumulatedDamage: {},
+        accumulatedHealing: {},
+        healthAtTurnStart: {},
+        chargesDeclared: false,
+        diceRoll: null,
+        linesDistributed: false,
+      },
+      phaseReadiness: [],
+      phaseStartTime: nowIso,
+    },
+    currentPhase: 'setup',
+    currentSubPhase: 'species_selection',
+    turnNumber: 0,
+    actions: [
+      {
+        playerId: "system",
+        playerName: "System",
+        actionType: "system",
+        content: `${playerName} created the game`,
+        timestamp: nowIso,
+      },
+      {
+        playerId: "system",
+        playerName: "System",
+        actionType: "system",
+        content: "Game started! Players select species.",
+        timestamp: nowIso,
+      },
+    ],
+    status: "active",
+    createdAt: nowIso,
   };
 
   gameData = initializeClocks(gameData, timeControl);
@@ -900,6 +1006,70 @@ export function registerGameRoutes(
 
     } catch (error) {
       console.error("Create game error:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  });
+
+  app.post("/make-server-825e19ab/create-computer-game", async (c) => {
+    try {
+      const session = await requireSession(c);
+      if (session instanceof Response) return session;
+
+      const requestBody = await c.req.json() as CreateComputerGameRequestBody;
+      const playerId = session.sessionId;
+      const playerName =
+        typeof requestBody?.playerName === 'string'
+          ? requestBody.playerName.trim()
+          : '';
+
+      if (!playerName) {
+        return c.json({ error: "Player name is required" }, 400);
+      }
+
+      let timeControl: TimeControlConfig | null;
+      try {
+        timeControl = resolveCreateGameTimeControl(requestBody);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Invalid create-computer-game settings';
+        return c.json({ error: message }, 400);
+      }
+
+      const requestedPlanId = requestBody?.planId;
+      const gameId = generateGameId();
+
+      let chosenPlanId: string;
+      if (typeof requestedPlanId !== 'undefined') {
+        if (typeof requestedPlanId !== 'string' || !getHumanBotPlanById(requestedPlanId)) {
+          return c.json({ error: "Invalid planId" }, 400);
+        }
+
+        chosenPlanId = requestedPlanId;
+      } else {
+        chosenPlanId = chooseDeterministicHumanBotPlanId(gameId);
+      }
+
+      const gameData = createFreshComputerGameData(
+        gameId,
+        playerId,
+        playerName,
+        chosenPlanId,
+        timeControl,
+      );
+
+      await kvSet(`game_${gameId}`, gameData);
+      await kvSet(
+        getBattleLogHistoryKey(gameId),
+        createEmptyBattleLogHistoryStore(gameId),
+      );
+
+      console.log("Computer game created:", gameId, { chosenPlanId });
+      return c.json({
+        gameId,
+        message: "Computer game created successfully",
+        chosenBotPlanId: chosenPlanId,
+      });
+    } catch (error) {
+      console.error("Create computer game error:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
   });
