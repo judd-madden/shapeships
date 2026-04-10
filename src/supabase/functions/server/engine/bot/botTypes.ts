@@ -11,6 +11,7 @@ export type BotBuildGoal = {
 export type BuildGoal = BotBuildGoal;
 
 export type CarrierChoiceId = 'defender' | 'fighter' | 'hold';
+export type InterceptorChoiceId = 'damage' | 'heal';
 
 export type CarrierPriorityGoal = {
   choiceId: Exclude<CarrierChoiceId, 'hold'>;
@@ -21,6 +22,12 @@ export type CarrierPriorityGoal = {
 export type CarrierShipsThatBuildPolicy = {
   priorityGoals?: CarrierPriorityGoal[];
   fallbackChoiceId?: CarrierChoiceId;
+};
+
+export type InterceptorChargePolicy = {
+  preferDamageWhen?: 'default';
+  healSelfAtOrBelow?: number;
+  damageOpponentAtOrBelow?: number;
 };
 
 export type SeatController =
@@ -34,6 +41,9 @@ export type AuthoredBotPlan = {
   loopGoals?: BotBuildGoal[];
   shipsThatBuild?: {
     CAR?: CarrierShipsThatBuildPolicy;
+  };
+  chargePolicy?: {
+    INT?: InterceptorChargePolicy;
   };
   notes?: string;
 };

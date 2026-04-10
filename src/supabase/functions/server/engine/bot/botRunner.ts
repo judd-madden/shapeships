@@ -3,10 +3,15 @@ import { buildPhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 import { getHumanBotPlanById } from './humanPlans.ts';
 import { planHumanBuildSubmit } from './buildPlanner.ts';
-import type { AuthoredBotPlan, CarrierChoiceId } from './botTypes.ts';
+import type {
+  AuthoredBotPlan,
+  CarrierChoiceId,
+  InterceptorChoiceId,
+} from './botTypes.ts';
 
 const MAX_BOT_STEPS_PER_REQUEST = 8;
 const CARRIER_ACTION_ID = 'CAR#0';
+const INTERCEPTOR_ACTION_ID = 'INT#0';
 
 function getShipsThatBuildPassIndex(state: any): 1 | 2 {
   return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
@@ -105,6 +110,10 @@ function isCarrierChoiceId(value: unknown): value is CarrierChoiceId {
   return value === 'defender' || value === 'fighter' || value === 'hold';
 }
 
+function isInterceptorChoiceId(value: unknown): value is InterceptorChoiceId {
+  return value === 'damage' || value === 'heal';
+}
+
 function getCarrierShipsThatBuildPower(): any | null {
   const [, powerIndexRaw] = CARRIER_ACTION_ID.split('#');
   const powerIndex = Number(powerIndexRaw);
@@ -120,6 +129,27 @@ function getCarrierShipsThatBuildPower(): any | null {
   }
 
   if (!Array.isArray(power.options) || !power.timings?.includes('build.ships_that_build')) {
+    return null;
+  }
+
+  return power;
+}
+
+function getInterceptorChargeDeclarationPower(): any | null {
+  const [, powerIndexRaw] = INTERCEPTOR_ACTION_ID.split('#');
+  const powerIndex = Number(powerIndexRaw);
+  if (!Number.isInteger(powerIndex) || powerIndex < 0) {
+    return null;
+  }
+
+  const interceptorDef = getShipDefinition('INT');
+  const power = interceptorDef?.structuredPowers?.[powerIndex];
+
+  if (!power || power.type !== 'choice') {
+    return null;
+  }
+
+  if (!Array.isArray(power.options) || !power.timings?.includes('battle.charge_declaration')) {
     return null;
   }
 
@@ -154,6 +184,104 @@ function getLegalCarrierChoiceIdsForShip(ship: any): Array<Exclude<CarrierChoice
   }
 
   return legalChoiceIds;
+}
+
+function getChargeDeclarationEligibleSourceIds(state: any, playerId: string): string[] {
+  const rawSourceIds = state?.gameData?.turnData?.chargeDeclarationEligibleSourceIdsByPlayerId?.[playerId];
+  if (!Array.isArray(rawSourceIds)) {
+    return [];
+  }
+
+  const sourceIds: string[] = [];
+  const seen = new Set<string>();
+
+  for (const sourceId of rawSourceIds) {
+    if (typeof sourceId !== 'string' || sourceId.length === 0 || seen.has(sourceId)) {
+      continue;
+    }
+
+    seen.add(sourceId);
+    sourceIds.push(sourceId);
+  }
+
+  return sourceIds;
+}
+
+function getLegalInterceptorChoiceIdsForShip(ship: any): InterceptorChoiceId[] {
+  const interceptorPower = getInterceptorChargeDeclarationPower();
+  if (!interceptorPower) {
+    return [];
+  }
+
+  const chargesCurrent = Number(ship?.chargesCurrent ?? 0);
+  const legalChoiceIds: InterceptorChoiceId[] = [];
+
+  for (const option of interceptorPower.options) {
+    const choiceId = option?.choiceId;
+    if (!isInterceptorChoiceId(choiceId)) {
+      continue;
+    }
+
+    const requiresCharge = (option?.requiresCharge ?? false) || (interceptorPower.requiresCharge ?? false);
+    if (!requiresCharge) {
+      legalChoiceIds.push(choiceId);
+      continue;
+    }
+
+    const chargeCost = option?.chargeCost ?? interceptorPower.chargeCost ?? 1;
+    if (chargesCurrent >= chargeCost) {
+      legalChoiceIds.push(choiceId);
+    }
+  }
+
+  return legalChoiceIds;
+}
+
+function chooseInterceptorChoiceId(args: {
+  state: any;
+  playerId: string;
+  plan: AuthoredBotPlan;
+  legalChoiceIds: InterceptorChoiceId[];
+}): InterceptorChoiceId | null {
+  const { state, playerId, plan, legalChoiceIds } = args;
+  const interceptorPolicy = plan?.chargePolicy?.INT;
+  if (!interceptorPolicy || legalChoiceIds.length === 0) {
+    return null;
+  }
+
+  const player = (state?.players ?? []).find((entry: any) => entry?.id === playerId);
+  const opponent = (state?.players ?? []).find(
+    (entry: any) => entry?.role === 'player' && entry?.id !== playerId,
+  );
+  const playerHealth = Number(player?.health ?? 0);
+  const opponentHealth = Number(opponent?.health ?? 0);
+  const legalChoiceIdSet = new Set<InterceptorChoiceId>(legalChoiceIds);
+
+  if (
+    typeof interceptorPolicy.healSelfAtOrBelow === 'number' &&
+    playerHealth <= interceptorPolicy.healSelfAtOrBelow &&
+    legalChoiceIdSet.has('heal')
+  ) {
+    return 'heal';
+  }
+
+  if (
+    typeof interceptorPolicy.damageOpponentAtOrBelow === 'number' &&
+    opponentHealth <= interceptorPolicy.damageOpponentAtOrBelow &&
+    legalChoiceIdSet.has('damage')
+  ) {
+    return 'damage';
+  }
+
+  if (legalChoiceIdSet.has('damage')) {
+    return 'damage';
+  }
+
+  if (legalChoiceIdSet.has('heal')) {
+    return 'heal';
+  }
+
+  return null;
 }
 
 function chooseCarrierChoiceId(args: {
@@ -191,6 +319,78 @@ function chooseCarrierChoiceId(args: {
   }
 
   return legalChoiceIds[0] ?? null;
+}
+
+function buildInterceptorIntentForCurrentPhase(args: {
+  state: any;
+  playerId: string;
+  phaseKey: string;
+  loopStep: number;
+  plan: AuthoredBotPlan;
+}): IntentRequest | null {
+  const { state, playerId, phaseKey, loopStep, plan } = args;
+  if (phaseKey !== 'battle.charge_declaration' || !plan?.chargePolicy?.INT) {
+    return null;
+  }
+
+  if (!getInterceptorChargeDeclarationPower()) {
+    return null;
+  }
+
+  const eligibleSourceIds = getChargeDeclarationEligibleSourceIds(state, playerId);
+  if (eligibleSourceIds.length === 0) {
+    return null;
+  }
+
+  const eligibleSourceIdSet = new Set(eligibleSourceIds);
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
+  if (!Array.isArray(fleet)) {
+    return null;
+  }
+
+  const interceptorShips = fleet
+    .filter((ship: any) =>
+      ship?.shipDefId === 'INT' &&
+      typeof ship?.instanceId === 'string' &&
+      ship.instanceId.length > 0 &&
+      eligibleSourceIdSet.has(ship.instanceId)
+    )
+    .sort((a: any, b: any) => a.instanceId.localeCompare(b.instanceId));
+
+  for (const interceptorShip of interceptorShips) {
+    const legalChoiceIds = getLegalInterceptorChoiceIdsForShip(interceptorShip);
+    const choiceId = chooseInterceptorChoiceId({
+      state,
+      playerId,
+      plan,
+      legalChoiceIds,
+    });
+
+    if (!choiceId) {
+      continue;
+    }
+
+    return {
+      gameId: state.gameId,
+      intentType: 'ACTION',
+      turnNumber: state?.gameData?.turnNumber ?? 0,
+      payload: {
+        actionType: 'power',
+        actionId: INTERCEPTOR_ACTION_ID,
+        sourceInstanceId: interceptorShip.instanceId,
+        choiceId,
+      },
+      nonce: buildBotNonce({
+        state,
+        phaseKey,
+        loopStep,
+        playerId,
+        intentType: 'ACTION',
+      }),
+    };
+  }
+
+  return null;
 }
 
 function buildCarrierIntentForCurrentPhase(args: {
@@ -279,7 +479,11 @@ function buildBotIntent(args: {
   }
 
   let plan: AuthoredBotPlan | null = null;
-  if (phaseKey === 'build.drawing' || phaseKey === 'build.ships_that_build') {
+  if (
+    phaseKey === 'build.drawing' ||
+    phaseKey === 'build.ships_that_build' ||
+    phaseKey === 'battle.charge_declaration'
+  ) {
     const resolvedPlan = resolveHumanBotPlan(controller);
     if (!resolvedPlan) {
       return { debugReason: 'missing_matching_plan' };
@@ -328,6 +532,20 @@ function buildBotIntent(args: {
         intentType: 'BUILD_SUBMIT',
       }),
     };
+  }
+
+  if (phaseKey === 'battle.charge_declaration' && plan) {
+    const interceptorIntent = buildInterceptorIntentForCurrentPhase({
+      state,
+      playerId,
+      phaseKey,
+      loopStep,
+      plan,
+    });
+
+    if (interceptorIntent) {
+      return interceptorIntent;
+    }
   }
 
   if (phaseKey === 'build.ships_that_build' && plan) {

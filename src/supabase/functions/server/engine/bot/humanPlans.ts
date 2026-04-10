@@ -44,12 +44,13 @@ const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
   buildGoals: [
     { shipDefId: 'ORB', targetCount: 1 },
     { shipDefId: 'CAR', targetCount: 2 },
+    { shipDefId: 'INT', targetCount: 1 },
     { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
   ],
   loopGoals: [
     { shipDefId: 'DEF', targetCount: 1 },
     { shipDefId: 'FIG', targetCount: 1 },
-    { shipDefId: 'ORB', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
   ],
   shipsThatBuild: {
     CAR: {
@@ -60,7 +61,14 @@ const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
       fallbackChoiceId: 'defender',
     },
   },
-  notes: 'Orbital and Carrier ramp into Tactical Cruiser first, then repeat a simple Defender/Fighter/Orbital tail.',
+  chargePolicy: {
+    INT: {
+      preferDamageWhen: 'default',
+      healSelfAtOrBelow: 10,
+      damageOpponentAtOrBelow: 10,
+    },
+  },
+  notes: 'Orbital and Carrier anchor into an Interceptor/Tactical opener, then repeat a simple Defender/Fighter/Tactical tail.',
 };
 
 export const ACTIVE_HUMAN_BOT_PLANS: AuthoredBotPlan[] = [
