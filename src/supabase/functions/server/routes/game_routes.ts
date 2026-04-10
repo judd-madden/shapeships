@@ -18,6 +18,7 @@ import { hasRevealed } from '../engine/intent/CommitStore.ts';
 import { resolveBuildSubmitAuthoritatively } from '../engine/intent/buildSubmitResolution.ts';
 import type { ShipInstance } from '../engine/state/GameStateTypes.ts';
 import { chooseDeterministicHumanBotPlanId, getHumanBotPlanById } from '../engine/bot/humanPlans.ts';
+import { runBotsUntilSettled } from '../engine/bot/botRunner.ts';
 import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
 import { computeLineBonusesForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
 import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers.ts';
@@ -1055,14 +1056,21 @@ export function registerGameRoutes(
         chosenPlanId,
         timeControl,
       );
+      const botRunResult = await runBotsUntilSettled({
+        state: gameData,
+        nowMs: Date.now(),
+      });
 
-      await kvSet(`game_${gameId}`, gameData);
+      await kvSet(`game_${gameId}`, botRunResult.state);
       await kvSet(
         getBattleLogHistoryKey(gameId),
         createEmptyBattleLogHistoryStore(gameId),
       );
 
-      console.log("Computer game created:", gameId, { chosenPlanId });
+      console.log("Computer game created:", gameId, {
+        chosenPlanId,
+        botStepsApplied: botRunResult.botStepsApplied,
+      });
       return c.json({
         gameId,
         message: "Computer game created successfully",

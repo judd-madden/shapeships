@@ -13,6 +13,7 @@
 import type { Hono } from "npm:hono";
 import { applyIntent, type IntentRequest } from '../engine/intent/IntentReducer.ts';
 import { accrueClocks } from '../engine/clock/clock.ts';
+import { runBotsUntilSettled } from '../engine/bot/botRunner.ts';
 import {
   appendBattleLogTurnSummaryIdempotently,
   buildBattleLogTurnSummaryFromScratch,
@@ -391,13 +392,19 @@ export function registerIntentRoutes(
       const retry = await applyIntent(latestState, sessionPlayerId, intentRequest, nowMs);
 
       if (retry.ok) {
+        const botRunResult = await runBotsUntilSettled({
+          state: retry.state,
+          nowMs,
+        });
+
         // ========================================================================
         // TERMINAL DETECTION: Emit GAME_OVER if terminal transition occurred
         // ========================================================================
         
-        const nextStatus = retry.state?.status;
+        const finalState = botRunResult.state;
+        const nextStatus = finalState?.status;
         const terminalOccurred = prevStatus !== 'finished' && nextStatus === 'finished';
-        const allEvents = [...retry.events];
+        const allEvents = [...retry.events, ...botRunResult.events];
         
         if (terminalOccurred) {
           // Check if GAME_OVER already present (avoid duplicates)
@@ -420,7 +427,7 @@ export function registerIntentRoutes(
         const livePreviousStateSummary = summarizeBattleLogDebugState(latestState);
         const battleLogProcessingResult = await prepareBattleLogPersistenceFromEvents({
           gameId: intentRequest.gameId,
-          nextState: retry.state,
+          nextState: finalState,
           events: allEvents,
           kvGet,
         });
@@ -429,7 +436,8 @@ export function registerIntentRoutes(
           intentType: intentRequest.intentType,
           requestTurnNumber: intentRequest.turnNumber,
           previousState: previousStateSummary,
-          nextState: summarizeBattleLogDebugState(retry.state),
+          nextState: summarizeBattleLogDebugState(finalState),
+          botStepsApplied: botRunResult.botStepsApplied,
           finalizedTurnNumber: battleLogProcessingResult.finalizedTurnNumber,
           selectedFinalizeEvent: battleLogProcessingResult.selectedFinalizeEvent,
           finalizeEventCount: battleLogProcessingResult.finalizeEventCount,
