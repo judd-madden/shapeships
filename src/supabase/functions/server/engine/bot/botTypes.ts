@@ -2,11 +2,13 @@ export type BotSpeciesId = 'HUM';
 
 export type BotPlanId = string;
 
-export type BuildGoal = {
+export type BotBuildGoal = {
   shipDefId: string;
   targetCount: number;
   saveUntilAffordable?: boolean;
 };
+
+export type BuildGoal = BotBuildGoal;
 
 export type CarrierChoiceId = 'defender' | 'fighter' | 'hold';
 
@@ -28,7 +30,8 @@ export type SeatController =
 export type AuthoredBotPlan = {
   id: BotPlanId;
   speciesId: BotSpeciesId;
-  buildGoals: BuildGoal[];
+  buildGoals: BotBuildGoal[];
+  loopGoals?: BotBuildGoal[];
   shipsThatBuild?: {
     CAR?: CarrierShipsThatBuildPolicy;
   };

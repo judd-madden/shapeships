@@ -21,6 +21,11 @@ const HUMAN_TACTICAL_DREAD_PLAN: AuthoredBotPlan = {
     { shipDefId: 'DRE', targetCount: 1, saveUntilAffordable: true },
     { shipDefId: 'FIG', targetCount: 4 },
   ],
+  loopGoals: [
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'DEF', targetCount: 1 },
+  ],
   shipsThatBuild: {
     CAR: {
       priorityGoals: [
@@ -40,8 +45,11 @@ const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
     { shipDefId: 'ORB', targetCount: 1 },
     { shipDefId: 'CAR', targetCount: 2 },
     { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'ORB', targetCount: 2 },
-    { shipDefId: 'CAR', targetCount: 3 },
+  ],
+  loopGoals: [
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'ORB', targetCount: 1 },
   ],
   shipsThatBuild: {
     CAR: {
@@ -52,7 +60,7 @@ const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
       fallbackChoiceId: 'defender',
     },
   },
-  notes: 'Orbital and Carrier ramp into Tactical Cruiser first, then widen back into more economy and Carrier scaling.',
+  notes: 'Orbital and Carrier ramp into Tactical Cruiser first, then repeat a simple Defender/Fighter/Orbital tail.',
 };
 
 export const ACTIVE_HUMAN_BOT_PLANS: AuthoredBotPlan[] = [

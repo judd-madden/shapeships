@@ -1,7 +1,7 @@
 import type { BuildSubmitPayload } from '../intent/IntentTypes.ts';
 import type { ShipInstance } from '../state/GameStateTypes.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
-import type { AuthoredBotPlan } from './botTypes.ts';
+import type { AuthoredBotPlan, BotBuildGoal } from './botTypes.ts';
 
 type WorkingShipEntry = {
   shipDefId: string;
@@ -12,6 +12,8 @@ type ComponentRequirement = {
   shipDefId: string;
   mustBeDepleted: boolean;
 };
+
+type GoalMode = 'opening' | 'loop';
 
 function normalizeResource(value: unknown): number {
   const numeric = Number(value);
@@ -107,6 +109,51 @@ function ensureDraftOrder(order: string[], shipDefId: string) {
   if (!order.includes(shipDefId)) {
     order.push(shipDefId);
   }
+}
+
+function buildSubmitFromDraft(
+  draftOrder: string[],
+  draftCounts: Map<string, number>,
+): BuildSubmitPayload {
+  return {
+    builds: draftOrder
+      .map((shipDefId) => ({
+        shipDefId,
+        count: draftCounts.get(shipDefId) ?? 0,
+      }))
+      .filter((build) => build.count > 0),
+  };
+}
+
+function isOpeningSatisfied(
+  plan: AuthoredBotPlan,
+  authoritativeFleet: WorkingShipEntry[],
+): boolean {
+  for (const goal of plan.buildGoals) {
+    if (!goal || typeof goal.shipDefId !== 'string') continue;
+    if (!Number.isInteger(goal.targetCount) || goal.targetCount < 0) continue;
+
+    if (countWorkingFleetShips(authoritativeFleet, goal.shipDefId) < goal.targetCount) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function getGoalProgressCount(args: {
+  goal: BotBuildGoal;
+  goalMode: GoalMode;
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+}): number {
+  const { goal, goalMode, workingFleet, draftCounts } = args;
+
+  if (goalMode === 'loop') {
+    return draftCounts.get(goal.shipDefId) ?? 0;
+  }
+
+  return countWorkingFleetShips(workingFleet, goal.shipDefId);
 }
 
 function tryAddShipToDraft(args: {
@@ -235,15 +282,29 @@ export function planHumanBuildSubmit(
 
   let remainingOrdinaryLines = normalizeResource(player.lines);
   let remainingJoiningLines = normalizeResource(player.joiningLines);
+  const authoritativeFleet = buildWorkingFleet(state?.gameData?.ships?.[botPlayerId] ?? []);
   const workingFleet = buildWorkingFleet(state?.gameData?.ships?.[botPlayerId] ?? []);
   const draftCounts = new Map<string, number>();
   const draftOrder: string[] = [];
+  const goalMode: GoalMode = isOpeningSatisfied(plan, authoritativeFleet)
+    ? 'loop'
+    : 'opening';
+  const activeGoals = goalMode === 'loop'
+    ? (plan.loopGoals ?? [])
+    : plan.buildGoals;
 
-  for (const goal of plan.buildGoals) {
+  for (const goal of activeGoals) {
     if (!goal || typeof goal.shipDefId !== 'string') continue;
     if (!Number.isInteger(goal.targetCount) || goal.targetCount < 0) continue;
 
-    while (countWorkingFleetShips(workingFleet, goal.shipDefId) < goal.targetCount) {
+    while (
+      getGoalProgressCount({
+        goal,
+        goalMode,
+        workingFleet,
+        draftCounts,
+      }) < goal.targetCount
+    ) {
       const attempt = tryAddShipToDraft({
         workingFleet,
         shipDefId: goal.shipDefId,
@@ -253,14 +314,7 @@ export function planHumanBuildSubmit(
 
       if (!attempt.ok) {
         if (goal.saveUntilAffordable) {
-          return {
-            builds: draftOrder
-              .map((shipDefId) => ({
-                shipDefId,
-                count: draftCounts.get(shipDefId) ?? 0,
-              }))
-              .filter((build) => build.count > 0),
-          };
+          return buildSubmitFromDraft(draftOrder, draftCounts);
         }
         break;
       }
@@ -272,12 +326,5 @@ export function planHumanBuildSubmit(
     }
   }
 
-  return {
-    builds: draftOrder
-      .map((shipDefId) => ({
-        shipDefId,
-        count: draftCounts.get(shipDefId) ?? 0,
-      }))
-      .filter((build) => build.count > 0),
-  };
+  return buildSubmitFromDraft(draftOrder, draftCounts);
 }
