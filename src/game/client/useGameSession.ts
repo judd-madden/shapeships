@@ -67,6 +67,7 @@ import { useFleetAnimTokens } from './gameSession/clienteffects/useFleetAnimToke
 import { useUntimedPollingThrottle } from './gameSession/clienteffects/useUntimedPollingThrottle';
 import { useDestroyTargetingRuntime } from './gameSession/destroyTargeting';
 import type {
+  AuthoritativeStateApplyMeta,
   HudStatusTone,
   HudViewModel,
   LeftRailViewModel,
@@ -84,6 +85,7 @@ import type {
   GameSessionActions,
   EvolverChoiceId,
   CentaurChargeSubTabId,
+  GameStateRequestMeta,
 } from './gameSession/types';
 
 export type {
@@ -303,6 +305,13 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const rawStateRef = useRef<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resumeSyncLocked, setResumeSyncLocked] = useState(false);
+  const resumeSyncLockedRef = useRef(false);
+  const lastHandledResumeSyncTokenRef = useRef<number | null>(null);
+  const resumeLockActivationRequestSeqRef = useRef(0);
+  const latestStartedGameStateRequestSeqRef = useRef(0);
+  const latestAppliedGameStateRequestSeqRef = useRef(0);
+  const lastImmediateRetrySourceRequestSeqRef = useRef<number | null>(null);
   
   // Chat state (separate from game state)
   const [chatEntries, setChatEntries] = useState<GameSessionChatEntry[]>([]);
@@ -325,9 +334,78 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [centaurChargeSubTabByPhaseInstanceKey, setCentaurChargeSubTabByPhaseInstanceKey] =
     useState<Record<string, CentaurChargeSubTabId>>({});
 
-  function applyAuthoritativeRawState(nextState: any): void {
+  function setResumeSyncLockedState(nextValue: boolean): void {
+    resumeSyncLockedRef.current = nextValue;
+    setResumeSyncLocked(nextValue);
+  }
+
+  function beginGameStateRequest(options?: { unlockEligible?: boolean }): GameStateRequestMeta {
+    latestStartedGameStateRequestSeqRef.current += 1;
+
+    return {
+      requestSeq: latestStartedGameStateRequestSeqRef.current,
+      unlockEligible: options?.unlockEligible === true,
+    };
+  }
+
+  function shouldRetryGameStateRequestImmediately(requestMeta: GameStateRequestMeta): boolean {
+    if (!resumeSyncLockedRef.current || requestMeta.unlockEligible !== true) {
+      return false;
+    }
+
+    if (requestMeta.requestSeq !== latestStartedGameStateRequestSeqRef.current) {
+      return false;
+    }
+
+    if (requestMeta.requestSeq <= resumeLockActivationRequestSeqRef.current) {
+      return false;
+    }
+
+    if (lastImmediateRetrySourceRequestSeqRef.current === requestMeta.requestSeq) {
+      return false;
+    }
+
+    lastImmediateRetrySourceRequestSeqRef.current = requestMeta.requestSeq;
+    return true;
+  }
+
+  function applyAuthoritativeRawState(
+    nextState: any,
+    meta: AuthoritativeStateApplyMeta
+  ): boolean {
+    if (meta.source !== 'game_state') {
+      console.warn(`[useGameSession] Ignoring unsupported authoritative state source: ${meta.source}`);
+      return false;
+    }
+
+    const requestSeq = meta.requestSeq;
+
+    if (typeof requestSeq !== 'number') {
+      console.warn('[useGameSession] Ignoring /game-state response without requestSeq metadata');
+      return false;
+    }
+
+    const latestStartedRequestSeq = latestStartedGameStateRequestSeqRef.current;
+    if (requestSeq !== latestStartedRequestSeq) {
+      console.log(
+        `[useGameSession] Ignoring stale /game-state response requestSeq=${requestSeq} latestStarted=${latestStartedRequestSeq}`
+      );
+      return false;
+    }
+
+    latestAppliedGameStateRequestSeqRef.current = requestSeq;
+
+    if (
+      resumeSyncLockedRef.current &&
+      meta.unlockEligible === true &&
+      requestSeq > resumeLockActivationRequestSeqRef.current
+    ) {
+      setResumeSyncLockedState(false);
+    }
+
     rawStateRef.current = nextState;
     setRawState(nextState);
+    return true;
   }
 
   useEffect(() => {
@@ -572,6 +650,31 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const terminalWinnerPlayerId = rawState?.winnerPlayerId ?? null;
   const terminalResultReason = rawState?.resultReason ?? null;
 
+  useEffect(() => {
+    setResumeSyncLockedState(false);
+    lastHandledResumeSyncTokenRef.current = untimedResumeToken;
+    resumeLockActivationRequestSeqRef.current = 0;
+    latestStartedGameStateRequestSeqRef.current = 0;
+    latestAppliedGameStateRequestSeqRef.current = 0;
+    lastImmediateRetrySourceRequestSeqRef.current = null;
+  }, [effectiveGameId]);
+
+  useEffect(() => {
+    if (lastHandledResumeSyncTokenRef.current === untimedResumeToken) {
+      return;
+    }
+
+    lastHandledResumeSyncTokenRef.current = untimedResumeToken;
+
+    if (rawState == null || !isUntimedAuthoritative) {
+      return;
+    }
+
+    resumeLockActivationRequestSeqRef.current = latestStartedGameStateRequestSeqRef.current;
+    lastImmediateRetrySourceRequestSeqRef.current = null;
+    setResumeSyncLockedState(true);
+  }, [isUntimedAuthoritative, rawState, untimedResumeToken]);
+
   // Keep result text minimal and TDZ-safe.
   // (Winner mapping can be added later, but do not depend on me/opponent here.)
   const finishedResultText = 'GAME OVER';
@@ -584,7 +687,10 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     effectiveGameId,
     hasJoinedCurrentGame,
     authenticatedGet,
+    beginGameStateRequest,
     applyAuthoritativeRawState,
+    shouldRetryGameStateRequestImmediately,
+    isResumeSyncLocked: () => resumeSyncLockedRef.current,
     setLoading,
     setError,
     isFinished,
@@ -721,21 +827,63 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
    * Internal helper to refresh game state immediately (does NOT replace polling)
    * Used after build reveal and declare ready to pull fresh state faster
    */
-  async function refreshGameStateOnce(): Promise<void> {
+  async function refreshGameStateOnce(options?: {
+    unlockEligible?: boolean;
+    allowImmediateRetry?: boolean;
+  }): Promise<void> {
+    const requestMeta = beginGameStateRequest({
+      unlockEligible: options?.unlockEligible ?? resumeSyncLockedRef.current,
+    });
+
     try {
       const response = await authenticatedGet(`/game-state/${effectiveGameId}`);
       
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`[useGameSession] refreshGameStateOnce failed: ${response.status} ${errorText}`);
+
+        const canRetryImmediately =
+          options?.allowImmediateRetry !== false &&
+          response.status !== 403 &&
+          response.status !== 404 &&
+          shouldRetryGameStateRequestImmediately(requestMeta);
+
+        if (canRetryImmediately) {
+          console.warn('[useGameSession] refreshGameStateOnce immediate retry after failed unlock-eligible request');
+          await refreshGameStateOnce({
+            unlockEligible: requestMeta.unlockEligible,
+            allowImmediateRetry: false,
+          });
+        }
+
         return;
       }
       
       const data = await response.json();
-      applyAuthoritativeRawState(data);
-      console.log('[useGameSession] refreshGameStateOnce succeeded');
+      const accepted = applyAuthoritativeRawState(data, {
+        source: 'game_state',
+        requestSeq: requestMeta.requestSeq,
+        unlockEligible: requestMeta.unlockEligible,
+      });
+
+      if (accepted) {
+        console.log('[useGameSession] refreshGameStateOnce succeeded');
+      } else {
+        console.log('[useGameSession] refreshGameStateOnce ignored stale response');
+      }
     } catch (err: any) {
       console.error('[useGameSession] refreshGameStateOnce error:', err.message);
+
+      if (
+        options?.allowImmediateRetry !== false &&
+        shouldRetryGameStateRequestImmediately(requestMeta)
+      ) {
+        console.warn('[useGameSession] refreshGameStateOnce immediate retry after request error');
+        await refreshGameStateOnce({
+          unlockEligible: requestMeta.unlockEligible,
+          allowImmediateRetry: false,
+        });
+      }
     }
   }
   
@@ -754,6 +902,11 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       gameId: effectiveGameId,
       turnNumber: latestTurnNumber,
     };
+  }
+
+  function getLatestAvailableActions() {
+    const latestAvailableActions = rawStateRef.current?.availableActions;
+    return Array.isArray(latestAvailableActions) ? latestAvailableActions : null;
   }
 
   async function submitMenuIntent(intentType: 'SURRENDER' | 'DRAW_OFFER' | 'DRAW_ACCEPT' | 'DRAW_REFUSE') {
@@ -1805,6 +1958,9 @@ useEffect(() => {
   if (isFinished) {
     readyEnabled = false;
     readyDisabledReason = 'Game over.';
+  } else if (resumeSyncLocked) {
+    readyEnabled = false;
+    readyDisabledReason = 'Syncing authoritative state...';
   } else if (!amPlayer) {
     readyEnabled = false;
     readyDisabledReason = 'Spectators cannot ready up.';
@@ -2085,6 +2241,7 @@ useEffect(() => {
 
     readyEnabled,
     readyDisabledReason,
+    resumeSyncLocked,
 
     battleLogHistory,
 
@@ -2156,6 +2313,7 @@ useEffect(() => {
           isFinished,
           readyEnabled,
           readyDisabledReason,
+          resumeSyncLocked,
 
           phaseKey,
           myRole,
@@ -2187,13 +2345,13 @@ useEffect(() => {
           makeCommitHash,
           submitIntent,
           appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
-          applyAuthoritativeRawState,
           refreshGameStateOnce,
           maybeAutoRevealBuild,
           bumpDiceRollSeq: (n: number) => setDiceRollSeq(prev => prev + n),
 
           // Charge panel context (Prompt 9)
           availableActions: Array.isArray(availableActions) ? availableActions : null,
+          getLatestAvailableActions,
           selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
           allocatedDestroyTargetIdsBySourceInstanceId,
           allocatedDestroyTargetIdBySourceInstanceId,
@@ -2354,7 +2512,6 @@ useEffect(() => {
         makeCommitHash,
         submitIntent,
         appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
-        applyAuthoritativeRawState,
         refreshGameStateOnce,
         mySessionId: mySessionId!,
         getLatestRawState: () => rawStateRef.current,
@@ -2380,6 +2537,7 @@ useEffect(() => {
     onBuildShip: (shipDefId: ShipDefId) => {
       // CHUNK 8: Hard stop if game finished (silent)
       if (isFinished) return;
+      if (resumeSyncLocked) return;
       
       // ========================================================================
       // B) GATED LOCAL BUILD PREVIEW WITH AUTHORITATIVE TURN GATING

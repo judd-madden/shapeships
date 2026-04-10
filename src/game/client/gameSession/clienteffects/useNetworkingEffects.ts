@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type React from 'react';
 import type { UntimedPollingMode } from './useUntimedPollingThrottle';
+import type { AuthoritativeStateApplyMeta, GameStateRequestMeta } from '../types';
 
 const ACTIVE_POLL_MS = 1200;
 const UNTIMED_IDLE_POLL_MS = 12000;
@@ -199,7 +200,10 @@ export function usePollingEffect(args: {
 
   authenticatedGet: (path: string, timeoutMs?: number) => Promise<Response>;
 
-  applyAuthoritativeRawState: (s: any) => void;
+  beginGameStateRequest: (options?: { unlockEligible?: boolean }) => GameStateRequestMeta;
+  applyAuthoritativeRawState: (s: any, meta: AuthoritativeStateApplyMeta) => boolean;
+  shouldRetryGameStateRequestImmediately: (requestMeta: GameStateRequestMeta) => boolean;
+  isResumeSyncLocked: () => boolean;
   setLoading: (v: boolean) => void;
   setError: (v: string | null) => void;
   
@@ -213,7 +217,10 @@ export function usePollingEffect(args: {
     effectiveGameId,
     hasJoinedCurrentGame,
     authenticatedGet,
+    beginGameStateRequest,
     applyAuthoritativeRawState,
+    shouldRetryGameStateRequestImmediately,
+    isResumeSyncLocked,
     setLoading,
     setError,
     isFinished,
@@ -344,6 +351,9 @@ export function usePollingEffect(args: {
 
       isPolling = true;
       let nextPollDelayMs = initialDelayMs;
+      const requestMeta = beginGameStateRequest({
+        unlockEligible: hasResumeEvent || isResumeSyncLocked(),
+      });
 
       try {
         // Fetch game state (authenticatedGet handles session automatically)
@@ -381,10 +391,22 @@ export function usePollingEffect(args: {
         const fetchedIsFinished =
           data?.status === 'finished' ||
           data?.gameData?.status === 'finished';
-        nextPollDelayMs = getRecurringDelayMs(fetchedIsFinished);
 
         if (mounted) {
-          applyAuthoritativeRawState(data);
+          const accepted = applyAuthoritativeRawState(data, {
+            source: 'game_state',
+            requestSeq: requestMeta.requestSeq,
+            unlockEligible: requestMeta.unlockEligible,
+          });
+
+          if (!accepted) {
+            console.log(
+              `[useGameSession] Poll ignored stale /game-state response requestSeq=${requestMeta.requestSeq}`
+            );
+            return;
+          }
+
+          nextPollDelayMs = getRecurringDelayMs(fetchedIsFinished);
           setLoading(false);
           setError(null);
         }
@@ -398,6 +420,9 @@ export function usePollingEffect(args: {
         if (mounted) {
           setError(err.message);
           setLoading(false);
+        }
+        if (shouldRetryGameStateRequestImmediately(requestMeta)) {
+          nextPollDelayMs = 0;
         }
       } finally {
         isPolling = false;

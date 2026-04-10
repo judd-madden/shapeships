@@ -59,31 +59,38 @@ function countDiceRolledEvents(events: any[]): number {
   return n;
 }
 
-function maybeAdoptAuthoritativeFailureState(
-  payload: any,
-  applyAuthoritativeRawState: (nextState: any) => void
-): void {
+function logIgnoredIntentState(context: string, payload: any): void {
   if (payload?.state == null) {
     return;
   }
 
-  applyAuthoritativeRawState(payload.state);
+  console.log(`[useGameSession] ${context}: intent returned state; ignoring it and waiting for /game-state refresh`);
 }
 
-async function readFailureResponseText(
-  response: Response,
-  applyAuthoritativeRawState: (nextState: any) => void
-): Promise<string> {
-  const errorText = await response.text();
+async function readFailureResponseText(response: Response): Promise<string> {
+  return response.text();
+}
 
-  try {
-    const payload = JSON.parse(errorText);
-    maybeAdoptAuthoritativeFailureState(payload, applyAuthoritativeRawState);
-  } catch {
-    // Non-JSON failure bodies should keep existing text/error logging behavior.
+async function resolveAvailableActionsOrAbort(args: {
+  phaseKey: string;
+  availableActions: any[] | null;
+  getLatestAvailableActions: () => any[] | null;
+  refreshGameStateOnce: () => Promise<void>;
+}): Promise<any[] | null> {
+  if (Array.isArray(args.availableActions)) {
+    return args.availableActions;
   }
 
-  return errorText;
+  console.log(`[useGameSession] ${args.phaseKey}: availableActions missing, refreshing once before ready`);
+  await args.refreshGameStateOnce();
+
+  const refreshedAvailableActions = args.getLatestAvailableActions();
+  if (!Array.isArray(refreshedAvailableActions)) {
+    console.warn(`[useGameSession] ${args.phaseKey}: aborting ready because availableActions are still unavailable`);
+    return null;
+  }
+
+  return refreshedAvailableActions;
 }
 
 /**
@@ -146,7 +153,6 @@ export async function runSpeciesConfirmFlow(args: {
   makeCommitHash: (payload: any, nonce: string) => Promise<string>;
   submitIntent: (body: any) => Promise<Response>;
   appendEvents: (events: any[], meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
-  applyAuthoritativeRawState: (nextState: any) => void;
   refreshGameStateOnce: () => Promise<void>;
   mySessionId: string;
   getLatestRawState: () => any;
@@ -165,7 +171,6 @@ export async function runSpeciesConfirmFlow(args: {
       makeCommitHash,
       submitIntent,
       appendEvents,
-      applyAuthoritativeRawState,
       refreshGameStateOnce,
       mySessionId,
       getLatestRawState,
@@ -202,7 +207,7 @@ export async function runSpeciesConfirmFlow(args: {
     });
 
     if (!response.ok) {
-      const errorText = await readFailureResponseText(response, applyAuthoritativeRawState);
+      const errorText = await readFailureResponseText(response);
       console.error('[useGameSession] SPECIES_SUBMIT failed:', errorText);
       return;
     }
@@ -210,10 +215,11 @@ export async function runSpeciesConfirmFlow(args: {
     const result = await response.json();
 
     if (!result.ok) {
-      maybeAdoptAuthoritativeFailureState(result, applyAuthoritativeRawState);
+      logIgnoredIntentState('SPECIES_SUBMIT rejected', result);
       console.error('[useGameSession] SPECIES_SUBMIT rejected:', result.rejected);
       return;
     }
+    logIgnoredIntentState('SPECIES_SUBMIT succeeded', result);
 
     const events = result.events || [];
     appendEvents(events, {
@@ -268,6 +274,7 @@ export async function runReadyToggleFlow(args: {
   isFinished: boolean;
   readyEnabled: boolean;
   readyDisabledReason: string | null;
+  resumeSyncLocked: boolean;
 
   // phase + identity
   phaseKey: string;
@@ -307,13 +314,13 @@ export async function runReadyToggleFlow(args: {
   makeCommitHash: (payload: any, nonce: string) => Promise<string>;
   submitIntent: (body: any, timeoutMs?: number) => Promise<Response>;
   appendEvents: (events: any[], meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
-  applyAuthoritativeRawState: (nextState: any) => void;
   refreshGameStateOnce: () => Promise<void>;
   maybeAutoRevealBuild: (args: any) => Promise<void>;
   bumpDiceRollSeq: (n: number) => void;
 
   // charge panel context (Prompt 9)
   availableActions: any[] | null;
+  getLatestAvailableActions: () => any[] | null;
   selectedChoiceIdBySourceInstanceId: Record<string, string>;
   allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]>;
   allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
@@ -322,6 +329,7 @@ export async function runReadyToggleFlow(args: {
     isFinished,
     readyEnabled,
     readyDisabledReason,
+    resumeSyncLocked,
     phaseKey,
     myRole,
     mySessionId,
@@ -342,7 +350,6 @@ export async function runReadyToggleFlow(args: {
     makeCommitHash,
     submitIntent,
     appendEvents,
-    applyAuthoritativeRawState,
     refreshGameStateOnce,
     maybeAutoRevealBuild,
     bumpDiceRollSeq,
@@ -359,6 +366,11 @@ export async function runReadyToggleFlow(args: {
   // Hard stop if game finished
   if (isFinished) {
     console.log('[useGameSession] onReadyToggle ignored: game finished');
+    return;
+  }
+
+  if (resumeSyncLocked) {
+    console.log('[useGameSession] onReadyToggle ignored: resume sync lock active');
     return;
   }
   
@@ -389,13 +401,19 @@ export async function runReadyToggleFlow(args: {
       phaseKey === 'battle.charge_response'
     ) {
       console.log(`[useGameSession] ${phaseKey}: preparing batch submission...`);
-      
-      // Validate availableActions is array
-      if (!Array.isArray(args.availableActions)) {
-        console.log('[useGameSession] No availableActions array, falling through to DECLARE_READY only');
-        // Fall through to DECLARE_READY
-      } else {
-        const choiceActions = getRenderableServerChoiceActions(phaseKey, args.availableActions);
+      const resolvedAvailableActions = await resolveAvailableActionsOrAbort({
+        phaseKey,
+        availableActions: args.availableActions,
+        getLatestAvailableActions: args.getLatestAvailableActions,
+        refreshGameStateOnce,
+      });
+
+      if (resolvedAvailableActions == null) {
+        return;
+      }
+
+      {
+        const choiceActions = getRenderableServerChoiceActions(phaseKey, resolvedAvailableActions);
 
         const incompleteTargetedAction = choiceActions.find((action) =>
           isRenderableTargetedAction(action) &&
@@ -474,7 +492,7 @@ export async function runReadyToggleFlow(args: {
           });
           
           if (!batchResponse.ok) {
-            const errorText = await readFailureResponseText(batchResponse, applyAuthoritativeRawState);
+            const errorText = await readFailureResponseText(batchResponse);
             console.error('[useGameSession] ACTIONS_SUBMIT failed:', errorText);
             return;
           }
@@ -482,10 +500,11 @@ export async function runReadyToggleFlow(args: {
           const result = await batchResponse.json();
           
           if (!result.ok) {
-            maybeAdoptAuthoritativeFailureState(result, applyAuthoritativeRawState);
+            logIgnoredIntentState('ACTIONS_SUBMIT rejected', result);
             console.error('[useGameSession] ACTIONS_SUBMIT rejected:', result.rejected);
             return;
           }
+          logIgnoredIntentState('ACTIONS_SUBMIT succeeded', result);
           
           const events = result.events || [];
           appendEvents(events, {
@@ -515,7 +534,7 @@ export async function runReadyToggleFlow(args: {
       });
       
       if (!readyResponse.ok) {
-        const errorText = await readFailureResponseText(readyResponse, applyAuthoritativeRawState);
+        const errorText = await readFailureResponseText(readyResponse);
         console.error('[useGameSession] DECLARE_READY failed:', errorText);
         return;
       }
@@ -523,10 +542,11 @@ export async function runReadyToggleFlow(args: {
       const readyResult = await readyResponse.json();
       
       if (!readyResult.ok) {
-        maybeAdoptAuthoritativeFailureState(readyResult, applyAuthoritativeRawState);
+        logIgnoredIntentState('DECLARE_READY rejected', readyResult);
         console.error('[useGameSession] DECLARE_READY rejected:', readyResult.rejected);
         return;
       }
+      logIgnoredIntentState('DECLARE_READY succeeded', readyResult);
       
       const readyEvents = readyResult.events || [];
       appendEvents(readyEvents, {
@@ -550,23 +570,19 @@ export async function runReadyToggleFlow(args: {
     // ========================================================================
     if (phaseKey === 'build.ships_that_build') {
       console.log(`[useGameSession] ${phaseKey}: preparing batch submission...`);
-      
-      // Validate availableActions is array
-      if (!Array.isArray(args.availableActions)) {
-        console.log('[useGameSession] No availableActions array, refreshing once then proceeding...');
-        await refreshGameStateOnce();
-        
-        // After refresh, check again
-        if (!Array.isArray(args.availableActions)) {
-          console.log('[useGameSession] Still no availableActions after refresh, falling through to DECLARE_READY only');
-          // Fall through to DECLARE_READY
-        } else {
-          // After refresh it became available, but we won't process it in this flow
-          // Just fall through to DECLARE_READY (user can click again if needed)
-          console.log('[useGameSession] availableActions now available after refresh, falling through to DECLARE_READY');
-        }
-      } else {
-        const choiceActions = getRenderableServerChoiceActions(phaseKey, args.availableActions);
+      const resolvedAvailableActions = await resolveAvailableActionsOrAbort({
+        phaseKey,
+        availableActions: args.availableActions,
+        getLatestAvailableActions: args.getLatestAvailableActions,
+        refreshGameStateOnce,
+      });
+
+      if (resolvedAvailableActions == null) {
+        return;
+      }
+
+      {
+        const choiceActions = getRenderableServerChoiceActions(phaseKey, resolvedAvailableActions);
 
         const incompleteTargetedAction = choiceActions.find((action) =>
           isRenderableTargetedAction(action) &&
@@ -644,7 +660,7 @@ export async function runReadyToggleFlow(args: {
           });
           
           if (!batchResponse.ok) {
-            const errorText = await readFailureResponseText(batchResponse, applyAuthoritativeRawState);
+            const errorText = await readFailureResponseText(batchResponse);
             console.error('[useGameSession] ACTIONS_SUBMIT failed:', errorText);
             return;
           }
@@ -652,10 +668,11 @@ export async function runReadyToggleFlow(args: {
           const result = await batchResponse.json();
           
           if (!result.ok) {
-            maybeAdoptAuthoritativeFailureState(result, applyAuthoritativeRawState);
+            logIgnoredIntentState('ACTIONS_SUBMIT rejected', result);
             console.error('[useGameSession] ACTIONS_SUBMIT rejected:', result.rejected);
             return;
           }
+          logIgnoredIntentState('ACTIONS_SUBMIT succeeded', result);
           
           const events = result.events || [];
           appendEvents(events, {
@@ -685,7 +702,7 @@ export async function runReadyToggleFlow(args: {
       });
       
       if (!readyResponse.ok) {
-        const errorText = await readFailureResponseText(readyResponse, applyAuthoritativeRawState);
+        const errorText = await readFailureResponseText(readyResponse);
         console.error('[useGameSession] DECLARE_READY failed:', errorText);
         return;
       }
@@ -693,10 +710,11 @@ export async function runReadyToggleFlow(args: {
       const readyResult = await readyResponse.json();
       
       if (!readyResult.ok) {
-        maybeAdoptAuthoritativeFailureState(readyResult, applyAuthoritativeRawState);
+        logIgnoredIntentState('DECLARE_READY rejected', readyResult);
         console.error('[useGameSession] DECLARE_READY rejected:', readyResult.rejected);
         return;
       }
+      logIgnoredIntentState('DECLARE_READY succeeded', readyResult);
       
       const readyEvents = readyResult.events || [];
       appendEvents(readyEvents, {
@@ -769,7 +787,7 @@ export async function runReadyToggleFlow(args: {
       }
       
       if (!response.ok) {
-        const errorText = await readFailureResponseText(response, applyAuthoritativeRawState);
+        const errorText = await readFailureResponseText(response);
         console.error('[useGameSession] BUILD_SUBMIT failed:', errorText);
         return;
       }
@@ -783,7 +801,7 @@ export async function runReadyToggleFlow(args: {
         serverTurnNumber;
       
       if (!result.ok) {
-        maybeAdoptAuthoritativeFailureState(result, applyAuthoritativeRawState);
+        logIgnoredIntentState('BUILD_SUBMIT rejected', result);
 
         // Handle DUPLICATE_SUBMIT/DUPLICATE_COMMIT: treat as success locally
         if (
@@ -807,6 +825,7 @@ export async function runReadyToggleFlow(args: {
         console.error('[useGameSession] BUILD_SUBMIT rejected:', result.rejected);
         return;
       }
+      logIgnoredIntentState('BUILD_SUBMIT succeeded', result);
       
       const events = result.events || [];
       appendEvents(events, {
@@ -840,7 +859,7 @@ export async function runReadyToggleFlow(args: {
     });
     
     if (!response.ok) {
-      const errorText = await readFailureResponseText(response, applyAuthoritativeRawState);
+      const errorText = await readFailureResponseText(response);
       console.error('[useGameSession] DECLARE_READY failed:', errorText);
       return;
     }
@@ -848,10 +867,11 @@ export async function runReadyToggleFlow(args: {
     const result = await response.json();
     
     if (!result.ok) {
-      maybeAdoptAuthoritativeFailureState(result, applyAuthoritativeRawState);
+      logIgnoredIntentState('DECLARE_READY rejected', result);
       console.error('[useGameSession] DECLARE_READY rejected:', result.rejected);
       return;
     }
+    logIgnoredIntentState('DECLARE_READY succeeded', result);
     
     // Append events to tape
     const events = result.events || [];
@@ -1020,9 +1040,11 @@ export async function maybeAutoRevealBuild(args: {
     const revealResult = await revealResponse.json();
     
     if (!revealResult.ok) {
+      logIgnoredIntentState('BUILD_REVEAL rejected', revealResult);
       console.error('[useGameSession] Auto BUILD_REVEAL rejected:', revealResult.rejected);
       return; // keep cache for retry
     }
+    logIgnoredIntentState('BUILD_REVEAL succeeded', revealResult);
     
     const events = revealResult.events || [];
     appendEvents(events, {

@@ -194,6 +194,7 @@ export function mapGameSessionVm(args: {
 
   readyEnabled: boolean;
   readyDisabledReason: string | null;
+  resumeSyncLocked: boolean;
 
   battleLogHistory: BattleLogHistoryResponse | null;
 
@@ -278,6 +279,7 @@ export function mapGameSessionVm(args: {
     board,
     readyEnabled,
     readyDisabledReason,
+    resumeSyncLocked,
     battleLogHistory,
     getMajorPhaseLabel,
     getSubphaseLabelFromPhaseKey,
@@ -598,6 +600,11 @@ export function mapGameSessionVm(args: {
     finalReadyDisabled = true;
     finalReadySelected = false;
     finalReadyDisabledReason = 'Game over.';
+  } else if (resumeSyncLocked) {
+    readyButtonLabel = 'SYNCING...';
+    finalReadyDisabled = true;
+    finalReadySelected = false;
+    finalReadyDisabledReason = null;
   } else if (readyUx?.sendingNow) {
     // Case 1: user clicked Ready and we are awaiting server validation/refresh
     readyButtonLabel = 'SENDING...';

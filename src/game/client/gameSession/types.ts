@@ -18,6 +18,19 @@ export type ReadyUxState = {
   sendingNow: boolean;       // client is awaiting server response for the Ready flow
 };
 
+export type AuthoritativeStateSource = 'game_state' | 'intent_success' | 'intent_failure';
+
+export interface AuthoritativeStateApplyMeta {
+  source: AuthoritativeStateSource;
+  requestSeq?: number;
+  unlockEligible?: boolean;
+}
+
+export interface GameStateRequestMeta {
+  requestSeq: number;
+  unlockEligible: boolean;
+}
+
 export type EvolverChoiceId = 'hold' | 'oxite' | 'asterite';
 export type CentaurChargeSubTabId = 'charges' | 'ship_of_equality';
 
