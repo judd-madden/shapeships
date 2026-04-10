@@ -2249,6 +2249,7 @@ useEffect(() => {
     getSubphaseLabelFromPhaseKey,
     
     chatEntries,
+    controllersByPlayerId: rawState?.controllersByPlayerId,
 
     // New params for menu/end-of-game panels
     isFinished,

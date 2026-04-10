@@ -17,7 +17,7 @@ import { getBuildCommitKey } from '../engine/intent/IntentTypes.ts';
 import { hasRevealed } from '../engine/intent/CommitStore.ts';
 import { resolveBuildSubmitAuthoritatively } from '../engine/intent/buildSubmitResolution.ts';
 import type { ShipInstance } from '../engine/state/GameStateTypes.ts';
-import { chooseDeterministicHumanBotPlanId, getHumanBotPlanById } from '../engine/bot/humanPlans.ts';
+import { chooseDeterministicHumanBotPlanId, chooseFreshHumanBotPlanId, getHumanBotPlanById } from '../engine/bot/humanPlans.ts';
 import { runBotsUntilSettled } from '../engine/bot/botRunner.ts';
 import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
 import { computeLineBonusesForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
@@ -1115,6 +1115,45 @@ export function registerGameRoutes(
       }
 
       const newGameId = generateGameId();
+      const opponentPlayer = sourceGame.players.find((player: any) =>
+        player?.role === 'player' && player?.id !== playerId
+      );
+      const opponentController = opponentPlayer?.id
+        ? sourceGame.controllersByPlayerId?.[opponentPlayer.id]
+        : null;
+      const isBotRematch = opponentController?.kind === 'bot';
+
+      if (isBotRematch) {
+        const chosenPlanId = chooseFreshHumanBotPlanId(opponentController?.chosenPlanId);
+        const newGameData = createFreshComputerGameData(
+          newGameId,
+          playerId,
+          playerName,
+          chosenPlanId,
+        );
+        const botRunResult = await runBotsUntilSettled({
+          state: newGameData,
+          nowMs: Date.now(),
+        });
+
+        await kvSet(`game_${newGameId}`, botRunResult.state);
+        await kvSet(
+          getBattleLogHistoryKey(newGameId),
+          createEmptyBattleLogHistoryStore(newGameId),
+        );
+
+        console.log("Computer rematch created from finished bot game:", {
+          sourceGameId,
+          newGameId,
+          playerId,
+          opponentPlayerId: opponentPlayer?.id ?? null,
+          chosenPlanId,
+          botStepsApplied: botRunResult.botStepsApplied,
+        });
+
+        return c.json({ gameId: newGameId });
+      }
+
       const newGameData = createFreshGameData(newGameId, playerId, playerName);
 
       await kvSet(`game_${newGameId}`, newGameData);

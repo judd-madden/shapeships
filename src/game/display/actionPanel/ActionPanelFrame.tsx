@@ -88,6 +88,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
       bannerBgCssVar: 'var(--shapeships-grey-50)',
       metaLeftText: '',
       metaRightText: '',
+      rematchHelperText: 'Link will be posted in chat',
     };
 
     return (
@@ -97,6 +98,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
           bannerBgCssVar={endOfGame.bannerBgCssVar}
           metaLeftText={endOfGame.metaLeftText}
           metaRightText={endOfGame.metaRightText}
+          rematchHelperText={endOfGame.rematchHelperText}
           onReturnToMainMenu={onReturnToMainMenu}
           onRematch={actions.onRematch}
           onDownloadBattleLog={actions.onDownloadBattleLog}

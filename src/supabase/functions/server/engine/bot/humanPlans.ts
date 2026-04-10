@@ -79,6 +79,44 @@ export function getHumanBotPlanById(planId: string): AuthoredBotPlan | null {
   return HUMAN_BOT_PLAN_LOOKUP_POOL.find((plan) => plan.id === planId) ?? null;
 }
 
+function getUniformRandomIndex(maxExclusive: number): number {
+  if (!Number.isInteger(maxExclusive) || maxExclusive <= 0) {
+    throw new Error('maxExclusive must be a positive integer.');
+  }
+
+  const maxUint32 = 0x1_0000_0000;
+  const limit = maxUint32 - (maxUint32 % maxExclusive);
+  const randomBuffer = new Uint32Array(1);
+
+  while (true) {
+    crypto.getRandomValues(randomBuffer);
+    const value = randomBuffer[0] ?? 0;
+    if (value < limit) {
+      return value % maxExclusive;
+    }
+  }
+}
+
+export function chooseFreshHumanBotPlanId(previousPlanId?: string | null): BotPlanId {
+  if (ACTIVE_HUMAN_BOT_PLANS.length === 0) {
+    throw new Error('No Human bot plans are registered.');
+  }
+
+  const candidatePlans =
+    typeof previousPlanId === 'string' &&
+    previousPlanId.length > 0 &&
+    ACTIVE_HUMAN_BOT_PLANS.length > 1
+      ? ACTIVE_HUMAN_BOT_PLANS.filter((plan) => plan.id !== previousPlanId)
+      : ACTIVE_HUMAN_BOT_PLANS;
+
+  const selectedPlan = candidatePlans[getUniformRandomIndex(candidatePlans.length)];
+  if (!selectedPlan) {
+    throw new Error('Failed to select a Human bot plan.');
+  }
+
+  return selectedPlan.id;
+}
+
 export function chooseDeterministicHumanBotPlanId(seed: string): BotPlanId {
   if (ACTIVE_HUMAN_BOT_PLANS.length === 0) {
     throw new Error('No Human bot plans are registered.');

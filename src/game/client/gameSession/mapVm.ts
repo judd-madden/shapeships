@@ -202,6 +202,7 @@ export function mapGameSessionVm(args: {
   getSubphaseLabelFromPhaseKey: (phaseKey: string) => string;
   
   chatEntries: GameSessionChatEntry[];
+  controllersByPlayerId?: Record<string, { kind?: string; chosenPlanId?: string }>;
 
   // New params for menu/end-of-game panels
   isFinished: boolean;
@@ -284,6 +285,7 @@ export function mapGameSessionVm(args: {
     getMajorPhaseLabel,
     getSubphaseLabelFromPhaseKey,
     chatEntries,
+    controllersByPlayerId,
     isFinished,
     mySpeciesId,
     opponentSpeciesId,
@@ -534,6 +536,10 @@ export function mapGameSessionVm(args: {
   
   const metaLeftText = `Game Over. ${turnNumber} turns.`;
   const metaRightText = title; // Same title string as in-progress
+  const rematchHelperText =
+    opponent?.id != null && controllersByPlayerId?.[opponent.id]?.kind === 'bot'
+      ? 'Play again against computer'
+      : 'Link will be posted in chat';
   
   // ============================================================================
   // DERIVE ACTION PANEL UI DATA (frigateDrawing, evolverDrawing, shipChoices)
@@ -1157,6 +1163,7 @@ export function mapGameSessionVm(args: {
         bannerBgCssVar,
         metaLeftText,
         metaRightText,
+        rematchHelperText,
       } : undefined,
       frigateDrawing,
       evolverDrawing,

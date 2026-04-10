@@ -11,6 +11,7 @@ interface EndOfGameActionPanelProps {
   bannerBgCssVar: string;   // e.g. "var(--shapeships-pastel-blue)"
   metaLeftText: string;     // "Game Over. 18 turns."
   metaRightText: string;    // "Shapeships Game: {me} v {opponent}"
+  rematchHelperText: string;
   onReturnToMainMenu: () => void;
   onRematch: () => void;
   onDownloadBattleLog: () => void;
@@ -21,6 +22,7 @@ export function EndOfGameActionPanel({
   bannerBgCssVar,
   metaLeftText,
   metaRightText,
+  rematchHelperText,
   onReturnToMainMenu,
   onRematch,
   onDownloadBattleLog,
@@ -72,7 +74,7 @@ export function EndOfGameActionPanel({
               className="mt-[8px] text-center text-[16px] font-normal leading-[1.3] text-white"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
-              Link will be posted in chat
+              {rematchHelperText}
             </p>
           </div>
 

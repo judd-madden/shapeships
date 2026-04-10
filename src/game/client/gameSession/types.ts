@@ -398,6 +398,7 @@ export interface ActionPanelViewModel {
     bannerBgCssVar: string; // "var(--shapeships-...)"
     metaLeftText: string;
     metaRightText: string;
+    rematchHelperText: string;
   };
 
   // NEW (UI-derivations for panels)
