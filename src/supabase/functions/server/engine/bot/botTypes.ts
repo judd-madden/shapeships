@@ -30,6 +30,8 @@ export type InterceptorChargePolicy = {
   damageOpponentAtOrBelow?: number;
 };
 
+export type GuardianTargetMode = 'highest_cost_basic';
+
 export type SeatController =
   | { kind: 'human' }
   | { kind: 'bot'; speciesId: BotSpeciesId; chosenPlanId: BotPlanId };
@@ -44,6 +46,11 @@ export type AuthoredBotPlan = {
   };
   chargePolicy?: {
     INT?: InterceptorChargePolicy;
+  };
+  targetPolicy?: {
+    GUA?: {
+      mode: GuardianTargetMode;
+    };
   };
   notes?: string;
 };

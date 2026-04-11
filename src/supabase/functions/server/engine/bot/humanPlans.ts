@@ -17,22 +17,25 @@ const HUMAN_TACTICAL_DREAD_PLAN: AuthoredBotPlan = {
   speciesId: 'HUM',
   buildGoals: [
     { shipDefId: 'CAR', targetCount: 2 },
-    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'GUA', targetCount: 1 },
     { shipDefId: 'DRE', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'FIG', targetCount: 4 },
   ],
   loopGoals: [
-    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'CAR', targetCount: 1 },
     { shipDefId: 'COM', targetCount: 1 },
-    { shipDefId: 'DEF', targetCount: 1 },
   ],
   shipsThatBuild: {
     CAR: {
       priorityGoals: [
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 4 },
         { choiceId: 'fighter', targetShipDefId: 'FIG', targetCount: 3 },
-        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 2 },
       ],
       fallbackChoiceId: 'fighter',
+    },
+  },
+  targetPolicy: {
+    GUA: {
+      mode: 'highest_cost_basic',
     },
   },
   notes: 'Carrier-led Dread opener that leans on early Fighters before rounding out Defenders.',
@@ -43,13 +46,12 @@ const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
   speciesId: 'HUM',
   buildGoals: [
     { shipDefId: 'ORB', targetCount: 1 },
-    { shipDefId: 'CAR', targetCount: 2 },
-    { shipDefId: 'INT', targetCount: 1 },
+    { shipDefId: 'CAR', targetCount: 3 },
     { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'INT', targetCount: 1 },
   ],
   loopGoals: [
-    { shipDefId: 'DEF', targetCount: 1 },
-    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'CAR', targetCount: 1 },
     { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
   ],
   shipsThatBuild: {

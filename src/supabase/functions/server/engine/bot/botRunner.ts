@@ -1,6 +1,8 @@
 import { applyIntent, type IntentRequest } from '../intent/IntentReducer.ts';
 import { buildPhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
+import { EffectKind } from '../../engine_shared/effects/Effect.ts';
+import { getValidDestroyTargets } from '../../engine_shared/resolve/destroyRules.ts';
 import { getHumanBotPlanById } from './humanPlans.ts';
 import { planHumanBuildSubmit } from './buildPlanner.ts';
 import type {
@@ -12,6 +14,8 @@ import type {
 const MAX_BOT_STEPS_PER_REQUEST = 8;
 const CARRIER_ACTION_ID = 'CAR#0';
 const INTERCEPTOR_ACTION_ID = 'INT#0';
+const GUARDIAN_SHIP_DEF_ID = 'GUA';
+const GUARDIAN_PHASE_KEY = 'battle.first_strike';
 
 function getShipsThatBuildPassIndex(state: any): 1 | 2 {
   return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
@@ -112,6 +116,129 @@ function isCarrierChoiceId(value: unknown): value is CarrierChoiceId {
 
 function isInterceptorChoiceId(value: unknown): value is InterceptorChoiceId {
   return value === 'damage' || value === 'heal';
+}
+
+function getTargetedChoiceEffect(option: any): any | null {
+  return option?.effects?.find(
+    (effect: any) =>
+      effect?.kind === EffectKind.Destroy ||
+      effect?.kind === EffectKind.TransferShip
+  ) ?? null;
+}
+
+function shouldApplyOpponentSacProtectionForTargetedEffect(effect: any): boolean {
+  return effect?.kind !== EffectKind.TransferShip;
+}
+
+function isStructuredChoicePowerAvailableForShip(
+  state: any,
+  ship: any,
+  actionId: string,
+  power: any,
+): boolean {
+  if (power?.onceOnly === 'on_build_turn') {
+    const currentTurnNumber: number = state?.gameData?.turnNumber ?? 1;
+    if (ship?.createdTurn !== currentTurnNumber) {
+      return false;
+    }
+  }
+
+  if (power?.onceOnly) {
+    const onceOnlyFired = state?.gameData?.powerMemory?.onceOnlyFired ?? {};
+    if (onceOnlyFired[`${ship.instanceId}::${actionId}`] === true) {
+      return false;
+    }
+  }
+
+  const actionRequiresCharge =
+    (power?.requiresCharge ?? false) ||
+    (Array.isArray(power?.options) &&
+      power.options.some((option: any) => (option?.requiresCharge ?? false) === true));
+
+  if (!actionRequiresCharge) {
+    return true;
+  }
+
+  const turnNumber: number = state?.gameData?.turnNumber ?? 1;
+  const usedMap: Record<string, number> =
+    state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
+
+  return usedMap[ship.instanceId] !== turnNumber;
+}
+
+function hasEnoughChargeForChoice(ship: any, power: any, choiceId: string): boolean {
+  const option = power?.options?.find((candidate: any) => candidate?.choiceId === choiceId);
+  if (!option) {
+    return false;
+  }
+
+  const requiresCharge = (option?.requiresCharge ?? false) || (power?.requiresCharge ?? false);
+  if (!requiresCharge) {
+    return true;
+  }
+
+  const chargeCost = option?.chargeCost ?? power?.chargeCost ?? 1;
+  return Number(ship?.chargesCurrent ?? 0) >= chargeCost;
+}
+
+function getGuardianFirstStrikePower():
+  | {
+      actionId: string;
+      choiceId: string;
+      power: any;
+      targetedEffect: any;
+    }
+  | null {
+  const guardianDef = getShipDefinition(GUARDIAN_SHIP_DEF_ID);
+  const structuredPowers = guardianDef?.structuredPowers;
+  if (!Array.isArray(structuredPowers)) {
+    return null;
+  }
+
+  for (let powerIndex = 0; powerIndex < structuredPowers.length; powerIndex += 1) {
+    const power = structuredPowers[powerIndex];
+    if (power?.type !== 'choice') {
+      continue;
+    }
+
+    if (!Array.isArray(power?.options) || !power.timings?.includes(GUARDIAN_PHASE_KEY)) {
+      continue;
+    }
+
+    const targetedOption = power.options.find((option: any) => {
+      const targetedEffect = getTargetedChoiceEffect(option);
+      return targetedEffect?.kind === EffectKind.Destroy;
+    });
+    const choiceId = targetedOption?.choiceId;
+    const targetedEffect = getTargetedChoiceEffect(targetedOption);
+
+    if (typeof choiceId !== 'string' || choiceId.length === 0 || !targetedEffect) {
+      continue;
+    }
+
+    return {
+      actionId: `${GUARDIAN_SHIP_DEF_ID}#${powerIndex}`,
+      choiceId,
+      power,
+      targetedEffect,
+    };
+  }
+
+  return null;
+}
+
+function getLiveShipChargesCurrent(
+  state: any,
+  ownerPlayerId: string,
+  instanceId: string,
+): number {
+  const fleet = state?.gameData?.ships?.[ownerPlayerId] ?? [];
+  if (!Array.isArray(fleet)) {
+    return 0;
+  }
+
+  const ship = fleet.find((candidate: any) => candidate?.instanceId === instanceId);
+  return Number(ship?.chargesCurrent ?? 0);
 }
 
 function getCarrierShipsThatBuildPower(): any | null {
@@ -459,6 +586,115 @@ function buildCarrierIntentForCurrentPhase(args: {
   return null;
 }
 
+function buildGuardianIntentForCurrentPhase(args: {
+  state: any;
+  playerId: string;
+  phaseKey: string;
+  loopStep: number;
+  plan: AuthoredBotPlan;
+}): IntentRequest | null {
+  const { state, playerId, phaseKey, loopStep, plan } = args;
+  if (phaseKey !== GUARDIAN_PHASE_KEY || plan?.targetPolicy?.GUA?.mode !== 'highest_cost_basic') {
+    return null;
+  }
+
+  const guardianPower = getGuardianFirstStrikePower();
+  if (!guardianPower) {
+    return null;
+  }
+
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
+  if (!Array.isArray(fleet)) {
+    return null;
+  }
+
+  const guardianShips = fleet
+    .filter((ship: any) =>
+      ship?.shipDefId === GUARDIAN_SHIP_DEF_ID &&
+      typeof ship?.instanceId === 'string' &&
+      ship.instanceId.length > 0
+    )
+    .sort((a: any, b: any) => a.instanceId.localeCompare(b.instanceId));
+
+  for (const guardianShip of guardianShips) {
+    if (!isStructuredChoicePowerAvailableForShip(
+      state,
+      guardianShip,
+      guardianPower.actionId,
+      guardianPower.power,
+    )) {
+      continue;
+    }
+
+    if (!hasEnoughChargeForChoice(guardianShip, guardianPower.power, guardianPower.choiceId)) {
+      continue;
+    }
+
+    const validTargets = getValidDestroyTargets(state, {
+      sourcePlayerId: playerId,
+      targetScope:
+        guardianPower.targetedEffect.targetPlayer === 'self' ? 'self' : 'opponent',
+      restriction: guardianPower.targetedEffect.restriction ?? 'any',
+      applyOpponentSacProtection:
+        shouldApplyOpponentSacProtectionForTargetedEffect(guardianPower.targetedEffect),
+    });
+
+    if (validTargets.length === 0) {
+      continue;
+    }
+
+    const rankedTargets = [...validTargets].sort((left, right) => {
+      if (left.totalLineCost !== right.totalLineCost) {
+        return right.totalLineCost - left.totalLineCost;
+      }
+
+      const leftCharges = getLiveShipChargesCurrent(
+        state,
+        left.ownerPlayerId,
+        left.instanceId,
+      );
+      const rightCharges = getLiveShipChargesCurrent(
+        state,
+        right.ownerPlayerId,
+        right.instanceId,
+      );
+
+      if (leftCharges !== rightCharges) {
+        return rightCharges - leftCharges;
+      }
+
+      return left.instanceId.localeCompare(right.instanceId);
+    });
+
+    const chosenTarget = rankedTargets[0];
+    if (!chosenTarget) {
+      continue;
+    }
+
+    return {
+      gameId: state.gameId,
+      intentType: 'ACTION',
+      turnNumber: state?.gameData?.turnNumber ?? 0,
+      payload: {
+        actionType: 'power',
+        actionId: guardianPower.actionId,
+        sourceInstanceId: guardianShip.instanceId,
+        choiceId: guardianPower.choiceId,
+        targetInstanceId: chosenTarget.instanceId,
+      },
+      nonce: buildBotNonce({
+        state,
+        phaseKey,
+        loopStep,
+        playerId,
+        intentType: 'ACTION',
+      }),
+    };
+  }
+
+  return null;
+}
+
 function buildBotIntent(args: {
   state: any;
   playerId: string;
@@ -482,7 +718,8 @@ function buildBotIntent(args: {
   if (
     phaseKey === 'build.drawing' ||
     phaseKey === 'build.ships_that_build' ||
-    phaseKey === 'battle.charge_declaration'
+    phaseKey === 'battle.charge_declaration' ||
+    phaseKey === GUARDIAN_PHASE_KEY
   ) {
     const resolvedPlan = resolveHumanBotPlan(controller);
     if (!resolvedPlan) {
@@ -532,6 +769,20 @@ function buildBotIntent(args: {
         intentType: 'BUILD_SUBMIT',
       }),
     };
+  }
+
+  if (phaseKey === GUARDIAN_PHASE_KEY && plan) {
+    const guardianIntent = buildGuardianIntentForCurrentPhase({
+      state,
+      playerId,
+      phaseKey,
+      loopStep,
+      plan,
+    });
+
+    if (guardianIntent) {
+      return guardianIntent;
+    }
   }
 
   if (phaseKey === 'battle.charge_declaration' && plan) {
