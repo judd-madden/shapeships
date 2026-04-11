@@ -1115,6 +1115,7 @@ export function registerGameRoutes(
       }
 
       const newGameId = generateGameId();
+      const inheritedTimeControl = sourceGame?.gameData?.clock?.timeControl ?? null;
       const opponentPlayer = sourceGame.players.find((player: any) =>
         player?.role === 'player' && player?.id !== playerId
       );
@@ -1130,6 +1131,7 @@ export function registerGameRoutes(
           playerId,
           playerName,
           chosenPlanId,
+          inheritedTimeControl,
         );
         const botRunResult = await runBotsUntilSettled({
           state: newGameData,
@@ -1154,7 +1156,12 @@ export function registerGameRoutes(
         return c.json({ gameId: newGameId });
       }
 
-      const newGameData = createFreshGameData(newGameId, playerId, playerName);
+      const newGameData = createFreshGameData(
+        newGameId,
+        playerId,
+        playerName,
+        inheritedTimeControl,
+      );
 
       await kvSet(`game_${newGameId}`, newGameData);
       await kvSet(
