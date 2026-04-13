@@ -88,6 +88,8 @@ export default function ScreenManager({
     setCurrentShell('login');
   };
 
+  const isLocalhostDevModeVisible = window.location.hostname === 'localhost';
+
   const renderShell = () => {
     switch (currentShell) {
       case 'menu':
@@ -122,17 +124,19 @@ export default function ScreenManager({
     <div
       className="ss-playerRoot min-h-screen relative"
     >
-      <div className="fixed top-4 right-4 z-50">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onSwitchToDevMode}
-          disabled={isStartingSession}
-          className="bg-shapeships-grey-90 shadow-md text-shapeships-grey-50 hover:bg-shapeships-grey-20"
-        >
-          Dev Mode
-        </Button>
-      </div>
+      {isLocalhostDevModeVisible && (
+        <div className="fixed top-4 right-4 z-50">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onSwitchToDevMode}
+            disabled={isStartingSession}
+            className="bg-shapeships-grey-90 shadow-md text-shapeships-grey-50 hover:bg-shapeships-grey-20"
+          >
+            Dev Mode
+          </Button>
+        </div>
+      )}
       {renderShell()}
     </div>
   );
