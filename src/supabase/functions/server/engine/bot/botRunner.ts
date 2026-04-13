@@ -1,4 +1,5 @@
 import { applyIntent, type IntentRequest } from '../intent/IntentReducer.ts';
+import type { BuildSubmitPayload } from '../intent/IntentTypes.ts';
 import { buildPhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 import { EffectKind } from '../../engine_shared/effects/Effect.ts';
@@ -8,6 +9,7 @@ import { planHumanBuildSubmit } from './buildPlanner.ts';
 import type {
   AuthoredBotPlan,
   CarrierChoiceId,
+  FrigateTriggerPolicy,
   InterceptorChoiceId,
 } from './botTypes.ts';
 
@@ -466,6 +468,152 @@ function chooseCarrierChoiceId(args: {
   return legalChoiceIds[0] ?? null;
 }
 
+function clampFrigateTrigger(value: unknown): number | null {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+
+  return Math.max(1, Math.min(6, Math.floor(numeric)));
+}
+
+function normalizeStrictFrigateTrigger(value: unknown): number | null {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric < 1 || numeric > 6) {
+    return null;
+  }
+
+  return numeric;
+}
+
+function getEffectiveDiceRollForBot(state: any, playerId: string): number | null {
+  const turnData = state?.gameData?.turnData;
+  const perPlayerRoll = turnData?.effectiveDiceRollByPlayerId?.[playerId];
+  return (
+    clampFrigateTrigger(perPlayerRoll) ??
+    clampFrigateTrigger(turnData?.effectiveDiceRoll) ??
+    clampFrigateTrigger(turnData?.baseDiceRoll) ??
+    clampFrigateTrigger(turnData?.diceRoll) ??
+    clampFrigateTrigger(state?.gameData?.diceRoll)
+  );
+}
+
+function getKnownFrigateTriggersForPlayer(state: any, playerId: string): number[] {
+  const fleet = state?.gameData?.ships?.[playerId] ?? [];
+  if (!Array.isArray(fleet)) {
+    return [];
+  }
+
+  const frigateTriggerByInstanceId = state?.gameData?.powerMemory?.frigateTriggerByInstanceId ?? {};
+
+  return fleet
+    .filter((ship: any) =>
+      ship?.shipDefId === 'FRI' &&
+      typeof ship?.instanceId === 'string' &&
+      ship.instanceId.length > 0
+    )
+    .sort((left: any, right: any) => left.instanceId.localeCompare(right.instanceId))
+    .map((ship: any) => normalizeStrictFrigateTrigger(frigateTriggerByInstanceId[ship.instanceId]))
+    .filter((trigger: number | null): trigger is number => trigger !== null);
+}
+
+function derivePlannedFrigateTriggerSlots(payload: BuildSubmitPayload): number[] | null {
+  if (!Array.isArray(payload?.builds)) {
+    return null;
+  }
+
+  const plannedTriggerSlots: number[] = [];
+
+  for (const build of payload.builds) {
+    if (!build || typeof build.shipDefId !== 'string' || build.shipDefId.length === 0) {
+      return null;
+    }
+
+    if (!Number.isInteger(build.count) || build.count < 0) {
+      return null;
+    }
+
+    if (build.shipDefId === 'FRI') {
+      for (let index = 0; index < build.count; index += 1) {
+        plannedTriggerSlots.push(index);
+      }
+    }
+  }
+
+  return plannedTriggerSlots;
+}
+
+function chooseFrigateTriggerFromPolicy(args: {
+  currentRoll: number;
+  knownTriggers: number[];
+  policy: FrigateTriggerPolicy;
+}): number {
+  const { currentRoll, knownTriggers, policy } = args;
+  if (knownTriggers.length === 0 && policy.firstChoiceMode === 'match_current_roll') {
+    return currentRoll;
+  }
+
+  const additionalChoiceMode = policy.additionalChoiceMode ?? 'stack_existing';
+  if (additionalChoiceMode === 'stack_existing') {
+    return knownTriggers[0] ?? currentRoll;
+  }
+
+  const occupiedTriggers = new Set(knownTriggers);
+  for (const value of policy.spreadSequence ?? []) {
+    const trigger = normalizeStrictFrigateTrigger(value);
+    if (trigger === null || occupiedTriggers.has(trigger)) {
+      continue;
+    }
+
+    return trigger;
+  }
+
+  return currentRoll;
+}
+
+function appendFrigateTriggersToBuildSubmit(args: {
+  state: any;
+  playerId: string;
+  plan: AuthoredBotPlan;
+  payload: BuildSubmitPayload;
+}): BuildSubmitPayload {
+  const { state, playerId, plan, payload } = args;
+  const frigatePolicy = plan?.frigatePolicy?.FRI;
+  if (!frigatePolicy) {
+    return payload;
+  }
+
+  // The build resolver consumes frigateTriggers in payload.builds order, so only author
+  // them when that order is represented directly and unambiguously in the submit payload.
+  const plannedTriggerSlots = derivePlannedFrigateTriggerSlots(payload);
+  if (plannedTriggerSlots === null || plannedTriggerSlots.length === 0) {
+    return payload;
+  }
+
+  const currentRoll = getEffectiveDiceRollForBot(state, playerId);
+  if (currentRoll === null) {
+    return payload;
+  }
+
+  const knownTriggers = getKnownFrigateTriggersForPlayer(state, playerId);
+  const frigateTriggers: number[] = [];
+
+  for (let index = 0; index < plannedTriggerSlots.length; index += 1) {
+    const nextTrigger = chooseFrigateTriggerFromPolicy({
+      currentRoll,
+      knownTriggers,
+      policy: frigatePolicy,
+    });
+    frigateTriggers.push(nextTrigger);
+    knownTriggers.push(nextTrigger);
+  }
+
+  return {
+    ...payload,
+    frigateTriggers,
+  };
+}
+
 function buildInterceptorIntentForCurrentPhase(args: {
   state: any;
   playerId: string;
@@ -778,11 +926,18 @@ function buildBotIntent(args: {
       return { debugReason: 'missing_matching_plan' };
     }
 
+    const buildSubmitPayload = appendFrigateTriggersToBuildSubmit({
+      state,
+      playerId,
+      plan,
+      payload: planHumanBuildSubmit(state, playerId, plan),
+    });
+
     return {
       gameId: state.gameId,
       intentType: 'BUILD_SUBMIT',
       turnNumber,
-      payload: planHumanBuildSubmit(state, playerId, plan),
+      payload: buildSubmitPayload,
       nonce: buildBotNonce({
         state,
         phaseKey,

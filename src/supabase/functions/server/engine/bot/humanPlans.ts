@@ -7,7 +7,7 @@ const HUMAN_DEFENSE_ORBIT_COMPAT_PLAN: AuthoredBotPlan = {
     { shipDefId: 'DEF', targetCount: 2 },
     { shipDefId: 'FIG', targetCount: 2 },
     { shipDefId: 'ORB', targetCount: 1 },
-    { shipDefId: 'BAT', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'BAT', targetCount: 4, saveUntilAffordable: true },
   ],
   notes: 'Legacy defensive opener kept lookup-valid for compatibility and debugging.',
 };
@@ -40,7 +40,7 @@ const HUMAN_TACTICAL_DREAD_PLAN: AuthoredBotPlan = {
       mode: 'highest_cost_basic',
     },
   },
-  notes: 'Carrier-led Dread opener that leans on early Fighters before rounding out Defenders.',
+  notes: 'Test plan for GUA CAR DRE functions.',
 };
 
 const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
@@ -51,6 +51,7 @@ const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
     { shipDefId: 'CAR', targetCount: 3 },
     { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
     { shipDefId: 'INT', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 1 },
   ],
   loopGoals: [
     { shipDefId: 'CAR', targetCount: 1 },
@@ -72,7 +73,13 @@ const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
       damageOpponentAtOrBelow: 10,
     },
   },
-  notes: 'Orbital and Carrier anchor into an Interceptor/Tactical opener, then repeat a simple Defender/Fighter/Tactical tail.',
+  frigatePolicy: {
+    FRI: {
+      firstChoiceMode: 'match_current_roll',
+      additionalChoiceMode: 'stack_existing',
+    },
+  },
+  notes: 'Test plan for CAR TAC INT FRI.',
 };
 
 export const ACTIVE_HUMAN_BOT_PLANS: AuthoredBotPlan[] = [
