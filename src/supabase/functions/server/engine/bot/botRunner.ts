@@ -241,6 +241,24 @@ function getLiveShipChargesCurrent(
   return Number(ship?.chargesCurrent ?? 0);
 }
 
+function hasPendingFirstStrikeSelectionForSource(
+  state: any,
+  playerId: string,
+  sourceInstanceId: string,
+): boolean {
+  const playerPendingSelections =
+    state?.gameData?.turnData?.pendingFirstStrikeSelectionsByPlayerId?.[playerId];
+
+  if (!playerPendingSelections || typeof playerPendingSelections !== 'object') {
+    return false;
+  }
+
+  return Object.prototype.hasOwnProperty.call(
+    playerPendingSelections,
+    sourceInstanceId,
+  );
+}
+
 function getCarrierShipsThatBuildPower(): any | null {
   const [, powerIndexRaw] = CARRIER_ACTION_ID.split('#');
   const powerIndex = Number(powerIndexRaw);
@@ -617,6 +635,10 @@ function buildGuardianIntentForCurrentPhase(args: {
     .sort((a: any, b: any) => a.instanceId.localeCompare(b.instanceId));
 
   for (const guardianShip of guardianShips) {
+    if (hasPendingFirstStrikeSelectionForSource(state, playerId, guardianShip.instanceId)) {
+      continue;
+    }
+
     if (!isStructuredChoicePowerAvailableForShip(
       state,
       guardianShip,

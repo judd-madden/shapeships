@@ -17,7 +17,9 @@ const HUMAN_TACTICAL_DREAD_PLAN: AuthoredBotPlan = {
   speciesId: 'HUM',
   buildGoals: [
     { shipDefId: 'CAR', targetCount: 2 },
-    { shipDefId: 'GUA', targetCount: 1 },
+    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'GUA', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'COM', targetCount: 1 },
     { shipDefId: 'DRE', targetCount: 1, saveUntilAffordable: true },
   ],
   loopGoals: [
@@ -27,7 +29,7 @@ const HUMAN_TACTICAL_DREAD_PLAN: AuthoredBotPlan = {
   shipsThatBuild: {
     CAR: {
       priorityGoals: [
-        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 4 },
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 2 },
         { choiceId: 'fighter', targetShipDefId: 'FIG', targetCount: 3 },
       ],
       fallbackChoiceId: 'fighter',
