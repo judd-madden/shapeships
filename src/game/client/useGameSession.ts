@@ -29,6 +29,8 @@ import type { ShipChoicesPanelGroup } from '../types/ShipChoiceTypes';
 import type { FleetAnimVM } from '../display/graphics/animation';
 import type { ActivationStaggerPlan } from '../display/graphics/animation-stagger';
 import { computeActivationStaggerPlan } from '../display/graphics/animation-stagger';
+import { getShipDefinitionById } from '../data/ShipDefinitions.engine';
+import { isShipDefId } from '../data/ShipDefinitions.core';
 import { buildShareGameUrl } from './config';
 import { downloadBattleLog } from './downloadBattleLog';
 import { generateNonce, makeCommitHash } from './hashUtils';
@@ -542,7 +544,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     hasLoadedChatEntriesRef.current = false;
     chatBurstUntilRef.current = 0;
   }, [effectiveGameId]);
-  
+
   // ============================================================================
   // LOCAL COMPLETION TRACKING (Chunk 4: Species selection wiring)
   // ============================================================================
@@ -580,6 +582,12 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Client-only dice roll sequence counter (increments on each DICE_ROLLED event)
   const [, setDiceRollSeq] = useState(0);
   const [presentedOpponentRevealBlurSeq, setPresentedOpponentRevealBlurSeq] = useState(0);
+  const [opponentPublicMultiChargeByInstanceId, setOpponentPublicMultiChargeByInstanceId] =
+    useState<Record<string, number>>({});
+
+  useEffect(() => {
+    setOpponentPublicMultiChargeByInstanceId({});
+  }, [effectiveGameId]);
   
   // ============================================================================
   // EVENT TAPE (Chunk 2: Dev-only plumbing)
@@ -1252,7 +1260,88 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     opponent,
     turnNumber,
     majorPhase,
+    opponentPublicCurrentChargesByInstanceId: opponentPublicMultiChargeByInstanceId,
   });
+
+  useEffect(() => {
+    if (
+      !effectiveGameId ||
+      !hasMatchingAuthoritativeGameId ||
+      isBootstrapping ||
+      majorPhase !== 'battle'
+    ) {
+      return;
+    }
+
+    if (!opponent?.id) {
+      setOpponentPublicMultiChargeByInstanceId((prev) =>
+        Object.keys(prev).length === 0 ? prev : {}
+      );
+      return;
+    }
+
+    const shipsData = rawState?.gameData?.ships || rawState?.ships || {};
+    const authoritativeOpponentShips = Array.isArray(shipsData[opponent.id])
+      ? shipsData[opponent.id]
+      : [];
+    const nextPublicChargesByInstanceId: Record<string, number> = {};
+
+    for (const ship of authoritativeOpponentShips) {
+      const createdTurn = ship?.createdTurn;
+      const isPubliclyVisible =
+        typeof createdTurn !== 'number' || createdTurn < turnNumber || majorPhase === 'battle';
+
+      if (!isPubliclyVisible) {
+        continue;
+      }
+
+      const rawShipDefId = String(ship?.shipDefId ?? '');
+      if (!isShipDefId(rawShipDefId)) {
+        continue;
+      }
+
+      const def = getShipDefinitionById(rawShipDefId);
+      if ((def?.maxCharges ?? 0) <= 1) {
+        continue;
+      }
+
+      const instanceId = ship?.instanceId ?? ship?.id;
+      if (typeof instanceId !== 'string' || instanceId.length === 0) {
+        continue;
+      }
+
+      nextPublicChargesByInstanceId[instanceId] = Number(ship?.chargesCurrent ?? 0);
+    }
+
+    setOpponentPublicMultiChargeByInstanceId((prev) => {
+      const prevEntries = Object.entries(prev);
+      const nextEntries = Object.entries(nextPublicChargesByInstanceId);
+
+      if (prevEntries.length === nextEntries.length) {
+        let hasChange = false;
+        for (const [instanceId, charges] of nextEntries) {
+          if (prev[instanceId] !== charges) {
+            hasChange = true;
+            break;
+          }
+        }
+
+        if (!hasChange) {
+          return prev;
+        }
+      }
+
+      return nextPublicChargesByInstanceId;
+    });
+  }, [
+    effectiveGameId,
+    hasMatchingAuthoritativeGameId,
+    isBootstrapping,
+    majorPhase,
+    opponent?.id,
+    rawState,
+    turnNumber,
+  ]);
 
   const frigateTriggerByInstanceId =
     rawState?.gameData?.powerMemory?.frigateTriggerByInstanceId ?? {};

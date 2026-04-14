@@ -31,7 +31,8 @@ export interface DerivedFleetStackInfo {
 
 export function deriveFleetStackInfo(
   ship: any,
-  frigateTriggerByInstanceId: Record<string, unknown> = {}
+  frigateTriggerByInstanceId: Record<string, unknown> = {},
+  overrideCurrentCharges?: number
 ): DerivedFleetStackInfo | null {
   const rawShipDefId = String(ship?.shipDefId ?? '');
   if (!isShipDefId(rawShipDefId)) {
@@ -41,7 +42,7 @@ export function deriveFleetStackInfo(
   const shipDefId = rawShipDefId;
   const def = getShipDefinitionById(shipDefId);
   const maxCharges = def?.maxCharges ?? 0;
-  const chargesCurrent = Number(ship?.chargesCurrent ?? 0);
+  const chargesCurrent = Number(overrideCurrentCharges ?? ship?.chargesCurrent ?? 0);
   const instanceId = ship?.instanceId ?? ship?.id ?? '';
 
   if (maxCharges === 1) {
@@ -414,8 +415,16 @@ export function deriveFleets(args: {
   opponent: any;
   turnNumber: number;
   majorPhase: string;
+  opponentPublicCurrentChargesByInstanceId?: Record<string, number>;
 }) {
-  const { rawState, me, opponent, turnNumber, majorPhase } = args;
+  const {
+    rawState,
+    me,
+    opponent,
+    turnNumber,
+    majorPhase,
+    opponentPublicCurrentChargesByInstanceId = {},
+  } = args;
 
   const frigateTriggerByInstanceId =
     rawState?.gameData?.powerMemory?.frigateTriggerByInstanceId ?? {};
@@ -441,11 +450,35 @@ export function deriveFleets(args: {
   const myVoidShipsVisible = myVoidShips;
   const opponentVoidShipsVisible = opponentVoidShips.filter(isShipVisibleToViewer);
 
-  function aggregateFleet(ships: any[], stackKeyPrefix = ''): BoardFleetSummary[] {
+  function aggregateFleet(
+    ships: any[],
+    stackKeyPrefix = '',
+    options?: { useOpponentPublicMultiChargeOverrides?: boolean }
+  ): BoardFleetSummary[] {
     const buckets = new Map<string, FleetBucket>();
 
     for (const ship of ships) {
-      const stackInfo = deriveFleetStackInfo(ship, frigateTriggerByInstanceId);
+      let overrideCurrentCharges: number | undefined;
+
+      if (options?.useOpponentPublicMultiChargeOverrides === true) {
+        const instanceId = getShipInstanceId(ship);
+        const rawShipDefId = String(ship?.shipDefId ?? '');
+        const def = isShipDefId(rawShipDefId) ? getShipDefinitionById(rawShipDefId) : null;
+
+        if (
+          instanceId &&
+          (def?.maxCharges ?? 0) > 1 &&
+          Object.prototype.hasOwnProperty.call(opponentPublicCurrentChargesByInstanceId, instanceId)
+        ) {
+          overrideCurrentCharges = opponentPublicCurrentChargesByInstanceId[instanceId];
+        }
+      }
+
+      const stackInfo = deriveFleetStackInfo(
+        ship,
+        frigateTriggerByInstanceId,
+        overrideCurrentCharges
+      );
       if (!stackInfo) {
         continue;
       }
@@ -480,7 +513,9 @@ export function deriveFleets(args: {
   }
 
   const myFleet = aggregateFleet(myShips);
-  const opponentFleet = aggregateFleet(opponentShipsVisible);
+  const opponentFleet = aggregateFleet(opponentShipsVisible, '', {
+    useOpponentPublicMultiChargeOverrides: majorPhase === 'build',
+  });
   const myVoidFleet = aggregateFleet(myVoidShipsVisible, 'void__');
   const opponentVoidFleet = aggregateFleet(opponentVoidShipsVisible, 'void__');
 

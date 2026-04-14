@@ -21,6 +21,7 @@ const HUMAN_TACTICAL_DREAD_PLAN: AuthoredBotPlan = {
     { shipDefId: 'COM', targetCount: 1 },
     { shipDefId: 'GUA', targetCount: 1, saveUntilAffordable: true },
     { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'DEF', targetCount: 2 },
     { shipDefId: 'DRE', targetCount: 1, saveUntilAffordable: true },
   ],
   loopGoals: [
@@ -55,8 +56,8 @@ const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
     { shipDefId: 'FRI', targetCount: 1 },
   ],
   loopGoals: [
-    { shipDefId: 'CAR', targetCount: 1 },
-    { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'CAR', targetCount: 5 },
+    { shipDefId: 'TAC', targetCount: 99, saveUntilAffordable: true },
   ],
   shipsThatBuild: {
     CAR: {
@@ -146,7 +147,7 @@ const HUMAN_ORBITAL_CARRIER_EARTHSHIP_SHELL_PLAN: AuthoredBotPlan = {
     { shipDefId: 'CAR', targetCount: 8 },
     { shipDefId: 'EAR', targetCount: 2, saveUntilAffordable: true },
   ],
-  loopGoals: [{ shipDefId: 'CAR', targetCount: 1 }],
+  loopGoals: [{ shipDefId: 'CAR', targetCount: 99 }],
   shipsThatBuild: {
     CAR: {
       fallbackChoiceId: 'defender',
@@ -161,9 +162,11 @@ const HUMAN_ORBITAL_CARRIER_SCIENCE_SHELL_PLAN: AuthoredBotPlan = {
   buildGoals: [
     { shipDefId: 'ORB', targetCount: 3 },
     { shipDefId: 'CAR', targetCount: 6 },
+    { shipDefId: 'FIG', targetCount: 1 },
     { shipDefId: 'SCI', targetCount: 1, saveUntilAffordable: true },
     { shipDefId: 'EAR', targetCount: 1, saveUntilAffordable: true },
     { shipDefId: 'CAR', targetCount: 8 },
+    { shipDefId: 'FIG', targetCount: 1 },
     { shipDefId: 'SCI', targetCount: 2, saveUntilAffordable: true },
     { shipDefId: 'EAR', targetCount: 2, saveUntilAffordable: true },
   ],
