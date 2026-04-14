@@ -1,15 +1,16 @@
 import type { AuthoredBotPlan, BotPlanId } from './botTypes.ts';
 
-const HUMAN_DEFENSE_ORBIT_COMPAT_PLAN: AuthoredBotPlan = {
+const HUMAN_DEFENSE_ORBIT_PLAN: AuthoredBotPlan = {
   id: 'hum_defense_orbit',
   speciesId: 'HUM',
   buildGoals: [
     { shipDefId: 'DEF', targetCount: 2 },
     { shipDefId: 'FIG', targetCount: 2 },
     { shipDefId: 'ORB', targetCount: 1 },
-    { shipDefId: 'BAT', targetCount: 4, saveUntilAffordable: true },
+    { shipDefId: 'BAT', targetCount: 1, saveUntilAffordable: true },
   ],
-  notes: 'Legacy defensive opener kept lookup-valid for compatibility and debugging.',
+  loopGoals: [{ shipDefId: 'DEF', targetCount: 99 }],
+  notes: 'Weak beginner Human shell into one Battlecruiser, then Defender overbuild.',
 };
 
 const HUMAN_TACTICAL_DREAD_PLAN: AuthoredBotPlan = {
@@ -40,7 +41,7 @@ const HUMAN_TACTICAL_DREAD_PLAN: AuthoredBotPlan = {
       mode: 'highest_cost_basic',
     },
   },
-  notes: 'Test plan for GUA CAR DRE functions.',
+  notes: 'Legacy manual/debug plan for the tactical dread line.',
 };
 
 const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
@@ -79,17 +80,122 @@ const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
       additionalChoiceMode: 'stack_existing',
     },
   },
-  notes: 'Test plan for CAR TAC INT FRI.',
+  notes: 'Legacy manual/debug plan for the tactical carrier line.',
 };
 
+const HUMAN_CARRIER_COMMANDER_AGGRO_PLAN: AuthoredBotPlan = {
+  id: 'hum_carrier_commander_aggro',
+  speciesId: 'HUM',
+  buildGoals: [
+    { shipDefId: 'CAR', targetCount: 4 },
+    { shipDefId: 'COM', targetCount: 3 },
+    { shipDefId: 'FIG', targetCount: 6 },
+  ],
+  loopGoals: [{ shipDefId: 'FIG', targetCount: 99 }],
+  shipsThatBuild: {
+    CAR: {
+      fallbackChoiceId: 'fighter',
+    },
+  },
+  notes: 'Fast Human aggro: Carrier Fighters, Commander scaling, then Fighter flood.',
+};
+
+const HUMAN_CARRIER_COMMANDER_SOFT_DEF_OPEN_PLAN: AuthoredBotPlan = {
+  id: 'hum_carrier_commander_soft_def_open',
+  speciesId: 'HUM',
+  buildGoals: [
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'CAR', targetCount: 4 },
+    { shipDefId: 'COM', targetCount: 3 },
+    { shipDefId: 'FIG', targetCount: 6 },
+  ],
+  loopGoals: [{ shipDefId: 'FIG', targetCount: 99 }],
+  shipsThatBuild: {
+    CAR: {
+      fallbackChoiceId: 'fighter',
+    },
+  },
+  notes: 'Softer Carrier/Commander opener with one Defender before aggro.',
+};
+
+const HUMAN_CARRIER_COMMANDER_SOFT_FIG_OPEN_PLAN: AuthoredBotPlan = {
+  id: 'hum_carrier_commander_soft_fig_open',
+  speciesId: 'HUM',
+  buildGoals: [
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'CAR', targetCount: 4 },
+    { shipDefId: 'COM', targetCount: 3 },
+    { shipDefId: 'FIG', targetCount: 6 },
+  ],
+  loopGoals: [{ shipDefId: 'FIG', targetCount: 99 }],
+  shipsThatBuild: {
+    CAR: {
+      fallbackChoiceId: 'fighter',
+    },
+  },
+  notes: 'Softer Carrier/Commander opener with one Fighter before aggro.',
+};
+
+const HUMAN_ORBITAL_CARRIER_EARTHSHIP_SHELL_PLAN: AuthoredBotPlan = {
+  id: 'hum_orbital_carrier_earthship_shell',
+  speciesId: 'HUM',
+  buildGoals: [
+    { shipDefId: 'ORB', targetCount: 3 },
+    { shipDefId: 'CAR', targetCount: 6 },
+    { shipDefId: 'EAR', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'CAR', targetCount: 8 },
+    { shipDefId: 'EAR', targetCount: 2, saveUntilAffordable: true },
+  ],
+  loopGoals: [{ shipDefId: 'CAR', targetCount: 1 }],
+  shipsThatBuild: {
+    CAR: {
+      fallbackChoiceId: 'defender',
+    },
+  },
+  notes: 'Greedy Orbital/Carrier shell into Earth Ships; all Carriers build Defenders.',
+};
+
+const HUMAN_ORBITAL_CARRIER_SCIENCE_SHELL_PLAN: AuthoredBotPlan = {
+  id: 'hum_orbital_carrier_science_shell',
+  speciesId: 'HUM',
+  buildGoals: [
+    { shipDefId: 'ORB', targetCount: 3 },
+    { shipDefId: 'CAR', targetCount: 6 },
+    { shipDefId: 'SCI', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'EAR', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'CAR', targetCount: 8 },
+    { shipDefId: 'SCI', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'EAR', targetCount: 2, saveUntilAffordable: true },
+  ],
+  loopGoals: [{ shipDefId: 'CAR', targetCount: 1 }],
+  shipsThatBuild: {
+    CAR: {
+      fallbackChoiceId: 'defender',
+    },
+  },
+  notes:
+    'Safer Orbital/Carrier shell with Science Vessel stabilizer before Earth Ship pressure.',
+};
+
+// Order is deliberate: deterministic chooser selection hashes into this array by index.
 export const ACTIVE_HUMAN_BOT_PLANS: AuthoredBotPlan[] = [
-  HUMAN_TACTICAL_DREAD_PLAN,
-  HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN,
+  HUMAN_DEFENSE_ORBIT_PLAN,
+  HUMAN_CARRIER_COMMANDER_SOFT_DEF_OPEN_PLAN,
+  HUMAN_CARRIER_COMMANDER_SOFT_FIG_OPEN_PLAN,
+  HUMAN_CARRIER_COMMANDER_AGGRO_PLAN,
+  HUMAN_ORBITAL_CARRIER_EARTHSHIP_SHELL_PLAN,
+  HUMAN_ORBITAL_CARRIER_SCIENCE_SHELL_PLAN,
 ];
 
 const HUMAN_BOT_PLAN_LOOKUP_POOL: AuthoredBotPlan[] = [
-  HUMAN_DEFENSE_ORBIT_COMPAT_PLAN,
-  ...ACTIVE_HUMAN_BOT_PLANS,
+  HUMAN_DEFENSE_ORBIT_PLAN,
+  HUMAN_TACTICAL_DREAD_PLAN,
+  HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN,
+  HUMAN_CARRIER_COMMANDER_SOFT_DEF_OPEN_PLAN,
+  HUMAN_CARRIER_COMMANDER_SOFT_FIG_OPEN_PLAN,
+  HUMAN_CARRIER_COMMANDER_AGGRO_PLAN,
+  HUMAN_ORBITAL_CARRIER_EARTHSHIP_SHELL_PLAN,
+  HUMAN_ORBITAL_CARRIER_SCIENCE_SHELL_PLAN,
 ];
 
 function hashSeed(seed: string): number {
