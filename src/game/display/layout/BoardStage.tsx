@@ -661,15 +661,15 @@ function HoverAnchor({
   children: ReactNode;
 }) {
   return (
-    <div
-      className={className}
-      onMouseEnter={
-        enabled
-          ? (event) => onHoverEnter(hoverKey, anchorRef?.current ?? event.currentTarget)
-          : undefined
-      }
-      onMouseLeave={enabled ? () => onHoverLeave(hoverKey) : undefined}
-    >
+      <div
+        className={cx(className, 'cursor-default select-none')}
+        onMouseEnter={
+          enabled
+            ? (event) => onHoverEnter(hoverKey, anchorRef?.current ?? event.currentTarget)
+            : undefined
+        }
+        onMouseLeave={enabled ? () => onHoverLeave(hoverKey) : undefined}
+      >
       {children}
     </div>
   );
@@ -864,7 +864,7 @@ export function BoardStage({ vm, actions, phaseKey: _phaseKey }: BoardStageProps
       />
 
       <div
-        className="content-stretch flex flex-col h-full items-center justify-between relative shrink-0 w-[230px]"
+        className="content-stretch flex flex-col h-full items-center justify-between relative shrink-0 w-[230px] cursor-default select-none"
         data-name="Health and Stats"
       >
         {/* Health */}
