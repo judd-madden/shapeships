@@ -371,6 +371,23 @@ export interface ActionPanelTabVm {
   targetPanelId: ActionPanelId; // which panel this tab jumps to
 }
 
+export type HealthResolutionValueTone = 'damage' | 'heal' | 'neutral';
+
+export interface HealthResolutionSideVm {
+  prefixText: string;
+  valueText: string;
+  suffixText: string;
+  valueTone: HealthResolutionValueTone;
+  valueWeight: 'regular' | 'black';
+  textAlign: 'left' | 'right';
+}
+
+export interface HealthResolutionPresentationVm {
+  active: boolean;
+  left: HealthResolutionSideVm;
+  right: HealthResolutionSideVm;
+}
+
 export interface ActionPanelBuildCatalogueViewModel {
   context: 'buildable' | 'reference_only';
   canAddShipById: Partial<Record<ShipDefId, boolean>>;
@@ -400,6 +417,8 @@ export interface ActionPanelViewModel {
     metaRightText: string;
     rematchHelperText: string;
   };
+  healthResolution?: HealthResolutionPresentationVm;
+  tabInteractionLocked?: boolean;
 
   // NEW (UI-derivations for panels)
   frigateDrawing?: { frigateCount: number; selectedTriggers: number[] };

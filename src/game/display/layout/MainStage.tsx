@@ -24,7 +24,6 @@ interface MainStageProps {
   bottomActionRailVm: BottomActionRailViewModel;
   actionPanelVm: ActionPanelViewModel;
   actions: GameSessionActions;
-  turnBlurEnabled: boolean;
   onReturnToMainMenu: () => void;
 }
 
@@ -34,7 +33,6 @@ export function MainStage({
   bottomActionRailVm, 
   actionPanelVm, 
   actions,
-  turnBlurEnabled,
   onReturnToMainMenu
 }: MainStageProps) {
   return (
@@ -58,7 +56,7 @@ export function MainStage({
         <TopHud vm={hudVm} />
 
         {/* Board Stage */}
-        <BoardStage vm={boardVm} actions={actions} turnBlurEnabled={turnBlurEnabled} />
+        <BoardStage vm={boardVm} actions={actions} phaseKey={actionPanelVm.menu.phaseKey} />
 
         {/* Bottom Action Rail - hidden during choose species */}
         {boardVm.mode !== 'choose_species' && (
@@ -81,6 +79,7 @@ export function MainStage({
               key={tab.tabId}
               label={tab.label} 
               selected={actionPanelVm.activePanelId === tab.targetPanelId}
+              disabled={actionPanelVm.tabInteractionLocked}
               onClick={() => actions.onActionPanelTabClick(tab.tabId)}
             />
           ))}

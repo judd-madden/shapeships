@@ -16,13 +16,11 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Checkbox } from '../../components/ui/primitives/controls/Checkbox';
 import { type GameSessionViewModel, useGameSession } from '../client/useGameSession';
 import { LeftRail } from './layout/LeftRail';
 import { MainStage } from './layout/MainStage';
 import { StarsBackground } from './graphics/StarsBackground';
 
-const TURN_BLUR_STORAGE_KEY = 'shapeships.turnBlurEnabled';
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 
 interface GameScreenProps {
@@ -33,31 +31,7 @@ interface GameScreenProps {
 
 export default function GameScreen({ gameId, playerName, onBack }: GameScreenProps) {
   const { vm, actions } = useGameSession(gameId, playerName);
-  const [turnBlurEnabled, setTurnBlurEnabled] = useState(() => {
-    if (typeof window === 'undefined') {
-      return true;
-    }
-
-    try {
-      const storedValue = window.localStorage.getItem(TURN_BLUR_STORAGE_KEY);
-      return storedValue === null ? true : storedValue === 'true';
-    } catch {
-      return true;
-    }
-  });
   const firstTurnBuildHelper = useFirstTurnBuildHelper(gameId, vm, actions.onReadyToggle);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(TURN_BLUR_STORAGE_KEY, String(turnBlurEnabled));
-    } catch {
-      // Keep the preference in memory if browser storage is unavailable.
-    }
-  }, [turnBlurEnabled]);
-
-  function toggleTurnBlur() {
-    setTurnBlurEnabled((current) => !current);
-  }
 
   const mainStageActions = {
     ...actions,
@@ -102,20 +76,6 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
 
       {/* Foreground layout (existing UI) */}
       <div className="relative z-10 w-full h-full min-h-0 flex items-stretch gap-5 px-[30px]">
-        <div className="fixed right-[10px] top-[10px] z-50">
-          <div className="flex items-center gap-[4px] rounded-[10px] px-[10px] py-[10px]">
-            <Checkbox className="w-[22px] h-[22px]" checked={turnBlurEnabled} onChange={setTurnBlurEnabled} />
-            <button
-              type="button"
-              onClick={toggleTurnBlur}
-              className="text-white transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-              style={{ fontSize: '15px', fontWeight: 400, lineHeight: 1.2 }}
-            >
-              Turn Blur
-            </button>
-          </div>
-        </div>
-
         {/* Left Rail - fixed width */}
         <LeftRail
           vm={vm.leftRail}
@@ -132,7 +92,6 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
           bottomActionRailVm={vm.bottomActionRail}
           actionPanelVm={vm.actionPanel}
           actions={mainStageActions}
-          turnBlurEnabled={turnBlurEnabled}
           onReturnToMainMenu={onBack}
         />
         

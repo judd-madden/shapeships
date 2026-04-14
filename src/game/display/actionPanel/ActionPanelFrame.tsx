@@ -16,6 +16,7 @@ import { ShipChoicesPanel } from './panels/ShipChoicesPanel';
 import { LargeStyleChoicePanel } from './panels/LargeStyleChoicePanel';
 import { FrigateDrawingPanel } from './panels/FrigateDrawingPanel';
 import { EvolverDrawingPanel } from './panels/EvolverDrawingPanel';
+import { HealthResolutionPanel } from './panels/HealthResolutionPanel';
 import { ActionPanelScrollArea } from './primitives/ActionPanelScrollArea';
 
 interface ActionPanelFrameProps {
@@ -103,6 +104,24 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
           onRematch={actions.onRematch}
           onDownloadBattleLog={actions.onDownloadBattleLog}
         />
+      </div>
+    );
+  }
+
+  if (vm.activePanelId === 'ap.battle.health_resolution') {
+    if (!vm.healthResolution) {
+      return (
+        <div className="size-full flex flex-col items-center justify-center">
+          <p className="text-[var(--shapeships-grey-50)] text-[18px]">
+            Health resolution unavailable.
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="size-full">
+        <HealthResolutionPanel vm={vm.healthResolution} />
       </div>
     );
   }

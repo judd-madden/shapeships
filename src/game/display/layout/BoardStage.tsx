@@ -18,7 +18,7 @@ import {
   getTargetingGlowStyle,
   getTargetingPreviewStyle,
   getTargetingVisualState,
-  useTurnIncrementPulse,
+  usePhaseEntryPulse,
 } from '../graphics/animation';
 import { useFlipLayout } from '../graphics/useFlipLayout';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
@@ -30,8 +30,14 @@ import { useBoardStatHover, type BoardStatHoverKey } from './boardStage/useBoard
 interface BoardStageProps {
   vm: BoardViewModel;
   actions: GameSessionActions;
-  turnBlurEnabled: boolean;
+  phaseKey: string;
 }
+
+const INACTIVE_TURN_PULSE_STATE: TurnIncrementPulseState = {
+  isActive: false,
+  runKey: 0,
+  onAnimationEnd: () => {},
+};
 
 function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
@@ -467,7 +473,6 @@ function FleetArea({
                   'ss-boardTurnPulse flex flex-col items-center gap-[18px]',
                   turnPulse.isActive && 'ss-boardTurnPulse-active'
                 )}
-                data-run-key={turnPulse.runKey}
                 onAnimationEnd={turnPulse.onAnimationEnd}
               >
                 {grouped ? (
@@ -696,7 +701,7 @@ function StatTripletRow({
   );
 }
 
-export function BoardStage({ vm, actions, turnBlurEnabled }: BoardStageProps) {
+export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
   const fleetHover = useFleetShipHover();
   const statHover = useBoardStatHover();
   const myBonusAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -704,9 +709,11 @@ export function BoardStage({ vm, actions, turnBlurEnabled }: BoardStageProps) {
   const opponentBonusJoiningAnchorRef = useRef<HTMLDivElement | null>(null);
   const displayedMyHealth = useAnimatedHealth(vm.mode === 'board' ? vm.myHealth : 25);
   const displayedOpponentHealth = useAnimatedHealth(vm.mode === 'board' ? vm.opponentHealth : 25);
-  const turnPulse = useTurnIncrementPulse({
-    enabled: vm.mode === 'board' && turnBlurEnabled,
-    turn: vm.mode === 'board' ? vm.turnNumber : null,
+  const pulsePhaseKey = phaseKey.startsWith('battle.') ? 'battle' : phaseKey;
+  const revealPulse = usePhaseEntryPulse({
+    enabled: vm.mode === 'board',
+    phaseKey: vm.mode === 'board' ? pulsePhaseKey : null,
+    targetPhaseKey: 'battle',
   });
 
   // Choose species mode
@@ -789,7 +796,7 @@ export function BoardStage({ vm, actions, turnBlurEnabled }: BoardStageProps) {
         onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
         onFleetHoverEnter={fleetHover.onEnter}
         onFleetHoverLeave={fleetHover.onLeave}
-        turnPulse={turnPulse}
+        turnPulse={INACTIVE_TURN_PULSE_STATE}
       />
 
       <div
@@ -1050,7 +1057,7 @@ export function BoardStage({ vm, actions, turnBlurEnabled }: BoardStageProps) {
         onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
         onFleetHoverEnter={fleetHover.onEnter}
         onFleetHoverLeave={fleetHover.onLeave}
-        turnPulse={turnPulse}
+        turnPulse={revealPulse}
       />
 
       {fleetHover.state.activeShipId && fleetHover.state.anchorRect ? (

@@ -250,6 +250,28 @@ function isBattleLogHistoryResponse(value: unknown): value is BattleLogHistoryRe
   });
 }
 
+const HEALTH_RESOLUTION_LOCK_MS = 3500;
+
+function getHealthResolutionPlayerKey(player: any): string | null {
+  if (!player || typeof player !== 'object') {
+    return null;
+  }
+
+  if (typeof player.id === 'string' && player.id.length > 0) {
+    return player.id;
+  }
+
+  if (typeof player.playerId === 'string' && player.playerId.length > 0) {
+    return player.playerId;
+  }
+
+  if (typeof player.sessionId === 'string' && player.sessionId.length > 0) {
+    return player.sessionId;
+  }
+
+  return null;
+}
+
 export function useGameSession(gameId: string, propsPlayerName: string) {
   // Stop /game-state polling once an authoritative finished payload has been stored.
   const POSTGAME_POLL_MS = 0;
@@ -331,8 +353,20 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Client-only active panel tracking
   const [activePanelId, setActivePanelId] = useState<ActionPanelId>('ap.catalog.ships.human');
+  const [healthResolutionLockActive, setHealthResolutionLockActive] = useState(false);
   const [centaurChargeSubTabByPhaseInstanceKey, setCentaurChargeSubTabByPhaseInstanceKey] =
     useState<Record<string, CentaurChargeSubTabId>>({});
+  const healthResolutionLockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSeenHealthResolutionSignatureRef = useRef<string | null>(null);
+  const lastPresentedHealthResolutionSignatureRef = useRef<string | null>(null);
+  const seededHealthResolutionGameIdRef = useRef<string | null>(null);
+
+  function clearHealthResolutionLockTimer(): void {
+    if (healthResolutionLockTimerRef.current) {
+      clearTimeout(healthResolutionLockTimerRef.current);
+      healthResolutionLockTimerRef.current = null;
+    }
+  }
 
   function setResumeSyncLockedState(nextValue: boolean): void {
     resumeSyncLockedRef.current = nextValue;
@@ -413,10 +447,23 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   }, [rawState]);
 
   useEffect(() => {
+    clearHealthResolutionLockTimer();
+    setHealthResolutionLockActive(false);
+    setPresentedLeftRailDice({
+      value: 1,
+      animateKey: 0,
+    });
+    lastSeenHealthResolutionSignatureRef.current = null;
+    lastPresentedHealthResolutionSignatureRef.current = null;
+    seededHealthResolutionGameIdRef.current = null;
+  }, [effectiveGameId]);
+
+  useEffect(() => {
     isBattleLogHistoryAliveRef.current = true;
     isChatAliveRef.current = true;
 
     return () => {
+      clearHealthResolutionLockTimer();
       isBattleLogHistoryAliveRef.current = false;
       battleLogHistoryRequestSeqRef.current += 1;
       isChatAliveRef.current = false;
@@ -563,6 +610,13 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Client-only dice roll sequence counter (increments on each DICE_ROLLED event)
   const [diceRollSeq, setDiceRollSeq] = useState(0);
+  const [presentedLeftRailDice, setPresentedLeftRailDice] = useState<{
+    value: 1 | 2 | 3 | 4 | 5 | 6;
+    animateKey: number;
+  }>({
+    value: 1,
+    animateKey: 0,
+  });
   
   // ============================================================================
   // EVENT TAPE (Chunk 2: Dev-only plumbing)
@@ -1041,6 +1095,25 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Determine major phase for icon
   const majorPhase = phaseKey.split('.')[0] || 'build';
   const phaseIcon: 'build' | 'battle' = majorPhase === 'battle' ? 'battle' : 'build';
+  const authoritativeDiceValue = (() => {
+    if (typeof rawState?.gameId === 'string' && rawState.gameId !== effectiveGameId) {
+      return presentedLeftRailDice.value;
+    }
+
+    const raw =
+      rawState?.gameData?.turnData?.effectiveDiceRoll ??
+      rawState?.gameData?.turnData?.baseDiceRoll ??
+      rawState?.gameData?.turnData?.diceRoll ??
+      rawState?.gameData?.diceRoll ??
+      1;
+
+    const num = Number(raw);
+    if (!Number.isInteger(num) || num < 1 || num > 6) {
+      return 1 as const;
+    }
+
+    return num as 1 | 2 | 3 | 4 | 5 | 6;
+  })();
   
   // Determine if we're in species selection phase
   const isInSpeciesSelection = phaseKey === 'setup.species_selection';
@@ -1666,6 +1739,128 @@ useEffect(() => {
       destroyTargeting: boardDestroyTargeting,
     };
   }
+
+  const healthResolutionSignature = (() => {
+    if (
+      !effectiveGameId ||
+      (typeof rawState?.gameId === 'string' && rawState.gameId !== effectiveGameId) ||
+      isBootstrapping ||
+      isInSpeciesSelection ||
+      board.mode !== 'board'
+    ) {
+      return null;
+    }
+
+    if (myRole === 'player' && me && opponent) {
+      const myKey = getHealthResolutionPlayerKey(me);
+      const opponentKey = getHealthResolutionPlayerKey(opponent);
+
+      if (!myKey || !opponentKey) {
+        return null;
+      }
+
+      return JSON.stringify({
+        gameId: effectiveGameId,
+        finished: isFinished,
+        turnNumber: board.turnNumber,
+        leftPlayerKey: myKey,
+        rightPlayerKey: opponentKey,
+        leftHealth: board.myHealth,
+        rightHealth: board.opponentHealth,
+        leftNet: board.myLastTurnNet,
+        rightNet: board.opponentLastTurnNet,
+      });
+    }
+
+    const spectatorPlayers = playerUsers.slice(0, 2);
+    if (spectatorPlayers.length < 2) {
+      return null;
+    }
+
+    const lastTurnNetByPlayerId =
+      rawState?.gameData?.lastTurnNetByPlayerId as Record<string, number> | undefined;
+    const leftPlayer = spectatorPlayers[0];
+    const rightPlayer = spectatorPlayers[1];
+    const leftKey = getHealthResolutionPlayerKey(leftPlayer);
+    const rightKey = getHealthResolutionPlayerKey(rightPlayer);
+
+    if (!leftKey || !rightKey) {
+      return null;
+    }
+
+    return JSON.stringify({
+      gameId: effectiveGameId,
+      finished: isFinished,
+      turnNumber: board.turnNumber,
+      leftPlayerKey: leftKey,
+      rightPlayerKey: rightKey,
+      leftHealth: typeof leftPlayer?.health === 'number' ? leftPlayer.health : 25,
+      rightHealth: typeof rightPlayer?.health === 'number' ? rightPlayer.health : 25,
+      leftNet: lastTurnNetByPlayerId?.[leftKey] ?? 0,
+      rightNet: lastTurnNetByPlayerId?.[rightKey] ?? 0,
+    });
+  })();
+  const isHealthResolutionTriggerPending = Boolean(
+    effectiveGameId &&
+      healthResolutionSignature &&
+      seededHealthResolutionGameIdRef.current === effectiveGameId &&
+      lastSeenHealthResolutionSignatureRef.current !== null &&
+      lastSeenHealthResolutionSignatureRef.current !== healthResolutionSignature &&
+      lastPresentedHealthResolutionSignatureRef.current !== healthResolutionSignature
+  );
+  const shouldPinLeftRailDice =
+    healthResolutionLockActive || isHealthResolutionTriggerPending;
+
+  useLayoutEffect(() => {
+    if (!effectiveGameId || !healthResolutionSignature) {
+      return;
+    }
+
+    if (seededHealthResolutionGameIdRef.current !== effectiveGameId) {
+      seededHealthResolutionGameIdRef.current = effectiveGameId;
+      lastSeenHealthResolutionSignatureRef.current = healthResolutionSignature;
+      lastPresentedHealthResolutionSignatureRef.current = healthResolutionSignature;
+      return;
+    }
+
+    if (lastSeenHealthResolutionSignatureRef.current === healthResolutionSignature) {
+      return;
+    }
+
+    lastSeenHealthResolutionSignatureRef.current = healthResolutionSignature;
+
+    if (lastPresentedHealthResolutionSignatureRef.current === healthResolutionSignature) {
+      return;
+    }
+
+    lastPresentedHealthResolutionSignatureRef.current = healthResolutionSignature;
+    setHealthResolutionLockActive(true);
+    clearHealthResolutionLockTimer();
+    healthResolutionLockTimerRef.current = setTimeout(() => {
+      healthResolutionLockTimerRef.current = null;
+      setHealthResolutionLockActive(false);
+    }, HEALTH_RESOLUTION_LOCK_MS);
+  }, [effectiveGameId, healthResolutionSignature]);
+
+  useLayoutEffect(() => {
+    if (shouldPinLeftRailDice) {
+      return;
+    }
+
+    setPresentedLeftRailDice((current) => {
+      if (
+        current.value === authoritativeDiceValue &&
+        current.animateKey === diceRollSeq
+      ) {
+        return current;
+      }
+
+      return {
+        value: authoritativeDiceValue,
+        animateKey: diceRollSeq,
+      };
+    });
+  }, [authoritativeDiceValue, diceRollSeq, shouldPinLeftRailDice]);
   
   // ============================================================================
   // SPECIES TAB RULES (A-C: Selection phase vs locked-in phase)
@@ -1834,7 +2029,7 @@ useEffect(() => {
     !!actionsTargetPanelId &&
     (hasServerActionsAvailable || hasClientActionsAvailable);
 
-  const menuTargetPanelId: ActionPanelId = isFinished
+  const menuTargetPanelId: ActionPanelId = isFinished && !healthResolutionLockActive
     ? 'ap.end_of_game.result'
     : 'ap.menu.root';
   
@@ -1958,6 +2153,9 @@ useEffect(() => {
   if (isFinished) {
     readyEnabled = false;
     readyDisabledReason = 'Game over.';
+  } else if (healthResolutionLockActive) {
+    readyEnabled = false;
+    readyDisabledReason = 'Resolving health...';
   } else if (resumeSyncLocked) {
     readyEnabled = false;
     readyDisabledReason = 'Syncing authoritative state...';
@@ -2132,12 +2330,12 @@ useEffect(() => {
   }, [evolverRowIdsKey, frigateDemandCount, mySpecies, phaseKey]);
 
   useEffect(() => {
-    if (!effectiveGameId || !isFinished) return;
+    if (!effectiveGameId || !isFinished || healthResolutionLockActive) return;
     if (finishedRedirectHandledGameIdRef.current === effectiveGameId) return;
 
     finishedRedirectHandledGameIdRef.current = effectiveGameId;
     setActivePanelId('ap.end_of_game.result');
-  }, [effectiveGameId, isFinished]);
+  }, [effectiveGameId, healthResolutionLockActive, isFinished]);
 
   // ============================================================================
   // ACTION PANEL ROUTING (PHASE-DRIVEN ONLY)
@@ -2238,6 +2436,7 @@ useEffect(() => {
     buildCatalogue,
 
     board,
+    healthResolutionLockActive,
 
     readyEnabled,
     readyDisabledReason,
@@ -2272,8 +2471,13 @@ useEffect(() => {
     // Raw gameData for server truth
     gameData: rawState?.gameData,
     
-    // Client-only dice roll sequence for animation
-  diceRollSeq,
+    // Left rail dice presentation (client-delayed during health lock)
+  leftRailDiceValue: shouldPinLeftRailDice
+    ? presentedLeftRailDice.value
+    : authoritativeDiceValue,
+  leftRailDiceAnimateKey: shouldPinLeftRailDice
+    ? presentedLeftRailDice.animateKey
+    : diceRollSeq,
 
   // Client-only: build preview + Frigate triggers for build.drawing special panels
   buildPreviewCounts: buildPreviewCountsRef.current,
@@ -2382,6 +2586,10 @@ useEffect(() => {
     
     onActionPanelTabClick: (tabId: ActionPanelTabId) => {
       console.log('[useGameSession] Action panel tab clicked:', tabId);
+
+      if (healthResolutionLockActive) {
+        return;
+      }
       
       // Find the tab and navigate to its target panel
       const tab = tabs.find(t => t.tabId === tabId);

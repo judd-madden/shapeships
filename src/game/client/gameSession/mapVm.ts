@@ -19,6 +19,8 @@ import type {
   BattleLogHistoryResponse,
   EvolverChoiceId,
   GameSessionChatEntry,
+  HealthResolutionPresentationVm,
+  HealthResolutionSideVm,
 } from './types';
 import { getShipChoicePanelSpec } from '../../display/actionPanel/panels/ShipChoiceRegistry';
 import { mapBattleLogTurns } from './battleLog';
@@ -156,6 +158,47 @@ function getProjectedActionButtons(args: {
   });
 }
 
+function createHealthResolutionSide(args: {
+  subjectName: string;
+  net: number;
+  useYouCopy: boolean;
+  textAlign: HealthResolutionSideVm['textAlign'];
+}): HealthResolutionSideVm {
+  const { subjectName, net, useYouCopy, textAlign } = args;
+  const subject = useYouCopy ? 'You' : subjectName;
+
+  if (net < 0) {
+    return {
+      prefixText: `${subject} take${useYouCopy ? '' : 's'} `,
+      valueText: String(Math.abs(net)),
+      suffixText: ' damage',
+      valueTone: 'damage',
+      valueWeight: 'black',
+      textAlign,
+    };
+  }
+
+  if (net > 0) {
+    return {
+      prefixText: `${subject} heal${useYouCopy ? '' : 's'} `,
+      valueText: String(net),
+      suffixText: '',
+      valueTone: 'heal',
+      valueWeight: 'black',
+      textAlign,
+    };
+  }
+
+  return {
+    prefixText: `${subject} `,
+    valueText: '\u00B10',
+    suffixText: '',
+    valueTone: 'neutral',
+    valueWeight: 'regular',
+    textAlign,
+  };
+}
+
 export function mapGameSessionVm(args: {
   isBootstrapping: boolean;
 
@@ -191,6 +234,7 @@ export function mapGameSessionVm(args: {
   buildCatalogue: GameSessionViewModel['actionPanel']['buildCatalogue'];
 
   board: BoardViewModel;
+  healthResolutionLockActive: boolean;
 
   readyEnabled: boolean;
   readyDisabledReason: string | null;
@@ -233,8 +277,9 @@ export function mapGameSessionVm(args: {
   // Raw gameData for server truth
   gameData: any;
   
-  // Client-only dice roll sequence (for animation)
-  diceRollSeq: number;
+  // Left rail dice presentation (client-delayed during health lock)
+  leftRailDiceValue: 1 | 2 | 3 | 4 | 5 | 6;
+  leftRailDiceAnimateKey: number;
 
   // Client-only build preview counts (used for special panels like Frigate trigger selection)
   buildPreviewCounts: Record<string, number>;
@@ -278,6 +323,7 @@ export function mapGameSessionVm(args: {
     tabs,
     buildCatalogue,
     board,
+    healthResolutionLockActive,
     readyEnabled,
     readyDisabledReason,
     resumeSyncLocked,
@@ -297,7 +343,8 @@ export function mapGameSessionVm(args: {
     allocatedDestroyTargetIdsBySourceInstanceId,
     allocatedDestroyTargetIdBySourceInstanceId,
     gameData,
-    diceRollSeq,
+    leftRailDiceValue,
+    leftRailDiceAnimateKey,
     buildPreviewCounts,
     frigateSelectedTriggers,
     evolverRowIds,
@@ -351,6 +398,59 @@ export function mapGameSessionVm(args: {
       opponentPlayerId: opponent?.playerId ?? opponent?.id ?? opponent?.sessionId ?? null,
       opponentName,
     });
+  const playerEntries = Array.isArray(allPlayers)
+    ? allPlayers.filter((player: any) => player?.role === 'player')
+    : [];
+  const healthResolution = (() => {
+    if (!healthResolutionLockActive || board.mode !== 'board') {
+      return undefined;
+    }
+
+    if (me?.role === 'player' && me && opponent) {
+      return {
+        active: true,
+        left: createHealthResolutionSide({
+          subjectName: me?.name ?? 'Player 1',
+          net: board.myLastTurnNet,
+          useYouCopy: true,
+          textAlign: 'right',
+        }),
+        right: createHealthResolutionSide({
+          subjectName: opponent?.name ?? 'Player 2',
+          net: board.opponentLastTurnNet,
+          useYouCopy: false,
+          textAlign: 'left',
+        }),
+      } satisfies HealthResolutionPresentationVm;
+    }
+
+    if (playerEntries.length < 2) {
+      return undefined;
+    }
+
+    const lastTurnNetByPlayerId =
+      gameData?.lastTurnNetByPlayerId as Record<string, number> | undefined;
+    const leftPlayer = playerEntries[0];
+    const rightPlayer = playerEntries[1];
+    const leftKey = leftPlayer?.id ?? leftPlayer?.playerId ?? leftPlayer?.sessionId ?? null;
+    const rightKey = rightPlayer?.id ?? rightPlayer?.playerId ?? rightPlayer?.sessionId ?? null;
+
+    return {
+      active: true,
+      left: createHealthResolutionSide({
+        subjectName: leftPlayer?.name ?? 'Player 1',
+        net: leftKey ? (lastTurnNetByPlayerId?.[leftKey] ?? 0) : 0,
+        useYouCopy: false,
+        textAlign: 'right',
+      }),
+      right: createHealthResolutionSide({
+        subjectName: rightPlayer?.name ?? 'Player 2',
+        net: rightKey ? (lastTurnNetByPlayerId?.[rightKey] ?? 0) : 0,
+        useYouCopy: false,
+        textAlign: 'left',
+      }),
+    } satisfies HealthResolutionPresentationVm;
+  })();
   
   // ============================================================================
   // E4) SWITCH PANEL ID WHEN FINISHED
@@ -359,7 +459,7 @@ export function mapGameSessionVm(args: {
   let finalActivePanelId = activePanelId;
   let finalTabs = tabs;
   
-  if (isFinished) {
+  if (isFinished && !healthResolutionLockActive) {
     if (finalActivePanelId === 'ap.menu.root') {
       finalActivePanelId = 'ap.end_of_game.result';
     }
@@ -374,6 +474,20 @@ export function mapGameSessionVm(args: {
       }
       return tab;
     });
+  }
+
+  if (healthResolution) {
+    finalActivePanelId = 'ap.battle.health_resolution';
+    finalTabs = finalTabs.map((tab) =>
+      tab.tabId === 'tab.actions'
+        ? {
+            ...tab,
+            label: 'Health',
+            visible: true,
+            targetPanelId: 'ap.battle.health_resolution' as ActionPanelId,
+          }
+        : tab
+    );
   }
   
   // ============================================================================
@@ -611,6 +725,10 @@ export function mapGameSessionVm(args: {
     finalReadyDisabled = true;
     finalReadySelected = false;
     finalReadyDisabledReason = null;
+  } else if (healthResolutionLockActive) {
+    finalReadyDisabled = true;
+    finalReadySelected = false;
+    finalReadyDisabledReason = 'Resolving health...';
   } else if (readyUx?.sendingNow) {
     // Case 1: user clicked Ready and we are awaiting server validation/refresh
     readyButtonLabel = 'SENDING...';
@@ -889,9 +1007,7 @@ export function mapGameSessionVm(args: {
   const availableActionsSafe = availableActions ?? [];
   const hasActionsForMe = Array.isArray(availableActionsSafe) && availableActionsSafe.length > 0;
   const currentPlayerId = me?.id ?? null;
-  const activePlayers = Array.isArray(allPlayers)
-    ? allPlayers.filter((player: any) => player?.role === 'player')
-    : [];
+  const activePlayers = playerEntries;
   const authoritativePendingDrawOffer = (() => {
     const pendingDrawOffer = gameData?.pendingDrawOffer;
     if (
@@ -1016,21 +1132,8 @@ export function mapGameSessionVm(args: {
     },
     
     leftRail: {
-      diceValue: (() => {
-        // Read server-derived dice value with priority cascade
-        const raw = 
-          gameData?.turnData?.effectiveDiceRoll ??
-          gameData?.turnData?.baseDiceRoll ??
-          gameData?.turnData?.diceRoll ??
-          gameData?.diceRoll ??
-          1;
-        
-        // Clamp to 1-6, non-number -> 1
-        const num = Number(raw);
-        if (!Number.isInteger(num) || num < 1 || num > 6) return 1;
-        return num as 1 | 2 | 3 | 4 | 5 | 6;
-      })(),
-      diceAnimateKey: diceRollSeq,
+      diceValue: leftRailDiceValue,
+      diceAnimateKey: leftRailDiceAnimateKey,
       diceManipulationSlots: (() => {
         const authoritativeShipsByPlayerId =
           gameData?.ships ??
@@ -1165,6 +1268,8 @@ export function mapGameSessionVm(args: {
         metaRightText,
         rematchHelperText,
       } : undefined,
+      healthResolution,
+      tabInteractionLocked: healthResolution?.active === true,
       frigateDrawing,
       evolverDrawing,
       shipChoices,

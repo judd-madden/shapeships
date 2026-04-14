@@ -303,6 +303,28 @@ export interface TurnIncrementPulseState {
 
 export const BOARD_TURN_PULSE_LIFECYCLE_ANIMATION_NAME = 'ssBoardTurnPulseLifecycle';
 
+function usePrefersReducedMotion(): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!mediaQuery) {
+      return;
+    }
+
+    const update = () => setPrefersReducedMotion(Boolean(mediaQuery.matches));
+
+    update();
+    mediaQuery.addEventListener?.('change', update);
+
+    return () => {
+      mediaQuery.removeEventListener?.('change', update);
+    };
+  }, []);
+
+  return prefersReducedMotion;
+}
+
 export function useTurnIncrementPulse({
   enabled,
   turn,
@@ -334,6 +356,67 @@ export function useTurnIncrementPulse({
     setIsActive(true);
     setRunKey((current) => current + 1);
   }, [enabled, turn]);
+
+  function onAnimationEnd(event: AnimationEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    if (event.animationName !== BOARD_TURN_PULSE_LIFECYCLE_ANIMATION_NAME) {
+      return;
+    }
+
+    setIsActive(false);
+  }
+
+  return {
+    isActive,
+    runKey,
+    onAnimationEnd,
+  };
+}
+
+export interface PhaseEntryPulseOptions {
+  enabled: boolean;
+  phaseKey: string | null;
+  targetPhaseKey: string;
+}
+
+export function usePhaseEntryPulse({
+  enabled,
+  phaseKey,
+  targetPhaseKey,
+}: PhaseEntryPulseOptions): TurnIncrementPulseState {
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const previousPhaseRef = useRef<string | null>(null);
+  const [isActive, setIsActive] = useState(false);
+  const [runKey, setRunKey] = useState(0);
+
+  useEffect(() => {
+    if (!enabled || prefersReducedMotion) {
+      setIsActive(false);
+    }
+  }, [enabled, prefersReducedMotion]);
+
+  useEffect(() => {
+    const previousPhase = previousPhaseRef.current;
+    previousPhaseRef.current = phaseKey;
+
+    if (!enabled || prefersReducedMotion || phaseKey === null) {
+      return;
+    }
+
+    if (previousPhase === null) {
+      return;
+    }
+
+    if (phaseKey !== targetPhaseKey || previousPhase === targetPhaseKey) {
+      return;
+    }
+
+    setIsActive(true);
+    setRunKey((current) => current + 1);
+  }, [enabled, phaseKey, prefersReducedMotion, targetPhaseKey]);
 
   function onAnimationEnd(event: AnimationEvent<HTMLDivElement>) {
     if (event.target !== event.currentTarget) {
