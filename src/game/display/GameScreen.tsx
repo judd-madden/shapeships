@@ -15,13 +15,16 @@
  * - Passes view-models down to layout components
  */
 
+import { Checkbox } from '../../components/ui/primitives';
 import { useEffect, useRef, useState } from 'react';
+import { useGameSound } from '../client/audio/useGameSound';
 import { type GameSessionViewModel, useGameSession } from '../client/useGameSession';
 import { LeftRail } from './layout/LeftRail';
 import { MainStage } from './layout/MainStage';
 import { StarsBackground } from './graphics/StarsBackground';
 
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
+const SOUND_ENABLED_STORAGE_KEY = 'shapeships.soundEnabled.v1';
 
 interface GameScreenProps {
   gameId: string;
@@ -31,6 +34,18 @@ interface GameScreenProps {
 
 export default function GameScreen({ gameId, playerName, onBack }: GameScreenProps) {
   const { vm, actions } = useGameSession(gameId, playerName);
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+
+    try {
+      const storedValue = window.localStorage.getItem(SOUND_ENABLED_STORAGE_KEY);
+      return storedValue === null ? true : storedValue === 'true';
+    } catch {
+      return true;
+    }
+  });
   const firstTurnBuildHelper = useFirstTurnBuildHelper(gameId, vm, actions.onReadyToggle);
 
   const mainStageActions = {
@@ -39,6 +54,24 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
   };
 
   const celebrateOnFinish = Boolean(vm.actionPanel.endOfGame);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SOUND_ENABLED_STORAGE_KEY, String(soundEnabled));
+    } catch {
+      // Keep the preference in memory if browser storage is unavailable.
+    }
+  }, [soundEnabled]);
+
+  useGameSound({
+    enabled: soundEnabled,
+    active: !vm.isBootstrapping,
+    diceAnimateKey: vm.leftRail.diceAnimateKey,
+  });
+
+  function toggleSound() {
+    setSoundEnabled((current) => !current);
+  }
 
   // ============================================================================
   // CHUNK 9.1: BOOT GATING — Show loading screen until valid server state
@@ -73,6 +106,24 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
             : 'opacity-0 delay-0 duration-300'
         }`}
       />
+
+      <div className="fixed right-[10px] top-[10px] z-50">
+        <div className="flex items-center gap-[4px] rounded-[10px] px-[10px] py-[10px]">
+          <Checkbox
+            className="w-[22px] h-[22px]"
+            checked={soundEnabled}
+            onChange={setSoundEnabled}
+          />
+          <button
+            type="button"
+            onClick={toggleSound}
+            className="text-white transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+            style={{ fontSize: '15px', fontWeight: 400, lineHeight: 1.2 }}
+          >
+            Sound
+          </button>
+        </div>
+      </div>
 
       {/* Foreground layout (existing UI) */}
       <div className="relative z-10 w-full h-full min-h-0 flex items-stretch gap-5 px-[30px]">
