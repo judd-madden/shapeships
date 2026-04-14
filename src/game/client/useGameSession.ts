@@ -366,6 +366,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     signature: string;
   } | null>(null);
   const lastSeenAuthoritativeLeftRailDiceSignatureRef = useRef<string | null>(null);
+  const lastPresentedBattleRevealTurnRef = useRef<number | null>(null);
+  const seededBattleRevealGameIdRef = useRef<string | null>(null);
 
   function clearHealthResolutionLockTimer(): void {
     if (healthResolutionLockTimerRef.current) {
@@ -458,11 +460,14 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     setLeftRailDiceFreezeActive(false);
     setPresentedLeftRailDiceValue(1);
     setPresentedLeftRailDiceAnimateSeq(0);
+    setPresentedOpponentRevealBlurSeq(0);
     lastSeenHealthResolutionSignatureRef.current = null;
     lastPresentedHealthResolutionSignatureRef.current = null;
     seededHealthResolutionGameIdRef.current = null;
     pendingAuthoritativeLeftRailDiceRef.current = null;
     lastSeenAuthoritativeLeftRailDiceSignatureRef.current = null;
+    lastPresentedBattleRevealTurnRef.current = null;
+    seededBattleRevealGameIdRef.current = null;
   }, [effectiveGameId]);
 
   useEffect(() => {
@@ -619,6 +624,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [, setDiceRollSeq] = useState(0);
   const [presentedLeftRailDiceValue, setPresentedLeftRailDiceValue] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
   const [presentedLeftRailDiceAnimateSeq, setPresentedLeftRailDiceAnimateSeq] = useState(0);
+  const [presentedOpponentRevealBlurSeq, setPresentedOpponentRevealBlurSeq] = useState(0);
   
   // ============================================================================
   // EVENT TAPE (Chunk 2: Dev-only plumbing)
@@ -1754,6 +1760,8 @@ useEffect(() => {
         opponentFleetRenderOrder
       ),
 
+      presentedOpponentRevealBlurSeq,
+
       destroyTargeting: boardDestroyTargeting,
     };
   }
@@ -1914,6 +1922,36 @@ useEffect(() => {
     setPresentedLeftRailDiceValue(pendingSnapshot.value);
     setPresentedLeftRailDiceAnimateSeq((prev) => prev + 1);
   }, [shouldPinLeftRailDice]);
+
+  useLayoutEffect(() => {
+    if (
+      !effectiveGameId ||
+      (typeof rawState?.gameId === 'string' && rawState.gameId !== effectiveGameId) ||
+      isBootstrapping ||
+      !hasValidPhaseKey
+    ) {
+      return;
+    }
+
+    const isBattlePhase = phaseKey.startsWith('battle.');
+
+    if (seededBattleRevealGameIdRef.current !== effectiveGameId) {
+      seededBattleRevealGameIdRef.current = effectiveGameId;
+      lastPresentedBattleRevealTurnRef.current = isBattlePhase ? turnNumber : null;
+      return;
+    }
+
+    if (!isBattlePhase) {
+      return;
+    }
+
+    if (lastPresentedBattleRevealTurnRef.current === turnNumber) {
+      return;
+    }
+
+    lastPresentedBattleRevealTurnRef.current = turnNumber;
+    setPresentedOpponentRevealBlurSeq((prev) => prev + 1);
+  }, [effectiveGameId, hasValidPhaseKey, isBootstrapping, phaseKey, rawState?.gameId, turnNumber]);
   
   // ============================================================================
   // SPECIES TAB RULES (A-C: Selection phase vs locked-in phase)
@@ -3090,6 +3128,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         myBonusBreakdownRows: [],
         opponentBonusBreakdownRows: [],
         activationStaggerPlan: { myIndexByShipId: {}, opponentIndexByShipId: {} },
+        presentedOpponentRevealBlurSeq: 0,
       },
       bottomActionRail: {
         subphaseTitle: '',

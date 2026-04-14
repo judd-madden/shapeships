@@ -326,6 +326,9 @@ export type BoardViewModel =
       // Animation stagger plan
       activationStaggerPlan: ActivationStaggerPlan;
 
+      // Client-only one-shot presentation trigger for opponent reveal blur
+      presentedOpponentRevealBlurSeq: number;
+
       // Client-only targeting affordances derived from server-provided validTargets
       destroyTargeting?: BoardDestroyTargetingViewModel;
     };

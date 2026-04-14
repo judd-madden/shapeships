@@ -4,13 +4,14 @@
  * NO LOGIC - displays view-model data only (Pass 1.25)
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type AnimationEvent, type ReactNode } from 'react';
 import type { BoardViewModel, GameSessionActions } from '../../client/useGameSession';
 import { ChooseSpeciesStage } from './boardModes/ChooseSpeciesStage';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import { FitToBox } from './boardStage/FitToBox';
 import {
+  BOARD_TURN_PULSE_LIFECYCLE_ANIMATION_NAME,
   ShipAnimationWrapper,
   type ShipAnimToken,
   type TurnIncrementPulseState,
@@ -18,7 +19,6 @@ import {
   getTargetingGlowStyle,
   getTargetingPreviewStyle,
   getTargetingVisualState,
-  usePhaseEntryPulse,
 } from '../graphics/animation';
 import { useFlipLayout } from '../graphics/useFlipLayout';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
@@ -96,6 +96,73 @@ function useAnimatedHealth(targetValue: number): number {
   }, [targetValue]);
 
   return displayedValue;
+}
+
+function usePrefersReducedMotion(): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!mediaQuery) {
+      return;
+    }
+
+    const update = () => setPrefersReducedMotion(Boolean(mediaQuery.matches));
+
+    update();
+    mediaQuery.addEventListener?.('change', update);
+
+    return () => {
+      mediaQuery.removeEventListener?.('change', update);
+    };
+  }, []);
+
+  return prefersReducedMotion;
+}
+
+function usePresentedOpponentRevealPulse(sequence: number | null): TurnIncrementPulseState {
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const previousSequenceRef = useRef<number | null>(null);
+  const [isActive, setIsActive] = useState(false);
+
+  useEffect(() => {
+    if (prefersReducedMotion) {
+      setIsActive(false);
+    }
+  }, [prefersReducedMotion]);
+
+  useEffect(() => {
+    const previousSequence = previousSequenceRef.current;
+    previousSequenceRef.current = sequence;
+
+    if (sequence === null || prefersReducedMotion) {
+      return;
+    }
+
+    if (previousSequence === null || sequence <= previousSequence) {
+      return;
+    }
+
+    setIsActive(true);
+  }, [prefersReducedMotion, sequence]);
+
+  function onAnimationEnd(event: AnimationEvent<HTMLDivElement>) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    if (event.animationName !== BOARD_TURN_PULSE_LIFECYCLE_ANIMATION_NAME) {
+      return;
+    }
+
+    setIsActive(false);
+  }
+
+  return {
+    isActive,
+    runKey: sequence ?? 0,
+    onAnimationEnd,
+  };
 }
 
 function toCssVarFromColourName(colour?: string): string | undefined {
@@ -701,7 +768,7 @@ function StatTripletRow({
   );
 }
 
-export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
+export function BoardStage({ vm, actions, phaseKey: _phaseKey }: BoardStageProps) {
   const fleetHover = useFleetShipHover();
   const statHover = useBoardStatHover();
   const myBonusAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -709,12 +776,9 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
   const opponentBonusJoiningAnchorRef = useRef<HTMLDivElement | null>(null);
   const displayedMyHealth = useAnimatedHealth(vm.mode === 'board' ? vm.myHealth : 25);
   const displayedOpponentHealth = useAnimatedHealth(vm.mode === 'board' ? vm.opponentHealth : 25);
-  const pulsePhaseKey = phaseKey.startsWith('battle.') ? 'battle' : phaseKey;
-  const revealPulse = usePhaseEntryPulse({
-    enabled: vm.mode === 'board',
-    phaseKey: vm.mode === 'board' ? pulsePhaseKey : null,
-    targetPhaseKey: 'battle',
-  });
+  const revealPulse = usePresentedOpponentRevealPulse(
+    vm.mode === 'board' ? vm.presentedOpponentRevealBlurSeq : null
+  );
 
   // Choose species mode
   if (vm.mode === 'choose_species') {
