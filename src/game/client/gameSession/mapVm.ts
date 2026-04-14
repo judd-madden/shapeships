@@ -628,9 +628,10 @@ export function mapGameSessionVm(args: {
     finalReadySelected = false;
     finalReadyDisabledReason = null;
   } else if (healthResolutionLockActive) {
+    readyButtonLabel = 'RESOLVING';
     finalReadyDisabled = true;
     finalReadySelected = false;
-    finalReadyDisabledReason = 'Resolving health...';
+    finalReadyDisabledReason = null;
   } else if (readyUx?.sendingNow) {
     // Case 1: user clicked Ready and we are awaiting server validation/refresh
     readyButtonLabel = 'SENDING...';
@@ -662,6 +663,11 @@ export function mapGameSessionVm(args: {
   let subphaseTitle = isFinished ? 'Game Over' : getSubphaseLabelFromPhaseKey(phaseKey);
   let subphaseTitleSuffix: string | null = null;
   let subphaseSubheading = isFinished ? '' : getMajorPhaseLabel(phaseKey);
+
+  if (!isFinished && phaseKey === 'battle.end_of_turn_resolution') {
+    subphaseTitle = 'End of Turn';
+    subphaseSubheading = 'Healing and damage is resolved';
+  }
 
   if (!isFinished && buildDrawingEconomyDisplay != null) {
     subphaseTitle = String(buildDrawingEconomyDisplay.ordinaryAvailable);

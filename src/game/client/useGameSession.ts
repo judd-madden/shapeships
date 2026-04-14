@@ -2540,7 +2540,7 @@ useEffect(() => {
     readyDisabledReason = 'Game over.';
   } else if (healthResolutionLockActive) {
     readyEnabled = false;
-    readyDisabledReason = 'Resolving health...';
+    readyDisabledReason = null;
   } else if (resumeSyncLocked) {
     readyEnabled = false;
     readyDisabledReason = 'Syncing authoritative state...';
