@@ -768,7 +768,7 @@ function StatTripletRow({
   );
 }
 
-export function BoardStage({ vm, actions, phaseKey: _phaseKey }: BoardStageProps) {
+export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
   const fleetHover = useFleetShipHover();
   const statHover = useBoardStatHover();
   const myBonusAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -810,8 +810,17 @@ export function BoardStage({ vm, actions, phaseKey: _phaseKey }: BoardStageProps
 
   // Hide deltas on turn 1 only
   const showDeltas = vm.turnNumber > 1;
-  const myDeltaKey = showDeltas ? `my:${vm.turnNumber}:${vm.myLastTurnNet}` : 'my:hidden';
-  const opponentDeltaKey = showDeltas ? `opp:${vm.turnNumber}:${vm.opponentLastTurnNet}` : 'opp:hidden';
+  const shouldAnimateDeltas = phaseKey === 'battle.end_of_turn_resolution';
+  const myDeltaKey = !showDeltas
+    ? 'my:hidden'
+    : shouldAnimateDeltas
+      ? `my:resolution:${vm.turnNumber}`
+      : 'my:stable';
+  const opponentDeltaKey = !showDeltas
+    ? 'opp:hidden'
+    : shouldAnimateDeltas
+      ? `opp:resolution:${vm.turnNumber}`
+      : 'opp:stable';
   const myDamageHoverEnabled = vm.myLastTurnDamage !== 0 && vm.myLastDamageBreakdownRows.length > 0;
   const opponentDamageHoverEnabled = vm.opponentLastTurnDamage !== 0 && vm.opponentLastDamageBreakdownRows.length > 0;
   const myHealingHoverEnabled = vm.myLastTurnHeal !== 0 && vm.myLastHealingBreakdownRows.length > 0;
@@ -897,7 +906,10 @@ export function BoardStage({ vm, actions, phaseKey: _phaseKey }: BoardStageProps
                 pointerEvents: showDeltas ? 'auto' : 'none',
               }}
             >
-              <span key={myDeltaKey} className={showDeltas ? 'ss-health-delta-pop-in' : undefined}>
+              <span
+                key={myDeltaKey}
+                className={showDeltas && shouldAnimateDeltas ? 'ss-health-delta-pop-in' : undefined}
+              >
                 {showDeltas ? (vm.myLastTurnNet > 0 ? `+${vm.myLastTurnNet}` : vm.myLastTurnNet === 0 ? '±0' : vm.myLastTurnNet) : ''}
               </span>
             </p>
@@ -953,7 +965,10 @@ export function BoardStage({ vm, actions, phaseKey: _phaseKey }: BoardStageProps
                 pointerEvents: showDeltas ? 'auto' : 'none',
               }}
             >
-              <span key={opponentDeltaKey} className={showDeltas ? 'ss-health-delta-pop-in' : undefined}>
+              <span
+                key={opponentDeltaKey}
+                className={showDeltas && shouldAnimateDeltas ? 'ss-health-delta-pop-in' : undefined}
+              >
                 {showDeltas ? (vm.opponentLastTurnNet > 0 ? `+${vm.opponentLastTurnNet}` : vm.opponentLastTurnNet === 0 ? '±0' : vm.opponentLastTurnNet) : ''}
               </span>
             </p>
