@@ -422,11 +422,11 @@ html:not(.app-ready) #root {
    ========================================================================== */
 
 .ss-boardTurnPulse {
-  --ss-board-turn-pulse-duration: 1000ms;
-  --ss-board-turn-pulse-peak-scale: 0.94;
-  --ss-board-turn-pulse-peak-blur: 6px;
+  --ss-board-turn-pulse-duration: 1100ms;
+  --ss-board-turn-pulse-peak-scale: 0.90;
+  --ss-board-turn-pulse-peak-blur: 12px;
   --ss-board-turn-pulse-peak-brightness: 1.09;
-  --ss-board-turn-pulse-peak-opacity: 0.9;
+  --ss-board-turn-pulse-peak-opacity: 0.8;
   transform-origin: center center;
   will-change: transform, filter, opacity;
 }

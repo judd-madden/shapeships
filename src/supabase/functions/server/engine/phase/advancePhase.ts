@@ -185,6 +185,8 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           buildPhaseNonDestroyRemovedShipsByPlayerId: {},
           queenCreatedXenitesThisTurnByInstanceId: {},
           buildEndOfBuildAppliedTurnNumber: 0,
+          endOfTurnResolutionAppliedTurnNumber: 0,
+          phaseHold: undefined,
         },
       },
     };
@@ -317,6 +319,8 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           buildPhaseNonDestroyRemovedShipsByPlayerId: {},
           queenCreatedXenitesThisTurnByInstanceId: {},
           buildEndOfBuildAppliedTurnNumber: 0,
+          endOfTurnResolutionAppliedTurnNumber: 0,
+          phaseHold: undefined,
         },
       },
     };

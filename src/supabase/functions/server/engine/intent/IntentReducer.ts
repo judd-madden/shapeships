@@ -104,6 +104,15 @@ function isFinishedGameChatMessageIntent(intent: IntentRequest): boolean {
   return !!payload && typeof payload === 'object' && payload.actionType === 'message';
 }
 
+function isPhaseHoldContinuationIntent(intent: IntentRequest): boolean {
+  return intent.intentType === 'CONTINUE_PHASE_HOLD';
+}
+
+function getCurrentPhaseHold(state: any) {
+  const phaseHold = state?.gameData?.turnData?.phaseHold;
+  return phaseHold && typeof phaseHold === 'object' ? phaseHold : null;
+}
+
 function countCreatedShipsFromEffects(effects: any[] | undefined): number {
   if (!Array.isArray(effects)) return 0;
   return effects.filter((effect: any) => effect?.kind === 'CreateShip').length;
@@ -489,7 +498,11 @@ export async function applyIntent(
   // VALIDATION: Game state
   // ============================================================================
   
-  if (state.status === 'finished' && !isFinishedGameChatMessageIntent(intent)) {
+  if (
+    state.status === 'finished' &&
+    !isFinishedGameChatMessageIntent(intent) &&
+    !isPhaseHoldContinuationIntent(intent)
+  ) {
     return {
       ok: false,
       state,
@@ -562,6 +575,18 @@ export async function applyIntent(
       };
     }
   }
+
+  if (intent.intentType === 'CONTINUE_PHASE_HOLD' && player.role === 'spectator') {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.SPECTATOR_RESTRICTED,
+        message: 'Spectators cannot continue authoritative phase holds'
+      }
+    };
+  }
   
   // ============================================================================
   // VALIDATION: Turn number
@@ -579,7 +604,7 @@ export async function applyIntent(
     intent = { ...intent, turnNumber: currentTurn };
   }
   
-  if (intent.turnNumber !== currentTurn) {
+  if (intent.intentType !== 'CONTINUE_PHASE_HOLD' && intent.turnNumber !== currentTurn) {
     return {
       ok: false,
       state,
@@ -670,6 +695,9 @@ export async function applyIntent(
       
     case 'DECLARE_READY':
       return handleDeclareReady(state, sessionPlayerId, intent, nowMs, events);
+
+    case 'CONTINUE_PHASE_HOLD':
+      return handleContinuePhaseHold(state, sessionPlayerId, intent, nowMs, events);
       
     case 'ACTION':
       return handleAction(state, sessionPlayerId, intent, nowMs, events);
@@ -2132,6 +2160,120 @@ function handleDeclareReady(
     ok: true,
     state,
     events
+  };
+}
+
+// ============================================================================
+// CONTINUE_PHASE_HOLD
+// ============================================================================
+
+function handleContinuePhaseHold(
+  state: any,
+  playerId: string,
+  _intent: IntentRequest,
+  nowMs: number,
+  events: any[]
+): IntentResult {
+  const phaseKey = getPhaseKey(state);
+  const phaseHold = getCurrentPhaseHold(state);
+
+  if (!phaseKey || !phaseHold || phaseHold.phaseKey !== phaseKey) {
+    return {
+      ok: true,
+      state: syncPhaseFields(state),
+      events,
+    };
+  }
+
+  if (phaseHold.holdReason !== 'end_of_turn_health') {
+    return {
+      ok: true,
+      state: syncPhaseFields(state),
+      events,
+    };
+  }
+
+  const holdUntilMs =
+    typeof phaseHold.holdUntilMs === 'number' ? phaseHold.holdUntilMs : Number.NaN;
+
+  if (!Number.isFinite(holdUntilMs) || holdUntilMs > nowMs) {
+    return {
+      ok: true,
+      state: syncPhaseFields(state),
+      events,
+    };
+  }
+
+  if (!state.gameData) {
+    state.gameData = {};
+  }
+  if (!state.gameData.turnData) {
+    state.gameData.turnData = {};
+  }
+
+  delete state.gameData.turnData.phaseHold;
+
+  events.push({
+    type: 'PHASE_HOLD_CONTINUED',
+    playerId,
+    phaseKey,
+    holdReason: phaseHold.holdReason,
+    atMs: nowMs,
+  });
+
+  if (state.status === 'finished') {
+    state = syncPhaseFields(state);
+    return {
+      ok: true,
+      state,
+      events,
+    };
+  }
+
+  const fromKey = phaseKey;
+  const advanceResult = advancePhaseCore(state, nowMs);
+
+  if (!advanceResult.ok) {
+    events.push({
+      type: 'PHASE_ADVANCE_BLOCKED',
+      from: fromKey,
+      reason: advanceResult.error,
+      atMs: nowMs,
+    });
+
+    state = syncPhaseFields(state);
+    return {
+      ok: true,
+      state,
+      events,
+    };
+  }
+
+  state = advanceResult.state;
+  events.push(...advanceResult.events);
+  state = syncPhaseFields(state);
+
+  const toKey = getPhaseKey(state);
+
+  events.push({
+    type: 'PHASE_ADVANCED',
+    from: fromKey,
+    to: toKey,
+    atMs: nowMs,
+  });
+
+  if (toKey) {
+    const onEnterResult = onEnterPhase(state, fromKey, toKey, nowMs);
+    state = onEnterResult.state;
+    events.push(...onEnterResult.events);
+  }
+
+  state = syncPhaseFields(state);
+
+  return {
+    ok: true,
+    state,
+    events,
   };
 }
 

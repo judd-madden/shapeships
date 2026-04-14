@@ -20,7 +20,6 @@ import type {
   EvolverChoiceId,
   GameSessionChatEntry,
   HealthResolutionPresentationVm,
-  HealthResolutionSideVm,
 } from './types';
 import { getShipChoicePanelSpec } from '../../display/actionPanel/panels/ShipChoiceRegistry';
 import { mapBattleLogTurns } from './battleLog';
@@ -158,47 +157,6 @@ function getProjectedActionButtons(args: {
   });
 }
 
-function createHealthResolutionSide(args: {
-  subjectName: string;
-  net: number;
-  useYouCopy: boolean;
-  textAlign: HealthResolutionSideVm['textAlign'];
-}): HealthResolutionSideVm {
-  const { subjectName, net, useYouCopy, textAlign } = args;
-  const subject = useYouCopy ? 'You' : subjectName;
-
-  if (net < 0) {
-    return {
-      prefixText: `${subject} take${useYouCopy ? '' : 's'} `,
-      valueText: String(Math.abs(net)),
-      suffixText: ' damage',
-      valueTone: 'damage',
-      valueWeight: 'black',
-      textAlign,
-    };
-  }
-
-  if (net > 0) {
-    return {
-      prefixText: `${subject} heal${useYouCopy ? '' : 's'} `,
-      valueText: String(net),
-      suffixText: '',
-      valueTone: 'heal',
-      valueWeight: 'black',
-      textAlign,
-    };
-  }
-
-  return {
-    prefixText: `${subject} `,
-    valueText: '\u00B10',
-    suffixText: '',
-    valueTone: 'neutral',
-    valueWeight: 'regular',
-    textAlign,
-  };
-}
-
 export function mapGameSessionVm(args: {
   isBootstrapping: boolean;
 
@@ -235,6 +193,7 @@ export function mapGameSessionVm(args: {
 
   board: BoardViewModel;
   healthResolutionLockActive: boolean;
+  healthResolutionOverlay?: HealthResolutionPresentationVm;
 
   readyEnabled: boolean;
   readyDisabledReason: string | null;
@@ -280,6 +239,9 @@ export function mapGameSessionVm(args: {
   // Left rail dice presentation (client-delayed during health lock)
   leftRailDiceValue: 1 | 2 | 3 | 4 | 5 | 6;
   leftRailDiceAnimateKey: number;
+  leftRailTurnTakeoverTurn: number | null;
+  leftRailTurnTakeoverAnimateKey: number;
+  leftRailChronoswarmAnimateKey: number;
 
   // Client-only build preview counts (used for special panels like Frigate trigger selection)
   buildPreviewCounts: Record<string, number>;
@@ -324,6 +286,7 @@ export function mapGameSessionVm(args: {
     buildCatalogue,
     board,
     healthResolutionLockActive,
+    healthResolutionOverlay,
     readyEnabled,
     readyDisabledReason,
     resumeSyncLocked,
@@ -345,6 +308,9 @@ export function mapGameSessionVm(args: {
     gameData,
     leftRailDiceValue,
     leftRailDiceAnimateKey,
+    leftRailTurnTakeoverTurn,
+    leftRailTurnTakeoverAnimateKey,
+    leftRailChronoswarmAnimateKey,
     buildPreviewCounts,
     frigateSelectedTriggers,
     evolverRowIds,
@@ -401,56 +367,6 @@ export function mapGameSessionVm(args: {
   const playerEntries = Array.isArray(allPlayers)
     ? allPlayers.filter((player: any) => player?.role === 'player')
     : [];
-  const healthResolution = (() => {
-    if (!healthResolutionLockActive || board.mode !== 'board') {
-      return undefined;
-    }
-
-    if (me?.role === 'player' && me && opponent) {
-      return {
-        active: true,
-        left: createHealthResolutionSide({
-          subjectName: me?.name ?? 'Player 1',
-          net: board.myLastTurnNet,
-          useYouCopy: true,
-          textAlign: 'right',
-        }),
-        right: createHealthResolutionSide({
-          subjectName: opponent?.name ?? 'Player 2',
-          net: board.opponentLastTurnNet,
-          useYouCopy: false,
-          textAlign: 'left',
-        }),
-      } satisfies HealthResolutionPresentationVm;
-    }
-
-    if (playerEntries.length < 2) {
-      return undefined;
-    }
-
-    const lastTurnNetByPlayerId =
-      gameData?.lastTurnNetByPlayerId as Record<string, number> | undefined;
-    const leftPlayer = playerEntries[0];
-    const rightPlayer = playerEntries[1];
-    const leftKey = leftPlayer?.id ?? leftPlayer?.playerId ?? leftPlayer?.sessionId ?? null;
-    const rightKey = rightPlayer?.id ?? rightPlayer?.playerId ?? rightPlayer?.sessionId ?? null;
-
-    return {
-      active: true,
-      left: createHealthResolutionSide({
-        subjectName: leftPlayer?.name ?? 'Player 1',
-        net: leftKey ? (lastTurnNetByPlayerId?.[leftKey] ?? 0) : 0,
-        useYouCopy: false,
-        textAlign: 'right',
-      }),
-      right: createHealthResolutionSide({
-        subjectName: rightPlayer?.name ?? 'Player 2',
-        net: rightKey ? (lastTurnNetByPlayerId?.[rightKey] ?? 0) : 0,
-        useYouCopy: false,
-        textAlign: 'left',
-      }),
-    } satisfies HealthResolutionPresentationVm;
-  })();
   
   // ============================================================================
   // E4) SWITCH PANEL ID WHEN FINISHED
@@ -476,20 +392,6 @@ export function mapGameSessionVm(args: {
     });
   }
 
-  if (healthResolution) {
-    finalActivePanelId = 'ap.battle.health_resolution';
-    finalTabs = finalTabs.map((tab) =>
-      tab.tabId === 'tab.actions'
-        ? {
-            ...tab,
-            label: 'Health',
-            visible: true,
-            targetPanelId: 'ap.battle.health_resolution' as ActionPanelId,
-          }
-        : tab
-    );
-  }
-  
   // ============================================================================
   // E5) RESULT BANNER BACKGROUND: WINNING SPECIES
   // ============================================================================
@@ -1134,6 +1036,8 @@ export function mapGameSessionVm(args: {
     leftRail: {
       diceValue: leftRailDiceValue,
       diceAnimateKey: leftRailDiceAnimateKey,
+      turnTakeoverTurn: leftRailTurnTakeoverTurn,
+      turnTakeoverAnimateKey: leftRailTurnTakeoverAnimateKey,
       diceManipulationSlots: (() => {
         const authoritativeShipsByPlayerId =
           gameData?.ships ??
@@ -1158,20 +1062,6 @@ export function mapGameSessionVm(args: {
                 typeof roll === 'number' && Number.isInteger(roll) && roll >= 1 && roll <= 6
             )
           : [];
-        const chronoswarmSharedRollCountRaw = gameData?.turnData?.chronoswarmSharedRollCount;
-        const chronoswarmSharedRollCount =
-          typeof chronoswarmSharedRollCountRaw === 'number' &&
-          Number.isInteger(chronoswarmSharedRollCountRaw)
-            ? chronoswarmSharedRollCountRaw
-            : 0;
-        const chronoswarmRollSignature = chronoswarmRolls.reduce(
-          (acc: number, roll: 1 | 2 | 3 | 4 | 5 | 6) => acc * 7 + roll,
-          chronoswarmRolls.length
-        );
-        const chronoswarmAnimateKey =
-          turnNumber * 1_000_000_000 +
-          chronoswarmSharedRollCount * 1_000_000 +
-          chronoswarmRollSignature;
 
         const levSlot = presentShipDefIds.has('LEV')
           ? {
@@ -1190,7 +1080,7 @@ export function mapGameSessionVm(args: {
           ? {
               sourceShipDefId: 'CHR' as const,
               diceValues: chronoswarmRolls,
-              animateKey: chronoswarmAnimateKey,
+              animateKey: leftRailChronoswarmAnimateKey,
             }
           : null;
 
@@ -1268,8 +1158,8 @@ export function mapGameSessionVm(args: {
         metaRightText,
         rematchHelperText,
       } : undefined,
-      healthResolution,
-      tabInteractionLocked: healthResolution?.active === true,
+      healthResolutionOverlay,
+      tabInteractionLocked: healthResolutionLockActive,
       frigateDrawing,
       evolverDrawing,
       shipChoices,

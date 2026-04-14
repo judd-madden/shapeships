@@ -19,6 +19,7 @@ export type IntentType =
   | 'BATTLE_COMMIT'
   | 'BATTLE_REVEAL'
   | 'DECLARE_READY'
+  | 'CONTINUE_PHASE_HOLD'
   | 'ACTION'
   | 'ACTIONS_SUBMIT'
   | 'SURRENDER'

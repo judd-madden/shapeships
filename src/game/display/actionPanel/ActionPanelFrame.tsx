@@ -3,6 +3,7 @@
  * Container for action panels with debug display
  */
 
+import type { ReactNode } from 'react';
 import { ACTION_PANEL_DISPLAY_NAMES } from './ActionPanelRegistry';
 import type { ActionPanelViewModel, GameSessionActions } from '../../client/useGameSession';
 import { HumanShipCataloguePanel } from './panels/catalogue/human/HumanShipCataloguePanel';
@@ -27,13 +28,30 @@ interface ActionPanelFrameProps {
 
 export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPanelFrameProps) {
   const displayName = ACTION_PANEL_DISPLAY_NAMES[vm.activePanelId];
+  const healthResolutionOverlay = vm.healthResolutionOverlay;
+
+  function renderWithOverlay(content: ReactNode) {
+    return (
+      <div className="relative size-full">
+        <div className="size-full">{content}</div>
+        {healthResolutionOverlay ? (
+          <div className="pointer-events-none absolute inset-0 z-20">
+            <HealthResolutionPanel
+              key={healthResolutionOverlay.presentationKey}
+              vm={healthResolutionOverlay}
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   // TODO (PASS 2+): Replace this if/else panel selection with a mapping object
   // (ActionPanelId -> component) once multiple panels are implemented.
 
   // Render the appropriate panel based on activePanelId
   if (vm.activePanelId === 'ap.catalog.ships.human') {
-    return (
+    return renderWithOverlay(
       <div className="size-full">
         <HumanShipCataloguePanel actions={actions} buildCatalogue={vm.buildCatalogue} />
       </div>
@@ -41,7 +59,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   }
 
   if (vm.activePanelId === 'ap.catalog.ships.xenite') {
-    return (
+    return renderWithOverlay(
       <div className="size-full">
         <XeniteShipCataloguePanel actions={actions} buildCatalogue={vm.buildCatalogue} />
       </div>
@@ -49,7 +67,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   }
 
   if (vm.activePanelId === 'ap.catalog.ships.centaur') {
-    return (
+    return renderWithOverlay(
       <div className="size-full">
         <CentaurShipCataloguePanel actions={actions} buildCatalogue={vm.buildCatalogue} />
       </div>
@@ -57,7 +75,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   }
 
   if (vm.activePanelId === 'ap.catalog.ships.ancient') {
-    return (
+    return renderWithOverlay(
       <div className="size-full">
         <AncientShipCataloguePanel actions={actions} buildCatalogue={vm.buildCatalogue} />
       </div>
@@ -65,7 +83,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   }
 
   if (vm.activePanelId === 'ap.menu.root') {
-    return (
+    return renderWithOverlay(
       <div className="size-full">
         <MenuActionPanel
           title={vm.menu.title}
@@ -92,7 +110,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
       rematchHelperText: 'Link will be posted in chat',
     };
 
-    return (
+    return renderWithOverlay(
       <div className="size-full">
         <EndOfGameActionPanel
           bannerText={endOfGame.bannerText}
@@ -109,19 +127,11 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   }
 
   if (vm.activePanelId === 'ap.battle.health_resolution') {
-    if (!vm.healthResolution) {
-      return (
-        <div className="size-full flex flex-col items-center justify-center">
-          <p className="text-[var(--shapeships-grey-50)] text-[18px]">
-            Health resolution unavailable.
-          </p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="size-full">
-        <HealthResolutionPanel vm={vm.healthResolution} />
+    return renderWithOverlay(
+      <div className="size-full flex flex-col items-center justify-center">
+        <p className="text-[var(--shapeships-grey-50)] text-[18px]">
+          Health resolution unavailable.
+        </p>
       </div>
     );
   }
@@ -131,7 +141,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   // ============================================================================
 
   if (vm.activePanelId === 'ap.build.drawing.human') {
-    return (
+    return renderWithOverlay(
       <div className="size-full flex justify-center">
         <div className="w-fit">
         <FrigateDrawingPanel
@@ -146,7 +156,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   }
 
   if (vm.activePanelId === 'ap.build.drawing.xenite') {
-    return (
+    return renderWithOverlay(
       <div className="size-full flex justify-center">
       <div className="w-fit">
         <EvolverDrawingPanel
@@ -172,7 +182,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
     if (shipChoiceSpec.kind === 'buttons') {
       // If no groups available, show "No actions available"
       if (!vm.shipChoices?.groups || vm.shipChoices.groups.length === 0) {
-        return (
+        return renderWithOverlay(
           <div className="size-full flex flex-col items-center justify-center">
             <p className="text-[var(--shapeships-grey-50)] text-[18px]">
               No actions available.
@@ -182,7 +192,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
       }
 
       // Render ShipChoicesPanel with derived groups from VM
-      return (
+      return renderWithOverlay(
         <ActionPanelScrollArea>
           <div className="w-fit">
             <ShipChoicesPanel
@@ -207,7 +217,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
     // KIND: LARGE (LargeStyleChoicePanel)
     // --------------------------------------------------------------------------
     if (shipChoiceSpec.kind === 'large') {
-      return (
+      return renderWithOverlay(
         <ActionPanelScrollArea>
           <div className="w-fit">
             <LargeStyleChoicePanel
@@ -226,7 +236,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
     // KIND: PLACEHOLDER
     // --------------------------------------------------------------------------
     if (shipChoiceSpec.kind === 'placeholder') {
-      return (
+      return renderWithOverlay(
         <ActionPanelScrollArea>
           <div className="size-full flex flex-col items-center justify-center gap-4">
             <p className="text-white text-[18px] font-bold">
@@ -246,7 +256,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   // ============================================================================
 
   // Fallback debug display for panels not yet implemented
-  return (
+  return renderWithOverlay(
     <div className="size-full flex flex-col items-center justify-center p-6">
       {/* Debug info */}
       <p className="text-white text-sm font-bold mb-2">

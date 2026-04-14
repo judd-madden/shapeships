@@ -168,6 +168,8 @@ export interface LeftRailViewModel {
   // Dice
   diceValue: 1 | 2 | 3 | 4 | 5 | 6;
   diceAnimateKey: number; // increments on each DICE_ROLLED event (drives animation)
+  turnTakeoverTurn: number | null;
+  turnTakeoverAnimateKey: number;
 
   diceManipulationSlots: {
     left: LeftRailDiceManipulationSlotViewModel | null;
@@ -386,7 +388,7 @@ export interface HealthResolutionSideVm {
 }
 
 export interface HealthResolutionPresentationVm {
-  active: boolean;
+  presentationKey: string;
   left: HealthResolutionSideVm;
   right: HealthResolutionSideVm;
 }
@@ -420,7 +422,7 @@ export interface ActionPanelViewModel {
     metaRightText: string;
     rematchHelperText: string;
   };
-  healthResolution?: HealthResolutionPresentationVm;
+  healthResolutionOverlay?: HealthResolutionPresentationVm;
   tabInteractionLocked?: boolean;
 
   // NEW (UI-derivations for panels)

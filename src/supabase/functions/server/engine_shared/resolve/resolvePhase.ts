@@ -759,6 +759,18 @@ function resolveBattleEndOfTurn(
   phaseKey: PhaseKey
 ): { state: GameState; events: any[] } {
   console.log(`[resolveBattleEndOfTurn] Resolving phase: ${phaseKey}`);
+  const currentTurn =
+    state.gameData?.turnData?.turnNumber ??
+    state.gameData?.turnNumber ??
+    1;
+  const priorTurnData = state.gameData?.turnData || {};
+
+  if (priorTurnData.endOfTurnResolutionAppliedTurnNumber === currentTurn) {
+    console.log(
+      `[resolveBattleEndOfTurn] Already applied for turn ${currentTurn}, skipping`
+    );
+    return { state, events: [] };
+  }
 
   // Initialize pendingTurn if not present
   if (!state.gameData.pendingTurn) {
@@ -857,6 +869,10 @@ function resolveBattleEndOfTurn(
     ...victoryResult.state,
     gameData: {
       ...victoryResult.state.gameData,
+      turnData: {
+        ...(victoryResult.state.gameData?.turnData || {}),
+        endOfTurnResolutionAppliedTurnNumber: currentTurn,
+      },
       pendingTurn: {
         damageByPlayerId: {},
         healByPlayerId: {},

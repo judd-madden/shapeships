@@ -477,29 +477,30 @@ export const TURN_TAKEOVER_TIMING_STYLE = {
   '--ss-turn-takeover-wipe-out': `${TURN_TAKEOVER_WIPE_OUT_MS}ms`,
 } as CSSProperties;
 
-export function useLeftRailTurnTakeover(turn: number): TurnTakeoverState {
-  const previousTurnRef = useRef<number | null>(null);
+export function useLeftRailTurnTakeover(args: {
+  turn: number | null;
+  animateKey: number;
+}): TurnTakeoverState {
+  const { turn, animateKey } = args;
+  const previousAnimateKeyRef = useRef<number>(animateKey);
   const [displayedTurn, setDisplayedTurn] = useState<number | null>(null);
   const [runKey, setRunKey] = useState(0);
 
   useEffect(() => {
-    const nextTurn = turn;
-    const previousTurn = previousTurnRef.current;
-
-    if (previousTurn === null) {
-      previousTurnRef.current = nextTurn;
+    if (animateKey <= previousAnimateKeyRef.current) {
+      previousAnimateKeyRef.current = animateKey;
       return;
     }
 
-    previousTurnRef.current = nextTurn;
+    previousAnimateKeyRef.current = animateKey;
 
-    if (nextTurn <= previousTurn) {
+    if (turn === null) {
       return;
     }
 
-    setDisplayedTurn(nextTurn);
+    setDisplayedTurn(turn);
     setRunKey((current) => current + 1);
-  }, [turn]);
+  }, [animateKey, turn]);
 
   function onOverlayAnimationEnd(event: AnimationEvent<HTMLDivElement>) {
     if (event.target !== event.currentTarget) {

@@ -55,7 +55,10 @@ export function LeftRail({
   const battleLogScrollRestoreTimeoutRef = useRef<number | null>(null);
   const firstTurnBuildHelperShowTimeoutRef = useRef<number | null>(null);
   const firstTurnBuildHelperDismissTimeoutRef = useRef<number | null>(null);
-  const turnTakeover = useLeftRailTurnTakeover(vm.turn);
+  const turnTakeover = useLeftRailTurnTakeover({
+    turn: vm.turnTakeoverTurn,
+    animateKey: vm.turnTakeoverAnimateKey,
+  });
 
   function clearBattleLogScrollRestoreTimers() {
     if (battleLogScrollRestoreFrameRef.current !== null) {

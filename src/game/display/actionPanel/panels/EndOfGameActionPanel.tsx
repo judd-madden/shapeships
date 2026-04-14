@@ -4,6 +4,7 @@
  * Displays game result banner and post-game action buttons
  */
 
+import { useEffect, useState } from 'react';
 import { GameMenuButton } from '../../../../components/ui/primitives/buttons/GameMenuButton';
 
 interface EndOfGameActionPanelProps {
@@ -27,8 +28,36 @@ export function EndOfGameActionPanel({
   onRematch,
   onDownloadBattleLog,
 }: EndOfGameActionPanelProps) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    setIsVisible(false);
+
+    let raf1: number | null = null;
+    let raf2: number | null = null;
+
+    raf1 = window.requestAnimationFrame(() => {
+      raf2 = window.requestAnimationFrame(() => {
+        setIsVisible(true);
+      });
+    });
+
+    return () => {
+      if (raf1 !== null) {
+        window.cancelAnimationFrame(raf1);
+      }
+      if (raf2 !== null) {
+        window.cancelAnimationFrame(raf2);
+      }
+    };
+  }, [bannerText, metaLeftText, metaRightText, rematchHelperText]);
+
   return (
-    <div className="flex-row items-center w-full h-[280px]">
+    <div
+      className={`flex-row items-center w-full h-[280px] transition-opacity duration-200 ease-out ${
+        isVisible ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
       {/* Top Banner */}
       <div 
         className="content-stretch flex flex-col font-bold gap-[12px] h-[150px] items-center justify-center px-[20px] py-[27px] rounded-tl-[10px] text-black w-full"
