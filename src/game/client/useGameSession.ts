@@ -354,12 +354,18 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Client-only active panel tracking
   const [activePanelId, setActivePanelId] = useState<ActionPanelId>('ap.catalog.ships.human');
   const [healthResolutionLockActive, setHealthResolutionLockActive] = useState(false);
+  const [leftRailDiceFreezeActive, setLeftRailDiceFreezeActive] = useState(false);
   const [centaurChargeSubTabByPhaseInstanceKey, setCentaurChargeSubTabByPhaseInstanceKey] =
     useState<Record<string, CentaurChargeSubTabId>>({});
   const healthResolutionLockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSeenHealthResolutionSignatureRef = useRef<string | null>(null);
   const lastPresentedHealthResolutionSignatureRef = useRef<string | null>(null);
   const seededHealthResolutionGameIdRef = useRef<string | null>(null);
+  const pendingAuthoritativeLeftRailDiceRef = useRef<{
+    value: 1 | 2 | 3 | 4 | 5 | 6;
+    signature: string;
+  } | null>(null);
+  const lastSeenAuthoritativeLeftRailDiceSignatureRef = useRef<string | null>(null);
 
   function clearHealthResolutionLockTimer(): void {
     if (healthResolutionLockTimerRef.current) {
@@ -449,13 +455,14 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   useEffect(() => {
     clearHealthResolutionLockTimer();
     setHealthResolutionLockActive(false);
-    setPresentedLeftRailDice({
-      value: 1,
-      animateKey: 0,
-    });
+    setLeftRailDiceFreezeActive(false);
+    setPresentedLeftRailDiceValue(1);
+    setPresentedLeftRailDiceAnimateSeq(0);
     lastSeenHealthResolutionSignatureRef.current = null;
     lastPresentedHealthResolutionSignatureRef.current = null;
     seededHealthResolutionGameIdRef.current = null;
+    pendingAuthoritativeLeftRailDiceRef.current = null;
+    lastSeenAuthoritativeLeftRailDiceSignatureRef.current = null;
   }, [effectiveGameId]);
 
   useEffect(() => {
@@ -609,14 +616,9 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   >({});
   
   // Client-only dice roll sequence counter (increments on each DICE_ROLLED event)
-  const [diceRollSeq, setDiceRollSeq] = useState(0);
-  const [presentedLeftRailDice, setPresentedLeftRailDice] = useState<{
-    value: 1 | 2 | 3 | 4 | 5 | 6;
-    animateKey: number;
-  }>({
-    value: 1,
-    animateKey: 0,
-  });
+  const [, setDiceRollSeq] = useState(0);
+  const [presentedLeftRailDiceValue, setPresentedLeftRailDiceValue] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
+  const [presentedLeftRailDiceAnimateSeq, setPresentedLeftRailDiceAnimateSeq] = useState(0);
   
   // ============================================================================
   // EVENT TAPE (Chunk 2: Dev-only plumbing)
@@ -1097,7 +1099,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const phaseIcon: 'build' | 'battle' = majorPhase === 'battle' ? 'battle' : 'build';
   const authoritativeDiceValue = (() => {
     if (typeof rawState?.gameId === 'string' && rawState.gameId !== effectiveGameId) {
-      return presentedLeftRailDice.value;
+      return presentedLeftRailDiceValue;
     }
 
     const raw =
@@ -1113,6 +1115,22 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     }
 
     return num as 1 | 2 | 3 | 4 | 5 | 6;
+  })();
+  const authoritativeMainLeftRailDiceSignature = (() => {
+    if (
+      !effectiveGameId ||
+      (typeof rawState?.gameId === 'string' && rawState.gameId !== effectiveGameId) ||
+      isBootstrapping ||
+      !hasValidPhaseKey
+    ) {
+      return null;
+    }
+
+    return JSON.stringify({
+      gameId: effectiveGameId,
+      turnNumber,
+      diceValue: authoritativeDiceValue,
+    });
   })();
   
   // Determine if we're in species selection phase
@@ -1809,7 +1827,45 @@ useEffect(() => {
       lastPresentedHealthResolutionSignatureRef.current !== healthResolutionSignature
   );
   const shouldPinLeftRailDice =
-    healthResolutionLockActive || isHealthResolutionTriggerPending;
+    leftRailDiceFreezeActive || isHealthResolutionTriggerPending;
+
+  useLayoutEffect(() => {
+    if (!effectiveGameId || !authoritativeMainLeftRailDiceSignature) {
+      return;
+    }
+
+    const nextSnapshot = {
+      value: authoritativeDiceValue,
+      signature: authoritativeMainLeftRailDiceSignature,
+    } as const;
+
+    if (lastSeenAuthoritativeLeftRailDiceSignatureRef.current == null) {
+      lastSeenAuthoritativeLeftRailDiceSignatureRef.current = authoritativeMainLeftRailDiceSignature;
+      pendingAuthoritativeLeftRailDiceRef.current = null;
+      setPresentedLeftRailDiceValue(authoritativeDiceValue);
+      return;
+    }
+
+    if (lastSeenAuthoritativeLeftRailDiceSignatureRef.current === authoritativeMainLeftRailDiceSignature) {
+      return;
+    }
+
+    lastSeenAuthoritativeLeftRailDiceSignatureRef.current = authoritativeMainLeftRailDiceSignature;
+
+    if (shouldPinLeftRailDice) {
+      pendingAuthoritativeLeftRailDiceRef.current = nextSnapshot;
+      return;
+    }
+
+    pendingAuthoritativeLeftRailDiceRef.current = null;
+    setPresentedLeftRailDiceValue(nextSnapshot.value);
+    setPresentedLeftRailDiceAnimateSeq((prev) => prev + 1);
+  }, [
+    authoritativeDiceValue,
+    authoritativeMainLeftRailDiceSignature,
+    effectiveGameId,
+    shouldPinLeftRailDice,
+  ]);
 
   useLayoutEffect(() => {
     if (!effectiveGameId || !healthResolutionSignature) {
@@ -1835,9 +1891,11 @@ useEffect(() => {
 
     lastPresentedHealthResolutionSignatureRef.current = healthResolutionSignature;
     setHealthResolutionLockActive(true);
+    setLeftRailDiceFreezeActive(true);
     clearHealthResolutionLockTimer();
     healthResolutionLockTimerRef.current = setTimeout(() => {
       healthResolutionLockTimerRef.current = null;
+      setLeftRailDiceFreezeActive(false);
       setHealthResolutionLockActive(false);
     }, HEALTH_RESOLUTION_LOCK_MS);
   }, [effectiveGameId, healthResolutionSignature]);
@@ -1847,20 +1905,15 @@ useEffect(() => {
       return;
     }
 
-    setPresentedLeftRailDice((current) => {
-      if (
-        current.value === authoritativeDiceValue &&
-        current.animateKey === diceRollSeq
-      ) {
-        return current;
-      }
+    const pendingSnapshot = pendingAuthoritativeLeftRailDiceRef.current;
+    if (pendingSnapshot == null) {
+      return;
+    }
 
-      return {
-        value: authoritativeDiceValue,
-        animateKey: diceRollSeq,
-      };
-    });
-  }, [authoritativeDiceValue, diceRollSeq, shouldPinLeftRailDice]);
+    pendingAuthoritativeLeftRailDiceRef.current = null;
+    setPresentedLeftRailDiceValue(pendingSnapshot.value);
+    setPresentedLeftRailDiceAnimateSeq((prev) => prev + 1);
+  }, [shouldPinLeftRailDice]);
   
   // ============================================================================
   // SPECIES TAB RULES (A-C: Selection phase vs locked-in phase)
@@ -2472,12 +2525,8 @@ useEffect(() => {
     gameData: rawState?.gameData,
     
     // Left rail dice presentation (client-delayed during health lock)
-  leftRailDiceValue: shouldPinLeftRailDice
-    ? presentedLeftRailDice.value
-    : authoritativeDiceValue,
-  leftRailDiceAnimateKey: shouldPinLeftRailDice
-    ? presentedLeftRailDice.animateKey
-    : diceRollSeq,
+  leftRailDiceValue: presentedLeftRailDiceValue,
+  leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
 
   // Client-only: build preview + Frigate triggers for build.drawing special panels
   buildPreviewCounts: buildPreviewCountsRef.current,
