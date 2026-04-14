@@ -126,16 +126,6 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
     );
   }
 
-  if (vm.activePanelId === 'ap.battle.health_resolution') {
-    return renderWithOverlay(
-      <div className="size-full flex flex-col items-center justify-center">
-        <p className="text-[var(--shapeships-grey-50)] text-[18px]">
-          Health resolution unavailable.
-        </p>
-      </div>
-    );
-  }
-
   // ============================================================================
   // SPECIAL DRAWING PANELS (explicit routing before registry)
   // ============================================================================

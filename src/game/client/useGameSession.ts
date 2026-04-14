@@ -20,7 +20,7 @@
  */
 
 
-import { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { authenticatedGet, authenticatedPost, ensureSession } from '../../utils/sessionManager';
 import type { ActionPanelId } from '../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../components/ui/primitives/buttons/SpeciesCardButton';
@@ -65,6 +65,14 @@ import { useBuildPreviewResetEffect, useAutoRevealBuildEffect } from './gameSess
 import { useFleetOrder } from './gameSession/clienteffects/useFleetOrder';
 import { useFleetAnimTokens } from './gameSession/clienteffects/useFleetAnimTokens';
 import { useUntimedPollingThrottle } from './gameSession/clienteffects/useUntimedPollingThrottle';
+import {
+  buildPhaseHoldSignature,
+  useEndOfTurnPresentation,
+  type ContinueAuthoritativePhaseHoldArgs,
+  type ContinueAuthoritativePhaseHoldOutcome,
+  type EndOfTurnHealthPresentationInput,
+  type EndOfTurnLeftRailInput,
+} from './gameSession/clienteffects/useEndOfTurnPresentation';
 import { useDestroyTargetingRuntime } from './gameSession/destroyTargeting';
 import type {
   AuthoritativeStateApplyMeta,
@@ -86,8 +94,6 @@ import type {
   EvolverChoiceId,
   CentaurChargeSubTabId,
   GameStateRequestMeta,
-  HealthResolutionPresentationVm,
-  HealthResolutionSideVm,
 } from './gameSession/types';
 
 export type {
@@ -252,121 +258,6 @@ function isBattleLogHistoryResponse(value: unknown): value is BattleLogHistoryRe
   });
 }
 
-function buildPhaseHoldSignature(args: {
-  gameId: string;
-  turnNumber: number;
-  phaseKey: string;
-  holdReason: string;
-  holdUntilMs: number;
-}): string {
-  return JSON.stringify(args);
-}
-
-function createHealthResolutionSide(args: {
-  subjectName: string;
-  net: number;
-  useYouCopy: boolean;
-  textAlign: HealthResolutionSideVm['textAlign'];
-}): HealthResolutionSideVm {
-  const { subjectName, net, useYouCopy, textAlign } = args;
-  const subject = useYouCopy ? 'You' : subjectName;
-
-  if (net < 0) {
-    return {
-      prefixText: `${subject} take${useYouCopy ? '' : 's'} `,
-      valueText: String(Math.abs(net)),
-      suffixText: ' damage',
-      valueTone: 'damage',
-      valueWeight: 'black',
-      textAlign,
-    };
-  }
-
-  if (net > 0) {
-    return {
-      prefixText: `${subject} heal${useYouCopy ? '' : 's'} `,
-      valueText: String(net),
-      suffixText: '',
-      valueTone: 'heal',
-      valueWeight: 'black',
-      textAlign,
-    };
-  }
-
-  return {
-    prefixText: `${subject} `,
-    valueText: '\u00B10',
-    suffixText: '',
-    valueTone: 'neutral',
-    valueWeight: 'regular',
-    textAlign,
-  };
-}
-
-function buildHealthResolutionPresentationSnapshot(args: {
-  presentationKey: string;
-  board: BoardViewModel;
-  me: any;
-  opponent: any;
-  allPlayers: any[];
-  gameData: any;
-}): HealthResolutionPresentationVm | null {
-  const { presentationKey, board, me, opponent, allPlayers, gameData } = args;
-
-  if (board.mode !== 'board') {
-    return null;
-  }
-
-  if (me?.role === 'player' && me && opponent) {
-    return {
-      presentationKey,
-      left: createHealthResolutionSide({
-        subjectName: me?.name ?? 'Player 1',
-        net: board.myLastTurnNet,
-        useYouCopy: true,
-        textAlign: 'right',
-      }),
-      right: createHealthResolutionSide({
-        subjectName: opponent?.name ?? 'Player 2',
-        net: board.opponentLastTurnNet,
-        useYouCopy: false,
-        textAlign: 'left',
-      }),
-    };
-  }
-
-  const playerEntries = Array.isArray(allPlayers)
-    ? allPlayers.filter((player: any) => player?.role === 'player')
-    : [];
-
-  if (playerEntries.length < 2) {
-    return null;
-  }
-
-  const lastTurnNetByPlayerId =
-    gameData?.lastTurnNetByPlayerId as Record<string, number> | undefined;
-  const leftPlayer = playerEntries[0];
-  const rightPlayer = playerEntries[1];
-  const leftKey = leftPlayer?.id ?? leftPlayer?.playerId ?? leftPlayer?.sessionId ?? null;
-  const rightKey = rightPlayer?.id ?? rightPlayer?.playerId ?? rightPlayer?.sessionId ?? null;
-
-  return {
-    presentationKey,
-    left: createHealthResolutionSide({
-      subjectName: leftPlayer?.name ?? 'Player 1',
-      net: leftKey ? (lastTurnNetByPlayerId?.[leftKey] ?? 0) : 0,
-      useYouCopy: false,
-      textAlign: 'right',
-    }),
-    right: createHealthResolutionSide({
-      subjectName: rightPlayer?.name ?? 'Player 2',
-      net: rightKey ? (lastTurnNetByPlayerId?.[rightKey] ?? 0) : 0,
-      useYouCopy: false,
-      textAlign: 'left',
-    }),
-  };
-}
-
 export function useGameSession(gameId: string, propsPlayerName: string) {
   // Stop /game-state polling once an authoritative finished payload has been stored.
   const POSTGAME_POLL_MS = 0;
@@ -450,37 +341,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const [activePanelId, setActivePanelId] = useState<ActionPanelId>('ap.catalog.ships.human');
   const [centaurChargeSubTabByPhaseInstanceKey, setCentaurChargeSubTabByPhaseInstanceKey] =
     useState<Record<string, CentaurChargeSubTabId>>({});
-  const phaseHoldContinuationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const phaseHoldContinuationInFlightSignatureRef = useRef<string | null>(null);
-  const phaseHoldContinuationCompletedSignatureRef = useRef<string | null>(null);
-  const healthResolutionOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSeenHealthResolutionOverlayHoldSignatureRef = useRef<string | null>(null);
-  const activeHealthResolutionOverlayPresentationKeyRef = useRef<string | null>(null);
-  const healthResolutionOverlayPresentationSeqRef = useRef(0);
-  const pendingAuthoritativeLeftRailDiceRef = useRef<{
-    value: 1 | 2 | 3 | 4 | 5 | 6;
-    signature: string;
-    turnNumber: number;
-    hasChronoswarmDice: boolean;
-  } | null>(null);
-  const lastSeenAuthoritativeLeftRailDiceSignatureRef = useRef<string | null>(null);
-  const lastPresentedLeftRailReleaseTurnRef = useRef<number | null>(null);
   const lastPresentedBattleRevealTurnRef = useRef<number | null>(null);
   const seededBattleRevealGameIdRef = useRef<string | null>(null);
-
-  function clearPhaseHoldContinuationTimer(): void {
-    if (phaseHoldContinuationTimerRef.current) {
-      clearTimeout(phaseHoldContinuationTimerRef.current);
-      phaseHoldContinuationTimerRef.current = null;
-    }
-  }
-
-  function clearHealthResolutionOverlayTimer(): void {
-    if (healthResolutionOverlayTimerRef.current) {
-      clearTimeout(healthResolutionOverlayTimerRef.current);
-      healthResolutionOverlayTimerRef.current = null;
-    }
-  }
 
   function setResumeSyncLockedState(nextValue: boolean): void {
     resumeSyncLockedRef.current = nextValue;
@@ -561,23 +423,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   }, [rawState]);
 
   useEffect(() => {
-    clearPhaseHoldContinuationTimer();
-    clearHealthResolutionOverlayTimer();
-    setHealthResolutionOverlay(undefined);
-    setPresentedLeftRailDiceValue(1);
-    setPresentedLeftRailDiceAnimateSeq(0);
-    setPresentedTurnTakeoverTurn(null);
-    setPresentedTurnTakeoverSeq(0);
-    setPresentedChronoswarmAnimateSeq(0);
     setPresentedOpponentRevealBlurSeq(0);
-    phaseHoldContinuationInFlightSignatureRef.current = null;
-    phaseHoldContinuationCompletedSignatureRef.current = null;
-    lastSeenHealthResolutionOverlayHoldSignatureRef.current = null;
-    activeHealthResolutionOverlayPresentationKeyRef.current = null;
-    healthResolutionOverlayPresentationSeqRef.current = 0;
-    pendingAuthoritativeLeftRailDiceRef.current = null;
-    lastSeenAuthoritativeLeftRailDiceSignatureRef.current = null;
-    lastPresentedLeftRailReleaseTurnRef.current = null;
     lastPresentedBattleRevealTurnRef.current = null;
     seededBattleRevealGameIdRef.current = null;
   }, [effectiveGameId]);
@@ -587,8 +433,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     isChatAliveRef.current = true;
 
     return () => {
-      clearPhaseHoldContinuationTimer();
-      clearHealthResolutionOverlayTimer();
       isBattleLogHistoryAliveRef.current = false;
       battleLogHistoryRequestSeqRef.current += 1;
       isChatAliveRef.current = false;
@@ -735,13 +579,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Client-only dice roll sequence counter (increments on each DICE_ROLLED event)
   const [, setDiceRollSeq] = useState(0);
-  const [healthResolutionOverlay, setHealthResolutionOverlay] =
-    useState<HealthResolutionPresentationVm | undefined>(undefined);
-  const [presentedLeftRailDiceValue, setPresentedLeftRailDiceValue] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
-  const [presentedLeftRailDiceAnimateSeq, setPresentedLeftRailDiceAnimateSeq] = useState(0);
-  const [presentedTurnTakeoverTurn, setPresentedTurnTakeoverTurn] = useState<number | null>(null);
-  const [presentedTurnTakeoverSeq, setPresentedTurnTakeoverSeq] = useState(0);
-  const [presentedChronoswarmAnimateSeq, setPresentedChronoswarmAnimateSeq] = useState(0);
   const [presentedOpponentRevealBlurSeq, setPresentedOpponentRevealBlurSeq] = useState(0);
   
   // ============================================================================
@@ -1074,99 +911,83 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     return authenticatedPost('/intent', body, timeoutMs);
   }
 
-  async function requestAuthoritativePhaseHoldContinuation(args: {
-    holdSignature: string;
-    holdUntilMs: number;
-    holdTurnNumber: number;
-  }): Promise<void> {
-    const { holdSignature, holdUntilMs, holdTurnNumber } = args;
+  const phaseHoldContinuationRuntimeRef = useRef({
+    effectiveGameId: effectiveGameId as string | null,
+    myRole,
+    submitIntent,
+    refreshGameStateOnce,
+  });
+  phaseHoldContinuationRuntimeRef.current = {
+    effectiveGameId,
+    myRole,
+    submitIntent,
+    refreshGameStateOnce,
+  };
 
-    if (!effectiveGameId || myRole === 'spectator') {
-      return;
-    }
+  const continueAuthoritativePhaseHold = useCallback(
+    async (
+      args: ContinueAuthoritativePhaseHoldArgs
+    ): Promise<ContinueAuthoritativePhaseHoldOutcome> => {
+      const runtime = phaseHoldContinuationRuntimeRef.current;
+      const { holdSignature, holdTurnNumber } = args;
 
-    if (
-      phaseHoldContinuationCompletedSignatureRef.current === holdSignature ||
-      phaseHoldContinuationInFlightSignatureRef.current === holdSignature
-    ) {
-      return;
-    }
-
-    const scheduleRetry = (delayMs: number) => {
-      clearPhaseHoldContinuationTimer();
-      phaseHoldContinuationTimerRef.current = setTimeout(() => {
-        phaseHoldContinuationTimerRef.current = null;
-        void requestAuthoritativePhaseHoldContinuation(args);
-      }, delayMs);
-    };
-
-    phaseHoldContinuationInFlightSignatureRef.current = holdSignature;
-
-    try {
-      const response = await submitIntent({
-        gameId: effectiveGameId,
-        intentType: 'CONTINUE_PHASE_HOLD',
-        turnNumber: holdTurnNumber,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('[useGameSession] CONTINUE_PHASE_HOLD failed:', response.status, errorText);
-        phaseHoldContinuationInFlightSignatureRef.current = null;
-        scheduleRetry(400);
-        await refreshGameStateOnce();
-        return;
+      if (!runtime.effectiveGameId || runtime.myRole === 'spectator') {
+        return 'retry';
       }
 
-      const result = await response.json();
+      try {
+        const response = await runtime.submitIntent({
+          gameId: runtime.effectiveGameId,
+          intentType: 'CONTINUE_PHASE_HOLD',
+          turnNumber: holdTurnNumber,
+        });
 
-      if (!result?.ok) {
-        console.error(
-          '[useGameSession] CONTINUE_PHASE_HOLD rejected:',
-          result?.rejected?.code,
-          result?.rejected?.message
-        );
-        phaseHoldContinuationInFlightSignatureRef.current = null;
-        scheduleRetry(250);
-        await refreshGameStateOnce();
-        return;
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[useGameSession] CONTINUE_PHASE_HOLD failed:', response.status, errorText);
+          await runtime.refreshGameStateOnce();
+          return 'retry';
+        }
+
+        const result = await response.json();
+
+        if (!result?.ok) {
+          console.error(
+            '[useGameSession] CONTINUE_PHASE_HOLD rejected:',
+            result?.rejected?.code,
+            result?.rejected?.message
+          );
+          await runtime.refreshGameStateOnce();
+          return 'retry';
+        }
+
+        const returnedState = result?.state;
+        const returnedPhaseHold = returnedState?.gameData?.turnData?.phaseHold;
+        const returnedHoldSignature =
+          returnedPhaseHold &&
+          typeof returnedPhaseHold === 'object' &&
+          returnedPhaseHold.phaseKey === 'battle.end_of_turn_resolution' &&
+          returnedPhaseHold.holdReason === 'end_of_turn_health' &&
+          typeof returnedPhaseHold.holdUntilMs === 'number'
+            ? buildPhaseHoldSignature({
+                gameId: runtime.effectiveGameId,
+                turnNumber: getTurnNumber(returnedState),
+                phaseKey: returnedPhaseHold.phaseKey,
+                holdReason: returnedPhaseHold.holdReason,
+                holdUntilMs: returnedPhaseHold.holdUntilMs,
+              })
+            : null;
+
+        await runtime.refreshGameStateOnce();
+        return returnedHoldSignature === holdSignature ? 'still_holding' : 'released';
+      } catch (err: any) {
+        console.error('[useGameSession] CONTINUE_PHASE_HOLD error:', err.message);
+        await runtime.refreshGameStateOnce();
+        return 'retry';
       }
-
-      const returnedState = result?.state;
-      const returnedPhaseHold = returnedState?.gameData?.turnData?.phaseHold;
-      const returnedHoldSignature =
-        returnedPhaseHold &&
-        typeof returnedPhaseHold === 'object' &&
-        returnedPhaseHold.phaseKey === 'battle.end_of_turn_resolution' &&
-        returnedPhaseHold.holdReason === 'end_of_turn_health' &&
-        typeof returnedPhaseHold.holdUntilMs === 'number' &&
-        effectiveGameId
-          ? buildPhaseHoldSignature({
-              gameId: effectiveGameId,
-              turnNumber: getTurnNumber(returnedState),
-              phaseKey: returnedPhaseHold.phaseKey,
-              holdReason: returnedPhaseHold.holdReason,
-              holdUntilMs: returnedPhaseHold.holdUntilMs,
-            })
-          : null;
-
-      if (returnedHoldSignature === holdSignature) {
-        phaseHoldContinuationInFlightSignatureRef.current = null;
-        scheduleRetry(Math.max(150, holdUntilMs - Date.now() + 50));
-        await refreshGameStateOnce();
-        return;
-      }
-
-      phaseHoldContinuationCompletedSignatureRef.current = holdSignature;
-      phaseHoldContinuationInFlightSignatureRef.current = null;
-      await refreshGameStateOnce();
-    } catch (err: any) {
-      console.error('[useGameSession] CONTINUE_PHASE_HOLD error:', err.message);
-      phaseHoldContinuationInFlightSignatureRef.current = null;
-      scheduleRetry(400);
-      await refreshGameStateOnce();
-    }
-  }
+    },
+    []
+  );
 
   function getLatestIntentContext() {
     const latestRawState = rawStateRef.current;
@@ -1315,9 +1136,11 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   // Determine major phase for icon
   const majorPhase = phaseKey.split('.')[0] || 'build';
   const phaseIcon: 'build' | 'battle' = majorPhase === 'battle' ? 'battle' : 'build';
+  const hasMatchingAuthoritativeGameId =
+    typeof rawState?.gameId !== 'string' || rawState.gameId === effectiveGameId;
   const authoritativeDiceValue = (() => {
-    if (typeof rawState?.gameId === 'string' && rawState.gameId !== effectiveGameId) {
-      return presentedLeftRailDiceValue;
+    if (!hasMatchingAuthoritativeGameId) {
+      return 1 as const;
     }
 
     const raw =
@@ -1337,7 +1160,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const authoritativeMainLeftRailDiceSignature = (() => {
     if (
       !effectiveGameId ||
-      (typeof rawState?.gameId === 'string' && rawState.gameId !== effectiveGameId) ||
+      !hasMatchingAuthoritativeGameId ||
       isBootstrapping ||
       !hasValidPhaseKey
     ) {
@@ -1350,12 +1173,12 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       diceValue: authoritativeDiceValue,
     });
   })();
-  const authoritativeChronoswarmRolls = Array.isArray(rawState?.gameData?.turnData?.chronoswarmRolls)
-    ? rawState.gameData.turnData.chronoswarmRolls.filter(
-        (roll: unknown): roll is 1 | 2 | 3 | 4 | 5 | 6 =>
+  const hasAuthoritativeChronoswarmDice = Array.isArray(rawState?.gameData?.turnData?.chronoswarmRolls)
+    ? rawState.gameData.turnData.chronoswarmRolls.some(
+        (roll: unknown) =>
           typeof roll === 'number' && Number.isInteger(roll) && roll >= 1 && roll <= 6
       )
-    : [];
+    : false;
   
   // Determine if we're in species selection phase
   const isInSpeciesSelection = phaseKey === 'setup.species_selection';
@@ -1984,238 +1807,100 @@ useEffect(() => {
     };
   }
 
-  const authoritativePhaseHold = (() => {
-    const rawPhaseHold = rawState?.gameData?.turnData?.phaseHold;
-
-    if (
-      !effectiveGameId ||
-      (typeof rawState?.gameId === 'string' && rawState.gameId !== effectiveGameId) ||
-      isBootstrapping ||
-      isInSpeciesSelection ||
-      board.mode !== 'board' ||
-      !rawPhaseHold ||
-      typeof rawPhaseHold !== 'object'
-    ) {
-      return null;
-    }
-
-    if (
-      rawPhaseHold.phaseKey !== 'battle.end_of_turn_resolution' ||
-      rawPhaseHold.holdReason !== 'end_of_turn_health' ||
-      phaseKey !== 'battle.end_of_turn_resolution' ||
-      typeof rawPhaseHold.holdUntilMs !== 'number'
-    ) {
-      return null;
-    }
-
-    return {
-      phaseKey: rawPhaseHold.phaseKey,
-      holdReason: rawPhaseHold.holdReason,
-      holdUntilMs: rawPhaseHold.holdUntilMs,
-      turnNumber,
-      signature: buildPhaseHoldSignature({
-        gameId: effectiveGameId,
-        turnNumber,
-        phaseKey: rawPhaseHold.phaseKey,
-        holdReason: rawPhaseHold.holdReason,
-        holdUntilMs: rawPhaseHold.holdUntilMs,
-      }),
-    };
-  })();
-  const healthResolutionLockActive = authoritativePhaseHold != null;
-  const shouldPinLeftRailDice = healthResolutionLockActive;
-
-  useEffect(() => {
-    if (!authoritativePhaseHold) {
-      return;
-    }
-
-    const holdSignature = authoritativePhaseHold.signature;
-    if (lastSeenHealthResolutionOverlayHoldSignatureRef.current === holdSignature) {
-      return;
-    }
-
-    healthResolutionOverlayPresentationSeqRef.current += 1;
-    const presentationKey =
-      `${effectiveGameId ?? 'nogame'}::health::${turnNumber}::${healthResolutionOverlayPresentationSeqRef.current}`;
-    const nextOverlay = buildHealthResolutionPresentationSnapshot({
-      presentationKey,
-      board,
-      me,
-      opponent,
-      allPlayers,
-      gameData: rawState?.gameData,
-    });
-
-    if (nextOverlay == null) {
-      return;
-    }
-
-    lastSeenHealthResolutionOverlayHoldSignatureRef.current = holdSignature;
-    activeHealthResolutionOverlayPresentationKeyRef.current = presentationKey;
-    setHealthResolutionOverlay(nextOverlay);
-    clearHealthResolutionOverlayTimer();
-    healthResolutionOverlayTimerRef.current = setTimeout(() => {
-      healthResolutionOverlayTimerRef.current = null;
-
-      if (activeHealthResolutionOverlayPresentationKeyRef.current !== presentationKey) {
-        return;
-      }
-
-      activeHealthResolutionOverlayPresentationKeyRef.current = null;
-      setHealthResolutionOverlay(undefined);
-    }, 3000);
-  }, [
-    allPlayers,
-    authoritativePhaseHold,
-    board,
+  const rawPhaseHold = rawState?.gameData?.turnData?.phaseHold;
+  const authoritativeHoldPhaseKey =
+    rawPhaseHold && typeof rawPhaseHold === 'object' && typeof rawPhaseHold.phaseKey === 'string'
+      ? rawPhaseHold.phaseKey
+      : null;
+  const authoritativeHoldReason =
+    rawPhaseHold && typeof rawPhaseHold === 'object' && typeof rawPhaseHold.holdReason === 'string'
+      ? rawPhaseHold.holdReason
+      : null;
+  const authoritativeHoldUntilMs =
+    rawPhaseHold && typeof rawPhaseHold === 'object' && typeof rawPhaseHold.holdUntilMs === 'number'
+      ? rawPhaseHold.holdUntilMs
+      : null;
+  const healthResolutionPlayerEntries = Array.isArray(allPlayers)
+    ? allPlayers.filter((player: any) => player?.role === 'player')
+    : [];
+  const spectatorLeftPlayer = healthResolutionPlayerEntries[0];
+  const spectatorRightPlayer = healthResolutionPlayerEntries[1];
+  const lastTurnNetByPlayerId =
+    rawState?.gameData?.lastTurnNetByPlayerId as Record<string, number> | undefined;
+  const spectatorLeftIdentityKey =
+    spectatorLeftPlayer?.id ?? spectatorLeftPlayer?.playerId ?? spectatorLeftPlayer?.sessionId ?? null;
+  const spectatorRightIdentityKey =
+    spectatorRightPlayer?.id ?? spectatorRightPlayer?.playerId ?? spectatorRightPlayer?.sessionId ?? null;
+  const spectatorLeftName = spectatorLeftPlayer?.name ?? 'Player 1';
+  const spectatorRightName = spectatorRightPlayer?.name ?? 'Player 2';
+  const spectatorLeftNet =
+    spectatorLeftIdentityKey != null ? (lastTurnNetByPlayerId?.[spectatorLeftIdentityKey] ?? 0) : 0;
+  const spectatorRightNet =
+    spectatorRightIdentityKey != null ? (lastTurnNetByPlayerId?.[spectatorRightIdentityKey] ?? 0) : 0;
+  const healthResolutionMyLastTurnNet = board.mode === 'board' ? board.myLastTurnNet : 0;
+  const healthResolutionOpponentLastTurnNet = board.mode === 'board' ? board.opponentLastTurnNet : 0;
+  const spectatorHasTwoPlayers = healthResolutionPlayerEntries.length >= 2;
+  const endOfTurnHealthPresentationInput = useMemo<EndOfTurnHealthPresentationInput>(
+    () => ({
+      boardMode: board.mode,
+      viewerRole: myRole,
+      meName: me?.name ?? 'Player 1',
+      opponentName: opponent?.name ?? 'Player 2',
+      myLastTurnNet: healthResolutionMyLastTurnNet,
+      opponentLastTurnNet: healthResolutionOpponentLastTurnNet,
+      spectatorHasTwoPlayers,
+      spectatorLeftName,
+      spectatorRightName,
+      spectatorLeftNet,
+      spectatorRightNet,
+    }),
+    [
+      board.mode,
+      myRole,
+      me?.name,
+      opponent?.name,
+      healthResolutionMyLastTurnNet,
+      healthResolutionOpponentLastTurnNet,
+      spectatorHasTwoPlayers,
+      spectatorLeftName,
+      spectatorRightName,
+      spectatorLeftNet,
+      spectatorRightNet,
+    ]
+  );
+  const endOfTurnLeftRailInput = useMemo<EndOfTurnLeftRailInput>(
+    () => ({
+      authoritativeDiceValue,
+      authoritativeDiceSignature: authoritativeMainLeftRailDiceSignature,
+      hasChronoswarmDice: hasAuthoritativeChronoswarmDice,
+    }),
+    [
+      authoritativeDiceValue,
+      authoritativeMainLeftRailDiceSignature,
+      hasAuthoritativeChronoswarmDice,
+    ]
+  );
+  const {
+    healthResolutionLockActive,
+    healthResolutionOverlay,
+    leftRailDiceValue: presentedLeftRailDiceValue,
+    leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
+    leftRailTurnTakeoverTurn: presentedTurnTakeoverTurn,
+    leftRailTurnTakeoverAnimateKey: presentedTurnTakeoverSeq,
+    leftRailChronoswarmAnimateKey: presentedChronoswarmAnimateSeq,
+  } = useEndOfTurnPresentation({
     effectiveGameId,
-    me,
-    opponent,
-    rawState?.gameData,
+    hasMatchingAuthoritativeGameId,
+    phaseKey,
     turnNumber,
-  ]);
-
-  function releasePresentedLeftRailTurn(args: {
-    value: 1 | 2 | 3 | 4 | 5 | 6;
-    turnNumber: number;
-    hasChronoswarmDice: boolean;
-    animateMainDie: boolean;
-  }): void {
-    const { value, turnNumber: nextTurnNumber, hasChronoswarmDice, animateMainDie } = args;
-
-    setPresentedLeftRailDiceValue(value);
-
-    if (!animateMainDie) {
-      lastPresentedLeftRailReleaseTurnRef.current = nextTurnNumber;
-      return;
-    }
-
-    setPresentedLeftRailDiceAnimateSeq((prev) => prev + 1);
-
-    const previousPresentedTurn = lastPresentedLeftRailReleaseTurnRef.current;
-    const isNewPresentedTurn =
-      previousPresentedTurn == null || nextTurnNumber > previousPresentedTurn;
-
-    lastPresentedLeftRailReleaseTurnRef.current = nextTurnNumber;
-
-    if (!isNewPresentedTurn) {
-      return;
-    }
-
-    setPresentedTurnTakeoverTurn(nextTurnNumber);
-    setPresentedTurnTakeoverSeq((prev) => prev + 1);
-
-    if (hasChronoswarmDice) {
-      setPresentedChronoswarmAnimateSeq((prev) => prev + 1);
-    }
-  }
-
-  useLayoutEffect(() => {
-    if (!effectiveGameId || !authoritativeMainLeftRailDiceSignature) {
-      return;
-    }
-
-    const nextSnapshot = {
-      value: authoritativeDiceValue,
-      signature: authoritativeMainLeftRailDiceSignature,
-      turnNumber,
-      hasChronoswarmDice: authoritativeChronoswarmRolls.length > 0,
-    } as const;
-
-    if (lastSeenAuthoritativeLeftRailDiceSignatureRef.current == null) {
-      lastSeenAuthoritativeLeftRailDiceSignatureRef.current = authoritativeMainLeftRailDiceSignature;
-      pendingAuthoritativeLeftRailDiceRef.current = null;
-      releasePresentedLeftRailTurn({
-        value: authoritativeDiceValue,
-        turnNumber,
-        hasChronoswarmDice: authoritativeChronoswarmRolls.length > 0,
-        animateMainDie: false,
-      });
-      return;
-    }
-
-    if (lastSeenAuthoritativeLeftRailDiceSignatureRef.current === authoritativeMainLeftRailDiceSignature) {
-      return;
-    }
-
-    lastSeenAuthoritativeLeftRailDiceSignatureRef.current = authoritativeMainLeftRailDiceSignature;
-
-    if (shouldPinLeftRailDice) {
-      pendingAuthoritativeLeftRailDiceRef.current = nextSnapshot;
-      return;
-    }
-
-    pendingAuthoritativeLeftRailDiceRef.current = null;
-    releasePresentedLeftRailTurn({
-      value: nextSnapshot.value,
-      turnNumber: nextSnapshot.turnNumber,
-      hasChronoswarmDice: nextSnapshot.hasChronoswarmDice,
-      animateMainDie: true,
-    });
-  }, [
-    authoritativeDiceValue,
-    authoritativeChronoswarmRolls,
-    authoritativeMainLeftRailDiceSignature,
-    effectiveGameId,
-    shouldPinLeftRailDice,
-    turnNumber,
-  ]);
-
-  useLayoutEffect(() => {
-    if (shouldPinLeftRailDice) {
-      return;
-    }
-
-    const pendingSnapshot = pendingAuthoritativeLeftRailDiceRef.current;
-    if (pendingSnapshot == null) {
-      return;
-    }
-
-    pendingAuthoritativeLeftRailDiceRef.current = null;
-    releasePresentedLeftRailTurn({
-      value: pendingSnapshot.value,
-      turnNumber: pendingSnapshot.turnNumber,
-      hasChronoswarmDice: pendingSnapshot.hasChronoswarmDice,
-      animateMainDie: true,
-    });
-  }, [shouldPinLeftRailDice]);
-
-  useEffect(() => {
-    clearPhaseHoldContinuationTimer();
-
-    if (!authoritativePhaseHold || !effectiveGameId || myRole === 'spectator') {
-      return;
-    }
-
-    const holdSignature = authoritativePhaseHold.signature;
-    if (
-      phaseHoldContinuationCompletedSignatureRef.current === holdSignature ||
-      phaseHoldContinuationInFlightSignatureRef.current === holdSignature
-    ) {
-      return;
-    }
-
-    const delayMs = Math.max(0, authoritativePhaseHold.holdUntilMs - Date.now() + 50);
-    phaseHoldContinuationTimerRef.current = setTimeout(() => {
-      phaseHoldContinuationTimerRef.current = null;
-      void requestAuthoritativePhaseHoldContinuation({
-        holdSignature,
-        holdUntilMs: authoritativePhaseHold.holdUntilMs,
-        holdTurnNumber: authoritativePhaseHold.turnNumber,
-      });
-    }, delayMs);
-
-    return () => {
-      clearPhaseHoldContinuationTimer();
-    };
-  }, [
-    authoritativePhaseHold?.holdUntilMs,
-    authoritativePhaseHold?.signature,
-    authoritativePhaseHold?.turnNumber,
-    effectiveGameId,
-    myRole,
-  ]);
+    isBootstrapping,
+    authoritativeHoldPhaseKey,
+    authoritativeHoldReason,
+    authoritativeHoldUntilMs,
+    healthPresentation: endOfTurnHealthPresentationInput,
+    leftRail: endOfTurnLeftRailInput,
+    continueAuthoritativePhaseHold,
+  });
 
   useLayoutEffect(() => {
     if (

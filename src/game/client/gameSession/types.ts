@@ -384,7 +384,6 @@ export interface HealthResolutionSideVm {
   suffixText: string;
   valueTone: HealthResolutionValueTone;
   valueWeight: 'regular' | 'black';
-  textAlign: 'left' | 'right';
 }
 
 export interface HealthResolutionPresentationVm {
