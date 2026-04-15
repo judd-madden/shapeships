@@ -24,6 +24,7 @@ export interface AutoPanelRoutingInput {
   actionsTargetPanelId: ActionPanelId | null;
   activePanelId: ActionPanelId;
   mySpecies: SpeciesId | null;
+  selectedSpecies: SpeciesId | null;
   buildDrawingRouteRequest: BuildDrawingRouteRequest;
 }
 
@@ -240,13 +241,14 @@ export function isRenderableTargetedActionComplete(args: {
 
 
 /**
- * Mirrors the 3 routing effects that previously lived inline in useGameSession.ts.
+ * Mirrors the routing effects that previously lived inline in useGameSession.ts.
  * We keep the decisions separated by returning a single highest-priority action.
  *
  * Priority:
- * 1) Force self catalogue during build.drawing
- * 2) Auto-select Actions tab when it becomes available (except during build.drawing)
- * 3) Fallback to self catalogue when no actions are available
+ * 1) Force the selected-species catalogue during setup.species_selection
+ * 2) Force self catalogue during build.drawing
+ * 3) Auto-select Actions tab when it becomes available (except during build.drawing)
+ * 4) Fallback to idle blank when no actions are available outside species selection
  */
 export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelRoutingDecision {
   const {
@@ -255,12 +257,27 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
     actionsTargetPanelId,
     activePanelId,
     mySpecies,
+    selectedSpecies,
     buildDrawingRouteRequest,
   } = input;
 
   const selfCatalogue = speciesToCataloguePanelId(mySpecies ?? 'human');
+  const selectedSpeciesCatalogue = speciesToCataloguePanelId(selectedSpecies ?? 'human');
 
-  // 1) FORCE SELF CATALOGUE DURING BUILD.DRAWING
+  // 1) FORCE SELECTED-SPECIES CATALOGUE DURING SETUP.SPECIES_SELECTION
+  if (phaseKey === 'setup.species_selection') {
+    if (activePanelId === 'ap.menu.root') return { kind: 'none' };
+    if (activePanelId !== selectedSpeciesCatalogue) {
+      return {
+        kind: 'setActivePanelId',
+        nextPanelId: selectedSpeciesCatalogue,
+        log: `[useGameSession] setup.species_selection: forcing selected-species catalogue panel: ${selectedSpeciesCatalogue}`,
+      };
+    }
+    return { kind: 'none' };
+  }
+
+  // 2) FORCE SELF CATALOGUE DURING BUILD.DRAWING
   // Default panel should be self catalogue, BUT do not override explicit user navigation
   // to Menu (and to Actions if it’s available/visible in this phase).
   if (phaseKey === 'build.drawing') {
@@ -308,7 +325,7 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
   }
 
 
-  // 2) DEFAULT TO ACTIONS ON PHASE ENTRY (if available)
+  // 3) DEFAULT TO ACTIONS ON PHASE ENTRY (if available)
   // Only applies on phase transition (caller controls effect trigger).
   if (hasActionsAvailable && actionsTargetPanelId) {
     // Respect Menu — do not auto-route away from Menu
@@ -323,14 +340,14 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
     };
   }
 
-  // 3) FALLBACK TO SELF CATALOGUE WHEN NO ACTIONS AVAILABLE
+  // 4) FALLBACK TO IDLE BLANK WHEN NO ACTIONS AVAILABLE
   if (!hasActionsAvailable) {
-    if (isCataloguePanel(activePanelId)) return { kind: 'none' };
+    if (activePanelId === 'ap.idle.blank') return { kind: 'none' };
     if (activePanelId === 'ap.menu.root') return { kind: 'none' };
     return {
       kind: 'setActivePanelId',
-      nextPanelId: selfCatalogue,
-      log: `[useGameSession] No actions available: falling back to self catalogue: ${selfCatalogue}`,
+      nextPanelId: 'ap.idle.blank',
+      log: '[useGameSession] No actions available: falling back to idle blank panel: ap.idle.blank',
     };
   }
 

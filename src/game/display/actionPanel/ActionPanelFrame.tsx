@@ -100,6 +100,10 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
     );
   }
 
+  if (vm.activePanelId === 'ap.idle.blank') {
+    return renderWithOverlay(<div className="size-full" />);
+  }
+
   if (vm.activePanelId === 'ap.end_of_game.result') {
     // Task 2: Safe fallback if endOfGame is missing
     const endOfGame = vm.endOfGame ?? {

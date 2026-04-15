@@ -453,6 +453,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const prevFrigateDemandCountRef = useRef(0);
   const prevEvolverRowIdsRef = useRef<Set<string>>(new Set());
   const finishedRedirectHandledGameIdRef = useRef<string | null>(null);
+  const lastSpeciesSelectionEntryKeyRef = useRef<string | null>(null);
 
   
   // Choose species state (client-only for now)
@@ -1190,6 +1191,16 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Determine if we're in species selection phase
   const isInSpeciesSelection = phaseKey === 'setup.species_selection';
+
+  useEffect(() => {
+    if (!isInSpeciesSelection) return;
+
+    const speciesSelectionEntryKey = `${effectiveGameId ?? 'nogame'}::${phaseInstanceKey}`;
+    if (lastSpeciesSelectionEntryKeyRef.current === speciesSelectionEntryKey) return;
+
+    lastSpeciesSelectionEntryKeyRef.current = speciesSelectionEntryKey;
+    setSelectedSpecies('human');
+  }, [effectiveGameId, isInSpeciesSelection, phaseInstanceKey]);
   
   // Helper: normalize species from server data
   function normalizeSpecies(serverValue: string | null | undefined): SpeciesId | null {
@@ -2513,6 +2524,7 @@ useEffect(() => {
       actionsTargetPanelId,
       activePanelId,
       mySpecies,
+      selectedSpecies,
       buildDrawingRouteRequest,
     });
 
@@ -2526,11 +2538,11 @@ useEffect(() => {
     }
 
     // IMPORTANT:
-    // This effect intentionally depends only on phase changes, finish state,
-    // and the durable build.drawing request token.
+    // This effect intentionally depends only on phase/selection entry signals,
+    // finish state, and the durable build.drawing request token.
     // We do not depend on activePanelId or hasActionsAvailable,
     // otherwise polling would re-trigger routing.
-  }, [phaseKey, buildDrawingRouteRequest, isFinished]);
+  }, [phaseKey, selectedSpecies, buildDrawingRouteRequest, isFinished]);
 
   
   // Display-only interpolation helper
