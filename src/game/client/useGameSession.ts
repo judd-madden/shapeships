@@ -77,6 +77,7 @@ import {
 } from './gameSession/clienteffects/useEndOfTurnPresentation';
 import { useDestroyTargetingRuntime } from './gameSession/destroyTargeting';
 import type {
+  AcceptedFullStateFingerprint,
   AuthoritativeStateApplyMeta,
   HudStatusTone,
   HudViewModel,
@@ -95,6 +96,7 @@ import type {
   GameSessionActions,
   EvolverChoiceId,
   CentaurChargeSubTabId,
+  GameStateClockSnapshot,
   GameStateRequestMeta,
 } from './gameSession/types';
 
@@ -260,6 +262,27 @@ function isBattleLogHistoryResponse(value: unknown): value is BattleLogHistoryRe
   });
 }
 
+function getAuthoritativeStateRevision(state: any): number {
+  const stateRevision = state?.stateRevision;
+  return Number.isInteger(stateRevision) && stateRevision > 0
+    ? stateRevision
+    : 1;
+}
+
+function extractAcceptedFullStateFingerprint(state: any): AcceptedFullStateFingerprint {
+  return {
+    stateRevision: getAuthoritativeStateRevision(state),
+    status:
+      typeof state?.status === 'string'
+        ? state.status
+        : typeof state?.gameData?.status === 'string'
+          ? state.gameData.status
+          : 'unknown',
+    turnNumber: getTurnNumber(state),
+    phaseKey: getPhaseKey(state),
+  };
+}
+
 export function useGameSession(gameId: string, propsPlayerName: string) {
   // Stop /game-state polling once an authoritative finished payload has been stored.
   const POSTGAME_POLL_MS = 0;
@@ -322,6 +345,9 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const latestStartedGameStateRequestSeqRef = useRef(0);
   const latestAppliedGameStateRequestSeqRef = useRef(0);
   const lastImmediateRetrySourceRequestSeqRef = useRef<number | null>(null);
+  const activeGameStateRequestSeqsRef = useRef<Set<number>>(new Set());
+  const lastAcceptedFullFingerprintRef = useRef<AcceptedFullStateFingerprint | null>(null);
+  const lastAcceptedFullSyncAtMsRef = useRef(0);
   
   // Chat state (separate from game state)
   const [chatEntries, setChatEntries] = useState<GameSessionChatEntry[]>([]);
@@ -353,12 +379,17 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
 
   function beginGameStateRequest(options?: { unlockEligible?: boolean }): GameStateRequestMeta {
     latestStartedGameStateRequestSeqRef.current += 1;
+    activeGameStateRequestSeqsRef.current.add(latestStartedGameStateRequestSeqRef.current);
 
     return {
       requestSeq: latestStartedGameStateRequestSeqRef.current,
       unlockEligible: options?.unlockEligible === true,
     };
   }
+
+  const finishGameStateRequest = useCallback((requestSeq: number): void => {
+    activeGameStateRequestSeqsRef.current.delete(requestSeq);
+  }, []);
 
   function shouldRetryGameStateRequestImmediately(requestMeta: GameStateRequestMeta): boolean {
     if (!resumeSyncLockedRef.current || requestMeta.unlockEligible !== true) {
@@ -416,6 +447,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     }
 
     rawStateRef.current = nextState;
+    lastAcceptedFullFingerprintRef.current = extractAcceptedFullStateFingerprint(nextState);
+    lastAcceptedFullSyncAtMsRef.current = Date.now();
     setRawState(nextState);
     return true;
   }
@@ -479,6 +512,35 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   
   // Tick driver for smooth clock display (forces rerenders)
   const [clockTick, setClockTick] = useState(0);
+
+  const applyHeadClockSnapshot = useCallback((clockSnapshot: GameStateClockSnapshot | null): void => {
+    if (!clockSnapshot) {
+      return;
+    }
+
+    lastClockRef.current = clockSnapshot;
+    setClockTick((tick) => tick + 1);
+  }, []);
+
+  const getLastAcceptedFullFingerprint = useCallback(
+    (): AcceptedFullStateFingerprint | null => lastAcceptedFullFingerprintRef.current,
+    [],
+  );
+
+  const getLastAcceptedFullSyncAtMs = useCallback(
+    (): number => lastAcceptedFullSyncAtMsRef.current,
+    [],
+  );
+
+  const hasAcceptedFullGameState = useCallback(
+    (): boolean => lastAcceptedFullFingerprintRef.current != null,
+    [],
+  );
+
+  const isGameStateRequestInFlight = useCallback(
+    (): boolean => activeGameStateRequestSeqsRef.current.size > 0,
+    [],
+  );
   
   // ============================================================================
   // CHUNK 6: LOCAL BUILD PREVIEW BUFFER (NON-AUTHORITATIVE)
@@ -683,6 +745,9 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     latestStartedGameStateRequestSeqRef.current = 0;
     latestAppliedGameStateRequestSeqRef.current = 0;
     lastImmediateRetrySourceRequestSeqRef.current = null;
+    activeGameStateRequestSeqsRef.current.clear();
+    lastAcceptedFullFingerprintRef.current = null;
+    lastAcceptedFullSyncAtMsRef.current = 0;
   }, [effectiveGameId]);
 
   useEffect(() => {
@@ -714,9 +779,15 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     hasJoinedCurrentGame,
     authenticatedGet,
     beginGameStateRequest,
+    finishGameStateRequest,
     applyAuthoritativeRawState,
     shouldRetryGameStateRequestImmediately,
     isResumeSyncLocked: () => resumeSyncLockedRef.current,
+    hasAcceptedFullGameState,
+    getLastAcceptedFullFingerprint,
+    getLastAcceptedFullSyncAtMs,
+    isGameStateRequestInFlight,
+    applyHeadClockSnapshot,
     setLoading,
     setError,
     isFinished,
@@ -910,6 +981,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
           allowImmediateRetry: false,
         });
       }
+    } finally {
+      finishGameStateRequest(requestMeta.requestSeq);
     }
   }
   

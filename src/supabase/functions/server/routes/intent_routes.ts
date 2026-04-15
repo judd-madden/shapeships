@@ -28,6 +28,7 @@ import {
   selectBattleLogFinalizeTurnEvent,
 } from '../engine/state/battleLogHistory.ts';
 import { appendChatEntry, type ChatStore } from './chat_kv.ts';
+import { ensureStateRevision, withBumpedStateRevision } from './state_revision.ts';
 
 async function persistGameStateAndHistoryTogether(
   supabase: any,
@@ -361,6 +362,7 @@ export function registerIntentRoutes(
           404
         );
       }
+      baseState = ensureStateRevision(baseState);
 
       // 2) Apply against snapshot (no clock accrue here; clocks accrue on latestState only)
       const baseStateBeforeInitialApply = structuredClone(baseState);
@@ -382,6 +384,7 @@ export function registerIntentRoutes(
       // 3) Reload latest to avoid overwriting concurrent writer
       let latestState = await kvGet(gameKey);
       if (!latestState) latestState = result.state;
+      latestState = ensureStateRevision(latestState);
 
       // Accrue clocks on latest using SAME nowMs (deterministic for this request)
       const prevStatus = latestState?.status;
@@ -401,7 +404,7 @@ export function registerIntentRoutes(
         // TERMINAL DETECTION: Emit GAME_OVER if terminal transition occurred
         // ========================================================================
         
-        const finalState = botRunResult.state;
+        const finalState = withBumpedStateRevision(botRunResult.state);
         const nextStatus = finalState?.status;
         const terminalOccurred = prevStatus !== 'finished' && nextStatus === 'finished';
         const allEvents = [...retry.events, ...botRunResult.events];
@@ -548,7 +551,7 @@ export function registerIntentRoutes(
         const livePreviousStateSummary = summarizeBattleLogDebugState(baseState);
         const battleLogProcessingResult = await prepareBattleLogPersistenceFromEvents({
           gameId: intentRequest.gameId,
-          nextState: latestState,
+          nextState: ensureStateRevision(latestState),
           events: result.events,
           kvGet,
         });

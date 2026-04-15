@@ -36,6 +36,7 @@ import {
   toBattleLogHistoryResponse,
 } from '../engine/state/battleLogHistory.ts';
 import { appendChatEntry } from './chat_kv.ts';
+import { ensureStateRevision, withBumpedStateRevision } from './state_revision.ts';
 
 const INITIAL_SAVED_LINES = 3;
 
@@ -162,7 +163,8 @@ function createFreshGameData(
       }
     ],
     status: "waiting",
-    createdAt: nowIso
+    createdAt: nowIso,
+    stateRevision: 1,
   };
 
   gameData = initializeClocks(gameData, timeControl);
@@ -264,6 +266,7 @@ function createFreshComputerGameData(
     ],
     status: "active",
     createdAt: nowIso,
+    stateRevision: 1,
   };
 
   gameData = initializeClocks(gameData, timeControl);
@@ -951,6 +954,46 @@ function applyGameStateMaintenance(state: any, nowMs: number): any {
   return s;
 }
 
+function doesStateNeedPhaseSync(state: any): boolean {
+  const gameData = state?.gameData ?? {};
+  const turnData = gameData?.turnData ?? {};
+  const major =
+    gameData.currentPhase ??
+    turnData.currentMajorPhase ??
+    state?.currentPhase;
+  const sub =
+    gameData.currentSubPhase ??
+    turnData.currentSubPhase ??
+    state?.currentSubPhase;
+
+  if (!major || !sub) {
+    return false;
+  }
+
+  return (
+    state?.currentPhase !== major ||
+    state?.currentSubPhase !== sub ||
+    gameData.currentPhase !== major ||
+    gameData.currentSubPhase !== sub ||
+    turnData.currentMajorPhase !== major ||
+    turnData.currentSubPhase !== sub
+  );
+}
+
+type PreparedGameStateRead =
+  | {
+      ok: true;
+      maintainedState: any;
+      nowMs: number;
+      terminalOccurred: boolean;
+      requestingPlayerId: string;
+      participant: any;
+    }
+  | {
+      ok: false;
+      error: 'not_found' | 'forbidden';
+    };
+
 export function registerGameRoutes(
   app: Hono,
   kvGet: (key: string) => Promise<any>,
@@ -958,6 +1001,46 @@ export function registerGameRoutes(
   requireSession: (c: any) => Promise<any>,
   generateGameId: () => string
 ) {
+  async function prepareGameStateRead(
+    gameId: string,
+    requestingPlayerId: string,
+  ): Promise<PreparedGameStateRead> {
+    const storedState = await kvGet(`game_${gameId}`);
+
+    if (!storedState) {
+      return { ok: false, error: 'not_found' };
+    }
+
+    const nowMs = Date.now();
+    const prevStatus = storedState?.status;
+    let maintainedState = applyGameStateMaintenance(
+      ensureStateRevision(storedState),
+      nowMs,
+    );
+    const nextStatus = maintainedState?.status;
+    const terminalOccurred = prevStatus !== 'finished' && nextStatus === 'finished';
+
+    if (terminalOccurred) {
+      maintainedState = withBumpedStateRevision(maintainedState);
+      await kvSet(`game_${gameId}`, maintainedState);
+    }
+
+    const participant = maintainedState?.players?.find(
+      (player: any) => player?.id === requestingPlayerId,
+    );
+    if (!participant) {
+      return { ok: false, error: 'forbidden' };
+    }
+
+    return {
+      ok: true,
+      maintainedState,
+      nowMs,
+      terminalOccurred,
+      requestingPlayerId,
+      participant,
+    };
+  }
   
   // ============================================================================
   // CREATE GAME
@@ -994,7 +1077,9 @@ export function registerGameRoutes(
       console.log(`Creating game - Session: ${session.sessionId}, Display name: ${playerName}`);
 
       const gameId = generateGameId();
-      const gameData = createFreshGameData(gameId, playerId, playerName, timeControl);
+      const gameData = ensureStateRevision(
+        createFreshGameData(gameId, playerId, playerName, timeControl),
+      );
 
       await kvSet(`game_${gameId}`, gameData);
       await kvSet(
@@ -1061,7 +1146,7 @@ export function registerGameRoutes(
         nowMs: Date.now(),
       });
 
-      await kvSet(`game_${gameId}`, botRunResult.state);
+      await kvSet(`game_${gameId}`, ensureStateRevision(botRunResult.state));
       await kvSet(
         getBattleLogHistoryKey(gameId),
         createEmptyBattleLogHistoryStore(gameId),
@@ -1138,7 +1223,7 @@ export function registerGameRoutes(
           nowMs: Date.now(),
         });
 
-        await kvSet(`game_${newGameId}`, botRunResult.state);
+        await kvSet(`game_${newGameId}`, ensureStateRevision(botRunResult.state));
         await kvSet(
           getBattleLogHistoryKey(newGameId),
           createEmptyBattleLogHistoryStore(newGameId),
@@ -1156,11 +1241,13 @@ export function registerGameRoutes(
         return c.json({ gameId: newGameId });
       }
 
-      const newGameData = createFreshGameData(
-        newGameId,
-        playerId,
-        playerName,
-        inheritedTimeControl,
+      const newGameData = ensureStateRevision(
+        createFreshGameData(
+          newGameId,
+          playerId,
+          playerName,
+          inheritedTimeControl,
+        ),
       );
 
       await kvSet(`game_${newGameId}`, newGameData);
@@ -1232,6 +1319,8 @@ export function registerGameRoutes(
       if (!gameData) {
         return c.json({ error: "Game not found" }, 404);
       }
+      gameData = ensureStateRevision(gameData);
+      let didMutate = false;
 
       // Check if player already exists
       const existingPlayer = gameData.players.find((p: any) => p.id === playerId);
@@ -1271,6 +1360,7 @@ export function registerGameRoutes(
         };
 
         gameData.players.push(newPlayer);
+        didMutate = true;
 
         // Initialize ship collection for players only (not spectators)
         if (finalRole === 'player') {
@@ -1326,10 +1416,34 @@ export function registerGameRoutes(
           if (!existingPlayer.role || existingPlayer.role === 'spectator') {
             existingPlayer.role = 'player';
             existingPlayer.lines = INITIAL_SAVED_LINES;
+            didMutate = true;
           }
           
           // Always set isActive=true for players (idempotent)
-          existingPlayer.isActive = true;
+          if (existingPlayer.isActive !== true) {
+            existingPlayer.isActive = true;
+            didMutate = true;
+          }
+
+          if (!gameData.gameData) {
+            gameData.gameData = { ships: {} };
+            didMutate = true;
+          }
+          if (!gameData.gameData.ships) {
+            gameData.gameData.ships = {};
+            didMutate = true;
+          }
+          if (!Array.isArray(gameData.gameData.ships[playerId])) {
+            gameData.gameData.ships[playerId] = [];
+            didMutate = true;
+          }
+          if (gameData.gameData?.clock) {
+            const nextClock = ensurePlayerClock(gameData.gameData.clock, playerId);
+            if (nextClock !== gameData.gameData.clock) {
+              gameData.gameData.clock = nextClock;
+              didMutate = true;
+            }
+          }
           
           console.log("JOIN_GAME_REACTIVATED_PLAYER", {
             gameId,
@@ -1339,14 +1453,23 @@ export function registerGameRoutes(
           });
         } else {
           // finalRole is 'spectator' - ensure isActive is false
-          existingPlayer.isActive = false;
+          if (existingPlayer.isActive !== false) {
+            existingPlayer.isActive = false;
+            didMutate = true;
+          }
         }
       }
 
       // Normalize phase fields before saving
+      if (doesStateNeedPhaseSync(gameData)) {
+        didMutate = true;
+      }
       gameData = syncPhaseFields(gameData);
 
-      await kvSet(`game_${gameId}`, gameData);
+      if (didMutate) {
+        gameData = withBumpedStateRevision(gameData);
+        await kvSet(`game_${gameId}`, gameData);
+      }
       
       console.log("Player joined game:", gameId, playerName);
       return c.json({ message: "Joined game successfully", gameData });
@@ -1388,6 +1511,8 @@ export function registerGameRoutes(
       if (!gameData) {
         return c.json({ error: "Game not found" }, 404);
       }
+      gameData = ensureStateRevision(gameData);
+      let didMutate = false;
 
       const player = gameData.players.find((p: any) => p.id === playerId);
       if (!player) {
@@ -1412,55 +1537,104 @@ export function registerGameRoutes(
       // Update player resources based on new role - immutable update
       if (newRole === 'player') {
         // Initialize ship collection if needed
-        if (!gameData.gameData) gameData.gameData = { ships: {} };
-        if (!gameData.gameData.ships) gameData.gameData.ships = {};
+        if (!gameData.gameData) {
+          gameData.gameData = { ships: {} };
+          didMutate = true;
+        }
+        if (!gameData.gameData.ships) {
+          gameData.gameData.ships = {};
+          didMutate = true;
+        }
         if (!gameData.gameData.ships[playerId]) {
           gameData.gameData.ships[playerId] = [];
+          didMutate = true;
         }
-        
+        if (gameData.gameData?.clock) {
+          const nextClock = ensurePlayerClock(gameData.gameData.clock, playerId);
+          if (nextClock !== gameData.gameData.clock) {
+            gameData.gameData.clock = nextClock;
+            didMutate = true;
+          }
+        }
+
+        const nextPlayers = gameData.players.map((p: any, idx: number) => {
+          if (idx !== playerIndex) {
+            return p;
+          }
+
+          const nextPlayer = {
+            ...p,
+            role: newRole,
+            lines: isPromotingToPlayer ? (p.lines || INITIAL_SAVED_LINES) : p.lines,
+            health: 25,
+          };
+
+          if (
+            nextPlayer.role !== p.role ||
+            nextPlayer.lines !== p.lines ||
+            nextPlayer.health !== p.health
+          ) {
+            didMutate = true;
+          }
+
+          return nextPlayer;
+        });
+
         gameData = {
           ...gameData,
-          players: gameData.players.map((p: any, idx: number) => 
-            idx === playerIndex 
-              ? {
-                  ...p,
-                  role: newRole,
-                  lines: isPromotingToPlayer ? (p.lines || INITIAL_SAVED_LINES) : p.lines,
-                  health: 25
-                }
-              : p
-          )
+          players: nextPlayers,
         };
       } else {
         // Switching to spectator - keep current resources but don't give new ones
+        const nextPlayers = gameData.players.map((p: any, idx: number) => {
+          if (idx !== playerIndex) {
+            return p;
+          }
+
+          const nextPlayer = {
+            ...p,
+            role: newRole,
+            isReady: false,
+          };
+
+          if (
+            nextPlayer.role !== p.role ||
+            nextPlayer.isReady !== p.isReady
+          ) {
+            didMutate = true;
+          }
+
+          return nextPlayer;
+        });
+
         gameData = {
           ...gameData,
-          players: gameData.players.map((p: any, idx: number) => 
-            idx === playerIndex 
-              ? {
-                  ...p,
-                  role: newRole,
-                  isReady: false // Reset ready status when becoming spectator
-                }
-              : p
-          )
+          players: nextPlayers,
         };
       }
 
-      // Add system message about role change
-      const updatedPlayer = gameData.players[playerIndex];
-      gameData.actions.push({
-        playerId: "system",
-        playerName: "System",
-        actionType: "system",
-        content: `${updatedPlayer.name} switched from ${oldRole} to ${newRole}`,
-        timestamp: new Date().toISOString()
-      });
+      if (oldRole !== newRole) {
+        const updatedPlayer = gameData.players[playerIndex];
+        gameData.actions.push({
+          playerId: "system",
+          playerName: "System",
+          actionType: "system",
+          content: `${updatedPlayer.name} switched from ${oldRole} to ${newRole}`,
+          timestamp: new Date().toISOString()
+        });
+        didMutate = true;
+      }
 
       // Normalize phase fields before saving
+      if (doesStateNeedPhaseSync(gameData)) {
+        didMutate = true;
+      }
       gameData = syncPhaseFields(gameData);
 
-      await kvSet(`game_${gameId}`, gameData);
+      if (didMutate) {
+        gameData = withBumpedStateRevision(gameData);
+        await kvSet(`game_${gameId}`, gameData);
+      }
       
       console.log("Player switched role:", gameId, player.name, oldRole, "->", newRole);
       return c.json({ message: "Role switched successfully", gameData });
@@ -1486,31 +1660,19 @@ export function registerGameRoutes(
       // Note: Client may send playerId query for backward compat, but it's IGNORED
       // Server-side identity is derived from sessionToken only
       const requestingPlayerId = session.sessionId; // AUTHORITY: Server-minted identity
-      
-      const storedState = await kvGet(`game_${gameId}`);
-      
-      if (!storedState) {
-        return c.json({ error: "Game not found" }, 404);
+
+      const preparedRead = await prepareGameStateRead(gameId, requestingPlayerId);
+      if (!preparedRead.ok) {
+        if (preparedRead.error === 'not_found') {
+          return c.json({ error: "Game not found" }, 404);
+        }
+        return c.json({ error: "Not authorized to view this game" }, 403);
       }
 
-      // Capture pre-mutation status and baseline state
-      const nowMs = Date.now();
-      const prevStatus = storedState?.status;
-      
-      // Apply maintenance pipeline, then persist only if it newly finishes the game.
-      const maintainedState = applyGameStateMaintenance(storedState, nowMs);
-      
-      // Detect terminal transition after all mutations
-      const events: any[] = [];
-      const nextStatus = maintainedState?.status;
-      const terminalOccurred = prevStatus !== 'finished' && nextStatus === 'finished';
-
-      if (terminalOccurred) {
-        await kvSet(`game_${gameId}`, maintainedState);
-      }
-
+      const { maintainedState, nowMs, terminalOccurred } = preparedRead;
       let gameData = maintainedState;
 
+      const events: any[] = [];
       if (terminalOccurred) {
         const terminalAtMs =
           typeof maintainedState?.gameData?.clock?.lastUpdateAtMs === 'number'
@@ -1524,12 +1686,6 @@ export function registerGameRoutes(
           winnerPlayerId: maintainedState.winnerPlayerId ?? null,
           atMs: terminalAtMs,
         });
-      }
-
-      // Verify session is a participant in this game (or spectator)
-      const participant = gameData.players.find((p: any) => p.id === requestingPlayerId);
-      if (!participant) {
-        return c.json({ error: "Not authorized to view this game" }, 403);
       }
 
       const phaseKey = getPhaseKey(gameData);
@@ -1787,6 +1943,7 @@ export function registerGameRoutes(
       
       return c.json({
         ...responseState,
+        stateRevision: gameData.stateRevision,
         clock: clockSnapshot,
         events,
         availableActions,
@@ -1803,6 +1960,46 @@ export function registerGameRoutes(
 
     } catch (error) {
       console.error("Get game state error:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  });
+
+  app.get("/make-server-825e19ab/game-state-head/:gameId", async (c) => {
+    try {
+      const session = await requireSession(c);
+      if (session instanceof Response) return session;
+
+      const gameId = c.req.param('gameId');
+      const requestingPlayerId = session.sessionId;
+      const preparedRead = await prepareGameStateRead(gameId, requestingPlayerId);
+
+      if (!preparedRead.ok) {
+        if (preparedRead.error === 'not_found') {
+          return c.json({ error: "Game not found" }, 404);
+        }
+        return c.json({ error: "Not authorized to view this game" }, 403);
+      }
+
+      const { maintainedState, nowMs } = preparedRead;
+      const phaseKey = getPhaseKey(maintainedState) ?? 'unknown';
+      const clockData = maintainedState?.gameData?.clock;
+
+      return c.json({
+        gameId: maintainedState?.gameId ?? gameId,
+        stateRevision: maintainedState.stateRevision,
+        status: maintainedState?.status ?? 'unknown',
+        turnNumber: maintainedState?.gameData?.turnNumber ?? maintainedState?.turnNumber ?? 0,
+        phaseKey,
+        clock: clockData
+          ? {
+              remainingMsByPlayerId: clockData.remainingMsByPlayerId ?? {},
+              clocksAreLive: clocksAreLive(maintainedState),
+              serverNowMs: nowMs,
+            }
+          : null,
+      });
+    } catch (error) {
+      console.error("Get game state head error:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
   });

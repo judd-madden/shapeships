@@ -31,6 +31,28 @@ export interface GameStateRequestMeta {
   unlockEligible: boolean;
 }
 
+export interface GameStateClockSnapshot {
+  remainingMsByPlayerId: Record<string, number>;
+  clocksAreLive: boolean;
+  serverNowMs: number;
+}
+
+export interface GameStateHeadResponse {
+  gameId: string;
+  stateRevision: number;
+  status: string;
+  turnNumber: number;
+  phaseKey: string;
+  clock: GameStateClockSnapshot | null;
+}
+
+export interface AcceptedFullStateFingerprint {
+  stateRevision: number;
+  status: string;
+  turnNumber: number;
+  phaseKey: string;
+}
+
 export type EvolverChoiceId = 'hold' | 'oxite' | 'asterite';
 export type CentaurChargeSubTabId = 'charges' | 'ship_of_equality';
 
