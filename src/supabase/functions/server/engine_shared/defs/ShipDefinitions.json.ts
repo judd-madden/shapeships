@@ -495,7 +495,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "",
+    "extraRules": "Oxite - Heal 1. Asterite - Deal 1 damage. These ships count as Xenite ship type, with a cost of 2.",
     "stackCaption": "No caption",
     "colour": "Pastel Purple",
     "numberOfGraphics": 1

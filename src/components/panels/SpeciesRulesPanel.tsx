@@ -325,10 +325,6 @@ function ShipRow({
                     })}
                   </div>
                   
-                  {/* Evolved ships note */}
-                  <p className="font-normal italic leading-[18px] pl-[35px] text-[16px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    These ships still count as Xenite ship type, with a cost of 2.
-                  </p>
                 </div>
               </div>
             )}
