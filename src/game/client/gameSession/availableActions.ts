@@ -71,6 +71,15 @@ export function speciesToCataloguePanelId(species: SpeciesId): ActionPanelId {
   }
 }
 
+export function isDeferredAutoPanelHandoffPhase(phaseKey: PhaseKey): boolean {
+  return (
+    phaseKey === 'build.ships_that_build' ||
+    phaseKey === 'battle.first_strike' ||
+    phaseKey === 'battle.charge_declaration' ||
+    phaseKey === 'battle.charge_response'
+  );
+}
+
 export function getRenderableServerChoiceActions(
   phaseKey: PhaseKey,
   availableActions: any[] | null | undefined
@@ -248,7 +257,8 @@ export function isRenderableTargetedActionComplete(args: {
  * 1) Force the selected-species catalogue during setup.species_selection
  * 2) Force self catalogue during build.drawing
  * 3) Auto-select Actions tab when it becomes available (except during build.drawing)
- * 4) Fallback to idle blank when no actions are available outside species selection
+ * 4) Hold safe waiting panels during deferred server-choice handoffs
+ * 5) Fallback to self catalogue when no actions are available outside species selection
  */
 export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelRoutingDecision {
   const {
@@ -340,14 +350,25 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
     };
   }
 
-  // 4) FALLBACK TO IDLE BLANK WHEN NO ACTIONS AVAILABLE
+  // 4) HOLD SAFE WAITING PANELS DURING DEFERRED SERVER-CHOICE HANDOFFS
+  if (!hasActionsAvailable && isDeferredAutoPanelHandoffPhase(phaseKey)) {
+    if (activePanelId === 'ap.menu.root') {
+      return { kind: 'none' };
+    }
+
+    if (isCataloguePanel(activePanelId)) {
+      return { kind: 'none' };
+    }
+  }
+
+  // 5) FALLBACK TO SELF CATALOGUE WHEN NO ACTIONS AVAILABLE
   if (!hasActionsAvailable) {
-    if (activePanelId === 'ap.idle.blank') return { kind: 'none' };
+    if (activePanelId === selfCatalogue) return { kind: 'none' };
     if (activePanelId === 'ap.menu.root') return { kind: 'none' };
     return {
       kind: 'setActivePanelId',
-      nextPanelId: 'ap.idle.blank',
-      log: '[useGameSession] No actions available: falling back to idle blank panel: ap.idle.blank',
+      nextPanelId: selfCatalogue,
+      log: `[useGameSession] No actions available: falling back to self catalogue panel: ${selfCatalogue}`,
     };
   }
 

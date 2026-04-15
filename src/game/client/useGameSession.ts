@@ -124,6 +124,7 @@ import {
   getRenderableActionShipPresence,
   getRenderableActionChoiceIds,
   getRenderableServerChoiceActions,
+  isDeferredAutoPanelHandoffPhase,
   isRenderableTargetedAction,
   isRenderableTargetedActionComplete,
   speciesToCataloguePanelId,
@@ -487,6 +488,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const prevEvolverRowIdsRef = useRef<Set<string>>(new Set());
   const finishedRedirectHandledGameIdRef = useRef<string | null>(null);
   const lastSpeciesSelectionEntryKeyRef = useRef<string | null>(null);
+  const deferredHandoffAutoOpenEntryKeyRef = useRef<string | null>(null);
+  const lastDeferredHandoffEntryKeyRef = useRef<string | null>(null);
 
   
   // Choose species state (client-only for now)
@@ -1150,6 +1153,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     phaseKey === 'build.dice_roll' && (knoRerollPassIndex === 1 || knoRerollPassIndex === 2)
       ? `${turnNumber}::${phaseKey}::kno${knoRerollPassIndex}`
       : `${turnNumber}::${phaseKey}`;
+  const deferredHandoffPhaseEntryKey = `${effectiveGameId ?? 'nogame'}::${phaseInstanceKey}`;
   
   // Phase 3.x: server-authoritative actions availability (declare early to avoid TDZ)
   const availableActions = rawState?.availableActions;
@@ -2580,6 +2584,27 @@ useEffect(() => {
     setActivePanelId('ap.end_of_game.result');
   }, [effectiveGameId, healthResolutionLockActive, isFinished]);
 
+  useEffect(() => {
+    if (!phaseKey || isFinished) {
+      deferredHandoffAutoOpenEntryKeyRef.current = null;
+      lastDeferredHandoffEntryKeyRef.current = null;
+      return;
+    }
+
+    if (lastDeferredHandoffEntryKeyRef.current === deferredHandoffPhaseEntryKey) {
+      return;
+    }
+
+    lastDeferredHandoffEntryKeyRef.current = deferredHandoffPhaseEntryKey;
+
+    if (isDeferredAutoPanelHandoffPhase(phaseKey) && !hasActionsAvailable) {
+      deferredHandoffAutoOpenEntryKeyRef.current = deferredHandoffPhaseEntryKey;
+      return;
+    }
+
+    deferredHandoffAutoOpenEntryKeyRef.current = null;
+  }, [deferredHandoffPhaseEntryKey, hasActionsAvailable, isFinished, phaseKey]);
+
   // ============================================================================
   // ACTION PANEL ROUTING (PHASE-DRIVEN ONLY)
   // ============================================================================
@@ -2616,6 +2641,45 @@ useEffect(() => {
     // We do not depend on activePanelId or hasActionsAvailable,
     // otherwise polling would re-trigger routing.
   }, [phaseKey, selectedSpecies, buildDrawingRouteRequest, isFinished]);
+
+  useEffect(() => {
+    if (!phaseKey || isFinished) return;
+    if (deferredHandoffAutoOpenEntryKeyRef.current !== deferredHandoffPhaseEntryKey) return;
+    if (!isDeferredAutoPanelHandoffPhase(phaseKey)) {
+      deferredHandoffAutoOpenEntryKeyRef.current = null;
+      return;
+    }
+    if (!hasActionsAvailable) return;
+
+    deferredHandoffAutoOpenEntryKeyRef.current = null;
+
+    if (activePanelId === 'ap.menu.root') {
+      return;
+    }
+
+    const decision = decideAutoPanelRouting({
+      phaseKey,
+      hasActionsAvailable,
+      actionsTargetPanelId,
+      activePanelId,
+      mySpecies,
+      selectedSpecies: null,
+      buildDrawingRouteRequest: null,
+    });
+
+    if (decision.kind === 'setActivePanelId' && decision.nextPanelId !== activePanelId) {
+      console.log(`[useGameSession] Deferred handoff: ${decision.log}`);
+      setActivePanelId(decision.nextPanelId);
+    }
+  }, [
+    activePanelId,
+    actionsTargetPanelId,
+    deferredHandoffPhaseEntryKey,
+    hasActionsAvailable,
+    isFinished,
+    mySpecies,
+    phaseKey,
+  ]);
 
   
   // Display-only interpolation helper
