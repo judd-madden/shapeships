@@ -15,6 +15,7 @@ import { RulesPanel } from '../panels/RulesPanel';
 import { CreatePrivateGamePanel, type CreatePrivateGameSettings } from '../panels/CreatePrivateGamePanel';
 import { LogoIcon } from '../ui/primitives/icons/LogoIcon';
 import { OnlineStatusIcon } from '../ui/primitives/icons/OnlineStatusIcon';
+import { FitSingleLineText } from '../ui/primitives/layout/FitSingleLineText';
 
 interface MenuShellProps {
   onNavigate: (shell: string) => void;
@@ -152,15 +153,18 @@ export function MenuShell({
           {/* Sidebar */}
           <div className="content-stretch flex flex-col gap-[50px] lg:gap-[80px] items-start relative shrink-0 w-full lg:w-auto lg:min-w-[340px]">
             {/* Player Name */}
-            <div className="content-stretch flex gap-[18px] items-center justify-start lg:justify-end relative shrink-0">
+            <div className="content-stretch flex gap-[18px] items-center justify-start lg:justify-end relative shrink-0 w-full">
               {/* Online Status Dot */}
               <OnlineStatusIcon status="online" />
 
               {/* Name and Notes */}
-              <div className="content-stretch flex flex-col items-start justify-center relative shrink-0">
-                <p className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[32px] md:text-[56px] max-w-[340px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                  {displayName}
-                </p>
+              <div className="content-stretch flex flex-col items-start justify-center max-w-[340px] min-w-0 overflow-hidden relative w-full">
+                <FitSingleLineText
+                  text={displayName}
+                  maxFontSize={56}
+                  className="font-['Roboto',sans-serif] font-normal leading-[normal] text-[32px] md:text-[56px] w-full"
+                  style={{ fontVariationSettings: "'wdth' 100" }}
+                />
                 <div className="content-stretch flex items-center pl-[4px] pr-0 py-0 relative shrink-0">
                   <p className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[#888] text-[16px] max-w-[340px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Testing the alpha!

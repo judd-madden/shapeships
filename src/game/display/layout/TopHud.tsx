@@ -10,6 +10,7 @@
 
 import type React from 'react';
 import type { HudViewModel } from '../../client/useGameSession';
+import { FitSingleLineText } from '../../../components/ui/primitives/layout/FitSingleLineText';
 
 interface TopHudProps {
   vm: HudViewModel;
@@ -80,25 +81,28 @@ export function TopHud({ vm }: TopHudProps) {
 
       {/* Player Names */}
       <div
-        className="content-stretch flex gap-[79px] items-start justify-center relative shrink-0 w-[595px]"
+        className="content-stretch flex gap-[79px] items-center justify-center relative shrink-0 w-[595px]"
         data-name="Player Names"
       >
         {/* Me Name Species */}
         <div
-          className="basis-0 content-stretch flex flex-col gap-px grow items-end min-h-px min-w-px relative shrink-0"
+          className="basis-0 content-stretch flex flex-col gap-px grow items-end min-h-px min-w-0 relative shrink-0"
           data-name="Me Name Species"
         >
           <div
-            className="content-stretch flex gap-[8px] items-center justify-end relative shrink-0 w-full"
+            className="content-stretch flex gap-[8px] items-center justify-end min-w-0 relative shrink-0 w-full"
             data-name="Me Name"
           >
             <OnlineStatus isOnline={vm.p1IsOnline} />
-            <p
-              className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[36px] text-nowrap text-right text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
-            >
-              {vm.p1Name}
-            </p>
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <FitSingleLineText
+                text={vm.p1Name}
+                maxFontSize={36}
+                align="right"
+                className="font-['Roboto'] font-normal leading-[normal] text-[36px] text-white w-full"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              />
+            </div>
           </div>
           <p
             className="capitalize font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[15px] text-right text-white w-full"
@@ -110,19 +114,22 @@ export function TopHud({ vm }: TopHudProps) {
 
         {/* Opponent Name Species */}
         <div
-          className="basis-0 content-stretch flex flex-col grow items-start min-h-px min-w-px relative shrink-0"
+          className="basis-0 content-stretch flex flex-col grow items-start min-h-px min-w-0 relative shrink-0"
           data-name="Opponent Name Species"
         >
           <div
-            className="content-stretch flex gap-[8px] items-center relative shrink-0 w-full"
+            className="content-stretch flex gap-[8px] items-center min-w-0 relative shrink-0 w-full"
             data-name="Opponent Name"
           >
-            <p
-              className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[36px] text-nowrap text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
-            >
-              {vm.p2Name}
-            </p>
+            <div className="flex-1 min-w-0 overflow-hidden">
+              <FitSingleLineText
+                text={vm.p2Name}
+                maxFontSize={36}
+                align="left"
+                className="font-['Roboto'] font-normal leading-[normal] text-[36px] text-white w-full"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              />
+            </div>
             <OnlineStatus isOnline={vm.p2IsOnline} />
           </div>
           <p
