@@ -31,7 +31,7 @@ export interface OnEnterResult {
 }
 
 const MAX_AUTO_ADVANCES = 10;
-const END_OF_TURN_HEALTH_HOLD_MS = 1200;
+const END_OF_TURN_HEALTH_HOLD_MS = 0;
 
 function getCurrentPhaseKey(state: any): PhaseKey | null {
   const gd: any = state.gameData || {};

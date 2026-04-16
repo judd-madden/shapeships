@@ -337,7 +337,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
       activeHealthResolutionOverlayPresentationKeyRef.current = null;
       setHealthResolutionOverlay(undefined);
-    }, 3000);
+    }, 3500);
   }, [
     authoritativePhaseHold?.signature,
     effectiveGameId,
