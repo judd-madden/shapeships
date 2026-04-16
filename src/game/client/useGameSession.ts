@@ -454,6 +454,38 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     return true;
   }
 
+  function applyContinuePhaseHoldRawState(nextState: any, effectiveGameIdForState: string): boolean {
+    if (!nextState || typeof nextState !== 'object') {
+      console.warn('[useGameSession] Ignoring CONTINUE_PHASE_HOLD success payload without state object');
+      return false;
+    }
+
+    if (nextState.gameId !== effectiveGameIdForState) {
+      console.warn(
+        `[useGameSession] Ignoring CONTINUE_PHASE_HOLD state for wrong gameId=${String(nextState.gameId)} expected=${effectiveGameIdForState}`
+      );
+      return false;
+    }
+
+    const currentState = rawStateRef.current;
+    const currentRevision =
+      currentState && currentState.gameId === effectiveGameIdForState
+        ? getAuthoritativeStateRevision(currentState)
+        : 0;
+    const nextRevision = getAuthoritativeStateRevision(nextState);
+
+    if (nextRevision < currentRevision) {
+      console.warn(
+        `[useGameSession] Ignoring CONTINUE_PHASE_HOLD revision regression next=${nextRevision} current=${currentRevision}`
+      );
+      return false;
+    }
+
+    rawStateRef.current = nextState;
+    setRawState(nextState);
+    return true;
+  }
+
   useEffect(() => {
     rawStateRef.current = rawState;
   }, [rawState]);
@@ -1001,12 +1033,14 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     myRole,
     submitIntent,
     refreshGameStateOnce,
+    applyContinuePhaseHoldRawState,
   });
   phaseHoldContinuationRuntimeRef.current = {
     effectiveGameId,
     myRole,
     submitIntent,
     refreshGameStateOnce,
+    applyContinuePhaseHoldRawState,
   };
 
   const continueAuthoritativePhaseHold = useCallback(
@@ -1062,9 +1096,23 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
                 holdUntilMs: returnedPhaseHold.holdUntilMs,
               })
             : null;
+        const outcome: ContinueAuthoritativePhaseHoldOutcome =
+          returnedHoldSignature === holdSignature ? 'still_holding' : 'released';
+        const acceptedFastPath = runtime.applyContinuePhaseHoldRawState(
+          returnedState,
+          runtime.effectiveGameId
+        );
 
-        await runtime.refreshGameStateOnce();
-        return returnedHoldSignature === holdSignature ? 'still_holding' : 'released';
+        if (!acceptedFastPath) {
+          await runtime.refreshGameStateOnce();
+          return outcome;
+        }
+
+        if (outcome === 'released') {
+          void runtime.refreshGameStateOnce();
+        }
+
+        return outcome;
       } catch (err: any) {
         console.error('[useGameSession] CONTINUE_PHASE_HOLD error:', err.message);
         await runtime.refreshGameStateOnce();
