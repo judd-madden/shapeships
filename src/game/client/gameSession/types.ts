@@ -415,7 +415,7 @@ export interface HealthResolutionPresentationVm {
 }
 
 export interface ActionPanelBuildCatalogueViewModel {
-  context: 'buildable' | 'reference_only';
+  context: 'buildable' | 'reference_only' | 'unavailable';
   canAddShipById: Partial<Record<ShipDefId, boolean>>;
   displayCostByShipId: Partial<Record<ShipDefId, number>>;
   eligibilityByShipId: Partial<Record<ShipDefId, ProvisionalShipEligibility>>;

@@ -2399,14 +2399,17 @@ useEffect(() => {
   }
 
   const activeCatalogueSpecies = getCatalogueSpeciesFromPanelId(activePanelId);
-  const buildCatalogueContext =
+  const isOwnInGameBuildAwareCatalogue =
     !isFinished &&
     !isInSpeciesSelection &&
     myRole === 'player' &&
-    buildEconomyForMe != null &&
     activeCatalogueSpecies != null &&
-    activeCatalogueSpecies === mySpecies
-      ? 'buildable'
+    activeCatalogueSpecies === mySpecies;
+  const buildCatalogueContext =
+    isOwnInGameBuildAwareCatalogue
+      ? buildEconomyForMe != null
+        ? 'buildable'
+        : 'unavailable'
       : 'reference_only';
 
   const buildCatalogue = {

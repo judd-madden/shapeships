@@ -44,11 +44,12 @@ interface CentaurShipCataloguePanelProps {
 export function CentaurShipCataloguePanel({ actions, buildCatalogue }: CentaurShipCataloguePanelProps) {
   const hover = useShipCatalogueHover();
   const isBuildableContext = buildCatalogue.context === 'buildable';
+  const isUnavailableContext = buildCatalogue.context === 'unavailable';
 
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
     return {
-      isDimmed: isBuildableContext && !canAddShip,
+      isDimmed: isUnavailableContext || (isBuildableContext && !canAddShip),
       isClickable: isBuildableContext && canAddShip,
       onClick: () => actions.onBuildShip(shipId),
     };

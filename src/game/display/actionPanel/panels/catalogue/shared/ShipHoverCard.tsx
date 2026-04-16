@@ -245,6 +245,17 @@ function EligibilityFooter({
       return <ComponentShips shipIds={componentShipIds} />;
     }
 
+    if (eligibility.state === 'BUILD_STATE_UNAVAILABLE') {
+      return (
+        <p
+          className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
+          style={{ fontVariationSettings: "'wdth' 100" }}
+        >
+          Build state unavailable
+        </p>
+      );
+    }
+
     if (eligibility.state === 'CAN_BUILD') {
       return (
         <p

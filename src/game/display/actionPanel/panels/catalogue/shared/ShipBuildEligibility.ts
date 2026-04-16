@@ -6,6 +6,7 @@ export type ShipEligibilityState =
   | 'NEED_COMPONENTS'
   | 'NOT_ENOUGH_LINES'
   | 'MAX_LIMIT'
+  | 'BUILD_STATE_UNAVAILABLE'
   | 'REFERENCE_ONLY';
 
 export interface ShipEligibility {
@@ -19,8 +20,12 @@ export function getShipEligibilityForHover(args: {
 }): ShipEligibility {
   const { shipId, buildCatalogue } = args;
 
-  if (buildCatalogue.context !== 'buildable') {
+  if (buildCatalogue.context === 'reference_only') {
     return { state: 'REFERENCE_ONLY' };
+  }
+
+  if (buildCatalogue.context === 'unavailable') {
+    return { state: 'BUILD_STATE_UNAVAILABLE' };
   }
 
   const eligibility = buildCatalogue.eligibilityByShipId[shipId];
