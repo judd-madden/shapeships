@@ -90,18 +90,20 @@ export function TopHud({ vm }: TopHudProps) {
           data-name="Me Name Species"
         >
           <div
-            className="content-stretch flex gap-[8px] items-center justify-end min-w-0 relative shrink-0 w-full"
+            className="content-stretch flex items-center justify-end min-w-0 relative shrink-0 w-full"
             data-name="Me Name"
           >
-            <OnlineStatus isOnline={vm.p1IsOnline} />
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <FitSingleLineText
-                text={vm.p1Name}
-                maxFontSize={36}
-                align="right"
-                className="font-['Roboto'] font-normal leading-[normal] text-[36px] text-white w-full"
-                style={{ fontVariationSettings: "'wdth' 100" }}
-              />
+            <div className="inline-flex max-w-full min-w-0 items-center gap-[8px]">
+              <OnlineStatus isOnline={vm.p1IsOnline} />
+              <div className="max-w-full min-w-0 overflow-hidden">
+                <FitSingleLineText
+                  text={vm.p1Name}
+                  maxFontSize={36}
+                  align="right"
+                  className="font-['Roboto'] font-normal leading-[normal] text-[36px] text-white"
+                  style={{ fontVariationSettings: "'wdth' 100" }}
+                />
+              </div>
             </div>
           </div>
           <p
@@ -118,19 +120,21 @@ export function TopHud({ vm }: TopHudProps) {
           data-name="Opponent Name Species"
         >
           <div
-            className="content-stretch flex gap-[8px] items-center min-w-0 relative shrink-0 w-full"
+            className="content-stretch flex items-center justify-start min-w-0 relative shrink-0 w-full"
             data-name="Opponent Name"
           >
-            <div className="flex-1 min-w-0 overflow-hidden">
-              <FitSingleLineText
-                text={vm.p2Name}
-                maxFontSize={36}
-                align="left"
-                className="font-['Roboto'] font-normal leading-[normal] text-[36px] text-white w-full"
-                style={{ fontVariationSettings: "'wdth' 100" }}
-              />
+            <div className="inline-flex max-w-full min-w-0 items-center gap-[8px]">
+              <div className="max-w-full min-w-0 overflow-hidden">
+                <FitSingleLineText
+                  text={vm.p2Name}
+                  maxFontSize={36}
+                  align="left"
+                  className="font-['Roboto'] font-normal leading-[normal] text-[36px] text-white"
+                  style={{ fontVariationSettings: "'wdth' 100" }}
+                />
+              </div>
+              <OnlineStatus isOnline={vm.p2IsOnline} />
             </div>
-            <OnlineStatus isOnline={vm.p2IsOnline} />
           </div>
           <p
             className="capitalize font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[15px] text-white w-full"
