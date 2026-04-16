@@ -37,7 +37,7 @@ export function MainStage({
 }: MainStageProps) {
   return (
     <div
-      className="content-stretch flex flex-col items-center relative flex-1 min-w-0 min-h-0 h-full pt-[30px] pb-[28px]"
+      className="content-stretch flex flex-col items-center relative flex-1 min-w-0 min-h-0 h-full pt-[30px] pb-[25px]"
       data-name="Main Stage"
     >
       {/* Background vertical line */}
@@ -66,12 +66,12 @@ export function MainStage({
 
       {/* Action Panel Wrapper */}
       <div
-        className="content-stretch flex flex-col h-[340px] items-end relative w-full"
+        className="content-stretch flex flex-col h-[344px] items-end relative w-full"
         data-name="Action Panel Wrapper"
       >
         {/* Action Panel Tabs */}
         <div
-          className="content-stretch flex gap-[8px] items-center justify-end relative shrink-0 z-30 top-[-2px] right-[-2px]"
+          className="content-stretch flex gap-[8px] h-[42px] items-center justify-end relative shrink-0 z-30"
           data-name="Action Panel Tabs"
         >
           {actionPanelVm.tabs.filter(t => t.visible).map((tab) => (
@@ -86,12 +86,12 @@ export function MainStage({
 
         {/* Action Panel Content */}
         <div
-          className="bg-black h-[300px] relative rounded-bl-[10px] rounded-br-[10px] rounded-tl-[10px]  w-full z-10"
+          className="bg-black h-[302px] border-2 border-[#555] border-solid relative rounded-bl-[10px] rounded-br-[10px] rounded-tl-[10px]  w-full z-10"
           data-name="AP - Action Panel CONTENT"
         >
           <div
             aria-hidden="true"
-            className="absolute border-2 border-[#555] border-solid inset-[-2px] pointer-events-none rounded-bl-[12px] rounded-br-[12px] rounded-tl-[12px]"
+            className="absolute pointer-events-none rounded-bl-[12px] rounded-br-[12px] rounded-tl-[12px]"
           />
           <ActionPanelFrame vm={actionPanelVm} actions={actions} onReturnToMainMenu={onReturnToMainMenu} />
         </div>

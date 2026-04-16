@@ -25,7 +25,7 @@ export function Tab({
       onClick={onClick}
       disabled={disabled}
       className={`
-        relative rounded-tl-[10px] rounded-tr-[10px] w-full
+        relative rounded-tl-[10px] rounded-tr-[10px] w-full h-full
         group
         cursor-pointer
         disabled:opacity-50 disabled:cursor-not-allowed
