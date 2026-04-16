@@ -730,11 +730,41 @@ export function mapGameSessionVm(args: {
       // Build map of instanceId -> currentCharges for phase-start snapshot
       const chargesByInstanceId = new Map<string, number>();
       const myShips = gameData?.ships?.[me?.id] ?? [];
-      for (const ship of myShips) {
+      const shipOrderByInstanceId = new Map<string, number>();
+      for (const [shipIndex, ship] of myShips.entries()) {
         const instanceId = ship?.instanceId ?? ship?.id;
         if (instanceId) {
+          if (!shipOrderByInstanceId.has(instanceId)) {
+            shipOrderByInstanceId.set(instanceId, shipIndex);
+          }
           chargesByInstanceId.set(instanceId, Number(ship?.chargesCurrent ?? 0));
         }
+      }
+
+      function sortActionsByFleetOrder<
+        T extends { sourceInstanceId?: string; actionId?: string }
+      >(actions: T[]): T[] {
+        return [...actions].sort((a, b) => {
+          const aOrder = shipOrderByInstanceId.get(a.sourceInstanceId ?? '');
+          const bOrder = shipOrderByInstanceId.get(b.sourceInstanceId ?? '');
+          const aKnown = aOrder != null;
+          const bKnown = bOrder != null;
+
+          if (aKnown && bKnown && aOrder !== bOrder) {
+            return aOrder - bOrder;
+          }
+
+          if (aKnown !== bKnown) {
+            return aKnown ? -1 : 1;
+          }
+
+          const actionIdCompare = (a.actionId ?? '').localeCompare(b.actionId ?? '');
+          if (actionIdCompare !== 0) {
+            return actionIdCompare;
+          }
+
+          return (a.sourceInstanceId ?? '').localeCompare(b.sourceInstanceId ?? '');
+        });
       }
 
       for (const groupSpec of shipChoiceSpec.groups) {
@@ -749,8 +779,10 @@ export function mapGameSessionVm(args: {
 
         if (groupSpec.kind === 'counted') {
           // Find all matching server actions for this shipDefId
-          const matches = choiceActions.filter(
-            (a: any) => a.shipDefId === groupSpec.shipDefId
+          const matches = sortActionsByFleetOrder(
+            choiceActions.filter(
+              (a: any) => a.shipDefId === groupSpec.shipDefId
+            )
           );
 
           if (matches.length === 0) continue;
@@ -794,8 +826,10 @@ export function mapGameSessionVm(args: {
           }> = [];
 
           for (const ship of groupSpec.ships) {
-            const matches = choiceActions.filter(
-              (a: any) => a.shipDefId === ship.shipDefId
+            const matches = sortActionsByFleetOrder(
+              choiceActions.filter(
+                (a: any) => a.shipDefId === ship.shipDefId
+              )
             );
 
             for (const m of matches) {

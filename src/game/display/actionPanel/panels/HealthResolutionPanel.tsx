@@ -95,7 +95,7 @@ export function HealthResolutionPanel({ vm }: HealthResolutionPanelProps) {
   }, [vm.presentationKey]);
 
   return (
-    <div className="size-full relative overflow-hidden">
+    <div className="size-full relative overflow-hidden rounded-[8px]">
       <div
         aria-hidden="true"
         className={`absolute inset-0 bg-black transition-opacity ease-out ${
