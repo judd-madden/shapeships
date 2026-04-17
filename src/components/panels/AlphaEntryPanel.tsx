@@ -21,8 +21,9 @@ import { InputField } from '../ui/primitives/inputs/InputField';
 import { PrimaryButton } from '../ui/primitives/buttons/PrimaryButton';
 
 interface AlphaEntryPanelProps {
-  onPlay: (playerName: string) => void;
+  onPlay: (playerName: string) => void | Promise<void>;
   primaryButtonLabel?: string;
+  isStartingSession?: boolean;
 }
 
 /**
@@ -34,7 +35,11 @@ function validatePlayerName(name: string): boolean {
   return regex.test(name);
 }
 
-export function AlphaEntryPanel({ onPlay, primaryButtonLabel = 'PLAY' }: AlphaEntryPanelProps) {
+export function AlphaEntryPanel({
+  onPlay,
+  primaryButtonLabel = 'PLAY',
+  isStartingSession = false,
+}: AlphaEntryPanelProps) {
   const [playerName, setPlayerName] = useState('');
 
   // Validation logic
@@ -49,11 +54,14 @@ export function AlphaEntryPanel({ onPlay, primaryButtonLabel = 'PLAY' }: AlphaEn
   
   // Button enabled only when fully valid (3-20 alphanumeric characters)
   const isValid = validatePlayerName(playerName);
+  const isSubmitDisabled = !isValid || isStartingSession;
 
   const handlePlay = () => {
-    if (isValid) {
-      onPlay(playerName.trim());
+    if (isSubmitDisabled) {
+      return;
     }
+
+    onPlay(playerName.trim());
   };
 
   const handleNameChange = (value: string) => {
@@ -83,8 +91,10 @@ export function AlphaEntryPanel({ onPlay, primaryButtonLabel = 'PLAY' }: AlphaEn
                 onChange={handleNameChange}
                 placeholder="Player name"
                 error={showError}
+                disabled={isStartingSession}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
+                    e.preventDefault();
                     handlePlay();
                   }
                 }}
@@ -99,7 +109,9 @@ export function AlphaEntryPanel({ onPlay, primaryButtonLabel = 'PLAY' }: AlphaEn
             {/* Play Button */}
             <PrimaryButton
               onClick={handlePlay}
-              disabled={!isValid}
+              disabled={isSubmitDisabled}
+              loading={isStartingSession}
+              loadingLabel="ENTERING VOID..."
               className="w-full"
             >
               {primaryButtonLabel}

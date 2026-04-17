@@ -115,6 +115,7 @@ export default function ScreenManager({
             onLogin={handleSuccessfulLogin}
             alphaDisableAuth={ALPHA_DISABLE_AUTH}
             alphaPrimaryCtaLabel={pendingInviteGameId ? 'JOIN FRIENDS GAME' : 'PLAY'}
+            isStartingSession={isStartingSession}
           />
         );
     }

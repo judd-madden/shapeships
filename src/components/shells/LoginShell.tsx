@@ -19,10 +19,11 @@ import { Dice } from '../ui/primitives/dice/Dice';
 
 interface LoginShellProps {
   onNavigate: (shell: string) => void;
-  onNameSubmit: (displayName: string) => void;
+  onNameSubmit: (displayName: string) => void | Promise<void>;
   onLogin: (userData: any) => void;
   alphaDisableAuth: boolean;
   alphaPrimaryCtaLabel?: string;
+  isStartingSession: boolean;
 }
 
 export function LoginShell({
@@ -31,6 +32,7 @@ export function LoginShell({
   onLogin,
   alphaDisableAuth,
   alphaPrimaryCtaLabel = 'PLAY',
+  isStartingSession,
 }: LoginShellProps) {
   // Alpha v3: Full-page layout with header + panel + footer
   if (alphaDisableAuth) {
@@ -92,7 +94,11 @@ export function LoginShell({
           </div>
 
           {/* Alpha Entry Panel (Form Body) */}
-          <AlphaEntryPanel onPlay={onNameSubmit} primaryButtonLabel={alphaPrimaryCtaLabel} />
+          <AlphaEntryPanel
+            onPlay={onNameSubmit}
+            primaryButtonLabel={alphaPrimaryCtaLabel}
+            isStartingSession={isStartingSession}
+          />
 
           {/* Footer Links */}
           <div className="content-stretch flex font-normal gap-[45px] items-center leading-[normal] relative shrink-0 text-[22px] text-nowrap">
