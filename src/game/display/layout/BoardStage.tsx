@@ -645,7 +645,7 @@ function Metric({
 
 function HoverAnchor({
   hoverKey,
-  enabled,
+  isTrackable,
   anchorRef,
   className,
   onHoverEnter,
@@ -653,7 +653,7 @@ function HoverAnchor({
   children,
 }: {
   hoverKey: BoardStatHoverKey;
-  enabled: boolean;
+  isTrackable: boolean;
   anchorRef?: { current: HTMLElement | null };
   className?: string;
   onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
@@ -664,11 +664,11 @@ function HoverAnchor({
       <div
         className={cx(className, 'cursor-default select-none')}
         onMouseEnter={
-          enabled
+          isTrackable
             ? (event) => onHoverEnter(hoverKey, anchorRef?.current ?? event.currentTarget)
             : undefined
         }
-        onMouseLeave={enabled ? () => onHoverLeave(hoverKey) : undefined}
+        onMouseLeave={isTrackable ? () => onHoverLeave(hoverKey) : undefined}
       >
       {children}
     </div>
@@ -679,14 +679,14 @@ function TripletStatValue({
   value,
   align,
   hoverKey,
-  hoverEnabled,
+  hoverTrackable,
   onHoverEnter,
   onHoverLeave,
 }: {
   value: string;
   align: 'left' | 'right';
   hoverKey: BoardStatHoverKey;
-  hoverEnabled: boolean;
+  hoverTrackable: boolean;
   onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
   onHoverLeave: (key: BoardStatHoverKey) => void;
 }) {
@@ -696,7 +696,7 @@ function TripletStatValue({
     <div className={cx('flex w-[80px]', isRight ? 'justify-end text-right' : 'justify-start text-left')}>
       <HoverAnchor
         hoverKey={hoverKey}
-        enabled={hoverEnabled}
+        isTrackable={hoverTrackable}
         onHoverEnter={onHoverEnter}
         onHoverLeave={onHoverLeave}
         className="inline-block"
@@ -722,9 +722,9 @@ function StatTripletRow({
   toneClass,
   className,
   leftHoverKey,
-  leftHoverEnabled = false,
+  leftHoverTrackable = false,
   rightHoverKey,
-  rightHoverEnabled = false,
+  rightHoverTrackable = false,
   onHoverEnter,
   onHoverLeave,
 }: {
@@ -734,9 +734,9 @@ function StatTripletRow({
   toneClass?: string;
   className?: string;
   leftHoverKey: BoardStatHoverKey;
-  leftHoverEnabled?: boolean;
+  leftHoverTrackable?: boolean;
   rightHoverKey: BoardStatHoverKey;
-  rightHoverEnabled?: boolean;
+  rightHoverTrackable?: boolean;
   onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
   onHoverLeave: (key: BoardStatHoverKey) => void;
 }) {
@@ -746,7 +746,7 @@ function StatTripletRow({
         value={left}
         align="right"
         hoverKey={leftHoverKey}
-        hoverEnabled={leftHoverEnabled}
+        hoverTrackable={leftHoverTrackable}
         onHoverEnter={onHoverEnter}
         onHoverLeave={onHoverLeave}
       />
@@ -760,7 +760,7 @@ function StatTripletRow({
         value={right}
         align="left"
         hoverKey={rightHoverKey}
-        hoverEnabled={rightHoverEnabled}
+        hoverTrackable={rightHoverTrackable}
         onHoverEnter={onHoverEnter}
         onHoverLeave={onHoverLeave}
       />
@@ -821,18 +821,16 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
     : shouldAnimateDeltas
       ? `opp:resolution:${vm.turnNumber}`
       : 'opp:stable';
-  const myDamageHoverEnabled = vm.myLastTurnDamage !== 0 && vm.myLastDamageBreakdownRows.length > 0;
-  const opponentDamageHoverEnabled = vm.opponentLastTurnDamage !== 0 && vm.opponentLastDamageBreakdownRows.length > 0;
-  const myHealingHoverEnabled = vm.myLastTurnHeal !== 0 && vm.myLastHealingBreakdownRows.length > 0;
-  const opponentHealingHoverEnabled = vm.opponentLastTurnHeal !== 0 && vm.opponentLastHealingBreakdownRows.length > 0;
+  const myDamageHoverTrackable = true;
+  const opponentDamageHoverTrackable = true;
+  const myHealingHoverTrackable = true;
+  const opponentHealingHoverTrackable = true;
   const myBonusClusterHasVisibleContent =
     myDisplayedBonusLines !== 0 || vm.myJoiningBonusLines > 0;
   const opponentBonusClusterHasVisibleContent =
     opponentDisplayedBonusLines !== 0 || vm.opponentJoiningBonusLines > 0;
-  const myBonusHoverEnabled =
-    myBonusClusterHasVisibleContent && vm.myBonusBreakdownRows.length > 0;
-  const opponentBonusHoverEnabled =
-    opponentBonusClusterHasVisibleContent && vm.opponentBonusBreakdownRows.length > 0;
+  const myBonusHoverTrackable = myBonusClusterHasVisibleContent;
+  const opponentBonusHoverTrackable = opponentBonusClusterHasVisibleContent;
   const opponentBonusAnchorRef =
     vm.opponentJoiningBonusLines > 0 ? opponentBonusJoiningAnchorRef : opponentBonusPrimaryAnchorRef;
   const statHoverRowsByKey: Record<BoardStatHoverKey, { rows: typeof vm.myLastDamageBreakdownRows; side: 'left' | 'right' }> = {
@@ -1025,9 +1023,9 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             right={String(vm.opponentLastTurnDamage ?? 0)}
             toneClass="text-[#ff8282]"
             leftHoverKey="my-last-damage"
-            leftHoverEnabled={myDamageHoverEnabled}
+            leftHoverTrackable={myDamageHoverTrackable}
             rightHoverKey="opponent-last-damage"
-            rightHoverEnabled={opponentDamageHoverEnabled}
+            rightHoverTrackable={opponentDamageHoverTrackable}
             onHoverEnter={statHover.onEnter}
             onHoverLeave={statHover.onLeave}
           />
@@ -1037,9 +1035,9 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             right={String(vm.opponentLastTurnHeal ?? 0)}
             toneClass="text-[#9cff84]"
             leftHoverKey="my-last-healing"
-            leftHoverEnabled={myHealingHoverEnabled}
+            leftHoverTrackable={myHealingHoverTrackable}
             rightHoverKey="opponent-last-healing"
-            rightHoverEnabled={opponentHealingHoverEnabled}
+            rightHoverTrackable={opponentHealingHoverTrackable}
             onHoverEnter={statHover.onEnter}
             onHoverLeave={statHover.onLeave}
           />
@@ -1049,7 +1047,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             <div className="content-stretch flex gap-[4px] items-center justify-end relative shrink-0 w-[100px]" data-name="P1 Bonuses">
               <HoverAnchor
                 hoverKey="my-bonus"
-                enabled={myBonusHoverEnabled}
+                isTrackable={myBonusHoverTrackable}
                 anchorRef={myBonusAnchorRef}
                 onHoverEnter={statHover.onEnter}
                 onHoverLeave={statHover.onLeave}
@@ -1088,7 +1086,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             <div className="content-stretch flex gap-[4px] items-start relative shrink-0 w-[100px]" data-name="P2 Bonuses">
               <HoverAnchor
                 hoverKey="opponent-bonus"
-                enabled={opponentBonusHoverEnabled}
+                isTrackable={opponentBonusHoverTrackable}
                 anchorRef={opponentBonusAnchorRef}
                 onHoverEnter={statHover.onEnter}
                 onHoverLeave={statHover.onLeave}
@@ -1146,7 +1144,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
         />
       ) : null}
 
-      {activeStatHover && statHover.state.anchorRect ? (
+      {activeStatHover && statHover.state.anchorRect && activeStatHover.rows.length > 0 ? (
         <BoardStatBreakdownHoverCard
           anchorRect={statHover.state.anchorRect}
           side={activeStatHover.side}
