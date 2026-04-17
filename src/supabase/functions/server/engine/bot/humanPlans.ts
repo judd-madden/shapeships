@@ -7,9 +7,15 @@ const HUMAN_DEFENSE_ORBIT_PLAN: AuthoredBotPlan = {
     { shipDefId: 'DEF', targetCount: 2 },
     { shipDefId: 'FIG', targetCount: 2 },
     { shipDefId: 'ORB', targetCount: 1 },
-    { shipDefId: 'BAT', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 2 },
+    { shipDefId: 'ORB', targetCount: 1 },
+    { shipDefId: 'BAT', targetCount: 2, saveUntilAffordable: true },
   ],
-  loopGoals: [{ shipDefId: 'DEF', targetCount: 99 }],
+  loopGoals: [    
+    { shipDefId: 'DEF', targetCount: 99 },
+    { shipDefId: 'FIG', targetCount: 99 },
+  ],
   notes: 'Weak beginner Human shell into one Battlecruiser, then Defender overbuild.',
 };
 
@@ -17,7 +23,7 @@ const HUMAN_TACTICAL_DREAD_PLAN: AuthoredBotPlan = {
   id: 'hum_tactical_dread',
   speciesId: 'HUM',
   buildGoals: [
-    { shipDefId: 'CAR', targetCount: 2 },
+    { shipDefId: 'CAR', targetCount: 2, saveUntilAffordable: true  },
     { shipDefId: 'COM', targetCount: 1 },
     { shipDefId: 'GUA', targetCount: 1, saveUntilAffordable: true },
     { shipDefId: 'COM', targetCount: 1 },
@@ -25,8 +31,9 @@ const HUMAN_TACTICAL_DREAD_PLAN: AuthoredBotPlan = {
     { shipDefId: 'DRE', targetCount: 1, saveUntilAffordable: true },
   ],
   loopGoals: [
-    { shipDefId: 'CAR', targetCount: 1 },
-    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'CAR', targetCount: 99 },
+    { shipDefId: 'COM', targetCount: 99 },
+    { shipDefId: 'FIG', targetCount: 99 },
   ],
   shipsThatBuild: {
     CAR: {
@@ -51,13 +58,13 @@ const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
   buildGoals: [
     { shipDefId: 'ORB', targetCount: 1 },
     { shipDefId: 'CAR', targetCount: 3 },
-    { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'TAC', targetCount: 2, saveUntilAffordable: true },
     { shipDefId: 'INT', targetCount: 1 },
     { shipDefId: 'FRI', targetCount: 1 },
   ],
   loopGoals: [
     { shipDefId: 'CAR', targetCount: 5 },
-    { shipDefId: 'TAC', targetCount: 99, saveUntilAffordable: true },
+    { shipDefId: 'TAC', targetCount: 99 },
   ],
   shipsThatBuild: {
     CAR: {
@@ -88,9 +95,8 @@ const HUMAN_CARRIER_COMMANDER_AGGRO_PLAN: AuthoredBotPlan = {
   id: 'hum_carrier_commander_aggro',
   speciesId: 'HUM',
   buildGoals: [
-    { shipDefId: 'CAR', targetCount: 4 },
+    { shipDefId: 'CAR', targetCount: 4, saveUntilAffordable: true  },
     { shipDefId: 'COM', targetCount: 3 },
-    { shipDefId: 'FIG', targetCount: 6 },
   ],
   loopGoals: [{ shipDefId: 'FIG', targetCount: 99 }],
   shipsThatBuild: {
@@ -106,7 +112,7 @@ const HUMAN_CARRIER_COMMANDER_SOFT_DEF_OPEN_PLAN: AuthoredBotPlan = {
   speciesId: 'HUM',
   buildGoals: [
     { shipDefId: 'DEF', targetCount: 1 },
-    { shipDefId: 'CAR', targetCount: 4 },
+    { shipDefId: 'CAR', targetCount: 4 , saveUntilAffordable: true },
     { shipDefId: 'COM', targetCount: 3 },
     { shipDefId: 'FIG', targetCount: 6 },
   ],
@@ -124,7 +130,7 @@ const HUMAN_CARRIER_COMMANDER_SOFT_FIG_OPEN_PLAN: AuthoredBotPlan = {
   speciesId: 'HUM',
   buildGoals: [
     { shipDefId: 'FIG', targetCount: 1 },
-    { shipDefId: 'CAR', targetCount: 4 },
+    { shipDefId: 'CAR', targetCount: 4 , saveUntilAffordable: true },
     { shipDefId: 'COM', targetCount: 3 },
     { shipDefId: 'FIG', targetCount: 6 },
   ],
@@ -141,6 +147,8 @@ const HUMAN_ORBITAL_CARRIER_EARTHSHIP_SHELL_PLAN: AuthoredBotPlan = {
   id: 'hum_orbital_carrier_earthship_shell',
   speciesId: 'HUM',
   buildGoals: [
+    { shipDefId: 'ORB', targetCount: 2 },
+    { shipDefId: 'CAR', targetCount: 2 },
     { shipDefId: 'ORB', targetCount: 3 },
     { shipDefId: 'CAR', targetCount: 6 },
     { shipDefId: 'EAR', targetCount: 1, saveUntilAffordable: true },
