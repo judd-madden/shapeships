@@ -131,7 +131,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Ships That Build",
-        "text": "Has 6 charges. In each Ships That Build phase, may:\\n- Make a Defender (use 1 charge) OR\\n- Make a Fighter (use 2 charges)"
+        "text": "Has 6 charges. In each 'Ships That Build' phase, may:\\n- Make a Defender (use 1 charge) OR\\n- Make a Fighter (use 2 charges)"
       }
     ],
     "energyCost": null,
@@ -480,7 +480,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Drawing",
-        "text": "When built and in each future Drawing phase, may turn one Xenite into an Oxite or an Asterite."
+        "text": "When built and in each future 'Drawing' phase, may turn one Xenite into an Oxite or an Asterite."
       }
     ],
     "energyCost": null,
@@ -568,7 +568,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Ships That Build",
-        "text": "Has 4 charges. Each Ships That Build phase, make a Xenite and use 1 charge."
+        "text": "Has 4 charges. Each 'Ships That Build' phase, make a Xenite and use 1 charge."
       }
     ],
     "energyCost": null,
@@ -593,7 +593,7 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "Ships That Build",
-        "text": "Each Ships That Build phase:\\nIf dice roll is a 2, make a Xenite.\\nIf dice roll is a 3, make an Antlion.\\nIf dice roll is a 4, make two Xenites."
+        "text": "Each 'Ships That Build' phase:\\nIf dice roll is a 2, make a Xenite.\\nIf dice roll is a 3, make an Antlion.\\nIf dice roll is a 4, make two Xenites."
       },
       {
         "subphase": "Upon Destruction",
@@ -730,7 +730,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Ships That Build",
-        "text": "Each Ships That Build phase, may destroy one basic ship of yours and make a Xenite for every 3 lines in that ship (round down)."
+        "text": "Each 'Ships That Build' phase, may destroy one basic ship of yours and make a Xenite for every 3 lines in that ship (round down)."
       },
       {
         "subphase": "Passive",
@@ -760,7 +760,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Ships That Build",
-        "text": "Each Ships That Build phase, make a Xenite."
+        "text": "Each 'Ships That Build' phase, make a Xenite."
       },
       {
         "subphase": "Automatic",
@@ -794,7 +794,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Ships That Build",
-        "text": "If you have 1: Roll an extra dice each turn. The Ships That Build phase occurs TWICE for you each turn."
+        "text": "If you have 1: Roll an extra dice each turn. The 'Ships That Build' phase occurs TWICE for you each turn."
       },
       {
         "subphase": "Dice Manipulation",
