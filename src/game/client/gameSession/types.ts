@@ -29,6 +29,7 @@ export interface AuthoritativeStateApplyMeta {
 export interface GameStateRequestMeta {
   requestSeq: number;
   unlockEligible: boolean;
+  resumeLockActivationRequestSeq: number | null;
 }
 
 export interface GameStateClockSnapshot {

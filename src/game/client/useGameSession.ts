@@ -284,6 +284,22 @@ function extractAcceptedFullStateFingerprint(state: any): AcceptedFullStateFinge
   };
 }
 
+function isPlausibleGameStatePayload(
+  value: unknown,
+  expectedGameId: string | null
+): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (typeof record.gameId !== 'string') {
+    return false;
+  }
+
+  return expectedGameId == null || record.gameId === expectedGameId;
+}
+
 export function useGameSession(gameId: string, propsPlayerName: string) {
   // Stop /game-state polling once an authoritative finished payload has been stored.
   const POSTGAME_POLL_MS = 0;
@@ -382,9 +398,14 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     latestStartedGameStateRequestSeqRef.current += 1;
     activeGameStateRequestSeqsRef.current.add(latestStartedGameStateRequestSeqRef.current);
 
+    const unlockEligible = options?.unlockEligible === true;
+
     return {
       requestSeq: latestStartedGameStateRequestSeqRef.current,
-      unlockEligible: options?.unlockEligible === true,
+      unlockEligible,
+      resumeLockActivationRequestSeq: unlockEligible
+        ? resumeLockActivationRequestSeqRef.current
+        : null,
     };
   }
 
@@ -397,11 +418,16 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       return false;
     }
 
-    if (requestMeta.requestSeq !== latestStartedGameStateRequestSeqRef.current) {
+    const requestActivationRequestSeq = requestMeta.resumeLockActivationRequestSeq;
+    if (typeof requestActivationRequestSeq !== 'number') {
       return false;
     }
 
-    if (requestMeta.requestSeq <= resumeLockActivationRequestSeqRef.current) {
+    if (requestActivationRequestSeq !== resumeLockActivationRequestSeqRef.current) {
+      return false;
+    }
+
+    if (requestMeta.requestSeq <= requestActivationRequestSeq) {
       return false;
     }
 
@@ -411,6 +437,34 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
 
     lastImmediateRetrySourceRequestSeqRef.current = requestMeta.requestSeq;
     return true;
+  }
+
+  function maybeUnlockResumeSyncFromGameStateSuccess(
+    payload: unknown,
+    requestMeta: GameStateRequestMeta
+  ): void {
+    if (!resumeSyncLockedRef.current || requestMeta.unlockEligible !== true) {
+      return;
+    }
+
+    if (!isPlausibleGameStatePayload(payload, effectiveGameId)) {
+      return;
+    }
+
+    const requestActivationRequestSeq = requestMeta.resumeLockActivationRequestSeq;
+    if (typeof requestActivationRequestSeq !== 'number') {
+      return;
+    }
+
+    if (requestActivationRequestSeq !== resumeLockActivationRequestSeqRef.current) {
+      return;
+    }
+
+    if (requestMeta.requestSeq <= requestActivationRequestSeq) {
+      return;
+    }
+
+    setResumeSyncLockedState(false);
   }
 
   function applyAuthoritativeRawState(
@@ -438,14 +492,6 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     }
 
     latestAppliedGameStateRequestSeqRef.current = requestSeq;
-
-    if (
-      resumeSyncLockedRef.current &&
-      meta.unlockEligible === true &&
-      requestSeq > resumeLockActivationRequestSeqRef.current
-    ) {
-      setResumeSyncLockedState(false);
-    }
 
     rawStateRef.current = nextState;
     lastAcceptedFullFingerprintRef.current = extractAcceptedFullStateFingerprint(nextState);
@@ -815,6 +861,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     authenticatedGet,
     beginGameStateRequest,
     finishGameStateRequest,
+    maybeUnlockResumeSyncFromGameStateSuccess,
     applyAuthoritativeRawState,
     shouldRetryGameStateRequestImmediately,
     isResumeSyncLocked: () => resumeSyncLockedRef.current,
@@ -964,7 +1011,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
     allowImmediateRetry?: boolean;
   }): Promise<void> {
     const requestMeta = beginGameStateRequest({
-      unlockEligible: options?.unlockEligible ?? resumeSyncLockedRef.current,
+      unlockEligible: options?.unlockEligible === true || resumeSyncLockedRef.current,
     });
 
     try {
@@ -992,6 +1039,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
       }
       
       const data = await response.json();
+      maybeUnlockResumeSyncFromGameStateSuccess(data, requestMeta);
       const accepted = applyAuthoritativeRawState(data, {
         source: 'game_state',
         requestSeq: requestMeta.requestSeq,

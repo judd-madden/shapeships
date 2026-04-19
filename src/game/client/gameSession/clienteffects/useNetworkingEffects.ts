@@ -239,6 +239,7 @@ export function usePollingEffect(args: {
 
   beginGameStateRequest: (options?: { unlockEligible?: boolean }) => GameStateRequestMeta;
   finishGameStateRequest: (requestSeq: number) => void;
+  maybeUnlockResumeSyncFromGameStateSuccess: (payload: unknown, requestMeta: GameStateRequestMeta) => void;
   applyAuthoritativeRawState: (s: any, meta: AuthoritativeStateApplyMeta) => boolean;
   shouldRetryGameStateRequestImmediately: (requestMeta: GameStateRequestMeta) => boolean;
   isResumeSyncLocked: () => boolean;
@@ -262,6 +263,7 @@ export function usePollingEffect(args: {
     authenticatedGet,
     beginGameStateRequest,
     finishGameStateRequest,
+    maybeUnlockResumeSyncFromGameStateSuccess,
     applyAuthoritativeRawState,
     shouldRetryGameStateRequestImmediately,
     isResumeSyncLocked,
@@ -409,7 +411,7 @@ export function usePollingEffect(args: {
       reason?: string;
     }): Promise<{ nextPollDelayMs: number | null }> => {
       const requestMeta = beginGameStateRequest({
-        unlockEligible: options?.unlockEligible === true,
+        unlockEligible: options?.unlockEligible === true || isResumeSyncLocked(),
       });
       let nextPollDelayMs = initialDelayMs;
 
@@ -424,6 +426,7 @@ export function usePollingEffect(args: {
         }
 
         const data = await response.json();
+        maybeUnlockResumeSyncFromGameStateSuccess(data, requestMeta);
         const fetchedIsFinished =
           data?.status === 'finished' ||
           data?.gameData?.status === 'finished';
