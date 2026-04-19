@@ -3,10 +3,8 @@ import react from '@vitejs/plugin-react-swc';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 
-export default defineConfig(({ mode }) => ({
-    // Local dev stays at "/" (http://localhost:3000/)
-    // Production build targets your FTP subfolder, e.g. https://juddmadden.com/dev/
-    base: mode === 'production' ? '/dev/' : '/',
+export default defineConfig(() => ({
+    base: '/',
 
     plugins: [react(), tailwindcss()],
     resolve: {
