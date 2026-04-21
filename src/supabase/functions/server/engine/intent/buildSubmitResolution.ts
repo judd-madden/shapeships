@@ -1015,6 +1015,7 @@ function resolvePlayerBuildSubmit(args: {
       shipDefId: createdShipDefId,
       turnNumber,
       workingFleet,
+      countAsCreatedShip: false,
     });
 
     events.push({
