@@ -1195,7 +1195,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Automatic",
-        "text": "Deal 3 damage for each of your other ships. Does NOT include itself."
+        "text": "Deal 2 damage for each of your ships."
       }
     ],
     "energyCost": null,
@@ -1230,7 +1230,7 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "Automatic",
-        "text": "Heal 3 for each of your ships."
+        "text": "Heal 2 for each of your ships."
       }
     ],
     "energyCost": null,

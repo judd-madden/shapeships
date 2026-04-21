@@ -48,7 +48,7 @@ export const COMPUTED_EFFECTS_AUDIT = [
   // Centaur
   { shipDefId: 'ANG', mechanic: 'once-only on build turn' },
   { shipDefId: 'FEA', mechanic: 'once-only on build turn' },
-  { shipDefId: 'DES', mechanic: 'count-your-other-ships' },
+  { shipDefId: 'DES', mechanic: 'count-your-ships' },
   { shipDefId: 'DOM', mechanic: 'count-your-ships' },
   { shipDefId: 'FAM', mechanic: 'distinct-type count (self)' },
   { shipDefId: 'FUR', mechanic: 'dice scaling: dmg = dice roll' },
@@ -240,12 +240,6 @@ export function countDistinctTypes(ships: ShipInstance[]): number {
   const set = new Set<string>();
   for (const s of ships) set.add(s.shipDefId);
   return set.size;
-}
-
-function countOtherShips(ships: ShipInstance[], excludeInstanceId: string): number {
-  let n = 0;
-  for (const s of ships) if (s.instanceId !== excludeInstanceId) n++;
-  return n;
 }
 
 /**
@@ -1102,19 +1096,19 @@ export function computePhaseComputedEffects(
     }
   }
 
-  // === ARK OF DESTRUCTION (DES) automatic: Deal 3 damage for each of your other ships ===
+  // === ARK OF DESTRUCTION (DES) automatic: Deal 2 damage for each of your ships ===
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
     const opponentId = opponentMap.get(ownerPlayerId);
     if (!opponentId) continue;
 
     const ships = getShips(state, ownerPlayerId);
+    const ownedShipCount = countTotalShips(ships);
 
     for (const ship of ships) {
       if (ship.shipDefId !== 'DES') continue;
 
-      const otherShips = countOtherShips(ships, ship.instanceId);
-      const damage = otherShips * 3;
+      const damage = ownedShipCount * 2;
       if (damage <= 0) continue;
 
       computedEffects.push({
@@ -1130,17 +1124,17 @@ export function computePhaseComputedEffects(
       });
 
       console.log(
-        `[computePhaseComputedEffects] ArkOfDestruction automatic: owner=${ownerPlayerId} instance=${ship.instanceId} otherShips=${otherShips} dmg=${damage} target=${opponentId}`
+        `[computePhaseComputedEffects] ArkOfDestruction automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownedShips=${ownedShipCount} dmg=${damage} target=${opponentId}`
       );
     }
   }
 
-  // === ARK OF DOMINATION (DOM) automatic: Heal 3 for each of your ships ===
+  // === ARK OF DOMINATION (DOM) automatic: Heal 2 for each of your ships ===
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
     const ships = getShips(state, ownerPlayerId);
     const ownedShipCount = countTotalShips(ships);
-    const healPerDom = ownedShipCount * 3;
+    const healPerDom = ownedShipCount * 2;
 
     if (healPerDom <= 0) continue;
 
