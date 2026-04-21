@@ -73,6 +73,7 @@ export function speciesToCataloguePanelId(species: SpeciesId): ActionPanelId {
 
 export function isDeferredAutoPanelHandoffPhase(phaseKey: PhaseKey): boolean {
   return (
+    phaseKey === 'build.dice_roll' ||
     phaseKey === 'build.ships_that_build' ||
     phaseKey === 'battle.first_strike' ||
     phaseKey === 'battle.charge_declaration' ||
