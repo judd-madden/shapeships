@@ -61,7 +61,7 @@ const HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN: AuthoredBotPlan = {
   buildGoals: [
     { shipDefId: 'ORB', targetCount: 1 },
     { shipDefId: 'CAR', targetCount: 3 },
-    { shipDefId: 'TAC', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'TAC', targetCount: 2 },
     { shipDefId: 'INT', targetCount: 1 },
     { shipDefId: 'FRI', targetCount: 1 },
   ],
@@ -176,7 +176,7 @@ const HUMAN_ORBITAL_CARRIER_SCIENCE_SHELL_PLAN: AuthoredBotPlan = {
     { shipDefId: 'FIG', targetCount: 1 },
     { shipDefId: 'STA', targetCount: 1 },
     { shipDefId: 'SCI', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'EAR', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'EAR', targetCount: 1 },
     { shipDefId: 'CAR', targetCount: 8 },
     { shipDefId: 'FIG', targetCount: 1 },
     { shipDefId: 'STA', targetCount: 1 },
