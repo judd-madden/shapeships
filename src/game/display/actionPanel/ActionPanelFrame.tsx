@@ -213,7 +213,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
     if (shipChoiceSpec.kind === 'large') {
       return renderWithOverlay(
         <ActionPanelScrollArea>
-          <div className="w-fit">
+          <div className="flex min-h-full w-full items-center justify-center">
             <LargeStyleChoicePanel
               shipDefId={shipChoiceSpec.shipDefId}
               title={vm.largeChoicePanel?.title ?? shipChoiceSpec.title}
