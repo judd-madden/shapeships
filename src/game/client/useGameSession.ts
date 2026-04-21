@@ -2246,6 +2246,7 @@ useEffect(() => {
       case 'battle.first_strike':
         if (mySpecies === 'human') return 'ap.battle.first_strike.human';
         if (mySpecies === 'centaur') return 'ap.battle.first_strike.centaur';
+        if (mySpecies === 'xenite') return 'ap.battle.first_strike.xenite';
         return null;
       
       case 'battle.charge_declaration':

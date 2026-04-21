@@ -534,6 +534,10 @@ export const SHIP_DEFINITIONS_JSON = [
       {
         "subphase": "Automatic",
         "text": "Deal 1 damage."
+      },
+      {
+        "subphase": "Automatic",
+        "text": "Heal 1."
       }
     ],
     "energyCost": null,
@@ -740,16 +744,20 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Ships That Build",
-        "text": "Each 'Ships That Build' phase, may destroy one basic ship of yours and make a Xenite for every 3 lines in that ship (round down)."
+        "subphase": "First Strike",
+        "text": "Once only on the turn it is built, you may destroy one basic enemy ship."
       },
       {
-        "subphase": "Passive",
-        "text": "Your ships cannot be destroyed by opponent powers."
+        "subphase": "Automatic",
+        "text": "Deal 1 damage."
+      },
+      {
+        "subphase": "Automatic",
+        "text": "Heal 1."
       }
     ],
     "energyCost": null,
-    "extraRules": "",
+    "extraRules": "Destroy power occurs during Battle Phase before other ship powers. See 'Destroying' rules for info.",
     "stackCaption": "No caption",
     "colour": "Red",
     "numberOfGraphics": 1

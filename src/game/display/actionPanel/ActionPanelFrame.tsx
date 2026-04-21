@@ -216,7 +216,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
           <div className="w-fit">
             <LargeStyleChoicePanel
               shipDefId={shipChoiceSpec.shipDefId}
-              title={shipChoiceSpec.title}
+              title={vm.largeChoicePanel?.title ?? shipChoiceSpec.title}
               instruction={vm.largeChoicePanel?.instruction ?? shipChoiceSpec.instruction}
               helpText={shipChoiceSpec.helpText}
               className="w-auto h-auto"

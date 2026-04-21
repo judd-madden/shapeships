@@ -238,32 +238,29 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
 
   'ap.build.ships_that_build.xenite': {
     kind: 'buttons',
-    groups: [
-      {
-        kind: 'named',
-        heading: 'Sacrificial Pool',
-        ships: [
-          {
-            shipDefId: 'SAC',
-            buttons: [
-              {
-                size: 'large',
-                label: 'Destroy Own Ship',
-                requiresTargeting: true,
-                showsInstructions: true,
-                instructionText: 'You must select a basic ship of yours.',
-                choiceId: 'destroy',
-              },
-              {
-                size: 'small',
-                label: 'Do Nothing',
-                choiceId: 'hold',
-              },
-            ],
-          },
-        ],
-      },
-    ],
+    groups: [],
+    // v1.2 SAC - no longer used, kept for self-targeting and targeting within Ships That Build reference
+    // Historical section kept for reference only:
+    // {
+    //   kind: 'named',
+    //   heading: 'Sacrificial Pool',
+    //   ships: [
+    //     {
+    //       shipDefId: 'SAC',
+    //       buttons: [
+    //         {
+    //           size: 'large',
+    //           label: 'Destroy Own Ship',
+    //           requiresTargeting: true,
+    //           showsInstructions: true,
+    //           instructionText: 'You must select a basic ship of yours.',
+    //           choiceId: 'destroy',
+    //         },
+    //         { size: 'small', label: 'Do Nothing', choiceId: 'hold' },
+    //       ],
+    //     },
+    //   ],
+    // }
   },
 
   'ap.build.drawing.human': {
@@ -316,6 +313,14 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
     title: 'Ark of Domination',
     instruction: 'You must select two basic enemy ships on the battlefield to steal!',
     helpText: 'Any stolen ship Battle Phase powers WILL be active for you this turn.',
+  },
+
+  // v1.3 SAC
+  'ap.battle.first_strike.xenite': {
+    kind: 'large',
+    shipDefId: 'SAC',
+    title: 'Sacrificial Pool',
+    instruction: 'You must destroy an enemy basic ship.',
   },
 
   'ap.battle.charges.human': {

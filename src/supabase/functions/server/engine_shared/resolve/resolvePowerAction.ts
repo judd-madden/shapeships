@@ -27,10 +27,6 @@ import {
 import { getValidDestroyTargets, getValidShipOfEqualityTargets } from './destroyRules.ts';
 import { countDistinctTypes } from './phaseComputedEffects.ts';
 
-function shouldApplyOpponentSacProtectionForTargetedEffect(effect: StructuredChoiceOption['effects'][number]): boolean {
-  return effect.kind !== EffectKind.TransferShip;
-}
-
 function getShipsThatBuildPassIndex(state: GameState): 1 | 2 {
   return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
 }
@@ -336,8 +332,6 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
       sourcePlayerId: playerId,
       targetScope: targetedEffect.targetPlayer === 'self' ? 'self' : 'opponent',
       restriction: targetedEffect.restriction ?? 'any',
-      minimumFullLineCost: shipDefId === 'SAC' ? 3 : undefined,
-      applyOpponentSacProtection: shouldApplyOpponentSacProtectionForTargetedEffect(targetedEffect),
     });
     const requiredTargetCount = getRequiredTargetCount(targetedEffect, validTargets.length);
 

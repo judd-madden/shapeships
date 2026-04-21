@@ -1007,48 +1007,123 @@ export function mapGameSessionVm(args: {
     authoritativePendingDrawOffer == null &&
     currentTurnLastDrawOffer !== turnNumber;
   const canResign = !isFinished && me?.role === 'player';
-  const domLargeChoiceInstruction = (() => {
-    if (finalActivePanelId !== 'ap.battle.first_strike.centaur') {
+  const largeChoicePanelOverrides = (() => {
+    if (finalActivePanelId === 'ap.battle.first_strike.centaur') {
+      const domActions = getRenderableServerChoiceActions(phaseKey, availableActions).filter(
+        (action) => action.kind === 'destroy_target' && action.shipDefId === 'DOM'
+      );
+
+      if (domActions.length === 0) {
+        return undefined;
+      }
+
+      const domAction =
+        domActions.find((action) =>
+          !isRenderableTargetedActionComplete({
+            action,
+            selectedChoiceIdBySourceInstanceId,
+            allocatedDestroyTargetIdsBySourceInstanceId,
+            allocatedDestroyTargetIdBySourceInstanceId,
+          })
+        ) ?? domActions[0];
+
+      const requiredTargetCount = getRenderableActionRequiredTargetCount(domAction);
+      const isComplete = isRenderableTargetedActionComplete({
+        action: domAction,
+        selectedChoiceIdBySourceInstanceId,
+        allocatedDestroyTargetIdsBySourceInstanceId,
+        allocatedDestroyTargetIdBySourceInstanceId,
+      });
+
+      if (!isComplete && requiredTargetCount === 2) {
+        return { instruction: 'You must select two basic enemy ships on the battlefield to steal!' };
+      }
+
+      if (!isComplete) {
+        return { instruction: 'You must select one basic enemy ship on the battlefield to steal!' };
+      }
+
+      return {
+        instruction: requiredTargetCount === 2
+          ? 'Steal opponent ships'
+          : 'Steal opponent ship',
+      };
+    }
+
+    if (finalActivePanelId !== 'ap.battle.first_strike.xenite') {
       return undefined;
     }
 
-    const domActions = getRenderableServerChoiceActions(phaseKey, availableActions).filter(
-      (action) => action.kind === 'destroy_target' && action.shipDefId === 'DOM'
+    const sacActions = getRenderableServerChoiceActions(phaseKey, availableActions).filter(
+      (action) => action.kind === 'destroy_target' && action.shipDefId === 'SAC'
     );
 
-    if (domActions.length === 0) {
+    if (sacActions.length === 0) {
       return undefined;
     }
 
-    const domAction =
-      domActions.find((action) =>
+    const currentSacAction =
+      sacActions.find((action) =>
         !isRenderableTargetedActionComplete({
           action,
           selectedChoiceIdBySourceInstanceId,
           allocatedDestroyTargetIdsBySourceInstanceId,
           allocatedDestroyTargetIdBySourceInstanceId,
         })
-      ) ?? domActions[0];
+      ) ?? sacActions[0];
 
-    const requiredTargetCount = getRenderableActionRequiredTargetCount(domAction);
-    const isComplete = isRenderableTargetedActionComplete({
-      action: domAction,
-      selectedChoiceIdBySourceInstanceId,
-      allocatedDestroyTargetIdsBySourceInstanceId,
-      allocatedDestroyTargetIdBySourceInstanceId,
-    });
+    const currentSourceInstanceId =
+      typeof currentSacAction?.sourceInstanceId === 'string'
+        ? currentSacAction.sourceInstanceId
+        : null;
 
-    if (!isComplete && requiredTargetCount === 2) {
-      return 'You must select two basic enemy ships on the battlefield to steal!';
+    const meId = typeof me?.id === 'string' ? me.id : null;
+    const myFleet = meId ? gameData?.ships?.[meId] ?? [] : [];
+    const sacBuiltThisTurnIds = Array.isArray(myFleet)
+      ? myFleet
+        .filter((ship: any) =>
+          ship?.shipDefId === 'SAC' &&
+          ship?.createdTurn === turnNumber &&
+          typeof ship?.instanceId === 'string'
+        )
+        .map((ship: any) => ship.instanceId as string)
+      : [];
+    const sacBuiltThisTurnIdSet = new Set(sacBuiltThisTurnIds);
+
+    const unresolvedSourceInstanceIds = sacActions
+      .map((action) => action?.sourceInstanceId)
+      .filter(
+        (sourceInstanceId): sourceInstanceId is string =>
+          typeof sourceInstanceId === 'string' && sourceInstanceId.length > 0
+      );
+
+    const onceOnlyFired = gameData?.powerMemory?.onceOnlyFired;
+    const resolvedSourceInstanceIds: string[] = [];
+    if (onceOnlyFired && typeof onceOnlyFired === 'object') {
+      for (const [memoryKey, didFire] of Object.entries(onceOnlyFired as Record<string, unknown>)) {
+        if (didFire !== true || !memoryKey.endsWith('::SAC#0')) continue;
+        const sourceInstanceId = memoryKey.slice(0, -'::SAC#0'.length);
+        if (!sacBuiltThisTurnIdSet.has(sourceInstanceId)) continue;
+        resolvedSourceInstanceIds.push(sourceInstanceId);
+      }
     }
 
-    if (!isComplete) {
-      return 'You must select one basic enemy ship on the battlefield to steal!';
+    const fullStableSacSourceInstanceIds = Array.from(
+      new Set([...unresolvedSourceInstanceIds, ...resolvedSourceInstanceIds])
+    ).sort((a, b) => a.localeCompare(b));
+
+    let title = 'Sacrificial Pool';
+    if (fullStableSacSourceInstanceIds.length > 1 && currentSourceInstanceId) {
+      const ordinalIndex = fullStableSacSourceInstanceIds.indexOf(currentSourceInstanceId);
+      if (ordinalIndex >= 0) {
+        title = `Sacrificial Pool ${ordinalIndex + 1}`;
+      }
     }
 
-    return requiredTargetCount === 2
-      ? 'Steal opponent ships'
-      : 'Steal opponent ship';
+    return {
+      title,
+      instruction: 'You must destroy an enemy basic ship.',
+    };
   })();
 
   
@@ -1203,11 +1278,7 @@ export function mapGameSessionVm(args: {
       frigateDrawing,
       evolverDrawing,
       shipChoices,
-      largeChoicePanel: domLargeChoiceInstruction
-        ? {
-            instruction: domLargeChoiceInstruction,
-          }
-        : undefined,
+      largeChoicePanel: largeChoicePanelOverrides,
       availableActions: availableActionsSafe,
       selectedChoiceIdBySourceInstanceId,
     },

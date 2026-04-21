@@ -693,13 +693,35 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   // ==========================================================================
   // SACRIFICIAL POOL (SAC)
   // ==========================================================================
+  // v1.2 SAC - no longer used, kept for self-targeting and targeting within Ships That Build reference
   // Choice power in build.ships_that_build:
   // - destroy: Destroy one of your own legal basic ships
   // - hold:    do nothing
+  // {
+  //   type: 'choice',
+  //   timings: ['build.ships_that_build'],
+  //   options: [
+  //     {
+  //       choiceId: 'destroy',
+  //       effects: [
+  //         {
+  //           kind: EffectKind.Destroy,
+  //           restriction: 'basic_only',
+  //           count: 1,
+  //           targetPlayer: 'self',
+  //         },
+  //       ],
+  //     },
+  //     { choiceId: 'hold', effects: [] },
+  //   ],
+  // }
+  //
+  // v1.3 SAC
   'SAC#0': [
     {
       type: 'choice',
-      timings: ['build.ships_that_build'],
+      timings: ['battle.first_strike'],
+      onceOnly: 'on_build_turn',
       options: [
         {
           choiceId: 'destroy',
@@ -711,16 +733,33 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
               kind: EffectKind.Destroy,
               restriction: 'basic_only',
               count: 1,
-              targetPlayer: 'self',
+              targetPlayer: 'opponent',
             },
           ],
         },
-        {
-          choiceId: 'hold',
-          label: '',
-          effects: [],
-        },
       ],
+    },
+  ],
+
+  // v1.3 SAC
+  'SAC#1': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Damage,
+      amount: 1,
+      targetPlayer: 'opponent',
+    },
+  ],
+
+  // v1.3 SAC
+  'SAC#2': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Heal,
+      amount: 1,
+      targetPlayer: 'self',
     },
   ],
 };

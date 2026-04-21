@@ -284,10 +284,6 @@ function getTargetedChoiceEffect(option: any) {
   ) ?? null;
 }
 
-function shouldApplyOpponentSacProtectionForTargetedEffect(effect: any): boolean {
-  return effect?.kind !== EffectKind.TransferShip;
-}
-
 function getProjectedRequiredTargetCount(effect: any, validTargetCount: number): number {
   const rawRequiredTargetCount =
     typeof effect?.requiredTargetCount === 'number'
@@ -720,8 +716,6 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
           sourcePlayerId: playerId,
           targetScope: targetedEffect.targetPlayer === 'self' ? 'self' : 'opponent',
           restriction: targetedEffect.restriction ?? 'any',
-          minimumFullLineCost: shipDefId === 'SAC' ? 3 : undefined,
-          applyOpponentSacProtection: shouldApplyOpponentSacProtectionForTargetedEffect(targetedEffect),
         });
 
         if (validTargets.length === 0) {
@@ -812,8 +806,6 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
             sourcePlayerId: playerId,
             targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
             restriction: destroyEffect.restriction ?? 'any',
-            minimumFullLineCost: shipDefId === 'SAC' ? 3 : undefined,
-            applyOpponentSacProtection: shouldApplyOpponentSacProtectionForTargetedEffect(destroyEffect),
           });
 
           if (validTargets.length === 0) {

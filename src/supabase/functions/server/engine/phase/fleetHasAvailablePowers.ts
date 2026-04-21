@@ -33,10 +33,6 @@ function getTargetedChoiceEffect(option: any) {
   ) ?? null;
 }
 
-function shouldApplyOpponentSacProtectionForTargetedEffect(effect: any): boolean {
-  return effect?.kind !== EffectKind.TransferShip;
-}
-
 function getShipsThatBuildPassIndex(state: any): 1 | 2 {
   return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
 }
@@ -139,7 +135,6 @@ function shipHasInteractiveShipsThatBuildChoice(
       sourcePlayerId: playerId,
       targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
       restriction: destroyEffect.restriction ?? 'any',
-      minimumFullLineCost: ship?.shipDefId === 'SAC' ? 3 : undefined,
     });
 
     if (validTargets.length > 0) {
@@ -199,7 +194,6 @@ function shipHasInteractiveTargetedDestroyChoice(
       sourcePlayerId: playerId,
       targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
       restriction: destroyEffect.restriction ?? 'any',
-      applyOpponentSacProtection: shouldApplyOpponentSacProtectionForTargetedEffect(destroyEffect),
     });
 
     if (validTargets.length > 0) {

@@ -58,11 +58,13 @@ function matchesDestroyRestriction(
   return false;
 }
 
+// v1.2 SAC - no longer used, kept for self-targeting and targeting within Ships That Build reference
 export function hasSacDestroyProtection(state: GameState | any, playerId: string): boolean {
   const fleet = state?.gameData?.ships?.[playerId] ?? [];
   return Array.isArray(fleet) && fleet.some((ship: any) => ship?.shipDefId === 'SAC');
 }
 
+// v1.2 SAC - no longer used, kept for self-targeting and targeting within Ships That Build reference
 export function isOpponentDestroyBlockedBySacProtection(
   state: GameState | any,
   sourcePlayerId: string,
@@ -88,7 +90,9 @@ export function getValidDestroyTargets(
     sourcePlayerId: string;
     targetScope: DestroyTargetScope;
     restriction: DestroyRestriction;
+    // v1.2 SAC - no longer used, kept for self-targeting and targeting within Ships That Build reference
     minimumFullLineCost?: number;
+    // v1.2 SAC - no longer used, kept for self-targeting and targeting within Ships That Build reference
     applyOpponentSacProtection?: boolean;
   }
 ): DestroyTargetDescriptor[] {
@@ -96,19 +100,10 @@ export function getValidDestroyTargets(
     sourcePlayerId,
     targetScope,
     restriction,
-    minimumFullLineCost,
-    applyOpponentSacProtection = true,
   } = args;
 
   const targetPlayerId = getDestroyTargetPlayerId(state, sourcePlayerId, targetScope);
   if (!targetPlayerId) return [];
-
-  if (
-    applyOpponentSacProtection &&
-    isOpponentDestroyBlockedBySacProtection(state, sourcePlayerId, targetPlayerId)
-  ) {
-    return [];
-  }
 
   const targetFleet = state?.gameData?.ships?.[targetPlayerId] ?? [];
   if (!Array.isArray(targetFleet)) return [];
@@ -121,12 +116,6 @@ export function getValidDestroyTargets(
       const fullLineCost = getAuthoritativeFullLineCostForShipDef(shipDefId);
       if (fullLineCost == null) return false;
       if (!matchesDestroyRestriction(shipDefId, restriction)) return false;
-
-      if (minimumFullLineCost != null) {
-        if (fullLineCost < minimumFullLineCost) {
-          return false;
-        }
-      }
 
       return true;
     })
@@ -146,14 +135,12 @@ export function getValidShipOfEqualityTargets(
     sourcePlayerId,
     targetScope: 'self',
     restriction: 'basic_only',
-    applyOpponentSacProtection: false,
   }).filter((target) => target.shipDefId !== 'EQU');
 
   const validOpponentTargets = getValidDestroyTargets(state, {
     sourcePlayerId,
     targetScope: 'opponent',
     restriction: 'basic_only',
-    applyOpponentSacProtection: true,
   }).filter((target) => target.shipDefId !== 'EQU');
 
   if (validOwnTargets.length === 0 || validOpponentTargets.length === 0) {

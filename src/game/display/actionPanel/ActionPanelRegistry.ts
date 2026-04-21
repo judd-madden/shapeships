@@ -25,6 +25,7 @@ export type ActionPanelId =
   // Battle phase
   | 'ap.battle.first_strike.human'
   | 'ap.battle.first_strike.centaur'
+  | 'ap.battle.first_strike.xenite'
   | 'ap.battle.charges.human'
   | 'ap.battle.charges.xenite'
   | 'ap.battle.charges.centaur'
@@ -50,6 +51,7 @@ export const ACTION_PANEL_IDS: ActionPanelId[] = [
   'ap.build.drawing.xenite',
   'ap.battle.first_strike.human',
   'ap.battle.first_strike.centaur',
+  'ap.battle.first_strike.xenite',
   'ap.battle.charges.human',
   'ap.battle.charges.xenite',
   'ap.battle.charges.centaur',
@@ -84,6 +86,7 @@ export const ACTION_PANEL_DISPLAY_NAMES = {
   'ap.build.drawing.xenite': 'AP - Drawing - Xenite',
   'ap.battle.first_strike.human': 'AP - First Strike - Human',
   'ap.battle.first_strike.centaur': 'AP - First Strike - Centaur',
+  'ap.battle.first_strike.xenite': 'AP - First Strike - Xenite',
   'ap.battle.charges.human': 'AP - Charges - Human',
   'ap.battle.charges.xenite': 'AP - Charges - Xenite',
   'ap.battle.charges.centaur': 'AP - Charges - Centaur',

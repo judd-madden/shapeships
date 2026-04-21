@@ -470,6 +470,7 @@ export interface ActionPanelViewModel {
   };
 
   largeChoicePanel?: {
+    title?: string;
     instruction?: string;
   };
 
