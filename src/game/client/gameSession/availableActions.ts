@@ -56,6 +56,8 @@ export interface RenderableActionShipPresence {
   hasCarBuildAction: boolean;
   hasCentaurNonEquChargeAction: boolean;
   hasCentaurEquChargeAction: boolean;
+  hasGuardianFirstStrikeAction: boolean;
+  hasSacrificialPoolFirstStrikeAction: boolean;
 }
 
 export function isCataloguePanel(id: ActionPanelId): boolean {
@@ -121,6 +123,20 @@ export function getRenderableActionShipPresence(
       }
 
       if (
+        phaseKey === 'battle.first_strike' &&
+        action.shipDefId === 'GUA'
+      ) {
+        presence.hasGuardianFirstStrikeAction = true;
+      }
+
+      if (
+        phaseKey === 'battle.first_strike' &&
+        action.shipDefId === 'SAC'
+      ) {
+        presence.hasSacrificialPoolFirstStrikeAction = true;
+      }
+
+      if (
         (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') &&
         (action.shipDefId === 'WIS' ||
           action.shipDefId === 'FAM' ||
@@ -143,6 +159,8 @@ export function getRenderableActionShipPresence(
       hasCarBuildAction: false,
       hasCentaurNonEquChargeAction: false,
       hasCentaurEquChargeAction: false,
+      hasGuardianFirstStrikeAction: false,
+      hasSacrificialPoolFirstStrikeAction: false,
     }
   );
 }
@@ -308,12 +326,7 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
     if (
       hasActionsAvailable &&
       actionsTargetPanelId &&
-      (
-        (mySpecies === 'human' && buildDrawingRouteRequest === 'frigate-demand') ||
-        (mySpecies === 'xenite' &&
-          (buildDrawingRouteRequest === 'evolver-entry' ||
-            buildDrawingRouteRequest === 'evolver-added'))
-      )
+      buildDrawingRouteRequest !== null
     ) {
       const logReason =
         buildDrawingRouteRequest === 'frigate-demand'
@@ -321,11 +334,15 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
           : buildDrawingRouteRequest === 'evolver-entry'
             ? 'phase entry with Evolver rows available'
             : 'new Evolver row ids added';
+      const requestedPanelId =
+        buildDrawingRouteRequest === 'frigate-demand'
+          ? 'ap.build.drawing.human'
+          : 'ap.build.drawing.xenite';
 
       return {
         kind: 'setActivePanelId',
-        nextPanelId: actionsTargetPanelId,
-        log: `[useGameSession] build.drawing: ${logReason}; switching to Actions: ${actionsTargetPanelId}`,
+        nextPanelId: requestedPanelId,
+        log: `[useGameSession] build.drawing: ${logReason}; switching to Actions: ${requestedPanelId}`,
       };
     }
 

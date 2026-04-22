@@ -56,6 +56,8 @@ export interface AcceptedFullStateFingerprint {
 
 export type EvolverChoiceId = 'hold' | 'oxite' | 'asterite';
 export type CentaurChargeSubTabId = 'charges' | 'ship_of_equality';
+export type BuildDrawingActionFamily = 'evolver' | 'frigate';
+export type FirstStrikeActionFamily = 'guardian' | 'sacrificial_pool';
 
 export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
 
@@ -469,6 +471,18 @@ export interface ActionPanelViewModel {
     };
   };
 
+  phaseLocalFamilySwitch?:
+    | {
+        phase: 'build.drawing';
+        activeFamily: BuildDrawingActionFamily;
+        availableFamilies: BuildDrawingActionFamily[];
+      }
+    | {
+        phase: 'battle.first_strike';
+        activeFamily: FirstStrikeActionFamily;
+        availableFamilies: FirstStrikeActionFamily[];
+      };
+
   largeChoicePanel?: {
     title?: string;
     instruction?: string;
@@ -517,6 +531,8 @@ export interface GameSessionActions {
   onSelectCentaurChargeSubTab: (tabId: CentaurChargeSubTabId) => void;
   onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => void;
   onSelectEvolverChoice: (rowId: string, choiceId: EvolverChoiceId) => void;
+  onSelectBuildDrawingFamily?: (family: BuildDrawingActionFamily) => void;
+  onSelectFirstStrikeFamily?: (family: FirstStrikeActionFamily) => void;
   onBoardBackgroundMouseDown: () => void;
   onDestroyTargetStackHoverChange: (side: 'my' | 'opponent', stackKey: string | null) => void;
   onDestroyTargetStackMouseDown: (side: 'my' | 'opponent', stackKey: string) => void;

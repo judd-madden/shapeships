@@ -607,6 +607,18 @@ function applyEvolverPreviewParity(args: {
   return nextEntries;
 }
 
+function deriveActionableEvolverRowIds(entries: InternalFleetEntry[]): string[] {
+  const eligibleXenCount = entries.filter((entry) => entry.shipDefId === 'XEN').length;
+  if (eligibleXenCount <= 0) {
+    return [];
+  }
+
+  return entries
+    .filter((entry) => entry.shipDefId === 'EVO')
+    .slice(0, eligibleXenCount)
+    .map((entry) => entry.rowId);
+}
+
 function isUpgradedDraftBuildEntry(buildEntry: DraftBuildEntry): boolean {
   return Boolean(getShipDefinitionById(buildEntry.shipDefId)?.upgradedCost);
 }
@@ -835,9 +847,7 @@ function simulateFutureResolvedUpgradedDemandForBasicAttempt(args: {
     return 0;
   }
 
-  const evolverRowIds = simulatedWorkingFleetEntries
-    .filter((entry) => entry.shipDefId === 'EVO')
-    .map((entry) => entry.rowId);
+  const evolverRowIds = deriveActionableEvolverRowIds(simulatedWorkingFleetEntries);
 
   const postEvolverFleetEntries = applyEvolverPreviewParity({
     entries: simulatedWorkingFleetEntries,
@@ -1050,9 +1060,7 @@ export function evaluateProvisionalBuild(args: {
   remainingJoiningLines = basicStageResolution.remainingJoiningLines;
   isValid = basicStageResolution.isStageValid && isValid;
 
-  const evolverRowIds = workingFleetEntries
-    .filter((entry) => entry.shipDefId === 'EVO')
-    .map((entry) => entry.rowId);
+  const evolverRowIds = deriveActionableEvolverRowIds(workingFleetEntries);
 
   workingFleetEntries = applyEvolverPreviewParity({
     entries: workingFleetEntries,

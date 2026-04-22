@@ -17,7 +17,9 @@ import type { ShipDefId } from '../../types/ShipTypes.engine';
 import type { ShipChoiceGroupSpec, ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
 import type {
   BattleLogHistoryResponse,
+  BuildDrawingActionFamily,
   EvolverChoiceId,
+  FirstStrikeActionFamily,
   GameSessionChatEntry,
   HealthResolutionPresentationVm,
 } from './types';
@@ -252,6 +254,14 @@ export function mapGameSessionVm(args: {
   // Client-only Evolver selections (existing EVO instances + preview EVO rows)
   evolverRowIds: string[];
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
+  buildDrawingFamilySwitch?: {
+    activeFamily: BuildDrawingActionFamily;
+    availableFamilies: BuildDrawingActionFamily[];
+  };
+  firstStrikeFamilySwitch?: {
+    activeFamily: FirstStrikeActionFamily;
+    availableFamilies: FirstStrikeActionFamily[];
+  };
   centaurChargeSubTab?: CentaurChargeSubTabId;
   centaurChargeAvailableTabs?: CentaurChargeSubTabId[];
   buildDrawingEconomyDisplay?: {
@@ -315,6 +325,8 @@ export function mapGameSessionVm(args: {
     frigateSelectedTriggers,
     evolverRowIds,
     evolverChoicesByRowId,
+    buildDrawingFamilySwitch,
+    firstStrikeFamilySwitch,
     centaurChargeSubTab,
     centaurChargeAvailableTabs,
     buildDrawingEconomyDisplay,
@@ -1278,6 +1290,20 @@ export function mapGameSessionVm(args: {
       frigateDrawing,
       evolverDrawing,
       shipChoices,
+      phaseLocalFamilySwitch:
+        buildDrawingFamilySwitch && finalActivePanelId !== 'ap.menu.root'
+          ? {
+              phase: 'build.drawing' as const,
+              activeFamily: buildDrawingFamilySwitch.activeFamily,
+              availableFamilies: buildDrawingFamilySwitch.availableFamilies,
+            }
+          : firstStrikeFamilySwitch
+            ? {
+                phase: 'battle.first_strike' as const,
+                activeFamily: firstStrikeFamilySwitch.activeFamily,
+                availableFamilies: firstStrikeFamilySwitch.availableFamilies,
+              }
+            : undefined,
       largeChoicePanel: largeChoicePanelOverrides,
       availableActions: availableActionsSafe,
       selectedChoiceIdBySourceInstanceId,

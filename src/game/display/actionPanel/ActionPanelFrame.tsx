@@ -29,6 +29,7 @@ interface ActionPanelFrameProps {
 export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPanelFrameProps) {
   const displayName = ACTION_PANEL_DISPLAY_NAMES[vm.activePanelId];
   const healthResolutionOverlay = vm.healthResolutionOverlay;
+  const phaseLocalFamilySwitch = vm.phaseLocalFamilySwitch;
 
   function renderWithOverlay(content: ReactNode) {
     return (
@@ -42,6 +43,48 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
             />
           </div>
         ) : null}
+      </div>
+    );
+  }
+
+  function renderPhaseLocalFamilySwitch(): ReactNode {
+    if (!phaseLocalFamilySwitch || phaseLocalFamilySwitch.availableFamilies.length < 2) {
+      return null;
+    }
+
+    const entries =
+      phaseLocalFamilySwitch.phase === 'build.drawing'
+        ? phaseLocalFamilySwitch.availableFamilies.map((family) => ({
+            family,
+            label: family === 'evolver' ? 'Evolver' : 'Frigate',
+            selected: phaseLocalFamilySwitch.activeFamily === family,
+            onClick: () => actions.onSelectBuildDrawingFamily?.(family),
+          }))
+        : phaseLocalFamilySwitch.availableFamilies.map((family) => ({
+            family,
+            label: family === 'guardian' ? 'Guardian' : 'Sacrificial Pool',
+            selected: phaseLocalFamilySwitch.activeFamily === family,
+            onClick: () => actions.onSelectFirstStrikeFamily?.(family),
+          }));
+
+    return (
+      <div className="inline-flex items-center gap-[12px] rounded-[10px] bg-[#212121] p-[4px]">
+        {entries.map((entry) => (
+          <button
+            key={entry.family}
+            type="button"
+            className="min-w-[132px] rounded-[8px] px-[20px] py-[10px] disabled:opacity-50"
+            style={{ backgroundColor: entry.selected ? '#555555' : '#212121' }}
+            onClick={entry.onClick}
+          >
+            <p
+              className="font-['Roboto'] font-bold leading-[normal] text-[18px] text-nowrap text-white"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              {entry.label}
+            </p>
+          </button>
+        ))}
       </div>
     );
   }
@@ -136,29 +179,35 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
 
   if (vm.activePanelId === 'ap.build.drawing.human') {
     return renderWithOverlay(
-      <div className="size-full flex justify-center">
-        <div className="w-fit">
-        <FrigateDrawingPanel
-          frigateCount={vm.frigateDrawing?.frigateCount ?? 0}
-          selectedTriggers={vm.frigateDrawing?.selectedTriggers ?? []}
-          onSelectTrigger={actions.onSelectFrigateTrigger}
-        />
+      <div className="size-full flex flex-col items-center gap-[20px] pt-[16px]">
+        {renderPhaseLocalFamilySwitch()}
+        <div className="relative flex w-full justify-center">
+          <div className="w-fit">
+            <FrigateDrawingPanel
+              frigateCount={vm.frigateDrawing?.frigateCount ?? 0}
+              selectedTriggers={vm.frigateDrawing?.selectedTriggers ?? []}
+              onSelectTrigger={actions.onSelectFrigateTrigger}
+            />
+          </div>
+          <div className="absolute top-[20px] right-[50px] text-[#ff8282]">^ Return to Drawing</div>
         </div>
-        <div className="absolute top-[20px] right-[50px] text-[#ff8282]">^ Return to Drawing</div>
       </div>
     );
   }
 
   if (vm.activePanelId === 'ap.build.drawing.xenite') {
     return renderWithOverlay(
-      <div className="size-full flex justify-center">
-      <div className="w-fit">
-        <EvolverDrawingPanel
-          rows={vm.evolverDrawing?.rows ?? []}
-          onSelectChoice={actions.onSelectEvolverChoice}
-        />
+      <div className="size-full flex flex-col items-center gap-[20px] pt-[16px]">
+        {renderPhaseLocalFamilySwitch()}
+        <div className="relative flex w-full justify-center">
+          <div className="w-fit">
+            <EvolverDrawingPanel
+              rows={vm.evolverDrawing?.rows ?? []}
+              onSelectChoice={actions.onSelectEvolverChoice}
+            />
+          </div>
+          <div className="absolute top-[20px] right-[50px] text-[#ff8282]">^ Return to Drawing</div>
         </div>
-        <div className="absolute top-[20px] right-[50px] text-[#ff8282]">^ Return to Drawing</div>
       </div>
     );
   }
@@ -177,7 +226,8 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
       // If no groups available, show "No actions available"
       if (!vm.shipChoices?.groups || vm.shipChoices.groups.length === 0) {
         return renderWithOverlay(
-          <div className="size-full flex flex-col items-center justify-center">
+          <div className="size-full flex flex-col items-center justify-center gap-[20px]">
+            {renderPhaseLocalFamilySwitch()}
             <p className="text-[var(--shapeships-grey-50)] text-[18px]">
               No actions available.
             </p>
@@ -188,7 +238,8 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
       // Render ShipChoicesPanel with derived groups from VM
       return renderWithOverlay(
         <ActionPanelScrollArea>
-          <div className="w-fit">
+          <div className="flex min-h-full flex-col items-center gap-[20px]">
+            {renderPhaseLocalFamilySwitch()}
             <ShipChoicesPanel
               groups={vm.shipChoices.groups}
               showOpponentAlsoHasCharges={
@@ -213,7 +264,8 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
     if (shipChoiceSpec.kind === 'large') {
       return renderWithOverlay(
         <ActionPanelScrollArea>
-          <div className="flex min-h-full w-full items-center justify-center">
+          <div className="flex min-h-full w-full flex-col items-center justify-center gap-[20px]">
+            {renderPhaseLocalFamilySwitch()}
             <LargeStyleChoicePanel
               shipDefId={shipChoiceSpec.shipDefId}
               title={vm.largeChoicePanel?.title ?? shipChoiceSpec.title}
