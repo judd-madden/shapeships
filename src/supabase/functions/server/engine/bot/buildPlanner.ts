@@ -2,6 +2,10 @@ import type { BuildSubmitPayload } from '../intent/IntentTypes.ts';
 import type { ShipInstance } from '../state/GameStateTypes.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import type { AuthoredBotPlan, BotBuildGoal } from './botTypes.ts';
+import {
+  evaluateForeignBuildLegality,
+  getPlayerNativeSpeciesId,
+} from '../intent/buildForeignLegality.ts';
 
 type WorkingShipEntry = {
   shipDefId: string;
@@ -158,6 +162,7 @@ function getGoalProgressCount(args: {
 
 function tryAddShipToDraft(args: {
   workingFleet: WorkingShipEntry[];
+  nativeSpecies: unknown;
   shipDefId: string;
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
@@ -177,6 +182,20 @@ function tryAddShipToDraft(args: {
 
   const shipDef = getShipById(shipDefId);
   if (!shipDef) {
+    return {
+      ok: false,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    };
+  }
+
+  const legality = evaluateForeignBuildLegality({
+    nativeSpecies: args.nativeSpecies,
+    shipDefId,
+    shipSpecies: shipDef.species,
+    shipType: shipDef.shipType,
+  });
+  if (!legality.allowed) {
     return {
       ok: false,
       remainingOrdinaryLines,
@@ -282,6 +301,7 @@ export function planHumanBuildSubmit(
 
   let remainingOrdinaryLines = normalizeResource(player.lines);
   let remainingJoiningLines = normalizeResource(player.joiningLines);
+  const nativeSpecies = getPlayerNativeSpeciesId(player);
   const authoritativeFleet = buildWorkingFleet(state?.gameData?.ships?.[botPlayerId] ?? []);
   const workingFleet = buildWorkingFleet(state?.gameData?.ships?.[botPlayerId] ?? []);
   const draftCounts = new Map<string, number>();
@@ -307,6 +327,7 @@ export function planHumanBuildSubmit(
     ) {
       const attempt = tryAddShipToDraft({
         workingFleet,
+        nativeSpecies,
         shipDefId: goal.shipDefId,
         remainingOrdinaryLines,
         remainingJoiningLines,

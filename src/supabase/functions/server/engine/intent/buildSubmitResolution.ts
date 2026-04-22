@@ -1,6 +1,11 @@
 import { getCommitRecord } from './CommitStore.ts';
 import { getBuildCommitKey, type BuildSubmitPayload } from './IntentTypes.ts';
 import {
+  evaluateForeignBuildLegality,
+  getPlayerNativeSpeciesId,
+  type BuildLegalityRestrictionCode,
+} from './buildForeignLegality.ts';
+import {
   SHIP_DEFINITIONS_CORE_SERVER,
   getShipById,
 } from '../../engine_shared/defs/ShipDefinitions.core.ts';
@@ -12,6 +17,7 @@ import {
 
 type BuildAttemptSkipReason =
   | 'unknown_ship'
+  | 'rule_restricted'
   | 'insufficient_ordinary_lines'
   | 'insufficient_joining_lines'
   | 'missing_components'
@@ -35,6 +41,7 @@ type WorkingFleetEntry = {
 type EvolverBuildChoiceEntry = NonNullable<BuildSubmitPayload['evolverChoices']>[number];
 
 type FutureDemandContext = {
+  nativeSpecies: unknown;
   upgradedAttempts: ExpandedBuildAttempt[];
   evolverChoices: EvolverBuildChoiceEntry[];
 };
@@ -404,6 +411,7 @@ function pushSkippedAttemptEvent(args: {
   shipDefId: string;
   attemptIndex: number;
   reason: BuildAttemptSkipReason;
+  restrictionCode?: BuildLegalityRestrictionCode;
   nowMs: number;
 }) {
   args.events.push({
@@ -412,6 +420,7 @@ function pushSkippedAttemptEvent(args: {
     shipDefId: args.shipDefId,
     attemptIndex: args.attemptIndex,
     reason: args.reason,
+    restrictionCode: args.restrictionCode,
     atMs: args.nowMs,
   });
 }
@@ -452,6 +461,7 @@ function cloneWorkingFleetEntries(entries: WorkingFleetEntry[]): WorkingFleetEnt
 }
 
 function applyBasicBuildAttemptSimulation(args: {
+  nativeSpecies: unknown;
   attempt: ExpandedBuildAttempt;
   workingFleet: WorkingFleetEntry[];
   remainingOrdinaryLines: number;
@@ -466,6 +476,20 @@ function applyBasicBuildAttemptSimulation(args: {
   const shipDef = getShipById(attempt.shipDefId);
 
   if (!shipDef || isUpgradedBuildAttempt(attempt)) {
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      didApply: false,
+    };
+  }
+
+  const legality = evaluateForeignBuildLegality({
+    nativeSpecies: args.nativeSpecies,
+    shipDefId: attempt.shipDefId,
+    shipSpecies: shipDef.species,
+    shipType: shipDef.shipType,
+  });
+  if (!legality.allowed) {
     return {
       remainingOrdinaryLines,
       remainingJoiningLines,
@@ -531,6 +555,7 @@ function applySimulatedEvolverConversions(
 }
 
 function simulateResolvedUpgradedDemand(args: {
+  nativeSpecies: unknown;
   targetShipDefId: string;
   upgradedAttempts: ExpandedBuildAttempt[];
   workingFleet: WorkingFleetEntry[];
@@ -548,6 +573,16 @@ function simulateResolvedUpgradedDemand(args: {
   for (const attempt of upgradedAttempts) {
     const shipDef = getShipById(attempt.shipDefId);
     if (!shipDef || !isUpgradedBuildAttempt(attempt)) {
+      continue;
+    }
+
+    const legality = evaluateForeignBuildLegality({
+      nativeSpecies: args.nativeSpecies,
+      shipDefId: attempt.shipDefId,
+      shipSpecies: shipDef.species,
+      shipType: shipDef.shipType,
+    });
+    if (!legality.allowed) {
       continue;
     }
 
@@ -637,6 +672,7 @@ function simulateNonUpgradedAttempts(args: {
     }
 
     const resolution = applyBasicBuildAttemptSimulation({
+      nativeSpecies: futureDemandContext.nativeSpecies,
       attempt,
       workingFleet,
       remainingOrdinaryLines,
@@ -677,6 +713,7 @@ function simulateFutureResolvedUpgradedDemandForBasicAttempt(args: {
   const simulatedWorkingFleet = cloneWorkingFleetEntries(workingFleet);
 
   const currentAttemptResolution = applyBasicBuildAttemptSimulation({
+    nativeSpecies: futureDemandContext.nativeSpecies,
     attempt: currentAttempt,
     workingFleet: simulatedWorkingFleet,
     remainingOrdinaryLines,
@@ -704,6 +741,7 @@ function simulateFutureResolvedUpgradedDemandForBasicAttempt(args: {
   );
 
   return simulateResolvedUpgradedDemand({
+    nativeSpecies: futureDemandContext.nativeSpecies,
     targetShipDefId,
     upgradedAttempts: futureDemandContext.upgradedAttempts,
     workingFleet: simulatedWorkingFleet,
@@ -716,6 +754,7 @@ function resolveBuildAttempt(args: {
   state: any;
   events: any[];
   playerId: string;
+  nativeSpecies: unknown;
   turnNumber: number;
   nowMs: number;
   attempt: ExpandedBuildAttempt;
@@ -749,6 +788,28 @@ function resolveBuildAttempt(args: {
       shipDefId: attempt.shipDefId,
       attemptIndex: attempt.attemptIndex,
       reason: 'unknown_ship',
+      nowMs,
+    });
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    };
+  }
+
+  const legality = evaluateForeignBuildLegality({
+    nativeSpecies: args.nativeSpecies,
+    shipDefId: attempt.shipDefId,
+    shipSpecies: shipDef.species,
+    shipType: shipDef.shipType,
+  });
+  if (!legality.allowed) {
+    pushSkippedAttemptEvent({
+      events,
+      playerId,
+      shipDefId: attempt.shipDefId,
+      attemptIndex: attempt.attemptIndex,
+      reason: 'rule_restricted',
+      restrictionCode: legality.restrictionCode,
       nowMs,
     });
     return {
@@ -907,6 +968,7 @@ function resolveBuildAttemptsStage(args: {
   state: any;
   events: any[];
   playerId: string;
+  nativeSpecies: unknown;
   turnNumber: number;
   nowMs: number;
   buildAttempts: ExpandedBuildAttempt[];
@@ -960,6 +1022,7 @@ function resolvePlayerBuildSubmit(args: {
 
   const player = state.players.find((entry: any) => entry.id === playerId);
   if (!player) return events;
+  const nativeSpecies = getPlayerNativeSpeciesId(player);
 
   let remainingOrdinaryLines = normalizeResource(player.lines);
   let remainingJoiningLines = normalizeResource(player.joiningLines);
@@ -968,6 +1031,7 @@ function resolvePlayerBuildSubmit(args: {
   const buildAttempts = payload ? expandBuildAttempts(payload) : [];
   const { nonUpgradedAttempts, upgradedAttempts } = partitionBuildAttempts(buildAttempts);
   const futureDemandContext: FutureDemandContext = {
+    nativeSpecies,
     upgradedAttempts,
     evolverChoices: payload?.evolverChoices ?? [],
   };
@@ -975,6 +1039,7 @@ function resolvePlayerBuildSubmit(args: {
     state,
     events,
     playerId,
+    nativeSpecies,
     turnNumber,
     nowMs,
     buildAttempts: nonUpgradedAttempts,
@@ -1039,6 +1104,7 @@ function resolvePlayerBuildSubmit(args: {
     state,
     events,
     playerId,
+    nativeSpecies,
     turnNumber,
     nowMs,
     buildAttempts: upgradedAttempts,

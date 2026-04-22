@@ -1708,6 +1708,7 @@ useEffect(() => {
     turnNumber,
     myShips,
     draftCounts: buildPreviewCounts,
+    nativeSpecies: mySpecies,
     buildEconomy: buildEconomyForMe,
     // Use the ref-backed snapshot so same-click preview rerenders see the latest trigger choice.
     frigateSelectedTriggers: frigateSelectedTriggersForPreview,
@@ -2448,14 +2449,13 @@ useEffect(() => {
   }
 
   const activeCatalogueSpecies = getCatalogueSpeciesFromPanelId(activePanelId);
-  const isOwnInGameBuildAwareCatalogue =
+  const isInGameBuildAwareCatalogue =
     !isFinished &&
-    !isInSpeciesSelection &&
+    phaseKey === 'build.drawing' &&
     myRole === 'player' &&
-    activeCatalogueSpecies != null &&
-    activeCatalogueSpecies === mySpecies;
+    activeCatalogueSpecies != null;
   const buildCatalogueContext =
-    isOwnInGameBuildAwareCatalogue
+    isInGameBuildAwareCatalogue
       ? buildEconomyForMe != null
         ? 'buildable'
         : 'unavailable'
@@ -3185,6 +3185,7 @@ useEffect(() => {
         myShips,
         draftCounts: nextDraftCounts,
         shipDefId,
+        nativeSpecies: mySpecies,
         buildEconomy: buildEconomyForMe,
         frigateSelectedTriggers: frigateSelectedTriggersRef.current,
         evolverChoicesByRowId: evolverChoicesByRowIdRef.current,

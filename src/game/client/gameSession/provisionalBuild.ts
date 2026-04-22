@@ -1,6 +1,7 @@
 import { getShipDefinitionById, ENGINE_SHIP_DEFINITIONS } from '../../data/ShipDefinitions.engine';
 import { isShipDefId, SHIP_DEFINITIONS_CORE_MAP } from '../../data/ShipDefinitions.core';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
+import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { deriveFleetStackInfo, sortFleetSummariesBySemanticOrder } from './fleets';
 import type { BoardFleetSummary, EvolverChoiceId } from './types';
 
@@ -52,19 +53,71 @@ export type ProvisionalShipEligibilityState =
   | 'CAN_BUILD'
   | 'NEED_COMPONENTS'
   | 'NOT_ENOUGH_LINES'
-  | 'MAX_LIMIT';
+  | 'MAX_LIMIT'
+  | 'RULE_RESTRICTED';
+
+export type ProvisionalRestrictionReason =
+  | 'FOREIGN_BASIC'
+  | 'FOREIGN_INTERACTIVE_UPGRADE';
 
 export interface ProvisionalShipEligibility {
   state: ProvisionalShipEligibilityState;
   missingComponentTokens?: string[];
+  restrictionReason?: ProvisionalRestrictionReason;
 }
 
 const FIXED_BUILD_ORDER: ShipDefId[] = ENGINE_SHIP_DEFINITIONS.map((shipDef) => shipDef.id);
+const BLOCKED_FOREIGN_INTERACTIVE_UPGRADE_IDS = new Set<ShipDefId>([
+  'FRI',
+  'GUA',
+  'SAC',
+  'KNO',
+  'DOM',
+]);
 
 function toNonNegativeInt(value: unknown): number {
   const num = Number(value);
   if (!Number.isFinite(num) || num <= 0) return 0;
   return Math.floor(num);
+}
+
+function normalizeSpeciesId(value: unknown): SpeciesId | null {
+  const normalized = String(value ?? '').trim().toLowerCase();
+
+  switch (normalized) {
+    case 'human':
+    case 'xenite':
+    case 'centaur':
+    case 'ancient':
+      return normalized;
+    default:
+      return null;
+  }
+}
+
+function getForeignBuildRestriction(args: {
+  nativeSpecies: SpeciesId | null | undefined;
+  shipDefId: ShipDefId;
+}): ProvisionalRestrictionReason | null {
+  const shipDef = getShipDefinitionById(args.shipDefId);
+  if (!shipDef) return null;
+
+  const nativeSpecies = normalizeSpeciesId(args.nativeSpecies);
+  const shipSpecies = normalizeSpeciesId(shipDef.species);
+
+  if (!nativeSpecies || !shipSpecies || nativeSpecies === shipSpecies) {
+    return null;
+  }
+
+  if (shipDef.basicCost) {
+    return 'FOREIGN_BASIC';
+  }
+
+  if (shipDef.upgradedCost && BLOCKED_FOREIGN_INTERACTIVE_UPGRADE_IDS.has(args.shipDefId)) {
+    return 'FOREIGN_INTERACTIVE_UPGRADE';
+  }
+
+  return null;
 }
 
 function normalizeChargesCurrent(ship: any, shipDefId: ShipDefId): number {
@@ -400,6 +453,7 @@ function projectPersistedSavedResources(
 }
 
 function evaluateCatalogueEligibility(args: {
+  nativeSpecies: SpeciesId | null | undefined;
   entries: InternalFleetEntry[];
   shipDefId: ShipDefId;
   remainingOrdinaryLines: number;
@@ -419,6 +473,21 @@ function evaluateCatalogueEligibility(args: {
   if (!shipDef) {
     return {
       eligibility: { state: 'NOT_ENOUGH_LINES' },
+      canAdd: false,
+      displayCost: printedTotalCost,
+    };
+  }
+
+  const restrictionReason = getForeignBuildRestriction({
+    nativeSpecies: args.nativeSpecies,
+    shipDefId,
+  });
+  if (restrictionReason) {
+    return {
+      eligibility: {
+        state: 'RULE_RESTRICTED',
+        restrictionReason,
+      },
       canAdd: false,
       displayCost: printedTotalCost,
     };
@@ -476,6 +545,7 @@ function evaluateCatalogueEligibility(args: {
 }
 
 function deriveCatalogueState(args: {
+  nativeSpecies: SpeciesId | null | undefined;
   entries: InternalFleetEntry[];
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
@@ -490,6 +560,7 @@ function deriveCatalogueState(args: {
 
   for (const shipDef of ENGINE_SHIP_DEFINITIONS) {
     const evaluated = evaluateCatalogueEligibility({
+      nativeSpecies: args.nativeSpecies,
       entries,
       shipDefId: shipDef.id,
       remainingOrdinaryLines,
@@ -541,6 +612,7 @@ function isUpgradedDraftBuildEntry(buildEntry: DraftBuildEntry): boolean {
 }
 
 type FutureDemandContext = {
+  nativeSpecies: SpeciesId | null | undefined;
   turnNumber: number;
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
   upgradedEntries: DraftBuildEntry[];
@@ -573,6 +645,7 @@ function cloneInternalFleetEntries(entries: InternalFleetEntry[]): InternalFleet
 }
 
 function applyBasicDraftBuildEntry(args: {
+  nativeSpecies: SpeciesId | null | undefined;
   buildEntry: DraftBuildEntry;
   workingFleetEntries: InternalFleetEntry[];
   remainingOrdinaryLines: number;
@@ -587,6 +660,19 @@ function applyBasicDraftBuildEntry(args: {
   const shipDef = getShipDefinitionById(buildEntry.shipDefId);
 
   if (!shipDef?.basicCost) {
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      didApply: false,
+    };
+  }
+
+  if (
+    getForeignBuildRestriction({
+      nativeSpecies: args.nativeSpecies,
+      shipDefId: buildEntry.shipDefId,
+    })
+  ) {
     return {
       remainingOrdinaryLines,
       remainingJoiningLines,
@@ -626,6 +712,7 @@ function applyBasicDraftBuildEntry(args: {
 }
 
 function simulateResolvedUpgradedDemand(args: {
+  nativeSpecies: SpeciesId | null | undefined;
   targetShipDefId: ShipDefId;
   upgradedEntries: DraftBuildEntry[];
   workingFleetEntries: InternalFleetEntry[];
@@ -643,6 +730,15 @@ function simulateResolvedUpgradedDemand(args: {
   for (const buildEntry of upgradedEntries) {
     const shipDef = getShipDefinitionById(buildEntry.shipDefId);
     if (!shipDef?.upgradedCost) {
+      continue;
+    }
+
+    if (
+      getForeignBuildRestriction({
+        nativeSpecies: args.nativeSpecies,
+        shipDefId: buildEntry.shipDefId,
+      })
+    ) {
       continue;
     }
 
@@ -712,6 +808,7 @@ function simulateFutureResolvedUpgradedDemandForBasicAttempt(args: {
   const simulatedWorkingFleetEntries = cloneInternalFleetEntries(workingFleetEntries);
 
   const currentAttemptResolution = applyBasicDraftBuildEntry({
+    nativeSpecies: futureDemandContext.nativeSpecies,
     buildEntry: currentBuildEntry,
     workingFleetEntries: simulatedWorkingFleetEntries,
     remainingOrdinaryLines,
@@ -726,6 +823,7 @@ function simulateFutureResolvedUpgradedDemandForBasicAttempt(args: {
   remainingJoiningLines = currentAttemptResolution.remainingJoiningLines;
 
   const remainingBasicStageResolution = resolveDraftBuildStage({
+    nativeSpecies: futureDemandContext.nativeSpecies,
     buildEntries: remainingNonUpgradedEntries,
     workingFleetEntries: simulatedWorkingFleetEntries,
     remainingOrdinaryLines,
@@ -749,6 +847,7 @@ function simulateFutureResolvedUpgradedDemandForBasicAttempt(args: {
   });
 
   return simulateResolvedUpgradedDemand({
+    nativeSpecies: futureDemandContext.nativeSpecies,
     targetShipDefId,
     upgradedEntries: futureDemandContext.upgradedEntries,
     workingFleetEntries: postEvolverFleetEntries,
@@ -758,6 +857,7 @@ function simulateFutureResolvedUpgradedDemandForBasicAttempt(args: {
 }
 
 function resolveDraftBuildStage(args: {
+  nativeSpecies: SpeciesId | null | undefined;
   buildEntries: DraftBuildEntry[];
   workingFleetEntries: InternalFleetEntry[];
   remainingOrdinaryLines: number;
@@ -780,6 +880,16 @@ function resolveDraftBuildStage(args: {
     const buildEntry = buildEntries[buildEntryIndex];
     const shipDef = getShipDefinitionById(buildEntry.shipDefId);
     if (!shipDef) {
+      isStageValid = false;
+      break;
+    }
+
+    if (
+      getForeignBuildRestriction({
+        nativeSpecies: args.nativeSpecies,
+        shipDefId: buildEntry.shipDefId,
+      })
+    ) {
       isStageValid = false;
       break;
     }
@@ -810,6 +920,7 @@ function resolveDraftBuildStage(args: {
 
     if (shipDef.basicCost) {
       const basicResolution = applyBasicDraftBuildEntry({
+        nativeSpecies: args.nativeSpecies,
         buildEntry,
         workingFleetEntries,
         remainingOrdinaryLines,
@@ -891,6 +1002,7 @@ export function evaluateProvisionalBuild(args: {
   turnNumber: number;
   myShips: any[];
   draftCounts: Record<string, number>;
+  nativeSpecies: SpeciesId | null | undefined;
   buildEconomy: BuildEconomySnapshot | null | undefined;
   frigateSelectedTriggers: number[];
   frigatePreviewTriggerByRowId?: Record<string, number>;
@@ -901,6 +1013,7 @@ export function evaluateProvisionalBuild(args: {
     turnNumber,
     myShips,
     draftCounts,
+    nativeSpecies,
     buildEconomy,
     frigateSelectedTriggers,
     frigatePreviewTriggerByRowId,
@@ -921,11 +1034,13 @@ export function evaluateProvisionalBuild(args: {
   );
   const { nonUpgradedEntries, upgradedEntries } = partitionDraftBuildEntries(draftBuildEntries);
   const basicStageResolution = resolveDraftBuildStage({
+    nativeSpecies,
     buildEntries: nonUpgradedEntries,
     workingFleetEntries,
     remainingOrdinaryLines,
     remainingJoiningLines,
     futureDemandContext: {
+      nativeSpecies,
       turnNumber,
       evolverChoicesByRowId,
       upgradedEntries,
@@ -946,6 +1061,7 @@ export function evaluateProvisionalBuild(args: {
     turnNumber,
   });
   const upgradedStageResolution = resolveDraftBuildStage({
+    nativeSpecies,
     buildEntries: upgradedEntries,
     workingFleetEntries,
     remainingOrdinaryLines,
@@ -956,6 +1072,7 @@ export function evaluateProvisionalBuild(args: {
   isValid = upgradedStageResolution.isStageValid && isValid;
 
   const catalogueState = deriveCatalogueState({
+    nativeSpecies,
     entries: workingFleetEntries,
     remainingOrdinaryLines,
     remainingJoiningLines,
@@ -987,6 +1104,7 @@ export function canProvisionallyAddShip(args: {
   myShips: any[];
   draftCounts: Record<string, number>;
   shipDefId: ShipDefId;
+  nativeSpecies: SpeciesId | null | undefined;
   buildEconomy: BuildEconomySnapshot | null | undefined;
   frigateSelectedTriggers: number[];
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
@@ -996,6 +1114,7 @@ export function canProvisionallyAddShip(args: {
     turnNumber: args.turnNumber,
     myShips: args.myShips,
     draftCounts: args.draftCounts,
+    nativeSpecies: args.nativeSpecies,
     buildEconomy: args.buildEconomy,
     frigateSelectedTriggers: args.frigateSelectedTriggers,
     evolverChoicesByRowId: args.evolverChoicesByRowId,

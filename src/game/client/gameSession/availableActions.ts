@@ -300,6 +300,11 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
       return { kind: 'none' };
     }
 
+    // Allow any catalogue panel once the user has already navigated there.
+    if (isCataloguePanel(activePanelId)) {
+      return { kind: 'none' };
+    }
+
     if (
       hasActionsAvailable &&
       actionsTargetPanelId &&

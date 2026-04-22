@@ -6,12 +6,14 @@ export type ShipEligibilityState =
   | 'NEED_COMPONENTS'
   | 'NOT_ENOUGH_LINES'
   | 'MAX_LIMIT'
+  | 'RULE_RESTRICTED'
   | 'BUILD_STATE_UNAVAILABLE'
   | 'REFERENCE_ONLY';
 
 export interface ShipEligibility {
   state: ShipEligibilityState;
   missingComponentShipIds?: string[];
+  restrictionReason?: 'FOREIGN_BASIC' | 'FOREIGN_INTERACTIVE_UPGRADE';
 }
 
 export function getShipEligibilityForHover(args: {
@@ -36,5 +38,6 @@ export function getShipEligibilityForHover(args: {
   return {
     state: eligibility.state,
     missingComponentShipIds: eligibility.missingComponentTokens,
+    restrictionReason: eligibility.restrictionReason,
   };
 }
