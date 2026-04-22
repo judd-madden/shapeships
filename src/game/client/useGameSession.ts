@@ -2618,16 +2618,22 @@ useEffect(() => {
   }
 
   const activeCatalogueSpecies = getCatalogueSpeciesFromPanelId(activePanelId);
-  const isInGameBuildAwareCatalogue =
+  const isCataloguePanelActive = activeCatalogueSpecies != null;
+  const isLiveInGamePlayerCatalogue =
     !isFinished &&
-    phaseKey === 'build.drawing' &&
+    !isInSpeciesSelection &&
     myRole === 'player' &&
-    activeCatalogueSpecies != null;
+    isCataloguePanelActive;
+  const isBuildableCatalogueContext =
+    isLiveInGamePlayerCatalogue &&
+    activeCatalogueSpecies === mySpecies &&
+    phaseKey === 'build.drawing' &&
+    buildEconomyForMe != null;
   const buildCatalogueContext =
-    isInGameBuildAwareCatalogue
-      ? buildEconomyForMe != null
-        ? 'buildable'
-        : 'unavailable'
+    isBuildableCatalogueContext
+      ? 'buildable'
+      : isLiveInGamePlayerCatalogue
+        ? 'unavailable'
       : 'reference_only';
 
   const buildCatalogue = {

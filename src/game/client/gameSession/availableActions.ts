@@ -318,11 +318,6 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
       return { kind: 'none' };
     }
 
-    // Allow any catalogue panel once the user has already navigated there.
-    if (isCataloguePanel(activePanelId)) {
-      return { kind: 'none' };
-    }
-
     if (
       hasActionsAvailable &&
       actionsTargetPanelId &&
@@ -344,6 +339,11 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
         nextPanelId: requestedPanelId,
         log: `[useGameSession] build.drawing: ${logReason}; switching to Actions: ${requestedPanelId}`,
       };
+    }
+
+    // Allow any catalogue panel once the user has already navigated there.
+    if (isCataloguePanel(activePanelId)) {
+      return { kind: 'none' };
     }
 
     // Otherwise, keep defaulting to self catalogue
