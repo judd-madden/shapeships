@@ -194,10 +194,10 @@ const XENITE_ROW_SETS: RowSets = {
 };
 
 const CENTAUR_ROW_SETS: RowSets = {
-  1: new Set<ShipDefId>(['VIG', 'POW', 'RED', 'KNO']),
+  1: new Set<ShipDefId>(['VIG', 'POW', 'RED', 'KNO', 'DOM']),
   2: new Set<ShipDefId>(['LEG', 'FEA', 'ANG', 'TER', 'FUR', 'ENT']),
   3: new Set<ShipDefId>(['WIS', 'FAM']),
-  4: new Set<ShipDefId>(['EQU', 'DES', 'DOM']),
+  4: new Set<ShipDefId>(['EQU', 'DES']),
 };
 
 const ANCIENT_ROW_SETS: RowSets = {
