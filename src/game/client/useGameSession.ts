@@ -1707,6 +1707,26 @@ useEffect(() => {
     me?.id && rawState?.buildEconomyByPlayerId
       ? rawState.buildEconomyByPlayerId[me.id]
       : null;
+  const ownedForeignSpeciesSet = useMemo(() => {
+    const nextOwnedForeignSpecies = new Set<SpeciesId>();
+
+    for (const ship of myShips) {
+      const rawShipDefId = String(ship?.shipDefId ?? '');
+      if (!isShipDefId(rawShipDefId)) {
+        continue;
+      }
+
+      const def = getShipDefinitionById(rawShipDefId);
+      const shipSpecies = normalizeSpecies(def?.species);
+      if (shipSpecies == null || shipSpecies === mySpecies) {
+        continue;
+      }
+
+      nextOwnedForeignSpecies.add(shipSpecies);
+    }
+
+    return nextOwnedForeignSpecies;
+  }, [myShips, mySpecies]);
   const frigateSelectedTriggersForPreview = frigateSelectedTriggersRef.current;
   const frigatePreviewTriggerByRowIdForPreview = frigatePreviewTriggerByRowIdRef.current;
 
@@ -2624,15 +2644,22 @@ useEffect(() => {
     !isInSpeciesSelection &&
     myRole === 'player' &&
     isCataloguePanelActive;
-  const isBuildableCatalogueContext =
+  const isOwnedForeignCatalogueContext =
     isLiveInGamePlayerCatalogue &&
-    activeCatalogueSpecies === mySpecies &&
+    activeCatalogueSpecies != null &&
+    activeCatalogueSpecies !== mySpecies &&
+    ownedForeignSpeciesSet.has(activeCatalogueSpecies);
+  const isRelevantLiveCatalogueContext =
+    isLiveInGamePlayerCatalogue &&
+    (activeCatalogueSpecies === mySpecies || isOwnedForeignCatalogueContext);
+  const isBuildableCatalogueContext =
+    isRelevantLiveCatalogueContext &&
     phaseKey === 'build.drawing' &&
     buildEconomyForMe != null;
   const buildCatalogueContext =
     isBuildableCatalogueContext
       ? 'buildable'
-      : isLiveInGamePlayerCatalogue
+      : isRelevantLiveCatalogueContext
         ? 'unavailable'
       : 'reference_only';
 
