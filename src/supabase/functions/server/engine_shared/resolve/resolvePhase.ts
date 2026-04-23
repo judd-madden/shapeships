@@ -29,6 +29,7 @@ import { applyEffects, type EffectEvent } from '../effects/applyEffects.ts';
 import {
   createBattleLogBuildCaptureEventsFromResolution,
   createBattleLogFinalizeTurnEvent,
+  createBattleLogFrigateHitCaptureEventsFromResolution,
 } from '../../engine/state/battleLogHistory.ts';
 import { getCanonicalShipFamilyDisplayName } from '../defs/ShipDefinitionNames.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
@@ -834,6 +835,12 @@ function resolveBattleEndOfTurn(
 
   // Step 4: Apply effects (accumulates Damage/Heal into pendingTurn)
   const applied = applyEffects(state, effects, { baseAmountByEffectId });
+  const frigateHitCaptureEvents =
+    createBattleLogFrigateHitCaptureEventsFromResolution({
+      turnNumber: currentTurn,
+      effects,
+      effectEvents: applied.events,
+    });
 
   console.log(`[resolveBattleEndOfTurn] Applied effects, generated ${applied.events.length} events`);
 
@@ -884,6 +891,7 @@ function resolveBattleEndOfTurn(
   // Combine events: accumulation events + health change events + game over event (if any)
   const allEvents = [
     ...applied.events,
+    ...frigateHitCaptureEvents,
     ...healthResult.events,
     ...victoryResult.events,
   ];

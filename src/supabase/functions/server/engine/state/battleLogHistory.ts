@@ -1,5 +1,5 @@
 import type { EffectEvent } from "../../engine_shared/effects/applyEffects.ts";
-import type { Effect } from "../../engine_shared/effects/Effect.ts";
+import { EffectKind, type Effect } from "../../engine_shared/effects/Effect.ts";
 
 export type BattleLogHistoryResponse = {
   gameId: string;
@@ -56,6 +56,10 @@ type BattleCaptureAtom =
       sourceShipDefId: string;
       targetShipDefIds: string[];
       bucket: 1 | 2;
+    }
+  | {
+      kind: "frigate_hit";
+      bucket: 2;
     };
 
 export type BattleLogCurrentTurnCapture = {
@@ -128,6 +132,11 @@ type BattleLogCaptureEvent =
       sourceShipDefId: string;
       targetShipDefIds: string[];
       bucket: 1 | 2;
+    }
+  | {
+      type: "BATTLE_LOG_CAPTURE_BATTLE_FRIGATE_HIT";
+      turnNumber: number;
+      playerId: string;
     };
 
 export type BattleLogHistoryStore = {
@@ -230,10 +239,17 @@ function cloneBattleCaptureAtom(atom: BattleCaptureAtom): BattleCaptureAtom {
     };
   }
 
+  if (atom.kind === "steal") {
+    return {
+      kind: "steal",
+      sourceShipDefId: atom.sourceShipDefId,
+      targetShipDefIds: [...atom.targetShipDefIds],
+      bucket: atom.bucket,
+    };
+  }
+
   return {
-    kind: "steal",
-    sourceShipDefId: atom.sourceShipDefId,
-    targetShipDefIds: [...atom.targetShipDefIds],
+    kind: "frigate_hit",
     bucket: atom.bucket,
   };
 }
@@ -313,6 +329,9 @@ function normalizeBattleAtomsByPlayerId(
             (((atom as { bucket?: unknown }).bucket === 1) ||
               ((atom as { bucket?: unknown }).bucket === 2))
           );
+        }
+        if (kind === "frigate_hit") {
+          return (atom as { bucket?: unknown }).bucket === 2;
         }
         return false;
       })
@@ -697,10 +716,18 @@ function formatBattleLines(battleAtoms: BattleCaptureAtom[]): string[] {
   const chargeActionAtoms: Array<
     Extract<BattleCaptureAtom, { kind: "charge_action" }>
   > = [];
+  const frigateHitAtoms: Array<
+    Extract<BattleCaptureAtom, { kind: "frigate_hit" }>
+  > = [];
 
   for (const atom of orderedAtoms) {
     if (atom.kind === "charge_action") {
       chargeActionAtoms.push(atom);
+      continue;
+    }
+
+    if (atom.kind === "frigate_hit") {
+      frigateHitAtoms.push(atom);
       continue;
     }
 
@@ -734,7 +761,13 @@ function formatBattleLines(battleAtoms: BattleCaptureAtom[]): string[] {
     (atom, count) => `${count} x ${atom.sourceShipDefId} ${atom.actionLabel}`,
   );
 
-  return [...earlyRows, ...chargeLines];
+  const frigateHitLines = collapseCountLines(
+    frigateHitAtoms,
+    () => "FRI::Hit",
+    (_atom, count) => `${count} x FRI Hit`,
+  );
+
+  return [...earlyRows, ...chargeLines, ...frigateHitLines];
 }
 
 export function getBattleLogHistoryKey(gameId: string): string {
@@ -1027,6 +1060,12 @@ export function foldBattleLogCaptureEventsIntoScratch(
           bucket: rawEvent.bucket,
         });
         break;
+      case "BATTLE_LOG_CAPTURE_BATTLE_FRIGATE_HIT":
+        getOrCreateBattleAtomsForPlayer(capture, rawEvent.playerId).push({
+          kind: "frigate_hit",
+          bucket: 2,
+        });
+        break;
     }
   }
 
@@ -1308,6 +1347,33 @@ export function createBattleLogBuildCaptureEventsFromResolution(
   }
 
   return events;
+}
+
+export function createBattleLogFrigateHitCaptureEventsFromResolution(args: {
+  turnNumber: number;
+  effects: Effect[];
+  effectEvents: EffectEvent[];
+}): BattleLogCaptureEvent[] {
+  const damageMatches = getMatchedEffectEvents(
+    args.effects,
+    args.effectEvents,
+    "Damage",
+  );
+  const captureEvents: BattleLogCaptureEvent[] = [];
+
+  for (const match of damageMatches) {
+    if (match.effect.kind !== EffectKind.Damage) continue;
+    if (match.effect.source.type !== "ship") continue;
+    if (match.effect.source.shipDefId !== "FRI") continue;
+
+    captureEvents.push({
+      type: "BATTLE_LOG_CAPTURE_BATTLE_FRIGATE_HIT",
+      turnNumber: args.turnNumber,
+      playerId: match.effect.ownerPlayerId,
+    });
+  }
+
+  return captureEvents;
 }
 
 export function createBattleLogBattleCaptureEventsFromResolution(args: {
