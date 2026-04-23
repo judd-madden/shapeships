@@ -7,7 +7,7 @@
  * PASS 2: Simple on/off hover (no mouse-following)
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
 
 /**
@@ -57,19 +57,34 @@ export interface ShipCatalogueHoverController {
  * )}
  * ```
  */
-export function useShipCatalogueHover(): ShipCatalogueHoverController {
+export function useShipCatalogueHover(disabled?: boolean): ShipCatalogueHoverController {
   const [state, setState] = useState<ShipCatalogueHoverState>({
     activeShipId: null,
     anchorRect: null
   });
+
+  useEffect(() => {
+    if (!disabled) {
+      return;
+    }
+
+    setState({
+      activeShipId: null,
+      anchorRect: null
+    });
+  }, [disabled]);
   
   const onEnter = useCallback((shipId: ShipDefId, anchorEl: HTMLElement) => {
+    if (disabled) {
+      return;
+    }
+
     const rect = anchorEl.getBoundingClientRect();
     setState({
       activeShipId: shipId,
       anchorRect: rect
     });
-  }, []);
+  }, [disabled]);
   
   const onLeave = useCallback((shipId: ShipDefId) => {
     // Only clear if leaving the currently active ship

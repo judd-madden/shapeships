@@ -39,10 +39,15 @@ import {
 interface CentaurShipCataloguePanelProps {
   actions: GameSessionActions;
   buildCatalogue: ActionPanelViewModel['buildCatalogue'];
+  hoverDisabled?: boolean;
 }
 
-export function CentaurShipCataloguePanel({ actions, buildCatalogue }: CentaurShipCataloguePanelProps) {
-  const hover = useShipCatalogueHover();
+export function CentaurShipCataloguePanel({
+  actions,
+  buildCatalogue,
+  hoverDisabled,
+}: CentaurShipCataloguePanelProps) {
+  const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
 
@@ -426,7 +431,7 @@ export function CentaurShipCataloguePanel({ actions, buildCatalogue }: CentaurSh
       </ActionPanelScrollArea>
       
       {/* Single hover card rendered via portal */}
-      {hover.state.activeShipId && hover.state.anchorRect && hoveredShipEligibility && (
+      {!hoverDisabled && hover.state.activeShipId && hover.state.anchorRect && hoveredShipEligibility && (
         <ShipHoverCard
           shipId={hover.state.activeShipId}
           anchorRect={hover.state.anchorRect}

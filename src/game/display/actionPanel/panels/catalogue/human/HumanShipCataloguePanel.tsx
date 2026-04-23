@@ -39,10 +39,15 @@ import {
 interface HumanShipCataloguePanelProps {
   actions: GameSessionActions;
   buildCatalogue: ActionPanelViewModel['buildCatalogue'];
+  hoverDisabled?: boolean;
 }
 
-export function HumanShipCataloguePanel({ actions, buildCatalogue }: HumanShipCataloguePanelProps) {
-  const hover = useShipCatalogueHover();
+export function HumanShipCataloguePanel({
+  actions,
+  buildCatalogue,
+  hoverDisabled,
+}: HumanShipCataloguePanelProps) {
+  const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
 
@@ -417,7 +422,7 @@ export function HumanShipCataloguePanel({ actions, buildCatalogue }: HumanShipCa
       </ActionPanelScrollArea>
       
       {/* PASS 2: Single hover card rendered via portal */}
-      {hover.state.activeShipId && hover.state.anchorRect && hoveredShipEligibility && (
+      {!hoverDisabled && hover.state.activeShipId && hover.state.anchorRect && hoveredShipEligibility && (
         <ShipHoverCard
           shipId={hover.state.activeShipId}
           anchorRect={hover.state.anchorRect}

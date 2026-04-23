@@ -29,13 +29,15 @@ import {
 interface AncientShipCataloguePanelProps {
   actions: GameSessionActions;
   buildCatalogue: ActionPanelViewModel['buildCatalogue'];
+  hoverDisabled?: boolean;
 }
 
 export function AncientShipCataloguePanel({
   actions,
   buildCatalogue,
+  hoverDisabled,
 }: AncientShipCataloguePanelProps) {
-  const hover = useShipCatalogueHover();
+  const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
 
@@ -1065,7 +1067,8 @@ export function AncientShipCataloguePanel({
       </ActionPanelScrollArea>
 
       {/* Single hover card rendered via portal (only for Basic Ships on left) */}
-      {hover.state.activeShipId &&
+      {!hoverDisabled &&
+        hover.state.activeShipId &&
         hover.state.anchorRect &&
         hoveredShipEligibility && (
           <ShipHoverCard

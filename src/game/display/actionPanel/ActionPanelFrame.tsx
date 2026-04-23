@@ -29,6 +29,7 @@ interface ActionPanelFrameProps {
 export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPanelFrameProps) {
   const displayName = ACTION_PANEL_DISPLAY_NAMES[vm.activePanelId];
   const healthResolutionOverlay = vm.healthResolutionOverlay;
+  const hoverDisabled = Boolean(healthResolutionOverlay);
   const phaseLocalFamilySwitch = vm.phaseLocalFamilySwitch;
 
   function renderWithOverlay(content: ReactNode) {
@@ -36,7 +37,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
       <div className="relative size-full">
         <div className="size-full">{content}</div>
         {healthResolutionOverlay ? (
-          <div className="pointer-events-none absolute inset-0 z-20">
+          <div className="absolute inset-0 z-[50]">
             <HealthResolutionPanel
               key={healthResolutionOverlay.presentationKey}
               vm={healthResolutionOverlay}
@@ -96,7 +97,11 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   if (vm.activePanelId === 'ap.catalog.ships.human') {
     return renderWithOverlay(
       <div className="size-full">
-        <HumanShipCataloguePanel actions={actions} buildCatalogue={vm.buildCatalogue} />
+        <HumanShipCataloguePanel
+          actions={actions}
+          buildCatalogue={vm.buildCatalogue}
+          hoverDisabled={hoverDisabled}
+        />
       </div>
     );
   }
@@ -104,7 +109,11 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   if (vm.activePanelId === 'ap.catalog.ships.xenite') {
     return renderWithOverlay(
       <div className="size-full">
-        <XeniteShipCataloguePanel actions={actions} buildCatalogue={vm.buildCatalogue} />
+        <XeniteShipCataloguePanel
+          actions={actions}
+          buildCatalogue={vm.buildCatalogue}
+          hoverDisabled={hoverDisabled}
+        />
       </div>
     );
   }
@@ -112,7 +121,11 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   if (vm.activePanelId === 'ap.catalog.ships.centaur') {
     return renderWithOverlay(
       <div className="size-full">
-        <CentaurShipCataloguePanel actions={actions} buildCatalogue={vm.buildCatalogue} />
+        <CentaurShipCataloguePanel
+          actions={actions}
+          buildCatalogue={vm.buildCatalogue}
+          hoverDisabled={hoverDisabled}
+        />
       </div>
     );
   }
@@ -120,7 +133,11 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   if (vm.activePanelId === 'ap.catalog.ships.ancient') {
     return renderWithOverlay(
       <div className="size-full">
-        <AncientShipCataloguePanel actions={actions} buildCatalogue={vm.buildCatalogue} />
+        <AncientShipCataloguePanel
+          actions={actions}
+          buildCatalogue={vm.buildCatalogue}
+          hoverDisabled={hoverDisabled}
+        />
       </div>
     );
   }
