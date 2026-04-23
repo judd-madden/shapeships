@@ -251,7 +251,7 @@ function EligibilityFooter({
           className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
-          Build state unavailable
+          Build in Drawing Phase
         </p>
       );
     }
@@ -298,7 +298,7 @@ function EligibilityFooter({
           className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
-          Maximum ship limit, cannot build
+          Maximum limit reached
         </p>
       );
     }
@@ -306,7 +306,7 @@ function EligibilityFooter({
     if (eligibility.state === 'RULE_RESTRICTED') {
       const message = eligibility.restrictionReason === 'FOREIGN_BASIC'
         ? 'Foreign basic ships cannot be built'
-        : 'This foreign upgrade stays blocked until its foreign-owned action surface is supported';
+        : 'In development';
 
       return (
         <p
