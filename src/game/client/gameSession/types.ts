@@ -70,12 +70,30 @@ export interface BattleLogTurnPlayerSummary {
   healthDelta: number;
 }
 
+export interface BattleLogAnalysisBreakdownRow {
+  label: string;
+  amount: number;
+  count?: number;
+  rowKind?: 'ship' | 'adjustment';
+}
+
+export interface BattleLogTurnPlayerAnalysis {
+  damageTaken: number;
+  healReceived: number;
+  netHealthDelta: number;
+  savedLinesEnd: number;
+  savedJoiningLinesEnd: number;
+  damageDealtBreakdown?: BattleLogAnalysisBreakdownRow[];
+  healingReceivedBreakdown?: BattleLogAnalysisBreakdownRow[];
+}
+
 export interface BattleLogTurnSummary {
   turnNumber: number;
   diceValue: number | null;
   players: BattleLogTurnPlayerSummary[];
   buildLinesByPlayerId: Record<string, string[]>;
   battleLinesByPlayerId: Record<string, string[]>;
+  analysisByPlayerId?: Record<string, BattleLogTurnPlayerAnalysis>;
 }
 
 export interface BattleLogHistoryResponse {

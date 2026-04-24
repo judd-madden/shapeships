@@ -1,5 +1,9 @@
 import type { SpeciesId } from '../../components/ui/primitives/buttons/SpeciesCardButton';
-import type { BattleLogTurnPlayerSummary } from './gameSession/types';
+import type {
+  BattleLogAnalysisBreakdownRow,
+  BattleLogTurnPlayerAnalysis,
+  BattleLogTurnPlayerSummary,
+} from './gameSession/types';
 
 type RuntimePlayerInfo = {
   identityKey: string | null;
@@ -22,6 +26,7 @@ type ValidatedBattleLogTurn = {
   players: BattleLogTurnPlayerSummary[];
   buildLinesByPlayerId: Record<string, unknown>;
   battleLinesByPlayerId: Record<string, unknown>;
+  analysisByPlayerId?: Record<string, BattleLogTurnPlayerAnalysis>;
 };
 
 type ValidatedBattleLogHistory = {
@@ -45,7 +50,6 @@ type NormalizedRuntimePlayer = {
 const FILE_NAME_PLAYER_MAX_LENGTH = 32;
 const FILE_NAME_INVALID_CHARS = /[<>:"/\\|?*\u0000-\u001F]/g;
 const COLLAPSE_WHITESPACE_PATTERN = /\s+/g;
-
 export function downloadBattleLog(args: DownloadBattleLogArgs): void {
   const history = validateBattleLogHistory(args.battleLogHistory);
   if (!history) {
@@ -139,6 +143,7 @@ function validateBattleLogTurn(value: unknown): ValidatedBattleLogTurn | null {
     players,
     buildLinesByPlayerId: record.buildLinesByPlayerId,
     battleLinesByPlayerId: record.battleLinesByPlayerId,
+    analysisByPlayerId: validateAnalysisByPlayerId(record.analysisByPlayerId),
   };
 }
 
@@ -167,8 +172,111 @@ function validateBattleLogTurnPlayer(value: unknown): BattleLogTurnPlayerSummary
   };
 }
 
+function validateAnalysisByPlayerId(
+  value: unknown,
+): Record<string, BattleLogTurnPlayerAnalysis> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const next: Record<string, BattleLogTurnPlayerAnalysis> = {};
+  for (const [playerId, rawAnalysis] of Object.entries(value)) {
+    const validatedAnalysis = validateBattleLogTurnPlayerAnalysis(rawAnalysis);
+    if (!validatedAnalysis) {
+      continue;
+    }
+    next[playerId] = validatedAnalysis;
+  }
+
+  return Object.keys(next).length > 0 ? next : undefined;
+}
+
+function validateBattleLogTurnPlayerAnalysis(value: unknown): BattleLogTurnPlayerAnalysis | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const damageTaken = toFiniteNumber(value.damageTaken);
+  const healReceived = toFiniteNumber(value.healReceived);
+  const netHealthDelta = toFiniteNumber(value.netHealthDelta);
+  const savedLinesEnd = toFiniteNumber(value.savedLinesEnd);
+  const savedJoiningLinesEnd = toFiniteNumber(value.savedJoiningLinesEnd);
+
+  if (
+    damageTaken === null ||
+    healReceived === null ||
+    netHealthDelta === null ||
+    savedLinesEnd === null ||
+    savedJoiningLinesEnd === null
+  ) {
+    return null;
+  }
+
+  const analysis: BattleLogTurnPlayerAnalysis = {
+    damageTaken,
+    healReceived,
+    netHealthDelta,
+    savedLinesEnd,
+    savedJoiningLinesEnd,
+  };
+
+  const damageDealtBreakdown = validateBattleLogAnalysisBreakdownRows(value.damageDealtBreakdown);
+  if (damageDealtBreakdown) {
+    analysis.damageDealtBreakdown = damageDealtBreakdown;
+  }
+
+  const healingReceivedBreakdown = validateBattleLogAnalysisBreakdownRows(value.healingReceivedBreakdown);
+  if (healingReceivedBreakdown) {
+    analysis.healingReceivedBreakdown = healingReceivedBreakdown;
+  }
+
+  return analysis;
+}
+
+function validateBattleLogAnalysisBreakdownRows(
+  value: unknown,
+): BattleLogAnalysisBreakdownRow[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const rows = value
+    .map((row) => validateBattleLogAnalysisBreakdownRow(row))
+    .filter((row): row is BattleLogAnalysisBreakdownRow => row !== null);
+
+  if (rows.length <= 0) {
+    return undefined;
+  }
+
+  return rows;
+}
+
+function validateBattleLogAnalysisBreakdownRow(value: unknown): BattleLogAnalysisBreakdownRow | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const label = normalizeOptionalName(typeof value.label === 'string' ? value.label : null);
+  const amount = toFiniteNumber(value.amount);
+  if (!label || amount === null || amount === 0) {
+    return null;
+  }
+
+  const count = toFiniteNumber(value.count);
+  return {
+    label,
+    amount,
+    count: count !== null && count > 0 ? Math.floor(count) : undefined,
+    rowKind: value.rowKind === 'adjustment' ? 'adjustment' : value.rowKind === 'ship' ? 'ship' : undefined,
+  };
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 function resolveCanonicalPlayers(
@@ -340,6 +448,9 @@ function formatTurnBlock(turn: ValidatedBattleLogTurn, canonicalPlayers: Canonic
     '',
     'End',
     ...formatEndLines(matchedPlayers, canonicalPlayers),
+    '',
+    'Analysis',
+    ...formatAnalysisLines(turn, matchedPlayers, canonicalPlayers),
   ].join('\r\n');
 }
 
@@ -405,6 +516,89 @@ function formatEndLines(
     const healthDelta = matchedPlayer?.healthDelta ?? 0;
     return `${playerLabel}: ${healthEnd} ${formatHealthDelta(healthDelta)}`;
   });
+}
+
+function formatAnalysisLines(
+  turn: ValidatedBattleLogTurn,
+  matchedPlayers: Array<BattleLogTurnPlayerSummary | null>,
+  canonicalPlayers: CanonicalPlayer[],
+): string[] {
+  return matchedPlayers.flatMap((matchedPlayer, index) => {
+    const playerLabel = canonicalPlayers[index]?.name ?? getDefaultPlayerName(index);
+    const analysis = matchedPlayer
+      ? turn.analysisByPlayerId?.[matchedPlayer.playerId]
+      : undefined;
+
+    if (!analysis) {
+      return [`${playerLabel}: \u2014`];
+    }
+
+    const lines = [`${playerLabel}: ${formatAnalysisSummary(analysis)}`];
+    const damageDealtBreakdownLine = formatBreakdownFamilyLine(
+      'Damage dealt',
+      analysis.damageDealtBreakdown,
+    );
+    if (damageDealtBreakdownLine) {
+      lines.push(`  ${damageDealtBreakdownLine}`);
+    }
+
+    const healingReceivedBreakdownLine = formatBreakdownFamilyLine(
+      'Healing received',
+      analysis.healingReceivedBreakdown,
+    );
+    if (healingReceivedBreakdownLine) {
+      lines.push(`  ${healingReceivedBreakdownLine}`);
+    }
+
+    return lines;
+  });
+}
+
+function formatAnalysisSummary(analysis: BattleLogTurnPlayerAnalysis): string {
+  const segments = [
+    `Took ${analysis.damageTaken}`,
+    `healed ${analysis.healReceived}`,
+  ];
+
+  const savedSegments: string[] = [];
+  if (analysis.savedLinesEnd > 0) {
+    savedSegments.push(`saved ${analysis.savedLinesEnd} lines`);
+  }
+  if (analysis.savedJoiningLinesEnd > 0) {
+    savedSegments.push(`${analysis.savedJoiningLinesEnd} joining lines`);
+  }
+  if (savedSegments.length > 0) {
+    segments.push(savedSegments.join(', '));
+  }
+
+  return segments.join(', ');
+}
+
+function formatBreakdownFamilyLine(
+  label: string,
+  rows: BattleLogAnalysisBreakdownRow[] | undefined,
+): string | null {
+  if (!rows || rows.length <= 0) {
+    return null;
+  }
+
+  const formattedEntries = rows
+    .map((row) => `${row.label} ${formatBreakdownAmount(row.amount)}`)
+    .filter((entry) => entry.length > 0);
+
+  if (formattedEntries.length <= 0) {
+    return null;
+  }
+
+  return `${label}: ${formattedEntries.join(', ')}`;
+}
+
+function formatBreakdownAmount(amount: number): string {
+  if (amount < 0) {
+    return `${amount}`;
+  }
+
+  return `${amount}`;
 }
 
 function formatDiceValue(diceValue: number | null): string {

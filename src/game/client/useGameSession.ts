@@ -217,6 +217,54 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 }
 
+function isBattleLogAnalysisBreakdownRow(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.label === 'string' &&
+    record.label.trim().length > 0 &&
+    typeof record.amount === 'number' &&
+    Number.isFinite(record.amount) &&
+    record.amount !== 0 &&
+    (record.count === undefined || (typeof record.count === 'number' && Number.isFinite(record.count))) &&
+    (record.rowKind === undefined || record.rowKind === 'ship' || record.rowKind === 'adjustment')
+  );
+}
+
+function isBattleLogTurnPlayerAnalysis(value: unknown): boolean {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.damageTaken !== 'number' ||
+    !Number.isFinite(record.damageTaken) ||
+    typeof record.healReceived !== 'number' ||
+    !Number.isFinite(record.healReceived) ||
+    typeof record.netHealthDelta !== 'number' ||
+    !Number.isFinite(record.netHealthDelta) ||
+    typeof record.savedLinesEnd !== 'number' ||
+    !Number.isFinite(record.savedLinesEnd) ||
+    typeof record.savedJoiningLinesEnd !== 'number' ||
+    !Number.isFinite(record.savedJoiningLinesEnd)
+  ) {
+    return false;
+  }
+
+  return (
+    (record.damageDealtBreakdown === undefined ||
+      (Array.isArray(record.damageDealtBreakdown) &&
+        record.damageDealtBreakdown.every(isBattleLogAnalysisBreakdownRow))) &&
+    (record.healingReceivedBreakdown === undefined ||
+      (Array.isArray(record.healingReceivedBreakdown) &&
+        record.healingReceivedBreakdown.every(isBattleLogAnalysisBreakdownRow)))
+  );
+}
+
 function isBattleLogHistoryResponse(value: unknown): value is BattleLogHistoryResponse {
   if (!value || typeof value !== 'object') {
     return false;
@@ -260,7 +308,15 @@ function isBattleLogHistoryResponse(value: unknown): value is BattleLogHistoryRe
     return (
       turnRecord.players.every(isBattleLogTurnPlayerSummary) &&
       Object.values(buildLinesByPlayerId as Record<string, unknown>).every(isStringArray) &&
-      Object.values(battleLinesByPlayerId as Record<string, unknown>).every(isStringArray)
+      Object.values(battleLinesByPlayerId as Record<string, unknown>).every(isStringArray) &&
+      (turnRecord.analysisByPlayerId === undefined ||
+        (
+          typeof turnRecord.analysisByPlayerId === 'object' &&
+          turnRecord.analysisByPlayerId !== null &&
+          Object.values(turnRecord.analysisByPlayerId as Record<string, unknown>).every(
+            isBattleLogTurnPlayerAnalysis,
+          )
+        ))
     );
   });
 }

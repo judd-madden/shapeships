@@ -8,6 +8,23 @@ export type BattleLogHistoryResponse = {
   turns: BattleLogTurnSummary[];
 };
 
+export type BattleLogAnalysisBreakdownRow = {
+  label: string;
+  amount: number;
+  count?: number;
+  rowKind?: "ship" | "adjustment";
+};
+
+export type BattleLogTurnPlayerAnalysis = {
+  damageTaken: number;
+  healReceived: number;
+  netHealthDelta: number;
+  savedLinesEnd: number;
+  savedJoiningLinesEnd: number;
+  damageDealtBreakdown?: BattleLogAnalysisBreakdownRow[];
+  healingReceivedBreakdown?: BattleLogAnalysisBreakdownRow[];
+};
+
 export type BattleLogTurnSummary = {
   turnNumber: number;
   diceValue: number | null;
@@ -19,6 +36,7 @@ export type BattleLogTurnSummary = {
   }>;
   buildLinesByPlayerId: Record<string, string[]>;
   battleLinesByPlayerId: Record<string, string[]>;
+  analysisByPlayerId?: Record<string, BattleLogTurnPlayerAnalysis>;
 };
 
 type BuildCaptureAtom =
@@ -67,6 +85,10 @@ export type BattleLogCurrentTurnCapture = {
   diceValue: number | null;
   buildAtomsByPlayerId: Record<string, BuildCaptureAtom[]>;
   battleAtomsByPlayerId: Record<string, BattleCaptureAtom[]>;
+  savedResourcesByPlayerId: Record<
+    string,
+    { ordinaryLines: number; joiningLines: number }
+  >;
 };
 
 export type BattleLogScratch = {
@@ -160,6 +182,8 @@ type PlayerWithState = {
   name?: string;
   role?: string;
   health?: number;
+  lines?: number;
+  joiningLines?: number;
 };
 
 type GameStateLike = {
@@ -171,7 +195,11 @@ type GameStateLike = {
     turnNumber?: number;
     currentPhase?: string;
     currentSubPhase?: string;
+    lastTurnDamageByPlayerId?: Record<string, number>;
+    lastTurnHealByPlayerId?: Record<string, number>;
     lastTurnNetByPlayerId?: Record<string, number>;
+    lastTurnDamageDealtBreakdownByPlayerId?: Record<string, unknown>;
+    lastTurnHealingReceivedBreakdownByPlayerId?: Record<string, unknown>;
     ships?: Record<string, Array<{ instanceId?: string; shipDefId?: string }>>;
     voidShipsByPlayerId?: Record<
       string,
@@ -194,6 +222,173 @@ type CaptureResolutionArgs = {
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+type AuthoritativeBreakdownRowLike = {
+  label?: unknown;
+  amount?: unknown;
+  count?: unknown;
+  rowKind?: unknown;
+};
+
+function cloneBattleLogAnalysisBreakdownRow(
+  row: BattleLogAnalysisBreakdownRow,
+): BattleLogAnalysisBreakdownRow {
+  return {
+    label: row.label,
+    amount: row.amount,
+    count: isFiniteNumber(row.count) ? row.count : undefined,
+    rowKind: row.rowKind,
+  };
+}
+
+function normalizeBattleLogAnalysisBreakdownRow(
+  rawRow: unknown,
+): BattleLogAnalysisBreakdownRow | null {
+  if (!rawRow || typeof rawRow !== "object") {
+    return null;
+  }
+
+  const row = rawRow as AuthoritativeBreakdownRowLike;
+  const label = isNonEmptyString(row.label) ? row.label.trim() : "";
+  const amount = isFiniteNumber(row.amount) ? row.amount : 0;
+
+  if (!label || amount === 0) {
+    return null;
+  }
+
+  const count = isFiniteNumber(row.count) && row.count > 0
+    ? Math.floor(row.count)
+    : undefined;
+  const rowKind = row.rowKind === "adjustment" ? "adjustment" : "ship";
+
+  return {
+    label,
+    amount,
+    count,
+    rowKind,
+  };
+}
+
+function groupBattleLogAnalysisBreakdownRows(
+  rawRows: unknown,
+): BattleLogAnalysisBreakdownRow[] | undefined {
+  if (!Array.isArray(rawRows)) {
+    return undefined;
+  }
+
+  const groupedRows = new Map<string, BattleLogAnalysisBreakdownRow>();
+
+  for (const rawRow of rawRows) {
+    const normalizedRow = normalizeBattleLogAnalysisBreakdownRow(rawRow);
+    if (!normalizedRow) continue;
+
+    const existing = groupedRows.get(normalizedRow.label);
+    if (!existing) {
+      groupedRows.set(normalizedRow.label, normalizedRow);
+      continue;
+    }
+
+    existing.amount += normalizedRow.amount;
+    if (existing.rowKind === "ship" && normalizedRow.rowKind === "ship") {
+      const existingCount = existing.count ?? 0;
+      const nextCount = normalizedRow.count ?? 0;
+      const totalCount = existingCount + nextCount;
+      existing.count = totalCount > 0 ? totalCount : undefined;
+    }
+  }
+
+  const rows = [...groupedRows.values()].filter((row) => row.amount !== 0);
+  if (rows.length <= 0) {
+    return undefined;
+  }
+
+  return rows.map(cloneBattleLogAnalysisBreakdownRow);
+}
+
+function cloneBattleLogTurnPlayerAnalysis(
+  analysis: BattleLogTurnPlayerAnalysis,
+): BattleLogTurnPlayerAnalysis {
+  return {
+    damageTaken: analysis.damageTaken,
+    healReceived: analysis.healReceived,
+    netHealthDelta: analysis.netHealthDelta,
+    savedLinesEnd: analysis.savedLinesEnd,
+    savedJoiningLinesEnd: analysis.savedJoiningLinesEnd,
+    damageDealtBreakdown: analysis.damageDealtBreakdown?.map(
+      cloneBattleLogAnalysisBreakdownRow,
+    ),
+    healingReceivedBreakdown: analysis.healingReceivedBreakdown?.map(
+      cloneBattleLogAnalysisBreakdownRow,
+    ),
+  };
+}
+
+function normalizeBattleLogTurnPlayerAnalysis(
+  rawAnalysis: unknown,
+): BattleLogTurnPlayerAnalysis | null {
+  if (!rawAnalysis || typeof rawAnalysis !== "object") {
+    return null;
+  }
+
+  const analysis = rawAnalysis as Partial<BattleLogTurnPlayerAnalysis>;
+  if (
+    !isFiniteNumber(analysis.damageTaken) ||
+    !isFiniteNumber(analysis.healReceived) ||
+    !isFiniteNumber(analysis.netHealthDelta) ||
+    !isFiniteNumber(analysis.savedLinesEnd) ||
+    !isFiniteNumber(analysis.savedJoiningLinesEnd)
+  ) {
+    return null;
+  }
+
+  const normalized: BattleLogTurnPlayerAnalysis = {
+    damageTaken: analysis.damageTaken,
+    healReceived: analysis.healReceived,
+    netHealthDelta: analysis.netHealthDelta,
+    savedLinesEnd: analysis.savedLinesEnd,
+    savedJoiningLinesEnd: analysis.savedJoiningLinesEnd,
+  };
+
+  const damageDealtBreakdown = groupBattleLogAnalysisBreakdownRows(
+    analysis.damageDealtBreakdown,
+  );
+  if (damageDealtBreakdown) {
+    normalized.damageDealtBreakdown = damageDealtBreakdown;
+  }
+
+  const healingReceivedBreakdown = groupBattleLogAnalysisBreakdownRows(
+    analysis.healingReceivedBreakdown,
+  );
+  if (healingReceivedBreakdown) {
+    normalized.healingReceivedBreakdown = healingReceivedBreakdown;
+  }
+
+  return normalized;
+}
+
+function normalizeBattleLogAnalysisByPlayerId(
+  rawValue: unknown,
+): Record<string, BattleLogTurnPlayerAnalysis> | undefined {
+  if (!rawValue || typeof rawValue !== "object") {
+    return undefined;
+  }
+
+  const next: Record<string, BattleLogTurnPlayerAnalysis> = {};
+
+  for (const [playerId, rawAnalysis] of Object.entries(
+    rawValue as Record<string, unknown>,
+  )) {
+    const normalizedAnalysis = normalizeBattleLogTurnPlayerAnalysis(rawAnalysis);
+    if (!normalizedAnalysis) continue;
+    next[playerId] = normalizedAnalysis;
+  }
+
+  return Object.keys(next).length > 0 ? next : undefined;
 }
 
 function cloneBuildCaptureAtom(atom: BuildCaptureAtom): BuildCaptureAtom {
@@ -362,12 +557,41 @@ function normalizeBattleLogCurrentTurnCapture(
     battleAtomsByPlayerId: normalizeBattleAtomsByPlayerId(
       capture.battleAtomsByPlayerId,
     ),
+    savedResourcesByPlayerId: Object.fromEntries(
+      Object.entries(
+        capture.savedResourcesByPlayerId as Record<string, unknown> ?? {},
+      ).flatMap(([playerId, rawResources]) => {
+        if (!rawResources || typeof rawResources !== "object") {
+          return [];
+        }
+
+        const resources = rawResources as {
+          ordinaryLines?: unknown;
+          joiningLines?: unknown;
+        };
+        if (
+          !isFiniteNumber(resources.ordinaryLines) ||
+          !isFiniteNumber(resources.joiningLines)
+        ) {
+          return [];
+        }
+
+        return [[playerId, {
+          ordinaryLines: resources.ordinaryLines,
+          joiningLines: resources.joiningLines,
+        }] as const];
+      }),
+    ),
   };
 }
 
 function cloneBattleLogTurnSummary(
   summary: BattleLogTurnSummary,
 ): BattleLogTurnSummary {
+  const normalizedAnalysisByPlayerId = normalizeBattleLogAnalysisByPlayerId(
+    summary.analysisByPlayerId,
+  );
+
   return {
     turnNumber: summary.turnNumber,
     diceValue: summary.diceValue,
@@ -389,6 +613,13 @@ function cloneBattleLogTurnSummary(
         [...lines],
       ]),
     ),
+    analysisByPlayerId: normalizedAnalysisByPlayerId
+      ? Object.fromEntries(
+          Object.entries(normalizedAnalysisByPlayerId).map((
+            [playerId, analysis],
+          ) => [playerId, cloneBattleLogTurnPlayerAnalysis(analysis)]),
+        )
+      : undefined,
   };
 }
 
@@ -400,7 +631,58 @@ function createCurrentTurnCapture(
     diceValue: null,
     buildAtomsByPlayerId: {},
     battleAtomsByPlayerId: {},
+    savedResourcesByPlayerId: {},
   };
+}
+
+function getSavedResourcesSnapshotForTurn(args: {
+  capture: BattleLogCurrentTurnCapture | null;
+  finalizedTurnNumber: number;
+  finalizedState: GameStateLike;
+  playerId: string;
+  fallbackPlayer: PlayerWithState;
+}): { ordinaryLines: number; joiningLines: number } {
+  const { capture, finalizedTurnNumber, finalizedState, playerId, fallbackPlayer } =
+    args;
+  const finalizedStateTurnNumber = getCurrentTurnNumber(finalizedState);
+  const captureSavedResources = capture?.savedResourcesByPlayerId?.[playerId];
+  const isTurnBumpFinalization =
+    finalizedStateTurnNumber === finalizedTurnNumber + 1;
+
+  if (
+    isTurnBumpFinalization &&
+    captureSavedResources &&
+    isFiniteNumber(captureSavedResources.ordinaryLines) &&
+    isFiniteNumber(captureSavedResources.joiningLines)
+  ) {
+    return {
+      ordinaryLines: captureSavedResources.ordinaryLines,
+      joiningLines: captureSavedResources.joiningLines,
+    };
+  }
+
+  return {
+    ordinaryLines: isFiniteNumber(fallbackPlayer.lines) ? fallbackPlayer.lines : 0,
+    joiningLines: isFiniteNumber(fallbackPlayer.joiningLines)
+      ? fallbackPlayer.joiningLines
+      : 0,
+  };
+}
+
+function getTurnNumberForPersistedSavedResources(
+  scratch: BattleLogScratch,
+): number | null {
+  const currentCaptureTurnNumber = scratch.currentTurnCapture?.turnNumber;
+  if (isFiniteNumber(currentCaptureTurnNumber)) {
+    return currentCaptureTurnNumber;
+  }
+
+  const lastFinalizedTurnNumber = scratch.lastFinalizedTurnNumber;
+  if (isFiniteNumber(lastFinalizedTurnNumber)) {
+    return lastFinalizedTurnNumber + 1;
+  }
+
+  return null;
 }
 
 function getLatestTurnNumberFromHistoryStore(
@@ -963,6 +1245,15 @@ export function partitionBattleLogCaptureEventsByFinalizedTurn(
   const earlierTurnEvents: unknown[] = [];
 
   for (const event of events) {
+    if (
+      event &&
+      typeof event === "object" &&
+      (event as { type?: string }).type === "BUILD_RESOURCES_PERSISTED"
+    ) {
+      finalizedTurnEvents.push(event);
+      continue;
+    }
+
     const turnNumber = getBattleLogCaptureTurnNumber(event);
     if (turnNumber === null) continue;
 
@@ -1001,6 +1292,31 @@ export function foldBattleLogCaptureEventsIntoScratch(
       if (turnNumber === null || !isFiniteNumber(diceValue)) continue;
       const capture = ensureCaptureForTurn(nextScratch, turnNumber);
       capture.diceValue = diceValue;
+      continue;
+    }
+
+    if ((rawEvent as { type?: string }).type === "BUILD_RESOURCES_PERSISTED") {
+      const turnNumber = getTurnNumberForPersistedSavedResources(nextScratch);
+      const playerId = (rawEvent as { playerId?: unknown }).playerId;
+      const ordinaryLines =
+        (rawEvent as { ordinaryLines?: unknown }).ordinaryLines;
+      const joiningLines =
+        (rawEvent as { joiningLines?: unknown }).joiningLines;
+
+      if (
+        turnNumber === null ||
+        typeof playerId !== "string" ||
+        !isFiniteNumber(ordinaryLines) ||
+        !isFiniteNumber(joiningLines)
+      ) {
+        continue;
+      }
+
+      const capture = ensureCaptureForTurn(nextScratch, turnNumber);
+      capture.savedResourcesByPlayerId[playerId] = {
+        ordinaryLines,
+        joiningLines,
+      };
       continue;
     }
 
@@ -1170,17 +1486,64 @@ export function buildBattleLogTurnSummaryFromScratch(args: {
       ? normalizedScratch.currentTurnCapture
       : null;
   const activePlayers = getActivePlayers(args.finalizedState);
+  const lastTurnDamageByPlayerId =
+    args.finalizedState?.gameData?.lastTurnDamageByPlayerId ?? {};
+  const lastTurnHealByPlayerId =
+    args.finalizedState?.gameData?.lastTurnHealByPlayerId ?? {};
   const lastTurnNetByPlayerId =
     args.finalizedState?.gameData?.lastTurnNetByPlayerId ?? {};
+  const lastTurnDamageDealtBreakdownByPlayerId =
+    args.finalizedState?.gameData?.lastTurnDamageDealtBreakdownByPlayerId ?? {};
+  const lastTurnHealingReceivedBreakdownByPlayerId =
+    args.finalizedState?.gameData?.lastTurnHealingReceivedBreakdownByPlayerId ??
+      {};
 
   const buildLinesByPlayerId: Record<string, string[]> = {};
   const battleLinesByPlayerId: Record<string, string[]> = {};
+  const analysisByPlayerId: Record<string, BattleLogTurnPlayerAnalysis> = {};
 
   for (const player of activePlayers) {
     const buildAtoms = capture?.buildAtomsByPlayerId?.[player.id] ?? [];
     const battleAtoms = capture?.battleAtomsByPlayerId?.[player.id] ?? [];
+    const savedResources = getSavedResourcesSnapshotForTurn({
+      capture,
+      finalizedTurnNumber: args.finalizedTurnNumber,
+      finalizedState: args.finalizedState,
+      playerId: player.id,
+      fallbackPlayer: player,
+    });
     buildLinesByPlayerId[player.id] = formatBuildLines(buildAtoms);
     battleLinesByPlayerId[player.id] = formatBattleLines(battleAtoms);
+
+    const analysis: BattleLogTurnPlayerAnalysis = {
+      damageTaken: isFiniteNumber(lastTurnDamageByPlayerId[player.id])
+        ? lastTurnDamageByPlayerId[player.id]
+        : 0,
+      healReceived: isFiniteNumber(lastTurnHealByPlayerId[player.id])
+        ? lastTurnHealByPlayerId[player.id]
+        : 0,
+      netHealthDelta: isFiniteNumber(lastTurnNetByPlayerId[player.id])
+        ? lastTurnNetByPlayerId[player.id]
+        : 0,
+      savedLinesEnd: savedResources.ordinaryLines,
+      savedJoiningLinesEnd: savedResources.joiningLines,
+    };
+
+    const damageDealtBreakdown = groupBattleLogAnalysisBreakdownRows(
+      lastTurnDamageDealtBreakdownByPlayerId[player.id],
+    );
+    if (damageDealtBreakdown) {
+      analysis.damageDealtBreakdown = damageDealtBreakdown;
+    }
+
+    const healingReceivedBreakdown = groupBattleLogAnalysisBreakdownRows(
+      lastTurnHealingReceivedBreakdownByPlayerId[player.id],
+    );
+    if (healingReceivedBreakdown) {
+      analysis.healingReceivedBreakdown = healingReceivedBreakdown;
+    }
+
+    analysisByPlayerId[player.id] = analysis;
   }
 
   return {
@@ -1196,6 +1559,9 @@ export function buildBattleLogTurnSummaryFromScratch(args: {
     })),
     buildLinesByPlayerId,
     battleLinesByPlayerId,
+    analysisByPlayerId: Object.keys(analysisByPlayerId).length > 0
+      ? analysisByPlayerId
+      : undefined,
   };
 }
 
