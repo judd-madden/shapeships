@@ -1,8 +1,11 @@
-# Phase & Timing Contract - Critical Rules for Engine Implementation
+# Legacy Phase & Timing Contract
+
+> Legacy reference only
+> This document is retained for historical/reference purposes and does not define the current authoritative Shapeships architecture or runtime behavior. For current architectural truth, see `src/documentation/contracts/canonical-handoff.md` and `src/documentation/contracts/code-ownership-map.md`.
 
 **Date:** 2024-12-23  
-**Purpose:** Define precise semantics for ShipPowerPhase and PowerTiming to prevent engine bugs  
-**Audience:** Future developers implementing game phases and power execution
+**Purpose:** Historical reference for a legacy ShipPowerPhase and PowerTiming model  
+**Audience:** Readers reviewing earlier engine planning and implementation notes
 
 ---
 

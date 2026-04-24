@@ -1,133 +1,86 @@
 # Server Module Organization
 
-This directory contains all server-side code for Shapeships that runs in Supabase Edge Functions.
+This directory contains the Shapeships server code that runs inside the Supabase Edge Function.
 
-## Folder Structure
+The current package is practical rather than perfectly clean. Route handlers, `engine/`, and `engine_shared/` all participate in the live server, but server authority still lives under `src/supabase/functions/server/**`.
 
-### `/engine_shared/` — Pure Engine Modules
+## Current top-level structure
 
-Contains **pure deterministic modules** reusable across engine subsystems.
+- `index.tsx` - Edge Function entrypoint, middleware, Supabase client setup, and route registration
+- `routes/` - Hono route families for session/auth, game lifecycle and state reads, intent submission, chat/history-related reads, and test/debug endpoints
+- `engine/` - authoritative server-side stateful logic used by the routes
+- `engine_shared/` - deterministic shared helpers, definitions, tables, and resolution code used heavily by both routes and `engine/`
+- `legacy/` - older server-side code that remains in-repo but is not the preferred place for new work
+- `kv_store.tsx` and `test_all_endpoints.sh` - local server helpers and testing utilities
 
-**Characteristics:**
-- ✅ Pure functions (deterministic, no side effects)
-- ✅ Type-only schemas and interfaces
-- ✅ Translators, calculators, evaluators
-- ✅ No Date.now(), Math.random(), crypto.randomUUID()
-- ❌ Must NOT read/write GameState directly
-- ❌ Must NOT access Supabase client or request context
-- ❌ Must NOT rely on time or randomness
+## Current route families
 
-**Examples:**
-- `effects/Effect.ts` — Effect type definitions
-- `effects/translateShipPowers.ts` — Ship power → Effect translator
-- `phase/PhaseTable.ts` — Phase sequence and validation
-- `types/ShipTypes.ts` — Ship type definitions
+### Session and auth surfaces
+The server currently exposes session-backed entry points through `routes/auth_routes.ts` and `index.tsx`.
 
-**Import rules:**
-- Can import from other `engine_shared/` modules
-- Can import from shared type files
-- Must NOT import from `/engine/`, `/routes/`, or outside `/server/`
+These surfaces are responsible for:
+- minting session tokens
+- resolving session metadata
+- supporting the current session-only alpha posture
 
----
+### Game lifecycle and state-read surfaces
+`routes/game_routes.ts` currently owns the main game lifecycle and read-model surfaces.
 
-### `/engine/` — Authoritative Orchestration
+That includes:
+- creating private and computer games
+- joining games and switching roles
+- creating follow-up games from finished games
+- serving authoritative game-state reads
+- serving lightweight head snapshots
+- serving persisted game-history responses
 
-Contains **stateful orchestration logic** that reads/writes game state.
+This route family also shapes the read payload returned to the client, including filtered hidden information, state revision data, clock snapshots, and server-projected action surfaces such as `availableActions`.
 
-**Characteristics:**
-- ✅ Intent processing and validation
-- ✅ Phase advancement and transitions
-- ✅ State mutations and persistence
-- ✅ Can use `engine_shared/` pure modules
-- ❌ Should delegate pure logic to `engine_shared/`
+### Intent submission
+`routes/intent_routes.ts` owns the current intent submission path.
 
-**Examples:**
-- `phase/advancePhase.ts` — Phase progression logic
-- `phase/onEnterPhase.ts` — Phase entry hooks
+That route family is responsible for:
+- validating session-backed intent requests
+- applying authoritative intent reduction
+- persisting updated state
+- handling battle-log history persistence
+- appending chat entries emitted from intent events
 
-**Import rules:**
-- Can import from `engine_shared/` (pure modules)
-- Can import from other `/engine/` modules
-- Must NOT import from outside `/server/`
+### Chat and history-related storage helpers
+The current package includes route-adjacent helpers such as:
+- `routes/chat_kv.ts`
+- `routes/state_revision.ts`
 
----
+These support the live request path, but they are still support code inside the server package rather than standalone services.
 
-### `/routes/` — HTTP Handlers
+### Test and debug surfaces
+`routes/test_routes.ts` provides the current health, connection-test, echo, endpoint-listing, and system-test surfaces used for development and diagnostics.
 
-Contains **HTTP route handlers** for the Hono web server.
+## Request/runtime shape
 
-**Characteristics:**
-- ✅ Request/response handling
-- ✅ Authentication and authorization
-- ✅ Calls `/engine/` for business logic
-- ✅ Reads/writes database via KV store
-- ❌ Should NOT contain game rules or validation logic
+The current live request shape is:
+1. `index.tsx` sets up the Edge runtime, CORS, logging, KV helpers, and route registration.
+2. Session identity is resolved from `X-Session-Token`, not from client-supplied player IDs.
+3. Route handlers load and persist state through the KV-backed store.
+4. Routes call into `engine/` and `engine_shared/` as needed, then return filtered or projected payloads to the client runtime.
 
-**Examples:**
-- `game_routes.ts` — Game creation, state management
-- (future: `intent_routes.ts`, `battle_routes.ts`)
+## Import posture
 
-**Import rules:**
-- Can import from `/engine/` (orchestration)
-- Can import from `engine_shared/` (pure modules)
-- Must NOT import from outside `/server/`
+Server code in this package should stay inside `src/supabase/functions/server/**`.
 
----
+In current repo posture:
+- routes import from `engine/` and `engine_shared/`
+- `engine/` imports from `engine_shared/`
+- server authority should not move into client or display code
 
-### `/legacy/` — Deprecated Code
+## Deployment constraints
 
-Contains **old implementations** that are being phased out.
-
-**Do not use for new features.**
-
----
-
-## Import Boundaries (CRITICAL)
-
-All server code must **ONLY** import from paths inside `/supabase/functions/server/**`.
-
-**✅ ALLOWED:**
-```typescript
-import { translateShipPowers } from '../engine_shared/effects/translateShipPowers.ts';
-import { PHASE_SEQUENCE } from '../engine_shared/phase/PhaseTable.ts';
-import { advancePhase } from '../engine/phase/advancePhase.ts';
-```
-
-**❌ FORBIDDEN:**
-```typescript
-import { ... } from '/game/...';
-import { ... } from '../../../game/...';
-import { ... } from '/engine/...';  // outside /server/
-```
-
-**Why:** Supabase Edge function bundler can only include code inside `/server/`.
-
----
-
-## Deployment Constraints
-
-Code in this directory must be **Edge-compatible**:
-
-- ✅ Deno runtime (not Node.js)
-- ✅ TypeScript with `npm:` or `jsr:` imports
-- ✅ Node built-ins via `node:` specifier (e.g., `import process from "node:process"`)
-- ❌ No filesystem writes (except `/tmp`)
-- ❌ No reliance on local file paths outside bundle
-
----
+Code in this directory must remain Edge-compatible:
+- Deno runtime
+- TypeScript with `npm:` or `jsr:` imports where needed
+- no reliance on filesystem access outside the bundled function
 
 ## Testing
 
-- Unit tests can live alongside modules (e.g., `*.test.ts`)
-- Integration tests should use the deployed server endpoints
-- See `test_all_endpoints.sh` for endpoint testing
-
----
-
-## Key Principles
-
-1. **Pure shared logic** → `/engine_shared/`
-2. **Stateful orchestration** → `/engine/`
-3. **HTTP handling** → `/routes/`
-4. **All imports stay inside `/server/`**
-5. **No Date.now(), Math.random() in `engine_shared/`**
+- Route and runtime smoke testing can use `test_all_endpoints.sh`
+- Additional checks should stay scoped to the server package and current Edge runtime assumptions

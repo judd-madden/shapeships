@@ -15,19 +15,19 @@ For AI agents and implementation rules, also read:
 ## Structure
 
 ### `contracts/`
-Binding architecture and integration rules.
+Canonical architecture and integration rules.
 
-- [canonical-handoff.md](contracts/canonical-handoff.md) — architectural invariants and ownership boundaries
-- [code-ownership-map.md](contracts/code-ownership-map.md) — quick ownership map for where changes belong
-- [ServerClientTurnPhaseContract.md](contracts/ServerClientTurnPhaseContract.md) — turn/phase integration contract
+- [canonical-handoff.md](contracts/canonical-handoff.md) - architectural invariants and ownership boundaries
+- [code-ownership-map.md](contracts/code-ownership-map.md) - quick ownership map for where changes belong
+- [ServerClientTurnPhaseContract.md](contracts/ServerClientTurnPhaseContract.md) - turn/phase integration contract
 
 ### `workflows/`
-Operational templates and pass formats.
+Operational templates and pass formats for implementation work.
 
-- [CodexPassTemplate.md](workflows/CodexPassTemplate.md) — reusable template for implementation passes
+- [CodexPassTemplate.md](workflows/CodexPassTemplate.md) - reusable template for implementation passes
 
 ### `infrastructure/`
-Non-normative operational notes.
+Non-normative operational and runtime notes.
 
 - [polling-and-scaling.md](infrastructure/polling-and-scaling.md)
 
@@ -35,4 +35,4 @@ Non-normative operational notes.
 - Keep architecture docs current and concise.
 - Prefer updating canonical docs over creating scattered one-off notes.
 - Put workflow/process guidance in `workflows/`, not in architecture contracts.
-- Non-normative operational notes belong under `infrastructure/`.
+- Put infrastructure and runtime posture notes under `infrastructure/`.

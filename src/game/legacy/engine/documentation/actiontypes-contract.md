@@ -1,8 +1,11 @@
-# ActionTypes Contract - Action Resolution Layer Semantics
+# Legacy ActionTypes Contract - Action Resolution Layer Semantics
+
+> Legacy reference only
+> This document is retained for historical/reference purposes and does not define the current authoritative Shapeships architecture or runtime behavior. For current architectural truth, see `src/documentation/contracts/canonical-handoff.md` and `src/documentation/contracts/code-ownership-map.md`.
 
 **Date:** 2024-12-23  
-**Purpose:** Define precise semantics for ActionTypes and action resolution patterns  
-**Audience:** Future developers implementing action resolution and UI  
+**Purpose:** Historical reference for a legacy action resolution model  
+**Audience:** Readers reviewing earlier action resolution and UI planning  
 
 ---
 

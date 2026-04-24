@@ -1,4 +1,7 @@
-# End of Turn Resolution Specification
+# Legacy End of Turn Resolution Specification
+
+> Legacy reference only
+> This document is retained for historical/reference purposes and does not define the current authoritative Shapeships architecture or runtime behavior. For current architectural truth, see `src/documentation/contracts/canonical-handoff.md` and `src/documentation/contracts/code-ownership-map.md`.
 
 ## 🔒 Core Invariant (Non-Negotiable)
 

@@ -1,159 +1,61 @@
-# /supabase/functions/server/engine — Server Orchestration & Glue
+# `/supabase/functions/server/engine`
 
-**Status:** Server-side orchestration layer  
-**Authority:** Non-authoritative — calls canonical `engine_shared` logic
+This directory contains the current authoritative server runtime logic that sits between the route layer and the deterministic helpers under `engine_shared/`.
 
----
+It is not a purely ceremonial wrapper. In the current repo, `engine/` contains live authoritative code for intent handling, phase progression, line computation, clocks, bot behavior, state shaping, and other server-owned runtime concerns.
 
-## Purpose
+## Current posture
 
-This directory contains **server orchestration and runtime glue** that connects the canonical game engine to the Supabase runtime environment.
+The present split is pragmatic and somewhat transitional:
+- `routes/` owns HTTP concerns, session checks, KV access, and response shaping
+- `engine/` owns stateful server-side logic and orchestration used by those routes
+- `engine_shared/` contains deterministic shared helpers, definitions, tables, and resolution code that both routes and `engine/` import heavily
 
-**Key distinction:**
-- `server/engine/*` = **server glue/orchestration** (auth, persistence, routing, intent protocol enforcement)
-- `server/engine_shared/*` = **canonical pure engine code** bundled for Edge
+This means the current package is not a perfectly isolated clean-room architecture. Some responsibilities are still shared across route and engine layers for practical reasons. What remains stable is the authority boundary: the authoritative runtime still lives under `src/supabase/functions/server/**`.
 
-**Responsibilities:**
-1. Load game state from KV store
-2. Validate intent permissions (player ownership, phase eligibility)
-3. Call canonical `engine_shared` functions to compute new state
-4. Persist results back to storage
-5. Emit events/notifications as needed
+## Current structure
 
-**Non-responsibilities:**
-- ❌ Defining independent game rules
-- ❌ Maintaining separate phase tables
-- ❌ Re-implementing engine logic
-- ❌ Making authoritative gameplay decisions
+The current directory includes:
+- `intent/` - authoritative intent reduction, commit/reveal helpers, hashing, and build-submit resolution
+- `phase/` - phase advancement, phase-entry behavior, phase-field synchronization, and power-availability helpers
+- `clock/` - authoritative clock setup and accrual helpers
+- `lines/` - server-owned line bonus computation
+- `bot/` - current bot planning and runtime helpers
+- `state/` - server game-state and battle-log history helpers
+- `util/` - smaller server utilities such as dice rolling
 
-**Critical rule:**  
-Server glue may **not** embed rules; it must call `engine_shared`.
+## Relationship to `engine_shared/`
 
----
+`engine_shared/` currently holds deterministic shared surfaces such as:
+- phase tables
+- ship definitions and definition overlays
+- effect models and effect application
+- shared resolve helpers and power-resolution helpers
 
-## Structure
+`engine/` imports those shared surfaces heavily, but it also contains authoritative logic that is specific to the live server runtime. In other words:
+- `engine_shared/` is important to the current architecture
+- `engine/` is still part of the authoritative server, not a non-authoritative adapter
 
-```
-/supabase/functions/server/engine/
-  intent/         # Intent submission, hashing, commit/reveal protocol
-  phase/          # Phase transitions and server-side phase entry hooks
-  state/          # Game state types and persistence helpers
-```
+## Relationship to routes
 
----
+Routes do not only pass data through untouched. In the current codebase they also:
+- validate session-backed request identity
+- load and persist KV-backed state
+- prepare read-safe projections
+- filter hidden information for requesting players
+- project runtime-facing response fields such as `availableActions`, clock snapshots, and history/chat surfaces
 
-## Design Principles
+That means the current runtime seam is shared between routes and `engine/`, not a perfectly strict "routes thin, engine thick" split.
 
-### 1. Thin Wrapper Pattern
+## Guardrails for work in this directory
 
-Server engine code should be **thin adapters** that:
-- Load state → call `engine_shared` → save state
-- Add **zero** independent game logic
+- Keep server authority here or in adjacent server-owned shared code, not in client/display layers.
+- Prefer reusing existing `engine_shared/` helpers when they already model the deterministic part of the problem.
+- Do not describe this folder as the entire server architecture by itself; the live request path also depends on `routes/` and `engine_shared/`.
+- Be cautious about claiming a migration is complete unless the current imports and file tree support that claim.
 
-❌ **Bad:**
-```typescript
-// Server defines its own phase timing
-if (phase === 'build') {
-  state.turnClock += 1;
-}
-```
+## Related documentation
 
-✅ **Good:**
-```typescript
-// Server calls canonical engine
-import { onEnterPhase } from '../engine_shared/phase/onEnterPhase';
-const newState = onEnterPhase(state, 'build');
-```
-
-### 2. Permission Validation Only
-
-Server validates **permissions** (who can act), not **rules** (what is valid):
-
-✅ **Permission check (server):**
-```typescript
-if (intent.playerId !== session.playerId) {
-  return { error: 'Not your turn' };
-}
-```
-
-✅ **Rule check (engine_shared):**
-```typescript
-import { canBuildShip } from '../engine_shared/validation/buildEligibility';
-if (!canBuildShip(state, playerId, shipDefId)) {
-  return { error: 'Cannot build this ship' };
-}
-```
-
-### 3. Stateless Functions
-
-Avoid stateful classes. Prefer pure functions that:
-- Take `(gameState, params) => newGameState`
-- Have no side effects beyond persistence
-- Can be unit tested without Supabase
-
----
-
-## Intent Flow
-
-```
-Client sends intent
-  ↓
-Server validates session & permissions (server/engine)
-  ↓
-Server calls engine_shared to validate rules
-  ↓
-Server calls engine_shared to apply changes
-  ↓
-Server persists new state to KV store
-  ↓
-Server returns updated state to client
-```
-
-**Key insight:** Server orchestrates, `engine_shared` decides.
-
----
-
-## Phase Entry Hooks
-
-**Server responsibility:**
-- Detect phase transitions
-- Call `onEnterPhase(state, newPhase)` from `engine_shared`
-- Persist dice rolls, line generation, clock updates
-
-**Engine_shared responsibility:**
-- Define what happens on phase entry
-- Generate deterministic results (given explicit randomness input)
-
-See: `server/engine_shared/phase/onEnterPhase.ts` (canonical)
-
----
-
-## Migration Path
-
-As `engine_shared` stabilizes:
-1. Server imports move from `/game/engine/*` to `../engine_shared/*`
-2. Server-side wrappers shrink further
-3. All rule logic lives in canonical `engine_shared`
-
-**Current status:**
-- Phase table migrated to `engine_shared/phase/PhaseTable.ts`
-- Effects migrated to `engine_shared/effects/`
-- IntentReducer and BattleReducer still reference legacy paths
-
----
-
-## Anti-Patterns to Avoid
-
-❌ **Independent phase tables** — use `engine_shared/phase/PhaseTable`  
-❌ **Server-only rules** — put them in `engine_shared` so client can preview  
-❌ **Stateful managers** — use pure functions with explicit state  
-❌ **Implicit side effects** — all mutations return new state explicitly  
-❌ **Rule embedding** — server glue must call `engine_shared`, not duplicate logic  
-
----
-
-## Related Documentation
-
-- `/supabase/functions/server/README.md` — server folder organization
-- `/engine/README.md` — client import surface
-- `/documentation/contracts/canonical-handoff.md` — system-wide contracts
+- `src/supabase/functions/server/README.md`
+- `src/engine/README.md`
+- `src/documentation/contracts/canonical-handoff.md`

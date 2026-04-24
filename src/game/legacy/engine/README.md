@@ -7,6 +7,11 @@
 
 ## ⚠️ Important
 
+> Legacy reference only
+> This document is retained for historical/reference purposes and does not define the current authoritative Shapeships architecture or runtime behavior. For current architectural truth, see `src/documentation/contracts/canonical-handoff.md` and `src/documentation/contracts/code-ownership-map.md`.
+>
+> The title and status language above are preserved as historical migration-era framing and are not current project guidance.
+
 **Do not add new logic to `/game/engine`.**
 
 **New engine work must go in:**
@@ -15,7 +20,7 @@
 ```
 Then exposed via `/engine/*` if needed by client.
 
-This directory exists temporarily to manage migration and retain reference code.
+This directory is preserved as historical migration/reference material.
 
 ---
 

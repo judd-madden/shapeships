@@ -1,14 +1,17 @@
-# Effects Architecture
+# Legacy Effects Architecture
+
+> Legacy reference only
+> This document is retained for historical/reference purposes and does not define the current authoritative Shapeships architecture or runtime behavior. For current architectural truth, see `src/documentation/contracts/canonical-handoff.md` and `src/documentation/contracts/code-ownership-map.md`.
 
 **Location:** `/game/engine/effects/`
 
-**Status:** Canonical Rules Kernel
+**Status:** Historical legacy effects reference
 
 ---
 
 ## Purpose
 
-This folder is the **authoritative Effects system** for Shapeships.
+This folder description reflects a legacy effects architecture retained for reference.
 
 It serves as the **rules kernel** that feeds the battle reducer. All effect resolution logic flows through this system.
 

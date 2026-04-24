@@ -1,4 +1,9 @@
-# Upon Destruction Mechanics - Canonical Implementation
+# Legacy Upon Destruction Mechanics Reference
+
+> Legacy reference only
+> This document is retained for historical/reference purposes and does not define the current authoritative Shapeships architecture or runtime behavior. For current architectural truth, see `src/documentation/contracts/canonical-handoff.md` and `src/documentation/contracts/code-ownership-map.md`.
+>
+> The status language below is preserved as historical prose and is not current project guidance.
 
 **Date:** 2024-12-23  
 **Status:** 🔒 LOCKED IN - Do not deviate from this pattern
