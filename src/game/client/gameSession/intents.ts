@@ -444,8 +444,13 @@ export async function runReadyToggleFlow(args: {
           const selectedChoiceId = args.selectedChoiceIdBySourceInstanceId[sourceInstanceId];
           const choiceId = selectedChoiceId || getRenderableActionChoiceIds(action)[0];
           
-          // Skip if choice is 'hold' (no ACTION sent)
-          if (choiceId === 'hold') {
+          // KNO hold is stateful because it stops later reroll passes; ordinary hold means "submit no action".
+          const shouldSubmitHold =
+            phaseKey === 'build.dice_roll' &&
+            actionId === 'KNO#0' &&
+            choiceId === 'hold';
+
+          if (choiceId === 'hold' && !shouldSubmitHold) {
             continue;
           }
 

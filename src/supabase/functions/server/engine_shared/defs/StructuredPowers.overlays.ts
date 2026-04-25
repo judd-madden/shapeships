@@ -680,7 +680,7 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   // ARK OF KNOWLEDGE (KNO)
   // ==========================================================================
   // JSON power index 2: "Heal 2." (Automatic)
-  'KNO#2': [
+  'KNO#1': [
     {
       type: 'effect',
       timings: ['battle.end_of_turn_resolution'],
