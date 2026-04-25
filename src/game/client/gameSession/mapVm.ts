@@ -56,7 +56,7 @@ function getNamedGroupHeading(
   if (
     phaseKey === 'build.dice_roll' &&
     heading === 'Ark of Knowledge' &&
-    (knoRerollPassIndex === 1 || knoRerollPassIndex === 2)
+    (knoRerollPassIndex === 1 || knoRerollPassIndex === 2 || knoRerollPassIndex === 3)
   ) {
     return `Ark of Knowledge ${knoRerollPassIndex}`;
   }

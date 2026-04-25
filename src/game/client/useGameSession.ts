@@ -1308,7 +1308,8 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const turnNumber = rawState ? getTurnNumber(rawState) : 1;
   const knoRerollPassIndex = rawState?.gameData?.turnData?.knoRerollPassIndex;
   const phaseInstanceKey =
-    phaseKey === 'build.dice_roll' && (knoRerollPassIndex === 1 || knoRerollPassIndex === 2)
+    phaseKey === 'build.dice_roll' &&
+      (knoRerollPassIndex === 1 || knoRerollPassIndex === 2 || knoRerollPassIndex === 3)
       ? `${turnNumber}::${phaseKey}::kno${knoRerollPassIndex}`
       : `${turnNumber}::${phaseKey}`;
   const deferredHandoffPhaseEntryKey = `${effectiveGameId ?? 'nogame'}::${phaseInstanceKey}`;

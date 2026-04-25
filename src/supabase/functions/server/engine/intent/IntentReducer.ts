@@ -97,6 +97,8 @@ export interface IntentResult {
   };
 }
 
+type KnoRerollPassIndex = 1 | 2 | 3;
+
 function isFinishedGameChatMessageIntent(intent: IntentRequest): boolean {
   if (intent.intentType !== 'ACTION') return false;
 
@@ -224,27 +226,66 @@ function finishGameWithCanonicalResult(args: {
   };
 }
 
-function getKnoRerollPassIndex(state: any): 1 | 2 {
-  return state?.gameData?.turnData?.knoRerollPassIndex === 2 ? 2 : 1;
+function getKnoRerollPassIndex(state: any): KnoRerollPassIndex {
+  const passIndex = state?.gameData?.turnData?.knoRerollPassIndex;
+  return passIndex === 2 || passIndex === 3 ? passIndex : 1;
 }
 
 function getKnoCountForPlayer(state: any, playerId: string): number {
   return countFleetShipsByDefId(state, playerId, 'KNO');
 }
 
-function playerHasKnoRerollForPass(state: any, playerId: string, passIndex: 1 | 2): boolean {
-  return getKnoCountForPlayer(state, playerId) >= passIndex;
+function getKnoMaxRerollPassCountForPlayer(state: any, playerId: string): KnoRerollPassIndex | 0 {
+  return Math.min(3, getKnoCountForPlayer(state, playerId)) as KnoRerollPassIndex | 0;
 }
 
-function hasAnyKnoSecondPass(state: any): boolean {
+function getMaxKnoRerollPassCountForGame(state: any): KnoRerollPassIndex | 0 {
   const activePlayers = state?.players?.filter((p: any) => p.role === 'player') || [];
-  return activePlayers.some((player: any) => getKnoCountForPlayer(state, player.id) >= 2);
+  let maxPassCount = 0;
+
+  for (const player of activePlayers) {
+    maxPassCount = Math.max(maxPassCount, getKnoMaxRerollPassCountForPlayer(state, player.id));
+  }
+
+  return maxPassCount as KnoRerollPassIndex | 0;
+}
+
+function playerHasKnoRerollForPass(state: any, playerId: string, passIndex: KnoRerollPassIndex): boolean {
+  return getKnoMaxRerollPassCountForPlayer(state, playerId) >= passIndex;
+}
+
+function playerIsKnoRerollStopped(state: any, playerId: string): boolean {
+  return state?.gameData?.turnData?.knoRerollStoppedByPlayerId?.[playerId] === true;
+}
+
+function playerCanActInKnoRerollPass(state: any, playerId: string, passIndex: KnoRerollPassIndex): boolean {
+  return playerHasKnoRerollForPass(state, playerId, passIndex) && !playerIsKnoRerollStopped(state, playerId);
+}
+
+function gameHasEligibleKnoActorsForPass(state: any, passIndex: KnoRerollPassIndex): boolean {
+  const activePlayers = state?.players?.filter((p: any) => p.role === 'player') || [];
+  return activePlayers.some((player: any) => playerCanActInKnoRerollPass(state, player.id, passIndex));
+}
+
+function getNextEligibleKnoRerollPassIndex(
+  state: any,
+  passIndex: KnoRerollPassIndex
+): KnoRerollPassIndex | null {
+  const maxPassCount = getMaxKnoRerollPassCountForGame(state);
+
+  for (let nextPassIndex = passIndex + 1; nextPassIndex <= maxPassCount; nextPassIndex++) {
+    if (gameHasEligibleKnoActorsForPass(state, nextPassIndex as KnoRerollPassIndex)) {
+      return nextPassIndex as KnoRerollPassIndex;
+    }
+  }
+
+  return null;
 }
 
 function getRepresentativeKnoInstanceIdForPass(
   state: any,
   playerId: string,
-  passIndex: 1 | 2
+  passIndex: KnoRerollPassIndex
 ): string | null {
   const fleet = state?.gameData?.ships?.[playerId] ?? [];
   const knoInstanceIds = Array.isArray(fleet)
@@ -297,7 +338,7 @@ function stageKnoRerollChoice(
   }
 
   const passIndex = getKnoRerollPassIndex(state);
-  if (!playerHasKnoRerollForPass(state, playerId, passIndex)) {
+  if (!playerCanActInKnoRerollPass(state, playerId, passIndex)) {
     throw new Error('KNO_REROLL_NOT_AVAILABLE');
   }
 
@@ -318,15 +359,22 @@ function stageKnoRerollChoice(
       [passIndex]: choiceId,
     },
   };
+
+  if (choiceId === 'hold') {
+    state.gameData.turnData.knoRerollStoppedByPlayerId = {
+      ...(state.gameData.turnData.knoRerollStoppedByPlayerId || {}),
+      [playerId]: true,
+    };
+  }
 }
 
-function clearResolvedKnoPassChoices(state: any, passIndex: 1 | 2) {
+function clearResolvedKnoPassChoices(state: any, passIndex: KnoRerollPassIndex) {
   const pendingByPlayerId = state?.gameData?.turnData?.pendingKnoRerollChoiceByPassByPlayerId;
   if (!pendingByPlayerId) return;
 
-  const nextPendingByPlayerId: Record<string, Partial<Record<1 | 2, 'reroll' | 'hold'>>> = {};
+  const nextPendingByPlayerId: Record<string, Partial<Record<KnoRerollPassIndex, 'reroll' | 'hold'>>> = {};
   for (const [playerId, choicesByPass] of Object.entries(pendingByPlayerId)) {
-    const nextChoicesByPass = { ...(choicesByPass as Partial<Record<1 | 2, 'reroll' | 'hold'>>) };
+    const nextChoicesByPass = { ...(choicesByPass as Partial<Record<KnoRerollPassIndex, 'reroll' | 'hold'>>) };
     delete nextChoicesByPass[passIndex];
     if (Object.keys(nextChoicesByPass).length > 0) {
       nextPendingByPlayerId[playerId] = nextChoicesByPass;
@@ -345,10 +393,11 @@ function resolvePendingKnoRerollPass(state: any, nowMs: number, events: any[]) {
   const activePlayers = state.players.filter((p: any) => p.role === 'player');
   const eligiblePlayerIds = activePlayers
     .map((player: any) => player.id)
-    .filter((currentPlayerId: string) => playerHasKnoRerollForPass(state, currentPlayerId, passIndex));
+    .filter((currentPlayerId: string) => playerCanActInKnoRerollPass(state, currentPlayerId, passIndex));
+  const nextEligiblePassIndex = getNextEligibleKnoRerollPassIndex(state, passIndex);
 
   if (eligiblePlayerIds.length === 0) {
-    turnData.diceFinalized = passIndex === 2 || !hasAnyKnoSecondPass(state);
+    turnData.diceFinalized = nextEligiblePassIndex == null;
     return state;
   }
 
@@ -396,7 +445,7 @@ function resolvePendingKnoRerollPass(state: any, nowMs: number, events: any[]) {
   }
 
   clearResolvedKnoPassChoices(state, passIndex);
-  turnData.diceFinalized = passIndex === 2 || !hasAnyKnoSecondPass(state);
+  turnData.diceFinalized = nextEligiblePassIndex == null;
 
   return state;
 }

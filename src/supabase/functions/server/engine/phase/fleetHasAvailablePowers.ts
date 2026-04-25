@@ -25,6 +25,8 @@ import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.with
 import { EffectKind } from '../../engine_shared/effects/Effect.ts';
 import { getValidDestroyTargets } from '../../engine_shared/resolve/destroyRules.ts';
 
+type KnoRerollPassIndex = 1 | 2 | 3;
+
 function getTargetedChoiceEffect(option: any) {
   return option?.effects?.find(
     (effect: any) =>
@@ -37,8 +39,9 @@ function getShipsThatBuildPassIndex(state: any): 1 | 2 {
   return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
 }
 
-function getKnoRerollPassIndex(state: any): 1 | 2 {
-  return state?.gameData?.turnData?.knoRerollPassIndex === 2 ? 2 : 1;
+function getKnoRerollPassIndex(state: any): KnoRerollPassIndex {
+  const passIndex = state?.gameData?.turnData?.knoRerollPassIndex;
+  return passIndex === 2 || passIndex === 3 ? passIndex : 1;
 }
 
 function getKnoCountForPlayer(state: any, playerId: string): number {
@@ -48,14 +51,26 @@ function getKnoCountForPlayer(state: any, playerId: string): number {
     : 0;
 }
 
-function playerHasKnoRerollForPass(state: any, playerId: string, passIndex: 1 | 2): boolean {
-  return getKnoCountForPlayer(state, playerId) >= passIndex;
+function getKnoMaxRerollPassCountForPlayer(state: any, playerId: string): KnoRerollPassIndex | 0 {
+  return Math.min(3, getKnoCountForPlayer(state, playerId)) as KnoRerollPassIndex | 0;
+}
+
+function playerHasKnoRerollForPass(state: any, playerId: string, passIndex: KnoRerollPassIndex): boolean {
+  return getKnoMaxRerollPassCountForPlayer(state, playerId) >= passIndex;
+}
+
+function playerIsKnoRerollStopped(state: any, playerId: string): boolean {
+  return state?.gameData?.turnData?.knoRerollStoppedByPlayerId?.[playerId] === true;
+}
+
+function playerCanActInKnoRerollPass(state: any, playerId: string, passIndex: KnoRerollPassIndex): boolean {
+  return playerHasKnoRerollForPass(state, playerId, passIndex) && !playerIsKnoRerollStopped(state, playerId);
 }
 
 function anyPlayerHasKnoRerollForCurrentPass(state: any): boolean {
   const passIndex = getKnoRerollPassIndex(state);
   const activePlayers = state?.players?.filter((p: any) => p.role === 'player') ?? [];
-  return activePlayers.some((player: any) => playerHasKnoRerollForPass(state, player.id, passIndex));
+  return activePlayers.some((player: any) => playerCanActInKnoRerollPass(state, player.id, passIndex));
 }
 
 function getChronoswarmCountForPlayer(state: any, playerId: string): number {
@@ -225,7 +240,7 @@ export function fleetHasAvailablePowers(
 ): boolean {
   if (phaseKey === 'build.dice_roll') {
     const passIndex = getKnoRerollPassIndex(state);
-    if (!playerHasKnoRerollForPass(state, playerId, passIndex)) {
+    if (!playerCanActInKnoRerollPass(state, playerId, passIndex)) {
       return false;
     }
     return anyPlayerHasKnoRerollForCurrentPass(state);

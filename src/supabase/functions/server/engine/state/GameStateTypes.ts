@@ -138,9 +138,11 @@ export type GameData = {
     /** Convenience mirror of chronoswarmRolls.length */
     chronoswarmSharedRollCount?: number;
     /** Internal pass index for the shared Ark of Knowledge reroll window */
-    knoRerollPassIndex?: 1 | 2;
+    knoRerollPassIndex?: 1 | 2 | 3;
     /** Hidden staged Ark of Knowledge reroll choices by player and pass */
-    pendingKnoRerollChoiceByPassByPlayerId?: Record<string, Partial<Record<1 | 2, 'reroll' | 'hold'>>>;
+    pendingKnoRerollChoiceByPassByPlayerId?: Record<string, Partial<Record<1 | 2 | 3, 'reroll' | 'hold'>>>;
+    /** Turn-scoped stop state for Ark of Knowledge rerolls */
+    knoRerollStoppedByPlayerId?: Record<string, true>;
     /** Internal pass index for the single build.ships_that_build phase */
     shipsThatBuildPassIndex?: 1 | 2;
     /** Tracks interactive Ships That Build usage by ship instance and pass */

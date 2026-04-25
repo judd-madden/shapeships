@@ -37,7 +37,6 @@ import {
   computePhaseComputedEffects,
   applyComputedEffectModifiers,
   getEffectiveDiceRollForPlayer,
-  getCopyTierFromFleet,
 } from './phaseComputedEffects.ts';
 
 function countCreatedShipsByTargetPlayerId(
@@ -330,11 +329,6 @@ function sortBreakdownRows(rows: LastTurnBreakdownRow[]): LastTurnBreakdownRow[]
   });
 }
 
-function playerHasKnoTierThree(state: GameState, playerId: string): boolean {
-  const ships = state.gameData.ships?.[playerId] || [];
-  return getCopyTierFromFleet(ships, 'KNO', 3) >= 3;
-}
-
 function getSanitizedEntryAmount(rawAmount: number): number {
   return Number.isFinite(rawAmount) ? rawAmount : 0;
 }
@@ -354,8 +348,6 @@ function getSignedFinalAmountForPendingEntry(
 function buildRowsForPendingEntries(
   entries: PendingTurnBreakdownEntry[],
   sciLabel: string,
-  displayedTotal: number,
-  allowKnoAdjustment: boolean,
   mapAmount: (entry: PendingTurnBreakdownEntry, amount: number) => number = (_, amount) => amount
 ): LastTurnBreakdownRow[] {
   const shipBuckets = new Map<string, { shipDefId: string; instanceIds: Set<string>; amount: number }>();
@@ -423,18 +415,6 @@ function buildRowsForPendingEntries(
     });
   }
 
-  const currentSum = rows.reduce((sum, row) => sum + row.amount, 0);
-  const knoAdjustmentAmount = displayedTotal - currentSum;
-
-  if (allowKnoAdjustment && knoAdjustmentAmount !== 0) {
-    rows.push({
-      rowKind: 'adjustment',
-      label: 'Ark of Knowledge',
-      amount: knoAdjustmentAmount,
-      amountText: formatAmountText(knoAdjustmentAmount),
-    });
-  }
-
   return sortBreakdownRows(rows.filter((row) => row.amount !== 0));
 }
 
@@ -471,27 +451,13 @@ function buildLastTurnBreakdownSnapshots(
           entry.targetPlayerId === player.id
         )
     );
-    const displayedDamageTotal = opponentId ? totals.damageByPlayerId[opponentId] || 0 : 0;
-    const displayedSustainTotal = sustainEntries.reduce((sum, entry) => {
-      const signedAmount = getSignedFinalAmountForPendingEntry(
-        entry,
-        (pendingEntry, amount) => pendingEntry.kind === 'Damage' ? -amount : amount
-      );
-      return sum + signedAmount;
-    }, 0);
-    const hasKnoTierThree = playerHasKnoTierThree(state, player.id);
-
     damageDealtByPlayerId[player.id] = buildRowsForPendingEntries(
       damageEntries,
-      'Science Vessel',
-      displayedDamageTotal,
-      hasKnoTierThree
+      'Science Vessel'
     );
     healingReceivedByPlayerId[player.id] = buildRowsForPendingEntries(
       sustainEntries,
       'Science Vessel',
-      displayedSustainTotal,
-      hasKnoTierThree,
       (entry, amount) => entry.kind === 'Damage' ? -amount : amount
     );
   }
@@ -850,7 +816,6 @@ function resolveBattleEndOfTurn(
     healByPlayerId: { ...(applied.state.gameData.pendingTurn?.healByPlayerId || {}) },
   };
 
-  applyKnoTierThreeTurnTotalModifiers(applied.state, totals);
   const lastTurnBreakdowns = buildLastTurnBreakdownSnapshots(applied.state, totals);
 
   console.log(`[resolveBattleEndOfTurn] Pending turn totals:`, totals);
@@ -897,38 +862,6 @@ function resolveBattleEndOfTurn(
   ];
 
   return { state: clearedState, events: allEvents };
-}
-
-function applyKnoTierThreeTurnTotalModifiers(
-  state: GameState,
-  totals: { damageByPlayerId: Record<string, number>; healByPlayerId: Record<string, number> }
-): void {
-  const activePlayers = state.players.filter((player) => player.role === 'player');
-  const opponentIdByPlayerId = new Map<string, string>();
-
-  if (activePlayers.length === 2) {
-    opponentIdByPlayerId.set(activePlayers[0].id, activePlayers[1].id);
-    opponentIdByPlayerId.set(activePlayers[1].id, activePlayers[0].id);
-  }
-
-  for (const player of activePlayers) {
-    const ships = state.gameData.ships?.[player.id] || [];
-    const knoTier = getCopyTierFromFleet(ships, 'KNO', 3);
-    const opponentId = opponentIdByPlayerId.get(player.id);
-
-    if (knoTier < 3 || !opponentId) continue;
-
-    const currentDamage = totals.damageByPlayerId[opponentId] || 0;
-    const currentHeal = totals.healByPlayerId[player.id] || 0;
-    const equalizedTotal = Math.max(currentDamage, currentHeal);
-
-    totals.damageByPlayerId[opponentId] = equalizedTotal;
-    totals.healByPlayerId[player.id] = equalizedTotal;
-
-    console.log(
-      `[applyKnoTierThreeTurnTotalModifiers] Player ${player.id}: tier=${knoTier} opponent=${opponentId} damageDealt=${currentDamage} heal=${currentHeal} equalized=${equalizedTotal}`
-    );
-  }
 }
 
 // ============================================================================

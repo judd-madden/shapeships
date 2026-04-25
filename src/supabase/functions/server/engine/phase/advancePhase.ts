@@ -28,6 +28,8 @@ type AdvanceResult =
   | { ok: true; state: GameState; from: PhaseKey; to: PhaseKey; events: any[] }
   | { ok: false; error: string };
 
+type KnoRerollPassIndex = 1 | 2 | 3;
+
 /**
  * DEPRECATED: Use advancePhase or advancePhaseCore instead
  * @deprecated
@@ -104,8 +106,9 @@ function allPlayersSelectedSpecies(state: GameState): boolean {
   return (state.players || []).every((p: any) => !!p.faction);
 }
 
-function getKnoRerollPassIndex(state: GameState): 1 | 2 {
-  return state?.gameData?.turnData?.knoRerollPassIndex === 2 ? 2 : 1;
+function getKnoRerollPassIndex(state: GameState): KnoRerollPassIndex {
+  const passIndex = state?.gameData?.turnData?.knoRerollPassIndex;
+  return passIndex === 2 || passIndex === 3 ? passIndex : 1;
 }
 
 function getKnoCountForPlayer(state: GameState, playerId: string): number {
@@ -115,10 +118,51 @@ function getKnoCountForPlayer(state: GameState, playerId: string): number {
     : 0;
 }
 
-function hasAnyKnoSecondPass(state: GameState): boolean {
-  return (state.players || [])
-    .filter((p: any) => p.role === 'player')
-    .some((p: any) => getKnoCountForPlayer(state, p.id) >= 2);
+function getKnoMaxRerollPassCountForPlayer(state: GameState, playerId: string): KnoRerollPassIndex | 0 {
+  return Math.min(3, getKnoCountForPlayer(state, playerId)) as KnoRerollPassIndex | 0;
+}
+
+function getMaxKnoRerollPassCountForGame(state: GameState): KnoRerollPassIndex | 0 {
+  const activePlayers = (state.players || []).filter((p: any) => p.role === 'player');
+  let maxPassCount = 0;
+
+  for (const player of activePlayers) {
+    maxPassCount = Math.max(maxPassCount, getKnoMaxRerollPassCountForPlayer(state, player.id));
+  }
+
+  return maxPassCount as KnoRerollPassIndex | 0;
+}
+
+function playerHasKnoRerollForPass(state: GameState, playerId: string, passIndex: KnoRerollPassIndex): boolean {
+  return getKnoMaxRerollPassCountForPlayer(state, playerId) >= passIndex;
+}
+
+function playerIsKnoRerollStopped(state: GameState, playerId: string): boolean {
+  return state?.gameData?.turnData?.knoRerollStoppedByPlayerId?.[playerId] === true;
+}
+
+function playerCanActInKnoRerollPass(state: GameState, playerId: string, passIndex: KnoRerollPassIndex): boolean {
+  return playerHasKnoRerollForPass(state, playerId, passIndex) && !playerIsKnoRerollStopped(state, playerId);
+}
+
+function getNextEligibleKnoRerollPassIndex(
+  state: GameState,
+  passIndex: KnoRerollPassIndex
+): KnoRerollPassIndex | null {
+  const activePlayers = (state.players || []).filter((p: any) => p.role === 'player');
+  const maxPassCount = getMaxKnoRerollPassCountForGame(state);
+
+  for (let nextPassIndex = passIndex + 1; nextPassIndex <= maxPassCount; nextPassIndex++) {
+    const hasEligibleActors = activePlayers.some((player: any) =>
+      playerCanActInKnoRerollPass(state, player.id, nextPassIndex as KnoRerollPassIndex)
+    );
+
+    if (hasEligibleActors) {
+      return nextPassIndex as KnoRerollPassIndex;
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -179,6 +223,7 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           buildDrawingPublicSavedResourcesByPlayerId: undefined,
           knoRerollPassIndex: undefined,
           pendingKnoRerollChoiceByPassByPlayerId: {},
+          knoRerollStoppedByPlayerId: {},
           shipsThatBuildPassIndex: undefined,
           shipsThatBuildPassUsageByInstanceId: {},
           shipsMadeThisTurnByPlayerId: {},
@@ -200,7 +245,8 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
 
   if (from === 'build.dice_roll') {
     const passIndex = getKnoRerollPassIndex(state);
-    if (passIndex === 1 && hasAnyKnoSecondPass(state)) {
+    const nextPassIndex = getNextEligibleKnoRerollPassIndex(state, passIndex);
+    if (nextPassIndex != null) {
       const next = setPhase(state, 'build', 'dice_roll');
       const nextGd: any = next.gameData || {};
       const nextTd: any = nextGd.turnData || {};
@@ -210,13 +256,13 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           ...nextGd,
           turnData: {
             ...nextTd,
-            knoRerollPassIndex: 2,
+            knoRerollPassIndex: nextPassIndex,
           },
         },
       };
       const cleared = clearReadiness(passAdvanced);
 
-      console.log('[advancePhaseCore] KNO second pass: build.dice_roll pass 1 -> pass 2');
+      console.log(`[advancePhaseCore] KNO reroll pass: build.dice_roll pass ${passIndex} -> pass ${nextPassIndex}`);
 
       return {
         ok: true,
@@ -226,8 +272,8 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
         events: [
           {
             type: 'KNO_REROLL_PASS_ADVANCED',
-            fromPassIndex: 1,
-            toPassIndex: 2,
+            fromPassIndex: passIndex,
+            toPassIndex: nextPassIndex,
             atMs: nowMs ?? Date.now(),
           },
         ],
@@ -313,6 +359,7 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           buildDrawingPublicSavedResourcesByPlayerId: undefined,
           knoRerollPassIndex: undefined,
           pendingKnoRerollChoiceByPassByPlayerId: {},
+          knoRerollStoppedByPlayerId: {},
           shipsThatBuildPassIndex: undefined,
           shipsThatBuildPassUsageByInstanceId: {},
           shipsMadeThisTurnByPlayerId: {},

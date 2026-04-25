@@ -54,7 +54,7 @@ export const COMPUTED_EFFECTS_AUDIT = [
   { shipDefId: 'FUR', mechanic: 'dice scaling: dmg = dice roll' },
   { shipDefId: 'TER', mechanic: 'dice scaling: heal = dice roll' },
   { shipDefId: 'POW', mechanic: 'dice-conditioned recurring in future build phases' },
-  { shipDefId: 'KNO', mechanic: 'tiered thresholds + dice manipulation + global multipliers' },
+  { shipDefId: 'KNO', mechanic: 'tiered thresholds + shared dice rerolls + automatic healing' },
 
   // Ancient (many need energy ledger not present yet)
   { shipDefId: 'CUB', mechanic: 'once-per-turn: repeat last solar power (free)' },

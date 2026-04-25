@@ -431,8 +431,11 @@ function getShipsThatBuildPassIndex(state: any): 1 | 2 {
   return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
 }
 
-function getKnoRerollPassIndex(state: any): 1 | 2 {
-  return state?.gameData?.turnData?.knoRerollPassIndex === 2 ? 2 : 1;
+type KnoRerollPassIndex = 1 | 2 | 3;
+
+function getKnoRerollPassIndex(state: any): KnoRerollPassIndex {
+  const passIndex = state?.gameData?.turnData?.knoRerollPassIndex;
+  return passIndex === 2 || passIndex === 3 ? passIndex : 1;
 }
 
 function getKnoCountForPlayer(state: any, playerId: string): number {
@@ -442,11 +445,23 @@ function getKnoCountForPlayer(state: any, playerId: string): number {
     : 0;
 }
 
-function playerHasKnoRerollForPass(state: any, playerId: string, passIndex: 1 | 2): boolean {
-  return getKnoCountForPlayer(state, playerId) >= passIndex;
+function getKnoMaxRerollPassCountForPlayer(state: any, playerId: string): KnoRerollPassIndex | 0 {
+  return Math.min(3, getKnoCountForPlayer(state, playerId)) as KnoRerollPassIndex | 0;
 }
 
-function getRepresentativeKnoInstanceIdForPass(state: any, playerId: string, passIndex: 1 | 2): string | null {
+function playerHasKnoRerollForPass(state: any, playerId: string, passIndex: KnoRerollPassIndex): boolean {
+  return getKnoMaxRerollPassCountForPlayer(state, playerId) >= passIndex;
+}
+
+function playerIsKnoRerollStopped(state: any, playerId: string): boolean {
+  return state?.gameData?.turnData?.knoRerollStoppedByPlayerId?.[playerId] === true;
+}
+
+function playerCanActInKnoRerollPass(state: any, playerId: string, passIndex: KnoRerollPassIndex): boolean {
+  return playerHasKnoRerollForPass(state, playerId, passIndex) && !playerIsKnoRerollStopped(state, playerId);
+}
+
+function getRepresentativeKnoInstanceIdForPass(state: any, playerId: string, passIndex: KnoRerollPassIndex): string | null {
   const fleet = state?.gameData?.ships?.[playerId] ?? [];
   const knoInstanceIds = Array.isArray(fleet)
     ? fleet
@@ -478,7 +493,7 @@ function projectChronoswarmTurnData(gameData: any, requestingPlayerId: string): 
   const turnData = gameData?.gameData?.turnData;
   if (!turnData) return gameData;
 
-  const filteredPendingKnoRerollChoiceByPassByPlayerId: Record<string, Partial<Record<1 | 2, 'reroll' | 'hold'>>> = {};
+  const filteredPendingKnoRerollChoiceByPassByPlayerId: Record<string, Partial<Record<KnoRerollPassIndex, 'reroll' | 'hold'>>> = {};
   if (turnData.pendingKnoRerollChoiceByPassByPlayerId?.[requestingPlayerId]) {
     filteredPendingKnoRerollChoiceByPassByPlayerId[requestingPlayerId] =
       turnData.pendingKnoRerollChoiceByPassByPlayerId[requestingPlayerId];
@@ -497,9 +512,11 @@ function projectChronoswarmTurnData(gameData: any, requestingPlayerId: string): 
           ...(turnData.chronoswarmCountByPlayerId || {}),
         },
         knoRerollPassIndex:
-          turnData.knoRerollPassIndex === 2
-            ? 2
-            : turnData.knoRerollPassIndex === 1
+          turnData.knoRerollPassIndex === 3
+            ? 3
+            : turnData.knoRerollPassIndex === 2
+              ? 2
+              : turnData.knoRerollPassIndex === 1
               ? 1
               : undefined,
         pendingKnoRerollChoiceByPassByPlayerId: filteredPendingKnoRerollChoiceByPassByPlayerId,
@@ -544,7 +561,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
 
   if (phaseKey === 'build.dice_roll') {
     const passIndex = getKnoRerollPassIndex(state);
-    if (!playerHasKnoRerollForPass(state, playerId, passIndex)) {
+    if (!playerCanActInKnoRerollPass(state, playerId, passIndex)) {
       return [];
     }
 

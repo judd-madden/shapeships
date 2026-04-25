@@ -1076,11 +1076,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Dice Manipulation",
-        "text": "If you have one: You may reroll the dice during build phase.\\\\nIf you have two: You may reroll the dice TWICE during build phase"
-      },
-      {
-        "subphase": "Automatic",
-        "text": "If you have three: Also your damage and healing are equal to whichever is higher this turn. Includes 'once only', automatic, and charges."
+        "text": "If you have 1: You may reroll the dice once.\\nIf you have 2: You may reroll the dice up to two times.\\nIf you have 3: You may reroll the dice up to three times."
       },
       {
         "subphase": "Automatic",
@@ -1088,8 +1084,8 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Dice reroll is for all players, the original roll is not used. If both players have Arks of Knowledge then they can each choose to reroll. Cannot reroll Chronoswarm rolls. Leviathan overrules.",
-    "stackCaption": "X healing, X damage",
+    "extraRules": "Rerolls affect all players. The original roll is not used. Leviathan overrides rerolls for its owner. Chronoswarm extra dice cannot be rerolled.",
+    "stackCaption": "2 healing",
     "colour": "Pink",
     "numberOfGraphics": 1
   },

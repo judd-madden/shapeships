@@ -25,6 +25,8 @@ import { isPhaseKey, type PhaseKey } from '../../engine_shared/phase/PhaseTable.
 import { getValidShipOfEqualityTargets } from '../../engine_shared/resolve/destroyRules.ts';
 import { rollD6 } from '../util/rollD6.ts';
 
+type KnoRerollPassIndex = 1 | 2 | 3;
+
 export interface OnEnterResult {
   state: any;
   events: any[];
@@ -97,8 +99,9 @@ function getChronoswarmBonusLinesForPlayer(state: any, playerId: string): number
   return total;
 }
 
-function getKnoRerollPassIndex(state: any): 1 | 2 {
-  return state?.gameData?.turnData?.knoRerollPassIndex === 2 ? 2 : 1;
+function getKnoRerollPassIndex(state: any): KnoRerollPassIndex {
+  const passIndex = state?.gameData?.turnData?.knoRerollPassIndex;
+  return passIndex === 2 || passIndex === 3 ? passIndex : 1;
 }
 
 function getKnoCountForPlayer(state: any, playerId: string): number {
@@ -113,14 +116,25 @@ function anyPlayerHasKno(state: any): boolean {
   return activePlayers.some((player: any) => getKnoCountForPlayer(state, player.id) > 0);
 }
 
-function playerHasKnoRerollForPass(state: any, playerId: string, passIndex: 1 | 2): boolean {
-  return getKnoCountForPlayer(state, playerId) >= passIndex;
+function getKnoMaxRerollPassCountForPlayer(state: any, playerId: string): KnoRerollPassIndex | 0 {
+  return Math.min(3, getKnoCountForPlayer(state, playerId)) as KnoRerollPassIndex | 0;
+}
+
+function playerHasKnoRerollForPass(state: any, playerId: string, passIndex: KnoRerollPassIndex): boolean {
+  return getKnoMaxRerollPassCountForPlayer(state, playerId) >= passIndex;
+}
+
+function playerIsKnoRerollStopped(state: any, playerId: string): boolean {
+  return state?.gameData?.turnData?.knoRerollStoppedByPlayerId?.[playerId] === true;
 }
 
 function anyPlayerHasKnoRerollForCurrentPass(state: any): boolean {
   const passIndex = getKnoRerollPassIndex(state);
   const activePlayers = state?.players?.filter((p: any) => p.role === 'player') || [];
-  return activePlayers.some((player: any) => playerHasKnoRerollForPass(state, player.id, passIndex));
+  return activePlayers.some((player: any) => (
+    playerHasKnoRerollForPass(state, player.id, passIndex) &&
+    !playerIsKnoRerollStopped(state, player.id)
+  ));
 }
 
 function computeEffectiveDiceStateForPlayers(state: any, baseDice: number) {
@@ -578,13 +592,19 @@ function enterPhaseOnce(
   
   if (toKey === 'build.dice_roll') {
     if (anyPlayerHasKno(workingState)) {
-      if (turnData.knoRerollPassIndex !== 1 && turnData.knoRerollPassIndex !== 2) {
+      if (
+        turnData.knoRerollPassIndex !== 1 &&
+        turnData.knoRerollPassIndex !== 2 &&
+        turnData.knoRerollPassIndex !== 3
+      ) {
         turnData.knoRerollPassIndex = 1;
+        turnData.knoRerollStoppedByPlayerId = {};
       }
     }
 
     // Check if dice already rolled this turn
     if (!turnData.diceRolled) {
+      turnData.knoRerollStoppedByPlayerId = {};
       const base = rollD6();
       
       // Set canonical dice fields
@@ -642,6 +662,8 @@ function enterPhaseOnce(
 
       if (anyPlayerHasKnoRerollForCurrentPass(workingState)) {
         turnData.diceFinalized = false;
+      } else {
+        turnData.diceFinalized = true;
       }
 
       console.log(`[OnEnterPhase] Dice already rolled this turn (${canonicalDice})`);
