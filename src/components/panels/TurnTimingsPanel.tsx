@@ -134,7 +134,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           description={
             <p>Roll a six sided dice for all players. Dice Manipulation powers may change the result.</p>
           }
-          exampleShips="Leviathan, Ark of Knowledge."
+          exampleShips="Leviathan, Chronoswarm, Ark of Knowledge."
           showChevron={false}
         >
           <div className="absolute h-[50px] left-[31px] top-[33.42px] w-[52px]">
@@ -157,7 +157,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           description={
             <p>Players may use their Ships That Build before the drawing phase. Ships made now can be used for upgrades, and are active this Battle Phase.</p>
           }
-          exampleShips="Carrier, Bug Breeder, Zenith, Sacrificial Pool."
+          exampleShips="Carrier, Bug Breeder, Zenith, Queen."
           chevronTop="top-[20px]"
         />
 
@@ -179,7 +179,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           description={
             <p>Some special powers occur now, before the Battle Phase begins.</p>
           }
-          exampleShips="Dreadnought, Chronoswarm, Ark of Redemption."
+          exampleShips="Dreadnought, Ark of Redemption."
           chevronTop="top-[20px]"
         />
       </div>
@@ -196,7 +196,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           description={
             <p>Ship powers with First Strike occur. Any ships that are destroyed during this phase will not activate their Battle Phase powers (except 'once only' powers). Any ships that are stolen during this phase will be active for their owner.</p>
           }
-          exampleShips="Guardian, Ark of Domination."
+          exampleShips="Guardian, Sacrificial Pool, Ark of Domination."
           chevronTop="top-[20px]"
         />
 

@@ -806,15 +806,15 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "Dice Manipulation",
-        "text": "If you have 2: Roll 2 dice in the each turn."
+        "text": "If you have 2: Roll two extra dice each turn."
       },
       {
         "subphase": "Dice Manipulation",
-        "text": "If you have 3: Roll 3 dice in the each turn."
+        "text": "If you have 3: Roll three extra dice each turn."
       }
     ],
     "energyCost": null,
-    "extraRules": "Does not occur the turn it is built. Opponent sees the dice roll(s). If multiple players have Chronoswarms, they all use the same dice rolls. (For 2 and 3) Use only the last rolled dice for Zeniths - not each dice.",
+    "extraRules": "Dice are visible to all players. If multiple players have Chronoswarms, they all use the same dice roll(s). Bug Breeders and Queens produce twice, Zeniths produce based on the main roll AND the first Chronoswarm roll.",
     "stackCaption": "No caption",
     "colour": "Pink",
     "numberOfGraphics": 1
@@ -1137,7 +1137,7 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "End of Build Phase",
-        "text": "When built set your health to maximum. This is not 'healing', and occurs before the Battle Phase. Does not affect Ark of Knowledge."
+        "text": "When built set your health to maximum. This is not 'healing', and occurs before the Battle Phase."
       }
     ],
     "energyCost": null,
