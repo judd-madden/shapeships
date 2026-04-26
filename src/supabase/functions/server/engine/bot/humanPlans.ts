@@ -10,7 +10,7 @@ const HUMAN_DEFENSE_ORBIT_PLAN: AuthoredBotPlan = {
     { shipDefId: 'DEF', targetCount: 2 },
     { shipDefId: 'FIG', targetCount: 2 },
     { shipDefId: 'ORB', targetCount: 1 },
-    { shipDefId: 'BAT', targetCount: 4},
+    { shipDefId: 'BAT', targetCount: 8},
   ],
   loopGoals: [    
     { shipDefId: 'DEF', targetCount: 99 },
@@ -192,6 +192,150 @@ const HUMAN_ORBITAL_CARRIER_SCIENCE_SHELL_PLAN: AuthoredBotPlan = {
   notes:
     'Safer Orbital/Carrier shell with Science Vessel stabilizer before Earth Ship pressure.',
 };
+const HUMAN_FRIGATE_CHEESE_PLAN: AuthoredBotPlan = {
+  id: 'hum_frigate_cheese',
+  speciesId: 'HUM',
+  buildGoals: [
+    { shipDefId: 'CAR', targetCount: 3, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 1, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 2, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 3, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 4, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 5, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 6, saveUntilAffordable: true },
+
+    { shipDefId: 'CAR', targetCount: 5, saveUntilAffordable: true },
+  ],
+  loopGoals: [
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 1, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 2 },
+    { shipDefId: 'FRI', targetCount: 2, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 3 },
+    { shipDefId: 'FIG', targetCount: 3 },
+    { shipDefId: 'FRI', targetCount: 3, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 4 },
+    { shipDefId: 'FIG', targetCount: 4 },
+    { shipDefId: 'FRI', targetCount: 4, saveUntilAffordable: true },
+  ],
+  shipsThatBuild: {
+    CAR: {
+      priorityGoals: [
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 1 },
+        { choiceId: 'fighter', targetShipDefId: 'FIG', targetCount: 1 },
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 2 },
+        { choiceId: 'fighter', targetShipDefId: 'FIG', targetCount: 2 },
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 3 },
+        { choiceId: 'fighter', targetShipDefId: 'FIG', targetCount: 3 },
+      ],
+      fallbackChoiceId: 'fighter',
+    },
+  },
+  frigatePolicy: {
+    FRI: {
+      firstChoiceMode: 'match_current_roll',
+      additionalChoiceMode: 'stack_existing',
+    },
+  },
+  notes:
+    'Frigate Cheese: save into 3 Carriers, build balanced Defender/Fighter components, stack Frigates on the first chosen trigger, add two more Carriers after six Frigates, then continue Frigate pressure.',
+};
+
+const HUMAN_LEVIATHAN_PLAN: AuthoredBotPlan = {
+  id: 'hum_leviathan',
+  speciesId: 'HUM',
+  buildGoals: [
+    { shipDefId: 'ORB', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'CAR', targetCount: 3, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'STA', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'LEV', targetCount: 1, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 1, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 2, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 3, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 4, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 5, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'STA', targetCount: 1 },
+    { shipDefId: 'SCI', targetCount: 1, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'STA', targetCount: 1 },
+    { shipDefId: 'SCI', targetCount: 2, saveUntilAffordable: true },
+  ],
+  loopGoals: [
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 1, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 2 },
+    { shipDefId: 'FRI', targetCount: 2, saveUntilAffordable: true },
+
+    { shipDefId: 'DEF', targetCount: 3 },
+    { shipDefId: 'FIG', targetCount: 3 },
+    { shipDefId: 'FRI', targetCount: 3, saveUntilAffordable: true },
+  ],
+  shipsThatBuild: {
+    CAR: {
+      priorityGoals: [
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 2 },
+        { choiceId: 'fighter', targetShipDefId: 'FIG', targetCount: 5 },
+      ],
+      fallbackChoiceId: 'fighter',
+    },
+  },
+  frigatePolicy: {
+    FRI: {
+      firstChoiceMode: 'match_current_roll',
+      additionalChoiceMode: 'stack_existing',
+    },
+  },
+  notes:
+    'Leviathan line: save for Orbital, save into 3 Carriers, deplete Carriers while making components, complete Leviathan, stack Frigates on the effective 6, add two Science Vessels, then continue Frigate pressure.',
+};
 
 // Order is deliberate: deterministic chooser selection hashes into this array by index.
 export const ACTIVE_HUMAN_BOT_PLANS: AuthoredBotPlan[] = [
@@ -203,6 +347,8 @@ export const ACTIVE_HUMAN_BOT_PLANS: AuthoredBotPlan[] = [
   HUMAN_CARRIER_COMMANDER_AGGRO_PLAN,
   HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN,
   HUMAN_ORBITAL_CARRIER_SCIENCE_SHELL_PLAN,
+  HUMAN_FRIGATE_CHEESE_PLAN,
+  HUMAN_LEVIATHAN_PLAN,
 ];
 
 const HUMAN_BOT_PLAN_LOOKUP_POOL: AuthoredBotPlan[] = [
@@ -214,6 +360,8 @@ const HUMAN_BOT_PLAN_LOOKUP_POOL: AuthoredBotPlan[] = [
   HUMAN_CARRIER_COMMANDER_AGGRO_PLAN,
   HUMAN_ORBITAL_CARRIER_EARTHSHIP_SHELL_PLAN,
   HUMAN_ORBITAL_CARRIER_SCIENCE_SHELL_PLAN,
+  HUMAN_FRIGATE_CHEESE_PLAN,
+  HUMAN_LEVIATHAN_PLAN,
 ];
 
 function hashSeed(seed: string): number {
