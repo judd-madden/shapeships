@@ -21,8 +21,8 @@ import {
 
 const SHOOTING_STAR_MIN_DELAY_MS = 0.5 * 60 * 1000;
 const SHOOTING_STAR_MAX_DELAY_MS = 3 * 60 * 1000;
-const ENDGAME_BURST_STAR_COUNT = 30;
-const ENDGAME_BURST_WINDOW_MS = 1100;
+const ENDGAME_BURST_STAR_COUNT = 50;
+const ENDGAME_BURST_WINDOW_MS = 1200;
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
