@@ -847,7 +847,7 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "Passive",
-        "text": "Xenites, Oxites and Asterites within your upgraded ships DO count for your other ship powers."
+        "text": "Xenites, Oxites and Asterites within your upgraded ships DO count for Mantis and Hell Hornet powers."
       }
     ],
     "energyCost": null,
