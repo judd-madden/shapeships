@@ -16,7 +16,7 @@
  */
 
 import { Checkbox } from '../../components/ui/primitives';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameSound } from '../client/audio/useGameSound';
 import { type GameSessionViewModel, useGameSession } from '../client/useGameSession';
 import { LeftRail } from './layout/LeftRail';
@@ -47,6 +47,15 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
     }
   });
   const firstTurnBuildHelper = useFirstTurnBuildHelper(gameId, vm, actions.onReadyToggle);
+  const voidShipInstanceIds = useMemo(() => {
+    if (vm.board.mode !== 'board') {
+      return undefined;
+    }
+
+    return [...vm.board.myVoidFleet, ...vm.board.opponentVoidFleet].flatMap(
+      (fleetSummary) => fleetSummary.memberInstanceIds
+    );
+  }, [vm.board]);
 
   const mainStageActions = {
     ...actions,
@@ -67,6 +76,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
     enabled: soundEnabled,
     active: !vm.isBootstrapping,
     diceAnimateKey: vm.leftRail.diceAnimateKey,
+    voidShipInstanceIds,
   });
 
   function toggleSound() {

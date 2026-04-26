@@ -12,7 +12,7 @@ export function OnlineStatusIcon({ className = "", status = 'online' }: OnlineSt
   const fillColor = status === 'online' ? '#00BD13' : '#888888';
   
   return (
-    <div className={`relative size-[22px] ${className}`}>
+    <div className={`relative size-[22px] shrink-0 ${className}`}>
       <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 22 22">
         <circle cx="11" cy="11" r="11" fill={fillColor} />
       </svg>

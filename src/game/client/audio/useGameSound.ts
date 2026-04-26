@@ -1,18 +1,28 @@
 import { useEffect, useRef } from 'react';
 import { getSoundManifestEntry, type SoundCueId } from './soundManifest';
 
+type CuePlayKey = string | number;
+
 interface UseGameSoundArgs {
   enabled: boolean;
   active: boolean;
   diceAnimateKey: number;
+  voidShipInstanceIds?: string[];
 }
 
-export function useGameSound({ enabled, active, diceAnimateKey }: UseGameSoundArgs): void {
+export function useGameSound({
+  enabled,
+  active,
+  diceAnimateKey,
+  voidShipInstanceIds,
+}: UseGameSoundArgs): void {
   const audioByCueIdRef = useRef<Partial<Record<SoundCueId, HTMLAudioElement>>>({});
   const scheduledCueTimeoutByCueIdRef = useRef<Partial<Record<SoundCueId, number>>>({});
   const scheduledCueTimeoutsRef = useRef<Set<number>>(new Set());
-  const lastPlayedKeyByCueIdRef = useRef<Partial<Record<SoundCueId, number>>>({});
+  const lastPlayedKeyByCueIdRef = useRef<Partial<Record<SoundCueId, CuePlayKey>>>({});
   const lastObservedDiceAnimateKeyRef = useRef<number | null>(null);
+  const observedVoidShipIdsRef = useRef<Set<string>>(new Set());
+  const hasSeededVoidShipIdsRef = useRef(false);
   const unlockReadyRef = useRef(false);
 
   function getOrCreateAudio(cueId: SoundCueId): HTMLAudioElement | null {
@@ -73,6 +83,11 @@ export function useGameSound({ enabled, active, diceAnimateKey }: UseGameSoundAr
     }
   }
 
+  function resetObservedVoidShipIds(): void {
+    observedVoidShipIdsRef.current = new Set();
+    hasSeededVoidShipIdsRef.current = false;
+  }
+
   async function attemptUnlock(): Promise<void> {
     if (unlockReadyRef.current || !enabled || !active) {
       return;
@@ -102,7 +117,7 @@ export function useGameSound({ enabled, active, diceAnimateKey }: UseGameSoundAr
     }
   }
 
-  function scheduleCue(cueId: SoundCueId, playKey: number, delayMs: number): void {
+  function scheduleCue(cueId: SoundCueId, playKey: CuePlayKey, delayMs: number): void {
     const existingTimeoutId = scheduledCueTimeoutByCueIdRef.current[cueId];
     if (existingTimeoutId !== undefined) {
       window.clearTimeout(existingTimeoutId);
@@ -152,6 +167,7 @@ export function useGameSound({ enabled, active, diceAnimateKey }: UseGameSoundAr
     }
 
     warmCue('dice');
+    warmCue('destroy');
   }, [active, enabled]);
 
   useEffect(() => {
@@ -177,6 +193,9 @@ export function useGameSound({ enabled, active, diceAnimateKey }: UseGameSoundAr
   useEffect(() => {
     if (!active) {
       lastObservedDiceAnimateKeyRef.current = null;
+      // Future hardening could add a scopeKey (for example gameId) if game swaps
+      // ever happen without passing through an inactive lifecycle.
+      resetObservedVoidShipIds();
       return;
     }
 
@@ -193,6 +212,36 @@ export function useGameSound({ enabled, active, diceAnimateKey }: UseGameSoundAr
 
     scheduleCue('dice', diceAnimateKey, 0);
   }, [active, diceAnimateKey, enabled]);
+
+  useEffect(() => {
+    if (!active || voidShipInstanceIds === undefined) {
+      return;
+    }
+
+    if (!hasSeededVoidShipIdsRef.current) {
+      observedVoidShipIdsRef.current = new Set(voidShipInstanceIds);
+      hasSeededVoidShipIdsRef.current = true;
+      return;
+    }
+
+    const observedVoidShipIds = observedVoidShipIdsRef.current;
+    const newVoidShipIds = voidShipInstanceIds.filter((instanceId) => !observedVoidShipIds.has(instanceId));
+
+    if (newVoidShipIds.length === 0) {
+      return;
+    }
+
+    for (const instanceId of newVoidShipIds) {
+      observedVoidShipIds.add(instanceId);
+    }
+
+    if (!enabled) {
+      return;
+    }
+
+    const sortedNewVoidShipIds = [...newVoidShipIds].sort();
+    scheduleCue('destroy', `destroy:${sortedNewVoidShipIds.join(',')}`, 0);
+  }, [active, enabled, voidShipInstanceIds]);
 
   useEffect(() => {
     return () => {

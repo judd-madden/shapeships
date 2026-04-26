@@ -1,7 +1,9 @@
 import diceSrc from './dice.mp3';
+import destroySrc from './destroy.mp3';
 
 export type SoundCueId =
   | 'dice'
+  | 'destroy'
   | 'human_me'
   | 'human_opp'
   | 'xenite_me'
@@ -18,6 +20,10 @@ export const SOUND_MANIFEST: Record<SoundCueId, SoundCueManifestEntry> = {
   dice: {
     id: 'dice',
     src: diceSrc,
+  },
+  destroy: {
+    id: 'destroy',
+    src: destroySrc,
   },
   human_me: {
     id: 'human_me',

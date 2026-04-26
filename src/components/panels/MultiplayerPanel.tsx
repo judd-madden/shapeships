@@ -108,6 +108,47 @@ export function MultiplayerPanel({
                 className="mb-[20px] font-['Roboto',sans-serif] text-[18px] font-bold leading-[normal] text-shapeships-grey-50"
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
+                Soundtrack on Bandcamp
+              </h3>
+
+              <div className="flex flex-wrap gap-x-[20px] gap-y-[20px]">
+                  <div className="flex flex-row gap-[40px] text-[18px]">
+                    <a 
+                      href="https://colourhigh.bandcamp.com/track/sonder" 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="[text-underline-position:from-font] decoration-solid relative shrink-0 cursor-pointer hover:opacity-80" 
+                      style={{ fontVariationSettings: "'wdth' 100" }}
+                    >
+                      Human Theme
+                    </a>
+                    <a 
+                      href="https://colourhigh.bandcamp.com/track/outworld-destroyer" 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="[text-underline-position:from-font] decoration-solid relative shrink-0 cursor-pointer hover:opacity-80" 
+                      style={{ fontVariationSettings: "'wdth' 100" }}
+                    >
+                      Xenite Theme
+                    </a>
+                    <a 
+                      href="https://colourhigh.bandcamp.com/track/rain-sample" 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="[text-underline-position:from-font] decoration-solid relative shrink-0 cursor-pointer hover:opacity-80" 
+                      style={{ fontVariationSettings: "'wdth' 100" }}
+                    >
+                      Centaur Theme
+                    </a>
+                  </div>
+              </div>
+            </div>
+            
+            <div className="mt-[80px]">
+              <h3
+                className="mb-[20px] font-['Roboto',sans-serif] text-[18px] font-bold leading-[normal] text-shapeships-grey-50"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
                 Development Roadmap
               </h3>
 
@@ -142,46 +183,6 @@ export function MultiplayerPanel({
               </div>
             </div>
 
-            <div className="mt-[80px]">
-              <h3
-                className="mb-[20px] font-['Roboto',sans-serif] text-[18px] font-bold leading-[normal] text-shapeships-grey-50"
-                style={{ fontVariationSettings: "'wdth' 100" }}
-              >
-                Soundtrack on Bandcamp for now
-              </h3>
-
-              <div className="flex flex-wrap gap-x-[20px] gap-y-[20px]">
-                  <div className="flex flex-row gap-[40px]">
-                    <a 
-                      href="https://colourhigh.bandcamp.com/track/sonder" 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="[text-underline-position:from-font] decoration-solid relative shrink-0 cursor-pointer hover:opacity-80" 
-                      style={{ fontVariationSettings: "'wdth' 100" }}
-                    >
-                      Human Theme
-                    </a>
-                    <a 
-                      href="https://colourhigh.bandcamp.com/track/outworld-destroyer" 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="[text-underline-position:from-font] decoration-solid relative shrink-0 cursor-pointer hover:opacity-80" 
-                      style={{ fontVariationSettings: "'wdth' 100" }}
-                    >
-                      Xenite Theme
-                    </a>
-                    <a 
-                      href="https://colourhigh.bandcamp.com/track/rain-sample" 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="[text-underline-position:from-font] decoration-solid relative shrink-0 cursor-pointer hover:opacity-80" 
-                      style={{ fontVariationSettings: "'wdth' 100" }}
-                    >
-                      Centaur Theme
-                    </a>
-                  </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
