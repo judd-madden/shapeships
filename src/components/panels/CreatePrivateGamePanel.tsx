@@ -69,7 +69,7 @@ function TimerPresetButton({
       onClick={onClick}
       disabled={disabled}
       className={[
-        'relative flex h-[120px] w-[170px] shrink-0 items-start rounded-[14px] p-[5px]',
+        'relative flex h-[120px] w-full min-w-0 items-start rounded-[14px] p-[5px]',
         'transition-transform duration-150 ease-out',
         disabled ? 'cursor-default' : 'cursor-pointer hover:scale-105',
       ].join(' ')}
@@ -83,7 +83,7 @@ function TimerPresetButton({
 
       <div
         className={[
-          'relative flex h-[110px] w-[160px] items-center justify-center rounded-[10px] border-2',
+          'relative flex h-[110px] w-full items-center justify-center rounded-[10px] border-2',
           'transition-colors duration-150 ease-out',
           selected
             ? 'border-shapeships-pastel-green bg-shapeships-pastel-green text-black'
@@ -181,7 +181,7 @@ export function CreatePrivateGamePanel({
     <div className="content-stretch flex w-full flex-col gap-[50px]">
       <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[9px] leading-[normal]">
         <p
-          className="font-['Roboto',sans-serif] text-[36px] font-black text-nowrap"
+          className="font-['Roboto',sans-serif] text-[32px] font-black leading-[normal] sm:text-[36px]"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {heading}
@@ -197,19 +197,19 @@ export function CreatePrivateGamePanel({
       <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] via-[#ffffff] via-50% to-[rgba(255,255,255,0)] h-px w-full shrink-0 opacity-70" />
 
       <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[50px]">
-        <div className="flex w-full flex-col items-start gap-[36px] overflow-visible md:flex-row md:gap-[64px]">
-          <div className="content-stretch flex w-full max-w-[280px] shrink-0 flex-col gap-[16px] items-start md:w-[220px] md:max-w-[220px]">
+        <div className="flex w-full flex-col items-start gap-[28px] overflow-visible min-[1180px]:flex-row min-[1180px]:gap-[48px] xl:gap-[64px]">
+          <div className="content-stretch flex w-full max-w-[280px] shrink-0 lg:flex-col gap-[16px] items-start min-[1180px]:w-[220px] min-[1180px]:max-w-[220px]">
             <ModeToggleRow label="Timed" selected={isTimed} onSelect={() => setIsTimed(true)} />
             <ModeToggleRow label="Not timed" selected={!isTimed} onSelect={() => setIsTimed(false)} />
           </div>
 
           <div
             className={[
-              'flex w-fit max-w-full flex-col items-center gap-[40px] self-start overflow-visible',
+              'flex w-full max-w-full min-w-0 flex-col items-start xl:items-center gap-[28px] self-start overflow-visible sm:gap-[40px]',
               isTimed ? '' : 'pointer-events-none opacity-[20%]',
             ].join(' ')}
           >
-            <div className="flex max-w-full flex-wrap gap-x-[14px] gap-y-[24px] overflow-visible">
+            <div className="grid w-full max-w-[560px] grid-cols-1 gap-x-[14px] gap-y-[24px] overflow-visible min-[520px]:grid-cols-2 2xl:max-w-[722px] 2xl:grid-cols-4">
               {TIMER_PRESETS.map((preset) => (
                 <TimerPresetButton
                   key={preset.key}
@@ -244,7 +244,6 @@ export function CreatePrivateGamePanel({
           {...primaryActionButtonProps}
           onClick={handleCreateGame}
           disabled={isCreating}
-          className="w-full max-w-[320px]"
         >
           {isCreating ? 'CREATING...' : primaryActionLabel}
         </MenuButton>

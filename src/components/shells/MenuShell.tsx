@@ -15,7 +15,6 @@ import { RulesPanel } from '../panels/RulesPanel';
 import { CreatePrivateGamePanel, type CreatePrivateGameSettings } from '../panels/CreatePrivateGamePanel';
 import { LogoIcon } from '../ui/primitives/icons/LogoIcon';
 import { OnlineStatusIcon } from '../ui/primitives/icons/OnlineStatusIcon';
-import { FitSingleLineText } from '../ui/primitives/layout/FitSingleLineText';
 
 interface MenuShellProps {
   onNavigate: (shell: string) => void;
@@ -43,7 +42,7 @@ export function MenuShell({
   alphaDisableAuth 
 }: MenuShellProps) {
   const [activePanel, setActivePanel] = useState<ActivePanel>('multiplayer');
-  const [isCreating, setIsCreating] = useState(false);
+  const [, setIsCreating] = useState(false);
 
   // SESSION INVARIANT GUARD:
   // MenuShell should only render when a valid player exists
@@ -85,16 +84,16 @@ export function MenuShell({
   };
 
   return (
-    <div className="content-stretch flex flex-col items-center pb-[120px] pt-[60px] px-[5%] relative size-full">
-      <div className="content-stretch flex flex-col gap-[50px] items-center relative shrink-0 w-full max-w-[1430px]">
+    <div className="content-stretch relative flex size-full flex-col items-center px-[5%] pb-[120px] pt-[40px] md:pt-[60px]">
+      <div className="content-stretch relative flex w-full max-w-[1430px] shrink-0 flex-col items-center gap-[12px] md:gap-[8px]">
         {/* Menu Header */}
-        <div className="content-stretch flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-0 relative shrink-0 w-full">
+        <div className="content-stretch relative flex w-full shrink-0 flex-col justify-between gap-8 lg:flex-row lg:gap-10 items-center pb-[32px]">
           {/* Logo */}
-          <div className="grid-cols-[max-content] grid-rows-[max-content] inline-grid leading-[0] place-items-start relative shrink-0">
-            <p className="[grid-area:1_/_1] font-['Roboto',sans-serif] font-bold leading-[normal] ml-[80px] md:ml-[130.04px] mt-[0.31px] not-italic relative text-[48px] md:text-[67.563px] text-nowrap">
+          <div className="relative inline-grid shrink-0 grid-cols-[max-content] grid-rows-[max-content] place-items-start leading-[0]">
+            <p className="[grid-area:1_/_1] relative ml-[80px] mt-[0.31px] font-['Roboto',sans-serif] text-[48px] font-bold leading-[normal] not-italic text-nowrap md:ml-[130.04px] md:text-[67.563px]">
               SHAPESHIPS
             </p>
-            <div className="[grid-area:1_/_1] flex h-[60px] md:h-[86.748px] items-center justify-center ml-0 mt-0 relative w-[70px] md:w-[101.762px]">
+            <div className="[grid-area:1_/_1] relative ml-0 mt-0 flex h-[60px] w-[70px] items-center justify-center md:h-[86.748px] md:w-[101.762px]">
               <div className="flex-none rotate-[180deg] scale-y-[-100%]">
                 <LogoIcon className="h-[60px] md:h-[86.748px] w-[70px] md:w-[101.762px]" />
               </div>
@@ -102,23 +101,23 @@ export function MenuShell({
           </div>
 
           {/* Right Header */}
-          <div className="content-stretch flex flex-col md:flex-row gap-6 md:gap-[36px] items-center justify-end relative shrink-0">
+          <div className="content-stretch relative flex  flex-col items-center gap-5 lg:max-w-[720px] lg:items-end">
             {/* Social Links */}
-            <div className="content-stretch flex font-['Roboto',sans-serif] font-normal gap-[34px] items-center leading-[normal] relative shrink-0 text-[18px] text-nowrap underline">
+            <div className="content-stretch relative flex w-full flex-wrap items-center justify-start gap-x-[24px] gap-y-[12px] font-['Roboto',sans-serif] text-[16px] font-normal leading-[normal] underline sm:text-[18px] lg:justify-end">
               <a
-              href="https://juddmadden.com/shapeships/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="[text-underline-position:from-font] decoration-solid relative shrink-0 underline cursor-pointer hover:opacity-80"
-              style={{ fontVariationSettings: "'wdth' 100" }}
-            >
-              Official
-            </a>
-            <a 
+                href="https://juddmadden.com/shapeships/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="[text-underline-position:from-font] relative shrink-0 cursor-pointer decoration-solid underline hover:opacity-80"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                Official
+              </a>
+              <a 
                 href="https://discord.gg/MjPtf4G6Gt" 
                 target="_blank" 
                 rel="noreferrer"
-                className="[text-underline-position:from-font] decoration-solid relative shrink-0 cursor-pointer hover:opacity-80" 
+                className="[text-underline-position:from-font] relative shrink-0 cursor-pointer decoration-solid hover:opacity-80" 
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Discord
@@ -127,7 +126,7 @@ export function MenuShell({
                 href="https://www.youtube.com/@Shapeships" 
                 target="_blank" 
                 rel="noreferrer"
-                className="[text-underline-position:from-font] decoration-solid relative shrink-0 cursor-pointer hover:opacity-80" 
+                className="[text-underline-position:from-font] relative shrink-0 cursor-pointer decoration-solid hover:opacity-80" 
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 YouTube
@@ -136,7 +135,7 @@ export function MenuShell({
                 href="https://www.reddit.com/r/shapeships/" 
                 target="_blank" 
                 rel="noreferrer"
-                className="[text-underline-position:from-font] decoration-solid relative shrink-0 cursor-pointer hover:opacity-80" 
+                className="[text-underline-position:from-font] relative shrink-0 cursor-pointer decoration-solid hover:opacity-80" 
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Reddit
@@ -148,43 +147,45 @@ export function MenuShell({
         {/* Header Divider */}
         <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] h-px opacity-70 shrink-0 to-[rgba(255,255,255,0)] via-50% via-[#ffffff] w-full" />
 
-        {/* Main Wrapper */}
-        <div className="content-stretch flex flex-col lg:flex-row gap-[50px] items-start relative shrink-0 w-full pr-0">
-          {/* Sidebar */}
-          <div className="content-stretch flex flex-col gap-[50px] lg:gap-[80px] items-start relative shrink-0 w-full lg:w-auto lg:min-w-[340px]">
-            {/* Player Name */}
-            <div className="content-stretch flex gap-[18px] items-center justify-start lg:justify-end relative shrink-0 w-full">
-              {/* Online Status Dot */}
+        {/* Player Identity Row */}
+        <div className="content-stretch relative flex w-full items-center py-[32px]">
+          <div className="content-stretch relative flex w-full flex-col items-start gap-x-[24px] gap-y-2">
+            <div className="flex flex-wrap items-center gap-x-[24px] gap-y-2">
               <OnlineStatusIcon status="online" />
-
-              {/* Name and Notes */}
-              <div className="content-stretch flex flex-col items-start justify-center max-w-[340px] min-w-0 overflow-hidden relative w-full">
-                <FitSingleLineText
-                  text={displayName}
-                  maxFontSize={56}
-                  className="font-['Roboto',sans-serif] font-normal leading-[normal] text-[32px] md:text-[56px] w-full"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
-                />
-                <div className="content-stretch flex items-center pl-[4px] pr-0 py-0 relative shrink-0">
-                  <p className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[#888] text-[16px] max-w-[340px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    Testing the alpha!
-                  </p>
-                </div>
-              </div>
+              <p
+                className="min-w-0 max-w-full font-['Roboto',sans-serif] text-[40px] font-normal leading-none [overflow-wrap:anywhere]  xl:text-[56px]"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                {displayName}
+              </p>
             </div>
+            <button
+              type="button"
+              className="pl-[44px] cursor-pointer font-['Roboto',sans-serif] text-[18px]  leading-[normal]  hover:text-white/80"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+              onClick={alphaDisableAuth ? onExit : onLogout}
+            >
+              Change Name
+            </button>
+          </div>
+        </div>
 
+        {/* Main Wrapper */}
+        <div className="content-stretch relative flex w-full shrink-0 flex-col items-start gap-[32px] pr-0 lg:flex-row lg:gap-[28px] xl:gap-[50px]">
+          {/* Sidebar */}
+          <div className="content-stretch relative flex w-full shrink-0 flex-col items-start lg:w-[250px] xl:w-[340px] pb-[24px]">
             {/* Main Nav */}
-            <div className="content-stretch flex flex-col gap-[30px] lg:gap-[50px] items-start lg:pl-[40px] pr-0 py-0 relative shrink-0">
+            <div className="content-stretch relative flex w-full flex-wrap items-start gap-x-[28px] gap-y-[24px] pr-0 py-0 md:gap-x-[36px] lg:flex-col lg:gap-[36px] lg:pl-[20px] xl:gap-[50px] xl:pl-[40px]">
               {/* Multiplayer */}
               <div 
-                className="content-stretch flex items-center justify-center pb-[5px] pt-0 px-0 relative shrink-0 cursor-pointer"
+                className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[5px] pt-0"
                 onClick={() => setActivePanel('multiplayer')}
               >
                 {activePanel === 'multiplayer' && (
                   <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`font-['Roboto',sans-serif] font-black leading-[32px] relative shrink-0 text-[24px] md:text-[28px] text-nowrap uppercase ${
+                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[24px] font-black leading-[32px] text-nowrap uppercase md:text-[28px] ${
                     activePanel === 'multiplayer' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
@@ -195,14 +196,14 @@ export function MenuShell({
 
               {/* Play Computer */}
               <div 
-                className="content-stretch flex items-center justify-center pb-[5px] pt-0 px-0 relative shrink-0 cursor-pointer"
+                className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[5px] pt-0"
                 onClick={() => setActivePanel('playComputer')}
               >
                 {activePanel === 'playComputer' && (
                   <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`font-['Roboto',sans-serif] font-black leading-[32px] relative shrink-0 text-[24px] md:text-[28px] text-nowrap uppercase ${
+                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[24px] font-black leading-[32px] text-nowrap uppercase md:text-[28px] ${
                     activePanel === 'playComputer' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
@@ -213,14 +214,14 @@ export function MenuShell({
 
               {/* Rules & Codex */}
               <div 
-                className="content-stretch flex items-center justify-center pb-[5px] pt-0 px-0 relative shrink-0 cursor-pointer"
+                className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[5px] pt-0"
                 onClick={() => setActivePanel('rules')}
               >
                 {activePanel === 'rules' && (
                   <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`font-['Roboto',sans-serif] font-black leading-[32px] relative shrink-0 text-[24px] md:text-[28px] text-nowrap uppercase ${
+                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[24px] font-black leading-[32px] text-nowrap uppercase md:text-[28px] ${
                     activePanel === 'rules' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
@@ -228,21 +229,11 @@ export function MenuShell({
                   How to Play
                 </p>
               </div>
-
-              {/* Back */}
-              <p 
-                className="font-['Roboto',sans-serif] font-extrabold leading-[normal] relative shrink-0 text-[20px] text-nowrap uppercase cursor-pointer hover:text-white/80" 
-                style={{ fontVariationSettings: "'wdth' 100" }}
-                onClick={alphaDisableAuth ? onExit : onLogout}
-              >
-                Change Name
-              </p>
-
             </div>
           </div>
 
           {/* Menu Screen Content */}
-          <div className="content-stretch flex flex-col items-start relative shrink-0 w-full lg:w-auto lg:flex-1 max-w-full">
+          <div className="content-stretch relative flex w-full min-w-0 max-w-full flex-1 shrink-0 flex-col items-start">
             {/* Render active panel */}
             {activePanel === 'multiplayer' && (
               <MultiplayerPanel

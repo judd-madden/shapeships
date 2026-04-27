@@ -42,15 +42,15 @@ export function MultiplayerPanel({
 
   return (
     <div className="w-full">
-      <div className="w-full max-w-[800px] pt-[60px]">
-        <div className="flex flex-wrap items-start gap-[40px]">
-          <div className="max-w-full shrink-0">
+      <div className="w-full">
+        <div className="flex flex-wrap items-start gap-[32px] lg:gap-[40px] lg:pl-[50px]">
+          <div className="max-w-full shrink-0 hidden sm:block">
             <BattlecruiserShip className="max-w-full" />
           </div>
 
-          <div className="min-w-[280px] flex-1">
+          <div className="min-w-0 flex-1">
             <h2
-              className="mb-[30px] font-['Roboto',sans-serif] text-[36px] font-normal leading-[normal] text-shapeships-white"
+              className="mb-[24px] font-['Roboto',sans-serif] text-[32px] font-normal leading-[normal] text-shapeships-white sm:text-[36px]"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Welcome to the Shapeships Alpha
@@ -87,7 +87,7 @@ export function MultiplayerPanel({
               </div>
             </div>
 
-            <div className="mt-[40px] flex flex-wrap items-center gap-[30px]">
+            <div className="mt-[40px] flex flex-wrap items-center gap-[20px] md:gap-[30px]">
               <MenuButton
                 variant="private"
                 onClick={() => onNavigateToCreateGame?.()}
@@ -103,7 +103,7 @@ export function MultiplayerPanel({
               </GameMenuButton>
             </div>
 
-            <div className="mt-[80px]">
+            <div className="mt-[56px] md:mt-[80px]">
               <h3
                 className="mb-[20px] font-['Roboto',sans-serif] text-[18px] font-bold leading-[normal] text-shapeships-grey-50"
                 style={{ fontVariationSettings: "'wdth' 100" }}
@@ -112,7 +112,7 @@ export function MultiplayerPanel({
               </h3>
 
               <div className="flex flex-wrap gap-x-[20px] gap-y-[20px]">
-                  <div className="flex flex-row gap-[40px] text-[18px]">
+                  <div className="flex flex-wrap gap-x-[24px] gap-y-[16px] text-[18px]">
                     <a 
                       href="https://colourhigh.bandcamp.com/track/sonder" 
                       target="_blank" 
@@ -144,7 +144,7 @@ export function MultiplayerPanel({
               </div>
             </div>
             
-            <div className="mt-[80px]">
+            <div className="mt-[56px] md:mt-[80px]">
               <h3
                 className="mb-[20px] font-['Roboto',sans-serif] text-[18px] font-bold leading-[normal] text-shapeships-grey-50"
                 style={{ fontVariationSettings: "'wdth' 100" }}
@@ -153,7 +153,7 @@ export function MultiplayerPanel({
               </h3>
 
               <div className="flex flex-wrap gap-x-[20px] gap-y-[20px]">
-                <div className="w-[260px]">
+                <div className="min-w-[220px] flex-1 max-w-[260px]">
                   <div className="flex flex-col gap-[12px]">
                     {ROADMAP_LEFT.map((item) => (
                       <p
@@ -167,7 +167,7 @@ export function MultiplayerPanel({
                   </div>
                 </div>
 
-                <div className="w-[260px]">
+                <div className="min-w-[220px] flex-1 max-w-[260px]">
                   <div className="flex flex-col gap-[12px]">
                     {ROADMAP_RIGHT.map((item) => (
                       <p

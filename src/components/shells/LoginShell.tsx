@@ -10,7 +10,6 @@ import { AlphaEntryPanel } from '../panels/AlphaEntryPanel';
 import { LoginPanel } from '../panels/LoginPanel';
 import { CreateAccountPanel } from '../panels/CreateAccountPanel';
 import { ForgotPasswordPanel } from '../panels/ForgotPasswordPanel';
-import { DrawIcon } from '../ui/primitives/icons/DrawIcon';
 import { PlayersIcon } from '../ui/primitives/icons/PlayersIcon';
 import { BuildIcon } from '../ui/primitives/icons/BuildIcon';
 import { ClockIcon } from '../ui/primitives/icons/ClockIcon';
@@ -37,55 +36,55 @@ export function LoginShell({
   // Alpha v3: Full-page layout with header + panel + footer
   if (alphaDisableAuth) {
     return (
-      <div className="ss-playerRoot content-stretch flex flex-col items-center pb-[120px] pt-[60px] px-[240px] relative size-full overflow-y-auto">
-        <div className="content-stretch flex flex-col gap-[80px] items-center relative shrink-0 w-full">
+      <div className="ss-playerRoot content-stretch relative flex size-full flex-col items-center overflow-y-auto px-6 pb-[120px] pt-[40px] sm:px-10 md:px-16 md:pt-[60px] lg:px-24 xl:px-[160px] 2xl:px-[240px]">
+        <div className="content-stretch relative flex w-full max-w-[1440px] shrink-0 flex-col items-center gap-[56px] md:gap-[80px]">
           
           {/* Logo + Title + Feature Highlights */}
-          <div className="content-stretch flex flex-col gap-[64px] items-center relative shrink-0 w-full">
+          <div className="content-stretch relative flex w-full shrink-0 flex-col items-center gap-[40px] md:gap-[64px]">
             
             {/* Logo */}
-            <div className="grid-cols-[max-content] grid-rows-[max-content] inline-grid leading-[0] place-items-start relative shrink-0">
-              <p className="[grid-area:1_/_1] font-['Roboto'] font-bold leading-[normal] ml-[203.9px] mt-[0.49px] not-italic relative text-[105.935px] text-nowrap">
+            <div className="relative inline-grid max-w-full shrink-0 grid-cols-[max-content] grid-rows-[max-content] place-items-start leading-[0]">
+              <p className="[grid-area:1_/_1] relative ml-[92px] mt-[0.49px] font-['Roboto'] text-[54px] font-bold leading-[normal] not-italic text-nowrap sm:ml-[126px] sm:text-[72px] lg:ml-[160px] lg:text-[88px] xl:ml-[203.9px] xl:text-[105.935px]">
                 SHAPESHIPS
               </p>
-              <div className="[grid-area:1_/_1] flex h-[136.015px] items-center justify-center ml-0 mt-0 relative w-[159.556px]">
+              <div className="[grid-area:1_/_1] relative ml-0 mt-0 flex h-[70px] w-[82px] items-center justify-center sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]">
                 <div className="flex-none rotate-[180deg] scale-y-[-100%]">
-                  <LogoIcon className="h-[136.015px] w-[159.556px]" />
+                  <LogoIcon className="h-[70px] w-[82px] sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]" />
                 </div>
               </div>
             </div>
 
             {/* Feature Highlights Row */}
-            <div className="content-center flex flex-wrap gap-[20px_70px] items-center justify-center relative shrink-0 w-full">
+            <div className="content-center relative flex w-full flex-wrap items-stretch justify-center gap-x-[28px] gap-y-[20px] lg:gap-x-[50px]">
               
               {/* Feature 1: Free space battle game */}
-              <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
+              <div className="content-stretch relative flex min-w-[220px] max-w-[260px] shrink-0 items-center gap-[12px]">
                 <BuildIcon className="relative shrink-0 size-[48px]" />
-                <p className="font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] text-nowrap">
+                <p className="relative shrink-0 font-medium text-[21.6px] leading-[24px] not-italic">
                   Free strategy game
                 </p>
               </div>
 
               {/* Feature 2: 1v1 Online */}
-              <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
+              <div className="content-stretch relative flex min-w-[220px] max-w-[260px] shrink-0 items-center gap-[12px]">
                 <PlayersIcon className="relative shrink-0 size-[48px]" />
-                <p className="font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] w-[127.2px]">
+                <p className="relative shrink-0 font-medium text-[21.6px] leading-[24px] not-italic">
                   1v1 Online
                 </p>
               </div>
 
               {/* Feature 3: Simultaneous turns */}
-              <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
+              <div className="content-stretch relative flex min-w-[220px] max-w-[260px] shrink-0 items-center gap-[12px]">
                 <Dice value={3} className="w-[52px] h-[50px]" enableRotate={false}/>
-                <p className="font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] w-[146.4px]">
+                <p className="relative shrink-0 font-medium text-[21.6px] leading-[24px] not-italic">
                   Shared dice each turn
                 </p>
               </div>
 
               {/* Feature 4: 10-30 minute games */}
-              <div className="content-stretch flex gap-[12px] items-center relative shrink-0">
+              <div className="content-stretch relative flex min-w-[220px] max-w-[260px] shrink-0 items-center gap-[12px]">
                 <ClockIcon className="relative shrink-0 size-[48px]" />
-                <p className="font-medium leading-[24px] not-italic relative shrink-0 text-[21.6px] w-[144px]">
+                <p className="relative shrink-0 font-medium text-[21.6px] leading-[24px] not-italic">
                   10-30 minute games
                 </p>
               </div>
@@ -101,7 +100,7 @@ export function LoginShell({
           />
 
           {/* Footer Links */}
-          <div className="content-stretch flex font-normal gap-[45px] items-center leading-[normal] relative shrink-0 text-[22px] text-nowrap">
+          <div className="content-stretch relative flex w-full flex-wrap items-center justify-center gap-x-[28px] gap-y-[16px] font-normal text-[18px] leading-[normal] sm:text-[20px] lg:text-[22px]">
             <a
               href="https://juddmadden.com/shapeships/"
               target="_blank"

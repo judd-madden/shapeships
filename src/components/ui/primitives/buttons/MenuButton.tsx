@@ -42,6 +42,7 @@ export function MenuButton({
   children 
 }: MenuButtonProps) {
   const styles = variantStyles[variant];
+  const baseWidthClass = 'w-[280px] max-w-full';
   
   if (selected) {
     return (
@@ -53,7 +54,7 @@ export function MenuButton({
           content-stretch flex h-[72px] items-center justify-center 
           p-[20px] 
           relative rounded-[10px] 
-          w-[280px]
+          ${baseWidthClass}
           before:absolute before:border-[3px] before:border-solid before:border-white before:inset-[-3px] before:pointer-events-none before:rounded-[13px]
           cursor-default
           disabled:cursor-pointer
@@ -83,7 +84,7 @@ export function MenuButton({
           content-stretch flex h-[72px] items-center justify-center 
           p-[20px] 
           relative rounded-[10px] 
-          w-[280px]
+          ${baseWidthClass}
           ${isActive ? 'hover:scale-105 cursor-pointer' : 'cursor-default'}
           transition-transform
           ${className}
@@ -109,7 +110,7 @@ export function MenuButton({
         content-stretch flex h-[72px] items-center justify-center 
         p-[20px] 
         relative rounded-[10px] 
-        w-[280px]
+        ${baseWidthClass}
         hover:scale-105
         transition-transform
         cursor-pointer

@@ -27,10 +27,10 @@ function PhaseHeader({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-[#555] h-[75.576px] relative shrink-0 w-full">
-      <div className="content-stretch flex items-center px-[41.986px] py-[18.894px] relative size-full">
-        <div className="content-stretch flex gap-[16.795px] items-center relative shrink-0">
-          <p className="font-bold leading-[normal] relative shrink-0 text-[20.993px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+    <div className="bg-[#555] relative shrink-0 w-full">
+      <div className="content-stretch flex items-center px-[20px] py-[16px] relative size-full sm:px-[30px] md:px-[41.986px] md:py-[18.894px]">
+        <div className="content-stretch flex flex-wrap gap-[12px] items-center relative shrink-0 md:gap-[16.795px]">
+          <p className="font-bold leading-[normal] relative shrink-0 text-[18px] uppercase sm:text-[20.993px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             {title}
           </p>
           {icon}
@@ -50,9 +50,9 @@ function TimingRow({
   showChevron = true,
   chevronTop,
   showHeart = false,
-  leftPadding = "pl-[104.966px]",
+  leftPadding = "pl-[56px] md:pl-[104.966px]",
   chevronLeft = "left-[56px]",
-  verticalPadding = "py-[33.589px]"
+  verticalPadding = "py-[24px] md:py-[33.589px]"
 }: { 
   title: React.ReactNode;
   titleBold?: boolean;
@@ -69,26 +69,26 @@ function TimingRow({
 }) {
   return (
     <div className={`${backgroundColor} relative shrink-0 w-full`}>
-      <div className={`content-stretch flex flex-col gap-[8.397px] items-start ${leftPadding} pr-[75.576px] ${verticalPadding} relative w-full`}>
-        <p className={`${titleBold ? 'font-black' : 'font-semibold'} leading-[20.993px] min-w-full relative shrink-0 text-[18.894px] w-[min-content]`} style={{ fontVariationSettings: "'wdth' 100" }}>
+      <div className={`content-stretch flex flex-col gap-[8.397px] items-start ${leftPadding} pr-[20px] sm:pr-[28px] md:pr-[75.576px] ${verticalPadding} relative w-full`}>
+        <p className={`${titleBold ? 'font-black' : 'font-semibold'} leading-[20.993px] relative shrink-0 text-[18px] sm:text-[18.894px] w-full`} style={{ fontVariationSettings: "'wdth' 100" }}>
           {title}
         </p>
-        <div className="font-normal leading-[23.093px] min-w-full relative shrink-0 text-[16.795px] w-[min-content]" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <div className="font-normal leading-[23.093px] relative shrink-0 text-[15px] sm:text-[16.795px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
           {description}
         </div>
         {exampleShips && (
-          <p className="font-normal leading-[23.093px] min-w-full relative shrink-0 text-[#888] text-[14.8px] w-[min-content]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-normal leading-[23.093px] relative shrink-0 text-[#888] text-[14px] sm:text-[14.8px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
             {exampleShips}
           </p>
         )}
         {showChevron && (
-          <div className="absolute left-[56px] size-[50.384px] top-[24px]">
+          <div className={`absolute hidden md:block ${chevronLeft} ${chevronTop ?? 'top-[24px]'} size-[42px] lg:size-[50.384px]`}>
             <ChevronDown className="-rotate-90" color="#555555" />
           </div>
         )}
         {showHeart && (
-          <div className="absolute left-[34px] size-[50.384px] top-[18.67px]">
-            <HeartIcon color="white" className="w-[50px] h-[50px]" />
+          <div className="absolute left-[14px] size-[36px] top-[18px] sm:left-[18px] md:left-[34px] md:size-[50.384px] md:top-[18.67px]">
+            <HeartIcon color="white" className="w-full h-full" />
           </div>
         )}
         {children}
@@ -101,13 +101,13 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
   return (
     <div className="content-stretch flex flex-col gap-[48px] items-start relative shrink-0 w-full">
       {/* Page Header */}
-      <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
+      <div className="content-stretch flex flex-col items-start justify-between gap-[16px] relative shrink-0 w-full md:flex-row md:items-end">
         <div className="content-stretch flex gap-[20px] items-center relative shrink-0">
-          <p className="font-black leading-[normal] relative shrink-0 text-[36px] text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-black leading-[normal] relative shrink-0 text-[32px] sm:text-[36px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             Turn Timings
           </p>
         </div>
-        <p className="font-normal h-[49px] leading-[22px] relative shrink-0 text-[16px] text-right w-[215px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className="font-normal leading-[22px] relative shrink-0 text-[16px] w-full max-w-[215px] md:text-right" style={{ fontVariationSettings: "'wdth' 100" }}>
           A breakdown of the phases that can occur during a turn.
         </p>
       </div>
@@ -137,8 +137,8 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           exampleShips="Leviathan, Chronoswarm, Ark of Knowledge."
           showChevron={false}
         >
-          <div className="absolute h-[50px] left-[31px] top-[33.42px] w-[52px]">
-            <Dice value={6} className="w-[52px] h-[50px]" enableRotate={false} />
+          <div className="absolute h-[36px] left-[10px] top-[22px] w-[38px] sm:h-[42px] sm:left-[14px] sm:w-[44px] md:h-[50px] md:left-[31px] md:top-[33.42px] md:w-[52px]">
+            <Dice value={6} className="w-full h-full" enableRotate={false} />
           </div>
         </TimingRow>
 
@@ -220,7 +220,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
         />
 
         {/* Charge Response / Solar Powers - Wrapper with left border */}
-        <div className="content-stretch flex flex-col items-start relative shrink-0 w-full border-l-[21px] border-[#555] border-solid">
+        <div className="content-stretch flex flex-col items-start relative shrink-0 w-full border-l-[12px] border-[#555] border-solid md:border-l-[21px]">
           <TimingRow
             title={
               <>
@@ -239,8 +239,8 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
                 </p>
               </>
             }
-            leftPadding="pl-[110px]"
-            chevronLeft="left-[100px]"
+            leftPadding="pl-[56px] md:pl-[110px]"
+            chevronLeft="left-[60px]"
             chevronTop="top-[24px]"
           />
         </div>
@@ -262,7 +262,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
       </div>
 
       {/* END OF TURN */}
-      <p className="font-bold leading-[normal] relative shrink-0 text-[20.993px] text-nowrap text-right uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+      <p className="font-bold leading-[normal] relative shrink-0 text-[18px] text-right uppercase sm:text-[20.993px]" style={{ fontVariationSettings: "'wdth' 100" }}>
         END OF TURN
       </p>
 

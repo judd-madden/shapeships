@@ -25,9 +25,9 @@ export function RulesPanel() {
   };
 
   return (
-    <div className="content-stretch flex flex-col gap-[90px] items-start relative w-full max-w-[1200px]">
+    <div className="content-stretch relative flex w-full min-w-0 max-w-[1200px] flex-col items-start gap-[50px] ">
       {/* Secondary Navigation */}
-      <div className="content-center flex flex-wrap gap-[10px] items-center pb-[24px] relative shrink-0 w-full">
+      <div className="content-center relative flex w-full flex-wrap items-center gap-[10px] pb-[8px] md:pb-[16px] lg:pb-[24px]">
         <SecondaryNavItem 
           label="Core Rules" 
           selected={activeTab === 'core'} 

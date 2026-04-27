@@ -70,10 +70,10 @@ export function AlphaEntryPanel({
 
   return (
     <div className="content-stretch flex flex-col items-center relative shrink-0 w-full">
-      <div className="content-stretch flex flex-col gap-[50px] items-center relative shrink-0 w-[600px]">
+      <div className="content-stretch relative flex w-full max-w-[600px] shrink-0 flex-col items-center gap-[40px] md:gap-[50px]">
         
         {/* Name Entry Form */}
-        <div className="content-stretch flex flex-col gap-[20px] items-center px-[40px] py-[25px] relative w-full">
+        <div className="content-stretch relative flex w-full flex-col items-center gap-[20px] px-[20px] py-[25px] sm:px-[32px] md:px-[40px]">
           <p 
             className="font-black leading-[normal] relative shrink-0 text-[36px] text-center w-full"
             style={{ fontVariationSettings: "'wdth' 100" }}
@@ -82,7 +82,7 @@ export function AlphaEntryPanel({
           </p>
           
           {/* Form */}
-          <div className="content-stretch flex flex-col gap-[29px] items-start relative shrink-0 w-full">
+          <div className="content-stretch relative flex w-full shrink-0 flex-col items-start gap-[29px]">
             
             {/* Input Field */}
             <div className="w-full">
@@ -121,7 +121,7 @@ export function AlphaEntryPanel({
         </div>
 
         {/* Session Disclaimer */}
-        <div className="content-stretch flex flex-col gap-[20px] items-center px-[40px] py-[25px] relative w-full">
+        <div className="content-stretch relative flex w-full flex-col items-center gap-[20px] px-[20px] py-[25px] sm:px-[32px] md:px-[40px]">
           <p 
             className="font-normal leading-[22px] relative shrink-0 text-[16px] text-center w-full"
             style={{ fontVariationSettings: "'wdth' 100" }}
