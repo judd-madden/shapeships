@@ -319,7 +319,7 @@ export function LeftRail({
   return (
     <div
       ref={railRootRef}
-      className="absolute lg:relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0"
+      className="absolute left-[25%] top-[180px] lg:relative lg:left-auto lg:top-auto w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0"
     >
       {isFirstTurnBuildHelperMounted && (
         <div
@@ -388,7 +388,7 @@ export function LeftRail({
         </div>
         
         {/* Subphase */}
-        <div className="bg-[#212121] px-[10px] py-[10px] pb-[12px]">
+        <div className="bg-[#212121] px-[10px] py-[10px] pb-[12px] hidden lg:block">
           <p className="text-white text-[18px] font-medium text-center">{vm.subphase}</p>
         </div>
 
@@ -396,7 +396,7 @@ export function LeftRail({
           <div
             key={turnTakeover.runKey}
             aria-hidden="true"
-            className="ss-leftRailTurnTakeover"
+            className="ss-leftRailTurnTakeover hidden lg:block"
             data-run-key={turnTakeover.runKey}
             style={turnTakeover.timingStyle}
             onAnimationEnd={turnTakeover.onOverlayAnimationEnd}
@@ -525,10 +525,10 @@ export function LeftRail({
       </div>
 
       {/* Battle Log slot preserves layout while the real card overlays above it. */}
-      <div ref={battleLogSlotRef} className="basis-0 flex-1 min-h-0 hidden lg:block" aria-hidden="true" />
+      <div ref={battleLogSlotRef} className="basis-0 flex-1 min-h-0" aria-hidden="true" />
 
       <div
-        className="absolute left-0 right-0 z-50 flex min-h-0 flex-col rounded-[10px] border-2 border-[#555] bg-black hidden lg:block"
+        className="absolute left-0 right-0 z-50 flex min-h-0 flex-col rounded-[10px] border-2 border-[#555] bg-black"
         style={{
           top: battleLogOverlayTop,
           // Match the current rail pb-[25px] inset so the overlay never drops below the collapsed card.

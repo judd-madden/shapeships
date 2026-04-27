@@ -132,7 +132,7 @@ export function AlphaEntryPanel({
               <br aria-hidden="true" />
               3–20 letters or numbers, no spaces or symbols.
               <br aria-hidden="true" />
-              1440px+ screen resolution required.
+              1600px+ screen resolution required.
             </span>
           </p>
         </div>

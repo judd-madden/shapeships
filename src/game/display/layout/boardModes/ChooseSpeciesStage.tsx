@@ -43,7 +43,7 @@ export function ChooseSpeciesStage({
 
   return (
     <div
-      className="content-stretch flex gap-[8px] items-start justify-center px-0 py-[12px] relative size-full"
+      className="flex-col lg:flex-row content-stretch flex gap-[8px] item-center lg:items-start justify-center px-0 pt-[240px] lg:py-[12px] relative size-full"
       data-name="Board Stage - Choose Species"
     >
       {/* Left: Choose Species Section */}

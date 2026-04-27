@@ -15,7 +15,7 @@ interface BottomActionRailProps {
 export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
   return (
     <div
-      className="content-stretch flex items-start justify-between relative shrink-0 w-full"
+      className="content-stretch flex flex-col lg:flex-row items-start justify-between relative shrink-0 w-full"
       data-name="Bottom Action Rail"
     >
       {/* Subphase Info */}
