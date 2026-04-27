@@ -319,7 +319,7 @@ export function LeftRail({
   return (
     <div
       ref={railRootRef}
-      className="relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0"
+      className="absolute lg:relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0"
     >
       {isFirstTurnBuildHelperMounted && (
         <div
@@ -362,7 +362,7 @@ export function LeftRail({
       )}
 
       {/* Brand / Title */}
-      <div className="shrink-0 flex items-center justify-between">
+      <div className="shrink-0 flex items-center justify-between hidden lg:block">
         <div className="flex-1">
           <p className="font-['Roboto'] font-bold text-[45px] leading-[45px] text-white text-center">
             SHAPESHIPS
@@ -412,7 +412,7 @@ export function LeftRail({
       </div>
 
       {/* Chat Area (fixed height, scrollable) */}
-      <div className="shrink-0 bg-black rounded-[10px] border-2 border-[#555] overflow-hidden">
+      <div className="shrink-0 bg-black rounded-[10px] border-2 border-[#555] overflow-hidden hidden lg:block">
         {/* Row 1: Chat Header */}
         <div className="h-[42px] px-5 pt-3 pb-2 flex items-center justify-between relative">
           <p className="text-white text-[18px] font-black">Chat</p>
@@ -525,10 +525,10 @@ export function LeftRail({
       </div>
 
       {/* Battle Log slot preserves layout while the real card overlays above it. */}
-      <div ref={battleLogSlotRef} className="basis-0 flex-1 min-h-0" aria-hidden="true" />
+      <div ref={battleLogSlotRef} className="basis-0 flex-1 min-h-0 hidden lg:block" aria-hidden="true" />
 
       <div
-        className="absolute left-0 right-0 z-50 flex min-h-0 flex-col rounded-[10px] border-2 border-[#555] bg-black"
+        className="absolute left-0 right-0 z-50 flex min-h-0 flex-col rounded-[10px] border-2 border-[#555] bg-black hidden lg:block"
         style={{
           top: battleLogOverlayTop,
           // Match the current rail pb-[25px] inset so the overlay never drops below the collapsed card.
