@@ -231,9 +231,9 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
               <>
                 <p className="mb-[8.397px]">Players may declare charge powers in response to opponent's declarations or hold the charges. Ancients may use solar powers if they have energy to do so. Players may declare multiple charges, or hold them until a future turn.</p>
                 <p className="mb-[8.397px]">
-                  If a charge-based ship is destroyed, it's charge still occurs. <span className="italic text-[14.8px]" style={{ fontVariationSettings: "'wdth' 100" }}>See also Ship of Equality rules.</span>
+                  If a charge-based ship is destroyed, its charge still occurs. <span className="italic text-[14.8px]" style={{ fontVariationSettings: "'wdth' 100" }}>See also Ship of Equality rules.</span>
                 </p>
-                <p className="mb-[8.397px]">If a ship with Automatic damage and healing is destroyed, it's power does NOT occur (except 'once only' powers).</p>
+                <p className="mb-[8.397px]">If a ship with Automatic damage and healing is destroyed, its power does NOT occur (except 'once only' powers).</p>
                 <p>
                   All damage and healing is resolved in <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>End of Turn Resolution.</span>
                 </p>

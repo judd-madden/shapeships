@@ -67,7 +67,7 @@ export function ChooseSpeciesStage({
                     px-[20px] py-[19px] relative rounded-[10px] shrink-0 text-[18px] text-nowrap w-[300px] 
                     ${vm.canConfirmSpecies 
                       ? 'bg-white text-black cursor-pointer hover:bg-gray-100 transition-colors' 
-                      : 'bg-gray-600 text-gray-400 cursor-not-allowed opacity-50'}
+                      : 'bg-(--shapeships-grey-50) text-black cursor-not-allowed'}
                   `}
                   type="button"
                 >

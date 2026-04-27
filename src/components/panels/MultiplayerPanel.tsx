@@ -22,12 +22,14 @@ const ALPHA_BULLETS = [
 ] as const;
 
 const ROADMAP_LEFT = [
+  'Mobile Device Support',
   'Player Accounts',
   'Public Multiplayer Lobby',
-  'Game History & Stats',
+  'Match Archive & Stats',
 ] as const;
 
 const ROADMAP_RIGHT = [
+  'Spectator Mode',
   'Single Player Campaign',
   'Ancient Species',
   'Rankings & Tournaments',

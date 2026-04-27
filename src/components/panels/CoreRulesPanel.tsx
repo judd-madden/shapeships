@@ -98,7 +98,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>.</span>
             </p>
             <p className="font-normal mb-[9.75px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-              Players each start with <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>3 lines.</span>
+              Players each start with <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>3 saved lines.</span>
             </p>
             <p className="font-semibold mb-[9.75px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Each player chooses a Species, and play begins.
@@ -197,7 +197,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
             {/* Battle Phase Content */}
             <div className="relative w-full min-w-0 text-[18px] leading-[26px]">
               <p className="font-semibold mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                Players ships are revealed to opponents.
+                Players' ships are revealed.
               </p>
               <p className="mb-[12.18px]">
                 <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Players Shapeship POWERS that occur in the Battle Phase are actioned</span>
@@ -269,7 +269,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>Shapeships are defined shapes that have </span>
             <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>powers</span>
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>. </span>
-            <span className="font-normal italic" style={{ fontVariationSettings: "'wdth' 100" }}>For example: 3 lines can make a Human shapeship called a Fighter. It's power is to deal 1 damage every turn.</span>
+            <span className="font-normal italic" style={{ fontVariationSettings: "'wdth' 100" }}>For example: 3 lines can make a Human shapeship called a Fighter. Its power is to deal 1 damage every turn.</span>
           </p>
           <p className="mb-[12.18px]">
             <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Basic Ships</span>
@@ -421,7 +421,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>power can only destroy Basic Ships. They CANNOT destroy Upgraded Ships.</span>
           </p>
           <p className="mb-[12.375px]">
-            <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>Depending on when a ship is destroyed, it's Battle Phase power may not occur (see </span>
+            <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>Depending on when a ship is destroyed, its Battle Phase power may not occur (see </span>
             <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Turn Timing Breakdown</span>
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>).</span>
           </p>

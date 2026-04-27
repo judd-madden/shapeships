@@ -319,7 +319,7 @@ export function LeftRail({
   return (
     <div
       ref={railRootRef}
-      className="absolute left-[25%] top-[180px] lg:relative lg:left-auto lg:top-auto w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0"
+      className="relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0 hidden lg:flex"
     >
       {isFirstTurnBuildHelperMounted && (
         <div
@@ -362,7 +362,7 @@ export function LeftRail({
       )}
 
       {/* Brand / Title */}
-      <div className="shrink-0 flex items-center justify-between hidden lg:block">
+      <div className="shrink-0 flex items-center justify-between">
         <div className="flex-1">
           <p className="font-['Roboto'] font-bold text-[45px] leading-[45px] text-white text-center">
             SHAPESHIPS
@@ -388,7 +388,7 @@ export function LeftRail({
         </div>
         
         {/* Subphase */}
-        <div className="bg-[#212121] px-[10px] py-[10px] pb-[12px] hidden lg:block">
+        <div className="bg-[#212121] px-[10px] py-[10px] pb-[12px]">
           <p className="text-white text-[18px] font-medium text-center">{vm.subphase}</p>
         </div>
 
@@ -396,7 +396,7 @@ export function LeftRail({
           <div
             key={turnTakeover.runKey}
             aria-hidden="true"
-            className="ss-leftRailTurnTakeover hidden lg:block"
+            className="ss-leftRailTurnTakeover"
             data-run-key={turnTakeover.runKey}
             style={turnTakeover.timingStyle}
             onAnimationEnd={turnTakeover.onOverlayAnimationEnd}
@@ -412,7 +412,7 @@ export function LeftRail({
       </div>
 
       {/* Chat Area (fixed height, scrollable) */}
-      <div className="shrink-0 bg-black rounded-[10px] border-2 border-[#555] overflow-hidden hidden lg:block">
+      <div className="shrink-0 bg-black rounded-[10px] border-2 border-[#555] overflow-hidden">
         {/* Row 1: Chat Header */}
         <div className="h-[42px] px-5 pt-3 pb-2 flex items-center justify-between relative">
           <p className="text-white text-[18px] font-black">Chat</p>
