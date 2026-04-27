@@ -104,9 +104,9 @@ export function ShipChoicesPanel({
   // ============================================================================
 
   return (
-    <div className="flex flex-col gap-[24px] items-center">
+    <div className="flex flex-col gap-[12px] items-center">
       {hasCentaurChargeTabs ? (
-        <div className="inline-flex items-center gap-[12px] rounded-[10px] bg-[#212121] p-[4px]">
+        <div className="inline-flex items-center gap-[12px] rounded-[10px] bg-[#212121] p-[3px]">
           {centaurChargeTabs!.availableTabs.map((tabId) => {
             const selected = centaurChargeTabs!.activeTab === tabId;
             const label = tabId === 'charges' ? 'Charges' : 'Ship of Equality';
@@ -201,7 +201,7 @@ function ShipGroupRenderer({ group, selectedChoiceIdBySourceInstanceId, onSelect
   // If groupHelpText is present, use two-column layout
   return (
     <div
-      className="flex flex-col gap-[32px] items-start relative shrink-0"
+      className="flex flex-col gap-[16px] items-start relative shrink-0"
       data-name="Ship Group (with help)"
     >
       {/* Group Heading */}
@@ -210,7 +210,7 @@ function ShipGroupRenderer({ group, selectedChoiceIdBySourceInstanceId, onSelect
       </h3>
 
       {/* Two-Column Layout: Ship Choices | Help Text */}
-      <div className="flex gap-[40px] items-center relative shrink-0">
+      <div className="flex gap-[40px] items-start relative shrink-0">
         {/* Left: Ship Choices (centered, wrapping) */}
         <div className="flex flex-wrap justify-center gap-[36px]">
           {group.ships.map((ship, shipIndex) => {
@@ -245,9 +245,9 @@ function ShipGroupRenderer({ group, selectedChoiceIdBySourceInstanceId, onSelect
           })}
         </div>
 
-        {/* Right: Group Help Text (grey, 18px, 270px width) */}
+        {/* Right: Group Help Text (grey, 16px, 270px width) */}
         <div
-          className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-grey-50)] text-[18px] w-[270px] whitespace-pre-wrap"
+          className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-grey-50)] text-[16px] w-[270px] whitespace-pre-wrap"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {group.groupHelpText}
