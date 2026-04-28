@@ -14,6 +14,7 @@
 // ============================================================================
 // Set to false Post-Alpha to re-enable authentication endpoints
 const ALPHA_DISABLE_AUTH = true;
+const ENABLE_TEST_ROUTES = Deno.env.get("ENABLE_TEST_ROUTES") === "true";
 
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
@@ -220,7 +221,9 @@ app.use(
 // ============================================================================
 
 registerAuthRoutes(app, kvGet, kvSet);
-registerTestRoutes(app, kvGet, kvSet, kvDel);
+if (ENABLE_TEST_ROUTES) {
+  registerTestRoutes(app, kvGet, kvSet, kvDel);
+}
 registerGameRoutes(app, kvGet, kvSet, requireSession, generateGameId);
 registerIntentRoutes(app, kvGet, kvSet, requireSession, supabase);
 

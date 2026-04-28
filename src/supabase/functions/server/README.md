@@ -55,6 +55,7 @@ These support the live request path, but they are still support code inside the 
 
 ### Test and debug surfaces
 `routes/test_routes.ts` provides the current health, connection-test, echo, endpoint-listing, and system-test surfaces used for development and diagnostics.
+These routes are registered only when `ENABLE_TEST_ROUTES=true`; production alpha should leave `ENABLE_TEST_ROUTES` unset.
 
 ## Request/runtime shape
 
