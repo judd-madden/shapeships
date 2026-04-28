@@ -162,7 +162,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
                 Roll a six-sided dice.
               </p>
               <p className="font-semibold mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                All players draw (or save) that many LINES this turn.
+                All players gain that many LINES this turn (plus any bonuses).
               </p>
               <p className="mb-[12.18px]">
                 <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>LINES make Shapeships, which are defined shapes that have powers (see </span>

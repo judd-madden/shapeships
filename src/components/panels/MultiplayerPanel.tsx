@@ -17,7 +17,7 @@ const DISCORD_URL = 'https://discord.gg/MjPtf4G6Gt';
 
 const ALPHA_BULLETS = [
   'Play private games against friends',
-  'Play against bots',
+  'Play against the computer',
   'Choose from Human, Xenite, and Centaur',
 ] as const;
 
