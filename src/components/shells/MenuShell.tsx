@@ -161,7 +161,7 @@ export function MenuShell({
             </div>
             <button
               type="button"
-              className="pl-[44px] cursor-pointer font-['Roboto',sans-serif] text-[18px]  leading-[normal]  hover:text-white/80"
+              className="pl-[44px] text-shapeships-grey-50 cursor-pointer font-['Roboto',sans-serif] text-[18px]  leading-[normal]  hover:underline"
               style={{ fontVariationSettings: "'wdth' 100" }}
               onClick={alphaDisableAuth ? onExit : onLogout}
             >
@@ -253,7 +253,7 @@ export function MenuShell({
               <CreatePrivateGamePanel
                 onSubmit={handleCreateComputerGameWithSettings}
                 heading="PLAY COMPUTER"
-                subheading="Start a game against a computer opponent."
+                subheading="Start a game against a computer opponent (Human species)."
                 primaryActionLabel="PLAY COMPUTER"
                 primaryActionStyle="emphasisWhite"
               />
