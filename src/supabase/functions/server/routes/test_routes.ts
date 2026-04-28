@@ -5,6 +5,7 @@
 // Mechanical extraction from index.tsx - NO BEHAVIOR CHANGES
 
 import type { Hono } from "npm:hono";
+import { debugLog } from '../utils/serverLogger.ts';
 
 export function registerTestRoutes(
   app: Hono,
@@ -14,16 +15,16 @@ export function registerTestRoutes(
 ) {
   // Health check endpoint
   app.get("/make-server-825e19ab/health", (c) => {
-    console.log("Health check called");
+    debugLog("Health check called");
     return c.json({ status: "ok", supabase: "connected" });
   });
 
   // Test endpoint to verify connection works
   app.get("/make-server-825e19ab/test-connection", async (c) => {
     try {
-      console.log("Testing connection...");
-      console.log("SUPABASE_URL configured:", !!Deno.env.get("SUPABASE_URL"));
-      console.log("SUPABASE_SERVICE_ROLE_KEY exists:", !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+      debugLog("Testing connection...");
+      debugLog("SUPABASE_URL configured:", !!Deno.env.get("SUPABASE_URL"));
+      debugLog("SUPABASE_SERVICE_ROLE_KEY exists:", !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
       
       // Simple test using kv store
       const testKey = "connection_test";
@@ -33,7 +34,7 @@ export function registerTestRoutes(
       const retrieved = await kvGet(testKey);
       await kvDel(testKey);
       
-      console.log("KV store test successful");
+      debugLog("KV store test successful");
       return c.json({ 
         status: "success", 
         message: "Supabase connection working correctly",
@@ -61,7 +62,7 @@ export function registerTestRoutes(
   app.post("/make-server-825e19ab/echo", async (c) => {
     try {
       const body = await c.req.json();
-      console.log("Echo endpoint called with:", body);
+      debugLog("Echo endpoint called with:", body);
       
       return c.json({
         echo: body,

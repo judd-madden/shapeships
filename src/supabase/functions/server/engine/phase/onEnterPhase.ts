@@ -24,6 +24,7 @@ import type { StructuredShipPower } from '../../engine_shared/effects/translateS
 import { isPhaseKey, type PhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { getValidShipOfEqualityTargets } from '../../engine_shared/resolve/destroyRules.ts';
 import { rollD6 } from '../util/rollD6.ts';
+import { debugLog } from '../../utils/serverLogger.ts';
 
 type KnoRerollPassIndex = 1 | 2 | 3;
 
@@ -531,7 +532,7 @@ function enterPhaseOnce(
   const events: any[] = [];
   let workingState: any = state;
   
-  console.log(`[OnEnterPhase] Entering: ${toKey} (from: ${fromKey || 'initial'})`);
+  debugLog(`[OnEnterPhase] Entering: ${toKey} (from: ${fromKey || 'initial'})`);
   
   // Ensure gameData and turnData exist
   if (!workingState.gameData) {
@@ -574,7 +575,7 @@ function enterPhaseOnce(
     turnData.chargeDeclarationEligibleSourceIdsByPlayerId = snapshotSourceIdsByPlayerId;
     turnData.chargeDeclarationEligibleByPlayerId = snapshot;
     
-    console.log(`[OnEnterPhase] Charge declaration snapshot:`, {
+    debugLog(`[OnEnterPhase] Charge declaration snapshot:`, {
       eligibleByPlayerId: snapshot,
       eligibleSourceIdsByPlayerId: snapshotSourceIdsByPlayerId,
     });
@@ -627,7 +628,7 @@ function enterPhaseOnce(
       // Mirror effectiveDiceRoll to gameData for compatibility
       workingState.gameData.diceRoll = base;
       
-      console.log(`[OnEnterPhase] Rolled dice: ${base}`);
+      debugLog(`[OnEnterPhase] Rolled dice: ${base}`);
       
       events.push({
         type: 'DICE_ROLLED',
@@ -640,7 +641,7 @@ function enterPhaseOnce(
 
       if (!hasKnoRerollWindow) {
         turnData.diceFinalized = true;
-        console.log('[OnEnterPhase] Dice finalized automatically (no KNO reroll window)');
+        debugLog('[OnEnterPhase] Dice finalized automatically (no KNO reroll window)');
       }
     } else {
       // Dice already rolled - use canonical value
@@ -666,7 +667,7 @@ function enterPhaseOnce(
         turnData.diceFinalized = true;
       }
 
-      console.log(`[OnEnterPhase] Dice already rolled this turn (${canonicalDice})`);
+      debugLog(`[OnEnterPhase] Dice already rolled this turn (${canonicalDice})`);
     }
 
     const chronoswarmCountByPlayerId = getChronoswarmCountByPlayerId(workingState);
@@ -685,7 +686,7 @@ function enterPhaseOnce(
       turnData.chronoswarmRolls = chronoswarmRolls;
       turnData.chronoswarmSharedRollCount = chronoswarmRolls.length;
 
-      console.log(`[OnEnterPhase] Rolled Chronoswarm dice: ${chronoswarmRolls.join(', ')}`);
+      debugLog(`[OnEnterPhase] Rolled Chronoswarm dice: ${chronoswarmRolls.join(', ')}`);
 
       events.push({
         type: 'CHRONOSWARM_ROLLED',
@@ -748,7 +749,7 @@ function enterPhaseOnce(
   if (toKey === 'build.line_generation') {
     // Idempotency check
     if (turnData.linesDistributed === true) {
-      console.log(`[OnEnterPhase] Lines already distributed this turn, skipping`);
+      debugLog(`[OnEnterPhase] Lines already distributed this turn, skipping`);
     } else {
       // Validation: dice must be rolled
       if (!turnData.diceRolled) {
@@ -775,7 +776,7 @@ function enterPhaseOnce(
           player.lines = currentLines + totalLines;
           player.joiningLines = currentJoiningLines + joiningBonusLines;
           
-          console.log(
+          debugLog(
             `[OnEnterPhase] Granted ${totalLines} lines to player ${player.id} ` +
             `(base: ${baseLines}, bonus: ${bonusLines}, chronoswarm: ${chronoswarmBonusLines}, total: ${player.lines}, joiningBonus: ${joiningBonusLines}, joiningTotal: ${player.joiningLines})`
           );
@@ -846,7 +847,7 @@ function enterPhaseOnce(
           });
         }
         
-        console.log(`[OnEnterPhase] Auto-readied ineligible player: ${player.id}`);
+        debugLog(`[OnEnterPhase] Auto-readied ineligible player: ${player.id}`);
         
         events.push({
           type: 'PLAYER_AUTO_READY',
@@ -884,7 +885,7 @@ function enterPhaseOnce(
 
       turnData.buildDrawingPublicSavedResourcesByPlayerId = snapshot;
 
-      console.log('[OnEnterPhase] Captured build.drawing public saved-resource snapshot:', snapshot);
+      debugLog('[OnEnterPhase] Captured build.drawing public saved-resource snapshot:', snapshot);
     }
   }
   
@@ -925,7 +926,7 @@ function enterPhaseOnce(
           });
         }
 
-        console.log(`[OnEnterPhase] Auto-readied ineligible player: ${player.id}`);
+        debugLog(`[OnEnterPhase] Auto-readied ineligible player: ${player.id}`);
 
         events.push({
           type: 'PLAYER_AUTO_READY',
@@ -971,7 +972,7 @@ function enterPhaseOnce(
           });
         }
 
-        console.log(`[OnEnterPhase] Auto-readied ineligible player: ${player.id}`);
+        debugLog(`[OnEnterPhase] Auto-readied ineligible player: ${player.id}`);
 
         events.push({
           type: 'PLAYER_AUTO_READY',
@@ -1001,7 +1002,7 @@ function enterPhaseOnce(
 
       if (resolutionResult.events && resolutionResult.events.length > 0) {
         events.push(...resolutionResult.events);
-        console.log(
+        debugLog(
           `[OnEnterPhase] Structured powers resolution for ${toKey} generated ${resolutionResult.events.length} events`
         );
       }
@@ -1018,7 +1019,7 @@ function enterPhaseOnce(
           holdUntilMs: nowMs + END_OF_TURN_HEALTH_HOLD_MS,
         };
 
-        console.log('[OnEnterPhase] Attached authoritative end-of-turn health hold', {
+        debugLog('[OnEnterPhase] Attached authoritative end-of-turn health hold', {
           turnNumber: currentTurnNumber,
           holdUntilMs: workingState.gameData.turnData.phaseHold.holdUntilMs,
         });
@@ -1060,7 +1061,7 @@ export function onEnterPhase(
   while (advanceCount < MAX_AUTO_ADVANCES) {
     const existingPhaseHold = getPhaseHoldForPhase(workingState, currentKey);
     if (existingPhaseHold) {
-      console.log(`[OnEnterPhase] Phase ${currentKey} is held authoritatively, stopping auto-advance`, existingPhaseHold);
+      debugLog(`[OnEnterPhase] Phase ${currentKey} is held authoritatively, stopping auto-advance`, existingPhaseHold);
       break;
     }
 
@@ -1071,13 +1072,13 @@ export function onEnterPhase(
 
     const phaseHold = getPhaseHoldForPhase(workingState, currentKey);
     if (phaseHold) {
-      console.log(`[OnEnterPhase] Phase ${currentKey} created authoritative hold, stopping auto-advance`, phaseHold);
+      debugLog(`[OnEnterPhase] Phase ${currentKey} created authoritative hold, stopping auto-advance`, phaseHold);
       break;
     }
     
     // Check if game is finished (victory conditions)
     if (workingState.status === 'finished') {
-      console.log(`[OnEnterPhase] Game finished, stopping auto-advance`);
+      debugLog(`[OnEnterPhase] Game finished, stopping auto-advance`);
       break;
     }
     
@@ -1085,7 +1086,7 @@ export function onEnterPhase(
     if (currentKey === 'build.line_generation') {
       const turnData = workingState.gameData?.turnData || {};
       if (turnData.diceFinalized !== true) {
-        console.log(`[OnEnterPhase] Stopping at line_generation: dice not finalized yet`);
+        debugLog(`[OnEnterPhase] Stopping at line_generation: dice not finalized yet`);
         break;
       }
     }
@@ -1094,17 +1095,17 @@ export function onEnterPhase(
     const requiresInput = phaseRequiresPlayerInput(workingState, currentKey);
     
     if (requiresInput) {
-      console.log(`[OnEnterPhase] Phase ${currentKey} requires player input, stopping auto-advance`);
+      debugLog(`[OnEnterPhase] Phase ${currentKey} requires player input, stopping auto-advance`);
       break;
     }
     
     // Phase requires no input -> auto-advance
-    console.log(`[OnEnterPhase] Phase ${currentKey} requires no input, auto-advancing...`);
+    debugLog(`[OnEnterPhase] Phase ${currentKey} requires no input, auto-advancing...`);
     
     const advanceResult = advancePhase(workingState, { ignoreReadiness: true }, nowMs);
     
     if (!advanceResult.ok) {
-      console.log(`[OnEnterPhase] Auto-advance blocked: ${advanceResult.error}`);
+      debugLog(`[OnEnterPhase] Auto-advance blocked: ${advanceResult.error}`);
       break;
     }
     
@@ -1121,7 +1122,7 @@ export function onEnterPhase(
       break;
     }
     
-    console.log(`[OnEnterPhase] Auto-advanced: ${currentKey} → ${nextKey}`);
+    debugLog(`[OnEnterPhase] Auto-advanced: ${currentKey} → ${nextKey}`);
     
     allEvents.push({
       type: 'PHASE_ADVANCED',

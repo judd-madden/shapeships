@@ -16,6 +16,7 @@ import { SHIP_DEFINITIONS_CORE_SERVER } from '../defs/ShipDefinitions.core.ts';
 import type { PhaseKey } from '../phase/PhaseTable.ts';
 import type { Effect } from '../effects/Effect.ts';
 import { EffectTiming, EffectKind, SurvivabilityRule } from '../effects/Effect.ts';
+import { debugLog } from '../../utils/serverLogger.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPUTED EFFECTS AUDIT (from ShipDefinitionsJSON text)
@@ -501,7 +502,7 @@ export function computePhaseComputedEffects(
       computedEffects.push(effect);
       firedKeys.push(onceKey);
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] Starship fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} dmg=8 target=${opponentId}`
       );
     }
@@ -537,7 +538,7 @@ export function computePhaseComputedEffects(
 
       firedKeys.push(onceKey);
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] Xenite fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} heal=1`
       );
     }
@@ -576,7 +577,7 @@ export function computePhaseComputedEffects(
 
       firedKeys.push(onceKey);
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] HellHornet fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} dmg=3 target=${opponentId}`
       );
     }
@@ -612,7 +613,7 @@ export function computePhaseComputedEffects(
 
       firedKeys.push(onceKey);
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] ShipOfFear fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} heal=4`
       );
     }
@@ -651,7 +652,7 @@ export function computePhaseComputedEffects(
 
       firedKeys.push(onceKey);
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] ShipOfAnger fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} dmg=4 target=${opponentId}`
       );
     }
@@ -684,7 +685,7 @@ export function computePhaseComputedEffects(
         amount: dmgPerCommander,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] Commander automatic: owner=${ownerPlayerId} instance=${ship.instanceId} fighters=${fighters} dmg=${dmgPerCommander} target=${opponentId}`
       );
     }
@@ -714,7 +715,7 @@ export function computePhaseComputedEffects(
         amount: healPerMantis,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] Mantis automatic: owner=${ownerPlayerId} instance=${ship.instanceId} effectiveXenites=${effectiveXenites} heal=${healPerMantis}`
       );
     }
@@ -747,7 +748,7 @@ export function computePhaseComputedEffects(
         amount: dmgPerHellHornet,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] HellHornet automatic: owner=${ownerPlayerId} instance=${ship.instanceId} effectiveXenites=${effectiveXenites} dmg=${dmgPerHellHornet} target=${opponentId}`
       );
     }
@@ -791,7 +792,7 @@ export function computePhaseComputedEffects(
         amount: ownedShipCount,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] Hive automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownedShips=${ownedShipCount}${opponentId ? ` dmg=${ownedShipCount} target=${opponentId}` : ''} heal=${ownedShipCount}`
       );
     }
@@ -825,7 +826,7 @@ export function computePhaseComputedEffects(
         amount: dmgPerTac,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] TacticalCruiser automatic: owner=${ownerPlayerId} instance=${ship.instanceId} types=${typeCount} dmg=${dmgPerTac} target=${opponentId}`
       );
     }
@@ -859,7 +860,7 @@ export function computePhaseComputedEffects(
         amount: dmgPerEarth,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] EarthShip automatic: owner=${ownerPlayerId} instance=${ship.instanceId} carriers=${carriers} dmg=${dmgPerEarth} target=${opponentId}`
       );
     }
@@ -892,7 +893,7 @@ export function computePhaseComputedEffects(
         amount: healPerOxiteFace,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] OxiteFace automatic: owner=${ownerPlayerId} instance=${ship.instanceId} opponentTypes=${healPerOxiteFace} heal=${healPerOxiteFace}`
       );
     }
@@ -925,7 +926,7 @@ export function computePhaseComputedEffects(
         amount: dmgPerAsteriteFace,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] AsteriteFace automatic: owner=${ownerPlayerId} instance=${ship.instanceId} opponentTypes=${dmgPerAsteriteFace} dmg=${dmgPerAsteriteFace} target=${opponentId}`
       );
     }
@@ -958,7 +959,7 @@ export function computePhaseComputedEffects(
         amount: healPerDefenseSwarm,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] DefenseSwarm automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownerHealth=${player.health} opponentHealth=${opponent.health} heal=${healPerDefenseSwarm}`
       );
     }
@@ -991,7 +992,7 @@ export function computePhaseComputedEffects(
         amount: damagePerAntlionArray,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] AntlionArray automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownerHealth=${player.health} opponentHealth=${opponent.health} dmg=${damagePerAntlionArray} target=${opponentId}`
       );
     }
@@ -1029,7 +1030,7 @@ export function computePhaseComputedEffects(
         amount: damage,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] Queen automatic: owner=${ownerPlayerId} instance=${ship.instanceId} shipsMade=${shipsMadeThisTurn} selfMade=${selfMadeByThisQueen} countedShips=${countedShips} dmg=${damage} target=${opponentId}`
       );
     }
@@ -1058,7 +1059,7 @@ export function computePhaseComputedEffects(
         amount: roll,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] ArkOfTerror automatic: owner=${ownerPlayerId} instance=${ship.instanceId} roll=${roll} heal=${roll}`
       );
     }
@@ -1090,7 +1091,7 @@ export function computePhaseComputedEffects(
         amount: roll,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] ArkOfFury automatic: owner=${ownerPlayerId} instance=${ship.instanceId} roll=${roll} dmg=${roll} target=${opponentId}`
       );
     }
@@ -1123,7 +1124,7 @@ export function computePhaseComputedEffects(
         amount: damage,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] ArkOfDestruction automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownedShips=${ownedShipCount} dmg=${damage} target=${opponentId}`
       );
     }
@@ -1153,7 +1154,7 @@ export function computePhaseComputedEffects(
         amount: healPerDom,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] ArkOfDomination automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownedShips=${ownedShipCount} heal=${healPerDom}`
       );
     }
@@ -1187,7 +1188,7 @@ export function computePhaseComputedEffects(
         amount: 6,
       });
 
-      console.log(
+      debugLog(
         `[computePhaseComputedEffects] Frigate conditional: owner=${ownerPlayerId} instance=${ship.instanceId} roll=${roll} trigger=${trigger} dmg=6 target=${opponentId}`
       );
     }

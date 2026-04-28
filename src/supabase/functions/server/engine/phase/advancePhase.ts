@@ -1,6 +1,7 @@
 import { PHASE_SEQUENCE, type PhaseKey, type MajorPhase, type SubPhase } from '../../engine_shared/phase/PhaseTable.ts';
 import { applyIncrementForTurn } from '../clock/clock.ts';
 import { createBattleLogFinalizeTurnEvent } from '../state/battleLogHistory.ts';
+import { debugLog } from '../../utils/serverLogger.ts';
 
 // Minimal server-side GameState interface (derived from actual game state structure)
 interface GameState {
@@ -238,7 +239,7 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
     
     const cleared = clearReadiness(setupExit);
     
-    console.log(`[advancePhaseCore] Setup exit: ${from} → build.dice_roll (turn set to ${turnNumber})`);
+    debugLog(`[advancePhaseCore] Setup exit: ${from} → build.dice_roll (turn set to ${turnNumber})`);
     
     return { ok: true, state: cleared, from, to: 'build.dice_roll', events: [] };
   }
@@ -262,7 +263,7 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
       };
       const cleared = clearReadiness(passAdvanced);
 
-      console.log(`[advancePhaseCore] KNO reroll pass: build.dice_roll pass ${passIndex} -> pass ${nextPassIndex}`);
+      debugLog(`[advancePhaseCore] KNO reroll pass: build.dice_roll pass ${passIndex} -> pass ${nextPassIndex}`);
 
       return {
         ok: true,
@@ -306,7 +307,7 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
       };
       const cleared = clearReadiness(passAdvanced);
 
-      console.log('[advancePhaseCore] Chronoswarm second pass: build.ships_that_build pass 1 → pass 2');
+      debugLog('[advancePhaseCore] Chronoswarm second pass: build.ships_that_build pass 1 → pass 2');
 
       return {
         ok: true,
@@ -377,7 +378,7 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
 
     const cleared = clearReadiness(bumped);
     
-    console.log(`[advancePhaseCore] Turn bump: ${from} → build.dice_roll (turn ${prevTurn} → ${turnNumber})`);
+    debugLog(`[advancePhaseCore] Turn bump: ${from} → build.dice_roll (turn ${prevTurn} → ${turnNumber})`);
     
     return {
       ok: true,
@@ -402,7 +403,7 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
 
   const advanced = clearReadiness(setPhase(state, major, sub));
   
-  console.log(`[advancePhaseCore] Phase advance: ${from} → ${to}`);
+  debugLog(`[advancePhaseCore] Phase advance: ${from} → ${to}`);
   
   return { ok: true, state: advanced, from, to, events: [] };
 }

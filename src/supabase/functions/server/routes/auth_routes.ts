@@ -5,6 +5,7 @@
 // Mechanical extraction from index.tsx - NO BEHAVIOR CHANGES
 
 import type { Hono } from "npm:hono";
+import { debugLog } from '../utils/serverLogger.ts';
 
 export function registerAuthRoutes(
   app: Hono,
@@ -62,7 +63,7 @@ export function registerAuthRoutes(
       // Also store by sessionId for reverse lookup if needed
       await kvSet(`session_id_${sessionId}`, sessionData);
 
-      console.log(`✅ Session created: ${sessionId}${displayName ? ` (${displayName})` : ''}`);
+      debugLog(`✅ Session created: ${sessionId}${displayName ? ` (${displayName})` : ''}`);
 
       return c.json({ 
         sessionToken,

@@ -38,6 +38,7 @@ import {
   applyComputedEffectModifiers,
   getEffectiveDiceRollForPlayer,
 } from './phaseComputedEffects.ts';
+import { debugLog } from '../../utils/serverLogger.ts';
 
 function countCreatedShipsByTargetPlayerId(
   effects: Effect[]
@@ -483,8 +484,8 @@ export function resolvePhase(
   state: GameState,
   phaseKey: PhaseKey
 ): { state: GameState; events: any[] } {
-  console.log(`[resolvePhase] Resolving phase: ${phaseKey}`);
-  console.log(`[resolvePhase] GameStateTypes version: ${GAME_STATE_TYPES_VERSION}`);
+  debugLog(`[resolvePhase] Resolving phase: ${phaseKey}`);
+  debugLog(`[resolvePhase] GameStateTypes version: ${GAME_STATE_TYPES_VERSION}`);
 
   // Handle ships_that_build phase (create ships from ship-building powers)
   if (phaseKey === 'build.ships_that_build') {
@@ -502,7 +503,7 @@ export function resolvePhase(
   }
 
   // No resolution logic for other phases
-  console.log(`[resolvePhase] No resolution logic for phase: ${phaseKey}`);
+  debugLog(`[resolvePhase] No resolution logic for phase: ${phaseKey}`);
   return { state, events: [] };
 }
 
@@ -521,7 +522,7 @@ function resolveShipsThatBuild(
   state: GameState,
   phaseKey: PhaseKey
 ): { state: GameState; events: any[] } {
-  console.log(`[resolveShipsThatBuild] Resolving phase: ${phaseKey}`);
+  debugLog(`[resolveShipsThatBuild] Resolving phase: ${phaseKey}`);
   const stateBeforeResolution = state;
   const turnNumber =
     stateBeforeResolution.gameData?.turnData?.turnNumber ??
@@ -536,7 +537,7 @@ function resolveShipsThatBuild(
     ...collectZenithAutoBuildEffects(state, phaseKey),
   ];
 
-  console.log(`[resolveShipsThatBuild] Collected ${effects.length} effects for ${phaseKey}`);
+  debugLog(`[resolveShipsThatBuild] Collected ${effects.length} effects for ${phaseKey}`);
 
   // Apply effects to state
   let result = applyEffects(state, effects);
@@ -550,7 +551,7 @@ function resolveShipsThatBuild(
     ),
   };
 
-  console.log(`[resolveShipsThatBuild] Applied effects, generated ${result.events.length} events`);
+  debugLog(`[resolveShipsThatBuild] Applied effects, generated ${result.events.length} events`);
 
   for (const player of state.players.filter((entry) => entry.role === 'player')) {
     const playerEffects = effects.filter((effect) => effect.ownerPlayerId === player.id);
@@ -579,7 +580,7 @@ function resolveBuildEndOfBuild(
   state: GameState,
   phaseKey: PhaseKey
 ): { state: GameState; events: any[] } {
-  console.log(`[resolveBuildEndOfBuild] Resolving phase: ${phaseKey}`);
+  debugLog(`[resolveBuildEndOfBuild] Resolving phase: ${phaseKey}`);
   const stateBeforeResolution = state;
 
   const currentTurn =
@@ -589,7 +590,7 @@ function resolveBuildEndOfBuild(
 
   const priorTurnData = state.gameData.turnData || {};
   if (priorTurnData.buildEndOfBuildAppliedTurnNumber === currentTurn) {
-    console.log(`[resolveBuildEndOfBuild] Already applied for turn ${currentTurn}, skipping`);
+    debugLog(`[resolveBuildEndOfBuild] Already applied for turn ${currentTurn}, skipping`);
     return { state, events: [] };
   }
 
@@ -666,14 +667,14 @@ function resolveBuildEndOfBuild(
         });
       }
 
-      console.log(
+      debugLog(
         `[resolveBuildEndOfBuild] Dreadnought ${dreadnought.instanceId} spawning ${shipsMade} fighter(s) for player ${player.id}`
       );
     }
   }
 
   if (fighterEffects.length === 0) {
-    console.log('[resolveBuildEndOfBuild] No Dreadnought fighters to spawn');
+    debugLog('[resolveBuildEndOfBuild] No Dreadnought fighters to spawn');
     return { state: workingState, events: [] };
   }
 
@@ -693,7 +694,7 @@ function resolveBuildEndOfBuild(
     );
   }
 
-  console.log(
+  debugLog(
     `[resolveBuildEndOfBuild] Spawned ${fighterEffects.length} fighter(s), generated ${applied.events.length} events`
   );
 
@@ -725,7 +726,7 @@ function resolveBattleEndOfTurn(
   state: GameState,
   phaseKey: PhaseKey
 ): { state: GameState; events: any[] } {
-  console.log(`[resolveBattleEndOfTurn] Resolving phase: ${phaseKey}`);
+  debugLog(`[resolveBattleEndOfTurn] Resolving phase: ${phaseKey}`);
   const currentTurn =
     state.gameData?.turnData?.turnNumber ??
     state.gameData?.turnNumber ??
@@ -733,7 +734,7 @@ function resolveBattleEndOfTurn(
   const priorTurnData = state.gameData?.turnData || {};
 
   if (priorTurnData.endOfTurnResolutionAppliedTurnNumber === currentTurn) {
-    console.log(
+    debugLog(
       `[resolveBattleEndOfTurn] Already applied for turn ${currentTurn}, skipping`
     );
     return { state, events: [] };
@@ -789,7 +790,7 @@ function resolveBattleEndOfTurn(
   // Step 2: Collect all effects from ship powers
   const shipEffects = collectEffectsForPhase(state, phaseKey);
 
-  console.log(`[resolveBattleEndOfTurn] Collected ${shipEffects.length} ship effects + ${computedEffects.length} computed effects for ${phaseKey}`);
+  debugLog(`[resolveBattleEndOfTurn] Collected ${shipEffects.length} ship effects + ${computedEffects.length} computed effects for ${phaseKey}`);
 
   // Step 3: Merge computed effects with ship effects
   const baseEffects = [...computedEffects, ...shipEffects];
@@ -808,7 +809,7 @@ function resolveBattleEndOfTurn(
       effectEvents: applied.events,
     });
 
-  console.log(`[resolveBattleEndOfTurn] Applied effects, generated ${applied.events.length} events`);
+  debugLog(`[resolveBattleEndOfTurn] Applied effects, generated ${applied.events.length} events`);
 
   // Step 5: Extract totals from pendingTurn (canonical accumulation source)
   const totals = {
@@ -818,7 +819,7 @@ function resolveBattleEndOfTurn(
 
   const lastTurnBreakdowns = buildLastTurnBreakdownSnapshots(applied.state, totals);
 
-  console.log(`[resolveBattleEndOfTurn] Pending turn totals:`, totals);
+  debugLog(`[resolveBattleEndOfTurn] Pending turn totals:`, totals);
 
   // Step 6: Apply aggregated health changes simultaneously
   const healthResult = applyAggregatedHealth(applied.state, totals);
@@ -831,7 +832,7 @@ function resolveBattleEndOfTurn(
     },
   };
 
-  console.log(`[resolveBattleEndOfTurn] Applied aggregated health, generated ${healthResult.events.length} events`);
+  debugLog(`[resolveBattleEndOfTurn] Applied aggregated health, generated ${healthResult.events.length} events`);
 
   // Step 7: Health clamping, victory evaluation, and terminal state
   const victoryResult = evaluateVictoryConditions(stateWithBreakdowns, [], phaseKey);
@@ -913,7 +914,7 @@ function applyAggregatedHealth(
     lastTurnHeal[playerId] = heal;
     lastTurnNet[playerId] = newHealth - previousHealth;
 
-    console.log(
+    debugLog(
       `[applyAggregatedHealth] Player ${playerId}: ${previousHealth} - ${damage} + ${heal} = ${rawNewHealth} (clamped to ${newHealth})`
     );
 
@@ -993,7 +994,7 @@ function collectEffectsForPhase(
     // Get player's ships
     const ships = state.gameData.ships?.[playerId] || [];
 
-    console.log(`[collectEffectsForPhase] Processing ${ships.length} ships for player ${playerId}`);
+    debugLog(`[collectEffectsForPhase] Processing ${ships.length} ships for player ${playerId}`);
 
     // Process each ship
     for (const ship of ships) {
@@ -1058,7 +1059,7 @@ function collectEffectsFromShip(
   const effects = translateShipPowers(allStructuredPowers, phaseKey, ctx);
 
   if (effects.length > 0) {
-    console.log(
+    debugLog(
       `[collectEffectsFromShip] Ship ${ship.shipDefId} (${ship.instanceId}) ` +
       `produced ${effects.length} effects for ${phaseKey}`
     );
@@ -1133,7 +1134,7 @@ function evaluateVictoryConditions(
       finalHealth: victoryResult.finalHealth,
     };
 
-    console.log(
+    debugLog(
       `[Victory] Game over: ${victoryResult.result}, winner=${victoryResult.winnerPlayerId || 'null'}, ` +
       `health=${JSON.stringify(victoryResult.finalHealth)}`
     );

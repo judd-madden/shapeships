@@ -1,5 +1,6 @@
 import type { EffectEvent } from "../../engine_shared/effects/applyEffects.ts";
 import { EffectKind, type Effect } from "../../engine_shared/effects/Effect.ts";
+import { debugLog } from "../../utils/serverLogger.ts";
 
 export type BattleLogHistoryResponse = {
   gameId: string;
@@ -1452,7 +1453,7 @@ export function detectCompletedBattleTurnFromStateTransition(
   }
 
   if (previousTurnIsPositive && previousStatusIsNotFinished) {
-    console.log("[BattleLog][Detector] Non-terminal finalization missed", {
+    debugLog("[BattleLog][Detector] Non-terminal finalization missed", {
       previousState: {
         turnNumber: previousTurnNumber,
         status: previousStatus ?? null,

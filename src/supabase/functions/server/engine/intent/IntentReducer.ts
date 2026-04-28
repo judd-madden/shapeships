@@ -46,6 +46,7 @@ import {
   createBattleLogBuildCaptureEventsFromResolution,
   createBattleLogBuildRerollCaptureEvents,
 } from '../state/battleLogHistory.ts';
+import { debugLog } from '../../utils/serverLogger.ts';
 
 import {
   type IntentType,
@@ -877,7 +878,7 @@ async function handleSpeciesSelect(
   const allSelected = activePlayers.every((p: any) => !!p.faction);
   
   if (allSelected) {
-    console.log('[SPECIES_SELECT] All players have selected species, auto-advancing...');
+    debugLog('[SPECIES_SELECT] All players have selected species, auto-advancing...');
     
     const fromKey = state.phaseKey ?? 
       (state.gameData?.currentPhase && state.gameData?.currentSubPhase
@@ -896,7 +897,7 @@ async function handleSpeciesSelect(
           ? `${state.gameData.currentPhase}.${state.gameData.currentSubPhase}`
           : 'UNKNOWN');
       
-      console.log('[SPECIES_SELECT] Phase advanced:', { fromKey, toKey });
+      debugLog('[SPECIES_SELECT] Phase advanced:', { fromKey, toKey });
       
       events.push({
         type: 'PHASE_ADVANCED',
@@ -1005,7 +1006,7 @@ async function handleSpeciesSubmit(
   if (player.faction) {
     if (player.faction === payload.species) {
       // Same species - treat as no-op success
-      console.log('[SPECIES_SUBMIT] applied', { playerId, species: payload.species, idempotent: true });
+      debugLog('[SPECIES_SUBMIT] applied', { playerId, species: payload.species, idempotent: true });
       
       state = syncPhaseFields(state);
       return {
@@ -1030,7 +1031,7 @@ async function handleSpeciesSubmit(
   // Immediately set faction on submit (CANONICAL)
   player.faction = payload.species;
   
-  console.log('[SPECIES_SUBMIT] applied', { playerId, species: payload.species });
+  debugLog('[SPECIES_SUBMIT] applied', { playerId, species: payload.species });
   
   const commitKey = getSpeciesCommitKey(intent.turnNumber);
   
@@ -1100,7 +1101,7 @@ async function handleSpeciesSubmit(
   const bothChosen = activePlayers.length === 2 && activePlayers.every((p: any) => p.faction != null);
   
   if (bothChosen) {
-    console.log('[SPECIES_SUBMIT] both chosen -> advance', { turnNumber: state.gameData.turnNumber });
+    debugLog('[SPECIES_SUBMIT] both chosen -> advance', { turnNumber: state.gameData.turnNumber });
     
     events.push({
       type: 'SPECIES_RESOLVED',
@@ -1122,7 +1123,7 @@ async function handleSpeciesSubmit(
       
       const toKey = getPhaseKey(state);
       
-      console.log(`[SPECIES_SUBMIT] Phase advanced: ${fromKey} → ${toKey}`);
+      debugLog(`[SPECIES_SUBMIT] Phase advanced: ${fromKey} → ${toKey}`);
       
       events.push({
         type: 'PHASE_ADVANCED',
@@ -1148,7 +1149,7 @@ async function handleSpeciesSubmit(
       });
     }
   } else {
-    console.log('[SPECIES_SUBMIT] Waiting for other player(s) to submit...');
+    debugLog('[SPECIES_SUBMIT] Waiting for other player(s) to submit...');
   }
   
   state = syncPhaseFields(state);
@@ -1510,7 +1511,7 @@ async function handleBuildReveal(
           atMs: nowMs,
         });
 
-        console.log(`[IntentReducer] BUILD_REVEAL auto-advance blocked: ${adv.error}`);
+        debugLog(`[IntentReducer] BUILD_REVEAL auto-advance blocked: ${adv.error}`);
       } else {
         state = adv.state;
 
@@ -1809,7 +1810,7 @@ async function handleBuildSubmit(
   const allSubmitted = activePlayers.every((p: any) => hasRevealed(state, commitKey, p.id));
   
   if (allSubmitted) {
-    console.log('[BUILD_SUBMIT] All players submitted, applying builds and advancing phase...');
+    debugLog('[BUILD_SUBMIT] All players submitted, applying builds and advancing phase...');
     
     // Ensure turnData exists (idempotency)
     if (!state.gameData) state.gameData = {};
@@ -1849,7 +1850,7 @@ async function handleBuildSubmit(
       
       const toKey = getPhaseKey(state);
       
-      console.log(`[BUILD_SUBMIT] Phase advanced: ${fromKey} → ${toKey}`);
+      debugLog(`[BUILD_SUBMIT] Phase advanced: ${fromKey} → ${toKey}`);
       
       events.push({
         type: 'PHASE_ADVANCED',
@@ -1875,7 +1876,7 @@ async function handleBuildSubmit(
       });
     }
   } else {
-    console.log('[BUILD_SUBMIT] Waiting for other player(s) to submit...');
+    debugLog('[BUILD_SUBMIT] Waiting for other player(s) to submit...');
   }
   
   state = syncPhaseFields(state);
@@ -2145,7 +2146,7 @@ function handleDeclareReady(
     );
   
   if (allReady) {
-    console.log(`[IntentReducer] All players ready for ${phaseKey}, advancing phase...`);
+    debugLog(`[IntentReducer] All players ready for ${phaseKey}, advancing phase...`);
 
     if (phaseKey === 'battle.first_strike') {
       state = resolvePendingFirstStrikeSelections(state, nowMs, events);
@@ -2173,7 +2174,7 @@ function handleDeclareReady(
       // Get new phase key
       const toKey = getPhaseKey(state);
       
-      console.log(`[IntentReducer] Phase advanced: ${fromKey} → ${toKey}`);
+      debugLog(`[IntentReducer] Phase advanced: ${fromKey} → ${toKey}`);
       
       events.push({
         type: 'PHASE_ADVANCED',
@@ -2190,7 +2191,7 @@ function handleDeclareReady(
       }
     } else {
       // FIX 2: Emit event when phase advance is blocked
-      console.log(`[IntentReducer] Phase advance blocked: ${advanceResult.error}`);
+      debugLog(`[IntentReducer] Phase advance blocked: ${advanceResult.error}`);
       
       events.push({
         type: 'PHASE_ADVANCE_BLOCKED',

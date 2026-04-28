@@ -37,6 +37,7 @@ import {
 } from '../engine/state/battleLogHistory.ts';
 import { appendChatEntry } from './chat_kv.ts';
 import { ensureStateRevision, withBumpedStateRevision } from './state_revision.ts';
+import { debugLog } from '../utils/serverLogger.ts';
 
 const INITIAL_SAVED_LINES = 3;
 
@@ -1083,7 +1084,7 @@ export function registerGameRoutes(
         return c.json({ error: message }, 400);
       }
 
-      console.log(`Creating game - Session: ${session.sessionId}, Display name: ${playerName}`);
+      debugLog(`Creating game - Session: ${session.sessionId}, Display name: ${playerName}`);
 
       const gameId = generateGameId();
       const gameData = ensureStateRevision(
@@ -1096,7 +1097,7 @@ export function registerGameRoutes(
         createEmptyBattleLogHistoryStore(gameId),
       );
       
-      console.log("Game created:", gameId);
+      debugLog("Game created:", gameId);
       return c.json({ gameId, message: "Game created successfully" });
 
     } catch (error) {
@@ -1161,7 +1162,7 @@ export function registerGameRoutes(
         createEmptyBattleLogHistoryStore(gameId),
       );
 
-      console.log("Computer game created:", gameId, {
+      debugLog("Computer game created:", gameId, {
         chosenPlanId,
         botStepsApplied: botRunResult.botStepsApplied,
       });
@@ -1238,7 +1239,7 @@ export function registerGameRoutes(
           createEmptyBattleLogHistoryStore(newGameId),
         );
 
-        console.log("Computer rematch created from finished bot game:", {
+        debugLog("Computer rematch created from finished bot game:", {
           sourceGameId,
           newGameId,
           playerId,
@@ -1288,7 +1289,7 @@ export function registerGameRoutes(
         });
       }
 
-      console.log("New game created from finished game:", {
+      debugLog("New game created from finished game:", {
         sourceGameId,
         newGameId,
         playerId,
@@ -1322,7 +1323,7 @@ export function registerGameRoutes(
         return c.json({ error: "Player name is required" }, 400);
       }
 
-      console.log(`Joining game ${gameId} - Session: ${session.sessionId}, Display name: ${playerName}`);
+      debugLog(`Joining game ${gameId} - Session: ${session.sessionId}, Display name: ${playerName}`);
 
       let gameData = await kvGet(`game_${gameId}`);
       if (!gameData) {
@@ -1410,7 +1411,7 @@ export function registerGameRoutes(
         }
         
         // PART C: Log activation
-        console.log("JOIN_GAME_ACTIVATED_PLAYER", {
+        debugLog("JOIN_GAME_ACTIVATED_PLAYER", {
           gameId,
           sessionId: playerId,
           role: finalRole,
@@ -1454,7 +1455,7 @@ export function registerGameRoutes(
             }
           }
           
-          console.log("JOIN_GAME_REACTIVATED_PLAYER", {
+          debugLog("JOIN_GAME_REACTIVATED_PLAYER", {
             gameId,
             sessionId: playerId,
             role: existingPlayer.role,
@@ -1480,7 +1481,7 @@ export function registerGameRoutes(
         await kvSet(`game_${gameId}`, gameData);
       }
       
-      console.log("Player joined game:", gameId, playerName);
+      debugLog("Player joined game:", gameId, playerName);
       return c.json({ message: "Joined game successfully", gameData });
 
     } catch (error) {
@@ -1514,7 +1515,7 @@ export function registerGameRoutes(
         return c.json({ error: "Role must be 'player' or 'spectator'" }, 400);
       }
 
-      console.log(`Role switch from session ${session.sessionId}: ${newRole} in game ${gameId}`);
+      debugLog(`Role switch from session ${session.sessionId}: ${newRole} in game ${gameId}`);
 
       let gameData = await kvGet(`game_${gameId}`);
       if (!gameData) {
@@ -1645,7 +1646,7 @@ export function registerGameRoutes(
         await kvSet(`game_${gameId}`, gameData);
       }
       
-      console.log("Player switched role:", gameId, player.name, oldRole, "->", newRole);
+      debugLog("Player switched role:", gameId, player.name, oldRole, "->", newRole);
       return c.json({ message: "Role switched successfully", gameData });
 
     } catch (error) {
@@ -2068,7 +2069,7 @@ export function registerGameRoutes(
         return c.json({ error: "Action type is required" }, 400);
       }
 
-      console.log(`Action from session ${session.sessionId}: ${actionType} in game ${gameId}`);
+      debugLog(`Action from session ${session.sessionId}: ${actionType} in game ${gameId}`);
 
       let gameData = await kvGet(`game_${gameId}`);
       if (!gameData) {
@@ -2112,7 +2113,7 @@ export function registerGameRoutes(
       let responseMessage = "Action processed successfully";
       let logContent = content;
       
-      console.log("Processing action:", { 
+      debugLog("Processing action:", { 
         actionType, 
         playerId, 
         playerName: originalPlayerName, 
@@ -2125,7 +2126,7 @@ export function registerGameRoutes(
       try {
         switch (actionType) {
         case 'select_species':
-          console.log("Processing select_species action:", { playerId, content, playerRole: originalPlayerRole });
+          debugLog("Processing select_species action:", { playerId, content, playerRole: originalPlayerRole });
           
           // Validate species content
           if (!content || !content.species) {
@@ -2147,7 +2148,7 @@ export function registerGameRoutes(
           // Handle spectator promotion to player
           if (originalPlayerRole === 'spectator') {
             const activePlayers = gameData.players.filter((p: any) => p.role === 'player');
-            console.log("Spectator trying to select species:", { activePlayerCount: activePlayers.length });
+            debugLog("Spectator trying to select species:", { activePlayerCount: activePlayers.length });
             
             if (activePlayers.length < 2) {
               // Promote spectator to player - update properly without mutating const reference
@@ -2163,11 +2164,11 @@ export function registerGameRoutes(
               
               // Initialize ship collection
               if (!gameData.gameData) {
-                console.log("Initializing gameData object");
+                debugLog("Initializing gameData object");
                 gameData.gameData = { ships: {} };
               }
               if (!gameData.gameData.ships) {
-                console.log("Initializing ships object");
+                debugLog("Initializing ships object");
                 gameData.gameData.ships = {};
               }
               gameData.gameData.ships[playerId] = [];
@@ -2177,7 +2178,7 @@ export function registerGameRoutes(
                 gameData.gameData.clock = ensurePlayerClock(gameData.gameData.clock, playerId);
               }
               
-              console.log("Promoted spectator to player:", playerId);
+              debugLog("Promoted spectator to player:", playerId);
               
               gameData.actions.push({
                 playerId: "system",
@@ -2200,7 +2201,7 @@ export function registerGameRoutes(
           if (playerIndex !== -1) {
             const currentPlayer = gameData.players[playerIndex];
             if (currentPlayer && currentPlayer.role === 'player') {
-              console.log("Setting faction for player:", { playerId, selectedSpecies });
+              debugLog("Setting faction for player:", { playerId, selectedSpecies });
               
               // Update the faction immutably by creating a new players array
               gameData = {
@@ -2215,7 +2216,7 @@ export function registerGameRoutes(
               
               // Manual readiness update for setup phase
               if (gameData.gameData?.turnData?.currentMajorPhase === 'setup') {
-                console.log("Auto-setting player ready after species selection");
+                debugLog("Auto-setting player ready after species selection");
                 // Ensure phaseReadiness array exists
                 if (!gameData.gameData.phaseReadiness) {
                   gameData.gameData.phaseReadiness = [];
@@ -2246,7 +2247,7 @@ export function registerGameRoutes(
             return c.json({ error: "Player not found" }, 404);
           }
           
-          console.log("Species selection completed successfully:", { playerId, selectedSpecies });
+          debugLog("Species selection completed successfully:", { playerId, selectedSpecies });
           break;
 
         case 'set_ready':
@@ -2416,7 +2417,7 @@ export function registerGameRoutes(
           // Use canonical phase engine for advancement
           const result = advancePhase(gameData);
           if (!result.ok) {
-            console.log(`Phase advance blocked: ${result.error}`);
+            debugLog(`Phase advance blocked: ${result.error}`);
             return c.json({ error: result.error }, 400);
           }
           
@@ -2426,7 +2427,7 @@ export function registerGameRoutes(
           // Normalize phase fields after advancement
           gameData = syncPhaseFields(gameData);
           
-          console.log(`Phase advanced successfully: ${result.from} → ${result.to}`);
+          debugLog(`Phase advanced successfully: ${result.from} → ${result.to}`);
           
           logContent = `advanced phase from ${result.from} to ${result.to}`;
           responseMessage = 'Phase advanced';
@@ -2443,7 +2444,7 @@ export function registerGameRoutes(
           // Save state before returning
           await kvSet(`game_${gameId}`, gameData);
           
-          console.log("Phase advanced and saved successfully:", actionType, "by", originalPlayerName);
+          debugLog("Phase advanced and saved successfully:", actionType, "by", originalPlayerName);
           
           // Include debug info in response
           return c.json({ 
@@ -2552,7 +2553,7 @@ export function registerGameRoutes(
           break;
 
         default:
-          console.log("Unhandled action type:", actionType);
+          debugLog("Unhandled action type:", actionType);
           logContent = typeof content === 'string' ? content : JSON.stringify(content);
       }
       
@@ -2577,7 +2578,7 @@ export function registerGameRoutes(
 
       await kvSet(`game_${gameId}`, normalizedGameData);
       
-      console.log("Action processed successfully:", actionType, "by", originalPlayerName);
+      debugLog("Action processed successfully:", actionType, "by", originalPlayerName);
       return c.json({ message: responseMessage, gameState: gameData });
 
     } catch (error) {

@@ -19,6 +19,7 @@ import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
+import { SERVER_DEBUG_LOGS_ENABLED } from "./utils/serverLogger.ts";
 
 // Import route registration functions
 import { registerAuthRoutes } from "./routes/auth_routes.ts";
@@ -198,7 +199,9 @@ const generateGameId = () => {
 // ============================================================================
 
 // Enable logger
-app.use('*', logger(console.log));
+if (SERVER_DEBUG_LOGS_ENABLED) {
+  app.use('*', logger(console.log));
+}
 
 // Enable CORS for all routes and methods
 app.use(

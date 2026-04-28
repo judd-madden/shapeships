@@ -29,6 +29,7 @@ import {
 } from '../engine/state/battleLogHistory.ts';
 import { appendChatEntry, type ChatStore } from './chat_kv.ts';
 import { ensureStateRevision, withBumpedStateRevision } from './state_revision.ts';
+import { debugLog } from '../utils/serverLogger.ts';
 
 async function persistGameStateAndHistoryTogether(
   supabase: any,
@@ -309,7 +310,7 @@ export function registerIntentRoutes(
       
       const sessionPlayerId = session.sessionId;
       
-      console.log(`[Intent] Request from session: ${sessionPlayerId}`);
+      debugLog(`[Intent] Request from session: ${sessionPlayerId}`);
       
       // ========================================================================
       // PARSE REQUEST
@@ -338,7 +339,7 @@ export function registerIntentRoutes(
         nonce: body.nonce
       };
       
-      console.log(`[Intent] Type: ${intentRequest.intentType}, Game: ${intentRequest.gameId}, Turn: ${intentRequest.turnNumber}`);
+      debugLog(`[Intent] Type: ${intentRequest.intentType}, Game: ${intentRequest.gameId}, Turn: ${intentRequest.turnNumber}`);
       
       // ========================================================================
       // LOAD / APPLY with lost-update protection (merge-safe)
@@ -351,7 +352,7 @@ export function registerIntentRoutes(
       let baseState = await kvGet(gameKey);
 
       if (!baseState) {
-        console.log(`[Intent] Game not found: ${gameKey}`);
+        debugLog(`[Intent] Game not found: ${gameKey}`);
         return c.json(
           {
             ok: false,
@@ -369,7 +370,7 @@ export function registerIntentRoutes(
       let result = await applyIntent(baseState, sessionPlayerId, intentRequest, nowMs);
 
       if (!result.ok) {
-        console.log(`[Intent] Rejected: ${result.rejected?.code} - ${result.rejected?.message}`);
+        debugLog(`[Intent] Rejected: ${result.rejected?.code} - ${result.rejected?.message}`);
         return c.json(
           {
             ok: result.ok,
@@ -434,7 +435,7 @@ export function registerIntentRoutes(
           events: allEvents,
           kvGet,
         });
-        console.log('[BattleLog][IntentRoute]', {
+        debugLog('[BattleLog][IntentRoute]', {
           branch: 'retry.ok',
           intentType: intentRequest.intentType,
           requestTurnNumber: intentRequest.turnNumber,
@@ -516,7 +517,7 @@ export function registerIntentRoutes(
             battleLogProcessingResult.nextState,
           );
         }
-        console.log('[BattleLog][IntentRoute]', {
+        debugLog('[BattleLog][IntentRoute]', {
           branch: 'retry.ok',
           persistedStateTurnNumber:
             battleLogProcessingResult.nextState?.gameData?.turnNumber ?? null,
@@ -529,7 +530,7 @@ export function registerIntentRoutes(
               )
             : null,
         });
-        console.log(`[Intent] Success (merged): ${intentRequest.intentType}, Events: ${allEvents.length}`);
+        debugLog(`[Intent] Success (merged): ${intentRequest.intentType}, Events: ${allEvents.length}`);
 
         return c.json(
           {
@@ -555,7 +556,7 @@ export function registerIntentRoutes(
           events: result.events,
           kvGet,
         });
-        console.log('[BattleLog][IntentRoute]', {
+        debugLog('[BattleLog][IntentRoute]', {
           branch: 'duplicate-safe',
           intentType: intentRequest.intentType,
           requestTurnNumber: intentRequest.turnNumber,
@@ -601,7 +602,7 @@ export function registerIntentRoutes(
             battleLogProcessingResult.nextState,
           );
         }
-        console.log('[BattleLog][IntentRoute]', {
+        debugLog('[BattleLog][IntentRoute]', {
           branch: 'duplicate-safe',
           persistedStateTurnNumber:
             battleLogProcessingResult.nextState?.gameData?.turnNumber ?? null,
@@ -614,7 +615,7 @@ export function registerIntentRoutes(
               )
             : null,
         });
-        console.log(`[Intent] Success (idempotent duplicate): ${intentRequest.intentType}`);
+        debugLog(`[Intent] Success (idempotent duplicate): ${intentRequest.intentType}`);
 
         return c.json(
           {
@@ -630,7 +631,7 @@ export function registerIntentRoutes(
       }
 
       // Any other failure: return the retry rejection (it reflects latest truth)
-      console.log(`[Intent] Rejected on merge-retry: ${retry.rejected?.code} - ${retry.rejected?.message}`);
+      debugLog(`[Intent] Rejected on merge-retry: ${retry.rejected?.code} - ${retry.rejected?.message}`);
       return c.json(
         {
           ok: false,
@@ -672,7 +673,7 @@ export function registerIntentRoutes(
         return c.json({ ok: false, entries: [], error: 'Missing gameId' }, 400);
       }
       
-      console.log(`[Chat] Fetch request for game: ${gameId}`);
+      debugLog(`[Chat] Fetch request for game: ${gameId}`);
       
       const chatKey = `game_${gameId}_chat`;
       let chatStore: ChatStore = await kvGet(chatKey);

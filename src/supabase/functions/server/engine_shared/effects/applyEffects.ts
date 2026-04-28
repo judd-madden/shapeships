@@ -22,6 +22,7 @@ import type { Effect } from './Effect.ts';
 import { EffectKind } from './Effect.ts';
 import { getShipById } from '../defs/ShipDefinitions.core.ts';
 import type { ShipInstance } from '../../engine/state/GameStateTypes.ts';
+import { debugLog } from '../../utils/serverLogger.ts';
 
 // ============================================================================
 // EVENT TYPES
@@ -178,7 +179,7 @@ function accumulateDamage(
   state.gameData.pendingTurn!.damageByPlayerId[targetPlayerId] = currentDamage + amount;
   capturePendingTurnBreakdownEntry(state, effect, 'Damage', amount, options);
 
-  console.log(
+  debugLog(
     `[applyEffects] Accumulated ${amount} damage for ${targetPlayerId}: ${currentDamage} → ${currentDamage + amount}`
   );
 
@@ -215,7 +216,7 @@ function accumulateHeal(
   state.gameData.pendingTurn!.healByPlayerId[targetPlayerId] = currentHeal + amount;
   capturePendingTurnBreakdownEntry(state, effect, 'Heal', amount, options);
 
-  console.log(
+  debugLog(
     `[applyEffects] Accumulated ${amount} heal for ${targetPlayerId}: ${currentHeal} → ${currentHeal + amount}`
   );
 
@@ -262,7 +263,7 @@ function applyGainLines(
     lines: afterLines
   };
 
-  console.log(
+  debugLog(
     `[applyEffects] Player ${targetPlayerId} gained ${amount} lines: ${beforeLines} → ${afterLines}`
   );
 
@@ -396,7 +397,7 @@ function applyCreateShip(
   const shipDefId = (effect as any).shipDefId as string;
   const newShip = appendShipToFleet(state, targetPlayerId, shipDefId);
 
-  console.log(
+  debugLog(
     `[applyEffects] Created ship ${shipDefId} (${newShip.instanceId}) for ${targetPlayerId} with ${newShip.chargesCurrent ?? 'no'} charges`
   );
 
@@ -496,7 +497,7 @@ function applyDestroyShip(
     afterCount = state.gameData.ships?.[targetPlayerId]?.length ?? afterCount;
   }
 
-  console.log(
+  debugLog(
     `[applyEffects] Destroyed ship ${shipInstanceId} for ${targetPlayerId}: ${beforeCount} → ${afterCount}`
   );
 
@@ -663,7 +664,7 @@ function applySpendCharge(
     state.gameData.ships![fleetPlayerId] = newFleet;
   }
 
-  console.log(
+  debugLog(
     `[applyEffects] Ship ${shipInstanceId} spent ${amount} charge(s): ${beforeCharges} → ${afterCharges}`
   );
 
