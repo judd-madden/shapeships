@@ -174,7 +174,9 @@ export default function App() {
   } = usePlayer();
 
   useEffect(() => {
-    checkDeploymentStatus();
+    if (mode === 'dev') {
+      checkDeploymentStatus();
+    }
 
     const onPopState = () => {
       const nextRoute = readRouteStateFromUrl(hasUsablePlayerIdentity);
@@ -187,7 +189,7 @@ export default function App() {
 
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [hasUsablePlayerIdentity]);
+  }, [hasUsablePlayerIdentity, mode]);
 
   const checkDeploymentStatus = async () => {
     const url = `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/health`;
