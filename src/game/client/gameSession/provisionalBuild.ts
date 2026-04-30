@@ -608,6 +608,9 @@ function applyEvolverPreviewParity(args: {
   return nextEntries;
 }
 
+const isLockedEvolverChoice = (choiceId: EvolverChoiceId | undefined): boolean =>
+  choiceId === 'oxite' || choiceId === 'asterite';
+
 function deriveActionableEvolverRowIds(entries: InternalFleetEntry[]): string[] {
   const eligibleXenCount = entries.filter((entry) => entry.shipDefId === 'XEN').length;
   if (eligibleXenCount <= 0) {
@@ -616,6 +619,24 @@ function deriveActionableEvolverRowIds(entries: InternalFleetEntry[]): string[] 
 
   return entries
     .filter((entry) => entry.shipDefId === 'EVO')
+    .slice(0, eligibleXenCount)
+    .map((entry) => entry.rowId);
+}
+
+function deriveVisibleUnlockedEvolverRowIds(
+  entries: InternalFleetEntry[],
+  evolverChoicesByRowId: Record<string, EvolverChoiceId>
+): string[] {
+  const eligibleXenCount = entries.filter((entry) => entry.shipDefId === 'XEN').length;
+  if (eligibleXenCount <= 0) {
+    return [];
+  }
+
+  return entries
+    .filter((entry) =>
+      entry.shipDefId === 'EVO' &&
+      !isLockedEvolverChoice(evolverChoicesByRowId[entry.rowId])
+    )
     .slice(0, eligibleXenCount)
     .map((entry) => entry.rowId);
 }
@@ -1079,7 +1100,10 @@ export function evaluateProvisionalBuild(args: {
   remainingOrdinaryLines = upgradedStageResolution.remainingOrdinaryLines;
   remainingJoiningLines = upgradedStageResolution.remainingJoiningLines;
   isValid = upgradedStageResolution.isStageValid && isValid;
-  const evolverRowIds = deriveActionableEvolverRowIds(workingFleetEntries);
+  const evolverRowIds = deriveVisibleUnlockedEvolverRowIds(
+    workingFleetEntries,
+    evolverChoicesByRowId
+  );
 
   const catalogueState = deriveCatalogueState({
     nativeSpecies,
