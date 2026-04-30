@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { isShipDefId } from '../../data/ShipDefinitions.core';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import {
-  getRenderableActionChoiceIds,
   getRenderableActionRequiredTargetCount,
   getRenderableServerChoiceActions,
   isRenderableTargetedAction,
@@ -33,6 +32,7 @@ export interface UseDestroyTargetingRuntimeParams {
 export interface UseDestroyTargetingRuntimeResult {
   allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
   allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]>;
+  destroyTargetSatisfiedBySourceInstanceId: Record<string, boolean>;
   boardDestroyTargeting: BoardDestroyTargetingViewModel;
   shouldResetDestroyTargetRows: boolean;
   consumePendingDestroyTargetReset: () => void;
@@ -200,20 +200,81 @@ function allocateConcreteTargetIdsForLocators(args: {
   return allocatedTargetIds;
 }
 
-function actionShouldAutoArm(
+type DestroyTargetSourceAnalysis = {
+  sourceInstanceId: string;
+  requiredTargetCount: number;
+  cleanedSelectedLocatorKeys: string[];
+  allocatedTargetIds: string[];
+  allocatableNextLocatorKeys: string[];
+  hasAllocatableNextLocator: boolean;
+  isFullyAllocated: boolean;
+  isSatisfied: boolean;
+};
+
+function getAllocatableLocatorKeysForAction(args: {
   action: RenderableServerAction,
-  shipChoiceSelectionByInstanceId: Record<string, string>,
-  selectedLocatorKeys: string[]
+  selectedLocatorKeys: string[];
+  validLocatorKeys: string[];
+  visibleTargetIdsByLocatorKey: Record<string, string[]>;
+  reservedTargetIds: ReadonlySet<string>;
+}): string[] {
+  const {
+    action,
+    selectedLocatorKeys,
+    validLocatorKeys,
+    visibleTargetIdsByLocatorKey,
+    reservedTargetIds,
+  } = args;
+  const requiredTargetCount = getRenderableActionRequiredTargetCount(action);
+  const canReseedPair =
+    action.kind === 'paired_destroy_target' &&
+    selectedLocatorKeys.length >= requiredTargetCount;
+
+  if (!canReseedPair && selectedLocatorKeys.length >= requiredTargetCount) {
+    return [];
+  }
+
+  const allocatableLocatorKeys: string[] = [];
+  for (const locatorKey of validLocatorKeys) {
+    const proposedSelection =
+      canReseedPair ? [locatorKey] : [...selectedLocatorKeys, locatorKey];
+    const allocatedTargetIds = allocateConcreteTargetIdsForLocators({
+      action,
+      locatorKeys: proposedSelection,
+      visibleTargetIdsByLocatorKey,
+      reservedTargetIds,
+    });
+
+    if (allocatedTargetIds.length === proposedSelection.length) {
+      allocatableLocatorKeys.push(locatorKey);
+    }
+  }
+
+  return allocatableLocatorKeys;
+}
+
+function areLocatorSelectionMapsEqual(
+  a: Record<string, string[]>,
+  b: Record<string, string[]>
 ): boolean {
-  if (!isRenderableTargetedActionSelected(action, shipChoiceSelectionByInstanceId)) {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) {
     return false;
   }
 
-  if (getRenderableActionChoiceIds(action).includes('hold')) {
-    return false;
+  for (const key of aKeys) {
+    const aSelection = a[key] ?? [];
+    const bSelection = b[key] ?? [];
+    if (
+      aSelection.length !== bSelection.length ||
+      aSelection.some((locatorKey, index) => locatorKey !== bSelection[index])
+    ) {
+      return false;
+    }
   }
 
-  return selectedLocatorKeys.length < getRenderableActionRequiredTargetCount(action);
+  return true;
 }
 
 export function useDestroyTargetingRuntime(
@@ -238,10 +299,11 @@ export function useDestroyTargetingRuntime(
   const pendingDestroyTargetResetPhaseInstanceKeyRef = useRef<string | null>(null);
   const lastDestroyTargetPhaseInstanceKeyRef = useRef<string | null>(null);
 
+  const destroyTargetActionEntries = getRenderableServerChoiceActions(phaseKey, availableActions)
+    .filter((action) => isRenderableTargetedAction(action))
+    .map((action) => [action.sourceInstanceId, action] as const);
   const destroyTargetActionsBySourceInstanceId = new Map(
-    getRenderableServerChoiceActions(phaseKey, availableActions)
-      .filter((action) => isRenderableTargetedAction(action))
-      .map((action) => [action.sourceInstanceId, action] as const)
+    destroyTargetActionEntries
   );
 
   const shouldResetDestroyTargetRows =
@@ -373,13 +435,9 @@ export function useDestroyTargetingRuntime(
 
     setSelectedDestroyTargetLocatorKeysBySourceInstanceId((prev) => {
       const next: Record<string, string[]> = {};
-      let changed = false;
 
-      for (const [sourceInstanceId, action] of destroyTargetActionsBySourceInstanceId.entries()) {
+      for (const [sourceInstanceId, action] of destroyTargetActionEntries) {
         if (!isRenderableTargetedActionSelected(action, shipChoiceSelectionByInstanceId)) {
-          if ((prev[sourceInstanceId] ?? []).length > 0) {
-            changed = true;
-          }
           continue;
         }
 
@@ -392,12 +450,10 @@ export function useDestroyTargetingRuntime(
 
         for (const locatorKey of previousSelection) {
           if (cleanedSelection.length >= requiredTargetCount) {
-            changed = true;
             continue;
           }
 
           if (!validLocatorKeys.has(locatorKey)) {
-            changed = true;
             continue;
           }
 
@@ -409,7 +465,6 @@ export function useDestroyTargetingRuntime(
               visibleTargetIdsByLocatorKey,
             }).length !== proposedSelection.length
           ) {
-            changed = true;
             continue;
           }
 
@@ -419,114 +474,110 @@ export function useDestroyTargetingRuntime(
         if (cleanedSelection.length > 0) {
           next[sourceInstanceId] = cleanedSelection;
         }
-
-        if (
-          previousSelection.length !== cleanedSelection.length ||
-          previousSelection.some((locatorKey, index) => locatorKey !== cleanedSelection[index])
-        ) {
-          changed = true;
-        }
       }
 
-      if (!changed) {
-        const prevKeys = Object.keys(prev);
-        if (prevKeys.length !== Object.keys(next).length) {
-          changed = true;
-        } else {
-          for (const key of prevKeys) {
-            const prevSelection = prev[key] ?? [];
-            const nextSelection = next[key] ?? [];
-            if (
-              prevSelection.length !== nextSelection.length ||
-              prevSelection.some((locatorKey, index) => locatorKey !== nextSelection[index])
-            ) {
-              changed = true;
-              break;
-            }
-          }
-        }
-      }
-
-      return changed ? next : prev;
-    });
-
-    setActiveDestroyTargetSourceInstanceId((prev) => {
-      if (prev == null) return prev;
-      const action = destroyTargetActionsBySourceInstanceId.get(prev);
-      if (!action) return null;
-
-      return isRenderableTargetedActionSelected(action, shipChoiceSelectionByInstanceId)
-        ? prev
-        : null;
+      return areLocatorSelectionMapsEqual(prev, next) ? prev : next;
     });
   }, [
-    destroyTargetActionsBySourceInstanceId,
+    destroyTargetActionEntries,
     shipChoiceSelectionByInstanceId,
     validDestroyTargetLocatorKeysBySourceInstanceId,
     visibleTargetIdsByLocatorKey,
   ]);
 
-  useEffect(() => {
-    const autoArmSourceInstanceId = Array.from(destroyTargetActionsBySourceInstanceId.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .find(([, action]) =>
-        actionShouldAutoArm(
-          action,
-          shipChoiceSelectionByInstanceId,
-          selectedDestroyTargetLocatorKeysBySourceInstanceId[action.sourceInstanceId] ?? []
-        )
-      )?.[0] ?? null;
-
-    if (!autoArmSourceInstanceId) {
-      return;
-    }
-
-    setActiveDestroyTargetSourceInstanceId((prev) => {
-      if (prev && destroyTargetActionsBySourceInstanceId.has(prev)) {
-        return prev;
-      }
-
-      return autoArmSourceInstanceId;
-    });
-  }, [
-    destroyTargetActionsBySourceInstanceId,
-    shipChoiceSelectionByInstanceId,
-    selectedDestroyTargetLocatorKeysBySourceInstanceId,
-  ]);
-
   const allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]> = {};
+  const destroyTargetSatisfiedBySourceInstanceId: Record<string, boolean> = {};
+  const cleanedDestroyTargetLocatorKeysBySourceInstanceId: Record<string, string[]> = {};
+  const destroyTargetSourceAnalysisBySourceInstanceId: Record<string, DestroyTargetSourceAnalysis> = {};
   const selectedDestroySourcesByLocatorKey: Record<string, string[]> = {};
   const reservedConcreteTargetIds = new Set<string>();
 
-  for (const [sourceInstanceId, action] of destroyTargetActionsBySourceInstanceId.entries()) {
+  for (const [sourceInstanceId, action] of destroyTargetActionEntries) {
     if (!isRenderableTargetedActionSelected(action, shipChoiceSelectionByInstanceId)) {
+      destroyTargetSatisfiedBySourceInstanceId[sourceInstanceId] = true;
       continue;
     }
 
-    const selectedLocatorKeys = selectedDestroyTargetLocatorKeysBySourceInstanceId[sourceInstanceId] ?? [];
+    const validLocatorKeys = validDestroyTargetLocatorKeysBySourceInstanceId[sourceInstanceId] ?? [];
+    const validLocatorKeySet = new Set(validLocatorKeys);
+    const requiredTargetCount = getRenderableActionRequiredTargetCount(action);
+    const rawSelectedLocatorKeys =
+      selectedDestroyTargetLocatorKeysBySourceInstanceId[sourceInstanceId] ?? [];
+    const cleanedSelectedLocatorKeys: string[] = [];
+
+    for (const locatorKey of rawSelectedLocatorKeys) {
+      if (cleanedSelectedLocatorKeys.length >= requiredTargetCount) {
+        continue;
+      }
+
+      if (!validLocatorKeySet.has(locatorKey)) {
+        continue;
+      }
+
+      const proposedSelection = [...cleanedSelectedLocatorKeys, locatorKey];
+      const allocatedTargetIds = allocateConcreteTargetIdsForLocators({
+        action,
+        locatorKeys: proposedSelection,
+        visibleTargetIdsByLocatorKey,
+        reservedTargetIds: reservedConcreteTargetIds,
+      });
+      if (allocatedTargetIds.length !== proposedSelection.length) {
+        continue;
+      }
+
+      cleanedSelectedLocatorKeys.push(locatorKey);
+    }
+
     const allocatedTargetIds = allocateConcreteTargetIdsForLocators({
       action,
-      locatorKeys: selectedLocatorKeys,
+      locatorKeys: cleanedSelectedLocatorKeys,
       visibleTargetIdsByLocatorKey,
       reservedTargetIds: reservedConcreteTargetIds,
     });
+    const allocatableNextLocatorKeys = getAllocatableLocatorKeysForAction({
+      action,
+      selectedLocatorKeys: cleanedSelectedLocatorKeys,
+      validLocatorKeys,
+      visibleTargetIdsByLocatorKey,
+      reservedTargetIds: reservedConcreteTargetIds,
+    });
+    const isFullyAllocated = allocatedTargetIds.length >= requiredTargetCount;
+    const isSkippableEmpty =
+      allocatedTargetIds.length === 0 &&
+      allocatableNextLocatorKeys.length === 0;
+    const isSatisfied = isFullyAllocated || isSkippableEmpty;
+
+    if (cleanedSelectedLocatorKeys.length > 0) {
+      cleanedDestroyTargetLocatorKeysBySourceInstanceId[sourceInstanceId] = cleanedSelectedLocatorKeys;
+      for (const locatorKey of cleanedSelectedLocatorKeys) {
+        if (!selectedDestroySourcesByLocatorKey[locatorKey]) {
+          selectedDestroySourcesByLocatorKey[locatorKey] = [];
+        }
+
+        selectedDestroySourcesByLocatorKey[locatorKey].push(sourceInstanceId);
+      }
+    }
 
     if (allocatedTargetIds.length > 0) {
       allocatedDestroyTargetIdsBySourceInstanceId[sourceInstanceId] = allocatedTargetIds;
     }
 
-    if (allocatedTargetIds.length === getRenderableActionRequiredTargetCount(action)) {
+    destroyTargetSatisfiedBySourceInstanceId[sourceInstanceId] = isSatisfied;
+    destroyTargetSourceAnalysisBySourceInstanceId[sourceInstanceId] = {
+      sourceInstanceId,
+      requiredTargetCount,
+      cleanedSelectedLocatorKeys,
+      allocatedTargetIds,
+      allocatableNextLocatorKeys,
+      hasAllocatableNextLocator: allocatableNextLocatorKeys.length > 0,
+      isFullyAllocated,
+      isSatisfied,
+    };
+
+    if (isFullyAllocated) {
       for (const allocatedTargetId of allocatedTargetIds) {
         reservedConcreteTargetIds.add(allocatedTargetId);
       }
-    }
-
-    for (const locatorKey of selectedLocatorKeys) {
-      if (!selectedDestroySourcesByLocatorKey[locatorKey]) {
-        selectedDestroySourcesByLocatorKey[locatorKey] = [];
-      }
-
-      selectedDestroySourcesByLocatorKey[locatorKey].push(sourceInstanceId);
     }
   }
 
@@ -537,38 +588,58 @@ export function useDestroyTargetingRuntime(
     }
   }
 
+  useEffect(() => {
+    setSelectedDestroyTargetLocatorKeysBySourceInstanceId((prev) => (
+      areLocatorSelectionMapsEqual(prev, cleanedDestroyTargetLocatorKeysBySourceInstanceId)
+        ? prev
+        : cleanedDestroyTargetLocatorKeysBySourceInstanceId
+    ));
+  }, [cleanedDestroyTargetLocatorKeysBySourceInstanceId]);
+
+  useEffect(() => {
+    if (destroyTargetActionsBySourceInstanceId.size === 0) {
+      return;
+    }
+
+    const autoArmSourceInstanceId =
+      destroyTargetActionEntries.find(([sourceInstanceId]) => {
+        const analysis = destroyTargetSourceAnalysisBySourceInstanceId[sourceInstanceId];
+        return analysis != null && !analysis.isSatisfied && analysis.hasAllocatableNextLocator;
+      })?.[0] ?? null;
+
+    setActiveDestroyTargetSourceInstanceId((prev) => {
+      if (prev != null) {
+        const previousAnalysis = destroyTargetSourceAnalysisBySourceInstanceId[prev];
+        if (
+          previousAnalysis != null &&
+          !previousAnalysis.isSatisfied &&
+          previousAnalysis.hasAllocatableNextLocator
+        ) {
+          return prev;
+        }
+      }
+
+      return autoArmSourceInstanceId;
+    });
+  }, [
+    destroyTargetActionEntries,
+    destroyTargetActionsBySourceInstanceId.size,
+    destroyTargetSourceAnalysisBySourceInstanceId,
+  ]);
+
   const activeDestroyAction =
     activeDestroyTargetSourceInstanceId != null
       ? destroyTargetActionsBySourceInstanceId.get(activeDestroyTargetSourceInstanceId) ?? null
       : null;
-  const activeDestroySelectedLocatorKeys =
+  const activeDestroySourceAnalysis =
     activeDestroyTargetSourceInstanceId != null
-      ? selectedDestroyTargetLocatorKeysBySourceInstanceId[activeDestroyTargetSourceInstanceId] ?? []
-      : [];
-  const activeDestroySelectableLocatorKeys = new Set<string>();
-
-  if (activeDestroyAction) {
-    const requiredTargetCount = getRenderableActionRequiredTargetCount(activeDestroyAction);
-    const canReseedPair =
-      activeDestroyAction.kind === 'paired_destroy_target' &&
-      activeDestroySelectedLocatorKeys.length >= requiredTargetCount;
-
-    if (activeDestroySelectedLocatorKeys.length < requiredTargetCount || canReseedPair) {
-      for (const locatorKey of validDestroyTargetLocatorKeysBySourceInstanceId[activeDestroyAction.sourceInstanceId] ?? []) {
-        const proposedSelection =
-          canReseedPair ? [locatorKey] : [...activeDestroySelectedLocatorKeys, locatorKey];
-        const allocatedTargetIds = allocateConcreteTargetIdsForLocators({
-          action: activeDestroyAction,
-          locatorKeys: proposedSelection,
-          visibleTargetIdsByLocatorKey,
-        });
-
-        if (allocatedTargetIds.length === proposedSelection.length) {
-          activeDestroySelectableLocatorKeys.add(locatorKey);
-        }
-      }
-    }
-  }
+      ? destroyTargetSourceAnalysisBySourceInstanceId[activeDestroyTargetSourceInstanceId] ?? null
+      : null;
+  const activeDestroySelectedLocatorKeys =
+    activeDestroySourceAnalysis?.cleanedSelectedLocatorKeys ?? [];
+  const activeDestroySelectableLocatorKeys = new Set(
+    activeDestroySourceAnalysis?.allocatableNextLocatorKeys ?? []
+  );
 
   function getDestroyPreviewShipDefIdForSource(sourceInstanceId: string | null): ShipDefId | null {
     if (sourceInstanceId == null) return null;
@@ -690,8 +761,7 @@ export function useDestroyTargetingRuntime(
       return;
     }
 
-    const currentSelection =
-      selectedDestroyTargetLocatorKeysBySourceInstanceId[activeDestroyTargetSourceInstanceId] ?? [];
+    const currentSelection = activeDestroySelectedLocatorKeys;
 
     if (currentSelection.length === 0) {
       setActiveDestroyTargetSourceInstanceId(null);
@@ -716,7 +786,7 @@ export function useDestroyTargetingRuntime(
 
     setSelectedDestroyTargetLocatorKeysBySourceInstanceId((prev) => {
       const next = { ...prev };
-      const nextSelection = [...(next[activeDestroyTargetSourceInstanceId] ?? [])];
+      const nextSelection = [...currentSelection];
       nextSelection.pop();
 
       if (nextSelection.length > 0) {
@@ -767,7 +837,7 @@ export function useDestroyTargetingRuntime(
     }
 
     setSelectedDestroyTargetLocatorKeysBySourceInstanceId((prev) => {
-      const currentSelection = prev[activeDestroyTargetSourceInstanceId] ?? [];
+      const currentSelection = activeDestroySelectedLocatorKeys;
       const requiredTargetCount = getRenderableActionRequiredTargetCount(activeDestroyAction);
       let nextSelection: string[];
 
@@ -810,6 +880,7 @@ export function useDestroyTargetingRuntime(
   return {
     allocatedDestroyTargetIdBySourceInstanceId,
     allocatedDestroyTargetIdsBySourceInstanceId,
+    destroyTargetSatisfiedBySourceInstanceId,
     boardDestroyTargeting:
       myPlayerId || opponentPlayerId
         ? {

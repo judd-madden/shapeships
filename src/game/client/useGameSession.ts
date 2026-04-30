@@ -1596,6 +1596,7 @@ export function useGameSession(gameId: string, propsPlayerName: string) {
   const {
     allocatedDestroyTargetIdBySourceInstanceId,
     allocatedDestroyTargetIdsBySourceInstanceId,
+    destroyTargetSatisfiedBySourceInstanceId,
     boardDestroyTargeting,
     shouldResetDestroyTargetRows,
     consumePendingDestroyTargetReset,
@@ -2744,12 +2745,7 @@ useEffect(() => {
     Array.isArray(availableActions) &&
     getRenderableServerChoiceActions(phaseKey, availableActions).some((action) =>
       isRenderableTargetedAction(action) &&
-      !isRenderableTargetedActionComplete({
-        action,
-        selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
-        allocatedDestroyTargetIdsBySourceInstanceId,
-        allocatedDestroyTargetIdBySourceInstanceId,
-      })
+      destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
     );
 
   let readyEnabled = true;
@@ -3214,6 +3210,7 @@ useEffect(() => {
     selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
     allocatedDestroyTargetIdsBySourceInstanceId,
     allocatedDestroyTargetIdBySourceInstanceId,
+    destroyTargetSatisfiedBySourceInstanceId,
     
     // Raw gameData for server truth
     gameData: rawState?.gameData,
@@ -3325,6 +3322,7 @@ useEffect(() => {
           selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
           allocatedDestroyTargetIdsBySourceInstanceId,
           allocatedDestroyTargetIdBySourceInstanceId,
+          destroyTargetSatisfiedBySourceInstanceId,
         });
       } finally {
         if (willAttemptSend) {

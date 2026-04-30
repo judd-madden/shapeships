@@ -15,7 +15,6 @@ import {
   getRenderableActionChoiceIds,
   getRenderableServerChoiceActions,
   isRenderableTargetedAction,
-  isRenderableTargetedActionComplete,
 } from './availableActions';
 
 const INTENT_TIMEOUT_MS = 8000; // fail fast to avoid wedged commits
@@ -324,6 +323,7 @@ export async function runReadyToggleFlow(args: {
   selectedChoiceIdBySourceInstanceId: Record<string, string>;
   allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]>;
   allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
+  destroyTargetSatisfiedBySourceInstanceId: Record<string, boolean>;
 }): Promise<void> {
   const {
     isFinished,
@@ -417,12 +417,7 @@ export async function runReadyToggleFlow(args: {
 
         const incompleteTargetedAction = choiceActions.find((action) =>
           isRenderableTargetedAction(action) &&
-          !isRenderableTargetedActionComplete({
-            action,
-            selectedChoiceIdBySourceInstanceId: args.selectedChoiceIdBySourceInstanceId,
-            allocatedDestroyTargetIdsBySourceInstanceId: args.allocatedDestroyTargetIdsBySourceInstanceId,
-            allocatedDestroyTargetIdBySourceInstanceId: args.allocatedDestroyTargetIdBySourceInstanceId,
-          })
+          args.destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
         );
 
         if (incompleteTargetedAction) {
@@ -591,12 +586,7 @@ export async function runReadyToggleFlow(args: {
 
         const incompleteTargetedAction = choiceActions.find((action) =>
           isRenderableTargetedAction(action) &&
-          !isRenderableTargetedActionComplete({
-            action,
-            selectedChoiceIdBySourceInstanceId: args.selectedChoiceIdBySourceInstanceId,
-            allocatedDestroyTargetIdsBySourceInstanceId: args.allocatedDestroyTargetIdsBySourceInstanceId,
-            allocatedDestroyTargetIdBySourceInstanceId: args.allocatedDestroyTargetIdBySourceInstanceId,
-          })
+          args.destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
         );
 
         if (incompleteTargetedAction) {

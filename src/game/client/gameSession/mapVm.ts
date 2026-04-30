@@ -234,6 +234,7 @@ export function mapGameSessionVm(args: {
   selectedChoiceIdBySourceInstanceId: Record<string, string>;
   allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]>;
   allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
+  destroyTargetSatisfiedBySourceInstanceId: Record<string, boolean>;
   
   // Raw gameData for server truth
   gameData: any;
@@ -315,6 +316,7 @@ export function mapGameSessionVm(args: {
     selectedChoiceIdBySourceInstanceId,
     allocatedDestroyTargetIdsBySourceInstanceId,
     allocatedDestroyTargetIdBySourceInstanceId,
+    destroyTargetSatisfiedBySourceInstanceId,
     gameData,
     leftRailDiceValue,
     leftRailDiceAnimateKey,
@@ -1031,12 +1033,7 @@ export function mapGameSessionVm(args: {
 
       const domAction =
         domActions.find((action) =>
-          !isRenderableTargetedActionComplete({
-            action,
-            selectedChoiceIdBySourceInstanceId,
-            allocatedDestroyTargetIdsBySourceInstanceId,
-            allocatedDestroyTargetIdBySourceInstanceId,
-          })
+          destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
         ) ?? domActions[0];
 
       const requiredTargetCount = getRenderableActionRequiredTargetCount(domAction);
@@ -1076,12 +1073,7 @@ export function mapGameSessionVm(args: {
 
     const currentSacAction =
       sacActions.find((action) =>
-        !isRenderableTargetedActionComplete({
-          action,
-          selectedChoiceIdBySourceInstanceId,
-          allocatedDestroyTargetIdsBySourceInstanceId,
-          allocatedDestroyTargetIdBySourceInstanceId,
-        })
+        destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
       ) ?? sacActions[0];
 
     const currentSourceInstanceId =
