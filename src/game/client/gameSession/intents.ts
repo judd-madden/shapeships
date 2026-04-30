@@ -99,7 +99,7 @@ async function resolveAvailableActionsOrAbort(args: {
 function makeCanonicalBuildPayload(
   buildPreviewCounts: Record<string, number>,
   frigateTriggers: number[],
-  evolverRowIds: string[],
+  evolverChoiceSourceRowIds: string[],
   evolverChoicesByRowId: Record<string, EvolverChoiceId>
 ): CanonicalBuildSubmitPayload {
   const buildsArray: Array<{ shipDefId: string; count: number }> = [];
@@ -125,8 +125,8 @@ function makeCanonicalBuildPayload(
     payload.frigateTriggers = [...frigateTriggers];
   }
 
-  if (Array.isArray(evolverRowIds) && evolverRowIds.length > 0) {
-    payload.evolverChoices = evolverRowIds.map((sourceKey) => ({
+  if (Array.isArray(evolverChoiceSourceRowIds) && evolverChoiceSourceRowIds.length > 0) {
+    payload.evolverChoices = evolverChoiceSourceRowIds.map((sourceKey) => ({
       sourceKey,
       choiceId: evolverChoicesByRowId[sourceKey] ?? 'hold',
     }));
@@ -289,7 +289,7 @@ export async function runReadyToggleFlow(args: {
   buildPreviewCounts: Record<string, number>;
 
   frigateSelectedTriggers: number[];
-  evolverRowIds: string[];
+  evolverChoiceSourceRowIds: string[];
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
   // build submitted tracking
   setBuildSubmittedByTurn: React.Dispatch<React.SetStateAction<Record<number, boolean>>>;
@@ -338,7 +338,7 @@ export async function runReadyToggleFlow(args: {
     buildInstanceKey,
     buildPreviewCounts,
     frigateSelectedTriggers,
-    evolverRowIds,
+    evolverChoiceSourceRowIds,
     evolverChoicesByRowId,
     setBuildSubmittedByTurn,
     buildCommitDoneByPhase,
@@ -748,7 +748,7 @@ export async function runReadyToggleFlow(args: {
       const canonicalPayload = makeCanonicalBuildPayload(
         buildPreviewCounts,
         frigateSelectedTriggers,
-        evolverRowIds,
+        evolverChoiceSourceRowIds,
         evolverChoicesByRowId
       );
       const payload = canonicalPayload;

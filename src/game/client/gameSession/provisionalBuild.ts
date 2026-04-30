@@ -44,6 +44,7 @@ export interface ProvisionalBuildResult {
   myFleetPreview: BoardFleetSummary[];
   provisionalShipCountsById: Partial<Record<ShipDefId, number>>;
   evolverRowIds: string[];
+  evolverChoiceSourceRowIds: string[];
   canAddShipById: Partial<Record<ShipDefId, boolean>>;
   displayCostByShipId: Partial<Record<ShipDefId, number>>;
   eligibilityByShipId: Partial<Record<ShipDefId, ProvisionalShipEligibility>>;
@@ -581,15 +582,15 @@ function deriveCatalogueState(args: {
 
 function applyEvolverPreviewParity(args: {
   entries: InternalFleetEntry[];
-  evolverRowIds: string[];
+  evolverChoiceSourceRowIds: string[];
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
   turnNumber: number;
 }): InternalFleetEntry[] {
-  const { entries, evolverRowIds, evolverChoicesByRowId, turnNumber } = args;
+  const { entries, evolverChoiceSourceRowIds, evolverChoicesByRowId, turnNumber } = args;
   const nextEntries = [...entries];
   let previewEvolutionIndex = 0;
 
-  for (const rowId of evolverRowIds) {
+  for (const rowId of evolverChoiceSourceRowIds) {
     const choiceId = evolverChoicesByRowId[rowId] ?? 'hold';
     if (choiceId !== 'oxite' && choiceId !== 'asterite') continue;
 
@@ -847,11 +848,11 @@ function simulateFutureResolvedUpgradedDemandForBasicAttempt(args: {
     return 0;
   }
 
-  const evolverRowIds = deriveActionableEvolverRowIds(simulatedWorkingFleetEntries);
+  const evolverChoiceSourceRowIds = deriveActionableEvolverRowIds(simulatedWorkingFleetEntries);
 
   const postEvolverFleetEntries = applyEvolverPreviewParity({
     entries: simulatedWorkingFleetEntries,
-    evolverRowIds,
+    evolverChoiceSourceRowIds,
     evolverChoicesByRowId: futureDemandContext.evolverChoicesByRowId,
     turnNumber: futureDemandContext.turnNumber,
   });
@@ -1060,11 +1061,11 @@ export function evaluateProvisionalBuild(args: {
   remainingJoiningLines = basicStageResolution.remainingJoiningLines;
   isValid = basicStageResolution.isStageValid && isValid;
 
-  const evolverRowIds = deriveActionableEvolverRowIds(workingFleetEntries);
+  const evolverChoiceSourceRowIds = deriveActionableEvolverRowIds(workingFleetEntries);
 
   workingFleetEntries = applyEvolverPreviewParity({
     entries: workingFleetEntries,
-    evolverRowIds,
+    evolverChoiceSourceRowIds,
     evolverChoicesByRowId,
     turnNumber,
   });
@@ -1078,6 +1079,7 @@ export function evaluateProvisionalBuild(args: {
   remainingOrdinaryLines = upgradedStageResolution.remainingOrdinaryLines;
   remainingJoiningLines = upgradedStageResolution.remainingJoiningLines;
   isValid = upgradedStageResolution.isStageValid && isValid;
+  const evolverRowIds = deriveActionableEvolverRowIds(workingFleetEntries);
 
   const catalogueState = deriveCatalogueState({
     nativeSpecies,
@@ -1101,6 +1103,7 @@ export function evaluateProvisionalBuild(args: {
     myFleetPreview: buildPreviewFleetSummary(workingFleetEntries),
     provisionalShipCountsById: countShipsById(workingFleetEntries),
     evolverRowIds,
+    evolverChoiceSourceRowIds,
     canAddShipById: catalogueState.canAddShipById,
     displayCostByShipId: catalogueState.displayCostByShipId,
     eligibilityByShipId: catalogueState.eligibilityByShipId,

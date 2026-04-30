@@ -1804,6 +1804,9 @@ useEffect(() => {
   const evolverRowIds = provisionalBuild.evolverRowIds;
   const evolverRowIdsSet = new Set(evolverRowIds);
   const evolverRowIdsKey = Array.from(evolverRowIdsSet).sort().join('|');
+  const evolverChoiceSourceRowIds = provisionalBuild.evolverChoiceSourceRowIds;
+  const evolverChoiceSourceRowIdsSet = new Set(evolverChoiceSourceRowIds);
+  const evolverChoiceSourceRowIdsKey = Array.from(evolverChoiceSourceRowIdsSet).sort().join('|');
   const isLocalBuildDrawing = phaseKey === 'build.drawing' && myRole === 'player';
   const buildDrawingEconomyDisplay = isLocalBuildDrawing
     ? {
@@ -1816,9 +1819,9 @@ useEffect(() => {
   useEffect(() => {
     setEvolverChoicesByRowId((prev) => {
       const next: Record<string, EvolverChoiceId> = {};
-      let changed = evolverRowIds.length !== Object.keys(prev).length;
+      let changed = evolverChoiceSourceRowIds.length !== Object.keys(prev).length;
 
-      for (const rowId of evolverRowIds) {
+      for (const rowId of evolverChoiceSourceRowIds) {
         const choiceId = prev[rowId] ?? 'hold';
         next[rowId] = choiceId;
         if (prev[rowId] !== choiceId) {
@@ -1828,7 +1831,7 @@ useEffect(() => {
 
       if (!changed) {
         for (const key of Object.keys(prev)) {
-          if (!(key in next)) {
+          if (!evolverChoiceSourceRowIdsSet.has(key)) {
             changed = true;
             break;
           }
@@ -1843,7 +1846,7 @@ useEffect(() => {
       evolverChoicesByRowIdRef.current = next;
       return next;
     });
-  }, [evolverRowIdsKey]);
+  }, [evolverChoiceSourceRowIdsKey]);
 
   // ============================================================================
   // CHUNK 6.2: AUTO-SUBMIT BUILD_REVEAL WHEN ENTERING BATTLE.REVEAL PHASE
@@ -3292,7 +3295,7 @@ useEffect(() => {
           buildInstanceKey: buildServerKey,
           buildPreviewCounts: buildPreviewSnapshot,
           frigateSelectedTriggers: frigateSelectedTriggersRef.current,
-          evolverRowIds,
+          evolverChoiceSourceRowIds,
           evolverChoicesByRowId: evolverChoicesByRowIdRef.current,
 
           setBuildSubmittedByTurn,
