@@ -414,14 +414,23 @@ function getChargeSourceShipsForPhase(state: any, playerId: string, phaseKey: st
 }
 
 function getProjectedChoiceMetadataForChargeAction(
+  state: any,
+  playerId: string,
+  phaseKey: string,
   shipDefId: string,
-  playerFleet: ShipInstance[],
+  liveFleet: ShipInstance[],
   choiceId: string
 ) {
   if (shipDefId === 'FAM' && (choiceId === 'damage' || choiceId === 'heal')) {
+    const snapshot =
+      phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response'
+        ? state?.gameData?.turnData?.chargeDeclarationFleetSnapshotByPlayerId?.[playerId]
+        : undefined;
+    const countFleet = Array.isArray(snapshot) ? snapshot : liveFleet;
+
     return {
       choiceId,
-      projectedAmount: countDistinctTypes(playerFleet),
+      projectedAmount: countDistinctTypes(countFleet),
     };
   }
 
@@ -634,7 +643,14 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
         // Emit choice action
         const actionId = `${shipDefId}#${powerIndex}`;
         const choices = power.options.map((opt) =>
-          getProjectedChoiceMetadataForChargeAction(shipDefId, fleet, opt.choiceId)
+          getProjectedChoiceMetadataForChargeAction(
+            state,
+            playerId,
+            phaseKey,
+            shipDefId,
+            fleet,
+            opt.choiceId
+          )
         );
 
         if (shipDefId === 'EQU') {

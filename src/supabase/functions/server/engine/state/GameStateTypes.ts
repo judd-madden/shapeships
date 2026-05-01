@@ -185,6 +185,7 @@ export type GameData = {
     anyChargesDeclared?: boolean;
     chargeDeclarationEligibleByPlayerId?: Record<string, boolean>;
     chargeDeclarationEligibleSourceIdsByPlayerId?: Record<string, string[]>;
+    chargeDeclarationFleetSnapshotByPlayerId?: Record<string, ShipInstance[]>;
 
     /** Staged first-strike selections, scoped by player and source instance */
     pendingFirstStrikeSelectionsByPlayerId?: Record<string, Record<string, {

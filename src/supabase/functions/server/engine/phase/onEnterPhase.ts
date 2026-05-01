@@ -25,6 +25,7 @@ import { isPhaseKey, type PhaseKey } from '../../engine_shared/phase/PhaseTable.
 import { getValidShipOfEqualityTargets } from '../../engine_shared/resolve/destroyRules.ts';
 import { rollD6 } from '../util/rollD6.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
+import type { ShipInstance } from '../state/GameStateTypes.ts';
 
 type KnoRerollPassIndex = 1 | 2 | 3;
 
@@ -561,6 +562,7 @@ function enterPhaseOnce(
     const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
     const snapshot: Record<string, boolean> = {};
     const snapshotSourceIdsByPlayerId: Record<string, string[]> = {};
+    const snapshotFleetByPlayerId: Record<string, ShipInstance[]> = {};
     
     for (const player of activePlayers) {
       const eligibleSourceIds = getEligibleChargeOrSolarSourceIds(
@@ -568,16 +570,24 @@ function enterPhaseOnce(
         player.id,
         'battle.charge_declaration'
       );
+      const liveFleet = workingState?.gameData?.ships?.[player.id] ?? [];
       snapshotSourceIdsByPlayerId[player.id] = eligibleSourceIds;
+      snapshotFleetByPlayerId[player.id] = Array.isArray(liveFleet)
+        ? liveFleet.map((ship: ShipInstance) => ({ ...ship }))
+        : [];
       snapshot[player.id] = eligibleSourceIds.length > 0;
     }
     
     turnData.chargeDeclarationEligibleSourceIdsByPlayerId = snapshotSourceIdsByPlayerId;
     turnData.chargeDeclarationEligibleByPlayerId = snapshot;
+    turnData.chargeDeclarationFleetSnapshotByPlayerId = snapshotFleetByPlayerId;
     
     debugLog(`[OnEnterPhase] Charge declaration snapshot:`, {
       eligibleByPlayerId: snapshot,
       eligibleSourceIdsByPlayerId: snapshotSourceIdsByPlayerId,
+      fleetSnapshotSizesByPlayerId: Object.fromEntries(
+        Object.entries(snapshotFleetByPlayerId).map(([playerId, fleet]) => [playerId, fleet.length])
+      ),
     });
   }
   

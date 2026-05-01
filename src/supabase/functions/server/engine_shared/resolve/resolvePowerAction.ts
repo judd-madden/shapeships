@@ -65,6 +65,24 @@ function getSnappedChargeSourceIds(state: GameState, playerId: string): string[]
   return sourceIds;
 }
 
+function getFleetForChargeScopedDynamicCount(
+  state: GameState,
+  playerId: string,
+  phaseKey: PhaseKey
+): ShipInstance[] {
+  if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+    const snapshot =
+      state?.gameData?.turnData?.chargeDeclarationFleetSnapshotByPlayerId?.[playerId];
+
+    if (Array.isArray(snapshot)) {
+      return snapshot;
+    }
+  }
+
+  const liveFleet = state?.gameData?.ships?.[playerId];
+  return Array.isArray(liveFleet) ? liveFleet : [];
+}
+
 // ============================================================================
 // PUBLIC API
 // ============================================================================
@@ -387,7 +405,8 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
   );
 
   if (shipDefId === 'FAM' && (choiceId === 'damage' || choiceId === 'heal')) {
-    const lockedAmount = countDistinctTypes(fleet);
+    const countFleet = getFleetForChargeScopedDynamicCount(state, playerId, phaseKey);
+    const lockedAmount = countDistinctTypes(countFleet);
 
     for (const effect of effects) {
       if (choiceId === 'damage' && effect.kind === EffectKind.Damage) {
