@@ -1812,7 +1812,10 @@ useEffect(() => {
     ? {
         ordinaryAvailable: provisionalBuild.remainingOrdinaryLines,
         joiningAvailable: provisionalBuild.remainingJoiningLines,
+        projectedSavedOrdinary: provisionalBuild.projectedSavedOrdinaryLines,
+        projectedSavedJoining: provisionalBuild.projectedSavedJoiningLines,
         projectedSavedCombined: provisionalBuild.projectedSavedCombinedLines,
+        projectedSavedWasCapped: provisionalBuild.projectedSavedWasCapped,
       }
     : null;
 

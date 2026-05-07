@@ -41,6 +41,7 @@ export interface ProvisionalBuildResult {
   projectedSavedOrdinaryLines: number;
   projectedSavedJoiningLines: number;
   projectedSavedCombinedLines: number;
+  projectedSavedWasCapped: boolean;
   myFleetPreview: BoardFleetSummary[];
   provisionalShipCountsById: Partial<Record<ShipDefId, number>>;
   evolverRowIds: string[];
@@ -441,15 +442,20 @@ function projectPersistedSavedResources(
   ordinaryLines: number;
   joiningLines: number;
   combinedLines: number;
+  wasCapped: boolean;
 } {
-  const ordinaryLines = Math.max(0, Math.min(remainingOrdinaryLines, SAVED_LINE_CAP));
+  const rawOrdinary = toNonNegativeInt(remainingOrdinaryLines);
+  const rawJoining = toNonNegativeInt(remainingJoiningLines);
+  const ordinaryLines = Math.min(rawOrdinary, SAVED_LINE_CAP);
   const remainingCapacity = Math.max(0, SAVED_LINE_CAP - ordinaryLines);
-  const joiningLines = Math.max(0, Math.min(remainingJoiningLines, remainingCapacity));
+  const joiningLines = Math.min(rawJoining, remainingCapacity);
+  const combinedLines = ordinaryLines + joiningLines;
 
   return {
     ordinaryLines,
     joiningLines,
-    combinedLines: ordinaryLines + joiningLines,
+    combinedLines,
+    wasCapped: combinedLines < rawOrdinary + rawJoining,
   };
 }
 
@@ -1124,6 +1130,7 @@ export function evaluateProvisionalBuild(args: {
     projectedSavedOrdinaryLines: projectedSavedResources.ordinaryLines,
     projectedSavedJoiningLines: projectedSavedResources.joiningLines,
     projectedSavedCombinedLines: projectedSavedResources.combinedLines,
+    projectedSavedWasCapped: projectedSavedResources.wasCapped,
     myFleetPreview: buildPreviewFleetSummary(workingFleetEntries),
     provisionalShipCountsById: countShipsById(workingFleetEntries),
     evolverRowIds,

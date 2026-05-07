@@ -268,7 +268,10 @@ export function mapGameSessionVm(args: {
   buildDrawingEconomyDisplay?: {
     ordinaryAvailable: number;
     joiningAvailable: number;
+    projectedSavedOrdinary: number;
+    projectedSavedJoining: number;
     projectedSavedCombined: number;
+    projectedSavedWasCapped: boolean;
   } | null;
 }): GameSessionViewModel {
   const {
@@ -601,6 +604,31 @@ export function mapGameSessionVm(args: {
       }
     : undefined;
 
+  function formatBuildDrawingReadyNote(args: {
+    ordinary: number;
+    joining: number;
+    combined: number;
+    wasCapped: boolean;
+  }): string {
+    const cappedSuffix = args.wasCapped ? ' (max)' : '';
+
+    if (args.ordinary > 0 && args.joining > 0) {
+      const lineLabel = args.ordinary === 1 ? 'line' : 'lines';
+      return `Save ${args.ordinary} ${lineLabel} + ${args.joining}j${cappedSuffix}`;
+    }
+
+    if (args.ordinary > 0) {
+      const lineLabel = args.ordinary === 1 ? 'line' : 'lines';
+      return `Save ${args.ordinary} ${lineLabel}${cappedSuffix}`;
+    }
+
+    if (args.joining > 0) {
+      return `Save ${args.joining}j${cappedSuffix}`;
+    }
+
+    return `Save ${args.combined} lines${cappedSuffix}`;
+  }
+
   // ============================================================================
   // READY BUTTON LABEL DERIVATION (CLIENT UX LAYER)
   // ============================================================================
@@ -692,7 +720,12 @@ export function mapGameSessionVm(args: {
 
     if (!readyUx?.sendingNow && !autoReadyWaiting && !p1IsReady) {
       readyButtonLabel = 'READY';
-      readyButtonNote = `Save ${buildDrawingEconomyDisplay.projectedSavedCombined} Lines`;
+      readyButtonNote = formatBuildDrawingReadyNote({
+        ordinary: buildDrawingEconomyDisplay.projectedSavedOrdinary,
+        joining: buildDrawingEconomyDisplay.projectedSavedJoining,
+        combined: buildDrawingEconomyDisplay.projectedSavedCombined,
+        wasCapped: buildDrawingEconomyDisplay.projectedSavedWasCapped,
+      });
     }
   }
 
