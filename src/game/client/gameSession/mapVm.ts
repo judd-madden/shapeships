@@ -1200,8 +1200,15 @@ export function mapGameSessionVm(args: {
           Array.isArray(ships) ? ships : []
         );
 
+        function isDiceModifierDisplayEligibleForCurrentTurn(ship: any): boolean {
+          const createdTurn = ship?.createdTurn;
+          if (!Number.isInteger(createdTurn)) return true;
+          return createdTurn < turnNumber;
+        }
+
         const presentShipDefIds = new Set(
           liveShips
+            .filter(isDiceModifierDisplayEligibleForCurrentTurn)
             .map((ship) => String(ship?.shipDefId ?? ''))
             .filter((shipDefId): shipDefId is 'LEV' | 'KNO' | 'CHR' =>
               shipDefId === 'LEV' || shipDefId === 'KNO' || shipDefId === 'CHR'
