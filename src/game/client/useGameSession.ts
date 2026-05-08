@@ -94,6 +94,7 @@ import type {
   GameSessionChatEntry,
   GameSessionViewModel,
   GameSessionActions,
+  FleetAreaHealthDeltaFlashVm,
   EvolverChoiceId,
   CentaurChargeSubTabId,
   BuildDrawingActionFamily,
@@ -116,6 +117,7 @@ export type {
   ActionPanelViewModel,
   GameSessionViewModel,
   GameSessionActions,
+  FleetAreaHealthDeltaFlashVm,
   CentaurChargeSubTabId,
 } from './gameSession/types';
 
@@ -2203,6 +2205,8 @@ useEffect(() => {
     spectatorRightIdentityKey != null ? (lastTurnNetByPlayerId?.[spectatorRightIdentityKey] ?? 0) : 0;
   const healthResolutionMyLastTurnNet = board.mode === 'board' ? board.myLastTurnNet : 0;
   const healthResolutionOpponentLastTurnNet = board.mode === 'board' ? board.opponentLastTurnNet : 0;
+  const healthResolutionMyHealth = board.mode === 'board' ? board.myHealth : 0;
+  const healthResolutionOpponentHealth = board.mode === 'board' ? board.opponentHealth : 0;
   const spectatorHasTwoPlayers = healthResolutionPlayerEntries.length >= 2;
   const endOfTurnHealthPresentationInput = useMemo<EndOfTurnHealthPresentationInput>(
     () => ({
@@ -2210,6 +2214,8 @@ useEffect(() => {
       viewerRole: myRole,
       meName: me?.name ?? 'Player 1',
       opponentName: opponent?.name ?? 'Player 2',
+      myHealth: healthResolutionMyHealth,
+      opponentHealth: healthResolutionOpponentHealth,
       myLastTurnNet: healthResolutionMyLastTurnNet,
       opponentLastTurnNet: healthResolutionOpponentLastTurnNet,
       spectatorHasTwoPlayers,
@@ -2223,6 +2229,8 @@ useEffect(() => {
       myRole,
       me?.name,
       opponent?.name,
+      healthResolutionMyHealth,
+      healthResolutionOpponentHealth,
       healthResolutionMyLastTurnNet,
       healthResolutionOpponentLastTurnNet,
       spectatorHasTwoPlayers,
@@ -2247,6 +2255,8 @@ useEffect(() => {
   const {
     healthResolutionLockActive,
     healthResolutionOverlay,
+    myFleetHealthDeltaFlash,
+    opponentFleetHealthDeltaFlash,
     leftRailDiceValue: presentedLeftRailDiceValue,
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
     leftRailTurnTakeoverTurn: presentedTurnTakeoverTurn,
@@ -3186,6 +3196,8 @@ useEffect(() => {
     board,
     healthResolutionLockActive,
     healthResolutionOverlay,
+    myFleetHealthDeltaFlash,
+    opponentFleetHealthDeltaFlash,
 
     readyEnabled,
     readyDisabledReason,
@@ -3828,6 +3840,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         opponentVoidFleet: [],
         myFleetRenderOrder: [],
         opponentFleetRenderOrder: [],
+        myFleetHealthDeltaFlash: undefined,
+        opponentFleetHealthDeltaFlash: undefined,
         fleetAnim: {
           my: {},
           opponent: {},

@@ -20,6 +20,7 @@ import type {
   BuildDrawingActionFamily,
   EvolverChoiceId,
   FirstStrikeActionFamily,
+  FleetAreaHealthDeltaFlashVm,
   GameSessionChatEntry,
   HealthResolutionPresentationVm,
 } from './types';
@@ -196,6 +197,8 @@ export function mapGameSessionVm(args: {
   board: BoardViewModel;
   healthResolutionLockActive: boolean;
   healthResolutionOverlay?: HealthResolutionPresentationVm;
+  myFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
+  opponentFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
 
   readyEnabled: boolean;
   readyDisabledReason: string | null;
@@ -301,6 +304,8 @@ export function mapGameSessionVm(args: {
     board,
     healthResolutionLockActive,
     healthResolutionOverlay,
+    myFleetHealthDeltaFlash,
+    opponentFleetHealthDeltaFlash,
     readyEnabled,
     readyDisabledReason,
     resumeSyncLocked,
@@ -1278,7 +1283,13 @@ export function mapGameSessionVm(args: {
       ...battleLogVm,
     },
     
-    board,
+    board: board.mode === 'board'
+      ? {
+          ...board,
+          myFleetHealthDeltaFlash,
+          opponentFleetHealthDeltaFlash,
+        }
+      : board,
     
     bottomActionRail: {
       // Future: build.drawing custom heading "X/Y lines available" + breakdown "Saved + Bonus + Dice" must come from server-authoritative fields (do not compute client-side).

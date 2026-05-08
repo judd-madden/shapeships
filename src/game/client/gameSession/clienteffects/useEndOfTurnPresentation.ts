@@ -1,5 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { BoardViewModel, HealthResolutionPresentationVm, HealthResolutionSideVm } from '../types';
+import type {
+  BoardViewModel,
+  FleetAreaHealthDeltaFlashVm,
+  HealthResolutionPresentationVm,
+  HealthResolutionSideVm,
+} from '../types';
 
 export interface ContinueAuthoritativePhaseHoldArgs {
   holdSignature: string;
@@ -9,11 +14,16 @@ export interface ContinueAuthoritativePhaseHoldArgs {
 
 export type ContinueAuthoritativePhaseHoldOutcome = 'released' | 'still_holding' | 'retry';
 
+const MAX_HEALTH = 35;
+const MAX_HEALTH_FLASH_PEAK_OPACITY = 0.30;
+
 export interface EndOfTurnHealthPresentationInput {
   boardMode: BoardViewModel['mode'];
   viewerRole: 'player' | 'spectator' | 'unknown';
   meName: string;
   opponentName: string;
+  myHealth: number;
+  opponentHealth: number;
   myLastTurnNet: number;
   opponentLastTurnNet: number;
   spectatorHasTwoPlayers: boolean;
@@ -152,6 +162,76 @@ function buildHealthResolutionPresentationSnapshot(args: {
   };
 }
 
+function getHealthDeltaFlashPeakOpacity(netDelta: number): number {
+  const amount = Math.min(35, Math.abs(netDelta));
+  const peakOpacity =
+    amount <= 0
+      ? 0
+      : 0.05 + ((amount - 1) / 34) * 0.95;
+
+  if (peakOpacity <= 0) {
+    return 0;
+  }
+
+  return Math.min(1, Math.max(0.05, peakOpacity));
+}
+
+function buildFleetAreaHealthDeltaFlashSnapshot(args: {
+  presentationKey: string;
+  health: number;
+  netDelta: number;
+}): FleetAreaHealthDeltaFlashVm | null {
+  const { presentationKey, health, netDelta } = args;
+
+  if (health >= MAX_HEALTH) {
+    return {
+      presentationKey,
+      tone: 'max',
+      peakOpacity: MAX_HEALTH_FLASH_PEAK_OPACITY,
+    };
+  }
+
+  if (netDelta === 0) {
+    return null;
+  }
+
+  return {
+    presentationKey,
+    tone: netDelta > 0 ? 'heal' : 'damage',
+    peakOpacity: getHealthDeltaFlashPeakOpacity(netDelta),
+  };
+}
+
+function buildFleetAreaHealthDeltaFlashSnapshots(args: {
+  presentationKey: string;
+  healthPresentation: EndOfTurnHealthPresentationInput;
+}): {
+  my?: FleetAreaHealthDeltaFlashVm;
+  opponent?: FleetAreaHealthDeltaFlashVm;
+} {
+  const { presentationKey, healthPresentation } = args;
+
+  if (
+    healthPresentation.boardMode !== 'board' ||
+    healthPresentation.viewerRole !== 'player'
+  ) {
+    return {};
+  }
+
+  return {
+    my: buildFleetAreaHealthDeltaFlashSnapshot({
+      presentationKey,
+      health: healthPresentation.myHealth,
+      netDelta: healthPresentation.myLastTurnNet,
+    }) ?? undefined,
+    opponent: buildFleetAreaHealthDeltaFlashSnapshot({
+      presentationKey,
+      health: healthPresentation.opponentHealth,
+      netDelta: healthPresentation.opponentLastTurnNet,
+    }) ?? undefined,
+  };
+}
+
 export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   const {
     effectiveGameId,
@@ -186,6 +266,11 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
   const [healthResolutionOverlay, setHealthResolutionOverlay] =
     useState<HealthResolutionPresentationVm | undefined>(undefined);
+  const [fleetAreaHealthDeltaFlashes, setFleetAreaHealthDeltaFlashes] =
+    useState<{
+      my?: FleetAreaHealthDeltaFlashVm;
+      opponent?: FleetAreaHealthDeltaFlashVm;
+    }>({});
   const [presentedLeftRailDiceValue, setPresentedLeftRailDiceValue] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
   const [presentedLeftRailDiceAnimateSeq, setPresentedLeftRailDiceAnimateSeq] = useState(0);
   const [presentedTurnTakeoverTurn, setPresentedTurnTakeoverTurn] = useState<number | null>(null);
@@ -279,6 +364,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     clearTimer(phaseHoldContinuationTimerRef);
     clearTimer(healthResolutionOverlayTimerRef);
     setHealthResolutionOverlay(undefined);
+    setFleetAreaHealthDeltaFlashes({});
     setPresentedLeftRailDiceValue(1);
     setPresentedLeftRailDiceAnimateSeq(0);
     setPresentedTurnTakeoverTurn(null);
@@ -324,9 +410,15 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       return;
     }
 
+    const nextFleetAreaHealthDeltaFlashes = buildFleetAreaHealthDeltaFlashSnapshots({
+      presentationKey,
+      healthPresentation,
+    });
+
     lastSeenHealthResolutionOverlayHoldSignatureRef.current = holdSignature;
     activeHealthResolutionOverlayPresentationKeyRef.current = presentationKey;
     setHealthResolutionOverlay(nextOverlay);
+    setFleetAreaHealthDeltaFlashes(nextFleetAreaHealthDeltaFlashes);
     clearTimer(healthResolutionOverlayTimerRef);
     healthResolutionOverlayTimerRef.current = setTimeout(() => {
       healthResolutionOverlayTimerRef.current = null;
@@ -337,6 +429,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
       activeHealthResolutionOverlayPresentationKeyRef.current = null;
       setHealthResolutionOverlay(undefined);
+      setFleetAreaHealthDeltaFlashes({});
     }, 3500);
   }, [
     authoritativePhaseHold?.signature,
@@ -345,6 +438,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     healthPresentation.viewerRole,
     healthPresentation.meName,
     healthPresentation.opponentName,
+    healthPresentation.myHealth,
+    healthPresentation.opponentHealth,
     healthPresentation.myLastTurnNet,
     healthPresentation.opponentLastTurnNet,
     healthPresentation.spectatorHasTwoPlayers,
@@ -498,6 +593,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   return {
     healthResolutionLockActive,
     healthResolutionOverlay,
+    myFleetHealthDeltaFlash: fleetAreaHealthDeltaFlashes.my,
+    opponentFleetHealthDeltaFlash: fleetAreaHealthDeltaFlashes.opponent,
     leftRailDiceValue: presentedLeftRailDiceValue,
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
     leftRailTurnTakeoverTurn: presentedTurnTakeoverTurn,

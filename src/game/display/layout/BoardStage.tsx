@@ -5,7 +5,11 @@
  */
 
 import { useEffect, useRef, useState, type AnimationEvent, type ReactNode } from 'react';
-import type { BoardViewModel, GameSessionActions } from '../../client/useGameSession';
+import type {
+  BoardViewModel,
+  FleetAreaHealthDeltaFlashVm,
+  GameSessionActions,
+} from '../../client/useGameSession';
 import { ChooseSpeciesStage } from './boardModes/ChooseSpeciesStage';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
@@ -23,6 +27,7 @@ import {
 import { useFlipLayout } from '../graphics/useFlipLayout';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 import { FleetShipHoverCard } from './boardStage/FleetShipHoverCard';
+import { FleetAreaHealthDeltaFlash } from './boardStage/FleetAreaHealthDeltaFlash';
 import { useFleetShipHover } from './boardStage/useFleetShipHover';
 import { BoardStatBreakdownHoverCard } from './boardStage/BoardStatBreakdownHoverCard';
 import { useBoardStatHover, type BoardStatHoverKey } from './boardStage/useBoardStatHover';
@@ -443,6 +448,7 @@ function FleetArea({
   flipEnabled = false,
   side,
   activationIndexMap,
+  healthDeltaFlash,
   targetStatesByStackKey,
   previewShipDefIdByStackKey,
   onDestroyTargetHoverChange,
@@ -460,6 +466,7 @@ function FleetArea({
   flipEnabled?: boolean;
   side: 'my' | 'opponent';
   activationIndexMap?: Record<string, number>;
+  healthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
   targetStatesByStackKey?: Record<string, DestroyTargetStateVm>;
   previewShipDefIdByStackKey?: Partial<Record<string, ShipDefId>>;
   onDestroyTargetHoverChange?: (side: 'my' | 'opponent', stackKey: string | null) => void;
@@ -530,8 +537,12 @@ function FleetArea({
 
   return (
     <div className="basis-0 grow h-full min-h-px min-w-px relative shrink-0 px-[8px] overflow-visible">
+      <div className="absolute inset-0 z-0 pointer-events-none">
+        <FleetAreaHealthDeltaFlash vm={healthDeltaFlash} />
+      </div>
+
       {/* FleetArea: {title} (title intentionally not rendered) */}
-      <div className="flex h-full min-h-0 flex-col">
+      <div className="relative z-10 flex h-full min-h-0 flex-col">
         <div className="grow min-h-0">
           <FitToBox minScale={0.4} className="w-full h-full">
             {hasLiveShips ? (
@@ -861,6 +872,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
         flipEnabled={vm.mode === 'board'}
         side="my"
         activationIndexMap={vm.activationStaggerPlan?.myIndexByShipId}
+        healthDeltaFlash={vm.myFleetHealthDeltaFlash}
         targetStatesByStackKey={vm.destroyTargeting?.targetStatesBySide.my}
         previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdBySide.my}
         onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
@@ -1128,6 +1140,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
         flipEnabled={vm.mode === 'board'}
         side="opponent"
         activationIndexMap={vm.activationStaggerPlan?.opponentIndexByShipId}
+        healthDeltaFlash={vm.opponentFleetHealthDeltaFlash}
         targetStatesByStackKey={vm.destroyTargeting?.targetStatesBySide.opponent}
         previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdBySide.opponent}
         onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}

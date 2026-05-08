@@ -338,6 +338,8 @@ export type BoardViewModel =
       opponentVoidFleet: BoardFleetSummary[];
       myFleetRenderOrder: string[];
       opponentFleetRenderOrder: string[];
+      myFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
+      opponentFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
       fleetAnim: FleetAnimVM; // Animation tokens (DEF/FIG only)
       
       // Last turn deltas (server-authoritative)
@@ -433,6 +435,12 @@ export interface HealthResolutionPresentationVm {
   presentationKey: string;
   left: HealthResolutionSideVm;
   right: HealthResolutionSideVm;
+}
+
+export interface FleetAreaHealthDeltaFlashVm {
+  presentationKey: string;
+  tone: 'heal' | 'damage' | 'max';
+  peakOpacity: number;
 }
 
 export interface ActionPanelBuildCatalogueViewModel {
