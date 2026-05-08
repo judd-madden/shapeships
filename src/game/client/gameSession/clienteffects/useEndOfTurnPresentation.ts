@@ -50,6 +50,7 @@ interface UseEndOfTurnPresentationArgs {
   authoritativeHoldUntilMs: number | null;
   healthPresentation: EndOfTurnHealthPresentationInput;
   leftRail: EndOfTurnLeftRailInput;
+  boardFlashEnabled?: boolean;
   continueAuthoritativePhaseHold: (
     args: ContinueAuthoritativePhaseHoldArgs
   ) => Promise<ContinueAuthoritativePhaseHoldOutcome>;
@@ -244,6 +245,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     authoritativeHoldUntilMs,
     healthPresentation,
     leftRail,
+    boardFlashEnabled = true,
     continueAuthoritativePhaseHold,
   } = args;
 
@@ -410,10 +412,12 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       return;
     }
 
-    const nextFleetAreaHealthDeltaFlashes = buildFleetAreaHealthDeltaFlashSnapshots({
-      presentationKey,
-      healthPresentation,
-    });
+    const nextFleetAreaHealthDeltaFlashes = boardFlashEnabled
+      ? buildFleetAreaHealthDeltaFlashSnapshots({
+          presentationKey,
+          healthPresentation,
+        })
+      : {};
 
     lastSeenHealthResolutionOverlayHoldSignatureRef.current = holdSignature;
     activeHealthResolutionOverlayPresentationKeyRef.current = presentationKey;
@@ -447,8 +451,17 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     healthPresentation.spectatorRightName,
     healthPresentation.spectatorLeftNet,
     healthPresentation.spectatorRightNet,
+    boardFlashEnabled,
     turnNumber,
   ]);
+
+  useEffect(() => {
+    if (boardFlashEnabled) {
+      return;
+    }
+
+    setFleetAreaHealthDeltaFlashes({});
+  }, [boardFlashEnabled]);
 
   function releasePresentedLeftRailTurn(args: {
     value: 1 | 2 | 3 | 4 | 5 | 6;

@@ -25,6 +25,7 @@ import { StarsBackground } from './graphics/StarsBackground';
 
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 const SOUND_ENABLED_STORAGE_KEY = 'shapeships.soundEnabled.v1';
+const BOARD_FLASH_ENABLED_STORAGE_KEY = 'shapeships.boardFlashEnabled.v1';
 
 interface GameScreenProps {
   gameId: string;
@@ -33,7 +34,6 @@ interface GameScreenProps {
 }
 
 export default function GameScreen({ gameId, playerName, onBack }: GameScreenProps) {
-  const { vm, actions } = useGameSession(gameId, playerName);
   const [soundEnabled, setSoundEnabled] = useState(() => {
     if (typeof window === 'undefined') {
       return true;
@@ -46,6 +46,19 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
       return true;
     }
   });
+  const [boardFlashEnabled, setBoardFlashEnabled] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+
+    try {
+      const storedValue = window.localStorage.getItem(BOARD_FLASH_ENABLED_STORAGE_KEY);
+      return storedValue === null ? true : storedValue === 'true';
+    } catch {
+      return true;
+    }
+  });
+  const { vm, actions } = useGameSession(gameId, playerName, { boardFlashEnabled });
   const firstTurnBuildHelper = useFirstTurnBuildHelper(gameId, vm, actions.onReadyToggle);
   const voidShipInstanceIds = useMemo(() => {
     if (vm.board.mode !== 'board') {
@@ -72,6 +85,14 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
     }
   }, [soundEnabled]);
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(BOARD_FLASH_ENABLED_STORAGE_KEY, String(boardFlashEnabled));
+    } catch {
+      // Keep the preference in memory if browser storage is unavailable.
+    }
+  }, [boardFlashEnabled]);
+
   useGameSound({
     enabled: soundEnabled,
     active: !vm.isBootstrapping,
@@ -81,6 +102,37 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
 
   function toggleSound() {
     setSoundEnabled((current) => !current);
+  }
+
+  function toggleBoardFlash() {
+    setBoardFlashEnabled((current) => !current);
+  }
+
+  function renderPreferenceToggle(args: {
+    label: string;
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+    onToggle: () => void;
+  }) {
+    const { label, checked, onChange, onToggle } = args;
+
+    return (
+      <div className="flex items-center gap-[4px]">
+        <Checkbox
+          className="w-[22px] h-[22px]"
+          checked={checked}
+          onChange={onChange}
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="text-white transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          style={{ fontSize: '15px', fontWeight: 400, lineHeight: 1.2 }}
+        >
+          {label}
+        </button>
+      </div>
+    );
   }
 
   // ============================================================================
@@ -118,20 +170,19 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
       />
 
       <div className="fixed right-[10px] top-[10px] z-50">
-        <div className="flex items-center gap-[4px] rounded-[10px] px-[10px] py-[10px]">
-          <Checkbox
-            className="w-[22px] h-[22px]"
-            checked={soundEnabled}
-            onChange={setSoundEnabled}
-          />
-          <button
-            type="button"
-            onClick={toggleSound}
-            className="text-white transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-            style={{ fontSize: '15px', fontWeight: 400, lineHeight: 1.2 }}
-          >
-            Sound
-          </button>
+        <div className="flex items-center gap-[12px] rounded-[10px] px-[10px] py-[10px]">
+          {renderPreferenceToggle({
+            label: 'Sound',
+            checked: soundEnabled,
+            onChange: setSoundEnabled,
+            onToggle: toggleSound,
+          })}
+          {renderPreferenceToggle({
+            label: 'Flash',
+            checked: boardFlashEnabled,
+            onChange: setBoardFlashEnabled,
+            onToggle: toggleBoardFlash,
+          })}
         </div>
       </div>
 

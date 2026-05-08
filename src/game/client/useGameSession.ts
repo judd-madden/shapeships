@@ -142,6 +142,10 @@ import { buildMessageAction } from './gameSession/powerIntents';
 // HOOK
 // ============================================================================
 
+interface UseGameSessionOptions {
+  boardFlashEnabled?: boolean;
+}
+
 function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRowVm[] {
   if (!Array.isArray(rawRows)) {
     return [];
@@ -360,7 +364,13 @@ function isPlausibleGameStatePayload(
   return expectedGameId == null || record.gameId === expectedGameId;
 }
 
-export function useGameSession(gameId: string, propsPlayerName: string) {
+export function useGameSession(
+  gameId: string,
+  propsPlayerName: string,
+  options: UseGameSessionOptions = {}
+) {
+  const boardFlashEnabled = options.boardFlashEnabled ?? true;
+
   // Stop /game-state polling once an authoritative finished payload has been stored.
   const POSTGAME_POLL_MS = 0;
   
@@ -2273,6 +2283,7 @@ useEffect(() => {
     authoritativeHoldUntilMs,
     healthPresentation: endOfTurnHealthPresentationInput,
     leftRail: endOfTurnLeftRailInput,
+    boardFlashEnabled,
     continueAuthoritativePhaseHold,
   });
 
