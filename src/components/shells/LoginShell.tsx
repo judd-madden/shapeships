@@ -44,12 +44,12 @@ export function LoginShell({
             
             {/* Logo */}
             <div className="relative inline-grid max-w-full shrink-0 grid-cols-[max-content] grid-rows-[max-content] place-items-start leading-[0]">
-              <p className="[grid-area:1_/_1] relative ml-[92px] mt-[0.49px] font-['Roboto'] text-[54px] font-bold leading-[normal] not-italic text-nowrap sm:ml-[126px] sm:text-[72px] lg:ml-[160px] lg:text-[88px] xl:ml-[203.9px] xl:text-[105.935px]">
+              <p className="[grid-area:1_/_1] relative ml-[92px] mt-[0.49px] font-['Roboto'] text-[40px] font-bold leading-[normal] not-italic text-nowrap sm:ml-[126px] sm:text-[72px] lg:ml-[160px] lg:text-[88px] xl:ml-[203.9px] xl:text-[105.935px]">
                 SHAPESHIPS
               </p>
-              <div className="[grid-area:1_/_1] relative ml-0 mt-0 flex h-[70px] w-[82px] items-center justify-center sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]">
+              <div className="[grid-area:1_/_1] relative ml-0 mt-0 flex h-[60px] w-[71px] items-center justify-center sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]">
                 <div className="flex-none rotate-[180deg] scale-y-[-100%]">
-                  <LogoIcon className="h-[70px] w-[82px] sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]" />
+                  <LogoIcon className="h-[60px] w-[71px] sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]" />
                 </div>
               </div>
             </div>
@@ -58,7 +58,7 @@ export function LoginShell({
             <div className="content-center relative flex w-full flex-wrap items-stretch justify-center gap-x-[28px] gap-y-[20px] lg:gap-x-[50px]">
               
               {/* Feature 1: Free space battle game */}
-              <div className="content-stretch relative flex min-w-[220px] max-w-[260px] shrink-0 items-center gap-[12px]">
+              <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[12px]">
                 <BuildIcon className="relative shrink-0 size-[48px]" />
                 <p className="relative shrink-0 font-medium text-[21.6px] leading-[24px] not-italic">
                   Free strategy game
@@ -66,7 +66,7 @@ export function LoginShell({
               </div>
 
               {/* Feature 2: 1v1 Online */}
-              <div className="content-stretch relative flex min-w-[220px] max-w-[260px] shrink-0 items-center gap-[12px]">
+              <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[12px]">
                 <PlayersIcon className="relative shrink-0 size-[48px]" />
                 <p className="relative shrink-0 font-medium text-[21.6px] leading-[24px] not-italic">
                   1v1 Online
@@ -74,15 +74,15 @@ export function LoginShell({
               </div>
 
               {/* Feature 3: Simultaneous turns */}
-              <div className="content-stretch relative flex min-w-[220px] max-w-[260px] shrink-0 items-center gap-[12px]">
-                <Dice value={3} className="w-[52px] h-[50px]" enableRotate={false}/>
+              <div className="flex relative max-w-[260px] shrink-0 items-center gap-[12px]">
+                <Dice value={3} className="w-[52px] h-[50px] shrink-0" enableRotate={false}/>
                 <p className="relative shrink-0 font-medium text-[21.6px] leading-[24px] not-italic">
                   Shared dice each turn
                 </p>
               </div>
 
               {/* Feature 4: 10-30 minute games */}
-              <div className="content-stretch relative flex min-w-[220px] max-w-[260px] shrink-0 items-center gap-[12px]">
+              <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[12px]">
                 <ClockIcon className="relative shrink-0 size-[48px]" />
                 <p className="relative shrink-0 font-medium text-[21.6px] leading-[24px] not-italic">
                   10-30 minute games
