@@ -129,12 +129,6 @@ const MENU_FIXTURE: ActionPanelViewModel['menu'] = {
   canResign: true,
 };
 
-const END_OF_GAME_FIXTURE: NonNullable<ActionPanelViewModel['endOfGame']> = {
-  bannerText: 'Victory! Human fleet holds the field.',
-  bannerBgCssVar: 'var(--shapeships-pastel-blue)',
-  metaLeftText: 'Judy - Human - 22 health',
-  metaRightText: 'Rowan - Centaur - 0 health',
-};
 
 const FRIGATE_DRAWING_FIXTURE: NonNullable<ActionPanelViewModel['frigateDrawing']> = {
   frigateCount: 3,
@@ -374,30 +368,6 @@ function buildCentaurShipsThatBuildFixture(): Pick<
   });
 }
 
-function buildXeniteShipsThatBuildFixture(): Pick<
-  ActionPanelViewModel,
-  'shipChoices' | 'availableActions' | 'selectedChoiceIdBySourceInstanceId'
-> {
-  const group = getNamedGroupSpec('ap.build.ships_that_build.xenite', 0);
-  const sourceInstanceId = 'sac-gallery-1';
-
-  return buildShipChoiceFixture({
-    groups: [
-      {
-        heading: group.heading,
-        ships: [
-          makeShipChoiceInstance({
-            shipDefId: group.ships[0].shipDefId,
-            buttons: group.ships[0].buttons,
-            sourceInstanceId,
-            availableChoiceIds: ['destroy', 'hold'],
-          }),
-        ],
-      },
-    ],
-    selectedChoices: [[sourceInstanceId, 'destroy']],
-  });
-}
 
 function buildHumanFirstStrikeFixture(): Pick<
   ActionPanelViewModel,
@@ -648,8 +618,6 @@ function buildShipChoicePanelFixture(
       return buildHumanShipsThatBuildFixture();
     case 'ap.build.ships_that_build.centaur.mixed':
       return buildCentaurShipsThatBuildFixture();
-    case 'ap.build.ships_that_build.xenite':
-      return buildXeniteShipsThatBuildFixture();
     case 'ap.battle.first_strike.human':
       return buildHumanFirstStrikeFixture();
     case 'ap.battle.charges.human':
@@ -724,12 +692,6 @@ function buildGalleryVm(panelId: ActionPanelId): ActionPanelViewModel {
     };
   }
 
-  if (panelId === 'ap.end_of_game.result') {
-    return {
-      ...base,
-      endOfGame: END_OF_GAME_FIXTURE,
-    };
-  }
 
   const largeChoicePanel = buildLargeChoicePanelFixture(panelId);
   if (largeChoicePanel) {
