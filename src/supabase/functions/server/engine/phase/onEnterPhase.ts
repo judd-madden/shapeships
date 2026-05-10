@@ -35,7 +35,6 @@ export interface OnEnterResult {
 }
 
 const MAX_AUTO_ADVANCES = 10;
-const END_OF_TURN_HEALTH_HOLD_MS = 0;
 
 function getCurrentPhaseKey(state: any): PhaseKey | null {
   const gd: any = state.gameData || {};
@@ -69,6 +68,25 @@ function getPhaseHoldForPhase(state: any, phaseKey: PhaseKey) {
   }
 
   return phaseHold;
+}
+
+function clearLegacyEndOfTurnPhaseHoldForPhase(state: any, phaseKey: PhaseKey): boolean {
+  if (phaseKey !== 'battle.end_of_turn_resolution') {
+    return false;
+  }
+
+  const phaseHold = state?.gameData?.turnData?.phaseHold;
+  if (!phaseHold || typeof phaseHold !== 'object') {
+    return false;
+  }
+
+  if (phaseHold.phaseKey !== phaseKey) {
+    return false;
+  }
+
+  delete state.gameData.turnData.phaseHold;
+  debugLog('[OnEnterPhase] Cleared legacy end-of-turn phase hold during auto-advance', phaseHold);
+  return true;
 }
 
 function getChronoswarmCountByPlayerId(state: any): Record<string, number> {
@@ -544,13 +562,6 @@ function enterPhaseOnce(
   }
   
   const turnData = workingState.gameData.turnData;
-  const currentTurnNumber =
-    turnData.turnNumber ??
-    workingState.gameData.turnNumber ??
-    workingState.turnNumber ??
-    1;
-  const priorEndOfTurnResolutionAppliedTurnNumber =
-    turnData.endOfTurnResolutionAppliedTurnNumber;
   
   // ============================================================================
   // CHARGE DECLARATION SNAPSHOT - battle.charge_declaration
@@ -1017,23 +1028,6 @@ function enterPhaseOnce(
         );
       }
 
-      if (
-        toKey === 'battle.end_of_turn_resolution' &&
-        priorEndOfTurnResolutionAppliedTurnNumber !== currentTurnNumber &&
-        workingState?.gameData?.turnData?.endOfTurnResolutionAppliedTurnNumber === currentTurnNumber &&
-        !getPhaseHoldForPhase(workingState, toKey)
-      ) {
-        workingState.gameData.turnData.phaseHold = {
-          phaseKey: toKey,
-          holdReason: 'end_of_turn_health',
-          holdUntilMs: nowMs + END_OF_TURN_HEALTH_HOLD_MS,
-        };
-
-        debugLog('[OnEnterPhase] Attached authoritative end-of-turn health hold', {
-          turnNumber: currentTurnNumber,
-          holdUntilMs: workingState.gameData.turnData.phaseHold.holdUntilMs,
-        });
-      }
     }
   } catch (error) {
     console.error(`[OnEnterPhase] Error during structured powers resolution:`, error);
@@ -1069,6 +1063,8 @@ export function onEnterPhase(
   
   // Loop: enter phase -> check if input required -> auto-advance if not
   while (advanceCount < MAX_AUTO_ADVANCES) {
+    clearLegacyEndOfTurnPhaseHoldForPhase(workingState, currentKey);
+
     const existingPhaseHold = getPhaseHoldForPhase(workingState, currentKey);
     if (existingPhaseHold) {
       debugLog(`[OnEnterPhase] Phase ${currentKey} is held authoritatively, stopping auto-advance`, existingPhaseHold);
@@ -1079,6 +1075,8 @@ export function onEnterPhase(
     const enterResult = enterPhaseOnce(workingState, fromKey, currentKey, nowMs);
     workingState = enterResult.state;
     allEvents.push(...enterResult.events);
+
+    clearLegacyEndOfTurnPhaseHoldForPhase(workingState, currentKey);
 
     const phaseHold = getPhaseHoldForPhase(workingState, currentKey);
     if (phaseHold) {
