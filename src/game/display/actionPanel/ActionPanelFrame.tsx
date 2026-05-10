@@ -153,8 +153,10 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
           hasActionsForMe={vm.menu.hasActionsForMe}
           canOfferDraw={vm.menu.canOfferDraw}
           canResign={vm.menu.canResign}
+          canAbortGame={vm.menu.canAbortGame === true}
           onOfferDraw={actions.onOfferDraw}
           onResignGame={actions.onResignGame}
+          onAbortGame={onReturnToMainMenu}
         />
       </div>
     );

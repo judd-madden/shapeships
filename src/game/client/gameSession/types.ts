@@ -464,6 +464,7 @@ export interface ActionPanelViewModel {
     hasActionsForMe: boolean;
     canOfferDraw: boolean;
     canResign: boolean;
+    canAbortGame?: boolean;
   };
   endOfGame?: {
     bannerText: string;

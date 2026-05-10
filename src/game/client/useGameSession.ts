@@ -3903,6 +3903,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
               hasActionsForMe: false,
               canOfferDraw: false,
               canResign: false,
+              canAbortGame: false,
           },
         availableActions: [],
         selectedChoiceIdBySourceInstanceId: {},

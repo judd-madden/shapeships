@@ -1059,6 +1059,47 @@ export function mapGameSessionVm(args: {
     authoritativePendingDrawOffer == null &&
     currentTurnLastDrawOffer !== turnNumber;
   const canResign = !isFinished && me?.role === 'player';
+  const getPlayerIdentityKey = (player: any): string | null =>
+    player?.playerId ?? player?.id ?? player?.sessionId ?? null;
+  const getPlayerIdentityKeys = (player: any): Set<string> => {
+    const keys = [player?.playerId, player?.id, player?.sessionId]
+      .filter((value): value is string => typeof value === 'string' && value.length > 0);
+    return new Set(keys);
+  };
+  const menuMeIdentityKey = getPlayerIdentityKey(me);
+  const menuMeIdentityKeys = getPlayerIdentityKeys(me);
+  const onlyOneJoinedSeat = p1HasJoined !== p2HasJoined;
+  const onlyJoinedPlayer = onlyOneJoinedSeat
+    ? p1HasJoined
+      ? me
+      : p2HasJoined
+        ? opponent
+        : null
+    : null;
+  const onlyJoinedPlayerIdentityKey = getPlayerIdentityKey(onlyJoinedPlayer);
+  const onlyJoinedPlayerMatchesViewer =
+    menuMeIdentityKey != null &&
+    onlyJoinedPlayerIdentityKey != null &&
+    onlyJoinedPlayerIdentityKey === menuMeIdentityKey;
+  const hasExplicitOpponentBotController = (() => {
+    if (!controllersByPlayerId || typeof controllersByPlayerId !== 'object') {
+      return false;
+    }
+
+    if (opponent?.id && controllersByPlayerId[opponent.id]?.kind === 'bot') {
+      return true;
+    }
+
+    return Object.entries(controllersByPlayerId).some(([playerId, controller]) =>
+      controller?.kind === 'bot' && !menuMeIdentityKeys.has(playerId)
+    );
+  })();
+  const canAbortGame =
+    !isFinished &&
+    me?.role === 'player' &&
+    onlyOneJoinedSeat &&
+    onlyJoinedPlayerMatchesViewer &&
+    !hasExplicitOpponentBotController;
   const largeChoicePanelOverrides = (() => {
     if (finalActivePanelId === 'ap.battle.first_strike.centaur') {
       const domActions = getRenderableServerChoiceActions(phaseKey, availableActions).filter(
@@ -1320,6 +1361,7 @@ export function mapGameSessionVm(args: {
         hasActionsForMe,
         canOfferDraw,
         canResign,
+        canAbortGame,
       },
       endOfGame: isFinished ? {
         bannerText,

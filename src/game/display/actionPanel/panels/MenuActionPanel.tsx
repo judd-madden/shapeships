@@ -18,8 +18,10 @@ interface MenuActionPanelProps {
   hasActionsForMe: boolean;
   canOfferDraw: boolean;
   canResign: boolean;
+  canAbortGame: boolean;
   onOfferDraw: () => void;
   onResignGame: () => void;
+  onAbortGame: () => void;
 }
 
 type PhaseRow = {
@@ -161,9 +163,25 @@ export function MenuActionPanel({
   hasActionsForMe,
   canOfferDraw,
   canResign,
+  canAbortGame,
   onOfferDraw,
   onResignGame,
+  onAbortGame,
 }: MenuActionPanelProps) {
+  const dangerAction = canAbortGame
+    ? {
+        disabled: false,
+        confirmLabel: 'Abort Game (Confirm)',
+        label: 'Abort Game',
+        onClick: onAbortGame,
+      }
+    : {
+        disabled: !canResign,
+        confirmLabel: 'Resign Game (Confirm)',
+        label: 'Resign Game',
+        onClick: onResignGame,
+      };
+
   return (
       <div className="flex items-center justify-center relative w-full h-full">
         <div className="flex items-center justify-center w-full" style={{ gap: 40 }}>
@@ -200,12 +218,12 @@ export function MenuActionPanel({
             </GameMenuButton>
 
             <GameMenuButton
-              disabled={!canResign}
+              disabled={dangerAction.disabled}
               requiresConfirm={true}
-              confirmLabel="Resign Game (Confirm)"
-              onClick={onResignGame}
+              confirmLabel={dangerAction.confirmLabel}
+              onClick={dangerAction.onClick}
             >
-              Resign Game
+              {dangerAction.label}
             </GameMenuButton>
           </div>
         </div>
