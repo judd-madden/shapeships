@@ -199,6 +199,7 @@ export function mapGameSessionVm(args: {
   healthResolutionOverlay?: HealthResolutionPresentationVm;
   myFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
   opponentFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
+  healthDeltaPresentationKey?: string;
 
   readyEnabled: boolean;
   readyDisabledReason: string | null;
@@ -306,6 +307,7 @@ export function mapGameSessionVm(args: {
     healthResolutionOverlay,
     myFleetHealthDeltaFlash,
     opponentFleetHealthDeltaFlash,
+    healthDeltaPresentationKey,
     readyEnabled,
     readyDisabledReason,
     resumeSyncLocked,
@@ -1329,6 +1331,7 @@ export function mapGameSessionVm(args: {
           ...board,
           myFleetHealthDeltaFlash,
           opponentFleetHealthDeltaFlash,
+          healthDeltaPresentationKey,
         }
       : board,
     

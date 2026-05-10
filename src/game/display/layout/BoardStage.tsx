@@ -820,17 +820,17 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
       : vm.opponentBonusLines;
 
   // Hide deltas on turn 1 only
-  const showDeltas = vm.turnNumber > 1;
-  const shouldAnimateDeltas = phaseKey === 'battle.end_of_turn_resolution';
+  const showDeltas = vm.turnNumber > 1 || vm.healthDeltaPresentationKey != null;
+  const shouldAnimateDeltas = vm.healthDeltaPresentationKey != null;
   const myDeltaKey = !showDeltas
     ? 'my:hidden'
     : shouldAnimateDeltas
-      ? `my:resolution:${vm.turnNumber}`
+      ? `my:resolution:${vm.healthDeltaPresentationKey}`
       : 'my:stable';
   const opponentDeltaKey = !showDeltas
     ? 'opp:hidden'
     : shouldAnimateDeltas
-      ? `opp:resolution:${vm.turnNumber}`
+      ? `opp:resolution:${vm.healthDeltaPresentationKey}`
       : 'opp:stable';
   const myDamageHoverTrackable = true;
   const opponentDamageHoverTrackable = true;

@@ -33,6 +33,12 @@ export interface EndOfTurnHealthPresentationInput {
   spectatorRightNet: number;
 }
 
+export interface HealthResolutionPresentationTrigger {
+  signature: string;
+  resolvedTurnKey: string;
+  healthPresentation: EndOfTurnHealthPresentationInput;
+}
+
 export interface EndOfTurnLeftRailInput {
   authoritativeDiceValue: 1 | 2 | 3 | 4 | 5 | 6;
   authoritativeDiceSignature: string | null;
@@ -48,6 +54,7 @@ interface UseEndOfTurnPresentationArgs {
   authoritativeHoldPhaseKey: string | null;
   authoritativeHoldReason: string | null;
   authoritativeHoldUntilMs: number | null;
+  healthResolutionPresentationTrigger?: HealthResolutionPresentationTrigger | null;
   healthPresentation: EndOfTurnHealthPresentationInput;
   leftRail: EndOfTurnLeftRailInput;
   boardFlashEnabled?: boolean;
@@ -243,6 +250,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     authoritativeHoldPhaseKey,
     authoritativeHoldReason,
     authoritativeHoldUntilMs,
+    healthResolutionPresentationTrigger,
     healthPresentation,
     leftRail,
     boardFlashEnabled = true,
@@ -255,6 +263,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   const currentAuthoritativeHoldSignatureRef = useRef<string | null>(null);
   const healthResolutionOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSeenHealthResolutionOverlayHoldSignatureRef = useRef<string | null>(null);
+  const lastSeenHealthResolutionTriggerSignatureRef = useRef<string | null>(null);
   const activeHealthResolutionOverlayPresentationKeyRef = useRef<string | null>(null);
   const healthResolutionOverlayPresentationSeqRef = useRef(0);
   const pendingAuthoritativeLeftRailDiceRef = useRef<{
@@ -273,6 +282,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       my?: FleetAreaHealthDeltaFlashVm;
       opponent?: FleetAreaHealthDeltaFlashVm;
     }>({});
+  const [healthDeltaPresentationKey, setHealthDeltaPresentationKey] = useState<string | undefined>(undefined);
   const [presentedLeftRailDiceValue, setPresentedLeftRailDiceValue] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
   const [presentedLeftRailDiceAnimateSeq, setPresentedLeftRailDiceAnimateSeq] = useState(0);
   const [presentedTurnTakeoverTurn, setPresentedTurnTakeoverTurn] = useState<number | null>(null);
@@ -303,8 +313,51 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
         }
       : null;
 
-  const healthResolutionLockActive = authoritativePhaseHold != null;
+  const legacyAuthoritativeHoldActive = authoritativePhaseHold != null;
+  const healthResolutionLockActive = legacyAuthoritativeHoldActive;
   currentAuthoritativeHoldSignatureRef.current = authoritativePhaseHold?.signature ?? null;
+
+  function startHealthResolutionPresentation(
+    presentationHealthInput: EndOfTurnHealthPresentationInput
+  ): string | null {
+    healthResolutionOverlayPresentationSeqRef.current += 1;
+    const presentationKey =
+      `${effectiveGameId ?? 'nogame'}::health::${turnNumber}::${healthResolutionOverlayPresentationSeqRef.current}`;
+    const nextOverlay = buildHealthResolutionPresentationSnapshot({
+      presentationKey,
+      healthPresentation: presentationHealthInput,
+    });
+
+    if (nextOverlay == null) {
+      return null;
+    }
+
+    const nextFleetAreaHealthDeltaFlashes = boardFlashEnabled
+      ? buildFleetAreaHealthDeltaFlashSnapshots({
+          presentationKey,
+          healthPresentation: presentationHealthInput,
+        })
+      : {};
+
+    activeHealthResolutionOverlayPresentationKeyRef.current = presentationKey;
+    setHealthResolutionOverlay(nextOverlay);
+    setFleetAreaHealthDeltaFlashes(nextFleetAreaHealthDeltaFlashes);
+    setHealthDeltaPresentationKey(presentationKey);
+    clearTimer(healthResolutionOverlayTimerRef);
+    healthResolutionOverlayTimerRef.current = setTimeout(() => {
+      healthResolutionOverlayTimerRef.current = null;
+
+      if (activeHealthResolutionOverlayPresentationKeyRef.current !== presentationKey) {
+        return;
+      }
+
+      activeHealthResolutionOverlayPresentationKeyRef.current = null;
+      setHealthResolutionOverlay(undefined);
+      setFleetAreaHealthDeltaFlashes({});
+    }, 3500);
+
+    return presentationKey;
+  }
 
   function schedulePhaseHoldContinuationRetry(
     continuationArgs: ContinueAuthoritativePhaseHoldArgs,
@@ -367,6 +420,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     clearTimer(healthResolutionOverlayTimerRef);
     setHealthResolutionOverlay(undefined);
     setFleetAreaHealthDeltaFlashes({});
+    setHealthDeltaPresentationKey(undefined);
     setPresentedLeftRailDiceValue(1);
     setPresentedLeftRailDiceAnimateSeq(0);
     setPresentedTurnTakeoverTurn(null);
@@ -376,6 +430,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     phaseHoldContinuationCompletedSignatureRef.current = null;
     currentAuthoritativeHoldSignatureRef.current = null;
     lastSeenHealthResolutionOverlayHoldSignatureRef.current = null;
+    lastSeenHealthResolutionTriggerSignatureRef.current = null;
     activeHealthResolutionOverlayPresentationKeyRef.current = null;
     healthResolutionOverlayPresentationSeqRef.current = 0;
     pendingAuthoritativeLeftRailDiceRef.current = null;
@@ -391,6 +446,30 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   }, []);
 
   useEffect(() => {
+    if (!healthResolutionPresentationTrigger) {
+      return;
+    }
+
+    const triggerSignature = healthResolutionPresentationTrigger.signature;
+    if (lastSeenHealthResolutionTriggerSignatureRef.current === triggerSignature) {
+      return;
+    }
+
+    const presentationKey = startHealthResolutionPresentation(
+      healthResolutionPresentationTrigger.healthPresentation
+    );
+    if (presentationKey == null) {
+      return;
+    }
+
+    lastSeenHealthResolutionTriggerSignatureRef.current = triggerSignature;
+  }, [
+    healthResolutionPresentationTrigger,
+    boardFlashEnabled,
+    turnNumber,
+  ]);
+
+  useEffect(() => {
     if (!authoritativePhaseHold) {
       return;
     }
@@ -400,41 +479,12 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       return;
     }
 
-    healthResolutionOverlayPresentationSeqRef.current += 1;
-    const presentationKey =
-      `${effectiveGameId ?? 'nogame'}::health::${turnNumber}::${healthResolutionOverlayPresentationSeqRef.current}`;
-    const nextOverlay = buildHealthResolutionPresentationSnapshot({
-      presentationKey,
-      healthPresentation,
-    });
-
-    if (nextOverlay == null) {
+    const presentationKey = startHealthResolutionPresentation(healthPresentation);
+    if (presentationKey == null) {
       return;
     }
 
-    const nextFleetAreaHealthDeltaFlashes = boardFlashEnabled
-      ? buildFleetAreaHealthDeltaFlashSnapshots({
-          presentationKey,
-          healthPresentation,
-        })
-      : {};
-
     lastSeenHealthResolutionOverlayHoldSignatureRef.current = holdSignature;
-    activeHealthResolutionOverlayPresentationKeyRef.current = presentationKey;
-    setHealthResolutionOverlay(nextOverlay);
-    setFleetAreaHealthDeltaFlashes(nextFleetAreaHealthDeltaFlashes);
-    clearTimer(healthResolutionOverlayTimerRef);
-    healthResolutionOverlayTimerRef.current = setTimeout(() => {
-      healthResolutionOverlayTimerRef.current = null;
-
-      if (activeHealthResolutionOverlayPresentationKeyRef.current !== presentationKey) {
-        return;
-      }
-
-      activeHealthResolutionOverlayPresentationKeyRef.current = null;
-      setHealthResolutionOverlay(undefined);
-      setFleetAreaHealthDeltaFlashes({});
-    }, 3500);
   }, [
     authoritativePhaseHold?.signature,
     effectiveGameId,
@@ -528,7 +578,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
     lastSeenAuthoritativeLeftRailDiceSignatureRef.current = leftRail.authoritativeDiceSignature;
 
-    if (healthResolutionLockActive) {
+    if (legacyAuthoritativeHoldActive) {
       pendingAuthoritativeLeftRailDiceRef.current = nextSnapshot;
       return;
     }
@@ -542,7 +592,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     });
   }, [
     effectiveGameId,
-    healthResolutionLockActive,
+    legacyAuthoritativeHoldActive,
     leftRail.authoritativeDiceSignature,
     leftRail.authoritativeDiceValue,
     leftRail.hasChronoswarmDice,
@@ -550,7 +600,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   ]);
 
   useLayoutEffect(() => {
-    if (healthResolutionLockActive) {
+    if (legacyAuthoritativeHoldActive) {
       return;
     }
 
@@ -566,7 +616,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       hasChronoswarmDice: pendingSnapshot.hasChronoswarmDice,
       animateMainDie: true,
     });
-  }, [healthResolutionLockActive]);
+  }, [legacyAuthoritativeHoldActive]);
 
   useEffect(() => {
     clearTimer(phaseHoldContinuationTimerRef);
@@ -608,6 +658,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     healthResolutionOverlay,
     myFleetHealthDeltaFlash: fleetAreaHealthDeltaFlashes.my,
     opponentFleetHealthDeltaFlash: fleetAreaHealthDeltaFlashes.opponent,
+    healthDeltaPresentationKey,
     leftRailDiceValue: presentedLeftRailDiceValue,
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
     leftRailTurnTakeoverTurn: presentedTurnTakeoverTurn,

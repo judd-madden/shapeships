@@ -340,6 +340,7 @@ export type BoardViewModel =
       opponentFleetRenderOrder: string[];
       myFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
       opponentFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
+      healthDeltaPresentationKey?: string;
       fleetAnim: FleetAnimVM; // Animation tokens (DEF/FIG only)
       
       // Last turn deltas (server-authoritative)

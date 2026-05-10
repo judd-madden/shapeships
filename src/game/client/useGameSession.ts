@@ -74,6 +74,7 @@ import {
   type ContinueAuthoritativePhaseHoldOutcome,
   type EndOfTurnHealthPresentationInput,
   type EndOfTurnLeftRailInput,
+  type HealthResolutionPresentationTrigger,
 } from './gameSession/clienteffects/useEndOfTurnPresentation';
 import { useDestroyTargetingRuntime } from './gameSession/destroyTargeting';
 import type {
@@ -175,6 +176,44 @@ function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRo
       amountText,
     }];
   });
+}
+
+type OwnFiniteNumberRead =
+  | { present: true; value: number }
+  | { present: false };
+
+type HealthPresentationBuildResult = {
+  trigger: HealthResolutionPresentationTrigger;
+  boardOverride: {
+    signature: string;
+    resolvedTurnKey: string;
+    responseTurnNumber: number;
+    responseIsFinished: boolean;
+    myHealth: number;
+    opponentHealth: number;
+    myLastTurnHeal: number;
+    myLastTurnDamage: number;
+    myLastTurnNet: number;
+    opponentLastTurnHeal: number;
+    opponentLastTurnDamage: number;
+    opponentLastTurnNet: number;
+  };
+};
+
+function readOwnFiniteNumber(map: unknown, playerId: string | null | undefined): OwnFiniteNumberRead {
+  if (!playerId || !map || typeof map !== 'object' || Array.isArray(map)) {
+    return { present: false };
+  }
+
+  const record = map as Record<string, unknown>;
+  if (!Object.prototype.hasOwnProperty.call(record, playerId)) {
+    return { present: false };
+  }
+
+  const value = record[playerId];
+  return typeof value === 'number' && Number.isFinite(value)
+    ? { present: true, value }
+    : { present: false };
 }
 
 function sumBoardStatBreakdownRows(rows: BoardStatBreakdownRowVm[]): number {
@@ -800,11 +839,25 @@ export function useGameSession(
   // Client-only dice roll sequence counter (increments on each DICE_ROLLED event)
   const [, setDiceRollSeq] = useState(0);
   const [presentedOpponentRevealBlurSeq, setPresentedOpponentRevealBlurSeq] = useState(0);
+  const [healthResolutionPresentationTrigger, setHealthResolutionPresentationTrigger] =
+    useState<HealthResolutionPresentationTrigger | null>(null);
+  const [healthPresentationBoardOverride, setHealthPresentationBoardOverride] =
+    useState<HealthPresentationBuildResult['boardOverride'] | null>(null);
+  const presentedHealthResolutionSignaturesRef = useRef<Set<string>>(new Set());
+  const previousObservedHealthResolutionRef = useRef<{
+    gameId: string | null;
+    turnNumber: number;
+    isFinished: boolean;
+  } | null>(null);
   const [opponentPublicMultiChargeByInstanceId, setOpponentPublicMultiChargeByInstanceId] =
     useState<Record<string, number>>({});
 
   useEffect(() => {
     setOpponentPublicMultiChargeByInstanceId({});
+    setHealthResolutionPresentationTrigger(null);
+    setHealthPresentationBoardOverride(null);
+    presentedHealthResolutionSignaturesRef.current.clear();
+    previousObservedHealthResolutionRef.current = null;
   }, [effectiveGameId]);
   
   // ============================================================================
@@ -1436,6 +1489,276 @@ export function useGameSession(
           typeof roll === 'number' && Number.isInteger(roll) && roll >= 1 && roll <= 6
       )
     : false;
+
+  function getPlayerIdentityKey(player: any): string | null {
+    return player?.id ?? player?.playerId ?? player?.sessionId ?? null;
+  }
+
+  function findStatePlayerByIdentity(state: any, playerId: string | null): any | null {
+    if (!playerId || !Array.isArray(state?.players)) {
+      return null;
+    }
+
+    return state.players.find((player: any) =>
+      player?.id === playerId ||
+      player?.playerId === playerId ||
+      player?.sessionId === playerId
+    ) ?? null;
+  }
+
+  function getIntentResolvedTurnKey(
+    result: any,
+    meta?: { label?: string; turn?: number; phaseKey?: string }
+  ): string | null {
+    if (result?.ok !== true || !result?.state || !Array.isArray(result?.events)) {
+      return null;
+    }
+
+    let hasAggregatedHealthChange = false;
+    for (const event of result.events) {
+      if (event?.type === 'BATTLE_LOG_FINALIZE_TURN') {
+        const finalizedTurnNumber = event?.finalizedTurnNumber;
+        return Number.isInteger(finalizedTurnNumber)
+          ? String(finalizedTurnNumber)
+          : String(meta?.turn ?? turnNumber);
+      }
+
+      if (event?.type === 'EFFECT_APPLIED' && event?.kind === 'AggregatedHealthChange') {
+        hasAggregatedHealthChange = true;
+      }
+    }
+
+    return hasAggregatedHealthChange ? String(meta?.turn ?? turnNumber) : null;
+  }
+
+  function buildHealthPresentationFromState(args: {
+    state: any;
+    resolvedTurnKey: string;
+  }): HealthPresentationBuildResult | null {
+    const { state, resolvedTurnKey } = args;
+
+    if (!effectiveGameId || !state || typeof state !== 'object') {
+      return null;
+    }
+
+    if (typeof state.gameId === 'string' && state.gameId !== effectiveGameId) {
+      return null;
+    }
+
+    const localPlayerId = getPlayerIdentityKey(me);
+    const opponentPlayerId = getPlayerIdentityKey(opponent);
+    if (!localPlayerId || !opponentPlayerId) {
+      return null;
+    }
+
+    const localPlayer = findStatePlayerByIdentity(state, localPlayerId);
+    const opponentPlayer = findStatePlayerByIdentity(state, opponentPlayerId);
+    const myHealth = localPlayer?.health;
+    const opponentHealth = opponentPlayer?.health;
+    if (
+      typeof myHealth !== 'number' ||
+      !Number.isFinite(myHealth) ||
+      typeof opponentHealth !== 'number' ||
+      !Number.isFinite(opponentHealth)
+    ) {
+      return null;
+    }
+
+    const lastTurnNetByPlayerId = state?.gameData?.lastTurnNetByPlayerId;
+    const lastTurnHealByPlayerId = state?.gameData?.lastTurnHealByPlayerId;
+    const lastTurnDamageByPlayerId = state?.gameData?.lastTurnDamageByPlayerId;
+    const myNet = readOwnFiniteNumber(lastTurnNetByPlayerId, localPlayerId);
+    const myHeal = readOwnFiniteNumber(lastTurnHealByPlayerId, localPlayerId);
+    const myDamageTaken = readOwnFiniteNumber(lastTurnDamageByPlayerId, localPlayerId);
+    const opponentNet = readOwnFiniteNumber(lastTurnNetByPlayerId, opponentPlayerId);
+    const opponentHeal = readOwnFiniteNumber(lastTurnHealByPlayerId, opponentPlayerId);
+    const opponentDamageTaken = readOwnFiniteNumber(lastTurnDamageByPlayerId, opponentPlayerId);
+
+    if (
+      !myNet.present ||
+      !myHeal.present ||
+      !myDamageTaken.present ||
+      !opponentNet.present ||
+      !opponentHeal.present ||
+      !opponentDamageTaken.present
+    ) {
+      return null;
+    }
+
+    const signature = JSON.stringify({
+      gameId: effectiveGameId,
+      viewerRole: 'player',
+      resolvedTurnKey,
+      localPlayerId,
+      opponentPlayerId,
+      myHealth,
+      opponentHealth,
+      myNet: myNet.value,
+      myHeal: myHeal.value,
+      myDamageTaken: myDamageTaken.value,
+      opponentNet: opponentNet.value,
+      opponentHeal: opponentHeal.value,
+      opponentDamageTaken: opponentDamageTaken.value,
+    });
+
+    const responseTurnNumber = getTurnNumber(state);
+    const responseIsFinished =
+      state?.status === 'finished' ||
+      state?.gameData?.status === 'finished';
+
+    return {
+      trigger: {
+        signature,
+        resolvedTurnKey,
+        healthPresentation: {
+          boardMode: 'board',
+          viewerRole: 'player',
+          meName: localPlayer?.name ?? me?.name ?? 'Player 1',
+          opponentName: opponentPlayer?.name ?? opponent?.name ?? 'Player 2',
+          myHealth,
+          opponentHealth,
+          myLastTurnNet: myNet.value,
+          opponentLastTurnNet: opponentNet.value,
+          spectatorHasTwoPlayers: false,
+          spectatorLeftName: 'Player 1',
+          spectatorRightName: 'Player 2',
+          spectatorLeftNet: 0,
+          spectatorRightNet: 0,
+        },
+      },
+      boardOverride: {
+        signature,
+        resolvedTurnKey,
+        responseTurnNumber,
+        responseIsFinished,
+        myHealth,
+        opponentHealth,
+        myLastTurnHeal: myHeal.value,
+        // Server damage map is damage taken; the board's damage stat displays damage dealt.
+        myLastTurnDamage: opponentDamageTaken.value,
+        myLastTurnNet: myNet.value,
+        opponentLastTurnHeal: opponentHeal.value,
+        opponentLastTurnDamage: myDamageTaken.value,
+        opponentLastTurnNet: opponentNet.value,
+      },
+    };
+  }
+
+  function publishHealthResolutionPresentation(
+    presentation: HealthPresentationBuildResult | null,
+    options: { useBoardOverride: boolean }
+  ): void {
+    if (!presentation || presentedHealthResolutionSignaturesRef.current.has(presentation.trigger.signature)) {
+      return;
+    }
+
+    presentedHealthResolutionSignaturesRef.current.add(presentation.trigger.signature);
+    setHealthResolutionPresentationTrigger(presentation.trigger);
+
+    if (options.useBoardOverride) {
+      setHealthPresentationBoardOverride(presentation.boardOverride);
+    }
+  }
+
+  function handleIntentResultForHealthPresentation(
+    result: any,
+    meta?: { label?: string; turn?: number; phaseKey?: string }
+  ): void {
+    const resolvedTurnKey = getIntentResolvedTurnKey(result, meta);
+    if (!resolvedTurnKey) {
+      return;
+    }
+
+    publishHealthResolutionPresentation(
+      buildHealthPresentationFromState({
+        state: result.state,
+        resolvedTurnKey,
+      }),
+      { useBoardOverride: true }
+    );
+  }
+
+  useEffect(() => {
+    const override = healthPresentationBoardOverride;
+    if (!override || !rawState) {
+      return;
+    }
+
+    if (typeof rawState?.gameId === 'string' && rawState.gameId !== effectiveGameId) {
+      return;
+    }
+
+    const authoritativeIsFinished =
+      rawState?.status === 'finished' ||
+      rawState?.gameData?.status === 'finished';
+    const authoritativeTurnNumber = getTurnNumber(rawState);
+
+    if (
+      (override.responseIsFinished && authoritativeIsFinished) ||
+      (!override.responseIsFinished && authoritativeTurnNumber >= override.responseTurnNumber)
+    ) {
+      setHealthPresentationBoardOverride(null);
+    }
+  }, [effectiveGameId, healthPresentationBoardOverride, rawState]);
+
+  useEffect(() => {
+    if (
+      !effectiveGameId ||
+      !rawState ||
+      !hasMatchingAuthoritativeGameId ||
+      isBootstrapping
+    ) {
+      return;
+    }
+
+    const currentTurnNumber = getTurnNumber(rawState);
+    const currentIsFinished =
+      rawState?.status === 'finished' ||
+      rawState?.gameData?.status === 'finished';
+    const previousObserved = previousObservedHealthResolutionRef.current;
+    const currentObserved = {
+      gameId: effectiveGameId,
+      turnNumber: currentTurnNumber,
+      isFinished: currentIsFinished,
+    };
+
+    if (!previousObserved || previousObserved.gameId !== effectiveGameId) {
+      previousObservedHealthResolutionRef.current = currentObserved;
+      return;
+    }
+
+    let resolvedTurnKey: string | null = null;
+    if (currentTurnNumber > previousObserved.turnNumber) {
+      resolvedTurnKey = String(previousObserved.turnNumber);
+    } else if (!previousObserved.isFinished && currentIsFinished) {
+      resolvedTurnKey = String(currentTurnNumber);
+    }
+
+    previousObservedHealthResolutionRef.current = currentObserved;
+
+    if (!resolvedTurnKey) {
+      return;
+    }
+
+    publishHealthResolutionPresentation(
+      buildHealthPresentationFromState({
+        state: rawState,
+        resolvedTurnKey,
+      }),
+      { useBoardOverride: false }
+    );
+  }, [
+    effectiveGameId,
+    hasMatchingAuthoritativeGameId,
+    isBootstrapping,
+    rawState,
+    me?.id,
+    me?.playerId,
+    me?.sessionId,
+    opponent?.id,
+    opponent?.playerId,
+    opponent?.sessionId,
+  ]);
   
   // Determine if we're in species selection phase
   const isInSpeciesSelection = phaseKey === 'setup.species_selection';
@@ -2070,6 +2393,15 @@ useEffect(() => {
     const opponentLastTurnHeal = opponentHasHealingBreakdown
       ? sumBoardStatBreakdownRows(opponentLastHealingBreakdownRows)
       : fallbackOpponentLastTurnHeal;
+    const activeHealthPresentationOverride =
+      healthPresentationBoardOverride &&
+      (
+        healthPresentationBoardOverride.responseIsFinished
+          ? !isFinished
+          : turnNumber < healthPresentationBoardOverride.responseTurnNumber
+      )
+        ? healthPresentationBoardOverride
+        : null;
 
     // Server-authoritative bonus lines (top-level response projection)
     const bonusLinesByPlayerId = rawState?.bonusLinesByPlayerId as Record<string, number> | undefined;
@@ -2109,8 +2441,8 @@ useEffect(() => {
       turnNumber,
 
       // Server-authoritative health
-      myHealth,
-      opponentHealth,
+      myHealth: activeHealthPresentationOverride?.myHealth ?? myHealth,
+      opponentHealth: activeHealthPresentationOverride?.opponentHealth ?? opponentHealth,
 
       // Fleet data: server + local preview overlay (build phase only)
       myFleet: myFleetWithPreview,
@@ -2144,12 +2476,12 @@ useEffect(() => {
       })(),
 
       // Last turn deltas (server-authoritative)
-      myLastTurnHeal,
-      myLastTurnDamage,
-      myLastTurnNet,
-      opponentLastTurnHeal,
-      opponentLastTurnDamage,
-      opponentLastTurnNet,
+      myLastTurnHeal: activeHealthPresentationOverride?.myLastTurnHeal ?? myLastTurnHeal,
+      myLastTurnDamage: activeHealthPresentationOverride?.myLastTurnDamage ?? myLastTurnDamage,
+      myLastTurnNet: activeHealthPresentationOverride?.myLastTurnNet ?? myLastTurnNet,
+      opponentLastTurnHeal: activeHealthPresentationOverride?.opponentLastTurnHeal ?? opponentLastTurnHeal,
+      opponentLastTurnDamage: activeHealthPresentationOverride?.opponentLastTurnDamage ?? opponentLastTurnDamage,
+      opponentLastTurnNet: activeHealthPresentationOverride?.opponentLastTurnNet ?? opponentLastTurnNet,
       myLastDamageBreakdownRows,
       opponentLastDamageBreakdownRows,
       myLastHealingBreakdownRows,
@@ -2202,26 +2534,30 @@ useEffect(() => {
   const spectatorLeftPlayer = healthResolutionPlayerEntries[0];
   const spectatorRightPlayer = healthResolutionPlayerEntries[1];
   const lastTurnNetByPlayerId =
-    rawState?.gameData?.lastTurnNetByPlayerId as Record<string, number> | undefined;
+    rawState?.gameData?.lastTurnNetByPlayerId as Record<string, unknown> | undefined;
   const spectatorLeftIdentityKey =
     spectatorLeftPlayer?.id ?? spectatorLeftPlayer?.playerId ?? spectatorLeftPlayer?.sessionId ?? null;
   const spectatorRightIdentityKey =
     spectatorRightPlayer?.id ?? spectatorRightPlayer?.playerId ?? spectatorRightPlayer?.sessionId ?? null;
   const spectatorLeftName = spectatorLeftPlayer?.name ?? 'Player 1';
   const spectatorRightName = spectatorRightPlayer?.name ?? 'Player 2';
-  const spectatorLeftNet =
-    spectatorLeftIdentityKey != null ? (lastTurnNetByPlayerId?.[spectatorLeftIdentityKey] ?? 0) : 0;
-  const spectatorRightNet =
-    spectatorRightIdentityKey != null ? (lastTurnNetByPlayerId?.[spectatorRightIdentityKey] ?? 0) : 0;
+  const spectatorLeftNetRead = readOwnFiniteNumber(lastTurnNetByPlayerId, spectatorLeftIdentityKey);
+  const spectatorRightNetRead = readOwnFiniteNumber(lastTurnNetByPlayerId, spectatorRightIdentityKey);
+  const spectatorLeftNet = spectatorLeftNetRead.present ? spectatorLeftNetRead.value : 0;
+  const spectatorRightNet = spectatorRightNetRead.present ? spectatorRightNetRead.value : 0;
   const healthResolutionMyLastTurnNet = board.mode === 'board' ? board.myLastTurnNet : 0;
   const healthResolutionOpponentLastTurnNet = board.mode === 'board' ? board.opponentLastTurnNet : 0;
   const healthResolutionMyHealth = board.mode === 'board' ? board.myHealth : 0;
   const healthResolutionOpponentHealth = board.mode === 'board' ? board.opponentHealth : 0;
   const spectatorHasTwoPlayers = healthResolutionPlayerEntries.length >= 2;
+  const healthResolutionViewerRole: 'player' | 'spectator' | 'unknown' =
+    me?.role === 'player' || me?.role === 'spectator'
+      ? me.role
+      : myRole;
   const endOfTurnHealthPresentationInput = useMemo<EndOfTurnHealthPresentationInput>(
     () => ({
       boardMode: board.mode,
-      viewerRole: myRole,
+      viewerRole: healthResolutionViewerRole,
       meName: me?.name ?? 'Player 1',
       opponentName: opponent?.name ?? 'Player 2',
       myHealth: healthResolutionMyHealth,
@@ -2236,7 +2572,7 @@ useEffect(() => {
     }),
     [
       board.mode,
-      myRole,
+      healthResolutionViewerRole,
       me?.name,
       opponent?.name,
       healthResolutionMyHealth,
@@ -2267,6 +2603,7 @@ useEffect(() => {
     healthResolutionOverlay,
     myFleetHealthDeltaFlash,
     opponentFleetHealthDeltaFlash,
+    healthDeltaPresentationKey,
     leftRailDiceValue: presentedLeftRailDiceValue,
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
     leftRailTurnTakeoverTurn: presentedTurnTakeoverTurn,
@@ -2281,6 +2618,7 @@ useEffect(() => {
     authoritativeHoldPhaseKey,
     authoritativeHoldReason,
     authoritativeHoldUntilMs,
+    healthResolutionPresentationTrigger,
     healthPresentation: endOfTurnHealthPresentationInput,
     leftRail: endOfTurnLeftRailInput,
     boardFlashEnabled,
@@ -3209,6 +3547,7 @@ useEffect(() => {
     healthResolutionOverlay,
     myFleetHealthDeltaFlash,
     opponentFleetHealthDeltaFlash,
+    healthDeltaPresentationKey,
 
     readyEnabled,
     readyDisabledReason,
@@ -3341,6 +3680,7 @@ useEffect(() => {
           makeCommitHash,
           submitIntent,
           appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
+          onIntentResult: handleIntentResultForHealthPresentation,
           refreshGameStateOnce,
           maybeAutoRevealBuild,
           bumpDiceRollSeq: (n: number) => setDiceRollSeq(prev => prev + n),

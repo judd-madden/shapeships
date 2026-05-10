@@ -313,6 +313,7 @@ export async function runReadyToggleFlow(args: {
   makeCommitHash: (payload: any, nonce: string) => Promise<string>;
   submitIntent: (body: any, timeoutMs?: number) => Promise<Response>;
   appendEvents: (events: any[], meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
+  onIntentResult?: (result: any, meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
   refreshGameStateOnce: () => Promise<void>;
   maybeAutoRevealBuild: (args: any) => Promise<void>;
   bumpDiceRollSeq: (n: number) => void;
@@ -350,6 +351,7 @@ export async function runReadyToggleFlow(args: {
     makeCommitHash,
     submitIntent,
     appendEvents,
+    onIntentResult,
     refreshGameStateOnce,
     maybeAutoRevealBuild,
     bumpDiceRollSeq,
@@ -512,6 +514,11 @@ export async function runReadyToggleFlow(args: {
             turn: turnNumber,
             phaseKey,
           });
+          onIntentResult?.(result, {
+            label: `ACTIONS_SUBMIT (${actions.length})`,
+            turn: turnNumber,
+            phaseKey,
+          });
           
           const diceCount = countDiceRolledEvents(events);
           if (diceCount > 0) {
@@ -550,6 +557,11 @@ export async function runReadyToggleFlow(args: {
       
       const readyEvents = readyResult.events || [];
       appendEvents(readyEvents, {
+        label: 'DECLARE_READY',
+        turn: turnNumber,
+        phaseKey,
+      });
+      onIntentResult?.(readyResult, {
         label: 'DECLARE_READY',
         turn: turnNumber,
         phaseKey,
@@ -675,6 +687,11 @@ export async function runReadyToggleFlow(args: {
             turn: turnNumber,
             phaseKey,
           });
+          onIntentResult?.(result, {
+            label: `ACTIONS_SUBMIT (${actions.length})`,
+            turn: turnNumber,
+            phaseKey,
+          });
           
           const diceCount = countDiceRolledEvents(events);
           if (diceCount > 0) {
@@ -713,6 +730,11 @@ export async function runReadyToggleFlow(args: {
       
       const readyEvents = readyResult.events || [];
       appendEvents(readyEvents, {
+        label: 'DECLARE_READY',
+        turn: turnNumber,
+        phaseKey,
+      });
+      onIntentResult?.(readyResult, {
         label: 'DECLARE_READY',
         turn: turnNumber,
         phaseKey,
@@ -828,6 +850,11 @@ export async function runReadyToggleFlow(args: {
         turn: canonicalTurnNumber,
         phaseKey,
       });
+      onIntentResult?.(result, {
+        label: 'BUILD_SUBMIT',
+        turn: canonicalTurnNumber,
+        phaseKey,
+      });
       
       const diceCount = countDiceRolledEvents(events);
       if (diceCount > 0) {
@@ -871,6 +898,11 @@ export async function runReadyToggleFlow(args: {
     // Append events to tape
     const events = result.events || [];
     appendEvents(events, {
+      label: 'DECLARE_READY',
+      turn: turnNumber,
+      phaseKey,
+    });
+    onIntentResult?.(result, {
       label: 'DECLARE_READY',
       turn: turnNumber,
       phaseKey,
