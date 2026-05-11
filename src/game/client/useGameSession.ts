@@ -1506,6 +1506,125 @@ export function useGameSession(
     ) ?? null;
   }
 
+  function normalizeFinishReasonToken(value: unknown): string | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+
+    const normalized = value.trim().toLowerCase();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  function getFinishReasonCandidates(payload: any): string[] {
+    const candidates: string[] = [];
+
+    function add(value: unknown): void {
+      const normalized = normalizeFinishReasonToken(value);
+      if (normalized) {
+        candidates.push(normalized);
+      }
+    }
+
+    const state = payload?.state ?? payload;
+    const gameData = state?.gameData;
+
+    add(payload?.resultReason);
+    add(payload?.reason);
+    add(payload?.endReason);
+    add(payload?.finishReason);
+    add(payload?.statusReason);
+    add(state?.resultReason);
+    add(state?.reason);
+    add(state?.endReason);
+    add(state?.finishReason);
+    add(state?.statusReason);
+    add(gameData?.resultReason);
+    add(gameData?.reason);
+    add(gameData?.endReason);
+    add(gameData?.finishReason);
+    add(gameData?.statusReason);
+
+    if (Array.isArray(payload?.events)) {
+      for (const event of payload.events) {
+        add(event?.resultReason);
+        add(event?.reason);
+        add(event?.endReason);
+        add(event?.finishReason);
+        add(event?.statusReason);
+        add(event?.type);
+        add(event?.intentType);
+        add(event?.action);
+      }
+    }
+
+    return candidates;
+  }
+
+  function isNonHealthResolutionFinishReason(reason: unknown): boolean {
+    const normalized = normalizeFinishReasonToken(reason);
+    if (!normalized) {
+      return false;
+    }
+
+    const compact = normalized.replace(/[\s-]+/g, '_');
+    const withoutSeparators = compact.replace(/_/g, '');
+
+    return (
+      compact.includes('resign') ||
+      compact.includes('surrender') ||
+      compact.includes('agreement') ||
+      compact.includes('agreed_draw') ||
+      compact.includes('manual_draw') ||
+      compact.includes('draw_offer') ||
+      compact.includes('draw_accept') ||
+      compact.includes('mutual_draw') ||
+      compact.includes('abort') ||
+      compact.includes('abandon') ||
+      compact.includes('cancelled') ||
+      compact.includes('canceled') ||
+      compact.includes('empty_private_game') ||
+      compact.includes('timeout') ||
+      compact.includes('clock') ||
+      compact === 'time' ||
+      compact.includes('time_expired') ||
+      withoutSeparators === 'emptyprivategame'
+    );
+  }
+
+  function hasNonHealthResolutionFinishReason(payload: any): boolean {
+    return getFinishReasonCandidates(payload).some(isNonHealthResolutionFinishReason);
+  }
+
+  function hasCompletedTurnHealthStats(
+    state: any,
+    localPlayerId: string | null,
+    opponentPlayerId: string | null
+  ): boolean {
+    const lastTurnNetByPlayerId = state?.gameData?.lastTurnNetByPlayerId;
+    const lastTurnHealByPlayerId = state?.gameData?.lastTurnHealByPlayerId;
+    const lastTurnDamageByPlayerId = state?.gameData?.lastTurnDamageByPlayerId;
+
+    return (
+      readOwnFiniteNumber(lastTurnNetByPlayerId, localPlayerId).present &&
+      readOwnFiniteNumber(lastTurnHealByPlayerId, localPlayerId).present &&
+      readOwnFiniteNumber(lastTurnDamageByPlayerId, localPlayerId).present &&
+      readOwnFiniteNumber(lastTurnNetByPlayerId, opponentPlayerId).present &&
+      readOwnFiniteNumber(lastTurnHealByPlayerId, opponentPlayerId).present &&
+      readOwnFiniteNumber(lastTurnDamageByPlayerId, opponentPlayerId).present
+    );
+  }
+
+  function hasIntentEndOfTurnHealthResolutionEvent(result: any): boolean {
+    if (result?.ok !== true || !Array.isArray(result?.events)) {
+      return false;
+    }
+
+    return result.events.some((event: any) =>
+      event?.type === 'BATTLE_LOG_FINALIZE_TURN' ||
+      (event?.type === 'EFFECT_APPLIED' && event?.kind === 'AggregatedHealthChange')
+    );
+  }
+
   function getIntentResolvedTurnKey(
     result: any,
     meta?: { label?: string; turn?: number; phaseKey?: string }
@@ -1548,6 +1667,10 @@ export function useGameSession(
     const localPlayerId = getPlayerIdentityKey(me);
     const opponentPlayerId = getPlayerIdentityKey(opponent);
     if (!localPlayerId || !opponentPlayerId) {
+      return null;
+    }
+
+    if (!hasCompletedTurnHealthStats(state, localPlayerId, opponentPlayerId)) {
       return null;
     }
 
@@ -1664,6 +1787,16 @@ export function useGameSession(
     result: any,
     meta?: { label?: string; turn?: number; phaseKey?: string }
   ): void {
+    const localPlayerId = getPlayerIdentityKey(me);
+    const opponentPlayerId = getPlayerIdentityKey(opponent);
+    if (
+      !hasIntentEndOfTurnHealthResolutionEvent(result) ||
+      hasNonHealthResolutionFinishReason(result) ||
+      !hasCompletedTurnHealthStats(result?.state, localPlayerId, opponentPlayerId)
+    ) {
+      return;
+    }
+
     const resolvedTurnKey = getIntentResolvedTurnKey(result, meta);
     if (!resolvedTurnKey) {
       return;
@@ -1737,6 +1870,15 @@ export function useGameSession(
     previousObservedHealthResolutionRef.current = currentObserved;
 
     if (!resolvedTurnKey) {
+      return;
+    }
+
+    const localPlayerId = getPlayerIdentityKey(me);
+    const opponentPlayerId = getPlayerIdentityKey(opponent);
+    if (
+      hasNonHealthResolutionFinishReason(rawState) ||
+      !hasCompletedTurnHealthStats(rawState, localPlayerId, opponentPlayerId)
+    ) {
       return;
     }
 
