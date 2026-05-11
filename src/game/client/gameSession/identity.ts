@@ -5,12 +5,17 @@
  * Uses sessionId for stable identity matching.
  */
 
+import {
+  getPlayers,
+  getPlayerUsers,
+} from './selectors';
+
 export function deriveIdentity(rawState: any, mySessionId: string | null) {
   // Extract all players from server state
-  const allPlayers = rawState?.players ?? [];
+  const allPlayers = getPlayers(rawState);
   
   // Filter to role='player' only
-  const playerUsers = allPlayers.filter((p: any) => p.role === 'player');
+  const playerUsers = getPlayerUsers(rawState);
   
   // Find "me" in the player list (using mySessionId for stable identity)
   // Match on either p.id === mySessionId OR p.sessionId === mySessionId (defensive)

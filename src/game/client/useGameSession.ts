@@ -37,7 +37,38 @@ import { generateNonce, makeCommitHash } from './hashUtils';
 import { isValidPhaseKey } from '../../engine/phase/PhaseTable';
 import { getPlayerName } from './gameSession/playerName';
 import { getMajorPhaseLabel, getSubphaseLabelFromPhaseKey } from './gameSession/phaseLabels';
-import { getPhaseKey, getTurnNumber, formatClock, formatClockMs, getClockData } from './gameSession/selectors';
+import {
+  findPlayerByIdentity,
+  getAvailableActions,
+  getBonusBreakdownByPlayerId,
+  getBonusLinesByPlayerId,
+  getBonusLinesOnEvenByPlayerId,
+  getBuildEconomyForPlayer,
+  getChronoswarmRolls,
+  getClockData,
+  getFrigateTriggerByInstanceId,
+  getGameStatus,
+  getJoiningBonusLinesByPlayerId,
+  getJoiningLinesByPlayerId,
+  getKnoRerollPassIndex,
+  getLastTurnDamageByPlayerId,
+  getLastTurnDamageDealtBreakdownByPlayerId,
+  getLastTurnHealByPlayerId,
+  getLastTurnHealingReceivedBreakdownByPlayerId,
+  getLastTurnNetByPlayerId,
+  getPhaseHold,
+  getPhaseKey,
+  getPlayerIdentityKey,
+  getResultReason,
+  getSavedLinesByPlayerId,
+  getShipsByPlayerId,
+  getTurnNumber,
+  getWinnerPlayerId,
+  isGameFinished,
+  isPlayerReadyForPhase,
+  formatClock,
+  formatClockMs,
+} from './gameSession/selectors';
 import { deriveIdentity } from './gameSession/identity';
 import {
   deriveFleets,
@@ -376,12 +407,7 @@ function getAuthoritativeStateRevision(state: any): number {
 function extractAcceptedFullStateFingerprint(state: any): AcceptedFullStateFingerprint {
   return {
     stateRevision: getAuthoritativeStateRevision(state),
-    status:
-      typeof state?.status === 'string'
-        ? state.status
-        : typeof state?.gameData?.status === 'string'
-          ? state.gameData.status
-          : 'unknown',
+    status: getGameStatus(state),
     turnNumber: getTurnNumber(state),
     phaseKey: getPhaseKey(state),
   };
@@ -937,14 +963,12 @@ export function useGameSession(
     mode: untimedPollingMode,
     resumeToken: untimedResumeToken,
   } = useUntimedPollingThrottle();
-  const isFinished =
-    rawState?.status === 'finished' ||
-    rawState?.gameData?.status === 'finished';
+  const isFinished = isGameFinished(rawState);
   const isUntimedAuthoritative =
     rawState?.gameData != null &&
     rawState.gameData.clock == null;
-  const terminalWinnerPlayerId = rawState?.winnerPlayerId ?? null;
-  const terminalResultReason = rawState?.resultReason ?? null;
+  const terminalWinnerPlayerId = getWinnerPlayerId(rawState);
+  const terminalResultReason = getResultReason(rawState);
 
   useEffect(() => {
     setResumeSyncLockedState(false);
@@ -1256,7 +1280,7 @@ export function useGameSession(
         }
 
         const returnedState = result?.state;
-        const returnedPhaseHold = returnedState?.gameData?.turnData?.phaseHold;
+        const returnedPhaseHold = getPhaseHold(returnedState);
         const returnedHoldSignature =
           returnedPhaseHold &&
           typeof returnedPhaseHold === 'object' &&
@@ -1308,7 +1332,7 @@ export function useGameSession(
   }
 
   function getLatestAvailableActions() {
-    const latestAvailableActions = rawStateRef.current?.availableActions;
+    const latestAvailableActions = getAvailableActions(rawStateRef.current);
     return Array.isArray(latestAvailableActions) ? latestAvailableActions : null;
   }
 
@@ -1371,7 +1395,7 @@ export function useGameSession(
   // Phase data
   const phaseKey = rawState ? getPhaseKey(rawState) : 'unknown';
   const turnNumber = rawState ? getTurnNumber(rawState) : 1;
-  const knoRerollPassIndex = rawState?.gameData?.turnData?.knoRerollPassIndex;
+  const knoRerollPassIndex = getKnoRerollPassIndex(rawState);
   const phaseInstanceKey =
     phaseKey === 'build.dice_roll' &&
       (knoRerollPassIndex === 1 || knoRerollPassIndex === 2 || knoRerollPassIndex === 3)
@@ -1380,7 +1404,7 @@ export function useGameSession(
   const deferredHandoffPhaseEntryKey = `${effectiveGameId ?? 'nogame'}::${phaseInstanceKey}`;
   
   // Phase 3.x: server-authoritative actions availability (declare early to avoid TDZ)
-  const availableActions = rawState?.availableActions;
+  const availableActions = getAvailableActions(rawState);
   const hasServerActionsAvailable =
     Array.isArray(availableActions) && availableActions.length > 0;
   
@@ -1483,28 +1507,13 @@ export function useGameSession(
       diceValue: authoritativeDiceValue,
     });
   })();
-  const hasAuthoritativeChronoswarmDice = Array.isArray(rawState?.gameData?.turnData?.chronoswarmRolls)
-    ? rawState.gameData.turnData.chronoswarmRolls.some(
+  const chronoswarmRolls = getChronoswarmRolls(rawState);
+  const hasAuthoritativeChronoswarmDice = Array.isArray(chronoswarmRolls)
+    ? chronoswarmRolls.some(
         (roll: unknown) =>
           typeof roll === 'number' && Number.isInteger(roll) && roll >= 1 && roll <= 6
       )
     : false;
-
-  function getPlayerIdentityKey(player: any): string | null {
-    return player?.id ?? player?.playerId ?? player?.sessionId ?? null;
-  }
-
-  function findStatePlayerByIdentity(state: any, playerId: string | null): any | null {
-    if (!playerId || !Array.isArray(state?.players)) {
-      return null;
-    }
-
-    return state.players.find((player: any) =>
-      player?.id === playerId ||
-      player?.playerId === playerId ||
-      player?.sessionId === playerId
-    ) ?? null;
-  }
 
   function normalizeFinishReasonToken(value: unknown): string | null {
     if (typeof value !== 'string') {
@@ -1674,8 +1683,8 @@ export function useGameSession(
       return null;
     }
 
-    const localPlayer = findStatePlayerByIdentity(state, localPlayerId);
-    const opponentPlayer = findStatePlayerByIdentity(state, opponentPlayerId);
+    const localPlayer = findPlayerByIdentity(state, localPlayerId);
+    const opponentPlayer = findPlayerByIdentity(state, opponentPlayerId);
     const myHealth = localPlayer?.health;
     const opponentHealth = opponentPlayer?.health;
     if (
@@ -2004,7 +2013,7 @@ export function useGameSession(
       return;
     }
 
-    const shipsData = rawState?.gameData?.ships || rawState?.ships || {};
+    const shipsData = getShipsByPlayerId(rawState);
     const authoritativeOpponentShips = Array.isArray(shipsData[opponent.id])
       ? shipsData[opponent.id]
       : [];
@@ -2067,8 +2076,7 @@ export function useGameSession(
     turnNumber,
   ]);
 
-  const frigateTriggerByInstanceId =
-    rawState?.gameData?.powerMemory?.frigateTriggerByInstanceId ?? {};
+  const frigateTriggerByInstanceId = getFrigateTriggerByInstanceId(rawState);
 
   const {
     allocatedDestroyTargetIdBySourceInstanceId,
@@ -2090,7 +2098,7 @@ export function useGameSession(
     opponentPlayerId: opponent?.id,
     myShips,
     opponentShipsVisible,
-    frigateTriggerByInstanceId,
+    frigateTriggerByInstanceId: frigateTriggerByInstanceId as Record<string, number>,
   });
 
   // ============================================================================
@@ -2238,10 +2246,7 @@ useEffect(() => {
     evolverChoicesByRowIdRef.current = {};
   }, [turnNumber, effectiveGameId]);
 
-  const buildEconomyForMe =
-    me?.id && rawState?.buildEconomyByPlayerId
-      ? rawState.buildEconomyByPlayerId[me.id]
-      : null;
+  const buildEconomyForMe = getBuildEconomyForPlayer(rawState, me?.id);
   const ownedForeignSpeciesSet = useMemo(() => {
     const nextOwnedForeignSpecies = new Set<SpeciesId>();
 
@@ -2486,9 +2491,9 @@ useEffect(() => {
     const opponentHealth = typeof opponent?.health === 'number' ? opponent.health : 25;
 
     // Extract server-authoritative deltas (last turn heal/damage/net)
-    const lastTurnHealById = rawState?.gameData?.lastTurnHealByPlayerId as Record<string, number> | undefined;
-    const lastTurnDamageById = rawState?.gameData?.lastTurnDamageByPlayerId as Record<string, number> | undefined;
-    const lastTurnNetById = rawState?.gameData?.lastTurnNetByPlayerId as Record<string, number> | undefined;
+    const lastTurnHealById = getLastTurnHealByPlayerId(rawState) as Record<string, number> | undefined;
+    const lastTurnDamageById = getLastTurnDamageByPlayerId(rawState) as Record<string, number> | undefined;
+    const lastTurnNetById = getLastTurnNetByPlayerId(rawState) as Record<string, number> | undefined;
 
     const fallbackMyLastTurnHeal = me?.id ? (lastTurnHealById?.[me.id] ?? 0) : 0;
     // NOTE: server lastTurnDamageByPlayerId is damage TAKEN (target).
@@ -2499,10 +2504,8 @@ useEffect(() => {
     const fallbackOpponentLastTurnHeal = opponent?.id ? (lastTurnHealById?.[opponent.id] ?? 0) : 0;
     const fallbackOpponentLastTurnDamage = me?.id ? (lastTurnDamageById?.[me.id] ?? 0) : 0;
     const opponentLastTurnNet = opponent?.id ? (lastTurnNetById?.[opponent.id] ?? 0) : 0;
-    const lastTurnDamageDealtBreakdownById =
-      rawState?.lastTurnDamageDealtBreakdownByPlayerId as Record<string, unknown> | undefined;
-    const lastTurnHealingReceivedBreakdownById =
-      rawState?.lastTurnHealingReceivedBreakdownByPlayerId as Record<string, unknown> | undefined;
+    const lastTurnDamageDealtBreakdownById = getLastTurnDamageDealtBreakdownByPlayerId(rawState);
+    const lastTurnHealingReceivedBreakdownById = getLastTurnHealingReceivedBreakdownByPlayerId(rawState);
     const myLastDamageBreakdownRows = me?.id
       ? normalizeBoardStatBreakdownRows(lastTurnDamageDealtBreakdownById?.[me.id])
       : [];
@@ -2546,13 +2549,12 @@ useEffect(() => {
         : null;
 
     // Server-authoritative bonus lines (top-level response projection)
-    const bonusLinesByPlayerId = rawState?.bonusLinesByPlayerId as Record<string, number> | undefined;
-    const bonusLinesOnEvenByPlayerId = rawState?.bonusLinesOnEvenByPlayerId as Record<string, number> | undefined;
-    const savedLinesByPlayerId = rawState?.savedLinesByPlayerId as Record<string, number> | undefined;
-    const joiningLinesByPlayerId = rawState?.joiningLinesByPlayerId as Record<string, number> | undefined;
-    const joiningBonusLinesByPlayerId = rawState?.joiningBonusLinesByPlayerId as Record<string, number> | undefined;
-    const bonusBreakdownByPlayerId =
-      rawState?.bonusBreakdownByPlayerId as Record<string, unknown> | undefined;
+    const bonusLinesByPlayerId = getBonusLinesByPlayerId(rawState);
+    const bonusLinesOnEvenByPlayerId = getBonusLinesOnEvenByPlayerId(rawState);
+    const savedLinesByPlayerId = getSavedLinesByPlayerId(rawState);
+    const joiningLinesByPlayerId = getJoiningLinesByPlayerId(rawState);
+    const joiningBonusLinesByPlayerId = getJoiningBonusLinesByPlayerId(rawState);
+    const bonusBreakdownByPlayerId = getBonusBreakdownByPlayerId(rawState);
 
     const myBonusLines = me?.id ? (bonusLinesByPlayerId?.[me.id] ?? 0) : 0;
     const opponentBonusLines = opponent?.id ? (bonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
@@ -2657,7 +2659,7 @@ useEffect(() => {
     };
   }
 
-  const rawPhaseHold = rawState?.gameData?.turnData?.phaseHold;
+  const rawPhaseHold = getPhaseHold(rawState);
   const authoritativeHoldPhaseKey =
     rawPhaseHold && typeof rawPhaseHold === 'object' && typeof rawPhaseHold.phaseKey === 'string'
       ? rawPhaseHold.phaseKey
@@ -3311,16 +3313,9 @@ useEffect(() => {
   // CHUNK 10: PLAYER STATUS DERIVATION (READINESS + STATUS TEXT/TONE)
   // ============================================================================
   
-  // Extract phaseReadiness from server state (defensive)
-  const phaseReadiness: any[] =
-    (rawState?.phaseReadiness ??
-     rawState?.gameData?.phaseReadiness ??
-     []) as any[];
-  
   // Helper: Check if a player is ready for the current phase
   function isPlayerReady(playerId: string | null | undefined): boolean {
-    if (!playerId) return false;
-    return phaseReadiness.some((r: any) => r?.playerId === playerId && r?.isReady === true);
+    return isPlayerReadyForPhase(rawState, playerId);
   }
   
   // Compute joined state

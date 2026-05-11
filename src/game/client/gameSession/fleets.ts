@@ -8,6 +8,11 @@
 import { getShipDefinitionById } from '../../data/ShipDefinitions.engine';
 import { isShipDefId } from '../../data/ShipDefinitions.core';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
+import {
+  getFrigateTriggerByInstanceId,
+  getShipsByPlayerId,
+  getVoidShipsByPlayerId,
+} from './selectors';
 import type { BoardFleetSummary } from './types';
 
 type FleetSummarySortFields = Pick<BoardFleetSummary, 'shipDefId' | 'stackKey' | 'condition'>;
@@ -426,11 +431,10 @@ export function deriveFleets(args: {
     opponentPublicCurrentChargesByInstanceId = {},
   } = args;
 
-  const frigateTriggerByInstanceId =
-    rawState?.gameData?.powerMemory?.frigateTriggerByInstanceId ?? {};
+  const frigateTriggerByInstanceId = getFrigateTriggerByInstanceId(rawState);
 
-  const shipsData = rawState?.gameData?.ships || rawState?.ships || {};
-  const voidShipsData = rawState?.gameData?.voidShipsByPlayerId ?? {};
+  const shipsData = getShipsByPlayerId(rawState);
+  const voidShipsData = getVoidShipsByPlayerId(rawState);
 
   const myShips = me?.id ? (shipsData[me.id] || []) : [];
   const opponentShips = opponent?.id ? (shipsData[opponent.id] || []) : [];
