@@ -1966,6 +1966,56 @@ export function registerGameRoutes(
         battleLogScratch: _omitBattleLogScratch,
         ...responseState
       } = gameData;
+      const lastTurnDamageDealtBreakdownByPlayerId =
+        gameData.gameData?.lastTurnDamageDealtBreakdownByPlayerId ?? {};
+      const lastTurnHealingReceivedBreakdownByPlayerId =
+        gameData.gameData?.lastTurnHealingReceivedBreakdownByPlayerId ?? {};
+      const meta = {
+        turnNumber: turnData.turnNumber ?? gameData.gameData?.turnNumber ?? gameData.turnNumber ?? 0,
+        phaseKey,
+        subPhaseKey: sub ?? null,
+      };
+      const visibleDice = {
+        diceRoll: turnData.diceRoll ?? gameData.gameData?.diceRoll ?? null,
+        baseDiceRoll: turnData.baseDiceRoll ?? null,
+        effectiveDiceRoll: turnData.effectiveDiceRoll ?? null,
+        effectiveDiceRollByPlayerId: turnData.effectiveDiceRollByPlayerId ?? {},
+        chronoswarmRolls: Array.isArray(turnData.chronoswarmRolls)
+          ? turnData.chronoswarmRolls
+          : [],
+      };
+      const publicState = {
+        players: gameData.players ?? [],
+        phaseReadiness,
+        clock: clockSnapshot,
+        ships: gameData.gameData?.ships ?? {},
+        voidShipsByPlayerId: gameData.gameData?.voidShipsByPlayerId ?? {},
+        visibleDice,
+        lastTurnStats: {
+          netByPlayerId: gameData.gameData?.lastTurnNetByPlayerId ?? {},
+          damageByPlayerId: gameData.gameData?.lastTurnDamageByPlayerId ?? {},
+          healByPlayerId: gameData.gameData?.lastTurnHealByPlayerId ?? {},
+        },
+        controllersByPlayerId: gameData.controllersByPlayerId ?? gameData.gameData?.controllersByPlayerId ?? {},
+        savedLinesByPlayerId,
+        joiningLinesByPlayerId,
+        bonusLinesByPlayerId,
+        bonusLinesOnEvenByPlayerId,
+        joiningBonusLinesByPlayerId,
+        bonusBreakdownByPlayerId,
+      };
+      const requester = {
+        playerId: requestingPlayerId,
+        availableActions,
+        buildEconomy: buildEconomyByPlayerId[requestingPlayerId] ?? null,
+        buildEconomyByPlayerId,
+        lastTurnDamageDealtBreakdownByPlayerId,
+        lastTurnHealingReceivedBreakdownByPlayerId,
+      };
+      const result = {
+        winnerPlayerId: gameData.winnerPlayerId ?? null,
+        resultReason: gameData.resultReason ?? null,
+      };
       
       return c.json({
         ...responseState,
@@ -1975,13 +2025,17 @@ export function registerGameRoutes(
         availableActions,
         bonusLinesByPlayerId,
         bonusLinesOnEvenByPlayerId,
-        lastTurnDamageDealtBreakdownByPlayerId: gameData.gameData?.lastTurnDamageDealtBreakdownByPlayerId ?? {},
-        lastTurnHealingReceivedBreakdownByPlayerId: gameData.gameData?.lastTurnHealingReceivedBreakdownByPlayerId ?? {},
+        lastTurnDamageDealtBreakdownByPlayerId,
+        lastTurnHealingReceivedBreakdownByPlayerId,
         bonusBreakdownByPlayerId,
         buildEconomyByPlayerId,
         savedLinesByPlayerId,
         joiningLinesByPlayerId,
         joiningBonusLinesByPlayerId,
+        meta,
+        publicState,
+        requester,
+        result,
       });
 
     } catch (error) {
