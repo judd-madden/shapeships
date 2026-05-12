@@ -13,12 +13,14 @@ function hasOwn(value: unknown, key: string): boolean {
  * Extract phaseKey from state with fallback normalization
  */
 export function getPhaseKey(state: any): string {
-  // Prefer server-provided phaseKey
+  if (state?.meta?.phaseKey) {
+    return state.meta.phaseKey;
+  }
+
   if (state?.phaseKey) {
     return state.phaseKey;
   }
   
-  // Fallback: extract from gameData
   if (state?.gameData?.phaseKey) {
     return state.gameData.phaseKey;
   }
@@ -37,10 +39,6 @@ export function getPhaseKey(state: any): string {
   if (major && sub) {
     return `${major}.${sub}`;
   }
-
-  if (state?.meta?.phaseKey) {
-    return state.meta.phaseKey;
-  }
   
   return 'unknown';
 }
@@ -49,13 +47,11 @@ export function getPhaseKey(state: any): string {
  * Extract turn number from state with fallback
  */
 export function getTurnNumber(state: any): number {
-  // Authoritative source is gameData.turnData.turnNumber (server truth).
-  // Fall back only if missing.
   return (
+    state?.meta?.turnNumber ??
     state?.gameData?.turnData?.turnNumber ??
     state?.gameData?.turnNumber ??
     state?.turnNumber ??
-    state?.meta?.turnNumber ??
     1
   );
 }
@@ -76,35 +72,35 @@ export function isGameFinished(state: any): boolean {
 }
 
 export function getWinnerPlayerId(state: any): any {
-  if (hasOwn(state, 'winnerPlayerId')) {
-    return state.winnerPlayerId ?? null;
-  }
-
   if (hasOwn(state?.result, 'winnerPlayerId')) {
     return state.result.winnerPlayerId ?? null;
+  }
+
+  if (hasOwn(state, 'winnerPlayerId')) {
+    return state.winnerPlayerId ?? null;
   }
 
   return null;
 }
 
 export function getResultReason(state: any): any {
-  if (hasOwn(state, 'resultReason')) {
-    return state.resultReason ?? null;
-  }
-
   if (hasOwn(state?.result, 'resultReason')) {
     return state.result.resultReason ?? null;
+  }
+
+  if (hasOwn(state, 'resultReason')) {
+    return state.resultReason ?? null;
   }
 
   return null;
 }
 
 export function getPlayers(state: any): any[] {
-  if (hasOwn(state, 'players')) {
-    return Array.isArray(state.players) ? state.players : [];
+  if (Array.isArray(state?.publicState?.players)) {
+    return state.publicState.players;
   }
 
-  return Array.isArray(state?.publicState?.players) ? state.publicState.players : [];
+  return Array.isArray(state?.players) ? state.players : [];
 }
 
 export function getPlayerUsers(state: any): any[] {
@@ -128,13 +124,19 @@ export function findPlayerByIdentity(state: any, playerId: string | null): any |
 }
 
 export function getPhaseReadiness(state: any): any[] {
-  const phaseReadiness =
-    state?.phaseReadiness ??
-    state?.gameData?.phaseReadiness ??
-    state?.publicState?.phaseReadiness ??
-    [];
+  if (Array.isArray(state?.publicState?.phaseReadiness)) {
+    return state.publicState.phaseReadiness;
+  }
 
-  return Array.isArray(phaseReadiness) ? phaseReadiness : [];
+  if (Array.isArray(state?.phaseReadiness)) {
+    return state.phaseReadiness;
+  }
+
+  if (Array.isArray(state?.gameData?.phaseReadiness)) {
+    return state.gameData.phaseReadiness;
+  }
+
+  return [];
 }
 
 export function isPlayerReadyForPhase(state: any, playerId: string | null | undefined): boolean {
@@ -148,28 +150,24 @@ export function isPlayerReadyForPhase(state: any, playerId: string | null | unde
 }
 
 export function getAvailableActions(state: any): any[] | null | undefined {
-  if (hasOwn(state, 'availableActions')) {
-    return state.availableActions;
-  }
-
   if (hasOwn(state?.requester, 'availableActions')) {
     return state.requester.availableActions;
+  }
+
+  if (hasOwn(state, 'availableActions')) {
+    return state.availableActions;
   }
 
   return undefined;
 }
 
 export function getBuildEconomyByPlayerId(state: any): Record<string, any> | undefined {
-  if (hasOwn(state, 'buildEconomyByPlayerId')) {
-    return state.buildEconomyByPlayerId;
-  }
-
   if (hasOwn(state?.requester, 'buildEconomyByPlayerId')) {
     return state.requester.buildEconomyByPlayerId;
   }
 
-  if (hasOwn(state?.requester, 'buildEconomy')) {
-    return state.requester.buildEconomy;
+  if (hasOwn(state, 'buildEconomyByPlayerId')) {
+    return state.buildEconomyByPlayerId;
   }
 
   return undefined;
@@ -180,59 +178,91 @@ export function getBuildEconomyForPlayer(state: any, playerId: string | null | u
     return null;
   }
 
+  if (hasOwn(state?.requester, 'buildEconomy') && state?.requester?.playerId === playerId) {
+    return state.requester.buildEconomy;
+  }
+
   const buildEconomyByPlayerId = getBuildEconomyByPlayerId(state);
-  return buildEconomyByPlayerId ? buildEconomyByPlayerId[playerId] : null;
+  return buildEconomyByPlayerId?.[playerId] ?? null;
 }
 
 export function getBonusLinesByPlayerId(state: any): Record<string, number> | undefined {
+  if (hasOwn(state?.publicState, 'bonusLinesByPlayerId')) {
+    return state.publicState.bonusLinesByPlayerId;
+  }
+
   if (hasOwn(state, 'bonusLinesByPlayerId')) {
     return state.bonusLinesByPlayerId ?? undefined;
   }
 
-  return state?.publicState?.bonusLinesByPlayerId;
+  return undefined;
 }
 
 export function getBonusLinesOnEvenByPlayerId(state: any): Record<string, number> | undefined {
+  if (hasOwn(state?.publicState, 'bonusLinesOnEvenByPlayerId')) {
+    return state.publicState.bonusLinesOnEvenByPlayerId;
+  }
+
   if (hasOwn(state, 'bonusLinesOnEvenByPlayerId')) {
     return state.bonusLinesOnEvenByPlayerId ?? undefined;
   }
 
-  return state?.publicState?.bonusLinesOnEvenByPlayerId;
+  return undefined;
 }
 
 export function getSavedLinesByPlayerId(state: any): Record<string, number> | undefined {
+  if (hasOwn(state?.publicState, 'savedLinesByPlayerId')) {
+    return state.publicState.savedLinesByPlayerId;
+  }
+
   if (hasOwn(state, 'savedLinesByPlayerId')) {
     return state.savedLinesByPlayerId ?? undefined;
   }
 
-  return state?.publicState?.savedLinesByPlayerId;
+  return undefined;
 }
 
 export function getJoiningLinesByPlayerId(state: any): Record<string, number> | undefined {
+  if (hasOwn(state?.publicState, 'joiningLinesByPlayerId')) {
+    return state.publicState.joiningLinesByPlayerId;
+  }
+
   if (hasOwn(state, 'joiningLinesByPlayerId')) {
     return state.joiningLinesByPlayerId ?? undefined;
   }
 
-  return state?.publicState?.joiningLinesByPlayerId;
+  return undefined;
 }
 
 export function getJoiningBonusLinesByPlayerId(state: any): Record<string, number> | undefined {
+  if (hasOwn(state?.publicState, 'joiningBonusLinesByPlayerId')) {
+    return state.publicState.joiningBonusLinesByPlayerId;
+  }
+
   if (hasOwn(state, 'joiningBonusLinesByPlayerId')) {
     return state.joiningBonusLinesByPlayerId ?? undefined;
   }
 
-  return state?.publicState?.joiningBonusLinesByPlayerId;
+  return undefined;
 }
 
 export function getBonusBreakdownByPlayerId(state: any): Record<string, unknown> | undefined {
+  if (hasOwn(state?.publicState, 'bonusBreakdownByPlayerId')) {
+    return state.publicState.bonusBreakdownByPlayerId;
+  }
+
   if (hasOwn(state, 'bonusBreakdownByPlayerId')) {
     return state.bonusBreakdownByPlayerId ?? undefined;
   }
 
-  return state?.publicState?.bonusBreakdownByPlayerId;
+  return undefined;
 }
 
 export function getLastTurnNetByPlayerId(state: any): Record<string, unknown> | undefined {
+  if (hasOwn(state?.publicState?.lastTurnStats, 'netByPlayerId')) {
+    return state.publicState.lastTurnStats.netByPlayerId;
+  }
+
   if (hasOwn(state?.gameData, 'lastTurnNetByPlayerId')) {
     return state.gameData.lastTurnNetByPlayerId ?? undefined;
   }
@@ -241,6 +271,10 @@ export function getLastTurnNetByPlayerId(state: any): Record<string, unknown> | 
 }
 
 export function getLastTurnHealByPlayerId(state: any): Record<string, unknown> | undefined {
+  if (hasOwn(state?.publicState?.lastTurnStats, 'healByPlayerId')) {
+    return state.publicState.lastTurnStats.healByPlayerId;
+  }
+
   if (hasOwn(state?.gameData, 'lastTurnHealByPlayerId')) {
     return state.gameData.lastTurnHealByPlayerId ?? undefined;
   }
@@ -249,6 +283,10 @@ export function getLastTurnHealByPlayerId(state: any): Record<string, unknown> |
 }
 
 export function getLastTurnDamageByPlayerId(state: any): Record<string, unknown> | undefined {
+  if (hasOwn(state?.publicState?.lastTurnStats, 'damageByPlayerId')) {
+    return state.publicState.lastTurnStats.damageByPlayerId;
+  }
+
   if (hasOwn(state?.gameData, 'lastTurnDamageByPlayerId')) {
     return state.gameData.lastTurnDamageByPlayerId ?? undefined;
   }
@@ -257,6 +295,10 @@ export function getLastTurnDamageByPlayerId(state: any): Record<string, unknown>
 }
 
 export function getLastTurnDamageDealtBreakdownByPlayerId(state: any): Record<string, unknown> | undefined {
+  if (hasOwn(state?.requester, 'lastTurnDamageDealtBreakdownByPlayerId')) {
+    return state.requester.lastTurnDamageDealtBreakdownByPlayerId;
+  }
+
   if (hasOwn(state, 'lastTurnDamageDealtBreakdownByPlayerId')) {
     return state.lastTurnDamageDealtBreakdownByPlayerId ?? undefined;
   }
@@ -265,6 +307,10 @@ export function getLastTurnDamageDealtBreakdownByPlayerId(state: any): Record<st
 }
 
 export function getLastTurnHealingReceivedBreakdownByPlayerId(state: any): Record<string, unknown> | undefined {
+  if (hasOwn(state?.requester, 'lastTurnHealingReceivedBreakdownByPlayerId')) {
+    return state.requester.lastTurnHealingReceivedBreakdownByPlayerId;
+  }
+
   if (hasOwn(state, 'lastTurnHealingReceivedBreakdownByPlayerId')) {
     return state.lastTurnHealingReceivedBreakdownByPlayerId ?? undefined;
   }
@@ -289,14 +335,32 @@ export function getPhaseHold(state: any): any {
 }
 
 export function getChronoswarmRolls(state: any): unknown[] | undefined {
-  const rolls = hasOwn(state?.gameData?.turnData, 'chronoswarmRolls')
+  const rolls = hasOwn(state?.publicState?.visibleDice, 'chronoswarmRolls')
+    ? state.publicState.visibleDice.chronoswarmRolls
+    : hasOwn(state?.gameData?.turnData, 'chronoswarmRolls')
     ? state.gameData.turnData.chronoswarmRolls
     : state?.turnData?.chronoswarmRolls;
   return Array.isArray(rolls) ? rolls : undefined;
 }
 
 export function getShipsByPlayerId(state: any): Record<string, any[]> {
-  return state?.gameData?.ships || state?.ships || state?.publicState?.ships || state?.publicState?.fleets || {};
+  if (hasOwn(state?.publicState, 'ships') && state.publicState.ships != null) {
+    return state.publicState.ships;
+  }
+
+  if (hasOwn(state?.publicState, 'fleets') && state.publicState.fleets != null) {
+    return state.publicState.fleets;
+  }
+
+  if (hasOwn(state?.gameData, 'ships') && state.gameData.ships != null) {
+    return state.gameData.ships;
+  }
+
+  if (hasOwn(state, 'ships') && state.ships != null) {
+    return state.ships;
+  }
+
+  return {};
 }
 
 export function getShipsForPlayer(state: any, playerId: string | null | undefined): any[] {
@@ -309,6 +373,10 @@ export function getShipsForPlayer(state: any, playerId: string | null | undefine
 }
 
 export function getVoidShipsByPlayerId(state: any): Record<string, any[]> {
+  if (hasOwn(state?.publicState, 'voidShipsByPlayerId')) {
+    return state.publicState.voidShipsByPlayerId ?? {};
+  }
+
   if (hasOwn(state?.gameData, 'voidShipsByPlayerId')) {
     return state.gameData.voidShipsByPlayerId ?? {};
   }
