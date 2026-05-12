@@ -2572,9 +2572,11 @@ useEffect(() => {
     const opponentBonusBreakdownRows = opponent?.id
       ? normalizeBoardStatBreakdownRows(bonusBreakdownByPlayerId?.[opponent.id])
       : [];
-    const myDisplayedSavedLines = isLocalBuildDrawing ? 0 : mySavedLines;
+    const myDisplayedSavedLines =
+      buildDrawingEconomyDisplay?.ordinaryAvailable ?? mySavedLines;
     const opponentDisplayedSavedLines = opponentSavedLines;
-    const myDisplayedSavedJoiningLines = isLocalBuildDrawing ? 0 : mySavedJoiningLines;
+    const myDisplayedSavedJoiningLines =
+      buildDrawingEconomyDisplay?.joiningAvailable ?? mySavedJoiningLines;
     const opponentDisplayedSavedJoiningLines = opponentSavedJoiningLines;
 
     board = {
