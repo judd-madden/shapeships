@@ -30,10 +30,21 @@ import { registerIntentRoutes } from "./routes/intent_routes.ts";
 
 const app = new Hono();
 
-// Create Supabase client using environment variables
+const getSupabaseUrl = () =>
+  Deno.env.get("SHAPESHIPS_SUPABASE_URL") ||
+  Deno.env.get("SUPABASE_URL") ||
+  "";
+
+const getSupabaseBackendKey = () =>
+  Deno.env.get("SHAPESHIPS_SUPABASE_SERVICE_ROLE_KEY") ||
+  Deno.env.get("SHAPESHIPS_SUPABASE_SECRET_KEY") ||
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+  "";
+
+// Create Supabase client using server-only environment variables.
 const supabase = createClient(
-  Deno.env.get("SUPABASE_URL") || "",
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
+  getSupabaseUrl(),
+  getSupabaseBackendKey()
 );
 
 // ============================================================================

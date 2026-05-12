@@ -23,7 +23,8 @@
     "dev": "deno run --allow-net --allow-read --allow-env --watch src/supabase/functions/server/index.tsx",
     "serve": "deno run --allow-net --allow-read --allow-env src/supabase/functions/server/index.tsx",
     "check": "deno check src/supabase/functions/server/index.tsx",
-    "deploy": "supabase functions deploy make-server-825e19ab --use-api"
+    "deploy": "supabase functions deploy make-server-825e19ab --use-api",
+    "local-live": "supabase functions serve make-server-825e19ab --env-file src/supabase/functions/.env.local-live --no-verify-jwt"
   },
   "imports": {
     "hono": "npm:hono@^4.0.0",

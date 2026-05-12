@@ -7,6 +7,19 @@
 import type { Hono } from "npm:hono";
 import { debugLog } from '../utils/serverLogger.ts';
 
+const hasEffectiveSupabaseUrl = () =>
+  !!(
+    Deno.env.get("SHAPESHIPS_SUPABASE_URL") ||
+    Deno.env.get("SUPABASE_URL")
+  );
+
+const hasEffectiveSupabaseBackendKey = () =>
+  !!(
+    Deno.env.get("SHAPESHIPS_SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("SHAPESHIPS_SUPABASE_SECRET_KEY") ||
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+  );
+
 export function registerTestRoutes(
   app: Hono,
   kvGet: (key: string) => Promise<any>,
@@ -23,8 +36,8 @@ export function registerTestRoutes(
   app.get("/make-server-825e19ab/test-connection", async (c) => {
     try {
       debugLog("Testing connection...");
-      debugLog("SUPABASE_URL configured:", !!Deno.env.get("SUPABASE_URL"));
-      debugLog("SUPABASE_SERVICE_ROLE_KEY exists:", !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+      debugLog("Supabase URL configured:", hasEffectiveSupabaseUrl());
+      debugLog("Supabase backend key configured:", hasEffectiveSupabaseBackendKey());
       
       // Simple test using kv store
       const testKey = "connection_test";
@@ -41,8 +54,8 @@ export function registerTestRoutes(
         test: "KV store operations successful",
         timestamp: new Date().toISOString(),
         environment: {
-          url_configured: !!Deno.env.get("SUPABASE_URL"),
-          service_key_configured: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+          url_configured: hasEffectiveSupabaseUrl(),
+          service_key_configured: hasEffectiveSupabaseBackendKey()
         }
       });
     } catch (error) {
@@ -111,12 +124,12 @@ export function registerTestRoutes(
         name: "Environment Variables",
         status: "pass",
         details: {
-          SUPABASE_URL: !!Deno.env.get("SUPABASE_URL"),
-          SUPABASE_SERVICE_ROLE_KEY: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+          supabase_url_configured: hasEffectiveSupabaseUrl(),
+          supabase_backend_key_configured: hasEffectiveSupabaseBackendKey()
         }
       };
       
-      if (!Deno.env.get("SUPABASE_URL") || !Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+      if (!hasEffectiveSupabaseUrl() || !hasEffectiveSupabaseBackendKey()) {
         envTest.status = "fail";
       }
       

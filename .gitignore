@@ -59,6 +59,11 @@ imports/
 
 # Supabase CLI local temp state
 supabase/.temp/
+supabase/functions/.env
+supabase/functions/.env.*
+src/supabase/functions/.env
+src/supabase/functions/.env.*
+supabase/.branches/
 
 # Keep actual Supabase project config tracked
 # supabase/config.tomlg

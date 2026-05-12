@@ -8,7 +8,8 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { publicAnonKey } from '../../utils/supabase/info';
+import { gameFunctionBaseUrl } from '../../utils/supabase/runtimeConfig';
 
 interface CreateAccountPanelProps {
   onNavigate: (panel: string) => void;
@@ -28,7 +29,7 @@ export function CreateAccountPanel({ onNavigate, onAccountCreated }: CreateAccou
     setMessage('');
 
     try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/signup`, {
+      const response = await fetch(`${gameFunctionBaseUrl}/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

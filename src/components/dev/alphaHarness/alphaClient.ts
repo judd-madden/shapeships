@@ -7,7 +7,8 @@
  * It provides session management, game API, and intent submission utilities.
  */
 
-import { projectId, publicAnonKey } from '../../../utils/supabase/info';
+import { publicAnonKey } from '../../../utils/supabase/info';
+import { gameFunctionBaseUrl } from '../../../utils/supabase/runtimeConfig';
 
 // ============================================================================
 // TYPES
@@ -61,7 +62,7 @@ export function generateNonce(): string {
  */
 export async function createSession(displayName: string): Promise<PlayerSession> {
   const response = await fetch(
-    `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/session/start`,
+    `${gameFunctionBaseUrl}/session/start`,
     {
       method: 'POST',
       headers: {
@@ -94,7 +95,7 @@ async function authenticatedRequest(
   sessionToken: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const url = `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab${endpoint}`;
+  const url = `${gameFunctionBaseUrl}${endpoint}`;
   
   return fetch(url, {
     ...options,

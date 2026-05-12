@@ -10,7 +10,8 @@
 // - Never send session token in Authorization header
 // ============================================================================
 
-import { projectId, publicAnonKey } from './supabase/info';
+import { publicAnonKey } from './supabase/info';
+import { gameFunctionBaseUrl } from './supabase/runtimeConfig';
 
 const SESSION_TOKEN_KEY = 'ss_sessionToken';
 const SESSION_ID_KEY = 'ss_sessionId';
@@ -126,7 +127,7 @@ export async function ensureSession(displayName?: string): Promise<{ sessionToke
   if (existingToken && !existingSessionId) {
     try {
       const response = await fetchWithTimeoutRetryOnce(
-        `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/session/me`,
+        `${gameFunctionBaseUrl}/session/me`,
         {
           method: 'GET',
           headers: {
@@ -190,7 +191,7 @@ export async function ensureSession(displayName?: string): Promise<{ sessionToke
   
   try {
     const response = await fetchWithTimeoutRetryOnce(
-      `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/session/start`,
+      `${gameFunctionBaseUrl}/session/start`,
       {
         method: 'POST',
         headers: {
@@ -273,7 +274,7 @@ export async function authenticatedFetch(
   const sessionData = await ensureSession();
 
   // Build full URL
-  const url = `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab${endpoint}`;
+  const url = `${gameFunctionBaseUrl}${endpoint}`;
 
   // Merge headers with both Supabase anon key AND session token
   const headers = {

@@ -9,6 +9,7 @@ import { Toaster } from './components/ui/sonner';
 import { Input } from './components/ui/input';
 import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
+import { gameFunctionBaseUrl } from './utils/supabase/runtimeConfig';
 import { ensureSession, authenticatedFetch, authenticatedPost, getSessionToken, clearSession } from './utils/sessionManager';
 import ScreenManager from './components/ScreenManager';
 import type { CreatePrivateGameSettings } from './components/panels/CreatePrivateGamePanel';
@@ -192,7 +193,7 @@ export default function App() {
   }, [hasUsablePlayerIdentity, mode]);
 
   const checkDeploymentStatus = async () => {
-    const url = `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/health`;
+    const url = `${gameFunctionBaseUrl}/health`;
 
     console.log('[DeployCheck] start', { url, projectId });
 
@@ -540,7 +541,7 @@ function DeploymentTestView({
   const testEcho = async () => {
     setEchoTest(null);
     try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/echo`, {
+      const response = await fetch(`${gameFunctionBaseUrl}/echo`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -562,7 +563,7 @@ function DeploymentTestView({
   };
 
   const testEndpoints = async () => {
-    const url = `https://${projectId}.supabase.co/functions/v1/make-server-825e19ab/endpoints`;
+    const url = `${gameFunctionBaseUrl}/endpoints`;
 
     console.log('[Endpoints] start', { url });
 
