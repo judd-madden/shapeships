@@ -159,7 +159,7 @@ function createFreshGameData(
         playerId: "system",
         playerName: "System",
         actionType: "system",
-        content: `${playerName} created the game`,
+        content: `${playerName} joined as a player`,
         timestamp: nowIso
       }
     ],
@@ -1329,7 +1329,7 @@ export function registerGameRoutes(
       if (session instanceof Response) return session; // Return 401 if validation failed
 
       const gameId = c.req.param('gameId');
-      const { playerName, role = 'player' } = await c.req.json();
+      const { playerName } = await c.req.json();
       
       // Note: Client may send playerId for backward compat, but it's IGNORED
       // Server-side identity is derived from sessionToken only
@@ -1348,27 +1348,17 @@ export function registerGameRoutes(
       gameData = ensureStateRevision(gameData);
       let didMutate = false;
 
-      // Check if player already exists
       const existingPlayer = gameData.players.find((p: any) => p.id === playerId);
-      
-      // Count current active players (not spectators) for slot allocation
-      // IMPORTANT: exclude "me" so refresh/rejoin cannot demote an existing player.
-      const activePlayersExcludingMe = gameData.players.filter(
-        (p: any) => p.role === 'player' && p.id !== playerId
-      );
-
-      // Returning players keep their player slot even if the game is full.
-      const isReturningPlayer = !!(existingPlayer && existingPlayer.role === 'player');
 
       // Determine final role:
-      // - If I'm already a player, remain a player (refresh-safe).
-      // - Otherwise, if requesting player but two other players already exist, force spectator.
+      // - Existing participants keep their stored role on rejoin.
+      // - New participants fill player seats only while fewer than two players exist.
       const finalRole =
-        isReturningPlayer
-          ? 'player'
-          : (role === 'player' && activePlayersExcludingMe.length >= 2)
-            ? 'spectator'
-            : role;
+        existingPlayer
+          ? existingPlayer.role === 'player' ? 'player' : 'spectator'
+          : gameData.players.filter((p: any) => p.role === 'player').length < 2
+            ? 'player'
+            : 'spectator';
       
       if (!existingPlayer) {
         const newPlayer = {
@@ -1400,10 +1390,8 @@ export function registerGameRoutes(
           }
         }
 
-        // Add appropriate join message
-        const joinMessage = finalRole === 'spectator' ? 
-          `${playerName} joined as spectator` : 
-          `${playerName} joined the game`;
+        // Internal game action only; visible chat storage stays lazy.
+        const joinMessage = `${playerName} joined as a ${finalRole}`;
 
         gameData.actions.push({
           playerId: "system",
@@ -1434,17 +1422,10 @@ export function registerGameRoutes(
           isActive: finalRole === 'player',
         });
       } else {
-        // PART C: Rejoin - idempotently re-activate existing players or promote spectators
+        // PART C: Rejoin - idempotently preserve existing player/spectator roles.
         
         // If finalRole is 'player', ensure the existing player is active
         if (finalRole === 'player') {
-          // Promote spectator to player if needed (only if role is missing or spectator)
-          if (!existingPlayer.role || existingPlayer.role === 'spectator') {
-            existingPlayer.role = 'player';
-            existingPlayer.lines = INITIAL_SAVED_LINES;
-            didMutate = true;
-          }
-          
           // Always set isActive=true for players (idempotent)
           if (existingPlayer.isActive !== true) {
             existingPlayer.isActive = true;
