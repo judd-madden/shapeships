@@ -1069,7 +1069,6 @@ export function useGameSession(
     rawState,
     mySessionId,
     effectivePlayerName,
-    myRole,
     setMyRole,
   });
   
@@ -2489,6 +2488,7 @@ useEffect(() => {
       selectedSpecies,
       gameUrl: shareGameUrl,
       canConfirmSpecies,
+      isSpeciesSelectionComplete,
       confirmDisabledReason,
     };
   } else {

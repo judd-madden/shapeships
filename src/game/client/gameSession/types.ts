@@ -322,6 +322,7 @@ export type BoardViewModel =
       selectedSpecies: SpeciesId;
       gameUrl: string;
       canConfirmSpecies: boolean;
+      isSpeciesSelectionComplete: boolean;
       confirmDisabledReason?: string;
     }
   | {

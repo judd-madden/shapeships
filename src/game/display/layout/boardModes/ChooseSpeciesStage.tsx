@@ -30,7 +30,7 @@ export function ChooseSpeciesStage({
 }: ChooseSpeciesStageProps) {
   const isAncientSelected = vm.selectedSpecies === 'ancient';
   const selectedSpeciesName = vm.selectedSpecies.toUpperCase();
-  const confirmButtonPrefix = isAncientSelected ? 'DISABLED' : 'CONFIRM';
+  const confirmButtonPrefix = vm.isSpeciesSelectionComplete ? 'CONFIRMED' : isAncientSelected ? 'DISABLED' : 'CONFIRM';
   const [showCopiedToast, setShowCopiedToast] = useState(false);
 
   const handleCopyUrl = () => {
@@ -85,7 +85,7 @@ export function ChooseSpeciesStage({
                   </p>
                 </button>
                 {/* Show disabled reason if button is disabled */}
-                {!vm.canConfirmSpecies && vm.confirmDisabledReason && (
+                {!vm.isSpeciesSelectionComplete && !vm.canConfirmSpecies && vm.confirmDisabledReason && (
                   <p className="text-gray-400 text-[12px] mt-[4px] pl-[4px]">
                     {vm.confirmDisabledReason}
                   </p>

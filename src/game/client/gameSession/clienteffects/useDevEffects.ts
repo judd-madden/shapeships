@@ -1,6 +1,30 @@
 import { useEffect, useRef } from 'react';
+import { findPlayerByIdentity, getPlayers } from '../selectors';
 
 type AppendEventsFn = (events: any[], meta?: any) => void;
+type ResolvedRole = 'player' | 'spectator' | 'unknown';
+
+function resolveRole(role: any): ResolvedRole {
+  return role === 'player' || role === 'spectator' ? role : 'unknown';
+}
+
+function getAnyPlayerId(player: any): string | null {
+  return player?.id ?? player?.playerId ?? player?.sessionId ?? null;
+}
+
+function getDisplayName(player: any, fallbackName?: string): string {
+  return (
+    player?.displayName ||
+    player?.playerName ||
+    player?.name ||
+    fallbackName ||
+    'Unknown'
+  );
+}
+
+function shortId(id: string | null | undefined): string {
+  return id ? id.slice(-8) : 'NONE';
+}
 
 // 1) POLL MARKERS
 export function usePollMarkerEffect(args: {
@@ -83,10 +107,9 @@ export function useRoleCheckLoggingEffect(args: {
   rawState: any;
   mySessionId: string | null;
   effectivePlayerName: string;
-  myRole: 'player' | 'spectator' | 'unknown';
-  setMyRole: (r: 'player' | 'spectator' | 'unknown') => void;
+  setMyRole: (r: ResolvedRole) => void;
 }) {
-  const { rawState, mySessionId, effectivePlayerName, myRole, setMyRole } = args;
+  const { rawState, mySessionId, effectivePlayerName, setMyRole } = args;
   
   const lastLoggedRef = useRef<string | null>(null);
 
@@ -94,31 +117,30 @@ export function useRoleCheckLoggingEffect(args: {
     // Guard: require both rawState and sessionId
     if (!rawState || !mySessionId) return;
 
-    const players = rawState.players || [];
+    const players = getPlayers(rawState);
 
     // Find "me" in the player list
-    const me = players.find((p: any) => p.id === mySessionId);
-    const meRole = me?.role || 'missing';
+    const me = findPlayerByIdentity(rawState, mySessionId);
+    const resolvedRole = resolveRole(me?.role);
 
     // Count players with role='player'
     const numPlayers = players.filter((p: any) => p.role === 'player').length;
 
     // Compute player slots for signature
     const playerSlots = players.filter((p: any) => p.role === 'player');
-    const short = (id: string) => id ? id.slice(-8) : 'NONE';
     
     const slot1 = playerSlots[0];
     const slot2 = playerSlots[1];
-    const slot1Str = slot1 ? `${short(slot1.id)} ${slot1.displayName || slot1.playerName || 'Unknown'}` : null;
-    const slot2Str = slot2 ? `${short(slot2.id)} ${slot2.displayName || slot2.playerName || 'Unknown'}` : 'empty';
+    const slot1Str = slot1 ? `${shortId(getAnyPlayerId(slot1))} ${getDisplayName(slot1)}` : null;
+    const slot2Str = slot2 ? `${shortId(getAnyPlayerId(slot2))} ${getDisplayName(slot2)}` : 'empty';
 
     // Show "me" info with shortened ID (last 8 chars)
-    const shortMyId = mySessionId ? mySessionId.slice(-8) : 'NONE';
-    const myName = me?.displayName || me?.playerName || effectivePlayerName || 'Unknown';
+    const shortMyId = shortId(getAnyPlayerId(me) ?? mySessionId);
+    const myName = getDisplayName(me, effectivePlayerName);
 
     // Build signature string for change detection
     const signature = [
-      `meRole=${meRole}`,
+      `meRole=${resolvedRole}`,
       `numPlayers=${numPlayers}`,
       `slot1=${slot1Str ?? 'none'}`,
       `slot2=${slot2Str ?? 'none'}`,
@@ -129,30 +151,30 @@ export function useRoleCheckLoggingEffect(args: {
     // Skip logging if nothing changed
     if (lastLoggedRef.current === signature) {
       // Still update canonical role state (below), but skip logging.
-      setMyRole(meRole as 'player' | 'spectator' | 'unknown');
+      setMyRole(resolvedRole);
       return;
     }
     lastLoggedRef.current = signature;
 
     // Log role check (only when changed)
-    console.log(`[useGameSession] role-check: meRole=${meRole} numPlayers=${numPlayers} sessionId=${mySessionId}`);
+    console.log(`[useGameSession] role-check: meRole=${resolvedRole} numPlayers=${numPlayers} sessionId=${mySessionId}`);
 
     // 1) Players Debug: Show which two sessions occupy player slots
     if (playerSlots.length > 0) {
       console.log(`[useGameSession] player-slots: #1=${slot1Str} | #2=${slot2Str}`);
     }
 
-    console.log(`[useGameSession] me=${shortMyId} ${myName} role=${myRole}`);
+    console.log(`[useGameSession] me=${shortMyId} ${myName} role=${resolvedRole}`);
 
     // Explain spectator status
-    if (meRole === 'spectator' && numPlayers >= 2) {
+    if (resolvedRole === 'spectator' && numPlayers >= 2) {
       console.log(`[useGameSession] spectator because player slots full (${numPlayers}/2 players)`);
-    } else if (meRole === 'spectator' && numPlayers < 2) {
+    } else if (resolvedRole === 'spectator' && numPlayers < 2) {
       console.warn(`[useGameSession] spectator unexpectedly — join bug (only ${numPlayers}/2 players)`);
     }
 
     // Update canonical role state
-    setMyRole(meRole as 'player' | 'spectator' | 'unknown');
+    setMyRole(resolvedRole);
   }, [rawState, mySessionId, effectivePlayerName]);
 }
 

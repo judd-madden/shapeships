@@ -123,6 +123,54 @@ export function findPlayerByIdentity(state: any, playerId: string | null): any |
   ) ?? null;
 }
 
+export function getTurnCommitments(state: any): any {
+  if (hasOwn(state?.requester?.turnData, 'commitments') && state.requester.turnData.commitments != null) {
+    return state.requester.turnData.commitments;
+  }
+
+  if (hasOwn(state?.publicState?.turnData, 'commitments') && state.publicState.turnData.commitments != null) {
+    return state.publicState.turnData.commitments;
+  }
+
+  if (hasOwn(state?.gameData?.turnData, 'commitments') && state.gameData.turnData.commitments != null) {
+    return state.gameData.turnData.commitments;
+  }
+
+  if (hasOwn(state?.turnData, 'commitments') && state.turnData.commitments != null) {
+    return state.turnData.commitments;
+  }
+
+  return {};
+}
+
+export function getCommitmentForPlayer(
+  state: any,
+  commitKey: string,
+  playerId: string | null | undefined
+): any | null {
+  if (!commitKey || !playerId) {
+    return null;
+  }
+
+  return getTurnCommitments(state)?.[commitKey]?.[playerId] ?? null;
+}
+
+export function isCommitmentCommitted(commitment: any): boolean {
+  return (
+    commitment?.hasCommitted === true ||
+    (typeof commitment?.commitHash === 'string' && commitment.commitHash.trim().length > 0) ||
+    commitment?.committedAt != null
+  );
+}
+
+export function isCommitmentRevealed(commitment: any): boolean {
+  return (
+    commitment?.hasRevealed === true ||
+    commitment?.revealPayload != null ||
+    commitment?.revealedAt != null
+  );
+}
+
 export function getPhaseReadiness(state: any): any[] {
   if (Array.isArray(state?.publicState?.phaseReadiness)) {
     return state.publicState.phaseReadiness;

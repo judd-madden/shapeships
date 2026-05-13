@@ -16,6 +16,15 @@ import {
   getRenderableServerChoiceActions,
   isRenderableTargetedAction,
 } from './availableActions';
+import {
+  findPlayerByIdentity,
+  getCommitmentForPlayer,
+  getPhaseKey,
+  getTurnCommitments,
+  getTurnNumber,
+  isCommitmentCommitted,
+  isCommitmentRevealed,
+} from './selectors';
 
 const INTENT_TIMEOUT_MS = 8000; // fail fast to avoid wedged commits
 
@@ -166,6 +175,7 @@ export async function runSpeciesConfirmFlow(args: {
       turnNumber,
       speciesCommitDoneByPhase,
       setSpeciesCommitDoneByPhase,
+      setSpeciesRevealDoneByPhase,
       generateNonce,
       makeCommitHash,
       submitIntent,
@@ -238,22 +248,28 @@ export async function runSpeciesConfirmFlow(args: {
     // Verify server state reflects the selection via commitments (authoritative)
     const s = getLatestRawState();
 
-    // Keep a correct player lookup available for debugging (server uses players[].id)
-    const me = s?.players?.find((p: any) => p?.id === mySessionId);
-
     const commitKey = `SPECIES_${turnNumber}`;
-    const commitment = s?.turnData?.commitments?.[commitKey]?.[mySessionId];
-    const serverCommitDone = !!(commitment?.hasCommitted && commitment?.hasRevealed);
+    const me = findPlayerByIdentity(s, mySessionId);
+    const serverPlayerId = me?.id ?? me?.playerId ?? me?.sessionId ?? mySessionId;
+    const commitment =
+      getCommitmentForPlayer(s, commitKey, serverPlayerId) ??
+      getCommitmentForPlayer(s, commitKey, mySessionId);
+    const serverCommitDone =
+      isCommitmentCommitted(commitment) && isCommitmentRevealed(commitment);
+    const turnCommitments = getTurnCommitments(s);
 
     if (!serverCommitDone) {
       console.warn('[SPECIES_SUBMIT] server commitments did not reflect selection after refresh', {
         mySessionId,
+        serverPlayerId,
         selectedSpecies,
-        turnNumber: s?.gameData?.turnNumber ?? turnNumber,
-        phaseKey: s?.gameData?.phaseKey ?? phaseKey,
+        submittedTurnNumber: turnNumber,
+        serverTurnNumber: getTurnNumber(s),
+        submittedPhaseKey: phaseKey,
+        serverPhaseKey: getPhaseKey(s),
         commitKey,
         commitment: commitment ?? null,
-        commitmentKeys: Object.keys(s?.turnData?.commitments?.[commitKey] ?? {}),
+        commitmentKeys: Object.keys(turnCommitments?.[commitKey] ?? {}),
         debugPlayerId: me?.id,
       });
       // Do not mark as done - allow user to retry
@@ -261,6 +277,7 @@ export async function runSpeciesConfirmFlow(args: {
     }
 
     setSpeciesCommitDoneByPhase(prev => ({ ...prev, [phaseInstanceKey]: true }));
+    setSpeciesRevealDoneByPhase(prev => ({ ...prev, [phaseInstanceKey]: true }));
     console.log('✅ [useGameSession] SPECIES_SUBMIT succeeded');
     console.log('✅ [useGameSession] Species selection complete!');
   } catch (err: any) {
