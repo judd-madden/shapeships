@@ -108,6 +108,17 @@ function getShipInstanceId(ship: any): string | null {
   return typeof instanceId === 'string' && instanceId.length > 0 ? instanceId : null;
 }
 
+function hasHiddenBuildPhaseChargeUse(def: ReturnType<typeof getShipDefinitionById> | null): boolean {
+  const maxCharges = def?.maxCharges ?? 0;
+  if (maxCharges <= 1) {
+    return false;
+  }
+
+  return Array.isArray(def?.powers) && def.powers.some(
+    (power: any) => String(power?.rawSubphase ?? '').trim() === 'Ships That Build'
+  );
+}
+
 function makeSeedRenderKey(stackKey: string): string {
   return `render__${stackKey}`;
 }
@@ -470,13 +481,18 @@ export function deriveFleets(args: {
         const def = isShipDefId(rawShipDefId) ? getShipDefinitionById(rawShipDefId) : null;
         const maxCharges = def?.maxCharges ?? 0;
 
-        if (instanceId && maxCharges > 1) {
-          overrideCurrentCharges = Object.prototype.hasOwnProperty.call(
-            opponentPublicCurrentChargesByInstanceId,
-            instanceId
-          )
-            ? opponentPublicCurrentChargesByInstanceId[instanceId]
-            : maxCharges;
+        if (hasHiddenBuildPhaseChargeUse(def)) {
+          if (
+            instanceId != null &&
+            Object.prototype.hasOwnProperty.call(
+              opponentPublicCurrentChargesByInstanceId,
+              instanceId
+            )
+          ) {
+            overrideCurrentCharges = opponentPublicCurrentChargesByInstanceId[instanceId];
+          } else {
+            overrideCurrentCharges = maxCharges;
+          }
         }
       }
 

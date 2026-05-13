@@ -386,18 +386,14 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
 
   // 5) FALLBACK TO SELF CATALOGUE WHEN NO ACTIONS AVAILABLE
   if (!hasActionsAvailable) {
-    const fallbackPanelId = phaseKey.startsWith('battle.')
-      ? 'ap.idle.blank'
-      : selfCatalogue;
+    const fallbackPanelId = selfCatalogue;
 
     if (activePanelId === fallbackPanelId) return { kind: 'none' };
     if (activePanelId === 'ap.menu.root') return { kind: 'none' };
     return {
       kind: 'setActivePanelId',
       nextPanelId: fallbackPanelId,
-      log: phaseKey.startsWith('battle.')
-        ? `[useGameSession] No actions available during battle phase: falling back to blank idle panel: ${fallbackPanelId}`
-        : `[useGameSession] No actions available: falling back to self catalogue panel: ${selfCatalogue}`,
+      log: `[useGameSession] No actions available: falling back to self catalogue panel: ${selfCatalogue}`,
     };
   }
 

@@ -1281,17 +1281,27 @@ export function useGameSession(
 
         const returnedState = result?.state;
         const returnedPhaseHold = getPhaseHold(returnedState);
+        const returnedPhaseHoldReason = returnedPhaseHold?.holdReason;
+        const returnedPhaseHoldPhaseKey = returnedPhaseHold?.phaseKey;
+        const returnedPhaseHoldIsContinuable =
+          (
+            returnedPhaseHoldPhaseKey === 'battle.end_of_turn_resolution' &&
+            returnedPhaseHoldReason === 'end_of_turn_health'
+          ) ||
+          (
+            returnedPhaseHoldPhaseKey === 'battle.reveal' &&
+            returnedPhaseHoldReason === 'battle_reveal'
+          );
         const returnedHoldSignature =
           returnedPhaseHold &&
           typeof returnedPhaseHold === 'object' &&
-          returnedPhaseHold.phaseKey === 'battle.end_of_turn_resolution' &&
-          returnedPhaseHold.holdReason === 'end_of_turn_health' &&
+          returnedPhaseHoldIsContinuable &&
           typeof returnedPhaseHold.holdUntilMs === 'number'
             ? buildPhaseHoldSignature({
                 gameId: runtime.effectiveGameId,
                 turnNumber: getTurnNumber(returnedState),
-                phaseKey: returnedPhaseHold.phaseKey,
-                holdReason: returnedPhaseHold.holdReason,
+                phaseKey: returnedPhaseHoldPhaseKey,
+                holdReason: returnedPhaseHoldReason,
                 holdUntilMs: returnedPhaseHold.holdUntilMs,
               })
             : null;
@@ -3498,7 +3508,7 @@ useEffect(() => {
     );
 
     if (!nextPanelId) {
-      setActivePanelId('ap.idle.blank');
+      setActivePanelId(speciesToCataloguePanelId(mySpecies ?? 'human'));
       return;
     }
 

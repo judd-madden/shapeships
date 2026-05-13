@@ -35,6 +35,7 @@ export interface OnEnterResult {
 }
 
 const MAX_AUTO_ADVANCES = 10;
+const BATTLE_REVEAL_HOLD_DURATION_MS = 100;
 
 function getCurrentPhaseKey(state: any): PhaseKey | null {
   const gd: any = state.gameData || {};
@@ -562,6 +563,33 @@ function enterPhaseOnce(
   }
   
   const turnData = workingState.gameData.turnData;
+
+  // ============================================================================
+  // BATTLE REVEAL VISIBILITY BARRIER - battle.reveal
+  // ============================================================================
+  // Persist battle.reveal as a real current phase before later battle auto-advance.
+  // This is presentation/visibility barrier state, not a gameplay rule.
+  if (toKey === 'battle.reveal') {
+    const turnNumber =
+      workingState.gameData?.turnNumber ??
+      turnData.turnNumber ??
+      workingState.turnNumber ??
+      0;
+
+    if (turnData.battleRevealHoldPresentedTurnNumber !== turnNumber) {
+      turnData.battleRevealHoldPresentedTurnNumber = turnNumber;
+      turnData.phaseHold = {
+        phaseKey: 'battle.reveal',
+        holdReason: 'battle_reveal',
+        holdUntilMs: nowMs + BATTLE_REVEAL_HOLD_DURATION_MS,
+      };
+
+      debugLog('[OnEnterPhase] Created battle.reveal visibility phase hold', {
+        turnNumber,
+        holdUntilMs: turnData.phaseHold.holdUntilMs,
+      });
+    }
+  }
   
   // ============================================================================
   // CHARGE DECLARATION SNAPSHOT - battle.charge_declaration

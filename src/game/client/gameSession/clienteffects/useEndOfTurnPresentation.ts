@@ -289,7 +289,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   const [presentedTurnTakeoverSeq, setPresentedTurnTakeoverSeq] = useState(0);
   const [presentedChronoswarmAnimateSeq, setPresentedChronoswarmAnimateSeq] = useState(0);
 
-  const authoritativePhaseHold: AuthoritativePhaseHoldVm | null =
+  const healthAuthoritativePhaseHold: AuthoritativePhaseHoldVm | null =
     effectiveGameId &&
     hasMatchingAuthoritativeGameId &&
     !isBootstrapping &&
@@ -312,9 +312,34 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
           }),
         }
       : null;
+  const battleRevealAuthoritativePhaseHold: AuthoritativePhaseHoldVm | null =
+    effectiveGameId &&
+    hasMatchingAuthoritativeGameId &&
+    !isBootstrapping &&
+    healthPresentation.viewerRole === 'player' &&
+    phaseKey === 'battle.reveal' &&
+    authoritativeHoldPhaseKey === 'battle.reveal' &&
+    authoritativeHoldReason === 'battle_reveal' &&
+    typeof authoritativeHoldUntilMs === 'number'
+      ? {
+          phaseKey: authoritativeHoldPhaseKey,
+          holdReason: authoritativeHoldReason,
+          holdUntilMs: authoritativeHoldUntilMs,
+          turnNumber,
+          signature: buildPhaseHoldSignature({
+            gameId: effectiveGameId,
+            turnNumber,
+            phaseKey: authoritativeHoldPhaseKey,
+            holdReason: authoritativeHoldReason,
+            holdUntilMs: authoritativeHoldUntilMs,
+          }),
+        }
+      : null;
+  const authoritativePhaseHold =
+    healthAuthoritativePhaseHold ?? battleRevealAuthoritativePhaseHold;
 
-  const legacyAuthoritativeHoldActive = authoritativePhaseHold != null;
-  const healthResolutionLockActive = legacyAuthoritativeHoldActive;
+  const healthAuthoritativeHoldActive = healthAuthoritativePhaseHold != null;
+  const healthResolutionLockActive = healthAuthoritativeHoldActive;
   currentAuthoritativeHoldSignatureRef.current = authoritativePhaseHold?.signature ?? null;
 
   function startHealthResolutionPresentation(
@@ -470,11 +495,11 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   ]);
 
   useEffect(() => {
-    if (!authoritativePhaseHold) {
+    if (!healthAuthoritativePhaseHold) {
       return;
     }
 
-    const holdSignature = authoritativePhaseHold.signature;
+    const holdSignature = healthAuthoritativePhaseHold.signature;
     if (lastSeenHealthResolutionOverlayHoldSignatureRef.current === holdSignature) {
       return;
     }
@@ -486,7 +511,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
     lastSeenHealthResolutionOverlayHoldSignatureRef.current = holdSignature;
   }, [
-    authoritativePhaseHold?.signature,
+    healthAuthoritativePhaseHold?.signature,
     effectiveGameId,
     healthPresentation.boardMode,
     healthPresentation.viewerRole,
@@ -578,7 +603,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
     lastSeenAuthoritativeLeftRailDiceSignatureRef.current = leftRail.authoritativeDiceSignature;
 
-    if (legacyAuthoritativeHoldActive) {
+    if (healthAuthoritativeHoldActive) {
       pendingAuthoritativeLeftRailDiceRef.current = nextSnapshot;
       return;
     }
@@ -592,7 +617,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     });
   }, [
     effectiveGameId,
-    legacyAuthoritativeHoldActive,
+    healthAuthoritativeHoldActive,
     leftRail.authoritativeDiceSignature,
     leftRail.authoritativeDiceValue,
     leftRail.hasChronoswarmDice,
@@ -600,7 +625,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   ]);
 
   useLayoutEffect(() => {
-    if (legacyAuthoritativeHoldActive) {
+    if (healthAuthoritativeHoldActive) {
       return;
     }
 
@@ -616,7 +641,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       hasChronoswarmDice: pendingSnapshot.hasChronoswarmDice,
       animateMainDie: true,
     });
-  }, [legacyAuthoritativeHoldActive]);
+  }, [healthAuthoritativeHoldActive]);
 
   useEffect(() => {
     clearTimer(phaseHoldContinuationTimerRef);

@@ -116,6 +116,10 @@ function getCurrentPhaseHold(state: any) {
   return phaseHold && typeof phaseHold === 'object' ? phaseHold : null;
 }
 
+function isSupportedPhaseHoldReason(holdReason: unknown): holdReason is 'end_of_turn_health' | 'battle_reveal' {
+  return holdReason === 'end_of_turn_health' || holdReason === 'battle_reveal';
+}
+
 function countCreatedShipsFromEffects(effects: any[] | undefined): number {
   if (!Array.isArray(effects)) return 0;
   return effects.filter((effect: any) => effect?.kind === 'CreateShip').length;
@@ -2235,7 +2239,7 @@ function handleContinuePhaseHold(
     };
   }
 
-  if (phaseHold.holdReason !== 'end_of_turn_health') {
+  if (!isSupportedPhaseHoldReason(phaseHold.holdReason)) {
     return {
       ok: true,
       state: syncPhaseFields(state),
