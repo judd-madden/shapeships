@@ -2006,8 +2006,6 @@ export function registerGameRoutes(
         stateRevision: gameData.stateRevision,
         clock: clockSnapshot,
         availableActions,
-        lastTurnDamageDealtBreakdownByPlayerId,
-        lastTurnHealingReceivedBreakdownByPlayerId,
         buildEconomyByPlayerId,
         meta,
         publicState,
