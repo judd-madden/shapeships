@@ -1695,24 +1695,8 @@ export function registerGameRoutes(
         return c.json({ error: "Not authorized to view this game" }, 403);
       }
 
-      const { maintainedState, nowMs, terminalOccurred } = preparedRead;
+      const { maintainedState, nowMs } = preparedRead;
       let gameData = maintainedState;
-
-      const events: any[] = [];
-      if (terminalOccurred) {
-        const terminalAtMs =
-          typeof maintainedState?.gameData?.clock?.lastUpdateAtMs === 'number'
-            ? maintainedState.gameData.clock.lastUpdateAtMs
-            : nowMs;
-
-        events.push({
-          type: 'GAME_OVER',
-          result: maintainedState.result ?? 'draw',
-          resultReason: maintainedState.resultReason,
-          winnerPlayerId: maintainedState.winnerPlayerId ?? null,
-          atMs: terminalAtMs,
-        });
-      }
 
       const phaseKey = getPhaseKey(gameData);
       const sub = gameData.gameData.currentSubPhase;
@@ -2021,7 +2005,6 @@ export function registerGameRoutes(
         ...responseState,
         stateRevision: gameData.stateRevision,
         clock: clockSnapshot,
-        events,
         availableActions,
         bonusLinesByPlayerId,
         bonusLinesOnEvenByPlayerId,
