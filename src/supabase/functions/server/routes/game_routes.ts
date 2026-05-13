@@ -2005,8 +2005,6 @@ export function registerGameRoutes(
         ...responseState,
         stateRevision: gameData.stateRevision,
         clock: clockSnapshot,
-        availableActions,
-        buildEconomyByPlayerId,
         meta,
         publicState,
         requester,
