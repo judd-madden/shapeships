@@ -468,13 +468,15 @@ export function deriveFleets(args: {
         const instanceId = getShipInstanceId(ship);
         const rawShipDefId = String(ship?.shipDefId ?? '');
         const def = isShipDefId(rawShipDefId) ? getShipDefinitionById(rawShipDefId) : null;
+        const maxCharges = def?.maxCharges ?? 0;
 
-        if (
-          instanceId &&
-          (def?.maxCharges ?? 0) > 1 &&
-          Object.prototype.hasOwnProperty.call(opponentPublicCurrentChargesByInstanceId, instanceId)
-        ) {
-          overrideCurrentCharges = opponentPublicCurrentChargesByInstanceId[instanceId];
+        if (instanceId && maxCharges > 1) {
+          overrideCurrentCharges = Object.prototype.hasOwnProperty.call(
+            opponentPublicCurrentChargesByInstanceId,
+            instanceId
+          )
+            ? opponentPublicCurrentChargesByInstanceId[instanceId]
+            : maxCharges;
         }
       }
 
