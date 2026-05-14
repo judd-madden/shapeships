@@ -4,25 +4,22 @@
  * Maps game state and derived values into the GameSessionViewModel.
  */
 
-import type {
-    GameSessionViewModel,
-    BoardViewModel,
-    ActionPanelTabVm,
-    HudStatusTone,
-} from '../useGameSession';
-
 import type { ActionPanelId } from '../../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import type { ShipChoiceGroupSpec, ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
 import type {
+  ActionPanelTabVm,
   BattleLogHistoryResponse,
+  BoardViewModel,
   BuildDrawingActionFamily,
   EvolverChoiceId,
   FirstStrikeActionFamily,
   FleetAreaHealthDeltaFlashVm,
+  GameSessionViewModel,
   GameSessionChatEntry,
   HealthResolutionPresentationVm,
+  HudStatusTone,
 } from './types';
 import { getShipChoicePanelSpec } from '../../display/actionPanel/panels/ShipChoiceRegistry';
 import { mapBattleLogTurns } from './battleLog';
@@ -162,6 +159,7 @@ function getProjectedActionButtons(args: {
 
 export function mapGameSessionVm(args: {
   isBootstrapping: boolean;
+  viewer: GameSessionViewModel['viewer'];
 
   me: any;
   opponent: any;
@@ -280,6 +278,7 @@ export function mapGameSessionVm(args: {
 }): GameSessionViewModel {
   const {
     isBootstrapping,
+    viewer,
     me,
     opponent,
     mySpeciesLabel,
@@ -1214,6 +1213,7 @@ export function mapGameSessionVm(args: {
   
   const vm: GameSessionViewModel = {
     isBootstrapping,
+    viewer,
     
     hud: {
       p1Name: me?.name || 'Player 1',

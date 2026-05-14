@@ -18,6 +18,35 @@ export type ReadyUxState = {
   sendingNow: boolean;       // client is awaiting server response for the Ready flow
 };
 
+export type ViewerMode = 'p1_player' | 'p2_player' | 'spectator' | 'unknown';
+
+export type PlayerSeatKey = 'p1' | 'p2';
+
+export interface ViewerSeatModel {
+  allPlayers: any[];
+  playerUsers: any[];
+  viewerMode: ViewerMode;
+  isViewerPlayer: boolean;
+  isViewerSpectator: boolean;
+  p1: any | null;
+  p2: any | null;
+  viewerParticipant: any | null;
+  me: any | null;
+  opponent: any | null;
+  p1ReadyKey: string | null;
+  p2ReadyKey: string | null;
+  meReadyKey: string | null;
+  opponentReadyKey: string | null;
+}
+
+export interface GameSessionViewerViewModel {
+  viewerMode: ViewerMode;
+  isSpectator: boolean;
+  isPlayerViewer: boolean;
+  p1Name: string;
+  p2Name: string;
+}
+
 export type AuthoritativeStateSource = 'game_state' | 'intent_success' | 'intent_failure';
 
 export interface AuthoritativeStateApplyMeta {
@@ -526,6 +555,7 @@ export interface ActionPanelViewModel {
 
 export interface GameSessionViewModel {
   isBootstrapping: boolean; // true until valid server state with valid phaseKey
+  viewer: GameSessionViewerViewModel;
   hud: HudViewModel;
   leftRail: LeftRailViewModel;
   board: BoardViewModel;

@@ -69,7 +69,7 @@ import {
   formatClock,
   formatClockMs,
 } from './gameSession/selectors';
-import { deriveIdentity } from './gameSession/identity';
+import { deriveViewerSeats } from './gameSession/viewerSeats';
 import {
   deriveFleets,
   orderFleetSummariesByRenderKey,
@@ -1392,10 +1392,22 @@ export function useGameSession(
   // ============================================================================
   
   // ============================================================================
-  // IDENTITY DERIVATION (AUTHORITATIVE - ME VS OPPONENT)
+  // VIEWER / SEAT DERIVATION (AUTHORITATIVE - ME VS OPPONENT)
   // ============================================================================
   
-  const { allPlayers, me, opponent, meReadyKey, opponentReadyKey } = deriveIdentity(rawState, mySessionId);
+  const viewerSeats = deriveViewerSeats(rawState, mySessionId);
+  const {
+    allPlayers,
+    p1,
+    p2,
+    viewerMode,
+    isViewerPlayer,
+    isViewerSpectator,
+    me,
+    opponent,
+    meReadyKey,
+    opponentReadyKey,
+  } = viewerSeats;
   
   // ============================================================================
   // GAME LOGIC - USE ME/OPPONENT (NOT LEFT/RIGHT)
@@ -2684,11 +2696,8 @@ useEffect(() => {
     rawPhaseHold && typeof rawPhaseHold === 'object' && typeof rawPhaseHold.holdUntilMs === 'number'
       ? rawPhaseHold.holdUntilMs
       : null;
-  const healthResolutionPlayerEntries = Array.isArray(allPlayers)
-    ? allPlayers.filter((player: any) => player?.role === 'player')
-    : [];
-  const spectatorLeftPlayer = healthResolutionPlayerEntries[0];
-  const spectatorRightPlayer = healthResolutionPlayerEntries[1];
+  const spectatorLeftPlayer = p1;
+  const spectatorRightPlayer = p2;
   const lastTurnNetByPlayerId =
     rawState?.gameData?.lastTurnNetByPlayerId as Record<string, unknown> | undefined;
   const spectatorLeftIdentityKey =
@@ -2705,7 +2714,7 @@ useEffect(() => {
   const healthResolutionOpponentLastTurnNet = board.mode === 'board' ? board.opponentLastTurnNet : 0;
   const healthResolutionMyHealth = board.mode === 'board' ? board.myHealth : 0;
   const healthResolutionOpponentHealth = board.mode === 'board' ? board.opponentHealth : 0;
-  const spectatorHasTwoPlayers = healthResolutionPlayerEntries.length >= 2;
+  const spectatorHasTwoPlayers = p1 != null && p2 != null;
   const healthResolutionViewerRole: 'player' | 'spectator' | 'unknown' =
     me?.role === 'player' || me?.role === 'spectator'
       ? me.role
@@ -3659,6 +3668,13 @@ useEffect(() => {
   
   const vm: GameSessionViewModel = mapGameSessionVm({
     isBootstrapping,
+    viewer: {
+      viewerMode,
+      isSpectator: isViewerSpectator,
+      isPlayerViewer: isViewerPlayer,
+      p1Name: p1?.name ?? 'Player 1',
+      p2Name: p2?.name ?? 'Player 2',
+    },
 
     me,
     opponent,
@@ -4276,6 +4292,13 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     // Minimal safe VM that triggers "LOADING GAME" screen
     const bootstrapVm: GameSessionViewModel = {
       isBootstrapping: true,
+      viewer: {
+        viewerMode: 'unknown',
+        isSpectator: false,
+        isPlayerViewer: false,
+        p1Name: 'Player 1',
+        p2Name: 'Player 2',
+      },
       hud: {
         p1Name: 'Player 1',
         p1Species: 'Unknown',
