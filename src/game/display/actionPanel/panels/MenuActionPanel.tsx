@@ -15,6 +15,7 @@ interface MenuActionPanelProps {
   subtitle: string;  // "In Progress. Turn {n}."
   turnNumber: number;
   phaseKey: string;
+  isSpectator: boolean;
   hasActionsForMe: boolean;
   canOfferDraw: boolean;
   canResign: boolean;
@@ -22,6 +23,7 @@ interface MenuActionPanelProps {
   onOfferDraw: () => void;
   onResignGame: () => void;
   onAbortGame: () => void;
+  onReturnToMainMenu: () => void;
 }
 
 type PhaseRow = {
@@ -160,6 +162,7 @@ export function MenuActionPanel({
   subtitle,
   turnNumber,
   phaseKey,
+  isSpectator,
   hasActionsForMe,
   canOfferDraw,
   canResign,
@@ -167,6 +170,7 @@ export function MenuActionPanel({
   onOfferDraw,
   onResignGame,
   onAbortGame,
+  onReturnToMainMenu,
 }: MenuActionPanelProps) {
   const dangerAction = canAbortGame
     ? {
@@ -208,23 +212,31 @@ export function MenuActionPanel({
 
           {/* Buttons */}
           <div className="content-stretch flex gap-[20px] items-center justify-center pt-[8px] relative shrink-0 w-full">
-            <GameMenuButton
-              disabled={!canOfferDraw}
-              requiresConfirm={true}
-              confirmLabel="Offer Draw (Confirm)"
-              onClick={onOfferDraw}
-            >
-              Offer Draw
-            </GameMenuButton>
+            {isSpectator ? (
+              <GameMenuButton onClick={onReturnToMainMenu}>
+                Back to Main Menu
+              </GameMenuButton>
+            ) : (
+              <>
+                <GameMenuButton
+                  disabled={!canOfferDraw}
+                  requiresConfirm={true}
+                  confirmLabel="Offer Draw (Confirm)"
+                  onClick={onOfferDraw}
+                >
+                  Offer Draw
+                </GameMenuButton>
 
-            <GameMenuButton
-              disabled={dangerAction.disabled}
-              requiresConfirm={true}
-              confirmLabel={dangerAction.confirmLabel}
-              onClick={dangerAction.onClick}
-            >
-              {dangerAction.label}
-            </GameMenuButton>
+                <GameMenuButton
+                  disabled={dangerAction.disabled}
+                  requiresConfirm={true}
+                  confirmLabel={dangerAction.confirmLabel}
+                  onClick={dangerAction.onClick}
+                >
+                  {dangerAction.label}
+                </GameMenuButton>
+              </>
+            )}
           </div>
         </div>
       </div>

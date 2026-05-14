@@ -350,6 +350,7 @@ export type BoardViewModel =
       mode: 'choose_species';
       selectedSpecies: SpeciesId;
       gameUrl: string;
+      isSpectator: boolean;
       canConfirmSpecies: boolean;
       isSpeciesSelectionComplete: boolean;
       confirmDisabledReason?: string;
@@ -404,6 +405,9 @@ export type BoardViewModel =
       // Animation stagger plan
       activationStaggerPlan: ActivationStaggerPlan;
 
+      // Client-only one-shot presentation trigger for left/my reveal blur
+      presentedMyRevealBlurSeq?: number;
+
       // Client-only one-shot presentation trigger for opponent reveal blur
       presentedOpponentRevealBlurSeq: number;
 
@@ -435,6 +439,7 @@ export interface BottomActionRailViewModel {
   
   // Misc
   spectatorCount: number;
+  isSpectatorViewer: boolean;
 }
 
 // Action Panel Tab ID (fixed set of reference tabs)
@@ -492,6 +497,7 @@ export interface ActionPanelViewModel {
     // Turn Flow widget (Menu panel)
     turnNumber: number;
     phaseKey: string;
+    isSpectator: boolean;
     hasActionsForMe: boolean;
     canOfferDraw: boolean;
     canResign: boolean;

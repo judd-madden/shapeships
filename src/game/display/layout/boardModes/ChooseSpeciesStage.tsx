@@ -28,9 +28,6 @@ export function ChooseSpeciesStage({
   onConfirmSpecies,
   onCopyGameUrl,
 }: ChooseSpeciesStageProps) {
-  const isAncientSelected = vm.selectedSpecies === 'ancient';
-  const selectedSpeciesName = vm.selectedSpecies.toUpperCase();
-  const confirmButtonPrefix = vm.isSpeciesSelectionComplete ? 'CONFIRMED' : isAncientSelected ? 'DISABLED' : 'CONFIRM';
   const [showCopiedToast, setShowCopiedToast] = useState(false);
 
   const handleCopyUrl = () => {
@@ -40,6 +37,69 @@ export function ChooseSpeciesStage({
       setShowCopiedToast(false);
     }, 5000);
   };
+
+  if (vm.isSpectator) {
+    return (
+      <div
+        className="flex-col lg:flex-row content-stretch flex gap-[8px] item-center lg:items-start justify-center px-0 pt-[240px] lg:py-[12px] relative size-full"
+        data-name="Board Stage - Choose Species"
+      >
+        {/* Left: Spectator Section */}
+        <div className="basis-0 content-stretch flex grow h-full items-center justify-center min-h-px min-w-px relative shrink-0">
+          <div className="content-stretch flex flex-col gap-[12px] items-center relative shrink-0 w-[641px] text-center">
+            <p
+              className="font-['Roboto',sans-serif] font-black leading-[normal] relative shrink-0 text-[30px] text-white"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              You are spectating.
+            </p>
+            <p
+              className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[18px] text-white"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              Waiting for players to choose species.
+            </p>
+          </div>
+        </div>
+
+        {/* Right: Share Game URL Section */}
+        <div className="basis-0 content-stretch flex flex-col grow h-full items-center min-h-px min-w-px relative shrink-0">
+          <div className="content-stretch flex flex-col gap-[24px] items-center pb-0 pt-[130px] px-0 relative shrink-0 w-[657.6px]">
+            <p
+              className="font-['Roboto',sans-serif] font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              Share Game URL
+            </p>
+            <button
+              onClick={handleCopyUrl}
+              className="bg-white content-stretch flex gap-[13.3px] items-center px-[21px] py-[7px] relative rounded-[7px] shrink-0 cursor-pointer hover:bg-gray-100 transition-colors"
+              type="button"
+            >
+              <p
+                className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                {vm.gameUrl}
+              </p>
+              <div className="relative shrink-0 size-[42px]">
+                <CopyIcon className="w-[42px] h-[42px]" color="black" />
+              </div>
+            </button>
+            {showCopiedToast && (
+              <div className="relative">
+                <CopiedToast className="absolute top-[100%] mt-[20px]" />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isAncientSelected = vm.selectedSpecies === 'ancient';
+  const selectedSpeciesName = vm.selectedSpecies.toUpperCase();
+  const confirmButtonPrefix = vm.isSpeciesSelectionComplete ? 'CONFIRMED' : isAncientSelected ? 'DISABLED' : 'CONFIRM';
 
   return (
     <div

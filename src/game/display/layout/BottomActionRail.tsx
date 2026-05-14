@@ -87,7 +87,9 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
             className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[16px] text-right text-white w-full"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
-            {vm.spectatorCount} spectator{vm.spectatorCount !== 1 ? 's' : ''}
+            {vm.isSpectatorViewer
+              ? `You are spectating. ${vm.spectatorCount} total spectator${vm.spectatorCount !== 1 ? 's' : ''}`
+              : `${vm.spectatorCount} spectator${vm.spectatorCount !== 1 ? 's' : ''}`}
           </p>
         )}
       </div>

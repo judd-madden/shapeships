@@ -163,8 +163,12 @@ export function mapGameSessionVm(args: {
 
   me: any;
   opponent: any;
-  mySpeciesLabel: string;
-  opponentSpeciesLabel: string;
+  displayLeftPlayer: any;
+  displayRightPlayer: any;
+  displayLeftSpeciesLabel: string;
+  displayRightSpeciesLabel: string;
+  displayLeftSpeciesId: SpeciesId | null;
+  displayRightSpeciesId: SpeciesId | null;
 
   p1HasJoined: boolean;
   p2HasJoined: boolean;
@@ -213,8 +217,6 @@ export function mapGameSessionVm(args: {
 
   // New params for menu/end-of-game panels
   isFinished: boolean;
-  mySpeciesId: SpeciesId | null;
-  opponentSpeciesId: SpeciesId | null;
   winnerPlayerId: string | null;
   resultReason:
     | 'decisive'
@@ -281,8 +283,12 @@ export function mapGameSessionVm(args: {
     viewer,
     me,
     opponent,
-    mySpeciesLabel,
-    opponentSpeciesLabel,
+    displayLeftPlayer,
+    displayRightPlayer,
+    displayLeftSpeciesLabel,
+    displayRightSpeciesLabel,
+    displayLeftSpeciesId,
+    displayRightSpeciesId,
     p1HasJoined,
     p2HasJoined,
     p1IsReady,
@@ -316,8 +322,6 @@ export function mapGameSessionVm(args: {
     chatEntries,
     controllersByPlayerId,
     isFinished,
-    mySpeciesId,
-    opponentSpeciesId,
     winnerPlayerId,
     resultReason,
     readyUx,
@@ -342,6 +346,7 @@ export function mapGameSessionVm(args: {
     centaurChargeAvailableTabs,
     buildDrawingEconomyDisplay,
   } = args;
+  const isSpectator = viewer.isSpectator === true;
   
   // Map chat entries to LeftRail VM format
   const chatMessages = chatEntries.map(entry =>
@@ -367,8 +372,8 @@ export function mapGameSessionVm(args: {
   // E2) DERIVE DISPLAY NAMES (MY NAME FIRST)
   // ============================================================================
   
-    const myName = me?.name || 'Player 1';
-    const opponentName = opponent?.name || 'Player 2';
+    const displayLeftName = displayLeftPlayer?.name || 'Player 1';
+    const displayRightName = displayRightPlayer?.name || 'Player 2';
 
     // Use the same derivation as vm.gameCode (mapVm does not have `gameId`)
     const gameCode = effectiveGameId
@@ -376,16 +381,16 @@ export function mapGameSessionVm(args: {
         : 'NOGAME';
 
     // Big heading
-    const title = `${myName} vs ${opponentName}`;
+    const title = `${displayLeftName} vs ${displayRightName}`;
 
     // Small line under it
     const inProgressSubtitle = `Shapeships Game #${gameCode} - Turn ${turnNumber}`;
     const battleLogVm = mapBattleLogTurns({
       battleLogHistory,
-      localPlayerId: me?.playerId ?? me?.id ?? me?.sessionId ?? null,
-      localPlayerName: myName,
-      opponentPlayerId: opponent?.playerId ?? opponent?.id ?? opponent?.sessionId ?? null,
-      opponentName,
+      localPlayerId: displayLeftPlayer?.playerId ?? displayLeftPlayer?.id ?? displayLeftPlayer?.sessionId ?? null,
+      localPlayerName: displayLeftName,
+      opponentPlayerId: displayRightPlayer?.playerId ?? displayRightPlayer?.id ?? displayRightPlayer?.sessionId ?? null,
+      opponentName: displayRightName,
     });
   const playerEntries = Array.isArray(allPlayers)
     ? allPlayers.filter((player: any) => player?.role === 'player')
@@ -462,17 +467,31 @@ export function mapGameSessionVm(args: {
         player?.sessionId === winnerPlayerId
       ) ?? null
     : null;
-  const meIdentityKey = me?.playerId ?? me?.id ?? me?.sessionId ?? null;
-  const opponentIdentityKey = opponent?.playerId ?? opponent?.id ?? opponent?.sessionId ?? null;
+  const displayLeftWon = Boolean(
+    winnerPlayerId &&
+    (
+      winnerPlayerId === displayLeftPlayer?.playerId ||
+      winnerPlayerId === displayLeftPlayer?.id ||
+      winnerPlayerId === displayLeftPlayer?.sessionId
+    )
+  );
+  const displayRightWon = Boolean(
+    winnerPlayerId &&
+    (
+      winnerPlayerId === displayRightPlayer?.playerId ||
+      winnerPlayerId === displayRightPlayer?.id ||
+      winnerPlayerId === displayRightPlayer?.sessionId
+    )
+  );
   const winnerName = winnerPlayer?.name
-    ?? (winnerPlayerId && winnerPlayerId === meIdentityKey ? me?.name : undefined)
-    ?? (winnerPlayerId && winnerPlayerId === opponentIdentityKey ? opponent?.name : undefined)
+    ?? (displayLeftWon ? displayLeftName : undefined)
+    ?? (displayRightWon ? displayRightName : undefined)
     ?? 'Unknown player';
   const winnerSpeciesId =
-    winnerPlayerId && winnerPlayerId === meIdentityKey
-      ? mySpeciesId
-      : winnerPlayerId && winnerPlayerId === opponentIdentityKey
-        ? opponentSpeciesId
+    displayLeftWon
+      ? displayLeftSpeciesId
+      : displayRightWon
+        ? displayRightSpeciesId
         : normalizeSpecies(winnerPlayer?.faction ?? winnerPlayer?.species);
 
   let bannerText: string;
@@ -523,24 +542,6 @@ export function mapGameSessionVm(args: {
     resultReason === 'agreement' ||
     resultReason === 'timeout_draw';
 
-  const p1Won = Boolean(
-    winnerPlayerId &&
-    (
-      winnerPlayerId === me?.playerId ||
-      winnerPlayerId === me?.id ||
-      winnerPlayerId === me?.sessionId
-    )
-  );
-
-  const p2Won = Boolean(
-    winnerPlayerId &&
-    (
-      winnerPlayerId === opponent?.playerId ||
-      winnerPlayerId === opponent?.id ||
-      winnerPlayerId === opponent?.sessionId
-    )
-  );
-
   const finalP1StatusText =
     !p1HasJoined
       ? undefined
@@ -548,7 +549,7 @@ export function mapGameSessionVm(args: {
         ? p1StatusText
         : !winnerPlayerId || isDrawResult
           ? 'Draw'
-          : p1Won
+          : displayLeftWon
             ? 'Won'
             : 'Lost';
 
@@ -559,7 +560,7 @@ export function mapGameSessionVm(args: {
         ? p2StatusText
         : !winnerPlayerId || isDrawResult
           ? 'Draw'
-          : p2Won
+          : displayRightWon
             ? 'Won'
             : 'Lost';
 
@@ -710,14 +711,18 @@ export function mapGameSessionVm(args: {
 
   let subphaseTitle = isFinished ? 'Game Over' : getSubphaseLabelFromPhaseKey(phaseKey);
   let subphaseTitleSuffix: string | null = null;
-  let subphaseSubheading = isFinished ? '' : getMajorPhaseLabel(phaseKey);
+  let subphaseSubheading = isFinished ? '\u00A0' : getMajorPhaseLabel(phaseKey);
 
   if (!isFinished && phaseKey === 'battle.end_of_turn_resolution') {
     subphaseTitle = 'End of Turn';
     subphaseSubheading = 'Healing and damage is resolved';
   }
 
-  if (!isFinished && buildDrawingEconomyDisplay != null) {
+  if (!isFinished && isSpectator && phaseKey === 'build.drawing') {
+    subphaseTitle = 'Drawing';
+    subphaseTitleSuffix = null;
+    subphaseSubheading = 'Players are drawing ships';
+  } else if (!isFinished && buildDrawingEconomyDisplay != null) {
     subphaseTitle = String(buildDrawingEconomyDisplay.ordinaryAvailable);
     subphaseTitleSuffix = 'lines available';
     subphaseSubheading = buildDrawingEconomyDisplay.joiningAvailable > 0
@@ -1216,16 +1221,16 @@ export function mapGameSessionVm(args: {
     viewer,
     
     hud: {
-      p1Name: me?.name || 'Player 1',
-      p1Species: mySpeciesLabel, // STEP E: Use leftSpecies from server mapping
+      p1Name: displayLeftName,
+      p1Species: displayLeftSpeciesLabel,
       p1IsOnline: true,
       p1Clock: p1ClockFormatted, // Placeholder clock
       p1IsReady,
       p1StatusText: finalP1StatusText,
       p1StatusTone: finalP1StatusTone,
       
-      p2Name: p2HasJoined ? (opponent?.name || 'Player 2') : 'Waiting...',
-      p2Species: opponentSpeciesLabel, // STEP E: Use rightSpecies from server mapping
+      p2Name: isSpectator ? displayRightName : (p2HasJoined ? displayRightName : 'Waiting...'),
+      p2Species: displayRightSpeciesLabel,
       p2IsOnline: true,
       p2Clock: p2ClockFormatted, // Placeholder clock
       p2IsReady,
@@ -1342,7 +1347,7 @@ export function mapGameSessionVm(args: {
       subphaseTitleSuffix,
       subphaseSubheading,
       canUndoActions: false,
-      readyButtonVisible: !isFinished,
+      readyButtonVisible: !isFinished && !isSpectator,
       readyButtonLabel,
       readyButtonNote,
       nextPhaseLabel: 'NEXT PHASE',
@@ -1350,6 +1355,7 @@ export function mapGameSessionVm(args: {
       readyDisabledReason: finalReadyDisabledReason,
       readySelected: finalReadySelected,
       spectatorCount: allPlayers.filter((p: any) => p?.role === 'spectator').length,
+      isSpectatorViewer: isSpectator,
     },
     
     actionPanel: {
@@ -1361,6 +1367,7 @@ export function mapGameSessionVm(args: {
         subtitle: inProgressSubtitle,
         turnNumber,
         phaseKey,
+        isSpectator,
         hasActionsForMe,
         canOfferDraw,
         canResign,

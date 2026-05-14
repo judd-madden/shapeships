@@ -161,6 +161,7 @@ import {
   getRenderableActionChoiceIds,
   getRenderableServerChoiceActions,
   isDeferredAutoPanelHandoffPhase,
+  isCataloguePanel,
   isRenderableTargetedAction,
   isRenderableTargetedActionComplete,
   speciesToCataloguePanelId,
@@ -875,11 +876,11 @@ export function useGameSession(
     turnNumber: number;
     isFinished: boolean;
   } | null>(null);
-  const [opponentPublicMultiChargeByInstanceId, setOpponentPublicMultiChargeByInstanceId] =
-    useState<Record<string, number>>({});
+  const [publicMultiChargeByPlayerId, setPublicMultiChargeByPlayerId] =
+    useState<Record<string, Record<string, number>>>({});
 
   useEffect(() => {
-    setOpponentPublicMultiChargeByInstanceId({});
+    setPublicMultiChargeByPlayerId({});
     setHealthResolutionPresentationTrigger(null);
     setHealthPresentationBoardOverride(null);
     presentedHealthResolutionSignaturesRef.current.clear();
@@ -1408,6 +1409,13 @@ export function useGameSession(
     meReadyKey,
     opponentReadyKey,
   } = viewerSeats;
+
+  // Presentation-only display seats. Authority paths must continue to use
+  // the true viewer-relative `me` / `opponent` values above.
+  const displayLeftPlayer = isViewerSpectator ? p1 : me;
+  const displayRightPlayer = isViewerSpectator ? p2 : opponent;
+  const displayLeftReadyKey = isViewerSpectator ? viewerSeats.p1ReadyKey : meReadyKey;
+  const displayRightReadyKey = isViewerSpectator ? viewerSeats.p2ReadyKey : opponentReadyKey;
   
   // ============================================================================
   // GAME LOGIC - USE ME/OPPONENT (NOT LEFT/RIGHT)
@@ -1694,8 +1702,8 @@ export function useGameSession(
       return null;
     }
 
-    const localPlayerId = getPlayerIdentityKey(me);
-    const opponentPlayerId = getPlayerIdentityKey(opponent);
+    const localPlayerId = getPlayerIdentityKey(displayLeftPlayer);
+    const opponentPlayerId = getPlayerIdentityKey(displayRightPlayer);
     if (!localPlayerId || !opponentPlayerId) {
       return null;
     }
@@ -1740,7 +1748,7 @@ export function useGameSession(
 
     const signature = JSON.stringify({
       gameId: effectiveGameId,
-      viewerRole: 'player',
+      viewerRole: isViewerSpectator ? 'spectator' : 'player',
       resolvedTurnKey,
       localPlayerId,
       opponentPlayerId,
@@ -1765,18 +1773,18 @@ export function useGameSession(
         resolvedTurnKey,
         healthPresentation: {
           boardMode: 'board',
-          viewerRole: 'player',
-          meName: localPlayer?.name ?? me?.name ?? 'Player 1',
-          opponentName: opponentPlayer?.name ?? opponent?.name ?? 'Player 2',
+          viewerRole: isViewerSpectator ? 'spectator' : 'player',
+          meName: localPlayer?.name ?? displayLeftPlayer?.name ?? 'Player 1',
+          opponentName: opponentPlayer?.name ?? displayRightPlayer?.name ?? 'Player 2',
           myHealth,
           opponentHealth,
           myLastTurnNet: myNet.value,
           opponentLastTurnNet: opponentNet.value,
-          spectatorHasTwoPlayers: false,
-          spectatorLeftName: 'Player 1',
-          spectatorRightName: 'Player 2',
-          spectatorLeftNet: 0,
-          spectatorRightNet: 0,
+          spectatorHasTwoPlayers: isViewerSpectator && displayLeftPlayer != null && displayRightPlayer != null,
+          spectatorLeftName: localPlayer?.name ?? displayLeftPlayer?.name ?? 'Player 1',
+          spectatorRightName: opponentPlayer?.name ?? displayRightPlayer?.name ?? 'Player 2',
+          spectatorLeftNet: isViewerSpectator ? myNet.value : 0,
+          spectatorRightNet: isViewerSpectator ? opponentNet.value : 0,
         },
       },
       boardOverride: {
@@ -1817,8 +1825,8 @@ export function useGameSession(
     result: any,
     meta?: { label?: string; turn?: number; phaseKey?: string }
   ): void {
-    const localPlayerId = getPlayerIdentityKey(me);
-    const opponentPlayerId = getPlayerIdentityKey(opponent);
+    const localPlayerId = getPlayerIdentityKey(displayLeftPlayer);
+    const opponentPlayerId = getPlayerIdentityKey(displayRightPlayer);
     if (
       !hasIntentEndOfTurnHealthResolutionEvent(result) ||
       hasNonHealthResolutionFinishReason(result) ||
@@ -1903,8 +1911,8 @@ export function useGameSession(
       return;
     }
 
-    const localPlayerId = getPlayerIdentityKey(me);
-    const opponentPlayerId = getPlayerIdentityKey(opponent);
+    const localPlayerId = getPlayerIdentityKey(displayLeftPlayer);
+    const opponentPlayerId = getPlayerIdentityKey(displayRightPlayer);
     if (
       hasNonHealthResolutionFinishReason(rawState) ||
       !hasCompletedTurnHealthStats(rawState, localPlayerId, opponentPlayerId)
@@ -1924,12 +1932,12 @@ export function useGameSession(
     hasMatchingAuthoritativeGameId,
     isBootstrapping,
     rawState,
-    me?.id,
-    me?.playerId,
-    me?.sessionId,
-    opponent?.id,
-    opponent?.playerId,
-    opponent?.sessionId,
+    displayLeftPlayer?.id,
+    displayLeftPlayer?.playerId,
+    displayLeftPlayer?.sessionId,
+    displayRightPlayer?.id,
+    displayRightPlayer?.playerId,
+    displayRightPlayer?.sessionId,
   ]);
   
   // Determine if we're in species selection phase
@@ -1967,6 +1975,10 @@ export function useGameSession(
   // Species detection (from ME and OPPONENT)
   const mySpecies = normalizeSpecies(me?.faction ?? me?.species);
   const opponentSpecies = normalizeSpecies(opponent?.faction ?? opponent?.species);
+  const p1Species = normalizeSpecies(p1?.faction ?? p1?.species);
+  const p2Species = normalizeSpecies(p2?.faction ?? p2?.species);
+  const displayLeftSpecies = normalizeSpecies(displayLeftPlayer?.faction ?? displayLeftPlayer?.species);
+  const displayRightSpecies = normalizeSpecies(displayRightPlayer?.faction ?? displayRightPlayer?.species);
   
   // Species labels for HUD (show "Selecting Species" if not revealed yet)
   function getSpeciesLabelForHud(player: any, species: SpeciesId | null): string {
@@ -1990,11 +2002,17 @@ export function useGameSession(
     }
   }
   
-  // My species label and opponent species label for HUD
-  const mySpeciesLabel = me ? getSpeciesLabelForHud(me, mySpecies) : 'Human';
-  const p2HasJoined = opponent?.role === 'player';
-  const opponentSpeciesLabel =
-    p2HasJoined ? getSpeciesLabelForHud(opponent, opponentSpecies) : '';
+  const displayLeftHasJoined = displayLeftPlayer?.role === 'player';
+  const displayRightHasJoined = displayRightPlayer?.role === 'player';
+  const displayLeftSpeciesLabel = displayLeftPlayer
+    ? getSpeciesLabelForHud(displayLeftPlayer, displayLeftSpecies)
+    : isViewerSpectator
+      ? ''
+      : 'Human';
+  const displayRightSpeciesLabel =
+    displayRightHasJoined && displayRightPlayer
+      ? getSpeciesLabelForHud(displayRightPlayer, displayRightSpecies)
+      : '';
   
   // ============================================================================
   // SHIP OWNERSHIP (ME/OPPONENT)
@@ -2014,8 +2032,39 @@ export function useGameSession(
     opponent,
     turnNumber,
     majorPhase,
-    opponentPublicCurrentChargesByInstanceId: opponentPublicMultiChargeByInstanceId,
+    opponentPublicCurrentChargesByInstanceId: opponent?.id
+      ? publicMultiChargeByPlayerId[opponent.id]
+      : undefined,
   });
+
+  const spectatorDisplayLeftFleets = isViewerSpectator
+    ? deriveFleets({
+        rawState,
+        me: null,
+        opponent: displayLeftPlayer,
+        turnNumber,
+        majorPhase,
+        opponentPublicCurrentChargesByInstanceId: displayLeftPlayer?.id
+          ? publicMultiChargeByPlayerId[displayLeftPlayer.id]
+          : undefined,
+      })
+    : null;
+  const spectatorDisplayRightFleets = isViewerSpectator
+    ? deriveFleets({
+        rawState,
+        me: null,
+        opponent: displayRightPlayer,
+        turnNumber,
+        majorPhase,
+        opponentPublicCurrentChargesByInstanceId: displayRightPlayer?.id
+          ? publicMultiChargeByPlayerId[displayRightPlayer.id]
+          : undefined,
+      })
+    : null;
+  const displayLeftFleet = spectatorDisplayLeftFleets?.opponentFleet ?? myFleet;
+  const displayRightFleet = spectatorDisplayRightFleets?.opponentFleet ?? opponentFleet;
+  const displayLeftVoidFleet = spectatorDisplayLeftFleets?.opponentVoidFleet ?? myVoidFleet;
+  const displayRightVoidFleet = spectatorDisplayRightFleets?.opponentVoidFleet ?? opponentVoidFleet;
 
   useEffect(() => {
     if (
@@ -2027,72 +2076,87 @@ export function useGameSession(
       return;
     }
 
-    if (!opponent?.id) {
-      setOpponentPublicMultiChargeByInstanceId((prev) =>
-        Object.keys(prev).length === 0 ? prev : {}
-      );
-      return;
-    }
-
     const shipsData = getShipsByPlayerId(rawState);
-    const authoritativeOpponentShips = Array.isArray(shipsData[opponent.id])
-      ? shipsData[opponent.id]
-      : [];
-    const nextPublicChargesByInstanceId: Record<string, number> = {};
+    const nextPublicChargesByPlayerId: Record<string, Record<string, number>> = {};
 
-    for (const ship of authoritativeOpponentShips) {
-      const createdTurn = ship?.createdTurn;
-      const isPubliclyVisible =
-        typeof createdTurn !== 'number' || createdTurn < turnNumber || majorPhase === 'battle';
-
-      if (!isPubliclyVisible) {
+    for (const player of allPlayers) {
+      if (player?.role !== 'player' || typeof player.id !== 'string' || player.id.length === 0) {
         continue;
       }
 
-      const rawShipDefId = String(ship?.shipDefId ?? '');
-      if (!isShipDefId(rawShipDefId)) {
-        continue;
+      const authoritativeShips = Array.isArray(shipsData[player.id])
+        ? shipsData[player.id]
+        : [];
+      const nextPublicChargesByInstanceId: Record<string, number> = {};
+
+      for (const ship of authoritativeShips) {
+        const createdTurn = ship?.createdTurn;
+        const isPubliclyVisible =
+          typeof createdTurn !== 'number' || createdTurn < turnNumber || majorPhase === 'battle';
+
+        if (!isPubliclyVisible) {
+          continue;
+        }
+
+        const rawShipDefId = String(ship?.shipDefId ?? '');
+        if (!isShipDefId(rawShipDefId)) {
+          continue;
+        }
+
+        const def = getShipDefinitionById(rawShipDefId);
+        if ((def?.maxCharges ?? 0) <= 1) {
+          continue;
+        }
+
+        const instanceId = ship?.instanceId ?? ship?.id;
+        if (typeof instanceId !== 'string' || instanceId.length === 0) {
+          continue;
+        }
+
+        nextPublicChargesByInstanceId[instanceId] = Number(ship?.chargesCurrent ?? 0);
       }
 
-      const def = getShipDefinitionById(rawShipDefId);
-      if ((def?.maxCharges ?? 0) <= 1) {
-        continue;
-      }
-
-      const instanceId = ship?.instanceId ?? ship?.id;
-      if (typeof instanceId !== 'string' || instanceId.length === 0) {
-        continue;
-      }
-
-      nextPublicChargesByInstanceId[instanceId] = Number(ship?.chargesCurrent ?? 0);
+      nextPublicChargesByPlayerId[player.id] = nextPublicChargesByInstanceId;
     }
 
-    setOpponentPublicMultiChargeByInstanceId((prev) => {
-      const prevEntries = Object.entries(prev);
-      const nextEntries = Object.entries(nextPublicChargesByInstanceId);
+    setPublicMultiChargeByPlayerId((prev) => {
+      const prevPlayerIds = Object.keys(prev);
+      const nextPlayerIds = Object.keys(nextPublicChargesByPlayerId);
+      let hasChange = prevPlayerIds.length !== nextPlayerIds.length;
 
-      if (prevEntries.length === nextEntries.length) {
-        let hasChange = false;
-        for (const [instanceId, charges] of nextEntries) {
-          if (prev[instanceId] !== charges) {
+      if (!hasChange) {
+        for (const playerId of nextPlayerIds) {
+          const prevCharges = prev[playerId] ?? {};
+          const nextCharges = nextPublicChargesByPlayerId[playerId] ?? {};
+          const prevEntries = Object.entries(prevCharges);
+          const nextEntries = Object.entries(nextCharges);
+
+          if (prevEntries.length !== nextEntries.length) {
             hasChange = true;
             break;
           }
-        }
 
-        if (!hasChange) {
-          return prev;
+          for (const [instanceId, charges] of nextEntries) {
+            if (prevCharges[instanceId] !== charges) {
+              hasChange = true;
+              break;
+            }
+          }
+
+          if (hasChange) {
+            break;
+          }
         }
       }
 
-      return nextPublicChargesByInstanceId;
+      return hasChange ? nextPublicChargesByPlayerId : prev;
     });
   }, [
+    allPlayers,
     effectiveGameId,
     hasMatchingAuthoritativeGameId,
     isBootstrapping,
     majorPhase,
-    opponent?.id,
     rawState,
     turnNumber,
   ]);
@@ -2372,13 +2436,13 @@ useEffect(() => {
   // - If majorPhase === 'build': Display requester-only provisional fleet preview
   // - Else: Display serverFleet only
   
-  const shouldShowPreview = majorPhase === 'build';
+  const shouldShowPreview = majorPhase === 'build' && me?.role === 'player';
   const shouldHandoffPreviewFleetToAuthoritative =
     prevShouldShowPreviewRef.current && !shouldShowPreview;
 
   const mySemanticFleetForBoard: BoardFleetSummary[] = shouldShowPreview
     ? provisionalBuild.myFleetPreview
-    : myFleet;
+    : displayLeftFleet;
 
   const myFleetWithPreview: BoardFleetSummary[] = reconcileFleetRenderKeys(
     mySemanticFleetForBoard,
@@ -2392,7 +2456,7 @@ useEffect(() => {
       : undefined
   );
   const opponentFleetRendered: BoardFleetSummary[] = reconcileFleetRenderKeys(
-    opponentFleet,
+    displayRightFleet,
     prevOpponentRenderedFleetRef.current
   );
   
@@ -2499,54 +2563,57 @@ useEffect(() => {
       mode: 'choose_species',
       selectedSpecies,
       gameUrl: shareGameUrl,
+      isSpectator: isViewerSpectator,
       canConfirmSpecies,
       isSpeciesSelectionComplete,
       confirmDisabledReason,
     };
   } else {
     // Normal board mode (REAL DATA WIRING)
-    const effectiveMySpecies: SpeciesId = mySpecies ?? 'human';
-    const effectiveOpponentSpecies: SpeciesId = opponentSpecies ?? 'human';
+    const effectiveMySpecies: SpeciesId = displayLeftSpecies ?? 'human';
+    const effectiveOpponentSpecies: SpeciesId = displayRightSpecies ?? 'human';
+    const displayLeftPlayerId = displayLeftPlayer?.id ?? null;
+    const displayRightPlayerId = displayRightPlayer?.id ?? null;
 
     // Extract server-authoritative health
-    const myHealth = typeof me?.health === 'number' ? me.health : 25;
-    const opponentHealth = typeof opponent?.health === 'number' ? opponent.health : 25;
+    const myHealth = typeof displayLeftPlayer?.health === 'number' ? displayLeftPlayer.health : 25;
+    const opponentHealth = typeof displayRightPlayer?.health === 'number' ? displayRightPlayer.health : 25;
 
     // Extract server-authoritative deltas (last turn heal/damage/net)
     const lastTurnHealById = getLastTurnHealByPlayerId(rawState) as Record<string, number> | undefined;
     const lastTurnDamageById = getLastTurnDamageByPlayerId(rawState) as Record<string, number> | undefined;
     const lastTurnNetById = getLastTurnNetByPlayerId(rawState) as Record<string, number> | undefined;
 
-    const fallbackMyLastTurnHeal = me?.id ? (lastTurnHealById?.[me.id] ?? 0) : 0;
+    const fallbackMyLastTurnHeal = displayLeftPlayerId ? (lastTurnHealById?.[displayLeftPlayerId] ?? 0) : 0;
     // NOTE: server lastTurnDamageByPlayerId is damage TAKEN (target).
     // UI "Damage" row is damage DEALT, so we swap sides:
-    const fallbackMyLastTurnDamage = opponent?.id ? (lastTurnDamageById?.[opponent.id] ?? 0) : 0;
-    const myLastTurnNet = me?.id ? (lastTurnNetById?.[me.id] ?? 0) : 0;
+    const fallbackMyLastTurnDamage = displayRightPlayerId ? (lastTurnDamageById?.[displayRightPlayerId] ?? 0) : 0;
+    const myLastTurnNet = displayLeftPlayerId ? (lastTurnNetById?.[displayLeftPlayerId] ?? 0) : 0;
 
-    const fallbackOpponentLastTurnHeal = opponent?.id ? (lastTurnHealById?.[opponent.id] ?? 0) : 0;
-    const fallbackOpponentLastTurnDamage = me?.id ? (lastTurnDamageById?.[me.id] ?? 0) : 0;
-    const opponentLastTurnNet = opponent?.id ? (lastTurnNetById?.[opponent.id] ?? 0) : 0;
+    const fallbackOpponentLastTurnHeal = displayRightPlayerId ? (lastTurnHealById?.[displayRightPlayerId] ?? 0) : 0;
+    const fallbackOpponentLastTurnDamage = displayLeftPlayerId ? (lastTurnDamageById?.[displayLeftPlayerId] ?? 0) : 0;
+    const opponentLastTurnNet = displayRightPlayerId ? (lastTurnNetById?.[displayRightPlayerId] ?? 0) : 0;
     const lastTurnDamageDealtBreakdownById = getLastTurnDamageDealtBreakdownByPlayerId(rawState);
     const lastTurnHealingReceivedBreakdownById = getLastTurnHealingReceivedBreakdownByPlayerId(rawState);
-    const myLastDamageBreakdownRows = me?.id
-      ? normalizeBoardStatBreakdownRows(lastTurnDamageDealtBreakdownById?.[me.id])
+    const myLastDamageBreakdownRows = displayLeftPlayerId
+      ? normalizeBoardStatBreakdownRows(lastTurnDamageDealtBreakdownById?.[displayLeftPlayerId])
       : [];
-    const opponentLastDamageBreakdownRows = opponent?.id
-      ? normalizeBoardStatBreakdownRows(lastTurnDamageDealtBreakdownById?.[opponent.id])
+    const opponentLastDamageBreakdownRows = displayRightPlayerId
+      ? normalizeBoardStatBreakdownRows(lastTurnDamageDealtBreakdownById?.[displayRightPlayerId])
       : [];
-    const myLastHealingBreakdownRows = me?.id
-      ? normalizeBoardStatBreakdownRows(lastTurnHealingReceivedBreakdownById?.[me.id])
+    const myLastHealingBreakdownRows = displayLeftPlayerId
+      ? normalizeBoardStatBreakdownRows(lastTurnHealingReceivedBreakdownById?.[displayLeftPlayerId])
       : [];
-    const opponentLastHealingBreakdownRows = opponent?.id
-      ? normalizeBoardStatBreakdownRows(lastTurnHealingReceivedBreakdownById?.[opponent.id])
+    const opponentLastHealingBreakdownRows = displayRightPlayerId
+      ? normalizeBoardStatBreakdownRows(lastTurnHealingReceivedBreakdownById?.[displayRightPlayerId])
       : [];
-    const myHasHealingBreakdown = me?.id ? Array.isArray(lastTurnHealingReceivedBreakdownById?.[me.id]) : false;
-    const myHasDamageBreakdown = me?.id ? Array.isArray(lastTurnDamageDealtBreakdownById?.[me.id]) : false;
-    const opponentHasDamageBreakdown = opponent?.id
-      ? Array.isArray(lastTurnDamageDealtBreakdownById?.[opponent.id])
+    const myHasHealingBreakdown = displayLeftPlayerId ? Array.isArray(lastTurnHealingReceivedBreakdownById?.[displayLeftPlayerId]) : false;
+    const myHasDamageBreakdown = displayLeftPlayerId ? Array.isArray(lastTurnDamageDealtBreakdownById?.[displayLeftPlayerId]) : false;
+    const opponentHasDamageBreakdown = displayRightPlayerId
+      ? Array.isArray(lastTurnDamageDealtBreakdownById?.[displayRightPlayerId])
       : false;
-    const opponentHasHealingBreakdown = opponent?.id
-      ? Array.isArray(lastTurnHealingReceivedBreakdownById?.[opponent.id])
+    const opponentHasHealingBreakdown = displayRightPlayerId
+      ? Array.isArray(lastTurnHealingReceivedBreakdownById?.[displayRightPlayerId])
       : false;
     const myLastTurnDamage = myHasDamageBreakdown
       ? sumBoardStatBreakdownRows(myLastDamageBreakdownRows)
@@ -2578,21 +2645,21 @@ useEffect(() => {
     const joiningBonusLinesByPlayerId = getJoiningBonusLinesByPlayerId(rawState);
     const bonusBreakdownByPlayerId = getBonusBreakdownByPlayerId(rawState);
 
-    const myBonusLines = me?.id ? (bonusLinesByPlayerId?.[me.id] ?? 0) : 0;
-    const opponentBonusLines = opponent?.id ? (bonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
-    const myBonusLinesOnEven = me?.id ? (bonusLinesOnEvenByPlayerId?.[me.id] ?? 0) : 0;
-    const opponentBonusLinesOnEven = opponent?.id ? (bonusLinesOnEvenByPlayerId?.[opponent.id] ?? 0) : 0;
-    const mySavedLines = me?.id ? (savedLinesByPlayerId?.[me.id] ?? 0) : 0;
-    const opponentSavedLines = opponent?.id ? (savedLinesByPlayerId?.[opponent.id] ?? 0) : 0;
-    const mySavedJoiningLines = me?.id ? (joiningLinesByPlayerId?.[me.id] ?? 0) : 0;
-    const opponentSavedJoiningLines = opponent?.id ? (joiningLinesByPlayerId?.[opponent.id] ?? 0) : 0;
-    const myJoiningBonusLines = me?.id ? (joiningBonusLinesByPlayerId?.[me.id] ?? 0) : 0;
-    const opponentJoiningBonusLines = opponent?.id ? (joiningBonusLinesByPlayerId?.[opponent.id] ?? 0) : 0;
-    const myBonusBreakdownRows = me?.id
-      ? normalizeBoardStatBreakdownRows(bonusBreakdownByPlayerId?.[me.id])
+    const myBonusLines = displayLeftPlayerId ? (bonusLinesByPlayerId?.[displayLeftPlayerId] ?? 0) : 0;
+    const opponentBonusLines = displayRightPlayerId ? (bonusLinesByPlayerId?.[displayRightPlayerId] ?? 0) : 0;
+    const myBonusLinesOnEven = displayLeftPlayerId ? (bonusLinesOnEvenByPlayerId?.[displayLeftPlayerId] ?? 0) : 0;
+    const opponentBonusLinesOnEven = displayRightPlayerId ? (bonusLinesOnEvenByPlayerId?.[displayRightPlayerId] ?? 0) : 0;
+    const mySavedLines = displayLeftPlayerId ? (savedLinesByPlayerId?.[displayLeftPlayerId] ?? 0) : 0;
+    const opponentSavedLines = displayRightPlayerId ? (savedLinesByPlayerId?.[displayRightPlayerId] ?? 0) : 0;
+    const mySavedJoiningLines = displayLeftPlayerId ? (joiningLinesByPlayerId?.[displayLeftPlayerId] ?? 0) : 0;
+    const opponentSavedJoiningLines = displayRightPlayerId ? (joiningLinesByPlayerId?.[displayRightPlayerId] ?? 0) : 0;
+    const myJoiningBonusLines = displayLeftPlayerId ? (joiningBonusLinesByPlayerId?.[displayLeftPlayerId] ?? 0) : 0;
+    const opponentJoiningBonusLines = displayRightPlayerId ? (joiningBonusLinesByPlayerId?.[displayRightPlayerId] ?? 0) : 0;
+    const myBonusBreakdownRows = displayLeftPlayerId
+      ? normalizeBoardStatBreakdownRows(bonusBreakdownByPlayerId?.[displayLeftPlayerId])
       : [];
-    const opponentBonusBreakdownRows = opponent?.id
-      ? normalizeBoardStatBreakdownRows(bonusBreakdownByPlayerId?.[opponent.id])
+    const opponentBonusBreakdownRows = displayRightPlayerId
+      ? normalizeBoardStatBreakdownRows(bonusBreakdownByPlayerId?.[displayRightPlayerId])
       : [];
     const myDisplayedSavedLines =
       buildDrawingEconomyDisplay?.ordinaryAvailable ?? mySavedLines;
@@ -2615,8 +2682,8 @@ useEffect(() => {
       // Fleet data: server + local preview overlay (build phase only)
       myFleet: myFleetWithPreview,
       opponentFleet: opponentFleetRendered,
-      myVoidFleet,
-      opponentVoidFleet,
+      myVoidFleet: displayLeftVoidFleet,
+      opponentVoidFleet: displayRightVoidFleet,
 
       // UI-only stable ordering (append-only)
       myFleetRenderOrder,
@@ -2677,6 +2744,7 @@ useEffect(() => {
         opponentFleetRenderOrder
       ),
 
+      presentedMyRevealBlurSeq: isViewerSpectator ? presentedOpponentRevealBlurSeq : 0,
       presentedOpponentRevealBlurSeq,
 
       destroyTargeting: boardDestroyTargeting,
@@ -2696,8 +2764,8 @@ useEffect(() => {
     rawPhaseHold && typeof rawPhaseHold === 'object' && typeof rawPhaseHold.holdUntilMs === 'number'
       ? rawPhaseHold.holdUntilMs
       : null;
-  const spectatorLeftPlayer = p1;
-  const spectatorRightPlayer = p2;
+  const spectatorLeftPlayer = displayLeftPlayer;
+  const spectatorRightPlayer = displayRightPlayer;
   const lastTurnNetByPlayerId =
     rawState?.gameData?.lastTurnNetByPlayerId as Record<string, unknown> | undefined;
   const spectatorLeftIdentityKey =
@@ -2714,7 +2782,7 @@ useEffect(() => {
   const healthResolutionOpponentLastTurnNet = board.mode === 'board' ? board.opponentLastTurnNet : 0;
   const healthResolutionMyHealth = board.mode === 'board' ? board.myHealth : 0;
   const healthResolutionOpponentHealth = board.mode === 'board' ? board.opponentHealth : 0;
-  const spectatorHasTwoPlayers = p1 != null && p2 != null;
+  const spectatorHasTwoPlayers = isViewerSpectator && displayLeftPlayer != null && displayRightPlayer != null;
   const healthResolutionViewerRole: 'player' | 'spectator' | 'unknown' =
     me?.role === 'player' || me?.role === 'spectator'
       ? me.role
@@ -2723,8 +2791,8 @@ useEffect(() => {
     () => ({
       boardMode: board.mode,
       viewerRole: healthResolutionViewerRole,
-      meName: me?.name ?? 'Player 1',
-      opponentName: opponent?.name ?? 'Player 2',
+      meName: displayLeftPlayer?.name ?? 'Player 1',
+      opponentName: displayRightPlayer?.name ?? 'Player 2',
       myHealth: healthResolutionMyHealth,
       opponentHealth: healthResolutionOpponentHealth,
       myLastTurnNet: healthResolutionMyLastTurnNet,
@@ -2738,8 +2806,8 @@ useEffect(() => {
     [
       board.mode,
       healthResolutionViewerRole,
-      me?.name,
-      opponent?.name,
+      displayLeftPlayer?.name,
+      displayRightPlayer?.name,
       healthResolutionMyHealth,
       healthResolutionOpponentHealth,
       healthResolutionMyLastTurnNet,
@@ -3154,11 +3222,52 @@ useEffect(() => {
   const menuTargetPanelId: ActionPanelId = isFinished && !healthResolutionLockActive
     ? 'ap.end_of_game.result'
     : 'ap.menu.root';
+
+  function isSpectatorSafePassivePanel(panelId: ActionPanelId): boolean {
+    return (
+      isCataloguePanel(panelId) ||
+      panelId === 'ap.menu.root' ||
+      panelId === 'ap.idle.blank' ||
+      panelId === 'ap.end_of_game.result'
+    );
+  }
+
+  function getSpectatorActionPanelFallback(): ActionPanelId {
+    return p1Species ? speciesToCataloguePanelId(p1Species) : menuTargetPanelId;
+  }
+
+  const spectatorCatalogueTabs: ActionPanelTabVm[] = [];
+  if (p1Species) {
+    spectatorCatalogueTabs.push({
+      tabId: 'tab.catalog.self',
+      label: getSpeciesLabel(p1Species),
+      visible: true,
+      targetPanelId: speciesToCataloguePanelId(p1Species),
+    });
+  }
+  if (p2Species && p2Species !== p1Species) {
+    spectatorCatalogueTabs.push({
+      tabId: 'tab.catalog.opponent',
+      label: getSpeciesLabel(p2Species),
+      visible: true,
+      targetPanelId: speciesToCataloguePanelId(p2Species),
+    });
+  }
   
   // Build tabs based on phase
   let tabs: ActionPanelTabVm[];
   
-  if (isInSpeciesSelection) {
+  if (isViewerSpectator) {
+    tabs = [
+      ...spectatorCatalogueTabs,
+      {
+        tabId: 'tab.menu',
+        label: 'Menu',
+        visible: true,
+        targetPanelId: menuTargetPanelId,
+      },
+    ];
+  } else if (isInSpeciesSelection) {
     // RULE B: Species Selection phase
     // Show ONE species tab for ME (live updating from selectedSpecies) + Menu
     tabs = [
@@ -3224,6 +3333,13 @@ useEffect(() => {
       },
     ];
   }
+
+  const spectatorCataloguePanelIds = isViewerSpectator
+    ? tabs
+        .filter((tab) => tab.visible && isCataloguePanel(tab.targetPanelId))
+        .map((tab) => tab.targetPanelId)
+    : [];
+  const spectatorCataloguePanelIdKey = spectatorCataloguePanelIds.join('|');
 
   const activeCatalogueSpecies = getCatalogueSpeciesFromPanelId(activePanelId);
   const isCataloguePanelActive = activeCatalogueSpecies != null;
@@ -3340,12 +3456,12 @@ useEffect(() => {
   }
   
   // Compute joined state
-  const p1HasJoined = me?.role === 'player';
-  // p2HasJoined already defined earlier (line 632) for species label logic
+  const p1HasJoined = displayLeftHasJoined;
+  const p2HasJoined = displayRightHasJoined;
   
   // Compute readiness
-  const p1IsReady = p1HasJoined ? isPlayerReady(meReadyKey) : false;
-  const p2IsReady = p2HasJoined ? isPlayerReady(opponentReadyKey) : false;
+  const p1IsReady = p1HasJoined ? isPlayerReady(displayLeftReadyKey) : false;
+  const p2IsReady = p2HasJoined ? isPlayerReady(displayRightReadyKey) : false;
   
   // DEV: Diagnostic log for identity key alignment (only when values change)
   const prevReadyKeysRef = useRef<string>('');
@@ -3638,6 +3754,36 @@ useEffect(() => {
     phaseKey,
   ]);
 
+  useEffect(() => {
+    if (!isViewerSpectator) {
+      return;
+    }
+
+    if (isSpectatorSafePassivePanel(activePanelId)) {
+      if (
+        isCataloguePanel(activePanelId) &&
+        !spectatorCataloguePanelIds.includes(activePanelId)
+      ) {
+        const nextPanelId = getSpectatorActionPanelFallback();
+        if (nextPanelId !== activePanelId) {
+          setActivePanelId(nextPanelId);
+        }
+      }
+      return;
+    }
+
+    const nextPanelId = getSpectatorActionPanelFallback();
+    if (nextPanelId !== activePanelId) {
+      setActivePanelId(nextPanelId);
+    }
+  }, [
+    activePanelId,
+    isViewerSpectator,
+    menuTargetPanelId,
+    p1Species,
+    spectatorCataloguePanelIdKey,
+  ]);
+
   
   // Display-only interpolation helper
   // Snaps to server on every poll, interpolates between polls
@@ -3659,8 +3805,8 @@ useEffect(() => {
   }
   
   // Get interpolated display values for both players
-  const p1DisplayMs = getDisplayMs(me?.id, p1IsReady);
-  const p2DisplayMs = getDisplayMs(opponent?.id, p2IsReady);
+  const p1DisplayMs = getDisplayMs(displayLeftPlayer?.id, p1IsReady);
+  const p2DisplayMs = getDisplayMs(displayRightPlayer?.id, p2IsReady);
   
   // Format clock times (show "--:--" when undefined, never fake "00:00")
   const p1ClockFormatted = p1DisplayMs == null ? '--:--' : formatClockMs(p1DisplayMs);
@@ -3678,8 +3824,12 @@ useEffect(() => {
 
     me,
     opponent,
-    mySpeciesLabel,
-    opponentSpeciesLabel,
+    displayLeftPlayer,
+    displayRightPlayer,
+    displayLeftSpeciesLabel,
+    displayRightSpeciesLabel,
+    displayLeftSpeciesId: displayLeftSpecies,
+    displayRightSpeciesId: displayRightSpecies,
 
     p1HasJoined,
     p2HasJoined,
@@ -3728,8 +3878,6 @@ useEffect(() => {
 
     // New params for menu/end-of-game panels
     isFinished,
-    mySpeciesId: mySpecies,
-    opponentSpeciesId: opponentSpecies,
     winnerPlayerId: terminalWinnerPlayerId,
     resultReason: terminalResultReason,
     
@@ -4382,6 +4530,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         myBonusBreakdownRows: [],
         opponentBonusBreakdownRows: [],
         activationStaggerPlan: { myIndexByShipId: {}, opponentIndexByShipId: {} },
+        presentedMyRevealBlurSeq: 0,
         presentedOpponentRevealBlurSeq: 0,
       },
       bottomActionRail: {
@@ -4397,6 +4546,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         readyDisabledReason: 'No game loaded',
         readySelected: false,
         spectatorCount: 0,
+        isSpectatorViewer: false,
       },
       actionPanel: {
         activePanelId: 'ap.catalog.ships.human',
@@ -4412,6 +4562,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
               subtitle: 'Game Options',
               turnNumber: 0,
               phaseKey: 'setup.loading',
+              isSpectator: false,
               hasActionsForMe: false,
               canOfferDraw: false,
               canResign: false,

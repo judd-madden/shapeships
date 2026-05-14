@@ -219,10 +219,14 @@ function buildFleetAreaHealthDeltaFlashSnapshots(args: {
 } {
   const { presentationKey, healthPresentation } = args;
 
-  if (
-    healthPresentation.boardMode !== 'board' ||
-    healthPresentation.viewerRole !== 'player'
-  ) {
+  const canShowFleetAreaFlashes =
+    healthPresentation.viewerRole === 'player' ||
+    (
+      healthPresentation.viewerRole === 'spectator' &&
+      healthPresentation.spectatorHasTwoPlayers
+    );
+
+  if (healthPresentation.boardMode !== 'board' || !canShowFleetAreaFlashes) {
     return {};
   }
 

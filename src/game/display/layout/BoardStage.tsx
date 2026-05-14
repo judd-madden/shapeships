@@ -125,7 +125,7 @@ function usePrefersReducedMotion(): boolean {
   return prefersReducedMotion;
 }
 
-function usePresentedOpponentRevealPulse(sequence: number | null): TurnIncrementPulseState {
+function usePresentedFleetRevealPulse(sequence: number | null): TurnIncrementPulseState {
   const prefersReducedMotion = usePrefersReducedMotion();
   const previousSequenceRef = useRef<number | null>(null);
   const [isActive, setIsActive] = useState(false);
@@ -787,7 +787,10 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
   const opponentBonusJoiningAnchorRef = useRef<HTMLDivElement | null>(null);
   const displayedMyHealth = useAnimatedHealth(vm.mode === 'board' ? vm.myHealth : 25);
   const displayedOpponentHealth = useAnimatedHealth(vm.mode === 'board' ? vm.opponentHealth : 25);
-  const revealPulse = usePresentedOpponentRevealPulse(
+  const leftRevealPulse = usePresentedFleetRevealPulse(
+    vm.mode === 'board' ? vm.presentedMyRevealBlurSeq ?? 0 : null
+  );
+  const rightRevealPulse = usePresentedFleetRevealPulse(
     vm.mode === 'board' ? vm.presentedOpponentRevealBlurSeq : null
   );
 
@@ -879,7 +882,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
         onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
         onFleetHoverEnter={fleetHover.onEnter}
         onFleetHoverLeave={fleetHover.onLeave}
-        turnPulse={INACTIVE_TURN_PULSE_STATE}
+        turnPulse={leftRevealPulse}
       />
 
       <div
@@ -1147,7 +1150,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
         onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
         onFleetHoverEnter={fleetHover.onEnter}
         onFleetHoverLeave={fleetHover.onLeave}
-        turnPulse={revealPulse}
+        turnPulse={rightRevealPulse}
       />
 
       {fleetHover.state.activeShipId && fleetHover.state.anchorRect ? (

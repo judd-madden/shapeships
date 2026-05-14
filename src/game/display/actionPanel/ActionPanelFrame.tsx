@@ -150,6 +150,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
           subtitle={vm.menu.subtitle}
           turnNumber={vm.menu.turnNumber}
           phaseKey={vm.menu.phaseKey}
+          isSpectator={vm.menu.isSpectator}
           hasActionsForMe={vm.menu.hasActionsForMe}
           canOfferDraw={vm.menu.canOfferDraw}
           canResign={vm.menu.canResign}
@@ -157,6 +158,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
           onOfferDraw={actions.onOfferDraw}
           onResignGame={actions.onResignGame}
           onAbortGame={onReturnToMainMenu}
+          onReturnToMainMenu={onReturnToMainMenu}
         />
       </div>
     );
