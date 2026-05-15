@@ -15,11 +15,29 @@ import { resolveShipGraphic } from '../../game/display/graphics/resolveShipGraph
 
 type RulesTab = 'core' | 'human' | 'xenite' | 'centaur' | 'ancient' | 'timings';
 type SpeciesName = 'Human' | 'Xenite' | 'Centaur' | 'Ancient';
+type EnergyCostTextClass =
+  | 'text-shapeships-pastel-red'
+  | 'text-shapeships-pastel-green'
+  | 'text-shapeships-pastel-blue';
+
+interface EnergyCostRow {
+  label: string;
+  textClass: EnergyCostTextClass;
+}
 
 interface SpeciesRulesPanelProps {
   species: SpeciesName;
   onNavigate?: (tab: RulesTab) => void;
 }
+
+const SOLAR_POWER_NAME_TEXT_CLASSES: Record<string, EnergyCostTextClass> = {
+  Asteroid: 'text-shapeships-pastel-red',
+  Supernova: 'text-shapeships-pastel-red',
+  Life: 'text-shapeships-pastel-green',
+  'Star Birth': 'text-shapeships-pastel-green',
+  Convert: 'text-shapeships-pastel-blue',
+  Simulacrum: 'text-shapeships-pastel-blue',
+};
 
 // Build/Battle icon mapping from CSV subphase (UI-ONLY INTERPRETATION)
 // Note: Automatic and Charge Declaration are treated as Battle icons for UI consistency
@@ -84,39 +102,58 @@ function renderPowerText(text: string): string {
   return text.replace(/\\n/g, '\n');
 }
 
-// Get energy cost label (Ancient Solar Powers only)
+// Get energy cost rows (Ancient Solar Powers only)
 // Reads from ship.energyCost field (canonical JSON data)
-function getEnergyCostLabel(ship: ShipDefinitionUI): string | null {
+function getEnergyCostRows(ship: ShipDefinitionUI): EnergyCostRow[] {
   if (ship.species !== 'Ancient' || ship.shipType !== 'Solar Power') {
-    return null;
+    return [];
   }
 
   if (!ship.energyCost) {
-    return null;
+    return [];
   }
 
-  const labels: string[] = [];
+  const rows: EnergyCostRow[] = [];
   const cost = ship.energyCost;
 
   // Red energy
   if (cost.red > 0) {
-    labels.push(`${cost.red} red energy`);
+    rows.push({
+      label: `${cost.red} red energy`,
+      textClass: 'text-shapeships-pastel-red',
+    });
   }
 
   // Green energy
   if (cost.green > 0) {
-    labels.push(`${cost.green} green energy`);
+    rows.push({
+      label: `${cost.green} green energy`,
+      textClass: 'text-shapeships-pastel-green',
+    });
   }
 
   // Blue energy (either X blue or numeric blue)
   if (cost.xBlue) {
-    labels.push('X blue energy');
+    rows.push({
+      label: 'X blue energy',
+      textClass: 'text-shapeships-pastel-blue',
+    });
   } else if (cost.blue > 0) {
-    labels.push(`${cost.blue} blue energy`);
+    rows.push({
+      label: `${cost.blue} blue energy`,
+      textClass: 'text-shapeships-pastel-blue',
+    });
   }
 
-  // Return multi-line string (will be rendered with whitespace-pre-line)
-  return labels.length > 0 ? labels.join('\n') : null;
+  return rows;
+}
+
+function getSolarPowerNameTextClass(ship: ShipDefinitionUI): string {
+  if (ship.species !== 'Ancient' || ship.shipType !== 'Solar Power') {
+    return 'text-white';
+  }
+
+  return SOLAR_POWER_NAME_TEXT_CLASSES[ship.name] || 'text-white';
 }
 
 function SectionHeader({
@@ -201,7 +238,8 @@ function ShipRow({
   const totalCost = ship.totalLineCost;
   const joiningCost = ship.joiningLineCost;
   const isUpgradedShip = ship.shipType === 'Upgraded';
-  const energyCostLabel = getEnergyCostLabel(ship);
+  const energyCostRows = getEnergyCostRows(ship);
+  const solarPowerNameTextClass = getSolarPowerNameTextClass(ship);
 
   return (
     <div className={`relative shrink-0 w-full ${isAlternate ? 'bg-[#212121]' : ''}`}>
@@ -224,13 +262,17 @@ function ShipRow({
 
               {/* Name, Energy Cost (Ancient Solar Powers), Joining Cost (if upgraded), and Subphase */}
               <div className="basis-0 content-stretch relative flex min-h-px min-w-0 grow shrink-0 flex-col items-start gap-[2px]">
-                <p className="font-bold leading-[25.691px] relative shrink-0 text-[20px] text-white w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className={`font-bold leading-[25.691px] relative shrink-0 text-[20px] ${solarPowerNameTextClass} w-full`} style={{ fontVariationSettings: "'wdth' 100" }}>
                   {ship.name}
                 </p>
-                {energyCostLabel && (
-                  <p className="font-normal leading-[18px] pb-[6px] relative shrink-0 text-[#d4d4d4] text-[14px] whitespace-pre-line" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    {energyCostLabel}
-                  </p>
+                {energyCostRows.length > 0 && (
+                  <div className="pb-[6px] relative shrink-0">
+                    {energyCostRows.map((row) => (
+                      <p key={row.label} className={`font-normal leading-[18px] ${row.textClass} text-[14px]`} style={{ fontVariationSettings: "'wdth' 100" }}>
+                        {row.label}
+                      </p>
+                    ))}
+                  </div>
                 )}
                 {isUpgradedShip && joiningCost !== null && joiningCost !== undefined && (
                   <p className="font-normal leading-[24px] pb-[6px] relative shrink-0 text-[#d4d4d4] text-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
