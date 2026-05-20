@@ -100,15 +100,6 @@ export function MobileSpeciesConfirmPhase({
 
   return (
     <div className="shrink-0 w-full flex flex-col items-center gap-[9px] px-[14px]">
-      <p
-        className="w-full text-center text-[20px] font-black leading-5 text-white"
-        style={{ fontVariationSettings: "'wdth' 100" }}
-      >
-        {bottomActionRailVm.subphaseTitle}
-        {bottomActionRailVm.subphaseTitleSuffix ? (
-          <span className="font-normal"> {bottomActionRailVm.subphaseTitleSuffix}</span>
-        ) : null}
-      </p>
 
       {boardVm.isSpectator ? (
         <div className="h-[44px] w-full" aria-hidden="true" />
@@ -183,8 +174,8 @@ function MobileShareGameUrlRegion({
   }
 
   return (
-    <div className="shrink-0 w-full overflow-visible flex justify-center px-[14px] pb-[4px] pt-[8px]">
-      <div className="relative flex w-full max-w-[332px] flex-col items-center gap-[6px] py-[20px]">
+    <div className="shrink-0 w-full overflow-visible flex items-center justify-center px-[14px] pb-[4px] pt-[8px]">
+      <div className="relative flex w-full max-w-[332px] flex-col items-center justify-center gap-[6px] py-[8px]">
         <p
           className="w-full text-center text-[18px] font-black leading-[18px] text-white"
           style={{ fontVariationSettings: "'wdth' 100" }}
