@@ -22,6 +22,8 @@ import { type GameSessionViewModel, useGameSession } from '../client/useGameSess
 import { LeftRail } from './layout/LeftRail';
 import { MainStage } from './layout/MainStage';
 import { StarsBackground } from './graphics/StarsBackground';
+import { MobileGameLayout } from './mobile/MobileGameLayout';
+import { useMobileGameLayout } from './mobile/useMobileGameLayout';
 
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 const SOUND_ENABLED_STORAGE_KEY = 'shapeships.soundEnabled.v1';
@@ -59,6 +61,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
     }
   });
   const { vm, actions } = useGameSession(gameId, playerName, { boardFlashEnabled });
+  const isMobileGameLayout = useMobileGameLayout();
   const firstTurnBuildHelper = useFirstTurnBuildHelper(gameId, vm, actions.onReadyToggle);
   const voidShipInstanceIds = useMemo(() => {
     if (vm.board.mode !== 'board') {
@@ -99,6 +102,8 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
     diceAnimateKey: vm.leftRail.diceAnimateKey,
     voidShipInstanceIds,
   });
+
+  const mobileBoardVm = isMobileGameLayout && vm.board.mode === 'board' ? vm.board : null;
 
   function toggleSound() {
     setSoundEnabled((current) => !current);
@@ -169,50 +174,71 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
         }`}
       />
 
-      <div className="fixed right-[10px] top-[10px] z-50">
-        <div className="flex items-center gap-[12px] rounded-[10px] px-[10px] py-[10px]">
-          {renderPreferenceToggle({
-            label: 'Sound',
-            checked: soundEnabled,
-            onChange: setSoundEnabled,
-            onToggle: toggleSound,
-          })}
-          {renderPreferenceToggle({
-            label: 'Flash',
-            checked: boardFlashEnabled,
-            onChange: setBoardFlashEnabled,
-            onToggle: toggleBoardFlash,
-          })}
+      {!mobileBoardVm && (
+        <div className="fixed right-[10px] top-[10px] z-50">
+          <div className="flex items-center gap-[12px] rounded-[10px] px-[10px] py-[10px]">
+            {renderPreferenceToggle({
+              label: 'Sound',
+              checked: soundEnabled,
+              onChange: setSoundEnabled,
+              onToggle: toggleSound,
+            })}
+            {renderPreferenceToggle({
+              label: 'Flash',
+              checked: boardFlashEnabled,
+              onChange: setBoardFlashEnabled,
+              onToggle: toggleBoardFlash,
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Foreground layout (existing UI) */}
-      <div className="relative z-10 w-full h-full min-h-0 flex items-stretch gap-5 px-[30px]">
-        {/* Left Rail - fixed width */}
-        <LeftRail
-          vm={vm.leftRail}
-          actions={actions}
-          firstTurnBuildHelperEligible={firstTurnBuildHelper.firstTurnBuildHelperEligible}
-          firstTurnBuildHelperDismissSignal={firstTurnBuildHelper.firstTurnBuildHelperDismissSignal}
-          onFirstTurnBuildHelperDismiss={firstTurnBuildHelper.dismissFirstTurnBuildHelper}
-        />
+      {mobileBoardVm ? (
+        <div className="relative z-10 w-full h-full min-h-0">
+          <MobileGameLayout
+            hudVm={vm.hud}
+            boardVm={mobileBoardVm}
+            leftRailVm={vm.leftRail}
+            bottomActionRailVm={vm.bottomActionRail}
+            actionPanelVm={vm.actionPanel}
+            actions={mainStageActions}
+          />
 
-        {/* Main Stage - fills remaining width */}
-        <MainStage 
-          hudVm={vm.hud}
-          boardVm={vm.board}
-          bottomActionRailVm={vm.bottomActionRail}
-          actionPanelVm={vm.actionPanel}
-          actions={mainStageActions}
-          onReturnToMainMenu={onBack}
-        />
-        
-        {/* Global Ship Hover Layer (PASS 2) - Portal target for catalogue hover cards */}
-        <div
-          id="ship-hover-layer"
-          className="fixed inset-0 z-[40] pointer-events-none"
-        />
-      </div>
+          {/* Global Ship Hover Layer (PASS 2) - Portal target for catalogue hover cards */}
+          <div
+            id="ship-hover-layer"
+            className="fixed inset-0 z-[40] pointer-events-none"
+          />
+        </div>
+      ) : (
+        <div className="relative z-10 w-full h-full min-h-0 flex items-stretch gap-5 px-[30px]">
+          {/* Left Rail - fixed width */}
+          <LeftRail
+            vm={vm.leftRail}
+            actions={actions}
+            firstTurnBuildHelperEligible={firstTurnBuildHelper.firstTurnBuildHelperEligible}
+            firstTurnBuildHelperDismissSignal={firstTurnBuildHelper.firstTurnBuildHelperDismissSignal}
+            onFirstTurnBuildHelperDismiss={firstTurnBuildHelper.dismissFirstTurnBuildHelper}
+          />
+
+          {/* Main Stage - fills remaining width */}
+          <MainStage
+            hudVm={vm.hud}
+            boardVm={vm.board}
+            bottomActionRailVm={vm.bottomActionRail}
+            actionPanelVm={vm.actionPanel}
+            actions={mainStageActions}
+            onReturnToMainMenu={onBack}
+          />
+
+          {/* Global Ship Hover Layer (PASS 2) - Portal target for catalogue hover cards */}
+          <div
+            id="ship-hover-layer"
+            className="fixed inset-0 z-[40] pointer-events-none"
+          />
+        </div>
+      )}
     </div>
   );
 }
