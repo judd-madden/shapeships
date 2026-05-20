@@ -48,10 +48,10 @@ const XENITE_ROW_SETS: RowSets = {
 };
 
 const CENTAUR_ROW_SETS: RowSets = {
-  1: new Set<ShipDefId>(['VIG', 'POW', 'RED', 'KNO', 'DOM']),
+  1: new Set<ShipDefId>(['VIG', 'POW', 'RED', 'KNO']),
   2: new Set<ShipDefId>(['LEG', 'FEA', 'ANG', 'TER', 'FUR', 'ENT']),
   3: new Set<ShipDefId>(['WIS', 'FAM']),
-  4: new Set<ShipDefId>(['EQU', 'DES']),
+  4: new Set<ShipDefId>(['EQU', 'DES', 'DOM']),
 };
 
 const ANCIENT_ROW_SETS: RowSets = {
@@ -313,6 +313,7 @@ export function FleetArea({
   turnPulse,
   fitMinScale = 0.4,
   liveRowsLayout = 'stacked',
+  liveLayoutCanvasClassName,
   voidSlotClassName = 'h-[44px]',
   voidScaleClassName = 'scale-[0.6]',
   voidGapClassName = 'gap-[20px]',
@@ -338,7 +339,8 @@ export function FleetArea({
   onFleetHoverLeave?: (shipId: ShipDefId) => void;
   turnPulse: TurnIncrementPulseState;
   fitMinScale?: number;
-  liveRowsLayout?: 'stacked' | 'grid2x2';
+  liveRowsLayout?: 'stacked' | 'pairedRows';
+  liveLayoutCanvasClassName?: string;
   voidSlotClassName?: string;
   voidScaleClassName?: string;
   voidGapClassName?: string;
@@ -403,17 +405,47 @@ export function FleetArea({
     );
   };
 
-  const renderLiveRow = (rowShips: FleetStackVm[]) => (
-    <div className="flex flex-row flex-nowrap items-center justify-start gap-[30px]">
+  const renderLiveRow = (rowShips: FleetStackVm[], className = 'justify-start gap-[30px]') => (
+    <div className={cx('flex flex-row flex-nowrap items-center', className)}>
       {rowShips.map((ship) => renderShipCell(ship, 'live'))}
     </div>
   );
 
+  const renderPairedBand = (leftRowShips: FleetStackVm[], rightRowShips: FleetStackVm[]) => {
+    const hasLeft = leftRowShips.length > 0;
+    const hasRight = rightRowShips.length > 0;
+
+    if (!hasLeft && !hasRight) {
+      return null;
+    }
+
+    if (!hasLeft || !hasRight) {
+      return (
+        <div className="flex w-full items-center justify-center gap-[18px]">
+          {hasLeft
+            ? renderLiveRow(leftRowShips, 'justify-center gap-[18px]')
+            : renderLiveRow(rightRowShips, 'justify-center gap-[18px]')}
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex w-full items-center justify-center gap-[18px]">
+        <div className="flex min-w-0 items-center justify-end">
+          {renderLiveRow(leftRowShips, 'justify-end gap-[18px]')}
+        </div>
+        <div className="flex min-w-0 items-center justify-start">
+          {renderLiveRow(rightRowShips, 'justify-start gap-[18px]')}
+        </div>
+      </div>
+    );
+  };
+
   const hasLiveShips = renderedShips.length > 0;
   const hasVoidShips = sortedVoidShips.length > 0;
   const liveRowsClassName =
-    liveRowsLayout === 'grid2x2'
-      ? 'ss-boardTurnPulse grid grid-cols-2 grid-rows-2 items-center justify-items-center gap-x-[18px] gap-y-[12px]'
+    liveRowsLayout === 'pairedRows'
+      ? 'ss-boardTurnPulse flex h-full w-full flex-col items-center justify-center gap-[12px]'
       : 'ss-boardTurnPulse flex flex-col items-center gap-[18px]';
   const voidRow = (
     <div
@@ -442,11 +474,17 @@ export function FleetArea({
               <div
                 className={cx(
                   liveRowsClassName,
+                  liveLayoutCanvasClassName,
                   turnPulse.isActive && 'ss-boardTurnPulse-active'
                 )}
                 onAnimationEnd={turnPulse.onAnimationEnd}
               >
-                {grouped ? (
+                {grouped && liveRowsLayout === 'pairedRows' ? (
+                  <>
+                    {renderPairedBand(grouped.row1, grouped.row2)}
+                    {renderPairedBand(grouped.row3, grouped.row4)}
+                  </>
+                ) : grouped ? (
                   <>
                     {renderLiveRow(grouped.row1)}
                     {renderLiveRow(grouped.row2)}

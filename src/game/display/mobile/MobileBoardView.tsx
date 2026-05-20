@@ -40,12 +40,13 @@ export function MobileBoardView({ hudVm, boardVm, leftRailVm }: MobileBoardViewP
           healthDeltaFlash={boardVm.opponentFleetHealthDeltaFlash}
           turnPulse={rightRevealPulse}
           fitMinScale={0.25}
-          liveRowsLayout="grid2x2"
+          liveRowsLayout="pairedRows"
+          liveLayoutCanvasClassName="w-[360px] h-[130px]"
           fitVoidToSlot
           voidSlotClassName="h-[28px]"
           voidFitMinScale={0.15}
           voidFitMaxScale={0.6}
-          voidGapClassName="gap-[10px]"
+          voidGapClassName="gap-[8px]"
         />
       </div>
       <MobileStatusRail hudVm={hudVm} boardVm={boardVm} leftRailVm={leftRailVm} />
@@ -66,12 +67,13 @@ export function MobileBoardView({ hudVm, boardVm, leftRailVm }: MobileBoardViewP
           healthDeltaFlash={boardVm.myFleetHealthDeltaFlash}
           turnPulse={leftRevealPulse}
           fitMinScale={0.25}
-          liveRowsLayout="grid2x2"
+          liveRowsLayout="pairedRows"
+          liveLayoutCanvasClassName="w-[360px] h-[130px]"
           fitVoidToSlot
           voidSlotClassName="h-[28px]"
           voidFitMinScale={0.15}
           voidFitMaxScale={0.6}
-          voidGapClassName="gap-[10px]"
+          voidGapClassName="gap-[8px]"
         />
       </div>
     </div>
