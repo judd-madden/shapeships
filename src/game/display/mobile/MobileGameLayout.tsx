@@ -31,7 +31,7 @@ export function MobileGameLayout({
   actions,
 }: MobileGameLayoutProps) {
   return (
-    <div className="h-dvh min-h-dvh w-full min-w-0 overflow-hidden flex flex-col bg-[var(--shapeships-black)] text-white font-['Roboto']">
+    <div className="h-dvh min-h-dvh w-full min-w-0 overflow-hidden flex flex-col bg-transparent text-white font-['Roboto']">
       <MobileTopNav turnNumber={leftRailVm.turn} />
 
       <MobileBoardView

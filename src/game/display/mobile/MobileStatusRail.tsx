@@ -110,12 +110,12 @@ function MobilePlayerStatusRow({
           <div className="flex flex-1 min-w-0 flex-col gap-[1px]">
             <div className="flex h-[19px] w-full min-w-0 items-center gap-[4px]">
               <OnlineDot isOnline={row.isOnline} />
-              <span className="min-w-0 flex-1 truncate text-[15px] leading-[19px] text-white">
+              <span className="min-w-0 flex-1 truncate text-[17px] leading-[19px] text-white">
                 {row.name}
               </span>
             </div>
             <div className="flex h-[16px] items-center pl-[11px]">
-              <span className={`truncate text-[12px] font-bold leading-4 ${getStatusClassName(row.statusTone)}`}>
+              <span className={`truncate text-[13px] font-bold leading-4 ${getStatusClassName(row.statusTone)}`}>
                 {row.statusText || <span aria-hidden="true">&nbsp;</span>}
               </span>
             </div>
