@@ -3393,6 +3393,8 @@ useEffect(() => {
       isRenderableTargetedAction(action) &&
       destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
     );
+  const isNonInputBattleTransitionPhase =
+    phaseKey === 'battle.reveal' || phaseKey === 'battle.end_of_turn_resolution';
 
   let readyEnabled = true;
   let readyDisabledReason: string | null = null;
@@ -3413,14 +3415,9 @@ useEffect(() => {
   } else if (isInSpeciesSelection && !mySpeciesSelectionComplete) {
     readyEnabled = false;
     readyDisabledReason = 'Select and confirm your species first.';
-  } else if (
-    phaseKey === 'battle.reveal' &&
-    buildCommitDoneByPhase[buildServerKey] === true &&
-    buildRevealDoneByPhase[buildServerKey] === false
-  ) {
-    // Prevent spamming DECLARE_READY while reveal is pending
+  } else if (isNonInputBattleTransitionPhase) {
     readyEnabled = false;
-    readyDisabledReason = 'Revealing build…';
+    readyDisabledReason = null;
   } else {
     // Gate Ready in server-choice phases until availableActions arrives
     const isServerChoicePhase = 
@@ -3946,7 +3943,11 @@ useEffect(() => {
       
       // Only show "SENDING..." if this click is actually allowed to send
       const willAttemptSend =
-        myRole === 'player' && !isFinished && readyEnabled && !readyDisabledReason;
+        myRole === 'player' &&
+        !isFinished &&
+        !isNonInputBattleTransitionPhase &&
+        readyEnabled &&
+        !readyDisabledReason;
       
       if (willAttemptSend) {
         // Mark that player explicitly acted this phase, and we are now waiting on server.

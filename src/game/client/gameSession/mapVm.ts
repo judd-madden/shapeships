@@ -751,6 +751,20 @@ export function mapGameSessionVm(args: {
     readyButtonLabel = 'READY';
     readyButtonNote = 'Proceed to Drawing';
   }
+
+  if (!isFinished && phaseKey === 'battle.reveal') {
+    readyButtonLabel = 'REVEALING';
+    readyButtonNote = null;
+    finalReadyDisabled = true;
+    finalReadySelected = false;
+    finalReadyDisabledReason = null;
+  } else if (!isFinished && phaseKey === 'battle.end_of_turn_resolution') {
+    readyButtonLabel = 'RESOLVING';
+    readyButtonNote = null;
+    finalReadyDisabled = true;
+    finalReadySelected = false;
+    finalReadyDisabledReason = null;
+  }
   
   // Ship choices (derive groups from registry spec)
   let shipChoices:

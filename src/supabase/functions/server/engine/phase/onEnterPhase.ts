@@ -35,7 +35,7 @@ export interface OnEnterResult {
 }
 
 const MAX_AUTO_ADVANCES = 10;
-const BATTLE_REVEAL_HOLD_DURATION_MS = 100;
+const BATTLE_REVEAL_HOLD_DURATION_MS = 25;
 
 function getCurrentPhaseKey(state: any): PhaseKey | null {
   const gd: any = state.gameData || {};
