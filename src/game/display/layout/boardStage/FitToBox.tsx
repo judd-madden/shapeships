@@ -2,11 +2,19 @@ import React, { useLayoutEffect, useRef, useState } from 'react';
 
 type FitToBoxProps = {
   children: React.ReactNode;
-  minScale?: number; // default 0.6
+  minScale?: number; // default 0.4
+  maxScale?: number; // default 1
   className?: string;
+  contentAlign?: 'start' | 'center' | 'end';
 };
 
-export function FitToBox({ children, minScale = 0.4, className }: FitToBoxProps) {
+export function FitToBox({
+  children,
+  minScale = 0.4,
+  maxScale = 1,
+  className,
+  contentAlign = 'center',
+}: FitToBoxProps) {
   const outerRef = useRef<HTMLDivElement | null>(null);
   const innerMeasureRef = useRef<HTMLDivElement | null>(null);
 
@@ -35,7 +43,7 @@ export function FitToBox({ children, minScale = 0.4, className }: FitToBoxProps)
 
       const sx = cw / iw;
       const sy = ch / ih;
-      const next = Math.max(minScale, Math.min(1, sx, sy));
+      const next = Math.max(minScale, Math.min(maxScale, sx, sy));
 
       // Avoid tiny oscillations / re-render churn
       setScale((prev) => (Math.abs(prev - next) < 0.001 ? prev : next));
@@ -85,7 +93,12 @@ export function FitToBox({ children, minScale = 0.4, className }: FitToBoxProps)
         delayedTimeoutRef.current = null;
       }
     };
-  }, [minScale]);
+  }, [maxScale, minScale]);
+
+  const justifyContent =
+    contentAlign === 'start' ? 'flex-start' : contentAlign === 'end' ? 'flex-end' : 'center';
+  const transformOrigin =
+    contentAlign === 'start' ? 'left center' : contentAlign === 'end' ? 'right center' : 'center center';
 
   return (
     <div
@@ -104,11 +117,11 @@ export function FitToBox({ children, minScale = 0.4, className }: FitToBoxProps)
           inset: 0,
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent,
           overflow: 'hidden',
         }}
       >
-        <div style={{ transform: `scale(${scale})`, transformOrigin: 'center center', transition: 'transform 0.4s ease-out', }}>
+        <div style={{ transform: `scale(${scale})`, transformOrigin, transition: 'transform 0.4s ease-out', }}>
           {/* This element is measured using offsetWidth/offsetHeight (transform-safe) */}
           <div ref={innerMeasureRef}>{children}</div>
         </div>
