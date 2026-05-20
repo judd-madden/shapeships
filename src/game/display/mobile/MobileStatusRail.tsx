@@ -15,23 +15,32 @@ interface MobileStatusRailProps {
   leftRailVm: LeftRailViewModel;
 }
 
-interface MobilePlayerStatusRowData {
+export interface MobileStatusRailRowData {
   name: string;
   statusText: string;
   statusTone: HudStatusTone;
   isOnline: boolean;
-  health: number;
-  netDelta: number;
-  healing: number;
-  damage: number;
-  bonus: number;
-  joiningBonus: number;
-  savedLines: number;
-  savedJoiningLines: number;
+  health?: number;
+  netDelta?: number;
+  healing?: number;
+  damage?: number;
+  bonus?: number;
+  joiningBonus?: number;
+  savedLines?: number;
+  savedJoiningLines?: number;
+}
+
+interface MobileStatusRailFrameProps {
+  topRow: MobileStatusRailRowData;
+  bottomRow: MobileStatusRailRowData;
+  topClock: string;
+  bottomClock: string;
+  diceValue: LeftRailViewModel['diceValue'];
+  diceAnimateKey: number;
 }
 
 export function MobileStatusRail({ hudVm, boardVm, leftRailVm }: MobileStatusRailProps) {
-  const opponentStatus: MobilePlayerStatusRowData = {
+  const opponentStatus: MobileStatusRailRowData = {
     name: hudVm.p2Name,
     statusText: hudVm.p2StatusText ?? '',
     statusTone: hudVm.p2StatusTone,
@@ -46,7 +55,7 @@ export function MobileStatusRail({ hudVm, boardVm, leftRailVm }: MobileStatusRai
     savedJoiningLines: boardVm.opponentDisplayedSavedJoiningLines,
   };
 
-  const currentPlayerStatus: MobilePlayerStatusRowData = {
+  const currentPlayerStatus: MobileStatusRailRowData = {
     name: hudVm.p1Name,
     statusText: hudVm.p1StatusText ?? '',
     statusTone: hudVm.p1StatusTone,
@@ -62,26 +71,46 @@ export function MobileStatusRail({ hudVm, boardVm, leftRailVm }: MobileStatusRai
   };
 
   return (
+    <MobileStatusRailFrame
+      topRow={opponentStatus}
+      bottomRow={currentPlayerStatus}
+      topClock={hudVm.p2Clock}
+      bottomClock={hudVm.p1Clock}
+      diceValue={leftRailVm.diceValue}
+      diceAnimateKey={leftRailVm.diceAnimateKey}
+    />
+  );
+}
+
+export function MobileStatusRailFrame({
+  topRow,
+  bottomRow,
+  topClock,
+  bottomClock,
+  diceValue,
+  diceAnimateKey,
+}: MobileStatusRailFrameProps) {
+  return (
     <div className="shrink-0 w-full py-[8px]">
       <div className="flex items-stretch gap-[12px] px-[14px] w-full">
         <div className="flex-1 min-w-0 flex flex-col gap-[6px]">
-          <MobilePlayerStatusRow row={opponentStatus} position="top" />
+          <MobilePlayerStatusRow row={topRow} position="top" />
           <div className="h-px w-full bg-gradient-to-r from-transparent via-white to-transparent opacity-70" />
-          <MobilePlayerStatusRow row={currentPlayerStatus} position="bottom" />
+          <MobilePlayerStatusRow row={bottomRow} position="bottom" />
         </div>
 
         <div className="shrink-0 w-[56px] flex flex-col items-center justify-between py-[1px]">
           <span className="w-[56px] truncate text-center text-[15px] font-bold leading-4 text-[var(--shapeships-grey-50)]">
-            {hudVm.p2Clock}
+            {topClock}
           </span>
           <Dice
-            value={leftRailVm.diceValue}
-            animateKey={leftRailVm.diceAnimateKey}
+            value={diceValue}
+            animateKey={diceAnimateKey}
             className="w-[52px] h-[52px]"
             enableRotate={false}
           />
           <span className="w-[56px] truncate text-center text-[15px] font-bold leading-4 text-white">
-            {hudVm.p1Clock}
+            {bottomClock}
           </span>
         </div>
       </div>
@@ -93,17 +122,24 @@ function MobilePlayerStatusRow({
   row,
   position,
 }: {
-  row: MobilePlayerStatusRowData;
+  row: MobileStatusRailRowData;
   position: MobileRowPosition;
 }) {
+  const health = row.health;
+  const netDelta = row.netDelta;
+  const hasHealth = health !== undefined;
+  const hasNetDelta = netDelta !== undefined;
+
   return (
     <div className={position === 'top' ? 'flex items-end w-full' : 'flex items-start w-full'}>
       <div className="flex-1 min-w-0 flex items-center justify-between gap-[6px]">
         <div className="flex flex-1 min-w-0 items-center gap-[5px]">
           <div className="flex w-[38px] shrink-0 flex-col items-center text-center font-bold whitespace-nowrap">
-            <span className="text-[26px] leading-[26px] text-white">{row.health}</span>
-            <span className={`text-[15px] leading-[16px] ${getNetDeltaClassName(row.netDelta)}`}>
-              {formatNetDelta(row.netDelta)}
+            <span className={`text-[26px] leading-[26px] ${hasHealth ? 'text-white' : 'text-transparent'}`}>
+              {hasHealth ? health : 0}
+            </span>
+            <span className={`text-[15px] leading-[16px] ${getNetDeltaClassName(netDelta)} ${hasNetDelta ? '' : 'text-transparent'}`}>
+              {hasNetDelta ? formatNetDelta(netDelta) : 0}
             </span>
           </div>
 
@@ -123,11 +159,11 @@ function MobilePlayerStatusRow({
         </div>
 
         <div className="grid shrink-0 grid-cols-[28px_28px_24px_24px] items-start gap-[3px] text-center font-bold whitespace-nowrap">
-          <span className="text-[15px] text-[var(--shapeships-pastel-green)]">
-            {row.healing}
+          <span className={`text-[15px] ${row.healing === undefined ? 'text-transparent' : 'text-[var(--shapeships-pastel-green)]'}`}>
+            {row.healing ?? 0}
           </span>
-          <span className="text-[15px] text-[var(--shapeships-pastel-red)]">
-            {row.damage}
+          <span className={`text-[15px] ${row.damage === undefined ? 'text-transparent' : 'text-[var(--shapeships-pastel-red)]'}`}>
+            {row.damage ?? 0}
           </span>
           <MobileStackedStat
             value={row.bonus}
@@ -150,14 +186,16 @@ function MobileStackedStat({
   joiningValue,
   toneClassName,
 }: {
-  value: number;
-  joiningValue: number;
+  value?: number;
+  joiningValue?: number;
   toneClassName: string;
 }) {
+  const hasValue = value !== undefined;
+
   return (
-    <span className={`flex flex-col items-center justify-end ${toneClassName}`}>
-      <span className="text-[15px]">{value}</span>
-      <span className="text-[10px] leading-[10px]">{joiningValue > 0 ? `${joiningValue}j` : ''}</span>
+    <span className={`flex flex-col items-center justify-end ${hasValue ? toneClassName : 'text-transparent'}`}>
+      <span className="text-[15px]">{value ?? 0}</span>
+      <span className="text-[10px] leading-[10px]">{joiningValue && joiningValue > 0 ? `${joiningValue}j` : ''}</span>
     </span>
   );
 }
@@ -181,7 +219,11 @@ function formatNetDelta(value: number): string {
   return String(value);
 }
 
-function getNetDeltaClassName(value: number): string {
+function getNetDeltaClassName(value?: number): string {
+  if (value === undefined) {
+    return 'text-transparent';
+  }
+
   if (value > 0) {
     return 'text-[var(--shapeships-pastel-green)]';
   }

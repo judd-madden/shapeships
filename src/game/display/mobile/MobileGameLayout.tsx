@@ -9,13 +9,12 @@ import type {
 import { MobileBoardView } from './MobileBoardView';
 import { MobileBottomPhase } from './MobileBottomPhase';
 import { MobileBottomTabs } from './MobileBottomTabs';
+import { MobileSpeciesConfirmPhase, MobileSpeciesSelectionView } from './MobileSpeciesSelectionView';
 import { MobileTopNav } from './MobileTopNav';
-
-type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 
 interface MobileGameLayoutProps {
   hudVm: HudViewModel;
-  boardVm: MobileBoardViewModel;
+  boardVm: BoardViewModel;
   leftRailVm: LeftRailViewModel;
   bottomActionRailVm: BottomActionRailViewModel;
   actionPanelVm: ActionPanelViewModel;
@@ -34,14 +33,31 @@ export function MobileGameLayout({
     <div className="h-dvh min-h-dvh w-full min-w-0 overflow-hidden flex flex-col bg-transparent text-white font-['Roboto']">
       <MobileTopNav turnNumber={leftRailVm.turn} />
 
-      <MobileBoardView
-        hudVm={hudVm}
-        boardVm={boardVm}
-        leftRailVm={leftRailVm}
-      />
+      {boardVm.mode === 'board' ? (
+        <MobileBoardView
+          hudVm={hudVm}
+          boardVm={boardVm}
+          leftRailVm={leftRailVm}
+        />
+      ) : (
+        <MobileSpeciesSelectionView
+          hudVm={hudVm}
+          boardVm={boardVm}
+          leftRailVm={leftRailVm}
+          actions={actions}
+        />
+      )}
 
       <div className="shrink-0 flex flex-col gap-[12px] w-full">
-        <MobileBottomPhase vm={bottomActionRailVm} actions={actions} />
+        {boardVm.mode === 'board' ? (
+          <MobileBottomPhase vm={bottomActionRailVm} actions={actions} />
+        ) : (
+          <MobileSpeciesConfirmPhase
+            boardVm={boardVm}
+            bottomActionRailVm={bottomActionRailVm}
+            actions={actions}
+          />
+        )}
         <MobileBottomTabs vm={actionPanelVm} actions={actions} />
       </div>
     </div>

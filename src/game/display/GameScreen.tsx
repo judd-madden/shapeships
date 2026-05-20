@@ -103,7 +103,10 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
     voidShipInstanceIds,
   });
 
-  const mobileBoardVm = isMobileGameLayout && vm.board.mode === 'board' ? vm.board : null;
+  const mobileBoardVm = isMobileGameLayout && (
+    vm.board.mode === 'board' ||
+    vm.board.mode === 'choose_species'
+  ) ? vm.board : null;
 
   function toggleSound() {
     setSoundEnabled((current) => !current);

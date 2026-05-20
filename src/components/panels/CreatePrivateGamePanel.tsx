@@ -209,7 +209,7 @@ export function CreatePrivateGamePanel({
               isTimed ? '' : 'pointer-events-none opacity-[20%]',
             ].join(' ')}
           >
-            <div className="grid w-full max-w-[560px] grid-cols-1 gap-x-[14px] gap-y-[24px] overflow-visible min-[520px]:grid-cols-2 2xl:max-w-[722px] 2xl:grid-cols-4">
+            <div className="grid w-full max-w-[560px] grid-cols-2 gap-x-[14px] gap-y-[24px] overflow-visible min-[520px]:grid-cols-2 2xl:max-w-[722px] 2xl:grid-cols-4">
               {TIMER_PRESETS.map((preset) => (
                 <TimerPresetButton
                   key={preset.key}
