@@ -26,25 +26,51 @@ import {
   Cube,
 } from "../../../../../../graphics/ancient/assets";
 
+type CatalogueFrame = 'desktop' | 'bare';
+type CatalogueLayout = 'desktop' | 'mobileCompact';
+
+const ANCIENT_DESKTOP_CANVAS = { width: 1210, height: 420 };
+const ANCIENT_MOBILE_COMPACT_CANVAS = { width: 1427, height: 310 };
+
 interface AncientShipCataloguePanelProps {
   actions: GameSessionActions;
   buildCatalogue: ActionPanelViewModel['buildCatalogue'];
+  frame?: CatalogueFrame;
+  catalogueLayout?: CatalogueLayout;
   hoverDisabled?: boolean;
+  interactionDisabled?: boolean;
 }
 
 export function AncientShipCataloguePanel({
   actions,
   buildCatalogue,
+  frame = 'desktop',
+  catalogueLayout = 'desktop',
   hoverDisabled,
+  interactionDisabled = false,
 }: AncientShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
+  const isMobileCompact = catalogueLayout === 'mobileCompact';
+  const canvas = isMobileCompact ? ANCIENT_MOBILE_COMPACT_CANVAS : ANCIENT_DESKTOP_CANVAS;
+  const blackHolePosition = isMobileCompact
+    ? { left: "803px", top: "17px", width: "356px" }
+    : { left: "0px", top: "200px", width: "356px" };
 
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
+    const isDimmed = isUnavailableContext || (isBuildableContext && !canAddShip);
+
+    if (interactionDisabled) {
+      return {
+        isDimmed,
+        isClickable: false,
+      };
+    }
+
     return {
-      isDimmed: isUnavailableContext || (isBuildableContext && !canAddShip),
+      isDimmed,
       isClickable: isBuildableContext && canAddShip,
       onClick: () => actions.onBuildShip(shipId),
     };
@@ -63,14 +89,17 @@ export function AncientShipCataloguePanel({
       })
     : null;
 
-  return (
-    <>
-      <ActionPanelScrollArea>
-        {/* Container with exact width matching design */}
-        <div
-          className="relative"
-          style={{ width: "1210px", minHeight: "420px" }}
-        >
+  const content = (
+    /* Container with exact width matching design */
+    <div
+      className="relative"
+      style={{
+        width: `${canvas.width}px`,
+        minHeight: `${canvas.height}px`,
+        ...(frame === 'bare' ? { height: `${canvas.height}px` } : {}),
+      }}
+    >
+
           {/* Section Titles */}
           <p
             className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
@@ -101,7 +130,7 @@ export function AncientShipCataloguePanel({
               left: "407px",
               top: "0",
               width: "1px",
-              height: "420px",
+              height: `${canvas.height}px`,
             }}
           />
 
@@ -110,7 +139,7 @@ export function AncientShipCataloguePanel({
           {/* Basic Ships Row 1 */}
           <div
             className="absolute content-stretch flex items-end justify-between"
-            style={{ left: "0px", right: "824px", top: "33px" }}
+            style={{ left: "0px", top: "33px", width: "386px" }}
           >
             {/* Mercury Core */}
             <div
@@ -230,8 +259,8 @@ export function AncientShipCataloguePanel({
             className="absolute content-stretch flex items-end justify-between px-[16px]"
             style={{
               left: "-5px",
-              right: "819px",
               top: "165px",
+              width: "396px",
             }}
           >
             {/* Uranus Core */}
@@ -865,11 +894,7 @@ export function AncientShipCataloguePanel({
             {/* Black Hole - Large Card */}
             <div
               className="absolute content-stretch flex flex-col gap-[10px] items-center"
-              style={{
-                left: "0px",
-                top: "200px",
-                width: "356px",
-              }}
+              style={blackHolePosition}
             >
               <div className="h-[101.8px] relative rounded-[10px] w-full">
                 <div className="absolute border-2 border-[#ff8282] border-solid inset-0 pointer-events-none rounded-[10px]" />
@@ -1064,7 +1089,11 @@ export function AncientShipCataloguePanel({
             </div>
           </div>
         </div>
-      </ActionPanelScrollArea>
+      );
+
+  return (
+    <>
+      {frame === 'desktop' ? <ActionPanelScrollArea>{content}</ActionPanelScrollArea> : content}
 
       {/* Single hover card rendered via portal (only for Basic Ships on left) */}
       {!hoverDisabled &&

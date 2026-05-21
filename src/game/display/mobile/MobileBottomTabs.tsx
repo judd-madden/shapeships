@@ -1,8 +1,9 @@
 import type { ActionPanelViewModel, GameSessionActions } from '../../client/useGameSession';
+import { MobileActionPanel } from './actionPanel/MobileActionPanel';
 
 interface MobileBottomTabsProps {
   vm: ActionPanelViewModel;
-  actions: Pick<GameSessionActions, 'onActionPanelTabClick'>;
+  actions: GameSessionActions;
 }
 
 export function MobileBottomTabs({ vm, actions }: MobileBottomTabsProps) {
@@ -39,10 +40,7 @@ export function MobileBottomTabs({ vm, actions }: MobileBottomTabsProps) {
         })}
       </div>
 
-      <div
-        aria-label="Mobile bottom panel placeholder"
-        className="h-[204px] w-full shrink-0 border-t border-[var(--shapeships-grey-70)] bg-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-      />
+      <MobileActionPanel vm={vm} actions={actions} />
     </div>
   );
 }

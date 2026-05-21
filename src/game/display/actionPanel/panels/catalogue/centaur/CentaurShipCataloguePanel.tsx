@@ -36,25 +36,54 @@ import {
   ArkOfDominationShip,
 } from '../../../../../../graphics/centaur/assets';
 
+type CatalogueFrame = 'desktop' | 'bare';
+type CatalogueLayout = 'desktop' | 'mobileCompact';
+
+const CENTAUR_DESKTOP_CANVAS = { width: 1210, height: 290 };
+const CENTAUR_MOBILE_COMPACT_CANVAS = { width: 1446, height: 310 };
+
 interface CentaurShipCataloguePanelProps {
   actions: GameSessionActions;
   buildCatalogue: ActionPanelViewModel['buildCatalogue'];
+  frame?: CatalogueFrame;
+  catalogueLayout?: CatalogueLayout;
   hoverDisabled?: boolean;
+  interactionDisabled?: boolean;
 }
 
 export function CentaurShipCataloguePanel({
   actions,
   buildCatalogue,
+  frame = 'desktop',
+  catalogueLayout = 'desktop',
   hoverDisabled,
+  interactionDisabled = false,
 }: CentaurShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
+  const isMobileCompact = catalogueLayout === 'mobileCompact';
+  const canvas = isMobileCompact ? CENTAUR_MOBILE_COMPACT_CANVAS : CENTAUR_DESKTOP_CANVAS;
+  const destructionPosition = isMobileCompact
+    ? { left: '959px', top: '100px', width: '196.02px' }
+    : { left: '1022px', top: '47px', width: '196.02px' };
+  const dominationPosition = isMobileCompact
+    ? { left: '1123px', top: '2px', width: '312.57px' }
+    : { left: '755px', top: '150px', width: '312.57px' };
 
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
+    const isDimmed = isUnavailableContext || (isBuildableContext && !canAddShip);
+
+    if (interactionDisabled) {
+      return {
+        isDimmed,
+        isClickable: false,
+      };
+    }
+
     return {
-      isDimmed: isUnavailableContext || (isBuildableContext && !canAddShip),
+      isDimmed,
       isClickable: isBuildableContext && canAddShip,
       onClick: () => actions.onBuildShip(shipId),
     };
@@ -73,12 +102,17 @@ export function CentaurShipCataloguePanel({
       })
     : null;
 
-  return (
-    <>
-      <ActionPanelScrollArea>
-        {/* Container with exact width from Figma */}
-        <div className="relative" style={{ width: '1210px', minHeight: '290px' }}>
-          
+  const content = (
+    /* Container with exact width from Figma */
+    <div
+      className="relative"
+      style={{
+        width: `${canvas.width}px`,
+        minHeight: `${canvas.height}px`,
+        ...(frame === 'bare' ? { height: `${canvas.height}px` } : {}),
+      }}
+    >
+
           {/* Section Titles */}
           <p
             className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
@@ -97,7 +131,7 @@ export function CentaurShipCataloguePanel({
           {/* Vertical Divider */}
           <div
             className="absolute bg-[#555555]"
-            style={{ left: '406px', top: '0', width: '1px', height: '290px' }}
+            style={{ left: '406px', top: '0', width: '1px', height: `${canvas.height}px` }}
           />
 
           {/* ================ BASIC SHIPS ================ */}
@@ -386,7 +420,7 @@ export function CentaurShipCataloguePanel({
           {/* Ark of Destruction */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '1022px', top: '47px', width: '196.02px' }}
+            style={destructionPosition}
             onMouseEnter={(e) => hover.onEnter('DES', e.currentTarget)}
               onMouseLeave={() => hover.onLeave('DES')}
           >
@@ -408,7 +442,7 @@ export function CentaurShipCataloguePanel({
           {/* Ark of Domination */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '755px', top: '150px', width: '312.57px' }}
+            style={dominationPosition}
             onMouseEnter={(e) => hover.onEnter('DOM', e.currentTarget)}
               onMouseLeave={() => hover.onLeave('DOM')}
           >
@@ -428,7 +462,11 @@ export function CentaurShipCataloguePanel({
           </div>
 
         </div>
-      </ActionPanelScrollArea>
+      );
+
+  return (
+    <>
+      {frame === 'desktop' ? <ActionPanelScrollArea>{content}</ActionPanelScrollArea> : content}
       
       {/* Single hover card rendered via portal */}
       {!hoverDisabled && hover.state.activeShipId && hover.state.anchorRect && hoveredShipEligibility && (

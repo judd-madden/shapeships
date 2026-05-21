@@ -36,25 +36,51 @@ import {
   HiveShip,
 } from '../../../../../../graphics/xenite/assets';
 
+type CatalogueFrame = 'desktop' | 'bare';
+type CatalogueLayout = 'desktop' | 'mobileCompact';
+
+const XENITE_DESKTOP_CANVAS = { width: 1210, height: 398 };
+const XENITE_MOBILE_COMPACT_CANVAS = { width: 1446, height: 310 };
+
 interface XeniteShipCataloguePanelProps {
   actions: GameSessionActions;
   buildCatalogue: ActionPanelViewModel['buildCatalogue'];
+  frame?: CatalogueFrame;
+  catalogueLayout?: CatalogueLayout;
   hoverDisabled?: boolean;
+  interactionDisabled?: boolean;
 }
 
 export function XeniteShipCataloguePanel({
   actions,
   buildCatalogue,
+  frame = 'desktop',
+  catalogueLayout = 'desktop',
   hoverDisabled,
+  interactionDisabled = false,
 }: XeniteShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
+  const isMobileCompact = catalogueLayout === 'mobileCompact';
+  const canvas = isMobileCompact ? XENITE_MOBILE_COMPACT_CANVAS : XENITE_DESKTOP_CANVAS;
+  const hivePosition = isMobileCompact
+    ? { left: '1218px', top: '6px', width: '255px' }
+    : { left: '969px', top: '166px', width: '255px' };
 
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
+    const isDimmed = isUnavailableContext || (isBuildableContext && !canAddShip);
+
+    if (interactionDisabled) {
+      return {
+        isDimmed,
+        isClickable: false,
+      };
+    }
+
     return {
-      isDimmed: isUnavailableContext || (isBuildableContext && !canAddShip),
+      isDimmed,
       isClickable: isBuildableContext && canAddShip,
       onClick: () => actions.onBuildShip(shipId),
     };
@@ -73,12 +99,17 @@ export function XeniteShipCataloguePanel({
       })
     : null;
 
-  return (
-    <>
-      <ActionPanelScrollArea>
-        {/* Container with exact width from Figma */}
-        <div className="relative" style={{ width: '1210px', minHeight: '398px' }}>
-          
+  const content = (
+    /* Container with exact width from Figma */
+    <div
+      className="relative"
+      style={{
+        width: `${canvas.width}px`,
+        minHeight: `${canvas.height}px`,
+        ...(frame === 'bare' ? { height: `${canvas.height}px` } : {}),
+      }}
+    >
+
           {/* Section Titles */}
           <p
             className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
@@ -97,7 +128,7 @@ export function XeniteShipCataloguePanel({
           {/* Vertical Divider */}
           <div
             className="absolute bg-[#555555]"
-            style={{ left: '406px', top: '0', width: '1px', height: '398px' }}
+            style={{ left: '406px', top: '0', width: '1px', height: `${canvas.height}px` }}
           />
 
           {/* ================ BASIC SHIPS ================ */}
@@ -399,7 +430,7 @@ export function XeniteShipCataloguePanel({
           {/* Hive */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '969px', top: '166px', width: '255px' }}
+            style={hivePosition}
             onMouseEnter={(e) => hover.onEnter('HVE', e.currentTarget)}
             onMouseLeave={() => hover.onLeave('HVE')}
           >
@@ -417,7 +448,11 @@ export function XeniteShipCataloguePanel({
           </div>
 
         </div>
-      </ActionPanelScrollArea>
+      );
+
+  return (
+    <>
+      {frame === 'desktop' ? <ActionPanelScrollArea>{content}</ActionPanelScrollArea> : content}
       
       {/* Single hover card rendered via portal */}
       {!hoverDisabled && hover.state.activeShipId && hover.state.anchorRect && hoveredShipEligibility && (
