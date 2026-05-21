@@ -7,6 +7,7 @@ interface MobileBottomTabsProps {
 
 export function MobileBottomTabs({ vm, actions }: MobileBottomTabsProps) {
   const tabs = vm.tabs.filter((tab) => tab.visible && tab.tabId !== 'tab.menu');
+  const tabsLocked = vm.tabInteractionLocked === true;
 
   return (
     <div className="shrink-0 w-full flex flex-col">
@@ -19,8 +20,9 @@ export function MobileBottomTabs({ vm, actions }: MobileBottomTabsProps) {
               key={tab.tabId}
               type="button"
               aria-pressed={selected}
+              disabled={tabsLocked}
               onClick={() => actions.onActionPanelTabClick(tab.tabId)}
-              className={`flex h-[34px] min-w-0 flex-1 items-center justify-center rounded-t-[7px] px-[10px] ${
+              className={`flex h-[34px] min-w-0 flex-1 items-center justify-center rounded-t-[7px] px-[10px] disabled:cursor-not-allowed disabled:opacity-50 ${
                 selected
                   ? 'bg-[var(--shapeships-grey-70)] text-white'
                   : 'bg-[var(--shapeships-grey-90)] text-[var(--shapeships-grey-50)]'

@@ -79,6 +79,7 @@ export function MainStage({
               key={tab.tabId}
               label={tab.label} 
               selected={actionPanelVm.activePanelId === tab.targetPanelId}
+              disabled={actionPanelVm.tabInteractionLocked === true}
               onClick={() => actions.onActionPanelTabClick(tab.tabId)}
             />
           ))}

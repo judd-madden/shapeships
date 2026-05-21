@@ -3818,13 +3818,13 @@ useEffect(() => {
     phaseKey,
   ]);
 
-  useEffect(() => {
-    if (!effectiveGameId || !isFinished || healthResolutionPresentationActive) return;
+  useLayoutEffect(() => {
+    if (!effectiveGameId || !isFinished) return;
     if (finishedRedirectHandledGameIdRef.current === effectiveGameId) return;
 
     finishedRedirectHandledGameIdRef.current = effectiveGameId;
     setActivePanelId('ap.end_of_game.result');
-  }, [effectiveGameId, healthResolutionPresentationActive, isFinished]);
+  }, [effectiveGameId, isFinished]);
 
   useEffect(() => {
     if (!phaseKey || isFinished) {
