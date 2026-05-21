@@ -198,6 +198,7 @@ export function mapGameSessionVm(args: {
 
   board: BoardViewModel;
   healthResolutionLockActive: boolean;
+  healthResolutionPresentationActive: boolean;
   healthResolutionOverlay?: HealthResolutionPresentationVm;
   myFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
   opponentFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
@@ -308,7 +309,7 @@ export function mapGameSessionVm(args: {
     tabs,
     buildCatalogue,
     board,
-    healthResolutionLockActive,
+    healthResolutionPresentationActive,
     healthResolutionOverlay,
     myFleetHealthDeltaFlash,
     opponentFleetHealthDeltaFlash,
@@ -403,7 +404,7 @@ export function mapGameSessionVm(args: {
   let finalActivePanelId = activePanelId;
   let finalTabs = tabs;
   
-  if (isFinished && !healthResolutionLockActive) {
+  if (isFinished && !healthResolutionPresentationActive) {
     if (finalActivePanelId === 'ap.menu.root') {
       finalActivePanelId = 'ap.end_of_game.result';
     }
@@ -671,13 +672,13 @@ export function mapGameSessionVm(args: {
     finalReadyDisabled = true;
     finalReadySelected = false;
     finalReadyDisabledReason = 'Game over.';
-  } else if (resumeSyncLocked) {
-    readyButtonLabel = 'SYNCING...';
+  } else if (healthResolutionPresentationActive) {
+    readyButtonLabel = 'RESOLVING';
     finalReadyDisabled = true;
     finalReadySelected = false;
     finalReadyDisabledReason = null;
-  } else if (healthResolutionLockActive) {
-    readyButtonLabel = 'RESOLVING';
+  } else if (resumeSyncLocked) {
+    readyButtonLabel = 'SYNCING...';
     finalReadyDisabled = true;
     finalReadySelected = false;
     finalReadyDisabledReason = null;
@@ -729,7 +730,7 @@ export function mapGameSessionVm(args: {
       ? `${buildDrawingEconomyDisplay.joiningAvailable} joining lines available`
       : 'Spend lines to build ships';
 
-    if (!readyUx?.sendingNow && !autoReadyWaiting && !p1IsReady) {
+    if (!healthResolutionPresentationActive && !readyUx?.sendingNow && !autoReadyWaiting && !p1IsReady) {
       readyButtonLabel = 'READY';
       readyButtonNote = formatBuildDrawingReadyNote({
         ordinary: buildDrawingEconomyDisplay.projectedSavedOrdinary,
@@ -743,6 +744,7 @@ export function mapGameSessionVm(args: {
   if (
     phaseKey === 'build.ships_that_build' &&
     !isFinished &&
+    !healthResolutionPresentationActive &&
     !readyUx?.sendingNow &&
     !autoReadyWaiting &&
     !p1IsReady &&
@@ -759,6 +761,14 @@ export function mapGameSessionVm(args: {
     finalReadySelected = false;
     finalReadyDisabledReason = null;
   } else if (!isFinished && phaseKey === 'battle.end_of_turn_resolution') {
+    readyButtonLabel = 'RESOLVING';
+    readyButtonNote = null;
+    finalReadyDisabled = true;
+    finalReadySelected = false;
+    finalReadyDisabledReason = null;
+  }
+
+  if (!isFinished && healthResolutionPresentationActive) {
     readyButtonLabel = 'RESOLVING';
     readyButtonNote = null;
     finalReadyDisabled = true;
@@ -1395,7 +1405,7 @@ export function mapGameSessionVm(args: {
         rematchHelperText,
       } : undefined,
       healthResolutionOverlay,
-      tabInteractionLocked: healthResolutionLockActive,
+      tabInteractionLocked: healthResolutionPresentationActive,
       frigateDrawing,
       evolverDrawing,
       shipChoices,

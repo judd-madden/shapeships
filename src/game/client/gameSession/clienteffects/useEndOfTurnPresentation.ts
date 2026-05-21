@@ -383,7 +383,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       activeHealthResolutionOverlayPresentationKeyRef.current = null;
       setHealthResolutionOverlay(undefined);
       setFleetAreaHealthDeltaFlashes({});
-    }, 3500);
+    }, 3000);
 
     return presentationKey;
   }
@@ -474,7 +474,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!healthResolutionPresentationTrigger) {
       return;
     }

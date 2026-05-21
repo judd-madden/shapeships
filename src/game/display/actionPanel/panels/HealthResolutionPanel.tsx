@@ -7,8 +7,8 @@ interface HealthResolutionPanelProps {
 
 const PANEL_STAGGER_MS = 100;
 const PANEL_TRANSITION_MS = 300;
-const EXIT_START_MS = 3000;
-const BACKDROP_TRANSITION_MS = 500;
+const EXIT_START_MS = 2700;
+const BACKDROP_TRANSITION_MS = 300;
 
 function getValueColor(side: HealthResolutionSideVm): string {
   switch (side.valueTone) {

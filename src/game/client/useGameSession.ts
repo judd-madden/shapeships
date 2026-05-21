@@ -43,7 +43,6 @@ import {
   getBonusBreakdownByPlayerId,
   getBonusLinesByPlayerId,
   getBonusLinesOnEvenByPlayerId,
-  getBuildEconomyForPlayer,
   getChronoswarmRolls,
   getClockData,
   getFrigateTriggerByInstanceId,
@@ -214,6 +213,15 @@ type OwnFiniteNumberRead =
   | { present: true; value: number }
   | { present: false };
 
+type OwnBuildEconomyRead =
+  | { present: true; value: any }
+  | { present: false };
+
+type BuildDrawingEconomyContinuity = {
+  phaseInstanceKey: string;
+  economy: any;
+};
+
 type HealthPresentationBuildResult = {
   trigger: HealthResolutionPresentationTrigger;
   boardOverride: {
@@ -232,13 +240,17 @@ type HealthPresentationBuildResult = {
   };
 };
 
+function hasOwnRecordKey(value: unknown, key: string): boolean {
+  return value != null && Object.prototype.hasOwnProperty.call(Object(value), key);
+}
+
 function readOwnFiniteNumber(map: unknown, playerId: string | null | undefined): OwnFiniteNumberRead {
   if (!playerId || !map || typeof map !== 'object' || Array.isArray(map)) {
     return { present: false };
   }
 
   const record = map as Record<string, unknown>;
-  if (!Object.prototype.hasOwnProperty.call(record, playerId)) {
+  if (!hasOwnRecordKey(record, playerId)) {
     return { present: false };
   }
 
@@ -246,6 +258,75 @@ function readOwnFiniteNumber(map: unknown, playerId: string | null | undefined):
   return typeof value === 'number' && Number.isFinite(value)
     ? { present: true, value }
     : { present: false };
+}
+
+function readBuildEconomyForPlayer(state: any, playerId: string | null | undefined): OwnBuildEconomyRead {
+  if (!playerId) {
+    return { present: false };
+  }
+
+  const requester = state?.requester;
+  if (
+    hasOwnRecordKey(requester, 'buildEconomy') &&
+    requester?.playerId === playerId
+  ) {
+    return { present: true, value: requester.buildEconomy };
+  }
+
+  const requesterBuildEconomyByPlayerId = hasOwnRecordKey(requester, 'buildEconomyByPlayerId')
+    ? requester.buildEconomyByPlayerId
+    : undefined;
+  if (
+    requesterBuildEconomyByPlayerId &&
+    typeof requesterBuildEconomyByPlayerId === 'object' &&
+    hasOwnRecordKey(requesterBuildEconomyByPlayerId, playerId)
+  ) {
+    return {
+      present: true,
+      value: (requesterBuildEconomyByPlayerId as Record<string, unknown>)[playerId],
+    };
+  }
+
+  const buildEconomyByPlayerId = hasOwnRecordKey(state, 'buildEconomyByPlayerId')
+    ? state.buildEconomyByPlayerId
+    : undefined;
+  if (
+    buildEconomyByPlayerId &&
+    typeof buildEconomyByPlayerId === 'object' &&
+    hasOwnRecordKey(buildEconomyByPlayerId, playerId)
+  ) {
+    return {
+      present: true,
+      value: (buildEconomyByPlayerId as Record<string, unknown>)[playerId],
+    };
+  }
+
+  return { present: false };
+}
+
+function normalizeBuildEconomyForDisplay(value: unknown): any | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const ordinaryLinesAvailable = record.ordinaryLinesAvailable;
+  const joiningLinesAvailable = record.joiningLinesAvailable;
+
+  if (
+    typeof ordinaryLinesAvailable !== 'number' ||
+    !Number.isFinite(ordinaryLinesAvailable) ||
+    typeof joiningLinesAvailable !== 'number' ||
+    !Number.isFinite(joiningLinesAvailable)
+  ) {
+    return null;
+  }
+
+  return {
+    ...record,
+    ordinaryLinesAvailable,
+    joiningLinesAvailable,
+  };
 }
 
 function sumBoardStatBreakdownRows(rows: BoardStatBreakdownRowVm[]): number {
@@ -528,6 +609,10 @@ export function useGameSession(
     useState<Record<string, FirstStrikeActionFamily>>({});
   const lastPresentedBattleRevealTurnRef = useRef<number | null>(null);
   const seededBattleRevealGameIdRef = useRef<string | null>(null);
+  const displayContinuityIdentityKeyRef = useRef<string | null>(null);
+  const displayLineContinuityRef = useRef<Record<string, number>>({});
+  const buildDrawingEconomyContinuityRef =
+    useRef<BuildDrawingEconomyContinuity | null>(null);
 
   function setResumeSyncLockedState(nextValue: boolean): void {
     resumeSyncLockedRef.current = nextValue;
@@ -636,38 +721,6 @@ export function useGameSession(
     rawStateRef.current = nextState;
     lastAcceptedFullFingerprintRef.current = extractAcceptedFullStateFingerprint(nextState);
     lastAcceptedFullSyncAtMsRef.current = Date.now();
-    setRawState(nextState);
-    return true;
-  }
-
-  function applyContinuePhaseHoldRawState(nextState: any, effectiveGameIdForState: string): boolean {
-    if (!nextState || typeof nextState !== 'object') {
-      console.warn('[useGameSession] Ignoring CONTINUE_PHASE_HOLD success payload without state object');
-      return false;
-    }
-
-    if (nextState.gameId !== effectiveGameIdForState) {
-      console.warn(
-        `[useGameSession] Ignoring CONTINUE_PHASE_HOLD state for wrong gameId=${String(nextState.gameId)} expected=${effectiveGameIdForState}`
-      );
-      return false;
-    }
-
-    const currentState = rawStateRef.current;
-    const currentRevision =
-      currentState && currentState.gameId === effectiveGameIdForState
-        ? getAuthoritativeStateRevision(currentState)
-        : 0;
-    const nextRevision = getAuthoritativeStateRevision(nextState);
-
-    if (nextRevision < currentRevision) {
-      console.warn(
-        `[useGameSession] Ignoring CONTINUE_PHASE_HOLD revision regression next=${nextRevision} current=${currentRevision}`
-      );
-      return false;
-    }
-
-    rawStateRef.current = nextState;
     setRawState(nextState);
     return true;
   }
@@ -1227,19 +1280,20 @@ export function useGameSession(
     return authenticatedPost('/intent', body, timeoutMs);
   }
 
+  const phaseHoldHealthPresentationHandlerRef = useRef(handleIntentResultForHealthPresentation);
+  phaseHoldHealthPresentationHandlerRef.current = handleIntentResultForHealthPresentation;
+
   const phaseHoldContinuationRuntimeRef = useRef({
     effectiveGameId: effectiveGameId as string | null,
     myRole,
     submitIntent,
     refreshGameStateOnce,
-    applyContinuePhaseHoldRawState,
   });
   phaseHoldContinuationRuntimeRef.current = {
     effectiveGameId,
     myRole,
     submitIntent,
     refreshGameStateOnce,
-    applyContinuePhaseHoldRawState,
   };
 
   const continueAuthoritativePhaseHold = useCallback(
@@ -1305,21 +1359,23 @@ export function useGameSession(
                 holdUntilMs: returnedPhaseHold.holdUntilMs,
               })
             : null;
+        const hasReturnedStateObject =
+          returnedState != null &&
+          typeof returnedState === 'object' &&
+          !Array.isArray(returnedState);
         const outcome: ContinueAuthoritativePhaseHoldOutcome =
-          returnedHoldSignature === holdSignature ? 'still_holding' : 'released';
-        const acceptedFastPath = runtime.applyContinuePhaseHoldRawState(
-          returnedState,
-          runtime.effectiveGameId
-        );
+          !hasReturnedStateObject
+            ? 'retry'
+            : returnedHoldSignature === holdSignature
+              ? 'still_holding'
+              : 'released';
 
-        if (!acceptedFastPath) {
-          await runtime.refreshGameStateOnce();
-          return outcome;
-        }
-
-        if (outcome === 'released') {
-          void runtime.refreshGameStateOnce();
-        }
+        phaseHoldHealthPresentationHandlerRef.current(result, {
+          label: 'CONTINUE_PHASE_HOLD',
+          turn: holdTurnNumber,
+          phaseKey: returnedPhaseHoldPhaseKey,
+        });
+        void runtime.refreshGameStateOnce();
 
         return outcome;
       } catch (err: any) {
@@ -1416,6 +1472,24 @@ export function useGameSession(
   const displayRightPlayer = isViewerSpectator ? p2 : opponent;
   const displayLeftReadyKey = isViewerSpectator ? viewerSeats.p1ReadyKey : meReadyKey;
   const displayRightReadyKey = isViewerSpectator ? viewerSeats.p2ReadyKey : opponentReadyKey;
+  const displayContinuityIdentityKey = JSON.stringify({
+    gameId: effectiveGameId,
+    session: mySessionId,
+    viewerMode,
+    isViewerSpectator,
+    left: getPlayerIdentityKey(displayLeftPlayer),
+    right: getPlayerIdentityKey(displayRightPlayer),
+    leftReadyKey: displayLeftReadyKey,
+    rightReadyKey: displayRightReadyKey,
+    me: getPlayerIdentityKey(me),
+    opponent: getPlayerIdentityKey(opponent),
+  });
+
+  if (displayContinuityIdentityKeyRef.current !== displayContinuityIdentityKey) {
+    displayContinuityIdentityKeyRef.current = displayContinuityIdentityKey;
+    displayLineContinuityRef.current = {};
+    buildDrawingEconomyContinuityRef.current = null;
+  }
   
   // ============================================================================
   // GAME LOGIC - USE ME/OPPONENT (NOT LEFT/RIGHT)
@@ -1872,7 +1946,7 @@ export function useGameSession(
     }
   }, [effectiveGameId, healthPresentationBoardOverride, rawState]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (
       !effectiveGameId ||
       !rawState ||
@@ -2331,7 +2405,33 @@ useEffect(() => {
     evolverChoicesByRowIdRef.current = {};
   }, [turnNumber, effectiveGameId]);
 
-  const buildEconomyForMe = getBuildEconomyForPlayer(rawState, me?.id);
+  const isLocalBuildDrawing = phaseKey === 'build.drawing' && myRole === 'player';
+  const buildEconomyForMeRead = readBuildEconomyForPlayer(rawState, me?.id);
+  const buildEconomyForMe = buildEconomyForMeRead.present
+    ? buildEconomyForMeRead.value
+    : null;
+  const normalizedBuildDrawingEconomyForDisplay =
+    isLocalBuildDrawing && buildEconomyForMeRead.present
+      ? normalizeBuildEconomyForDisplay(buildEconomyForMeRead.value)
+      : null;
+  const buildEconomyForMeDisplay = (() => {
+    if (!isLocalBuildDrawing) {
+      buildDrawingEconomyContinuityRef.current = null;
+      return null;
+    }
+
+    if (normalizedBuildDrawingEconomyForDisplay != null) {
+      buildDrawingEconomyContinuityRef.current = {
+        phaseInstanceKey,
+        economy: normalizedBuildDrawingEconomyForDisplay,
+      };
+      return normalizedBuildDrawingEconomyForDisplay;
+    }
+
+    return buildDrawingEconomyContinuityRef.current?.phaseInstanceKey === phaseInstanceKey
+      ? buildDrawingEconomyContinuityRef.current.economy
+      : null;
+  })();
   const ownedForeignSpeciesSet = useMemo(() => {
     const nextOwnedForeignSpecies = new Set<SpeciesId>();
 
@@ -2374,15 +2474,28 @@ useEffect(() => {
   const evolverChoiceSourceRowIds = provisionalBuild.evolverChoiceSourceRowIds;
   const evolverChoiceSourceRowIdsSet = new Set(evolverChoiceSourceRowIds);
   const evolverChoiceSourceRowIdsKey = Array.from(evolverChoiceSourceRowIdsSet).sort().join('|');
-  const isLocalBuildDrawing = phaseKey === 'build.drawing' && myRole === 'player';
-  const buildDrawingEconomyDisplay = isLocalBuildDrawing
+  const displayProvisionalBuild =
+    isLocalBuildDrawing && buildEconomyForMeDisplay != null
+      ? evaluateProvisionalBuild({
+          turnNumber,
+          myShips,
+          draftCounts: buildPreviewCounts,
+          nativeSpecies: mySpecies,
+          buildEconomy: buildEconomyForMeDisplay,
+          frigateSelectedTriggers: frigateSelectedTriggersForPreview,
+          frigatePreviewTriggerByRowId: frigatePreviewTriggerByRowIdForPreview,
+          evolverChoicesByRowId,
+          frigateTriggerByInstanceId,
+        })
+      : null;
+  const buildDrawingEconomyDisplay = displayProvisionalBuild != null
     ? {
-        ordinaryAvailable: provisionalBuild.remainingOrdinaryLines,
-        joiningAvailable: provisionalBuild.remainingJoiningLines,
-        projectedSavedOrdinary: provisionalBuild.projectedSavedOrdinaryLines,
-        projectedSavedJoining: provisionalBuild.projectedSavedJoiningLines,
-        projectedSavedCombined: provisionalBuild.projectedSavedCombinedLines,
-        projectedSavedWasCapped: provisionalBuild.projectedSavedWasCapped,
+        ordinaryAvailable: displayProvisionalBuild.remainingOrdinaryLines,
+        joiningAvailable: displayProvisionalBuild.remainingJoiningLines,
+        projectedSavedOrdinary: displayProvisionalBuild.projectedSavedOrdinaryLines,
+        projectedSavedJoining: displayProvisionalBuild.projectedSavedJoiningLines,
+        projectedSavedCombined: displayProvisionalBuild.projectedSavedCombinedLines,
+        projectedSavedWasCapped: displayProvisionalBuild.projectedSavedWasCapped,
       }
     : null;
 
@@ -2649,10 +2762,38 @@ useEffect(() => {
     const opponentBonusLines = displayRightPlayerId ? (bonusLinesByPlayerId?.[displayRightPlayerId] ?? 0) : 0;
     const myBonusLinesOnEven = displayLeftPlayerId ? (bonusLinesOnEvenByPlayerId?.[displayLeftPlayerId] ?? 0) : 0;
     const opponentBonusLinesOnEven = displayRightPlayerId ? (bonusLinesOnEvenByPlayerId?.[displayRightPlayerId] ?? 0) : 0;
-    const mySavedLines = displayLeftPlayerId ? (savedLinesByPlayerId?.[displayLeftPlayerId] ?? 0) : 0;
-    const opponentSavedLines = displayRightPlayerId ? (savedLinesByPlayerId?.[displayRightPlayerId] ?? 0) : 0;
-    const mySavedJoiningLines = displayLeftPlayerId ? (joiningLinesByPlayerId?.[displayLeftPlayerId] ?? 0) : 0;
-    const opponentSavedJoiningLines = displayRightPlayerId ? (joiningLinesByPlayerId?.[displayRightPlayerId] ?? 0) : 0;
+    const readDisplayLineValue = (key: string, read: OwnFiniteNumberRead): number => {
+      if (read.present) {
+        displayLineContinuityRef.current[key] = read.value;
+        return read.value;
+      }
+
+      return displayLineContinuityRef.current[key] ?? 0;
+    };
+    const mySavedLines = displayLeftPlayerId
+      ? readDisplayLineValue(
+          'left.saved',
+          readOwnFiniteNumber(savedLinesByPlayerId, displayLeftPlayerId)
+        )
+      : 0;
+    const opponentSavedLines = displayRightPlayerId
+      ? readDisplayLineValue(
+          'right.saved',
+          readOwnFiniteNumber(savedLinesByPlayerId, displayRightPlayerId)
+        )
+      : 0;
+    const mySavedJoiningLines = displayLeftPlayerId
+      ? readDisplayLineValue(
+          'left.joining',
+          readOwnFiniteNumber(joiningLinesByPlayerId, displayLeftPlayerId)
+        )
+      : 0;
+    const opponentSavedJoiningLines = displayRightPlayerId
+      ? readDisplayLineValue(
+          'right.joining',
+          readOwnFiniteNumber(joiningLinesByPlayerId, displayRightPlayerId)
+        )
+      : 0;
     const myJoiningBonusLines = displayLeftPlayerId ? (joiningBonusLinesByPlayerId?.[displayLeftPlayerId] ?? 0) : 0;
     const opponentJoiningBonusLines = displayRightPlayerId ? (joiningBonusLinesByPlayerId?.[displayRightPlayerId] ?? 0) : 0;
     const myBonusBreakdownRows = displayLeftPlayerId
@@ -2857,6 +2998,8 @@ useEffect(() => {
     boardFlashEnabled,
     continueAuthoritativePhaseHold,
   });
+  const healthResolutionPresentationActive =
+    healthResolutionLockActive || healthResolutionOverlay != null;
 
   useLayoutEffect(() => {
     if (
@@ -3219,7 +3362,7 @@ useEffect(() => {
     !!actionsTargetPanelId &&
     (hasServerActionsAvailable || hasClientActionsAvailable);
 
-  const menuTargetPanelId: ActionPanelId = isFinished && !healthResolutionLockActive
+  const menuTargetPanelId: ActionPanelId = isFinished && !healthResolutionPresentationActive
     ? 'ap.end_of_game.result'
     : 'ap.menu.root';
 
@@ -3403,7 +3546,7 @@ useEffect(() => {
   if (isFinished) {
     readyEnabled = false;
     readyDisabledReason = 'Game over.';
-  } else if (healthResolutionLockActive) {
+  } else if (healthResolutionPresentationActive) {
     readyEnabled = false;
     readyDisabledReason = null;
   } else if (resumeSyncLocked) {
@@ -3647,12 +3790,12 @@ useEffect(() => {
   ]);
 
   useEffect(() => {
-    if (!effectiveGameId || !isFinished || healthResolutionLockActive) return;
+    if (!effectiveGameId || !isFinished || healthResolutionPresentationActive) return;
     if (finishedRedirectHandledGameIdRef.current === effectiveGameId) return;
 
     finishedRedirectHandledGameIdRef.current = effectiveGameId;
     setActivePanelId('ap.end_of_game.result');
-  }, [effectiveGameId, healthResolutionLockActive, isFinished]);
+  }, [effectiveGameId, healthResolutionPresentationActive, isFinished]);
 
   useEffect(() => {
     if (!phaseKey || isFinished) {
@@ -3856,6 +3999,7 @@ useEffect(() => {
 
     board,
     healthResolutionLockActive,
+    healthResolutionPresentationActive,
     healthResolutionOverlay,
     myFleetHealthDeltaFlash,
     opponentFleetHealthDeltaFlash,
@@ -3935,6 +4079,10 @@ useEffect(() => {
   
   const actions: GameSessionActions = {
     onReadyToggle: async () => {
+      if (healthResolutionPresentationActive) {
+        return;
+      }
+
       // Snapshot build preview before async flow to prevent race conditions
       const buildPreviewSnapshot = { ...buildPreviewCountsRef.current };
       
@@ -3945,6 +4093,7 @@ useEffect(() => {
       const willAttemptSend =
         myRole === 'player' &&
         !isFinished &&
+        !healthResolutionPresentationActive &&
         !isNonInputBattleTransitionPhase &&
         readyEnabled &&
         !readyDisabledReason;
@@ -4033,7 +4182,7 @@ useEffect(() => {
     onActionPanelTabClick: (tabId: ActionPanelTabId) => {
       console.log('[useGameSession] Action panel tab clicked:', tabId);
 
-      if (healthResolutionLockActive) {
+      if (healthResolutionPresentationActive) {
         return;
       }
       
