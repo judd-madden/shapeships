@@ -400,7 +400,7 @@ export function FleetArea({
     easing: 'ease-in-out',
     layoutSignature: liveFleetLayoutSignature,
     itemLayoutSignatures: liveFleetItemLayoutSignatures,
-    skipSelfChangedItemForNextRun: true,
+    skipSelfChangedItemForNextRun: false,
     ignoredAncestorScaleClassNames: IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES,
   });
 
