@@ -24,6 +24,7 @@ export interface FlipLayoutOptions {
   easing?: string;
   layoutSignature?: string | number;
   itemLayoutSignatures?: Record<string, string | number>;
+  skipSelfChangedItemForNextRun?: boolean;
   ignoredAncestorScaleClassNames?: readonly string[];
 }
 
@@ -121,12 +122,10 @@ export function useFlipLayout<T extends string | number>(
   const easing = options?.easing ?? 'ease-in-out';
   const layoutSignature = options?.layoutSignature ?? '';
   const itemLayoutSignatures = options?.itemLayoutSignatures ?? {};
+  const skipSelfChangedItemForNextRun = options?.skipSelfChangedItemForNextRun ?? false;
   const ignoredAncestorScaleClassNames = options?.ignoredAncestorScaleClassNames ?? [];
   const ignoredAncestorScaleClassNamesSignature = ignoredAncestorScaleClassNames.join('|');
   const keySignature = keys.join('|');
-  const itemLayoutSignaturesSignature = JSON.stringify(
-    keys.map((key) => [String(key), itemLayoutSignatures[String(key)] ?? null])
-  );
 
   // Elements by key
   const elementsRef = useRef<Map<T, HTMLElement>>(new Map());
@@ -136,6 +135,9 @@ export function useFlipLayout<T extends string | number>(
 
   // Previous per-item layout signatures, used to skip FLIP for self-footprint changes
   const prevItemLayoutSignaturesRef = useRef<Record<string, string | number>>({});
+
+  // Keys whose self-footprint change should suppress one additional FLIP run
+  const selfChangedItemCooldownRef = useRef<Set<string>>(new Set());
 
   // Invalidates pending RAF/transition work from older layout passes
   const runTokenRef = useRef(0);
@@ -152,12 +154,15 @@ export function useFlipLayout<T extends string | number>(
   useLayoutEffect(() => {
     const elements = elementsRef.current;
     const prevItemLayoutSignatures = prevItemLayoutSignaturesRef.current;
+    const cooldownSnapshot = new Set(selfChangedItemCooldownRef.current);
     const runToken = runTokenRef.current + 1;
     runTokenRef.current = runToken;
     let raf1: number | null = null;
     let raf2: number | null = null;
     const touchedElements = new Set<HTMLElement>();
     const removeTransitionListeners: Array<() => void> = [];
+    const changedItemLayoutKeys = new Set<string>();
+    const skippedItemLayoutKeys = new Set<string>();
 
     const isCurrentRun = () => runTokenRef.current === runToken;
     const invalidateRun = () => {
@@ -192,6 +197,20 @@ export function useFlipLayout<T extends string | number>(
       );
     };
 
+    for (const key of keys) {
+      const signatureKey = String(key);
+      const changedThisRun = itemLayoutChanged(key);
+      const coolingDownThisRun =
+        skipSelfChangedItemForNextRun && cooldownSnapshot.has(signatureKey);
+
+      if (changedThisRun) {
+        changedItemLayoutKeys.add(signatureKey);
+      }
+      if (changedThisRun || coolingDownThisRun) {
+        skippedItemLayoutKeys.add(signatureKey);
+      }
+    }
+
     // Measure current rects for all current keys
     const nextRects = new Map<T, DOMRect>();
     for (const key of keys) {
@@ -203,6 +222,7 @@ export function useFlipLayout<T extends string | number>(
     if (!enabled) {
       prevRectsRef.current = nextRects;
       prevItemLayoutSignaturesRef.current = itemLayoutSignatures;
+      selfChangedItemCooldownRef.current = new Set();
       return;
     }
 
@@ -214,7 +234,7 @@ export function useFlipLayout<T extends string | number>(
       const prev = prevRects.get(key);
       const next = nextRects.get(key);
       if (!el || !prev || !next) continue;
-      if (itemLayoutChanged(key)) continue;
+      if (skippedItemLayoutKeys.has(String(key))) continue;
 
       const { dx, dy } = getFlipDelta(el, prev, next, ignoredAncestorScaleClassNames);
 
@@ -240,7 +260,7 @@ export function useFlipLayout<T extends string | number>(
           const prev = prevRects.get(key);
           const next = nextRects.get(key);
           if (!el || !prev || !next) continue;
-          if (itemLayoutChanged(key)) continue;
+          if (skippedItemLayoutKeys.has(String(key))) continue;
 
           const { dx, dy } = getFlipDelta(el, prev, next, ignoredAncestorScaleClassNames);
           if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
@@ -270,6 +290,9 @@ export function useFlipLayout<T extends string | number>(
     // Store current rects for the next commit
     prevRectsRef.current = nextRects;
     prevItemLayoutSignaturesRef.current = itemLayoutSignatures;
+    selfChangedItemCooldownRef.current = skipSelfChangedItemForNextRun
+      ? changedItemLayoutKeys
+      : new Set();
 
     return () => {
       invalidateRun();
@@ -285,7 +308,7 @@ export function useFlipLayout<T extends string | number>(
     easing,
     keySignature,
     layoutSignature,
-    itemLayoutSignaturesSignature,
+    skipSelfChangedItemForNextRun,
     ignoredAncestorScaleClassNamesSignature,
   ]);
 
