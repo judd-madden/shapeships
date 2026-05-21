@@ -178,6 +178,8 @@ interface UseGameSessionOptions {
   boardFlashEnabled?: boolean;
 }
 
+const EMPTY_BUILD_PREVIEW_COUNTS: Record<string, number> = {};
+
 function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRowVm[] {
   if (!Array.isArray(rawRows)) {
     return [];
@@ -824,6 +826,7 @@ export function useGameSession(
   // Simple count map: { DEF: 2, FIG: 1, ... }
   // Reset when phase changes away from build.drawing
   const [buildPreviewCounts, setBuildPreviewCounts] = useState<Record<string, number>>({});
+  const [buildPreviewTurnNumber, setBuildPreviewTurnNumber] = useState<number | null>(null);
   
 
   // Frigate trigger selections for Frigates built THIS TURN (ordered list, length = buildPreviewCounts.FRI)
@@ -835,6 +838,7 @@ export function useGameSession(
   // Ref-backed draft buffer: authoritative source for BUILD_SUBMIT payload
   // Prevents race condition when Ready is clicked immediately after building
   const buildPreviewCountsRef = useRef<Record<string, number>>({});
+  const buildPreviewTurnNumberRef = useRef<number | null>(null);
   
   // Build submitted tracking: maps turnNumber → submitted flag
   // Used to gate ship clicks after submission
@@ -1498,6 +1502,26 @@ export function useGameSession(
   // Phase data
   const phaseKey = rawState ? getPhaseKey(rawState) : 'unknown';
   const turnNumber = rawState ? getTurnNumber(rawState) : 1;
+  const hasHydratedTurnNumber =
+    rawState != null &&
+    typeof turnNumber === 'number' &&
+    Number.isFinite(turnNumber);
+  const activeBuildPreviewCounts =
+    hasHydratedTurnNumber && buildPreviewTurnNumber === turnNumber
+      ? buildPreviewCounts
+      : EMPTY_BUILD_PREVIEW_COUNTS;
+  const getActiveBuildPreviewCountsRefForTurn = useCallback(
+    (previewTurnNumber: number): Record<string, number> => {
+      if (!hasHydratedTurnNumber || !Number.isFinite(previewTurnNumber)) {
+        return EMPTY_BUILD_PREVIEW_COUNTS;
+      }
+
+      return buildPreviewTurnNumberRef.current === previewTurnNumber
+        ? buildPreviewCountsRef.current
+        : EMPTY_BUILD_PREVIEW_COUNTS;
+    },
+    [hasHydratedTurnNumber],
+  );
   const knoRerollPassIndex = getKnoRerollPassIndex(rawState);
   const phaseInstanceKey =
     phaseKey === 'build.dice_roll' &&
@@ -1531,6 +1555,8 @@ export function useGameSession(
     // Turn boundary: any local build preview is now invalid
     setBuildPreviewCounts({});
     buildPreviewCountsRef.current = {};
+    setBuildPreviewTurnNumber(null);
+    buildPreviewTurnNumberRef.current = null;
     setFrigateSelectedTriggers([]);
     frigateSelectedTriggersRef.current = [];
     frigatePreviewTriggerByRowIdRef.current = {};
@@ -2369,6 +2395,7 @@ export function useGameSession(
   // Keep ref aligned with state reset (same deps as useBuildPreviewResetEffect)
   useEffect(() => {
     buildPreviewCountsRef.current = {};
+    buildPreviewTurnNumberRef.current = null;
   }, [turnNumber, effectiveGameId]);
 
 // Keep Frigate trigger selections ref in sync
@@ -2386,8 +2413,9 @@ useEffect(() => {
 
 // Ensure frigateSelectedTriggers length matches build preview FRI count (default new entries to 1)
 useEffect(() => {
-  const friCount = Number.isInteger(buildPreviewCountsRef.current?.FRI)
-    ? Math.max(0, buildPreviewCountsRef.current.FRI)
+  const activeBuildPreviewCountsRef = getActiveBuildPreviewCountsRefForTurn(turnNumber);
+  const friCount = Number.isInteger(activeBuildPreviewCountsRef?.FRI)
+    ? Math.max(0, activeBuildPreviewCountsRef.FRI)
     : 0;
 
   setFrigateSelectedTriggers(prev => {
@@ -2398,7 +2426,7 @@ useEffect(() => {
     frigatePreviewTriggerByRowIdRef.current = buildDraftPreviewFrigateTriggerByRowId(turnNumber, next);
     return next;
   });
-}, [buildPreviewCounts, turnNumber]);
+}, [buildPreviewCounts, getActiveBuildPreviewCountsRefForTurn, turnNumber]);
 
   useEffect(() => {
     setEvolverChoicesByRowId({});
@@ -2458,7 +2486,7 @@ useEffect(() => {
   const provisionalBuild = evaluateProvisionalBuild({
     turnNumber,
     myShips,
-    draftCounts: buildPreviewCounts,
+    draftCounts: activeBuildPreviewCounts,
     nativeSpecies: mySpecies,
     buildEconomy: buildEconomyForMe,
     // Use the ref-backed snapshot so same-click preview rerenders see the latest trigger choice.
@@ -2479,7 +2507,7 @@ useEffect(() => {
       ? evaluateProvisionalBuild({
           turnNumber,
           myShips,
-          draftCounts: buildPreviewCounts,
+          draftCounts: activeBuildPreviewCounts,
           nativeSpecies: mySpecies,
           buildEconomy: buildEconomyForMeDisplay,
           frigateSelectedTriggers: frigateSelectedTriggersForPreview,
@@ -3231,8 +3259,9 @@ useEffect(() => {
   const activeCentaurChargeSubTab =
     centaurChargeSubTabByPhaseInstanceKey[phaseInstanceKey] ?? defaultCentaurChargeSubTab;
 
-  const frigateDemandCount = Number.isInteger(buildPreviewCountsRef.current?.FRI)
-    ? Math.max(0, buildPreviewCountsRef.current.FRI)
+  const activeBuildPreviewCountsRef = getActiveBuildPreviewCountsRefForTurn(turnNumber);
+  const frigateDemandCount = Number.isInteger(activeBuildPreviewCountsRef?.FRI)
+    ? Math.max(0, activeBuildPreviewCountsRef.FRI)
     : 0;
 
   const hasFrigateDrawingAction =
@@ -4045,7 +4074,7 @@ useEffect(() => {
     leftRailChronoswarmAnimateKey: presentedChronoswarmAnimateSeq,
 
     // Client-only: build preview + Frigate triggers for build.drawing special panels
-    buildPreviewCounts: buildPreviewCountsRef.current,
+    buildPreviewCounts: activeBuildPreviewCountsRef,
     frigateSelectedTriggers: frigateSelectedTriggersRef.current,
     evolverRowIds,
     evolverChoicesByRowId,
@@ -4084,7 +4113,7 @@ useEffect(() => {
       }
 
       // Snapshot build preview before async flow to prevent race conditions
-      const buildPreviewSnapshot = { ...buildPreviewCountsRef.current };
+      const buildPreviewSnapshot = { ...getActiveBuildPreviewCountsRefForTurn(turnNumber) };
       
       // Capture the phase key at click time (important: don't drift if phase advances mid-await)
       const clickedPhaseInstanceKey = phaseInstanceKey;
@@ -4360,13 +4389,17 @@ useEffect(() => {
       // Gate 3: Use the UI-driving turnNumber for gating.
       // rawState can lag between polls and incorrectly block ship clicks.
       const uiTurnNumber = turnNumber;
+      if (!Number.isFinite(uiTurnNumber)) {
+        return;
+      }
       
       const buildSubmitted = buildSubmittedByTurn[uiTurnNumber] === true;
       if (buildSubmitted) {
         return; // Silent no-op if build already submitted for this turn
       }
       
-      const nextDraftCounts = addShipToBuildDraft(buildPreviewCountsRef.current, shipDefId);
+      const currentDraftCounts = getActiveBuildPreviewCountsRefForTurn(uiTurnNumber);
+      const nextDraftCounts = addShipToBuildDraft(currentDraftCounts, shipDefId);
       const canAddShip = canProvisionallyAddShip({
         turnNumber: uiTurnNumber,
         myShips,
@@ -4387,7 +4420,9 @@ useEffect(() => {
       console.log('[useGameSession] onBuildShip:', shipDefId, 'turn:', uiTurnNumber);
 
       buildPreviewCountsRef.current = nextDraftCounts;
+      buildPreviewTurnNumberRef.current = uiTurnNumber;
       setBuildPreviewCounts(() => nextDraftCounts);
+      setBuildPreviewTurnNumber(uiTurnNumber);
 
       // Existing rendered stacks keep immediate local stack-add feedback.
       // Brand-new rendered stacks stay on the normal diff-owned entry path.
