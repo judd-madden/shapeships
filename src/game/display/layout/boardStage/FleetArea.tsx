@@ -25,6 +25,8 @@ function toCssVarFromColourName(colour?: string): string | undefined {
   return `var(--shapeships-${slug})`;
 }
 
+const IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES = ['ss-boardTurnPulse'] as const;
+
 // ============================================================================
 // FLEET ROW MAPPING (Set-based, All Species)
 // ============================================================================
@@ -124,6 +126,39 @@ type FleetStackVm = {
   currentCharges?: number | null;
   caption?: string | null;
 };
+
+function getLiveFleetLayoutSignature(
+  renderedShips: FleetStackVm[],
+  liveRowsLayout: 'stacked' | 'pairedRows'
+): string {
+  return JSON.stringify([
+    liveRowsLayout,
+    renderedShips.map((ship) => [
+      ship.renderKey,
+      ship.count,
+      ship.condition ?? null,
+      ship.currentCharges ?? null,
+      ship.caption ?? null,
+    ]),
+  ]);
+}
+
+function getLiveFleetItemLayoutSignatures(
+  renderedShips: FleetStackVm[]
+): Record<string, string> {
+  return Object.fromEntries(
+    renderedShips.map((ship) => [
+      ship.renderKey,
+      JSON.stringify([
+        ship.shipDefId,
+        ship.count,
+        ship.condition ?? null,
+        ship.currentCharges ?? null,
+        ship.caption ?? null,
+      ]),
+    ])
+  );
+}
 
 type ShipDisplayMode = 'live' | 'void';
 
@@ -358,7 +393,15 @@ export function FleetArea({
     ? [...grouped.row1, ...grouped.row2, ...grouped.row3, ...grouped.row4]
     : [];
   const allRenderKeys = renderedShips.map((s) => s.renderKey);
-  const getFlipRef = useFlipLayout(allRenderKeys, flipEnabled, { durationMs: 400, easing: 'ease-in-out' });
+  const liveFleetLayoutSignature = getLiveFleetLayoutSignature(renderedShips, liveRowsLayout);
+  const liveFleetItemLayoutSignatures = getLiveFleetItemLayoutSignatures(renderedShips);
+  const getFlipRef = useFlipLayout(allRenderKeys, flipEnabled, {
+    durationMs: 400,
+    easing: 'ease-in-out',
+    layoutSignature: liveFleetLayoutSignature,
+    itemLayoutSignatures: liveFleetItemLayoutSignatures,
+    ignoredAncestorScaleClassNames: IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES,
+  });
 
   const renderShipCell = (ship: FleetStackVm, displayMode: ShipDisplayMode = 'live') => {
     const targetState = displayMode === 'live' ? targetStatesByStackKey?.[ship.stackKey] : undefined;
