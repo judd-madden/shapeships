@@ -91,7 +91,12 @@ export function MobileSpeciesConfirmPhase({
   actions,
 }: MobileSpeciesConfirmPhaseProps) {
   const selectedSpeciesName = boardVm.selectedSpecies.toUpperCase();
-  const confirmButtonPrefix = boardVm.isSpeciesSelectionComplete ? 'CONFIRMED' : 'CONFIRM';
+  const isAncientSelected = boardVm.selectedSpecies === 'ancient';
+  const confirmButtonPrefix = boardVm.isSpeciesSelectionComplete
+    ? 'CONFIRMED'
+    : isAncientSelected
+      ? 'DISABLED'
+      : 'CONFIRM';
   const confirmDisabled = !boardVm.canConfirmSpecies;
   const confirmDisabledReason =
     !boardVm.isSpectator && !boardVm.isSpeciesSelectionComplete && confirmDisabled
