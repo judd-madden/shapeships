@@ -30,7 +30,7 @@ function PhaseHeader({
     <div className="bg-[#555] relative shrink-0 w-full">
       <div className="content-stretch flex items-center px-[20px] py-[16px] relative size-full sm:px-[30px] md:px-[41.986px] md:py-[18.894px]">
         <div className="content-stretch flex flex-wrap gap-[12px] items-center relative shrink-0 md:gap-[16.795px]">
-          <p className="font-bold leading-[normal] relative shrink-0 text-[18px] uppercase sm:text-[20.993px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-bold leading-[normal] relative shrink-0 text-[13.5px] uppercase sm:text-[20.993px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             {title}
           </p>
           {icon}
@@ -70,14 +70,14 @@ function TimingRow({
   return (
     <div className={`${backgroundColor} relative shrink-0 w-full`}>
       <div className={`content-stretch flex flex-col gap-[8.397px] items-start ${leftPadding} pr-[20px] sm:pr-[28px] md:pr-[75.576px] ${verticalPadding} relative w-full`}>
-        <p className={`${titleBold ? 'font-black' : 'font-semibold'} leading-[20.993px] relative shrink-0 text-[18px] sm:text-[18.894px] w-full`} style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className={`${titleBold ? 'font-black' : 'font-semibold'} leading-[15.75px] relative shrink-0 text-[13.5px] sm:text-[18.894px] sm:leading-[20.993px] w-full`} style={{ fontVariationSettings: "'wdth' 100" }}>
           {title}
         </p>
-        <div className="font-normal leading-[23.093px] relative shrink-0 text-[15px] sm:text-[16.795px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <div className="font-normal leading-[17.32px] relative shrink-0 text-[11.25px] sm:text-[16.795px] sm:leading-[23.093px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
           {description}
         </div>
         {exampleShips && (
-          <p className="font-normal leading-[23.093px] relative shrink-0 text-[#888] text-[14px] sm:text-[14.8px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-normal leading-[17.32px] relative shrink-0 text-[#888] text-[10.5px] sm:text-[14.8px] sm:leading-[23.093px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
             {exampleShips}
           </p>
         )}
@@ -103,17 +103,17 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
       {/* Page Header */}
       <div className="content-stretch flex flex-col items-start justify-between gap-[16px] relative shrink-0 w-full md:flex-row md:items-end">
         <div className="content-stretch flex gap-[20px] items-center relative shrink-0">
-          <p className="font-black leading-[normal] relative shrink-0 text-[32px] sm:text-[36px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-black leading-[normal] relative shrink-0 text-[24px] sm:text-[36px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             Turn Timings
           </p>
         </div>
-        <p className="font-normal leading-[22px] relative shrink-0 text-[16px] w-full max-w-[215px] md:text-right" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className="font-normal leading-[16.5px] relative shrink-0 text-[12px] w-full max-w-[215px] sm:text-[16px] sm:leading-[22px] md:text-right" style={{ fontVariationSettings: "'wdth' 100" }}>
           A breakdown of the phases that can occur during a turn.
         </p>
       </div>
 
       {/* START OF TURN */}
-      <p className="font-bold leading-[normal] relative shrink-0 text-[20.993px] text-nowrap uppercase" style={{ fontVariationSettings: "'wdth' 100" }}>
+      <p className="font-bold leading-[normal] relative shrink-0 text-[15.745px] text-nowrap uppercase sm:text-[20.993px]" style={{ fontVariationSettings: "'wdth' 100" }}>
         START OF TURN
       </p>
 
@@ -231,7 +231,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
               <>
                 <p className="mb-[8.397px]">Players may declare charge powers in response to opponent's declarations or hold the charges. Ancients may use solar powers if they have energy to do so. Players may declare multiple charges, or hold them until a future turn.</p>
                 <p className="mb-[8.397px]">
-                  If a charge-based ship is destroyed, its charge still occurs. <span className="italic text-[14.8px]" style={{ fontVariationSettings: "'wdth' 100" }}>See also Ship of Equality rules.</span>
+                  If a charge-based ship is destroyed, its charge still occurs. <span className="italic text-[11.1px] sm:text-[14.8px]" style={{ fontVariationSettings: "'wdth' 100" }}>See also Ship of Equality rules.</span>
                 </p>
                 <p className="mb-[8.397px]">If a ship with Automatic damage and healing is destroyed, its power does NOT occur (except 'once only' powers).</p>
                 <p>
@@ -262,7 +262,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
       </div>
 
       {/* END OF TURN */}
-      <p className="font-bold leading-[normal] relative shrink-0 text-[18px] text-right uppercase sm:text-[20.993px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+      <p className="font-bold leading-[normal] relative shrink-0 text-[13.5px] text-right uppercase sm:text-[20.993px]" style={{ fontVariationSettings: "'wdth' 100" }}>
         END OF TURN
       </p>
 
@@ -272,7 +272,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           className="bg-white content-stretch flex items-center justify-center px-[30px] py-[20px] relative rounded-[10px] shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
           onClick={() => onNavigate?.('core')}
         >
-          <p className="font-bold leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-bold leading-[normal] relative shrink-0 text-[13.5px] text-black text-nowrap sm:text-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             Next: Core Rules
           </p>
         </button>

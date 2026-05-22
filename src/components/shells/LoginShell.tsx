@@ -44,12 +44,12 @@ export function LoginShell({
             
             {/* Logo */}
             <div className="relative inline-grid max-w-full shrink-0 grid-cols-[max-content] grid-rows-[max-content] place-items-start leading-[0]">
-              <p className="[grid-area:1_/_1] relative ml-[92px] mt-[0.49px] font-['Roboto'] text-[40px] font-bold leading-[normal] not-italic text-nowrap sm:ml-[126px] sm:text-[72px] lg:ml-[160px] lg:text-[88px] xl:ml-[203.9px] xl:text-[105.935px]">
+              <p className="[grid-area:1_/_1] relative ml-[69px] mt-[0.49px] font-['Roboto'] text-[30px] font-bold leading-[normal] not-italic text-nowrap sm:ml-[126px] sm:text-[72px] lg:ml-[160px] lg:text-[88px] xl:ml-[203.9px] xl:text-[105.935px]">
                 SHAPESHIPS
               </p>
-              <div className="[grid-area:1_/_1] relative ml-0 mt-0 flex h-[60px] w-[71px] items-center justify-center sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]">
+              <div className="[grid-area:1_/_1] relative ml-0 mt-0 flex h-[45px] w-[53.25px] items-center justify-center sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]">
                 <div className="flex-none rotate-[180deg] scale-y-[-100%]">
-                  <LogoIcon className="h-[60px] w-[71px] sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]" />
+                  <LogoIcon className="h-[45px] w-[53.25px] sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]" />
                 </div>
               </div>
             </div>
@@ -60,7 +60,7 @@ export function LoginShell({
               {/* Feature 1: Free space battle game */}
               <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[12px]">
                 <BuildIcon className="relative shrink-0 size-[48px]" />
-                <p className="relative shrink-0 font-medium text-[21.6px] leading-[24px] not-italic">
+                <p className="relative shrink-0 font-medium text-[16.2px] leading-[18px] not-italic sm:text-[21.6px] sm:leading-[24px]">
                   Free strategy game
                 </p>
               </div>
@@ -68,7 +68,7 @@ export function LoginShell({
               {/* Feature 2: 1v1 Online */}
               <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[12px]">
                 <PlayersIcon className="relative shrink-0 size-[48px]" />
-                <p className="relative shrink-0 font-medium text-[21.6px] leading-[24px] not-italic">
+                <p className="relative shrink-0 font-medium text-[16.2px] leading-[18px] not-italic sm:text-[21.6px] sm:leading-[24px]">
                   1v1 Online
                 </p>
               </div>
@@ -76,7 +76,7 @@ export function LoginShell({
               {/* Feature 3: Simultaneous turns */}
               <div className="flex relative max-w-[260px] shrink-0 items-center gap-[12px]">
                 <Dice value={3} className="w-[52px] h-[50px] shrink-0" enableRotate={false}/>
-                <p className="relative shrink-0 font-medium text-[21.6px] leading-[24px] not-italic">
+                <p className="relative shrink-0 font-medium text-[16.2px] leading-[18px] not-italic sm:text-[21.6px] sm:leading-[24px]">
                   Shared dice each turn
                 </p>
               </div>
@@ -84,7 +84,7 @@ export function LoginShell({
               {/* Feature 4: 10-30 minute games */}
               <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[12px]">
                 <ClockIcon className="relative shrink-0 size-[48px]" />
-                <p className="relative shrink-0 font-medium text-[21.6px] leading-[24px] not-italic">
+                <p className="relative shrink-0 font-medium text-[16.2px] leading-[18px] not-italic sm:text-[21.6px] sm:leading-[24px]">
                   10-30 minute games
                 </p>
               </div>
@@ -100,7 +100,7 @@ export function LoginShell({
           />
 
           {/* Footer Links */}
-          <div className="content-stretch relative flex w-full flex-wrap items-center justify-center gap-x-[28px] gap-y-[16px] font-normal text-[18px] leading-[normal] sm:text-[20px] lg:text-[22px]">
+          <div className="content-stretch relative flex w-full flex-wrap items-center justify-center gap-x-[28px] gap-y-[16px] font-normal text-[13.5px] leading-[normal] sm:text-[20px] lg:text-[22px]">
             <a
               href="https://juddmadden.com/shapeships/"
               target="_blank"

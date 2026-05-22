@@ -172,7 +172,7 @@ function SectionHeader({
       <div className="bg-[#555] relative shrink-0 w-full">
         <div className="flex flex-row items-center size-full">
           <div className="content-stretch relative flex size-full flex-col items-start justify-between gap-[16px] px-[20px] py-[16px] sm:px-[32px] sm:py-[19px] md:flex-row md:items-center">
-            <p className="font-bold leading-[normal] relative shrink-0 text-[20px] text-white uppercase sm:text-[22px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-bold leading-[normal] relative shrink-0 text-[15px] text-white uppercase sm:text-[22px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               {title}
             </p>
             {showPhaseLegend && battleOnly && (
@@ -181,7 +181,7 @@ function SectionHeader({
                   <div className="relative shrink-0 size-[36.994px]">
                     <BattleIcon className="w-full h-full" color="white" />
                   </div>
-                  <p className="font-medium leading-[20.809px] relative text-[15.029px] text-white max-w-[145.666px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-medium leading-[15.6px] relative text-[11.27px] text-white max-w-[145.666px] sm:text-[15.029px] sm:leading-[20.809px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Powers that occur in the <span className="font-extrabold">Battle Phase.</span>
                   </p>
                 </div>
@@ -193,7 +193,7 @@ function SectionHeader({
                   <div className="relative shrink-0 size-[36.994px]">
                     <BuildIcon className="w-full h-full" color="#D5D5D5" />
                   </div>
-                  <p className="font-medium leading-[20.809px] relative text-[15.029px] text-white max-w-[141.041px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-medium leading-[15.6px] relative text-[11.27px] text-white max-w-[141.041px] sm:text-[15.029px] sm:leading-[20.809px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Powers that occur in the <span className="font-extrabold">Build Phase.</span>
                   </p>
                 </div>
@@ -201,7 +201,7 @@ function SectionHeader({
                   <div className="relative shrink-0 size-[36.994px]">
                     <BattleIcon className="w-full h-full" color="white" />
                   </div>
-                  <p className="font-medium leading-[20.809px] relative text-[15.029px] text-white max-w-[145.666px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-medium leading-[15.6px] relative text-[11.27px] text-white max-w-[145.666px] sm:text-[15.029px] sm:leading-[20.809px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Powers that occur in the <span className="font-extrabold">Battle Phase.</span>
                   </p>
                 </div>
@@ -212,7 +212,7 @@ function SectionHeader({
       </div>
       {note && (
         <div className="bg-[#212121] relative flex min-h-[52px] shrink-0 w-full items-center px-[20px] py-[12px] sm:px-[32px]">
-          <p className="font-normal italic leading-[20px] text-[16px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-normal italic leading-[15px] text-[12px] text-white sm:text-[16px] sm:leading-[20px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             {note}
           </p>
         </div>
@@ -255,31 +255,31 @@ function ShipRow({
             <div className="content-stretch relative flex min-w-0 gap-[16px] items-start lg:w-[210px] lg:shrink-0">
               {/* Cost display */}
               {totalCost !== null && (
-                <p className="font-black leading-[normal] relative shrink-0 text-[25.691px] text-right text-white w-[30px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className="font-black leading-[normal] relative shrink-0 text-[19.27px] text-right text-white w-[30px] sm:text-[25.691px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                   {totalCost}
                 </p>
               )}
 
               {/* Name, Energy Cost (Ancient Solar Powers), Joining Cost (if upgraded), and Subphase */}
               <div className="basis-0 content-stretch relative flex min-h-px min-w-0 grow shrink-0 flex-col items-start gap-[2px]">
-                <p className={`font-bold leading-[25.691px] relative shrink-0 text-[20px] ${solarPowerNameTextClass} w-full`} style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className={`font-bold leading-[19.27px] relative shrink-0 text-[15px] sm:text-[20px] sm:leading-[25.691px] ${solarPowerNameTextClass} w-full`} style={{ fontVariationSettings: "'wdth' 100" }}>
                   {ship.name}
                 </p>
                 {energyCostRows.length > 0 && (
                   <div className="pb-[6px] relative shrink-0">
                     {energyCostRows.map((row) => (
-                      <p key={row.label} className={`font-normal leading-[18px] ${row.textClass} text-[14px]`} style={{ fontVariationSettings: "'wdth' 100" }}>
+                      <p key={row.label} className={`font-normal leading-[13.5px] ${row.textClass} text-[10.5px] sm:text-[14px] sm:leading-[18px]`} style={{ fontVariationSettings: "'wdth' 100" }}>
                         {row.label}
                       </p>
                     ))}
                   </div>
                 )}
                 {isUpgradedShip && joiningCost !== null && joiningCost !== undefined && (
-                  <p className="font-normal leading-[24px] pb-[6px] relative shrink-0 text-[#d4d4d4] text-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-normal leading-[18px] pb-[6px] relative shrink-0 text-[#d4d4d4] text-[13.5px] sm:text-[18px] sm:leading-[24px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     (+{joiningCost})
                   </p>
                 )}
-                <p className="font-normal leading-[14.13px] relative shrink-0 text-[#d4d4d4] text-[13px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className="font-normal leading-[11.5px] relative shrink-0 text-[#d4d4d4] text-[10.5px] w-full sm:text-[13px] sm:leading-[14.13px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                   {getSubphaseLabel(ship)}
                 </p>
               </div>
@@ -306,7 +306,7 @@ function ShipRow({
                     </div>
 
                     {/* Power text (preserve CSV wording exactly) */}
-                    <p className="basis-0 font-normal grow leading-[26px] min-h-px min-w-0 relative shrink-0 text-[18px] pb-[10px] text-white whitespace-pre-wrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+                    <p className="basis-0 font-normal grow leading-[20px] min-h-px min-w-0 relative shrink-0 text-[13.5px] pb-[10px] text-white whitespace-pre-wrap sm:text-[18px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                       {renderPowerText(power.text)}
                     </p>
                   </div>
@@ -333,10 +333,10 @@ function ShipRow({
 
                             {/* Evolved ship info */}
                             <div className="flex flex-col gap-[2px]">
-                              <p className="font-bold leading-[20px] text-[16px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+                              <p className="font-bold leading-[15px] text-[12px] text-white sm:text-[16px] sm:leading-[20px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                                 {evolvedShip.name}
                               </p>
-                              <p className="font-normal leading-[16px] text-[12px] text-[#d4d4d4]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                              <p className="font-normal leading-[14px] text-[10.5px] text-[#d4d4d4] sm:text-[12px] sm:leading-[16px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                                 {evolvedSubphase}
                               </p>
                               {evolvedShip.powers.map((power, idx) => {
@@ -354,7 +354,7 @@ function ShipRow({
                                         </div>
                                       )}
                                     </div>
-                                    <p className="font-normal leading-[18px] text-[14px] text-white" style={{ fontVariationSettings: "'wdth' 100" }}>
+                                    <p className="font-normal leading-[13.5px] text-[10.5px] text-white sm:text-[14px] sm:leading-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                                       {renderPowerText(power.text)}
                                     </p>
                                   </div>
@@ -374,7 +374,7 @@ function ShipRow({
                 <div className="relative shrink-0 w-full">
                   <div className="flex flex-row items-center size-full">
                     <div className="content-stretch relative flex w-full items-center pl-0 pr-0 py-0 sm:pl-[20px] lg:pl-[35px]">
-                      <p className="basis-0 font-normal grow italic leading-[20px] min-h-px min-w-px relative shrink-0 text-[16px] text-white whitespace-pre-wrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+                      <p className="basis-0 font-normal grow italic leading-[15px] min-h-px min-w-px relative shrink-0 text-[12px] text-white whitespace-pre-wrap sm:text-[16px] sm:leading-[20px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                         {ship.extraRules}
                       </p>
                     </div>
@@ -457,17 +457,17 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
       {/* Page Header */}
       <div className="content-stretch relative flex size-full flex-col items-start justify-between gap-[16px] text-white md:flex-row md:items-end" data-name="Rules Header">
         <div className="content-stretch relative flex flex-wrap items-center gap-x-[20px] gap-y-[8px]" data-name="Species">
-          <p className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[32px] sm:text-[36px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[24px] sm:text-[36px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             {speciesData.displayName}
           </p>
-          <p className="font-['Roboto'] font-semibold leading-[normal] not-italic relative shrink-0 text-[18px] sm:text-[20px]">
+          <p className="font-['Roboto'] font-semibold leading-[normal] not-italic relative shrink-0 text-[13.5px] sm:text-[20px]">
             <span className="font-['Roboto'] font-normal text-white" style={{ fontVariationSettings: "'wdth' 100" }}>{`from `}</span>
             <span className="font-['Roboto'] font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>
               {getSpeciesOrigin(species)}
             </span>
           </p>
         </div>
-        <p className="font-['Roboto'] font-normal leading-[22px] relative shrink-0 text-[16px] w-full max-w-[255px] whitespace-pre-line md:text-right" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className="font-['Roboto'] font-normal leading-[16.5px] relative shrink-0 text-[12px] w-full max-w-[255px] whitespace-pre-line sm:text-[16px] sm:leading-[22px] md:text-right" style={{ fontVariationSettings: "'wdth' 100" }}>
           {getSpeciesTagline(species)}
         </p>
       </div>
@@ -528,7 +528,7 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
           className="bg-white content-stretch flex items-center justify-center px-[30px] py-[20px] relative rounded-[10px] shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
           onClick={() => onNavigate?.(navigation.next)}
         >
-          <p className="font-bold leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-bold leading-[normal] relative shrink-0 text-[13.5px] text-black text-nowrap sm:text-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             Next: {navigation.label}
           </p>
         </button>

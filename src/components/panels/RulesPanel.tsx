@@ -15,6 +15,7 @@ type RulesTab = 'core' | 'human' | 'xenite' | 'centaur' | 'ancient' | 'timings';
 
 export function RulesPanel() {
   const [activeTab, setActiveTab] = useState<RulesTab>('core');
+  const mobileNavTextClass = "[&_p]:text-[13.5px] sm:[&_p]:text-[18px]";
 
   const handleNavigate = (tab: RulesTab) => {
     setActiveTab(tab);
@@ -32,31 +33,37 @@ export function RulesPanel() {
           label="Core Rules" 
           selected={activeTab === 'core'} 
           onClick={() => handleNavigate('core')} 
+          className={mobileNavTextClass}
         />
         <SecondaryNavItem 
           label="Human" 
           selected={activeTab === 'human'} 
           onClick={() => handleNavigate('human')} 
+          className={mobileNavTextClass}
         />
         <SecondaryNavItem 
           label="Xenite" 
           selected={activeTab === 'xenite'} 
           onClick={() => handleNavigate('xenite')} 
+          className={mobileNavTextClass}
         />
         <SecondaryNavItem 
           label="Centaur" 
           selected={activeTab === 'centaur'} 
           onClick={() => handleNavigate('centaur')} 
+          className={mobileNavTextClass}
         />
         <SecondaryNavItem 
           label="Ancient" 
           selected={activeTab === 'ancient'} 
           onClick={() => handleNavigate('ancient')} 
+          className={mobileNavTextClass}
         />
         <SecondaryNavItem 
           label="Turn Timings" 
           selected={activeTab === 'timings'} 
           onClick={() => handleNavigate('timings')} 
+          className={mobileNavTextClass}
         />
       </div>
 

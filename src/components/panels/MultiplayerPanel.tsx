@@ -52,7 +52,7 @@ export function MultiplayerPanel({
 
           <div className="min-w-0 flex-1">
             <h2
-              className="mb-[24px] font-['Roboto',sans-serif] text-[32px] font-normal leading-[normal] text-shapeships-white sm:text-[36px]"
+              className="mb-[24px] font-['Roboto',sans-serif] text-[24px] font-normal leading-[normal] text-shapeships-white sm:text-[36px]"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Welcome to the Shapeships Alpha
@@ -62,7 +62,7 @@ export function MultiplayerPanel({
               {ALPHA_BULLETS.map((bullet) => (
                 <div
                   key={bullet}
-                  className="flex items-start gap-[6px] font-['Roboto',sans-serif] text-[20px] font-normal leading-[normal] text-shapeships-white"
+                  className="flex items-start gap-[6px] font-['Roboto',sans-serif] text-[15px] font-normal leading-[normal] text-shapeships-white sm:text-[20px]"
                   style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   <span aria-hidden="true">&bull;</span>
@@ -71,7 +71,7 @@ export function MultiplayerPanel({
               ))}
 
               <div
-                className="flex items-start gap-[6px] font-['Roboto',sans-serif] text-[20px] font-normal leading-[normal] text-shapeships-white"
+                className="flex items-start gap-[6px] font-['Roboto',sans-serif] text-[15px] font-normal leading-[normal] text-shapeships-white sm:text-[20px]"
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 <span aria-hidden="true">&bull;</span>
@@ -107,14 +107,14 @@ export function MultiplayerPanel({
 
             <div className="mt-[56px] md:mt-[80px]">
               <h3
-                className="mb-[20px] font-['Roboto',sans-serif] text-[18px] font-bold leading-[normal] text-shapeships-grey-50"
+                className="mb-[20px] font-['Roboto',sans-serif] text-[13.5px] font-bold leading-[normal] text-shapeships-grey-50 sm:text-[18px]"
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Soundtrack on Bandcamp
               </h3>
 
               <div className="flex flex-wrap gap-x-[20px] gap-y-[20px]">
-                  <div className="flex flex-wrap gap-x-[24px] gap-y-[16px] text-[18px]">
+                  <div className="flex flex-wrap gap-x-[24px] gap-y-[16px] text-[13.5px] sm:text-[18px]">
                     <a 
                       href="https://colourhigh.bandcamp.com/track/sonder" 
                       target="_blank" 
@@ -148,7 +148,7 @@ export function MultiplayerPanel({
             
             <div className="mt-[56px] md:mt-[80px]">
               <h3
-                className="mb-[20px] font-['Roboto',sans-serif] text-[18px] font-bold leading-[normal] text-shapeships-grey-50"
+                className="mb-[20px] font-['Roboto',sans-serif] text-[13.5px] font-bold leading-[normal] text-shapeships-grey-50 sm:text-[18px]"
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Development Roadmap
@@ -160,7 +160,7 @@ export function MultiplayerPanel({
                     {ROADMAP_LEFT.map((item) => (
                       <p
                         key={item}
-                        className="font-['Roboto',sans-serif] text-[18px] font-normal leading-[normal] text-shapeships-grey-50"
+                        className="font-['Roboto',sans-serif] text-[13.5px] font-normal leading-[normal] text-shapeships-grey-50 sm:text-[18px]"
                         style={{ fontVariationSettings: "'wdth' 100" }}
                       >
                         <span aria-hidden="true">&bull;</span> {item}
@@ -174,7 +174,7 @@ export function MultiplayerPanel({
                     {ROADMAP_RIGHT.map((item) => (
                       <p
                         key={item}
-                        className="font-['Roboto',sans-serif] text-[18px] font-normal leading-[normal] text-shapeships-grey-50"
+                        className="font-['Roboto',sans-serif] text-[13.5px] font-normal leading-[normal] text-shapeships-grey-50 sm:text-[18px]"
                         style={{ fontVariationSettings: "'wdth' 100" }}
                       >
                         <span aria-hidden="true">&bull;</span> {item}

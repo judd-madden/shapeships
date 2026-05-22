@@ -90,12 +90,12 @@ export function MenuShell({
         <div className="content-stretch relative flex w-full shrink-0 flex-col justify-between gap-8 lg:flex-row lg:gap-10 items-center pb-[20px] sm:pb-[32px]">
           {/* Logo */}
           <div className="relative inline-grid shrink-0 grid-cols-[max-content] grid-rows-[max-content] place-items-start leading-[0]">
-            <p className="[grid-area:1_/_1] relative ml-[80px] mt-[0.31px] font-['Roboto',sans-serif] text-[48px] font-bold leading-[normal] not-italic text-nowrap md:ml-[130.04px] md:text-[67.563px]">
+            <p className="[grid-area:1_/_1] relative ml-[60px] mt-[0.31px] font-['Roboto',sans-serif] text-[36px] font-bold leading-[normal] not-italic text-nowrap sm:ml-[80px] sm:text-[48px] md:ml-[130.04px] md:text-[67.563px]">
               SHAPESHIPS
             </p>
-            <div className="[grid-area:1_/_1] relative ml-0 mt-0 flex h-[60px] w-[70px] items-center justify-center md:h-[86.748px] md:w-[101.762px]">
+            <div className="[grid-area:1_/_1] relative ml-0 mt-0 flex h-[45px] w-[52.5px] items-center justify-center sm:h-[60px] sm:w-[70px] md:h-[86.748px] md:w-[101.762px]">
               <div className="flex-none rotate-[180deg] scale-y-[-100%]">
-                <LogoIcon className="h-[60px] md:h-[86.748px] w-[70px] md:w-[101.762px]" />
+                <LogoIcon className="h-[45px] w-[52.5px] sm:h-[60px] sm:w-[70px] md:h-[86.748px] md:w-[101.762px]" />
               </div>
             </div>
           </div>
@@ -103,7 +103,7 @@ export function MenuShell({
           {/* Right Header */}
           <div className="content-stretch relative flex  flex-col items-center gap-5 lg:max-w-[720px] lg:items-end">
             {/* Social Links */}
-            <div className="content-stretch relative flex w-full flex-wrap items-center justify-start gap-x-[24px] gap-y-[12px] font-['Roboto',sans-serif] text-[16px] font-normal leading-[normal] underline sm:text-[18px] lg:justify-end">
+            <div className="content-stretch relative flex w-full flex-wrap items-center justify-start gap-x-[24px] gap-y-[12px] font-['Roboto',sans-serif] text-[12px] font-normal leading-[normal] underline sm:text-[18px] lg:justify-end">
               <a
                 href="https://juddmadden.com/shapeships/"
                 target="_blank"
@@ -153,7 +153,7 @@ export function MenuShell({
             <div className="flex flex-wrap items-center gap-x-[24px] gap-y-2">
               <OnlineStatusIcon status="online" />
               <p
-                className="min-w-0 max-w-full font-['Roboto',sans-serif] text-[40px] font-normal leading-none [overflow-wrap:anywhere]  xl:text-[56px]"
+                className="min-w-0 max-w-full font-['Roboto',sans-serif] text-[30px] font-normal leading-none [overflow-wrap:anywhere] sm:text-[40px] xl:text-[56px]"
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 {displayName}
@@ -161,7 +161,7 @@ export function MenuShell({
             </div>
             <button
               type="button"
-              className="pl-[44px] text-shapeships-grey-50 cursor-pointer font-['Roboto',sans-serif] text-[18px]  leading-[normal]  hover:underline"
+              className="pl-[44px] text-shapeships-grey-50 cursor-pointer font-['Roboto',sans-serif] text-[13.5px] leading-[normal] hover:underline sm:text-[18px]"
               style={{ fontVariationSettings: "'wdth' 100" }}
               onClick={alphaDisableAuth ? onExit : onLogout}
             >
@@ -185,7 +185,7 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[24px] font-black leading-[32px] text-nowrap uppercase md:text-[28px] ${
+                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'multiplayer' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
@@ -203,7 +203,7 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[24px] font-black leading-[32px] text-nowrap uppercase md:text-[28px] ${
+                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'playComputer' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
@@ -221,7 +221,7 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[24px] font-black leading-[32px] text-nowrap uppercase md:text-[28px] ${
+                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'rules' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}

@@ -91,7 +91,7 @@ function TimerPresetButton({
         ].join(' ')}
       >
         <p
-          className="text-center font-['Roboto',sans-serif] text-[34px] leading-[1] text-inherit"
+          className="text-center font-['Roboto',sans-serif] text-[25.5px] leading-[1] text-inherit sm:text-[34px]"
           style={{
             fontVariationSettings: "'wdth' 100",
             letterSpacing: preset.tightenSpacing ? '-0.05em' : undefined,
@@ -130,7 +130,7 @@ function ModeToggleRow({ label, selected, onSelect }: ModeToggleRowProps) {
     >
       <RadioButton selected={selected} className="pointer-events-none" />
       <p
-        className="font-['Roboto',sans-serif] font-bold leading-[normal] relative shrink-0 text-[26px] text-nowrap"
+        className="font-['Roboto',sans-serif] font-bold leading-[normal] relative shrink-0 text-[19.5px] text-nowrap sm:text-[26px]"
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {label}
@@ -181,13 +181,13 @@ export function CreatePrivateGamePanel({
     <div className="content-stretch flex w-full flex-col gap-[24px] sm:gap-[50px]">
       <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[9px] leading-[normal]">
         <p
-          className="font-['Roboto',sans-serif] text-[32px] font-black leading-[normal] sm:text-[36px]"
+          className="font-['Roboto',sans-serif] text-[24px] font-black leading-[normal] sm:text-[36px]"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {heading}
         </p>
         <p
-          className="font-['Roboto',sans-serif] text-[20px] font-normal"
+          className="font-['Roboto',sans-serif] text-[15px] font-normal sm:text-[20px]"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {subheading}
@@ -222,7 +222,7 @@ export function CreatePrivateGamePanel({
             </div>
 
             <p
-              className="text-center font-['Roboto',sans-serif] text-[20px] font-normal leading-[normal]"
+              className="text-center font-['Roboto',sans-serif] text-[15px] font-normal leading-[normal] sm:text-[20px]"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Minutes per player + increment per turn

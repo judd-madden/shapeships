@@ -55,7 +55,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
   return (
     <div className="content-stretch flex flex-col gap-[36px] items-start relative shrink-0 w-full">
       {/* Page Title */}
-      <p className="font-black leading-[normal] relative shrink-0 text-[32px] sm:text-[36px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+      <p className="font-black leading-[normal] relative shrink-0 text-[24px] sm:text-[36px]" style={{ fontVariationSettings: "'wdth' 100" }}>
         Core Rules
       </p>
 
@@ -66,12 +66,12 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
         {/* Your Goal */}
         <RuleRow
           aside={(
-            <p className="font-bold leading-[24.365px] relative shrink-0 text-[22px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-bold leading-[18.25px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Your Goal
             </p>
           )}
         >
-          <div className="relative flex-1 text-[22px] font-semibold leading-[32px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <div className="relative flex-1 text-[16.5px] font-semibold leading-[24px] sm:text-[22px] sm:leading-[32px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             <p className="mb-[9.75px]">Build your fleet up over the game to defeat your opponent in battle!</p>
             <p className="font-normal">
               Shapeships isn't about movement or targeting. Ships don't move, don't have health, and (mostly) don't interact with each other directly. When you build a ship, its power becomes a permanent part of your fleet — dealing damage, healing you, or changing how future turns work (extra lines, altered dice, free ships, and more). Fleets grow stronger each turn until one player is defeated.
@@ -84,12 +84,12 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
         {/* Setup */}
         <RuleRow
           aside={(
-            <p className="font-bold leading-[24.365px] relative shrink-0 text-[22px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-bold leading-[18.25px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Setup
             </p>
           )}
         >
-          <div className="relative flex-1 text-[18px] leading-[26px]">
+          <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
             <p className="mb-[9.75px]">
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>Players each start with </span>
               <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>25 health</span>
@@ -114,12 +114,12 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
         {/* Turns */}
         <RuleRow
           aside={(
-            <p className="font-bold leading-[24.365px] relative shrink-0 text-[22px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-bold leading-[18.25px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Turns
             </p>
           )}
         >
-          <div className="relative flex-1 text-[18px] leading-[26px]">
+          <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
             <p className="mb-[9.75px]">
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>Each turn has two phases: the </span>
               <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Build</span>
@@ -151,13 +151,13 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </div>
           <div className="content-stretch relative flex min-w-0 flex-1 flex-col items-start gap-[12px]">
             <div className="content-stretch flex items-center relative shrink-0">
-              <p className="font-semibold leading-[24.365px] relative shrink-0 text-[#62fff6] text-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <p className="font-semibold leading-[18.25px] relative shrink-0 text-[#62fff6] text-[18.25px] sm:text-[24.365px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 Build Phase
               </p>
             </div>
 
             {/* Build Phase Content */}
-            <div className="relative w-full min-w-0 text-[18px] leading-[26px]">
+            <div className="relative w-full min-w-0 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
               <p className="font-semibold mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 Roll a six-sided dice.
               </p>
@@ -189,13 +189,13 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </div>
           <div className="content-stretch relative flex min-w-0 flex-1 flex-col items-start gap-[15px]">
             <div className="content-stretch flex items-center relative shrink-0">
-              <p className="font-semibold leading-[24.365px] relative shrink-0 text-[#62fff6] text-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <p className="font-semibold leading-[18.25px] relative shrink-0 text-[#62fff6] text-[18.25px] sm:text-[24.365px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 Battle Phase
               </p>
             </div>
 
             {/* Battle Phase Content */}
-            <div className="relative w-full min-w-0 text-[18px] leading-[26px]">
+            <div className="relative w-full min-w-0 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
               <p className="font-semibold mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 Players' ships are revealed.
               </p>
@@ -223,7 +223,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
       <RuleRow
         aside={(
           <div className="content-stretch relative flex flex-col items-center gap-[23px] md:items-start">
-            <p className="font-bold leading-[24.365px] relative shrink-0 text-[22px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-bold leading-[18.25px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Shapeships
             </p>
 
@@ -234,7 +234,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
                 <div className="h-[77.97px] relative shrink-0 w-[90.098px] flex items-center justify-center">
                   <FighterShip className="w-[90px] h-[78px]" />
                 </div>
-                <p className="font-['Roboto'] font-medium leading-[24.365px] min-w-full text-[15.838px] text-center text-white tracking-[-0.1584px] w-[min-content]">
+                <p className="font-['Roboto'] font-medium leading-[18.25px] min-w-full text-[11.875px] text-center text-white tracking-[-0.1584px] w-[min-content] sm:text-[15.838px] sm:leading-[24.365px]">
                   Fighter
                 </p>
               </div>
@@ -244,7 +244,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
                 <div className="h-[38.887px] relative shrink-0 w-[74.664px] flex items-center justify-center">
                   <ShipOfEquality2Ship className="w-[87px] h-[45px]" />
                 </div>
-                <p className="font-['Roboto'] font-medium leading-[21.929px] min-w-full text-[15.838px] text-center text-white tracking-[-0.1584px] w-[min-content]">
+                <p className="font-['Roboto'] font-medium leading-[16.45px] min-w-full text-[11.875px] text-center text-white tracking-[-0.1584px] w-[min-content] sm:text-[15.838px] sm:leading-[21.929px]">
                   Ship of Equality
                 </p>
               </div>
@@ -254,7 +254,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
                 <div className="h-[38.887px] relative shrink-0 w-[74.664px] flex items-center justify-center">
                   <ShipOfEquality1Ship className="w-[87px] h-[45px]" />
                 </div>
-                <p className="font-['Roboto'] font-medium leading-[21.929px] min-w-full text-[15.838px] text-center text-white tracking-[-0.1584px] w-[min-content]">
+                <p className="font-['Roboto'] font-medium leading-[16.45px] min-w-full text-[11.875px] text-center text-white tracking-[-0.1584px] w-[min-content] sm:text-[15.838px] sm:leading-[21.929px]">
                   1 (of 2) charges
                   <br />
                   used
@@ -264,7 +264,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </div>
         )}
       >
-        <div className="relative flex-1 text-[18px] leading-[26px]">
+        <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
           <p className="mb-[12.18px]">
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>Shapeships are defined shapes that have </span>
             <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>powers</span>
@@ -297,7 +297,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
       <RuleRow
         aside={(
           <div className="content-stretch relative flex flex-col items-center gap-[20px] md:items-start">
-            <p className="font-bold leading-[24.365px] relative shrink-0 text-[22px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-bold leading-[18.25px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Upgraded Ships
             </p>
 
@@ -306,7 +306,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
               <div className="h-[115.048px] relative shrink-0 w-full flex items-center justify-center">
                 <TacticalCruiserShip className="w-[129px] h-[115px]" />
               </div>
-              <div className="font-medium leading-[21.929px] relative shrink-0 text-[15.838px] text-center tracking-[-0.1584px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <div className="font-medium leading-[16.45px] relative shrink-0 text-[11.875px] text-center tracking-[-0.1584px] w-full sm:text-[15.838px] sm:leading-[21.929px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 <p className="mb-0">
                   1 Fighter +<br />2 Defenders +<br />3 joining lines =
                 </p>
@@ -316,7 +316,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </div>
         )}
       >
-        <div className="relative flex-1 text-[18px] leading-[26px]">
+        <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
           <p className="mb-[12.18px]">
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>You can </span>
             <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>combine</span>
@@ -340,7 +340,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
       {/* Victory Section */}
       <RuleRow
         aside={(
-          <p className="font-bold leading-[24.75px] relative shrink-0 text-[22px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-bold leading-[18.55px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.75px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             Victory
           </p>
         )}
@@ -348,10 +348,10 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
         <div className="content-stretch relative flex flex-1 flex-col items-start gap-[24px]">
           {/* Decisive Victory */}
           <div className="relative shrink-0 w-full">
-            <p className="font-semibold leading-[26px] mb-[7.43px] text-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-semibold leading-[20px] mb-[7.43px] text-[13.5px] sm:text-[18px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Decisive Victory
             </p>
-            <p className="leading-[26px] text-[18px]">
+            <p className="leading-[20px] text-[13.5px] sm:text-[18px] sm:leading-[26px]">
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>If at the end of a turn, after all powers are resolved, one player's health is </span>
               <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> or less and the other player's health is </span>
@@ -362,10 +362,10 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
 
           {/* Narrow Victory */}
           <div className="relative shrink-0 w-full">
-            <p className="font-semibold leading-[26px] mb-[7.43px] text-[18.563px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-semibold leading-[20px] mb-[7.43px] text-[13.922px] sm:text-[18.563px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Narrow Victory
             </p>
-            <p className="leading-[26px] text-[18.563px]">
+            <p className="leading-[20px] text-[13.922px] sm:text-[18.563px] sm:leading-[26px]">
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>If at the end of a turn, after all powers are resolved, both players health is </span>
               <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> or less, the player who is closer to </span>
@@ -380,10 +380,10 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
 
           {/* Draw */}
           <div className="relative shrink-0 w-full">
-            <p className="font-semibold leading-[26px] mb-[7.43px] text-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-semibold leading-[20px] mb-[7.43px] text-[13.5px] sm:text-[18px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Draw
             </p>
-            <p className="leading-[26px] text-[18px]">
+            <p className="leading-[20px] text-[13.5px] sm:text-[18px] sm:leading-[26px]">
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>If at the end of a turn, after all powers are resolved, both players health is </span>
               <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> or less </span>
@@ -393,7 +393,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </div>
 
           {/* Draw by mutual prosperity */}
-          <div className="leading-[26px] relative shrink-0 text-[18px] w-full">
+          <div className="leading-[20px] relative shrink-0 text-[13.5px] w-full sm:text-[18px] sm:leading-[26px]">
             <p className="font-semibold mb-[7.43px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Draw by mutual prosperity
             </p>
@@ -409,12 +409,12 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
       {/* Destroying Rules */}
       <RuleRow
         aside={(
-          <p className="font-bold leading-[24.75px] relative shrink-0 text-[22px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-bold leading-[18.55px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.75px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             Destroying Rules
           </p>
         )}
       >
-        <div className="relative flex-1 text-[18px] leading-[26px]">
+        <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
           <p className="mb-[12.375px]">
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>Ships with the </span>
             <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Destroy </span>
@@ -436,12 +436,12 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
       {/* Saving Lines */}
       <RuleRow
         aside={(
-          <p className="font-bold leading-[24.75px] relative shrink-0 text-[22px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-bold leading-[18.55px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.75px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             Saving Lines
           </p>
         )}
       >
-        <p className="relative flex-1 text-[18px] font-normal leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className="relative flex-1 text-[13.5px] font-normal leading-[20px] sm:text-[18px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
           You may save a maximum of 12 lines (including joining lines).
         </p>
       </RuleRow>
@@ -452,7 +452,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           className="bg-white content-stretch flex items-center justify-center px-[30px] py-[20px] relative rounded-[10px] shrink-0 cursor-pointer hover:opacity-90 transition-opacity"
           onClick={() => onNavigate?.('human')}
         >
-          <p className="font-bold leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-bold leading-[normal] relative shrink-0 text-[13.5px] text-black text-nowrap sm:text-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             Next: Human Species
           </p>
         </button>
