@@ -27,10 +27,10 @@ import {
 } from "../../../../../../graphics/ancient/assets";
 
 type CatalogueFrame = 'desktop' | 'bare';
-type CatalogueLayout = 'desktop' | 'mobileCompact';
+type CatalogueLayout = 'standard' | 'long';
 
 const ANCIENT_DESKTOP_CANVAS = { width: 1210, height: 420 };
-const ANCIENT_MOBILE_COMPACT_CANVAS = { width: 1427, height: 310 };
+const ANCIENT_LONG_CANVAS = { width: 1446, height: 258 };
 
 interface AncientShipCataloguePanelProps {
   actions: GameSessionActions;
@@ -45,16 +45,16 @@ export function AncientShipCataloguePanel({
   actions,
   buildCatalogue,
   frame = 'desktop',
-  catalogueLayout = 'desktop',
+  catalogueLayout = 'standard',
   hoverDisabled,
   interactionDisabled = false,
 }: AncientShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
-  const isMobileCompact = catalogueLayout === 'mobileCompact';
-  const canvas = isMobileCompact ? ANCIENT_MOBILE_COMPACT_CANVAS : ANCIENT_DESKTOP_CANVAS;
-  const blackHolePosition = isMobileCompact
+  const isLongCatalogueLayout = catalogueLayout === 'long';
+  const canvas = isLongCatalogueLayout ? ANCIENT_LONG_CANVAS : ANCIENT_DESKTOP_CANVAS;
+  const blackHolePosition = isLongCatalogueLayout
     ? { left: "803px", top: "17px", width: "356px" }
     : { left: "0px", top: "200px", width: "356px" };
 
@@ -139,7 +139,7 @@ export function AncientShipCataloguePanel({
           {/* Basic Ships Row 1 */}
           <div
             className="absolute content-stretch flex items-end justify-between"
-            style={{ left: "0px", top: "33px", width: "386px" }}
+            style={{ left: "0px", top: "25px", width: "386px" }}
           >
             {/* Mercury Core */}
             <div
@@ -259,7 +259,7 @@ export function AncientShipCataloguePanel({
             className="absolute content-stretch flex items-end justify-between px-[16px]"
             style={{
               left: "-5px",
-              top: "165px",
+              top: "151px",
               width: "396px",
             }}
           >

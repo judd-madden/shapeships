@@ -37,10 +37,10 @@ import {
 } from '../../../../../../graphics/centaur/assets';
 
 type CatalogueFrame = 'desktop' | 'bare';
-type CatalogueLayout = 'desktop' | 'mobileCompact';
+type CatalogueLayout = 'standard' | 'long';
 
 const CENTAUR_DESKTOP_CANVAS = { width: 1210, height: 290 };
-const CENTAUR_MOBILE_COMPACT_CANVAS = { width: 1446, height: 310 };
+const CENTAUR_LONG_CANVAS = { width: 1446, height: 258 };
 
 interface CentaurShipCataloguePanelProps {
   actions: GameSessionActions;
@@ -55,21 +55,27 @@ export function CentaurShipCataloguePanel({
   actions,
   buildCatalogue,
   frame = 'desktop',
-  catalogueLayout = 'desktop',
+  catalogueLayout = 'standard',
   hoverDisabled,
   interactionDisabled = false,
 }: CentaurShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
-  const isMobileCompact = catalogueLayout === 'mobileCompact';
-  const canvas = isMobileCompact ? CENTAUR_MOBILE_COMPACT_CANVAS : CENTAUR_DESKTOP_CANVAS;
-  const destructionPosition = isMobileCompact
-    ? { left: '959px', top: '100px', width: '196.02px' }
+  const isLongCatalogueLayout = catalogueLayout === 'long';
+  const canvas = isLongCatalogueLayout ? CENTAUR_LONG_CANVAS : CENTAUR_DESKTOP_CANVAS;
+  const destructionPosition = isLongCatalogueLayout
+    ? { left: '982px', top: '78px', width: '196.02px' }
     : { left: '1022px', top: '47px', width: '196.02px' };
-  const dominationPosition = isMobileCompact
-    ? { left: '1123px', top: '2px', width: '312.57px' }
+  const dominationPosition = isLongCatalogueLayout
+    ? { left: '1145px', top: '2px', width: '312.57px' }
     : { left: '755px', top: '150px', width: '312.57px' };
+  const redemptionPosition = isLongCatalogueLayout
+    ? { left: '702px', top: '25px', width: '165.564px' }
+    : { left: '710px', top: '24.97px', width: '165.564px' };
+  const powerPosition = isLongCatalogueLayout
+    ? { left: '829px', top: '-5px', width: '220.57px' }
+    : { left: '852px', top: '0', width: '220.57px' };
 
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
@@ -353,7 +359,7 @@ export function CentaurShipCataloguePanel({
           {/* Ark of Knowledge */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '612px', top: '52px', width: '85.05px' }}
+            style={{ left: '615px', top: '53px', width: '85.05px' }}
             onMouseEnter={(e) => hover.onEnter('KNO', e.currentTarget)}
               onMouseLeave={() => hover.onLeave('KNO')}
           >
@@ -376,7 +382,7 @@ export function CentaurShipCataloguePanel({
           {/* Ark of Redemption */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '710px', top: '24.97px', width: '165.564px' }}
+            style={redemptionPosition}
             onMouseEnter={(e) => hover.onEnter('RED', e.currentTarget)}
               onMouseLeave={() => hover.onLeave('RED')}
           >
@@ -398,7 +404,7 @@ export function CentaurShipCataloguePanel({
           {/* Ark of Power */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '852px', top: '0', width: '220.57px' }}
+            style={powerPosition}
             onMouseEnter={(e) => hover.onEnter('POW', e.currentTarget)}
               onMouseLeave={() => hover.onLeave('POW')}
           >

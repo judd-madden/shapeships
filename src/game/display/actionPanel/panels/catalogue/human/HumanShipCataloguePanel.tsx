@@ -37,10 +37,10 @@ import {
 } from '../../../../../../graphics/human/assets';
 
 type CatalogueFrame = 'desktop' | 'bare';
-type CatalogueLayout = 'desktop' | 'mobileCompact';
+type CatalogueLayout = 'standard' | 'long';
 
 const HUMAN_DESKTOP_CANVAS = { width: 1210, height: 398 };
-const HUMAN_MOBILE_COMPACT_CANVAS = { width: 1376, height: 310 };
+const HUMAN_LONG_CANVAS = { width: 1446, height: 258 };
 
 interface HumanShipCataloguePanelProps {
   actions: GameSessionActions;
@@ -55,17 +55,17 @@ export function HumanShipCataloguePanel({
   actions,
   buildCatalogue,
   frame = 'desktop',
-  catalogueLayout = 'desktop',
+  catalogueLayout = 'standard',
   hoverDisabled,
   interactionDisabled = false,
 }: HumanShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
-  const isMobileCompact = catalogueLayout === 'mobileCompact';
-  const canvas = isMobileCompact ? HUMAN_MOBILE_COMPACT_CANVAS : HUMAN_DESKTOP_CANVAS;
-  const leviathanPosition = isMobileCompact
-    ? { left: '1137px', top: '57px' }
+  const isLongCatalogueLayout = catalogueLayout === 'long';
+  const canvas = isLongCatalogueLayout ? HUMAN_LONG_CANVAS : HUMAN_DESKTOP_CANVAS;
+  const leviathanPosition = isLongCatalogueLayout
+    ? { left: '1207px', top: '5px' }
     : { left: '955px', top: '143px' };
 
   function getSlotProps(shipId: ShipDefId) {

@@ -11,10 +11,10 @@ interface MobileCatalogueScrollerProps {
 }
 
 const MOBILE_CATALOGUE_CANVASES = {
-  human: { width: 1376, height: 310 },
-  xenite: { width: 1446, height: 310 },
-  centaur: { width: 1446, height: 310 },
-  ancient: { width: 1427, height: 310 },
+  human: { width: 1446, height: 258 },
+  xenite: { width: 1446, height: 258 },
+  centaur: { width: 1446, height: 258 },
+  ancient: { width: 1446, height: 258 },
 } as const;
 
 export function MobileCatalogueScroller({ vm, actions }: MobileCatalogueScrollerProps) {
@@ -22,7 +22,7 @@ export function MobileCatalogueScroller({ vm, actions }: MobileCatalogueScroller
     actions,
     buildCatalogue: vm.buildCatalogue,
     frame: 'bare' as const,
-    catalogueLayout: 'mobileCompact' as const,
+    catalogueLayout: 'long' as const,
     hoverDisabled: true,
     interactionDisabled: true,
   };

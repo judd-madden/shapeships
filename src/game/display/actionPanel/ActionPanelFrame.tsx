@@ -19,6 +19,7 @@ import { FrigateDrawingPanel } from './panels/FrigateDrawingPanel';
 import { EvolverDrawingPanel } from './panels/EvolverDrawingPanel';
 import { HealthResolutionPanel } from './panels/HealthResolutionPanel';
 import { ActionPanelScrollArea } from './primitives/ActionPanelScrollArea';
+import { useLongCatalogueLayout } from './useLongCatalogueLayout';
 
 interface ActionPanelFrameProps {
   vm: ActionPanelViewModel;
@@ -31,6 +32,8 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   const healthResolutionOverlay = vm.healthResolutionOverlay;
   const hoverDisabled = Boolean(healthResolutionOverlay);
   const phaseLocalFamilySwitch = vm.phaseLocalFamilySwitch;
+  const isLongCatalogueLayout = useLongCatalogueLayout();
+  const catalogueLayout = isLongCatalogueLayout ? 'long' : 'standard';
 
   function renderWithOverlay(content: ReactNode) {
     return (
@@ -100,6 +103,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
         <HumanShipCataloguePanel
           actions={actions}
           buildCatalogue={vm.buildCatalogue}
+          catalogueLayout={catalogueLayout}
           hoverDisabled={hoverDisabled}
         />
       </div>
@@ -112,6 +116,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
         <XeniteShipCataloguePanel
           actions={actions}
           buildCatalogue={vm.buildCatalogue}
+          catalogueLayout={catalogueLayout}
           hoverDisabled={hoverDisabled}
         />
       </div>
@@ -124,6 +129,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
         <CentaurShipCataloguePanel
           actions={actions}
           buildCatalogue={vm.buildCatalogue}
+          catalogueLayout={catalogueLayout}
           hoverDisabled={hoverDisabled}
         />
       </div>
@@ -136,6 +142,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
         <AncientShipCataloguePanel
           actions={actions}
           buildCatalogue={vm.buildCatalogue}
+          catalogueLayout={catalogueLayout}
           hoverDisabled={hoverDisabled}
         />
       </div>

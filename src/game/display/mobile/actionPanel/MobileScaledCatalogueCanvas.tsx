@@ -10,7 +10,7 @@ interface MobileScaledCatalogueCanvasProps {
 export function MobileScaledCatalogueCanvas({
   width,
   height,
-  scale = 0.6,
+  scale = 0.72,
   children,
 }: MobileScaledCatalogueCanvasProps) {
   return (

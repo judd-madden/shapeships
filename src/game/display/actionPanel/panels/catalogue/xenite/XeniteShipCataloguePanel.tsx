@@ -37,10 +37,10 @@ import {
 } from '../../../../../../graphics/xenite/assets';
 
 type CatalogueFrame = 'desktop' | 'bare';
-type CatalogueLayout = 'desktop' | 'mobileCompact';
+type CatalogueLayout = 'standard' | 'long';
 
 const XENITE_DESKTOP_CANVAS = { width: 1210, height: 398 };
-const XENITE_MOBILE_COMPACT_CANVAS = { width: 1446, height: 310 };
+const XENITE_LONG_CANVAS = { width: 1446, height: 258 };
 
 interface XeniteShipCataloguePanelProps {
   actions: GameSessionActions;
@@ -55,17 +55,17 @@ export function XeniteShipCataloguePanel({
   actions,
   buildCatalogue,
   frame = 'desktop',
-  catalogueLayout = 'desktop',
+  catalogueLayout = 'standard',
   hoverDisabled,
   interactionDisabled = false,
 }: XeniteShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
-  const isMobileCompact = catalogueLayout === 'mobileCompact';
-  const canvas = isMobileCompact ? XENITE_MOBILE_COMPACT_CANVAS : XENITE_DESKTOP_CANVAS;
-  const hivePosition = isMobileCompact
-    ? { left: '1218px', top: '6px', width: '255px' }
+  const isLongCatalogueLayout = catalogueLayout === 'long';
+  const canvas = isLongCatalogueLayout ? XENITE_LONG_CANVAS : XENITE_DESKTOP_CANVAS;
+  const hivePosition = isLongCatalogueLayout
+    ? { left: '1218px', top: '-10px', width: '255px' }
     : { left: '969px', top: '166px', width: '255px' };
 
   function getSlotProps(shipId: ShipDefId) {
