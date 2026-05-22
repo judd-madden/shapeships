@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BattleIcon } from '../../../../components/ui/primitives/icons/BattleIcon';
 import { BuildIcon } from '../../../../components/ui/primitives/icons/BuildIcon';
+import { CloseIcon } from '../../../../components/ui/primitives/icons/CloseIcon';
 import { SHIP_DEFINITIONS_MAP } from '../../../data/ShipDefinitionsUI';
 import { isShipDefId } from '../../../data/ShipDefinitions.core';
 import type { ActionPanelViewModel, GameSessionActions } from '../../../client/useGameSession';
@@ -30,15 +31,36 @@ export function MobileShipModal({
   onClose,
 }: MobileShipModalProps) {
   const [rulesExpanded, setRulesExpanded] = useState(false);
+  const autoCloseAfterBuildRef = useRef(false);
   const model = getShipCardModel(shipId);
   const eligibility = getShipEligibilityForHover({ shipId, buildCatalogue });
 
   useEffect(() => {
     setRulesExpanded(false);
+    autoCloseAfterBuildRef.current = false;
   }, [shipId]);
+
+  useEffect(() => {
+    if (!autoCloseAfterBuildRef.current) {
+      return;
+    }
+
+    if (
+      eligibility.state === 'NOT_ENOUGH_LINES' ||
+      eligibility.state === 'NEED_COMPONENTS'
+    ) {
+      autoCloseAfterBuildRef.current = false;
+      onClose();
+    }
+  }, [eligibility.state, onClose]);
 
   if (!model) {
     return null;
+  }
+
+  function handleBuild() {
+    autoCloseAfterBuildRef.current = true;
+    actions.onBuildShip(shipId);
   }
 
   const displayCost = buildCatalogue.displayCostByShipId[shipId] ?? model.cost;
@@ -66,7 +88,7 @@ export function MobileShipModal({
           className="absolute right-[8px] top-[8px] z-10 flex size-[44px] items-center justify-center text-[30px] font-normal leading-none text-white"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
-          X
+          <CloseIcon className="!size-[20px]" />
         </button>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-[20px] pb-[14px] pt-[18px]">
@@ -160,11 +182,10 @@ export function MobileShipModal({
         </div>
 
         <MobileShipModalFooter
-          shipId={shipId}
           displayCost={displayCost}
           modelComponentShipIds={model.componentShipIds}
           eligibility={eligibility}
-          onBuildShip={actions.onBuildShip}
+          onBuild={handleBuild}
         />
       </div>
     </div>
@@ -172,24 +193,22 @@ export function MobileShipModal({
 }
 
 function MobileShipModalFooter({
-  shipId,
   displayCost,
   modelComponentShipIds,
   eligibility,
-  onBuildShip,
+  onBuild,
 }: {
-  shipId: ShipDefId;
   displayCost: number;
   modelComponentShipIds: readonly string[];
   eligibility: ShipEligibility;
-  onBuildShip: (shipId: ShipDefId) => void;
+  onBuild: () => void;
 }) {
   const content = (() => {
     if (eligibility.state === 'CAN_BUILD') {
       return (
         <button
           type="button"
-          onClick={() => onBuildShip(shipId)}
+          onClick={onBuild}
           className="flex h-[50px] w-full items-center justify-center rounded-[10px] bg-white px-[16px] text-[18px] font-black leading-none text-black active:scale-[0.99]"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
