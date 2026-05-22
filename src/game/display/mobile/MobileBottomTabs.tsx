@@ -1,5 +1,4 @@
 import type { ActionPanelViewModel, GameSessionActions } from '../../client/useGameSession';
-import { MobileActionPanel } from './actionPanel/MobileActionPanel';
 
 interface MobileBottomTabsProps {
   vm: ActionPanelViewModel;
@@ -57,41 +56,37 @@ export function MobileBottomTabs({ vm, actions }: MobileBottomTabsProps) {
   ];
 
   return (
-    <div className="shrink-0 w-full flex flex-col">
-      <div className="flex items-center justify-end gap-[4px] px-[14px]">
-        {tabs.map((tab) => {
-          const tabId = tab.tabId;
-          const baseClasses = tab.selected
-            ? 'bg-[var(--shapeships-grey-70)] text-white'
-            : 'bg-[var(--shapeships-grey-90)] text-[var(--shapeships-grey-50)]';
-          const interactionClasses = tab.disabled
-            ? 'cursor-not-allowed opacity-80'
-            : 'cursor-pointer';
-          const handleClick = tabId == null
-            ? undefined
-            : () => actions.onActionPanelTabClick(tabId);
+    <div className="flex items-center justify-end gap-[4px] px-[14px]">
+      {tabs.map((tab) => {
+        const tabId = tab.tabId;
+        const baseClasses = tab.selected
+          ? 'bg-[var(--shapeships-grey-70)] text-white'
+          : 'bg-[var(--shapeships-grey-90)] text-[var(--shapeships-grey-50)]';
+        const interactionClasses = tab.disabled
+          ? 'cursor-not-allowed opacity-80'
+          : 'cursor-pointer';
+        const handleClick = tabId == null
+          ? undefined
+          : () => actions.onActionPanelTabClick(tabId);
 
-          return (
-            <button
-              key={tab.key}
-              type="button"
-              aria-pressed={tab.selected}
-              disabled={tab.disabled}
-              onClick={handleClick}
-              className={`flex h-[34px] min-w-0 flex-1 items-center justify-center rounded-t-[7px] px-[10px] ${baseClasses} ${interactionClasses}`}
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            aria-pressed={tab.selected}
+            disabled={tab.disabled}
+            onClick={handleClick}
+            className={`flex h-[34px] min-w-0 flex-1 items-center justify-center rounded-t-[7px] px-[10px] ${baseClasses} ${interactionClasses}`}
+          >
+            <span
+              className="min-w-0 truncate text-[13px] font-bold leading-none"
+              style={{ fontVariationSettings: "'wdth' 100" }}
             >
-              <span
-                className="min-w-0 truncate text-[13px] font-bold leading-none"
-                style={{ fontVariationSettings: "'wdth' 100" }}
-              >
-                {tab.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      <MobileActionPanel vm={vm} actions={actions} />
+              {tab.label}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

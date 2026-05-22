@@ -121,7 +121,7 @@ export function AlphaEntryPanel({
         </div>
 
         {/* Session Disclaimer */}
-        <div className="content-stretch relative flex w-full flex-col items-center gap-[20px] px-[20px] py-[25px] sm:px-[32px] md:px-[40px]">
+        <div className="content-stretch relative flex w-full flex-col items-center gap-[20px] px-[20px] py-[0px] sm:py-[25px] sm:px-[32px] md:px-[40px]">
           <p 
             className="font-normal leading-[22px] relative shrink-0 text-[16px] text-center w-full"
             style={{ fontVariationSettings: "'wdth' 100" }}

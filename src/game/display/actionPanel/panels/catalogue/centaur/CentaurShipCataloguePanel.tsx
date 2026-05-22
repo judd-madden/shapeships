@@ -49,6 +49,7 @@ interface CentaurShipCataloguePanelProps {
   catalogueLayout?: CatalogueLayout;
   hoverDisabled?: boolean;
   interactionDisabled?: boolean;
+  onShipInspect?: (shipId: ShipDefId) => void;
 }
 
 export function CentaurShipCataloguePanel({
@@ -58,6 +59,7 @@ export function CentaurShipCataloguePanel({
   catalogueLayout = 'standard',
   hoverDisabled,
   interactionDisabled = false,
+  onShipInspect,
 }: CentaurShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
@@ -80,6 +82,14 @@ export function CentaurShipCataloguePanel({
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
     const isDimmed = isUnavailableContext || (isBuildableContext && !canAddShip);
+
+    if (onShipInspect) {
+      return {
+        isDimmed,
+        isClickable: true,
+        onClick: () => onShipInspect(shipId),
+      };
+    }
 
     if (interactionDisabled) {
       return {

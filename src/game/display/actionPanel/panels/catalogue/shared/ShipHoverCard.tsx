@@ -12,8 +12,8 @@ import * as ReactDOM from 'react-dom';
 import { BuildIcon } from '../../../../../../components/ui/primitives/icons/BuildIcon';
 import { BattleIcon } from '../../../../../../components/ui/primitives/icons/BattleIcon';
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
-import type { ShipDefinitionUI } from '../../../../../types/ShipTypes.ui';
 import type { ShipEligibility } from './ShipBuildEligibility';
+import { getShipCardModel, groupShipCounts as groupShipTokenCounts } from './ShipCardModel';
 import { SHIP_DEFINITIONS_MAP } from '../../../../../data/ShipDefinitionsUI';
 import { parseShipToken } from '../../../../graphics/shipToken';
 import { resolveShipGraphic } from '../../../../graphics/resolveShipGraphic';
@@ -31,137 +31,6 @@ interface ShipHoverCardProps {
 
 const TAIL_SIZE_PX = 12;
 
-// Helper functions (inlined from ShipRulesAdapter to avoid module loading issues)
-
-type PowerIcon = 'build' | 'battle';
-
-interface ShipPowerViewModel {
-  icon: PowerIcon;
-  text: string;
-}
-
-interface ShipHoverModel {
-  name: string;
-  cost: number;
-  joiningLines?: number;
-  phaseLabel?: string;
-  powers: ShipPowerViewModel[];
-  italicNotes?: string;
-  componentShipIds: readonly string[]; // Ship tokens, not ShipDefId[] - can include CAR(0) etc
-}
-
-function getPhaseIcon(subphase: string): PowerIcon {
-  const buildSubphases = [
-    'Dice Manipulation',
-    'Line Generation',
-    'Ships That Build',
-    'Drawing',
-    'End of Build Phase'
-  ];
-  
-  const battleSubphases = [
-    'First Strike',
-    'Charge Declaration',
-    'Automatic',
-    'Upon Destruction',
-    'Energy',
-    'Solar',
-    'End of Battle Phase'
-  ];
-  
-  if (buildSubphases.some(s => subphase.includes(s))) {
-    return 'build';
-  }
-  
-  if (battleSubphases.some(s => subphase.includes(s))) {
-    return 'battle';
-  }
-  
-  return 'battle';
-}
-
-function renderPowerText(text: string): string {
-  return text.replace(/\\n/g, '\n');
-}
-
-function getSubphaseLabel(ship: ShipDefinitionUI): string {
-  const seen = new Set<string>();
-  const uniqueSubphases: string[] = [];
-  
-  for (const power of ship.powers) {
-    const subphase = power.subphase;
-    if (!subphase || subphase.trim() === '' || subphase.toUpperCase() === 'N/A') {
-      continue;
-    }
-    
-    const normalized = subphase.toUpperCase();
-    if (!seen.has(normalized)) {
-      seen.add(normalized);
-      uniqueSubphases.push(normalized);
-    }
-  }
-  
-  return uniqueSubphases.join(', ');
-}
-
-function getShipHoverModel(shipId: ShipDefId): ShipHoverModel | null {
-  const ship = SHIP_DEFINITIONS_MAP?.[shipId];
-  
-  if (!ship) {
-    console.warn(`[ShipHoverCard] Ship not found: ${shipId}`);
-      if (import.meta.env.DEV) {
-      console.log('[ShipHoverCard] SHIP_DEFINITIONS_MAP keys sample:', Object.keys(SHIP_DEFINITIONS_MAP || {}).slice(0, 10));
-    }
-    return null;
-  }
-  
-  const cost = ship.totalLineCost ?? 0;
-  const joiningLines = ship.joiningLineCost && ship.joiningLineCost > 0 
-    ? ship.joiningLineCost 
-    : undefined;
-  
-  const phaseLabel = getSubphaseLabel(ship);
-  
-  const powers: ShipPowerViewModel[] = ship.powers.map(power => ({
-    icon: getPhaseIcon(power.subphase),
-    text: renderPowerText(power.text)
-  }));
-  
-  const italicNotes = ship.extraRules || undefined;
-  const componentShipIds = ship.componentShips ?? [];
-  
-  return {
-    name: ship.name,
-    cost,
-    joiningLines,
-    phaseLabel,
-    powers,
-    italicNotes,
-    componentShipIds
-  };
-}
-
-/**
- * Group duplicate ship tokens into counts
- * Input: ["DEF","DEF","CAR(0)"] → Output: [{token:"DEF",count:2},{token:"CAR(0)",count:1}]
- * Preserves first-seen order for predictable display
- */
-function groupShipCounts(shipTokens: readonly string[]): Array<{ token: string; count: number }> {
-  const seen = new Map<string, number>();
-  const order: string[] = [];
-  
-  for (const token of shipTokens) {
-    if (!seen.has(token)) {
-      order.push(token);
-      seen.set(token, 1);
-    } else {
-      seen.set(token, seen.get(token)! + 1);
-    }
-  }
-  
-  return order.map(token => ({ token, count: seen.get(token)! }));
-}
-
 /**
  * Component ship display (graphics only, no text names)
  * Token-aware: Parses CAR(0) → baseId CAR + explicitCharges 0
@@ -170,7 +39,7 @@ function groupShipCounts(shipTokens: readonly string[]): Array<{ token: string; 
 function ComponentShips({ shipIds }: { shipIds: readonly string[] }) {
   if (shipIds.length === 0) return null;
   
-  const grouped = groupShipCounts(shipIds);
+  const grouped = groupShipTokenCounts(shipIds);
   
   return (
     <div className="content-center flex flex-wrap gap-[16px] items-center relative shrink-0">
@@ -359,7 +228,7 @@ function PowerText({ text }: { text: string }) {
  * Main hover card component
  */
 export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCardProps) {
-  const model = getShipHoverModel(shipId);
+  const model = getShipCardModel(shipId);
   const { placement, anchorX, anchorY, cardTransform, cardRef } =
     useAnchoredHoverPlacement(anchorRect);
   

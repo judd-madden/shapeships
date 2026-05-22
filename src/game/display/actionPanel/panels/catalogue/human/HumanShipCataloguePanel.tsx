@@ -49,6 +49,7 @@ interface HumanShipCataloguePanelProps {
   catalogueLayout?: CatalogueLayout;
   hoverDisabled?: boolean;
   interactionDisabled?: boolean;
+  onShipInspect?: (shipId: ShipDefId) => void;
 }
 
 export function HumanShipCataloguePanel({
@@ -58,6 +59,7 @@ export function HumanShipCataloguePanel({
   catalogueLayout = 'standard',
   hoverDisabled,
   interactionDisabled = false,
+  onShipInspect,
 }: HumanShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
@@ -71,6 +73,14 @@ export function HumanShipCataloguePanel({
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
     const isDimmed = isUnavailableContext || (isBuildableContext && !canAddShip);
+
+    if (onShipInspect) {
+      return {
+        isDimmed,
+        isClickable: true,
+        onClick: () => onShipInspect(shipId),
+      };
+    }
 
     if (interactionDisabled) {
       return {

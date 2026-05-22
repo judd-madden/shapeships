@@ -178,7 +178,7 @@ export function CreatePrivateGamePanel({
       : { variant: 'private' as const };
 
   return (
-    <div className="content-stretch flex w-full flex-col gap-[50px]">
+    <div className="content-stretch flex w-full flex-col gap-[24px] sm:gap-[50px]">
       <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[9px] leading-[normal]">
         <p
           className="font-['Roboto',sans-serif] text-[32px] font-black leading-[normal] sm:text-[36px]"

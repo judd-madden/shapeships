@@ -87,7 +87,7 @@ export function MenuShell({
     <div className="content-stretch relative flex size-full flex-col items-center px-[5%] pb-[120px] pt-[40px] md:pt-[60px]">
       <div className="content-stretch relative flex w-full max-w-[1430px] shrink-0 flex-col items-center gap-[12px] md:gap-[8px]">
         {/* Menu Header */}
-        <div className="content-stretch relative flex w-full shrink-0 flex-col justify-between gap-8 lg:flex-row lg:gap-10 items-center pb-[32px]">
+        <div className="content-stretch relative flex w-full shrink-0 flex-col justify-between gap-8 lg:flex-row lg:gap-10 items-center pb-[20px] sm:pb-[32px]">
           {/* Logo */}
           <div className="relative inline-grid shrink-0 grid-cols-[max-content] grid-rows-[max-content] place-items-start leading-[0]">
             <p className="[grid-area:1_/_1] relative ml-[80px] mt-[0.31px] font-['Roboto',sans-serif] text-[48px] font-bold leading-[normal] not-italic text-nowrap md:ml-[130.04px] md:text-[67.563px]">
@@ -148,7 +148,7 @@ export function MenuShell({
         <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] h-px opacity-70 shrink-0 to-[rgba(255,255,255,0)] via-50% via-[#ffffff] w-full" />
 
         {/* Player Identity Row */}
-        <div className="content-stretch relative flex w-full items-center py-[32px]">
+        <div className="content-stretch relative flex w-full items-center py-[20px] sm:py-[32px]">
           <div className="content-stretch relative flex w-full flex-col items-start gap-x-[24px] gap-y-2">
             <div className="flex flex-wrap items-center gap-x-[24px] gap-y-2">
               <OnlineStatusIcon status="online" />
@@ -173,7 +173,7 @@ export function MenuShell({
         {/* Main Wrapper */}
         <div className="content-stretch relative flex w-full shrink-0 flex-col items-start gap-[32px] pr-0 lg:flex-row lg:gap-[28px] xl:gap-[50px]">
           {/* Sidebar */}
-          <div className="content-stretch relative flex w-full shrink-0 flex-col items-start lg:w-[250px] xl:w-[340px] pb-[24px]">
+          <div className="content-stretch relative flex w-full shrink-0 flex-col items-start lg:w-[250px] xl:w-[340px] pb-[0px] sm:pb-[24px]">
             {/* Main Nav */}
             <div className="content-stretch relative flex w-full flex-wrap items-start gap-x-[28px] gap-y-[24px] pr-0 py-0 md:gap-x-[36px] lg:flex-col lg:gap-[36px] lg:pl-[20px] xl:gap-[50px] xl:pl-[40px]">
               {/* Multiplayer */}

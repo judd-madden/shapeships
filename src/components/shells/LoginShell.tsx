@@ -55,7 +55,7 @@ export function LoginShell({
             </div>
 
             {/* Feature Highlights Row */}
-            <div className="content-center relative flex w-full flex-wrap items-stretch justify-center gap-x-[28px] gap-y-[20px] lg:gap-x-[50px]">
+            <div className="content-center relative flex w-full flex-wrap items-stretch justify-center gap-x-[28px] gap-y-[10px] sm:gap-y-[20px] lg:gap-x-[50px]">
               
               {/* Feature 1: Free space battle game */}
               <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[12px]">

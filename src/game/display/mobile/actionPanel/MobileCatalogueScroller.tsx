@@ -1,4 +1,5 @@
 import type { ActionPanelViewModel, GameSessionActions } from '../../../client/useGameSession';
+import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import { AncientShipCataloguePanel } from '../../actionPanel/panels/catalogue/ancient/AncientShipCataloguePanel';
 import { CentaurShipCataloguePanel } from '../../actionPanel/panels/catalogue/centaur/CentaurShipCataloguePanel';
 import { HumanShipCataloguePanel } from '../../actionPanel/panels/catalogue/human/HumanShipCataloguePanel';
@@ -8,6 +9,7 @@ import { MobileScaledCatalogueCanvas } from './MobileScaledCatalogueCanvas';
 interface MobileCatalogueScrollerProps {
   vm: ActionPanelViewModel;
   actions: GameSessionActions;
+  onShipInspect?: (shipId: ShipDefId) => void;
 }
 
 const MOBILE_CATALOGUE_CANVASES = {
@@ -17,7 +19,7 @@ const MOBILE_CATALOGUE_CANVASES = {
   ancient: { width: 1446, height: 258 },
 } as const;
 
-export function MobileCatalogueScroller({ vm, actions }: MobileCatalogueScrollerProps) {
+export function MobileCatalogueScroller({ vm, actions, onShipInspect }: MobileCatalogueScrollerProps) {
   const commonProps = {
     actions,
     buildCatalogue: vm.buildCatalogue,
@@ -25,6 +27,7 @@ export function MobileCatalogueScroller({ vm, actions }: MobileCatalogueScroller
     catalogueLayout: 'long' as const,
     hoverDisabled: true,
     interactionDisabled: true,
+    onShipInspect,
   };
 
   const catalogue =
@@ -49,7 +52,7 @@ export function MobileCatalogueScroller({ vm, actions }: MobileCatalogueScroller
   return (
     <div className="h-full w-full overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x">
       <div className="flex h-full min-w-max items-start px-[14px] pt-[9px]">
-        <div className="pointer-events-none">{catalogue}</div>
+        <div>{catalogue}</div>
       </div>
     </div>
   );
