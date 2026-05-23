@@ -1,20 +1,30 @@
 import { useEffect, useState } from 'react';
 import type { FleetAreaHealthDeltaFlashVm } from '../../../client/useGameSession';
 
+export type FleetAreaHealthDeltaFlashShape = 'contained' | 'fill';
+
 interface FleetAreaHealthDeltaFlashProps {
   vm?: FleetAreaHealthDeltaFlashVm;
+  shape?: FleetAreaHealthDeltaFlashShape;
 }
 
 const EXIT_START_MS = 2000;
 const FLASH_TRANSITION_MS = 400;
 
-function getFlashBackground(tone: FleetAreaHealthDeltaFlashVm['tone']): string {
+function getFlashBackground(
+  tone: FleetAreaHealthDeltaFlashVm['tone'],
+  shape: FleetAreaHealthDeltaFlashShape = 'contained'
+): string {
   const color =
     tone === 'max'
       ? 'white'
       : tone === 'heal'
         ? 'var(--shapeships-green)'
         : 'var(--shapeships-red)';
+
+  if (shape === 'fill') {
+    return `radial-gradient(ellipse farthest-corner at center, ${color} 0%, transparent 72%)`;
+  }
 
   return `radial-gradient(circle closest-side at center, ${color} 0%, transparent 72%)`;
 }
@@ -41,7 +51,10 @@ function usePrefersReducedMotion(): boolean {
   return prefersReducedMotion;
 }
 
-export function FleetAreaHealthDeltaFlash({ vm }: FleetAreaHealthDeltaFlashProps) {
+export function FleetAreaHealthDeltaFlash({
+  vm,
+  shape = 'contained',
+}: FleetAreaHealthDeltaFlashProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
   const [isVisible, setIsVisible] = useState(false);
 
@@ -85,7 +98,7 @@ export function FleetAreaHealthDeltaFlash({ vm }: FleetAreaHealthDeltaFlashProps
       aria-hidden="true"
       className="absolute inset-0 pointer-events-none transition-opacity ease-out"
       style={{
-        background: getFlashBackground(vm.tone),
+        background: getFlashBackground(vm.tone, shape),
         opacity: isVisible ? vm.peakOpacity : 0,
         transitionDuration: `${prefersReducedMotion ? 0 : FLASH_TRANSITION_MS}ms`,
       }}

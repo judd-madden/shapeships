@@ -14,6 +14,7 @@ import { resolveShipGraphic } from '../../graphics/resolveShipGraphic';
 import { useFlipLayout } from '../../graphics/useFlipLayout';
 import { FitToBox } from './FitToBox';
 import { FleetAreaHealthDeltaFlash } from './FleetAreaHealthDeltaFlash';
+import type { FleetAreaHealthDeltaFlashShape } from './FleetAreaHealthDeltaFlash';
 
 function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
@@ -346,6 +347,7 @@ export function FleetArea({
   side,
   activationIndexMap,
   healthDeltaFlash,
+  healthDeltaFlashShape,
   targetStatesByStackKey,
   previewShipDefIdByStackKey,
   onDestroyTargetHoverChange,
@@ -374,6 +376,7 @@ export function FleetArea({
   side: 'my' | 'opponent';
   activationIndexMap?: Record<string, number>;
   healthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
+  healthDeltaFlashShape?: FleetAreaHealthDeltaFlashShape;
   targetStatesByStackKey?: Record<string, DestroyTargetStateVm>;
   previewShipDefIdByStackKey?: Partial<Record<string, ShipDefId>>;
   onDestroyTargetHoverChange?: (side: 'my' | 'opponent', stackKey: string | null) => void;
@@ -518,7 +521,7 @@ export function FleetArea({
   return (
     <div className="basis-0 grow h-full min-h-px min-w-px relative shrink-0 px-[8px] overflow-visible">
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <FleetAreaHealthDeltaFlash vm={healthDeltaFlash} />
+        <FleetAreaHealthDeltaFlash vm={healthDeltaFlash} shape={healthDeltaFlashShape} />
       </div>
 
       {/* FleetArea: {title} (title intentionally not rendered) */}

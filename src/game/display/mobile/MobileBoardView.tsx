@@ -49,6 +49,7 @@ export function MobileBoardView({
           side="opponent"
           activationIndexMap={boardVm.activationStaggerPlan?.opponentIndexByShipId}
           healthDeltaFlash={boardVm.opponentFleetHealthDeltaFlash}
+          healthDeltaFlashShape="fill"
           turnPulse={rightRevealPulse}
           fitMinScale={0.25}
           liveRowsLayout="pairedRows"
@@ -79,6 +80,7 @@ export function MobileBoardView({
           side="my"
           activationIndexMap={boardVm.activationStaggerPlan?.myIndexByShipId}
           healthDeltaFlash={boardVm.myFleetHealthDeltaFlash}
+          healthDeltaFlashShape="fill"
           turnPulse={leftRevealPulse}
           fitMinScale={0.25}
           liveRowsLayout="pairedRows"
