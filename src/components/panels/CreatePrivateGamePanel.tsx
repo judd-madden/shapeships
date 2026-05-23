@@ -205,8 +205,11 @@ export function CreatePrivateGamePanel({
 
           <div
             className={[
-              'flex w-full max-w-full min-w-0 flex-col items-start xl:items-center gap-[28px] self-start overflow-visible sm:gap-[40px]',
-              isTimed ? '' : 'pointer-events-none opacity-[20%]',
+              'flex w-full max-w-full min-w-0 flex-col items-start xl:items-center gap-[28px] self-start sm:gap-[40px]',
+              'transition-[max-height,opacity] duration-150 ease-out',
+              isTimed
+                ? 'max-h-[420px] overflow-visible opacity-100'
+                : 'pointer-events-none max-h-0 overflow-hidden opacity-0 sm:max-h-none sm:overflow-visible sm:opacity-[20%]',
             ].join(' ')}
           >
             <div className="grid w-full max-w-[560px] grid-cols-2 gap-x-[14px] gap-y-[24px] overflow-visible min-[520px]:grid-cols-2 2xl:max-w-[722px] 2xl:grid-cols-4">

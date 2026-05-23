@@ -3,6 +3,7 @@ import type {
   HudViewModel,
   LeftRailViewModel,
 } from '../../client/useGameSession';
+import type { ShipDefId } from '../../types/ShipTypes.engine';
 import { FleetArea, toSpeciesKey } from '../layout/boardStage/FleetArea';
 import { usePresentedFleetRevealPulse } from '../layout/boardStage/usePresentedFleetRevealPulse';
 import { MobileStatusRail } from './MobileStatusRail';
@@ -13,9 +14,19 @@ interface MobileBoardViewProps {
   hudVm: HudViewModel;
   boardVm: MobileBoardViewModel;
   leftRailVm: LeftRailViewModel;
+  onFleetShipInspect?: (
+    shipId: ShipDefId,
+    anchorEl: HTMLElement,
+    side: 'my' | 'opponent'
+  ) => void;
 }
 
-export function MobileBoardView({ hudVm, boardVm, leftRailVm }: MobileBoardViewProps) {
+export function MobileBoardView({
+  hudVm,
+  boardVm,
+  leftRailVm,
+  onFleetShipInspect,
+}: MobileBoardViewProps) {
   const opponentSpeciesKey = toSpeciesKey(boardVm.opponentSpeciesId);
   const mySpeciesKey = toSpeciesKey(boardVm.mySpeciesId);
   const leftRevealPulse = usePresentedFleetRevealPulse(boardVm.presentedMyRevealBlurSeq ?? 0);
@@ -47,6 +58,9 @@ export function MobileBoardView({ hudVm, boardVm, leftRailVm }: MobileBoardViewP
           voidFitMinScale={0.15}
           voidFitMaxScale={0.6}
           voidGapClassName="gap-[8px]"
+          onFleetShipTap={(shipId, anchorEl) =>
+            onFleetShipInspect?.(shipId, anchorEl, 'opponent')
+          }
         />
       </div>
       <MobileStatusRail hudVm={hudVm} boardVm={boardVm} leftRailVm={leftRailVm} />
@@ -74,6 +88,9 @@ export function MobileBoardView({ hudVm, boardVm, leftRailVm }: MobileBoardViewP
           voidFitMinScale={0.15}
           voidFitMaxScale={0.6}
           voidGapClassName="gap-[8px]"
+          onFleetShipTap={(shipId, anchorEl) =>
+            onFleetShipInspect?.(shipId, anchorEl, 'my')
+          }
         />
       </div>
     </div>

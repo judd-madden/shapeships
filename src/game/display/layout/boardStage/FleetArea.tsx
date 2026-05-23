@@ -183,6 +183,7 @@ function ShipStack({
   displayMode = 'live',
   onFleetHoverEnter,
   onFleetHoverLeave,
+  onFleetShipTap,
 }: { 
   ship: FleetStackVm;
   animToken?: ShipAnimToken;
@@ -192,6 +193,7 @@ function ShipStack({
   displayMode?: ShipDisplayMode;
   onFleetHoverEnter?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
   onFleetHoverLeave?: (shipId: ShipDefId) => void;
+  onFleetShipTap?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
 }) {
   const shipDefId = ship.shipDefId as ShipDefId;
   const def = getShipDefinitionUI(shipDefId);
@@ -279,6 +281,11 @@ function ShipStack({
                     ? () => onFleetHoverLeave?.(shipDefId)
                     : undefined
                 }
+                onClick={
+                  !isVoid && onFleetShipTap
+                    ? (event) => onFleetShipTap(shipDefId, event.currentTarget)
+                    : undefined
+                }
               >
                 {ShipGraphic ? (
                   <ShipGraphic />
@@ -345,6 +352,7 @@ export function FleetArea({
   onDestroyTargetMouseDown,
   onFleetHoverEnter,
   onFleetHoverLeave,
+  onFleetShipTap,
   turnPulse,
   fitMinScale = 0.4,
   liveRowsLayout = 'stacked',
@@ -372,6 +380,7 @@ export function FleetArea({
   onDestroyTargetMouseDown?: (side: 'my' | 'opponent', stackKey: string) => void;
   onFleetHoverEnter?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
   onFleetHoverLeave?: (shipId: ShipDefId) => void;
+  onFleetShipTap?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
   turnPulse: TurnIncrementPulseState;
   fitMinScale?: number;
   liveRowsLayout?: 'stacked' | 'pairedRows';
@@ -407,6 +416,7 @@ export function FleetArea({
   const renderShipCell = (ship: FleetStackVm, displayMode: ShipDisplayMode = 'live') => {
     const targetState = displayMode === 'live' ? targetStatesByStackKey?.[ship.stackKey] : undefined;
     const isTargetable = targetState?.isTargetable === true;
+    const canInspectFleetShip = displayMode === 'live' && !isTargetable && Boolean(onFleetShipTap);
 
     return (
       <div
@@ -414,7 +424,7 @@ export function FleetArea({
         ref={displayMode === 'live' ? getFlipRef(ship.renderKey) : undefined}
         className={cx(
           displayMode === 'void' ? 'relative py-[2px]' : 'relative px-[10px] py-[8px]',
-          isTargetable && 'cursor-pointer'
+          (isTargetable || canInspectFleetShip) && 'cursor-pointer'
         )}
         onMouseEnter={
           displayMode === 'live' && isTargetable
@@ -444,6 +454,7 @@ export function FleetArea({
           displayMode={displayMode}
           onFleetHoverEnter={displayMode === 'live' ? onFleetHoverEnter : undefined}
           onFleetHoverLeave={displayMode === 'live' ? onFleetHoverLeave : undefined}
+          onFleetShipTap={canInspectFleetShip ? onFleetShipTap : undefined}
         />
       </div>
     );
