@@ -4,6 +4,7 @@ import type { ActionPanelViewModel, GameSessionActions } from '../../../client/u
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import { EvolverDrawingPanel } from '../../actionPanel/panels/EvolverDrawingPanel';
 import { FrigateDrawingPanel } from '../../actionPanel/panels/FrigateDrawingPanel';
+import { HealthResolutionPanel } from '../../actionPanel/panels/HealthResolutionPanel';
 import { getShipChoicePanelSpec } from '../../actionPanel/panels/ShipChoiceRegistry';
 import { LargeStyleChoicePanel } from '../../actionPanel/panels/LargeStyleChoicePanel';
 import { ShipChoicesPanel } from '../../actionPanel/panels/ShipChoicesPanel';
@@ -83,9 +84,9 @@ function MobileActionPanelWrapper({
       {showScrollHint && !scrollHintDismissed ? (
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute left-[12px] bottom-[12px] size-[20px] animate-bounce"
+          className="pointer-events-none absolute left-[12px] bottom-[0px] size-[30px] animate-bounce"
         >
-          <ChevronDown className="size-[20px]" color="white" />
+          <ChevronDown className="!size-[30px]" color="white" />
         </div>
       ) : null}
     </div>
@@ -93,7 +94,27 @@ function MobileActionPanelWrapper({
 }
 
 export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPanelProps) {
+  const healthResolutionOverlay = vm.healthResolutionOverlay;
   const phaseLocalFamilySwitch = vm.phaseLocalFamilySwitch;
+
+  function renderWithHealthOverlay(content: ReactNode): ReactNode {
+    if (!healthResolutionOverlay) {
+      return content;
+    }
+
+    return (
+      <div className="relative w-full shrink-0">
+        {content}
+        <div className="pointer-events-auto absolute inset-0 z-[50]">
+          <HealthResolutionPanel
+            key={healthResolutionOverlay.presentationKey}
+            vm={healthResolutionOverlay}
+            layout="mobile"
+          />
+        </div>
+      </div>
+    );
+  }
 
   function renderMobilePhaseLocalFamilySwitch(): ReactNode {
     if (!phaseLocalFamilySwitch || phaseLocalFamilySwitch.availableFamilies.length < 2) {
@@ -176,7 +197,7 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
   }
 
   if (CATALOGUE_PANEL_IDS.has(vm.activePanelId)) {
-    return (
+    return renderWithHealthOverlay(
       <div className="h-[204px] w-full shrink-0 overflow-hidden border-t border-[var(--shapeships-grey-70)] bg-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
         <MobileCatalogueScroller vm={vm} actions={actions} onShipInspect={onShipInspect} />
       </div>
@@ -186,7 +207,7 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
   if (vm.activePanelId === 'ap.build.drawing.human') {
     const frigateCount = vm.frigateDrawing?.frigateCount ?? 0;
 
-    return (
+    return renderWithHealthOverlay(
       <MobileActionPanelWrapper
         ariaLabel="Mobile Frigate drawing panel"
         showScrollHint={frigateCount > 1}
@@ -206,7 +227,7 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
   if (vm.activePanelId === 'ap.build.drawing.xenite') {
     const evolverRows = vm.evolverDrawing?.rows ?? [];
 
-    return (
+    return renderWithHealthOverlay(
       <MobileActionPanelWrapper
         ariaLabel="Mobile Evolver drawing panel"
         showScrollHint={evolverRows.length > 1}
@@ -227,7 +248,7 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
   if (shipChoiceSpec) {
     if (shipChoiceSpec.kind === 'buttons') {
       if (!vm.shipChoices?.groups || vm.shipChoices.groups.length === 0) {
-        return (
+        return renderWithHealthOverlay(
           <MobileActionPanelWrapper ariaLabel="Mobile action panel empty state">
             {renderNoActionsAvailable()}
           </MobileActionPanelWrapper>
@@ -239,7 +260,7 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
         0
       );
 
-      return (
+      return renderWithHealthOverlay(
         <MobileActionPanelWrapper
           ariaLabel="Mobile ship choice action panel"
           showScrollHint={shipChoiceRowCount > 1}
@@ -265,7 +286,7 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
     }
 
     if (shipChoiceSpec.kind === 'large') {
-      return (
+      return renderWithHealthOverlay(
         <MobileActionPanelWrapper ariaLabel="Mobile large choice action panel">
           {renderMobilePhaseLocalFamilySwitch()}
           <LargeStyleChoicePanel
@@ -280,7 +301,7 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
     }
 
     if (shipChoiceSpec.kind === 'placeholder') {
-      return (
+      return renderWithHealthOverlay(
         <MobileActionPanelWrapper ariaLabel="Mobile action panel placeholder">
           {renderMobilePlaceholder(shipChoiceSpec.title, shipChoiceSpec.message)}
         </MobileActionPanelWrapper>
@@ -289,10 +310,10 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
   }
 
   if (vm.activePanelId === 'ap.idle.blank') {
-    return <MobileActionPanelWrapper ariaLabel="Mobile blank action panel" />;
+    return renderWithHealthOverlay(<MobileActionPanelWrapper ariaLabel="Mobile blank action panel" />);
   }
 
-  return (
+  return renderWithHealthOverlay(
     <MobileActionPanelWrapper ariaLabel="Mobile bottom panel placeholder">
       {renderMobilePlaceholder('Actions', 'Panel content will be implemented in a later mobile pass.')}
     </MobileActionPanelWrapper>

@@ -3,6 +3,7 @@ import type { HealthResolutionPresentationVm, HealthResolutionSideVm } from '../
 
 interface HealthResolutionPanelProps {
   vm: HealthResolutionPresentationVm;
+  layout?: 'desktop' | 'mobile';
 }
 
 const PANEL_STAGGER_MS = 100;
@@ -22,6 +23,10 @@ function getValueColor(side: HealthResolutionSideVm): string {
   }
 }
 
+function getValueWeightClass(side: HealthResolutionSideVm): string {
+  return side.valueWeight === 'black' ? 'font-black' : 'font-normal';
+}
+
 function HealthResolutionSentence({ side }: { side: HealthResolutionSideVm }) {
   return (
     <p
@@ -30,7 +35,7 @@ function HealthResolutionSentence({ side }: { side: HealthResolutionSideVm }) {
     >
       <span>{side.prefixText}</span>
       <span
-        className={side.valueWeight === 'black' ? 'font-black' : 'font-normal'}
+        className={getValueWeightClass(side)}
         style={{ color: getValueColor(side) }}
       >
         {side.valueText}
@@ -40,7 +45,25 @@ function HealthResolutionSentence({ side }: { side: HealthResolutionSideVm }) {
   );
 }
 
-export function HealthResolutionPanel({ vm }: HealthResolutionPanelProps) {
+function MobileHealthResolutionSentence({ side }: { side: HealthResolutionSideVm }) {
+  return (
+    <p
+      className="font-['Roboto'] font-normal text-[24px] leading-[1.1] text-white text-center whitespace-nowrap"
+      style={{ fontVariationSettings: "'wdth' 100" }}
+    >
+      <span>{side.prefixText}</span>
+      <span
+        className={getValueWeightClass(side)}
+        style={{ color: getValueColor(side) }}
+      >
+        {side.valueText}
+      </span>
+      <span>{side.suffixText}</span>
+    </p>
+  );
+}
+
+export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResolutionPanelProps) {
   const [showBackdrop, setShowBackdrop] = useState(false);
   const [showDivider, setShowDivider] = useState(false);
   const [showLeft, setShowLeft] = useState(false);
@@ -93,6 +116,42 @@ export function HealthResolutionPanel({ vm }: HealthResolutionPanelProps) {
       }
     };
   }, [vm.presentationKey]);
+
+  if (layout === 'mobile') {
+    return (
+      <div className="relative size-full overflow-hidden">
+        <div
+          aria-hidden="true"
+          className={`absolute inset-0 bg-black transition-opacity ease-out ${
+            showBackdrop ? 'opacity-100' : 'opacity-0'
+          }`}
+          style={{ transitionDuration: `${BACKDROP_TRANSITION_MS}ms` }}
+        />
+        <div
+          aria-hidden="true"
+          className={`absolute left-[10px] right-[10px] top-1/2 h-px origin-center bg-[#555555] transition-all duration-300 ease-out ${
+            showDivider ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-90'
+          }`}
+        />
+
+        <div
+          className={`absolute left-0 right-0 top-0 flex h-1/2 items-center justify-center px-[12px] transition-all duration-300 ease-out ${
+            showRight ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-[4px]'
+          }`}
+        >
+          <MobileHealthResolutionSentence side={vm.right} />
+        </div>
+
+        <div
+          className={`absolute bottom-0 left-0 right-0 flex h-1/2 items-center justify-center px-[12px] transition-all duration-300 ease-out ${
+            showLeft ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-[4px]'
+          }`}
+        >
+          <MobileHealthResolutionSentence side={vm.left} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="size-full relative overflow-hidden rounded-[8px]">
