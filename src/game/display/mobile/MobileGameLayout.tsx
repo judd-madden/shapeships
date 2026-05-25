@@ -16,6 +16,9 @@ import { MobileActionPanel } from './actionPanel/MobileActionPanel';
 import { MobileShipModal } from './actionPanel/MobileShipModal';
 import { MobileSpeciesConfirmPhase, MobileSpeciesSelectionView } from './MobileSpeciesSelectionView';
 import { MobileTopNav } from './MobileTopNav';
+import { MobileBattleLogTakeover } from './takeovers/MobileBattleLogTakeover';
+import { MobileChatTakeover } from './takeovers/MobileChatTakeover';
+import { MobileMenuPlaceholderTakeover } from './takeovers/MobileMenuPlaceholderTakeover';
 
 interface MobileGameLayoutProps {
   hudVm: HudViewModel;
@@ -32,6 +35,12 @@ type ActiveFleetShipHover = {
   side: 'my' | 'opponent';
 };
 
+type ActiveTakeover = 'chat' | 'battleLog' | 'menu' | null;
+
+function cx(...parts: Array<string | undefined | false>) {
+  return parts.filter(Boolean).join(' ');
+}
+
 const CATALOGUE_PANEL_IDS = new Set<ActionPanelViewModel['activePanelId']>([
   'ap.catalog.ships.human',
   'ap.catalog.ships.xenite',
@@ -47,6 +56,7 @@ export function MobileGameLayout({
   actionPanelVm,
   actions,
 }: MobileGameLayoutProps) {
+  const [activeTakeover, setActiveTakeover] = useState<ActiveTakeover>(null);
   const [activeShipModalId, setActiveShipModalId] = useState<ShipDefId | null>(null);
   const [activeFleetShipHover, setActiveFleetShipHover] =
     useState<ActiveFleetShipHover | null>(null);
@@ -74,6 +84,23 @@ export function MobileGameLayout({
     setActiveFleetShipHover(null);
     setActiveShipModalId(shipId);
   }, []);
+  const handleReturnToBoard = useCallback(() => {
+    setActiveTakeover(null);
+  }, []);
+  const handleOpenTakeover = useCallback((takeover: Exclude<ActiveTakeover, null>) => {
+    setActiveShipModalId(null);
+    setActiveFleetShipHover(null);
+    setActiveTakeover(takeover);
+  }, []);
+  const handleOpenChat = useCallback(() => {
+    handleOpenTakeover('chat');
+  }, [handleOpenTakeover]);
+  const handleOpenBattleLog = useCallback(() => {
+    handleOpenTakeover('battleLog');
+  }, [handleOpenTakeover]);
+  const handleOpenMenu = useCallback(() => {
+    handleOpenTakeover('menu');
+  }, [handleOpenTakeover]);
   const mobileActions: GameSessionActions = {
     ...actions,
     onReadyToggle: () => {
@@ -123,45 +150,75 @@ export function MobileGameLayout({
 
   return (
     <div className="h-dvh min-h-dvh w-full min-w-0 overflow-hidden flex flex-col bg-transparent text-white font-['Roboto']">
-      <MobileTopNav turnNumber={leftRailVm.turn} />
+      <MobileTopNav
+        turnNumber={leftRailVm.turn}
+        activeTakeover={activeTakeover}
+        onReturnToBoard={handleReturnToBoard}
+        onOpenChat={handleOpenChat}
+        onOpenBattleLog={handleOpenBattleLog}
+        onOpenMenu={handleOpenMenu}
+      />
 
-      {boardVm.mode === 'board' ? (
-        <MobileBoardView
-          hudVm={hudVm}
-          boardVm={boardVm}
-          leftRailVm={leftRailVm}
-          onFleetShipInspect={handleFleetShipInspect}
-        />
-      ) : (
-        <MobileSpeciesSelectionView
-          hudVm={hudVm}
-          boardVm={boardVm}
-          leftRailVm={leftRailVm}
-          actions={actions}
-        />
-      )}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          aria-hidden={activeTakeover !== null}
+          inert={activeTakeover !== null}
+          className={cx(
+            'flex min-h-0 flex-1 flex-col',
+            activeTakeover !== null && 'pointer-events-none opacity-0'
+          )}
+        >
+          {boardVm.mode === 'board' ? (
+            <MobileBoardView
+              hudVm={hudVm}
+              boardVm={boardVm}
+              leftRailVm={leftRailVm}
+              onFleetShipInspect={handleFleetShipInspect}
+            />
+          ) : (
+            <MobileSpeciesSelectionView
+              hudVm={hudVm}
+              boardVm={boardVm}
+              leftRailVm={leftRailVm}
+              actions={actions}
+            />
+          )}
 
-      <div className="shrink-0 flex flex-col gap-[6px] w-full">
-        {boardVm.mode === 'board' ? (
-          <MobileBottomPhase vm={bottomActionRailVm} actions={mobileActions} />
-        ) : (
-          <MobileSpeciesConfirmPhase
-            boardVm={boardVm}
-            bottomActionRailVm={bottomActionRailVm}
-            actions={actions}
-          />
-        )}
-        <div className="shrink-0 w-full flex flex-col">
-          <MobileBottomTabs vm={actionPanelVm} actions={mobileActions} />
-          <MobileActionPanel
-            vm={actionPanelVm}
-            actions={mobileActions}
-            onShipInspect={handleCatalogueShipInspect}
-          />
+          <div className="shrink-0 flex flex-col gap-[6px] w-full">
+            {boardVm.mode === 'board' ? (
+              <MobileBottomPhase vm={bottomActionRailVm} actions={mobileActions} />
+            ) : (
+              <MobileSpeciesConfirmPhase
+                boardVm={boardVm}
+                bottomActionRailVm={bottomActionRailVm}
+                actions={actions}
+              />
+            )}
+            <div className="shrink-0 w-full flex flex-col">
+              <MobileBottomTabs vm={actionPanelVm} actions={mobileActions} />
+              <MobileActionPanel
+                vm={actionPanelVm}
+                actions={mobileActions}
+                onShipInspect={handleCatalogueShipInspect}
+              />
+            </div>
+          </div>
         </div>
+
+        {activeTakeover ? (
+          <div className="absolute inset-0 z-[70] flex min-h-0 flex-col">
+            {activeTakeover === 'chat' ? (
+              <MobileChatTakeover vm={leftRailVm} actions={actions} onClose={handleReturnToBoard} />
+            ) : activeTakeover === 'battleLog' ? (
+              <MobileBattleLogTakeover vm={leftRailVm} onClose={handleReturnToBoard} />
+            ) : (
+              <MobileMenuPlaceholderTakeover onClose={handleReturnToBoard} />
+            )}
+          </div>
+        ) : null}
       </div>
 
-      {activeShipModalId ? (
+      {activeTakeover === null && activeShipModalId ? (
         <MobileShipModal
           shipId={activeShipModalId}
           buildCatalogue={actionPanelVm.buildCatalogue}
@@ -170,7 +227,7 @@ export function MobileGameLayout({
         />
       ) : null}
 
-      {activeFleetShipHover ? (
+      {activeTakeover === null && activeFleetShipHover ? (
         <div className="fixed inset-0 z-[55] pointer-events-none">
           <FleetShipHoverCard
             shipId={activeFleetShipHover.shipId}

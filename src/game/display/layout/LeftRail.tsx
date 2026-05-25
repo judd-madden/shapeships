@@ -9,17 +9,13 @@ import { Dice } from '../../../components/ui/primitives';
 import { BuildIcon } from '../../../components/ui/primitives/icons/BuildIcon';
 import { BattleIcon } from '../../../components/ui/primitives/icons/BattleIcon';
 import { CloseIcon } from '../../../components/ui/primitives/icons/CloseIcon';
-import { CopyIcon } from '../../../components/ui/primitives/icons/CopyIcon';
 import { OpenFullIcon } from '../../../components/ui/primitives/icons/OpenFullIcon';
-import { ChatSendButton } from '../../../components/ui/primitives/buttons/ChatSendButton';
-import { InChatButton } from '../../../components/ui/primitives/buttons/InChatButton';
-import { CopiedToast } from '../../../components/ui/primitives/CopiedToast';
 import type { LeftRailViewModel, GameSessionActions } from '../../client/useGameSession';
-import { LeftRailScrollArea } from './leftRail/LeftRailScrollArea';
-import { BattleLogTurnCard } from './leftRail/BattleLogTurnCard';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 import { useLeftRailTurnTakeover } from '../graphics/animation';
+import { BattleLogPanelContent } from '../shared/BattleLogPanelContent';
+import { ChatPanelContent } from '../shared/ChatPanelContent';
 
 interface LeftRailProps {
   vm: LeftRailViewModel;
@@ -41,8 +37,6 @@ export function LeftRail({
   firstTurnBuildHelperDismissSignal = 0,
   onFirstTurnBuildHelperDismiss,
 }: LeftRailProps) {
-  const [showCopiedToast, setShowCopiedToast] = useState(false);
-  const [chatDraft, setChatDraft] = useState('');
   const [isBattleLogExpanded, setIsBattleLogExpanded] = useState(false);
   const [collapsedBattleLogTop, setCollapsedBattleLogTop] = useState<number | null>(null);
   const [isFirstTurnBuildHelperMounted, setIsFirstTurnBuildHelperMounted] = useState(false);
@@ -293,14 +287,6 @@ export function LeftRail({
     );
   }
 
-  function handleCopyUrl() {
-    actions.onCopyGameUrl();
-    setShowCopiedToast(true);
-    window.setTimeout(() => {
-      setShowCopiedToast(false);
-    }, 5000);
-  }
-
   function handleBattleLogExpandToggle() {
     const viewport = battleLogViewportRef.current;
     if (viewport && viewport.scrollHeight > viewport.clientHeight) {
@@ -413,115 +399,17 @@ export function LeftRail({
 
       {/* Chat Area (fixed height, scrollable) */}
       <div className="shrink-0 bg-black rounded-[10px] border-2 border-[#555] overflow-hidden">
-        {/* Row 1: Chat Header */}
-        <div className="h-[42px] px-5 pt-3 pb-2 flex items-center justify-between relative">
-          <p className="text-white text-[18px] font-black">Chat</p>
-          <button
-            type="button"
-            onClick={handleCopyUrl}
-            className="flex items-center gap-[7px] opacity-50 hover:opacity-100 transition-opacity cursor-pointer"
-          >
-            <p className="text-white text-[14px]">Game: {vm.gameCode}</p>
-            <CopyIcon />
-          </button>
-          {showCopiedToast && (
-            <CopiedToast className="absolute right-5 top-full mt-[6px]" />
-          )}
-        </div>
-      
-        {/* Row 2: Chat Content (scrollable) */}
-        <LeftRailScrollArea
-          outerClassName="h-[154px] px-5 pb-2"
-          innerClassName="justify-end gap-1 text-[15px]"
-          stickToBottomOnChange
-        >
-          {vm.chatMessages.map((msg, idx) => {
-            if (msg.type === 'rematch_invite') {
-              const targetGameId = msg.targetGameId;
-
-              return (
-                <div key={idx} className="mt-2">
-                  <p className="text-[#9cff84] font-bold leading-[18px] mb-2">{msg.text}</p>
-                  {targetGameId && actions.onJoinRematchInvite && (
-                    <InChatButton onClick={() => actions.onJoinRematchInvite?.(targetGameId)}>
-                      Join Game
-                    </InChatButton>
-                  )}
-                </div>
-              );
-            }
-
-            return (
-              <p key={idx} className="text-[#d4d4d4] leading-[18px]">
-                {msg.type === 'player' && (
-                  <>
-                    <span className="font-bold">{msg.playerName}:</span>{' '}
-                    <span className="font-normal">{msg.text}</span>
-                  </>
-                )}
-                {msg.type === 'system' && <span className="font-normal">{msg.text}</span>}
-              </p>
-            );
-          })}
-        
-          {vm.drawOffer && (
-            <div className="mt-2">
-              <p className="text-[#9cff84] font-bold leading-[18px] mb-2">
-                {vm.drawOffer.fromPlayer} offers a draw
-              </p>
-              {vm.drawOffer.canRespond && (
-                <div className="flex gap-[10px]">
-                  <InChatButton onClick={actions.onAcceptDraw}>Accept</InChatButton>
-                  <InChatButton onClick={actions.onRefuseDraw}>Refuse</InChatButton>
-                </div>
-              )}
-            </div>
-          )}
-        </LeftRailScrollArea>
-
-      
-        {/* Row 3: Divider + Entry (fixed) */}
-        <div className="h-[47px]">
-          <div className="h-[1px] bg-[#555] mx-5" />
-          <div className="px-5 py-2 flex items-center justify-between">
-            <input
-              type="text"
-              value={chatDraft}
-              onChange={(e) => setChatDraft(e.target.value)}
-              placeholder="Be nice in chat"
-              className="
-                flex-1
-                bg-transparent
-                outline-none
-                text-white
-                text-[16px]
-                not-italic
-                placeholder:text-[#888]
-                placeholder:italic
-                mr-3
-              "
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  const text = chatDraft.trim();
-                  if (text.length === 0) return;
-                  actions.onSendChat(text);
-                  setChatDraft('');
-                }
-              }}
-            />
-            <ChatSendButton
-              onClick={() => {
-                const text = chatDraft.trim();
-                if (text.length === 0) return;
-                actions.onSendChat(text);
-                setChatDraft('');
-              }}
-            >
-              SEND
-            </ChatSendButton>
-          </div>
-        </div>
+        <ChatPanelContent
+          layout="desktop"
+          gameCode={vm.gameCode}
+          chatMessages={vm.chatMessages}
+          drawOffer={vm.drawOffer}
+          onSendChat={actions.onSendChat}
+          onAcceptDraw={actions.onAcceptDraw}
+          onRefuseDraw={actions.onRefuseDraw}
+          onCopyGameUrl={actions.onCopyGameUrl}
+          onJoinRematchInvite={actions.onJoinRematchInvite}
+        />
       </div>
 
       {/* Battle Log slot preserves layout while the real card overlays above it. */}
@@ -536,31 +424,21 @@ export function LeftRail({
           transition: collapsedBattleLogTop === null ? undefined : `top ${BATTLE_LOG_TRANSITION_MS}ms ease-out`,
         }}
       >
-        <div className="shrink-0 bg-black rounded-t-[10px] border-b border-[var(--shapeships-grey-70)] px-[20px] py-[12px] flex flex-col gap-[8px]">
-          <div className="flex items-center justify-between">
-            <p className="text-white text-[18px] font-black">Battle Log</p>
+        <BattleLogPanelContent
+          layout="desktop"
+          viewportRef={battleLogViewportRef}
+          battleLogNames={vm.battleLogNames}
+          battleLogTurns={vm.battleLogTurns}
+          battleLogAutoScrollKey={vm.battleLogAutoScrollKey}
+          headerAction={
             <button
               className="bg-black rounded-[7px] p-0 opacity-50 hover:opacity-100 transition-opacity cursor-pointer"
               onClick={handleBattleLogExpandToggle}
             >
               {isBattleLogExpanded ? <CloseIcon /> : <OpenFullIcon />}
             </button>
-          </div>
-          <div className="grid grid-cols-2 gap-[20px] text-[15px] leading-none text-[var(--shapeships-grey-20)]">
-            <p className="text-left font-bold">{vm.battleLogNames.me}</p>
-            <p className="text-right font-bold">{vm.battleLogNames.opponent}</p>
-          </div>
-        </div>
-
-        <LeftRailScrollArea
-          viewportRef={battleLogViewportRef}
-          outerClassName="basis-0 rounded-b-[10px] flex-1 pb-3"
-          forceScrollOnChangeKey={vm.battleLogAutoScrollKey}
-        >
-          {vm.battleLogTurns.map((turn) => (
-            <BattleLogTurnCard key={turn.turnNumber} turn={turn} />
-          ))}
-        </LeftRailScrollArea>
+          }
+        />
       </div>
     </div>
   );
