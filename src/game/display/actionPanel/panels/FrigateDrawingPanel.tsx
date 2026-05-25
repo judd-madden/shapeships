@@ -19,6 +19,7 @@
  */
 
 import type React from 'react';
+import { getShipDefinitionNameForCount } from '../../../data/ShipDefinitionNames';
 import { getShipDefinitionUI } from '../../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../../graphics/resolveShipGraphic';
 import { ActionButton } from '../../../../components/ui/primitives/buttons/ActionButton';
@@ -98,11 +99,8 @@ export function FrigateDrawingPanel({
   // RENDER
   // ============================================================================
 
-  // Pluralization for instruction text
-  const instructionText =
-    frigateCount === 1
-      ? 'Choose a permanent trigger number for your Frigate.'
-      : 'Choose a permanent trigger number for your Frigates.';
+  const frigateName = getShipDefinitionNameForCount('FRI', frigateCount);
+  const instructionText = `Choose a permanent trigger number for your ${frigateName}.`;
 
   const explanationText =
     'When the dice match this number, deal 6 damage (including on this turn).';

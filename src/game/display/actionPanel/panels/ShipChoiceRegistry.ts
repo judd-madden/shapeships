@@ -15,6 +15,7 @@
 import type { ActionPanelId } from '../ActionPanelRegistry';
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import type { ShipChoiceButtonSpec } from '../../../types/ShipChoiceTypes';
+import { getShipDefinitionNameForCount } from '../../../data/ShipDefinitionNames';
 
 // ============================================================================
 // TYPES
@@ -50,8 +51,8 @@ export interface ShipChoiceCountedShipGroupSpec {
   shipDefId: ShipDefId;
 
   /**
-   * Heading template using `{count}` replacement.
-   * Example: "{count} Bug Breeders with charges available"
+   * Heading template using `{count}` and `{shipName}` replacement.
+   * Example: "{count} {shipName} with charges available."
    */
   headingTemplate: string;
 
@@ -73,6 +74,24 @@ export interface ShipChoiceCountedShipGroupSpec {
    */
   groupHelpText?: string;
   internalTab?: 'charges' | 'ship_of_equality';
+}
+
+export function formatCountedShipChoiceHeading(
+  groupSpec: Pick<
+    ShipChoiceCountedShipGroupSpec,
+    'shipDefId' | 'headingTemplate' | 'singularHeadingTemplate'
+  >,
+  count: number
+): string {
+  const template =
+    count === 1 && groupSpec.singularHeadingTemplate
+      ? groupSpec.singularHeadingTemplate
+      : groupSpec.headingTemplate;
+  const shipName = getShipDefinitionNameForCount(groupSpec.shipDefId, count);
+
+  return template
+    .replace(/\{count\}/g, String(count))
+    .replace(/\{shipName\}/g, shipName);
 }
 
 export interface ShipChoiceNamedShipGroupSpec {
@@ -218,7 +237,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
       {
         kind: 'counted',
         shipDefId: 'CAR',
-        headingTemplate: '{count} Carriers with charges available',
+        headingTemplate: '{count} {shipName} with charges available.',
         buttons: CAR_BUILD_BUTTONS,
       },
     ],
@@ -230,7 +249,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
       {
         kind: 'counted',
         shipDefId: 'CAR',
-        headingTemplate: '{count} Carriers with charges available',
+        headingTemplate: '{count} {shipName} with charges available.',
         buttons: CAR_BUILD_BUTTONS,
       },
     ],
@@ -285,8 +304,8 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
       {
         kind: 'counted',
         shipDefId: 'GUA',
-        headingTemplate: '{count} Guardians may destroy enemy basic ships.',
-        singularHeadingTemplate: '{count} Guardian may destroy an enemy basic ship.',
+        headingTemplate: '{count} {shipName} may destroy enemy basic ships.',
+        singularHeadingTemplate: '{count} {shipName} may destroy an enemy basic ship.',
         buttons: [
           {
             size: 'large',
@@ -330,7 +349,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
       {
         kind: 'counted',
         shipDefId: 'INT',
-        headingTemplate: '{count} Interceptors may use their charge.',
+        headingTemplate: '{count} {shipName} may use their charge.',
         buttons: INT_CHARGE_BUTTONS,
       },
     ],
@@ -343,7 +362,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
       {
         kind: 'counted',
         shipDefId: 'ANT',
-        headingTemplate: '{count} Antlions may use their charge.',
+        headingTemplate: '{count} {shipName} may use their charge.',
         buttons: ANT_CHARGE_BUTTONS,
       },
     ],
@@ -356,7 +375,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
       {
         kind: 'counted',
         shipDefId: 'WIS',
-        headingTemplate: '{count} Ships of Wisdom may use a charge.',
+        headingTemplate: '{count} {shipName} may use a charge.',
         internalTab: 'charges',
         buttons: [
           {
@@ -381,7 +400,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
       {
         kind: 'counted',
         shipDefId: 'FAM',
-        headingTemplate: '{count} Ships of Family may use a charge.',
+        headingTemplate: '{count} {shipName} may use a charge.',
         internalTab: 'charges',
         buttons: [
           {
@@ -406,21 +425,21 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
       {
         kind: 'counted',
         shipDefId: 'INT',
-        headingTemplate: '{count} Interceptors may use their charge.',
+        headingTemplate: '{count} {shipName} may use their charge.',
         internalTab: 'charges',
         buttons: INT_CHARGE_BUTTONS,
       },
       {
         kind: 'counted',
         shipDefId: 'ANT',
-        headingTemplate: '{count} Antlions may use their charge.',
+        headingTemplate: '{count} {shipName} may use their charge.',
         internalTab: 'charges',
         buttons: ANT_CHARGE_BUTTONS,
       },
       {
         kind: 'counted',
         shipDefId: 'EQU',
-        headingTemplate: '{count} Ships of Equality may destroy.',
+        headingTemplate: '{count} {shipName} may destroy.',
         internalTab: 'ship_of_equality',
         buttons: [
           {
@@ -450,7 +469,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
       {
         kind: 'counted',
         shipDefId: 'EQU',
-        headingTemplate: '{count} Ships of Equality may destroy.',
+        headingTemplate: '{count} {shipName} may destroy.',
         buttons: [
           {
             size: 'large',

@@ -17,6 +17,7 @@ import type {
   GameSessionActions,
 } from '../../game/client/gameSession/types';
 import {
+  formatCountedShipChoiceHeading,
   getShipChoicePanelSpec,
   type ShipChoiceButtonsPanelSpec,
   type ShipChoiceCountedShipGroupSpec,
@@ -191,15 +192,6 @@ function getNamedGroupSpec(
   return group;
 }
 
-function formatCountedHeading(group: ShipChoiceCountedShipGroupSpec, count: number): string {
-  const template =
-    count === 1 && group.singularHeadingTemplate
-      ? group.singularHeadingTemplate
-      : group.headingTemplate;
-
-  return template.replace('{count}', String(count));
-}
-
 function makeShipChoiceInstance(args: {
   shipDefId: ShipDefId;
   buttons: ChoiceShipInstance['buttons'];
@@ -315,7 +307,7 @@ function buildHumanShipsThatBuildFixture(): Pick<
   return buildShipChoiceFixture({
     groups: [
       {
-        heading: formatCountedHeading(group, 2),
+        heading: formatCountedShipChoiceHeading(group, 2),
         ships: [carrierA, carrierB],
       },
     ],
@@ -356,7 +348,7 @@ function buildCentaurShipsThatBuildFixture(): Pick<
   return buildShipChoiceFixture({
     groups: [
       {
-        heading: formatCountedHeading(group, 3),
+        heading: formatCountedShipChoiceHeading(group, 3),
         ships: [carrierA, carrierB, carrierC],
       },
     ],
@@ -392,7 +384,7 @@ function buildHumanFirstStrikeFixture(): Pick<
   return buildShipChoiceFixture({
     groups: [
       {
-        heading: formatCountedHeading(group, 2),
+        heading: formatCountedShipChoiceHeading(group, 2),
         ships: [guardianA, guardianB],
       },
     ],
@@ -412,7 +404,7 @@ function buildHumanChargesFixture(): Pick<
   return buildShipChoiceFixture({
     groups: [
       {
-        heading: formatCountedHeading(group, 3),
+        heading: formatCountedShipChoiceHeading(group, 3),
         ships: [
           makeShipChoiceInstance({
             shipDefId: group.shipDefId,
@@ -457,7 +449,7 @@ function buildXeniteChargesFixture(): Pick<
   return buildShipChoiceFixture({
     groups: [
       {
-        heading: formatCountedHeading(group, 2),
+        heading: formatCountedShipChoiceHeading(group, 2),
         ships: [
           makeShipChoiceInstance({
             shipDefId: group.shipDefId,
@@ -497,7 +489,7 @@ function buildCentaurChargesFixture(): Pick<
   return buildShipChoiceFixture({
     groups: [
       {
-        heading: formatCountedHeading(wisGroup, 1),
+        heading: formatCountedShipChoiceHeading(wisGroup, 1),
         ships: [
           makeShipChoiceInstance({
             shipDefId: wisGroup.shipDefId,
@@ -510,7 +502,7 @@ function buildCentaurChargesFixture(): Pick<
         ],
       },
       {
-        heading: formatCountedHeading(famGroup, 1),
+        heading: formatCountedShipChoiceHeading(famGroup, 1),
         ships: [
           makeShipChoiceInstance({
             shipDefId: famGroup.shipDefId,
@@ -523,7 +515,7 @@ function buildCentaurChargesFixture(): Pick<
         ],
       },
       {
-        heading: formatCountedHeading(intGroup, 1),
+        heading: formatCountedShipChoiceHeading(intGroup, 1),
         ships: [
           makeShipChoiceInstance({
             shipDefId: intGroup.shipDefId,
@@ -536,7 +528,7 @@ function buildCentaurChargesFixture(): Pick<
         ],
       },
       {
-        heading: formatCountedHeading(antGroup, 1),
+        heading: formatCountedShipChoiceHeading(antGroup, 1),
         ships: [
           makeShipChoiceInstance({
             shipDefId: antGroup.shipDefId,
@@ -573,7 +565,7 @@ function buildCentaurEqualityChargesFixture(): Pick<
   return buildShipChoiceFixture({
     groups: [
       {
-        heading: formatCountedHeading(group, 2),
+        heading: formatCountedShipChoiceHeading(group, 2),
         groupHelpText: group.groupHelpText,
         ships: [
           makeShipChoiceInstance({

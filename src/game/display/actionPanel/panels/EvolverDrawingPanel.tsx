@@ -22,6 +22,7 @@
  */
 
 import type { ComponentType } from 'react';
+import { getShipDefinitionNameForCount } from '../../../data/ShipDefinitionNames';
 import { getShipDefinitionUI } from '../../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../../graphics/resolveShipGraphic';
 import { ActionButton } from '../../../../components/ui/primitives/buttons/ActionButton';
@@ -93,7 +94,8 @@ export function EvolverDrawingPanel({
 
   // Dynamic heading with count
   const evolverCount = rows.length;
-  const headingText = `${evolverCount} ${evolverCount === 1 ? 'Evolver' : 'Evolvers'} may evolve Xenites into Oxites (1 healing each turn) or Asterites (1 damage each turn).`;
+  const evolverName = getShipDefinitionNameForCount('EVO', evolverCount);
+  const headingText = `${evolverCount} ${evolverName} may evolve Xenites into Oxites (1 healing each turn) or Asterites (1 damage each turn).`;
 
   return (
     <div

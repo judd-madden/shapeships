@@ -21,7 +21,10 @@ import type {
   HealthResolutionPresentationVm,
   HudStatusTone,
 } from './types';
-import { getShipChoicePanelSpec } from '../../display/actionPanel/panels/ShipChoiceRegistry';
+import {
+  formatCountedShipChoiceHeading,
+  getShipChoicePanelSpec,
+} from '../../display/actionPanel/panels/ShipChoiceRegistry';
 import { mapBattleLogTurns } from './battleLog';
 import {
   getAllocatedTargetIdsForRenderableAction,
@@ -32,18 +35,6 @@ import {
   isRenderableTargetedActionComplete,
 } from './availableActions';
 import type { CentaurChargeSubTabId } from './types';
-
-function getCountedGroupHeading(groupSpec: {
-  headingTemplate: string;
-  singularHeadingTemplate?: string;
-}, count: number): string {
-  const template =
-    count === 1 && groupSpec.singularHeadingTemplate
-      ? groupSpec.singularHeadingTemplate
-      : groupSpec.headingTemplate;
-
-  return template.replace('{count}', String(count));
-}
 
 function getNamedGroupHeading(
   phaseKey: string,
@@ -870,7 +861,7 @@ export function mapGameSessionVm(args: {
           if (matches.length === 0) continue;
 
           const count = matches.length;
-          const heading = getCountedGroupHeading(groupSpec, count);
+          const heading = formatCountedShipChoiceHeading(groupSpec, count);
           const ships = matches.map((m: any) => ({
             shipDefId: groupSpec.shipDefId,
                 buttons: getProjectedActionButtons({
@@ -954,7 +945,7 @@ export function mapGameSessionVm(args: {
           const count = getFleetCount(myFleet, groupSpec.shipDefId);
           if (count === 0) continue; // skip if player has none
 
-          const heading = getCountedGroupHeading(groupSpec, count);
+          const heading = formatCountedShipChoiceHeading(groupSpec, count);
           const ships = Array.from({ length: count }, () => ({
             shipDefId: groupSpec.shipDefId,
             buttons: groupSpec.buttons,

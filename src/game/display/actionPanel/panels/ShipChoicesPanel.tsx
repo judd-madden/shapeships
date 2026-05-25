@@ -279,7 +279,7 @@ function ShipGroupRenderer({
 
         {group.groupHelpText ? (
           <div
-            className="w-full rounded-[8px] bg-[#212121] px-[12px] py-[10px] text-center font-['Roboto',sans-serif] font-normal leading-[normal] text-[var(--shapeships-grey-50)] text-[14px] whitespace-pre-wrap"
+            className="w-full rounded-[8px] py-[12px] text-center font-['Roboto',sans-serif] font-normal leading-[normal] text-[var(--shapeships-grey-50)] text-[14px] whitespace-pre-wrap"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {group.groupHelpText}
