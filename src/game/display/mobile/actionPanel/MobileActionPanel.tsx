@@ -1,10 +1,11 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown } from '../../../../components/ui/primitives/icons/ChevronDown';
 import type { ActionPanelViewModel, GameSessionActions } from '../../../client/useGameSession';
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import { EvolverDrawingPanel } from '../../actionPanel/panels/EvolverDrawingPanel';
 import { FrigateDrawingPanel } from '../../actionPanel/panels/FrigateDrawingPanel';
 import { getShipChoicePanelSpec } from '../../actionPanel/panels/ShipChoiceRegistry';
+import { LargeStyleChoicePanel } from '../../actionPanel/panels/LargeStyleChoicePanel';
 import { ShipChoicesPanel } from '../../actionPanel/panels/ShipChoicesPanel';
 import { MobileCatalogueScroller } from './MobileCatalogueScroller';
 
@@ -25,24 +26,61 @@ interface MobileActionPanelWrapperProps {
   children?: ReactNode;
   ariaLabel?: string;
   showScrollHint?: boolean;
+  scrollHintResetKey?: string;
+}
+
+const SCROLL_HINT_BOTTOM_THRESHOLD_PX = 16;
+
+function isNearScrollBottom(el: HTMLElement) {
+  return el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_HINT_BOTTOM_THRESHOLD_PX;
 }
 
 function MobileActionPanelWrapper({
   children,
   ariaLabel = 'Mobile action panel',
   showScrollHint = false,
+  scrollHintResetKey = ariaLabel,
 }: MobileActionPanelWrapperProps) {
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [scrollHintDismissed, setScrollHintDismissed] = useState(false);
+
+  useEffect(() => {
+    if (!showScrollHint) {
+      setScrollHintDismissed(false);
+      return;
+    }
+
+    const scrollArea = scrollAreaRef.current;
+    if (!scrollArea) {
+      setScrollHintDismissed(false);
+      return;
+    }
+
+    setScrollHintDismissed(isNearScrollBottom(scrollArea));
+  }, [scrollHintResetKey, showScrollHint]);
+
+  function handleScroll() {
+    const scrollArea = scrollAreaRef.current;
+    if (scrollArea && isNearScrollBottom(scrollArea)) {
+      setScrollHintDismissed(true);
+    }
+  }
+
   return (
     <div
       aria-label={ariaLabel}
       className="relative h-[204px] w-full shrink-0 border-t border-[var(--shapeships-grey-70)] bg-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
     >
-      <div className="h-full overflow-y-auto overflow-x-hidden px-[12px] pt-[16px] pb-[48px]">
+      <div
+        ref={scrollAreaRef}
+        className="h-full overflow-y-auto overflow-x-hidden px-[12px] pt-[16px] pb-[48px]"
+        onScroll={handleScroll}
+      >
         <div className="flex min-h-full w-full flex-col items-center gap-[14px]">
           {children}
         </div>
       </div>
-      {showScrollHint ? (
+      {showScrollHint && !scrollHintDismissed ? (
         <div
           aria-hidden="true"
           className="pointer-events-none absolute left-[12px] bottom-[12px] size-[20px] animate-bounce"
@@ -152,6 +190,7 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
       <MobileActionPanelWrapper
         ariaLabel="Mobile Frigate drawing panel"
         showScrollHint={frigateCount > 1}
+        scrollHintResetKey={`${vm.activePanelId}:${frigateCount}`}
       >
         {renderMobilePhaseLocalFamilySwitch()}
         <FrigateDrawingPanel
@@ -171,6 +210,7 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
       <MobileActionPanelWrapper
         ariaLabel="Mobile Evolver drawing panel"
         showScrollHint={evolverRows.length > 1}
+        scrollHintResetKey={`${vm.activePanelId}:${evolverRows.length}`}
       >
         {renderMobilePhaseLocalFamilySwitch()}
         <EvolverDrawingPanel
@@ -203,6 +243,7 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
         <MobileActionPanelWrapper
           ariaLabel="Mobile ship choice action panel"
           showScrollHint={shipChoiceRowCount > 1}
+          scrollHintResetKey={`${vm.activePanelId}:${shipChoiceRowCount}`}
         >
           {renderMobilePhaseLocalFamilySwitch()}
           <ShipChoicesPanel
@@ -225,11 +266,15 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
 
     if (shipChoiceSpec.kind === 'large') {
       return (
-        <MobileActionPanelWrapper ariaLabel="Mobile large choice placeholder">
-          {renderMobilePlaceholder(
-            vm.largeChoicePanel?.title ?? shipChoiceSpec.title,
-            'This action panel will use a mobile takeover in a later pass.'
-          )}
+        <MobileActionPanelWrapper ariaLabel="Mobile large choice action panel">
+          {renderMobilePhaseLocalFamilySwitch()}
+          <LargeStyleChoicePanel
+            shipDefId={shipChoiceSpec.shipDefId}
+            title={vm.largeChoicePanel?.title ?? shipChoiceSpec.title}
+            instruction={vm.largeChoicePanel?.instruction ?? shipChoiceSpec.instruction}
+            helpText={shipChoiceSpec.helpText}
+            layout="mobile"
+          />
         </MobileActionPanelWrapper>
       );
     }

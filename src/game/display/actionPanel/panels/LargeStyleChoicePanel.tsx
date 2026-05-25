@@ -51,7 +51,30 @@ interface LargeStyleChoicePanelProps {
   explicitCharges?: number;
   currentCharges?: number | null;
 
+  layout?: 'desktop' | 'mobile';
+
   className?: string;
+}
+
+function getMobileGraphicFrameClasses(shipDefId: ShipDefId) {
+  if (shipDefId === 'SAC') {
+    return {
+      frame: 'h-[61px] w-[61px]',
+      inner: 'scale-[0.55]',
+    };
+  }
+
+  if (shipDefId === 'DOM') {
+    return {
+      frame: 'h-[112px] w-[166px]',
+      inner: 'scale-[0.55]',
+    };
+  }
+
+  return {
+    frame: 'h-[132px] w-[192px]',
+    inner: 'scale-[0.55]',
+  };
 }
 
 // ============================================================================
@@ -66,6 +89,7 @@ export function LargeStyleChoicePanel({
   graphicContext = 'default',
   explicitCharges,
   currentCharges,
+  layout = 'desktop',
   className,
 }: LargeStyleChoicePanelProps) {
   // ============================================================================
@@ -86,6 +110,58 @@ export function LargeStyleChoicePanel({
   // ============================================================================
   // RENDER
   // ============================================================================
+
+  if (layout === 'mobile') {
+    const mobileGraphicFrameClasses = getMobileGraphicFrameClasses(shipDefId);
+
+    return (
+      <div
+        className={`flex w-full min-w-0 flex-col items-center gap-[10px] text-center ${className ?? ''}`}
+        data-name="Large Style Choice Panel"
+      >
+        <p
+          className="relative w-full max-w-[330px] font-['Roboto',sans-serif] font-bold text-white text-[14px] leading-[16px]"
+          style={{ fontVariationSettings: "'wdth' 100" }}
+        >
+          {title}
+        </p>
+
+        {instruction ? (
+          <p
+            className="relative w-full max-w-[330px] shrink-0 font-['Roboto',sans-serif] font-bold text-[var(--shapeships-pastel-red)] text-[14px] leading-[16px] whitespace-pre-wrap"
+            style={{ fontVariationSettings: "'wdth' 100" }}
+          >
+            {instruction}
+          </p>
+        ) : null}
+
+        <div
+          className={`relative flex shrink-0 items-center justify-center overflow-visible ${mobileGraphicFrameClasses.frame}`}
+          data-name="Ship Graphic"
+        >
+          <div className={`origin-center ${mobileGraphicFrameClasses.inner}`}>
+            {ShipGraphic ? (
+              <ShipGraphic />
+            ) : (
+              <div className="flex items-center justify-center h-[240px] w-[349px] text-white text-[18px]">
+                {shipDefId}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {helpText ? (
+          <p
+            className="w-full max-w-[330px] shrink-0 font-['Roboto',sans-serif] font-normal text-[var(--shapeships-grey-50)] text-[14px] leading-[16px] whitespace-pre-wrap"
+            style={{ fontVariationSettings: "'wdth' 100" }}
+            data-name="Help Text"
+          >
+            {helpText}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div
