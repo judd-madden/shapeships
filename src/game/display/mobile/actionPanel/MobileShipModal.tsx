@@ -47,7 +47,8 @@ export function MobileShipModal({
 
     if (
       eligibility.state === 'NOT_ENOUGH_LINES' ||
-      eligibility.state === 'NEED_COMPONENTS'
+      eligibility.state === 'NEED_COMPONENTS' ||
+      eligibility.state === 'MAX_LIMIT'
     ) {
       autoCloseAfterBuildRef.current = false;
       onClose();

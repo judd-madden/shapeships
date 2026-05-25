@@ -13,6 +13,7 @@ interface ActionButtonSmallProps {
   selected?: boolean;
   backgroundColor?: string; // Hex color for background
   textColor?: 'black' | 'white'; // Text color for legibility
+  density?: 'desktop' | 'mobile';
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
@@ -23,18 +24,25 @@ export function ActionButtonSmall({
   selected = false, 
   backgroundColor = '#D4D4D4', // Grey 20 default
   textColor = 'black',
+  density = 'desktop',
   onClick, 
   disabled = false, 
   className = "" 
 }: ActionButtonSmallProps) {
   const textColorClass = textColor === 'white' ? 'text-white' : 'text-black';
+  const buttonDensityClass =
+    density === 'mobile'
+      ? 'h-[32px] w-full min-w-0'
+      : 'h-[34px] w-full';
+  const contentDensityClass = density === 'mobile' ? 'px-[10px] min-w-0 max-w-full' : 'px-[20px]';
+  const textDensityClass = density === 'mobile' ? 'text-[12px] min-w-0 truncate' : 'text-[14px] text-nowrap';
 
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       className={`
-        h-[34px] w-full
+        ${buttonDensityClass}
         rounded-[10px]
         border-2 border-black border-solid
         flex items-center justify-center
@@ -45,9 +53,9 @@ export function ActionButtonSmall({
       `}
       style={{ backgroundColor }}
     >
-      <div className="flex items-center justify-center px-[20px]">
+      <div className={`flex items-center justify-center ${contentDensityClass}`}>
         <p 
-          className={`font-['Roboto'] font-normal leading-[normal] text-[14px] text-nowrap ${textColorClass}`}
+          className={`font-['Roboto'] font-normal leading-[normal] ${textDensityClass} ${textColorClass}`}
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {label}

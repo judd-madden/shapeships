@@ -14,6 +14,7 @@ interface ActionButtonProps {
   selected?: boolean;
   backgroundColor?: string; // Hex color for background
   textColor?: 'black' | 'white'; // Text color for legibility
+  density?: 'desktop' | 'mobile';
   onClick?: () => void;
   disabled?: boolean;
   className?: string;
@@ -25,18 +26,31 @@ export function ActionButton({
   selected = false, 
   backgroundColor = '#D4D4D4', // Grey 20 default
   textColor = 'black',
+  density = 'desktop',
   onClick, 
   disabled = false, 
   className = "" 
 }: ActionButtonProps) {
   const textColorClass = textColor === 'white' ? 'text-white' : 'text-black';
+  const buttonDensityClass =
+    density === 'mobile'
+      ? 'h-[44px] w-full min-w-0'
+      : 'h-[50px] w-full';
+  const contentDensityClass =
+    density === 'mobile'
+      ? 'min-w-0 max-w-full px-[10px] text-[13px]'
+      : 'px-[20px] text-[16px] text-nowrap';
+  const textDensityClass =
+    density === 'mobile'
+      ? 'min-w-0 truncate'
+      : '';
 
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       className={`
-        h-[50px] w-full
+        ${buttonDensityClass}
         rounded-[10px]
         border-2 border-black border-solid
         flex items-center justify-center
@@ -47,16 +61,16 @@ export function ActionButton({
       `}
       style={{ backgroundColor }}
     >
-      <div className={`flex gap-[4px] items-center justify-center px-[20px] text-[16px] text-nowrap ${textColorClass}`}>
+      <div className={`flex gap-[4px] items-center justify-center ${contentDensityClass} ${textColorClass}`}>
         <p 
-          className="font-['Roboto'] font-bold leading-[normal]"
+          className={`font-['Roboto'] font-bold leading-[normal] ${textDensityClass}`}
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {label}
         </p>
         {detail && (
           <p 
-            className="font-['Roboto'] font-normal leading-[normal]"
+            className={`font-['Roboto'] font-normal leading-[normal] ${density === 'mobile' ? 'shrink-0' : ''}`}
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {detail}

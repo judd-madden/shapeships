@@ -141,7 +141,7 @@ export function MobileGameLayout({
         />
       )}
 
-      <div className="shrink-0 flex flex-col gap-[12px] w-full">
+      <div className="shrink-0 flex flex-col gap-[6px] w-full">
         {boardVm.mode === 'board' ? (
           <MobileBottomPhase vm={bottomActionRailVm} actions={mobileActions} />
         ) : (

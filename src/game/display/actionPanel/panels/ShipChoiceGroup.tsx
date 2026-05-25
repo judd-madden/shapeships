@@ -59,6 +59,8 @@ interface ShipChoiceGroupProps {
    */
   onSelectChoiceId?: (choiceId: string) => void;
 
+  layout?: 'desktop' | 'mobile';
+
   className?: string;
 }
 
@@ -88,8 +90,12 @@ export function ShipChoiceGroup({
   buttons,
   selectedChoiceId,
   onSelectChoiceId,
+  layout = 'desktop',
   className,
 }: ShipChoiceGroupProps) {
+  const isMobile = layout === 'mobile';
+  const buttonDensity = isMobile ? 'mobile' : 'desktop';
+
   // ============================================================================
   // STATE: SELECTED BUTTON INDEX
   // ============================================================================
@@ -143,23 +149,55 @@ export function ShipChoiceGroup({
   // ============================================================================
   
   return (
-    <div className={['inline-flex flex flex-col items-start', className].filter(Boolean).join(' ')} data-name="Ship Choice Group">
+    <div
+      className={[
+        isMobile ? 'flex w-full min-w-0 flex-col items-start' : 'inline-flex flex flex-col items-start',
+        className,
+      ].filter(Boolean).join(' ')}
+      data-name="Ship Choice Group"
+    >
       {/* Top Block: Ship Graphic + Buttons */}
-      <div className="inline-flex flex gap-[16px] items-start relative shrink-0">
+      <div
+        className={
+          isMobile
+            ? 'mx-auto flex w-full max-w-[336px] min-w-0 justify-center gap-[12px] items-start relative'
+            : 'inline-flex flex gap-[16px] items-start relative shrink-0'
+        }
+      >
         {/* Ship Graphic (Left) */}
-        <div className="content-stretch flex items-center pt-[4px] relative shrink-0">
-          {ShipGraphic ? (
-            <ShipGraphic />
-          ) : (
-            // Fallback: show shipDefId as text
-            <div className="text-white text-sm font-bold">
-              {shipDefId}
-            </div>
-          )}
+        <div
+          className={
+            isMobile
+              ? 'relative h-[78px] w-[72px] shrink-0 overflow-visible pt-[3px]'
+              : 'content-stretch flex items-center pt-[4px] relative shrink-0'
+          }
+        >
+          <div
+            className={
+              isMobile
+                ? 'origin-top-left scale-[0.72]'
+                : ''
+            }
+          >
+            {ShipGraphic ? (
+              <ShipGraphic />
+            ) : (
+              // Fallback: show shipDefId as text
+              <div className={isMobile ? 'flex h-[78px] w-[72px] items-center justify-center text-white text-sm font-bold' : 'text-white text-sm font-bold'}>
+                {shipDefId}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Buttons (Right) */}
-        <div className="content-stretch flex flex-col gap-[12px] items-start relative shrink-0 w-[250px]">
+        <div
+          className={
+            isMobile
+              ? 'content-stretch flex min-w-0 max-w-[252px] flex-1 flex-col gap-[6px] items-start relative'
+              : 'content-stretch flex flex-col gap-[12px] items-start relative shrink-0 w-[250px]'
+          }
+        >
           {buttons.map((spec, index) => {
             const isSelected = effectiveSelectedIndex === index;
             const isDisabled = spec.disabled ?? false;
@@ -185,6 +223,7 @@ export function ShipChoiceGroup({
                   disabled={isDisabled}
                   backgroundColor={backgroundColor}
                   onClick={handleClick}
+                  density={buttonDensity}
                 />
               );
             } else {
@@ -196,6 +235,7 @@ export function ShipChoiceGroup({
                   disabled={isDisabled}
                   backgroundColor={backgroundColor}
                   onClick={handleClick}
+                  density={buttonDensity}
                 />
               );
             }
@@ -205,7 +245,13 @@ export function ShipChoiceGroup({
 
       {/* Instructions Area (Bottom) - Only when visible */}
       {showInstructions && (
-        <div className="relative self-stretch flex items-center justify-center mt-[16px] max-w-[380px]">
+        <div
+          className={
+            isMobile
+              ? 'relative mt-[10px] flex w-full items-center justify-center self-stretch'
+              : 'relative self-stretch flex items-center justify-center mt-[16px] max-w-[380px]'
+          }
+        >
           {/* Top border (Grey 70) */}
           <div
             aria-hidden="true"
@@ -214,7 +260,7 @@ export function ShipChoiceGroup({
           
           {/* Instruction text */}
           <p
-            className="font-['Roboto',sans-serif] font-bold leading-[normal] relative text-[var(--shapeships-pastel-red)] text-[18px] text-center whitespace-pre-wrap break-words"
+            className={`font-['Roboto',sans-serif] font-bold leading-[normal] relative text-[var(--shapeships-pastel-red)] text-center whitespace-pre-wrap break-words ${isMobile ? 'text-[14px]' : 'text-[18px]'}`}
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {selectedButton.instructionText}

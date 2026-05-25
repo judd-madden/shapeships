@@ -46,6 +46,8 @@ interface FrigateDrawingPanelProps {
    */
   onSelectTrigger: (frigateIndex: number, triggerNumber: number) => void;
 
+  layout?: 'desktop' | 'mobile';
+
   className?: string;
 }
 
@@ -57,8 +59,11 @@ export function FrigateDrawingPanel({
   frigateCount,
   selectedTriggers,
   onSelectTrigger,
+  layout = 'desktop',
   className,
 }: FrigateDrawingPanelProps) {
+  const isMobile = layout === 'mobile';
+
   // ============================================================================
   // LOCAL STATE (UI-only, not yet wired to intents)
   // ============================================================================
@@ -104,12 +109,16 @@ export function FrigateDrawingPanel({
 
   return (
     <div
-      className={`content-stretch flex flex-col gap-[32px] items-center justify-center py-[20px] size-full ${className ?? ''}`}
+      className={
+        isMobile
+          ? `content-stretch flex w-full min-w-0 flex-col gap-[14px] items-center py-[4px] ${className ?? ''}`
+          : `content-stretch flex flex-col gap-[32px] items-center justify-center py-[20px] size-full ${className ?? ''}`
+      }
       data-name="Frigate Drawing Panel"
     >
       {/* Instruction Text (Top) */}
       <h3
-        className="font-['Roboto',sans-serif] font-bold leading-[normal] relative shrink-0 text-white text-[18px] text-center"
+        className={`font-['Roboto',sans-serif] font-bold leading-[normal] relative shrink-0 text-white text-center ${isMobile ? 'w-full text-[15px]' : 'text-[18px]'}`}
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {instructionText}
@@ -117,7 +126,11 @@ export function FrigateDrawingPanel({
 
       {/* Center Content: Frigate Selector Blocks */}
       <div
-        className="content-center flex flex-wrap gap-[36px] items-center justify-center shrink-0 w-full"
+        className={
+          isMobile
+            ? 'content-center flex w-full min-w-0 flex-col gap-[32px] items-center shrink-0'
+            : 'content-center flex flex-wrap gap-[36px] items-center justify-center shrink-0 w-full'
+        }
         data-name="Frigate Selector Blocks"
       >
         {Array.from({ length: frigateCount }, (_, index) => (
@@ -127,13 +140,14 @@ export function FrigateDrawingPanel({
             selectedTrigger={selectedTriggers[index] ?? 1}
             onTriggerSelect={(triggerNumber) => onSelectTrigger(index, triggerNumber)}
             FrigateGraphic={FrigateGraphic}
+            layout={layout}
           />
         ))}
       </div>
 
       {/* Bottom Explanatory Text */}
       <p
-        className="font-['Roboto',sans-serif] font-normal leading-[normal] shrink-0 text-[16px] text-center text-white w-full whitespace-pre-wrap"
+        className={`font-['Roboto',sans-serif] font-normal leading-[normal] shrink-0 text-center text-white w-full whitespace-pre-wrap ${isMobile ? 'text-[13px]' : 'text-[16px]'}`}
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {explanationText}
@@ -151,35 +165,51 @@ interface FrigateSelectorBlockProps {
   selectedTrigger: number;
   onTriggerSelect: (triggerNumber: number) => void;
   FrigateGraphic: React.ComponentType | undefined;
+  layout?: 'desktop' | 'mobile';
 }
 
 function FrigateSelectorBlock({
   selectedTrigger,
   onTriggerSelect,
   FrigateGraphic,
+  layout = 'desktop',
 }: FrigateSelectorBlockProps) {
+  const isMobile = layout === 'mobile';
   const triggerNumbers = [1, 2, 3, 4, 5, 6];
 
   return (
     <div
-      className="content-stretch flex gap-[16px] items-center shrink-0"
+      className={
+        isMobile
+          ? 'content-stretch mx-auto flex w-full max-w-[336px] gap-[12px] items-start shrink-0'
+          : 'content-stretch flex gap-[16px] items-center shrink-0'
+      }
       data-name="Frigate Selector Block"
     >
       {/* Frigate Graphic */}
-      <div className="shrink-0" data-name="Frigate Graphic">
-        {FrigateGraphic ? (
-          <FrigateGraphic />
-        ) : (
-          // Fallback: simple white text label
-          <div className="flex items-center justify-center h-[88px] w-[52px] text-white text-[14px]">
-            FRI
-          </div>
-        )}
+      <div
+        className={isMobile ? 'relative h-[70px] w-[42px] shrink-0 overflow-visible' : 'shrink-0'}
+        data-name="Frigate Graphic"
+      >
+        <div className={isMobile ? 'origin-top-left scale-[0.78]' : ''}>
+          {FrigateGraphic ? (
+            <FrigateGraphic />
+          ) : (
+            // Fallback: simple white text label
+            <div className={isMobile ? 'flex h-[70px] w-[42px] items-center justify-center text-white text-[13px]' : 'flex items-center justify-center h-[88px] w-[52px] text-white text-[14px]'}>
+              FRI
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Number Buttons (1-6) */}
       <div
-        className="content-stretch flex gap-[8px] items-center shrink-0"
+        className={
+          isMobile
+            ? 'content-stretch flex min-w-0 flex-1 gap-[4px] shrink-0'
+            : 'content-stretch flex gap-[8px] items-center shrink-0'
+        }
         data-name="Trigger Number Buttons"
       >
         {triggerNumbers.map((num) => (
@@ -190,7 +220,8 @@ function FrigateSelectorBlock({
             backgroundColor={selectedTrigger === num ? 'var(--shapeships-yellow)' : 'var(--shapeships-grey-20)'}
             textColor="black"
             onClick={() => onTriggerSelect(num)}
-            className="w-[50px]"
+            density={isMobile ? 'mobile' : 'desktop'}
+            className={isMobile ? '!w-auto flex-1 min-w-0' : 'w-[50px]'}
           />
         ))}
       </div>
