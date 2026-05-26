@@ -18,6 +18,7 @@ import { MobileSpeciesConfirmPhase, MobileSpeciesSelectionView } from './MobileS
 import { MobileTopNav } from './MobileTopNav';
 import { MobileBattleLogTakeover } from './takeovers/MobileBattleLogTakeover';
 import { MobileChatTakeover } from './takeovers/MobileChatTakeover';
+import { MobileEndOfGameMenuTakeover } from './takeovers/MobileEndOfGameMenuTakeover';
 import { MobileMenuTakeover } from './takeovers/MobileMenuTakeover';
 
 interface MobileGameLayoutProps {
@@ -76,6 +77,7 @@ export function MobileGameLayout({
     useState<ActiveFleetShipHover | null>(null);
   const fleetShipHoverCardRef = useRef<HTMLDivElement | null>(null);
   const isCataloguePanelActive = CATALOGUE_PANEL_IDS.has(actionPanelVm.activePanelId);
+  const turnLabel = actionPanelVm.endOfGame != null ? 'Game Over' : `Turn ${leftRailVm.turn}`;
   const handleCloseFleetShipHover = useCallback(() => {
     setActiveFleetShipHover(null);
   }, []);
@@ -165,7 +167,7 @@ export function MobileGameLayout({
   return (
     <div className="h-dvh min-h-dvh w-full min-w-0 overflow-hidden flex flex-col bg-transparent text-white font-['Roboto']">
       <MobileTopNav
-        turnNumber={leftRailVm.turn}
+        turnLabel={turnLabel}
         activeTakeover={activeTakeover}
         onReturnToBoard={handleReturnToBoard}
         onOpenChat={handleOpenChat}
@@ -214,6 +216,7 @@ export function MobileGameLayout({
                 vm={actionPanelVm}
                 actions={mobileActions}
                 onShipInspect={handleCatalogueShipInspect}
+                onOpenMenuTakeover={handleOpenMenu}
               />
             </div>
           </div>
@@ -225,6 +228,14 @@ export function MobileGameLayout({
               <MobileChatTakeover vm={leftRailVm} actions={actions} onClose={handleReturnToBoard} />
             ) : activeTakeover === 'battleLog' ? (
               <MobileBattleLogTakeover vm={leftRailVm} onClose={handleReturnToBoard} />
+            ) : actionPanelVm.endOfGame != null ? (
+              <MobileEndOfGameMenuTakeover
+                endOfGame={actionPanelVm.endOfGame}
+                onClose={handleReturnToBoard}
+                onReturnToMainMenu={onReturnToMainMenu}
+                onRematch={actions.onRematch}
+                onDownloadBattleLog={actions.onDownloadBattleLog}
+              />
             ) : (
               <MobileMenuTakeover
                 vm={actionPanelVm.menu}

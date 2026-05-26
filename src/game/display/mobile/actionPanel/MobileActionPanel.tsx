@@ -9,11 +9,13 @@ import { getShipChoicePanelSpec } from '../../actionPanel/panels/ShipChoiceRegis
 import { LargeStyleChoicePanel } from '../../actionPanel/panels/LargeStyleChoicePanel';
 import { ShipChoicesPanel } from '../../actionPanel/panels/ShipChoicesPanel';
 import { MobileCatalogueScroller } from './MobileCatalogueScroller';
+import { MobileEndOfGameActionPanel } from './MobileEndOfGameActionPanel';
 
 interface MobileActionPanelProps {
   vm: ActionPanelViewModel;
   actions: GameSessionActions;
   onShipInspect?: (shipId: ShipDefId) => void;
+  onOpenMenuTakeover?: () => void;
 }
 
 const CATALOGUE_PANEL_IDS = new Set<ActionPanelViewModel['activePanelId']>([
@@ -22,6 +24,14 @@ const CATALOGUE_PANEL_IDS = new Set<ActionPanelViewModel['activePanelId']>([
   'ap.catalog.ships.centaur',
   'ap.catalog.ships.ancient',
 ]);
+
+const END_OF_GAME_FALLBACK: NonNullable<ActionPanelViewModel['endOfGame']> = {
+  bannerText: 'Game Over',
+  bannerBgCssVar: 'var(--shapeships-grey-50)',
+  metaLeftText: '',
+  metaRightText: '',
+  rematchHelperText: 'Link will be posted in chat',
+};
 
 interface MobileActionPanelWrapperProps {
   children?: ReactNode;
@@ -93,7 +103,12 @@ function MobileActionPanelWrapper({
   );
 }
 
-export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPanelProps) {
+export function MobileActionPanel({
+  vm,
+  actions,
+  onShipInspect,
+  onOpenMenuTakeover,
+}: MobileActionPanelProps) {
   const healthResolutionOverlay = vm.healthResolutionOverlay;
   const phaseLocalFamilySwitch = vm.phaseLocalFamilySwitch;
 
@@ -193,6 +208,15 @@ export function MobileActionPanel({ vm, actions, onShipInspect }: MobileActionPa
           </p>
         </div>
       </>
+    );
+  }
+
+  if (vm.endOfGame != null || vm.activePanelId === 'ap.end_of_game.result') {
+    return renderWithHealthOverlay(
+      <MobileEndOfGameActionPanel
+        endOfGame={vm.endOfGame ?? END_OF_GAME_FALLBACK}
+        onOpenMenu={onOpenMenuTakeover}
+      />
     );
   }
 

@@ -1,5 +1,5 @@
 interface MobileTopNavProps {
-  turnNumber: number;
+  turnLabel: string;
   activeTakeover: 'chat' | 'battleLog' | 'menu' | null;
   onReturnToBoard: () => void;
   onOpenChat: () => void;
@@ -12,7 +12,7 @@ function cx(...parts: Array<string | undefined | false>) {
 }
 
 export function MobileTopNav({
-  turnNumber,
+  turnLabel,
   activeTakeover,
   onReturnToBoard,
   onOpenChat,
@@ -43,7 +43,7 @@ export function MobileTopNav({
           <span aria-hidden="true" className="shrink-0 text-[14px] font-bold leading-none">
             &middot;
           </span>
-          <span className="shrink-0 text-[14px] font-bold leading-none">Turn {turnNumber}</span>
+          <span className="shrink-0 text-[14px] font-bold leading-none">{turnLabel}</span>
         </button>
 
         <div className="flex shrink-0 items-center justify-end gap-[13px] pr-[14px] whitespace-nowrap">
