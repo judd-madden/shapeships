@@ -175,14 +175,14 @@ export function MenuShell({
           {/* Sidebar */}
           <div className="content-stretch relative flex w-full shrink-0 flex-col items-start lg:w-[250px] xl:w-[340px] pb-[0px] sm:pb-[24px]">
             {/* Main Nav */}
-            <div className="content-stretch relative flex w-full flex-wrap items-start gap-x-[28px] gap-y-[24px] pr-0 py-0 md:gap-x-[36px] lg:flex-col lg:gap-[36px] lg:pl-[20px] xl:gap-[50px] xl:pl-[40px]">
+            <div className="content-stretch relative flex w-full flex-col sm:flex-wrap items-start gap-x-[28px] gap-y-[24px] pr-0 py-0 md:gap-x-[36px] lg:flex-col lg:gap-[36px] lg:pl-[20px] xl:gap-[50px] xl:pl-[40px]">
               {/* Multiplayer */}
               <div 
-                className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[5px] pt-0"
+                className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[0px] sm:pb-[5px] pt-0"
                 onClick={() => setActivePanel('multiplayer')}
               >
                 {activePanel === 'multiplayer' && (
-                  <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
+                  <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
                   className={`relative shrink-0 font-['Roboto',sans-serif] text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
@@ -196,11 +196,11 @@ export function MenuShell({
 
               {/* Play Computer */}
               <div 
-                className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[5px] pt-0"
+                className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[0px] sm:pb-[5px] pt-0"
                 onClick={() => setActivePanel('playComputer')}
               >
                 {activePanel === 'playComputer' && (
-                  <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
+                  <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
                   className={`relative shrink-0 font-['Roboto',sans-serif] text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
@@ -214,11 +214,11 @@ export function MenuShell({
 
               {/* Rules & Codex */}
               <div 
-                className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[5px] pt-0"
+                className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[0px] sm:pb-[5px] pt-0"
                 onClick={() => setActivePanel('rules')}
               >
                 {activePanel === 'rules' && (
-                  <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_7px] border-solid inset-[0_0_-7px_0] pointer-events-none" />
+                  <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
                   className={`relative shrink-0 font-['Roboto',sans-serif] text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
