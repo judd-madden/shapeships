@@ -109,7 +109,7 @@ export function PhaseBreakdownView({
                 >
                   BUILD PHASE
                 </span>
-                <BuildIcon className="size-[24px]" color="#FFFFFF" />
+                <BuildIcon className="size-[24px]" color="var(--shapeships-white)" />
               </div>
               <div className="flex flex-col gap-[4px]">
                 {buildRows.map(renderRow)}
@@ -124,7 +124,7 @@ export function PhaseBreakdownView({
                 >
                   BATTLE PHASE
                 </span>
-                <BattleIcon className="size-[24px]" color="#FFFFFF" />
+                <BattleIcon className="size-[24px]" color="var(--shapeships-white)" />
               </div>
               <div className="flex flex-col gap-[4px]">
                 {battleRows.map(renderRow)}
@@ -169,7 +169,7 @@ export function PhaseBreakdownView({
             >
               BUILD PHASE
             </span>
-            <BuildIcon className="size-[26px]" color="#FFFFFF" />
+            <BuildIcon className="size-[26px]" color="var(--shapeships-white)" />
           </div>
                   <div className="flex flex-col gap-[4px]">
             {buildRows.map(renderRow)}
@@ -185,7 +185,7 @@ export function PhaseBreakdownView({
             >
               BATTLE PHASE
             </span>
-            <BattleIcon className="size-[26px]" color="#FFFFFF" />
+            <BattleIcon className="size-[26px]" color="var(--shapeships-white)" />
           </div>
           <div className="flex flex-col gap-[4px]">
             {battleRows.map(renderRow)}

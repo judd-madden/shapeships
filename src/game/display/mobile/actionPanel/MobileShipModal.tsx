@@ -79,7 +79,7 @@ export function MobileShipModal({
         role="dialog"
         aria-modal="true"
         aria-label={`${model.name} details`}
-        className="fixed bottom-[24px] left-[26px] right-[26px] flex max-h-[calc(100dvh-48px)] w-[calc(100vw-52px)] flex-col rounded-[10px] border border-[#555] bg-[#212121] shadow-[0_0_60px_20px_rgba(0,0,0,1)]"
+        className="fixed bottom-[24px] left-[26px] right-[26px] flex max-h-[calc(100dvh-48px)] w-[calc(100vw-52px)] flex-col rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] shadow-[0_0_60px_20px_rgba(0,0,0,1)]"
         onClick={(event) => event.stopPropagation()}
       >
         <button
@@ -112,7 +112,7 @@ export function MobileShipModal({
 
               {model.phaseLabel ? (
                 <p
-                  className="text-[13px] font-normal uppercase leading-[16px] text-[#d4d4d4]"
+                  className="text-[13px] font-normal uppercase leading-[16px] text-[var(--shapeships-grey-20)]"
                   style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   {model.phaseLabel}
@@ -122,7 +122,7 @@ export function MobileShipModal({
 
             {model.joiningLines ? (
               <p
-                className="text-[15px] font-medium leading-[16px] text-[#888]"
+                className="text-[15px] font-medium leading-[16px] text-[var(--shapeships-grey-50)]"
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 <span className="font-bold">{model.joiningLines}</span>
@@ -264,7 +264,7 @@ function MobileShipModalFooter({
 
   return (
     <div className="shrink-0 px-[20px] pb-[20px]">
-      <div className="mb-[16px] h-px w-full bg-[#555]" />
+      <div className="mb-[16px] h-px w-full bg-[var(--shapeships-grey-70)]" />
       {content}
     </div>
   );
@@ -273,7 +273,7 @@ function MobileShipModalFooter({
 function UnavailableText({ children }: { children: string }) {
   return (
     <p
-      className="text-[17px] font-medium leading-[20px] text-[#888]"
+      className="text-[17px] font-medium leading-[20px] text-[var(--shapeships-grey-50)]"
       style={{ fontVariationSettings: "'wdth' 100" }}
     >
       {children}

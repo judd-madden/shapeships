@@ -12,6 +12,10 @@ import { FleetShipHoverCard } from '../layout/boardStage/FleetShipHoverCard';
 import { MobileBoardView } from './MobileBoardView';
 import { MobileBottomPhase } from './MobileBottomPhase';
 import { MobileBottomTabs } from './MobileBottomTabs';
+import {
+  MobileStatBreakdownPopovers,
+  type MobileStatAnchorRect,
+} from './MobileStatBreakdownPopovers';
 import { MobileActionPanel } from './actionPanel/MobileActionPanel';
 import { MobileShipModal } from './actionPanel/MobileShipModal';
 import { MobileSpeciesConfirmPhase, MobileSpeciesSelectionView } from './MobileSpeciesSelectionView';
@@ -45,6 +49,11 @@ type ActiveFleetShipHover = {
 
 type ActiveTakeover = 'chat' | 'battleLog' | 'menu' | null;
 
+type MobileStatPopoverAnchors = {
+  top: MobileStatAnchorRect;
+  bottom: MobileStatAnchorRect;
+};
+
 function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
 }
@@ -75,9 +84,21 @@ export function MobileGameLayout({
   const [activeShipModalId, setActiveShipModalId] = useState<ShipDefId | null>(null);
   const [activeFleetShipHover, setActiveFleetShipHover] =
     useState<ActiveFleetShipHover | null>(null);
+  const [statPopoverAnchors, setStatPopoverAnchors] =
+    useState<MobileStatPopoverAnchors | null>(null);
+  const topStatusRowRef = useRef<HTMLDivElement | null>(null);
+  const bottomStatusRowRef = useRef<HTMLDivElement | null>(null);
+  const topStatsAnchorRef = useRef<HTMLDivElement | null>(null);
+  const bottomStatsAnchorRef = useRef<HTMLDivElement | null>(null);
+  const topStatPopoverRef = useRef<HTMLDivElement | null>(null);
+  const bottomStatPopoverRef = useRef<HTMLDivElement | null>(null);
   const fleetShipHoverCardRef = useRef<HTMLDivElement | null>(null);
   const isCataloguePanelActive = CATALOGUE_PANEL_IDS.has(actionPanelVm.activePanelId);
+  const isEndGameActive = actionPanelVm.endOfGame != null;
   const turnLabel = actionPanelVm.endOfGame != null ? 'Game Over' : `Turn ${leftRailVm.turn}`;
+  const handleCloseStatPopovers = useCallback(() => {
+    setStatPopoverAnchors(null);
+  }, []);
   const handleCloseFleetShipHover = useCallback(() => {
     setActiveFleetShipHover(null);
   }, []);
@@ -89,25 +110,50 @@ export function MobileGameLayout({
     anchorEl: HTMLElement,
     side: 'my' | 'opponent'
   ) => {
+    handleCloseStatPopovers();
     setActiveShipModalId(null);
     setActiveFleetShipHover({
       shipId,
       anchorRect: anchorEl.getBoundingClientRect(),
       side,
     });
-  }, []);
+  }, [handleCloseStatPopovers]);
   const handleCatalogueShipInspect = useCallback((shipId: ShipDefId) => {
+    handleCloseStatPopovers();
     setActiveFleetShipHover(null);
     setActiveShipModalId(shipId);
-  }, []);
+  }, [handleCloseStatPopovers]);
   const handleReturnToBoard = useCallback(() => {
     setActiveTakeover(null);
   }, []);
   const handleOpenTakeover = useCallback((takeover: Exclude<ActiveTakeover, null>) => {
+    handleCloseStatPopovers();
     setActiveShipModalId(null);
     setActiveFleetShipHover(null);
     setActiveTakeover(takeover);
-  }, []);
+  }, [handleCloseStatPopovers]);
+  const handleToggleStatPopovers = useCallback(() => {
+    if (statPopoverAnchors) {
+      handleCloseStatPopovers();
+      return;
+    }
+
+    const topRowEl = topStatusRowRef.current;
+    const bottomRowEl = bottomStatusRowRef.current;
+    const topStatsEl = topStatsAnchorRef.current;
+    const bottomStatsEl = bottomStatsAnchorRef.current;
+
+    if (!topRowEl || !bottomRowEl || !topStatsEl || !bottomStatsEl) {
+      return;
+    }
+
+    setActiveShipModalId(null);
+    setActiveFleetShipHover(null);
+    setStatPopoverAnchors({
+      top: snapshotRect(topStatsEl.getBoundingClientRect()),
+      bottom: snapshotRect(bottomStatsEl.getBoundingClientRect()),
+    });
+  }, [handleCloseStatPopovers, statPopoverAnchors]);
   const handleOpenChat = useCallback(() => {
     handleOpenTakeover('chat');
   }, [handleOpenTakeover]);
@@ -120,11 +166,13 @@ export function MobileGameLayout({
   const mobileActions: GameSessionActions = {
     ...actions,
     onReadyToggle: () => {
+      handleCloseStatPopovers();
       setActiveShipModalId(null);
       setActiveFleetShipHover(null);
       actions.onReadyToggle();
     },
     onActionPanelTabClick: (tabId) => {
+      handleCloseStatPopovers();
       setActiveShipModalId(null);
       setActiveFleetShipHover(null);
       actions.onActionPanelTabClick(tabId);
@@ -140,7 +188,64 @@ export function MobileGameLayout({
   useEffect(() => {
     setActiveShipModalId(null);
     setActiveFleetShipHover(null);
-  }, [actionPanelVm.menu.phaseKey, actionPanelVm.menu.turnNumber, boardVm.mode]);
+    handleCloseStatPopovers();
+  }, [
+    actionPanelVm.menu.phaseKey,
+    actionPanelVm.menu.turnNumber,
+    boardVm.mode,
+    isEndGameActive,
+    handleCloseStatPopovers,
+  ]);
+
+  useEffect(() => {
+    if (!statPopoverAnchors) {
+      return;
+    }
+
+    function handleDocumentPointerDown(event: PointerEvent) {
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        handleCloseStatPopovers();
+        return;
+      }
+
+      const ignoredElements = [
+        topStatusRowRef.current,
+        bottomStatusRowRef.current,
+        topStatPopoverRef.current,
+        bottomStatPopoverRef.current,
+      ];
+
+      if (ignoredElements.some((element) => element?.contains(target))) {
+        return;
+      }
+
+      handleCloseStatPopovers();
+    }
+
+    document.addEventListener('pointerdown', handleDocumentPointerDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', handleDocumentPointerDown, true);
+    };
+  }, [handleCloseStatPopovers, statPopoverAnchors]);
+
+  useEffect(() => {
+    if (!statPopoverAnchors || typeof window === 'undefined') {
+      return;
+    }
+
+    const visualViewport = window.visualViewport;
+    window.addEventListener('resize', handleCloseStatPopovers);
+    window.addEventListener('orientationchange', handleCloseStatPopovers);
+    visualViewport?.addEventListener('resize', handleCloseStatPopovers);
+
+    return () => {
+      window.removeEventListener('resize', handleCloseStatPopovers);
+      window.removeEventListener('orientationchange', handleCloseStatPopovers);
+      visualViewport?.removeEventListener('resize', handleCloseStatPopovers);
+    };
+  }, [handleCloseStatPopovers, statPopoverAnchors]);
 
   useEffect(() => {
     if (!activeFleetShipHover) {
@@ -190,6 +295,11 @@ export function MobileGameLayout({
               boardVm={boardVm}
               leftRailVm={leftRailVm}
               onFleetShipInspect={handleFleetShipInspect}
+              topStatusRowRef={topStatusRowRef}
+              bottomStatusRowRef={bottomStatusRowRef}
+              topStatsAnchorRef={topStatsAnchorRef}
+              bottomStatsAnchorRef={bottomStatsAnchorRef}
+              onStatusRowToggle={handleToggleStatPopovers}
             />
           ) : (
             <MobileSpeciesSelectionView
@@ -254,6 +364,16 @@ export function MobileGameLayout({
         ) : null}
       </div>
 
+      {activeTakeover === null && boardVm.mode === 'board' && statPopoverAnchors ? (
+        <MobileStatBreakdownPopovers
+          boardVm={boardVm}
+          topAnchorRect={statPopoverAnchors.top}
+          bottomAnchorRect={statPopoverAnchors.bottom}
+          topPopoverRef={topStatPopoverRef}
+          bottomPopoverRef={bottomStatPopoverRef}
+        />
+      ) : null}
+
       {activeTakeover === null && activeShipModalId ? (
         <MobileShipModal
           shipId={activeShipModalId}
@@ -279,4 +399,15 @@ export function MobileGameLayout({
       ) : null}
     </div>
   );
+}
+
+function snapshotRect(rect: DOMRect): MobileStatAnchorRect {
+  return {
+    top: rect.top,
+    left: rect.left,
+    right: rect.right,
+    bottom: rect.bottom,
+    width: rect.width,
+    height: rect.height,
+  };
 }

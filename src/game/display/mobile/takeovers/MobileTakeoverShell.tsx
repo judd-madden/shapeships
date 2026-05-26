@@ -24,7 +24,7 @@ export function MobileTakeoverShell({
 }: MobileTakeoverShellProps) {
   return (
     <section className="flex-1 min-h-0 px-[16px] pb-[16px]">
-      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[10px] border border-[#555] bg-black">
+      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[10px] border border-[var(--shapeships-grey-70)] bg-black">
         <div className="shrink-0 pl-[16px] pr-[8px]  pt-[10px]">
           <div className="flex min-h-[44px] items-center justify-between gap-[12px]">
             <p className="min-w-0 truncate text-[20px] font-black leading-none text-white">

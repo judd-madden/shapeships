@@ -1,3 +1,4 @@
+import type { KeyboardEvent, RefObject } from 'react';
 import { Dice } from '../../../components/ui/primitives';
 import type {
   BoardViewModel,
@@ -13,6 +14,11 @@ interface MobileStatusRailProps {
   hudVm: HudViewModel;
   boardVm: MobileBoardViewModel;
   leftRailVm: LeftRailViewModel;
+  topRowRef?: RefObject<HTMLDivElement | null>;
+  bottomRowRef?: RefObject<HTMLDivElement | null>;
+  topStatsAnchorRef?: RefObject<HTMLDivElement | null>;
+  bottomStatsAnchorRef?: RefObject<HTMLDivElement | null>;
+  onStatusRowToggle?: () => void;
 }
 
 export interface MobileStatusRailRowData {
@@ -37,9 +43,23 @@ interface MobileStatusRailFrameProps {
   bottomClock: string;
   diceValue: LeftRailViewModel['diceValue'];
   diceAnimateKey: number;
+  topRowRef?: RefObject<HTMLDivElement | null>;
+  bottomRowRef?: RefObject<HTMLDivElement | null>;
+  topStatsAnchorRef?: RefObject<HTMLDivElement | null>;
+  bottomStatsAnchorRef?: RefObject<HTMLDivElement | null>;
+  onStatusRowToggle?: () => void;
 }
 
-export function MobileStatusRail({ hudVm, boardVm, leftRailVm }: MobileStatusRailProps) {
+export function MobileStatusRail({
+  hudVm,
+  boardVm,
+  leftRailVm,
+  topRowRef,
+  bottomRowRef,
+  topStatsAnchorRef,
+  bottomStatsAnchorRef,
+  onStatusRowToggle,
+}: MobileStatusRailProps) {
   const opponentStatus: MobileStatusRailRowData = {
     name: hudVm.p2Name,
     statusText: hudVm.p2StatusText ?? '',
@@ -78,6 +98,11 @@ export function MobileStatusRail({ hudVm, boardVm, leftRailVm }: MobileStatusRai
       bottomClock={hudVm.p1Clock}
       diceValue={leftRailVm.diceValue}
       diceAnimateKey={leftRailVm.diceAnimateKey}
+      topRowRef={topRowRef}
+      bottomRowRef={bottomRowRef}
+      topStatsAnchorRef={topStatsAnchorRef}
+      bottomStatsAnchorRef={bottomStatsAnchorRef}
+      onStatusRowToggle={onStatusRowToggle}
     />
   );
 }
@@ -89,14 +114,31 @@ export function MobileStatusRailFrame({
   bottomClock,
   diceValue,
   diceAnimateKey,
+  topRowRef,
+  bottomRowRef,
+  topStatsAnchorRef,
+  bottomStatsAnchorRef,
+  onStatusRowToggle,
 }: MobileStatusRailFrameProps) {
   return (
     <div className="shrink-0 w-full py-[8px]">
       <div className="flex items-stretch gap-[12px] px-[14px] w-full">
         <div className="flex-1 min-w-0 flex flex-col gap-[6px]">
-          <MobilePlayerStatusRow row={topRow} position="top" />
+          <MobilePlayerStatusRow
+            rowRef={topRowRef}
+            statsAnchorRef={topStatsAnchorRef}
+            row={topRow}
+            position="top"
+            onToggle={onStatusRowToggle}
+          />
           <div className="h-px w-full bg-gradient-to-r from-transparent via-white to-transparent opacity-70" />
-          <MobilePlayerStatusRow row={bottomRow} position="bottom" />
+          <MobilePlayerStatusRow
+            rowRef={bottomRowRef}
+            statsAnchorRef={bottomStatsAnchorRef}
+            row={bottomRow}
+            position="bottom"
+            onToggle={onStatusRowToggle}
+          />
         </div>
 
         <div className="shrink-0 w-[56px] flex flex-col items-center justify-between py-[1px]">
@@ -119,19 +161,46 @@ export function MobileStatusRailFrame({
 }
 
 function MobilePlayerStatusRow({
+  rowRef,
+  statsAnchorRef,
   row,
   position,
+  onToggle,
 }: {
+  rowRef?: RefObject<HTMLDivElement | null>;
+  statsAnchorRef?: RefObject<HTMLDivElement | null>;
   row: MobileStatusRailRowData;
   position: MobileRowPosition;
+  onToggle?: () => void;
 }) {
   const health = row.health;
   const netDelta = row.netDelta;
   const hasHealth = health !== undefined;
   const hasNetDelta = netDelta !== undefined;
+  const isInteractive = onToggle !== undefined;
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (!isInteractive) {
+      return;
+    }
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onToggle();
+    }
+  }
 
   return (
-    <div className={position === 'top' ? 'flex items-end w-full' : 'flex items-start w-full'}>
+    <div
+      ref={rowRef}
+      role={isInteractive ? 'button' : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
+      onClick={onToggle}
+      onKeyDown={handleKeyDown}
+      className={`${
+        position === 'top' ? 'flex items-end w-full' : 'flex items-start w-full'
+      } ${isInteractive ? 'cursor-pointer touch-manipulation' : ''}`}
+    >
       <div className="flex-1 min-w-0 flex items-center justify-between gap-[6px]">
         <div className="flex flex-1 min-w-0 items-center gap-[5px]">
           <div className="flex w-[38px] shrink-0 flex-col items-center text-center font-bold whitespace-nowrap">
@@ -158,7 +227,10 @@ function MobilePlayerStatusRow({
           </div>
         </div>
 
-        <div className="grid shrink-0 grid-cols-[28px_28px_24px_24px] items-start gap-[3px] text-center font-bold whitespace-nowrap">
+        <div
+          ref={statsAnchorRef}
+          className="grid shrink-0 grid-cols-[28px_28px_24px_24px] items-start gap-[3px] text-center font-bold whitespace-nowrap"
+        >
           <span className={`text-[15px] ${row.healing === undefined ? 'text-transparent' : 'text-[var(--shapeships-pastel-green)]'}`}>
             {row.healing ?? 0}
           </span>

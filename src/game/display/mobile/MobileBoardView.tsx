@@ -1,3 +1,4 @@
+import type { RefObject } from 'react';
 import type {
   BoardViewModel,
   HudViewModel,
@@ -19,6 +20,11 @@ interface MobileBoardViewProps {
     anchorEl: HTMLElement,
     side: 'my' | 'opponent'
   ) => void;
+  topStatusRowRef?: RefObject<HTMLDivElement | null>;
+  bottomStatusRowRef?: RefObject<HTMLDivElement | null>;
+  topStatsAnchorRef?: RefObject<HTMLDivElement | null>;
+  bottomStatsAnchorRef?: RefObject<HTMLDivElement | null>;
+  onStatusRowToggle?: () => void;
 }
 
 const MOBILE_FLEET_ROW_OVERRIDES = {
@@ -30,6 +36,11 @@ export function MobileBoardView({
   boardVm,
   leftRailVm,
   onFleetShipInspect,
+  topStatusRowRef,
+  bottomStatusRowRef,
+  topStatsAnchorRef,
+  bottomStatsAnchorRef,
+  onStatusRowToggle,
 }: MobileBoardViewProps) {
   const opponentSpeciesKey = toSpeciesKey(boardVm.opponentSpeciesId);
   const mySpeciesKey = toSpeciesKey(boardVm.mySpeciesId);
@@ -69,7 +80,16 @@ export function MobileBoardView({
           }
         />
       </div>
-      <MobileStatusRail hudVm={hudVm} boardVm={boardVm} leftRailVm={leftRailVm} />
+      <MobileStatusRail
+        hudVm={hudVm}
+        boardVm={boardVm}
+        leftRailVm={leftRailVm}
+        topRowRef={topStatusRowRef}
+        bottomRowRef={bottomStatusRowRef}
+        topStatsAnchorRef={topStatsAnchorRef}
+        bottomStatsAnchorRef={bottomStatsAnchorRef}
+        onStatusRowToggle={onStatusRowToggle}
+      />
       <div
         aria-label="Player fleet area"
         className="flex flex-1 min-h-0 w-full overflow-visible"

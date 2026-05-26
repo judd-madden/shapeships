@@ -162,14 +162,18 @@ export function MobileActionPanel({
           });
 
     return (
-      <div className="inline-flex max-w-full items-center gap-[8px] rounded-[10px] bg-[#212121] p-[3px]">
+      <div className="inline-flex max-w-full items-center gap-[8px] rounded-[10px] bg-[var(--shapeships-grey-90)] p-[3px]">
         {entries.map((entry) => (
           <button
             key={entry.family}
             type="button"
             disabled={entry.disabled}
             className="min-w-[104px] rounded-[8px] px-[12px] py-[8px] disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ backgroundColor: entry.selected ? '#555555' : '#212121' }}
+            style={{
+              backgroundColor: entry.selected
+                ? 'var(--shapeships-grey-70)'
+                : 'var(--shapeships-grey-90)',
+            }}
             onClick={entry.onClick}
           >
             <p

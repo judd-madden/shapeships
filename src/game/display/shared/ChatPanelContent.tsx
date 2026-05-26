@@ -107,7 +107,7 @@ export function ChatPanelContent({
 
             return (
               <div key={idx} className="mt-2">
-                <p className="text-[#9cff84] font-bold leading-[18px] mb-2">{msg.text}</p>
+                <p className="text-[var(--shapeships-pastel-green)] font-bold leading-[18px] mb-2">{msg.text}</p>
                 {targetGameId && onJoinRematchInvite && (
                   <InChatButton onClick={() => onJoinRematchInvite(targetGameId)}>
                     Join Game
@@ -118,7 +118,7 @@ export function ChatPanelContent({
           }
 
           return (
-            <p key={idx} className="text-[#d4d4d4] leading-[18px]">
+            <p key={idx} className="text-[var(--shapeships-grey-20)] leading-[18px]">
               {msg.type === 'player' && (
                 <>
                   <span className="font-bold">{msg.playerName}:</span>{' '}
@@ -132,7 +132,7 @@ export function ChatPanelContent({
 
         {drawOffer && (
           <div className="mt-2">
-            <p className="text-[#9cff84] font-bold leading-[18px] mb-2">
+            <p className="text-[var(--shapeships-pastel-green)] font-bold leading-[18px] mb-2">
               {drawOffer.fromPlayer} offers a draw
             </p>
             {drawOffer.canRespond && (
@@ -146,7 +146,7 @@ export function ChatPanelContent({
       </LeftRailScrollArea>
 
       <div className="h-[47px] shrink-0">
-        <div className="h-[1px] bg-[#555] mx-5" />
+        <div className="h-[1px] bg-[var(--shapeships-grey-70)] mx-5" />
         <div className="px-5 py-2 flex items-center justify-between">
           <input
             ref={inputRef}
@@ -161,7 +161,7 @@ export function ChatPanelContent({
               text-white
               text-[16px]
               not-italic
-              placeholder:text-[#888]
+              placeholder:text-[var(--shapeships-grey-50)]
               placeholder:italic
               mr-3
             "
