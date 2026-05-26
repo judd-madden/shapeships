@@ -29,7 +29,7 @@ export function BattleLogPanelContent({
   const isMobile = layout === 'mobile';
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-black">
+    <div className="flex h-full min-h-0 flex-col">
       <div
         className={cx(
           'shrink-0 bg-black border-b border-[var(--shapeships-grey-70)] px-[20px] py-[12px] flex flex-col gap-[8px]',

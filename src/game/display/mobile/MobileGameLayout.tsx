@@ -223,7 +223,7 @@ export function MobileGameLayout({
         </div>
 
         {activeTakeover ? (
-          <div className="absolute inset-0 z-[70] flex min-h-0 flex-col">
+          <div className="absolute inset-0 z-[70] flex min-h-0 flex-col mt-[16px]">
             {activeTakeover === 'chat' ? (
               <MobileChatTakeover vm={leftRailVm} actions={actions} onClose={handleReturnToBoard} />
             ) : activeTakeover === 'battleLog' ? (
