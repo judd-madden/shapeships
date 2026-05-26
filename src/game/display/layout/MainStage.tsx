@@ -87,7 +87,7 @@ export function MainStage({
 
         {/* Action Panel Content */}
         <div
-          className="bg-black h-[302px] border-2 border-[#555] border-solid relative rounded-bl-[10px] rounded-br-[10px] rounded-tl-[10px]  w-full z-10"
+          className="bg-black h-[302px] border-2 border-[var(--shapeships-grey-70)] border-solid relative rounded-bl-[10px] rounded-br-[10px] rounded-tl-[10px]  w-full z-10"
           data-name="AP - Action Panel CONTENT"
         >
           <div

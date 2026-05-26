@@ -18,7 +18,7 @@ export function RadioButton({
   className = "",
   color = 'green'
 }: RadioButtonProps) {
-  const selectedColor = color === 'white' ? 'white' : '#9CFF84';
+  const selectedColor = color === 'white' ? 'white' : 'var(--shapeships-pastel-green)';
   
   return (
     <button

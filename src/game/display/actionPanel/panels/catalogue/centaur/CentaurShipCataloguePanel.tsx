@@ -146,7 +146,7 @@ export function CentaurShipCataloguePanel({
 
           {/* Vertical Divider */}
           <div
-            className="absolute bg-[#555555]"
+            className="absolute bg-[var(--shapeships-grey-70)]"
             style={{ left: '406px', top: '0', width: '1px', height: `${canvas.height}px` }}
           />
 

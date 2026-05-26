@@ -160,7 +160,7 @@ export function ChooseSpeciesStage({
               speciesId="human"
               title="HUMAN"
               blurbLines={['Metal. Explosions. Expansion.', 'Onward and upward.']}
-              backgroundClassName="bg-[#62fff6]"
+              backgroundClassName="bg-[var(--shapeships-pastel-blue)]"
               icon={<BlackCarrierIcon className="w-[58px] h-[50px]" color="black" />}
               selected={vm.selectedSpecies === 'human'}
               onClick={() => onSelectSpecies('human')}
@@ -169,7 +169,7 @@ export function ChooseSpeciesStage({
               speciesId="xenite"
               title="XENITE"
               blurbLines={['Swarm. Queen. Hive.', 'Always growing.']}
-              backgroundClassName="bg-[#9cff84]"
+              backgroundClassName="bg-[var(--shapeships-pastel-green)]"
               icon={<BlackXeniteIcon className="w-[42px] h-[42px]" color="black" />}
               selected={vm.selectedSpecies === 'xenite'}
               onClick={() => onSelectSpecies('xenite')}
@@ -178,7 +178,7 @@ export function ChooseSpeciesStage({
               speciesId="centaur"
               title="CENTAUR"
               blurbLines={['Power. Timing. Domination.', 'Cull the weak.']}
-              backgroundClassName="bg-[#ff8282]"
+              backgroundClassName="bg-[var(--shapeships-pastel-red)]"
               icon={<BlackShipOfWisdomIcon className="w-[59px] h-[59px]" color="black" />}
               selected={vm.selectedSpecies === 'centaur'}
               onClick={() => onSelectSpecies('centaur')}
@@ -187,7 +187,7 @@ export function ChooseSpeciesStage({
               speciesId="ancient"
               title="ANCIENT"
               blurbLines={['Energy. Solar Powers.', 'Ever present.']}
-              backgroundClassName="bg-[#cd8cff]"
+              backgroundClassName="bg-[var(--shapeships-pastel-purple)]"
               icon={<BlackMercuryCoreIcon className="w-[32px] h-[61px]" color="black" />}
               selected={vm.selectedSpecies === 'ancient'}
               onClick={() => onSelectSpecies('ancient')}

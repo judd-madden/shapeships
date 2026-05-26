@@ -83,7 +83,7 @@ export function FleetShipHoverCard({
       <div
         ref={setCardElement}
         className={cx(
-          'relative flex flex-col items-start gap-[12px] rounded-[10px] bg-[#212121] px-[20px] pb-[20px] pt-[16px]',
+          'relative flex flex-col items-start gap-[12px] rounded-[10px] bg-[var(--shapeships-grey-90)] px-[20px] pb-[20px] pt-[16px]',
           isMobileViewportCentered ? 'w-full max-w-none' : 'w-max max-w-[300px]'
         )}
         onPointerDown={isInteractive ? (event) => event.stopPropagation() : undefined}
@@ -95,12 +95,12 @@ export function FleetShipHoverCard({
       >
         <div
           aria-hidden="true"
-          className="absolute inset-0 rounded-[10px] border border-solid border-[#555] pointer-events-none"
+          className="absolute inset-0 rounded-[10px] border border-solid border-[var(--shapeships-grey-70)] pointer-events-none"
         />
 
         <div
           aria-hidden="true"
-          className="absolute rotate-45 border-solid border-[#555] bg-[#212121] pointer-events-none"
+          className="absolute rotate-45 border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] pointer-events-none"
           style={
             placement === 'left'
               ? {

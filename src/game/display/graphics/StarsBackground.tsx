@@ -248,7 +248,7 @@ export function StarsBackground({ celebrateOnFinish = false }: StarsBackgroundPr
                 width: `${s.sizePx}px`,
                 height: `${s.sizePx}px`,
                 borderRadius: 9999,
-                background: '#FFF',
+                background: 'var(--shapeships-white)',
               }}
             />
           );
@@ -263,7 +263,7 @@ export function StarsBackground({ celebrateOnFinish = false }: StarsBackgroundPr
                 width: `${s.sizePx}px`,
                 height: `${s.sizePx}px`,
                 borderRadius: 9999,
-                background: 'radial-gradient(circle at 50% 50%, #000 0 55%, rgba(140, 190, 255, 0.25) 60%, rgba(0,0,0,0) 75%)',
+                background: 'radial-gradient(circle at 50% 50%, var(--shapeships-black) 0 55%, rgba(140, 190, 255, 0.25) 60%, rgba(0,0,0,0) 75%)',
               }}
             />
           );
@@ -278,7 +278,7 @@ export function StarsBackground({ celebrateOnFinish = false }: StarsBackgroundPr
               width: `${STARS_CONFIG.saturnPlanetSizePx}px`,
               height: `${STARS_CONFIG.saturnPlanetSizePx}px`,
               borderRadius: 9999,
-              background: '#FFF',
+              background: 'var(--shapeships-white)',
             }}
           >
             <div
@@ -289,7 +289,7 @@ export function StarsBackground({ celebrateOnFinish = false }: StarsBackgroundPr
                 width: `${STARS_CONFIG.saturnRingWidthPx}px`,
                 height: `${STARS_CONFIG.saturnRingHeightPx}px`,
                 borderRadius: 9999,
-                background: '#FFF',
+                background: 'var(--shapeships-white)',
                 transform: `translate(-50%, -50%) rotate(${STARS_CONFIG.saturnRingRotationDeg}deg)`,
               }}
             />

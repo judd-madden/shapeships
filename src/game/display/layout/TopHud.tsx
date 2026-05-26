@@ -18,7 +18,7 @@ interface TopHudProps {
 
 function StatusWrapper({ children }: React.PropsWithChildren<{}>) {
   return (
-    <div className="bg-[#212121] h-[50px] relative rounded-[10px] shrink-0 w-full">
+    <div className="bg-[var(--shapeships-grey-90)] h-[50px] relative rounded-[10px] shrink-0 w-full">
       <div className="flex flex-row items-center justify-center size-full">
         <div className="content-stretch flex items-center justify-center px-[20px] py-[19px] relative size-full">
           {children}
@@ -36,7 +36,7 @@ function OnlineStatus({ isOnline }: { isOnline: boolean }) {
           <circle 
             cx="6" 
             cy="6" 
-            fill={isOnline ? '#00BD13' : '#888'} 
+            fill={isOnline ? 'var(--shapeships-green)' : 'var(--shapeships-grey-50)'}
             id="Online Status_2" 
             r="6" 
           />
@@ -61,7 +61,7 @@ export function TopHud({ vm }: TopHudProps) {
           <StatusWrapper>
             <p
               className={`font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
-                vm.p1StatusTone === 'ready' ? 'text-[#9cff84]' : 'text-white'
+                vm.p1StatusTone === 'ready' ? 'text-[var(--shapeships-pastel-green)]' : 'text-white'
               }`}
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
@@ -71,7 +71,7 @@ export function TopHud({ vm }: TopHudProps) {
         )}
         <p
           className={`font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[28px] text-center w-full ${
-            vm.p1IsReady ? 'text-[#888]' : 'text-[#d4d4d4]'
+            vm.p1IsReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
           }`}
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
@@ -154,7 +154,7 @@ export function TopHud({ vm }: TopHudProps) {
           <StatusWrapper>
             <p
               className={`font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
-                vm.p2StatusTone === 'ready' ? 'text-[#9cff84]' : 'text-white'
+                vm.p2StatusTone === 'ready' ? 'text-[var(--shapeships-pastel-green)]' : 'text-white'
               }`}
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
@@ -164,7 +164,7 @@ export function TopHud({ vm }: TopHudProps) {
         )}
         <p
           className={`font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[28px] text-center w-full ${
-            vm.p2IsReady ? 'text-[#888]' : 'text-[#d4d4d4]'
+            vm.p2IsReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
           }`}
           style={{ fontVariationSettings: "'wdth' 100" }}
         >

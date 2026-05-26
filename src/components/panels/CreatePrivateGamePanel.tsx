@@ -194,7 +194,7 @@ export function CreatePrivateGamePanel({
         </p>
       </div>
 
-      <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] via-[#ffffff] via-50% to-[rgba(255,255,255,0)] h-px w-full shrink-0 opacity-70" />
+      <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] via-[var(--shapeships-white)] via-50% to-[rgba(255,255,255,0)] h-px w-full shrink-0 opacity-70" />
 
       <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[50px]">
         <div className="flex w-full flex-col items-start gap-[28px] overflow-visible min-[1180px]:flex-row min-[1180px]:gap-[48px] xl:gap-[64px]">
@@ -234,7 +234,7 @@ export function CreatePrivateGamePanel({
         </div>
       </div>
 
-      <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] via-[#ffffff] via-50% to-[rgba(255,255,255,0)] h-px w-full shrink-0 opacity-70" />
+      <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] via-[var(--shapeships-white)] via-50% to-[rgba(255,255,255,0)] h-px w-full shrink-0 opacity-70" />
 
       <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[16px]">
         {error && (

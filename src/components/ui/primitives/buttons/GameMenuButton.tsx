@@ -107,7 +107,7 @@ export function GameMenuButton({
       onClick={handleClick}
       disabled={isDisabled}
       className={`
-        ${awaitingConfirm ? 'bg-[#ff8282]' : 'bg-[#d4d4d4]'}
+        ${awaitingConfirm ? 'bg-[var(--shapeships-pastel-red)]' : 'bg-[var(--shapeships-grey-20)]'}
         content-stretch flex h-[50px] items-center justify-center 
         px-[30px] py-[19px] 
         relative rounded-[10px] 

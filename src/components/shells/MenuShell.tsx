@@ -145,7 +145,7 @@ export function MenuShell({
         </div>
 
         {/* Header Divider */}
-        <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] h-px opacity-70 shrink-0 to-[rgba(255,255,255,0)] via-50% via-[#ffffff] w-full" />
+        <div className="bg-gradient-to-r from-[rgba(255,255,255,0)] h-px opacity-70 shrink-0 to-[rgba(255,255,255,0)] via-50% via-[var(--shapeships-white)] w-full" />
 
         {/* Player Identity Row */}
         <div className="content-stretch relative flex w-full items-center py-[20px] sm:py-[32px]">
@@ -182,11 +182,11 @@ export function MenuShell({
                 onClick={() => setActivePanel('multiplayer')}
               >
                 {activePanel === 'multiplayer' && (
-                  <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
+                  <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
                   className={`relative shrink-0 font-['Roboto',sans-serif] text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
-                    activePanel === 'multiplayer' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
+                    activePanel === 'multiplayer' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
                 >
@@ -200,11 +200,11 @@ export function MenuShell({
                 onClick={() => setActivePanel('playComputer')}
               >
                 {activePanel === 'playComputer' && (
-                  <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
+                  <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
                   className={`relative shrink-0 font-['Roboto',sans-serif] text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
-                    activePanel === 'playComputer' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
+                    activePanel === 'playComputer' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
                 >
@@ -218,11 +218,11 @@ export function MenuShell({
                 onClick={() => setActivePanel('rules')}
               >
                 {activePanel === 'rules' && (
-                  <div aria-hidden="true" className="absolute border-[#cd8cff] border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
+                  <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
                   className={`relative shrink-0 font-['Roboto',sans-serif] text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
-                    activePanel === 'rules' ? 'text-[#cd8cff]' : 'hover:text-[#cd8cff]/80'
+                    activePanel === 'rules' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
                 >

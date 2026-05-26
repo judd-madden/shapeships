@@ -72,13 +72,13 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
           }));
 
     return (
-      <div className="inline-flex items-center gap-[12px] rounded-[10px] bg-[#212121] p-[4px]">
+      <div className="inline-flex items-center gap-[12px] rounded-[10px] bg-[var(--shapeships-grey-90)] p-[4px]">
         {entries.map((entry) => (
           <button
             key={entry.family}
             type="button"
             className="min-w-[132px] rounded-[8px] px-[20px] py-[10px] disabled:opacity-50"
-            style={{ backgroundColor: entry.selected ? '#555555' : '#212121' }}
+            style={{ backgroundColor: entry.selected ? 'var(--shapeships-grey-70)' : 'var(--shapeships-grey-90)' }}
             onClick={entry.onClick}
           >
             <p
@@ -217,7 +217,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
               onSelectTrigger={actions.onSelectFrigateTrigger}
             />
           </div>
-          <div className="absolute top-[20px] right-[50px] text-[#ff8282]">^ Return to Drawing</div>
+          <div className="absolute top-[20px] right-[50px] text-[var(--shapeships-pastel-red)]">^ Return to Drawing</div>
         </div>
       </div>
     );
@@ -234,7 +234,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
               onSelectChoice={actions.onSelectEvolverChoice}
             />
           </div>
-          <div className="absolute top-[20px] right-[50px] text-[#ff8282]">^ Return to Drawing</div>
+          <div className="absolute top-[20px] right-[50px] text-[var(--shapeships-pastel-red)]">^ Return to Drawing</div>
         </div>
       </div>
     );
@@ -338,7 +338,7 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
       </p>
       
       {/* Placeholder message */}
-      <p className="text-[#888] text-base text-center">
+      <p className="text-[var(--shapeships-grey-50)] text-base text-center">
         (Panel content will be implemented in next pass)
       </p>
     </div>

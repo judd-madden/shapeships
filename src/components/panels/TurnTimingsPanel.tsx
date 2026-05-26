@@ -27,7 +27,7 @@ function PhaseHeader({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-[#555] relative shrink-0 w-full">
+    <div className="bg-[var(--shapeships-grey-70)] relative shrink-0 w-full">
       <div className="content-stretch flex items-center px-[20px] py-[16px] relative size-full sm:px-[30px] md:px-[41.986px] md:py-[18.894px]">
         <div className="content-stretch flex flex-wrap gap-[12px] items-center relative shrink-0 md:gap-[16.795px]">
           <p className="font-bold leading-[normal] relative shrink-0 text-[13.5px] uppercase sm:text-[20.993px]" style={{ fontVariationSettings: "'wdth' 100" }}>
@@ -77,13 +77,13 @@ function TimingRow({
           {description}
         </div>
         {exampleShips && (
-          <p className="font-normal leading-[17.32px] relative shrink-0 text-[#888] text-[10.5px] sm:text-[14.8px] sm:leading-[23.093px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="font-normal leading-[17.32px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[10.5px] sm:text-[14.8px] sm:leading-[23.093px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
             {exampleShips}
           </p>
         )}
         {showChevron && (
           <div className={`absolute hidden md:block ${chevronLeft} ${chevronTop ?? 'top-[24px]'} size-[42px] lg:size-[50.384px]`}>
-            <ChevronDown className="-rotate-90" color="#555555" />
+            <ChevronDown className="-rotate-90" color="var(--shapeships-grey-70)" />
           </div>
         )}
         {showHeart && (
@@ -118,7 +118,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
       </p>
 
       {/* BUILD PHASE */}
-      <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full border-[3px] border-[#555] border-solid">
+      <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full border-[3px] border-[var(--shapeships-grey-70)] border-solid">
         <PhaseHeader 
           title="Build Phase" 
           icon={<BuildIcon className="w-[33.589px] h-[33.589px]" color="#D5D5D5" />}
@@ -148,7 +148,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
             <p>Players calculate available lines by adding the dice roll, any saved lines, and any bonus lines from ships powers.</p>
           }
           exampleShips="Orbital, Battlecruiser, 3rd Science Vessel, Oxite Face, Asterite Face, Ship of Vigor, Ark of Redemption, Ark of Power, Ark of Domination, Convert."
-          backgroundColor="bg-[#212121]"
+          backgroundColor="bg-[var(--shapeships-grey-90)]"
           chevronTop="top-[20px]"
         />
 
@@ -170,7 +170,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
             </p>
           }
           exampleShips="Frigate, Evolver, Zenith, Ship of Legacy."
-          backgroundColor="bg-[#212121]"
+          backgroundColor="bg-[var(--shapeships-grey-90)]"
           chevronTop="top-[20px]"
         />
 
@@ -185,7 +185,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
       </div>
 
       {/* BATTLE PHASE */}
-      <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full border-[3px] border-[#555] border-solid">
+      <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full border-[3px] border-[var(--shapeships-grey-70)] border-solid">
         <PhaseHeader 
           title="BATTLE PHASE" 
           icon={<BattleIcon className="w-[33.589px] h-[33.589px]" color="white" />}
@@ -203,7 +203,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
         <TimingRow
           title={
             <>
-              Charge Declaration <span className="text-[#d4d4d4]">/ Solar Powers</span>
+              Charge Declaration <span className="text-[var(--shapeships-grey-20)]">/ Solar Powers</span>
             </>
           }
           description={
@@ -215,16 +215,16 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
             </>
           }
           exampleShips="Interceptor, Antlion, Ship of Equality, Ship of Wisdom, Ship of Family, Solar Powers."
-          backgroundColor="bg-[#212121]"
+          backgroundColor="bg-[var(--shapeships-grey-90)]"
           chevronTop="top-[20px]"
         />
 
         {/* Charge Response / Solar Powers - Wrapper with left border */}
-        <div className="content-stretch flex flex-col items-start relative shrink-0 w-full border-l-[12px] border-[#555] border-solid md:border-l-[21px]">
+        <div className="content-stretch flex flex-col items-start relative shrink-0 w-full border-l-[12px] border-[var(--shapeships-grey-70)] border-solid md:border-l-[21px]">
           <TimingRow
             title={
               <>
-                Charge Response <span className="text-[#d4d4d4]">/ Solar Powers</span>
+                Charge Response <span className="text-[var(--shapeships-grey-20)]">/ Solar Powers</span>
               </>
             }
             description={
@@ -255,7 +255,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
             </p>
           }
           exampleShips="(All Automatic Ships)"
-          backgroundColor="bg-[#212121]"
+          backgroundColor="bg-[var(--shapeships-grey-90)]"
           showChevron={false}
           showHeart={true}
         />

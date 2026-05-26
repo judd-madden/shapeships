@@ -117,7 +117,7 @@ function EligibilityFooter({
     if (eligibility.state === 'BUILD_STATE_UNAVAILABLE') {
       return (
         <p
-          className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
+          className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Build in Drawing Phase
@@ -128,7 +128,7 @@ function EligibilityFooter({
     if (eligibility.state === 'CAN_BUILD') {
       return (
         <p
-          className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
+          className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Click to build
@@ -140,7 +140,7 @@ function EligibilityFooter({
       return (
         <>
           <p
-            className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
+            className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             Need component ships
@@ -153,7 +153,7 @@ function EligibilityFooter({
     if (eligibility.state === 'NOT_ENOUGH_LINES') {
       return (
         <p
-          className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
+          className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Not enough lines
@@ -164,7 +164,7 @@ function EligibilityFooter({
     if (eligibility.state === 'MAX_LIMIT') {
       return (
         <p
-          className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
+          className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Maximum limit reached
@@ -179,7 +179,7 @@ function EligibilityFooter({
 
       return (
         <p
-          className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px]"
+          className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px]"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {message}
@@ -199,7 +199,7 @@ function EligibilityFooter({
       <div className="h-0 relative shrink-0 w-full">
         <div className="absolute inset-[-1px_0_0_0]">
           <svg className="block size-full" fill="none" preserveAspectRatio="none" viewBox="0 0 260 1">
-            <line stroke="#555555" x2="260" y1="0.5" y2="0.5" />
+            <line stroke="var(--shapeships-grey-70)" x2="260" y1="0.5" y2="0.5" />
           </svg>
         </div>
       </div>
@@ -256,7 +256,7 @@ export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCard
     >
       <div
         ref={cardRef}
-        className="relative bg-[#212121] content-stretch flex w-[320px] flex-col gap-[12px] items-start rounded-[10px] px-[20px] pb-[20px] pt-[16px]"
+        className="relative bg-[var(--shapeships-grey-90)] content-stretch flex w-[320px] flex-col gap-[12px] items-start rounded-[10px] px-[20px] pb-[20px] pt-[16px]"
         style={{
           pointerEvents: 'none',
           transform: cardTransform,
@@ -265,12 +265,12 @@ export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCard
         {/* Border overlay */}
         <div
           aria-hidden="true"
-          className="absolute border border-[#555] border-solid inset-0 pointer-events-none rounded-[10px]"
+          className="absolute border border-[var(--shapeships-grey-70)] border-solid inset-0 pointer-events-none rounded-[10px]"
         />
 
         <div
           aria-hidden="true"
-          className="absolute rotate-45 border-solid border-[#555] bg-[#212121] pointer-events-none"
+          className="absolute rotate-45 border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] pointer-events-none"
           style={
             placement === 'left'
               ? {
@@ -315,7 +315,7 @@ export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCard
           {/* Phase Label */}
           {model.phaseLabel && (
             <p
-              className="font-normal leading-[15px] relative shrink-0 text-[#d4d4d4] text-[13px] w-full"
+              className="font-normal leading-[15px] relative shrink-0 text-[var(--shapeships-grey-20)] text-[13px] w-full"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {model.phaseLabel}
@@ -326,7 +326,7 @@ export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCard
         {/* Joining Lines */}
         {model.joiningLines && (
           <p
-            className="font-medium leading-[12px] relative shrink-0 text-[#888] text-[15px] text-nowrap"
+            className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>

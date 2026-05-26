@@ -142,8 +142,8 @@ export function ShipChoicesPanel({
         <div
           className={
             isMobile
-              ? 'inline-flex max-w-full items-center gap-[8px] rounded-[10px] bg-[#212121] p-[3px]'
-              : 'inline-flex items-center gap-[12px] rounded-[10px] bg-[#212121] p-[3px]'
+              ? 'inline-flex max-w-full items-center gap-[8px] rounded-[10px] bg-[var(--shapeships-grey-90)] p-[3px]'
+              : 'inline-flex items-center gap-[12px] rounded-[10px] bg-[var(--shapeships-grey-90)] p-[3px]'
           }
         >
           {centaurChargeTabs!.availableTabs.map((tabId) => {
@@ -159,7 +159,7 @@ export function ShipChoicesPanel({
                     ? 'min-w-[104px] rounded-[8px] px-[12px] py-[8px] disabled:opacity-50'
                     : 'min-w-[132px] rounded-[8px] px-[20px] py-[10px] disabled:opacity-50'
                 }
-                style={{ backgroundColor: selected ? '#555555' : '#212121' }}
+                style={{ backgroundColor: selected ? 'var(--shapeships-grey-70)' : 'var(--shapeships-grey-90)' }}
                 onClick={() => onSelectCentaurChargeSubTab?.(tabId)}
               >
                 <p
@@ -191,7 +191,7 @@ function MobileOpponentAlsoHasChargesNote({
   lines = DEFAULT_OPPONENT_CHARGES_LINES,
 }: MobileOpponentAlsoHasChargesNoteProps) {
   return (
-    <div className="w-full rounded-[8px] bg-[#212121] px-[12px] py-[10px] text-center">
+    <div className="w-full rounded-[8px] bg-[var(--shapeships-grey-90)] px-[12px] py-[10px] text-center">
       <p
         className="font-['Roboto',sans-serif] font-bold leading-[normal] text-[14px] text-white"
         style={{ fontVariationSettings: "'wdth' 100" }}

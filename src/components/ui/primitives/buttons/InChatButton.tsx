@@ -22,7 +22,7 @@ export function InChatButton({
       onClick={onClick}
       disabled={disabled}
       className={`
-        bg-[#d4d4d4]
+        bg-[var(--shapeships-grey-20)]
         content-stretch flex items-center justify-center 
         px-[20px] py-[9px] 
         relative rounded-[10px] 

@@ -512,7 +512,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             left={String(vm.myLastTurnDamage ?? 0)}
             centerLabel="Last Damage"
             right={String(vm.opponentLastTurnDamage ?? 0)}
-            toneClass="text-[#ff8282]"
+            toneClass="text-[var(--shapeships-pastel-red)]"
             leftHoverKey="my-last-damage"
             leftHoverTrackable={myDamageHoverTrackable}
             rightHoverKey="opponent-last-damage"
@@ -524,7 +524,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             left={String(vm.myLastTurnHeal ?? 0)}
             centerLabel="Last Healing"
             right={String(vm.opponentLastTurnHeal ?? 0)}
-            toneClass="text-[#9cff84]"
+            toneClass="text-[var(--shapeships-pastel-green)]"
             leftHoverKey="my-last-healing"
             leftHoverTrackable={myHealingHoverTrackable}
             rightHoverKey="opponent-last-healing"
@@ -550,7 +550,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
                     label="LINES"
                     label2={mySpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
                     align="right"
-                    toneClass="text-[#62fff6]"
+                    toneClass="text-[var(--shapeships-pastel-blue)]"
                   />
                 </div>
                 {vm.myJoiningBonusLines > 0 ? (
@@ -559,7 +559,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
                     label="JOINING"
                     label2="LINES"
                     align="right"
-                    toneClass="text-[#62fff6]"
+                    toneClass="text-[var(--shapeships-pastel-blue)]"
                   />
                 ) : null}
               </HoverAnchor>
@@ -567,7 +567,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
 
             <div className="content-stretch flex items-center justify-center pb-0 pt-[8px] px-0 relative shrink-0">
               <p
-                className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[#62fff6] text-[15px] text-center w-[64px]"
+                className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[15px] text-center w-[64px]"
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Bonus
@@ -589,7 +589,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
                     label="LINES"
                     label2={opponentSpeciesKey === 'centaur' ? 'ON EVEN' : undefined}
                     align="left"
-                    toneClass="text-[#62fff6]"
+                    toneClass="text-[var(--shapeships-pastel-blue)]"
                   />
                 </div>
                 {vm.opponentJoiningBonusLines > 0 ? (
@@ -599,7 +599,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
                       label="JOINING"
                       label2="LINES"
                       align="left"
-                      toneClass="text-[#62fff6]"
+                      toneClass="text-[var(--shapeships-pastel-blue)]"
                     />
                   </div>
                 ) : null}

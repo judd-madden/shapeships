@@ -41,13 +41,13 @@ export function InputField({
           relative rounded-[10px] 
           w-full
           font-['Roboto'] font-normal leading-[normal] text-[24px] text-white
-          border-2 border-solid border-[#555555]
+          border-2 border-solid border-[var(--shapeships-grey-70)]
           focus:border-white
-          hover:border-[#888888]
+          hover:border-[var(--shapeships-grey-50)]
           disabled:opacity-50 disabled:cursor-not-allowed
           outline-none
           placeholder:text-white
-          ${error ? '!border-[#FF8282]' : ''}
+          ${error ? '!border-[var(--shapeships-pastel-red)]' : ''}
         `}
         style={{ 
           fontVariationSettings: "'wdth' 100"

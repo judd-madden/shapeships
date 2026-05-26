@@ -365,7 +365,7 @@ export function LeftRail({
       {renderDiceManipulationSlot('right')}
 
       {/* Turn / Phase / Subphase Card */}
-      <div className="relative shrink-0 rounded-[10px] border-2 border-[#555] overflow-hidden">
+      <div className="relative shrink-0 rounded-[10px] border-2 border-[var(--shapeships-grey-70)] overflow-hidden">
         {/* Turn and Major Phase */}
         <div className="bg-black p-[10px] flex items-center justify-center gap-[10px]">
           <p className="text-white text-[18px] font-bold">Turn {vm.turn} -</p>
@@ -374,7 +374,7 @@ export function LeftRail({
         </div>
         
         {/* Subphase */}
-        <div className="bg-[#212121] px-[10px] py-[10px] pb-[12px]">
+        <div className="bg-[var(--shapeships-grey-90)] px-[10px] py-[10px] pb-[12px]">
           <p className="text-white text-[18px] font-medium text-center">{vm.subphase}</p>
         </div>
 
@@ -398,7 +398,7 @@ export function LeftRail({
       </div>
 
       {/* Chat Area (fixed height, scrollable) */}
-      <div className="shrink-0 bg-black rounded-[10px] border-2 border-[#555] overflow-hidden">
+      <div className="shrink-0 bg-black rounded-[10px] border-2 border-[var(--shapeships-grey-70)] overflow-hidden">
         <ChatPanelContent
           layout="desktop"
           gameCode={vm.gameCode}
@@ -416,7 +416,7 @@ export function LeftRail({
       <div ref={battleLogSlotRef} className="basis-0 flex-1 min-h-0" aria-hidden="true" />
 
       <div
-        className="absolute left-0 right-0 z-50 flex min-h-0 flex-col rounded-[10px] border-2 border-[#555] bg-black"
+        className="absolute left-0 right-0 z-50 flex min-h-0 flex-col rounded-[10px] border-2 border-[var(--shapeships-grey-70)] bg-black"
         style={{
           top: battleLogOverlayTop,
           // Match the current rail pb-[25px] inset so the overlay never drops below the collapsed card.

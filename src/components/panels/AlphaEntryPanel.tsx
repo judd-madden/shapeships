@@ -100,7 +100,7 @@ export function AlphaEntryPanel({
                 }}
               />
               {showError && (
-                <p className="font-normal text-[10.5px] text-[#FF8282] mt-2 sm:text-[14px]">
+                <p className="font-normal text-[10.5px] text-[var(--shapeships-pastel-red)] mt-2 sm:text-[14px]">
                   Name must be 3–20 letters or numbers only (no spaces or symbols)
                 </p>
               )}

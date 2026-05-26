@@ -48,7 +48,7 @@ export function SecondaryNavItem({
       onClick={onClick}
       disabled={disabled}
       className={`
-        bg-[#212121]
+        bg-[var(--shapeships-grey-90)]
         content-stretch flex items-center justify-center 
         px-[20px] py-[10px] 
         relative rounded-[10px]

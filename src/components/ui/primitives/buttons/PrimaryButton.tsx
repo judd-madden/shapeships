@@ -23,7 +23,7 @@ export function PrimaryButton({
 }: PrimaryButtonProps) {
   const isInactive = disabled || loading;
   const stateClasses = isInactive
-    ? 'bg-[#555555] cursor-default'
+    ? 'bg-[var(--shapeships-grey-70)] cursor-default'
     : 'bg-white hover:scale-[1.03] transition-transform cursor-pointer';
 
   return (

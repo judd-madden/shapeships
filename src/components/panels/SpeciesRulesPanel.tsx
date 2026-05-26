@@ -169,7 +169,7 @@ function SectionHeader({
 }) {
   return (
     <>
-      <div className="bg-[#555] relative shrink-0 w-full">
+      <div className="bg-[var(--shapeships-grey-70)] relative shrink-0 w-full">
         <div className="flex flex-row items-center size-full">
           <div className="content-stretch relative flex size-full flex-col items-start justify-between gap-[16px] px-[20px] py-[16px] sm:px-[32px] sm:py-[19px] md:flex-row md:items-center">
             <p className="font-bold leading-[normal] relative shrink-0 text-[15px] text-white uppercase sm:text-[22px]" style={{ fontVariationSettings: "'wdth' 100" }}>
@@ -211,7 +211,7 @@ function SectionHeader({
         </div>
       </div>
       {note && (
-        <div className="bg-[#212121] relative flex min-h-[52px] shrink-0 w-full items-center px-[20px] py-[12px] sm:px-[32px]">
+        <div className="bg-[var(--shapeships-grey-90)] relative flex min-h-[52px] shrink-0 w-full items-center px-[20px] py-[12px] sm:px-[32px]">
           <p className="font-normal italic leading-[15px] text-[12px] text-white sm:text-[16px] sm:leading-[20px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             {note}
           </p>
@@ -242,7 +242,7 @@ function ShipRow({
   const solarPowerNameTextClass = getSolarPowerNameTextClass(ship);
 
   return (
-    <div className={`relative shrink-0 w-full ${isAlternate ? 'bg-[#212121]' : ''}`}>
+    <div className={`relative shrink-0 w-full ${isAlternate ? 'bg-[var(--shapeships-grey-90)]' : ''}`}>
       <div className="flex flex-row items-center size-full">
         <div className="content-stretch relative flex w-full flex-col items-start gap-[24px] px-[16px] py-[24px] sm:px-[24px] lg:flex-row lg:gap-[20px] xl:gap-[12px] xl:py-[30px] xl:pr-[30px]">
           {/* Ship Graphic */}
@@ -275,11 +275,11 @@ function ShipRow({
                   </div>
                 )}
                 {isUpgradedShip && joiningCost !== null && joiningCost !== undefined && (
-                  <p className="font-normal leading-[18px] pb-[6px] relative shrink-0 text-[#d4d4d4] text-[13.5px] sm:text-[18px] sm:leading-[24px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                  <p className="font-normal leading-[18px] pb-[6px] relative shrink-0 text-[var(--shapeships-grey-20)] text-[13.5px] sm:text-[18px] sm:leading-[24px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     (+{joiningCost})
                   </p>
                 )}
-                <p className="font-normal leading-[11.5px] relative shrink-0 text-[#d4d4d4] text-[10.5px] w-full sm:text-[13px] sm:leading-[14.13px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className="font-normal leading-[11.5px] relative shrink-0 text-[var(--shapeships-grey-20)] text-[10.5px] w-full sm:text-[13px] sm:leading-[14.13px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                   {getSubphaseLabel(ship)}
                 </p>
               </div>
@@ -336,7 +336,7 @@ function ShipRow({
                               <p className="font-bold leading-[15px] text-[12px] text-white sm:text-[16px] sm:leading-[20px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                                 {evolvedShip.name}
                               </p>
-                              <p className="font-normal leading-[14px] text-[10.5px] text-[#d4d4d4] sm:text-[12px] sm:leading-[16px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                              <p className="font-normal leading-[14px] text-[10.5px] text-[var(--shapeships-grey-20)] sm:text-[12px] sm:leading-[16px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                                 {evolvedSubphase}
                               </p>
                               {evolvedShip.powers.map((power, idx) => {
@@ -474,7 +474,7 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
 
       {/* BASIC SHIPS */}
       <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full">
-        <div className="absolute border-[#555] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none" />
+        <div className="absolute border-[var(--shapeships-grey-70)] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none" />
         <SectionHeader title="Basic Ships" showPhaseLegend={true} />
         {basicShipsOnly.map((ship, index) => {
           // CSV-driven: Pass evolved ships to Evolver row (ship ID 'EVO')
@@ -494,7 +494,7 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
       {species === 'Ancient' ? (
         solarPowers.length > 0 && (
           <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full">
-            <div className="absolute border-[#555] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none" />
+            <div className="absolute border-[var(--shapeships-grey-70)] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none" />
             <SectionHeader
               title="Solar Powers"
               note="Each requires the energy shown to be cast."
@@ -509,7 +509,7 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
       ) : (
         upgradedShips.length > 0 && (
           <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full">
-            <div className="absolute border-[#555] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none" />
+            <div className="absolute border-[var(--shapeships-grey-70)] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none" />
             <SectionHeader
               title="Upgraded Ships"
               note={species === 'Xenite' ? 'Xenites within upgraded ships cannot be Evolved and do NOT count for Mantis and Hell Hornet powers.' : undefined}

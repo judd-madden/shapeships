@@ -19,15 +19,15 @@ interface MenuButtonProps {
 
 const variantStyles = {
   private: {
-    default: 'bg-[#CD8CFF]',
-    hover: 'border-[#CD8CFF]',
+    default: 'bg-[var(--shapeships-pastel-purple)]',
+    hover: 'border-[var(--shapeships-pastel-purple)]',
   },
   public: {
-    default: 'bg-[#9CFF84]',
-    hover: 'border-[#9CFF84]',
+    default: 'bg-[var(--shapeships-pastel-green)]',
+    hover: 'border-[var(--shapeships-pastel-green)]',
   },
   join: {
-    default: 'bg-[#555555]',
+    default: 'bg-[var(--shapeships-grey-70)]',
     hover: 'border-white',
   },
 };
@@ -80,7 +80,7 @@ export function MenuButton({
         onClick={isActive ? onClick : undefined}
         disabled={disabled}
         className={`
-          ${isActive ? 'bg-white' : 'bg-[#555555]'}
+          ${isActive ? 'bg-white' : 'bg-[var(--shapeships-grey-70)]'}
           content-stretch flex h-[72px] items-center justify-center 
           p-[20px] 
           relative rounded-[10px] 
@@ -106,7 +106,7 @@ export function MenuButton({
       onClick={onClick}
       disabled={disabled}
       className={`
-        ${disabled ? 'bg-[#555555]' : styles.default}
+        ${disabled ? 'bg-[var(--shapeships-grey-70)]' : styles.default}
         content-stretch flex h-[72px] items-center justify-center 
         p-[20px] 
         relative rounded-[10px] 

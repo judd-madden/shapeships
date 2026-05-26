@@ -41,7 +41,7 @@ export function ReadyButton({
         onClick={onClick}
         disabled={disabled}
         className={`
-          bg-[#00BD13]
+          bg-[var(--shapeships-green)]
           h-[50px] 
           relative rounded-[10px] 
           w-full
@@ -81,7 +81,7 @@ export function ReadyButton({
       onClick={onClick}
       disabled={disabled}
       className={`
-        ${disabled ? 'bg-[#888888]' : 'bg-white'}
+        ${disabled ? 'bg-[var(--shapeships-grey-50)]' : 'bg-white'}
         h-[50px] 
         relative rounded-[10px] 
         w-full

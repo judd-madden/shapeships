@@ -10,7 +10,7 @@ interface GameVerticalLineProps {
 
 export function GameVerticalLine({ 
   className = "", 
-  color = "#212121" 
+  color = "var(--shapeships-grey-90)"
 }: GameVerticalLineProps) {
   return (
     <svg 

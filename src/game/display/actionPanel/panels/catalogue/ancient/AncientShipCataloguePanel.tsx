@@ -135,7 +135,7 @@ export function AncientShipCataloguePanel({
 
           {/* Vertical Divider */}
           <div
-            className="absolute bg-[#555555]"
+            className="absolute bg-[var(--shapeships-grey-70)]"
             style={{
               left: "407px",
               top: "0",
@@ -381,13 +381,13 @@ export function AncientShipCataloguePanel({
                     <circle
                       cx="10"
                       cy="10"
-                      fill="#FF8282"
+                      fill="var(--shapeships-pastel-red)"
                       r="10"
                     />
                   </svg>
                 </div>
                 <p
-                  className="font-['Roboto'] font-bold leading-[normal] text-[#ff8282] text-[22px]"
+                  className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-red)] text-[22px]"
                   style={{
                     fontVariationSettings: "'wdth' 100",
                   }}
@@ -408,13 +408,13 @@ export function AncientShipCataloguePanel({
                     <circle
                       cx="10"
                       cy="10"
-                      fill="#9CFF84"
+                      fill="var(--shapeships-pastel-green)"
                       r="10"
                     />
                   </svg>
                 </div>
                 <p
-                  className="font-['Roboto'] font-bold leading-[normal] text-[#9cff84] text-[22px]"
+                  className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-green)] text-[22px]"
                   style={{
                     fontVariationSettings: "'wdth' 100",
                   }}
@@ -435,13 +435,13 @@ export function AncientShipCataloguePanel({
                     <circle
                       cx="10"
                       cy="10"
-                      fill="#62FFF6"
+                      fill="var(--shapeships-pastel-blue)"
                       r="10"
                     />
                   </svg>
                 </div>
                 <p
-                  className="font-['Roboto'] font-bold leading-[normal] text-[#62fff6] text-[22px]"
+                  className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-blue)] text-[22px]"
                   style={{
                     fontVariationSettings: "'wdth' 100",
                   }}
@@ -465,11 +465,11 @@ export function AncientShipCataloguePanel({
               {/* Asteroid (Red) */}
               <div className="content-stretch flex flex-col gap-[10px] items-center w-[169px]">
                 <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[#ff8282] border-solid inset-0 pointer-events-none rounded-[10px]" />
+                  <div className="absolute border-2 border-[var(--shapeships-pastel-red)] border-solid inset-0 pointer-events-none rounded-[10px]" />
                   <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
                     <div className="content-stretch flex gap-[10px] items-center justify-center">
                       <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[#ff8282] text-[16px] text-center"
+                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-red)] text-[16px] text-center"
                         style={{
                           fontVariationSettings: "'wdth' 100",
                         }}
@@ -488,7 +488,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#FF8282"
+                            stroke="var(--shapeships-pastel-red)"
                             strokeWidth="1.848"
                           />
                         </svg>
@@ -504,11 +504,11 @@ export function AncientShipCataloguePanel({
               {/* Life (Green) */}
               <div className="content-stretch flex flex-col gap-[11px] items-center w-[169px]">
                 <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[#9cff84] border-solid inset-0 pointer-events-none rounded-[10px]" />
+                  <div className="absolute border-2 border-[var(--shapeships-pastel-green)] border-solid inset-0 pointer-events-none rounded-[10px]" />
                   <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
                     <div className="content-stretch flex gap-[10px] items-center justify-center">
                       <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[#9cff84] text-[16px] text-center"
+                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-green)] text-[16px] text-center"
                         style={{
                           fontVariationSettings: "'wdth' 100",
                         }}
@@ -527,7 +527,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#9CFF84"
+                            stroke="var(--shapeships-pastel-green)"
                             strokeWidth="1.848"
                           />
                         </svg>
@@ -543,11 +543,11 @@ export function AncientShipCataloguePanel({
               {/* Convert (Blue) */}
               <div className="content-stretch flex flex-col gap-[11px] items-center w-[169px]">
                 <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[#62fff6] border-solid inset-0 pointer-events-none rounded-[10px]" />
+                  <div className="absolute border-2 border-[var(--shapeships-pastel-blue)] border-solid inset-0 pointer-events-none rounded-[10px]" />
                   <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
                     <div className="content-stretch flex gap-[10px] items-center justify-center">
                       <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[#62fff6] text-[16px] text-center"
+                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-blue)] text-[16px] text-center"
                         style={{
                           fontVariationSettings: "'wdth' 100",
                         }}
@@ -566,7 +566,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#62FFF6"
+                            stroke="var(--shapeships-pastel-blue)"
                             strokeWidth="1.848"
                           />
                         </svg>
@@ -582,7 +582,7 @@ export function AncientShipCataloguePanel({
               {/* Siphon (Multi - Red+Green) */}
               <div className="content-stretch flex flex-col gap-[10px] items-center w-[169px]">
                 <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[#ff8282] border-solid inset-0 pointer-events-none rounded-[10px]" />
+                  <div className="absolute border-2 border-[var(--shapeships-pastel-red)] border-solid inset-0 pointer-events-none rounded-[10px]" />
                   <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
                     <div className="content-stretch flex gap-[10px] items-center justify-center">
                       {/* Red circles */}
@@ -598,7 +598,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#FF8282"
+                            stroke="var(--shapeships-pastel-red)"
                             strokeWidth="1.848"
                           />
                           <circle
@@ -606,7 +606,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#FF8282"
+                            stroke="var(--shapeships-pastel-red)"
                             strokeWidth="1.848"
                           />
                         </svg>
@@ -632,7 +632,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#9CFF84"
+                            stroke="var(--shapeships-pastel-green)"
                             strokeWidth="1.848"
                           />
                           <circle
@@ -640,7 +640,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#9CFF84"
+                            stroke="var(--shapeships-pastel-green)"
                             strokeWidth="1.848"
                           />
                         </svg>
@@ -662,11 +662,11 @@ export function AncientShipCataloguePanel({
               {/* Supernova (Red) */}
               <div className="content-stretch flex flex-col gap-[10px] items-center w-[169px]">
                 <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[#ff8282] border-solid inset-0 pointer-events-none rounded-[10px]" />
+                  <div className="absolute border-2 border-[var(--shapeships-pastel-red)] border-solid inset-0 pointer-events-none rounded-[10px]" />
                   <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
                     <div className="content-stretch flex gap-[10px] items-center justify-center">
                       <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[#ff8282] text-[16px] text-center"
+                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-red)] text-[16px] text-center"
                         style={{
                           fontVariationSettings: "'wdth' 100",
                         }}
@@ -685,7 +685,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#FF8282"
+                            stroke="var(--shapeships-pastel-red)"
                             strokeWidth="1.848"
                           />
                           <circle
@@ -693,7 +693,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#FF8282"
+                            stroke="var(--shapeships-pastel-red)"
                             strokeWidth="1.848"
                           />
                           <circle
@@ -701,7 +701,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#FF8282"
+                            stroke="var(--shapeships-pastel-red)"
                             strokeWidth="1.848"
                           />
                         </svg>
@@ -717,11 +717,11 @@ export function AncientShipCataloguePanel({
               {/* Star Birth (Green) */}
               <div className="content-stretch flex flex-col gap-[10px] items-center w-[169px]">
                 <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[#9cff84] border-solid inset-0 pointer-events-none rounded-[10px]" />
+                  <div className="absolute border-2 border-[var(--shapeships-pastel-green)] border-solid inset-0 pointer-events-none rounded-[10px]" />
                   <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
                     <div className="content-stretch flex gap-[10px] items-center justify-center">
                       <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[#9cff84] text-[16px] text-center"
+                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-green)] text-[16px] text-center"
                         style={{
                           fontVariationSettings: "'wdth' 100",
                         }}
@@ -740,7 +740,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#9CFF84"
+                            stroke="var(--shapeships-pastel-green)"
                             strokeWidth="1.848"
                           />
                           <circle
@@ -748,7 +748,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#9CFF84"
+                            stroke="var(--shapeships-pastel-green)"
                             strokeWidth="1.848"
                           />
                           <circle
@@ -756,7 +756,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#9CFF84"
+                            stroke="var(--shapeships-pastel-green)"
                             strokeWidth="1.848"
                           />
                         </svg>
@@ -772,11 +772,11 @@ export function AncientShipCataloguePanel({
               {/* Simulacrum X (Blue) */}
               <div className="content-stretch flex flex-col gap-[10px] items-center w-[169px]">
                 <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[#62fff6] border-solid inset-0 pointer-events-none rounded-[10px]" />
+                  <div className="absolute border-2 border-[var(--shapeships-pastel-blue)] border-solid inset-0 pointer-events-none rounded-[10px]" />
                   <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
                     <div className="content-stretch flex gap-[10px] items-center justify-center">
                       <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[#62fff6] text-[16px] text-center"
+                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-blue)] text-[16px] text-center"
                         style={{
                           fontVariationSettings: "'wdth' 100",
                         }}
@@ -795,7 +795,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#62FFF6"
+                            stroke="var(--shapeships-pastel-blue)"
                             strokeWidth="1.848"
                           />
                         </svg>
@@ -811,7 +811,7 @@ export function AncientShipCataloguePanel({
               {/* Vortex (Multi - Red+Green+Blue) */}
               <div className="content-stretch flex flex-col gap-[10px] items-center w-[169px]">
                 <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[#ff8282] border-solid inset-0 pointer-events-none rounded-[10px]" />
+                  <div className="absolute border-2 border-[var(--shapeships-pastel-red)] border-solid inset-0 pointer-events-none rounded-[10px]" />
                   <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
                     <div className="content-stretch flex gap-[10px] items-center justify-center">
                       {/* Red circles */}
@@ -827,7 +827,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#FF8282"
+                            stroke="var(--shapeships-pastel-red)"
                             strokeWidth="1.848"
                           />
                           <circle
@@ -835,7 +835,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#FF8282"
+                            stroke="var(--shapeships-pastel-red)"
                             strokeWidth="1.848"
                           />
                         </svg>
@@ -853,7 +853,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#9CFF84"
+                            stroke="var(--shapeships-pastel-green)"
                             strokeWidth="1.848"
                           />
                           <circle
@@ -861,7 +861,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#9CFF84"
+                            stroke="var(--shapeships-pastel-green)"
                             strokeWidth="1.848"
                           />
                         </svg>
@@ -887,7 +887,7 @@ export function AncientShipCataloguePanel({
                             cy="8.124"
                             fill="black"
                             r="7.2"
-                            stroke="#62FFF6"
+                            stroke="var(--shapeships-pastel-blue)"
                             strokeWidth="1.848"
                           />
                         </svg>
@@ -907,13 +907,13 @@ export function AncientShipCataloguePanel({
               style={blackHolePosition}
             >
               <div className="h-[101.8px] relative rounded-[10px] w-full">
-                <div className="absolute border-2 border-[#ff8282] border-solid inset-0 pointer-events-none rounded-[10px]" />
+                <div className="absolute border-2 border-[var(--shapeships-pastel-red)] border-solid inset-0 pointer-events-none rounded-[10px]" />
                 <div className="flex items-center justify-center size-full p-[20px]">
                   <div className="content-stretch flex flex-col gap-[10px] items-center justify-center w-full">
                     {/* Title and energy circles */}
                     <div className="content-stretch flex gap-[15px] items-start justify-between w-full">
                       <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[#ff8282] text-[20px]"
+                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-red)] text-[20px]"
                         style={{
                           fontVariationSettings: "'wdth' 100",
                         }}
@@ -935,7 +935,7 @@ export function AncientShipCataloguePanel({
                                 cy="8.124"
                                 fill="black"
                                 r="7.2"
-                                stroke="#FF8282"
+                                stroke="var(--shapeships-pastel-red)"
                                 strokeWidth="1.848"
                               />
                             </svg>
@@ -952,7 +952,7 @@ export function AncientShipCataloguePanel({
                                 cy="8.124"
                                 fill="black"
                                 r="7.2"
-                                stroke="#FF8282"
+                                stroke="var(--shapeships-pastel-red)"
                                 strokeWidth="1.848"
                               />
                             </svg>
@@ -969,7 +969,7 @@ export function AncientShipCataloguePanel({
                                 cy="8.124"
                                 fill="black"
                                 r="7.2"
-                                stroke="#FF8282"
+                                stroke="var(--shapeships-pastel-red)"
                                 strokeWidth="1.848"
                               />
                             </svg>
@@ -989,7 +989,7 @@ export function AncientShipCataloguePanel({
                                 cy="8.124"
                                 fill="black"
                                 r="7.2"
-                                stroke="#9CFF84"
+                                stroke="var(--shapeships-pastel-green)"
                                 strokeWidth="1.848"
                               />
                             </svg>
@@ -1006,7 +1006,7 @@ export function AncientShipCataloguePanel({
                                 cy="8.124"
                                 fill="black"
                                 r="7.2"
-                                stroke="#9CFF84"
+                                stroke="var(--shapeships-pastel-green)"
                                 strokeWidth="1.848"
                               />
                             </svg>
@@ -1023,7 +1023,7 @@ export function AncientShipCataloguePanel({
                                 cy="8.124"
                                 fill="black"
                                 r="7.2"
-                                stroke="#9CFF84"
+                                stroke="var(--shapeships-pastel-green)"
                                 strokeWidth="1.848"
                               />
                             </svg>
@@ -1043,7 +1043,7 @@ export function AncientShipCataloguePanel({
                                 cy="8.124"
                                 fill="black"
                                 r="7.2"
-                                stroke="#62FFF6"
+                                stroke="var(--shapeships-pastel-blue)"
                                 strokeWidth="1.848"
                               />
                             </svg>
@@ -1060,7 +1060,7 @@ export function AncientShipCataloguePanel({
                                 cy="8.124"
                                 fill="black"
                                 r="7.2"
-                                stroke="#62FFF6"
+                                stroke="var(--shapeships-pastel-blue)"
                                 strokeWidth="1.848"
                               />
                             </svg>
@@ -1077,7 +1077,7 @@ export function AncientShipCataloguePanel({
                                 cy="8.124"
                                 fill="black"
                                 r="7.2"
-                                stroke="#62FFF6"
+                                stroke="var(--shapeships-pastel-blue)"
                                 strokeWidth="1.848"
                               />
                             </svg>

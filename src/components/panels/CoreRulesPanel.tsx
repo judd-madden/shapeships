@@ -21,14 +21,14 @@ interface CoreRulesPanelProps {
 function HrGradient() {
   return (
     <div className="h-px relative shrink-0 w-full">
-      <div className="absolute bg-gradient-to-r from-[rgba(255,255,255,0)] inset-0 opacity-70 to-[rgba(255,255,255,0)] via-50% via-[#ffffff]" />
+      <div className="absolute bg-gradient-to-r from-[rgba(255,255,255,0)] inset-0 opacity-70 to-[rgba(255,255,255,0)] via-50% via-[var(--shapeships-white)]" />
     </div>
   );
 }
 
 function PhaseSection({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-[#212121] relative shrink-0 w-full">
+    <div className="bg-[var(--shapeships-grey-90)] relative shrink-0 w-full">
       <div className="content-stretch relative flex w-full flex-col items-start gap-[20px] px-[20px] pb-[24px] pt-[20px] md:flex-row md:gap-[30px] md:px-[30px] md:pb-[30px] md:pr-[40px] md:pt-[24px]">
         {children}
       </div>
@@ -151,7 +151,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </div>
           <div className="content-stretch relative flex min-w-0 flex-1 flex-col items-start gap-[12px]">
             <div className="content-stretch flex items-center relative shrink-0">
-              <p className="font-semibold leading-[18.25px] relative shrink-0 text-[#62fff6] text-[18.25px] sm:text-[24.365px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <p className="font-semibold leading-[18.25px] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[18.25px] sm:text-[24.365px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 Build Phase
               </p>
             </div>
@@ -189,7 +189,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </div>
           <div className="content-stretch relative flex min-w-0 flex-1 flex-col items-start gap-[15px]">
             <div className="content-stretch flex items-center relative shrink-0">
-              <p className="font-semibold leading-[18.25px] relative shrink-0 text-[#62fff6] text-[18.25px] sm:text-[24.365px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <p className="font-semibold leading-[18.25px] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[18.25px] sm:text-[24.365px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 Battle Phase
               </p>
             </div>

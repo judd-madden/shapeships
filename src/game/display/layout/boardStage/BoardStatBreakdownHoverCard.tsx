@@ -76,7 +76,7 @@ export function BoardStatBreakdownHoverCard({
       }}
     >
       <div
-        className="relative flex w-[220px] flex-col gap-[4px] rounded-[10px] bg-[#212121] px-[20px] py-[16px]"
+        className="relative flex w-[220px] flex-col gap-[4px] rounded-[10px] bg-[var(--shapeships-grey-90)] px-[20px] py-[16px]"
         style={{
           pointerEvents: 'none',
           transform: isLeft ? 'translate(-100%, -50%)' : 'translate(0, -50%)',
@@ -84,12 +84,12 @@ export function BoardStatBreakdownHoverCard({
       >
         <div
           aria-hidden="true"
-          className="absolute inset-0 rounded-[10px] border border-solid border-[#555] pointer-events-none"
+          className="absolute inset-0 rounded-[10px] border border-solid border-[var(--shapeships-grey-70)] pointer-events-none"
         />
 
         <div
           aria-hidden="true"
-          className="absolute top-1/2 size-[12px] -translate-y-1/2 rotate-45 border-solid border-[#555] bg-[#212121] pointer-events-none"
+          className="absolute top-1/2 size-[12px] -translate-y-1/2 rotate-45 border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] pointer-events-none"
           style={
             isLeft
               ? { right: '-6px', borderTopWidth: '1px', borderRightWidth: '1px' }

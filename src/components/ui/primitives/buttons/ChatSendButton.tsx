@@ -26,7 +26,7 @@ export function ChatSendButton({
         content-stretch flex items-center justify-center 
         px-[15px] py-[8px] 
         relative rounded-[7px]
-        hover:bg-[#212121]
+        hover:bg-[var(--shapeships-grey-90)]
         transition-colors
         cursor-pointer
         disabled:opacity-50

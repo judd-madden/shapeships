@@ -32,7 +32,7 @@ export function LobbyRow({
   className = "" 
 }: LobbyRowProps) {
   // Use Tailwind classes for both default background and hover
-  const bgClass = alternate ? 'bg-[#212121]' : 'bg-[#000000]'; // Grey 90 or Black
+  const bgClass = alternate ? 'bg-[var(--shapeships-grey-90)]' : 'bg-[var(--shapeships-black)]'; // Grey 90 or Black
   
   if (selected) {
     return (
@@ -67,7 +67,7 @@ export function LobbyRow({
         {variants && (
           <div className="content-stretch flex items-center justify-center pl-[215px] pr-0 py-0 relative">
             <p 
-              className="font-['Roboto'] font-normal leading-[normal] relative text-[15px] text-[#555555] w-[662px]"
+              className="font-['Roboto'] font-normal leading-[normal] relative text-[15px] text-[var(--shapeships-grey-70)] w-[662px]"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {variants}
@@ -86,7 +86,7 @@ export function LobbyRow({
         content-stretch flex flex-col gap-[10px] items-start justify-center 
         px-[40px] py-[25px] 
         relative w-full
-        hover:!bg-[#555555]
+        hover:!bg-[var(--shapeships-grey-70)]
         cursor-pointer
         ${className}
       `}
@@ -111,7 +111,7 @@ export function LobbyRow({
       {variants && (
         <div className="content-stretch flex items-center justify-center pl-[215px] pr-0 py-0 relative">
           <p 
-            className="font-['Roboto'] font-normal leading-[normal] relative text-[15px] text-[#888888] w-[662px]"
+            className="font-['Roboto'] font-normal leading-[normal] relative text-[15px] text-[var(--shapeships-grey-50)] w-[662px]"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {variants}

@@ -129,7 +129,7 @@ export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResoluti
         />
         <div
           aria-hidden="true"
-          className={`absolute left-[10px] right-[10px] top-1/2 h-px origin-center bg-[#555555] transition-all duration-300 ease-out ${
+          className={`absolute left-[10px] right-[10px] top-1/2 h-px origin-center bg-[var(--shapeships-grey-70)] transition-all duration-300 ease-out ${
             showDivider ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-90'
           }`}
         />
@@ -164,7 +164,7 @@ export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResoluti
       />
       <div
         aria-hidden="true"
-        className={`absolute top-[40px] bottom-[40px] w-px bg-[#555555] transition-all duration-300 ease-out ${
+        className={`absolute top-[40px] bottom-[40px] w-px bg-[var(--shapeships-grey-70)] transition-all duration-300 ease-out ${
           showDivider ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-90'
         }`}
         style={{ left: '49.74%' }}

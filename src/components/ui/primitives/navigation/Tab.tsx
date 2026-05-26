@@ -18,7 +18,7 @@ export function Tab({
   disabled = false, 
   className = "" 
 }: TabProps) {
-  const bgColor = selected ? '#555555' : '#212121'; // Grey 70 selected, Grey 90 default
+  const bgColor = selected ? 'var(--shapeships-grey-70)' : 'var(--shapeships-grey-90)'; // Grey 70 selected, Grey 90 default
 
   return (
     <button

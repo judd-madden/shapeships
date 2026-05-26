@@ -22,7 +22,7 @@ interface ActionButtonSmallProps {
 export function ActionButtonSmall({ 
   label,
   selected = false, 
-  backgroundColor = '#D4D4D4', // Grey 20 default
+  backgroundColor = 'var(--shapeships-grey-20)', // Grey 20 default
   textColor = 'black',
   density = 'desktop',
   onClick, 
@@ -48,7 +48,7 @@ export function ActionButtonSmall({
         flex items-center justify-center
         cursor-pointer
         disabled:opacity-50 disabled:cursor-not-allowed
-        ${selected ? 'shadow-[0_0_0_3px_white]' : 'hover:!bg-[#888888]'}
+        ${selected ? 'shadow-[0_0_0_3px_white]' : 'hover:!bg-[var(--shapeships-grey-50)]'}
         ${className}
       `}
       style={{ backgroundColor }}
