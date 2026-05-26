@@ -21,6 +21,10 @@ interface MobileBoardViewProps {
   ) => void;
 }
 
+const MOBILE_FLEET_ROW_OVERRIDES = {
+  ZEN: 3,
+} satisfies Partial<Record<ShipDefId, 1 | 2 | 3 | 4>>;
+
 export function MobileBoardView({
   hudVm,
   boardVm,
@@ -53,6 +57,7 @@ export function MobileBoardView({
           turnPulse={rightRevealPulse}
           fitMinScale={0.25}
           liveRowsLayout="pairedRows"
+          liveRowOverrides={MOBILE_FLEET_ROW_OVERRIDES}
           liveLayoutCanvasClassName="w-[360px] h-[130px]"
           fitVoidToSlot
           voidSlotClassName="h-[28px]"
@@ -84,6 +89,7 @@ export function MobileBoardView({
           turnPulse={leftRevealPulse}
           fitMinScale={0.25}
           liveRowsLayout="pairedRows"
+          liveRowOverrides={MOBILE_FLEET_ROW_OVERRIDES}
           liveLayoutCanvasClassName="w-[360px] h-[130px]"
           fitVoidToSlot
           voidSlotClassName="h-[28px]"

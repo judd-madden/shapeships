@@ -175,7 +175,7 @@ export function MobileGameLayout({
         onOpenMenu={handleOpenMenu}
       />
 
-      <div className="relative flex min-h-0 flex-1 flex-col">
+      <div className="relative flex min-h-0 flex-1 flex-col pt-[8px]">
         <div
           aria-hidden={activeTakeover !== null}
           inert={activeTakeover !== null}

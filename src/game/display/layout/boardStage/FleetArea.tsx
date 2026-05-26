@@ -32,7 +32,8 @@ const IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES = ['ss-boardTurnPulse'] as const;
 // FLEET ROW MAPPING (Set-based, All Species)
 // ============================================================================
 
-type FleetRow = 1 | 2 | 3 | 4;
+export type FleetRow = 1 | 2 | 3 | 4;
+export type FleetRowOverrides = Partial<Record<ShipDefId, FleetRow>>;
 export type SpeciesKey = 'human' | 'xenite' | 'centaur' | 'ancient';
 type RowSets = Record<FleetRow, Set<ShipDefId>>;
 
@@ -71,7 +72,14 @@ const ROW_SETS_BY_SPECIES: Record<SpeciesKey, RowSets> = {
   ancient: ANCIENT_ROW_SETS,
 };
 
-function getRowFromSets(shipDefId: ShipDefId, rowSets: RowSets): FleetRow {
+function getRowFromSets(
+  shipDefId: ShipDefId,
+  rowSets: RowSets,
+  liveRowOverrides?: FleetRowOverrides
+): FleetRow {
+  const overrideRow = liveRowOverrides?.[shipDefId];
+  if (overrideRow !== undefined) return overrideRow;
+
   if (rowSets[1].has(shipDefId)) return 1;
   if (rowSets[2].has(shipDefId)) return 2;
   if (rowSets[3].has(shipDefId)) return 3;
@@ -97,7 +105,8 @@ function sortByPersistentOrder<T extends { shipDefId: string; renderKey: string 
 function groupShipsIntoRows<T extends { shipDefId: string; renderKey: string }>(
     ships: T[],
     order: string[] | undefined,
-    rowSets: RowSets
+    rowSets: RowSets,
+    liveRowOverrides?: FleetRowOverrides
 ) {
     const sorted = sortByPersistentOrder(ships, order);
 
@@ -108,7 +117,7 @@ function groupShipsIntoRows<T extends { shipDefId: string; renderKey: string }>(
 
     for (const s of sorted) {
         const id = s.shipDefId as ShipDefId;
-        const row = getRowFromSets(id, rowSets);
+        const row = getRowFromSets(id, rowSets, liveRowOverrides);
         if (row === 1) row1.push(s);
         else if (row === 2) row2.push(s);
         else if (row === 3) row3.push(s);
@@ -365,6 +374,7 @@ export function FleetArea({
   fitVoidToSlot = false,
   voidFitMinScale = 0.15,
   voidFitMaxScale = 0.6,
+  liveRowOverrides,
 }: {
   title: string;
   ships?: FleetStackVm[];
@@ -394,9 +404,13 @@ export function FleetArea({
   fitVoidToSlot?: boolean;
   voidFitMinScale?: number;
   voidFitMaxScale?: number;
+  liveRowOverrides?: FleetRowOverrides;
 }) {
   const rowSets = ROW_SETS_BY_SPECIES[species];
-  const grouped = ships && ships.length > 0 ? groupShipsIntoRows(ships, order, rowSets) : null;
+  const grouped =
+    ships && ships.length > 0
+      ? groupShipsIntoRows(ships, order, rowSets, liveRowOverrides)
+      : null;
   const sortedVoidShips = voidShips && voidShips.length > 0 ? sortByPersistentOrder(voidShips, order) : [];
 
   // FLIP layout animation for smooth repositioning (live fleet only)
