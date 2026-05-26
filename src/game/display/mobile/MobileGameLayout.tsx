@@ -18,7 +18,7 @@ import { MobileSpeciesConfirmPhase, MobileSpeciesSelectionView } from './MobileS
 import { MobileTopNav } from './MobileTopNav';
 import { MobileBattleLogTakeover } from './takeovers/MobileBattleLogTakeover';
 import { MobileChatTakeover } from './takeovers/MobileChatTakeover';
-import { MobileMenuPlaceholderTakeover } from './takeovers/MobileMenuPlaceholderTakeover';
+import { MobileMenuTakeover } from './takeovers/MobileMenuTakeover';
 
 interface MobileGameLayoutProps {
   hudVm: HudViewModel;
@@ -27,6 +27,13 @@ interface MobileGameLayoutProps {
   bottomActionRailVm: BottomActionRailViewModel;
   actionPanelVm: ActionPanelViewModel;
   actions: GameSessionActions;
+  soundEnabled: boolean;
+  boardFlashEnabled: boolean;
+  onSoundEnabledChange: (checked: boolean) => void;
+  onBoardFlashEnabledChange: (checked: boolean) => void;
+  onToggleSound: () => void;
+  onToggleBoardFlash: () => void;
+  onReturnToMainMenu: () => void;
 }
 
 type ActiveFleetShipHover = {
@@ -55,6 +62,13 @@ export function MobileGameLayout({
   bottomActionRailVm,
   actionPanelVm,
   actions,
+  soundEnabled,
+  boardFlashEnabled,
+  onSoundEnabledChange,
+  onBoardFlashEnabledChange,
+  onToggleSound,
+  onToggleBoardFlash,
+  onReturnToMainMenu,
 }: MobileGameLayoutProps) {
   const [activeTakeover, setActiveTakeover] = useState<ActiveTakeover>(null);
   const [activeShipModalId, setActiveShipModalId] = useState<ShipDefId | null>(null);
@@ -212,7 +226,18 @@ export function MobileGameLayout({
             ) : activeTakeover === 'battleLog' ? (
               <MobileBattleLogTakeover vm={leftRailVm} onClose={handleReturnToBoard} />
             ) : (
-              <MobileMenuPlaceholderTakeover onClose={handleReturnToBoard} />
+              <MobileMenuTakeover
+                vm={actionPanelVm.menu}
+                actions={actions}
+                onClose={handleReturnToBoard}
+                onReturnToMainMenu={onReturnToMainMenu}
+                soundEnabled={soundEnabled}
+                boardFlashEnabled={boardFlashEnabled}
+                onSoundEnabledChange={onSoundEnabledChange}
+                onBoardFlashEnabledChange={onBoardFlashEnabledChange}
+                onToggleSound={onToggleSound}
+                onToggleBoardFlash={onToggleBoardFlash}
+              />
             )}
           </div>
         ) : null}

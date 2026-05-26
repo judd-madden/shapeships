@@ -1,0 +1,197 @@
+import { BattleIcon } from '../../../../../components/ui/primitives/icons/BattleIcon';
+import { BuildIcon } from '../../../../../components/ui/primitives/icons/BuildIcon';
+
+type PhaseBreakdownLayout = 'desktop' | 'mobile';
+
+interface PhaseBreakdownViewProps {
+  turnNumber: number;
+  phaseKey: string;
+  hasActionsForMe: boolean;
+  layout?: PhaseBreakdownLayout;
+}
+
+type PhaseRow = {
+  key: string;
+  label: string;
+  group: 'build' | 'battle';
+};
+
+const PHASE_ROWS: PhaseRow[] = [
+  { key: 'build.dice_roll', label: '1 Dice Roll & Dice Manipulation', group: 'build' },
+  { key: 'build.line_generation', label: '2 Line Generation', group: 'build' },
+  { key: 'build.ships_that_build', label: '3 Ships That Build', group: 'build' },
+  { key: 'build.drawing', label: '4 Drawing', group: 'build' },
+  { key: 'build.end_of_build', label: '5 End of Build Phase', group: 'build' },
+
+  { key: 'battle.first_strike', label: '6 First Strike', group: 'battle' },
+  { key: 'battle.charge_declaration', label: '7 Charge Declaration', group: 'battle' },
+  { key: 'battle.charge_response', label: '8 Charge Response', group: 'battle' },
+  { key: 'battle.end_of_turn_resolution', label: '9 End of Turn Resolution', group: 'battle' },
+];
+
+export function PhaseBreakdownView({
+  turnNumber,
+  phaseKey,
+  hasActionsForMe,
+  layout = 'desktop',
+}: PhaseBreakdownViewProps) {
+  const buildRows = PHASE_ROWS.filter(r => r.group === 'build');
+  const battleRows = PHASE_ROWS.filter(r => r.group === 'battle');
+
+  const isDrawingPhase = phaseKey === 'build.drawing';
+
+  const dotColor =
+    isDrawingPhase || hasActionsForMe
+      ? 'var(--shapeships-green)'
+      : 'var(--shapeships-grey-50)';
+
+  const renderRow = (row: PhaseRow) => {
+    const isCurrent = row.key === phaseKey;
+    const isMobile = layout === 'mobile';
+
+    return (
+      <div
+        key={row.key}
+        className={`flex items-center gap-[6px] ${isMobile ? 'leading-[16px]' : 'leading-[20px]'}`}
+      >
+        {/* Dot gutter (always takes space) */}
+        <span style={{ display: 'inline-flex', width: 10, height: 10, alignItems: 'center', justifyContent: 'center', flex: '0 0 auto' }}>
+          {isCurrent ? (
+            <span
+              style={{
+                display: 'inline-block',
+                width: 10,
+                height: 10,
+                borderRadius: 9999,
+                backgroundColor: dotColor,
+              }}
+            />
+          ) : null}
+        </span>
+
+        <span
+          className={`${isMobile ? 'text-[12px] leading-[16px]' : 'text-[14px] leading-[20px]'} font-normal`}
+          style={{
+            fontVariationSettings: "'wdth' 100",
+            color: isCurrent ? 'white' : 'var(--shapeships-grey-50)',
+          }}
+        >
+          {row.label}
+        </span>
+      </div>
+    );
+  };
+
+  if (layout === 'mobile') {
+    return (
+      <div className="flex w-full justify-center">
+        <div className="flex w-full max-w-[300px] flex-col items-center gap-[18px]">
+          <div
+            className="flex items-center w-[260px] justify-center rounded-[10px] px-[18px] py-[8px]"
+            style={{
+              background: 'var(--shapeships-grey-90)',
+            }}
+          >
+            <span
+              className="text-[24px] font-bold leading-[normal] text-white"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              Turn {turnNumber}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-[18px]">
+            <div className="flex flex-col gap-[4px]">
+              <div className="mb-[2px] flex items-center justify-start gap-[10px]">
+                <span
+                  className="text-[16px] font-bold text-white"
+                  style={{ fontVariationSettings: "'wdth' 100" }}
+                >
+                  BUILD PHASE
+                </span>
+                <BuildIcon className="size-[24px]" color="#FFFFFF" />
+              </div>
+              <div className="flex flex-col gap-[4px]">
+                {buildRows.map(renderRow)}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-[4px]">
+              <div className="mb-[2px] flex items-center justify-start gap-[10px]">
+                <span
+                  className="text-[16px] font-bold text-white"
+                  style={{ fontVariationSettings: "'wdth' 100" }}
+                >
+                  BATTLE PHASE
+                </span>
+                <BattleIcon className="size-[24px]" color="#FFFFFF" />
+              </div>
+              <div className="flex flex-col gap-[4px]">
+                {battleRows.map(renderRow)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex items-start gap-[30px] rounded-[10px] shrink-0 px-[40px] py-[30px] pl-[30px] "
+      style={{
+        background: 'rgba(25, 25, 25, 0.7)',
+      }}
+    >
+      {/* Turn badge */}
+      <div
+        className="flex items-center justify-center rounded-[10px] px-[20px] py-[10px]"
+        style={{
+          background: 'var(--shapeships-grey-90)',
+        }}
+      >
+        <span
+          className="text-[30px] font-bold leading-[normal] text-white"
+          style={{ fontVariationSettings: "'wdth' 100" }}
+        >
+          Turn {turnNumber}
+        </span>
+      </div>
+
+      {/* Phase columns */}
+       <div className="flex w-full gap-[20px]">
+        {/* Build */}
+              <div className="flex flex-col gap-[4px]">
+          <div className="flex items-center gap-[10px] mb-[4px]">
+            <span
+              className="text-[18px] font-bold text-white"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              BUILD PHASE
+            </span>
+            <BuildIcon className="size-[26px]" color="#FFFFFF" />
+          </div>
+                  <div className="flex flex-col gap-[4px]">
+            {buildRows.map(renderRow)}
+          </div>
+        </div>
+
+        {/* Battle */}
+        <div className="flex flex-col gap-[4px]">
+          <div className="flex items-center gap-[10px] mb-[4px]">
+            <span
+              className="text-[18px] font-bold text-white"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              BATTLE PHASE
+            </span>
+            <BattleIcon className="size-[26px]" color="#FFFFFF" />
+          </div>
+          <div className="flex flex-col gap-[4px]">
+            {battleRows.map(renderRow)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

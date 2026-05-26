@@ -206,6 +206,13 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
             bottomActionRailVm={vm.bottomActionRail}
             actionPanelVm={vm.actionPanel}
             actions={mainStageActions}
+            soundEnabled={soundEnabled}
+            boardFlashEnabled={boardFlashEnabled}
+            onSoundEnabledChange={setSoundEnabled}
+            onBoardFlashEnabledChange={setBoardFlashEnabled}
+            onToggleSound={toggleSound}
+            onToggleBoardFlash={toggleBoardFlash}
+            onReturnToMainMenu={onBack}
           />
 
           {/* Global Ship Hover Layer (PASS 2) - Portal target for catalogue hover cards */}
