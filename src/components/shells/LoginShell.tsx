@@ -75,7 +75,7 @@ export function LoginShell({
 
               {/* Feature 3: Simultaneous turns */}
               <div className="flex relative max-w-[260px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
-                <Dice value={3} className="w-[32px] h-[30px] shrink-0" enableRotate={false}/>
+                <Dice value={3} className="w-[32px] h-[30px] sm:w-[48px] sm:h-[45px] shrink-0" enableRotate={false}/>
                 <p className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
                   Shared dice each turn
                 </p>
