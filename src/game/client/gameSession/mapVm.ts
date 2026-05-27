@@ -703,6 +703,7 @@ export function mapGameSessionVm(args: {
 
   let subphaseTitle = isFinished ? 'Game Over' : getSubphaseLabelFromPhaseKey(phaseKey);
   let subphaseTitleSuffix: string | null = null;
+  let mobileSubphaseTitleExtra: string | null = null;
   let subphaseSubheading = isFinished ? '\u00A0' : getMajorPhaseLabel(phaseKey);
 
   if (!isFinished && phaseKey === 'battle.end_of_turn_resolution') {
@@ -717,6 +718,9 @@ export function mapGameSessionVm(args: {
   } else if (!isFinished && buildDrawingEconomyDisplay != null) {
     subphaseTitle = String(buildDrawingEconomyDisplay.ordinaryAvailable);
     subphaseTitleSuffix = 'lines available';
+    mobileSubphaseTitleExtra = buildDrawingEconomyDisplay.joiningAvailable > 0
+      ? `+${buildDrawingEconomyDisplay.joiningAvailable} joining`
+      : null;
     subphaseSubheading = buildDrawingEconomyDisplay.joiningAvailable > 0
       ? `${buildDrawingEconomyDisplay.joiningAvailable} joining lines available`
       : 'Spend lines to build ships';
@@ -1360,6 +1364,7 @@ export function mapGameSessionVm(args: {
       // Future: charge declaration/response subtexts should be gated by server-projected availability (e.g. availableActions / boolean), not guessed client-side.
       subphaseTitle,
       subphaseTitleSuffix,
+      mobileSubphaseTitleExtra,
       subphaseSubheading,
       canUndoActions: false,
       readyButtonVisible: !isFinished && !isSpectator,

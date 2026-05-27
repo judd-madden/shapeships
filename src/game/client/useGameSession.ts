@@ -4721,6 +4721,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       bottomActionRail: {
         subphaseTitle: '',
         subphaseTitleSuffix: null,
+        mobileSubphaseTitleExtra: null,
         subphaseSubheading: '',
         canUndoActions: false,
         readyButtonVisible: true,

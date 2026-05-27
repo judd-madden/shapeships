@@ -422,6 +422,7 @@ export interface BottomActionRailViewModel {
   // Subphase info
   subphaseTitle: string; // e.g., "Subphase information"
   subphaseTitleSuffix?: string | null;
+  mobileSubphaseTitleExtra?: string | null;
   subphaseSubheading: string;
   
   // Ready controls

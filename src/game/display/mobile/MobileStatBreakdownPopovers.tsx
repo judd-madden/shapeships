@@ -131,13 +131,10 @@ function buildSections({
     },
     {
       key: 'bonus',
-      title: 'Last turn bonus',
+      title: 'Bonus',
       total: bonus,
       tone: 'bonus',
-      rows: bonus === 0 ? [] : bonusRows,
-      secondaryRows: bonusJoining > 0
-        ? [{ label: 'Joining lines', amountText: String(bonusJoining) }]
-        : undefined,
+      rows: bonus === 0 ? [] : bonusRows
     },
     {
       key: 'saved',

@@ -19,6 +19,9 @@ export function MobileBottomPhase({ vm, actions }: MobileBottomPhaseProps) {
         {vm.subphaseTitleSuffix ? (
           <span className="font-normal"> {vm.subphaseTitleSuffix}</span>
         ) : null}
+        {vm.mobileSubphaseTitleExtra ? (
+          <span className="font-normal"> {vm.mobileSubphaseTitleExtra}</span>
+        ) : null}
       </p>
 
       {vm.readyButtonVisible ? (
