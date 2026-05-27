@@ -190,6 +190,7 @@ function ShipStack({
   activationIndexMap,
   targetState,
   previewShipDefId,
+  targetingGlowScale,
   displayMode = 'live',
   onFleetHoverEnter,
   onFleetHoverLeave,
@@ -200,6 +201,7 @@ function ShipStack({
   activationIndexMap?: Record<string, number>;
   targetState?: DestroyTargetStateVm;
   previewShipDefId?: ShipDefId;
+  targetingGlowScale?: number;
   displayMode?: ShipDisplayMode;
   onFleetHoverEnter?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
   onFleetHoverLeave?: (shipId: ShipDefId) => void;
@@ -253,7 +255,7 @@ function ShipStack({
           {targetingVisualState ? (
             <div
               className={getTargetingGlowClassName(targetingVisualState)}
-              style={getTargetingGlowStyle(targetingVisualState)}
+              style={getTargetingGlowStyle(targetingVisualState, targetingGlowScale)}
             />
           ) : null}
 
@@ -359,6 +361,7 @@ export function FleetArea({
   healthDeltaFlashShape,
   targetStatesByStackKey,
   previewShipDefIdByStackKey,
+  targetingGlowScale,
   onDestroyTargetHoverChange,
   onDestroyTargetMouseDown,
   onFleetHoverEnter,
@@ -366,6 +369,7 @@ export function FleetArea({
   onFleetShipTap,
   turnPulse,
   fitMinScale = 0.4,
+  liveFitOverflowVisible,
   liveRowsLayout = 'stacked',
   liveLayoutCanvasClassName,
   voidSlotClassName = 'h-[44px]',
@@ -389,6 +393,7 @@ export function FleetArea({
   healthDeltaFlashShape?: FleetAreaHealthDeltaFlashShape;
   targetStatesByStackKey?: Record<string, DestroyTargetStateVm>;
   previewShipDefIdByStackKey?: Partial<Record<string, ShipDefId>>;
+  targetingGlowScale?: number;
   onDestroyTargetHoverChange?: (side: 'my' | 'opponent', stackKey: string | null) => void;
   onDestroyTargetMouseDown?: (side: 'my' | 'opponent', stackKey: string) => void;
   onFleetHoverEnter?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
@@ -396,6 +401,7 @@ export function FleetArea({
   onFleetShipTap?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
   turnPulse: TurnIncrementPulseState;
   fitMinScale?: number;
+  liveFitOverflowVisible?: boolean;
   liveRowsLayout?: 'stacked' | 'pairedRows';
   liveLayoutCanvasClassName?: string;
   voidSlotClassName?: string;
@@ -468,6 +474,7 @@ export function FleetArea({
           activationIndexMap={displayMode === 'live' ? activationIndexMap : undefined}
           targetState={targetState}
           previewShipDefId={displayMode === 'live' ? previewShipDefIdByStackKey?.[ship.stackKey] : undefined}
+          targetingGlowScale={displayMode === 'live' ? targetingGlowScale : undefined}
           displayMode={displayMode}
           onFleetHoverEnter={displayMode === 'live' ? onFleetHoverEnter : undefined}
           onFleetHoverLeave={displayMode === 'live' ? onFleetHoverLeave : undefined}
@@ -541,7 +548,11 @@ export function FleetArea({
       {/* FleetArea: {title} (title intentionally not rendered) */}
       <div className="relative z-10 flex h-full min-h-0 flex-col">
         <div className="grow min-h-0">
-          <FitToBox minScale={fitMinScale} className="w-full h-full">
+          <FitToBox
+            minScale={fitMinScale}
+            className="w-full h-full"
+            overflowVisible={liveFitOverflowVisible}
+          >
             {hasLiveShips ? (
               <div
                 className={cx(

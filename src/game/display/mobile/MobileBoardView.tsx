@@ -1,6 +1,7 @@
 import type { RefObject } from 'react';
 import type {
   BoardViewModel,
+  GameSessionActions,
   HudViewModel,
   LeftRailViewModel,
 } from '../../client/useGameSession';
@@ -20,6 +21,9 @@ interface MobileBoardViewProps {
     anchorEl: HTMLElement,
     side: 'my' | 'opponent'
   ) => void;
+  onBoardBackgroundMouseDown?: GameSessionActions['onBoardBackgroundMouseDown'];
+  onDestroyTargetHoverChange?: GameSessionActions['onDestroyTargetStackHoverChange'];
+  onDestroyTargetMouseDown?: GameSessionActions['onDestroyTargetStackMouseDown'];
   topStatusRowRef?: RefObject<HTMLDivElement | null>;
   bottomStatusRowRef?: RefObject<HTMLDivElement | null>;
   topStatsAnchorRef?: RefObject<HTMLDivElement | null>;
@@ -36,6 +40,9 @@ export function MobileBoardView({
   boardVm,
   leftRailVm,
   onFleetShipInspect,
+  onBoardBackgroundMouseDown,
+  onDestroyTargetHoverChange,
+  onDestroyTargetMouseDown,
   topStatusRowRef,
   bottomStatusRowRef,
   topStatsAnchorRef,
@@ -46,12 +53,15 @@ export function MobileBoardView({
   const mySpeciesKey = toSpeciesKey(boardVm.mySpeciesId);
   const leftRevealPulse = usePresentedFleetRevealPulse(boardVm.presentedMyRevealBlurSeq ?? 0);
   const rightRevealPulse = usePresentedFleetRevealPulse(boardVm.presentedOpponentRevealBlurSeq);
+  const isDestroyTargetingActive =
+    boardVm.destroyTargeting?.activeSourceInstanceId != null;
 
   return (
     <div className="flex-1 min-h-0 flex flex-col w-full">
       <div
         aria-label="Opponent fleet area"
         className="flex flex-1 min-h-0 w-full overflow-visible"
+        onMouseDown={onBoardBackgroundMouseDown}
       >
         <FleetArea
           title="OPPONENT FLEET"
@@ -65,8 +75,14 @@ export function MobileBoardView({
           activationIndexMap={boardVm.activationStaggerPlan?.opponentIndexByShipId}
           healthDeltaFlash={boardVm.opponentFleetHealthDeltaFlash}
           healthDeltaFlashShape="fill"
+          targetStatesByStackKey={boardVm.destroyTargeting?.targetStatesBySide.opponent}
+          previewShipDefIdByStackKey={boardVm.destroyTargeting?.previewShipDefIdBySide.opponent}
+          targetingGlowScale={0.85}
+          onDestroyTargetHoverChange={onDestroyTargetHoverChange}
+          onDestroyTargetMouseDown={onDestroyTargetMouseDown}
           turnPulse={rightRevealPulse}
           fitMinScale={0.25}
+          liveFitOverflowVisible
           liveRowsLayout="pairedRows"
           liveRowOverrides={MOBILE_FLEET_ROW_OVERRIDES}
           liveLayoutCanvasClassName="w-[360px] h-[130px]"
@@ -75,8 +91,10 @@ export function MobileBoardView({
           voidFitMinScale={0.15}
           voidFitMaxScale={0.6}
           voidGapClassName="gap-[8px]"
-          onFleetShipTap={(shipId, anchorEl) =>
-            onFleetShipInspect?.(shipId, anchorEl, 'opponent')
+          onFleetShipTap={
+            isDestroyTargetingActive
+              ? undefined
+              : (shipId, anchorEl) => onFleetShipInspect?.(shipId, anchorEl, 'opponent')
           }
         />
       </div>
@@ -94,6 +112,7 @@ export function MobileBoardView({
       <div
         aria-label="Player fleet area"
         className="flex flex-1 min-h-0 w-full overflow-visible"
+        onMouseDown={onBoardBackgroundMouseDown}
       >
         <FleetArea
           title="MY FLEET"
@@ -107,8 +126,14 @@ export function MobileBoardView({
           activationIndexMap={boardVm.activationStaggerPlan?.myIndexByShipId}
           healthDeltaFlash={boardVm.myFleetHealthDeltaFlash}
           healthDeltaFlashShape="fill"
+          targetStatesByStackKey={boardVm.destroyTargeting?.targetStatesBySide.my}
+          previewShipDefIdByStackKey={boardVm.destroyTargeting?.previewShipDefIdBySide.my}
+          targetingGlowScale={0.85}
+          onDestroyTargetHoverChange={onDestroyTargetHoverChange}
+          onDestroyTargetMouseDown={onDestroyTargetMouseDown}
           turnPulse={leftRevealPulse}
           fitMinScale={0.25}
+          liveFitOverflowVisible
           liveRowsLayout="pairedRows"
           liveRowOverrides={MOBILE_FLEET_ROW_OVERRIDES}
           liveLayoutCanvasClassName="w-[360px] h-[130px]"
@@ -117,8 +142,10 @@ export function MobileBoardView({
           voidFitMinScale={0.15}
           voidFitMaxScale={0.6}
           voidGapClassName="gap-[8px]"
-          onFleetShipTap={(shipId, anchorEl) =>
-            onFleetShipInspect?.(shipId, anchorEl, 'my')
+          onFleetShipTap={
+            isDestroyTargetingActive
+              ? undefined
+              : (shipId, anchorEl) => onFleetShipInspect?.(shipId, anchorEl, 'my')
           }
         />
       </div>

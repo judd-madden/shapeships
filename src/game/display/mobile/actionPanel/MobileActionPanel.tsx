@@ -120,7 +120,7 @@ export function MobileActionPanel({
     return (
       <div className="relative w-full shrink-0">
         {content}
-        <div className="pointer-events-auto absolute inset-0 z-[50]">
+        <div className="pointer-events-auto absolute mt-[1px] inset-0 z-[50]">
           <HealthResolutionPanel
             key={healthResolutionOverlay.presentationKey}
             vm={healthResolutionOverlay}

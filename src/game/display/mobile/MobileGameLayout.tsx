@@ -96,6 +96,8 @@ export function MobileGameLayout({
   const isCataloguePanelActive = CATALOGUE_PANEL_IDS.has(actionPanelVm.activePanelId);
   const isGameOver = actionPanelVm.endOfGame != null;
   const turnLabel = isGameOver ? 'Game Over' : `Turn ${leftRailVm.turn}`;
+  const activeDestroyTargetSourceInstanceId =
+    boardVm.mode === 'board' ? boardVm.destroyTargeting?.activeSourceInstanceId : null;
   const handleCloseStatPopovers = useCallback(() => {
     setStatPopoverAnchors(null);
   }, []);
@@ -184,6 +186,16 @@ export function MobileGameLayout({
       setActiveShipModalId(null);
     }
   }, [isCataloguePanelActive]);
+
+  useEffect(() => {
+    if (activeDestroyTargetSourceInstanceId == null) {
+      return;
+    }
+
+    handleCloseStatPopovers();
+    setActiveShipModalId(null);
+    setActiveFleetShipHover(null);
+  }, [activeDestroyTargetSourceInstanceId, handleCloseStatPopovers]);
 
   useEffect(() => {
     setActiveShipModalId(null);
@@ -296,6 +308,9 @@ export function MobileGameLayout({
               boardVm={boardVm}
               leftRailVm={leftRailVm}
               onFleetShipInspect={handleFleetShipInspect}
+              onBoardBackgroundMouseDown={actions.onBoardBackgroundMouseDown}
+              onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
+              onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
               topStatusRowRef={topStatusRowRef}
               bottomStatusRowRef={bottomStatusRowRef}
               topStatsAnchorRef={topStatsAnchorRef}

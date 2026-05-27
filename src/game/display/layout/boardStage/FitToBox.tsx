@@ -6,6 +6,7 @@ type FitToBoxProps = {
   maxScale?: number; // default 1
   className?: string;
   contentAlign?: 'start' | 'center' | 'end';
+  overflowVisible?: boolean;
 };
 
 export function FitToBox({
@@ -14,6 +15,7 @@ export function FitToBox({
   maxScale = 1,
   className,
   contentAlign = 'center',
+  overflowVisible = false,
 }: FitToBoxProps) {
   const outerRef = useRef<HTMLDivElement | null>(null);
   const innerMeasureRef = useRef<HTMLDivElement | null>(null);
@@ -107,7 +109,7 @@ export function FitToBox({
       style={{
         width: '100%',
         height: '100%',
-        overflow: 'hidden',
+        overflow: overflowVisible ? 'visible' : 'hidden',
         position: 'relative',
       }}
     >
@@ -118,7 +120,7 @@ export function FitToBox({
           display: 'flex',
           alignItems: 'center',
           justifyContent,
-          overflow: 'hidden',
+          overflow: overflowVisible ? 'visible' : 'hidden',
         }}
       >
         <div style={{ transform: `scale(${scale})`, transformOrigin, transition: 'transform 0.4s ease-out', }}>

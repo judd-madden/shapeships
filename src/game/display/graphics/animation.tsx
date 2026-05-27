@@ -83,10 +83,15 @@ export function getTargetingGlowClassName(visualState: TargetingVisualState): st
     : 'ss-targeting-glow';
 }
 
-export function getTargetingGlowStyle(visualState: TargetingVisualState): React.CSSProperties {
+export function getTargetingGlowStyle(
+  visualState: TargetingVisualState,
+  scale = 1
+): CSSProperties {
+  const sizePx = TARGETING_GLOW_SIZE_PX * scale;
+
   return {
-    width: `${TARGETING_GLOW_SIZE_PX}px`,
-    height: `${TARGETING_GLOW_SIZE_PX}px`,
+    width: `${sizePx}px`,
+    height: `${sizePx}px`,
     backgroundImage: visualState === 'selected' ? TARGETING_RED_GLOW : TARGETING_WHITE_GLOW,
     opacity: visualState === 'available' ? 0.55 : 1,
     pointerEvents: 'none',
