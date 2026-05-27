@@ -84,6 +84,7 @@ export function MobileBoardView({
         hudVm={hudVm}
         boardVm={boardVm}
         leftRailVm={leftRailVm}
+        mobileDiceModifierSlots={boardVm.mobileDiceModifierSlots}
         topRowRef={topStatusRowRef}
         bottomRowRef={bottomStatusRowRef}
         topStatsAnchorRef={topStatsAnchorRef}

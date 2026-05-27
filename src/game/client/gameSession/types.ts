@@ -91,6 +91,7 @@ export type FirstStrikeActionFamily = 'guardian' | 'sacrificial_pool';
 export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
 
 export type LeftRailDiceManipulationShipDefId = 'LEV' | 'KNO' | 'CHR';
+export type MobileDiceModifierShipDefId = LeftRailDiceManipulationShipDefId;
 
 export interface BattleLogTurnPlayerSummary {
   playerId: string;
@@ -214,6 +215,17 @@ export interface LeftRailDiceManipulationSlotViewModel {
   sourceShipDefId: LeftRailDiceManipulationShipDefId;
   diceValues?: Array<1 | 2 | 3 | 4 | 5 | 6>;
   animateKey?: number;
+}
+
+export interface MobileDiceModifierSlotViewModel {
+  sourceShipDefId: MobileDiceModifierShipDefId;
+  diceValues?: Array<1 | 2 | 3 | 4 | 5 | 6>;
+  animateKey?: number;
+}
+
+export interface MobileDiceModifierSlotsViewModel {
+  top: MobileDiceModifierSlotViewModel | null;
+  bottom: MobileDiceModifierSlotViewModel | null;
 }
 
 export interface HudViewModel {
@@ -369,6 +381,7 @@ export type BoardViewModel =
       opponentVoidFleet: BoardFleetSummary[];
       myFleetRenderOrder: string[];
       opponentFleetRenderOrder: string[];
+      mobileDiceModifierSlots: MobileDiceModifierSlotsViewModel;
       myFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
       opponentFleetHealthDeltaFlash?: FleetAreaHealthDeltaFlashVm;
       healthDeltaPresentationKey?: string;

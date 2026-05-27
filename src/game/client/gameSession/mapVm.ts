@@ -26,6 +26,7 @@ import {
   getShipChoicePanelSpec,
 } from '../../display/actionPanel/panels/ShipChoiceRegistry';
 import { mapBattleLogTurns } from './battleLog';
+import { deriveMobileDiceModifierSlots } from './mobileDiceModifierSlots';
 import {
   getAllocatedTargetIdsForRenderableAction,
   getRenderableActionChoiceIds,
@@ -234,6 +235,8 @@ export function mapGameSessionVm(args: {
   
   // Raw gameData for server truth
   gameData: any;
+  shipsByPlayerId?: Record<string, any[]>;
+  chronoswarmRolls?: unknown[];
   
   // Left rail dice presentation (client-delayed during health lock)
   leftRailDiceValue: 1 | 2 | 3 | 4 | 5 | 6;
@@ -323,6 +326,8 @@ export function mapGameSessionVm(args: {
     allocatedDestroyTargetIdBySourceInstanceId,
     destroyTargetSatisfiedBySourceInstanceId,
     gameData,
+    shipsByPlayerId = {},
+    chronoswarmRolls,
     leftRailDiceValue,
     leftRailDiceAnimateKey,
     leftRailTurnTakeoverTurn,
@@ -366,6 +371,8 @@ export function mapGameSessionVm(args: {
   
     const displayLeftName = displayLeftPlayer?.name || 'Player 1';
     const displayRightName = displayRightPlayer?.name || 'Player 2';
+    const getDisplayPlayerIdentityKey = (player: any): string | null =>
+      player?.id ?? player?.playerId ?? player?.sessionId ?? null;
 
     // Use the same derivation as vm.gameCode (mapVm does not have `gameId`)
     const gameCode = effectiveGameId
@@ -1353,6 +1360,14 @@ export function mapGameSessionVm(args: {
     board: board.mode === 'board'
       ? {
           ...board,
+          mobileDiceModifierSlots: deriveMobileDiceModifierSlots({
+            shipsByPlayerId,
+            topPlayerId: getDisplayPlayerIdentityKey(displayRightPlayer),
+            bottomPlayerId: getDisplayPlayerIdentityKey(displayLeftPlayer),
+            turnNumber,
+            chronoswarmRolls,
+            chronoswarmAnimateKey: leftRailChronoswarmAnimateKey,
+          }),
           myFleetHealthDeltaFlash,
           opponentFleetHealthDeltaFlash,
           healthDeltaPresentationKey,

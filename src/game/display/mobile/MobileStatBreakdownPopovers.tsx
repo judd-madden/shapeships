@@ -134,7 +134,10 @@ function buildSections({
       title: 'Bonus',
       total: bonus,
       tone: 'bonus',
-      rows: bonus === 0 ? [] : bonusRows
+      rows: bonus === 0 ? [] : bonusRows,
+      secondaryRows: bonusJoining > 0
+        ? [{ label: 'Joining lines', amountText: String(bonusJoining) }]
+        : undefined,
     },
     {
       key: 'saved',
@@ -197,7 +200,7 @@ function MobileStatBreakdownCard({
           className="overflow-y-auto rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[16px] py-[12px] shadow-[0_0_60px_20px_rgba(0,0,0,1)]"
           style={{ maxHeight }}
         >
-          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-y-[11px]">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-y-[16px]">
             {sections.map((section, index) => {
               const isLastOdd = sections.length % 2 === 1 && index === sections.length - 1;
 

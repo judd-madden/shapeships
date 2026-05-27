@@ -2857,6 +2857,10 @@ useEffect(() => {
       // UI-only stable ordering (append-only)
       myFleetRenderOrder,
       opponentFleetRenderOrder,
+      mobileDiceModifierSlots: {
+        top: null,
+        bottom: null,
+      },
       
       // Animation tokens (client-only)
       fleetAnim: (() => {
@@ -4065,6 +4069,8 @@ useEffect(() => {
     
     // Raw gameData for server truth
     gameData: rawState?.gameData,
+    shipsByPlayerId: getShipsByPlayerId(rawState),
+    chronoswarmRolls,
     
     // Left rail dice presentation (client-delayed during health lock)
     leftRailDiceValue: presentedLeftRailDiceValue,
@@ -4696,6 +4702,10 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         opponentVoidFleet: [],
         myFleetRenderOrder: [],
         opponentFleetRenderOrder: [],
+        mobileDiceModifierSlots: {
+          top: null,
+          bottom: null,
+        },
         myFleetHealthDeltaFlash: undefined,
         opponentFleetHealthDeltaFlash: undefined,
         fleetAnim: {

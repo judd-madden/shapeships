@@ -6,6 +6,7 @@ import type {
   HudViewModel,
   LeftRailViewModel,
 } from '../../client/useGameSession';
+import { MobileDiceModifierSlots } from './MobileDiceModifierSlots';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 type MobileRowPosition = 'top' | 'bottom';
@@ -14,6 +15,7 @@ interface MobileStatusRailProps {
   hudVm: HudViewModel;
   boardVm: MobileBoardViewModel;
   leftRailVm: LeftRailViewModel;
+  mobileDiceModifierSlots: MobileBoardViewModel['mobileDiceModifierSlots'];
   topRowRef?: RefObject<HTMLDivElement | null>;
   bottomRowRef?: RefObject<HTMLDivElement | null>;
   topStatsAnchorRef?: RefObject<HTMLDivElement | null>;
@@ -43,6 +45,7 @@ interface MobileStatusRailFrameProps {
   bottomClock: string;
   diceValue: LeftRailViewModel['diceValue'];
   diceAnimateKey: number;
+  mobileDiceModifierSlots?: MobileBoardViewModel['mobileDiceModifierSlots'];
   topRowRef?: RefObject<HTMLDivElement | null>;
   bottomRowRef?: RefObject<HTMLDivElement | null>;
   topStatsAnchorRef?: RefObject<HTMLDivElement | null>;
@@ -50,10 +53,16 @@ interface MobileStatusRailFrameProps {
   onStatusRowToggle?: () => void;
 }
 
+const EMPTY_MOBILE_DICE_MODIFIER_SLOTS: MobileBoardViewModel['mobileDiceModifierSlots'] = {
+  top: null,
+  bottom: null,
+};
+
 export function MobileStatusRail({
   hudVm,
   boardVm,
   leftRailVm,
+  mobileDiceModifierSlots,
   topRowRef,
   bottomRowRef,
   topStatsAnchorRef,
@@ -98,6 +107,7 @@ export function MobileStatusRail({
       bottomClock={hudVm.p1Clock}
       diceValue={leftRailVm.diceValue}
       diceAnimateKey={leftRailVm.diceAnimateKey}
+      mobileDiceModifierSlots={mobileDiceModifierSlots}
       topRowRef={topRowRef}
       bottomRowRef={bottomRowRef}
       topStatsAnchorRef={topStatsAnchorRef}
@@ -114,6 +124,7 @@ export function MobileStatusRailFrame({
   bottomClock,
   diceValue,
   diceAnimateKey,
+  mobileDiceModifierSlots = EMPTY_MOBILE_DICE_MODIFIER_SLOTS,
   topRowRef,
   bottomRowRef,
   topStatsAnchorRef,
@@ -121,7 +132,8 @@ export function MobileStatusRailFrame({
   onStatusRowToggle,
 }: MobileStatusRailFrameProps) {
   return (
-    <div className="shrink-0 w-full py-[8px]">
+    <div className="relative shrink-0 w-full py-[8px]">
+      <MobileDiceModifierSlots slots={mobileDiceModifierSlots} />
       <div className="flex items-stretch gap-[12px] px-[14px] w-full">
         <div className="flex-1 min-w-0 flex flex-col gap-[6px]">
           <MobilePlayerStatusRow
