@@ -16,20 +16,17 @@ interface MultiplayerPanelProps {
 const DISCORD_URL = 'https://discord.gg/MjPtf4G6Gt';
 
 const ALPHA_BULLETS = [
-  'Play private games against friends',
-  'Play against the computer',
+  'Play against friends or bots',
   'Choose from Human, Xenite, and Centaur',
 ] as const;
 
 const ROADMAP_LEFT = [
-  'Mobile Device Support',
   'Player Accounts',
   'Public Multiplayer Lobby',
   'Match Archive & Stats',
 ] as const;
 
 const ROADMAP_RIGHT = [
-  'Spectator Mode',
   'Single Player Campaign',
   'Ancient Species',
   'Rankings & Tournaments',
