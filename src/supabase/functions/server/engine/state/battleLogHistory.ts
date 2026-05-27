@@ -47,6 +47,10 @@ type BuildCaptureAtom =
       values: number[];
     }
   | {
+      kind: "chronoswarm_roll";
+      rolls: number[];
+    }
+  | {
       kind: "manual_build";
       shipDefId: string;
     }
@@ -225,6 +229,17 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function isD6Roll(value: unknown): value is number {
+  return isFiniteNumber(value) &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 6;
+}
+
+function normalizeChronoswarmRolls(rawRolls: unknown): number[] {
+  return Array.isArray(rawRolls) ? rawRolls.filter(isD6Roll) : [];
+}
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -401,6 +416,13 @@ function cloneBuildCaptureAtom(atom: BuildCaptureAtom): BuildCaptureAtom {
     };
   }
 
+  if (atom.kind === "chronoswarm_roll") {
+    return {
+      kind: "chronoswarm_roll",
+      rolls: normalizeChronoswarmRolls(atom.rolls),
+    };
+  }
+
   if (atom.kind === "manual_build") {
     return {
       kind: "manual_build",
@@ -473,6 +495,10 @@ function normalizeBuildAtomsByPlayerId(
             Array.isArray((atom as { values?: unknown }).values)
           );
         }
+        if (kind === "chronoswarm_roll") {
+          return normalizeChronoswarmRolls((atom as { rolls?: unknown }).rolls)
+            .length > 0;
+        }
         if (kind === "manual_build") {
           return typeof (atom as { shipDefId?: unknown }).shipDefId === "string";
         }
@@ -486,7 +512,10 @@ function normalizeBuildAtomsByPlayerId(
         }
         return false;
       })
-      .map(cloneBuildCaptureAtom);
+      .map(cloneBuildCaptureAtom)
+      .filter((atom) =>
+        atom.kind !== "chronoswarm_roll" || atom.rolls.length > 0
+      );
   }
 
   return next;
@@ -896,6 +925,16 @@ function pushBuildRerollAtom(
   });
 }
 
+function pushChronoswarmRollAtom(atoms: BuildCaptureAtom[], rolls: number[]) {
+  const normalizedRolls = normalizeChronoswarmRolls(rolls);
+  if (normalizedRolls.length <= 0) return;
+
+  atoms.push({
+    kind: "chronoswarm_roll",
+    rolls: normalizedRolls,
+  });
+}
+
 function formatJoinedShipDefIds(targetShipDefIds: string[]): string {
   if (targetShipDefIds.length <= 0) return "";
   if (targetShipDefIds.length === 1) return targetShipDefIds[0];
@@ -933,6 +972,7 @@ function collapseCountLines<T>(
 
 function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
   const rerollLines: string[] = [];
+  const chronoswarmLines: string[] = [];
   const manualBuilds: Array<
     Extract<BuildCaptureAtom, { kind: "manual_build" }>
   > = [];
@@ -945,6 +985,16 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
       rerollLines.push(
         `${atom.sourceShipDefId} rerolled ${atom.values.join(" -> ")}`,
       );
+      continue;
+    }
+
+    if (atom.kind === "chronoswarm_roll") {
+      const rolls = normalizeChronoswarmRolls(atom.rolls);
+      if (rolls.length === 1) {
+        chronoswarmLines.push(`CHR rolled ${rolls[0]}`);
+      } else if (rolls.length > 1) {
+        chronoswarmLines.push(`CHR rolled ${rolls.join(", ")}`);
+      }
       continue;
     }
 
@@ -988,7 +1038,12 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
     );
   }
 
-  return [...rerollLines, ...manualLines, ...producedLines];
+  return [
+    ...rerollLines,
+    ...chronoswarmLines,
+    ...manualLines,
+    ...producedLines,
+  ];
 }
 
 function formatBattleLines(battleAtoms: BattleCaptureAtom[]): string[] {
@@ -1178,7 +1233,8 @@ export function toBattleLogHistoryResponse(
 export function getBattleLogCaptureTurnNumber(event: unknown): number | null {
   if (!event || typeof event !== "object") return null;
 
-  if ((event as { type?: string }).type === "DICE_ROLLED") {
+  const eventType = (event as { type?: string }).type;
+  if (eventType === "DICE_ROLLED" || eventType === "CHRONOSWARM_ROLLED") {
     const turnNumber = (event as { turnNumber?: number }).turnNumber;
     return isFiniteNumber(turnNumber) ? turnNumber : null;
   }
@@ -1293,6 +1349,46 @@ export function foldBattleLogCaptureEventsIntoScratch(
       if (turnNumber === null || !isFiniteNumber(diceValue)) continue;
       const capture = ensureCaptureForTurn(nextScratch, turnNumber);
       capture.diceValue = diceValue;
+      continue;
+    }
+
+    if ((rawEvent as { type?: string }).type === "CHRONOSWARM_ROLLED") {
+      const turnNumber = getBattleLogCaptureTurnNumber(rawEvent);
+      const rolls = normalizeChronoswarmRolls(
+        (rawEvent as { rolls?: unknown }).rolls,
+      );
+      const countByPlayerId =
+        (rawEvent as { chronoswarmCountByPlayerId?: unknown })
+          .chronoswarmCountByPlayerId;
+
+      if (
+        turnNumber === null ||
+        rolls.length <= 0 ||
+        !countByPlayerId ||
+        typeof countByPlayerId !== "object"
+      ) {
+        continue;
+      }
+
+      const capture = ensureCaptureForTurn(nextScratch, turnNumber);
+      for (const [playerId, rawCount] of Object.entries(
+        countByPlayerId as Record<string, unknown>,
+      )) {
+        if (!isFiniteNumber(rawCount) || !Number.isInteger(rawCount)) {
+          continue;
+        }
+
+        const count = Math.min(rawCount, 3);
+        if (count <= 0) continue;
+
+        const displayedRolls = rolls.slice(0, count);
+        if (displayedRolls.length <= 0) continue;
+
+        pushChronoswarmRollAtom(
+          getOrCreateBuildAtomsForPlayer(capture, playerId),
+          displayedRolls,
+        );
+      }
       continue;
     }
 
