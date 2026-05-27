@@ -149,7 +149,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
   
   if (vm.isBootstrapping) {
     return (
-      <div className="w-full h-screen flex items-center justify-center bg-black">
+      <div className="w-full h-full min-h-0 overflow-hidden flex items-center justify-center bg-black">
         <div className="text-sm font-semibold tracking-wide text-white">
           LOADING GAME
         </div>
@@ -162,7 +162,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
   // ============================================================================
 
   return (
-    <div className="ss-playerRoot relative w-full h-screen min-h-0 overflow-hidden">
+    <div className="ss-playerRoot relative w-full h-full min-h-0 overflow-hidden">
       {/* Stars background layer (behind everything in this screen) */}
       <div className="absolute inset-0 z-0">
         <StarsBackground celebrateOnFinish={celebrateOnFinish} />

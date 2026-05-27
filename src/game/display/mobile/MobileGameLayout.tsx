@@ -282,7 +282,7 @@ export function MobileGameLayout({
   }, [activeFleetShipHover, handleCloseFleetShipHover]);
 
   return (
-    <div className="h-dvh min-h-dvh w-full min-w-0 overflow-hidden flex flex-col bg-transparent text-white font-['Roboto']">
+    <div className="h-full min-h-0 w-full min-w-0 overflow-hidden flex flex-col bg-transparent text-white font-['Roboto']">
       <MobileTopNav
         turnLabel={turnLabel}
         isGameOver={isGameOver}

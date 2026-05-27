@@ -326,12 +326,12 @@ export default function App() {
 
   if (mode === 'game') {
     if (!playerReady) {
-      return <div className="w-screen h-screen flex items-center justify-center">Loading player...</div>;
+      return <div className="fixed inset-0 overflow-hidden bg-black flex items-center justify-center">Loading player...</div>;
     }
 
     if (!gameId) {
       return (
-        <div className="w-screen h-screen flex items-center justify-center bg-gray-50">
+        <div className="fixed inset-0 overflow-hidden bg-black flex items-center justify-center">
           <Card className="max-w-md">
             <CardHeader>
               <CardTitle>No Game Loaded</CardTitle>
@@ -350,7 +350,7 @@ export default function App() {
     }
     
     return (
-      <div className="w-screen h-screen overflow-hidden">
+      <div className="fixed inset-0 overflow-hidden bg-black">
         <GameScreen
           gameId={gameId}
           playerName={player!.name}
