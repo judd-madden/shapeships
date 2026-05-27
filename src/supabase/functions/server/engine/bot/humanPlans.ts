@@ -337,6 +337,301 @@ const HUMAN_LEVIATHAN_PLAN: AuthoredBotPlan = {
     'Leviathan line: save for Orbital, save into 3 Carriers, deplete Carriers while making components, complete Leviathan, stack Frigates on the effective 6, add two Science Vessels, then continue Frigate pressure.',
 };
 
+const HUMAN_CARRIER_TACTICAL_WALL_PLAN: AuthoredBotPlan = {
+  id: 'hum_carrier_tactical_wall',
+  speciesId: 'HUM',
+  buildGoals: [
+    { shipDefId: 'CAR', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'ORB', targetCount: 1 },
+    { shipDefId: 'CAR', targetCount: 4, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 3, saveUntilAffordable: true },
+    { shipDefId: 'INT', targetCount: 1 },
+    { shipDefId: 'CAR', targetCount: 6, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 4, saveUntilAffordable: true },
+  ],
+  loopGoals: [
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'CAR', targetCount: 1 },
+  ],
+  shipsThatBuild: {
+    CAR: {
+      priorityGoals: [
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 8 },
+        { choiceId: 'fighter', targetShipDefId: 'FIG', targetCount: 4 },
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 16 },
+      ],
+      fallbackChoiceId: 'defender',
+    },
+  },
+  chargePolicy: {
+    INT: {
+      preferDamageWhen: 'default',
+      healSelfAtOrBelow: 10,
+      damageOpponentAtOrBelow: 10,
+    },
+  },
+  frigatePolicy: {
+    FRI: {
+      firstChoiceMode: 'match_current_roll',
+      additionalChoiceMode: 'stack_existing',
+    },
+  },
+  notes:
+    'Human standard CAR/TAC/DEF wall derived from common successful Human patterns.',
+};
+
+const HUMAN_DREAD_FIGHTER_TEMPO_PLAN: AuthoredBotPlan = {
+  id: 'hum_dread_fighter_tempo',
+  speciesId: 'HUM',
+  buildGoals: [
+    { shipDefId: 'ORB', targetCount: 1 },
+    { shipDefId: 'CAR', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 3 },
+    { shipDefId: 'DRE', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'CAR', targetCount: 4, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 3 },
+    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'DRE', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'COM', targetCount: 3 },
+    { shipDefId: 'FIG', targetCount: 8 },
+  ],
+  loopGoals: [
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 3 },
+    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'DRE', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'FIG', targetCount: 3 },
+    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'CAR', targetCount: 1 },
+  ],
+  shipsThatBuild: {
+    CAR: {
+      priorityGoals: [
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 2 },
+        { choiceId: 'fighter', targetShipDefId: 'FIG', targetCount: 8 },
+      ],
+      fallbackChoiceId: 'fighter',
+    },
+  },
+  notes:
+    'Dreadnought/Fighter tempo plan; DRE is attractive under current automatic damage plus Heal 2 rules.',
+};
+
+const HUMAN_ORBITAL_BATTLECRUISER_BASTION_PLAN: AuthoredBotPlan = {
+  id: 'hum_orbital_battlecruiser_bastion',
+  speciesId: 'HUM',
+  buildGoals: [
+    { shipDefId: 'ORB', targetCount: 2 },
+    { shipDefId: 'CAR', targetCount: 3, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 2 },
+    { shipDefId: 'BAT', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'CAR', targetCount: 5, saveUntilAffordable: true },
+    { shipDefId: 'ORB', targetCount: 4 },
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 2 },
+    { shipDefId: 'BAT', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 2 },
+    { shipDefId: 'BAT', targetCount: 3, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 2, saveUntilAffordable: true },
+  ],
+  loopGoals: [
+    { shipDefId: 'ORB', targetCount: 1 },
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 2 },
+    { shipDefId: 'BAT', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'CAR', targetCount: 1 },
+  ],
+  shipsThatBuild: {
+    CAR: {
+      priorityGoals: [
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 6 },
+        { choiceId: 'fighter', targetShipDefId: 'FIG', targetCount: 4 },
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 12 },
+      ],
+      fallbackChoiceId: 'defender',
+    },
+  },
+  notes:
+    'ORB/CAR/BAT sustain shell based on successful Human Battlecruiser games.',
+};
+
+const HUMAN_SCIENCE_ECONOMY_ENGINE_V2_PLAN: AuthoredBotPlan = {
+  id: 'hum_science_economy_engine_v2',
+  speciesId: 'HUM',
+  buildGoals: [
+    { shipDefId: 'CAR', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 4 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'STA', targetCount: 1 },
+    { shipDefId: 'SCI', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'ORB', targetCount: 2 },
+    { shipDefId: 'CAR', targetCount: 4, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 4 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'STA', targetCount: 1 },
+    { shipDefId: 'SCI', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'ORB', targetCount: 6 },
+    { shipDefId: 'CAR', targetCount: 6, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'GUA', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'ORB', targetCount: 1 },
+    { shipDefId: 'EAR', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'STA', targetCount: 1 },
+    { shipDefId: 'SCI', targetCount: 3, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'ORB', targetCount: 1 },
+    { shipDefId: 'EAR', targetCount: 2, saveUntilAffordable: true },
+  ],
+  loopGoals: [
+    { shipDefId: 'CAR', targetCount: 1 },
+    { shipDefId: 'ORB', targetCount: 1 },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'ORB', targetCount: 1 },
+    { shipDefId: 'EAR', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 1, saveUntilAffordable: true },
+  ],
+  shipsThatBuild: {
+    CAR: {
+      priorityGoals: [
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 8 },
+        { choiceId: 'fighter', targetShipDefId: 'FIG', targetCount: 3 },
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 16 },
+        { choiceId: 'fighter', targetShipDefId: 'FIG', targetCount: 6 },
+      ],
+      fallbackChoiceId: 'defender',
+    },
+  },
+  frigatePolicy: {
+    FRI: {
+      firstChoiceMode: 'match_current_roll',
+      additionalChoiceMode: 'stack_existing',
+    },
+  },
+  targetPolicy: {
+    GUA: {
+      mode: 'highest_cost_basic',
+    },
+  },
+  notes:
+    'Greedy SCI economy engine: early Carriers mostly make Defenders, then SCI2/SCI3, ORB/CAR scale, and late Human upgraded pressure.',
+};
+
+const HUMAN_GUARDIAN_TACTICAL_CONTROL_PLAN: AuthoredBotPlan = {
+  id: 'hum_guardian_tactical_control',
+  speciesId: 'HUM',
+  buildGoals: [
+    { shipDefId: 'ORB', targetCount: 1 },
+    { shipDefId: 'CAR', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'GUA', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'CAR', targetCount: 3, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'GUA', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'GUA', targetCount: 3, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 2, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 3, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 4, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 1 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'FRI', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'CAR', targetCount: 5, saveUntilAffordable: true },
+  ],
+  loopGoals: [
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'FIG', targetCount: 1 },
+    { shipDefId: 'TAC', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'DEF', targetCount: 2 },
+    { shipDefId: 'COM', targetCount: 1 },
+    { shipDefId: 'GUA', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'CAR', targetCount: 1 },
+  ],
+  shipsThatBuild: {
+    CAR: {
+      priorityGoals: [
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 10 },
+        { choiceId: 'fighter', targetShipDefId: 'FIG', targetCount: 4 },
+        { choiceId: 'defender', targetShipDefId: 'DEF', targetCount: 18 },
+      ],
+      fallbackChoiceId: 'defender',
+    },
+  },
+  frigatePolicy: {
+    FRI: {
+      firstChoiceMode: 'match_current_roll',
+      additionalChoiceMode: 'stack_existing',
+    },
+  },
+  targetPolicy: {
+    GUA: {
+      mode: 'highest_cost_basic',
+    },
+  },
+  notes:
+    'Guardian/Tactical control plan: early GUA, then CAR3, then two more GUA, then straight Tactical pressure. No SCI or EAR.',
+};
+
 // Order is deliberate: deterministic chooser selection hashes into this array by index.
 export const ACTIVE_HUMAN_BOT_PLANS: AuthoredBotPlan[] = [
   HUMAN_DEFENSE_ORBIT_PLAN,
@@ -349,6 +644,11 @@ export const ACTIVE_HUMAN_BOT_PLANS: AuthoredBotPlan[] = [
   HUMAN_ORBITAL_CARRIER_SCIENCE_SHELL_PLAN,
   HUMAN_FRIGATE_CHEESE_PLAN,
   HUMAN_LEVIATHAN_PLAN,
+  HUMAN_CARRIER_TACTICAL_WALL_PLAN,
+  HUMAN_DREAD_FIGHTER_TEMPO_PLAN,
+  HUMAN_ORBITAL_BATTLECRUISER_BASTION_PLAN,
+  HUMAN_SCIENCE_ECONOMY_ENGINE_V2_PLAN,
+  HUMAN_GUARDIAN_TACTICAL_CONTROL_PLAN,
 ];
 
 const HUMAN_BOT_PLAN_LOOKUP_POOL: AuthoredBotPlan[] = [
@@ -362,6 +662,11 @@ const HUMAN_BOT_PLAN_LOOKUP_POOL: AuthoredBotPlan[] = [
   HUMAN_ORBITAL_CARRIER_SCIENCE_SHELL_PLAN,
   HUMAN_FRIGATE_CHEESE_PLAN,
   HUMAN_LEVIATHAN_PLAN,
+  HUMAN_CARRIER_TACTICAL_WALL_PLAN,
+  HUMAN_DREAD_FIGHTER_TEMPO_PLAN,
+  HUMAN_ORBITAL_BATTLECRUISER_BASTION_PLAN,
+  HUMAN_SCIENCE_ECONOMY_ENGINE_V2_PLAN,
+  HUMAN_GUARDIAN_TACTICAL_CONTROL_PLAN,
 ];
 
 function hashSeed(seed: string): number {
