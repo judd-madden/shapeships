@@ -37,10 +37,10 @@ export function LoginShell({
   if (alphaDisableAuth) {
     return (
       <div className="ss-playerRoot content-stretch relative flex size-full flex-col items-center overflow-y-auto px-6 pb-[120px] pt-[40px] sm:px-10 md:px-16 md:pt-[60px] lg:px-24 xl:px-[160px] 2xl:px-[240px]">
-        <div className="content-stretch relative flex w-full max-w-[1440px] shrink-0 flex-col items-center gap-[56px] md:gap-[80px]">
+        <div className="content-stretch relative flex w-full max-w-[1440px] shrink-0 flex-col items-center gap-[40px] sm:gap-[56px] md:gap-[80px]">
           
           {/* Logo + Title + Feature Highlights */}
-          <div className="content-stretch relative flex w-full shrink-0 flex-col items-center gap-[40px] md:gap-[64px]">
+          <div className="content-stretch relative flex w-full shrink-0 flex-col items-center gap-[20px] sm:gap-[40px] md:gap-[64px]">
             
             {/* Logo */}
             <div className="relative inline-grid max-w-full shrink-0 grid-cols-[max-content] grid-rows-[max-content] place-items-start leading-[0]">
@@ -58,33 +58,33 @@ export function LoginShell({
             <div className="content-center relative flex w-full flex-wrap items-stretch justify-center gap-x-[28px] gap-y-[10px] sm:gap-y-[20px] lg:gap-x-[50px]">
               
               {/* Feature 1: Free space battle game */}
-              <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[12px]">
-                <BuildIcon className="relative shrink-0 size-[48px]" />
-                <p className="relative shrink-0 font-medium text-[16.2px] leading-[18px] not-italic sm:text-[21.6px] sm:leading-[24px]">
+              <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
+                <BuildIcon className="relative shrink-0 size-[32px] sm:size-[48px]" />
+                <p className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
                   Free strategy game
                 </p>
               </div>
 
               {/* Feature 2: 1v1 Online */}
-              <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[12px]">
-                <PlayersIcon className="relative shrink-0 size-[48px]" />
-                <p className="relative shrink-0 font-medium text-[16.2px] leading-[18px] not-italic sm:text-[21.6px] sm:leading-[24px]">
+              <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
+                <PlayersIcon className="relative shrink-0 size-[32px] sm:size-[48px]" />
+                <p className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
                   1v1 Online
                 </p>
               </div>
 
               {/* Feature 3: Simultaneous turns */}
-              <div className="flex relative max-w-[260px] shrink-0 items-center gap-[12px]">
-                <Dice value={3} className="w-[52px] h-[50px] shrink-0" enableRotate={false}/>
-                <p className="relative shrink-0 font-medium text-[16.2px] leading-[18px] not-italic sm:text-[21.6px] sm:leading-[24px]">
+              <div className="flex relative max-w-[260px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
+                <Dice value={3} className="w-[32px] h-[30px] shrink-0" enableRotate={false}/>
+                <p className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
                   Shared dice each turn
                 </p>
               </div>
 
               {/* Feature 4: 10-30 minute games */}
-              <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[12px]">
-                <ClockIcon className="relative shrink-0 size-[48px]" />
-                <p className="relative shrink-0 font-medium text-[16.2px] leading-[18px] not-italic sm:text-[21.6px] sm:leading-[24px]">
+              <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
+                <ClockIcon className="relative shrink-0 size-[32px] sm:size-[48px]" />
+                <p className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
                   10-30 minute games
                 </p>
               </div>

@@ -150,7 +150,7 @@ export function MenuShell({
         {/* Player Identity Row */}
         <div className="content-stretch relative flex w-full items-center py-[20px] sm:py-[32px]">
           <div className="content-stretch relative flex w-full flex-col items-start gap-x-[24px] gap-y-2">
-            <div className="flex flex-wrap items-center gap-x-[24px] gap-y-2">
+            <div className="flex flex-wrap items-center gap-x-[8px] sm:gap-x-[24px] gap-y-2">
               <OnlineStatusIcon status="online" />
               <p
                 className="min-w-0 max-w-full font-['Roboto',sans-serif] text-[30px] font-normal leading-none [overflow-wrap:anywhere] sm:text-[40px] xl:text-[56px]"
@@ -161,7 +161,7 @@ export function MenuShell({
             </div>
             <button
               type="button"
-              className="pl-[44px] text-shapeships-grey-50 cursor-pointer font-['Roboto',sans-serif] text-[13.5px] leading-[normal] hover:underline sm:text-[18px]"
+              className="pl-[30px] sm:pl-[44px] text-shapeships-grey-50 cursor-pointer font-['Roboto',sans-serif] text-[13.5px] leading-[normal] hover:underline sm:text-[18px]"
               style={{ fontVariationSettings: "'wdth' 100" }}
               onClick={alphaDisableAuth ? onExit : onLogout}
             >
