@@ -146,7 +146,7 @@ function buildSections({
       tone: 'saved',
       rows: [],
       secondaryRows: savedJoiningLines > 0
-        ? [{ label: 'Joining saved lines', amountText: String(savedJoiningLines) }]
+        ? [{ label: 'Saved joining lines', amountText: String(savedJoiningLines) }]
         : undefined,
     },
   ];

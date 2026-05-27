@@ -8,6 +8,8 @@ interface MobileTakeoverShellProps {
   rightHeaderContent?: React.ReactNode;
   bodyClassName?: string;
   bodyScroll?: boolean;
+  heightMode?: 'fill' | 'content';
+  panelClassName?: string;
 }
 
 function cx(...parts: Array<string | undefined | false>) {
@@ -21,10 +23,23 @@ export function MobileTakeoverShell({
   rightHeaderContent,
   bodyClassName,
   bodyScroll = true,
+  heightMode = 'fill',
+  panelClassName,
 }: MobileTakeoverShellProps) {
   return (
-    <section className="flex-1 min-h-0 px-[16px] pb-[16px]">
-      <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[10px] border border-[var(--shapeships-grey-70)] bg-black">
+    <section
+      className={cx(
+        'min-h-0 px-[16px] pb-[16px]',
+        heightMode === 'fill' ? 'flex-1' : 'shrink-0'
+      )}
+    >
+      <div
+        className={cx(
+          'flex min-h-0 flex-col overflow-hidden rounded-[10px] border border-[var(--shapeships-grey-70)] bg-black',
+          heightMode === 'fill' ? 'h-full' : undefined,
+          panelClassName
+        )}
+      >
         <div className="shrink-0 pl-[16px] pr-[8px]  pt-[10px]">
           <div className="flex min-h-[44px] items-center justify-between gap-[12px]">
             <p className="min-w-0 truncate text-[20px] font-black leading-none text-white">

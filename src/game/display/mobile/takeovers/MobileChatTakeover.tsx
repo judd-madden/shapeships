@@ -13,8 +13,10 @@ export function MobileChatTakeover({ vm, actions, onClose }: MobileChatTakeoverP
     <MobileTakeoverShell
       title="Chat"
       onClose={onClose}
+      heightMode="content"
+      panelClassName="h-[42dvh] max-h-[400px]"
       bodyScroll={false}
-      bodyClassName="flex flex-col"
+      bodyClassName="flex min-h-0 flex-col"
     >
       <ChatPanelContent
         layout="mobile"

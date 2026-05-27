@@ -151,6 +151,12 @@ export function ChatPanelContent({
           <input
             ref={inputRef}
             type="text"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="sentences"
+            spellCheck={false}
+            inputMode="text"
+            enterKeyHint="send"
             value={chatDraft}
             onChange={(e) => setChatDraft(e.target.value)}
             placeholder="Be nice in chat"
