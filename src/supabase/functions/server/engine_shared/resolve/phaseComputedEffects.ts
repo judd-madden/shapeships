@@ -324,7 +324,7 @@ export function applyComputedEffectModifiers(
 
     // --- SCIENCE VESSEL (SCI) tiers ---
     // Tier 1+: double your Automatic healing (excludes Charge + OnceOnly)
-    // Tier 2+: also double your Automatic damage (excludes Charge + OnceOnly)
+    // Tier 3+: also double your Automatic damage (excludes Charge + OnceOnly)
     //
     // "Your" is keyed off ownerPlayerId (source owner), not target.
     const sciTier = sciTierByPlayerId[e.ownerPlayerId] ?? 0;
@@ -335,7 +335,7 @@ export function applyComputedEffectModifiers(
         out[i] = { ...e, amount: e.amount * 2 };
         continue;
       }
-      if (e.kind === EffectKind.Damage && sciTier >= 2) {
+      if (e.kind === EffectKind.Damage && sciTier >= 3) {
         changed = true;
         out[i] = { ...e, amount: e.amount * 2 };
         continue;

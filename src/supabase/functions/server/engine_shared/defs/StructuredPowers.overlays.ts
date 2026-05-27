@@ -196,6 +196,17 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
     }
   ],
 
+  // JSON power index 1: "Heal 1." (Automatic)
+  'GUA#1': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Heal,
+      amount: 1,
+      targetPlayer: 'self',
+    },
+  ],
+
   // ==========================================================================
   // CARRIER (CAR)
   // ==========================================================================
@@ -276,6 +287,17 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
       kind: EffectKind.Damage,
       amount: 10,
       targetPlayer: 'opponent',
+    },
+  ],
+
+  // JSON power index 2: "Heal 2." (Automatic)
+  'DRE#2': [
+    {
+      type: 'effect',
+      timings: ['battle.end_of_turn_resolution'],
+      kind: EffectKind.Heal,
+      amount: 2,
+      targetPlayer: 'self',
     },
   ],
 

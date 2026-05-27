@@ -24,7 +24,7 @@
  * - ASF (Asterite Face): +1 line per instance (uncapped)
  * - VIG (Ship of Vigor): +2 lines per instance on even effective dice
  * - POW (Ark of Power): +4 lines per instance on even effective dice
- * - SCI tier 3: gain bonus lines equal to effective dice roll
+ * - SCI tier 2: gain bonus lines equal to effective dice roll
  *
  * CURRENT BONUS JOINING LINE SOURCES:
  * - RED (Ark of Redemption): +2 joining lines per future build phase
@@ -228,7 +228,7 @@ export function computeLineBonusesForPlayer(
   bonusLines += bonusLinesOnEven;
 
   const sciTier = getCopyTierFromFleet(ships, 'SCI', 3);
-  if (sciTier >= 3 && typeof effectiveDiceRoll === 'number') {
+  if (sciTier >= 2 && typeof effectiveDiceRoll === 'number') {
     bonusLines += effectiveDiceRoll;
     ordinaryRows.push(buildAdjustmentRow('Science Vessel', effectiveDiceRoll));
   }

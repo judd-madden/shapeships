@@ -246,6 +246,10 @@ export const SHIP_DEFINITIONS_JSON = [
       {
         "subphase": "First Strike",
         "text": "Has 2 charges:\\n- Destroy a basic enemy ship (use 1 charge)."
+      },
+      {
+        "subphase": "Automatic",
+        "text": "Heal 1."
       }
     ],
     "energyCost": null,
@@ -274,12 +278,12 @@ export const SHIP_DEFINITIONS_JSON = [
         "text": "If you have one:\\nDouble your healing."
       },
       {
-        "subphase": "Automatic",
-        "text": "If you have two:\\nAlso double your damage."
+        "subphase": "Line Generation",
+        "text": "If you have two:\\nAlso double the dice roll for you."
       },
       {
-        "subphase": "Line Generation",
-        "text": "If you have three:\\nAlso double the dice roll for you."
+        "subphase": "Automatic",
+        "text": "If you have three:\\nAlso double your damage."
       }
     ],
     "energyCost": null,
@@ -372,6 +376,10 @@ export const SHIP_DEFINITIONS_JSON = [
       {
         "subphase": "Automatic",
         "text": "Deal 10 damage."
+      },
+      {
+        "subphase": "Automatic",
+        "text": "Heal 2."
       }
     ],
     "energyCost": null,
