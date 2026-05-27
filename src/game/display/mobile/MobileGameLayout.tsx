@@ -94,8 +94,8 @@ export function MobileGameLayout({
   const bottomStatPopoverRef = useRef<HTMLDivElement | null>(null);
   const fleetShipHoverCardRef = useRef<HTMLDivElement | null>(null);
   const isCataloguePanelActive = CATALOGUE_PANEL_IDS.has(actionPanelVm.activePanelId);
-  const isEndGameActive = actionPanelVm.endOfGame != null;
-  const turnLabel = actionPanelVm.endOfGame != null ? 'Game Over' : `Turn ${leftRailVm.turn}`;
+  const isGameOver = actionPanelVm.endOfGame != null;
+  const turnLabel = isGameOver ? 'Game Over' : `Turn ${leftRailVm.turn}`;
   const handleCloseStatPopovers = useCallback(() => {
     setStatPopoverAnchors(null);
   }, []);
@@ -193,7 +193,7 @@ export function MobileGameLayout({
     actionPanelVm.menu.phaseKey,
     actionPanelVm.menu.turnNumber,
     boardVm.mode,
-    isEndGameActive,
+    isGameOver,
     handleCloseStatPopovers,
   ]);
 
@@ -273,6 +273,7 @@ export function MobileGameLayout({
     <div className="h-dvh min-h-dvh w-full min-w-0 overflow-hidden flex flex-col bg-transparent text-white font-['Roboto']">
       <MobileTopNav
         turnLabel={turnLabel}
+        isGameOver={isGameOver}
         activeTakeover={activeTakeover}
         onReturnToBoard={handleReturnToBoard}
         onOpenChat={handleOpenChat}

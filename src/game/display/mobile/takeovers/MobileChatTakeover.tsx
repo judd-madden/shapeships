@@ -14,7 +14,7 @@ export function MobileChatTakeover({ vm, actions, onClose }: MobileChatTakeoverP
       title="Chat"
       onClose={onClose}
       heightMode="content"
-      panelClassName="h-[42dvh] max-h-[400px]"
+      panelClassName="h-[44dvh] max-h-[400px]"
       bodyScroll={false}
       bodyClassName="flex min-h-0 flex-col"
     >

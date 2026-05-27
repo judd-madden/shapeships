@@ -1,5 +1,6 @@
 interface MobileTopNavProps {
   turnLabel: string;
+  isGameOver: boolean;
   activeTakeover: 'chat' | 'battleLog' | 'menu' | null;
   onReturnToBoard: () => void;
   onOpenChat: () => void;
@@ -13,6 +14,7 @@ function cx(...parts: Array<string | undefined | false>) {
 
 export function MobileTopNav({
   turnLabel,
+  isGameOver,
   activeTakeover,
   onReturnToBoard,
   onOpenChat,
@@ -40,10 +42,17 @@ export function MobileTopNav({
           )}
         >
           <span className="truncate text-[15px] font-bold leading-none">SHAPESHIPS</span>
-          <span aria-hidden="true" className="shrink-0 text-[14px] font-bold leading-none">
-            &middot;
+          <span
+            className={cx(
+              'flex shrink-0 items-center gap-[4px]',
+              isGameOver && 'max-[370px]:hidden'
+            )}
+          >
+            <span aria-hidden="true" className="shrink-0 text-[14px] font-bold leading-none">
+              &middot;
+            </span>
+            <span className="shrink-0 text-[14px] font-bold leading-none">{turnLabel}</span>
           </span>
-          <span className="shrink-0 text-[14px] font-bold leading-none">{turnLabel}</span>
         </button>
 
         <div className="flex shrink-0 items-center justify-end gap-[13px] pr-[14px] whitespace-nowrap">
