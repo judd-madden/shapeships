@@ -45,7 +45,7 @@ export function MobileEndOfGameMenuTakeover({
                 className="mt-[8px] text-center text-[15px] font-normal leading-[19px] text-white"
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
-                Link will be posted in chat
+                {endOfGame.rematchHelperText}
               </p>
             </div>
 
