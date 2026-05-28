@@ -138,7 +138,7 @@ export function PhaseBreakdownView({
 
   return (
     <div
-      className="flex items-start gap-[30px] rounded-[10px] shrink-0 px-[40px] py-[30px] pl-[30px] "
+      className="flex items-start gap-[30px] rounded-[10px] shrink-0 px-[40px] py-[30px] pl-[30px] min-[768px]:max-[1599px]:px-[20px]"
       style={{
         background: 'rgba(25, 25, 25, 0.7)',
       }}

@@ -19,12 +19,18 @@ import type React from 'react';
 
 interface ActionPanelScrollAreaProps {
   children: React.ReactNode;
+  horizontalOverflow?: 'hidden' | 'auto';
 }
 
-export function ActionPanelScrollArea({ children }: ActionPanelScrollAreaProps) {
+export function ActionPanelScrollArea({
+  children,
+  horizontalOverflow = 'hidden',
+}: ActionPanelScrollAreaProps) {
   return (
     <div 
-      className="size-full overflow-y-auto overflow-x-hidden flex justify-center"
+      className={`size-full overflow-y-auto flex justify-center ${
+        horizontalOverflow === 'auto' ? 'overflow-x-auto' : 'overflow-x-hidden'
+      }`}
       style={{
         paddingTop: '20px',
         paddingLeft: '20px',

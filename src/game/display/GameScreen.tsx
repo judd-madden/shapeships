@@ -179,7 +179,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
 
       {!mobileBoardVm && (
         <div className="fixed right-[10px] top-[10px] z-50">
-          <div className="flex items-center gap-[12px] rounded-[10px] px-[10px] py-[10px]">
+          <div className="flex items-center gap-[12px] rounded-[10px] px-[10px] py-[10px] min-[768px]:max-[1599px]:p-0">
             {renderPreferenceToggle({
               label: 'Sound',
               checked: soundEnabled,
@@ -222,7 +222,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
           />
         </div>
       ) : (
-        <div className="relative z-10 w-full h-full min-h-0 flex items-stretch gap-5 px-[30px]">
+        <div className="relative z-10 w-full h-full min-h-0 flex items-stretch gap-5 px-[30px] min-[768px]:max-[1599px]:gap-3 min-[768px]:max-[1599px]:px-[16px]">
           {/* Left Rail - fixed width */}
           <LeftRail
             vm={vm.leftRail}
@@ -245,7 +245,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
           {/* Global Ship Hover Layer (PASS 2) - Portal target for catalogue hover cards */}
           <div
             id="ship-hover-layer"
-            className="fixed inset-0 z-[40] pointer-events-none"
+            className="fixed inset-0 z-[60] pointer-events-none"
           />
         </div>
       )}

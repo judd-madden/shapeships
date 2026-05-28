@@ -37,7 +37,7 @@ export function MainStage({
 }: MainStageProps) {
   return (
     <div
-      className="content-stretch flex flex-col items-center relative flex-1 min-w-0 min-h-0 h-full pt-[30px] pb-[25px]"
+      className="content-stretch flex flex-col items-center relative flex-1 min-w-0 min-h-0 h-full pt-[30px] pb-[25px] min-[768px]:max-[1599px]:pb-[16px]"
       data-name="Main Stage"
     >
       {/* Background vertical line */}
@@ -87,7 +87,9 @@ export function MainStage({
 
         {/* Action Panel Content */}
         <div
-          className="bg-black h-[302px] border-2 border-[var(--shapeships-grey-70)] border-solid relative rounded-bl-[10px] rounded-br-[10px] rounded-tl-[10px]  w-full z-10"
+          className={`bg-black h-[302px] border-2 border-[var(--shapeships-grey-70)] border-solid relative rounded-bl-[10px] rounded-br-[10px] rounded-tl-[10px] w-full ${
+            actionPanelVm.healthResolutionOverlay ? 'z-[70]' : 'z-10'
+          }`}
           data-name="AP - Action Panel CONTENT"
         >
           <div

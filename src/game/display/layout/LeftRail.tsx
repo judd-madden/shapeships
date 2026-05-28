@@ -27,7 +27,6 @@ interface LeftRailProps {
 
 const FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS = 500;
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
-const BATTLE_LOG_OVERLAY_BOTTOM_INSET_PX = 25;
 const BATTLE_LOG_TRANSITION_MS = 160;
 
 export function LeftRail({
@@ -305,7 +304,7 @@ export function LeftRail({
   return (
     <div
       ref={railRootRef}
-      className="relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0 hidden lg:flex"
+      className="relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0 hidden lg:flex [--battle-log-bottom-inset:25px] min-[768px]:max-[1599px]:gap-[14px] min-[768px]:max-[1599px]:pt-[16px] min-[768px]:max-[1599px]:pb-[16px] min-[768px]:max-[1599px]:[--battle-log-bottom-inset:16px]"
     >
       {isFirstTurnBuildHelperMounted && (
         <div
@@ -350,7 +349,7 @@ export function LeftRail({
       {/* Brand / Title */}
       <div className="shrink-0 flex items-center justify-between">
         <div className="flex-1">
-          <p className="font-['Roboto'] font-bold text-[45px] leading-[45px] text-white text-center">
+          <p className="font-['Roboto'] font-bold text-[45px] leading-[45px] text-white text-center min-[768px]:max-[1599px]:text-[40px] min-[768px]:max-[1599px]:leading-[40px]">
             SHAPESHIPS
           </p>
         </div>
@@ -358,7 +357,11 @@ export function LeftRail({
 
       {/* Dice Area */}
       <div className="shrink-0 flex justify-center">
-        <Dice value={vm.diceValue} animateKey={vm.diceAnimateKey} />
+        <Dice
+          value={vm.diceValue}
+          animateKey={vm.diceAnimateKey}
+          className="min-[768px]:max-[1599px]:!size-[140px]"
+        />
       </div>
 
       {renderDiceManipulationSlot('left')}
@@ -419,8 +422,8 @@ export function LeftRail({
         className="absolute left-0 right-0 z-50 flex min-h-0 flex-col rounded-[10px] border-2 border-[var(--shapeships-grey-70)] bg-black"
         style={{
           top: battleLogOverlayTop,
-          // Match the current rail pb-[25px] inset so the overlay never drops below the collapsed card.
-          bottom: BATTLE_LOG_OVERLAY_BOTTOM_INSET_PX,
+          // Match the current rail padding inset so the overlay never drops below the collapsed card.
+          bottom: 'var(--battle-log-bottom-inset, 25px)',
           transition: collapsedBattleLogTop === null ? undefined : `top ${BATTLE_LOG_TRANSITION_MS}ms ease-out`,
         }}
       >

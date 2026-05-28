@@ -110,7 +110,7 @@ function Metric({
       )}
     >
       <p
-        className="font-['Roboto'] font-semibold leading-[36px] relative shrink-0 text-[36px] w-[50px]"
+        className="font-['Roboto'] font-semibold leading-[36px] relative shrink-0 text-[36px] w-[50px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px] min-[768px]:max-[1599px]:w-[42px]"
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {value}
@@ -187,7 +187,7 @@ function TripletStatValue({
   const isRight = align === 'right';
 
   return (
-    <div className={cx('flex w-[80px]', isRight ? 'justify-end text-right' : 'justify-start text-left')}>
+    <div className={cx('flex w-[80px] min-[768px]:max-[1599px]:w-[66px]', isRight ? 'justify-end text-right' : 'justify-start text-left')}>
       <HoverAnchor
         hoverKey={hoverKey}
         isTrackable={hoverTrackable}
@@ -197,7 +197,7 @@ function TripletStatValue({
       >
         <p
           className={cx(
-            "font-['Roboto'] font-semibold leading-[36px] relative shrink-0 text-[36px]",
+            "font-['Roboto'] font-semibold leading-[36px] relative shrink-0 text-[36px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px]",
             isRight && 'text-right'
           )}
           style={{ fontVariationSettings: "'wdth' 100" }}
@@ -245,7 +245,7 @@ function StatTripletRow({
         onHoverLeave={onHoverLeave}
       />
       <p
-        className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[14px] text-center w-[64px]"
+        className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[14px] text-center w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {centerLabel}
@@ -362,7 +362,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
       />
 
       <div
-        className="content-stretch flex flex-col h-full items-center justify-between relative shrink-0 w-[230px] cursor-default select-none"
+        className="content-stretch flex flex-col h-full items-center justify-between relative shrink-0 w-[230px] cursor-default select-none min-[768px]:max-[1599px]:w-[200px]"
         data-name="Health and Stats"
       >
         {/* Health */}
@@ -371,11 +371,11 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
           data-name="Health Wrapper"
         >
           <div
-            className="content-stretch flex flex-col font-['Roboto'] font-bold gap-px items-end relative shrink-0 text-right w-[100px]"
+            className="content-stretch flex flex-col font-['Roboto'] font-bold gap-px items-end relative shrink-0 text-right w-[100px] min-[768px]:max-[1599px]:w-[86px]"
             data-name="P1 Health Group"
           >
             <p
-              className="leading-[64px] relative shrink-0 text-[64px] text-white w-full"
+              className="leading-[64px] relative shrink-0 text-[64px] text-white w-full min-[768px]:max-[1599px]:text-[56px] min-[768px]:max-[1599px]:leading-[56px]"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {displayedMyHealth}
@@ -408,9 +408,9 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             className="content-stretch flex items-center justify-center pb-0 pt-[22px] px-0 relative shrink-0"
             data-name="Health Label"
           >
-            <div className="flex flex-col items-center justify-start w-[64px] text-center">
+            <div className="flex flex-col items-center justify-start w-[64px] text-center min-[768px]:max-[1599px]:w-[56px]">
               <p
-                className="font-['Roboto'] font-normal leading-[1.25] relative shrink-0 text-white text-[15px]"
+                className="font-['Roboto'] font-normal leading-[1.25] relative shrink-0 text-white text-[15px] min-[768px]:max-[1599px]:text-[13px]"
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Health
@@ -430,11 +430,11 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
           </div>
 
           <div
-            className="content-stretch flex flex-col font-['Roboto'] font-bold items-start relative shrink-0 w-[100px]"
+            className="content-stretch flex flex-col font-['Roboto'] font-bold items-start relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]"
             data-name="P2 Health Group"
           >
             <p
-              className="leading-[64px] relative shrink-0 text-[64px] text-white w-[100px] text-left"
+              className="leading-[64px] relative shrink-0 text-[64px] text-white w-[100px] text-left min-[768px]:max-[1599px]:w-[86px] min-[768px]:max-[1599px]:text-[56px] min-[768px]:max-[1599px]:leading-[56px]"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {displayedOpponentHealth}
@@ -442,7 +442,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
 
             {/* Delta (server-authoritative) */}
             <p
-              className="font-['Roboto'] font-semibold leading-[28px] relative shrink-0 text-[28px] w-[100px] text-left"
+              className="font-['Roboto'] font-semibold leading-[28px] relative shrink-0 text-[28px] w-[100px] text-left min-[768px]:max-[1599px]:w-[86px]"
               style={{
                 fontVariationSettings: "'wdth' 100",
                 color: vm.opponentLastTurnNet > 0 
@@ -465,11 +465,11 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
         </div>
 
         {/* Stats */}
-        <div className="content-stretch flex flex-col gap-[20px] items-center relative shrink-0 w-full" data-name="Stats Wrapper">
+        <div className="content-stretch flex flex-col gap-[20px] items-center relative shrink-0 w-full min-[768px]:max-[1599px]:gap-[12px]" data-name="Stats Wrapper">
           {/* Saved Lines */}
           <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Saved Lines Group">
             {/* P1 */}
-            <div className="content-stretch flex items-start justify-end relative shrink-0 w-[100px]" data-name="P1 Saved Wrapper">
+            <div className="content-stretch flex items-start justify-end relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]" data-name="P1 Saved Wrapper">
               <div className="content-stretch flex items-start relative shrink-0">
                 <Metric value={String(vm.myDisplayedSavedLines)} align="right" toneClass="text-white" />
                 {vm.myDisplayedSavedJoiningLines > 0 ? (
@@ -484,7 +484,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             </div>
           
             <p
-              className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[15px] text-center text-white w-[64px]"
+              className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[15px] text-center text-white w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Saved
@@ -493,7 +493,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             </p>
           
             {/* P2 */}
-            <div className="content-stretch flex items-start relative shrink-0 w-[100px]" data-name="P2 Saved Wrapper">
+            <div className="content-stretch flex items-start relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]" data-name="P2 Saved Wrapper">
               <div className="content-stretch flex items-start relative shrink-0">
                 <Metric value={String(vm.opponentDisplayedSavedLines)} align="left" toneClass="text-white" />
                 {vm.opponentDisplayedSavedJoiningLines > 0 ? (
@@ -535,7 +535,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
 
           {/* Bonus */}
           <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Bonus Group">
-            <div className="content-stretch flex gap-[4px] items-center justify-end relative shrink-0 w-[100px]" data-name="P1 Bonuses">
+            <div className="content-stretch flex gap-[4px] items-center justify-end relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]" data-name="P1 Bonuses">
               <HoverAnchor
                 hoverKey="my-bonus"
                 isTrackable={myBonusHoverTrackable}
@@ -567,14 +567,14 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
 
             <div className="content-stretch flex items-center justify-center pb-0 pt-[8px] px-0 relative shrink-0">
               <p
-                className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[15px] text-center w-[64px]"
+                className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[15px] text-center w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
                 style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Bonus
               </p>
             </div>
 
-            <div className="content-stretch flex gap-[4px] items-start relative shrink-0 w-[100px]" data-name="P2 Bonuses">
+            <div className="content-stretch flex gap-[4px] items-start relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]" data-name="P2 Bonuses">
               <HoverAnchor
                 hoverKey="opponent-bonus"
                 isTrackable={opponentBonusHoverTrackable}

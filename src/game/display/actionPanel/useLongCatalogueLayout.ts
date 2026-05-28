@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 
+const LAPTOP_CATALOGUE_LAYOUT_QUERY = '(min-width: 768px) and (max-width: 1599px)';
 const LONG_CATALOGUE_LAYOUT_QUERY = '(min-width: 1900px)';
 
-export function useLongCatalogueLayout(): boolean {
+function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
 
   useEffect(() => {
@@ -11,7 +12,7 @@ export function useLongCatalogueLayout(): boolean {
       return;
     }
 
-    const mediaQuery = window.matchMedia(LONG_CATALOGUE_LAYOUT_QUERY);
+    const mediaQuery = window.matchMedia(query);
     const updateMatches = () => setMatches(mediaQuery.matches);
 
     updateMatches();
@@ -20,7 +21,18 @@ export function useLongCatalogueLayout(): boolean {
     return () => {
       mediaQuery.removeEventListener?.('change', updateMatches);
     };
-  }, []);
+  }, [query]);
 
   return matches;
+}
+
+export function useLaptopCatalogueLayout(): boolean {
+  return useMediaQuery(LAPTOP_CATALOGUE_LAYOUT_QUERY);
+}
+
+export function useLongCatalogueLayout(): boolean {
+  const isLaptopCatalogueLayout = useLaptopCatalogueLayout();
+  const isWideCatalogueLayout = useMediaQuery(LONG_CATALOGUE_LAYOUT_QUERY);
+
+  return isLaptopCatalogueLayout || isWideCatalogueLayout;
 }

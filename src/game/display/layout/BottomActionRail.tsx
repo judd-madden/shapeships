@@ -20,9 +20,9 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
     >
       {/* Subphase Info */}
       <div className="basis-0 grow min-h-px min-w-px relative shrink-0" data-name="Subphase Info">
-        <div className="content-stretch flex flex-col gap-[3px] items-start leading-[normal] pl-[20px] pr-0 py-0 relative text-white w-full">
+        <div className="content-stretch flex flex-col gap-[3px] items-start leading-[normal] pl-[20px] pr-0 py-0 relative text-white w-full min-[768px]:max-[1599px]:pl-[12px]">
           <p
-            className="font-['Roboto'] font-black relative shrink-0 text-[36px] w-full"
+            className="font-['Roboto'] font-black relative shrink-0 text-[36px] w-full min-[768px]:max-[1599px]:text-[30px]"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {vm.subphaseTitle}
@@ -31,7 +31,7 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
             ) : null}
           </p>
           <p
-            className="font-['Roboto'] font-normal relative shrink-0 text-[16px] w-full"
+            className="font-['Roboto'] font-normal relative shrink-0 text-[16px] w-full min-[768px]:max-[1599px]:text-[14px]"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {vm.subphaseSubheading}
@@ -41,12 +41,12 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
 
       {/* Ready Wrapper */}
       <div
-        className="content-stretch flex gap-[20px] items-center justify-center pb-0 pt-[16px] px-0 relative shrink-0"
+        className="content-stretch flex gap-[20px] items-center justify-center pb-0 pt-[16px] px-0 relative shrink-0 min-[768px]:max-[1599px]:gap-[12px]"
         data-name="Ready Wrapper"
       >
         {vm.canUndoActions && (
           <p
-            className="[text-underline-position:from-font] decoration-solid font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[16px] text-right text-white underline w-[130px] cursor-pointer"
+            className="[text-underline-position:from-font] decoration-solid font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[16px] text-right text-white underline w-[130px] cursor-pointer min-[768px]:max-[1599px]:w-[80px]"
             style={{ fontVariationSettings: "'wdth' 100" }}
             onClick={actions.onUndoActions}
           >
@@ -54,10 +54,10 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
           </p>
         )}
         {!vm.canUndoActions && (
-          <div className="w-[130px]" />
+          <div className="w-[130px] min-[768px]:max-[1599px]:w-[40px]" />
         )}
         {vm.readyButtonVisible ? (
-          <div className="w-[300px]">
+          <div className="w-[300px] ">
             <ReadyButton
               label={vm.readyButtonLabel}
               selected={vm.readySelected}
@@ -71,7 +71,7 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
           <div className="w-[300px]" />
         )}
         <p
-          className="font-['Roboto'] font-semibold leading-[normal] relative shrink-0 text-[0px] text-[16px] text-white w-[130px]"
+          className="font-['Roboto'] font-semibold leading-[normal] relative shrink-0 text-[0px] text-[16px] text-white w-[130px] min-[768px]:max-[1599px]:w-[40px]"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
         </p>

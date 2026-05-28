@@ -19,7 +19,8 @@ import { FrigateDrawingPanel } from './panels/FrigateDrawingPanel';
 import { EvolverDrawingPanel } from './panels/EvolverDrawingPanel';
 import { HealthResolutionPanel } from './panels/HealthResolutionPanel';
 import { ActionPanelScrollArea } from './primitives/ActionPanelScrollArea';
-import { useLongCatalogueLayout } from './useLongCatalogueLayout';
+import { useLaptopCatalogueLayout, useLongCatalogueLayout } from './useLongCatalogueLayout';
+import { DesktopScaledCatalogueCanvas } from './panels/catalogue/shared/DesktopScaledCatalogueCanvas';
 
 interface ActionPanelFrameProps {
   vm: ActionPanelViewModel;
@@ -32,15 +33,17 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   const healthResolutionOverlay = vm.healthResolutionOverlay;
   const hoverDisabled = Boolean(healthResolutionOverlay);
   const phaseLocalFamilySwitch = vm.phaseLocalFamilySwitch;
+  const isLaptopCatalogueLayout = useLaptopCatalogueLayout();
   const isLongCatalogueLayout = useLongCatalogueLayout();
   const catalogueLayout = isLongCatalogueLayout ? 'long' : 'standard';
+  const laptopCatalogueCanvas = { width: 1446, height: 258 };
 
   function renderWithOverlay(content: ReactNode) {
     return (
       <div className="relative size-full">
         <div className="size-full">{content}</div>
         {healthResolutionOverlay ? (
-          <div className="absolute inset-0 z-[50]">
+          <div className="absolute inset-0 z-[70]">
             <HealthResolutionPanel
               key={healthResolutionOverlay.presentationKey}
               vm={healthResolutionOverlay}
@@ -98,6 +101,22 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
 
   // Render the appropriate panel based on activePanelId
   if (vm.activePanelId === 'ap.catalog.ships.human') {
+    if (isLaptopCatalogueLayout) {
+      return renderWithOverlay(
+        <ActionPanelScrollArea horizontalOverflow="auto">
+          <DesktopScaledCatalogueCanvas {...laptopCatalogueCanvas}>
+            <HumanShipCataloguePanel
+              actions={actions}
+              buildCatalogue={vm.buildCatalogue}
+              frame="bare"
+              catalogueLayout="long"
+              hoverDisabled={hoverDisabled}
+            />
+          </DesktopScaledCatalogueCanvas>
+        </ActionPanelScrollArea>
+      );
+    }
+
     return renderWithOverlay(
       <div className="size-full">
         <HumanShipCataloguePanel
@@ -111,6 +130,22 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   }
 
   if (vm.activePanelId === 'ap.catalog.ships.xenite') {
+    if (isLaptopCatalogueLayout) {
+      return renderWithOverlay(
+        <ActionPanelScrollArea horizontalOverflow="auto">
+          <DesktopScaledCatalogueCanvas {...laptopCatalogueCanvas}>
+            <XeniteShipCataloguePanel
+              actions={actions}
+              buildCatalogue={vm.buildCatalogue}
+              frame="bare"
+              catalogueLayout="long"
+              hoverDisabled={hoverDisabled}
+            />
+          </DesktopScaledCatalogueCanvas>
+        </ActionPanelScrollArea>
+      );
+    }
+
     return renderWithOverlay(
       <div className="size-full">
         <XeniteShipCataloguePanel
@@ -124,6 +159,22 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   }
 
   if (vm.activePanelId === 'ap.catalog.ships.centaur') {
+    if (isLaptopCatalogueLayout) {
+      return renderWithOverlay(
+        <ActionPanelScrollArea horizontalOverflow="auto">
+          <DesktopScaledCatalogueCanvas {...laptopCatalogueCanvas}>
+            <CentaurShipCataloguePanel
+              actions={actions}
+              buildCatalogue={vm.buildCatalogue}
+              frame="bare"
+              catalogueLayout="long"
+              hoverDisabled={hoverDisabled}
+            />
+          </DesktopScaledCatalogueCanvas>
+        </ActionPanelScrollArea>
+      );
+    }
+
     return renderWithOverlay(
       <div className="size-full">
         <CentaurShipCataloguePanel
@@ -137,6 +188,22 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
   }
 
   if (vm.activePanelId === 'ap.catalog.ships.ancient') {
+    if (isLaptopCatalogueLayout) {
+      return renderWithOverlay(
+        <ActionPanelScrollArea horizontalOverflow="auto">
+          <DesktopScaledCatalogueCanvas {...laptopCatalogueCanvas}>
+            <AncientShipCataloguePanel
+              actions={actions}
+              buildCatalogue={vm.buildCatalogue}
+              frame="bare"
+              catalogueLayout="long"
+              hoverDisabled={hoverDisabled}
+            />
+          </DesktopScaledCatalogueCanvas>
+        </ActionPanelScrollArea>
+      );
+    }
+
     return renderWithOverlay(
       <div className="size-full">
         <AncientShipCataloguePanel
