@@ -1108,11 +1108,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Automatic",
-        "text": "Deal 7 damage."
+        "text": "Deal 8 damage."
       },
       {
         "subphase": "Automatic",
-        "text": "Take 4 damage."
+        "text": "Take 3 damage."
       }
     ],
     "energyCost": null,

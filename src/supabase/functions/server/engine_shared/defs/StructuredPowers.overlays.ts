@@ -598,24 +598,24 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   // ==========================================================================
   // ARK OF ENTROPY (ENT)
   // ==========================================================================
-  // JSON power index 0: "Deal 7 damage." (Automatic)
+  // JSON power index 0: "Deal 8 damage." (Automatic)
   'ENT#0': [
     {
       type: 'effect',
       timings: ['battle.end_of_turn_resolution'],
       kind: EffectKind.Damage,
-      amount: 7,
+      amount: 8,
       targetPlayer: 'opponent',
     },
   ],
 
-  // JSON power index 1: "Take 4 damage." (Automatic)
+  // JSON power index 1: "Take 3 damage." (Automatic)
   'ENT#1': [
     {
       type: 'effect',
       timings: ['battle.end_of_turn_resolution'],
       kind: EffectKind.Damage,
-      amount: 4,
+      amount: 3,
       targetPlayer: 'self',
     },
   ],
