@@ -256,8 +256,13 @@ function groupedCount(count: number, groupSize: number): number {
  * turn totals are applied to player health, so current player.health still
  * reflects the unresolved turn health used by DSW/AAR for this comparison.
  */
-function getPhaseStartHealthConditionalAmount(ownerHealth: number, opponentHealth: number): number {
-  return ownerHealth < opponentHealth ? 7 : 3;
+function getPhaseStartHealthConditionalAmount(
+  ownerHealth: number,
+  opponentHealth: number,
+  normalAmount: number,
+  lowerHealthAmount: number
+): number {
+  return ownerHealth < opponentHealth ? lowerHealthAmount : normalAmount;
 }
 
 /**
@@ -942,7 +947,7 @@ export function computePhaseComputedEffects(
     if (!opponent) continue;
 
     const ships = getShips(state, ownerPlayerId);
-    const healPerDefenseSwarm = getPhaseStartHealthConditionalAmount(player.health, opponent.health);
+    const healPerDefenseSwarm = getPhaseStartHealthConditionalAmount(player.health, opponent.health, 3, 7);
 
     for (const ship of ships) {
       if (ship.shipDefId !== 'DSW') continue;
@@ -965,7 +970,7 @@ export function computePhaseComputedEffects(
     }
   }
 
-  // === ANTLION ARRAY (AAR) automatic: Deal 3 damage, or Deal 7 if your health is lower than your opponent's ===
+  // === ANTLION ARRAY (AAR) automatic: Deal 3 damage, or Deal 8 if your health is lower than your opponent's ===
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
     const opponentId = opponentMap.get(ownerPlayerId);
@@ -975,7 +980,7 @@ export function computePhaseComputedEffects(
     if (!opponent) continue;
 
     const ships = getShips(state, ownerPlayerId);
-    const damagePerAntlionArray = getPhaseStartHealthConditionalAmount(player.health, opponent.health);
+    const damagePerAntlionArray = getPhaseStartHealthConditionalAmount(player.health, opponent.health, 3, 8);
 
     for (const ship of ships) {
       if (ship.shipDefId !== 'AAR') continue;

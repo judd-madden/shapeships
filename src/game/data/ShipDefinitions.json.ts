@@ -655,12 +655,12 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Automatic",
-        "text": "Deal 3 damage OR\\nAt the start of this turn, if your health is lower than your opponent's health: Deal 7 damage."
+        "text": "Deal 3 damage OR\\nAt the start of this turn, if your health is lower than your opponent's health: Deal 8 damage."
       }
     ],
     "energyCost": null,
     "extraRules": "",
-    "stackCaption": "X damage (Number of ships in stack x 3 OR 7)",
+    "stackCaption": "X damage (Number of ships in stack x 3 OR 8)",
     "colour": "Orange",
     "numberOfGraphics": 1
   },
