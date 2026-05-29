@@ -364,8 +364,8 @@ function getShipsMadeThisTurn(state: GameState, playerId: string): number {
   return state.gameData.turnData?.shipsMadeThisTurnByPlayerId?.[playerId] ?? 0;
 }
 
-function getQueenCreatedXenitesThisTurn(state: GameState, queenInstanceId: string): number {
-  return state.gameData.turnData?.queenCreatedXenitesThisTurnByInstanceId?.[queenInstanceId] ?? 0;
+function getQueenCreatedXenitesThisTurn(state: GameState, playerId: string): number {
+  return state.gameData.turnData?.queenCreatedXenitesThisTurnByPlayerId?.[playerId] ?? 0;
 }
 
 /**
@@ -1012,8 +1012,8 @@ export function computePhaseComputedEffects(
     for (const ship of ships) {
       if (ship.shipDefId !== 'QUE') continue;
 
-      const selfMadeByThisQueen = getQueenCreatedXenitesThisTurn(state, ship.instanceId);
-      const countedShips = Math.max(shipsMadeThisTurn - selfMadeByThisQueen, 0);
+      const queenMadeXenites = getQueenCreatedXenitesThisTurn(state, ownerPlayerId);
+      const countedShips = Math.max(shipsMadeThisTurn - queenMadeXenites, 0);
       const damage = countedShips * 3;
 
       if (damage <= 0) continue;
@@ -1031,7 +1031,7 @@ export function computePhaseComputedEffects(
       });
 
       debugLog(
-        `[computePhaseComputedEffects] Queen automatic: owner=${ownerPlayerId} instance=${ship.instanceId} shipsMade=${shipsMadeThisTurn} selfMade=${selfMadeByThisQueen} countedShips=${countedShips} dmg=${damage} target=${opponentId}`
+        `[computePhaseComputedEffects] Queen automatic: owner=${ownerPlayerId} instance=${ship.instanceId} shipsMade=${shipsMadeThisTurn} queenMadeXenites=${queenMadeXenites} countedShips=${countedShips} dmg=${damage} target=${opponentId}`
       );
     }
   }

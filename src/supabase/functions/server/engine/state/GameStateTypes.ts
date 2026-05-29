@@ -165,8 +165,8 @@ export type GameData = {
      */
     buildPhaseNonDestroyRemovedShipsByPlayerId?: Record<string, Record<string, ShipInstance>>;
 
-    /** Queen-created Xenites this turn, keyed by the creating Queen instance */
-    queenCreatedXenitesThisTurnByInstanceId?: Record<string, number>;
+    /** Queen-created Xenites this turn, keyed by the player receiving them */
+    queenCreatedXenitesThisTurnByPlayerId?: Record<string, number>;
 
     /**
      * Idempotency flag for server-only build.end_of_build resolution.

@@ -370,21 +370,21 @@ function capturePendingTurnBreakdownEntry(
 
 function incrementQueenCreatedXenitesThisTurnCounter(
   state: GameState,
-  queenInstanceId: string,
+  playerId: string,
   amount: number
 ) {
-  if (!queenInstanceId || !Number.isInteger(amount) || amount <= 0) return;
+  if (!playerId || !Number.isInteger(amount) || amount <= 0) return;
 
   if (!state.gameData.turnData) {
     state.gameData.turnData = {};
   }
 
   const currentMap =
-    state.gameData.turnData.queenCreatedXenitesThisTurnByInstanceId || {};
-  const currentCount = currentMap[queenInstanceId] || 0;
-  state.gameData.turnData.queenCreatedXenitesThisTurnByInstanceId = {
+    state.gameData.turnData.queenCreatedXenitesThisTurnByPlayerId || {};
+  const currentCount = currentMap[playerId] || 0;
+  state.gameData.turnData.queenCreatedXenitesThisTurnByPlayerId = {
     ...currentMap,
-    [queenInstanceId]: currentCount + amount,
+    [playerId]: currentCount + amount,
   };
 }
 
@@ -406,7 +406,7 @@ function applyCreateShip(
     effect.source.type === 'ship' &&
     effect.source.shipDefId === 'QUE'
   ) {
-    incrementQueenCreatedXenitesThisTurnCounter(state, effect.source.instanceId, 1);
+    incrementQueenCreatedXenitesThisTurnCounter(state, targetPlayerId, 1);
   }
 
   return {

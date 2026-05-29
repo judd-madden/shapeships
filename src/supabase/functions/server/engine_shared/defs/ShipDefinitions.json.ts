@@ -787,11 +787,11 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "Automatic",
-        "text": "Deal 3 damage for each ship you made this turn (not including Xenites from this Queen)."
+        "text": "Deal 3 damage for each ship you made this turn."
       }
     ],
     "energyCost": null,
-    "extraRules": "Damage count includes: drawn ships, upgraded ships, and ships made from other Queens, Bug Breeders, Zeniths, Sacrificial Pools.",
+    "extraRules": "Damage count does NOT include Xenites made by any Queen. It includes drawn ships, upgraded ships, and ships made by Bug Breeders and Zeniths.",
     "stackCaption": "X damage",
     "colour": "Cyan",
     "numberOfGraphics": 1
