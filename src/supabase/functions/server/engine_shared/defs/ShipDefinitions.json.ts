@@ -313,11 +313,11 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "Automatic",
-        "text": "Heal 3."
+        "text": "Deal 2 damage."
       },
       {
         "subphase": "Automatic",
-        "text": "Deal 2 damage."
+        "text": "Heal 3."
       }
     ],
     "energyCost": null,
