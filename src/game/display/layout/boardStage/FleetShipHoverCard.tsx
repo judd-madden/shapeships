@@ -43,6 +43,13 @@ function PowerText({ text, density }: { text: string; density: 'desktop' | 'mobi
   );
 }
 
+function getPowerIconClassName(density: 'desktop' | 'mobile') {
+  return cx(
+    'shrink-0',
+    density === 'mobile' && '!size-[20px]'
+  );
+}
+
 export function FleetShipHoverCard({
   shipId,
   anchorRect,
@@ -174,9 +181,9 @@ export function FleetShipHoverCard({
                 className="content-stretch flex gap-[6px] items-start relative shrink-0 w-full"
               >
                 {power.icon === 'pencil' ? (
-                  <BuildIcon className="shrink-0" />
+                  <BuildIcon className={getPowerIconClassName(density)} />
                 ) : (
-                  <BattleIcon className="shrink-0" />
+                  <BattleIcon className={getPowerIconClassName(density)} />
                 )}
                 <PowerText text={power.text} density={density} />
               </div>

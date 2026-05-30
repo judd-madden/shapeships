@@ -135,9 +135,9 @@ export function MobileShipModal({
                 {model.powers.map((power, index) => (
                   <div key={index} className="flex items-start gap-[8px]">
                     {power.icon === 'build' ? (
-                      <BuildIcon className="mt-[1px] shrink-0" />
+                      <BuildIcon className="mt-[1px] !size-[20px] shrink-0" />
                     ) : (
-                      <BattleIcon className="mt-[1px] shrink-0" />
+                      <BattleIcon className="mt-[1px] !size-[20px] shrink-0" />
                     )}
                     <p
                       className="min-w-0 flex-1 whitespace-pre-wrap text-[16px] font-normal leading-[20px] text-white"
