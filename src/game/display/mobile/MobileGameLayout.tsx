@@ -20,6 +20,7 @@ import { MobileActionPanel } from './actionPanel/MobileActionPanel';
 import { MobileShipModal } from './actionPanel/MobileShipModal';
 import { MobileSpeciesConfirmPhase, MobileSpeciesSelectionView } from './MobileSpeciesSelectionView';
 import { MobileTopNav } from './MobileTopNav';
+import { MobileVoidPanel } from './MobileVoidPanel';
 import { MobileBattleLogTakeover } from './takeovers/MobileBattleLogTakeover';
 import { MobileChatTakeover } from './takeovers/MobileChatTakeover';
 import { MobileEndOfGameMenuTakeover } from './takeovers/MobileEndOfGameMenuTakeover';
@@ -48,6 +49,7 @@ type ActiveFleetShipHover = {
 };
 
 type ActiveTakeover = 'chat' | 'battleLog' | 'menu' | null;
+type ActiveMobileBottomPanel = 'normal' | 'void';
 
 type MobileStatPopoverAnchors = {
   top: MobileStatAnchorRect;
@@ -81,6 +83,8 @@ export function MobileGameLayout({
   onReturnToMainMenu,
 }: MobileGameLayoutProps) {
   const [activeTakeover, setActiveTakeover] = useState<ActiveTakeover>(null);
+  const [activeMobileBottomPanel, setActiveMobileBottomPanel] =
+    useState<ActiveMobileBottomPanel>('normal');
   const [activeShipModalId, setActiveShipModalId] = useState<ShipDefId | null>(null);
   const [activeFleetShipHover, setActiveFleetShipHover] =
     useState<ActiveFleetShipHover | null>(null);
@@ -94,7 +98,24 @@ export function MobileGameLayout({
   const bottomStatPopoverRef = useRef<HTMLDivElement | null>(null);
   const fleetShipHoverCardRef = useRef<HTMLDivElement | null>(null);
   const isCataloguePanelActive = CATALOGUE_PANEL_IDS.has(actionPanelVm.activePanelId);
+  const isEndGamePanel = actionPanelVm.activePanelId === 'ap.end_of_game.result' || actionPanelVm.endOfGame != null;
   const isGameOver = actionPanelVm.endOfGame != null;
+  const hasVoidShips =
+    boardVm.mode === 'board' &&
+    (boardVm.myVoidFleet.length > 0 || boardVm.opponentVoidFleet.length > 0);
+  const shouldForceMobileActionPanel =
+    actionPanelVm.healthResolutionOverlay != null || isEndGamePanel;
+  const showVoidTab = boardVm.mode === 'board' && hasVoidShips;
+  const isVoidPanelSelected =
+    activeMobileBottomPanel === 'void' &&
+    showVoidTab &&
+    !shouldForceMobileActionPanel &&
+    activeTakeover === null;
+  const shouldShowVoidPanel =
+    boardVm.mode === 'board' &&
+    activeMobileBottomPanel === 'void' &&
+    hasVoidShips &&
+    !shouldForceMobileActionPanel;
   const turnLabel = isGameOver ? 'Game Over' : `Turn ${leftRailVm.turn}`;
   const activeDestroyTargetSourceInstanceId =
     boardVm.mode === 'board' ? boardVm.destroyTargeting?.activeSourceInstanceId : null;
@@ -130,9 +151,16 @@ export function MobileGameLayout({
   }, []);
   const handleOpenTakeover = useCallback((takeover: Exclude<ActiveTakeover, null>) => {
     handleCloseStatPopovers();
+    setActiveMobileBottomPanel('normal');
     setActiveShipModalId(null);
     setActiveFleetShipHover(null);
     setActiveTakeover(takeover);
+  }, [handleCloseStatPopovers]);
+  const handleVoidTabClick = useCallback(() => {
+    handleCloseStatPopovers();
+    setActiveShipModalId(null);
+    setActiveFleetShipHover(null);
+    setActiveMobileBottomPanel('void');
   }, [handleCloseStatPopovers]);
   const handleToggleStatPopovers = useCallback(() => {
     if (statPopoverAnchors) {
@@ -175,6 +203,7 @@ export function MobileGameLayout({
     },
     onActionPanelTabClick: (tabId) => {
       handleCloseStatPopovers();
+      setActiveMobileBottomPanel('normal');
       setActiveShipModalId(null);
       setActiveFleetShipHover(null);
       actions.onActionPanelTabClick(tabId);
@@ -200,6 +229,7 @@ export function MobileGameLayout({
   useEffect(() => {
     setActiveShipModalId(null);
     setActiveFleetShipHover(null);
+    setActiveMobileBottomPanel('normal');
     handleCloseStatPopovers();
   }, [
     actionPanelVm.menu.phaseKey,
@@ -207,6 +237,22 @@ export function MobileGameLayout({
     boardVm.mode,
     isGameOver,
     handleCloseStatPopovers,
+  ]);
+
+  useEffect(() => {
+    if (activeMobileBottomPanel !== 'void') {
+      return;
+    }
+
+    if (boardVm.mode !== 'board' || !hasVoidShips || shouldForceMobileActionPanel || activeTakeover !== null) {
+      setActiveMobileBottomPanel('normal');
+    }
+  }, [
+    activeMobileBottomPanel,
+    activeTakeover,
+    boardVm.mode,
+    hasVoidShips,
+    shouldForceMobileActionPanel,
   ]);
 
   useEffect(() => {
@@ -337,13 +383,23 @@ export function MobileGameLayout({
               />
             )}
             <div className="shrink-0 w-full flex flex-col">
-              <MobileBottomTabs vm={actionPanelVm} actions={mobileActions} />
-              <MobileActionPanel
+              <MobileBottomTabs
                 vm={actionPanelVm}
                 actions={mobileActions}
-                onShipInspect={handleCatalogueShipInspect}
-                onOpenMenuTakeover={handleOpenMenu}
+                showVoidTab={showVoidTab}
+                voidTabSelected={isVoidPanelSelected}
+                onVoidTabClick={shouldForceMobileActionPanel ? undefined : handleVoidTabClick}
               />
+              {shouldShowVoidPanel && boardVm.mode === 'board' ? (
+                <MobileVoidPanel hudVm={hudVm} boardVm={boardVm} />
+              ) : (
+                <MobileActionPanel
+                  vm={actionPanelVm}
+                  actions={mobileActions}
+                  onShipInspect={handleCatalogueShipInspect}
+                  onOpenMenuTakeover={handleOpenMenu}
+                />
+              )}
             </div>
           </div>
         </div>

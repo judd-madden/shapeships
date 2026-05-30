@@ -3,6 +3,9 @@ import type { ActionPanelViewModel, GameSessionActions } from '../../client/useG
 interface MobileBottomTabsProps {
   vm: ActionPanelViewModel;
   actions: GameSessionActions;
+  showVoidTab?: boolean;
+  voidTabSelected?: boolean;
+  onVoidTabClick?: () => void;
 }
 
 interface MobileBottomTabRenderItem {
@@ -11,9 +14,16 @@ interface MobileBottomTabRenderItem {
   selected: boolean;
   disabled: boolean;
   tabId?: ActionPanelViewModel['tabs'][number]['tabId'];
+  onClick?: () => void;
 }
 
-export function MobileBottomTabs({ vm, actions }: MobileBottomTabsProps) {
+export function MobileBottomTabs({
+  vm,
+  actions,
+  showVoidTab = false,
+  voidTabSelected = false,
+  onVoidTabClick,
+}: MobileBottomTabsProps) {
   const tabsLocked = vm.tabInteractionLocked === true;
   const isSpectator = vm.menu.isSpectator === true;
   const isEndGame = vm.activePanelId === 'ap.end_of_game.result' || vm.endOfGame != null;
@@ -30,7 +40,7 @@ export function MobileBottomTabs({ vm, actions }: MobileBottomTabsProps) {
           {
             key: actionTab.tabId,
             label: actionTab.label,
-            selected: vm.activePanelId === actionTab.targetPanelId,
+            selected: !voidTabSelected && vm.activePanelId === actionTab.targetPanelId,
             disabled: tabsLocked,
             tabId: actionTab.tabId,
           },
@@ -49,10 +59,21 @@ export function MobileBottomTabs({ vm, actions }: MobileBottomTabsProps) {
     ...catalogueTabs.map((tab) => ({
       key: tab.tabId,
       label: tab.label,
-      selected: vm.activePanelId === tab.targetPanelId,
+      selected: !voidTabSelected && vm.activePanelId === tab.targetPanelId,
       disabled: tabsLocked,
       tabId: tab.tabId,
     })),
+    ...(showVoidTab
+      ? [
+          {
+            key: 'tab.mobile.void',
+            label: 'Void',
+            selected: voidTabSelected,
+            disabled: onVoidTabClick == null,
+            onClick: onVoidTabClick,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -65,9 +86,9 @@ export function MobileBottomTabs({ vm, actions }: MobileBottomTabsProps) {
         const interactionClasses = tab.disabled
           ? 'cursor-not-allowed opacity-80'
           : 'cursor-pointer';
-        const handleClick = tabId == null
+        const handleClick = tab.onClick ?? (tabId == null
           ? undefined
-          : () => actions.onActionPanelTabClick(tabId);
+          : () => actions.onActionPanelTabClick(tabId));
 
         return (
           <button

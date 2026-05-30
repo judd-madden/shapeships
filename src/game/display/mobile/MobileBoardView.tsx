@@ -66,7 +66,6 @@ export function MobileBoardView({
         <FleetArea
           title="OPPONENT FLEET"
           ships={boardVm.opponentFleet}
-          voidShips={boardVm.opponentVoidFleet}
           order={boardVm.opponentFleetRenderOrder}
           species={opponentSpeciesKey}
           animTokens={boardVm.fleetAnim.opponent}
@@ -86,11 +85,6 @@ export function MobileBoardView({
           liveRowsLayout="pairedRows"
           liveRowOverrides={MOBILE_FLEET_ROW_OVERRIDES}
           liveLayoutCanvasClassName="w-[360px] h-[130px]"
-          fitVoidToSlot
-          voidSlotClassName="h-[28px]"
-          voidFitMinScale={0.15}
-          voidFitMaxScale={0.6}
-          voidGapClassName="gap-[8px]"
           onFleetShipTap={
             isDestroyTargetingActive
               ? undefined
@@ -117,7 +111,6 @@ export function MobileBoardView({
         <FleetArea
           title="MY FLEET"
           ships={boardVm.myFleet}
-          voidShips={boardVm.myVoidFleet}
           order={boardVm.myFleetRenderOrder}
           species={mySpeciesKey}
           animTokens={boardVm.fleetAnim.my}
@@ -137,11 +130,6 @@ export function MobileBoardView({
           liveRowsLayout="pairedRows"
           liveRowOverrides={MOBILE_FLEET_ROW_OVERRIDES}
           liveLayoutCanvasClassName="w-[360px] h-[130px]"
-          fitVoidToSlot
-          voidSlotClassName="h-[28px]"
-          voidFitMinScale={0.15}
-          voidFitMaxScale={0.6}
-          voidGapClassName="gap-[8px]"
           onFleetShipTap={
             isDestroyTargetingActive
               ? undefined

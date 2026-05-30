@@ -127,7 +127,7 @@ function groupShipsIntoRows<T extends { shipDefId: string; renderKey: string }>(
     return { row1, row2, row3, row4 };
 }
 
-type FleetStackVm = {
+export type VoidFleetStackVm = {
   shipDefId: string;
   count: number;
   stackKey: string;
@@ -136,6 +136,8 @@ type FleetStackVm = {
   currentCharges?: number | null;
   caption?: string | null;
 };
+
+type FleetStackVm = VoidFleetStackVm;
 
 function getLiveFleetLayoutSignature(
   renderedShips: FleetStackVm[],
@@ -347,6 +349,73 @@ function ShipStack({
   );
 }
 
+export function VoidFleetStrip({
+  ships,
+  order,
+  wrap = false,
+  fitToCell = false,
+  className,
+  gapClassName = 'gap-[20px]',
+  cellClassName = 'relative py-[2px]',
+  cellHeightClassName = 'h-[24px]',
+  cellWidthClassName = 'w-[64px]',
+  scaleClassName = 'scale-[0.6]',
+  cellFitMinScale = 0.15,
+  cellFitMaxScale = 0.6,
+}: {
+  ships?: VoidFleetStackVm[];
+  order?: string[];
+  wrap?: boolean;
+  fitToCell?: boolean;
+  className?: string;
+  gapClassName?: string;
+  cellClassName?: string;
+  cellHeightClassName?: string;
+  cellWidthClassName?: string;
+  scaleClassName?: string | false;
+  cellFitMinScale?: number;
+  cellFitMaxScale?: number;
+}) {
+  const sortedShips = ships && ships.length > 0 ? sortByPersistentOrder(ships, order) : [];
+
+  return (
+    <div
+      className={cx(
+        'flex flex-row items-center',
+        wrap ? 'flex-wrap' : 'flex-nowrap',
+        gapClassName,
+        scaleClassName,
+        className
+      )}
+    >
+      {sortedShips.map((ship) => (
+        <div
+          key={ship.renderKey}
+          className={cx(
+            cellClassName,
+            fitToCell && 'flex items-center justify-center overflow-visible',
+            fitToCell && cellHeightClassName,
+            fitToCell && cellWidthClassName
+          )}
+        >
+          {fitToCell ? (
+            <FitToBox
+              minScale={cellFitMinScale}
+              maxScale={cellFitMaxScale}
+              className="w-full h-full"
+              overflowVisible
+            >
+              <ShipStack ship={ship} displayMode="void" />
+            </FitToBox>
+          ) : (
+            <ShipStack ship={ship} displayMode="void" />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function FleetArea({
   title,
   ships,
@@ -417,7 +486,6 @@ export function FleetArea({
     ships && ships.length > 0
       ? groupShipsIntoRows(ships, order, rowSets, liveRowOverrides)
       : null;
-  const sortedVoidShips = voidShips && voidShips.length > 0 ? sortByPersistentOrder(voidShips, order) : [];
 
   // FLIP layout animation for smooth repositioning (live fleet only)
   // Derive keys from rendered ships in stable order
@@ -521,22 +589,19 @@ export function FleetArea({
   };
 
   const hasLiveShips = renderedShips.length > 0;
-  const hasVoidShips = sortedVoidShips.length > 0;
+  const hasVoidShips = Boolean(voidShips && voidShips.length > 0);
   const liveRowsClassName =
     liveRowsLayout === 'pairedRows'
       ? 'ss-boardTurnPulse flex h-full w-full flex-col items-center justify-center gap-[12px]'
       : 'ss-boardTurnPulse flex flex-col items-center gap-[18px]';
   const voidRow = (
-    <div
-      className={cx(
-        'flex flex-row flex-nowrap items-center',
-        voidGapClassName,
-        !fitVoidToSlot && voidScaleClassName,
-        !fitVoidToSlot && (side === 'opponent' ? 'origin-right' : 'origin-left')
-      )}
-    >
-      {sortedVoidShips.map((ship) => renderShipCell(ship, 'void'))}
-    </div>
+    <VoidFleetStrip
+      ships={voidShips}
+      order={order}
+      gapClassName={voidGapClassName}
+      scaleClassName={fitVoidToSlot ? false : voidScaleClassName}
+      className={!fitVoidToSlot ? (side === 'opponent' ? 'origin-right' : 'origin-left') : undefined}
+    />
   );
 
   return (
