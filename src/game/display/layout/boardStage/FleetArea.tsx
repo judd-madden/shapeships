@@ -362,6 +362,9 @@ export function VoidFleetStrip({
   scaleClassName = 'scale-[0.6]',
   cellFitMinScale = 0.15,
   cellFitMaxScale = 0.6,
+  cellFitInitialScale,
+  cellFitAnimateScale,
+  cellFitMeasureImmediatelyOnMount,
 }: {
   ships?: VoidFleetStackVm[];
   order?: string[];
@@ -375,6 +378,9 @@ export function VoidFleetStrip({
   scaleClassName?: string | false;
   cellFitMinScale?: number;
   cellFitMaxScale?: number;
+  cellFitInitialScale?: number;
+  cellFitAnimateScale?: boolean;
+  cellFitMeasureImmediatelyOnMount?: boolean;
 }) {
   const sortedShips = ships && ships.length > 0 ? sortByPersistentOrder(ships, order) : [];
 
@@ -402,6 +408,9 @@ export function VoidFleetStrip({
             <FitToBox
               minScale={cellFitMinScale}
               maxScale={cellFitMaxScale}
+              initialScale={cellFitInitialScale}
+              animateScale={cellFitAnimateScale}
+              measureImmediatelyOnMount={cellFitMeasureImmediatelyOnMount}
               className="w-full h-full"
               overflowVisible
             >

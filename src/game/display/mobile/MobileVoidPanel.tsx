@@ -4,6 +4,8 @@ import type { VoidFleetStackVm } from '../layout/boardStage/FleetArea';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 
+const MOBILE_VOID_CELL_FIT_MAX_SCALE = 0.6;
+
 interface MobileVoidPanelProps {
   hudVm: HudViewModel;
   boardVm: MobileBoardViewModel;
@@ -61,7 +63,10 @@ function VoidGroup({
           cellWidthClassName="w-[32px]"
           scaleClassName={false}
           cellFitMinScale={0.15}
-          cellFitMaxScale={0.6}
+          cellFitMaxScale={MOBILE_VOID_CELL_FIT_MAX_SCALE}
+          cellFitInitialScale={MOBILE_VOID_CELL_FIT_MAX_SCALE}
+          cellFitAnimateScale={false}
+          cellFitMeasureImmediatelyOnMount
         />
       </div>
     </section>

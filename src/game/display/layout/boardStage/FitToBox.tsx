@@ -7,6 +7,9 @@ type FitToBoxProps = {
   className?: string;
   contentAlign?: 'start' | 'center' | 'end';
   overflowVisible?: boolean;
+  initialScale?: number;
+  animateScale?: boolean;
+  measureImmediatelyOnMount?: boolean;
 };
 
 export function FitToBox({
@@ -16,13 +19,16 @@ export function FitToBox({
   className,
   contentAlign = 'center',
   overflowVisible = false,
+  initialScale = 1,
+  animateScale = true,
+  measureImmediatelyOnMount = false,
 }: FitToBoxProps) {
   const outerRef = useRef<HTMLDivElement | null>(null);
   const innerMeasureRef = useRef<HTMLDivElement | null>(null);
 
   const rafRef = useRef<number | null>(null);
   const delayedTimeoutRef = useRef<number | null>(null);
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(initialScale);
 
   useLayoutEffect(() => {
     const outer = outerRef.current;
@@ -39,7 +45,7 @@ export function FitToBox({
       const ih = inner.offsetHeight;
 
       if (cw <= 0 || ch <= 0 || iw <= 0 || ih <= 0) {
-        setScale(1);
+        setScale(initialScale);
         return;
       }
 
@@ -81,6 +87,10 @@ export function FitToBox({
     ro.observe(outer);
     ro.observe(inner);
 
+    if (measureImmediatelyOnMount) {
+      compute();
+    }
+
     // Initial
     scheduleCompute();
 
@@ -95,7 +105,7 @@ export function FitToBox({
         delayedTimeoutRef.current = null;
       }
     };
-  }, [maxScale, minScale]);
+  }, [initialScale, maxScale, measureImmediatelyOnMount, minScale]);
 
   const justifyContent =
     contentAlign === 'start' ? 'flex-start' : contentAlign === 'end' ? 'flex-end' : 'center';
@@ -123,7 +133,13 @@ export function FitToBox({
           overflow: overflowVisible ? 'visible' : 'hidden',
         }}
       >
-        <div style={{ transform: `scale(${scale})`, transformOrigin, transition: 'transform 0.4s ease-out', }}>
+        <div
+          style={{
+            transform: `scale(${scale})`,
+            transformOrigin,
+            transition: animateScale ? 'transform 0.4s ease-out' : 'none',
+          }}
+        >
           {/* This element is measured using offsetWidth/offsetHeight (transform-safe) */}
           <div ref={innerMeasureRef}>{children}</div>
         </div>
