@@ -33,6 +33,9 @@ interface MobileGameLayoutProps {
   bottomActionRailVm: BottomActionRailViewModel;
   actionPanelVm: ActionPanelViewModel;
   actions: GameSessionActions;
+  firstTurnBuildHelperEligible?: boolean;
+  firstTurnBuildHelperDismissSignal?: number;
+  onFirstTurnBuildHelperDismiss?: () => void;
   soundEnabled: boolean;
   boardFlashEnabled: boolean;
   onSoundEnabledChange: (checked: boolean) => void;
@@ -74,6 +77,9 @@ export function MobileGameLayout({
   bottomActionRailVm,
   actionPanelVm,
   actions,
+  firstTurnBuildHelperEligible = false,
+  firstTurnBuildHelperDismissSignal = 0,
+  onFirstTurnBuildHelperDismiss,
   soundEnabled,
   boardFlashEnabled,
   onSoundEnabledChange,
@@ -353,6 +359,9 @@ export function MobileGameLayout({
               hudVm={hudVm}
               boardVm={boardVm}
               leftRailVm={leftRailVm}
+              firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
+              firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
+              onFirstTurnBuildHelperDismiss={onFirstTurnBuildHelperDismiss}
               onFleetShipInspect={handleFleetShipInspect}
               onBoardBackgroundMouseDown={actions.onBoardBackgroundMouseDown}
               onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}

@@ -1,4 +1,4 @@
-import type { KeyboardEvent, RefObject } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { Dice } from '../../../components/ui/primitives';
 import type {
   BoardViewModel,
@@ -16,6 +16,9 @@ interface MobileStatusRailProps {
   boardVm: MobileBoardViewModel;
   leftRailVm: LeftRailViewModel;
   mobileDiceModifierSlots: MobileBoardViewModel['mobileDiceModifierSlots'];
+  firstTurnBuildHelperEligible?: boolean;
+  firstTurnBuildHelperDismissSignal?: number;
+  onFirstTurnBuildHelperDismiss?: () => void;
   topRowRef?: RefObject<HTMLDivElement | null>;
   bottomRowRef?: RefObject<HTMLDivElement | null>;
   topStatsAnchorRef?: RefObject<HTMLDivElement | null>;
@@ -46,6 +49,9 @@ interface MobileStatusRailFrameProps {
   diceValue: LeftRailViewModel['diceValue'];
   diceAnimateKey: number;
   mobileDiceModifierSlots?: MobileBoardViewModel['mobileDiceModifierSlots'];
+  firstTurnBuildHelperEligible?: boolean;
+  firstTurnBuildHelperDismissSignal?: number;
+  onFirstTurnBuildHelperDismiss?: () => void;
   topRowRef?: RefObject<HTMLDivElement | null>;
   bottomRowRef?: RefObject<HTMLDivElement | null>;
   topStatsAnchorRef?: RefObject<HTMLDivElement | null>;
@@ -58,11 +64,17 @@ const EMPTY_MOBILE_DICE_MODIFIER_SLOTS: MobileBoardViewModel['mobileDiceModifier
   bottom: null,
 };
 
+const FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS = 500;
+const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
+
 export function MobileStatusRail({
   hudVm,
   boardVm,
   leftRailVm,
   mobileDiceModifierSlots,
+  firstTurnBuildHelperEligible = false,
+  firstTurnBuildHelperDismissSignal = 0,
+  onFirstTurnBuildHelperDismiss,
   topRowRef,
   bottomRowRef,
   topStatsAnchorRef,
@@ -108,6 +120,9 @@ export function MobileStatusRail({
       diceValue={leftRailVm.diceValue}
       diceAnimateKey={leftRailVm.diceAnimateKey}
       mobileDiceModifierSlots={mobileDiceModifierSlots}
+      firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
+      firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
+      onFirstTurnBuildHelperDismiss={onFirstTurnBuildHelperDismiss}
       topRowRef={topRowRef}
       bottomRowRef={bottomRowRef}
       topStatsAnchorRef={topStatsAnchorRef}
@@ -125,12 +140,86 @@ export function MobileStatusRailFrame({
   diceValue,
   diceAnimateKey,
   mobileDiceModifierSlots = EMPTY_MOBILE_DICE_MODIFIER_SLOTS,
+  firstTurnBuildHelperEligible = false,
+  firstTurnBuildHelperDismissSignal = 0,
+  onFirstTurnBuildHelperDismiss,
   topRowRef,
   bottomRowRef,
   topStatsAnchorRef,
   bottomStatsAnchorRef,
   onStatusRowToggle,
 }: MobileStatusRailFrameProps) {
+  const [isFirstTurnBuildHelperMounted, setIsFirstTurnBuildHelperMounted] = useState(false);
+  const [isFirstTurnBuildHelperVisible, setIsFirstTurnBuildHelperVisible] = useState(false);
+  const firstTurnBuildHelperShowTimeoutRef = useRef<number | null>(null);
+  const firstTurnBuildHelperDismissTimeoutRef = useRef<number | null>(null);
+
+  function clearFirstTurnBuildHelperShowTimeout() {
+    if (firstTurnBuildHelperShowTimeoutRef.current !== null) {
+      window.clearTimeout(firstTurnBuildHelperShowTimeoutRef.current);
+      firstTurnBuildHelperShowTimeoutRef.current = null;
+    }
+  }
+
+  function clearFirstTurnBuildHelperDismissTimeout() {
+    if (firstTurnBuildHelperDismissTimeoutRef.current !== null) {
+      window.clearTimeout(firstTurnBuildHelperDismissTimeoutRef.current);
+      firstTurnBuildHelperDismissTimeoutRef.current = null;
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      clearFirstTurnBuildHelperShowTimeout();
+      clearFirstTurnBuildHelperDismissTimeout();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (firstTurnBuildHelperDismissSignal === 0) {
+      return;
+    }
+
+    setIsFirstTurnBuildHelperMounted(true);
+    clearFirstTurnBuildHelperShowTimeout();
+    clearFirstTurnBuildHelperDismissTimeout();
+    setIsFirstTurnBuildHelperVisible(false);
+
+    firstTurnBuildHelperDismissTimeoutRef.current = window.setTimeout(() => {
+      firstTurnBuildHelperDismissTimeoutRef.current = null;
+      setIsFirstTurnBuildHelperMounted(false);
+    }, FIRST_TURN_BUILD_HELPER_FADE_MS);
+  }, [firstTurnBuildHelperDismissSignal]);
+
+  useEffect(() => {
+    if (!firstTurnBuildHelperEligible) {
+      clearFirstTurnBuildHelperShowTimeout();
+      clearFirstTurnBuildHelperDismissTimeout();
+      setIsFirstTurnBuildHelperMounted(false);
+      setIsFirstTurnBuildHelperVisible(false);
+      return;
+    }
+
+    if (firstTurnBuildHelperDismissSignal > 0) {
+      clearFirstTurnBuildHelperShowTimeout();
+      return;
+    }
+
+    clearFirstTurnBuildHelperShowTimeout();
+    clearFirstTurnBuildHelperDismissTimeout();
+    setIsFirstTurnBuildHelperMounted(true);
+    setIsFirstTurnBuildHelperVisible(false);
+
+    firstTurnBuildHelperShowTimeoutRef.current = window.setTimeout(() => {
+      firstTurnBuildHelperShowTimeoutRef.current = null;
+      setIsFirstTurnBuildHelperVisible(true);
+    }, FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS);
+
+    return () => {
+      clearFirstTurnBuildHelperShowTimeout();
+    };
+  }, [firstTurnBuildHelperEligible, firstTurnBuildHelperDismissSignal]);
+
   return (
     <div className="relative shrink-0 w-full py-[8px]">
       <MobileDiceModifierSlots slots={mobileDiceModifierSlots} />
@@ -157,12 +246,54 @@ export function MobileStatusRailFrame({
           <span className="w-[56px] truncate text-center text-[15px] font-bold leading-4 text-[var(--shapeships-grey-50)]">
             {topClock}
           </span>
-          <Dice
-            value={diceValue}
-            animateKey={diceAnimateKey}
-            className="w-[52px] h-[52px]"
-            enableRotate={false}
-          />
+          <div className="relative flex items-center justify-center">
+            <Dice
+              value={diceValue}
+              animateKey={diceAnimateKey}
+              className="w-[52px] h-[52px]"
+              enableRotate={false}
+            />
+            {isFirstTurnBuildHelperMounted && (
+              <div
+                className="pointer-events-none absolute right-0 top-[calc(100%+32px)] z-[30]"
+                style={{
+                  opacity: isFirstTurnBuildHelperVisible ? 1 : 0,
+                  transition: `opacity ${FIRST_TURN_BUILD_HELPER_FADE_MS}ms ease-out`,
+                }}
+              >
+                <button
+                  type="button"
+                  className="pointer-events-auto relative flex w-[180px] max-w-[200px] flex-col gap-2.5 rounded-[10px] bg-[var(--shapeships-pastel-green)] p-[12px] text-left text-[var(--shapeships-black)]"
+                  onClick={onFirstTurnBuildHelperDismiss}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="absolute right-[18px] top-[-5px] size-[10px] rotate-45 bg-[var(--shapeships-pastel-green)]"
+                  />
+                  <span
+                    className="font-['Roboto'] text-[14px] font-black leading-[16px]"
+                    style={{ fontVariationSettings: "'wdth' 100" }}
+                  >
+                    The dice gives lines to both players.
+                  </span>
+                  <span className="flex flex-col gap-2.5">
+                    <span
+                      className="font-['Roboto'] text-[12px] font-normal leading-[14px]"
+                      style={{ fontVariationSettings: "'wdth' 100" }}
+                    >
+                      You start with <span className="font-bold">3 saved lines</span>.
+                    </span>
+                    <span
+                      className="font-['Roboto'] text-[12px] font-normal leading-[14px]"
+                      style={{ fontVariationSettings: "'wdth' 100" }}
+                    >
+                      Spend lines to build ships. Unspent lines are saved.
+                    </span>
+                  </span>
+                </button>
+              </div>
+            )}
+          </div>
           <span className="w-[56px] truncate text-center text-[15px] font-bold leading-4 text-white">
             {bottomClock}
           </span>

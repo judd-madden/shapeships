@@ -16,6 +16,9 @@ interface MobileBoardViewProps {
   hudVm: HudViewModel;
   boardVm: MobileBoardViewModel;
   leftRailVm: LeftRailViewModel;
+  firstTurnBuildHelperEligible?: boolean;
+  firstTurnBuildHelperDismissSignal?: number;
+  onFirstTurnBuildHelperDismiss?: () => void;
   onFleetShipInspect?: (
     shipId: ShipDefId,
     anchorEl: HTMLElement,
@@ -39,6 +42,9 @@ export function MobileBoardView({
   hudVm,
   boardVm,
   leftRailVm,
+  firstTurnBuildHelperEligible = false,
+  firstTurnBuildHelperDismissSignal = 0,
+  onFirstTurnBuildHelperDismiss,
   onFleetShipInspect,
   onBoardBackgroundMouseDown,
   onDestroyTargetHoverChange,
@@ -97,6 +103,9 @@ export function MobileBoardView({
         boardVm={boardVm}
         leftRailVm={leftRailVm}
         mobileDiceModifierSlots={boardVm.mobileDiceModifierSlots}
+        firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
+        firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
+        onFirstTurnBuildHelperDismiss={onFirstTurnBuildHelperDismiss}
         topRowRef={topStatusRowRef}
         bottomRowRef={bottomStatusRowRef}
         topStatsAnchorRef={topStatsAnchorRef}

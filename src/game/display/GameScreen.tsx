@@ -206,6 +206,9 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
             bottomActionRailVm={vm.bottomActionRail}
             actionPanelVm={vm.actionPanel}
             actions={mainStageActions}
+            firstTurnBuildHelperEligible={firstTurnBuildHelper.firstTurnBuildHelperEligible}
+            firstTurnBuildHelperDismissSignal={firstTurnBuildHelper.firstTurnBuildHelperDismissSignal}
+            onFirstTurnBuildHelperDismiss={firstTurnBuildHelper.dismissFirstTurnBuildHelper}
             soundEnabled={soundEnabled}
             boardFlashEnabled={boardFlashEnabled}
             onSoundEnabledChange={setSoundEnabled}
