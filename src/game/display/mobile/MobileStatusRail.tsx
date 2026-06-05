@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { Dice } from '../../../components/ui/primitives';
 import type {
   BoardViewModel,
@@ -157,6 +157,7 @@ export function MobileStatusRailFrame({
   const [isFirstTurnBuildHelperVisible, setIsFirstTurnBuildHelperVisible] = useState(false);
   const firstTurnBuildHelperShowTimeoutRef = useRef<number | null>(null);
   const firstTurnBuildHelperDismissTimeoutRef = useRef<number | null>(null);
+  const hasRequestedFirstTurnBuildHelperDismissRef = useRef(false);
 
   function clearFirstTurnBuildHelperShowTimeout() {
     if (firstTurnBuildHelperShowTimeoutRef.current !== null) {
@@ -171,6 +172,15 @@ export function MobileStatusRailFrame({
       firstTurnBuildHelperDismissTimeoutRef.current = null;
     }
   }
+
+  const requestFirstTurnBuildHelperDismiss = useCallback(() => {
+    if (hasRequestedFirstTurnBuildHelperDismissRef.current) {
+      return;
+    }
+
+    hasRequestedFirstTurnBuildHelperDismissRef.current = true;
+    onFirstTurnBuildHelperDismiss?.();
+  }, [onFirstTurnBuildHelperDismiss]);
 
   useEffect(() => {
     return () => {
@@ -188,6 +198,7 @@ export function MobileStatusRailFrame({
     clearFirstTurnBuildHelperShowTimeout();
     clearFirstTurnBuildHelperDismissTimeout();
     setIsFirstTurnBuildHelperVisible(false);
+    hasRequestedFirstTurnBuildHelperDismissRef.current = true;
 
     firstTurnBuildHelperDismissTimeoutRef.current = window.setTimeout(() => {
       firstTurnBuildHelperDismissTimeoutRef.current = null;
@@ -201,6 +212,7 @@ export function MobileStatusRailFrame({
       clearFirstTurnBuildHelperDismissTimeout();
       setIsFirstTurnBuildHelperMounted(false);
       setIsFirstTurnBuildHelperVisible(false);
+      hasRequestedFirstTurnBuildHelperDismissRef.current = false;
       return;
     }
 
@@ -213,6 +225,7 @@ export function MobileStatusRailFrame({
     clearFirstTurnBuildHelperDismissTimeout();
     setIsFirstTurnBuildHelperMounted(true);
     setIsFirstTurnBuildHelperVisible(false);
+    hasRequestedFirstTurnBuildHelperDismissRef.current = false;
 
     firstTurnBuildHelperShowTimeoutRef.current = window.setTimeout(() => {
       firstTurnBuildHelperShowTimeoutRef.current = null;
@@ -223,6 +236,32 @@ export function MobileStatusRailFrame({
       clearFirstTurnBuildHelperShowTimeout();
     };
   }, [firstTurnBuildHelperEligible, firstTurnBuildHelperDismissSignal]);
+
+  useEffect(() => {
+    if (
+      !firstTurnBuildHelperEligible ||
+      !isFirstTurnBuildHelperMounted ||
+      !isFirstTurnBuildHelperVisible ||
+      !onFirstTurnBuildHelperDismiss
+    ) {
+      return;
+    }
+
+    function handleDocumentPointerDown() {
+      requestFirstTurnBuildHelperDismiss();
+    }
+
+    document.addEventListener('pointerdown', handleDocumentPointerDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', handleDocumentPointerDown, true);
+    };
+  }, [
+    firstTurnBuildHelperEligible,
+    isFirstTurnBuildHelperMounted,
+    isFirstTurnBuildHelperVisible,
+    onFirstTurnBuildHelperDismiss,
+    requestFirstTurnBuildHelperDismiss,
+  ]);
 
   return (
     <div className="relative shrink-0 w-full py-[8px]">
@@ -270,7 +309,7 @@ export function MobileStatusRailFrame({
                 <button
                   type="button"
                   className="pointer-events-auto relative flex w-[180px] max-w-[200px] flex-col gap-2.5 rounded-[10px] bg-[var(--shapeships-pastel-green)] p-[12px] text-left text-[var(--shapeships-black)]"
-                  onClick={onFirstTurnBuildHelperDismiss}
+                  onClick={requestFirstTurnBuildHelperDismiss}
                 >
                   <span
                     aria-hidden="true"
