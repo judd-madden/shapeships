@@ -221,8 +221,8 @@ function MobileSpeciesStatusRail({
   const currentPlayerStatusText = boardVm.isSpectator
     ? hudVm.p1Species || hudVm.p1StatusText || ''
     : boardVm.isSpeciesSelectionComplete
-      ? `Confirmed ${selectedSpeciesLabel}`
-      : 'Choosing Species';
+      ? `${selectedSpeciesLabel}`
+      : 'Selecting';
   const currentPlayerStatusTone: HudStatusTone =
     boardVm.isSpeciesSelectionComplete && !boardVm.isSpectator ? 'ready' : 'neutral';
 

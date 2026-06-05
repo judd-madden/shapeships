@@ -44,6 +44,7 @@ export interface MobileStatusRailRowData {
 interface MobileStatusRailFrameProps {
   topRow: MobileStatusRailRowData;
   bottomRow: MobileStatusRailRowData;
+  showDeltas?: boolean;
   topClock: string;
   bottomClock: string;
   diceValue: LeftRailViewModel['diceValue'];
@@ -110,11 +111,13 @@ export function MobileStatusRail({
     savedLines: boardVm.myDisplayedSavedLines,
     savedJoiningLines: boardVm.myDisplayedSavedJoiningLines,
   };
+  const showDeltas = boardVm.turnNumber > 1 || boardVm.healthDeltaPresentationKey != null;
 
   return (
     <MobileStatusRailFrame
       topRow={opponentStatus}
       bottomRow={currentPlayerStatus}
+      showDeltas={showDeltas}
       topClock={hudVm.p2Clock}
       bottomClock={hudVm.p1Clock}
       diceValue={leftRailVm.diceValue}
@@ -135,6 +138,7 @@ export function MobileStatusRail({
 export function MobileStatusRailFrame({
   topRow,
   bottomRow,
+  showDeltas = true,
   topClock,
   bottomClock,
   diceValue,
@@ -230,6 +234,7 @@ export function MobileStatusRailFrame({
             statsAnchorRef={topStatsAnchorRef}
             row={topRow}
             position="top"
+            showDeltas={showDeltas}
             onToggle={onStatusRowToggle}
           />
           <div className="h-px w-full bg-gradient-to-r from-transparent via-white to-transparent opacity-70" />
@@ -238,6 +243,7 @@ export function MobileStatusRailFrame({
             statsAnchorRef={bottomStatsAnchorRef}
             row={bottomRow}
             position="bottom"
+            showDeltas={showDeltas}
             onToggle={onStatusRowToggle}
           />
         </div>
@@ -308,18 +314,21 @@ function MobilePlayerStatusRow({
   statsAnchorRef,
   row,
   position,
+  showDeltas,
   onToggle,
 }: {
   rowRef?: RefObject<HTMLDivElement | null>;
   statsAnchorRef?: RefObject<HTMLDivElement | null>;
   row: MobileStatusRailRowData;
   position: MobileRowPosition;
+  showDeltas: boolean;
   onToggle?: () => void;
 }) {
   const health = row.health;
   const netDelta = row.netDelta;
   const hasHealth = health !== undefined;
   const hasNetDelta = netDelta !== undefined;
+  const shouldShowNetDelta = hasNetDelta && showDeltas;
   const isInteractive = onToggle !== undefined;
 
   function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -350,7 +359,7 @@ function MobilePlayerStatusRow({
             <span className={`text-[26px] leading-[26px] ${hasHealth ? 'text-white' : 'text-transparent'}`}>
               {hasHealth ? health : 0}
             </span>
-            <span className={`text-[15px] leading-[16px] ${getNetDeltaClassName(netDelta)} ${hasNetDelta ? '' : 'text-transparent'}`}>
+            <span className={`text-[15px] leading-[16px] ${shouldShowNetDelta ? getNetDeltaClassName(netDelta) : 'text-transparent'}`}>
               {hasNetDelta ? formatNetDelta(netDelta) : 0}
             </span>
           </div>
@@ -431,7 +440,11 @@ function formatNetDelta(value: number): string {
     return `+${value}`;
   }
 
-  return String(value);
+  if (value < 0) {
+    return String(value);
+  }
+
+  return '±0';
 }
 
 function getNetDeltaClassName(value?: number): string {
