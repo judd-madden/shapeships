@@ -28,6 +28,8 @@ import { useMobileGameLayout } from './mobile/useMobileGameLayout';
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 const SOUND_ENABLED_STORAGE_KEY = 'shapeships.soundEnabled.v1';
 const BOARD_FLASH_ENABLED_STORAGE_KEY = 'shapeships.boardFlashEnabled.v1';
+const MOBILE_LANDSCAPE_BLOCKER_QUERY =
+  '(orientation: landscape) and (hover: none) and (pointer: coarse)';
 
 interface GameScreenProps {
   gameId: string;
@@ -62,6 +64,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
   });
   const { vm, actions } = useGameSession(gameId, playerName, { boardFlashEnabled });
   const isMobileGameLayout = useMobileGameLayout();
+  const isMobileLandscapeBlocked = useMobileLandscapeBlocker();
   const firstTurnBuildHelper = useFirstTurnBuildHelper(gameId, vm, actions.onReadyToggle);
   const voidShipInstanceIds = useMemo(() => {
     if (vm.board.mode !== 'board') {
@@ -153,6 +156,14 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
         <div className="text-sm font-semibold tracking-wide text-white">
           LOADING GAME
         </div>
+      </div>
+    );
+  }
+
+  if (isMobileLandscapeBlocked) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black px-6 text-center text-[18px] leading-7 text-white">
+        Rotate your device to portrait to play Shapeships.
       </div>
     );
   }
@@ -254,6 +265,29 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
       )}
     </div>
   );
+}
+
+function useMobileLandscapeBlocker(): boolean {
+  const [matches, setMatches] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+      setMatches(false);
+      return;
+    }
+
+    const mediaQuery = window.matchMedia(MOBILE_LANDSCAPE_BLOCKER_QUERY);
+    const updateMatches = () => setMatches(mediaQuery.matches);
+
+    updateMatches();
+    mediaQuery.addEventListener?.('change', updateMatches);
+
+    return () => {
+      mediaQuery.removeEventListener?.('change', updateMatches);
+    };
+  }, []);
+
+  return matches;
 }
 
 function useFirstTurnBuildHelper(
