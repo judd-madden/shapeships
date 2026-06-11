@@ -88,7 +88,7 @@ export function ChooseSpeciesStage({
             </button>
             {showCopiedToast && (
               <div className="relative">
-                <CopiedToast className="absolute top-[100%] mt-[20px]" />
+                <CopiedToast className="absolute top-[100%] left-[50%] transform -translate-x-[50%]" />
               </div>
             )}
           </div>
@@ -228,7 +228,7 @@ export function ChooseSpeciesStage({
           </button>
           {showCopiedToast && (
             <div className="relative">
-              <CopiedToast className="absolute top-[100%] mt-[20px]" />
+              <CopiedToast className="absolute top-[100%] left-[50%] transform -translate-x-[50%]" />
             </div>
           )}
         </div>
