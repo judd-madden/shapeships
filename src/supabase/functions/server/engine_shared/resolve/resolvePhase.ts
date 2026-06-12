@@ -31,6 +31,10 @@ import {
   createBattleLogFinalizeTurnEvent,
   createBattleLogFrigateHitCaptureEventsFromResolution,
 } from '../../engine/state/battleLogHistory.ts';
+import {
+  appendShipActivationCueBatch,
+  getShipActivationSourcesFromAppliedEffects,
+} from '../../engine/state/shipActivationCues.ts';
 import { getCanonicalShipFamilyDisplayName } from '../defs/ShipDefinitionNames.ts';
 import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
 import {
@@ -566,8 +570,17 @@ function resolveShipsThatBuild(
     );
   }
 
+  const shipsThatBuildPassIndex =
+    state.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
+  const stateWithActivationCues = appendShipActivationCueBatch(result.state, {
+    key: `ship-activation:${turnNumber}:${phaseKey}:pass:${shipsThatBuildPassIndex}`,
+    phaseKey,
+    sources: getShipActivationSourcesFromAppliedEffects(effects, result.events),
+  });
+
   return {
     ...result,
+    state: stateWithActivationCues,
     events: allEvents,
   };
 }
@@ -606,6 +619,19 @@ function resolveBuildEndOfBuild(
   };
 
   const activePlayers = workingState.players.filter((player) => player.role === 'player');
+  const redemptionSources = activePlayers.flatMap((player) => {
+    const fleet = workingState.gameData.ships?.[player.id] || [];
+    return fleet
+      .filter(
+        (ship) =>
+          ship.shipDefId === 'RED' &&
+          (ship.createdTurn ?? 0) === currentTurn
+      )
+      .map((ship) => ({
+        playerId: player.id,
+        sourceInstanceId: ship.instanceId,
+      }));
+  });
 
   workingState = {
     ...workingState,
@@ -675,7 +701,14 @@ function resolveBuildEndOfBuild(
 
   if (fighterEffects.length === 0) {
     debugLog('[resolveBuildEndOfBuild] No Dreadnought fighters to spawn');
-    return { state: workingState, events: [] };
+    return {
+      state: appendShipActivationCueBatch(workingState, {
+        key: `ship-activation:${currentTurn}:${phaseKey}`,
+        phaseKey,
+        sources: redemptionSources,
+      }),
+      events: [],
+    };
   }
 
   const applied = applyEffects(workingState, fighterEffects);
@@ -698,8 +731,21 @@ function resolveBuildEndOfBuild(
     `[resolveBuildEndOfBuild] Spawned ${fighterEffects.length} fighter(s), generated ${applied.events.length} events`
   );
 
+  const stateWithActivationCues = appendShipActivationCueBatch(applied.state, {
+    key: `ship-activation:${currentTurn}:${phaseKey}`,
+    phaseKey,
+    sources: [
+      ...redemptionSources,
+      ...getShipActivationSourcesFromAppliedEffects(
+        fighterEffects,
+        applied.events
+      ),
+    ],
+  });
+
   return {
     ...applied,
+    state: stateWithActivationCues,
     events: allEvents,
   };
 }
@@ -862,7 +908,17 @@ function resolveBattleEndOfTurn(
     ...victoryResult.events,
   ];
 
-  return { state: clearedState, events: allEvents };
+  return {
+    state: appendShipActivationCueBatch(clearedState, {
+      key: `ship-activation:${currentTurn}:${phaseKey}`,
+      phaseKey,
+      sources: getShipActivationSourcesFromAppliedEffects(
+        effects,
+        applied.events
+      ),
+    }),
+    events: allEvents,
+  };
 }
 
 // ============================================================================

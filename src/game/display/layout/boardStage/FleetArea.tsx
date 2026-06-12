@@ -248,7 +248,7 @@ function ShipStack({
 
   const showCount = ship.count > 1;
 
-  const activationDelayMs = (activationIndexMap?.[ship.renderKey] ?? 0) * 400;
+  const activationDelayMs = (activationIndexMap?.[ship.renderKey] ?? 0) * 270;
 
   return (
     <div className={cx('flex flex-row items-center', isVoid && 'opacity-35')}>

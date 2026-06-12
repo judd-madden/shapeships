@@ -7,7 +7,7 @@
  * - Track per-stack animation nonces for both local and opponent fleets:
  *   - entryNonce: bump when a stack transitions 0 -> 1+
  *   - stackAddNonce: bump when a stack increases N -> N+1 (where N > 0)
- *   - activationNonce: reserved for future explicit activation triggers (not wired yet)
+ *   - activationNonce: bump for explicit server-authored activation cues
  *
  * Inputs:
  * - myCountsByRenderKey: map of renderKey -> count for local player's visible fleet
@@ -21,15 +21,20 @@
  * - Visual-only; not authoritative; no server calls.
  * - Designed to be called unconditionally from useGameSession.
  * - Owns one-shot suppression for local manual stack-add bumps so the matching
- *   next diff does not replay the same pulse.
+ *   next diff does not replay the same motion.
  */
 
 import { useLayoutEffect, useRef, useState } from 'react';
 
 export type AnimToken = { entryNonce: number; activationNonce: number; stackAddNonce: number };
 export type AnimTokenMap = Record<string, AnimToken>;
+export type ResolvedFleetActivationEvent = {
+  eventKey: string;
+  side: 'my' | 'opponent' | null;
+  renderKey?: string;
+};
 type PendingStackAddSuppression = { prevCount: number; nextCount: number };
-type TokenNonceField = 'entryNonce' | 'stackAddNonce';
+type TokenNonceField = 'entryNonce' | 'activationNonce' | 'stackAddNonce';
 
 // Initial token for any new renderKey
 function makeEmptyToken(): AnimToken {
@@ -61,8 +66,15 @@ function bumpTokenNonces(
 export function useFleetAnimTokens(params: {
   myCountsByRenderKey: Record<string, number>;
   opponentCountsByRenderKey: Record<string, number>;
+  activationEvents: ResolvedFleetActivationEvent[] | null;
+  activationHardContinuityKey: string;
 }) {
-  const { myCountsByRenderKey, opponentCountsByRenderKey } = params;
+  const {
+    myCountsByRenderKey,
+    opponentCountsByRenderKey,
+    activationEvents,
+    activationHardContinuityKey,
+  } = params;
 
   const [myAnimTokens, setMyAnimTokens] = useState<AnimTokenMap>({});
   const [opponentAnimTokens, setOpponentAnimTokens] = useState<AnimTokenMap>({});
@@ -72,6 +84,9 @@ export function useFleetAnimTokens(params: {
   const didInitializeCountsRef = useRef(false);
   const pendingMyStackAddSuppressionRef =
     useRef<Record<string, PendingStackAddSuppression>>({});
+  const didInitializeActivationRef = useRef(false);
+  const activationHardContinuityKeyRef = useRef<string | null>(null);
+  const seenActivationEventKeysRef = useRef<Set<string>>(new Set());
 
   // Detect entry (0->1+) and stack-add (N->N+1 where N>0).
   // True entry remains fully diff-owned; only local manual stack-add is deduped.
@@ -170,6 +185,60 @@ export function useFleetAnimTokens(params: {
 
     prevOpponentCountsRef.current = { ...opponentCountsByRenderKey };
   }, [myCountsByRenderKey, opponentCountsByRenderKey]);
+
+  useLayoutEffect(() => {
+    if (activationEvents === null) {
+      return;
+    }
+
+    if (
+      !didInitializeActivationRef.current ||
+      activationHardContinuityKeyRef.current !== activationHardContinuityKey
+    ) {
+      didInitializeActivationRef.current = true;
+      activationHardContinuityKeyRef.current = activationHardContinuityKey;
+      seenActivationEventKeysRef.current = new Set(
+        activationEvents.map((event) => event.eventKey)
+      );
+      return;
+    }
+
+    const myActivationRenderKeys = new Set<string>();
+    const opponentActivationRenderKeys = new Set<string>();
+
+    for (const event of activationEvents) {
+      if (seenActivationEventKeysRef.current.has(event.eventKey)) continue;
+
+      seenActivationEventKeysRef.current.add(event.eventKey);
+      if (!event.renderKey) continue;
+
+      if (event.side === 'my') {
+        myActivationRenderKeys.add(event.renderKey);
+      } else if (event.side === 'opponent') {
+        opponentActivationRenderKeys.add(event.renderKey);
+      }
+    }
+
+    if (myActivationRenderKeys.size > 0) {
+      setMyAnimTokens((prev) =>
+        bumpTokenNonces(
+          prev,
+          Array.from(myActivationRenderKeys),
+          'activationNonce'
+        )
+      );
+    }
+
+    if (opponentActivationRenderKeys.size > 0) {
+      setOpponentAnimTokens((prev) =>
+        bumpTokenNonces(
+          prev,
+          Array.from(opponentActivationRenderKeys),
+          'activationNonce'
+        )
+      );
+    }
+  }, [activationEvents, activationHardContinuityKey]);
 
   // Immediate local entry still means "true new rendered stack" and is not
   // deduped here. Callers should use it only when they truly want manual entry.

@@ -17,6 +17,7 @@ import { getBuildCommitKey } from '../engine/intent/IntentTypes.ts';
 import { hasRevealed } from '../engine/intent/CommitStore.ts';
 import { resolveBuildSubmitAuthoritatively } from '../engine/intent/buildSubmitResolution.ts';
 import type { ShipInstance } from '../engine/state/GameStateTypes.ts';
+import { getShipActivationCueBatches } from '../engine/state/shipActivationCues.ts';
 import { chooseDeterministicHumanBotPlanId, chooseFreshHumanBotPlanId, getHumanBotPlanById } from '../engine/bot/humanPlans.ts';
 import { runBotsUntilSettled } from '../engine/bot/botRunner.ts';
 import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
@@ -323,6 +324,63 @@ function getPhaseKey(state: any): string | null {
   const sub = state?.gameData?.currentSubPhase;
   if (!major || !sub) return null;
   return buildPhaseKey(major, sub);
+}
+
+function isHiddenBuildActivationCuePhase(phaseKey: string): boolean {
+  return (
+    phaseKey === 'build.ships_that_build' ||
+    phaseKey === 'build.end_of_build'
+  );
+}
+
+function projectShipActivationCueBatches(
+  value: unknown,
+  currentPhaseKey: string | null,
+  gameStatus: unknown
+) {
+  const batches = getShipActivationCueBatches(value);
+  const mayRevealHiddenBuildCues =
+    gameStatus === 'finished' ||
+    (typeof currentPhaseKey === 'string' && currentPhaseKey.startsWith('battle.'));
+
+  if (mayRevealHiddenBuildCues) {
+    return batches;
+  }
+
+  return batches.filter(
+    (batch) => !isHiddenBuildActivationCuePhase(batch.phaseKey)
+  );
+}
+
+function projectRequesterShipActivationCueBatches(
+  value: unknown,
+  currentPhaseKey: string | null,
+  gameStatus: unknown,
+  currentTurnNumber: number,
+  requestingPlayerId: string,
+  participantRole: unknown
+) {
+  if (
+    participantRole !== 'player' ||
+    gameStatus === 'finished' ||
+    (typeof currentPhaseKey === 'string' && currentPhaseKey.startsWith('battle.'))
+  ) {
+    return [];
+  }
+
+  return getShipActivationCueBatches(value)
+    .filter(
+      (batch) =>
+        batch.turnNumber === currentTurnNumber &&
+        isHiddenBuildActivationCuePhase(batch.phaseKey)
+    )
+    .map((batch) => ({
+      ...batch,
+      sources: batch.sources.filter(
+        (source) => source.playerId === requestingPlayerId
+      ),
+    }))
+    .filter((batch) => batch.sources.length > 0);
 }
 
 // ============================================================================
@@ -1676,7 +1734,7 @@ export function registerGameRoutes(
         return c.json({ error: "Not authorized to view this game" }, 403);
       }
 
-      const { maintainedState, nowMs } = preparedRead;
+      const { maintainedState, nowMs, participant } = preparedRead;
       let gameData = maintainedState;
 
       const phaseKey = getPhaseKey(gameData);
@@ -1931,12 +1989,27 @@ export function registerGameRoutes(
         battleLogScratch: _omitBattleLogScratch,
         ...responseState
       } = gameData;
+      const {
+        shipActivationCueBatches: _omitShipActivationCueBatches,
+        ...responseTurnData
+      } = responseState.gameData?.turnData ?? {};
+      const responseGameData = responseState.gameData
+        ? {
+            ...responseState.gameData,
+            turnData: responseTurnData,
+          }
+        : responseState.gameData;
       const lastTurnDamageDealtBreakdownByPlayerId =
         gameData.gameData?.lastTurnDamageDealtBreakdownByPlayerId ?? {};
       const lastTurnHealingReceivedBreakdownByPlayerId =
         gameData.gameData?.lastTurnHealingReceivedBreakdownByPlayerId ?? {};
+      const currentTurnNumber =
+        turnData.turnNumber ??
+        gameData.gameData?.turnNumber ??
+        gameData.turnNumber ??
+        0;
       const meta = {
-        turnNumber: turnData.turnNumber ?? gameData.gameData?.turnNumber ?? gameData.turnNumber ?? 0,
+        turnNumber: currentTurnNumber,
         phaseKey,
         subPhaseKey: sub ?? null,
       };
@@ -1968,6 +2041,13 @@ export function registerGameRoutes(
         bonusLinesOnEvenByPlayerId,
         joiningBonusLinesByPlayerId,
         bonusBreakdownByPlayerId,
+        presentationEvents: {
+          shipActivationCueBatches: projectShipActivationCueBatches(
+            turnData.shipActivationCueBatches,
+            phaseKey,
+            gameData.status
+          ),
+        },
       };
       const requester = {
         playerId: requestingPlayerId,
@@ -1976,6 +2056,16 @@ export function registerGameRoutes(
         buildEconomyByPlayerId,
         lastTurnDamageDealtBreakdownByPlayerId,
         lastTurnHealingReceivedBreakdownByPlayerId,
+        presentationEvents: {
+          shipActivationCueBatches: projectRequesterShipActivationCueBatches(
+            turnData.shipActivationCueBatches,
+            phaseKey,
+            gameData.status,
+            currentTurnNumber,
+            requestingPlayerId,
+            participant?.role
+          ),
+        },
       };
       const result = {
         winnerPlayerId: gameData.winnerPlayerId ?? null,
@@ -1984,6 +2074,7 @@ export function registerGameRoutes(
       
       return c.json({
         ...responseState,
+        gameData: responseGameData,
         stateRevision: gameData.stateRevision,
         clock: clockSnapshot,
         meta,

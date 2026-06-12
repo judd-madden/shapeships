@@ -9,6 +9,97 @@ function hasOwn(value: unknown, key: string): boolean {
   return value != null && Object.prototype.hasOwnProperty.call(Object(value), key);
 }
 
+export type ShipActivationCueSource = {
+  playerId: string;
+  sourceInstanceId: string;
+};
+
+export type ShipActivationCueBatch = {
+  key: string;
+  turnNumber: number;
+  phaseKey: string;
+  seq: number;
+  sources: ShipActivationCueSource[];
+};
+
+function normalizeShipActivationCueBatches(
+  rawBatches: unknown
+): ShipActivationCueBatch[] {
+  if (!Array.isArray(rawBatches)) return [];
+
+  const batches: ShipActivationCueBatch[] = [];
+  for (const rawBatch of rawBatches) {
+    if (!rawBatch || typeof rawBatch !== 'object') continue;
+    if (
+      typeof rawBatch.key !== 'string' ||
+      rawBatch.key.length === 0 ||
+      typeof rawBatch.turnNumber !== 'number' ||
+      !Number.isFinite(rawBatch.turnNumber) ||
+      typeof rawBatch.phaseKey !== 'string' ||
+      rawBatch.phaseKey.length === 0 ||
+      typeof rawBatch.seq !== 'number' ||
+      !Number.isFinite(rawBatch.seq) ||
+      !Array.isArray(rawBatch.sources)
+    ) {
+      continue;
+    }
+
+    const sources: ShipActivationCueSource[] = [];
+    const seenSources = new Set<string>();
+    for (const rawSource of rawBatch.sources) {
+      if (
+        !rawSource ||
+        typeof rawSource !== 'object' ||
+        typeof rawSource.playerId !== 'string' ||
+        rawSource.playerId.length === 0 ||
+        typeof rawSource.sourceInstanceId !== 'string' ||
+        rawSource.sourceInstanceId.length === 0
+      ) {
+        continue;
+      }
+
+      const sourceKey = `${rawSource.playerId}\u0000${rawSource.sourceInstanceId}`;
+      if (seenSources.has(sourceKey)) continue;
+
+      seenSources.add(sourceKey);
+      sources.push({
+        playerId: rawSource.playerId,
+        sourceInstanceId: rawSource.sourceInstanceId,
+      });
+    }
+
+    if (sources.length === 0) continue;
+    batches.push({
+      key: rawBatch.key,
+      turnNumber: rawBatch.turnNumber,
+      phaseKey: rawBatch.phaseKey,
+      seq: rawBatch.seq,
+      sources,
+    });
+  }
+
+  return batches.slice(-8);
+}
+
+export function getShipActivationCueBatches(
+  state: any
+): ShipActivationCueBatch[] {
+  const publicPresentationEvents = state?.publicState?.presentationEvents;
+  const rawPublicBatches = hasOwn(
+    publicPresentationEvents,
+    'shipActivationCueBatches'
+  )
+    ? publicPresentationEvents.shipActivationCueBatches
+    : state?.publicState?.shipActivationCueBatches;
+  const rawRequesterBatches =
+    state?.requester?.presentationEvents?.shipActivationCueBatches;
+
+  return [
+    ...normalizeShipActivationCueBatches(rawPublicBatches),
+    ...normalizeShipActivationCueBatches(rawRequesterBatches),
+  ];
+}
+
 /**
  * Extract phaseKey from state with fallback normalization
  */

@@ -25,7 +25,11 @@ import { isPhaseKey, type PhaseKey } from '../../engine_shared/phase/PhaseTable.
 import { getValidShipOfEqualityTargets } from '../../engine_shared/resolve/destroyRules.ts';
 import { rollD6 } from '../util/rollD6.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
-import type { ShipInstance } from '../state/GameStateTypes.ts';
+import type {
+  ShipActivationCueSource,
+  ShipInstance,
+} from '../state/GameStateTypes.ts';
+import { appendShipActivationCueBatch } from '../state/shipActivationCues.ts';
 
 type KnoRerollPassIndex = 1 | 2 | 3;
 
@@ -641,6 +645,8 @@ function enterPhaseOnce(
   // 5. DO NOT grant lines here (that happens in line_generation)
   
   if (toKey === 'build.dice_roll') {
+    const diceActivationSources: ShipActivationCueSource[] = [];
+
     if (anyPlayerHasKno(workingState)) {
       if (
         turnData.knoRerollPassIndex !== 1 &&
@@ -676,6 +682,27 @@ function enterPhaseOnce(
       
       // Mirror effectiveDiceRoll to gameData for compatibility
       workingState.gameData.diceRoll = base;
+
+      if (base !== 6) {
+        const activePlayers =
+          workingState.players?.filter((player: any) => player.role === 'player') || [];
+        for (const player of activePlayers) {
+          if (overrideSourceByPlayerId[player.id] !== 'LEV') continue;
+
+          const fleet = workingState.gameData?.ships?.[player.id] ?? [];
+          for (const ship of fleet) {
+            if (
+              ship?.shipDefId === 'LEV' &&
+              typeof ship?.instanceId === 'string'
+            ) {
+              diceActivationSources.push({
+                playerId: player.id,
+                sourceInstanceId: ship.instanceId,
+              });
+            }
+          }
+        }
+      }
       
       debugLog(`[OnEnterPhase] Rolled dice: ${base}`);
       
@@ -745,6 +772,26 @@ function enterPhaseOnce(
         turnNumber: workingState.gameData.turnNumber || 1,
         atMs: nowMs,
       });
+
+      const activePlayers =
+        workingState.players?.filter((player: any) => player.role === 'player') || [];
+      for (const player of activePlayers) {
+        const fleet = workingState.gameData?.ships?.[player.id] ?? [];
+        const contributingChronoswarms = fleet
+          .filter(
+            (ship: any) =>
+              ship?.shipDefId === 'CHR' &&
+              typeof ship?.instanceId === 'string'
+          )
+          .slice(0, Math.min(chronoswarmCountByPlayerId[player.id] ?? 0, chronoswarmRolls.length));
+
+        for (const ship of contributingChronoswarms) {
+          diceActivationSources.push({
+            playerId: player.id,
+            sourceInstanceId: ship.instanceId,
+          });
+        }
+      }
     } else {
       turnData.chronoswarmRolls = existingChronoswarmRolls;
       turnData.chronoswarmSharedRollCount = existingChronoswarmRolls.length;
@@ -785,6 +832,17 @@ function enterPhaseOnce(
         });
       }
     }
+
+    workingState = appendShipActivationCueBatch(workingState, {
+      key: `ship-activation:${
+        turnData.turnNumber ??
+        workingState.gameData?.turnNumber ??
+        workingState.turnNumber ??
+        0
+      }:build.dice_roll:initial`,
+      phaseKey: 'build.dice_roll',
+      sources: diceActivationSources,
+    });
   }
   
   // ============================================================================
@@ -813,12 +871,24 @@ function enterPhaseOnce(
         // Use canonical dice value; if per-player dice read values exist, use those.
         const canonicalBaseLines = turnData.effectiveDiceRoll ?? turnData.baseDiceRoll ?? turnData.diceRoll;
         const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
+        const lineActivationSources: ShipActivationCueSource[] = [];
         
         for (const player of activePlayers) {
           const baseLines = turnData.effectiveDiceRollByPlayerId?.[player.id] ?? canonicalBaseLines;
-          const { bonusLines, joiningBonusLines } = computeLineBonusesForPlayer(workingState, player.id);
+          const {
+            bonusLines,
+            joiningBonusLines,
+            contributingSourceInstanceIds,
+          } = computeLineBonusesForPlayer(workingState, player.id);
           const chronoswarmBonusLines = getChronoswarmBonusLinesForPlayer(workingState, player.id);
           const totalLines = baseLines + bonusLines + chronoswarmBonusLines;
+
+          for (const sourceInstanceId of contributingSourceInstanceIds) {
+            lineActivationSources.push({
+              playerId: player.id,
+              sourceInstanceId,
+            });
+          }
           
           const currentLines = player.lines || 0;
           const currentJoiningLines = player.joiningLines || 0;
@@ -846,6 +916,16 @@ function enterPhaseOnce(
         
         // Mark lines as distributed
         turnData.linesDistributed = true;
+        workingState = appendShipActivationCueBatch(workingState, {
+          key: `ship-activation:${
+            turnData.turnNumber ??
+            workingState.gameData?.turnNumber ??
+            workingState.turnNumber ??
+            0
+          }:build.line_generation`,
+          phaseKey: 'build.line_generation',
+          sources: lineActivationSources,
+        });
       }
     }
   }

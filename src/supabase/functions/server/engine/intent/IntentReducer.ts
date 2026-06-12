@@ -46,6 +46,10 @@ import {
   createBattleLogBuildCaptureEventsFromResolution,
   createBattleLogBuildRerollCaptureEvents,
 } from '../state/battleLogHistory.ts';
+import {
+  appendShipActivationCueBatch,
+  getShipActivationSourcesFromAppliedEffects,
+} from '../state/shipActivationCues.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
 
 import {
@@ -73,7 +77,10 @@ import {
   allPlayersRevealed,
   allCommittedPlayersRevealed,
 } from './CommitStore.ts';
-import type { ShipInstance } from '../state/GameStateTypes.ts';
+import type {
+  ShipActivationCueSource,
+  ShipInstance,
+} from '../state/GameStateTypes.ts';
 
 export interface IntentRequest {
   gameId: string;
@@ -452,7 +459,29 @@ function resolvePendingKnoRerollPass(state: any, nowMs: number, events: any[]) {
   clearResolvedKnoPassChoices(state, passIndex);
   turnData.diceFinalized = nextEligiblePassIndex == null;
 
-  return state;
+  if (!anyReroll) {
+    return state;
+  }
+
+  return appendShipActivationCueBatch(state, {
+    key: `ship-activation:${
+      state.gameData?.turnData?.turnNumber ??
+      state.gameData?.turnNumber ??
+      state.turnNumber ??
+      0
+    }:build.dice_roll:kno-pass:${passIndex}`,
+    phaseKey: 'build.dice_roll',
+    sources: rerollingPlayerIds.flatMap((rerollingPlayerId: string) => {
+      const sourceInstanceId = getRepresentativeKnoInstanceIdForPass(
+        state,
+        rerollingPlayerId,
+        passIndex
+      );
+      return sourceInstanceId
+        ? [{ playerId: rerollingPlayerId, sourceInstanceId }]
+        : [];
+    }),
+  });
 }
 
 function validateEvolverChoicesPayload(
@@ -1981,6 +2010,7 @@ function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: 
   }
 
   let workingState = state;
+  let activationSources: ShipActivationCueSource[] = [];
   const prepared = selections.map((selection: any) => ({
     selection,
     outcome: resolvePowerAction({
@@ -2001,6 +2031,10 @@ function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: 
     const applied = applyEffects(workingState, allEffects);
     workingState = applied.state;
     events.push(...applied.events);
+    activationSources = getShipActivationSourcesFromAppliedEffects(
+      allEffects,
+      applied.events
+    );
 
     const effectEvents = getEffectEventsFromOutcomeEvents(applied.events);
     for (const item of prepared) {
@@ -2060,7 +2094,16 @@ function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: 
   if (!workingState.gameData.turnData) workingState.gameData.turnData = {};
   delete workingState.gameData.turnData.pendingFirstStrikeSelectionsByPlayerId;
 
-  return workingState;
+  return appendShipActivationCueBatch(workingState, {
+    key: `ship-activation:${
+      workingState.gameData?.turnData?.turnNumber ??
+      workingState.gameData?.turnNumber ??
+      workingState.turnNumber ??
+      0
+    }:${phaseKey}`,
+    phaseKey,
+    sources: activationSources,
+  });
 }
 
 // ============================================================================
@@ -2561,6 +2604,14 @@ function handleAction(
         spentCharge: outcome.spentCharge,
         atMs: nowMs
       });
+
+      state = appendShipActivationCueBatch(state, {
+        phaseKey,
+        sources: getShipActivationSourcesFromAppliedEffects(
+          outcome.effects || [],
+          effectEvents
+        ),
+      });
       
       state = syncPhaseFields(state);
       
@@ -2662,6 +2713,8 @@ function handleActionsSubmit(
   // ============================================================================
   // BATCH PROCESSING: Apply each action atomically
   // ============================================================================
+  const activationSources: ShipActivationCueSource[] = [];
+
   for (const item of payload.actions) {
     // Validate action type
     if (item.actionType !== 'power') {
@@ -2756,6 +2809,12 @@ function handleActionsSubmit(
 
       state = outcome.state;
       const effectEvents = getEffectEventsFromOutcomeEvents(outcome.events);
+      activationSources.push(
+        ...getShipActivationSourcesFromAppliedEffects(
+          outcome.effects || [],
+          effectEvents
+        )
+      );
 
       if (phaseKey === 'build.ships_that_build') {
         incrementShipsMadeThisTurnCounter(
@@ -2839,6 +2898,11 @@ function handleActionsSubmit(
       atMs: nowMs
     });
   }
+
+  state = appendShipActivationCueBatch(state, {
+    phaseKey,
+    sources: activationSources,
+  });
   
   state = syncPhaseFields(state);
   

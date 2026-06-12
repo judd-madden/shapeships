@@ -60,6 +60,7 @@ import {
   getPlayerIdentityKey,
   getResultReason,
   getSavedLinesByPlayerId,
+  getShipActivationCueBatches,
   getShipsByPlayerId,
   getTurnNumber,
   getWinnerPlayerId,
@@ -95,7 +96,10 @@ import { useChatPolling } from './gameSession/clienteffects/useChatPolling';
 import { useAutoJoinEffect, usePollingEffect } from './gameSession/clienteffects/useNetworkingEffects';
 import { useBuildPreviewResetEffect, useAutoRevealBuildEffect } from './gameSession/clienteffects/usePhaseAutomationEffects';
 import { useFleetOrder } from './gameSession/clienteffects/useFleetOrder';
-import { useFleetAnimTokens } from './gameSession/clienteffects/useFleetAnimTokens';
+import {
+  useFleetAnimTokens,
+  type ResolvedFleetActivationEvent,
+} from './gameSession/clienteffects/useFleetAnimTokens';
 import { useUntimedPollingThrottle } from './gameSession/clienteffects/useUntimedPollingThrottle';
 import {
   buildPhaseHoldSignature,
@@ -1488,6 +1492,16 @@ export function useGameSession(
     me: getPlayerIdentityKey(me),
     opponent: getPlayerIdentityKey(opponent),
   });
+  const activationHardContinuityKey = JSON.stringify({
+    gameId: effectiveGameId,
+    session: mySessionId,
+    viewerMode,
+    viewerRole: myRole,
+    left: getPlayerIdentityKey(displayLeftPlayer),
+    right: getPlayerIdentityKey(displayRightPlayer),
+    me: getPlayerIdentityKey(me),
+    opponent: getPlayerIdentityKey(opponent),
+  });
 
   if (displayContinuityIdentityKeyRef.current !== displayContinuityIdentityKey) {
     displayContinuityIdentityKeyRef.current = displayContinuityIdentityKey;
@@ -2638,7 +2652,7 @@ useEffect(() => {
   // FLEET ANIMATION TOKENS (client-only; extracted from useGameSession)
   // ============================================================================
   
-  // Existing rendered stacks can still pulse immediately on local build when
+  // Existing rendered stacks can still animate immediately on local build when
   // we can identify the exact currently-visible bucket that will grow.
   // Otherwise we fall back to the normal diff-owned path on the next render.
   function getExistingRenderKeyForLocalBuild(
@@ -2662,9 +2676,56 @@ useEffect(() => {
   const opponentCountsByRenderKey: Record<string, number> = {};
   for (const entry of opponentFleetRendered) opponentCountsByRenderKey[entry.renderKey] = entry.count;
 
+  const rawActivationCueBatches =
+    rawState && hasMatchingAuthoritativeGameId && !isBootstrapping
+      ? getShipActivationCueBatches(rawState)
+      : null;
+  const myRenderKeyByInstanceId = new Map<string, string>();
+  for (const summary of myFleetWithPreview) {
+    for (const instanceId of summary.memberInstanceIds) {
+      myRenderKeyByInstanceId.set(instanceId, summary.renderKey);
+    }
+  }
+  const opponentRenderKeyByInstanceId = new Map<string, string>();
+  for (const summary of opponentFleetRendered) {
+    for (const instanceId of summary.memberInstanceIds) {
+      opponentRenderKeyByInstanceId.set(instanceId, summary.renderKey);
+    }
+  }
+
+  const displayLeftPlayerId = getPlayerIdentityKey(displayLeftPlayer);
+  const displayRightPlayerId = getPlayerIdentityKey(displayRightPlayer);
+  const resolvedActivationEvents: ResolvedFleetActivationEvent[] | null =
+    rawActivationCueBatches?.flatMap((batch) =>
+      batch.sources.map((source): ResolvedFleetActivationEvent => {
+        const eventKey =
+          `${batch.key}\0${source.playerId}\0${source.sourceInstanceId}`;
+
+        if (source.playerId === displayLeftPlayerId) {
+          return {
+            eventKey,
+            side: 'my',
+            renderKey: myRenderKeyByInstanceId.get(source.sourceInstanceId),
+          };
+        }
+
+        if (source.playerId === displayRightPlayerId) {
+          return {
+            eventKey,
+            side: 'opponent',
+            renderKey: opponentRenderKeyByInstanceId.get(source.sourceInstanceId),
+          };
+        }
+
+        return { eventKey, side: null };
+      })
+    ) ?? null;
+
   const { myAnimTokens, opponentAnimTokens, bumpMyStackAdd } = useFleetAnimTokens({
     myCountsByRenderKey,
     opponentCountsByRenderKey,
+    activationEvents: resolvedActivationEvents,
+    activationHardContinuityKey,
   });
 
   

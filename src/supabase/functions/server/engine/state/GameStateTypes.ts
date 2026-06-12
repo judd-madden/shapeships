@@ -90,6 +90,19 @@ export type LegacyDrawAgreement = {
   acceptedBy: string[];
 };
 
+export type ShipActivationCueSource = {
+  playerId: string;
+  sourceInstanceId: string;
+};
+
+export type ShipActivationCueBatch = {
+  key: string;
+  turnNumber: number;
+  phaseKey: string;
+  seq: number;
+  sources: ShipActivationCueSource[];
+};
+
 /**
  * Game data container
  */
@@ -107,6 +120,7 @@ export type GameData = {
   turnData?: {
     diceRoll?: number;
     linesDistributed?: boolean;
+    shipActivationCueBatches?: ShipActivationCueBatch[];
     
     /** Canonical dice roll (1-6, rolled once per turn) */
     baseDiceRoll?: number;

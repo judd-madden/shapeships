@@ -64,6 +64,7 @@ export type LineBonusBreakdown = {
   bonusLines: number;
   bonusLinesOnEven: number;
   joiningBonusLines: number;
+  contributingSourceInstanceIds: string[];
   ordinaryRows: Array<{
     rowKind: 'ship' | 'adjustment';
     label: string;
@@ -185,6 +186,7 @@ export function computeLineBonusesForPlayer(
       bonusLines: 0,
       bonusLinesOnEven: 0,
       joiningBonusLines: 0,
+      contributingSourceInstanceIds: [],
       ordinaryRows: [],
       evenOnlyRows: [],
       joiningRows: [],
@@ -198,10 +200,15 @@ export function computeLineBonusesForPlayer(
     isEligibleLineGenerationSource(ship, currentTurnNumber)
   );
   const shipCounts: Record<string, number> = {};
+  const shipInstancesByDefId: Record<string, any[]> = {};
 
   for (const shipInstance of lineGenerationShips) {
     const shipDefId = shipInstance.shipDefId;
     shipCounts[shipDefId] = (shipCounts[shipDefId] || 0) + 1;
+    if (!shipInstancesByDefId[shipDefId]) {
+      shipInstancesByDefId[shipDefId] = [];
+    }
+    shipInstancesByDefId[shipDefId].push(shipInstance);
   }
 
   const effectiveDiceRoll = getEffectiveDiceRollFromGameData(gameData, playerId);
@@ -214,6 +221,24 @@ export function computeLineBonusesForPlayer(
   const ordinaryRows: LineBonusBreakdown['ordinaryRows'] = [];
   const evenOnlyRows: LineBonusBreakdown['evenOnlyRows'] = [];
   const joiningRows: LineBonusBreakdown['joiningRows'] = [];
+  const contributingSourceInstanceIds: string[] = [];
+  const contributingSourceInstanceIdSet = new Set<string>();
+
+  const addContributors = (shipDefId: string, count: number) => {
+    const candidates = shipInstancesByDefId[shipDefId] ?? [];
+    for (const ship of candidates.slice(0, count)) {
+      const instanceId = ship?.instanceId;
+      if (
+        typeof instanceId !== 'string' ||
+        instanceId.length === 0 ||
+        contributingSourceInstanceIdSet.has(instanceId)
+      ) {
+        continue;
+      }
+      contributingSourceInstanceIdSet.add(instanceId);
+      contributingSourceInstanceIds.push(instanceId);
+    }
+  };
 
   for (const [shipDefId, count] of Object.entries(shipCounts)) {
     const effectiveCount = getCappedContributingCount(shipDefId, count);
@@ -224,6 +249,7 @@ export function computeLineBonusesForPlayer(
       const amount = bonusPerShip * effectiveCount;
       bonusLines += amount;
       ordinaryRows.push(buildShipBreakdownRow(shipDefId, effectiveCount, amount));
+      addContributors(shipDefId, effectiveCount);
     }
 
     const joiningBonusPerShip = JOINING_BONUS_LINES_PER_SHIP[shipDefId];
@@ -231,6 +257,7 @@ export function computeLineBonusesForPlayer(
       const amount = joiningBonusPerShip * effectiveCount;
       joiningBonusLines += amount;
       joiningRows.push(buildShipBreakdownRow(shipDefId, effectiveCount, amount, 'j'));
+      addContributors(shipDefId, effectiveCount);
     }
   }
 
@@ -240,6 +267,7 @@ export function computeLineBonusesForPlayer(
     const amount = 2 * effectiveCount;
     bonusLinesOnEven += amount;
     evenOnlyRows.push(buildShipBreakdownRow('VIG', effectiveCount, amount, 'e'));
+    addContributors('VIG', effectiveCount);
   }
 
   const powerArkCount = shipCounts.POW ?? 0;
@@ -248,6 +276,7 @@ export function computeLineBonusesForPlayer(
     const amount = 4 * effectiveCount;
     bonusLinesOnEven += amount;
     evenOnlyRows.push(buildShipBreakdownRow('POW', effectiveCount, amount, 'e'));
+    addContributors('POW', effectiveCount);
   }
 
   bonusLines += bonusLinesOnEven;
@@ -256,12 +285,14 @@ export function computeLineBonusesForPlayer(
   if (sciTier >= 2 && typeof effectiveDiceRoll === 'number') {
     bonusLines += effectiveDiceRoll;
     ordinaryRows.push(buildAdjustmentRow('Science Vessel', effectiveDiceRoll));
+    addContributors('SCI', 2);
   }
 
   return {
     bonusLines,
     bonusLinesOnEven,
     joiningBonusLines,
+    contributingSourceInstanceIds,
     ordinaryRows: sortRows(ordinaryRows),
     evenOnlyRows: sortRows(evenOnlyRows),
     joiningRows: sortRows(joiningRows),

@@ -239,6 +239,24 @@ export function ShipAnimationWrapper({
   activationDelayMs = 0,
   children,
 }: ShipAnimationWrapperProps) {
+  const activationNonce = token?.activationNonce ?? 0;
+  const previousActivationNonceRef = useRef(activationNonce);
+  const [activeActivationNonce, setActiveActivationNonce] = useState<number | null>(null);
+
+  useEffect(() => {
+    const previousActivationNonce = previousActivationNonceRef.current;
+    previousActivationNonceRef.current = activationNonce;
+
+    if (activationNonce === 0) {
+      setActiveActivationNonce(null);
+      return;
+    }
+
+    if (activationNonce !== previousActivationNonce) {
+      setActiveActivationNonce(activationNonce);
+    }
+  }, [activationNonce]);
+
   // Lookup animation config for this ship
   const cfg = SHIP_ANIM[shipDefId];
   
@@ -257,6 +275,21 @@ export function ShipAnimationWrapper({
 
   // Data attribute for hover: map activation preset to CSS selector
   const dataAnimValue = cfg.activation; // 'default' | 'carrier' | 'xenite'
+  const isExplicitActivationActive =
+    activationNonce > 0 && activeActivationNonce === activationNonce;
+
+  const handleActivationAnimationEnd = (
+    event: AnimationEvent<HTMLDivElement>,
+    completedActivationNonce: number
+  ) => {
+    if (event.currentTarget !== event.target) {
+      return;
+    }
+
+    setActiveActivationNonce((current) =>
+      current === completedActivationNonce ? null : current
+    );
+  };
 
   return (
     <div
@@ -277,11 +310,14 @@ export function ShipAnimationWrapper({
         >
           {/* Activation animation layer (keyed by activationNonce) */}
           <div
-            key={`activate-${token.activationNonce}`}
-            className={`ss-shipActivateLayer ${token.activationNonce > 0 ? activationPreset.activationClass : ''}`}
+            key={`activate-${activationNonce}`}
+            className={`ss-shipActivateLayer ${isExplicitActivationActive ? activationPreset.activationClass : ''}`}
             style={{
-              animationDelay: token.activationNonce > 0 && activationDelayMs > 0 ? `${activationDelayMs}ms` : undefined,
+              animationDelay: isExplicitActivationActive && activationDelayMs > 0 ? `${activationDelayMs}ms` : undefined,
             }}
+            onAnimationEnd={(event) =>
+              handleActivationAnimationEnd(event, activationNonce)
+            }
           >
             {children}
           </div>
