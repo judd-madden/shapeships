@@ -152,6 +152,25 @@ function getCappedContributingCount(shipDefId: string, count: number): number {
   return typeof maxQuantity === 'number' ? Math.min(count, maxQuantity) : count;
 }
 
+function isEligibleLineGenerationSource(
+  ship: any,
+  currentTurnNumber: unknown,
+): boolean {
+  if (
+    typeof currentTurnNumber !== 'number' ||
+    !Number.isFinite(currentTurnNumber)
+  ) {
+    return true;
+  }
+
+  const createdTurn = ship?.createdTurn;
+  if (typeof createdTurn !== 'number' || !Number.isFinite(createdTurn)) {
+    return true;
+  }
+
+  return createdTurn < currentTurnNumber;
+}
+
 export function computeLineBonusesForPlayer(
   gameData: any,
   playerId: string,
@@ -172,9 +191,15 @@ export function computeLineBonusesForPlayer(
     };
   }
 
+  const currentTurnNumber =
+    gameData?.gameData?.turnNumber ??
+    gameData?.turnNumber;
+  const lineGenerationShips = ships.filter((ship: any) =>
+    isEligibleLineGenerationSource(ship, currentTurnNumber)
+  );
   const shipCounts: Record<string, number> = {};
 
-  for (const shipInstance of ships) {
+  for (const shipInstance of lineGenerationShips) {
     const shipDefId = shipInstance.shipDefId;
     shipCounts[shipDefId] = (shipCounts[shipDefId] || 0) + 1;
   }
@@ -227,7 +252,7 @@ export function computeLineBonusesForPlayer(
 
   bonusLines += bonusLinesOnEven;
 
-  const sciTier = getCopyTierFromFleet(ships, 'SCI', 3);
+  const sciTier = getCopyTierFromFleet(lineGenerationShips, 'SCI', 3);
   if (sciTier >= 2 && typeof effectiveDiceRoll === 'number') {
     bonusLines += effectiveDiceRoll;
     ordinaryRows.push(buildAdjustmentRow('Science Vessel', effectiveDiceRoll));
