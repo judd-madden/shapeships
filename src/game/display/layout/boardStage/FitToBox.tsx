@@ -10,6 +10,7 @@ type FitToBoxProps = {
   initialScale?: number;
   animateScale?: boolean;
   measureImmediatelyOnMount?: boolean;
+  deferInnerResizeComputeMs?: number;
 };
 
 export function FitToBox({
@@ -22,18 +23,21 @@ export function FitToBox({
   initialScale = 1,
   animateScale = true,
   measureImmediatelyOnMount = false,
+  deferInnerResizeComputeMs = 0,
 }: FitToBoxProps) {
   const outerRef = useRef<HTMLDivElement | null>(null);
   const innerMeasureRef = useRef<HTMLDivElement | null>(null);
 
   const rafRef = useRef<number | null>(null);
   const delayedTimeoutRef = useRef<number | null>(null);
+  const innerResizeTimeoutRef = useRef<number | null>(null);
   const [scale, setScale] = useState(initialScale);
 
   useLayoutEffect(() => {
     const outer = outerRef.current;
     const inner = innerMeasureRef.current;
     if (!outer || !inner) return;
+    let initialComputePending = true;
 
     const compute = () => {
       const cw = outer.clientWidth;
@@ -57,23 +61,34 @@ export function FitToBox({
       setScale((prev) => (Math.abs(prev - next) < 0.001 ? prev : next));
     };
 
-    const scheduleCompute = () => {
-      // Cancel any pending RAF
+    const cancelScheduledCompute = () => {
       if (rafRef.current != null) {
         window.cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
 
-      // Cancel any pending delayed timeout
       if (delayedTimeoutRef.current != null) {
         window.clearTimeout(delayedTimeoutRef.current);
         delayedTimeoutRef.current = null;
       }
+    };
+
+    const cancelInnerResizeCompute = () => {
+      if (innerResizeTimeoutRef.current != null) {
+        window.clearTimeout(innerResizeTimeoutRef.current);
+        innerResizeTimeoutRef.current = null;
+      }
+    };
+
+    const scheduleCompute = () => {
+      cancelInnerResizeCompute();
+      cancelScheduledCompute();
 
       // Immediate compute (RAF-scheduled)
       rafRef.current = window.requestAnimationFrame(() => {
         rafRef.current = null;
         compute();
+        initialComputePending = false;
 
         // Schedule second compute after FLIP animation completes (450ms)
         delayedTimeoutRef.current = window.setTimeout(() => {
@@ -83,7 +98,32 @@ export function FitToBox({
       });
     };
 
-    const ro = new ResizeObserver(() => scheduleCompute());
+    const deferInnerResizeCompute = () => {
+      cancelScheduledCompute();
+      cancelInnerResizeCompute();
+
+      innerResizeTimeoutRef.current = window.setTimeout(() => {
+        innerResizeTimeoutRef.current = null;
+        scheduleCompute();
+      }, deferInnerResizeComputeMs);
+    };
+
+    const ro = new ResizeObserver((entries) => {
+      const outerResized = entries.some((entry) => entry.target === outer);
+      const innerResized = entries.some((entry) => entry.target === inner);
+
+      if (outerResized || !innerResized) {
+        scheduleCompute();
+        return;
+      }
+
+      if (deferInnerResizeComputeMs > 0 && !initialComputePending) {
+        deferInnerResizeCompute();
+        return;
+      }
+
+      scheduleCompute();
+    });
     ro.observe(outer);
     ro.observe(inner);
 
@@ -96,16 +136,16 @@ export function FitToBox({
 
     return () => {
       ro.disconnect();
-      if (rafRef.current != null) {
-        window.cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-      if (delayedTimeoutRef.current != null) {
-        window.clearTimeout(delayedTimeoutRef.current);
-        delayedTimeoutRef.current = null;
-      }
+      cancelScheduledCompute();
+      cancelInnerResizeCompute();
     };
-  }, [initialScale, maxScale, measureImmediatelyOnMount, minScale]);
+  }, [
+    deferInnerResizeComputeMs,
+    initialScale,
+    maxScale,
+    measureImmediatelyOnMount,
+    minScale,
+  ]);
 
   const justifyContent =
     contentAlign === 'start' ? 'flex-start' : contentAlign === 'end' ? 'flex-end' : 'center';

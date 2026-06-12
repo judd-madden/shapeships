@@ -27,6 +27,8 @@ function toCssVarFromColourName(colour?: string): string | undefined {
 }
 
 const IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES = ['ss-boardTurnPulse'] as const;
+const LIVE_FLEET_FLIP_DURATION_MS = 400;
+const LIVE_FLEET_INNER_RESIZE_DEFER_MS = 450;
 
 // ============================================================================
 // FLEET ROW MAPPING (Set-based, All Species)
@@ -505,7 +507,7 @@ export function FleetArea({
   const liveFleetLayoutSignature = getLiveFleetLayoutSignature(renderedShips, liveRowsLayout);
   const liveFleetItemLayoutSignatures = getLiveFleetItemLayoutSignatures(renderedShips);
   const getFlipRef = useFlipLayout(allRenderKeys, flipEnabled, {
-    durationMs: 400,
+    durationMs: LIVE_FLEET_FLIP_DURATION_MS,
     easing: 'ease-in-out',
     layoutSignature: liveFleetLayoutSignature,
     itemLayoutSignatures: liveFleetItemLayoutSignatures,
@@ -626,6 +628,7 @@ export function FleetArea({
             minScale={fitMinScale}
             className="w-full h-full"
             overflowVisible={liveFitOverflowVisible}
+            deferInnerResizeComputeMs={flipEnabled ? LIVE_FLEET_INNER_RESIZE_DEFER_MS : 0}
           >
             {hasLiveShips ? (
               <div

@@ -206,7 +206,10 @@ export function useFlipLayout<T extends string | number>(
       if (changedThisRun) {
         changedItemLayoutKeys.add(signatureKey);
       }
-      if (changedThisRun || coolingDownThisRun) {
+      if (
+        (skipSelfChangedItemForNextRun && changedThisRun) ||
+        coolingDownThisRun
+      ) {
         skippedItemLayoutKeys.add(signatureKey);
       }
     }
