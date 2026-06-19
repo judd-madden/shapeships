@@ -159,7 +159,9 @@ function validateBattleLogTurnPlayer(value: unknown): BattleLogTurnPlayerSummary
     typeof record.healthEnd !== 'number' ||
     !Number.isFinite(record.healthEnd) ||
     typeof record.healthDelta !== 'number' ||
-    !Number.isFinite(record.healthDelta)
+    !Number.isFinite(record.healthDelta) ||
+    typeof record.fleetValueEnd !== 'number' ||
+    !Number.isFinite(record.fleetValueEnd)
   ) {
     return null;
   }
@@ -169,6 +171,7 @@ function validateBattleLogTurnPlayer(value: unknown): BattleLogTurnPlayerSummary
     name: record.name,
     healthEnd: record.healthEnd,
     healthDelta: record.healthDelta,
+    fleetValueEnd: record.fleetValueEnd,
   };
 }
 
@@ -431,7 +434,34 @@ function buildBattleLogText(args: {
   ];
 
   const turnBlocks = sortedTurns.map((turn) => formatTurnBlock(turn, canonicalPlayers));
-  return [...headerLines, ...turnBlocks.flatMap((block) => ['', block])].join('\r\n');
+  const fleetValueLines = formatFinalFleetValueLines(
+    sortedTurns[sortedTurns.length - 1],
+    canonicalPlayers,
+  );
+
+  return [
+    ...headerLines,
+    ...turnBlocks.flatMap((block) => ['', block]),
+    ...(fleetValueLines.length > 0 ? ['', ...fleetValueLines] : []),
+  ].join('\r\n');
+}
+
+function formatFinalFleetValueLines(
+  lastTurn: ValidatedBattleLogTurn | undefined,
+  canonicalPlayers: CanonicalPlayer[],
+): string[] {
+  if (!lastTurn) {
+    return [];
+  }
+
+  const matchedPlayers = matchTurnPlayersToCanonicalOrder(lastTurn.players, canonicalPlayers);
+  return [
+    'Fleet Value',
+    ...canonicalPlayers.map((canonicalPlayer, index) => {
+      const playerLabel = canonicalPlayer.name ?? getDefaultPlayerName(index);
+      return `${playerLabel}: ${matchedPlayers[index]?.fleetValueEnd ?? 0}`;
+    }),
+  ];
 }
 
 function formatTurnBlock(turn: ValidatedBattleLogTurn, canonicalPlayers: CanonicalPlayer[]): string {

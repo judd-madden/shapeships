@@ -373,7 +373,9 @@ function isBattleLogTurnPlayerSummary(value: unknown): boolean {
     typeof record.playerId === 'string' &&
     typeof record.name === 'string' &&
     typeof record.healthEnd === 'number' &&
-    typeof record.healthDelta === 'number'
+    typeof record.healthDelta === 'number' &&
+    typeof record.fleetValueEnd === 'number' &&
+    Number.isFinite(record.fleetValueEnd)
   );
 }
 
@@ -4699,6 +4701,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         p1Name: 'Player 1',
         p2Name: 'Player 2',
       },
+      gameStats: null,
       hud: {
         p1Name: 'Player 1',
         p1Species: 'Unknown',

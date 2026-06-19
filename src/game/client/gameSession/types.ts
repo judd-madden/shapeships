@@ -98,6 +98,7 @@ export interface BattleLogTurnPlayerSummary {
   name: string;
   healthEnd: number;
   healthDelta: number;
+  fleetValueEnd: number;
 }
 
 export interface BattleLogAnalysisBreakdownRow {
@@ -131,6 +132,57 @@ export interface BattleLogHistoryResponse {
   revision: number;
   completedTurnCount: number;
   turns: BattleLogTurnSummary[];
+}
+
+export interface GameStatsPlayerTurnViewModel {
+  playerId: string;
+  label: string;
+  healthEnd: number;
+  healthDelta: number;
+  healingReceived: number;
+  damageTaken: number;
+  damageDealt: number;
+  fleetValueEnd: number;
+}
+
+export interface GameStatsTurnViewModel {
+  turnNumber: number;
+  viewer: GameStatsPlayerTurnViewModel;
+  opponent: GameStatsPlayerTurnViewModel;
+  row2Net: number;
+  row3Net: number;
+}
+
+export interface GameStatsPlayerSummaryViewModel {
+  label: string;
+  finalHealth: number;
+  totalHealing: number;
+  totalDamage: number;
+  finalFleetValue: number;
+}
+
+export interface GameStatsViewModel {
+  turnCount: number;
+  turns: GameStatsTurnViewModel[];
+  summary: {
+    viewer: GameStatsPlayerSummaryViewModel;
+    opponent: GameStatsPlayerSummaryViewModel;
+  };
+  labels: {
+    viewerHealth: string;
+    opponentHealth: string;
+    viewerHealing: string;
+    opponentDamage: string;
+    viewerDamage: string;
+    opponentHealing: string;
+    viewerFleetValue: string;
+    opponentFleetValue: string;
+  };
+  scaleHints: {
+    pressureMax: number;
+    fleetValueMax: number;
+    healthFloor: number;
+  };
 }
 
 export type GameSessionChatEntry =
@@ -576,6 +628,7 @@ export interface ActionPanelViewModel {
 export interface GameSessionViewModel {
   isBootstrapping: boolean; // true until valid server state with valid phaseKey
   viewer: GameSessionViewerViewModel;
+  gameStats: GameStatsViewModel | null;
   hud: HudViewModel;
   leftRail: LeftRailViewModel;
   board: BoardViewModel;

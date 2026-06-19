@@ -26,6 +26,7 @@ import {
   getShipChoicePanelSpec,
 } from '../../display/actionPanel/panels/ShipChoiceRegistry';
 import { mapBattleLogTurns } from './battleLog';
+import { deriveGameStatsViewModel } from './gameStats';
 import { deriveMobileDiceModifierSlots } from './mobileDiceModifierSlots';
 import {
   getAllocatedTargetIdsForRenderableAction,
@@ -390,6 +391,15 @@ export function mapGameSessionVm(args: {
       localPlayerName: displayLeftName,
       opponentPlayerId: displayRightPlayer?.playerId ?? displayRightPlayer?.id ?? displayRightPlayer?.sessionId ?? null,
       opponentName: displayRightName,
+    });
+    const gameStats = deriveGameStatsViewModel({
+      battleLogHistory,
+      isFinished,
+      displayLeftPlayer,
+      displayRightPlayer,
+      displayLeftName,
+      displayRightName,
+      isSpectator,
     });
   const playerEntries = Array.isArray(allPlayers)
     ? allPlayers.filter((player: any) => player?.role === 'player')
@@ -1245,6 +1255,7 @@ export function mapGameSessionVm(args: {
   const vm: GameSessionViewModel = {
     isBootstrapping,
     viewer,
+    gameStats,
     
     hud: {
       p1Name: displayLeftName,
