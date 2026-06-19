@@ -146,6 +146,9 @@ function getStackCountFootprintKey(count: number): string {
   return `count:digits:${String(Math.floor(count)).length}`;
 }
 
+// FLIP signatures describe layout footprint only. Charge graphics swap inside stable SVG
+// bounds, so condition/currentCharges should not trigger FLIP by themselves. Count is
+// bucketed because count labels can appear/disappear or widen.
 function getLiveFleetLayoutSignature(
   renderedShips: FleetStackVm[],
   liveRowsLayout: 'stacked' | 'pairedRows'
@@ -155,8 +158,6 @@ function getLiveFleetLayoutSignature(
     renderedShips.map((ship) => [
       ship.renderKey,
       getStackCountFootprintKey(ship.count),
-      ship.condition ?? null,
-      ship.currentCharges ?? null,
       ship.caption ?? null,
     ]),
   ]);
@@ -171,8 +172,6 @@ function getLiveFleetItemLayoutSignatures(
       JSON.stringify([
         ship.shipDefId,
         getStackCountFootprintKey(ship.count),
-        ship.condition ?? null,
-        ship.currentCharges ?? null,
         ship.caption ?? null,
       ]),
     ])
