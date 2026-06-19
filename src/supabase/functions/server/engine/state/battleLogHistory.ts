@@ -1,5 +1,6 @@
 import type { EffectEvent } from "../../engine_shared/effects/applyEffects.ts";
 import { EffectKind, type Effect } from "../../engine_shared/effects/Effect.ts";
+import { getShipById } from "../../engine_shared/defs/ShipDefinitions.core.ts";
 import { debugLog } from "../../utils/serverLogger.ts";
 
 export type BattleLogHistoryResponse = {
@@ -34,6 +35,7 @@ export type BattleLogTurnSummary = {
     name: string;
     healthEnd: number;
     healthDelta: number;
+    fleetValueEnd: number;
   }>;
   buildLinesByPlayerId: Record<string, string[]>;
   battleLinesByPlayerId: Record<string, string[]>;
@@ -630,6 +632,9 @@ function cloneBattleLogTurnSummary(
       name: player.name,
       healthEnd: player.healthEnd,
       healthDelta: player.healthDelta,
+      fleetValueEnd: isFiniteNumber(player.fleetValueEnd)
+        ? player.fleetValueEnd
+        : 0,
     })),
     buildLinesByPlayerId: Object.fromEntries(
       Object.entries(summary.buildLinesByPlayerId).map(([playerId, lines]) => [
@@ -780,6 +785,26 @@ function getActivePlayers(
   return Array.isArray(state?.players)
     ? state.players.filter((player) => player?.role === "player")
     : [];
+}
+
+function getFleetValueLineCostForShipDef(shipDefId: string): number {
+  const shipDef = getShipById(shipDefId);
+  const totalLineCost = shipDef?.totalLineCost;
+  return Number.isInteger(totalLineCost) ? Number(totalLineCost) : 0;
+}
+
+function computeFleetValueEndForPlayer(
+  state: GameStateLike,
+  playerId: string,
+): number {
+  const fleet = state?.gameData?.ships?.[playerId];
+  if (!Array.isArray(fleet)) return 0;
+
+  return fleet.reduce((total, ship) => {
+    const shipDefId = ship?.shipDefId;
+    if (typeof shipDefId !== "string") return total;
+    return total + getFleetValueLineCostForShipDef(shipDefId);
+  }, 0);
 }
 
 function getShipDefIdByInstanceId(
@@ -1653,6 +1678,10 @@ export function buildBattleLogTurnSummaryFromScratch(args: {
       healthDelta: isFiniteNumber(lastTurnNetByPlayerId[player.id])
         ? lastTurnNetByPlayerId[player.id]
         : 0,
+      fleetValueEnd: computeFleetValueEndForPlayer(
+        args.finalizedState,
+        player.id,
+      ),
     })),
     buildLinesByPlayerId,
     battleLinesByPlayerId,
