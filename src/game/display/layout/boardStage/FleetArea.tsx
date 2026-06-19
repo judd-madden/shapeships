@@ -141,6 +141,11 @@ export type VoidFleetStackVm = {
 
 type FleetStackVm = VoidFleetStackVm;
 
+function getStackCountFootprintKey(count: number): string {
+  if (!Number.isFinite(count) || count <= 1) return 'count:none';
+  return `count:digits:${String(Math.floor(count)).length}`;
+}
+
 function getLiveFleetLayoutSignature(
   renderedShips: FleetStackVm[],
   liveRowsLayout: 'stacked' | 'pairedRows'
@@ -149,7 +154,7 @@ function getLiveFleetLayoutSignature(
     liveRowsLayout,
     renderedShips.map((ship) => [
       ship.renderKey,
-      ship.count,
+      getStackCountFootprintKey(ship.count),
       ship.condition ?? null,
       ship.currentCharges ?? null,
       ship.caption ?? null,
@@ -165,7 +170,7 @@ function getLiveFleetItemLayoutSignatures(
       ship.renderKey,
       JSON.stringify([
         ship.shipDefId,
-        ship.count,
+        getStackCountFootprintKey(ship.count),
         ship.condition ?? null,
         ship.currentCharges ?? null,
         ship.caption ?? null,

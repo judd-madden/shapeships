@@ -90,11 +90,11 @@ export function FitToBox({
         compute();
         initialComputePending = false;
 
-        // Schedule second compute after FLIP animation completes (450ms)
+        // Schedule second compute after FLIP animation completes (100ms)
         delayedTimeoutRef.current = window.setTimeout(() => {
           delayedTimeoutRef.current = null;
           compute();
-        }, 450);
+        }, 100);
       });
     };
 
