@@ -112,9 +112,5 @@ function formatScaleLabel(value: number): string {
     return '0';
   }
 
-  if (Number.isInteger(value)) {
-    return String(value);
-  }
-
-  return value.toFixed(1).replace(/\.0$/, '');
+  return String(Math.round(value));
 }

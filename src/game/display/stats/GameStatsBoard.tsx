@@ -316,6 +316,8 @@ function TurnGraphRow({
   scale: GameStatsScale;
   showZeroRule: boolean;
 }) {
+  const guideLinePositions = showZeroRule ? [scale.positions[2] ?? 50] : scale.positions;
+
   return (
     <div
       className={cx(
@@ -342,23 +344,19 @@ function TurnGraphRow({
         }}
         aria-hidden="true"
       >
-        {scale.positions.map((position, index) => {
-          const isZeroRule = showZeroRule && index === 2;
-
-          return (
-            <div
-              key={`${position}:${index}`}
-              className={cx(
-                'absolute left-0 right-0 bg-[var(--shapeships-grey-90)]',
-                isZeroRule ? 'h-[2px]' : 'h-px',
-              )}
-              style={{
-                top: `${position}%`,
-                transform: 'translateY(-50%)',
-              }}
-            />
-          );
-        })}
+        {guideLinePositions.map((position, index) => (
+          <div
+            key={`${position}:${index}`}
+            className={cx(
+              'absolute left-0 right-0 bg-[var(--shapeships-grey-90)]',
+              showZeroRule ? 'h-[2px]' : 'h-px',
+            )}
+            style={{
+              top: `${position}%`,
+              transform: 'translateY(-50%)',
+            }}
+          />
+        ))}
       </div>
       <div
         className="grid h-full min-h-0"
