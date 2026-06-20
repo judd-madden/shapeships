@@ -216,6 +216,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
             leftRailVm={vm.leftRail}
             bottomActionRailVm={vm.bottomActionRail}
             actionPanelVm={vm.actionPanel}
+            gameStats={vm.gameStats}
             actions={mainStageActions}
             firstTurnBuildHelperEligible={firstTurnBuildHelper.firstTurnBuildHelperEligible}
             firstTurnBuildHelperDismissSignal={firstTurnBuildHelper.firstTurnBuildHelperDismissSignal}
@@ -252,6 +253,7 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
             boardVm={vm.board}
             bottomActionRailVm={vm.bottomActionRail}
             actionPanelVm={vm.actionPanel}
+            gameStats={vm.gameStats}
             actions={mainStageActions}
             onReturnToMainMenu={onBack}
           />

@@ -4,6 +4,7 @@ import type {
   BoardViewModel,
   BottomActionRailViewModel,
   GameSessionActions,
+  GameSessionViewModel,
   HudViewModel,
   LeftRailViewModel,
 } from '../../client/useGameSession';
@@ -23,6 +24,7 @@ import { MobileTopNav } from './MobileTopNav';
 import { MobileVoidPanel } from './MobileVoidPanel';
 import { MobileBattleLogTakeover } from './takeovers/MobileBattleLogTakeover';
 import { MobileChatTakeover } from './takeovers/MobileChatTakeover';
+import { MobileEndGameStatsTakeover } from './takeovers/MobileEndGameStatsTakeover';
 import { MobileEndOfGameMenuTakeover } from './takeovers/MobileEndOfGameMenuTakeover';
 import { MobileMenuTakeover } from './takeovers/MobileMenuTakeover';
 
@@ -32,6 +34,7 @@ interface MobileGameLayoutProps {
   leftRailVm: LeftRailViewModel;
   bottomActionRailVm: BottomActionRailViewModel;
   actionPanelVm: ActionPanelViewModel;
+  gameStats: GameSessionViewModel['gameStats'];
   actions: GameSessionActions;
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -76,6 +79,7 @@ export function MobileGameLayout({
   leftRailVm,
   bottomActionRailVm,
   actionPanelVm,
+  gameStats,
   actions,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
@@ -89,6 +93,7 @@ export function MobileGameLayout({
   onReturnToMainMenu,
 }: MobileGameLayoutProps) {
   const [activeTakeover, setActiveTakeover] = useState<ActiveTakeover>(null);
+  const [isGameStatsOpen, setIsGameStatsOpen] = useState(false);
   const [activeMobileBottomPanel, setActiveMobileBottomPanel] =
     useState<ActiveMobileBottomPanel>('normal');
   const [activeShipModalId, setActiveShipModalId] = useState<ShipDefId | null>(null);
@@ -111,6 +116,7 @@ export function MobileGameLayout({
     (boardVm.myVoidFleet.length > 0 || boardVm.opponentVoidFleet.length > 0);
   const shouldForceMobileActionPanel =
     actionPanelVm.healthResolutionOverlay != null || isEndGamePanel;
+  const canViewGameStats = gameStats != null;
   const showVoidTab = boardVm.mode === 'board' && hasVoidShips;
   const isVoidPanelSelected =
     activeMobileBottomPanel === 'void' &&
@@ -153,8 +159,17 @@ export function MobileGameLayout({
     setActiveShipModalId(shipId);
   }, [handleCloseStatPopovers]);
   const handleReturnToBoard = useCallback(() => {
+    setIsGameStatsOpen(false);
     setActiveTakeover(null);
   }, []);
+  const handleCloseGameStats = useCallback(() => {
+    setIsGameStatsOpen(false);
+  }, []);
+  const handleOpenGameStats = useCallback(() => {
+    if (gameStats) {
+      setIsGameStatsOpen(true);
+    }
+  }, [gameStats]);
   const handleOpenTakeover = useCallback((takeover: Exclude<ActiveTakeover, null>) => {
     handleCloseStatPopovers();
     setActiveMobileBottomPanel('normal');
@@ -199,6 +214,11 @@ export function MobileGameLayout({
   const handleOpenMenu = useCallback(() => {
     handleOpenTakeover('menu');
   }, [handleOpenTakeover]);
+  const shouldShowEndGameStatsTakeover =
+    activeTakeover === 'menu' &&
+    actionPanelVm.endOfGame != null &&
+    isGameStatsOpen &&
+    gameStats != null;
   const mobileActions: GameSessionActions = {
     ...actions,
     onReadyToggle: () => {
@@ -221,6 +241,12 @@ export function MobileGameLayout({
       setActiveShipModalId(null);
     }
   }, [isCataloguePanelActive]);
+
+  useEffect(() => {
+    if (activeTakeover !== 'menu' || !canViewGameStats || !isEndGamePanel) {
+      setIsGameStatsOpen(false);
+    }
+  }, [activeTakeover, canViewGameStats, isEndGamePanel]);
 
   useEffect(() => {
     if (activeDestroyTargetSourceInstanceId == null) {
@@ -415,13 +441,20 @@ export function MobileGameLayout({
 
         {activeTakeover ? (
           <div className="absolute inset-0 z-[70] flex min-h-0 flex-col mt-[16px]">
-            {activeTakeover === 'chat' ? (
+            {shouldShowEndGameStatsTakeover ? (
+              <MobileEndGameStatsTakeover
+                turnCount={gameStats.turnCount}
+                onCloseStats={handleCloseGameStats}
+              />
+            ) : activeTakeover === 'chat' ? (
               <MobileChatTakeover vm={leftRailVm} actions={actions} onClose={handleReturnToBoard} />
             ) : activeTakeover === 'battleLog' ? (
               <MobileBattleLogTakeover vm={leftRailVm} onClose={handleReturnToBoard} />
             ) : actionPanelVm.endOfGame != null ? (
               <MobileEndOfGameMenuTakeover
                 endOfGame={actionPanelVm.endOfGame}
+                canViewGameStats={canViewGameStats}
+                onOpenGameStats={handleOpenGameStats}
                 onClose={handleReturnToBoard}
                 onReturnToMainMenu={onReturnToMainMenu}
                 onRematch={actions.onRematch}

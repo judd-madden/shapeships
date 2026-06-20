@@ -25,10 +25,22 @@ import { DesktopScaledCatalogueCanvas } from './panels/catalogue/shared/DesktopS
 interface ActionPanelFrameProps {
   vm: ActionPanelViewModel;
   actions: GameSessionActions;
+  isGameStatsOpen?: boolean;
+  canViewGameStats?: boolean;
+  onOpenGameStats?: () => void;
+  onToggleGameStats?: () => void;
   onReturnToMainMenu: () => void;
 }
 
-export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPanelFrameProps) {
+export function ActionPanelFrame({
+  vm,
+  actions,
+  isGameStatsOpen = false,
+  canViewGameStats = false,
+  onOpenGameStats,
+  onToggleGameStats,
+  onReturnToMainMenu,
+}: ActionPanelFrameProps) {
   const displayName = ACTION_PANEL_DISPLAY_NAMES[vm.activePanelId];
   const healthResolutionOverlay = vm.healthResolutionOverlay;
   const hoverDisabled = Boolean(healthResolutionOverlay);
@@ -260,6 +272,10 @@ export function ActionPanelFrame({ vm, actions, onReturnToMainMenu }: ActionPane
           metaLeftText={endOfGame.metaLeftText}
           metaRightText={endOfGame.metaRightText}
           rematchHelperText={endOfGame.rematchHelperText}
+          isGameStatsOpen={isGameStatsOpen}
+          canViewGameStats={canViewGameStats}
+          onOpenGameStats={onOpenGameStats}
+          onToggleGameStats={onToggleGameStats}
           onReturnToMainMenu={onReturnToMainMenu}
           onRematch={actions.onRematch}
           onDownloadBattleLog={actions.onDownloadBattleLog}

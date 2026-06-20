@@ -4,6 +4,8 @@ import { MobileTakeoverShell } from './MobileTakeoverShell';
 
 interface MobileEndOfGameMenuTakeoverProps {
   endOfGame: NonNullable<ActionPanelViewModel['endOfGame']>;
+  canViewGameStats: boolean;
+  onOpenGameStats: () => void;
   onClose: () => void;
   onReturnToMainMenu: () => void;
   onRematch: () => void;
@@ -12,6 +14,8 @@ interface MobileEndOfGameMenuTakeoverProps {
 
 export function MobileEndOfGameMenuTakeover({
   endOfGame,
+  canViewGameStats,
+  onOpenGameStats,
   onClose,
   onReturnToMainMenu,
   onRematch,
@@ -26,13 +30,6 @@ export function MobileEndOfGameMenuTakeover({
       <div className="flex min-h-full flex-col">
         <div className="flex grow shrink-0 flex-col items-center justify-center px-[16px] py-[28px]">
           <div className="flex w-full flex-col items-center gap-[32px]">
-            <GameMenuButton
-              className="h-[54px] w-[260px] max-w-full"
-              onClick={onReturnToMainMenu}
-            >
-              Return to Main Menu
-            </GameMenuButton>
-
             <div className="flex w-[260px] max-w-full flex-col items-center">
               <GameMenuButton
                 className="h-[54px] w-[260px] max-w-full"
@@ -51,9 +48,24 @@ export function MobileEndOfGameMenuTakeover({
 
             <GameMenuButton
               className="h-[54px] w-[260px] max-w-full"
+              onClick={onOpenGameStats}
+              disabled={!canViewGameStats}
+            >
+              View Stats
+            </GameMenuButton>
+
+            <GameMenuButton
+              className="h-[54px] w-[260px] max-w-full"
               onClick={onDownloadBattleLog}
             >
               Download Battle Log
+            </GameMenuButton>
+
+            <GameMenuButton
+              className="h-[54px] w-[260px] max-w-full"
+              onClick={onReturnToMainMenu}
+            >
+              Return to Main Menu
             </GameMenuButton>
           </div>
         </div>

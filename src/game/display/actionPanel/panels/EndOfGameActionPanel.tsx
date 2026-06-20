@@ -13,6 +13,10 @@ interface EndOfGameActionPanelProps {
   metaLeftText: string;     // "Game Over. 18 turns."
   metaRightText: string;    // "Shapeships Game: {me} v {opponent}"
   rematchHelperText: string;
+  isGameStatsOpen?: boolean;
+  canViewGameStats?: boolean;
+  onOpenGameStats?: () => void;
+  onToggleGameStats?: () => void;
   onReturnToMainMenu: () => void;
   onRematch: () => void;
   onDownloadBattleLog: () => void;
@@ -24,6 +28,10 @@ export function EndOfGameActionPanel({
   metaLeftText,
   metaRightText,
   rematchHelperText,
+  isGameStatsOpen = false,
+  canViewGameStats = false,
+  onOpenGameStats,
+  onToggleGameStats,
   onReturnToMainMenu,
   onRematch,
   onDownloadBattleLog,
@@ -52,49 +60,63 @@ export function EndOfGameActionPanel({
     };
   }, [bannerText, metaLeftText, metaRightText, rematchHelperText]);
 
+  function handleStatsButtonClick() {
+    if (isGameStatsOpen) {
+      onToggleGameStats?.();
+      return;
+    }
+
+    if (onOpenGameStats) {
+      onOpenGameStats();
+      return;
+    }
+
+    onToggleGameStats?.();
+  }
+
   return (
     <div
       className={`flex-row items-center w-full h-[280px] transition-opacity duration-200 ease-out ${
         isVisible ? 'opacity-100' : 'opacity-0'
       }`}
     >
-      {/* Top Banner */}
-      <div 
-        className="content-stretch flex flex-col font-bold gap-[12px] h-[150px] items-center justify-center px-[20px] py-[27px] rounded-tl-[10px] text-black w-full"
-        style={{ background: bannerBgCssVar }}
-      >
-        {/* Headline */}
-        <p 
-          className="leading-[normal] relative shrink-0 text-[50px] text-center"
-          style={{ fontVariationSettings: "'wdth' 100" }}
+      {isGameStatsOpen ? (
+        <div aria-hidden="true" className="h-[150px] w-full rounded-tl-[10px]" />
+      ) : (
+        /* Top Banner */
+        <div
+          className="content-stretch flex flex-col font-bold gap-[12px] h-[150px] items-center justify-center px-[20px] py-[27px] rounded-tl-[10px] text-black w-full"
+          style={{ background: bannerBgCssVar }}
         >
-          {bannerText}
-        </p>
+          {/* Headline */}
+          <p
+            className="leading-[normal] relative shrink-0 text-[50px] text-center"
+            style={{ fontVariationSettings: "'wdth' 100" }}
+          >
+            {bannerText}
+          </p>
 
-        {/* Meta Row */}
-        <div className="content-stretch flex gap-[24px] items-center relative shrink-0 text-[18px]">
-          <p 
-            className="leading-[normal] relative shrink-0 text-center"
-            style={{ fontVariationSettings: "'wdth' 100" }}
-          >
-            {metaLeftText}
-          </p>
-          <p 
-            className="leading-[normal] relative shrink-0 text-center"
-            style={{ fontVariationSettings: "'wdth' 100" }}
-          >
-            {metaRightText}
-          </p>
+          {/* Meta Row */}
+          <div className="content-stretch flex gap-[24px] items-center relative shrink-0 text-[18px]">
+            <p
+              className="leading-[normal] relative shrink-0 text-center"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              {metaLeftText}
+            </p>
+            <p
+              className="leading-[normal] relative shrink-0 text-center"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              {metaRightText}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Buttons (centered below banner) */}
       <div className="content-stretch flex items-center w-full pt-[40px]">
         <div className="content-stretch flex gap-[20px] items-start justify-center w-full">
-          <GameMenuButton onClick={onReturnToMainMenu}>
-            Return to Main Menu
-          </GameMenuButton>
-
           <div className="flex w-[210px] flex-col items-center">
             <GameMenuButton onClick={onRematch} pendingLabel="CREATING...">
               New Game
@@ -107,8 +129,19 @@ export function EndOfGameActionPanel({
             </p>
           </div>
 
+          <GameMenuButton
+            onClick={handleStatsButtonClick}
+            disabled={!canViewGameStats}
+          >
+            {isGameStatsOpen ? 'View Board' : 'View Stats'}
+          </GameMenuButton>
+
           <GameMenuButton onClick={onDownloadBattleLog}>
             Download Battle Log
+          </GameMenuButton>
+
+          <GameMenuButton onClick={onReturnToMainMenu}>
+            Return to Main Menu
           </GameMenuButton>
         </div>
       </div>
