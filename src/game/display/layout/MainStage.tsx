@@ -113,7 +113,7 @@ export function MainStage({
           <div className="absolute left-0 right-0 top-[100px] bottom-[-170px] z-40 flex items-stretch justify-center ">
             <div className="h-full w-full">
               <GameStatsOverlayShell
-                turnCount={gameStats.turnCount}
+                gameStats={gameStats}
                 onClose={handleCloseGameStats}
                 variant="desktop"
               />

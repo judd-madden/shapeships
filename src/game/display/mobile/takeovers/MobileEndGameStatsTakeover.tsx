@@ -1,13 +1,14 @@
 import { GameMenuButton } from '../../../../components/ui/primitives';
+import type { GameStatsViewModel } from '../../../client/gameSession/types';
 import { GameStatsOverlayShell } from '../../stats/GameStatsOverlayShell';
 
 interface MobileEndGameStatsTakeoverProps {
-  turnCount: number;
+  gameStats: GameStatsViewModel;
   onCloseStats: () => void;
 }
 
 export function MobileEndGameStatsTakeover({
-  turnCount,
+  gameStats,
   onCloseStats,
 }: MobileEndGameStatsTakeoverProps) {
   return (
@@ -17,7 +18,7 @@ export function MobileEndGameStatsTakeover({
     >
       <div className="flex min-h-0 flex-1 flex-col items-center gap-[16px]">
         <div className="min-h-0 w-full flex-1">
-          <GameStatsOverlayShell turnCount={turnCount} variant="mobile" />
+          <GameStatsOverlayShell gameStats={gameStats} variant="mobile" />
         </div>
 
         <div className="flex shrink-0 justify-center">

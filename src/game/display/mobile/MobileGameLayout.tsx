@@ -443,7 +443,7 @@ export function MobileGameLayout({
           <div className="absolute inset-0 z-[70] flex min-h-0 flex-col mt-[16px]">
             {shouldShowEndGameStatsTakeover ? (
               <MobileEndGameStatsTakeover
-                turnCount={gameStats.turnCount}
+                gameStats={gameStats}
                 onCloseStats={handleCloseGameStats}
               />
             ) : activeTakeover === 'chat' ? (
