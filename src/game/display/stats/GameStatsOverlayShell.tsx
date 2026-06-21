@@ -28,6 +28,7 @@ export function GameStatsOverlayShell({
     >
       <GameStatsBoard
         gameStats={gameStats}
+        variant={variant}
         closeControl={
           !isMobile && onClose ? (
             <button

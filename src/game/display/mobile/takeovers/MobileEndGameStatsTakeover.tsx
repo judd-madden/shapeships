@@ -14,10 +14,10 @@ export function MobileEndGameStatsTakeover({
   return (
     <section
       aria-label="Mobile game stats"
-      className="flex min-h-0 flex-1 flex-col px-[16px] pb-[16px]"
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-[16px] pb-[16px]"
     >
-      <div className="flex min-h-0 flex-1 flex-col items-center gap-[16px]">
-        <div className="min-h-0 w-full flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center gap-[16px] overflow-hidden">
+        <div className="min-h-0 min-w-0 w-full flex-1 overflow-hidden">
           <GameStatsOverlayShell gameStats={gameStats} variant="mobile" />
         </div>
 

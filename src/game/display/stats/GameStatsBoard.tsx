@@ -20,6 +20,7 @@ import { GameStatsHoverLayer } from './GameStatsHoverLayer';
 interface GameStatsBoardProps {
   gameStats: GameStatsViewModel;
   closeControl?: ReactNode;
+  variant?: 'desktop' | 'mobile';
 }
 
 type StatsRowKey =
@@ -52,7 +53,11 @@ function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
 }
 
-export function GameStatsBoard({ gameStats, closeControl }: GameStatsBoardProps) {
+export function GameStatsBoard({
+  gameStats,
+  closeControl,
+  variant = 'desktop',
+}: GameStatsBoardProps) {
   const [hoveredTurnIndex, setHoveredTurnIndex] = useState<number | null>(null);
   const healthScale = buildHealthScale();
   const pressureScale = buildPressureScale(gameStats.turns);
@@ -60,6 +65,8 @@ export function GameStatsBoard({ gameStats, closeControl }: GameStatsBoardProps)
   const turnCount = Math.max(1, gameStats.turns.length);
   const turnContentMinWidth =
     ROW_PADDING_LEFT_PX + ROW_PADDING_RIGHT_PX + turnCount * TURN_COLUMN_MIN_WIDTH_PX;
+  const mobileBoardMinWidth =
+    SUMMARY_WIDTH_PX + AXIS_GUTTER_WIDTH_PX + turnContentMinWidth;
   const scrollContentStyle = {
     minWidth: `max(100%, ${turnContentMinWidth}px)`,
     gridTemplateRows: `${HEADER_HEIGHT_PX}px repeat(4, minmax(0, 1fr))`,
@@ -142,6 +149,60 @@ export function GameStatsBoard({ gameStats, closeControl }: GameStatsBoardProps)
       scale: fleetScale,
     },
   ];
+
+  if (variant === 'mobile') {
+    return (
+      <div className="h-full min-h-0 w-full min-w-0 overflow-hidden font-['Roboto']">
+        <div
+          className="h-full min-h-0 w-full min-w-0 overflow-x-auto overflow-y-hidden"
+          data-name="Game Stats Mobile Board Scroll"
+        >
+          <div
+            className="grid h-full min-h-0"
+            style={{
+              minWidth: `max(100%, ${mobileBoardMinWidth}px)`,
+              gridTemplateColumns: `${SUMMARY_WIDTH_PX}px ${AXIS_GUTTER_WIDTH_PX}px minmax(${turnContentMinWidth}px, 1fr)`,
+              gridTemplateRows: `${HEADER_HEIGHT_PX}px repeat(4, minmax(0, 1fr))`,
+              rowGap: MAJOR_ROW_GAP_PX,
+            }}
+          >
+            <HeaderSummaryCell />
+            <HeaderTurnCell />
+
+            <div
+              className="col-start-3 row-start-1 row-end-6 min-h-0 min-w-0 overflow-hidden"
+              data-name="Game Stats Mobile Turn Area"
+            >
+              <div
+                className="relative grid h-full min-h-0"
+                style={scrollContentStyle}
+              >
+                <TurnHeaderRow turns={gameStats.turns} />
+                {rowConfigs.map((rowConfig, index) => (
+                  <TurnGraphRow
+                    key={rowConfig.key}
+                    rowIndex={index}
+                    turnCount={turnCount}
+                    scale={rowConfig.scale}
+                    showZeroRule={rowConfig.showZeroRule === true}
+                    chartLayer={getStatsRowChartLayer(rowConfig, gameStats)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {rowConfigs.map((rowConfig, index) => (
+              <StatsFixedRowCells
+                key={rowConfig.key}
+                rowIndex={index}
+                config={rowConfig}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
