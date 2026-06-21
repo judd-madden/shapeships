@@ -98,12 +98,17 @@ export function getTargetingGlowStyle(
   };
 }
 
-export function getTargetingPreviewStyle(visualState: Extract<TargetingVisualState, 'hovered' | 'selected'>): React.CSSProperties {
+export function getTargetingPreviewStyle(
+  visualState: Extract<TargetingVisualState, 'hovered' | 'selected'>,
+  previewScaleMultiplier = 1
+): React.CSSProperties {
+  const previewScale = TARGETING_PREVIEW_SCALE * previewScaleMultiplier;
+
   return {
     top: '100%',
     opacity: visualState === 'selected' ? 1 : 0.5,
     pointerEvents: 'none',
-    transform: `translate(-50%, ${TARGETING_PREVIEW_OFFSET_PX}px) scale(${TARGETING_PREVIEW_SCALE})`,
+    transform: `translate(-50%, ${TARGETING_PREVIEW_OFFSET_PX}px) scale(${previewScale})`,
     transformOrigin: 'top center',
   };
 }

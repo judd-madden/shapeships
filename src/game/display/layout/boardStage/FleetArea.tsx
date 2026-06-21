@@ -186,6 +186,8 @@ type DestroyTargetStateVm = {
   isSelected: boolean;
 };
 
+const DOM_TARGETING_PREVIEW_SCALE_MULTIPLIER = 0.7;
+
 export function toSpeciesKey(raw: unknown): SpeciesKey {
   const s = String(raw ?? '').trim().toLowerCase();
   if (s === 'human' || s === 'xenite' || s === 'centaur' || s === 'ancient') return s;
@@ -270,7 +272,10 @@ function ShipStack({
           {PreviewShipGraphic && targetingVisualState && targetingVisualState !== 'available' ? (
             <div
               className="ss-targeting-preview z-20"
-              style={getTargetingPreviewStyle(targetingVisualState)}
+              style={getTargetingPreviewStyle(
+                targetingVisualState,
+                previewShipDefId === 'DOM' ? DOM_TARGETING_PREVIEW_SCALE_MULTIPLIER : 1
+              )}
             >
               <PreviewShipGraphic />
             </div>
