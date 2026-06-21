@@ -6,6 +6,7 @@ import type {
   HudViewModel,
   LeftRailViewModel,
 } from '../../client/useGameSession';
+import { toSpeciesKey } from '../layout/boardStage/FleetArea';
 import { MobileDiceModifierSlots } from './MobileDiceModifierSlots';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
@@ -82,6 +83,15 @@ export function MobileStatusRail({
   bottomStatsAnchorRef,
   onStatusRowToggle,
 }: MobileStatusRailProps) {
+  const opponentDisplayedBonus =
+    toSpeciesKey(boardVm.opponentSpeciesId) === 'centaur'
+      ? boardVm.opponentBonusLinesOnEven
+      : boardVm.opponentBonusLines;
+  const myDisplayedBonus =
+    toSpeciesKey(boardVm.mySpeciesId) === 'centaur'
+      ? boardVm.myBonusLinesOnEven
+      : boardVm.myBonusLines;
+
   const opponentStatus: MobileStatusRailRowData = {
     name: hudVm.p2Name,
     statusText: hudVm.p2StatusText ?? '',
@@ -91,7 +101,7 @@ export function MobileStatusRail({
     netDelta: boardVm.opponentLastTurnNet,
     healing: boardVm.opponentLastTurnHeal,
     damage: boardVm.opponentLastTurnDamage,
-    bonus: boardVm.opponentBonusLines,
+    bonus: opponentDisplayedBonus,
     joiningBonus: boardVm.opponentJoiningBonusLines,
     savedLines: boardVm.opponentDisplayedSavedLines,
     savedJoiningLines: boardVm.opponentDisplayedSavedJoiningLines,
@@ -106,7 +116,7 @@ export function MobileStatusRail({
     netDelta: boardVm.myLastTurnNet,
     healing: boardVm.myLastTurnHeal,
     damage: boardVm.myLastTurnDamage,
-    bonus: boardVm.myBonusLines,
+    bonus: myDisplayedBonus,
     joiningBonus: boardVm.myJoiningBonusLines,
     savedLines: boardVm.myDisplayedSavedLines,
     savedJoiningLines: boardVm.myDisplayedSavedJoiningLines,

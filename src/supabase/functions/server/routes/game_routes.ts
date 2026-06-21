@@ -1938,17 +1938,14 @@ export function registerGameRoutes(
           joiningLinesByPlayerId[player.id] = publicSavedResources.savedJoiningLines;
           try {
             const lineBonuses = computeLineBonusesForPlayer(gameData.gameData, player.id);
-            const playerSpecies = String((player as any)?.faction ?? (player as any)?.species ?? '')
-              .trim()
-              .toLowerCase();
-            const displayedBonusRows =
-              playerSpecies === 'centaur'
-                ? [...lineBonuses.evenOnlyRows]
-                : [...lineBonuses.ordinaryRows, ...lineBonuses.evenOnlyRows];
             bonusLinesByPlayerId[player.id] = lineBonuses.bonusLines;
             bonusLinesOnEvenByPlayerId[player.id] = lineBonuses.bonusLinesOnEven;
             joiningBonusLinesByPlayerId[player.id] = lineBonuses.joiningBonusLines;
-            bonusBreakdownByPlayerId[player.id] = [...displayedBonusRows, ...lineBonuses.joiningRows].sort((a, b) => {
+            bonusBreakdownByPlayerId[player.id] = [
+              ...lineBonuses.ordinaryRows,
+              ...lineBonuses.evenOnlyRows,
+              ...lineBonuses.joiningRows,
+            ].sort((a, b) => {
               if (b.amount !== a.amount) return b.amount - a.amount;
               return a.label.localeCompare(b.label);
             });

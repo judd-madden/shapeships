@@ -57,7 +57,6 @@ export function MobileStatBreakdownPopovers({
     damage: boardVm.opponentLastTurnDamage,
     damageRows: boardVm.opponentLastDamageBreakdownRows,
     bonus: opponentDisplayedBonus,
-    bonusJoining: boardVm.opponentJoiningBonusLines,
     bonusRows: boardVm.opponentBonusBreakdownRows,
     savedLines: boardVm.opponentDisplayedSavedLines,
     savedJoiningLines: boardVm.opponentDisplayedSavedJoiningLines,
@@ -69,7 +68,6 @@ export function MobileStatBreakdownPopovers({
     damage: boardVm.myLastTurnDamage,
     damageRows: boardVm.myLastDamageBreakdownRows,
     bonus: myDisplayedBonus,
-    bonusJoining: boardVm.myJoiningBonusLines,
     bonusRows: boardVm.myBonusBreakdownRows,
     savedLines: boardVm.myDisplayedSavedLines,
     savedJoiningLines: boardVm.myDisplayedSavedJoiningLines,
@@ -99,7 +97,6 @@ function buildSections({
   damage,
   damageRows,
   bonus,
-  bonusJoining,
   bonusRows,
   savedLines,
   savedJoiningLines,
@@ -109,7 +106,6 @@ function buildSections({
   damage: number;
   damageRows: BoardStatBreakdownRowVm[];
   bonus: number;
-  bonusJoining: number;
   bonusRows: BoardStatBreakdownRowVm[];
   savedLines: number;
   savedJoiningLines: number;
@@ -134,10 +130,7 @@ function buildSections({
       title: 'Bonus',
       total: bonus,
       tone: 'bonus',
-      rows: bonus === 0 ? [] : bonusRows,
-      secondaryRows: bonusJoining > 0
-        ? [{ label: 'Joining lines', amountText: String(bonusJoining) }]
-        : undefined,
+      rows: bonusRows,
     },
     {
       key: 'saved',

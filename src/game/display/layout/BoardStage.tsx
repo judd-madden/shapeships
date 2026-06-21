@@ -319,8 +319,10 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
     myDisplayedBonusLines !== 0 || vm.myJoiningBonusLines > 0;
   const opponentBonusClusterHasVisibleContent =
     opponentDisplayedBonusLines !== 0 || vm.opponentJoiningBonusLines > 0;
-  const myBonusHoverTrackable = myBonusClusterHasVisibleContent;
-  const opponentBonusHoverTrackable = opponentBonusClusterHasVisibleContent;
+  const myBonusHoverTrackable =
+    myBonusClusterHasVisibleContent || vm.myBonusBreakdownRows.length > 0;
+  const opponentBonusHoverTrackable =
+    opponentBonusClusterHasVisibleContent || vm.opponentBonusBreakdownRows.length > 0;
   const opponentBonusAnchorRef =
     vm.opponentJoiningBonusLines > 0 ? opponentBonusJoiningAnchorRef : opponentBonusPrimaryAnchorRef;
   const statHoverRowsByKey: Record<BoardStatHoverKey, { rows: typeof vm.myLastDamageBreakdownRows; side: 'left' | 'right' }> = {
