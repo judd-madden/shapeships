@@ -5,6 +5,8 @@ export const HEALTH_AXIS_LABELS = ['35', '30', '25', '20', '15', '10', '5', '0',
 export interface GameStatsScale {
   labels: string[];
   positions: number[];
+  minValue?: number;
+  maxValue?: number;
 }
 
 export function buildHealthScale(): GameStatsScale {
@@ -59,6 +61,8 @@ export function buildFleetValueScale(turns: GameStatsTurnViewModel[]): GameStats
   return {
     labels,
     positions: getEvenPositions(labels.length),
+    minValue: 0,
+    maxValue: maxLabel,
   };
 }
 

@@ -10,14 +10,24 @@ import {
   GameStatsSummaryColumn,
   type GameStatsSummaryGroup,
 } from './GameStatsSummaryColumn';
+import {
+  GameStatsFleetValueStepChart,
+  GameStatsHealthLineChart,
+} from './GameStatsLineCharts';
 
 interface GameStatsBoardProps {
   gameStats: GameStatsViewModel;
   closeControl?: ReactNode;
 }
 
+type StatsRowKey =
+  | 'health'
+  | 'viewerHealingOpponentDamage'
+  | 'viewerDamageOpponentHealing'
+  | 'fleetValue';
+
 interface StatsRowConfig {
-  key: string;
+  key: StatsRowKey;
   summaryGroups: [GameStatsSummaryGroup, GameStatsSummaryGroup];
   scale: GameStatsScale;
   showZeroRule?: boolean;
@@ -158,6 +168,7 @@ export function GameStatsBoard({ gameStats, closeControl }: GameStatsBoardProps)
               turnCount={turnCount}
               scale={rowConfig.scale}
               showZeroRule={rowConfig.showZeroRule === true}
+              chartLayer={getStatsRowChartLayer(rowConfig, gameStats)}
             />
           ))}
         </div>
@@ -305,16 +316,44 @@ function AxisLegend({ scale }: { scale: GameStatsScale }) {
   );
 }
 
+function getStatsRowChartLayer(
+  rowConfig: StatsRowConfig,
+  gameStats: GameStatsViewModel,
+): ReactNode {
+  if (rowConfig.key === 'health') {
+    return (
+      <GameStatsHealthLineChart
+        turns={gameStats.turns}
+        scale={rowConfig.scale}
+        healthFloor={gameStats.scaleHints.healthFloor}
+      />
+    );
+  }
+
+  if (rowConfig.key === 'fleetValue') {
+    return (
+      <GameStatsFleetValueStepChart
+        turns={gameStats.turns}
+        scale={rowConfig.scale}
+      />
+    );
+  }
+
+  return null;
+}
+
 function TurnGraphRow({
   rowIndex,
   turnCount,
   scale,
   showZeroRule,
+  chartLayer,
 }: {
   rowIndex: number;
   turnCount: number;
   scale: GameStatsScale;
   showZeroRule: boolean;
+  chartLayer?: ReactNode;
 }) {
   const guideLinePositions = showZeroRule ? [scale.positions[2] ?? 50] : scale.positions;
 
@@ -332,6 +371,7 @@ function TurnGraphRow({
         style={{
           top: GRAPH_INSET_TOP_PX,
           bottom: GRAPH_INSET_BOTTOM_PX,
+          zIndex: 1,
         }}
       />
       <div
@@ -341,6 +381,7 @@ function TurnGraphRow({
           bottom: GRAPH_INSET_BOTTOM_PX,
           left: ROW_PADDING_LEFT_PX,
           right: ROW_PADDING_RIGHT_PX,
+          zIndex: 1,
         }}
         aria-hidden="true"
       >
@@ -358,6 +399,21 @@ function TurnGraphRow({
           />
         ))}
       </div>
+      {chartLayer ? (
+        <div
+          className="pointer-events-none absolute"
+          style={{
+            top: GRAPH_INSET_TOP_PX,
+            bottom: GRAPH_INSET_BOTTOM_PX,
+            left: ROW_PADDING_LEFT_PX,
+            right: ROW_PADDING_RIGHT_PX,
+            zIndex: 2,
+          }}
+          aria-hidden="true"
+        >
+          {chartLayer}
+        </div>
+      ) : null}
       <div
         className="grid h-full min-h-0"
         style={{
