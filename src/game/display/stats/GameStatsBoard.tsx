@@ -34,7 +34,7 @@ const MAJOR_ROW_GAP_PX = 0;
 const GRAPH_INSET_TOP_PX = 20;
 const GRAPH_INSET_BOTTOM_PX = 20;
 const ROW_GRADIENT =
-  'linear-gradient( #141414 0%, #14141400 100%)';
+  'linear-gradient( #1A1A1A 0%, #1A1A1A00 100%)';
 
 function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
