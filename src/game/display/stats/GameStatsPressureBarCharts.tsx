@@ -25,6 +25,7 @@ interface PressureBarLayout {
 }
 
 const PRESSURE_BAR_WIDTH_CSS = 'clamp(20px, 70%, 35px)';
+const PRESSURE_BAR_MIN_HEIGHT_PX = 2;
 const VALUE_LABEL_FONT_SIZE_PX = 15;
 const VALUE_LABEL_LINE_HEIGHT_PX = 15;
 const VALUE_LABEL_GAP_PX = 4;
@@ -100,12 +101,17 @@ function PressureBar({
   layout: PressureBarLayout;
   direction: 'up' | 'down';
 }) {
+  const barHeight =
+    layout.barHeight > 0
+      ? `max(${PRESSURE_BAR_MIN_HEIGHT_PX}px, ${formatPercent(layout.barHeight)})`
+      : '0%';
+
   return (
     <div
       className="absolute left-1/2 -translate-x-1/2"
       style={{
         width: PRESSURE_BAR_WIDTH_CSS,
-        height: `${layout.barHeight}%`,
+        height: barHeight,
         backgroundColor: color,
         top: direction === 'down' ? `${layout.barStart}%` : undefined,
         bottom: direction === 'up' ? `${100 - layout.barStart}%` : undefined,

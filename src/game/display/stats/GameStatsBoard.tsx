@@ -461,7 +461,7 @@ function TurnGraphRow({
   chartLayer?: ReactNode;
 }) {
   const zeroRulePosition = getScaleLabelPosition(scale, '0', scale.positions[2] ?? 50);
-  const guideLinePositions = showZeroRule ? [zeroRulePosition] : scale.positions;
+  const guideLinePositions = showZeroRule ? [] : scale.positions;
 
   return (
     <div
@@ -480,31 +480,30 @@ function TurnGraphRow({
           zIndex: 1,
         }}
       />
-      <div
-        className="pointer-events-none absolute"
-        style={{
-          top: GRAPH_INSET_TOP_PX,
-          bottom: GRAPH_INSET_BOTTOM_PX,
-          left: ROW_PADDING_LEFT_PX,
-          right: ROW_PADDING_RIGHT_PX,
-          zIndex: 1,
-        }}
-        aria-hidden="true"
-      >
-        {guideLinePositions.map((position, index) => (
-          <div
-            key={`${position}:${index}`}
-            className={cx(
-              'absolute left-0 right-0 bg-[var(--shapeships-grey-90)]',
-              showZeroRule ? 'h-[2px]' : 'h-px',
-            )}
-            style={{
-              top: `${position}%`,
-              transform: 'translateY(-50%)',
-            }}
-          />
-        ))}
-      </div>
+      {guideLinePositions.length > 0 ? (
+        <div
+          className="pointer-events-none absolute"
+          style={{
+            top: GRAPH_INSET_TOP_PX,
+            bottom: GRAPH_INSET_BOTTOM_PX,
+            left: ROW_PADDING_LEFT_PX,
+            right: ROW_PADDING_RIGHT_PX,
+            zIndex: 1,
+          }}
+          aria-hidden="true"
+        >
+          {guideLinePositions.map((position, index) => (
+            <div
+              key={`${position}:${index}`}
+              className="absolute left-0 right-0 h-px bg-[var(--shapeships-grey-90)]"
+              style={{
+                top: `${position}%`,
+                transform: 'translateY(-50%)',
+              }}
+            />
+          ))}
+        </div>
+      ) : null}
       {chartLayer ? (
         <div
           className="pointer-events-none absolute"
@@ -518,6 +517,27 @@ function TurnGraphRow({
           aria-hidden="true"
         >
           {chartLayer}
+        </div>
+      ) : null}
+      {showZeroRule ? (
+        <div
+          className="pointer-events-none absolute"
+          style={{
+            top: GRAPH_INSET_TOP_PX,
+            bottom: GRAPH_INSET_BOTTOM_PX,
+            left: ROW_PADDING_LEFT_PX,
+            right: ROW_PADDING_RIGHT_PX,
+            zIndex: 5,
+          }}
+          aria-hidden="true"
+        >
+          <div
+            className="absolute left-0 right-0 h-[2px] bg-[var(--shapeships-grey-90)]"
+            style={{
+              top: `${zeroRulePosition}%`,
+              transform: 'translateY(-50%)',
+            }}
+          />
         </div>
       ) : null}
       <div
