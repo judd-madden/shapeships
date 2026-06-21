@@ -62,6 +62,12 @@ type MobileStatPopoverAnchors = {
   bottom: MobileStatAnchorRect;
 };
 
+type MobileChatReadState = {
+  gameCode: LeftRailViewModel['gameCode'];
+  lastSeenChatMessageCount: number;
+  baselineEstablished: boolean;
+};
+
 function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
 }
@@ -101,6 +107,11 @@ export function MobileGameLayout({
     useState<ActiveFleetShipHover | null>(null);
   const [statPopoverAnchors, setStatPopoverAnchors] =
     useState<MobileStatPopoverAnchors | null>(null);
+  const [mobileChatReadState, setMobileChatReadState] = useState<MobileChatReadState>(() => ({
+    gameCode: leftRailVm.gameCode,
+    lastSeenChatMessageCount: leftRailVm.chatMessages.length,
+    baselineEstablished: false,
+  }));
   const topStatusRowRef = useRef<HTMLDivElement | null>(null);
   const bottomStatusRowRef = useRef<HTMLDivElement | null>(null);
   const topStatsAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -128,6 +139,17 @@ export function MobileGameLayout({
     activeMobileBottomPanel === 'void' &&
     hasVoidShips &&
     !shouldForceMobileActionPanel;
+  const currentChatMessageCount = leftRailVm.chatMessages.length;
+  const isMobileChatBaselineEstablished =
+    mobileChatReadState.gameCode === leftRailVm.gameCode &&
+    mobileChatReadState.baselineEstablished;
+  const mobileUnreadChatCount =
+    activeTakeover === 'chat' || !isMobileChatBaselineEstablished
+      ? 0
+      : Math.max(
+          0,
+          currentChatMessageCount - mobileChatReadState.lastSeenChatMessageCount
+        );
   const turnLabel = isGameOver ? 'Game Over' : `Turn ${leftRailVm.turn}`;
   const activeDestroyTargetSourceInstanceId =
     boardVm.mode === 'board' ? boardVm.destroyTargeting?.activeSourceInstanceId : null;
@@ -206,8 +228,13 @@ export function MobileGameLayout({
     });
   }, [handleCloseStatPopovers, statPopoverAnchors]);
   const handleOpenChat = useCallback(() => {
+    setMobileChatReadState({
+      gameCode: leftRailVm.gameCode,
+      lastSeenChatMessageCount: currentChatMessageCount,
+      baselineEstablished: true,
+    });
     handleOpenTakeover('chat');
-  }, [handleOpenTakeover]);
+  }, [currentChatMessageCount, handleOpenTakeover, leftRailVm.gameCode]);
   const handleOpenBattleLog = useCallback(() => {
     handleOpenTakeover('battleLog');
   }, [handleOpenTakeover]);
@@ -241,6 +268,42 @@ export function MobileGameLayout({
       setActiveShipModalId(null);
     }
   }, [isCataloguePanelActive]);
+
+  useEffect(() => {
+    setMobileChatReadState((state) => {
+      if (state.gameCode !== leftRailVm.gameCode) {
+        return {
+          gameCode: leftRailVm.gameCode,
+          lastSeenChatMessageCount: currentChatMessageCount,
+          baselineEstablished: false,
+        };
+      }
+
+      if (!state.baselineEstablished) {
+        return {
+          ...state,
+          lastSeenChatMessageCount: currentChatMessageCount,
+          baselineEstablished: true,
+        };
+      }
+
+      if (
+        activeTakeover === 'chat' ||
+        currentChatMessageCount < state.lastSeenChatMessageCount
+      ) {
+        if (state.lastSeenChatMessageCount === currentChatMessageCount) {
+          return state;
+        }
+
+        return {
+          ...state,
+          lastSeenChatMessageCount: currentChatMessageCount,
+        };
+      }
+
+      return state;
+    });
+  }, [activeTakeover, currentChatMessageCount, leftRailVm.gameCode]);
 
   useEffect(() => {
     if (activeTakeover !== 'menu' || !canViewGameStats || !isEndGamePanel) {
@@ -365,6 +428,7 @@ export function MobileGameLayout({
         turnLabel={turnLabel}
         isGameOver={isGameOver}
         activeTakeover={activeTakeover}
+        unreadChatCount={mobileUnreadChatCount}
         onReturnToBoard={handleReturnToBoard}
         onOpenChat={handleOpenChat}
         onOpenBattleLog={handleOpenBattleLog}

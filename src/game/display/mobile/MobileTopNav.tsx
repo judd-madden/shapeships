@@ -2,6 +2,7 @@ interface MobileTopNavProps {
   turnLabel: string;
   isGameOver: boolean;
   activeTakeover: 'chat' | 'battleLog' | 'menu' | null;
+  unreadChatCount?: number;
   onReturnToBoard: () => void;
   onOpenChat: () => void;
   onOpenBattleLog: () => void;
@@ -16,12 +17,15 @@ export function MobileTopNav({
   turnLabel,
   isGameOver,
   activeTakeover,
+  unreadChatCount = 0,
   onReturnToBoard,
   onOpenChat,
   onOpenBattleLog,
   onOpenMenu,
 }: MobileTopNavProps) {
   const boardActive = activeTakeover === null;
+  const showUnreadChatBubble = unreadChatCount > 0 && activeTakeover !== 'chat';
+  const displayedUnreadChatCount = Math.min(99, unreadChatCount);
 
   function navItemClass(isActive: boolean) {
     return cx(
@@ -61,7 +65,14 @@ export function MobileTopNav({
             onClick={onOpenChat}
             className={navItemClass(activeTakeover === 'chat')}
           >
-            Chat
+            <span className="inline-flex items-center gap-[4px]">
+              <span>Chat</span>
+              {showUnreadChatBubble ? (
+                <span className="rounded-[99px] bg-[var(--shapeships-grey-50)] px-[4px] py-[2px] text-[11px] font-bold leading-none text-[var(--shapeships-black)]">
+                  {displayedUnreadChatCount}
+                </span>
+              ) : null}
+            </span>
           </button>
           <button
             type="button"
