@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import type { GameStatsViewModel } from '../../client/gameSession/types';
 import {
   buildFleetValueScale,
@@ -15,6 +15,7 @@ import {
   GameStatsHealthLineChart,
 } from './GameStatsLineCharts';
 import { GameStatsPressureBarChart } from './GameStatsPressureBarCharts';
+import { GameStatsHoverLayer } from './GameStatsHoverLayer';
 
 interface GameStatsBoardProps {
   gameStats: GameStatsViewModel;
@@ -52,6 +53,7 @@ function cx(...parts: Array<string | undefined | false>) {
 }
 
 export function GameStatsBoard({ gameStats, closeControl }: GameStatsBoardProps) {
+  const [hoveredTurnIndex, setHoveredTurnIndex] = useState<number | null>(null);
   const healthScale = buildHealthScale();
   const pressureScale = buildPressureScale(gameStats.turns);
   const fleetScale = buildFleetValueScale(gameStats.turns);
@@ -156,9 +158,10 @@ export function GameStatsBoard({ gameStats, closeControl }: GameStatsBoardProps)
       <div
         className="col-start-3 row-start-1 row-end-6 min-h-0 min-w-0 overflow-x-auto overflow-y-hidden"
         data-name="Game Stats Shared Turn Scroll"
+        onPointerLeave={() => setHoveredTurnIndex(null)}
       >
         <div
-          className="grid h-full min-h-0"
+          className="relative grid h-full min-h-0"
           style={scrollContentStyle}
         >
           <TurnHeaderRow turns={gameStats.turns} />
@@ -172,6 +175,20 @@ export function GameStatsBoard({ gameStats, closeControl }: GameStatsBoardProps)
               chartLayer={getStatsRowChartLayer(rowConfig, gameStats)}
             />
           ))}
+          <GameStatsHoverLayer
+            turns={gameStats.turns}
+            hoveredTurnIndex={hoveredTurnIndex}
+            healthScale={healthScale}
+            fleetScale={fleetScale}
+            healthFloor={gameStats.scaleHints.healthFloor}
+            headerHeightPx={HEADER_HEIGHT_PX}
+            turnColumnMinWidthPx={TURN_COLUMN_MIN_WIDTH_PX}
+            rowPaddingLeftPx={ROW_PADDING_LEFT_PX}
+            rowPaddingRightPx={ROW_PADDING_RIGHT_PX}
+            graphInsetTopPx={GRAPH_INSET_TOP_PX}
+            graphInsetBottomPx={GRAPH_INSET_BOTTOM_PX}
+            onHoveredTurnIndexChange={setHoveredTurnIndex}
+          />
         </div>
       </div>
 
@@ -221,7 +238,7 @@ function HeaderTurnCell() {
 function TurnHeaderRow({ turns }: { turns: GameStatsViewModel['turns'] }) {
   return (
     <div
-      className="grid min-h-0"
+      className="relative z-[4] grid min-h-0"
       style={{
         gridTemplateColumns: `${ROW_PADDING_LEFT_PX}px repeat(${Math.max(
           1,
@@ -384,7 +401,6 @@ function TurnGraphRow({
 }) {
   const zeroRulePosition = getScaleLabelPosition(scale, '0', scale.positions[2] ?? 50);
   const guideLinePositions = showZeroRule ? [zeroRulePosition] : scale.positions;
-  const guideLineZIndex = showZeroRule ? 3 : 1;
 
   return (
     <div
@@ -410,7 +426,7 @@ function TurnGraphRow({
           bottom: GRAPH_INSET_BOTTOM_PX,
           left: ROW_PADDING_LEFT_PX,
           right: ROW_PADDING_RIGHT_PX,
-          zIndex: guideLineZIndex,
+          zIndex: 1,
         }}
         aria-hidden="true"
       >
@@ -436,7 +452,7 @@ function TurnGraphRow({
             bottom: GRAPH_INSET_BOTTOM_PX,
             left: ROW_PADDING_LEFT_PX,
             right: ROW_PADDING_RIGHT_PX,
-            zIndex: 2,
+            zIndex: 4,
           }}
           aria-hidden="true"
         >
