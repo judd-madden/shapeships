@@ -15,6 +15,7 @@ import { RulesPanel } from '../panels/RulesPanel';
 import { CreatePrivateGamePanel, type CreatePrivateGameSettings } from '../panels/CreatePrivateGamePanel';
 import { LogoIcon } from '../ui/primitives/icons/LogoIcon';
 import { OnlineStatusIcon } from '../ui/primitives/icons/OnlineStatusIcon';
+import { attemptMobileGameFullscreen } from '../../utils/mobileFullscreen';
 
 interface MenuShellProps {
   onNavigate: (shell: string) => void;
@@ -58,6 +59,7 @@ export function MenuShell({
   const displayName = player.name;
 
   const handleCreateGameWithSettings = async (settings: CreatePrivateGameSettings) => {
+    attemptMobileGameFullscreen();
     setIsCreating(true);
     try {
       const gameId = await onCreatePrivateGame(settings);
@@ -71,6 +73,7 @@ export function MenuShell({
   };
 
   const handleCreateComputerGameWithSettings = async (settings: CreatePrivateGameSettings) => {
+    attemptMobileGameFullscreen();
     setIsCreating(true);
     try {
       const gameId = await onCreateComputerGame(settings);

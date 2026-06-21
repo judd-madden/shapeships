@@ -4,6 +4,7 @@ import type { Player } from '../game/hooks/usePlayer';
 import type { CreatePrivateGameSettings } from './panels/CreatePrivateGamePanel';
 import { LoginShell } from './shells/LoginShell';
 import { MenuShell } from './shells/MenuShell';
+import { attemptMobileGameFullscreen } from '../utils/mobileFullscreen';
 
 const ALPHA_DISABLE_AUTH = true;
 
@@ -51,6 +52,10 @@ export default function ScreenManager({
     setIsStartingSession(true);
 
     try {
+      if (pendingInviteGameId) {
+        attemptMobileGameFullscreen();
+      }
+
       await onStartSession(displayName);
 
       if (pendingInviteGameId) {
