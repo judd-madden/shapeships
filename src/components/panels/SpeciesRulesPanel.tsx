@@ -244,18 +244,20 @@ function ShipRow({
   return (
     <div className={`relative shrink-0 w-full ${isAlternate ? 'bg-[var(--shapeships-grey-90)]' : ''}`}>
       <div className="flex flex-row items-center size-full">
-        <div className="content-stretch relative flex w-full flex-col items-start gap-[24px] px-[16px] py-[24px] sm:px-[24px] lg:flex-row lg:gap-[20px] xl:gap-[12px] xl:py-[30px] xl:pr-[30px]">
+        <div className="content-stretch relative grid w-full grid-cols-[100px_minmax(0,1fr)] items-start gap-[0px] pl-[0px] pr-[16px] py-[16px] sm:gap-[20px] sm:px-[24px] lg:flex lg:flex-row lg:gap-[20px] xl:gap-[12px] xl:py-[30px] xl:pr-[30px]">
           {/* Ship Graphic */}
-          <div className="content-stretch relative flex min-h-[60px] w-full shrink-0 flex-col items-start justify-start lg:w-[190px] lg:items-center lg:justify-center xl:w-[215px]">
-            {ShipGraphic && <ShipGraphic className="max-w-full h-auto" />}
+          <div className="content-stretch relative flex w-[100px] max-w-[120px] shrink-0 items-start justify-center overflow-hidden lg:min-h-[60px] lg:w-[190px] lg:max-w-none flex-col lg:overflow-visible xl:w-[215px]">
+            <div className="relative flex  w-[100px] items-center justify-center overflow-hidden lg:h-auto lg:w-full lg:overflow-visible">
+              {ShipGraphic && <ShipGraphic className="h-auto w-auto max-h-[200px] max-w-[200px] origin-center scale-[0.6] lg:max-h-none lg:max-w-full lg:scale-100" />}
+            </div>
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col gap-[20px] lg:flex-row xl:gap-[12px]">
+          <div className="flex min-w-0 max-w-full flex-1 flex-col gap-[8px] lg:flex-row xl:gap-[12px]">
             {/* Ship Info */}
-            <div className="content-stretch relative flex min-w-0 gap-[16px] items-start lg:w-[210px] lg:shrink-0">
+            <div className="content-stretch relative flex min-w-0 max-w-full gap-[8px] md:gap-[16px] items-start lg:w-[210px] lg:shrink-0">
               {/* Cost display */}
               {totalCost !== null && (
-                <p className="font-black leading-[normal] relative shrink-0 text-[19.27px] text-right text-white w-[30px] sm:text-[25.691px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                <p className="font-black leading-[normal] relative shrink-0 text-[19.27px] sm:text-right text-white sm:w-[30px] sm:text-[25.691px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                   {totalCost}
                 </p>
               )}
@@ -291,9 +293,9 @@ function ShipRow({
                 const phaseType = getPhaseIcon(power.subphase);
 
                 return (
-                  <div key={index} className="content-stretch flex gap-[10px] items-start relative shrink-0 w-full">
+                  <div key={index} className="content-stretch flex min-w-0 gap-[4px] sm:gap-[10px] items-start relative shrink-0 w-full">
                     {/* Phase icon */}
-                    <div className="relative shrink-0 size-[25.691px]">
+                    <div className="relative shrink-0 size-[16px] mt-[2px] md:size-[24px] md:mt-0">
                       {phaseType === 'build' ? (
                         <div className="opacity-50">
                           <BuildIcon className="w-full h-full" color="#D5D5D5" />
@@ -325,14 +327,14 @@ function ShipRow({
                         const evolvedSubphase = getSubphaseLabel(evolvedShip);
 
                         return (
-                          <div key={evolvedShip.id} className="flex min-w-[220px] max-w-full gap-[12px] items-start">
+                          <div key={evolvedShip.id} className="flex min-w-0 max-w-full gap-[12px] items-start sm:min-w-[220px]">
                             {/* Evolved ship graphic */}
                             <div className="relative shrink-0 w-[48px] h-[48px] flex items-center justify-center">
                               {EvolvedShipGraphic && <EvolvedShipGraphic className="max-w-full h-auto" />}
                             </div>
 
                             {/* Evolved ship info */}
-                            <div className="flex flex-col gap-[2px]">
+                            <div className="flex min-w-0 flex-col gap-[2px]">
                               <p className="font-bold leading-[15px] text-[12px] text-white sm:text-[16px] sm:leading-[20px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                                 {evolvedShip.name}
                               </p>
@@ -342,7 +344,7 @@ function ShipRow({
                               {evolvedShip.powers.map((power, idx) => {
                                 const phaseType = getPhaseIcon(power.subphase);
                                 return (
-                                  <div key={idx} className="flex gap-[6px] items-start mt-[4px]">
+                                  <div key={idx} className="flex min-w-0 gap-[6px] items-start mt-[4px]">
                                     <div className="relative shrink-0 size-[16px]">
                                       {phaseType === 'build' ? (
                                         <div className="opacity-50">
@@ -354,7 +356,7 @@ function ShipRow({
                                         </div>
                                       )}
                                     </div>
-                                    <p className="font-normal leading-[13.5px] text-[10.5px] text-white sm:text-[14px] sm:leading-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                                    <p className="min-w-0 font-normal leading-[13.5px] text-[10.5px] text-white sm:text-[14px] sm:leading-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                                       {renderPowerText(power.text)}
                                     </p>
                                   </div>
@@ -373,8 +375,8 @@ function ShipRow({
               {ship.extraRules && (
                 <div className="relative shrink-0 w-full">
                   <div className="flex flex-row items-center size-full">
-                    <div className="content-stretch relative flex w-full items-center pl-0 pr-0 py-0 sm:pl-[20px] lg:pl-[35px]">
-                      <p className="basis-0 font-normal grow italic leading-[15px] min-h-px min-w-px relative shrink-0 text-[12px] text-white whitespace-pre-wrap sm:text-[16px] sm:leading-[20px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                    <div className="content-stretch relative flex w-full items-center  pr-0 py-0 pl-[20px] lg:pl-[35px]">
+                      <p className="basis-0 font-normal grow italic leading-[15px] min-h-px min-w-0 relative shrink-0 text-[12px] text-white whitespace-pre-wrap sm:text-[16px] sm:leading-[20px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                         {ship.extraRules}
                       </p>
                     </div>
