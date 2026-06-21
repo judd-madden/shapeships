@@ -14,6 +14,7 @@ import {
   GameStatsFleetValueStepChart,
   GameStatsHealthLineChart,
 } from './GameStatsLineCharts';
+import { GameStatsPressureBarChart } from './GameStatsPressureBarCharts';
 
 interface GameStatsBoardProps {
   gameStats: GameStatsViewModel;
@@ -339,6 +340,32 @@ function getStatsRowChartLayer(
     );
   }
 
+  if (rowConfig.key === 'viewerHealingOpponentDamage') {
+    return (
+      <GameStatsPressureBarChart
+        turns={gameStats.turns}
+        scale={rowConfig.scale}
+        getUpwardValue={(turn) => turn.viewer.healingReceived}
+        getDownwardValue={(turn) => turn.opponent.damageDealt}
+        upwardColor="var(--shapeships-green)"
+        downwardColor="var(--shapeships-pastel-red)"
+      />
+    );
+  }
+
+  if (rowConfig.key === 'viewerDamageOpponentHealing') {
+    return (
+      <GameStatsPressureBarChart
+        turns={gameStats.turns}
+        scale={rowConfig.scale}
+        getUpwardValue={(turn) => turn.viewer.damageDealt}
+        getDownwardValue={(turn) => turn.opponent.healingReceived}
+        upwardColor="var(--shapeships-orange)"
+        downwardColor="var(--shapeships-pastel-green)"
+      />
+    );
+  }
+
   return null;
 }
 
@@ -355,7 +382,9 @@ function TurnGraphRow({
   showZeroRule: boolean;
   chartLayer?: ReactNode;
 }) {
-  const guideLinePositions = showZeroRule ? [scale.positions[2] ?? 50] : scale.positions;
+  const zeroRulePosition = getScaleLabelPosition(scale, '0', scale.positions[2] ?? 50);
+  const guideLinePositions = showZeroRule ? [zeroRulePosition] : scale.positions;
+  const guideLineZIndex = showZeroRule ? 3 : 1;
 
   return (
     <div
@@ -381,7 +410,7 @@ function TurnGraphRow({
           bottom: GRAPH_INSET_BOTTOM_PX,
           left: ROW_PADDING_LEFT_PX,
           right: ROW_PADDING_RIGHT_PX,
-          zIndex: 1,
+          zIndex: guideLineZIndex,
         }}
         aria-hidden="true"
       >
@@ -428,4 +457,15 @@ function TurnGraphRow({
       </div>
     </div>
   );
+}
+
+function getScaleLabelPosition(
+  scale: GameStatsScale,
+  label: string,
+  fallback: number,
+): number {
+  const labelIndex = scale.labels.findIndex((scaleLabel) => scaleLabel === label);
+  const position = labelIndex >= 0 ? scale.positions[labelIndex] : fallback;
+
+  return Number.isFinite(position) ? Number(position) : fallback;
 }

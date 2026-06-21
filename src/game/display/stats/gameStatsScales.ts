@@ -38,6 +38,8 @@ export function buildPressureScale(turns: GameStatsTurnViewModel[]): GameStatsSc
       formatScaleLabel(maxLabel),
     ],
     positions: getEvenPositions(5),
+    minValue: 0,
+    maxValue: maxLabel,
   };
 }
 
