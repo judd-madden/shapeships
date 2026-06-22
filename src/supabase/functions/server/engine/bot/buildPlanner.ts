@@ -20,6 +20,7 @@ type ComponentRequirement = {
 };
 
 type GoalMode = 'opening' | 'loop';
+type DraftFailureReason = 'maxQuantity';
 
 function normalizeResource(value: unknown): number {
   const numeric = Number(value);
@@ -262,6 +263,7 @@ function tryAddShipToDraft(args: {
   remainingJoiningLines: number;
 }): {
   ok: boolean;
+  failureReason?: DraftFailureReason;
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
 } {
@@ -304,6 +306,7 @@ function tryAddShipToDraft(args: {
   ) {
     return {
       ok: false,
+      failureReason: 'maxQuantity',
       remainingOrdinaryLines,
       remainingJoiningLines,
     };
@@ -431,7 +434,7 @@ function draftGoals(args: {
       });
 
       if (!attempt.ok) {
-        if (goal.saveUntilAffordable) {
+        if (goal.saveUntilAffordable && attempt.failureReason !== 'maxQuantity') {
           return {
             blockedBySaveUntilAffordable: true,
             remainingOrdinaryLines,
