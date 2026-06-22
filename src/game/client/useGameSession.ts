@@ -21,6 +21,7 @@
 
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
+import { attemptMobileGameFullscreen } from '../../utils/mobileFullscreen';
 import { authenticatedGet, authenticatedPost, ensureSession } from '../../utils/sessionManager';
 import type { ActionPanelId } from '../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../components/ui/primitives/buttons/SpeciesCardButton';
@@ -4515,6 +4516,8 @@ useEffect(() => {
         return;
       }
 
+      attemptMobileGameFullscreen();
+
       try {
         const response = await authenticatedPost(`/new-game-from/${effectiveGameId}`, {});
 
@@ -4543,6 +4546,8 @@ useEffect(() => {
       if (!gameIdToJoin) {
         return;
       }
+
+      attemptMobileGameFullscreen();
 
       const shareGameUrl = buildShareGameUrl(gameIdToJoin);
       window.location.assign(shareGameUrl);
