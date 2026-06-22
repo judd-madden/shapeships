@@ -62,6 +62,7 @@ export type SeatController =
 
 export type AuthoredBotPlan = {
   id: BotPlanId;
+  name?: string;
   speciesId: BotSpeciesId;
   buildGoals: BotBuildGoal[];
   loopGoals?: BotBuildGoal[];

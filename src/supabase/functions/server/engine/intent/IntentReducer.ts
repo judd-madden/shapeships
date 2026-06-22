@@ -83,6 +83,7 @@ import type {
   ShipInstance,
 } from '../state/GameStateTypes.ts';
 import { chooseDeterministicHumanBotPlanId } from '../bot/humanPlans.ts';
+import { chooseDeterministicXeniteBotPlanId } from '../bot/xenitePlans.ts';
 import type { BotSpeciesId } from '../bot/botTypes.ts';
 
 export interface IntentRequest {
@@ -1011,6 +1012,21 @@ function fromBotSpeciesId(speciesId: unknown): ComputerBotSpeciesPayload | null 
   }
 }
 
+function chooseDeterministicBotPlanIdForSpecies(
+  species: ComputerBotSpeciesPayload,
+  seed: string,
+  existingPlanId: string | null,
+): string | null {
+  switch (species) {
+    case 'human':
+      return existingPlanId ?? chooseDeterministicHumanBotPlanId(seed);
+    case 'xenite':
+      return existingPlanId ?? chooseDeterministicXeniteBotPlanId(seed);
+    case 'centaur':
+      return null;
+  }
+}
+
 function getComputerBotSeat(state: any): { player: any; controller: any } | null {
   const controllersByPlayerId = state?.controllersByPlayerId ?? {};
   const activePlayers = (state?.players ?? []).filter((p: any) => p?.role === 'player');
@@ -1256,10 +1272,11 @@ async function handleSpeciesSubmit(
           typeof botSeat.controller?.chosenPlanId === 'string' && botSeat.controller.chosenPlanId.length > 0
             ? botSeat.controller.chosenPlanId
             : null;
-        const nextPlanId =
-          requestedBotSpecies === 'human'
-            ? existingPlanId ?? chooseDeterministicHumanBotPlanId(state.gameId ?? intent.gameId)
-            : null;
+        const nextPlanId = chooseDeterministicBotPlanIdForSpecies(
+          requestedBotSpecies,
+          state.gameId ?? intent.gameId,
+          existingPlanId,
+        );
 
         botSeat.player.faction = requestedBotSpecies;
         if (!state.controllersByPlayerId) {
@@ -1327,10 +1344,11 @@ async function handleSpeciesSubmit(
       typeof botSeat.controller?.chosenPlanId === 'string' && botSeat.controller.chosenPlanId.length > 0
         ? botSeat.controller.chosenPlanId
         : null;
-    const nextPlanId =
-      requestedBotSpecies === 'human'
-        ? existingPlanId ?? chooseDeterministicHumanBotPlanId(state.gameId ?? intent.gameId)
-        : null;
+    const nextPlanId = chooseDeterministicBotPlanIdForSpecies(
+      requestedBotSpecies,
+      state.gameId ?? intent.gameId,
+      existingPlanId,
+    );
 
     botSeat.player.faction = requestedBotSpecies;
     if (!state.controllersByPlayerId) {
