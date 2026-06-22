@@ -12,6 +12,8 @@ type WorkingShipEntry = {
   chargesCurrent: number;
 };
 
+type EvolverBuildChoiceEntry = NonNullable<BuildSubmitPayload['evolverChoices']>[number];
+
 type ComponentRequirement = {
   shipDefId: string;
   mustBeDepleted: boolean;
@@ -33,6 +35,15 @@ function normalizeChargesCurrent(ship: ShipInstance): number {
   const shipDef = getShipById(ship.shipDefId);
   if (typeof shipDef?.charges === 'number' && Number.isFinite(shipDef.charges)) {
     return Math.max(0, Math.floor(shipDef.charges));
+  }
+
+  return 0;
+}
+
+function getStartingChargesForShipDefId(shipDefId: string): number {
+  const shipDef = getShipById(shipDefId);
+  if (typeof shipDef?.charges === 'number' && Number.isFinite(shipDef.charges)) {
+    return normalizeResource(shipDef.charges);
   }
 
   return 0;
@@ -118,8 +129,9 @@ function ensureDraftOrder(order: string[], shipDefId: string) {
 function buildSubmitFromDraft(
   draftOrder: string[],
   draftCounts: Map<string, number>,
+  evolverChoices: EvolverBuildChoiceEntry[] = [],
 ): BuildSubmitPayload {
-  return {
+  const payload: BuildSubmitPayload = {
     builds: draftOrder
       .map((shipDefId) => ({
         shipDefId,
@@ -127,6 +139,88 @@ function buildSubmitFromDraft(
       }))
       .filter((build) => build.count > 0),
   };
+
+  if (evolverChoices.length > 0) {
+    payload.evolverChoices = evolverChoices;
+  }
+
+  return payload;
+}
+
+function deriveEvolverChoices(args: {
+  plan: AuthoredBotPlan;
+  workingFleet: WorkingShipEntry[];
+}): EvolverBuildChoiceEntry[] {
+  const { plan, workingFleet } = args;
+  const evolverPolicy = plan?.evolverPolicy?.EVO;
+  if (!evolverPolicy) {
+    return [];
+  }
+
+  const choiceOrder = Array.isArray(evolverPolicy.choiceOrder)
+    ? evolverPolicy.choiceOrder.filter((choiceId) =>
+      choiceId === 'oxite' || choiceId === 'asterite'
+    )
+    : [];
+  if (choiceOrder.length === 0) {
+    return [];
+  }
+
+  const availableEvolverCount = countWorkingFleetShips(workingFleet, 'EVO');
+  const availableXenCount = countWorkingFleetShips(workingFleet, 'XEN');
+  const maxConversions =
+    Number.isInteger(evolverPolicy.maxConversionsPerTurn) &&
+    Number(evolverPolicy.maxConversionsPerTurn) >= 0
+      ? Number(evolverPolicy.maxConversionsPerTurn)
+      : Number.POSITIVE_INFINITY;
+  const conversionCount = Math.min(
+    availableEvolverCount,
+    availableXenCount,
+    maxConversions,
+  );
+
+  if (!Number.isFinite(conversionCount) || conversionCount <= 0) {
+    return [];
+  }
+
+  return Array.from({ length: conversionCount }, (_entry, index) => ({
+    sourceKey: `bot:evo:${index}`,
+    choiceId: choiceOrder[index % choiceOrder.length] ?? 'oxite',
+  }));
+}
+
+function applyEvolverConversionsToWorkingFleet(
+  workingFleet: WorkingShipEntry[],
+  evolverChoices: EvolverBuildChoiceEntry[],
+) {
+  for (const evolverChoice of evolverChoices) {
+    if (evolverChoice.choiceId !== 'oxite' && evolverChoice.choiceId !== 'asterite') {
+      continue;
+    }
+
+    const xeniteIndex = workingFleet.findIndex((entry) => entry.shipDefId === 'XEN');
+    if (xeniteIndex < 0) {
+      continue;
+    }
+
+    workingFleet.splice(xeniteIndex, 1);
+    const createdShipDefId = evolverChoice.choiceId === 'oxite' ? 'OXI' : 'AST';
+    workingFleet.push({
+      shipDefId: createdShipDefId,
+      chargesCurrent: getStartingChargesForShipDefId(createdShipDefId),
+    });
+  }
+}
+
+function isUpgradedGoal(goal: BotBuildGoal): boolean {
+  const shipDef = getShipById(goal.shipDefId);
+  return Array.isArray(shipDef?.componentShips) && shipDef.componentShips.length > 0;
+}
+
+function hasUsableEvolverPolicy(plan: AuthoredBotPlan): boolean {
+  const choiceOrder = plan?.evolverPolicy?.EVO?.choiceOrder;
+  return Array.isArray(choiceOrder) &&
+    choiceOrder.some((choiceId) => choiceId === 'oxite' || choiceId === 'asterite');
 }
 
 function isOpeningSatisfied(
@@ -289,6 +383,79 @@ function tryAddShipToDraft(args: {
   };
 }
 
+function draftGoals(args: {
+  goals: BotBuildGoal[];
+  goalMode: GoalMode;
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  nativeSpecies: unknown;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): {
+  blockedBySaveUntilAffordable: boolean;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+} {
+  const {
+    goals,
+    goalMode,
+    workingFleet,
+    draftCounts,
+    draftOrder,
+    nativeSpecies,
+  } = args;
+  let {
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  } = args;
+
+  for (const goal of goals) {
+    if (!goal || typeof goal.shipDefId !== 'string') continue;
+    if (!Number.isInteger(goal.targetCount) || goal.targetCount < 0) continue;
+
+    while (
+      getGoalProgressCount({
+        goal,
+        goalMode,
+        workingFleet,
+        draftCounts,
+      }) < goal.targetCount
+    ) {
+      const attempt = tryAddShipToDraft({
+        workingFleet,
+        nativeSpecies,
+        shipDefId: goal.shipDefId,
+        remainingOrdinaryLines,
+        remainingJoiningLines,
+      });
+
+      if (!attempt.ok) {
+        if (goal.saveUntilAffordable) {
+          return {
+            blockedBySaveUntilAffordable: true,
+            remainingOrdinaryLines,
+            remainingJoiningLines,
+          };
+        }
+
+        break;
+      }
+
+      remainingOrdinaryLines = attempt.remainingOrdinaryLines;
+      remainingJoiningLines = attempt.remainingJoiningLines;
+      draftCounts.set(goal.shipDefId, (draftCounts.get(goal.shipDefId) ?? 0) + 1);
+      ensureDraftOrder(draftOrder, goal.shipDefId);
+    }
+  }
+
+  return {
+    blockedBySaveUntilAffordable: false,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  };
+}
+
 export function planBotBuildSubmit(
   state: any,
   botPlayerId: string,
@@ -313,41 +480,64 @@ export function planBotBuildSubmit(
     ? (plan.loopGoals ?? [])
     : plan.buildGoals;
 
-  for (const goal of activeGoals) {
-    if (!goal || typeof goal.shipDefId !== 'string') continue;
-    if (!Number.isInteger(goal.targetCount) || goal.targetCount < 0) continue;
+  if (!hasUsableEvolverPolicy(plan)) {
+    draftGoals({
+      goals: activeGoals,
+      goalMode,
+      workingFleet,
+      draftCounts,
+      draftOrder,
+      nativeSpecies,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
 
-    while (
-      getGoalProgressCount({
-        goal,
-        goalMode,
-        workingFleet,
-        draftCounts,
-      }) < goal.targetCount
-    ) {
-      const attempt = tryAddShipToDraft({
-        workingFleet,
-        nativeSpecies,
-        shipDefId: goal.shipDefId,
-        remainingOrdinaryLines,
-        remainingJoiningLines,
-      });
-
-      if (!attempt.ok) {
-        if (goal.saveUntilAffordable) {
-          return buildSubmitFromDraft(draftOrder, draftCounts);
-        }
-        break;
-      }
-
-      remainingOrdinaryLines = attempt.remainingOrdinaryLines;
-      remainingJoiningLines = attempt.remainingJoiningLines;
-      draftCounts.set(goal.shipDefId, (draftCounts.get(goal.shipDefId) ?? 0) + 1);
-      ensureDraftOrder(draftOrder, goal.shipDefId);
-    }
+    return buildSubmitFromDraft(draftOrder, draftCounts);
   }
 
-  return buildSubmitFromDraft(draftOrder, draftCounts);
+  const nonUpgradedGoals = activeGoals.filter((goal) => !isUpgradedGoal(goal));
+  const upgradedGoals = activeGoals.filter(isUpgradedGoal);
+  const nonUpgradedDraft = draftGoals({
+    goals: nonUpgradedGoals,
+    goalMode,
+    workingFleet,
+    draftOrder,
+    draftCounts,
+    nativeSpecies,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  });
+  remainingOrdinaryLines = nonUpgradedDraft.remainingOrdinaryLines;
+  remainingJoiningLines = nonUpgradedDraft.remainingJoiningLines;
+
+  const evolverChoices = deriveEvolverChoices({
+    plan,
+    workingFleet,
+  });
+  if (!nonUpgradedDraft.blockedBySaveUntilAffordable) {
+    applyEvolverConversionsToWorkingFleet(workingFleet, evolverChoices);
+  }
+
+  if (nonUpgradedDraft.blockedBySaveUntilAffordable) {
+    return buildSubmitFromDraft(draftOrder, draftCounts, evolverChoices);
+  }
+
+  draftGoals({
+    goals: upgradedGoals,
+    goalMode,
+    workingFleet,
+    draftOrder,
+    draftCounts,
+    nativeSpecies,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  });
+
+  return buildSubmitFromDraft(
+    draftOrder,
+    draftCounts,
+    evolverChoices,
+  );
 }
 
 export function planHumanBuildSubmit(

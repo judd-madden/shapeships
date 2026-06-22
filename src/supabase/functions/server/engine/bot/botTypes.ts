@@ -11,7 +11,11 @@ export type BotBuildGoal = {
 export type BuildGoal = BotBuildGoal;
 
 export type CarrierChoiceId = 'defender' | 'fighter' | 'hold';
-export type InterceptorChoiceId = 'damage' | 'heal';
+export type DamageHealChoiceId = 'damage' | 'heal';
+export type InterceptorChoiceId = DamageHealChoiceId;
+export type DamageHealChargePhase =
+  | 'battle.charge_declaration'
+  | 'battle.charge_response';
 export type FrigateFirstChoiceMode = 'match_current_roll';
 export type FrigateAdditionalChoiceMode = 'stack_existing' | 'spread_sequence';
 
@@ -26,13 +30,25 @@ export type CarrierShipsThatBuildPolicy = {
   fallbackChoiceId?: CarrierChoiceId;
 };
 
-export type InterceptorChargePolicy = {
+export type DamageHealChargePolicy = {
   preferDamageWhen?: 'default';
   healSelfAtOrBelow?: number;
   damageOpponentAtOrBelow?: number;
+  phases?: DamageHealChargePhase[];
 };
 
+export type InterceptorChargePolicy = DamageHealChargePolicy;
+
 export type GuardianTargetMode = 'highest_cost_basic';
+export type HighestCostBasicTargetMode = 'highest_cost_basic';
+export type EqualityTargetMode = 'highest_shared_cost_pair';
+export type KnowledgeDiceMode = 'reroll_odd_hold_even';
+export type EvolverChoiceOrderId = 'oxite' | 'asterite';
+
+export type EvolverPolicy = {
+  choiceOrder: EvolverChoiceOrderId[];
+  maxConversionsPerTurn?: number;
+};
 
 export type FrigateTriggerPolicy = {
   firstChoiceMode: FrigateFirstChoiceMode;
@@ -53,7 +69,10 @@ export type AuthoredBotPlan = {
     CAR?: CarrierShipsThatBuildPolicy;
   };
   chargePolicy?: {
-    INT?: InterceptorChargePolicy;
+    INT?: DamageHealChargePolicy;
+    ANT?: DamageHealChargePolicy;
+    WIS?: DamageHealChargePolicy;
+    FAM?: DamageHealChargePolicy;
   };
   frigatePolicy?: {
     FRI?: FrigateTriggerPolicy;
@@ -62,6 +81,23 @@ export type AuthoredBotPlan = {
     GUA?: {
       mode: GuardianTargetMode;
     };
+    SAC?: {
+      mode: HighestCostBasicTargetMode;
+    };
+    DOM?: {
+      mode: HighestCostBasicTargetMode;
+    };
+    EQU?: {
+      mode: EqualityTargetMode;
+    };
+  };
+  dicePolicy?: {
+    KNO?: {
+      mode: KnowledgeDiceMode;
+    };
+  };
+  evolverPolicy?: {
+    EVO?: EvolverPolicy;
   };
   notes?: string;
 };
