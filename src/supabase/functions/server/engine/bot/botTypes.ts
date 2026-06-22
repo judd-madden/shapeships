@@ -1,4 +1,4 @@
-export type BotSpeciesId = 'HUM';
+export type BotSpeciesId = 'HUM' | 'XEN' | 'CEN';
 
 export type BotPlanId = string;
 
@@ -42,7 +42,7 @@ export type FrigateTriggerPolicy = {
 
 export type SeatController =
   | { kind: 'human' }
-  | { kind: 'bot'; speciesId: BotSpeciesId; chosenPlanId: BotPlanId };
+  | { kind: 'bot'; speciesId: BotSpeciesId | null; chosenPlanId: BotPlanId | null };
 
 export type AuthoredBotPlan = {
   id: BotPlanId;

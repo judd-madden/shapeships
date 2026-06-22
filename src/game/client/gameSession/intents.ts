@@ -8,7 +8,7 @@
 
 import type React from 'react';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
-import type { EvolverChoiceId } from './types';
+import type { ComputerBotSpeciesId, EvolverChoiceId } from './types';
 import { buildPowerAction } from './powerIntents';
 import {
   getAllocatedTargetIdsForRenderableAction,
@@ -145,7 +145,8 @@ function makeCanonicalBuildPayload(
 }
 
 export async function runSpeciesConfirmFlow(args: {
-  selectedSpecies: string;
+  selectedSpecies: SpeciesId;
+  botSpecies?: ComputerBotSpeciesId;
   phaseKey: string;
   phaseInstanceKey: string;
   effectiveGameId: string | null;
@@ -156,7 +157,7 @@ export async function runSpeciesConfirmFlow(args: {
   setSpeciesCommitDoneByPhase: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   setSpeciesRevealDoneByPhase: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 
-  speciesCommitCache: PhaseCommitCache<{ species: SpeciesId }>;
+  speciesCommitCache: PhaseCommitCache<{ species: SpeciesId; botSpecies?: ComputerBotSpeciesId }>;
   generateNonce: () => string;
   makeCommitHash: (payload: any, nonce: string) => Promise<string>;
   submitIntent: (body: any) => Promise<Response>;
@@ -169,6 +170,7 @@ export async function runSpeciesConfirmFlow(args: {
   try {
     const {
       selectedSpecies,
+      botSpecies,
       phaseKey,
       phaseInstanceKey,
       effectiveGameId,
@@ -192,7 +194,10 @@ export async function runSpeciesConfirmFlow(args: {
       return;
     }
 
-    const payload = { species: selectedSpecies };
+    const payload: { species: SpeciesId; botSpecies?: ComputerBotSpeciesId } = { species: selectedSpecies };
+    if (botSpecies) {
+      payload.botSpecies = botSpecies;
+    }
     
     // Check if already submitted (using commit done flag for backward compatibility)
     const commitDone = !!speciesCommitDoneByPhase[phaseInstanceKey];

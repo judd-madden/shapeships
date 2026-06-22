@@ -413,6 +413,8 @@ export type BoardViewModel =
   | {
       mode: 'choose_species';
       selectedSpecies: SpeciesId;
+      isComputerGame: boolean;
+      selectedBotSpecies: ComputerBotSpeciesId;
       gameUrl: string;
       isSpectator: boolean;
       canConfirmSpecies: boolean;
@@ -651,6 +653,7 @@ export interface GameSessionActions {
   onRefuseDraw: () => void;
   onOpenBattleLogFullscreen: () => void;
   onSelectSpecies: (species: SpeciesId) => void;
+  onSelectBotSpecies: (species: ComputerBotSpeciesId) => void;
   onConfirmSpecies: () => void;
   onCopyGameUrl: () => void;
   onBuildShip: (shipDefId: ShipDefId) => void; // Chunk 6: Local build preview
@@ -669,3 +672,4 @@ export interface GameSessionActions {
   onDestroyTargetStackHoverChange: (side: 'my' | 'opponent', stackKey: string | null) => void;
   onDestroyTargetStackMouseDown: (side: 'my' | 'opponent', stackKey: string) => void;
 }
+export type ComputerBotSpeciesId = Exclude<SpeciesId, 'ancient'>;

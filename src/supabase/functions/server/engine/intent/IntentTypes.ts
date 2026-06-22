@@ -37,8 +37,11 @@ export type BattleWindow = 'DECLARATION' | 'RESPONSE';
 // PAYLOAD SHAPES
 // ============================================================================
 
+export type ComputerBotSpeciesPayload = 'human' | 'xenite' | 'centaur';
+
 export type SpeciesRevealPayload = {
   species: 'human' | 'xenite' | 'centaur' | 'ancient';
+  botSpecies?: ComputerBotSpeciesPayload;
 };
 
 export type BuildRevealPayload = {

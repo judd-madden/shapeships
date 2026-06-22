@@ -122,6 +122,7 @@ import type {
   BoardStatBreakdownRowVm,
   BoardViewModel,
   ChooseSpeciesBoardVm,
+  ComputerBotSpeciesId,
   BottomActionRailViewModel,
   ActionPanelTabId,
   ActionPanelTabVm,
@@ -147,6 +148,7 @@ export type {
   BoardStatBreakdownRowVm,
   BoardViewModel,
   ChooseSpeciesBoardVm,
+  ComputerBotSpeciesId,
   BottomActionRailViewModel,
   ActionPanelTabId,
   ActionPanelTabVm,
@@ -774,6 +776,7 @@ export function useGameSession(
   
   // Choose species state (client-only for now)
   const [selectedSpecies, setSelectedSpecies] = useState<SpeciesId>('human');
+  const [selectedBotSpecies, setSelectedBotSpecies] = useState<ComputerBotSpeciesId>('human');
   const [boardMode, setBoardMode] = useState<BoardViewModel['mode']>('board');
   
   // ============================================================================
@@ -903,7 +906,7 @@ export function useGameSession(
   const [speciesRevealDoneByPhase, setSpeciesRevealDoneByPhase] = useState<Record<string, boolean>>({});
   
   // Species commit cache (payload + nonce storage with ref-backed same-tick reliability)
-  const speciesCommitCache = usePhaseCommitCache<{ species: SpeciesId }>();
+  const speciesCommitCache = usePhaseCommitCache<{ species: SpeciesId; botSpecies?: ComputerBotSpeciesId }>();
   
   // ============================================================================
   // LOCAL COMPLETION TRACKING (Chunk 7: Build commit/reveal)
@@ -2059,6 +2062,17 @@ export function useGameSession(
   
   // Determine if we're in species selection phase
   const isInSpeciesSelection = phaseKey === 'setup.species_selection';
+  const isComputerGame = useMemo(() => {
+    const controllersByPlayerId =
+      rawState?.controllersByPlayerId ??
+      rawState?.gameData?.controllersByPlayerId ??
+      null;
+
+    return Boolean(
+      controllersByPlayerId &&
+      Object.values(controllersByPlayerId).some((controller: any) => controller?.kind === 'bot')
+    );
+  }, [rawState]);
 
   useEffect(() => {
     if (!isInSpeciesSelection) return;
@@ -2068,6 +2082,7 @@ export function useGameSession(
 
     lastSpeciesSelectionEntryKeyRef.current = speciesSelectionEntryKey;
     setSelectedSpecies('human');
+    setSelectedBotSpecies('human');
   }, [effectiveGameId, isInSpeciesSelection, phaseInstanceKey]);
   
   // Helper: normalize species from server data
@@ -2767,6 +2782,8 @@ useEffect(() => {
     board = {
       mode: 'choose_species',
       selectedSpecies,
+      isComputerGame,
+      selectedBotSpecies,
       gameUrl: shareGameUrl,
       isSpectator: isViewerSpectator,
       canConfirmSpecies,
@@ -4360,6 +4377,11 @@ useEffect(() => {
       // Switch to the species' catalogue panel
       setActivePanelId(speciesToCataloguePanelId(species));
     },
+
+    onSelectBotSpecies: (species: ComputerBotSpeciesId) => {
+      console.log('[useGameSession] Select computer species:', species);
+      setSelectedBotSpecies(species);
+    },
     
     onConfirmSpecies: async () => {
       // PART E: Diagnostic logging before submission
@@ -4369,6 +4391,8 @@ useEffect(() => {
         meRole: me?.role,
         meIsActive: me?.isActive,
         selectedSpecies,
+        isComputerGame,
+        selectedBotSpecies,
       });
       
       // PART D4: Strict client gating - button should be disabled but extra safety
@@ -4399,6 +4423,7 @@ useEffect(() => {
       
       await runSpeciesConfirmFlow({
         selectedSpecies,
+        botSpecies: isComputerGame ? selectedBotSpecies : undefined,
         phaseKey,
         phaseInstanceKey,
         effectiveGameId,
@@ -4850,6 +4875,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       onRefuseDraw: () => {},
       onOpenBattleLogFullscreen: () => {},
       onSelectSpecies: () => {},
+      onSelectBotSpecies: () => {},
       onConfirmSpecies: () => {},
       onCopyGameUrl: () => {},
       onBuildShip: () => {},

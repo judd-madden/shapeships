@@ -5,9 +5,10 @@ import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.with
 import { EffectKind } from '../../engine_shared/effects/Effect.ts';
 import { getValidDestroyTargets } from '../../engine_shared/resolve/destroyRules.ts';
 import { getHumanBotPlanById } from './humanPlans.ts';
-import { planHumanBuildSubmit } from './buildPlanner.ts';
+import { planBotBuildSubmit } from './buildPlanner.ts';
 import type {
   AuthoredBotPlan,
+  BotSpeciesId,
   CarrierChoiceId,
   FrigateTriggerPolicy,
   InterceptorChoiceId,
@@ -90,17 +91,58 @@ function createRejectedDebugEvent(
   };
 }
 
-function resolveHumanBotPlan(controller: any): AuthoredBotPlan | null | { debugReason: string } {
-  if (typeof controller?.chosenPlanId !== 'string' || controller.chosenPlanId.length === 0) {
-    return { debugReason: 'missing_chosen_plan_id' };
+function getSpeciesPayloadFromBotSpeciesId(speciesId: BotSpeciesId | null | undefined):
+  | 'human'
+  | 'xenite'
+  | 'centaur'
+  | null {
+  switch (speciesId) {
+    case 'HUM':
+      return 'human';
+    case 'XEN':
+      return 'xenite';
+    case 'CEN':
+      return 'centaur';
+    default:
+      return null;
+  }
+}
+
+function resolveBotPlan(controller: any): AuthoredBotPlan | { debugReason: string } {
+  const speciesId = controller?.speciesId;
+  if (speciesId == null) {
+    return { debugReason: 'missing_bot_species_id' };
   }
 
-  const plan = getHumanBotPlanById(controller.chosenPlanId);
-  if (!plan) {
-    return { debugReason: 'missing_matching_plan' };
-  }
+  switch (speciesId) {
+    case 'HUM': {
+      if (typeof controller?.chosenPlanId !== 'string' || controller.chosenPlanId.length === 0) {
+        return { debugReason: 'missing_chosen_plan_id' };
+      }
 
-  return plan;
+      const plan = getHumanBotPlanById(controller.chosenPlanId);
+      if (!plan) {
+        return { debugReason: 'missing_matching_plan' };
+      }
+
+      return plan;
+    }
+    // Xenite/Centaur bot plans are intentionally unsupported until later Phase 13 plan/action-policy passes.
+    case 'XEN':
+    case 'CEN':
+      return { debugReason: 'unsupported_bot_species' };
+    default:
+      return { debugReason: 'invalid_bot_species_id' };
+  }
+}
+
+function isAuthoredBotPlanRequiredPhase(phaseKey: string): boolean {
+  return (
+    phaseKey === 'build.drawing' ||
+    phaseKey === 'build.ships_that_build' ||
+    phaseKey === 'battle.charge_declaration' ||
+    phaseKey === GUARDIAN_PHASE_KEY
+  );
 }
 
 function countFleetShipsByDefId(state: any, playerId: string, shipDefId: string): number {
@@ -885,16 +927,8 @@ function buildBotIntent(args: {
   }
 
   let plan: AuthoredBotPlan | null = null;
-  if (
-    phaseKey === 'build.drawing' ||
-    phaseKey === 'build.ships_that_build' ||
-    phaseKey === 'battle.charge_declaration' ||
-    phaseKey === GUARDIAN_PHASE_KEY
-  ) {
-    const resolvedPlan = resolveHumanBotPlan(controller);
-    if (!resolvedPlan) {
-      return { debugReason: 'missing_matching_plan' };
-    }
+  if (isAuthoredBotPlanRequiredPhase(phaseKey)) {
+    const resolvedPlan = resolveBotPlan(controller);
     if ('debugReason' in resolvedPlan) {
       return resolvedPlan;
     }
@@ -906,11 +940,16 @@ function buildBotIntent(args: {
       return null;
     }
 
+    const species = getSpeciesPayloadFromBotSpeciesId(controller.speciesId);
+    if (!species) {
+      return null;
+    }
+
     return {
       gameId: state.gameId,
       intentType: 'SPECIES_SUBMIT',
       turnNumber,
-      payload: { species: 'human' },
+      payload: { species },
       nonce: buildBotNonce({
         state,
         phaseKey,
@@ -930,7 +969,7 @@ function buildBotIntent(args: {
       state,
       playerId,
       plan,
-      payload: planHumanBuildSubmit(state, playerId, plan),
+      payload: planBotBuildSubmit(state, playerId, plan),
     });
 
     return {

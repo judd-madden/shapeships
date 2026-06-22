@@ -289,7 +289,7 @@ function tryAddShipToDraft(args: {
   };
 }
 
-export function planHumanBuildSubmit(
+export function planBotBuildSubmit(
   state: any,
   botPlayerId: string,
   plan: AuthoredBotPlan,
@@ -348,4 +348,12 @@ export function planHumanBuildSubmit(
   }
 
   return buildSubmitFromDraft(draftOrder, draftCounts);
+}
+
+export function planHumanBuildSubmit(
+  state: any,
+  botPlayerId: string,
+  plan: AuthoredBotPlan,
+): BuildSubmitPayload {
+  return planBotBuildSubmit(state, botPlayerId, plan);
 }

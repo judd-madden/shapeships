@@ -256,7 +256,7 @@ export function MenuShell({
               <CreatePrivateGamePanel
                 onSubmit={handleCreateComputerGameWithSettings}
                 heading="PLAY COMPUTER"
-                subheading="Start a game against a computer opponent (Human species)."
+                subheading="Start a game against a computer opponent."
                 primaryActionLabel="PLAY COMPUTER"
                 primaryActionStyle="emphasisWhite"
               />

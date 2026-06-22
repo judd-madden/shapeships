@@ -5,10 +5,12 @@ import { BlackCarrierIcon } from '../../../components/ui/primitives/icons/BlackC
 import { BlackMercuryCoreIcon } from '../../../components/ui/primitives/icons/BlackMercuryCoreIcon';
 import { BlackShipOfWisdomIcon } from '../../../components/ui/primitives/icons/BlackShipOfWisdomIcon';
 import { BlackXeniteIcon } from '../../../components/ui/primitives/icons/BlackXeniteIcon';
+import { ChevronDown } from '../../../components/ui/primitives/icons/ChevronDown';
 import { CopyIcon } from '../../../components/ui/primitives/icons/CopyIcon';
 import type {
   BoardViewModel,
   BottomActionRailViewModel,
+  ComputerBotSpeciesId,
   GameSessionActions,
   HudStatusTone,
   HudViewModel,
@@ -22,7 +24,7 @@ interface MobileSpeciesSelectionViewProps {
   hudVm: HudViewModel;
   boardVm: MobileChooseSpeciesViewModel;
   leftRailVm: LeftRailViewModel;
-  actions: Pick<GameSessionActions, 'onSelectSpecies' | 'onCopyGameUrl'>;
+  actions: Pick<GameSessionActions, 'onSelectSpecies' | 'onSelectBotSpecies' | 'onCopyGameUrl'>;
 }
 
 interface MobileSpeciesConfirmPhaseProps {
@@ -70,6 +72,12 @@ const MOBILE_SPECIES_OPTIONS: MobileSpeciesOption[] = [
   },
 ];
 
+const MOBILE_COMPUTER_SPECIES_OPTIONS: Array<{ species: ComputerBotSpeciesId; label: string }> = [
+  { species: 'human', label: 'HUMAN' },
+  { species: 'xenite', label: 'XENITE' },
+  { species: 'centaur', label: 'CENTAUR' },
+];
+
 export function MobileSpeciesSelectionView({
   hudVm,
   boardVm,
@@ -78,7 +86,15 @@ export function MobileSpeciesSelectionView({
 }: MobileSpeciesSelectionViewProps) {
   return (
     <div className="flex-1 min-h-0 flex flex-col w-full">
-      <MobileShareGameUrlRegion gameUrl={boardVm.gameUrl} onCopyGameUrl={actions.onCopyGameUrl} />
+      {boardVm.isComputerGame ? (
+        <MobileComputerSpeciesRegion
+          selectedSpecies={boardVm.selectedBotSpecies}
+          disabled={boardVm.isSpectator}
+          onSelectSpecies={actions.onSelectBotSpecies}
+        />
+      ) : (
+        <MobileShareGameUrlRegion gameUrl={boardVm.gameUrl} onCopyGameUrl={actions.onCopyGameUrl} />
+      )}
       <MobileSpeciesStatusRail hudVm={hudVm} boardVm={boardVm} leftRailVm={leftRailVm} />
       <MobileChooseSpeciesRegion boardVm={boardVm} onSelectSpecies={actions.onSelectSpecies} />
     </div>
@@ -203,6 +219,91 @@ function MobileShareGameUrlRegion({
         {showCopiedToast ? (
           <CopiedToast className="absolute top-full mt-[8px]" />
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function getMobileComputerSpeciesLabel(species: ComputerBotSpeciesId): string {
+  return MOBILE_COMPUTER_SPECIES_OPTIONS.find((option) => option.species === species)?.label ?? 'HUMAN';
+}
+
+function MobileComputerSpeciesRegion({
+  selectedSpecies,
+  disabled,
+  onSelectSpecies,
+}: {
+  selectedSpecies: ComputerBotSpeciesId;
+  disabled: boolean;
+  onSelectSpecies: (species: ComputerBotSpeciesId) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedLabel = getMobileComputerSpeciesLabel(selectedSpecies);
+
+  function handleSelect(species: ComputerBotSpeciesId) {
+    if (disabled) return;
+    onSelectSpecies(species);
+    setOpen(false);
+  }
+
+  return (
+    <div className="shrink-0 w-full overflow-visible flex items-center justify-center px-[14px] pb-[4px] pt-[8px]">
+      <div className="relative flex w-full max-w-[332px] flex-col items-center justify-center gap-[6px] py-[8px]">
+        <p
+          className="w-full text-center text-[18px] font-black leading-[18px] text-white"
+          style={{ fontVariationSettings: "'wdth' 100" }}
+        >
+          Choose Computer Species
+        </p>
+        <div className="relative w-full">
+          <button
+            type="button"
+            disabled={disabled}
+            aria-haspopup="listbox"
+            aria-expanded={open && !disabled}
+            onClick={() => {
+              if (!disabled) {
+                setOpen((value) => !value);
+              }
+            }}
+            className={`flex h-[52px] w-full items-center justify-between rounded-[10px] border-[2px] border-[var(--shapeships-grey-70)] bg-black px-[16px] text-white ${
+              disabled ? 'cursor-default' : 'cursor-pointer active:scale-[0.99] hover:bg-[var(--shapeships-grey-90)]'
+            }`}
+          >
+            <span
+              className="text-[22px] font-black leading-none"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              {selectedLabel}
+            </span>
+            <ChevronDown className={`h-[36px] w-[36px] transition-transform ${open && !disabled ? 'rotate-180' : ''}`} color="white" />
+          </button>
+
+          {open && !disabled ? (
+            <div
+              role="listbox"
+              className="absolute left-0 right-0 top-full z-30 mt-[6px] overflow-hidden rounded-[10px] border-[2px] border-[var(--shapeships-grey-70)] bg-black"
+            >
+              {MOBILE_COMPUTER_SPECIES_OPTIONS.map((option) => (
+                <button
+                  key={option.species}
+                  type="button"
+                  role="option"
+                  aria-selected={option.species === selectedSpecies}
+                  onClick={() => handleSelect(option.species)}
+                  className="flex h-[60px] w-full items-center px-[16px] text-left text-white hover:bg-[var(--shapeships-grey-90)]"
+                >
+                  <span
+                    className="text-[22px] font-black leading-none"
+                    style={{ fontVariationSettings: "'wdth' 100" }}
+                  >
+                    {option.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

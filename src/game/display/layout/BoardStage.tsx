@@ -283,6 +283,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
       <ChooseSpeciesStage
         vm={vm}
         onSelectSpecies={actions.onSelectSpecies}
+        onSelectBotSpecies={actions.onSelectBotSpecies}
         onConfirmSpecies={actions.onConfirmSpecies}
         onCopyGameUrl={actions.onCopyGameUrl}
       />

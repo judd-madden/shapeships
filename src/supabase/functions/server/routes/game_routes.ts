@@ -18,8 +18,6 @@ import { hasRevealed } from '../engine/intent/CommitStore.ts';
 import { resolveBuildSubmitAuthoritatively } from '../engine/intent/buildSubmitResolution.ts';
 import type { ShipInstance } from '../engine/state/GameStateTypes.ts';
 import { getShipActivationCueBatches } from '../engine/state/shipActivationCues.ts';
-import { chooseDeterministicHumanBotPlanId, chooseFreshHumanBotPlanId, getHumanBotPlanById } from '../engine/bot/humanPlans.ts';
-import { runBotsUntilSettled } from '../engine/bot/botRunner.ts';
 import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
 import { computeLineBonusesForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
 import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers.ts';
@@ -179,7 +177,6 @@ function createFreshComputerGameData(
   gameId: string,
   playerId: string,
   playerName: string,
-  chosenPlanId: string,
   timeControl?: TimeControlConfig | null,
 ){
   const nowIso = new Date().toISOString();
@@ -219,8 +216,8 @@ function createFreshComputerGameData(
       [playerId]: { kind: 'human' },
       [botPlayerId]: {
         kind: 'bot',
-        speciesId: 'HUM',
-        chosenPlanId,
+        speciesId: null,
+        chosenPlanId: null,
       },
     },
     gameData: {
@@ -1204,46 +1201,26 @@ export function registerGameRoutes(
         return c.json({ error: message }, 400);
       }
 
-      const requestedPlanId = requestBody?.planId;
       const gameId = generateGameId();
-
-      let chosenPlanId: string;
-      if (typeof requestedPlanId !== 'undefined') {
-        if (typeof requestedPlanId !== 'string' || !getHumanBotPlanById(requestedPlanId)) {
-          return c.json({ error: "Invalid planId" }, 400);
-        }
-
-        chosenPlanId = requestedPlanId;
-      } else {
-        chosenPlanId = chooseDeterministicHumanBotPlanId(gameId);
-      }
 
       const gameData = createFreshComputerGameData(
         gameId,
         playerId,
         playerName,
-        chosenPlanId,
         timeControl,
       );
-      const botRunResult = await runBotsUntilSettled({
-        state: gameData,
-        nowMs: Date.now(),
-      });
 
-      await kvSet(`game_${gameId}`, ensureStateRevision(botRunResult.state));
+      await kvSet(`game_${gameId}`, ensureStateRevision(gameData));
       await kvSet(
         getBattleLogHistoryKey(gameId),
         createEmptyBattleLogHistoryStore(gameId),
       );
 
-      debugLog("Computer game created:", gameId, {
-        chosenPlanId,
-        botStepsApplied: botRunResult.botStepsApplied,
-      });
+      debugLog("Computer game created:", gameId, { chosenBotPlanId: null });
       return c.json({
         gameId,
         message: "Computer game created successfully",
-        chosenBotPlanId: chosenPlanId,
+        chosenBotPlanId: null,
       });
     } catch (error) {
       console.error("Create computer game error:", error);
@@ -1294,20 +1271,14 @@ export function registerGameRoutes(
       const isBotRematch = opponentController?.kind === 'bot';
 
       if (isBotRematch) {
-        const chosenPlanId = chooseFreshHumanBotPlanId(opponentController?.chosenPlanId);
         const newGameData = createFreshComputerGameData(
           newGameId,
           playerId,
           playerName,
-          chosenPlanId,
           inheritedTimeControl,
         );
-        const botRunResult = await runBotsUntilSettled({
-          state: newGameData,
-          nowMs: Date.now(),
-        });
 
-        await kvSet(`game_${newGameId}`, ensureStateRevision(botRunResult.state));
+        await kvSet(`game_${newGameId}`, ensureStateRevision(newGameData));
         await kvSet(
           getBattleLogHistoryKey(newGameId),
           createEmptyBattleLogHistoryStore(newGameId),
@@ -1318,8 +1289,7 @@ export function registerGameRoutes(
           newGameId,
           playerId,
           opponentPlayerId: opponentPlayer?.id ?? null,
-          chosenPlanId,
-          botStepsApplied: botRunResult.botStepsApplied,
+          chosenBotPlanId: null,
         });
 
         return c.json({ gameId: newGameId });

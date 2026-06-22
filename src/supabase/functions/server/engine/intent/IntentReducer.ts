@@ -54,6 +54,7 @@ import { debugLog } from '../../utils/serverLogger.ts';
 
 import {
   type IntentType,
+  type ComputerBotSpeciesPayload,
   type SpeciesRevealPayload,
   type BuildRevealPayload,
   type BuildSubmitPayload,
@@ -81,6 +82,8 @@ import type {
   ShipActivationCueSource,
   ShipInstance,
 } from '../state/GameStateTypes.ts';
+import { chooseDeterministicHumanBotPlanId } from '../bot/humanPlans.ts';
+import type { BotSpeciesId } from '../bot/botTypes.ts';
 
 export interface IntentRequest {
   gameId: string;
@@ -971,6 +974,103 @@ async function handleSpeciesSelect(
 // SPECIES_SUBMIT
 // ============================================================================
 
+type PlayerSpeciesPayload = SpeciesRevealPayload['species'];
+
+function isPlayerSpeciesPayload(value: unknown): value is PlayerSpeciesPayload {
+  return value === 'human' ||
+    value === 'xenite' ||
+    value === 'centaur' ||
+    value === 'ancient';
+}
+
+function isComputerBotSpeciesPayload(value: unknown): value is ComputerBotSpeciesPayload {
+  return value === 'human' || value === 'xenite' || value === 'centaur';
+}
+
+function toBotSpeciesId(species: ComputerBotSpeciesPayload): BotSpeciesId {
+  switch (species) {
+    case 'human':
+      return 'HUM';
+    case 'xenite':
+      return 'XEN';
+    case 'centaur':
+      return 'CEN';
+  }
+}
+
+function fromBotSpeciesId(speciesId: unknown): ComputerBotSpeciesPayload | null {
+  switch (speciesId) {
+    case 'HUM':
+      return 'human';
+    case 'XEN':
+      return 'xenite';
+    case 'CEN':
+      return 'centaur';
+    default:
+      return null;
+  }
+}
+
+function getComputerBotSeat(state: any): { player: any; controller: any } | null {
+  const controllersByPlayerId = state?.controllersByPlayerId ?? {};
+  const activePlayers = (state?.players ?? []).filter((p: any) => p?.role === 'player');
+
+  for (const candidate of activePlayers) {
+    const controller = controllersByPlayerId?.[candidate?.id];
+    if (controller?.kind === 'bot') {
+      return { player: candidate, controller };
+    }
+  }
+
+  return null;
+}
+
+function upsertPhaseReadiness(state: any, playerId: string, phaseKey: string) {
+  if (!state.gameData) {
+    state.gameData = {};
+  }
+  if (!state.gameData.phaseReadiness) {
+    state.gameData.phaseReadiness = [];
+  }
+
+  const existingIndex = state.gameData.phaseReadiness.findIndex(
+    (r: any) => r.playerId === playerId
+  );
+
+  if (existingIndex >= 0) {
+    state.gameData.phaseReadiness[existingIndex].isReady = true;
+    state.gameData.phaseReadiness[existingIndex].currentStep = phaseKey;
+  } else {
+    state.gameData.phaseReadiness.push({
+      playerId,
+      isReady: true,
+      currentStep: phaseKey
+    });
+  }
+}
+
+function appendSpeciesSubmittedEvents(
+  events: any[],
+  playerId: string,
+  turnNumber: number,
+  phaseKey: string,
+  nowMs: number,
+) {
+  events.push({
+    type: 'SPECIES_SUBMITTED',
+    playerId,
+    turnNumber,
+    atMs: nowMs
+  });
+
+  events.push({
+    type: 'PLAYER_READY',
+    playerId,
+    step: phaseKey,
+    atMs: nowMs
+  });
+}
+
 async function handleSpeciesSubmit(
   state: any,
   playerId: string,
@@ -981,7 +1081,7 @@ async function handleSpeciesSubmit(
   const player = state.players.find((p: any) => p.id === playerId);
   
   // Only players can submit species
-  if (player.role !== 'player') {
+  if (!player || player.role !== 'player') {
     return {
       ok: false,
       state,
@@ -1018,12 +1118,11 @@ async function handleSpeciesSubmit(
       }
     };
   }
-  
+
   // Validate species payload
   const payload = intent.payload as SpeciesRevealPayload;
-  const validSpecies = ['human', 'xenite', 'centaur', 'ancient'];
-  
-  if (!payload.species || !validSpecies.includes(payload.species)) {
+
+  if (!isPlayerSpeciesPayload(payload.species)) {
     return {
       ok: false,
       state,
@@ -1034,12 +1133,151 @@ async function handleSpeciesSubmit(
       }
     };
   }
+
+  const botSpeciesProvided = Object.prototype.hasOwnProperty.call(payload, 'botSpecies');
+  if (botSpeciesProvided && !isComputerBotSpeciesPayload(payload.botSpecies)) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.INVALID_SPECIES,
+        message: `Invalid computer species: ${payload.botSpecies}`
+      }
+    };
+  }
+
+  const botSeat = getComputerBotSeat(state);
+  const isComputerGame = botSeat !== null;
+  const isSubmittingBot = botSeat?.player?.id === playerId;
+  const isHumanSubmittingComputerGame = isComputerGame && !isSubmittingBot;
+  const requestedBotSpecies = botSpeciesProvided
+    ? payload.botSpecies as ComputerBotSpeciesPayload
+    : null;
+
+  if (!isComputerGame && botSpeciesProvided) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'botSpecies is only valid for computer games'
+      }
+    };
+  }
+
+  if (isComputerGame && botSpeciesProvided && !isHumanSubmittingComputerGame) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'botSpecies is only valid for human player computer species selection'
+      }
+    };
+  }
+
+  if (isHumanSubmittingComputerGame && !requestedBotSpecies) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'Missing botSpecies for computer game species selection'
+      }
+    };
+  }
+
+  if (isSubmittingBot) {
+    const controllerSpecies = fromBotSpeciesId(botSeat?.controller?.speciesId);
+    if (!controllerSpecies) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Bot controller has no species selected'
+        }
+      };
+    }
+
+    if (controllerSpecies !== payload.species) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.INVALID_SPECIES,
+          message: 'Bot species submit does not match controller species'
+        }
+      };
+    }
+  }
+
+  if (isHumanSubmittingComputerGame && requestedBotSpecies && botSeat) {
+    const existingBotFaction = botSeat.player?.faction;
+    const existingControllerSpecies = fromBotSpeciesId(botSeat.controller?.speciesId);
+
+    if (existingBotFaction && existingBotFaction !== requestedBotSpecies) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.DUPLICATE_COMMIT,
+          message: 'Computer species already selected'
+        }
+      };
+    }
+
+    if (existingControllerSpecies && existingControllerSpecies !== requestedBotSpecies) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.DUPLICATE_COMMIT,
+          message: 'Computer species already selected'
+        }
+      };
+    }
+  }
   
   // Idempotent check: if player already has faction set
   if (player.faction) {
     if (player.faction === payload.species) {
-      // Same species - treat as no-op success
-      debugLog('[SPECIES_SUBMIT] applied', { playerId, species: payload.species, idempotent: true });
+      if (isHumanSubmittingComputerGame && requestedBotSpecies && botSeat) {
+        const nextBotSpeciesId = toBotSpeciesId(requestedBotSpecies);
+        const existingPlanId =
+          typeof botSeat.controller?.chosenPlanId === 'string' && botSeat.controller.chosenPlanId.length > 0
+            ? botSeat.controller.chosenPlanId
+            : null;
+        const nextPlanId =
+          requestedBotSpecies === 'human'
+            ? existingPlanId ?? chooseDeterministicHumanBotPlanId(state.gameId ?? intent.gameId)
+            : null;
+
+        botSeat.player.faction = requestedBotSpecies;
+        if (!state.controllersByPlayerId) {
+          state.controllersByPlayerId = {};
+        }
+        state.controllersByPlayerId[botSeat.player.id] = {
+          kind: 'bot',
+          speciesId: nextBotSpeciesId,
+          chosenPlanId: nextPlanId,
+        };
+      }
+
+      debugLog('[SPECIES_SUBMIT] applied', {
+        playerId,
+        species: payload.species,
+        botSpecies: requestedBotSpecies,
+        idempotent: true,
+      });
       
       state = syncPhaseFields(state);
       return {
@@ -1061,14 +1299,9 @@ async function handleSpeciesSubmit(
     }
   }
   
-  // Immediately set faction on submit (CANONICAL)
-  player.faction = payload.species;
-  
-  debugLog('[SPECIES_SUBMIT] applied', { playerId, species: payload.species });
-  
   const commitKey = getSpeciesCommitKey(intent.turnNumber);
   
-  // Check for duplicate commit
+  // Check for duplicate commit before mutating canonical state.
   if (hasCommitted(state, commitKey, playerId)) {
     return {
       ok: false,
@@ -1084,50 +1317,50 @@ async function handleSpeciesSubmit(
   // Compute commit hash
   const { makeCommitHash } = await import('./Hash.ts');
   const commitHash = await makeCommitHash(intent.payload, intent.nonce);
+
+  // Immediately set faction on submit (CANONICAL)
+  player.faction = payload.species;
+
+  if (isHumanSubmittingComputerGame && requestedBotSpecies && botSeat) {
+    const nextBotSpeciesId = toBotSpeciesId(requestedBotSpecies);
+    const existingPlanId =
+      typeof botSeat.controller?.chosenPlanId === 'string' && botSeat.controller.chosenPlanId.length > 0
+        ? botSeat.controller.chosenPlanId
+        : null;
+    const nextPlanId =
+      requestedBotSpecies === 'human'
+        ? existingPlanId ?? chooseDeterministicHumanBotPlanId(state.gameId ?? intent.gameId)
+        : null;
+
+    botSeat.player.faction = requestedBotSpecies;
+    if (!state.controllersByPlayerId) {
+      state.controllersByPlayerId = {};
+    }
+    state.controllersByPlayerId[botSeat.player.id] = {
+      kind: 'bot',
+      speciesId: nextBotSpeciesId,
+      chosenPlanId: nextPlanId,
+    };
+  }
   
+  debugLog('[SPECIES_SUBMIT] applied', {
+    playerId,
+    species: payload.species,
+    botSpecies: requestedBotSpecies,
+  });
+
   // Store commit and reveal together (atomic submission)
   storeCommit(state, commitKey, playerId, commitHash, nowMs);
   storeReveal(state, commitKey, playerId, intent.payload, intent.nonce, nowMs);
   
   // Mark player as ready for this phase (stops clock and updates status)
-  if (!state.gameData) {
-    state.gameData = {};
+  upsertPhaseReadiness(state, playerId, phaseKey);
+  appendSpeciesSubmittedEvents(events, playerId, intent.turnNumber, phaseKey, nowMs);
+
+  if (isHumanSubmittingComputerGame && botSeat) {
+    upsertPhaseReadiness(state, botSeat.player.id, phaseKey);
+    appendSpeciesSubmittedEvents(events, botSeat.player.id, intent.turnNumber, phaseKey, nowMs);
   }
-  if (!state.gameData.phaseReadiness) {
-    state.gameData.phaseReadiness = [];
-  }
-  
-  // Upsert readiness entry (one record per player)
-  const existingIndex = state.gameData.phaseReadiness.findIndex(
-    (r: any) => r.playerId === playerId
-  );
-  
-  if (existingIndex >= 0) {
-    // Update existing record: set ready for current phase
-    state.gameData.phaseReadiness[existingIndex].isReady = true;
-    state.gameData.phaseReadiness[existingIndex].currentStep = phaseKey;
-  } else {
-    // Create new record
-    state.gameData.phaseReadiness.push({
-      playerId,
-      isReady: true,
-      currentStep: phaseKey
-    });
-  }
-  
-  events.push({
-    type: 'SPECIES_SUBMITTED',
-    playerId,
-    turnNumber: intent.turnNumber,
-    atMs: nowMs
-  });
-  
-  events.push({
-    type: 'PLAYER_READY',
-    playerId,
-    step: phaseKey,
-    atMs: nowMs
-  });
   
   // Completion check: advance when both players have faction set (not based on commit store)
   const activePlayers = state.players.filter((p: any) => p.role === 'player');
