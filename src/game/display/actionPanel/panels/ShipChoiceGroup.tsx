@@ -94,6 +94,8 @@ export function ShipChoiceGroup({
   className,
 }: ShipChoiceGroupProps) {
   const isMobile = layout === 'mobile';
+  const isMobileGuardian = isMobile && shipDefId === 'GUA';
+  const mobileGraphicWidthClass = isMobileGuardian ? 'w-[122px]' : 'w-[72px]';
   const buttonDensity = isMobile ? 'mobile' : 'desktop';
 
   // ============================================================================
@@ -168,7 +170,7 @@ export function ShipChoiceGroup({
         <div
           className={
             isMobile
-              ? 'relative h-[78px] w-[72px] shrink-0 overflow-visible pt-[3px]'
+              ? `relative h-[78px] ${mobileGraphicWidthClass} shrink-0 overflow-visible pt-[3px]`
               : 'content-stretch flex items-center pt-[4px] relative shrink-0'
           }
         >
