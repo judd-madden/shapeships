@@ -176,6 +176,8 @@ const SHIP_ANIM: Partial<Record<ShipDefId, {
 
   // Xenite ships
   XEN: { entry: 'xenite', activation: 'xenite' },
+  OXI: { entry: 'xenite', activation: 'xenite' },
+  AST: { entry: 'xenite', activation: 'xenite' },
   ANT: { entry: 'default', activation: 'default' },
   MAN: { entry: 'xenite', activation: 'xenite' },
   EVO: { entry: 'defender', activation: 'default' },
