@@ -82,8 +82,18 @@ import type {
   ShipActivationCueSource,
   ShipInstance,
 } from '../state/GameStateTypes.ts';
-import { chooseDeterministicHumanBotPlanId } from '../bot/humanPlans.ts';
-import { chooseDeterministicXeniteBotPlanId } from '../bot/xenitePlans.ts';
+import {
+  chooseDeterministicCentaurBotPlanId,
+  getCentaurBotPlanById,
+} from '../bot/centaurPlans.ts';
+import {
+  chooseDeterministicHumanBotPlanId,
+  getHumanBotPlanById,
+} from '../bot/humanPlans.ts';
+import {
+  chooseDeterministicXeniteBotPlanId,
+  getXeniteBotPlanById,
+} from '../bot/xenitePlans.ts';
 import type { BotSpeciesId } from '../bot/botTypes.ts';
 
 export interface IntentRequest {
@@ -1019,11 +1029,17 @@ function chooseDeterministicBotPlanIdForSpecies(
 ): string | null {
   switch (species) {
     case 'human':
-      return existingPlanId ?? chooseDeterministicHumanBotPlanId(seed);
+      return existingPlanId && getHumanBotPlanById(existingPlanId)
+        ? existingPlanId
+        : chooseDeterministicHumanBotPlanId(seed);
     case 'xenite':
-      return existingPlanId ?? chooseDeterministicXeniteBotPlanId(seed);
+      return existingPlanId && getXeniteBotPlanById(existingPlanId)
+        ? existingPlanId
+        : chooseDeterministicXeniteBotPlanId(seed);
     case 'centaur':
-      return null;
+      return existingPlanId && getCentaurBotPlanById(existingPlanId)
+        ? existingPlanId
+        : chooseDeterministicCentaurBotPlanId(seed);
   }
 }
 

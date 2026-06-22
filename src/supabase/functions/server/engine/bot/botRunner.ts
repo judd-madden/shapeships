@@ -11,6 +11,7 @@ import {
   getValidDestroyTargets,
   getValidShipOfEqualityTargets,
 } from '../../engine_shared/resolve/destroyRules.ts';
+import { getCentaurBotPlanById } from './centaurPlans.ts';
 import { getHumanBotPlanById } from './humanPlans.ts';
 import { getXeniteBotPlanById } from './xenitePlans.ts';
 import { planBotBuildSubmit } from './buildPlanner.ts';
@@ -207,9 +208,18 @@ function resolveBotPlan(controller: any): AuthoredBotPlan | { debugReason: strin
 
       return plan;
     }
-    // Centaur bot plans are intentionally unsupported until the later 13D-C pass.
-    case 'CEN':
-      return { debugReason: 'unsupported_bot_species' };
+    case 'CEN': {
+      if (typeof controller?.chosenPlanId !== 'string' || controller.chosenPlanId.length === 0) {
+        return { debugReason: 'missing_chosen_plan_id' };
+      }
+
+      const plan = getCentaurBotPlanById(controller.chosenPlanId);
+      if (!plan) {
+        return { debugReason: 'missing_matching_plan' };
+      }
+
+      return plan;
+    }
     default:
       return { debugReason: 'invalid_bot_species_id' };
   }
