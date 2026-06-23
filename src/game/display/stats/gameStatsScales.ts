@@ -73,7 +73,7 @@ function getPressureVisualMax(value: number): number {
     return 10;
   }
 
-  const clamped = Math.min(value, 50);
+  const clamped = Math.min(value, 100);
   if (clamped <= 10) {
     return Math.max(2, Math.ceil(clamped / 2) * 2);
   }
