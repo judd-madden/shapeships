@@ -65,6 +65,8 @@ type EvolverTargetChoiceId = 'oxite' | 'asterite';
 
 const ZENITH_SHIP_DEF_ID = 'ZEN';
 const ZENITH_FREE_ANTLION_SHIP_DEF_ID = 'ANT';
+const MAX_ORDERED_END_LOOP_PASSES_PER_SUBMIT = 256;
+const MAX_ORDERED_FALLBACK_DRAFTS_PER_BLOCKED_STEP = 64;
 
 function isEvolvedXeniteShipDefId(shipDefId: string): boolean {
   return shipDefId === 'OXI' || shipDefId === 'AST';
@@ -204,6 +206,13 @@ function reserveUpgradeComponents(
     ok: true,
     reservedIndices: Array.from(reservedIndices).sort((a, b) => b - a),
   };
+}
+
+function canReserveUpgradeComponents(
+  workingFleet: WorkingShipEntry[],
+  shipDefId: string,
+): boolean {
+  return reserveUpgradeComponents(workingFleet, shipDefId).ok;
 }
 
 function ensureDraftOrder(order: string[], shipDefId: string) {
@@ -979,21 +988,14 @@ function tryDraftOrderedFallback(args: {
   });
 
   for (const fallbackShipDefId of fallbackShipDefIds) {
-    if (isUpgradedShipDefId(fallbackShipDefId)) {
-      emitTargetedOrderedEvolverChoices({
-        plan: args.plan,
-        targetShipDefId: fallbackShipDefId,
-        workingFleet: args.workingFleet,
-        evolverChoices: args.evolverChoices,
-      });
-    }
-
-    const attempt = tryDraftShip({
+    const attempt = tryDraftOrderedFallbackShipDefId({
+      plan: args.plan,
+      shipDefId: fallbackShipDefId,
       workingFleet: args.workingFleet,
       draftCounts: args.draftCounts,
       draftOrder: args.draftOrder,
+      evolverChoices: args.evolverChoices,
       nativeSpecies: args.nativeSpecies,
-      shipDefId: fallbackShipDefId,
       remainingOrdinaryLines: args.remainingOrdinaryLines,
       remainingJoiningLines: args.remainingJoiningLines,
     });
@@ -1004,6 +1006,249 @@ function tryDraftOrderedFallback(args: {
   }
 
   return null;
+}
+
+function tryDraftOrderedFallbackShipDefId(args: {
+  plan: AuthoredBotPlan;
+  shipDefId: string;
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  evolverChoices: EvolverBuildChoiceEntry[];
+  nativeSpecies: unknown;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): DraftAttemptResult {
+  if (isUpgradedShipDefId(args.shipDefId)) {
+    emitTargetedOrderedEvolverChoices({
+      plan: args.plan,
+      targetShipDefId: args.shipDefId,
+      workingFleet: args.workingFleet,
+      evolverChoices: args.evolverChoices,
+    });
+  }
+
+  return tryDraftShip({
+    workingFleet: args.workingFleet,
+    draftCounts: args.draftCounts,
+    draftOrder: args.draftOrder,
+    nativeSpecies: args.nativeSpecies,
+    shipDefId: args.shipDefId,
+    remainingOrdinaryLines: args.remainingOrdinaryLines,
+    remainingJoiningLines: args.remainingJoiningLines,
+  });
+}
+
+function canDraftOrderedFallbackShipDefId(args: {
+  plan: AuthoredBotPlan;
+  shipDefId: string;
+  workingFleet: WorkingShipEntry[];
+  evolverChoices: EvolverBuildChoiceEntry[];
+  nativeSpecies: unknown;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): boolean {
+  const scratchWorkingFleet = args.workingFleet.map((entry) => ({ ...entry }));
+  const scratchEvolverChoices = [...args.evolverChoices];
+
+  if (isUpgradedShipDefId(args.shipDefId)) {
+    emitTargetedOrderedEvolverChoices({
+      plan: args.plan,
+      targetShipDefId: args.shipDefId,
+      workingFleet: scratchWorkingFleet,
+      evolverChoices: scratchEvolverChoices,
+    });
+  }
+
+  return tryAddShipToDraft({
+    workingFleet: scratchWorkingFleet,
+    nativeSpecies: args.nativeSpecies,
+    shipDefId: args.shipDefId,
+    remainingOrdinaryLines: args.remainingOrdinaryLines,
+    remainingJoiningLines: args.remainingJoiningLines,
+  }).ok;
+}
+
+function tryDraftLargestAffordableOrderedFallback(args: {
+  plan: AuthoredBotPlan;
+  orderedPlan: OrderedBotBuildPlan;
+  step: NormalizedOrderedBuildStep;
+  player: any;
+  opponent: any;
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  evolverChoices: EvolverBuildChoiceEntry[];
+  nativeSpecies: unknown;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): DraftAttemptResult | null {
+  const fallbackShipDefIds = selectOrderedFallbackShipDefIds({
+    orderedPlan: args.orderedPlan,
+    step: args.step,
+    player: args.player,
+    opponent: args.opponent,
+  });
+  let selectedShipDefId: string | null = null;
+  let selectedLineCost = -1;
+
+  for (const fallbackShipDefId of fallbackShipDefIds) {
+    if (!canDraftOrderedFallbackShipDefId({
+      plan: args.plan,
+      shipDefId: fallbackShipDefId,
+      workingFleet: args.workingFleet,
+      evolverChoices: args.evolverChoices,
+      nativeSpecies: args.nativeSpecies,
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    })) {
+      continue;
+    }
+
+    const lineCost = normalizeResource(getShipById(fallbackShipDefId)?.totalLineCost);
+    if (lineCost > selectedLineCost) {
+      selectedShipDefId = fallbackShipDefId;
+      selectedLineCost = lineCost;
+    }
+  }
+
+  if (!selectedShipDefId) {
+    return null;
+  }
+
+  const attempt = tryDraftOrderedFallbackShipDefId({
+    plan: args.plan,
+    shipDefId: selectedShipDefId,
+    workingFleet: args.workingFleet,
+    draftCounts: args.draftCounts,
+    draftOrder: args.draftOrder,
+    evolverChoices: args.evolverChoices,
+    nativeSpecies: args.nativeSpecies,
+    remainingOrdinaryLines: args.remainingOrdinaryLines,
+    remainingJoiningLines: args.remainingJoiningLines,
+  });
+
+  return attempt.ok ? attempt : null;
+}
+
+function tryDraftOrderedFallbacksUntilBlocked(args: {
+  plan: AuthoredBotPlan;
+  orderedPlan: OrderedBotBuildPlan;
+  step: NormalizedOrderedBuildStep;
+  player: any;
+  opponent: any;
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  evolverChoices: EvolverBuildChoiceEntry[];
+  nativeSpecies: unknown;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): {
+  didDraftFallback: boolean;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+} {
+  let {
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  } = args;
+  let didDraftFallback = false;
+
+  for (
+    let draftIndex = 0;
+    draftIndex < MAX_ORDERED_FALLBACK_DRAFTS_PER_BLOCKED_STEP;
+    draftIndex += 1
+  ) {
+    if (canReserveUpgradeComponents(args.workingFleet, args.step.shipDefId)) {
+      break;
+    }
+
+    const fallbackAttempt = tryDraftLargestAffordableOrderedFallback({
+      plan: args.plan,
+      orderedPlan: args.orderedPlan,
+      step: args.step,
+      player: args.player,
+      opponent: args.opponent,
+      workingFleet: args.workingFleet,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+      evolverChoices: args.evolverChoices,
+      nativeSpecies: args.nativeSpecies,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
+
+    if (!fallbackAttempt?.ok) {
+      break;
+    }
+
+    didDraftFallback = true;
+    remainingOrdinaryLines = fallbackAttempt.remainingOrdinaryLines;
+    remainingJoiningLines = fallbackAttempt.remainingJoiningLines;
+  }
+
+  return {
+    didDraftFallback,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  };
+}
+
+function tryDraftComponentReadyOrderedPrimary(args: {
+  step: NormalizedOrderedBuildStep;
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  nativeSpecies: unknown;
+  didDraftFallbackOrBridge: boolean;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): OrderedBuildStepResult | null {
+  if (!canReserveUpgradeComponents(args.workingFleet, args.step.shipDefId)) {
+    return null;
+  }
+
+  const attempt = tryDraftShip({
+    workingFleet: args.workingFleet,
+    draftCounts: args.draftCounts,
+    draftOrder: args.draftOrder,
+    nativeSpecies: args.nativeSpecies,
+    shipDefId: args.step.shipDefId,
+    remainingOrdinaryLines: args.remainingOrdinaryLines,
+    remainingJoiningLines: args.remainingJoiningLines,
+  });
+
+  if (attempt.ok) {
+    return {
+      blockedBySaveUntilAffordable: false,
+      shouldStopOrderedSequence: false,
+      didDraftPrimaryStep: true,
+      didDraftFallbackOrBridge: args.didDraftFallbackOrBridge,
+      remainingOrdinaryLines: attempt.remainingOrdinaryLines,
+      remainingJoiningLines: attempt.remainingJoiningLines,
+    };
+  }
+
+  if (isResourceFailureReason(attempt.failureReason)) {
+    return {
+      blockedBySaveUntilAffordable: true,
+      shouldStopOrderedSequence: true,
+      didDraftPrimaryStep: false,
+      didDraftFallbackOrBridge: args.didDraftFallbackOrBridge,
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    };
+  }
+
+  return {
+    blockedBySaveUntilAffordable: false,
+    shouldStopOrderedSequence: true,
+    didDraftPrimaryStep: false,
+    didDraftFallbackOrBridge: args.didDraftFallbackOrBridge,
+    remainingOrdinaryLines: args.remainingOrdinaryLines,
+    remainingJoiningLines: args.remainingJoiningLines,
+  };
 }
 
 function processOrderedBuildStep(args: {
@@ -1082,13 +1327,45 @@ function processOrderedBuildStep(args: {
     });
 
     if (bridgeAttempt.ok) {
+      remainingOrdinaryLines = bridgeAttempt.remainingOrdinaryLines;
+      remainingJoiningLines = bridgeAttempt.remainingJoiningLines;
+
+      const primaryRetry = tryDraftComponentReadyOrderedPrimary({
+        step: args.step,
+        workingFleet: args.workingFleet,
+        draftCounts: args.draftCounts,
+        draftOrder: args.draftOrder,
+        nativeSpecies: args.nativeSpecies,
+        didDraftFallbackOrBridge: true,
+        remainingOrdinaryLines,
+        remainingJoiningLines,
+      });
+      if (primaryRetry) {
+        return primaryRetry;
+      }
+
+      const fallbackDraft = tryDraftOrderedFallbacksUntilBlocked({
+        plan: args.plan,
+        orderedPlan: args.orderedPlan,
+        step: args.step,
+        player: args.player,
+        opponent: args.opponent,
+        workingFleet: args.workingFleet,
+        draftCounts: args.draftCounts,
+        draftOrder: args.draftOrder,
+        evolverChoices: args.evolverChoices,
+        nativeSpecies: args.nativeSpecies,
+        remainingOrdinaryLines,
+        remainingJoiningLines,
+      });
+
       return {
         blockedBySaveUntilAffordable: false,
         shouldStopOrderedSequence: true,
         didDraftPrimaryStep: false,
         didDraftFallbackOrBridge: true,
-        remainingOrdinaryLines: bridgeAttempt.remainingOrdinaryLines,
-        remainingJoiningLines: bridgeAttempt.remainingJoiningLines,
+        remainingOrdinaryLines: fallbackDraft.remainingOrdinaryLines,
+        remainingJoiningLines: fallbackDraft.remainingJoiningLines,
       };
     }
 
@@ -1103,7 +1380,7 @@ function processOrderedBuildStep(args: {
       };
     }
 
-    const fallbackAttempt = tryDraftOrderedFallback({
+    const fallbackDraft = tryDraftOrderedFallbacksUntilBlocked({
       plan: args.plan,
       orderedPlan: args.orderedPlan,
       step: args.step,
@@ -1118,23 +1395,18 @@ function processOrderedBuildStep(args: {
       remainingJoiningLines,
     });
 
-    if (fallbackAttempt?.ok) {
-      remainingOrdinaryLines = fallbackAttempt.remainingOrdinaryLines;
-      remainingJoiningLines = fallbackAttempt.remainingJoiningLines;
-    }
-
     return {
       blockedBySaveUntilAffordable: false,
       shouldStopOrderedSequence: true,
       didDraftPrimaryStep: false,
-      didDraftFallbackOrBridge: fallbackAttempt?.ok === true,
-      remainingOrdinaryLines,
-      remainingJoiningLines,
+      didDraftFallbackOrBridge: fallbackDraft.didDraftFallback,
+      remainingOrdinaryLines: fallbackDraft.remainingOrdinaryLines,
+      remainingJoiningLines: fallbackDraft.remainingJoiningLines,
     };
   }
 
   if (isUpgradedStep && attempt.failureReason === 'chargedDepletedComponents') {
-    const fallbackAttempt = tryDraftOrderedFallback({
+    const fallbackDraft = tryDraftOrderedFallbacksUntilBlocked({
       plan: args.plan,
       orderedPlan: args.orderedPlan,
       step: args.step,
@@ -1149,18 +1421,13 @@ function processOrderedBuildStep(args: {
       remainingJoiningLines,
     });
 
-    if (fallbackAttempt?.ok) {
-      remainingOrdinaryLines = fallbackAttempt.remainingOrdinaryLines;
-      remainingJoiningLines = fallbackAttempt.remainingJoiningLines;
-    }
-
     return {
       blockedBySaveUntilAffordable: false,
       shouldStopOrderedSequence: true,
       didDraftPrimaryStep: false,
-      didDraftFallbackOrBridge: fallbackAttempt?.ok === true,
-      remainingOrdinaryLines,
-      remainingJoiningLines,
+      didDraftFallbackOrBridge: fallbackDraft.didDraftFallback,
+      remainingOrdinaryLines: fallbackDraft.remainingOrdinaryLines,
+      remainingJoiningLines: fallbackDraft.remainingJoiningLines,
     };
   }
 
@@ -1204,7 +1471,6 @@ function planOrderedBuildSubmit(args: {
     buildOrderSteps,
     args.authoritativeFleet,
   );
-  const activeSteps = shouldUseEndLoop ? endLoopSteps : buildOrderSteps;
   const openingRequiredCounts = new Map<string, number>();
   const evolverChoices: EvolverBuildChoiceEntry[] = [];
   const manualBridgeDraftCounts = new Map<string, number>();
@@ -1213,37 +1479,79 @@ function planOrderedBuildSubmit(args: {
     remainingJoiningLines,
   } = args;
 
-  for (const step of activeSteps) {
-    if (!shouldUseEndLoop) {
+  if (!shouldUseEndLoop) {
+    for (const step of buildOrderSteps) {
       const requiredCount = (openingRequiredCounts.get(step.shipDefId) ?? 0) + 1;
       openingRequiredCounts.set(step.shipDefId, requiredCount);
 
       if (countOrderedProgressShips(args.workingFleet, step.shipDefId) >= requiredCount) {
         continue;
       }
+
+      const result = processOrderedBuildStep({
+        plan: args.plan,
+        orderedPlan: args.orderedPlan,
+        step,
+        player: args.player,
+        opponent: args.opponent,
+        workingFleet: args.workingFleet,
+        draftCounts: args.draftCounts,
+        draftOrder: args.draftOrder,
+        evolverChoices,
+        manualBridgeDraftCounts,
+        nativeSpecies: args.nativeSpecies,
+        remainingOrdinaryLines,
+        remainingJoiningLines,
+      });
+
+      remainingOrdinaryLines = result.remainingOrdinaryLines;
+      remainingJoiningLines = result.remainingJoiningLines;
+
+      if (result.blockedBySaveUntilAffordable || result.shouldStopOrderedSequence) {
+        break;
+      }
     }
+  } else {
+    for (
+      let passIndex = 0;
+      passIndex < MAX_ORDERED_END_LOOP_PASSES_PER_SUBMIT;
+      passIndex += 1
+    ) {
+      let draftedInPass = false;
+      let stoppedByBlock = false;
 
-    const result = processOrderedBuildStep({
-      plan: args.plan,
-      orderedPlan: args.orderedPlan,
-      step,
-      player: args.player,
-      opponent: args.opponent,
-      workingFleet: args.workingFleet,
-      draftCounts: args.draftCounts,
-      draftOrder: args.draftOrder,
-      evolverChoices,
-      manualBridgeDraftCounts,
-      nativeSpecies: args.nativeSpecies,
-      remainingOrdinaryLines,
-      remainingJoiningLines,
-    });
+      for (const step of endLoopSteps) {
+        const result = processOrderedBuildStep({
+          plan: args.plan,
+          orderedPlan: args.orderedPlan,
+          step,
+          player: args.player,
+          opponent: args.opponent,
+          workingFleet: args.workingFleet,
+          draftCounts: args.draftCounts,
+          draftOrder: args.draftOrder,
+          evolverChoices,
+          manualBridgeDraftCounts,
+          nativeSpecies: args.nativeSpecies,
+          remainingOrdinaryLines,
+          remainingJoiningLines,
+        });
 
-    remainingOrdinaryLines = result.remainingOrdinaryLines;
-    remainingJoiningLines = result.remainingJoiningLines;
+        remainingOrdinaryLines = result.remainingOrdinaryLines;
+        remainingJoiningLines = result.remainingJoiningLines;
+        draftedInPass = draftedInPass ||
+          result.didDraftPrimaryStep ||
+          result.didDraftFallbackOrBridge;
 
-    if (result.blockedBySaveUntilAffordable || result.shouldStopOrderedSequence) {
-      break;
+        if (result.blockedBySaveUntilAffordable || result.shouldStopOrderedSequence) {
+          stoppedByBlock = true;
+          break;
+        }
+      }
+
+      if (!draftedInPass || stoppedByBlock) {
+        break;
+      }
     }
   }
 
