@@ -1,7 +1,12 @@
 import type { BuildSubmitPayload } from '../intent/IntentTypes.ts';
 import type { ShipInstance } from '../state/GameStateTypes.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
-import type { AuthoredBotPlan, BotBuildGoal } from './botTypes.ts';
+import type {
+  AuthoredBotPlan,
+  BotBuildGoal,
+  OrderedBotBuildPlan,
+  OrderedBotBuildStep,
+} from './botTypes.ts';
 import {
   evaluateForeignBuildLegality,
   getPlayerNativeSpeciesId,
@@ -20,7 +25,34 @@ type ComponentRequirement = {
 };
 
 type GoalMode = 'opening' | 'loop';
-type DraftFailureReason = 'maxQuantity';
+type DraftFailureReason =
+  | 'missingDefinition'
+  | 'disallowedForeignBuild'
+  | 'maxQuantity'
+  | 'insufficientOrdinaryLines'
+  | 'insufficientJoiningLines'
+  | 'missingComponents'
+  | 'chargedDepletedComponents'
+  | 'manualBridgeLimit';
+
+type DraftAttemptResult = {
+  ok: boolean;
+  failureReason?: DraftFailureReason;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+};
+
+type UpgradeComponentReservation =
+  | { ok: true; reservedIndices: number[] }
+  | { ok: false; failureReason: 'missingComponents' | 'chargedDepletedComponents' };
+
+type NormalizedOrderedBuildStep = {
+  shipDefId: string;
+  saveUntilAffordable?: boolean;
+  fallbackShipDefIds?: string[];
+};
+
+type EvolverTargetChoiceId = 'oxite' | 'asterite';
 
 const ZENITH_SHIP_DEF_ID = 'ZEN';
 const ZENITH_FREE_ANTLION_SHIP_DEF_ID = 'ANT';
@@ -98,7 +130,7 @@ function parseComponentRequirement(componentToken: string): ComponentRequirement
 function reserveUpgradeComponents(
   workingFleet: WorkingShipEntry[],
   shipDefId: string,
-): number[] | null {
+): UpgradeComponentReservation {
   const shipDef = getShipById(shipDefId);
   const componentTokens = Array.isArray(shipDef?.componentShips)
     ? shipDef.componentShips
@@ -115,13 +147,27 @@ function reserveUpgradeComponents(
     });
 
     if (reservedIndex < 0) {
-      return null;
+      if (requirement.mustBeDepleted) {
+        const hasMatchingChargedComponent = workingFleet.some((entry, index) => {
+          if (reservedIndices.has(index)) return false;
+          return entry.shipDefId === requirement.shipDefId && entry.chargesCurrent > 0;
+        });
+
+        if (hasMatchingChargedComponent) {
+          return { ok: false, failureReason: 'chargedDepletedComponents' };
+        }
+      }
+
+      return { ok: false, failureReason: 'missingComponents' };
     }
 
     reservedIndices.add(reservedIndex);
   }
 
-  return Array.from(reservedIndices).sort((a, b) => b - a);
+  return {
+    ok: true,
+    reservedIndices: Array.from(reservedIndices).sort((a, b) => b - a),
+  };
 }
 
 function ensureDraftOrder(order: string[], shipDefId: string) {
@@ -175,8 +221,10 @@ function buildSubmitFromDraft(
 function deriveEvolverChoices(args: {
   plan: AuthoredBotPlan;
   workingFleet: WorkingShipEntry[];
+  existingChoiceCount?: number;
 }): EvolverBuildChoiceEntry[] {
   const { plan, workingFleet } = args;
+  const existingChoiceCount = Math.max(0, Math.floor(args.existingChoiceCount ?? 0));
   const evolverPolicy = plan?.evolverPolicy?.EVO;
   if (!evolverPolicy) {
     return [];
@@ -198,20 +246,24 @@ function deriveEvolverChoices(args: {
     Number(evolverPolicy.maxConversionsPerTurn) >= 0
       ? Number(evolverPolicy.maxConversionsPerTurn)
       : Number.POSITIVE_INFINITY;
+  const conversionCapacity = Math.min(availableEvolverCount, maxConversions);
   const conversionCount = Math.min(
-    availableEvolverCount,
     availableXenCount,
-    maxConversions,
+    Math.max(0, conversionCapacity - existingChoiceCount),
   );
 
   if (!Number.isFinite(conversionCount) || conversionCount <= 0) {
     return [];
   }
 
-  return Array.from({ length: conversionCount }, (_entry, index) => ({
-    sourceKey: `bot:evo:${index}`,
-    choiceId: choiceOrder[index % choiceOrder.length] ?? 'oxite',
-  }));
+  return Array.from({ length: conversionCount }, (_entry, index) => {
+    const sourceIndex = existingChoiceCount + index;
+
+    return {
+      sourceKey: `bot:evo:${sourceIndex}`,
+      choiceId: choiceOrder[sourceIndex % choiceOrder.length] ?? 'oxite',
+    };
+  });
 }
 
 function applyEvolverConversionsToWorkingFleet(
@@ -238,7 +290,11 @@ function applyEvolverConversionsToWorkingFleet(
 }
 
 function isUpgradedGoal(goal: BotBuildGoal): boolean {
-  const shipDef = getShipById(goal.shipDefId);
+  return isUpgradedShipDefId(goal.shipDefId);
+}
+
+function isUpgradedShipDefId(shipDefId: string): boolean {
+  const shipDef = getShipById(shipDefId);
   return Array.isArray(shipDef?.componentShips) && shipDef.componentShips.length > 0;
 }
 
@@ -246,6 +302,15 @@ function hasUsableEvolverPolicy(plan: AuthoredBotPlan): boolean {
   const choiceOrder = plan?.evolverPolicy?.EVO?.choiceOrder;
   return Array.isArray(choiceOrder) &&
     choiceOrder.some((choiceId) => choiceId === 'oxite' || choiceId === 'asterite');
+}
+
+function getUsableEvolverChoiceOrder(plan: AuthoredBotPlan): EvolverTargetChoiceId[] {
+  const choiceOrder = plan?.evolverPolicy?.EVO?.choiceOrder;
+  return Array.isArray(choiceOrder)
+    ? choiceOrder.filter((choiceId): choiceId is EvolverTargetChoiceId =>
+      choiceId === 'oxite' || choiceId === 'asterite'
+    )
+    : [];
 }
 
 function isOpeningSatisfied(
@@ -285,12 +350,7 @@ function tryAddShipToDraft(args: {
   shipDefId: string;
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
-}): {
-  ok: boolean;
-  failureReason?: DraftFailureReason;
-  remainingOrdinaryLines: number;
-  remainingJoiningLines: number;
-} {
+}): DraftAttemptResult {
   const {
     workingFleet,
     shipDefId,
@@ -304,6 +364,7 @@ function tryAddShipToDraft(args: {
   if (!shipDef) {
     return {
       ok: false,
+      failureReason: 'missingDefinition',
       remainingOrdinaryLines,
       remainingJoiningLines,
     };
@@ -318,6 +379,7 @@ function tryAddShipToDraft(args: {
   if (!legality.allowed) {
     return {
       ok: false,
+      failureReason: 'disallowedForeignBuild',
       remainingOrdinaryLines,
       remainingJoiningLines,
     };
@@ -346,6 +408,7 @@ function tryAddShipToDraft(args: {
     if (remainingOrdinaryLines < ordinaryCost) {
       return {
         ok: false,
+        failureReason: 'insufficientOrdinaryLines',
         remainingOrdinaryLines,
         remainingJoiningLines,
       };
@@ -374,9 +437,10 @@ function tryAddShipToDraft(args: {
   }
 
   const reservedIndices = reserveUpgradeComponents(workingFleet, shipDefId);
-  if (!reservedIndices) {
+  if (!reservedIndices.ok) {
     return {
       ok: false,
+      failureReason: reservedIndices.failureReason,
       remainingOrdinaryLines,
       remainingJoiningLines,
     };
@@ -389,6 +453,10 @@ function tryAddShipToDraft(args: {
   if (remainingOrdinaryLines < ordinaryShortfall) {
     return {
       ok: false,
+      failureReason:
+        remainingJoiningLines < joiningCost && remainingOrdinaryLines <= 0
+          ? 'insufficientJoiningLines'
+          : 'insufficientOrdinaryLines',
       remainingOrdinaryLines,
       remainingJoiningLines,
     };
@@ -397,7 +465,7 @@ function tryAddShipToDraft(args: {
   remainingJoiningLines -= joiningSpend;
   remainingOrdinaryLines -= ordinaryShortfall;
 
-  for (const reservedIndex of reservedIndices) {
+  for (const reservedIndex of reservedIndices.reservedIndices) {
     workingFleet.splice(reservedIndex, 1);
   }
 
@@ -414,6 +482,598 @@ function tryAddShipToDraft(args: {
     remainingOrdinaryLines,
     remainingJoiningLines,
   };
+}
+
+function isResourceFailureReason(failureReason: DraftFailureReason | undefined): boolean {
+  return failureReason === 'insufficientOrdinaryLines' ||
+    failureReason === 'insufficientJoiningLines';
+}
+
+function normalizeOrderedBuildStep(
+  step: OrderedBotBuildStep,
+): NormalizedOrderedBuildStep | null {
+  if (typeof step === 'string') {
+    return step.trim().length > 0 ? { shipDefId: step.trim() } : null;
+  }
+
+  if (!step || typeof step.shipDefId !== 'string' || step.shipDefId.trim().length === 0) {
+    return null;
+  }
+
+  return {
+    shipDefId: step.shipDefId.trim(),
+    saveUntilAffordable: step.saveUntilAffordable,
+    fallbackShipDefIds: Array.isArray(step.fallbackShipDefIds)
+      ? step.fallbackShipDefIds.filter((shipDefId) =>
+        typeof shipDefId === 'string' && shipDefId.trim().length > 0
+      )
+      : undefined,
+  };
+}
+
+function normalizeOrderedBuildSteps(
+  steps: OrderedBotBuildStep[] | undefined,
+): NormalizedOrderedBuildStep[] {
+  if (!Array.isArray(steps)) {
+    return [];
+  }
+
+  return steps
+    .map(normalizeOrderedBuildStep)
+    .filter((step): step is NormalizedOrderedBuildStep => step !== null);
+}
+
+function isOrderedBuildOrderSatisfied(
+  steps: NormalizedOrderedBuildStep[],
+  workingFleet: WorkingShipEntry[],
+): boolean {
+  const requiredCounts = new Map<string, number>();
+
+  for (const step of steps) {
+    const requiredCount = (requiredCounts.get(step.shipDefId) ?? 0) + 1;
+    requiredCounts.set(step.shipDefId, requiredCount);
+
+    if (countWorkingFleetShips(workingFleet, step.shipDefId) < requiredCount) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function recordDraftedShip(args: {
+  shipDefId: string;
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+}) {
+  args.draftCounts.set(args.shipDefId, (args.draftCounts.get(args.shipDefId) ?? 0) + 1);
+  ensureDraftOrder(args.draftOrder, args.shipDefId);
+}
+
+function tryDraftShip(args: {
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  nativeSpecies: unknown;
+  shipDefId: string;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): DraftAttemptResult {
+  const attempt = tryAddShipToDraft({
+    workingFleet: args.workingFleet,
+    nativeSpecies: args.nativeSpecies,
+    shipDefId: args.shipDefId,
+    remainingOrdinaryLines: args.remainingOrdinaryLines,
+    remainingJoiningLines: args.remainingJoiningLines,
+  });
+
+  if (attempt.ok) {
+    recordDraftedShip({
+      shipDefId: args.shipDefId,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+    });
+  }
+
+  return attempt;
+}
+
+function findFirstMissingComponentRequirement(args: {
+  workingFleet: WorkingShipEntry[];
+  shipDefId: string;
+}): ComponentRequirement | null {
+  const shipDef = getShipById(args.shipDefId);
+  const componentTokens = Array.isArray(shipDef?.componentShips)
+    ? shipDef.componentShips
+    : [];
+  const reservedIndices = new Set<number>();
+
+  for (const componentToken of componentTokens) {
+    const requirement = parseComponentRequirement(componentToken);
+    const reservedIndex = args.workingFleet.findIndex((entry, index) => {
+      if (reservedIndices.has(index)) return false;
+      if (entry.shipDefId !== requirement.shipDefId) return false;
+      if (requirement.mustBeDepleted && entry.chargesCurrent > 0) return false;
+      return true;
+    });
+
+    if (reservedIndex < 0) {
+      return requirement;
+    }
+
+    reservedIndices.add(reservedIndex);
+  }
+
+  return null;
+}
+
+function getManualBridgeLimit(args: {
+  orderedPlan: OrderedBotBuildPlan;
+  shipDefId: string;
+}): number | null {
+  const rawLimit = args.orderedPlan.manualBridgeLimits?.[args.shipDefId];
+  if (!Number.isInteger(rawLimit) || Number(rawLimit) < 0) {
+    return null;
+  }
+
+  return Number(rawLimit);
+}
+
+function tryDraftSingleBridgeComponent(args: {
+  orderedPlan: OrderedBotBuildPlan;
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  manualBridgeDraftCounts: Map<string, number>;
+  nativeSpecies: unknown;
+  shipDefId: string;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): DraftAttemptResult {
+  const missingRequirement = findFirstMissingComponentRequirement({
+    workingFleet: args.workingFleet,
+    shipDefId: args.shipDefId,
+  });
+  if (!missingRequirement) {
+    return {
+      ok: false,
+      failureReason: 'missingComponents',
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    };
+  }
+
+  const componentDef = getShipById(missingRequirement.shipDefId);
+  if (!componentDef) {
+    return {
+      ok: false,
+      failureReason: 'missingDefinition',
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    };
+  }
+
+  if (isUpgradedShipDefId(missingRequirement.shipDefId)) {
+    return {
+      ok: false,
+      failureReason: 'missingComponents',
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    };
+  }
+
+  const manualBridgeLimit = getManualBridgeLimit({
+    orderedPlan: args.orderedPlan,
+    shipDefId: missingRequirement.shipDefId,
+  });
+  if (
+    manualBridgeLimit !== null &&
+    (args.manualBridgeDraftCounts.get(missingRequirement.shipDefId) ?? 0) >= manualBridgeLimit
+  ) {
+    return {
+      ok: false,
+      failureReason: 'manualBridgeLimit',
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    };
+  }
+
+  const attempt = tryDraftShip({
+    workingFleet: args.workingFleet,
+    draftCounts: args.draftCounts,
+    draftOrder: args.draftOrder,
+    nativeSpecies: args.nativeSpecies,
+    shipDefId: missingRequirement.shipDefId,
+    remainingOrdinaryLines: args.remainingOrdinaryLines,
+    remainingJoiningLines: args.remainingJoiningLines,
+  });
+
+  if (attempt.ok) {
+    args.manualBridgeDraftCounts.set(
+      missingRequirement.shipDefId,
+      (args.manualBridgeDraftCounts.get(missingRequirement.shipDefId) ?? 0) + 1,
+    );
+  }
+
+  return attempt;
+}
+
+function selectOrderedFallbackShipDefIds(args: {
+  orderedPlan: OrderedBotBuildPlan;
+  step: NormalizedOrderedBuildStep;
+  player: any;
+  opponent: any;
+}): string[] {
+  if (Array.isArray(args.step.fallbackShipDefIds) && args.step.fallbackShipDefIds.length > 0) {
+    return args.step.fallbackShipDefIds;
+  }
+
+  const fallbacks = args.orderedPlan.fallbacks;
+  if (!fallbacks) {
+    return [];
+  }
+
+  const botHealth = Number(args.player?.health);
+  const opponentHealth = Number(args.opponent?.health);
+  if (Number.isFinite(botHealth) && Number.isFinite(opponentHealth)) {
+    if (opponentHealth <= 10 && Array.isArray(fallbacks.aggressive)) {
+      return fallbacks.aggressive;
+    }
+
+    if (
+      (botHealth <= 12 || botHealth <= opponentHealth - 6) &&
+      Array.isArray(fallbacks.defensive)
+    ) {
+      return fallbacks.defensive;
+    }
+  }
+
+  // Some server fixtures omit player health; default fallback keeps ordered mode deterministic.
+  return Array.isArray(fallbacks.default) ? fallbacks.default : [];
+}
+
+function getMissingEvolvedComponentCounts(args: {
+  targetShipDefId: string;
+  workingFleet: WorkingShipEntry[];
+}): Map<EvolverTargetChoiceId, number> {
+  const missingCounts = new Map<EvolverTargetChoiceId, number>();
+  const shipDef = getShipById(args.targetShipDefId);
+  const componentTokens = Array.isArray(shipDef?.componentShips)
+    ? shipDef.componentShips
+    : [];
+  const reservedIndices = new Set<number>();
+
+  for (const componentToken of componentTokens) {
+    const requirement = parseComponentRequirement(componentToken);
+    const reservedIndex = args.workingFleet.findIndex((entry, index) => {
+      if (reservedIndices.has(index)) return false;
+      if (entry.shipDefId !== requirement.shipDefId) return false;
+      if (requirement.mustBeDepleted && entry.chargesCurrent > 0) return false;
+      return true;
+    });
+
+    if (reservedIndex >= 0) {
+      reservedIndices.add(reservedIndex);
+      continue;
+    }
+
+    if (requirement.shipDefId === 'AST') {
+      missingCounts.set('asterite', (missingCounts.get('asterite') ?? 0) + 1);
+    } else if (requirement.shipDefId === 'OXI') {
+      missingCounts.set('oxite', (missingCounts.get('oxite') ?? 0) + 1);
+    }
+  }
+
+  return missingCounts;
+}
+
+function emitTargetedOrderedEvolverChoices(args: {
+  plan: AuthoredBotPlan;
+  targetShipDefId: string;
+  workingFleet: WorkingShipEntry[];
+  evolverChoices: EvolverBuildChoiceEntry[];
+}) {
+  const choiceOrder = getUsableEvolverChoiceOrder(args.plan);
+  if (choiceOrder.length === 0) {
+    return;
+  }
+
+  const missingCounts = getMissingEvolvedComponentCounts({
+    targetShipDefId: args.targetShipDefId,
+    workingFleet: args.workingFleet,
+  });
+  const totalMissingEvolvedComponents =
+    (missingCounts.get('asterite') ?? 0) + (missingCounts.get('oxite') ?? 0);
+  if (totalMissingEvolvedComponents <= 0) {
+    return;
+  }
+
+  const evolverPolicy = args.plan.evolverPolicy?.EVO;
+  const maxConversions =
+    Number.isInteger(evolverPolicy?.maxConversionsPerTurn) &&
+    Number(evolverPolicy?.maxConversionsPerTurn) >= 0
+      ? Number(evolverPolicy?.maxConversionsPerTurn)
+      : Number.POSITIVE_INFINITY;
+  const existingChoiceCount = args.evolverChoices.length;
+  const conversionCapacity = Math.min(
+    countWorkingFleetShips(args.workingFleet, 'EVO'),
+    maxConversions,
+  );
+  const conversionCount = Math.min(
+    countWorkingFleetShips(args.workingFleet, 'XEN'),
+    Math.max(0, conversionCapacity - existingChoiceCount),
+    totalMissingEvolvedComponents,
+  );
+  if (!Number.isFinite(conversionCount) || conversionCount <= 0) {
+    return;
+  }
+
+  const pendingChoices: EvolverBuildChoiceEntry[] = [];
+  while (pendingChoices.length < conversionCount) {
+    let emittedInPass = false;
+
+    for (const choiceId of choiceOrder) {
+      if (pendingChoices.length >= conversionCount) break;
+      const remainingNeeded = missingCounts.get(choiceId) ?? 0;
+      if (remainingNeeded <= 0) continue;
+
+      const sourceIndex = existingChoiceCount + pendingChoices.length;
+      pendingChoices.push({
+        sourceKey: `bot:evo:${sourceIndex}`,
+        choiceId,
+      });
+      missingCounts.set(choiceId, remainingNeeded - 1);
+      emittedInPass = true;
+    }
+
+    if (!emittedInPass) {
+      break;
+    }
+  }
+
+  if (pendingChoices.length === 0) {
+    return;
+  }
+
+  args.evolverChoices.push(...pendingChoices);
+  applyEvolverConversionsToWorkingFleet(args.workingFleet, pendingChoices);
+}
+
+function tryDraftOrderedFallback(args: {
+  plan: AuthoredBotPlan;
+  orderedPlan: OrderedBotBuildPlan;
+  step: NormalizedOrderedBuildStep;
+  player: any;
+  opponent: any;
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  evolverChoices: EvolverBuildChoiceEntry[];
+  nativeSpecies: unknown;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): DraftAttemptResult | null {
+  const fallbackShipDefIds = selectOrderedFallbackShipDefIds({
+    orderedPlan: args.orderedPlan,
+    step: args.step,
+    player: args.player,
+    opponent: args.opponent,
+  });
+
+  for (const fallbackShipDefId of fallbackShipDefIds) {
+    if (isUpgradedShipDefId(fallbackShipDefId)) {
+      emitTargetedOrderedEvolverChoices({
+        plan: args.plan,
+        targetShipDefId: fallbackShipDefId,
+        workingFleet: args.workingFleet,
+        evolverChoices: args.evolverChoices,
+      });
+    }
+
+    const attempt = tryDraftShip({
+      workingFleet: args.workingFleet,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+      nativeSpecies: args.nativeSpecies,
+      shipDefId: fallbackShipDefId,
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    });
+
+    if (attempt.ok) {
+      return attempt;
+    }
+  }
+
+  return null;
+}
+
+function processOrderedBuildStep(args: {
+  plan: AuthoredBotPlan;
+  orderedPlan: OrderedBotBuildPlan;
+  step: NormalizedOrderedBuildStep;
+  player: any;
+  opponent: any;
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  evolverChoices: EvolverBuildChoiceEntry[];
+  manualBridgeDraftCounts: Map<string, number>;
+  nativeSpecies: unknown;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): {
+  blockedBySaveUntilAffordable: boolean;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+} {
+  let {
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  } = args;
+
+  const isUpgradedStep = isUpgradedShipDefId(args.step.shipDefId);
+  if (isUpgradedStep) {
+    emitTargetedOrderedEvolverChoices({
+      plan: args.plan,
+      targetShipDefId: args.step.shipDefId,
+      workingFleet: args.workingFleet,
+      evolverChoices: args.evolverChoices,
+    });
+  }
+
+  const attempt = tryDraftShip({
+    workingFleet: args.workingFleet,
+    draftCounts: args.draftCounts,
+    draftOrder: args.draftOrder,
+    nativeSpecies: args.nativeSpecies,
+    shipDefId: args.step.shipDefId,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  });
+
+  if (attempt.ok) {
+    return {
+      blockedBySaveUntilAffordable: false,
+      remainingOrdinaryLines: attempt.remainingOrdinaryLines,
+      remainingJoiningLines: attempt.remainingJoiningLines,
+    };
+  }
+
+  if (attempt.failureReason === 'maxQuantity') {
+    return {
+      blockedBySaveUntilAffordable: false,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    };
+  }
+
+  if (isUpgradedStep && attempt.failureReason === 'missingComponents') {
+    const bridgeAttempt = tryDraftSingleBridgeComponent({
+      orderedPlan: args.orderedPlan,
+      workingFleet: args.workingFleet,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+      manualBridgeDraftCounts: args.manualBridgeDraftCounts,
+      nativeSpecies: args.nativeSpecies,
+      shipDefId: args.step.shipDefId,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
+
+    if (bridgeAttempt.ok) {
+      return {
+        blockedBySaveUntilAffordable: false,
+        remainingOrdinaryLines: bridgeAttempt.remainingOrdinaryLines,
+        remainingJoiningLines: bridgeAttempt.remainingJoiningLines,
+      };
+    }
+
+    if (args.step.saveUntilAffordable && isResourceFailureReason(bridgeAttempt.failureReason)) {
+      return {
+        blockedBySaveUntilAffordable: true,
+        remainingOrdinaryLines,
+        remainingJoiningLines,
+      };
+    }
+  } else if (args.step.saveUntilAffordable && isResourceFailureReason(attempt.failureReason)) {
+    return {
+      blockedBySaveUntilAffordable: true,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    };
+  }
+
+  const fallbackAttempt = tryDraftOrderedFallback({
+    plan: args.plan,
+    orderedPlan: args.orderedPlan,
+    step: args.step,
+    player: args.player,
+    opponent: args.opponent,
+    workingFleet: args.workingFleet,
+    draftCounts: args.draftCounts,
+    draftOrder: args.draftOrder,
+    evolverChoices: args.evolverChoices,
+    nativeSpecies: args.nativeSpecies,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  });
+
+  if (fallbackAttempt?.ok) {
+    remainingOrdinaryLines = fallbackAttempt.remainingOrdinaryLines;
+    remainingJoiningLines = fallbackAttempt.remainingJoiningLines;
+  }
+
+  return {
+    blockedBySaveUntilAffordable: false,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  };
+}
+
+function planOrderedBuildSubmit(args: {
+  plan: AuthoredBotPlan;
+  orderedPlan: OrderedBotBuildPlan;
+  player: any;
+  opponent: any;
+  authoritativeFleet: WorkingShipEntry[];
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  nativeSpecies: unknown;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): BuildSubmitPayload {
+  const buildOrderSteps = normalizeOrderedBuildSteps(args.orderedPlan.buildOrder);
+  const endLoopSteps = normalizeOrderedBuildSteps(args.orderedPlan.endLoop);
+  const shouldUseEndLoop = isOrderedBuildOrderSatisfied(
+    buildOrderSteps,
+    args.authoritativeFleet,
+  );
+  const activeSteps = shouldUseEndLoop ? endLoopSteps : buildOrderSteps;
+  const openingRequiredCounts = new Map<string, number>();
+  const evolverChoices: EvolverBuildChoiceEntry[] = [];
+  const manualBridgeDraftCounts = new Map<string, number>();
+  let {
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  } = args;
+
+  for (const step of activeSteps) {
+    if (!shouldUseEndLoop) {
+      const requiredCount = (openingRequiredCounts.get(step.shipDefId) ?? 0) + 1;
+      openingRequiredCounts.set(step.shipDefId, requiredCount);
+
+      if (countWorkingFleetShips(args.workingFleet, step.shipDefId) >= requiredCount) {
+        continue;
+      }
+    }
+
+    const result = processOrderedBuildStep({
+      plan: args.plan,
+      orderedPlan: args.orderedPlan,
+      step,
+      player: args.player,
+      opponent: args.opponent,
+      workingFleet: args.workingFleet,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+      evolverChoices,
+      manualBridgeDraftCounts,
+      nativeSpecies: args.nativeSpecies,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
+
+    remainingOrdinaryLines = result.remainingOrdinaryLines;
+    remainingJoiningLines = result.remainingJoiningLines;
+
+    if (result.blockedBySaveUntilAffordable) {
+      break;
+    }
+  }
+
+  return buildSubmitFromDraft(args.draftOrder, args.draftCounts, evolverChoices);
 }
 
 function draftGoals(args: {
@@ -494,10 +1154,12 @@ export function planBotBuildSubmit(
   botPlayerId: string,
   plan: AuthoredBotPlan,
 ): BuildSubmitPayload {
-  const player = (state?.players ?? []).find((entry: any) => entry?.id === botPlayerId);
+  const players = state?.players ?? [];
+  const player = players.find((entry: any) => entry?.id === botPlayerId);
   if (!player) {
     return { builds: [] };
   }
+  const opponent = players.find((entry: any) => entry?.id !== botPlayerId) ?? null;
 
   let remainingOrdinaryLines = normalizeResource(player.lines);
   let remainingJoiningLines = normalizeResource(player.joiningLines);
@@ -506,6 +1168,23 @@ export function planBotBuildSubmit(
   const workingFleet = buildWorkingFleet(state?.gameData?.ships?.[botPlayerId] ?? []);
   const draftCounts = new Map<string, number>();
   const draftOrder: string[] = [];
+
+  if (plan.orderedBuildPlan) {
+    return planOrderedBuildSubmit({
+      plan,
+      orderedPlan: plan.orderedBuildPlan,
+      player,
+      opponent,
+      authoritativeFleet,
+      workingFleet,
+      draftCounts,
+      draftOrder,
+      nativeSpecies,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
+  }
+
   const goalMode: GoalMode = isOpeningSatisfied(plan, authoritativeFleet)
     ? 'loop'
     : 'opening';

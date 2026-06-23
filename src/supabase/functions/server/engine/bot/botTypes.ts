@@ -10,6 +10,27 @@ export type BotBuildGoal = {
 
 export type BuildGoal = BotBuildGoal;
 
+export type OrderedBotBuildStep =
+  | string
+  | {
+      shipDefId: string;
+      saveUntilAffordable?: boolean;
+      fallbackShipDefIds?: string[];
+    };
+
+export type OrderedBotBuildFallbacks = {
+  default?: string[];
+  defensive?: string[];
+  aggressive?: string[];
+};
+
+export type OrderedBotBuildPlan = {
+  buildOrder: OrderedBotBuildStep[];
+  endLoop?: OrderedBotBuildStep[];
+  fallbacks?: OrderedBotBuildFallbacks;
+  manualBridgeLimits?: Partial<Record<string, number>>;
+};
+
 export type CarrierChoiceId = 'defender' | 'fighter' | 'hold';
 export type DamageHealChoiceId = 'damage' | 'heal';
 export type InterceptorChoiceId = DamageHealChoiceId;
@@ -66,6 +87,7 @@ export type AuthoredBotPlan = {
   speciesId: BotSpeciesId;
   buildGoals: BotBuildGoal[];
   loopGoals?: BotBuildGoal[];
+  orderedBuildPlan?: OrderedBotBuildPlan;
   shipsThatBuild?: {
     CAR?: CarrierShipsThatBuildPolicy;
   };
