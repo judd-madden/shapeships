@@ -179,6 +179,10 @@ function countFleetShipsByDefId(state: any, playerId: string, shipDefId: string)
   return count;
 }
 
+function isEvolvedXeniteShipDefId(shipDefId: string): boolean {
+  return shipDefId === 'OXI' || shipDefId === 'AST';
+}
+
 function clearPendingDrawOfferState(state: any) {
   if (!state.gameData) state.gameData = {};
   state.gameData.pendingDrawOffer = null;
@@ -1674,6 +1678,18 @@ async function handleBuildReveal(
         }
       };
     }
+
+    if (isEvolvedXeniteShipDefId(build.shipDefId)) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Invalid build payload: OXI and AST cannot be built directly; use Evolver conversion.'
+        }
+      };
+    }
     
     // Validate component ships for Drawing builds (Upgraded ships)
     // Component ships must exist in player's current fleet at time of validation
@@ -1937,6 +1953,18 @@ async function handleBuildSubmit(
         rejected: {
           code: RejectionCode.INVALID_SHIP,
           message: `Unknown shipDefId: ${build.shipDefId}`
+        }
+      };
+    }
+
+    if (isEvolvedXeniteShipDefId(build.shipDefId)) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Invalid build payload: OXI and AST cannot be built directly; use Evolver conversion.'
         }
       };
     }

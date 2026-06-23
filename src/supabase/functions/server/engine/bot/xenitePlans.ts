@@ -15,298 +15,92 @@ const ANT_SUSTAIN = {
   damageOpponentAtOrBelow: 10,
 };
 
-const XEN_ZEN_QUEEN_CHRONO_PLAN: AuthoredBotPlan = {
-  id: 'xen_zen_queen_chrono',
-  name: 'Zen Queen Chrono',
+const XEN_MASS_BUG_BASICS_PLAN: AuthoredBotPlan = {
+  id: 'xen_mass_bug_basics',
+  name: 'Mass Bug Basics',
   speciesId: 'XEN',
-  buildGoals: [
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 1 },
-    { shipDefId: 'XEN', targetCount: 2 },
-    { shipDefId: 'ZEN', targetCount: 2 },
-    { shipDefId: 'ANT', targetCount: 2 },
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'CHR', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'QUE', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'ZEN', targetCount: 3 },
-    { shipDefId: 'ANT', targetCount: 4 },
-    { shipDefId: 'QUE', targetCount: 2, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 2 },
-    { shipDefId: 'HEL', targetCount: 1 },
-    { shipDefId: 'QUE', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    ANT: ANT_DEFAULT,
-  },
-  notes: 'Battlelog-derived Xenite Zenith/Queen line into Chronoswarm support.',
-};
-
-const XEN_BUG_ASTERITE_FACE_PLAN: AuthoredBotPlan = {
-  id: 'xen_bug_asterite_face',
-  name: 'Bug Asterite Face',
-  speciesId: 'XEN',
-  buildGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'EVO', targetCount: 1 },
-    { shipDefId: 'XEN', targetCount: 1 },
-    { shipDefId: 'ASF', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'BUG', targetCount: 2 },
-    { shipDefId: 'EVO', targetCount: 2 },
-    { shipDefId: 'XEN', targetCount: 2 },
-    { shipDefId: 'ASF', targetCount: 2, saveUntilAffordable: true },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 2 },
-    { shipDefId: 'QUE', targetCount: 1, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'EVO', targetCount: 1 },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 1 },
-    { shipDefId: 'ASF', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    ANT: ANT_DEFAULT,
-  },
-  evolverPolicy: {
-    EVO: {
-      choiceOrder: ['asterite'],
-      maxConversionsPerTurn: 2,
-    },
-  },
-  notes: 'Battlelog-derived Bug/Evolver line focused on Asterite Face damage.',
-};
-
-const XEN_BUG_OXITE_FACE_PLAN: AuthoredBotPlan = {
-  id: 'xen_bug_oxite_face',
-  name: 'Bug Oxite Face',
-  speciesId: 'XEN',
-  buildGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'EVO', targetCount: 1 },
-    { shipDefId: 'XEN', targetCount: 1 },
-    { shipDefId: 'OXF', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'BUG', targetCount: 2 },
-    { shipDefId: 'EVO', targetCount: 2 },
-    { shipDefId: 'XEN', targetCount: 2 },
-    { shipDefId: 'OXF', targetCount: 2, saveUntilAffordable: true },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 2 },
-    { shipDefId: 'QUE', targetCount: 1, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'EVO', targetCount: 1 },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 1 },
-    { shipDefId: 'OXF', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    ANT: ANT_SUSTAIN,
-  },
-  evolverPolicy: {
-    EVO: {
-      choiceOrder: ['oxite'],
-      maxConversionsPerTurn: 2,
-    },
-  },
-  notes: 'Battlelog-derived Bug/Evolver line focused on Oxite Face sustain.',
-};
-
-const XEN_MIXED_FACES_ARRAY_PLAN: AuthoredBotPlan = {
-  id: 'xen_mixed_faces_array',
-  name: 'Mixed Faces Array',
-  speciesId: 'XEN',
-  buildGoals: [
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 1 },
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'EVO', targetCount: 1 },
-    { shipDefId: 'XEN', targetCount: 3 },
-    { shipDefId: 'ASF', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'DSW', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'AAR', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'ANT', targetCount: 5 },
-  ],
-  loopGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'EVO', targetCount: 1 },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 2 },
-    { shipDefId: 'ASF', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    ANT: ANT_DEFAULT,
-  },
-  evolverPolicy: {
-    EVO: {
-      choiceOrder: ['asterite'],
-      maxConversionsPerTurn: 2,
-    },
-  },
-  notes: 'Battlelog-derived mixed Xenite face plan with Antlion Array pressure.',
-};
-
-const XEN_SAC_ZEN_PRESSURE_PLAN: AuthoredBotPlan = {
-  id: 'xen_sac_zen_pressure',
-  name: 'Sac Zen Pressure',
-  speciesId: 'XEN',
-  buildGoals: [
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 1 },
-    { shipDefId: 'ZEN', targetCount: 2 },
-    { shipDefId: 'ANT', targetCount: 3 },
-    { shipDefId: 'SAC', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'CHR', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'QUE', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'HEL', targetCount: 1 },
-    { shipDefId: 'SAC', targetCount: 2, saveUntilAffordable: true },
-    { shipDefId: 'ANT', targetCount: 6 },
-  ],
-  loopGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 2 },
-    { shipDefId: 'HEL', targetCount: 1 },
-    { shipDefId: 'SAC', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    ANT: ANT_AGGRESSIVE,
-  },
-  targetPolicy: {
-    SAC: {
-      mode: 'highest_cost_basic',
-    },
-  },
-  notes: 'Battlelog-derived Zenith pressure plan with Sacrificial Pool targeting.',
-};
-
-const XEN_BUG_QUEEN_SWARM_PLAN: AuthoredBotPlan = {
-  id: 'xen_bug_queen_swarm',
-  name: 'Bug Queen Swarm',
-  speciesId: 'XEN',
-  buildGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'XEN', targetCount: 2 },
-    { shipDefId: 'BUG', targetCount: 2 },
-    { shipDefId: 'ANT', targetCount: 2 },
-    { shipDefId: 'QUE', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'HEL', targetCount: 2 },
-    { shipDefId: 'MAN', targetCount: 2 },
-    { shipDefId: 'QUE', targetCount: 2, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'BUG', targetCount: 2 },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 2 },
-    { shipDefId: 'MAN', targetCount: 1 },
-    { shipDefId: 'HEL', targetCount: 1 },
-    { shipDefId: 'QUE', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    ANT: ANT_DEFAULT,
-  },
-  notes: 'Battlelog-derived Bug Breeder and Queen swarm plan.',
-};
-
-const XEN_CHRONO_SWARM_PLAN: AuthoredBotPlan = {
-  id: 'xen_chrono_swarm',
-  name: 'Chrono Swarm',
-  speciesId: 'XEN',
-  buildGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 1 },
-    { shipDefId: 'CHR', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'DSW', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'QUE', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'ZEN', targetCount: 3 },
-    { shipDefId: 'ANT', targetCount: 4 },
-    { shipDefId: 'CHR', targetCount: 2, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 2 },
-    { shipDefId: 'HEL', targetCount: 1 },
-    { shipDefId: 'CHR', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    ANT: ANT_AGGRESSIVE,
-  },
-  notes: 'Battlelog-derived Chronoswarm plan with repeated ships-that-build value.',
-};
-
-const XEN_HIVE_LONG_PLAN: AuthoredBotPlan = {
-  id: 'xen_hive_long',
-  name: 'Hive Long Game',
-  speciesId: 'XEN',
-  buildGoals: [
-    { shipDefId: 'BUG', targetCount: 2 },
-    { shipDefId: 'EVO', targetCount: 1 },
-    { shipDefId: 'ASF', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 2 },
-    { shipDefId: 'CHR', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'SAC', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'DSW', targetCount: 2, saveUntilAffordable: true },
-    { shipDefId: 'MAN', targetCount: 2 },
-    { shipDefId: 'HEL', targetCount: 2 },
-    { shipDefId: 'HVE', targetCount: 1, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'BUG', targetCount: 2 },
-    { shipDefId: 'MAN', targetCount: 2 },
-    { shipDefId: 'HEL', targetCount: 1 },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 1 },
-    { shipDefId: 'DSW', targetCount: 1 },
-    { shipDefId: 'HVE', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    ANT: ANT_SUSTAIN,
-  },
-  targetPolicy: {
-    SAC: {
-      mode: 'highest_cost_basic',
-    },
-  },
-  evolverPolicy: {
-    EVO: {
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: ['BUG', 'EVO', 'BUG', 'MAN', 'BUG', 'BUG', 'MAN', 'MAN', 'HEL', 'HEL', 'HEL'],
+    endLoop: ['BUG', 'MAN', 'HEL'],
+    evolverConversions: {
+      mode: 'when_available',
       choiceOrder: ['asterite', 'oxite'],
       maxConversionsPerTurn: 1,
     },
   },
-  notes: 'Battlelog-derived long-game Hive plan with cautious Evolver conversion.',
 };
 
-const XEN_ANTLION_ARRAY_PLAN: AuthoredBotPlan = {
-  id: 'xen_antlion_array',
-  name: 'Antlion Array',
+const XEN_CHRONO_QUEEN_STANDARD_PLAN: AuthoredBotPlan = {
+  id: 'xen_chrono_queen_standard',
+  name: 'Chrono Queen Standard',
   speciesId: 'XEN',
-  buildGoals: [
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 3 },
-    { shipDefId: 'SAC', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'DSW', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'AAR', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'ZEN', targetCount: 3 },
-    { shipDefId: 'ANT', targetCount: 8 },
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'QUE', targetCount: 1, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 3 },
-    { shipDefId: 'AAR', targetCount: 1, saveUntilAffordable: true },
-  ],
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'ZEN',
+      'BUG',
+      'BUG',
+      { shipDefId: 'DSW', saveUntilAffordable: true },
+      { shipDefId: 'CHR', saveUntilAffordable: true },
+      { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['DSW'] },
+      'ZEN',
+      { shipDefId: 'DSW', saveUntilAffordable: true },
+      'ZEN',
+      'BUG',
+      { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['DSW'] },
+    ],
+    endLoop: [
+      'ZEN',
+      'BUG',
+      { shipDefId: 'DSW', saveUntilAffordable: true },
+      { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['DSW'] },
+      'HEL',
+      'HEL',
+    ],
+    fallbacks: {
+      default: ['DSW'],
+      defensive: ['DSW'],
+      aggressive: ['DSW'],
+    },
+    manualBridgeLimits: { XEN: 2 },
+  },
+  chargePolicy: {
+    ANT: ANT_DEFAULT,
+  },
+};
+
+const XEN_SAC_DENIAL_PLAN: AuthoredBotPlan = {
+  id: 'xen_sac_denial',
+  name: 'SAC Denial',
+  speciesId: 'XEN',
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'ZEN',
+      'BUG',
+      { shipDefId: 'SAC', saveUntilAffordable: true },
+      { shipDefId: 'SAC', saveUntilAffordable: true },
+      { shipDefId: 'SAC', saveUntilAffordable: true },
+      'ZEN',
+      { shipDefId: 'SAC', saveUntilAffordable: true },
+      { shipDefId: 'AAR', saveUntilAffordable: true, fallbackShipDefIds: ['ANT', 'BUG'] },
+    ],
+    endLoop: [
+      'ZEN',
+      { shipDefId: 'SAC', saveUntilAffordable: true },
+      { shipDefId: 'AAR', saveUntilAffordable: true, fallbackShipDefIds: ['ANT', 'BUG'] },
+    ],
+    fallbacks: {
+      default: ['ANT', 'BUG'],
+      defensive: ['ANT', 'BUG'],
+      aggressive: ['SAC', 'ANT', 'BUG'],
+    },
+    manualBridgeLimits: { XEN: 2 },
+  },
   chargePolicy: {
     ANT: ANT_AGGRESSIVE,
   },
@@ -315,65 +109,236 @@ const XEN_ANTLION_ARRAY_PLAN: AuthoredBotPlan = {
       mode: 'highest_cost_basic',
     },
   },
-  notes: 'Battlelog-derived Antlion Array plan with aggressive ANT spending.',
 };
 
-const XEN_MANTIS_HORNET_QUEEN_PLAN: AuthoredBotPlan = {
-  id: 'xen_mantis_hornet_queen',
-  name: 'Mantis Hornet Queen',
+const XEN_FACES_PLAN: AuthoredBotPlan = {
+  id: 'xen_faces',
+  name: 'Faces',
   speciesId: 'XEN',
-  buildGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'XEN', targetCount: 2 },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 1 },
-    { shipDefId: 'MAN', targetCount: 2 },
-    { shipDefId: 'HEL', targetCount: 1 },
-    { shipDefId: 'QUE', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'MAN', targetCount: 4 },
-    { shipDefId: 'HEL', targetCount: 2 },
-    { shipDefId: 'CHR', targetCount: 1, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'BUG', targetCount: 1 },
-    { shipDefId: 'ZEN', targetCount: 1 },
-    { shipDefId: 'ANT', targetCount: 2 },
-    { shipDefId: 'MAN', targetCount: 2 },
-    { shipDefId: 'HEL', targetCount: 1 },
-    { shipDefId: 'QUE', targetCount: 1, saveUntilAffordable: true },
-  ],
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'BUG',
+      'EVO',
+      { shipDefId: 'OXF', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'EVO', 'ZEN'] },
+      'EVO',
+      { shipDefId: 'OXF', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'EVO', 'ZEN'] },
+      'BUG',
+      'EVO',
+      { shipDefId: 'OXF', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'EVO', 'ZEN'] },
+      'EVO',
+      { shipDefId: 'OXF', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'EVO', 'ZEN'] },
+      'BUG',
+      'EVO',
+      { shipDefId: 'ASF', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'EVO', 'ZEN'] },
+      'EVO',
+      { shipDefId: 'ASF', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'EVO', 'ZEN'] },
+      'BUG',
+      'EVO',
+      { shipDefId: 'ASF', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'EVO', 'ZEN'] },
+      { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['BUG'] },
+      { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['BUG'] },
+    ],
+    endLoop: [
+      'BUG',
+      'EVO',
+      { shipDefId: 'ASF', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'EVO', 'ZEN'] },
+      'EVO',
+      { shipDefId: 'OXF', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'EVO', 'ZEN'] },
+    ],
+    fallbacks: {
+      default: ['BUG', 'EVO', 'ZEN'],
+      defensive: ['BUG', 'ZEN'],
+      aggressive: ['BUG', 'EVO'],
+    },
+    manualBridgeLimits: { XEN: 2 },
+  },
   chargePolicy: {
     ANT: ANT_DEFAULT,
   },
-  notes: 'Battlelog-derived Mantis/Hell Hornet plan with Queen follow-up.',
+  evolverPolicy: {
+    EVO: {
+      choiceOrder: ['oxite', 'oxite', 'asterite'],
+      maxConversionsPerTurn: 2,
+    },
+  },
+};
+
+const XEN_QUEEN_NO_CHRONO_PLAN: AuthoredBotPlan = {
+  id: 'xen_queen_no_chrono',
+  name: 'Queen No Chrono',
+  speciesId: 'XEN',
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'BUG',
+      { shipDefId: 'DSW', saveUntilAffordable: true },
+      { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['DSW', 'BUG'] },
+      { shipDefId: 'DSW', saveUntilAffordable: true },
+      { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['DSW', 'BUG'] },
+      'MAN',
+      'HEL',
+      'HEL',
+    ],
+    endLoop: ['BUG', 'MAN', 'HEL'],
+    fallbacks: {
+      default: ['DSW', 'BUG'],
+      defensive: ['DSW', 'BUG'],
+      aggressive: ['BUG', 'HEL'],
+    },
+    manualBridgeLimits: { XEN: 2 },
+  },
+  chargePolicy: {
+    ANT: ANT_DEFAULT,
+  },
+};
+
+const XEN_HIVE_PLAN: AuthoredBotPlan = {
+  id: 'xen_hive',
+  name: 'Hive',
+  speciesId: 'XEN',
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'ZEN',
+      'BUG',
+      'BUG',
+      'MAN',
+      'MAN',
+      'BUG',
+      'HEL',
+      { shipDefId: 'HVE', saveUntilAffordable: true, fallbackShipDefIds: ['MAN', 'HEL', 'DSW'] },
+    ],
+    endLoop: ['BUG', 'ZEN'],
+    fallbacks: {
+      default: ['MAN', 'HEL', 'DSW'],
+      defensive: ['DSW', 'MAN', 'ZEN'],
+      aggressive: ['HEL', 'MAN', 'BUG'],
+    },
+    manualBridgeLimits: { XEN: 2 },
+  },
+  chargePolicy: {
+    ANT: ANT_SUSTAIN,
+  },
+};
+
+const XEN_DOUBLE_CHRONO_QUEEN_PLAN: AuthoredBotPlan = {
+  id: 'xen_double_chrono_queen',
+  name: 'Double Chrono Queen',
+  speciesId: 'XEN',
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'ZEN',
+      'BUG',
+      { shipDefId: 'DSW', saveUntilAffordable: true },
+      'ZEN',
+      'BUG',
+      {
+        shipDefId: 'CHR',
+        saveUntilAffordable: true,
+        fallbackShipDefIds: ['BUG', 'ZEN', 'DSW', 'HEL'],
+      },
+      {
+        shipDefId: 'QUE',
+        saveUntilAffordable: true,
+        fallbackShipDefIds: ['BUG', 'ZEN', 'DSW', 'HEL'],
+      },
+      { shipDefId: 'DSW', saveUntilAffordable: true },
+      'BUG',
+      {
+        shipDefId: 'CHR',
+        saveUntilAffordable: true,
+        fallbackShipDefIds: ['BUG', 'ZEN', 'DSW', 'HEL'],
+      },
+      {
+        shipDefId: 'QUE',
+        saveUntilAffordable: true,
+        fallbackShipDefIds: ['BUG', 'ZEN', 'DSW', 'HEL'],
+      },
+      'HEL',
+      'HEL',
+    ],
+    endLoop: [
+      {
+        shipDefId: 'QUE',
+        saveUntilAffordable: true,
+        fallbackShipDefIds: ['BUG', 'ZEN', 'DSW', 'HEL'],
+      },
+      { shipDefId: 'DSW', saveUntilAffordable: true },
+    ],
+    fallbacks: {
+      default: ['BUG', 'ZEN', 'DSW', 'HEL'],
+      defensive: ['DSW', 'ZEN', 'BUG'],
+      aggressive: ['HEL', 'BUG', 'ZEN'],
+    },
+    manualBridgeLimits: { XEN: 2 },
+  },
+  chargePolicy: {
+    ANT: ANT_DEFAULT,
+  },
+};
+
+const XEN_AGGRO_PLAN: AuthoredBotPlan = {
+  id: 'xen_aggro',
+  name: 'Aggro',
+  speciesId: 'XEN',
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'BUG',
+      'EVO',
+      'BUG',
+      'EVO',
+      'BUG',
+      { shipDefId: 'AAR', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'ANT', 'MAN', 'HEL'] },
+      'BUG',
+      'MAN',
+      { shipDefId: 'ASF', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'ANT', 'MAN', 'HEL'] },
+      { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'ANT', 'MAN', 'HEL'] },
+    ],
+    endLoop: ['BUG'],
+    fallbacks: {
+      default: ['BUG', 'ANT', 'MAN', 'HEL'],
+      defensive: ['MAN', 'BUG', 'ANT'],
+      aggressive: ['BUG', 'HEL', 'ANT'],
+    },
+    manualBridgeLimits: { XEN: 2 },
+    evolverConversions: {
+      mode: 'when_available',
+      choiceOrder: ['asterite'],
+      maxConversionsPerTurn: 2,
+    },
+  },
+  chargePolicy: {
+    ANT: ANT_AGGRESSIVE,
+  },
+  evolverPolicy: {
+    EVO: {
+      choiceOrder: ['asterite'],
+      maxConversionsPerTurn: 2,
+    },
+  },
 };
 
 // Order is deliberate: deterministic chooser selection hashes into this array by index.
 export const ACTIVE_XENITE_BOT_PLANS: AuthoredBotPlan[] = [
-  XEN_ZEN_QUEEN_CHRONO_PLAN,
-  XEN_BUG_ASTERITE_FACE_PLAN,
-  XEN_BUG_OXITE_FACE_PLAN,
-  XEN_MIXED_FACES_ARRAY_PLAN,
-  XEN_SAC_ZEN_PRESSURE_PLAN,
-  XEN_BUG_QUEEN_SWARM_PLAN,
-  XEN_CHRONO_SWARM_PLAN,
-  XEN_HIVE_LONG_PLAN,
-  XEN_ANTLION_ARRAY_PLAN,
-  XEN_MANTIS_HORNET_QUEEN_PLAN,
+  XEN_MASS_BUG_BASICS_PLAN,
+  XEN_CHRONO_QUEEN_STANDARD_PLAN,
+  XEN_SAC_DENIAL_PLAN,
+  XEN_FACES_PLAN,
+  XEN_QUEEN_NO_CHRONO_PLAN,
+  XEN_HIVE_PLAN,
+  XEN_DOUBLE_CHRONO_QUEEN_PLAN,
+  XEN_AGGRO_PLAN,
 ];
 
-const XENITE_BOT_PLAN_LOOKUP_POOL: AuthoredBotPlan[] = [
-  XEN_ZEN_QUEEN_CHRONO_PLAN,
-  XEN_BUG_ASTERITE_FACE_PLAN,
-  XEN_BUG_OXITE_FACE_PLAN,
-  XEN_MIXED_FACES_ARRAY_PLAN,
-  XEN_SAC_ZEN_PRESSURE_PLAN,
-  XEN_BUG_QUEEN_SWARM_PLAN,
-  XEN_CHRONO_SWARM_PLAN,
-  XEN_HIVE_LONG_PLAN,
-  XEN_ANTLION_ARRAY_PLAN,
-  XEN_MANTIS_HORNET_QUEEN_PLAN,
-];
+const XENITE_BOT_PLAN_LOOKUP_POOL: AuthoredBotPlan[] = ACTIVE_XENITE_BOT_PLANS;
 
 function hashSeed(seed: string): number {
   let hash = 0;

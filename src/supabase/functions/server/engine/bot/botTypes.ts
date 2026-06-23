@@ -24,11 +24,18 @@ export type OrderedBotBuildFallbacks = {
   aggressive?: string[];
 };
 
+export type OrderedBotEvolverConversionPlan = {
+  mode: 'when_available';
+  choiceOrder: Array<'oxite' | 'asterite'>;
+  maxConversionsPerTurn?: number;
+};
+
 export type OrderedBotBuildPlan = {
   buildOrder: OrderedBotBuildStep[];
   endLoop?: OrderedBotBuildStep[];
   fallbacks?: OrderedBotBuildFallbacks;
   manualBridgeLimits?: Partial<Record<string, number>>;
+  evolverConversions?: OrderedBotEvolverConversionPlan;
 };
 
 export type CarrierChoiceId = 'defender' | 'fighter' | 'hold';

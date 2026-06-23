@@ -68,6 +68,10 @@ export type BuildSubmitResolutionResult = {
 const PREVIEW_PARITY_BUILD_ORDER = SHIP_DEFINITIONS_CORE_SERVER.map((shipDef) => shipDef.id);
 const SAVED_LINE_CAP = 12;
 
+function isEvolvedXeniteShipDefId(shipDefId: string): boolean {
+  return shipDefId === 'OXI' || shipDefId === 'AST';
+}
+
 function normalizeResource(value: unknown): number {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return 0;
@@ -483,6 +487,14 @@ function applyBasicBuildAttemptSimulation(args: {
     };
   }
 
+  if (isEvolvedXeniteShipDefId(attempt.shipDefId)) {
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      didApply: false,
+    };
+  }
+
   const legality = evaluateForeignBuildLegality({
     nativeSpecies: args.nativeSpecies,
     shipDefId: attempt.shipDefId,
@@ -788,6 +800,21 @@ function resolveBuildAttempt(args: {
       shipDefId: attempt.shipDefId,
       attemptIndex: attempt.attemptIndex,
       reason: 'unknown_ship',
+      nowMs,
+    });
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    };
+  }
+
+  if (isEvolvedXeniteShipDefId(attempt.shipDefId)) {
+    pushSkippedAttemptEvent({
+      events,
+      playerId,
+      shipDefId: attempt.shipDefId,
+      attemptIndex: attempt.attemptIndex,
+      reason: 'rule_restricted',
       nowMs,
     });
     return {

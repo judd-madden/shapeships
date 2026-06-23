@@ -42,6 +42,15 @@ type DraftAttemptResult = {
   remainingJoiningLines: number;
 };
 
+type OrderedBuildStepResult = {
+  blockedBySaveUntilAffordable: boolean;
+  shouldStopOrderedSequence: boolean;
+  didDraftPrimaryStep: boolean;
+  didDraftFallbackOrBridge: boolean;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+};
+
 type UpgradeComponentReservation =
   | { ok: true; reservedIndices: number[] }
   | { ok: false; failureReason: 'missingComponents' | 'chargedDepletedComponents' };
@@ -56,6 +65,10 @@ type EvolverTargetChoiceId = 'oxite' | 'asterite';
 
 const ZENITH_SHIP_DEF_ID = 'ZEN';
 const ZENITH_FREE_ANTLION_SHIP_DEF_ID = 'ANT';
+
+function isEvolvedXeniteShipDefId(shipDefId: string): boolean {
+  return shipDefId === 'OXI' || shipDefId === 'AST';
+}
 
 function normalizeResource(value: unknown): number {
   const numeric = Number(value);
@@ -370,6 +383,15 @@ function tryAddShipToDraft(args: {
     };
   }
 
+  if (isEvolvedXeniteShipDefId(shipDefId)) {
+    return {
+      ok: false,
+      failureReason: 'disallowedForeignBuild',
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    };
+  }
+
   const legality = evaluateForeignBuildLegality({
     nativeSpecies: args.nativeSpecies,
     shipDefId,
@@ -643,6 +665,27 @@ function tryDraftSingleBridgeComponent(args: {
     };
   }
 
+  if (isEvolvedXeniteShipDefId(missingRequirement.shipDefId)) {
+    if (countWorkingFleetShips(args.workingFleet, 'EVO') > 0) {
+      return {
+        ok: false,
+        failureReason: 'missingComponents',
+        remainingOrdinaryLines: args.remainingOrdinaryLines,
+        remainingJoiningLines: args.remainingJoiningLines,
+      };
+    }
+
+    return tryDraftShip({
+      workingFleet: args.workingFleet,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+      nativeSpecies: args.nativeSpecies,
+      shipDefId: 'EVO',
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    });
+  }
+
   const componentDef = getShipById(missingRequirement.shipDefId);
   if (!componentDef) {
     return {
@@ -839,6 +882,58 @@ function emitTargetedOrderedEvolverChoices(args: {
   applyEvolverConversionsToWorkingFleet(args.workingFleet, pendingChoices);
 }
 
+function emitPassiveOrderedEvolverChoices(args: {
+  orderedPlan: OrderedBotBuildPlan;
+  workingFleet: WorkingShipEntry[];
+  evolverChoices: EvolverBuildChoiceEntry[];
+}) {
+  const evolverConversions = args.orderedPlan.evolverConversions;
+  if (evolverConversions?.mode !== 'when_available') {
+    return;
+  }
+
+  const choiceOrder = Array.isArray(evolverConversions.choiceOrder)
+    ? evolverConversions.choiceOrder.filter((choiceId): choiceId is EvolverTargetChoiceId =>
+      choiceId === 'oxite' || choiceId === 'asterite'
+    )
+    : [];
+  if (choiceOrder.length === 0) {
+    return;
+  }
+
+  const maxConversions =
+    Number.isInteger(evolverConversions.maxConversionsPerTurn) &&
+    Number(evolverConversions.maxConversionsPerTurn) >= 0
+      ? Number(evolverConversions.maxConversionsPerTurn)
+      : Number.POSITIVE_INFINITY;
+  const existingChoiceCount = args.evolverChoices.length;
+  const availableEvolverCount = countWorkingFleetShips(args.workingFleet, 'EVO');
+  const remainingCapacity = Math.min(availableEvolverCount, maxConversions) - existingChoiceCount;
+  if (remainingCapacity <= 0) {
+    return;
+  }
+
+  const conversionCount = Math.min(
+    countWorkingFleetShips(args.workingFleet, 'XEN'),
+    remainingCapacity,
+  );
+  if (!Number.isFinite(conversionCount) || conversionCount <= 0) {
+    return;
+  }
+
+  const pendingChoices = Array.from({ length: conversionCount }, (_entry, index) => {
+    const sourceIndex = existingChoiceCount + index;
+
+    return {
+      sourceKey: `bot:evo:${sourceIndex}`,
+      choiceId: choiceOrder[sourceIndex % choiceOrder.length] ?? 'oxite',
+    };
+  });
+
+  args.evolverChoices.push(...pendingChoices);
+  applyEvolverConversionsToWorkingFleet(args.workingFleet, pendingChoices);
+}
+
 function tryDraftOrderedFallback(args: {
   plan: AuthoredBotPlan;
   orderedPlan: OrderedBotBuildPlan;
@@ -902,11 +997,7 @@ function processOrderedBuildStep(args: {
   nativeSpecies: unknown;
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
-}): {
-  blockedBySaveUntilAffordable: boolean;
-  remainingOrdinaryLines: number;
-  remainingJoiningLines: number;
-} {
+}): OrderedBuildStepResult {
   let {
     remainingOrdinaryLines,
     remainingJoiningLines,
@@ -935,6 +1026,9 @@ function processOrderedBuildStep(args: {
   if (attempt.ok) {
     return {
       blockedBySaveUntilAffordable: false,
+      shouldStopOrderedSequence: false,
+      didDraftPrimaryStep: true,
+      didDraftFallbackOrBridge: false,
       remainingOrdinaryLines: attempt.remainingOrdinaryLines,
       remainingJoiningLines: attempt.remainingJoiningLines,
     };
@@ -943,6 +1037,9 @@ function processOrderedBuildStep(args: {
   if (attempt.failureReason === 'maxQuantity') {
     return {
       blockedBySaveUntilAffordable: false,
+      shouldStopOrderedSequence: false,
+      didDraftPrimaryStep: false,
+      didDraftFallbackOrBridge: false,
       remainingOrdinaryLines,
       remainingJoiningLines,
     };
@@ -964,6 +1061,9 @@ function processOrderedBuildStep(args: {
     if (bridgeAttempt.ok) {
       return {
         blockedBySaveUntilAffordable: false,
+        shouldStopOrderedSequence: true,
+        didDraftPrimaryStep: false,
+        didDraftFallbackOrBridge: true,
         remainingOrdinaryLines: bridgeAttempt.remainingOrdinaryLines,
         remainingJoiningLines: bridgeAttempt.remainingJoiningLines,
       };
@@ -972,40 +1072,91 @@ function processOrderedBuildStep(args: {
     if (args.step.saveUntilAffordable && isResourceFailureReason(bridgeAttempt.failureReason)) {
       return {
         blockedBySaveUntilAffordable: true,
+        shouldStopOrderedSequence: true,
+        didDraftPrimaryStep: false,
+        didDraftFallbackOrBridge: false,
         remainingOrdinaryLines,
         remainingJoiningLines,
       };
     }
-  } else if (args.step.saveUntilAffordable && isResourceFailureReason(attempt.failureReason)) {
+
+    const fallbackAttempt = tryDraftOrderedFallback({
+      plan: args.plan,
+      orderedPlan: args.orderedPlan,
+      step: args.step,
+      player: args.player,
+      opponent: args.opponent,
+      workingFleet: args.workingFleet,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+      evolverChoices: args.evolverChoices,
+      nativeSpecies: args.nativeSpecies,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
+
+    if (fallbackAttempt?.ok) {
+      remainingOrdinaryLines = fallbackAttempt.remainingOrdinaryLines;
+      remainingJoiningLines = fallbackAttempt.remainingJoiningLines;
+    }
+
     return {
-      blockedBySaveUntilAffordable: true,
+      blockedBySaveUntilAffordable: false,
+      shouldStopOrderedSequence: true,
+      didDraftPrimaryStep: false,
+      didDraftFallbackOrBridge: fallbackAttempt?.ok === true,
       remainingOrdinaryLines,
       remainingJoiningLines,
     };
   }
 
-  const fallbackAttempt = tryDraftOrderedFallback({
-    plan: args.plan,
-    orderedPlan: args.orderedPlan,
-    step: args.step,
-    player: args.player,
-    opponent: args.opponent,
-    workingFleet: args.workingFleet,
-    draftCounts: args.draftCounts,
-    draftOrder: args.draftOrder,
-    evolverChoices: args.evolverChoices,
-    nativeSpecies: args.nativeSpecies,
-    remainingOrdinaryLines,
-    remainingJoiningLines,
-  });
+  if (isUpgradedStep && attempt.failureReason === 'chargedDepletedComponents') {
+    const fallbackAttempt = tryDraftOrderedFallback({
+      plan: args.plan,
+      orderedPlan: args.orderedPlan,
+      step: args.step,
+      player: args.player,
+      opponent: args.opponent,
+      workingFleet: args.workingFleet,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+      evolverChoices: args.evolverChoices,
+      nativeSpecies: args.nativeSpecies,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
 
-  if (fallbackAttempt?.ok) {
-    remainingOrdinaryLines = fallbackAttempt.remainingOrdinaryLines;
-    remainingJoiningLines = fallbackAttempt.remainingJoiningLines;
+    if (fallbackAttempt?.ok) {
+      remainingOrdinaryLines = fallbackAttempt.remainingOrdinaryLines;
+      remainingJoiningLines = fallbackAttempt.remainingJoiningLines;
+    }
+
+    return {
+      blockedBySaveUntilAffordable: false,
+      shouldStopOrderedSequence: true,
+      didDraftPrimaryStep: false,
+      didDraftFallbackOrBridge: fallbackAttempt?.ok === true,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    };
+  }
+
+  if (isResourceFailureReason(attempt.failureReason)) {
+    return {
+      blockedBySaveUntilAffordable: true,
+      shouldStopOrderedSequence: true,
+      didDraftPrimaryStep: false,
+      didDraftFallbackOrBridge: false,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    };
   }
 
   return {
     blockedBySaveUntilAffordable: false,
+    shouldStopOrderedSequence: true,
+    didDraftPrimaryStep: false,
+    didDraftFallbackOrBridge: false,
     remainingOrdinaryLines,
     remainingJoiningLines,
   };
@@ -1068,10 +1219,16 @@ function planOrderedBuildSubmit(args: {
     remainingOrdinaryLines = result.remainingOrdinaryLines;
     remainingJoiningLines = result.remainingJoiningLines;
 
-    if (result.blockedBySaveUntilAffordable) {
+    if (result.blockedBySaveUntilAffordable || result.shouldStopOrderedSequence) {
       break;
     }
   }
+
+  emitPassiveOrderedEvolverChoices({
+    orderedPlan: args.orderedPlan,
+    workingFleet: args.workingFleet,
+    evolverChoices,
+  });
 
   return buildSubmitFromDraft(args.draftOrder, args.draftCounts, evolverChoices);
 }
