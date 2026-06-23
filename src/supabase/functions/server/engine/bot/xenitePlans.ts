@@ -90,9 +90,10 @@ const XEN_SAC_DENIAL_PLAN: AuthoredBotPlan = {
       { shipDefId: 'AAR', saveUntilAffordable: true, fallbackShipDefIds: ['ANT', 'BUG'] },
     ],
     endLoop: [
-      'ZEN',
       { shipDefId: 'SAC', saveUntilAffordable: true },
-      { shipDefId: 'AAR', saveUntilAffordable: true, fallbackShipDefIds: ['ANT', 'BUG'] },
+      { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['ANT', 'BUG'] },
+      'MAN',
+      'HEL',
     ],
     fallbacks: {
       default: ['ANT', 'BUG'],

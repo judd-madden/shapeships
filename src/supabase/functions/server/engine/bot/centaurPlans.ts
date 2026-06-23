@@ -30,399 +30,348 @@ const FAM_SUSTAIN = {
   damageOpponentAtOrBelow: 10,
 };
 
-const CEN_VIG_POWER_FAMILY_DES_PLAN: AuthoredBotPlan = {
-  id: 'cen_vig_power_family_des',
-  name: 'Vigor Power Family Destruction',
+const CEN_VIGOR_POWER_DESTRUCTION_PLAN: AuthoredBotPlan = {
+  id: 'cen_vigor_power_destruction',
+  name: 'Vigor Power Destruction',
   speciesId: 'CEN',
-  buildGoals: [
-    { shipDefId: 'VIG', targetCount: 1 },
-    { shipDefId: 'VIG', targetCount: 2 },
-    { shipDefId: 'FEA', targetCount: 1 },
-    { shipDefId: 'ANG', targetCount: 2 },
-    { shipDefId: 'POW', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'FEA', targetCount: 3 },
-    { shipDefId: 'ANG', targetCount: 3 },
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'LEG', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'EQU', targetCount: 1 },
-    { shipDefId: 'DES', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'FEA', targetCount: 4 },
-    { shipDefId: 'ANG', targetCount: 5 },
-    { shipDefId: 'POW', targetCount: 2, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'FEA', targetCount: 2 },
-    { shipDefId: 'ANG', targetCount: 1 },
-    { shipDefId: 'EQU', targetCount: 1 },
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'LEG', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'DES', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    WIS: WIS_DEFAULT,
-    FAM: FAM_DEFAULT,
-  },
-  targetPolicy: {
-    EQU: {
-      mode: 'highest_shared_cost_pair',
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'VIG',
+      'VIG',
+      'VIG',
+      'LEG',
+      'FEA',
+      'ANG',
+      'ANG',
+      { shipDefId: 'POW', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG', 'VIG'] },
+      'VIG',
+      'FEA',
+      'ANG',
+      'ANG',
+      { shipDefId: 'POW', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG', 'VIG'] },
+      'EQU',
+      'FEA',
+      'FEA',
+      'ANG',
+      'LEG',
+      { shipDefId: 'DES', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'EQU', 'ANG'] },
+    ],
+    endLoop: ['FEA'],
+    fallbacks: {
+      default: ['FEA', 'ANG', 'EQU'],
+      defensive: ['FEA', 'EQU'],
+      aggressive: ['ANG', 'FEA'],
     },
   },
-  notes: 'Battlelog-derived Vigor economy into Ark of Power and Ark of Destruction.',
+  targetPolicy: {
+    EQU: { mode: 'highest_shared_cost_pair' },
+  },
 };
 
-const CEN_LOWTECH_FURY_RUSH_PLAN: AuthoredBotPlan = {
-  id: 'cen_lowtech_fury_rush',
-  name: 'Low Tech Fury Rush',
+const CEN_FURY_RUSH_PLAN: AuthoredBotPlan = {
+  id: 'cen_fury_rush',
+  name: 'Fury Rush',
   speciesId: 'CEN',
-  buildGoals: [
-    { shipDefId: 'ANG', targetCount: 2 },
-    { shipDefId: 'FUR', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'ANG', targetCount: 2 },
-    { shipDefId: 'FUR', targetCount: 2, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'ANG', targetCount: 2 },
-    { shipDefId: 'FUR', targetCount: 1, saveUntilAffordable: true },
-  ],
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'ANG',
+      'ANG',
+      { shipDefId: 'FUR', saveUntilAffordable: true },
+      'ANG',
+      'ANG',
+      { shipDefId: 'FUR', saveUntilAffordable: true },
+      'ANG',
+      'ANG',
+      { shipDefId: 'FUR', saveUntilAffordable: true },
+    ],
+    endLoop: [
+      'ANG',
+      'ANG',
+      { shipDefId: 'FUR', saveUntilAffordable: true },
+    ],
+    fallbacks: {
+      default: ['ANG'],
+      aggressive: ['ANG'],
+    },
+  },
+};
+
+const CEN_VIGOR_LEGACY_FURY_PLAN: AuthoredBotPlan = {
+  id: 'cen_vigor_legacy_fury',
+  name: 'Vigor Legacy Fury',
+  speciesId: 'CEN',
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'VIG',
+      'VIG',
+      'LEG',
+      'ANG',
+      'ANG',
+      { shipDefId: 'FUR', saveUntilAffordable: true },
+    ],
+    endLoop: [
+      'ANG',
+      'ANG',
+      { shipDefId: 'FUR', saveUntilAffordable: true },
+    ],
+    fallbacks: {
+      default: ['ANG'],
+      aggressive: ['ANG'],
+    },
+  },
+};
+
+const CEN_FAMILY_AGGRO_PLAN: AuthoredBotPlan = {
+  id: 'cen_family_aggro',
+  name: 'Family Aggro',
+  speciesId: 'CEN',
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'VIG',
+      'FEA',
+      'ANG',
+      'ANG',
+      { shipDefId: 'POW', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG', 'VIG'] },
+      'LEG',
+      'ANG',
+      'ANG',
+      { shipDefId: 'FUR', saveUntilAffordable: true },
+      'ANG',
+      'FEA',
+      'WIS',
+      'FAM',
+      'FAM',
+      'FAM',
+      { shipDefId: 'KNO', saveUntilAffordable: true, fallbackShipDefIds: ['FAM', 'WIS', 'ANG'] },
+    ],
+    endLoop: ['FAM'],
+    fallbacks: {
+      default: ['FAM', 'WIS', 'ANG'],
+      defensive: ['FAM', 'WIS', 'FEA'],
+      aggressive: ['FAM', 'ANG'],
+    },
+  },
   chargePolicy: {
     WIS: WIS_AGGRESSIVE,
     FAM: FAM_AGGRESSIVE,
   },
   dicePolicy: {
-    KNO: {
-      mode: 'reroll_odd_hold_even',
-    },
+    KNO: { mode: 'reroll_odd_hold_even' },
   },
-  notes: 'Battlelog-derived low-tech Anger and Fury rush with aggressive charge spending.',
 };
 
-const CEN_VIG_LEGACY_FURY_PLAN: AuthoredBotPlan = {
-  id: 'cen_vig_legacy_fury',
-  name: 'Vigor Legacy Fury',
+const CEN_GREED_KNO_DES_PLAN: AuthoredBotPlan = {
+  id: 'cen_greed_kno_des',
+  name: 'Greed KNO DES',
   speciesId: 'CEN',
-  buildGoals: [
-    { shipDefId: 'VIG', targetCount: 1 },
-    { shipDefId: 'ANG', targetCount: 2 },
-    { shipDefId: 'FUR', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'LEG', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'VIG', targetCount: 2 },
-    { shipDefId: 'ANG', targetCount: 4 },
-    { shipDefId: 'FUR', targetCount: 2, saveUntilAffordable: true },
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'KNO', targetCount: 1, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'ANG', targetCount: 2 },
-    { shipDefId: 'FUR', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'LEG', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'KNO', targetCount: 1, saveUntilAffordable: true },
-  ],
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'VIG',
+      'VIG',
+      'VIG',
+      'FEA',
+      'ANG',
+      'ANG',
+      { shipDefId: 'POW', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG', 'VIG'] },
+      'WIS',
+      'FAM',
+      'VIG',
+      { shipDefId: 'KNO', saveUntilAffordable: true, fallbackShipDefIds: ['WIS', 'FAM', 'FEA'] },
+      'FEA',
+      'ANG',
+      'ANG',
+      { shipDefId: 'POW', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG', 'VIG'] },
+      'VIG',
+      'LEG',
+      'FEA',
+      'FEA',
+      'ANG',
+      'EQU',
+      { shipDefId: 'DES', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'EQU', 'ANG'] },
+    ],
+    endLoop: ['FEA'],
+    fallbacks: {
+      default: ['FEA', 'ANG', 'WIS', 'FAM'],
+      defensive: ['FEA', 'WIS', 'FAM'],
+      aggressive: ['ANG', 'FEA'],
+    },
+  },
+  chargePolicy: {
+    WIS: WIS_DEFAULT,
+    FAM: FAM_DEFAULT,
+  },
+  targetPolicy: {
+    EQU: { mode: 'highest_shared_cost_pair' },
+  },
+  dicePolicy: {
+    KNO: { mode: 'reroll_odd_hold_even' },
+  },
+};
+
+const CEN_GREED_DOM_PLAN: AuthoredBotPlan = {
+  id: 'cen_greed_dom',
+  name: 'Greed DOM',
+  speciesId: 'CEN',
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'VIG',
+      'VIG',
+      'LEG',
+      'FEA',
+      'ANG',
+      'ANG',
+      { shipDefId: 'POW', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG', 'VIG'] },
+      'VIG',
+      'FEA',
+      'ANG',
+      'ANG',
+      { shipDefId: 'POW', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG', 'VIG'] },
+      'VIG',
+      'FAM',
+      'FAM',
+      'FEA',
+      { shipDefId: 'DOM', saveUntilAffordable: true, fallbackShipDefIds: ['FAM', 'FEA', 'LEG', 'VIG'] },
+      'VIG',
+      'LEG',
+      'FEA',
+      'FEA',
+      'ANG',
+      'EQU',
+      { shipDefId: 'DES', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'EQU', 'ANG'] },
+      'WIS',
+      'FAM',
+      { shipDefId: 'KNO', saveUntilAffordable: true, fallbackShipDefIds: ['WIS', 'FAM', 'FEA'] },
+    ],
+    endLoop: ['FEA'],
+    fallbacks: {
+      default: ['FEA', 'FAM', 'ANG'],
+      defensive: ['FAM', 'FEA', 'WIS'],
+      aggressive: ['ANG', 'FEA', 'FAM'],
+    },
+  },
+  chargePolicy: {
+    WIS: WIS_DEFAULT,
+    FAM: FAM_SUSTAIN,
+  },
+  targetPolicy: {
+    DOM: { mode: 'highest_cost_basic' },
+    EQU: { mode: 'highest_shared_cost_pair' },
+  },
+  dicePolicy: {
+    KNO: { mode: 'reroll_odd_hold_even' },
+  },
+};
+
+const CEN_REDEMPTION_PLAN: AuthoredBotPlan = {
+  id: 'cen_redemption',
+  name: 'Redemption',
+  speciesId: 'CEN',
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'VIG',
+      'VIG',
+      'VIG',
+      'WIS',
+      'WIS',
+      'WIS',
+      { shipDefId: 'RED', saveUntilAffordable: true, fallbackShipDefIds: ['WIS', 'FEA', 'ANG'] },
+      'WIS',
+      'WIS',
+      'WIS',
+      { shipDefId: 'RED', saveUntilAffordable: true, fallbackShipDefIds: ['WIS', 'FEA', 'ANG'] },
+    ],
+    endLoop: [
+      'FEA',
+      'FEA',
+      { shipDefId: 'TER', saveUntilAffordable: true },
+      'ANG',
+      'ANG',
+      { shipDefId: 'FUR', saveUntilAffordable: true },
+    ],
+    fallbacks: {
+      default: ['WIS', 'FEA', 'ANG'],
+      defensive: ['WIS', 'FEA'],
+      aggressive: ['ANG', 'WIS'],
+    },
+  },
+  chargePolicy: {
+    WIS: WIS_AGGRESSIVE,
+  },
+};
+
+const CEN_FAMILY_PRESSURE_DOM_PLAN: AuthoredBotPlan = {
+  id: 'cen_family_pressure_dom',
+  name: 'Family Pressure DOM',
+  speciesId: 'CEN',
+  buildGoals: [],
+  loopGoals: [],
+  orderedBuildPlan: {
+    buildOrder: [
+      'VIG',
+      'VIG',
+      'LEG',
+      'ANG',
+      'ANG',
+      { shipDefId: 'FUR', saveUntilAffordable: true },
+      'FEA',
+      'ANG',
+      'WIS',
+      'FAM',
+      'FAM',
+      { shipDefId: 'DOM', saveUntilAffordable: true, fallbackShipDefIds: ['FAM', 'FEA', 'LEG', 'VIG'] },
+      'VIG',
+      'LEG',
+      'FEA',
+      'FAM',
+      'FAM',
+      { shipDefId: 'DOM', saveUntilAffordable: true, fallbackShipDefIds: ['FAM', 'FEA', 'LEG', 'VIG'] },
+      'VIG',
+      'LEG',
+      'FEA',
+    ],
+    endLoop: ['FAM'],
+    fallbacks: {
+      default: ['FAM', 'FEA', 'WIS'],
+      defensive: ['FAM', 'WIS', 'FEA'],
+      aggressive: ['FAM', 'ANG'],
+    },
+  },
   chargePolicy: {
     WIS: WIS_DEFAULT,
     FAM: FAM_AGGRESSIVE,
   },
-  dicePolicy: {
-    KNO: {
-      mode: 'reroll_odd_hold_even',
-    },
-  },
-  notes: 'Battlelog-derived Vigor opener with Legacy and Fury pressure.',
-};
-
-const CEN_EQU_DES_RUSH_PLAN: AuthoredBotPlan = {
-  id: 'cen_equ_des_rush',
-  name: 'Equality Destruction Rush',
-  speciesId: 'CEN',
-  buildGoals: [
-    { shipDefId: 'EQU', targetCount: 1 },
-    { shipDefId: 'LEG', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'FEA', targetCount: 2 },
-    { shipDefId: 'ANG', targetCount: 1 },
-    { shipDefId: 'EQU', targetCount: 2 },
-    { shipDefId: 'DES', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'VIG', targetCount: 1 },
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'KNO', targetCount: 1, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'EQU', targetCount: 1 },
-    { shipDefId: 'FEA', targetCount: 2 },
-    { shipDefId: 'ANG', targetCount: 1 },
-    { shipDefId: 'LEG', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'DES', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    WIS: WIS_DEFAULT,
-    FAM: FAM_DEFAULT,
-  },
   targetPolicy: {
-    EQU: {
-      mode: 'highest_shared_cost_pair',
-    },
+    DOM: { mode: 'highest_cost_basic' },
   },
-  dicePolicy: {
-    KNO: {
-      mode: 'reroll_odd_hold_even',
-    },
-  },
-  notes: 'Battlelog-derived Equality line into Ark of Destruction.',
-};
-
-const CEN_FAMILY_WIS_KNO_PLAN: AuthoredBotPlan = {
-  id: 'cen_family_wis_kno',
-  name: 'Family Wisdom Knowledge',
-  speciesId: 'CEN',
-  buildGoals: [
-    { shipDefId: 'VIG', targetCount: 1 },
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'KNO', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'WIS', targetCount: 3 },
-    { shipDefId: 'RED', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'WIS', targetCount: 4 },
-    { shipDefId: 'FAM', targetCount: 2 },
-    { shipDefId: 'KNO', targetCount: 2, saveUntilAffordable: true },
-    { shipDefId: 'VIG', targetCount: 2 },
-    { shipDefId: 'LEG', targetCount: 1, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'KNO', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'WIS', targetCount: 4 },
-    { shipDefId: 'RED', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    WIS: WIS_SUSTAIN,
-    FAM: FAM_SUSTAIN,
-  },
-  dicePolicy: {
-    KNO: {
-      mode: 'reroll_odd_hold_even',
-    },
-  },
-  notes: 'Battlelog-derived Wisdom and Family sustain line with Knowledge support.',
-};
-
-const CEN_TERROR_POWER_MIDRANGE_PLAN: AuthoredBotPlan = {
-  id: 'cen_terror_power_midrange',
-  name: 'Terror Power Midrange',
-  speciesId: 'CEN',
-  buildGoals: [
-    { shipDefId: 'VIG', targetCount: 1 },
-    { shipDefId: 'FEA', targetCount: 2 },
-    { shipDefId: 'TER', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'FEA', targetCount: 3 },
-    { shipDefId: 'ANG', targetCount: 2 },
-    { shipDefId: 'POW', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'VIG', targetCount: 2 },
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'KNO', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'TER', targetCount: 2, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'FEA', targetCount: 2 },
-    { shipDefId: 'TER', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'FEA', targetCount: 3 },
-    { shipDefId: 'ANG', targetCount: 2 },
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'POW', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    WIS: WIS_SUSTAIN,
-    FAM: FAM_DEFAULT,
-  },
-  dicePolicy: {
-    KNO: {
-      mode: 'reroll_odd_hold_even',
-    },
-  },
-  notes: 'Battlelog-derived Terror and Power midrange line.',
-};
-
-const CEN_DOM_CONTROL_PLAN: AuthoredBotPlan = {
-  id: 'cen_dom_control',
-  name: 'Domination Control',
-  speciesId: 'CEN',
-  buildGoals: [
-    { shipDefId: 'VIG', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 2 },
-    { shipDefId: 'LEG', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'FEA', targetCount: 1 },
-    { shipDefId: 'DOM', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 3 },
-    { shipDefId: 'KNO', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'VIG', targetCount: 2 },
-    { shipDefId: 'LEG', targetCount: 2, saveUntilAffordable: true },
-    { shipDefId: 'FEA', targetCount: 2 },
-    { shipDefId: 'FAM', targetCount: 5 },
-    { shipDefId: 'DOM', targetCount: 2, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'VIG', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 2 },
-    { shipDefId: 'LEG', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'FEA', targetCount: 1 },
-    { shipDefId: 'DOM', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 3 },
-    { shipDefId: 'KNO', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    FAM: FAM_SUSTAIN,
-    WIS: WIS_SUSTAIN,
-  },
-  targetPolicy: {
-    DOM: {
-      mode: 'highest_cost_basic',
-    },
-  },
-  dicePolicy: {
-    KNO: {
-      mode: 'reroll_odd_hold_even',
-    },
-  },
-  notes: 'Battlelog-derived Domination control line with post-Domination Knowledge support.',
-};
-
-const CEN_REDEMPTION_WIS_PLAN: AuthoredBotPlan = {
-  id: 'cen_redemption_wis',
-  name: 'Redemption Wisdom',
-  speciesId: 'CEN',
-  buildGoals: [
-    { shipDefId: 'VIG', targetCount: 1 },
-    { shipDefId: 'WIS', targetCount: 3 },
-    { shipDefId: 'RED', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'WIS', targetCount: 4 },
-    { shipDefId: 'VIG', targetCount: 2 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'KNO', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'WIS', targetCount: 6 },
-    { shipDefId: 'RED', targetCount: 2, saveUntilAffordable: true },
-    { shipDefId: 'LEG', targetCount: 1, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'WIS', targetCount: 3 },
-    { shipDefId: 'RED', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'WIS', targetCount: 4 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'KNO', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    WIS: WIS_SUSTAIN,
-    FAM: FAM_DEFAULT,
-  },
-  dicePolicy: {
-    KNO: {
-      mode: 'reroll_odd_hold_even',
-    },
-  },
-  notes: 'Battlelog-derived Wisdom-heavy Redemption line.',
-};
-
-const CEN_ENTROPY_EQUALITY_PLAN: AuthoredBotPlan = {
-  id: 'cen_entropy_equality',
-  name: 'Entropy Equality',
-  speciesId: 'CEN',
-  buildGoals: [
-    { shipDefId: 'VIG', targetCount: 1 },
-    { shipDefId: 'EQU', targetCount: 2 },
-    { shipDefId: 'ENT', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'EQU', targetCount: 4 },
-    { shipDefId: 'ENT', targetCount: 2, saveUntilAffordable: true },
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'KNO', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'FEA', targetCount: 2 },
-    { shipDefId: 'ANG', targetCount: 1 },
-    { shipDefId: 'LEG', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'DES', targetCount: 1, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'EQU', targetCount: 2 },
-    { shipDefId: 'WIS', targetCount: 1 },
-    { shipDefId: 'FAM', targetCount: 1 },
-    { shipDefId: 'ENT', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'KNO', targetCount: 1, saveUntilAffordable: true },
-  ],
-  chargePolicy: {
-    WIS: WIS_DEFAULT,
-    FAM: FAM_DEFAULT,
-  },
-  targetPolicy: {
-    EQU: {
-      mode: 'highest_shared_cost_pair',
-    },
-  },
-  dicePolicy: {
-    KNO: {
-      mode: 'reroll_odd_hold_even',
-    },
-  },
-  notes: 'Battlelog-derived Equality line into Entropy and late Destruction.',
-};
-
-const CEN_FEAR_POWER_FLOOD_PLAN: AuthoredBotPlan = {
-  id: 'cen_fear_power_flood',
-  name: 'Fear Power Flood',
-  speciesId: 'CEN',
-  buildGoals: [
-    { shipDefId: 'VIG', targetCount: 1 },
-    { shipDefId: 'FEA', targetCount: 2 },
-    { shipDefId: 'TER', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'FEA', targetCount: 3 },
-    { shipDefId: 'ANG', targetCount: 2 },
-    { shipDefId: 'POW', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'FEA', targetCount: 4 },
-    { shipDefId: 'TER', targetCount: 2, saveUntilAffordable: true },
-    { shipDefId: 'VIG', targetCount: 2 },
-    { shipDefId: 'LEG', targetCount: 1, saveUntilAffordable: true },
-  ],
-  loopGoals: [
-    { shipDefId: 'FEA', targetCount: 2 },
-    { shipDefId: 'TER', targetCount: 1, saveUntilAffordable: true },
-    { shipDefId: 'FEA', targetCount: 3 },
-    { shipDefId: 'ANG', targetCount: 2 },
-    { shipDefId: 'POW', targetCount: 1, saveUntilAffordable: true },
-  ],
-  notes: 'Battlelog-derived Fear and Power flood without late Domination.',
 };
 
 // Order is deliberate: deterministic chooser selection hashes into this array by index.
 export const ACTIVE_CENTAUR_BOT_PLANS: AuthoredBotPlan[] = [
-  CEN_VIG_POWER_FAMILY_DES_PLAN,
-  CEN_LOWTECH_FURY_RUSH_PLAN,
-  CEN_VIG_LEGACY_FURY_PLAN,
-  CEN_EQU_DES_RUSH_PLAN,
-  CEN_FAMILY_WIS_KNO_PLAN,
-  CEN_TERROR_POWER_MIDRANGE_PLAN,
-  CEN_DOM_CONTROL_PLAN,
-  CEN_REDEMPTION_WIS_PLAN,
-  CEN_ENTROPY_EQUALITY_PLAN,
-  CEN_FEAR_POWER_FLOOD_PLAN,
+  CEN_VIGOR_POWER_DESTRUCTION_PLAN,
+  CEN_FURY_RUSH_PLAN,
+  CEN_VIGOR_LEGACY_FURY_PLAN,
+  CEN_FAMILY_AGGRO_PLAN,
+  CEN_GREED_KNO_DES_PLAN,
+  CEN_GREED_DOM_PLAN,
+  CEN_REDEMPTION_PLAN,
+  CEN_FAMILY_PRESSURE_DOM_PLAN,
 ];
 
-const CENTAUR_BOT_PLAN_LOOKUP_POOL: AuthoredBotPlan[] = [
-  CEN_VIG_POWER_FAMILY_DES_PLAN,
-  CEN_LOWTECH_FURY_RUSH_PLAN,
-  CEN_VIG_LEGACY_FURY_PLAN,
-  CEN_EQU_DES_RUSH_PLAN,
-  CEN_FAMILY_WIS_KNO_PLAN,
-  CEN_TERROR_POWER_MIDRANGE_PLAN,
-  CEN_DOM_CONTROL_PLAN,
-  CEN_REDEMPTION_WIS_PLAN,
-  CEN_ENTROPY_EQUALITY_PLAN,
-  CEN_FEAR_POWER_FLOOD_PLAN,
-];
+const CENTAUR_BOT_PLAN_LOOKUP_POOL: AuthoredBotPlan[] = ACTIVE_CENTAUR_BOT_PLANS;
 
 function hashSeed(seed: string): number {
   let hash = 0;
