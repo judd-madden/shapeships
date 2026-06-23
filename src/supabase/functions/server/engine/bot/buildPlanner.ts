@@ -140,6 +140,29 @@ function parseComponentRequirement(componentToken: string): ComponentRequirement
   };
 }
 
+function countOrderedProgressShips(
+  workingFleet: WorkingShipEntry[],
+  shipDefId: string,
+): number {
+  let count = countWorkingFleetShips(workingFleet, shipDefId);
+
+  for (const entry of workingFleet) {
+    const shipDef = getShipById(entry.shipDefId);
+    const componentTokens = Array.isArray(shipDef?.componentShips)
+      ? shipDef.componentShips
+      : [];
+
+    for (const componentToken of componentTokens) {
+      const requirement = parseComponentRequirement(componentToken);
+      if (requirement.shipDefId === shipDefId) {
+        count += 1;
+      }
+    }
+  }
+
+  return count;
+}
+
 function reserveUpgradeComponents(
   workingFleet: WorkingShipEntry[],
   shipDefId: string,
@@ -555,7 +578,7 @@ function isOrderedBuildOrderSatisfied(
     const requiredCount = (requiredCounts.get(step.shipDefId) ?? 0) + 1;
     requiredCounts.set(step.shipDefId, requiredCount);
 
-    if (countWorkingFleetShips(workingFleet, step.shipDefId) < requiredCount) {
+    if (countOrderedProgressShips(workingFleet, step.shipDefId) < requiredCount) {
       return false;
     }
   }
@@ -1195,7 +1218,7 @@ function planOrderedBuildSubmit(args: {
       const requiredCount = (openingRequiredCounts.get(step.shipDefId) ?? 0) + 1;
       openingRequiredCounts.set(step.shipDefId, requiredCount);
 
-      if (countWorkingFleetShips(args.workingFleet, step.shipDefId) >= requiredCount) {
+      if (countOrderedProgressShips(args.workingFleet, step.shipDefId) >= requiredCount) {
         continue;
       }
     }
