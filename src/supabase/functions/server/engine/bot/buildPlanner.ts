@@ -22,6 +22,9 @@ type ComponentRequirement = {
 type GoalMode = 'opening' | 'loop';
 type DraftFailureReason = 'maxQuantity';
 
+const ZENITH_SHIP_DEF_ID = 'ZEN';
+const ZENITH_FREE_ANTLION_SHIP_DEF_ID = 'ANT';
+
 function normalizeResource(value: unknown): number {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return 0;
@@ -127,16 +130,37 @@ function ensureDraftOrder(order: string[], shipDefId: string) {
   }
 }
 
+function getBuildPayloadCount(shipDefId: string, draftCounts: Map<string, number>): number {
+  const draftedCount = draftCounts.get(shipDefId) ?? 0;
+  if (shipDefId !== ZENITH_FREE_ANTLION_SHIP_DEF_ID) {
+    return draftedCount;
+  }
+
+  return draftedCount + (draftCounts.get(ZENITH_SHIP_DEF_ID) ?? 0);
+}
+
+function getBuildPayloadOrder(draftOrder: string[], draftCounts: Map<string, number>): string[] {
+  const payloadOrder = [...draftOrder];
+  if (
+    (draftCounts.get(ZENITH_SHIP_DEF_ID) ?? 0) > 0 &&
+    !payloadOrder.includes(ZENITH_FREE_ANTLION_SHIP_DEF_ID)
+  ) {
+    payloadOrder.push(ZENITH_FREE_ANTLION_SHIP_DEF_ID);
+  }
+
+  return payloadOrder;
+}
+
 function buildSubmitFromDraft(
   draftOrder: string[],
   draftCounts: Map<string, number>,
   evolverChoices: EvolverBuildChoiceEntry[] = [],
 ): BuildSubmitPayload {
   const payload: BuildSubmitPayload = {
-    builds: draftOrder
+    builds: getBuildPayloadOrder(draftOrder, draftCounts)
       .map((shipDefId) => ({
         shipDefId,
-        count: draftCounts.get(shipDefId) ?? 0,
+        count: getBuildPayloadCount(shipDefId, draftCounts),
       }))
       .filter((build) => build.count > 0),
   };
@@ -335,6 +359,12 @@ function tryAddShipToDraft(args: {
           ? normalizeResource(shipDef.charges)
           : 0,
     });
+    if (shipDefId === ZENITH_SHIP_DEF_ID) {
+      workingFleet.push({
+        shipDefId: ZENITH_FREE_ANTLION_SHIP_DEF_ID,
+        chargesCurrent: getStartingChargesForShipDefId(ZENITH_FREE_ANTLION_SHIP_DEF_ID),
+      });
+    }
 
     return {
       ok: true,
