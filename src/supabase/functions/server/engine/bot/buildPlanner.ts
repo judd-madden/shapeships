@@ -3,6 +3,7 @@ import type { ShipInstance } from '../state/GameStateTypes.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import type {
   AuthoredBotPlan,
+  BotAdaptiveBuildRule,
   BotBuildGoal,
   OrderedBotBuildPlan,
   OrderedBotBuildStep,
@@ -630,6 +631,122 @@ function tryDraftShip(args: {
   }
 
   return attempt;
+}
+
+function passesAdaptiveBuildRuleHealthThresholds(args: {
+  rule: BotAdaptiveBuildRule;
+  player: any;
+  opponent: any;
+}): boolean {
+  const selfThreshold =
+    typeof args.rule.selfHealthAtOrBelow === 'number' &&
+    Number.isFinite(args.rule.selfHealthAtOrBelow)
+      ? args.rule.selfHealthAtOrBelow
+      : null;
+  const opponentThreshold =
+    typeof args.rule.opponentHealthAtOrBelow === 'number' &&
+    Number.isFinite(args.rule.opponentHealthAtOrBelow)
+      ? args.rule.opponentHealthAtOrBelow
+      : null;
+
+  if (selfThreshold === null && opponentThreshold === null) {
+    return false;
+  }
+
+  if (selfThreshold !== null) {
+    const selfHealth = Number(args.player?.health);
+    if (!Number.isFinite(selfHealth) || selfHealth > selfThreshold) {
+      return false;
+    }
+  }
+
+  if (opponentThreshold !== null) {
+    const opponentHealth = Number(args.opponent?.health);
+    if (!Number.isFinite(opponentHealth) || opponentHealth > opponentThreshold) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function draftAdaptiveBuildRules(args: {
+  plan: AuthoredBotPlan;
+  player: any;
+  opponent: any;
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  nativeSpecies: unknown;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): {
+  blockedBySaveUntilAffordable: boolean;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+} {
+  let {
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  } = args;
+
+  if (!Array.isArray(args.plan.adaptiveBuildRules)) {
+    return {
+      blockedBySaveUntilAffordable: false,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    };
+  }
+
+  for (const rule of args.plan.adaptiveBuildRules) {
+    if (!rule || typeof rule.shipDefId !== 'string') continue;
+
+    const shipDefId = rule.shipDefId.trim();
+    if (shipDefId.length === 0) continue;
+    if (!Number.isInteger(rule.targetCount) || rule.targetCount < 0) continue;
+    if (
+      !passesAdaptiveBuildRuleHealthThresholds({
+        rule,
+        player: args.player,
+        opponent: args.opponent,
+      })
+    ) {
+      continue;
+    }
+
+    while (countWorkingFleetShips(args.workingFleet, shipDefId) < rule.targetCount) {
+      const attempt = tryDraftShip({
+        workingFleet: args.workingFleet,
+        draftCounts: args.draftCounts,
+        draftOrder: args.draftOrder,
+        nativeSpecies: args.nativeSpecies,
+        shipDefId,
+        remainingOrdinaryLines,
+        remainingJoiningLines,
+      });
+
+      if (!attempt.ok) {
+        if (rule.saveUntilAffordable && isResourceFailureReason(attempt.failureReason)) {
+          return {
+            blockedBySaveUntilAffordable: true,
+            remainingOrdinaryLines,
+            remainingJoiningLines,
+          };
+        }
+
+        break;
+      }
+
+      remainingOrdinaryLines = attempt.remainingOrdinaryLines;
+      remainingJoiningLines = attempt.remainingJoiningLines;
+    }
+  }
+
+  return {
+    blockedBySaveUntilAffordable: false,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  };
 }
 
 function findFirstMissingComponentRequirement(args: {
@@ -1725,6 +1842,24 @@ export function planBotBuildSubmit(
   const workingFleet = buildWorkingFleet(state?.gameData?.ships?.[botPlayerId] ?? []);
   const draftCounts = new Map<string, number>();
   const draftOrder: string[] = [];
+
+  const adaptiveDraft = draftAdaptiveBuildRules({
+    plan,
+    player,
+    opponent,
+    workingFleet,
+    draftCounts,
+    draftOrder,
+    nativeSpecies,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  });
+  remainingOrdinaryLines = adaptiveDraft.remainingOrdinaryLines;
+  remainingJoiningLines = adaptiveDraft.remainingJoiningLines;
+
+  if (adaptiveDraft.blockedBySaveUntilAffordable) {
+    return buildSubmitFromDraft(draftOrder, draftCounts);
+  }
 
   if (plan.orderedBuildPlan) {
     return planOrderedBuildSubmit({

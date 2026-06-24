@@ -8,6 +8,14 @@ export type BotBuildGoal = {
   saveUntilAffordable?: boolean;
 };
 
+export type BotAdaptiveBuildRule = {
+  shipDefId: string;
+  targetCount: number;
+  selfHealthAtOrBelow?: number;
+  opponentHealthAtOrBelow?: number;
+  saveUntilAffordable?: boolean;
+};
+
 export type BuildGoal = BotBuildGoal;
 
 export type OrderedBotBuildStep =
@@ -96,6 +104,7 @@ export type AuthoredBotPlan = {
   speciesId: BotSpeciesId;
   buildGoals: BotBuildGoal[];
   loopGoals?: BotBuildGoal[];
+  adaptiveBuildRules?: BotAdaptiveBuildRule[];
   orderedBuildPlan?: OrderedBotBuildPlan;
   shipsThatBuild?: {
     CAR?: CarrierShipsThatBuildPolicy;
