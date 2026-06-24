@@ -175,22 +175,20 @@ const XEN_QUEEN_NO_CHRONO_PLAN: AuthoredBotPlan = {
   loopGoals: [],
   orderedBuildPlan: {
     buildOrder: [
+      'ZEN',
       'BUG',
       { shipDefId: 'DSW', saveUntilAffordable: true },
       { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['DSW', 'BUG'] },
       { shipDefId: 'DSW', saveUntilAffordable: true },
       { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['DSW', 'BUG'] },
-      'MAN',
-      'HEL',
-      'HEL',
     ],
-    endLoop: ['BUG', 'MAN', 'HEL'],
+    endLoop: ['BUG', 'DSW', 'ZEN',],
     fallbacks: {
       default: ['DSW', 'BUG'],
       defensive: ['DSW', 'BUG'],
-      aggressive: ['BUG', 'HEL'],
+      aggressive: ['BUG'],
     },
-    manualBridgeLimits: { XEN: 2 },
+    manualBridgeLimits: { XEN: 1 },
   },
   chargePolicy: {
     ANT: ANT_DEFAULT,

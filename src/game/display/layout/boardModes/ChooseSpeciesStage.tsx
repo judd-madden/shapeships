@@ -69,7 +69,7 @@ function ComputerSpeciesDropdown({
         }`}
       >
         <span
-          className="font-['Roboto',sans-serif] text-[22px] font-black leading-none"
+          className="font-['Roboto',sans-serif] text-[18px] sm:text-[22px] font-black leading-none"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {selectedLabel}
@@ -115,7 +115,7 @@ function ComputerSpeciesPanel({
   onSelectSpecies: (species: ComputerBotSpeciesId) => void;
 }) {
   return (
-    <div className="content-stretch flex flex-col gap-[24px] items-center pb-0 pt-[130px] px-0 relative shrink-0 w-[657.6px]">
+    <div className="content-stretch flex flex-col gap-[24px] items-center pb-[80px] px-0 relative shrink-0">
       <p
         className="font-['Roboto',sans-serif] font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
         style={{ fontVariationSettings: "'wdth' 100" }}
@@ -151,7 +151,7 @@ export function ChooseSpeciesStage({
   if (vm.isSpectator) {
     return (
       <div
-        className="flex-col lg:flex-row content-stretch flex gap-[8px] item-center lg:items-start justify-center px-0 pt-[240px] lg:py-[12px] relative size-full"
+        className="flex-col lg:flex-row content-stretch flex gap-[8px] item-center lg:items-start justify-center px-0 pt-[240px] lg:py-[12px] relative size-full min-[768px]:max-[1599px]:scale-75"
         data-name="Board Stage - Choose Species"
       >
         {/* Left: Spectator Section */}
@@ -173,7 +173,7 @@ export function ChooseSpeciesStage({
         </div>
 
         {/* Right: Share Game URL Section */}
-        <div className="basis-0 content-stretch flex flex-col grow h-full items-center min-h-px min-w-px relative shrink-0 min-[768px]:max-[1599px]:hidden">
+        <div className="basis-0 content-stretch flex flex-col grow h-full items-center justify-center min-h-px min-w-px relative shrink-0">
           {vm.isComputerGame ? (
             <ComputerSpeciesPanel
               selectedSpecies={vm.selectedBotSpecies}
@@ -221,7 +221,7 @@ export function ChooseSpeciesStage({
 
   return (
     <div
-      className="flex-col lg:flex-row content-stretch flex gap-[8px] item-center lg:items-start justify-center px-0 pt-[240px] lg:py-[12px] relative size-full"
+      className="flex-col lg:flex-row content-stretch flex gap-[8px] item-center lg:items-start justify-center px-0 pt-[240px] lg:py-[12px] relative size-full min-[768px]:max-[1599px]:scale-85"
       data-name="Board Stage - Choose Species"
     >
       {/* Left: Choose Species Section */}
@@ -315,7 +315,7 @@ export function ChooseSpeciesStage({
       </div>
 
       {/* Right: Share Game URL Section */}
-      <div className="basis-0 content-stretch flex flex-col grow h-full items-center min-h-px min-w-px relative shrink-0 min-[768px]:max-[1599px]:hidden">
+      <div className="basis-0 content-stretch flex flex-col grow h-full items-center justify-center min-h-px min-w-px relative shrink-0">
         {vm.isComputerGame ? (
           <ComputerSpeciesPanel
             selectedSpecies={vm.selectedBotSpecies}
@@ -323,7 +323,7 @@ export function ChooseSpeciesStage({
             onSelectSpecies={onSelectBotSpecies}
           />
         ) : (
-          <div className="content-stretch flex flex-col gap-[24px] items-center pb-0 pt-[130px] px-0 relative shrink-0 w-[657.6px]">
+          <div className="content-stretch flex flex-col gap-[24px] items-center pb-0 px-0 relative shrink-0 ">
             <p
               className="font-['Roboto',sans-serif] font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
               style={{ fontVariationSettings: "'wdth' 100" }}

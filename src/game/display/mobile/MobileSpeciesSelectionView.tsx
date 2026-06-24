@@ -266,12 +266,12 @@ function MobileComputerSpeciesRegion({
                 setOpen((value) => !value);
               }
             }}
-            className={`flex h-[52px] w-full items-center justify-between rounded-[10px] border-[2px] border-[var(--shapeships-grey-70)] bg-black px-[16px] text-white ${
+            className={`flex h-[50px] w-full items-center justify-between rounded-[10px] border-[2px] border-[var(--shapeships-grey-70)] bg-black px-[16px] text-white ${
               disabled ? 'cursor-default' : 'cursor-pointer active:scale-[0.99] hover:bg-[var(--shapeships-grey-90)]'
             }`}
           >
             <span
-              className="text-[22px] font-black leading-none"
+              className="text-[18px] font-black leading-none"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {selectedLabel}
@@ -291,10 +291,10 @@ function MobileComputerSpeciesRegion({
                   role="option"
                   aria-selected={option.species === selectedSpecies}
                   onClick={() => handleSelect(option.species)}
-                  className="flex h-[60px] w-full items-center px-[16px] text-left text-white hover:bg-[var(--shapeships-grey-90)]"
+                  className="flex h-[50px] w-full items-center px-[16px] text-left text-white hover:bg-[var(--shapeships-grey-90)]"
                 >
                   <span
-                    className="text-[22px] font-black leading-none"
+                    className="text-[18px] font-black leading-none"
                     style={{ fontVariationSettings: "'wdth' 100" }}
                   >
                     {option.label}
