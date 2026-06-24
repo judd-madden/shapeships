@@ -1251,6 +1251,61 @@ function tryDraftComponentReadyOrderedPrimary(args: {
   };
 }
 
+function tryDraftLaterComponentReadyEndLoopUpgrade(args: {
+  endLoopSteps: NormalizedOrderedBuildStep[];
+  currentStepIndex: number;
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  nativeSpecies: unknown;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): OrderedBuildStepResult | null {
+  for (const candidate of args.endLoopSteps.slice(args.currentStepIndex + 1)) {
+    if (!isUpgradedShipDefId(candidate.shipDefId)) {
+      continue;
+    }
+
+    if (!canReserveUpgradeComponents(args.workingFleet, candidate.shipDefId)) {
+      continue;
+    }
+
+    const attempt = tryDraftShip({
+      workingFleet: args.workingFleet,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+      nativeSpecies: args.nativeSpecies,
+      shipDefId: candidate.shipDefId,
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    });
+
+    if (attempt.ok) {
+      return {
+        blockedBySaveUntilAffordable: false,
+        shouldStopOrderedSequence: false,
+        didDraftPrimaryStep: true,
+        didDraftFallbackOrBridge: false,
+        remainingOrdinaryLines: attempt.remainingOrdinaryLines,
+        remainingJoiningLines: attempt.remainingJoiningLines,
+      };
+    }
+
+    if (candidate.saveUntilAffordable && isResourceFailureReason(attempt.failureReason)) {
+      return {
+        blockedBySaveUntilAffordable: true,
+        shouldStopOrderedSequence: true,
+        didDraftPrimaryStep: false,
+        didDraftFallbackOrBridge: false,
+        remainingOrdinaryLines: args.remainingOrdinaryLines,
+        remainingJoiningLines: args.remainingJoiningLines,
+      };
+    }
+  }
+
+  return null;
+}
+
 function processOrderedBuildStep(args: {
   plan: AuthoredBotPlan;
   orderedPlan: OrderedBotBuildPlan;
@@ -1520,8 +1575,22 @@ function planOrderedBuildSubmit(args: {
       let draftedInPass = false;
       let stoppedByBlock = false;
 
-      for (const step of endLoopSteps) {
-        const result = processOrderedBuildStep({
+      for (let stepIndex = 0; stepIndex < endLoopSteps.length; stepIndex += 1) {
+        const step = endLoopSteps[stepIndex];
+        const opportunisticUpgradeResult = !isUpgradedShipDefId(step.shipDefId)
+          ? tryDraftLaterComponentReadyEndLoopUpgrade({
+            endLoopSteps,
+            currentStepIndex: stepIndex,
+            workingFleet: args.workingFleet,
+            draftCounts: args.draftCounts,
+            draftOrder: args.draftOrder,
+            nativeSpecies: args.nativeSpecies,
+            remainingOrdinaryLines,
+            remainingJoiningLines,
+          })
+          : null;
+
+        const result = opportunisticUpgradeResult ?? processOrderedBuildStep({
           plan: args.plan,
           orderedPlan: args.orderedPlan,
           step,
