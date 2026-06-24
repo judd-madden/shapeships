@@ -78,7 +78,7 @@ function getPressureVisualMax(value: number): number {
     return Math.max(2, Math.ceil(clamped / 2) * 2);
   }
 
-  return Math.min(50, Math.ceil(clamped / 10) * 10);
+  return Math.min(100, Math.ceil(clamped / 10) * 10);
 }
 
 function getFleetVisualMax(value: number): number {
