@@ -76,6 +76,11 @@ const CEN_FURY_RUSH_PLAN: AuthoredBotPlan = {
   speciesId: 'CEN',
   buildGoals: [],
   loopGoals: [],
+  adaptiveBuildRules: [
+    { selfHealthAtOrBelow: 15, shipDefId: 'FEA', targetCount: 1 },
+    { selfHealthAtOrBelow: 10, shipDefId: 'FEA', targetCount: 2 },
+    { selfHealthAtOrBelow: 6, shipDefId: 'FEA', targetCount: 4 },
+  ],
   orderedBuildPlan: {
     buildOrder: [
       'ANG',
@@ -106,6 +111,11 @@ const CEN_VIGOR_LEGACY_FURY_PLAN: AuthoredBotPlan = {
   speciesId: 'CEN',
   buildGoals: [],
   loopGoals: [],
+  adaptiveBuildRules: [
+    { selfHealthAtOrBelow: 15, shipDefId: 'FEA', targetCount: 1 },
+    { selfHealthAtOrBelow: 10, shipDefId: 'FEA', targetCount: 2 },
+    { selfHealthAtOrBelow: 6, shipDefId: 'FEA', targetCount: 4 },
+  ],
   orderedBuildPlan: {
     buildOrder: [
       'VIG',

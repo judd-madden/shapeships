@@ -38,12 +38,14 @@ const XEN_CHRONO_QUEEN_STANDARD_PLAN: AuthoredBotPlan = {
   speciesId: 'XEN',
   buildGoals: [],
   loopGoals: [],
+  adaptiveBuildRules: [
+    { selfHealthAtOrBelow: 20, shipDefId: 'DSW', targetCount: 1, saveUntilAffordable: true },
+  ],
   orderedBuildPlan: {
     buildOrder: [
       'ZEN',
       'BUG',
       'BUG',
-      { shipDefId: 'DSW', saveUntilAffordable: true },
       { shipDefId: 'CHR', saveUntilAffordable: true },
       { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['DSW'] },
       'ZEN',
@@ -231,11 +233,15 @@ const XEN_DOUBLE_CHRONO_QUEEN_PLAN: AuthoredBotPlan = {
   speciesId: 'XEN',
   buildGoals: [],
   loopGoals: [],
+  adaptiveBuildRules: [
+    { selfHealthAtOrBelow: 20, shipDefId: 'DSW', targetCount: 1, saveUntilAffordable: true },
+    { selfHealthAtOrBelow: 17, shipDefId: 'DSW', targetCount: 2, saveUntilAffordable: true },
+    { selfHealthAtOrBelow: 14, shipDefId: 'DSW', targetCount: 3, saveUntilAffordable: true },
+  ],
   orderedBuildPlan: {
     buildOrder: [
       'ZEN',
       'BUG',
-      { shipDefId: 'DSW', saveUntilAffordable: true },
       'ZEN',
       'BUG',
       {
@@ -248,7 +254,6 @@ const XEN_DOUBLE_CHRONO_QUEEN_PLAN: AuthoredBotPlan = {
         saveUntilAffordable: true,
         fallbackShipDefIds: ['BUG', 'ZEN', 'DSW', 'HEL'],
       },
-      { shipDefId: 'DSW', saveUntilAffordable: true },
       'BUG',
       {
         shipDefId: 'CHR',
@@ -269,7 +274,6 @@ const XEN_DOUBLE_CHRONO_QUEEN_PLAN: AuthoredBotPlan = {
         saveUntilAffordable: true,
         fallbackShipDefIds: ['BUG', 'ZEN', 'DSW', 'HEL'],
       },
-      { shipDefId: 'DSW', saveUntilAffordable: true },
       'MAN',
       'HEL',
     ],
@@ -291,6 +295,9 @@ const XEN_AGGRO_PLAN: AuthoredBotPlan = {
   speciesId: 'XEN',
   buildGoals: [],
   loopGoals: [],
+  adaptiveBuildRules: [
+    { selfHealthAtOrBelow: 15, shipDefId: 'MAN', targetCount: 1 },
+  ],
   orderedBuildPlan: {
     buildOrder: [
       'BUG',
@@ -299,7 +306,6 @@ const XEN_AGGRO_PLAN: AuthoredBotPlan = {
       'EVO',
       'BUG',
       'BUG',
-      'MAN',
       { shipDefId: 'ASF', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'ANT', 'MAN', 'HEL'] },
       { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['BUG', 'ANT', 'MAN', 'HEL'] },
     ],
