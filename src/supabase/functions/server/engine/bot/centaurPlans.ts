@@ -66,7 +66,7 @@ const CEN_VIGOR_POWER_DESTRUCTION_PLAN: AuthoredBotPlan = {
     },
   },
   targetPolicy: {
-    EQU: { mode: 'highest_shared_cost_pair' },
+    EQU: { mode: 'lowest_shared_cost_pair' },
   },
 };
 
@@ -136,11 +136,11 @@ const CEN_FAMILY_AGGRO_PLAN: AuthoredBotPlan = {
   orderedBuildPlan: {
     buildOrder: [
       'VIG',
+      'VIG',
       'FEA',
       'ANG',
       'ANG',
       { shipDefId: 'POW', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG', 'VIG'] },
-      'VIG',
       'LEG',
       'ANG',
       'ANG',
@@ -186,8 +186,8 @@ const CEN_GREED_KNO_DES_PLAN: AuthoredBotPlan = {
       { shipDefId: 'POW', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG', 'VIG'] },
       'WIS',
       'FAM',
-      'VIG',
       { shipDefId: 'KNO', saveUntilAffordable: true, fallbackShipDefIds: ['WIS', 'FAM', 'FEA'] },
+      'VIG',
       'FEA',
       'ANG',
       'ANG',
@@ -240,11 +240,11 @@ const CEN_GREED_DOM_PLAN: AuthoredBotPlan = {
       'ANG',
       { shipDefId: 'POW', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG', 'VIG'] },
       'VIG',
+      'VIG',
       'FAM',
       'FAM',
       'FEA',
       { shipDefId: 'DOM', saveUntilAffordable: true, fallbackShipDefIds: ['FAM', 'FEA', 'LEG', 'VIG'] },
-      'VIG',
       'LEG',
       'FEA',
       'FEA',
@@ -296,11 +296,7 @@ const CEN_REDEMPTION_PLAN: AuthoredBotPlan = {
       { shipDefId: 'RED', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG'] },
     ],
     endLoop: [
-      'FEA',
-      'FEA',
       { shipDefId: 'TER', saveUntilAffordable: true },
-      'ANG',
-      'ANG',
       { shipDefId: 'FUR', saveUntilAffordable: true },
     ],
     fallbacks: {
@@ -344,7 +340,7 @@ const CEN_FAMILY_PRESSURE_DOM_PLAN: AuthoredBotPlan = {
       'LEG',
       'FEA',
     ],
-    endLoop: ['FAM'],
+    endLoop: ['FAM', 'FUR'],
     fallbacks: {
       default: ['FAM', 'FEA', 'WIS'],
       defensive: ['FAM', 'WIS', 'FEA'],

@@ -69,7 +69,9 @@ export type InterceptorChargePolicy = DamageHealChargePolicy;
 
 export type GuardianTargetMode = 'highest_cost_basic';
 export type HighestCostBasicTargetMode = 'highest_cost_basic';
-export type EqualityTargetMode = 'highest_shared_cost_pair';
+export type EqualityTargetMode =
+  | 'highest_shared_cost_pair'
+  | 'lowest_shared_cost_pair';
 export type KnowledgeDiceMode = 'reroll_odd_hold_even';
 export type EvolverChoiceOrderId = 'oxite' | 'asterite';
 

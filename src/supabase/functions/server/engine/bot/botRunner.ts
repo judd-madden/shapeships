@@ -1301,9 +1301,13 @@ function buildEqualityChargeIntentForCurrentPhase(args: {
   plan: AuthoredBotPlan;
 }): IntentRequest | null {
   const { state, playerId, phaseKey, loopStep, plan } = args;
+  const equalityTargetMode = plan?.targetPolicy?.EQU?.mode;
   if (
     !isDamageHealChargePhase(phaseKey) ||
-    plan?.targetPolicy?.EQU?.mode !== 'highest_shared_cost_pair'
+    (
+      equalityTargetMode !== 'highest_shared_cost_pair' &&
+      equalityTargetMode !== 'lowest_shared_cost_pair'
+    )
   ) {
     return null;
   }
@@ -1352,20 +1356,24 @@ function buildEqualityChargeIntentForCurrentPhase(args: {
     }
 
     const sharedCosts = new Set(validOwnTargets.map((target) => target.totalLineCost));
-    const highestSharedCost = [...validOpponentTargets]
+    const selectedSharedCost = [...validOpponentTargets]
       .map((target) => target.totalLineCost)
       .filter((cost) => sharedCosts.has(cost))
-      .sort((left, right) => right - left)[0];
+      .sort((left, right) =>
+        equalityTargetMode === 'lowest_shared_cost_pair'
+          ? left - right
+          : right - left
+      )[0];
 
-    if (typeof highestSharedCost !== 'number') {
+    if (typeof selectedSharedCost !== 'number') {
       continue;
     }
 
     const ownTarget = validOwnTargets
-      .filter((target) => target.totalLineCost === highestSharedCost)
+      .filter((target) => target.totalLineCost === selectedSharedCost)
       .sort((left, right) => compareOwnEqualitySacrificeTargets(state, left, right))[0];
     const opponentTarget = validOpponentTargets
-      .filter((target) => target.totalLineCost === highestSharedCost)
+      .filter((target) => target.totalLineCost === selectedSharedCost)
       .sort((left, right) => compareTargetsHighestTactical(state, left, right))[0];
 
     if (!ownTarget || !opponentTarget) {
