@@ -31,6 +31,11 @@ const FIRST_STRIKE_PHASE_KEY = 'battle.first_strike';
 const DEFAULT_DAMAGE_HEAL_CHARGE_PHASES: DamageHealChargePhase[] = [
   'battle.charge_declaration',
 ];
+const DEFAULT_MISSING_DAMAGE_HEAL_CHARGE_POLICY: DamageHealChargePolicy = {
+  healSelfAtOrBelow: 14,
+  damageOpponentAtOrBelow: 12,
+  phases: ['battle.charge_declaration', 'battle.charge_response'],
+};
 const DAMAGE_HEAL_CHARGE_SHIP_DEF_IDS = ['INT', 'ANT', 'WIS', 'FAM'] as const;
 const FIRST_STRIKE_TARGET_SHIP_DEF_IDS = ['GUA', 'SAC', 'DOM'] as const;
 
@@ -270,6 +275,21 @@ function getDamageHealChargePolicy(
   shipDefId: DamageHealChargeShipDefId,
 ): DamageHealChargePolicy | undefined {
   return plan?.chargePolicy?.[shipDefId];
+}
+
+function getDamageHealChargePolicyForOwnedShip(
+  plan: AuthoredBotPlan,
+  shipDefId: DamageHealChargeShipDefId,
+): { policy: DamageHealChargePolicy; isDefaultPolicy: boolean } {
+  const authoredPolicy = getDamageHealChargePolicy(plan, shipDefId);
+  if (authoredPolicy) {
+    return { policy: authoredPolicy, isDefaultPolicy: false };
+  }
+
+  return {
+    policy: DEFAULT_MISSING_DAMAGE_HEAL_CHARGE_POLICY,
+    isDefaultPolicy: true,
+  };
 }
 
 function getEffectiveDamageHealChargePhases(
@@ -793,6 +813,39 @@ function chooseCarrierChoiceId(args: {
   return legalChoiceIds[0] ?? null;
 }
 
+function chooseDefaultCarrierChoiceId(args: {
+  state: any;
+  playerId: string;
+  legalChoiceIds: Array<Exclude<CarrierChoiceId, 'hold'>>;
+}): Exclude<CarrierChoiceId, 'hold'> | null {
+  const { state, playerId, legalChoiceIds } = args;
+  if (legalChoiceIds.length === 0) {
+    return null;
+  }
+
+  const player = (state?.players ?? []).find((entry: any) => entry?.id === playerId);
+  const opponent = (state?.players ?? []).find(
+    (entry: any) => entry?.role === 'player' && entry?.id !== playerId,
+  );
+  const playerHealth = Number(player?.health ?? 0);
+  const opponentHealth = Number(opponent?.health ?? 0);
+  const legalChoiceIdSet = new Set<Exclude<CarrierChoiceId, 'hold'>>(legalChoiceIds);
+  const preferredChoiceId: Exclude<CarrierChoiceId, 'hold'> =
+    playerHealth <= 14 || playerHealth < opponentHealth ? 'defender' : 'fighter';
+
+  if (legalChoiceIdSet.has(preferredChoiceId)) {
+    return preferredChoiceId;
+  }
+
+  for (const fallbackChoiceId of ['defender', 'fighter'] as const) {
+    if (legalChoiceIdSet.has(fallbackChoiceId)) {
+      return fallbackChoiceId;
+    }
+  }
+
+  return null;
+}
+
 function clampFrigateTrigger(value: unknown): number | null {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -974,10 +1027,14 @@ function buildDamageHealChargeIntentForCurrentPhase(args: {
     });
 
   const actions: PowerActionPayload[] = [];
+  let usedDefaultDamageHealChargePolicy = false;
 
   for (const ship of chargeShips) {
-    const policy = getDamageHealChargePolicy(plan, ship.shipDefId);
-    if (!policy || !damageHealChargePolicyAllowsPhase(policy, phaseKey)) {
+    const { policy, isDefaultPolicy } = getDamageHealChargePolicyForOwnedShip(
+      plan,
+      ship.shipDefId,
+    );
+    if (!damageHealChargePolicyAllowsPhase(policy, phaseKey)) {
       continue;
     }
 
@@ -1011,6 +1068,8 @@ function buildDamageHealChargeIntentForCurrentPhase(args: {
       continue;
     }
 
+    usedDefaultDamageHealChargePolicy ||= isDefaultPolicy;
+
     actions.push({
       actionType: 'power',
       actionId: choicePower.actionId,
@@ -1023,6 +1082,7 @@ function buildDamageHealChargeIntentForCurrentPhase(args: {
     phaseKey === 'battle.charge_declaration' &&
     actions.length > 0 &&
     actions.every((action) => action.actionId === 'INT#0') &&
+    !usedDefaultDamageHealChargePolicy &&
     Object.keys(plan?.chargePolicy ?? {}).every((shipDefId) => shipDefId === 'INT') &&
     !Array.isArray(plan?.chargePolicy?.INT?.phases);
 
@@ -1044,9 +1104,6 @@ function buildCarrierIntentForCurrentPhase(args: {
   plan: AuthoredBotPlan;
 }): IntentRequest | null {
   const { state, playerId, phaseKey, loopStep, plan } = args;
-  if (!plan?.shipsThatBuild?.CAR) {
-    return null;
-  }
 
   if (!playerParticipatesInShipsThatBuildPass(state, playerId)) {
     return null;
@@ -1068,12 +1125,18 @@ function buildCarrierIntentForCurrentPhase(args: {
 
   for (const carrierShip of carrierShips) {
     const legalChoiceIds = getLegalCarrierChoiceIdsForShip(carrierShip);
-    const choiceId = chooseCarrierChoiceId({
-      state,
-      playerId,
-      plan,
-      legalChoiceIds,
-    });
+    const choiceId = plan?.shipsThatBuild?.CAR
+      ? chooseCarrierChoiceId({
+          state,
+          playerId,
+          plan,
+          legalChoiceIds,
+        })
+      : chooseDefaultCarrierChoiceId({
+          state,
+          playerId,
+          legalChoiceIds,
+        });
 
     if (!choiceId) {
       continue;
