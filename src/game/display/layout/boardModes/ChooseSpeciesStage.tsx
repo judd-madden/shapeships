@@ -115,7 +115,7 @@ function ComputerSpeciesPanel({
   onSelectSpecies: (species: ComputerBotSpeciesId) => void;
 }) {
   return (
-    <div className="content-stretch flex flex-col gap-[24px] items-center pb-[80px] px-0 relative shrink-0">
+    <div className="content-stretch flex flex-col gap-[24px] items-center pb-[80px] w-[500px] px-0 relative shrink-0">
       <p
         className="font-['Roboto',sans-serif] font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
         style={{ fontVariationSettings: "'wdth' 100" }}
