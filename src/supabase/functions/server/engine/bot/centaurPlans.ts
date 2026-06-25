@@ -291,6 +291,13 @@ const CEN_REDEMPTION_PLAN: AuthoredBotPlan = {
   speciesId: 'CEN',
   buildGoals: [],
   loopGoals: [],
+  adaptiveBuildRules: [
+    { selfHealthAtOrBelow: 20, shipDefId: 'TER', targetCount: 1 },
+    { selfHealthAtOrBelow: 16, shipDefId: 'TER', targetCount: 2 },
+    { selfHealthAtOrBelow: 14, shipDefId: 'TER', targetCount: 3 },
+    { selfHealthAtOrBelow: 12, shipDefId: 'TER', targetCount: 5 },
+    { selfHealthAtOrBelow: 8, shipDefId: 'TER', targetCount: 7 },
+  ],
   orderedBuildPlan: {
     buildOrder: [
       'VIG',
@@ -300,19 +307,14 @@ const CEN_REDEMPTION_PLAN: AuthoredBotPlan = {
       'WIS',
       'WIS',
       { shipDefId: 'RED', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG'] },
-      'WIS',
-      'WIS',
-      'WIS',
-      { shipDefId: 'RED', saveUntilAffordable: true, fallbackShipDefIds: ['FEA', 'ANG'] },
     ],
     endLoop: [
-      { shipDefId: 'TER', saveUntilAffordable: true },
       { shipDefId: 'FUR', saveUntilAffordable: true },
     ],
     fallbacks: {
-      default: ['WIS', 'FEA', 'ANG'],
-      defensive: ['WIS', 'FEA'],
-      aggressive: ['ANG', 'WIS'],
+      default: ['FEA', 'ANG'],
+      defensive: ['FEA'],
+      aggressive: ['ANG'],
     },
   },
   chargePolicy: {
