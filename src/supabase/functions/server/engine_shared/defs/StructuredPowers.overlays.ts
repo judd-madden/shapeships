@@ -97,7 +97,7 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   // INTERCEPTOR (INT)
   // ==========================================================================
   // JSON power index 0: Choice power (Charge Declaration, Charge Response)
-  // Options: damage (5 damage), heal (5 heal), hold (no effect)
+  // Options: damage (5 damage), heal (7 heal), hold (no effect)
   'INT#0': [
     {
       type: 'choice',
@@ -140,7 +140,7 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
               type: 'effect',
               timings: [], // Inherited from parent
               kind: EffectKind.Heal,
-              amount: 5,
+              amount: 7,
               targetPlayer: 'self'
             }
           ]

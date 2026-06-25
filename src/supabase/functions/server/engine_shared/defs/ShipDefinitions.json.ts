@@ -99,7 +99,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charge Declaration",
-        "text": "Interceptors have 1 charge:\\n- Deal 5 damage (uses charge) OR\\n- Heal 5 (uses charge)"
+        "text": "Interceptors have 1 charge:\\n- Deal 5 damage (uses charge) OR\\n- Heal 7 (uses charge)"
       }
     ],
     "energyCost": null,

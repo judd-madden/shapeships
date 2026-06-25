@@ -375,7 +375,7 @@ const MANUAL_POWER_OVERRIDES: Record<string, Record<number, Partial<EngineShipPo
   'INT': {
     0: {
       kind: EffectKind.HEAL,
-      baseAmount: 5,
+      baseAmount: 7,
       requiresCharge: true,
       chargesRequired: 1
     },

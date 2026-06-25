@@ -164,7 +164,7 @@ const INT_CHARGE_BUTTONS: ShipChoiceButtonSpec[] = [
   },
   {
     size: 'large',
-    label: 'Heal 5',
+    label: 'Heal 7',
     detail: '(uses charge)',
     choiceId: 'heal',
   },
