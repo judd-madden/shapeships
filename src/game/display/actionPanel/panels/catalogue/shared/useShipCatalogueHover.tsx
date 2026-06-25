@@ -9,6 +9,10 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
+import {
+  useHoverPanelPresence,
+  type HoverPanelMotionState,
+} from '../../../../shared/useHoverPanelPresence';
 
 /**
  * Hover state
@@ -27,6 +31,12 @@ export interface ShipCatalogueHoverState {
 export interface ShipCatalogueHoverController {
   /** Current hover state */
   state: ShipCatalogueHoverState;
+
+  /** Rendered hover state, retained briefly for exit animation */
+  presentState: ShipCatalogueHoverState;
+
+  /** Visual motion state for the rendered hover card */
+  motionState: HoverPanelMotionState | null;
   
   /** Enter hover (show card) */
   onEnter: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
@@ -49,19 +59,26 @@ export interface ShipCatalogueHoverController {
  *   Ship hitbox
  * </div>
  * 
- * {hover.state.activeShipId && (
+ * {hover.presentState.activeShipId && (
  *   <ShipHoverCard
- *     shipId={hover.state.activeShipId}
- *     anchorRect={hover.state.anchorRect!}
+ *     shipId={hover.presentState.activeShipId}
+ *     anchorRect={hover.presentState.anchorRect!}
  *   />
  * )}
  * ```
  */
+const EMPTY_HOVER_STATE: ShipCatalogueHoverState = {
+  activeShipId: null,
+  anchorRect: null,
+};
+
 export function useShipCatalogueHover(disabled?: boolean): ShipCatalogueHoverController {
   const [state, setState] = useState<ShipCatalogueHoverState>({
     activeShipId: null,
     anchorRect: null
   });
+  const activePresenceState = state.activeShipId && state.anchorRect ? state : null;
+  const { presentValue, motionState } = useHoverPanelPresence(activePresenceState);
 
   useEffect(() => {
     if (!disabled) {
@@ -98,6 +115,8 @@ export function useShipCatalogueHover(disabled?: boolean): ShipCatalogueHoverCon
   
   return {
     state,
+    presentState: presentValue ?? EMPTY_HOVER_STATE,
+    motionState,
     onEnter,
     onLeave
   };

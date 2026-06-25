@@ -1,10 +1,12 @@
 import * as ReactDOM from 'react-dom';
 import type { BoardStatBreakdownRowVm } from '../../../client/gameSession/types';
+import type { HoverPanelMotionState } from '../../shared/useHoverPanelPresence';
 
 interface BoardStatBreakdownHoverCardProps {
   anchorRect: DOMRect;
   side: 'left' | 'right';
   rows: BoardStatBreakdownRowVm[];
+  motionState?: HoverPanelMotionState | null;
 }
 
 const HOVER_GAP_PX = 8;
@@ -48,6 +50,7 @@ export function BoardStatBreakdownHoverCard({
   anchorRect,
   side,
   rows,
+  motionState,
 }: BoardStatBreakdownHoverCardProps) {
   if (rows.length === 0) {
     return null;
@@ -64,6 +67,7 @@ export function BoardStatBreakdownHoverCard({
     : anchorRect.right + anchorOffsetX;
   const anchorY = anchorRect.top + (anchorRect.height / 2);
   const isLeft = side === 'left';
+  const hasMotion = motionState != null;
 
   return ReactDOM.createPortal(
     <div
@@ -76,33 +80,41 @@ export function BoardStatBreakdownHoverCard({
       }}
     >
       <div
-        className="relative flex w-[220px] flex-col gap-[4px] rounded-[10px] bg-[var(--shapeships-grey-90)] px-[20px] py-[16px]"
+        className="relative w-[220px]"
         style={{
-          pointerEvents: 'none',
           transform: isLeft ? 'translate(-100%, -50%)' : 'translate(0, -50%)',
         }}
       >
         <div
-          aria-hidden="true"
-          className="absolute inset-0 rounded-[10px] border border-solid border-[var(--shapeships-grey-70)] pointer-events-none"
-        />
-
-        <div
-          aria-hidden="true"
-          className="absolute top-1/2 size-[12px] -translate-y-1/2 rotate-45 border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] pointer-events-none"
-          style={
-            isLeft
-              ? { right: '-6px', borderTopWidth: '1px', borderRightWidth: '1px' }
-              : { left: '-6px', borderBottomWidth: '1px', borderLeftWidth: '1px' }
-          }
-        />
-
-        {rows.map((row, index) => (
-          <BreakdownRow
-            key={`${row.rowKind}:${row.label}:${row.amount}:${row.count ?? index}`}
-            row={row}
+          className={`relative flex w-full flex-col gap-[4px] rounded-[10px] bg-[var(--shapeships-grey-90)] px-[20px] py-[16px]${hasMotion ? ' ss-hoverPanelMotion' : ''}`}
+          data-hover-panel-motion-direction={hasMotion ? (isLeft ? 'left' : 'right') : undefined}
+          data-hover-panel-motion-state={motionState ?? undefined}
+          style={{
+            pointerEvents: 'none',
+          }}
+        >
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 rounded-[10px] border border-solid border-[var(--shapeships-grey-70)] pointer-events-none"
           />
-        ))}
+
+          <div
+            aria-hidden="true"
+            className="absolute top-1/2 size-[12px] -translate-y-1/2 rotate-45 border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] pointer-events-none"
+            style={
+              isLeft
+                ? { right: '-6px', borderTopWidth: '1px', borderRightWidth: '1px' }
+                : { left: '-6px', borderBottomWidth: '1px', borderLeftWidth: '1px' }
+            }
+          />
+
+          {rows.map((row, index) => (
+            <BreakdownRow
+              key={`${row.rowKind}:${row.label}:${row.amount}:${row.count ?? index}`}
+              row={row}
+            />
+          ))}
+        </div>
       </div>
     </div>,
     portalTarget

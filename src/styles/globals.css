@@ -332,6 +332,56 @@ html:not(.app-ready) #root {
   transform: scale(1.05);
 }
 
+.ss-hoverPanelMotion {
+  --ss-hover-panel-offset-x: 0px;
+  --ss-hover-panel-offset-y: 0px;
+  --ss-hover-panel-duration: 80ms;
+  opacity: 0;
+  transform: translate3d(
+    var(--ss-hover-panel-offset-x),
+    var(--ss-hover-panel-offset-y),
+    0
+  );
+  transition:
+    opacity var(--ss-hover-panel-duration) ease-out,
+    transform var(--ss-hover-panel-duration) ease-out;
+  will-change: opacity, transform;
+}
+
+.ss-hoverPanelMotion[data-hover-panel-motion-direction="top"] {
+  --ss-hover-panel-offset-y: 12px;
+}
+
+.ss-hoverPanelMotion[data-hover-panel-motion-direction="bottom"] {
+  --ss-hover-panel-offset-y: -12px;
+}
+
+.ss-hoverPanelMotion[data-hover-panel-motion-direction="left"] {
+  --ss-hover-panel-offset-x: -12px;
+}
+
+.ss-hoverPanelMotion[data-hover-panel-motion-direction="right"] {
+  --ss-hover-panel-offset-x: 12px;
+}
+
+.ss-hoverPanelMotion[data-hover-panel-motion-state="active"] {
+  --ss-hover-panel-offset-x: 0px;
+  --ss-hover-panel-offset-y: 0px;
+  opacity: 1;
+}
+
+.ss-hoverPanelMotion[data-hover-panel-motion-state="entering"],
+.ss-hoverPanelMotion[data-hover-panel-motion-state="exiting"] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-hoverPanelMotion {
+    --ss-hover-panel-offset-x: 0px !important;
+    --ss-hover-panel-offset-y: 0px !important;
+  }
+}
+
 /* ============================================================================
    Turn Change Indicator / LeftRail takeover animation
    ========================================================================== */

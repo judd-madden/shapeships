@@ -1,4 +1,8 @@
 import { useCallback, useState } from 'react';
+import {
+  useHoverPanelPresence,
+  type HoverPanelMotionState,
+} from '../../shared/useHoverPanelPresence';
 
 export type BoardStatHoverKey =
   | 'my-last-damage'
@@ -15,15 +19,24 @@ export interface BoardStatHoverState {
 
 export interface BoardStatHoverController {
   state: BoardStatHoverState;
+  presentState: BoardStatHoverState;
+  motionState: HoverPanelMotionState | null;
   onEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
   onLeave: (key: BoardStatHoverKey) => void;
 }
+
+const EMPTY_BOARD_STAT_HOVER_STATE: BoardStatHoverState = {
+  activeKey: null,
+  anchorRect: null,
+};
 
 export function useBoardStatHover(): BoardStatHoverController {
   const [state, setState] = useState<BoardStatHoverState>({
     activeKey: null,
     anchorRect: null,
   });
+  const activePresenceState = state.activeKey && state.anchorRect ? state : null;
+  const { presentValue, motionState } = useHoverPanelPresence(activePresenceState);
 
   const onEnter = useCallback((key: BoardStatHoverKey, anchorEl: HTMLElement) => {
     setState({
@@ -47,6 +60,8 @@ export function useBoardStatHover(): BoardStatHoverController {
 
   return {
     state,
+    presentState: presentValue ?? EMPTY_BOARD_STAT_HOVER_STATE,
+    motionState,
     onEnter,
     onLeave,
   };

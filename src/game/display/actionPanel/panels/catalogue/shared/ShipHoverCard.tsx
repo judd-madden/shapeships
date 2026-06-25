@@ -19,6 +19,7 @@ import { parseShipToken } from '../../../../graphics/shipToken';
 import { resolveShipGraphic } from '../../../../graphics/resolveShipGraphic';
 import { isShipDefId } from '../../../../../data/ShipDefinitions.core';
 import { useAnchoredHoverPlacement } from '../../../../shared/useAnchoredHoverPlacement';
+import type { HoverPanelMotionState } from '../../../../shared/useHoverPanelPresence';
 
 // NOTE (PASS 2): This hover card is now a smart component with portal rendering.
 // Positioning is anchored to the ship hitbox via anchorRect.
@@ -27,6 +28,7 @@ interface ShipHoverCardProps {
   shipId: ShipDefId;
   anchorRect: DOMRect;
   eligibility: ShipEligibility;
+  motionState?: HoverPanelMotionState | null;
 }
 
 const TAIL_SIZE_PX = 12;
@@ -227,10 +229,20 @@ function PowerText({ text }: { text: string }) {
 /**
  * Main hover card component
  */
-export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCardProps) {
+function cx(...parts: Array<string | undefined | false>) {
+  return parts.filter(Boolean).join(' ');
+}
+
+export function ShipHoverCard({
+  shipId,
+  anchorRect,
+  eligibility,
+  motionState,
+}: ShipHoverCardProps) {
   const model = getShipCardModel(shipId);
   const { placement, anchorX, anchorY, cardTransform, cardRef } =
     useAnchoredHoverPlacement(anchorRect);
+  const hasMotion = motionState != null;
   
   if (!model) {
     console.warn(`[ShipHoverCard] No model for ship: ${shipId}`);
@@ -256,43 +268,53 @@ export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCard
     >
       <div
         ref={cardRef}
-        className="relative bg-[var(--shapeships-grey-90)] content-stretch flex w-[320px] flex-col gap-[12px] items-start rounded-[10px] px-[20px] pb-[20px] pt-[16px]"
+        className="relative w-[320px]"
         style={{
-          pointerEvents: 'none',
           transform: cardTransform,
         }}
       >
-        {/* Border overlay */}
         <div
-          aria-hidden="true"
-          className="absolute border border-[var(--shapeships-grey-70)] border-solid inset-0 pointer-events-none rounded-[10px]"
-        />
+          className={cx(
+            hasMotion && 'ss-hoverPanelMotion',
+            'relative bg-[var(--shapeships-grey-90)] content-stretch flex w-full flex-col gap-[12px] items-start rounded-[10px] px-[20px] pb-[20px] pt-[16px]'
+          )}
+          data-hover-panel-motion-direction={hasMotion ? 'top' : undefined}
+          data-hover-panel-motion-state={motionState ?? undefined}
+          style={{
+            pointerEvents: 'none',
+          }}
+        >
+          {/* Border overlay */}
+          <div
+            aria-hidden="true"
+            className="absolute border border-[var(--shapeships-grey-70)] border-solid inset-0 pointer-events-none rounded-[10px]"
+          />
 
-        <div
-          aria-hidden="true"
-          className="absolute rotate-45 border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] pointer-events-none"
-          style={
-            placement === 'left'
-              ? {
-                  top: '50%',
-                  right: '-6px',
-                  width: `${TAIL_SIZE_PX}px`,
-                  height: `${TAIL_SIZE_PX}px`,
-                  transform: 'translateY(-50%)',
-                  borderTopWidth: '1px',
-                  borderRightWidth: '1px',
-                }
-              : {
-                  left: 'calc(50% - 6px)',
-                  top: 'calc(100% + 2px)',
-                  width: `${TAIL_SIZE_PX}px`,
-                  height: `${TAIL_SIZE_PX}px`,
-                  transform: 'translate(-50%, -50%)',
-                  borderBottomWidth: '1px',
-                  borderRightWidth: '1px',
-                }
-          }
-        />
+          <div
+            aria-hidden="true"
+            className="absolute rotate-45 border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] pointer-events-none"
+            style={
+              placement === 'left'
+                ? {
+                    top: '50%',
+                    right: '-6px',
+                    width: `${TAIL_SIZE_PX}px`,
+                    height: `${TAIL_SIZE_PX}px`,
+                    transform: 'translateY(-50%)',
+                    borderTopWidth: '1px',
+                    borderRightWidth: '1px',
+                  }
+                : {
+                    left: 'calc(50% - 6px)',
+                    top: 'calc(100% + 2px)',
+                    width: `${TAIL_SIZE_PX}px`,
+                    height: `${TAIL_SIZE_PX}px`,
+                    transform: 'translate(-50%, -50%)',
+                    borderBottomWidth: '1px',
+                    borderRightWidth: '1px',
+                  }
+            }
+          />
       
         {/* Top Section: Cost + Name + Phase */}
         <div className="content-stretch flex flex-col gap-[6px] items-start relative shrink-0 w-full">
@@ -367,6 +389,7 @@ export function ShipHoverCard({ shipId, anchorRect, eligibility }: ShipHoverCard
           eligibility={eligibility}
           componentShipIds={model.componentShipIds}
         />
+        </div>
       </div>
     </div>
   );

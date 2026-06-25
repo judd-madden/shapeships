@@ -335,7 +335,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
     'opponent-bonus': { rows: vm.opponentBonusBreakdownRows, side: 'right' },
   };
   const activeStatHover =
-    statHover.state.activeKey ? statHoverRowsByKey[statHover.state.activeKey] : null;
+    statHover.presentState.activeKey ? statHoverRowsByKey[statHover.presentState.activeKey] : null;
 
   // Board mode
   return (
@@ -632,18 +632,20 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
         turnPulse={rightRevealPulse}
       />
 
-      {fleetHover.state.activeShipId && fleetHover.state.anchorRect ? (
+      {fleetHover.presentState.activeShipId && fleetHover.presentState.anchorRect ? (
         <FleetShipHoverCard
-          shipId={fleetHover.state.activeShipId}
-          anchorRect={fleetHover.state.anchorRect}
+          shipId={fleetHover.presentState.activeShipId}
+          anchorRect={fleetHover.presentState.anchorRect}
+          motionState={fleetHover.motionState}
         />
       ) : null}
 
-      {activeStatHover && statHover.state.anchorRect && activeStatHover.rows.length > 0 ? (
+      {activeStatHover && statHover.presentState.anchorRect && activeStatHover.rows.length > 0 ? (
         <BoardStatBreakdownHoverCard
-          anchorRect={statHover.state.anchorRect}
+          anchorRect={statHover.presentState.anchorRect}
           side={activeStatHover.side}
           rows={activeStatHover.rows}
+          motionState={statHover.motionState}
         />
       ) : null}
     </div>

@@ -113,9 +113,9 @@ export function HumanShipCataloguePanel({
       : fallbackCost;
   }
 
-  const hoveredShipEligibility = hover.state.activeShipId
+  const hoveredShipEligibility = hover.presentState.activeShipId
     ? getShipEligibilityForHover({
-        shipId: hover.state.activeShipId,
+        shipId: hover.presentState.activeShipId,
         buildCatalogue,
       })
     : null;
@@ -477,11 +477,12 @@ export function HumanShipCataloguePanel({
       {frame === 'desktop' ? <ActionPanelScrollArea>{content}</ActionPanelScrollArea> : content}
       
       {/* PASS 2: Single hover card rendered via portal */}
-      {!hoverDisabled && hover.state.activeShipId && hover.state.anchorRect && hoveredShipEligibility && (
+      {!hoverDisabled && hover.presentState.activeShipId && hover.presentState.anchorRect && hoveredShipEligibility && (
         <ShipHoverCard
-          shipId={hover.state.activeShipId}
-          anchorRect={hover.state.anchorRect}
+          shipId={hover.presentState.activeShipId}
+          anchorRect={hover.presentState.anchorRect}
           eligibility={hoveredShipEligibility}
+          motionState={hover.motionState}
         />
       )}
     </>
