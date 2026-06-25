@@ -352,9 +352,11 @@ export default function App() {
     return (
       <div className="fixed inset-0 overflow-hidden bg-black">
         <GameScreen
+          key={gameId}
           gameId={gameId}
           playerName={player!.name}
           onBack={exitGame}
+          onNavigateToGame={launchGame}
         />
       </div>
     );

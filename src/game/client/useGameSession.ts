@@ -183,6 +183,7 @@ import { buildMessageAction } from './gameSession/powerIntents';
 
 interface UseGameSessionOptions {
   boardFlashEnabled?: boolean;
+  onNavigateToGame?: (gameId: string) => void;
 }
 
 const EMPTY_BUILD_PREVIEW_COUNTS: Record<string, number> = {};
@@ -4193,6 +4194,56 @@ useEffect(() => {
   // ACTION CALLBACKS (NO-OPS)
   // ============================================================================
   
+  function navigateToGameId(nextGameId: string): void {
+    if (options.onNavigateToGame) {
+      options.onNavigateToGame(nextGameId);
+      return;
+    }
+
+    window.location.assign(buildShareGameUrl(nextGameId));
+  }
+
+  async function handleRematch(): Promise<void> {
+    if (!effectiveGameId) {
+      console.error('[useGameSession] New game blocked: missing effectiveGameId');
+      return;
+    }
+
+    attemptMobileGameFullscreen();
+
+    try {
+      const response = await authenticatedPost(`/new-game-from/${effectiveGameId}`, {});
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[useGameSession] New game request failed:', response.status, errorText);
+        return;
+      }
+
+      const result = await response.json();
+      const newGameId = typeof result?.gameId === 'string' ? result.gameId : null;
+
+      if (!newGameId) {
+        console.error('[useGameSession] New game request returned invalid payload:', result);
+        return;
+      }
+
+      navigateToGameId(newGameId);
+    } catch (err: any) {
+      console.error('[useGameSession] New game request error:', err?.message ?? err);
+    }
+  }
+
+  function handleJoinRematchInvite(gameIdToJoin: string): void {
+    if (!gameIdToJoin) {
+      return;
+    }
+
+    attemptMobileGameFullscreen();
+
+    navigateToGameId(gameIdToJoin);
+  }
+
   const actions: GameSessionActions = {
     onReadyToggle: async () => {
       if (healthResolutionPresentationActive) {
@@ -4535,48 +4586,9 @@ useEffect(() => {
       await submitMenuIntent('SURRENDER');
     },
     
-    onRematch: async () => {
-      if (!effectiveGameId) {
-        console.error('[useGameSession] New game blocked: missing effectiveGameId');
-        return;
-      }
+    onRematch: handleRematch,
 
-      attemptMobileGameFullscreen();
-
-      try {
-        const response = await authenticatedPost(`/new-game-from/${effectiveGameId}`, {});
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('[useGameSession] New game request failed:', response.status, errorText);
-          return;
-        }
-
-        const result = await response.json();
-        const newGameId = typeof result?.gameId === 'string' ? result.gameId : null;
-
-        if (!newGameId) {
-          console.error('[useGameSession] New game request returned invalid payload:', result);
-          return;
-        }
-
-        const shareGameUrl = buildShareGameUrl(newGameId);
-        window.location.assign(shareGameUrl);
-      } catch (err: any) {
-        console.error('[useGameSession] New game request error:', err?.message ?? err);
-      }
-    },
-
-    onJoinRematchInvite: (gameIdToJoin: string) => {
-      if (!gameIdToJoin) {
-        return;
-      }
-
-      attemptMobileGameFullscreen();
-
-      const shareGameUrl = buildShareGameUrl(gameIdToJoin);
-      window.location.assign(shareGameUrl);
-    },
+    onJoinRematchInvite: handleJoinRematchInvite,
     
     onDownloadBattleLog: () => {
       if (!effectiveGameId) {

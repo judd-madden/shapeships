@@ -35,9 +35,10 @@ interface GameScreenProps {
   gameId: string;
   playerName: string;
   onBack: () => void;
+  onNavigateToGame?: (gameId: string) => void;
 }
 
-export default function GameScreen({ gameId, playerName, onBack }: GameScreenProps) {
+export default function GameScreen({ gameId, playerName, onBack, onNavigateToGame }: GameScreenProps) {
   const [soundEnabled, setSoundEnabled] = useState(() => {
     if (typeof window === 'undefined') {
       return true;
@@ -62,7 +63,10 @@ export default function GameScreen({ gameId, playerName, onBack }: GameScreenPro
       return true;
     }
   });
-  const { vm, actions } = useGameSession(gameId, playerName, { boardFlashEnabled });
+  const { vm, actions } = useGameSession(gameId, playerName, {
+    boardFlashEnabled,
+    onNavigateToGame,
+  });
   const isMobileGameLayout = useMobileGameLayout();
   const isMobileLandscapeBlocked = useMobileLandscapeBlocker();
   const firstTurnBuildHelper = useFirstTurnBuildHelper(gameId, vm, actions.onReadyToggle);
