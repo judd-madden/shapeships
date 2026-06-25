@@ -14,6 +14,7 @@ interface CatalogueShipSlotProps {
   graphic: React.ReactNode;
   isDimmed: boolean;
   isClickable: boolean;
+  enableGraphicHover?: boolean;
   onClick?: () => void;
   children?: React.ReactNode;
 }
@@ -23,6 +24,7 @@ export function CatalogueShipSlot({
   graphic,
   isDimmed,
   isClickable,
+  enableGraphicHover = false,
   onClick,
   children,
 }: CatalogueShipSlotProps) {
@@ -32,11 +34,12 @@ export function CatalogueShipSlot({
   return (
     <div
       data-ship-id={shipId}
+      data-catalogue-graphic-hover={enableGraphicHover ? '1' : undefined}
       style={{ opacity, cursor }}
       onClick={isClickable ? onClick : undefined}
-      className="relative"
+      className="ss-catalogueShipSlot relative"
     >
-      {graphic}
+      <div className="ss-catalogueShipGraphic">{graphic}</div>
       {children}
     </div>
   );

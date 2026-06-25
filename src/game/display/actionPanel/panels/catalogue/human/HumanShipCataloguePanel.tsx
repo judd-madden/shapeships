@@ -16,7 +16,10 @@ import { CatalogueShipSlot } from '../shared/CatalogueShipSlot';
 import { CatalogueCostNumber } from '../shared/CatalogueCostNumber';
 import { ShipHoverCard } from '../shared/ShipHoverCard';
 import { useShipCatalogueHover } from '../shared/useShipCatalogueHover';
-import { getShipEligibilityForHover } from '../shared/ShipBuildEligibility';
+import {
+  getShipEligibilityForHover,
+  shouldEnableCatalogueGraphicHover,
+} from '../shared/ShipBuildEligibility';
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
 import {
   DefenderShip,
@@ -73,11 +76,17 @@ export function HumanShipCataloguePanel({
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
     const isDimmed = isUnavailableContext || (isBuildableContext && !canAddShip);
+    const enableGraphicHover = shouldEnableCatalogueGraphicHover({
+      context: buildCatalogue.context,
+      canAddShip,
+      hoverDisabled,
+    });
 
     if (onShipInspect) {
       return {
         isDimmed,
         isClickable: true,
+        enableGraphicHover,
         onClick: () => onShipInspect(shipId),
       };
     }
@@ -86,12 +95,14 @@ export function HumanShipCataloguePanel({
       return {
         isDimmed,
         isClickable: false,
+        enableGraphicHover,
       };
     }
 
     return {
       isDimmed,
       isClickable: isBuildableContext && canAddShip,
+      enableGraphicHover,
       onClick: () => actions.onBuildShip(shipId),
     };
   }
@@ -381,7 +392,7 @@ export function HumanShipCataloguePanel({
           {/* Battlecruiser */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '689px', top: '0', width: '183px' }}
+            style={{ left: '689px', top: '0', width: '183px', zIndex: 2 }}
             onMouseEnter={(e) => hover.onEnter('BAT', e.currentTarget)}
             onMouseLeave={() => hover.onLeave('BAT')}
           >
@@ -401,7 +412,7 @@ export function HumanShipCataloguePanel({
           {/* Earth Ship */}
           <div
             className="absolute content-stretch flex flex-col items-center"
-            style={{ left: '813px', top: '32px', width: '211px' }}
+            style={{ left: '813px', top: '32px', width: '211px', zIndex: 1 }}
             onMouseEnter={(e) => hover.onEnter('EAR', e.currentTarget)}
             onMouseLeave={() => hover.onLeave('EAR')}
           >

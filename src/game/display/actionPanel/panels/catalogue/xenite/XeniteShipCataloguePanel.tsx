@@ -16,7 +16,10 @@ import { CatalogueShipSlot } from '../shared/CatalogueShipSlot';
 import { CatalogueCostNumber } from '../shared/CatalogueCostNumber';
 import { ShipHoverCard } from '../shared/ShipHoverCard';
 import { useShipCatalogueHover } from '../shared/useShipCatalogueHover';
-import { getShipEligibilityForHover } from '../shared/ShipBuildEligibility';
+import {
+  getShipEligibilityForHover,
+  shouldEnableCatalogueGraphicHover,
+} from '../shared/ShipBuildEligibility';
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
 import {
   XeniteShip,
@@ -73,11 +76,17 @@ export function XeniteShipCataloguePanel({
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
     const isDimmed = isUnavailableContext || (isBuildableContext && !canAddShip);
+    const enableGraphicHover = shouldEnableCatalogueGraphicHover({
+      context: buildCatalogue.context,
+      canAddShip,
+      hoverDisabled,
+    });
 
     if (onShipInspect) {
       return {
         isDimmed,
         isClickable: true,
+        enableGraphicHover,
         onClick: () => onShipInspect(shipId),
       };
     }
@@ -86,12 +95,14 @@ export function XeniteShipCataloguePanel({
       return {
         isDimmed,
         isClickable: false,
+        enableGraphicHover,
       };
     }
 
     return {
       isDimmed,
       isClickable: isBuildableContext && canAddShip,
+      enableGraphicHover,
       onClick: () => actions.onBuildShip(shipId),
     };
   }

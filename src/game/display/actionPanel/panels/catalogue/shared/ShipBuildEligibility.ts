@@ -16,6 +16,26 @@ export interface ShipEligibility {
   restrictionReason?: 'FOREIGN_BASIC' | 'FOREIGN_INTERACTIVE_UPGRADE';
 }
 
+export function shouldEnableCatalogueGraphicHover(args: {
+  context: ActionPanelBuildCatalogueViewModel['context'];
+  canAddShip: boolean;
+  hoverDisabled?: boolean;
+}): boolean {
+  if (args.hoverDisabled) {
+    return false;
+  }
+
+  if (args.context === 'reference_only') {
+    return true;
+  }
+
+  if (args.context === 'buildable') {
+    return args.canAddShip;
+  }
+
+  return false;
+}
+
 export function getShipEligibilityForHover(args: {
   shipId: ShipDefId;
   buildCatalogue: ActionPanelBuildCatalogueViewModel;
