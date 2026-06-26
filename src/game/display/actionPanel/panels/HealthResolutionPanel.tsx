@@ -167,14 +167,14 @@ export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResoluti
         className={`absolute top-[40px] bottom-[40px] w-px bg-[var(--shapeships-grey-70)] transition-all duration-300 ease-out ${
           showDivider ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-90'
         }`}
-        style={{ left: '49.74%' }}
+        style={{ left: 'calc(49.74% + 3px)' }}
       />
 
       <div
         className={`absolute top-0 bottom-0 left-[40px] flex items-center justify-end transition-all duration-300 ease-out ${
           showLeft ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-[4px]'
         }`}
-        style={{ right: 'calc(50.26% + 50px)' }}
+        style={{ right: 'calc(50.26% + 47px)' }}
       >
         <div className="text-right">
           <HealthResolutionSentence side={vm.left} />
@@ -185,7 +185,7 @@ export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResoluti
         className={`absolute top-0 bottom-0 right-[40px] flex items-center justify-start transition-all duration-300 ease-out ${
           showRight ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-[4px]'
         }`}
-        style={{ left: 'calc(49.74% + 50px)' }}
+        style={{ left: 'calc(49.74% + 53px)' }}
       >
         <div className="text-left">
           <HealthResolutionSentence side={vm.right} />
