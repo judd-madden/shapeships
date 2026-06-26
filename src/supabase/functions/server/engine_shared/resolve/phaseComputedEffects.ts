@@ -588,7 +588,7 @@ export function computePhaseComputedEffects(
     }
   }
 
-  // === SHIP OF FEAR (FEA) once-only: heal 4 on the turn it is built ===
+  // === SHIP OF FEAR (FEA) once-only: heal 3 on the turn it is built ===
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
     const ships = getShipsForOnceOnlyResolution(state, ownerPlayerId);
@@ -613,18 +613,18 @@ export function computePhaseComputedEffects(
         survivability: SurvivabilityRule.ResolvesIfDestroyed,
         target: { playerId: ownerPlayerId },
         kind: EffectKind.Heal,
-        amount: 4,
+        amount: 3,
       });
 
       firedKeys.push(onceKey);
 
       debugLog(
-        `[computePhaseComputedEffects] ShipOfFear fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} heal=4`
+        `[computePhaseComputedEffects] ShipOfFear fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} heal=3`
       );
     }
   }
 
-  // === SHIP OF ANGER (ANG) once-only: deal 4 damage on the turn it is built ===
+  // === SHIP OF ANGER (ANG) once-only: deal 3 damage on the turn it is built ===
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
     const opponentId = opponentMap.get(ownerPlayerId);
@@ -652,13 +652,13 @@ export function computePhaseComputedEffects(
         survivability: SurvivabilityRule.ResolvesIfDestroyed,
         target: { playerId: opponentId },
         kind: EffectKind.Damage,
-        amount: 4,
+        amount: 3,
       });
 
       firedKeys.push(onceKey);
 
       debugLog(
-        `[computePhaseComputedEffects] ShipOfAnger fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} dmg=4 target=${opponentId}`
+        `[computePhaseComputedEffects] ShipOfAnger fired once-only: owner=${ownerPlayerId} instance=${ship.instanceId} turn=${currentTurn} dmg=3 target=${opponentId}`
       );
     }
   }

@@ -872,7 +872,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Automatic",
-        "text": "Heal 4, once only on the turn it is built."
+        "text": "Heal 3, once only on the turn it is built."
       }
     ],
     "energyCost": null,
@@ -893,7 +893,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Automatic",
-        "text": "Deal 4 damage, once only on the turn it is built."
+        "text": "Deal 3 damage, once only on the turn it is built."
       }
     ],
     "energyCost": null,
