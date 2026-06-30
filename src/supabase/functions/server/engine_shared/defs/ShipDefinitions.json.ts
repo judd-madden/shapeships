@@ -964,7 +964,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "joiningLineCost": null,
     "componentShips": [],
     "charges": null,
-    "maxQuantity": 3,
+    "maxQuantity": 4,
     "powers": [
       {
         "subphase": "Line Generation",
@@ -972,7 +972,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "You can have a maximum of 3 Ships of Vigor. Lines can be saved.",
+    "extraRules": "You can have a maximum of 4 Ships of Vigor. Lines can be saved.",
     "stackCaption": "+X lines on even dice, no caption on odd dice",
     "colour": "Pastel Blue",
     "numberOfGraphics": 1
@@ -1175,7 +1175,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "VIG"
     ],
     "charges": null,
-    "maxQuantity": 2,
+    "maxQuantity": 3,
     "powers": [
       {
         "subphase": "Line Generation",
@@ -1191,7 +1191,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "You can have a maximum of 2 Arks of Power. Lines can be saved.",
+    "extraRules": "You can have a maximum of 3 Arks of Power. Lines can be saved.",
     "stackCaption": "X healing, X damage, +X lines",
     "colour": "Cyan",
     "numberOfGraphics": 1
