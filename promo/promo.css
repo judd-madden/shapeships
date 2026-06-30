@@ -280,7 +280,8 @@ body {
   --promo-lines-make-ships-ship-y: 470px;
   --promo-lines-make-ships-ship-width: 520px;
   --promo-lines-make-ships-ship-height: 449px;
-  --promo-lines-make-ships-ship-start-scale: 0.78;
+  --promo-lines-make-ships-ship-start-scale: 0.9;
+  --promo-lines-make-ships-ship-start-y: 200px;
   --promo-lines-make-ships-ship-delay: 2000ms;
   --promo-lines-make-ships-ship-duration: 2000ms;
   --promo-lines-make-ships-ship-settle-ease: cubic-bezier(0.16, 1, 0.3, 1);
@@ -570,11 +571,431 @@ body {
 @keyframes promo-lines-make-ships-ship-settle {
   from {
     opacity: 0;
-    transform: scale(var(--promo-lines-make-ships-ship-start-scale));
+    transform: translateY(var(--promo-lines-make-ships-ship-start-y))
+      scale(var(--promo-lines-make-ships-ship-start-scale));
   }
 
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0) scale(1);
+  }
+}
+
+.promo-ships-have-powers-scene {
+  --promo-ships-have-powers-text-top: 90px;
+  --promo-ships-have-powers-text-mask-height: 150px;
+  --promo-ships-have-powers-divider-width: min(1680px, calc(100% - 160px));
+  --promo-ships-have-powers-heading-start-offset: 115px;
+  --promo-ships-have-powers-heading-entry-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --promo-ships-have-powers-body-text-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --promo-ships-have-powers-text-exit-duration: 560ms;
+  --promo-ships-have-powers-text-midpoint-offset: 58px;
+  --promo-ships-have-powers-title-left: 880px;
+  --promo-ships-have-powers-title-top: 477px;
+  --promo-ships-have-powers-title-font-size: 105px;
+  --promo-ships-have-powers-power-font-size: 100px;
+  --promo-ships-have-powers-copy-gap: 7px;
+  --promo-ships-have-powers-title-mask-height: 112px;
+  --promo-ships-have-powers-power-mask-height: 112px;
+  --promo-ships-have-powers-ship-left: 470px;
+  --promo-ships-have-powers-ship-top: 427px;
+  --promo-ships-have-powers-ship-slot-width: 316px;
+  --promo-ships-have-powers-ship-slot-height: 280px;
+  --promo-ships-have-powers-ship-scale: 4;
+  --promo-ships-have-powers-cost-gap: 40px;
+  --promo-ships-have-powers-cost-font-size: 60px;
+  --promo-ships-have-powers-cost-entry-delay: 250ms;
+  --promo-ships-have-powers-exit-blur: 40px;
+  --promo-ships-have-powers-move-up-start: 70px;
+  --promo-ships-have-powers-scale-y-start: 0.42;
+
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  place-items: center;
+  background: var(--shapeships-black);
+  font-family: "Inter", sans-serif;
+}
+
+.promo-ships-have-powers-background {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  object-position: center;
+}
+
+.promo-ships-have-powers-text-group {
+  position: absolute;
+  z-index: 2;
+  top: var(--promo-ships-have-powers-text-top);
+  left: 0;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.promo-ships-have-powers-heading-mask {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: var(--promo-ships-have-powers-text-mask-height);
+  flex: none;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.promo-ships-have-powers-heading {
+  margin: 0;
+  color: var(--shapeships-white);
+  font-size: 105px;
+  font-weight: 700;
+  line-height: 0.95;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: promo-ships-have-powers-heading-reveal
+    var(--promo-ships-have-powers-body-entry-duration)
+    var(--promo-ships-have-powers-heading-entry-ease) both;
+}
+
+.promo-ships-have-powers-divider {
+  width: var(--promo-ships-have-powers-divider-width);
+  height: 2px;
+  flex: none;
+  opacity: 0.7;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    var(--shapeships-white) 50%,
+    rgba(255, 255, 255, 0)
+  );
+  transform-origin: center center;
+}
+
+.promo-ships-have-powers-scene--outro .promo-ships-have-powers-heading {
+  animation: promo-ships-have-powers-heading-exit
+    var(--promo-ships-have-powers-body-exit-duration) ease-in both;
+}
+
+.promo-ships-have-powers-scene--outro .promo-ships-have-powers-divider {
+  animation: promo-ships-have-powers-divider-exit
+    var(--promo-ships-have-powers-body-exit-duration) ease-in both;
+}
+
+.promo-ships-have-powers-body {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+}
+
+.promo-ships-have-powers-copy {
+  position: absolute;
+  top: var(--promo-ships-have-powers-title-top);
+  left: var(--promo-ships-have-powers-title-left);
+  display: flex;
+  flex-direction: column;
+  gap: var(--promo-ships-have-powers-copy-gap);
+  align-items: flex-start;
+}
+
+.promo-ships-have-powers-title-mask,
+.promo-ships-have-powers-power-mask {
+  position: relative;
+  width: 920px;
+  flex: none;
+  overflow: hidden;
+}
+
+.promo-ships-have-powers-title-mask {
+  height: var(--promo-ships-have-powers-title-mask-height);
+}
+
+.promo-ships-have-powers-power-mask {
+  height: var(--promo-ships-have-powers-power-mask-height);
+}
+
+.promo-ships-have-powers-title,
+.promo-ships-have-powers-power {
+  margin: 0;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.promo-ships-have-powers-title {
+  color: var(--promo-ships-have-powers-active-color);
+  font-size: var(--promo-ships-have-powers-title-font-size);
+  font-weight: 700;
+}
+
+.promo-ships-have-powers-power {
+  color: var(--shapeships-white);
+  font-size: var(--promo-ships-have-powers-power-font-size);
+  font-weight: 400;
+}
+
+.promo-ships-have-powers-body--entering .promo-ships-have-powers-title {
+  animation: promo-ships-have-powers-title-reveal
+    var(--promo-ships-have-powers-body-entry-duration)
+    var(--promo-ships-have-powers-body-text-ease) both;
+}
+
+.promo-ships-have-powers-body--entering .promo-ships-have-powers-power {
+  animation: promo-ships-have-powers-power-reveal
+    var(--promo-ships-have-powers-body-entry-duration)
+    var(--promo-ships-have-powers-body-text-ease) both;
+}
+
+.promo-ships-have-powers-body--exiting .promo-ships-have-powers-title {
+  animation: promo-ships-have-powers-title-exit
+    var(--promo-ships-have-powers-text-exit-duration) ease-in both;
+}
+
+.promo-ships-have-powers-body--exiting .promo-ships-have-powers-power {
+  animation: promo-ships-have-powers-power-exit
+    var(--promo-ships-have-powers-text-exit-duration) ease-in both;
+}
+
+.promo-ships-have-powers-ship-group {
+  position: absolute;
+  top: var(--promo-ships-have-powers-ship-top);
+  left: var(--promo-ships-have-powers-ship-left);
+  display: flex;
+  width: var(--promo-ships-have-powers-ship-slot-width);
+  flex-direction: column;
+  align-items: center;
+}
+
+.promo-ships-have-powers-ship-slot {
+  display: grid;
+  width: var(--promo-ships-have-powers-ship-slot-width);
+  height: var(--promo-ships-have-powers-ship-slot-height);
+  flex: none;
+  place-items: center;
+}
+
+.promo-ships-have-powers-ship-animation-wrapper {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  transform-origin: center center;
+}
+
+.promo-ships-have-powers-ship-scale-wrapper {
+  display: grid;
+  margin-top: var(--promo-ships-have-powers-ship-top-margin);
+  place-items: center;
+  transform: scale(var(--promo-ships-have-powers-ship-scale));
+  transform-origin: center center;
+}
+
+.promo-ships-have-powers-ship-svg {
+  display: block;
+  width: auto;
+  height: auto;
+}
+
+.promo-ships-have-powers-body--entering[data-ship-animation="scale-y"]
+  .promo-ships-have-powers-ship-animation-wrapper {
+  animation: promo-ships-have-powers-ship-scale-y-reveal
+    var(--promo-ships-have-powers-body-entry-duration)
+    var(--promo-ships-have-powers-body-text-ease) both;
+}
+
+.promo-ships-have-powers-body--entering[data-ship-animation="move-up"]
+  .promo-ships-have-powers-ship-animation-wrapper {
+  animation: promo-ships-have-powers-ship-move-up-reveal
+    var(--promo-ships-have-powers-body-entry-duration)
+    var(--promo-ships-have-powers-body-text-ease) both;
+}
+
+.promo-ships-have-powers-body--exiting
+  .promo-ships-have-powers-ship-animation-wrapper {
+  animation: promo-ships-have-powers-ship-exit
+    var(--promo-ships-have-powers-body-exit-duration) ease-in both;
+}
+
+.promo-ships-have-powers-cost-label {
+  margin: var(--promo-ships-have-powers-cost-gap) 0 0;
+  color: var(--shapeships-grey-50);
+  font-size: var(--promo-ships-have-powers-cost-font-size);
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.promo-ships-have-powers-body--entering .promo-ships-have-powers-cost-label {
+  animation: promo-ships-have-powers-cost-reveal
+    var(--promo-ships-have-powers-body-entry-duration)
+    var(--promo-ships-have-powers-body-text-ease)
+    var(--promo-ships-have-powers-cost-entry-delay) both;
+}
+
+.promo-ships-have-powers-body--exiting .promo-ships-have-powers-cost-label {
+  animation: promo-ships-have-powers-cost-exit
+    var(--promo-ships-have-powers-body-exit-duration) ease-in both;
+}
+
+@keyframes promo-ships-have-powers-heading-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--promo-ships-have-powers-heading-start-offset));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes promo-ships-have-powers-heading-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(var(--promo-ships-have-powers-heading-start-offset));
+  }
+}
+
+@keyframes promo-ships-have-powers-divider-exit {
+  from {
+    opacity: 0.7;
+    transform: scaleX(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
+
+@keyframes promo-ships-have-powers-title-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--promo-ships-have-powers-text-midpoint-offset));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes promo-ships-have-powers-power-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(
+      calc(var(--promo-ships-have-powers-text-midpoint-offset) * -1)
+    );
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes promo-ships-have-powers-title-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(var(--promo-ships-have-powers-text-midpoint-offset));
+  }
+}
+
+@keyframes promo-ships-have-powers-power-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(
+      calc(var(--promo-ships-have-powers-text-midpoint-offset) * -1)
+    );
+  }
+}
+
+@keyframes promo-ships-have-powers-ship-scale-y-reveal {
+  0% {
+    opacity: 0;
+    transform: scaleY(var(--promo-ships-have-powers-scale-y-start));
+  }
+
+  28% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes promo-ships-have-powers-ship-move-up-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(var(--promo-ships-have-powers-move-up-start));
+  }
+
+  28% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes promo-ships-have-powers-ship-exit {
+  from {
+    filter: blur(0);
+    opacity: 1;
+  }
+
+  to {
+    filter: blur(var(--promo-ships-have-powers-exit-blur));
+    opacity: 0;
+  }
+}
+
+@keyframes promo-ships-have-powers-cost-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes promo-ships-have-powers-cost-exit {
+  from {
+    filter: blur(0);
+    opacity: 1;
+  }
+
+  to {
+    filter: blur(var(--promo-ships-have-powers-exit-blur));
+    opacity: 0;
   }
 }
