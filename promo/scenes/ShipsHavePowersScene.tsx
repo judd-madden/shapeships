@@ -7,7 +7,7 @@ import { OrbitalShip } from "../../src/graphics/human/Orbital";
 const BODY_ENTRY_MS = 1_200;
 const BODY_HOLD_MS = 2_000;
 const BODY_EXIT_MS = 700;
-const FIRST_BODY_DELAY_MS = 250;
+const FIRST_BODY_DELAY_MS = 300;
 const NEXT_BODY_DELAY_MS = 100;
 const FINAL_HEADER_EXIT_OFFSET_MS = 350;
 
@@ -25,6 +25,7 @@ interface ShipPowerBodyState {
   Ship: ShipComponent;
   shipEntryAnimationKind: ShipEntryAnimationKind;
   shipTopMargin: string;
+  costLabelMarginTop: string;
 }
 
 const BODY_STATES: readonly ShipPowerBodyState[] = [
@@ -36,7 +37,8 @@ const BODY_STATES: readonly ShipPowerBodyState[] = [
     color: "var(--shapeships-pastel-green)",
     Ship: DefenderShip,
     shipEntryAnimationKind: "scale-y",
-    shipTopMargin: "30px",
+    shipTopMargin: "-30px",
+    costLabelMarginTop: "-80px",
   },
   {
     id: "fighter",
@@ -46,7 +48,8 @@ const BODY_STATES: readonly ShipPowerBodyState[] = [
     color: "var(--shapeships-pastel-red)",
     Ship: FighterShip,
     shipEntryAnimationKind: "move-up",
-    shipTopMargin: "0px",
+    shipTopMargin: "-40px",
+    costLabelMarginTop: "-70px",
   },
   {
     id: "orbital",
@@ -56,7 +59,8 @@ const BODY_STATES: readonly ShipPowerBodyState[] = [
     color: "var(--shapeships-pastel-blue)",
     Ship: OrbitalShip,
     shipEntryAnimationKind: "scale-y",
-    shipTopMargin: "0px",
+    shipTopMargin: "20px",
+    costLabelMarginTop: "0px",
   },
 ];
 
@@ -166,6 +170,8 @@ function ShipPowerBody({
   const bodyStyle = {
     "--promo-ships-have-powers-active-color": body.color,
     "--promo-ships-have-powers-ship-top-margin": body.shipTopMargin,
+    "--promo-ships-have-powers-cost-label-margin-top":
+      body.costLabelMarginTop,
   } as CSSProperties;
   const Ship = body.Ship;
 

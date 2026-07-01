@@ -97,6 +97,20 @@ body {
   font-family: "Inter", sans-serif;
 }
 
+.promo-text-only-scene {
+  --promo-text-only-exit-hold: 200ms;
+  --promo-text-only-exit-duration: 350ms;
+  --promo-text-only-divider-exit-duration: 250ms;
+  --promo-text-only-exit-delay: calc(
+    var(--promo-bottom-text-delay) + var(--promo-text-duration) +
+      var(--promo-text-only-exit-hold)
+  );
+  --promo-text-only-divider-exit-delay: calc(
+    var(--promo-text-only-exit-delay) +
+      var(--promo-text-only-exit-duration)
+  );
+}
+
 .promo-text-only-background,
 .promo-shared-dice-background {
   position: absolute;
@@ -173,13 +187,28 @@ body {
 }
 
 .promo-text-only-line--top {
-  animation: promo-top-text-reveal var(--promo-text-duration)
-    var(--promo-text-settle-ease) var(--promo-top-text-delay) both;
+  animation:
+    promo-top-text-reveal var(--promo-text-duration)
+      var(--promo-text-settle-ease) var(--promo-top-text-delay) both,
+    promo-text-only-top-exit var(--promo-text-only-exit-duration) ease-in
+      var(--promo-text-only-exit-delay) forwards;
 }
 
 .promo-text-only-line--bottom {
-  animation: promo-bottom-text-reveal var(--promo-text-duration)
-    var(--promo-text-settle-ease) var(--promo-bottom-text-delay) both;
+  animation:
+    promo-bottom-text-reveal var(--promo-text-duration)
+      var(--promo-text-settle-ease) var(--promo-bottom-text-delay) both,
+    promo-text-only-bottom-exit var(--promo-text-only-exit-duration) ease-in
+      var(--promo-text-only-exit-delay) forwards;
+}
+
+.promo-text-only-scene .promo-divider {
+  animation:
+    promo-divider-reveal var(--promo-divider-duration) ease-out
+      var(--promo-divider-delay) both,
+    promo-text-only-divider-exit
+      var(--promo-text-only-divider-exit-duration) ease-in
+      var(--promo-text-only-divider-exit-delay) forwards;
 }
 
 .promo-shared-dice-wrapper {
@@ -228,6 +257,48 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes promo-text-only-top-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  55% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(var(--promo-top-text-start-offset));
+  }
+}
+
+@keyframes promo-text-only-bottom-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  55% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(var(--promo-bottom-text-start-offset));
+  }
+}
+
+@keyframes promo-text-only-divider-exit {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
   }
 }
 
@@ -595,17 +666,17 @@ body {
   --promo-ships-have-powers-title-font-size: 105px;
   --promo-ships-have-powers-power-font-size: 100px;
   --promo-ships-have-powers-copy-gap: 7px;
-  --promo-ships-have-powers-title-mask-height: 112px;
+  --promo-ships-have-powers-title-mask-height: 122px;
   --promo-ships-have-powers-power-mask-height: 112px;
   --promo-ships-have-powers-ship-left: 470px;
-  --promo-ships-have-powers-ship-top: 427px;
+  --promo-ships-have-powers-ship-top: 400px;
   --promo-ships-have-powers-ship-slot-width: 316px;
   --promo-ships-have-powers-ship-slot-height: 280px;
   --promo-ships-have-powers-ship-scale: 4;
   --promo-ships-have-powers-cost-gap: 40px;
   --promo-ships-have-powers-cost-font-size: 60px;
   --promo-ships-have-powers-cost-entry-delay: 250ms;
-  --promo-ships-have-powers-exit-blur: 40px;
+  --promo-ships-have-powers-exit-blur: 30px;
   --promo-ships-have-powers-move-up-start: 70px;
   --promo-ships-have-powers-scale-y-start: 0.42;
 
@@ -822,7 +893,12 @@ body {
 }
 
 .promo-ships-have-powers-cost-label {
-  margin: var(--promo-ships-have-powers-cost-gap) 0 0;
+  margin:
+    calc(
+      var(--promo-ships-have-powers-cost-gap) +
+        var(--promo-ships-have-powers-cost-label-margin-top, 0px)
+    )
+    0 0;
   color: var(--shapeships-grey-50);
   font-size: var(--promo-ships-have-powers-cost-font-size);
   font-weight: 700;
