@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+// @ts-ignore
 import spaceBackgroundUrl from "../../src/graphics/global/space-background.jpg";
 import dice1Url from "../images/Dice1.png";
 import dice2Url from "../images/Dice2.png";

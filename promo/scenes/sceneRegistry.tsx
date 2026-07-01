@@ -3,6 +3,8 @@ import { LinesMakeShipsScene } from "./LinesMakeShipsScene";
 import { SharedDiceScene } from "./SharedDiceScene";
 import { ShipsHavePowersScene } from "./ShipsHavePowersScene";
 import { TextOnlyCenteredScene } from "./TextOnlyCenteredScene";
+import { UpgradeYourShipsBatScene } from "./UpgradeYourShipsBatScene";
+import { UpgradeYourShipsScene } from "./UpgradeYourShipsScene";
 
 export interface PromoSceneDefinition {
   id: string;
@@ -30,5 +32,15 @@ export const sceneRegistry: readonly PromoSceneDefinition[] = [
     id: "ships-have-powers",
     title: "Ships Have Powers",
     component: ShipsHavePowersScene,
+  },
+  {
+    id: "upgrade-your-ships",
+    title: "Upgrade Your Ships",
+    component: UpgradeYourShipsScene,
+  },
+  {
+    id: "upgrade-your-ships-bat",
+    title: "Upgrade Your Ships — BAT",
+    component: UpgradeYourShipsBatScene,
   },
 ];

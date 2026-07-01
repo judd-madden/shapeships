@@ -1075,3 +1075,1328 @@ body {
     opacity: 0;
   }
 }
+
+.promo-upgrade-your-ships-scene {
+  --promo-upgrade-your-ships-header-top: 90px;
+  --promo-upgrade-your-ships-header-mask-height: 150px;
+  --promo-upgrade-your-ships-divider-width: min(1680px, calc(100% - 160px));
+  --promo-upgrade-your-ships-heading-start-offset: 115px;
+  --promo-upgrade-your-ships-ship-scale: 4;
+  --promo-upgrade-your-ships-fighter-entry-offset: 70px;
+  --promo-upgrade-your-ships-defender-entry-scale-y: 0.42;
+  --promo-upgrade-your-ships-ingredient-copy-left: 880px;
+  --promo-upgrade-your-ships-ingredient-copy-mask-top: 250px;
+  --promo-upgrade-your-ships-ingredient-fighter-top: 360px;
+  --promo-upgrade-your-ships-ingredient-defenders-top: 470px;
+  --promo-upgrade-your-ships-ingredient-lines-top: 580px;
+  --promo-upgrade-your-ships-ingredient-line-height: 100px;
+  --promo-upgrade-your-ships-ingredient-exit-offset: -500px;
+  --promo-upgrade-your-ships-equals-ingredient-left: 880px;
+  --promo-upgrade-your-ships-equals-ingredient-top: 710px;
+  --promo-upgrade-your-ships-equals-result-left: 880px;
+  --promo-upgrade-your-ships-equals-result-top: 330px;
+  --promo-upgrade-your-ships-equals-bar-width: 130px;
+  --promo-upgrade-your-ships-equals-bar-height: 32px;
+  --promo-upgrade-your-ships-equals-bar-gap: 30px;
+  --promo-upgrade-your-ships-tac-left: 180px;
+  --promo-upgrade-your-ships-tac-top: 360px;
+  --promo-upgrade-your-ships-cost-left: 180px;
+  --promo-upgrade-your-ships-cost-top: 860px;
+  --promo-upgrade-your-ships-cost-width: 516px;
+  --promo-upgrade-your-ships-result-copy-left: 880px;
+  --promo-upgrade-your-ships-result-copy-top: 477px;
+  --promo-upgrade-your-ships-result-title-mask-height: 126px;
+  --promo-upgrade-your-ships-result-power-mask-height: 190px;
+  --promo-upgrade-your-ships-result-copy-gap: 30px;
+  --promo-upgrade-your-ships-result-entry-offset: 70px;
+  --promo-upgrade-your-ships-result-exit-offset: -90px;
+  --promo-upgrade-your-ships-entry-ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--shapeships-black);
+  font-family: "Inter", sans-serif;
+}
+
+.promo-upgrade-your-ships-background {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  object-position: center;
+}
+
+.promo-upgrade-your-ships-header {
+  position: absolute;
+  z-index: 4;
+  top: var(--promo-upgrade-your-ships-header-top);
+  left: 0;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.promo-upgrade-your-ships-heading-mask {
+  display: flex;
+  width: 100%;
+  height: var(--promo-upgrade-your-ships-header-mask-height);
+  flex: none;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.promo-upgrade-your-ships-heading {
+  margin: 0;
+  color: var(--shapeships-white);
+  font-size: 105px;
+  font-weight: 700;
+  line-height: 0.95;
+  text-transform: uppercase;
+  white-space: nowrap;
+  animation: promo-upgrade-your-ships-heading-reveal
+    var(--promo-upgrade-your-ships-header-entry-duration)
+    var(--promo-upgrade-your-ships-entry-ease) both;
+}
+
+.promo-upgrade-your-ships-divider {
+  width: var(--promo-upgrade-your-ships-divider-width);
+  height: 2px;
+  flex: none;
+  opacity: 0.7;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    var(--shapeships-white) 50%,
+    rgba(255, 255, 255, 0)
+  );
+}
+
+.promo-upgrade-your-ships-ship-position,
+.promo-upgrade-your-ships-tac-position {
+  position: absolute;
+  top: var(--promo-upgrade-your-ships-ship-top);
+  left: var(--promo-upgrade-your-ships-ship-left);
+  z-index: 1;
+}
+
+.promo-upgrade-your-ships-ingredient-ship-animation,
+.promo-upgrade-your-ships-tac-animation {
+  transform-origin: top left;
+}
+
+.promo-upgrade-your-ships-ship-scale {
+  transform: scale(var(--promo-upgrade-your-ships-ship-scale));
+  transform-origin: top left;
+}
+
+.promo-upgrade-your-ships-ship-svg {
+  display: block;
+  width: auto;
+  height: auto;
+}
+
+.promo-upgrade-your-ships-ship-position[data-entry-animation="move-up"]
+  .promo-upgrade-your-ships-ingredient-ship-animation {
+  animation: promo-upgrade-your-ships-fighter-reveal
+    var(--promo-upgrade-your-ships-ingredient-entry-duration)
+    var(--promo-upgrade-your-ships-entry-ease)
+    var(--promo-upgrade-your-ships-ingredient-entry-delay) both;
+}
+
+.promo-upgrade-your-ships-ship-position[data-entry-animation="scale-y"]
+  .promo-upgrade-your-ships-ingredient-ship-animation {
+  animation: promo-upgrade-your-ships-defender-reveal
+    var(--promo-upgrade-your-ships-ingredient-entry-duration)
+    var(--promo-upgrade-your-ships-entry-ease)
+    var(--promo-upgrade-your-ships-ingredient-entry-delay) both;
+}
+
+.promo-upgrade-your-ships-scene--to-result
+  .promo-upgrade-your-ships-ingredient-ship-animation {
+  animation: promo-upgrade-your-ships-ingredient-ship-exit
+    var(--promo-upgrade-your-ships-to-result-duration) ease-in both;
+}
+
+.promo-upgrade-your-ships-ingredient-copy-mask {
+  position: absolute;
+  z-index: 2;
+  top: var(--promo-upgrade-your-ships-ingredient-copy-mask-top);
+  left: var(--promo-upgrade-your-ships-ingredient-copy-left);
+  width: 920px;
+  height: 480px;
+  overflow: hidden;
+}
+
+.promo-upgrade-your-ships-ingredient-copy {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.promo-upgrade-your-ships-ingredient-line-mask {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: var(--promo-upgrade-your-ships-ingredient-line-height);
+  overflow: hidden;
+}
+
+.promo-upgrade-your-ships-ingredient-line-mask--fighter {
+  top: calc(
+    var(--promo-upgrade-your-ships-ingredient-fighter-top) -
+      var(--promo-upgrade-your-ships-ingredient-copy-mask-top)
+  );
+}
+
+.promo-upgrade-your-ships-ingredient-line-mask--defenders {
+  top: calc(
+    var(--promo-upgrade-your-ships-ingredient-defenders-top) -
+      var(--promo-upgrade-your-ships-ingredient-copy-mask-top)
+  );
+}
+
+.promo-upgrade-your-ships-ingredient-line-mask--lines {
+  top: calc(
+    var(--promo-upgrade-your-ships-ingredient-lines-top) -
+      var(--promo-upgrade-your-ships-ingredient-copy-mask-top)
+  );
+}
+
+.promo-upgrade-your-ships-ingredient-line {
+  margin: 0;
+  font-size: 90px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  animation: promo-upgrade-your-ships-ingredient-line-reveal
+    var(--promo-upgrade-your-ships-ingredient-entry-duration)
+    var(--promo-upgrade-your-ships-entry-ease) both;
+}
+
+.promo-upgrade-your-ships-ingredient-line--fighter {
+  color: var(--shapeships-pastel-red);
+  animation-delay: var(--promo-upgrade-your-ships-ingredient-entry-delay);
+}
+
+.promo-upgrade-your-ships-ingredient-line--defenders {
+  color: var(--shapeships-pastel-green);
+  animation-delay: calc(
+    var(--promo-upgrade-your-ships-ingredient-entry-delay) +
+      var(--promo-upgrade-your-ships-ingredient-line-stagger)
+  );
+}
+
+.promo-upgrade-your-ships-ingredient-line--lines {
+  color: var(--shapeships-grey-50);
+  animation-delay: calc(
+    var(--promo-upgrade-your-ships-ingredient-entry-delay) +
+      var(--promo-upgrade-your-ships-ingredient-line-stagger) +
+      var(--promo-upgrade-your-ships-ingredient-line-stagger)
+  );
+}
+
+.promo-upgrade-your-ships-scene--to-result
+  .promo-upgrade-your-ships-ingredient-copy {
+  animation: promo-upgrade-your-ships-ingredient-copy-exit
+    var(--promo-upgrade-your-ships-to-result-duration) ease-in both;
+}
+
+.promo-upgrade-your-ships-equals {
+  position: absolute;
+  z-index: 3;
+  top: var(--promo-upgrade-your-ships-equals-ingredient-top);
+  left: var(--promo-upgrade-your-ships-equals-ingredient-left);
+  display: flex;
+  width: var(--promo-upgrade-your-ships-equals-bar-width);
+  flex-direction: column;
+  gap: var(--promo-upgrade-your-ships-equals-bar-gap);
+}
+
+.promo-upgrade-your-ships-equals-bar {
+  display: block;
+  width: var(--promo-upgrade-your-ships-equals-bar-width);
+  height: var(--promo-upgrade-your-ships-equals-bar-height);
+  background: var(--shapeships-white);
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: promo-upgrade-your-ships-equals-paint
+    var(--promo-upgrade-your-ships-equals-reveal-duration) ease-out
+    var(--promo-upgrade-your-ships-equals-reveal-delay) both;
+}
+
+.promo-upgrade-your-ships-equals-bar--bottom {
+  animation-delay: calc(
+    var(--promo-upgrade-your-ships-equals-reveal-delay) +
+      var(--promo-upgrade-your-ships-equals-bar-stagger)
+  );
+}
+
+.promo-upgrade-your-ships-scene--to-result
+  .promo-upgrade-your-ships-equals {
+  animation: promo-upgrade-your-ships-equals-to-result
+    var(--promo-upgrade-your-ships-equals-transition-duration)
+    var(--promo-upgrade-your-ships-entry-ease) both;
+}
+
+.promo-upgrade-your-ships-scene--result-holding
+  .promo-upgrade-your-ships-equals {
+  transform: translate(
+    calc(
+      var(--promo-upgrade-your-ships-equals-result-left) -
+        var(--promo-upgrade-your-ships-equals-ingredient-left)
+    ),
+    calc(
+      var(--promo-upgrade-your-ships-equals-result-top) -
+        var(--promo-upgrade-your-ships-equals-ingredient-top)
+    )
+  );
+}
+
+.promo-upgrade-your-ships-scene--result-exiting
+  .promo-upgrade-your-ships-equals {
+  animation: promo-upgrade-your-ships-equals-exit
+    var(--promo-upgrade-your-ships-result-exit-duration) ease-in both;
+}
+
+.promo-upgrade-your-ships-scene--done .promo-upgrade-your-ships-equals {
+  opacity: 0;
+}
+
+.promo-upgrade-your-ships-tac-position {
+  --promo-upgrade-your-ships-ship-left: var(--promo-upgrade-your-ships-tac-left);
+  --promo-upgrade-your-ships-ship-top: var(--promo-upgrade-your-ships-tac-top);
+  z-index: 2;
+}
+
+.promo-upgrade-your-ships-tac-animation,
+.promo-upgrade-your-ships-cost-label,
+.promo-upgrade-your-ships-result-title,
+.promo-upgrade-your-ships-result-power {
+  opacity: 0;
+}
+
+.promo-upgrade-your-ships-scene--to-result
+  .promo-upgrade-your-ships-tac-animation {
+  animation: promo-upgrade-your-ships-result-ship-reveal
+    var(--promo-upgrade-your-ships-result-entry-duration)
+    var(--promo-upgrade-your-ships-entry-ease) both;
+}
+
+.promo-upgrade-your-ships-scene--result-holding
+  .promo-upgrade-your-ships-tac-animation {
+  opacity: 1;
+}
+
+.promo-upgrade-your-ships-scene--result-exiting
+  .promo-upgrade-your-ships-tac-animation {
+  animation: promo-upgrade-your-ships-result-body-exit
+    var(--promo-upgrade-your-ships-result-exit-duration) ease-in both;
+}
+
+.promo-upgrade-your-ships-cost-label {
+  position: absolute;
+  z-index: 2;
+  top: var(--promo-upgrade-your-ships-cost-top);
+  left: var(--promo-upgrade-your-ships-cost-left);
+  width: var(--promo-upgrade-your-ships-cost-width);
+  margin: 0;
+  color: var(--shapeships-grey-50);
+  font-size: 60px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.promo-upgrade-your-ships-scene--to-result
+  .promo-upgrade-your-ships-cost-label {
+  animation: promo-upgrade-your-ships-result-copy-reveal
+    var(--promo-upgrade-your-ships-result-entry-duration)
+    var(--promo-upgrade-your-ships-entry-ease)
+    var(--promo-upgrade-your-ships-result-cost-delay) both;
+}
+
+.promo-upgrade-your-ships-scene--result-holding
+  .promo-upgrade-your-ships-cost-label {
+  opacity: 1;
+}
+
+.promo-upgrade-your-ships-scene--result-exiting
+  .promo-upgrade-your-ships-cost-label {
+  animation: promo-upgrade-your-ships-result-body-exit
+    var(--promo-upgrade-your-ships-result-exit-duration) ease-in both;
+}
+
+.promo-upgrade-your-ships-result-copy {
+  position: absolute;
+  z-index: 2;
+  top: var(--promo-upgrade-your-ships-result-copy-top);
+  left: var(--promo-upgrade-your-ships-result-copy-left);
+  display: flex;
+  width: 900px;
+  flex-direction: column;
+  gap: var(--promo-upgrade-your-ships-result-copy-gap);
+}
+
+.promo-upgrade-your-ships-result-title-mask,
+.promo-upgrade-your-ships-result-power-mask {
+  width: 100%;
+  overflow: hidden;
+}
+
+.promo-upgrade-your-ships-result-title-mask {
+  height: var(--promo-upgrade-your-ships-result-title-mask-height);
+}
+
+.promo-upgrade-your-ships-result-power-mask {
+  height: var(--promo-upgrade-your-ships-result-power-mask-height);
+}
+
+.promo-upgrade-your-ships-result-title,
+.promo-upgrade-your-ships-result-power {
+  margin: 0;
+}
+
+.promo-upgrade-your-ships-result-title {
+  color: var(--shapeships-orange);
+  font-size: 105px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.promo-upgrade-your-ships-result-power {
+  max-width: 900px;
+  color: var(--shapeships-white);
+  font-size: 80px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.promo-upgrade-your-ships-result-power span {
+  display: block;
+  white-space: nowrap;
+}
+
+.promo-upgrade-your-ships-scene--to-result
+  .promo-upgrade-your-ships-result-title {
+  animation: promo-upgrade-your-ships-result-copy-reveal
+    var(--promo-upgrade-your-ships-result-entry-duration)
+    var(--promo-upgrade-your-ships-entry-ease) both;
+}
+
+.promo-upgrade-your-ships-scene--to-result
+  .promo-upgrade-your-ships-result-power {
+  animation: promo-upgrade-your-ships-result-copy-reveal
+    var(--promo-upgrade-your-ships-result-entry-duration)
+    var(--promo-upgrade-your-ships-entry-ease)
+    var(--promo-upgrade-your-ships-result-text-stagger) both;
+}
+
+.promo-upgrade-your-ships-scene--result-holding
+  .promo-upgrade-your-ships-result-title,
+.promo-upgrade-your-ships-scene--result-holding
+  .promo-upgrade-your-ships-result-power {
+  opacity: 1;
+}
+
+.promo-upgrade-your-ships-scene--result-exiting
+  .promo-upgrade-your-ships-result-title,
+.promo-upgrade-your-ships-scene--result-exiting
+  .promo-upgrade-your-ships-result-power {
+  animation: promo-upgrade-your-ships-result-body-exit
+    var(--promo-upgrade-your-ships-result-exit-duration) ease-in both;
+}
+
+@keyframes promo-upgrade-your-ships-heading-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--promo-upgrade-your-ships-heading-start-offset));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes promo-upgrade-your-ships-fighter-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(var(--promo-upgrade-your-ships-fighter-entry-offset));
+  }
+
+  28% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes promo-upgrade-your-ships-defender-reveal {
+  0% {
+    opacity: 0;
+    transform: scaleY(var(--promo-upgrade-your-ships-defender-entry-scale-y));
+  }
+
+  28% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes promo-upgrade-your-ships-ingredient-ship-exit {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes promo-upgrade-your-ships-ingredient-line-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(70px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes promo-upgrade-your-ships-ingredient-copy-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(var(--promo-upgrade-your-ships-ingredient-exit-offset));
+  }
+}
+
+@keyframes promo-upgrade-your-ships-equals-paint {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes promo-upgrade-your-ships-equals-to-result {
+  from {
+    transform: translate(0, 0);
+  }
+
+  to {
+    transform: translate(
+      calc(
+        var(--promo-upgrade-your-ships-equals-result-left) -
+          var(--promo-upgrade-your-ships-equals-ingredient-left)
+      ),
+      calc(
+        var(--promo-upgrade-your-ships-equals-result-top) -
+          var(--promo-upgrade-your-ships-equals-ingredient-top)
+      )
+    );
+  }
+}
+
+@keyframes promo-upgrade-your-ships-equals-exit {
+  from {
+    opacity: 1;
+    transform: translate(
+      calc(
+        var(--promo-upgrade-your-ships-equals-result-left) -
+          var(--promo-upgrade-your-ships-equals-ingredient-left)
+      ),
+      calc(
+        var(--promo-upgrade-your-ships-equals-result-top) -
+          var(--promo-upgrade-your-ships-equals-ingredient-top)
+      )
+    );
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(
+      calc(
+        var(--promo-upgrade-your-ships-equals-result-left) -
+          var(--promo-upgrade-your-ships-equals-ingredient-left)
+      ),
+      calc(
+        var(--promo-upgrade-your-ships-equals-result-top) -
+          var(--promo-upgrade-your-ships-equals-ingredient-top) +
+          var(--promo-upgrade-your-ships-result-exit-offset)
+      )
+    );
+  }
+}
+
+@keyframes promo-upgrade-your-ships-result-ship-reveal {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes promo-upgrade-your-ships-result-copy-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--promo-upgrade-your-ships-result-entry-offset));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes promo-upgrade-your-ships-result-body-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(var(--promo-upgrade-your-ships-result-exit-offset));
+  }
+}
+
+.promo-upgrade-your-ships-bat-scene {
+  --promo-upgrade-your-ships-bat-header-top: 90px;
+  --promo-upgrade-your-ships-bat-header-mask-height: 150px;
+  --promo-upgrade-your-ships-bat-divider-width: min(
+    1680px,
+    calc(100% - 160px)
+  );
+  --promo-upgrade-your-ships-bat-heading-exit-offset: 115px;
+  --promo-upgrade-your-ships-bat-ship-scale: 4;
+  --promo-upgrade-your-ships-bat-fighter-entry-offset: 70px;
+  --promo-upgrade-your-ships-bat-scale-y-entry-start: 0.42;
+  --promo-upgrade-your-ships-bat-ingredient-copy-left: 880px;
+  --promo-upgrade-your-ships-bat-ingredient-copy-mask-top: 250px;
+  --promo-upgrade-your-ships-bat-ingredient-fighters-top: 360px;
+  --promo-upgrade-your-ships-bat-ingredient-defender-top: 470px;
+  --promo-upgrade-your-ships-bat-ingredient-orbital-top: 580px;
+  --promo-upgrade-your-ships-bat-ingredient-lines-top: 690px;
+  --promo-upgrade-your-ships-bat-ingredient-line-height: 100px;
+  --promo-upgrade-your-ships-bat-ingredient-exit-offset: -500px;
+  --promo-upgrade-your-ships-bat-equals-ingredient-left: 880px;
+  --promo-upgrade-your-ships-bat-equals-ingredient-top: 815px;
+  --promo-upgrade-your-ships-bat-equals-result-left: 880px;
+  --promo-upgrade-your-ships-bat-equals-result-top: 330px;
+  --promo-upgrade-your-ships-bat-equals-bar-width: 130px;
+  --promo-upgrade-your-ships-bat-equals-bar-height: 32px;
+  --promo-upgrade-your-ships-bat-equals-bar-gap: 30px;
+  --promo-upgrade-your-ships-bat-result-left: 72px;
+  --promo-upgrade-your-ships-bat-result-top: 349px;
+  --promo-upgrade-your-ships-bat-cost-left: 72px;
+  --promo-upgrade-your-ships-bat-cost-top: 860px;
+  --promo-upgrade-your-ships-bat-cost-width: 704px;
+  --promo-upgrade-your-ships-bat-result-copy-left: 880px;
+  --promo-upgrade-your-ships-bat-result-copy-top: 477px;
+  --promo-upgrade-your-ships-bat-result-title-mask-height: 126px;
+  --promo-upgrade-your-ships-bat-result-power-mask-height: 300px;
+  --promo-upgrade-your-ships-bat-result-copy-gap: 30px;
+  --promo-upgrade-your-ships-bat-result-entry-offset: 70px;
+  --promo-upgrade-your-ships-bat-result-exit-offset: -90px;
+  --promo-upgrade-your-ships-bat-entry-ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--shapeships-black);
+  font-family: "Inter", sans-serif;
+}
+
+.promo-upgrade-your-ships-bat-background {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  object-position: center;
+}
+
+.promo-upgrade-your-ships-bat-header {
+  position: absolute;
+  z-index: 4;
+  top: var(--promo-upgrade-your-ships-bat-header-top);
+  left: 0;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.promo-upgrade-your-ships-bat-heading-mask {
+  display: flex;
+  width: 100%;
+  height: var(--promo-upgrade-your-ships-bat-header-mask-height);
+  flex: none;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.promo-upgrade-your-ships-bat-heading {
+  margin: 0;
+  color: var(--shapeships-white);
+  font-size: 105px;
+  font-weight: 700;
+  line-height: 0.95;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.promo-upgrade-your-ships-bat-divider {
+  width: var(--promo-upgrade-your-ships-bat-divider-width);
+  height: 2px;
+  flex: none;
+  opacity: 0.7;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    var(--shapeships-white) 50%,
+    rgba(255, 255, 255, 0)
+  );
+  transform-origin: center;
+}
+
+.promo-upgrade-your-ships-bat-scene--header-exiting
+  .promo-upgrade-your-ships-bat-heading {
+  animation: promo-upgrade-your-ships-bat-heading-exit
+    var(--promo-upgrade-your-ships-bat-header-exit-duration) ease-in both;
+}
+
+.promo-upgrade-your-ships-bat-scene--header-exiting
+  .promo-upgrade-your-ships-bat-divider {
+  animation: promo-upgrade-your-ships-bat-divider-exit
+    var(--promo-upgrade-your-ships-bat-divider-exit-duration) ease-in
+    var(--promo-upgrade-your-ships-bat-divider-exit-delay) both;
+}
+
+.promo-upgrade-your-ships-bat-scene--done
+  .promo-upgrade-your-ships-bat-header {
+  opacity: 0;
+}
+
+.promo-upgrade-your-ships-bat-ship-position,
+.promo-upgrade-your-ships-bat-result-position {
+  position: absolute;
+  top: var(--promo-upgrade-your-ships-bat-ship-top);
+  left: var(--promo-upgrade-your-ships-bat-ship-left);
+  z-index: 1;
+}
+
+.promo-upgrade-your-ships-bat-ingredient-ship-animation,
+.promo-upgrade-your-ships-bat-result-animation {
+  transform-origin: top left;
+}
+
+.promo-upgrade-your-ships-bat-ship-scale {
+  transform: scale(var(--promo-upgrade-your-ships-bat-ship-scale));
+  transform-origin: top left;
+}
+
+.promo-upgrade-your-ships-bat-ship-svg {
+  display: block;
+  width: auto;
+  height: auto;
+}
+
+.promo-upgrade-your-ships-bat-ship-position[data-entry-animation="move-up"]
+  .promo-upgrade-your-ships-bat-ingredient-ship-animation {
+  animation: promo-upgrade-your-ships-bat-fighter-reveal
+    var(--promo-upgrade-your-ships-bat-ingredient-entry-duration)
+    var(--promo-upgrade-your-ships-bat-entry-ease)
+    var(--promo-upgrade-your-ships-bat-ingredient-entry-delay) both;
+}
+
+.promo-upgrade-your-ships-bat-ship-position[data-entry-animation="scale-y"]
+  .promo-upgrade-your-ships-bat-ingredient-ship-animation {
+  animation: promo-upgrade-your-ships-bat-scale-y-reveal
+    var(--promo-upgrade-your-ships-bat-ingredient-entry-duration)
+    var(--promo-upgrade-your-ships-bat-entry-ease)
+    var(--promo-upgrade-your-ships-bat-ingredient-entry-delay) both;
+}
+
+.promo-upgrade-your-ships-bat-scene--to-result
+  .promo-upgrade-your-ships-bat-ship-position
+  .promo-upgrade-your-ships-bat-ingredient-ship-animation {
+  animation: promo-upgrade-your-ships-bat-ingredient-ship-exit
+    var(--promo-upgrade-your-ships-bat-to-result-duration) ease-in both;
+}
+
+.promo-upgrade-your-ships-bat-ingredient-copy-mask {
+  position: absolute;
+  z-index: 2;
+  top: var(--promo-upgrade-your-ships-bat-ingredient-copy-mask-top);
+  left: var(--promo-upgrade-your-ships-bat-ingredient-copy-left);
+  width: 920px;
+  height: 560px;
+  overflow: hidden;
+}
+
+.promo-upgrade-your-ships-bat-ingredient-copy {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.promo-upgrade-your-ships-bat-ingredient-line-mask {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: var(--promo-upgrade-your-ships-bat-ingredient-line-height);
+  overflow: hidden;
+}
+
+.promo-upgrade-your-ships-bat-ingredient-line-mask--fighters {
+  top: calc(
+    var(--promo-upgrade-your-ships-bat-ingredient-fighters-top) -
+      var(--promo-upgrade-your-ships-bat-ingredient-copy-mask-top)
+  );
+}
+
+.promo-upgrade-your-ships-bat-ingredient-line-mask--defender {
+  top: calc(
+    var(--promo-upgrade-your-ships-bat-ingredient-defender-top) -
+      var(--promo-upgrade-your-ships-bat-ingredient-copy-mask-top)
+  );
+}
+
+.promo-upgrade-your-ships-bat-ingredient-line-mask--orbital {
+  top: calc(
+    var(--promo-upgrade-your-ships-bat-ingredient-orbital-top) -
+      var(--promo-upgrade-your-ships-bat-ingredient-copy-mask-top)
+  );
+}
+
+.promo-upgrade-your-ships-bat-ingredient-line-mask--lines {
+  top: calc(
+    var(--promo-upgrade-your-ships-bat-ingredient-lines-top) -
+      var(--promo-upgrade-your-ships-bat-ingredient-copy-mask-top)
+  );
+}
+
+.promo-upgrade-your-ships-bat-ingredient-line {
+  margin: 0;
+  font-size: 90px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  animation: promo-upgrade-your-ships-bat-ingredient-line-reveal
+    var(--promo-upgrade-your-ships-bat-ingredient-entry-duration)
+    var(--promo-upgrade-your-ships-bat-entry-ease) both;
+}
+
+.promo-upgrade-your-ships-bat-ingredient-line--fighters {
+  color: var(--shapeships-pastel-red);
+  animation-delay: var(
+    --promo-upgrade-your-ships-bat-ingredient-entry-delay
+  );
+}
+
+.promo-upgrade-your-ships-bat-ingredient-line--defender {
+  color: var(--shapeships-pastel-green);
+  animation-delay: calc(
+    var(--promo-upgrade-your-ships-bat-ingredient-entry-delay) +
+      var(--promo-upgrade-your-ships-bat-ingredient-line-stagger)
+  );
+}
+
+.promo-upgrade-your-ships-bat-ingredient-line--orbital {
+  color: var(--shapeships-pastel-blue);
+  animation-delay: calc(
+    var(--promo-upgrade-your-ships-bat-ingredient-entry-delay) +
+      var(--promo-upgrade-your-ships-bat-ingredient-line-stagger) +
+      var(--promo-upgrade-your-ships-bat-ingredient-line-stagger)
+  );
+}
+
+.promo-upgrade-your-ships-bat-ingredient-line--lines {
+  color: var(--shapeships-grey-50);
+  animation-delay: calc(
+    var(--promo-upgrade-your-ships-bat-ingredient-entry-delay) +
+      var(--promo-upgrade-your-ships-bat-ingredient-line-stagger) +
+      var(--promo-upgrade-your-ships-bat-ingredient-line-stagger) +
+      var(--promo-upgrade-your-ships-bat-ingredient-line-stagger)
+  );
+}
+
+.promo-upgrade-your-ships-bat-scene--to-result
+  .promo-upgrade-your-ships-bat-ingredient-copy {
+  animation: promo-upgrade-your-ships-bat-ingredient-copy-exit
+    var(--promo-upgrade-your-ships-bat-to-result-duration) ease-in both;
+}
+
+.promo-upgrade-your-ships-bat-equals {
+  position: absolute;
+  z-index: 3;
+  top: var(--promo-upgrade-your-ships-bat-equals-ingredient-top);
+  left: var(--promo-upgrade-your-ships-bat-equals-ingredient-left);
+  display: flex;
+  width: var(--promo-upgrade-your-ships-bat-equals-bar-width);
+  flex-direction: column;
+  gap: var(--promo-upgrade-your-ships-bat-equals-bar-gap);
+}
+
+.promo-upgrade-your-ships-bat-equals-bar {
+  display: block;
+  width: var(--promo-upgrade-your-ships-bat-equals-bar-width);
+  height: var(--promo-upgrade-your-ships-bat-equals-bar-height);
+  background: var(--shapeships-white);
+  transform: scaleX(0);
+  transform-origin: left center;
+  animation: promo-upgrade-your-ships-bat-equals-paint
+    var(--promo-upgrade-your-ships-bat-equals-reveal-duration) ease-out
+    var(--promo-upgrade-your-ships-bat-equals-reveal-delay) both;
+}
+
+.promo-upgrade-your-ships-bat-equals-bar--bottom {
+  animation-delay: calc(
+    var(--promo-upgrade-your-ships-bat-equals-reveal-delay) +
+      var(--promo-upgrade-your-ships-bat-equals-bar-stagger)
+  );
+}
+
+.promo-upgrade-your-ships-bat-scene--to-result
+  .promo-upgrade-your-ships-bat-equals {
+  animation: promo-upgrade-your-ships-bat-equals-to-result
+    var(--promo-upgrade-your-ships-bat-equals-transition-duration)
+    var(--promo-upgrade-your-ships-bat-entry-ease) both;
+}
+
+.promo-upgrade-your-ships-bat-scene--result-holding
+  .promo-upgrade-your-ships-bat-equals {
+  transform: translate(
+    calc(
+      var(--promo-upgrade-your-ships-bat-equals-result-left) -
+        var(--promo-upgrade-your-ships-bat-equals-ingredient-left)
+    ),
+    calc(
+      var(--promo-upgrade-your-ships-bat-equals-result-top) -
+        var(--promo-upgrade-your-ships-bat-equals-ingredient-top)
+    )
+  );
+}
+
+.promo-upgrade-your-ships-bat-scene--result-exiting
+  .promo-upgrade-your-ships-bat-equals {
+  animation: promo-upgrade-your-ships-bat-equals-exit
+    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in both;
+}
+
+.promo-upgrade-your-ships-bat-scene--header-exiting
+  .promo-upgrade-your-ships-bat-equals,
+.promo-upgrade-your-ships-bat-scene--done
+  .promo-upgrade-your-ships-bat-equals {
+  opacity: 0;
+}
+
+.promo-upgrade-your-ships-bat-result-position {
+  --promo-upgrade-your-ships-bat-ship-left: var(
+    --promo-upgrade-your-ships-bat-result-left
+  );
+  --promo-upgrade-your-ships-bat-ship-top: var(
+    --promo-upgrade-your-ships-bat-result-top
+  );
+  z-index: 2;
+}
+
+.promo-upgrade-your-ships-bat-result-animation,
+.promo-upgrade-your-ships-bat-cost-label,
+.promo-upgrade-your-ships-bat-result-title,
+.promo-upgrade-your-ships-bat-result-power {
+  opacity: 0;
+}
+
+.promo-upgrade-your-ships-bat-scene--to-result
+  .promo-upgrade-your-ships-bat-result-animation {
+  animation: promo-upgrade-your-ships-bat-result-ship-reveal
+    var(--promo-upgrade-your-ships-bat-result-entry-duration) ease-out both;
+}
+
+.promo-upgrade-your-ships-bat-scene--result-holding
+  .promo-upgrade-your-ships-bat-result-animation {
+  opacity: 1;
+}
+
+.promo-upgrade-your-ships-bat-scene--result-exiting
+  .promo-upgrade-your-ships-bat-result-animation {
+  animation: promo-upgrade-your-ships-bat-result-body-exit
+    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in both;
+}
+
+.promo-upgrade-your-ships-bat-cost-label {
+  position: absolute;
+  z-index: 2;
+  top: var(--promo-upgrade-your-ships-bat-cost-top);
+  left: var(--promo-upgrade-your-ships-bat-cost-left);
+  width: var(--promo-upgrade-your-ships-bat-cost-width);
+  margin: 0;
+  color: var(--shapeships-grey-50);
+  font-size: 60px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.promo-upgrade-your-ships-bat-scene--to-result
+  .promo-upgrade-your-ships-bat-cost-label {
+  animation: promo-upgrade-your-ships-bat-cost-reveal
+    var(--promo-upgrade-your-ships-bat-result-entry-duration) ease-out
+    var(--promo-upgrade-your-ships-bat-result-cost-delay) both;
+}
+
+.promo-upgrade-your-ships-bat-scene--result-holding
+  .promo-upgrade-your-ships-bat-cost-label {
+  opacity: 1;
+}
+
+.promo-upgrade-your-ships-bat-scene--result-exiting
+  .promo-upgrade-your-ships-bat-cost-label {
+  animation: promo-upgrade-your-ships-bat-result-body-exit
+    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in both;
+}
+
+.promo-upgrade-your-ships-bat-result-copy {
+  position: absolute;
+  z-index: 2;
+  top: var(--promo-upgrade-your-ships-bat-result-copy-top);
+  left: var(--promo-upgrade-your-ships-bat-result-copy-left);
+  display: flex;
+  width: 900px;
+  flex-direction: column;
+  gap: var(--promo-upgrade-your-ships-bat-result-copy-gap);
+}
+
+.promo-upgrade-your-ships-bat-result-title-mask,
+.promo-upgrade-your-ships-bat-result-power-mask {
+  width: 100%;
+  overflow: hidden;
+}
+
+.promo-upgrade-your-ships-bat-result-title-mask {
+  height: var(--promo-upgrade-your-ships-bat-result-title-mask-height);
+}
+
+.promo-upgrade-your-ships-bat-result-power-mask {
+  height: var(--promo-upgrade-your-ships-bat-result-power-mask-height);
+}
+
+.promo-upgrade-your-ships-bat-result-title,
+.promo-upgrade-your-ships-bat-result-power {
+  margin: 0;
+}
+
+.promo-upgrade-your-ships-bat-result-title {
+  color: var(--shapeships-cyan);
+  font-size: 105px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.promo-upgrade-your-ships-bat-result-power {
+  max-width: 900px;
+  color: var(--shapeships-white);
+  font-size: 80px;
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.promo-upgrade-your-ships-bat-result-power span {
+  display: block;
+  white-space: nowrap;
+}
+
+.promo-upgrade-your-ships-bat-scene--to-result
+  .promo-upgrade-your-ships-bat-result-title {
+  animation: promo-upgrade-your-ships-bat-result-copy-reveal
+    var(--promo-upgrade-your-ships-bat-result-entry-duration)
+    var(--promo-upgrade-your-ships-bat-entry-ease) both;
+}
+
+.promo-upgrade-your-ships-bat-scene--to-result
+  .promo-upgrade-your-ships-bat-result-power {
+  animation: promo-upgrade-your-ships-bat-result-copy-reveal
+    var(--promo-upgrade-your-ships-bat-result-entry-duration)
+    var(--promo-upgrade-your-ships-bat-entry-ease)
+    var(--promo-upgrade-your-ships-bat-result-text-stagger) both;
+}
+
+.promo-upgrade-your-ships-bat-scene--result-holding
+  .promo-upgrade-your-ships-bat-result-title,
+.promo-upgrade-your-ships-bat-scene--result-holding
+  .promo-upgrade-your-ships-bat-result-power {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.promo-upgrade-your-ships-bat-scene--result-exiting
+  .promo-upgrade-your-ships-bat-result-title,
+.promo-upgrade-your-ships-bat-scene--result-exiting
+  .promo-upgrade-your-ships-bat-result-power {
+  animation: promo-upgrade-your-ships-bat-result-body-exit
+    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in both;
+}
+
+.promo-upgrade-your-ships-bat-scene--header-exiting
+  .promo-upgrade-your-ships-bat-result-animation,
+.promo-upgrade-your-ships-bat-scene--header-exiting
+  .promo-upgrade-your-ships-bat-cost-label,
+.promo-upgrade-your-ships-bat-scene--header-exiting
+  .promo-upgrade-your-ships-bat-result-title,
+.promo-upgrade-your-ships-bat-scene--header-exiting
+  .promo-upgrade-your-ships-bat-result-power,
+.promo-upgrade-your-ships-bat-scene--done
+  .promo-upgrade-your-ships-bat-result-animation,
+.promo-upgrade-your-ships-bat-scene--done
+  .promo-upgrade-your-ships-bat-cost-label,
+.promo-upgrade-your-ships-bat-scene--done
+  .promo-upgrade-your-ships-bat-result-title,
+.promo-upgrade-your-ships-bat-scene--done
+  .promo-upgrade-your-ships-bat-result-power {
+  opacity: 0;
+}
+
+@keyframes promo-upgrade-your-ships-bat-heading-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(
+      var(--promo-upgrade-your-ships-bat-heading-exit-offset)
+    );
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-divider-exit {
+  from {
+    opacity: 0.7;
+    transform: scaleX(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-fighter-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(
+      var(--promo-upgrade-your-ships-bat-fighter-entry-offset)
+    );
+  }
+
+  28% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-scale-y-reveal {
+  0% {
+    opacity: 0;
+    transform: scaleY(
+      var(--promo-upgrade-your-ships-bat-scale-y-entry-start)
+    );
+  }
+
+  28% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-ingredient-ship-exit {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-ingredient-line-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(70px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-ingredient-copy-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(
+      var(--promo-upgrade-your-ships-bat-ingredient-exit-offset)
+    );
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-equals-paint {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-equals-to-result {
+  from {
+    transform: translate(0, 0);
+  }
+
+  to {
+    transform: translate(
+      calc(
+        var(--promo-upgrade-your-ships-bat-equals-result-left) -
+          var(--promo-upgrade-your-ships-bat-equals-ingredient-left)
+      ),
+      calc(
+        var(--promo-upgrade-your-ships-bat-equals-result-top) -
+          var(--promo-upgrade-your-ships-bat-equals-ingredient-top)
+      )
+    );
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-equals-exit {
+  from {
+    opacity: 1;
+    transform: translate(
+      calc(
+        var(--promo-upgrade-your-ships-bat-equals-result-left) -
+          var(--promo-upgrade-your-ships-bat-equals-ingredient-left)
+      ),
+      calc(
+        var(--promo-upgrade-your-ships-bat-equals-result-top) -
+          var(--promo-upgrade-your-ships-bat-equals-ingredient-top)
+      )
+    );
+  }
+
+  to {
+    opacity: 0;
+    transform: translate(
+      calc(
+        var(--promo-upgrade-your-ships-bat-equals-result-left) -
+          var(--promo-upgrade-your-ships-bat-equals-ingredient-left)
+      ),
+      calc(
+        var(--promo-upgrade-your-ships-bat-equals-result-top) -
+          var(--promo-upgrade-your-ships-bat-equals-ingredient-top) +
+          var(--promo-upgrade-your-ships-bat-result-exit-offset)
+      )
+    );
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-result-ship-reveal {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-cost-reveal {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-result-copy-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(
+      var(--promo-upgrade-your-ships-bat-result-entry-offset)
+    );
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes promo-upgrade-your-ships-bat-result-body-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(
+      var(--promo-upgrade-your-ships-bat-result-exit-offset)
+    );
+  }
+}

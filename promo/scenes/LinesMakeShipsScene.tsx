@@ -1,5 +1,7 @@
+// @ts-ignore
 import spaceBackgroundUrl from "../../src/graphics/global/space-background.jpg";
 import { InterceptorShip1 } from "../../src/graphics/human/Interceptor";
+// @ts-ignore
 import dice4Url from "../images/Dice4.png";
 
 export function LinesMakeShipsScene() {

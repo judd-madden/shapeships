@@ -1,4 +1,5 @@
 import { useEffect, useState, type ComponentType, type CSSProperties } from "react";
+// @ts-ignore
 import spaceBackgroundUrl from "../../src/graphics/global/space-background.jpg";
 import { DefenderShip } from "../../src/graphics/human/Defender";
 import { FighterShip } from "../../src/graphics/human/Fighter";

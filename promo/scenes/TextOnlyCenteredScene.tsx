@@ -1,3 +1,4 @@
+// @ts-ignore
 import spaceBackgroundUrl from "../../src/graphics/global/space-background.jpg";
 
 export interface TextOnlyCenteredSceneProps {
