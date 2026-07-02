@@ -6,9 +6,9 @@ import { FighterShip } from "../../src/graphics/human/Fighter";
 import { OrbitalShip } from "../../src/graphics/human/Orbital";
 
 const BODY_ENTRY_MS = 1_200;
-const BODY_HOLD_MS = 2_000;
+const BODY_HOLD_MS = 1_650;
 const BODY_EXIT_MS = 700;
-const FIRST_BODY_DELAY_MS = 300;
+const FIRST_BODY_DELAY_MS = 400;
 const NEXT_BODY_DELAY_MS = 100;
 const FINAL_HEADER_EXIT_OFFSET_MS = 350;
 

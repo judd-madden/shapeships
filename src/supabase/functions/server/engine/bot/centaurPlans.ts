@@ -60,8 +60,8 @@ const CEN_VIGOR_POWER_DESTRUCTION_PLAN: AuthoredBotPlan = {
     ],
     endLoop: ['FEA'],
     fallbacks: {
-      default: ['FEA', 'ANG', 'EQU'],
-      defensive: ['FEA', 'EQU'],
+      default: ['FEA', 'ANG'],
+      defensive: ['FEA'],
       aggressive: ['ANG', 'FEA'],
     },
   },
@@ -143,6 +143,11 @@ const CEN_FAMILY_AGGRO_PLAN: AuthoredBotPlan = {
   speciesId: 'CEN',
   buildGoals: [],
   loopGoals: [],
+  adaptiveBuildRules: [
+    { selfHealthAtOrBelow: 20, shipDefId: 'TER', targetCount: 1 },
+    { selfHealthAtOrBelow: 15, shipDefId: 'TER', targetCount: 2 },
+    { selfHealthAtOrBelow: 12, shipDefId: 'TER', targetCount: 3 },
+  ],
   orderedBuildPlan: {
     buildOrder: [
       'VIG',
@@ -185,6 +190,13 @@ const CEN_GREED_KNO_DES_PLAN: AuthoredBotPlan = {
   speciesId: 'CEN',
   buildGoals: [],
   loopGoals: [],
+  adaptiveBuildRules: [
+    { selfHealthAtOrBelow: 20, shipDefId: 'TER', targetCount: 1 },
+    { selfHealthAtOrBelow: 16, shipDefId: 'TER', targetCount: 2 },
+    { selfHealthAtOrBelow: 14, shipDefId: 'TER', targetCount: 3 },
+    { selfHealthAtOrBelow: 12, shipDefId: 'TER', targetCount: 5 },
+    { selfHealthAtOrBelow: 8, shipDefId: 'TER', targetCount: 7 },
+  ],
   orderedBuildPlan: {
     buildOrder: [
       'VIG',
@@ -235,6 +247,11 @@ const CEN_GREED_DOM_PLAN: AuthoredBotPlan = {
   speciesId: 'CEN',
   buildGoals: [],
   loopGoals: [],
+  adaptiveBuildRules: [
+    { selfHealthAtOrBelow: 20, shipDefId: 'TER', targetCount: 1 },
+    { selfHealthAtOrBelow: 12, shipDefId: 'TER', targetCount: 2 },
+    { selfHealthAtOrBelow: 8, shipDefId: 'TER', targetCount: 3 },
+  ],
   orderedBuildPlan: {
     buildOrder: [
       'VIG',
