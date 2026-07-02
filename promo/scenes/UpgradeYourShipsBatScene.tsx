@@ -25,9 +25,7 @@ const RESULT_COST_DELAY_MS = 140;
 const RESULT_SETTLE_SAFETY_MS = 100;
 const RESULT_HOLD_MS = 2100;
 const RESULT_EXIT_MS = 700;
-const HEADER_EXIT_MS = 450;
-const DIVIDER_EXIT_MS = 250;
-const DIVIDER_EXIT_DELAY_MS = HEADER_EXIT_MS - DIVIDER_EXIT_MS;
+const HEADER_EXIT_MS = 350;
 
 const INGREDIENT_SETTLE_MS = Math.max(
   INGREDIENT_ENTRY_DELAY_MS + INGREDIENT_ENTRY_MS,
@@ -109,8 +107,6 @@ const sceneTimingStyle = {
   "--promo-upgrade-your-ships-bat-result-cost-delay": `${RESULT_COST_DELAY_MS}ms`,
   "--promo-upgrade-your-ships-bat-result-exit-duration": `${RESULT_EXIT_MS}ms`,
   "--promo-upgrade-your-ships-bat-header-exit-duration": `${HEADER_EXIT_MS}ms`,
-  "--promo-upgrade-your-ships-bat-divider-exit-duration": `${DIVIDER_EXIT_MS}ms`,
-  "--promo-upgrade-your-ships-bat-divider-exit-delay": `${DIVIDER_EXIT_DELAY_MS}ms`,
 } as CSSProperties;
 
 export function UpgradeYourShipsBatScene() {
