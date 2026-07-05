@@ -162,6 +162,34 @@ export function AncientShipCataloguePanel({
             className="absolute content-stretch flex items-end justify-between"
             style={{ left: "0px", top: "25px", width: "386px" }}
           >
+            {/* Pluto Core */}
+            <div
+              className="content-stretch flex flex-col gap-[8px] items-center shrink-0"
+              style={{ width: "40px" }}
+              onMouseEnter={(e) =>
+                hover.onEnter("PLU", e.currentTarget)
+              }
+              onMouseLeave={() => hover.onLeave("PLU")}
+            >
+              <CatalogueShipSlot
+                shipId="PLU"
+                graphic={
+                  <div
+                    className="relative shrink-0"
+                    style={{ height: "70px", width: "40px" }}
+                  >
+                    <PlutoCore />
+                  </div>
+                }
+                {...getSlotProps("PLU")}
+              >
+                <CatalogueCostNumber
+                  cost={getDisplayCost("PLU", 3)}
+                  className="relative shrink-0 w-full"
+                />
+              </CatalogueShipSlot>
+            </div>
+
             {/* Mercury Core */}
             <div
               className="content-stretch flex flex-col gap-[8px] items-center shrink-0"
@@ -185,34 +213,6 @@ export function AncientShipCataloguePanel({
               >
                 <CatalogueCostNumber
                   cost={getDisplayCost("MER", 4)}
-                  className="relative shrink-0 w-full"
-                />
-              </CatalogueShipSlot>
-            </div>
-
-            {/* Pluto Core */}
-            <div
-              className="content-stretch flex flex-col gap-[8px] items-center shrink-0"
-              style={{ width: "40px" }}
-              onMouseEnter={(e) =>
-                hover.onEnter("PLU", e.currentTarget)
-              }
-              onMouseLeave={() => hover.onLeave("PLU")}
-            >
-              <CatalogueShipSlot
-                shipId="PLU"
-                graphic={
-                  <div
-                    className="relative shrink-0"
-                    style={{ height: "70px", width: "40px" }}
-                  >
-                    <PlutoCore />
-                  </div>
-                }
-                {...getSlotProps("PLU")}
-              >
-                <CatalogueCostNumber
-                  cost={getDisplayCost("PLU", 4)}
                   className="relative shrink-0 w-full"
                 />
               </CatalogueShipSlot>
@@ -277,7 +277,7 @@ export function AncientShipCataloguePanel({
 
           {/* Basic Ships Row 2 */}
           <div
-            className="absolute content-stretch flex items-end justify-between px-[16px]"
+            className="absolute content-stretch flex items-center justify-between px-[16px]"
             style={{
               left: "-5px",
               top: "151px",
@@ -326,7 +326,7 @@ export function AncientShipCataloguePanel({
                 graphic={
                   <div
                     className="relative shrink-0"
-                    style={{ height: "80px", width: "80px" }}
+                    style={{ height: "85px", width: "80px" }}
                   >
                     <SolarReserve4 />
                   </div>

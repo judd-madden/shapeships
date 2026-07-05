@@ -16,6 +16,5 @@ export const PlutoCore: React.FC<PlutoCoreProps> = ({ className }) => (
     <path d="M22 32L22 72" stroke="#9CFF84" strokeWidth="4" strokeLinecap="round"/>
     <path d="M2 52L42 52" stroke="#9CFF84" strokeWidth="4" strokeLinecap="round"/>
     <circle cx="22" cy="17" r="15" fill="black" stroke="#9CFF84" strokeWidth="4"/>
-    <circle cx="22" cy="17" r="8" stroke="#9CFF84" strokeWidth="4"/>
   </svg>
 );

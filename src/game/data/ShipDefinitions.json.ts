@@ -1248,6 +1248,27 @@ export const SHIP_DEFINITIONS_JSON = [
     "numberOfGraphics": 1
   },
   {
+    "id": "PLU",
+    "species": "Ancient",
+    "shipType": "Basic",
+    "name": "Pluto Core",
+    "totalLineCost": 3,
+    "joiningLineCost": null,
+    "componentShips": [],
+    "charges": null,
+    "powers": [
+      {
+        "subphase": "Energy",
+        "text": "Gain 1 green energy each battle phase.\\nCannot be destroyed."
+      }
+    ],
+    "energyCost": null,
+    "extraRules": "",
+    "stackCaption": "N/A",
+    "colour": "Pastel Green",
+    "numberOfGraphics": 1
+  },
+  {
     "id": "MER",
     "species": "Ancient",
     "shipType": "Basic",
@@ -1258,35 +1279,14 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Charge Declaration",
-        "text": "Gain 1 red energy each battle phase."
+        "subphase": "Energy",
+        "text": "Gain 1 red energy each battle phase.\\nCannot be destroyed."
       }
     ],
     "energyCost": null,
     "extraRules": "",
     "stackCaption": "N/A",
     "colour": "Pastel Red",
-    "numberOfGraphics": 1
-  },
-  {
-    "id": "PLU",
-    "species": "Ancient",
-    "shipType": "Basic",
-    "name": "Pluto Core",
-    "totalLineCost": 4,
-    "joiningLineCost": null,
-    "componentShips": [],
-    "charges": null,
-    "powers": [
-      {
-        "subphase": "Charge Declaration",
-        "text": "Gain 1 green energy each battle phase."
-      }
-    ],
-    "energyCost": null,
-    "extraRules": "",
-    "stackCaption": "N/A",
-    "colour": "Pastel Green",
     "numberOfGraphics": 1
   },
   {
@@ -1301,12 +1301,12 @@ export const SHIP_DEFINITIONS_JSON = [
     "maxQuantity": 6,
     "powers": [
       {
-        "subphase": "Charge Declaration",
-        "text": "If dice roll is 1 or 2 Gain 1 blue energy."
+        "subphase": "Energy",
+        "text": "When built, write a number between 1 and 6 under the Quantum Mystic."
       },
       {
         "subphase": "Automatic",
-        "text": "If dice roll is 1 or 2 heal 5."
+        "text": "When the dice roll matches that number, gain 2 blue energy and heal 5. (this includes the turn when the Quantum Mystic is built)."
       }
     ],
     "energyCost": null,
@@ -1327,15 +1327,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Automatic",
-        "text": "If you have one:\\nHeal 1 for each red and/or green energy you spent this turn."
+        "text": "Heal 1.\\nIf you have one: Increase your maximum health by 15.\\nIf you have two: Also, your non-Core ships cost 1 less."
       },
       {
-        "subphase": "Passive",
-        "text": "If you have two:\\nAlso, increase your maximum health by 15."
-      },
-      {
-        "subphase": "Automatic",
-        "text": "If you have three:\\nAlso, Deal 1 damage for each red and/or green energy you spent this turn."
+        "subphase": "First Strike",
+        "text": "If you have three: Once only on the turn the third Spiral is built, you may destroy one basic enemy ship."
       }
     ],
     "energyCost": null,
@@ -1356,8 +1352,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "maxQuantity": 6,
     "powers": [
       {
-        "subphase": "Charge Declaration",
-        "text": "Gain 1 blue energy each battle phase."
+        "subphase": "Energy",
+        "text": "Gain 1 blue energy each battle phase.\\nCannot be destroyed."
       }
     ],
     "energyCost": null,
@@ -1402,8 +1398,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Charge Declaration",
-        "text": "Once per turn, you may repeat a solar power that you cast (for free)."
+        "subphase": "Automatic",
+        "text": "Once per turn per Cube, you may repeat the first Solar power you cast this turn."
       }
     ],
     "energyCost": null,
@@ -1411,6 +1407,58 @@ export const SHIP_DEFINITIONS_JSON = [
     "stackCaption": "N/A",
     "colour": "Pastel Orange",
     "numberOfGraphics": 1
+  },
+  {
+    "id": "SLIF",
+    "species": "Ancient",
+    "shipType": "Solar Power",
+    "name": "Life",
+    "totalLineCost": null,
+    "joiningLineCost": null,
+    "componentShips": [],
+    "charges": null,
+    "powers": [
+      {
+        "subphase": "Charge Declaration",
+        "text": "Heal 1."
+      }
+    ],
+    "energyCost": {
+      "red": 0,
+      "green": 1,
+      "blue": 0,
+      "xBlue": false
+    },
+    "extraRules": "",
+    "stackCaption": "N/A",
+    "colour": "N/A",
+    "numberOfGraphics": 0
+  },
+  {
+    "id": "SSTA",
+    "species": "Ancient",
+    "shipType": "Solar Power",
+    "name": "Star Birth",
+    "totalLineCost": null,
+    "joiningLineCost": null,
+    "componentShips": [],
+    "charges": null,
+    "powers": [
+      {
+        "subphase": "Charge Declaration",
+        "text": "Heal equal to the dice roll +3."
+      }
+    ],
+    "energyCost": {
+      "red": 0,
+      "green": 3,
+      "blue": 0,
+      "xBlue": false
+    },
+    "extraRules": "",
+    "stackCaption": "N/A",
+    "colour": "N/A",
+    "numberOfGraphics": 0
   },
   {
     "id": "SAST",
@@ -1456,58 +1504,6 @@ export const SHIP_DEFINITIONS_JSON = [
     "energyCost": {
       "red": 3,
       "green": 0,
-      "blue": 0,
-      "xBlue": false
-    },
-    "extraRules": "",
-    "stackCaption": "N/A",
-    "colour": "N/A",
-    "numberOfGraphics": 0
-  },
-  {
-    "id": "SLIF",
-    "species": "Ancient",
-    "shipType": "Solar Power",
-    "name": "Life",
-    "totalLineCost": null,
-    "joiningLineCost": null,
-    "componentShips": [],
-    "charges": null,
-    "powers": [
-      {
-        "subphase": "Charge Declaration",
-        "text": "Heal 1."
-      }
-    ],
-    "energyCost": {
-      "red": 0,
-      "green": 1,
-      "blue": 0,
-      "xBlue": false
-    },
-    "extraRules": "",
-    "stackCaption": "N/A",
-    "colour": "N/A",
-    "numberOfGraphics": 0
-  },
-  {
-    "id": "SSTA",
-    "species": "Ancient",
-    "shipType": "Solar Power",
-    "name": "Star Birth",
-    "totalLineCost": null,
-    "joiningLineCost": null,
-    "componentShips": [],
-    "charges": null,
-    "powers": [
-      {
-        "subphase": "Charge Declaration",
-        "text": "Heal equal to the dice roll +5."
-      }
-    ],
-    "energyCost": {
-      "red": 0,
-      "green": 3,
       "blue": 0,
       "xBlue": false
     },
@@ -1584,8 +1580,8 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": {
-      "red": 2,
-      "green": 2,
+      "red": 3,
+      "green": 3,
       "blue": 0,
       "xBlue": false
     },
@@ -1612,7 +1608,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "energyCost": {
       "red": 2,
       "green": 2,
-      "blue": 1,
+      "blue": 2,
       "xBlue": false
     },
     "extraRules": "",
@@ -1637,11 +1633,11 @@ export const SHIP_DEFINITIONS_JSON = [
     ],
     "energyCost": {
       "red": 3,
-      "green": 3,
+      "green": 4,
       "blue": 3,
       "xBlue": false
     },
-    "extraRules": "",
+    "extraRules": "See 'Destroying Rules' for more information.",
     "stackCaption": "N/A",
     "colour": "N/A",
     "numberOfGraphics": 0
@@ -1655,7 +1651,7 @@ export const SHIP_DEFINITIONS_JSON = [
  * IMPORTANT: This version should match the server-side version when synced.
  * Server version is in: /supabase/functions/server/engine_shared/defs/ShipDefinitions.json.ts
  */
-export const SHIP_DEFS_VERSION = '2026-01-16';
+export const SHIP_DEFS_VERSION = '2026-07-06';
 
 // ============================================================================
 // TYPE INFERENCE HELPERS

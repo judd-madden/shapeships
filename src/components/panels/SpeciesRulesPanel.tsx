@@ -474,6 +474,12 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
         </p>
       </div>
 
+      {species === 'Ancient' && (
+        <p className="font-['Roboto'] font-normal leading-[20px] relative w-full text-[13.5px] text-white sm:text-[18px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <span className="font-bold">Energy</span> is a resource unique to the Ancient species. Each of the three Cores generate a different colour energy, this is used to cast Solar Powers. The Ancients use Solar Powers instead of Upgraded Ships. You may cast multiple Solar Powers in a turn, if you have the energy to do so. Note: Energy cannot be saved over multiple turns.
+        </p>
+      )}
+
       {/* BASIC SHIPS */}
       <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full">
         <div className="absolute border-[var(--shapeships-grey-70)] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none" />
