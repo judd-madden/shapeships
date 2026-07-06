@@ -263,7 +263,9 @@ export function computeLineBonusesForPlayer(
 
   const vigorCount = shipCounts.VIG ?? 0;
   if (vigorCount > 0 && hasEvenEffectiveDiceRoll) {
-    const effectiveCount = getCappedContributingCount('VIG', vigorCount);
+    // VIG build quantity is capped elsewhere, but DOM can legally transfer
+    // additional owned VIG in Centaur mirrors; all owned VIG contribute.
+    const effectiveCount = vigorCount;
     const amount = 2 * effectiveCount;
     bonusLinesOnEven += amount;
     evenOnlyRows.push(buildShipBreakdownRow('VIG', effectiveCount, amount, 'e'));
