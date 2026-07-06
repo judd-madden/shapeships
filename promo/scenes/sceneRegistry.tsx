@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { FinalCtaScene } from "./FinalCtaScene";
 import { FourSpeciesScene } from "./FourSpeciesScene";
 import { LinesMakeShipsScene } from "./LinesMakeShipsScene";
 import { PracticalsScene } from "./PracticalsScene";
@@ -60,5 +61,10 @@ export const sceneRegistry: readonly PromoSceneDefinition[] = [
     id: "practicals",
     title: "Practicals",
     component: PracticalsScene,
+  },
+  {
+    id: "final-cta",
+    title: "Final CTA",
+    component: FinalCtaScene,
   },
 ];
