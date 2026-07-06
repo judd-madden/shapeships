@@ -24,7 +24,9 @@ const RESULT_TEXT_STAGGER_MS = 140;
 const RESULT_COST_DELAY_MS = 140;
 const RESULT_SETTLE_SAFETY_MS = 100;
 const RESULT_HOLD_MS = 2100;
-const RESULT_EXIT_MS = 700;
+const RESULT_EXIT_MS = 400;
+const RESULT_EXIT_STAGGER_MS = 100;
+const RESULT_EXIT_TOTAL_MS = RESULT_EXIT_MS + 3 * RESULT_EXIT_STAGGER_MS;
 const HEADER_EXIT_MS = 350;
 
 const INGREDIENT_SETTLE_MS = Math.max(
@@ -106,6 +108,7 @@ const sceneTimingStyle = {
   "--promo-upgrade-your-ships-bat-result-text-stagger": `${RESULT_TEXT_STAGGER_MS}ms`,
   "--promo-upgrade-your-ships-bat-result-cost-delay": `${RESULT_COST_DELAY_MS}ms`,
   "--promo-upgrade-your-ships-bat-result-exit-duration": `${RESULT_EXIT_MS}ms`,
+  "--promo-upgrade-your-ships-bat-result-exit-stagger": `${RESULT_EXIT_STAGGER_MS}ms`,
   "--promo-upgrade-your-ships-bat-header-exit-duration": `${HEADER_EXIT_MS}ms`,
 } as CSSProperties;
 
@@ -135,7 +138,7 @@ export function UpgradeYourShipsBatScene() {
         break;
       case "result-exiting":
         nextPhase = "header-exiting";
-        durationMs = RESULT_EXIT_MS;
+        durationMs = RESULT_EXIT_TOTAL_MS;
         break;
       case "header-exiting":
         nextPhase = "done";

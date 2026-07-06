@@ -1366,7 +1366,8 @@ body {
 .promo-upgrade-your-ships-scene--result-exiting
   .promo-upgrade-your-ships-equals {
   animation: promo-upgrade-your-ships-equals-exit
-    var(--promo-upgrade-your-ships-result-exit-duration) ease-in both;
+    var(--promo-upgrade-your-ships-result-exit-duration) ease-in
+    var(--promo-upgrade-your-ships-result-exit-stagger) both;
 }
 
 .promo-upgrade-your-ships-scene--done .promo-upgrade-your-ships-equals {
@@ -1401,7 +1402,7 @@ body {
 .promo-upgrade-your-ships-scene--result-exiting
   .promo-upgrade-your-ships-tac-animation {
   animation: promo-upgrade-your-ships-result-body-exit
-    var(--promo-upgrade-your-ships-result-exit-duration) ease-in both;
+    var(--promo-upgrade-your-ships-result-exit-duration) ease-in 0ms both;
 }
 
 .promo-upgrade-your-ships-cost-label {
@@ -1436,7 +1437,7 @@ body {
 .promo-upgrade-your-ships-scene--result-exiting
   .promo-upgrade-your-ships-cost-label {
   animation: promo-upgrade-your-ships-result-body-exit
-    var(--promo-upgrade-your-ships-result-exit-duration) ease-in both;
+    var(--promo-upgrade-your-ships-result-exit-duration) ease-in 0ms both;
 }
 
 .promo-upgrade-your-ships-result-copy {
@@ -1513,11 +1514,17 @@ body {
 }
 
 .promo-upgrade-your-ships-scene--result-exiting
-  .promo-upgrade-your-ships-result-title,
+  .promo-upgrade-your-ships-result-title {
+  animation: promo-upgrade-your-ships-result-body-exit
+    var(--promo-upgrade-your-ships-result-exit-duration) ease-in
+    calc(var(--promo-upgrade-your-ships-result-exit-stagger) * 2) both;
+}
+
 .promo-upgrade-your-ships-scene--result-exiting
   .promo-upgrade-your-ships-result-power {
   animation: promo-upgrade-your-ships-result-body-exit
-    var(--promo-upgrade-your-ships-result-exit-duration) ease-in both;
+    var(--promo-upgrade-your-ships-result-exit-duration) ease-in
+    calc(var(--promo-upgrade-your-ships-result-exit-stagger) * 3) both;
 }
 
 @keyframes promo-upgrade-your-ships-heading-reveal {
@@ -2012,7 +2019,8 @@ body {
 .promo-upgrade-your-ships-bat-scene--result-exiting
   .promo-upgrade-your-ships-bat-equals {
   animation: promo-upgrade-your-ships-bat-equals-exit
-    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in both;
+    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in
+    var(--promo-upgrade-your-ships-bat-result-exit-stagger) both;
 }
 
 .promo-upgrade-your-ships-bat-scene--header-exiting
@@ -2053,7 +2061,8 @@ body {
 .promo-upgrade-your-ships-bat-scene--result-exiting
   .promo-upgrade-your-ships-bat-result-animation {
   animation: promo-upgrade-your-ships-bat-result-body-exit
-    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in both;
+    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in 0ms
+    both;
 }
 
 .promo-upgrade-your-ships-bat-cost-label {
@@ -2087,7 +2096,8 @@ body {
 .promo-upgrade-your-ships-bat-scene--result-exiting
   .promo-upgrade-your-ships-bat-cost-label {
   animation: promo-upgrade-your-ships-bat-result-body-exit
-    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in both;
+    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in 0ms
+    both;
 }
 
 .promo-upgrade-your-ships-bat-result-copy {
@@ -2165,11 +2175,19 @@ body {
 }
 
 .promo-upgrade-your-ships-bat-scene--result-exiting
-  .promo-upgrade-your-ships-bat-result-title,
+  .promo-upgrade-your-ships-bat-result-title {
+  animation: promo-upgrade-your-ships-bat-result-body-exit
+    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in
+    calc(var(--promo-upgrade-your-ships-bat-result-exit-stagger) * 2)
+    both;
+}
+
 .promo-upgrade-your-ships-bat-scene--result-exiting
   .promo-upgrade-your-ships-bat-result-power {
   animation: promo-upgrade-your-ships-bat-result-body-exit
-    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in both;
+    var(--promo-upgrade-your-ships-bat-result-exit-duration) ease-in
+    calc(var(--promo-upgrade-your-ships-bat-result-exit-stagger) * 3)
+    both;
 }
 
 .promo-upgrade-your-ships-bat-scene--header-exiting
@@ -3071,14 +3089,16 @@ body {
 
 .promo-final-cta-scene {
   --promo-final-cta-divider-start-top: calc(50% - 1px);
-  --promo-final-cta-divider-final-top: 430px;
+  --promo-final-cta-divider-final-top: 520px;
   --promo-final-cta-divider-width: min(1680px, calc(100% - 160px));
-  --promo-final-cta-lockup-top: 184px;
-  --promo-final-cta-lockup-width: 1340px;
-  --promo-final-cta-logo-width: 178px;
-  --promo-final-cta-lockup-gap: 58px;
-  --promo-final-cta-wordmark-font-size: 158px;
-  --promo-final-cta-copy-top: 510px;
+  --promo-final-cta-lockup-top: 165px;
+  --promo-final-cta-lockup-width: 1440px;
+  --promo-final-cta-logo-mask-height: 330px;
+  --promo-final-cta-logo-symbol-width: 300px;
+  --promo-final-cta-logo-symbol-height: 256.5px;
+  --promo-final-cta-lockup-gap: 38px;
+  --promo-final-cta-wordmark-font-size: 162px;
+  --promo-final-cta-copy-top: 600px;
   --promo-final-cta-copy-gap: 34px;
   --promo-final-cta-line-mask-height: 122px;
   --promo-final-cta-line-font-size: 105px;
@@ -3159,17 +3179,19 @@ body {
   left: 50%;
   display: flex;
   width: var(--promo-final-cta-lockup-width);
-  height: 214px;
+  height: var(--promo-final-cta-logo-mask-height);
   align-items: center;
+  justify-content: center;
   overflow: hidden;
   transform: translateX(-50%);
 }
 
 .promo-final-cta-logo-lockup {
-  display: flex;
-  width: 1340px;
+  display: inline-flex;
+  width: max-content;
   height: auto;
   align-items: center;
+  flex: none;
   gap: var(--promo-final-cta-lockup-gap);
   opacity: 0;
   transform: translateY(var(--promo-final-cta-logo-start-offset));
@@ -3182,8 +3204,8 @@ body {
 }
 
 .promo-final-cta-logo-symbol {
-  width: var(--promo-final-cta-logo-width);
-  height: auto;
+  width: var(--promo-final-cta-logo-symbol-width);
+  height: var(--promo-final-cta-logo-symbol-height);
   aspect-ratio: 200 / 171;
   flex: none;
 }
@@ -3195,8 +3217,7 @@ body {
 }
 
 .promo-final-cta-wordmark {
-  min-width: 0;
-  flex: 1 1 auto;
+  flex: none;
   margin: 0;
   color: var(--shapeships-white);
   font-size: var(--promo-final-cta-wordmark-font-size);
