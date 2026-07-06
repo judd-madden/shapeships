@@ -1,5 +1,7 @@
 import type { ComponentType } from "react";
+import { FourSpeciesScene } from "./FourSpeciesScene";
 import { LinesMakeShipsScene } from "./LinesMakeShipsScene";
+import { PracticalsScene } from "./PracticalsScene";
 import { SharedDiceScene } from "./SharedDiceScene";
 import { ShipsHavePowersScene } from "./ShipsHavePowersScene";
 import { TextOnlyCenteredScene } from "./TextOnlyCenteredScene";
@@ -48,5 +50,15 @@ export const sceneRegistry: readonly PromoSceneDefinition[] = [
     id: "two-top-headings",
     title: "Two Top Headings",
     component: TwoTopHeadingsScene,
+  },
+  {
+    id: "four-species",
+    title: "Four Species",
+    component: FourSpeciesScene,
+  },
+  {
+    id: "practicals",
+    title: "Practicals",
+    component: PracticalsScene,
   },
 ];

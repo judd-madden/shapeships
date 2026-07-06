@@ -9,10 +9,10 @@ export interface TextOnlyCenteredSceneProps {
 }
 
 export function TextOnlyCenteredScene({
-  topText = "A FREE STRATEGY GAME",
-  bottomText = "LIKE NOTHING ELSE",
+  topText = "CHALLENGE FRIENDS",
+  bottomText = "PLAY AGAINST BOTS",
   topColor = "var(--shapeships-white)",
-  bottomColor = "var(--shapeships-pastel-purple)",
+  bottomColor = "var(--shapeships-grey-50)",
 }: TextOnlyCenteredSceneProps) {
   return (
     <section className="promo-text-only-scene">
