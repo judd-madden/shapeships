@@ -179,6 +179,7 @@ function getLiveFleetItemLayoutSignatures(
 }
 
 type ShipDisplayMode = 'live' | 'void';
+type LiveFlipRefGetter = (key: string) => (el: HTMLElement | null) => void;
 
 type DestroyTargetStateVm = {
   isTargetable: boolean;
@@ -512,19 +513,67 @@ export function FleetArea({
   const renderedShips = grouped
     ? [...grouped.row1, ...grouped.row2, ...grouped.row3, ...grouped.row4]
     : [];
+  const topPairedBandShips = grouped ? [...grouped.row1, ...grouped.row2] : [];
+  const bottomPairedBandShips = grouped ? [...grouped.row3, ...grouped.row4] : [];
   const allRenderKeys = renderedShips.map((s) => s.renderKey);
+  const topPairedBandRenderKeys = topPairedBandShips.map((s) => s.renderKey);
+  const bottomPairedBandRenderKeys = bottomPairedBandShips.map((s) => s.renderKey);
   const liveFleetLayoutSignature = getLiveFleetLayoutSignature(renderedShips, liveRowsLayout);
   const liveFleetItemLayoutSignatures = getLiveFleetItemLayoutSignatures(renderedShips);
-  const getFlipRef = useFlipLayout(allRenderKeys, flipEnabled, {
-    durationMs: LIVE_FLEET_FLIP_DURATION_MS,
-    easing: 'ease-in-out',
-    layoutSignature: liveFleetLayoutSignature,
-    itemLayoutSignatures: liveFleetItemLayoutSignatures,
-    skipSelfChangedItemForNextRun: false,
-    ignoredAncestorScaleClassNames: IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES,
-  });
+  const topPairedBandLayoutSignature = getLiveFleetLayoutSignature(
+    topPairedBandShips,
+    liveRowsLayout
+  );
+  const bottomPairedBandLayoutSignature = getLiveFleetLayoutSignature(
+    bottomPairedBandShips,
+    liveRowsLayout
+  );
+  const topPairedBandItemLayoutSignatures =
+    getLiveFleetItemLayoutSignatures(topPairedBandShips);
+  const bottomPairedBandItemLayoutSignatures =
+    getLiveFleetItemLayoutSignatures(bottomPairedBandShips);
+  const getStackedFlipRef = useFlipLayout(
+    allRenderKeys,
+    flipEnabled && liveRowsLayout !== 'pairedRows',
+    {
+      durationMs: LIVE_FLEET_FLIP_DURATION_MS,
+      easing: 'ease-in-out',
+      layoutSignature: liveFleetLayoutSignature,
+      itemLayoutSignatures: liveFleetItemLayoutSignatures,
+      skipSelfChangedItemForNextRun: false,
+      ignoredAncestorScaleClassNames: IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES,
+    }
+  );
+  const getTopPairedBandFlipRef = useFlipLayout(
+    topPairedBandRenderKeys,
+    false,
+    {
+      durationMs: LIVE_FLEET_FLIP_DURATION_MS,
+      easing: 'ease-in-out',
+      layoutSignature: topPairedBandLayoutSignature,
+      itemLayoutSignatures: topPairedBandItemLayoutSignatures,
+      skipSelfChangedItemForNextRun: false,
+      ignoredAncestorScaleClassNames: IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES,
+    }
+  );
+  const getBottomPairedBandFlipRef = useFlipLayout(
+    bottomPairedBandRenderKeys,
+    false,
+    {
+      durationMs: LIVE_FLEET_FLIP_DURATION_MS,
+      easing: 'ease-in-out',
+      layoutSignature: bottomPairedBandLayoutSignature,
+      itemLayoutSignatures: bottomPairedBandItemLayoutSignatures,
+      skipSelfChangedItemForNextRun: false,
+      ignoredAncestorScaleClassNames: IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES,
+    }
+  );
 
-  const renderShipCell = (ship: FleetStackVm, displayMode: ShipDisplayMode = 'live') => {
+  const renderShipCell = (
+    ship: FleetStackVm,
+    displayMode: ShipDisplayMode = 'live',
+    getLiveFlipRef: LiveFlipRefGetter = getStackedFlipRef
+  ) => {
     const targetState = displayMode === 'live' ? targetStatesByStackKey?.[ship.stackKey] : undefined;
     const isTargetable = targetState?.isTargetable === true;
     const canInspectFleetShip = displayMode === 'live' && !isTargetable && Boolean(onFleetShipTap);
@@ -532,7 +581,7 @@ export function FleetArea({
     return (
       <div
         key={ship.renderKey}
-        ref={displayMode === 'live' ? getFlipRef(ship.renderKey) : undefined}
+        ref={displayMode === 'live' ? getLiveFlipRef(ship.renderKey) : undefined}
         className={cx(
           displayMode === 'void' ? 'relative py-[2px]' : 'relative px-[10px] py-[8px]',
           (isTargetable || canInspectFleetShip) && 'cursor-pointer'
@@ -572,13 +621,21 @@ export function FleetArea({
     );
   };
 
-  const renderLiveRow = (rowShips: FleetStackVm[], className = 'justify-start gap-[30px]') => (
+  const renderLiveRow = (
+    rowShips: FleetStackVm[],
+    className = 'justify-start gap-[30px]',
+    getLiveFlipRef: LiveFlipRefGetter = getStackedFlipRef
+  ) => (
     <div className={cx('flex flex-row flex-nowrap items-center', className)}>
-      {rowShips.map((ship) => renderShipCell(ship, 'live'))}
+      {rowShips.map((ship) => renderShipCell(ship, 'live', getLiveFlipRef))}
     </div>
   );
 
-  const renderPairedBand = (leftRowShips: FleetStackVm[], rightRowShips: FleetStackVm[]) => {
+  const renderPairedBand = (
+    leftRowShips: FleetStackVm[],
+    rightRowShips: FleetStackVm[],
+    getLiveFlipRef: LiveFlipRefGetter
+  ) => {
     const hasLeft = leftRowShips.length > 0;
     const hasRight = rightRowShips.length > 0;
 
@@ -590,8 +647,8 @@ export function FleetArea({
       return (
         <div className="flex w-full items-center justify-center gap-[18px]">
           {hasLeft
-            ? renderLiveRow(leftRowShips, 'justify-center gap-[18px]')
-            : renderLiveRow(rightRowShips, 'justify-center gap-[18px]')}
+            ? renderLiveRow(leftRowShips, 'justify-center gap-[18px]', getLiveFlipRef)
+            : renderLiveRow(rightRowShips, 'justify-center gap-[18px]', getLiveFlipRef)}
         </div>
       );
     }
@@ -599,10 +656,10 @@ export function FleetArea({
     return (
       <div className="flex w-full items-center justify-center gap-[18px]">
         <div className="flex min-w-0 items-center justify-end">
-          {renderLiveRow(leftRowShips, 'justify-end gap-[18px]')}
+          {renderLiveRow(leftRowShips, 'justify-end gap-[18px]', getLiveFlipRef)}
         </div>
         <div className="flex min-w-0 items-center justify-start">
-          {renderLiveRow(rightRowShips, 'justify-start gap-[18px]')}
+          {renderLiveRow(rightRowShips, 'justify-start gap-[18px]', getLiveFlipRef)}
         </div>
       </div>
     );
@@ -650,8 +707,8 @@ export function FleetArea({
               >
                 {grouped && liveRowsLayout === 'pairedRows' ? (
                   <>
-                    {renderPairedBand(grouped.row1, grouped.row2)}
-                    {renderPairedBand(grouped.row3, grouped.row4)}
+                    {renderPairedBand(grouped.row1, grouped.row2, getTopPairedBandFlipRef)}
+                    {renderPairedBand(grouped.row3, grouped.row4, getBottomPairedBandFlipRef)}
                   </>
                 ) : grouped ? (
                   <>
