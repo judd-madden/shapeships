@@ -88,6 +88,40 @@ export type StarSpec = {
 
   durationMs: number;
   delayMs: number;
+  opacity?: number;
+};
+
+export type RisingCelebrationStarsConfig = {
+  starCount: number;
+  totalMs: number;
+  streamStartDelayMs: number;
+  minDurationMs: number;
+  maxDurationMs: number;
+  minSizePx: number;
+  maxSizePx: number;
+  minOpacity: number;
+  maxOpacity: number;
+  delayJitterMs: number;
+  bottomMarginPx: number;
+  topExitMarginPx: number;
+};
+
+const MAX_RISING_CELEBRATION_STAR_COUNT = 250;
+const FALLBACK_CELEBRATION_SEED = 'shapeships-endgame-celebration';
+
+export const RISING_CELEBRATION_STARS_CONFIG: RisingCelebrationStarsConfig = {
+  starCount: MAX_RISING_CELEBRATION_STAR_COUNT,
+  totalMs: 30_000,
+  streamStartDelayMs: 0,
+  minDurationMs: 1_400,
+  maxDurationMs: 3_800,
+  minSizePx: 1.5,
+  maxSizePx: 5,
+  minOpacity: 0.7,
+  maxOpacity: 1,
+  delayJitterMs: 220,
+  bottomMarginPx: 80,
+  topExitMarginPx: 160,
 };
 
 function rand01(): number {
@@ -96,6 +130,10 @@ function rand01(): number {
 
 function randFloat(min: number, max: number): number {
   return min + rand01() * (max - min);
+}
+
+function seededFloat(random: () => number, min: number, max: number): number {
+  return min + random() * (max - min);
 }
 
 function randIntInclusive(min: number, max: number): number {
@@ -110,6 +148,26 @@ function hypot(a: number, b: number): number {
 
 function createStarId(prefix: string): string {
   return `${prefix}_${Math.floor(rand01() * 1e9)}`;
+}
+
+function hashStringToUint(seed: string): number {
+  let hash = 2_166_136_261;
+
+  for (let i = 0; i < seed.length; i++) {
+    hash ^= seed.charCodeAt(i);
+    hash = Math.imul(hash, 16_777_619) >>> 0;
+  }
+
+  return hash || 1;
+}
+
+function createSeededRandom(seed: string) {
+  let state = hashStringToUint(seed || FALLBACK_CELEBRATION_SEED);
+
+  return () => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+    return state / 0x1_0000_0000;
+  };
 }
 
 function randomSpawnPosition(viewport: StarsViewport, cfg: StarsConfig) {
@@ -215,5 +273,49 @@ export function generateShootingStar(
     sizePx: randFloat(1, 3),
     durationMs: randFloat(1000, 3000),
     delayMs: 0,
+  });
+}
+
+export function generateRisingCelebrationStars(
+  viewport: StarsViewport,
+  seed: string | undefined,
+  config: Partial<RisingCelebrationStarsConfig> = {},
+): StarSpec[] {
+  const cfg = { ...RISING_CELEBRATION_STARS_CONFIG, ...config };
+  const count = Math.min(
+    MAX_RISING_CELEBRATION_STAR_COUNT,
+    Math.max(0, Math.floor(cfg.starCount)),
+  );
+
+  if (count === 0) {
+    return [];
+  }
+
+  const random = createSeededRandom(seed || FALLBACK_CELEBRATION_SEED);
+  const startSpacingMs = cfg.totalMs / count;
+
+  return Array.from({ length: count }, (_, index) => {
+    const delayJitterMs = seededFloat(random, -cfg.delayJitterMs, cfg.delayJitterMs);
+    const baseDelayMs = cfg.streamStartDelayMs + index * startSpacingMs;
+    const delayMs = Math.max(0, baseDelayMs + delayJitterMs);
+    const dyVariancePx = seededFloat(random, 0, cfg.topExitMarginPx);
+
+    return {
+      id: `endgame_celebration_star_${index}`,
+      kind: 'shootingStar',
+      x: seededFloat(random, 0, viewport.width),
+      y: seededFloat(random, viewport.height + 20, viewport.height + cfg.bottomMarginPx),
+      sizePx: Number(seededFloat(random, cfg.minSizePx, cfg.maxSizePx).toFixed(2)),
+      dx: 0,
+      dy: -(
+        viewport.height +
+        cfg.bottomMarginPx +
+        cfg.topExitMarginPx +
+        dyVariancePx
+      ),
+      durationMs: Math.round(seededFloat(random, cfg.minDurationMs, cfg.maxDurationMs)),
+      delayMs: Math.round(delayMs),
+      opacity: Number(seededFloat(random, cfg.minOpacity, cfg.maxOpacity).toFixed(2)),
+    };
   });
 }

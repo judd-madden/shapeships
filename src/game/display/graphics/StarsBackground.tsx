@@ -13,6 +13,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  generateRisingCelebrationStars,
   generateShootingStar,
   generateStars,
   STARS_CONFIG,
@@ -21,8 +22,6 @@ import {
 
 const SHOOTING_STAR_MIN_DELAY_MS = 0.5 * 60 * 1000;
 const SHOOTING_STAR_MAX_DELAY_MS = 3 * 60 * 1000;
-const ENDGAME_BURST_STAR_COUNT = 50;
-const ENDGAME_BURST_WINDOW_MS = 1200;
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -39,9 +38,13 @@ function usePrefersReducedMotion(): boolean {
 
 interface StarsBackgroundProps {
   celebrateOnFinish?: boolean;
+  celebrationSeed?: string;
 }
 
-export function StarsBackground({ celebrateOnFinish = false }: StarsBackgroundProps) {
+export function StarsBackground({
+  celebrateOnFinish = false,
+  celebrationSeed,
+}: StarsBackgroundProps) {
   const prefersReducedMotion = usePrefersReducedMotion();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -126,17 +129,9 @@ export function StarsBackground({ celebrateOnFinish = false }: StarsBackgroundPr
       return;
     }
 
-    const burstStars = Array.from({ length: ENDGAME_BURST_STAR_COUNT }, () => {
-      const shootingStar = generateShootingStar(viewport, STARS_CONFIG);
-      return {
-        ...shootingStar,
-        delayMs: Math.round(Math.random() * ENDGAME_BURST_WINDOW_MS),
-      };
-    });
-
-    setCelebrationStars(burstStars);
+    setCelebrationStars(generateRisingCelebrationStars(viewport, celebrationSeed));
     previousCelebrateOnFinishRef.current = celebrateOnFinish;
-  }, [celebrateOnFinish, prefersReducedMotion, viewport]);
+  }, [celebrateOnFinish, celebrationSeed, prefersReducedMotion, viewport]);
 
   useEffect(() => {
     if (!viewport || prefersReducedMotion || shootingStar) return;
@@ -236,6 +231,7 @@ export function StarsBackground({ celebrateOnFinish = false }: StarsBackgroundPr
           position: 'absolute',
           left: `${s.x}px`,
           top: `${s.y}px`,
+          ...(s.opacity === undefined ? {} : { opacity: s.opacity }),
           ...animStyle,
         };
 

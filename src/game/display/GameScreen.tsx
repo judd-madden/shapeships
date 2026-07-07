@@ -180,14 +180,14 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
     <div className="ss-playerRoot relative w-full h-full min-h-0 overflow-hidden">
       {/* Stars background layer (behind everything in this screen) */}
       <div className="absolute inset-0 z-0">
-        <StarsBackground celebrateOnFinish={celebrateOnFinish} />
+        <StarsBackground celebrateOnFinish={celebrateOnFinish} celebrationSeed={gameId} />
       </div>
 
       <div
         aria-hidden="true"
         className={`absolute inset-0 z-[1] pointer-events-none bg-black transition-opacity ease-linear ${
           celebrateOnFinish
-            ? 'opacity-65 delay-[1400ms] duration-[2200ms]'
+            ? 'opacity-50 delay-[5000ms] duration-[5000ms]'
             : 'opacity-0 delay-0 duration-300'
         }`}
       />
