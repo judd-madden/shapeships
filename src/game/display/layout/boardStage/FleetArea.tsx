@@ -28,7 +28,7 @@ function toCssVarFromColourName(colour?: string): string | undefined {
 
 const IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES = ['ss-boardTurnPulse'] as const;
 const LIVE_FLEET_FLIP_DURATION_MS = 400;
-const LIVE_FLEET_INNER_RESIZE_DEFER_MS = 450;
+const LIVE_FLEET_INNER_RESIZE_DEFER_MS = 0;
 
 // ============================================================================
 // FLEET ROW MAPPING (Set-based, All Species)

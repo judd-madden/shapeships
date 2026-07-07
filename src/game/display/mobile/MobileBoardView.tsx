@@ -134,7 +134,7 @@ export function MobileBoardView({
           onDestroyTargetHoverChange={onDestroyTargetHoverChange}
           onDestroyTargetMouseDown={onDestroyTargetMouseDown}
           turnPulse={leftRevealPulse}
-          fitMinScale={0.25}
+          fitMinScale={0.2}
           liveFitOverflowVisible
           liveRowsLayout="pairedRows"
           liveRowOverrides={MOBILE_FLEET_ROW_OVERRIDES}
