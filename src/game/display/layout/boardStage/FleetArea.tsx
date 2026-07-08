@@ -546,25 +546,27 @@ export function FleetArea({
   );
   const getTopPairedBandFlipRef = useFlipLayout(
     topPairedBandRenderKeys,
-    false,
+    flipEnabled && liveRowsLayout === 'pairedRows',
     {
       durationMs: LIVE_FLEET_FLIP_DURATION_MS,
       easing: 'ease-in-out',
       layoutSignature: topPairedBandLayoutSignature,
       itemLayoutSignatures: topPairedBandItemLayoutSignatures,
       skipSelfChangedItemForNextRun: false,
+      skipWhenAncestorScaleChanged: true,
       ignoredAncestorScaleClassNames: IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES,
     }
   );
   const getBottomPairedBandFlipRef = useFlipLayout(
     bottomPairedBandRenderKeys,
-    false,
+    flipEnabled && liveRowsLayout === 'pairedRows',
     {
       durationMs: LIVE_FLEET_FLIP_DURATION_MS,
       easing: 'ease-in-out',
       layoutSignature: bottomPairedBandLayoutSignature,
       itemLayoutSignatures: bottomPairedBandItemLayoutSignatures,
       skipSelfChangedItemForNextRun: false,
+      skipWhenAncestorScaleChanged: true,
       ignoredAncestorScaleClassNames: IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES,
     }
   );
@@ -655,12 +657,11 @@ export function FleetArea({
 
     return (
       <div className="flex w-full items-center justify-center gap-[18px]">
-        <div className="flex min-w-0 items-center justify-end">
+
           {renderLiveRow(leftRowShips, 'justify-end gap-[18px]', getLiveFlipRef)}
-        </div>
-        <div className="flex min-w-0 items-center justify-start">
+
           {renderLiveRow(rightRowShips, 'justify-start gap-[18px]', getLiveFlipRef)}
-        </div>
+
       </div>
     );
   };

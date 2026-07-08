@@ -25,6 +25,8 @@ export interface FlipLayoutOptions {
   layoutSignature?: string | number;
   itemLayoutSignatures?: Record<string, string | number>;
   skipSelfChangedItemForNextRun?: boolean;
+  skipWhenAncestorScaleChanged?: boolean;
+  ancestorScaleChangeEpsilon?: number;
   ignoredAncestorScaleClassNames?: readonly string[];
 }
 
@@ -113,6 +115,13 @@ function getFlipDelta(
   };
 }
 
+function scaleChangedBeyondEpsilon(prev: Scale2d, next: Scale2d, epsilon: number): boolean {
+  return (
+    Math.abs(prev.scaleX - next.scaleX) > epsilon ||
+    Math.abs(prev.scaleY - next.scaleY) > epsilon
+  );
+}
+
 export function useFlipLayout<T extends string | number>(
   keys: T[],
   enabled: boolean,
@@ -123,6 +132,8 @@ export function useFlipLayout<T extends string | number>(
   const layoutSignature = options?.layoutSignature ?? '';
   const itemLayoutSignatures = options?.itemLayoutSignatures ?? {};
   const skipSelfChangedItemForNextRun = options?.skipSelfChangedItemForNextRun ?? false;
+  const skipWhenAncestorScaleChanged = options?.skipWhenAncestorScaleChanged ?? false;
+  const ancestorScaleChangeEpsilon = options?.ancestorScaleChangeEpsilon ?? 0.001;
   const ignoredAncestorScaleClassNames = options?.ignoredAncestorScaleClassNames ?? [];
   const ignoredAncestorScaleClassNamesSignature = ignoredAncestorScaleClassNames.join('|');
   const keySignature = keys.join('|');
@@ -132,6 +143,9 @@ export function useFlipLayout<T extends string | number>(
 
   // Previous rects (from prior commit)
   const prevRectsRef = useRef<Map<T, DOMRect>>(new Map());
+
+  // Previous ancestor transform scales, used to skip FLIP during parent fit-scale changes
+  const prevAncestorScalesRef = useRef<Map<T, Scale2d>>(new Map());
 
   // Previous per-item layout signatures, used to skip FLIP for self-footprint changes
   const prevItemLayoutSignaturesRef = useRef<Record<string, string | number>>({});
@@ -214,22 +228,53 @@ export function useFlipLayout<T extends string | number>(
       }
     }
 
-    // Measure current rects for all current keys
+    // Measure current rects and ancestor scales for all current keys
     const nextRects = new Map<T, DOMRect>();
+    const nextAncestorScales = new Map<T, Scale2d>();
     for (const key of keys) {
       const el = elements.get(key);
-      if (el) nextRects.set(key, el.getBoundingClientRect());
+      if (el) {
+        nextRects.set(key, el.getBoundingClientRect());
+        nextAncestorScales.set(
+          key,
+          getAncestorTransformScale(el, ignoredAncestorScaleClassNames)
+        );
+      }
     }
 
     // Always refresh rect memory when disabled so re-enabling doesn't jump
     if (!enabled) {
       prevRectsRef.current = nextRects;
+      prevAncestorScalesRef.current = nextAncestorScales;
       prevItemLayoutSignaturesRef.current = itemLayoutSignatures;
       selfChangedItemCooldownRef.current = new Set();
       return;
     }
 
     const prevRects = prevRectsRef.current;
+    const prevAncestorScales = prevAncestorScalesRef.current;
+    const nextCooldown = skipSelfChangedItemForNextRun
+      ? changedItemLayoutKeys
+      : new Set<string>();
+
+    if (
+      skipWhenAncestorScaleChanged &&
+      keys.some((key) => {
+        const prevScale = prevAncestorScales.get(key);
+        const nextScale = nextAncestorScales.get(key);
+        return (
+          prevScale !== undefined &&
+          nextScale !== undefined &&
+          scaleChangedBeyondEpsilon(prevScale, nextScale, ancestorScaleChangeEpsilon)
+        );
+      })
+    ) {
+      prevRectsRef.current = nextRects;
+      prevAncestorScalesRef.current = nextAncestorScales;
+      prevItemLayoutSignaturesRef.current = itemLayoutSignatures;
+      selfChangedItemCooldownRef.current = nextCooldown;
+      return;
+    }
 
     // Invert: Apply transforms for elements that existed previously and moved
     for (const key of keys) {
@@ -292,10 +337,9 @@ export function useFlipLayout<T extends string | number>(
 
     // Store current rects for the next commit
     prevRectsRef.current = nextRects;
+    prevAncestorScalesRef.current = nextAncestorScales;
     prevItemLayoutSignaturesRef.current = itemLayoutSignatures;
-    selfChangedItemCooldownRef.current = skipSelfChangedItemForNextRun
-      ? changedItemLayoutKeys
-      : new Set();
+    selfChangedItemCooldownRef.current = nextCooldown;
 
     return () => {
       invalidateRun();
@@ -312,6 +356,8 @@ export function useFlipLayout<T extends string | number>(
     keySignature,
     layoutSignature,
     skipSelfChangedItemForNextRun,
+    skipWhenAncestorScaleChanged,
+    ancestorScaleChangeEpsilon,
     ignoredAncestorScaleClassNamesSignature,
   ]);
 
