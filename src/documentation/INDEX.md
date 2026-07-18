@@ -26,6 +26,12 @@ Operational templates and pass formats for implementation work.
 
 - [CodexPassTemplate.md](workflows/CodexPassTemplate.md) - reusable template for implementation passes
 
+### Planning records
+
+Phase roadmaps and decision registers for substantial implementation programs.
+
+- [Phase 13 Ancient Species - GPT-5.6 Planning Record](<Phase 13 Ancient Species - GPT-5.6 Planning Record.md>) - planning status, rules baseline, architecture, decision gates, and provisional implementation sequence for Ancient
+
 ### `infrastructure/`
 Non-normative operational and runtime notes.
 
