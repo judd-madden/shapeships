@@ -435,6 +435,7 @@ body {
 .promo-lines-make-ships-line--old-top,
 .promo-lines-make-ships-line--new-top {
   top: 0;
+  font-size:85px;
   color: var(--shapeships-white);
 }
 

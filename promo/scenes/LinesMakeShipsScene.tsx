@@ -23,7 +23,7 @@ export function LinesMakeShipsScene() {
             SHARED DICE
           </p>
           <p className="promo-lines-make-ships-line promo-lines-make-ships-line--new-top">
-            DICE GIVES LINES
+            ROLL DICE 🡒 GAIN LINES 🡒 BUILD SHIPS
           </p>
         </div>
 
@@ -37,7 +37,7 @@ export function LinesMakeShipsScene() {
             DIFFERENT FLEETS
           </p>
           <p className="promo-lines-make-ships-line promo-lines-make-ships-line--new-bottom">
-            LINES MAKE SHIPS
+             
           </p>
         </div>
       </div>

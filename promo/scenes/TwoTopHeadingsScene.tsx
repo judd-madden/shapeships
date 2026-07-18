@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 // @ts-ignore
 import spaceBackgroundUrl from "../../src/graphics/global/space-background.jpg";
 
-const HEADINGS = ["GROW YOUR FLEET", "REACT TO YOUR OPPONENT"] as const;
+const HEADINGS = ["STUDY EVERY GAME", " "] as const;
 
 const HEADING_ENTRY_MS = 1_200;
 const HEADING_HOLD_MS = 3_000;
