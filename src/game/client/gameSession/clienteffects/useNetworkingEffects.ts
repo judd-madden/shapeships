@@ -9,9 +9,51 @@ import type {
   GameStateRequestMeta,
 } from '../types';
 
-const ACTIVE_POLL_MS = 1200;
+const ACTIVE_POLL_MS = 2000;
 const UNTIMED_IDLE_POLL_MS = 12000;
 const SAFETY_FULL_REFRESH_MS = 15000;
+const POLL_JITTER_MAX_MS = 250;
+const FAILURE_BACKOFF_MS = [2500, 5000, 10000, 20000, 30000] as const;
+
+function addPollJitter(delayMs: number | null): number | null {
+  if (delayMs == null || delayMs === 0) {
+    return delayMs;
+  }
+
+  return delayMs + Math.floor(Math.random() * (POLL_JITTER_MAX_MS + 1));
+}
+
+function getFailureBackoffMs(consecutiveFailures: number): number {
+  const index = Math.min(
+    Math.max(consecutiveFailures - 1, 0),
+    FAILURE_BACKOFF_MS.length - 1,
+  );
+  return FAILURE_BACKOFF_MS[index];
+}
+
+function parseRetryAfterMs(value: string | null, nowMs = Date.now()): number | null {
+  if (value == null) {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+  if (/^\d+$/.test(trimmedValue)) {
+    const seconds = Number(trimmedValue);
+    const delayMs = seconds * 1000;
+    if (!Number.isSafeInteger(seconds) || !Number.isSafeInteger(delayMs)) {
+      return null;
+    }
+
+    return delayMs;
+  }
+
+  const retryAtMs = Date.parse(trimmedValue);
+  if (!Number.isFinite(retryAtMs)) {
+    return null;
+  }
+
+  return Math.max(0, retryAtMs - nowMs);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === 'object';
@@ -368,19 +410,33 @@ export function usePollingEffect(args: {
       clearPollTimer();
     };
 
-    const scheduleNextPoll = (delayMs: number | null) => {
+    const scheduleNextPoll = (delayMs: number | null): number | null => {
       clearPollTimer();
 
       if (!mounted || shouldStopPolling || delayMs == null) {
-        return;
+        return null;
       }
 
+      const scheduledDelayMs = addPollJitter(delayMs) ?? delayMs;
       pollTimer = setTimeout(() => {
         void poll();
-      }, delayMs);
+      }, scheduledDelayMs);
+      return scheduledDelayMs;
     };
 
-    const handleStopErrorResponse = async (response: Response): Promise<boolean> => {
+    type PollRequestFailure = {
+      kind: 'failure';
+      error: Error;
+      status?: number;
+      retryAfterMs: number | null;
+    };
+
+    const handleErrorResponse = async (
+      response: Response,
+    ): Promise<PollRequestFailure | { kind: 'stopped' }> => {
+      const retryAfterMs = response.status === 429
+        ? parseRetryAfterMs(response.headers.get('Retry-After'))
+        : null;
       const errorText = await response.text();
 
       if (response.status === 403) {
@@ -390,7 +446,7 @@ export function usePollingEffect(args: {
           setError('Not authorized to view this game');
           setLoading(false);
         }
-        return true;
+        return { kind: 'stopped' };
       }
 
       if (response.status === 404 && errorText.toLowerCase().includes('game not found')) {
@@ -400,16 +456,25 @@ export function usePollingEffect(args: {
           setError(`Game not found: ${effectiveGameId}`);
           setLoading(false);
         }
-        return true;
+        return { kind: 'stopped' };
       }
 
-      throw new Error(`Failed to fetch game state: ${response.status} ${errorText}`);
+      return {
+        kind: 'failure',
+        error: new Error(`Failed to fetch game state: ${response.status} ${errorText}`),
+        status: response.status,
+        retryAfterMs,
+      };
     };
 
     const fetchFullGameState = async (options?: {
       unlockEligible?: boolean;
       reason?: string;
-    }): Promise<{ nextPollDelayMs: number | null }> => {
+    }): Promise<
+      | { kind: 'success'; nextPollDelayMs: number | null }
+      | (PollRequestFailure & { retryImmediately: boolean })
+      | { kind: 'stopped' }
+    > => {
       const requestMeta = beginGameStateRequest({
         unlockEligible: options?.unlockEligible === true || isResumeSyncLocked(),
       });
@@ -419,10 +484,19 @@ export function usePollingEffect(args: {
         const response = await authenticatedGet(`/game-state/${effectiveGameId}`);
 
         if (!response.ok) {
-          const handled = await handleStopErrorResponse(response);
-          if (handled) {
-            return { nextPollDelayMs: null };
+          const errorResult = await handleErrorResponse(response);
+          if (errorResult.kind === 'stopped') {
+            return errorResult;
           }
+
+          if (mounted) {
+            setError(errorResult.error.message);
+            setLoading(false);
+          }
+          return {
+            ...errorResult,
+            retryImmediately: shouldRetryGameStateRequestImmediately(requestMeta),
+          };
         }
 
         const data = await response.json();
@@ -440,7 +514,7 @@ export function usePollingEffect(args: {
           console.log(
             `[useGameSession] Poll ignored stale /game-state response requestSeq=${requestMeta.requestSeq}`
           );
-          return { nextPollDelayMs };
+          return { kind: 'success', nextPollDelayMs };
         }
 
         nextPollDelayMs = getRecurringDelayMs(fetchedIsFinished);
@@ -448,7 +522,7 @@ export function usePollingEffect(args: {
           setLoading(false);
           setError(null);
         }
-        return { nextPollDelayMs };
+        return { kind: 'success', nextPollDelayMs };
       } catch (err: any) {
         console.error(
           `âŒ [useGameSession] Poll full-sync error gameId=${effectiveGameId}${options?.reason ? ` (${options.reason})` : ''}:`,
@@ -458,10 +532,12 @@ export function usePollingEffect(args: {
           setError(err.message);
           setLoading(false);
         }
-        if (shouldRetryGameStateRequestImmediately(requestMeta)) {
-          nextPollDelayMs = 0;
-        }
-        return { nextPollDelayMs };
+        return {
+          kind: 'failure',
+          error: err instanceof Error ? err : new Error(String(err)),
+          retryAfterMs: null,
+          retryImmediately: shouldRetryGameStateRequestImmediately(requestMeta),
+        };
       } finally {
         finishGameStateRequest(requestMeta.requestSeq);
       }
@@ -470,7 +546,9 @@ export function usePollingEffect(args: {
     const fetchHeadState = async (): Promise<
       | { kind: 'ok'; head: GameStateHeadResponse }
       | { kind: 'fallback_full'; reason: string }
-      | { kind: 'error'; nextPollDelayMs: number | null }
+      | PollRequestFailure
+      | { kind: 'skipped' }
+      | { kind: 'stopped' }
     > => {
       latestHeadRequestToken += 1;
       const headRequestToken = latestHeadRequestToken;
@@ -479,10 +557,16 @@ export function usePollingEffect(args: {
         const response = await authenticatedGet(`/game-state-head/${effectiveGameId}`);
 
         if (!response.ok) {
-          const handled = await handleStopErrorResponse(response);
-          if (handled) {
-            return { kind: 'error', nextPollDelayMs: null };
+          const errorResult = await handleErrorResponse(response);
+          if (errorResult.kind === 'stopped') {
+            return errorResult;
           }
+
+          if (mounted) {
+            setError(errorResult.error.message);
+            setLoading(false);
+          }
+          return errorResult;
         }
 
         let data: unknown;
@@ -494,7 +578,7 @@ export function usePollingEffect(args: {
         }
 
         if (!mounted || headRequestToken !== latestHeadRequestToken) {
-          return { kind: 'error', nextPollDelayMs: initialDelayMs };
+          return { kind: 'skipped' };
         }
 
         if (!isGameStateHeadResponse(data)) {
@@ -523,7 +607,11 @@ export function usePollingEffect(args: {
           setError(err.message);
           setLoading(false);
         }
-        return { kind: 'error', nextPollDelayMs: initialDelayMs };
+        return {
+          kind: 'failure',
+          error: err instanceof Error ? err : new Error(String(err)),
+          retryAfterMs: null,
+        };
       }
     };
 
@@ -536,6 +624,8 @@ export function usePollingEffect(args: {
       lastHandledResumeTokenRef.current = untimedResumeToken;
     }
 
+    let consecutivePollFailures = 0;
+
     const poll = async () => {
       if (shouldStopPolling || isPolling) {
         return;
@@ -543,6 +633,26 @@ export function usePollingEffect(args: {
 
       isPolling = true;
       let nextPollDelayMs = initialDelayMs;
+      let cycleOutcome: 'success' | 'failure' | 'skipped' | 'stopped' = 'skipped';
+      let failureStatus: number | undefined;
+      let failureRetryAfterMs: number | null = null;
+      let retryImmediately = false;
+
+      const applyFullResult = (
+        fullResult: Awaited<ReturnType<typeof fetchFullGameState>>,
+      ) => {
+        if (fullResult.kind === 'success') {
+          cycleOutcome = 'success';
+          nextPollDelayMs = fullResult.nextPollDelayMs;
+        } else if (fullResult.kind === 'failure') {
+          cycleOutcome = 'failure';
+          failureStatus = fullResult.status;
+          failureRetryAfterMs = fullResult.retryAfterMs;
+          retryImmediately = fullResult.retryImmediately;
+        } else {
+          cycleOutcome = 'stopped';
+        }
+      };
 
       try {
         const shouldForceFullForResume = pendingResumeFullSync;
@@ -557,7 +667,7 @@ export function usePollingEffect(args: {
             unlockEligible: hasResumeEvent || isResumeSyncLocked(),
             reason: shouldFetchInitialFull ? 'initial_load' : 'resume_sync',
           });
-          nextPollDelayMs = fullResult.nextPollDelayMs;
+          applyFullResult(fullResult);
         } else {
           const headResult = await fetchHeadState();
 
@@ -587,8 +697,9 @@ export function usePollingEffect(args: {
                       ? 'safety_full_refresh'
                       : 'head_detected_change',
               });
-              nextPollDelayMs = fullResult.nextPollDelayMs;
+              applyFullResult(fullResult);
             } else {
+              cycleOutcome = shouldTriggerFullFromHead ? 'skipped' : 'success';
               nextPollDelayMs = getRecurringDelayMs(false);
             }
           } else if (headResult.kind === 'fallback_full') {
@@ -597,10 +708,14 @@ export function usePollingEffect(args: {
                 unlockEligible: false,
                 reason: headResult.reason,
               });
-              nextPollDelayMs = fullResult.nextPollDelayMs;
+              applyFullResult(fullResult);
             }
-          } else {
-            nextPollDelayMs = headResult.nextPollDelayMs;
+          } else if (headResult.kind === 'failure') {
+            cycleOutcome = 'failure';
+            failureStatus = headResult.status;
+            failureRetryAfterMs = headResult.retryAfterMs;
+          } else if (headResult.kind === 'stopped') {
+            cycleOutcome = 'stopped';
           }
         }
       } catch (err: any) {
@@ -609,12 +724,37 @@ export function usePollingEffect(args: {
           setError(err.message);
           setLoading(false);
         }
+        cycleOutcome = 'failure';
       } finally {
         isPolling = false;
       }
 
-      if (mounted && !shouldStopPolling) {
-        scheduleNextPoll(nextPollDelayMs);
+      if (cycleOutcome === 'success') {
+        consecutivePollFailures = 0;
+      } else if (cycleOutcome === 'failure') {
+        consecutivePollFailures += 1;
+        if (retryImmediately) {
+          nextPollDelayMs = 0;
+        } else {
+          nextPollDelayMs = Math.max(
+            getFailureBackoffMs(consecutivePollFailures),
+            failureRetryAfterMs ?? 0,
+          );
+        }
+      }
+
+      if (mounted && !shouldStopPolling && cycleOutcome !== 'stopped') {
+        const scheduledDelayMs = scheduleNextPoll(nextPollDelayMs);
+        if (
+          cycleOutcome === 'failure' &&
+          !retryImmediately &&
+          scheduledDelayMs != null
+        ) {
+          const statusSuffix = failureStatus == null ? '' : `, status=${failureStatus}`;
+          console.warn(
+            `[useGameSession] Poll backing off gameId=${effectiveGameId}: consecutiveFailures=${consecutivePollFailures}, nextDelayMs=${scheduledDelayMs}${statusSuffix}`,
+          );
+        }
       }
     };
 
