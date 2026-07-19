@@ -2,11 +2,11 @@
 
 ## GPT-5.6 Planning Record
 
-> **Status: Corrected planning record — awaiting designer approval. Ancient is not yet a playable production species.**
+> **Status: Normative Phase 13 planning document. Ancient is not yet a playable production species.**
 
-This document is a planning artifact. It records the corrected Ancient rules model, the intended architecture, and a slice-by-slice implementation sequence. It does not authorize implementation, enable Ancient in species selection, or claim that the rules are production-ready.
+This document is the approved Phase 13 planning baseline. It records the Ancient rules model, intended architecture, and slice-by-slice implementation sequence. Normative planning status does not mean Ancient is implemented or production-enabled, and it does not authorize an unscoped implementation pass.
 
-Balance values remain subject to playtesting. Rules and architecture recorded as locked below should not be reopened during implementation unless the designer explicitly changes them.
+Balance values remain subject to gameplay testing. Implementation proceeds only through separately approved, narrowly scoped slices. Rules and architecture recorded as locked below remain normative unless the designer explicitly supersedes them; they must not be silently reinterpreted during implementation.
 
 ---
 
@@ -15,17 +15,18 @@ Balance values remain subject to playtesting. Rules and architecture recorded as
 ### 1.1 Pass status
 
 - Pass type: Documentation / Planning Pass.
-- Current result: corrected and aligned first implementation plan.
-- Approval state: awaiting designer approval.
+- Current result: approved normative Phase 13 roadmap.
+- Approval state: planning baseline approved; each implementation slice still requires separate approval.
 - Production state: Ancient remains unavailable as a playable production species.
-- Implementation posture: proceed only in separately approved, narrowly scoped slices after this record is approved.
+- Development state: human-only local/development selection is planned for P5A once the normalized state foundation is safe; this document does not enable it by itself.
+- Implementation posture: proceed only through separately approved, narrowly scoped slices.
 - Runtime validation: deferred to implementation slices and user gameplay testing.
 
 ### 1.2 Source precedence
 
 Where earlier material conflicts, use this order:
 
-1. Designer decisions in the Phase 13 correction and alignment brief.
+1. Designer decisions in the Phase 13 development-access/graphics-test refinement, final refinement, and correction/alignment briefs, with the most recent explicit decision taking precedence.
 2. The current Ancient 1.5 rules PDF and supplied rules image, except where explicitly corrected here.
 3. PRE-PLAN amendments.
 4. Older pre-plan material as historical context only.
@@ -49,7 +50,8 @@ The implementation must:
 - integrate delayed effects, copied ships, ship limits, build flow, battle history, and existing automatic-effect semantics without inventing parallel systems;
 - keep networking in the client runtime and presentation in display components;
 - avoid regressions for every existing species, spectator posture, desktop layout, and mobile layout;
-- leave Ancient disabled until the final enablement slice.
+- make Ancient available to human players in the normal local/development selection flow through P5A once its normalized state can initialize, hydrate, and project safely, so later slices can be tested through real game flow;
+- keep Ancient unavailable in public production selection until P30 hardening, explicit designer approval, and narrow public enablement.
 
 ---
 
@@ -103,14 +105,14 @@ These are integration points, not evidence that Ancient rules already work. In p
 - a batched action API does not by itself prove that a rejected Ancient declaration cannot partially mutate state;
 - turn-scoped scratch may clear too early for the required Solar ledger;
 - existing definition text does not yet represent the corrected rules;
-- existing Ancient graphics and identifiers include the old Neptune Core identity;
+- existing Ancient identifiers include the old Uranus Core identity;
 - the current catalogue and fleet layout are scaffolding to inspect, not architecture to replace wholesale.
 
 No data migration is assumed at planning time. A migration should be added only if normalization and current persisted-state compatibility prove insufficient during the relevant state slice.
 
 ---
 
-## 5. Corrected locked rules model
+## 5. Approved locked rules model
 
 Everything in this section is a game-rule decision, not an open implementation question.
 
@@ -177,7 +179,7 @@ Ancient uses two client-local stages inside the single server phase `battle.char
 
 #### Stage 1 — charge actions
 
-- Show all eligible charge-based ships together, including Solar Grid and foreign or controlled charge sources such as Intelligence, Antlion, Wisdom, Familiar, and future eligible sources.
+- Show all eligible charge-based ships together, including `SOL` and controlled foreign charge sources such as `INT` (Interceptor), `ANT` (Antlion), `WIS` (Ship of Wisdom), `FAM` (Ship of Family), and future eligible sources. This list is illustrative, not exhaustive.
 - Each charged Solar Grid receives an explicit Use or Hold choice.
 - The local button reads `READY — Proceed to Powers`.
 - Proceeding does not submit to the server, spend charges, reveal intent, mark the player ready, or advance a server subphase.
@@ -213,10 +215,10 @@ Exact DTO and field names are implementation decisions. Semantically, the server
 6. Validate manual Solar casts sequentially against the remaining pool and current legal context.
 7. Spend each accepted cost.
 8. Apply every Cube to the first eligible repeatable manual cast, or mark the repeats for the first eligible autocast when no manual candidate exists.
-9. Validate Simulacrum primary and Cube-created queued copies, including aggregate ownership limits.
+9. Validate every Simulacrum primary and Cube-created queued copy, including distinct-target restrictions and aggregate ownership limits across the full declaration and any earlier accepted copies this turn.
 10. If enabled, run fixed autocast against the remaining pool and apply any deferred Cube repeats to its first eligible cast.
 11. Produce one deterministic ordered Solar ledger.
-12. Create pending effects and durable pending records.
+12. Create pending effects and durable pending records, including committed Black Hole target-destruction records that do not yet mutate either fleet.
 13. Mark the player ready.
 
 If any part is invalid, none of the declaration may persist: no charge spend, Energy change, copied ship, target destruction, staged effect, ledger entry, or readiness change.
@@ -225,17 +227,19 @@ Implementation must not rely on an early mutation followed by a later validation
 
 ### 5.7 Visibility and reveal
 
+Initial Battle-Reveal Energy generated from Cores and matching Quantum Mystics is authoritative public state. Its total may be projected to the acting player, opponent, and spectators because it is derivable from the public fleet and dice.
+
 Before final Ready:
 
-- charge choices, Solar Grid choices, cast order, provisional Energy, targets, and Autocast settings remain client-local;
-- opponents and spectators receive none of that draft state;
+- Solar Grid Use/Hold choices, the provisional Energy they add, drafted Solar spending, the local remaining-Energy preview, cast order, targets, Siphon amount, and Autocast setting remain client-local;
+- opponents and spectators continue seeing the last authoritative public Energy state and receive none of those provisional changes;
 - no new server-side private Solar commit/reveal store is introduced.
 
-After accepted Ready and normal declaration reveal:
+After the accepted declaration reaches the normal authoritative reveal/commit timing:
 
 - committed charge choices follow existing public visibility;
 - Solar casts and their ordered ledger are public;
-- Energy is public through the approved DTO/projection;
+- accepted Solar Grid Energy, committed spending, and authoritative remaining Energy are public through the approved DTO/projection;
 - targets and outcomes are public where their normal timing makes them relevant.
 
 The client runtime may own the local draft and reconciliation logic. Display components render and edit that draft through callbacks; they do not communicate with the server directly.
@@ -403,13 +407,16 @@ All Solar Powers are declared in Charge Declaration. Multiple powers may be decl
   - if none exist, destroy none.
 - Protected Cores are never legal targets.
 - The full Energy cost is paid and Core-count damage still applies even when fewer than two legal targets exist.
-- Lock the relevant authoritative Core count when final Ready is accepted.
-- Choose targets in the final Ready draft.
-- Resolve destruction through a pre-end-of-turn authoritative seam that preserves:
+- For Black Hole, “owned” means present in the caster's authoritative fleet under the server's current-controller semantics. A Core is an owned `PLU`, `MER`, or `NEP` ship instance. Count every such instance when final Ready is accepted and lock that total as Black Hole's damage amount.
+- Copied, stolen, transferred, or otherwise acquired `PLU`, `MER`, and `NEP` instances count while owned by the caster. Quantum Mystic, Solar Grid, Cube, and every other ship definition do not count.
+- Later destruction, transfer, or other fleet changes do not alter the locked damage amount.
+- Choose targets in the final Ready draft. Final Ready validates and commits those targets and creates an authoritative pending targeted-destruction record, but it does not immediately or visibly remove ships during that individual submission.
+- After the declaration window completes through the existing authoritative phase flow, resolve the committed destruction through the shared pre-Automatic destruction seam before ordinary Automatic effects are calculated. No new server or client-visible subphase is introduced.
+- That destruction seam preserves:
   - already-declared charge effects;
   - once-only effects that already became eligible;
   - omission of ordinary Automatic damage/healing from ships that do not survive.
-- Stage the Core-count damage for normal end-of-turn resolution.
+- Stage the locked `PLU`/`MER`/`NEP`-based damage for normal end-of-turn resolution.
 - Black Hole remains available when the opponent has fewer than two legal targets.
 
 #### Simulacrum (`SSIM`)
@@ -419,37 +426,41 @@ All Solar Powers are declared in Charge Declaration. Multiple powers may be decl
 - Legal targets are enemy basic ships only.
 - Cube is not a legal target.
 - Affordability is evaluated against remaining blue Energy at Simulacrum's position in the ordered declaration.
-- The player may make only one primary Simulacrum cast and target selection per turn.
-- Every Cube must repeat that same target.
-- The entire primary-plus-Cube copy set is queued for the following Drawing.
+- A player may manually cast Simulacrum multiple times in one Charge Declaration when every cast is affordable in sequence.
+- Each enemy ship instance may be selected by a primary Simulacrum cast no more than once per turn. Different eligible instances, including instances of different ship definitions, may be selected by later casts.
+- If the first eligible repeatable Solar Power is Simulacrum, every Cube queues one additional copy of that first cast's target. Those mandatory copies are not additional primary target selections, and later Simulacrum casts receive no further Cube repeats.
+- Every accepted primary and Cube-created copy is queued for the following Drawing.
 
 When final Ready is accepted:
 
-- capture an immutable authoritative snapshot of the target's copyable configuration;
+- for each cast, capture an immutable authoritative snapshot of the target's copyable configuration;
+- capture the target's exact numeric charge count from the authoritative snapshot taken at the start of the current Battle Phase;
 - later movement, transfer, or destruction of the source does not cancel the queued copy;
-- validate the complete queued set against ownership limits, including controlled ships, earlier pending copies, the primary copy, and every Cube copy;
-- reject the declaration atomically if the complete set is illegal; do not create a partial copy set.
+- validate the complete queued set against ownership limits, including current controlled copies, pending copies from earlier primary casts in this declaration, pending copies from earlier accepted casts this turn, each new primary copy, and every mandatory Cube copy;
+- reject the declaration atomically if any cast or mandatory Cube copy makes the complete set illegal; do not create a partial copy set.
 
 The copy snapshot includes only approved canonical configuration, including:
 
 - ship definition identity;
 - permanent selected-number configuration such as Frigate or Quantum Mystic;
-- approved permanent charge configuration, with the created copy starting at the normal beginning-of-Battle charge value.
+- the exact start-of-Battle charge count captured for that target, including zero.
 
 It must not copy:
 
 - source instance ID, owner, or source creation turn;
 - prior once-only eligibility or fired state;
 - staged effects;
-- used markers;
+- charge-used-this-turn and other used markers;
 - destruction selections;
 - transient combat state.
+
+The captured charge count is not the target's printed maximum and is not its later post-spend count. For example, if an Interceptor had 1 charge in the authoritative start-of-Battle snapshot and spends it during the current declaration, its queued copy still materializes with 1 charge.
 
 At the beginning of the following `build.drawing`, before ordinary draft resolution:
 
 1. Materialize every queued copy with a fresh instance ID.
 2. Assign the current Drawing turn as its creation turn.
-3. Initialize fresh once-only eligibility and normal battle-start charges.
+3. Initialize fresh once-only eligibility and exactly the captured start-of-Battle charge count.
 4. Place it into the owner's hidden Drawing fleet.
 5. Let the owner upgrade it in the same Drawing through ordinary build rules.
 6. Keep it hidden from opponents and spectators under normal Drawing projection.
@@ -458,7 +469,7 @@ At the beginning of the following `build.drawing`, before ordinary draft resolut
 
 The copied ship follows normal built-this-turn behavior. A copied Quantum Mystic may match immediately, and a copied third Spiral may create its once-only First Strike action.
 
-Quantity validation applies to every definition with a maximum, including Spiral, Quantum Mystic, Neptune Core, Orb, Vigor, and future capped ships. A player may legitimately cause Cube to repeat an earlier eligible power and then cast Simulacrum later; only a first eligible Simulacrum is repeated.
+Quantity validation applies to every definition with a maximum, including Spiral, Quantum Mystic, Neptune Core, Orb, Vigor, and future capped ships. A player may legitimately cause Cube to repeat an earlier eligible power and then cast Simulacrum multiple times later. If Simulacrum itself is the first eligible repeatable cast, only that first cast receives the Cube repeats.
 
 ### 5.11 Autocast
 
@@ -466,7 +477,8 @@ Autocast is an explicit final-Ready convenience, not a separate rule authority a
 
 - Every single-colour Solar Power remains manually castable while Autocast is enabled.
 - Final Ready carries an explicit Autocast boolean; the server never infers it from browser state.
-- The client may remember or default the toggle locally.
+- Autocast defaults to enabled when the user has no stored preference, and the client remembers the user's most recent setting locally.
+- The remembered setting is convenience-only, not authoritative game state. Changing or losing local storage cannot affect server legality, and every final Ready still submits the explicit current boolean.
 - Autocast runs after manual casts, their Energy costs, and any Cube repeat they establish.
 - If Autocast is off, remaining Energy expires at the next Battle Reveal.
 - Autocast can cast only Star Birth, Supernova, Convert, Life, and Asteroid.
@@ -498,12 +510,14 @@ At accepted final Ready, the server may authoritatively:
 
 - spend charges and Energy;
 - stage ordinary charge effects;
-- lock ordered casts, dice-derived amounts, Siphon spend, Vortex type count, and Black Hole Core count;
+- lock ordered casts, dice-derived amounts, Siphon spend, Vortex type count, and Black Hole's count of currently owned `PLU`, `MER`, and `NEP` instances under current-controller semantics;
 - apply Cube repetition;
 - create the public ledger;
 - persist Convert and pending Simulacrum records;
-- destroy Black Hole targets through the approved pre-end-of-turn seam;
+- validate and commit Black Hole targets, lock the previously counted `PLU`/`MER`/`NEP` damage value, and create the pending targeted-destruction record without mutating the opponent's fleet during that individual submission;
 - stage Battle health effects.
+
+After the declaration window completes through the existing authoritative phase flow, resolve committed Black Hole target destruction through the shared pre-Automatic seam. This occurs before ordinary Automatic effects are calculated and does not require a new phase.
 
 At end-of-turn resolution:
 
@@ -531,8 +545,8 @@ The authoritative server owns:
 - targets and locked dynamic values;
 - autocast sequence;
 - Cube selection and repeats;
-- Black Hole destruction;
-- Simulacrum snapshots, queueing, limits, idempotent materialization, and reveal timing;
+- Black Hole target commitment, the locked current-controller count of owned `PLU`/`MER`/`NEP` instances, and delayed shared pre-Automatic destruction;
+- Simulacrum target-instance uniqueness, exact start-of-Battle charge snapshots, queueing, aggregate limits, idempotent materialization, and reveal timing;
 - Spiral maximum-health and once-only rules;
 - pending effects, breakdown, history, and public ledger.
 
@@ -548,7 +562,7 @@ The client runtime owns:
 - provisional Energy arithmetic;
 - target and variable-spend selection state;
 - local Back/revision behavior;
-- explicit Autocast preference;
+- the default-enabled, locally remembered Autocast preference and its explicit current submission value;
 - final DTO construction and submission;
 - rejection reconciliation and accepted-state replacement.
 
@@ -594,12 +608,24 @@ Do not add a storage migration by default. If persisted records cannot be normal
 
 Implementation begins with two deliberately non-functional slices:
 
-1. Rename the old Neptune Core identity everywhere from `URA`/Uranus to `NEP`/Neptune without changing rules or behavior.
+1. Rename the old Uranus Core identity from `URA`/Uranus to `NEP`/Neptune across direct identity-bearing references without changing rules, behavior, or visuals.
 2. Align canonical server definitions and mirrored client definitions with the approved rules without implementing gameplay.
 
-The identity inventory includes definitions, graphics filenames/exports, catalogue, Fleet rendering, resolver references, development surfaces, and stale identifiers. Legacy-only files must be inspected and classified before any edit; their presence does not automatically authorize touching them.
+P2 is a pure ID/name migration. Its inventory is limited to canonical and mirrored definition identity fields plus static lookup, catalogue, Fleet, resolver, test, or development references that directly encode `URA` or Uranus. The existing ship graphic must remain visually unchanged; a literal export or lookup key may be renamed only when required to preserve that same graphic under `NEP`. P2 does not align unrelated rules text, create Solar icons, or perform broad Ancient presentation work. Legacy-only files must be inspected and classified before any edit; their presence does not automatically authorize touching them.
 
-### 6.7 Presentation direction
+Solar Power graphics are a separate P4 presentation concern. P4 covers primitives for Life, Star Birth, Asteroid, Supernova, Convert, Siphon, Vortex, Black Hole, and all four Simulacrum matchup variants; Solar Power ID graphic resolution; and only the catalogue/Fleet presentation support those icons require.
+
+Every new P4 primitive must also be registered in the repository's existing development graphics test/gallery. That development-only surface must preserve its existing entries and show every Solar icon, all four Simulacrum variants, and meaningful supported states or props in a clear arrangement sufficient to inspect colour treatment, geometry, sizing, ID resolution, and matchup selection. Reuse the existing gallery unless inspection proves it cannot support the primitives; do not create a separate Solar-only graphics tool by default. P4 does not rename `URA`, alter Neptune Core identity or its ship graphic, change ShipDefinitions, or implement gameplay.
+
+### 6.7 Development access versus public production access
+
+- P5A may expose Ancient only to human players through the normal server-authoritative local/development species-selection flow after P5 proves initialization, hydration, normalization, and projection are safe.
+- Development access is explicitly work in progress. Unimplemented ships or powers may remain unavailable or non-functional until their own slices and must not be presented as complete.
+- Bots remain unable to select Ancient unless a separate approved bot-support pass is added.
+- Public production selection remains disabled until P30, full hardening, and explicit designer approval.
+- The exact development/public gating mechanism and P5A file allowlist are implementation decisions to resolve after repository inspection; this roadmap does not prescribe a filename, storage key, or feature-flag mechanism.
+
+### 6.8 Presentation direction
 
 The final board direction is:
 
@@ -628,8 +654,10 @@ Only these implementation choices remain:
 | I-06 | Final responsive board measurements | Preserve surrounding layouts and current fitting behavior |
 | I-07 | Persisted-state migration necessity | Add only if normalization cannot safely read existing games |
 | I-08 | Balance tuning after gameplay tests | Designer-owned; does not change architecture |
+| I-09 | Development/public selection gating and P5A file scope | Normal authoritative human development selection with public production and bots still gated; exact mechanism follows inspection |
+| I-10 | Existing graphics-test component and Solar icon layout | Reuse the development-only gallery, preserve existing entries, and expose every Solar primitive and supported SSIM variant clearly |
 
-These are not unresolved game rules and do not block approval of the corrected planning model.
+These are not unresolved game rules and do not weaken the normative planning baseline.
 
 ---
 
@@ -651,7 +679,9 @@ The implementation is expected to need normalized concepts equivalent to:
 - an immutable Battle-start or declaration context for locked values;
 - an atomic accepted declaration record;
 - ordered Solar ledger entries with manual/autocast/Cube source mode;
-- durable pending Simulacrum copy records;
+- durable pending Simulacrum copy records with source-instance uniqueness and exact captured start-of-Battle charge counts;
+- durable pending Black Hole target-destruction records;
+- a locked Black Hole damage count derived only from currently owned `PLU`, `MER`, and `NEP` instances under current-controller semantics at final Ready;
 - per-instance permanent selected-number configuration;
 - Spiral-derived maximum-health state or derivation;
 - replay/idempotency markers for declaration and copy materialization.
@@ -663,7 +693,7 @@ Names and exact nesting are deferred to I-01 and I-02. Public fields must be del
 - Battle Reveal preparation resets and regenerates Energy.
 - Existing `battle.charge_declaration` owns the one final submission.
 - Existing `battle.charge_response` remains structurally unchanged.
-- Black Hole uses an approved pre-end-of-turn destruction seam.
+- Final Ready commits Black Hole targets without fleet mutation; after the declaration window, the existing authoritative flow resolves them through the shared pre-Automatic destruction seam.
 - End of Turn resolves staged health changes and ordinary surviving Automatic effects.
 - Following `build.drawing` materializes pending Simulacrum copies before ordinary draft resolution.
 - Next Battle Reveal reveals Drawing additions and replaces the previous ledger.
@@ -671,7 +701,8 @@ Names and exact nesting are deferred to I-01 and I-02. Public fields must be del
 ### 8.4 Projection and hidden information
 
 - Available actions remain server-computed and requester-specific.
-- Local Ancient drafts never enter public state before Ready.
+- Initial Core/Quantum Mystic Energy is authoritative public state at Battle Reveal.
+- Local Solar Grid additions, drafted spending, remaining-Energy previews, cast order, targets, Siphon amount, and Autocast setting never enter public state before Ready; other viewers continue seeing the last authoritative public Energy.
 - Accepted declarations use the established reveal posture.
 - Simulacrum-created ships are visible to their owner during hidden Drawing and hidden from other viewers until the normal reveal.
 - Battle-log scratch remains server-only.
@@ -694,11 +725,12 @@ Every slice requires a fresh inspect-and-plan gate. File lists below are ownersh
 
 | Slice | Pass type | Goal | Depends on | Minimum validation focus |
 | --- | --- | --- | --- | --- |
-| P1 | Documentation | Correct and approve this planning record | None | Diff, stale-assumption audit, scope audit |
-| P2 | Mixed, non-functional identity migration | Rename `URA`/Uranus identity to `NEP`/Neptune across canonical, mirror, graphics, exports, resolvers, catalogue, Fleet, and dev references | P1 approval | Typecheck, build, server check, identifier audit |
+| P1 | Documentation | Finalize and promote this record as the normative Phase 13 roadmap | None | Diff, stale-assumption audit, scope audit |
+| P2 | Mixed, non-functional identity migration | Rename the existing Uranus Core identity from `URA`/Uranus to `NEP`/Neptune across direct identity references, preserving the existing graphic and all behavior; no Solar icons or broad rules alignment | P1 | Stale ID/name searches, definition parity, typecheck/build/server checks, and confirmation that no visual asset or gameplay changed |
 | P3 | Mixed, definition data only | Align both Ancient definition copies with locked IDs, costs, limits, timings, and text; no effects | P2 | Definition parity and rule-text audit |
-| P4 | Client/UI primitives | Align Neptune graphics/export and reusable Ancient icon/presentation primitives | P2–P3 | Typecheck, build, user visual check |
+| P4 | Client/UI primitives | Add Life, Star Birth, Asteroid, Supernova, Convert, Siphon, Vortex, Black Hole, and all four Simulacrum icon/presentation variants; register every primitive in the existing development graphics test/gallery; add Solar Power ID resolution and required catalogue/Fleet support; no Neptune identity, ShipDefinitions, or gameplay changes | P3 | Every ID/variant and meaningful supported state visible in the existing dev gallery; correct colour/geometry/size/mapping; existing entries preserved; development-only posture; typecheck, build, and user visual verification |
 | P5 | Server state/DTO foundation | Add normalized Energy, source breakdown, declaration/ledger/pending-copy concepts, projections, and compatibility posture | P3 | Server checks, projection/privacy tests, normalization tests |
+| P5A | Client/UI or narrow Mixed, determined after inspection | Allow human players to select Ancient through the normal local/development species-selection flow for incremental testing while preserving the public production and bot gates | P3, P5 | Safe initialization/hydration/reconnect; human development selection succeeds; production selection and bot Ancient remain disabled; existing species unchanged; incomplete powers not presented as complete |
 | P6 | Server | Reset and generate Core Energy at Battle Reveal with deterministic attribution | P5 | Same-turn builds, reset, non-Ancient discard |
 | P7 | Server | Enforce Ancient Core protection consistently in relevant destroy/steal legality | P3 | Existing protected-target matrices |
 | P8 | Server | Implement Quantum Mystic selection, match Energy, heal staging, limits, and controller semantics | P5–P6 | Dice 1–6, survival, same-turn, non-Ancient |
@@ -713,17 +745,17 @@ Every slice requires a fresh inspect-and-plan gate. File lists below are ownersh
 | P17 | Server | Implement Siphon variable spend and locked triangular effect values | P14 | Boundary values and ordered affordability |
 | P18 | Client/UI | Implement adaptive Siphon spend selection and ledger presentation | P17 | Large ranges, revision, mobile fit |
 | P19 | Server | Implement Vortex live distinct-type lock and damage staging | P14 | Type-count semantics and source changes |
-| P20 | Server | Implement Black Hole legality, target-count rules, pre-end-of-turn destruction, and Core damage | P7, P14 | 0/1/2+ targets, protection, timing |
+| P20 | Server | Commit Black Hole targets and the owned `PLU`/`MER`/`NEP` count under current-controller semantics at Ready without fleet mutation, then resolve destruction after the declaration window through the existing pre-Automatic seam | P7, P14 | 0/1/2+ targets; zero/mixed/copied/controlled Core counts; post-Ready fleet changes; non-Core exclusion; protection and simultaneous timing |
 | P21 | Client/UI | Implement Black Hole target selection and outcome presentation | P20 | Exact target requirement and responsive UX |
-| P22 | Server | Implement Simulacrum snapshots, aggregate limit validation, durable queue, hidden Drawing materialization, and idempotency | P14 | Limits, reload/retry, config freshness, reveal |
-| P23 | Client/UI | Implement Simulacrum targeting, cost preview, pending-copy and Drawing presentation | P22 | Primary-only selection, privacy, same-Drawing upgrade |
+| P22 | Server | Implement multiple sequential Simulacrum casts, per-target-instance uniqueness, exact start-of-Battle charge snapshots, aggregate pending-copy limits, durable queue, hidden Drawing materialization, and idempotency | P14 | Sequential costs, duplicate target rejection, aggregate primary/Cube limits, exact captured charges, reload/retry, reveal |
+| P23 | Client/UI | Implement multi-cast Simulacrum targeting, sequential cost preview, duplicate-instance prevention, pending-copy, and Drawing presentation | P22 | Different instances/definitions, first-cast Cube repeats, privacy, exact charge display, same-Drawing upgrade |
 | P24 | Server | Implement Cube repeat selection, multiplicity, limits, and all eligible effect copies | P15, P17–P22 | Manual-first, auto fallback, no recursion, all-or-none SSIM |
 | P25 | Client/UI | Present automatic Cube repeats in draft/ledger without adding a Cube interaction | P24 | Multiple Cubes, manual/auto source clarity |
 | P26 | Client/UI display | Implement Energy display and Ancient Fleet row layout with responsive fitting and FLIP | P5, committed ledger | Desktop/mobile, row stability, spectator |
 | P27 | Mixed history/projection | Integrate Energy/Solar breakdown, public ledger persistence, and battle-log/history capture | P14–P24 | Phase lifetime, following Build, no double count |
 | P28 | Client/UI animation | Add restrained Energy, cast, copy, and ledger transition cues from authoritative state | P26–P27 | Reconnect/remount determinism; reduced churn |
-| P29 | Mixed hardening | Run regression, reload, concurrency, hidden-info, normalization, and full gameplay matrices | P6–P28 | Typecheck/build/server checks plus user runtime |
-| P30 | Mixed, narrow enablement | Add Ancient to the intended species-selection surfaces only after approval | P29 and designer sign-off | Selection paths, bot/spectator safeguards, smoke test |
+| P29 | Mixed hardening | Run regression, reload, concurrency, hidden-info, normalization, and full gameplay matrices through the P5A development selection flow | P5A, P6–P28 | Typecheck/build/server checks plus user runtime; no development/public gate leakage |
+| P30 | Mixed, narrow public enablement | Enable Ancient in public production human species-selection surfaces only after full hardening and explicit designer approval; development selection already exists from P5A | P29 and designer sign-off | Intended production human paths, bot safeguards, spectator/reconnect smoke tests, existing species stability, and no development-only warning/gate leakage |
 
 Slices may be split further when inspection reveals multiple owners. They must not be collapsed into a broad Ancient mega-pass.
 
@@ -737,16 +769,24 @@ Slices may be split further when inspection reveals multiple owners. They must n
 | Charge Response changes accidentally | Solar declarations could alter shared response behavior | Keep response rules unchanged and add regression coverage |
 | Invalid final submission partially applies | Early charge/Energy mutation could survive a later invalid cast | Validate/apply transactionally against a working state |
 | Provisional Energy drifts from server truth | Local SOL or cast edits can show false affordability | Recompute locally from one draft; replace with accepted server state; show rejection cleanly |
-| Stale old Neptune identifiers remain | Identity mismatch can break definitions, graphics, resolvers, or persisted state | Dedicated P2 inventory and identifier audit before rules |
+| Private Energy draft leaks or hides public initial Energy | Other viewers could see intent or lose legitimate Battle-Reveal information | Project initial Core/QUA Energy publicly while keeping only provisional SOL/spend changes requester-local |
+| Stale old Uranus identifiers remain | Identity mismatch can break definitions, lookups, resolvers, or persisted state | Keep P2 to direct ID/name references, run stale searches, and preserve the existing graphic and behavior |
+| Identity work drifts into Solar graphics | P2 and P4 could become an unsafe mixed presentation rewrite | Keep P2 identity-only and P4 Solar-icon-only, with explicit no-touch checks |
+| Development Ancient access leaks into production or bots | An incomplete species could become publicly selectable or enter unsupported bot play | P5A must gate human local/development selection separately and P30 must audit production exposure and bot exclusions |
+| Development selection overstates completeness | Testers could mistake unavailable ships or powers for implemented rules | Mark Ancient as work in progress and expose only functionality completed by its approved slices |
+| Solar primitives lack gallery coverage | Missing, clipped, miscoloured, or wrongly mapped icons may reach later UI slices unnoticed | Register every Solar icon and all four SSIM variants in the existing development graphics test while preserving existing entries |
 | Energy remains a scalar or loses colour/source detail | Payment and UI attribution become ambiguous | Normalize a three-colour source-aware structure |
 | Ledger clears at turn increment | Required following-Build display disappears | Store ledger with Battle lifetime, not only disposable turn data |
 | Pending copies duplicate after reload/retry | Simulacrum can create extra permanent ships | Durable record plus deterministic IDs/idempotency marker |
-| Simulacrum ignores aggregate limits | Multiple Cubes can exceed caps | Validate the complete queued set against fleet and earlier pending copies |
+| Simulacrum ignores aggregate limits | Multiple primary casts and Cube copies can exceed caps | Validate current controlled copies plus every earlier/current primary and Cube-created pending copy |
 | Cube repeats bypass limits | Mandatory repeats could create a partial illegal copy set | Reject the whole declaration when the full repeat set is illegal |
 | Simulacrum clones transient state | Copies could inherit damage-time markers, ownership, or spent once-only state | Explicit allowlisted snapshot and fresh instance initialization |
+| Simulacrum restores the wrong charge count | Printed maximum or post-spend state would violate the snapshot rule | Persist and materialize the exact numeric charge count from the authoritative start-of-Battle snapshot |
 | Non-Ancient controllers gain Solar access | Stolen Ancient ships could create unintended species mechanics | Gate Energy and Solar use by controller species while retaining specified ordinary effects |
 | Black Hole disappears with fewer than two targets | Rules require full-cost use even with one or zero legal targets | Availability and resolver tests for 0/1/2+ targets |
-| Destroyed ships still fire ordinary Automatic effects | Black Hole timing could violate survival semantics | Use the approved destruction seam and existing survival checks |
+| Black Hole counts the wrong ships as Cores | Vague type/category logic could include QUA/SOL/CUB or exclude acquired Cores | Under current-controller semantics, count only owned `PLU`, `MER`, and `NEP` instances at Ready and lock the result |
+| Black Hole mutates a fleet on individual Ready | One player's submission could invalidate an opponent still drafting | Commit targets only, then resolve after the declaration window through the shared pre-Automatic seam |
+| Destroyed ships still fire ordinary Automatic effects | Black Hole timing could violate survival semantics | Resolve committed destruction before ordinary Automatic calculation and use existing survival checks |
 | Destroyed charge source loses a declared effect | A committed charge must survive later source destruction | Persist accepted charge effect independently of source survival |
 | Spiral max-health loss fails to clamp | Player health can exceed new maximum | Central derived-max update with immediate authoritative clamp |
 | Hidden Drawing information leaks | Pending Simulacrum copies reveal strategy | Reuse requester-aware Drawing projection |
@@ -755,6 +795,7 @@ Slices may be split further when inspection reveals multiple owners. They must n
 | History records effects twice | Declaration and resolution integrations may duplicate one event | Define canonical record ownership and test counts |
 | Existing scaffolding is mistaken for finished architecture | Stale types can pull work into the wrong layer | Inspect ownership and reuse only verified seams |
 | An unnecessary migration is introduced | Broad stored-state writes increase risk | Prefer normalization; require evidence before a migration pass |
+| Autocast depends on local preference storage | Missing or altered browser storage could affect authoritative behavior | Default the UI to enabled, remember locally, and always submit an explicit server-validated boolean |
 
 ---
 
@@ -766,8 +807,10 @@ For this pass:
 
 - inspect the final diff;
 - confirm only this planning document changed;
-- search for obsolete rule assumptions and stale old identity outside explicit migration context;
-- verify the 30 roadmap slices, decision register, risk register, and validation matrix are present;
+- confirm the record now states normative status;
+- search for stale development/public selection, P4 graphics-test, Black Hole Core-definition, and previously removed rule wording;
+- verify roadmap P1–P30 plus P5A, the decision register, risk register, and validation matrix are present;
+- verify Markdown links;
 - run `git diff --check`;
 - do not run browser or gameplay tests.
 
@@ -784,6 +827,36 @@ Run as relevant:
 
 Report routine existing warnings separately from actual failures. A production build does not replace browser or gameplay verification.
 
+For P2 specifically, verify:
+
+- all live `URA` and Uranus Core identity references are removed or deliberately documented;
+- canonical and mirrored identity fields remain aligned;
+- the same existing ship graphic is preserved under the new identity;
+- no SVG path, visual asset, styling, Solar icon, unrelated rules text, or gameplay behavior changes.
+
+For P4 specifically, verify:
+
+- Life, Star Birth, Asteroid, Supernova, Convert, Siphon, Vortex, Black Hole, and all four Simulacrum matchup variants resolve to the intended primitives;
+- every primitive and meaningful supported state/prop is visible in the existing development graphics test in a clear inspection arrangement;
+- no icon is missing, duplicated, clipped, incorrectly coloured, or mapped to the wrong Solar Power ID or matchup;
+- the graphics test remains development-only and all pre-existing entries remain intact;
+- `npm run typecheck` and `npm run build` pass, while browser visual verification is reported as performed by the user rather than Codex.
+
+For P5A specifically, verify:
+
+- a human player can select Ancient through the normal server-authoritative local/development species-selection flow;
+- Ancient player state initializes, normalizes, projects, reloads, and reconnects safely;
+- public production selection remains disabled and bots cannot select Ancient;
+- existing species-selection behavior is unchanged;
+- unimplemented Ancient ships or powers are unavailable, non-functional, or clearly not presented as complete.
+
+For P30 specifically, verify:
+
+- Ancient appears only in intended public production human-selection surfaces after designer sign-off;
+- bots still cannot select Ancient unless a separate approved bot-support plan exists;
+- development-only warnings or gates do not leak into production;
+- existing species-selection, spectator, reload, and reconnect paths remain safe.
+
 ### 11.3 Authoritative phase and atomicity matrix
 
 Verify:
@@ -799,6 +872,9 @@ Verify:
 - Final Ready contains all required per-instance Grid choices.
 - Any invalid ordinary charge, Grid choice, Solar order, target, spend, Cube result, or Simulacrum limit leaves authoritative state unchanged.
 - Accepted Ready spends charges/Energy once, stages effects once, creates one ledger, and marks readiness once.
+- Black Hole targets commit without mutating the opponent's fleet during an individual Ready submission.
+- Committed Black Hole destruction resolves only after the declaration window through the shared authoritative pre-Automatic seam.
+- The opponent's already-drafted declaration remains valid under normal simultaneous-declaration rules.
 - Retry/reconnect cannot double-apply.
 - Solar and Grid declarations do not create a new Charge Response selection.
 - Existing response-bearing charge actions still behave normally.
@@ -809,6 +885,9 @@ Verify:
 
 - Battle Reveal clears previous Energy before generation.
 - Pluto, Mercury, Neptune, and matching Quantum Mystic produce the correct colours.
+- Initial Core/Quantum Mystic Energy is public to players and spectators at Battle Reveal.
+- Provisional Solar Grid Energy, drafted spending, remaining-Energy preview, cast order, targets, Siphon amount, and Autocast setting remain private to the acting player.
+- Other viewers keep seeing the last authoritative public Energy until normal declaration reveal/commit, after which accepted Grid Energy, spending, and remaining Energy are public.
 - Ships built this turn generate.
 - Source attribution is deterministic.
 - Held Grid spends no charge and adds no Energy.
@@ -820,6 +899,9 @@ Verify:
 - 8 green becomes Star Birth ×2 plus Life ×2.
 - 4 blue becomes Convert ×4.
 - Autocast never selects Siphon, Vortex, Black Hole, or Simulacrum.
+- With no stored preference, Autocast defaults to enabled.
+- The most recent local setting is remembered but never treated as authoritative state.
+- Every final Ready sends the explicit current Autocast boolean; missing or changed local storage does not affect server legality.
 - Toggle off leaves remaining Energy unspent until normal reset.
 - Non-Ancient controllers discard generated Energy and cannot cast.
 
@@ -887,7 +969,14 @@ Black Hole:
 - one legal target requires one selection;
 - two or more require exactly two selections;
 - protected Cores excluded;
-- locked Core-count damage is correct;
+- zero owned Cores locks damage 0;
+- mixed owned `PLU`, `MER`, and `NEP` instances all count;
+- copied, stolen, transferred, or otherwise acquired `PLU`/`MER`/`NEP` instances count when owned under current-controller semantics;
+- Quantum Mystic, Solar Grid, Cube, and every other non-Core ship are excluded;
+- destruction, transfer, or fleet changes after Ready do not alter the locked damage;
+- targets and pending destruction commit without immediate opponent fleet mutation during individual Ready;
+- destruction resolves after the declaration window and before ordinary Automatic calculation;
+- the opponent's already-drafted declaration remains valid under normal simultaneous rules;
 - declared charge effects survive destroyed sources;
 - ordinary Automatic effects from destroyed ships are omitted;
 - already-created once-only actions survive;
@@ -900,17 +989,22 @@ Simulacrum:
 - cost equals canonical target line cost;
 - only enemy basic ships are targetable;
 - Cube cannot be targeted;
-- one primary selection per turn;
+- multiple primary casts in one declaration may target different eligible instances, including different ship definitions;
+- each primary cost is paid sequentially from the remaining blue Energy;
+- a second primary cast targeting the same source instance is rejected;
+- Cube repeats only the first eligible Simulacrum cast, and later Simulacrum casts receive no additional Cube repeats;
 - immutable snapshot survives target destruction, transfer, and reconnect;
 - Frigate and Quantum Mystic selections copy;
 - transient/source identity/used state does not copy;
-- fresh instance ID, creation turn, once-only state, and charges;
+- the exact numeric charge count comes from the authoritative start-of-Battle snapshot, including zero;
+- copied charge count is neither the printed maximum nor the target's post-spend count;
+- fresh instance ID, creation turn, and once-only state accompany the captured charge count;
 - materializes before Drawing draft and may upgrade in that Drawing;
 - owner sees it during hidden Drawing; others do not;
 - reveals at Battle Reveal;
 - same-turn Mystic and third-Spiral rules apply;
 - reload/retry cannot duplicate;
-- aggregate quantity limits include fleet, controlled ships, pending copies, primary copy, and all Cube copies.
+- aggregate quantity limits include current controlled copies, earlier primary copies in the declaration, earlier accepted pending copies that turn, every new primary copy, and all mandatory Cube copies.
 
 Cube:
 
@@ -929,7 +1023,10 @@ Cube:
 
 Verify:
 
-- draft intent is visible only to its owner;
+- initial Core/Quantum Mystic Energy is authoritative public state at Battle Reveal;
+- provisional Solar Grid Energy and draft spending are visible only to the acting player;
+- spectators and opponents receive no provisional remaining Energy, cast order, targets, Siphon amount, or Autocast value;
+- authoritative accepted Energy and ledger state become public only through normal declaration reveal/commit posture;
 - accepted ledger order and source modes are stable;
 - Energy and ledger projections expose no hidden Drawing data;
 - ledger persists through Charge Declaration, Charge Response, First Strike, later Battle, and following Build;
@@ -954,7 +1051,9 @@ At minimum, exercise:
 - existing charge declaration auto-ready and response flows without Ancient present;
 - hidden Drawing and upgrade flow without Simulacrum;
 - desktop, mobile, reconnect, spectator, rematch, and game-history surfaces;
-- bots or automated seats, which must not select Ancient until a dedicated supported policy exists or the enablement slice explicitly handles them.
+- bots or automated seats, which must not select Ancient unless a separate approved bot-support plan explicitly adds support; neither P5A nor P30 does so;
+- P5A local/development human Ancient selection with public production and bot selection still disabled;
+- P30 public-production exposure with no development-only leakage and no change to the bot exclusion absent a separate approved bot plan.
 
 ---
 
@@ -973,7 +1072,8 @@ The corrected plan no longer relies on:
 - partial Simulacrum creation when Cube repeats exceed a limit;
 - disposable turn-only storage for the Solar ledger;
 - Solar declarations changing Charge Response;
-- non-Ancient controllers gaining an Ancient Energy economy.
+- non-Ancient controllers gaining an Ancient Energy economy;
+- blocking human development selection behind the final public-production P30 gate.
 
 Any implementation proposal that reintroduces one of these assumptions conflicts with this record.
 
@@ -989,25 +1089,26 @@ It does not:
 - change client runtime behavior;
 - change display or graphics;
 - modify canonical or mirrored definitions;
-- rename the existing Neptune Core identity;
+- perform the planned Uranus Core to Neptune Core ID/name migration;
 - add tests;
 - change tooling;
-- enable Ancient in species selection.
+- enable Ancient in either local/development or public production species selection;
+- add Solar icons to the development graphics test.
 
-Implementation should proceed slice by slice only after designer approval of this corrected record.
+The planning baseline is now approved. Implementation still proceeds only through separate inspection, file planning, and explicit approval for each narrowly scoped slice.
 
 ---
 
-## 14. Next decision gate
+## 14. Next implementation gate
 
-The next gate is designer approval of this corrected planning record.
-
-After approval, the first implementation pass is:
+This normative planning record is approved. The next gate is inspection, a concrete file allowlist, and explicit pass approval for:
 
 > **P2 — dedicated non-functional `URA`/Uranus to `NEP`/Neptune identity migration.**
 
-That pass must inventory every live identity reference, propose an exact allowlist, preserve behavior, and validate both server and client builds. It must not implement Energy, Solar Powers, or balance changes.
+That pass must inventory every direct live ID/name reference, propose an exact allowlist, preserve the existing graphic and all behavior, and validate both server and client identity continuity. It must not modify SVG paths or visual assets, create Solar icons, align unrelated rules text, or implement Energy, Solar Powers, or balance changes.
 
-The following pass, P3, aligns the canonical server definitions and mirrored client definitions with the locked rules as a separate data-only change.
+After P2 is separately completed and approved, P3 aligns the canonical server definitions and mirrored client definitions with the locked rules as a separate data-only change. P4 remains the unrelated Solar Power icon/presentation-primitives pass and must register every new Solar primitive, including all four Simulacrum variants, in the existing development graphics test.
 
-No gameplay implementation should begin before those identity and definition foundations are reviewed in order.
+After P5 establishes safe Ancient initialization, hydration, normalization, and projection, P5A may separately enable human-only local/development selection through the normal authoritative flow so subsequent functional slices can be tested in real games. That development access does not expose Ancient publicly, enable bot selection, or imply unfinished rules are complete.
+
+P30 is the later public/production Ancient enablement gate after P29 hardening and explicit designer sign-off. No gameplay implementation should begin before the identity and definition foundations are reviewed in order, and normative status must not be treated as blanket implementation authorization.
