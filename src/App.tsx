@@ -10,7 +10,7 @@ import { Input } from './components/ui/input';
 import { supabase } from './utils/supabase/client';
 import { projectId, publicAnonKey } from './utils/supabase/info';
 import { gameFunctionBaseUrl } from './utils/supabase/runtimeConfig';
-import { ensureSession, authenticatedFetch, authenticatedPost, getSessionToken, clearSession } from './utils/sessionManager';
+import { ensureSession, authenticatedFetch, authenticatedPostWithSessionRecovery, getSessionToken, clearSession } from './utils/sessionManager';
 import ScreenManager from './components/ScreenManager';
 import type { CreatePrivateGameSettings } from './components/panels/CreatePrivateGamePanel';
 import GraphicsTest from './components/dev/GraphicsTest';
@@ -268,13 +268,13 @@ export default function App() {
       throw new Error('Player not initialized');
     }
 
-    const response = await authenticatedPost('/create-game', {
+    const response = await authenticatedPostWithSessionRecovery('/create-game', {
       playerName: player.name,
       timed: settings.timed,
       minutes: settings.minutes,
       incrementSeconds: settings.incrementSeconds,
       variantKey: settings.variantKey,
-    });
+    }, player.name);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -290,13 +290,13 @@ export default function App() {
       throw new Error('Player not initialized');
     }
 
-    const response = await authenticatedPost('/create-computer-game', {
+    const response = await authenticatedPostWithSessionRecovery('/create-computer-game', {
       playerName: player.name,
       timed: settings.timed,
       minutes: settings.minutes,
       incrementSeconds: settings.incrementSeconds,
       variantKey: settings.variantKey,
-    });
+    }, player.name);
 
     if (!response.ok) {
       const errorText = await response.text();

@@ -332,6 +332,61 @@ export async function authenticatedPost(
   }, timeoutMs);
 }
 
+const EXPIRED_SESSION_MESSAGE = 'Invalid or expired session token';
+const SESSION_RECOVERY_FAILED_MESSAGE =
+  'Your session expired and could not be refreshed. Select Change Name to start a new session.';
+
+async function isExpiredSessionResponse(response: Response): Promise<boolean> {
+  if (response.status !== 401) {
+    return false;
+  }
+
+  try {
+    const body: unknown = await response.clone().json();
+    return (
+      typeof body === 'object' &&
+      body !== null &&
+      'message' in body &&
+      body.message === EXPIRED_SESSION_MESSAGE
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Authenticated POST with opt-in expired-session recovery.
+ * Replacing identity is safe for new-game creation, but unsafe during an existing match.
+ */
+export async function authenticatedPostWithSessionRecovery(
+  endpoint: string,
+  body: unknown,
+  displayName: string,
+  timeoutMs?: number
+): Promise<Response> {
+  const response = await authenticatedPost(endpoint, body, timeoutMs);
+
+  if (!(await isExpiredSessionResponse(response))) {
+    return response;
+  }
+
+  clearSession();
+
+  try {
+    await ensureSession(displayName);
+  } catch {
+    throw new Error(SESSION_RECOVERY_FAILED_MESSAGE);
+  }
+
+  const retryResponse = await authenticatedPost(endpoint, body, timeoutMs);
+
+  if (await isExpiredSessionResponse(retryResponse)) {
+    throw new Error(SESSION_RECOVERY_FAILED_MESSAGE);
+  }
+
+  return retryResponse;
+}
+
 /**
  * Helper: Create authenticated POST request to /intent endpoint
  * Handles commit/reveal protocol payloads.
