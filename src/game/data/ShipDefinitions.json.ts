@@ -1259,11 +1259,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Energy",
-        "text": "Gain 1 green energy each battle phase.\\nCannot be destroyed."
+        "text": "Gain 1 green energy each battle phase."
       }
     ],
     "energyCost": null,
-    "extraRules": "",
+    "extraRules": "Cannot be destroyed or stolen.",
     "stackCaption": "N/A",
     "colour": "Pastel Green",
     "numberOfGraphics": 1
@@ -1280,11 +1280,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Energy",
-        "text": "Gain 1 red energy each battle phase.\\nCannot be destroyed."
+        "text": "Gain 1 red energy each battle phase."
       }
     ],
     "energyCost": null,
-    "extraRules": "",
+    "extraRules": "Cannot be destroyed or stolen.",
     "stackCaption": "N/A",
     "colour": "Pastel Red",
     "numberOfGraphics": 1
@@ -1302,11 +1302,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Energy",
-        "text": "When built, write a number between 1 and 6 under the Quantum Mystic."
+        "text": "Choose a trigger number for this ship, 1-6."
       },
       {
         "subphase": "Automatic",
-        "text": "When the dice roll matches that number, gain 2 blue energy and heal 5. (this includes the turn when the Quantum Mystic is built)."
+        "text": "If dice roll matches the trigger number, gain 2 blue energy and heal 5. Including the turn this is built."
       }
     ],
     "energyCost": null,
@@ -1324,18 +1324,23 @@ export const SHIP_DEFINITIONS_JSON = [
     "joiningLineCost": null,
     "componentShips": [],
     "charges": null,
+    "maxQuantity": 3,
     "powers": [
       {
         "subphase": "Automatic",
-        "text": "Heal 1.\\nIf you have one: Increase your maximum health by 15.\\nIf you have two: Also, your non-Core ships cost 1 less."
+        "text": "Heal 1 for each of your Spirals."
+      },
+      {
+        "subphase": "Automatic",
+        "text": "Increase your maximum health by 5."
       },
       {
         "subphase": "First Strike",
-        "text": "If you have three: Once only on the turn the third Spiral is built, you may destroy one basic enemy ship."
+        "text": "Once only on the turn the third Spiral is built, you may destroy one basic enemy ship."
       }
     ],
     "energyCost": null,
-    "extraRules": "",
+    "extraRules": "You can have a maximum of 3 Spirals.",
     "stackCaption": "N/A",
     "colour": "Pastel Pink",
     "numberOfGraphics": 1
@@ -1353,11 +1358,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Energy",
-        "text": "Gain 1 blue energy each battle phase.\\nCannot be destroyed."
+        "text": "Gain 1 blue energy each battle phase."
       }
     ],
     "energyCost": null,
-    "extraRules": "You can have a maximum of 6 Neptune Cores.",
+    "extraRules": "Cannot be destroyed or stolen. You can have a maximum of 6 Neptune Cores.",
     "stackCaption": "N/A",
     "colour": "Pastel Blue",
     "numberOfGraphics": 1
@@ -1374,7 +1379,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charge Declaration",
-        "text": "Has 4 charges:\\n- Gain 1 energy of each colour this battle phase (use 1 charge)."
+        "text": "Has 4 charges:\\n- Gain 1 energy of each colour this battle phase (use 1 charge)"
       },
       {
         "subphase": "Automatic",
@@ -1399,7 +1404,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Automatic",
-        "text": "Once per turn per Cube, you may repeat the first Solar power you cast this turn."
+        "text": "Once per Cube per turn, repeat the first green, red, or blue Solar Power you cast this turn."
       }
     ],
     "energyCost": null,
@@ -1498,7 +1503,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charge Declaration",
-        "text": "Deal damage equal to the dice roll +4."
+        "text": "Deal damage equal to the dice roll +3."
       }
     ],
     "energyCost": {
@@ -1559,7 +1564,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "blue": 0,
       "xBlue": true
     },
-    "extraRules": "Each ship may only be targeted ONCE per turn. Ships with charges are copied as they are at the START of this turn. Copied ships CAN be upgraded. A Cube-cast makes an extra copy of target ship. Cannot copy Cube.",
+    "extraRules": "Each ship may only be copied ONCE per turn. Ships with charges are copied as they are at the START of this battle phase. Copied ships CAN be upgraded. A Cube-cast makes an extra copy of target ship. Cannot copy Cube.",
     "stackCaption": "N/A",
     "colour": "N/A",
     "numberOfGraphics": 0
@@ -1576,12 +1581,12 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charge Declaration",
-        "text": "Deal 1 damage for each Core you have.\\nHeal 1 for each Core you have."
+        "text": "Heal and deal damage based on energy spent. You must spend an EQUAL amount of green and red energy.\\nEnergy spent of each colour: X\\nHealing and damage: X(X+1)/2"
       }
     ],
     "energyCost": {
-      "red": 3,
-      "green": 3,
+      "red": 2,
+      "green": 2,
       "blue": 0,
       "xBlue": false
     },
@@ -1628,13 +1633,13 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charge Declaration",
-        "text": "Destroy TWO of the opponent's basic ships.\\nDeal 4 damage."
+        "text": "Destroy TWO of the opponent's basic ships.\\nDeal 1 damage for each Core you have."
       }
     ],
     "energyCost": {
-      "red": 3,
+      "red": 4,
       "green": 4,
-      "blue": 3,
+      "blue": 4,
       "xBlue": false
     },
     "extraRules": "See 'Destroying Rules' for more information.",
@@ -1651,7 +1656,7 @@ export const SHIP_DEFINITIONS_JSON = [
  * IMPORTANT: This version should match the server-side version when synced.
  * Server version is in: /supabase/functions/server/engine_shared/defs/ShipDefinitions.json.ts
  */
-export const SHIP_DEFS_VERSION = '2026-07-06';
+export const SHIP_DEFS_VERSION = '2026-07-19';
 
 // ============================================================================
 // TYPE INFERENCE HELPERS
