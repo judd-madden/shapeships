@@ -1,6 +1,6 @@
 import React from 'react';
 
-export const UranusCore: React.FC<{ className?: string }> = ({ className }) => (
+export const NeptuneCore: React.FC<{ className?: string }> = ({ className }) => (
   <svg 
     width="70" 
     height="74" 

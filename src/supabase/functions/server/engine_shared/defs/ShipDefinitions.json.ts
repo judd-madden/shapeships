@@ -1352,10 +1352,10 @@ export const SHIP_DEFINITIONS_JSON = [
     "numberOfGraphics": 1
   },
   {
-    "id": "URA",
+    "id": "NEP",
     "species": "Ancient",
     "shipType": "Basic",
-    "name": "Uranus Core",
+    "name": "Neptune Core",
     "totalLineCost": 7,
     "joiningLineCost": null,
     "componentShips": [],
@@ -1368,7 +1368,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "You can have a maximum of 6 Uranus Cores.",
+    "extraRules": "You can have a maximum of 6 Neptune Cores.",
     "stackCaption": "N/A",
     "colour": "Pastel Blue",
     "numberOfGraphics": 1

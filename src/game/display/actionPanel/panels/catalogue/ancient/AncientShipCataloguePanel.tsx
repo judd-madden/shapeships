@@ -24,7 +24,7 @@ import {
   PlutoCore,
   QuantumMystic,
   Spiral,
-  UranusCore,
+  NeptuneCore,
   SolarReserve4,
   Cube,
 } from "../../../../../../graphics/ancient/assets";
@@ -284,29 +284,29 @@ export function AncientShipCataloguePanel({
               width: "396px",
             }}
           >
-            {/* Uranus Core */}
+            {/* Neptune Core */}
             <div
               className="content-stretch flex flex-col gap-[8px] items-center shrink-0"
               style={{ width: "70px" }}
               onMouseEnter={(e) =>
-                hover.onEnter("URA", e.currentTarget)
+                hover.onEnter("NEP", e.currentTarget)
               }
-              onMouseLeave={() => hover.onLeave("URA")}
+              onMouseLeave={() => hover.onLeave("NEP")}
             >
               <CatalogueShipSlot
-                shipId="URA"
+                shipId="NEP"
                 graphic={
                   <div
                     className="relative shrink-0"
                     style={{ height: "70px", width: "70px" }}
                   >
-                    <UranusCore />
+                    <NeptuneCore />
                   </div>
                 }
-                {...getSlotProps("URA")}
+                {...getSlotProps("NEP")}
               >
                 <CatalogueCostNumber
-                  cost={getDisplayCost("URA", 7)}
+                  cost={getDisplayCost("NEP", 7)}
                   className="relative shrink-0 w-full"
                 />
               </CatalogueShipSlot>

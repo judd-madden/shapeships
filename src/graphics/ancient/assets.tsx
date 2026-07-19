@@ -8,4 +8,4 @@ export { PlutoCore } from './PlutoCore';
 export { QuantumMystic } from './QuantumMystic';
 export { SolarReserve4, SolarReserve3, SolarReserve2, SolarReserve1, SolarReserve0 } from './SolarReserve';
 export { Spiral } from './Spiral';
-export { UranusCore } from './UranusCore';
+export { NeptuneCore } from './NeptuneCore';

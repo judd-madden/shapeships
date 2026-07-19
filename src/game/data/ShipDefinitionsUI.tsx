@@ -101,7 +101,7 @@ import {
   PlutoCore,
   QuantumMystic,
   Spiral,
-  UranusCore,
+  NeptuneCore,
   SolarReserve4,
   SolarReserve3,
   SolarReserve2,
@@ -212,7 +212,7 @@ const GRAPHICS_BY_ID: Partial<Record<ShipDefId, ShipGraphic[]>> = {
   'PLU': [{ component: PlutoCore, condition: 'default' }],
   'QUA': [{ component: QuantumMystic, condition: 'default' }],
   'SPI': [{ component: Spiral, condition: 'default' }],
-  'URA': [{ component: UranusCore, condition: 'default' }],
+  'NEP': [{ component: NeptuneCore, condition: 'default' }],
   'SOL': [
     { component: SolarReserve4, condition: 'charges_4' },
     { component: SolarReserve3, condition: 'charges_3' },

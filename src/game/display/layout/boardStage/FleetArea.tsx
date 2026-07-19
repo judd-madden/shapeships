@@ -61,7 +61,7 @@ const CENTAUR_ROW_SETS: RowSets = {
 };
 
 const ANCIENT_ROW_SETS: RowSets = {
-  1: new Set<ShipDefId>(['MER', 'PLU', 'QUA', 'URA']),
+  1: new Set<ShipDefId>(['MER', 'PLU', 'QUA', 'NEP']),
   2: new Set<ShipDefId>(['SOL']),
   3: new Set<ShipDefId>(['SPI', 'CUB']),
   4: new Set<ShipDefId>([]), // Reserved for later text-only powers

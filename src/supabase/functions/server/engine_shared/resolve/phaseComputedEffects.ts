@@ -68,7 +68,7 @@ export const COMPUTED_EFFECTS_AUDIT = [
   { shipDefId: 'SVOR', mechanic: 'distinct-type count (self)' },
   { shipDefId: 'MER', mechanic: 'energy gain each battle phase' },
   { shipDefId: 'PLU', mechanic: 'energy gain each battle phase' },
-  { shipDefId: 'URA', mechanic: 'energy gain each battle phase' },
+  { shipDefId: 'NEP', mechanic: 'energy gain each battle phase' },
   { shipDefId: 'SOL', mechanic: 'energy gain/spend via charges' },
 ] as const;
 
