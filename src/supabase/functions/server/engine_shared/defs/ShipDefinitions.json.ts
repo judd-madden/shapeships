@@ -1448,7 +1448,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "extraRules": "",
     "stackCaption": "N/A",
     "colour": "N/A",
-    "numberOfGraphics": 0
+    "numberOfGraphics": 1
   },
   {
     "id": "SSTA",
@@ -1474,7 +1474,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "extraRules": "",
     "stackCaption": "N/A",
     "colour": "N/A",
-    "numberOfGraphics": 0
+    "numberOfGraphics": 1
   },
   {
     "id": "SAST",
@@ -1500,7 +1500,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "extraRules": "",
     "stackCaption": "N/A",
     "colour": "N/A",
-    "numberOfGraphics": 0
+    "numberOfGraphics": 1
   },
   {
     "id": "SSUP",
@@ -1526,7 +1526,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "extraRules": "",
     "stackCaption": "N/A",
     "colour": "N/A",
-    "numberOfGraphics": 0
+    "numberOfGraphics": 1
   },
   {
     "id": "SCON",
@@ -1552,7 +1552,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "extraRules": "* Convert is the only way energy can be converted back into lines. Lines can be saved.",
     "stackCaption": "N/A",
     "colour": "N/A",
-    "numberOfGraphics": 0
+    "numberOfGraphics": 1
   },
   {
     "id": "SSIM",
@@ -1578,7 +1578,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "extraRules": "Each ship may only be copied ONCE per turn. Ships with charges are copied as they are at the START of this battle phase. Copied ships CAN be upgraded. A Cube-cast makes an extra copy of target ship. Cannot copy Cube.",
     "stackCaption": "N/A",
     "colour": "N/A",
-    "numberOfGraphics": 0
+    "numberOfGraphics": 4
   },
   {
     "id": "SSIP",
@@ -1604,7 +1604,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "extraRules": "",
     "stackCaption": "N/A",
     "colour": "N/A",
-    "numberOfGraphics": 0
+    "numberOfGraphics": 1
   },
   {
     "id": "SVOR",
@@ -1630,7 +1630,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "extraRules": "",
     "stackCaption": "N/A",
     "colour": "N/A",
-    "numberOfGraphics": 0
+    "numberOfGraphics": 1
   },
   {
     "id": "SBLA",
@@ -1656,7 +1656,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "extraRules": "See 'Destroying Rules' for more information.",
     "stackCaption": "N/A",
     "colour": "N/A",
-    "numberOfGraphics": 0
+    "numberOfGraphics": 1
   }
 ] as const;
 

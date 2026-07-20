@@ -4,10 +4,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { DefenderShip, BattlecruiserShip, CarrierShip6, CarrierShip5, CarrierShip4, CarrierShip3, CarrierShip2, CarrierShip1, CarrierShip0, CommanderShip, DreadnoughtShip, EarthShip, FighterShip, FrigateShip, GuardianShip2, GuardianShip1, GuardianShip0, InterceptorShip1, InterceptorShip0, LeviathanShip, OrbitalShip, ScienceVesselShip, StarshipShip, TacticalCruiserShip } from '../../graphics/human/assets';
 import { AntlionShip1, AntlionShip0, AntlionArrayShip, AsteriteShip, AsteriteFaceShip, BugBreeder4Ship, BugBreeder3Ship, BugBreeder2Ship, BugBreeder1Ship, BugBreederDepletedShip, ChronoswarmShip, DefenseSwarmShip, EvolverShip, HellHornetShip, HiveShip, MantisShip, OxiteShip, OxiteFaceShip, QueenShip, SacrificialPoolShip, XeniteShip, ZenithShip } from '../../graphics/xenite/assets';
 import { ArkOfDestructionShip, ArkOfDominationShip, ArkOfEntropyShip, ArkOfFuryShip, ArkOfKnowledgeShip, ArkOfPowerShip, ArkOfRedemptionShip, ArkOfTerrorShip, ShipOfAngerShip, ShipOfEquality2Ship, ShipOfEquality1Ship, ShipOfEquality0Ship, ShipOfFamily3Ship, ShipOfFamily2Ship, ShipOfFamily1Ship, ShipOfFamily0Ship, ShipOfFearShip, ShipOfLegacyShip, ShipOfVigorShip, ShipOfWisdom2Ship, ShipOfWisdom1Ship, ShipOfWisdom0Ship } from '../../graphics/centaur/assets';
-import { MercuryCore, PlutoCore, QuantumMystic, SolarReserve4, SolarReserve3, SolarReserve2, SolarReserve1, SolarReserve0, Spiral, NeptuneCore, Cube } from '../../graphics/ancient/assets';
+import { Asteroid, BlackHole, Convert, Cube, Life, MercuryCore, NeptuneCore, PlutoCore, QuantumMystic, SimulacrumAncient, SimulacrumCentaur, SimulacrumHuman, SimulacrumXenite, Siphon, SolarReserve4, SolarReserve3, SolarReserve2, SolarReserve1, SolarReserve0, Spiral, StarBirth, Supernova, Vortex } from '../../graphics/ancient/assets';
 
 // External URL for space background
 const SPACE_BACKGROUND_URL = 'https://juddmadden.com/shapeships/images/space-background.jpg';
+
+const SOLAR_POWER_REGISTRY = [
+  { id: 'life', name: 'Life', component: Life },
+  { id: 'starbirth', name: 'Star Birth', component: StarBirth },
+  { id: 'asteroid', name: 'Asteroid', component: Asteroid },
+  { id: 'supernova', name: 'Supernova', component: Supernova },
+  { id: 'convert', name: 'Convert', component: Convert },
+  { id: 'siphon', name: 'Siphon', component: Siphon },
+  { id: 'vortex', name: 'Vortex', component: Vortex },
+  { id: 'blackhole', name: 'Black Hole', component: BlackHole },
+  { id: 'simulacrum-human', name: 'Simulacrum — Human', component: SimulacrumHuman },
+  { id: 'simulacrum-xenite', name: 'Simulacrum — Xenite', component: SimulacrumXenite },
+  { id: 'simulacrum-centaur', name: 'Simulacrum — Centaur', component: SimulacrumCentaur },
+  { id: 'simulacrum-ancient', name: 'Simulacrum — Ancient', component: SimulacrumAncient }
+];
 
 // Ship registry - will be populated as ships are added
 const SHIP_REGISTRY = {
@@ -181,6 +196,35 @@ export default function GraphicsTest({ onBack }) {
                   )}
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Solar Power Gallery */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Solar Powers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div
+              className="grid gap-6 p-6 rounded-lg bg-cover bg-center bg-no-repeat"
+              style={{
+                backgroundImage: `url(${SPACE_BACKGROUND_URL})`,
+                backgroundColor: '#000033',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))'
+              }}
+            >
+              {SOLAR_POWER_REGISTRY.map((power) => {
+                const PowerComponent = power.component;
+                return (
+                  <div key={power.id} className="flex min-w-0 flex-col items-center gap-2">
+                    <div className="flex min-h-[112px] w-full items-center justify-center overflow-visible">
+                      <PowerComponent />
+                    </div>
+                    <span className="text-center text-sm text-white drop-shadow-lg">{power.name}</span>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>

@@ -107,7 +107,16 @@ import {
   SolarReserve2,
   SolarReserve1,
   SolarReserve0,
-  Cube
+  Cube,
+  Asteroid,
+  BlackHole,
+  Convert,
+  Life,
+  Siphon,
+  StarBirth,
+  Supernova,
+  Vortex,
+  SimulacrumHuman
 } from '../../graphics/ancient/assets';
 
 // ============================================================================
@@ -221,6 +230,15 @@ const GRAPHICS_BY_ID: Partial<Record<ShipDefId, ShipGraphic[]>> = {
     { component: SolarReserve0, condition: 'charges_0' }
   ],
   'CUB': [{ component: Cube, condition: 'default' }],
+  'SLIF': [{ component: Life, condition: 'default' }],
+  'SSTA': [{ component: StarBirth, condition: 'default' }],
+  'SAST': [{ component: Asteroid, condition: 'default' }],
+  'SSUP': [{ component: Supernova, condition: 'default' }],
+  'SCON': [{ component: Convert, condition: 'default' }],
+  'SSIM': [{ component: SimulacrumHuman, condition: 'default' }],
+  'SSIP': [{ component: Siphon, condition: 'default' }],
+  'SVOR': [{ component: Vortex, condition: 'default' }],
+  'SBLA': [{ component: BlackHole, condition: 'default' }],
 };
 
 // ============================================================================
@@ -238,14 +256,9 @@ export const SHIP_DEFINITIONS: ShipDefinitionUI[] = SHIP_DEFINITIONS_CORE.map(
 
 // DEV-ONLY: Warn about ships with missing graphics
 if (import.meta.env.DEV) {
-  // Known missing graphics (post-alpha): Ancient Solar Powers
-  const knownMissingGraphics = new Set([
-    'SAST', 'SSUP', 'SLIF', 'SSTA', 'SCON', 'SSIM', 'SSIP', 'SVOR', 'SBLA'
-  ]);
-  
   const shipsWithoutGraphics = SHIP_DEFINITIONS.filter(
     ship => !ship.graphics || ship.graphics.length === 0
-  ).filter(ship => !knownMissingGraphics.has(ship.id));
+  );
   
   if (shipsWithoutGraphics.length > 0) {
     console.warn(
