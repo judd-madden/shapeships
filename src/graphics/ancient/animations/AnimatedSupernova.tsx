@@ -1,6 +1,6 @@
 import React from 'react';
 import { Supernova } from '../Supernova';
-import { usePrefersReducedMotion } from './usePrefersReducedMotion';
+import { usePrefersReducedMotion } from '../../../game/display/shared/usePrefersReducedMotion';
 import './solarPowerAnimations.css';
 
 export const AnimatedSupernova: React.FC<{ className?: string }> = ({ className }) => {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { StarBirth } from '../StarBirth';
-import { usePrefersReducedMotion } from './usePrefersReducedMotion';
+import { usePrefersReducedMotion } from '../../../game/display/shared/usePrefersReducedMotion';
 import './solarPowerAnimations.css';
 
 export const AnimatedStarBirth: React.FC<{ className?: string }> = ({ className }) => {

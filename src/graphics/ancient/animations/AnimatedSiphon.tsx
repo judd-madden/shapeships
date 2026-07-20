@@ -1,6 +1,6 @@
 import React from 'react';
 import { Siphon } from '../Siphon';
-import { usePrefersReducedMotion } from './usePrefersReducedMotion';
+import { usePrefersReducedMotion } from '../../../game/display/shared/usePrefersReducedMotion';
 import './solarPowerAnimations.css';
 
 export const AnimatedSiphon: React.FC<{ className?: string }> = ({ className }) => {

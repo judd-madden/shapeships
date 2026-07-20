@@ -21,6 +21,7 @@ import {
   type CSSProperties,
 } from 'react';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
+import { usePrefersReducedMotion } from '../shared/usePrefersReducedMotion';
 
 // ============================================================================
 // TYPES
@@ -350,28 +351,6 @@ export interface TurnIncrementPulseState {
 }
 
 export const BOARD_TURN_PULSE_LIFECYCLE_ANIMATION_NAME = 'ssBoardTurnPulseLifecycle';
-
-function usePrefersReducedMotion(): boolean {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    if (!mediaQuery) {
-      return;
-    }
-
-    const update = () => setPrefersReducedMotion(Boolean(mediaQuery.matches));
-
-    update();
-    mediaQuery.addEventListener?.('change', update);
-
-    return () => {
-      mediaQuery.removeEventListener?.('change', update);
-    };
-  }, []);
-
-  return prefersReducedMotion;
-}
 
 export function useTurnIncrementPulse({
   enabled,

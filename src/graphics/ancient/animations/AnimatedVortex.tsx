@@ -1,6 +1,6 @@
 import React from 'react';
 import { Vortex } from '../Vortex';
-import { usePrefersReducedMotion } from './usePrefersReducedMotion';
+import { usePrefersReducedMotion } from '../../../game/display/shared/usePrefersReducedMotion';
 import './solarPowerAnimations.css';
 
 export const AnimatedVortex: React.FC<{ className?: string }> = ({ className }) => {

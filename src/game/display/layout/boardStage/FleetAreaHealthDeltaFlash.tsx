@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FleetAreaHealthDeltaFlashVm } from '../../../client/useGameSession';
+import { usePrefersReducedMotion } from '../../shared/usePrefersReducedMotion';
 
 export type FleetAreaHealthDeltaFlashShape = 'contained' | 'fill';
 
@@ -27,28 +28,6 @@ function getFlashBackground(
   }
 
   return `radial-gradient(circle closest-side at center, ${color} 0%, transparent 72%)`;
-}
-
-function usePrefersReducedMotion(): boolean {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    if (!mediaQuery) {
-      return;
-    }
-
-    const update = () => setPrefersReducedMotion(Boolean(mediaQuery.matches));
-
-    update();
-    mediaQuery.addEventListener?.('change', update);
-
-    return () => {
-      mediaQuery.removeEventListener?.('change', update);
-    };
-  }, []);
-
-  return prefersReducedMotion;
 }
 
 export function FleetAreaHealthDeltaFlash({

@@ -3,34 +3,13 @@ import {
   BOARD_TURN_PULSE_LIFECYCLE_ANIMATION_NAME,
   type TurnIncrementPulseState,
 } from '../../graphics/animation';
+import { usePrefersReducedMotion } from '../../shared/usePrefersReducedMotion';
 
 export const INACTIVE_TURN_PULSE_STATE: TurnIncrementPulseState = {
   isActive: false,
   runKey: 0,
   onAnimationEnd: () => {},
 };
-
-function usePrefersReducedMotion(): boolean {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    if (!mediaQuery) {
-      return;
-    }
-
-    const update = () => setPrefersReducedMotion(Boolean(mediaQuery.matches));
-
-    update();
-    mediaQuery.addEventListener?.('change', update);
-
-    return () => {
-      mediaQuery.removeEventListener?.('change', update);
-    };
-  }, []);
-
-  return prefersReducedMotion;
-}
 
 export function usePresentedFleetRevealPulse(sequence: number | null): TurnIncrementPulseState {
   const prefersReducedMotion = usePrefersReducedMotion();

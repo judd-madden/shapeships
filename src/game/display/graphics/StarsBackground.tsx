@@ -19,22 +19,10 @@ import {
   STARS_CONFIG,
   type StarSpec,
 } from './animation-stars';
+import { usePrefersReducedMotion } from '../shared/usePrefersReducedMotion';
 
 const SHOOTING_STAR_MIN_DELAY_MS = 0.5 * 60 * 1000;
 const SHOOTING_STAR_MAX_DELAY_MS = 3 * 60 * 1000;
-
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
-    if (!mq) return;
-    const update = () => setReduced(!!mq.matches);
-    update();
-    mq.addEventListener?.('change', update);
-    return () => mq.removeEventListener?.('change', update);
-  }, []);
-  return reduced;
-}
 
 interface StarsBackgroundProps {
   celebrateOnFinish?: boolean;

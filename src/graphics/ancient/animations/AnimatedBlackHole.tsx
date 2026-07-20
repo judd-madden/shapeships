@@ -1,6 +1,6 @@
 import React from 'react';
 import { BlackHole } from '../BlackHole';
-import { usePrefersReducedMotion } from './usePrefersReducedMotion';
+import { usePrefersReducedMotion } from '../../../game/display/shared/usePrefersReducedMotion';
 import './solarPowerAnimations.css';
 
 export const AnimatedBlackHole: React.FC<{ className?: string }> = ({ className }) => {
