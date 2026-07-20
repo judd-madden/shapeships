@@ -10,6 +10,7 @@ import { TopHud } from './TopHud';
 import { BoardStage } from './BoardStage';
 import { BottomActionRail } from './BottomActionRail';
 import { ActionPanelFrame } from '../actionPanel/ActionPanelFrame';
+import { resolveAncientSimulacrumSpecies } from '../actionPanel/panels/catalogue/ancient/resolveAncientSimulacrumSpecies';
 import { Tab } from '../../../components/ui/primitives/navigation/Tab';
 import { GameStatsOverlayShell } from '../stats/GameStatsOverlayShell';
 import type { 
@@ -41,6 +42,7 @@ export function MainStage({
   onReturnToMainMenu
 }: MainStageProps) {
   const [isGameStatsOpen, setIsGameStatsOpen] = useState(false);
+  const simulacrumSpecies = resolveAncientSimulacrumSpecies(boardVm);
   const isEndGameResultPanel = actionPanelVm.activePanelId === 'ap.end_of_game.result';
   const canViewGameStats = gameStats != null;
   const endGameResultKey = useMemo(() => {
@@ -175,6 +177,7 @@ export function MainStage({
             onOpenGameStats={handleOpenGameStats}
             onToggleGameStats={handleToggleGameStats}
             onReturnToMainMenu={onReturnToMainMenu}
+            simulacrumSpecies={simulacrumSpecies}
           />
         </div>
       </div>

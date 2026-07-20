@@ -2,13 +2,21 @@
  * Ancient Ship Catalogue Panel
  *
  * LEFT SIDE: Ancient Basic Ships (clickable, full wiring)
- * RIGHT SIDE: Ancient Solar Powers (static UI placeholder, no logic)
+ * RIGHT SIDE: Ancient Solar Powers (static catalogue scaffold, no gameplay logic)
  *
  * Pattern cloned from CentaurShipCataloguePanel.tsx
  * NO backend calls, NO rules validation, NO engine imports
  */
 
+import { useState, type ComponentType } from 'react';
 import type { ActionPanelViewModel, GameSessionActions } from "../../../../../client/useGameSession";
+import type { SpeciesId } from '../../../../../../components/ui/primitives/buttons/SpeciesCardButton';
+import { Checkbox, InfoIcon } from '../../../../../../components/ui/primitives';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '../../../../../../components/ui/tooltip';
 import { ActionPanelScrollArea } from "../../../primitives/ActionPanelScrollArea";
 import { CatalogueShipSlot } from "../shared/CatalogueShipSlot";
 import { CatalogueCostNumber } from "../shared/CatalogueCostNumber";
@@ -17,9 +25,14 @@ import { useShipCatalogueHover } from "../shared/useShipCatalogueHover";
 import {
   getShipEligibilityForHover,
   shouldEnableCatalogueGraphicHover,
+  type ShipEligibility,
 } from "../shared/ShipBuildEligibility";
 import type { ShipDefId } from "../../../../../types/ShipTypes.engine";
 import {
+  Asteroid,
+  BlackHole,
+  Convert,
+  Life,
   MercuryCore,
   PlutoCore,
   QuantumMystic,
@@ -27,13 +40,132 @@ import {
   NeptuneCore,
   SolarReserve4,
   Cube,
+  SimulacrumAncient,
+  SimulacrumCentaur,
+  SimulacrumHuman,
+  SimulacrumXenite,
+  Siphon,
+  StarBirth,
+  Supernova,
+  Vortex,
 } from "../../../../../../graphics/ancient/assets";
+import {
+  AncientEnergyDisplay,
+  type AncientEnergyCostRow,
+} from './AncientEnergyDisplay';
+import { AncientSolarPowerSlot } from './AncientSolarPowerSlot';
 
 type CatalogueFrame = 'desktop' | 'bare';
 type CatalogueLayout = 'standard' | 'long';
 
-const ANCIENT_DESKTOP_CANVAS = { width: 1210, height: 420 };
+const ANCIENT_DESKTOP_CANVAS = { width: 1210, height: 258 };
 const ANCIENT_LONG_CANVAS = { width: 1446, height: 258 };
+
+interface SolarPosition {
+  x: number;
+  y: number;
+}
+
+interface SolarPowerSlotConfig {
+  id: ShipDefId;
+  graphic: ComponentType<{ className?: string }>;
+  costRows: readonly AncientEnergyCostRow[];
+  showPlus?: boolean;
+  position: Record<CatalogueLayout, SolarPosition>;
+}
+
+const SOLAR_POWER_SLOTS = [
+  {
+    id: 'SLIF',
+    graphic: Life,
+    costRows: [{ color: 'green', count: 1 }],
+    position: { standard: { x: 474, y: 69 }, long: { x: 507, y: 69 } },
+  },
+  {
+    id: 'SSTA',
+    graphic: StarBirth,
+    costRows: [{ color: 'green', count: 3 }],
+    position: { standard: { x: 443, y: 166 }, long: { x: 476, y: 166 } },
+  },
+  {
+    id: 'SAST',
+    graphic: Asteroid,
+    costRows: [{ color: 'red', count: 1 }],
+    position: { standard: { x: 640, y: 67 }, long: { x: 703, y: 67 } },
+  },
+  {
+    id: 'SSUP',
+    graphic: Supernova,
+    costRows: [{ color: 'red', count: 3 }],
+    position: { standard: { x: 609, y: 163 }, long: { x: 672, y: 163 } },
+  },
+  {
+    id: 'SCON',
+    graphic: Convert,
+    costRows: [{ color: 'cyan', count: 1 }],
+    position: { standard: { x: 803, y: 64 }, long: { x: 896, y: 64 } },
+  },
+  {
+    id: 'SSIP',
+    graphic: Siphon,
+    costRows: [
+      { color: 'green', count: 2 },
+      { color: 'red', count: 2 },
+    ],
+    showPlus: true,
+    position: { standard: { x: 934, y: 52 }, long: { x: 1062, y: 52 } },
+  },
+  {
+    id: 'SSIM',
+    graphic: SimulacrumHuman,
+    costRows: [{ color: 'cyan', count: 2 }],
+    showPlus: true,
+    position: { standard: { x: 777, y: 174 }, long: { x: 870, y: 174 } },
+  },
+  {
+    id: 'SVOR',
+    graphic: Vortex,
+    costRows: [
+      { color: 'green', count: 2 },
+      { color: 'red', count: 2 },
+      { color: 'cyan', count: 2 },
+    ],
+    position: { standard: { x: 936, y: 164 }, long: { x: 1064, y: 164 } },
+  },
+  {
+    id: 'SBLA',
+    graphic: BlackHole,
+    costRows: [
+      { color: 'green', count: 4 },
+      { color: 'red', count: 4 },
+      { color: 'cyan', count: 4 },
+    ],
+    position: { standard: { x: 1098, y: 62 }, long: { x: 1263, y: 62 } },
+  },
+] as const satisfies readonly SolarPowerSlotConfig[];
+
+const SOLAR_POWER_IDS = new Set<ShipDefId>(SOLAR_POWER_SLOTS.map((slot) => slot.id));
+
+const SOLAR_HEADER_POSITIONS: Record<
+  CatalogueLayout,
+  { energy: SolarPosition; autocast: SolarPosition }
+> = {
+  standard: {
+    energy: { x: 635, y: 0 },
+    autocast: { x: 1079, y: 0 },
+  },
+  long: {
+    energy: { x: 682, y: 0 },
+    autocast: { x: 1325, y: 0 },
+  },
+};
+
+const SIMULACRUM_GRAPHICS: Record<SpeciesId, ComponentType<{ className?: string }>> = {
+  human: SimulacrumHuman,
+  xenite: SimulacrumXenite,
+  centaur: SimulacrumCentaur,
+  ancient: SimulacrumAncient,
+};
 
 interface AncientShipCataloguePanelProps {
   actions: GameSessionActions;
@@ -43,6 +175,7 @@ interface AncientShipCataloguePanelProps {
   hoverDisabled?: boolean;
   interactionDisabled?: boolean;
   onShipInspect?: (shipId: ShipDefId) => void;
+  simulacrumSpecies?: SpeciesId;
 }
 
 export function AncientShipCataloguePanel({
@@ -53,15 +186,16 @@ export function AncientShipCataloguePanel({
   hoverDisabled,
   interactionDisabled = false,
   onShipInspect,
+  simulacrumSpecies = 'human',
 }: AncientShipCataloguePanelProps) {
+  const [autocastChecked, setAutocastChecked] = useState(true);
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
   const isLongCatalogueLayout = catalogueLayout === 'long';
   const canvas = isLongCatalogueLayout ? ANCIENT_LONG_CANVAS : ANCIENT_DESKTOP_CANVAS;
-  const blackHolePosition = isLongCatalogueLayout
-    ? { left: "803px", top: "17px", width: "356px" }
-    : { left: "0px", top: "200px", width: "356px" };
+  const solarHeaderPositions = SOLAR_HEADER_POSITIONS[catalogueLayout];
+  const SimulacrumGraphic = SIMULACRUM_GRAPHICS[simulacrumSpecies] ?? SimulacrumHuman;
 
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
@@ -103,11 +237,16 @@ export function AncientShipCataloguePanel({
       : fallbackCost;
   }
 
-  const hoveredShipEligibility = hover.presentState.activeShipId
-    ? getShipEligibilityForHover({
-        shipId: hover.presentState.activeShipId,
-        buildCatalogue,
-      })
+  const hoveredShipIsSolar = hover.presentState.activeShipId
+    ? SOLAR_POWER_IDS.has(hover.presentState.activeShipId)
+    : false;
+  const hoveredShipEligibility: ShipEligibility | null = hover.presentState.activeShipId
+    ? hoveredShipIsSolar
+      ? { state: 'REFERENCE_ONLY' }
+      : getShipEligibilityForHover({
+          shipId: hover.presentState.activeShipId,
+          buildCatalogue,
+        })
     : null;
 
   const content = (
@@ -141,7 +280,7 @@ export function AncientShipCataloguePanel({
               fontVariationSettings: "'wdth' 100",
             }}
           >
-            [In Development!]
+            Ancient Solar Powers
           </p>
 
           {/* Vertical Divider */}
@@ -369,746 +508,89 @@ export function AncientShipCataloguePanel({
             </div>
           </div>
 
-          {/* ================ RIGHT HALF: SOLAR POWERS (STATIC UI ONLY) ================ */}
+          {/* ================ RIGHT HALF: SOLAR POWERS (STATIC PRESENTATION ONLY) ================ */}
 
-          {/* Available Energy Header */}
-          <div
-            className="absolute content-stretch flex gap-[32px] items-center"
-            style={{ right: "2px", top: "4px" }}
-          >
-            <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-white">
-              Available Energy:
-            </p>
-            <div className="content-stretch flex gap-[29px] items-center">
-              {/* Red Energy */}
-              <div className="content-stretch flex gap-[8px] items-center">
-                <div className="relative shrink-0 size-[20px]">
-                  <svg
-                    className="block size-full"
-                    fill="none"
-                    preserveAspectRatio="none"
-                    viewBox="0 0 20 20.4028"
-                  >
-                    <circle
-                      cx="10"
-                      cy="10"
-                      fill="var(--shapeships-pastel-red)"
-                      r="10"
-                    />
-                  </svg>
-                </div>
-                <p
-                  className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-red)] text-[22px]"
-                  style={{
-                    fontVariationSettings: "'wdth' 100",
-                  }}
-                >
-                  0 red
-                </p>
-              </div>
-
-              {/* Green Energy */}
-              <div className="content-stretch flex gap-[8px] items-center">
-                <div className="relative shrink-0 size-[20px]">
-                  <svg
-                    className="block size-full"
-                    fill="none"
-                    preserveAspectRatio="none"
-                    viewBox="0 0 20 20.4028"
-                  >
-                    <circle
-                      cx="10"
-                      cy="10"
-                      fill="var(--shapeships-pastel-green)"
-                      r="10"
-                    />
-                  </svg>
-                </div>
-                <p
-                  className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-green)] text-[22px]"
-                  style={{
-                    fontVariationSettings: "'wdth' 100",
-                  }}
-                >
-                  0 green
-                </p>
-              </div>
-
-              {/* Blue Energy */}
-              <div className="content-stretch flex gap-[8px] items-center">
-                <div className="relative shrink-0 size-[20px]">
-                  <svg
-                    className="block size-full"
-                    fill="none"
-                    preserveAspectRatio="none"
-                    viewBox="0 0 20 20.4028"
-                  >
-                    <circle
-                      cx="10"
-                      cy="10"
-                      fill="var(--shapeships-pastel-blue)"
-                      r="10"
-                    />
-                  </svg>
-                </div>
-                <p
-                  className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-blue)] text-[22px]"
-                  style={{
-                    fontVariationSettings: "'wdth' 100",
-                  }}
-                >
-                  0 blue
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Solar Powers Wrapper - All buttons in one absolute positioned container */}
           <div
             className="absolute"
-            style={{ left: "427px", top: "50px", right: "0" }}
+            style={{
+              left: solarHeaderPositions.energy.x,
+              top: solarHeaderPositions.energy.y,
+            }}
           >
-            {/* Solar Powers Grid - Row 1 */}
-            <div
-              className="absolute content-stretch flex gap-[30px] items-start"
-              style={{ left: "0px", top: "0px" }}
-            >
-              {/* Asteroid (Red) */}
-              <div className="content-stretch flex flex-col gap-[10px] items-center w-[169px]">
-                <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[var(--shapeships-pastel-red)] border-solid inset-0 pointer-events-none rounded-[10px]" />
-                  <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
-                    <div className="content-stretch flex gap-[10px] items-center justify-center">
-                      <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-red)] text-[16px] text-center"
-                        style={{
-                          fontVariationSettings: "'wdth' 100",
-                        }}
-                      >
-                        Asteroid
-                      </p>
-                      <div className="relative shrink-0 size-[14.4px]">
-                        <svg
-                          className="block size-full"
-                          fill="none"
-                          preserveAspectRatio="none"
-                          viewBox="0 0 16.248 16.248"
-                        >
-                          <circle
-                            cx="8.124"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-red)"
-                            strokeWidth="1.848"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
-                  Deal 1 damage
-                </p>
-              </div>
-
-              {/* Life (Green) */}
-              <div className="content-stretch flex flex-col gap-[11px] items-center w-[169px]">
-                <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[var(--shapeships-pastel-green)] border-solid inset-0 pointer-events-none rounded-[10px]" />
-                  <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
-                    <div className="content-stretch flex gap-[10px] items-center justify-center">
-                      <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-green)] text-[16px] text-center"
-                        style={{
-                          fontVariationSettings: "'wdth' 100",
-                        }}
-                      >
-                        Life
-                      </p>
-                      <div className="relative shrink-0 size-[14.4px]">
-                        <svg
-                          className="block size-full"
-                          fill="none"
-                          preserveAspectRatio="none"
-                          viewBox="0 0 16.248 16.248"
-                        >
-                          <circle
-                            cx="8.124"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-green)"
-                            strokeWidth="1.848"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
-                  Heal 1
-                </p>
-              </div>
-
-              {/* Convert (Blue) */}
-              <div className="content-stretch flex flex-col gap-[11px] items-center w-[169px]">
-                <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[var(--shapeships-pastel-blue)] border-solid inset-0 pointer-events-none rounded-[10px]" />
-                  <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
-                    <div className="content-stretch flex gap-[10px] items-center justify-center">
-                      <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-blue)] text-[16px] text-center"
-                        style={{
-                          fontVariationSettings: "'wdth' 100",
-                        }}
-                      >
-                        Convert
-                      </p>
-                      <div className="relative shrink-0 size-[14.4px]">
-                        <svg
-                          className="block size-full"
-                          fill="none"
-                          preserveAspectRatio="none"
-                          viewBox="0 0 16.248 16.248"
-                        >
-                          <circle
-                            cx="8.124"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-blue)"
-                            strokeWidth="1.848"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
-                  +1 Line
-                </p>
-              </div>
-
-              {/* Siphon (Multi - Red+Green) */}
-              <div className="content-stretch flex flex-col gap-[10px] items-center w-[169px]">
-                <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[var(--shapeships-pastel-red)] border-solid inset-0 pointer-events-none rounded-[10px]" />
-                  <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
-                    <div className="content-stretch flex gap-[10px] items-center justify-center">
-                      {/* Red circles */}
-                      <div className="h-[14.4px] w-[34.8px]">
-                        <svg
-                          className="block size-full"
-                          fill="none"
-                          preserveAspectRatio="none"
-                          viewBox="0 0 36.648 16.248"
-                        >
-                          <circle
-                            cx="8.124"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-red)"
-                            strokeWidth="1.848"
-                          />
-                          <circle
-                            cx="28.524"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-red)"
-                            strokeWidth="1.848"
-                          />
-                        </svg>
-                      </div>
-                      <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[16px] text-center text-white"
-                        style={{
-                          fontVariationSettings: "'wdth' 100",
-                        }}
-                      >
-                        Siphon
-                      </p>
-                      {/* Green circles */}
-                      <div className="h-[14.4px] w-[34.8px]">
-                        <svg
-                          className="block size-full"
-                          fill="none"
-                          preserveAspectRatio="none"
-                          viewBox="0 0 36.648 16.248"
-                        >
-                          <circle
-                            cx="8.124"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-green)"
-                            strokeWidth="1.848"
-                          />
-                          <circle
-                            cx="28.524"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-green)"
-                            strokeWidth="1.848"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
-                  Deal X damage, heal X
-                </p>
-              </div>
-            </div>
-
-            {/* Solar Powers Grid - Row 2 */}
-            <div
-              className="absolute content-stretch flex gap-[30px] items-start"
-              style={{ left: "0px", top: "100px" }}
-            >
-              {/* Supernova (Red) */}
-              <div className="content-stretch flex flex-col gap-[10px] items-center w-[169px]">
-                <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[var(--shapeships-pastel-red)] border-solid inset-0 pointer-events-none rounded-[10px]" />
-                  <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
-                    <div className="content-stretch flex gap-[10px] items-center justify-center">
-                      <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-red)] text-[16px] text-center"
-                        style={{
-                          fontVariationSettings: "'wdth' 100",
-                        }}
-                      >
-                        Supernova
-                      </p>
-                      <div className="h-[14.4px] w-[55.2px]">
-                        <svg
-                          className="block size-full"
-                          fill="none"
-                          preserveAspectRatio="none"
-                          viewBox="0 0 57.048 16.248"
-                        >
-                          <circle
-                            cx="8.124"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-red)"
-                            strokeWidth="1.848"
-                          />
-                          <circle
-                            cx="28.524"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-red)"
-                            strokeWidth="1.848"
-                          />
-                          <circle
-                            cx="48.924"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-red)"
-                            strokeWidth="1.848"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
-                  Deal X damage
-                </p>
-              </div>
-
-              {/* Star Birth (Green) */}
-              <div className="content-stretch flex flex-col gap-[10px] items-center w-[169px]">
-                <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[var(--shapeships-pastel-green)] border-solid inset-0 pointer-events-none rounded-[10px]" />
-                  <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
-                    <div className="content-stretch flex gap-[10px] items-center justify-center">
-                      <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-green)] text-[16px] text-center"
-                        style={{
-                          fontVariationSettings: "'wdth' 100",
-                        }}
-                      >
-                        Star Birth
-                      </p>
-                      <div className="h-[14.4px] w-[55.2px]">
-                        <svg
-                          className="block size-full"
-                          fill="none"
-                          preserveAspectRatio="none"
-                          viewBox="0 0 57.048 16.248"
-                        >
-                          <circle
-                            cx="8.124"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-green)"
-                            strokeWidth="1.848"
-                          />
-                          <circle
-                            cx="28.524"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-green)"
-                            strokeWidth="1.848"
-                          />
-                          <circle
-                            cx="48.924"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-green)"
-                            strokeWidth="1.848"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
-                  Heal X
-                </p>
-              </div>
-
-              {/* Simulacrum X (Blue) */}
-              <div className="content-stretch flex flex-col gap-[10px] items-center w-[169px]">
-                <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[var(--shapeships-pastel-blue)] border-solid inset-0 pointer-events-none rounded-[10px]" />
-                  <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
-                    <div className="content-stretch flex gap-[10px] items-center justify-center">
-                      <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-blue)] text-[16px] text-center"
-                        style={{
-                          fontVariationSettings: "'wdth' 100",
-                        }}
-                      >
-                        Simulacrum X
-                      </p>
-                      <div className="relative shrink-0 size-[14.4px]">
-                        <svg
-                          className="block size-full"
-                          fill="none"
-                          preserveAspectRatio="none"
-                          viewBox="0 0 16.248 16.248"
-                        >
-                          <circle
-                            cx="8.124"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-blue)"
-                            strokeWidth="1.848"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
-                  Copy basic enemy ship
-                </p>
-              </div>
-
-              {/* Vortex (Multi - Red+Green+Blue) */}
-              <div className="content-stretch flex flex-col gap-[10px] items-center w-[169px]">
-                <div className="h-[50px] relative rounded-[10px] w-full">
-                  <div className="absolute border-2 border-[var(--shapeships-pastel-red)] border-solid inset-0 pointer-events-none rounded-[10px]" />
-                  <div className="flex items-center justify-center size-full px-[20px] py-[19px]">
-                    <div className="content-stretch flex gap-[10px] items-center justify-center">
-                      {/* Red circles */}
-                      <div className="h-[14.4px] w-[34.8px]">
-                        <svg
-                          className="block size-full"
-                          fill="none"
-                          preserveAspectRatio="none"
-                          viewBox="0 0 36.648 16.248"
-                        >
-                          <circle
-                            cx="8.124"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-red)"
-                            strokeWidth="1.848"
-                          />
-                          <circle
-                            cx="28.524"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-red)"
-                            strokeWidth="1.848"
-                          />
-                        </svg>
-                      </div>
-                      {/* Green circles */}
-                      <div className="h-[14.4px] w-[34.8px]">
-                        <svg
-                          className="block size-full"
-                          fill="none"
-                          preserveAspectRatio="none"
-                          viewBox="0 0 36.648 16.248"
-                        >
-                          <circle
-                            cx="8.124"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-green)"
-                            strokeWidth="1.848"
-                          />
-                          <circle
-                            cx="28.524"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-green)"
-                            strokeWidth="1.848"
-                          />
-                        </svg>
-                      </div>
-                      <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[16px] text-center text-white"
-                        style={{
-                          fontVariationSettings: "'wdth' 100",
-                        }}
-                      >
-                        Vortex
-                      </p>
-                      {/* Blue circle */}
-                      <div className="relative shrink-0 size-[14.4px]">
-                        <svg
-                          className="block size-full"
-                          fill="none"
-                          preserveAspectRatio="none"
-                          viewBox="0 0 16.248 16.248"
-                        >
-                          <circle
-                            cx="8.124"
-                            cy="8.124"
-                            fill="black"
-                            r="7.2"
-                            stroke="var(--shapeships-pastel-blue)"
-                            strokeWidth="1.848"
-                          />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
-                  Deal X damage
-                </p>
-              </div>
-            </div>
-
-            {/* Black Hole - Large Card */}
-            <div
-              className="absolute content-stretch flex flex-col gap-[10px] items-center"
-              style={blackHolePosition}
-            >
-              <div className="h-[101.8px] relative rounded-[10px] w-full">
-                <div className="absolute border-2 border-[var(--shapeships-pastel-red)] border-solid inset-0 pointer-events-none rounded-[10px]" />
-                <div className="flex items-center justify-center size-full p-[20px]">
-                  <div className="content-stretch flex flex-col gap-[10px] items-center justify-center w-full">
-                    {/* Title and energy circles */}
-                    <div className="content-stretch flex gap-[15px] items-start justify-between w-full">
-                      <p
-                        className="font-['Roboto'] font-bold leading-[normal] text-[var(--shapeships-pastel-red)] text-[20px]"
-                        style={{
-                          fontVariationSettings: "'wdth' 100",
-                        }}
-                      >
-                        Black Hole
-                      </p>
-                      <div className="content-stretch flex gap-[10px] items-center">
-                        {/* Red column */}
-                        <div className="flex flex-col gap-[4px]">
-                          <div className="relative shrink-0 size-[14.4px]">
-                            <svg
-                              className="block size-full"
-                              fill="none"
-                              preserveAspectRatio="none"
-                              viewBox="0 0 16.248 16.248"
-                            >
-                              <circle
-                                cx="8.124"
-                                cy="8.124"
-                                fill="black"
-                                r="7.2"
-                                stroke="var(--shapeships-pastel-red)"
-                                strokeWidth="1.848"
-                              />
-                            </svg>
-                          </div>
-                          <div className="relative shrink-0 size-[14.4px]">
-                            <svg
-                              className="block size-full"
-                              fill="none"
-                              preserveAspectRatio="none"
-                              viewBox="0 0 16.248 16.248"
-                            >
-                              <circle
-                                cx="8.124"
-                                cy="8.124"
-                                fill="black"
-                                r="7.2"
-                                stroke="var(--shapeships-pastel-red)"
-                                strokeWidth="1.848"
-                              />
-                            </svg>
-                          </div>
-                          <div className="relative shrink-0 size-[14.4px]">
-                            <svg
-                              className="block size-full"
-                              fill="none"
-                              preserveAspectRatio="none"
-                              viewBox="0 0 16.248 16.248"
-                            >
-                              <circle
-                                cx="8.124"
-                                cy="8.124"
-                                fill="black"
-                                r="7.2"
-                                stroke="var(--shapeships-pastel-red)"
-                                strokeWidth="1.848"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                        {/* Green column */}
-                        <div className="flex flex-col gap-[4px]">
-                          <div className="relative shrink-0 size-[14.4px]">
-                            <svg
-                              className="block size-full"
-                              fill="none"
-                              preserveAspectRatio="none"
-                              viewBox="0 0 16.248 16.248"
-                            >
-                              <circle
-                                cx="8.124"
-                                cy="8.124"
-                                fill="black"
-                                r="7.2"
-                                stroke="var(--shapeships-pastel-green)"
-                                strokeWidth="1.848"
-                              />
-                            </svg>
-                          </div>
-                          <div className="relative shrink-0 size-[14.4px]">
-                            <svg
-                              className="block size-full"
-                              fill="none"
-                              preserveAspectRatio="none"
-                              viewBox="0 0 16.248 16.248"
-                            >
-                              <circle
-                                cx="8.124"
-                                cy="8.124"
-                                fill="black"
-                                r="7.2"
-                                stroke="var(--shapeships-pastel-green)"
-                                strokeWidth="1.848"
-                              />
-                            </svg>
-                          </div>
-                          <div className="relative shrink-0 size-[14.4px]">
-                            <svg
-                              className="block size-full"
-                              fill="none"
-                              preserveAspectRatio="none"
-                              viewBox="0 0 16.248 16.248"
-                            >
-                              <circle
-                                cx="8.124"
-                                cy="8.124"
-                                fill="black"
-                                r="7.2"
-                                stroke="var(--shapeships-pastel-green)"
-                                strokeWidth="1.848"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                        {/* Blue column */}
-                        <div className="flex flex-col gap-[4px]">
-                          <div className="relative shrink-0 size-[14.4px]">
-                            <svg
-                              className="block size-full"
-                              fill="none"
-                              preserveAspectRatio="none"
-                              viewBox="0 0 16.248 16.248"
-                            >
-                              <circle
-                                cx="8.124"
-                                cy="8.124"
-                                fill="black"
-                                r="7.2"
-                                stroke="var(--shapeships-pastel-blue)"
-                                strokeWidth="1.848"
-                              />
-                            </svg>
-                          </div>
-                          <div className="relative shrink-0 size-[14.4px]">
-                            <svg
-                              className="block size-full"
-                              fill="none"
-                              preserveAspectRatio="none"
-                              viewBox="0 0 16.248 16.248"
-                            >
-                              <circle
-                                cx="8.124"
-                                cy="8.124"
-                                fill="black"
-                                r="7.2"
-                                stroke="var(--shapeships-pastel-blue)"
-                                strokeWidth="1.848"
-                              />
-                            </svg>
-                          </div>
-                          <div className="relative shrink-0 size-[14.4px]">
-                            <svg
-                              className="block size-full"
-                              fill="none"
-                              preserveAspectRatio="none"
-                              viewBox="0 0 16.248 16.248"
-                            >
-                              <circle
-                                cx="8.124"
-                                cy="8.124"
-                                fill="black"
-                                r="7.2"
-                                stroke="var(--shapeships-pastel-blue)"
-                                strokeWidth="1.848"
-                              />
-                            </svg>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="content-stretch flex flex-col gap-[4px] items-center w-full">
-                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
-                  Destroy TWO of the opponent&apos;s basic ships.
-                </p>
-                <p className="font-['Roboto'] font-normal leading-[20px] text-[15px] text-center text-white w-full">
-                  Deal 4 damage.
-                </p>
-              </div>
-            </div>
+            <AncientEnergyDisplay />
           </div>
+
+          <div
+            className="absolute flex items-center gap-[2px]"
+            style={{
+              left: solarHeaderPositions.autocast.x,
+              top: solarHeaderPositions.autocast.y,
+            }}
+          >
+            <Checkbox
+              className="!size-[24px]"
+              checked={autocastChecked}
+              onChange={setAutocastChecked}
+            />
+            <span
+              className="font-['Roboto'] text-[18px] font-bold leading-none text-white"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              Autocast
+            </span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="About Autocast"
+                  className="flex size-[24px] shrink-0 items-center justify-center opacity-50 transition-opacity duration-100 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                >
+                  <InfoIcon className="size-[24px]" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                align="end"
+                sideOffset={10}
+                className="z-[80] w-fit max-w-[calc(100vw-32px)] rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[20px] py-[16px] text-[16px] font-normal leading-[22px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+              >
+                <div className="flex flex-col">
+                  <p>When you declare READY, autocast priority powers with remaining energy each turn.</p>
+                  <p className="italic">Does not autocast Simulacrum or multi-colour powers.</p>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          {SOLAR_POWER_SLOTS.map((slot) => {
+            const position = slot.position[catalogueLayout];
+            const Graphic = slot.id === 'SSIM' ? SimulacrumGraphic : slot.graphic;
+
+            return (
+              <div
+                key={slot.id}
+                className="absolute"
+                data-solar-power-id={slot.id}
+                style={{ left: position.x, top: position.y }}
+              >
+                <AncientSolarPowerSlot
+                  graphic={Graphic}
+                  costRows={slot.costRows}
+                  showPlus={'showPlus' in slot && slot.showPlus}
+                  onMouseEnter={
+                    hoverDisabled
+                      ? undefined
+                      : (event) => hover.onEnter(slot.id, event.currentTarget)
+                  }
+                  onMouseLeave={
+                    hoverDisabled
+                      ? undefined
+                      : () => hover.onLeave(slot.id)
+                  }
+                />
+              </div>
+            );
+          })}
         </div>
       );
 
@@ -1116,7 +598,7 @@ export function AncientShipCataloguePanel({
     <>
       {frame === 'desktop' ? <ActionPanelScrollArea>{content}</ActionPanelScrollArea> : content}
 
-      {/* Single hover card rendered via portal (only for Basic Ships on left) */}
+      {/* Single hover card rendered via the existing shared catalogue hover path */}
       {!hoverDisabled &&
         hover.presentState.activeShipId &&
         hover.presentState.anchorRect &&
@@ -1126,6 +608,7 @@ export function AncientShipCataloguePanel({
             anchorRect={hover.presentState.anchorRect}
             eligibility={hoveredShipEligibility}
             motionState={hover.motionState}
+            showCost={!hoveredShipIsSolar}
           />
         )}
     </>

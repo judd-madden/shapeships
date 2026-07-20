@@ -32,6 +32,7 @@ export { ChevronDown } from './icons/ChevronDown';
 export { BuildIcon } from './icons/BuildIcon';
 export { BattleIcon } from './icons/BattleIcon';
 export { HeartIcon } from './icons/HeartIcon';
+export { InfoIcon } from './icons/InfoIcon';
 
 // Dice
 export { Dice } from './dice/Dice';

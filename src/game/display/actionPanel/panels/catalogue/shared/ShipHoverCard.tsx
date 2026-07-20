@@ -29,6 +29,7 @@ interface ShipHoverCardProps {
   anchorRect: DOMRect;
   eligibility: ShipEligibility;
   motionState?: HoverPanelMotionState | null;
+  showCost?: boolean;
 }
 
 const TAIL_SIZE_PX = 12;
@@ -238,6 +239,7 @@ export function ShipHoverCard({
   anchorRect,
   eligibility,
   motionState,
+  showCost = true,
 }: ShipHoverCardProps) {
   const model = getShipCardModel(shipId);
   const { placement, anchorX, anchorY, cardTransform, cardRef } =
@@ -320,12 +322,14 @@ export function ShipHoverCard({
         <div className="content-stretch flex flex-col gap-[6px] items-start relative shrink-0 w-full">
           {/* Cost + Name */}
           <div className="content-stretch flex gap-[6px] items-center leading-[normal] relative shrink-0 text-[20px] text-nowrap text-white w-full">
-            <p
-              className="font-black relative shrink-0"
-              style={{ fontVariationSettings: "'wdth' 100" }}
-            >
-              {model.cost}
-            </p>
+            {showCost ? (
+              <p
+                className="font-black relative shrink-0"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                {model.cost}
+              </p>
+            ) : null}
             <p
               className="font-bold relative shrink-0"
               style={{ fontVariationSettings: "'wdth' 100" }}

@@ -4,6 +4,7 @@
  */
 
 import type { ReactNode } from 'react';
+import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { ACTION_PANEL_DISPLAY_NAMES } from './ActionPanelRegistry';
 import type { ActionPanelViewModel, GameSessionActions } from '../../client/useGameSession';
 import { HumanShipCataloguePanel } from './panels/catalogue/human/HumanShipCataloguePanel';
@@ -30,6 +31,7 @@ interface ActionPanelFrameProps {
   onOpenGameStats?: () => void;
   onToggleGameStats?: () => void;
   onReturnToMainMenu: () => void;
+  simulacrumSpecies?: SpeciesId;
 }
 
 export function ActionPanelFrame({
@@ -40,6 +42,7 @@ export function ActionPanelFrame({
   onOpenGameStats,
   onToggleGameStats,
   onReturnToMainMenu,
+  simulacrumSpecies = 'human',
 }: ActionPanelFrameProps) {
   const displayName = ACTION_PANEL_DISPLAY_NAMES[vm.activePanelId];
   const healthResolutionOverlay = vm.healthResolutionOverlay;
@@ -210,6 +213,7 @@ export function ActionPanelFrame({
               frame="bare"
               catalogueLayout="long"
               hoverDisabled={hoverDisabled}
+              simulacrumSpecies={simulacrumSpecies}
             />
           </DesktopScaledCatalogueCanvas>
         </ActionPanelScrollArea>
@@ -223,6 +227,7 @@ export function ActionPanelFrame({
           buildCatalogue={vm.buildCatalogue}
           catalogueLayout={catalogueLayout}
           hoverDisabled={hoverDisabled}
+          simulacrumSpecies={simulacrumSpecies}
         />
       </div>
     );

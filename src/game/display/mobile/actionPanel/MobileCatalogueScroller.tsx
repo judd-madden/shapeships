@@ -1,4 +1,5 @@
 import type { ActionPanelViewModel, GameSessionActions } from '../../../client/useGameSession';
+import type { SpeciesId } from '../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import { AncientShipCataloguePanel } from '../../actionPanel/panels/catalogue/ancient/AncientShipCataloguePanel';
 import { CentaurShipCataloguePanel } from '../../actionPanel/panels/catalogue/centaur/CentaurShipCataloguePanel';
@@ -10,6 +11,7 @@ interface MobileCatalogueScrollerProps {
   vm: ActionPanelViewModel;
   actions: GameSessionActions;
   onShipInspect?: (shipId: ShipDefId) => void;
+  simulacrumSpecies?: SpeciesId;
 }
 
 const MOBILE_CATALOGUE_CANVASES = {
@@ -19,7 +21,12 @@ const MOBILE_CATALOGUE_CANVASES = {
   ancient: { width: 1446, height: 258 },
 } as const;
 
-export function MobileCatalogueScroller({ vm, actions, onShipInspect }: MobileCatalogueScrollerProps) {
+export function MobileCatalogueScroller({
+  vm,
+  actions,
+  onShipInspect,
+  simulacrumSpecies,
+}: MobileCatalogueScrollerProps) {
   const commonProps = {
     actions,
     buildCatalogue: vm.buildCatalogue,
@@ -45,7 +52,10 @@ export function MobileCatalogueScroller({ vm, actions, onShipInspect }: MobileCa
       </MobileScaledCatalogueCanvas>
     ) : vm.activePanelId === 'ap.catalog.ships.ancient' ? (
       <MobileScaledCatalogueCanvas {...MOBILE_CATALOGUE_CANVASES.ancient}>
-        <AncientShipCataloguePanel {...commonProps} />
+        <AncientShipCataloguePanel
+          {...commonProps}
+          simulacrumSpecies={simulacrumSpecies}
+        />
       </MobileScaledCatalogueCanvas>
     ) : null;
 

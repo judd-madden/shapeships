@@ -21,6 +21,7 @@ import { MobileActionPanel } from './actionPanel/MobileActionPanel';
 import { MobileShipModal } from './actionPanel/MobileShipModal';
 import { MobileSpeciesConfirmPhase, MobileSpeciesSelectionView } from './MobileSpeciesSelectionView';
 import { MobileTopNav } from './MobileTopNav';
+import { resolveAncientSimulacrumSpecies } from '../actionPanel/panels/catalogue/ancient/resolveAncientSimulacrumSpecies';
 import { MobileVoidPanel } from './MobileVoidPanel';
 import { MobileBattleLogTakeover } from './takeovers/MobileBattleLogTakeover';
 import { MobileChatTakeover } from './takeovers/MobileChatTakeover';
@@ -120,6 +121,7 @@ export function MobileGameLayout({
   const bottomStatPopoverRef = useRef<HTMLDivElement | null>(null);
   const fleetShipHoverCardRef = useRef<HTMLDivElement | null>(null);
   const isCataloguePanelActive = CATALOGUE_PANEL_IDS.has(actionPanelVm.activePanelId);
+  const simulacrumSpecies = resolveAncientSimulacrumSpecies(boardVm);
   const isEndGamePanel = actionPanelVm.activePanelId === 'ap.end_of_game.result' || actionPanelVm.endOfGame != null;
   const isGameOver = actionPanelVm.endOfGame != null;
   const hasVoidShips =
@@ -497,6 +499,7 @@ export function MobileGameLayout({
                   actions={mobileActions}
                   onShipInspect={handleCatalogueShipInspect}
                   onOpenMenuTakeover={handleOpenMenu}
+                  simulacrumSpecies={simulacrumSpecies}
                 />
               )}
             </div>

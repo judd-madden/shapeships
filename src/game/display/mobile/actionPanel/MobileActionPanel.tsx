@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown } from '../../../../components/ui/primitives/icons/ChevronDown';
 import type { ActionPanelViewModel, GameSessionActions } from '../../../client/useGameSession';
+import type { SpeciesId } from '../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import { EvolverDrawingPanel } from '../../actionPanel/panels/EvolverDrawingPanel';
 import { FrigateDrawingPanel } from '../../actionPanel/panels/FrigateDrawingPanel';
@@ -16,6 +17,7 @@ interface MobileActionPanelProps {
   actions: GameSessionActions;
   onShipInspect?: (shipId: ShipDefId) => void;
   onOpenMenuTakeover?: () => void;
+  simulacrumSpecies?: SpeciesId;
 }
 
 const CATALOGUE_PANEL_IDS = new Set<ActionPanelViewModel['activePanelId']>([
@@ -108,6 +110,7 @@ export function MobileActionPanel({
   actions,
   onShipInspect,
   onOpenMenuTakeover,
+  simulacrumSpecies,
 }: MobileActionPanelProps) {
   const healthResolutionOverlay = vm.healthResolutionOverlay;
   const phaseLocalFamilySwitch = vm.phaseLocalFamilySwitch;
@@ -227,7 +230,12 @@ export function MobileActionPanel({
   if (CATALOGUE_PANEL_IDS.has(vm.activePanelId)) {
     return renderWithHealthOverlay(
       <div className="h-[204px] w-full shrink-0 overflow-hidden border-t border-[var(--shapeships-grey-70)] bg-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-        <MobileCatalogueScroller vm={vm} actions={actions} onShipInspect={onShipInspect} />
+        <MobileCatalogueScroller
+          vm={vm}
+          actions={actions}
+          onShipInspect={onShipInspect}
+          simulacrumSpecies={simulacrumSpecies}
+        />
       </div>
     );
   }
