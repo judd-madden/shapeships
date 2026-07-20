@@ -186,6 +186,7 @@ interface UseGameSessionOptions {
   onNavigateToGame?: (gameId: string) => void;
 }
 
+const ANCIENT_SELECTION_ENABLED = import.meta.env.DEV;
 const EMPTY_BUILD_PREVIEW_COUNTS: Record<string, number> = {};
 
 function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRowVm[] {
@@ -2771,13 +2772,13 @@ useEffect(() => {
       !isSpeciesSelectionComplete &&
       myRole === 'player' &&
       me?.isActive === true &&
-      selectedSpecies !== 'ancient';
+      (selectedSpecies !== 'ancient' || ANCIENT_SELECTION_ENABLED);
 
     const confirmDisabledReason =
       myRole !== 'player' ? 'Two players already present. You are spectating.' :
       me?.isActive !== true ? 'Inactive player cannot confirm' :
       isSpeciesSelectionComplete ? 'Already confirmed' :
-      selectedSpecies === 'ancient' ? '' :
+      selectedSpecies === 'ancient' && !ANCIENT_SELECTION_ENABLED ? 'Ancient is still in development.' :
       undefined;
 
     board = {
@@ -4467,7 +4468,7 @@ useEffect(() => {
         return;
       }
 
-      if (selectedSpecies === 'ancient') {
+      if (selectedSpecies === 'ancient' && !ANCIENT_SELECTION_ENABLED) {
         console.error('[useGameSession] SPECIES_SUBMIT blocked: species disabled', { selectedSpecies });
         return;
       }

@@ -110,7 +110,7 @@ export function MobileSpeciesConfirmPhase({
   const isAncientSelected = boardVm.selectedSpecies === 'ancient';
   const confirmButtonPrefix = boardVm.isSpeciesSelectionComplete
     ? 'CONFIRMED'
-    : isAncientSelected
+    : isAncientSelected && !boardVm.canConfirmSpecies
       ? 'DISABLED'
       : 'CONFIRM';
   const confirmDisabled = !boardVm.canConfirmSpecies;

@@ -217,7 +217,11 @@ export function ChooseSpeciesStage({
 
   const isAncientSelected = vm.selectedSpecies === 'ancient';
   const selectedSpeciesName = vm.selectedSpecies.toUpperCase();
-  const confirmButtonPrefix = vm.isSpeciesSelectionComplete ? 'CONFIRMED' : isAncientSelected ? 'DISABLED' : 'CONFIRM';
+  const confirmButtonPrefix = vm.isSpeciesSelectionComplete
+    ? 'CONFIRMED'
+    : isAncientSelected && !vm.canConfirmSpecies
+      ? 'DISABLED'
+      : 'CONFIRM';
 
   return (
     <div
