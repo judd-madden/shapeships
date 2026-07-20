@@ -1,0 +1,234 @@
+.ss-ancient-animated-star-birth__circle-a,
+.ss-ancient-animated-star-birth__circle-b,
+.ss-ancient-animated-star-birth__circle-c {
+  transform-box: view-box;
+  transform-origin: 0 0;
+  animation: ss-ancient-animated-star-birth-translate 2000ms cubic-bezier(0, 0, 0.4, 1) both;
+}
+
+.ss-ancient-animated-star-birth__circle-a {
+  --ss-ancient-animated-star-birth-start-x: 11.1407px;
+  --ss-ancient-animated-star-birth-start-y: 19.1513px;
+}
+
+.ss-ancient-animated-star-birth__circle-b {
+  --ss-ancient-animated-star-birth-start-x: -22.2813px;
+  --ss-ancient-animated-star-birth-start-y: 0px;
+}
+
+.ss-ancient-animated-star-birth__circle-c {
+  --ss-ancient-animated-star-birth-start-x: 9.9014px;
+  --ss-ancient-animated-star-birth-start-y: -19.1533px;
+}
+
+@keyframes ss-ancient-animated-star-birth-translate {
+  from {
+    transform: translate(
+      var(--ss-ancient-animated-star-birth-start-x),
+      var(--ss-ancient-animated-star-birth-start-y)
+    );
+  }
+
+  to {
+    transform: translate(0, 0);
+  }
+}
+
+.ss-ancient-animated-supernova__square-a,
+.ss-ancient-animated-supernova__square-b {
+  transform-box: view-box;
+  transform-origin: 34.5px 34.5px;
+  animation: ss-ancient-animated-supernova-rotate 2500ms cubic-bezier(0.25, 0.65, 0.5, 0.95) both;
+}
+
+.ss-ancient-animated-supernova__square-a {
+  --ss-ancient-animated-supernova-start-rotation: 90deg;
+}
+
+.ss-ancient-animated-supernova__square-b {
+  --ss-ancient-animated-supernova-start-rotation: -90deg;
+}
+
+@keyframes ss-ancient-animated-supernova-rotate {
+  from {
+    transform: rotate(var(--ss-ancient-animated-supernova-start-rotation));
+  }
+
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.ss-ancient-animated-siphon__red-flow,
+.ss-ancient-animated-siphon__green-flow {
+  stroke-dasharray: 1;
+  stroke-dashoffset: -1;
+  animation: ss-ancient-animated-siphon-draw-flow 800ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+/* Both canonical paths run from their arrowhead back to the centre, so a negative offset draws them outward. */
+@keyframes ss-ancient-animated-siphon-draw-flow {
+  from {
+    stroke-dashoffset: -1;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.ss-ancient-animated-siphon__red-arrow-reveal,
+.ss-ancient-animated-siphon__green-arrow-reveal {
+  transform-box: view-box;
+  animation: ss-ancient-animated-siphon-reveal-arrow 240ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 760ms both;
+}
+
+.ss-ancient-animated-siphon__red-arrow-reveal {
+  transform-origin: 34.2427px 9.19305px;
+}
+
+.ss-ancient-animated-siphon__green-arrow-reveal {
+  transform-origin: 15.9228px 65.8071px;
+}
+
+@keyframes ss-ancient-animated-siphon-reveal-arrow {
+  from {
+    transform: scaleX(0);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.ss-ancient-animated-siphon__red-arrow-expand,
+.ss-ancient-animated-siphon__green-arrow-expand {
+  transform-box: view-box;
+  animation: ss-ancient-animated-siphon-expand-arrow 1000ms cubic-bezier(0.39, 0.575, 0.565, 1) 1000ms both;
+}
+
+.ss-ancient-animated-siphon__red-arrow-expand {
+  --ss-ancient-animated-siphon-compressed-y: 0.47;
+  transform-origin: 42.2041px 9.19305px;
+}
+
+.ss-ancient-animated-siphon__green-arrow-expand {
+  --ss-ancient-animated-siphon-compressed-y: 0.470041;
+  transform-origin: 7.9614px 65.807049px;
+}
+
+@keyframes ss-ancient-animated-siphon-expand-arrow {
+  from {
+    transform: scaleY(var(--ss-ancient-animated-siphon-compressed-y));
+  }
+
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.ss-ancient-animated-vortex__red,
+.ss-ancient-animated-vortex__green,
+.ss-ancient-animated-vortex__blue {
+  transform-box: view-box;
+  animation-name: ss-ancient-animated-vortex-rotate;
+  animation-duration: 2500ms;
+  animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+  animation-fill-mode: both;
+}
+
+.ss-ancient-animated-vortex__red {
+  transform-origin: 35.1831px 49.811321px;
+}
+
+.ss-ancient-animated-vortex__green {
+  transform-origin: 17.171539px 16.662238px;
+}
+
+.ss-ancient-animated-vortex__blue {
+  transform-origin: 54.793117px 18.153069px;
+  animation-duration: 2300ms;
+}
+
+@keyframes ss-ancient-animated-vortex-rotate {
+  from {
+    transform: rotate(-360deg);
+  }
+
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.ss-ancient-animated-vortex__blue-join {
+  animation: ss-ancient-animated-vortex-reveal-blue-join 1700ms linear both;
+}
+
+@keyframes ss-ancient-animated-vortex-reveal-blue-join {
+  0%,
+  94.1176% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+.ss-ancient-animated-black-hole__green,
+.ss-ancient-animated-black-hole__blue,
+.ss-ancient-animated-black-hole__inner-red,
+.ss-ancient-animated-black-hole__middle-red,
+.ss-ancient-animated-black-hole__outer-red {
+  transform-box: view-box;
+  animation: ss-ancient-animated-black-hole-expand 3000ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+}
+
+.ss-ancient-animated-black-hole__green {
+  --ss-ancient-animated-black-hole-start-rotation: -194.621281deg;
+  --ss-ancient-animated-black-hole-start-scale-x: 0.234232;
+  --ss-ancient-animated-black-hole-start-scale-y: 0.234232;
+  transform-origin: 47.000064px 50.864601px;
+}
+
+.ss-ancient-animated-black-hole__blue {
+  --ss-ancient-animated-black-hole-start-rotation: 150.643317deg;
+  --ss-ancient-animated-black-hole-start-scale-x: 0.190506;
+  --ss-ancient-animated-black-hole-start-scale-y: 0.190507;
+  transform-origin: 45.646423px 50.864601px;
+}
+
+.ss-ancient-animated-black-hole__inner-red {
+  --ss-ancient-animated-black-hole-start-rotation: -110.37263deg;
+  --ss-ancient-animated-black-hole-start-scale-x: 0.280436;
+  --ss-ancient-animated-black-hole-start-scale-y: 0.280436;
+  transform-origin: 45.6465px 50.864477px;
+}
+
+.ss-ancient-animated-black-hole__middle-red {
+  --ss-ancient-animated-black-hole-start-rotation: 99.337002deg;
+  --ss-ancient-animated-black-hole-start-scale-x: 0.382912;
+  --ss-ancient-animated-black-hole-start-scale-y: 0.382912;
+  transform-origin: 45.421134px 50.864485px;
+}
+
+.ss-ancient-animated-black-hole__outer-red {
+  --ss-ancient-animated-black-hole-start-rotation: 209.670851deg;
+  --ss-ancient-animated-black-hole-start-scale-x: 0.182173;
+  --ss-ancient-animated-black-hole-start-scale-y: 0.182173;
+  transform-origin: 45.938497px 50.864601px;
+}
+
+@keyframes ss-ancient-animated-black-hole-expand {
+  from {
+    transform: rotate(var(--ss-ancient-animated-black-hole-start-rotation))
+      scale(
+        var(--ss-ancient-animated-black-hole-start-scale-x),
+        var(--ss-ancient-animated-black-hole-start-scale-y)
+      );
+  }
+
+  to {
+    transform: rotate(0deg) scale(1, 1);
+  }
+}

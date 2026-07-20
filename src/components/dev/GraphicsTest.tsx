@@ -5,6 +5,7 @@ import { DefenderShip, BattlecruiserShip, CarrierShip6, CarrierShip5, CarrierShi
 import { AntlionShip1, AntlionShip0, AntlionArrayShip, AsteriteShip, AsteriteFaceShip, BugBreeder4Ship, BugBreeder3Ship, BugBreeder2Ship, BugBreeder1Ship, BugBreederDepletedShip, ChronoswarmShip, DefenseSwarmShip, EvolverShip, HellHornetShip, HiveShip, MantisShip, OxiteShip, OxiteFaceShip, QueenShip, SacrificialPoolShip, XeniteShip, ZenithShip } from '../../graphics/xenite/assets';
 import { ArkOfDestructionShip, ArkOfDominationShip, ArkOfEntropyShip, ArkOfFuryShip, ArkOfKnowledgeShip, ArkOfPowerShip, ArkOfRedemptionShip, ArkOfTerrorShip, ShipOfAngerShip, ShipOfEquality2Ship, ShipOfEquality1Ship, ShipOfEquality0Ship, ShipOfFamily3Ship, ShipOfFamily2Ship, ShipOfFamily1Ship, ShipOfFamily0Ship, ShipOfFearShip, ShipOfLegacyShip, ShipOfVigorShip, ShipOfWisdom2Ship, ShipOfWisdom1Ship, ShipOfWisdom0Ship } from '../../graphics/centaur/assets';
 import { Asteroid, BlackHole, Convert, Cube, Life, MercuryCore, NeptuneCore, PlutoCore, QuantumMystic, SimulacrumAncient, SimulacrumCentaur, SimulacrumHuman, SimulacrumXenite, Siphon, SolarReserve4, SolarReserve3, SolarReserve2, SolarReserve1, SolarReserve0, Spiral, StarBirth, Supernova, Vortex } from '../../graphics/ancient/assets';
+import { AnimatedBlackHole, AnimatedSiphon, AnimatedStarBirth, AnimatedSupernova, AnimatedVortex } from '../../graphics/ancient/animations';
 
 // External URL for space background
 const SPACE_BACKGROUND_URL = 'https://juddmadden.com/shapeships/images/space-background.jpg';
@@ -22,6 +23,14 @@ const SOLAR_POWER_REGISTRY = [
   { id: 'simulacrum-xenite', name: 'Simulacrum — Xenite', component: SimulacrumXenite },
   { id: 'simulacrum-centaur', name: 'Simulacrum — Centaur', component: SimulacrumCentaur },
   { id: 'simulacrum-ancient', name: 'Simulacrum — Ancient', component: SimulacrumAncient }
+];
+
+const ANIMATED_SOLAR_POWER_REGISTRY = [
+  { id: 'animated-star-birth', name: 'Star Birth', animatedComponent: AnimatedStarBirth, staticComponent: StarBirth },
+  { id: 'animated-supernova', name: 'Supernova', animatedComponent: AnimatedSupernova, staticComponent: Supernova },
+  { id: 'animated-siphon', name: 'Siphon', animatedComponent: AnimatedSiphon, staticComponent: Siphon },
+  { id: 'animated-vortex', name: 'Vortex', animatedComponent: AnimatedVortex, staticComponent: Vortex },
+  { id: 'animated-black-hole', name: 'Black Hole', animatedComponent: AnimatedBlackHole, staticComponent: BlackHole }
 ];
 
 // Ship registry - will be populated as ships are added
@@ -128,6 +137,8 @@ const SHIP_REGISTRY = {
 };
 
 export default function GraphicsTest({ onBack }) {
+  const [animationReplayKey, setAnimationReplayKey] = React.useState(0);
+
   return (
     <div className="container mx-auto p-6 max-w-6xl">
       <div className="mb-6">
@@ -222,6 +233,54 @@ export default function GraphicsTest({ onBack }) {
                       <PowerComponent />
                     </div>
                     <span className="text-center text-sm text-white drop-shadow-lg">{power.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Animated Ancient Solar Power Gallery */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-4">
+            <div className="space-y-1">
+              <CardTitle>Animated Ancient Solar Powers</CardTitle>
+              <p className="text-sm text-gray-600">One-shot animated primitives beside their canonical static final states.</p>
+            </div>
+            <Button type="button" onClick={() => setAnimationReplayKey((current) => current + 1)}>
+              Replay animations
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div
+              className="grid gap-6 p-6 rounded-lg bg-cover bg-center bg-no-repeat"
+              style={{
+                backgroundImage: `url(${SPACE_BACKGROUND_URL})`,
+                backgroundColor: '#000033',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))'
+              }}
+            >
+              {ANIMATED_SOLAR_POWER_REGISTRY.map((power) => {
+                const AnimatedPowerComponent = power.animatedComponent;
+                const StaticPowerComponent = power.staticComponent;
+
+                return (
+                  <div key={power.id} className="flex min-w-0 flex-col items-center gap-3 rounded-md border border-white/20 p-4">
+                    <h3 className="text-center text-sm text-white drop-shadow-lg">Animated {power.name}</h3>
+                    <div className="grid w-full grid-cols-2 gap-4">
+                      <div className="flex min-w-0 flex-col items-center gap-2">
+                        <div className="flex min-h-[112px] w-full items-center justify-center overflow-visible">
+                          <AnimatedPowerComponent key={`${power.id}-${animationReplayKey}`} />
+                        </div>
+                        <span className="text-xs text-gray-200">Animated</span>
+                      </div>
+                      <div className="flex min-w-0 flex-col items-center gap-2">
+                        <div className="flex min-h-[112px] w-full items-center justify-center overflow-visible">
+                          <StaticPowerComponent />
+                        </div>
+                        <span className="text-xs text-gray-200">Canonical static</span>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
