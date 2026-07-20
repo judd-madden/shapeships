@@ -30,6 +30,7 @@ import type {
   ShipInstance,
 } from '../state/GameStateTypes.ts';
 import { appendShipActivationCueBatch } from '../state/shipActivationCues.ts';
+import { getAuthoritativeAncientEnergyTotal } from '../state/ancientState.ts';
 
 type KnoRerollPassIndex = 1 | 2 | 3;
 
@@ -243,7 +244,7 @@ function phaseHasAvailableFleetPowers(state: any, phaseKey: PhaseKey): boolean {
  * 
  * Rules:
  * - Charge ships require chargesCurrent > 0
- * - Solar Power ships require player.energy > 0
+ * - Solar Power ships require normalized authoritative Ancient Energy
  * - Both use "Charge Declaration" subphase (no separate "Charge Response")
  * 
  * @param state - Game state
@@ -304,9 +305,7 @@ function getEligibleChargeOrSolarSourceIds(
   playerId: string,
   phaseKey: 'battle.charge_declaration' | 'battle.charge_response'
 ): string[] {
-  const players = state?.players ?? state?.gameData?.players ?? [];
-  const player = players.find((candidate: any) => candidate?.id === playerId);
-  const playerEnergy = player?.energy ?? 0;
+  const playerEnergy = getAuthoritativeAncientEnergyTotal(state, playerId);
   const turnNumber: number = state?.gameData?.turnNumber ?? 1;
   const usedMap: Record<string, number> =
     state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};

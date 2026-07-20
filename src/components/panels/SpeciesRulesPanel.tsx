@@ -16,9 +16,10 @@ import { resolveShipGraphic } from '../../game/display/graphics/resolveShipGraph
 type RulesTab = 'core' | 'human' | 'xenite' | 'centaur' | 'ancient' | 'timings';
 type SpeciesName = 'Human' | 'Xenite' | 'Centaur' | 'Ancient';
 type EnergyCostTextClass =
-  | 'text-shapeships-pastel-red'
-  | 'text-shapeships-pastel-green'
-  | 'text-shapeships-pastel-blue';
+  | 'text-shapeships-red'
+  | 'text-shapeships-green'
+  | 'text-shapeships-cyan'
+  | 'text-shapeships-white';
 
 interface EnergyCostRow {
   label: string;
@@ -31,12 +32,7 @@ interface SpeciesRulesPanelProps {
 }
 
 const SOLAR_POWER_NAME_TEXT_CLASSES: Record<string, EnergyCostTextClass> = {
-  Asteroid: 'text-shapeships-pastel-red',
-  Supernova: 'text-shapeships-pastel-red',
-  Life: 'text-shapeships-pastel-green',
-  'Star Birth': 'text-shapeships-pastel-green',
-  Convert: 'text-shapeships-pastel-blue',
-  Simulacrum: 'text-shapeships-pastel-blue',
+
 };
 
 const SIPHON_RULE_VALUES = [
@@ -131,7 +127,7 @@ function getEnergyCostRows(ship: ShipDefinitionUI): EnergyCostRow[] {
   if (cost.red > 0) {
     rows.push({
       label: `${cost.red} red energy`,
-      textClass: 'text-shapeships-pastel-red',
+      textClass: 'text-shapeships-red',
     });
   }
 
@@ -139,7 +135,7 @@ function getEnergyCostRows(ship: ShipDefinitionUI): EnergyCostRow[] {
   if (cost.green > 0) {
     rows.push({
       label: `${cost.green} green energy`,
-      textClass: 'text-shapeships-pastel-green',
+      textClass: 'text-shapeships-green',
     });
   }
 
@@ -147,12 +143,12 @@ function getEnergyCostRows(ship: ShipDefinitionUI): EnergyCostRow[] {
   if (cost.xBlue) {
     rows.push({
       label: 'X blue energy',
-      textClass: 'text-shapeships-pastel-blue',
+      textClass: 'text-shapeships-cyan',
     });
   } else if (cost.blue > 0) {
     rows.push({
       label: `${cost.blue} blue energy`,
-      textClass: 'text-shapeships-pastel-blue',
+      textClass: 'text-shapeships-cyan',
     });
   }
 

@@ -103,6 +103,109 @@ export type ShipActivationCueBatch = {
   sources: ShipActivationCueSource[];
 };
 
+export type AncientEnergyPool = {
+  green: number;
+  red: number;
+  blue: number;
+};
+
+export type AncientEnergySource = {
+  sourceId: string;
+  sourceInstanceId?: string;
+  sourceShipDefId: string;
+  battleTurnNumber: number | null;
+  order: number;
+  amounts: AncientEnergyPool;
+};
+
+export type AncientPlayerEnergyState = {
+  battleTurnNumber: number | null;
+  pool: AncientEnergyPool;
+  sources: AncientEnergySource[];
+};
+
+export type AncientDeclarationContext = {
+  contextVersion: 1;
+  battleTurnNumber: number | null;
+  initialEnergy: AncientEnergyPool;
+  energySourceIds: string[];
+};
+
+export type AncientAcceptedDeclaration = {
+  schemaVersion: 1;
+  declarationId: string;
+  playerId: string;
+  context: AncientDeclarationContext;
+};
+
+export type AncientSolarSourceMode = 'manual' | 'autocast' | 'cube';
+
+export type AncientSolarTargetReference = {
+  playerId: string;
+  shipInstanceId?: string;
+};
+
+export type AncientSimulacrumPresentation = {
+  sourceTargetInstanceId: string;
+  copiedShipDefId: string;
+  matchupKey?: string;
+};
+
+export type AncientSolarLedgerEntry = {
+  entryId: string;
+  order: number;
+  solarPowerId: string;
+  sourceMode: AncientSolarSourceMode;
+  paidEnergy: AncientEnergyPool;
+  lockedAmount?: number;
+  targets?: AncientSolarTargetReference[];
+  simulacrum?: AncientSimulacrumPresentation;
+};
+
+export type AncientSolarLedgerState = {
+  battleTurnNumber: number | null;
+  entries: AncientSolarLedgerEntry[];
+};
+
+export type AncientCopiedPermanentConfiguration = {
+  selectedNumber?: number;
+};
+
+export type AncientPendingSimulacrumCopy = {
+  pendingCopyId: string;
+  declarationId: string;
+  ownerPlayerId: string;
+  sourceTargetInstanceId: string;
+  copiedShipDefId: string;
+  queuedTurnNumber: number;
+  materializationTurnNumber: number;
+  capturedStartOfBattleCharges: number;
+  permanentConfiguration: AncientCopiedPermanentConfiguration;
+  sourceMode: 'primary' | 'cube';
+  status: 'queued' | 'materialized';
+  materializedInstanceId?: string;
+};
+
+export type AncientPendingBlackHoleDestruction = {
+  pendingDestructionId: string;
+  declarationId: string;
+  ownerPlayerId: string;
+  targetPlayerId: string;
+  targetInstanceIds: string[];
+  battleTurnNumber: number;
+  lockedDamage: number;
+  status: 'committed' | 'resolved';
+};
+
+export type AncientState = {
+  schemaVersion: 1;
+  energyByPlayerId: Record<string, AncientPlayerEnergyState>;
+  acceptedDeclarationByPlayerId: Record<string, AncientAcceptedDeclaration>;
+  solarLedgerByPlayerId: Record<string, AncientSolarLedgerState>;
+  pendingSimulacrumCopies: AncientPendingSimulacrumCopy[];
+  pendingBlackHoleDestructions: AncientPendingBlackHoleDestruction[];
+};
+
 /**
  * Game data container
  */
@@ -115,6 +218,9 @@ export type GameData = {
   
   /** Ship fleets indexed by player ID */
   ships?: Record<string, ShipInstance[]>;
+
+  /** Durable server-authoritative Ancient state (never turn scratch) */
+  ancient?: AncientState;
   
   /** Turn-specific data */
   turnData?: {

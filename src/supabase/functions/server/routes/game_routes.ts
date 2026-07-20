@@ -18,10 +18,15 @@ import { hasRevealed } from '../engine/intent/CommitStore.ts';
 import { resolveBuildSubmitAuthoritatively } from '../engine/intent/buildSubmitResolution.ts';
 import type { ShipInstance } from '../engine/state/GameStateTypes.ts';
 import { getShipActivationCueBatches } from '../engine/state/shipActivationCues.ts';
+import {
+  normalizeAncientGameState,
+  projectPublicAncientState,
+  sanitizeAncientStateForClient,
+  type AncientCompatibilityRisk,
+} from '../engine/state/ancientState.ts';
 import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
 import { computeLineBonusesForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
 import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers.ts';
-import { getShipById } from '../engine_shared/defs/ShipDefinitions.core.ts';
 import { getShipDefinition } from '../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 import type { StructuredShipPower } from '../engine_shared/effects/translateShipPowers.ts';
 import { EffectKind } from '../engine_shared/effects/Effect.ts';
@@ -39,6 +44,27 @@ import { ensureStateRevision, withBumpedStateRevision } from './state_revision.t
 import { debugLog } from '../utils/serverLogger.ts';
 
 const INITIAL_SAVED_LINES = 3;
+
+function logAncientCompatibilityRisks(
+  boundary: string,
+  risks: AncientCompatibilityRisk[],
+): void {
+  if (risks.length === 0) return;
+  const orderedRisks = [...new Map(
+    risks.map((risk) => [
+      `${risk.path}\u0000${risk.code}\u0000${risk.stableId ?? ''}`,
+      risk,
+    ]),
+  ).values()].sort((a, b) =>
+    a.path.localeCompare(b.path) ||
+    a.code.localeCompare(b.code) ||
+    (a.stableId ?? '').localeCompare(b.stableId ?? '')
+  );
+  console.warn('[AncientState] Canonical compatibility repair persisted', {
+    boundary,
+    risks: orderedRisks,
+  });
+}
 
 const PRIVATE_GAME_TIMED_PRESETS = {
   '5_0': { minutes: 5, incrementSeconds: 0, baseMs: 300_000, incrementMs: 0 },
@@ -123,8 +149,7 @@ function createFreshGameData(
         joinedAt: nowIso,
         health: 25,
         lines: INITIAL_SAVED_LINES,
-        joiningLines: 0,
-        energy: 0
+        joiningLines: 0
       }
     ],
     gameData: {
@@ -169,6 +194,7 @@ function createFreshGameData(
 
   gameData = initializeClocks(gameData, timeControl);
   gameData = syncPhaseFields(gameData);
+  gameData = normalizeAncientGameState(gameData).state;
 
   return gameData;
 }
@@ -196,7 +222,6 @@ function createFreshComputerGameData(
         health: 25,
         lines: INITIAL_SAVED_LINES,
         joiningLines: 0,
-        energy: 0,
       },
       {
         id: botPlayerId,
@@ -209,7 +234,6 @@ function createFreshComputerGameData(
         health: 25,
         lines: INITIAL_SAVED_LINES,
         joiningLines: 0,
-        energy: 0,
       },
     ],
     controllersByPlayerId: {
@@ -270,6 +294,7 @@ function createFreshComputerGameData(
 
   gameData = initializeClocks(gameData, timeControl);
   gameData = syncPhaseFields(gameData);
+  gameData = normalizeAncientGameState(gameData).state;
 
   return gameData;
 }
@@ -390,37 +415,6 @@ function getSubphasesForAvailableActions(phaseKey: string | null): string[] {
     // Keep this minimal for now. Add more as you implement more player-input phases.
     default: return [];
   }
-}
-
-// ============================================================================
-// HELPER: Check if player has available charge or solar option
-// ============================================================================
-function playerHasAvailableChargeOrSolarOption(state: any, playerId: string): boolean {
-  const fleet = state?.gameData?.ships?.[playerId] ?? [];
-  const players = state?.players ?? state?.gameData?.players ?? [];
-  const player = players.find((p: any) => p?.id === playerId);
-  const playerEnergy = player?.energy ?? 0;
-
-  for (const shipInstance of fleet) {
-    const shipDef = getShipById(shipInstance.shipDefId);
-    if (!shipDef) continue;
-
-    // Must have a power that is declarable in charge declaration window
-    const hasChargePower = shipDef.powers?.some((p: any) => p?.subphase === 'Charge Declaration');
-    if (!hasChargePower) continue;
-
-    // Solar Power ships require energy
-    if (shipDef.shipType === 'Solar Power') {
-      if (playerEnergy > 0) return true;
-      continue;
-    }
-
-    // Normal charge ships require chargesCurrent > 0 (fallback to 0 if absent)
-    const chargesCurrent = shipInstance?.chargesCurrent ?? 0;
-    if (chargesCurrent > 0) return true;
-  }
-
-  return false;
 }
 
 function getSnappedChargeSourceIds(state: any, playerId: string): string[] {
@@ -1100,10 +1094,16 @@ export function registerGameRoutes(
     );
     const nextStatus = maintainedState?.status;
     const terminalOccurred = prevStatus !== 'finished' && nextStatus === 'finished';
+    const ancientNormalization = normalizeAncientGameState(maintainedState);
+    maintainedState = ancientNormalization.state;
 
     if (terminalOccurred) {
       maintainedState = withBumpedStateRevision(maintainedState);
       await kvSet(`game_${gameId}`, maintainedState);
+      logAncientCompatibilityRisks(
+        'terminal-maintenance',
+        ancientNormalization.compatibilityRisks,
+      );
     }
 
     const participant = maintainedState?.players?.find(
@@ -1374,7 +1374,12 @@ export function registerGameRoutes(
         return c.json({ error: "Game not found" }, 404);
       }
       gameData = ensureStateRevision(gameData);
-      let didMutate = false;
+      const ingressAncientNormalization = normalizeAncientGameState(gameData);
+      gameData = ingressAncientNormalization.state;
+      let didMutate = ingressAncientNormalization.changed;
+      const ancientCompatibilityRisks = [
+        ...ingressAncientNormalization.compatibilityRisks,
+      ];
 
       const existingPlayer = gameData.players.find((p: any) => p.id === playerId);
 
@@ -1399,8 +1404,7 @@ export function registerGameRoutes(
           joinedAt: new Date().toISOString(),
           health: 25,
           lines: finalRole === 'player' ? INITIAL_SAVED_LINES : 0,
-          joiningLines: 0,
-          energy: 0
+          joiningLines: 0
         };
 
         gameData.players.push(newPlayer);
@@ -1501,13 +1505,24 @@ export function registerGameRoutes(
       }
       gameData = syncPhaseFields(gameData);
 
+      const egressAncientNormalization = normalizeAncientGameState(gameData);
+      gameData = egressAncientNormalization.state;
+      didMutate ||= egressAncientNormalization.changed;
+      ancientCompatibilityRisks.push(
+        ...egressAncientNormalization.compatibilityRisks,
+      );
+
       if (didMutate) {
         gameData = withBumpedStateRevision(gameData);
         await kvSet(`game_${gameId}`, gameData);
+        logAncientCompatibilityRisks('join-game', ancientCompatibilityRisks);
       }
       
       debugLog("Player joined game:", gameId, playerName);
-      return c.json({ message: "Joined game successfully", gameData });
+      return c.json({
+        message: "Joined game successfully",
+        gameData: sanitizeAncientStateForClient(gameData),
+      });
 
     } catch (error) {
       console.error("Join game error:", error);
@@ -1547,7 +1562,12 @@ export function registerGameRoutes(
         return c.json({ error: "Game not found" }, 404);
       }
       gameData = ensureStateRevision(gameData);
-      let didMutate = false;
+      const ingressAncientNormalization = normalizeAncientGameState(gameData);
+      gameData = ingressAncientNormalization.state;
+      let didMutate = ingressAncientNormalization.changed;
+      const ancientCompatibilityRisks = [
+        ...ingressAncientNormalization.compatibilityRisks,
+      ];
 
       const player = gameData.players.find((p: any) => p.id === playerId);
       if (!player) {
@@ -1666,13 +1686,24 @@ export function registerGameRoutes(
       }
       gameData = syncPhaseFields(gameData);
 
+      const egressAncientNormalization = normalizeAncientGameState(gameData);
+      gameData = egressAncientNormalization.state;
+      didMutate ||= egressAncientNormalization.changed;
+      ancientCompatibilityRisks.push(
+        ...egressAncientNormalization.compatibilityRisks,
+      );
+
       if (didMutate) {
         gameData = withBumpedStateRevision(gameData);
         await kvSet(`game_${gameId}`, gameData);
+        logAncientCompatibilityRisks('switch-role', ancientCompatibilityRisks);
       }
       
       debugLog("Player switched role:", gameId, player.name, oldRole, "->", newRole);
-      return c.json({ message: "Role switched successfully", gameData });
+      return c.json({
+        message: "Role switched successfully",
+        gameData: sanitizeAncientStateForClient(gameData),
+      });
 
     } catch (error) {
       console.error("Switch role error:", error);
@@ -1753,32 +1784,6 @@ export function registerGameRoutes(
               turnData: {
                 ...turnData,
                 pendingChargeDeclarations: filteredChargeDeclarations
-              }
-            }
-          };
-        }
-        
-        // Filter pending solar power declarations
-        if (turnData.pendingSOLARPowerDeclarations) {
-          const filteredSolarDeclarations: Record<string, any[]> = {};
-          // Only include requesting player's pending declarations
-          if (turnData.pendingSOLARPowerDeclarations[requestingPlayerId]) {
-            filteredSolarDeclarations[requestingPlayerId] = turnData.pendingSOLARPowerDeclarations[requestingPlayerId];
-          }
-          // For opponent, just show that they have pending declarations (count only)
-          for (const playerId in turnData.pendingSOLARPowerDeclarations) {
-            if (playerId !== requestingPlayerId) {
-              filteredSolarDeclarations[playerId] = []; // Don't reveal opponent's declarations
-            }
-          }
-          
-          gameData = {
-            ...gameData,
-            gameData: {
-              ...gameData.gameData,
-              turnData: {
-                ...gameData.gameData.turnData,
-                pendingSOLARPowerDeclarations: filteredSolarDeclarations
               }
             }
           };
@@ -1951,11 +1956,13 @@ export function registerGameRoutes(
       
       // Compute available actions for requesting player
       const availableActions = computeAvailableActionsForRequestingPlayer(gameData, requestingPlayerId);
+      const publicAncientState = projectPublicAncientState(gameData);
+      const clientSafeGameData = sanitizeAncientStateForClient(gameData);
       const {
         ships: _omitShips,
         battleLogScratch: _omitBattleLogScratch,
         ...responseState
-      } = gameData;
+      } = clientSafeGameData;
       const {
         shipActivationCueBatches: _omitShipActivationCueBatches,
         ...responseTurnData
@@ -1990,7 +1997,7 @@ export function registerGameRoutes(
           : [],
       };
       const publicState = {
-        players: gameData.players ?? [],
+        players: clientSafeGameData.players ?? [],
         phaseReadiness,
         clock: clockSnapshot,
         ships: gameData.gameData?.ships ?? {},
@@ -2015,6 +2022,7 @@ export function registerGameRoutes(
             gameData.status
           ),
         },
+        ancient: publicAncientState,
       };
       const requester = {
         playerId: requestingPlayerId,
@@ -2157,6 +2165,11 @@ export function registerGameRoutes(
       if (!gameData) {
         return c.json({ error: "Game not found" }, 404);
       }
+      const ingressAncientNormalization = normalizeAncientGameState(gameData);
+      gameData = ingressAncientNormalization.state;
+      const ancientCompatibilityRisks = [
+        ...ingressAncientNormalization.compatibilityRisks,
+      ];
 
       const player = gameData.players.find((p: any) => p.id === playerId);
       if (!player) {
@@ -2183,7 +2196,6 @@ export function registerGameRoutes(
         'advance_phase',
         'message',
         'declare_charge',
-        'use_solar_power',
         'pass'
       ]);
 
@@ -2524,7 +2536,16 @@ export function registerGameRoutes(
           });
           
           // Save state before returning
+          const normalizedAdvanceState = normalizeAncientGameState(gameData);
+          gameData = normalizedAdvanceState.state;
+          ancientCompatibilityRisks.push(
+            ...normalizedAdvanceState.compatibilityRisks,
+          );
           await kvSet(`game_${gameId}`, gameData);
+          logAncientCompatibilityRisks(
+            'legacy-send-action-advance-phase',
+            ancientCompatibilityRisks,
+          );
           
           debugLog("Phase advanced and saved successfully:", actionType, "by", originalPlayerName);
           
@@ -2532,9 +2553,8 @@ export function registerGameRoutes(
           return c.json({ 
             message: responseMessage,
             debug: { from: result.from, to: result.to },
-            gameState: gameData 
+            gameState: sanitizeAncientStateForClient(gameData),
           });
-          break;
 
         case 'message':
           logContent = content.content || content;
@@ -2581,47 +2601,6 @@ export function registerGameRoutes(
           responseMessage = 'Charge declaration added (hidden from opponent)';
           break;
 
-        case 'use_solar_power':
-          // Only players can use solar powers
-          if (originalPlayerRole !== 'player') {
-            return c.json({ error: "Only active players can use solar powers" }, 403);
-          }
-          
-          // Initialize pending declarations if needed
-          if (!gameData.gameData) gameData.gameData = {};
-          if (!gameData.gameData.turnData) gameData.gameData.turnData = {};
-          if (!gameData.gameData.turnData.pendingSOLARPowerDeclarations) {
-            gameData.gameData.turnData.pendingSOLARPowerDeclarations = {};
-          }
-          
-          // Check if player is already ready for current step
-          const currentStepSolar = gameData.gameData?.turnData?.currentStep;
-          const solarReadiness = (gameData.gameData?.phaseReadiness || []).find((r: any) => r.playerId === playerId);
-          if (solarReadiness?.isReady && solarReadiness?.currentStep === currentStepSolar) {
-            return c.json({ error: "Cannot use solar powers after marking ready" }, 400);
-          }
-          
-          // Create solar power declaration
-          const solarDeclaration = {
-            playerId,
-            powerType: content.powerType || 'unknown',
-            energyCost: content.energyCost || {},
-            targetPlayerId: content.targetPlayerId,
-            targetShipId: content.targetShipId,
-            cubeRepeated: content.cubeRepeated || false,
-            timestamp: new Date().toISOString()
-          };
-          
-          // Add to player's pending declarations (hidden from opponent)
-          if (!gameData.gameData.turnData.pendingSOLARPowerDeclarations[playerId]) {
-            gameData.gameData.turnData.pendingSOLARPowerDeclarations[playerId] = [];
-          }
-          gameData.gameData.turnData.pendingSOLARPowerDeclarations[playerId].push(solarDeclaration);
-          
-          logContent = `used a solar power (hidden)`;
-          responseMessage = 'Solar power declaration added (hidden from opponent)';
-          break;
-
         case 'pass':
           // Only players can pass
           if (originalPlayerRole !== 'player') {
@@ -2656,12 +2635,24 @@ export function registerGameRoutes(
       });
 
       // Normalize phase fields before saving
-      const normalizedGameData = syncPhaseFields(gameData);
+      const normalizedGameData = normalizeAncientGameState(
+        syncPhaseFields(gameData),
+      );
+      ancientCompatibilityRisks.push(
+        ...normalizedGameData.compatibilityRisks,
+      );
 
-      await kvSet(`game_${gameId}`, normalizedGameData);
+      await kvSet(`game_${gameId}`, normalizedGameData.state);
+      logAncientCompatibilityRisks(
+        'legacy-send-action',
+        ancientCompatibilityRisks,
+      );
       
       debugLog("Action processed successfully:", actionType, "by", originalPlayerName);
-      return c.json({ message: responseMessage, gameState: gameData });
+      return c.json({
+        message: responseMessage,
+        gameState: sanitizeAncientStateForClient(normalizedGameData.state),
+      });
 
     } catch (error) {
       console.error("Send action error:", error);

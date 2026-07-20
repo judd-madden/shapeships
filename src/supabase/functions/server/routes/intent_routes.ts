@@ -30,6 +30,32 @@ import {
 import { appendChatEntry, type ChatStore } from './chat_kv.ts';
 import { ensureStateRevision, withBumpedStateRevision } from './state_revision.ts';
 import { debugLog } from '../utils/serverLogger.ts';
+import {
+  normalizeAncientGameState,
+  sanitizeAncientStateForClient,
+  type AncientCompatibilityRisk,
+} from '../engine/state/ancientState.ts';
+
+function logAncientCompatibilityRisks(
+  boundary: string,
+  risks: AncientCompatibilityRisk[],
+): void {
+  if (risks.length === 0) return;
+  const orderedRisks = [...new Map(
+    risks.map((risk) => [
+      `${risk.path}\u0000${risk.code}\u0000${risk.stableId ?? ''}`,
+      risk,
+    ]),
+  ).values()].sort((a, b) =>
+    a.path.localeCompare(b.path) ||
+    a.code.localeCompare(b.code) ||
+    (a.stableId ?? '').localeCompare(b.stableId ?? '')
+  );
+  console.warn('[AncientState] Canonical compatibility repair persisted', {
+    boundary,
+    risks: orderedRisks,
+  });
+}
 
 async function persistGameStateAndHistoryTogether(
   supabase: any,
@@ -125,7 +151,8 @@ function sanitizeStateForResponse(state: any) {
     return state;
   }
 
-  const { battleLogScratch: _omitBattleLogScratch, ...responseState } = state;
+  const ancientSafeState = sanitizeAncientStateForClient(state);
+  const { battleLogScratch: _omitBattleLogScratch, ...responseState } = ancientSafeState;
   return responseState;
 }
 
@@ -364,6 +391,11 @@ export function registerIntentRoutes(
         );
       }
       baseState = ensureStateRevision(baseState);
+      const baseAncientNormalization = normalizeAncientGameState(baseState);
+      baseState = baseAncientNormalization.state;
+      const ancientCompatibilityRisks = [
+        ...baseAncientNormalization.compatibilityRisks,
+      ];
 
       // 2) Apply against snapshot (no clock accrue here; clocks accrue on latestState only)
       const baseStateBeforeInitialApply = structuredClone(baseState);
@@ -386,6 +418,12 @@ export function registerIntentRoutes(
       let latestState = await kvGet(gameKey);
       if (!latestState) latestState = result.state;
       latestState = ensureStateRevision(latestState);
+      const latestStateBeforeAncientNormalization = structuredClone(latestState);
+      const latestAncientNormalization = normalizeAncientGameState(latestState);
+      latestState = latestAncientNormalization.state;
+      ancientCompatibilityRisks.push(
+        ...latestAncientNormalization.compatibilityRisks,
+      );
 
       // Accrue clocks on latest using SAME nowMs (deterministic for this request)
       const prevStatus = latestState?.status;
@@ -405,7 +443,15 @@ export function registerIntentRoutes(
         // TERMINAL DETECTION: Emit GAME_OVER if terminal transition occurred
         // ========================================================================
         
-        const finalState = withBumpedStateRevision(botRunResult.state);
+        const finalAncientNormalization = normalizeAncientGameState(
+          botRunResult.state,
+        );
+        ancientCompatibilityRisks.push(
+          ...finalAncientNormalization.compatibilityRisks,
+        );
+        const finalState = withBumpedStateRevision(
+          finalAncientNormalization.state,
+        );
         const nextStatus = finalState?.status;
         const terminalOccurred = prevStatus !== 'finished' && nextStatus === 'finished';
         const allEvents = [...retry.events, ...botRunResult.events];
@@ -517,6 +563,10 @@ export function registerIntentRoutes(
             battleLogProcessingResult.nextState,
           );
         }
+        logAncientCompatibilityRisks(
+          'intent-success',
+          ancientCompatibilityRisks,
+        );
         debugLog('[BattleLog][IntentRoute]', {
           branch: 'retry.ok',
           persistedStateTurnNumber:
@@ -586,7 +636,18 @@ export function registerIntentRoutes(
           livePreviousStateAtProcessing: livePreviousStateSummary,
         });
 
-        if (battleLogProcessingResult.shouldPersistHistory) {
+        const duplicateStateChanged =
+          JSON.stringify(latestStateBeforeAncientNormalization) !==
+            JSON.stringify(battleLogProcessingResult.nextState);
+        if (duplicateStateChanged) {
+          battleLogProcessingResult.nextState = withBumpedStateRevision(
+            battleLogProcessingResult.nextState,
+          );
+        }
+        const shouldPersistDuplicate =
+          duplicateStateChanged || battleLogProcessingResult.shouldPersistHistory;
+
+        if (shouldPersistDuplicate && battleLogProcessingResult.shouldPersistHistory) {
           const historyKey = getBattleLogHistoryKey(intentRequest.gameId);
           await persistGameStateAndHistoryTogether(
             supabase,
@@ -595,11 +656,17 @@ export function registerIntentRoutes(
             historyKey,
             battleLogProcessingResult.historyStore,
           );
-        } else {
+        } else if (shouldPersistDuplicate) {
           await persistGameState(
             supabase,
             gameKey,
             battleLogProcessingResult.nextState,
+          );
+        }
+        if (shouldPersistDuplicate) {
+          logAncientCompatibilityRisks(
+            'intent-duplicate-safe',
+            ancientCompatibilityRisks,
           );
         }
         debugLog('[BattleLog][IntentRoute]', {
