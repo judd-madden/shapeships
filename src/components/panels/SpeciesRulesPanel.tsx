@@ -39,6 +39,17 @@ const SOLAR_POWER_NAME_TEXT_CLASSES: Record<string, EnergyCostTextClass> = {
   Simulacrum: 'text-shapeships-pastel-blue',
 };
 
+const SIPHON_RULE_VALUES = [
+  { energy: '2', value: '3' },
+  { energy: '3', value: '6' },
+  { energy: '4', value: '10' },
+  { energy: '5', value: '15' },
+  { energy: '6', value: '21' },
+  { energy: '7', value: '28' },
+  { energy: '8', value: '36' },
+  { energy: '9', value: '45' },
+] as const;
+
 // Build/Battle icon mapping from CSV subphase (UI-ONLY INTERPRETATION)
 // Note: Automatic and Charge Declaration are treated as Battle icons for UI consistency
 // and do not imply exact engine timing.
@@ -154,6 +165,45 @@ function getSolarPowerNameTextClass(ship: ShipDefinitionUI): string {
   }
 
   return SOLAR_POWER_NAME_TEXT_CLASSES[ship.name] || 'text-white';
+}
+
+function SiphonRulesTable() {
+  return (
+    <div className="relative mt-[10px] w-full shrink-0 overflow-x-auto pb-[20px]">
+      <div className="flex w-max items-start gap-[16px] pl-0 sm:pl-[20px] lg:pl-[35px]">
+        <div className="flex shrink-0 flex-col items-end font-['Roboto'] text-[14px] font-medium leading-[1] text-white mt-[8px]">
+          <p className="text-right text-[14px] font-medium leading-[1.1] ">
+            Energy spent
+            <br />
+            of each colour
+          </p>
+          <div className="mt-[8px] flex flex-col items-end gap-[8px]">
+            <p>Healing</p>
+            <p>Damage</p>
+          </div>
+        </div>
+
+        {SIPHON_RULE_VALUES.map(({ energy, value }) => (
+          <div key={energy} className="flex shrink-0 flex-col items-center pt-[15px] font-bold leading-[1.1]">
+            <p className="text-white text-[16px] ">{energy}</p>
+            <div className="mt-[12px] flex flex-col items-center gap-[6px]">
+              <p className="text-[16px] text-shapeships-pastel-green">{value}</p>
+              <p className="text-[16px] text-shapeships-pastel-red">{value}</p>
+            </div>
+          </div>
+        ))}
+
+        <div className="flex shrink-0 flex-col items-center pt-[15px] font-['Roboto'] text-[16px] font-bold leading-[1.1]">
+          <p className="text-white">X</p>
+          <div aria-label="X(X+1) over 2" className="mt-[12px] flex flex-col items-center text-shapeships-grey-50">
+            <span>X(X+1)</span>
+            <span aria-hidden="true" className="my-[3px] h-[2px] w-full bg-shapeships-grey-50" />
+            <span>2</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function SectionHeader({
@@ -314,6 +364,8 @@ function ShipRow({
                   </div>
                 );
               })}
+
+              {ship.id === 'SSIP' && <SiphonRulesTable />}
 
               {/* Evolved Ships Display (CSV-driven: shipType === 'Basic - Evolved') */}
               {evolvedShips && evolvedShips.length > 0 && (
