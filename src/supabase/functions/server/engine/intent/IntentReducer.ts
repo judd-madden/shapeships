@@ -62,12 +62,15 @@ import {
   type BattleRevealPayload,
   type ActionPayload,
   type ActionsBatchPayload,
+  type ChargeDeclarationSubmitPayload,
   type BattleWindow,
   RejectionCode,
   getSpeciesCommitKey,
   getBuildCommitKey,
   getBattleCommitKey,
 } from './IntentTypes.ts';
+import { ancientAtomicDeclarationContractApplies } from './chargeDeclarationEligibility.ts';
+import { resolveChargeDeclarationSubmission } from './chargeDeclarationResolution.ts';
 import { validateReveal } from './Hash.ts';
 import {
   storeCommit,
@@ -683,6 +686,7 @@ export async function applyIntent(
     'BUILD_SUBMIT',
     'BATTLE_COMMIT',
     'BATTLE_REVEAL',
+    'CHARGE_DECLARATION_SUBMIT',
     'DECLARE_READY',
     'ACTION',
     'ACTIONS_SUBMIT'
@@ -785,6 +789,28 @@ export async function applyIntent(
     }
   }
   
+  if (
+    phaseKey === 'battle.charge_declaration' &&
+    ancientAtomicDeclarationContractApplies(state, sessionPlayerId)
+  ) {
+    const isPowerAction = intent.intentType === 'ACTION' && intent.payload?.actionType === 'power';
+    if (
+      isPowerAction ||
+      intent.intentType === 'ACTIONS_SUBMIT' ||
+      intent.intentType === 'DECLARE_READY'
+    ) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.PHASE_NOT_ALLOWED,
+          message: 'Ancient Charge Declaration input must use CHARGE_DECLARATION_SUBMIT',
+        },
+      };
+    }
+  }
+
   // ============================================================================
   // ROUTE BY INTENT TYPE
   // ============================================================================
@@ -830,6 +856,9 @@ export async function applyIntent(
     case 'BATTLE_REVEAL':
       return await handleBattleReveal(state, sessionPlayerId, intent, nowMs, events);
       
+    case 'CHARGE_DECLARATION_SUBMIT':
+      return handleChargeDeclarationSubmit(state, sessionPlayerId, intent, nowMs, events);
+
     case 'DECLARE_READY':
       return handleDeclareReady(state, sessionPlayerId, intent, nowMs, events);
 
@@ -2436,10 +2465,59 @@ function resolvePendingFirstStrikeSelections(state: any, nowMs: number, events: 
 }
 
 // ============================================================================
+// ATOMIC ANCIENT CHARGE DECLARATION
+// ============================================================================
+
+function handleChargeDeclarationSubmit(
+  state: any,
+  playerId: string,
+  intent: IntentRequest,
+  nowMs: number,
+  events: any[],
+): IntentResult {
+  try {
+    const resolved = resolveChargeDeclarationSubmission({
+      state,
+      playerId,
+      payload: intent.payload as ChargeDeclarationSubmitPayload,
+      nowMs,
+    });
+    if (resolved.status === 'idempotent') {
+      return { ok: true, state: resolved.state, events: [] };
+    }
+    events.push(...resolved.events);
+    return markPlayerReadyAndAdvance(resolved.state, playerId, intent, nowMs, events);
+  } catch (error: any) {
+    const message = error?.message ?? String(error);
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: message.includes('only allowed during')
+          ? RejectionCode.WRONG_PHASE
+          : RejectionCode.BAD_PAYLOAD,
+        message,
+      },
+    };
+  }
+}
+
+// ============================================================================
 // DECLARE_READY
 // ============================================================================
 
 function handleDeclareReady(
+  state: any,
+  playerId: string,
+  intent: IntentRequest,
+  nowMs: number,
+  events: any[]
+): IntentResult {
+  return markPlayerReadyAndAdvance(state, playerId, intent, nowMs, events);
+}
+
+function markPlayerReadyAndAdvance(
   state: any,
   playerId: string,
   intent: IntentRequest,

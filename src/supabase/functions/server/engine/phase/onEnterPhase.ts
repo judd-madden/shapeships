@@ -18,11 +18,7 @@ import { hasCommitted, hasRevealed, allCommittedPlayersRevealed } from '../inten
 import { getBuildCommitKey } from '../intent/IntentTypes.ts';
 import { computeLineBonusesForPlayer } from '../lines/computeLineBonusForPlayer.ts';
 import { resolvePhase } from '../../engine_shared/resolve/resolvePhase.ts';
-import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
-import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
-import type { StructuredShipPower } from '../../engine_shared/effects/translateShipPowers.ts';
 import { isPhaseKey, type PhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
-import { getValidShipOfEqualityTargets } from '../../engine_shared/resolve/destroyRules.ts';
 import { rollD6 } from '../util/rollD6.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
 import type {
@@ -32,8 +28,13 @@ import type {
 import { appendShipActivationCueBatch } from '../state/shipActivationCues.ts';
 import {
   applyAncientBattleRevealPreparation,
-  getAuthoritativeAncientEnergyTotal,
 } from '../state/ancientState.ts';
+import {
+  getEligibleOrdinaryChargeSourceIdsAtDeclarationStart,
+  getRelevantSolarGridSourceIdsAtDeclarationStart,
+  playerHasOrdinaryChargeResponseOption,
+  playerRequiresChargeDeclarationInput,
+} from '../intent/chargeDeclarationEligibility.ts';
 
 type KnoRerollPassIndex = 1 | 2 | 3;
 
@@ -194,10 +195,8 @@ function computeEffectiveDiceStateForPlayers(state: any, baseDice: number) {
  * Maps PhaseKey to canonical ship power subphase labels.
  * Used to determine if a phase has fleet powers that require player input.
  * 
- * NOTE: Charge-capable ships are identified via powers with subphase "Charge Declaration",
- * which qualifies them for both Charge Declaration and Charge Response phases.
- * Solar Powers are considered charges and require energy to declare.
- * battle.charge_response does not use this map - it has dedicated availability logic.
+ * NOTE: Charge Declaration and Charge Response use dedicated ordinary/SOL eligibility logic.
+ * Solar posture never contributes to Charge Response.
  */
 const PHASE_TO_SUBPHASE_MAP: Record<PhaseKey, string[]> = {
   'setup.species_selection': [],
@@ -242,165 +241,18 @@ function phaseHasAvailableFleetPowers(state: any, phaseKey: PhaseKey): boolean {
   return false;
 }
 
-/**
- * Check if a specific player has any available charge or solar power option.
- * 
- * Rules:
- * - Charge ships require chargesCurrent > 0
- * - Solar Power ships require normalized authoritative Ancient Energy
- * - Both use "Charge Declaration" subphase (no separate "Charge Response")
- * 
- * @param state - Game state
- * @param player - Player to check
- * @returns true if player can declare at least one charge or solar power
- */
-function getSnappedChargeResponseSourceIds(state: any, playerId: string): string[] {
-  const rawSourceIds = state?.gameData?.turnData?.chargeDeclarationEligibleSourceIdsByPlayerId?.[playerId];
-  if (!Array.isArray(rawSourceIds)) {
-    return [];
-  }
-
-  const sourceIds: string[] = [];
-  const seen = new Set<string>();
-
-  for (const sourceId of rawSourceIds) {
-    if (typeof sourceId !== 'string' || sourceId.length === 0 || seen.has(sourceId)) continue;
-    seen.add(sourceId);
-    sourceIds.push(sourceId);
-  }
-
-  return sourceIds;
-}
-
-function resolveChargeResponseSource(state: any, playerId: string, sourceInstanceId: string): any | null {
-  const liveFleet = state?.gameData?.ships?.[playerId] ?? [];
-  const liveShip = liveFleet.find((ship: any) => ship?.instanceId === sourceInstanceId);
-  if (liveShip) {
-    return liveShip;
-  }
-
-  const voidFleet = state?.gameData?.voidShipsByPlayerId?.[playerId] ?? [];
-  return voidFleet.find((ship: any) => ship?.instanceId === sourceInstanceId) ?? null;
-}
-
-function getChargePhaseSourceShips(
-  state: any,
-  playerId: string,
-  phaseKey: 'battle.charge_declaration' | 'battle.charge_response'
-): any[] {
-  if (phaseKey === 'battle.charge_declaration') {
-    return state?.gameData?.ships?.[playerId] ?? [];
-  }
-
-  const sourceShips: any[] = [];
-
-  for (const sourceInstanceId of getSnappedChargeResponseSourceIds(state, playerId)) {
-    const ship = resolveChargeResponseSource(state, playerId, sourceInstanceId);
-    if (!ship) continue;
-    sourceShips.push(ship);
-  }
-
-  return sourceShips;
-}
-
-function getEligibleChargeOrSolarSourceIds(
-  state: any,
-  playerId: string,
-  phaseKey: 'battle.charge_declaration' | 'battle.charge_response'
-): string[] {
-  const playerEnergy = getAuthoritativeAncientEnergyTotal(state, playerId);
-  const turnNumber: number = state?.gameData?.turnNumber ?? 1;
-  const usedMap: Record<string, number> =
-    state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
-  let cachedShipOfEqualityTargets:
-    | ReturnType<typeof getValidShipOfEqualityTargets>
-    | null = null;
-
-  const eligibleSourceIds: string[] = [];
-
-  for (const shipInstance of getChargePhaseSourceShips(state, playerId, phaseKey)) {
-    const sourceInstanceId = shipInstance?.instanceId;
-    const shipDefId = shipInstance?.shipDefId;
-    if (typeof sourceInstanceId !== 'string' || typeof shipDefId !== 'string') continue;
-
-    const shipDef = getShipDefinition(shipDefId);
-    if (!shipDef || !Array.isArray((shipDef as any).structuredPowers)) continue;
-
-    const structuredPowers: StructuredShipPower[] = (shipDef as any).structuredPowers;
-    let sourceHasEligibleChoice = false;
-
-    for (const power of structuredPowers) {
-      if (power?.type !== 'choice') continue;
-      if (!Array.isArray((power as any).timings) || !(power as any).timings.includes(phaseKey)) continue;
-
-      if ((shipDef as any).shipType === 'Solar Power') {
-        if (playerEnergy > 0) {
-          sourceHasEligibleChoice = true;
-          break;
-        }
-        continue;
-      }
-
-      const actionRequiresCharge =
-        (power.requiresCharge ?? false) ||
-        (Array.isArray(power.options) && power.options.some((option: any) => option?.requiresCharge === true));
-
-      if (!actionRequiresCharge) continue;
-      if (usedMap[sourceInstanceId] === turnNumber) continue;
-
-      const chargesCurrent = shipInstance.chargesCurrent ?? 0;
-      const chargeCost = power.chargeCost ?? 1;
-      if (chargesCurrent < chargeCost) continue;
-
-      if (shipDefId === 'EQU') {
-        if (cachedShipOfEqualityTargets == null) {
-          cachedShipOfEqualityTargets = getValidShipOfEqualityTargets(state, playerId);
-        }
-
-        if (
-          cachedShipOfEqualityTargets.validOwnTargets.length === 0 ||
-          cachedShipOfEqualityTargets.validOpponentTargets.length === 0
-        ) {
-          continue;
-        }
-      }
-
-      sourceHasEligibleChoice = true;
-      break;
-    }
-
-    if (sourceHasEligibleChoice) {
-      eligibleSourceIds.push(sourceInstanceId);
-    }
-  }
-
-  return eligibleSourceIds;
-}
-
-function playerHasAvailableChargeOrSolarOption(state: any, player: any): boolean {
-  const phaseKey = getCurrentPhaseKey(state);
-  if (phaseKey !== 'battle.charge_declaration' && phaseKey !== 'battle.charge_response') {
-    return false;
-  }
-
-  return getEligibleChargeOrSolarSourceIds(state, player.id, phaseKey).length > 0;
-}
-
-/**
- * Check if ANY player has available charge or solar power options.
- * \n * @param state - Game state
- * @returns true if at least one player has charge/solar options
- */
-function anyPlayerHasAvailableChargeOrSolarOption(state: any): boolean {
+function anyPlayerRequiresChargeDeclarationInput(state: any): boolean {
   const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
-  
-  for (const player of activePlayers) {
-    if (playerHasAvailableChargeOrSolarOption(state, player)) {
-      return true;
-    }
-  }
-  
-  return false;
+  return activePlayers.some((player: any) =>
+    playerRequiresChargeDeclarationInput(state, player.id)
+  );
+}
+
+function anyPlayerHasOrdinaryChargeResponseOption(state: any): boolean {
+  const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
+  return activePlayers.some((player: any) =>
+    playerHasOrdinaryChargeResponseOption(state, player.id)
+  );
 }
 
 /**
@@ -497,15 +349,15 @@ function phaseRequiresPlayerInput(state: any, phaseKey: PhaseKey): boolean {
     return phaseHasAvailableFleetPowers(state, phaseKey);
   }
 
-  // battle.charge_declaration: requires input only if charge/solar options exist
+  // battle.charge_declaration: ordinary charge, Ancient Energy, or charged SOL input
   if (phaseKey === 'battle.charge_declaration') {
-    return anyPlayerHasAvailableChargeOrSolarOption(state);
+    return anyPlayerRequiresChargeDeclarationInput(state);
   }
 
   // battle.charge_response: requires input only if charges declared AND options exist
   if (phaseKey === 'battle.charge_response') {
     // THREE-CONDITION GATE (paper-play accurate):
-    // 1. At least one charge/solar was spent during declaration
+    // 1. At least one ordinary response-capable charge was spent during declaration
     if (turnData.anyChargesSpentInDeclaration !== true) {
       return false;
     }
@@ -524,8 +376,8 @@ function phaseRequiresPlayerInput(state: any, phaseKey: PhaseKey): boolean {
       return false; // At least one player was ineligible at declaration start
     }
     
-    // 3. After declaration, someone still has charge/solar available
-    return anyPlayerHasAvailableChargeOrSolarOption(state);
+    // 3. After declaration, someone still has an ordinary charge response available
+    return anyPlayerHasOrdinaryChargeResponseOption(state);
   }
 
   // battle.end_of_turn_resolution: auto-advance (server resolves)
@@ -602,23 +454,28 @@ function enterPhaseOnce(
   // ============================================================================
   // CHARGE DECLARATION SNAPSHOT - battle.charge_declaration
   // ============================================================================
-  // Snapshot which players had available charge/solar options at declaration start.
-  // This snapshot gates battle.charge_response later.
+  // Snapshot ordinary response-capable sources separately from Ancient SOL choices.
+  // Only the ordinary snapshot gates battle.charge_response later.
   
   if (toKey === 'battle.charge_declaration') {
     const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
     const snapshot: Record<string, boolean> = {};
     const snapshotSourceIdsByPlayerId: Record<string, string[]> = {};
+    const solarSnapshotSourceIdsByPlayerId: Record<string, string[]> = {};
     const snapshotFleetByPlayerId: Record<string, ShipInstance[]> = {};
     
     for (const player of activePlayers) {
-      const eligibleSourceIds = getEligibleChargeOrSolarSourceIds(
+      const eligibleSourceIds = getEligibleOrdinaryChargeSourceIdsAtDeclarationStart(
         workingState,
         player.id,
-        'battle.charge_declaration'
+      );
+      const solarSourceIds = getRelevantSolarGridSourceIdsAtDeclarationStart(
+        workingState,
+        player.id,
       );
       const liveFleet = workingState?.gameData?.ships?.[player.id] ?? [];
       snapshotSourceIdsByPlayerId[player.id] = eligibleSourceIds;
+      solarSnapshotSourceIdsByPlayerId[player.id] = solarSourceIds;
       snapshotFleetByPlayerId[player.id] = Array.isArray(liveFleet)
         ? liveFleet.map((ship: ShipInstance) => ({ ...ship }))
         : [];
@@ -626,12 +483,14 @@ function enterPhaseOnce(
     }
     
     turnData.chargeDeclarationEligibleSourceIdsByPlayerId = snapshotSourceIdsByPlayerId;
+    turnData.solarGridDeclarationSourceIdsByPlayerId = solarSnapshotSourceIdsByPlayerId;
     turnData.chargeDeclarationEligibleByPlayerId = snapshot;
     turnData.chargeDeclarationFleetSnapshotByPlayerId = snapshotFleetByPlayerId;
     
     debugLog(`[OnEnterPhase] Charge declaration snapshot:`, {
       eligibleByPlayerId: snapshot,
       eligibleSourceIdsByPlayerId: snapshotSourceIdsByPlayerId,
+      solarGridSourceIdsByPlayerId: solarSnapshotSourceIdsByPlayerId,
       fleetSnapshotSizesByPlayerId: Object.fromEntries(
         Object.entries(snapshotFleetByPlayerId).map(([playerId, fleet]) => [playerId, fleet.length])
       ),
@@ -1076,7 +935,7 @@ function enterPhaseOnce(
   // AUTO-READY INELIGIBLE PLAYERS - battle.charge_declaration / battle.charge_response
   // ============================================================================
   // Responsibilities:
-  // 1. Auto-ready players who have no available charge/solar options this phase
+  // 1. Auto-ready players who have no declaration input or ordinary response input
   // 2. Only eligible players must click Ready to advance
 
   if (toKey === 'battle.charge_declaration' || toKey === 'battle.charge_response') {
@@ -1088,7 +947,9 @@ function enterPhaseOnce(
     const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
 
     for (const player of activePlayers) {
-      const eligible = playerHasAvailableChargeOrSolarOption(workingState, player);
+      const eligible = toKey === 'battle.charge_declaration'
+        ? playerRequiresChargeDeclarationInput(workingState, player.id)
+        : playerHasOrdinaryChargeResponseOption(workingState, player.id);
 
       if (!eligible) {
         const existingIndex = workingState.gameData.phaseReadiness.findIndex(

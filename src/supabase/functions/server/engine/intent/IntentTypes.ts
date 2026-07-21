@@ -18,6 +18,7 @@ export type IntentType =
   | 'BUILD_SUBMIT'
   | 'BATTLE_COMMIT'
   | 'BATTLE_REVEAL'
+  | 'CHARGE_DECLARATION_SUBMIT'
   | 'DECLARE_READY'
   | 'CONTINUE_PHASE_HOLD'
   | 'ACTION'
@@ -132,6 +133,22 @@ export type ActionPayload =
  */
 export type ActionsBatchPayload = {
   actions: PowerActionPayload[];
+};
+
+export const CHARGE_DECLARATION_CONTRACT_VERSION = 1 as const;
+
+export type SolarGridDeclarationChoice = {
+  sourceInstanceId: string;
+  choiceId: 'use' | 'hold';
+};
+
+export type ChargeDeclarationSubmitPayload = {
+  contractVersion: typeof CHARGE_DECLARATION_CONTRACT_VERSION;
+  declarationId: string;
+  ordinaryChargeActions: PowerActionPayload[];
+  solarGridChoices: SolarGridDeclarationChoice[];
+  solarCasts: unknown[];
+  autocastEnabled: boolean;
 };
 
 // ============================================================================

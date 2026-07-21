@@ -70,7 +70,7 @@ export const COMPUTED_EFFECTS_AUDIT = [
   { shipDefId: 'MER', mechanic: 'energy gain each battle phase' },
   { shipDefId: 'PLU', mechanic: 'energy gain each battle phase' },
   { shipDefId: 'NEP', mechanic: 'energy gain each battle phase' },
-  { shipDefId: 'SOL', mechanic: 'energy gain/spend via charges' },
+  { shipDefId: 'SOL', mechanic: 'atomic charge-to-Energy choice + recurring depleted Automatic Heal 2' },
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1162,6 +1162,28 @@ export function computePhaseComputedEffects(
 
       debugLog(
         `[computePhaseComputedEffects] ArkOfDomination automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownedShips=${ownedShipCount} heal=${healPerDom}`
+      );
+    }
+  }
+
+  // === SOLAR GRID (SOL): every live depleted source heals its current controller for 2 ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    for (const ship of getShips(state, ownerPlayerId)) {
+      if (ship.shipDefId !== 'SOL' || ship.chargesCurrent !== 0) continue;
+      computedEffects.push({
+        id: `solar_grid_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: 'SOL' },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: ownerPlayerId },
+        kind: EffectKind.Heal,
+        amount: 2,
+      });
+      debugLog(
+        `[computePhaseComputedEffects] Solar Grid automatic: controller=${ownerPlayerId} instance=${ship.instanceId} heal=2`
       );
     }
   }

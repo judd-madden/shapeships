@@ -10,6 +10,13 @@ import {
   projectPublicAncientState,
   sanitizeAncientStateForClient,
 } from './ancientState.ts';
+import {
+  ancientAtomicDeclarationContractApplies,
+  getEligibleOrdinaryChargeSourceIdsAtDeclarationStart,
+  getAvailableOrdinaryChargeResponseSourceIds,
+  getRelevantSolarGridSourceIdsAtDeclarationStart,
+  playerRequiresChargeDeclarationInput,
+} from '../intent/chargeDeclarationEligibility.ts';
 
 function createBaseState() {
   return {
@@ -339,6 +346,32 @@ Deno.test('normalization repairs malformed canonical data deterministically', ()
       },
     ],
   );
+});
+
+Deno.test('older valid accepted declaration placeholders normalize additively without a schema bump', () => {
+  const state: any = createBaseState();
+  state.gameData.ancient = createEmptyAncientState(state.players);
+  state.gameData.ancient.acceptedDeclarationByPlayerId.p1 = {
+    schemaVersion: 1,
+    declarationId: 'legacy-p5-placeholder',
+    playerId: 'p1',
+    context: {
+      contextVersion: 1,
+      battleTurnNumber: 2,
+      initialEnergy: { green: 1, red: 0, blue: 0 },
+      energySourceIds: ['core-source'],
+    },
+  };
+  const normalized = normalizeAncientGameState(state);
+  const accepted = normalized.state.gameData.ancient.acceptedDeclarationByPlayerId.p1;
+  assert.equal(normalized.state.gameData.ancient.schemaVersion, 1);
+  assert.equal(accepted.contractVersion, 1);
+  assert.deepEqual(accepted.ordinaryChargeActions, []);
+  assert.deepEqual(accepted.solarGridChoices, []);
+  assert.deepEqual(accepted.solarCasts, []);
+  assert.equal(accepted.autocastEnabled, false);
+  assert.equal(typeof accepted.declarationFingerprint, 'string');
+  assert.equal(normalizeAncientGameState(normalized.state).changed, false);
 });
 
 Deno.test('canonical accessor uses species compatibility and current player role only', () => {
@@ -821,7 +854,7 @@ Deno.test('durable Ancient state survives ordinary turn rollover without Energy 
   assert.deepEqual((advanced.state as any).gameData.ancient, state.gameData.ancient);
 });
 
-Deno.test('P5 adds no Solar declaration path while ordinary charge and response behavior remain intact', () => {
+Deno.test('Solar Power ships stay outside ordinary charge declaration and response snapshots', () => {
   const state: any = normalizeAncientGameState(createBaseState()).state;
   state.gameData.currentPhase = 'battle';
   state.gameData.currentSubPhase = 'charge_declaration';
@@ -885,12 +918,126 @@ Deno.test('P5 adds no Solar declaration path while ordinary charge and response 
   );
 });
 
+Deno.test('P12 declaration input separates Energy, charged SOL, ordinary charge, acceptance, and response posture', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  state.gameData.turnNumber = 3;
+  state.gameData.turnData.turnNumber = 3;
+  state.gameData.currentPhase = 'battle';
+  state.gameData.currentSubPhase = 'charge_declaration';
+  state.gameData.turnData.currentMajorPhase = 'battle';
+  state.gameData.turnData.currentSubPhase = 'charge_declaration';
+  state.gameData.ancient.energyByPlayerId.p1 = {
+    battleTurnNumber: 3,
+    pool: { green: 1, red: 0, blue: 0 },
+    sources: [],
+  };
+  state.gameData.ships = {
+    p1: [
+      { instanceId: 'charged-sol', shipDefId: 'SOL', chargesCurrent: 4 },
+      { instanceId: 'depleted-sol', shipDefId: 'SOL', chargesCurrent: 0 },
+      { instanceId: 'cube', shipDefId: 'CUB' },
+      { instanceId: 'foreign-int', shipDefId: 'INT', chargesCurrent: 1 },
+    ],
+    p2: [{ instanceId: 'non-ancient-sol', shipDefId: 'SOL', chargesCurrent: 4 }],
+  };
+  assert.deepEqual(getRelevantSolarGridSourceIdsAtDeclarationStart(state, 'p1'), ['charged-sol']);
+  assert.deepEqual(getRelevantSolarGridSourceIdsAtDeclarationStart(state, 'p2'), []);
+  assert.deepEqual(getEligibleOrdinaryChargeSourceIdsAtDeclarationStart(state, 'p1'), ['foreign-int']);
+
+  state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
+    p1: ['foreign-int'], p2: [],
+  };
+  state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = {
+    p1: ['charged-sol'], p2: [],
+  };
+  assert.equal(playerRequiresChargeDeclarationInput(state, 'p1'), true);
+  assert.equal(playerRequiresChargeDeclarationInput(state, 'p2'), false);
+
+  state.gameData.ancient.acceptedDeclarationByPlayerId.p1 = {
+    schemaVersion: 1,
+    contractVersion: 1,
+    declarationId: 'accepted',
+    declarationFingerprint: 'fingerprint',
+    playerId: 'p1',
+    context: {
+      contextVersion: 1,
+      battleTurnNumber: 3,
+      initialEnergy: { green: 1, red: 0, blue: 0 },
+      energySourceIds: [],
+    },
+    ordinaryChargeActions: [],
+    solarGridChoices: [{ sourceInstanceId: 'charged-sol', choiceId: 'hold' }],
+    solarCasts: [],
+    autocastEnabled: false,
+  };
+  assert.equal(playerRequiresChargeDeclarationInput(state, 'p1'), false);
+  assert.equal(ancientAtomicDeclarationContractApplies(state, 'p1'), true);
+});
+
+Deno.test('P12 isolated declaration gates stop only for Energy, charged SOL, or ordinary charge', () => {
+  const createGateState = () => {
+    const state: any = normalizeAncientGameState(createBaseState()).state;
+    state.gameData.turnNumber = 3;
+    state.gameData.turnData.turnNumber = 3;
+    state.gameData.ships = { p1: [], p2: [] };
+    state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = { p1: [], p2: [] };
+    state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = { p1: [], p2: [] };
+    state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId = { p1: [], p2: [] };
+    state.gameData.ancient.energyByPlayerId.p1 = {
+      battleTurnNumber: 3,
+      pool: { green: 0, red: 0, blue: 0 },
+      sources: [],
+    };
+    return state;
+  };
+
+  const empty = createGateState();
+  empty.gameData.ships.p1 = [{ instanceId: 'cube', shipDefId: 'CUB' }];
+  assert.equal(playerRequiresChargeDeclarationInput(empty, 'p1'), false);
+
+  const energyOnly = createGateState();
+  energyOnly.gameData.ancient.energyByPlayerId.p1.pool.green = 1;
+  assert.equal(playerRequiresChargeDeclarationInput(energyOnly, 'p1'), true);
+
+  const chargedSolOnly = createGateState();
+  chargedSolOnly.gameData.ships.p1 = [{ instanceId: 'sol', shipDefId: 'SOL', chargesCurrent: 4 }];
+  chargedSolOnly.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1 = ['sol'];
+  chargedSolOnly.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p1 = structuredClone(
+    chargedSolOnly.gameData.ships.p1,
+  );
+  assert.equal(playerRequiresChargeDeclarationInput(chargedSolOnly, 'p1'), true);
+
+  const depletedSolOnly = createGateState();
+  depletedSolOnly.gameData.ships.p1 = [{ instanceId: 'sol', shipDefId: 'SOL', chargesCurrent: 0 }];
+  assert.equal(playerRequiresChargeDeclarationInput(depletedSolOnly, 'p1'), false);
+
+  const foreignChargeOnly = createGateState();
+  foreignChargeOnly.gameData.ships.p1 = [{ instanceId: 'int', shipDefId: 'INT', chargesCurrent: 1 }];
+  foreignChargeOnly.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId.p1 = ['int'];
+  foreignChargeOnly.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p1 = structuredClone(
+    foreignChargeOnly.gameData.ships.p1,
+  );
+  assert.equal(playerRequiresChargeDeclarationInput(foreignChargeOnly, 'p1'), true);
+  assert.deepEqual(getAvailableOrdinaryChargeResponseSourceIds(foreignChargeOnly, 'p1'), ['int']);
+
+  const nonAncient = createGateState();
+  nonAncient.players[0].faction = 'human';
+  nonAncient.gameData.ancient.energyByPlayerId.p1.pool.green = 8;
+  nonAncient.gameData.ships.p1 = [{ instanceId: 'sol', shipDefId: 'SOL', chargesCurrent: 4 }];
+  nonAncient.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1 = ['sol'];
+  assert.equal(playerRequiresChargeDeclarationInput(nonAncient, 'p1'), false);
+  assert.deepEqual(getAvailableOrdinaryChargeResponseSourceIds(nonAncient, 'p1'), []);
+});
+
 Deno.test('response sanitizer is pure and strips Ancient internal and third-Spiral turn scratch', () => {
   const state: any = normalizeAncientGameState(createBaseState()).state;
   state.players[0].energy = 99;
   state.gameData.turnData.pendingSOLARPowerDeclarations = { p1: [{ hidden: true }] };
   state.gameData.turnData.thirdSpiralFirstStrikeEligibilityByPlayerId = {
     p1: { sourceInstanceId: 'spi-3', turnNumber: 1 },
+  };
+  state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = {
+    p1: ['private-sol-snapshot'],
   };
   state.battleLogScratch = { private: true };
   const before = structuredClone(state);
@@ -904,5 +1051,6 @@ Deno.test('response sanitizer is pure and strips Ancient internal and third-Spir
     'thirdSpiralFirstStrikeEligibilityByPlayerId' in safe.gameData.turnData,
     false,
   );
+  assert.equal('solarGridDeclarationSourceIdsByPlayerId' in safe.gameData.turnData, false);
   assert.deepEqual(safe.battleLogScratch, { private: true });
 });

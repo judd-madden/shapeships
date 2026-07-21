@@ -183,6 +183,7 @@ function assertAncientSecretsAbsent(state: any): void {
   assert.equal('energy' in state.players[0], false);
   assert.equal('ancient' in state.gameData, false);
   assert.equal('pendingSOLARPowerDeclarations' in state.gameData.turnData, false);
+  assert.equal('solarGridDeclarationSourceIdsByPlayerId' in state.gameData.turnData, false);
 }
 
 function createUnnormalizedTimeoutState(gameId: string) {
@@ -631,6 +632,127 @@ Deno.test('/game-state projects only the qualifying Spiral action and hides its 
       .gameData.turnData.thirdSpiralFirstStrikeEligibilityByPlayerId,
     { p1: { sourceInstanceId: 'spi-3', turnNumber: 2 } },
   );
+});
+
+Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient declarer and hides SOL snapshot scratch', async () => {
+  const fixture = createGameRouteFixture();
+  const state: any = createSetupState('solar-grid-projection');
+  state.turnNumber = 3;
+  state.players[0].faction = 'ancient';
+  state.players.push({
+    id: 'p2', name: 'Player Two', role: 'player', faction: 'human', isActive: true,
+    health: 25, lines: 0, joiningLines: 0,
+  });
+  state.gameData.turnNumber = 3;
+  state.gameData.currentPhase = 'battle';
+  state.gameData.currentSubPhase = 'charge_declaration';
+  state.gameData.phaseReadiness = [];
+  state.gameData.ships = {
+    p1: [
+      { instanceId: 'sol-z', shipDefId: 'SOL', chargesCurrent: 4 },
+      { instanceId: 'foreign-int', shipDefId: 'INT', chargesCurrent: 1 },
+      { instanceId: 'sol-a', shipDefId: 'SOL', chargesCurrent: 1 },
+    ],
+    p2: [{ instanceId: 'non-ancient-sol', shipDefId: 'SOL', chargesCurrent: 4 }],
+  };
+  state.gameData.turnData = {
+    turnNumber: 3,
+    currentMajorPhase: 'battle',
+    currentSubPhase: 'charge_declaration',
+    chargeDeclarationEligibleByPlayerId: { p1: true, p2: false },
+    chargeDeclarationEligibleSourceIdsByPlayerId: { p1: ['foreign-int'], p2: [] },
+    solarGridDeclarationSourceIdsByPlayerId: { p1: ['sol-z', 'sol-a'], p2: [] },
+    chargeDeclarationFleetSnapshotByPlayerId: {
+      p1: structuredClone(state.gameData.ships.p1),
+      p2: structuredClone(state.gameData.ships.p2),
+    },
+    chargePowerUsedByInstanceId: {},
+  };
+  const normalized: any = normalizeAncientGameState(state).state;
+  normalized.gameData.ancient.energyByPlayerId.p1 = {
+    battleTurnNumber: 3,
+    pool: { green: 1, red: 0, blue: 0 },
+    sources: [],
+  };
+  fixture.store.set('game_solar-grid-projection', normalized);
+
+  const getState = fixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
+  const p1Body = await responseJson(await getState(createContext({
+    params: { gameId: 'solar-grid-projection' },
+  })));
+  assert.deepEqual(
+    p1Body.requester.availableActions.map((action: any) => [action.shipDefId, action.sourceInstanceId]),
+    [['INT', 'foreign-int'], ['SOL', 'sol-a'], ['SOL', 'sol-z']],
+  );
+  assert.deepEqual(
+    p1Body.requester.availableActions.filter((action: any) => action.shipDefId === 'SOL')
+      .map((action: any) => action.choices),
+    [
+      [{ choiceId: 'use' }, { choiceId: 'hold' }],
+      [{ choiceId: 'use' }, { choiceId: 'hold' }],
+    ],
+  );
+  assert.equal('solarGridDeclarationSourceIdsByPlayerId' in p1Body.gameData.turnData, false);
+
+  fixture.setSessionId('p2');
+  const p2Body = await responseJson(await getState(createContext({
+    params: { gameId: 'solar-grid-projection' },
+  })));
+  assert.equal(p2Body.requester.availableActions.some((action: any) => action.shipDefId === 'SOL'), false);
+  assert.equal('solarGridDeclarationSourceIdsByPlayerId' in p2Body.gameData.turnData, false);
+
+  const acceptedState = structuredClone(fixture.store.get('game_solar-grid-projection'));
+  acceptedState.gameData.ancient.energyByPlayerId.p1.pool = { green: 2, red: 1, blue: 1 };
+  acceptedState.gameData.ancient.acceptedDeclarationByPlayerId.p1 = {
+    schemaVersion: 1,
+    contractVersion: 1,
+    declarationId: 'accepted-declaration',
+    declarationFingerprint: JSON.stringify({
+      contractVersion: 1,
+      ordinaryChargeActions: [],
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+        { sourceInstanceId: 'sol-z', choiceId: 'hold' },
+      ],
+      solarCasts: [],
+      autocastEnabled: false,
+    }),
+    playerId: 'p1',
+    context: {
+      contextVersion: 1,
+      battleTurnNumber: 3,
+      initialEnergy: { green: 1, red: 0, blue: 0 },
+      energySourceIds: [],
+    },
+    ordinaryChargeActions: [],
+    solarGridChoices: [
+      { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+      { sourceInstanceId: 'sol-z', choiceId: 'hold' },
+    ],
+    solarCasts: [],
+    autocastEnabled: false,
+  };
+  fixture.store.set('game_solar-grid-projection', acceptedState);
+  fixture.setSessionId('p1');
+  const acceptedBody = await responseJson(await getState(createContext({
+    params: { gameId: 'solar-grid-projection' },
+  })));
+  assert.deepEqual(acceptedBody.requester.availableActions, []);
+  assert.deepEqual(
+    acceptedBody.publicState.ancient.energyByPlayerId.p1.pool,
+    { green: 2, red: 1, blue: 1 },
+  );
+  assert.equal('acceptedDeclarationByPlayerId' in acceptedBody.publicState.ancient, false);
+  assert.equal('solarGridDeclarationSourceIdsByPlayerId' in acceptedBody.gameData.turnData, false);
+
+  const responseState = structuredClone(acceptedState);
+  responseState.gameData.currentSubPhase = 'charge_response';
+  responseState.gameData.turnData.currentSubPhase = 'charge_response';
+  fixture.store.set('game_solar-grid-projection', responseState);
+  const responseBody = await responseJson(await getState(createContext({
+    params: { gameId: 'solar-grid-projection' },
+  })));
+  assert.equal(responseBody.requester.availableActions.some((action: any) => action.shipDefId === 'SOL'), false);
 });
 
 Deno.test('/game-state terminal maintenance persists normalized Ancient state with one bump', async () => {

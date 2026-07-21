@@ -16,6 +16,13 @@ import type { TimeControlConfig } from '../engine/clock/clock.ts';
 import { getBuildCommitKey } from '../engine/intent/IntentTypes.ts';
 import { hasRevealed } from '../engine/intent/CommitStore.ts';
 import { resolveBuildSubmitAuthoritatively } from '../engine/intent/buildSubmitResolution.ts';
+import {
+  getAcceptedDeclarationForCurrentBattle,
+  getSnappedOrdinaryChargeSourceIds,
+  getSnappedSolarGridSourceIds,
+  isAncientPlayer,
+  resolveChargeDeclarationSource,
+} from '../engine/intent/chargeDeclarationEligibility.ts';
 import type { ShipInstance } from '../engine/state/GameStateTypes.ts';
 import { getShipActivationCueBatches } from '../engine/state/shipActivationCues.ts';
 import {
@@ -436,35 +443,6 @@ function getSubphasesForAvailableActions(phaseKey: string | null): string[] {
   }
 }
 
-function getSnappedChargeSourceIds(state: any, playerId: string): string[] {
-  const rawSourceIds = state?.gameData?.turnData?.chargeDeclarationEligibleSourceIdsByPlayerId?.[playerId];
-  if (!Array.isArray(rawSourceIds)) {
-    return [];
-  }
-
-  const sourceIds: string[] = [];
-  const seen = new Set<string>();
-
-  for (const sourceId of rawSourceIds) {
-    if (typeof sourceId !== 'string' || sourceId.length === 0 || seen.has(sourceId)) continue;
-    seen.add(sourceId);
-    sourceIds.push(sourceId);
-  }
-
-  return sourceIds;
-}
-
-function resolveSnappedChargeSource(state: any, playerId: string, sourceInstanceId: string): ShipInstance | null {
-  const liveFleet = state?.gameData?.ships?.[playerId] ?? [];
-  const liveShip = liveFleet.find((ship: ShipInstance) => ship.instanceId === sourceInstanceId);
-  if (liveShip) {
-    return liveShip;
-  }
-
-  const voidFleet = state?.gameData?.voidShipsByPlayerId?.[playerId] ?? [];
-  return voidFleet.find((ship: ShipInstance) => ship.instanceId === sourceInstanceId) ?? null;
-}
-
 function getChargeSourceShipsForPhase(state: any, playerId: string, phaseKey: string): ShipInstance[] {
   if (phaseKey !== 'battle.charge_declaration' && phaseKey !== 'battle.charge_response') {
     return [];
@@ -472,8 +450,8 @@ function getChargeSourceShipsForPhase(state: any, playerId: string, phaseKey: st
 
   const sourceShips: ShipInstance[] = [];
 
-  for (const sourceInstanceId of getSnappedChargeSourceIds(state, playerId)) {
-    const ship = resolveSnappedChargeSource(state, playerId, sourceInstanceId);
+  for (const sourceInstanceId of getSnappedOrdinaryChargeSourceIds(state, playerId)) {
+    const ship = resolveChargeDeclarationSource(state, playerId, sourceInstanceId);
     if (!ship) continue;
     sourceShips.push(ship);
   }
@@ -663,6 +641,13 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
   // CHARGE PHASES: Derive choice actions from structured powers
   // ============================================================================
   if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+    if (
+      phaseKey === 'battle.charge_declaration' &&
+      isAncientPlayer(state, playerId) &&
+      getAcceptedDeclarationForCurrentBattle(state, playerId)
+    ) {
+      return [];
+    }
     const actions: any[] = [];
     
     // Phase 3.1 Slice 2 — Patch C: Hide charge actions already used this turn (server truth)
@@ -754,6 +739,18 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
       }
     }
     
+    if (phaseKey === 'battle.charge_declaration' && isAncientPlayer(state, playerId)) {
+      for (const sourceInstanceId of getSnappedSolarGridSourceIds(state, playerId)) {
+        actions.push({
+          kind: 'choice',
+          actionId: 'SOL#0',
+          shipDefId: 'SOL',
+          sourceInstanceId,
+          choices: [{ choiceId: 'use' }, { choiceId: 'hold' }],
+        });
+      }
+    }
+
     // Stable ordering: by shipDefId, then instanceId, then actionId
     actions.sort((a, b) => {
       if (a.shipDefId !== b.shipDefId) {

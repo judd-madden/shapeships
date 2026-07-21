@@ -40,6 +40,67 @@ function spi(instanceId: string) {
   return { instanceId, shipDefId: 'SPI' };
 }
 
+function sol(instanceId: string, chargesCurrent: number) {
+  return { instanceId, shipDefId: 'SOL', chargesCurrent };
+}
+
+Deno.test('live depleted SOL emits one attributed Automatic Heal 2 per source for any controller', () => {
+  const state = createState({
+    p1Ships: [sol('sol-a', 0), sol('sol-b', 0), sol('sol-charged', 1)],
+    p2Ships: [sol('sol-non-ancient', 0)],
+  });
+  const effects = computePhaseComputedEffects(state, 'battle.end_of_turn_resolution').effects
+    .filter((effect) => (effect.source as any).shipDefId === 'SOL');
+  assert.deepEqual(
+    effects.map((effect) => ({
+      id: effect.id,
+      ownerPlayerId: effect.ownerPlayerId,
+      targetPlayerId: effect.target.playerId,
+      amount: (effect as any).amount,
+    })),
+    [
+      { id: 'solar_grid_3_sol-a', ownerPlayerId: 'p1', targetPlayerId: 'p1', amount: 2 },
+      { id: 'solar_grid_3_sol-b', ownerPlayerId: 'p1', targetPlayerId: 'p1', amount: 2 },
+      { id: 'solar_grid_3_sol-non-ancient', ownerPlayerId: 'p2', targetPlayerId: 'p2', amount: 2 },
+    ],
+  );
+  for (const effect of effects) {
+    assert.equal(effect.activationTag, EffectTiming.Automatic);
+    assert.equal(effect.survivability, SurvivabilityRule.DiesWithSource);
+  }
+});
+
+Deno.test('destroyed or malformed-charge SOL does not emit depleted healing', () => {
+  const state = createState({ p1Ships: [sol('charged', 2), { instanceId: 'missing-charge', shipDefId: 'SOL' }] });
+  state.gameData.voidShipsByPlayerId = { p1: [sol('destroyed', 0)], p2: [] };
+  const effects = computePhaseComputedEffects(state, 'battle.end_of_turn_resolution').effects;
+  assert.equal(effects.some((effect) => (effect.source as any).shipDefId === 'SOL'), false);
+});
+
+Deno.test('SOL heal participates in Automatic modifiers, attribution breakdown, and idempotency', () => {
+  const state = createState({
+    p1Ships: [sol('sol-1', 0), { instanceId: 'science', shipDefId: 'SCI' }],
+  });
+  const first = resolvePhase(state, 'battle.end_of_turn_resolution');
+  assert.equal(first.state.players.find((player: any) => player.id === 'p1')?.health, 24);
+  assert.equal(first.state.gameData.lastTurnHealByPlayerId?.p1, 4);
+  assert.equal(
+    first.state.gameData.lastTurnHealingReceivedBreakdownByPlayerId?.p1?.some(
+      (row: any) => row.label === 'Solar Grid' && row.amount === 2,
+    ),
+    true,
+  );
+  assert.equal(
+    first.state.gameData.lastTurnHealingReceivedBreakdownByPlayerId?.p1?.some(
+      (row: any) => row.label === 'Science Vessel' && row.amount === 2,
+    ),
+    true,
+  );
+  const second = resolvePhase(first.state, 'battle.end_of_turn_resolution');
+  assert.equal(second.state.players.find((player: any) => player.id === 'p1')?.health, 24);
+  assert.deepEqual(second.events, []);
+});
+
 Deno.test('Spiral emits one attributed Automatic heal per live source for totals 1, 4, and 9', () => {
   for (const [count, expectedTotal] of [[1, 1], [2, 4], [3, 9]]) {
     const state = createState({

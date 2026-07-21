@@ -5,6 +5,8 @@ import type {
   AncientPendingBlackHoleDestruction,
   AncientPendingSimulacrumCopy,
   AncientPlayerEnergyState,
+  AncientNormalizedOrdinaryChargeChoice,
+  AncientNormalizedSolarGridChoice,
   AncientSolarLedgerEntry,
   AncientSolarLedgerState,
   AncientState,
@@ -286,6 +288,63 @@ function normalizeStringList(value: unknown): string[] {
   return [...new Set(value.filter(isNonEmptyString))].sort((a, b) => a.localeCompare(b));
 }
 
+function normalizeAcceptedOrdinaryChargeActions(value: unknown): AncientNormalizedOrdinaryChargeChoice[] {
+  if (!Array.isArray(value)) return [];
+  const actions: AncientNormalizedOrdinaryChargeChoice[] = [];
+  for (const candidate of value) {
+    if (
+      !isObject(candidate) ||
+      candidate.actionType !== 'power' ||
+      !isNonEmptyString(candidate.actionId) ||
+      !isNonEmptyString(candidate.sourceInstanceId) ||
+      !isNonEmptyString(candidate.choiceId)
+    ) {
+      continue;
+    }
+    actions.push({
+      actionType: 'power',
+      actionId: candidate.actionId,
+      sourceInstanceId: candidate.sourceInstanceId,
+      choiceId: candidate.choiceId,
+      ...(isNonEmptyString(candidate.targetInstanceId)
+        ? { targetInstanceId: candidate.targetInstanceId }
+        : {}),
+      ...(Array.isArray(candidate.targetInstanceIds)
+        ? { targetInstanceIds: candidate.targetInstanceIds.filter(isNonEmptyString).sort((a, b) => a.localeCompare(b)) }
+        : {}),
+    });
+  }
+  return actions;
+}
+
+function normalizeAcceptedSolarGridChoices(value: unknown): AncientNormalizedSolarGridChoice[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((candidate) =>
+      isObject(candidate) &&
+      isNonEmptyString(candidate.sourceInstanceId) &&
+      (candidate.choiceId === 'use' || candidate.choiceId === 'hold')
+    )
+    .map((candidate: any) => ({
+      sourceInstanceId: candidate.sourceInstanceId,
+      choiceId: candidate.choiceId as 'use' | 'hold',
+    }))
+    .sort((a, b) => a.sourceInstanceId.localeCompare(b.sourceInstanceId));
+}
+
+function fingerprintAcceptedDeclarationContent(value: {
+  ordinaryChargeActions: AncientNormalizedOrdinaryChargeChoice[];
+  solarGridChoices: AncientNormalizedSolarGridChoice[];
+}): string {
+  return JSON.stringify({
+    contractVersion: ANCIENT_STATE_SCHEMA_VERSION,
+    ordinaryChargeActions: value.ordinaryChargeActions,
+    solarGridChoices: value.solarGridChoices,
+    solarCasts: [],
+    autocastEnabled: false,
+  });
+}
+
 function normalizeAcceptedDeclaration(value: unknown, playerId: string): AncientAcceptedDeclaration | null {
   if (
     !isObject(value) ||
@@ -300,9 +359,16 @@ function normalizeAcceptedDeclaration(value: unknown, playerId: string): Ancient
     return null;
   }
   const context = value.context;
+  const ordinaryChargeActions = normalizeAcceptedOrdinaryChargeActions(value.ordinaryChargeActions);
+  const solarGridChoices = normalizeAcceptedSolarGridChoices(value.solarGridChoices);
   return {
     schemaVersion: ANCIENT_STATE_SCHEMA_VERSION,
+    contractVersion: ANCIENT_STATE_SCHEMA_VERSION,
     declarationId: value.declarationId,
+    declarationFingerprint: fingerprintAcceptedDeclarationContent({
+      ordinaryChargeActions,
+      solarGridChoices,
+    }),
     playerId,
     context: {
       contextVersion: ANCIENT_STATE_SCHEMA_VERSION,
@@ -310,6 +376,10 @@ function normalizeAcceptedDeclaration(value: unknown, playerId: string): Ancient
       initialEnergy: normalizeEnergyPool(context.initialEnergy),
       energySourceIds: normalizeStringList(context.energySourceIds),
     },
+    ordinaryChargeActions,
+    solarGridChoices,
+    solarCasts: [],
+    autocastEnabled: false,
   };
 }
 
@@ -717,6 +787,7 @@ export function sanitizeAncientStateForClient<T = any>(state: T): T {
     const {
       pendingSOLARPowerDeclarations: _obsoleteSolarDeclarations,
       thirdSpiralFirstStrikeEligibilityByPlayerId: _thirdSpiralFirstStrikeEligibility,
+      solarGridDeclarationSourceIdsByPlayerId: _solarGridDeclarationSourceIds,
       ...safeTurnData
     } = turnData;
     safeGameData.turnData = safeTurnData;

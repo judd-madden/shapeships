@@ -138,11 +138,31 @@ export type AncientDeclarationContext = {
   energySourceIds: string[];
 };
 
+export type AncientNormalizedOrdinaryChargeChoice = {
+  actionType: 'power';
+  actionId: string;
+  sourceInstanceId: string;
+  choiceId: string;
+  targetInstanceId?: string;
+  targetInstanceIds?: string[];
+};
+
+export type AncientNormalizedSolarGridChoice = {
+  sourceInstanceId: string;
+  choiceId: 'use' | 'hold';
+};
+
 export type AncientAcceptedDeclaration = {
   schemaVersion: 1;
+  contractVersion: 1;
   declarationId: string;
+  declarationFingerprint: string;
   playerId: string;
   context: AncientDeclarationContext;
+  ordinaryChargeActions: AncientNormalizedOrdinaryChargeChoice[];
+  solarGridChoices: AncientNormalizedSolarGridChoice[];
+  solarCasts: [];
+  autocastEnabled: false;
 };
 
 export type AncientSolarSourceMode = 'manual' | 'autocast' | 'cube';
@@ -319,6 +339,8 @@ export type GameData = {
     anyChargesDeclared?: boolean;
     chargeDeclarationEligibleByPlayerId?: Record<string, boolean>;
     chargeDeclarationEligibleSourceIdsByPlayerId?: Record<string, string[]>;
+    /** Internal declaration-start snapshot of charged SOL instances for Ancient controllers. */
+    solarGridDeclarationSourceIdsByPlayerId?: Record<string, string[]>;
     chargeDeclarationFleetSnapshotByPlayerId?: Record<string, ShipInstance[]>;
 
     /** Staged first-strike selections, scoped by player and source instance */
