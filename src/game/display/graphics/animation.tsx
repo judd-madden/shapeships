@@ -218,7 +218,7 @@ const SHIP_ANIM: Partial<Record<ShipDefId, {
   SPI: { entry: 'commander', activation: 'default' },
   NEP: { entry: 'default', activation: 'default' },
   SOL: { entry: 'to-right', activation: 'default' },
-  CUB: { entry: 'defender', activation: 'default' },
+  CUB: { entry: 'default', activation: 'default' },
 };
 
 // ============================================================================

@@ -44,10 +44,10 @@ export type StarsConfig = {
 
 export const STARS_CONFIG: StarsConfig = {
   minStars: 8,
-  maxStars: 11,
+  maxStars: 14,
 
   starMinSizePx: 1,
-  starMaxSizePx: 7,
+  starMaxSizePx: 10,
 
   spawnMarginPx: 200,
   driftExtraPx: 300,
@@ -62,9 +62,9 @@ export const STARS_CONFIG: StarsConfig = {
   saturnChance: 1 / 2,
 
   blackHoleSizePx: 60,
-  saturnPlanetSizePx: 8,
-  saturnRingWidthPx: 16,
-  saturnRingHeightPx: 3,
+  saturnPlanetSizePx: 10,
+  saturnRingWidthPx: 20,
+  saturnRingHeightPx: 4,
   saturnRingRotationDeg: 20,
 };
 
