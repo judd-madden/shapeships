@@ -2,6 +2,9 @@ import type { GameStatsTurnViewModel } from '../../client/gameSession/types';
 
 export const HEALTH_AXIS_LABELS = ['35', '30', '25', '20', '15', '10', '5', '0', '-INF'];
 
+const DEFAULT_HEALTH_MAX_VALUE = 35;
+const HEALTH_ZERO_POSITION = 87.5;
+
 export interface GameStatsScale {
   labels: string[];
   positions: number[];
@@ -9,10 +12,42 @@ export interface GameStatsScale {
   maxValue?: number;
 }
 
-export function buildHealthScale(): GameStatsScale {
+export function buildHealthScale(turns: GameStatsTurnViewModel[]): GameStatsScale {
+  const highestRecordedHealth = turns.reduce((max, turn) => {
+    return Math.max(
+      max,
+      finiteNumber(turn.viewer.healthEnd),
+      finiteNumber(turn.opponent.healthEnd),
+    );
+  }, DEFAULT_HEALTH_MAX_VALUE);
+
+  if (highestRecordedHealth > DEFAULT_HEALTH_MAX_VALUE) {
+    return buildExpandedHealthScale(highestRecordedHealth);
+  }
+
   return {
     labels: HEALTH_AXIS_LABELS,
     positions: getEvenPositions(HEALTH_AXIS_LABELS.length),
+    maxValue: DEFAULT_HEALTH_MAX_VALUE,
+  };
+}
+
+function buildExpandedHealthScale(highestRecordedHealth: number): GameStatsScale {
+  const maxValue = Math.ceil(highestRecordedHealth / 10) * 10;
+  const numericLabels = Array.from(
+    { length: maxValue / 10 + 1 },
+    (_, index) => String(maxValue - index * 10),
+  );
+
+  return {
+    labels: [...numericLabels, '-INF'],
+    positions: [
+      ...getEvenPositions(numericLabels.length).map(
+        (position) => position * (HEALTH_ZERO_POSITION / 100),
+      ),
+      100,
+    ],
+    maxValue,
   };
 }
 

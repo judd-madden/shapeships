@@ -1,6 +1,6 @@
 import type { GameStatsScale } from './gameStatsScales';
 
-const HEALTH_TOP_VALUE = 35;
+const DEFAULT_HEALTH_TOP_VALUE = 35;
 const DEFAULT_HEALTH_FLOOR = -10;
 
 export function getGameStatsTurnXPercent(
@@ -20,11 +20,12 @@ export function getGameStatsHealthYPercent(
   healthFloor: number,
 ): number {
   const healthValue = finiteNumber(value);
-  const topPosition = getGameStatsScaleLabelPosition(
-    scale,
-    String(HEALTH_TOP_VALUE),
-    0,
-  );
+  const topPosition = Number.isFinite(scale.positions[0])
+    ? Number(scale.positions[0])
+    : 0;
+  const topValue = Number.isFinite(scale.maxValue) && Number(scale.maxValue) > 0
+    ? Number(scale.maxValue)
+    : DEFAULT_HEALTH_TOP_VALUE;
   const zeroPosition = getGameStatsScaleLabelPosition(scale, '0', 87.5);
   const floorPosition = getGameStatsScaleLabelPosition(
     scale,
@@ -35,12 +36,12 @@ export function getGameStatsHealthYPercent(
     ? healthFloor
     : DEFAULT_HEALTH_FLOOR;
 
-  if (healthValue >= HEALTH_TOP_VALUE) {
+  if (healthValue >= topValue) {
     return clampGameStatsPercent(topPosition);
   }
 
   if (healthValue >= 0) {
-    const healthProgress = (HEALTH_TOP_VALUE - healthValue) / HEALTH_TOP_VALUE;
+    const healthProgress = (topValue - healthValue) / topValue;
 
     return clampGameStatsPercent(
       topPosition + healthProgress * (zeroPosition - topPosition),

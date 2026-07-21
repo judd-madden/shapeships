@@ -59,7 +59,7 @@ export function GameStatsBoard({
   variant = 'desktop',
 }: GameStatsBoardProps) {
   const [hoveredTurnIndex, setHoveredTurnIndex] = useState<number | null>(null);
-  const healthScale = buildHealthScale();
+  const healthScale = buildHealthScale(gameStats.turns);
   const pressureScale = buildPressureScale(gameStats.turns);
   const fleetScale = buildFleetValueScale(gameStats.turns);
   const turnCount = Math.max(1, gameStats.turns.length);
