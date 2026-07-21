@@ -42,6 +42,7 @@ import {
 import { appendChatEntry } from './chat_kv.ts';
 import { ensureStateRevision, withBumpedStateRevision } from './state_revision.ts';
 import { debugLog } from '../utils/serverLogger.ts';
+import { getPlayerMaxHealth } from '../engine_shared/maximumHealth.ts';
 
 const INITIAL_SAVED_LINES = 3;
 
@@ -1997,7 +1998,10 @@ export function registerGameRoutes(
           : [],
       };
       const publicState = {
-        players: clientSafeGameData.players ?? [],
+        players: (clientSafeGameData.players ?? []).map((player: any) => ({
+          ...player,
+          maxHealth: getPlayerMaxHealth(gameData, player.id),
+        })),
         phaseReadiness,
         clock: clockSnapshot,
         ships: gameData.gameData?.ships ?? {},

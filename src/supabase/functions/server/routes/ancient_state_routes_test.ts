@@ -358,6 +358,25 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
     },
   };
   fixture.store.set('game_game-1', structuredClone(state));
+  fixture.store.set('game_history_game-1', {
+    gameId: 'game-1',
+    revision: 1,
+    completedTurnCount: 1,
+    turns: [{
+      turnNumber: 1,
+      diceValue: 4,
+      players: [{
+        playerId: 'p1',
+        name: 'Player One',
+        healthEnd: 25,
+        healthDelta: 0,
+        fleetValueEnd: 0,
+      }],
+      buildLinesByPlayerId: { p1: [] },
+      battleLinesByPlayerId: { p1: [] },
+    }],
+    currentTurnCapture: null,
+  });
   fixture.writes.length = 0;
 
   const getState = fixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
@@ -394,9 +413,17 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
   );
   assert.deepEqual(opponentBody.publicState.ancient, body.publicState.ancient);
   assert.deepEqual(spectatorBody.publicState.ancient, body.publicState.ancient);
+  assert.deepEqual(
+    body.publicState.players.map((player: any) => player.maxHealth),
+    [35, 35, 35],
+  );
+  assert.deepEqual(opponentBody.publicState.players, body.publicState.players);
+  assert.deepEqual(spectatorBody.publicState.players, body.publicState.players);
   assert.equal('acceptedDeclarationByPlayerId' in body.publicState.ancient, false);
   assert.equal('ancient' in body.gameData, false);
   assert.equal('energy' in body.players[0], false);
+  assert.equal('maxHealth' in body.players[0], false);
+  assert.equal('maxHealth' in body.requester, false);
   assert.equal('battleLogScratch' in body, false);
   assert.equal('ships' in body, false);
   assert.equal('shipActivationCueBatches' in body.gameData.turnData, false);
@@ -415,6 +442,14 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
     'status',
     'turnNumber',
   ]);
+
+  const history = fixture.app.handler('GET', '/make-server-825e19ab/game-history/:gameId');
+  const historyBody = await responseJson(
+    await history(createContext({ params: { gameId: 'game-1' } })),
+  );
+  assert.equal(historyBody.turns[0].players[0].maxHealthEnd, 35);
+  assert.equal(Number.isFinite(historyBody.turns[0].players[0].maxHealthEnd), true);
+  assert.equal(fixture.writes.length, 0);
 });
 
 Deno.test('/game-state terminal maintenance persists normalized Ancient state with one bump', async () => {

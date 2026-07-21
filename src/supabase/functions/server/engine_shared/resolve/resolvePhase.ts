@@ -43,6 +43,7 @@ import {
   getEffectiveDiceRollForPlayer,
 } from './phaseComputedEffects.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
+import { getPlayerMaxHealth } from '../maximumHealth.ts';
 
 function countCreatedShipsByTargetPlayerId(
   effects: Effect[]
@@ -296,10 +297,6 @@ function collectZenithAutoBuildEffects(
   }
 
   return effects;
-}
-
-function getPlayerMaxHealth(): number {
-  return 35;
 }
 
 type TurnTotals = {
@@ -650,7 +647,7 @@ function resolveBuildEndOfBuild(
       // RED sets health directly during build.end_of_build; this is not healing.
       return {
         ...player,
-        health: getPlayerMaxHealth(),
+        health: getPlayerMaxHealth(workingState, player.id),
       };
     }),
   };
@@ -936,7 +933,6 @@ function applyAggregatedHealth(
   state: GameState,
   totals: { damageByPlayerId: Record<string, number>; healByPlayerId: Record<string, number> }
 ): { state: GameState; events: EffectEvent[] } {
-  const MAX_HEALTH = 35;
   const events: EffectEvent[] = [];
   const nowMs = Date.now();
 
@@ -960,7 +956,10 @@ function applyAggregatedHealth(
 
     const previousHealth = player.health;
     const rawNewHealth = previousHealth - damage + heal;
-    const newHealth = Math.min(rawNewHealth, MAX_HEALTH); // Clamp to max
+    const newHealth = Math.min(
+      rawNewHealth,
+      getPlayerMaxHealth(state, playerId),
+    );
 
     player.health = newHealth;
     newState.players[i] = player;
@@ -1132,7 +1131,7 @@ function collectEffectsFromShip(
  * Evaluate victory conditions after end-of-turn resolution
  *
  * Order:
- * 1. Clamp health to [no minimum, max 35]
+ * 1. Clamp health to each player's derived maximum (no minimum)
  * 2. Evaluate victory conditions (player health, not ship health)
  * 3. Emit GAME_OVER if terminal
  *
@@ -1156,7 +1155,7 @@ function evaluateVictoryConditions(
     return { state, events };
   }
 
-  // Step 1: Clamp health to maximum 35 (no minimum clamp)
+  // Step 1: Clamp health to each player's maximum (no minimum clamp)
   let updatedState = clampPlayerHealth(state);
 
   // Step 2: Evaluate victory conditions
@@ -1214,18 +1213,17 @@ function evaluateVictoryConditions(
 }
 
 /**
- * Clamp player health to maximum of 35
+ * Clamp player health to each player's derived maximum
  * Minimum is not clamped (negative values allowed for victory comparison)
  *
  * @param state - Current game state
  * @returns Updated state with clamped health
  */
 function clampPlayerHealth(state: GameState): GameState {
-  const MAX_HEALTH = 35;
-
   const updatedPlayers = state.players.map(player => {
-    if (player.health > MAX_HEALTH) {
-      return { ...player, health: MAX_HEALTH };
+    const maxHealth = getPlayerMaxHealth(state, player.id);
+    if (player.health > maxHealth) {
+      return { ...player, health: maxHealth };
     }
     return player;
   });

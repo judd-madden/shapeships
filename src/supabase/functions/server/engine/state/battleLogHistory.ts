@@ -1,6 +1,10 @@
 import type { EffectEvent } from "../../engine_shared/effects/applyEffects.ts";
 import { EffectKind, type Effect } from "../../engine_shared/effects/Effect.ts";
 import { getShipById } from "../../engine_shared/defs/ShipDefinitions.core.ts";
+import {
+  DEFAULT_PLAYER_MAX_HEALTH,
+  getPlayerMaxHealth,
+} from "../../engine_shared/maximumHealth.ts";
 import { debugLog } from "../../utils/serverLogger.ts";
 
 export type BattleLogHistoryResponse = {
@@ -34,6 +38,7 @@ export type BattleLogTurnSummary = {
     playerId: string;
     name: string;
     healthEnd: number;
+    maxHealthEnd: number;
     healthDelta: number;
     fleetValueEnd: number;
   }>;
@@ -631,6 +636,9 @@ function cloneBattleLogTurnSummary(
       playerId: player.playerId,
       name: player.name,
       healthEnd: player.healthEnd,
+      maxHealthEnd: isFiniteNumber(player.maxHealthEnd)
+        ? player.maxHealthEnd
+        : DEFAULT_PLAYER_MAX_HEALTH,
       healthDelta: player.healthDelta,
       fleetValueEnd: isFiniteNumber(player.fleetValueEnd)
         ? player.fleetValueEnd
@@ -1675,6 +1683,7 @@ export function buildBattleLogTurnSummaryFromScratch(args: {
       playerId: player.id,
       name: typeof player.name === "string" ? player.name : player.id,
       healthEnd: isFiniteNumber(player.health) ? player.health : 0,
+      maxHealthEnd: getPlayerMaxHealth(args.finalizedState, player.id),
       healthDelta: isFiniteNumber(lastTurnNetByPlayerId[player.id])
         ? lastTurnNetByPlayerId[player.id]
         : 0,
