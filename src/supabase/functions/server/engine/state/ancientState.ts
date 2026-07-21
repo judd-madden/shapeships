@@ -9,6 +9,7 @@ import type {
   AncientSolarLedgerState,
   AncientState,
 } from './GameStateTypes.ts';
+import { getEffectiveDiceRollForPlayer } from '../../engine_shared/resolve/phaseComputedEffects.ts';
 
 export const ANCIENT_STATE_SCHEMA_VERSION = 1 as const;
 
@@ -553,7 +554,13 @@ function isAncientCoreShipDefId(value: unknown): value is AncientCoreShipDefId {
   return typeof value === 'string' && Object.hasOwn(ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID, value);
 }
 
-export function applyAncientCoreEnergyAtBattleReveal<T = any>(state: T): T {
+function getValidSelectedNumber(value: unknown): number | null {
+  return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 6
+    ? value as number
+    : null;
+}
+
+export function applyAncientBattleRevealPreparation<T = any>(state: T): T {
   const canonicalState = state as any;
   const battleTurnNumber = normalizeAncientNumber(
     canonicalState.gameData.turnNumber ??
@@ -562,23 +569,29 @@ export function applyAncientCoreEnergyAtBattleReveal<T = any>(state: T): T {
       0,
   );
   const energyByPlayerId: Record<string, AncientPlayerEnergyState> = {};
+  const quantumMysticRevealByInstanceId: Record<string, {
+    battleTurnNumber: number;
+    controllerPlayerId: string;
+  }> = {};
 
   for (const playerId of getPlayerSeatIds(canonicalState.players)) {
     const player = canonicalState.players.find((candidate: any) => candidate?.id === playerId);
     const sources: AncientEnergySource[] = [];
+    const fleet = Array.isArray(canonicalState.gameData.ships?.[playerId])
+      ? canonicalState.gameData.ships[playerId]
+      : [];
+    const isAncientController = getPlayerSpecies(player) === 'ancient';
 
-    if (getPlayerSpecies(player) === 'ancient') {
-      const coreShips = Array.isArray(canonicalState.gameData.ships?.[playerId])
-        ? canonicalState.gameData.ships[playerId]
-          .filter((ship: any) =>
-            isNonEmptyString(ship?.instanceId) && isAncientCoreShipDefId(ship?.shipDefId)
-          )
-          .sort((a: any, b: any) => {
-            const rankDifference = ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID[a.shipDefId as AncientCoreShipDefId].rank -
-              ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID[b.shipDefId as AncientCoreShipDefId].rank;
-            return rankDifference || a.instanceId.localeCompare(b.instanceId);
-          })
-        : [];
+    if (isAncientController) {
+      const coreShips = fleet
+        .filter((ship: any) =>
+          isNonEmptyString(ship?.instanceId) && isAncientCoreShipDefId(ship?.shipDefId)
+        )
+        .sort((a: any, b: any) => {
+          const rankDifference = ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID[a.shipDefId as AncientCoreShipDefId].rank -
+            ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID[b.shipDefId as AncientCoreShipDefId].rank;
+          return rankDifference || a.instanceId.localeCompare(b.instanceId);
+        });
 
       for (const [order, ship] of coreShips.entries()) {
         const shipDefId = ship.shipDefId as AncientCoreShipDefId;
@@ -592,6 +605,34 @@ export function applyAncientCoreEnergyAtBattleReveal<T = any>(state: T): T {
           amounts: { ...ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID[shipDefId].amounts },
         });
       }
+    }
+
+    const effectiveDiceRoll = getEffectiveDiceRollForPlayer(canonicalState, playerId);
+    const matchingQuantumMystics = fleet
+      .filter((ship: any) => {
+        if (ship?.shipDefId !== 'QUA' || !isNonEmptyString(ship?.instanceId)) return false;
+        const selectedNumber = getValidSelectedNumber(
+          ship?.permanentConfiguration?.selectedNumber,
+        );
+        return selectedNumber !== null && selectedNumber === effectiveDiceRoll;
+      })
+      .sort((a: any, b: any) => a.instanceId.localeCompare(b.instanceId));
+
+    for (const ship of matchingQuantumMystics) {
+      quantumMysticRevealByInstanceId[ship.instanceId] = {
+        battleTurnNumber,
+        controllerPlayerId: playerId,
+      };
+
+      if (!isAncientController) continue;
+      sources.push({
+        sourceId: `ancient-quantum-mystic-energy:${battleTurnNumber}:${playerId}:${ship.instanceId}`,
+        sourceInstanceId: ship.instanceId,
+        sourceShipDefId: 'QUA',
+        battleTurnNumber,
+        order: sources.length,
+        amounts: { green: 0, red: 0, blue: 2 },
+      });
     }
 
     const pool = sources.reduce<AncientEnergyPool>(
@@ -611,6 +652,10 @@ export function applyAncientCoreEnergyAtBattleReveal<T = any>(state: T): T {
   }
 
   canonicalState.gameData.ancient.energyByPlayerId = energyByPlayerId;
+  canonicalState.gameData.powerMemory = {
+    ...(canonicalState.gameData.powerMemory ?? {}),
+    quantumMysticRevealByInstanceId,
+  };
   return state;
 }
 

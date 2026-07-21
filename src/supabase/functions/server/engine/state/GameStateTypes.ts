@@ -16,6 +16,10 @@ import type { SeatController } from "../bot/botTypes.ts";
  * Ships are stored as instances with unique IDs, referencing
  * canonical ship definitions by shipDefId.
  */
+export type ShipPermanentConfiguration = {
+  selectedNumber?: number;
+};
+
 export type ShipInstance = {
   /** Unique instance identifier (crypto.randomUUID()) */
   instanceId: string;
@@ -28,6 +32,9 @@ export type ShipInstance = {
   
   /** Turn number when ship was created */
   createdTurn?: number;
+
+  /** Permanent per-instance configuration that travels with the ship. */
+  permanentConfiguration?: ShipPermanentConfiguration;
 };
 
 /**
@@ -167,10 +174,6 @@ export type AncientSolarLedgerState = {
   entries: AncientSolarLedgerEntry[];
 };
 
-export type AncientCopiedPermanentConfiguration = {
-  selectedNumber?: number;
-};
-
 export type AncientPendingSimulacrumCopy = {
   pendingCopyId: string;
   declarationId: string;
@@ -180,7 +183,7 @@ export type AncientPendingSimulacrumCopy = {
   queuedTurnNumber: number;
   materializationTurnNumber: number;
   capturedStartOfBattleCharges: number;
-  permanentConfiguration: AncientCopiedPermanentConfiguration;
+  permanentConfiguration: ShipPermanentConfiguration;
   sourceMode: 'primary' | 'cube';
   status: 'queued' | 'materialized';
   materializedInstanceId?: string;
@@ -204,6 +207,11 @@ export type AncientState = {
   solarLedgerByPlayerId: Record<string, AncientSolarLedgerState>;
   pendingSimulacrumCopies: AncientPendingSimulacrumCopy[];
   pendingBlackHoleDestructions: AncientPendingBlackHoleDestruction[];
+};
+
+export type QuantumMysticRevealMemory = {
+  battleTurnNumber: number;
+  controllerPlayerId: string;
 };
 
 /**
@@ -356,6 +364,9 @@ export type GameData = {
      * Stored when the ship is created during BUILD_SUBMIT.
      */
     frigateTriggerByInstanceId?: Record<string, number>;
+
+    /** Matching Quantum Mystic reveal facts keyed by live ship instance. */
+    quantumMysticRevealByInstanceId?: Record<string, QuantumMysticRevealMemory>;
   };
 };
 

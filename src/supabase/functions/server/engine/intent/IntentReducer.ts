@@ -561,6 +561,42 @@ function validateEvolverChoicesPayload(
   return { ok: true, choices: payload.evolverChoices };
 }
 
+function validateSelectedNumberArray(args: {
+  raw: unknown;
+  expectedCount: number;
+  fieldName: string;
+  required: boolean;
+}): { ok: true } | { ok: false; message: string } {
+  const { raw, expectedCount, fieldName, required } = args;
+  if (typeof raw === 'undefined') {
+    return required
+      ? { ok: false, message: `Invalid build payload: ${fieldName} is required` }
+      : { ok: true };
+  }
+
+  if (!Array.isArray(raw)) {
+    return { ok: false, message: `Invalid build payload: ${fieldName} must be an array` };
+  }
+
+  if (raw.length !== expectedCount) {
+    return {
+      ok: false,
+      message: `Invalid ${fieldName} length: expected ${expectedCount}, got ${raw.length}`,
+    };
+  }
+
+  for (const selectedNumber of raw) {
+    if (!Number.isInteger(selectedNumber) || selectedNumber < 1 || selectedNumber > 6) {
+      return {
+        ok: false,
+        message: `Invalid ${fieldName} entry: ${selectedNumber}. Must be integer 1..6`,
+      };
+    }
+  }
+
+  return { ok: true };
+}
+
 /**
  * Apply an intent to game state.
  * 
@@ -1996,49 +2032,47 @@ async function handleBuildSubmit(
     }
   }
 
-  // Validate optional Frigate triggers payload
+  // Validate ordered permanent/trigger selected-number payloads.
   const frigateBuildCount = payload.builds
     .filter(b => b.shipDefId === 'FRI')
     .reduce((sum, b) => sum + (b.count ?? 0), 0);
+  const frigateTriggerValidation = validateSelectedNumberArray({
+    raw: payload.frigateTriggers,
+    expectedCount: frigateBuildCount,
+    fieldName: 'frigateTriggers',
+    required: false,
+  });
+  if (!frigateTriggerValidation.ok) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: frigateTriggerValidation.message,
+      },
+    };
+  }
 
-  if (payload.frigateTriggers !== undefined) {
-    if (!Array.isArray(payload.frigateTriggers)) {
-      return {
-        ok: false,
-        state,
-        events: [],
-        rejected: {
-          code: RejectionCode.BAD_PAYLOAD,
-          message: 'Invalid build payload: frigateTriggers must be an array',
-        },
-      };
-    }
-
-    if (payload.frigateTriggers.length !== frigateBuildCount) {
-      return {
-        ok: false,
-        state,
-        events: [],
-        rejected: {
-          code: RejectionCode.BAD_PAYLOAD,
-          message: `Invalid frigateTriggers length: expected ${frigateBuildCount}, got ${payload.frigateTriggers.length}`,
-        },
-      };
-    }
-
-    for (const t of payload.frigateTriggers) {
-      if (!Number.isInteger(t) || t < 1 || t > 6) {
-        return {
-          ok: false,
-          state,
-          events: [],
-          rejected: {
-            code: RejectionCode.BAD_PAYLOAD,
-            message: `Invalid frigateTriggers entry: ${t}. Must be integer 1..6`,
-          },
-        };
-      }
-    }
+  const quantumMysticBuildCount = payload.builds
+    .filter((build) => build.shipDefId === 'QUA')
+    .reduce((sum, build) => sum + (build.count ?? 0), 0);
+  const quantumMysticSelectionValidation = validateSelectedNumberArray({
+    raw: payload.quantumMysticSelections,
+    expectedCount: quantumMysticBuildCount,
+    fieldName: 'quantumMysticSelections',
+    required: quantumMysticBuildCount > 0,
+  });
+  if (!quantumMysticSelectionValidation.ok) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: quantumMysticSelectionValidation.message,
+      },
+    };
   }
 
   const existingEvolverCount = countFleetShipsByDefId(state, playerId, 'EVO');

@@ -31,7 +31,7 @@ import type {
 } from '../state/GameStateTypes.ts';
 import { appendShipActivationCueBatch } from '../state/shipActivationCues.ts';
 import {
-  applyAncientCoreEnergyAtBattleReveal,
+  applyAncientBattleRevealPreparation,
   getAuthoritativeAncientEnergyTotal,
 } from '../state/ancientState.ts';
 
@@ -576,7 +576,7 @@ function enterPhaseOnce(
   // Persist battle.reveal as a real current phase before later battle auto-advance.
   // This is presentation/visibility barrier state, not a gameplay rule.
   if (toKey === 'battle.reveal') {
-    workingState = applyAncientCoreEnergyAtBattleReveal(workingState);
+    workingState = applyAncientBattleRevealPreparation(workingState);
 
     const turnNumber =
       workingState.gameData?.turnNumber ??

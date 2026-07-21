@@ -68,6 +68,13 @@ export type BuildSubmitPayload = {
   frigateTriggers?: number[];
 
   /**
+   * Quantum Mystic (QUA) permanent selected numbers for requested QUA attempts.
+   * Must be length == total requested QUA count, with integer entries 1..6.
+   * Entries follow deterministic QUA build-attempt order, including skipped attempts.
+   */
+  quantumMysticSelections?: number[];
+
+  /**
    * Optional Evolver (EVO) selections for build.drawing.
    * Each non-hold selection authoritatively converts one available XEN into OXI or AST.
    */

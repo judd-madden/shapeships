@@ -22,13 +22,14 @@ type BuildAttemptSkipReason =
   | 'insufficient_joining_lines'
   | 'missing_components'
   | 'component_not_depleted'
+  | 'invalid_permanent_configuration'
   | 'max_quantity_reached';
 
 type ExpandedBuildAttempt = {
   shipDefId: string;
   attemptIndex: number;
   freeReason?: 'zenith_antlion';
-  frigateTrigger?: number;
+  selectedNumber?: number;
 };
 
 type WorkingFleetEntry = {
@@ -76,6 +77,10 @@ function normalizeResource(value: unknown): number {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return 0;
   return Math.floor(numeric);
+}
+
+function isValidSelectedNumber(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 6;
 }
 
 function normalizeChargesCurrent(ship: ShipInstance): number {
@@ -143,6 +148,7 @@ function expandBuildAttempts(payload: BuildSubmitPayload): ExpandedBuildAttempt[
   const attempts: ExpandedBuildAttempt[] = [];
   let nextAttemptIndex = 0;
   let frigateTriggerCursor = 0;
+  let quantumMysticSelectionCursor = 0;
 
   for (const shipDefId of PREVIEW_PARITY_BUILD_ORDER) {
     const totalCount = countsByShipDefId.get(shipDefId) ?? 0;
@@ -187,7 +193,20 @@ function expandBuildAttempts(payload: BuildSubmitPayload): ExpandedBuildAttempt[
         attempts.push({
           shipDefId,
           attemptIndex: nextAttemptIndex++,
-          frigateTrigger,
+          selectedNumber: frigateTrigger,
+        });
+      }
+      continue;
+    }
+
+    if (shipDefId === 'QUA') {
+      for (let i = 0; i < totalCount; i++) {
+        const selectedNumber = payload.quantumMysticSelections?.[quantumMysticSelectionCursor];
+        quantumMysticSelectionCursor += 1;
+        attempts.push({
+          shipDefId,
+          attemptIndex: nextAttemptIndex++,
+          ...(isValidSelectedNumber(selectedNumber) ? { selectedNumber } : {}),
         });
       }
       continue;
@@ -330,10 +349,10 @@ function appendCreatedShip(args: {
   shipDefId: string;
   turnNumber: number;
   workingFleet: WorkingFleetEntry[];
-  frigateTrigger?: number;
+  selectedNumber?: number;
   countAsCreatedShip?: boolean;
 }): ShipInstance {
-  const { state, playerId, shipDefId, turnNumber, workingFleet, frigateTrigger } = args;
+  const { state, playerId, shipDefId, turnNumber, workingFleet, selectedNumber } = args;
   const shipDef = getShipById(shipDefId);
 
   const shipInstance: ShipInstance = {
@@ -346,6 +365,10 @@ function appendCreatedShip(args: {
     shipInstance.chargesCurrent = shipDef.charges;
   }
 
+  if (shipDefId === 'QUA' && isValidSelectedNumber(selectedNumber)) {
+    shipInstance.permanentConfiguration = { selectedNumber };
+  }
+
   ensureShipsContainer(state, playerId).push(shipInstance);
   workingFleet.push({
     instanceId: shipInstance.instanceId,
@@ -356,7 +379,7 @@ function appendCreatedShip(args: {
 
   if (shipDefId === 'FRI') {
     ensureFrigateMemory(state);
-    state.gameData.powerMemory.frigateTriggerByInstanceId[shipInstance.instanceId] = frigateTrigger ?? 1;
+    state.gameData.powerMemory.frigateTriggerByInstanceId[shipInstance.instanceId] = selectedNumber ?? 1;
   }
 
   if (args.countAsCreatedShip !== false) {
@@ -488,6 +511,14 @@ function applyBasicBuildAttemptSimulation(args: {
   }
 
   if (isEvolvedXeniteShipDefId(attempt.shipDefId)) {
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+      didApply: false,
+    };
+  }
+
+  if (attempt.shipDefId === 'QUA' && !isValidSelectedNumber(attempt.selectedNumber)) {
     return {
       remainingOrdinaryLines,
       remainingJoiningLines,
@@ -823,6 +854,21 @@ function resolveBuildAttempt(args: {
     };
   }
 
+  if (attempt.shipDefId === 'QUA' && !isValidSelectedNumber(attempt.selectedNumber)) {
+    pushSkippedAttemptEvent({
+      events,
+      playerId,
+      shipDefId: attempt.shipDefId,
+      attemptIndex: attempt.attemptIndex,
+      reason: 'invalid_permanent_configuration',
+      nowMs,
+    });
+    return {
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    };
+  }
+
   const legality = evaluateForeignBuildLegality({
     nativeSpecies: args.nativeSpecies,
     shipDefId: attempt.shipDefId,
@@ -906,7 +952,7 @@ function resolveBuildAttempt(args: {
       shipDefId: attempt.shipDefId,
       turnNumber,
       workingFleet,
-      frigateTrigger: attempt.frigateTrigger,
+      selectedNumber: attempt.selectedNumber,
     });
     events.push(
       createBattleLogBuildManualCaptureEvent({
@@ -975,7 +1021,7 @@ function resolveBuildAttempt(args: {
     shipDefId: attempt.shipDefId,
     turnNumber,
     workingFleet,
-    frigateTrigger: attempt.frigateTrigger,
+    selectedNumber: attempt.selectedNumber,
   });
   events.push(
     createBattleLogBuildManualCaptureEvent({

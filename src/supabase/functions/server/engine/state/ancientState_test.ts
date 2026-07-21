@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { advancePhaseCore } from '../phase/advancePhase.ts';
 import { onEnterPhase } from '../phase/onEnterPhase.ts';
 import {
-  applyAncientCoreEnergyAtBattleReveal,
+  applyAncientBattleRevealPreparation,
   createEmptyAncientState,
   getAuthoritativeAncientEnergyTotal,
   normalizeAncientGameState,
@@ -382,7 +382,7 @@ Deno.test('Battle Reveal Core Energy uses live Cores of every age and excludes o
     ],
   };
 
-  const returned = applyAncientCoreEnergyAtBattleReveal(state);
+  const returned = applyAncientBattleRevealPreparation(state);
   assert.equal(returned, state);
   assert.deepEqual(state.gameData.ancient.energyByPlayerId.p1, {
     battleTurnNumber: 2,
@@ -481,7 +481,7 @@ Deno.test('Battle Reveal replaces stale Energy idempotently and preserves all ot
     futureUnrelatedState: structuredClone(ancientObject.futureUnrelatedState),
   };
 
-  applyAncientCoreEnergyAtBattleReveal(state);
+  applyAncientBattleRevealPreparation(state);
   assert.equal(state.gameData.ancient, ancientObject);
   assert.deepEqual(Object.keys(ancientObject.energyByPlayerId), ['p1', 'p2']);
   assert.deepEqual(ancientObject.energyByPlayerId.p1, {
@@ -511,7 +511,7 @@ Deno.test('Battle Reveal replaces stale Energy idempotently and preserves all ot
   }, unrelatedAncientState);
 
   const firstEnergy = structuredClone(ancientObject.energyByPlayerId);
-  applyAncientCoreEnergyAtBattleReveal(state);
+  applyAncientBattleRevealPreparation(state);
   assert.deepEqual(ancientObject.energyByPlayerId, firstEnergy);
   assert.deepEqual({
     schemaVersion: ancientObject.schemaVersion,
@@ -535,8 +535,8 @@ Deno.test('Battle Reveal Core Energy is deterministic across fleet array order',
   first.gameData.ships.p1 = structuredClone(ships);
   second.gameData.ships.p1 = structuredClone(ships).reverse();
 
-  applyAncientCoreEnergyAtBattleReveal(first);
-  applyAncientCoreEnergyAtBattleReveal(second);
+  applyAncientBattleRevealPreparation(first);
+  applyAncientBattleRevealPreparation(second);
 
   assert.deepEqual(
     first.gameData.ancient.energyByPlayerId,
@@ -548,6 +548,133 @@ Deno.test('Battle Reveal Core Energy is deterministic across fleet array order',
     ),
     ['plu-a', 'plu-z', 'mer-a', 'nep-z'],
   );
+});
+
+Deno.test('Battle Reveal matches QUA selections 1 through 6 with Ancient and non-Ancient controller semantics', () => {
+  for (let selectedNumber = 1; selectedNumber <= 6; selectedNumber += 1) {
+    const state: any = normalizeAncientGameState(createBaseState()).state;
+    state.gameData.turnData.effectiveDiceRollByPlayerId = {
+      p1: selectedNumber,
+      p2: selectedNumber,
+    };
+    state.gameData.ships = {
+      p1: [{
+        instanceId: `ancient-qua-${selectedNumber}`,
+        shipDefId: 'QUA',
+        createdTurn: 2,
+        permanentConfiguration: { selectedNumber },
+      }],
+      p2: [{
+        instanceId: `human-qua-${selectedNumber}`,
+        shipDefId: 'QUA',
+        createdTurn: 2,
+        permanentConfiguration: { selectedNumber },
+      }],
+    };
+
+    applyAncientBattleRevealPreparation(state);
+
+    assert.deepEqual(state.gameData.ancient.energyByPlayerId.p1.pool, {
+      green: 0,
+      red: 0,
+      blue: 2,
+    });
+    assert.deepEqual(state.gameData.ancient.energyByPlayerId.p2.pool, {
+      green: 0,
+      red: 0,
+      blue: 0,
+    });
+    assert.deepEqual(state.gameData.powerMemory.quantumMysticRevealByInstanceId, {
+      [`ancient-qua-${selectedNumber}`]: {
+        battleTurnNumber: 2,
+        controllerPlayerId: 'p1',
+      },
+      [`human-qua-${selectedNumber}`]: {
+        battleTurnNumber: 2,
+        controllerPlayerId: 'p2',
+      },
+    });
+  }
+});
+
+Deno.test('Battle Reveal combines ordered Core and matching QUA Energy while ignoring non-matches and malformed configuration', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  state.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 4, p2: 2 };
+  state.gameData.powerMemory = {
+    onceOnlyFired: { sentinel: true },
+    quantumMysticRevealByInstanceId: {
+      stale: { battleTurnNumber: 1, controllerPlayerId: 'p1' },
+    },
+  };
+  state.gameData.ships = {
+    p1: [
+      { instanceId: 'qua-z', shipDefId: 'QUA', permanentConfiguration: { selectedNumber: 4 } },
+      { instanceId: 'nep', shipDefId: 'NEP' },
+      { instanceId: 'qua-no-match', shipDefId: 'QUA', permanentConfiguration: { selectedNumber: 3 } },
+      { instanceId: 'mer', shipDefId: 'MER' },
+      { instanceId: 'qua-a', shipDefId: 'QUA', createdTurn: 2, permanentConfiguration: { selectedNumber: 4 } },
+      { instanceId: 'qua-missing', shipDefId: 'QUA' },
+      { instanceId: 'qua-fraction', shipDefId: 'QUA', permanentConfiguration: { selectedNumber: 4.5 } },
+      { instanceId: 'plu', shipDefId: 'PLU' },
+    ],
+    p2: [],
+  };
+
+  applyAncientBattleRevealPreparation(state);
+  const firstEnergy = structuredClone(state.gameData.ancient.energyByPlayerId);
+  const firstMemory = structuredClone(state.gameData.powerMemory);
+  applyAncientBattleRevealPreparation(state);
+
+  assert.deepEqual(state.gameData.ancient.energyByPlayerId, firstEnergy);
+  assert.deepEqual(state.gameData.powerMemory, firstMemory);
+  assert.equal(state.gameData.powerMemory.onceOnlyFired.sentinel, true);
+  assert.deepEqual(state.gameData.ancient.energyByPlayerId.p1.pool, {
+    green: 1,
+    red: 1,
+    blue: 5,
+  });
+  assert.deepEqual(
+    state.gameData.ancient.energyByPlayerId.p1.sources.map((source: any) => source.sourceInstanceId),
+    ['plu', 'mer', 'nep', 'qua-a', 'qua-z'],
+  );
+  assert.deepEqual(
+    state.gameData.ancient.energyByPlayerId.p1.sources.slice(3).map((source: any) => source.sourceId),
+    [
+      'ancient-quantum-mystic-energy:2:p1:qua-a',
+      'ancient-quantum-mystic-energy:2:p1:qua-z',
+    ],
+  );
+  assert.deepEqual(Object.keys(state.gameData.powerMemory.quantumMysticRevealByInstanceId), [
+    'qua-a',
+    'qua-z',
+  ]);
+});
+
+Deno.test('QUA configuration, public Energy, and reveal memory survive JSON reload without an Ancient trigger ledger', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  state.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 5 };
+  state.gameData.ships = {
+    p1: [{
+      instanceId: 'qua-reload',
+      shipDefId: 'QUA',
+      permanentConfiguration: { selectedNumber: 5 },
+    }],
+    p2: [],
+  };
+  applyAncientBattleRevealPreparation(state);
+
+  const reloaded = JSON.parse(JSON.stringify(state));
+  const projected = projectPublicAncientState(reloaded);
+  assert.equal(
+    reloaded.gameData.ships.p1[0].permanentConfiguration.selectedNumber,
+    5,
+  );
+  assert.deepEqual(reloaded.gameData.powerMemory.quantumMysticRevealByInstanceId, {
+    'qua-reload': { battleTurnNumber: 2, controllerPlayerId: 'p1' },
+  });
+  assert.equal(projected.energyByPlayerId.p1.sources[0].sourceShipDefId, 'QUA');
+  assert.equal(Object.hasOwn(projected, 'quantumMysticRevealByInstanceId'), false);
+  assert.equal(Object.hasOwn(reloaded.gameData.ancient, 'quantumMysticRevealTriggers'), false);
 });
 
 Deno.test('battle.reveal entry generates public Core Energy before the unchanged visibility hold', () => {

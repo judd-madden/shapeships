@@ -1165,6 +1165,42 @@ export function computePhaseComputedEffects(
     }
   }
 
+  // === QUANTUM MYSTIC (QUA): matched at Battle Reveal, heals only while source remains live ===
+  const quantumMysticRevealByInstanceId =
+    state.gameData.powerMemory?.quantumMysticRevealByInstanceId ?? {};
+
+  for (const fleetOwner of activePlayers) {
+    for (const ship of getShips(state, fleetOwner.id)) {
+      if (ship.shipDefId !== 'QUA') continue;
+
+      const revealMemory = quantumMysticRevealByInstanceId[ship.instanceId];
+      if (
+        !revealMemory ||
+        revealMemory.battleTurnNumber !== currentTurn ||
+        typeof revealMemory.controllerPlayerId !== 'string' ||
+        revealMemory.controllerPlayerId.length === 0
+      ) {
+        continue;
+      }
+
+      computedEffects.push({
+        id: `quantum_mystic_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId: revealMemory.controllerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: 'QUA' },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: revealMemory.controllerPlayerId },
+        kind: EffectKind.Heal,
+        amount: 5,
+      });
+
+      debugLog(
+        `[computePhaseComputedEffects] Quantum Mystic automatic: controller=${revealMemory.controllerPlayerId} currentFleet=${fleetOwner.id} instance=${ship.instanceId} heal=5`
+      );
+    }
+  }
+
   // === FRIGATE (FRI) conditional: If dice roll matches chosen trigger (1..6), deal 6 damage ===
 
   for (const player of activePlayers) {
