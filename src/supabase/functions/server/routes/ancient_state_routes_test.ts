@@ -334,6 +334,9 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
   const state: any = normalizeAncientGameState(setupState).state;
   state.players[0].energy = 88;
   state.gameData.turnData.pendingSOLARPowerDeclarations = { p1: [{ hidden: true }] };
+  state.gameData.turnData.thirdSpiralFirstStrikeEligibilityByPlayerId = {
+    p1: { sourceInstanceId: 'spi-public', turnNumber: 0 },
+  };
   state.gameData.ancient.energyByPlayerId.p1.pool.green = 3;
   state.gameData.ancient.schemaVersion = 2;
   state.gameData.ancient.futureAuthority = { hidden: true };
@@ -428,6 +431,12 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
   assert.equal('battleLogScratch' in body, false);
   assert.equal('ships' in body, false);
   assert.equal('shipActivationCueBatches' in body.gameData.turnData, false);
+  for (const viewerBody of [body, opponentBody, spectatorBody]) {
+    assert.equal(
+      'thirdSpiralFirstStrikeEligibilityByPlayerId' in viewerBody.gameData.turnData,
+      false,
+    );
+  }
   assert.deepEqual(body.gameData.turnData.pendingChargeDeclarations.p2, []);
   assert.equal(body.gameData.turnData.commitments.SECRET.p2.commitHash, undefined);
   assert.equal(body.gameData.turnData.commitments.SECRET.p2.revealPayload, undefined);
@@ -521,6 +530,106 @@ Deno.test('/game-state projects DOM transfer targets with shared Spiral capacity
   assert.deepEqual(
     domUnderCapacity.validTargets.map((target: any) => target.instanceId),
     ['enemy-spi', 'enemy-vig', 'enemy-fig'],
+  );
+});
+
+Deno.test('/game-state projects only the qualifying Spiral action and hides its marker from every viewer', async () => {
+  const fixture = createGameRouteFixture();
+  const state: any = createSetupState('spiral-first-strike-projection');
+  state.players[0].faction = 'ancient';
+  state.players.push(
+    {
+      id: 'p2',
+      name: 'Player Two',
+      role: 'player',
+      faction: 'human',
+      isReady: false,
+      isActive: true,
+      health: 25,
+      lines: 3,
+      joiningLines: 0,
+    },
+    {
+      id: 'spectator',
+      name: 'Spectator',
+      role: 'spectator',
+      faction: null,
+      isReady: false,
+      isActive: false,
+      health: 0,
+      lines: 0,
+      joiningLines: 0,
+    },
+  );
+  state.turnNumber = 2;
+  state.currentPhase = 'battle';
+  state.currentSubPhase = 'first_strike';
+  state.gameData.turnNumber = 2;
+  state.gameData.currentPhase = 'battle';
+  state.gameData.currentSubPhase = 'first_strike';
+  state.gameData.turnData = {
+    turnNumber: 2,
+    currentMajorPhase: 'battle',
+    currentSubPhase: 'first_strike',
+    thirdSpiralFirstStrikeEligibilityByPlayerId: {
+      p1: { sourceInstanceId: 'spi-3', turnNumber: 2 },
+    },
+  };
+  state.gameData.ships = {
+    p1: [
+      { instanceId: 'spi-1', shipDefId: 'SPI', createdTurn: 1 },
+      { instanceId: 'spi-2', shipDefId: 'SPI', createdTurn: 1 },
+      { instanceId: 'spi-3', shipDefId: 'SPI', createdTurn: 2 },
+    ],
+    p2: [
+      { instanceId: 'enemy-def', shipDefId: 'DEF' },
+      { instanceId: 'enemy-core', shipDefId: 'PLU' },
+      { instanceId: 'enemy-gua', shipDefId: 'GUA' },
+    ],
+  };
+  fixture.store.set('game_spiral-first-strike-projection', state);
+
+  const getState = fixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
+  const p1Body = await responseJson(
+    await getState(createContext({ params: { gameId: 'spiral-first-strike-projection' } })),
+  );
+  fixture.setSessionId('p2');
+  const p2Body = await responseJson(
+    await getState(createContext({ params: { gameId: 'spiral-first-strike-projection' } })),
+  );
+  fixture.setSessionId('spectator');
+  const spectatorBody = await responseJson(
+    await getState(createContext({ params: { gameId: 'spiral-first-strike-projection' } })),
+  );
+
+  const spiralActions = p1Body.requester.availableActions.filter(
+    (action: any) => action.shipDefId === 'SPI',
+  );
+  assert.equal(spiralActions.length, 1);
+  assert.equal(spiralActions[0].actionId, 'SPI#0');
+  assert.deepEqual(spiralActions[0].choices, [{ choiceId: 'destroy' }]);
+  assert.deepEqual(
+    spiralActions[0].validTargets.map((target: any) => target.instanceId),
+    ['enemy-def'],
+  );
+  assert.equal(
+    p2Body.requester.availableActions.some((action: any) => action.shipDefId === 'SPI'),
+    false,
+  );
+  assert.equal(
+    spectatorBody.requester.availableActions.some((action: any) => action.shipDefId === 'SPI'),
+    false,
+  );
+  for (const viewerBody of [p1Body, p2Body, spectatorBody]) {
+    assert.equal(
+      'thirdSpiralFirstStrikeEligibilityByPlayerId' in viewerBody.gameData.turnData,
+      false,
+    );
+  }
+  assert.deepEqual(
+    fixture.store.get('game_spiral-first-strike-projection')
+      .gameData.turnData.thirdSpiralFirstStrikeEligibilityByPlayerId,
+    { p1: { sourceInstanceId: 'spi-3', turnNumber: 2 } },
   );
 });
 

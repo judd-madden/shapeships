@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { ACTION_PANEL_DISPLAY_NAMES } from './ActionPanelRegistry';
 import type { ActionPanelViewModel, GameSessionActions } from '../../client/useGameSession';
+import type { FirstStrikeActionFamily } from '../../client/gameSession/types';
 import { HumanShipCataloguePanel } from './panels/catalogue/human/HumanShipCataloguePanel';
 import { XeniteShipCataloguePanel } from './panels/catalogue/xenite/XeniteShipCataloguePanel';
 import { CentaurShipCataloguePanel } from './panels/catalogue/centaur/CentaurShipCataloguePanel';
@@ -33,6 +34,21 @@ interface ActionPanelFrameProps {
   onToggleGameStats?: () => void;
   onReturnToMainMenu: () => void;
   simulacrumSpecies?: SpeciesId;
+}
+
+function getFirstStrikeFamilyLabel(family: FirstStrikeActionFamily): string {
+  switch (family) {
+    case 'guardian':
+      return 'Guardian';
+    case 'sacrificial_pool':
+      return 'Sacrificial Pool';
+    case 'spiral':
+      return 'Spiral';
+    default: {
+      const exhaustiveFamily: never = family;
+      return exhaustiveFamily;
+    }
+  }
 }
 
 export function ActionPanelFrame({
@@ -90,7 +106,7 @@ export function ActionPanelFrame({
           }))
         : phaseLocalFamilySwitch.availableFamilies.map((family) => ({
             family,
-            label: family === 'guardian' ? 'Guardian' : 'Sacrificial Pool',
+            label: getFirstStrikeFamilyLabel(family),
             selected: phaseLocalFamilySwitch.activeFamily === family,
             onClick: () => actions.onSelectFirstStrikeFamily?.(family),
           }));

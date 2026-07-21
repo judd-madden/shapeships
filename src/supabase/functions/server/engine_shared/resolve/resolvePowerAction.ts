@@ -29,6 +29,7 @@ import {
   getValidShipOfEqualityTargets,
   getValidTransferTargets,
 } from './destroyRules.ts';
+import { isThirdSpiralFirstStrikeEligible } from './thirdSpiralFirstStrikeEligibility.ts';
 import { countDistinctTypes } from './phaseComputedEffects.ts';
 import { canControlAdditionalSpirals } from '../maximumHealth.ts';
 
@@ -240,6 +241,13 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
 
   const onceOnlyFiredKeys: string[] = [];
   const powerMemoryKey = power.onceOnly ? `${sourceInstanceId}::${actionId}` : null;
+
+  if (
+    shipDefId === 'SPI' &&
+    !isThirdSpiralFirstStrikeEligible(state, playerId, sourceInstanceId)
+  ) {
+    throw new Error('This Spiral is not the qualifying third Spiral for the current turn.');
+  }
 
   if (power.onceOnly === 'on_build_turn') {
     const currentTurnNumber = state?.gameData?.turnNumber ?? (state as any)?.turnNumber ?? 1;

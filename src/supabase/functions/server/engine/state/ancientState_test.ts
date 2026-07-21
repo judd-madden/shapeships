@@ -885,10 +885,13 @@ Deno.test('P5 adds no Solar declaration path while ordinary charge and response 
   );
 });
 
-Deno.test('response sanitizer is pure and strips only Ancient prototype/internal state', () => {
+Deno.test('response sanitizer is pure and strips Ancient internal and third-Spiral turn scratch', () => {
   const state: any = normalizeAncientGameState(createBaseState()).state;
   state.players[0].energy = 99;
   state.gameData.turnData.pendingSOLARPowerDeclarations = { p1: [{ hidden: true }] };
+  state.gameData.turnData.thirdSpiralFirstStrikeEligibilityByPlayerId = {
+    p1: { sourceInstanceId: 'spi-3', turnNumber: 1 },
+  };
   state.battleLogScratch = { private: true };
   const before = structuredClone(state);
   const safe = sanitizeAncientStateForClient(state) as any;
@@ -897,5 +900,9 @@ Deno.test('response sanitizer is pure and strips only Ancient prototype/internal
   assert.equal('energy' in safe.players[0], false);
   assert.equal('ancient' in safe.gameData, false);
   assert.equal('pendingSOLARPowerDeclarations' in safe.gameData.turnData, false);
+  assert.equal(
+    'thirdSpiralFirstStrikeEligibilityByPlayerId' in safe.gameData.turnData,
+    false,
+  );
   assert.deepEqual(safe.battleLogScratch, { private: true });
 });

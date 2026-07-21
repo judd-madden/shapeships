@@ -92,6 +92,13 @@ function instanceIds(targets: Array<{ instanceId: string }>): string[] {
   return targets.map((target) => target.instanceId);
 }
 
+function markThirdSpiral(state: GameState, sourceInstanceId: string, turnNumber = 2): void {
+  const turnData = state.gameData?.turnData ?? (state.gameData!.turnData = {});
+  turnData.thirdSpiralFirstStrikeEligibilityByPlayerId = {
+    p1: { sourceInstanceId, turnNumber },
+  };
+}
+
 Deno.test('generic destroy target derivation excludes protected Cores without changing ordinary targets', () => {
   const state = createState({
     ownFleet: [
@@ -242,6 +249,131 @@ Deno.test('Guardian dry-run rejects a protected Core target without mutating sta
     /Target ship not valid: protected-plu/,
   );
   assert.deepEqual(state, before);
+});
+
+Deno.test('qualifying Spiral dry-run prepares one legal enemy-basic destroy effect', () => {
+  const state = createState({
+    ownFleet: [
+      ship('spi-1', 'SPI', { createdTurn: 1 }),
+      ship('spi-2', 'SPI', { createdTurn: 1 }),
+      ship('spi-3', 'SPI', { createdTurn: 2 }),
+    ],
+    opponentFleet: [ship('ordinary-def', 'DEF')],
+  });
+  markThirdSpiral(state, 'spi-3');
+  const before = structuredClone(state);
+
+  const outcome = resolvePowerAction({
+    state,
+    playerId: 'p1',
+    phaseKey: 'battle.first_strike',
+    actionId: 'SPI#0',
+    sourceInstanceId: 'spi-3',
+    choiceId: 'destroy',
+    targetInstanceId: 'ordinary-def',
+    apply: false,
+  });
+
+  assert.equal(outcome.effects.length, 1);
+  assert.deepEqual(outcome.onceOnlyFiredKeys, ['spi-3::SPI#0']);
+  assert.deepEqual(state, before);
+});
+
+Deno.test('forged Spiral sources are rejected atomically before mutation', () => {
+  const scenarios = [
+    {
+      name: 'first Spiral',
+      sourceInstanceId: 'spi-1',
+      configure: (_state: GameState) => {},
+    },
+    {
+      name: 'second Spiral',
+      sourceInstanceId: 'spi-2',
+      configure: (_state: GameState) => {},
+    },
+    {
+      name: 'unmarked third Spiral',
+      sourceInstanceId: 'spi-3',
+      configure: (state: GameState) => {
+        delete state.gameData?.turnData?.thirdSpiralFirstStrikeEligibilityByPlayerId;
+      },
+    },
+    {
+      name: 'stolen Spiral',
+      sourceInstanceId: 'spi-3',
+      configure: (state: GameState) => {
+        state.gameData!.turnData!.thirdSpiralFirstStrikeEligibilityByPlayerId = {
+          p2: { sourceInstanceId: 'spi-3', turnNumber: 2 },
+        };
+      },
+    },
+    {
+      name: 'prior-turn source',
+      sourceInstanceId: 'spi-3',
+      configure: (state: GameState) => markThirdSpiral(state, 'spi-3', 1),
+    },
+    {
+      name: 'already-fired source',
+      sourceInstanceId: 'spi-3',
+      configure: (state: GameState) => {
+        state.gameData!.powerMemory!.onceOnlyFired!['spi-3::SPI#0'] = true;
+      },
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const state = createState({
+      ownFleet: [
+        ship('spi-1', 'SPI', { createdTurn: 2 }),
+        ship('spi-2', 'SPI', { createdTurn: 2 }),
+        ship('spi-3', 'SPI', { createdTurn: 2 }),
+      ],
+      opponentFleet: [ship('ordinary-def', 'DEF')],
+    });
+    markThirdSpiral(state, 'spi-3');
+    scenario.configure(state);
+    const before = structuredClone(state);
+    assert.throws(
+      () => resolvePowerAction({
+        state,
+        playerId: 'p1',
+        phaseKey: 'battle.first_strike',
+        actionId: 'SPI#0',
+        sourceInstanceId: scenario.sourceInstanceId,
+        choiceId: 'destroy',
+        targetInstanceId: 'ordinary-def',
+        apply: false,
+      }),
+      /qualifying third Spiral|already been used/,
+      scenario.name,
+    );
+    assert.deepEqual(state, before, scenario.name);
+  }
+});
+
+Deno.test('qualifying Spiral rejects protected and upgraded targets atomically', () => {
+  for (const target of [ship('protected-core', 'PLU'), ship('upgraded-guardian', 'GUA')]) {
+    const state = createState({
+      ownFleet: [ship('spi-3', 'SPI', { createdTurn: 2 })],
+      opponentFleet: [target, ship('ordinary-def', 'DEF')],
+    });
+    markThirdSpiral(state, 'spi-3');
+    const before = structuredClone(state);
+    assert.throws(
+      () => resolvePowerAction({
+        state,
+        playerId: 'p1',
+        phaseKey: 'battle.first_strike',
+        actionId: 'SPI#0',
+        sourceInstanceId: 'spi-3',
+        choiceId: 'destroy',
+        targetInstanceId: target.instanceId,
+        apply: false,
+      }),
+      /Target ship not valid/,
+    );
+    assert.deepEqual(state, before);
+  }
 });
 
 Deno.test('Ark of Domination dry-run rejects a protected Core in a valid two-target payload without mutating state', () => {

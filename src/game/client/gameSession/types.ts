@@ -86,7 +86,7 @@ export interface AcceptedFullStateFingerprint {
 export type EvolverChoiceId = 'hold' | 'oxite' | 'asterite';
 export type CentaurChargeSubTabId = 'charges' | 'ship_of_equality';
 export type BuildDrawingActionFamily = 'evolver' | 'frigate' | 'quantum_mystic';
-export type FirstStrikeActionFamily = 'guardian' | 'sacrificial_pool';
+export type FirstStrikeActionFamily = 'guardian' | 'sacrificial_pool' | 'spiral';
 
 export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
 

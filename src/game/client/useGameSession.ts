@@ -3311,7 +3311,8 @@ useEffect(() => {
         return getFirstStrikeActionPanelId(
           activeFirstStrikeFamily,
           renderableActionShipPresence.hasGuardianFirstStrikeAction,
-          renderableActionShipPresence.hasSacrificialPoolFirstStrikeAction
+          renderableActionShipPresence.hasSacrificialPoolFirstStrikeAction,
+          renderableActionShipPresence.hasSpiralFirstStrikeAction
         );
       
       case 'battle.charge_declaration':
@@ -3396,17 +3397,37 @@ useEffect(() => {
     return null;
   }
 
+  function getFirstStrikePanelIdForFamily(family: FirstStrikeActionFamily): ActionPanelId {
+    switch (family) {
+      case 'guardian':
+        return 'ap.battle.first_strike.human';
+      case 'sacrificial_pool':
+        return 'ap.battle.first_strike.xenite';
+      case 'spiral':
+        return 'ap.battle.first_strike.ancient';
+      default: {
+        const exhaustiveFamily: never = family;
+        return exhaustiveFamily;
+      }
+    }
+  }
+
   function getFirstStrikeActionPanelId(
     activeFamily: FirstStrikeActionFamily | null,
     hasGuardianAction: boolean,
-    hasSacrificialPoolAction: boolean
+    hasSacrificialPoolAction: boolean,
+    hasSpiralAction: boolean
   ): ActionPanelId | null {
     if (activeFamily === 'guardian' && hasGuardianAction) {
-      return 'ap.battle.first_strike.human';
+      return getFirstStrikePanelIdForFamily(activeFamily);
     }
 
     if (activeFamily === 'sacrificial_pool' && hasSacrificialPoolAction) {
-      return 'ap.battle.first_strike.xenite';
+      return getFirstStrikePanelIdForFamily(activeFamily);
+    }
+
+    if (activeFamily === 'spiral' && hasSpiralAction) {
+      return getFirstStrikePanelIdForFamily(activeFamily);
     }
 
     if (hasGuardianAction) {
@@ -3415,6 +3436,10 @@ useEffect(() => {
 
     if (hasSacrificialPoolAction) {
       return 'ap.battle.first_strike.xenite';
+    }
+
+    if (hasSpiralAction) {
+      return 'ap.battle.first_strike.ancient';
     }
 
     return null;
@@ -3536,6 +3561,9 @@ useEffect(() => {
   const hasSacrificialPoolFirstStrikeAction =
     phaseKey === 'battle.first_strike' &&
     renderableActionShipPresence.hasSacrificialPoolFirstStrikeAction;
+  const hasSpiralFirstStrikeAction =
+    phaseKey === 'battle.first_strike' &&
+    renderableActionShipPresence.hasSpiralFirstStrikeAction;
   const allowScopedFirstStrikeFamilySwitch =
     phaseKey === 'battle.first_strike' &&
     mySpecies !== 'centaur';
@@ -3545,6 +3573,7 @@ useEffect(() => {
       : [
           ...(hasGuardianFirstStrikeAction ? ['guardian' as const] : []),
           ...(hasSacrificialPoolFirstStrikeAction ? ['sacrificial_pool' as const] : []),
+          ...(hasSpiralFirstStrikeAction ? ['spiral' as const] : []),
         ];
   const firstStrikeAvailableFamiliesKey = firstStrikeAvailableFamilies.join('|');
 
@@ -4025,7 +4054,8 @@ useEffect(() => {
 
     if (
       activePanelId !== 'ap.battle.first_strike.human' &&
-      activePanelId !== 'ap.battle.first_strike.xenite'
+      activePanelId !== 'ap.battle.first_strike.xenite' &&
+      activePanelId !== 'ap.battle.first_strike.ancient'
     ) {
       return;
     }
@@ -4033,7 +4063,8 @@ useEffect(() => {
     const nextPanelId = getFirstStrikeActionPanelId(
       activeFirstStrikeFamily,
       hasGuardianFirstStrikeAction,
-      hasSacrificialPoolFirstStrikeAction
+      hasSacrificialPoolFirstStrikeAction,
+      hasSpiralFirstStrikeAction
     );
 
     if (!nextPanelId) {
@@ -4049,6 +4080,7 @@ useEffect(() => {
     activePanelId,
     hasGuardianFirstStrikeAction,
     hasSacrificialPoolFirstStrikeAction,
+    hasSpiralFirstStrikeAction,
     mySpecies,
     phaseKey,
   ]);
@@ -4875,11 +4907,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         ...prev,
         [phaseInstanceKey]: family,
       }));
-      setActivePanelId(
-        family === 'guardian'
-          ? 'ap.battle.first_strike.human'
-          : 'ap.battle.first_strike.xenite'
-      );
+      setActivePanelId(getFirstStrikePanelIdForFamily(family));
     },
 
     onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {

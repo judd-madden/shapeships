@@ -24,6 +24,7 @@ import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 import { EffectKind } from '../../engine_shared/effects/Effect.ts';
 import { getValidDestroyTargets } from '../../engine_shared/resolve/destroyRules.ts';
+import { isThirdSpiralFirstStrikeEligible } from '../../engine_shared/resolve/thirdSpiralFirstStrikeEligibility.ts';
 
 type KnoRerollPassIndex = 1 | 2 | 3;
 
@@ -88,7 +89,20 @@ function shipAlreadyUsedInShipsThatBuildPass(state: any, sourceInstanceId: strin
   return state?.gameData?.turnData?.shipsThatBuildPassUsageByInstanceId?.[sourceInstanceId]?.[passIndex] === true;
 }
 
-function isTargetedChoicePowerAvailableForShip(state: any, ship: any, actionId: string, power: any): boolean {
+function isTargetedChoicePowerAvailableForShip(
+  state: any,
+  playerId: string,
+  ship: any,
+  actionId: string,
+  power: any,
+): boolean {
+  if (
+    ship?.shipDefId === 'SPI' &&
+    !isThirdSpiralFirstStrikeEligible(state, playerId, ship?.instanceId)
+  ) {
+    return false;
+  }
+
   if (power?.onceOnly === 'on_build_turn') {
     const currentTurnNumber: number = state?.gameData?.turnNumber ?? 1;
     if (ship?.createdTurn !== currentTurnNumber) {
@@ -182,7 +196,7 @@ function shipHasInteractiveTargetedDestroyChoice(
     foundTargetedDestroyChoice = true;
 
     const actionId = `${ship.shipDefId}#${powerIndex}`;
-    if (!isTargetedChoicePowerAvailableForShip(state, ship, actionId, power)) continue;
+    if (!isTargetedChoicePowerAvailableForShip(state, playerId, ship, actionId, power)) continue;
 
     const chargesCurrent = Number(ship?.chargesCurrent ?? 0);
     const eligibleChoices = power.options.filter((option) => {

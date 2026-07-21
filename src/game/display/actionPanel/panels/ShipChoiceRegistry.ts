@@ -342,6 +342,13 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
     instruction: 'You must destroy an enemy basic ship.',
   },
 
+  'ap.battle.first_strike.ancient': {
+    kind: 'large',
+    shipDefId: 'SPI',
+    title: 'Spiral',
+    instruction: 'Select an enemy basic ship to destroy.',
+  },
+
   'ap.battle.charges.human': {
     kind: 'buttons',
     showOpponentAlsoHasCharges: true,

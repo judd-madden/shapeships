@@ -699,6 +699,33 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   ],
 
   // ==========================================================================
+  // SPIRAL (SPI)
+  // ==========================================================================
+  'SPI#2': [
+    {
+      type: 'choice',
+      timings: ['battle.first_strike'],
+      onceOnly: 'on_build_turn',
+      options: [
+        {
+          choiceId: 'destroy',
+          label: '',
+          effects: [
+            {
+              type: 'effect',
+              timings: [],
+              kind: EffectKind.Destroy,
+              restriction: 'basic_only',
+              count: 1,
+              targetPlayer: 'opponent',
+            },
+          ],
+        },
+      ],
+    },
+  ],
+
+  // ==========================================================================
   // ARK OF KNOWLEDGE (KNO)
   // ==========================================================================
   // JSON power index 2: "Heal 2." (Automatic)

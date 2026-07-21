@@ -275,6 +275,12 @@ export type GameData = {
     shipsThatBuildPassIndex?: 1 | 2;
     /** Tracks interactive Ships That Build usage by ship instance and pass */
     shipsThatBuildPassUsageByInstanceId?: Record<string, Partial<Record<1 | 2, true>>>;
+
+    /** Exact Drawing-created Spiral that crossed its controller from two to three this turn */
+    thirdSpiralFirstStrikeEligibilityByPlayerId?: Record<string, {
+      sourceInstanceId: string;
+      turnNumber: number;
+    }>;
     
     /** Track once-per-turn charge power usage by ship instance */
     chargePowerUsedByInstanceId?: Record<string, number>;

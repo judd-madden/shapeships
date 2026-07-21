@@ -14,6 +14,7 @@ import {
   createBattleLogBuildManualCaptureEvent,
   createBattleLogBuildProducedCaptureEvent,
 } from '../state/battleLogHistory.ts';
+import { recordThirdSpiralFirstStrikeEligibility } from '../../engine_shared/resolve/thirdSpiralFirstStrikeEligibility.ts';
 
 type BuildAttemptSkipReason =
   | 'unknown_ship'
@@ -354,6 +355,9 @@ function appendCreatedShip(args: {
 }): ShipInstance {
   const { state, playerId, shipDefId, turnNumber, workingFleet, selectedNumber } = args;
   const shipDef = getShipById(shipDefId);
+  const controlledSpiralCountBeforeCreation = shipDefId === 'SPI'
+    ? ensureShipsContainer(state, playerId).filter((ship) => ship.shipDefId === 'SPI').length
+    : 0;
 
   const shipInstance: ShipInstance = {
     instanceId: crypto.randomUUID(),
@@ -376,6 +380,16 @@ function appendCreatedShip(args: {
     chargesCurrent: normalizeChargesCurrent(shipInstance),
     createdTurn: shipInstance.createdTurn,
   });
+
+  if (shipDefId === 'SPI') {
+    recordThirdSpiralFirstStrikeEligibility({
+      state,
+      playerId,
+      sourceInstanceId: shipInstance.instanceId,
+      turnNumber,
+      controlledSpiralCountBeforeCreation,
+    });
+  }
 
   if (shipDefId === 'FRI') {
     ensureFrigateMemory(state);

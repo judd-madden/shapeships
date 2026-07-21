@@ -210,6 +210,15 @@ const SHIP_ANIM: Partial<Record<ShipDefId, {
   POW: { entry: 'default', activation: 'default' },
   DES: { entry: 'default', activation: 'default' },
   DOM: { entry: 'default', activation: 'default' },
+
+  // Ancient ships
+  PLU: { entry: 'default', activation: 'default' },
+  MER: { entry: 'default', activation: 'default' },
+  QUA: { entry: 'defender', activation: 'default' },
+  SPI: { entry: 'commander', activation: 'default' },
+  NEP: { entry: 'default', activation: 'default' },
+  SOL: { entry: 'to-right', activation: 'default' },
+  CUB: { entry: 'defender', activation: 'default' },
 };
 
 // ============================================================================

@@ -714,7 +714,11 @@ export function sanitizeAncientStateForClient<T = any>(state: T): T {
   const { ancient: _internalAncient, ...safeGameData } = gameData;
   const turnData = isObject(safeGameData.turnData) ? safeGameData.turnData : null;
   if (turnData) {
-    const { pendingSOLARPowerDeclarations: _obsoleteSolarDeclarations, ...safeTurnData } = turnData;
+    const {
+      pendingSOLARPowerDeclarations: _obsoleteSolarDeclarations,
+      thirdSpiralFirstStrikeEligibilityByPlayerId: _thirdSpiralFirstStrikeEligibility,
+      ...safeTurnData
+    } = turnData;
     safeGameData.turnData = safeTurnData;
   }
   if (Array.isArray(safeGameData.players)) {

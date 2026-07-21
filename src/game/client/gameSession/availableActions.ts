@@ -59,6 +59,7 @@ export interface RenderableActionShipPresence {
   hasCentaurEquChargeAction: boolean;
   hasGuardianFirstStrikeAction: boolean;
   hasSacrificialPoolFirstStrikeAction: boolean;
+  hasSpiralFirstStrikeAction: boolean;
 }
 
 export function isCataloguePanel(id: ActionPanelId): boolean {
@@ -138,6 +139,14 @@ export function getRenderableActionShipPresence(
       }
 
       if (
+        phaseKey === 'battle.first_strike' &&
+        action.kind === 'destroy_target' &&
+        action.shipDefId === 'SPI'
+      ) {
+        presence.hasSpiralFirstStrikeAction = true;
+      }
+
+      if (
         (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') &&
         (action.shipDefId === 'WIS' ||
           action.shipDefId === 'FAM' ||
@@ -162,6 +171,7 @@ export function getRenderableActionShipPresence(
       hasCentaurEquChargeAction: false,
       hasGuardianFirstStrikeAction: false,
       hasSacrificialPoolFirstStrikeAction: false,
+      hasSpiralFirstStrikeAction: false,
     }
   );
 }

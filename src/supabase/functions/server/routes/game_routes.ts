@@ -35,6 +35,7 @@ import {
   getValidShipOfEqualityTargets,
   getValidTransferTargets,
 } from '../engine_shared/resolve/destroyRules.ts';
+import { isThirdSpiralFirstStrikeEligible } from '../engine_shared/resolve/thirdSpiralFirstStrikeEligibility.ts';
 import { countDistinctTypes } from '../engine_shared/resolve/phaseComputedEffects.ts';
 import { rollD6 } from '../engine/util/rollD6.ts';
 import {
@@ -325,7 +326,20 @@ function getProjectedRequiredTargetCount(effect: any, validTargetCount: number):
   return Math.min(baseRequiredTargetCount, Math.max(1, validTargetCount));
 }
 
-function isFirstStrikePowerAvailableForShip(state: any, shipInstance: ShipInstance, actionId: string, power: any): boolean {
+function isFirstStrikePowerAvailableForShip(
+  state: any,
+  playerId: string,
+  shipInstance: ShipInstance,
+  actionId: string,
+  power: any,
+): boolean {
+  if (
+    shipInstance.shipDefId === 'SPI' &&
+    !isThirdSpiralFirstStrikeEligible(state, playerId, shipInstance.instanceId)
+  ) {
+    return false;
+  }
+
   if (power?.onceOnly === 'on_build_turn') {
     const currentTurnNumber: number = state?.gameData?.turnNumber ?? 1;
     if (shipInstance?.createdTurn !== currentTurnNumber) {
@@ -791,7 +805,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
         }
 
         const actionId = `${shipDefId}#${powerIndex}`;
-        if (!isFirstStrikePowerAvailableForShip(state, shipInstance, actionId, power)) continue;
+        if (!isFirstStrikePowerAvailableForShip(state, playerId, shipInstance, actionId, power)) continue;
 
         const choices = power.options.map((opt: any) => ({ choiceId: opt.choiceId }));
         const targetedOption = power.options.find((opt: any) => getTargetedChoiceEffect(opt) != null);
