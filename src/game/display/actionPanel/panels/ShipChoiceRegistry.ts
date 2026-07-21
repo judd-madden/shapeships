@@ -195,6 +195,20 @@ const ANT_CHARGE_BUTTONS: ShipChoiceButtonSpec[] = [
   },
 ];
 
+const SOL_CHARGE_BUTTONS: ShipChoiceButtonSpec[] = [
+  {
+    size: 'large',
+    label: 'Use Grid',
+    detail: '+1 green, red and blue Energy',
+    choiceId: 'use',
+  },
+  {
+    size: 'small',
+    label: 'Hold Charge',
+    choiceId: 'hold',
+  },
+];
+
 // ============================================================================
 // REGISTRY
 // ============================================================================
@@ -494,6 +508,68 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
           },
         ],
         groupHelpText: 'If a charge-based ship is destroyed, it\'s charge still occurs.\n\nIf a ship with Automatic damage and healing is destroyed, it\'s power does NOT occur (except \'once only\' powers).',
+      },
+    ],
+  },
+
+  'ap.battle.charges.ancient': {
+    kind: 'buttons',
+    showOpponentAlsoHasCharges: true,
+    groups: [
+      {
+        kind: 'counted',
+        shipDefId: 'ANT',
+        headingTemplate: '{count} {shipName} may use their charge.',
+        buttons: ANT_CHARGE_BUTTONS,
+      },
+      {
+        kind: 'counted',
+        shipDefId: 'EQU',
+        headingTemplate: '{count} {shipName} may destroy.',
+        buttons: [
+          {
+            size: 'large',
+            label: 'Destroy Both',
+            detail: '(use 1 charge)',
+            requiresTargeting: true,
+            showsInstructions: true,
+            instructionText: 'Select one basic ship of yours and one basic enemy ship with equal total lines.',
+            choiceId: 'damage',
+          },
+          { size: 'small', label: 'Hold Charge', choiceId: 'hold' },
+        ],
+      },
+      {
+        kind: 'counted',
+        shipDefId: 'FAM',
+        headingTemplate: '{count} {shipName} may use a charge.',
+        buttons: [
+          { size: 'large', label: 'Deal Damage', detail: '(uses 1 charge)', choiceId: 'damage' },
+          { size: 'large', label: 'Heal', detail: '(uses 1 charge)', choiceId: 'heal' },
+          { size: 'small', label: 'Hold Charge', choiceId: 'hold' },
+        ],
+      },
+      {
+        kind: 'counted',
+        shipDefId: 'INT',
+        headingTemplate: '{count} {shipName} may use their charge.',
+        buttons: INT_CHARGE_BUTTONS,
+      },
+      {
+        kind: 'counted',
+        shipDefId: 'SOL',
+        headingTemplate: '{count} {shipName} may use a charge.',
+        buttons: SOL_CHARGE_BUTTONS,
+      },
+      {
+        kind: 'counted',
+        shipDefId: 'WIS',
+        headingTemplate: '{count} {shipName} may use a charge.',
+        buttons: [
+          { size: 'large', label: 'Deal 3 Damage', detail: '(uses 1 charge)', choiceId: 'damage' },
+          { size: 'large', label: 'Heal 4', detail: '(uses 1 charge)', choiceId: 'heal' },
+          { size: 'small', label: 'Hold Charge', choiceId: 'hold' },
+        ],
       },
     ],
   },

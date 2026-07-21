@@ -27,6 +27,7 @@ const CATALOGUE_PANEL_IDS = new Set<ActionPanelViewModel['activePanelId']>([
   'ap.catalog.ships.xenite',
   'ap.catalog.ships.centaur',
   'ap.catalog.ships.ancient',
+  'ap.battle.solar_powers.ancient',
 ]);
 
 const END_OF_GAME_FALLBACK: NonNullable<ActionPanelViewModel['endOfGame']> = {
@@ -250,8 +251,19 @@ export function MobileActionPanel({
   }
 
   if (CATALOGUE_PANEL_IDS.has(vm.activePanelId)) {
+    const isAncientDeclaration = vm.activePanelId === 'ap.battle.solar_powers.ancient';
     return renderWithHealthOverlay(
-      <div className="h-[204px] w-full shrink-0 overflow-hidden border-t border-[var(--shapeships-grey-70)] bg-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+      <div className="relative h-[204px] w-full shrink-0 overflow-hidden border-t border-[var(--shapeships-grey-70)] bg-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+        {isAncientDeclaration && vm.ancientChargeDeclaration?.hadChargeStage ? (
+          <button
+            type="button"
+            disabled={vm.ancientChargeDeclaration.attemptUnresolved}
+            onClick={actions.onReturnToAncientCharges}
+            className="absolute right-[10px] top-[8px] z-[30] rounded bg-black/80 px-[8px] py-[4px] text-[13px] font-bold text-[var(--shapeships-pastel-red)] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Return to Charges
+          </button>
+        ) : null}
         <MobileCatalogueScroller
           vm={vm}
           actions={actions}

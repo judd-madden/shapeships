@@ -224,7 +224,12 @@ export function ActionPanelFrame({
     );
   }
 
-  if (vm.activePanelId === 'ap.catalog.ships.ancient') {
+  if (
+    vm.activePanelId === 'ap.catalog.ships.ancient' ||
+    vm.activePanelId === 'ap.battle.solar_powers.ancient'
+  ) {
+    const isDeclaration = vm.activePanelId === 'ap.battle.solar_powers.ancient';
+    const declarationVm = vm.ancientChargeDeclaration;
     if (isLaptopCatalogueLayout) {
       return renderWithOverlay(
         <ActionPanelScrollArea horizontalOverflow="auto">
@@ -236,6 +241,13 @@ export function ActionPanelFrame({
               catalogueLayout="long"
               hoverDisabled={hoverDisabled}
               simulacrumSpecies={simulacrumSpecies}
+              interactionDisabled={isDeclaration}
+              presentation={isDeclaration ? 'declaration' : 'reference'}
+              catalogueEnergy={vm.ancientCatalogueEnergy}
+              declarationEnergy={declarationVm?.provisionalEnergy}
+              showReturnToCharges={declarationVm?.hadChargeStage === true}
+              declarationAttemptUnresolved={declarationVm?.attemptUnresolved === true}
+              onReturnToCharges={actions.onReturnToAncientCharges}
             />
           </DesktopScaledCatalogueCanvas>
         </ActionPanelScrollArea>
@@ -250,6 +262,13 @@ export function ActionPanelFrame({
           catalogueLayout={catalogueLayout}
           hoverDisabled={hoverDisabled}
           simulacrumSpecies={simulacrumSpecies}
+          interactionDisabled={isDeclaration}
+          presentation={isDeclaration ? 'declaration' : 'reference'}
+          catalogueEnergy={vm.ancientCatalogueEnergy}
+          declarationEnergy={declarationVm?.provisionalEnergy}
+          showReturnToCharges={declarationVm?.hadChargeStage === true}
+          declarationAttemptUnresolved={declarationVm?.attemptUnresolved === true}
+          onReturnToCharges={actions.onReturnToAncientCharges}
         />
       </div>
     );

@@ -54,12 +54,20 @@ import {
   type AncientEnergyCostRow,
 } from './AncientEnergyDisplay';
 import { AncientSolarPowerSlot } from './AncientSolarPowerSlot';
+import type { AncientEnergyPool } from '../../../../../client/gameSession/ancientChargeDeclaration';
 
 type CatalogueFrame = 'desktop' | 'bare';
 type CatalogueLayout = 'standard' | 'long';
 
 const ANCIENT_DESKTOP_CANVAS = { width: 1210, height: 258 };
 const ANCIENT_LONG_CANVAS = { width: 1446, height: 258 };
+const ZERO_ANCIENT_ENERGY_POOL: AncientEnergyPool = { green: 0, red: 0, blue: 0 };
+const REFERENCE_ANCIENT_CATALOGUE_ENERGY: NonNullable<
+  ActionPanelViewModel['ancientCatalogueEnergy']
+> = {
+  mode: 'reference',
+  pool: ZERO_ANCIENT_ENERGY_POOL,
+};
 
 interface SolarPosition {
   x: number;
@@ -178,6 +186,12 @@ interface AncientShipCataloguePanelProps {
   interactionDisabled?: boolean;
   onShipInspect?: (shipId: ShipDefId) => void;
   simulacrumSpecies?: SpeciesId;
+  presentation?: 'reference' | 'declaration';
+  catalogueEnergy?: ActionPanelViewModel['ancientCatalogueEnergy'];
+  declarationEnergy?: AncientEnergyPool;
+  showReturnToCharges?: boolean;
+  declarationAttemptUnresolved?: boolean;
+  onReturnToCharges?: () => void;
 }
 
 export function AncientShipCataloguePanel({
@@ -189,6 +203,12 @@ export function AncientShipCataloguePanel({
   interactionDisabled = false,
   onShipInspect,
   simulacrumSpecies = 'human',
+  presentation = 'reference',
+  catalogueEnergy,
+  declarationEnergy,
+  showReturnToCharges = false,
+  declarationAttemptUnresolved = false,
+  onReturnToCharges,
 }: AncientShipCataloguePanelProps) {
   const [autocastChecked, setAutocastChecked] = useState(true);
   const hover = useShipCatalogueHover(hoverDisabled);
@@ -198,6 +218,7 @@ export function AncientShipCataloguePanel({
   const canvas = isLongCatalogueLayout ? ANCIENT_LONG_CANVAS : ANCIENT_DESKTOP_CANVAS;
   const solarHeaderPositions = SOLAR_HEADER_POSITIONS[catalogueLayout];
   const SimulacrumGraphic = SIMULACRUM_GRAPHICS[simulacrumSpecies] ?? SimulacrumHuman;
+  const isDeclarationPresentation = presentation === 'declaration';
 
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
@@ -519,11 +540,18 @@ export function AncientShipCataloguePanel({
               top: solarHeaderPositions.energy.y,
             }}
           >
-            <AncientEnergyDisplay />
+            {isDeclarationPresentation ? (
+              <AncientEnergyDisplay
+                mode="active"
+                pool={declarationEnergy ?? ZERO_ANCIENT_ENERGY_POOL}
+              />
+            ) : (
+              <AncientEnergyDisplay {...(catalogueEnergy ?? REFERENCE_ANCIENT_CATALOGUE_ENERGY)} />
+            )}
           </div>
 
           <div
-            className="absolute flex items-center gap-[2px]"
+            className={`absolute flex items-center gap-[2px] ${isDeclarationPresentation ? 'opacity-40' : ''}`}
             style={{
               left: solarHeaderPositions.autocast.x,
               top: solarHeaderPositions.autocast.y,
@@ -531,14 +559,15 @@ export function AncientShipCataloguePanel({
           >
             <Checkbox
               className="!size-[24px]"
-              checked={autocastChecked}
-              onChange={setAutocastChecked}
+              checked={isDeclarationPresentation ? false : autocastChecked}
+              onChange={isDeclarationPresentation ? undefined : setAutocastChecked}
+              disabled={isDeclarationPresentation}
             />
             <span
               className="font-['Roboto'] text-[18px] font-bold leading-none text-white"
               style={{ fontVariationSettings: "'wdth' 100" }}
             >
-              Autocast
+              {isDeclarationPresentation ? 'Autocast (Unavailable)' : 'Autocast'}
             </span>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -559,8 +588,14 @@ export function AncientShipCataloguePanel({
               >
                 <div className="w-fit max-w-[calc(100vw-32px)] translate-x-[10px] rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[20px] py-[16px] text-[16px] font-normal leading-[22px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
                   <div className="flex flex-col">
-                    <p>When you declare READY, autocast priority powers with remaining energy each turn.</p>
-                    <p className="italic">Does not autocast Simulacrum or multi-colour powers.</p>
+                    {isDeclarationPresentation ? (
+                      <p>Autocast is not available in this declaration workflow yet.</p>
+                    ) : (
+                      <>
+                        <p>When you declare READY, autocast priority powers with remaining energy each turn.</p>
+                        <p className="italic">Does not autocast Simulacrum or multi-colour powers.</p>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div
@@ -570,6 +605,17 @@ export function AncientShipCataloguePanel({
               </TooltipContent>
             </Tooltip>
           </div>
+
+          {isDeclarationPresentation && showReturnToCharges ? (
+            <button
+              type="button"
+              disabled={declarationAttemptUnresolved}
+              onClick={onReturnToCharges}
+              className="absolute right-0 top-[34px] z-20 text-[16px] font-bold text-[var(--shapeships-pastel-red)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Return to Charges
+            </button>
+          ) : null}
 
           {SOLAR_POWER_SLOTS.map((slot) => {
             const position = slot.position[catalogueLayout];

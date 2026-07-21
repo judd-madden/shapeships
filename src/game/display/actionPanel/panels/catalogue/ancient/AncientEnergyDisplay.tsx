@@ -1,3 +1,5 @@
+import type { AncientCatalogueEnergyDisplay } from '../../../../../client/gameSession/types';
+
 export type AncientEnergyColor = 'green' | 'red' | 'cyan';
 
 export interface AncientEnergyCostRow {
@@ -11,24 +13,14 @@ const ENERGY_COLOR_CSS: Record<AncientEnergyColor, string> = {
   cyan: 'var(--shapeships-cyan)',
 };
 
-const ENERGY_FIXTURES = [
-  { color: 'green', available: 5, total: 8 },
-  { color: 'red', available: 5, total: 8 },
-  { color: 'cyan', available: 5, total: 8 },
-] as const satisfies ReadonlyArray<{
-  color: AncientEnergyColor;
-  available: number;
-  total: number;
-}>;
-
-function EnergyPip({ color, used = false }: { color: AncientEnergyColor; used?: boolean }) {
+function EnergyPip({ color, dulled = false }: { color: AncientEnergyColor; dulled?: boolean }) {
   return (
     <span
       aria-hidden="true"
       className="size-[14px] shrink-0 rounded-full"
       style={{
         backgroundColor: ENERGY_COLOR_CSS[color],
-        opacity: used ? 0.4 : 1,
+        opacity: dulled ? 0.4 : 1,
       }}
     />
   );
@@ -48,28 +40,34 @@ export function AncientEnergyCostPips({ rows }: { rows: readonly AncientEnergyCo
   );
 }
 
-export function AncientEnergyDisplay() {
+export function AncientEnergyDisplay({ mode, pool }: AncientCatalogueEnergyDisplay) {
+  const rows = [
+    { color: 'green' as const, amount: pool.green },
+    { color: 'red' as const, amount: pool.red },
+    { color: 'cyan' as const, amount: pool.blue },
+  ];
+
   return (
     <div className="flex items-start gap-[24px]">
-      {ENERGY_FIXTURES.map((fixture) => (
-        <div key={fixture.color} className="flex items-center gap-[8px]">
+      {rows.map((row) => (
+        <div key={row.color} className="flex items-center gap-[8px]">
           <span
             className="shrink-0 text-[22px] font-bold leading-[normal]"
             style={{
-              color: ENERGY_COLOR_CSS[fixture.color],
+              color: ENERGY_COLOR_CSS[row.color],
               fontVariationSettings: "'wdth' 100",
             }}
           >
-            {fixture.available}
+            {row.amount}
           </span>
           <div
             className="flex w-fit max-w-[150px] flex-wrap justify-left gap-x-[4px] gap-y-[6px]"
           >
-            {Array.from({ length: fixture.total }, (_, index) => (
+            {Array.from({ length: Math.max(1, row.amount) }, (_, index) => (
               <EnergyPip
                 key={index}
-                color={fixture.color}
-                used={index >= fixture.available}
+                color={row.color}
+                dulled={mode !== 'active' || row.amount === 0}
               />
             ))}
           </div>

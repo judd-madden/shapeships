@@ -50,11 +50,24 @@ export function MobileCatalogueScroller({
       <MobileScaledCatalogueCanvas {...MOBILE_CATALOGUE_CANVASES.centaur}>
         <CentaurShipCataloguePanel {...commonProps} />
       </MobileScaledCatalogueCanvas>
-    ) : vm.activePanelId === 'ap.catalog.ships.ancient' ? (
+    ) : (
+      vm.activePanelId === 'ap.catalog.ships.ancient' ||
+      vm.activePanelId === 'ap.battle.solar_powers.ancient'
+    ) ? (
       <MobileScaledCatalogueCanvas {...MOBILE_CATALOGUE_CANVASES.ancient}>
         <AncientShipCataloguePanel
           {...commonProps}
           simulacrumSpecies={simulacrumSpecies}
+          presentation={
+            vm.activePanelId === 'ap.battle.solar_powers.ancient'
+              ? 'declaration'
+              : 'reference'
+          }
+          catalogueEnergy={vm.ancientCatalogueEnergy}
+          declarationEnergy={vm.ancientChargeDeclaration?.provisionalEnergy}
+          showReturnToCharges={false}
+          declarationAttemptUnresolved={vm.ancientChargeDeclaration?.attemptUnresolved === true}
+          onReturnToCharges={actions.onReturnToAncientCharges}
         />
       </MobileScaledCatalogueCanvas>
     ) : null;

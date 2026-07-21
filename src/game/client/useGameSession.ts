@@ -59,6 +59,7 @@ import {
   getPhaseHold,
   getPhaseKey,
   getPlayerIdentityKey,
+  getPublicAncientEnergyForPlayer,
   getResultReason,
   getSavedLinesByPlayerId,
   getShipActivationCueBatches,
@@ -128,6 +129,7 @@ import type {
   ActionPanelTabId,
   ActionPanelTabVm,
   ActionPanelViewModel,
+  AncientCatalogueEnergyDisplay,
   BattleLogHistoryResponse,
   GameSessionChatEntry,
   GameSessionViewModel,
@@ -174,6 +176,15 @@ import {
   speciesToCataloguePanelId,
 } from './gameSession/availableActions';
 import { buildMessageAction } from './gameSession/powerIntents';
+import {
+  buildAncientChargeDeclarationPayload,
+  deriveProvisionalAncientEnergy,
+  getAncientChargeDeclarationActions,
+  getAncientEnergyTotal,
+  partitionAncientChargeDeclarationActions,
+  type AncientChargeDeclarationWorkflow,
+  type FrozenAncientChargeDeclarationAttempt,
+} from './gameSession/ancientChargeDeclaration';
 
 
 // ============================================================================
@@ -1606,6 +1617,10 @@ export function useGameSession(
   // ============================================================================
   
   const [shipChoiceSelectionByInstanceId, setShipChoiceSelectionByInstanceId] = useState<Record<string, string>>({});
+  const [ancientChargeDeclarationWorkflow, setAncientChargeDeclarationWorkflow] =
+    useState<AncientChargeDeclarationWorkflow | null>(null);
+  const [ancientChargeDeclarationAttempt, setAncientChargeDeclarationAttempt] =
+    useState<FrozenAncientChargeDeclarationAttempt | null>(null);
   
   // ============================================================================
   // TASK A: HARD RESET PREVIEW STATE ON TURN CHANGE
@@ -2178,6 +2193,73 @@ export function useGameSession(
   const p2Species = normalizeSpecies(p2?.faction ?? p2?.species);
   const displayLeftSpecies = normalizeSpecies(displayLeftPlayer?.faction ?? displayLeftPlayer?.species);
   const displayRightSpecies = normalizeSpecies(displayRightPlayer?.faction ?? displayRightPlayer?.species);
+
+  const authoritativeAncientEnergy = getPublicAncientEnergyForPlayer(rawState, me?.id);
+  const ancientDeclarationActions = getAncientChargeDeclarationActions(availableActions);
+  const { solarGridActions: ancientSolarGridActions } =
+    partitionAncientChargeDeclarationActions(ancientDeclarationActions);
+  const ancientChargeDeclarationWorkflowKey = `${effectiveGameId ?? 'nogame'}::${phaseInstanceKey}`;
+  const ancientPlayerReady = isPlayerReadyForPhase(rawState, me?.id);
+  const ancientDeclarationActionsLoaded = Array.isArray(availableActions);
+  const shouldPresentAncientChargeDeclaration =
+    phaseKey === 'battle.charge_declaration' &&
+    myRole === 'player' &&
+    mySpecies === 'ancient' &&
+    !ancientPlayerReady &&
+    ancientDeclarationActionsLoaded &&
+    (ancientDeclarationActions.length > 0 || getAncientEnergyTotal(authoritativeAncientEnergy) > 0);
+  const initialAncientChargeDeclarationWorkflow: AncientChargeDeclarationWorkflow | null =
+    shouldPresentAncientChargeDeclaration
+      ? {
+          key: ancientChargeDeclarationWorkflowKey,
+          stage: ancientDeclarationActions.length > 0 ? 'charges' : 'powers',
+          hadChargeStage: ancientDeclarationActions.length > 0,
+        }
+      : null;
+  const activeAncientChargeDeclarationWorkflow =
+    shouldPresentAncientChargeDeclaration &&
+    ancientChargeDeclarationWorkflow?.key === ancientChargeDeclarationWorkflowKey
+      ? ancientChargeDeclarationWorkflow
+      : initialAncientChargeDeclarationWorkflow;
+  const activeAncientChargeDeclarationAttempt =
+    ancientChargeDeclarationAttempt?.workflowKey === ancientChargeDeclarationWorkflowKey
+      ? ancientChargeDeclarationAttempt
+      : null;
+  const provisionalAncientEnergy = deriveProvisionalAncientEnergy({
+    authoritativePool: authoritativeAncientEnergy,
+    solarGridActions: ancientSolarGridActions,
+    selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
+  });
+
+  useLayoutEffect(() => {
+    if (!initialAncientChargeDeclarationWorkflow) {
+      if (ancientChargeDeclarationWorkflow != null) setAncientChargeDeclarationWorkflow(null);
+      if (ancientChargeDeclarationAttempt != null) setAncientChargeDeclarationAttempt(null);
+      if (
+        activePanelId === 'ap.battle.charges.ancient' ||
+        activePanelId === 'ap.battle.solar_powers.ancient'
+      ) {
+        setActivePanelId('ap.catalog.ships.ancient');
+      }
+      return;
+    }
+
+    if (ancientChargeDeclarationWorkflow?.key !== ancientChargeDeclarationWorkflowKey) {
+      setAncientChargeDeclarationWorkflow(initialAncientChargeDeclarationWorkflow);
+    }
+    if (
+      ancientChargeDeclarationAttempt != null &&
+      ancientChargeDeclarationAttempt.workflowKey !== ancientChargeDeclarationWorkflowKey
+    ) {
+      setAncientChargeDeclarationAttempt(null);
+    }
+  }, [
+    activePanelId,
+    ancientChargeDeclarationAttempt,
+    ancientChargeDeclarationWorkflow,
+    ancientChargeDeclarationWorkflowKey,
+    initialAncientChargeDeclarationWorkflow,
+  ]);
   
   // Species labels for HUD (show "Selecting Species" if not revealed yet)
   function getSpeciesLabelForHud(player: any, species: SpeciesId | null): string {
@@ -2625,6 +2707,62 @@ useEffect(() => {
     evolverChoicesByRowId,
     frigateTriggerByInstanceId,
   });
+
+  const zeroAncientCatalogueEnergyPool = {
+    green: 0,
+    red: 0,
+    blue: 0,
+  } as const;
+  const authoritativeAncientCoreCounts = myShips.reduce(
+    (counts, ship) => {
+      switch (ship?.shipDefId) {
+        case 'PLU':
+          counts.green += 1;
+          break;
+        case 'MER':
+          counts.red += 1;
+          break;
+        case 'NEP':
+          counts.blue += 1;
+          break;
+      }
+      return counts;
+    },
+    { green: 0, red: 0, blue: 0 }
+  );
+  const ancientCatalogueEnergy: AncientCatalogueEnergyDisplay = (() => {
+    const hasOwnAncientEnergyContext =
+      myRole === 'player' &&
+      mySpecies === 'ancient' &&
+      !isBootstrapping &&
+      !isFinished &&
+      hasValidPhaseKey;
+
+    if (!hasOwnAncientEnergyContext) {
+      return { mode: 'reference', pool: zeroAncientCatalogueEnergyPool };
+    }
+
+    if (majorPhase === 'battle' && phaseKey.startsWith('battle.')) {
+      return { mode: 'active', pool: authoritativeAncientEnergy };
+    }
+
+    if (phaseKey === 'build.drawing') {
+      return {
+        mode: 'dormant',
+        pool: {
+          green: provisionalBuild.provisionalShipCountsById.PLU ?? 0,
+          red: provisionalBuild.provisionalShipCountsById.MER ?? 0,
+          blue: provisionalBuild.provisionalShipCountsById.NEP ?? 0,
+        },
+      };
+    }
+
+    if (majorPhase === 'build' && phaseKey.startsWith('build.')) {
+      return { mode: 'dormant', pool: authoritativeAncientCoreCounts };
+    }
+
+    return { mode: 'reference', pool: zeroAncientCatalogueEnergyPool };
+  })();
 
   const evolverRowIds = provisionalBuild.evolverRowIds;
   const evolverRowIdsSet = new Set(evolverRowIds);
@@ -3329,7 +3467,14 @@ useEffect(() => {
 
           return 'ap.battle.charges.centaur';
         }
-        if (mySpecies === 'ancient') return 'ap.battle.charges.ancient.black_hole'; // Placeholder
+        if (mySpecies === 'ancient') {
+          if (phaseKey === 'battle.charge_response') {
+            return 'ap.battle.charges.ancient';
+          }
+          return activeAncientChargeDeclarationWorkflow?.stage === 'powers'
+            ? 'ap.battle.solar_powers.ancient'
+            : 'ap.battle.charges.ancient';
+        }
         return null;
       
       default:
@@ -3628,8 +3773,10 @@ useEffect(() => {
   // Client-only "special actions" that should make Actions tab visible even if server reports none.
   // This remains preview/runtime-only; legality is still server-authoritative.
   const hasClientActionsAvailable =
-    phaseKey === 'build.drawing' &&
-    (hasFrigateDrawingAction || hasEvolverDrawingAction || hasQuantumMysticDrawingAction);
+    (
+      phaseKey === 'build.drawing' &&
+      (hasFrigateDrawingAction || hasEvolverDrawingAction || hasQuantumMysticDrawingAction)
+    ) || activeAncientChargeDeclarationWorkflow != null;
 
   // Actions tab is visible if we have a target panel and either:
   // - server says actions exist, OR
@@ -4370,6 +4517,15 @@ useEffect(() => {
     centaurChargeSubTab: activeCentaurChargeSubTab,
     centaurChargeAvailableTabs,
     buildDrawingEconomyDisplay,
+    ancientChargeDeclaration: activeAncientChargeDeclarationWorkflow
+      ? {
+          stage: activeAncientChargeDeclarationWorkflow.stage,
+          hadChargeStage: activeAncientChargeDeclarationWorkflow.hadChargeStage,
+          provisionalEnergy: provisionalAncientEnergy,
+          attemptUnresolved: activeAncientChargeDeclarationAttempt != null,
+        }
+      : undefined,
+    ancientCatalogueEnergy,
   });
   
   // ============================================================================
@@ -4432,11 +4588,56 @@ useEffect(() => {
         return;
       }
 
+      if (
+        activeAncientChargeDeclarationWorkflow?.stage === 'charges' &&
+        phaseKey === 'battle.charge_declaration'
+      ) {
+        if (!readyEnabled || readyDisabledReason || activeAncientChargeDeclarationAttempt) {
+          return;
+        }
+        setAncientChargeDeclarationWorkflow({
+          ...activeAncientChargeDeclarationWorkflow,
+          stage: 'powers',
+        });
+        setActivePanelId('ap.battle.solar_powers.ancient');
+        return;
+      }
+
       // Snapshot build preview before async flow to prevent race conditions
       const buildPreviewSnapshot = { ...getActiveBuildPreviewCountsRefForTurn(turnNumber) };
       
       // Capture the phase key at click time (important: don't drift if phase advances mid-await)
       const clickedPhaseInstanceKey = phaseInstanceKey;
+      let ancientAttemptForSubmission = activeAncientChargeDeclarationAttempt;
+      if (
+        activeAncientChargeDeclarationWorkflow?.stage === 'powers' &&
+        phaseKey === 'battle.charge_declaration' &&
+        myRole === 'player' &&
+        !isFinished &&
+        readyEnabled &&
+        !readyDisabledReason &&
+        effectiveGameId != null &&
+        !ancientAttemptForSubmission
+      ) {
+        const payload = buildAncientChargeDeclarationPayload({
+          declarationId: generateNonce(),
+          actions: ancientDeclarationActions,
+          selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
+          allocatedTargetIdsBySourceInstanceId: allocatedDestroyTargetIdsBySourceInstanceId,
+          allocatedTargetIdBySourceInstanceId: allocatedDestroyTargetIdBySourceInstanceId,
+        });
+        ancientAttemptForSubmission = {
+          workflowKey: ancientChargeDeclarationWorkflowKey,
+          body: {
+            gameId: effectiveGameId,
+            intentType: 'CHARGE_DECLARATION_SUBMIT',
+            turnNumber,
+            payload,
+          },
+          eventsHandled: false,
+        };
+        setAncientChargeDeclarationAttempt(ancientAttemptForSubmission);
+      }
       
       // Only show "SENDING..." if this click is actually allowed to send
       const willAttemptSend =
@@ -4505,6 +4706,17 @@ useEffect(() => {
           allocatedDestroyTargetIdsBySourceInstanceId,
           allocatedDestroyTargetIdBySourceInstanceId,
           destroyTargetSatisfiedBySourceInstanceId,
+          ancientChargeDeclarationAttempt: ancientAttemptForSubmission,
+          onAncientDeclarationExplicitRejection: () => {
+            setAncientChargeDeclarationAttempt(null);
+          },
+          onAncientDeclarationEventsHandled: () => {
+            setAncientChargeDeclarationAttempt((current) =>
+              current?.workflowKey === ancientChargeDeclarationWorkflowKey
+                ? { ...current, eventsHandled: true }
+                : current
+            );
+          },
         });
       } finally {
         if (willAttemptSend) {
@@ -4911,8 +5123,25 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     },
 
     onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
+      if (activeAncientChargeDeclarationAttempt) {
+        return;
+      }
       setShipChoiceSelectionByInstanceId(prev => ({ ...prev, [sourceInstanceId]: choiceId }));
       applyDestroyTargetingChoiceSideEffects(sourceInstanceId, choiceId);
+    },
+
+    onReturnToAncientCharges: () => {
+      if (
+        !activeAncientChargeDeclarationWorkflow?.hadChargeStage ||
+        activeAncientChargeDeclarationAttempt
+      ) {
+        return;
+      }
+      setAncientChargeDeclarationWorkflow({
+        ...activeAncientChargeDeclarationWorkflow,
+        stage: 'charges',
+      });
+      setActivePanelId('ap.battle.charges.ancient');
     },
 
     onSelectCentaurChargeSubTab: (tabId: CentaurChargeSubTabId) => {
@@ -4927,6 +5156,9 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     },
 
     onBoardBackgroundMouseDown: () => {
+      if (activeAncientChargeDeclarationAttempt) {
+        return;
+      }
       handleDestroyTargetingBoardBackgroundMouseDown();
     },
 
@@ -4935,6 +5167,9 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     },
 
     onDestroyTargetStackMouseDown: (side: 'my' | 'opponent', stackKey: string) => {
+      if (activeAncientChargeDeclarationAttempt) {
+        return;
+      }
       handleDestroyTargetStackMouseDown(side, stackKey);
     },
   };
@@ -5113,6 +5348,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       onRematch: () => {},
       onDownloadBattleLog: () => { },
       onSelectShipChoiceForInstance: () => { },
+      onReturnToAncientCharges: () => { },
       onSelectCentaurChargeSubTab: () => { },
       onSelectFrigateTrigger: () => { },
       onSelectQuantumMysticNumber: () => { },

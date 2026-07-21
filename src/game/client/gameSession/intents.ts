@@ -25,6 +25,7 @@ import {
   isCommitmentCommitted,
   isCommitmentRevealed,
 } from './selectors';
+import type { FrozenAncientChargeDeclarationAttempt } from './ancientChargeDeclaration';
 
 const INTENT_TIMEOUT_MS = 8000; // fail fast to avoid wedged commits
 
@@ -355,6 +356,9 @@ export async function runReadyToggleFlow(args: {
   allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]>;
   allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
   destroyTargetSatisfiedBySourceInstanceId: Record<string, boolean>;
+  ancientChargeDeclarationAttempt?: FrozenAncientChargeDeclarationAttempt | null;
+  onAncientDeclarationExplicitRejection?: () => void;
+  onAncientDeclarationEventsHandled?: () => void;
 }): Promise<void> {
   const {
     isFinished,
@@ -424,6 +428,89 @@ export async function runReadyToggleFlow(args: {
   }
   
   try {
+    if (
+      phaseKey === 'battle.charge_declaration' &&
+      args.ancientChargeDeclarationAttempt
+    ) {
+      const attempt = args.ancientChargeDeclarationAttempt;
+      let response: Response;
+
+      try {
+        response = await submitIntent(attempt.body, INTENT_TIMEOUT_MS);
+      } catch (error) {
+        if (!isRetryableIntentError(error)) {
+          console.error('[useGameSession] CHARGE_DECLARATION_SUBMIT uncertain failure:', error);
+          await refreshGameStateOnce();
+          return;
+        }
+
+        console.warn('[useGameSession] CHARGE_DECLARATION_SUBMIT transport failure - retrying once');
+        try {
+          response = await submitIntent(attempt.body, INTENT_TIMEOUT_MS);
+        } catch (retryError) {
+          console.error('[useGameSession] CHARGE_DECLARATION_SUBMIT retry remains uncertain:', retryError);
+          await refreshGameStateOnce();
+          return;
+        }
+      }
+
+      if (!response.ok) {
+        if (response.status === 400) {
+          try {
+            const rejection = await response.clone().json();
+            if (rejection?.ok === false && rejection?.rejected?.code) {
+              console.error('[useGameSession] CHARGE_DECLARATION_SUBMIT rejected:', rejection.rejected);
+              args.onAncientDeclarationExplicitRejection?.();
+              await refreshGameStateOnce();
+              return;
+            }
+          } catch {
+            // A malformed error body is ambiguous; preserve the frozen attempt.
+          }
+        }
+
+        console.error(
+          `[useGameSession] CHARGE_DECLARATION_SUBMIT uncertain HTTP failure (${response.status})`
+        );
+        await refreshGameStateOnce();
+        return;
+      }
+
+      let result: any;
+      try {
+        result = await response.json();
+      } catch (error) {
+        console.error('[useGameSession] CHARGE_DECLARATION_SUBMIT returned malformed success JSON:', error);
+        await refreshGameStateOnce();
+        return;
+      }
+
+      if (result?.ok !== true) {
+        console.error('[useGameSession] CHARGE_DECLARATION_SUBMIT returned an uncertain success payload');
+        await refreshGameStateOnce();
+        return;
+      }
+
+      logIgnoredIntentState('CHARGE_DECLARATION_SUBMIT succeeded', result);
+      if (!attempt.eventsHandled) {
+        const events = Array.isArray(result.events) ? result.events : [];
+        appendEvents(events, {
+          label: 'CHARGE_DECLARATION_SUBMIT',
+          turn: turnNumber,
+          phaseKey,
+        });
+        onIntentResult?.(result, {
+          label: 'CHARGE_DECLARATION_SUBMIT',
+          turn: turnNumber,
+          phaseKey,
+        });
+        args.onAncientDeclarationEventsHandled?.();
+      }
+
+      await refreshGameStateOnce();
+      return;
+    }
+
     // ========================================================================
     // SERVER-CHOICE PHASES: Batch submit ACTIONS_SUBMIT for all selected choices, then DECLARE_READY
     // ========================================================================

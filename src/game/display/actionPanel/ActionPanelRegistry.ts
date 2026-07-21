@@ -32,6 +32,8 @@ export type ActionPanelId =
   | 'ap.battle.charges.xenite'
   | 'ap.battle.charges.centaur'
   | 'ap.battle.charges.centaur.ship_of_equality'
+  | 'ap.battle.charges.ancient'
+  | 'ap.battle.solar_powers.ancient'
   | 'ap.battle.charges.ancient.black_hole'
   | 'ap.battle.charges.ancient.simulacrum'
   // End of game result (single panel, variants via props)
@@ -60,6 +62,8 @@ export const ACTION_PANEL_IDS: ActionPanelId[] = [
   'ap.battle.charges.xenite',
   'ap.battle.charges.centaur',
   'ap.battle.charges.centaur.ship_of_equality',
+  'ap.battle.charges.ancient',
+  'ap.battle.solar_powers.ancient',
   'ap.battle.charges.ancient.black_hole',
   'ap.battle.charges.ancient.simulacrum',
   'ap.end_of_game.result',
@@ -97,6 +101,8 @@ export const ACTION_PANEL_DISPLAY_NAMES = {
   'ap.battle.charges.xenite': 'AP - Charges - Xenite',
   'ap.battle.charges.centaur': 'AP - Charges - Centaur',
   'ap.battle.charges.centaur.ship_of_equality': 'AP - Charges - Centaur - Ship of Equality',
+  'ap.battle.charges.ancient': 'AP - Charges - Ancient',
+  'ap.battle.solar_powers.ancient': 'AP - Solar Powers - Ancient',
   'ap.battle.charges.ancient.black_hole': 'AP - Charges - Ancient - Black Hole',
   'ap.battle.charges.ancient.simulacrum': 'AP - Charges - Ancient - Simulacrum',
   'ap.end_of_game.result': 'AP - Game Result',

@@ -556,6 +556,17 @@ export interface ActionPanelBuildCatalogueViewModel {
   eligibilityByShipId: Partial<Record<ShipDefId, ProvisionalShipEligibility>>;
 }
 
+export type AncientCatalogueEnergyMode = 'reference' | 'dormant' | 'active';
+
+export interface AncientCatalogueEnergyDisplay {
+  mode: AncientCatalogueEnergyMode;
+  pool: {
+    green: number;
+    red: number;
+    blue: number;
+  };
+}
+
 export interface ActionPanelViewModel {
   activePanelId: ActionPanelId;
   tabs: ActionPanelTabVm[];
@@ -605,6 +616,19 @@ export interface ActionPanelViewModel {
       availableTabs: CentaurChargeSubTabId[];
     };
   };
+
+  ancientChargeDeclaration?: {
+    stage: 'charges' | 'powers';
+    hadChargeStage: boolean;
+    provisionalEnergy: {
+      green: number;
+      red: number;
+      blue: number;
+    };
+    attemptUnresolved: boolean;
+  };
+
+  ancientCatalogueEnergy?: AncientCatalogueEnergyDisplay;
 
   phaseLocalFamilySwitch?:
     | {
@@ -666,6 +690,7 @@ export interface GameSessionActions {
   onJoinRematchInvite?: (gameId: string) => void;
   onDownloadBattleLog: () => void;
   onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;
+  onReturnToAncientCharges: () => void;
   onSelectCentaurChargeSubTab: (tabId: CentaurChargeSubTabId) => void;
   onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => void;
   onSelectQuantumMysticNumber: (quantumMysticIndex: number, selectedNumber: number) => void;

@@ -276,6 +276,8 @@ export function mapGameSessionVm(args: {
     projectedSavedCombined: number;
     projectedSavedWasCapped: boolean;
   } | null;
+  ancientChargeDeclaration?: GameSessionViewModel['actionPanel']['ancientChargeDeclaration'];
+  ancientCatalogueEnergy?: GameSessionViewModel['actionPanel']['ancientCatalogueEnergy'];
 }): GameSessionViewModel {
   const {
     isBootstrapping,
@@ -347,6 +349,8 @@ export function mapGameSessionVm(args: {
     centaurChargeSubTab,
     centaurChargeAvailableTabs,
     buildDrawingEconomyDisplay,
+    ancientChargeDeclaration,
+    ancientCatalogueEnergy,
   } = args;
   const isSpectator = viewer.isSpectator === true;
   
@@ -681,7 +685,8 @@ export function mapGameSessionVm(args: {
   // In your current code, availableActions is authoritative for charge phases and null otherwise.
   // This is enough for the WAITING heuristic without server changes.
   const iHaveActionsThisPhase =
-    Array.isArray(availableActions) && availableActions.length > 0;
+    (Array.isArray(availableActions) && availableActions.length > 0) ||
+    ancientChargeDeclaration != null;
   
   if (isFinished) {
     // Game over: button shows "GAME OVER" and is disabled
@@ -775,6 +780,20 @@ export function mapGameSessionVm(args: {
     readyButtonNote = 'Proceed to Drawing';
   }
 
+  if (
+    !isFinished &&
+    phaseKey === 'battle.charge_declaration' &&
+    ancientChargeDeclaration &&
+    !readyUx?.sendingNow &&
+    !autoReadyWaiting &&
+    !p1IsReady
+  ) {
+    readyButtonLabel = 'READY';
+    readyButtonNote = ancientChargeDeclaration.stage === 'charges'
+      ? 'Proceed to Powers'
+      : 'Submit Declaration';
+  }
+
   if (!isFinished && phaseKey === 'battle.reveal') {
     readyButtonLabel = 'REVEALING';
     readyButtonNote = null;
@@ -828,7 +847,14 @@ export function mapGameSessionVm(args: {
 
     if (isServerChoicePhase && Array.isArray(availableActions)) {
       // Server-choice phases: derive from authoritative availableActions
-      const choiceActions = getRenderableServerChoiceActions(phaseKey, availableActions);
+      const choiceActions = getRenderableServerChoiceActions(phaseKey, availableActions).filter(
+        (action) =>
+          !(
+            phaseKey === 'battle.charge_response' &&
+            finalActivePanelId === 'ap.battle.charges.ancient' &&
+            (action.actionId === 'SOL#0' || action.shipDefId === 'SOL')
+          )
+      );
 
       // Build map of instanceId -> currentCharges for phase-start snapshot
       const chargesByInstanceId = new Map<string, number>();
@@ -1440,6 +1466,8 @@ export function mapGameSessionVm(args: {
       frigateDrawing,
       quantumMysticDrawing,
       evolverDrawing,
+      ancientChargeDeclaration,
+      ancientCatalogueEnergy,
       shipChoices,
       phaseLocalFamilySwitch:
         buildDrawingFamilySwitch && finalActivePanelId !== 'ap.menu.root'

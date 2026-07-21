@@ -9,6 +9,33 @@ function hasOwn(value: unknown, key: string): boolean {
   return value != null && Object.prototype.hasOwnProperty.call(Object(value), key);
 }
 
+export type AncientEnergyPool = {
+  green: number;
+  red: number;
+  blue: number;
+};
+
+function normalizeAncientEnergyAmount(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+    ? value
+    : 0;
+}
+
+export function getPublicAncientEnergyForPlayer(
+  state: any,
+  playerId: string | null | undefined
+): AncientEnergyPool {
+  const pool = playerId
+    ? state?.publicState?.ancient?.energyByPlayerId?.[playerId]?.pool
+    : null;
+
+  return {
+    green: normalizeAncientEnergyAmount(pool?.green),
+    red: normalizeAncientEnergyAmount(pool?.red),
+    blue: normalizeAncientEnergyAmount(pool?.blue),
+  };
+}
+
 export type ShipActivationCueSource = {
   playerId: string;
   sourceInstanceId: string;
