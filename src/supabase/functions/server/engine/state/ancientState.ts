@@ -532,6 +532,88 @@ function getPlayerSpecies(player: any): unknown {
   return player?.faction ?? player?.species;
 }
 
+const ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID = {
+  PLU: {
+    rank: 0,
+    amounts: { green: 1, red: 0, blue: 0 },
+  },
+  MER: {
+    rank: 1,
+    amounts: { green: 0, red: 1, blue: 0 },
+  },
+  NEP: {
+    rank: 2,
+    amounts: { green: 0, red: 0, blue: 1 },
+  },
+} as const;
+
+type AncientCoreShipDefId = keyof typeof ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID;
+
+function isAncientCoreShipDefId(value: unknown): value is AncientCoreShipDefId {
+  return typeof value === 'string' && Object.hasOwn(ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID, value);
+}
+
+export function applyAncientCoreEnergyAtBattleReveal<T = any>(state: T): T {
+  const canonicalState = state as any;
+  const battleTurnNumber = normalizeAncientNumber(
+    canonicalState.gameData.turnNumber ??
+      canonicalState.gameData.turnData?.turnNumber ??
+      canonicalState.turnNumber ??
+      0,
+  );
+  const energyByPlayerId: Record<string, AncientPlayerEnergyState> = {};
+
+  for (const playerId of getPlayerSeatIds(canonicalState.players)) {
+    const player = canonicalState.players.find((candidate: any) => candidate?.id === playerId);
+    const sources: AncientEnergySource[] = [];
+
+    if (getPlayerSpecies(player) === 'ancient') {
+      const coreShips = Array.isArray(canonicalState.gameData.ships?.[playerId])
+        ? canonicalState.gameData.ships[playerId]
+          .filter((ship: any) =>
+            isNonEmptyString(ship?.instanceId) && isAncientCoreShipDefId(ship?.shipDefId)
+          )
+          .sort((a: any, b: any) => {
+            const rankDifference = ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID[a.shipDefId as AncientCoreShipDefId].rank -
+              ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID[b.shipDefId as AncientCoreShipDefId].rank;
+            return rankDifference || a.instanceId.localeCompare(b.instanceId);
+          })
+        : [];
+
+      for (const [order, ship] of coreShips.entries()) {
+        const shipDefId = ship.shipDefId as AncientCoreShipDefId;
+        sources.push({
+          sourceId:
+            `ancient-core-energy:${battleTurnNumber}:${playerId}:${shipDefId}:${ship.instanceId}`,
+          sourceInstanceId: ship.instanceId,
+          sourceShipDefId: shipDefId,
+          battleTurnNumber,
+          order,
+          amounts: { ...ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID[shipDefId].amounts },
+        });
+      }
+    }
+
+    const pool = sources.reduce<AncientEnergyPool>(
+      (total, source) => ({
+        green: total.green + source.amounts.green,
+        red: total.red + source.amounts.red,
+        blue: total.blue + source.amounts.blue,
+      }),
+      createEmptyAncientEnergyPool(),
+    );
+
+    energyByPlayerId[playerId] = {
+      battleTurnNumber,
+      pool,
+      sources,
+    };
+  }
+
+  canonicalState.gameData.ancient.energyByPlayerId = energyByPlayerId;
+  return state;
+}
+
 export function getAuthoritativeAncientEnergyTotal(state: any, playerId: string): number {
   const player = Array.isArray(state?.players)
     ? state.players.find((candidate: any) => candidate?.id === playerId)

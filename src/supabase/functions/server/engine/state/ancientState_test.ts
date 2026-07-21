@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { advancePhaseCore } from '../phase/advancePhase.ts';
 import { onEnterPhase } from '../phase/onEnterPhase.ts';
 import {
+  applyAncientCoreEnergyAtBattleReveal,
   createEmptyAncientState,
   getAuthoritativeAncientEnergyTotal,
   normalizeAncientGameState,
@@ -358,6 +359,242 @@ Deno.test('canonical accessor uses species compatibility and current player role
   );
   assert.equal(getAuthoritativeAncientEnergyTotal(normalizedAfterRoleChange, 'p1'), 0);
   assert.equal('p1' in projectPublicAncientState(normalizedAfterRoleChange).energyByPlayerId, false);
+});
+
+Deno.test('Battle Reveal Core Energy uses live Cores of every age and excludes other ships', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  state.gameData.ships = {
+    p1: [
+      { instanceId: 'nep-b', shipDefId: 'NEP', createdTurn: 1 },
+      { instanceId: 'quantum', shipDefId: 'QUA', createdTurn: 2 },
+      { instanceId: 'plu-b', shipDefId: 'PLU', createdTurn: 2 },
+      { instanceId: 'spiral', shipDefId: 'SPI' },
+      { instanceId: 'mer-a', shipDefId: 'MER' },
+      { instanceId: 'solar-grid', shipDefId: 'SOL' },
+      { instanceId: 'plu-a', shipDefId: 'PLU', createdTurn: 1 },
+      { instanceId: 'cube', shipDefId: 'CUB' },
+      { instanceId: 'nep-a', shipDefId: 'NEP' },
+      { instanceId: 'frigate', shipDefId: 'FRI' },
+    ],
+    p2: [
+      { instanceId: 'controlled-plu', shipDefId: 'PLU' },
+      { instanceId: 'human-ship', shipDefId: 'DEF' },
+    ],
+  };
+
+  const returned = applyAncientCoreEnergyAtBattleReveal(state);
+  assert.equal(returned, state);
+  assert.deepEqual(state.gameData.ancient.energyByPlayerId.p1, {
+    battleTurnNumber: 2,
+    pool: { green: 2, red: 1, blue: 2 },
+    sources: [
+      {
+        sourceId: 'ancient-core-energy:2:p1:PLU:plu-a',
+        sourceInstanceId: 'plu-a',
+        sourceShipDefId: 'PLU',
+        battleTurnNumber: 2,
+        order: 0,
+        amounts: { green: 1, red: 0, blue: 0 },
+      },
+      {
+        sourceId: 'ancient-core-energy:2:p1:PLU:plu-b',
+        sourceInstanceId: 'plu-b',
+        sourceShipDefId: 'PLU',
+        battleTurnNumber: 2,
+        order: 1,
+        amounts: { green: 1, red: 0, blue: 0 },
+      },
+      {
+        sourceId: 'ancient-core-energy:2:p1:MER:mer-a',
+        sourceInstanceId: 'mer-a',
+        sourceShipDefId: 'MER',
+        battleTurnNumber: 2,
+        order: 2,
+        amounts: { green: 0, red: 1, blue: 0 },
+      },
+      {
+        sourceId: 'ancient-core-energy:2:p1:NEP:nep-a',
+        sourceInstanceId: 'nep-a',
+        sourceShipDefId: 'NEP',
+        battleTurnNumber: 2,
+        order: 3,
+        amounts: { green: 0, red: 0, blue: 1 },
+      },
+      {
+        sourceId: 'ancient-core-energy:2:p1:NEP:nep-b',
+        sourceInstanceId: 'nep-b',
+        sourceShipDefId: 'NEP',
+        battleTurnNumber: 2,
+        order: 4,
+        amounts: { green: 0, red: 0, blue: 1 },
+      },
+    ],
+  });
+  assert.deepEqual(state.gameData.ancient.energyByPlayerId.p2, {
+    battleTurnNumber: 2,
+    pool: { green: 0, red: 0, blue: 0 },
+    sources: [],
+  });
+});
+
+Deno.test('Battle Reveal replaces stale Energy idempotently and preserves all other Ancient state', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  state.gameData.turnNumber = 3;
+  state.gameData.turnData.turnNumber = 3;
+  state.gameData.ships = {
+    p1: [{ instanceId: 'mer-current', shipDefId: 'MER' }],
+    p2: [
+      { instanceId: 'plu-controlled', shipDefId: 'PLU' },
+      { instanceId: 'mer-controlled', shipDefId: 'MER' },
+      { instanceId: 'nep-controlled', shipDefId: 'NEP' },
+    ],
+  };
+  state.gameData.ancient.energyByPlayerId = {
+    p1: {
+      battleTurnNumber: 2,
+      pool: { green: 8, red: 8, blue: 8 },
+      sources: [{ sourceId: 'stale-p1' }],
+    },
+    p2: {
+      battleTurnNumber: 2,
+      pool: { green: 7, red: 7, blue: 7 },
+      sources: [{ sourceId: 'stale-p2' }],
+    },
+    formerPlayer: {
+      battleTurnNumber: 2,
+      pool: { green: 6, red: 6, blue: 6 },
+      sources: [{ sourceId: 'stale-former-player' }],
+    },
+  };
+  state.gameData.ancient.acceptedDeclarationByPlayerId = { p1: { keep: 'declaration' } };
+  state.gameData.ancient.solarLedgerByPlayerId.p1 = { keep: 'ledger' };
+  state.gameData.ancient.pendingSimulacrumCopies = [{ keep: 'copy' }];
+  state.gameData.ancient.pendingBlackHoleDestructions = [{ keep: 'destruction' }];
+  state.gameData.ancient.futureUnrelatedState = { keep: true };
+  const ancientObject = state.gameData.ancient;
+  const unrelatedAncientState = {
+    schemaVersion: ancientObject.schemaVersion,
+    acceptedDeclarationByPlayerId: structuredClone(ancientObject.acceptedDeclarationByPlayerId),
+    solarLedgerByPlayerId: structuredClone(ancientObject.solarLedgerByPlayerId),
+    pendingSimulacrumCopies: structuredClone(ancientObject.pendingSimulacrumCopies),
+    pendingBlackHoleDestructions: structuredClone(ancientObject.pendingBlackHoleDestructions),
+    futureUnrelatedState: structuredClone(ancientObject.futureUnrelatedState),
+  };
+
+  applyAncientCoreEnergyAtBattleReveal(state);
+  assert.equal(state.gameData.ancient, ancientObject);
+  assert.deepEqual(Object.keys(ancientObject.energyByPlayerId), ['p1', 'p2']);
+  assert.deepEqual(ancientObject.energyByPlayerId.p1, {
+    battleTurnNumber: 3,
+    pool: { green: 0, red: 1, blue: 0 },
+    sources: [{
+      sourceId: 'ancient-core-energy:3:p1:MER:mer-current',
+      sourceInstanceId: 'mer-current',
+      sourceShipDefId: 'MER',
+      battleTurnNumber: 3,
+      order: 0,
+      amounts: { green: 0, red: 1, blue: 0 },
+    }],
+  });
+  assert.deepEqual(ancientObject.energyByPlayerId.p2, {
+    battleTurnNumber: 3,
+    pool: { green: 0, red: 0, blue: 0 },
+    sources: [],
+  });
+  assert.deepEqual({
+    schemaVersion: ancientObject.schemaVersion,
+    acceptedDeclarationByPlayerId: ancientObject.acceptedDeclarationByPlayerId,
+    solarLedgerByPlayerId: ancientObject.solarLedgerByPlayerId,
+    pendingSimulacrumCopies: ancientObject.pendingSimulacrumCopies,
+    pendingBlackHoleDestructions: ancientObject.pendingBlackHoleDestructions,
+    futureUnrelatedState: ancientObject.futureUnrelatedState,
+  }, unrelatedAncientState);
+
+  const firstEnergy = structuredClone(ancientObject.energyByPlayerId);
+  applyAncientCoreEnergyAtBattleReveal(state);
+  assert.deepEqual(ancientObject.energyByPlayerId, firstEnergy);
+  assert.deepEqual({
+    schemaVersion: ancientObject.schemaVersion,
+    acceptedDeclarationByPlayerId: ancientObject.acceptedDeclarationByPlayerId,
+    solarLedgerByPlayerId: ancientObject.solarLedgerByPlayerId,
+    pendingSimulacrumCopies: ancientObject.pendingSimulacrumCopies,
+    pendingBlackHoleDestructions: ancientObject.pendingBlackHoleDestructions,
+    futureUnrelatedState: ancientObject.futureUnrelatedState,
+  }, unrelatedAncientState);
+});
+
+Deno.test('Battle Reveal Core Energy is deterministic across fleet array order', () => {
+  const ships = [
+    { instanceId: 'nep-z', shipDefId: 'NEP' },
+    { instanceId: 'plu-z', shipDefId: 'PLU' },
+    { instanceId: 'mer-a', shipDefId: 'MER' },
+    { instanceId: 'plu-a', shipDefId: 'PLU' },
+  ];
+  const first: any = normalizeAncientGameState(createBaseState()).state;
+  const second: any = normalizeAncientGameState(createBaseState()).state;
+  first.gameData.ships.p1 = structuredClone(ships);
+  second.gameData.ships.p1 = structuredClone(ships).reverse();
+
+  applyAncientCoreEnergyAtBattleReveal(first);
+  applyAncientCoreEnergyAtBattleReveal(second);
+
+  assert.deepEqual(
+    first.gameData.ancient.energyByPlayerId,
+    second.gameData.ancient.energyByPlayerId,
+  );
+  assert.deepEqual(
+    first.gameData.ancient.energyByPlayerId.p1.sources.map((source: any) =>
+      source.sourceInstanceId
+    ),
+    ['plu-a', 'plu-z', 'mer-a', 'nep-z'],
+  );
+});
+
+Deno.test('battle.reveal entry generates public Core Energy before the unchanged visibility hold', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  state.gameData.turnNumber = 4;
+  state.gameData.currentPhase = 'battle';
+  state.gameData.currentSubPhase = 'reveal';
+  state.gameData.turnData.turnNumber = 4;
+  state.gameData.turnData.currentMajorPhase = 'battle';
+  state.gameData.turnData.currentSubPhase = 'reveal';
+  delete state.gameData.turnData.phaseHold;
+  delete state.gameData.turnData.battleRevealHoldPresentedTurnNumber;
+  state.gameData.ships.p1 = [{ instanceId: 'plu-reveal', shipDefId: 'PLU' }];
+  state.gameData.ancient.acceptedDeclarationByPlayerId.p1 = { private: true };
+  state.gameData.ancient.pendingSimulacrumCopies = [{ private: true }];
+  state.gameData.ancient.pendingBlackHoleDestructions = [{ private: true }];
+
+  const nowMs = 10_000;
+  const entered = onEnterPhase(
+    state,
+    'build.end_of_build',
+    'battle.reveal',
+    nowMs,
+  ).state as any;
+
+  assert.deepEqual(entered.gameData.ancient.energyByPlayerId.p1.pool, {
+    green: 1,
+    red: 0,
+    blue: 0,
+  });
+  assert.equal(entered.gameData.turnData.battleRevealHoldPresentedTurnNumber, 4);
+  assert.equal(entered.gameData.turnData.phaseHold.phaseKey, 'battle.reveal');
+  assert.equal(entered.gameData.turnData.phaseHold.holdReason, 'battle_reveal');
+  assert.equal(entered.gameData.turnData.phaseHold.holdUntilMs - nowMs, 25);
+  assert.equal(entered.gameData.currentPhase, 'battle');
+  assert.equal(entered.gameData.currentSubPhase, 'reveal');
+  assert.equal(entered.gameData.turnData.currentMajorPhase, 'battle');
+  assert.equal(entered.gameData.turnData.currentSubPhase, 'reveal');
+
+  const projection = projectPublicAncientState(entered);
+  assert.deepEqual(
+    projection.energyByPlayerId.p1,
+    entered.gameData.ancient.energyByPlayerId.p1,
+  );
+  assert.equal('acceptedDeclarationByPlayerId' in projection, false);
+  assert.equal('pendingSimulacrumCopies' in projection, false);
+  assert.equal('pendingBlackHoleDestructions' in projection, false);
 });
 
 Deno.test('public Ancient projection exposes only cloned Energy and ledger state', () => {

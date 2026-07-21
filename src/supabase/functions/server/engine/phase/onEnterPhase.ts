@@ -30,7 +30,10 @@ import type {
   ShipInstance,
 } from '../state/GameStateTypes.ts';
 import { appendShipActivationCueBatch } from '../state/shipActivationCues.ts';
-import { getAuthoritativeAncientEnergyTotal } from '../state/ancientState.ts';
+import {
+  applyAncientCoreEnergyAtBattleReveal,
+  getAuthoritativeAncientEnergyTotal,
+} from '../state/ancientState.ts';
 
 type KnoRerollPassIndex = 1 | 2 | 3;
 
@@ -573,6 +576,8 @@ function enterPhaseOnce(
   // Persist battle.reveal as a real current phase before later battle auto-advance.
   // This is presentation/visibility barrier state, not a gameplay rule.
   if (toKey === 'battle.reveal') {
+    workingState = applyAncientCoreEnergyAtBattleReveal(workingState);
+
     const turnNumber =
       workingState.gameData?.turnNumber ??
       turnData.turnNumber ??
