@@ -1,6 +1,8 @@
 import type { GameState } from '../../engine/state/GameStateTypes.ts';
 import { getShipById } from '../defs/ShipDefinitions.core.ts';
 
+const PROTECTED_ANCIENT_CORE_IDS = new Set(['PLU', 'MER', 'NEP']);
+
 export type DestroyRestriction = 'basic_only' | 'upgraded_only' | 'any';
 export type DestroyTargetScope = 'self' | 'opponent';
 
@@ -113,6 +115,7 @@ export function getValidDestroyTargets(
       const shipDefId = ship?.shipDefId;
       const instanceId = ship?.instanceId;
       if (typeof shipDefId !== 'string' || typeof instanceId !== 'string') return false;
+      if (PROTECTED_ANCIENT_CORE_IDS.has(shipDefId)) return false;
       const fullLineCost = getAuthoritativeFullLineCostForShipDef(shipDefId);
       if (fullLineCost == null) return false;
       if (!matchesDestroyRestriction(shipDefId, restriction)) return false;

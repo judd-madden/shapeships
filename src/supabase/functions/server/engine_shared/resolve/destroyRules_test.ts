@@ -1,0 +1,272 @@
+import assert from 'node:assert/strict';
+import type { GameState, ShipInstance } from '../../engine/state/GameStateTypes.ts';
+import {
+  getValidDestroyTargets,
+  getValidShipOfEqualityTargets,
+} from './destroyRules.ts';
+import { resolvePowerAction } from './resolvePowerAction.ts';
+
+function ship(
+  instanceId: string,
+  shipDefId: string,
+  overrides: Partial<ShipInstance> = {},
+): ShipInstance {
+  return { instanceId, shipDefId, ...overrides };
+}
+
+function createState(args: {
+  ownFleet?: ShipInstance[];
+  opponentFleet?: ShipInstance[];
+} = {}): GameState {
+  return {
+    gameId: 'destroy-rules-test',
+    status: 'active',
+    players: [
+      {
+        id: 'p1',
+        role: 'player',
+        faction: 'ancient',
+        health: 25,
+        lines: 3,
+        joiningLines: 0,
+      },
+      {
+        id: 'p2',
+        role: 'player',
+        faction: 'human',
+        health: 25,
+        lines: 3,
+        joiningLines: 0,
+      },
+    ],
+    gameData: {
+      turnNumber: 2,
+      currentPhase: 'battle',
+      currentSubPhase: 'first_strike',
+      ships: {
+        p1: args.ownFleet ?? [],
+        p2: args.opponentFleet ?? [],
+      },
+      phaseReadiness: [
+        {
+          playerId: 'p2',
+          isReady: true,
+          currentStep: 'battle.first_strike',
+        },
+      ],
+      powerMemory: {
+        onceOnlyFired: {
+          'sentinel-source::sentinel-action': true,
+        },
+      },
+      turnData: {
+        turnNumber: 2,
+        currentMajorPhase: 'battle',
+        currentSubPhase: 'first_strike',
+        chargePowerUsedByInstanceId: {
+          'sentinel-charge-source': 1,
+        },
+        pendingFirstStrikeSelectionsByPlayerId: {
+          p2: {
+            'sentinel-source': {
+              sourceInstanceId: 'sentinel-source',
+              actionId: 'sentinel-action',
+              choiceId: 'sentinel-choice',
+            },
+          },
+        },
+        pendingEffects: [
+          {
+            id: 'sentinel-effect',
+            kind: 'sentinel',
+          },
+        ],
+      },
+    },
+    actions: [{ type: 'SENTINEL_ACTION' }],
+  } as unknown as GameState;
+}
+
+function instanceIds(targets: Array<{ instanceId: string }>): string[] {
+  return targets.map((target) => target.instanceId);
+}
+
+Deno.test('generic destroy target derivation excludes protected Cores without changing ordinary targets', () => {
+  const state = createState({
+    ownFleet: [
+      ship('own-plu', 'PLU'),
+      ship('own-fig', 'FIG'),
+      ship('own-mer', 'MER'),
+      ship('own-nep', 'NEP'),
+    ],
+    opponentFleet: [
+      ship('opponent-def', 'DEF'),
+      ship('opponent-plu', 'PLU'),
+      ship('opponent-gua', 'GUA'),
+      ship('opponent-mer', 'MER'),
+      ship('opponent-fig', 'FIG'),
+      ship('opponent-nep', 'NEP'),
+    ],
+  });
+
+  const opponentBasics = getValidDestroyTargets(state, {
+    sourcePlayerId: 'p1',
+    targetScope: 'opponent',
+    restriction: 'basic_only',
+  });
+  assert.deepEqual(instanceIds(opponentBasics), ['opponent-def', 'opponent-fig']);
+  assert.deepEqual(opponentBasics, [
+    {
+      instanceId: 'opponent-def',
+      shipDefId: 'DEF',
+      ownerPlayerId: 'p2',
+      totalLineCost: 2,
+    },
+    {
+      instanceId: 'opponent-fig',
+      shipDefId: 'FIG',
+      ownerPlayerId: 'p2',
+      totalLineCost: 3,
+    },
+  ]);
+
+  const ownBasics = getValidDestroyTargets(state, {
+    sourcePlayerId: 'p1',
+    targetScope: 'self',
+    restriction: 'basic_only',
+  });
+  assert.deepEqual(instanceIds(ownBasics), ['own-fig']);
+
+  const anyOpponentTargets = getValidDestroyTargets(state, {
+    sourcePlayerId: 'p1',
+    targetScope: 'opponent',
+    restriction: 'any',
+  });
+  assert.deepEqual(instanceIds(anyOpponentTargets), [
+    'opponent-def',
+    'opponent-gua',
+    'opponent-fig',
+  ]);
+
+  const upgradedOpponentTargets = getValidDestroyTargets(state, {
+    sourcePlayerId: 'p1',
+    targetScope: 'opponent',
+    restriction: 'upgraded_only',
+  });
+  assert.deepEqual(instanceIds(upgradedOpponentTargets), ['opponent-gua']);
+});
+
+Deno.test('Ship of Equality removes protected Cores before shared-cost pairing', () => {
+  const state = createState({
+    ownFleet: [
+      ship('own-plu', 'PLU'),
+      ship('own-fig', 'FIG'),
+      ship('own-mer', 'MER'),
+      ship('own-int', 'INT'),
+    ],
+    opponentFleet: [
+      ship('opponent-plu', 'PLU'),
+      ship('opponent-fig', 'FIG'),
+      ship('opponent-mer', 'MER'),
+      ship('opponent-int', 'INT'),
+    ],
+  });
+
+  const { validOwnTargets, validOpponentTargets } =
+    getValidShipOfEqualityTargets(state, 'p1');
+
+  assert.deepEqual(instanceIds(validOwnTargets), ['own-fig', 'own-int']);
+  assert.deepEqual(instanceIds(validOpponentTargets), [
+    'opponent-fig',
+    'opponent-int',
+  ]);
+  assert.deepEqual(
+    validOwnTargets.map((target) => target.totalLineCost),
+    [3, 4],
+  );
+  assert.deepEqual(
+    validOpponentTargets.map((target) => target.totalLineCost),
+    [3, 4],
+  );
+});
+
+Deno.test('Ship of Equality is not actionable when its only apparent cost match is a protected Core', () => {
+  const coreOnOwnSide = getValidShipOfEqualityTargets(
+    createState({
+      ownFleet: [ship('own-plu', 'PLU')],
+      opponentFleet: [ship('opponent-fig', 'FIG')],
+    }),
+    'p1',
+  );
+  assert.deepEqual(coreOnOwnSide, {
+    validOwnTargets: [],
+    validOpponentTargets: [],
+  });
+
+  const coreOnOpponentSide = getValidShipOfEqualityTargets(
+    createState({
+      ownFleet: [ship('own-int', 'INT')],
+      opponentFleet: [ship('opponent-mer', 'MER')],
+    }),
+    'p1',
+  );
+  assert.deepEqual(coreOnOpponentSide, {
+    validOwnTargets: [],
+    validOpponentTargets: [],
+  });
+});
+
+Deno.test('Guardian dry-run rejects a protected Core target without mutating state', () => {
+  const state = createState({
+    ownFleet: [ship('guardian-source', 'GUA', { chargesCurrent: 2 })],
+    opponentFleet: [
+      ship('protected-plu', 'PLU'),
+      ship('ordinary-def', 'DEF'),
+    ],
+  });
+  const before = structuredClone(state);
+
+  assert.throws(
+    () =>
+      resolvePowerAction({
+        state,
+        playerId: 'p1',
+        phaseKey: 'battle.first_strike',
+        actionId: 'GUA#0',
+        sourceInstanceId: 'guardian-source',
+        choiceId: 'destroy',
+        targetInstanceId: 'protected-plu',
+        apply: false,
+      }),
+    /Target ship not valid: protected-plu/,
+  );
+  assert.deepEqual(state, before);
+});
+
+Deno.test('Ark of Domination dry-run rejects a protected Core in a valid two-target payload without mutating state', () => {
+  const state = createState({
+    ownFleet: [ship('domination-source', 'DOM', { createdTurn: 2 })],
+    opponentFleet: [
+      ship('ordinary-def', 'DEF'),
+      ship('ordinary-fig', 'FIG'),
+      ship('protected-mer', 'MER'),
+    ],
+  });
+  const before = structuredClone(state);
+
+  assert.throws(
+    () =>
+      resolvePowerAction({
+        state,
+        playerId: 'p1',
+        phaseKey: 'battle.first_strike',
+        actionId: 'DOM#0',
+        sourceInstanceId: 'domination-source',
+        choiceId: 'steal',
+        targetInstanceIds: ['ordinary-def', 'protected-mer'],
+        apply: false,
+      }),
+    /Target ship not valid: protected-mer/,
+  );
+  assert.deepEqual(state, before);
+});
