@@ -7,6 +7,7 @@ import {
 interface AncientSolarPowerSlotProps {
   graphic: ComponentType<{ className?: string }>;
   costRows: readonly AncientEnergyCostRow[];
+  costPlacement?: 'right' | 'below';
   showPlus?: boolean;
   onMouseEnter?: MouseEventHandler<HTMLDivElement>;
   onMouseLeave?: MouseEventHandler<HTMLDivElement>;
@@ -15,13 +16,18 @@ interface AncientSolarPowerSlotProps {
 export function AncientSolarPowerSlot({
   graphic: Graphic,
   costRows,
+  costPlacement = 'right',
   showPlus = false,
   onMouseEnter,
   onMouseLeave,
 }: AncientSolarPowerSlotProps) {
   return (
     <div
-      className="flex items-center gap-[8px]"
+      className={
+        costPlacement === 'below'
+          ? 'flex flex-col items-center gap-[8px]'
+          : 'flex items-center gap-[8px]'
+      }
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >

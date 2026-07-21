@@ -70,6 +70,7 @@ interface SolarPowerSlotConfig {
   id: ShipDefId;
   graphic: ComponentType<{ className?: string }>;
   costRows: readonly AncientEnergyCostRow[];
+  costPlacement?: 'right' | 'below';
   showPlus?: boolean;
   position: Record<CatalogueLayout, SolarPosition>;
 }
@@ -91,13 +92,13 @@ const SOLAR_POWER_SLOTS = [
     id: 'SAST',
     graphic: Asteroid,
     costRows: [{ color: 'red', count: 1 }],
-    position: { standard: { x: 640, y: 67 }, long: { x: 703, y: 67 } },
+    position: { standard: { x: 640, y: 64 }, long: { x: 703, y: 64 } },
   },
   {
     id: 'SSUP',
     graphic: Supernova,
     costRows: [{ color: 'red', count: 3 }],
-    position: { standard: { x: 609, y: 163 }, long: { x: 672, y: 163 } },
+    position: { standard: { x: 609, y: 162 }, long: { x: 672, y: 162 } },
   },
   {
     id: 'SCON',
@@ -120,7 +121,7 @@ const SOLAR_POWER_SLOTS = [
     graphic: SimulacrumHuman,
     costRows: [{ color: 'cyan', count: 2 }],
     showPlus: true,
-    position: { standard: { x: 777, y: 174 }, long: { x: 870, y: 174 } },
+    position: { standard: { x: 777, y: 165 }, long: { x: 870, y: 165 } },
   },
   {
     id: 'SVOR',
@@ -140,6 +141,7 @@ const SOLAR_POWER_SLOTS = [
       { color: 'red', count: 4 },
       { color: 'cyan', count: 4 },
     ],
+    costPlacement: 'below',
     position: { standard: { x: 1098, y: 62 }, long: { x: 1263, y: 62 } },
   },
 ] as const satisfies readonly SolarPowerSlotConfig[];
@@ -152,7 +154,7 @@ const SOLAR_HEADER_POSITIONS: Record<
 > = {
   standard: {
     energy: { x: 635, y: 0 },
-    autocast: { x: 1079, y: 0 },
+    autocast: { x: 1179, y: 0 },
   },
   long: {
     energy: { x: 682, y: 0 },
@@ -552,12 +554,19 @@ export function AncientShipCataloguePanel({
                 side="top"
                 align="end"
                 sideOffset={10}
-                className="z-[80] w-fit max-w-[calc(100vw-32px)] rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[20px] py-[16px] text-[16px] font-normal leading-[22px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+                showArrow={false}
+                className="relative z-[80] bg-transparent p-0 shadow-none"
               >
-                <div className="flex flex-col">
-                  <p>When you declare READY, autocast priority powers with remaining energy each turn.</p>
-                  <p className="italic">Does not autocast Simulacrum or multi-colour powers.</p>
+                <div className="w-fit max-w-[calc(100vw-32px)] translate-x-[10px] rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[20px] py-[16px] text-[16px] font-normal leading-[22px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+                  <div className="flex flex-col">
+                    <p>When you declare READY, autocast priority powers with remaining energy each turn.</p>
+                    <p className="italic">Does not autocast Simulacrum or multi-colour powers.</p>
+                  </div>
                 </div>
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute bottom-[-6px] right-[6px] size-[12px] rotate-45 border-b border-r border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)]"
+                />
               </TooltipContent>
             </Tooltip>
           </div>
@@ -576,6 +585,9 @@ export function AncientShipCataloguePanel({
                 <AncientSolarPowerSlot
                   graphic={Graphic}
                   costRows={slot.costRows}
+                  costPlacement={
+                    'costPlacement' in slot ? slot.costPlacement : undefined
+                  }
                   showPlus={'showPlus' in slot && slot.showPlus}
                   onMouseEnter={
                     hoverDisabled

@@ -12,9 +12,9 @@ const ENERGY_COLOR_CSS: Record<AncientEnergyColor, string> = {
 };
 
 const ENERGY_FIXTURES = [
-  { color: 'green', available: 8, total: 11 },
-  { color: 'red', available: 5, total: 7 },
-  { color: 'cyan', available: 10, total: 14 },
+  { color: 'green', available: 5, total: 8 },
+  { color: 'red', available: 5, total: 8 },
+  { color: 'cyan', available: 5, total: 8 },
 ] as const satisfies ReadonlyArray<{
   color: AncientEnergyColor;
   available: number;
@@ -50,7 +50,7 @@ export function AncientEnergyCostPips({ rows }: { rows: readonly AncientEnergyCo
 
 export function AncientEnergyDisplay() {
   return (
-    <div className="flex items-center gap-[24px]">
+    <div className="flex items-start gap-[24px]">
       {ENERGY_FIXTURES.map((fixture) => (
         <div key={fixture.color} className="flex items-center gap-[8px]">
           <span
@@ -63,7 +63,7 @@ export function AncientEnergyDisplay() {
             {fixture.available}
           </span>
           <div
-            className="flex w-fit max-w-[150px] flex-wrap justify-center gap-x-[4px] gap-y-[6px]"
+            className="flex w-fit max-w-[150px] flex-wrap justify-left gap-x-[4px] gap-y-[6px]"
           >
             {Array.from({ length: fixture.total }, (_, index) => (
               <EnergyPip
