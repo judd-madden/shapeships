@@ -429,6 +429,8 @@ export type BoardViewModel =
       turnNumber: number;
       myHealth: number;
       opponentHealth: number;
+      myMaxHealth: number;
+      opponentMaxHealth: number;
       myFleet: BoardFleetSummary[];
       opponentFleet: BoardFleetSummary[];
       myVoidFleet: BoardFleetSummary[];

@@ -243,6 +243,8 @@ type HealthPresentationBuildResult = {
     responseIsFinished: boolean;
     myHealth: number;
     opponentHealth: number;
+    myMaxHealth: number;
+    opponentMaxHealth: number;
     myLastTurnHeal: number;
     myLastTurnDamage: number;
     myLastTurnNet: number;
@@ -251,6 +253,19 @@ type HealthPresentationBuildResult = {
     opponentLastTurnNet: number;
   };
 };
+
+const DEFAULT_MAX_HEALTH = 35;
+
+function readExplicitProjectedMaxHealth(value: unknown): OwnFiniteNumberRead {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? { present: true, value }
+    : { present: false };
+}
+
+function normalizeProjectedMaxHealth(value: unknown): number {
+  const projectedMaxHealth = readExplicitProjectedMaxHealth(value);
+  return projectedMaxHealth.present ? projectedMaxHealth.value : DEFAULT_MAX_HEALTH;
+}
 
 function hasOwnRecordKey(value: unknown, key: string): boolean {
   return value != null && Object.prototype.hasOwnProperty.call(Object(value), key);
@@ -968,7 +983,7 @@ export function useGameSession(
     useState<HealthResolutionPresentationTrigger | null>(null);
   const [healthPresentationBoardOverride, setHealthPresentationBoardOverride] =
     useState<HealthPresentationBuildResult['boardOverride'] | null>(null);
-  const presentedHealthResolutionSignaturesRef = useRef<Set<string>>(new Set());
+  const publishedHealthPresentationIdentitiesRef = useRef<Set<string>>(new Set());
   const previousObservedHealthResolutionRef = useRef<{
     gameId: string | null;
     turnNumber: number;
@@ -981,7 +996,7 @@ export function useGameSession(
     setPublicMultiChargeByPlayerId({});
     setHealthResolutionPresentationTrigger(null);
     setHealthPresentationBoardOverride(null);
-    presentedHealthResolutionSignaturesRef.current.clear();
+    publishedHealthPresentationIdentitiesRef.current.clear();
     previousObservedHealthResolutionRef.current = null;
   }, [effectiveGameId]);
   
@@ -1870,14 +1885,20 @@ export function useGameSession(
     const opponentPlayer = findPlayerByIdentity(state, opponentPlayerId);
     const myHealth = localPlayer?.health;
     const opponentHealth = opponentPlayer?.health;
+    const myMaxHealthRead = readExplicitProjectedMaxHealth(localPlayer?.maxHealth);
+    const opponentMaxHealthRead = readExplicitProjectedMaxHealth(opponentPlayer?.maxHealth);
     if (
       typeof myHealth !== 'number' ||
       !Number.isFinite(myHealth) ||
       typeof opponentHealth !== 'number' ||
-      !Number.isFinite(opponentHealth)
+      !Number.isFinite(opponentHealth) ||
+      !myMaxHealthRead.present ||
+      !opponentMaxHealthRead.present
     ) {
       return null;
     }
+    const myMaxHealth = myMaxHealthRead.value;
+    const opponentMaxHealth = opponentMaxHealthRead.value;
 
     const lastTurnNetByPlayerId = state?.gameData?.lastTurnNetByPlayerId;
     const lastTurnHealByPlayerId = state?.gameData?.lastTurnHealByPlayerId;
@@ -1908,6 +1929,8 @@ export function useGameSession(
       opponentPlayerId,
       myHealth,
       opponentHealth,
+      myMaxHealth,
+      opponentMaxHealth,
       myNet: myNet.value,
       myHeal: myHeal.value,
       myDamageTaken: myDamageTaken.value,
@@ -1932,6 +1955,9 @@ export function useGameSession(
           opponentName: opponentPlayer?.name ?? displayRightPlayer?.name ?? 'Player 2',
           myHealth,
           opponentHealth,
+          myMaxHealth,
+          opponentMaxHealth,
+          hasExplicitProjectedMaxHealth: true,
           myLastTurnNet: myNet.value,
           opponentLastTurnNet: opponentNet.value,
           spectatorHasTwoPlayers: isViewerSpectator && displayLeftPlayer != null && displayRightPlayer != null,
@@ -1948,6 +1974,8 @@ export function useGameSession(
         responseIsFinished,
         myHealth,
         opponentHealth,
+        myMaxHealth,
+        opponentMaxHealth,
         myLastTurnHeal: myHeal.value,
         // Server damage map is damage taken; the board's damage stat displays damage dealt.
         myLastTurnDamage: opponentDamageTaken.value,
@@ -1963,11 +1991,16 @@ export function useGameSession(
     presentation: HealthPresentationBuildResult | null,
     options: { useBoardOverride: boolean }
   ): void {
-    if (!presentation || presentedHealthResolutionSignaturesRef.current.has(presentation.trigger.signature)) {
+    if (!presentation || !effectiveGameId) {
       return;
     }
 
-    presentedHealthResolutionSignaturesRef.current.add(presentation.trigger.signature);
+    const presentationIdentity = `${effectiveGameId}::${presentation.trigger.resolvedTurnKey}`;
+    if (publishedHealthPresentationIdentitiesRef.current.has(presentationIdentity)) {
+      return;
+    }
+
+    publishedHealthPresentationIdentitiesRef.current.add(presentationIdentity);
     setHealthResolutionPresentationTrigger(presentation.trigger);
 
     if (options.useBoardOverride) {
@@ -2867,6 +2900,8 @@ useEffect(() => {
     // Extract server-authoritative health
     const myHealth = typeof displayLeftPlayer?.health === 'number' ? displayLeftPlayer.health : 25;
     const opponentHealth = typeof displayRightPlayer?.health === 'number' ? displayRightPlayer.health : 25;
+    const myMaxHealth = normalizeProjectedMaxHealth(displayLeftPlayer?.maxHealth);
+    const opponentMaxHealth = normalizeProjectedMaxHealth(displayRightPlayer?.maxHealth);
 
     // Extract server-authoritative deltas (last turn heal/damage/net)
     const lastTurnHealById = getLastTurnHealByPlayerId(rawState) as Record<string, number> | undefined;
@@ -2995,6 +3030,8 @@ useEffect(() => {
       // Server-authoritative health
       myHealth: activeHealthPresentationOverride?.myHealth ?? myHealth,
       opponentHealth: activeHealthPresentationOverride?.opponentHealth ?? opponentHealth,
+      myMaxHealth: activeHealthPresentationOverride?.myMaxHealth ?? myMaxHealth,
+      opponentMaxHealth: activeHealthPresentationOverride?.opponentMaxHealth ?? opponentMaxHealth,
 
       // Fleet data: server + local preview overlay (build phase only)
       myFleet: myFleetWithPreview,
@@ -3103,6 +3140,12 @@ useEffect(() => {
   const healthResolutionOpponentLastTurnNet = board.mode === 'board' ? board.opponentLastTurnNet : 0;
   const healthResolutionMyHealth = board.mode === 'board' ? board.myHealth : 0;
   const healthResolutionOpponentHealth = board.mode === 'board' ? board.opponentHealth : 0;
+  const healthResolutionMyMaxHealth = board.mode === 'board' ? board.myMaxHealth : DEFAULT_MAX_HEALTH;
+  const healthResolutionOpponentMaxHealth = board.mode === 'board' ? board.opponentMaxHealth : DEFAULT_MAX_HEALTH;
+  const healthResolutionHasExplicitProjectedMaxHealth =
+    board.mode === 'board' &&
+    readExplicitProjectedMaxHealth(displayLeftPlayer?.maxHealth).present &&
+    readExplicitProjectedMaxHealth(displayRightPlayer?.maxHealth).present;
   const spectatorHasTwoPlayers = isViewerSpectator && displayLeftPlayer != null && displayRightPlayer != null;
   const healthResolutionViewerRole: 'player' | 'spectator' | 'unknown' =
     me?.role === 'player' || me?.role === 'spectator'
@@ -3116,6 +3159,9 @@ useEffect(() => {
       opponentName: displayRightPlayer?.name ?? 'Player 2',
       myHealth: healthResolutionMyHealth,
       opponentHealth: healthResolutionOpponentHealth,
+      myMaxHealth: healthResolutionMyMaxHealth,
+      opponentMaxHealth: healthResolutionOpponentMaxHealth,
+      hasExplicitProjectedMaxHealth: healthResolutionHasExplicitProjectedMaxHealth,
       myLastTurnNet: healthResolutionMyLastTurnNet,
       opponentLastTurnNet: healthResolutionOpponentLastTurnNet,
       spectatorHasTwoPlayers,
@@ -3131,6 +3177,9 @@ useEffect(() => {
       displayRightPlayer?.name,
       healthResolutionMyHealth,
       healthResolutionOpponentHealth,
+      healthResolutionMyMaxHealth,
+      healthResolutionOpponentMaxHealth,
+      healthResolutionHasExplicitProjectedMaxHealth,
       healthResolutionMyLastTurnNet,
       healthResolutionOpponentLastTurnNet,
       spectatorHasTwoPlayers,
@@ -4928,6 +4977,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         turnNumber: 1,
         myHealth: 25,
         opponentHealth: 25,
+        myMaxHealth: DEFAULT_MAX_HEALTH,
+        opponentMaxHealth: DEFAULT_MAX_HEALTH,
         myBonusLines: 0,
         opponentBonusLines: 0,
         myBonusLinesOnEven: 0,

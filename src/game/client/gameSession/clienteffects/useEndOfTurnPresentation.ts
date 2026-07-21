@@ -14,7 +14,6 @@ export interface ContinueAuthoritativePhaseHoldArgs {
 
 export type ContinueAuthoritativePhaseHoldOutcome = 'released' | 'still_holding' | 'retry';
 
-const MAX_HEALTH = 35;
 const MAX_HEALTH_FLASH_PEAK_OPACITY = 0.30;
 
 export interface EndOfTurnHealthPresentationInput {
@@ -24,6 +23,9 @@ export interface EndOfTurnHealthPresentationInput {
   opponentName: string;
   myHealth: number;
   opponentHealth: number;
+  myMaxHealth: number;
+  opponentMaxHealth: number;
+  hasExplicitProjectedMaxHealth: boolean;
   myLastTurnNet: number;
   opponentLastTurnNet: number;
   spectatorHasTwoPlayers: boolean;
@@ -131,7 +133,10 @@ function buildHealthResolutionPresentationSnapshot(args: {
 }): HealthResolutionPresentationVm | null {
   const { presentationKey, healthPresentation } = args;
 
-  if (healthPresentation.boardMode !== 'board') {
+  if (
+    healthPresentation.boardMode !== 'board' ||
+    !healthPresentation.hasExplicitProjectedMaxHealth
+  ) {
     return null;
   }
 
@@ -187,11 +192,12 @@ function getHealthDeltaFlashPeakOpacity(netDelta: number): number {
 function buildFleetAreaHealthDeltaFlashSnapshot(args: {
   presentationKey: string;
   health: number;
+  maxHealth: number;
   netDelta: number;
 }): FleetAreaHealthDeltaFlashVm | null {
-  const { presentationKey, health, netDelta } = args;
+  const { presentationKey, health, maxHealth, netDelta } = args;
 
-  if (health >= MAX_HEALTH) {
+  if (health >= maxHealth) {
     return {
       presentationKey,
       tone: 'max',
@@ -234,11 +240,13 @@ function buildFleetAreaHealthDeltaFlashSnapshots(args: {
     my: buildFleetAreaHealthDeltaFlashSnapshot({
       presentationKey,
       health: healthPresentation.myHealth,
+      maxHealth: healthPresentation.myMaxHealth,
       netDelta: healthPresentation.myLastTurnNet,
     }) ?? undefined,
     opponent: buildFleetAreaHealthDeltaFlashSnapshot({
       presentationKey,
       health: healthPresentation.opponentHealth,
+      maxHealth: healthPresentation.opponentMaxHealth,
       netDelta: healthPresentation.opponentLastTurnNet,
     }) ?? undefined,
   };
@@ -268,8 +276,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   const healthResolutionOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSeenHealthResolutionOverlayHoldSignatureRef = useRef<string | null>(null);
   const lastSeenHealthResolutionTriggerSignatureRef = useRef<string | null>(null);
+  const startedHealthPresentationIdentitiesRef = useRef<Set<string>>(new Set());
   const activeHealthResolutionOverlayPresentationKeyRef = useRef<string | null>(null);
-  const healthResolutionOverlayPresentationSeqRef = useRef(0);
   const pendingAuthoritativeLeftRailDiceRef = useRef<{
     value: 1 | 2 | 3 | 4 | 5 | 6;
     signature: string;
@@ -347,11 +355,14 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   currentAuthoritativeHoldSignatureRef.current = authoritativePhaseHold?.signature ?? null;
 
   function startHealthResolutionPresentation(
-    presentationHealthInput: EndOfTurnHealthPresentationInput
+    presentationHealthInput: EndOfTurnHealthPresentationInput,
+    resolvedTurnKey: string
   ): string | null {
-    healthResolutionOverlayPresentationSeqRef.current += 1;
-    const presentationKey =
-      `${effectiveGameId ?? 'nogame'}::health::${turnNumber}::${healthResolutionOverlayPresentationSeqRef.current}`;
+    if (!effectiveGameId) {
+      return null;
+    }
+
+    const presentationKey = `${effectiveGameId}::health::${resolvedTurnKey}`;
     const nextOverlay = buildHealthResolutionPresentationSnapshot({
       presentationKey,
       healthPresentation: presentationHealthInput,
@@ -460,8 +471,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     currentAuthoritativeHoldSignatureRef.current = null;
     lastSeenHealthResolutionOverlayHoldSignatureRef.current = null;
     lastSeenHealthResolutionTriggerSignatureRef.current = null;
+    startedHealthPresentationIdentitiesRef.current.clear();
     activeHealthResolutionOverlayPresentationKeyRef.current = null;
-    healthResolutionOverlayPresentationSeqRef.current = 0;
     pendingAuthoritativeLeftRailDiceRef.current = null;
     lastSeenAuthoritativeLeftRailDiceSignatureRef.current = null;
     lastPresentedLeftRailReleaseTurnRef.current = null;
@@ -484,18 +495,31 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       return;
     }
 
+    if (!effectiveGameId) {
+      return;
+    }
+
+    const resolvedTurnKey = healthResolutionPresentationTrigger.resolvedTurnKey;
+    const presentationIdentity = `${effectiveGameId}::${resolvedTurnKey}`;
+    if (startedHealthPresentationIdentitiesRef.current.has(presentationIdentity)) {
+      lastSeenHealthResolutionTriggerSignatureRef.current = triggerSignature;
+      return;
+    }
+
     const presentationKey = startHealthResolutionPresentation(
-      healthResolutionPresentationTrigger.healthPresentation
+      healthResolutionPresentationTrigger.healthPresentation,
+      resolvedTurnKey
     );
     if (presentationKey == null) {
       return;
     }
 
+    startedHealthPresentationIdentitiesRef.current.add(presentationIdentity);
     lastSeenHealthResolutionTriggerSignatureRef.current = triggerSignature;
   }, [
     healthResolutionPresentationTrigger,
+    effectiveGameId,
     boardFlashEnabled,
-    turnNumber,
   ]);
 
   useEffect(() => {
@@ -508,11 +532,26 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       return;
     }
 
-    const presentationKey = startHealthResolutionPresentation(healthPresentation);
+    if (!effectiveGameId) {
+      return;
+    }
+
+    const resolvedTurnKey = String(healthAuthoritativePhaseHold.turnNumber);
+    const presentationIdentity = `${effectiveGameId}::${resolvedTurnKey}`;
+    if (startedHealthPresentationIdentitiesRef.current.has(presentationIdentity)) {
+      lastSeenHealthResolutionOverlayHoldSignatureRef.current = holdSignature;
+      return;
+    }
+
+    const presentationKey = startHealthResolutionPresentation(
+      healthPresentation,
+      resolvedTurnKey
+    );
     if (presentationKey == null) {
       return;
     }
 
+    startedHealthPresentationIdentitiesRef.current.add(presentationIdentity);
     lastSeenHealthResolutionOverlayHoldSignatureRef.current = holdSignature;
   }, [
     healthAuthoritativePhaseHold?.signature,
@@ -523,6 +562,9 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     healthPresentation.opponentName,
     healthPresentation.myHealth,
     healthPresentation.opponentHealth,
+    healthPresentation.myMaxHealth,
+    healthPresentation.opponentMaxHealth,
+    healthPresentation.hasExplicitProjectedMaxHealth,
     healthPresentation.myLastTurnNet,
     healthPresentation.opponentLastTurnNet,
     healthPresentation.spectatorHasTwoPlayers,

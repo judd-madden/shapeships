@@ -419,7 +419,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
                 Health
               </p>
 
-              {/* Max Health (UI placeholder) */}
+              {/* Max Health */}
               <p
                 className="font-['Roboto'] font-semibold leading-[13px] relative shrink-0 text-[13px]"
                 style={{
@@ -427,7 +427,9 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
                   color: 'rgba(255,255,255,0.45)',
                 }}
               >
-                35
+                {vm.myMaxHealth === 35 && vm.opponentMaxHealth === 35
+                  ? '35'
+                  : `${vm.myMaxHealth} / ${vm.opponentMaxHealth}`}
               </p>
             </div>
           </div>
