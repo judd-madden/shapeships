@@ -17,6 +17,7 @@ import type { PhaseKey } from '../phase/PhaseTable.ts';
 import type { Effect } from '../effects/Effect.ts';
 import { EffectTiming, EffectKind, SurvivabilityRule } from '../effects/Effect.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
+import { countControlledSpirals } from '../maximumHealth.ts';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPUTED EFFECTS AUDIT (from ShipDefinitionsJSON text)
@@ -60,7 +61,7 @@ export const COMPUTED_EFFECTS_AUDIT = [
   // Ancient (many need energy ledger not present yet)
   { shipDefId: 'CUB', mechanic: 'once-per-turn: repeat last solar power (free)' },
   { shipDefId: 'QUA', mechanic: 'dice-conditioned energy/heal' },
-  { shipDefId: 'SPI', mechanic: 'tiered thresholds + energy-spent scaling + max-health mod' },
+  { shipDefId: 'SPI', mechanic: 'per-source owned-count healing + max-health modifier' },
   { shipDefId: 'SSIM', mechanic: 'computed variable X (lines) + copy enemy basic ship' },
   { shipDefId: 'SSIP', mechanic: 'count-by-category: per Core you have' },
   { shipDefId: 'SSTA', mechanic: 'dice scaling: heal = dice + 5' },
@@ -1161,6 +1162,35 @@ export function computePhaseComputedEffects(
 
       debugLog(
         `[computePhaseComputedEffects] ArkOfDomination automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownedShips=${ownedShipCount} heal=${healPerDom}`
+      );
+    }
+  }
+
+  // === SPIRAL (SPI): each live source heals for the controller's live Spiral count ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    const ships = getShips(state, ownerPlayerId);
+    const spiralCount = countControlledSpirals(state, ownerPlayerId);
+
+    if (spiralCount <= 0) continue;
+
+    for (const ship of ships) {
+      if (ship.shipDefId !== 'SPI') continue;
+
+      computedEffects.push({
+        id: `spiral_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: 'SPI' },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: ownerPlayerId },
+        kind: EffectKind.Heal,
+        amount: spiralCount,
+      });
+
+      debugLog(
+        `[computePhaseComputedEffects] Spiral automatic: controller=${ownerPlayerId} instance=${ship.instanceId} controlledSpirals=${spiralCount} heal=${spiralCount}`
       );
     }
   }

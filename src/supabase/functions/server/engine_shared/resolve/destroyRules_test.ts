@@ -3,6 +3,7 @@ import type { GameState, ShipInstance } from '../../engine/state/GameStateTypes.
 import {
   getValidDestroyTargets,
   getValidShipOfEqualityTargets,
+  getValidTransferTargets,
 } from './destroyRules.ts';
 import { resolvePowerAction } from './resolvePowerAction.ts';
 
@@ -269,4 +270,102 @@ Deno.test('Ark of Domination dry-run rejects a protected Core in a valid two-tar
     /Target ship not valid: protected-mer/,
   );
   assert.deepEqual(state, before);
+});
+
+Deno.test('DOM transfer targets exclude Spirals only at destination capacity', () => {
+  const opponentFleet = [
+    ship('enemy-spi', 'SPI'),
+    ship('enemy-vig', 'VIG'),
+    ship('enemy-fig', 'FIG'),
+  ];
+  const withTwo = createState({
+    ownFleet: [ship('spi-1', 'SPI'), ship('spi-2', 'SPI')],
+    opponentFleet,
+  });
+  assert.deepEqual(
+    instanceIds(getValidTransferTargets(withTwo, {
+      sourcePlayerId: 'p1',
+      targetScope: 'opponent',
+      restriction: 'basic_only',
+    })),
+    ['enemy-spi', 'enemy-vig', 'enemy-fig'],
+  );
+
+  const withThree = createState({
+    ownFleet: [ship('spi-1', 'SPI'), ship('spi-2', 'SPI'), ship('spi-3', 'SPI')],
+    opponentFleet,
+  });
+  assert.deepEqual(
+    instanceIds(getValidTransferTargets(withThree, {
+      sourcePlayerId: 'p1',
+      targetScope: 'opponent',
+      restriction: 'basic_only',
+    })),
+    ['enemy-vig', 'enemy-fig'],
+  );
+});
+
+Deno.test('DOM aggregate Spiral prevalidation accepts legal combinations and rejects over-cap atomically', () => {
+  const resolveDom = (state: GameState, targetInstanceIds: string[]) =>
+    resolvePowerAction({
+      state,
+      playerId: 'p1',
+      phaseKey: 'battle.first_strike',
+      actionId: 'DOM#0',
+      sourceInstanceId: 'domination-source',
+      choiceId: 'steal',
+      targetInstanceIds,
+      apply: false,
+    });
+
+  const twoOwned = createState({
+    ownFleet: [
+      ship('domination-source', 'DOM', { createdTurn: 2 }),
+      ship('own-spi-1', 'SPI'),
+      ship('own-spi-2', 'SPI'),
+    ],
+    opponentFleet: [
+      ship('enemy-spi-1', 'SPI'),
+      ship('enemy-spi-2', 'SPI'),
+      ship('enemy-vig', 'VIG'),
+    ],
+  });
+  const beforeTwoOwned = structuredClone(twoOwned);
+  assert.throws(
+    () => resolveDom(twoOwned, ['enemy-spi-1', 'enemy-spi-2']),
+    /maximum of three controlled Spirals/,
+  );
+  assert.deepEqual(twoOwned, beforeTwoOwned);
+
+  const mixed = resolveDom(twoOwned, ['enemy-spi-1', 'enemy-vig']);
+  assert.equal(mixed.effects.length, 1);
+  assert.deepEqual((mixed.effects[0] as any).target.shipInstanceIds, [
+    'enemy-spi-1',
+    'enemy-vig',
+  ]);
+
+  const oneOwned = createState({
+    ownFleet: [
+      ship('domination-source', 'DOM', { createdTurn: 2 }),
+      ship('own-spi-1', 'SPI'),
+    ],
+    opponentFleet: [ship('enemy-spi-1', 'SPI'), ship('enemy-spi-2', 'SPI')],
+  });
+  assert.equal(resolveDom(oneOwned, ['enemy-spi-1', 'enemy-spi-2']).effects.length, 1);
+
+  const threeOwned = createState({
+    ownFleet: [
+      ship('domination-source', 'DOM', { createdTurn: 2 }),
+      ship('own-spi-1', 'SPI'),
+      ship('own-spi-2', 'SPI'),
+      ship('own-spi-3', 'SPI'),
+    ],
+    opponentFleet: [ship('enemy-spi-1', 'SPI'), ship('enemy-vig', 'VIG')],
+  });
+  const beforeThreeOwned = structuredClone(threeOwned);
+  assert.throws(
+    () => resolveDom(threeOwned, ['enemy-spi-1', 'enemy-vig']),
+    /Expected exactly 1 target ship\(s\)/,
+  );
+  assert.deepEqual(threeOwned, beforeThreeOwned);
 });

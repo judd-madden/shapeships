@@ -30,7 +30,7 @@ Deno.test("new battle history summaries derive maximum health at turn end", () =
       }],
       gameData: {
         turnNumber: 4,
-        ships: { p1: [] },
+        ships: { p1: [{ instanceId: "spi-1", shipDefId: "SPI" }] },
         lastTurnDamageByPlayerId: { p1: 4 },
         lastTurnHealByPlayerId: { p1: 8 },
         lastTurnNetByPlayerId: { p1: 4 },
@@ -42,9 +42,9 @@ Deno.test("new battle history summaries derive maximum health at turn end", () =
     playerId: "p1",
     name: "Player One",
     healthEnd: 29,
-    maxHealthEnd: DEFAULT_PLAYER_MAX_HEALTH,
+    maxHealthEnd: 40,
     healthDelta: 4,
-    fleetValueEnd: 0,
+    fleetValueEnd: 6,
   }]);
   assert.deepEqual(summary.analysisByPlayerId?.p1, {
     damageTaken: 4,

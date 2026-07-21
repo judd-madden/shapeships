@@ -329,6 +329,7 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
       joiningLines: 0,
     },
   );
+  setupState.gameData.ships.p1 = [{ instanceId: 'spi-public', shipDefId: 'SPI' }];
   setupState.gameData.ships.p2 = [];
   const state: any = normalizeAncientGameState(setupState).state;
   state.players[0].energy = 88;
@@ -415,7 +416,7 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
   assert.deepEqual(spectatorBody.publicState.ancient, body.publicState.ancient);
   assert.deepEqual(
     body.publicState.players.map((player: any) => player.maxHealth),
-    [35, 35, 35],
+    [40, 35, 35],
   );
   assert.deepEqual(opponentBody.publicState.players, body.publicState.players);
   assert.deepEqual(spectatorBody.publicState.players, body.publicState.players);
@@ -450,6 +451,77 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
   assert.equal(historyBody.turns[0].players[0].maxHealthEnd, 35);
   assert.equal(Number.isFinite(historyBody.turns[0].players[0].maxHealthEnd), true);
   assert.equal(fixture.writes.length, 0);
+});
+
+Deno.test('/game-state projects DOM transfer targets with shared Spiral capacity legality', async () => {
+  const fixture = createGameRouteFixture();
+  const setupState: any = createSetupState('dom-projection');
+  setupState.players[0].faction = 'centaur';
+  setupState.players.push({
+    id: 'p2',
+    name: 'Player Two',
+    role: 'player',
+    faction: 'ancient',
+    isReady: false,
+    isActive: true,
+    health: 25,
+    lines: 3,
+    joiningLines: 0,
+  });
+  setupState.turnNumber = 2;
+  setupState.currentPhase = 'battle';
+  setupState.currentSubPhase = 'first_strike';
+  setupState.gameData.turnNumber = 2;
+  setupState.gameData.currentPhase = 'battle';
+  setupState.gameData.currentSubPhase = 'first_strike';
+  setupState.gameData.turnData = {
+    turnNumber: 2,
+    currentMajorPhase: 'battle',
+    currentSubPhase: 'first_strike',
+  };
+  setupState.gameData.ships = {
+    p1: [
+      { instanceId: 'dom-source', shipDefId: 'DOM', createdTurn: 2 },
+      { instanceId: 'own-spi-1', shipDefId: 'SPI' },
+      { instanceId: 'own-spi-2', shipDefId: 'SPI' },
+      { instanceId: 'own-spi-3', shipDefId: 'SPI' },
+    ],
+    p2: [
+      { instanceId: 'enemy-spi', shipDefId: 'SPI' },
+      { instanceId: 'enemy-vig', shipDefId: 'VIG' },
+      { instanceId: 'enemy-fig', shipDefId: 'FIG' },
+    ],
+  };
+  fixture.store.set('game_dom-projection', normalizeAncientGameState(setupState).state);
+
+  const getState = fixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
+  const atCapacity = await responseJson(
+    await getState(createContext({ params: { gameId: 'dom-projection' } })),
+  );
+  const domAtCapacity = atCapacity.requester.availableActions.find(
+    (action: any) => action.shipDefId === 'DOM',
+  );
+  assert.ok(domAtCapacity);
+  assert.deepEqual(
+    domAtCapacity.validTargets.map((target: any) => target.instanceId),
+    ['enemy-vig', 'enemy-fig'],
+  );
+
+  const underCapacityState = structuredClone(fixture.store.get('game_dom-projection'));
+  underCapacityState.gameData.ships.p1 = underCapacityState.gameData.ships.p1.filter(
+    (candidate: any) => candidate.instanceId !== 'own-spi-3',
+  );
+  fixture.store.set('game_dom-projection', underCapacityState);
+  const underCapacity = await responseJson(
+    await getState(createContext({ params: { gameId: 'dom-projection' } })),
+  );
+  const domUnderCapacity = underCapacity.requester.availableActions.find(
+    (action: any) => action.shipDefId === 'DOM',
+  );
+  assert.deepEqual(
+    domUnderCapacity.validTargets.map((target: any) => target.instanceId),
+    ['enemy-spi', 'enemy-vig', 'enemy-fig'],
+  );
 });
 
 Deno.test('/game-state terminal maintenance persists normalized Ancient state with one bump', async () => {

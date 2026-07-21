@@ -24,8 +24,13 @@ import {
   type StructuredChoiceOption,
   type TranslateContext,
 } from '../effects/translateShipPowers.ts';
-import { getValidDestroyTargets, getValidShipOfEqualityTargets } from './destroyRules.ts';
+import {
+  getValidDestroyTargets,
+  getValidShipOfEqualityTargets,
+  getValidTransferTargets,
+} from './destroyRules.ts';
 import { countDistinctTypes } from './phaseComputedEffects.ts';
+import { canControlAdditionalSpirals } from '../maximumHealth.ts';
 
 function getShipsThatBuildPassIndex(state: GameState): 1 | 2 {
   return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
@@ -346,11 +351,14 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
     resolvedTargetInstanceIds = [selfTarget.instanceId, opponentTarget.instanceId];
     resolvedTargetInstanceId = selfTarget.instanceId;
   } else if (targetedEffect) {
-    const validTargets = getValidDestroyTargets(state, {
+    const targetArgs = {
       sourcePlayerId: playerId,
       targetScope: targetedEffect.targetPlayer === 'self' ? 'self' : 'opponent',
       restriction: targetedEffect.restriction ?? 'any',
-    });
+    } as const;
+    const validTargets = targetedEffect.kind === EffectKind.TransferShip
+      ? getValidTransferTargets(state, targetArgs)
+      : getValidDestroyTargets(state, targetArgs);
     const requiredTargetCount = getRequiredTargetCount(targetedEffect, validTargets.length);
 
     if (requiredTargetCount <= 0) {
@@ -376,6 +384,20 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
       const targetShip = validTargets.find((target) => target.instanceId === requestedTargetId);
       if (!targetShip) {
         throw new Error(`Target ship not valid: ${requestedTargetId}`);
+      }
+    }
+
+    if (targetedEffect.kind === EffectKind.TransferShip) {
+      const selectedSpiralCount = distinctRequestedTargetIds.reduce(
+        (count, requestedTargetId) =>
+          count + (validTargets.find((target) => target.instanceId === requestedTargetId)?.shipDefId === 'SPI' ? 1 : 0),
+        0,
+      );
+      if (
+        selectedSpiralCount > 0 &&
+        !canControlAdditionalSpirals(state, playerId, selectedSpiralCount)
+      ) {
+        throw new Error('Transfer would exceed the maximum of three controlled Spirals.');
       }
     }
 

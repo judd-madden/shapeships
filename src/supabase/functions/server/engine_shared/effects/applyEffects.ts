@@ -23,6 +23,10 @@ import { EffectKind } from './Effect.ts';
 import { getShipById } from '../defs/ShipDefinitions.core.ts';
 import type { ShipInstance } from '../../engine/state/GameStateTypes.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
+import {
+  canControlAdditionalSpirals,
+  getPlayerMaxHealth,
+} from '../maximumHealth.ts';
 
 // ============================================================================
 // EVENT TYPES
@@ -497,6 +501,10 @@ function applyDestroyShip(
     afterCount = state.gameData.ships?.[targetPlayerId]?.length ?? afterCount;
   }
 
+  if (destroyedShip.shipDefId === 'SPI') {
+    clampPlayerHealthToDerivedMaximum(state, targetPlayerId);
+  }
+
   debugLog(
     `[applyEffects] Destroyed ship ${shipInstanceId} for ${targetPlayerId}: ${beforeCount} → ${afterCount}`
   );
@@ -565,8 +573,25 @@ function applyTransferShip(
     ];
   }
 
+  const transferredSpiralCount = transferredShips.filter(
+    (ship) => ship.shipDefId === 'SPI'
+  ).length;
+  if (
+    transferredSpiralCount > 0 &&
+    !canControlAdditionalSpirals(state, toPlayerId, transferredSpiralCount)
+  ) {
+    console.warn(
+      `[applyEffects] Refusing TransferShip effect that would exceed Spiral capacity: ${toPlayerId}`
+    );
+    return {};
+  }
+
   state.gameData.ships![fromPlayerId] = nextSourceFleet;
   state.gameData.ships![toPlayerId] = [...destinationFleet, ...transferredShips];
+
+  if (transferredSpiralCount > 0) {
+    clampPlayerHealthToDerivedMaximum(state, fromPlayerId);
+  }
 
   return {
     event: {
@@ -581,6 +606,23 @@ function applyTransferShip(
       },
       atMs: nowMs,
     },
+  };
+}
+
+function clampPlayerHealthToDerivedMaximum(
+  state: GameState,
+  playerId: string
+): void {
+  const playerIndex = state.players.findIndex((player) => player.id === playerId);
+  if (playerIndex === -1) return;
+
+  const player = state.players[playerIndex];
+  const maxHealth = getPlayerMaxHealth(state, playerId);
+  if (player.health <= maxHealth) return;
+
+  state.players[playerIndex] = {
+    ...player,
+    health: maxHealth,
   };
 }
 

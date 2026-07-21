@@ -120,6 +120,33 @@ Deno.test('generic maximum quantity permits six QUA and skips a seventh', () => 
   );
 });
 
+Deno.test('generic maximum quantity builds three Spirals and skips an over-cap attempt without spending its lines', () => {
+  const threeState = createResolutionState({
+    lines: 18,
+    payload: { builds: [{ shipDefId: 'SPI', count: 3 }] },
+  });
+  resolve(threeState);
+  assert.equal(threeState.gameData.ships.p1.filter((ship: any) => ship.shipDefId === 'SPI').length, 3);
+  assert.equal(threeState.players[0].lines, 0);
+
+  const fourthState = createResolutionState({
+    lines: 6,
+    ships: threeState.gameData.ships.p1,
+    payload: { builds: [{ shipDefId: 'SPI', count: 1 }] },
+  });
+  const fourth = resolve(fourthState);
+  assert.equal(fourthState.gameData.ships.p1.filter((ship: any) => ship.shipDefId === 'SPI').length, 3);
+  assert.equal(fourthState.players[0].lines, 6);
+  assert.equal(
+    fourth.events.some((event) =>
+      event.type === 'BUILD_ATTEMPT_SKIPPED' &&
+      event.shipDefId === 'SPI' &&
+      event.reason === 'max_quantity_reached'
+    ),
+    true,
+  );
+});
+
 Deno.test('Frigate successful creation keeps its existing trigger memory', () => {
   const state = createResolutionState({
     lines: 0,

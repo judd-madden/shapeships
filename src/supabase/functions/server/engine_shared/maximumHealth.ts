@@ -1,4 +1,6 @@
 export const DEFAULT_PLAYER_MAX_HEALTH = 35;
+export const SPIRAL_MAX_CONTROLLED_QUANTITY = 3;
+export const SPIRAL_MAX_HEALTH_BONUS = 5;
 
 export type MaximumHealthState = Readonly<{
   gameData?: Readonly<{
@@ -11,15 +13,38 @@ export type MaximumHealthState = Readonly<{
   }>;
 }>;
 
+export function countControlledSpirals(
+  state: MaximumHealthState,
+  playerId: string,
+): number {
+  const fleet = state.gameData?.ships?.[playerId];
+  if (!Array.isArray(fleet)) return 0;
+  return fleet.filter((ship) => ship.shipDefId === "SPI").length;
+}
+
+export function canControlAdditionalSpirals(
+  state: MaximumHealthState,
+  playerId: string,
+  incomingCount: number,
+): boolean {
+  if (!Number.isInteger(incomingCount) || incomingCount < 0) return false;
+  return countControlledSpirals(state, playerId) + incomingCount <=
+    SPIRAL_MAX_CONTROLLED_QUANTITY;
+}
+
 /**
  * Derive a player's authoritative maximum health from canonical state.
  *
- * P10A establishes the shared seam; player-specific derivation is added by a
- * later, separately approved pass.
+ * Spiral modifies maximum health from current authoritative fleet control.
  */
 export function getPlayerMaxHealth(
-  _state: MaximumHealthState,
-  _playerId: string,
+  state: MaximumHealthState,
+  playerId: string,
 ): number {
-  return DEFAULT_PLAYER_MAX_HEALTH;
+  const effectiveSpiralCount = Math.min(
+    countControlledSpirals(state, playerId),
+    SPIRAL_MAX_CONTROLLED_QUANTITY,
+  );
+  return DEFAULT_PLAYER_MAX_HEALTH +
+    effectiveSpiralCount * SPIRAL_MAX_HEALTH_BONUS;
 }

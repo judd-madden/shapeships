@@ -36,6 +36,64 @@ function qua(instanceId: string) {
   };
 }
 
+function spi(instanceId: string) {
+  return { instanceId, shipDefId: 'SPI' };
+}
+
+Deno.test('Spiral emits one attributed Automatic heal per live source for totals 1, 4, and 9', () => {
+  for (const [count, expectedTotal] of [[1, 1], [2, 4], [3, 9]]) {
+    const state = createState({
+      p1Ships: Array.from({ length: count }, (_, index) => spi(`spi-${index}`)),
+    });
+    const result = computePhaseComputedEffects(state, 'battle.end_of_turn_resolution');
+    const effects = result.effects.filter((effect) =>
+      (effect.source as any).shipDefId === 'SPI'
+    );
+
+    assert.equal(effects.length, count);
+    assert.equal(effects.reduce((total, effect) => total + (effect as any).amount, 0), expectedTotal);
+    for (const effect of effects) {
+      assert.equal(effect.ownerPlayerId, 'p1');
+      assert.equal(effect.target.playerId, 'p1');
+      assert.equal(effect.activationTag, EffectTiming.Automatic);
+      assert.equal(effect.survivability, SurvivabilityRule.DiesWithSource);
+      assert.equal((effect as any).amount, count);
+    }
+  }
+});
+
+Deno.test('Spiral uses current controller, live fleet count, shared modifiers, and breakdown', () => {
+  const state = createState({
+    p1Ships: [spi('spi-live'), { instanceId: 'science', shipDefId: 'SCI' }],
+    p2Ships: [spi('spi-human-a'), spi('spi-human-b')],
+  });
+  state.players[1].faction = 'human';
+
+  const result = resolvePhase(state, 'battle.end_of_turn_resolution');
+  assert.equal(result.state.gameData.lastTurnHealByPlayerId?.p1, 2);
+  assert.equal(result.state.gameData.lastTurnHealByPlayerId?.p2, 4);
+  assert.equal(
+    result.state.gameData.lastTurnHealingReceivedBreakdownByPlayerId?.p1?.some(
+      (row: any) => row.label === 'Spiral' && row.amount === 1,
+    ),
+    true,
+  );
+  assert.equal(
+    result.state.gameData.lastTurnHealingReceivedBreakdownByPlayerId?.p1?.some(
+      (row: any) => row.label === 'Science Vessel' && row.amount === 1,
+    ),
+    true,
+  );
+
+  const afterLoss = createState({ p1Ships: [spi('spi-survivor')] });
+  const effectsAfterLoss = computePhaseComputedEffects(
+    afterLoss,
+    'battle.end_of_turn_resolution',
+  ).effects.filter((effect) => (effect.source as any).shipDefId === 'SPI');
+  assert.deepEqual(effectsAfterLoss.map((effect) => (effect.source as any).instanceId), ['spi-survivor']);
+  assert.equal((effectsAfterLoss[0] as any).amount, 1);
+});
+
 Deno.test('live current-turn QUA marker emits one ordinary attributed heal', () => {
   const state = createState({
     p1Ships: [qua('qua-1')],

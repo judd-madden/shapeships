@@ -30,7 +30,11 @@ import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers
 import { getShipDefinition } from '../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 import type { StructuredShipPower } from '../engine_shared/effects/translateShipPowers.ts';
 import { EffectKind } from '../engine_shared/effects/Effect.ts';
-import { getValidDestroyTargets, getValidShipOfEqualityTargets } from '../engine_shared/resolve/destroyRules.ts';
+import {
+  getValidDestroyTargets,
+  getValidShipOfEqualityTargets,
+  getValidTransferTargets,
+} from '../engine_shared/resolve/destroyRules.ts';
 import { countDistinctTypes } from '../engine_shared/resolve/phaseComputedEffects.ts';
 import { rollD6 } from '../engine/util/rollD6.ts';
 import {
@@ -796,11 +800,14 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
         const targetedEffect = getTargetedChoiceEffect(targetedOption);
         if (!targetedEffect) continue;
 
-        const validTargets = getValidDestroyTargets(state, {
+        const targetArgs = {
           sourcePlayerId: playerId,
           targetScope: targetedEffect.targetPlayer === 'self' ? 'self' : 'opponent',
           restriction: targetedEffect.restriction ?? 'any',
-        });
+        } as const;
+        const validTargets = targetedEffect.kind === EffectKind.TransferShip
+          ? getValidTransferTargets(state, targetArgs)
+          : getValidDestroyTargets(state, targetArgs);
 
         if (validTargets.length === 0) {
           continue;

@@ -1,5 +1,6 @@
 import type { GameState } from '../../engine/state/GameStateTypes.ts';
 import { getShipById } from '../defs/ShipDefinitions.core.ts';
+import { canControlAdditionalSpirals } from '../maximumHealth.ts';
 
 const PROTECTED_ANCIENT_CORE_IDS = new Set(['PLU', 'MER', 'NEP']);
 
@@ -128,6 +129,21 @@ export function getValidDestroyTargets(
       ownerPlayerId: targetPlayerId,
       totalLineCost: getAuthoritativeFullLineCostForShipDef(ship.shipDefId) ?? 0,
     }));
+}
+
+export function getValidTransferTargets(
+  state: GameState | any,
+  args: {
+    sourcePlayerId: string;
+    targetScope: DestroyTargetScope;
+    restriction: DestroyRestriction;
+  }
+): DestroyTargetDescriptor[] {
+  const validTargets = getValidDestroyTargets(state, args);
+  if (canControlAdditionalSpirals(state, args.sourcePlayerId, 1)) {
+    return validTargets;
+  }
+  return validTargets.filter((target) => target.shipDefId !== 'SPI');
 }
 
 export function getValidShipOfEqualityTargets(
