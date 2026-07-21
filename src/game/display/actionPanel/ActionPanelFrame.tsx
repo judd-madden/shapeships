@@ -17,6 +17,7 @@ import { getShipChoicePanelSpec } from './panels/ShipChoiceRegistry';
 import { ShipChoicesPanel } from './panels/ShipChoicesPanel';
 import { LargeStyleChoicePanel } from './panels/LargeStyleChoicePanel';
 import { FrigateDrawingPanel } from './panels/FrigateDrawingPanel';
+import { QuantumMysticDrawingPanel } from './panels/QuantumMysticDrawingPanel';
 import { EvolverDrawingPanel } from './panels/EvolverDrawingPanel';
 import { HealthResolutionPanel } from './panels/HealthResolutionPanel';
 import { ActionPanelScrollArea } from './primitives/ActionPanelScrollArea';
@@ -78,7 +79,12 @@ export function ActionPanelFrame({
       phaseLocalFamilySwitch.phase === 'build.drawing'
         ? phaseLocalFamilySwitch.availableFamilies.map((family) => ({
             family,
-            label: family === 'evolver' ? 'Evolver' : 'Frigate',
+            label:
+              family === 'evolver'
+                ? 'Evolver'
+                : family === 'quantum_mystic'
+                  ? 'Quantum Mystic'
+                  : 'Frigate',
             selected: phaseLocalFamilySwitch.activeFamily === family,
             onClick: () => actions.onSelectBuildDrawingFamily?.(family),
           }))
@@ -320,6 +326,24 @@ export function ActionPanelFrame({
             <EvolverDrawingPanel
               rows={vm.evolverDrawing?.rows ?? []}
               onSelectChoice={actions.onSelectEvolverChoice}
+            />
+          </div>
+          <div className="absolute top-[20px] right-[50px] text-[var(--shapeships-pastel-red)]">^ Return to Drawing</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (vm.activePanelId === 'ap.build.drawing.ancient') {
+    return renderWithOverlay(
+      <div className="size-full flex flex-col items-center gap-[20px] pt-[16px]">
+        {renderPhaseLocalFamilySwitch()}
+        <div className="relative flex w-full justify-center">
+          <div className="w-fit">
+            <QuantumMysticDrawingPanel
+              quantumMysticCount={vm.quantumMysticDrawing?.quantumMysticCount ?? 0}
+              selectedNumbers={vm.quantumMysticDrawing?.selectedNumbers ?? []}
+              onSelectNumber={actions.onSelectQuantumMysticNumber}
             />
           </div>
           <div className="absolute top-[20px] right-[50px] text-[var(--shapeships-pastel-red)]">^ Return to Drawing</div>

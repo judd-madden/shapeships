@@ -15,6 +15,7 @@ export type RenderableTargetedActionKind = 'destroy_target' | 'paired_destroy_ta
 export type BuildDrawingRouteRequest =
   | null
   | 'frigate-demand'
+  | 'quantum-mystic-demand'
   | 'evolver-entry'
   | 'evolver-added';
 
@@ -326,12 +327,16 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
       const logReason =
         buildDrawingRouteRequest === 'frigate-demand'
           ? 'new Frigate demand'
+          : buildDrawingRouteRequest === 'quantum-mystic-demand'
+            ? 'new Quantum Mystic demand'
           : buildDrawingRouteRequest === 'evolver-entry'
             ? 'phase entry with Evolver rows available'
             : 'new Evolver row ids added';
       const requestedPanelId =
         buildDrawingRouteRequest === 'frigate-demand'
           ? 'ap.build.drawing.human'
+          : buildDrawingRouteRequest === 'quantum-mystic-demand'
+            ? 'ap.build.drawing.ancient'
           : 'ap.build.drawing.xenite';
 
       return {

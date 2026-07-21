@@ -252,6 +252,9 @@ export function mapGameSessionVm(args: {
   // Client-only Frigate trigger selections (ordered list, length = buildPreviewCounts.FRI)
   frigateSelectedTriggers: number[];
 
+  // Client-only Quantum Mystic selected numbers (ordered list, length = buildPreviewCounts.QUA)
+  quantumMysticSelectedNumbers: number[];
+
   // Client-only Evolver selections (existing EVO instances + preview EVO rows)
   evolverRowIds: string[];
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
@@ -336,6 +339,7 @@ export function mapGameSessionVm(args: {
     leftRailChronoswarmAnimateKey,
     buildPreviewCounts,
     frigateSelectedTriggers,
+    quantumMysticSelectedNumbers,
     evolverRowIds,
     evolverChoicesByRowId,
     buildDrawingFamilySwitch,
@@ -610,6 +614,11 @@ export function mapGameSessionVm(args: {
   // Frigate drawing (build preview count, not fleet count)
   const frigateCount = Number.isInteger(buildPreviewCounts?.FRI) ? Math.max(0, buildPreviewCounts.FRI) : 0;
   const frigateDrawing = frigateCount > 0 ? { frigateCount, selectedTriggers: frigateSelectedTriggers } : undefined;
+
+  const quantumMysticCount = Number.isInteger(buildPreviewCounts?.QUA) ? Math.max(0, buildPreviewCounts.QUA) : 0;
+  const quantumMysticDrawing = quantumMysticCount > 0
+    ? { quantumMysticCount, selectedNumbers: quantumMysticSelectedNumbers }
+    : undefined;
 
   const evolverDrawing = evolverRowIds.length > 0
     ? {
@@ -1429,6 +1438,7 @@ export function mapGameSessionVm(args: {
       healthResolutionOverlay,
       tabInteractionLocked: healthResolutionPresentationActive,
       frigateDrawing,
+      quantumMysticDrawing,
       evolverDrawing,
       shipChoices,
       phaseLocalFamilySwitch:

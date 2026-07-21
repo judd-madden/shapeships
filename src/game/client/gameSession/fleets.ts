@@ -97,6 +97,18 @@ export function deriveFleetStackInfo(
     };
   }
 
+  if (shipDefId === 'QUA') {
+    const selectedNumber = ship?.permanentConfiguration?.selectedNumber;
+    if (Number.isInteger(selectedNumber) && selectedNumber >= 1 && selectedNumber <= 6) {
+      const caption = String(selectedNumber);
+      return {
+        shipDefId,
+        stackKey: `QUA__cap_${caption}`,
+        caption,
+      };
+    }
+  }
+
   return {
     shipDefId,
     stackKey: shipDefId,

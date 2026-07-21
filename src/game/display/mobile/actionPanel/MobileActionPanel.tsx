@@ -5,6 +5,7 @@ import type { SpeciesId } from '../../../../components/ui/primitives/buttons/Spe
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import { EvolverDrawingPanel } from '../../actionPanel/panels/EvolverDrawingPanel';
 import { FrigateDrawingPanel } from '../../actionPanel/panels/FrigateDrawingPanel';
+import { QuantumMysticDrawingPanel } from '../../actionPanel/panels/QuantumMysticDrawingPanel';
 import { HealthResolutionPanel } from '../../actionPanel/panels/HealthResolutionPanel';
 import { getShipChoicePanelSpec } from '../../actionPanel/panels/ShipChoiceRegistry';
 import { LargeStyleChoicePanel } from '../../actionPanel/panels/LargeStyleChoicePanel';
@@ -146,7 +147,12 @@ export function MobileActionPanel({
 
             return {
               family,
-              label: family === 'evolver' ? 'Evolver' : 'Frigate',
+              label:
+                family === 'evolver'
+                  ? 'Evolver'
+                  : family === 'quantum_mystic'
+                    ? 'Quantum Mystic'
+                    : 'Frigate',
               selected: phaseLocalFamilySwitch.activeFamily === family,
               disabled: callback == null,
               onClick: callback ? () => callback(family) : undefined,
@@ -273,6 +279,26 @@ export function MobileActionPanel({
         <EvolverDrawingPanel
           rows={evolverRows}
           onSelectChoice={actions.onSelectEvolverChoice}
+          layout="mobile"
+        />
+      </MobileActionPanelWrapper>
+    );
+  }
+
+  if (vm.activePanelId === 'ap.build.drawing.ancient') {
+    const quantumMysticCount = vm.quantumMysticDrawing?.quantumMysticCount ?? 0;
+
+    return renderWithHealthOverlay(
+      <MobileActionPanelWrapper
+        ariaLabel="Mobile Quantum Mystic drawing panel"
+        showScrollHint={quantumMysticCount > 1}
+        scrollHintResetKey={`${vm.activePanelId}:${quantumMysticCount}`}
+      >
+        {renderMobilePhaseLocalFamilySwitch()}
+        <QuantumMysticDrawingPanel
+          quantumMysticCount={quantumMysticCount}
+          selectedNumbers={vm.quantumMysticDrawing?.selectedNumbers ?? []}
+          onSelectNumber={actions.onSelectQuantumMysticNumber}
           layout="mobile"
         />
       </MobileActionPanelWrapper>

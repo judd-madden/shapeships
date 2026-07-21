@@ -31,6 +31,7 @@ const INTENT_TIMEOUT_MS = 8000; // fail fast to avoid wedged commits
 export type CanonicalBuildSubmitPayload = {
   builds: Array<{ shipDefId: string; count: number }>;
   frigateTriggers?: number[];
+  quantumMysticSelections?: number[];
   evolverChoices?: Array<{ sourceKey: string; choiceId: EvolverChoiceId }>;
 };
 
@@ -108,6 +109,7 @@ async function resolveAvailableActionsOrAbort(args: {
 function makeCanonicalBuildPayload(
   buildPreviewCounts: Record<string, number>,
   frigateTriggers: number[],
+  quantumMysticSelections: number[],
   evolverChoiceSourceRowIds: string[],
   evolverChoicesByRowId: Record<string, EvolverChoiceId>
 ): CanonicalBuildSubmitPayload {
@@ -126,12 +128,17 @@ function makeCanonicalBuildPayload(
   buildsArray.sort((a, b) => a.shipDefId.localeCompare(b.shipDefId));
   
   const frigateCount = buildsArray.find(b => b.shipDefId === 'FRI')?.count ?? 0;
+  const quantumMysticCount = buildsArray.find(b => b.shipDefId === 'QUA')?.count ?? 0;
   const payload: CanonicalBuildSubmitPayload = { builds: buildsArray };
 
   // Only include frigateTriggers when we are actually building Frigates.
   // Length must match; otherwise omit (server will default triggers to 1).
   if (frigateCount > 0 && Array.isArray(frigateTriggers) && frigateTriggers.length === frigateCount) {
     payload.frigateTriggers = [...frigateTriggers];
+  }
+
+  if (quantumMysticCount > 0) {
+    payload.quantumMysticSelections = [...quantumMysticSelections];
   }
 
   if (Array.isArray(evolverChoiceSourceRowIds) && evolverChoiceSourceRowIds.length > 0) {
@@ -311,6 +318,7 @@ export async function runReadyToggleFlow(args: {
   buildPreviewCounts: Record<string, number>;
 
   frigateSelectedTriggers: number[];
+  quantumMysticSelectedNumbers: number[];
   evolverChoiceSourceRowIds: string[];
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
   // build submitted tracking
@@ -361,6 +369,7 @@ export async function runReadyToggleFlow(args: {
     buildInstanceKey,
     buildPreviewCounts,
     frigateSelectedTriggers,
+    quantumMysticSelectedNumbers,
     evolverChoiceSourceRowIds,
     evolverChoicesByRowId,
     setBuildSubmittedByTurn,
@@ -792,6 +801,7 @@ export async function runReadyToggleFlow(args: {
       const canonicalPayload = makeCanonicalBuildPayload(
         buildPreviewCounts,
         frigateSelectedTriggers,
+        quantumMysticSelectedNumbers,
         evolverChoiceSourceRowIds,
         evolverChoicesByRowId
       );

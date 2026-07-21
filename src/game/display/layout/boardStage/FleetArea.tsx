@@ -323,10 +323,10 @@ function ShipStack({
           </div>
         </div>
 
-        {ship.shipDefId === 'FRI' && ship.caption ? (
+        {(ship.shipDefId === 'FRI' || ship.shipDefId === 'QUA') && ship.caption ? (
           <div
             className={cx(
-              "relative z-10 mt-[4px] font-['Roboto'] font-normal leading-none text-center text-[14px]"
+              "relative z-10 mt-[4px] font-['Roboto'] font-bold leading-none text-center text-[18px]"
             )}
             style={{
               color: numberColour ?? 'white',

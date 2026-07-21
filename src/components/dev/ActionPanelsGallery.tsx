@@ -84,6 +84,7 @@ const DUMMY_ACTIONS: GameSessionActions = {
   onSelectShipChoiceForInstance: () => {},
   onSelectCentaurChargeSubTab: () => {},
   onSelectFrigateTrigger: () => {},
+  onSelectQuantumMysticNumber: () => {},
   onSelectEvolverChoice: () => {},
   onBoardBackgroundMouseDown: NOOP,
   onDestroyTargetStackHoverChange: () => {},
@@ -134,6 +135,11 @@ const MENU_FIXTURE: ActionPanelViewModel['menu'] = {
 const FRIGATE_DRAWING_FIXTURE: NonNullable<ActionPanelViewModel['frigateDrawing']> = {
   frigateCount: 3,
   selectedTriggers: [2, 4, 6],
+};
+
+const QUANTUM_MYSTIC_DRAWING_FIXTURE: NonNullable<ActionPanelViewModel['quantumMysticDrawing']> = {
+  quantumMysticCount: 3,
+  selectedNumbers: [1, 3, 5],
 };
 
 const EVOLVER_DRAWING_FIXTURE: NonNullable<ActionPanelViewModel['evolverDrawing']> = {
@@ -681,6 +687,13 @@ function buildGalleryVm(panelId: ActionPanelId): ActionPanelViewModel {
     return {
       ...base,
       evolverDrawing: EVOLVER_DRAWING_FIXTURE,
+    };
+  }
+
+  if (panelId === 'ap.build.drawing.ancient') {
+    return {
+      ...base,
+      quantumMysticDrawing: QUANTUM_MYSTIC_DRAWING_FIXTURE,
     };
   }
 

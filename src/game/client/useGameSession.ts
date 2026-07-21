@@ -85,6 +85,7 @@ import {
   canProvisionallyAddShip,
   evaluateProvisionalBuild,
   getDraftPreviewFrigateRowIds,
+  getDraftPreviewQuantumMysticRowIds,
 } from './gameSession/provisionalBuild';
 import {
   usePollMarkerEffect,
@@ -366,6 +367,30 @@ function buildDraftPreviewFrigateTriggerByRowId(
   });
 
   return triggerByRowId;
+}
+
+function normalizeQuantumMysticSelection(value: unknown): number {
+  let selectedNumber = Number(value);
+
+  if (!Number.isFinite(selectedNumber)) {
+    selectedNumber = 1;
+  }
+
+  return Math.max(1, Math.min(6, Math.floor(selectedNumber)));
+}
+
+function buildDraftPreviewQuantumMysticNumberByRowId(
+  turnNumber: number,
+  selections: number[]
+): Record<string, number> {
+  const previewRowIds = getDraftPreviewQuantumMysticRowIds(turnNumber, selections.length);
+  const numberByRowId: Record<string, number> = {};
+
+  previewRowIds.forEach((rowId, index) => {
+    numberByRowId[rowId] = normalizeQuantumMysticSelection(selections[index]);
+  });
+
+  return numberByRowId;
 }
 
 function isBattleLogTurnPlayerSummary(value: unknown): boolean {
@@ -769,6 +794,7 @@ export function useGameSession(
     useState<BuildDrawingRouteRequest>(null);
   const prevPhaseKeyRef = useRef<string | null>(null);
   const prevFrigateDemandCountRef = useRef(0);
+  const prevQuantumMysticDemandCountRef = useRef(0);
   const prevEvolverRowIdsRef = useRef<Set<string>>(new Set());
   const finishedRedirectHandledGameIdRef = useRef<string | null>(null);
   const lastSpeciesSelectionEntryKeyRef = useRef<string | null>(null);
@@ -845,6 +871,9 @@ export function useGameSession(
   const [frigateSelectedTriggers, setFrigateSelectedTriggers] = useState<number[]>([]);
   const frigateSelectedTriggersRef = useRef<number[]>([]);
   const frigatePreviewTriggerByRowIdRef = useRef<Record<string, number>>({});
+  const [quantumMysticSelectedNumbers, setQuantumMysticSelectedNumbers] = useState<number[]>([]);
+  const quantumMysticSelectedNumbersRef = useRef<number[]>([]);
+  const quantumMysticPreviewNumberByRowIdRef = useRef<Record<string, number>>({});
   const [evolverChoicesByRowId, setEvolverChoicesByRowId] = useState<Record<string, EvolverChoiceId>>({});
   const evolverChoicesByRowIdRef = useRef<Record<string, EvolverChoiceId>>({});
   // Ref-backed draft buffer: authoritative source for BUILD_SUBMIT payload
@@ -1582,6 +1611,9 @@ export function useGameSession(
     setFrigateSelectedTriggers([]);
     frigateSelectedTriggersRef.current = [];
     frigatePreviewTriggerByRowIdRef.current = {};
+    setQuantumMysticSelectedNumbers([]);
+    quantumMysticSelectedNumbersRef.current = [];
+    quantumMysticPreviewNumberByRowIdRef.current = {};
     setEvolverChoicesByRowId({});
     evolverChoicesByRowIdRef.current = {};
     setAwaitingBuildRevealSync(false);
@@ -2442,6 +2474,14 @@ useEffect(() => {
 }, [frigateSelectedTriggers, turnNumber]);
 
 useEffect(() => {
+  quantumMysticSelectedNumbersRef.current = quantumMysticSelectedNumbers;
+  quantumMysticPreviewNumberByRowIdRef.current = buildDraftPreviewQuantumMysticNumberByRowId(
+    turnNumber,
+    quantumMysticSelectedNumbers
+  );
+}, [quantumMysticSelectedNumbers, turnNumber]);
+
+useEffect(() => {
   evolverChoicesByRowIdRef.current = evolverChoicesByRowId;
 }, [evolverChoicesByRowId]);
 
@@ -2459,6 +2499,25 @@ useEffect(() => {
     frigateSelectedTriggersRef.current = next;
     frigatePreviewTriggerByRowIdRef.current = buildDraftPreviewFrigateTriggerByRowId(turnNumber, next);
     return next;
+  });
+}, [buildPreviewCounts, getActiveBuildPreviewCountsRefForTurn, turnNumber]);
+
+useEffect(() => {
+  const activeBuildPreviewCountsRef = getActiveBuildPreviewCountsRefForTurn(turnNumber);
+  const quantumMysticCount = Number.isInteger(activeBuildPreviewCountsRef?.QUA)
+    ? Math.max(0, activeBuildPreviewCountsRef.QUA)
+    : 0;
+
+  setQuantumMysticSelectedNumbers((previousSelections) => {
+    if (previousSelections.length === quantumMysticCount) return previousSelections;
+    const nextSelections = previousSelections.slice(0, quantumMysticCount);
+    while (nextSelections.length < quantumMysticCount) nextSelections.push(1);
+    quantumMysticSelectedNumbersRef.current = nextSelections;
+    quantumMysticPreviewNumberByRowIdRef.current = buildDraftPreviewQuantumMysticNumberByRowId(
+      turnNumber,
+      nextSelections
+    );
+    return nextSelections;
   });
 }, [buildPreviewCounts, getActiveBuildPreviewCountsRefForTurn, turnNumber]);
 
@@ -2516,6 +2575,8 @@ useEffect(() => {
   }, [myShips, mySpecies]);
   const frigateSelectedTriggersForPreview = frigateSelectedTriggersRef.current;
   const frigatePreviewTriggerByRowIdForPreview = frigatePreviewTriggerByRowIdRef.current;
+  const quantumMysticSelectedNumbersForPreview = quantumMysticSelectedNumbersRef.current;
+  const quantumMysticPreviewNumberByRowIdForPreview = quantumMysticPreviewNumberByRowIdRef.current;
 
   const provisionalBuild = evaluateProvisionalBuild({
     turnNumber,
@@ -2526,6 +2587,8 @@ useEffect(() => {
     // Use the ref-backed snapshot so same-click preview rerenders see the latest trigger choice.
     frigateSelectedTriggers: frigateSelectedTriggersForPreview,
     frigatePreviewTriggerByRowId: frigatePreviewTriggerByRowIdForPreview,
+    quantumMysticSelectedNumbers: quantumMysticSelectedNumbersForPreview,
+    quantumMysticPreviewNumberByRowId: quantumMysticPreviewNumberByRowIdForPreview,
     evolverChoicesByRowId,
     frigateTriggerByInstanceId,
   });
@@ -2546,6 +2609,8 @@ useEffect(() => {
           buildEconomy: buildEconomyForMeDisplay,
           frigateSelectedTriggers: frigateSelectedTriggersForPreview,
           frigatePreviewTriggerByRowId: frigatePreviewTriggerByRowIdForPreview,
+          quantumMysticSelectedNumbers: quantumMysticSelectedNumbersForPreview,
+          quantumMysticPreviewNumberByRowId: quantumMysticPreviewNumberByRowIdForPreview,
           evolverChoicesByRowId,
           frigateTriggerByInstanceId,
         })
@@ -3160,7 +3225,8 @@ useEffect(() => {
     activeBuildDrawingFamily: BuildDrawingActionFamily | null,
     activeFirstStrikeFamily: FirstStrikeActionFamily | null,
     hasFrigateDrawingAction: boolean,
-    hasEvolverDrawingAction: boolean
+    hasEvolverDrawingAction: boolean,
+    hasQuantumMysticDrawingAction: boolean
   ): ActionPanelId | null {
     const renderableChoiceActions = getRenderableServerChoiceActions(
       phaseKey,
@@ -3187,7 +3253,8 @@ useEffect(() => {
         return getBuildDrawingActionPanelId(
           activeBuildDrawingFamily,
           hasFrigateDrawingAction,
-          hasEvolverDrawingAction
+          hasEvolverDrawingAction,
+          hasQuantumMysticDrawingAction
         );
       
       case 'battle.first_strike':
@@ -3250,7 +3317,8 @@ useEffect(() => {
   function getBuildDrawingActionPanelId(
     activeFamily: BuildDrawingActionFamily | null,
     hasFrigateAction: boolean,
-    hasEvolverAction: boolean
+    hasEvolverAction: boolean,
+    hasQuantumMysticAction: boolean
   ): ActionPanelId | null {
     if (activeFamily === 'frigate' && hasFrigateAction) {
       return 'ap.build.drawing.human';
@@ -3260,12 +3328,20 @@ useEffect(() => {
       return 'ap.build.drawing.xenite';
     }
 
+    if (activeFamily === 'quantum_mystic' && hasQuantumMysticAction) {
+      return 'ap.build.drawing.ancient';
+    }
+
     if (hasEvolverAction) {
       return 'ap.build.drawing.xenite';
     }
 
     if (hasFrigateAction) {
       return 'ap.build.drawing.human';
+    }
+
+    if (hasQuantumMysticAction) {
+      return 'ap.build.drawing.ancient';
     }
 
     return null;
@@ -3350,6 +3426,9 @@ useEffect(() => {
   const frigateDemandCount = Number.isInteger(activeBuildPreviewCountsRef?.FRI)
     ? Math.max(0, activeBuildPreviewCountsRef.FRI)
     : 0;
+  const quantumMysticDemandCount = Number.isInteger(activeBuildPreviewCountsRef?.QUA)
+    ? Math.max(0, activeBuildPreviewCountsRef.QUA)
+    : 0;
 
   const hasFrigateDrawingAction =
     phaseKey === 'build.drawing' &&
@@ -3357,9 +3436,13 @@ useEffect(() => {
   const hasEvolverDrawingAction =
     phaseKey === 'build.drawing' &&
     evolverRowIdsSet.size > 0;
+  const hasQuantumMysticDrawingAction =
+    phaseKey === 'build.drawing' &&
+    quantumMysticDemandCount > 0;
   const buildDrawingAvailableFamilies: BuildDrawingActionFamily[] = [
     ...(hasEvolverDrawingAction ? ['evolver' as const] : []),
     ...(hasFrigateDrawingAction ? ['frigate' as const] : []),
+    ...(hasQuantumMysticDrawingAction ? ['quantum_mystic' as const] : []),
   ];
   const buildDrawingAvailableFamiliesKey = buildDrawingAvailableFamilies.join('|');
 
@@ -3459,7 +3542,8 @@ useEffect(() => {
     activeBuildDrawingFamily,
     activeFirstStrikeFamily,
     hasFrigateDrawingAction,
-    hasEvolverDrawingAction
+    hasEvolverDrawingAction,
+    hasQuantumMysticDrawingAction
   );
   const selfCataloguePanelId = speciesToCataloguePanelId(mySpecies ?? 'human');
 
@@ -3467,7 +3551,7 @@ useEffect(() => {
   // This remains preview/runtime-only; legality is still server-authoritative.
   const hasClientActionsAvailable =
     phaseKey === 'build.drawing' &&
-    (hasFrigateDrawingAction || hasEvolverDrawingAction);
+    (hasFrigateDrawingAction || hasEvolverDrawingAction || hasQuantumMysticDrawingAction);
 
   // Actions tab is visible if we have a target panel and either:
   // - server says actions exist, OR
@@ -3793,6 +3877,7 @@ useEffect(() => {
     const wasBuildDrawing = prevPhaseKeyRef.current === 'build.drawing';
     const isBuildDrawing = phaseKey === 'build.drawing';
     const previousFrigateDemandCount = prevFrigateDemandCountRef.current;
+    const previousQuantumMysticDemandCount = prevQuantumMysticDemandCountRef.current;
     const previousEvolverRowIds = prevEvolverRowIdsRef.current;
 
     let nextRouteRequest: BuildDrawingRouteRequest = null;
@@ -3807,6 +3892,11 @@ useEffect(() => {
         nextRouteRequest = 'frigate-demand';
       } else if (
         wasBuildDrawing &&
+        quantumMysticDemandCount > previousQuantumMysticDemandCount
+      ) {
+        nextRouteRequest = 'quantum-mystic-demand';
+      } else if (
+        wasBuildDrawing &&
         Array.from(evolverRowIdsSet).some((rowId) => !previousEvolverRowIds.has(rowId))
       ) {
         nextRouteRequest = 'evolver-added';
@@ -3819,6 +3909,11 @@ useEffect(() => {
           ...prev,
           [phaseInstanceKey]: 'frigate',
         }));
+      } else if (nextRouteRequest === 'quantum-mystic-demand') {
+        setBuildDrawingFamilyByPhaseInstanceKey((prev) => ({
+          ...prev,
+          [phaseInstanceKey]: 'quantum_mystic',
+        }));
       } else {
         setBuildDrawingFamilyByPhaseInstanceKey((prev) => ({
           ...prev,
@@ -3830,10 +3925,11 @@ useEffect(() => {
 
     prevPhaseKeyRef.current = phaseKey;
     prevFrigateDemandCountRef.current = isBuildDrawing ? frigateDemandCount : 0;
+    prevQuantumMysticDemandCountRef.current = isBuildDrawing ? quantumMysticDemandCount : 0;
     prevEvolverRowIdsRef.current = isBuildDrawing
       ? new Set(evolverRowIdsSet)
       : new Set();
-  }, [evolverRowIdsKey, frigateDemandCount, hasEvolverDrawingAction, phaseInstanceKey, phaseKey]);
+  }, [evolverRowIdsKey, frigateDemandCount, hasEvolverDrawingAction, phaseInstanceKey, phaseKey, quantumMysticDemandCount]);
 
   useEffect(() => {
     if (phaseKey !== 'build.drawing') {
@@ -3842,7 +3938,8 @@ useEffect(() => {
 
     if (
       activePanelId !== 'ap.build.drawing.human' &&
-      activePanelId !== 'ap.build.drawing.xenite'
+      activePanelId !== 'ap.build.drawing.xenite' &&
+      activePanelId !== 'ap.build.drawing.ancient'
     ) {
       return;
     }
@@ -3850,7 +3947,8 @@ useEffect(() => {
     const nextPanelId = getBuildDrawingActionPanelId(
       activeBuildDrawingFamily,
       hasFrigateDrawingAction,
-      hasEvolverDrawingAction
+      hasEvolverDrawingAction,
+      hasQuantumMysticDrawingAction
     );
 
     if (!nextPanelId) {
@@ -3866,6 +3964,7 @@ useEffect(() => {
     activePanelId,
     hasEvolverDrawingAction,
     hasFrigateDrawingAction,
+    hasQuantumMysticDrawingAction,
     phaseKey,
     selfCataloguePanelId,
   ]);
@@ -4165,6 +4264,7 @@ useEffect(() => {
     // Client-only: build preview + Frigate triggers for build.drawing special panels
     buildPreviewCounts: activeBuildPreviewCountsRef,
     frigateSelectedTriggers: frigateSelectedTriggersRef.current,
+    quantumMysticSelectedNumbers: quantumMysticSelectedNumbersRef.current,
     evolverRowIds,
     evolverChoicesByRowId,
     buildDrawingFamilySwitch:
@@ -4291,6 +4391,7 @@ useEffect(() => {
           buildInstanceKey: buildServerKey,
           buildPreviewCounts: buildPreviewSnapshot,
           frigateSelectedTriggers: frigateSelectedTriggersRef.current,
+          quantumMysticSelectedNumbers: quantumMysticSelectedNumbersRef.current,
           evolverChoiceSourceRowIds,
           evolverChoicesByRowId: evolverChoicesByRowIdRef.current,
 
@@ -4555,6 +4656,7 @@ useEffect(() => {
         nativeSpecies: mySpecies,
         buildEconomy: buildEconomyForMe,
         frigateSelectedTriggers: frigateSelectedTriggersRef.current,
+        quantumMysticSelectedNumbers: quantumMysticSelectedNumbersRef.current,
         evolverChoicesByRowId: evolverChoicesByRowIdRef.current,
         frigateTriggerByInstanceId,
       });
@@ -4647,6 +4749,39 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
   setActivePanelId(selfCataloguePanelId);
 },
 
+    onSelectQuantumMysticNumber: (quantumMysticIndex: number, selectedNumber: number) => {
+      if (!Number.isInteger(selectedNumber) || selectedNumber < 1 || selectedNumber > 6) {
+        return;
+      }
+
+      const currentSelections = quantumMysticSelectedNumbersRef.current;
+      if (quantumMysticIndex < 0 || quantumMysticIndex >= currentSelections.length) {
+        return;
+      }
+
+      const currentPreviewRowIds = getDraftPreviewQuantumMysticRowIds(
+        turnNumber,
+        currentSelections.length
+      );
+      const targetPreviewRowId = currentPreviewRowIds[quantumMysticIndex];
+      if (!targetPreviewRowId) {
+        return;
+      }
+
+      const normalizedSelectedNumber = normalizeQuantumMysticSelection(selectedNumber);
+      const nextSelections = [...currentSelections];
+      nextSelections[quantumMysticIndex] = normalizedSelectedNumber;
+      quantumMysticSelectedNumbersRef.current = nextSelections;
+      const nextPreviewNumberByRowId = buildDraftPreviewQuantumMysticNumberByRowId(
+        turnNumber,
+        nextSelections
+      );
+      nextPreviewNumberByRowId[targetPreviewRowId] = normalizedSelectedNumber;
+      quantumMysticPreviewNumberByRowIdRef.current = nextPreviewNumberByRowId;
+      setQuantumMysticSelectedNumbers(nextSelections);
+      setActivePanelId('ap.catalog.ships.ancient');
+    },
+
     onSelectEvolverChoice: (rowId: string, choiceId: EvolverChoiceId) => {
       if (choiceId !== 'hold' && choiceId !== 'oxite' && choiceId !== 'asterite') {
         return;
@@ -4676,7 +4811,9 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       setActivePanelId(
         family === 'evolver'
           ? 'ap.build.drawing.xenite'
-          : 'ap.build.drawing.human'
+          : family === 'quantum_mystic'
+            ? 'ap.build.drawing.ancient'
+            : 'ap.build.drawing.human'
       );
     },
 
@@ -4899,6 +5036,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       onSelectShipChoiceForInstance: () => { },
       onSelectCentaurChargeSubTab: () => { },
       onSelectFrigateTrigger: () => { },
+      onSelectQuantumMysticNumber: () => { },
       onSelectEvolverChoice: () => { },
       onBoardBackgroundMouseDown: () => { },
       onDestroyTargetStackHoverChange: () => { },

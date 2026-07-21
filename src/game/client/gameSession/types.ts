@@ -85,7 +85,7 @@ export interface AcceptedFullStateFingerprint {
 
 export type EvolverChoiceId = 'hold' | 'oxite' | 'asterite';
 export type CentaurChargeSubTabId = 'charges' | 'ship_of_equality';
-export type BuildDrawingActionFamily = 'evolver' | 'frigate';
+export type BuildDrawingActionFamily = 'evolver' | 'frigate' | 'quantum_mystic';
 export type FirstStrikeActionFamily = 'guardian' | 'sacrificial_pool';
 
 export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
@@ -583,6 +583,7 @@ export interface ActionPanelViewModel {
 
   // NEW (UI-derivations for panels)
   frigateDrawing?: { frigateCount: number; selectedTriggers: number[] };
+  quantumMysticDrawing?: { quantumMysticCount: number; selectedNumbers: number[] };
   evolverDrawing?: {
     rows: Array<{
       rowId: string;
@@ -665,6 +666,7 @@ export interface GameSessionActions {
   onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;
   onSelectCentaurChargeSubTab: (tabId: CentaurChargeSubTabId) => void;
   onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => void;
+  onSelectQuantumMysticNumber: (quantumMysticIndex: number, selectedNumber: number) => void;
   onSelectEvolverChoice: (rowId: string, choiceId: EvolverChoiceId) => void;
   onSelectBuildDrawingFamily?: (family: BuildDrawingActionFamily) => void;
   onSelectFirstStrikeFamily?: (family: FirstStrikeActionFamily) => void;

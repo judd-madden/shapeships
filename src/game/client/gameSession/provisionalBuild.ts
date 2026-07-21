@@ -17,6 +17,7 @@ type InternalFleetEntry = {
   shipDefId: ShipDefId;
   chargesCurrent: number;
   frigateTrigger?: number;
+  permanentConfiguration?: { selectedNumber?: number };
 };
 
 type DraftBuildEntry =
@@ -24,12 +25,14 @@ type DraftBuildEntry =
       shipDefId: ShipDefId;
       freeReason?: undefined;
       frigateTrigger?: number;
+      selectedNumber?: number;
       rowId?: string;
     }
   | {
       shipDefId: 'ANT';
       freeReason: 'zenith_antlion';
       frigateTrigger?: undefined;
+      selectedNumber?: undefined;
       rowId?: string;
     };
 
@@ -81,6 +84,10 @@ function toNonNegativeInt(value: unknown): number {
   const num = Number(value);
   if (!Number.isFinite(num) || num <= 0) return 0;
   return Math.floor(num);
+}
+
+function isValidSelectedNumber(value: unknown): value is number {
+  return Number.isInteger(value) && Number(value) >= 1 && Number(value) <= 6;
 }
 
 function normalizeSpeciesId(value: unknown): SpeciesId | null {
@@ -155,6 +162,9 @@ function buildAuthoritativeFleetEntries(
       shipDefId: rawShipDefId,
       chargesCurrent: normalizeChargesCurrent(ship, rawShipDefId),
       frigateTrigger,
+      ...(rawShipDefId === 'QUA' && isValidSelectedNumber(ship?.permanentConfiguration?.selectedNumber)
+        ? { permanentConfiguration: { selectedNumber: ship.permanentConfiguration.selectedNumber } }
+        : {}),
     });
   }
 
@@ -225,11 +235,28 @@ export function getDraftPreviewFrigateRowIds(
   return rowIds;
 }
 
+export function getDraftPreviewQuantumMysticRowIds(
+  turnNumber: number,
+  quantumMysticCount: number
+): string[] {
+  const previewIndexByShipDefId: Partial<Record<ShipDefId, number>> = {};
+  const rowIds: string[] = [];
+  const safeQuantumMysticCount = Math.max(0, Math.floor(quantumMysticCount));
+
+  for (let index = 0; index < safeQuantumMysticCount; index += 1) {
+    rowIds.push(makePreviewRowId('QUA', turnNumber, previewIndexByShipDefId));
+  }
+
+  return rowIds;
+}
+
 function expandDraftBuildEntries(
   draftCounts: Record<string, number>,
   turnNumber: number,
   frigateSelectedTriggers: number[],
-  frigatePreviewTriggerByRowId?: Record<string, number>
+  frigatePreviewTriggerByRowId: Record<string, number> | undefined,
+  quantumMysticSelectedNumbers: number[],
+  quantumMysticPreviewNumberByRowId?: Record<string, number>
 ): DraftBuildEntry[] {
   const entries: DraftBuildEntry[] = [];
   const previewCountByShipDefId: Partial<Record<ShipDefId, number>> = {};
@@ -238,7 +265,12 @@ function expandDraftBuildEntries(
   const freeAntCount = Math.min(antCount, zenCount);
   const paidAntCount = Math.max(0, antCount - freeAntCount);
   const frigateRowIds = getDraftPreviewFrigateRowIds(turnNumber, toNonNegativeInt(draftCounts.FRI));
+  const quantumMysticRowIds = getDraftPreviewQuantumMysticRowIds(
+    turnNumber,
+    toNonNegativeInt(draftCounts.QUA)
+  );
   let frigateIndex = 0;
+  let quantumMysticIndex = 0;
 
   for (const shipDefId of FIXED_BUILD_ORDER) {
     const totalCount = toNonNegativeInt(draftCounts[shipDefId]);
@@ -247,6 +279,27 @@ function expandDraftBuildEntries(
     if (shipDefId === 'ANT') {
       for (let i = 0; i < paidAntCount; i++) {
         entries.push({ shipDefId: 'ANT' });
+      }
+      continue;
+    }
+
+    if (shipDefId === 'QUA') {
+      for (let i = 0; i < totalCount; i++) {
+        const rowId =
+          quantumMysticRowIds[quantumMysticIndex] ??
+          makePreviewRowId(shipDefId, turnNumber, previewCountByShipDefId);
+        const selectedNumberRaw =
+          quantumMysticPreviewNumberByRowId?.[rowId] ??
+          quantumMysticSelectedNumbers[quantumMysticIndex];
+        quantumMysticIndex += 1;
+
+        entries.push({
+          shipDefId,
+          ...(isValidSelectedNumber(selectedNumberRaw)
+            ? { selectedNumber: selectedNumberRaw }
+            : {}),
+          rowId,
+        });
       }
       continue;
     }
@@ -331,6 +384,7 @@ function buildPreviewFleetSummary(
         shipDefId: entry.shipDefId,
         instanceId: entry.rowId,
         chargesCurrent: entry.chargesCurrent,
+        permanentConfiguration: entry.permanentConfiguration,
       },
       frigateTriggerByRowId
     );
@@ -738,6 +792,9 @@ function applyBasicDraftBuildEntry(args: {
     shipDefId: buildEntry.shipDefId,
     chargesCurrent: shipDef.maxCharges ?? 0,
     frigateTrigger: buildEntry.frigateTrigger,
+    ...(buildEntry.shipDefId === 'QUA' && isValidSelectedNumber(buildEntry.selectedNumber)
+      ? { permanentConfiguration: { selectedNumber: buildEntry.selectedNumber } }
+      : {}),
   });
 
   if (buildEntry.shipDefId === 'LEG') {
@@ -1044,6 +1101,8 @@ export function evaluateProvisionalBuild(args: {
   buildEconomy: BuildEconomySnapshot | null | undefined;
   frigateSelectedTriggers: number[];
   frigatePreviewTriggerByRowId?: Record<string, number>;
+  quantumMysticSelectedNumbers: number[];
+  quantumMysticPreviewNumberByRowId?: Record<string, number>;
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
   frigateTriggerByInstanceId?: Record<string, unknown>;
 }): ProvisionalBuildResult {
@@ -1055,6 +1114,8 @@ export function evaluateProvisionalBuild(args: {
     buildEconomy,
     frigateSelectedTriggers,
     frigatePreviewTriggerByRowId,
+    quantumMysticSelectedNumbers,
+    quantumMysticPreviewNumberByRowId,
     evolverChoicesByRowId,
     frigateTriggerByInstanceId = {},
   } = args;
@@ -1068,7 +1129,9 @@ export function evaluateProvisionalBuild(args: {
     draftCounts,
     turnNumber,
     frigateSelectedTriggers,
-    frigatePreviewTriggerByRowId
+    frigatePreviewTriggerByRowId,
+    quantumMysticSelectedNumbers,
+    quantumMysticPreviewNumberByRowId
   );
   const { nonUpgradedEntries, upgradedEntries } = partitionDraftBuildEntries(draftBuildEntries);
   const basicStageResolution = resolveDraftBuildStage({
@@ -1149,6 +1212,7 @@ export function canProvisionallyAddShip(args: {
   nativeSpecies: SpeciesId | null | undefined;
   buildEconomy: BuildEconomySnapshot | null | undefined;
   frigateSelectedTriggers: number[];
+  quantumMysticSelectedNumbers: number[];
   evolverChoicesByRowId: Record<string, EvolverChoiceId>;
   frigateTriggerByInstanceId?: Record<string, unknown>;
 }): boolean {
@@ -1159,6 +1223,7 @@ export function canProvisionallyAddShip(args: {
     nativeSpecies: args.nativeSpecies,
     buildEconomy: args.buildEconomy,
     frigateSelectedTriggers: args.frigateSelectedTriggers,
+    quantumMysticSelectedNumbers: args.quantumMysticSelectedNumbers,
     evolverChoicesByRowId: args.evolverChoicesByRowId,
     frigateTriggerByInstanceId: args.frigateTriggerByInstanceId,
   });
