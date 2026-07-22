@@ -6,6 +6,9 @@ import {
   resolveChargeDeclarationSubmissionWithDependencies,
 } from './chargeDeclarationResolution.ts';
 import type { ManualSolarResolverRegistry } from '../ancient/manualSolarDeclaration.ts';
+import { advancePhaseCore } from '../phase/advancePhase.ts';
+import { onEnterPhase } from '../phase/onEnterPhase.ts';
+import { resolveBuildSubmitAuthoritatively } from './buildSubmitResolution.ts';
 import {
   EffectKind,
   EffectTiming,
@@ -154,6 +157,12 @@ Deno.test('charge declaration payload normalization is versioned, explicit, and 
       solarCasts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SAST' }],
     }))),
   );
+  const autocastOn = normalizeChargeDeclarationPayload(payload({ autocastEnabled: true }));
+  assert.equal(autocastOn.autocastEnabled, true);
+  assert.notEqual(
+    fingerprintChargeDeclaration(autocastOn),
+    fingerprintChargeDeclaration(normalizeChargeDeclarationPayload(payload({ autocastEnabled: false }))),
+  );
   assert.deepEqual(
     normalizeChargeDeclarationPayload(payload({
       solarCasts: ['SLIF', 'SSTA', 'SAST', 'SSUP', 'SCON', 'SSIM', 'SSIP', 'SVOR', 'SBLA']
@@ -169,7 +178,7 @@ Deno.test('charge declaration payload normalization is versioned, explicit, and 
     payload({ solarCasts: [{ solarPowerId: 'SLIF', targetInstanceId: 'one', targetInstanceIds: ['two'] }] }),
     payload({ solarCasts: [{ solarPowerId: 'SLIF', targetInstanceIds: ['same', 'same'] }] }),
     payload({ solarCasts: [{ solarPowerId: 'SLIF', lockedAmount: 1.5 }] }),
-    payload({ autocastEnabled: true }),
+    payload({ autocastEnabled: 'true' }),
   ]) {
     assert.throws(() => normalizeChargeDeclarationPayload(invalid));
   }
@@ -357,7 +366,7 @@ Deno.test('later unaffordable fixture cast rolls back ordinary charge, Grid, Ene
   assert.deepEqual(state, before);
 });
 
-Deno.test('known Solar IDs without a production resolver are rejected without state changes', () => {
+Deno.test('later Solar IDs without a production resolver are rejected without state changes', () => {
   const state = createState();
   const before = structuredClone(state);
   assert.throws(() => resolveChargeDeclarationSubmission({
@@ -368,10 +377,10 @@ Deno.test('known Solar IDs without a production resolver are rejected without st
         { sourceInstanceId: 'sol-a', choiceId: 'hold' },
         { sourceInstanceId: 'sol-b', choiceId: 'hold' },
       ],
-      solarCasts: [{ solarPowerId: 'SLIF' }],
+      solarCasts: [{ solarPowerId: 'SSIP' }],
     }),
     nowMs: 1000,
-  }), /not implemented: SLIF/);
+  }), /not implemented: SSIP/);
   assert.deepEqual(state, before);
 });
 
@@ -500,4 +509,298 @@ Deno.test('a previous Battle accepted record does not block a new declaration', 
   assert.equal(second.status, 'applied');
   assert.equal(second.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.declarationId, 'battle-4-declaration');
   assert.equal(second.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.context.battleTurnNumber, 4);
+});
+
+Deno.test('production Autocast follows the exact fixed category order and exhausts mono-colour Energy', () => {
+  const scenarios = [
+    {
+      energy: { green: 0, red: 10, blue: 0 },
+      expected: ['SSUP', 'SSUP', 'SSUP', 'SAST'],
+    },
+    {
+      energy: { green: 8, red: 0, blue: 0 },
+      expected: ['SSTA', 'SSTA', 'SLIF', 'SLIF'],
+    },
+    {
+      energy: { green: 0, red: 0, blue: 4 },
+      expected: ['SCON', 'SCON', 'SCON', 'SCON'],
+    },
+    {
+      energy: { green: 4, red: 4, blue: 2 },
+      expected: ['SSTA', 'SSUP', 'SCON', 'SCON', 'SLIF', 'SAST'],
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const state = createState();
+    state.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 3, p2: 5 };
+    state.gameData.ancient.energyByPlayerId.p1.pool = scenario.energy;
+    const result = resolveChargeDeclarationSubmission({
+      state,
+      playerId: 'p1',
+      payload: payload({
+        solarGridChoices: [
+          { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+          { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+        ],
+        autocastEnabled: true,
+      }),
+      nowMs: 1000,
+    });
+    const entries = result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries;
+    assert.deepEqual(entries.map((entry: any) => entry.solarPowerId), scenario.expected);
+    assert.deepEqual(entries.map((entry: any) => entry.order), scenario.expected.map((_, index) => index));
+    assert.equal(entries.every((entry: any) => entry.sourceMode === 'autocast'), true);
+    assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, {
+      green: 0,
+      red: 0,
+      blue: 0,
+    });
+    assert.equal(result.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.autocastEnabled, true);
+    assert.deepEqual(result.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.solarCasts, []);
+    assert.equal(
+      entries.filter((entry: any) => entry.solarPowerId === 'SSTA' || entry.solarPowerId === 'SSUP')
+        .every((entry: any) => entry.lockedAmount === 6),
+      true,
+    );
+  }
+});
+
+Deno.test('manual casts remain first and Autocast continues with deterministic identities and effects', () => {
+  const state = createState();
+  state.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 4 };
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 5, red: 4, blue: 2 };
+  const declaration = payload({
+    solarGridChoices: [
+      { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+      { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+    ],
+    solarCasts: [
+      { solarPowerId: 'SLIF' },
+      { solarPowerId: 'SAST' },
+      { solarPowerId: 'SCON' },
+    ],
+    autocastEnabled: true,
+  });
+  const result = resolveChargeDeclarationSubmission({ state, playerId: 'p1', payload: declaration, nowMs: 1000 });
+  const entries = result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries;
+  assert.deepEqual(entries.map((entry: any) => [entry.solarPowerId, entry.sourceMode, entry.order]), [
+    ['SLIF', 'manual', 0],
+    ['SAST', 'manual', 1],
+    ['SCON', 'manual', 2],
+    ['SSTA', 'autocast', 3],
+    ['SSUP', 'autocast', 4],
+    ['SCON', 'autocast', 5],
+    ['SLIF', 'autocast', 6],
+  ]);
+  assert.deepEqual(entries.map((entry: any) => entry.entryId), [
+    'ancient-solar:3:p1:declaration-1:manual:0',
+    'ancient-solar:3:p1:declaration-1:manual:1',
+    'ancient-solar:3:p1:declaration-1:manual:2',
+    'ancient-solar:3:p1:declaration-1:autocast:0',
+    'ancient-solar:3:p1:declaration-1:autocast:1',
+    'ancient-solar:3:p1:declaration-1:autocast:2',
+    'ancient-solar:3:p1:declaration-1:autocast:3',
+  ]);
+  assert.deepEqual(result.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.solarCasts, [
+    { solarPowerId: 'SLIF' },
+    { solarPowerId: 'SAST' },
+    { solarPowerId: 'SCON' },
+  ]);
+  assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, { green: 0, red: 0, blue: 0 });
+  assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 9 });
+  assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 8 });
+  assert.equal(result.state.players[0].lines, 2);
+  assert.equal(
+    (result.state.gameData.turnData.shipActivationCueBatches ?? [])
+      .flatMap((batch: any) => batch.sources ?? [])
+      .some((source: any) => String(source.sourceInstanceId).includes('ancient-solar')),
+    false,
+  );
+});
+
+Deno.test('Autocast toggle off preserves unspent Energy and true retries are eventless', () => {
+  const state = createState();
+  state.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 2 };
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 3, blue: 1 };
+  const choices = [
+    { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+    { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+  ];
+  const off = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({ solarGridChoices: choices, autocastEnabled: false }),
+    nowMs: 1000,
+  });
+  assert.deepEqual(off.state.gameData.ancient.energyByPlayerId.p1.pool, { green: 3, red: 3, blue: 1 });
+  assert.deepEqual(off.state.gameData.ancient.solarLedgerByPlayerId.p1.entries, []);
+
+  const onState = createState();
+  onState.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 2 };
+  onState.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 3, blue: 1 };
+  const onPayload = payload({ solarGridChoices: choices, autocastEnabled: true });
+  const applied = resolveChargeDeclarationSubmission({
+    state: onState, playerId: 'p1', payload: onPayload, nowMs: 1000,
+  });
+  const snapshot = structuredClone(applied.state);
+  applied.state.gameData.currentSubPhase = 'charge_response';
+  const retry = resolveChargeDeclarationSubmission({
+    state: applied.state, playerId: 'p1', payload: onPayload, nowMs: 1001,
+  });
+  assert.equal(retry.status, 'idempotent');
+  assert.deepEqual(retry.events, []);
+  assert.deepEqual({ ...retry.state, gameData: { ...retry.state.gameData, currentSubPhase: 'charge_declaration' } }, snapshot);
+  assert.throws(() => resolveChargeDeclarationSubmission({
+    state: applied.state,
+    playerId: 'p1',
+    payload: payload({ solarGridChoices: choices, autocastEnabled: false }),
+    nowMs: 1002,
+  }), /different charge declaration/);
+});
+
+Deno.test('late injected Autocast failure rolls back ordinary charge, Grid, manual and automatic effects, lines, and acceptance', () => {
+  const state = createState();
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 0, blue: 1 };
+  const before = structuredClone(state);
+  const resolvers: ManualSolarResolverRegistry = {
+    SLIF: {
+      acceptedFields: {},
+      resolve(context) {
+        return {
+          candidateState: structuredClone(context.state),
+          paidEnergy: { green: 1, red: 0, blue: 0 },
+          effects: [solarHealthEffect(`${context.castIdentity}:heal`, EffectKind.Heal, 'p1')],
+        };
+      },
+    },
+    SCON: {
+      acceptedFields: {},
+      resolve(context) {
+        return {
+          candidateState: structuredClone(context.state),
+          paidEnergy: { green: 0, red: 0, blue: 1 },
+          effects: [{
+            id: `${context.castIdentity}:gain-lines`,
+            ownerPlayerId: 'p1',
+            source: { type: 'system', reason: 'late-autocast-test' },
+            timing: 'battle.charge_declaration',
+            activationTag: EffectTiming.Charge,
+            survivability: SurvivabilityRule.ResolvesIfDestroyed,
+            target: { playerId: 'p1' },
+            kind: EffectKind.GainLines,
+            amount: 1,
+            appliesToFutureBuildPhases: true,
+          }],
+        };
+      },
+    },
+    SSTA: {
+      acceptedFields: {},
+      resolve(context) {
+        return {
+          candidateState: structuredClone(context.state),
+          paidEnergy: { green: 3, red: 0, blue: 0 },
+          effects: [solarHealthEffect(`${context.castIdentity}:heal`, EffectKind.Heal, 'p1')],
+        };
+      },
+    },
+    SAST: {
+      acceptedFields: {},
+      resolve() {
+        throw new Error('forced late Autocast failure');
+      },
+    },
+  };
+
+  assert.throws(() => resolveChargeDeclarationSubmissionWithDependencies({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      ordinaryChargeActions: [{
+        actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'int-1', choiceId: 'damage',
+      }],
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'use' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SCON' }],
+      autocastEnabled: true,
+    }),
+    nowMs: 1000,
+  }, { manualSolarResolvers: resolvers }), /forced late Autocast failure/);
+  assert.deepEqual(state, before);
+});
+
+Deno.test('Convert lines survive the real turn bump, combine with following generation, and clamp at Build persistence', () => {
+  const state = createState();
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 0, red: 0, blue: 9 };
+  const converted = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: Array.from({ length: 9 }, () => ({ solarPowerId: 'SCON' })),
+    }),
+    nowMs: 1000,
+  });
+  assert.equal(converted.state.players[0].lines, 9);
+  assert.equal(converted.state.players[0].joiningLines, 0);
+
+  converted.state.currentPhase = 'battle';
+  converted.state.currentSubPhase = 'end_of_turn_resolution';
+  converted.state.gameData.currentPhase = 'battle';
+  converted.state.gameData.currentSubPhase = 'end_of_turn_resolution';
+  converted.state.gameData.turnData.currentMajorPhase = 'battle';
+  converted.state.gameData.turnData.currentSubPhase = 'end_of_turn_resolution';
+  const transitioned = advancePhaseCore(converted.state, 1500);
+  assert.equal(transitioned.ok, true);
+  if (!transitioned.ok) return;
+  const transitionedState: any = transitioned.state;
+  assert.equal(transitioned.to, 'build.dice_roll');
+  assert.equal(transitionedState.gameData.turnNumber, 4);
+  assert.equal(transitionedState.gameData.turnData.turnNumber, 4);
+  assert.equal(transitionedState.players[0].lines, 9);
+  assert.equal(transitionedState.players[0].joiningLines, 0);
+
+  const followingBuild = transitionedState;
+  followingBuild.gameData.turnData.diceRolled = true;
+  followingBuild.gameData.turnData.diceFinalized = true;
+  followingBuild.gameData.turnData.effectiveDiceRoll = 4;
+  followingBuild.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 4, p2: 4 };
+  followingBuild.gameData.turnData.linesDistributed = false;
+  delete followingBuild.gameData.turnData.buildAppliedTurnNumber;
+  // Stop the public on-enter helper after this hook so the focused fixture does
+  // not auto-walk later phases and begin another turn.
+  followingBuild.status = 'finished';
+
+  const entered = onEnterPhase(followingBuild, 'build.dice_roll', 'build.line_generation', 2000);
+  const lineGrant = entered.events.find((event: any) =>
+    event.type === 'LINES_GRANTED' && event.playerId === 'p1'
+  );
+  assert.ok(lineGrant);
+  assert.equal(lineGrant.newTotal, lineGrant.totalGranted + 9);
+  assert.equal(lineGrant.newTotal > 12, true);
+  assert.equal(entered.state.players[0].lines, lineGrant.newTotal);
+  assert.equal(entered.state.players[0].joiningLines, 0);
+
+  const persisted = resolveBuildSubmitAuthoritatively({
+    state: entered.state,
+    turnNumber: 4,
+    nowMs: 2001,
+  });
+  assert.equal(persisted.state.players[0].lines, 12);
+  assert.equal(persisted.state.players[0].joiningLines, 0);
+  assert.equal(
+    persisted.events.some((event: any) =>
+      event.type === 'BUILD_RESOURCES_PERSISTED' &&
+      event.playerId === 'p1' &&
+      event.ordinaryLines === 12 &&
+      event.joiningLines === 0
+    ),
+    true,
+  );
 });

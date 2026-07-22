@@ -175,7 +175,7 @@ export type AncientAcceptedDeclaration = {
   ordinaryChargeActions: AncientNormalizedOrdinaryChargeChoice[];
   solarGridChoices: AncientNormalizedSolarGridChoice[];
   solarCasts: AncientNormalizedSolarCast[];
-  autocastEnabled: false;
+  autocastEnabled: boolean;
 };
 
 export type AncientSolarSourceMode = 'manual' | 'autocast' | 'cube';

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   resolveManualSolarDeclaration,
+  resolveSolarCastSequence,
   type ManualSolarResolverRegistry,
 } from './manualSolarDeclaration.ts';
 import {
@@ -258,4 +259,49 @@ Deno.test('manual Solar resolver mutation of supplied state is rejected', () => 
     },
   }), /mutated its supplied state/);
   assert.deepEqual(state, before);
+});
+
+Deno.test('generic Solar sequence supports deterministic Autocast identities and ledger offsets', () => {
+  const resolvers: ManualSolarResolverRegistry = {
+    SLIF: {
+      acceptedFields: {},
+      resolve(context) {
+        assert.equal(context.sourceMode, 'autocast');
+        assert.equal(context.ledgerOrder, 4 + context.castIndex);
+        return {
+          candidateState: structuredClone(context.state),
+          paidEnergy: { green: 1, red: 0, blue: 0 },
+          effects: [],
+        };
+      },
+    },
+  };
+  const result = resolveSolarCastSequence({
+    state: createState(),
+    playerId: 'p1',
+    declarationId: 'declaration-1',
+    battleTurnNumber: 3,
+    initialEnergy: { green: 2, red: 0, blue: 0 },
+    casts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SLIF' }],
+    resolvers,
+    sourceMode: 'autocast',
+    initialLedgerOrder: 4,
+  });
+
+  assert.deepEqual(result.ledgerEntries.map((entry) => ({
+    entryId: entry.entryId,
+    order: entry.order,
+    sourceMode: entry.sourceMode,
+  })), [
+    {
+      entryId: 'ancient-solar:3:p1:declaration-1:autocast:0',
+      order: 4,
+      sourceMode: 'autocast',
+    },
+    {
+      entryId: 'ancient-solar:3:p1:declaration-1:autocast:1',
+      order: 5,
+      sourceMode: 'autocast',
+    },
+  ]);
 });

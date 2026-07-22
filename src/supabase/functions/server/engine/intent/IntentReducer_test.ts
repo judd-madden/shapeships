@@ -182,6 +182,7 @@ function chargeDeclarationIntent(args: {
   ordinaryChargeActions?: any[];
   solarChoice?: 'use' | 'hold';
   solarCasts?: any[];
+  autocastEnabled?: boolean;
 } = {}): IntentRequest {
   return {
     gameId: 'atomic-charge-reducer-test',
@@ -193,26 +194,77 @@ function chargeDeclarationIntent(args: {
       ordinaryChargeActions: args.ordinaryChargeActions ?? [],
       solarGridChoices: [{ sourceInstanceId: 'sol-1', choiceId: args.solarChoice ?? 'hold' }],
       solarCasts: args.solarCasts ?? [],
-      autocastEnabled: false,
+      autocastEnabled: args.autocastEnabled ?? false,
     },
   };
 }
 
-Deno.test('unimplemented production Solar casts reject without readiness or state mutation', async () => {
+Deno.test('unimplemented later Solar casts reject without readiness or state mutation', async () => {
   const state = createAtomicChargeState();
   const before = structuredClone(state);
   const result = await applyIntent(
     state,
     'p1',
-    chargeDeclarationIntent({ solarCasts: [{ solarPowerId: 'SLIF' }] }),
+    chargeDeclarationIntent({ solarCasts: [{ solarPowerId: 'SSIP' }] }),
     1000,
   );
   assert.equal(result.ok, false);
-  assert.match(result.rejected?.message ?? '', /not implemented: SLIF/);
+  assert.match(result.rejected?.message ?? '', /not implemented: SSIP/);
   assert.deepEqual(result.state, before);
   assert.deepEqual(result.events, []);
   assert.equal(
     result.state.gameData.phaseReadiness.some((entry: any) => entry.playerId === 'p1' && entry.isReady),
+    false,
+  );
+});
+
+Deno.test('CHARGE_DECLARATION_SUBMIT commits production Autocast, readiness, and no Solar activation events', async () => {
+  const state = createAtomicChargeState();
+  const result = await applyIntent(
+    state,
+    'p1',
+    chargeDeclarationIntent({ solarChoice: 'use', autocastEnabled: true }),
+    1000,
+  );
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, {
+    green: 0,
+    red: 0,
+    blue: 0,
+  });
+  assert.deepEqual(
+    result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries.map((entry: any) => [
+      entry.solarPowerId,
+      entry.sourceMode,
+      entry.order,
+    ]),
+    [
+      ['SCON', 'autocast', 0],
+      ['SLIF', 'autocast', 1],
+      ['SAST', 'autocast', 2],
+    ],
+  );
+  assert.equal(result.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.autocastEnabled, true);
+  assert.equal(
+    result.state.gameData.phaseReadiness.some(
+      (entry: any) => entry.playerId === 'p1' && entry.isReady,
+    ),
+    true,
+  );
+  assert.equal(
+    result.events.some((event: any) =>
+      event.type === 'POWER_USED' && String(event.sourceInstanceId).includes('ancient-solar')
+    ),
+    false,
+  );
+  assert.equal(
+    result.events.some((event: any) => String(event.type).startsWith('BATTLE_LOG_')),
+    false,
+  );
+  assert.equal(
+    (result.state.gameData.turnData.shipActivationCueBatches ?? [])
+      .flatMap((batch: any) => batch.sources ?? [])
+      .some((source: any) => String(source.sourceInstanceId).includes('ancient-solar')),
     false,
   );
 });

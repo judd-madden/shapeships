@@ -21,6 +21,8 @@ export type ManualSolarResolverDescriptor = {
     declarationId: string;
     battleTurnNumber: number;
     castIndex: number;
+    ledgerOrder: number;
+    sourceMode: 'manual' | 'autocast';
     castIdentity: string;
     cast: Readonly<AncientNormalizedSolarCast>;
     remainingEnergy: Readonly<AncientEnergyPool>;
@@ -41,9 +43,6 @@ export type ManualSolarResolverResult = {
 export type ManualSolarResolverRegistry = Partial<
   Record<AncientSolarPowerId, ManualSolarResolverDescriptor>
 >;
-
-export const PRODUCTION_MANUAL_SOLAR_RESOLVERS: Readonly<ManualSolarResolverRegistry> =
-  Object.freeze({});
 
 export type ManualSolarDeclarationResult = {
   state: any;
@@ -185,7 +184,7 @@ function validateLedgerMetadata(
   };
 }
 
-export function resolveManualSolarDeclaration(args: {
+export function resolveSolarCastSequence(args: {
   state: any;
   playerId: string;
   declarationId: string;
@@ -193,6 +192,8 @@ export function resolveManualSolarDeclaration(args: {
   initialEnergy: AncientEnergyPool;
   casts: AncientNormalizedSolarCast[];
   resolvers: Readonly<ManualSolarResolverRegistry>;
+  sourceMode: 'manual' | 'autocast';
+  initialLedgerOrder: number;
 }): ManualSolarDeclarationResult {
   let workingState = args.state;
   let remainingEnergy = cloneEnergyPool(args.initialEnergy);
@@ -202,6 +203,7 @@ export function resolveManualSolarDeclaration(args: {
   const effectEvents: EffectEvent[] = [];
 
   for (const [castIndex, cast] of args.casts.entries()) {
+    const ledgerOrder = args.initialLedgerOrder + castIndex;
     const descriptor = args.resolvers[cast.solarPowerId];
     if (!descriptor) {
       throw new Error(`Solar Power is not implemented: ${cast.solarPowerId}`);
@@ -209,7 +211,7 @@ export function resolveManualSolarDeclaration(args: {
     validateAcceptedFields(cast, descriptor);
 
     const castIdentity =
-      `ancient-solar:${args.battleTurnNumber}:${args.playerId}:${args.declarationId}:manual:${castIndex}`;
+      `ancient-solar:${args.battleTurnNumber}:${args.playerId}:${args.declarationId}:${args.sourceMode}:${castIndex}`;
     const resolverState = structuredClone(workingState);
     const stateBeforeResolver = JSON.stringify(resolverState);
     const resolverResult = descriptor.resolve({
@@ -218,6 +220,8 @@ export function resolveManualSolarDeclaration(args: {
       declarationId: args.declarationId,
       battleTurnNumber: args.battleTurnNumber,
       castIndex,
+      ledgerOrder,
+      sourceMode: args.sourceMode,
       castIdentity,
       cast,
       remainingEnergy: cloneEnergyPool(remainingEnergy),
@@ -265,9 +269,9 @@ export function resolveManualSolarDeclaration(args: {
     acceptedCasts.push(structuredClone(cast));
     ledgerEntries.push({
       entryId: castIdentity,
-      order: castIndex,
+      order: ledgerOrder,
       solarPowerId: cast.solarPowerId,
-      sourceMode: 'manual',
+      sourceMode: args.sourceMode,
       paidEnergy: cloneEnergyPool(paidEnergy),
       ...(typeof ledgerMetadata?.lockedAmount === 'number'
         ? { lockedAmount: ledgerMetadata.lockedAmount }
@@ -289,4 +293,20 @@ export function resolveManualSolarDeclaration(args: {
     effects,
     effectEvents,
   };
+}
+
+export function resolveManualSolarDeclaration(args: {
+  state: any;
+  playerId: string;
+  declarationId: string;
+  battleTurnNumber: number;
+  initialEnergy: AncientEnergyPool;
+  casts: AncientNormalizedSolarCast[];
+  resolvers: Readonly<ManualSolarResolverRegistry>;
+}): ManualSolarDeclarationResult {
+  return resolveSolarCastSequence({
+    ...args,
+    sourceMode: 'manual',
+    initialLedgerOrder: 0,
+  });
 }

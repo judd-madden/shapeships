@@ -404,13 +404,14 @@ function fingerprintAcceptedDeclarationContent(value: {
   ordinaryChargeActions: AncientNormalizedOrdinaryChargeChoice[];
   solarGridChoices: AncientNormalizedSolarGridChoice[];
   solarCasts: AncientNormalizedSolarCast[];
+  autocastEnabled: boolean;
 }): string {
   return JSON.stringify({
     contractVersion: ANCIENT_STATE_SCHEMA_VERSION,
     ordinaryChargeActions: value.ordinaryChargeActions,
     solarGridChoices: value.solarGridChoices,
     solarCasts: value.solarCasts,
-    autocastEnabled: false,
+    autocastEnabled: value.autocastEnabled,
   });
 }
 
@@ -436,6 +437,12 @@ function normalizeAcceptedDeclaration(
   const ordinaryChargeActions = normalizeAcceptedOrdinaryChargeActions(value.ordinaryChargeActions);
   const solarGridChoices = normalizeAcceptedSolarGridChoices(value.solarGridChoices);
   const solarCasts = normalizeAcceptedSolarCasts(value.solarCasts, `${path}.solarCasts`, risks);
+  let autocastEnabled = false;
+  if (typeof value.autocastEnabled === 'boolean') {
+    autocastEnabled = value.autocastEnabled;
+  } else if (typeof value.autocastEnabled !== 'undefined') {
+    pushMalformedRisk(risks, `${path}.autocastEnabled`);
+  }
   return {
     schemaVersion: ANCIENT_STATE_SCHEMA_VERSION,
     contractVersion: ANCIENT_STATE_SCHEMA_VERSION,
@@ -444,6 +451,7 @@ function normalizeAcceptedDeclaration(
       ordinaryChargeActions,
       solarGridChoices,
       solarCasts,
+      autocastEnabled,
     }),
     playerId,
     context: {
@@ -455,7 +463,7 @@ function normalizeAcceptedDeclaration(
     ordinaryChargeActions,
     solarGridChoices,
     solarCasts,
-    autocastEnabled: false,
+    autocastEnabled,
   };
 }
 

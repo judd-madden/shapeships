@@ -39,10 +39,14 @@ import {
   getShipActivationSourcesFromAppliedEffects,
 } from '../state/shipActivationCues.ts';
 import {
-  PRODUCTION_MANUAL_SOLAR_RESOLVERS,
   resolveManualSolarDeclaration,
+  resolveSolarCastSequence,
   type ManualSolarResolverRegistry,
 } from '../ancient/manualSolarDeclaration.ts';
+import {
+  buildMonoColourAutocastCasts,
+  PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
+} from '../ancient/monoColourSolarPowers.ts';
 
 export type NormalizedChargeDeclaration = {
   contractVersion: 1;
@@ -50,7 +54,7 @@ export type NormalizedChargeDeclaration = {
   ordinaryChargeActions: AncientNormalizedOrdinaryChargeChoice[];
   solarGridChoices: AncientNormalizedSolarGridChoice[];
   solarCasts: AncientNormalizedSolarCast[];
-  autocastEnabled: false;
+  autocastEnabled: boolean;
 };
 
 export type ChargeDeclarationResolutionResult = {
@@ -149,10 +153,6 @@ export function normalizeChargeDeclarationPayload(value: unknown): NormalizedCha
   if (typeof payload.autocastEnabled !== 'boolean') {
     throw new Error('autocastEnabled must be an explicit boolean');
   }
-  if (payload.autocastEnabled) {
-    throw new Error('Autocast is not supported by contract version 1');
-  }
-
   const seenOrdinarySources = new Set<string>();
   const ordinaryChargeActions = payload.ordinaryChargeActions.map((candidate: any, index) => {
     if (!candidate || typeof candidate !== 'object' || candidate.actionType !== 'power') {
@@ -204,7 +204,7 @@ export function normalizeChargeDeclarationPayload(value: unknown): NormalizedCha
     ordinaryChargeActions,
     solarGridChoices,
     solarCasts: normalizeSolarCasts(payload.solarCasts),
-    autocastEnabled: false,
+    autocastEnabled: payload.autocastEnabled,
   };
 }
 
@@ -295,7 +295,7 @@ function buildAcceptedDeclaration(args: {
     ordinaryChargeActions: structuredClone(args.normalized.ordinaryChargeActions),
     solarGridChoices: structuredClone(args.normalized.solarGridChoices),
     solarCasts: structuredClone(args.normalized.solarCasts),
-    autocastEnabled: false,
+    autocastEnabled: args.normalized.autocastEnabled,
   };
 }
 
@@ -306,7 +306,7 @@ export function resolveChargeDeclarationSubmission(args: {
   nowMs: number;
 }): ChargeDeclarationResolutionResult {
   return resolveChargeDeclarationSubmissionWithDependencies(args, {
-    manualSolarResolvers: PRODUCTION_MANUAL_SOLAR_RESOLVERS,
+    manualSolarResolvers: PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
   });
 }
 
@@ -447,6 +447,25 @@ export function resolveChargeDeclarationSubmissionWithDependencies(args: {
   workingState = manualSolar.state;
   nextEnergy = manualSolar.remainingEnergy;
 
+  // P24 Cube handling belongs between the accepted manual sequence and Autocast.
+  const autocastSolar = normalized.autocastEnabled
+    ? resolveSolarCastSequence({
+        state: workingState,
+        playerId: args.playerId,
+        declarationId: normalized.declarationId,
+        battleTurnNumber,
+        initialEnergy: nextEnergy,
+        casts: buildMonoColourAutocastCasts(nextEnergy),
+        resolvers: dependencies.manualSolarResolvers,
+        sourceMode: 'autocast',
+        initialLedgerOrder: manualSolar.ledgerEntries.length,
+      })
+    : null;
+  if (autocastSolar) {
+    workingState = autocastSolar.state;
+    nextEnergy = autocastSolar.remainingEnergy;
+  }
+
   workingState.gameData.ancient.energyByPlayerId[args.playerId] = {
     battleTurnNumber,
     pool: nextEnergy,
@@ -454,7 +473,10 @@ export function resolveChargeDeclarationSubmissionWithDependencies(args: {
   };
   workingState.gameData.ancient.solarLedgerByPlayerId[args.playerId] = {
     battleTurnNumber,
-    entries: manualSolar.ledgerEntries,
+    entries: [
+      ...manualSolar.ledgerEntries,
+      ...(autocastSolar?.ledgerEntries ?? []),
+    ],
   };
   if (ordinaryChargeSpent) {
     workingState.gameData.turnData.anyChargesSpentInDeclaration = true;

@@ -374,6 +374,58 @@ Deno.test('older valid accepted declaration placeholders normalize additively wi
   assert.equal(normalizeAncientGameState(normalized.state).changed, false);
 });
 
+Deno.test('accepted declaration Autocast booleans normalize compatibly and participate in fingerprints', () => {
+  const makeState = (autocastEnabled: unknown, includeField = true) => {
+    const state: any = createBaseState();
+    state.gameData.ancient = createEmptyAncientState(state.players);
+    state.gameData.ancient.acceptedDeclarationByPlayerId.p1 = {
+      schemaVersion: 1,
+      contractVersion: 1,
+      declarationId: 'autocast-normalization',
+      declarationFingerprint: 'stale',
+      playerId: 'p1',
+      context: {
+        contextVersion: 1,
+        battleTurnNumber: 2,
+        initialEnergy: { green: 1, red: 0, blue: 0 },
+        energySourceIds: [],
+      },
+      ordinaryChargeActions: [],
+      solarGridChoices: [],
+      solarCasts: [],
+      ...(includeField ? { autocastEnabled } : {}),
+    };
+    return state;
+  };
+
+  const missing = normalizeAncientGameState(makeState(undefined, false));
+  assert.equal(missing.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.autocastEnabled, false);
+  assert.deepEqual(missing.compatibilityRisks, []);
+
+  const enabled = normalizeAncientGameState(makeState(true));
+  const disabled = normalizeAncientGameState(makeState(false));
+  assert.equal(enabled.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.autocastEnabled, true);
+  assert.equal(disabled.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.autocastEnabled, false);
+  assert.equal(
+    JSON.parse(enabled.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.declarationFingerprint).autocastEnabled,
+    true,
+  );
+  assert.notEqual(
+    enabled.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.declarationFingerprint,
+    disabled.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.declarationFingerprint,
+  );
+
+  const malformed = normalizeAncientGameState(makeState('true'));
+  assert.equal(malformed.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.autocastEnabled, false);
+  assert.deepEqual(
+    malformed.compatibilityRisks.filter((risk) => risk.path.endsWith('.autocastEnabled')),
+    [{
+      code: 'malformed_canonical_record',
+      path: 'gameData.ancient.acceptedDeclarationByPlayerId.p1.autocastEnabled',
+    }],
+  );
+});
+
 Deno.test('accepted Solar casts normalize as an ordered repeated list with path-specific malformed risks', () => {
   const state: any = createBaseState();
   state.gameData.ancient = createEmptyAncientState(state.players);
