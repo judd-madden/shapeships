@@ -15,13 +15,17 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type AnimationEvent,
+  type AnimationEventHandler,
   type CSSProperties,
 } from 'react';
+import type { LiveRowAncientSolarPowerId } from '../../client/gameSession/types';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import { usePrefersReducedMotion } from '../shared/usePrefersReducedMotion';
+import { computeSequentialEntryDelayById } from './animation-stagger';
 
 // ============================================================================
 // TYPES
@@ -38,6 +42,86 @@ export type FleetAnimVM = {
   my: Partial<Record<string, ShipAnimToken>>;       // renderKey -> token
   opponent: Partial<Record<string, ShipAnimToken>>; // renderKey -> token
 };
+
+export type SolarPowerEntryAnimToken = {
+  entryNonce: number;
+  staggerDelayMs: number;
+};
+
+export type SolarPowerEntryVisualState = 'active' | 'settled' | 'clearing';
+
+const SOLAR_ENTRY_STAGGER_INTERVAL_MS = 250;
+
+export function useSolarPowerEntryAnimTokens(
+  displayKeys: readonly string[],
+  enabled = true
+): Partial<Record<string, SolarPowerEntryAnimToken>> {
+  const previousDisplayKeysRef = useRef<readonly string[] | null>(null);
+  const wasEnabledRef = useRef(enabled);
+  const nextEntryNonceRef = useRef(1);
+  const [tokens, setTokens] = useState<Partial<Record<string, SolarPowerEntryAnimToken>>>({});
+  const displayKeysSignature = JSON.stringify(displayKeys);
+
+  useLayoutEffect(() => {
+    if (!enabled) {
+      wasEnabledRef.current = false;
+      return;
+    }
+
+    const resumedAfterFreeze = !wasEnabledRef.current;
+    wasEnabledRef.current = true;
+    const previousDisplayKeys = previousDisplayKeysRef.current;
+    previousDisplayKeysRef.current = [...displayKeys];
+
+    if (previousDisplayKeys === null) {
+      return;
+    }
+
+    const previousKeySet = new Set(previousDisplayKeys);
+    const currentKeySet = new Set(displayKeys);
+    const newDisplayKeys = displayKeys.filter((key) => !previousKeySet.has(key));
+    const delayById = computeSequentialEntryDelayById(
+      newDisplayKeys,
+      SOLAR_ENTRY_STAGGER_INTERVAL_MS
+    );
+
+    setTokens((currentTokens) => {
+      const nextTokens: Partial<Record<string, SolarPowerEntryAnimToken>> = {};
+      let changed = false;
+
+      for (const displayKey of displayKeys) {
+        const currentToken = resumedAfterFreeze ? undefined : currentTokens[displayKey];
+        if (currentToken) {
+          nextTokens[displayKey] = currentToken;
+          continue;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(delayById, displayKey)) {
+          nextTokens[displayKey] = {
+            entryNonce: nextEntryNonceRef.current++,
+            staggerDelayMs: delayById[displayKey],
+          };
+          changed = true;
+        }
+      }
+
+      if (resumedAfterFreeze && Object.keys(currentTokens).length > 0) {
+        changed = true;
+      }
+
+      for (const displayKey of Object.keys(currentTokens)) {
+        if (!currentKeySet.has(displayKey)) {
+          changed = true;
+          break;
+        }
+      }
+
+      return changed ? nextTokens : currentTokens;
+    });
+  }, [displayKeysSignature, enabled]);
+
+  return tokens;
+}
 
 // ============================================================================
 // TARGETING
@@ -340,6 +424,113 @@ export function ShipAnimationWrapper({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// SOLAR LEDGER ANIMATION SYSTEM
+// ============================================================================
+
+type SolarEntryMotionPresetId = 'none' | 'default' | 'commander' | 'asteroid';
+
+const SOLAR_ENTRY_MOTION_BY_POWER_ID: Record<
+  LiveRowAncientSolarPowerId,
+  SolarEntryMotionPresetId
+> = {
+  SLIF: 'default',
+  SSTA: 'none',
+  SAST: 'asteroid',
+  SSUP: 'none',
+  SCON: 'commander',
+  SSIP: 'none',
+  SVOR: 'none',
+  SBLA: 'none',
+};
+
+const SOLAR_ENTRY_MOTION_CLASS_BY_PRESET: Record<SolarEntryMotionPresetId, string> = {
+  none: '',
+  default: 'ss-solarEntryMotion-default',
+  commander: 'ss-solarEntryMotion-commander',
+  asteroid: 'ss-solarEntryMotion-asteroid',
+};
+
+export function SolarPowerAnimationWrapper({
+  solarPowerId,
+  token,
+  clearing = false,
+  children,
+}: {
+  solarPowerId: LiveRowAncientSolarPowerId;
+  token?: SolarPowerEntryAnimToken;
+  clearing?: boolean;
+  children: React.ReactNode;
+}) {
+  const state: SolarPowerEntryVisualState = clearing
+    ? 'clearing'
+    : token
+      ? 'active'
+      : 'settled';
+  const motionClass = SOLAR_ENTRY_MOTION_CLASS_BY_PRESET[
+    SOLAR_ENTRY_MOTION_BY_POWER_ID[solarPowerId]
+  ];
+  const entryKey = token?.entryNonce ?? 'settled';
+
+  return (
+    <div
+      className="ss-solarPowerAnimRoot"
+      data-solar-entry-state={state}
+      style={{
+        '--ss-solar-entry-delay': `${token?.staggerDelayMs ?? 0}ms`,
+      } as CSSProperties}
+    >
+      <div
+        key={`solar-entry-${entryKey}`}
+        className={state === 'active' ? 'ss-solarEntryFade' : undefined}
+      >
+        <div className={state === 'active' ? motionClass : undefined}>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export const SOLAR_LEDGER_REVEAL_CLEAR_ANIMATION_NAME = 'ssSolarLedgerRevealClear';
+export const SOLAR_LEDGER_REVEAL_CLEAR_REDUCED_ANIMATION_NAME =
+  'ssSolarLedgerRevealClearReduced';
+
+export function SolarLedgerClearAnimationWrapper({
+  active,
+  children,
+  onAnimationEnd,
+}: {
+  active: boolean;
+  children: React.ReactNode;
+  onAnimationEnd?: AnimationEventHandler<HTMLDivElement>;
+}) {
+  const handleAnimationEnd: AnimationEventHandler<HTMLDivElement> = (event) => {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+
+    if (
+      event.animationName !== SOLAR_LEDGER_REVEAL_CLEAR_ANIMATION_NAME &&
+      event.animationName !== SOLAR_LEDGER_REVEAL_CLEAR_REDUCED_ANIMATION_NAME
+    ) {
+      return;
+    }
+
+    onAnimationEnd?.(event);
+  };
+
+  return (
+    <div
+      className="ss-solarLedgerClear"
+      data-clearing={active ? 'true' : 'false'}
+      onAnimationEnd={handleAnimationEnd}
+    >
+      {children}
     </div>
   );
 }

@@ -263,6 +263,7 @@ function StatTripletRow({
 }
 
 export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
+  const isBattleReveal = phaseKey === 'battle.reveal';
   const fleetHover = useFleetShipHover();
   const statHover = useBoardStatHover();
   const myBonusAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -348,6 +349,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
         title="MY FLEET" 
         ships={vm.myFleet} 
         ancientSolarEntries={vm.myAncientSolarEntries}
+        isBattleReveal={isBattleReveal}
         voidShips={vm.myVoidFleet}
         order={vm.myFleetRenderOrder} 
         species={mySpeciesKey}
@@ -619,6 +621,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
         title="OPPONENT FLEET" 
         ships={vm.opponentFleet} 
         ancientSolarEntries={vm.opponentAncientSolarEntries}
+        isBattleReveal={isBattleReveal}
         voidShips={vm.opponentVoidFleet}
         order={vm.opponentFleetRenderOrder} 
         species={opponentSpeciesKey}

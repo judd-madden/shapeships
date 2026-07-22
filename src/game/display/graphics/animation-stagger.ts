@@ -16,6 +16,19 @@ export type ActivationStaggerPlan = {
   opponentIndexByShipId: Record<string, number>; // renderKey -> index
 };
 
+export function computeSequentialEntryDelayById(
+  orderedIds: readonly string[],
+  intervalMs: number
+): Record<string, number> {
+  const delayById: Record<string, number> = {};
+
+  orderedIds.forEach((id, index) => {
+    delayById[id] = index * intervalMs;
+  });
+
+  return delayById;
+}
+
 // ============================================================================
 // PAIRED ACTIVATION STAGGER
 // ============================================================================

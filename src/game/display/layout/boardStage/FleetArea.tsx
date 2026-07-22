@@ -488,6 +488,7 @@ export function FleetArea({
   title,
   ships,
   ancientSolarEntries = [],
+  isBattleReveal = false,
   voidShips,
   order,
   species,
@@ -521,6 +522,7 @@ export function FleetArea({
   title: string;
   ships?: FleetStackVm[];
   ancientSolarEntries?: AncientSolarDisplayEntry[];
+  isBattleReveal?: boolean;
   voidShips?: FleetStackVm[];
   order?: string[];
   species: SpeciesKey;
@@ -776,6 +778,7 @@ export function FleetArea({
                 <AncientSolarLedgerRow
                   entries={ancientSolarEntries}
                   compact
+                  isBattleReveal={isBattleReveal}
                 />
               </div>
             ) : (
@@ -806,7 +809,10 @@ export function FleetArea({
                     ) : null}
                   </FitToWidthInFlow>
 
-                  <AncientSolarLedgerRow entries={ancientSolarEntries} />
+                  <AncientSolarLedgerRow
+                    entries={ancientSolarEntries}
+                    isBattleReveal={isBattleReveal}
+                  />
                 </div>
               </div>
             )

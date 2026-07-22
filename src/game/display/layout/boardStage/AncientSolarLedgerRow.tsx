@@ -1,4 +1,11 @@
-import type { ComponentType } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentType,
+} from 'react';
 import type {
   AncientSolarDisplayEntry,
   LiveRowAncientSolarPowerId,
@@ -11,11 +18,17 @@ import {
   AnimatedVortex,
 } from '../../../../graphics/ancient/animations';
 import { Asteroid, Convert, Life } from '../../../../graphics/ancient/assets';
+import {
+  SolarLedgerClearAnimationWrapper,
+  SolarPowerAnimationWrapper,
+  useSolarPowerEntryAnimTokens,
+} from '../../graphics/animation';
 import { useFlipLayout } from '../../graphics/useFlipLayout';
 import { FitToBox } from './FitToBox';
 
 const SOLAR_ROW_FLIP_DURATION_MS = 400;
 const SOLAR_ROW_ANCESTOR_SCALE_EPSILON = 0.001;
+const SOLAR_LEDGER_CLEAR_FALLBACK_MS = 600;
 const IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES = ['ss-boardTurnPulse'] as const;
 
 type SolarGraphic = ComponentType<{ className?: string }>;
@@ -31,17 +44,106 @@ const SOLAR_GRAPHIC_BY_ID: Record<LiveRowAncientSolarPowerId, SolarGraphic> = {
   SBLA: AnimatedBlackHole,
 };
 
+function buildSolarPresentationSignature(
+  entries: readonly AncientSolarDisplayEntry[]
+): string {
+  return JSON.stringify(entries.map((entry) => [entry.displayKey, entry.solarPowerId]));
+}
+
 export function AncientSolarLedgerRow({
   entries,
   compact = false,
+  isBattleReveal = false,
 }: {
-  entries: AncientSolarDisplayEntry[];
+  entries: readonly AncientSolarDisplayEntry[];
   compact?: boolean;
+  isBattleReveal?: boolean;
 }) {
-  const displayKeys = entries.map((entry) => entry.displayKey);
+  const [presentedEntries, setPresentedEntries] = useState<readonly AncientSolarDisplayEntry[]>(
+    entries
+  );
+  const [activeClearCycle, setActiveClearCycle] = useState<number | null>(null);
+  const previousIsBattleRevealRef = useRef(isBattleReveal);
+  const latestIncomingEntriesRef = useRef(entries);
+  const nextClearCycleRef = useRef(1);
+  const activeClearCycleRef = useRef<number | null>(null);
+  const clearFallbackTimeoutRef = useRef<number | null>(null);
+
+  latestIncomingEntriesRef.current = entries;
+
+  const incomingPresentationSignature = buildSolarPresentationSignature(entries);
+  const presentedPresentationSignature = buildSolarPresentationSignature(presentedEntries);
+  const isClearingAtBattleReveal = activeClearCycle !== null;
+
+  const completeClearCycle = useCallback((cycle: number) => {
+    if (activeClearCycleRef.current !== cycle) {
+      return;
+    }
+
+    activeClearCycleRef.current = null;
+
+    if (clearFallbackTimeoutRef.current !== null) {
+      window.clearTimeout(clearFallbackTimeoutRef.current);
+      clearFallbackTimeoutRef.current = null;
+    }
+
+    setPresentedEntries([...latestIncomingEntriesRef.current]);
+    setActiveClearCycle(null);
+  }, []);
+
+  useLayoutEffect(() => {
+    const enteredReveal =
+      previousIsBattleRevealRef.current === false && isBattleReveal === true;
+
+    if (
+      enteredReveal &&
+      activeClearCycleRef.current === null &&
+      presentedEntries.length > 0
+    ) {
+      const cycle = nextClearCycleRef.current++;
+      activeClearCycleRef.current = cycle;
+      setActiveClearCycle(cycle);
+    } else if (
+      activeClearCycleRef.current === null &&
+      presentedPresentationSignature !== incomingPresentationSignature
+    ) {
+      setPresentedEntries([...latestIncomingEntriesRef.current]);
+    }
+
+    previousIsBattleRevealRef.current = isBattleReveal;
+  }, [
+    incomingPresentationSignature,
+    isBattleReveal,
+    presentedEntries.length,
+    presentedPresentationSignature,
+  ]);
+
+  useEffect(() => {
+    if (activeClearCycle === null) {
+      return;
+    }
+
+    const cycle = activeClearCycle;
+    clearFallbackTimeoutRef.current = window.setTimeout(() => {
+      completeClearCycle(cycle);
+    }, SOLAR_LEDGER_CLEAR_FALLBACK_MS);
+
+    return () => {
+      if (clearFallbackTimeoutRef.current !== null) {
+        window.clearTimeout(clearFallbackTimeoutRef.current);
+        clearFallbackTimeoutRef.current = null;
+      }
+    };
+  }, [activeClearCycle, completeClearCycle]);
+
+  const displayKeys = presentedEntries.map((entry) => entry.displayKey);
   const layoutSignature = displayKeys.join('|');
   const itemLayoutSignatures = Object.fromEntries(
-    entries.map((entry) => [entry.displayKey, entry.solarPowerId])
+    presentedEntries.map((entry) => [entry.displayKey, entry.solarPowerId])
+  );
+  const entryAnimationTokens = useSolarPowerEntryAnimTokens(
+    displayKeys,
+    !isClearingAtBattleReveal
   );
   const getFlipRef = useFlipLayout(displayKeys, true, {
     durationMs: SOLAR_ROW_FLIP_DURATION_MS,
@@ -58,27 +160,42 @@ export function AncientSolarLedgerRow({
     <div className={compact
       ? 'h-[50px] w-full min-w-0 shrink-0'
       : 'h-[92px] w-full min-w-0 shrink-0'}>
-      {entries.length > 0 ? (
+      {presentedEntries.length > 0 ? (
         <FitToBox
           minScale={0.15}
           maxScale={1}
           className="h-full w-full"
           deferInnerResizeComputeMs={SOLAR_ROW_FLIP_DURATION_MS}
         >
-          <div className="inline-flex w-max flex-row items-center justify-center gap-[18px]">
-            {entries.map((entry) => {
-              const SolarGraphic = SOLAR_GRAPHIC_BY_ID[entry.solarPowerId];
-              return (
-                <div
-                  key={entry.displayKey}
-                  ref={getFlipRef(entry.displayKey)}
-                  className="inline-flex shrink-0 items-center justify-center"
-                >
-                  <SolarGraphic className="block shrink-0" />
-                </div>
-              );
-            })}
-          </div>
+          <SolarLedgerClearAnimationWrapper
+            active={isClearingAtBattleReveal}
+            onAnimationEnd={() => {
+              if (activeClearCycle !== null) {
+                completeClearCycle(activeClearCycle);
+              }
+            }}
+          >
+            <div className="inline-flex w-max flex-row items-center justify-center gap-[18px] sm:gap-[24px]">
+              {presentedEntries.map((entry) => {
+                const SolarGraphic = SOLAR_GRAPHIC_BY_ID[entry.solarPowerId];
+                return (
+                  <div
+                    key={entry.displayKey}
+                    ref={getFlipRef(entry.displayKey)}
+                    className="inline-flex shrink-0 items-center justify-center"
+                  >
+                    <SolarPowerAnimationWrapper
+                      solarPowerId={entry.solarPowerId}
+                      token={entryAnimationTokens[entry.displayKey]}
+                      clearing={isClearingAtBattleReveal}
+                    >
+                      <SolarGraphic className="block shrink-0" />
+                    </SolarPowerAnimationWrapper>
+                  </div>
+                );
+              })}
+            </div>
+          </SolarLedgerClearAnimationWrapper>
         </FitToBox>
       ) : null}
     </div>

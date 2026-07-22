@@ -5,6 +5,7 @@
   transform-origin: 0 0;
   animation: ss-ancient-animated-star-birth-translate 1000ms
     cubic-bezier(0.25, 0.65, 0.5, 1) both;
+  animation-delay: var(--ss-solar-entry-delay, 0ms);
 }
 
 /* Bottom-centre → top */
@@ -43,6 +44,7 @@
   transform-box: view-box;
   transform-origin: 34.5px 34.5px;
   animation: ss-ancient-animated-supernova-rotate 2000ms cubic-bezier(0.25, 0.65, 0.5, 0.95) both;
+  animation-delay: var(--ss-solar-entry-delay, 0ms);
 }
 
 .ss-ancient-animated-supernova__square-a {
@@ -68,6 +70,7 @@
   stroke-dasharray: 1;
   stroke-dashoffset: -1;
   animation: ss-ancient-animated-siphon-draw-flow 800ms cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+  animation-delay: var(--ss-solar-entry-delay, 0ms);
 }
 
 /* Both canonical paths run from their arrowhead back to the centre, so a negative offset draws them outward. */
@@ -84,7 +87,8 @@
 .ss-ancient-animated-siphon__red-arrow-reveal,
 .ss-ancient-animated-siphon__green-arrow-reveal {
   transform-box: view-box;
-  animation: ss-ancient-animated-siphon-reveal-arrow 240ms cubic-bezier(0.25, 0.46, 0.45, 0.94) 760ms both;
+  animation: ss-ancient-animated-siphon-reveal-arrow 240ms cubic-bezier(0.25, 0.46, 0.45, 0.94)
+    calc(var(--ss-solar-entry-delay, 0ms) + 760ms) both;
 }
 
 .ss-ancient-animated-siphon__red-arrow-reveal {
@@ -108,7 +112,8 @@
 .ss-ancient-animated-siphon__red-arrow-expand,
 .ss-ancient-animated-siphon__green-arrow-expand {
   transform-box: view-box;
-  animation: ss-ancient-animated-siphon-expand-arrow 1000ms cubic-bezier(0.39, 0.575, 0.565, 1) 1000ms both;
+  animation: ss-ancient-animated-siphon-expand-arrow 1000ms cubic-bezier(0.39, 0.575, 0.565, 1)
+    calc(var(--ss-solar-entry-delay, 0ms) + 1000ms) both;
 }
 
 .ss-ancient-animated-siphon__red-arrow-expand {
@@ -139,6 +144,7 @@
   animation-duration: 2500ms;
   animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
   animation-fill-mode: both;
+  animation-delay: var(--ss-solar-entry-delay, 0ms);
 }
 
 .ss-ancient-animated-vortex__red {
@@ -166,6 +172,7 @@
 
 .ss-ancient-animated-vortex__blue-join {
   animation: ss-ancient-animated-vortex-reveal-blue-join 1700ms linear both;
+  animation-delay: var(--ss-solar-entry-delay, 0ms);
 }
 
 @keyframes ss-ancient-animated-vortex-reveal-blue-join {
@@ -186,6 +193,35 @@
 .ss-ancient-animated-black-hole__outer-red {
   transform-box: view-box;
   animation: ss-ancient-animated-black-hole-expand 3000ms cubic-bezier(0.215, 0.61, 0.355, 1) both;
+  animation-delay: var(--ss-solar-entry-delay, 0ms);
+}
+
+.ss-solarPowerAnimRoot:is(
+  [data-solar-entry-state="settled"],
+  [data-solar-entry-state="clearing"]
+) :is(
+  .ss-ancient-animated-star-birth__circle-a,
+  .ss-ancient-animated-star-birth__circle-b,
+  .ss-ancient-animated-star-birth__circle-c,
+  .ss-ancient-animated-supernova__square-a,
+  .ss-ancient-animated-supernova__square-b,
+  .ss-ancient-animated-siphon__red-flow,
+  .ss-ancient-animated-siphon__green-flow,
+  .ss-ancient-animated-siphon__red-arrow-reveal,
+  .ss-ancient-animated-siphon__green-arrow-reveal,
+  .ss-ancient-animated-siphon__red-arrow-expand,
+  .ss-ancient-animated-siphon__green-arrow-expand,
+  .ss-ancient-animated-vortex__red,
+  .ss-ancient-animated-vortex__green,
+  .ss-ancient-animated-vortex__blue,
+  .ss-ancient-animated-vortex__blue-join,
+  .ss-ancient-animated-black-hole__green,
+  .ss-ancient-animated-black-hole__blue,
+  .ss-ancient-animated-black-hole__inner-red,
+  .ss-ancient-animated-black-hole__middle-red,
+  .ss-ancient-animated-black-hole__outer-red
+) {
+  animation: none;
 }
 
 .ss-ancient-animated-black-hole__green {

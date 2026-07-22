@@ -99,6 +99,7 @@ export function MobileGameLayout({
   onToggleBoardFlash,
   onReturnToMainMenu,
 }: MobileGameLayoutProps) {
+  const isBattleReveal = actionPanelVm.menu.phaseKey === 'battle.reveal';
   const [activeTakeover, setActiveTakeover] = useState<ActiveTakeover>(null);
   const [isGameStatsOpen, setIsGameStatsOpen] = useState(false);
   const [activeMobileBottomPanel, setActiveMobileBottomPanel] =
@@ -451,6 +452,7 @@ export function MobileGameLayout({
               hudVm={hudVm}
               boardVm={boardVm}
               leftRailVm={leftRailVm}
+              isBattleReveal={isBattleReveal}
               firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
               firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
               onFirstTurnBuildHelperDismiss={onFirstTurnBuildHelperDismiss}

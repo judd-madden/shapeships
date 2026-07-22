@@ -556,6 +556,92 @@ html:not(.app-ready) #root {
   display: inline-block;
 }
 
+/* ============================================================================
+   Solar Ledger Animation System
+   ========================================================================== */
+
+.ss-solarPowerAnimRoot,
+.ss-solarPowerAnimRoot > div,
+.ss-solarPowerAnimRoot > div > div {
+  display: inline-block;
+}
+
+@keyframes ssSolarEntryFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.ss-solarEntryFade {
+  animation: ssSolarEntryFade 100ms ease-out var(--ss-solar-entry-delay, 0ms) both;
+}
+
+@keyframes ssSolarEntryMotionDefault {
+  from { transform: translateY(20px); }
+  to { transform: translateY(0); }
+}
+
+@keyframes ssSolarEntryMotionCommander {
+  from { transform: rotate(-90deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes ssSolarEntryMotionAsteroid {
+  from { transform: translate(14px, -14px); }
+  to { transform: translate(0, 0); }
+}
+
+.ss-solarEntryMotion-default {
+  animation: ssSolarEntryMotionDefault 400ms ease-out var(--ss-solar-entry-delay, 0ms) both;
+}
+
+.ss-solarEntryMotion-commander {
+  animation: ssSolarEntryMotionCommander 400ms ease-out var(--ss-solar-entry-delay, 0ms) both;
+}
+
+.ss-solarEntryMotion-asteroid {
+  animation: ssSolarEntryMotionAsteroid 400ms ease-out var(--ss-solar-entry-delay, 0ms) both;
+}
+
+.ss-solarLedgerClear {
+  display: inline-flex;
+}
+
+@keyframes ssSolarLedgerRevealClear {
+  from {
+    filter: blur(0);
+    opacity: 1;
+  }
+
+  to {
+    filter: blur(16px);
+    opacity: 0;
+  }
+}
+
+@keyframes ssSolarLedgerRevealClearReduced {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.ss-solarLedgerClear[data-clearing="true"] {
+  animation: ssSolarLedgerRevealClear 300ms ease-in both;
+  will-change: filter, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-solarEntryMotion-default,
+  .ss-solarEntryMotion-commander,
+  .ss-solarEntryMotion-asteroid {
+    animation: none;
+  }
+
+  .ss-solarLedgerClear[data-clearing="true"] {
+    animation-name: ssSolarLedgerRevealClearReduced;
+    animation-duration: 100ms;
+    will-change: opacity;
+  }
+}
+
 /* TARGETING */
 @keyframes ssTargetingPulse {
   0% {

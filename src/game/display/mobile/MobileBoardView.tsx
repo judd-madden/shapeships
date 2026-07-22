@@ -16,6 +16,7 @@ interface MobileBoardViewProps {
   hudVm: HudViewModel;
   boardVm: MobileBoardViewModel;
   leftRailVm: LeftRailViewModel;
+  isBattleReveal: boolean;
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
   onFirstTurnBuildHelperDismiss?: () => void;
@@ -42,6 +43,7 @@ export function MobileBoardView({
   hudVm,
   boardVm,
   leftRailVm,
+  isBattleReveal,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
   onFirstTurnBuildHelperDismiss,
@@ -73,6 +75,7 @@ export function MobileBoardView({
           title="OPPONENT FLEET"
           ships={boardVm.opponentFleet}
           ancientSolarEntries={boardVm.opponentAncientSolarEntries}
+          isBattleReveal={isBattleReveal}
           order={boardVm.opponentFleetRenderOrder}
           species={opponentSpeciesKey}
           animTokens={boardVm.fleetAnim.opponent}
@@ -124,6 +127,7 @@ export function MobileBoardView({
           title="MY FLEET"
           ships={boardVm.myFleet}
           ancientSolarEntries={boardVm.myAncientSolarEntries}
+          isBattleReveal={isBattleReveal}
           order={boardVm.myFleetRenderOrder}
           species={mySpeciesKey}
           animTokens={boardVm.fleetAnim.my}
