@@ -5,6 +5,8 @@
  * for the commit/reveal protocol.
  */
 
+import type { AncientSolarPowerId } from '../state/GameStateTypes.ts';
+
 // ============================================================================
 // INTENT TYPES
 // ============================================================================
@@ -142,12 +144,19 @@ export type SolarGridDeclarationChoice = {
   choiceId: 'use' | 'hold';
 };
 
+export type SolarCastPayload = {
+  solarPowerId: AncientSolarPowerId;
+  targetInstanceId?: string;
+  targetInstanceIds?: string[];
+  lockedAmount?: number;
+};
+
 export type ChargeDeclarationSubmitPayload = {
   contractVersion: typeof CHARGE_DECLARATION_CONTRACT_VERSION;
   declarationId: string;
   ordinaryChargeActions: PowerActionPayload[];
   solarGridChoices: SolarGridDeclarationChoice[];
-  solarCasts: unknown[];
+  solarCasts: SolarCastPayload[];
   autocastEnabled: boolean;
 };
 

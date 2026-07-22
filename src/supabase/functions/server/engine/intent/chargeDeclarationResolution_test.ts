@@ -3,7 +3,15 @@ import {
   fingerprintChargeDeclaration,
   normalizeChargeDeclarationPayload,
   resolveChargeDeclarationSubmission,
+  resolveChargeDeclarationSubmissionWithDependencies,
 } from './chargeDeclarationResolution.ts';
+import type { ManualSolarResolverRegistry } from '../ancient/manualSolarDeclaration.ts';
+import {
+  EffectKind,
+  EffectTiming,
+  SurvivabilityRule,
+  type Effect,
+} from '../../engine_shared/effects/Effect.ts';
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
@@ -89,11 +97,34 @@ function createState(): any {
   };
 }
 
+function solarHealthEffect(
+  id: string,
+  kind: EffectKind.Damage | EffectKind.Heal,
+  targetPlayerId: string,
+): Effect {
+  return {
+    id,
+    ownerPlayerId: 'p1',
+    source: { type: 'ship', instanceId: 'solar-fixture-source', shipDefId: 'SLIF' },
+    timing: 'battle.charge_declaration',
+    activationTag: EffectTiming.OnceOnly,
+    survivability: SurvivabilityRule.ResolvesIfDestroyed,
+    target: { playerId: targetPlayerId },
+    kind,
+    amount: 2,
+  };
+}
+
 Deno.test('charge declaration payload normalization is versioned, explicit, and deterministically fingerprinted', () => {
   const first = normalizeChargeDeclarationPayload(payload({
     solarGridChoices: [
       { sourceInstanceId: 'sol-b', choiceId: 'hold' },
       { sourceInstanceId: 'sol-a', choiceId: 'use' },
+    ],
+    solarCasts: [
+      { solarPowerId: 'SLIF' },
+      { solarPowerId: 'SAST', targetInstanceIds: ['target-b', 'target-a'] },
+      { solarPowerId: 'SLIF' },
     ],
   }));
   const second = normalizeChargeDeclarationPayload(payload({
@@ -102,12 +133,42 @@ Deno.test('charge declaration payload normalization is versioned, explicit, and 
       { sourceInstanceId: 'sol-a', choiceId: 'use' },
       { sourceInstanceId: 'sol-b', choiceId: 'hold' },
     ],
+    solarCasts: [
+      { solarPowerId: 'SLIF' },
+      { solarPowerId: 'SAST', targetInstanceIds: ['target-a', 'target-b'] },
+      { solarPowerId: 'SLIF' },
+    ],
   }));
   assert.equal(fingerprintChargeDeclaration(first), fingerprintChargeDeclaration(second));
+  assert.deepEqual(first.solarCasts, [
+    { solarPowerId: 'SLIF' },
+    { solarPowerId: 'SAST', targetInstanceIds: ['target-a', 'target-b'] },
+    { solarPowerId: 'SLIF' },
+  ]);
+  const reversed = normalizeChargeDeclarationPayload(payload({
+    solarCasts: [{ solarPowerId: 'SAST' }, { solarPowerId: 'SLIF' }],
+  }));
+  assert.notEqual(
+    fingerprintChargeDeclaration(reversed),
+    fingerprintChargeDeclaration(normalizeChargeDeclarationPayload(payload({
+      solarCasts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SAST' }],
+    }))),
+  );
+  assert.deepEqual(
+    normalizeChargeDeclarationPayload(payload({
+      solarCasts: ['SLIF', 'SSTA', 'SAST', 'SSUP', 'SCON', 'SSIM', 'SSIP', 'SVOR', 'SBLA']
+        .map((solarPowerId) => ({ solarPowerId })),
+    })).solarCasts.map((cast) => cast.solarPowerId),
+    ['SLIF', 'SSTA', 'SAST', 'SSUP', 'SCON', 'SSIM', 'SSIP', 'SVOR', 'SBLA'],
+  );
   for (const invalid of [
     payload({ contractVersion: 2 }),
     payload({ declarationId: '' }),
-    payload({ solarCasts: [{ solarPowerId: 'SLIF' }] }),
+    payload({ solarCasts: [{ solarPowerId: 'UNKNOWN' }] }),
+    payload({ solarCasts: [{ solarPowerId: 'SLIF', order: 0 }] }),
+    payload({ solarCasts: [{ solarPowerId: 'SLIF', targetInstanceId: 'one', targetInstanceIds: ['two'] }] }),
+    payload({ solarCasts: [{ solarPowerId: 'SLIF', targetInstanceIds: ['same', 'same'] }] }),
+    payload({ solarCasts: [{ solarPowerId: 'SLIF', lockedAmount: 1.5 }] }),
     payload({ autocastEnabled: true }),
   ]) {
     assert.throws(() => normalizeChargeDeclarationPayload(invalid));
@@ -155,8 +216,163 @@ Deno.test('mixed ordinary charge and independent SOL Use/Hold choices commit det
     initialEnergy: { green: 1, red: 0, blue: 0 },
     energySourceIds: ['initial-core'],
   });
+  assert.deepEqual(result.state.gameData.ancient.solarLedgerByPlayerId.p1, {
+    battleTurnNumber: 3,
+    entries: [],
+  });
   assert.equal(state.gameData.ships.p1.find((ship: any) => ship.instanceId === 'int-1').chargesCurrent, 2);
   assert.equal(state.gameData.ancient.acceptedDeclarationByPlayerId.p1, undefined);
+});
+
+Deno.test('fixture manual Solar resolvers commit ordered payments, pending effects, accepted casts, and ledger atomically', () => {
+  const state = createState();
+  const resolvers: ManualSolarResolverRegistry = {
+    SLIF: {
+      acceptedFields: {},
+      resolve(context) {
+        const candidateState = structuredClone(context.state);
+        candidateState.gameData.solarFixture = [...(candidateState.gameData.solarFixture ?? []), context.castIndex];
+        return {
+          candidateState,
+          paidEnergy: context.castIndex === 0
+            ? { green: 1, red: 0, blue: 0 }
+            : { green: 0, red: 0, blue: 1 },
+          effects: [solarHealthEffect(
+            `${context.castIdentity}:health`,
+            context.castIndex === 0 ? EffectKind.Damage : EffectKind.Heal,
+            context.castIndex === 0 ? 'p2' : 'p1',
+          )],
+        };
+      },
+    },
+  };
+  const declaration = payload({
+    solarGridChoices: [
+      { sourceInstanceId: 'sol-a', choiceId: 'use' },
+      { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+    ],
+    solarCasts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SLIF' }],
+  });
+  const result = resolveChargeDeclarationSubmissionWithDependencies({
+    state,
+    playerId: 'p1',
+    payload: declaration,
+    nowMs: 1000,
+  }, { manualSolarResolvers: resolvers });
+
+  assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, { green: 1, red: 1, blue: 0 });
+  assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.sources.map((source: any) => source.sourceId), [
+    'initial-core',
+    'ancient-solar-grid-energy:3:p1:sol-a',
+  ]);
+  assert.deepEqual(result.state.gameData.solarFixture, [0, 1]);
+  assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 2 });
+  assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 2 });
+  assert.equal(result.state.players[0].health, 20);
+  assert.equal(result.state.players[1].health, 20);
+  assert.equal(result.events.some((event: any) => event.type === 'EFFECT_APPLIED'), false);
+  assert.equal(
+    (result.state.gameData.turnData.shipActivationCueBatches ?? [])
+      .flatMap((batch: any) => batch.sources ?? [])
+      .some((source: any) => source.sourceInstanceId === 'solar-fixture-source'),
+    false,
+  );
+  assert.deepEqual(result.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.solarCasts, [
+    { solarPowerId: 'SLIF' },
+    { solarPowerId: 'SLIF' },
+  ]);
+  assert.deepEqual(result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries.map((entry: any) => ({
+    entryId: entry.entryId,
+    order: entry.order,
+    paidEnergy: entry.paidEnergy,
+  })), [
+    {
+      entryId: 'ancient-solar:3:p1:declaration-1:manual:0',
+      order: 0,
+      paidEnergy: { green: 1, red: 0, blue: 0 },
+    },
+    {
+      entryId: 'ancient-solar:3:p1:declaration-1:manual:1',
+      order: 1,
+      paidEnergy: { green: 0, red: 0, blue: 1 },
+    },
+  ]);
+
+  result.state.gameData.currentSubPhase = 'charge_response';
+  const retry = resolveChargeDeclarationSubmissionWithDependencies({
+    state: result.state,
+    playerId: 'p1',
+    payload: declaration,
+    nowMs: 1001,
+  }, { manualSolarResolvers: resolvers });
+  assert.equal(retry.status, 'idempotent');
+  assert.deepEqual(retry.events, []);
+  assert.deepEqual(retry.state.gameData.pendingTurn.damageByPlayerId, { p2: 2 });
+  assert.equal(retry.state.gameData.ancient.solarLedgerByPlayerId.p1.entries.length, 2);
+});
+
+Deno.test('later unaffordable fixture cast rolls back ordinary charge, Grid, Energy, effects, ledger, and acceptance', () => {
+  const state = createState();
+  const before = structuredClone(state);
+  const resolvers: ManualSolarResolverRegistry = {
+    SLIF: {
+      acceptedFields: {},
+      resolve(context) {
+        const candidateState = structuredClone(context.state);
+        candidateState.gameData.solarFixture = ['earlier-cast'];
+        return {
+          candidateState,
+          paidEnergy: { green: 1, red: 0, blue: 0 },
+          effects: [solarHealthEffect(`${context.castIdentity}:damage`, EffectKind.Damage, 'p2')],
+        };
+      },
+    },
+    SAST: {
+      acceptedFields: {},
+      resolve(context) {
+        return {
+          candidateState: structuredClone(context.state),
+          paidEnergy: { green: 0, red: 2, blue: 0 },
+          effects: [],
+        };
+      },
+    },
+  };
+
+  assert.throws(() => resolveChargeDeclarationSubmissionWithDependencies({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      ordinaryChargeActions: [{
+        actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'int-1', choiceId: 'damage',
+      }],
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'use' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SAST' }],
+    }),
+    nowMs: 1000,
+  }, { manualSolarResolvers: resolvers }), /Insufficient red Energy/);
+  assert.deepEqual(state, before);
+});
+
+Deno.test('known Solar IDs without a production resolver are rejected without state changes', () => {
+  const state = createState();
+  const before = structuredClone(state);
+  assert.throws(() => resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [{ solarPowerId: 'SLIF' }],
+    }),
+    nowMs: 1000,
+  }), /not implemented: SLIF/);
+  assert.deepEqual(state, before);
 });
 
 Deno.test('invalid later ordinary action and invalid SOL coverage leave the entire input state unchanged', () => {

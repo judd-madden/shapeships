@@ -6,14 +6,20 @@ import type {
   AncientPendingSimulacrumCopy,
   AncientPlayerEnergyState,
   AncientNormalizedOrdinaryChargeChoice,
+  AncientNormalizedSolarCast,
   AncientNormalizedSolarGridChoice,
   AncientSolarLedgerEntry,
   AncientSolarLedgerState,
   AncientState,
 } from './GameStateTypes.ts';
+import {
+  ANCIENT_SOLAR_POWER_IDS,
+  type AncientSolarPowerId,
+} from './GameStateTypes.ts';
 import { getEffectiveDiceRollForPlayer } from '../../engine_shared/resolve/phaseComputedEffects.ts';
 
 export const ANCIENT_STATE_SCHEMA_VERSION = 1 as const;
+const ANCIENT_SOLAR_POWER_ID_SET = new Set<AncientSolarPowerId>(ANCIENT_SOLAR_POWER_IDS);
 
 export type AncientCompatibilityRisk = {
   code:
@@ -230,6 +236,7 @@ function normalizeSolarLedgerEntry(value: unknown): AncientSolarLedgerEntry | nu
     !isObject(value) ||
     !isNonEmptyString(value.entryId) ||
     !isNonEmptyString(value.solarPowerId) ||
+    !ANCIENT_SOLAR_POWER_ID_SET.has(value.solarPowerId as AncientSolarPowerId) ||
     !['manual', 'autocast', 'cube'].includes(value.sourceMode)
   ) {
     return null;
@@ -249,7 +256,7 @@ function normalizeSolarLedgerEntry(value: unknown): AncientSolarLedgerEntry | nu
   return {
     entryId: value.entryId,
     order: normalizeAncientNumber(value.order),
-    solarPowerId: value.solarPowerId,
+    solarPowerId: value.solarPowerId as AncientSolarPowerId,
     sourceMode: value.sourceMode,
     paidEnergy: normalizeEnergyPool(value.paidEnergy),
     ...(typeof value.lockedAmount !== 'undefined'
@@ -332,20 +339,87 @@ function normalizeAcceptedSolarGridChoices(value: unknown): AncientNormalizedSol
     .sort((a, b) => a.sourceInstanceId.localeCompare(b.sourceInstanceId));
 }
 
+function normalizeStoredSolarCast(value: unknown): AncientNormalizedSolarCast | null {
+  if (!isObject(value)) return null;
+  const allowedFields = new Set(['solarPowerId', 'targetInstanceId', 'targetInstanceIds', 'lockedAmount']);
+  if (Object.keys(value).some((field) => !allowedFields.has(field))) return null;
+  if (
+    !isNonEmptyString(value.solarPowerId) ||
+    !ANCIENT_SOLAR_POWER_ID_SET.has(value.solarPowerId as AncientSolarPowerId) ||
+    (typeof value.targetInstanceId !== 'undefined' && typeof value.targetInstanceIds !== 'undefined')
+  ) {
+    return null;
+  }
+  if (typeof value.targetInstanceId !== 'undefined' && !isNonEmptyString(value.targetInstanceId)) {
+    return null;
+  }
+  let targetInstanceIds: string[] | undefined;
+  if (typeof value.targetInstanceIds !== 'undefined') {
+    if (!Array.isArray(value.targetInstanceIds) || !value.targetInstanceIds.every(isNonEmptyString)) {
+      return null;
+    }
+    if (new Set(value.targetInstanceIds).size !== value.targetInstanceIds.length) return null;
+    targetInstanceIds = [...value.targetInstanceIds].sort((a, b) => a.localeCompare(b));
+  }
+  if (
+    typeof value.lockedAmount !== 'undefined' &&
+    (typeof value.lockedAmount !== 'number' ||
+      !Number.isFinite(value.lockedAmount) ||
+      !Number.isInteger(value.lockedAmount) ||
+      value.lockedAmount < 0)
+  ) {
+    return null;
+  }
+  return {
+    solarPowerId: value.solarPowerId as AncientSolarPowerId,
+    ...(isNonEmptyString(value.targetInstanceId) ? { targetInstanceId: value.targetInstanceId } : {}),
+    ...(targetInstanceIds ? { targetInstanceIds } : {}),
+    ...(typeof value.lockedAmount === 'number' ? { lockedAmount: value.lockedAmount } : {}),
+  };
+}
+
+function normalizeAcceptedSolarCasts(
+  value: unknown,
+  path: string,
+  risks: AncientCompatibilityRisk[],
+): AncientNormalizedSolarCast[] {
+  if (typeof value === 'undefined') return [];
+  if (!Array.isArray(value)) {
+    pushMalformedRisk(risks, path);
+    return [];
+  }
+  const casts: AncientNormalizedSolarCast[] = [];
+  value.forEach((candidate, index) => {
+    const normalized = normalizeStoredSolarCast(candidate);
+    if (!normalized) {
+      pushMalformedRisk(risks, `${path}[${index}]`);
+      return;
+    }
+    casts.push(normalized);
+  });
+  return casts;
+}
+
 function fingerprintAcceptedDeclarationContent(value: {
   ordinaryChargeActions: AncientNormalizedOrdinaryChargeChoice[];
   solarGridChoices: AncientNormalizedSolarGridChoice[];
+  solarCasts: AncientNormalizedSolarCast[];
 }): string {
   return JSON.stringify({
     contractVersion: ANCIENT_STATE_SCHEMA_VERSION,
     ordinaryChargeActions: value.ordinaryChargeActions,
     solarGridChoices: value.solarGridChoices,
-    solarCasts: [],
+    solarCasts: value.solarCasts,
     autocastEnabled: false,
   });
 }
 
-function normalizeAcceptedDeclaration(value: unknown, playerId: string): AncientAcceptedDeclaration | null {
+function normalizeAcceptedDeclaration(
+  value: unknown,
+  playerId: string,
+  path: string,
+  risks: AncientCompatibilityRisk[],
+): AncientAcceptedDeclaration | null {
   if (
     !isObject(value) ||
     value.schemaVersion !== ANCIENT_STATE_SCHEMA_VERSION ||
@@ -361,6 +435,7 @@ function normalizeAcceptedDeclaration(value: unknown, playerId: string): Ancient
   const context = value.context;
   const ordinaryChargeActions = normalizeAcceptedOrdinaryChargeActions(value.ordinaryChargeActions);
   const solarGridChoices = normalizeAcceptedSolarGridChoices(value.solarGridChoices);
+  const solarCasts = normalizeAcceptedSolarCasts(value.solarCasts, `${path}.solarCasts`, risks);
   return {
     schemaVersion: ANCIENT_STATE_SCHEMA_VERSION,
     contractVersion: ANCIENT_STATE_SCHEMA_VERSION,
@@ -368,6 +443,7 @@ function normalizeAcceptedDeclaration(value: unknown, playerId: string): Ancient
     declarationFingerprint: fingerprintAcceptedDeclarationContent({
       ordinaryChargeActions,
       solarGridChoices,
+      solarCasts,
     }),
     playerId,
     context: {
@@ -378,7 +454,7 @@ function normalizeAcceptedDeclaration(value: unknown, playerId: string): Ancient
     },
     ordinaryChargeActions,
     solarGridChoices,
-    solarCasts: [],
+    solarCasts,
     autocastEnabled: false,
   };
 }
@@ -547,7 +623,8 @@ export function normalizeAncientGameState<T = any>(state: T): AncientNormalizati
     raw: rawAncient.acceptedDeclarationByPlayerId,
     path: 'gameData.ancient.acceptedDeclarationByPlayerId',
     risks: compatibilityRisks,
-    normalize: (value, playerId) => normalizeAcceptedDeclaration(value, playerId),
+    normalize: (value, playerId, path) =>
+      normalizeAcceptedDeclaration(value, playerId, path, compatibilityRisks),
   });
   const pendingSimulacrumCopies = normalizeUniqueEntries({
     raw: rawAncient.pendingSimulacrumCopies,
@@ -639,12 +716,17 @@ export function applyAncientBattleRevealPreparation<T = any>(state: T): T {
       0,
   );
   const energyByPlayerId: Record<string, AncientPlayerEnergyState> = {};
+  const solarLedgerByPlayerId: Record<string, AncientSolarLedgerState> = {};
   const quantumMysticRevealByInstanceId: Record<string, {
     battleTurnNumber: number;
     controllerPlayerId: string;
   }> = {};
 
   for (const playerId of getPlayerSeatIds(canonicalState.players)) {
+    solarLedgerByPlayerId[playerId] = {
+      battleTurnNumber,
+      entries: [],
+    };
     const player = canonicalState.players.find((candidate: any) => candidate?.id === playerId);
     const sources: AncientEnergySource[] = [];
     const fleet = Array.isArray(canonicalState.gameData.ships?.[playerId])
@@ -722,6 +804,7 @@ export function applyAncientBattleRevealPreparation<T = any>(state: T): T {
   }
 
   canonicalState.gameData.ancient.energyByPlayerId = energyByPlayerId;
+  canonicalState.gameData.ancient.solarLedgerByPlayerId = solarLedgerByPlayerId;
   canonicalState.gameData.powerMemory = {
     ...(canonicalState.gameData.powerMemory ?? {}),
     quantumMysticRevealByInstanceId,

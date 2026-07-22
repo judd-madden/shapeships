@@ -152,6 +152,19 @@ export type AncientNormalizedSolarGridChoice = {
   choiceId: 'use' | 'hold';
 };
 
+export const ANCIENT_SOLAR_POWER_IDS = [
+  'SLIF', 'SSTA', 'SAST', 'SSUP', 'SCON', 'SSIM', 'SSIP', 'SVOR', 'SBLA',
+] as const;
+
+export type AncientSolarPowerId = typeof ANCIENT_SOLAR_POWER_IDS[number];
+
+export type AncientNormalizedSolarCast = {
+  solarPowerId: AncientSolarPowerId;
+  targetInstanceId?: string;
+  targetInstanceIds?: string[];
+  lockedAmount?: number;
+};
+
 export type AncientAcceptedDeclaration = {
   schemaVersion: 1;
   contractVersion: 1;
@@ -161,7 +174,7 @@ export type AncientAcceptedDeclaration = {
   context: AncientDeclarationContext;
   ordinaryChargeActions: AncientNormalizedOrdinaryChargeChoice[];
   solarGridChoices: AncientNormalizedSolarGridChoice[];
-  solarCasts: [];
+  solarCasts: AncientNormalizedSolarCast[];
   autocastEnabled: false;
 };
 
@@ -181,7 +194,7 @@ export type AncientSimulacrumPresentation = {
 export type AncientSolarLedgerEntry = {
   entryId: string;
   order: number;
-  solarPowerId: string;
+  solarPowerId: AncientSolarPowerId;
   sourceMode: AncientSolarSourceMode;
   paidEnergy: AncientEnergyPool;
   lockedAmount?: number;

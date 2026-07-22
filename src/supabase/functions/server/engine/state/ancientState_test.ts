@@ -374,6 +374,58 @@ Deno.test('older valid accepted declaration placeholders normalize additively wi
   assert.equal(normalizeAncientGameState(normalized.state).changed, false);
 });
 
+Deno.test('accepted Solar casts normalize as an ordered repeated list with path-specific malformed risks', () => {
+  const state: any = createBaseState();
+  state.gameData.ancient = createEmptyAncientState(state.players);
+  state.gameData.ancient.acceptedDeclarationByPlayerId.p1 = {
+    schemaVersion: 1,
+    contractVersion: 1,
+    declarationId: 'ordered-casts',
+    declarationFingerprint: 'stale',
+    playerId: 'p1',
+    context: {
+      contextVersion: 1,
+      battleTurnNumber: 2,
+      initialEnergy: { green: 2, red: 1, blue: 0 },
+      energySourceIds: [],
+    },
+    ordinaryChargeActions: [],
+    solarGridChoices: [],
+    solarCasts: [
+      { solarPowerId: 'SLIF' },
+      { solarPowerId: 'UNKNOWN' },
+      { solarPowerId: 'SLIF', targetInstanceIds: ['b', 'a'] },
+      { solarPowerId: 'SAST', order: 3 },
+      { solarPowerId: 'SAST', lockedAmount: 2 },
+    ],
+    autocastEnabled: false,
+  };
+
+  const normalized = normalizeAncientGameState(state);
+  const accepted = normalized.state.gameData.ancient.acceptedDeclarationByPlayerId.p1;
+  assert.deepEqual(accepted.solarCasts, [
+    { solarPowerId: 'SLIF' },
+    { solarPowerId: 'SLIF', targetInstanceIds: ['a', 'b'] },
+    { solarPowerId: 'SAST', lockedAmount: 2 },
+  ]);
+  assert.deepEqual(
+    normalized.compatibilityRisks.filter((risk) =>
+      risk.path.startsWith('gameData.ancient.acceptedDeclarationByPlayerId.p1.solarCasts')
+    ),
+    [
+      {
+        code: 'malformed_canonical_record',
+        path: 'gameData.ancient.acceptedDeclarationByPlayerId.p1.solarCasts[1]',
+      },
+      {
+        code: 'malformed_canonical_record',
+        path: 'gameData.ancient.acceptedDeclarationByPlayerId.p1.solarCasts[3]',
+      },
+    ],
+  );
+  assert.deepEqual(JSON.parse(accepted.declarationFingerprint).solarCasts, accepted.solarCasts);
+});
+
 Deno.test('canonical accessor uses species compatibility and current player role only', () => {
   const state: any = normalizeAncientGameState(createBaseState()).state;
   state.gameData.ancient.energyByPlayerId.p1.pool = { green: 2, red: 3, blue: 4 };
@@ -470,7 +522,7 @@ Deno.test('Battle Reveal Core Energy uses live Cores of every age and excludes o
   });
 });
 
-Deno.test('Battle Reveal replaces stale Energy idempotently and preserves all other Ancient state', () => {
+Deno.test('Battle Reveal replaces stale Energy and ledger idempotently while preserving unrelated Ancient state', () => {
   const state: any = normalizeAncientGameState(createBaseState()).state;
   state.gameData.turnNumber = 3;
   state.gameData.turnData.turnNumber = 3;
@@ -500,7 +552,11 @@ Deno.test('Battle Reveal replaces stale Energy idempotently and preserves all ot
     },
   };
   state.gameData.ancient.acceptedDeclarationByPlayerId = { p1: { keep: 'declaration' } };
-  state.gameData.ancient.solarLedgerByPlayerId.p1 = { keep: 'ledger' };
+  state.gameData.ancient.solarLedgerByPlayerId = {
+    p1: { battleTurnNumber: 2, entries: [{ keep: 'stale-p1-ledger' }] },
+    p2: { battleTurnNumber: 2, entries: [{ keep: 'stale-p2-ledger' }] },
+    formerPlayer: { battleTurnNumber: 2, entries: [{ keep: 'stale-former-ledger' }] },
+  };
   state.gameData.ancient.pendingSimulacrumCopies = [{ keep: 'copy' }];
   state.gameData.ancient.pendingBlackHoleDestructions = [{ keep: 'destruction' }];
   state.gameData.ancient.futureUnrelatedState = { keep: true };
@@ -508,7 +564,6 @@ Deno.test('Battle Reveal replaces stale Energy idempotently and preserves all ot
   const unrelatedAncientState = {
     schemaVersion: ancientObject.schemaVersion,
     acceptedDeclarationByPlayerId: structuredClone(ancientObject.acceptedDeclarationByPlayerId),
-    solarLedgerByPlayerId: structuredClone(ancientObject.solarLedgerByPlayerId),
     pendingSimulacrumCopies: structuredClone(ancientObject.pendingSimulacrumCopies),
     pendingBlackHoleDestructions: structuredClone(ancientObject.pendingBlackHoleDestructions),
     futureUnrelatedState: structuredClone(ancientObject.futureUnrelatedState),
@@ -534,22 +589,26 @@ Deno.test('Battle Reveal replaces stale Energy idempotently and preserves all ot
     pool: { green: 0, red: 0, blue: 0 },
     sources: [],
   });
+  assert.deepEqual(ancientObject.solarLedgerByPlayerId, {
+    p1: { battleTurnNumber: 3, entries: [] },
+    p2: { battleTurnNumber: 3, entries: [] },
+  });
   assert.deepEqual({
     schemaVersion: ancientObject.schemaVersion,
     acceptedDeclarationByPlayerId: ancientObject.acceptedDeclarationByPlayerId,
-    solarLedgerByPlayerId: ancientObject.solarLedgerByPlayerId,
     pendingSimulacrumCopies: ancientObject.pendingSimulacrumCopies,
     pendingBlackHoleDestructions: ancientObject.pendingBlackHoleDestructions,
     futureUnrelatedState: ancientObject.futureUnrelatedState,
   }, unrelatedAncientState);
 
   const firstEnergy = structuredClone(ancientObject.energyByPlayerId);
+  const firstLedger = structuredClone(ancientObject.solarLedgerByPlayerId);
   applyAncientBattleRevealPreparation(state);
   assert.deepEqual(ancientObject.energyByPlayerId, firstEnergy);
+  assert.deepEqual(ancientObject.solarLedgerByPlayerId, firstLedger);
   assert.deepEqual({
     schemaVersion: ancientObject.schemaVersion,
     acceptedDeclarationByPlayerId: ancientObject.acceptedDeclarationByPlayerId,
-    solarLedgerByPlayerId: ancientObject.solarLedgerByPlayerId,
     pendingSimulacrumCopies: ancientObject.pendingSimulacrumCopies,
     pendingBlackHoleDestructions: ancientObject.pendingBlackHoleDestructions,
     futureUnrelatedState: ancientObject.futureUnrelatedState,

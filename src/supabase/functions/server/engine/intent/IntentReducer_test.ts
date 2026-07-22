@@ -181,6 +181,7 @@ function chargeDeclarationIntent(args: {
   declarationId?: string;
   ordinaryChargeActions?: any[];
   solarChoice?: 'use' | 'hold';
+  solarCasts?: any[];
 } = {}): IntentRequest {
   return {
     gameId: 'atomic-charge-reducer-test',
@@ -191,11 +192,30 @@ function chargeDeclarationIntent(args: {
       declarationId: args.declarationId ?? 'atomic-declaration-1',
       ordinaryChargeActions: args.ordinaryChargeActions ?? [],
       solarGridChoices: [{ sourceInstanceId: 'sol-1', choiceId: args.solarChoice ?? 'hold' }],
-      solarCasts: [],
+      solarCasts: args.solarCasts ?? [],
       autocastEnabled: false,
     },
   };
 }
+
+Deno.test('unimplemented production Solar casts reject without readiness or state mutation', async () => {
+  const state = createAtomicChargeState();
+  const before = structuredClone(state);
+  const result = await applyIntent(
+    state,
+    'p1',
+    chargeDeclarationIntent({ solarCasts: [{ solarPowerId: 'SLIF' }] }),
+    1000,
+  );
+  assert.equal(result.ok, false);
+  assert.match(result.rejected?.message ?? '', /not implemented: SLIF/);
+  assert.deepEqual(result.state, before);
+  assert.deepEqual(result.events, []);
+  assert.equal(
+    result.state.gameData.phaseReadiness.some((entry: any) => entry.playerId === 'p1' && entry.isReady),
+    false,
+  );
+});
 
 Deno.test('BUILD_SUBMIT accepts every legal Quantum Mystic selected number', async () => {
   for (let selectedNumber = 1; selectedNumber <= 6; selectedNumber += 1) {

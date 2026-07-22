@@ -2,8 +2,13 @@ import type {
   AncientAcceptedDeclaration,
   AncientEnergyPool,
   AncientNormalizedOrdinaryChargeChoice,
+  AncientNormalizedSolarCast,
   AncientNormalizedSolarGridChoice,
   ShipActivationCueSource,
+} from '../state/GameStateTypes.ts';
+import {
+  ANCIENT_SOLAR_POWER_IDS,
+  type AncientSolarPowerId,
 } from '../state/GameStateTypes.ts';
 import {
   CHARGE_DECLARATION_CONTRACT_VERSION,
@@ -33,13 +38,18 @@ import {
   appendShipActivationCueBatch,
   getShipActivationSourcesFromAppliedEffects,
 } from '../state/shipActivationCues.ts';
+import {
+  PRODUCTION_MANUAL_SOLAR_RESOLVERS,
+  resolveManualSolarDeclaration,
+  type ManualSolarResolverRegistry,
+} from '../ancient/manualSolarDeclaration.ts';
 
 export type NormalizedChargeDeclaration = {
   contractVersion: 1;
   declarationId: string;
   ordinaryChargeActions: AncientNormalizedOrdinaryChargeChoice[];
   solarGridChoices: AncientNormalizedSolarGridChoice[];
-  solarCasts: [];
+  solarCasts: AncientNormalizedSolarCast[];
   autocastEnabled: false;
 };
 
@@ -65,6 +75,59 @@ function normalizeTargetInstanceIds(value: unknown): string[] | undefined {
   ).sort((a, b) => a.localeCompare(b));
 }
 
+const ANCIENT_SOLAR_POWER_ID_SET = new Set<AncientSolarPowerId>(ANCIENT_SOLAR_POWER_IDS);
+
+function normalizeSolarCasts(value: unknown[]): AncientNormalizedSolarCast[] {
+  return value.map((candidate, index) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      throw new Error(`solarCasts[${index}] must be an object`);
+    }
+    const source = candidate as Record<string, unknown>;
+    const allowedFields = new Set(['solarPowerId', 'targetInstanceId', 'targetInstanceIds', 'lockedAmount']);
+    const unsupportedField = Object.keys(source).find((field) => !allowedFields.has(field));
+    if (unsupportedField) {
+      throw new Error(`solarCasts[${index}] contains unsupported field: ${unsupportedField}`);
+    }
+    if (typeof source.solarPowerId !== 'string' || !ANCIENT_SOLAR_POWER_ID_SET.has(source.solarPowerId as AncientSolarPowerId)) {
+      throw new Error(`Unknown Solar Power ID at solarCasts[${index}]: ${String(source.solarPowerId)}`);
+    }
+    if (typeof source.targetInstanceId !== 'undefined' && typeof source.targetInstanceIds !== 'undefined') {
+      throw new Error(`solarCasts[${index}] cannot include both targetInstanceId and targetInstanceIds`);
+    }
+    const targetInstanceId = typeof source.targetInstanceId === 'undefined'
+      ? undefined
+      : requireNonEmptyString(source.targetInstanceId, `solarCasts[${index}].targetInstanceId`);
+    let targetInstanceIds: string[] | undefined;
+    if (typeof source.targetInstanceIds !== 'undefined') {
+      if (!Array.isArray(source.targetInstanceIds)) {
+        throw new Error(`solarCasts[${index}].targetInstanceIds must be an array`);
+      }
+      targetInstanceIds = source.targetInstanceIds.map((target, targetIndex) =>
+        requireNonEmptyString(target, `solarCasts[${index}].targetInstanceIds[${targetIndex}]`)
+      );
+      if (new Set(targetInstanceIds).size !== targetInstanceIds.length) {
+        throw new Error(`solarCasts[${index}].targetInstanceIds contains duplicates`);
+      }
+      targetInstanceIds.sort((a, b) => a.localeCompare(b));
+    }
+    if (
+      typeof source.lockedAmount !== 'undefined' &&
+      (typeof source.lockedAmount !== 'number' ||
+        !Number.isFinite(source.lockedAmount) ||
+        !Number.isInteger(source.lockedAmount) ||
+        source.lockedAmount < 0)
+    ) {
+      throw new Error(`solarCasts[${index}].lockedAmount must be a non-negative integer`);
+    }
+    return {
+      solarPowerId: source.solarPowerId as AncientSolarPowerId,
+      ...(targetInstanceId ? { targetInstanceId } : {}),
+      ...(targetInstanceIds ? { targetInstanceIds } : {}),
+      ...(typeof source.lockedAmount === 'number' ? { lockedAmount: source.lockedAmount } : {}),
+    };
+  });
+}
+
 export function normalizeChargeDeclarationPayload(value: unknown): NormalizedChargeDeclaration {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('Missing or invalid charge declaration payload');
@@ -82,9 +145,6 @@ export function normalizeChargeDeclarationPayload(value: unknown): NormalizedCha
   }
   if (!Array.isArray(payload.solarCasts)) {
     throw new Error('solarCasts must be an array');
-  }
-  if (payload.solarCasts.length > 0) {
-    throw new Error('Solar casts are not supported by contract version 1');
   }
   if (typeof payload.autocastEnabled !== 'boolean') {
     throw new Error('autocastEnabled must be an explicit boolean');
@@ -143,7 +203,7 @@ export function normalizeChargeDeclarationPayload(value: unknown): NormalizedCha
     declarationId,
     ordinaryChargeActions,
     solarGridChoices,
-    solarCasts: [],
+    solarCasts: normalizeSolarCasts(payload.solarCasts),
     autocastEnabled: false,
   };
 }
@@ -234,7 +294,7 @@ function buildAcceptedDeclaration(args: {
     },
     ordinaryChargeActions: structuredClone(args.normalized.ordinaryChargeActions),
     solarGridChoices: structuredClone(args.normalized.solarGridChoices),
-    solarCasts: [],
+    solarCasts: structuredClone(args.normalized.solarCasts),
     autocastEnabled: false,
   };
 }
@@ -244,6 +304,19 @@ export function resolveChargeDeclarationSubmission(args: {
   playerId: string;
   payload: unknown;
   nowMs: number;
+}): ChargeDeclarationResolutionResult {
+  return resolveChargeDeclarationSubmissionWithDependencies(args, {
+    manualSolarResolvers: PRODUCTION_MANUAL_SOLAR_RESOLVERS,
+  });
+}
+
+export function resolveChargeDeclarationSubmissionWithDependencies(args: {
+  state: any;
+  playerId: string;
+  payload: unknown;
+  nowMs: number;
+}, dependencies: {
+  manualSolarResolvers: Readonly<ManualSolarResolverRegistry>;
 }): ChargeDeclarationResolutionResult {
   const normalized = normalizeChargeDeclarationPayload(args.payload);
   const fingerprint = fingerprintChargeDeclaration(normalized);
@@ -362,10 +435,26 @@ export function resolveChargeDeclarationSubmission(args: {
     });
   }
 
+  const manualSolar = resolveManualSolarDeclaration({
+    state: workingState,
+    playerId: args.playerId,
+    declarationId: normalized.declarationId,
+    battleTurnNumber,
+    initialEnergy: nextEnergy,
+    casts: normalized.solarCasts,
+    resolvers: dependencies.manualSolarResolvers,
+  });
+  workingState = manualSolar.state;
+  nextEnergy = manualSolar.remainingEnergy;
+
   workingState.gameData.ancient.energyByPlayerId[args.playerId] = {
     battleTurnNumber,
     pool: nextEnergy,
     sources: nextSources,
+  };
+  workingState.gameData.ancient.solarLedgerByPlayerId[args.playerId] = {
+    battleTurnNumber,
+    entries: manualSolar.ledgerEntries,
   };
   if (ordinaryChargeSpent) {
     workingState.gameData.turnData.anyChargesSpentInDeclaration = true;
