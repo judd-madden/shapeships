@@ -47,6 +47,12 @@ import {
   buildMonoColourAutocastCasts,
   PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
 } from '../ancient/monoColourSolarPowers.ts';
+import { SIPHON_SOLAR_RESOLVER } from '../ancient/siphonSolarPower.ts';
+
+const PRODUCTION_SOLAR_RESOLVERS: Readonly<ManualSolarResolverRegistry> = Object.freeze({
+  ...PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
+  SSIP: SIPHON_SOLAR_RESOLVER,
+});
 
 export type NormalizedChargeDeclaration = {
   contractVersion: 1;
@@ -306,7 +312,7 @@ export function resolveChargeDeclarationSubmission(args: {
   nowMs: number;
 }): ChargeDeclarationResolutionResult {
   return resolveChargeDeclarationSubmissionWithDependencies(args, {
-    manualSolarResolvers: PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
+    manualSolarResolvers: PRODUCTION_SOLAR_RESOLVERS,
   });
 }
 

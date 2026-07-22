@@ -175,6 +175,21 @@ Deno.test('damage powers require exactly two current active player seats includi
   }
 });
 
+Deno.test('healing powers do not require an opposing active player seat', () => {
+  for (const solarPowerId of ['SLIF', 'SSTA'] as const) {
+    const state = createState();
+    state.players = [{ id: 'p1', role: 'player', health: 20, lines: 0, joiningLines: 0 }];
+    const result = resolve(
+      state,
+      [{ solarPowerId }],
+      solarPowerId === 'SLIF'
+        ? { green: 1, red: 0, blue: 0 }
+        : { green: 3, red: 0, blue: 0 },
+    );
+    assert.equal(result.state.gameData.pendingTurn.healByPlayerId.p1, solarPowerId === 'SLIF' ? 1 : 5);
+  }
+});
+
 Deno.test('exact mono-colour exhaustion succeeds and insufficient payment leaves input state unchanged', () => {
   const exact = resolve(createState(), [{ solarPowerId: 'SLIF' }], { green: 1, red: 0, blue: 0 });
   assert.deepEqual(exact.remainingEnergy, { green: 0, red: 0, blue: 0 });

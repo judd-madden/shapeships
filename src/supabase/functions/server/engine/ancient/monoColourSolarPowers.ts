@@ -15,6 +15,10 @@ import type {
   ManualSolarResolverDescriptor,
   ManualSolarResolverRegistry,
 } from './manualSolarDeclaration.ts';
+import {
+  buildSolarHealthEffect,
+  requireSolarOpponentPlayerId,
+} from './solarHealthEffects.ts';
 
 export type MonoColourSolarPowerId = Extract<
   AncientSolarPowerId,
@@ -88,43 +92,6 @@ function requireEffectiveDice(state: Readonly<any>, playerId: string): number {
   return dice;
 }
 
-function requireOpponentPlayerId(state: Readonly<any>, playerId: string): string {
-  const activeSeats = Array.isArray(state?.players)
-    ? state.players.filter((player: any) => player?.role === 'player')
-    : [];
-  const casterSeats = activeSeats.filter((player: any) => player?.id === playerId);
-  const opponentSeats = activeSeats.filter((player: any) => player?.id !== playerId);
-  if (activeSeats.length !== 2 || casterSeats.length !== 1 || opponentSeats.length !== 1) {
-    throw new Error(`Solar damage requires exactly two active player seats including caster ${playerId}`);
-  }
-  const opponentPlayerId = opponentSeats[0]?.id;
-  if (typeof opponentPlayerId !== 'string' || opponentPlayerId.length === 0) {
-    throw new Error(`Solar damage requires one valid opposing active player for ${playerId}`);
-  }
-  return opponentPlayerId;
-}
-
-function healthEffect(args: {
-  castIdentity: string;
-  playerId: string;
-  powerId: MonoColourSolarPowerId;
-  targetPlayerId: string;
-  kind: EffectKind.Heal | EffectKind.Damage;
-  amount: number;
-}): Effect {
-  return {
-    id: `${args.castIdentity}:${args.kind.toLowerCase()}`,
-    ownerPlayerId: args.playerId,
-    source: { type: 'system', reason: `ancient-solar:${args.powerId}` },
-    timing: 'battle.end_of_turn_resolution',
-    activationTag: EffectTiming.Charge,
-    survivability: SurvivabilityRule.ResolvesIfDestroyed,
-    target: { playerId: args.targetPlayerId },
-    kind: args.kind,
-    amount: args.amount,
-  } as Effect;
-}
-
 function fixedHealthResolver(args: {
   powerId: 'SLIF' | 'SAST';
   kind: EffectKind.Heal | EffectKind.Damage;
@@ -134,17 +101,18 @@ function fixedHealthResolver(args: {
     resolve(context) {
       const targetPlayerId = args.kind === EffectKind.Heal
         ? context.playerId
-        : requireOpponentPlayerId(context.state, context.playerId);
+        : requireSolarOpponentPlayerId(context.state, context.playerId);
       return {
         candidateState: structuredClone(context.state),
         paidEnergy: cloneCost(args.powerId),
-        effects: [healthEffect({
+        effects: [buildSolarHealthEffect({
           castIdentity: context.castIdentity,
-          playerId: context.playerId,
+          ownerPlayerId: context.playerId,
           powerId: args.powerId,
           targetPlayerId,
           kind: args.kind,
           amount: 1,
+          idSuffix: args.kind.toLowerCase(),
         })],
       };
     },
@@ -161,17 +129,18 @@ function diceHealthResolver(args: {
       const lockedAmount = requireEffectiveDice(context.state, context.playerId) + 3;
       const targetPlayerId = args.kind === EffectKind.Heal
         ? context.playerId
-        : requireOpponentPlayerId(context.state, context.playerId);
+        : requireSolarOpponentPlayerId(context.state, context.playerId);
       return {
         candidateState: structuredClone(context.state),
         paidEnergy: cloneCost(args.powerId),
-        effects: [healthEffect({
+        effects: [buildSolarHealthEffect({
           castIdentity: context.castIdentity,
-          playerId: context.playerId,
+          ownerPlayerId: context.playerId,
           powerId: args.powerId,
           targetPlayerId,
           kind: args.kind,
           amount: lockedAmount,
+          idSuffix: args.kind.toLowerCase(),
         })],
         ledgerMetadata: { lockedAmount },
       };

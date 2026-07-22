@@ -367,9 +367,29 @@ Deno.test('later unaffordable fixture cast rolls back ordinary charge, Grid, Ene
 });
 
 Deno.test('later Solar IDs without a production resolver are rejected without state changes', () => {
+  for (const solarPowerId of ['SVOR', 'SBLA', 'SSIM']) {
+    const state = createState();
+    const before = structuredClone(state);
+    assert.throws(() => resolveChargeDeclarationSubmission({
+      state,
+      playerId: 'p1',
+      payload: payload({
+        solarGridChoices: [
+          { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+          { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+        ],
+        solarCasts: [{ solarPowerId }],
+      }),
+      nowMs: 1000,
+    }), new RegExp(`not implemented: ${solarPowerId}`));
+    assert.deepEqual(state, before);
+  }
+});
+
+Deno.test('production Siphon locks selected spend separately from triangular ledger and pending values', () => {
   const state = createState();
-  const before = structuredClone(state);
-  assert.throws(() => resolveChargeDeclarationSubmission({
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 3, blue: 0 };
+  const result = resolveChargeDeclarationSubmission({
     state,
     playerId: 'p1',
     payload: payload({
@@ -377,10 +397,171 @@ Deno.test('later Solar IDs without a production resolver are rejected without st
         { sourceInstanceId: 'sol-a', choiceId: 'hold' },
         { sourceInstanceId: 'sol-b', choiceId: 'hold' },
       ],
-      solarCasts: [{ solarPowerId: 'SSIP' }],
+      solarCasts: [{ solarPowerId: 'SSIP', lockedAmount: 3 }],
     }),
     nowMs: 1000,
-  }), /not implemented: SSIP/);
+  });
+
+  assert.deepEqual(result.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.solarCasts, [
+    { solarPowerId: 'SSIP', lockedAmount: 3 },
+  ]);
+  assert.deepEqual(result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries, [{
+    entryId: 'ancient-solar:3:p1:declaration-1:manual:0',
+    order: 0,
+    solarPowerId: 'SSIP',
+    sourceMode: 'manual',
+    paidEnergy: { green: 3, red: 3, blue: 0 },
+    lockedAmount: 6,
+  }]);
+  assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 6 });
+  assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 6 });
+  assert.deepEqual(result.state.gameData.pendingTurn.breakdownEntries.map((entry: any) => ({
+    effectId: entry.effectId,
+    kind: entry.kind,
+    baseAmount: entry.baseAmount,
+    finalAmount: entry.finalAmount,
+  })), [
+    {
+      effectId: 'ancient-solar:3:p1:declaration-1:manual:0:heal',
+      kind: 'Heal',
+      baseAmount: 6,
+      finalAmount: 6,
+    },
+    {
+      effectId: 'ancient-solar:3:p1:declaration-1:manual:0:damage',
+      kind: 'Damage',
+      baseAmount: 6,
+      finalAmount: 6,
+    },
+  ]);
+  assert.equal(result.state.players[0].health, 20);
+  assert.equal(result.state.players[1].health, 20);
+});
+
+Deno.test('multiple Siphons resolve sequentially when each remains affordable', () => {
+  const state = createState();
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 5, red: 5, blue: 0 };
+  const result = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [
+        { solarPowerId: 'SSIP', lockedAmount: 2 },
+        { solarPowerId: 'SSIP', lockedAmount: 3 },
+      ],
+    }),
+    nowMs: 1000,
+  });
+
+  assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, { green: 0, red: 0, blue: 0 });
+  assert.deepEqual(result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries.map((entry: any) => ({
+    paidEnergy: entry.paidEnergy,
+    lockedAmount: entry.lockedAmount,
+  })), [
+    { paidEnergy: { green: 2, red: 2, blue: 0 }, lockedAmount: 3 },
+    { paidEnergy: { green: 3, red: 3, blue: 0 }, lockedAmount: 6 },
+  ]);
+  assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 9 });
+  assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 9 });
+});
+
+Deno.test('earlier manual casts and Siphon payments constrain later casts in order', () => {
+  const lifeThenSiphon = createState();
+  lifeThenSiphon.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 3, blue: 0 };
+  const beforeLifeThenSiphon = structuredClone(lifeThenSiphon);
+  assert.throws(() => resolveChargeDeclarationSubmission({
+    state: lifeThenSiphon,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [
+        { solarPowerId: 'SLIF' },
+        { solarPowerId: 'SSIP', lockedAmount: 3 },
+      ],
+    }),
+    nowMs: 1000,
+  }), /Insufficient green Energy for SSIP/);
+  assert.deepEqual(lifeThenSiphon, beforeLifeThenSiphon);
+
+  const siphonThenStarBirth = createState();
+  siphonThenStarBirth.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 2 };
+  siphonThenStarBirth.gameData.ancient.energyByPlayerId.p1.pool = { green: 4, red: 2, blue: 0 };
+  const beforeSiphonThenStarBirth = structuredClone(siphonThenStarBirth);
+  assert.throws(() => resolveChargeDeclarationSubmission({
+    state: siphonThenStarBirth,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [
+        { solarPowerId: 'SSIP', lockedAmount: 2 },
+        { solarPowerId: 'SSTA' },
+      ],
+    }),
+    nowMs: 1000,
+  }), /Insufficient green Energy for SSTA/);
+  assert.deepEqual(siphonThenStarBirth, beforeSiphonThenStarBirth);
+});
+
+Deno.test('manual Siphon reduces the pool consumed by fixed mono-colour Autocast', () => {
+  const state = createState();
+  state.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 2 };
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 5, red: 5, blue: 0 };
+  const result = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [{ solarPowerId: 'SSIP', lockedAmount: 2 }],
+      autocastEnabled: true,
+    }),
+    nowMs: 1000,
+  });
+
+  const entries = result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries;
+  assert.deepEqual(entries.map((entry: any) => [entry.solarPowerId, entry.sourceMode]), [
+    ['SSIP', 'manual'],
+    ['SSTA', 'autocast'],
+    ['SSUP', 'autocast'],
+  ]);
+  assert.equal(entries.some((entry: any) => entry.solarPowerId === 'SSIP' && entry.sourceMode === 'autocast'), false);
+  assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, { green: 0, red: 0, blue: 0 });
+});
+
+Deno.test('a later invalid Siphon rejects the entire production declaration atomically', () => {
+  const state = createState();
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 3, blue: 0 };
+  const before = structuredClone(state);
+  assert.throws(() => resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      ordinaryChargeActions: [{
+        actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'int-1', choiceId: 'damage',
+      }],
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'use' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [
+        { solarPowerId: 'SSIP', lockedAmount: 2 },
+        { solarPowerId: 'SSIP', lockedAmount: 3 },
+      ],
+    }),
+    nowMs: 1000,
+  }), /Insufficient green Energy for SSIP/);
   assert.deepEqual(state, before);
 });
 
