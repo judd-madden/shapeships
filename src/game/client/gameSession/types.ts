@@ -413,6 +413,26 @@ export interface BoardStatBreakdownRowVm {
   amountText: string;
 }
 
+export type LiveRowAncientSolarPowerId =
+  | 'SLIF'
+  | 'SSTA'
+  | 'SAST'
+  | 'SSUP'
+  | 'SCON'
+  | 'SSIP'
+  | 'SVOR'
+  | 'SBLA';
+
+export type AncientSolarDisplaySourceMode = 'manual' | 'autocast' | 'cube';
+
+export interface AncientSolarDisplayEntry {
+  displayKey: string;
+  solarPowerId: LiveRowAncientSolarPowerId;
+  order: number;
+  sourceMode: AncientSolarDisplaySourceMode;
+  isLocalPreview: boolean;
+}
+
 export type BoardViewModel =
   | {
       mode: 'choose_species';
@@ -439,6 +459,8 @@ export type BoardViewModel =
       opponentFleet: BoardFleetSummary[];
       myVoidFleet: BoardFleetSummary[];
       opponentVoidFleet: BoardFleetSummary[];
+      myAncientSolarEntries: AncientSolarDisplayEntry[];
+      opponentAncientSolarEntries: AncientSolarDisplayEntry[];
       myFleetRenderOrder: string[];
       opponentFleetRenderOrder: string[];
       mobileDiceModifierSlots: MobileDiceModifierSlotsViewModel;

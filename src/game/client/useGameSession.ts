@@ -114,6 +114,7 @@ import {
   type HealthResolutionPresentationTrigger,
 } from './gameSession/clienteffects/useEndOfTurnPresentation';
 import { useDestroyTargetingRuntime } from './gameSession/destroyTargeting';
+import { deriveAncientSolarDisplayEntries } from './gameSession/ancientSolarDisplay';
 import type {
   AcceptedFullStateFingerprint,
   AuthoritativeStateApplyMeta,
@@ -2257,6 +2258,37 @@ export function useGameSession(
     ancientChargeDeclarationAttempt?.workflowKey === ancientChargeDeclarationWorkflowKey
       ? ancientChargeDeclarationAttempt
       : null;
+  const publicAncientSolarLedgers =
+    rawState?.publicState?.ancient?.solarLedgerByPlayerId as Record<string, unknown> | undefined;
+  const displayLeftAncientSolarEntries = deriveAncientSolarDisplayEntries({
+    playerId: displayLeftPlayer?.id,
+    ledger: displayLeftPlayer?.id ? publicAncientSolarLedgers?.[displayLeftPlayer.id] : null,
+    allowLocalPreview:
+      !isViewerSpectator &&
+      myRole === 'player' &&
+      mySpecies === 'ancient' &&
+      phaseKey === 'battle.charge_declaration' &&
+      displayLeftPlayer?.id === me?.id,
+    currentBattleTurnNumber: turnNumber,
+    currentWorkflowKey: ancientChargeDeclarationWorkflowKey,
+    workflow: activeAncientChargeDeclarationWorkflow,
+    frozenAttempt: activeAncientChargeDeclarationAttempt,
+    isAuthoritativelyReady: ancientPlayerReady,
+  });
+  const displayRightAncientSolarEntries = normalizeSpecies(
+    displayRightPlayer?.faction ?? displayRightPlayer?.species
+  ) === 'ancient'
+    ? deriveAncientSolarDisplayEntries({
+        playerId: displayRightPlayer?.id,
+        ledger: displayRightPlayer?.id ? publicAncientSolarLedgers?.[displayRightPlayer.id] : null,
+        allowLocalPreview: false,
+        currentBattleTurnNumber: turnNumber,
+        currentWorkflowKey: ancientChargeDeclarationWorkflowKey,
+        workflow: null,
+        frozenAttempt: null,
+        isAuthoritativelyReady: isPlayerReadyForPhase(rawState, displayRightPlayer?.id),
+      })
+    : [];
   const provisionalAncientEnergyBeforeManualCasts = deriveProvisionalAncientEnergy({
     authoritativePool: authoritativeAncientEnergy,
     solarGridActions: ancientSolarGridActions,
@@ -3307,6 +3339,10 @@ useEffect(() => {
       opponentFleet: opponentFleetRendered,
       myVoidFleet: displayLeftVoidFleet,
       opponentVoidFleet: displayRightVoidFleet,
+      myAncientSolarEntries:
+        effectiveMySpecies === 'ancient' ? displayLeftAncientSolarEntries : [],
+      opponentAncientSolarEntries:
+        effectiveOpponentSpecies === 'ancient' ? displayRightAncientSolarEntries : [],
 
       // UI-only stable ordering (append-only)
       myFleetRenderOrder,
@@ -5465,6 +5501,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         opponentFleet: [],
         myVoidFleet: [],
         opponentVoidFleet: [],
+        myAncientSolarEntries: [],
+        opponentAncientSolarEntries: [],
         myFleetRenderOrder: [],
         opponentFleetRenderOrder: [],
         mobileDiceModifierSlots: {

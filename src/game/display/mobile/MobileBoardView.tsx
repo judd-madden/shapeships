@@ -72,6 +72,7 @@ export function MobileBoardView({
         <FleetArea
           title="OPPONENT FLEET"
           ships={boardVm.opponentFleet}
+          ancientSolarEntries={boardVm.opponentAncientSolarEntries}
           order={boardVm.opponentFleetRenderOrder}
           species={opponentSpeciesKey}
           animTokens={boardVm.fleetAnim.opponent}
@@ -88,9 +89,11 @@ export function MobileBoardView({
           turnPulse={rightRevealPulse}
           fitMinScale={0.25}
           liveFitOverflowVisible
-          liveRowsLayout="pairedRows"
+          liveRowsLayout={opponentSpeciesKey === 'ancient' ? 'ancientFourRows' : 'pairedRows'}
           liveRowOverrides={MOBILE_FLEET_ROW_OVERRIDES}
-          liveLayoutCanvasClassName="w-[360px] h-[130px]"
+          liveLayoutCanvasClassName={
+            opponentSpeciesKey === 'ancient' ? 'w-[360px]' : 'w-[360px] h-[130px]'
+          }
           onFleetShipTap={
             isDestroyTargetingActive
               ? undefined
@@ -120,6 +123,7 @@ export function MobileBoardView({
         <FleetArea
           title="MY FLEET"
           ships={boardVm.myFleet}
+          ancientSolarEntries={boardVm.myAncientSolarEntries}
           order={boardVm.myFleetRenderOrder}
           species={mySpeciesKey}
           animTokens={boardVm.fleetAnim.my}
@@ -136,9 +140,11 @@ export function MobileBoardView({
           turnPulse={leftRevealPulse}
           fitMinScale={0.2}
           liveFitOverflowVisible
-          liveRowsLayout="pairedRows"
+          liveRowsLayout={mySpeciesKey === 'ancient' ? 'ancientFourRows' : 'pairedRows'}
           liveRowOverrides={MOBILE_FLEET_ROW_OVERRIDES}
-          liveLayoutCanvasClassName="w-[360px] h-[130px]"
+          liveLayoutCanvasClassName={
+            mySpeciesKey === 'ancient' ? 'w-[360px]' : 'w-[360px] h-[130px]'
+          }
           onFleetShipTap={
             isDestroyTargetingActive
               ? undefined

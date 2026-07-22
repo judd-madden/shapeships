@@ -1,4 +1,5 @@
 import type { FleetAreaHealthDeltaFlashVm } from '../../../client/useGameSession';
+import type { AncientSolarDisplayEntry } from '../../../client/gameSession/types';
 import { getShipDefinitionUI } from '../../../data/ShipDefinitionsUI';
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import {
@@ -15,6 +16,7 @@ import { useFlipLayout } from '../../graphics/useFlipLayout';
 import { FitToBox } from './FitToBox';
 import { FleetAreaHealthDeltaFlash } from './FleetAreaHealthDeltaFlash';
 import type { FleetAreaHealthDeltaFlashShape } from './FleetAreaHealthDeltaFlash';
+import { AncientSolarLedgerRow } from './AncientSolarLedgerRow';
 
 function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
@@ -61,11 +63,14 @@ const CENTAUR_ROW_SETS: RowSets = {
 };
 
 const ANCIENT_ROW_SETS: RowSets = {
-  1: new Set<ShipDefId>(['MER', 'PLU', 'QUA', 'NEP']),
-  2: new Set<ShipDefId>(['SOL']),
-  3: new Set<ShipDefId>(['SPI', 'CUB']),
-  4: new Set<ShipDefId>([]), // Reserved for later text-only powers
+  1: new Set<ShipDefId>(['PLU', 'MER', 'NEP', 'QUA']),
+  2: new Set<ShipDefId>(['SPI', 'SOL', 'CUB']),
+  3: new Set<ShipDefId>([]),
+  4: new Set<ShipDefId>([]),
 };
+
+const ANCIENT_ROW_1_ORDER = ['PLU', 'MER', 'NEP', 'QUA'] as const;
+const ANCIENT_ROW_2_ORDER = ['SPI', 'SOL', 'CUB'] as const;
 
 const ROW_SETS_BY_SPECIES: Record<SpeciesKey, RowSets> = {
   human: HUMAN_ROW_SETS,
@@ -77,8 +82,15 @@ const ROW_SETS_BY_SPECIES: Record<SpeciesKey, RowSets> = {
 function getRowFromSets(
   shipDefId: ShipDefId,
   rowSets: RowSets,
+  species: SpeciesKey,
   liveRowOverrides?: FleetRowOverrides
 ): FleetRow {
+  if (species === 'ancient') {
+    if (rowSets[1].has(shipDefId)) return 1;
+    if (rowSets[2].has(shipDefId)) return 2;
+    return 3;
+  }
+
   const overrideRow = liveRowOverrides?.[shipDefId];
   if (overrideRow !== undefined) return overrideRow;
 
@@ -87,6 +99,30 @@ function getRowFromSets(
   if (rowSets[3].has(shipDefId)) return 3;
   if (rowSets[4].has(shipDefId)) return 4;
   return 4; // fallback for unknown/copied ships
+}
+
+function sortAncientNativeRow<T extends { shipDefId: string; renderKey: string }>(
+  ships: T[],
+  lockedOrder: readonly string[],
+  persistentOrder?: string[]
+): T[] {
+  const rankByShipDefId = new Map(lockedOrder.map((shipDefId, rank) => [shipDefId, rank]));
+  const persistentRankByRenderKey = new Map(
+    (persistentOrder ?? []).map((renderKey, rank) => [renderKey, rank])
+  );
+
+  return [...ships].sort((a, b) => {
+    const aShipDefRank = rankByShipDefId.get(a.shipDefId) ?? Number.POSITIVE_INFINITY;
+    const bShipDefRank = rankByShipDefId.get(b.shipDefId) ?? Number.POSITIVE_INFINITY;
+    if (aShipDefRank !== bShipDefRank) return aShipDefRank - bShipDefRank;
+
+    const aPersistentRank =
+      persistentRankByRenderKey.get(a.renderKey) ?? Number.POSITIVE_INFINITY;
+    const bPersistentRank =
+      persistentRankByRenderKey.get(b.renderKey) ?? Number.POSITIVE_INFINITY;
+    if (aPersistentRank !== bPersistentRank) return aPersistentRank - bPersistentRank;
+    return a.renderKey.localeCompare(b.renderKey);
+  });
 }
 
 function sortByPersistentOrder<T extends { shipDefId: string; renderKey: string }>(
@@ -108,6 +144,7 @@ function groupShipsIntoRows<T extends { shipDefId: string; renderKey: string }>(
     ships: T[],
     order: string[] | undefined,
     rowSets: RowSets,
+    species: SpeciesKey,
     liveRowOverrides?: FleetRowOverrides
 ) {
     const sorted = sortByPersistentOrder(ships, order);
@@ -119,11 +156,20 @@ function groupShipsIntoRows<T extends { shipDefId: string; renderKey: string }>(
 
     for (const s of sorted) {
         const id = s.shipDefId as ShipDefId;
-        const row = getRowFromSets(id, rowSets, liveRowOverrides);
+        const row = getRowFromSets(id, rowSets, species, liveRowOverrides);
         if (row === 1) row1.push(s);
         else if (row === 2) row2.push(s);
         else if (row === 3) row3.push(s);
         else row4.push(s);
+    }
+
+    if (species === 'ancient') {
+      return {
+        row1: sortAncientNativeRow(row1, ANCIENT_ROW_1_ORDER, order),
+        row2: sortAncientNativeRow(row2, ANCIENT_ROW_2_ORDER, order),
+        row3,
+        row4: [],
+      };
     }
 
     return { row1, row2, row3, row4 };
@@ -151,7 +197,7 @@ function getStackCountFootprintKey(count: number): string {
 // bucketed because count labels can appear/disappear or widen.
 function getLiveFleetLayoutSignature(
   renderedShips: FleetStackVm[],
-  liveRowsLayout: 'stacked' | 'pairedRows'
+  liveRowsLayout: 'stacked' | 'pairedRows' | 'ancientFourRows'
 ): string {
   return JSON.stringify([
     liveRowsLayout,
@@ -440,6 +486,7 @@ export function VoidFleetStrip({
 export function FleetArea({
   title,
   ships,
+  ancientSolarEntries = [],
   voidShips,
   order,
   species,
@@ -472,6 +519,7 @@ export function FleetArea({
 }: {
   title: string;
   ships?: FleetStackVm[];
+  ancientSolarEntries?: AncientSolarDisplayEntry[];
   voidShips?: FleetStackVm[];
   order?: string[];
   species: SpeciesKey;
@@ -492,7 +540,7 @@ export function FleetArea({
   turnPulse: TurnIncrementPulseState;
   fitMinScale?: number;
   liveFitOverflowVisible?: boolean;
-  liveRowsLayout?: 'stacked' | 'pairedRows';
+  liveRowsLayout?: 'stacked' | 'pairedRows' | 'ancientFourRows';
   liveLayoutCanvasClassName?: string;
   voidSlotClassName?: string;
   voidScaleClassName?: string;
@@ -504,8 +552,8 @@ export function FleetArea({
 }) {
   const rowSets = ROW_SETS_BY_SPECIES[species];
   const grouped =
-    ships && ships.length > 0
-      ? groupShipsIntoRows(ships, order, rowSets, liveRowOverrides)
+    species === 'ancient' || (ships && ships.length > 0)
+      ? groupShipsIntoRows(ships ?? [], order, rowSets, species, liveRowOverrides)
       : null;
 
   // FLIP layout animation for smooth repositioning (live fleet only)
@@ -666,7 +714,7 @@ export function FleetArea({
     );
   };
 
-  const hasLiveShips = renderedShips.length > 0;
+  const hasLiveContent = species === 'ancient' || renderedShips.length > 0;
   const hasVoidShips = Boolean(voidShips && voidShips.length > 0);
   const liveRowsClassName =
     liveRowsLayout === 'pairedRows'
@@ -697,7 +745,7 @@ export function FleetArea({
             overflowVisible={liveFitOverflowVisible}
             deferInnerResizeComputeMs={flipEnabled ? LIVE_FLEET_INNER_RESIZE_DEFER_MS : 0}
           >
-            {hasLiveShips ? (
+            {hasLiveContent ? (
               <div
                 className={cx(
                   liveRowsClassName,
@@ -706,7 +754,14 @@ export function FleetArea({
                 )}
                 onAnimationEnd={turnPulse.onAnimationEnd}
               >
-                {grouped && liveRowsLayout === 'pairedRows' ? (
+                {grouped && species === 'ancient' ? (
+                  <>
+                    {renderLiveRow(grouped.row1)}
+                    {renderLiveRow(grouped.row2)}
+                    {renderLiveRow(grouped.row3)}
+                    <AncientSolarLedgerRow entries={ancientSolarEntries} />
+                  </>
+                ) : grouped && liveRowsLayout === 'pairedRows' ? (
                   <>
                     {renderPairedBand(grouped.row1, grouped.row2, getTopPairedBandFlipRef)}
                     {renderPairedBand(grouped.row3, grouped.row4, getBottomPairedBandFlipRef)}

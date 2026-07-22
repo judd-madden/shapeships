@@ -347,6 +347,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
       <FleetArea 
         title="MY FLEET" 
         ships={vm.myFleet} 
+        ancientSolarEntries={vm.myAncientSolarEntries}
         voidShips={vm.myVoidFleet}
         order={vm.myFleetRenderOrder} 
         species={mySpeciesKey}
@@ -617,6 +618,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
       <FleetArea 
         title="OPPONENT FLEET" 
         ships={vm.opponentFleet} 
+        ancientSolarEntries={vm.opponentAncientSolarEntries}
         voidShips={vm.opponentVoidFleet}
         order={vm.opponentFleetRenderOrder} 
         species={opponentSpeciesKey}
