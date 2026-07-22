@@ -166,6 +166,20 @@ const MANUAL_SOLAR_POWER_LABEL_BY_ID: Record<ImplementedAncientManualSolarPowerI
   SSUP: 'Supernova',
   SCON: 'Convert',
 };
+const AUTOCAST_TOOLTIP_PATHS = [
+  {
+    color: 'var(--shapeships-green)',
+    powerNames: ['Star Birth', 'Life'],
+  },
+  {
+    color: 'var(--shapeships-red)',
+    powerNames: ['Supernova', 'Asteroid'],
+  },
+  {
+    color: 'var(--shapeships-cyan)',
+    powerNames: ['Convert'],
+  },
+] as const;
 
 const SOLAR_HEADER_POSITIONS: Record<
   CatalogueLayout,
@@ -253,10 +267,29 @@ export function AncientAutocastControl({
           showArrow={false}
           className="relative z-[80] bg-transparent p-0 shadow-none"
         >
-          <div className="w-fit max-w-[calc(100vw-32px)] translate-x-[10px] rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[20px] py-[16px] text-[16px] font-normal leading-[22px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-            <div className="flex flex-col">
-              <p>When you press Ready, Autocast spends remaining Energy on Star Birth, Supernova, Convert, then Life and Asteroid.</p>
-              <p>It never casts Simulacrum, Siphon, Vortex, or Black Hole.</p>
+          <div className="box-content w-[260px] max-w-[calc(100vw-80px)] translate-x-[10px] rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[24px] pb-[32px] pt-[24px] font-['Roboto'] text-[16px] font-normal leading-[19px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+            <div className="flex flex-col gap-[24px]">
+              <p>When you press READY, autocast spends all your remaining energy:</p>
+              <div className="grid grid-cols-3 gap-[24px] items-start">
+                {AUTOCAST_TOOLTIP_PATHS.map((path) => (
+                  <div key={path.powerNames[0]} className="flex min-w-0 flex-col gap-[8px]">
+                    <span
+                      aria-hidden="true"
+                      className="size-[14px] shrink-0 rounded-full"
+                      style={{ backgroundColor: path.color }}
+                    />
+                    <div className="flex flex-col items-start">
+                      {path.powerNames.map((powerName, index) => (
+                        <div key={powerName} className="flex flex-col items-start">
+                          {index > 0 && <span aria-hidden="true">🡫</span>}
+                          <span>{powerName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p>Simulacrum and multicolour Powers must be cast manually.</p>
             </div>
           </div>
           <div
