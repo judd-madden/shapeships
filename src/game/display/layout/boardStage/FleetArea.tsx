@@ -14,6 +14,7 @@ import {
 import { resolveShipGraphic } from '../../graphics/resolveShipGraphic';
 import { useFlipLayout } from '../../graphics/useFlipLayout';
 import { FitToBox } from './FitToBox';
+import { FitToWidthInFlow } from './FitToWidthInFlow';
 import { FleetAreaHealthDeltaFlash } from './FleetAreaHealthDeltaFlash';
 import type { FleetAreaHealthDeltaFlashShape } from './FleetAreaHealthDeltaFlash';
 import { AncientSolarLedgerRow } from './AncientSolarLedgerRow';
@@ -715,6 +716,8 @@ export function FleetArea({
   };
 
   const hasLiveContent = species === 'ancient' || renderedShips.length > 0;
+  const isCompactAncientLayout =
+    species === 'ancient' && liveRowsLayout === 'ancientFourRows';
   const hasVoidShips = Boolean(voidShips && voidShips.length > 0);
   const liveRowsClassName =
     liveRowsLayout === 'pairedRows'
@@ -739,44 +742,107 @@ export function FleetArea({
       {/* FleetArea: {title} (title intentionally not rendered) */}
       <div className="relative z-10 flex h-full min-h-0 flex-col">
         <div className="grow min-h-0">
-          <FitToBox
-            minScale={fitMinScale}
-            className="w-full h-full"
-            overflowVisible={liveFitOverflowVisible}
-            deferInnerResizeComputeMs={flipEnabled ? LIVE_FLEET_INNER_RESIZE_DEFER_MS : 0}
-          >
-            {hasLiveContent ? (
+          {species === 'ancient' ? (
+            isCompactAncientLayout ? (
               <div
                 className={cx(
-                  liveRowsClassName,
-                  liveLayoutCanvasClassName,
+                  'ss-boardTurnPulse flex h-full min-h-0 w-full flex-col gap-[8px] overflow-hidden',
                   turnPulse.isActive && 'ss-boardTurnPulse-active'
                 )}
                 onAnimationEnd={turnPulse.onAnimationEnd}
               >
-                {grouped && species === 'ancient' ? (
-                  <>
-                    {renderLiveRow(grouped.row1)}
-                    {renderLiveRow(grouped.row2)}
-                    {renderLiveRow(grouped.row3)}
-                    <AncientSolarLedgerRow entries={ancientSolarEntries} />
-                  </>
-                ) : grouped && liveRowsLayout === 'pairedRows' ? (
-                  <>
-                    {renderPairedBand(grouped.row1, grouped.row2, getTopPairedBandFlipRef)}
-                    {renderPairedBand(grouped.row3, grouped.row4, getBottomPairedBandFlipRef)}
-                  </>
-                ) : grouped ? (
-                  <>
-                    {renderLiveRow(grouped.row1)}
-                    {renderLiveRow(grouped.row2)}
-                    {renderLiveRow(grouped.row3)}
-                    {renderLiveRow(grouped.row4)}
-                  </>
-                ) : null}
+                <div className="min-h-0 w-full flex-1 overflow-hidden">
+                  <FitToBox
+                    minScale={0.15}
+                    maxScale={1}
+                    className="h-full w-full"
+                    deferInnerResizeComputeMs={flipEnabled ? LIVE_FLEET_INNER_RESIZE_DEFER_MS : 0}
+                  >
+                    {hasLiveContent && grouped ? (
+                      <div
+                        className={cx(
+                          'flex flex-col items-center gap-[10px]',
+                          liveLayoutCanvasClassName
+                        )}
+                      >
+                        {grouped.row1.length > 0 ? renderLiveRow(grouped.row1) : null}
+                        {grouped.row2.length > 0 ? renderLiveRow(grouped.row2) : null}
+                        {grouped.row3.length > 0 ? renderLiveRow(grouped.row3) : null}
+                      </div>
+                    ) : null}
+                  </FitToBox>
+                </div>
+
+                <AncientSolarLedgerRow
+                  entries={ancientSolarEntries}
+                  compact
+                />
               </div>
-            ) : null}
-          </FitToBox>
+            ) : (
+              <div className="flex h-full min-h-0 w-full items-center justify-center">
+                <div
+                  className={cx(
+                    'ss-boardTurnPulse flex w-full flex-col items-center gap-[18px]',
+                    turnPulse.isActive && 'ss-boardTurnPulse-active'
+                  )}
+                  onAnimationEnd={turnPulse.onAnimationEnd}
+                >
+                  <FitToWidthInFlow
+                    minScale={fitMinScale}
+                    className="w-full"
+                    overflowVisible={liveFitOverflowVisible}
+                  >
+                    {hasLiveContent && grouped ? (
+                      <div
+                        className={cx(
+                          'flex flex-col items-center gap-[18px]',
+                          liveLayoutCanvasClassName
+                        )}
+                      >
+                        {renderLiveRow(grouped.row1)}
+                        {renderLiveRow(grouped.row2)}
+                        {renderLiveRow(grouped.row3)}
+                      </div>
+                    ) : null}
+                  </FitToWidthInFlow>
+
+                  <AncientSolarLedgerRow entries={ancientSolarEntries} />
+                </div>
+              </div>
+            )
+          ) : (
+            <FitToBox
+              minScale={fitMinScale}
+              className="w-full h-full"
+              overflowVisible={liveFitOverflowVisible}
+              deferInnerResizeComputeMs={flipEnabled ? LIVE_FLEET_INNER_RESIZE_DEFER_MS : 0}
+            >
+              {hasLiveContent ? (
+                <div
+                  className={cx(
+                    liveRowsClassName,
+                    liveLayoutCanvasClassName,
+                    turnPulse.isActive && 'ss-boardTurnPulse-active'
+                  )}
+                  onAnimationEnd={turnPulse.onAnimationEnd}
+                >
+                  {grouped && liveRowsLayout === 'pairedRows' ? (
+                    <>
+                      {renderPairedBand(grouped.row1, grouped.row2, getTopPairedBandFlipRef)}
+                      {renderPairedBand(grouped.row3, grouped.row4, getBottomPairedBandFlipRef)}
+                    </>
+                  ) : grouped ? (
+                    <>
+                      {renderLiveRow(grouped.row1)}
+                      {renderLiveRow(grouped.row2)}
+                      {renderLiveRow(grouped.row3)}
+                      {renderLiveRow(grouped.row4)}
+                    </>
+                  ) : null}
+                </div>
+              ) : null}
+            </FitToBox>
+          )}
         </div>
 
          {hasVoidShips ? (

@@ -33,8 +33,10 @@ const SOLAR_GRAPHIC_BY_ID: Record<LiveRowAncientSolarPowerId, SolarGraphic> = {
 
 export function AncientSolarLedgerRow({
   entries,
+  compact = false,
 }: {
   entries: AncientSolarDisplayEntry[];
+  compact?: boolean;
 }) {
   const displayKeys = entries.map((entry) => entry.displayKey);
   const layoutSignature = displayKeys.join('|');
@@ -53,24 +55,26 @@ export function AncientSolarLedgerRow({
   });
 
   return (
-    <div className="h-[92px] w-full min-w-0 shrink-0">
+    <div className={compact
+      ? 'h-[50px] w-full min-w-0 shrink-0'
+      : 'h-[92px] w-full min-w-0 shrink-0'}>
       {entries.length > 0 ? (
         <FitToBox
           minScale={0.15}
+          maxScale={1}
           className="h-full w-full"
-          overflowVisible
           deferInnerResizeComputeMs={SOLAR_ROW_FLIP_DURATION_MS}
         >
-          <div className="flex h-[92px] w-max flex-row items-center justify-center gap-[18px]">
+          <div className="inline-flex w-max flex-row items-center justify-center gap-[18px]">
             {entries.map((entry) => {
               const SolarGraphic = SOLAR_GRAPHIC_BY_ID[entry.solarPowerId];
               return (
                 <div
                   key={entry.displayKey}
                   ref={getFlipRef(entry.displayKey)}
-                  className="flex h-[92px] w-[94px] shrink-0 items-center justify-center"
+                  className="inline-flex shrink-0 items-center justify-center"
                 >
-                  <SolarGraphic />
+                  <SolarGraphic className="block shrink-0" />
                 </div>
               );
             })}

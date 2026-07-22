@@ -2,9 +2,9 @@ import React from 'react';
 
 export const StarBirth: React.FC<{ className?: string }> = ({ className }) => (
   <svg
-    width="65"
-    height="62"
-    viewBox="0 0 65 62"
+    width="73"
+    height="70"
+    viewBox="-4 -4 73 70"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"
     className={className}
