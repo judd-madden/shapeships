@@ -278,6 +278,7 @@ export function mapGameSessionVm(args: {
   } | null;
   ancientChargeDeclaration?: GameSessionViewModel['actionPanel']['ancientChargeDeclaration'];
   ancientCatalogueEnergy?: GameSessionViewModel['actionPanel']['ancientCatalogueEnergy'];
+  ancientAutocastEnabled: boolean;
 }): GameSessionViewModel {
   const {
     isBootstrapping,
@@ -351,6 +352,7 @@ export function mapGameSessionVm(args: {
     buildDrawingEconomyDisplay,
     ancientChargeDeclaration,
     ancientCatalogueEnergy,
+    ancientAutocastEnabled,
   } = args;
   const isSpectator = viewer.isSpectator === true;
   
@@ -791,7 +793,7 @@ export function mapGameSessionVm(args: {
     readyButtonLabel = 'READY';
     readyButtonNote = ancientChargeDeclaration.stage === 'charges'
       ? 'Proceed to Powers'
-      : 'Submit Declaration';
+      : null;
   }
 
   if (!isFinished && phaseKey === 'battle.reveal') {
@@ -1468,6 +1470,7 @@ export function mapGameSessionVm(args: {
       evolverDrawing,
       ancientChargeDeclaration,
       ancientCatalogueEnergy,
+      ancientAutocastEnabled,
       shipChoices,
       phaseLocalFamilySwitch:
         buildDrawingFamilySwitch && finalActivePanelId !== 'ap.menu.root'

@@ -65,9 +65,13 @@ export function MobileCatalogueScroller({
           }
           catalogueEnergy={vm.ancientCatalogueEnergy}
           declarationEnergy={vm.ancientChargeDeclaration?.provisionalEnergy}
-          showReturnToCharges={false}
+          declarationStage={vm.ancientChargeDeclaration?.stage}
+          canCastManualSolarPowerById={vm.ancientChargeDeclaration?.canCastManualSolarPowerById}
+          autocastEnabled={
+            vm.ancientChargeDeclaration?.autocastEnabled ?? vm.ancientAutocastEnabled
+          }
+          autocastDisabled={vm.ancientChargeDeclaration?.attemptUnresolved === true}
           declarationAttemptUnresolved={vm.ancientChargeDeclaration?.attemptUnresolved === true}
-          onReturnToCharges={actions.onReturnToAncientCharges}
         />
       </MobileScaledCatalogueCanvas>
     ) : null;

@@ -13,6 +13,7 @@ import { LargeStyleChoicePanel } from '../../actionPanel/panels/LargeStyleChoice
 import { ShipChoicesPanel } from '../../actionPanel/panels/ShipChoicesPanel';
 import { MobileCatalogueScroller } from './MobileCatalogueScroller';
 import { MobileEndOfGameActionPanel } from './MobileEndOfGameActionPanel';
+import { AncientAutocastControl } from '../../actionPanel/panels/catalogue/ancient/AncientShipCataloguePanel';
 
 interface MobileActionPanelProps {
   vm: ActionPanelViewModel;
@@ -251,19 +252,8 @@ export function MobileActionPanel({
   }
 
   if (CATALOGUE_PANEL_IDS.has(vm.activePanelId)) {
-    const isAncientDeclaration = vm.activePanelId === 'ap.battle.solar_powers.ancient';
     return renderWithHealthOverlay(
       <div className="relative h-[204px] w-full shrink-0 overflow-hidden border-t border-[var(--shapeships-grey-70)] bg-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-        {isAncientDeclaration && vm.ancientChargeDeclaration?.hadChargeStage ? (
-          <button
-            type="button"
-            disabled={vm.ancientChargeDeclaration.attemptUnresolved}
-            onClick={actions.onReturnToAncientCharges}
-            className="absolute right-[10px] top-[8px] z-[30] rounded bg-black/80 px-[8px] py-[4px] text-[13px] font-bold text-[var(--shapeships-pastel-red)] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Return to Charges
-          </button>
-        ) : null}
         <MobileCatalogueScroller
           vm={vm}
           actions={actions}
@@ -337,9 +327,19 @@ export function MobileActionPanel({
 
   if (shipChoiceSpec) {
     if (shipChoiceSpec.kind === 'buttons') {
+      const showAncientChargesAutocast =
+        vm.activePanelId === 'ap.battle.charges.ancient' &&
+        vm.ancientChargeDeclaration?.stage === 'charges';
       if (!vm.shipChoices?.groups || vm.shipChoices.groups.length === 0) {
         return renderWithHealthOverlay(
           <MobileActionPanelWrapper ariaLabel="Mobile action panel empty state">
+            {showAncientChargesAutocast ? (
+              <AncientAutocastControl
+                checked={vm.ancientChargeDeclaration?.autocastEnabled ?? vm.ancientAutocastEnabled}
+                disabled={vm.ancientChargeDeclaration?.attemptUnresolved === true}
+                onChange={actions.onSetAncientAutocastEnabled}
+              />
+            ) : null}
             {renderNoActionsAvailable()}
           </MobileActionPanelWrapper>
         );
@@ -357,6 +357,13 @@ export function MobileActionPanel({
           scrollHintResetKey={`${vm.activePanelId}:${shipChoiceRowCount}`}
         >
           {renderMobilePhaseLocalFamilySwitch()}
+          {showAncientChargesAutocast ? (
+            <AncientAutocastControl
+              checked={vm.ancientChargeDeclaration?.autocastEnabled ?? vm.ancientAutocastEnabled}
+              disabled={vm.ancientChargeDeclaration?.attemptUnresolved === true}
+              onChange={actions.onSetAncientAutocastEnabled}
+            />
+          ) : null}
           <ShipChoicesPanel
             groups={vm.shipChoices.groups}
             layout="mobile"

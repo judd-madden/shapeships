@@ -9,8 +9,11 @@ interface AncientSolarPowerSlotProps {
   costRows: readonly AncientEnergyCostRow[];
   costPlacement?: 'right' | 'below';
   showPlus?: boolean;
-  onMouseEnter?: MouseEventHandler<HTMLDivElement>;
-  onMouseLeave?: MouseEventHandler<HTMLDivElement>;
+  onMouseEnter?: MouseEventHandler<HTMLElement>;
+  onMouseLeave?: MouseEventHandler<HTMLElement>;
+  onClick?: () => void;
+  disabled?: boolean;
+  ariaLabel?: string;
 }
 
 export function AncientSolarPowerSlot({
@@ -20,17 +23,15 @@ export function AncientSolarPowerSlot({
   showPlus = false,
   onMouseEnter,
   onMouseLeave,
+  onClick,
+  disabled = false,
+  ariaLabel,
 }: AncientSolarPowerSlotProps) {
-  return (
-    <div
-      className={
-        costPlacement === 'below'
-          ? 'flex flex-col items-center gap-[8px]'
-          : 'flex items-center gap-[8px]'
-      }
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
+  const className = costPlacement === 'below'
+    ? 'flex flex-col items-center gap-[8px] border-0 bg-transparent p-0 text-inherit'
+    : 'flex items-center gap-[8px] border-0 bg-transparent p-0 text-inherit';
+  const content = (
+    <>
       <Graphic />
       <AncientEnergyCostPips rows={costRows} />
       {showPlus ? (
@@ -42,6 +43,32 @@ export function AncientSolarPowerSlot({
           +
         </span>
       ) : null}
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        aria-label={ariaLabel}
+        className={className}
+        disabled={disabled}
+        onClick={onClick}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      className={className}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      {content}
     </div>
   );
 }

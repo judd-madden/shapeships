@@ -11,10 +11,35 @@ export type { AncientEnergyPool } from './selectors';
 
 export type AncientChargeDeclarationStage = 'charges' | 'powers';
 
+export type ImplementedAncientManualSolarPowerId =
+  | 'SLIF'
+  | 'SSTA'
+  | 'SAST'
+  | 'SSUP'
+  | 'SCON';
+
+export type AncientManualSolarCast = {
+  solarPowerId: ImplementedAncientManualSolarPowerId;
+};
+
+export const ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID = {
+  SLIF: { green: 1, red: 0, blue: 0 },
+  SSTA: { green: 3, red: 0, blue: 0 },
+  SAST: { green: 0, red: 1, blue: 0 },
+  SSUP: { green: 0, red: 3, blue: 0 },
+  SCON: { green: 0, red: 0, blue: 1 },
+} as const satisfies Readonly<Record<ImplementedAncientManualSolarPowerId, AncientEnergyPool>>;
+
+const IMPLEMENTED_ANCIENT_MANUAL_SOLAR_POWER_IDS = new Set<string>(
+  Object.keys(ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID)
+);
+
 export type AncientChargeDeclarationWorkflow = {
   key: string;
   stage: AncientChargeDeclarationStage;
   hadChargeStage: boolean;
+  localManualSolarCasts: AncientManualSolarCast[];
+  rejectionRecoveryPending: boolean;
 };
 
 export type AncientChargeDeclarationPayload = {
@@ -25,8 +50,8 @@ export type AncientChargeDeclarationPayload = {
     sourceInstanceId: string;
     choiceId: 'use' | 'hold';
   }>;
-  solarCasts: [];
-  autocastEnabled: false;
+  solarCasts: AncientManualSolarCast[];
+  autocastEnabled: boolean;
 };
 
 export type FrozenAncientChargeDeclarationAttempt = {
@@ -70,6 +95,81 @@ export function getAncientEnergyTotal(pool: AncientEnergyPool): number {
   return pool.green + pool.red + pool.blue;
 }
 
+export function isImplementedAncientManualSolarPowerId(
+  value: unknown
+): value is ImplementedAncientManualSolarPowerId {
+  return typeof value === 'string' && IMPLEMENTED_ANCIENT_MANUAL_SOLAR_POWER_IDS.has(value);
+}
+
+export function canAffordAncientEnergyCost(
+  pool: AncientEnergyPool,
+  cost: AncientEnergyPool
+): boolean {
+  return pool.green >= cost.green && pool.red >= cost.red && pool.blue >= cost.blue;
+}
+
+export function replayAncientManualSolarCasts(args: {
+  startingPool: AncientEnergyPool;
+  localManualSolarCasts: readonly AncientManualSolarCast[];
+}): { remainingEnergy: AncientEnergyPool; valid: boolean } {
+  const remainingEnergy = { ...args.startingPool };
+
+  for (const cast of args.localManualSolarCasts) {
+    const cost = ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID[cast.solarPowerId];
+    remainingEnergy.green -= cost.green;
+    remainingEnergy.red -= cost.red;
+    remainingEnergy.blue -= cost.blue;
+  }
+
+  return {
+    remainingEnergy,
+    valid:
+      remainingEnergy.green >= 0 &&
+      remainingEnergy.red >= 0 &&
+      remainingEnergy.blue >= 0,
+  };
+}
+
+export function deriveAncientManualSolarCastability(args: {
+  stage: AncientChargeDeclarationStage;
+  remainingEnergy: AncientEnergyPool;
+  energySequenceValid: boolean;
+  attemptUnresolved: boolean;
+  rejectionRecoveryPending: boolean;
+}): Record<ImplementedAncientManualSolarPowerId, boolean> {
+  const interactionAvailable =
+    args.stage === 'powers' &&
+    args.energySequenceValid &&
+    !args.attemptUnresolved &&
+    !args.rejectionRecoveryPending;
+
+  return Object.fromEntries(
+    Object.entries(ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID).map(([solarPowerId, cost]) => [
+      solarPowerId,
+      interactionAvailable && canAffordAncientEnergyCost(args.remainingEnergy, cost),
+    ])
+  ) as Record<ImplementedAncientManualSolarPowerId, boolean>;
+}
+
+export function getUsableAncientEnergyPoolForPlayer(
+  state: any,
+  playerId: string | null | undefined
+): AncientEnergyPool | null {
+  if (!playerId) return null;
+
+  const pool = state?.publicState?.ancient?.energyByPlayerId?.[playerId]?.pool;
+  if (
+    !pool ||
+    !Number.isInteger(pool.green) || pool.green < 0 ||
+    !Number.isInteger(pool.red) || pool.red < 0 ||
+    !Number.isInteger(pool.blue) || pool.blue < 0
+  ) {
+    return null;
+  }
+
+  return { green: pool.green, red: pool.red, blue: pool.blue };
+}
+
 export function deriveProvisionalAncientEnergy(args: {
   authoritativePool: AncientEnergyPool;
   solarGridActions: readonly RenderableServerAction[];
@@ -96,6 +196,8 @@ export function buildAncientChargeDeclarationPayload(args: {
   selectedChoiceIdBySourceInstanceId: Record<string, string>;
   allocatedTargetIdsBySourceInstanceId: Record<string, string[]>;
   allocatedTargetIdBySourceInstanceId: Record<string, string>;
+  localManualSolarCasts: readonly AncientManualSolarCast[];
+  autocastEnabled: boolean;
 }): AncientChargeDeclarationPayload {
   const { solarGridActions, ordinaryChargeActions } = partitionAncientChargeDeclarationActions(args.actions);
 
@@ -144,7 +246,7 @@ export function buildAncientChargeDeclarationPayload(args: {
     declarationId: args.declarationId,
     ordinaryChargeActions: ordinaryActions,
     solarGridChoices,
-    solarCasts: [],
-    autocastEnabled: false,
+    solarCasts: args.localManualSolarCasts.map(({ solarPowerId }) => ({ solarPowerId })),
+    autocastEnabled: args.autocastEnabled,
   };
 }

@@ -177,13 +177,20 @@ import {
 } from './gameSession/availableActions';
 import { buildMessageAction } from './gameSession/powerIntents';
 import {
+  ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID,
   buildAncientChargeDeclarationPayload,
+  canAffordAncientEnergyCost,
+  deriveAncientManualSolarCastability,
   deriveProvisionalAncientEnergy,
   getAncientChargeDeclarationActions,
   getAncientEnergyTotal,
+  getUsableAncientEnergyPoolForPlayer,
+  isImplementedAncientManualSolarPowerId,
   partitionAncientChargeDeclarationActions,
+  replayAncientManualSolarCasts,
   type AncientChargeDeclarationWorkflow,
   type FrozenAncientChargeDeclarationAttempt,
+  type ImplementedAncientManualSolarPowerId,
 } from './gameSession/ancientChargeDeclaration';
 
 
@@ -200,6 +207,17 @@ interface UseGameSessionOptions {
 
 const ANCIENT_SELECTION_ENABLED = import.meta.env.DEV;
 const EMPTY_BUILD_PREVIEW_COUNTS: Record<string, number> = {};
+const ANCIENT_AUTOCAST_ENABLED_STORAGE_KEY = 'shapeships.ancientAutocastEnabled.v1';
+
+function readAncientAutocastEnabledPreference(): boolean {
+  try {
+    const storedValue = window.localStorage.getItem(ANCIENT_AUTOCAST_ENABLED_STORAGE_KEY);
+    if (storedValue === 'false') return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
 
 function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRowVm[] {
   if (!Array.isArray(rawRows)) {
@@ -1621,6 +1639,9 @@ export function useGameSession(
     useState<AncientChargeDeclarationWorkflow | null>(null);
   const [ancientChargeDeclarationAttempt, setAncientChargeDeclarationAttempt] =
     useState<FrozenAncientChargeDeclarationAttempt | null>(null);
+  const [ancientAutocastEnabled, setAncientAutocastEnabled] =
+    useState(readAncientAutocastEnabledPreference);
+  const ancientRejectionRecoveryBaselineStateRef = useRef<any>(null);
   
   // ============================================================================
   // TASK A: HARD RESET PREVIEW STATE ON TURN CHANGE
@@ -2198,22 +2219,33 @@ export function useGameSession(
   const ancientDeclarationActions = getAncientChargeDeclarationActions(availableActions);
   const { solarGridActions: ancientSolarGridActions } =
     partitionAncientChargeDeclarationActions(ancientDeclarationActions);
-  const ancientChargeDeclarationWorkflowKey = `${effectiveGameId ?? 'nogame'}::${phaseInstanceKey}`;
+  const ancientChargeDeclarationWorkflowKey =
+    `${effectiveGameId ?? 'nogame'}::${me?.id ?? 'noplayer'}::${phaseInstanceKey}`;
   const ancientPlayerReady = isPlayerReadyForPhase(rawState, me?.id);
   const ancientDeclarationActionsLoaded = Array.isArray(availableActions);
+  const hasPendingAncientRejectionRecovery =
+    ancientChargeDeclarationWorkflow?.key === ancientChargeDeclarationWorkflowKey &&
+    ancientChargeDeclarationWorkflow.rejectionRecoveryPending;
   const shouldPresentAncientChargeDeclaration =
     phaseKey === 'battle.charge_declaration' &&
     myRole === 'player' &&
     mySpecies === 'ancient' &&
     !ancientPlayerReady &&
-    ancientDeclarationActionsLoaded &&
-    (ancientDeclarationActions.length > 0 || getAncientEnergyTotal(authoritativeAncientEnergy) > 0);
+    (
+      hasPendingAncientRejectionRecovery ||
+      (
+        ancientDeclarationActionsLoaded &&
+        (ancientDeclarationActions.length > 0 || getAncientEnergyTotal(authoritativeAncientEnergy) > 0)
+      )
+    );
   const initialAncientChargeDeclarationWorkflow: AncientChargeDeclarationWorkflow | null =
-    shouldPresentAncientChargeDeclaration
+    shouldPresentAncientChargeDeclaration && !hasPendingAncientRejectionRecovery
       ? {
           key: ancientChargeDeclarationWorkflowKey,
           stage: ancientDeclarationActions.length > 0 ? 'charges' : 'powers',
           hadChargeStage: ancientDeclarationActions.length > 0,
+          localManualSolarCasts: [],
+          rejectionRecoveryPending: false,
         }
       : null;
   const activeAncientChargeDeclarationWorkflow =
@@ -2225,14 +2257,27 @@ export function useGameSession(
     ancientChargeDeclarationAttempt?.workflowKey === ancientChargeDeclarationWorkflowKey
       ? ancientChargeDeclarationAttempt
       : null;
-  const provisionalAncientEnergy = deriveProvisionalAncientEnergy({
+  const provisionalAncientEnergyBeforeManualCasts = deriveProvisionalAncientEnergy({
     authoritativePool: authoritativeAncientEnergy,
     solarGridActions: ancientSolarGridActions,
     selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
   });
+  const ancientManualSolarCastReplay = replayAncientManualSolarCasts({
+    startingPool: provisionalAncientEnergyBeforeManualCasts,
+    localManualSolarCasts: activeAncientChargeDeclarationWorkflow?.localManualSolarCasts ?? [],
+  });
+  const provisionalAncientEnergy = ancientManualSolarCastReplay.remainingEnergy;
+  const canCastAncientManualSolarPowerById = deriveAncientManualSolarCastability({
+    stage: activeAncientChargeDeclarationWorkflow?.stage ?? 'charges',
+    remainingEnergy: provisionalAncientEnergy,
+    energySequenceValid: ancientManualSolarCastReplay.valid,
+    attemptUnresolved: activeAncientChargeDeclarationAttempt != null,
+    rejectionRecoveryPending:
+      activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending === true,
+  });
 
   useLayoutEffect(() => {
-    if (!initialAncientChargeDeclarationWorkflow) {
+    if (!initialAncientChargeDeclarationWorkflow && !hasPendingAncientRejectionRecovery) {
       if (ancientChargeDeclarationWorkflow != null) setAncientChargeDeclarationWorkflow(null);
       if (ancientChargeDeclarationAttempt != null) setAncientChargeDeclarationAttempt(null);
       if (
@@ -2244,7 +2289,10 @@ export function useGameSession(
       return;
     }
 
-    if (ancientChargeDeclarationWorkflow?.key !== ancientChargeDeclarationWorkflowKey) {
+    if (
+      initialAncientChargeDeclarationWorkflow &&
+      ancientChargeDeclarationWorkflow?.key !== ancientChargeDeclarationWorkflowKey
+    ) {
       setAncientChargeDeclarationWorkflow(initialAncientChargeDeclarationWorkflow);
     }
     if (
@@ -2259,6 +2307,89 @@ export function useGameSession(
     ancientChargeDeclarationWorkflow,
     ancientChargeDeclarationWorkflowKey,
     initialAncientChargeDeclarationWorkflow,
+    hasPendingAncientRejectionRecovery,
+  ]);
+
+  useLayoutEffect(() => {
+    const workflow = ancientChargeDeclarationWorkflow;
+    if (
+      !workflow?.rejectionRecoveryPending ||
+      workflow.key !== ancientChargeDeclarationWorkflowKey ||
+      rawState == null ||
+      rawState === ancientRejectionRecoveryBaselineStateRef.current
+    ) {
+      return;
+    }
+
+    ancientRejectionRecoveryBaselineStateRef.current = rawState;
+
+    const refreshedAvailableActions = getAvailableActions(rawState);
+    const refreshedEnergy = getUsableAncientEnergyPoolForPlayer(rawState, me?.id);
+    const refreshedGameId = typeof rawState?.gameId === 'string' ? rawState.gameId : null;
+    const refreshedPhaseKey = getPhaseKey(rawState);
+    const refreshedTurnNumber = getTurnNumber(rawState);
+    const recoverySnapshotUsable =
+      refreshedGameId === effectiveGameId &&
+      me?.id != null &&
+      refreshedPhaseKey === 'battle.charge_declaration' &&
+      refreshedTurnNumber === turnNumber &&
+      !isPlayerReadyForPhase(rawState, me.id) &&
+      Array.isArray(refreshedAvailableActions) &&
+      refreshedEnergy != null;
+
+    if (!recoverySnapshotUsable) {
+      return;
+    }
+
+    const refreshedDeclarationActions = getAncientChargeDeclarationActions(refreshedAvailableActions);
+    const nextStage = refreshedDeclarationActions.length > 0 ? 'charges' : 'powers';
+    setShipChoiceSelectionByInstanceId((previousSelections) => {
+      const nextSelections: Record<string, string> = {};
+
+      for (const action of refreshedDeclarationActions) {
+        const allowedChoiceIds = getRenderableActionChoiceIds(action);
+        if (allowedChoiceIds.length === 0) continue;
+
+        const previousChoiceId = previousSelections[action.sourceInstanceId];
+        if (previousChoiceId && allowedChoiceIds.includes(previousChoiceId)) {
+          nextSelections[action.sourceInstanceId] = previousChoiceId;
+          continue;
+        }
+
+        const defaultChoiceId = getDefaultChoiceIdForRenderableAction(action);
+        if (defaultChoiceId) {
+          nextSelections[action.sourceInstanceId] = defaultChoiceId;
+        }
+      }
+
+      const previousKeys = Object.keys(previousSelections);
+      const nextKeys = Object.keys(nextSelections);
+      const unchanged =
+        previousKeys.length === nextKeys.length &&
+        previousKeys.every((sourceInstanceId) =>
+          previousSelections[sourceInstanceId] === nextSelections[sourceInstanceId]
+        );
+      return unchanged ? previousSelections : nextSelections;
+    });
+    setAncientChargeDeclarationWorkflow({
+      key: ancientChargeDeclarationWorkflowKey,
+      stage: nextStage,
+      hadChargeStage: refreshedDeclarationActions.length > 0,
+      localManualSolarCasts: [],
+      rejectionRecoveryPending: false,
+    });
+    setActivePanelId(
+      nextStage === 'charges'
+        ? 'ap.battle.charges.ancient'
+        : 'ap.battle.solar_powers.ancient'
+    );
+  }, [
+    ancientChargeDeclarationWorkflow,
+    ancientChargeDeclarationWorkflowKey,
+    effectiveGameId,
+    me?.id,
+    rawState,
+    turnNumber,
   ]);
   
   // Species labels for HUD (show "Selecting Species" if not revealed yet)
@@ -3963,6 +4094,12 @@ useEffect(() => {
     );
   const isNonInputBattleTransitionPhase =
     phaseKey === 'battle.reveal' || phaseKey === 'battle.end_of_turn_resolution';
+  const ancientDeclarationLocalStateInvalid =
+    activeAncientChargeDeclarationWorkflow != null &&
+    (
+      !ancientManualSolarCastReplay.valid ||
+      activeAncientChargeDeclarationWorkflow.rejectionRecoveryPending
+    );
 
   let readyEnabled = true;
   let readyDisabledReason: string | null = null;
@@ -3986,6 +4123,11 @@ useEffect(() => {
   } else if (isNonInputBattleTransitionPhase) {
     readyEnabled = false;
     readyDisabledReason = null;
+  } else if (ancientDeclarationLocalStateInvalid) {
+    readyEnabled = false;
+    readyDisabledReason = activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending
+      ? 'Refreshing authoritative declaration state…'
+      : 'Invalid local Solar cast sequence';
   } else {
     // Gate Ready in server-choice phases until availableActions arrives
     const isServerChoicePhase = 
@@ -4522,10 +4664,16 @@ useEffect(() => {
           stage: activeAncientChargeDeclarationWorkflow.stage,
           hadChargeStage: activeAncientChargeDeclarationWorkflow.hadChargeStage,
           provisionalEnergy: provisionalAncientEnergy,
+          localManualSolarCasts: activeAncientChargeDeclarationWorkflow.localManualSolarCasts,
+          canCastManualSolarPowerById: canCastAncientManualSolarPowerById,
+          autocastEnabled: ancientAutocastEnabled,
           attemptUnresolved: activeAncientChargeDeclarationAttempt != null,
+          rejectionRecoveryPending:
+            activeAncientChargeDeclarationWorkflow.rejectionRecoveryPending,
         }
       : undefined,
     ancientCatalogueEnergy,
+    ancientAutocastEnabled,
   });
   
   // ============================================================================
@@ -4616,6 +4764,8 @@ useEffect(() => {
         !isFinished &&
         readyEnabled &&
         !readyDisabledReason &&
+        ancientManualSolarCastReplay.valid &&
+        !activeAncientChargeDeclarationWorkflow.rejectionRecoveryPending &&
         effectiveGameId != null &&
         !ancientAttemptForSubmission
       ) {
@@ -4625,6 +4775,8 @@ useEffect(() => {
           selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
           allocatedTargetIdsBySourceInstanceId: allocatedDestroyTargetIdsBySourceInstanceId,
           allocatedTargetIdBySourceInstanceId: allocatedDestroyTargetIdBySourceInstanceId,
+          localManualSolarCasts: activeAncientChargeDeclarationWorkflow.localManualSolarCasts,
+          autocastEnabled: ancientAutocastEnabled,
         });
         ancientAttemptForSubmission = {
           workflowKey: ancientChargeDeclarationWorkflowKey,
@@ -4708,7 +4860,17 @@ useEffect(() => {
           destroyTargetSatisfiedBySourceInstanceId,
           ancientChargeDeclarationAttempt: ancientAttemptForSubmission,
           onAncientDeclarationExplicitRejection: () => {
+            ancientRejectionRecoveryBaselineStateRef.current = rawStateRef.current;
             setAncientChargeDeclarationAttempt(null);
+            setAncientChargeDeclarationWorkflow((current) =>
+              current?.key === ancientChargeDeclarationWorkflowKey
+                ? {
+                    ...current,
+                    localManualSolarCasts: [],
+                    rejectionRecoveryPending: true,
+                  }
+                : current
+            );
           },
           onAncientDeclarationEventsHandled: () => {
             setAncientChargeDeclarationAttempt((current) =>
@@ -5123,25 +5285,62 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     },
 
     onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
-      if (activeAncientChargeDeclarationAttempt) {
+      if (
+        activeAncientChargeDeclarationAttempt ||
+        activeAncientChargeDeclarationWorkflow?.stage === 'powers' ||
+        activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending
+      ) {
         return;
       }
       setShipChoiceSelectionByInstanceId(prev => ({ ...prev, [sourceInstanceId]: choiceId }));
       applyDestroyTargetingChoiceSideEffects(sourceInstanceId, choiceId);
     },
 
-    onReturnToAncientCharges: () => {
+    onCastAncientSolarPower: (solarPowerId: ImplementedAncientManualSolarPowerId) => {
+      if (!isImplementedAncientManualSolarPowerId(solarPowerId)) {
+        return;
+      }
+
+      setAncientChargeDeclarationWorkflow((current) => {
+        if (
+          current?.key !== ancientChargeDeclarationWorkflowKey ||
+          current.stage !== 'powers' ||
+          current.rejectionRecoveryPending ||
+          activeAncientChargeDeclarationAttempt
+        ) {
+          return current;
+        }
+
+        const replay = replayAncientManualSolarCasts({
+          startingPool: provisionalAncientEnergyBeforeManualCasts,
+          localManualSolarCasts: current.localManualSolarCasts,
+        });
+        const cost = ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID[solarPowerId];
+        if (!replay.valid || !canAffordAncientEnergyCost(replay.remainingEnergy, cost)) {
+          return current;
+        }
+
+        return {
+          ...current,
+          localManualSolarCasts: [...current.localManualSolarCasts, { solarPowerId }],
+        };
+      });
+    },
+
+    onSetAncientAutocastEnabled: (enabled: boolean) => {
       if (
-        !activeAncientChargeDeclarationWorkflow?.hadChargeStage ||
-        activeAncientChargeDeclarationAttempt
+        phaseKey === 'battle.charge_declaration' &&
+        (activeAncientChargeDeclarationAttempt || ancientPlayerReady)
       ) {
         return;
       }
-      setAncientChargeDeclarationWorkflow({
-        ...activeAncientChargeDeclarationWorkflow,
-        stage: 'charges',
-      });
-      setActivePanelId('ap.battle.charges.ancient');
+
+      setAncientAutocastEnabled(enabled);
+      try {
+        window.localStorage.setItem(ANCIENT_AUTOCAST_ENABLED_STORAGE_KEY, String(enabled));
+      } catch {
+        // Keep the preference in memory when browser storage is unavailable.
+      }
     },
 
     onSelectCentaurChargeSubTab: (tabId: CentaurChargeSubTabId) => {
@@ -5156,7 +5355,11 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     },
 
     onBoardBackgroundMouseDown: () => {
-      if (activeAncientChargeDeclarationAttempt) {
+      if (
+        activeAncientChargeDeclarationAttempt ||
+        activeAncientChargeDeclarationWorkflow?.stage === 'powers' ||
+        activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending
+      ) {
         return;
       }
       handleDestroyTargetingBoardBackgroundMouseDown();
@@ -5167,7 +5370,11 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     },
 
     onDestroyTargetStackMouseDown: (side: 'my' | 'opponent', stackKey: string) => {
-      if (activeAncientChargeDeclarationAttempt) {
+      if (
+        activeAncientChargeDeclarationAttempt ||
+        activeAncientChargeDeclarationWorkflow?.stage === 'powers' ||
+        activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending
+      ) {
         return;
       }
       handleDestroyTargetStackMouseDown(side, stackKey);
@@ -5325,6 +5532,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         availableActions: [],
         selectedChoiceIdBySourceInstanceId: {},
         healthResolutionOverlay: undefined,
+        ancientAutocastEnabled: true,
       },
     };
     
@@ -5348,7 +5556,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       onRematch: () => {},
       onDownloadBattleLog: () => { },
       onSelectShipChoiceForInstance: () => { },
-      onReturnToAncientCharges: () => { },
+      onCastAncientSolarPower: () => { },
+      onSetAncientAutocastEnabled: () => { },
       onSelectCentaurChargeSubTab: () => { },
       onSelectFrigateTrigger: () => { },
       onSelectQuantumMysticNumber: () => { },

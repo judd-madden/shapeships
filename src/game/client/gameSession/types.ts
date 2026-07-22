@@ -12,6 +12,10 @@ import type { ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
 import type { FleetAnimVM } from '../../display/graphics/animation';
 import type { ActivationStaggerPlan } from '../../display/graphics/animation-stagger';
 import type { ProvisionalShipEligibility } from './provisionalBuild';
+import type {
+  AncientManualSolarCast,
+  ImplementedAncientManualSolarPowerId,
+} from './ancientChargeDeclaration';
 
 export type ReadyUxState = {
   clickedThisPhase: boolean; // user explicitly clicked Ready in this phase instance
@@ -625,10 +629,15 @@ export interface ActionPanelViewModel {
       red: number;
       blue: number;
     };
+    localManualSolarCasts: AncientManualSolarCast[];
+    canCastManualSolarPowerById: Record<ImplementedAncientManualSolarPowerId, boolean>;
+    autocastEnabled: boolean;
     attemptUnresolved: boolean;
+    rejectionRecoveryPending: boolean;
   };
 
   ancientCatalogueEnergy?: AncientCatalogueEnergyDisplay;
+  ancientAutocastEnabled: boolean;
 
   phaseLocalFamilySwitch?:
     | {
@@ -690,7 +699,8 @@ export interface GameSessionActions {
   onJoinRematchInvite?: (gameId: string) => void;
   onDownloadBattleLog: () => void;
   onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;
-  onReturnToAncientCharges: () => void;
+  onCastAncientSolarPower: (solarPowerId: ImplementedAncientManualSolarPowerId) => void;
+  onSetAncientAutocastEnabled: (enabled: boolean) => void;
   onSelectCentaurChargeSubTab: (tabId: CentaurChargeSubTabId) => void;
   onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => void;
   onSelectQuantumMysticNumber: (quantumMysticIndex: number, selectedNumber: number) => void;

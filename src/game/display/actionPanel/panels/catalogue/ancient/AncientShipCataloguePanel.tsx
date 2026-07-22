@@ -8,7 +8,7 @@
  * NO backend calls, NO rules validation, NO engine imports
  */
 
-import { useState, type ComponentType } from 'react';
+import type { ComponentType, CSSProperties } from 'react';
 import type { ActionPanelViewModel, GameSessionActions } from "../../../../../client/useGameSession";
 import type { SpeciesId } from '../../../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { Checkbox, InfoIcon } from '../../../../../../components/ui/primitives';
@@ -54,7 +54,11 @@ import {
   type AncientEnergyCostRow,
 } from './AncientEnergyDisplay';
 import { AncientSolarPowerSlot } from './AncientSolarPowerSlot';
-import type { AncientEnergyPool } from '../../../../../client/gameSession/ancientChargeDeclaration';
+import {
+  isImplementedAncientManualSolarPowerId,
+  type AncientEnergyPool,
+  type ImplementedAncientManualSolarPowerId,
+} from '../../../../../client/gameSession/ancientChargeDeclaration';
 
 type CatalogueFrame = 'desktop' | 'bare';
 type CatalogueLayout = 'standard' | 'long';
@@ -155,6 +159,13 @@ const SOLAR_POWER_SLOTS = [
 ] as const satisfies readonly SolarPowerSlotConfig[];
 
 const SOLAR_POWER_IDS = new Set<ShipDefId>(SOLAR_POWER_SLOTS.map((slot) => slot.id));
+const MANUAL_SOLAR_POWER_LABEL_BY_ID: Record<ImplementedAncientManualSolarPowerId, string> = {
+  SLIF: 'Life',
+  SSTA: 'Star Birth',
+  SAST: 'Asteroid',
+  SSUP: 'Supernova',
+  SCON: 'Convert',
+};
 
 const SOLAR_HEADER_POSITIONS: Record<
   CatalogueLayout,
@@ -189,9 +200,73 @@ interface AncientShipCataloguePanelProps {
   presentation?: 'reference' | 'declaration';
   catalogueEnergy?: ActionPanelViewModel['ancientCatalogueEnergy'];
   declarationEnergy?: AncientEnergyPool;
-  showReturnToCharges?: boolean;
+  declarationStage?: 'charges' | 'powers';
+  canCastManualSolarPowerById?: Partial<Record<ImplementedAncientManualSolarPowerId, boolean>>;
+  autocastEnabled: boolean;
+  autocastDisabled?: boolean;
   declarationAttemptUnresolved?: boolean;
-  onReturnToCharges?: () => void;
+}
+
+interface AncientAutocastControlProps {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (enabled: boolean) => void;
+  className?: string;
+  style?: CSSProperties;
+}
+
+export function AncientAutocastControl({
+  checked,
+  disabled = false,
+  onChange,
+  className = '',
+  style,
+}: AncientAutocastControlProps) {
+  return (
+    <div className={`flex items-center gap-[2px] ${className}`} style={style}>
+      <Checkbox
+        className="!size-[24px]"
+        checked={checked}
+        onChange={onChange}
+        disabled={disabled}
+      />
+      <span
+        className="font-['Roboto'] text-[18px] font-bold leading-none text-white"
+        style={{ fontVariationSettings: "'wdth' 100" }}
+      >
+        Autocast
+      </span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="About Autocast"
+            className="flex size-[24px] shrink-0 items-center justify-center opacity-50 transition-opacity duration-100 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <InfoIcon className="size-[24px]" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent
+          side="top"
+          align="end"
+          sideOffset={10}
+          showArrow={false}
+          className="relative z-[80] bg-transparent p-0 shadow-none"
+        >
+          <div className="w-fit max-w-[calc(100vw-32px)] translate-x-[10px] rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[20px] py-[16px] text-[16px] font-normal leading-[22px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+            <div className="flex flex-col">
+              <p>When you press Ready, Autocast spends remaining Energy on Star Birth, Supernova, Convert, then Life and Asteroid.</p>
+              <p>It never casts Simulacrum, Siphon, Vortex, or Black Hole.</p>
+            </div>
+          </div>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-[-6px] right-[6px] size-[12px] rotate-45 border-b border-r border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)]"
+          />
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
 }
 
 export function AncientShipCataloguePanel({
@@ -206,11 +281,12 @@ export function AncientShipCataloguePanel({
   presentation = 'reference',
   catalogueEnergy,
   declarationEnergy,
-  showReturnToCharges = false,
+  declarationStage,
+  canCastManualSolarPowerById,
+  autocastEnabled,
+  autocastDisabled = false,
   declarationAttemptUnresolved = false,
-  onReturnToCharges,
 }: AncientShipCataloguePanelProps) {
-  const [autocastChecked, setAutocastChecked] = useState(true);
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
@@ -550,76 +626,30 @@ export function AncientShipCataloguePanel({
             )}
           </div>
 
-          <div
-            className={`absolute flex items-center gap-[2px] ${isDeclarationPresentation ? 'opacity-40' : ''}`}
+          <AncientAutocastControl
+            className="absolute"
             style={{
               left: solarHeaderPositions.autocast.x,
               top: solarHeaderPositions.autocast.y,
             }}
-          >
-            <Checkbox
-              className="!size-[24px]"
-              checked={isDeclarationPresentation ? false : autocastChecked}
-              onChange={isDeclarationPresentation ? undefined : setAutocastChecked}
-              disabled={isDeclarationPresentation}
-            />
-            <span
-              className="font-['Roboto'] text-[18px] font-bold leading-none text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
-            >
-              {isDeclarationPresentation ? 'Autocast (Unavailable)' : 'Autocast'}
-            </span>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="About Autocast"
-                  className="flex size-[24px] shrink-0 items-center justify-center opacity-50 transition-opacity duration-100 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                >
-                  <InfoIcon className="size-[24px]" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent
-                side="top"
-                align="end"
-                sideOffset={10}
-                showArrow={false}
-                className="relative z-[80] bg-transparent p-0 shadow-none"
-              >
-                <div className="w-fit max-w-[calc(100vw-32px)] translate-x-[10px] rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[20px] py-[16px] text-[16px] font-normal leading-[22px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-                  <div className="flex flex-col">
-                    {isDeclarationPresentation ? (
-                      <p>Autocast is not available in this declaration workflow yet.</p>
-                    ) : (
-                      <>
-                        <p>When you declare READY, autocast priority powers with remaining energy each turn.</p>
-                        <p className="italic">Does not autocast Simulacrum or multi-colour powers.</p>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute bottom-[-6px] right-[6px] size-[12px] rotate-45 border-b border-r border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)]"
-                />
-              </TooltipContent>
-            </Tooltip>
-          </div>
-
-          {isDeclarationPresentation && showReturnToCharges ? (
-            <button
-              type="button"
-              disabled={declarationAttemptUnresolved}
-              onClick={onReturnToCharges}
-              className="absolute right-0 top-[34px] z-20 text-[16px] font-bold text-[var(--shapeships-pastel-red)] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Return to Charges
-            </button>
-          ) : null}
+            checked={autocastEnabled}
+            disabled={autocastDisabled}
+            onChange={actions.onSetAncientAutocastEnabled}
+          />
 
           {SOLAR_POWER_SLOTS.map((slot) => {
             const position = slot.position[catalogueLayout];
             const Graphic = slot.id === 'SSIM' ? SimulacrumGraphic : slot.graphic;
+            const manualSolarPowerId = isImplementedAncientManualSolarPowerId(slot.id)
+              ? slot.id
+              : null;
+            const isManualCastButton =
+              isDeclarationPresentation &&
+              declarationStage === 'powers' &&
+              manualSolarPowerId != null;
+            const canCast =
+              manualSolarPowerId != null &&
+              canCastManualSolarPowerById?.[manualSolarPowerId] === true;
 
             return (
               <div
@@ -635,6 +665,17 @@ export function AncientShipCataloguePanel({
                     'costPlacement' in slot ? slot.costPlacement : undefined
                   }
                   showPlus={'showPlus' in slot && slot.showPlus}
+                  onClick={
+                    isManualCastButton && manualSolarPowerId
+                      ? () => actions.onCastAncientSolarPower(manualSolarPowerId)
+                      : undefined
+                  }
+                  disabled={!canCast || declarationAttemptUnresolved}
+                  ariaLabel={
+                    isManualCastButton && manualSolarPowerId
+                      ? `Cast ${MANUAL_SOLAR_POWER_LABEL_BY_ID[manualSolarPowerId]}`
+                      : undefined
+                  }
                   onMouseEnter={
                     hoverDisabled
                       ? undefined

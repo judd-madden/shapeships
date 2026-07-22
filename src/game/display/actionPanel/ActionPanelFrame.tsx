@@ -11,7 +11,10 @@ import type { FirstStrikeActionFamily } from '../../client/gameSession/types';
 import { HumanShipCataloguePanel } from './panels/catalogue/human/HumanShipCataloguePanel';
 import { XeniteShipCataloguePanel } from './panels/catalogue/xenite/XeniteShipCataloguePanel';
 import { CentaurShipCataloguePanel } from './panels/catalogue/centaur/CentaurShipCataloguePanel';
-import { AncientShipCataloguePanel } from './panels/catalogue/ancient/AncientShipCataloguePanel';
+import {
+  AncientAutocastControl,
+  AncientShipCataloguePanel,
+} from './panels/catalogue/ancient/AncientShipCataloguePanel';
 import { MenuActionPanel } from './panels/MenuActionPanel';
 import { EndOfGameActionPanel } from './panels/EndOfGameActionPanel';
 import { getShipChoicePanelSpec } from './panels/ShipChoiceRegistry';
@@ -245,9 +248,11 @@ export function ActionPanelFrame({
               presentation={isDeclaration ? 'declaration' : 'reference'}
               catalogueEnergy={vm.ancientCatalogueEnergy}
               declarationEnergy={declarationVm?.provisionalEnergy}
-              showReturnToCharges={declarationVm?.hadChargeStage === true}
+              declarationStage={declarationVm?.stage}
+              canCastManualSolarPowerById={declarationVm?.canCastManualSolarPowerById}
+              autocastEnabled={declarationVm?.autocastEnabled ?? vm.ancientAutocastEnabled}
+              autocastDisabled={declarationVm?.attemptUnresolved === true}
               declarationAttemptUnresolved={declarationVm?.attemptUnresolved === true}
-              onReturnToCharges={actions.onReturnToAncientCharges}
             />
           </DesktopScaledCatalogueCanvas>
         </ActionPanelScrollArea>
@@ -266,9 +271,11 @@ export function ActionPanelFrame({
           presentation={isDeclaration ? 'declaration' : 'reference'}
           catalogueEnergy={vm.ancientCatalogueEnergy}
           declarationEnergy={declarationVm?.provisionalEnergy}
-          showReturnToCharges={declarationVm?.hadChargeStage === true}
+          declarationStage={declarationVm?.stage}
+          canCastManualSolarPowerById={declarationVm?.canCastManualSolarPowerById}
+          autocastEnabled={declarationVm?.autocastEnabled ?? vm.ancientAutocastEnabled}
+          autocastDisabled={declarationVm?.attemptUnresolved === true}
           declarationAttemptUnresolved={declarationVm?.attemptUnresolved === true}
-          onReturnToCharges={actions.onReturnToAncientCharges}
         />
       </div>
     );
@@ -398,11 +405,21 @@ export function ActionPanelFrame({
     // KIND: BUTTONS (ShipChoicesPanel with groups from VM)
     // --------------------------------------------------------------------------
     if (shipChoiceSpec.kind === 'buttons') {
+      const showAncientChargesAutocast =
+        vm.activePanelId === 'ap.battle.charges.ancient' &&
+        vm.ancientChargeDeclaration?.stage === 'charges';
       // If no groups available, show "No actions available"
       if (!vm.shipChoices?.groups || vm.shipChoices.groups.length === 0) {
         return renderWithOverlay(
           <div className="size-full flex flex-col items-center justify-center gap-[20px]">
             {renderPhaseLocalFamilySwitch()}
+            {showAncientChargesAutocast ? (
+              <AncientAutocastControl
+                checked={vm.ancientChargeDeclaration?.autocastEnabled ?? vm.ancientAutocastEnabled}
+                disabled={vm.ancientChargeDeclaration?.attemptUnresolved === true}
+                onChange={actions.onSetAncientAutocastEnabled}
+              />
+            ) : null}
             <p className="text-[var(--shapeships-grey-50)] text-[18px]">
               No actions available.
             </p>
@@ -415,6 +432,13 @@ export function ActionPanelFrame({
         <ActionPanelScrollArea>
           <div className="flex min-h-full flex-col items-center gap-[20px]">
             {renderPhaseLocalFamilySwitch()}
+            {showAncientChargesAutocast ? (
+              <AncientAutocastControl
+                checked={vm.ancientChargeDeclaration?.autocastEnabled ?? vm.ancientAutocastEnabled}
+                disabled={vm.ancientChargeDeclaration?.attemptUnresolved === true}
+                onChange={actions.onSetAncientAutocastEnabled}
+              />
+            ) : null}
             <ShipChoicesPanel
               groups={vm.shipChoices.groups}
               showOpponentAlsoHasCharges={
