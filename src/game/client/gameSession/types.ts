@@ -14,7 +14,7 @@ import type { ActivationStaggerPlan } from '../../display/graphics/animation-sta
 import type { ProvisionalShipEligibility } from './provisionalBuild';
 import type {
   AncientManualSolarCast,
-  ImplementedAncientManualSolarPowerId,
+  FixedAncientManualSolarPowerId,
 } from './ancientChargeDeclaration';
 
 export type ReadyUxState = {
@@ -431,6 +431,7 @@ export interface AncientSolarDisplayEntry {
   order: number;
   sourceMode: AncientSolarDisplaySourceMode;
   isLocalPreview: boolean;
+  energySpendCaption?: number;
 }
 
 export type BoardViewModel =
@@ -652,7 +653,11 @@ export interface ActionPanelViewModel {
       blue: number;
     };
     localManualSolarCasts: AncientManualSolarCast[];
-    canCastManualSolarPowerById: Record<ImplementedAncientManualSolarPowerId, boolean>;
+    canCastManualSolarPowerById: Record<FixedAncientManualSolarPowerId, boolean>;
+    siphonSelector: {
+      maxSpend: number;
+      canOpen: boolean;
+    };
     autocastEnabled: boolean;
     attemptUnresolved: boolean;
     rejectionRecoveryPending: boolean;
@@ -721,7 +726,8 @@ export interface GameSessionActions {
   onJoinRematchInvite?: (gameId: string) => void;
   onDownloadBattleLog: () => void;
   onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;
-  onCastAncientSolarPower: (solarPowerId: ImplementedAncientManualSolarPowerId) => void;
+  onCastAncientSolarPower: (solarPowerId: FixedAncientManualSolarPowerId) => void;
+  onCastAncientSiphon: (lockedAmount: number) => void;
   onSetAncientAutocastEnabled: (enabled: boolean) => void;
   onSelectCentaurChargeSubTab: (tabId: CentaurChargeSubTabId) => void;
   onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => void;

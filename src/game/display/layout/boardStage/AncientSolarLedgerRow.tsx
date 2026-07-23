@@ -47,7 +47,11 @@ const SOLAR_GRAPHIC_BY_ID: Record<LiveRowAncientSolarPowerId, SolarGraphic> = {
 function buildSolarPresentationSignature(
   entries: readonly AncientSolarDisplayEntry[]
 ): string {
-  return JSON.stringify(entries.map((entry) => [entry.displayKey, entry.solarPowerId]));
+  return JSON.stringify(entries.map((entry) => [
+    entry.displayKey,
+    entry.solarPowerId,
+    entry.energySpendCaption ?? null,
+  ]));
 }
 
 export function AncientSolarLedgerRow({
@@ -139,7 +143,10 @@ export function AncientSolarLedgerRow({
   const displayKeys = presentedEntries.map((entry) => entry.displayKey);
   const layoutSignature = displayKeys.join('|');
   const itemLayoutSignatures = Object.fromEntries(
-    presentedEntries.map((entry) => [entry.displayKey, entry.solarPowerId])
+    presentedEntries.map((entry) => [
+      entry.displayKey,
+      `${entry.solarPowerId}:${entry.energySpendCaption ?? ''}`,
+    ])
   );
   const entryAnimationTokens = useSolarPowerEntryAnimTokens(
     displayKeys,
@@ -182,7 +189,7 @@ export function AncientSolarLedgerRow({
                   <div
                     key={entry.displayKey}
                     ref={getFlipRef(entry.displayKey)}
-                    className="inline-flex shrink-0 items-center justify-center"
+                    className="inline-flex shrink-0 flex-col items-center justify-center gap-[4px]"
                   >
                     <SolarPowerAnimationWrapper
                       solarPowerId={entry.solarPowerId}
@@ -191,6 +198,11 @@ export function AncientSolarLedgerRow({
                     >
                       <SolarGraphic className="block shrink-0" />
                     </SolarPowerAnimationWrapper>
+                    {entry.energySpendCaption !== undefined ? (
+                      <span className="pointer-events-none select-none text-center font-['Roboto'] text-[18px] font-bold leading-none text-white">
+                        {entry.energySpendCaption}
+                      </span>
+                    ) : null}
                   </div>
                 );
               })}

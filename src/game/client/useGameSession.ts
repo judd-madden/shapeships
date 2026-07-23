@@ -182,16 +182,17 @@ import {
   buildAncientChargeDeclarationPayload,
   canAffordAncientEnergyCost,
   deriveAncientManualSolarCastability,
+  deriveAncientSiphonSelectorState,
   deriveProvisionalAncientEnergy,
   getAncientChargeDeclarationActions,
   getAncientEnergyTotal,
   getUsableAncientEnergyPoolForPlayer,
-  isImplementedAncientManualSolarPowerId,
+  isFixedAncientManualSolarPowerId,
   partitionAncientChargeDeclarationActions,
   replayAncientManualSolarCasts,
   type AncientChargeDeclarationWorkflow,
   type FrozenAncientChargeDeclarationAttempt,
-  type ImplementedAncientManualSolarPowerId,
+  type FixedAncientManualSolarPowerId,
 } from './gameSession/ancientChargeDeclaration';
 
 
@@ -2300,6 +2301,14 @@ export function useGameSession(
   });
   const provisionalAncientEnergy = ancientManualSolarCastReplay.remainingEnergy;
   const canCastAncientManualSolarPowerById = deriveAncientManualSolarCastability({
+    stage: activeAncientChargeDeclarationWorkflow?.stage ?? 'charges',
+    remainingEnergy: provisionalAncientEnergy,
+    energySequenceValid: ancientManualSolarCastReplay.valid,
+    attemptUnresolved: activeAncientChargeDeclarationAttempt != null,
+    rejectionRecoveryPending:
+      activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending === true,
+  });
+  const ancientSiphonSelector = deriveAncientSiphonSelectorState({
     stage: activeAncientChargeDeclarationWorkflow?.stage ?? 'charges',
     remainingEnergy: provisionalAncientEnergy,
     energySequenceValid: ancientManualSolarCastReplay.valid,
@@ -4702,6 +4711,7 @@ useEffect(() => {
           provisionalEnergy: provisionalAncientEnergy,
           localManualSolarCasts: activeAncientChargeDeclarationWorkflow.localManualSolarCasts,
           canCastManualSolarPowerById: canCastAncientManualSolarPowerById,
+          siphonSelector: ancientSiphonSelector,
           autocastEnabled: ancientAutocastEnabled,
           attemptUnresolved: activeAncientChargeDeclarationAttempt != null,
           rejectionRecoveryPending:
@@ -5332,8 +5342,8 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       applyDestroyTargetingChoiceSideEffects(sourceInstanceId, choiceId);
     },
 
-    onCastAncientSolarPower: (solarPowerId: ImplementedAncientManualSolarPowerId) => {
-      if (!isImplementedAncientManualSolarPowerId(solarPowerId)) {
+    onCastAncientSolarPower: (solarPowerId: FixedAncientManualSolarPowerId) => {
+      if (!isFixedAncientManualSolarPowerId(solarPowerId)) {
         return;
       }
 
@@ -5359,6 +5369,43 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         return {
           ...current,
           localManualSolarCasts: [...current.localManualSolarCasts, { solarPowerId }],
+        };
+      });
+    },
+
+    onCastAncientSiphon: (lockedAmount: number) => {
+      if (!Number.isInteger(lockedAmount) || lockedAmount < 2) {
+        return;
+      }
+
+      setAncientChargeDeclarationWorkflow((current) => {
+        if (
+          current?.key !== ancientChargeDeclarationWorkflowKey ||
+          current.stage !== 'powers' ||
+          current.rejectionRecoveryPending ||
+          activeAncientChargeDeclarationAttempt
+        ) {
+          return current;
+        }
+
+        const replay = replayAncientManualSolarCasts({
+          startingPool: provisionalAncientEnergyBeforeManualCasts,
+          localManualSolarCasts: current.localManualSolarCasts,
+        });
+        if (
+          !replay.valid ||
+          lockedAmount > replay.remainingEnergy.green ||
+          lockedAmount > replay.remainingEnergy.red
+        ) {
+          return current;
+        }
+
+        return {
+          ...current,
+          localManualSolarCasts: [
+            ...current.localManualSolarCasts,
+            { solarPowerId: 'SSIP', lockedAmount },
+          ],
         };
       });
     },
@@ -5595,6 +5642,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       onDownloadBattleLog: () => { },
       onSelectShipChoiceForInstance: () => { },
       onCastAncientSolarPower: () => { },
+      onCastAncientSiphon: () => { },
       onSetAncientAutocastEnabled: () => { },
       onSelectCentaurChargeSubTab: () => { },
       onSelectFrigateTrigger: () => { },

@@ -11,16 +11,20 @@ export type { AncientEnergyPool } from './selectors';
 
 export type AncientChargeDeclarationStage = 'charges' | 'powers';
 
-export type ImplementedAncientManualSolarPowerId =
+export type FixedAncientManualSolarPowerId =
   | 'SLIF'
   | 'SSTA'
   | 'SAST'
   | 'SSUP'
   | 'SCON';
 
-export type AncientManualSolarCast = {
-  solarPowerId: ImplementedAncientManualSolarPowerId;
-};
+export type ImplementedAncientManualSolarPowerId =
+  | FixedAncientManualSolarPowerId
+  | 'SSIP';
+
+export type AncientManualSolarCast =
+  | { solarPowerId: FixedAncientManualSolarPowerId }
+  | { solarPowerId: 'SSIP'; lockedAmount: number };
 
 export const ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID = {
   SLIF: { green: 1, red: 0, blue: 0 },
@@ -28,9 +32,9 @@ export const ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID = {
   SAST: { green: 0, red: 1, blue: 0 },
   SSUP: { green: 0, red: 3, blue: 0 },
   SCON: { green: 0, red: 0, blue: 1 },
-} as const satisfies Readonly<Record<ImplementedAncientManualSolarPowerId, AncientEnergyPool>>;
+} as const satisfies Readonly<Record<FixedAncientManualSolarPowerId, AncientEnergyPool>>;
 
-const IMPLEMENTED_ANCIENT_MANUAL_SOLAR_POWER_IDS = new Set<string>(
+const FIXED_ANCIENT_MANUAL_SOLAR_POWER_IDS = new Set<string>(
   Object.keys(ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID)
 );
 
@@ -95,10 +99,10 @@ export function getAncientEnergyTotal(pool: AncientEnergyPool): number {
   return pool.green + pool.red + pool.blue;
 }
 
-export function isImplementedAncientManualSolarPowerId(
+export function isFixedAncientManualSolarPowerId(
   value: unknown
-): value is ImplementedAncientManualSolarPowerId {
-  return typeof value === 'string' && IMPLEMENTED_ANCIENT_MANUAL_SOLAR_POWER_IDS.has(value);
+): value is FixedAncientManualSolarPowerId {
+  return typeof value === 'string' && FIXED_ANCIENT_MANUAL_SOLAR_POWER_IDS.has(value);
 }
 
 export function canAffordAncientEnergyCost(
@@ -115,19 +119,20 @@ export function replayAncientManualSolarCasts(args: {
   const remainingEnergy = { ...args.startingPool };
 
   for (const cast of args.localManualSolarCasts) {
-    const cost = ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID[cast.solarPowerId];
+    const cost: AncientEnergyPool | null = cast.solarPowerId === 'SSIP'
+      ? Number.isInteger(cast.lockedAmount) && cast.lockedAmount >= 2
+        ? { green: cast.lockedAmount, red: cast.lockedAmount, blue: 0 }
+        : null
+      : ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID[cast.solarPowerId];
+    if (!cost || !canAffordAncientEnergyCost(remainingEnergy, cost)) {
+      return { remainingEnergy, valid: false };
+    }
     remainingEnergy.green -= cost.green;
     remainingEnergy.red -= cost.red;
     remainingEnergy.blue -= cost.blue;
   }
 
-  return {
-    remainingEnergy,
-    valid:
-      remainingEnergy.green >= 0 &&
-      remainingEnergy.red >= 0 &&
-      remainingEnergy.blue >= 0,
-  };
+  return { remainingEnergy, valid: true };
 }
 
 export function deriveAncientManualSolarCastability(args: {
@@ -136,7 +141,7 @@ export function deriveAncientManualSolarCastability(args: {
   energySequenceValid: boolean;
   attemptUnresolved: boolean;
   rejectionRecoveryPending: boolean;
-}): Record<ImplementedAncientManualSolarPowerId, boolean> {
+}): Record<FixedAncientManualSolarPowerId, boolean> {
   const interactionAvailable =
     args.stage === 'powers' &&
     args.energySequenceValid &&
@@ -148,7 +153,29 @@ export function deriveAncientManualSolarCastability(args: {
       solarPowerId,
       interactionAvailable && canAffordAncientEnergyCost(args.remainingEnergy, cost),
     ])
-  ) as Record<ImplementedAncientManualSolarPowerId, boolean>;
+  ) as Record<FixedAncientManualSolarPowerId, boolean>;
+}
+
+export function deriveAncientSiphonSelectorState(args: {
+  stage: AncientChargeDeclarationStage;
+  remainingEnergy: AncientEnergyPool;
+  energySequenceValid: boolean;
+  attemptUnresolved: boolean;
+  rejectionRecoveryPending: boolean;
+}): { maxSpend: number; canOpen: boolean } {
+  const maxSpend = args.energySequenceValid
+    ? Math.min(args.remainingEnergy.green, args.remainingEnergy.red)
+    : 0;
+
+  return {
+    maxSpend,
+    canOpen:
+      args.stage === 'powers' &&
+      args.energySequenceValid &&
+      !args.attemptUnresolved &&
+      !args.rejectionRecoveryPending &&
+      maxSpend >= 2,
+  };
 }
 
 export function getUsableAncientEnergyPoolForPlayer(
@@ -246,7 +273,9 @@ export function buildAncientChargeDeclarationPayload(args: {
     declarationId: args.declarationId,
     ordinaryChargeActions: ordinaryActions,
     solarGridChoices,
-    solarCasts: args.localManualSolarCasts.map(({ solarPowerId }) => ({ solarPowerId })),
+    solarCasts: args.localManualSolarCasts.map((cast) => cast.solarPowerId === 'SSIP'
+      ? { solarPowerId: 'SSIP', lockedAmount: cast.lockedAmount }
+      : { solarPowerId: cast.solarPowerId }),
     autocastEnabled: args.autocastEnabled,
   };
 }

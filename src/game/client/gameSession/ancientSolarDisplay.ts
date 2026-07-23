@@ -42,6 +42,20 @@ function isAncientSolarDisplaySourceMode(
   return typeof value === 'string' && ANCIENT_SOLAR_DISPLAY_SOURCE_MODES.has(value);
 }
 
+function getAuthoritativeSiphonEnergySpendCaption(record: Record<string, unknown>): number | undefined {
+  if (record.solarPowerId !== 'SSIP' || !record.paidEnergy || typeof record.paidEnergy !== 'object') {
+    return undefined;
+  }
+
+  const paidEnergy = record.paidEnergy as Record<string, unknown>;
+  return Number.isInteger(paidEnergy.green) &&
+      (paidEnergy.green as number) >= 2 &&
+      paidEnergy.red === paidEnergy.green &&
+      paidEnergy.blue === 0
+    ? paidEnergy.green as number
+    : undefined;
+}
+
 function buildDisplayKey(args: {
   playerId: string;
   battleTurnNumber: number;
@@ -84,6 +98,7 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
       order: record.order,
       sourceMode: record.sourceMode,
       solarPowerId: record.solarPowerId,
+      energySpendCaption: getAuthoritativeSiphonEnergySpendCaption(record),
     }];
   });
 
@@ -106,6 +121,9 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
       order: candidate.order,
       sourceMode: candidate.sourceMode,
       isLocalPreview: false,
+      ...(candidate.energySpendCaption !== undefined
+        ? { energySpendCaption: candidate.energySpendCaption }
+        : {}),
     });
   }
 
@@ -117,18 +135,27 @@ function buildLocalManualEntries(args: {
   battleTurnNumber: number;
   casts: readonly AncientManualSolarCast[];
 }): AncientSolarDisplayEntry[] {
-  return args.casts.map((cast, order) => ({
-    displayKey: buildDisplayKey({
-      playerId: args.playerId,
-      battleTurnNumber: args.battleTurnNumber,
-      sourceMode: 'manual',
+  return args.casts.map((cast, order) => {
+    const energySpendCaption = cast.solarPowerId === 'SSIP' &&
+        Number.isInteger(cast.lockedAmount) &&
+        cast.lockedAmount >= 2
+      ? cast.lockedAmount
+      : undefined;
+
+    return {
+      displayKey: buildDisplayKey({
+        playerId: args.playerId,
+        battleTurnNumber: args.battleTurnNumber,
+        sourceMode: 'manual',
+        order,
+      }),
+      solarPowerId: cast.solarPowerId,
       order,
-    }),
-    solarPowerId: cast.solarPowerId,
-    order,
-    sourceMode: 'manual',
-    isLocalPreview: true,
-  }));
+      sourceMode: 'manual',
+      isLocalPreview: true,
+      ...(energySpendCaption !== undefined ? { energySpendCaption } : {}),
+    };
+  });
 }
 
 export function deriveAncientSolarDisplayEntries(args: {

@@ -2,13 +2,13 @@
  * Ancient Ship Catalogue Panel
  *
  * LEFT SIDE: Ancient Basic Ships (clickable, full wiring)
- * RIGHT SIDE: Ancient Solar Powers (static catalogue scaffold, no gameplay logic)
+ * RIGHT SIDE: Ancient Solar Powers (reference display and declaration controls)
  *
  * Pattern cloned from CentaurShipCataloguePanel.tsx
  * NO backend calls, NO rules validation, NO engine imports
  */
 
-import type { ComponentType, CSSProperties } from 'react';
+import { useEffect, useState, type ComponentType, type CSSProperties } from 'react';
 import type { ActionPanelViewModel, GameSessionActions } from "../../../../../client/useGameSession";
 import type { SpeciesId } from '../../../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { Checkbox, InfoIcon } from '../../../../../../components/ui/primitives';
@@ -54,10 +54,11 @@ import {
   type AncientEnergyCostRow,
 } from './AncientEnergyDisplay';
 import { AncientSolarPowerSlot } from './AncientSolarPowerSlot';
+import { AncientSiphonSelector } from './AncientSiphonSelector';
 import {
-  isImplementedAncientManualSolarPowerId,
+  isFixedAncientManualSolarPowerId,
   type AncientEnergyPool,
-  type ImplementedAncientManualSolarPowerId,
+  type FixedAncientManualSolarPowerId,
 } from '../../../../../client/gameSession/ancientChargeDeclaration';
 
 type CatalogueFrame = 'desktop' | 'bare';
@@ -159,7 +160,7 @@ const SOLAR_POWER_SLOTS = [
 ] as const satisfies readonly SolarPowerSlotConfig[];
 
 const SOLAR_POWER_IDS = new Set<ShipDefId>(SOLAR_POWER_SLOTS.map((slot) => slot.id));
-const MANUAL_SOLAR_POWER_LABEL_BY_ID: Record<ImplementedAncientManualSolarPowerId, string> = {
+const MANUAL_SOLAR_POWER_LABEL_BY_ID: Record<FixedAncientManualSolarPowerId, string> = {
   SLIF: 'Life',
   SSTA: 'Star Birth',
   SAST: 'Asteroid',
@@ -215,7 +216,11 @@ interface AncientShipCataloguePanelProps {
   catalogueEnergy?: ActionPanelViewModel['ancientCatalogueEnergy'];
   declarationEnergy?: AncientEnergyPool;
   declarationStage?: 'charges' | 'powers';
-  canCastManualSolarPowerById?: Partial<Record<ImplementedAncientManualSolarPowerId, boolean>>;
+  canCastManualSolarPowerById?: Partial<Record<FixedAncientManualSolarPowerId, boolean>>;
+  siphonSelector?: {
+    maxSpend: number;
+    canOpen: boolean;
+  };
   autocastEnabled: boolean;
   autocastDisabled?: boolean;
   declarationAttemptUnresolved?: boolean;
@@ -236,8 +241,24 @@ export function AncientAutocastControl({
   className = '',
   style,
 }: AncientAutocastControlProps) {
+  const infoButton = (
+    <button
+      type="button"
+      aria-label="About Autocast"
+      disabled={disabled}
+      className={disabled
+        ? 'flex size-[24px] shrink-0 cursor-default items-center justify-center opacity-50'
+        : 'flex size-[24px] shrink-0 items-center justify-center opacity-50 transition-opacity duration-100 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white'}
+    >
+      <InfoIcon className="size-[24px]" />
+    </button>
+  );
+
   return (
-    <div className={`flex items-center gap-[2px] ${className}`} style={style}>
+    <div
+      className={`flex items-center gap-[2px] ${disabled ? 'opacity-40' : ''} ${className}`}
+      style={style}
+    >
       <Checkbox
         className="!size-[24px]"
         checked={checked}
@@ -250,17 +271,10 @@ export function AncientAutocastControl({
       >
         Autocast
       </span>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            aria-label="About Autocast"
-            className="flex size-[24px] shrink-0 items-center justify-center opacity-50 transition-opacity duration-100 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-          >
-            <InfoIcon className="size-[24px]" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent
+      {disabled ? infoButton : (
+        <Tooltip>
+          <TooltipTrigger asChild>{infoButton}</TooltipTrigger>
+          <TooltipContent
           side="top"
           align="end"
           sideOffset={10}
@@ -296,8 +310,9 @@ export function AncientAutocastControl({
             aria-hidden="true"
             className="pointer-events-none absolute bottom-[-6px] right-[6px] size-[12px] rotate-45 border-b border-r border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)]"
           />
-        </TooltipContent>
-      </Tooltip>
+          </TooltipContent>
+        </Tooltip>
+      )}
     </div>
   );
 }
@@ -316,10 +331,12 @@ export function AncientShipCataloguePanel({
   declarationEnergy,
   declarationStage,
   canCastManualSolarPowerById,
+  siphonSelector,
   autocastEnabled,
   autocastDisabled = false,
   declarationAttemptUnresolved = false,
 }: AncientShipCataloguePanelProps) {
+  const [selectorOpen, setSelectorOpen] = useState(false);
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
@@ -328,6 +345,17 @@ export function AncientShipCataloguePanel({
   const solarHeaderPositions = SOLAR_HEADER_POSITIONS[catalogueLayout];
   const SimulacrumGraphic = SIMULACRUM_GRAPHICS[simulacrumSpecies] ?? SimulacrumHuman;
   const isDeclarationPresentation = presentation === 'declaration';
+  const canOpenSiphonSelector =
+    isDeclarationPresentation &&
+    declarationStage === 'powers' &&
+    declarationAttemptUnresolved !== true &&
+    siphonSelector?.canOpen === true;
+
+  useEffect(() => {
+    if (!canOpenSiphonSelector) {
+      setSelectorOpen(false);
+    }
+  }, [canOpenSiphonSelector]);
 
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
@@ -640,7 +668,7 @@ export function AncientShipCataloguePanel({
             </div>
           </div>
 
-          {/* ================ RIGHT HALF: SOLAR POWERS (STATIC PRESENTATION ONLY) ================ */}
+          {/* ================ RIGHT HALF: SOLAR POWERS ================ */}
 
           <div
             className="absolute"
@@ -666,14 +694,33 @@ export function AncientShipCataloguePanel({
               top: solarHeaderPositions.autocast.y,
             }}
             checked={autocastEnabled}
-            disabled={autocastDisabled}
+            disabled={autocastDisabled || selectorOpen}
             onChange={actions.onSetAncientAutocastEnabled}
           />
 
-          {SOLAR_POWER_SLOTS.map((slot) => {
+          {selectorOpen ? (
+            <>
+              <button
+                type="button"
+                className="absolute cursor-pointer rounded-[10px] border-0 bg-[var(--shapeships-grey-90)] px-[16px] py-[6px] font-['Roboto'] text-[16px] font-normal leading-normal text-white hover:bg-[var(--shapeships-grey-70)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+                style={{ left: '426px', top: '30px', fontVariationSettings: "'wdth' 100" }}
+                onClick={() => setSelectorOpen(false)}
+              >
+                Back
+              </button>
+              <AncientSiphonSelector
+                maxSpend={siphonSelector?.maxSpend ?? 0}
+                availableWidth={canvas.width - 450}
+                onSelect={(lockedAmount) => {
+                  setSelectorOpen(false);
+                  actions.onCastAncientSiphon(lockedAmount);
+                }}
+              />
+            </>
+          ) : SOLAR_POWER_SLOTS.map((slot) => {
             const position = slot.position[catalogueLayout];
             const Graphic = slot.id === 'SSIM' ? SimulacrumGraphic : slot.graphic;
-            const manualSolarPowerId = isImplementedAncientManualSolarPowerId(slot.id)
+            const manualSolarPowerId = isFixedAncientManualSolarPowerId(slot.id)
               ? slot.id
               : null;
             const isManualCastButton =
@@ -701,12 +748,23 @@ export function AncientShipCataloguePanel({
                   onClick={
                     isManualCastButton && manualSolarPowerId
                       ? () => actions.onCastAncientSolarPower(manualSolarPowerId)
+                      : slot.id === 'SSIP' && canOpenSiphonSelector
+                        ? () => {
+                            hover.onLeave(slot.id);
+                            setSelectorOpen(true);
+                          }
                       : undefined
                   }
-                  disabled={!canCast || declarationAttemptUnresolved}
+                  disabled={
+                    slot.id === 'SSIP'
+                      ? !canOpenSiphonSelector
+                      : !canCast || declarationAttemptUnresolved
+                  }
                   ariaLabel={
                     isManualCastButton && manualSolarPowerId
                       ? `Cast ${MANUAL_SOLAR_POWER_LABEL_BY_ID[manualSolarPowerId]}`
+                      : slot.id === 'SSIP' && canOpenSiphonSelector
+                        ? 'Choose Siphon Energy spend'
                       : undefined
                   }
                   onMouseEnter={
