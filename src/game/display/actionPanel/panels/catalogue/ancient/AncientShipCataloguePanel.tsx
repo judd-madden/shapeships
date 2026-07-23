@@ -166,6 +166,7 @@ const MANUAL_SOLAR_POWER_LABEL_BY_ID: Record<FixedAncientManualSolarPowerId, str
   SAST: 'Asteroid',
   SSUP: 'Supernova',
   SCON: 'Convert',
+  SVOR: 'Vortex',
 };
 const AUTOCAST_TOOLTIP_PATHS = [
   {

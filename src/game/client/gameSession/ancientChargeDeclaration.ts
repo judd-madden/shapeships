@@ -16,7 +16,8 @@ export type FixedAncientManualSolarPowerId =
   | 'SSTA'
   | 'SAST'
   | 'SSUP'
-  | 'SCON';
+  | 'SCON'
+  | 'SVOR';
 
 export type ImplementedAncientManualSolarPowerId =
   | FixedAncientManualSolarPowerId
@@ -32,6 +33,7 @@ export const ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID = {
   SAST: { green: 0, red: 1, blue: 0 },
   SSUP: { green: 0, red: 3, blue: 0 },
   SCON: { green: 0, red: 0, blue: 1 },
+  SVOR: { green: 2, red: 2, blue: 2 },
 } as const satisfies Readonly<Record<FixedAncientManualSolarPowerId, AncientEnergyPool>>;
 
 const FIXED_ANCIENT_MANUAL_SOLAR_POWER_IDS = new Set<string>(

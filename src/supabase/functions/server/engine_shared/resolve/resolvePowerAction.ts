@@ -71,7 +71,7 @@ function getSnappedChargeSourceIds(state: GameState, playerId: string): string[]
   return sourceIds;
 }
 
-function getFleetForChargeScopedDynamicCount(
+export function getFleetForChargeScopedDynamicCount(
   state: GameState,
   playerId: string,
   phaseKey: PhaseKey

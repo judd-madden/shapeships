@@ -367,7 +367,7 @@ Deno.test('later unaffordable fixture cast rolls back ordinary charge, Grid, Ene
 });
 
 Deno.test('later Solar IDs without a production resolver are rejected without state changes', () => {
-  for (const solarPowerId of ['SVOR', 'SBLA', 'SSIM']) {
+  for (const solarPowerId of ['SBLA', 'SSIM']) {
     const state = createState();
     const before = structuredClone(state);
     assert.throws(() => resolveChargeDeclarationSubmission({
@@ -384,6 +384,175 @@ Deno.test('later Solar IDs without a production resolver are rejected without st
     }), new RegExp(`not implemented: ${solarPowerId}`));
     assert.deepEqual(state, before);
   }
+});
+
+Deno.test('production FAM and Vortex share Charge Declaration snapshot TYPE semantics', () => {
+  const state = createState();
+  state.gameData.ships.p1.push({
+    instanceId: 'fam-live',
+    shipDefId: 'FAM',
+    chargesCurrent: 2,
+  });
+  state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId.p1.push('fam-live');
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p1 = [
+    {
+      instanceId: 'fam-live',
+      shipDefId: 'FAM',
+      chargesCurrent: 2,
+      createdTurn: 1,
+    },
+    {
+      instanceId: 'fam-repeat',
+      shipDefId: 'FAM',
+      chargesCurrent: 0,
+      createdTurn: 9,
+      permanentConfiguration: { selectedNumber: 4 },
+    },
+    {
+      instanceId: 'sol-a',
+      shipDefId: 'SOL',
+      chargesCurrent: 4,
+    },
+    {
+      instanceId: 'sol-b',
+      shipDefId: 'SOL',
+      chargesCurrent: 1,
+      createdTurn: 7,
+    },
+    {
+      instanceId: 'int-removed-during-declaration',
+      shipDefId: 'INT',
+      chargesCurrent: 1,
+      permanentConfiguration: { selectedNumber: 6 },
+    },
+  ];
+  state.gameData.ships.p1 = state.gameData.ships.p1.filter(
+    (candidate: any) => candidate.shipDefId !== 'INT',
+  );
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 2, red: 2, blue: 2 };
+
+  const result = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      ordinaryChargeActions: [{
+        actionType: 'power',
+        actionId: 'FAM#0',
+        sourceInstanceId: 'fam-live',
+        choiceId: 'damage',
+      }],
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [{ solarPowerId: 'SVOR' }],
+    }),
+    nowMs: 1000,
+  });
+
+  assert.deepEqual(result.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.solarCasts, [
+    { solarPowerId: 'SVOR' },
+  ]);
+  assert.deepEqual(result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries, [{
+    entryId: 'ancient-solar:3:p1:declaration-1:manual:0',
+    order: 0,
+    solarPowerId: 'SVOR',
+    sourceMode: 'manual',
+    paidEnergy: { green: 2, red: 2, blue: 2 },
+    lockedAmount: 6,
+  }]);
+  assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, {
+    green: 0,
+    red: 0,
+    blue: 0,
+  });
+  assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 9 });
+  assert.deepEqual(result.state.gameData.pendingTurn.breakdownEntries.map((entry: any) => ({
+    sourceLabel: entry.sourceLabel,
+    sourceShipDefId: entry.sourceShipDefId,
+    baseAmount: entry.baseAmount,
+    finalAmount: entry.finalAmount,
+  })), [
+    {
+      sourceLabel: undefined,
+      sourceShipDefId: 'FAM',
+      baseAmount: 3,
+      finalAmount: 3,
+    },
+    {
+      sourceLabel: 'ancient-solar:SVOR',
+      sourceShipDefId: undefined,
+      baseAmount: 6,
+      finalAmount: 6,
+    },
+  ]);
+  assert.equal(result.state.players[0].health, 20);
+  assert.equal(result.state.players[1].health, 20);
+
+  result.state.gameData.ships.p1 = [];
+  assert.equal(
+    result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries[0].lockedAmount,
+    6,
+  );
+  assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 9 });
+});
+
+Deno.test('Vortex participates in ordered payments and rolls back with a later failed cast', () => {
+  const orderedState = createState();
+  orderedState.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 3, blue: 2 };
+  const ordered = resolveChargeDeclarationSubmission({
+    state: orderedState,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [
+        { solarPowerId: 'SLIF' },
+        { solarPowerId: 'SVOR' },
+        { solarPowerId: 'SAST' },
+      ],
+    }),
+    nowMs: 1000,
+  });
+  assert.deepEqual(
+    ordered.state.gameData.ancient.solarLedgerByPlayerId.p1.entries.map((entry: any) => ({
+      solarPowerId: entry.solarPowerId,
+      order: entry.order,
+      paidEnergy: entry.paidEnergy,
+    })),
+    [
+      { solarPowerId: 'SLIF', order: 0, paidEnergy: { green: 1, red: 0, blue: 0 } },
+      { solarPowerId: 'SVOR', order: 1, paidEnergy: { green: 2, red: 2, blue: 2 } },
+      { solarPowerId: 'SAST', order: 2, paidEnergy: { green: 0, red: 1, blue: 0 } },
+    ],
+  );
+  assert.deepEqual(ordered.state.gameData.ancient.energyByPlayerId.p1.pool, {
+    green: 0,
+    red: 0,
+    blue: 0,
+  });
+
+  const rollbackState = createState();
+  rollbackState.gameData.ancient.energyByPlayerId.p1.pool = { green: 2, red: 2, blue: 2 };
+  const before = structuredClone(rollbackState);
+  assert.throws(() => resolveChargeDeclarationSubmission({
+    state: rollbackState,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [
+        { solarPowerId: 'SVOR' },
+        { solarPowerId: 'SBLA' },
+      ],
+    }),
+    nowMs: 1000,
+  }), /not implemented: SBLA/);
+  assert.deepEqual(rollbackState, before);
 });
 
 Deno.test('production Siphon locks selected spend separately from triangular ledger and pending values', () => {
@@ -732,6 +901,7 @@ Deno.test('production Autocast follows the exact fixed category order and exhaus
     assert.deepEqual(entries.map((entry: any) => entry.solarPowerId), scenario.expected);
     assert.deepEqual(entries.map((entry: any) => entry.order), scenario.expected.map((_, index) => index));
     assert.equal(entries.every((entry: any) => entry.sourceMode === 'autocast'), true);
+    assert.equal(entries.some((entry: any) => entry.solarPowerId === 'SVOR'), false);
     assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, {
       green: 0,
       red: 0,
