@@ -499,6 +499,29 @@ function normalizePendingSimulacrumCopy(
     return null;
   }
   const configuration = isObject(value.permanentConfiguration) ? value.permanentConfiguration : {};
+  const rawOutcome = isObject(value.materializationOutcome)
+    ? value.materializationOutcome
+    : null;
+  const rawProducedShips = rawOutcome?.producedShips;
+  const materializationOutcome =
+    rawOutcome &&
+      isNonNegativeInteger(rawOutcome.joiningLinesGranted) &&
+      Array.isArray(rawProducedShips) &&
+      rawProducedShips.every((produced) =>
+        isObject(produced) &&
+        isNonEmptyString(produced.instanceId) &&
+        isNonEmptyString(produced.shipDefId) &&
+        isNonEmptyString(produced.sourceShipDefId)
+      )
+      ? {
+        joiningLinesGranted: rawOutcome.joiningLinesGranted,
+        producedShips: rawProducedShips.map((produced) => ({
+          instanceId: produced.instanceId as string,
+          shipDefId: produced.shipDefId as string,
+          sourceShipDefId: produced.sourceShipDefId as string,
+        })),
+      }
+      : null;
   return {
     pendingCopyId: value.pendingCopyId,
     declarationId: value.declarationId,
@@ -521,6 +544,7 @@ function normalizePendingSimulacrumCopy(
     ...(isNonEmptyString(value.materializedInstanceId)
       ? { materializedInstanceId: value.materializedInstanceId }
       : {}),
+    ...(materializationOutcome ? { materializationOutcome } : {}),
   };
 }
 

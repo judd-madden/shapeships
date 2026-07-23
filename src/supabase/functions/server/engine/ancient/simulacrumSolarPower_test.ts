@@ -16,6 +16,7 @@ import {
   SIMULACRUM_SOLAR_RESOLVER,
 } from "./simulacrumSolarPower.ts";
 import { getShipById } from "../../engine_shared/defs/ShipDefinitions.core.ts";
+import { computePhaseComputedEffects } from "../../engine_shared/resolve/phaseComputedEffects.ts";
 
 function ship(
   instanceId: string,
@@ -331,6 +332,10 @@ Deno.test("materialization restores exact zero charges and selected number and r
     pending({
       pendingCopyId: "reconcile",
       materializedInstanceId: "already-there",
+      materializationOutcome: {
+        joiningLinesGranted: 0,
+        producedShips: [],
+      },
       queueOrder: 2,
     }),
   ];
@@ -348,6 +353,267 @@ Deno.test("materialization restores exact zero charges and selected number and r
   const second = materializeQueuedSimulacrumCopiesAtDrawing(first.state, 5, 2);
   assert.deepEqual(second.state.gameData.ships, first.state.gameData.ships);
   assert.deepEqual(second.events, []);
+});
+
+Deno.test("Drawing materialization shares LEG and ZEN immediate built consequences idempotently", () => {
+  const state = createState({ turnNumber: 5 });
+  state.gameData.ancient!.pendingSimulacrumCopies = [
+    pending({
+      pendingCopyId: "copy-leg",
+      copiedShipDefId: "LEG",
+      queueOrder: 0,
+    }),
+    pending({
+      pendingCopyId: "copy-zen",
+      copiedShipDefId: "ZEN",
+      queueOrder: 1,
+    }),
+  ];
+  const ids = ["leg-copy", "zen-copy", "zen-ant"];
+  const first = materializeQueuedSimulacrumCopiesAtDrawing(
+    state,
+    5,
+    10,
+    () => ids.shift()!,
+  );
+  const owner = first.state.players.find((player) => player.id === "z-owner")!;
+  const fleet = first.state.gameData.ships!["z-owner"];
+  assert.equal(owner.joiningLines, 4);
+  assert.deepEqual(
+    fleet.map((entry) => ({
+      instanceId: entry.instanceId,
+      shipDefId: entry.shipDefId,
+      createdTurn: entry.createdTurn,
+      chargesCurrent: entry.chargesCurrent,
+    })),
+    [
+      {
+        instanceId: "leg-copy",
+        shipDefId: "LEG",
+        createdTurn: 5,
+        chargesCurrent: undefined,
+      },
+      {
+        instanceId: "zen-copy",
+        shipDefId: "ZEN",
+        createdTurn: 5,
+        chargesCurrent: undefined,
+      },
+      {
+        instanceId: "zen-ant",
+        shipDefId: "ANT",
+        createdTurn: 5,
+        chargesCurrent: getShipById("ANT")?.charges,
+      },
+    ],
+  );
+  assert.equal(
+    first.state.gameData.turnData?.shipsMadeThisTurnByPlayerId?.["z-owner"],
+    3,
+  );
+  assert.deepEqual(
+    first.events.filter((event) =>
+      event.type === "BATTLE_LOG_CAPTURE_BUILD_PRODUCED"
+    ).map((event) => `${event.shipDefId}:${event.sourceShipDefId}`),
+    ["LEG:SSIM", "ZEN:SSIM", "ANT:ZEN"],
+  );
+  const zenRecord = first.state.gameData.ancient!.pendingSimulacrumCopies.find(
+    (record) => record.pendingCopyId === "copy-zen",
+  )!;
+  assert.deepEqual(zenRecord.materializationOutcome, {
+    joiningLinesGranted: 0,
+    producedShips: [{
+      instanceId: "zen-ant",
+      shipDefId: "ANT",
+      sourceShipDefId: "ZEN",
+    }],
+  });
+
+  const second = materializeQueuedSimulacrumCopiesAtDrawing(first.state, 5, 20);
+  assert.deepEqual(second.state, first.state);
+  assert.deepEqual(second.events, []);
+});
+
+Deno.test("Drawing projection hides direct and dependent Simulacrum ships until Reveal", () => {
+  const state = createState({ turnNumber: 5 });
+  (state.gameData as any).currentPhase = "build";
+  (state.gameData as any).currentSubPhase = "drawing";
+  state.gameData.ancient!.pendingSimulacrumCopies = [
+    pending({ copiedShipDefId: "ZEN" }),
+  ];
+  const ids = ["zen-copy", "zen-ant"];
+  const result = materializeQueuedSimulacrumCopiesAtDrawing(
+    state,
+    5,
+    10,
+    () => ids.shift()!,
+  );
+  assert.deepEqual(
+    projectPublicShipsForSimulacrumDrawing(result.state)["z-owner"],
+    [],
+  );
+  assert.deepEqual(
+    projectRequesterHiddenDrawingSimulacrumShips(
+      result.state,
+      "z-owner",
+    ).map((entry) => entry.instanceId),
+    ["zen-copy", "zen-ant"],
+  );
+  assert.deepEqual(
+    projectRequesterHiddenDrawingSimulacrumShips(
+      result.state,
+      "a-owner",
+    ),
+    [],
+  );
+
+  (result.state.gameData as any).currentPhase = "battle";
+  (result.state.gameData as any).currentSubPhase = "reveal";
+  assert.deepEqual(
+    projectPublicShipsForSimulacrumDrawing(result.state)["z-owner"].map(
+      (entry) => entry.instanceId,
+    ),
+    ["zen-copy", "zen-ant"],
+  );
+});
+
+Deno.test("dependent ID collisions abort Simulacrum materialization atomically", () => {
+  const state = createState({
+    turnNumber: 5,
+    p2Ships: [ship("occupied-dependent-id", "DEF", { createdTurn: 1 })],
+  });
+  state.gameData.ancient!.pendingSimulacrumCopies = [
+    pending({ copiedShipDefId: "ZEN" }),
+  ];
+  const before = structuredClone(state);
+  const ids = ["zen-copy", "occupied-dependent-id"];
+  assert.throws(
+    () =>
+      materializeQueuedSimulacrumCopiesAtDrawing(
+        state,
+        5,
+        10,
+        () => ids.shift()!,
+      ),
+    /instance ID collision/,
+  );
+  assert.deepEqual(state, before);
+});
+
+Deno.test("build.drawing snapshots public resources before copied LEG grants authoritative lines", () => {
+  const state = createState({ turnNumber: 5 });
+  (state.gameData as any).currentPhase = "build";
+  (state.gameData as any).currentSubPhase = "ships_that_build";
+  state.gameData.ancient!.pendingSimulacrumCopies = [
+    pending({ copiedShipDefId: "LEG" }),
+  ];
+  const entered = onEnterPhase(
+    state,
+    "build.ships_that_build",
+    "build.drawing",
+    100,
+  );
+  assert.equal(
+    entered.state.players.find((player: any) => player.id === "z-owner")
+      .joiningLines,
+    4,
+  );
+  assert.deepEqual(
+    entered.state.gameData.turnData.buildDrawingPublicSavedResourcesByPlayerId[
+      "z-owner"
+    ],
+    { savedLines: 0, savedJoiningLines: 0 },
+  );
+});
+
+Deno.test("copied once-only ships resolve through existing built-turn memory exactly once", () => {
+  const state = createState({ turnNumber: 5 });
+  state.gameData.ancient!.pendingSimulacrumCopies = [
+    pending({ pendingCopyId: "copy-ang", copiedShipDefId: "ANG" }),
+    pending({
+      pendingCopyId: "copy-fea",
+      copiedShipDefId: "FEA",
+      queueOrder: 1,
+    }),
+  ];
+  const ids = ["copied-ang", "copied-fea"];
+  const materialized = materializeQueuedSimulacrumCopiesAtDrawing(
+    state,
+    5,
+    10,
+    () => ids.shift()!,
+  ).state;
+  const ang = materialized.gameData.ships!["z-owner"].find((entry) =>
+    entry.shipDefId === "ANG"
+  )!;
+  materialized.gameData.ships!["z-owner"] = materialized.gameData.ships![
+    "z-owner"
+  ].filter((entry) => entry.instanceId !== ang.instanceId);
+  materialized.gameData.voidShipsByPlayerId = { "z-owner": [ang] };
+
+  const first = computePhaseComputedEffects(
+    materialized,
+    "battle.end_of_turn_resolution",
+  );
+  assert.deepEqual(
+    first.effects.filter((effect) =>
+      (effect.source as any).shipDefId === "ANG" ||
+      (effect.source as any).shipDefId === "FEA"
+    ).map((effect) => [
+      (effect.source as any).shipDefId,
+      effect.kind,
+      (effect as any).amount,
+    ]),
+    [
+      ["FEA", "Heal", 3],
+      ["ANG", "Damage", 3],
+    ],
+  );
+  const second = computePhaseComputedEffects(
+    first.state,
+    "battle.end_of_turn_resolution",
+  );
+  assert.deepEqual(
+    second.effects.filter((effect) =>
+      (effect.source as any).shipDefId === "ANG" ||
+      (effect.source as any).shipDefId === "FEA"
+    ),
+    [],
+  );
+});
+
+Deno.test("materialization does not replay completed Ships That Build powers", () => {
+  const state = createState({ turnNumber: 5 });
+  state.gameData.ancient!.pendingSimulacrumCopies = [
+    pending({ pendingCopyId: "copy-car", copiedShipDefId: "CAR" }),
+    pending({
+      pendingCopyId: "copy-bug",
+      copiedShipDefId: "BUG",
+      queueOrder: 1,
+    }),
+    pending({
+      pendingCopyId: "copy-evo",
+      copiedShipDefId: "EVO",
+      queueOrder: 2,
+    }),
+  ];
+  const ids = ["copy-car-id", "copy-bug-id", "copy-evo-id"];
+  const result = materializeQueuedSimulacrumCopiesAtDrawing(
+    state,
+    5,
+    10,
+    () => ids.shift()!,
+  );
+  assert.deepEqual(
+    result.state.gameData.ships!["z-owner"].map((entry) => entry.shipDefId),
+    ["CAR", "BUG", "EVO"],
+  );
+  assert.equal(
+    result.events.filter((event) =>
+      event.type === "BATTLE_LOG_CAPTURE_BUILD_PRODUCED"
+    ).length,
+    3,
+  );
 });
 
 Deno.test("over-cap Drawing corruption throws before mutation and escapes onEnterPhase", () => {

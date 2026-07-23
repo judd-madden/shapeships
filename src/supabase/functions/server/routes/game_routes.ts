@@ -1917,8 +1917,15 @@ export function registerGameRoutes(
       for (const player of playersInGame) {
         if (player.role === 'player') {
           const publicSavedResources = getPublicSavedResourcesForPlayer(gameData, phaseKey, player.id);
-          const ordinaryLinesAvailable = player.lines ?? 0;
-          const joiningLinesAvailable = player.joiningLines ?? 0;
+          const requesterOwnsEconomy =
+            participant?.role === 'player' &&
+            player.id === requestingPlayerId;
+          const ordinaryLinesAvailable = requesterOwnsEconomy
+            ? player.lines ?? 0
+            : publicSavedResources.savedLines;
+          const joiningLinesAvailable = requesterOwnsEconomy
+            ? player.joiningLines ?? 0
+            : publicSavedResources.savedJoiningLines;
           const baseRollLines = turnData.effectiveDiceRollByPlayerId?.[player.id] ?? canonicalBaseRollLines ?? 0;
           const chronoswarmCountRaw = turnData.chronoswarmCountByPlayerId?.[player.id];
           const chronoswarmCount =

@@ -11,10 +11,12 @@ import {
 } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import type { ShipInstance } from '../state/GameStateTypes.ts';
 import {
-  createBattleLogBuildManualCaptureEvent,
-  createBattleLogBuildProducedCaptureEvent,
-} from '../state/battleLogHistory.ts';
-import { recordThirdSpiralFirstStrikeEligibility } from '../../engine_shared/resolve/thirdSpiralFirstStrikeEligibility.ts';
+  applyImmediateDrawingBuiltConsequences,
+  createShipDuringDrawing,
+  getImmediateDrawingBuiltConsequences,
+  type DrawingShipCreationSource,
+  type DrawingWorkingFleetEntry,
+} from './drawingShipCreation.ts';
 
 type BuildAttemptSkipReason =
   | 'unknown_ship'
@@ -29,16 +31,10 @@ type BuildAttemptSkipReason =
 type ExpandedBuildAttempt = {
   shipDefId: string;
   attemptIndex: number;
-  freeReason?: 'zenith_antlion';
   selectedNumber?: number;
 };
 
-type WorkingFleetEntry = {
-  instanceId: string;
-  shipDefId: string;
-  chargesCurrent: number;
-  createdTurn?: number;
-};
+type WorkingFleetEntry = DrawingWorkingFleetEntry;
 
 type EvolverBuildChoiceEntry = NonNullable<BuildSubmitPayload['evolverChoices']>[number];
 
@@ -143,8 +139,7 @@ function expandBuildAttempts(payload: BuildSubmitPayload): ExpandedBuildAttempt[
 
   const zenCount = countsByShipDefId.get('ZEN') ?? 0;
   const antCount = countsByShipDefId.get('ANT') ?? 0;
-  const freeAntCount = Math.min(antCount, zenCount);
-  const paidAntCount = Math.max(0, antCount - freeAntCount);
+  const paidAntCount = Math.max(0, antCount - zenCount);
 
   const attempts: ExpandedBuildAttempt[] = [];
   let nextAttemptIndex = 0;
@@ -171,14 +166,6 @@ function expandBuildAttempts(payload: BuildSubmitPayload): ExpandedBuildAttempt[
           shipDefId,
           attemptIndex: nextAttemptIndex++,
         });
-
-        if (i < freeAntCount) {
-          attempts.push({
-            shipDefId: 'ANT',
-            attemptIndex: nextAttemptIndex++,
-            freeReason: 'zenith_antlion',
-          });
-        }
       }
       continue;
     }
@@ -291,21 +278,6 @@ function ensureFrigateMemory(state: any) {
   }
 }
 
-function incrementShipsMadeThisTurnCounter(state: any, playerId: string, amount: number) {
-  if (!Number.isInteger(amount) || amount <= 0) return;
-
-  if (!state.gameData) state.gameData = {};
-  if (!state.gameData.turnData) state.gameData.turnData = {};
-
-  const currentMap = state.gameData.turnData.shipsMadeThisTurnByPlayerId || {};
-  const currentCount = currentMap[playerId] || 0;
-
-  state.gameData.turnData.shipsMadeThisTurnByPlayerId = {
-    ...currentMap,
-    [playerId]: currentCount + amount,
-  };
-}
-
 function snapshotBuildPhaseNonDestroyRemovedShips(
   state: any,
   playerId: string,
@@ -344,7 +316,7 @@ function snapshotBuildPhaseNonDestroyRemovedShips(
   };
 }
 
-function appendCreatedShip(args: {
+function createNormalBuildShipDuringDrawing(args: {
   state: any;
   playerId: string;
   shipDefId: string;
@@ -352,55 +324,41 @@ function appendCreatedShip(args: {
   workingFleet: WorkingFleetEntry[];
   selectedNumber?: number;
   countAsCreatedShip?: boolean;
-}): ShipInstance {
+  creationSource: DrawingShipCreationSource;
+  grantJoiningLines: (amount: number) => void;
+}): { ship: ShipInstance; events: any[] } {
   const { state, playerId, shipDefId, turnNumber, workingFleet, selectedNumber } = args;
-  const shipDef = getShipById(shipDefId);
-  const controlledSpiralCountBeforeCreation = shipDefId === 'SPI'
-    ? ensureShipsContainer(state, playerId).filter((ship) => ship.shipDefId === 'SPI').length
-    : 0;
-
-  const shipInstance: ShipInstance = {
-    instanceId: crypto.randomUUID(),
+  const created = createShipDuringDrawing({
+    state,
+    playerId,
     shipDefId,
-    createdTurn: turnNumber,
-  };
-
-  if (typeof shipDef?.charges === 'number' && Number.isFinite(shipDef.charges)) {
-    shipInstance.chargesCurrent = shipDef.charges;
-  }
-
-  if (shipDefId === 'QUA' && isValidSelectedNumber(selectedNumber)) {
-    shipInstance.permanentConfiguration = { selectedNumber };
-  }
-
-  ensureShipsContainer(state, playerId).push(shipInstance);
-  workingFleet.push({
-    instanceId: shipInstance.instanceId,
-    shipDefId: shipInstance.shipDefId,
-    chargesCurrent: normalizeChargesCurrent(shipInstance),
-    createdTurn: shipInstance.createdTurn,
+    turnNumber,
+    creationSource: args.creationSource,
+    workingFleet,
+    ...(shipDefId === 'QUA' && isValidSelectedNumber(selectedNumber)
+      ? { permanentConfiguration: { selectedNumber } }
+      : {}),
+    countAsCreatedShip: args.countAsCreatedShip,
   });
-
-  if (shipDefId === 'SPI') {
-    recordThirdSpiralFirstStrikeEligibility({
-      state,
-      playerId,
-      sourceInstanceId: shipInstance.instanceId,
-      turnNumber,
-      controlledSpiralCountBeforeCreation,
-    });
-  }
 
   if (shipDefId === 'FRI') {
     ensureFrigateMemory(state);
-    state.gameData.powerMemory.frigateTriggerByInstanceId[shipInstance.instanceId] = selectedNumber ?? 1;
+    state.gameData.powerMemory.frigateTriggerByInstanceId[created.ship.instanceId] =
+      selectedNumber ?? 1;
   }
 
-  if (args.countAsCreatedShip !== false) {
-    incrementShipsMadeThisTurnCounter(state, playerId, 1);
-  }
-
-  return shipInstance;
+  const consequences = applyImmediateDrawingBuiltConsequences({
+    state,
+    playerId,
+    builtShip: created.ship,
+    turnNumber,
+    workingFleet,
+    grantJoiningLines: args.grantJoiningLines,
+  });
+  return {
+    ship: created.ship,
+    events: [...created.events, ...consequences.events],
+  };
 }
 
 function removeWorkingFleetEntries(
@@ -554,9 +512,7 @@ function applyBasicBuildAttemptSimulation(args: {
     };
   }
 
-  const ordinaryCost = attempt.freeReason === 'zenith_antlion'
-    ? 0
-    : normalizeResource(shipDef.totalLineCost);
+  const ordinaryCost = normalizeResource(shipDef.totalLineCost);
 
   if (remainingOrdinaryLines < ordinaryCost) {
     return {
@@ -573,8 +529,24 @@ function applyBasicBuildAttemptSimulation(args: {
     chargesCurrent: typeof shipDef.charges === 'number' ? normalizeResource(shipDef.charges) : 0,
   });
 
-  if (attempt.shipDefId === 'LEG') {
-    remainingJoiningLines += 4;
+  const consequences = getImmediateDrawingBuiltConsequences(attempt.shipDefId);
+  remainingJoiningLines += consequences.joiningLinesGranted;
+  for (const producedShipDefId of consequences.producedShipDefIds) {
+    const producedDefinition = getShipById(producedShipDefId);
+    if (!producedDefinition) {
+      return {
+        remainingOrdinaryLines,
+        remainingJoiningLines,
+        didApply: false,
+      };
+    }
+    workingFleet.push({
+      instanceId: `sim_${producedShipDefId}_${workingFleet.length}`,
+      shipDefId: producedShipDefId,
+      chargesCurrent: typeof producedDefinition.charges === 'number'
+        ? normalizeResource(producedDefinition.charges)
+        : 0,
+    });
   }
 
   return {
@@ -940,9 +912,7 @@ function resolveBuildAttempt(args: {
   }
 
   if (!isUpgradedBuildAttempt(attempt)) {
-    const ordinaryCost = attempt.freeReason === 'zenith_antlion'
-      ? 0
-      : normalizeResource(shipDef.totalLineCost);
+    const ordinaryCost = normalizeResource(shipDef.totalLineCost);
 
     if (remainingOrdinaryLines < ordinaryCost) {
       pushSkippedAttemptEvent({
@@ -960,25 +930,19 @@ function resolveBuildAttempt(args: {
     }
 
     remainingOrdinaryLines -= ordinaryCost;
-    appendCreatedShip({
+    const created = createNormalBuildShipDuringDrawing({
       state,
       playerId,
       shipDefId: attempt.shipDefId,
       turnNumber,
       workingFleet,
       selectedNumber: attempt.selectedNumber,
+      creationSource: { kind: 'manual' },
+      grantJoiningLines(amount) {
+        remainingJoiningLines += amount;
+      },
     });
-    events.push(
-      createBattleLogBuildManualCaptureEvent({
-        turnNumber,
-        playerId,
-        shipDefId: attempt.shipDefId,
-      }),
-    );
-
-    if (attempt.shipDefId === 'LEG') {
-      remainingJoiningLines += 4;
-    }
+    events.push(...created.events);
 
     return {
       remainingOrdinaryLines,
@@ -1029,21 +993,19 @@ function resolveBuildAttempt(args: {
   remainingJoiningLines -= joiningSpend;
   remainingOrdinaryLines -= ordinaryShortfall;
 
-  appendCreatedShip({
+  const created = createNormalBuildShipDuringDrawing({
     state,
     playerId,
     shipDefId: attempt.shipDefId,
     turnNumber,
     workingFleet,
     selectedNumber: attempt.selectedNumber,
+    creationSource: { kind: 'manual' },
+    grantJoiningLines(amount) {
+      remainingJoiningLines += amount;
+    },
   });
-  events.push(
-    createBattleLogBuildManualCaptureEvent({
-      turnNumber,
-      playerId,
-      shipDefId: attempt.shipDefId,
-    }),
-  );
+  events.push(...created.events);
 
   return {
     remainingOrdinaryLines,
@@ -1161,13 +1123,15 @@ function resolvePlayerBuildSubmit(args: {
     }
     removeWorkingFleetEntries(state, playerId, workingFleet, [xeniteIndex]);
     const createdShipDefId = evolverChoice.choiceId === 'oxite' ? 'OXI' : 'AST';
-    appendCreatedShip({
+    const created = createNormalBuildShipDuringDrawing({
       state,
       playerId,
       shipDefId: createdShipDefId,
       turnNumber,
       workingFleet,
       countAsCreatedShip: false,
+      creationSource: { kind: 'produced', sourceShipDefId: 'EVO' },
+      grantJoiningLines() {},
     });
 
     events.push({
@@ -1177,14 +1141,7 @@ function resolvePlayerBuildSubmit(args: {
       createdShipDefId,
       atMs: nowMs,
     });
-    events.push(
-      createBattleLogBuildProducedCaptureEvent({
-        turnNumber,
-        playerId,
-        shipDefId: createdShipDefId,
-        sourceShipDefId: 'EVO',
-      }),
-    );
+    events.push(...created.events);
   }
 
   const upgradedStageResolution = resolveBuildAttemptsStage({

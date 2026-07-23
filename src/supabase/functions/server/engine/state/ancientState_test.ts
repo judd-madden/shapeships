@@ -1231,6 +1231,71 @@ Deno.test('Simulacrum queue normalization adds and preserves numeric queue order
   );
 });
 
+Deno.test('Simulacrum materialization outcomes normalize durably without inventing malformed completion', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  const baseRecord = {
+    declarationId: 'declaration',
+    ownerPlayerId: 'p1',
+    queuedTurnNumber: 2,
+    materializationTurnNumber: 3,
+    queueOrder: 0,
+    capturedStartOfBattleCharges: 0,
+    permanentConfiguration: {},
+    sourceMode: 'primary',
+    status: 'materialized',
+  };
+  state.gameData.ancient.pendingSimulacrumCopies = [
+    {
+      ...baseRecord,
+      pendingCopyId: 'complete',
+      sourceTargetInstanceId: 'target-zen',
+      copiedShipDefId: 'ZEN',
+      materializedInstanceId: 'zen-copy',
+      materializationOutcome: {
+        joiningLinesGranted: 0,
+        producedShips: [{
+          instanceId: 'zen-ant',
+          shipDefId: 'ANT',
+          sourceShipDefId: 'ZEN',
+        }],
+      },
+    },
+    {
+      ...baseRecord,
+      pendingCopyId: 'malformed',
+      sourceTargetInstanceId: 'target-leg',
+      copiedShipDefId: 'LEG',
+      materializedInstanceId: 'leg-copy',
+      materializationOutcome: {
+        joiningLinesGranted: -1,
+        producedShips: [],
+      },
+    },
+  ];
+
+  const normalized: any = normalizeAncientGameState(state).state;
+  assert.deepEqual(
+    normalized.gameData.ancient.pendingSimulacrumCopies.find(
+      (record: any) => record.pendingCopyId === 'complete',
+    ).materializationOutcome,
+    {
+      joiningLinesGranted: 0,
+      producedShips: [{
+        instanceId: 'zen-ant',
+        shipDefId: 'ANT',
+        sourceShipDefId: 'ZEN',
+      }],
+    },
+  );
+  assert.equal(
+    'materializationOutcome' in
+      normalized.gameData.ancient.pendingSimulacrumCopies.find(
+        (record: any) => record.pendingCopyId === 'malformed',
+      ),
+    false,
+  );
+});
+
 Deno.test('charge declaration entry deep-clones permanent configuration and Battle Reveal prunes only completed Simulacrum records', () => {
   const state: any = normalizeAncientGameState(createBaseState()).state;
   state.gameData.turnNumber = 3;

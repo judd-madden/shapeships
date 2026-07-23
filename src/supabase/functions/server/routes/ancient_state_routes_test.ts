@@ -474,6 +474,7 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
   setupState.gameData.turnData.currentMajorPhase = 'build';
   setupState.gameData.turnData.currentSubPhase = 'drawing';
   setupState.players[0].faction = 'ancient';
+  setupState.players[0].joiningLines = 4;
   setupState.players.push(
     {
       id: 'p2',
@@ -501,12 +502,22 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
   setupState.gameData.ships = {
     p1: [
       { instanceId: 'p1-public', shipDefId: 'DEF' },
-      { instanceId: 'p1-hidden', shipDefId: 'FIG', createdTurn: 3 },
+      { instanceId: 'p1-hidden', shipDefId: 'ZEN', createdTurn: 3 },
+      {
+        instanceId: 'p1-dependent',
+        shipDefId: 'ANT',
+        createdTurn: 3,
+        chargesCurrent: 1,
+      },
     ],
     p2: [
       { instanceId: 'p2-public', shipDefId: 'DEF' },
       { instanceId: 'p2-hidden', shipDefId: 'FIG', createdTurn: 3 },
     ],
+  };
+  setupState.gameData.turnData.buildDrawingPublicSavedResourcesByPlayerId = {
+    p1: { savedLines: 3, savedJoiningLines: 0 },
+    p2: { savedLines: 3, savedJoiningLines: 0 },
   };
   const state: any = normalizeAncientGameState(setupState).state;
   state.gameData.ancient.pendingSimulacrumCopies = [
@@ -515,7 +526,7 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       declarationId: 'p1-declaration',
       ownerPlayerId: 'p1',
       sourceTargetInstanceId: 'p2-source',
-      copiedShipDefId: 'FIG',
+      copiedShipDefId: 'ZEN',
       queuedTurnNumber: 2,
       materializationTurnNumber: 3,
       queueOrder: 0,
@@ -524,6 +535,14 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       sourceMode: 'primary',
       status: 'materialized',
       materializedInstanceId: 'p1-hidden',
+      materializationOutcome: {
+        joiningLinesGranted: 0,
+        producedShips: [{
+          instanceId: 'p1-dependent',
+          shipDefId: 'ANT',
+          sourceShipDefId: 'ZEN',
+        }],
+      },
     },
     {
       pendingCopyId: 'p2-copy',
@@ -539,6 +558,10 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       sourceMode: 'primary',
       status: 'materialized',
       materializedInstanceId: 'p2-hidden',
+      materializationOutcome: {
+        joiningLinesGranted: 0,
+        producedShips: [],
+      },
     },
   ];
   state.gameData.ancient.solarLedgerByPlayerId.p1 = {
@@ -551,7 +574,7 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       paidEnergy: { green: 0, red: 0, blue: 3 },
       simulacrum: {
         sourceTargetInstanceId: 'p2-source',
-        copiedShipDefId: 'FIG',
+        copiedShipDefId: 'ZEN',
       },
     }],
   };
@@ -588,7 +611,7 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
     owner.requester.hiddenDrawingSimulacrumShips.map(
       (entry: any) => entry.instanceId,
     ),
-    ['p1-hidden'],
+    ['p1-hidden', 'p1-dependent'],
   );
   assert.deepEqual(
     opponent.requester.hiddenDrawingSimulacrumShips.map(
@@ -599,7 +622,7 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
   assert.deepEqual(spectator.requester.hiddenDrawingSimulacrumShips, []);
   assert.deepEqual(
     owner.gameData.ships.p1.map((entry: any) => entry.instanceId),
-    ['p1-public', 'p1-hidden'],
+    ['p1-public', 'p1-hidden', 'p1-dependent'],
   );
   assert.deepEqual(
     owner.gameData.ships.p2.map((entry: any) => entry.instanceId),
@@ -613,6 +636,9 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
     spectator.gameData.ships.p2.map((entry: any) => entry.instanceId),
     ['p2-public'],
   );
+  assert.equal(owner.requester.buildEconomy.joiningLinesAvailable, 4);
+  assert.equal(opponent.requester.buildEconomyByPlayerId.p1.joiningLinesAvailable, 0);
+  assert.equal(spectator.requester.buildEconomyByPlayerId.p1.joiningLinesAvailable, 0);
 });
 
 Deno.test('/game-state projects DOM transfer targets with shared Spiral capacity legality', async () => {

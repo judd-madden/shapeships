@@ -207,6 +207,17 @@ export type AncientSolarLedgerState = {
   entries: AncientSolarLedgerEntry[];
 };
 
+export type AncientSimulacrumProducedShipOutcome = {
+  instanceId: string;
+  shipDefId: string;
+  sourceShipDefId: string;
+};
+
+export type AncientSimulacrumMaterializationOutcome = {
+  joiningLinesGranted: number;
+  producedShips: AncientSimulacrumProducedShipOutcome[];
+};
+
 export type AncientPendingSimulacrumCopy = {
   pendingCopyId: string;
   declarationId: string;
@@ -221,6 +232,7 @@ export type AncientPendingSimulacrumCopy = {
   sourceMode: 'primary' | 'cube';
   status: 'queued' | 'materialized';
   materializedInstanceId?: string;
+  materializationOutcome?: AncientSimulacrumMaterializationOutcome;
 };
 
 export type AncientPendingBlackHoleDestruction = {

@@ -424,6 +424,35 @@ function enterPhaseOnce(
   }
 
   if (toKey === 'build.drawing') {
+    // Snapshot and Simulacrum materialization are one authoritative transition.
+    // Keep the caller's state untouched if materialization validation throws.
+    workingState = structuredClone(workingState);
+    const existingSnapshot =
+      workingState.gameData.turnData.buildDrawingPublicSavedResourcesByPlayerId;
+    const hasExistingSnapshot =
+      existingSnapshot != null &&
+      Object.keys(existingSnapshot).length > 0;
+    if (!hasExistingSnapshot) {
+      const activePlayers =
+        workingState.players?.filter((player: any) => player.role === 'player') || [];
+      const snapshot: Record<string, {
+        savedLines: number;
+        savedJoiningLines: number;
+      }> = {};
+      for (const player of activePlayers) {
+        snapshot[player.id] = {
+          savedLines: player.lines ?? 0,
+          savedJoiningLines: player.joiningLines ?? 0,
+        };
+      }
+      workingState.gameData.turnData.buildDrawingPublicSavedResourcesByPlayerId =
+        snapshot;
+      debugLog(
+        '[OnEnterPhase] Captured build.drawing public saved-resource snapshot:',
+        snapshot,
+      );
+    }
+
     const drawingTurnNumber =
       workingState.gameData.turnNumber ??
       workingState.gameData.turnData?.turnNumber ??
@@ -870,35 +899,6 @@ function enterPhaseOnce(
     }
   }
 
-  // ============================================================================
-  // BUILD DRAWING PUBLIC SAVED-RESOURCE SNAPSHOT - build.drawing
-  // ============================================================================
-  // Capture the public Saved Lines view exactly once per turn on the first
-  // authoritative entry into build.drawing. Re-entry paths in the same turn
-  // must preserve the original drawing-start totals.
-  if (toKey === 'build.drawing') {
-    const existingSnapshot = turnData.buildDrawingPublicSavedResourcesByPlayerId;
-    const hasExistingSnapshot =
-      existingSnapshot != null &&
-      Object.keys(existingSnapshot).length > 0;
-
-    if (!hasExistingSnapshot) {
-      const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
-      const snapshot: Record<string, { savedLines: number; savedJoiningLines: number }> = {};
-
-      for (const player of activePlayers) {
-        snapshot[player.id] = {
-          savedLines: player.lines ?? 0,
-          savedJoiningLines: player.joiningLines ?? 0,
-        };
-      }
-
-      turnData.buildDrawingPublicSavedResourcesByPlayerId = snapshot;
-
-      debugLog('[OnEnterPhase] Captured build.drawing public saved-resource snapshot:', snapshot);
-    }
-  }
-  
   // ============================================================================
   // FIRST STRIKE - battle.first_strike
   // ============================================================================

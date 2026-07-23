@@ -298,6 +298,76 @@ Deno.test('Frigate successful creation keeps its existing trigger memory', () =>
   assert.equal(frigate.permanentConfiguration, undefined);
 });
 
+Deno.test('normal LEG and ZEN builds use shared immediate Drawing consequences', () => {
+  const zenState = createResolutionState({
+    lines: 9,
+    payload: {
+      builds: [
+        { shipDefId: 'ZEN', count: 1 },
+        { shipDefId: 'ANT', count: 1 },
+      ],
+    },
+  });
+  zenState.players[0].faction = 'xenite';
+  const zenResult = resolve(zenState);
+  assert.equal(zenResult.alreadyApplied, false);
+  assert.deepEqual(
+    zenState.gameData.ships.p1.map((entry: any) => entry.shipDefId),
+    ['ZEN', 'ANT'],
+  );
+  assert.equal(
+    zenState.gameData.ships.p1.find((entry: any) => entry.shipDefId === 'ANT')
+      ?.chargesCurrent,
+    1,
+  );
+  assert.equal(zenState.players[0].lines, 0);
+  assert.equal(zenState.gameData.turnData.shipsMadeThisTurnByPlayerId.p1, 2);
+  assert.deepEqual(
+    zenResult.events.filter((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_MANUAL' ||
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'
+    ).map((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_MANUAL'
+        ? `${event.shipDefId}:manual`
+        : `${event.shipDefId}:${event.sourceShipDefId}`
+    ),
+    ['ZEN:manual', 'ANT:ZEN'],
+  );
+
+  const legState = createResolutionState({
+    lines: 8,
+    payload: { builds: [{ shipDefId: 'LEG', count: 1 }] },
+  });
+  legState.players[0].faction = 'centaur';
+  const legResult = resolve(legState);
+  assert.deepEqual(
+    legState.gameData.ships.p1.map((entry: any) => entry.shipDefId),
+    ['LEG'],
+  );
+  assert.equal(legState.players[0].lines, 0);
+  assert.equal(legState.players[0].joiningLines, 4);
+  assert.equal(legState.gameData.turnData.shipsMadeThisTurnByPlayerId.p1, 1);
+  assert.deepEqual(
+    legResult.events.filter((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_MANUAL'
+    ).map((event: any) => event.shipDefId),
+    ['LEG'],
+  );
+
+  const zenWithoutPayloadAnt = createResolutionState({
+    lines: 9,
+    payload: { builds: [{ shipDefId: 'ZEN', count: 1 }] },
+  });
+  zenWithoutPayloadAnt.players[0].faction = 'xenite';
+  resolve(zenWithoutPayloadAnt);
+  assert.deepEqual(
+    zenWithoutPayloadAnt.gameData.ships.p1.map((entry: any) =>
+      entry.shipDefId
+    ),
+    ['ZEN', 'ANT'],
+  );
+});
+
 Deno.test('Drawing build resolution can immediately consume Simulacrum materializations as upgrade components', () => {
   const state = createResolutionState({
     turnNumber: 2,
@@ -380,4 +450,112 @@ Deno.test('Drawing build resolution can immediately consume Simulacrum materiali
     ),
     true,
   );
+});
+
+Deno.test('copied LEG joining lines fund an upgrade in the same Drawing', () => {
+  const state = createResolutionState({
+    turnNumber: 2,
+    lines: 0,
+    ships: [
+      { instanceId: 'ang-1', shipDefId: 'ANG' },
+      { instanceId: 'ang-2', shipDefId: 'ANG' },
+    ],
+    payload: { builds: [{ shipDefId: 'FUR', count: 1 }] },
+  });
+  state.players[0].faction = 'centaur';
+  state.players.push({
+    id: 'p2',
+    role: 'player',
+    faction: 'human',
+    health: 25,
+    lines: 0,
+    joiningLines: 0,
+  });
+  state.gameData.ships.p2 = [];
+  state.gameData.ancient = {
+    schemaVersion: 1,
+    energyByPlayerId: {},
+    acceptedDeclarationByPlayerId: {},
+    solarLedgerByPlayerId: {},
+    pendingBlackHoleDestructions: [],
+    pendingSimulacrumCopies: [{
+      pendingCopyId: 'copy-leg',
+      declarationId: 'declaration-1',
+      ownerPlayerId: 'p1',
+      sourceTargetInstanceId: 'source-leg',
+      copiedShipDefId: 'LEG',
+      queuedTurnNumber: 1,
+      materializationTurnNumber: 2,
+      queueOrder: 0,
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+      sourceMode: 'primary',
+      status: 'queued',
+    }],
+  };
+
+  const materialized = materializeQueuedSimulacrumCopiesAtDrawing(
+    state,
+    2,
+    500,
+    () => 'copied-leg',
+  );
+  assert.equal(materialized.state.players[0].joiningLines, 4);
+  const result = resolve(materialized.state);
+  assert.equal(result.alreadyApplied, false);
+  assert.equal(materialized.state.players[0].joiningLines, 0);
+  assert.deepEqual(
+    materialized.state.gameData.ships!.p1.map((entry: any) => entry.shipDefId),
+    ['LEG', 'FUR'],
+  );
+});
+
+Deno.test('unused copied LEG lines clamp only through ordinary persistence', () => {
+  const state = createResolutionState({
+    turnNumber: 2,
+    lines: 0,
+    payload: { builds: [] },
+  });
+  state.players[0].faction = 'centaur';
+  state.players[0].joiningLines = 11;
+  state.players.push({
+    id: 'p2',
+    role: 'player',
+    faction: 'human',
+    health: 25,
+    lines: 0,
+    joiningLines: 0,
+  });
+  state.gameData.ships.p2 = [];
+  state.gameData.ancient = {
+    schemaVersion: 1,
+    energyByPlayerId: {},
+    acceptedDeclarationByPlayerId: {},
+    solarLedgerByPlayerId: {},
+    pendingBlackHoleDestructions: [],
+    pendingSimulacrumCopies: [{
+      pendingCopyId: 'copy-leg',
+      declarationId: 'declaration-1',
+      ownerPlayerId: 'p1',
+      sourceTargetInstanceId: 'source-leg',
+      copiedShipDefId: 'LEG',
+      queuedTurnNumber: 1,
+      materializationTurnNumber: 2,
+      queueOrder: 0,
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+      sourceMode: 'primary',
+      status: 'queued',
+    }],
+  };
+
+  const materialized = materializeQueuedSimulacrumCopiesAtDrawing(
+    state,
+    2,
+    500,
+    () => 'copied-leg',
+  );
+  assert.equal(materialized.state.players[0].joiningLines, 15);
+  resolve(materialized.state);
+  assert.equal(materialized.state.players[0].joiningLines, 12);
 });
