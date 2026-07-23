@@ -5,12 +5,14 @@ import { AncientEnergyCostPips } from './AncientEnergyDisplay';
 interface AncientSiphonSelectorProps {
   maxSpend: number;
   availableWidth: number;
+  x: number;
   onSelect: (lockedAmount: number) => void;
 }
 
 export function AncientSiphonSelector({
   maxSpend,
   availableWidth,
+  x,
   onSelect,
 }: AncientSiphonSelectorProps) {
   const [hoveredSpend, setHoveredSpend] = useState<number | null>(null);
@@ -23,7 +25,7 @@ export function AncientSiphonSelector({
   return (
     <div
       className="absolute flex min-w-0 items-center gap-[16px]"
-      style={{ left: '450px', top: '75px', width: `${availableWidth}px` }}
+      style={{ left: `${x}px`, top: '75px', width: `${availableWidth}px` }}
       onMouseLeave={() => setHoveredSpend(null)}
     >
       <div className="flex shrink-0 items-center justify-center">

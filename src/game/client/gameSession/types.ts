@@ -14,6 +14,7 @@ import type { ActivationStaggerPlan } from '../../display/graphics/animation-sta
 import type { ProvisionalShipEligibility } from './provisionalBuild';
 import type {
   AncientManualSolarCast,
+  AncientSolarSelectorMode,
   FixedAncientManualSolarPowerId,
 } from './ancientChargeDeclaration';
 
@@ -654,9 +655,16 @@ export interface ActionPanelViewModel {
     };
     localManualSolarCasts: AncientManualSolarCast[];
     canCastManualSolarPowerById: Record<FixedAncientManualSolarPowerId, boolean>;
+    selectorMode: AncientSolarSelectorMode | null;
     siphonSelector: {
       maxSpend: number;
       canOpen: boolean;
+    };
+    blackHoleSelector: {
+      canOpen: boolean;
+      requiredTargetCount: number;
+      selectedTargetCount: number;
+      damagePreview: number;
     };
     autocastEnabled: boolean;
     attemptUnresolved: boolean;
@@ -727,6 +735,8 @@ export interface GameSessionActions {
   onDownloadBattleLog: () => void;
   onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void;
   onCastAncientSolarPower: (solarPowerId: FixedAncientManualSolarPowerId) => void;
+  onOpenAncientSolarSelector: (mode: AncientSolarSelectorMode) => void;
+  onCancelAncientSolarSelector: () => void;
   onCastAncientSiphon: (lockedAmount: number) => void;
   onSetAncientAutocastEnabled: (enabled: boolean) => void;
   onSelectCentaurChargeSubTab: (tabId: CentaurChargeSubTabId) => void;

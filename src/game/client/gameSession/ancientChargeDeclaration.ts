@@ -10,6 +10,7 @@ import type { AncientEnergyPool } from './selectors';
 export type { AncientEnergyPool } from './selectors';
 
 export type AncientChargeDeclarationStage = 'charges' | 'powers';
+export type AncientSolarSelectorMode = 'siphon' | 'blackHole';
 
 export type FixedAncientManualSolarPowerId =
   | 'SLIF'
@@ -21,11 +22,19 @@ export type FixedAncientManualSolarPowerId =
 
 export type ImplementedAncientManualSolarPowerId =
   | FixedAncientManualSolarPowerId
-  | 'SSIP';
+  | 'SSIP'
+  | 'SBLA';
 
 export type AncientManualSolarCast =
   | { solarPowerId: FixedAncientManualSolarPowerId }
-  | { solarPowerId: 'SSIP'; lockedAmount: number };
+  | { solarPowerId: 'SSIP'; lockedAmount: number }
+  | { solarPowerId: 'SBLA'; targetInstanceIds: string[] };
+
+export const ANCIENT_BLACK_HOLE_PREVIEW_COST: AncientEnergyPool = {
+  green: 4,
+  red: 4,
+  blue: 4,
+};
 
 export const ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID = {
   SLIF: { green: 1, red: 0, blue: 0 },
@@ -45,6 +54,8 @@ export type AncientChargeDeclarationWorkflow = {
   stage: AncientChargeDeclarationStage;
   hadChargeStage: boolean;
   localManualSolarCasts: AncientManualSolarCast[];
+  selectorMode: AncientSolarSelectorMode | null;
+  blackHoleSelectedTargetInstanceIds: string[];
   rejectionRecoveryPending: boolean;
 };
 
@@ -121,11 +132,24 @@ export function replayAncientManualSolarCasts(args: {
   const remainingEnergy = { ...args.startingPool };
 
   for (const cast of args.localManualSolarCasts) {
-    const cost: AncientEnergyPool | null = cast.solarPowerId === 'SSIP'
-      ? Number.isInteger(cast.lockedAmount) && cast.lockedAmount >= 2
+    let cost: AncientEnergyPool | null;
+    if (cast.solarPowerId === 'SSIP') {
+      cost = Number.isInteger(cast.lockedAmount) && cast.lockedAmount >= 2
         ? { green: cast.lockedAmount, red: cast.lockedAmount, blue: 0 }
-        : null
-      : ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID[cast.solarPowerId];
+        : null;
+    } else if (cast.solarPowerId === 'SBLA') {
+      const targetInstanceIds = cast.targetInstanceIds;
+      const validTargets =
+        Array.isArray(targetInstanceIds) &&
+        targetInstanceIds.length <= 2 &&
+        targetInstanceIds.every((instanceId) =>
+          typeof instanceId === 'string' && instanceId.length > 0
+        ) &&
+        new Set(targetInstanceIds).size === targetInstanceIds.length;
+      cost = validTargets ? ANCIENT_BLACK_HOLE_PREVIEW_COST : null;
+    } else {
+      cost = ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID[cast.solarPowerId];
+    }
     if (!cost || !canAffordAncientEnergyCost(remainingEnergy, cost)) {
       return { remainingEnergy, valid: false };
     }
@@ -178,6 +202,22 @@ export function deriveAncientSiphonSelectorState(args: {
       !args.rejectionRecoveryPending &&
       maxSpend >= 2,
   };
+}
+
+export function deriveAncientBlackHoleCastability(args: {
+  stage: AncientChargeDeclarationStage;
+  remainingEnergy: AncientEnergyPool;
+  energySequenceValid: boolean;
+  attemptUnresolved: boolean;
+  rejectionRecoveryPending: boolean;
+}): boolean {
+  return (
+    args.stage === 'powers' &&
+    args.energySequenceValid &&
+    !args.attemptUnresolved &&
+    !args.rejectionRecoveryPending &&
+    canAffordAncientEnergyCost(args.remainingEnergy, ANCIENT_BLACK_HOLE_PREVIEW_COST)
+  );
 }
 
 export function getUsableAncientEnergyPoolForPlayer(
@@ -275,9 +315,18 @@ export function buildAncientChargeDeclarationPayload(args: {
     declarationId: args.declarationId,
     ordinaryChargeActions: ordinaryActions,
     solarGridChoices,
-    solarCasts: args.localManualSolarCasts.map((cast) => cast.solarPowerId === 'SSIP'
-      ? { solarPowerId: 'SSIP', lockedAmount: cast.lockedAmount }
-      : { solarPowerId: cast.solarPowerId }),
+    solarCasts: args.localManualSolarCasts.map((cast) => {
+      if (cast.solarPowerId === 'SSIP') {
+        return { solarPowerId: 'SSIP', lockedAmount: cast.lockedAmount };
+      }
+      if (cast.solarPowerId === 'SBLA') {
+        return {
+          solarPowerId: 'SBLA',
+          targetInstanceIds: [...cast.targetInstanceIds].sort((a, b) => a.localeCompare(b)),
+        };
+      }
+      return { solarPowerId: cast.solarPowerId };
+    }),
     autocastEnabled: args.autocastEnabled,
   };
 }

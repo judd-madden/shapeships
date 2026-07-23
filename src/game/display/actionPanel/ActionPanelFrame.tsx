@@ -250,7 +250,9 @@ export function ActionPanelFrame({
               declarationEnergy={declarationVm?.provisionalEnergy}
               declarationStage={declarationVm?.stage}
               canCastManualSolarPowerById={declarationVm?.canCastManualSolarPowerById}
+              selectorMode={declarationVm?.selectorMode}
               siphonSelector={declarationVm?.siphonSelector}
+              blackHoleSelector={declarationVm?.blackHoleSelector}
               autocastEnabled={declarationVm?.autocastEnabled ?? vm.ancientAutocastEnabled}
               autocastDisabled={declarationVm?.attemptUnresolved === true}
               declarationAttemptUnresolved={declarationVm?.attemptUnresolved === true}
@@ -274,7 +276,9 @@ export function ActionPanelFrame({
           declarationEnergy={declarationVm?.provisionalEnergy}
           declarationStage={declarationVm?.stage}
           canCastManualSolarPowerById={declarationVm?.canCastManualSolarPowerById}
+          selectorMode={declarationVm?.selectorMode}
           siphonSelector={declarationVm?.siphonSelector}
+          blackHoleSelector={declarationVm?.blackHoleSelector}
           autocastEnabled={declarationVm?.autocastEnabled ?? vm.ancientAutocastEnabled}
           autocastDisabled={declarationVm?.attemptUnresolved === true}
           declarationAttemptUnresolved={declarationVm?.attemptUnresolved === true}
