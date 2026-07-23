@@ -44,6 +44,9 @@ import {
 } from './phaseComputedEffects.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
 import { getPlayerMaxHealth } from '../maximumHealth.ts';
+import {
+  resolveCommittedBlackHoleDestructions,
+} from '../../engine/ancient/blackHoleSolarPower.ts';
 
 function countCreatedShipsByTargetPlayerId(
   effects: Effect[]
@@ -825,6 +828,12 @@ function resolveBattleEndOfTurn(
     };
   }
 
+  const blackHoleResolution = resolveCommittedBlackHoleDestructions(
+    state,
+    currentTurn,
+  );
+  state = blackHoleResolution.state;
+
   // Step 1: Compute all computed effects for this phase (once-only, tiered, triggers, etc.)
   const computed = computePhaseComputedEffects(state, phaseKey);
   state = computed.state;
@@ -899,6 +908,7 @@ function resolveBattleEndOfTurn(
 
   // Combine events: accumulation events + health change events + game over event (if any)
   const allEvents = [
+    ...blackHoleResolution.events,
     ...applied.events,
     ...frigateHitCaptureEvents,
     ...healthResult.events,

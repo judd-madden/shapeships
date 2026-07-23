@@ -367,23 +367,100 @@ Deno.test('later unaffordable fixture cast rolls back ordinary charge, Grid, Ene
 });
 
 Deno.test('later Solar IDs without a production resolver are rejected without state changes', () => {
-  for (const solarPowerId of ['SBLA', 'SSIM']) {
-    const state = createState();
-    const before = structuredClone(state);
-    assert.throws(() => resolveChargeDeclarationSubmission({
-      state,
-      playerId: 'p1',
-      payload: payload({
-        solarGridChoices: [
-          { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-          { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-        ],
-        solarCasts: [{ solarPowerId }],
-      }),
-      nowMs: 1000,
-    }), new RegExp(`not implemented: ${solarPowerId}`));
-    assert.deepEqual(state, before);
-  }
+  const state = createState();
+  const before = structuredClone(state);
+  assert.throws(() => resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [{ solarPowerId: 'SSIM' }],
+    }),
+    nowMs: 1000,
+  }), /not implemented: SSIM/);
+  assert.deepEqual(state, before);
+});
+
+Deno.test('production Black Hole commits normalized targets and locked damage without changing either fleet', () => {
+  const state = createState();
+  state.gameData.ships.p1.push(
+    { instanceId: 'plu-live', shipDefId: 'PLU' },
+    { instanceId: 'mer-live', shipDefId: 'MER' },
+  );
+  state.gameData.ships.p2.push(
+    { instanceId: 'enemy-sta', shipDefId: 'STA' },
+    { instanceId: 'enemy-int', shipDefId: 'INT' },
+    { instanceId: 'enemy-fam', shipDefId: 'FAM' },
+  );
+  state.gameData.ancient.energyByPlayerId.p1.pool = {
+    green: 4,
+    red: 4,
+    blue: 4,
+  };
+  const before = structuredClone(state);
+  const result = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [{
+        solarPowerId: 'SBLA',
+        targetInstanceIds: ['enemy-sta', 'enemy-int'],
+      }],
+    }),
+    nowMs: 1000,
+  });
+
+  assert.deepEqual(state, before);
+  assert.deepEqual(result.state.gameData.ships, before.gameData.ships);
+  assert.deepEqual(
+    result.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.solarCasts,
+    [{
+      solarPowerId: 'SBLA',
+      targetInstanceIds: ['enemy-int', 'enemy-sta'],
+    }],
+  );
+  assert.deepEqual(
+    result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries,
+    [{
+      entryId: 'ancient-solar:3:p1:declaration-1:manual:0',
+      order: 0,
+      solarPowerId: 'SBLA',
+      sourceMode: 'manual',
+      paidEnergy: { green: 4, red: 4, blue: 4 },
+      lockedAmount: 2,
+      targets: [
+        { playerId: 'p2', shipInstanceId: 'enemy-int' },
+        { playerId: 'p2', shipInstanceId: 'enemy-sta' },
+      ],
+    }],
+  );
+  assert.deepEqual(
+    result.state.gameData.ancient.pendingBlackHoleDestructions,
+    [{
+      pendingDestructionId:
+        'ancient-solar:3:p1:declaration-1:manual:0:black-hole-destruction',
+      declarationId: 'declaration-1',
+      ownerPlayerId: 'p1',
+      targetPlayerId: 'p2',
+      targetInstanceIds: ['enemy-int', 'enemy-sta'],
+      battleTurnNumber: 3,
+      lockedDamage: 2,
+      status: 'committed',
+    }],
+  );
+  assert.deepEqual(
+    result.state.gameData.ancient.energyByPlayerId.p1.pool,
+    { green: 0, red: 0, blue: 0 },
+  );
+  assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 2 });
+  assert.equal(result.state.players[1].health, 20);
 });
 
 Deno.test('production FAM and Vortex share Charge Declaration snapshot TYPE semantics', () => {
@@ -497,7 +574,7 @@ Deno.test('production FAM and Vortex share Charge Declaration snapshot TYPE sema
   assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 9 });
 });
 
-Deno.test('Vortex participates in ordered payments and rolls back with a later failed cast', () => {
+Deno.test('Vortex participates in ordered payments and a later unaffordable cast rolls back Black Hole', () => {
   const orderedState = createState();
   orderedState.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 3, blue: 2 };
   const ordered = resolveChargeDeclarationSubmission({
@@ -535,7 +612,15 @@ Deno.test('Vortex participates in ordered payments and rolls back with a later f
   });
 
   const rollbackState = createState();
-  rollbackState.gameData.ancient.energyByPlayerId.p1.pool = { green: 2, red: 2, blue: 2 };
+  rollbackState.gameData.ships.p1.push({
+    instanceId: 'plu-live',
+    shipDefId: 'PLU',
+  });
+  rollbackState.gameData.ancient.energyByPlayerId.p1.pool = {
+    green: 4,
+    red: 4,
+    blue: 4,
+  };
   const before = structuredClone(rollbackState);
   assert.throws(() => resolveChargeDeclarationSubmission({
     state: rollbackState,
@@ -546,12 +631,12 @@ Deno.test('Vortex participates in ordered payments and rolls back with a later f
         { sourceInstanceId: 'sol-b', choiceId: 'hold' },
       ],
       solarCasts: [
-        { solarPowerId: 'SVOR' },
         { solarPowerId: 'SBLA' },
+        { solarPowerId: 'SVOR' },
       ],
     }),
     nowMs: 1000,
-  }), /not implemented: SBLA/);
+  }), /Insufficient green Energy for SVOR/);
   assert.deepEqual(rollbackState, before);
 });
 
