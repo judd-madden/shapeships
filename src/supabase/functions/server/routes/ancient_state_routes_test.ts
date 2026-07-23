@@ -485,7 +485,7 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       isActive: true,
       health: 25,
       lines: 3,
-      joiningLines: 0,
+      joiningLines: 6,
     },
     {
       id: 'spectator',
@@ -602,6 +602,14 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
     assert.deepEqual(publicIds(body, 'p1'), ['p1-public']);
     assert.deepEqual(publicIds(body, 'p2'), ['p2-public']);
     assert.equal(
+      body.publicState.players.find((player: any) => player.id === 'p1').joiningLines,
+      0,
+    );
+    assert.equal(
+      body.publicState.players.find((player: any) => player.id === 'p2').joiningLines,
+      0,
+    );
+    assert.equal(
       body.publicState.ancient.solarLedgerByPlayerId.p1.entries[0].entryId,
       'p1-ssim',
     );
@@ -636,9 +644,67 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
     spectator.gameData.ships.p2.map((entry: any) => entry.instanceId),
     ['p2-public'],
   );
+  assert.equal(owner.players.find((player: any) => player.id === 'p1').joiningLines, 4);
+  assert.equal(owner.players.find((player: any) => player.id === 'p2').joiningLines, 0);
+  assert.equal(opponent.players.find((player: any) => player.id === 'p1').joiningLines, 0);
+  assert.equal(opponent.players.find((player: any) => player.id === 'p2').joiningLines, 6);
+  assert.equal(spectator.players.find((player: any) => player.id === 'p1').joiningLines, 0);
+  assert.equal(spectator.players.find((player: any) => player.id === 'p2').joiningLines, 0);
   assert.equal(owner.requester.buildEconomy.joiningLinesAvailable, 4);
   assert.equal(opponent.requester.buildEconomyByPlayerId.p1.joiningLinesAvailable, 0);
   assert.equal(spectator.requester.buildEconomyByPlayerId.p1.joiningLinesAvailable, 0);
+
+  fixture.setSessionId('late-spectator');
+  const join = fixture.app.handler('POST', '/make-server-825e19ab/join-game/:gameId');
+  const joined = await responseJson(await join(createContext({
+    params: { gameId: 'drawing-simulacrum' },
+    body: { playerName: 'Late Spectator' },
+  })));
+  assert.equal(
+    joined.gameData.players.find((player: any) => player.id === 'p1').joiningLines,
+    0,
+  );
+  assert.equal(
+    joined.gameData.players.find((player: any) => player.id === 'p2').joiningLines,
+    0,
+  );
+
+  fixture.setSessionId('spectator');
+  const switchRole = fixture.app.handler(
+    'POST',
+    '/make-server-825e19ab/switch-role/:gameId',
+  );
+  const switched = await responseJson(await switchRole(createContext({
+    params: { gameId: 'drawing-simulacrum' },
+    body: { newRole: 'spectator' },
+  })));
+  assert.equal(
+    switched.gameData.players.find((player: any) => player.id === 'p1').joiningLines,
+    0,
+  );
+  assert.equal(
+    switched.gameData.players.find((player: any) => player.id === 'p2').joiningLines,
+    0,
+  );
+
+  const intentFixture = createIntentRouteFixture({ storedState: state });
+  const intent = intentFixture.app.handler('POST', '/make-server-825e19ab/intent');
+  const intentBody = await responseJson(await intent(createContext({
+    body: {
+      gameId: 'drawing-simulacrum',
+      intentType: 'ACTION',
+      turnNumber: 3,
+      payload: { actionType: 'message', content: 'projection check' },
+    },
+  })));
+  assert.equal(
+    intentBody.state.players.find((player: any) => player.id === 'p1').joiningLines,
+    4,
+  );
+  assert.equal(
+    intentBody.state.players.find((player: any) => player.id === 'p2').joiningLines,
+    0,
+  );
 });
 
 Deno.test('/game-state projects DOM transfer targets with shared Spiral capacity legality', async () => {

@@ -909,13 +909,72 @@ export function projectPublicAncientState(normalizedState: any): {
   };
 }
 
-function sanitizePlayers(players: unknown): unknown {
+function isDrawingPhase(state: Readonly<any> | undefined): boolean {
+  const gameData = state?.gameData;
+  const turnData = gameData?.turnData;
+  const majorPhase =
+    gameData?.currentPhase ??
+    turnData?.currentMajorPhase ??
+    state?.currentPhase;
+  const subPhase =
+    gameData?.currentSubPhase ??
+    turnData?.currentSubPhase ??
+    state?.currentSubPhase;
+  return majorPhase === 'build' && subPhase === 'drawing';
+}
+
+function getDrawingPublicSavedResources(
+  state: Readonly<any> | undefined,
+  playerId: string,
+): { savedLines?: number; savedJoiningLines?: number } | null {
+  if (!isDrawingPhase(state)) return null;
+  const snapshot =
+    state?.gameData?.turnData
+      ?.buildDrawingPublicSavedResourcesByPlayerId?.[playerId];
+  return isObject(snapshot) ? snapshot : null;
+}
+
+function sanitizePlayers(
+  players: unknown,
+  state?: Readonly<any>,
+  requestingParticipantId?: string,
+  publicOnly = false,
+): unknown {
   if (!Array.isArray(players)) return players;
+  const requester = Array.isArray(state?.players)
+    ? state.players.find((player: any) => player?.id === requestingParticipantId)
+    : null;
+  const requesterMaySeeOwnResources =
+    !publicOnly && requester?.role === 'player';
   return players.map((player) => {
     if (!isObject(player)) return player;
     const { energy: _obsoleteEnergy, ...safePlayer } = player;
-    return safePlayer;
+    const playerId = typeof safePlayer.id === 'string' ? safePlayer.id : null;
+    const publicResources = playerId
+      ? getDrawingPublicSavedResources(state, playerId)
+      : null;
+    if (
+      !publicResources ||
+      (requesterMaySeeOwnResources && playerId === requestingParticipantId)
+    ) {
+      return safePlayer;
+    }
+    return {
+      ...safePlayer,
+      ...(typeof publicResources.savedLines === 'number'
+        ? { lines: publicResources.savedLines }
+        : {}),
+      ...(typeof publicResources.savedJoiningLines === 'number'
+        ? { joiningLines: publicResources.savedJoiningLines }
+        : {}),
+    };
   });
+}
+
+export function projectPublicPlayersForClient(
+  state: Readonly<any>,
+): unknown {
+  return sanitizePlayers(state?.players, state, undefined, true);
 }
 
 export function projectPublicShipsForClient(
@@ -964,11 +1023,23 @@ export function sanitizeAncientStateForClient<T = any>(
     safeGameData.turnData = safeTurnData;
   }
   if (Array.isArray(safeGameData.players)) {
-    safeGameData.players = sanitizePlayers(safeGameData.players);
+    safeGameData.players = sanitizePlayers(
+      safeGameData.players,
+      state,
+      requestingParticipantId,
+    );
   }
   return {
     ...state,
-    ...(Array.isArray(state.players) ? { players: sanitizePlayers(state.players) } : {}),
+    ...(Array.isArray(state.players)
+      ? {
+          players: sanitizePlayers(
+            state.players,
+            state,
+            requestingParticipantId,
+          ),
+        }
+      : {}),
     gameData: safeGameData,
   } as T;
 }

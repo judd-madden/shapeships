@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { applyIntent, type IntentRequest } from './IntentReducer.ts';
+import { normalizeAncientGameState } from '../state/ancientState.ts';
 
 function createBuildState() {
   return {
@@ -37,7 +38,7 @@ function createFirstStrikeState(removalKind: 'guardian' | 'sacrificial_pool' | '
       ? { instanceId: 'opponent-source', shipDefId: 'SAC', createdTurn: 3 }
       : { instanceId: 'opponent-source', shipDefId: 'DOM', createdTurn: 3 };
 
-  return {
+  return normalizeAncientGameState({
     gameId: `intent-reducer-spiral-${removalKind}`,
     status: 'active',
     turnNumber: 3,
@@ -72,7 +73,7 @@ function createFirstStrikeState(removalKind: 'guardian' | 'sacrificial_pool' | '
         },
       },
     },
-  };
+  }).state;
 }
 
 function powerActionIntent(
@@ -199,17 +200,17 @@ function chargeDeclarationIntent(args: {
   };
 }
 
-Deno.test('unimplemented later Solar casts reject without readiness or state mutation', async () => {
+Deno.test('unknown Solar casts reject without readiness or state mutation', async () => {
   const state = createAtomicChargeState();
   const before = structuredClone(state);
   const result = await applyIntent(
     state,
     'p1',
-    chargeDeclarationIntent({ solarCasts: [{ solarPowerId: 'SSIP' }] }),
+    chargeDeclarationIntent({ solarCasts: [{ solarPowerId: 'UNKNOWN' }] }),
     1000,
   );
   assert.equal(result.ok, false);
-  assert.match(result.rejected?.message ?? '', /not implemented: SSIP/);
+  assert.match(result.rejected?.message ?? '', /Unknown Solar Power ID/);
   assert.deepEqual(result.state, before);
   assert.deepEqual(result.events, []);
   assert.equal(

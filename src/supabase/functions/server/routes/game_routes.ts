@@ -28,6 +28,7 @@ import { getShipActivationCueBatches } from '../engine/state/shipActivationCues.
 import {
   normalizeAncientGameState,
   projectPublicAncientState,
+  projectPublicPlayersForClient,
   projectPublicShipsForClient,
   projectRequesterHiddenDrawingShips,
   sanitizeAncientStateForClient,
@@ -2031,7 +2032,7 @@ export function registerGameRoutes(
           : [],
       };
       const publicState = {
-        players: (clientSafeGameData.players ?? []).map((player: any) => ({
+        players: ((projectPublicPlayersForClient(gameData) as any[]) ?? []).map((player: any) => ({
           ...player,
           maxHealth: getPlayerMaxHealth(gameData, player.id),
         })),

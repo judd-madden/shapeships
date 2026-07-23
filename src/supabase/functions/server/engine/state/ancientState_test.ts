@@ -8,6 +8,7 @@ import {
   normalizeAncientGameState,
   normalizeAncientNumber,
   projectPublicAncientState,
+  projectPublicPlayersForClient,
   sanitizeAncientStateForClient,
 } from './ancientState.ts';
 import {
@@ -17,6 +18,42 @@ import {
   getRelevantSolarGridSourceIdsAtDeclarationStart,
   playerRequiresChargeDeclarationInput,
 } from '../intent/chargeDeclarationEligibility.ts';
+
+Deno.test('Drawing saved-resource projection is public-invariant and requester-aware', () => {
+  const state: any = createBaseState();
+  state.gameData.currentPhase = 'build';
+  state.gameData.currentSubPhase = 'drawing';
+  state.gameData.turnData.currentMajorPhase = 'build';
+  state.gameData.turnData.currentSubPhase = 'drawing';
+  state.players[0].lines = 7;
+  state.players[0].joiningLines = 4;
+  state.players[1].lines = 8;
+  state.players[1].joiningLines = 6;
+  state.gameData.turnData.buildDrawingPublicSavedResourcesByPlayerId = {
+    p1: { savedLines: 3, savedJoiningLines: 0 },
+    p2: { savedLines: 3, savedJoiningLines: 1 },
+  };
+
+  const publicPlayers = projectPublicPlayersForClient(state) as any[];
+  assert.deepEqual(
+    publicPlayers.slice(0, 2).map((player) => [player.lines, player.joiningLines]),
+    [[3, 0], [3, 1]],
+  );
+
+  const p1View: any = sanitizeAncientStateForClient(state, 'p1');
+  assert.deepEqual(
+    p1View.players.slice(0, 2).map((player: any) => [player.lines, player.joiningLines]),
+    [[7, 4], [3, 1]],
+  );
+
+  const spectatorView: any = sanitizeAncientStateForClient(state, 'spectator');
+  assert.deepEqual(
+    spectatorView.players.slice(0, 2).map(
+      (player: any) => [player.lines, player.joiningLines],
+    ),
+    [[3, 0], [3, 1]],
+  );
+});
 
 function createBaseState() {
   return {
