@@ -28,6 +28,8 @@ import { getShipActivationCueBatches } from '../engine/state/shipActivationCues.
 import {
   normalizeAncientGameState,
   projectPublicAncientState,
+  projectPublicShipsForClient,
+  projectRequesterHiddenDrawingShips,
   sanitizeAncientStateForClient,
   type AncientCompatibilityRisk,
 } from '../engine/state/ancientState.ts';
@@ -1540,7 +1542,7 @@ export function registerGameRoutes(
       debugLog("Player joined game:", gameId, playerName);
       return c.json({
         message: "Joined game successfully",
-        gameData: sanitizeAncientStateForClient(gameData),
+        gameData: sanitizeAncientStateForClient(gameData, playerId),
       });
 
     } catch (error) {
@@ -1721,7 +1723,7 @@ export function registerGameRoutes(
       debugLog("Player switched role:", gameId, player.name, oldRole, "->", newRole);
       return c.json({
         message: "Role switched successfully",
-        gameData: sanitizeAncientStateForClient(gameData),
+        gameData: sanitizeAncientStateForClient(gameData, playerId),
       });
 
     } catch (error) {
@@ -1976,7 +1978,13 @@ export function registerGameRoutes(
       // Compute available actions for requesting player
       const availableActions = computeAvailableActionsForRequestingPlayer(gameData, requestingPlayerId);
       const publicAncientState = projectPublicAncientState(gameData);
-      const clientSafeGameData = sanitizeAncientStateForClient(gameData);
+      const clientSafeGameData = sanitizeAncientStateForClient(
+        gameData,
+        requestingPlayerId,
+      );
+      const publicShips = projectPublicShipsForClient(gameData);
+      const hiddenDrawingSimulacrumShips =
+        projectRequesterHiddenDrawingShips(gameData, requestingPlayerId);
       const {
         ships: _omitShips,
         battleLogScratch: _omitBattleLogScratch,
@@ -2022,7 +2030,7 @@ export function registerGameRoutes(
         })),
         phaseReadiness,
         clock: clockSnapshot,
-        ships: gameData.gameData?.ships ?? {},
+        ships: publicShips,
         voidShipsByPlayerId: gameData.gameData?.voidShipsByPlayerId ?? {},
         visibleDice,
         lastTurnStats: {
@@ -2063,6 +2071,7 @@ export function registerGameRoutes(
             participant?.role
           ),
         },
+        hiddenDrawingSimulacrumShips,
       };
       const result = {
         winnerPlayerId: gameData.winnerPlayerId ?? null,
@@ -2575,7 +2584,7 @@ export function registerGameRoutes(
           return c.json({ 
             message: responseMessage,
             debug: { from: result.from, to: result.to },
-            gameState: sanitizeAncientStateForClient(gameData),
+            gameState: sanitizeAncientStateForClient(gameData, playerId),
           });
 
         case 'message':
@@ -2673,7 +2682,10 @@ export function registerGameRoutes(
       debugLog("Action processed successfully:", actionType, "by", originalPlayerName);
       return c.json({
         message: responseMessage,
-        gameState: sanitizeAncientStateForClient(normalizedGameData.state),
+        gameState: sanitizeAncientStateForClient(
+          normalizedGameData.state,
+          playerId,
+        ),
       });
 
     } catch (error) {

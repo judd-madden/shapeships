@@ -320,6 +320,126 @@ Deno.test('fixture manual Solar resolvers commit ordered payments, pending effec
   assert.equal(retry.state.gameData.ancient.solarLedgerByPlayerId.p1.entries.length, 2);
 });
 
+Deno.test('production Simulacrum commits ordered queue records, exact blue payments, and public ledger metadata atomically', () => {
+  const state = createState();
+  state.gameData.ships.p2 = [
+    { instanceId: 'enemy-def', shipDefId: 'DEF' },
+    { instanceId: 'enemy-fig', shipDefId: 'FIG' },
+  ];
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p2 =
+    structuredClone(state.gameData.ships.p2);
+  state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId.p1 = [];
+  state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1 = [];
+  state.gameData.ancient.energyByPlayerId.p1.pool = {
+    green: 0,
+    red: 0,
+    blue: 5,
+  };
+
+  const result = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      solarCasts: [
+        { solarPowerId: 'SSIM', targetInstanceId: 'enemy-def' },
+        { solarPowerId: 'SSIM', targetInstanceId: 'enemy-fig' },
+      ],
+    }),
+    nowMs: 1000,
+  });
+
+  assert.equal(result.status, 'applied');
+  assert.deepEqual(
+    result.state.gameData.ancient.pendingSimulacrumCopies.map((record: any) => ({
+      copiedShipDefId: record.copiedShipDefId,
+      queueOrder: record.queueOrder,
+      status: record.status,
+    })),
+    [
+      { copiedShipDefId: 'DEF', queueOrder: 0, status: 'queued' },
+      { copiedShipDefId: 'FIG', queueOrder: 1, status: 'queued' },
+    ],
+  );
+  assert.deepEqual(
+    result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries.map((entry: any) => ({
+      solarPowerId: entry.solarPowerId,
+      paidEnergy: entry.paidEnergy,
+      target: entry.targets?.[0],
+      simulacrum: entry.simulacrum,
+    })),
+    [
+      {
+        solarPowerId: 'SSIM',
+        paidEnergy: { green: 0, red: 0, blue: 2 },
+        target: { playerId: 'p2', shipInstanceId: 'enemy-def' },
+        simulacrum: {
+          sourceTargetInstanceId: 'enemy-def',
+          copiedShipDefId: 'DEF',
+        },
+      },
+      {
+        solarPowerId: 'SSIM',
+        paidEnergy: { green: 0, red: 0, blue: 3 },
+        target: { playerId: 'p2', shipInstanceId: 'enemy-fig' },
+        simulacrum: {
+          sourceTargetInstanceId: 'enemy-fig',
+          copiedShipDefId: 'FIG',
+        },
+      },
+    ],
+  );
+  assert.deepEqual(
+    result.state.gameData.ancient.energyByPlayerId.p1.pool,
+    { green: 0, red: 0, blue: 0 },
+  );
+});
+
+Deno.test('production Simulacrum rolls back its complete declaration for a duplicate or unaffordable later cast', () => {
+  for (const scenario of [
+    {
+      casts: [
+        { solarPowerId: 'SSIM', targetInstanceId: 'enemy-def' },
+        { solarPowerId: 'SSIM', targetInstanceId: 'enemy-def' },
+      ],
+      blue: 10,
+      error: /primary target already selected/,
+    },
+    {
+      casts: [
+        { solarPowerId: 'SSIM', targetInstanceId: 'enemy-def' },
+        { solarPowerId: 'SSIM', targetInstanceId: 'enemy-fig' },
+      ],
+      blue: 2,
+      error: /Insufficient blue Energy/,
+    },
+  ]) {
+    const state = createState();
+    state.gameData.ships.p2 = [
+      { instanceId: 'enemy-def', shipDefId: 'DEF' },
+      { instanceId: 'enemy-fig', shipDefId: 'FIG' },
+    ];
+    state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p2 =
+      structuredClone(state.gameData.ships.p2);
+    state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId.p1 = [];
+    state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1 = [];
+    state.gameData.ancient.energyByPlayerId.p1.pool = {
+      green: 0,
+      red: 0,
+      blue: scenario.blue,
+    };
+    const before = structuredClone(state);
+
+    assert.throws(() =>
+      resolveChargeDeclarationSubmission({
+        state,
+        playerId: 'p1',
+        payload: payload({ solarCasts: scenario.casts }),
+        nowMs: 1000,
+      }), scenario.error);
+    assert.deepEqual(state, before);
+  }
+});
+
 Deno.test('later unaffordable fixture cast rolls back ordinary charge, Grid, Energy, effects, ledger, and acceptance', () => {
   const state = createState();
   const before = structuredClone(state);
@@ -366,7 +486,7 @@ Deno.test('later unaffordable fixture cast rolls back ordinary charge, Grid, Ene
   assert.deepEqual(state, before);
 });
 
-Deno.test('later Solar IDs without a production resolver are rejected without state changes', () => {
+Deno.test('production Simulacrum rejects a missing target without changing state', () => {
   const state = createState();
   const before = structuredClone(state);
   assert.throws(() => resolveChargeDeclarationSubmission({
@@ -380,7 +500,7 @@ Deno.test('later Solar IDs without a production resolver are rejected without st
       solarCasts: [{ solarPowerId: 'SSIM' }],
     }),
     nowMs: 1000,
-  }), /not implemented: SSIM/);
+  }), /requires targetInstanceId/);
   assert.deepEqual(state, before);
 });
 

@@ -215,6 +215,7 @@ export type AncientPendingSimulacrumCopy = {
   copiedShipDefId: string;
   queuedTurnNumber: number;
   materializationTurnNumber: number;
+  queueOrder: number;
   capturedStartOfBattleCharges: number;
   permanentConfiguration: ShipPermanentConfiguration;
   sourceMode: 'primary' | 'cube';

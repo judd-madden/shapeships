@@ -50,12 +50,14 @@ import {
 import { SIPHON_SOLAR_RESOLVER } from '../ancient/siphonSolarPower.ts';
 import { VORTEX_SOLAR_RESOLVER } from '../ancient/vortexSolarPower.ts';
 import { BLACK_HOLE_SOLAR_RESOLVER } from '../ancient/blackHoleSolarPower.ts';
+import { SIMULACRUM_SOLAR_RESOLVER } from '../ancient/simulacrumSolarPower.ts';
 
 const PRODUCTION_SOLAR_RESOLVERS: Readonly<ManualSolarResolverRegistry> = Object.freeze({
   ...PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
   SSIP: SIPHON_SOLAR_RESOLVER,
   SVOR: VORTEX_SOLAR_RESOLVER,
   SBLA: BLACK_HOLE_SOLAR_RESOLVER,
+  SSIM: SIMULACRUM_SOLAR_RESOLVER,
 });
 
 export type NormalizedChargeDeclaration = {

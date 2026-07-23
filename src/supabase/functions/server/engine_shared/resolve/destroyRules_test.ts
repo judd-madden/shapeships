@@ -4,6 +4,7 @@ import {
   getValidDestroyTargets,
   getValidShipOfEqualityTargets,
   getValidTransferTargets,
+  isCanonicalBasicOnlyTargetShip,
 } from './destroyRules.ts';
 import { resolvePowerAction } from './resolvePowerAction.ts';
 
@@ -98,6 +99,15 @@ function markThirdSpiral(state: GameState, sourceInstanceId: string, turnNumber 
     p1: { sourceInstanceId, turnNumber },
   };
 }
+
+Deno.test('canonical basic-only classification includes evolved Basics without admitting Upgraded or Solar Powers', () => {
+  for (const shipDefId of ['DEF', 'OXI', 'AST']) {
+    assert.equal(isCanonicalBasicOnlyTargetShip(shipDefId), true, shipDefId);
+  }
+  for (const shipDefId of ['GUA', 'SLIF', 'SSIM']) {
+    assert.equal(isCanonicalBasicOnlyTargetShip(shipDefId), false, shipDefId);
+  }
+});
 
 Deno.test('generic destroy target derivation excludes protected Cores without changing ordinary targets', () => {
   const state = createState({

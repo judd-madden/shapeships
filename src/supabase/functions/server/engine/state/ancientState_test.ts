@@ -1165,3 +1165,133 @@ Deno.test('response sanitizer is pure and strips Ancient internal and third-Spir
   assert.equal('solarGridDeclarationSourceIdsByPlayerId' in safe.gameData.turnData, false);
   assert.deepEqual(safe.battleLogScratch, { private: true });
 });
+
+Deno.test('Simulacrum queue normalization adds and preserves numeric queue order without a schema bump', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  state.gameData.ancient.pendingSimulacrumCopies = [
+    {
+      pendingCopyId: 'order-10',
+      declarationId: 'declaration',
+      ownerPlayerId: 'p1',
+      sourceTargetInstanceId: 'target-10',
+      copiedShipDefId: 'DEF',
+      queuedTurnNumber: 2,
+      materializationTurnNumber: 3,
+      queueOrder: 10,
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+      sourceMode: 'primary',
+      status: 'queued',
+    },
+    {
+      pendingCopyId: 'order-2',
+      declarationId: 'declaration',
+      ownerPlayerId: 'p1',
+      sourceTargetInstanceId: 'target-2',
+      copiedShipDefId: 'FIG',
+      queuedTurnNumber: 2,
+      materializationTurnNumber: 3,
+      queueOrder: 2,
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+      sourceMode: 'primary',
+      status: 'queued',
+    },
+    {
+      pendingCopyId: 'legacy-order',
+      declarationId: 'declaration',
+      ownerPlayerId: 'p1',
+      sourceTargetInstanceId: 'legacy-target',
+      copiedShipDefId: 'INT',
+      queuedTurnNumber: 2,
+      materializationTurnNumber: 3,
+      capturedStartOfBattleCharges: 1,
+      permanentConfiguration: {},
+      sourceMode: 'primary',
+      status: 'queued',
+    },
+  ];
+
+  const normalized: any = normalizeAncientGameState(state).state;
+  assert.equal(normalized.gameData.ancient.schemaVersion, 1);
+  assert.deepEqual(
+    normalized.gameData.ancient.pendingSimulacrumCopies.map((record: any) => [
+      record.pendingCopyId,
+      record.queueOrder,
+    ]),
+    [
+      ['legacy-order', 2],
+      ['order-2', 2],
+      ['order-10', 10],
+    ],
+  );
+  assert.deepEqual(
+    normalizeAncientGameState(normalized).state,
+    normalized,
+  );
+});
+
+Deno.test('charge declaration entry deep-clones permanent configuration and Battle Reveal prunes only completed Simulacrum records', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  state.gameData.turnNumber = 3;
+  state.gameData.currentPhase = 'battle';
+  state.gameData.currentSubPhase = 'charge_declaration';
+  state.gameData.turnData.turnNumber = 3;
+  state.gameData.turnData.currentMajorPhase = 'battle';
+  state.gameData.turnData.currentSubPhase = 'charge_declaration';
+  state.gameData.ships.p1 = [{
+    instanceId: 'qua-live',
+    shipDefId: 'QUA',
+    permanentConfiguration: { selectedNumber: 4 },
+  }];
+
+  const entered = onEnterPhase(
+    state,
+    'battle.first_strike',
+    'battle.charge_declaration',
+    100,
+  );
+  const snapshot =
+    entered.state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p1;
+  entered.state.gameData.ships.p1[0].permanentConfiguration.selectedNumber = 2;
+  assert.equal(snapshot[0].permanentConfiguration.selectedNumber, 4);
+
+  entered.state.gameData.ancient.pendingSimulacrumCopies = [
+    {
+      pendingCopyId: 'completed',
+      declarationId: 'declaration',
+      ownerPlayerId: 'p1',
+      sourceTargetInstanceId: 'target',
+      copiedShipDefId: 'DEF',
+      queuedTurnNumber: 2,
+      materializationTurnNumber: 3,
+      queueOrder: 0,
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+      sourceMode: 'primary',
+      status: 'materialized',
+      materializedInstanceId: 'copy',
+    },
+    {
+      pendingCopyId: 'future',
+      declarationId: 'declaration',
+      ownerPlayerId: 'p1',
+      sourceTargetInstanceId: 'future-target',
+      copiedShipDefId: 'FIG',
+      queuedTurnNumber: 3,
+      materializationTurnNumber: 4,
+      queueOrder: 1,
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+      sourceMode: 'primary',
+      status: 'queued',
+    },
+  ];
+  applyAncientBattleRevealPreparation(entered.state);
+  assert.deepEqual(
+    entered.state.gameData.ancient.pendingSimulacrumCopies.map(
+      (record: any) => record.pendingCopyId,
+    ),
+    ['future'],
+  );
+});

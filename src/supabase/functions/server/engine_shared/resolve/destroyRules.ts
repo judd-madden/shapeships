@@ -41,7 +41,7 @@ export function isCanonicalTrueBasicShip(shipDefId: string): boolean {
   return shipDef?.shipType === 'Basic';
 }
 
-function isCanonicalBasicOnlyTargetShip(shipDefId: string): boolean {
+export function isCanonicalBasicOnlyTargetShip(shipDefId: string): boolean {
   const shipDef = getShipById(shipDefId);
   return shipDef?.shipType === 'Basic' || shipDef?.shipType === 'Basic - Evolved';
 }

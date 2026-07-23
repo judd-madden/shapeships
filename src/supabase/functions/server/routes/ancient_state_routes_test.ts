@@ -463,6 +463,158 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
   assert.equal(fixture.writes.length, 0);
 });
 
+Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with owner-only requester projection', async () => {
+  const fixture = createGameRouteFixture();
+  const setupState: any = createSetupState('drawing-simulacrum');
+  setupState.turnNumber = 3;
+  setupState.gameData.turnNumber = 3;
+  setupState.gameData.currentPhase = 'build';
+  setupState.gameData.currentSubPhase = 'drawing';
+  setupState.gameData.turnData.turnNumber = 3;
+  setupState.gameData.turnData.currentMajorPhase = 'build';
+  setupState.gameData.turnData.currentSubPhase = 'drawing';
+  setupState.players[0].faction = 'ancient';
+  setupState.players.push(
+    {
+      id: 'p2',
+      name: 'Player Two',
+      role: 'player',
+      faction: 'ancient',
+      isReady: false,
+      isActive: true,
+      health: 25,
+      lines: 3,
+      joiningLines: 0,
+    },
+    {
+      id: 'spectator',
+      name: 'Spectator',
+      role: 'spectator',
+      faction: null,
+      isReady: false,
+      isActive: false,
+      health: 0,
+      lines: 0,
+      joiningLines: 0,
+    },
+  );
+  setupState.gameData.ships = {
+    p1: [
+      { instanceId: 'p1-public', shipDefId: 'DEF' },
+      { instanceId: 'p1-hidden', shipDefId: 'FIG', createdTurn: 3 },
+    ],
+    p2: [
+      { instanceId: 'p2-public', shipDefId: 'DEF' },
+      { instanceId: 'p2-hidden', shipDefId: 'FIG', createdTurn: 3 },
+    ],
+  };
+  const state: any = normalizeAncientGameState(setupState).state;
+  state.gameData.ancient.pendingSimulacrumCopies = [
+    {
+      pendingCopyId: 'p1-copy',
+      declarationId: 'p1-declaration',
+      ownerPlayerId: 'p1',
+      sourceTargetInstanceId: 'p2-source',
+      copiedShipDefId: 'FIG',
+      queuedTurnNumber: 2,
+      materializationTurnNumber: 3,
+      queueOrder: 0,
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+      sourceMode: 'primary',
+      status: 'materialized',
+      materializedInstanceId: 'p1-hidden',
+    },
+    {
+      pendingCopyId: 'p2-copy',
+      declarationId: 'p2-declaration',
+      ownerPlayerId: 'p2',
+      sourceTargetInstanceId: 'p1-source',
+      copiedShipDefId: 'FIG',
+      queuedTurnNumber: 2,
+      materializationTurnNumber: 3,
+      queueOrder: 0,
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+      sourceMode: 'primary',
+      status: 'materialized',
+      materializedInstanceId: 'p2-hidden',
+    },
+  ];
+  state.gameData.ancient.solarLedgerByPlayerId.p1 = {
+    battleTurnNumber: 2,
+    entries: [{
+      entryId: 'p1-ssim',
+      order: 0,
+      solarPowerId: 'SSIM',
+      sourceMode: 'manual',
+      paidEnergy: { green: 0, red: 0, blue: 3 },
+      simulacrum: {
+        sourceTargetInstanceId: 'p2-source',
+        copiedShipDefId: 'FIG',
+      },
+    }],
+  };
+  fixture.store.set('game_drawing-simulacrum', structuredClone(state));
+
+  const getState = fixture.app.handler(
+    'GET',
+    '/make-server-825e19ab/game-state/:gameId',
+  );
+  const owner = await responseJson(
+    await getState(createContext({ params: { gameId: 'drawing-simulacrum' } })),
+  );
+  fixture.setSessionId('p2');
+  const opponent = await responseJson(
+    await getState(createContext({ params: { gameId: 'drawing-simulacrum' } })),
+  );
+  fixture.setSessionId('spectator');
+  const spectator = await responseJson(
+    await getState(createContext({ params: { gameId: 'drawing-simulacrum' } })),
+  );
+
+  const publicIds = (body: any, playerId: string) =>
+    body.publicState.ships[playerId].map((entry: any) => entry.instanceId);
+  for (const body of [owner, opponent, spectator]) {
+    assert.deepEqual(publicIds(body, 'p1'), ['p1-public']);
+    assert.deepEqual(publicIds(body, 'p2'), ['p2-public']);
+    assert.equal(
+      body.publicState.ancient.solarLedgerByPlayerId.p1.entries[0].entryId,
+      'p1-ssim',
+    );
+    assert.equal('ancient' in body.gameData, false);
+  }
+  assert.deepEqual(
+    owner.requester.hiddenDrawingSimulacrumShips.map(
+      (entry: any) => entry.instanceId,
+    ),
+    ['p1-hidden'],
+  );
+  assert.deepEqual(
+    opponent.requester.hiddenDrawingSimulacrumShips.map(
+      (entry: any) => entry.instanceId,
+    ),
+    ['p2-hidden'],
+  );
+  assert.deepEqual(spectator.requester.hiddenDrawingSimulacrumShips, []);
+  assert.deepEqual(
+    owner.gameData.ships.p1.map((entry: any) => entry.instanceId),
+    ['p1-public', 'p1-hidden'],
+  );
+  assert.deepEqual(
+    owner.gameData.ships.p2.map((entry: any) => entry.instanceId),
+    ['p2-public'],
+  );
+  assert.deepEqual(
+    spectator.gameData.ships.p1.map((entry: any) => entry.instanceId),
+    ['p1-public'],
+  );
+  assert.deepEqual(
+    spectator.gameData.ships.p2.map((entry: any) => entry.instanceId),
+    ['p2-public'],
+  );
+});
+
 Deno.test('/game-state projects DOM transfer targets with shared Spiral capacity legality', async () => {
   const fixture = createGameRouteFixture();
   const setupState: any = createSetupState('dom-projection');

@@ -11,12 +11,20 @@ import type {
   AncientSolarLedgerEntry,
   AncientSolarLedgerState,
   AncientState,
+  GameState,
+  ShipInstance,
 } from './GameStateTypes.ts';
 import {
   ANCIENT_SOLAR_POWER_IDS,
   type AncientSolarPowerId,
 } from './GameStateTypes.ts';
 import { getEffectiveDiceRollForPlayer } from '../../engine_shared/resolve/phaseComputedEffects.ts';
+import {
+  projectPublicShipsForSimulacrumDrawing,
+  projectRequesterHiddenDrawingSimulacrumShips,
+  projectRequesterShipsForSimulacrumDrawing,
+  pruneCompletedSimulacrumCopiesAtBattleReveal,
+} from '../ancient/simulacrumSolarPower.ts';
 
 export const ANCIENT_STATE_SCHEMA_VERSION = 1 as const;
 const ANCIENT_SOLAR_POWER_ID_SET = new Set<AncientSolarPowerId>(ANCIENT_SOLAR_POWER_IDS);
@@ -58,6 +66,13 @@ export function normalizeAncientNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.max(0, Math.floor(value))
     : 0;
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' &&
+    Number.isFinite(value) &&
+    Number.isInteger(value) &&
+    value >= 0;
 }
 
 function normalizeBattleTurnNumber(value: unknown): number | null {
@@ -467,7 +482,10 @@ function normalizeAcceptedDeclaration(
   };
 }
 
-function normalizePendingSimulacrumCopy(value: unknown): AncientPendingSimulacrumCopy | null {
+function normalizePendingSimulacrumCopy(
+  value: unknown,
+  fallbackQueueOrder: number,
+): AncientPendingSimulacrumCopy | null {
   if (
     !isObject(value) ||
     !isNonEmptyString(value.pendingCopyId) ||
@@ -489,6 +507,9 @@ function normalizePendingSimulacrumCopy(value: unknown): AncientPendingSimulacru
     copiedShipDefId: value.copiedShipDefId,
     queuedTurnNumber: normalizeAncientNumber(value.queuedTurnNumber),
     materializationTurnNumber: normalizeAncientNumber(value.materializationTurnNumber),
+    queueOrder: isNonNegativeInteger(value.queueOrder)
+      ? value.queueOrder
+      : fallbackQueueOrder,
     capturedStartOfBattleCharges: normalizeAncientNumber(value.capturedStartOfBattleCharges),
     permanentConfiguration: {
       ...(typeof configuration.selectedNumber !== 'undefined'
@@ -638,9 +659,15 @@ export function normalizeAncientGameState<T = any>(state: T): AncientNormalizati
     raw: rawAncient.pendingSimulacrumCopies,
     path: 'gameData.ancient.pendingSimulacrumCopies',
     risks: compatibilityRisks,
-    normalize(candidate) {
-      const normalized = normalizePendingSimulacrumCopy(candidate);
-      return normalized ? { value: normalized, stableId: normalized.pendingCopyId } : null;
+    normalize(candidate, index) {
+      const normalized = normalizePendingSimulacrumCopy(candidate, index);
+      return normalized
+        ? {
+            value: normalized,
+            stableId: normalized.pendingCopyId,
+            order: normalized.queueOrder,
+          }
+        : null;
     },
   });
   const pendingBlackHoleDestructions = normalizeUniqueEntries({
@@ -722,6 +749,10 @@ export function applyAncientBattleRevealPreparation<T = any>(state: T): T {
       canonicalState.gameData.turnData?.turnNumber ??
       canonicalState.turnNumber ??
       0,
+  );
+  pruneCompletedSimulacrumCopiesAtBattleReveal(
+    canonicalState as GameState,
+    battleTurnNumber,
   );
   const energyByPlayerId: Record<string, AncientPlayerEnergyState> = {};
   const solarLedgerByPlayerId: Record<string, AncientSolarLedgerState> = {};
@@ -863,7 +894,26 @@ function sanitizePlayers(players: unknown): unknown {
   });
 }
 
-export function sanitizeAncientStateForClient<T = any>(state: T): T {
+export function projectPublicShipsForClient(
+  state: Readonly<any>,
+): Record<string, ShipInstance[]> {
+  return projectPublicShipsForSimulacrumDrawing(state);
+}
+
+export function projectRequesterHiddenDrawingShips(
+  state: Readonly<any>,
+  requestingParticipantId?: string,
+): ShipInstance[] {
+  return projectRequesterHiddenDrawingSimulacrumShips(
+    state,
+    requestingParticipantId,
+  );
+}
+
+export function sanitizeAncientStateForClient<T = any>(
+  state: T,
+  requestingParticipantId?: string,
+): T {
   if (!isObject(state)) return state;
   const gameData = isObject(state.gameData) ? state.gameData : null;
   if (!gameData) {
@@ -873,6 +923,12 @@ export function sanitizeAncientStateForClient<T = any>(state: T): T {
     } as T;
   }
   const { ancient: _internalAncient, ...safeGameData } = gameData;
+  if (isObject(safeGameData.ships)) {
+    safeGameData.ships = projectRequesterShipsForSimulacrumDrawing(
+      state,
+      requestingParticipantId,
+    );
+  }
   const turnData = isObject(safeGameData.turnData) ? safeGameData.turnData : null;
   if (turnData) {
     const {

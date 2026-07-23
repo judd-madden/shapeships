@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { materializeQueuedSimulacrumCopiesAtDrawing } from '../ancient/simulacrumSolarPower.ts';
 import { resolveBuildSubmitAuthoritatively } from './buildSubmitResolution.ts';
 
 function createResolutionState(args: {
@@ -295,4 +296,88 @@ Deno.test('Frigate successful creation keeps its existing trigger memory', () =>
   const frigate = state.gameData.ships.p1[0];
   assert.equal(state.gameData.powerMemory.frigateTriggerByInstanceId[frigate.instanceId], 4);
   assert.equal(frigate.permanentConfiguration, undefined);
+});
+
+Deno.test('Drawing build resolution can immediately consume Simulacrum materializations as upgrade components', () => {
+  const state = createResolutionState({
+    turnNumber: 2,
+    lines: 0,
+    payload: { builds: [{ shipDefId: 'TAC', count: 1 }] },
+  });
+  state.players.push({
+    id: 'p2',
+    role: 'player',
+    faction: 'human',
+    health: 25,
+    lines: 0,
+    joiningLines: 0,
+  });
+  state.players[0].joiningLines = 3;
+  state.gameData.currentPhase = 'build';
+  state.gameData.currentSubPhase = 'drawing';
+  state.gameData.ships.p2 = [];
+  state.gameData.ancient = {
+    schemaVersion: 1,
+    energyByPlayerId: {},
+    pendingSimulacrumCopies: [
+      {
+        pendingCopyId: 'copy-def-1',
+        declarationId: 'declaration-1',
+        ownerPlayerId: 'p1',
+        sourceTargetInstanceId: 'source-def-1',
+        copiedShipDefId: 'DEF',
+        queuedTurnNumber: 1,
+        materializationTurnNumber: 2,
+        queueOrder: 0,
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: {},
+        sourceMode: 'primary',
+        status: 'queued',
+      },
+      {
+        pendingCopyId: 'copy-def-2',
+        declarationId: 'declaration-1',
+        ownerPlayerId: 'p1',
+        sourceTargetInstanceId: 'source-def-2',
+        copiedShipDefId: 'DEF',
+        queuedTurnNumber: 1,
+        materializationTurnNumber: 2,
+        queueOrder: 1,
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: {},
+        sourceMode: 'primary',
+        status: 'queued',
+      },
+      {
+        pendingCopyId: 'copy-fig',
+        declarationId: 'declaration-1',
+        ownerPlayerId: 'p1',
+        sourceTargetInstanceId: 'source-fig',
+        copiedShipDefId: 'FIG',
+        queuedTurnNumber: 1,
+        materializationTurnNumber: 2,
+        queueOrder: 2,
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: {},
+        sourceMode: 'primary',
+        status: 'queued',
+      },
+    ],
+  };
+
+  const materialized = materializeQueuedSimulacrumCopiesAtDrawing(state, 2, 900);
+  const result = resolve(materialized.state);
+
+  assert.deepEqual(
+    materialized.state.gameData.ships!.p1.map((ship: any) => ship.shipDefId),
+    ['TAC'],
+  );
+  assert.equal(materialized.state.players[0].joiningLines, 0);
+  assert.equal(
+    result.events.some((event) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_MANUAL' &&
+      event.shipDefId === 'TAC'
+    ),
+    true,
+  );
 });

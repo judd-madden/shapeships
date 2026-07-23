@@ -146,12 +146,18 @@ function summarizeBattleLogScratch(scratch: any) {
   };
 }
 
-function sanitizeStateForResponse(state: any) {
+function sanitizeStateForResponse(
+  state: any,
+  requestingParticipantId?: string,
+) {
   if (!state || typeof state !== 'object') {
     return state;
   }
 
-  const ancientSafeState = sanitizeAncientStateForClient(state);
+  const ancientSafeState = sanitizeAncientStateForClient(
+    state,
+    requestingParticipantId,
+  );
   const { battleLogScratch: _omitBattleLogScratch, ...responseState } = ancientSafeState;
   return responseState;
 }
@@ -406,7 +412,7 @@ export function registerIntentRoutes(
         return c.json(
           {
             ok: result.ok,
-            state: sanitizeStateForResponse(result.state),
+            state: sanitizeStateForResponse(result.state, sessionPlayerId),
             events: result.events,
             rejected: result.rejected,
           },
@@ -587,6 +593,7 @@ export function registerIntentRoutes(
             ok: true,
             state: sanitizeStateForResponse(
               battleLogProcessingResult.nextState,
+              sessionPlayerId,
             ),
             events: allEvents,
             rejected: null,
@@ -689,6 +696,7 @@ export function registerIntentRoutes(
             ok: true,
             state: sanitizeStateForResponse(
               battleLogProcessingResult.nextState,
+              sessionPlayerId,
             ),
             events: result.events, // keep original events from first apply (best-effort)
             rejected: null,
@@ -702,7 +710,7 @@ export function registerIntentRoutes(
       return c.json(
         {
           ok: false,
-          state: sanitizeStateForResponse(retry.state),
+          state: sanitizeStateForResponse(retry.state, sessionPlayerId),
           events: [],
           rejected: retry.rejected,
         },

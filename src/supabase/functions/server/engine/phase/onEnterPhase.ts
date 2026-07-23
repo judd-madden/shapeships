@@ -35,6 +35,9 @@ import {
   playerHasOrdinaryChargeResponseOption,
   playerRequiresChargeDeclarationInput,
 } from '../intent/chargeDeclarationEligibility.ts';
+import {
+  materializeQueuedSimulacrumCopiesAtDrawing,
+} from '../ancient/simulacrumSolarPower.ts';
 
 type KnoRerollPassIndex = 1 | 2 | 3;
 
@@ -419,6 +422,21 @@ function enterPhaseOnce(
   if (!workingState.gameData.turnData) {
     workingState.gameData.turnData = {};
   }
+
+  if (toKey === 'build.drawing') {
+    const drawingTurnNumber =
+      workingState.gameData.turnNumber ??
+      workingState.gameData.turnData?.turnNumber ??
+      workingState.turnNumber ??
+      0;
+    const materialized = materializeQueuedSimulacrumCopiesAtDrawing(
+      workingState,
+      drawingTurnNumber,
+      nowMs,
+    );
+    workingState = materialized.state;
+    events.push(...materialized.events);
+  }
   
   const turnData = workingState.gameData.turnData;
 
@@ -477,7 +495,7 @@ function enterPhaseOnce(
       snapshotSourceIdsByPlayerId[player.id] = eligibleSourceIds;
       solarSnapshotSourceIdsByPlayerId[player.id] = solarSourceIds;
       snapshotFleetByPlayerId[player.id] = Array.isArray(liveFleet)
-        ? liveFleet.map((ship: ShipInstance) => ({ ...ship }))
+        ? liveFleet.map((ship: ShipInstance) => structuredClone(ship))
         : [];
       snapshot[player.id] = eligibleSourceIds.length > 0;
     }
