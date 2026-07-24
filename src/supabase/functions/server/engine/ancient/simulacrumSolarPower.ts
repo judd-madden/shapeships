@@ -260,6 +260,7 @@ export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
       }
       capturedStartOfBattleCharges = target.chargesCurrent;
     }
+    const permanentConfiguration = capturePermanentConfiguration(target);
 
     const pendingCopy: AncientPendingSimulacrumCopy = {
       pendingCopyId,
@@ -271,7 +272,7 @@ export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
       materializationTurnNumber: context.battleTurnNumber + 1,
       queueOrder: context.ledgerOrder,
       capturedStartOfBattleCharges,
-      permanentConfiguration: capturePermanentConfiguration(target),
+      permanentConfiguration: structuredClone(permanentConfiguration),
       sourceMode: "primary",
       status: "queued",
     };
@@ -296,6 +297,8 @@ export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
         simulacrum: {
           sourceTargetInstanceId: target.instanceId,
           copiedShipDefId: target.shipDefId,
+          capturedStartOfBattleCharges,
+          permanentConfiguration: structuredClone(permanentConfiguration),
         },
       },
     };

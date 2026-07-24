@@ -8,11 +8,13 @@ import type {
   AncientNormalizedOrdinaryChargeChoice,
   AncientNormalizedSolarCast,
   AncientNormalizedSolarGridChoice,
+  AncientSimulacrumPresentation,
   AncientSolarLedgerEntry,
   AncientSolarLedgerState,
   AncientState,
   GameState,
   ShipInstance,
+  ShipPermanentConfiguration,
 } from './GameStateTypes.ts';
 import {
   ANCIENT_SOLAR_POWER_IDS,
@@ -56,6 +58,12 @@ type NormalizedEntry<T> = {
 
 function isObject(value: unknown): value is Record<string, any> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  if (!isObject(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -246,6 +254,26 @@ function normalizeTargetReferences(value: unknown): Array<{ playerId: string; sh
   return targets;
 }
 
+function normalizeSimulacrumPermanentConfiguration(
+  value: unknown,
+): ShipPermanentConfiguration | undefined {
+  if (!isPlainObject(value)) return undefined;
+  const hasSelectedNumber = Object.prototype.hasOwnProperty.call(
+    value,
+    'selectedNumber',
+  );
+  if (hasSelectedNumber) {
+    const selectedNumber = value.selectedNumber;
+    return typeof selectedNumber === 'number' &&
+        Number.isInteger(selectedNumber) &&
+        selectedNumber >= 1 &&
+        selectedNumber <= 6
+      ? { selectedNumber }
+      : undefined;
+  }
+  return Object.keys(value).length === 0 ? {} : undefined;
+}
+
 function normalizeSolarLedgerEntry(value: unknown): AncientSolarLedgerEntry | null {
   if (
     !isObject(value) ||
@@ -258,15 +286,29 @@ function normalizeSolarLedgerEntry(value: unknown): AncientSolarLedgerEntry | nu
   }
 
   const targets = normalizeTargetReferences(value.targets);
-  const simulacrum = isObject(value.simulacrum) &&
-      isNonEmptyString(value.simulacrum.sourceTargetInstanceId) &&
-      isNonEmptyString(value.simulacrum.copiedShipDefId)
-    ? {
-        sourceTargetInstanceId: value.simulacrum.sourceTargetInstanceId,
-        copiedShipDefId: value.simulacrum.copiedShipDefId,
-        ...(isNonEmptyString(value.simulacrum.matchupKey) ? { matchupKey: value.simulacrum.matchupKey } : {}),
-      }
-    : undefined;
+  let simulacrum: AncientSimulacrumPresentation | undefined;
+  if (
+    isObject(value.simulacrum) &&
+    isNonEmptyString(value.simulacrum.sourceTargetInstanceId) &&
+    isNonEmptyString(value.simulacrum.copiedShipDefId)
+  ) {
+    const capturedStartOfBattleCharges =
+      value.simulacrum.capturedStartOfBattleCharges;
+    const permanentConfiguration = normalizeSimulacrumPermanentConfiguration(
+      value.simulacrum.permanentConfiguration,
+    );
+    simulacrum = {
+      sourceTargetInstanceId: value.simulacrum.sourceTargetInstanceId,
+      copiedShipDefId: value.simulacrum.copiedShipDefId,
+      ...(isNonNegativeInteger(capturedStartOfBattleCharges)
+        ? { capturedStartOfBattleCharges }
+        : {}),
+      ...(permanentConfiguration ? { permanentConfiguration } : {}),
+      ...(isNonEmptyString(value.simulacrum.matchupKey)
+        ? { matchupKey: value.simulacrum.matchupKey }
+        : {}),
+    };
+  }
 
   return {
     entryId: value.entryId,

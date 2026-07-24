@@ -5,6 +5,7 @@ import type {
   AncientSolarLedgerEntry,
   AncientSolarPowerId,
   AncientSolarTargetReference,
+  ShipPermanentConfiguration,
 } from '../state/GameStateTypes.ts';
 import { applyEffects, type EffectEvent } from '../../engine_shared/effects/applyEffects.ts';
 import type { Effect } from '../../engine_shared/effects/Effect.ts';
@@ -95,6 +96,12 @@ function requireResolverMetadataId(value: unknown, field: string): string {
   return value;
 }
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
 function validateLedgerMetadata(
   value: unknown,
   solarPowerId: AncientSolarPowerId,
@@ -154,7 +161,14 @@ function validateLedgerMetadata(
     }
     const source = metadata.simulacrum as Record<string, unknown>;
     const unsupportedSimulacrumField = Object.keys(source).find(
-      (field) => !['sourceTargetInstanceId', 'copiedShipDefId', 'matchupKey'].includes(field),
+      (field) =>
+        ![
+          'sourceTargetInstanceId',
+          'copiedShipDefId',
+          'capturedStartOfBattleCharges',
+          'permanentConfiguration',
+          'matchupKey',
+        ].includes(field),
     );
     if (unsupportedSimulacrumField) {
       throw new Error(`Solar resolver ${solarPowerId} returned unsupported Simulacrum metadata: ${unsupportedSimulacrumField}`);
@@ -170,9 +184,61 @@ function validateLedgerMetadata(
     const matchupKey = typeof source.matchupKey === 'undefined'
       ? undefined
       : requireResolverMetadataId(source.matchupKey, 'simulacrum.matchupKey');
+    let capturedStartOfBattleCharges: number | undefined;
+    if (typeof source.capturedStartOfBattleCharges !== 'undefined') {
+      if (
+        typeof source.capturedStartOfBattleCharges !== 'number' ||
+        !Number.isFinite(source.capturedStartOfBattleCharges) ||
+        !Number.isInteger(source.capturedStartOfBattleCharges) ||
+        source.capturedStartOfBattleCharges < 0
+      ) {
+        throw new Error(
+          `Solar resolver ${solarPowerId} returned invalid Simulacrum capturedStartOfBattleCharges`,
+        );
+      }
+      capturedStartOfBattleCharges = source.capturedStartOfBattleCharges;
+    }
+    let permanentConfiguration: ShipPermanentConfiguration | undefined;
+    if (typeof source.permanentConfiguration !== 'undefined') {
+      if (!isPlainObject(source.permanentConfiguration)) {
+        throw new Error(
+          `Solar resolver ${solarPowerId} returned invalid Simulacrum permanentConfiguration`,
+        );
+      }
+      const configuration = source.permanentConfiguration;
+      const unsupportedConfigurationField = Object.keys(configuration).find(
+        (field) => field !== 'selectedNumber',
+      );
+      if (unsupportedConfigurationField) {
+        throw new Error(
+          `Solar resolver ${solarPowerId} returned unsupported Simulacrum permanentConfiguration field: ${unsupportedConfigurationField}`,
+        );
+      }
+      const selectedNumber = configuration.selectedNumber;
+      if (
+        typeof selectedNumber !== 'undefined' &&
+        (
+          typeof selectedNumber !== 'number' ||
+          !Number.isInteger(selectedNumber) ||
+          selectedNumber < 1 ||
+          selectedNumber > 6
+        )
+      ) {
+        throw new Error(
+          `Solar resolver ${solarPowerId} returned invalid Simulacrum selectedNumber`,
+        );
+      }
+      permanentConfiguration = typeof selectedNumber === 'number'
+        ? { selectedNumber }
+        : {};
+    }
     simulacrum = {
       sourceTargetInstanceId,
       copiedShipDefId,
+      ...(typeof capturedStartOfBattleCharges === 'number'
+        ? { capturedStartOfBattleCharges }
+        : {}),
+      ...(permanentConfiguration ? { permanentConfiguration } : {}),
       ...(matchupKey ? { matchupKey } : {}),
     };
   }

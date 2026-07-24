@@ -955,6 +955,161 @@ Deno.test('public Ancient projection exposes only cloned Energy and ledger state
   );
 });
 
+Deno.test('Simulacrum ledger normalization preserves only trustworthy exact compatibility fields', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  const validSelectedConfiguration = { selectedNumber: 4, ignoredLegacyField: true };
+  const baseEntry = {
+    solarPowerId: 'SSIM',
+    sourceMode: 'manual',
+    paidEnergy: { green: 0, red: 0, blue: 1 },
+  };
+  state.gameData.ancient.solarLedgerByPlayerId.p1 = {
+    battleTurnNumber: 4,
+    entries: [
+      {
+        ...baseEntry,
+        entryId: 'legacy-absent',
+        order: 0,
+        simulacrum: {
+          sourceTargetInstanceId: 'legacy-target',
+          copiedShipDefId: 'DEF',
+        },
+      },
+      {
+        ...baseEntry,
+        entryId: 'charged-zero',
+        order: 1,
+        simulacrum: {
+          sourceTargetInstanceId: 'carrier-zero',
+          copiedShipDefId: 'CAR',
+          capturedStartOfBattleCharges: 0,
+          permanentConfiguration: {},
+        },
+      },
+      {
+        ...baseEntry,
+        entryId: 'valid-selected',
+        order: 2,
+        simulacrum: {
+          sourceTargetInstanceId: 'qua-valid',
+          copiedShipDefId: 'QUA',
+          capturedStartOfBattleCharges: 3,
+          permanentConfiguration: validSelectedConfiguration,
+        },
+      },
+      {
+        ...baseEntry,
+        entryId: 'invalid-negative',
+        order: 3,
+        simulacrum: {
+          sourceTargetInstanceId: 'negative-target',
+          copiedShipDefId: 'CAR',
+          capturedStartOfBattleCharges: -1,
+          permanentConfiguration: { selectedNumber: 0 },
+        },
+      },
+      {
+        ...baseEntry,
+        entryId: 'invalid-fractional',
+        order: 4,
+        simulacrum: {
+          sourceTargetInstanceId: 'fractional-target',
+          copiedShipDefId: 'CAR',
+          capturedStartOfBattleCharges: 2.5,
+          permanentConfiguration: 'unknown',
+        },
+      },
+      {
+        ...baseEntry,
+        entryId: 'invalid-non-finite',
+        order: 5,
+        simulacrum: {
+          sourceTargetInstanceId: 'non-finite-target',
+          copiedShipDefId: 'CAR',
+          capturedStartOfBattleCharges: Number.NaN,
+          permanentConfiguration: { unsupported: true },
+        },
+      },
+      {
+        ...baseEntry,
+        entryId: 'invalid-string',
+        order: 6,
+        simulacrum: {
+          sourceTargetInstanceId: 'string-target',
+          copiedShipDefId: 'CAR',
+          capturedStartOfBattleCharges: '3',
+          permanentConfiguration: [],
+        },
+      },
+    ],
+  };
+
+  const first = normalizeAncientGameState(state);
+  const entries = first.state.gameData.ancient.solarLedgerByPlayerId.p1.entries;
+  assert.deepEqual(entries.map((entry: any) => entry.simulacrum), [
+    {
+      sourceTargetInstanceId: 'legacy-target',
+      copiedShipDefId: 'DEF',
+    },
+    {
+      sourceTargetInstanceId: 'carrier-zero',
+      copiedShipDefId: 'CAR',
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+    },
+    {
+      sourceTargetInstanceId: 'qua-valid',
+      copiedShipDefId: 'QUA',
+      capturedStartOfBattleCharges: 3,
+      permanentConfiguration: { selectedNumber: 4 },
+    },
+    {
+      sourceTargetInstanceId: 'negative-target',
+      copiedShipDefId: 'CAR',
+    },
+    {
+      sourceTargetInstanceId: 'fractional-target',
+      copiedShipDefId: 'CAR',
+    },
+    {
+      sourceTargetInstanceId: 'non-finite-target',
+      copiedShipDefId: 'CAR',
+    },
+    {
+      sourceTargetInstanceId: 'string-target',
+      copiedShipDefId: 'CAR',
+    },
+  ]);
+  assert.notEqual(
+    entries[2].simulacrum.permanentConfiguration,
+    validSelectedConfiguration,
+  );
+  assert.equal(first.state.gameData.ancient.schemaVersion, 1);
+
+  const second = normalizeAncientGameState(first.state);
+  assert.deepEqual(second.state, first.state);
+  assert.equal(second.changed, false);
+
+  const projection = projectPublicAncientState(first.state);
+  assert.equal(
+    projection.solarLedgerByPlayerId.p1.entries[1].simulacrum
+      ?.capturedStartOfBattleCharges,
+    0,
+  );
+  assert.deepEqual(
+    projection.solarLedgerByPlayerId.p1.entries[1].simulacrum
+      ?.permanentConfiguration,
+    {},
+  );
+  projection.solarLedgerByPlayerId.p1.entries[1].simulacrum!
+    .capturedStartOfBattleCharges = 99;
+  assert.equal(
+    first.state.gameData.ancient.solarLedgerByPlayerId.p1.entries[1]
+      .simulacrum.capturedStartOfBattleCharges,
+    0,
+  );
+});
+
 Deno.test('durable Ancient state survives ordinary turn rollover without Energy reset', () => {
   const state: any = normalizeAncientGameState(createBaseState()).state;
   state.gameData.ancient.energyByPlayerId.p1 = {

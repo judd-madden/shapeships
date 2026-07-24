@@ -323,28 +323,31 @@ Deno.test('fixture manual Solar resolvers commit ordered payments, pending effec
 Deno.test('production Simulacrum commits ordered queue records, exact blue payments, and public ledger metadata atomically', () => {
   const state = createState();
   state.gameData.ships.p2 = [
+    { instanceId: 'enemy-car', shipDefId: 'CAR', chargesCurrent: 5 },
     { instanceId: 'enemy-def', shipDefId: 'DEF' },
-    { instanceId: 'enemy-fig', shipDefId: 'FIG' },
   ];
-  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p2 =
-    structuredClone(state.gameData.ships.p2);
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p2 = [
+    { instanceId: 'enemy-car', shipDefId: 'CAR', chargesCurrent: 3 },
+    { instanceId: 'enemy-def', shipDefId: 'DEF' },
+  ];
   state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId.p1 = [];
   state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1 = [];
   state.gameData.ancient.energyByPlayerId.p1.pool = {
     green: 0,
     red: 0,
-    blue: 5,
+    blue: 8,
   };
 
+  const declaration = payload({
+    solarCasts: [
+      { solarPowerId: 'SSIM', targetInstanceId: 'enemy-car' },
+      { solarPowerId: 'SSIM', targetInstanceId: 'enemy-def' },
+    ],
+  });
   const result = resolveChargeDeclarationSubmission({
     state,
     playerId: 'p1',
-    payload: payload({
-      solarCasts: [
-        { solarPowerId: 'SSIM', targetInstanceId: 'enemy-def' },
-        { solarPowerId: 'SSIM', targetInstanceId: 'enemy-fig' },
-      ],
-    }),
+    payload: declaration,
     nowMs: 1000,
   });
 
@@ -353,11 +356,25 @@ Deno.test('production Simulacrum commits ordered queue records, exact blue payme
     result.state.gameData.ancient.pendingSimulacrumCopies.map((record: any) => ({
       copiedShipDefId: record.copiedShipDefId,
       queueOrder: record.queueOrder,
+      capturedStartOfBattleCharges: record.capturedStartOfBattleCharges,
+      permanentConfiguration: record.permanentConfiguration,
       status: record.status,
     })),
     [
-      { copiedShipDefId: 'DEF', queueOrder: 0, status: 'queued' },
-      { copiedShipDefId: 'FIG', queueOrder: 1, status: 'queued' },
+      {
+        copiedShipDefId: 'CAR',
+        queueOrder: 0,
+        capturedStartOfBattleCharges: 3,
+        permanentConfiguration: {},
+        status: 'queued',
+      },
+      {
+        copiedShipDefId: 'DEF',
+        queueOrder: 1,
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: {},
+        status: 'queued',
+      },
     ],
   );
   assert.deepEqual(
@@ -370,20 +387,24 @@ Deno.test('production Simulacrum commits ordered queue records, exact blue payme
     [
       {
         solarPowerId: 'SSIM',
+        paidEnergy: { green: 0, red: 0, blue: 6 },
+        target: { playerId: 'p2', shipInstanceId: 'enemy-car' },
+        simulacrum: {
+          sourceTargetInstanceId: 'enemy-car',
+          copiedShipDefId: 'CAR',
+          capturedStartOfBattleCharges: 3,
+          permanentConfiguration: {},
+        },
+      },
+      {
+        solarPowerId: 'SSIM',
         paidEnergy: { green: 0, red: 0, blue: 2 },
         target: { playerId: 'p2', shipInstanceId: 'enemy-def' },
         simulacrum: {
           sourceTargetInstanceId: 'enemy-def',
           copiedShipDefId: 'DEF',
-        },
-      },
-      {
-        solarPowerId: 'SSIM',
-        paidEnergy: { green: 0, red: 0, blue: 3 },
-        target: { playerId: 'p2', shipInstanceId: 'enemy-fig' },
-        simulacrum: {
-          sourceTargetInstanceId: 'enemy-fig',
-          copiedShipDefId: 'FIG',
+          capturedStartOfBattleCharges: 0,
+          permanentConfiguration: {},
         },
       },
     ],
@@ -391,6 +412,28 @@ Deno.test('production Simulacrum commits ordered queue records, exact blue payme
   assert.deepEqual(
     result.state.gameData.ancient.energyByPlayerId.p1.pool,
     { green: 0, red: 0, blue: 0 },
+  );
+
+  const exactPending = structuredClone(
+    result.state.gameData.ancient.pendingSimulacrumCopies,
+  );
+  const exactLedger = structuredClone(
+    result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries,
+  );
+  const retry = resolveChargeDeclarationSubmission({
+    state: result.state,
+    playerId: 'p1',
+    payload: declaration,
+    nowMs: 1001,
+  });
+  assert.equal(retry.status, 'idempotent');
+  assert.deepEqual(
+    retry.state.gameData.ancient.pendingSimulacrumCopies,
+    exactPending,
+  );
+  assert.deepEqual(
+    retry.state.gameData.ancient.solarLedgerByPlayerId.p1.entries,
+    exactLedger,
   );
 });
 

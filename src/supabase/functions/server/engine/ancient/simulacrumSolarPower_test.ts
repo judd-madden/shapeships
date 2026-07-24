@@ -134,49 +134,102 @@ Deno.test("Simulacrum canonical target classification accepts evolved Basics and
   }
 });
 
-Deno.test("Simulacrum uses opponent snapshot, exact charges, selected number, ordered costs, and strict primary uniqueness", () => {
+Deno.test("Simulacrum ledger and pending records share exact snapshot values without sharing configuration references", () => {
   const snapshotQua = ship("qua-target", "QUA", {
     permanentConfiguration: { selectedNumber: 5 },
   });
-  const snapshotWis = ship("wis-target", "WIS", { chargesCurrent: 0 });
+  const snapshotCarThree = ship("car-three", "CAR", { chargesCurrent: 3 });
+  const snapshotCarZero = ship("car-zero", "CAR", { chargesCurrent: 0 });
+  const snapshotDef = ship("def-target", "DEF");
   const state = createState({
     p2Ships: [
       ship("qua-target", "QUA", {
         permanentConfiguration: { selectedNumber: 2 },
       }),
-      ship("wis-target", "WIS", { chargesCurrent: 2 }),
+      ship("car-three", "CAR", { chargesCurrent: 5 }),
+      ship("car-zero", "CAR", { chargesCurrent: 4 }),
+      ship("def-target", "DEF"),
     ],
-    p2Snapshot: [snapshotQua, snapshotWis],
+    p2Snapshot: [
+      snapshotQua,
+      snapshotCarThree,
+      snapshotCarZero,
+      snapshotDef,
+    ],
   });
   const quaCost = getShipById("QUA")!.totalLineCost as number;
-  const wisCost = getShipById("WIS")!.totalLineCost as number;
-  const result = resolve(state, ["qua-target", "wis-target"]);
+  const carCost = getShipById("CAR")!.totalLineCost as number;
+  const defCost = getShipById("DEF")!.totalLineCost as number;
+  const result = resolve(
+    state,
+    ["qua-target", "car-three", "car-zero", "def-target"],
+  );
   const queued = result.state.gameData.ancient!.pendingSimulacrumCopies;
 
   assert.deepEqual(
     queued.map((record: AncientPendingSimulacrumCopy) => record.queueOrder),
-    [0, 1],
+    [0, 1, 2, 3],
   );
   assert.deepEqual(queued.map((record: AncientPendingSimulacrumCopy) =>
     record.capturedStartOfBattleCharges
   ), [
     0,
+    3,
+    0,
     0,
   ]);
-  assert.deepEqual(queued[0].permanentConfiguration, { selectedNumber: 5 });
+  assert.deepEqual(
+    queued.map((record: AncientPendingSimulacrumCopy) =>
+      record.permanentConfiguration
+    ),
+    [{ selectedNumber: 5 }, {}, {}, {}],
+  );
+  assert.deepEqual(
+    result.ledgerEntries.map((entry) => entry.simulacrum),
+    [
+      {
+        sourceTargetInstanceId: "qua-target",
+        copiedShipDefId: "QUA",
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: { selectedNumber: 5 },
+      },
+      {
+        sourceTargetInstanceId: "car-three",
+        copiedShipDefId: "CAR",
+        capturedStartOfBattleCharges: 3,
+        permanentConfiguration: {},
+      },
+      {
+        sourceTargetInstanceId: "car-zero",
+        copiedShipDefId: "CAR",
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: {},
+      },
+      {
+        sourceTargetInstanceId: "def-target",
+        copiedShipDefId: "DEF",
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: {},
+      },
+    ],
+  );
   assert.notEqual(
     queued[0].permanentConfiguration,
+    snapshotQua.permanentConfiguration,
+  );
+  assert.notEqual(
+    queued[0].permanentConfiguration,
+    result.ledgerEntries[0].simulacrum?.permanentConfiguration,
+  );
+  assert.notEqual(
+    result.ledgerEntries[0].simulacrum?.permanentConfiguration,
     snapshotQua.permanentConfiguration,
   );
   assert.deepEqual(result.remainingEnergy, {
     green: 0,
     red: 0,
-    blue: 100 - quaCost - wisCost,
+    blue: 100 - quaCost - (carCost * 2) - defCost,
   });
-  assert.deepEqual(
-    result.ledgerEntries.map((entry) => entry.simulacrum?.copiedShipDefId),
-    ["QUA", "WIS"],
-  );
 
   const before = structuredClone(state);
   assert.throws(

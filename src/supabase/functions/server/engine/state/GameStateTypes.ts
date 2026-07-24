@@ -188,6 +188,16 @@ export type AncientSolarTargetReference = {
 export type AncientSimulacrumPresentation = {
   sourceTargetInstanceId: string;
   copiedShipDefId: string;
+  /**
+   * Exact charge count captured from the authoritative start-of-Battle
+   * fleet snapshot. Optional only for older persisted ledger entries.
+   */
+  capturedStartOfBattleCharges?: number;
+  /**
+   * Approved permanent configuration captured from the authoritative
+   * start-of-Battle fleet snapshot. Optional only for older persisted entries.
+   */
+  permanentConfiguration?: ShipPermanentConfiguration;
   matchupKey?: string;
 };
 

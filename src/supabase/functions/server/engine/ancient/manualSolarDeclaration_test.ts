@@ -71,7 +71,9 @@ Deno.test('manual Solar casts resolve sequentially with exact payment, pending e
                   targets: [{ playerId: 'p2', shipInstanceId: 'target-1' }],
                   simulacrum: {
                     sourceTargetInstanceId: 'target-1',
-                    copiedShipDefId: 'FRI',
+                    copiedShipDefId: 'CAR',
+                    capturedStartOfBattleCharges: 0,
+                    permanentConfiguration: {},
                     matchupKey: 'ancient-v-human',
                   },
                 },
@@ -125,10 +127,63 @@ Deno.test('manual Solar casts resolve sequentially with exact payment, pending e
     targets: [{ playerId: 'p2', shipInstanceId: 'target-1' }],
     simulacrum: {
       sourceTargetInstanceId: 'target-1',
-      copiedShipDefId: 'FRI',
+      copiedShipDefId: 'CAR',
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
       matchupKey: 'ancient-v-human',
     },
   });
+});
+
+Deno.test('manual Solar ledger metadata preserves valid exact Simulacrum configuration as fresh objects', () => {
+  for (const [capturedStartOfBattleCharges, permanentConfiguration] of [
+    [0, {}],
+    [3, { selectedNumber: 1 }],
+    [6, { selectedNumber: 6 }],
+  ] as const) {
+    const state = createState();
+    const resolverConfiguration = permanentConfiguration;
+    const result = resolveManualSolarDeclaration({
+      state,
+      playerId: 'p1',
+      declarationId: `declaration-${capturedStartOfBattleCharges}-${JSON.stringify(permanentConfiguration)}`,
+      battleTurnNumber: 3,
+      initialEnergy: { green: 1, red: 0, blue: 0 },
+      casts: [{ solarPowerId: 'SLIF' }],
+      resolvers: {
+        SLIF: {
+          acceptedFields: {},
+          resolve: (context) => ({
+            candidateState: structuredClone(context.state),
+            paidEnergy: { green: 1, red: 0, blue: 0 },
+            effects: [],
+            ledgerMetadata: {
+              simulacrum: {
+                sourceTargetInstanceId: 'target-1',
+                copiedShipDefId: 'selectedNumber' in permanentConfiguration
+                  ? 'QUA'
+                  : 'CAR',
+                capturedStartOfBattleCharges,
+                permanentConfiguration: resolverConfiguration,
+              },
+            },
+          }),
+        },
+      },
+    });
+    assert.deepEqual(result.ledgerEntries[0].simulacrum, {
+      sourceTargetInstanceId: 'target-1',
+      copiedShipDefId: 'selectedNumber' in permanentConfiguration
+        ? 'QUA'
+        : 'CAR',
+      capturedStartOfBattleCharges,
+      permanentConfiguration,
+    });
+    assert.notEqual(
+      result.ledgerEntries[0].simulacrum?.permanentConfiguration,
+      resolverConfiguration,
+    );
+  }
 });
 
 Deno.test('manual Solar resolvers reject unimplemented powers and structurally irrelevant fields', () => {
@@ -200,9 +255,27 @@ Deno.test('manual Solar ledger metadata is validated before candidate state adop
     { targets: [{ playerId: '' }] },
     { targets: [{ playerId: 'p2', shipInstanceId: '' }] },
     { targets: [{ playerId: 'p2', ignored: true }] },
-    { simulacrum: { sourceTargetInstanceId: '', copiedShipDefId: 'FRI' } },
+    { simulacrum: { sourceTargetInstanceId: '', copiedShipDefId: 'CAR' } },
     { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: '' } },
-    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'FRI', matchupKey: '' } },
+    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'CAR', matchupKey: '' } },
+    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'CAR', capturedStartOfBattleCharges: -1 } },
+    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'CAR', capturedStartOfBattleCharges: 1.5 } },
+    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'CAR', capturedStartOfBattleCharges: '1' } },
+    {
+      simulacrum: {
+        sourceTargetInstanceId: 'target-1',
+        copiedShipDefId: 'CAR',
+        capturedStartOfBattleCharges: Number.NaN,
+      },
+    },
+    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'CAR', permanentConfiguration: null } },
+    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'CAR', permanentConfiguration: [] } },
+    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'CAR', permanentConfiguration: { selectedNumber: 0 } } },
+    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'CAR', permanentConfiguration: { selectedNumber: 7 } } },
+    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'CAR', permanentConfiguration: { selectedNumber: 1.5 } } },
+    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'CAR', permanentConfiguration: { selectedNumber: '1' } } },
+    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'CAR', permanentConfiguration: { unsupported: true } } },
+    { simulacrum: { sourceTargetInstanceId: 'target-1', copiedShipDefId: 'CAR', unsupported: true } },
     { unsupported: true },
   ]) {
     const state = createState();

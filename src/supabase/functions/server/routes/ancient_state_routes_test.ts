@@ -574,7 +574,9 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       paidEnergy: { green: 0, red: 0, blue: 3 },
       simulacrum: {
         sourceTargetInstanceId: 'p2-source',
-        copiedShipDefId: 'ZEN',
+        copiedShipDefId: 'CAR',
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: {},
       },
     }],
   };
@@ -613,8 +615,35 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       body.publicState.ancient.solarLedgerByPlayerId.p1.entries[0].entryId,
       'p1-ssim',
     );
+    assert.deepEqual(
+      body.publicState.ancient.solarLedgerByPlayerId.p1.entries[0].simulacrum,
+      {
+        sourceTargetInstanceId: 'p2-source',
+        copiedShipDefId: 'CAR',
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: {},
+      },
+    );
+    assert.equal(
+      'pendingSimulacrumCopies' in body.publicState.ancient,
+      false,
+    );
     assert.equal('ancient' in body.gameData, false);
   }
+  owner.publicState.ancient.solarLedgerByPlayerId.p1.entries[0].simulacrum
+    .capturedStartOfBattleCharges = 99;
+  owner.publicState.ancient.solarLedgerByPlayerId.p1.entries[0].simulacrum
+    .permanentConfiguration.selectedNumber = 6;
+  assert.deepEqual(
+    fixture.store.get('game_drawing-simulacrum').gameData.ancient
+      .solarLedgerByPlayerId.p1.entries[0].simulacrum,
+    {
+      sourceTargetInstanceId: 'p2-source',
+      copiedShipDefId: 'CAR',
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+    },
+  );
   assert.deepEqual(
     owner.requester.hiddenDrawingSimulacrumShips.map(
       (entry: any) => entry.instanceId,

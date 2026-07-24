@@ -1564,7 +1564,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "blue": 0,
       "xBlue": true
     },
-    "extraRules": "Each ship may only be copied ONCE per turn. Ships with charges are copied as they are at the START of this battle phase. Copied ships CAN be upgraded. A Cube-cast makes an extra copy of target ship. Cannot copy Cube.",
+    "extraRules": "Each ship may only be targeted ONCE per turn. Ships with charges are copied as they are at the START of this battle phase. Copied ships CAN be upgraded. A Cube-cast makes an extra copy of target ship. Cannot copy Cube.",
     "stackCaption": "N/A",
     "colour": "N/A",
     "numberOfGraphics": 4
