@@ -378,3 +378,73 @@ Deno.test('generic Solar sequence supports deterministic Autocast identities and
     },
   ]);
 });
+
+Deno.test('generic Solar sequence separates source identity indexes from contiguous ledger indexes', () => {
+  const result = resolveSolarCastSequence({
+    state: createState(),
+    playerId: 'p1',
+    declarationId: 'declaration-1',
+    battleTurnNumber: 3,
+    initialEnergy: { green: 2, red: 0, blue: 0 },
+    casts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SLIF' }],
+    resolvers: {
+      SLIF: {
+        acceptedFields: {},
+        resolve(context) {
+          assert.equal(context.ledgerOrder, 7 + (context.castIndex - 1));
+          return {
+            candidateState: structuredClone(context.state),
+            paidEnergy: { green: 1, red: 0, blue: 0 },
+            effects: [],
+          };
+        },
+      },
+    },
+    sourceMode: 'autocast',
+    initialLedgerOrder: 7,
+    initialCastIndex: 1,
+  });
+  assert.deepEqual(result.ledgerEntries.map((entry) => ({
+    entryId: entry.entryId,
+    order: entry.order,
+  })), [
+    { entryId: 'ancient-solar:3:p1:declaration-1:autocast:1', order: 7 },
+    { entryId: 'ancient-solar:3:p1:declaration-1:autocast:2', order: 8 },
+  ]);
+});
+
+Deno.test('Cube Solar resolution validates canonical cost but preserves Energy and records zero payment', () => {
+  const result = resolveSolarCastSequence({
+    state: createState(),
+    playerId: 'p1',
+    declarationId: 'declaration-1',
+    battleTurnNumber: 3,
+    initialEnergy: { green: 0, red: 0, blue: 0 },
+    casts: [{ solarPowerId: 'SSTA' }],
+    resolvers: {
+      SSTA: {
+        acceptedFields: {},
+        resolve(context) {
+          assert.equal(context.sourceMode, 'cube');
+          return {
+            candidateState: structuredClone(context.state),
+            paidEnergy: { green: 3, red: 0, blue: 0 },
+            effects: [],
+            ledgerMetadata: { lockedAmount: 7 },
+          };
+        },
+      },
+    },
+    sourceMode: 'cube',
+    initialLedgerOrder: 2,
+  });
+  assert.deepEqual(result.remainingEnergy, { green: 0, red: 0, blue: 0 });
+  assert.deepEqual(result.ledgerEntries[0], {
+    entryId: 'ancient-solar:3:p1:declaration-1:cube:0',
+    order: 2,
+    solarPowerId: 'SSTA',
+    sourceMode: 'cube',
+    paidEnergy: { green: 0, red: 0, blue: 0 },
+    lockedAmount: 7,
+  });
+});

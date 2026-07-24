@@ -15,6 +15,7 @@ import {
   SurvivabilityRule,
   type Effect,
 } from '../../engine_shared/effects/Effect.ts';
+import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
@@ -26,6 +27,13 @@ function payload(overrides: Record<string, unknown> = {}) {
     autocastEnabled: false,
     ...overrides,
   };
+}
+
+function holdSolarGrids() {
+  return [
+    { sourceInstanceId: 'sol-a', choiceId: 'hold' },
+    { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+  ];
 }
 
 function createState(): any {
@@ -1402,4 +1410,276 @@ Deno.test('Convert lines survive the real turn bump, combine with following gene
     ),
     true,
   );
+});
+
+Deno.test('Cube repeats every eligible mono-colour Solar outcome once for free with the exact locked amount', () => {
+  const scenarios = [
+    {
+      solarPowerId: 'SLIF',
+      energy: { green: 1, red: 0, blue: 0 },
+      expectedHeal: 2,
+      expectedDamage: 0,
+      expectedLines: 0,
+      expectedLockedAmount: undefined,
+    },
+    {
+      solarPowerId: 'SSTA',
+      energy: { green: 3, red: 0, blue: 0 },
+      expectedHeal: 12,
+      expectedDamage: 0,
+      expectedLines: 0,
+      expectedLockedAmount: 6,
+    },
+    {
+      solarPowerId: 'SAST',
+      energy: { green: 0, red: 1, blue: 0 },
+      expectedHeal: 0,
+      expectedDamage: 2,
+      expectedLines: 0,
+      expectedLockedAmount: undefined,
+    },
+    {
+      solarPowerId: 'SSUP',
+      energy: { green: 0, red: 3, blue: 0 },
+      expectedHeal: 0,
+      expectedDamage: 12,
+      expectedLines: 0,
+      expectedLockedAmount: 6,
+    },
+    {
+      solarPowerId: 'SCON',
+      energy: { green: 0, red: 0, blue: 1 },
+      expectedHeal: 0,
+      expectedDamage: 0,
+      expectedLines: 2,
+      expectedLockedAmount: undefined,
+    },
+  ] as const;
+
+  for (const scenario of scenarios) {
+    const state = createState();
+    state.gameData.ships.p1.push({ instanceId: 'cube-1', shipDefId: 'CUB' });
+    state.gameData.ancient.energyByPlayerId.p1.pool = structuredClone(scenario.energy);
+    state.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 3, p2: 2 };
+    const result = resolveChargeDeclarationSubmission({
+      state,
+      playerId: 'p1',
+      payload: payload({
+        solarGridChoices: holdSolarGrids(),
+        solarCasts: [{ solarPowerId: scenario.solarPowerId }],
+      }),
+      nowMs: 1000,
+    });
+    const entries = result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries;
+    assert.deepEqual(entries.map((entry: any) => ({
+      solarPowerId: entry.solarPowerId,
+      sourceMode: entry.sourceMode,
+      paidEnergy: entry.paidEnergy,
+      lockedAmount: entry.lockedAmount,
+    })), [
+      {
+        solarPowerId: scenario.solarPowerId,
+        sourceMode: 'manual',
+        paidEnergy: scenario.energy,
+        lockedAmount: scenario.expectedLockedAmount,
+      },
+      {
+        solarPowerId: scenario.solarPowerId,
+        sourceMode: 'cube',
+        paidEnergy: { green: 0, red: 0, blue: 0 },
+        lockedAmount: scenario.expectedLockedAmount,
+      },
+    ]);
+    assert.deepEqual(
+      result.state.gameData.ancient.energyByPlayerId.p1.pool,
+      { green: 0, red: 0, blue: 0 },
+    );
+    assert.equal(result.state.gameData.pendingTurn.healByPlayerId.p1 ?? 0, scenario.expectedHeal);
+    assert.equal(result.state.gameData.pendingTurn.damageByPlayerId.p2 ?? 0, scenario.expectedDamage);
+    assert.equal(result.state.players[0].lines, scenario.expectedLines);
+  }
+});
+
+Deno.test('Cube skips excluded manual casts, repeats the first eligible manual cast, and does not expose Solar events or cues', () => {
+  const state = createState();
+  state.gameData.ships.p1.push({ instanceId: 'cube-1', shipDefId: 'CUB' });
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 5, red: 4, blue: 0 };
+  const result = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: holdSolarGrids(),
+      solarCasts: [
+        { solarPowerId: 'SSIP', lockedAmount: 4 },
+        { solarPowerId: 'SLIF' },
+      ],
+      autocastEnabled: true,
+    }),
+    nowMs: 1000,
+  });
+  const entries = result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries;
+  assert.deepEqual(entries.map((entry: any) => [
+    entry.solarPowerId,
+    entry.sourceMode,
+    entry.order,
+  ]), [
+    ['SSIP', 'manual', 0],
+    ['SLIF', 'manual', 1],
+    ['SLIF', 'cube', 2],
+  ]);
+  assert.equal(result.events.some((event: any) =>
+    event.type === 'EFFECT_APPLIED' ||
+    String(event.type).includes('BATTLE_LOG')
+  ), false);
+  assert.equal(
+    (result.state.gameData.turnData.shipActivationCueBatches ?? [])
+      .flatMap((batch: any) => batch.sources ?? [])
+      .some((source: any) =>
+        source.sourceShipDefId === 'SLIF' ||
+        source.sourceShipDefId === 'SSIP'
+      ),
+    false,
+  );
+});
+
+Deno.test('Cube Autocast fallback separates identity indexes from contiguous ledger order', () => {
+  const state = createState();
+  state.gameData.ships.p1.push(
+    { instanceId: 'cube-1', shipDefId: 'CUB' },
+    { instanceId: 'cube-2', shipDefId: 'CUB' },
+  );
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 4, red: 1, blue: 0 };
+  state.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 3, p2: 2 };
+  const result = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: holdSolarGrids(),
+      autocastEnabled: true,
+    }),
+    nowMs: 1000,
+  });
+  const entries = result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries;
+  assert.deepEqual(entries.map((entry: any) => entry.entryId), [
+    'ancient-solar:3:p1:declaration-1:autocast:0',
+    'ancient-solar:3:p1:declaration-1:cube:0',
+    'ancient-solar:3:p1:declaration-1:cube:1',
+    'ancient-solar:3:p1:declaration-1:autocast:1',
+    'ancient-solar:3:p1:declaration-1:autocast:2',
+  ]);
+  assert.deepEqual(entries.map((entry: any) => entry.order), [0, 1, 2, 3, 4]);
+  assert.deepEqual(entries.map((entry: any) => entry.solarPowerId), [
+    'SSTA',
+    'SSTA',
+    'SSTA',
+    'SLIF',
+    'SAST',
+  ]);
+  assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, {
+    green: 0,
+    red: 0,
+    blue: 0,
+  });
+});
+
+Deno.test('Cube repeats only the first Simulacrum primary while later primary targets remain legal and retries are idempotent', () => {
+  const state = createState();
+  state.gameData.ships.p1.push({ instanceId: 'cube-1', shipDefId: 'CUB' });
+  state.gameData.ships.p2 = [
+    { instanceId: 'enemy-def', shipDefId: 'DEF' },
+    { instanceId: 'enemy-fig', shipDefId: 'FIG' },
+  ];
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p2 =
+    structuredClone(state.gameData.ships.p2);
+  const defCost = getShipById('DEF')!.totalLineCost as number;
+  const figCost = getShipById('FIG')!.totalLineCost as number;
+  state.gameData.ancient.energyByPlayerId.p1.pool = {
+    green: 0,
+    red: 0,
+    blue: defCost + figCost,
+  };
+  const declaration = payload({
+    solarGridChoices: holdSolarGrids(),
+    solarCasts: [
+      { solarPowerId: 'SSIM', targetInstanceId: 'enemy-def' },
+      { solarPowerId: 'SSIM', targetInstanceId: 'enemy-fig' },
+    ],
+  });
+  const result = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: declaration,
+    nowMs: 1000,
+  });
+  assert.deepEqual(
+    result.state.gameData.ancient.pendingSimulacrumCopies.map((record: any) => [
+      record.sourceTargetInstanceId,
+      record.sourceMode,
+      record.queueOrder,
+    ]),
+    [
+      ['enemy-def', 'primary', 0],
+      ['enemy-fig', 'primary', 1],
+      ['enemy-def', 'cube', 2],
+    ],
+  );
+  assert.deepEqual(
+    result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries.map((entry: any) => [
+      entry.solarPowerId,
+      entry.sourceMode,
+      entry.paidEnergy,
+    ]),
+    [
+      ['SSIM', 'manual', { green: 0, red: 0, blue: defCost }],
+      ['SSIM', 'manual', { green: 0, red: 0, blue: figCost }],
+      ['SSIM', 'cube', { green: 0, red: 0, blue: 0 }],
+    ],
+  );
+  const exactPending = structuredClone(result.state.gameData.ancient.pendingSimulacrumCopies);
+  const retry = resolveChargeDeclarationSubmission({
+    state: result.state,
+    playerId: 'p1',
+    payload: declaration,
+    nowMs: 1001,
+  });
+  assert.equal(retry.status, 'idempotent');
+  assert.deepEqual(retry.state.gameData.ancient.pendingSimulacrumCopies, exactPending);
+});
+
+Deno.test('mandatory Cube Simulacrum copies reject the whole declaration without mutating the supplied state', () => {
+  const state = createState();
+  state.gameData.ships.p1.push(
+    { instanceId: 'cube-1', shipDefId: 'CUB' },
+    { instanceId: 'spi-owned-1', shipDefId: 'SPI' },
+    { instanceId: 'spi-owned-2', shipDefId: 'SPI' },
+  );
+  state.gameData.ships.p2 = [{ instanceId: 'enemy-spi', shipDefId: 'SPI' }];
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p2 =
+    structuredClone(state.gameData.ships.p2);
+  const spiCost = getShipById('SPI')!.totalLineCost as number;
+  state.gameData.ancient.energyByPlayerId.p1.pool = {
+    green: 0,
+    red: 0,
+    blue: spiCost,
+  };
+  const before = structuredClone(state);
+  assert.throws(() => resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      ordinaryChargeActions: [{
+        actionType: 'power',
+        actionId: 'INT#0',
+        sourceInstanceId: 'int-1',
+        choiceId: 'damage',
+      }],
+      solarGridChoices: [
+        { sourceInstanceId: 'sol-a', choiceId: 'use' },
+        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
+      ],
+      solarCasts: [{ solarPowerId: 'SSIM', targetInstanceId: 'enemy-spi' }],
+    }),
+    nowMs: 1000,
+  }), /maximum quantity/);
+  assert.deepEqual(state, before);
 });

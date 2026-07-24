@@ -4,6 +4,7 @@ import type {
   AncientSimulacrumPresentation,
   AncientSolarLedgerEntry,
   AncientSolarPowerId,
+  AncientSolarSourceMode,
   AncientSolarTargetReference,
   ShipPermanentConfiguration,
 } from '../state/GameStateTypes.ts';
@@ -23,7 +24,7 @@ export type ManualSolarResolverDescriptor = {
     battleTurnNumber: number;
     castIndex: number;
     ledgerOrder: number;
-    sourceMode: 'manual' | 'autocast';
+    sourceMode: AncientSolarSourceMode;
     castIdentity: string;
     cast: Readonly<AncientNormalizedSolarCast>;
     remainingEnergy: Readonly<AncientEnergyPool>;
@@ -258,8 +259,9 @@ export function resolveSolarCastSequence(args: {
   initialEnergy: AncientEnergyPool;
   casts: AncientNormalizedSolarCast[];
   resolvers: Readonly<ManualSolarResolverRegistry>;
-  sourceMode: 'manual' | 'autocast';
+  sourceMode: AncientSolarSourceMode;
   initialLedgerOrder: number;
+  initialCastIndex?: number;
 }): ManualSolarDeclarationResult {
   let workingState = args.state;
   let remainingEnergy = cloneEnergyPool(args.initialEnergy);
@@ -268,8 +270,9 @@ export function resolveSolarCastSequence(args: {
   const effects: Effect[] = [];
   const effectEvents: EffectEvent[] = [];
 
-  for (const [castIndex, cast] of args.casts.entries()) {
-    const ledgerOrder = args.initialLedgerOrder + castIndex;
+  for (const [localIndex, cast] of args.casts.entries()) {
+    const castIndex = (args.initialCastIndex ?? 0) + localIndex;
+    const ledgerOrder = args.initialLedgerOrder + localIndex;
     const descriptor = args.resolvers[cast.solarPowerId];
     if (!descriptor) {
       throw new Error(`Solar Power is not implemented: ${cast.solarPowerId}`);
@@ -308,12 +311,17 @@ export function resolveSolarCastSequence(args: {
       throw new Error(`Solar resolver ${cast.solarPowerId} returned invalid effects`);
     }
 
-    const paidEnergy = validatePaidEnergy(resolverResult.paidEnergy, cast.solarPowerId);
-    for (const colour of ENERGY_COLOURS) {
-      if (paidEnergy[colour] > remainingEnergy[colour]) {
-        throw new Error(`Insufficient ${colour} Energy for ${cast.solarPowerId} at cast ${castIndex}`);
+    const canonicalPaidEnergy = validatePaidEnergy(resolverResult.paidEnergy, cast.solarPowerId);
+    if (args.sourceMode !== 'cube') {
+      for (const colour of ENERGY_COLOURS) {
+        if (canonicalPaidEnergy[colour] > remainingEnergy[colour]) {
+          throw new Error(`Insufficient ${colour} Energy for ${cast.solarPowerId} at cast ${castIndex}`);
+        }
       }
     }
+    const paidEnergy = args.sourceMode === 'cube'
+      ? { green: 0, red: 0, blue: 0 }
+      : canonicalPaidEnergy;
     const ledgerMetadata = validateLedgerMetadata(
       resolverResult.ledgerMetadata,
       cast.solarPowerId,

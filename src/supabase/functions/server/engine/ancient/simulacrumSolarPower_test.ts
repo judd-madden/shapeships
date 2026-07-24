@@ -301,6 +301,101 @@ Deno.test("Simulacrum aggregate quantity counts queued primary and Cube reservat
   );
 });
 
+Deno.test("Cube Simulacrum repeats preserve the first primary snapshot without consuming Energy or primary uniqueness", () => {
+  const firstTarget = ship("qua-target", "QUA", {
+    chargesCurrent: 4,
+    permanentConfiguration: { selectedNumber: 5 },
+  });
+  const laterTarget = ship("def-target", "DEF");
+  const state = createState({
+    p2Snapshot: [firstTarget, laterTarget],
+  });
+  const primary = resolve(state, ["qua-target", "def-target"]);
+  const sourceEntry = primary.ledgerEntries[0];
+  const cube = resolveSolarCastSequence({
+    state: primary.state,
+    playerId: "z-owner",
+    declarationId: "declaration-1",
+    battleTurnNumber: 4,
+    initialEnergy: primary.remainingEnergy,
+    casts: [
+      { solarPowerId: "SSIM", targetInstanceId: "qua-target" },
+      { solarPowerId: "SSIM", targetInstanceId: "qua-target" },
+    ],
+    resolvers: { SSIM: SIMULACRUM_SOLAR_RESOLVER },
+    sourceMode: "cube",
+    initialLedgerOrder: 2,
+  });
+
+  assert.deepEqual(
+    cube.state.gameData.ancient!.pendingSimulacrumCopies.map((
+      record: AncientPendingSimulacrumCopy,
+    ) => ({
+      pendingCopyId: record.pendingCopyId,
+      sourceTargetInstanceId: record.sourceTargetInstanceId,
+      copiedShipDefId: record.copiedShipDefId,
+      queueOrder: record.queueOrder,
+      capturedStartOfBattleCharges: record.capturedStartOfBattleCharges,
+      permanentConfiguration: record.permanentConfiguration,
+      sourceMode: record.sourceMode,
+    })),
+    [
+      {
+        pendingCopyId:
+          "ancient-solar:4:z-owner:declaration-1:manual:0:simulacrum-copy:primary",
+        sourceTargetInstanceId: "qua-target",
+        copiedShipDefId: "QUA",
+        queueOrder: 0,
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: { selectedNumber: 5 },
+        sourceMode: "primary",
+      },
+      {
+        pendingCopyId:
+          "ancient-solar:4:z-owner:declaration-1:manual:1:simulacrum-copy:primary",
+        sourceTargetInstanceId: "def-target",
+        copiedShipDefId: "DEF",
+        queueOrder: 1,
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: {},
+        sourceMode: "primary",
+      },
+      {
+        pendingCopyId:
+          "ancient-solar:4:z-owner:declaration-1:cube:0:simulacrum-copy:cube",
+        sourceTargetInstanceId: "qua-target",
+        copiedShipDefId: "QUA",
+        queueOrder: 2,
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: { selectedNumber: 5 },
+        sourceMode: "cube",
+      },
+      {
+        pendingCopyId:
+          "ancient-solar:4:z-owner:declaration-1:cube:1:simulacrum-copy:cube",
+        sourceTargetInstanceId: "qua-target",
+        copiedShipDefId: "QUA",
+        queueOrder: 3,
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: { selectedNumber: 5 },
+        sourceMode: "cube",
+      },
+    ],
+  );
+  assert.deepEqual(cube.remainingEnergy, primary.remainingEnergy);
+  assert.equal(cube.ledgerEntries.every((entry) =>
+    entry.sourceMode === "cube" &&
+    entry.paidEnergy.green === 0 &&
+    entry.paidEnergy.red === 0 &&
+    entry.paidEnergy.blue === 0
+  ), true);
+  for (const repeat of cube.ledgerEntries) {
+    assert.equal(repeat.solarPowerId, sourceEntry.solarPowerId);
+    assert.deepEqual(repeat.targets, sourceEntry.targets);
+    assert.deepEqual(repeat.simulacrum, sourceEntry.simulacrum);
+  }
+});
+
 Deno.test("Drawing materializes in active seat and numeric queue order with exact state and history", () => {
   const state = createState({
     turnNumber: 5,

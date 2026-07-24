@@ -208,9 +208,9 @@ function requireSimulacrumTarget(context: Parameters<
 export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
   acceptedFields: { targetInstanceId: true },
   resolve(context) {
-    if (context.sourceMode !== "manual") {
+    if (context.sourceMode === "autocast") {
       throw new Error(
-        "Simulacrum may only be resolved from a manual Solar cast",
+        "Simulacrum may only be resolved from a manual Solar cast or Cube repeat",
       );
     }
     const { targetPlayerId, target, definition } = requireSimulacrumTarget(
@@ -222,13 +222,17 @@ export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
       throw new Error("Simulacrum requires initialized Ancient pending state");
     }
 
-    const duplicatePrimary = ancient.pendingSimulacrumCopies.some(
-      (record: AncientPendingSimulacrumCopy) =>
-        record.ownerPlayerId === context.playerId &&
-        record.queuedTurnNumber === context.battleTurnNumber &&
-        record.sourceTargetInstanceId === target.instanceId &&
-        record.sourceMode === "primary",
-    );
+    const pendingSourceMode = context.sourceMode === "cube"
+      ? "cube"
+      : "primary";
+    const duplicatePrimary = context.sourceMode === "manual" &&
+      ancient.pendingSimulacrumCopies.some(
+        (record: AncientPendingSimulacrumCopy) =>
+          record.ownerPlayerId === context.playerId &&
+          record.queuedTurnNumber === context.battleTurnNumber &&
+          record.sourceTargetInstanceId === target.instanceId &&
+          record.sourceMode === "primary",
+      );
     if (duplicatePrimary) {
       throw new Error(
         `Simulacrum primary target already selected: ${target.instanceId}`,
@@ -243,7 +247,7 @@ export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
     });
 
     const pendingCopyId =
-      `${context.castIdentity}:simulacrum-copy:primary`;
+      `${context.castIdentity}:simulacrum-copy:${pendingSourceMode}`;
     if (
       ancient.pendingSimulacrumCopies.some(
         (record: AncientPendingSimulacrumCopy) =>
@@ -277,7 +281,7 @@ export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
       queueOrder: context.ledgerOrder,
       capturedStartOfBattleCharges,
       permanentConfiguration: structuredClone(permanentConfiguration),
-      sourceMode: "primary",
+      sourceMode: pendingSourceMode,
       status: "queued",
     };
     ancient.pendingSimulacrumCopies = [
