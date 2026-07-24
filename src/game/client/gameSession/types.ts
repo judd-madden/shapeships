@@ -617,6 +617,11 @@ export interface AncientCatalogueEnergyDisplay {
     red: number;
     blue: number;
   };
+  capacity: {
+    green: number;
+    red: number;
+    blue: number;
+  };
 }
 
 export interface ActionPanelViewModel {
@@ -673,6 +678,11 @@ export interface ActionPanelViewModel {
     stage: 'charges' | 'powers';
     hadChargeStage: boolean;
     provisionalEnergy: {
+      green: number;
+      red: number;
+      blue: number;
+    };
+    provisionalEnergyCapacity: {
       green: number;
       red: number;
       blue: number;

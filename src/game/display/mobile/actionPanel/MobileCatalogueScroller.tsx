@@ -65,6 +65,7 @@ export function MobileCatalogueScroller({
           }
           catalogueEnergy={vm.ancientCatalogueEnergy}
           declarationEnergy={vm.ancientChargeDeclaration?.provisionalEnergy}
+          declarationEnergyCapacity={vm.ancientChargeDeclaration?.provisionalEnergyCapacity}
           declarationStage={vm.ancientChargeDeclaration?.stage}
           canCastManualSolarPowerById={vm.ancientChargeDeclaration?.canCastManualSolarPowerById}
           selectorMode={vm.ancientChargeDeclaration?.selectorMode}

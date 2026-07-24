@@ -248,6 +248,7 @@ export function ActionPanelFrame({
               presentation={isDeclaration ? 'declaration' : 'reference'}
               catalogueEnergy={vm.ancientCatalogueEnergy}
               declarationEnergy={declarationVm?.provisionalEnergy}
+              declarationEnergyCapacity={declarationVm?.provisionalEnergyCapacity}
               declarationStage={declarationVm?.stage}
               canCastManualSolarPowerById={declarationVm?.canCastManualSolarPowerById}
               selectorMode={declarationVm?.selectorMode}
@@ -276,6 +277,7 @@ export function ActionPanelFrame({
           presentation={isDeclaration ? 'declaration' : 'reference'}
           catalogueEnergy={vm.ancientCatalogueEnergy}
           declarationEnergy={declarationVm?.provisionalEnergy}
+          declarationEnergyCapacity={declarationVm?.provisionalEnergyCapacity}
           declarationStage={declarationVm?.stage}
           canCastManualSolarPowerById={declarationVm?.canCastManualSolarPowerById}
           selectorMode={declarationVm?.selectorMode}

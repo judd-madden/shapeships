@@ -40,11 +40,27 @@ export function AncientEnergyCostPips({ rows }: { rows: readonly AncientEnergyCo
   );
 }
 
-export function AncientEnergyDisplay({ mode, pool }: AncientCatalogueEnergyDisplay) {
+function normalizeEnergyDisplayAmount(value: number): number {
+  return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+}
+
+export function AncientEnergyDisplay({ mode, pool, capacity }: AncientCatalogueEnergyDisplay) {
   const rows = [
-    { color: 'green' as const, amount: pool.green },
-    { color: 'red' as const, amount: pool.red },
-    { color: 'cyan' as const, amount: pool.blue },
+    {
+      color: 'green' as const,
+      amount: normalizeEnergyDisplayAmount(pool.green),
+      capacity: normalizeEnergyDisplayAmount(capacity.green),
+    },
+    {
+      color: 'red' as const,
+      amount: normalizeEnergyDisplayAmount(pool.red),
+      capacity: normalizeEnergyDisplayAmount(capacity.red),
+    },
+    {
+      color: 'cyan' as const,
+      amount: normalizeEnergyDisplayAmount(pool.blue),
+      capacity: normalizeEnergyDisplayAmount(capacity.blue),
+    },
   ];
 
   return (
@@ -63,11 +79,14 @@ export function AncientEnergyDisplay({ mode, pool }: AncientCatalogueEnergyDispl
           <div
             className="flex w-fit max-w-[150px] flex-wrap justify-left gap-x-[4px] gap-y-[6px]"
           >
-            {Array.from({ length: Math.max(1, row.amount) }, (_, index) => (
+            {Array.from({ length: Math.max(1, row.capacity) }, (_, index) => (
               <EnergyPip
                 key={index}
                 color={row.color}
-                dulled={mode !== 'active' || row.amount === 0}
+                dulled={
+                  mode !== 'active' ||
+                  index >= Math.min(row.amount, row.capacity)
+                }
               />
             ))}
           </div>

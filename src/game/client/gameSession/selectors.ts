@@ -36,6 +36,32 @@ export function getPublicAncientEnergyForPlayer(
   };
 }
 
+export function getPublicAncientEnergyCapacityForPlayer(
+  state: any,
+  playerId: string | null | undefined
+): AncientEnergyPool {
+  const remaining = getPublicAncientEnergyForPlayer(state, playerId);
+  const sources = playerId
+    ? state?.publicState?.ancient?.energyByPlayerId?.[playerId]?.sources
+    : null;
+  const sourceCapacity = Array.isArray(sources)
+    ? sources.reduce<AncientEnergyPool>(
+        (total, source) => ({
+          green: total.green + normalizeAncientEnergyAmount(source?.amounts?.green),
+          red: total.red + normalizeAncientEnergyAmount(source?.amounts?.red),
+          blue: total.blue + normalizeAncientEnergyAmount(source?.amounts?.blue),
+        }),
+        { green: 0, red: 0, blue: 0 }
+      )
+    : { green: 0, red: 0, blue: 0 };
+
+  return {
+    green: Math.max(sourceCapacity.green, remaining.green),
+    red: Math.max(sourceCapacity.red, remaining.red),
+    blue: Math.max(sourceCapacity.blue, remaining.blue),
+  };
+}
+
 export type ShipActivationCueSource = {
   playerId: string;
   sourceInstanceId: string;

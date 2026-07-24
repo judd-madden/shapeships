@@ -76,6 +76,7 @@ const REFERENCE_ANCIENT_CATALOGUE_ENERGY: NonNullable<
 > = {
   mode: 'reference',
   pool: ZERO_ANCIENT_ENERGY_POOL,
+  capacity: ZERO_ANCIENT_ENERGY_POOL,
 };
 
 interface SolarPosition {
@@ -235,6 +236,7 @@ interface AncientShipCataloguePanelProps {
   presentation?: 'reference' | 'declaration';
   catalogueEnergy?: ActionPanelViewModel['ancientCatalogueEnergy'];
   declarationEnergy?: AncientEnergyPool;
+  declarationEnergyCapacity?: AncientEnergyPool;
   declarationStage?: 'charges' | 'powers';
   canCastManualSolarPowerById?: Partial<Record<FixedAncientManualSolarPowerId, boolean>>;
   selectorMode?: AncientSolarSelectorMode | null;
@@ -361,6 +363,7 @@ export function AncientShipCataloguePanel({
   presentation = 'reference',
   catalogueEnergy,
   declarationEnergy,
+  declarationEnergyCapacity,
   declarationStage,
   canCastManualSolarPowerById,
   selectorMode = null,
@@ -763,6 +766,7 @@ export function AncientShipCataloguePanel({
               <AncientEnergyDisplay
                 mode="active"
                 pool={declarationEnergy ?? ZERO_ANCIENT_ENERGY_POOL}
+                capacity={declarationEnergyCapacity ?? ZERO_ANCIENT_ENERGY_POOL}
               />
             ) : (
               <AncientEnergyDisplay {...(catalogueEnergy ?? REFERENCE_ANCIENT_CATALOGUE_ENERGY)} />

@@ -59,6 +59,7 @@ import {
   getPhaseHold,
   getPhaseKey,
   getPlayerIdentityKey,
+  getPublicAncientEnergyCapacityForPlayer,
   getPublicAncientEnergyForPlayer,
   getResultReason,
   getSavedLinesByPlayerId,
@@ -2248,6 +2249,8 @@ export function useGameSession(
   const displayRightSpecies = normalizeSpecies(displayRightPlayer?.faction ?? displayRightPlayer?.species);
 
   const authoritativeAncientEnergy = getPublicAncientEnergyForPlayer(rawState, me?.id);
+  const authoritativeAncientEnergyCapacity =
+    getPublicAncientEnergyCapacityForPlayer(rawState, me?.id);
   const ancientDeclarationActions = getAncientChargeDeclarationActions(availableActions);
   const { solarGridActions: ancientSolarGridActions } =
     partitionAncientChargeDeclarationActions(ancientDeclarationActions);
@@ -3109,29 +3112,47 @@ useEffect(() => {
       hasValidPhaseKey;
 
     if (!hasOwnAncientEnergyContext) {
-      return { mode: 'reference', pool: zeroAncientCatalogueEnergyPool };
+      return {
+        mode: 'reference',
+        pool: zeroAncientCatalogueEnergyPool,
+        capacity: zeroAncientCatalogueEnergyPool,
+      };
     }
 
     if (majorPhase === 'battle' && phaseKey.startsWith('battle.')) {
-      return { mode: 'active', pool: authoritativeAncientEnergy };
+      return {
+        mode: 'active',
+        pool: authoritativeAncientEnergy,
+        capacity: authoritativeAncientEnergyCapacity,
+      };
     }
 
     if (phaseKey === 'build.drawing') {
+      const pool = {
+        green: provisionalBuild.provisionalShipCountsById.PLU ?? 0,
+        red: provisionalBuild.provisionalShipCountsById.MER ?? 0,
+        blue: provisionalBuild.provisionalShipCountsById.NEP ?? 0,
+      };
       return {
         mode: 'dormant',
-        pool: {
-          green: provisionalBuild.provisionalShipCountsById.PLU ?? 0,
-          red: provisionalBuild.provisionalShipCountsById.MER ?? 0,
-          blue: provisionalBuild.provisionalShipCountsById.NEP ?? 0,
-        },
+        pool,
+        capacity: pool,
       };
     }
 
     if (majorPhase === 'build' && phaseKey.startsWith('build.')) {
-      return { mode: 'dormant', pool: authoritativeAncientCoreCounts };
+      return {
+        mode: 'dormant',
+        pool: authoritativeAncientCoreCounts,
+        capacity: authoritativeAncientCoreCounts,
+      };
     }
 
-    return { mode: 'reference', pool: zeroAncientCatalogueEnergyPool };
+    return {
+      mode: 'reference',
+      pool: zeroAncientCatalogueEnergyPool,
+      capacity: zeroAncientCatalogueEnergyPool,
+    };
   })();
 
   const evolverRowIds = provisionalBuild.evolverRowIds;
@@ -4937,6 +4958,7 @@ useEffect(() => {
           stage: activeAncientChargeDeclarationWorkflow.stage,
           hadChargeStage: activeAncientChargeDeclarationWorkflow.hadChargeStage,
           provisionalEnergy: provisionalAncientEnergy,
+          provisionalEnergyCapacity: provisionalAncientEnergyBeforeManualCasts,
           localManualSolarCasts: activeAncientChargeDeclarationWorkflow.localManualSolarCasts,
           canCastManualSolarPowerById: canCastAncientManualSolarPowerById,
           selectorMode: activeAncientChargeDeclarationWorkflow.selectorMode,
