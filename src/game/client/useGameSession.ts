@@ -198,6 +198,10 @@ import {
   type FixedAncientManualSolarPowerId,
 } from './gameSession/ancientChargeDeclaration';
 import {
+  ANCIENT_SIPHON_MINIMUM_SPEND,
+  isValidAncientSiphonSpend,
+} from '../data/ancientSiphonRules';
+import {
   allocateNextAncientBlackHoleTarget,
   buildAncientBlackHoleBoardTargeting,
   deriveAncientBlackHoleDamagePreview,
@@ -5505,7 +5509,10 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         }
 
         if (mode === 'siphon') {
-          if (Math.min(replay.remainingEnergy.green, replay.remainingEnergy.red) < 2) {
+          if (
+            Math.min(replay.remainingEnergy.green, replay.remainingEnergy.red) <
+              ANCIENT_SIPHON_MINIMUM_SPEND
+          ) {
             return current;
           }
           return {
@@ -5552,7 +5559,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     },
 
     onCastAncientSiphon: (lockedAmount: number) => {
-      if (!Number.isInteger(lockedAmount) || lockedAmount < 2) {
+      if (!isValidAncientSiphonSpend(lockedAmount)) {
         return;
       }
 

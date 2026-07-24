@@ -803,9 +803,9 @@ Deno.test('Vortex participates in ordered payments and a later unaffordable cast
   assert.deepEqual(rollbackState, before);
 });
 
-Deno.test('production Siphon locks selected spend separately from triangular ledger and pending values', () => {
+Deno.test('production Siphon locks selected spend separately from piecewise ledger and pending values', () => {
   const state = createState();
-  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 3, blue: 0 };
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 4, red: 4, blue: 0 };
   const result = resolveChargeDeclarationSubmission({
     state,
     playerId: 'p1',
@@ -814,24 +814,24 @@ Deno.test('production Siphon locks selected spend separately from triangular led
         { sourceInstanceId: 'sol-a', choiceId: 'hold' },
         { sourceInstanceId: 'sol-b', choiceId: 'hold' },
       ],
-      solarCasts: [{ solarPowerId: 'SSIP', lockedAmount: 3 }],
+      solarCasts: [{ solarPowerId: 'SSIP', lockedAmount: 4 }],
     }),
     nowMs: 1000,
   });
 
   assert.deepEqual(result.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.solarCasts, [
-    { solarPowerId: 'SSIP', lockedAmount: 3 },
+    { solarPowerId: 'SSIP', lockedAmount: 4 },
   ]);
   assert.deepEqual(result.state.gameData.ancient.solarLedgerByPlayerId.p1.entries, [{
     entryId: 'ancient-solar:3:p1:declaration-1:manual:0',
     order: 0,
     solarPowerId: 'SSIP',
     sourceMode: 'manual',
-    paidEnergy: { green: 3, red: 3, blue: 0 },
-    lockedAmount: 6,
+    paidEnergy: { green: 4, red: 4, blue: 0 },
+    lockedAmount: 8,
   }]);
-  assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 6 });
-  assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 6 });
+  assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 8 });
+  assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 8 });
   assert.deepEqual(result.state.gameData.pendingTurn.breakdownEntries.map((entry: any) => ({
     effectId: entry.effectId,
     kind: entry.kind,
@@ -841,14 +841,14 @@ Deno.test('production Siphon locks selected spend separately from triangular led
     {
       effectId: 'ancient-solar:3:p1:declaration-1:manual:0:heal',
       kind: 'Heal',
-      baseAmount: 6,
-      finalAmount: 6,
+      baseAmount: 8,
+      finalAmount: 8,
     },
     {
       effectId: 'ancient-solar:3:p1:declaration-1:manual:0:damage',
       kind: 'Damage',
-      baseAmount: 6,
-      finalAmount: 6,
+      baseAmount: 8,
+      finalAmount: 8,
     },
   ]);
   assert.equal(result.state.players[0].health, 20);
@@ -857,7 +857,7 @@ Deno.test('production Siphon locks selected spend separately from triangular led
 
 Deno.test('multiple Siphons resolve sequentially when each remains affordable', () => {
   const state = createState();
-  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 5, red: 5, blue: 0 };
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 9, red: 9, blue: 0 };
   const result = resolveChargeDeclarationSubmission({
     state,
     playerId: 'p1',
@@ -867,8 +867,8 @@ Deno.test('multiple Siphons resolve sequentially when each remains affordable', 
         { sourceInstanceId: 'sol-b', choiceId: 'hold' },
       ],
       solarCasts: [
-        { solarPowerId: 'SSIP', lockedAmount: 2 },
-        { solarPowerId: 'SSIP', lockedAmount: 3 },
+        { solarPowerId: 'SSIP', lockedAmount: 4 },
+        { solarPowerId: 'SSIP', lockedAmount: 5 },
       ],
     }),
     nowMs: 1000,
@@ -879,16 +879,16 @@ Deno.test('multiple Siphons resolve sequentially when each remains affordable', 
     paidEnergy: entry.paidEnergy,
     lockedAmount: entry.lockedAmount,
   })), [
-    { paidEnergy: { green: 2, red: 2, blue: 0 }, lockedAmount: 3 },
-    { paidEnergy: { green: 3, red: 3, blue: 0 }, lockedAmount: 6 },
+    { paidEnergy: { green: 4, red: 4, blue: 0 }, lockedAmount: 8 },
+    { paidEnergy: { green: 5, red: 5, blue: 0 }, lockedAmount: 11 },
   ]);
-  assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 9 });
-  assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 9 });
+  assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 19 });
+  assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 19 });
 });
 
 Deno.test('earlier manual casts and Siphon payments constrain later casts in order', () => {
   const lifeThenSiphon = createState();
-  lifeThenSiphon.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 3, blue: 0 };
+  lifeThenSiphon.gameData.ancient.energyByPlayerId.p1.pool = { green: 4, red: 4, blue: 0 };
   const beforeLifeThenSiphon = structuredClone(lifeThenSiphon);
   assert.throws(() => resolveChargeDeclarationSubmission({
     state: lifeThenSiphon,
@@ -900,7 +900,7 @@ Deno.test('earlier manual casts and Siphon payments constrain later casts in ord
       ],
       solarCasts: [
         { solarPowerId: 'SLIF' },
-        { solarPowerId: 'SSIP', lockedAmount: 3 },
+        { solarPowerId: 'SSIP', lockedAmount: 4 },
       ],
     }),
     nowMs: 1000,
@@ -909,7 +909,7 @@ Deno.test('earlier manual casts and Siphon payments constrain later casts in ord
 
   const siphonThenStarBirth = createState();
   siphonThenStarBirth.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 2 };
-  siphonThenStarBirth.gameData.ancient.energyByPlayerId.p1.pool = { green: 4, red: 2, blue: 0 };
+  siphonThenStarBirth.gameData.ancient.energyByPlayerId.p1.pool = { green: 6, red: 4, blue: 0 };
   const beforeSiphonThenStarBirth = structuredClone(siphonThenStarBirth);
   assert.throws(() => resolveChargeDeclarationSubmission({
     state: siphonThenStarBirth,
@@ -920,7 +920,7 @@ Deno.test('earlier manual casts and Siphon payments constrain later casts in ord
         { sourceInstanceId: 'sol-b', choiceId: 'hold' },
       ],
       solarCasts: [
-        { solarPowerId: 'SSIP', lockedAmount: 2 },
+        { solarPowerId: 'SSIP', lockedAmount: 4 },
         { solarPowerId: 'SSTA' },
       ],
     }),
@@ -932,7 +932,7 @@ Deno.test('earlier manual casts and Siphon payments constrain later casts in ord
 Deno.test('manual Siphon reduces the pool consumed by fixed mono-colour Autocast', () => {
   const state = createState();
   state.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 2 };
-  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 5, red: 5, blue: 0 };
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 7, red: 7, blue: 0 };
   const result = resolveChargeDeclarationSubmission({
     state,
     playerId: 'p1',
@@ -941,7 +941,7 @@ Deno.test('manual Siphon reduces the pool consumed by fixed mono-colour Autocast
         { sourceInstanceId: 'sol-a', choiceId: 'hold' },
         { sourceInstanceId: 'sol-b', choiceId: 'hold' },
       ],
-      solarCasts: [{ solarPowerId: 'SSIP', lockedAmount: 2 }],
+      solarCasts: [{ solarPowerId: 'SSIP', lockedAmount: 4 }],
       autocastEnabled: true,
     }),
     nowMs: 1000,
@@ -959,7 +959,7 @@ Deno.test('manual Siphon reduces the pool consumed by fixed mono-colour Autocast
 
 Deno.test('a later invalid Siphon rejects the entire production declaration atomically', () => {
   const state = createState();
-  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 3, blue: 0 };
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 7, red: 7, blue: 0 };
   const before = structuredClone(state);
   assert.throws(() => resolveChargeDeclarationSubmission({
     state,
@@ -973,8 +973,8 @@ Deno.test('a later invalid Siphon rejects the entire production declaration atom
         { sourceInstanceId: 'sol-b', choiceId: 'hold' },
       ],
       solarCasts: [
-        { solarPowerId: 'SSIP', lockedAmount: 2 },
-        { solarPowerId: 'SSIP', lockedAmount: 3 },
+        { solarPowerId: 'SSIP', lockedAmount: 4 },
+        { solarPowerId: 'SSIP', lockedAmount: 5 },
       ],
     }),
     nowMs: 1000,

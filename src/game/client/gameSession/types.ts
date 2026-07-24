@@ -432,7 +432,7 @@ export interface AncientSolarDisplayEntry {
   order: number;
   sourceMode: AncientSolarDisplaySourceMode;
   isLocalPreview: boolean;
-  energySpendCaption?: number;
+  effectCaption?: number;
 }
 
 export type BoardViewModel =

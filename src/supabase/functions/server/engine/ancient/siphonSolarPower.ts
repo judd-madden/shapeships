@@ -14,26 +14,28 @@ function requireSiphonAmounts(value: unknown): {
     !Number.isFinite(value) ||
     !Number.isInteger(value) ||
     !Number.isSafeInteger(value) ||
-    value < 2
+    value < 4
   ) {
-    throw new Error('Siphon lockedAmount must be a safe integer of at least 2');
+    throw new Error('Siphon lockedAmount must be a safe integer of at least 4');
   }
 
-  const firstFactor = value % 2 === 0 ? value / 2 : value;
-  const secondFactor = value % 2 === 0 ? value + 1 : (value + 1) / 2;
-  if (
-    !Number.isSafeInteger(firstFactor) ||
-    !Number.isSafeInteger(secondFactor) ||
-    firstFactor <= 0 ||
-    secondFactor <= 0 ||
-    firstFactor > Number.MAX_SAFE_INTEGER / secondFactor
-  ) {
-    throw new Error('Siphon triangular effect amount must be a positive safe integer');
+  let effectAmount: number;
+  if (value <= 7) {
+    effectAmount = 3 * value - 4;
+  } else {
+    const acceleratedFactor = value - 4;
+    if (
+      !Number.isSafeInteger(acceleratedFactor) ||
+      acceleratedFactor <= 0 ||
+      acceleratedFactor > Math.floor(Number.MAX_SAFE_INTEGER / 5)
+    ) {
+      throw new Error('Siphon effect amount must be a positive safe integer');
+    }
+    effectAmount = acceleratedFactor * 5;
   }
 
-  const effectAmount = firstFactor * secondFactor;
   if (!Number.isSafeInteger(effectAmount) || effectAmount <= 0) {
-    throw new Error('Siphon triangular effect amount must be a positive safe integer');
+    throw new Error('Siphon effect amount must be a positive safe integer');
   }
   return { selectedAmount: value, effectAmount };
 }

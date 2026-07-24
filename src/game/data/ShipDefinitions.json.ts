@@ -1581,12 +1581,12 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charge Declaration",
-        "text": "Heal and deal damage based on energy spent. You must spend an EQUAL amount of green and red energy.\\nEnergy spent of each colour: X\\nHealing and damage: X(X+1)/2"
+        "text": "Heal and deal damage based on energy spent. You must spend an EQUAL amount of green and red energy.\\n4-7 of each: 3X-4 healing and damage.\\n8+ of each: (X-4)×5 healing and damage."
       }
     ],
     "energyCost": {
-      "red": 2,
-      "green": 2,
+      "red": 4,
+      "green": 4,
       "blue": 0,
       "xBlue": false
     },
@@ -1656,7 +1656,7 @@ export const SHIP_DEFINITIONS_JSON = [
  * IMPORTANT: This version should match the server-side version when synced.
  * Server version is in: /supabase/functions/server/engine_shared/defs/ShipDefinitions.json.ts
  */
-export const SHIP_DEFS_VERSION = '2026-07-19';
+export const SHIP_DEFS_VERSION = '2026-07-24';
 
 // ============================================================================
 // TYPE INFERENCE HELPERS

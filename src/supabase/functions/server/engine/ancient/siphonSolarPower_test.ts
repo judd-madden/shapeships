@@ -42,14 +42,20 @@ function directContext(overrides: Record<string, unknown> = {}): any {
     ledgerOrder: 0,
     sourceMode: 'manual',
     castIdentity: 'ancient-solar:3:p1:siphon-direct:manual:0',
-    cast: { solarPowerId: 'SSIP', lockedAmount: 2 },
-    remainingEnergy: { green: 2, red: 2, blue: 0 },
+    cast: { solarPowerId: 'SSIP', lockedAmount: 4 },
+    remainingEnergy: { green: 4, red: 4, blue: 0 },
     ...overrides,
   };
 }
 
-Deno.test('Siphon locks triangular values with reduced-factor safe arithmetic', () => {
-  for (const [selectedAmount, expectedEffect] of [[2, 3], [3, 6], [10, 55]] as const) {
+Deno.test('Siphon locks approved piecewise values with safe linear arithmetic', () => {
+  for (const [selectedAmount, expectedEffect] of [
+    [4, 8],
+    [7, 17],
+    [8, 20],
+    [9, 25],
+    [14, 50],
+  ] as const) {
     const result = resolve(
       createState(),
       selectedAmount,
@@ -94,23 +100,42 @@ Deno.test('Siphon locks triangular values with reduced-factor safe arithmetic', 
     assert.equal(result.state.players[1].health, 20);
   }
 
-  const largeSafe = resolve(
+  const maximumSafeSpend =
+    Math.floor(Number.MAX_SAFE_INTEGER / 5) + 4;
+  const maximumSafe = resolve(
     createState(),
-    1_000_000,
-    { green: 1_000_000, red: 1_000_000, blue: 0 },
+    maximumSafeSpend,
+    { green: maximumSafeSpend, red: maximumSafeSpend, blue: 0 },
   );
-  assert.equal(largeSafe.ledgerEntries[0].lockedAmount, 500_000_500_000);
+  assert.equal(
+    maximumSafe.ledgerEntries[0].lockedAmount,
+    (maximumSafeSpend - 4) * 5,
+  );
+  assert.equal(Number.isSafeInteger(maximumSafe.ledgerEntries[0].lockedAmount), true);
 });
 
-Deno.test('Siphon defensively rejects invalid selected amounts and unsafe triangular results', () => {
-  for (const lockedAmount of [undefined, Number.NaN, Number.POSITIVE_INFINITY, -2, 0, 1, 2.5, Number.MAX_SAFE_INTEGER + 1]) {
+Deno.test('Siphon defensively rejects invalid selected amounts and unsafe effect results', () => {
+  for (const lockedAmount of [
+    undefined,
+    '4',
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    -2,
+    0,
+    1,
+    3,
+    4.5,
+    Number.MAX_SAFE_INTEGER + 1,
+  ]) {
     assert.throws(() => SIPHON_SOLAR_RESOLVER.resolve(directContext({
       cast: { solarPowerId: 'SSIP', lockedAmount },
       remainingEnergy: { green: Number.MAX_SAFE_INTEGER, red: Number.MAX_SAFE_INTEGER, blue: 0 },
     })));
   }
 
-  const overflowAmount = 134_217_728;
+  const maximumSafeSpend =
+    Math.floor(Number.MAX_SAFE_INTEGER / 5) + 4;
+  const overflowAmount = maximumSafeSpend + 1;
   assert.throws(() => SIPHON_SOLAR_RESOLVER.resolve(directContext({
     cast: { solarPowerId: 'SSIP', lockedAmount: overflowAmount },
     remainingEnergy: { green: overflowAmount, red: overflowAmount, blue: 0 },
@@ -119,20 +144,20 @@ Deno.test('Siphon defensively rejects invalid selected amounts and unsafe triang
 
 Deno.test('Siphon rejects targets, Autocast mode, and colour-specific unaffordability', () => {
   assert.throws(() => SIPHON_SOLAR_RESOLVER.resolve(directContext({
-    cast: { solarPowerId: 'SSIP', lockedAmount: 2, targetInstanceId: 'target' },
+    cast: { solarPowerId: 'SSIP', lockedAmount: 4, targetInstanceId: 'target' },
   })), /targetInstanceId/);
   assert.throws(() => SIPHON_SOLAR_RESOLVER.resolve(directContext({
-    cast: { solarPowerId: 'SSIP', lockedAmount: 2, targetInstanceIds: ['target'] },
+    cast: { solarPowerId: 'SSIP', lockedAmount: 4, targetInstanceIds: ['target'] },
   })), /targetInstanceIds/);
   assert.throws(() => SIPHON_SOLAR_RESOLVER.resolve(directContext({ sourceMode: 'autocast' })), /manual Solar cast/);
 
   for (const [energy, message] of [
-    [{ green: 1, red: 2, blue: 0 }, /green Energy/],
-    [{ green: 2, red: 1, blue: 0 }, /red Energy/],
+    [{ green: 3, red: 4, blue: 0 }, /green Energy/],
+    [{ green: 4, red: 3, blue: 0 }, /red Energy/],
   ] as const) {
     const state = createState();
     const before = structuredClone(state);
-    assert.throws(() => resolve(state, 2, energy), message);
+    assert.throws(() => resolve(state, 4, energy), message);
     assert.deepEqual(state, before);
   }
 
@@ -141,8 +166,8 @@ Deno.test('Siphon rejects targets, Autocast mode, and colour-specific unaffordab
     playerId: 'p1',
     declarationId: 'siphon-autocast',
     battleTurnNumber: 3,
-    initialEnergy: { green: 2, red: 2, blue: 0 },
-    casts: [{ solarPowerId: 'SSIP', lockedAmount: 2 }],
+    initialEnergy: { green: 4, red: 4, blue: 0 },
+    casts: [{ solarPowerId: 'SSIP', lockedAmount: 4 }],
     resolvers: { SSIP: SIPHON_SOLAR_RESOLVER },
     sourceMode: 'autocast',
     initialLedgerOrder: 0,
@@ -161,7 +186,7 @@ Deno.test('Siphon damage requires exactly two active player seats including the 
     const state = createState();
     state.players = players;
     const before = structuredClone(state);
-    assert.throws(() => resolve(state, 2, { green: 2, red: 2, blue: 0 }), /exactly two active player seats/);
+    assert.throws(() => resolve(state, 4, { green: 4, red: 4, blue: 0 }), /exactly two active player seats/);
     assert.deepEqual(state, before);
   }
 });

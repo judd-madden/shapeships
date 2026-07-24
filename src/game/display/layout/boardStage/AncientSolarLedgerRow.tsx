@@ -50,7 +50,7 @@ function buildSolarPresentationSignature(
   return JSON.stringify(entries.map((entry) => [
     entry.displayKey,
     entry.solarPowerId,
-    entry.energySpendCaption ?? null,
+    entry.effectCaption ?? null,
   ]));
 }
 
@@ -145,7 +145,7 @@ export function AncientSolarLedgerRow({
   const itemLayoutSignatures = Object.fromEntries(
     presentedEntries.map((entry) => [
       entry.displayKey,
-      `${entry.solarPowerId}:${entry.energySpendCaption ?? ''}`,
+      `${entry.solarPowerId}:${entry.effectCaption ?? ''}`,
     ])
   );
   const entryAnimationTokens = useSolarPowerEntryAnimTokens(
@@ -198,9 +198,9 @@ export function AncientSolarLedgerRow({
                     >
                       <SolarGraphic className="block shrink-0" />
                     </SolarPowerAnimationWrapper>
-                    {entry.energySpendCaption !== undefined ? (
+                    {entry.effectCaption !== undefined ? (
                       <span className="pointer-events-none select-none text-center font-['Roboto'] text-[18px] font-bold leading-none text-white">
-                        {entry.energySpendCaption}
+                        {entry.effectCaption}
                       </span>
                     ) : null}
                   </div>

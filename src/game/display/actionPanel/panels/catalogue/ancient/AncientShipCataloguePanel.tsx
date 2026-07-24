@@ -62,6 +62,7 @@ import {
   type AncientSolarSelectorMode,
   type FixedAncientManualSolarPowerId,
 } from '../../../../../client/gameSession/ancientChargeDeclaration';
+import { ANCIENT_SIPHON_MINIMUM_SPEND } from '../../../../../data/ancientSiphonRules';
 
 type CatalogueFrame = 'desktop' | 'bare';
 type CatalogueLayout = 'standard' | 'long';
@@ -125,11 +126,11 @@ const SOLAR_POWER_SLOTS = [
     id: 'SSIP',
     graphic: Siphon,
     costRows: [
-      { color: 'green', count: 2 },
-      { color: 'red', count: 2 },
+      { color: 'green', count: ANCIENT_SIPHON_MINIMUM_SPEND },
+      { color: 'red', count: ANCIENT_SIPHON_MINIMUM_SPEND },
     ],
     showPlus: true,
-    position: { standard: { x: 934, y: 52 }, long: { x: 1062, y: 52 } },
+    position: { standard: { x: 919, y: 52 }, long: { x: 1047, y: 52 } },
   },
   {
     id: 'SSIM',

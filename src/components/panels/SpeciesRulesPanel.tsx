@@ -12,6 +12,10 @@ import type { ShipDefinitionUI } from '../../game/types/ShipTypes.ui';
 import { BuildIcon } from '../ui/primitives/icons/BuildIcon';
 import { BattleIcon } from '../ui/primitives/icons/BattleIcon';
 import { resolveShipGraphic } from '../../game/display/graphics/resolveShipGraphic';
+import {
+  ANCIENT_SIPHON_HIGH_BAND_INCREMENT,
+  ANCIENT_SIPHON_RULES_TABLE_ROWS,
+} from '../../game/data/ancientSiphonRules';
 
 type RulesTab = 'core' | 'human' | 'xenite' | 'centaur' | 'ancient' | 'timings';
 type SpeciesName = 'Human' | 'Xenite' | 'Centaur' | 'Ancient';
@@ -34,17 +38,6 @@ interface SpeciesRulesPanelProps {
 const SOLAR_POWER_NAME_TEXT_CLASSES: Record<string, EnergyCostTextClass> = {
 
 };
-
-const SIPHON_RULE_VALUES = [
-  { energy: '2', value: '3' },
-  { energy: '3', value: '6' },
-  { energy: '4', value: '10' },
-  { energy: '5', value: '15' },
-  { energy: '6', value: '21' },
-  { energy: '7', value: '28' },
-  { energy: '8', value: '36' },
-  { energy: '9', value: '45' },
-] as const;
 
 // Build/Battle icon mapping from CSV subphase (UI-ONLY INTERPRETATION)
 // Note: Automatic and Charge Declaration are treated as Battle icons for UI consistency
@@ -179,22 +172,25 @@ function SiphonRulesTable() {
           </div>
         </div>
 
-        {SIPHON_RULE_VALUES.map(({ energy, value }) => (
-          <div key={energy} className="flex shrink-0 flex-col items-center pt-[15px] font-bold leading-[1.1]">
-            <p className="text-white text-[16px] ">{energy}</p>
+        {ANCIENT_SIPHON_RULES_TABLE_ROWS.map(({ spend, effect }) => (
+          <div key={spend} className="flex shrink-0 flex-col items-center pt-[15px] font-bold leading-[1.1]">
+            <p className="text-white text-[16px] ">{spend}</p>
             <div className="mt-[12px] flex flex-col items-center gap-[6px]">
-              <p className="text-[16px] text-shapeships-pastel-green">{value}</p>
-              <p className="text-[16px] text-shapeships-pastel-red">{value}</p>
+              <p className="text-[16px] text-shapeships-pastel-green">{effect}</p>
+              <p className="text-[16px] text-shapeships-pastel-red">{effect}</p>
             </div>
           </div>
         ))}
 
         <div className="flex shrink-0 flex-col items-center pt-[15px] font-['Roboto'] text-[16px] font-bold leading-[1.1]">
-          <p className="text-white">X</p>
-          <div aria-label="X(X+1) over 2" className="mt-[12px] flex flex-col items-center text-shapeships-grey-50">
-            <span>X(X+1)</span>
-            <span aria-hidden="true" className="my-[3px] h-[2px] w-full bg-shapeships-grey-50" />
-            <span>2</span>
+          <p className="text-white">+</p>
+          <div className="mt-[12px] flex flex-col items-center gap-[6px]">
+            <p className="text-[16px] text-shapeships-pastel-green">
+              +{ANCIENT_SIPHON_HIGH_BAND_INCREMENT}
+            </p>
+            <p className="text-[16px] text-shapeships-pastel-red">
+              +{ANCIENT_SIPHON_HIGH_BAND_INCREMENT}
+            </p>
           </div>
         </div>
       </div>

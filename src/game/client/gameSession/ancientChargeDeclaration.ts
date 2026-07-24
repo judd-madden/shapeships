@@ -6,6 +6,10 @@ import {
 } from './availableActions';
 import { buildPowerAction } from './powerIntents';
 import type { AncientEnergyPool } from './selectors';
+import {
+  ANCIENT_SIPHON_MINIMUM_SPEND,
+  isValidAncientSiphonSpend,
+} from '../../data/ancientSiphonRules';
 
 export type { AncientEnergyPool } from './selectors';
 
@@ -134,7 +138,7 @@ export function replayAncientManualSolarCasts(args: {
   for (const cast of args.localManualSolarCasts) {
     let cost: AncientEnergyPool | null;
     if (cast.solarPowerId === 'SSIP') {
-      cost = Number.isInteger(cast.lockedAmount) && cast.lockedAmount >= 2
+      cost = isValidAncientSiphonSpend(cast.lockedAmount)
         ? { green: cast.lockedAmount, red: cast.lockedAmount, blue: 0 }
         : null;
     } else if (cast.solarPowerId === 'SBLA') {
@@ -200,7 +204,7 @@ export function deriveAncientSiphonSelectorState(args: {
       args.energySequenceValid &&
       !args.attemptUnresolved &&
       !args.rejectionRecoveryPending &&
-      maxSpend >= 2,
+      maxSpend >= ANCIENT_SIPHON_MINIMUM_SPEND,
   };
 }
 

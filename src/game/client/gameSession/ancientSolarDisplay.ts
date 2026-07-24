@@ -8,6 +8,7 @@ import type {
   AncientManualSolarCast,
   FrozenAncientChargeDeclarationAttempt,
 } from './ancientChargeDeclaration';
+import { calculateAncientSiphonEffect } from '../../data/ancientSiphonRules';
 
 const LIVE_ROW_ANCIENT_SOLAR_POWER_IDS = new Set<string>([
   'SLIF',
@@ -42,17 +43,19 @@ function isAncientSolarDisplaySourceMode(
   return typeof value === 'string' && ANCIENT_SOLAR_DISPLAY_SOURCE_MODES.has(value);
 }
 
-function getAuthoritativeSiphonEnergySpendCaption(record: Record<string, unknown>): number | undefined {
+function getAuthoritativeSiphonEffectCaption(record: Record<string, unknown>): number | undefined {
   if (record.solarPowerId !== 'SSIP' || !record.paidEnergy || typeof record.paidEnergy !== 'object') {
     return undefined;
   }
 
   const paidEnergy = record.paidEnergy as Record<string, unknown>;
-  return Number.isInteger(paidEnergy.green) &&
-      (paidEnergy.green as number) >= 2 &&
-      paidEnergy.red === paidEnergy.green &&
-      paidEnergy.blue === 0
-    ? paidEnergy.green as number
+  if (paidEnergy.red !== paidEnergy.green || paidEnergy.blue !== 0) {
+    return undefined;
+  }
+
+  const expectedEffect = calculateAncientSiphonEffect(paidEnergy.green);
+  return expectedEffect !== null && record.lockedAmount === expectedEffect
+    ? record.lockedAmount
     : undefined;
 }
 
@@ -98,7 +101,7 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
       order: record.order,
       sourceMode: record.sourceMode,
       solarPowerId: record.solarPowerId,
-      energySpendCaption: getAuthoritativeSiphonEnergySpendCaption(record),
+      effectCaption: getAuthoritativeSiphonEffectCaption(record),
     }];
   });
 
@@ -121,8 +124,8 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
       order: candidate.order,
       sourceMode: candidate.sourceMode,
       isLocalPreview: false,
-      ...(candidate.energySpendCaption !== undefined
-        ? { energySpendCaption: candidate.energySpendCaption }
+      ...(candidate.effectCaption !== undefined
+        ? { effectCaption: candidate.effectCaption }
         : {}),
     });
   }
@@ -136,10 +139,8 @@ function buildLocalManualEntries(args: {
   casts: readonly AncientManualSolarCast[];
 }): AncientSolarDisplayEntry[] {
   return args.casts.map((cast, order) => {
-    const energySpendCaption = cast.solarPowerId === 'SSIP' &&
-        Number.isInteger(cast.lockedAmount) &&
-        cast.lockedAmount >= 2
-      ? cast.lockedAmount
+    const effectCaption = cast.solarPowerId === 'SSIP'
+      ? calculateAncientSiphonEffect(cast.lockedAmount) ?? undefined
       : undefined;
 
     return {
@@ -153,7 +154,7 @@ function buildLocalManualEntries(args: {
       order,
       sourceMode: 'manual',
       isLocalPreview: true,
-      ...(energySpendCaption !== undefined ? { energySpendCaption } : {}),
+      ...(effectCaption !== undefined ? { effectCaption } : {}),
     };
   });
 }

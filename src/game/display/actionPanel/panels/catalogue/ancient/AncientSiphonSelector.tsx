@@ -1,5 +1,10 @@
 import { useState } from 'react';
 import { Siphon } from '../../../../../../graphics/ancient/assets';
+import {
+  ANCIENT_SIPHON_DEFAULT_SELECTOR_MAX_SPEND,
+  ANCIENT_SIPHON_MINIMUM_SPEND,
+  calculateAncientSiphonEffect,
+} from '../../../../../data/ancientSiphonRules';
 import { AncientEnergyCostPips } from './AncientEnergyDisplay';
 
 interface AncientSiphonSelectorProps {
@@ -16,10 +21,13 @@ export function AncientSiphonSelector({
   onSelect,
 }: AncientSiphonSelectorProps) {
   const [hoveredSpend, setHoveredSpend] = useState<number | null>(null);
-  const maxDisplayedSpend = Math.max(13, maxSpend + 2);
+  const maxDisplayedSpend = Math.max(
+    ANCIENT_SIPHON_DEFAULT_SELECTOR_MAX_SPEND,
+    maxSpend + 2,
+  );
   const candidates = Array.from(
-    { length: maxDisplayedSpend - 1 },
-    (_, index) => index + 2
+    { length: maxDisplayedSpend - ANCIENT_SIPHON_MINIMUM_SPEND + 1 },
+    (_, index) => index + ANCIENT_SIPHON_MINIMUM_SPEND
   );
 
   return (
@@ -44,8 +52,8 @@ export function AncientSiphonSelector({
       <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x">
         <div className="flex w-max flex-nowrap gap-[4px]">
           {candidates.map((candidate) => {
-            const valid = candidate <= maxSpend;
-            const effectAmount = candidate * (candidate + 1) / 2;
+            const effectAmount = calculateAncientSiphonEffect(candidate);
+            const valid = candidate <= maxSpend && effectAmount !== null;
             const cumulativelyHovered =
               hoveredSpend !== null && valid && candidate <= hoveredSpend;
 
@@ -54,7 +62,11 @@ export function AncientSiphonSelector({
                 key={candidate}
                 type="button"
                 disabled={!valid}
-                aria-label={`Spend ${candidate} green and ${candidate} red Energy for ${effectAmount} Healing and ${effectAmount} Damage`}
+                aria-label={
+                  effectAmount === null
+                    ? `Siphon spend ${candidate} is unavailable`
+                    : `Spend ${candidate} green and ${candidate} red Energy for ${effectAmount} Healing and ${effectAmount} Damage`
+                }
                 className="flex shrink-0 flex-col items-center gap-[12px] rounded-[10px] bg-[var(--shapeships-grey-90)] px-[16px] py-[24px] focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_white] disabled:cursor-default"
                 style={{
                   opacity: valid ? 1 : 0.4,
@@ -67,17 +79,29 @@ export function AncientSiphonSelector({
               >
                 <AncientEnergyCostPips
                   rows={[
-                    { color: 'green', count: candidate === 2 ? 2 : 1 },
-                    { color: 'red', count: candidate === 2 ? 2 : 1 },
+                    {
+                      color: 'green',
+                      count: candidate === ANCIENT_SIPHON_MINIMUM_SPEND
+                        ? ANCIENT_SIPHON_MINIMUM_SPEND
+                        : 1,
+                    },
+                    {
+                      color: 'red',
+                      count: candidate === ANCIENT_SIPHON_MINIMUM_SPEND
+                        ? ANCIENT_SIPHON_MINIMUM_SPEND
+                        : 1,
+                    },
                   ]}
                 />
-                <div
-                  className="flex flex-col items-center gap-[8px] font-['Roboto'] text-[22px] font-bold leading-none"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
-                >
-                  <span className="text-[var(--shapeships-pastel-green)]">{effectAmount}</span>
-                  <span className="text-[var(--shapeships-pastel-red)]">{effectAmount}</span>
-                </div>
+                {effectAmount !== null && (
+                  <div
+                    className="flex flex-col items-center gap-[8px] font-['Roboto'] text-[22px] font-bold leading-none"
+                    style={{ fontVariationSettings: "'wdth' 100" }}
+                  >
+                    <span className="text-[var(--shapeships-pastel-green)]">{effectAmount}</span>
+                    <span className="text-[var(--shapeships-pastel-red)]">{effectAmount}</span>
+                  </div>
+                )}
               </button>
             );
           })}

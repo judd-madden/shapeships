@@ -381,11 +381,12 @@ All Solar Powers are declared in Charge Declaration. Multiple powers may be decl
 #### Siphon (`SSIP`)
 
 - Manual only; never autocast and never Cube-repeated.
-- Spend equal green and red Energy, with a minimum of 2 of each.
-- If the locked amount of each colour is `x`, both healing and damage are `x(x + 1) / 2`.
-- Legal `x` values are 2 through `min(available green, available red)` at that point in the ordered draft.
+- Heal and deal damage based on energy spent. You must spend an EQUAL amount of green and red energy.
+- 4-7 of each: 3X-4 healing and damage.
+- 8+ of each: (X-4)×5 healing and damage.
+- Legal `X` values are 4 through `min(available green, available red)` at that point in the ordered draft.
 - There is no separately authored upper bound.
-- Lock `x`, healing, and damage when final Ready is accepted.
+- Lock `X`, healing, and damage when final Ready is accepted.
 - Stage healing and damage for end-of-turn resolution.
 - A scalable large-value selector may be refined in its own UI slice.
 
@@ -742,7 +743,7 @@ Every slice requires a fresh inspect-and-plan gate. File lists below are ownersh
 | P14 | Server | Implement ordered manual Solar declaration, payment, ledger, and pending effect foundation | P12 | Sequential affordability and deterministic order |
 | P15 | Mixed | Implement five mono-colour powers, fixed authoritative Autocast, and the explicit client toggle | P14 | Priority examples, manual-plus-auto, toggle off |
 | P16 | Client/UI | Align Ancient catalogue and rule explanations with implemented foundation | P3, P15 | Text parity, no client authority |
-| P17 | Server | Implement Siphon variable spend and locked triangular effect values | P14 | Boundary values and ordered affordability |
+| P17 | Server | Implement Siphon variable spend and locked piecewise effect values | P14 | Boundary values, safe linear arithmetic, and ordered affordability |
 | P18 | Client/UI | Implement adaptive Siphon spend selection and ledger presentation | P17 | Large ranges, revision, mobile fit |
 | P19 | Server | Implement Vortex live distinct-type lock and damage staging | P14 | Type-count semantics and source changes |
 | P20 | Server | Commit Black Hole targets and the owned `PLU`/`MER`/`NEP` count under current-controller semantics at Ready without fleet mutation, then resolve destruction after the declaration window through the existing pre-Automatic seam | P7, P14 | 0/1/2+ targets; zero/mixed/copied/controlled Core counts; post-Ready fleet changes; non-Core exclusion; protection and simultaneous timing |
@@ -950,9 +951,10 @@ Ordered mono-colour powers:
 
 Siphon:
 
-- minimum `x = 2`;
+- minimum `X = 4`;
 - all values through current `min(green, red)`;
-- correct `x(x + 1) / 2` healing and damage;
+- correct `3X-4` healing and damage for `X=4-7`;
+- correct `(X-4)×5` healing and damage for `X>=8`;
 - locked value unaffected by later state changes;
 - no Autocast or Cube repeat.
 
