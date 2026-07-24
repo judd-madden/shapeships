@@ -294,11 +294,15 @@ export function deriveAncientSolarDisplayEntries(args: {
   workflow: AncientChargeDeclarationWorkflow | null;
   frozenAttempt: FrozenAncientChargeDeclarationAttempt | null;
   isAuthoritativelyReady: boolean;
+  hideMaterializedSimulacrumEntries?: boolean;
 }): AncientSolarDisplayEntry[] {
   const authoritativeEntries = normalizeAuthoritativeAncientSolarEntries({
     playerId: args.playerId,
     ledger: args.ledger,
   });
+  const visibleAuthoritativeEntries = args.hideMaterializedSimulacrumEntries
+    ? authoritativeEntries.filter((entry) => entry.solarPowerId !== 'SSIM')
+    : authoritativeEntries;
 
   if (
     !args.playerId ||
@@ -306,7 +310,7 @@ export function deriveAncientSolarDisplayEntries(args: {
     args.isAuthoritativelyReady ||
     !isNonNegativeInteger(args.currentBattleTurnNumber)
   ) {
-    return authoritativeEntries;
+    return visibleAuthoritativeEntries;
   }
 
   const matchingWorkflow = args.workflow?.key === args.currentWorkflowKey
@@ -316,7 +320,7 @@ export function deriveAncientSolarDisplayEntries(args: {
     ? args.frozenAttempt
     : null;
   if (!matchingWorkflow && !matchingAttempt) {
-    return authoritativeEntries;
+    return visibleAuthoritativeEntries;
   }
 
   const casts = matchingWorkflow

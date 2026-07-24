@@ -509,24 +509,87 @@ export function getChronoswarmRolls(state: any): unknown[] | undefined {
   return Array.isArray(rolls) ? rolls : undefined;
 }
 
+function getStableShipInstanceId(ship: any): string | null {
+  if (typeof ship?.instanceId === 'string' && ship.instanceId.trim().length > 0) {
+    return ship.instanceId;
+  }
+
+  return typeof ship?.id === 'string' && ship.id.trim().length > 0 ? ship.id : null;
+}
+
+export function getRequesterHiddenDrawingSimulacrumShips(state: any): any[] {
+  if (getPhaseKey(state) !== 'build.drawing') {
+    return [];
+  }
+
+  const requesterPlayerId = state?.requester?.playerId;
+  const rawShips = state?.requester?.hiddenDrawingSimulacrumShips;
+  if (
+    typeof requesterPlayerId !== 'string' ||
+    requesterPlayerId.trim().length === 0 ||
+    !Array.isArray(rawShips)
+  ) {
+    return [];
+  }
+
+  const seenInstanceIds = new Set<string>();
+  return rawShips.flatMap((ship: any) => {
+    const instanceId = getStableShipInstanceId(ship);
+    if (
+      !instanceId ||
+      seenInstanceIds.has(instanceId) ||
+      typeof ship?.shipDefId !== 'string' ||
+      ship.shipDefId.trim().length === 0
+    ) {
+      return [];
+    }
+
+    seenInstanceIds.add(instanceId);
+    return [structuredClone(ship)];
+  });
+}
+
 export function getShipsByPlayerId(state: any): Record<string, any[]> {
+  let baseShipsByPlayerId: Record<string, any[]>;
   if (hasOwn(state?.publicState, 'ships') && state.publicState.ships != null) {
-    return state.publicState.ships;
+    baseShipsByPlayerId = state.publicState.ships;
+  } else if (hasOwn(state?.publicState, 'fleets') && state.publicState.fleets != null) {
+    baseShipsByPlayerId = state.publicState.fleets;
+  } else if (hasOwn(state?.gameData, 'ships') && state.gameData.ships != null) {
+    baseShipsByPlayerId = state.gameData.ships;
+  } else if (hasOwn(state, 'ships') && state.ships != null) {
+    baseShipsByPlayerId = state.ships;
+  } else {
+    baseShipsByPlayerId = {};
   }
 
-  if (hasOwn(state?.publicState, 'fleets') && state.publicState.fleets != null) {
-    return state.publicState.fleets;
+  const hiddenShips = getRequesterHiddenDrawingSimulacrumShips(state);
+  if (hiddenShips.length === 0) {
+    return baseShipsByPlayerId;
   }
 
-  if (hasOwn(state?.gameData, 'ships') && state.gameData.ships != null) {
-    return state.gameData.ships;
-  }
+  const requesterPlayerId = state.requester.playerId as string;
+  const requesterFleet = Array.isArray(baseShipsByPlayerId[requesterPlayerId])
+    ? baseShipsByPlayerId[requesterPlayerId]
+    : [];
+  const existingInstanceIds = new Set(
+    requesterFleet.flatMap((ship: any) => {
+      const instanceId = getStableShipInstanceId(ship);
+      return instanceId ? [instanceId] : [];
+    })
+  );
+  const hiddenShipsNotAlreadyPresent = hiddenShips.filter((ship: any) => {
+    const instanceId = getStableShipInstanceId(ship);
+    return instanceId != null && !existingInstanceIds.has(instanceId);
+  });
 
-  if (hasOwn(state, 'ships') && state.ships != null) {
-    return state.ships;
-  }
-
-  return {};
+  return {
+    ...baseShipsByPlayerId,
+    [requesterPlayerId]: [
+      ...requesterFleet,
+      ...hiddenShipsNotAlreadyPresent,
+    ],
+  };
 }
 
 export function getShipsForPlayer(state: any, playerId: string | null | undefined): any[] {

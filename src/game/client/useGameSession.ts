@@ -2286,6 +2286,10 @@ export function useGameSession(
       : null;
   const publicAncientSolarLedgers =
     rawState?.publicState?.ancient?.solarLedgerByPlayerId as Record<string, unknown> | undefined;
+  const shouldHandoffOwnSimulacrumLedgerToDrawingFleet =
+    phaseKey === 'build.drawing' &&
+    myRole === 'player' &&
+    displayLeftPlayer?.id === me?.id;
   const displayLeftAncientSolarEntries = deriveAncientSolarDisplayEntries({
     playerId: displayLeftPlayer?.id,
     ledger: displayLeftPlayer?.id ? publicAncientSolarLedgers?.[displayLeftPlayer.id] : null,
@@ -2300,6 +2304,8 @@ export function useGameSession(
     workflow: activeAncientChargeDeclarationWorkflow,
     frozenAttempt: activeAncientChargeDeclarationAttempt,
     isAuthoritativelyReady: ancientPlayerReady,
+    hideMaterializedSimulacrumEntries:
+      shouldHandoffOwnSimulacrumLedgerToDrawingFleet,
   });
   const displayRightAncientSolarEntries = normalizeSpecies(
     displayRightPlayer?.faction ?? displayRightPlayer?.species
@@ -2563,6 +2569,17 @@ export function useGameSession(
       activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending === true,
     hasEligibleTarget: ancientSimulacrumTargeting.hasEligibleTarget,
   });
+  const hasLocalSimulacrumCast =
+    activeAncientChargeDeclarationWorkflow?.localManualSolarCasts.some(
+      (cast) => cast.solarPowerId === 'SSIM'
+    ) === true;
+  const shouldAutoCloseAncientSimulacrumSelector =
+    activeAncientChargeDeclarationWorkflow?.selectorMode === 'simulacrum' &&
+    hasLocalSimulacrumCast &&
+    (
+      provisionalAncientEnergy.blue <= 1 ||
+      !ancientSimulacrumTargeting.hasEligibleTarget
+    );
   const ancientSimulacrumSelectorActive =
     activeAncientChargeDeclarationWorkflow?.selectorMode === 'simulacrum' &&
     ancientSimulacrumSelector.canRemainOpen;
@@ -2595,7 +2612,9 @@ export function useGameSession(
           selectorStillAvailable = canCastAncientBlackHole;
           break;
         case 'simulacrum':
-          selectorStillAvailable = ancientSimulacrumSelector.canRemainOpen;
+          selectorStillAvailable =
+            ancientSimulacrumSelector.canRemainOpen &&
+            !shouldAutoCloseAncientSimulacrumSelector;
           break;
       }
       if (selectorStillAvailable) {
@@ -2626,6 +2645,7 @@ export function useGameSession(
         ancientSimulacrumHover.workflowKey !== ancientChargeDeclarationWorkflowKey ||
         activeAncientChargeDeclarationWorkflow?.selectorMode !== 'simulacrum' ||
         !ancientSimulacrumSelector.canRemainOpen ||
+        shouldAutoCloseAncientSimulacrumSelector ||
         !ancientSimulacrumHoveredStackIsTargetable
       )
     ) {
@@ -2640,6 +2660,7 @@ export function useGameSession(
     ancientSimulacrumSelector.canRemainOpen,
     ancientSiphonSelector.canOpen,
     canCastAncientBlackHole,
+    shouldAutoCloseAncientSimulacrumSelector,
   ]);
 
   const spectatorDisplayLeftFleets = isViewerSpectator
