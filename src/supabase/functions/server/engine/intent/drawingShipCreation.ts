@@ -25,6 +25,10 @@ export type ImmediateDrawingBuiltConsequences = {
   producedShipDefIds: string[];
 };
 
+export type ImmediateDrawingBuiltConsequencePolicy = {
+  producedShips?: "apply" | "suppress";
+};
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
@@ -87,15 +91,25 @@ function normalizeWorkingFleetCharges(ship: ShipInstance): number {
 
 export function getImmediateDrawingBuiltConsequences(
   shipDefId: string,
+  policy: ImmediateDrawingBuiltConsequencePolicy = {},
 ): ImmediateDrawingBuiltConsequences {
+  let consequences: ImmediateDrawingBuiltConsequences;
   switch (shipDefId) {
     case "LEG":
-      return { joiningLinesGranted: 4, producedShipDefIds: [] };
+      consequences = { joiningLinesGranted: 4, producedShipDefIds: [] };
+      break;
     case "ZEN":
-      return { joiningLinesGranted: 0, producedShipDefIds: ["ANT"] };
+      consequences = {
+        joiningLinesGranted: 0,
+        producedShipDefIds: ["ANT"],
+      };
+      break;
     default:
-      return { joiningLinesGranted: 0, producedShipDefIds: [] };
+      consequences = { joiningLinesGranted: 0, producedShipDefIds: [] };
   }
+  return policy.producedShips === "suppress"
+    ? { ...consequences, producedShipDefIds: [] }
+    : consequences;
 }
 
 export function createShipDuringDrawing(args: {
@@ -203,6 +217,7 @@ export function applyImmediateDrawingBuiltConsequences(args: {
   workingFleet?: DrawingWorkingFleetEntry[];
   grantJoiningLines: (amount: number) => void;
   producedInstanceIds?: string[];
+  consequencePolicy?: ImmediateDrawingBuiltConsequencePolicy;
 }): {
   joiningLinesGranted: number;
   producedShips: ShipInstance[];
@@ -210,6 +225,7 @@ export function applyImmediateDrawingBuiltConsequences(args: {
 } {
   const consequences = getImmediateDrawingBuiltConsequences(
     args.builtShip.shipDefId,
+    args.consequencePolicy,
   );
   if (
     args.producedInstanceIds &&

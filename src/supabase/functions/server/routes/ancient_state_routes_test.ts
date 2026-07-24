@@ -503,12 +503,6 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
     p1: [
       { instanceId: 'p1-public', shipDefId: 'DEF' },
       { instanceId: 'p1-hidden', shipDefId: 'ZEN', createdTurn: 3 },
-      {
-        instanceId: 'p1-dependent',
-        shipDefId: 'ANT',
-        createdTurn: 3,
-        chargesCurrent: 1,
-      },
     ],
     p2: [
       { instanceId: 'p2-public', shipDefId: 'DEF' },
@@ -537,11 +531,7 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       materializedInstanceId: 'p1-hidden',
       materializationOutcome: {
         joiningLinesGranted: 0,
-        producedShips: [{
-          instanceId: 'p1-dependent',
-          shipDefId: 'ANT',
-          sourceShipDefId: 'ZEN',
-        }],
+        producedShips: [],
       },
     },
     {
@@ -648,7 +638,7 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
     owner.requester.hiddenDrawingSimulacrumShips.map(
       (entry: any) => entry.instanceId,
     ),
-    ['p1-hidden', 'p1-dependent'],
+    ['p1-hidden'],
   );
   assert.deepEqual(
     opponent.requester.hiddenDrawingSimulacrumShips.map(
@@ -659,7 +649,7 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
   assert.deepEqual(spectator.requester.hiddenDrawingSimulacrumShips, []);
   assert.deepEqual(
     owner.gameData.ships.p1.map((entry: any) => entry.instanceId),
-    ['p1-public', 'p1-hidden', 'p1-dependent'],
+    ['p1-public', 'p1-hidden'],
   );
   assert.deepEqual(
     owner.gameData.ships.p2.map((entry: any) => entry.instanceId),
@@ -734,6 +724,19 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
     intentBody.state.players.find((player: any) => player.id === 'p2').joiningLines,
     0,
   );
+
+  const revealedState = structuredClone(state);
+  revealedState.gameData.currentPhase = 'battle';
+  revealedState.gameData.currentSubPhase = 'reveal';
+  revealedState.gameData.turnData.currentMajorPhase = 'battle';
+  revealedState.gameData.turnData.currentSubPhase = 'reveal';
+  fixture.store.set('game_drawing-simulacrum', revealedState);
+  fixture.setSessionId('spectator');
+  const revealed = await responseJson(
+    await getState(createContext({ params: { gameId: 'drawing-simulacrum' } })),
+  );
+  assert.deepEqual(publicIds(revealed, 'p1'), ['p1-public', 'p1-hidden']);
+  assert.deepEqual(revealed.requester.hiddenDrawingSimulacrumShips, []);
 });
 
 Deno.test('/game-state projects DOM transfer targets with shared Spiral capacity legality', async () => {

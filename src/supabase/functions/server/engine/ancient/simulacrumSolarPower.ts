@@ -14,6 +14,10 @@ import {
 } from "../intent/drawingShipCreation.ts";
 import type { ManualSolarResolverDescriptor } from "./manualSolarDeclaration.ts";
 
+const SIMULACRUM_IMMEDIATE_CONSEQUENCE_POLICY = {
+  producedShips: "suppress",
+} as const;
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
@@ -375,13 +379,27 @@ function validateMaterializationOutcome(args: {
   const outcome = record.materializationOutcome;
   const expected = getImmediateDrawingBuiltConsequences(
     record.copiedShipDefId,
+    SIMULACRUM_IMMEDIATE_CONSEQUENCE_POLICY,
   );
-  if (
-    !outcome ||
-    outcome.joiningLinesGranted !== expected.joiningLinesGranted ||
-    !Array.isArray(outcome.producedShips) ||
-    outcome.producedShips.length !== expected.producedShipDefIds.length
-  ) {
+  const matchesCurrentExpectation = !!outcome &&
+    outcome.joiningLinesGranted === expected.joiningLinesGranted &&
+    Array.isArray(outcome.producedShips) &&
+    outcome.producedShips.length === expected.producedShipDefIds.length &&
+    outcome.producedShips.every((produced, index) =>
+      !!produced &&
+      isNonEmptyString(produced.instanceId) &&
+      produced.shipDefId === expected.producedShipDefIds[index] &&
+      produced.sourceShipDefId === record.copiedShipDefId
+    );
+  const matchesLegacyCopiedZenExpectation = !!outcome &&
+    record.copiedShipDefId === "ZEN" &&
+    outcome.joiningLinesGranted === 0 &&
+    Array.isArray(outcome.producedShips) &&
+    outcome.producedShips.length === 1 &&
+    isNonEmptyString(outcome.producedShips[0]?.instanceId) &&
+    outcome.producedShips[0]?.shipDefId === "ANT" &&
+    outcome.producedShips[0]?.sourceShipDefId === "ZEN";
+  if (!matchesCurrentExpectation && !matchesLegacyCopiedZenExpectation) {
     throw new Error(
       `Simulacrum incomplete materialization outcome: ${record.pendingCopyId}`,
     );
@@ -395,18 +413,8 @@ function validateMaterializationOutcome(args: {
     drawingTurnNumber: args.drawingTurnNumber,
     label: "direct ship",
   });
-  for (let index = 0; index < outcome.producedShips.length; index += 1) {
-    const produced = outcome.producedShips[index];
-    if (
-      !produced ||
-      !isNonEmptyString(produced.instanceId) ||
-      produced.shipDefId !== expected.producedShipDefIds[index] ||
-      produced.sourceShipDefId !== record.copiedShipDefId
-    ) {
-      throw new Error(
-        `Simulacrum dependent outcome mismatch: ${record.pendingCopyId}`,
-      );
-    }
+  for (let index = 0; index < outcome!.producedShips.length; index += 1) {
+    const produced = outcome!.producedShips[index];
     requireMatchingMaterializedShip({
       state: args.state,
       instanceId: produced.instanceId,
@@ -416,7 +424,7 @@ function validateMaterializationOutcome(args: {
       label: "dependent ship",
     });
   }
-  return structuredClone(outcome);
+  return structuredClone(outcome!);
 }
 
 export function materializeQueuedSimulacrumCopiesAtDrawing(
@@ -495,6 +503,7 @@ export function materializeQueuedSimulacrumCopiesAtDrawing(
     const definition = validateQueuedMaterializationInputs(record);
     const expected = getImmediateDrawingBuiltConsequences(
       record.copiedShipDefId,
+      SIMULACRUM_IMMEDIATE_CONSEQUENCE_POLICY,
     );
     for (const producedShipDefId of expected.producedShipDefIds) {
       if (!getShipById(producedShipDefId)) {
@@ -645,6 +654,7 @@ export function materializeQueuedSimulacrumCopiesAtDrawing(
         owner.joiningLines = (owner.joiningLines ?? 0) + amount;
       },
       producedInstanceIds: plan.producedInstanceIds,
+      consequencePolicy: SIMULACRUM_IMMEDIATE_CONSEQUENCE_POLICY,
     });
     const materializationOutcome: AncientSimulacrumMaterializationOutcome = {
       joiningLinesGranted: consequences.joiningLinesGranted,
