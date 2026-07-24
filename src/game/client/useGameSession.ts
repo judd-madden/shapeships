@@ -5888,6 +5888,15 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
                 targetInstanceId: target.targetInstanceId,
                 copiedShipDefId: target.copiedShipDefId,
                 previewBlueCost: target.previewBlueCost,
+                ...(target.previewCapturedStartOfBattleCharges !== undefined
+                  ? {
+                      previewCapturedStartOfBattleCharges:
+                        target.previewCapturedStartOfBattleCharges,
+                    }
+                  : {}),
+                previewPermanentConfiguration: {
+                  ...target.previewPermanentConfiguration,
+                },
               },
             ],
           };

@@ -425,18 +425,35 @@ export type LiveRowAncientSolarPowerId =
   | 'SCON'
   | 'SSIP'
   | 'SVOR'
-  | 'SBLA';
+  | 'SBLA'
+  | 'SSIM';
 
 export type AncientSolarDisplaySourceMode = 'manual' | 'autocast' | 'cube';
 
-export interface AncientSolarDisplayEntry {
+export interface AncientSimulacrumDisplayPresentation {
+  copiedShipDefId: ShipDefId;
+  capturedStartOfBattleCharges?: number;
+  selectedNumber?: number;
+}
+
+interface BaseAncientSolarDisplayEntry {
   displayKey: string;
-  solarPowerId: LiveRowAncientSolarPowerId;
   order: number;
   sourceMode: AncientSolarDisplaySourceMode;
   isLocalPreview: boolean;
-  effectCaption?: number;
 }
+
+export type AncientSolarDisplayEntry =
+  | (BaseAncientSolarDisplayEntry & {
+      solarPowerId: Exclude<LiveRowAncientSolarPowerId, 'SSIM'>;
+      simulacrumPresentation?: never;
+      effectCaption?: number;
+    })
+  | (BaseAncientSolarDisplayEntry & {
+      solarPowerId: 'SSIM';
+      simulacrumPresentation: AncientSimulacrumDisplayPresentation;
+      effectCaption?: never;
+    });
 
 export type BoardViewModel =
   | {

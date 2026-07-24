@@ -1,6 +1,7 @@
 import type {
   AncientSolarDisplayEntry,
   AncientSolarDisplaySourceMode,
+  AncientSimulacrumDisplayPresentation,
   LiveRowAncientSolarPowerId,
 } from './types';
 import type {
@@ -10,6 +11,9 @@ import type {
   FrozenAncientChargeDeclarationAttempt,
 } from './ancientChargeDeclaration';
 import { calculateAncientSiphonEffect } from '../../data/ancientSiphonRules';
+import { isShipDefId } from '../../data/ShipDefinitions.core';
+import { getShipDefinitionById } from '../../data/ShipDefinitions.engine';
+import { ShipType } from '../../types/ShipTypes.engine';
 
 const LIVE_ROW_ANCIENT_SOLAR_POWER_IDS = new Set<string>([
   'SLIF',
@@ -20,6 +24,7 @@ const LIVE_ROW_ANCIENT_SOLAR_POWER_IDS = new Set<string>([
   'SSIP',
   'SVOR',
   'SBLA',
+  'SSIM',
 ]);
 
 const ANCIENT_SOLAR_DISPLAY_SOURCE_MODES = new Set<string>([
@@ -60,6 +65,60 @@ function getAuthoritativeSiphonEffectCaption(record: Record<string, unknown>): n
     : undefined;
 }
 
+function normalizeSimulacrumDisplayPresentation(args: {
+  copiedShipDefId: unknown;
+  capturedStartOfBattleCharges: unknown;
+  permanentConfiguration: unknown;
+}): AncientSimulacrumDisplayPresentation | null {
+  if (
+    typeof args.copiedShipDefId !== 'string' ||
+    !isShipDefId(args.copiedShipDefId) ||
+    args.copiedShipDefId === 'CUB'
+  ) {
+    return null;
+  }
+
+  const definition = getShipDefinitionById(args.copiedShipDefId);
+  if (definition?.type !== ShipType.BASIC) {
+    return null;
+  }
+
+  const maxCharges = definition.maxCharges ?? 0;
+  const capturedStartOfBattleCharges =
+    isNonNegativeInteger(args.capturedStartOfBattleCharges) &&
+    (
+      maxCharges > 0
+        ? args.capturedStartOfBattleCharges <= maxCharges
+        : args.capturedStartOfBattleCharges === 0
+    )
+      ? args.capturedStartOfBattleCharges
+      : undefined;
+
+  const permanentConfiguration =
+    args.permanentConfiguration &&
+    typeof args.permanentConfiguration === 'object' &&
+    !Array.isArray(args.permanentConfiguration)
+      ? args.permanentConfiguration as Record<string, unknown>
+      : null;
+  const rawSelectedNumber = permanentConfiguration?.selectedNumber;
+  const selectedNumber =
+    args.copiedShipDefId === 'QUA' &&
+    typeof rawSelectedNumber === 'number' &&
+    Number.isInteger(rawSelectedNumber) &&
+    rawSelectedNumber >= 1 &&
+    rawSelectedNumber <= 6
+      ? rawSelectedNumber
+      : undefined;
+
+  return {
+    copiedShipDefId: args.copiedShipDefId,
+    ...(capturedStartOfBattleCharges !== undefined
+      ? { capturedStartOfBattleCharges }
+      : {}),
+    ...(selectedNumber !== undefined ? { selectedNumber } : {}),
+  };
+}
+
 function buildDisplayKey(args: {
   playerId: string;
   battleTurnNumber: number;
@@ -97,12 +156,35 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
       return [];
     }
 
+    const simulacrumPresentation = record.solarPowerId === 'SSIM'
+      ? (
+          record.simulacrum &&
+          typeof record.simulacrum === 'object' &&
+          !Array.isArray(record.simulacrum)
+            ? normalizeSimulacrumDisplayPresentation({
+                copiedShipDefId: (record.simulacrum as Record<string, unknown>)
+                  .copiedShipDefId,
+                capturedStartOfBattleCharges:
+                  (record.simulacrum as Record<string, unknown>)
+                    .capturedStartOfBattleCharges,
+                permanentConfiguration:
+                  (record.simulacrum as Record<string, unknown>)
+                    .permanentConfiguration,
+              })
+            : null
+        )
+      : undefined;
+    if (record.solarPowerId === 'SSIM' && !simulacrumPresentation) {
+      return [];
+    }
+
     return [{
       originalIndex,
       order: record.order,
       sourceMode: record.sourceMode,
       solarPowerId: record.solarPowerId,
       effectCaption: getAuthoritativeSiphonEffectCaption(record),
+      simulacrumPresentation,
     }];
   });
 
@@ -114,7 +196,7 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
     const identity = `${candidate.sourceMode}:${candidate.order}`;
     if (seenIdentities.has(identity)) continue;
     seenIdentities.add(identity);
-    entries.push({
+    const baseEntry = {
       displayKey: buildDisplayKey({
         playerId: args.playerId,
         battleTurnNumber,
@@ -125,10 +207,25 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
       order: candidate.order,
       sourceMode: candidate.sourceMode,
       isLocalPreview: false,
-      ...(candidate.effectCaption !== undefined
-        ? { effectCaption: candidate.effectCaption }
-        : {}),
-    });
+    } as const;
+    if (
+      candidate.solarPowerId === 'SSIM' &&
+      candidate.simulacrumPresentation
+    ) {
+      entries.push({
+        ...baseEntry,
+        solarPowerId: 'SSIM',
+        simulacrumPresentation: candidate.simulacrumPresentation,
+      });
+    } else if (candidate.solarPowerId !== 'SSIM') {
+      entries.push({
+        ...baseEntry,
+        solarPowerId: candidate.solarPowerId,
+        ...(candidate.effectCaption !== undefined
+          ? { effectCaption: candidate.effectCaption }
+          : {}),
+      });
+    }
   }
 
   return entries;
@@ -142,25 +239,47 @@ function buildLocalManualEntries(args: {
     | AncientChargeDeclarationSolarCastPayload
   )[];
 }): AncientSolarDisplayEntry[] {
-  return args.casts.flatMap((cast, order) => {
+  return args.casts.flatMap<AncientSolarDisplayEntry>((cast, order) => {
     if (!isLiveRowAncientSolarPowerId(cast.solarPowerId)) {
       return [];
     }
-    const effectCaption = cast.solarPowerId === 'SSIP'
-      ? calculateAncientSiphonEffect(cast.lockedAmount) ?? undefined
-      : undefined;
-
-    return [{
+    const baseEntry = {
       displayKey: buildDisplayKey({
         playerId: args.playerId,
         battleTurnNumber: args.battleTurnNumber,
         sourceMode: 'manual',
         order,
       }),
-      solarPowerId: cast.solarPowerId,
       order,
-      sourceMode: 'manual',
+      sourceMode: 'manual' as const,
       isLocalPreview: true,
+    };
+    if (cast.solarPowerId === 'SSIM') {
+      if (!('copiedShipDefId' in cast)) {
+        return [];
+      }
+      const simulacrumPresentation = normalizeSimulacrumDisplayPresentation({
+        copiedShipDefId: cast.copiedShipDefId,
+        capturedStartOfBattleCharges:
+          cast.previewCapturedStartOfBattleCharges,
+        permanentConfiguration: cast.previewPermanentConfiguration,
+      });
+      return simulacrumPresentation
+        ? [{
+            ...baseEntry,
+            solarPowerId: 'SSIM' as const,
+            simulacrumPresentation,
+          }]
+        : [];
+    }
+
+    const effectCaption = cast.solarPowerId === 'SSIP'
+      ? calculateAncientSiphonEffect(cast.lockedAmount) ?? undefined
+      : undefined;
+
+    return [{
+      ...baseEntry,
+      solarPowerId: cast.solarPowerId,
       ...(effectCaption !== undefined ? { effectCaption } : {}),
     }];
   });
@@ -200,7 +319,9 @@ export function deriveAncientSolarDisplayEntries(args: {
     return authoritativeEntries;
   }
 
-  const casts = matchingAttempt?.body.payload.solarCasts ?? matchingWorkflow?.localManualSolarCasts ?? [];
+  const casts = matchingWorkflow
+    ? matchingWorkflow.localManualSolarCasts
+    : matchingAttempt?.body.payload.solarCasts ?? [];
   return buildLocalManualEntries({
     playerId: args.playerId,
     battleTurnNumber: args.currentBattleTurnNumber,

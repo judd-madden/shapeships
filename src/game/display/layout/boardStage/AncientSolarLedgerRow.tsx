@@ -24,6 +24,7 @@ import {
   useSolarPowerEntryAnimTokens,
 } from '../../graphics/animation';
 import { useFlipLayout } from '../../graphics/useFlipLayout';
+import { AncientSimulacrumLedgerGraphic } from './AncientSimulacrumLedgerGraphic';
 import { FitToBox } from './FitToBox';
 
 const SOLAR_ROW_FLIP_DURATION_MS = 400;
@@ -32,8 +33,9 @@ const SOLAR_LEDGER_CLEAR_FALLBACK_MS = 600;
 const IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES = ['ss-boardTurnPulse'] as const;
 
 type SolarGraphic = ComponentType<{ className?: string }>;
+type StandardSolarLedgerPowerId = Exclude<LiveRowAncientSolarPowerId, 'SSIM'>;
 
-const SOLAR_GRAPHIC_BY_ID: Record<LiveRowAncientSolarPowerId, SolarGraphic> = {
+const SOLAR_GRAPHIC_BY_ID: Record<StandardSolarLedgerPowerId, SolarGraphic> = {
   SLIF: Life,
   SSTA: AnimatedStarBirth,
   SAST: Asteroid,
@@ -51,6 +53,15 @@ function buildSolarPresentationSignature(
     entry.displayKey,
     entry.solarPowerId,
     entry.effectCaption ?? null,
+    entry.solarPowerId === 'SSIM'
+      ? entry.simulacrumPresentation.copiedShipDefId
+      : null,
+    entry.solarPowerId === 'SSIM'
+      ? entry.simulacrumPresentation.capturedStartOfBattleCharges ?? null
+      : null,
+    entry.solarPowerId === 'SSIM'
+      ? entry.simulacrumPresentation.selectedNumber ?? null
+      : null,
   ]));
 }
 
@@ -145,7 +156,14 @@ export function AncientSolarLedgerRow({
   const itemLayoutSignatures = Object.fromEntries(
     presentedEntries.map((entry) => [
       entry.displayKey,
-      `${entry.solarPowerId}:${entry.effectCaption ?? ''}`,
+      entry.solarPowerId === 'SSIM'
+        ? [
+            entry.solarPowerId,
+            entry.simulacrumPresentation.copiedShipDefId,
+            entry.simulacrumPresentation.capturedStartOfBattleCharges ?? '',
+            entry.simulacrumPresentation.selectedNumber ?? '',
+          ].join(':')
+        : `${entry.solarPowerId}:${entry.effectCaption ?? ''}`,
     ])
   );
   const entryAnimationTokens = useSolarPowerEntryAnimTokens(
@@ -184,7 +202,6 @@ export function AncientSolarLedgerRow({
           >
             <div className="inline-flex w-max flex-row items-center justify-center gap-[18px] sm:gap-[24px]">
               {presentedEntries.map((entry) => {
-                const SolarGraphic = SOLAR_GRAPHIC_BY_ID[entry.solarPowerId];
                 return (
                   <div
                     key={entry.displayKey}
@@ -196,7 +213,14 @@ export function AncientSolarLedgerRow({
                       token={entryAnimationTokens[entry.displayKey]}
                       clearing={isClearingAtBattleReveal}
                     >
-                      <SolarGraphic className="block shrink-0" />
+                      {entry.solarPowerId === 'SSIM' ? (
+                        <AncientSimulacrumLedgerGraphic
+                          presentation={entry.simulacrumPresentation}
+                        />
+                      ) : (() => {
+                        const SolarGraphic = SOLAR_GRAPHIC_BY_ID[entry.solarPowerId];
+                        return <SolarGraphic className="block shrink-0" />;
+                      })()}
                     </SolarPowerAnimationWrapper>
                     {entry.effectCaption !== undefined ? (
                       <span className="pointer-events-none select-none text-center font-['Roboto'] text-[18px] font-bold leading-none text-white">

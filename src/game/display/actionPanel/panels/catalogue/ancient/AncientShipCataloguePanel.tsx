@@ -193,7 +193,7 @@ const SOLAR_HEADER_POSITIONS: Record<
 > = {
   standard: {
     energy: { x: 635, y: 0 },
-    autocast: { x: 1179, y: 0 },
+    autocast: { x: 1079, y: 0 },
   },
   long: {
     energy: { x: 682, y: 0 },

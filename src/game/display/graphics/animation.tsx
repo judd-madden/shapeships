@@ -451,6 +451,7 @@ const SOLAR_ENTRY_MOTION_BY_POWER_ID: Record<
   SSIP: 'none',
   SVOR: 'none',
   SBLA: 'none',
+  SSIM: 'none',
 };
 
 const SOLAR_ENTRY_MOTION_CLASS_BY_PRESET: Record<SolarEntryMotionPresetId, string> = {

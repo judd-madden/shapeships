@@ -566,6 +566,14 @@ html:not(.app-ready) #root {
   display: inline-block;
 }
 
+.ss-simulacrumLedgerGraphic svg [stroke]:not([stroke='none']) {
+  stroke: var(--shapeships-cyan);
+}
+
+.ss-simulacrumLedgerGraphic svg [fill]:not([fill='none']):not([fill='transparent']):not([fill='black']):not([fill='#000']):not([fill='#000000']) {
+  fill: var(--shapeships-cyan);
+}
+
 @keyframes ssSolarEntryFade {
   from { opacity: 0; }
   to { opacity: 1; }

@@ -42,6 +42,10 @@ export type AncientManualSolarCast =
       targetInstanceId: string;
       copiedShipDefId: ShipDefId;
       previewBlueCost: number;
+      previewCapturedStartOfBattleCharges?: number;
+      previewPermanentConfiguration: {
+        selectedNumber?: number;
+      };
     };
 
 export type AncientChargeDeclarationSolarCastPayload =

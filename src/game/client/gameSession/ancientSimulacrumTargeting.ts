@@ -8,6 +8,10 @@ export interface AncientSimulacrumTargetDescriptor {
   targetInstanceId: string;
   copiedShipDefId: ShipDefId;
   previewBlueCost: number;
+  previewCapturedStartOfBattleCharges?: number;
+  previewPermanentConfiguration: {
+    selectedNumber?: number;
+  };
 }
 
 export interface AncientSimulacrumTargetingState {
@@ -45,12 +49,74 @@ function getValidSimulacrumTargetDescriptor(
     targetInstanceId,
     copiedShipDefId: rawShipDefId,
     previewBlueCost: previewBlueCost as number,
+    previewPermanentConfiguration: {},
+  };
+}
+
+function getStackPresentationSnapshot(
+  stack: Pick<
+    BoardFleetSummary,
+    'shipDefId' | 'condition' | 'currentCharges' | 'caption'
+  >,
+  copiedShipDefId: ShipDefId
+): Pick<
+  AncientSimulacrumTargetDescriptor,
+  'previewCapturedStartOfBattleCharges' | 'previewPermanentConfiguration'
+> {
+  const definition = getShipDefinitionById(copiedShipDefId);
+  const maxCharges = definition?.maxCharges ?? 0;
+  let previewCapturedStartOfBattleCharges: number | undefined;
+
+  if (maxCharges <= 0) {
+    previewCapturedStartOfBattleCharges = 0;
+  } else if (maxCharges === 1) {
+    if (stack.condition === 'charges_1') {
+      previewCapturedStartOfBattleCharges = 1;
+    } else if (stack.condition === 'charges_0') {
+      previewCapturedStartOfBattleCharges = 0;
+    }
+  } else if (stack.condition === 'charges_0') {
+    previewCapturedStartOfBattleCharges = 0;
+  } else if (
+    typeof stack.currentCharges === 'number' &&
+    Number.isInteger(stack.currentCharges) &&
+    stack.currentCharges >= 0
+  ) {
+    previewCapturedStartOfBattleCharges = stack.currentCharges;
+  }
+
+  const displayedSelectedNumber =
+    copiedShipDefId === 'QUA' &&
+    typeof stack.caption === 'string' &&
+    /^[1-6]$/.test(stack.caption)
+      ? Number(stack.caption)
+      : undefined;
+  const previewPermanentConfiguration =
+    Number.isInteger(displayedSelectedNumber) &&
+    (displayedSelectedNumber ?? 0) >= 1 &&
+    (displayedSelectedNumber ?? 0) <= 6
+      ? { selectedNumber: displayedSelectedNumber }
+      : {};
+
+  return {
+    ...(previewCapturedStartOfBattleCharges !== undefined
+      ? { previewCapturedStartOfBattleCharges }
+      : {}),
+    previewPermanentConfiguration,
   };
 }
 
 export function deriveAncientSimulacrumTargetingState(args: {
   opponentShipsVisible: readonly any[];
-  opponentFleet: readonly Pick<BoardFleetSummary, 'stackKey' | 'memberInstanceIds'>[];
+  opponentFleet: readonly Pick<
+    BoardFleetSummary,
+    | 'shipDefId'
+    | 'stackKey'
+    | 'memberInstanceIds'
+    | 'condition'
+    | 'currentCharges'
+    | 'caption'
+  >[];
   myShips: readonly any[];
   localManualSolarCasts: readonly AncientManualSolarCast[];
   remainingBlue: number;
@@ -119,7 +185,17 @@ export function deriveAncientSimulacrumTargetingState(args: {
       ) {
         return [];
       }
-      return [descriptor];
+      const presentation = getStackPresentationSnapshot(
+        stack,
+        descriptor.copiedShipDefId
+      );
+      return [{
+        ...descriptor,
+        ...presentation,
+        previewPermanentConfiguration: {
+          ...presentation.previewPermanentConfiguration,
+        },
+      }];
     });
     if (eligibleDescriptors.length > 0) {
       eligibleTargetsByStackKey[stack.stackKey] = eligibleDescriptors;
