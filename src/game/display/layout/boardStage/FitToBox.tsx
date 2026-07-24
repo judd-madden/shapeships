@@ -80,7 +80,7 @@ export function FitToBox({
       }
     };
 
-    const scheduleCompute = () => {
+    const scheduleCompute = (scheduleSettlingCompute = true) => {
       cancelInnerResizeCompute();
       cancelScheduledCompute();
 
@@ -90,7 +90,12 @@ export function FitToBox({
         compute();
         initialComputePending = false;
 
-        // Schedule second compute after FLIP animation completes (100ms)
+        if (!scheduleSettlingCompute) {
+          return;
+        }
+
+        // Preserve the legacy settling measurement for initial, outer, and
+        // non-deferred inner measurements.
         delayedTimeoutRef.current = window.setTimeout(() => {
           delayedTimeoutRef.current = null;
           compute();
@@ -104,7 +109,9 @@ export function FitToBox({
 
       innerResizeTimeoutRef.current = window.setTimeout(() => {
         innerResizeTimeoutRef.current = null;
-        scheduleCompute();
+        // A deferred inner resize gets one post-delay computation. Scheduling
+        // the legacy settle here would re-enter an active layout transition.
+        scheduleCompute(false);
       }, deferInnerResizeComputeMs);
     };
 

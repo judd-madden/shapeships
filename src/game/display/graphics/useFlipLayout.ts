@@ -24,6 +24,7 @@ export interface FlipLayoutOptions {
   easing?: string;
   layoutSignature?: string | number;
   itemLayoutSignatures?: Record<string, string | number>;
+  skipSelfChangedItem?: boolean;
   skipSelfChangedItemForNextRun?: boolean;
   skipWhenAncestorScaleChanged?: boolean;
   ancestorScaleChangeEpsilon?: number;
@@ -131,6 +132,7 @@ export function useFlipLayout<T extends string | number>(
   const easing = options?.easing ?? 'ease-in-out';
   const layoutSignature = options?.layoutSignature ?? '';
   const itemLayoutSignatures = options?.itemLayoutSignatures ?? {};
+  const skipSelfChangedItem = options?.skipSelfChangedItem ?? false;
   const skipSelfChangedItemForNextRun = options?.skipSelfChangedItemForNextRun ?? false;
   const skipWhenAncestorScaleChanged = options?.skipWhenAncestorScaleChanged ?? false;
   const ancestorScaleChangeEpsilon = options?.ancestorScaleChangeEpsilon ?? 0.001;
@@ -221,7 +223,7 @@ export function useFlipLayout<T extends string | number>(
         changedItemLayoutKeys.add(signatureKey);
       }
       if (
-        (skipSelfChangedItemForNextRun && changedThisRun) ||
+        ((skipSelfChangedItem || skipSelfChangedItemForNextRun) && changedThisRun) ||
         coolingDownThisRun
       ) {
         skippedItemLayoutKeys.add(signatureKey);
@@ -355,6 +357,7 @@ export function useFlipLayout<T extends string | number>(
     easing,
     keySignature,
     layoutSignature,
+    skipSelfChangedItem,
     skipSelfChangedItemForNextRun,
     skipWhenAncestorScaleChanged,
     ancestorScaleChangeEpsilon,

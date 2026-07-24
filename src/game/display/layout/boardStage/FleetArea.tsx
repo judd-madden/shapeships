@@ -14,7 +14,6 @@ import {
 import { resolveShipGraphic } from '../../graphics/resolveShipGraphic';
 import { useFlipLayout } from '../../graphics/useFlipLayout';
 import { FitToBox } from './FitToBox';
-import { FitToWidthInFlow } from './FitToWidthInFlow';
 import { FleetAreaHealthDeltaFlash } from './FleetAreaHealthDeltaFlash';
 import type { FleetAreaHealthDeltaFlashShape } from './FleetAreaHealthDeltaFlash';
 import { AncientSolarLedgerRow } from './AncientSolarLedgerRow';
@@ -31,7 +30,7 @@ function toCssVarFromColourName(colour?: string): string | undefined {
 
 const IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES = ['ss-boardTurnPulse'] as const;
 const LIVE_FLEET_FLIP_DURATION_MS = 400;
-const LIVE_FLEET_INNER_RESIZE_DEFER_MS = 0;
+const LIVE_FLEET_ANCESTOR_SCALE_EPSILON = 0.001;
 
 // ============================================================================
 // FLEET ROW MAPPING (Set-based, All Species)
@@ -596,7 +595,9 @@ export function FleetArea({
       easing: 'ease-in-out',
       layoutSignature: liveFleetLayoutSignature,
       itemLayoutSignatures: liveFleetItemLayoutSignatures,
-      skipSelfChangedItemForNextRun: false,
+      skipSelfChangedItem: species === 'ancient',
+      skipWhenAncestorScaleChanged: species === 'ancient',
+      ancestorScaleChangeEpsilon: LIVE_FLEET_ANCESTOR_SCALE_EPSILON,
       ignoredAncestorScaleClassNames: IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES,
     }
   );
@@ -763,7 +764,9 @@ export function FleetArea({
                     minScale={0.15}
                     maxScale={1}
                     className="h-full w-full"
-                    deferInnerResizeComputeMs={flipEnabled ? LIVE_FLEET_INNER_RESIZE_DEFER_MS : 0}
+                    deferInnerResizeComputeMs={
+                      flipEnabled ? LIVE_FLEET_FLIP_DURATION_MS : 0
+                    }
                   >
                     {hasLiveContent && grouped ? (
                       <div
@@ -787,18 +790,21 @@ export function FleetArea({
                 />
               </div>
             ) : (
-              <div className="flex h-full min-h-0 w-full items-center justify-center">
-                <div
-                  className={cx(
-                    'ss-boardTurnPulse flex w-full flex-col items-center gap-[18px]',
-                    turnPulse.isActive && 'ss-boardTurnPulse-active'
-                  )}
-                  onAnimationEnd={turnPulse.onAnimationEnd}
-                >
-                  <FitToWidthInFlow
+              <div
+                className={cx(
+                  'ss-boardTurnPulse flex h-full min-h-0 w-full flex-col gap-[18px] overflow-hidden',
+                  turnPulse.isActive && 'ss-boardTurnPulse-active'
+                )}
+                onAnimationEnd={turnPulse.onAnimationEnd}
+              >
+                <div className="min-h-0 w-full flex-1 overflow-hidden">
+                  <FitToBox
                     minScale={fitMinScale}
-                    className="w-full"
-                    overflowVisible={liveFitOverflowVisible}
+                    maxScale={1}
+                    className="h-full w-full"
+                    deferInnerResizeComputeMs={
+                      flipEnabled ? LIVE_FLEET_FLIP_DURATION_MS : 0
+                    }
                   >
                     {hasLiveContent && grouped ? (
                       <div
@@ -812,13 +818,13 @@ export function FleetArea({
                         {renderLiveRow(grouped.row3)}
                       </div>
                     ) : null}
-                  </FitToWidthInFlow>
-
-                  <AncientSolarLedgerRow
-                    entries={ancientSolarEntries}
-                    isBattleReveal={isBattleReveal}
-                  />
+                  </FitToBox>
                 </div>
+
+                <AncientSolarLedgerRow
+                  entries={ancientSolarEntries}
+                  isBattleReveal={isBattleReveal}
+                />
               </div>
             )
           ) : (
@@ -826,7 +832,6 @@ export function FleetArea({
               minScale={fitMinScale}
               className="w-full h-full"
               overflowVisible={liveFitOverflowVisible}
-              deferInnerResizeComputeMs={flipEnabled ? LIVE_FLEET_INNER_RESIZE_DEFER_MS : 0}
             >
               {hasLiveContent ? (
                 <div
