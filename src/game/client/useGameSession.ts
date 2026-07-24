@@ -184,6 +184,7 @@ import {
   canAffordAncientEnergyCost,
   deriveAncientBlackHoleCastability,
   deriveAncientManualSolarCastability,
+  deriveAncientSimulacrumSelectorState,
   deriveAncientSiphonSelectorState,
   deriveProvisionalAncientEnergy,
   getAncientChargeDeclarationActions,
@@ -2333,6 +2334,14 @@ export function useGameSession(
     rejectionRecoveryPending:
       activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending === true,
   });
+  const ancientSimulacrumSelector = deriveAncientSimulacrumSelectorState({
+    stage: activeAncientChargeDeclarationWorkflow?.stage ?? 'charges',
+    remainingEnergy: provisionalAncientEnergy,
+    energySequenceValid: ancientManualSolarCastReplay.valid,
+    attemptUnresolved: activeAncientChargeDeclarationAttempt != null,
+    rejectionRecoveryPending:
+      activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending === true,
+  });
   const canCastAncientBlackHole = deriveAncientBlackHoleCastability({
     stage: activeAncientChargeDeclarationWorkflow?.stage ?? 'charges',
     remainingEnergy: provisionalAncientEnergy,
@@ -2348,10 +2357,18 @@ export function useGameSession(
         return current;
       }
 
-      const selectorStillAvailable =
-        current.selectorMode === 'siphon'
-          ? ancientSiphonSelector.canOpen
-          : canCastAncientBlackHole;
+      let selectorStillAvailable = false;
+      switch (current.selectorMode) {
+        case 'siphon':
+          selectorStillAvailable = ancientSiphonSelector.canOpen;
+          break;
+        case 'blackHole':
+          selectorStillAvailable = canCastAncientBlackHole;
+          break;
+        case 'simulacrum':
+          selectorStillAvailable = ancientSimulacrumSelector.canOpen;
+          break;
+      }
       if (selectorStillAvailable) {
         return current;
       }
@@ -2376,6 +2393,7 @@ export function useGameSession(
     activeAncientChargeDeclarationWorkflow?.selectorMode,
     ancientBlackHoleHover,
     ancientChargeDeclarationWorkflowKey,
+    ancientSimulacrumSelector.canOpen,
     ancientSiphonSelector.canOpen,
     canCastAncientBlackHole,
   ]);
@@ -4237,6 +4255,8 @@ useEffect(() => {
     ancientBlackHoleTargeting.requiredTargetCount > 0 &&
     activeAncientChargeDeclarationWorkflow.blackHoleSelectedTargetInstanceIds.length !==
       ancientBlackHoleTargeting.requiredTargetCount;
+  const hasIncompleteAncientSimulacrumSelection =
+    activeAncientChargeDeclarationWorkflow?.selectorMode === 'simulacrum';
 
   let readyEnabled = true;
   let readyDisabledReason: string | null = null;
@@ -4263,6 +4283,9 @@ useEffect(() => {
   } else if (hasIncompleteAncientBlackHoleSelection) {
     readyEnabled = false;
     readyDisabledReason = 'Select Black Hole targets or press Back.';
+  } else if (hasIncompleteAncientSimulacrumSelection) {
+    readyEnabled = false;
+    readyDisabledReason = 'Select a Simulacrum target or press Back.';
   } else if (ancientDeclarationLocalStateInvalid) {
     readyEnabled = false;
     readyDisabledReason = activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending
@@ -4808,6 +4831,7 @@ useEffect(() => {
           canCastManualSolarPowerById: canCastAncientManualSolarPowerById,
           selectorMode: activeAncientChargeDeclarationWorkflow.selectorMode,
           siphonSelector: ancientSiphonSelector,
+          simulacrumSelector: ancientSimulacrumSelector,
           blackHoleSelector: {
             canOpen: canCastAncientBlackHole,
             requiredTargetCount: ancientBlackHoleTargeting.requiredTargetCount,
@@ -5508,40 +5532,54 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
           return current;
         }
 
-        if (mode === 'siphon') {
-          if (
-            Math.min(replay.remainingEnergy.green, replay.remainingEnergy.red) <
-              ANCIENT_SIPHON_MINIMUM_SPEND
-          ) {
-            return current;
-          }
-          return {
-            ...current,
-            selectorMode: 'siphon',
-            blackHoleSelectedTargetInstanceIds: [],
-          };
+        switch (mode) {
+          case 'siphon':
+            if (
+              Math.min(replay.remainingEnergy.green, replay.remainingEnergy.red) <
+                ANCIENT_SIPHON_MINIMUM_SPEND
+            ) {
+              return current;
+            }
+            return {
+              ...current,
+              selectorMode: 'siphon',
+              blackHoleSelectedTargetInstanceIds: [],
+            };
+          case 'blackHole':
+            if (
+              !canAffordAncientEnergyCost(
+                replay.remainingEnergy,
+                ANCIENT_BLACK_HOLE_PREVIEW_COST
+              )
+            ) {
+              return current;
+            }
+            if (ancientBlackHoleTargeting.requiredTargetCount === 0) {
+              return {
+                ...current,
+                selectorMode: null,
+                blackHoleSelectedTargetInstanceIds: [],
+                localManualSolarCasts: [
+                  ...current.localManualSolarCasts,
+                  { solarPowerId: 'SBLA', targetInstanceIds: [] },
+                ],
+              };
+            }
+            return {
+              ...current,
+              selectorMode: 'blackHole',
+              blackHoleSelectedTargetInstanceIds: [],
+            };
+          case 'simulacrum':
+            if (replay.remainingEnergy.blue < 2) {
+              return current;
+            }
+            return {
+              ...current,
+              selectorMode: 'simulacrum',
+              blackHoleSelectedTargetInstanceIds: [],
+            };
         }
-
-        if (!canAffordAncientEnergyCost(replay.remainingEnergy, ANCIENT_BLACK_HOLE_PREVIEW_COST)) {
-          return current;
-        }
-        if (ancientBlackHoleTargeting.requiredTargetCount === 0) {
-          return {
-            ...current,
-            selectorMode: null,
-            blackHoleSelectedTargetInstanceIds: [],
-            localManualSolarCasts: [
-              ...current.localManualSolarCasts,
-              { solarPowerId: 'SBLA', targetInstanceIds: [] },
-            ],
-          };
-        }
-
-        return {
-          ...current,
-          selectorMode: 'blackHole',
-          blackHoleSelectedTargetInstanceIds: [],
-        };
       });
     },
 

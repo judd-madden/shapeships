@@ -14,7 +14,7 @@ import {
 export type { AncientEnergyPool } from './selectors';
 
 export type AncientChargeDeclarationStage = 'charges' | 'powers';
-export type AncientSolarSelectorMode = 'siphon' | 'blackHole';
+export type AncientSolarSelectorMode = 'siphon' | 'blackHole' | 'simulacrum';
 
 export type FixedAncientManualSolarPowerId =
   | 'SLIF'
@@ -205,6 +205,26 @@ export function deriveAncientSiphonSelectorState(args: {
       !args.attemptUnresolved &&
       !args.rejectionRecoveryPending &&
       maxSpend >= ANCIENT_SIPHON_MINIMUM_SPEND,
+  };
+}
+
+export function deriveAncientSimulacrumSelectorState(args: {
+  stage: AncientChargeDeclarationStage;
+  remainingEnergy: AncientEnergyPool;
+  energySequenceValid: boolean;
+  attemptUnresolved: boolean;
+  rejectionRecoveryPending: boolean;
+}): { blueAvailable: number; canOpen: boolean } {
+  const blueAvailable = args.energySequenceValid ? args.remainingEnergy.blue : 0;
+
+  return {
+    blueAvailable,
+    canOpen:
+      args.stage === 'powers' &&
+      args.energySequenceValid &&
+      !args.attemptUnresolved &&
+      !args.rejectionRecoveryPending &&
+      blueAvailable >= 2,
   };
 }
 

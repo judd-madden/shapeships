@@ -55,6 +55,7 @@ import {
 } from './AncientEnergyDisplay';
 import { AncientSolarPowerSlot } from './AncientSolarPowerSlot';
 import { AncientBlackHoleSelector } from './AncientBlackHoleSelector';
+import { AncientSimulacrumSelector } from './AncientSimulacrumSelector';
 import { AncientSiphonSelector } from './AncientSiphonSelector';
 import {
   isFixedAncientManualSolarPowerId,
@@ -239,6 +240,10 @@ interface AncientShipCataloguePanelProps {
     maxSpend: number;
     canOpen: boolean;
   };
+  simulacrumSelector?: {
+    canOpen: boolean;
+    blueAvailable: number;
+  };
   blackHoleSelector?: {
     canOpen: boolean;
     requiredTargetCount: number;
@@ -357,6 +362,7 @@ export function AncientShipCataloguePanel({
   canCastManualSolarPowerById,
   selectorMode = null,
   siphonSelector,
+  simulacrumSelector,
   blackHoleSelector,
   autocastEnabled,
   autocastDisabled = false,
@@ -370,6 +376,7 @@ export function AncientShipCataloguePanel({
   const solarHeaderPositions = SOLAR_HEADER_POSITIONS[catalogueLayout];
   const SimulacrumGraphic = SIMULACRUM_GRAPHICS[simulacrumSpecies] ?? SimulacrumHuman;
   const isDeclarationPresentation = presentation === 'declaration';
+  const selectorOpen = selectorMode != null;
   const canOpenSiphonSelector =
     isDeclarationPresentation &&
     declarationStage === 'powers' &&
@@ -380,7 +387,12 @@ export function AncientShipCataloguePanel({
     declarationStage === 'powers' &&
     declarationAttemptUnresolved !== true &&
     blackHoleSelector?.canOpen === true;
-  const selectorOpen = selectorMode != null;
+  const canOpenSimulacrumSelector =
+    isDeclarationPresentation &&
+    declarationStage === 'powers' &&
+    declarationAttemptUnresolved !== true &&
+    simulacrumSelector?.canOpen === true &&
+    !selectorOpen;
   const siphonSelectorX = SIPHON_SELECTOR_X[catalogueLayout];
   const blackHoleSelectorLayout = BLACK_HOLE_SELECTOR_LAYOUT[catalogueLayout];
 
@@ -742,12 +754,18 @@ export function AncientShipCataloguePanel({
                   x={siphonSelectorX}
                   onSelect={actions.onCastAncientSiphon}
                 />
-              ) : (
+              ) : selectorMode === 'blackHole' ? (
                 <AncientBlackHoleSelector
                   damagePreview={blackHoleSelector?.damagePreview ?? 0}
                   {...blackHoleSelectorLayout}
                 />
-              )}
+              ) : selectorMode === 'simulacrum' ? (
+                <AncientSimulacrumSelector
+                  graphic={SimulacrumGraphic}
+                  blueAvailable={simulacrumSelector?.blueAvailable ?? 0}
+                  layout={catalogueLayout}
+                />
+              ) : null}
             </>
           ) : SOLAR_POWER_SLOTS.map((slot) => {
             const position = slot.position[catalogueLayout];
@@ -768,7 +786,16 @@ export function AncientShipCataloguePanel({
                 key={slot.id}
                 className="absolute"
                 data-solar-power-id={slot.id}
-                style={{ left: position.x, top: position.y }}
+                style={{
+                  left: position.x,
+                  top: position.y,
+                  opacity:
+                    isDeclarationPresentation &&
+                    slot.id === 'SSIM' &&
+                    !canOpenSimulacrumSelector
+                      ? 0.4
+                      : undefined,
+                }}
               >
                 <AncientSolarPowerSlot
                   graphic={Graphic}
@@ -790,6 +817,11 @@ export function AncientShipCataloguePanel({
                             hover.onLeave(slot.id);
                             actions.onOpenAncientSolarSelector('blackHole');
                           }
+                      : slot.id === 'SSIM' && canOpenSimulacrumSelector
+                        ? () => {
+                            hover.onLeave(slot.id);
+                            actions.onOpenAncientSolarSelector('simulacrum');
+                          }
                       : undefined
                   }
                   disabled={
@@ -797,6 +829,8 @@ export function AncientShipCataloguePanel({
                       ? !canOpenSiphonSelector
                       : slot.id === 'SBLA'
                         ? !canOpenBlackHoleSelector
+                      : slot.id === 'SSIM'
+                        ? !canOpenSimulacrumSelector
                       : !canCast || declarationAttemptUnresolved
                   }
                   ariaLabel={
@@ -806,6 +840,8 @@ export function AncientShipCataloguePanel({
                         ? 'Choose Siphon Energy spend'
                       : slot.id === 'SBLA' && canOpenBlackHoleSelector
                         ? 'Cast Black Hole'
+                      : slot.id === 'SSIM' && canOpenSimulacrumSelector
+                        ? 'Choose Simulacrum target'
                       : undefined
                   }
                   onMouseEnter={

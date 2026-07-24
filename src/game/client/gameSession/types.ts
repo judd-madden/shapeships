@@ -660,6 +660,10 @@ export interface ActionPanelViewModel {
       maxSpend: number;
       canOpen: boolean;
     };
+    simulacrumSelector: {
+      canOpen: boolean;
+      blueAvailable: number;
+    };
     blackHoleSelector: {
       canOpen: boolean;
       requiredTargetCount: number;
