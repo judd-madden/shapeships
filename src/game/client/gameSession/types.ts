@@ -388,10 +388,13 @@ export interface BoardFleetSummary {
   caption?: string | null;
 }
 
+export type BoardTargetSelectedTone = 'red' | 'cyan';
+
 export interface BoardDestroyTargetState {
   isTargetable: boolean;
   isHovered: boolean;
   isSelected: boolean;
+  selectedTone?: BoardTargetSelectedTone;
 }
 
 export interface BoardDestroyTargetingViewModel {

@@ -10,6 +10,9 @@ import {
   ANCIENT_SIPHON_MINIMUM_SPEND,
   isValidAncientSiphonSpend,
 } from '../../data/ancientSiphonRules';
+import { isShipDefId } from '../../data/ShipDefinitions.core';
+import { getShipDefinitionById } from '../../data/ShipDefinitions.engine';
+import { ShipType, type ShipDefId } from '../../types/ShipTypes.engine';
 
 export type { AncientEnergyPool } from './selectors';
 
@@ -27,12 +30,25 @@ export type FixedAncientManualSolarPowerId =
 export type ImplementedAncientManualSolarPowerId =
   | FixedAncientManualSolarPowerId
   | 'SSIP'
-  | 'SBLA';
+  | 'SBLA'
+  | 'SSIM';
 
 export type AncientManualSolarCast =
   | { solarPowerId: FixedAncientManualSolarPowerId }
   | { solarPowerId: 'SSIP'; lockedAmount: number }
-  | { solarPowerId: 'SBLA'; targetInstanceIds: string[] };
+  | { solarPowerId: 'SBLA'; targetInstanceIds: string[] }
+  | {
+      solarPowerId: 'SSIM';
+      targetInstanceId: string;
+      copiedShipDefId: ShipDefId;
+      previewBlueCost: number;
+    };
+
+export type AncientChargeDeclarationSolarCastPayload =
+  | { solarPowerId: FixedAncientManualSolarPowerId }
+  | { solarPowerId: 'SSIP'; lockedAmount: number }
+  | { solarPowerId: 'SBLA'; targetInstanceIds: string[] }
+  | { solarPowerId: 'SSIM'; targetInstanceId: string };
 
 export const ANCIENT_BLACK_HOLE_PREVIEW_COST: AncientEnergyPool = {
   green: 4,
@@ -71,7 +87,7 @@ export type AncientChargeDeclarationPayload = {
     sourceInstanceId: string;
     choiceId: 'use' | 'hold';
   }>;
-  solarCasts: AncientManualSolarCast[];
+  solarCasts: AncientChargeDeclarationSolarCastPayload[];
   autocastEnabled: boolean;
 };
 
@@ -134,6 +150,7 @@ export function replayAncientManualSolarCasts(args: {
   localManualSolarCasts: readonly AncientManualSolarCast[];
 }): { remainingEnergy: AncientEnergyPool; valid: boolean } {
   const remainingEnergy = { ...args.startingPool };
+  const seenSimulacrumTargetInstanceIds = new Set<string>();
 
   for (const cast of args.localManualSolarCasts) {
     let cost: AncientEnergyPool | null;
@@ -151,6 +168,27 @@ export function replayAncientManualSolarCasts(args: {
         ) &&
         new Set(targetInstanceIds).size === targetInstanceIds.length;
       cost = validTargets ? ANCIENT_BLACK_HOLE_PREVIEW_COST : null;
+    } else if (cast.solarPowerId === 'SSIM') {
+      const definition = isShipDefId(cast.copiedShipDefId)
+        ? getShipDefinitionById(cast.copiedShipDefId)
+        : undefined;
+      const validTarget =
+        typeof cast.targetInstanceId === 'string' &&
+        cast.targetInstanceId.length > 0 &&
+        !seenSimulacrumTargetInstanceIds.has(cast.targetInstanceId);
+      const validPreviewCost =
+        Number.isFinite(cast.previewBlueCost) &&
+        Number.isInteger(cast.previewBlueCost) &&
+        cast.previewBlueCost > 0 &&
+        definition?.type === ShipType.BASIC &&
+        cast.copiedShipDefId !== 'CUB' &&
+        definition.basicCost?.totalLines === cast.previewBlueCost;
+      cost = validTarget && validPreviewCost
+        ? { green: 0, red: 0, blue: cast.previewBlueCost }
+        : null;
+      if (cost) {
+        seenSimulacrumTargetInstanceIds.add(cast.targetInstanceId);
+      }
     } else {
       cost = ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID[cast.solarPowerId];
     }
@@ -214,17 +252,19 @@ export function deriveAncientSimulacrumSelectorState(args: {
   energySequenceValid: boolean;
   attemptUnresolved: boolean;
   rejectionRecoveryPending: boolean;
-}): { blueAvailable: number; canOpen: boolean } {
+  hasEligibleTarget: boolean;
+}): { blueAvailable: number; canOpen: boolean; canRemainOpen: boolean } {
   const blueAvailable = args.energySequenceValid ? args.remainingEnergy.blue : 0;
+  const canRemainOpen =
+    args.stage === 'powers' &&
+    args.energySequenceValid &&
+    !args.attemptUnresolved &&
+    !args.rejectionRecoveryPending;
 
   return {
     blueAvailable,
-    canOpen:
-      args.stage === 'powers' &&
-      args.energySequenceValid &&
-      !args.attemptUnresolved &&
-      !args.rejectionRecoveryPending &&
-      blueAvailable >= 2,
+    canOpen: canRemainOpen && args.hasEligibleTarget,
+    canRemainOpen,
   };
 }
 
@@ -347,6 +387,12 @@ export function buildAncientChargeDeclarationPayload(args: {
         return {
           solarPowerId: 'SBLA',
           targetInstanceIds: [...cast.targetInstanceIds].sort((a, b) => a.localeCompare(b)),
+        };
+      }
+      if (cast.solarPowerId === 'SSIM') {
+        return {
+          solarPowerId: 'SSIM',
+          targetInstanceId: cast.targetInstanceId,
         };
       }
       return { solarPowerId: cast.solarPowerId };

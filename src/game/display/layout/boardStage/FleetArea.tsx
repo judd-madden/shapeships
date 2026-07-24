@@ -232,6 +232,7 @@ type DestroyTargetStateVm = {
   isTargetable: boolean;
   isHovered: boolean;
   isSelected: boolean;
+  selectedTone?: 'red' | 'cyan';
 };
 
 const DOM_TARGETING_PREVIEW_SCALE_MULTIPLIER = 0.7;
@@ -313,7 +314,11 @@ function ShipStack({
           {targetingVisualState ? (
             <div
               className={getTargetingGlowClassName(targetingVisualState)}
-              style={getTargetingGlowStyle(targetingVisualState, targetingGlowScale)}
+              style={getTargetingGlowStyle(
+                targetingVisualState,
+                targetingGlowScale,
+                targetState?.selectedTone
+              )}
             />
           ) : null}
 

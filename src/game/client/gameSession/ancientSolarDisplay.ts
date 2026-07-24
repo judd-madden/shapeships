@@ -4,6 +4,7 @@ import type {
   LiveRowAncientSolarPowerId,
 } from './types';
 import type {
+  AncientChargeDeclarationSolarCastPayload,
   AncientChargeDeclarationWorkflow,
   AncientManualSolarCast,
   FrozenAncientChargeDeclarationAttempt,
@@ -136,14 +137,20 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
 function buildLocalManualEntries(args: {
   playerId: string;
   battleTurnNumber: number;
-  casts: readonly AncientManualSolarCast[];
+  casts: readonly (
+    | AncientManualSolarCast
+    | AncientChargeDeclarationSolarCastPayload
+  )[];
 }): AncientSolarDisplayEntry[] {
-  return args.casts.map((cast, order) => {
+  return args.casts.flatMap((cast, order) => {
+    if (!isLiveRowAncientSolarPowerId(cast.solarPowerId)) {
+      return [];
+    }
     const effectCaption = cast.solarPowerId === 'SSIP'
       ? calculateAncientSiphonEffect(cast.lockedAmount) ?? undefined
       : undefined;
 
-    return {
+    return [{
       displayKey: buildDisplayKey({
         playerId: args.playerId,
         battleTurnNumber: args.battleTurnNumber,
@@ -155,7 +162,7 @@ function buildLocalManualEntries(args: {
       sourceMode: 'manual',
       isLocalPreview: true,
       ...(effectCaption !== undefined ? { effectCaption } : {}),
-    };
+    }];
   });
 }
 

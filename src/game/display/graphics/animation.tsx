@@ -137,6 +137,8 @@ const TARGETING_WHITE_GLOW =
   'radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 60%)';
 const TARGETING_RED_GLOW =
   'radial-gradient(circle, rgba(221,0,0,1) 0%, rgba(221,0,0,0) 60%)';
+const TARGETING_CYAN_GLOW =
+  'radial-gradient(circle, rgba(0,182,239,1) 0%, rgba(0,182,239,0) 60%)';
 
 export function getTargetingVisualState(targetState?: {
   isTargetable: boolean;
@@ -170,14 +172,17 @@ export function getTargetingGlowClassName(visualState: TargetingVisualState): st
 
 export function getTargetingGlowStyle(
   visualState: TargetingVisualState,
-  scale = 1
+  scale = 1,
+  selectedTone: 'red' | 'cyan' = 'red'
 ): CSSProperties {
   const sizePx = TARGETING_GLOW_SIZE_PX * scale;
+  const selectedGlow =
+    selectedTone === 'cyan' ? TARGETING_CYAN_GLOW : TARGETING_RED_GLOW;
 
   return {
     width: `${sizePx}px`,
     height: `${sizePx}px`,
-    backgroundImage: visualState === 'selected' ? TARGETING_RED_GLOW : TARGETING_WHITE_GLOW,
+    backgroundImage: visualState === 'selected' ? selectedGlow : TARGETING_WHITE_GLOW,
     opacity: visualState === 'available' ? 0.55 : 1,
     pointerEvents: 'none',
   };
