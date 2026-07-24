@@ -694,6 +694,7 @@ export interface ActionPanelViewModel {
       selectedTargetCount: number;
       damagePreview: number;
     };
+    cubeRepeatPending: boolean;
     autocastEnabled: boolean;
     attemptUnresolved: boolean;
     rejectionRecoveryPending: boolean;

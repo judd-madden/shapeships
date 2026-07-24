@@ -33,6 +33,10 @@ export type ImplementedAncientManualSolarPowerId =
   | 'SBLA'
   | 'SSIM';
 
+export type AncientCubeRepeatableManualSolarPowerId =
+  | Exclude<FixedAncientManualSolarPowerId, 'SVOR'>
+  | 'SSIM';
+
 export type AncientManualSolarCast =
   | { solarPowerId: FixedAncientManualSolarPowerId }
   | { solarPowerId: 'SSIP'; lockedAmount: number }
@@ -73,6 +77,15 @@ const FIXED_ANCIENT_MANUAL_SOLAR_POWER_IDS = new Set<string>(
   Object.keys(ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID)
 );
 
+const ANCIENT_CUBE_REPEATABLE_MANUAL_SOLAR_POWER_IDS = new Set<string>([
+  'SLIF',
+  'SSTA',
+  'SAST',
+  'SSUP',
+  'SCON',
+  'SSIM',
+]);
+
 export type AncientChargeDeclarationWorkflow = {
   key: string;
   stage: AncientChargeDeclarationStage;
@@ -97,6 +110,7 @@ export type AncientChargeDeclarationPayload = {
 
 export type FrozenAncientChargeDeclarationAttempt = {
   workflowKey: string;
+  presentationSolarCasts: AncientManualSolarCast[];
   body: {
     gameId: string;
     intentType: 'CHARGE_DECLARATION_SUBMIT';
@@ -140,6 +154,71 @@ export function isFixedAncientManualSolarPowerId(
   value: unknown
 ): value is FixedAncientManualSolarPowerId {
   return typeof value === 'string' && FIXED_ANCIENT_MANUAL_SOLAR_POWER_IDS.has(value);
+}
+
+export function isAncientCubeRepeatableManualSolarPowerId(
+  value: unknown
+): value is AncientCubeRepeatableManualSolarPowerId {
+  return (
+    typeof value === 'string' &&
+    ANCIENT_CUBE_REPEATABLE_MANUAL_SOLAR_POWER_IDS.has(value)
+  );
+}
+
+export function snapshotAncientManualSolarCastsForPresentation(
+  casts: readonly AncientManualSolarCast[]
+): AncientManualSolarCast[] {
+  return casts.map((cast) => {
+    if (cast.solarPowerId === 'SSIP') {
+      return {
+        solarPowerId: 'SSIP',
+        lockedAmount: cast.lockedAmount,
+      };
+    }
+    if (cast.solarPowerId === 'SBLA') {
+      return {
+        solarPowerId: 'SBLA',
+        targetInstanceIds: [...cast.targetInstanceIds],
+      };
+    }
+    if (cast.solarPowerId === 'SSIM') {
+      return {
+        solarPowerId: 'SSIM',
+        targetInstanceId: cast.targetInstanceId,
+        copiedShipDefId: cast.copiedShipDefId,
+        previewBlueCost: cast.previewBlueCost,
+        ...(cast.previewCapturedStartOfBattleCharges !== undefined
+          ? {
+              previewCapturedStartOfBattleCharges:
+                cast.previewCapturedStartOfBattleCharges,
+            }
+          : {}),
+        previewPermanentConfiguration: {
+          ...(cast.previewPermanentConfiguration.selectedNumber !== undefined
+            ? {
+                selectedNumber:
+                  cast.previewPermanentConfiguration.selectedNumber,
+              }
+            : {}),
+        },
+      };
+    }
+    return { solarPowerId: cast.solarPowerId };
+  });
+}
+
+export function selectAncientSolarPresentationCasts(args: {
+  currentWorkflowKey: string;
+  workflow: AncientChargeDeclarationWorkflow | null;
+  frozenAttempt: FrozenAncientChargeDeclarationAttempt | null;
+}): readonly AncientManualSolarCast[] {
+  if (args.frozenAttempt?.workflowKey === args.currentWorkflowKey) {
+    return args.frozenAttempt.presentationSolarCasts;
+  }
+  if (args.workflow?.key === args.currentWorkflowKey) {
+    return args.workflow.localManualSolarCasts;
+  }
+  return [];
 }
 
 export function canAffordAncientEnergyCost(

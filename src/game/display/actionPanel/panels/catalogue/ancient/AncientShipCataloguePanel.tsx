@@ -189,13 +189,15 @@ const AUTOCAST_TOOLTIP_PATHS = [
 
 const SOLAR_HEADER_POSITIONS: Record<
   CatalogueLayout,
-  { energy: SolarPosition; autocast: SolarPosition }
+  { cube: SolarPosition; energy: SolarPosition; autocast: SolarPosition }
 > = {
   standard: {
+    cube: { x: 606, y: 1 },
     energy: { x: 635, y: 0 },
     autocast: { x: 1079, y: 0 },
   },
   long: {
+    cube: { x: 630, y: 1 },
     energy: { x: 682, y: 0 },
     autocast: { x: 1245, y: 0 },
   },
@@ -250,6 +252,7 @@ interface AncientShipCataloguePanelProps {
     selectedTargetCount: number;
     damagePreview: number;
   };
+  cubeRepeatPending?: boolean;
   autocastEnabled: boolean;
   autocastDisabled?: boolean;
   declarationAttemptUnresolved?: boolean;
@@ -364,6 +367,7 @@ export function AncientShipCataloguePanel({
   siphonSelector,
   simulacrumSelector,
   blackHoleSelector,
+  cubeRepeatPending = false,
   autocastEnabled,
   autocastDisabled = false,
   declarationAttemptUnresolved = false,
@@ -708,6 +712,45 @@ export function AncientShipCataloguePanel({
           </div>
 
           {/* ================ RIGHT HALF: SOLAR POWERS ================ */}
+
+          {isDeclarationPresentation &&
+          declarationStage === 'powers' &&
+          cubeRepeatPending ? (
+            <div
+              className="absolute"
+              style={{
+                left: solarHeaderPositions.cube.x,
+                top: solarHeaderPositions.cube.y,
+              }}
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Cube(s) will copy your next red, green or blue solar power"
+                    className="flex size-[24px] items-center justify-center border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  >
+                    <Cube className="size-[24px]" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  align="center"
+                  sideOffset={8}
+                  showArrow={false}
+                  className="relative z-[80] bg-transparent p-0 shadow-none"
+                >
+                  <div className="whitespace-nowrap rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[20px] py-[16px] font-['Roboto'] text-[16px] font-normal leading-none text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+                    Cube(s) will copy your next red, green or blue solar power
+                  </div>
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute bottom-[-6px] left-1/2 size-[12px] -translate-x-1/2 rotate-45 border-b border-r border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)]"
+                  />
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          ) : null}
 
           <div
             className="absolute"

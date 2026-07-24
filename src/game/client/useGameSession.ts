@@ -194,9 +194,12 @@ import {
   getAncientChargeDeclarationActions,
   getAncientEnergyTotal,
   getUsableAncientEnergyPoolForPlayer,
+  isAncientCubeRepeatableManualSolarPowerId,
   isFixedAncientManualSolarPowerId,
   partitionAncientChargeDeclarationActions,
   replayAncientManualSolarCasts,
+  selectAncientSolarPresentationCasts,
+  snapshotAncientManualSolarCastsForPresentation,
   type AncientChargeDeclarationWorkflow,
   type AncientSolarSelectorMode,
   type FrozenAncientChargeDeclarationAttempt,
@@ -2288,6 +2291,22 @@ export function useGameSession(
     ancientChargeDeclarationAttempt?.workflowKey === ancientChargeDeclarationWorkflowKey
       ? ancientChargeDeclarationAttempt
       : null;
+  const ancientSolarPresentationCasts = selectAncientSolarPresentationCasts({
+    currentWorkflowKey: ancientChargeDeclarationWorkflowKey,
+    workflow: activeAncientChargeDeclarationWorkflow,
+    frozenAttempt: activeAncientChargeDeclarationAttempt,
+  });
+  const controlledAncientShips =
+    me?.id != null ? getShipsByPlayerId(rawState)[me.id] : [];
+  const controlledCubeCount = Array.isArray(controlledAncientShips)
+    ? controlledAncientShips.filter((ship) => ship?.shipDefId === 'CUB').length
+    : 0;
+  const cubeRepeatPending =
+    activeAncientChargeDeclarationWorkflow?.stage === 'powers' &&
+    controlledCubeCount > 0 &&
+    !ancientSolarPresentationCasts.some((cast) =>
+      isAncientCubeRepeatableManualSolarPowerId(cast.solarPowerId)
+    );
   const publicAncientSolarLedgers =
     rawState?.publicState?.ancient?.solarLedgerByPlayerId as Record<string, unknown> | undefined;
   const shouldHandoffOwnSimulacrumLedgerToDrawingFleet =
@@ -2304,9 +2323,8 @@ export function useGameSession(
       phaseKey === 'battle.charge_declaration' &&
       displayLeftPlayer?.id === me?.id,
     currentBattleTurnNumber: turnNumber,
-    currentWorkflowKey: ancientChargeDeclarationWorkflowKey,
-    workflow: activeAncientChargeDeclarationWorkflow,
-    frozenAttempt: activeAncientChargeDeclarationAttempt,
+    localPreviewCasts: ancientSolarPresentationCasts,
+    controlledCubeCount,
     isAuthoritativelyReady: ancientPlayerReady,
     hideMaterializedSimulacrumEntries:
       shouldHandoffOwnSimulacrumLedgerToDrawingFleet,
@@ -2319,9 +2337,8 @@ export function useGameSession(
         ledger: displayRightPlayer?.id ? publicAncientSolarLedgers?.[displayRightPlayer.id] : null,
         allowLocalPreview: false,
         currentBattleTurnNumber: turnNumber,
-        currentWorkflowKey: ancientChargeDeclarationWorkflowKey,
-        workflow: null,
-        frozenAttempt: null,
+        localPreviewCasts: [],
+        controlledCubeCount: 0,
         isAuthoritativelyReady: isPlayerReadyForPhase(rawState, displayRightPlayer?.id),
       })
     : [];
@@ -4932,6 +4949,7 @@ useEffect(() => {
               activeAncientChargeDeclarationWorkflow.blackHoleSelectedTargetInstanceIds.length,
             damagePreview: ancientBlackHoleDamagePreview,
           },
+          cubeRepeatPending,
           autocastEnabled: ancientAutocastEnabled,
           attemptUnresolved: activeAncientChargeDeclarationAttempt != null,
           rejectionRecoveryPending:
@@ -5046,6 +5064,10 @@ useEffect(() => {
         });
         ancientAttemptForSubmission = {
           workflowKey: ancientChargeDeclarationWorkflowKey,
+          presentationSolarCasts:
+            snapshotAncientManualSolarCastsForPresentation(
+              activeAncientChargeDeclarationWorkflow.localManualSolarCasts
+            ),
           body: {
             gameId: effectiveGameId,
             intentType: 'CHARGE_DECLARATION_SUBMIT',

@@ -4,11 +4,9 @@ import type {
   AncientSimulacrumDisplayPresentation,
   LiveRowAncientSolarPowerId,
 } from './types';
-import type {
-  AncientChargeDeclarationSolarCastPayload,
-  AncientChargeDeclarationWorkflow,
-  AncientManualSolarCast,
-  FrozenAncientChargeDeclarationAttempt,
+import {
+  isAncientCubeRepeatableManualSolarPowerId,
+  type AncientManualSolarCast,
 } from './ancientChargeDeclaration';
 import { calculateAncientSiphonEffect } from '../../data/ancientSiphonRules';
 import { isShipDefId } from '../../data/ShipDefinitions.core';
@@ -287,10 +285,7 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
 function buildLocalManualEntries(args: {
   playerId: string;
   battleTurnNumber: number;
-  casts: readonly (
-    | AncientManualSolarCast
-    | AncientChargeDeclarationSolarCastPayload
-  )[];
+  casts: readonly AncientManualSolarCast[];
 }): AncientSolarDisplayEntry[] {
   return args.casts.flatMap<AncientSolarDisplayEntry>((cast, order) => {
     if (!isLiveRowAncientSolarPowerId(cast.solarPowerId)) {
@@ -360,14 +355,97 @@ function buildLocalManualEntries(args: {
   });
 }
 
+function buildLocalCubeEntries(args: {
+  playerId: string;
+  battleTurnNumber: number;
+  casts: readonly AncientManualSolarCast[];
+  manualEntries: readonly AncientSolarDisplayEntry[];
+  controlledCubeCount: number;
+}): AncientSolarDisplayEntry[] {
+  if (!isNonNegativeInteger(args.controlledCubeCount) || args.controlledCubeCount === 0) {
+    return [];
+  }
+
+  const repeatedCastIndex = args.casts.findIndex((cast) =>
+    isAncientCubeRepeatableManualSolarPowerId(cast.solarPowerId)
+  );
+  if (repeatedCastIndex < 0) {
+    return [];
+  }
+
+  const repeatedEntry = args.manualEntries.find(
+    (entry) => entry.order === repeatedCastIndex
+  );
+  if (!repeatedEntry) {
+    return [];
+  }
+
+  return Array.from({ length: args.controlledCubeCount }, (_, cubeIndex) => {
+    const order = args.manualEntries.length + cubeIndex;
+    const baseEntry = {
+      displayKey: buildDisplayKey({
+        playerId: args.playerId,
+        battleTurnNumber: args.battleTurnNumber,
+        sourceMode: 'cube',
+        order,
+      }),
+      order,
+      sourceMode: 'cube' as const,
+      isLocalPreview: true,
+      ...(repeatedEntry.targetMarker
+        ? {
+            targetMarker: {
+              tone: repeatedEntry.targetMarker.tone,
+              targetInstanceIds: [
+                ...repeatedEntry.targetMarker.targetInstanceIds,
+              ],
+            },
+          }
+        : {}),
+    };
+
+    if (repeatedEntry.solarPowerId === 'SSIM') {
+      return {
+        ...baseEntry,
+        solarPowerId: 'SSIM' as const,
+        simulacrumPresentation: {
+          copiedShipDefId:
+            repeatedEntry.simulacrumPresentation.copiedShipDefId,
+          ...(repeatedEntry.simulacrumPresentation
+            .capturedStartOfBattleCharges !== undefined
+            ? {
+                capturedStartOfBattleCharges:
+                  repeatedEntry.simulacrumPresentation
+                    .capturedStartOfBattleCharges,
+              }
+            : {}),
+          ...(repeatedEntry.simulacrumPresentation.selectedNumber !== undefined
+            ? {
+                selectedNumber:
+                  repeatedEntry.simulacrumPresentation.selectedNumber,
+              }
+            : {}),
+        },
+      };
+    }
+
+    return {
+      ...baseEntry,
+      solarPowerId: repeatedEntry.solarPowerId,
+      ...(repeatedEntry.effectCaption !== undefined
+        ? { effectCaption: repeatedEntry.effectCaption }
+        : {}),
+    };
+  });
+}
+
 export function deriveAncientSolarDisplayEntries(args: {
   playerId: string | null | undefined;
   ledger: unknown;
   allowLocalPreview: boolean;
   currentBattleTurnNumber: number;
-  currentWorkflowKey: string;
-  workflow: AncientChargeDeclarationWorkflow | null;
-  frozenAttempt: FrozenAncientChargeDeclarationAttempt | null;
+  localPreviewCasts: readonly AncientManualSolarCast[];
+  controlledCubeCount: number;
   isAuthoritativelyReady: boolean;
   hideMaterializedSimulacrumEntries?: boolean;
 }): AncientSolarDisplayEntry[] {
@@ -388,22 +466,23 @@ export function deriveAncientSolarDisplayEntries(args: {
     return visibleAuthoritativeEntries;
   }
 
-  const matchingWorkflow = args.workflow?.key === args.currentWorkflowKey
-    ? args.workflow
-    : null;
-  const matchingAttempt = args.frozenAttempt?.workflowKey === args.currentWorkflowKey
-    ? args.frozenAttempt
-    : null;
-  if (!matchingWorkflow && !matchingAttempt) {
+  if (args.localPreviewCasts.length === 0) {
     return visibleAuthoritativeEntries;
   }
 
-  const casts = matchingWorkflow
-    ? matchingWorkflow.localManualSolarCasts
-    : matchingAttempt?.body.payload.solarCasts ?? [];
-  return buildLocalManualEntries({
+  const manualEntries = buildLocalManualEntries({
     playerId: args.playerId,
     battleTurnNumber: args.currentBattleTurnNumber,
-    casts,
+    casts: args.localPreviewCasts,
   });
+  return [
+    ...manualEntries,
+    ...buildLocalCubeEntries({
+      playerId: args.playerId,
+      battleTurnNumber: args.currentBattleTurnNumber,
+      casts: args.localPreviewCasts,
+      manualEntries,
+      controlledCubeCount: args.controlledCubeCount,
+    }),
+  ];
 }

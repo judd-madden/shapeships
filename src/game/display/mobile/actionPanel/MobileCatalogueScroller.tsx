@@ -71,6 +71,7 @@ export function MobileCatalogueScroller({
           siphonSelector={vm.ancientChargeDeclaration?.siphonSelector}
           simulacrumSelector={vm.ancientChargeDeclaration?.simulacrumSelector}
           blackHoleSelector={vm.ancientChargeDeclaration?.blackHoleSelector}
+          cubeRepeatPending={vm.ancientChargeDeclaration?.cubeRepeatPending}
           autocastEnabled={
             vm.ancientChargeDeclaration?.autocastEnabled ?? vm.ancientAutocastEnabled
           }
