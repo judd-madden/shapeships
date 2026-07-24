@@ -441,6 +441,10 @@ interface BaseAncientSolarDisplayEntry {
   order: number;
   sourceMode: AncientSolarDisplaySourceMode;
   isLocalPreview: boolean;
+  targetMarker?: {
+    tone: BoardTargetSelectedTone;
+    targetInstanceIds: string[];
+  };
 }
 
 export type AncientSolarDisplayEntry =

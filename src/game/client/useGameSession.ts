@@ -115,6 +115,10 @@ import {
 } from './gameSession/clienteffects/useEndOfTurnPresentation';
 import { useDestroyTargetingRuntime } from './gameSession/destroyTargeting';
 import { deriveAncientSolarDisplayEntries } from './gameSession/ancientSolarDisplay';
+import {
+  buildPersistentAncientSolarTargetMarkers,
+  overlayAncientSolarTargetMarkers,
+} from './gameSession/ancientSolarTargetMarkers';
 import type {
   AcceptedFullStateFingerprint,
   AuthoritativeStateApplyMeta,
@@ -2321,6 +2325,12 @@ export function useGameSession(
         isAuthoritativelyReady: isPlayerReadyForPhase(rawState, displayRightPlayer?.id),
       })
     : [];
+  const ancientSolarEntriesForMarkers = [
+    ...displayLeftAncientSolarEntries,
+    ...displayRightAncientSolarEntries,
+  ];
+  const showAncientSolarTargetMarkers =
+    majorPhase === 'battle' && !isFinished;
   const provisionalAncientEnergyBeforeManualCasts = deriveProvisionalAncientEnergy({
     authoritativePool: authoritativeAncientEnergy,
     solarGridActions: ancientSolarGridActions,
@@ -3213,6 +3223,23 @@ useEffect(() => {
     displayRightFleet,
     prevOpponentRenderedFleetRef.current
   );
+  const persistentAncientSolarTargetMarkers =
+    buildPersistentAncientSolarTargetMarkers({
+      active: showAncientSolarTargetMarkers,
+      solarEntries: ancientSolarEntriesForMarkers,
+      myFleet: myFleetWithPreview,
+      opponentFleet: opponentFleetRendered,
+    });
+  const baseBoardDestroyTargeting = ancientBlackHoleSelectorActive
+    ? ancientBlackHoleBoardTargeting
+    : ancientSimulacrumSelectorActive
+      ? ancientSimulacrumBoardTargeting
+      : boardDestroyTargeting;
+  const boardDestroyTargetingWithAncientSolarMarkers =
+    overlayAncientSolarTargetMarkers({
+      activeTargeting: baseBoardDestroyTargeting,
+      persistentMarkers: persistentAncientSolarTargetMarkers,
+    });
   
   // ============================================================================
   // FLEET ORDER HOOK (UI-only stable ordering, append-only)
@@ -3590,11 +3617,7 @@ useEffect(() => {
       presentedMyRevealBlurSeq: isViewerSpectator ? presentedOpponentRevealBlurSeq : 0,
       presentedOpponentRevealBlurSeq,
 
-      destroyTargeting: ancientBlackHoleSelectorActive
-        ? ancientBlackHoleBoardTargeting
-        : ancientSimulacrumSelectorActive
-          ? ancientSimulacrumBoardTargeting
-          : boardDestroyTargeting,
+      destroyTargeting: boardDestroyTargetingWithAncientSolarMarkers,
     };
   }
 

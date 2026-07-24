@@ -49,6 +49,50 @@ function isAncientSolarDisplaySourceMode(
   return typeof value === 'string' && ANCIENT_SOLAR_DISPLAY_SOURCE_MODES.has(value);
 }
 
+function normalizeTargetMarkerInstanceIds(values: readonly unknown[]): string[] {
+  return Array.from(new Set(
+    values.filter(
+      (value): value is string => typeof value === 'string' && value.length > 0
+    )
+  ));
+}
+
+function getAuthoritativeTargetMarker(
+  record: Record<string, unknown>
+): AncientSolarDisplayEntry['targetMarker'] {
+  if (record.solarPowerId === 'SSIM') {
+    const simulacrum =
+      record.simulacrum &&
+      typeof record.simulacrum === 'object' &&
+      !Array.isArray(record.simulacrum)
+        ? record.simulacrum as Record<string, unknown>
+        : null;
+    const targetInstanceIds = normalizeTargetMarkerInstanceIds([
+      simulacrum?.sourceTargetInstanceId,
+    ]);
+    return targetInstanceIds.length > 0
+      ? { tone: 'cyan', targetInstanceIds }
+      : undefined;
+  }
+
+  if (record.solarPowerId === 'SBLA') {
+    const targetInstanceIds = normalizeTargetMarkerInstanceIds(
+      Array.isArray(record.targets)
+        ? record.targets.map((target) =>
+            target && typeof target === 'object' && !Array.isArray(target)
+              ? (target as Record<string, unknown>).shipInstanceId
+              : undefined
+          )
+        : []
+    );
+    return targetInstanceIds.length > 0
+      ? { tone: 'red', targetInstanceIds }
+      : undefined;
+  }
+
+  return undefined;
+}
+
 function getAuthoritativeSiphonEffectCaption(record: Record<string, unknown>): number | undefined {
   if (record.solarPowerId !== 'SSIP' || !record.paidEnergy || typeof record.paidEnergy !== 'object') {
     return undefined;
@@ -185,6 +229,7 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
       solarPowerId: record.solarPowerId,
       effectCaption: getAuthoritativeSiphonEffectCaption(record),
       simulacrumPresentation,
+      targetMarker: getAuthoritativeTargetMarker(record),
     }];
   });
 
@@ -207,6 +252,14 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
       order: candidate.order,
       sourceMode: candidate.sourceMode,
       isLocalPreview: false,
+      ...(candidate.targetMarker
+        ? {
+            targetMarker: {
+              tone: candidate.targetMarker.tone,
+              targetInstanceIds: [...candidate.targetMarker.targetInstanceIds],
+            },
+          }
+        : {}),
     } as const;
     if (
       candidate.solarPowerId === 'SSIM' &&
@@ -258,6 +311,9 @@ function buildLocalManualEntries(args: {
       if (!('copiedShipDefId' in cast)) {
         return [];
       }
+      const targetInstanceIds = normalizeTargetMarkerInstanceIds([
+        cast.targetInstanceId,
+      ]);
       const simulacrumPresentation = normalizeSimulacrumDisplayPresentation({
         copiedShipDefId: cast.copiedShipDefId,
         capturedStartOfBattleCharges:
@@ -269,6 +325,14 @@ function buildLocalManualEntries(args: {
             ...baseEntry,
             solarPowerId: 'SSIM' as const,
             simulacrumPresentation,
+            ...(targetInstanceIds.length > 0
+              ? {
+                  targetMarker: {
+                    tone: 'cyan' as const,
+                    targetInstanceIds: [...targetInstanceIds],
+                  },
+                }
+              : {}),
           }]
         : [];
     }
@@ -276,11 +340,22 @@ function buildLocalManualEntries(args: {
     const effectCaption = cast.solarPowerId === 'SSIP'
       ? calculateAncientSiphonEffect(cast.lockedAmount) ?? undefined
       : undefined;
+    const targetInstanceIds = cast.solarPowerId === 'SBLA'
+      ? normalizeTargetMarkerInstanceIds(cast.targetInstanceIds)
+      : [];
 
     return [{
       ...baseEntry,
       solarPowerId: cast.solarPowerId,
       ...(effectCaption !== undefined ? { effectCaption } : {}),
+      ...(cast.solarPowerId === 'SBLA' && targetInstanceIds.length > 0
+        ? {
+            targetMarker: {
+              tone: 'red' as const,
+              targetInstanceIds: [...targetInstanceIds],
+            },
+          }
+        : {}),
     }];
   });
 }
