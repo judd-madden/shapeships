@@ -198,8 +198,8 @@ const ANT_CHARGE_BUTTONS: ShipChoiceButtonSpec[] = [
 const SOL_CHARGE_BUTTONS: ShipChoiceButtonSpec[] = [
   {
     size: 'large',
-    label: 'Use Grid',
-    detail: '+1 green, red and blue Energy',
+    label: 'Gain 1 of each energy',
+    detail: '(use charge)',
     choiceId: 'use',
   },
   {

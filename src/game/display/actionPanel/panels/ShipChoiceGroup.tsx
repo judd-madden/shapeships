@@ -97,6 +97,7 @@ export function ShipChoiceGroup({
   const isMobileGuardian = isMobile && shipDefId === 'GUA';
   const mobileGraphicWidthClass = isMobileGuardian ? 'w-[122px]' : 'w-[72px]';
   const buttonDensity = isMobile ? 'mobile' : 'desktop';
+  const desktopButtonWidthClass = shipDefId === 'SOL' ? 'w-[320px]' : 'w-[250px]';
 
   // ============================================================================
   // STATE: SELECTED BUTTON INDEX
@@ -197,7 +198,7 @@ export function ShipChoiceGroup({
           className={
             isMobile
               ? 'content-stretch flex min-w-0 max-w-[252px] flex-1 flex-col gap-[6px] items-start relative'
-              : 'content-stretch flex flex-col gap-[12px] items-start relative shrink-0 w-[250px]'
+              : `content-stretch flex flex-col gap-[12px] items-start relative shrink-0 ${desktopButtonWidthClass}`
           }
         >
           {buttons.map((spec, index) => {

@@ -12,9 +12,11 @@ import { HumanShipCataloguePanel } from './panels/catalogue/human/HumanShipCatal
 import { XeniteShipCataloguePanel } from './panels/catalogue/xenite/XeniteShipCataloguePanel';
 import { CentaurShipCataloguePanel } from './panels/catalogue/centaur/CentaurShipCataloguePanel';
 import {
-  AncientAutocastControl,
+  ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT,
+  ANCIENT_ENERGY_HEADER_POSITION_BY_LAYOUT,
   AncientShipCataloguePanel,
 } from './panels/catalogue/ancient/AncientShipCataloguePanel';
+import { AncientEnergyDisplay } from './panels/catalogue/ancient/AncientEnergyDisplay';
 import { MenuActionPanel } from './panels/MenuActionPanel';
 import { EndOfGameActionPanel } from './panels/EndOfGameActionPanel';
 import { getShipChoicePanelSpec } from './panels/ShipChoiceRegistry';
@@ -38,6 +40,9 @@ interface ActionPanelFrameProps {
   onReturnToMainMenu: () => void;
   simulacrumSpecies?: SpeciesId;
 }
+
+const ANCIENT_ACTIONS_VERTICAL_GAP_PX = 20;
+const ANCIENT_ENERGY_ROW_HEIGHT_PX = 26;
 
 function getFirstStrikeFamilyLabel(family: FirstStrikeActionFamily): string {
   switch (family) {
@@ -71,7 +76,7 @@ export function ActionPanelFrame({
   const isLaptopCatalogueLayout = useLaptopCatalogueLayout();
   const isLongCatalogueLayout = useLongCatalogueLayout();
   const catalogueLayout = isLongCatalogueLayout ? 'long' : 'standard';
-  const laptopCatalogueCanvas = { width: 1446, height: 258 };
+  const laptopCatalogueCanvas = ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT.long;
 
   function renderWithOverlay(content: ReactNode) {
     return (
@@ -85,6 +90,57 @@ export function ActionPanelFrame({
             />
           </div>
         ) : null}
+      </div>
+    );
+  }
+
+  function renderAncientChargeEnergyOverlay(): ReactNode {
+    const declarationVm = vm.ancientChargeDeclaration;
+    if (
+      vm.activePanelId !== 'ap.battle.charges.ancient' ||
+      declarationVm == null
+    ) {
+      return null;
+    }
+
+    const layout = isLaptopCatalogueLayout ? 'long' : catalogueLayout;
+    const canvas = ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT[layout];
+    const position = ANCIENT_ENERGY_HEADER_POSITION_BY_LAYOUT[layout];
+    const energyHeader = (
+      <div
+        className="relative"
+        style={{ width: `${canvas.width}px`, height: `${canvas.height}px` }}
+      >
+        <div
+          className="absolute"
+          style={{ left: position.x, top: position.y }}
+        >
+          <AncientEnergyDisplay
+            mode="active"
+            pool={declarationVm.provisionalEnergy}
+            capacity={declarationVm.provisionalEnergyCapacity}
+          />
+        </div>
+      </div>
+    );
+
+    return (
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-10"
+        style={{ top: `${ANCIENT_ACTIONS_VERTICAL_GAP_PX}px` }}
+      >
+        {isLaptopCatalogueLayout ? (
+          <DesktopScaledCatalogueCanvas {...ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT.long}>
+            {energyHeader}
+          </DesktopScaledCatalogueCanvas>
+        ) : (
+          <div
+            className="mx-auto"
+            style={{ width: `${canvas.width}px`, height: `${canvas.height}px` }}
+          >
+            {energyHeader}
+          </div>
+        )}
       </div>
     );
   }
@@ -231,8 +287,13 @@ export function ActionPanelFrame({
     vm.activePanelId === 'ap.catalog.ships.ancient' ||
     vm.activePanelId === 'ap.battle.solar_powers.ancient'
   ) {
-    const isDeclaration = vm.activePanelId === 'ap.battle.solar_powers.ancient';
     const declarationVm = vm.ancientChargeDeclaration;
+    const isDeclaration =
+      vm.menu.phaseKey === 'battle.charge_declaration' &&
+      declarationVm?.stage === 'powers';
+    const declarationBlocked =
+      declarationVm?.attemptUnresolved === true ||
+      declarationVm?.rejectionRecoveryPending === true;
     if (isLaptopCatalogueLayout) {
       return renderWithOverlay(
         <ActionPanelScrollArea horizontalOverflow="auto">
@@ -257,8 +318,8 @@ export function ActionPanelFrame({
               blackHoleSelector={declarationVm?.blackHoleSelector}
               cubeRepeatPending={declarationVm?.cubeRepeatPending}
               autocastEnabled={declarationVm?.autocastEnabled ?? vm.ancientAutocastEnabled}
-              autocastDisabled={declarationVm?.attemptUnresolved === true}
-              declarationAttemptUnresolved={declarationVm?.attemptUnresolved === true}
+              autocastDisabled={declarationBlocked}
+              declarationBlocked={declarationBlocked}
             />
           </DesktopScaledCatalogueCanvas>
         </ActionPanelScrollArea>
@@ -286,8 +347,8 @@ export function ActionPanelFrame({
           blackHoleSelector={declarationVm?.blackHoleSelector}
           cubeRepeatPending={declarationVm?.cubeRepeatPending}
           autocastEnabled={declarationVm?.autocastEnabled ?? vm.ancientAutocastEnabled}
-          autocastDisabled={declarationVm?.attemptUnresolved === true}
-          declarationAttemptUnresolved={declarationVm?.attemptUnresolved === true}
+          autocastDisabled={declarationBlocked}
+          declarationBlocked={declarationBlocked}
         />
       </div>
     );
@@ -417,55 +478,59 @@ export function ActionPanelFrame({
     // KIND: BUTTONS (ShipChoicesPanel with groups from VM)
     // --------------------------------------------------------------------------
     if (shipChoiceSpec.kind === 'buttons') {
-      const showAncientChargesAutocast =
-        vm.activePanelId === 'ap.battle.charges.ancient' &&
-        vm.ancientChargeDeclaration?.stage === 'charges';
+      const isAncientChargePanel = vm.activePanelId === 'ap.battle.charges.ancient';
+      const ancientChargeContentSpacing = isAncientChargePanel
+        ? {
+            paddingTop: `${
+              ANCIENT_ENERGY_ROW_HEIGHT_PX + ANCIENT_ACTIONS_VERTICAL_GAP_PX
+            }px`,
+          }
+        : undefined;
+
       // If no groups available, show "No actions available"
       if (!vm.shipChoices?.groups || vm.shipChoices.groups.length === 0) {
         return renderWithOverlay(
-          <div className="size-full flex flex-col items-center justify-center gap-[20px]">
-            {renderPhaseLocalFamilySwitch()}
-            {showAncientChargesAutocast ? (
-              <AncientAutocastControl
-                checked={vm.ancientChargeDeclaration?.autocastEnabled ?? vm.ancientAutocastEnabled}
-                disabled={vm.ancientChargeDeclaration?.attemptUnresolved === true}
-                onChange={actions.onSetAncientAutocastEnabled}
-              />
-            ) : null}
-            <p className="text-[var(--shapeships-grey-50)] text-[18px]">
-              No actions available.
-            </p>
+          <div className="relative size-full">
+            <div
+              className="size-full flex flex-col items-center justify-center gap-[20px]"
+              style={ancientChargeContentSpacing}
+            >
+              {renderPhaseLocalFamilySwitch()}
+              <p className="text-[var(--shapeships-grey-50)] text-[18px]">
+                No actions available.
+              </p>
+            </div>
+            {renderAncientChargeEnergyOverlay()}
           </div>
         );
       }
 
       // Render ShipChoicesPanel with derived groups from VM
       return renderWithOverlay(
-        <ActionPanelScrollArea>
-          <div className="flex min-h-full flex-col items-center gap-[20px]">
-            {renderPhaseLocalFamilySwitch()}
-            {showAncientChargesAutocast ? (
-              <AncientAutocastControl
-                checked={vm.ancientChargeDeclaration?.autocastEnabled ?? vm.ancientAutocastEnabled}
-                disabled={vm.ancientChargeDeclaration?.attemptUnresolved === true}
-                onChange={actions.onSetAncientAutocastEnabled}
+        <div className="relative size-full">
+          <ActionPanelScrollArea>
+            <div
+              className="flex min-h-full flex-col items-center gap-[20px]"
+              style={ancientChargeContentSpacing}
+            >
+              {renderPhaseLocalFamilySwitch()}
+              <ShipChoicesPanel
+                groups={vm.shipChoices.groups}
+                showOpponentAlsoHasCharges={
+                  (vm.shipChoices.showOpponentAlsoHasCharges ?? false) &&
+                  (vm.shipChoices.opponentEligibleAtDeclarationStart ?? false)
+                }
+                opponentAlsoHasChargesHeading={vm.shipChoices.opponentAlsoHasChargesHeading}
+                opponentAlsoHasChargesLines={vm.shipChoices.opponentAlsoHasChargesLines}
+                selectedChoiceIdBySourceInstanceId={vm.shipChoices.selectedChoiceIdBySourceInstanceId}
+                centaurChargeTabs={vm.shipChoices.centaurChargeTabs}
+                onSelectChoiceForInstance={actions.onSelectShipChoiceForInstance}
+                onSelectCentaurChargeSubTab={actions.onSelectCentaurChargeSubTab}
               />
-            ) : null}
-            <ShipChoicesPanel
-              groups={vm.shipChoices.groups}
-              showOpponentAlsoHasCharges={
-                (vm.shipChoices.showOpponentAlsoHasCharges ?? false) &&
-                (vm.shipChoices.opponentEligibleAtDeclarationStart ?? false)
-              }
-              opponentAlsoHasChargesHeading={vm.shipChoices.opponentAlsoHasChargesHeading}
-              opponentAlsoHasChargesLines={vm.shipChoices.opponentAlsoHasChargesLines}
-              selectedChoiceIdBySourceInstanceId={vm.shipChoices.selectedChoiceIdBySourceInstanceId}
-              centaurChargeTabs={vm.shipChoices.centaurChargeTabs}
-              onSelectChoiceForInstance={actions.onSelectShipChoiceForInstance}
-              onSelectCentaurChargeSubTab={actions.onSelectCentaurChargeSubTab}
-            />
-          </div>
-        </ActionPanelScrollArea>
+            </div>
+          </ActionPanelScrollArea>
+          {renderAncientChargeEnergyOverlay()}
+        </div>
       );
     }
 

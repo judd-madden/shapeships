@@ -744,6 +744,15 @@ export function mapGameSessionVm(args: {
     subphaseSubheading = 'Healing and damage is resolved';
   }
 
+  if (
+    !isFinished &&
+    phaseKey === 'battle.charge_declaration' &&
+    ancientChargeDeclaration?.stage === 'powers'
+  ) {
+    subphaseTitle = 'Solar Powers';
+    subphaseSubheading = 'Use your Energy to cast Solar Powers';
+  }
+
   if (!isFinished && isSpectator && phaseKey === 'build.drawing') {
     subphaseTitle = 'Drawing';
     subphaseTitleSuffix = null;

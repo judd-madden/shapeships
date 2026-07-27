@@ -69,8 +69,16 @@ import { ANCIENT_SIPHON_MINIMUM_SPEND } from '../../../../../data/ancientSiphonR
 type CatalogueFrame = 'desktop' | 'bare';
 type CatalogueLayout = 'standard' | 'long';
 
-const ANCIENT_DESKTOP_CANVAS = { width: 1210, height: 258 };
-const ANCIENT_LONG_CANVAS = { width: 1446, height: 258 };
+export const ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT = {
+  standard: { width: 1210, height: 258 },
+  long: { width: 1446, height: 258 },
+} as const;
+
+export const ANCIENT_ENERGY_HEADER_POSITION_BY_LAYOUT = {
+  standard: { x: 635, y: 0 },
+  long: { x: 682, y: 0 },
+} as const;
+
 const ZERO_ANCIENT_ENERGY_POOL: AncientEnergyPool = { green: 0, red: 0, blue: 0 };
 const REFERENCE_ANCIENT_CATALOGUE_ENERGY: NonNullable<
   ActionPanelViewModel['ancientCatalogueEnergy']
@@ -205,16 +213,14 @@ const AUTOCAST_TOOLTIP_PATHS = [
 
 const SOLAR_HEADER_POSITIONS: Record<
   CatalogueLayout,
-  { cube: SolarPosition; energy: SolarPosition; autocast: SolarPosition }
+  { cube: SolarPosition; autocast: SolarPosition }
 > = {
   standard: {
     cube: { x: 606, y: 1 },
-    energy: { x: 635, y: 0 },
     autocast: { x: 1079, y: 0 },
   },
   long: {
     cube: { x: 630, y: 1 },
-    energy: { x: 682, y: 0 },
     autocast: { x: 1245, y: 0 },
   },
 };
@@ -274,6 +280,7 @@ interface AncientShipCataloguePanelProps {
   autocastEnabled: boolean;
   autocastDisabled?: boolean;
   declarationAttemptUnresolved?: boolean;
+  declarationBlocked?: boolean;
 }
 
 interface AncientAutocastControlProps {
@@ -297,7 +304,7 @@ export function AncientAutocastControl({
       aria-label="About Autocast"
       disabled={disabled}
       className={disabled
-        ? 'flex size-[24px] shrink-0 cursor-default items-center justify-center opacity-50'
+        ? 'flex size-[24px] shrink-0 cursor-default items-center justify-center'
         : 'flex size-[24px] shrink-0 items-center justify-center opacity-50 transition-opacity duration-100 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white'}
     >
       <InfoIcon className="size-[24px]" />
@@ -390,33 +397,39 @@ export function AncientShipCataloguePanel({
   autocastEnabled,
   autocastDisabled = false,
   declarationAttemptUnresolved = false,
+  declarationBlocked = false,
 }: AncientShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const [hoveredSiphonSpend, setHoveredSiphonSpend] = useState<number | null>(null);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
-  const isLongCatalogueLayout = catalogueLayout === 'long';
-  const canvas = isLongCatalogueLayout ? ANCIENT_LONG_CANVAS : ANCIENT_DESKTOP_CANVAS;
+  const canvas = ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT[catalogueLayout];
   const solarHeaderPositions = SOLAR_HEADER_POSITIONS[catalogueLayout];
+  const energyHeaderPosition = ANCIENT_ENERGY_HEADER_POSITION_BY_LAYOUT[catalogueLayout];
   const SimulacrumGraphic = SIMULACRUM_GRAPHICS[simulacrumSpecies] ?? SimulacrumHuman;
   const isDeclarationPresentation = presentation === 'declaration';
+  const isLiveCatalogue =
+    isDeclarationPresentation || buildCatalogue.context !== 'reference_only';
+  const isDeclarationBlocked =
+    declarationAttemptUnresolved || declarationBlocked;
+  const isActiveResolvedPowersStage =
+    isDeclarationPresentation &&
+    declarationStage === 'powers' &&
+    !isDeclarationBlocked;
   const selectorOpen = selectorMode != null;
   const canOpenSiphonSelector =
-    isDeclarationPresentation &&
-    declarationStage === 'powers' &&
-    declarationAttemptUnresolved !== true &&
+    isActiveResolvedPowersStage &&
     siphonSelector?.canOpen === true;
   const canOpenBlackHoleSelector =
-    isDeclarationPresentation &&
-    declarationStage === 'powers' &&
-    declarationAttemptUnresolved !== true &&
+    isActiveResolvedPowersStage &&
     blackHoleSelector?.canOpen === true;
   const canOpenSimulacrumSelector =
-    isDeclarationPresentation &&
-    declarationStage === 'powers' &&
-    declarationAttemptUnresolved !== true &&
+    isActiveResolvedPowersStage &&
     simulacrumSelector?.canOpen === true &&
     !selectorOpen;
+  const isAutocastDisabled =
+    autocastDisabled ||
+    (isLiveCatalogue && (!isActiveResolvedPowersStage || selectorOpen));
   const siphonSelectorX = SIPHON_SELECTOR_X[catalogueLayout];
   const blackHoleSelectorLayout = BLACK_HOLE_SELECTOR_LAYOUT[catalogueLayout];
   const handleHoveredSiphonSpendChange = useCallback((spend: number | null) => {
@@ -427,11 +440,11 @@ export function AncientShipCataloguePanel({
     if (
       selectorMode !== 'siphon' ||
       declarationStage !== 'powers' ||
-      declarationAttemptUnresolved
+      isDeclarationBlocked
     ) {
       setHoveredSiphonSpend(null);
     }
-  }, [declarationAttemptUnresolved, declarationStage, selectorMode]);
+  }, [isDeclarationBlocked, declarationStage, selectorMode]);
 
   useEffect(
     () => () => setHoveredSiphonSpend(null),
@@ -440,7 +453,10 @@ export function AncientShipCataloguePanel({
 
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
-    const isDimmed = isUnavailableContext || (isBuildableContext && !canAddShip);
+    const isDimmed =
+      isDeclarationPresentation ||
+      isUnavailableContext ||
+      (isBuildableContext && !canAddShip);
     const enableGraphicHover = shouldEnableCatalogueGraphicHover({
       context: buildCatalogue.context,
       canAddShip,
@@ -496,9 +512,7 @@ export function AncientShipCataloguePanel({
 
   if (
     !selectorOpen &&
-    isDeclarationPresentation &&
-    declarationStage === 'powers' &&
-    !declarationAttemptUnresolved &&
+    isActiveResolvedPowersStage &&
     hoveredSolarSlot
   ) {
     if (hoveredSolarSlot.id === 'SSIP') {
@@ -526,7 +540,7 @@ export function AncientShipCataloguePanel({
   const spendPreview: AncientEnergySpendPreview | null =
     selectorMode === 'siphon'
       ? declarationStage !== 'powers' ||
-        declarationAttemptUnresolved ||
+        isDeclarationBlocked ||
         hoveredSiphonSpend === null
         ? null
         : {
@@ -536,7 +550,7 @@ export function AncientShipCataloguePanel({
           }
       : selectorMode === 'simulacrum'
         ? declarationStage !== 'powers' ||
-          declarationAttemptUnresolved ||
+          isDeclarationBlocked ||
           simulacrumSelector?.hoveredPreviewBlueCost == null
           ? null
           : {
@@ -851,8 +865,8 @@ export function AncientShipCataloguePanel({
           <div
             className="absolute"
             style={{
-              left: solarHeaderPositions.energy.x,
-              top: solarHeaderPositions.energy.y,
+              left: energyHeaderPosition.x,
+              top: energyHeaderPosition.y,
             }}
           >
             {isDeclarationPresentation ? (
@@ -874,7 +888,7 @@ export function AncientShipCataloguePanel({
               top: solarHeaderPositions.autocast.y,
             }}
             checked={autocastEnabled}
-            disabled={autocastDisabled || selectorOpen}
+            disabled={isAutocastDisabled}
             onChange={actions.onSetAncientAutocastEnabled}
           />
 
@@ -925,6 +939,19 @@ export function AncientShipCataloguePanel({
             const canCast =
               manualSolarPowerId != null &&
               canCastManualSolarPowerById?.[manualSolarPowerId] === true;
+            const isSolarUsable =
+              manualSolarPowerId != null
+                ? canCast
+                : slot.id === 'SSIP'
+                  ? canOpenSiphonSelector
+                  : slot.id === 'SSIM'
+                    ? canOpenSimulacrumSelector
+                    : slot.id === 'SBLA'
+                      ? canOpenBlackHoleSelector
+                      : false;
+            const isSolarDimmed =
+              isLiveCatalogue &&
+              (!isActiveResolvedPowersStage || !isSolarUsable);
 
             return (
               <div
@@ -934,23 +961,18 @@ export function AncientShipCataloguePanel({
                 style={{
                   left: position.x,
                   top: position.y,
-                  opacity:
-                    isDeclarationPresentation &&
-                    slot.id === 'SSIM' &&
-                    !canOpenSimulacrumSelector
-                      ? 0.4
-                      : undefined,
                 }}
               >
                 <AncientSolarPowerSlot
                   graphic={Graphic}
+                  isDimmed={isSolarDimmed}
                   costRows={slot.costRows}
                   costPlacement={
                     'costPlacement' in slot ? slot.costPlacement : undefined
                   }
                   showPlus={'showPlus' in slot && slot.showPlus}
                   onClick={
-                    isManualCastButton && manualSolarPowerId
+                    isManualCastButton && manualSolarPowerId && canCast && !isDeclarationBlocked
                       ? () => actions.onCastAncientSolarPower(manualSolarPowerId)
                       : slot.id === 'SSIP' && canOpenSiphonSelector
                         ? () => {
@@ -968,15 +990,6 @@ export function AncientShipCataloguePanel({
                             actions.onOpenAncientSolarSelector('simulacrum');
                           }
                       : undefined
-                  }
-                  disabled={
-                    slot.id === 'SSIP'
-                      ? !canOpenSiphonSelector
-                      : slot.id === 'SBLA'
-                        ? !canOpenBlackHoleSelector
-                      : slot.id === 'SSIM'
-                        ? !canOpenSimulacrumSelector
-                      : !canCast || declarationAttemptUnresolved
                   }
                   ariaLabel={
                     isManualCastButton && manualSolarPowerId

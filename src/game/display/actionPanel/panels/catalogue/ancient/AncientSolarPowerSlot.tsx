@@ -7,24 +7,24 @@ import {
 interface AncientSolarPowerSlotProps {
   graphic: ComponentType<{ className?: string }>;
   costRows: readonly AncientEnergyCostRow[];
+  isDimmed?: boolean;
   costPlacement?: 'right' | 'below';
   showPlus?: boolean;
   onMouseEnter?: MouseEventHandler<HTMLElement>;
   onMouseLeave?: MouseEventHandler<HTMLElement>;
   onClick?: () => void;
-  disabled?: boolean;
   ariaLabel?: string;
 }
 
 export function AncientSolarPowerSlot({
   graphic: Graphic,
   costRows,
+  isDimmed = false,
   costPlacement = 'right',
   showPlus = false,
   onMouseEnter,
   onMouseLeave,
   onClick,
-  disabled = false,
   ariaLabel,
 }: AncientSolarPowerSlotProps) {
   const className = costPlacement === 'below'
@@ -52,7 +52,7 @@ export function AncientSolarPowerSlot({
         type="button"
         aria-label={ariaLabel}
         className={className}
-        disabled={disabled}
+        style={{ opacity: isDimmed ? 0.4 : 1 }}
         onClick={onClick}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
@@ -65,6 +65,8 @@ export function AncientSolarPowerSlot({
   return (
     <div
       className={className}
+      aria-disabled="true"
+      style={{ opacity: isDimmed ? 0.4 : 1 }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >

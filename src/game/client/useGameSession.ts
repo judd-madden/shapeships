@@ -2493,7 +2493,7 @@ export function useGameSession(
     setActivePanelId(
       nextStage === 'charges'
         ? 'ap.battle.charges.ancient'
-        : 'ap.battle.solar_powers.ancient'
+        : 'ap.catalog.ships.ancient'
     );
   }, [
     ancientChargeDeclarationWorkflow,
@@ -3891,12 +3891,7 @@ useEffect(() => {
           return 'ap.battle.charges.centaur';
         }
         if (mySpecies === 'ancient') {
-          if (phaseKey === 'battle.charge_response') {
-            return 'ap.battle.charges.ancient';
-          }
-          return activeAncientChargeDeclarationWorkflow?.stage === 'powers'
-            ? 'ap.battle.solar_powers.ancient'
-            : 'ap.battle.charges.ancient';
+          return 'ap.battle.charges.ancient';
         }
         return null;
       
@@ -4199,7 +4194,7 @@ useEffect(() => {
     (
       phaseKey === 'build.drawing' &&
       (hasFrigateDrawingAction || hasEvolverDrawingAction || hasQuantumMysticDrawingAction)
-    ) || activeAncientChargeDeclarationWorkflow != null;
+    ) || activeAncientChargeDeclarationWorkflow?.hadChargeStage === true;
 
   // Actions tab is visible if we have a target panel and either:
   // - server says actions exist, OR
@@ -5067,7 +5062,7 @@ useEffect(() => {
           ...activeAncientChargeDeclarationWorkflow,
           stage: 'powers',
         });
-        setActivePanelId('ap.battle.solar_powers.ancient');
+        setActivePanelId('ap.catalog.ships.ancient');
         return;
       }
 
@@ -5245,6 +5240,35 @@ useEffect(() => {
       console.log('[useGameSession] Action panel tab clicked:', tabId);
 
       if (healthResolutionPresentationActive) {
+        return;
+      }
+
+      if (
+        tabId === 'tab.actions' &&
+        phaseKey === 'battle.charge_declaration' &&
+        activeAncientChargeDeclarationWorkflow?.key === ancientChargeDeclarationWorkflowKey &&
+        activeAncientChargeDeclarationWorkflow.stage === 'powers' &&
+        activeAncientChargeDeclarationWorkflow.hadChargeStage &&
+        activeAncientChargeDeclarationAttempt == null &&
+        !activeAncientChargeDeclarationWorkflow.rejectionRecoveryPending &&
+        !ancientPlayerReady
+      ) {
+        setAncientBlackHoleHover(null);
+        setAncientSimulacrumHover(null);
+        setAncientChargeDeclarationWorkflow((current) =>
+          current?.key === ancientChargeDeclarationWorkflowKey &&
+          current.stage === 'powers' &&
+          current.hadChargeStage &&
+          !current.rejectionRecoveryPending
+            ? {
+                ...current,
+                stage: 'charges',
+                selectorMode: null,
+                blackHoleSelectedTargetInstanceIds: [],
+              }
+            : current
+        );
+        setActivePanelId('ap.battle.charges.ancient');
         return;
       }
       
@@ -5801,8 +5825,13 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
 
     onSetAncientAutocastEnabled: (enabled: boolean) => {
       if (
-        phaseKey === 'battle.charge_declaration' &&
-        (activeAncientChargeDeclarationAttempt || ancientPlayerReady)
+        phaseKey !== 'battle.charge_declaration' ||
+        activeAncientChargeDeclarationWorkflow?.key !== ancientChargeDeclarationWorkflowKey ||
+        activeAncientChargeDeclarationWorkflow.stage !== 'powers' ||
+        activeAncientChargeDeclarationWorkflow.selectorMode !== null ||
+        activeAncientChargeDeclarationAttempt != null ||
+        activeAncientChargeDeclarationWorkflow.rejectionRecoveryPending ||
+        ancientPlayerReady
       ) {
         return;
       }
