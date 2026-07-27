@@ -790,42 +790,30 @@ export function FleetArea({
                 />
               </div>
             ) : (
-              <div
-                className={cx(
-                  'ss-boardTurnPulse flex h-full min-h-0 w-full flex-col gap-[18px] overflow-hidden',
-                  turnPulse.isActive && 'ss-boardTurnPulse-active'
-                )}
-                onAnimationEnd={turnPulse.onAnimationEnd}
+              <FitToBox
+                minScale={fitMinScale}
+                maxScale={1}
+                className="h-full w-full"
               >
-                <div className="min-h-0 w-full flex-1 overflow-hidden">
-                  <FitToBox
-                    minScale={fitMinScale}
-                    maxScale={1}
-                    className="h-full w-full"
-                    deferInnerResizeComputeMs={
-                      flipEnabled ? LIVE_FLEET_FLIP_DURATION_MS : 0
-                    }
+                {hasLiveContent && grouped ? (
+                  <div
+                    className={cx(
+                      'ss-boardTurnPulse flex w-max flex-col items-center gap-[18px]',
+                      liveLayoutCanvasClassName,
+                      turnPulse.isActive && 'ss-boardTurnPulse-active'
+                    )}
+                    onAnimationEnd={turnPulse.onAnimationEnd}
                   >
-                    {hasLiveContent && grouped ? (
-                      <div
-                        className={cx(
-                          'flex flex-col items-center gap-[18px]',
-                          liveLayoutCanvasClassName
-                        )}
-                      >
-                        {renderLiveRow(grouped.row1)}
-                        {renderLiveRow(grouped.row2)}
-                        {renderLiveRow(grouped.row3)}
-                      </div>
-                    ) : null}
-                  </FitToBox>
-                </div>
-
-                <AncientSolarLedgerRow
-                  entries={ancientSolarEntries}
-                  isBattleReveal={isBattleReveal}
-                />
-              </div>
+                    {grouped.row1.length > 0 ? renderLiveRow(grouped.row1) : null}
+                    {grouped.row2.length > 0 ? renderLiveRow(grouped.row2) : null}
+                    {grouped.row3.length > 0 ? renderLiveRow(grouped.row3) : null}
+                    <AncientSolarLedgerRow
+                      entries={ancientSolarEntries}
+                      isBattleReveal={isBattleReveal}
+                    />
+                  </div>
+                ) : null}
+              </FitToBox>
             )
           ) : (
             <FitToBox

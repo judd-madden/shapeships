@@ -181,59 +181,69 @@ export function AncientSolarLedgerRow({
     ignoredAncestorScaleClassNames: IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES,
   });
 
-  return (
-    <div className={compact
-      ? 'h-[50px] w-full min-w-0 shrink-0'
-      : 'h-[92px] w-full min-w-0 shrink-0'}>
-      {presentedEntries.length > 0 ? (
-        <FitToBox
-          minScale={0.15}
-          maxScale={1}
-          className="h-full w-full"
-          deferInnerResizeComputeMs={SOLAR_ROW_FLIP_DURATION_MS}
-        >
-          <SolarLedgerClearAnimationWrapper
-            active={isClearingAtBattleReveal}
-            onAnimationEnd={() => {
-              if (activeClearCycle !== null) {
-                completeClearCycle(activeClearCycle);
-              }
-            }}
-          >
-            <div className="inline-flex w-max flex-row items-center justify-center gap-[18px] sm:gap-[24px]">
-              {presentedEntries.map((entry) => {
-                return (
-                  <div
-                    key={entry.displayKey}
-                    ref={getFlipRef(entry.displayKey)}
-                    className="inline-flex shrink-0 flex-col items-center justify-center gap-[4px]"
-                  >
-                    <SolarPowerAnimationWrapper
-                      solarPowerId={entry.solarPowerId}
-                      token={entryAnimationTokens[entry.displayKey]}
-                      clearing={isClearingAtBattleReveal}
-                    >
-                      {entry.solarPowerId === 'SSIM' ? (
-                        <AncientSimulacrumLedgerGraphic
-                          presentation={entry.simulacrumPresentation}
-                        />
-                      ) : (() => {
-                        const SolarGraphic = SOLAR_GRAPHIC_BY_ID[entry.solarPowerId];
-                        return <SolarGraphic className="block shrink-0" />;
-                      })()}
-                    </SolarPowerAnimationWrapper>
-                    {entry.effectCaption !== undefined ? (
-                      <span className="pointer-events-none select-none text-center font-['Roboto'] text-[18px] font-bold leading-none text-white">
-                        {entry.effectCaption}
-                      </span>
-                    ) : null}
-                  </div>
-                );
-              })}
+  const ledgerContents = presentedEntries.length > 0 ? (
+    <SolarLedgerClearAnimationWrapper
+      active={isClearingAtBattleReveal}
+      onAnimationEnd={() => {
+        if (activeClearCycle !== null) {
+          completeClearCycle(activeClearCycle);
+        }
+      }}
+    >
+      <div className="inline-flex w-max flex-row items-center justify-center gap-[18px] sm:gap-[24px]">
+        {presentedEntries.map((entry) => {
+          return (
+            <div
+              key={entry.displayKey}
+              ref={getFlipRef(entry.displayKey)}
+              className="inline-flex shrink-0 flex-col items-center justify-center gap-[4px]"
+            >
+              <SolarPowerAnimationWrapper
+                solarPowerId={entry.solarPowerId}
+                token={entryAnimationTokens[entry.displayKey]}
+                clearing={isClearingAtBattleReveal}
+              >
+                {entry.solarPowerId === 'SSIM' ? (
+                  <AncientSimulacrumLedgerGraphic
+                    presentation={entry.simulacrumPresentation}
+                  />
+                ) : (() => {
+                  const SolarGraphic = SOLAR_GRAPHIC_BY_ID[entry.solarPowerId];
+                  return <SolarGraphic className="block shrink-0" />;
+                })()}
+              </SolarPowerAnimationWrapper>
+              {entry.effectCaption !== undefined ? (
+                <span className="pointer-events-none select-none text-center font-['Roboto'] text-[18px] font-bold leading-none text-white">
+                  {entry.effectCaption}
+                </span>
+              ) : null}
             </div>
-          </SolarLedgerClearAnimationWrapper>
-        </FitToBox>
-      ) : null}
+          );
+        })}
+      </div>
+    </SolarLedgerClearAnimationWrapper>
+  ) : null;
+
+  if (compact) {
+    return (
+      <div className="h-[50px] w-full min-w-0 shrink-0">
+        {ledgerContents ? (
+          <FitToBox
+            minScale={0.15}
+            maxScale={1}
+            className="h-full w-full"
+            deferInnerResizeComputeMs={SOLAR_ROW_FLIP_DURATION_MS}
+          >
+            {ledgerContents}
+          </FitToBox>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-[102px] w-max shrink-0 items-center justify-center">
+      {ledgerContents}
     </div>
   );
 }
