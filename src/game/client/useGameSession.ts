@@ -2626,6 +2626,17 @@ export function useGameSession(
     ancientSimulacrumBoardTargeting.targetStatesBySide.opponent[
       ancientSimulacrumHover.stackKey
     ]?.isTargetable === true;
+  const ancientSimulacrumHoveredTarget =
+    ancientSimulacrumSelectorActive &&
+    ancientSimulacrumHover?.workflowKey === ancientChargeDeclarationWorkflowKey &&
+    ancientSimulacrumHoveredStackIsTargetable
+      ? allocateNextAncientSimulacrumTarget({
+          targeting: ancientSimulacrumTargeting,
+          stackKey: ancientSimulacrumHover.stackKey,
+        })
+      : null;
+  const ancientSimulacrumHoveredPreviewBlueCost =
+    ancientSimulacrumHoveredTarget?.previewBlueCost ?? null;
 
   useLayoutEffect(() => {
     setAncientChargeDeclarationWorkflow((current) => {
@@ -4963,7 +4974,10 @@ useEffect(() => {
           canCastManualSolarPowerById: canCastAncientManualSolarPowerById,
           selectorMode: activeAncientChargeDeclarationWorkflow.selectorMode,
           siphonSelector: ancientSiphonSelector,
-          simulacrumSelector: ancientSimulacrumSelector,
+          simulacrumSelector: {
+            ...ancientSimulacrumSelector,
+            hoveredPreviewBlueCost: ancientSimulacrumHoveredPreviewBlueCost,
+          },
           blackHoleSelector: {
             canOpen: canCastAncientBlackHole,
             requiredTargetCount: ancientBlackHoleTargeting.requiredTargetCount,

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Siphon } from '../../../../../../graphics/ancient/assets';
 import {
   ANCIENT_SIPHON_DEFAULT_SELECTOR_MAX_SPEND,
@@ -12,6 +12,7 @@ interface AncientSiphonSelectorProps {
   availableWidth: number;
   x: number;
   onSelect: (lockedAmount: number) => void;
+  onHoveredSpendChange: (hoveredSpend: number | null) => void;
 }
 
 export function AncientSiphonSelector({
@@ -19,6 +20,7 @@ export function AncientSiphonSelector({
   availableWidth,
   x,
   onSelect,
+  onHoveredSpendChange,
 }: AncientSiphonSelectorProps) {
   const [hoveredSpend, setHoveredSpend] = useState<number | null>(null);
   const maxDisplayedSpend = Math.max(
@@ -30,11 +32,26 @@ export function AncientSiphonSelector({
     (_, index) => index + ANCIENT_SIPHON_MINIMUM_SPEND
   );
 
+  useEffect(
+    () => () => onHoveredSpendChange(null),
+    [onHoveredSpendChange]
+  );
+
+  useEffect(() => {
+    if (hoveredSpend !== null && hoveredSpend > maxSpend) {
+      setHoveredSpend(null);
+      onHoveredSpendChange(null);
+    }
+  }, [hoveredSpend, maxSpend, onHoveredSpendChange]);
+
   return (
     <div
       className="absolute flex min-w-0 items-center gap-[16px]"
       style={{ left: `${x}px`, top: '75px', width: `${availableWidth}px` }}
-      onMouseLeave={() => setHoveredSpend(null)}
+      onMouseLeave={() => {
+        setHoveredSpend(null);
+        onHoveredSpendChange(null);
+      }}
     >
       <div className="flex shrink-0 items-center justify-center">
         <Siphon />
@@ -72,9 +89,17 @@ export function AncientSiphonSelector({
                   opacity: valid ? 1 : 0.4,
                   boxShadow: cumulativelyHovered ? 'inset 0 0 0 2px white' : undefined,
                 }}
-                onMouseEnter={() => setHoveredSpend(valid ? candidate : null)}
+                onMouseEnter={() => {
+                  const nextHoveredSpend = valid ? candidate : null;
+                  setHoveredSpend(nextHoveredSpend);
+                  onHoveredSpendChange(nextHoveredSpend);
+                }}
                 onClick={() => {
-                  if (valid) onSelect(candidate);
+                  if (valid) {
+                    setHoveredSpend(null);
+                    onHoveredSpendChange(null);
+                    onSelect(candidate);
+                  }
                 }}
               >
                 <AncientEnergyCostPips

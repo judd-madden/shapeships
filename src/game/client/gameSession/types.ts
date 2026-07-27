@@ -697,6 +697,7 @@ export interface ActionPanelViewModel {
     simulacrumSelector: {
       canOpen: boolean;
       blueAvailable: number;
+      hoveredPreviewBlueCost: number | null;
     };
     blackHoleSelector: {
       canOpen: boolean;

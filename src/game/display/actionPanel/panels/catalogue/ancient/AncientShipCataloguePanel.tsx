@@ -8,7 +8,7 @@
  * NO backend calls, NO rules validation, NO engine imports
  */
 
-import type { ComponentType, CSSProperties } from 'react';
+import { useCallback, useEffect, useState, type ComponentType, type CSSProperties } from 'react';
 import type { ActionPanelViewModel, GameSessionActions } from "../../../../../client/useGameSession";
 import type { SpeciesId } from '../../../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { Checkbox, InfoIcon } from '../../../../../../components/ui/primitives';
@@ -52,6 +52,7 @@ import {
 import {
   AncientEnergyDisplay,
   type AncientEnergyCostRow,
+  type AncientEnergySpendPreview,
 } from './AncientEnergyDisplay';
 import { AncientSolarPowerSlot } from './AncientSolarPowerSlot';
 import { AncientBlackHoleSelector } from './AncientBlackHoleSelector';
@@ -165,6 +166,20 @@ const SOLAR_POWER_SLOTS = [
 ] as const satisfies readonly SolarPowerSlotConfig[];
 
 const SOLAR_POWER_IDS = new Set<ShipDefId>(SOLAR_POWER_SLOTS.map((slot) => slot.id));
+
+function buildEnergySpendPreview(
+  costRows: readonly AncientEnergyCostRow[]
+): AncientEnergySpendPreview {
+  return costRows.reduce<AncientEnergySpendPreview>(
+    (preview, row) => {
+      const color = row.color === 'cyan' ? 'blue' : row.color;
+      preview[color] += row.count;
+      return preview;
+    },
+    { green: 0, red: 0, blue: 0 }
+  );
+}
+
 const MANUAL_SOLAR_POWER_LABEL_BY_ID: Record<FixedAncientManualSolarPowerId, string> = {
   SLIF: 'Life',
   SSTA: 'Star Birth',
@@ -247,6 +262,7 @@ interface AncientShipCataloguePanelProps {
   simulacrumSelector?: {
     canOpen: boolean;
     blueAvailable: number;
+    hoveredPreviewBlueCost: number | null;
   };
   blackHoleSelector?: {
     canOpen: boolean;
@@ -376,6 +392,7 @@ export function AncientShipCataloguePanel({
   declarationAttemptUnresolved = false,
 }: AncientShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
+  const [hoveredSiphonSpend, setHoveredSiphonSpend] = useState<number | null>(null);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
   const isLongCatalogueLayout = catalogueLayout === 'long';
@@ -402,6 +419,24 @@ export function AncientShipCataloguePanel({
     !selectorOpen;
   const siphonSelectorX = SIPHON_SELECTOR_X[catalogueLayout];
   const blackHoleSelectorLayout = BLACK_HOLE_SELECTOR_LAYOUT[catalogueLayout];
+  const handleHoveredSiphonSpendChange = useCallback((spend: number | null) => {
+    setHoveredSiphonSpend(spend);
+  }, []);
+
+  useEffect(() => {
+    if (
+      selectorMode !== 'siphon' ||
+      declarationStage !== 'powers' ||
+      declarationAttemptUnresolved
+    ) {
+      setHoveredSiphonSpend(null);
+    }
+  }, [declarationAttemptUnresolved, declarationStage, selectorMode]);
+
+  useEffect(
+    () => () => setHoveredSiphonSpend(null),
+    []
+  );
 
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
@@ -454,6 +489,64 @@ export function AncientShipCataloguePanel({
           buildCatalogue,
         })
     : null;
+  const hoveredSolarSlot = hover.state.activeShipId
+    ? SOLAR_POWER_SLOTS.find((slot) => slot.id === hover.state.activeShipId)
+    : undefined;
+  let mainIconSpendPreview: AncientEnergySpendPreview | null = null;
+
+  if (
+    !selectorOpen &&
+    isDeclarationPresentation &&
+    declarationStage === 'powers' &&
+    !declarationAttemptUnresolved &&
+    hoveredSolarSlot
+  ) {
+    if (hoveredSolarSlot.id === 'SSIP') {
+      if (canOpenSiphonSelector) {
+        mainIconSpendPreview = {
+          green: ANCIENT_SIPHON_MINIMUM_SPEND,
+          red: ANCIENT_SIPHON_MINIMUM_SPEND,
+          blue: 0,
+        };
+      }
+    } else if (hoveredSolarSlot.id === 'SSIM') {
+      mainIconSpendPreview = null;
+    } else if (hoveredSolarSlot.id === 'SBLA') {
+      if (canOpenBlackHoleSelector) {
+        mainIconSpendPreview = buildEnergySpendPreview(hoveredSolarSlot.costRows);
+      }
+    } else if (
+      isFixedAncientManualSolarPowerId(hoveredSolarSlot.id) &&
+      canCastManualSolarPowerById?.[hoveredSolarSlot.id] === true
+    ) {
+      mainIconSpendPreview = buildEnergySpendPreview(hoveredSolarSlot.costRows);
+    }
+  }
+
+  const spendPreview: AncientEnergySpendPreview | null =
+    selectorMode === 'siphon'
+      ? declarationStage !== 'powers' ||
+        declarationAttemptUnresolved ||
+        hoveredSiphonSpend === null
+        ? null
+        : {
+            green: hoveredSiphonSpend,
+            red: hoveredSiphonSpend,
+            blue: 0,
+          }
+      : selectorMode === 'simulacrum'
+        ? declarationStage !== 'powers' ||
+          declarationAttemptUnresolved ||
+          simulacrumSelector?.hoveredPreviewBlueCost == null
+          ? null
+          : {
+              green: 0,
+              red: 0,
+              blue: simulacrumSelector.hoveredPreviewBlueCost,
+            }
+        : selectorOpen
+          ? null
+          : mainIconSpendPreview;
 
   const content = (
     /* Container with exact width matching design */
@@ -767,6 +860,7 @@ export function AncientShipCataloguePanel({
                 mode="active"
                 pool={declarationEnergy ?? ZERO_ANCIENT_ENERGY_POOL}
                 capacity={declarationEnergyCapacity ?? ZERO_ANCIENT_ENERGY_POOL}
+                spendPreview={spendPreview}
               />
             ) : (
               <AncientEnergyDisplay {...(catalogueEnergy ?? REFERENCE_ANCIENT_CATALOGUE_ENERGY)} />
@@ -790,7 +884,10 @@ export function AncientShipCataloguePanel({
                 type="button"
                 className="absolute cursor-pointer rounded-[10px] border-0 bg-[var(--shapeships-grey-90)] px-[16px] py-[6px] font-['Roboto'] text-[16px] font-normal leading-normal text-white hover:bg-[var(--shapeships-grey-70)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
                 style={{ left: '426px', top: '30px', fontVariationSettings: "'wdth' 100" }}
-                onClick={actions.onCancelAncientSolarSelector}
+                onClick={() => {
+                  setHoveredSiphonSpend(null);
+                  actions.onCancelAncientSolarSelector();
+                }}
               >
                 Back
               </button>
@@ -800,6 +897,7 @@ export function AncientShipCataloguePanel({
                   availableWidth={canvas.width - siphonSelectorX}
                   x={siphonSelectorX}
                   onSelect={actions.onCastAncientSiphon}
+                  onHoveredSpendChange={handleHoveredSiphonSpendChange}
                 />
               ) : selectorMode === 'blackHole' ? (
                 <AncientBlackHoleSelector
