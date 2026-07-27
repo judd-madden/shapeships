@@ -68,10 +68,12 @@ function buildSolarPresentationSignature(
 export function AncientSolarLedgerRow({
   entries,
   compact = false,
+  hasCopiedShipBand = false,
   isBattleReveal = false,
 }: {
   entries: readonly AncientSolarDisplayEntry[];
   compact?: boolean;
+  hasCopiedShipBand?: boolean;
   isBattleReveal?: boolean;
 }) {
   const [presentedEntries, setPresentedEntries] = useState<readonly AncientSolarDisplayEntry[]>(
@@ -226,7 +228,11 @@ export function AncientSolarLedgerRow({
 
   if (compact) {
     return (
-      <div className="h-[50px] w-full min-w-0 shrink-0">
+      <div
+        className={hasCopiedShipBand
+          ? 'h-[44px] w-full min-w-0 shrink-0'
+          : 'h-[50px] w-full min-w-0 shrink-0'}
+      >
         {ledgerContents ? (
           <FitToBox
             minScale={0.15}

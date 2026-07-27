@@ -562,6 +562,12 @@ export function FleetArea({
     species === 'ancient' || (ships && ships.length > 0)
       ? groupShipsIntoRows(ships ?? [], order, rowSets, species, liveRowOverrides)
       : null;
+  const isCompactAncientLayout =
+    species === 'ancient' && liveRowsLayout === 'ancientFourRows';
+  const usesPairedBandFlip =
+    liveRowsLayout === 'pairedRows' || isCompactAncientLayout;
+  const hasCopiedShipBand =
+    isCompactAncientLayout && grouped !== null && grouped.row3.length > 0;
 
   // FLIP layout animation for smooth repositioning (live fleet only)
   // Derive keys from rendered ships in stable order
@@ -589,7 +595,7 @@ export function FleetArea({
     getLiveFleetItemLayoutSignatures(bottomPairedBandShips);
   const getStackedFlipRef = useFlipLayout(
     allRenderKeys,
-    flipEnabled && liveRowsLayout !== 'pairedRows',
+    flipEnabled && !usesPairedBandFlip,
     {
       durationMs: LIVE_FLEET_FLIP_DURATION_MS,
       easing: 'ease-in-out',
@@ -603,27 +609,31 @@ export function FleetArea({
   );
   const getTopPairedBandFlipRef = useFlipLayout(
     topPairedBandRenderKeys,
-    flipEnabled && liveRowsLayout === 'pairedRows',
+    flipEnabled && usesPairedBandFlip,
     {
       durationMs: LIVE_FLEET_FLIP_DURATION_MS,
       easing: 'ease-in-out',
       layoutSignature: topPairedBandLayoutSignature,
       itemLayoutSignatures: topPairedBandItemLayoutSignatures,
+      skipSelfChangedItem: species === 'ancient',
       skipSelfChangedItemForNextRun: false,
       skipWhenAncestorScaleChanged: true,
+      ancestorScaleChangeEpsilon: LIVE_FLEET_ANCESTOR_SCALE_EPSILON,
       ignoredAncestorScaleClassNames: IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES,
     }
   );
   const getBottomPairedBandFlipRef = useFlipLayout(
     bottomPairedBandRenderKeys,
-    flipEnabled && liveRowsLayout === 'pairedRows',
+    flipEnabled && usesPairedBandFlip,
     {
       durationMs: LIVE_FLEET_FLIP_DURATION_MS,
       easing: 'ease-in-out',
       layoutSignature: bottomPairedBandLayoutSignature,
       itemLayoutSignatures: bottomPairedBandItemLayoutSignatures,
+      skipSelfChangedItem: species === 'ancient',
       skipSelfChangedItemForNextRun: false,
       skipWhenAncestorScaleChanged: true,
+      ancestorScaleChangeEpsilon: LIVE_FLEET_ANCESTOR_SCALE_EPSILON,
       ignoredAncestorScaleClassNames: IGNORED_FLIP_ANCESTOR_SCALE_CLASS_NAMES,
     }
   );
@@ -724,8 +734,6 @@ export function FleetArea({
   };
 
   const hasLiveContent = species === 'ancient' || renderedShips.length > 0;
-  const isCompactAncientLayout =
-    species === 'ancient' && liveRowsLayout === 'ancientFourRows';
   const hasVoidShips = Boolean(voidShips && voidShips.length > 0);
   const liveRowsClassName =
     liveRowsLayout === 'pairedRows'
@@ -759,33 +767,69 @@ export function FleetArea({
                 )}
                 onAnimationEnd={turnPulse.onAnimationEnd}
               >
-                <div className="min-h-0 w-full flex-1 overflow-hidden">
-                  <FitToBox
-                    minScale={0.15}
-                    maxScale={1}
-                    className="h-full w-full"
-                    deferInnerResizeComputeMs={
-                      flipEnabled ? LIVE_FLEET_FLIP_DURATION_MS : 0
-                    }
-                  >
-                    {hasLiveContent && grouped ? (
-                      <div
-                        className={cx(
-                          'flex flex-col items-center gap-[10px]',
-                          liveLayoutCanvasClassName
-                        )}
+                <div
+                  className={cx(
+                    'flex min-h-0 w-full flex-1 flex-col overflow-hidden',
+                    hasCopiedShipBand && 'gap-[4px]'
+                  )}
+                >
+                  <div className="min-h-0 w-full flex-1 overflow-hidden">
+                    <FitToBox
+                      minScale={0.15}
+                      maxScale={1}
+                      className="h-full w-full"
+                      deferInnerResizeComputeMs={
+                        flipEnabled ? LIVE_FLEET_FLIP_DURATION_MS : 0
+                      }
+                    >
+                      {hasLiveContent && grouped ? (
+                        <div
+                          className={cx(
+                            'flex items-center justify-center',
+                            liveLayoutCanvasClassName
+                          )}
+                        >
+                          {renderPairedBand(
+                            grouped.row1,
+                            grouped.row2,
+                            getTopPairedBandFlipRef
+                          )}
+                        </div>
+                      ) : null}
+                    </FitToBox>
+                  </div>
+
+                  {hasCopiedShipBand && grouped ? (
+                    <div className="min-h-0 w-full flex-1 overflow-hidden">
+                      <FitToBox
+                        minScale={0.15}
+                        maxScale={1}
+                        className="h-full w-full"
+                        deferInnerResizeComputeMs={
+                          flipEnabled ? LIVE_FLEET_FLIP_DURATION_MS : 0
+                        }
                       >
-                        {grouped.row1.length > 0 ? renderLiveRow(grouped.row1) : null}
-                        {grouped.row2.length > 0 ? renderLiveRow(grouped.row2) : null}
-                        {grouped.row3.length > 0 ? renderLiveRow(grouped.row3) : null}
-                      </div>
-                    ) : null}
-                  </FitToBox>
+                        <div
+                          className={cx(
+                            'flex items-center justify-center',
+                            liveLayoutCanvasClassName
+                          )}
+                        >
+                          {renderLiveRow(
+                            grouped.row3,
+                            'justify-center gap-[18px]',
+                            getBottomPairedBandFlipRef
+                          )}
+                        </div>
+                      </FitToBox>
+                    </div>
+                  ) : null}
                 </div>
 
                 <AncientSolarLedgerRow
                   entries={ancientSolarEntries}
                   compact
+                  hasCopiedShipBand={hasCopiedShipBand}
                   isBattleReveal={isBattleReveal}
                 />
               </div>
