@@ -1581,7 +1581,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charge Declaration",
-        "text": "Heal and deal damage based on energy spent. You must spend an EQUAL amount of green and red energy.\\n4-7 of each: 3X-4 healing and damage.\\n8+ of each: (X-4)×5 healing and damage."
+        "text": "Heal and deal damage based on energy spent. You must spend an EQUAL amount of green and red energy."
       }
     ],
     "energyCost": {
@@ -1590,7 +1590,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "blue": 0,
       "xBlue": false
     },
-    "extraRules": "",
+    "extraRules": "4-7 of each: 3X-4 healing and damage. 8+ of each: (X-4)×5 healing and damage.",
     "stackCaption": "N/A",
     "colour": "N/A",
     "numberOfGraphics": 1

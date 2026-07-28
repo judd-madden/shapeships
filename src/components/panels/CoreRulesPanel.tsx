@@ -53,14 +53,14 @@ function RuleRow({
 
 export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
   return (
-    <div className="content-stretch flex flex-col gap-[36px] items-start relative shrink-0 w-full">
+    <div className="content-stretch flex flex-col gap-[24px] sm:gap-[36px] items-start relative shrink-0 w-full">
       {/* Page Title */}
       <p className="font-black leading-[normal] relative shrink-0 text-[24px] sm:text-[36px]" style={{ fontVariationSettings: "'wdth' 100" }}>
         Core Rules
       </p>
 
       {/* Overview Section */}
-      <div className="content-stretch flex flex-col gap-[36px] items-start relative shrink-0 w-full">
+      <div className="content-stretch flex flex-col gap-[24px] sm:gap-[36px] items-start relative shrink-0 w-full">
         <HrGradient />
 
         {/* Your Goal */}

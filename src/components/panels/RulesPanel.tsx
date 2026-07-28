@@ -26,7 +26,7 @@ export function RulesPanel() {
   };
 
   return (
-    <div className="content-stretch relative flex w-full min-w-0 max-w-[1200px] flex-col items-start gap-[50px] ">
+    <div className="content-stretch relative flex w-full min-w-0 max-w-[1200px] flex-col items-start gap-[32px] sm:gap-[50px] ">
       {/* Secondary Navigation */}
       <div className="content-center relative flex w-full flex-wrap items-center gap-[10px] pb-[8px] md:pb-[16px] lg:pb-[24px]">
         <SecondaryNavItem 
