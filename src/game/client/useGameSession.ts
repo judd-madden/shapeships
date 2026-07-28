@@ -3939,9 +3939,10 @@ useEffect(() => {
         return renderableChoiceActions.length > 0 ? 'ap.build.dice_roll.centaur' : null;
       
       case 'build.ships_that_build':
-        if (mySpecies === 'human') return 'ap.build.ships_that_build.human';
-        if (mySpecies === 'centaur' && renderableActionShipPresence.hasCarBuildAction) {
-          return 'ap.build.ships_that_build.centaur.mixed';
+        if (renderableActionShipPresence.hasCarBuildAction) {
+          return mySpecies === 'human'
+            ? 'ap.build.ships_that_build.human'
+            : 'ap.build.ships_that_build.centaur.mixed';
         }
         if (mySpecies === 'xenite') return 'ap.build.ships_that_build.xenite';
         return null;
