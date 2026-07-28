@@ -87,10 +87,10 @@ export function MenuShell({
   };
 
   return (
-    <div className="content-stretch relative flex size-full flex-col items-center px-[5%] pb-[120px] pt-[40px] 2xl:pt-[60px]">
-      <div className="content-stretch relative flex w-full max-w-[1430px] shrink-0 flex-col items-center gap-[12px] md:gap-[8px]">
+    <div className="content-stretch relative flex size-full flex-col items-center px-[5%] pb-[120px] pt-[20px] sm:pt-[40px] 2xl:pt-[60px]">
+      <div className="content-stretch relative flex w-full max-w-[1430px] shrink-0 flex-col items-center gap-[8px] md:gap-[8px]">
         {/* Menu Header */}
-        <div className="content-stretch relative flex w-full shrink-0 flex-col justify-between gap-8 lg:flex-row lg:gap-10 items-center pb-[20px] sm:pb-[32px]">
+        <div className="content-stretch relative flex w-full shrink-0 flex-col justify-between gap-4 lg:flex-row lg:gap-10 items-center pb-[12px] sm:pb-[32px]">
           {/* Logo */}
           <div className="relative inline-grid shrink-0 grid-cols-[max-content] grid-rows-[max-content] place-items-start leading-[0]">
             <p className="[grid-area:1_/_1] relative ml-[60px] mt-[0.31px] font-['Roboto',sans-serif] text-[36px] font-bold leading-[normal] not-italic text-nowrap sm:ml-[80px] sm:text-[48px] md:ml-[130.04px] md:text-[67.563px]">
@@ -174,11 +174,11 @@ export function MenuShell({
         </div>
 
         {/* Main Wrapper */}
-        <div className="content-stretch relative flex w-full shrink-0 flex-col items-start gap-[32px] pr-0 lg:flex-row lg:gap-[28px] xl:gap-[50px]">
+        <div className="content-stretch relative flex w-full shrink-0 flex-col items-start gap-[32px] pr-0 min-[1025px]:flex-row min-[1025px]:gap-[28px] xl:gap-[50px]">
           {/* Sidebar */}
-          <div className="content-stretch relative flex w-full shrink-0 flex-col items-start lg:w-[250px] xl:w-[340px] pb-[0px] sm:pb-[24px]">
+          <div className="content-stretch relative flex w-full shrink-0 flex-col items-start pb-0 min-[1025px]:w-[250px] min-[1025px]:pb-[24px] xl:w-[340px]">
             {/* Main Nav */}
-            <div className="content-stretch relative flex w-full flex-col sm:flex-wrap items-start gap-x-[28px] gap-y-[24px] pr-0 py-0 md:gap-x-[36px] lg:flex-col lg:gap-[36px] lg:pl-[20px] xl:gap-[50px] xl:pl-[40px]">
+            <div className="content-stretch relative flex w-full flex-col items-start gap-x-[28px] gap-y-[24px] py-0 pr-0 min-[641px]:flex-row min-[641px]:flex-nowrap min-[641px]:gap-y-0 min-[1025px]:flex-col min-[1025px]:gap-x-0 min-[1025px]:gap-y-[36px] min-[1025px]:pl-[20px] xl:gap-y-[50px] xl:pl-[40px]">
               {/* Multiplayer */}
               <div 
                 className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[0px] sm:pb-[5px] pt-0"
@@ -197,7 +197,7 @@ export function MenuShell({
                 </p>
               </div>
 
-              {/* Play Computer */}
+              {/* Single Player */}
               <div 
                 className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[0px] sm:pb-[5px] pt-0"
                 onClick={() => setActivePanel('playComputer')}
@@ -211,7 +211,7 @@ export function MenuShell({
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
                 >
-                  Play Computer
+                  Single Player
                 </p>
               </div>
 

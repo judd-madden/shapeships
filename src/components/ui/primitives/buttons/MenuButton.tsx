@@ -1,11 +1,11 @@
 /**
  * Menu Button
  * Used on Menu screens
- * Variants: Private, Public, Join
+ * Variants: Private, Public, Community, Join
  * States: Default, Hover, Selected, Active (join only)
  */
 
-type MenuButtonVariant = 'private' | 'public' | 'join';
+type MenuButtonVariant = 'private' | 'public' | 'community' | 'join';
 
 interface MenuButtonProps {
   variant: MenuButtonVariant;
@@ -25,6 +25,10 @@ const variantStyles = {
   public: {
     default: 'bg-[var(--shapeships-pastel-green)]',
     hover: 'border-[var(--shapeships-pastel-green)]',
+  },
+  community: {
+    default: 'bg-[var(--shapeships-pastel-blue)]',
+    hover: 'border-[var(--shapeships-pastel-blue)]',
   },
   join: {
     default: 'bg-[var(--shapeships-grey-70)]',
@@ -100,7 +104,7 @@ export function MenuButton({
     );
   }
 
-  // Private and Public variants
+  // Private, Public, and Community variants
   return (
     <button
       onClick={onClick}
