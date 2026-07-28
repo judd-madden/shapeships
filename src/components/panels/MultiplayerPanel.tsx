@@ -95,21 +95,19 @@ export function MultiplayerPanel({
     <div className="w-full [container-type:inline-size]">
       <div className="mx-auto flex w-full flex-col items-center text-center">
         <h2
-          className="mb-[clamp(28px,4.1cqw,40px)] font-['Roboto',sans-serif] text-[clamp(64px,11cqw,106px)] font-black italic leading-[0.9] text-shapeships-white"
+          className="mb-[clamp(24px,4.1cqw,40px)] font-['Roboto',sans-serif] text-[clamp(64px,11cqw,106px)] font-black italic leading-[0.9] text-shapeships-white"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Our galaxy at war!
         </h2>
 
-        <div className="mb-[clamp(56px,8.1cqw,80px)] flex w-full flex-col items-center justify-center gap-y-[48px] min-[641px]:flex-row min-[641px]:gap-x-[clamp(32px,10.1cqw,100px)] min-[641px]:gap-y-0">
-          <div className="flex w-[clamp(250px,30cqw,280px)] max-w-full flex-col items-center gap-[20px]">
-            <div className="flex h-[121.5px] w-full items-center justify-center">
-              <ShipOfWisdom0Ship className="h-[121.5px] w-[121.5px]" />
+        <div className="mb-[clamp(40px,8.1cqw,80px)] flex w-full flex-col items-center justify-center gap-[32px] sm:gap-y-[48px] min-[641px]:flex-row min-[641px]:gap-x-[clamp(32px,10.1cqw,100px)] min-[641px]:gap-y-0">
+          <div className="flex sm:w-[clamp(250px,30cqw,280px)] w-full flex-col items-center gap-[12px] sm:gap-[20px]">
+            <div className="flex sm:h-[121.5px] w-full items-center justify-center gap-[48px] mb-[8px] sm:mb-0">
+              <ShipOfWisdom0Ship className="h-[70px] w-[70px] sm:h-[121.5px] sm:w-[121.5px]" />
+              <NeptuneCore className="flex sm:hidden h-[70px] w-[70px] sm:h-[111px] sm:w-[105px]" />
             </div>
-            <MenuButton
-              variant="private"
-              onClick={() => onNavigateToCreateGame?.()}
-            >
+            <MenuButton variant="private" onClick={() => onNavigateToCreateGame?.()}>
               CREATE PRIVATE GAME
             </MenuButton>
             <p
@@ -120,8 +118,8 @@ export function MultiplayerPanel({
             </p>
           </div>
 
-          <div className="flex w-[clamp(250px,30cqw,280px)] max-w-full flex-col items-center gap-[20px]">
-            <div className="flex h-[121.5px] w-full items-center justify-center">
+          <div className="flex sm:w-[clamp(250px,30cqw,280px)] w-full flex-col items-center gap-[12px] sm:gap-[20px]">
+            <div className="sm:flex hidden h-[121.5px] w-full items-center justify-center">
               <NeptuneCore className="h-[111px] w-[105px]" />
             </div>
             <MenuButton variant="community" onClick={handleOpenDiscord}>
@@ -137,7 +135,7 @@ export function MultiplayerPanel({
         </div>
 
         <section className="mb-[clamp(56px,8.1cqw,80px)] flex w-full max-w-[800px] flex-col items-center">
-          <MusicIcon className="mb-[12px] text-shapeships-white" />
+          <MusicIcon className="hidden sm:block mb-[12px] text-shapeships-white" />
           <SectionHeading>Soundtrack on Bandcamp</SectionHeading>
           <div className="mt-[20px] flex flex-wrap items-center justify-center gap-x-[32px] gap-y-[16px]">
             {SOUNDTRACK_LINKS.map((link) => (

@@ -152,8 +152,8 @@ export function MenuShell({
 
         {/* Player Identity Row */}
         <div className="content-stretch relative flex w-full items-center py-[20px] 2xl:py-[32px]">
-          <div className="content-stretch relative flex w-full flex-col items-start gap-x-[24px] gap-y-2">
-            <div className="flex flex-wrap items-center gap-x-[8px] sm:gap-x-[24px] gap-y-2">
+          <div className="content-stretch relative flex w-full sm:flex-col sm:items-start justify-between gap-x-[24px] gap-y-2">
+            <div className="flex flex-wrap items-center gap-x-[8px] sm:gap-x-[16px] gap-y-2">
               <OnlineStatusIcon status="online" />
               <p
                 className="min-w-0 max-w-full font-['Roboto',sans-serif] text-[30px] font-normal leading-none [overflow-wrap:anywhere] sm:text-[40px] xl:text-[56px]"
@@ -164,7 +164,7 @@ export function MenuShell({
             </div>
             <button
               type="button"
-              className="pl-[30px] sm:pl-[44px] text-shapeships-grey-50 cursor-pointer font-['Roboto',sans-serif] text-[13.5px] leading-[normal] hover:underline sm:text-[18px]"
+              className="sm:pl-[36px] lg:pl-[40px] text-shapeships-grey-50 cursor-pointer font-['Roboto',sans-serif] text-[13.5px] leading-[normal] hover:underline sm:text-[18px]"
               style={{ fontVariationSettings: "'wdth' 100" }}
               onClick={alphaDisableAuth ? onExit : onLogout}
             >
@@ -176,9 +176,10 @@ export function MenuShell({
         {/* Main Wrapper */}
         <div className="content-stretch relative flex w-full shrink-0 flex-col items-start gap-[32px] pr-0 min-[1025px]:flex-row min-[1025px]:gap-[28px] xl:gap-[50px]">
           {/* Sidebar */}
-          <div className="content-stretch relative flex w-full shrink-0 flex-col items-start pb-0 min-[1025px]:w-[250px] min-[1025px]:pb-[24px] xl:w-[340px]">
+          <div className="fixed bottom-0 left-0 bg-black z-10 content-stretch flex w-full shrink-0 flex-col items-start pl-[20px] pr-[20px] pt-[20px] pb-[28px] border-t-2 border-[var(--shapeships-grey-70)] sm:border-0
+          sm:bg-transparent sm:static sm:p-0 min-[1025px]:w-[250px] min-[1025px]:pb-[24px] xl:w-[340px]">
             {/* Main Nav */}
-            <div className="content-stretch relative flex w-full flex-col items-start gap-x-[28px] gap-y-[24px] py-0 pr-0 min-[641px]:flex-row min-[641px]:flex-nowrap min-[641px]:gap-y-0 min-[1025px]:flex-col min-[1025px]:gap-x-0 min-[1025px]:gap-y-[36px] min-[1025px]:pl-[20px] xl:gap-y-[50px] xl:pl-[40px]">
+            <div className="content-stretch relative flex w-full flex-row justify-between sm:items-start sm:gap-x-[28px] gap-y-[24px] py-0 pr-0  min-[641px]:flex-nowrap min-[641px]:gap-y-0 min-[1025px]:flex-col min-[1025px]:gap-x-0 min-[1025px]:gap-y-[36px] min-[1025px]:pl-[20px] xl:gap-y-[50px] xl:pl-[40px]">
               {/* Multiplayer */}
               <div 
                 className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[0px] sm:pb-[5px] pt-0"
@@ -188,7 +189,7 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
+                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'multiplayer' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
@@ -206,7 +207,7 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
+                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'playComputer' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
@@ -224,12 +225,20 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`relative shrink-0 font-['Roboto',sans-serif] text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
+                  className={`hidden min-[400px]:block relative shrink-0 font-['Roboto',sans-serif] text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'rules' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                   style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   How to Play
+                </p>
+                <p 
+                  className={`min-[400px]:hidden block relative shrink-0 font-['Roboto',sans-serif] text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
+                    activePanel === 'rules' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
+                  }`}
+                  style={{ fontVariationSettings: "'wdth' 100" }}
+                >
+                  Rules
                 </p>
               </div>
             </div>
