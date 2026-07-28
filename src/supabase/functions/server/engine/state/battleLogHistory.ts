@@ -9,7 +9,11 @@ import {
   getAncientSolarPowerDisplayName,
   isAncientSolarPowerId,
 } from "../ancient/ancientSolarPowerPresentation.ts";
-import type { AncientSolarPowerId } from "./GameStateTypes.ts";
+import type {
+  AncientSolarLedgerEntry,
+  AncientSolarLedgerState,
+  AncientSolarPowerId,
+} from "./GameStateTypes.ts";
 import { debugLog } from "../../utils/serverLogger.ts";
 
 export type BattleLogHistoryResponse = {
@@ -230,6 +234,9 @@ type GameStateLike = {
     lastTurnNetByPlayerId?: Record<string, number>;
     lastTurnDamageDealtBreakdownByPlayerId?: Record<string, unknown>;
     lastTurnHealingReceivedBreakdownByPlayerId?: Record<string, unknown>;
+    ancient?: {
+      solarLedgerByPlayerId?: Record<string, AncientSolarLedgerState>;
+    };
     ships?: Record<string, Array<{ instanceId?: string; shipDefId?: string }>>;
     voidShipsByPlayerId?: Record<
       string,
@@ -1090,6 +1097,81 @@ function collapseCountLines<T>(
   });
 }
 
+type AncientSolarBattlePresentation = {
+  key: string;
+  label: string;
+  suffix: string;
+};
+
+function getAncientSolarBattlePresentation(
+  state: GameStateLike,
+  entry: AncientSolarLedgerEntry,
+): AncientSolarBattlePresentation {
+  const label = getAncientSolarPowerDisplayName(entry.solarPowerId);
+
+  if (entry.solarPowerId === "SSIM") {
+    const copiedShipDefId = entry.simulacrum?.copiedShipDefId;
+    const validCopiedShipDefId =
+      typeof copiedShipDefId === "string" && getShipById(copiedShipDefId)
+        ? copiedShipDefId
+        : null;
+    return {
+      key: validCopiedShipDefId
+        ? `SSIM:${validCopiedShipDefId}`
+        : "SSIM",
+      label,
+      suffix: validCopiedShipDefId ? ` (${validCopiedShipDefId})` : "",
+    };
+  }
+
+  if (entry.solarPowerId === "SBLA") {
+    const targetShipDefIds = (entry.targets ?? []).flatMap((target) => {
+      const targetInstanceId = target.shipInstanceId;
+      if (typeof targetInstanceId !== "string") return [];
+      const shipDefId = getShipDefIdByInstanceId(state, targetInstanceId);
+      return shipDefId ? [shipDefId] : [];
+    });
+    return {
+      key: `SBLA:${targetShipDefIds.join("|")}`,
+      label,
+      suffix: targetShipDefIds.length > 0
+        ? ` destroyed ${formatJoinedShipDefIds(targetShipDefIds)}`
+        : "",
+    };
+  }
+
+  return {
+    key: entry.solarPowerId,
+    label,
+    suffix: "",
+  };
+}
+
+function formatAncientSolarBattleLines(
+  state: GameStateLike,
+  playerId: string,
+  finalizedTurnNumber: number,
+): string[] {
+  const ledger =
+    state.gameData?.ancient?.solarLedgerByPlayerId?.[playerId];
+  if (
+    ledger?.battleTurnNumber !== finalizedTurnNumber ||
+    !Array.isArray(ledger.entries)
+  ) {
+    return [];
+  }
+
+  const presentations = ledger.entries.map((entry) =>
+    getAncientSolarBattlePresentation(state, entry)
+  );
+  return collapseCountLines(
+    presentations,
+    (presentation) => presentation.key,
+    (presentation, count) =>
+      `${count} x ${presentation.label}${presentation.suffix}`,
+  );
+}
+
 function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
   const rerollLines: string[] = [];
   const chronoswarmLines: string[] = [];
@@ -1730,7 +1812,14 @@ export function buildBattleLogTurnSummaryFromScratch(args: {
       fallbackPlayer: player,
     });
     buildLinesByPlayerId[player.id] = formatBuildLines(buildAtoms);
-    battleLinesByPlayerId[player.id] = formatBattleLines(battleAtoms);
+    battleLinesByPlayerId[player.id] = [
+      ...formatBattleLines(battleAtoms),
+      ...formatAncientSolarBattleLines(
+        args.finalizedState,
+        player.id,
+        args.finalizedTurnNumber,
+      ),
+    ];
 
     const analysis: BattleLogTurnPlayerAnalysis = {
       damageTaken: isFiniteNumber(lastTurnDamageByPlayerId[player.id])
