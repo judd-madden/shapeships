@@ -178,6 +178,7 @@ import {
   getRenderableActionShipPresence,
   getRenderableActionChoiceIds,
   getRenderableServerChoiceActions,
+  getSelectedChoiceIdForRenderableAction,
   isDeferredAutoPanelHandoffPhase,
   isCataloguePanel,
   isRenderableTargetedAction,
@@ -2421,6 +2422,31 @@ export function useGameSession(
     localManualSolarCasts: activeAncientChargeDeclarationWorkflow?.localManualSolarCasts ?? [],
   });
   const provisionalAncientEnergy = ancientManualSolarCastReplay.remainingEnergy;
+  const actingPlayerCurrentChargesByInstanceId =
+    activeAncientChargeDeclarationWorkflow != null
+      ? ancientSolarGridActions.reduce<Record<string, number>>((overrides, action) => {
+          if (
+            getSelectedChoiceIdForRenderableAction(
+              action,
+              shipChoiceSelectionByInstanceId
+            ) !== 'use'
+          ) {
+            return overrides;
+          }
+
+          const solarGrid = controlledAncientShips.find((ship) => {
+            const instanceId = ship?.instanceId ?? ship?.id;
+            return instanceId === action.sourceInstanceId && ship?.shipDefId === 'SOL';
+          });
+          const authoritativeCharges = Number(solarGrid?.chargesCurrent);
+          if (!Number.isFinite(authoritativeCharges)) {
+            return overrides;
+          }
+
+          overrides[action.sourceInstanceId] = Math.max(0, authoritativeCharges - 1);
+          return overrides;
+        }, {})
+      : undefined;
   const canCastAncientManualSolarPowerById = deriveAncientManualSolarCastability({
     stage: activeAncientChargeDeclarationWorkflow?.stage ?? 'charges',
     remainingEnergy: provisionalAncientEnergy,
@@ -2616,6 +2642,7 @@ export function useGameSession(
     opponent,
     turnNumber,
     majorPhase,
+    actingPlayerCurrentChargesByInstanceId,
     opponentPublicCurrentChargesByInstanceId: opponent?.id
       ? publicMultiChargeByPlayerId[opponent.id]
       : undefined,
@@ -4479,10 +4506,10 @@ useEffect(() => {
     readyDisabledReason = null;
   } else if (hasIncompleteAncientBlackHoleSelection) {
     readyEnabled = false;
-    readyDisabledReason = 'Select Black Hole targets or press Back.';
+    readyDisabledReason = 'Must complete actions';
   } else if (hasIncompleteAncientSimulacrumSelection) {
     readyEnabled = false;
-    readyDisabledReason = 'Select a Simulacrum target or press Back.';
+    readyDisabledReason = 'Must complete actions';
   } else if (ancientDeclarationLocalStateInvalid) {
     readyEnabled = false;
     readyDisabledReason = activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending

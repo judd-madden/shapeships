@@ -443,6 +443,7 @@ export function deriveFleets(args: {
   opponent: any;
   turnNumber: number;
   majorPhase: string;
+  actingPlayerCurrentChargesByInstanceId?: Record<string, number>;
   opponentPublicCurrentChargesByInstanceId?: Record<string, number>;
 }) {
   const {
@@ -451,6 +452,7 @@ export function deriveFleets(args: {
     opponent,
     turnNumber,
     majorPhase,
+    actingPlayerCurrentChargesByInstanceId = {},
     opponentPublicCurrentChargesByInstanceId = {},
   } = args;
 
@@ -480,15 +482,30 @@ export function deriveFleets(args: {
   function aggregateFleet(
     ships: any[],
     stackKeyPrefix = '',
-    options?: { useOpponentPublicMultiChargeOverrides?: boolean }
+    options?: {
+      useActingPlayerChargeOverrides?: boolean;
+      useOpponentPublicMultiChargeOverrides?: boolean;
+    }
   ): BoardFleetSummary[] {
     const buckets = new Map<string, FleetBucket>();
 
     for (const ship of ships) {
       let overrideCurrentCharges: number | undefined;
+      const instanceId = getShipInstanceId(ship);
+
+      if (
+        options?.useActingPlayerChargeOverrides === true &&
+        instanceId != null &&
+        Object.prototype.hasOwnProperty.call(
+          actingPlayerCurrentChargesByInstanceId,
+          instanceId
+        )
+      ) {
+        overrideCurrentCharges =
+          actingPlayerCurrentChargesByInstanceId[instanceId];
+      }
 
       if (options?.useOpponentPublicMultiChargeOverrides === true) {
-        const instanceId = getShipInstanceId(ship);
         const rawShipDefId = String(ship?.shipDefId ?? '');
         const def = isShipDefId(rawShipDefId) ? getShipDefinitionById(rawShipDefId) : null;
         const maxCharges = def?.maxCharges ?? 0;
@@ -519,7 +536,6 @@ export function deriveFleets(args: {
 
       const { shipDefId, stackKey, condition, currentCharges, caption } = stackInfo;
       const bucketKey = stackKeyPrefix ? `${stackKeyPrefix}${stackKey}` : stackKey;
-      const instanceId = getShipInstanceId(ship);
       const existing = buckets.get(bucketKey);
 
       if (existing) {
@@ -546,7 +562,9 @@ export function deriveFleets(args: {
     return buildFleetSummaryFromBuckets(buckets);
   }
 
-  const myFleet = aggregateFleet(myShips);
+  const myFleet = aggregateFleet(myShips, '', {
+    useActingPlayerChargeOverrides: true,
+  });
   const opponentFleet = aggregateFleet(opponentShipsVisible, '', {
     useOpponentPublicMultiChargeOverrides: majorPhase === 'build',
   });

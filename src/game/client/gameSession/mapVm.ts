@@ -800,9 +800,18 @@ export function mapGameSessionVm(args: {
     !p1IsReady
   ) {
     readyButtonLabel = 'READY';
-    readyButtonNote = ancientChargeDeclaration.stage === 'charges'
-      ? 'Proceed to Powers'
-      : null;
+    const remainingEnergy =
+      ancientChargeDeclaration.provisionalEnergy.green +
+      ancientChargeDeclaration.provisionalEnergy.red +
+      ancientChargeDeclaration.provisionalEnergy.blue;
+    readyButtonNote =
+      ancientChargeDeclaration.stage === 'charges'
+        ? 'Proceed to Powers'
+        : remainingEnergy <= 0
+          ? null
+          : ancientChargeDeclaration.autocastEnabled
+            ? 'Use Autocast'
+            : 'Lose Energy';
   }
 
   if (!isFinished && phaseKey === 'battle.reveal') {
