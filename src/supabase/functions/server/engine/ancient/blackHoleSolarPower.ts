@@ -25,14 +25,28 @@ const BLACK_HOLE_CORE_IDS = new Set(['PLU', 'MER', 'NEP']);
 function requireBlackHoleTargets(args: {
   state: Readonly<any>;
   playerId: string;
+  declarationId: string;
+  battleTurnNumber: number;
   submittedTargetInstanceIds: readonly string[];
 }): { targetPlayerId: string; targetInstanceIds: string[] } {
   const targetPlayerId = requireSolarOpponentPlayerId(args.state, args.playerId);
+  const reservedTargetInstanceIds = new Set<string>(
+    (args.state?.gameData?.ancient?.pendingBlackHoleDestructions ?? [])
+      .filter((record: AncientPendingBlackHoleDestruction) =>
+        record.ownerPlayerId === args.playerId &&
+        record.declarationId === args.declarationId &&
+        record.battleTurnNumber === args.battleTurnNumber &&
+        record.status === 'committed'
+      )
+      .flatMap((record: AncientPendingBlackHoleDestruction) =>
+        record.targetInstanceIds
+      ),
+  );
   const legalTargets = getValidDestroyTargets(args.state, {
     sourcePlayerId: args.playerId,
     targetScope: 'opponent',
     restriction: 'basic_only',
-  });
+  }).filter((target) => !reservedTargetInstanceIds.has(target.instanceId));
   const requiredTargetCount = Math.min(2, legalTargets.length);
   const targetInstanceIds = [...args.submittedTargetInstanceIds].sort((a, b) =>
     a.localeCompare(b)
@@ -77,6 +91,8 @@ export const BLACK_HOLE_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
     const { targetPlayerId, targetInstanceIds } = requireBlackHoleTargets({
       state: context.state,
       playerId: context.playerId,
+      declarationId: context.declarationId,
+      battleTurnNumber: context.battleTurnNumber,
       submittedTargetInstanceIds: context.cast.targetInstanceIds ?? [],
     });
     const lockedDamage = countLiveOwnedCores(context.state, context.playerId);

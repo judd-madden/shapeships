@@ -634,6 +634,41 @@ Deno.test('production Black Hole commits normalized targets and locked damage wi
   assert.equal(result.state.players[1].health, 20);
 });
 
+Deno.test('a repeated Black Hole reserved target rejects the declaration atomically', () => {
+  const state = createState();
+  state.gameData.ships.p2.push(
+    { instanceId: 'enemy-a', shipDefId: 'INT' },
+    { instanceId: 'enemy-b', shipDefId: 'FAM' },
+    { instanceId: 'enemy-c', shipDefId: 'STA' },
+  );
+  state.gameData.ancient.energyByPlayerId.p1.pool = {
+    green: 8,
+    red: 8,
+    blue: 8,
+  };
+  const before = structuredClone(state);
+
+  assert.throws(() => resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: holdSolarGrids(),
+      solarCasts: [
+        {
+          solarPowerId: 'SBLA',
+          targetInstanceIds: ['enemy-a', 'enemy-b'],
+        },
+        {
+          solarPowerId: 'SBLA',
+          targetInstanceIds: ['enemy-a'],
+        },
+      ],
+    }),
+    nowMs: 1000,
+  }), /Illegal Black Hole target: enemy-a/);
+  assert.deepEqual(state, before);
+});
+
 Deno.test('production FAM and Vortex share Charge Declaration snapshot TYPE semantics', () => {
   const state = createState();
   state.gameData.ships.p1.push({

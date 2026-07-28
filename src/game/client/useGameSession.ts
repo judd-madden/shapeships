@@ -2691,9 +2691,17 @@ export function useGameSession(
       )
     : undefined;
   const frigateTriggerByInstanceId = getFrigateTriggerByInstanceId(rawState);
+  const reservedAncientBlackHoleTargetInstanceIds =
+    activeAncientChargeDeclarationWorkflow?.localManualSolarCasts.flatMap(
+      (cast) =>
+        cast.solarPowerId === 'SBLA' && Array.isArray(cast.targetInstanceIds)
+          ? cast.targetInstanceIds
+          : []
+    ) ?? [];
   const ancientBlackHoleTargeting = deriveAncientBlackHoleTargetingState({
     opponentShipsVisible,
     opponentFleet,
+    reservedTargetInstanceIds: reservedAncientBlackHoleTargetInstanceIds,
   });
   const ancientBlackHoleDamagePreview = deriveAncientBlackHoleDamagePreview(myShips);
   const ancientBlackHoleSelectorActive =

@@ -19,13 +19,20 @@ function getShipInstanceId(ship: any): string | null {
 export function deriveAncientBlackHoleTargetingState(args: {
   opponentShipsVisible: readonly any[];
   opponentFleet: readonly Pick<BoardFleetSummary, 'stackKey' | 'memberInstanceIds'>[];
+  reservedTargetInstanceIds: readonly string[];
 }): AncientBlackHoleTargetingState {
   const seenInstanceIds = new Set<string>();
+  const reservedTargetInstanceIds = new Set(args.reservedTargetInstanceIds);
 
   for (const ship of args.opponentShipsVisible) {
     const instanceId = getShipInstanceId(ship);
     const rawShipDefId = String(ship?.shipDefId ?? '');
-    if (!instanceId || seenInstanceIds.has(instanceId) || !isShipDefId(rawShipDefId)) {
+    if (
+      !instanceId ||
+      reservedTargetInstanceIds.has(instanceId) ||
+      seenInstanceIds.has(instanceId) ||
+      !isShipDefId(rawShipDefId)
+    ) {
       continue;
     }
 

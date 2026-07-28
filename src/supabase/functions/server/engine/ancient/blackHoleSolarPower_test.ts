@@ -332,29 +332,42 @@ Deno.test('Black Hole locks live current-controller Core instances and zero dama
   assert.equal('targets' in zero.ledgerEntries[0], false);
 });
 
-Deno.test('multiple ordered Black Hole casts create separate commitments without changing fleets', () => {
+Deno.test('ordered Black Hole casts reserve four distinct targets without changing fleets', () => {
   const state = createState({
     p1Ships: [ship('plu', 'PLU')],
-    p2Ships: [ship('enemy-a', 'INT'), ship('enemy-b', 'FAM')],
+    p2Ships: [
+      ship('enemy-a', 'INT'),
+      ship('enemy-b', 'FAM'),
+      ship('enemy-c', 'STA'),
+      ship('enemy-d', 'INT'),
+    ],
   });
   const beforeFleet = structuredClone(state.gameData.ships);
   const result = resolveBlackHole({
     state,
     casts: [
       { solarPowerId: 'SBLA', targetInstanceIds: ['enemy-a', 'enemy-b'] },
-      { solarPowerId: 'SBLA', targetInstanceIds: ['enemy-b', 'enemy-a'] },
+      { solarPowerId: 'SBLA', targetInstanceIds: ['enemy-d', 'enemy-c'] },
     ],
   });
 
   assert.deepEqual(result.state.gameData.ships, beforeFleet);
   assert.deepEqual(
     result.state.gameData.ancient.pendingBlackHoleDestructions.map(
-      (record: any) => record.pendingDestructionId,
+      (record: any) => record.targetInstanceIds,
     ),
     [
-      'ancient-solar:3:p1:declaration-1:manual:0:black-hole-destruction',
-      'ancient-solar:3:p1:declaration-1:manual:1:black-hole-destruction',
+      ['enemy-a', 'enemy-b'],
+      ['enemy-c', 'enemy-d'],
     ],
+  );
+  assert.equal(
+    new Set(
+      result.state.gameData.ancient.pendingBlackHoleDestructions.flatMap(
+        (record: any) => record.targetInstanceIds,
+      ),
+    ).size,
+    4,
   );
   assert.deepEqual(
     result.ledgerEntries.map((entry) => [entry.order, entry.lockedAmount]),
@@ -362,6 +375,88 @@ Deno.test('multiple ordered Black Hole casts create separate commitments without
   );
   assert.equal(result.state.gameData.pendingTurn.damageByPlayerId.p2, 2);
   assert.deepEqual(result.remainingEnergy, { green: 4, red: 4, blue: 4 });
+});
+
+Deno.test('a later Black Hole requires and commits the one unreserved target', () => {
+  const state = createState({
+    p2Ships: [
+      ship('enemy-a', 'INT'),
+      ship('enemy-b', 'FAM'),
+      ship('enemy-c', 'STA'),
+    ],
+  });
+  const result = resolveBlackHole({
+    state,
+    casts: [
+      { solarPowerId: 'SBLA', targetInstanceIds: ['enemy-a', 'enemy-b'] },
+      { solarPowerId: 'SBLA', targetInstanceIds: ['enemy-c'] },
+    ],
+  });
+
+  assert.deepEqual(
+    result.state.gameData.ancient.pendingBlackHoleDestructions.map(
+      (record: any) => record.targetInstanceIds,
+    ),
+    [
+      ['enemy-a', 'enemy-b'],
+      ['enemy-c'],
+    ],
+  );
+});
+
+Deno.test('a later zero-target Black Hole still pays full Energy and stages locked damage', () => {
+  const state = createState({
+    p1Ships: [ship('plu', 'PLU'), ship('mer', 'MER')],
+    p2Ships: [ship('enemy-a', 'INT'), ship('enemy-b', 'FAM')],
+  });
+  const result = resolveBlackHole({
+    state,
+    casts: [
+      { solarPowerId: 'SBLA', targetInstanceIds: ['enemy-a', 'enemy-b'] },
+      { solarPowerId: 'SBLA', targetInstanceIds: [] },
+    ],
+  });
+
+  assert.deepEqual(
+    result.state.gameData.ancient.pendingBlackHoleDestructions.map(
+      (record: any) => record.targetInstanceIds,
+    ),
+    [['enemy-a', 'enemy-b'], []],
+  );
+  assert.deepEqual(
+    result.ledgerEntries.map((entry) => entry.paidEnergy),
+    [
+      { green: 4, red: 4, blue: 4 },
+      { green: 4, red: 4, blue: 4 },
+    ],
+  );
+  assert.deepEqual(
+    result.ledgerEntries.map((entry) => entry.lockedAmount),
+    [2, 2],
+  );
+  assert.deepEqual(result.remainingEnergy, { green: 4, red: 4, blue: 4 });
+  assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 4 });
+});
+
+Deno.test('a later Black Hole rejects a reserved target immutably when one legal target remains', () => {
+  const state = createState({
+    p2Ships: [
+      ship('enemy-a', 'INT'),
+      ship('enemy-b', 'FAM'),
+      ship('enemy-c', 'STA'),
+    ],
+  });
+  const before = structuredClone(state);
+
+  assert.throws(() =>
+    resolveBlackHole({
+      state,
+      casts: [
+        { solarPowerId: 'SBLA', targetInstanceIds: ['enemy-a', 'enemy-b'] },
+        { solarPowerId: 'SBLA', targetInstanceIds: ['enemy-a'] },
+      ],
+    }), /Illegal Black Hole target: enemy-a/);
+  assert.deepEqual(state, before);
 });
 
 Deno.test('delayed Black Hole resolution is immutable, fully ordered, missing-safe, and idempotent', () => {
