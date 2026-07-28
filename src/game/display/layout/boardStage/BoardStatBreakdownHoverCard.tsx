@@ -16,7 +16,7 @@ const TAIL_PROTRUSION_PX = TAIL_SIZE_PX / 2;
 function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
   return (
     <div className="flex items-center justify-between gap-[12px]">
-      {row.rowKind === 'ship' ? (
+      {row.rowKind === 'ship' || row.rowKind === 'solar_power' ? (
         <div
           className="min-w-0 flex items-center gap-[4px] text-left text-white"
           style={{ fontSize: '14px', lineHeight: 1.4, fontVariationSettings: "'wdth' 100" }}
@@ -110,7 +110,7 @@ export function BoardStatBreakdownHoverCard({
 
           {rows.map((row, index) => (
             <BreakdownRow
-              key={`${row.rowKind}:${row.label}:${row.amount}:${row.count ?? index}`}
+              key={`${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? index : index}`}
               row={row}
             />
           ))}

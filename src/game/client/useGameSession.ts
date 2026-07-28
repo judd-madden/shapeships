@@ -115,7 +115,10 @@ import {
   type HealthResolutionPresentationTrigger,
 } from './gameSession/clienteffects/useEndOfTurnPresentation';
 import { useDestroyTargetingRuntime } from './gameSession/destroyTargeting';
-import { deriveAncientSolarDisplayEntries } from './gameSession/ancientSolarDisplay';
+import {
+  deriveAncientSolarDisplayEntries,
+  isLiveRowAncientSolarPowerId,
+} from './gameSession/ancientSolarDisplay';
 import {
   buildPersistentAncientSolarTargetMarkers,
   overlayAncientSolarTargetMarkers,
@@ -259,7 +262,6 @@ function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRo
     }
 
     const rawRecord = row as Record<string, unknown>;
-    const rowKind = rawRecord.rowKind === 'adjustment' ? 'adjustment' : 'ship';
     const label = typeof rawRecord.label === 'string' ? rawRecord.label : '';
     const amount = typeof rawRecord.amount === 'number' ? rawRecord.amount : 0;
     const amountText = typeof rawRecord.amountText === 'string' ? rawRecord.amountText : String(amount);
@@ -269,8 +271,37 @@ function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRo
       return [];
     }
 
+    if (rawRecord.rowKind === 'solar_power') {
+      if (
+        !isLiveRowAncientSolarPowerId(rawRecord.solarPowerId) ||
+        typeof count !== 'number' ||
+        !Number.isInteger(count) ||
+        count <= 0
+      ) {
+        return [];
+      }
+
+      return [{
+        rowKind: 'solar_power',
+        solarPowerId: rawRecord.solarPowerId,
+        label,
+        count,
+        amount,
+        amountText,
+      }];
+    }
+
+    if (rawRecord.rowKind === 'adjustment') {
+      return [{
+        rowKind: 'adjustment',
+        label,
+        amount,
+        amountText,
+      }];
+    }
+
     return [{
-      rowKind,
+      rowKind: 'ship',
       label,
       count,
       amount,

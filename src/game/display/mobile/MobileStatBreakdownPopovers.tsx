@@ -245,7 +245,7 @@ function BreakdownSection({
         <div className="flex flex-col gap-[3px]">
           {section.rows.map((row, index) => (
             <BreakdownRow
-              key={`${row.rowKind}:${row.label}:${row.amount}:${row.count ?? index}`}
+              key={`${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? index : index}`}
               row={row}
             />
           ))}
@@ -264,7 +264,7 @@ function BreakdownSection({
 function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
   return (
     <div className="flex items-start justify-between gap-[8px] text-[12px] leading-[15px]">
-      {row.rowKind === 'ship' ? (
+      {row.rowKind === 'ship' || row.rowKind === 'solar_power' ? (
         <span className="min-w-0 flex flex-1 items-baseline gap-[3px] text-[var(--shapeships-grey-20)]">
           <span className="shrink-0 text-white">{row.count ?? 0}</span>
           <span className="shrink-0 text-[var(--shapeships-grey-50)]">x</span>

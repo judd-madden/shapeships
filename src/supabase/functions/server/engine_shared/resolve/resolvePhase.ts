@@ -15,6 +15,7 @@
  */
 
 import type {
+  AncientSolarPowerId,
   GameState,
   LastTurnBreakdownRow,
   PendingTurnBreakdownEntry,
@@ -47,6 +48,10 @@ import { getPlayerMaxHealth } from '../maximumHealth.ts';
 import {
   resolveCommittedBlackHoleDestructions,
 } from '../../engine/ancient/blackHoleSolarPower.ts';
+import {
+  getAncientSolarPowerDisplayName,
+  parseAncientSolarSourceReason,
+} from '../../engine/ancient/ancientSolarPowerPresentation.ts';
 
 function countCreatedShipsByTargetPlayerId(
   effects: Effect[]
@@ -350,16 +355,36 @@ function getSignedFinalAmountForPendingEntry(
   return mapAmount(entry, finalAmount);
 }
 
+function getSolarCastIdentity(
+  entry: PendingTurnBreakdownEntry,
+  entryIndex: number,
+): string {
+  const expectedSuffix = entry.kind === 'Heal' ? ':heal' : ':damage';
+  if (entry.effectId && entry.effectId.endsWith(expectedSuffix)) {
+    const castIdentity = entry.effectId.slice(0, -expectedSuffix.length);
+    if (castIdentity) return `cast:${castIdentity}`;
+  }
+
+  return entry.effectId
+    ? `effect:${entry.effectId}`
+    : `entry:${entryIndex}`;
+}
+
 function buildRowsForPendingEntries(
   entries: PendingTurnBreakdownEntry[],
   sciLabel: string,
   mapAmount: (entry: PendingTurnBreakdownEntry, amount: number) => number = (_, amount) => amount
 ): LastTurnBreakdownRow[] {
   const shipBuckets = new Map<string, { shipDefId: string; instanceIds: Set<string>; amount: number }>();
+  const solarBuckets = new Map<AncientSolarPowerId, {
+    solarPowerId: AncientSolarPowerId;
+    castIdentities: Set<string>;
+    amount: number;
+  }>();
   const syntheticBuckets = new Map<string, number>();
   let sciAdjustmentAmount = 0;
 
-  for (const entry of entries) {
+  for (const [entryIndex, entry] of entries.entries()) {
     const baseAmount = mapAmount(entry, getSanitizedEntryAmount(entry.baseAmount));
     const finalAmount = getSignedFinalAmountForPendingEntry(entry, mapAmount);
     const sciDelta = finalAmount - baseAmount;
@@ -383,6 +408,20 @@ function buildRowsForPendingEntries(
       continue;
     }
 
+    const solarPowerId = parseAncientSolarSourceReason(entry.sourceLabel);
+    if (solarPowerId) {
+      const existing = solarBuckets.get(solarPowerId) ?? {
+        solarPowerId,
+        castIdentities: new Set<string>(),
+        amount: 0,
+      };
+
+      existing.castIdentities.add(getSolarCastIdentity(entry, entryIndex));
+      existing.amount += baseAmount;
+      solarBuckets.set(solarPowerId, existing);
+      continue;
+    }
+
     const syntheticLabel = entry.sourceLabel || 'System';
     syntheticBuckets.set(syntheticLabel, (syntheticBuckets.get(syntheticLabel) || 0) + baseAmount);
   }
@@ -396,6 +435,18 @@ function buildRowsForPendingEntries(
       rowKind: 'ship',
       label: getCanonicalShipFamilyDisplayName(bucket.shipDefId, count),
       count,
+      amount: bucket.amount,
+      amountText: formatAmountText(bucket.amount),
+    });
+  }
+
+  for (const bucket of solarBuckets.values()) {
+    if (bucket.amount === 0) continue;
+    rows.push({
+      rowKind: 'solar_power',
+      solarPowerId: bucket.solarPowerId,
+      label: getAncientSolarPowerDisplayName(bucket.solarPowerId),
+      count: bucket.castIdentities.size,
       amount: bucket.amount,
       amountText: formatAmountText(bucket.amount),
     });

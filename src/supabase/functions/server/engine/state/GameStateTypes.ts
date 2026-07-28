@@ -78,13 +78,28 @@ export type PendingTurnBreakdownEntry = {
   finalAmount: number;
 };
 
-export type LastTurnBreakdownRow = {
-  rowKind: 'ship' | 'adjustment';
-  label: string;
-  count?: number;
-  amount: number;
-  amountText: string;
-};
+export type LastTurnBreakdownRow =
+  | {
+      rowKind: 'ship';
+      label: string;
+      count?: number;
+      amount: number;
+      amountText: string;
+    }
+  | {
+      rowKind: 'solar_power';
+      solarPowerId: AncientSolarPowerId;
+      label: string;
+      count: number;
+      amount: number;
+      amountText: string;
+    }
+  | {
+      rowKind: 'adjustment';
+      label: string;
+      amount: number;
+      amountText: string;
+    };
 
 export type PendingDrawOffer = {
   offererPlayerId: string;

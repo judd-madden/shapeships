@@ -35,7 +35,7 @@ function isNonNegativeInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0;
 }
 
-function isLiveRowAncientSolarPowerId(
+export function isLiveRowAncientSolarPowerId(
   value: unknown
 ): value is LiveRowAncientSolarPowerId {
   return typeof value === 'string' && LIVE_ROW_ANCIENT_SOLAR_POWER_IDS.has(value);

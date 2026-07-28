@@ -409,14 +409,6 @@ export interface BoardDestroyTargetingViewModel {
   };
 }
 
-export interface BoardStatBreakdownRowVm {
-  rowKind: 'ship' | 'adjustment';
-  label: string;
-  count?: number;
-  amount: number;
-  amountText: string;
-}
-
 export type LiveRowAncientSolarPowerId =
   | 'SLIF'
   | 'SSTA'
@@ -427,6 +419,29 @@ export type LiveRowAncientSolarPowerId =
   | 'SVOR'
   | 'SBLA'
   | 'SSIM';
+
+export type BoardStatBreakdownRowVm =
+  | {
+      rowKind: 'ship';
+      label: string;
+      count?: number;
+      amount: number;
+      amountText: string;
+    }
+  | {
+      rowKind: 'solar_power';
+      solarPowerId: LiveRowAncientSolarPowerId;
+      label: string;
+      count: number;
+      amount: number;
+      amountText: string;
+    }
+  | {
+      rowKind: 'adjustment';
+      label: string;
+      amount: number;
+      amountText: string;
+    };
 
 export type AncientSolarDisplaySourceMode = 'manual' | 'autocast' | 'cube';
 
