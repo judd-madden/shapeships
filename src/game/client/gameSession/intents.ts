@@ -11,6 +11,7 @@ import type { SpeciesId } from '../../../components/ui/primitives/buttons/Specie
 import type { ComputerBotSpeciesId, EvolverChoiceId } from './types';
 import { buildPowerAction } from './powerIntents';
 import {
+  classifyRenderableFirstStrikeActions,
   getAllocatedTargetIdsForRenderableAction,
   getRenderableActionChoiceIds,
   getRenderableServerChoiceActions,
@@ -533,6 +534,19 @@ export async function runReadyToggleFlow(args: {
       }
 
       {
+        if (phaseKey === 'battle.first_strike') {
+          const firstStrikeClassification =
+            classifyRenderableFirstStrikeActions(resolvedAvailableActions);
+          if (firstStrikeClassification.unmappedActions.length > 0) {
+            for (const action of firstStrikeClassification.unmappedActions) {
+              console.error(
+                `[useGameSession] battle.first_strike: blocking ready for unmapped renderable action actionKey=${action.actionId} kind=${action.kind} shipDefId=${action.shipDefId}`
+              );
+            }
+            return;
+          }
+        }
+
         const choiceActions = getRenderableServerChoiceActions(phaseKey, resolvedAvailableActions);
 
         const incompleteTargetedAction = choiceActions.find((action) =>

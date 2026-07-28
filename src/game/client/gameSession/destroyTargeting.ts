@@ -3,6 +3,7 @@ import { isShipDefId } from '../../data/ShipDefinitions.core';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import {
   getRenderableActionRequiredTargetCount,
+  getFirstStrikeFamilyForAction,
   getRenderableServerChoiceActions,
   isRenderableTargetedAction,
   isRenderableTargetedActionSelected,
@@ -12,6 +13,7 @@ import { deriveFleetStackInfo } from './fleets';
 import type {
   BoardDestroyTargetingViewModel,
   BoardTargetSelectedTone,
+  FirstStrikeActionFamily,
 } from './types';
 
 type DestroyTargetSide = 'my' | 'opponent';
@@ -30,6 +32,8 @@ export interface UseDestroyTargetingRuntimeParams {
   myShips: any[];
   opponentShipsVisible: any[];
   frigateTriggerByInstanceId: Record<string, number>;
+  activeFirstStrikeFamily?: FirstStrikeActionFamily | null;
+  firstStrikeFamilyRankByFamily?: Partial<Record<FirstStrikeActionFamily, number>>;
 }
 
 export interface UseDestroyTargetingRuntimeResult {
@@ -293,6 +297,8 @@ export function useDestroyTargetingRuntime(
     myShips,
     opponentShipsVisible,
     frigateTriggerByInstanceId,
+    activeFirstStrikeFamily,
+    firstStrikeFamilyRankByFamily,
   } = params;
 
   const [activeDestroyTargetSourceInstanceId, setActiveDestroyTargetSourceInstanceId] = useState<string | null>(null);
@@ -305,6 +311,30 @@ export function useDestroyTargetingRuntime(
   const destroyTargetActionEntries = getRenderableServerChoiceActions(phaseKey, availableActions)
     .filter((action) => isRenderableTargetedAction(action))
     .map((action) => [action.sourceInstanceId, action] as const);
+  const isMixedFirstStrikeTargeting =
+    phaseKey === 'battle.first_strike' &&
+    firstStrikeFamilyRankByFamily != null;
+  const orderedDestroyTargetActionEntries = isMixedFirstStrikeTargeting
+    ? destroyTargetActionEntries
+        .map((entry, projectedIndex) => ({ entry, projectedIndex }))
+        .sort((a, b) => {
+          const aFamily = getFirstStrikeFamilyForAction(a.entry[1]);
+          const bFamily = getFirstStrikeFamilyForAction(b.entry[1]);
+          const aRank =
+            aFamily == null
+              ? Number.POSITIVE_INFINITY
+              : firstStrikeFamilyRankByFamily[aFamily] ?? Number.POSITIVE_INFINITY;
+          const bRank =
+            bFamily == null
+              ? Number.POSITIVE_INFINITY
+              : firstStrikeFamilyRankByFamily[bFamily] ?? Number.POSITIVE_INFINITY;
+
+          return aRank !== bRank
+            ? aRank - bRank
+            : a.projectedIndex - b.projectedIndex;
+        })
+        .map(({ entry }) => entry)
+    : destroyTargetActionEntries;
   const destroyTargetActionsBySourceInstanceId = new Map(
     destroyTargetActionEntries
   );
@@ -495,7 +525,7 @@ export function useDestroyTargetingRuntime(
   const selectedDestroySourcesByLocatorKey: Record<string, string[]> = {};
   const reservedConcreteTargetIds = new Set<string>();
 
-  for (const [sourceInstanceId, action] of destroyTargetActionEntries) {
+  for (const [sourceInstanceId, action] of orderedDestroyTargetActionEntries) {
     if (!isRenderableTargetedActionSelected(action, shipChoiceSelectionByInstanceId)) {
       destroyTargetSatisfiedBySourceInstanceId[sourceInstanceId] = true;
       continue;
@@ -605,7 +635,14 @@ export function useDestroyTargetingRuntime(
     }
 
     const autoArmSourceInstanceId =
-      destroyTargetActionEntries.find(([sourceInstanceId]) => {
+      orderedDestroyTargetActionEntries.find(([sourceInstanceId, action]) => {
+        if (
+          isMixedFirstStrikeTargeting &&
+          getFirstStrikeFamilyForAction(action) !== activeFirstStrikeFamily
+        ) {
+          return false;
+        }
+
         const analysis = destroyTargetSourceAnalysisBySourceInstanceId[sourceInstanceId];
         return analysis != null && !analysis.isSatisfied && analysis.hasAllocatableNextLocator;
       })?.[0] ?? null;
@@ -613,7 +650,15 @@ export function useDestroyTargetingRuntime(
     setActiveDestroyTargetSourceInstanceId((prev) => {
       if (prev != null) {
         const previousAnalysis = destroyTargetSourceAnalysisBySourceInstanceId[prev];
+        const previousAction = destroyTargetActionsBySourceInstanceId.get(prev);
+        const previousFamilyIsActive =
+          !isMixedFirstStrikeTargeting ||
+          (
+            previousAction != null &&
+            getFirstStrikeFamilyForAction(previousAction) === activeFirstStrikeFamily
+          );
         if (
+          previousFamilyIsActive &&
           previousAnalysis != null &&
           !previousAnalysis.isSatisfied &&
           previousAnalysis.hasAllocatableNextLocator
@@ -625,9 +670,11 @@ export function useDestroyTargetingRuntime(
       return autoArmSourceInstanceId;
     });
   }, [
-    destroyTargetActionEntries,
+    activeFirstStrikeFamily,
     destroyTargetActionsBySourceInstanceId.size,
     destroyTargetSourceAnalysisBySourceInstanceId,
+    isMixedFirstStrikeTargeting,
+    orderedDestroyTargetActionEntries,
   ]);
 
   const activeDestroyAction =

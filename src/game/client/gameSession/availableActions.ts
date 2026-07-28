@@ -9,6 +9,7 @@
 
 import type { ActionPanelId } from '../../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
+import type { FirstStrikeActionFamily } from './types';
 
 export type PhaseKey = string;
 export type RenderableTargetedActionKind = 'destroy_target' | 'paired_destroy_target';
@@ -44,6 +45,168 @@ export type RenderableServerAction = {
   validOpponentTargets?: any[];
   requiredTargetCount?: number;
 };
+
+const FIRST_STRIKE_FAMILIES: readonly FirstStrikeActionFamily[] = [
+  'domination',
+  'sacrificial_pool',
+  'spiral',
+  'guardian',
+];
+
+export const FIRST_STRIKE_MANDATORY_FAMILIES: readonly FirstStrikeActionFamily[] = [
+  'domination',
+  'sacrificial_pool',
+  'spiral',
+];
+
+export type FirstStrikeActionClassification = {
+  renderableActions: RenderableServerAction[];
+  supportedActionsByFamily: Record<FirstStrikeActionFamily, RenderableServerAction[]>;
+  supportedFamilies: FirstStrikeActionFamily[];
+  unmappedActions: RenderableServerAction[];
+};
+
+export function getFirstStrikeFamilyForAction(
+  action: Pick<RenderableServerAction, 'shipDefId'>
+): FirstStrikeActionFamily | null {
+  switch (action.shipDefId) {
+    case 'DOM':
+      return 'domination';
+    case 'SAC':
+      return 'sacrificial_pool';
+    case 'SPI':
+      return 'spiral';
+    case 'GUA':
+      return 'guardian';
+    default:
+      return null;
+  }
+}
+
+export function getFirstStrikePanelIdForFamily(
+  family: FirstStrikeActionFamily
+): ActionPanelId {
+  switch (family) {
+    case 'domination':
+      return 'ap.battle.first_strike.centaur';
+    case 'sacrificial_pool':
+      return 'ap.battle.first_strike.xenite';
+    case 'spiral':
+      return 'ap.battle.first_strike.ancient';
+    case 'guardian':
+      return 'ap.battle.first_strike.human';
+  }
+}
+
+export function classifyRenderableFirstStrikeActions(
+  availableActions: any[] | null | undefined
+): FirstStrikeActionClassification {
+  const renderableActions = getRenderableServerChoiceActions(
+    'battle.first_strike',
+    availableActions
+  );
+  const supportedActionsByFamily: Record<FirstStrikeActionFamily, RenderableServerAction[]> = {
+    domination: [],
+    sacrificial_pool: [],
+    spiral: [],
+    guardian: [],
+  };
+  const unmappedActions: RenderableServerAction[] = [];
+
+  for (const action of renderableActions) {
+    const family = getFirstStrikeFamilyForAction(action);
+    if (family == null) {
+      unmappedActions.push(action);
+      continue;
+    }
+
+    supportedActionsByFamily[family].push(action);
+  }
+
+  return {
+    renderableActions,
+    supportedActionsByFamily,
+    supportedFamilies: FIRST_STRIKE_FAMILIES.filter(
+      (family) => supportedActionsByFamily[family].length > 0
+    ),
+    unmappedActions,
+  };
+}
+
+type FirstStrikeFamilyOrderTuple = {
+  hasKnownFleetPosition: boolean;
+  fleetPosition: number;
+  actionId: string;
+  sourceInstanceId: string;
+};
+
+function compareFirstStrikeFamilyOrderTuple(
+  a: FirstStrikeFamilyOrderTuple,
+  b: FirstStrikeFamilyOrderTuple
+): number {
+  if (a.hasKnownFleetPosition !== b.hasKnownFleetPosition) {
+    return a.hasKnownFleetPosition ? -1 : 1;
+  }
+
+  if (a.fleetPosition !== b.fleetPosition) {
+    return a.fleetPosition - b.fleetPosition;
+  }
+
+  const actionIdDelta = a.actionId.localeCompare(b.actionId);
+  if (actionIdDelta !== 0) {
+    return actionIdDelta;
+  }
+
+  return a.sourceInstanceId.localeCompare(b.sourceInstanceId);
+}
+
+export function orderFirstStrikeFamilies(
+  classification: FirstStrikeActionClassification,
+  controlledFleet: readonly any[]
+): FirstStrikeActionFamily[] {
+  const fleetPositionBySourceInstanceId = new Map<string, number>();
+  controlledFleet.forEach((ship, index) => {
+    const sourceInstanceId = ship?.instanceId ?? ship?.id;
+    if (
+      typeof sourceInstanceId === 'string' &&
+      !fleetPositionBySourceInstanceId.has(sourceInstanceId)
+    ) {
+      fleetPositionBySourceInstanceId.set(sourceInstanceId, index);
+    }
+  });
+
+  const mandatoryFamilies = FIRST_STRIKE_MANDATORY_FAMILIES
+    .filter((family) => classification.supportedActionsByFamily[family].length > 0)
+    .map((family) => {
+      const earliestSource = classification.supportedActionsByFamily[family]
+        .map((action): FirstStrikeFamilyOrderTuple => {
+          const fleetPosition = fleetPositionBySourceInstanceId.get(action.sourceInstanceId);
+          return {
+            hasKnownFleetPosition: fleetPosition != null,
+            fleetPosition: fleetPosition ?? Number.POSITIVE_INFINITY,
+            actionId: action.actionId,
+            sourceInstanceId: action.sourceInstanceId,
+          };
+        })
+        .sort(compareFirstStrikeFamilyOrderTuple)[0];
+
+      return { family, earliestSource };
+    })
+    .sort((a, b) => {
+      const tupleDelta = compareFirstStrikeFamilyOrderTuple(
+        a.earliestSource,
+        b.earliestSource
+      );
+      return tupleDelta !== 0 ? tupleDelta : a.family.localeCompare(b.family);
+    })
+    .map(({ family }) => family);
+
+  if (classification.supportedActionsByFamily.guardian.length > 0) {
+    mandatoryFamilies.push('guardian');
+  }
+
+  return mandatoryFamilies;
+}
 
 export function isRenderableTargetedActionKind(kind: string): kind is RenderableTargetedActionKind {
   return kind === 'destroy_target' || kind === 'paired_destroy_target';

@@ -7,7 +7,6 @@ import type { ReactNode } from 'react';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { ACTION_PANEL_DISPLAY_NAMES } from './ActionPanelRegistry';
 import type { ActionPanelViewModel, GameSessionActions } from '../../client/useGameSession';
-import type { FirstStrikeActionFamily } from '../../client/gameSession/types';
 import { HumanShipCataloguePanel } from './panels/catalogue/human/HumanShipCataloguePanel';
 import { XeniteShipCataloguePanel } from './panels/catalogue/xenite/XeniteShipCataloguePanel';
 import { CentaurShipCataloguePanel } from './panels/catalogue/centaur/CentaurShipCataloguePanel';
@@ -43,21 +42,6 @@ interface ActionPanelFrameProps {
 
 const ANCIENT_ACTIONS_VERTICAL_GAP_PX = 20;
 const ANCIENT_ENERGY_ROW_HEIGHT_PX = 26;
-
-function getFirstStrikeFamilyLabel(family: FirstStrikeActionFamily): string {
-  switch (family) {
-    case 'guardian':
-      return 'Guardian';
-    case 'sacrificial_pool':
-      return 'Sacrificial Pool';
-    case 'spiral':
-      return 'Spiral';
-    default: {
-      const exhaustiveFamily: never = family;
-      return exhaustiveFamily;
-    }
-  }
-}
 
 export function ActionPanelFrame({
   vm,
@@ -150,25 +134,17 @@ export function ActionPanelFrame({
       return null;
     }
 
-    const entries =
-      phaseLocalFamilySwitch.phase === 'build.drawing'
-        ? phaseLocalFamilySwitch.availableFamilies.map((family) => ({
-            family,
-            label:
-              family === 'evolver'
-                ? 'Evolver'
-                : family === 'quantum_mystic'
-                  ? 'Quantum Mystic'
-                  : 'Frigate',
-            selected: phaseLocalFamilySwitch.activeFamily === family,
-            onClick: () => actions.onSelectBuildDrawingFamily?.(family),
-          }))
-        : phaseLocalFamilySwitch.availableFamilies.map((family) => ({
-            family,
-            label: getFirstStrikeFamilyLabel(family),
-            selected: phaseLocalFamilySwitch.activeFamily === family,
-            onClick: () => actions.onSelectFirstStrikeFamily?.(family),
-          }));
+    const entries = phaseLocalFamilySwitch.availableFamilies.map((family) => ({
+      family,
+      label:
+        family === 'evolver'
+          ? 'Evolver'
+          : family === 'quantum_mystic'
+            ? 'Quantum Mystic'
+            : 'Frigate',
+      selected: phaseLocalFamilySwitch.activeFamily === family,
+      onClick: () => actions.onSelectBuildDrawingFamily?.(family),
+    }));
 
     return (
       <div className="inline-flex items-center gap-[12px] rounded-[10px] bg-[var(--shapeships-grey-90)] p-[4px]">

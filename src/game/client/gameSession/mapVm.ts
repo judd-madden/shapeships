@@ -14,7 +14,6 @@ import type {
   BoardViewModel,
   BuildDrawingActionFamily,
   EvolverChoiceId,
-  FirstStrikeActionFamily,
   FleetAreaHealthDeltaFlashVm,
   GameSessionViewModel,
   GameSessionChatEntry,
@@ -262,10 +261,6 @@ export function mapGameSessionVm(args: {
     activeFamily: BuildDrawingActionFamily;
     availableFamilies: BuildDrawingActionFamily[];
   };
-  firstStrikeFamilySwitch?: {
-    activeFamily: FirstStrikeActionFamily;
-    availableFamilies: FirstStrikeActionFamily[];
-  };
   centaurChargeSubTab?: CentaurChargeSubTabId;
   centaurChargeAvailableTabs?: CentaurChargeSubTabId[];
   buildDrawingEconomyDisplay?: {
@@ -346,7 +341,6 @@ export function mapGameSessionVm(args: {
     evolverRowIds,
     evolverChoicesByRowId,
     buildDrawingFamilySwitch,
-    firstStrikeFamilySwitch,
     centaurChargeSubTab,
     centaurChargeAvailableTabs,
     buildDrawingEconomyDisplay,
@@ -1497,13 +1491,7 @@ export function mapGameSessionVm(args: {
               activeFamily: buildDrawingFamilySwitch.activeFamily,
               availableFamilies: buildDrawingFamilySwitch.availableFamilies,
             }
-          : firstStrikeFamilySwitch
-            ? {
-                phase: 'battle.first_strike' as const,
-                activeFamily: firstStrikeFamilySwitch.activeFamily,
-                availableFamilies: firstStrikeFamilySwitch.availableFamilies,
-              }
-            : undefined,
+          : undefined,
       largeChoicePanel: largeChoicePanelOverrides,
       availableActions: availableActionsSafe,
       selectedChoiceIdBySourceInstanceId,

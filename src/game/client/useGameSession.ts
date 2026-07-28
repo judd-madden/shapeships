@@ -173,8 +173,11 @@ export type {
 
 import {
   type BuildDrawingRouteRequest,
+  classifyRenderableFirstStrikeActions,
   decideAutoPanelRouting,
+  FIRST_STRIKE_MANDATORY_FAMILIES,
   getDefaultChoiceIdForRenderableAction,
+  getFirstStrikePanelIdForFamily,
   getRenderableActionShipPresence,
   getRenderableActionChoiceIds,
   getRenderableServerChoiceActions,
@@ -183,6 +186,7 @@ import {
   isCataloguePanel,
   isRenderableTargetedAction,
   isRenderableTargetedActionComplete,
+  orderFirstStrikeFamilies,
   speciesToCataloguePanelId,
 } from './gameSession/availableActions';
 import { buildMessageAction } from './gameSession/powerIntents';
@@ -322,6 +326,12 @@ type OwnBuildEconomyRead =
 type BuildDrawingEconomyContinuity = {
   phaseInstanceKey: string;
   economy: any;
+};
+
+type MixedFirstStrikeHandoffState = {
+  phaseInstanceKey: string;
+  orderedFamilies: FirstStrikeActionFamily[];
+  activeFamily: FirstStrikeActionFamily | null;
 };
 
 type HealthPresentationBuildResult = {
@@ -777,8 +787,8 @@ export function useGameSession(
     useState<Record<string, CentaurChargeSubTabId>>({});
   const [buildDrawingFamilyByPhaseInstanceKey, setBuildDrawingFamilyByPhaseInstanceKey] =
     useState<Record<string, BuildDrawingActionFamily>>({});
-  const [firstStrikeFamilyByPhaseInstanceKey, setFirstStrikeFamilyByPhaseInstanceKey] =
-    useState<Record<string, FirstStrikeActionFamily>>({});
+  const [mixedFirstStrikeHandoffState, setMixedFirstStrikeHandoffState] =
+    useState<MixedFirstStrikeHandoffState | null>(null);
   const lastPresentedBattleRevealTurnRef = useRef<number | null>(null);
   const seededBattleRevealGameIdRef = useRef<string | null>(null);
   const displayContinuityIdentityKeyRef = useRef<string | null>(null);
@@ -2647,6 +2657,39 @@ export function useGameSession(
       ? publicMultiChargeByPlayerId[opponent.id]
       : undefined,
   });
+  const firstStrikeClassification = classifyRenderableFirstStrikeActions(
+    phaseKey === 'battle.first_strike' ? availableActions : null
+  );
+  const orderedFirstStrikeFamilies =
+    phaseKey === 'battle.first_strike'
+      ? orderFirstStrikeFamilies(firstStrikeClassification, myShips)
+      : [];
+  const orderedFirstStrikeFamiliesKey = orderedFirstStrikeFamilies.join('|');
+  const isMixedFirstStrike =
+    phaseKey === 'battle.first_strike' &&
+    firstStrikeClassification.supportedFamilies.length >= 2;
+  const hasCurrentMixedFirstStrikeState =
+    isMixedFirstStrike &&
+    mixedFirstStrikeHandoffState?.phaseInstanceKey === phaseInstanceKey;
+  const storedFirstStrikeTargetingFamily = !isMixedFirstStrike
+    ? null
+    : hasCurrentMixedFirstStrikeState
+      ? (
+          mixedFirstStrikeHandoffState.activeFamily == null ||
+          orderedFirstStrikeFamilies.includes(mixedFirstStrikeHandoffState.activeFamily)
+        )
+        ? mixedFirstStrikeHandoffState.activeFamily
+        : orderedFirstStrikeFamilies[0] ?? null
+      : orderedFirstStrikeFamilies[0] ?? null;
+  const firstStrikeFamilyRankByFamily = isMixedFirstStrike
+    ? orderedFirstStrikeFamilies.reduce<Partial<Record<FirstStrikeActionFamily, number>>>(
+        (rankByFamily, family, index) => {
+          rankByFamily[family] = index;
+          return rankByFamily;
+        },
+        {}
+      )
+    : undefined;
   const frigateTriggerByInstanceId = getFrigateTriggerByInstanceId(rawState);
   const ancientBlackHoleTargeting = deriveAncientBlackHoleTargetingState({
     opponentShipsVisible,
@@ -2936,7 +2979,79 @@ export function useGameSession(
     myShips,
     opponentShipsVisible,
     frigateTriggerByInstanceId: frigateTriggerByInstanceId as Record<string, number>,
+    ...(isMixedFirstStrike
+      ? {
+          activeFirstStrikeFamily: storedFirstStrikeTargetingFamily,
+          firstStrikeFamilyRankByFamily,
+        }
+      : {}),
   });
+
+  const effectiveMixedFirstStrikeFamily = isMixedFirstStrike
+    ? (
+        orderedFirstStrikeFamilies.find((family) =>
+          family !== 'guardian' &&
+          firstStrikeClassification.supportedActionsByFamily[family].some(
+            (action) =>
+              destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
+          )
+        ) ??
+        (
+          firstStrikeClassification.supportedActionsByFamily.guardian.length > 0
+            ? 'guardian'
+            : null
+        )
+      )
+    : null;
+  const routedFirstStrikeFamily =
+    phaseKey !== 'battle.first_strike'
+      ? null
+      : isMixedFirstStrike
+        ? effectiveMixedFirstStrikeFamily
+        : firstStrikeClassification.supportedFamilies[0] ?? null;
+  const firstStrikeHandoffTransitionPending =
+    isMixedFirstStrike &&
+    storedFirstStrikeTargetingFamily !== effectiveMixedFirstStrikeFamily;
+  const effectiveMandatoryFirstStrikeFamilyIsUnresolved =
+    isMixedFirstStrike &&
+    effectiveMixedFirstStrikeFamily != null &&
+    FIRST_STRIKE_MANDATORY_FAMILIES.includes(effectiveMixedFirstStrikeFamily) &&
+    firstStrikeClassification.supportedActionsByFamily[
+      effectiveMixedFirstStrikeFamily
+    ].some(
+      (action) =>
+        destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
+    );
+
+  useEffect(() => {
+    if (!isMixedFirstStrike) {
+      setMixedFirstStrikeHandoffState((current) =>
+        current == null ? current : null
+      );
+      return;
+    }
+
+    setMixedFirstStrikeHandoffState((current) => {
+      if (
+        current?.phaseInstanceKey === phaseInstanceKey &&
+        current.activeFamily === effectiveMixedFirstStrikeFamily &&
+        current.orderedFamilies.join('|') === orderedFirstStrikeFamiliesKey
+      ) {
+        return current;
+      }
+
+      return {
+        phaseInstanceKey,
+        orderedFamilies: orderedFirstStrikeFamilies,
+        activeFamily: effectiveMixedFirstStrikeFamily,
+      };
+    });
+  }, [
+    effectiveMixedFirstStrikeFamily,
+    isMixedFirstStrike,
+    orderedFirstStrikeFamiliesKey,
+    phaseInstanceKey,
+  ]);
 
   // ============================================================================
   // SHIP CHOICE SELECTION EFFECT (maintain defaults for server-choice phases)
@@ -3956,13 +4071,9 @@ useEffect(() => {
         );
       
       case 'battle.first_strike':
-        if (mySpecies === 'centaur') return 'ap.battle.first_strike.centaur';
-        return getFirstStrikeActionPanelId(
-          activeFirstStrikeFamily,
-          renderableActionShipPresence.hasGuardianFirstStrikeAction,
-          renderableActionShipPresence.hasSacrificialPoolFirstStrikeAction,
-          renderableActionShipPresence.hasSpiralFirstStrikeAction
-        );
+        return activeFirstStrikeFamily == null
+          ? null
+          : getFirstStrikePanelIdForFamily(activeFirstStrikeFamily);
       
       case 'battle.charge_declaration':
       case 'battle.charge_response':
@@ -4015,6 +4126,15 @@ useEffect(() => {
     }
   }
 
+  function isFirstStrikeActionPanelId(panelId: ActionPanelId): boolean {
+    return (
+      panelId === 'ap.battle.first_strike.human' ||
+      panelId === 'ap.battle.first_strike.centaur' ||
+      panelId === 'ap.battle.first_strike.xenite' ||
+      panelId === 'ap.battle.first_strike.ancient'
+    );
+  }
+
   function getBuildDrawingActionPanelId(
     activeFamily: BuildDrawingActionFamily | null,
     hasFrigateAction: boolean,
@@ -4048,54 +4168,6 @@ useEffect(() => {
     return null;
   }
 
-  function getFirstStrikePanelIdForFamily(family: FirstStrikeActionFamily): ActionPanelId {
-    switch (family) {
-      case 'guardian':
-        return 'ap.battle.first_strike.human';
-      case 'sacrificial_pool':
-        return 'ap.battle.first_strike.xenite';
-      case 'spiral':
-        return 'ap.battle.first_strike.ancient';
-      default: {
-        const exhaustiveFamily: never = family;
-        return exhaustiveFamily;
-      }
-    }
-  }
-
-  function getFirstStrikeActionPanelId(
-    activeFamily: FirstStrikeActionFamily | null,
-    hasGuardianAction: boolean,
-    hasSacrificialPoolAction: boolean,
-    hasSpiralAction: boolean
-  ): ActionPanelId | null {
-    if (activeFamily === 'guardian' && hasGuardianAction) {
-      return getFirstStrikePanelIdForFamily(activeFamily);
-    }
-
-    if (activeFamily === 'sacrificial_pool' && hasSacrificialPoolAction) {
-      return getFirstStrikePanelIdForFamily(activeFamily);
-    }
-
-    if (activeFamily === 'spiral' && hasSpiralAction) {
-      return getFirstStrikePanelIdForFamily(activeFamily);
-    }
-
-    if (hasGuardianAction) {
-      return 'ap.battle.first_strike.human';
-    }
-
-    if (hasSacrificialPoolAction) {
-      return 'ap.battle.first_strike.xenite';
-    }
-
-    if (hasSpiralAction) {
-      return 'ap.battle.first_strike.ancient';
-    }
-
-    return null;
-  }
-  
   // ============================================================================
   // ACTIONS TAB: COMPUTE AVAILABILITY (UI-ONLY)
   // ============================================================================
@@ -4206,75 +4278,26 @@ useEffect(() => {
         null
       : null;
 
-  const hasGuardianFirstStrikeAction =
-    phaseKey === 'battle.first_strike' &&
-    renderableActionShipPresence.hasGuardianFirstStrikeAction;
-  const hasSacrificialPoolFirstStrikeAction =
-    phaseKey === 'battle.first_strike' &&
-    renderableActionShipPresence.hasSacrificialPoolFirstStrikeAction;
-  const hasSpiralFirstStrikeAction =
-    phaseKey === 'battle.first_strike' &&
-    renderableActionShipPresence.hasSpiralFirstStrikeAction;
-  const allowScopedFirstStrikeFamilySwitch =
-    phaseKey === 'battle.first_strike' &&
-    mySpecies !== 'centaur';
-  const firstStrikeAvailableFamilies: FirstStrikeActionFamily[] =
-    !allowScopedFirstStrikeFamilySwitch
-      ? []
-      : [
-          ...(hasGuardianFirstStrikeAction ? ['guardian' as const] : []),
-          ...(hasSacrificialPoolFirstStrikeAction ? ['sacrificial_pool' as const] : []),
-          ...(hasSpiralFirstStrikeAction ? ['spiral' as const] : []),
-        ];
-  const firstStrikeAvailableFamiliesKey = firstStrikeAvailableFamilies.join('|');
-
-  useEffect(() => {
-    if (phaseKey !== 'battle.first_strike' || !allowScopedFirstStrikeFamilySwitch) {
-      return;
-    }
-
-    setFirstStrikeFamilyByPhaseInstanceKey((prev) => {
-      const currentFamily = prev[phaseInstanceKey];
-      if (currentFamily && firstStrikeAvailableFamilies.includes(currentFamily)) {
-        return prev;
-      }
-
-      const nextFamily = firstStrikeAvailableFamilies[0];
-      if (!nextFamily) {
-        if (!(phaseInstanceKey in prev)) {
-          return prev;
-        }
-
-        const { [phaseInstanceKey]: _removed, ...rest } = prev;
-        return rest;
-      }
-
-      return {
-        ...prev,
-        [phaseInstanceKey]: nextFamily,
-      };
-    });
-  }, [allowScopedFirstStrikeFamilySwitch, firstStrikeAvailableFamiliesKey, phaseInstanceKey, phaseKey]);
-
-  const activeFirstStrikeFamily =
-    allowScopedFirstStrikeFamilySwitch
-      ? firstStrikeFamilyByPhaseInstanceKey[phaseInstanceKey] ??
-        firstStrikeAvailableFamilies[0] ??
-        null
-      : null;
-
   // Determine target panel ID for Actions tab (panel routing target when actions exist)
   const actionsTargetPanelId = phaseToActionPanelId(
     phaseKey,
     mySpecies,
     availableActions,
     activeBuildDrawingFamily,
-    activeFirstStrikeFamily,
+    routedFirstStrikeFamily,
     hasFrigateDrawingAction,
     hasEvolverDrawingAction,
     hasQuantumMysticDrawingAction
   );
   const selfCataloguePanelId = speciesToCataloguePanelId(mySpecies ?? 'human');
+  const effectiveFirstStrikePanelId =
+    routedFirstStrikeFamily == null
+      ? null
+      : getFirstStrikePanelIdForFamily(routedFirstStrikeFamily);
+  const presentedActivePanelId =
+    isMixedFirstStrike && isFirstStrikeActionPanelId(activePanelId)
+      ? effectiveFirstStrikePanelId ?? selfCataloguePanelId
+      : activePanelId;
 
   // Client-only "special actions" that should make Actions tab visible even if server reports none.
   // This remains preview/runtime-only; legality is still server-authoritative.
@@ -4467,6 +4490,9 @@ useEffect(() => {
       isRenderableTargetedAction(action) &&
       destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
     );
+  const hasUnmappedFirstStrikeAction =
+    phaseKey === 'battle.first_strike' &&
+    firstStrikeClassification.unmappedActions.length > 0;
   const isNonInputBattleTransitionPhase =
     phaseKey === 'battle.reveal' || phaseKey === 'battle.end_of_turn_resolution';
   const ancientDeclarationLocalStateInvalid =
@@ -4528,7 +4554,12 @@ useEffect(() => {
     if (isServerChoicePhase && availableActions == null) {
       readyEnabled = false;
       readyDisabledReason = 'Loading actions…';
-    } else if (hasIncompleteTargetedAction) {
+    } else if (
+      hasUnmappedFirstStrikeAction ||
+      firstStrikeHandoffTransitionPending ||
+      effectiveMandatoryFirstStrikeFamilyIsUnresolved ||
+      hasIncompleteTargetedAction
+    ) {
       readyEnabled = false;
       readyDisabledReason = 'Must complete actions';
     } else {
@@ -4725,41 +4756,24 @@ useEffect(() => {
   ]);
 
   useEffect(() => {
-    if (phaseKey !== 'battle.first_strike' || mySpecies === 'centaur') {
+    if (phaseKey !== 'battle.first_strike') {
       return;
     }
 
-    if (
-      activePanelId !== 'ap.battle.first_strike.human' &&
-      activePanelId !== 'ap.battle.first_strike.xenite' &&
-      activePanelId !== 'ap.battle.first_strike.ancient'
-    ) {
+    if (!isFirstStrikeActionPanelId(activePanelId)) {
       return;
     }
 
-    const nextPanelId = getFirstStrikeActionPanelId(
-      activeFirstStrikeFamily,
-      hasGuardianFirstStrikeAction,
-      hasSacrificialPoolFirstStrikeAction,
-      hasSpiralFirstStrikeAction
-    );
-
-    if (!nextPanelId) {
-      setActivePanelId(speciesToCataloguePanelId(mySpecies ?? 'human'));
-      return;
-    }
+    const nextPanelId = effectiveFirstStrikePanelId ?? selfCataloguePanelId;
 
     if (nextPanelId !== activePanelId) {
       setActivePanelId(nextPanelId);
     }
   }, [
-    activeFirstStrikeFamily,
     activePanelId,
-    hasGuardianFirstStrikeAction,
-    hasSacrificialPoolFirstStrikeAction,
-    hasSpiralFirstStrikeAction,
-    mySpecies,
+    effectiveFirstStrikePanelId,
     phaseKey,
+    selfCataloguePanelId,
   ]);
 
   useLayoutEffect(() => {
@@ -4966,7 +4980,7 @@ useEffect(() => {
     effectiveGameId,
     allPlayers,
 
-    activePanelId,
+    activePanelId: presentedActivePanelId,
     tabs,
     buildCatalogue,
 
@@ -5032,16 +5046,6 @@ useEffect(() => {
         ? {
             activeFamily: activeBuildDrawingFamily,
             availableFamilies: buildDrawingAvailableFamilies,
-          }
-        : undefined,
-    firstStrikeFamilySwitch:
-      phaseKey === 'battle.first_strike' &&
-      mySpecies !== 'centaur' &&
-      firstStrikeAvailableFamilies.length > 1 &&
-      activeFirstStrikeFamily != null
-        ? {
-            activeFamily: activeFirstStrikeFamily,
-            availableFamilies: firstStrikeAvailableFamilies,
           }
         : undefined,
     centaurChargeSubTab: activeCentaurChargeSubTab,
@@ -5720,18 +5724,6 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
             ? 'ap.build.drawing.ancient'
             : 'ap.build.drawing.human'
       );
-    },
-
-    onSelectFirstStrikeFamily: (family: FirstStrikeActionFamily) => {
-      if (mySpecies === 'centaur' || !firstStrikeAvailableFamilies.includes(family)) {
-        return;
-      }
-
-      setFirstStrikeFamilyByPhaseInstanceKey((prev) => ({
-        ...prev,
-        [phaseInstanceKey]: family,
-      }));
-      setActivePanelId(getFirstStrikePanelIdForFamily(family));
     },
 
     onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {

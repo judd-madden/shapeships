@@ -91,7 +91,11 @@ export interface AcceptedFullStateFingerprint {
 export type EvolverChoiceId = 'hold' | 'oxite' | 'asterite';
 export type CentaurChargeSubTabId = 'charges' | 'ship_of_equality';
 export type BuildDrawingActionFamily = 'evolver' | 'frigate' | 'quantum_mystic';
-export type FirstStrikeActionFamily = 'guardian' | 'sacrificial_pool' | 'spiral';
+export type FirstStrikeActionFamily =
+  | 'domination'
+  | 'sacrificial_pool'
+  | 'spiral'
+  | 'guardian';
 
 export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
 
@@ -742,17 +746,11 @@ export interface ActionPanelViewModel {
   ancientCatalogueEnergy?: AncientCatalogueEnergyDisplay;
   ancientAutocastEnabled: boolean;
 
-  phaseLocalFamilySwitch?:
-    | {
-        phase: 'build.drawing';
-        activeFamily: BuildDrawingActionFamily;
-        availableFamilies: BuildDrawingActionFamily[];
-      }
-    | {
-        phase: 'battle.first_strike';
-        activeFamily: FirstStrikeActionFamily;
-        availableFamilies: FirstStrikeActionFamily[];
-      };
+  phaseLocalFamilySwitch?: {
+    phase: 'build.drawing';
+    activeFamily: BuildDrawingActionFamily;
+    availableFamilies: BuildDrawingActionFamily[];
+  };
 
   largeChoicePanel?: {
     title?: string;
@@ -812,7 +810,6 @@ export interface GameSessionActions {
   onSelectQuantumMysticNumber: (quantumMysticIndex: number, selectedNumber: number) => void;
   onSelectEvolverChoice: (rowId: string, choiceId: EvolverChoiceId) => void;
   onSelectBuildDrawingFamily?: (family: BuildDrawingActionFamily) => void;
-  onSelectFirstStrikeFamily?: (family: FirstStrikeActionFamily) => void;
   onBoardBackgroundMouseDown: () => void;
   onDestroyTargetStackHoverChange: (side: 'my' | 'opponent', stackKey: string | null) => void;
   onDestroyTargetStackMouseDown: (side: 'my' | 'opponent', stackKey: string) => void;

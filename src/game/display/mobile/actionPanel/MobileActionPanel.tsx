@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown } from '../../../../components/ui/primitives/icons/ChevronDown';
 import type { ActionPanelViewModel, GameSessionActions } from '../../../client/useGameSession';
-import type { FirstStrikeActionFamily } from '../../../client/gameSession/types';
 import type { SpeciesId } from '../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import { EvolverDrawingPanel } from '../../actionPanel/panels/EvolverDrawingPanel';
@@ -37,21 +36,6 @@ const END_OF_GAME_FALLBACK: NonNullable<ActionPanelViewModel['endOfGame']> = {
   metaRightText: '',
   rematchHelperText: 'Link will be posted in chat',
 };
-
-function getFirstStrikeFamilyLabel(family: FirstStrikeActionFamily): string {
-  switch (family) {
-    case 'guardian':
-      return 'Guardian';
-    case 'sacrificial_pool':
-      return 'Sacrificial Pool';
-    case 'spiral':
-      return 'Spiral';
-    default: {
-      const exhaustiveFamily: never = family;
-      return exhaustiveFamily;
-    }
-  }
-}
 
 interface MobileActionPanelWrapperProps {
   children?: ReactNode;
@@ -157,35 +141,22 @@ export function MobileActionPanel({
       return null;
     }
 
-    const entries =
-      phaseLocalFamilySwitch.phase === 'build.drawing'
-        ? phaseLocalFamilySwitch.availableFamilies.map((family) => {
-            const callback = actions.onSelectBuildDrawingFamily;
+    const entries = phaseLocalFamilySwitch.availableFamilies.map((family) => {
+      const callback = actions.onSelectBuildDrawingFamily;
 
-            return {
-              family,
-              label:
-                family === 'evolver'
-                  ? 'Evolver'
-                  : family === 'quantum_mystic'
-                    ? 'Quantum Mystic'
-                    : 'Frigate',
-              selected: phaseLocalFamilySwitch.activeFamily === family,
-              disabled: callback == null,
-              onClick: callback ? () => callback(family) : undefined,
-            };
-          })
-        : phaseLocalFamilySwitch.availableFamilies.map((family) => {
-            const callback = actions.onSelectFirstStrikeFamily;
-
-            return {
-              family,
-              label: getFirstStrikeFamilyLabel(family),
-              selected: phaseLocalFamilySwitch.activeFamily === family,
-              disabled: callback == null,
-              onClick: callback ? () => callback(family) : undefined,
-            };
-          });
+      return {
+        family,
+        label:
+          family === 'evolver'
+            ? 'Evolver'
+            : family === 'quantum_mystic'
+              ? 'Quantum Mystic'
+              : 'Frigate',
+        selected: phaseLocalFamilySwitch.activeFamily === family,
+        disabled: callback == null,
+        onClick: callback ? () => callback(family) : undefined,
+      };
+    });
 
     return (
       <div className="inline-flex max-w-full items-center gap-[8px] rounded-[10px] bg-[var(--shapeships-grey-90)] p-[3px]">
