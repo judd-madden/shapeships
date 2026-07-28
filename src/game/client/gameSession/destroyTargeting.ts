@@ -9,7 +9,10 @@ import {
   type RenderableServerAction,
 } from './availableActions';
 import { deriveFleetStackInfo } from './fleets';
-import type { BoardDestroyTargetingViewModel } from './types';
+import type {
+  BoardDestroyTargetingViewModel,
+  BoardTargetSelectedTone,
+} from './types';
 
 type DestroyTargetSide = 'my' | 'opponent';
 type DestroyTargetLocator = {
@@ -667,18 +670,23 @@ export function useDestroyTargetingRuntime(
     opponent: {},
   };
 
-  const persistentlySelectedLocatorKeys = new Set(
-    Object.keys(selectedDestroySourcesByLocatorKey)
-  );
-
-  for (const locatorKey of persistentlySelectedLocatorKeys) {
+  for (const [locatorKey, sourceInstanceIds] of Object.entries(
+    selectedDestroySourcesByLocatorKey
+  )) {
     const locator = splitLocatorKey(locatorKey);
     if (!locator) continue;
+
+    const selectedTone: BoardTargetSelectedTone = sourceInstanceIds.every(
+      (sourceInstanceId) => getDestroyPreviewShipDefIdForSource(sourceInstanceId) === 'DOM'
+    )
+      ? 'purple'
+      : 'red';
 
     targetStatesBySide[locator.side][locator.stackKey] = {
       isTargetable: false,
       isHovered: false,
       isSelected: true,
+      selectedTone,
     };
   }
 
@@ -693,6 +701,9 @@ export function useDestroyTargetingRuntime(
       isSelected:
         existingState?.isSelected === true ||
         activeDestroySelectedLocatorKeys.includes(locatorKey),
+      ...(existingState?.selectedTone
+        ? { selectedTone: existingState.selectedTone }
+        : {}),
     };
   }
 

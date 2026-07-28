@@ -1,5 +1,8 @@
 import type { FleetAreaHealthDeltaFlashVm } from '../../../client/useGameSession';
-import type { AncientSolarDisplayEntry } from '../../../client/gameSession/types';
+import type {
+  AncientSolarDisplayEntry,
+  BoardTargetSelectedTone,
+} from '../../../client/gameSession/types';
 import { getShipDefinitionUI } from '../../../data/ShipDefinitionsUI';
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import {
@@ -231,7 +234,7 @@ type DestroyTargetStateVm = {
   isTargetable: boolean;
   isHovered: boolean;
   isSelected: boolean;
-  selectedTone?: 'red' | 'cyan';
+  selectedTone?: BoardTargetSelectedTone;
 };
 
 const DOM_TARGETING_PREVIEW_SCALE_MULTIPLIER = 0.7;

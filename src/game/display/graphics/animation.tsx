@@ -22,7 +22,10 @@ import {
   type AnimationEventHandler,
   type CSSProperties,
 } from 'react';
-import type { LiveRowAncientSolarPowerId } from '../../client/gameSession/types';
+import type {
+  BoardTargetSelectedTone,
+  LiveRowAncientSolarPowerId,
+} from '../../client/gameSession/types';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import { usePrefersReducedMotion } from '../shared/usePrefersReducedMotion';
 import { computeSequentialEntryDelayById } from './animation-stagger';
@@ -139,6 +142,8 @@ const TARGETING_RED_GLOW =
   'radial-gradient(circle, rgba(221,0,0,1) 0%, rgba(221,0,0,0) 60%)';
 const TARGETING_CYAN_GLOW =
   'radial-gradient(circle, rgba(0,182,239,1) 0%, rgba(0,182,239,0) 60%)';
+const TARGETING_PURPLE_GLOW =
+  'radial-gradient(circle, var(--shapeships-purple) 0%, transparent 60%)';
 
 export function getTargetingVisualState(targetState?: {
   isTargetable: boolean;
@@ -173,11 +178,14 @@ export function getTargetingGlowClassName(visualState: TargetingVisualState): st
 export function getTargetingGlowStyle(
   visualState: TargetingVisualState,
   scale = 1,
-  selectedTone: 'red' | 'cyan' = 'red'
+  selectedTone: BoardTargetSelectedTone = 'red'
 ): CSSProperties {
   const sizePx = TARGETING_GLOW_SIZE_PX * scale;
-  const selectedGlow =
-    selectedTone === 'cyan' ? TARGETING_CYAN_GLOW : TARGETING_RED_GLOW;
+  const selectedGlow = selectedTone === 'cyan'
+    ? TARGETING_CYAN_GLOW
+    : selectedTone === 'purple'
+      ? TARGETING_PURPLE_GLOW
+      : TARGETING_RED_GLOW;
 
   return {
     width: `${sizePx}px`,

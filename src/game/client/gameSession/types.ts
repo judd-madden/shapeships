@@ -401,7 +401,7 @@ export interface BoardFleetSummary {
   caption?: string | null;
 }
 
-export type BoardTargetSelectedTone = 'red' | 'cyan';
+export type BoardTargetSelectedTone = 'red' | 'cyan' | 'purple';
 
 export interface BoardDestroyTargetState {
   isTargetable: boolean;
