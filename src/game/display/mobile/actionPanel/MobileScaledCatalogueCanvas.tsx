@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+export const MOBILE_CATALOGUE_SCALE = 0.72;
+
 interface MobileScaledCatalogueCanvasProps {
   width: number;
   height: number;
@@ -10,7 +12,7 @@ interface MobileScaledCatalogueCanvasProps {
 export function MobileScaledCatalogueCanvas({
   width,
   height,
-  scale = 0.72,
+  scale = MOBILE_CATALOGUE_SCALE,
   children,
 }: MobileScaledCatalogueCanvasProps) {
   return (

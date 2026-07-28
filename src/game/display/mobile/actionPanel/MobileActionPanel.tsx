@@ -13,7 +13,6 @@ import { LargeStyleChoicePanel } from '../../actionPanel/panels/LargeStyleChoice
 import { ShipChoicesPanel } from '../../actionPanel/panels/ShipChoicesPanel';
 import { MobileCatalogueScroller } from './MobileCatalogueScroller';
 import { MobileEndOfGameActionPanel } from './MobileEndOfGameActionPanel';
-import { AncientAutocastControl } from '../../actionPanel/panels/catalogue/ancient/AncientShipCataloguePanel';
 
 interface MobileActionPanelProps {
   vm: ActionPanelViewModel;
@@ -327,19 +326,9 @@ export function MobileActionPanel({
 
   if (shipChoiceSpec) {
     if (shipChoiceSpec.kind === 'buttons') {
-      const showAncientChargesAutocast =
-        vm.activePanelId === 'ap.battle.charges.ancient' &&
-        vm.ancientChargeDeclaration?.stage === 'charges';
       if (!vm.shipChoices?.groups || vm.shipChoices.groups.length === 0) {
         return renderWithHealthOverlay(
           <MobileActionPanelWrapper ariaLabel="Mobile action panel empty state">
-            {showAncientChargesAutocast ? (
-              <AncientAutocastControl
-                checked={vm.ancientChargeDeclaration?.autocastEnabled ?? vm.ancientAutocastEnabled}
-                disabled={vm.ancientChargeDeclaration?.attemptUnresolved === true}
-                onChange={actions.onSetAncientAutocastEnabled}
-              />
-            ) : null}
             {renderNoActionsAvailable()}
           </MobileActionPanelWrapper>
         );
@@ -357,13 +346,6 @@ export function MobileActionPanel({
           scrollHintResetKey={`${vm.activePanelId}:${shipChoiceRowCount}`}
         >
           {renderMobilePhaseLocalFamilySwitch()}
-          {showAncientChargesAutocast ? (
-            <AncientAutocastControl
-              checked={vm.ancientChargeDeclaration?.autocastEnabled ?? vm.ancientAutocastEnabled}
-              disabled={vm.ancientChargeDeclaration?.attemptUnresolved === true}
-              onChange={actions.onSetAncientAutocastEnabled}
-            />
-          ) : null}
           <ShipChoicesPanel
             groups={vm.shipChoices.groups}
             layout="mobile"

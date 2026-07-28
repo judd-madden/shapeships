@@ -95,7 +95,9 @@ export function MobileBoardView({
           liveRowsLayout={opponentSpeciesKey === 'ancient' ? 'ancientFourRows' : 'pairedRows'}
           liveRowOverrides={MOBILE_FLEET_ROW_OVERRIDES}
           liveLayoutCanvasClassName={
-            opponentSpeciesKey === 'ancient' ? 'w-[360px]' : 'w-[360px] h-[130px]'
+            opponentSpeciesKey === 'ancient'
+              ? 'w-max min-w-[360px]'
+              : 'w-[360px] h-[130px]'
           }
           onFleetShipTap={
             isDestroyTargetingActive
@@ -147,7 +149,9 @@ export function MobileBoardView({
           liveRowsLayout={mySpeciesKey === 'ancient' ? 'ancientFourRows' : 'pairedRows'}
           liveRowOverrides={MOBILE_FLEET_ROW_OVERRIDES}
           liveLayoutCanvasClassName={
-            mySpeciesKey === 'ancient' ? 'w-[360px]' : 'w-[360px] h-[130px]'
+            mySpeciesKey === 'ancient'
+              ? 'w-max min-w-[360px]'
+              : 'w-[360px] h-[130px]'
           }
           onFleetShipTap={
             isDestroyTargetingActive

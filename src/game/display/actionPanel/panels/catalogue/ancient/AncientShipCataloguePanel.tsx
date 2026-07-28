@@ -74,6 +74,11 @@ export const ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT = {
   long: { width: 1446, height: 258 },
 } as const;
 
+export const ANCIENT_CATALOGUE_SECTION_X = {
+  basics: 0,
+  solar: 427,
+} as const;
+
 export const ANCIENT_ENERGY_HEADER_POSITION_BY_LAYOUT = {
   standard: { x: 635, y: 0 },
   long: { x: 682, y: 0 },
@@ -577,7 +582,7 @@ export function AncientShipCataloguePanel({
           <p
             className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
             style={{
-              left: "0",
+              left: `${ANCIENT_CATALOGUE_SECTION_X.basics}px`,
               top: "0",
               fontVariationSettings: "'wdth' 100",
             }}
@@ -588,7 +593,7 @@ export function AncientShipCataloguePanel({
           <p
             className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
             style={{
-              left: "427px",
+              left: `${ANCIENT_CATALOGUE_SECTION_X.solar}px`,
               top: "0",
               fontVariationSettings: "'wdth' 100",
             }}
