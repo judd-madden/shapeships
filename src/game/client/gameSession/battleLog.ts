@@ -1,9 +1,11 @@
 import { isShipDefId } from '../../data/ShipDefinitions.core';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import type {
+  BattleLogAnalysisBreakdownRow,
   BattleLogHistoryResponse,
   BattleLogLineVm,
   BattleLogTokenVm,
+  BattleLogTurnPlayerAnalysis,
   BattleLogTurnPlayerSummary,
   BattleLogTurnSideVm,
   BattleLogTurnVm,
@@ -95,23 +97,53 @@ function mapBattleLogTurn(
     opponentPlayerId: args.opponentPlayerId,
     opponentName: args.opponentName,
   });
+  const meAnalysis = normalizedSides.me.playerId
+    ? turn.analysisByPlayerId?.[normalizedSides.me.playerId]
+    : undefined;
+  const opponentAnalysis = normalizedSides.opponent.playerId
+    ? turn.analysisByPlayerId?.[normalizedSides.opponent.playerId]
+    : undefined;
+  const hasAnalysis = turn.analysisByPlayerId !== undefined;
+  const meDamage =
+    opponentAnalysis?.damageTaken ??
+    sumBreakdown(meAnalysis?.damageDealtBreakdown);
+  const opponentDamage =
+    meAnalysis?.damageTaken ??
+    sumBreakdown(opponentAnalysis?.damageDealtBreakdown);
 
   const me = mapBattleLogSide(
     normalizedSides.me,
     turn.buildLinesByPlayerId,
-    turn.battleLinesByPlayerId
+    turn.battleLinesByPlayerId,
+    {
+      hasAnalysis,
+      damageDealt: meDamage,
+      healingReceived: meAnalysis?.healReceived ?? 0,
+      damageDealtBreakdown: meAnalysis?.damageDealtBreakdown,
+      healingReceivedBreakdown: meAnalysis?.healingReceivedBreakdown,
+    }
   );
   const opponent = mapBattleLogSide(
     normalizedSides.opponent,
     turn.buildLinesByPlayerId,
-    turn.battleLinesByPlayerId
+    turn.battleLinesByPlayerId,
+    {
+      hasAnalysis,
+      damageDealt: opponentDamage,
+      healingReceived: opponentAnalysis?.healReceived ?? 0,
+      damageDealtBreakdown: opponentAnalysis?.damageDealtBreakdown,
+      healingReceivedBreakdown: opponentAnalysis?.healingReceivedBreakdown,
+    }
   );
 
   return {
     turnNumber: turn.turnNumber,
     diceValue: turn.diceValue,
     showBuildSection: me.buildLines.length > 0 || opponent.buildLines.length > 0,
-    showBattleSection: me.battleLines.length > 0 || opponent.battleLines.length > 0,
+    showBattleSection:
+      hasAnalysis ||
+      me.battleLines.length > 0 ||
+      opponent.battleLines.length > 0,
     me,
     opponent,
   };
@@ -208,17 +240,74 @@ function toBattleLogSideSource(
 function mapBattleLogSide(
   side: BattleLogSideSource,
   buildLinesByPlayerId: Record<string, string[]>,
-  battleLinesByPlayerId: Record<string, string[]>
+  battleLinesByPlayerId: Record<string, string[]>,
+  analysis: {
+    hasAnalysis: boolean;
+    damageDealt: number;
+    healingReceived: number;
+    damageDealtBreakdown?: BattleLogAnalysisBreakdownRow[];
+    healingReceivedBreakdown?: BattleLogAnalysisBreakdownRow[];
+  }
 ): BattleLogTurnSideVm {
   const buildLines = side.playerId ? buildLinesByPlayerId[side.playerId] : [];
   const battleLines = side.playerId ? battleLinesByPlayerId[side.playerId] : [];
+  const mappedBattleLines = mapBattleLogLines(battleLines, tokenizeBattleLine);
 
   return {
     healthEnd: side.healthEnd,
     healthDelta: side.healthDelta,
     buildLines: mapBattleLogLines(buildLines, tokenizeBuildLine),
-    battleLines: mapBattleLogLines(battleLines, tokenizeBattleLine),
+    battleLines: analysis.hasAnalysis
+      ? [
+          ...mappedBattleLines,
+          makeTextLine(`Damage: ${analysis.damageDealt}`),
+          ...mapAnalysisBreakdownLines(analysis.damageDealtBreakdown),
+          makeTextLine(`Healing: ${analysis.healingReceived}`),
+          ...mapAnalysisBreakdownLines(analysis.healingReceivedBreakdown),
+        ]
+      : mappedBattleLines,
   };
+}
+
+function sumBreakdown(
+  rows: BattleLogTurnPlayerAnalysis['damageDealtBreakdown'],
+): number {
+  return rows?.reduce((total, row) => total + row.amount, 0) ?? 0;
+}
+
+function makeTextLine(text: string): BattleLogLineVm {
+  return {
+    tokens: [makeTextToken(text)],
+  };
+}
+
+function mapAnalysisBreakdownLines(
+  rows: BattleLogAnalysisBreakdownRow[] | undefined,
+): BattleLogLineVm[] {
+  if (!rows) {
+    return [];
+  }
+
+  return rows.flatMap((row) => {
+    if (row.amount === 0) {
+      return [];
+    }
+
+    if (row.rowKind === 'adjustment') {
+      return [{
+        tokens: [makeTextToken(`${row.label} — ${row.amount}`)],
+      }];
+    }
+
+    const count = row.rowKind === 'ship' ? row.count ?? 1 : row.count;
+    return [{
+      tokens: [
+        makeTextToken(`${count} `),
+        makeMultiplierToken(),
+        makeTextToken(` ${row.label} — ${row.amount}`),
+      ],
+    }];
+  });
 }
 
 function mapBattleLogLines(

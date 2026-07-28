@@ -4,6 +4,7 @@ import type {
   BattleLogTurnPlayerAnalysis,
   BattleLogTurnPlayerSummary,
 } from './gameSession/types';
+import { isLiveRowAncientSolarPowerId } from './gameSession/ancientSolarDisplay';
 
 type RuntimePlayerInfo = {
   identityKey: string | null;
@@ -265,12 +266,49 @@ function validateBattleLogAnalysisBreakdownRow(value: unknown): BattleLogAnalysi
     return null;
   }
 
-  const count = toFiniteNumber(value.count);
+  if (value.rowKind === 'solar_power') {
+    if (
+      !isLiveRowAncientSolarPowerId(value.solarPowerId) ||
+      typeof value.count !== 'number' ||
+      !Number.isInteger(value.count) ||
+      value.count <= 0
+    ) {
+      return null;
+    }
+
+    return {
+      rowKind: 'solar_power',
+      solarPowerId: value.solarPowerId,
+      label,
+      count: value.count,
+      amount,
+    };
+  }
+
+  if (value.rowKind === 'adjustment') {
+    return {
+      rowKind: 'adjustment',
+      label,
+      amount,
+    };
+  }
+
+  if (value.rowKind !== undefined && value.rowKind !== 'ship') {
+    return null;
+  }
+
+  const count =
+    typeof value.count === 'number' &&
+      Number.isInteger(value.count) &&
+      value.count > 0
+      ? value.count
+      : undefined;
+
   return {
+    rowKind: 'ship',
     label,
     amount,
-    count: count !== null && count > 0 ? Math.floor(count) : undefined,
-    rowKind: value.rowKind === 'adjustment' ? 'adjustment' : value.rowKind === 'ship' ? 'ship' : undefined,
+    count,
   };
 }
 
@@ -553,17 +591,31 @@ function formatAnalysisLines(
   matchedPlayers: Array<BattleLogTurnPlayerSummary | null>,
   canonicalPlayers: CanonicalPlayer[],
 ): string[] {
+  const matchedAnalyses = matchedPlayers.map((matchedPlayer) =>
+    matchedPlayer
+      ? turn.analysisByPlayerId?.[matchedPlayer.playerId]
+      : undefined
+  );
+  const damageDealtByPlayer = matchedAnalyses.map((analysis, index) => {
+    const opposingAnalysis = matchedAnalyses[index === 0 ? 1 : 0];
+    return (
+      opposingAnalysis?.damageTaken ??
+      sumBreakdownAmounts(analysis?.damageDealtBreakdown)
+    );
+  });
+
   return matchedPlayers.flatMap((matchedPlayer, index) => {
     const playerLabel = canonicalPlayers[index]?.name ?? getDefaultPlayerName(index);
-    const analysis = matchedPlayer
-      ? turn.analysisByPlayerId?.[matchedPlayer.playerId]
-      : undefined;
+    const analysis = matchedAnalyses[index];
 
     if (!analysis) {
       return [`${playerLabel}: \u2014`];
     }
 
-    const lines = [`${playerLabel}: ${formatAnalysisSummary(analysis)}`];
+    const lines = [`${playerLabel}: ${formatAnalysisSummary({
+      analysis,
+      damageDealt: damageDealtByPlayer[index] ?? 0,
+    })}`];
     const damageDealtBreakdownLine = formatBreakdownFamilyLine(
       'Damage dealt',
       analysis.damageDealtBreakdown,
@@ -584,10 +636,21 @@ function formatAnalysisLines(
   });
 }
 
-function formatAnalysisSummary(analysis: BattleLogTurnPlayerAnalysis): string {
+function sumBreakdownAmounts(
+  rows: BattleLogAnalysisBreakdownRow[] | undefined,
+): number {
+  return rows?.reduce((total, row) => total + row.amount, 0) ?? 0;
+}
+
+function formatAnalysisSummary(args: {
+  analysis: BattleLogTurnPlayerAnalysis;
+  damageDealt: number;
+}): string {
+  const { analysis, damageDealt } = args;
   const segments = [
-    `Took ${analysis.damageTaken}`,
-    `healed ${analysis.healReceived}`,
+    `Damage dealt ${damageDealt}`,
+    `healing received ${analysis.healReceived}`,
+    `damage taken ${analysis.damageTaken}`,
   ];
 
   const savedSegments: string[] = [];
@@ -613,7 +676,14 @@ function formatBreakdownFamilyLine(
   }
 
   const formattedEntries = rows
-    .map((row) => `${row.label} ${formatBreakdownAmount(row.amount)}`)
+    .map((row) => {
+      if (row.rowKind === 'adjustment') {
+        return `${row.label} ${formatBreakdownAmount(row.amount)}`;
+      }
+
+      const count = row.rowKind === 'ship' ? row.count ?? 1 : row.count;
+      return `${count} x ${row.label} ${formatBreakdownAmount(row.amount)}`;
+    })
     .filter((entry) => entry.length > 0);
 
   if (formattedEntries.length <= 0) {

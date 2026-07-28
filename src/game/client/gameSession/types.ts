@@ -106,12 +106,25 @@ export interface BattleLogTurnPlayerSummary {
   fleetValueEnd: number;
 }
 
-export interface BattleLogAnalysisBreakdownRow {
-  label: string;
-  amount: number;
-  count?: number;
-  rowKind?: 'ship' | 'adjustment';
-}
+export type BattleLogAnalysisBreakdownRow =
+  | {
+      rowKind: 'ship';
+      label: string;
+      count?: number;
+      amount: number;
+    }
+  | {
+      rowKind: 'solar_power';
+      solarPowerId: LiveRowAncientSolarPowerId;
+      label: string;
+      count: number;
+      amount: number;
+    }
+  | {
+      rowKind: 'adjustment';
+      label: string;
+      amount: number;
+    };
 
 export interface BattleLogTurnPlayerAnalysis {
   damageTaken: number;

@@ -5,6 +5,11 @@ import {
   DEFAULT_PLAYER_MAX_HEALTH,
   getPlayerMaxHealth,
 } from "../../engine_shared/maximumHealth.ts";
+import {
+  getAncientSolarPowerDisplayName,
+  isAncientSolarPowerId,
+} from "../ancient/ancientSolarPowerPresentation.ts";
+import type { AncientSolarPowerId } from "./GameStateTypes.ts";
 import { debugLog } from "../../utils/serverLogger.ts";
 
 export type BattleLogHistoryResponse = {
@@ -14,12 +19,25 @@ export type BattleLogHistoryResponse = {
   turns: BattleLogTurnSummary[];
 };
 
-export type BattleLogAnalysisBreakdownRow = {
-  label: string;
-  amount: number;
-  count?: number;
-  rowKind?: "ship" | "adjustment";
-};
+export type BattleLogAnalysisBreakdownRow =
+  | {
+      rowKind: "ship";
+      label: string;
+      count?: number;
+      amount: number;
+    }
+  | {
+      rowKind: "solar_power";
+      solarPowerId: AncientSolarPowerId;
+      label: string;
+      count: number;
+      amount: number;
+    }
+  | {
+      rowKind: "adjustment";
+      label: string;
+      amount: number;
+    };
 
 export type BattleLogTurnPlayerAnalysis = {
   damageTaken: number;
@@ -256,16 +274,35 @@ type AuthoritativeBreakdownRowLike = {
   amount?: unknown;
   count?: unknown;
   rowKind?: unknown;
+  solarPowerId?: unknown;
 };
 
 function cloneBattleLogAnalysisBreakdownRow(
   row: BattleLogAnalysisBreakdownRow,
 ): BattleLogAnalysisBreakdownRow {
+  if (row.rowKind === "solar_power") {
+    return {
+      rowKind: "solar_power",
+      solarPowerId: row.solarPowerId,
+      label: row.label,
+      count: row.count,
+      amount: row.amount,
+    };
+  }
+
+  if (row.rowKind === "adjustment") {
+    return {
+      rowKind: "adjustment",
+      label: row.label,
+      amount: row.amount,
+    };
+  }
+
   return {
+    rowKind: "ship",
     label: row.label,
+    count: row.count,
     amount: row.amount,
-    count: isFiniteNumber(row.count) ? row.count : undefined,
-    rowKind: row.rowKind,
   };
 }
 
@@ -277,23 +314,59 @@ function normalizeBattleLogAnalysisBreakdownRow(
   }
 
   const row = rawRow as AuthoritativeBreakdownRowLike;
-  const label = isNonEmptyString(row.label) ? row.label.trim() : "";
   const amount = isFiniteNumber(row.amount) ? row.amount : 0;
 
-  if (!label || amount === 0) {
+  if (amount === 0) {
     return null;
   }
 
-  const count = isFiniteNumber(row.count) && row.count > 0
-    ? Math.floor(row.count)
+  if (row.rowKind === "solar_power") {
+    if (
+      !isAncientSolarPowerId(row.solarPowerId) ||
+      !isFiniteNumber(row.count) ||
+      !Number.isInteger(row.count) ||
+      row.count <= 0
+    ) {
+      return null;
+    }
+
+    return {
+      rowKind: "solar_power",
+      solarPowerId: row.solarPowerId,
+      label: getAncientSolarPowerDisplayName(row.solarPowerId),
+      count: row.count,
+      amount,
+    };
+  }
+
+  const label = isNonEmptyString(row.label) ? row.label.trim() : "";
+  if (!label) {
+    return null;
+  }
+
+  if (row.rowKind === "adjustment") {
+    return {
+      rowKind: "adjustment",
+      label,
+      amount,
+    };
+  }
+
+  if (row.rowKind !== undefined && row.rowKind !== "ship") {
+    return null;
+  }
+
+  const count = isFiniteNumber(row.count) &&
+      Number.isInteger(row.count) &&
+      row.count > 0
+    ? row.count
     : undefined;
-  const rowKind = row.rowKind === "adjustment" ? "adjustment" : "ship";
 
   return {
+    rowKind: "ship",
     label,
-    amount,
     count,
-    rowKind,
+    amount,
   };
 }
 
@@ -310,18 +383,25 @@ function groupBattleLogAnalysisBreakdownRows(
     const normalizedRow = normalizeBattleLogAnalysisBreakdownRow(rawRow);
     if (!normalizedRow) continue;
 
-    const existing = groupedRows.get(normalizedRow.label);
+    const identity = normalizedRow.rowKind === "solar_power"
+      ? `solar_power:${normalizedRow.solarPowerId}`
+      : `${normalizedRow.rowKind}:${normalizedRow.label}`;
+    const existing = groupedRows.get(identity);
     if (!existing) {
-      groupedRows.set(normalizedRow.label, normalizedRow);
+      groupedRows.set(identity, normalizedRow);
       continue;
     }
 
     existing.amount += normalizedRow.amount;
     if (existing.rowKind === "ship" && normalizedRow.rowKind === "ship") {
-      const existingCount = existing.count ?? 0;
-      const nextCount = normalizedRow.count ?? 0;
-      const totalCount = existingCount + nextCount;
-      existing.count = totalCount > 0 ? totalCount : undefined;
+      const existingCount = existing.count ?? 1;
+      const incomingCount = normalizedRow.count ?? 1;
+      existing.count = existingCount + incomingCount;
+    } else if (
+      existing.rowKind === "solar_power" &&
+      normalizedRow.rowKind === "solar_power"
+    ) {
+      existing.count += normalizedRow.count;
     }
   }
 
@@ -330,7 +410,14 @@ function groupBattleLogAnalysisBreakdownRows(
     return undefined;
   }
 
-  return rows.map(cloneBattleLogAnalysisBreakdownRow);
+  return rows
+    .sort((left, right) => {
+      if (right.amount !== left.amount) {
+        return right.amount - left.amount;
+      }
+      return left.label.localeCompare(right.label);
+    })
+    .map(cloneBattleLogAnalysisBreakdownRow);
 }
 
 function cloneBattleLogTurnPlayerAnalysis(

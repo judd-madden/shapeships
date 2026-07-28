@@ -523,14 +523,43 @@ function isBattleLogAnalysisBreakdownRow(value: unknown): boolean {
   }
 
   const record = value as Record<string, unknown>;
+  if (
+    typeof record.label !== 'string' ||
+    record.label.trim().length <= 0 ||
+    typeof record.amount !== 'number' ||
+    !Number.isFinite(record.amount) ||
+    record.amount === 0
+  ) {
+    return false;
+  }
+
+  if (record.rowKind === 'solar_power') {
+    return (
+      isLiveRowAncientSolarPowerId(record.solarPowerId) &&
+      typeof record.count === 'number' &&
+      Number.isInteger(record.count) &&
+      record.count > 0
+    );
+  }
+
+  if (record.rowKind === 'ship') {
+    return (
+      record.solarPowerId === undefined &&
+      (
+        record.count === undefined ||
+        (
+          typeof record.count === 'number' &&
+          Number.isInteger(record.count) &&
+          record.count > 0
+        )
+      )
+    );
+  }
+
   return (
-    typeof record.label === 'string' &&
-    record.label.trim().length > 0 &&
-    typeof record.amount === 'number' &&
-    Number.isFinite(record.amount) &&
-    record.amount !== 0 &&
-    (record.count === undefined || (typeof record.count === 'number' && Number.isFinite(record.count))) &&
-    (record.rowKind === undefined || record.rowKind === 'ship' || record.rowKind === 'adjustment')
+    record.rowKind === 'adjustment' &&
+    record.solarPowerId === undefined &&
+    record.count === undefined
   );
 }
 
