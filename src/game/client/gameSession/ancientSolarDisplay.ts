@@ -170,6 +170,39 @@ function buildDisplayKey(args: {
   return `solar:${args.playerId}:${args.battleTurnNumber}:${args.sourceMode}:${args.order}`;
 }
 
+function normalizeCubePresentationOrder(
+  entries: readonly AncientSolarDisplayEntry[]
+): AncientSolarDisplayEntry[] {
+  const cubeEntries = entries.filter((entry) => entry.sourceMode === 'cube');
+  if (cubeEntries.length === 0) {
+    return [...entries];
+  }
+
+  const nonCubeEntries = entries.filter((entry) => entry.sourceMode !== 'cube');
+  const manualSourceIndex = nonCubeEntries.findIndex(
+    (entry) =>
+      entry.sourceMode === 'manual' &&
+      isAncientCubeRepeatableManualSolarPowerId(entry.solarPowerId)
+  );
+  const sourceIndex = manualSourceIndex >= 0
+    ? manualSourceIndex
+    : nonCubeEntries.findIndex(
+        (entry) =>
+          entry.sourceMode === 'autocast' &&
+          isAncientCubeRepeatableManualSolarPowerId(entry.solarPowerId)
+      );
+
+  if (sourceIndex < 0) {
+    return [...entries];
+  }
+
+  return [
+    ...nonCubeEntries.slice(0, sourceIndex + 1),
+    ...cubeEntries,
+    ...nonCubeEntries.slice(sourceIndex + 1),
+  ];
+}
+
 export function normalizeAuthoritativeAncientSolarEntries(args: {
   playerId: string | null | undefined;
   ledger: unknown;
@@ -235,16 +268,20 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
 
   const seenIdentities = new Set<string>();
   const entries: AncientSolarDisplayEntry[] = [];
+  let cubeOrdinal = 0;
   for (const candidate of candidates) {
     const identity = `${candidate.sourceMode}:${candidate.order}`;
     if (seenIdentities.has(identity)) continue;
     seenIdentities.add(identity);
+    const displayIdentityOrder = candidate.sourceMode === 'cube'
+      ? cubeOrdinal++
+      : candidate.order;
     const baseEntry = {
       displayKey: buildDisplayKey({
         playerId: args.playerId,
         battleTurnNumber,
         sourceMode: candidate.sourceMode,
-        order: candidate.order,
+        order: displayIdentityOrder,
       }),
       solarPowerId: candidate.solarPowerId,
       order: candidate.order,
@@ -279,7 +316,7 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
     }
   }
 
-  return entries;
+  return normalizeCubePresentationOrder(entries);
 }
 
 function buildLocalManualEntries(args: {
@@ -387,7 +424,7 @@ function buildLocalCubeEntries(args: {
         playerId: args.playerId,
         battleTurnNumber: args.battleTurnNumber,
         sourceMode: 'cube',
-        order,
+        order: cubeIndex,
       }),
       order,
       sourceMode: 'cube' as const,
@@ -475,7 +512,7 @@ export function deriveAncientSolarDisplayEntries(args: {
     battleTurnNumber: args.currentBattleTurnNumber,
     casts: args.localPreviewCasts,
   });
-  return [
+  return normalizeCubePresentationOrder([
     ...manualEntries,
     ...buildLocalCubeEntries({
       playerId: args.playerId,
@@ -484,5 +521,5 @@ export function deriveAncientSolarDisplayEntries(args: {
       manualEntries,
       controlledCubeCount: args.controlledCubeCount,
     }),
-  ];
+  ]);
 }
