@@ -40,15 +40,23 @@ export function QuantumMysticDrawingPanel({
           <div
             className={
               isMobile
-                ? 'relative flex h-[70px] w-[90px] shrink-0 items-center overflow-visible'
+                ? 'relative flex h-[50px] w-[42px] shrink-0 items-center overflow-visible'
                 : 'relative flex h-[88px] w-[90px] shrink-0 items-center overflow-visible'
             }
             data-name="Quantum Mystic Graphic"
           >
             {QuantumMysticGraphic ? (
-              <QuantumMysticGraphic />
+              <QuantumMysticGraphic
+                className={isMobile ? 'h-auto w-[42px]' : undefined}
+              />
             ) : (
-              <div className="flex h-[57px] w-[90px] items-center justify-center text-white text-[13px]">
+              <div
+                className={
+                  isMobile
+                    ? 'flex h-[57px] w-[42px] items-center justify-center text-white text-[13px]'
+                    : 'flex h-[57px] w-[90px] items-center justify-center text-white text-[13px]'
+                }
+              >
                 QUA
               </div>
             )}
