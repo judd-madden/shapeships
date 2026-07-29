@@ -1414,12 +1414,12 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Automatic",
-        "text": "Once per Cube per turn, repeat the first green, red, or blue Solar Power you cast this turn."
+        "subphase": "Dice Manipulation",
+        "text": "Roll one extra dice per Cube. Choose the main dice OR one Cube dice as your roll this turn."
       }
     ],
     "energyCost": null,
-    "extraRules": "",
+    "extraRules": "Choose after any main dice rerolls.",
     "stackCaption": "N/A",
     "colour": "Pastel Orange",
     "numberOfGraphics": 1
@@ -1575,7 +1575,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "blue": 0,
       "xBlue": true
     },
-    "extraRules": "Each ship may only be targeted ONCE per turn. Ships with charges are copied as they are at the START of this battle phase. Copied ships CAN be upgraded. A Cube-cast makes an extra copy of target ship. Cannot copy Cube.",
+    "extraRules": "Ship is created at the start of the NEXT turn. Each ship may only be targeted once per turn. Ships with charges are copied as they are at the start of this battle phase. Copied ships CAN be upgraded.",
     "stackCaption": "N/A",
     "colour": "N/A",
     "numberOfGraphics": 4
