@@ -474,7 +474,7 @@ export function IntentVerification() {
                   <div className="flex items-start gap-2">
                     <span className="font-bold">{result.success ? '✓' : '✗'}</span>
                     <div className="flex-1">
-                      <div className="font-semibold">{result.step}</div>
+                      <div className="font-bold">{result.step}</div>
                       <div>{result.message}</div>
                       {result.data && (
                         <details className="mt-1">

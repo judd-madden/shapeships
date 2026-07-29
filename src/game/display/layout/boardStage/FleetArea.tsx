@@ -397,7 +397,7 @@ function ShipStack({
       {showCount ? (
         <div className={cx('relative z-10 ml-[8px]')}>
           <div
-            className={cx("font-['Roboto'] font-semibold")}
+            className={cx("font-['Roboto'] font-bold")}
             style={{
               fontSize: '50px',
               lineHeight: 1,

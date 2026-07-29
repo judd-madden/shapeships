@@ -695,7 +695,7 @@ Deno.serve(app.fetch);`;
             <Separator />
             
             <div>
-              <h3 className="font-semibold mb-2">Test Echo Endpoint</h3>
+              <h3 className="font-bold mb-2">Test Echo Endpoint</h3>
               <p className="text-sm text-gray-600 mb-2">Send JSON data to test round-trip:</p>
               <Input
                 value={echoInput}
@@ -717,7 +717,7 @@ Deno.serve(app.fetch);`;
             <Separator />
             
             <div>
-              <h3 className="font-semibold mb-2">Test Supabase Direct Client</h3>
+              <h3 className="font-bold mb-2">Test Supabase Direct Client</h3>
               <p className="text-sm text-gray-600 mb-2">Query the database directly from the browser:</p>
               <Button onClick={handleSupabaseTest}>Test KV Store Access</Button>
               

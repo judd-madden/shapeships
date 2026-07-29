@@ -157,7 +157,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
   if (vm.isBootstrapping) {
     return (
       <div className="w-full h-full min-h-0 overflow-hidden flex items-center justify-center bg-black">
-        <div className="text-sm font-semibold tracking-wide text-white">
+        <div className="text-sm font-bold tracking-wide text-white">
           LOADING GAME
         </div>
       </div>

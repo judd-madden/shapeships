@@ -725,7 +725,7 @@ export function ActionPanelsGallery() {
         return (
           <div key={panelId} className="space-y-2">
             <div className="flex items-baseline gap-3">
-              <h3 className="text-sm font-mono font-semibold text-gray-700">{panelId}</h3>
+              <h3 className="text-sm font-mono font-bold text-gray-700">{panelId}</h3>
               <span className="text-xs text-gray-500">
                 {ACTION_PANEL_DISPLAY_NAMES[panelId]}
               </span>

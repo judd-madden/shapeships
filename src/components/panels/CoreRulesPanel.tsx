@@ -71,7 +71,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
             </p>
           )}
         >
-          <div className="relative flex-1 text-[16.5px] font-semibold leading-[24px] sm:text-[22px] sm:leading-[32px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <div className="relative flex-1 text-[16.5px] font-bold leading-[24px] sm:text-[22px] sm:leading-[32px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             <p className="mb-[9.75px]">Build your fleet up over the game to defeat your opponent in battle!</p>
             <p className="font-normal">
               Shapeships isn't about movement or targeting. Ships don't move, don't have health, and (mostly) don't interact with each other directly. When you build a ship, its power becomes a permanent part of your fleet — dealing damage, healing you, or changing how future turns work (extra lines, altered dice, free ships, and more). Fleets grow stronger each turn until one player is defeated.
@@ -92,15 +92,15 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
             <p className="mb-[9.75px]">
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>Players each start with </span>
-              <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>25 health</span>
+              <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>25 health</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>, with a </span>
-              <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>maximum of 35</span>
+              <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>maximum of 35</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>.</span>
             </p>
             <p className="font-normal mb-[9.75px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-              Players each start with <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>3 saved lines.</span>
+              Players each start with <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>3 saved lines.</span>
             </p>
-            <p className="font-semibold mb-[9.75px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-bold mb-[9.75px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Each player chooses a Species, and play begins.
             </p>
             <p className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>
@@ -122,9 +122,9 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
             <p className="mb-[9.75px]">
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>Each turn has two phases: the </span>
-              <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Build</span>
+              <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Build</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> phase, then the </span>
-              <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Battle</span>
+              <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Battle</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> phase. All players play the build phase together, then all players play the battle phase together.</span>
             </p>
             <p>
@@ -151,29 +151,29 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </div>
           <div className="content-stretch relative flex min-w-0 flex-1 flex-col items-start gap-[12px]">
             <div className="content-stretch flex items-center relative shrink-0">
-              <p className="font-semibold leading-[18.25px] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[18.25px] sm:text-[24.365px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <p className="font-bold leading-[18.25px] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[18.25px] sm:text-[24.365px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 Build Phase
               </p>
             </div>
 
             {/* Build Phase Content */}
             <div className="relative w-full min-w-0 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
-              <p className="font-semibold mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <p className="font-bold mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 Roll a six-sided dice.
               </p>
-              <p className="font-semibold mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <p className="font-bold mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 All players gain that many LINES this turn (plus any bonuses).
               </p>
               <p className="mb-[12.18px]">
                 <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>LINES make Shapeships, which are defined shapes that have powers (see </span>
-                <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Shapeships </span>
+                <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Shapeships </span>
                 <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>below).</span>
               </p>
               <p className="font-normal mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 Players draw lines simultaneously, and drawing is hidden until the Battle Phase. You may save lines over multiple turns.
               </p>
               <p>
-                <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Players may action their Shapeship POWERS that occur in the Build Phase. </span>
+                <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Players may action their Shapeship POWERS that occur in the Build Phase. </span>
                 <span className="font-normal italic" style={{ fontVariationSettings: "'wdth' 100" }}>
                   Dice Manipulation, Line Generation, Ships That Build, Drawing, End of Build Phase.
                 </span>
@@ -189,29 +189,29 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </div>
           <div className="content-stretch relative flex min-w-0 flex-1 flex-col items-start gap-[15px]">
             <div className="content-stretch flex items-center relative shrink-0">
-              <p className="font-semibold leading-[18.25px] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[18.25px] sm:text-[24.365px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <p className="font-bold leading-[18.25px] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[18.25px] sm:text-[24.365px] sm:leading-[24.365px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 Battle Phase
               </p>
             </div>
 
             {/* Battle Phase Content */}
             <div className="relative w-full min-w-0 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
-              <p className="font-semibold mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+              <p className="font-bold mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                 Players' ships are revealed.
               </p>
               <p className="mb-[12.18px]">
-                <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Players Shapeship POWERS that occur in the Battle Phase are actioned</span>
+                <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Players Shapeship POWERS that occur in the Battle Phase are actioned</span>
                 <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>. Players may declare charges (optional ship powers) and respond to charges. </span>
               </p>
               <p className="mb-[12.18px]">
-                <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Each player's HEALTH will update.</span>
+                <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Each player's HEALTH will update.</span>
                 <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> (if it has changed). </span>
               </p>
               <p>
                 <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>If either player's health is </span>
-                <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
+                <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
                 <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> or less at the end of the turn the game is over (see </span>
-                <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Victory </span>
+                <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Victory </span>
                 <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>below).</span>
               </p>
             </div>
@@ -267,14 +267,14 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
         <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
           <p className="mb-[12.18px]">
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>Shapeships are defined shapes that have </span>
-            <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>powers</span>
+            <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>powers</span>
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>. </span>
             <span className="font-normal italic" style={{ fontVariationSettings: "'wdth' 100" }}>For example: 3 lines can make a Human shapeship called a Fighter. Its power is to deal 1 damage every turn.</span>
           </p>
           <p className="mb-[12.18px]">
-            <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Basic Ships</span>
+            <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Basic Ships</span>
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> are the building blocks of your fleet. These can be combined into </span>
-            <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Upgraded Ships</span>
+            <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Upgraded Ships</span>
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> (see below).</span>
           </p>
           <p className="font-normal mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
@@ -319,7 +319,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
         <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
           <p className="mb-[12.18px]">
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>You can </span>
-            <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>combine</span>
+            <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>combine</span>
             <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> Basic Ships into Upgraded Ships. This is done by drawing 'joining lines'.</span>
           </p>
           <p className="font-normal mb-[12.18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
@@ -348,44 +348,44 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
         <div className="content-stretch relative flex flex-1 flex-col items-start gap-[24px]">
           {/* Decisive Victory */}
           <div className="relative shrink-0 w-full">
-            <p className="font-semibold leading-[20px] mb-[7.43px] text-[13.5px] sm:text-[18px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-bold leading-[20px] mb-[7.43px] text-[13.5px] sm:text-[18px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Decisive Victory
             </p>
             <p className="leading-[20px] text-[13.5px] sm:text-[18px] sm:leading-[26px]">
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>If at the end of a turn, after all powers are resolved, one player's health is </span>
-              <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
+              <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> or less and the other player's health is </span>
-              <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>1</span>
+              <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>1</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> or more, that player wins the game!</span>
             </p>
           </div>
 
           {/* Narrow Victory */}
           <div className="relative shrink-0 w-full">
-            <p className="font-semibold leading-[20px] mb-[7.43px] text-[13.922px] sm:text-[18.563px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-bold leading-[20px] mb-[7.43px] text-[13.922px] sm:text-[18.563px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Narrow Victory
             </p>
             <p className="leading-[20px] text-[13.922px] sm:text-[18.563px] sm:leading-[26px]">
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>If at the end of a turn, after all powers are resolved, both players health is </span>
-              <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
+              <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> or less, the player who is closer to </span>
-              <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
+              <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> wins. e.g. if Player A has </span>
-              <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>-3</span>
+              <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>-3</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> and Player B has </span>
-              <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>-5</span>
+              <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>-5</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>, Player A wins. </span>
             </p>
           </div>
 
           {/* Draw */}
           <div className="relative shrink-0 w-full">
-            <p className="font-semibold leading-[20px] mb-[7.43px] text-[13.5px] sm:text-[18px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-bold leading-[20px] mb-[7.43px] text-[13.5px] sm:text-[18px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Draw
             </p>
             <p className="leading-[20px] text-[13.5px] sm:text-[18px] sm:leading-[26px]">
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>If at the end of a turn, after all powers are resolved, both players health is </span>
-              <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
+              <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>0</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}> or less </span>
               <span className="font-normal italic" style={{ fontVariationSettings: "'wdth' 100" }}>and the same</span>
               <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>, the game is drawn. </span>
@@ -394,7 +394,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
 
           {/* Draw by mutual prosperity */}
           <div className="leading-[20px] relative shrink-0 text-[13.5px] w-full sm:text-[18px] sm:leading-[26px]">
-            <p className="font-semibold mb-[7.43px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <p className="font-bold mb-[7.43px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               Draw by mutual prosperity
             </p>
             <p className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>

@@ -71,7 +71,7 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
           <div className="w-[300px]" />
         )}
         <p
-          className="font-['Roboto'] font-semibold leading-[normal] relative shrink-0 text-[0px] text-[16px] text-white w-[130px] min-[768px]:max-[1599px]:w-[40px]"
+          className="font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[0px] text-[16px] text-white w-[130px] min-[768px]:max-[1599px]:w-[40px]"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
         </p>

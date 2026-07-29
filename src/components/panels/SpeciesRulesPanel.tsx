@@ -224,7 +224,7 @@ function SectionHeader({
                     <BattleIcon className="w-full h-full" color="white" />
                   </div>
                   <p className="font-medium leading-[15.6px] relative text-[11.27px] text-white max-w-[145.666px] sm:text-[15.029px] sm:leading-[20.809px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    Powers that occur in the <span className="font-extrabold">Battle Phase.</span>
+                    Powers that occur in the <span className="font-black">Battle Phase.</span>
                   </p>
                 </div>
               </div>
@@ -236,7 +236,7 @@ function SectionHeader({
                     <BuildIcon className="w-full h-full" color="#D5D5D5" />
                   </div>
                   <p className="font-medium leading-[15.6px] relative text-[11.27px] text-white max-w-[141.041px] sm:text-[15.029px] sm:leading-[20.809px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    Powers that occur in the <span className="font-extrabold">Build Phase.</span>
+                    Powers that occur in the <span className="font-black">Build Phase.</span>
                   </p>
                 </div>
                 <div className="content-stretch relative flex gap-[8px] items-center shrink-0">
@@ -244,7 +244,7 @@ function SectionHeader({
                     <BattleIcon className="w-full h-full" color="white" />
                   </div>
                   <p className="font-medium leading-[15.6px] relative text-[11.27px] text-white max-w-[145.666px] sm:text-[15.029px] sm:leading-[20.809px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    Powers that occur in the <span className="font-extrabold">Battle Phase.</span>
+                    Powers that occur in the <span className="font-black">Battle Phase.</span>
                   </p>
                 </div>
               </div>
@@ -506,9 +506,9 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
           <p className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[24px] sm:text-[36px]" style={{ fontVariationSettings: "'wdth' 100" }}>
             {speciesData.displayName}
           </p>
-          <p className="font-['Roboto'] font-semibold leading-[normal] not-italic relative shrink-0 text-[13.5px] sm:text-[20px]">
+          <p className="font-['Roboto'] font-bold leading-[normal] not-italic relative shrink-0 text-[13.5px] sm:text-[20px]">
             <span className="font-['Roboto'] font-normal text-white" style={{ fontVariationSettings: "'wdth' 100" }}>{`from `}</span>
-            <span className="font-['Roboto'] font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <span className="font-['Roboto'] font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>
               {getSpeciesOrigin(species)}
             </span>
           </p>

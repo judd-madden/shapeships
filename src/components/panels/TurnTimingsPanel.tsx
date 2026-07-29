@@ -70,7 +70,7 @@ function TimingRow({
   return (
     <div className={`${backgroundColor} relative shrink-0 w-full`}>
       <div className={`content-stretch flex flex-col gap-[8.397px] items-start ${leftPadding} pr-[20px] sm:pr-[28px] md:pr-[75.576px] ${verticalPadding} relative w-full`}>
-        <p className={`${titleBold ? 'font-black' : 'font-semibold'} leading-[15.75px] relative shrink-0 text-[13.5px] sm:text-[18.894px] sm:leading-[20.993px] w-full`} style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className={`${titleBold ? 'font-black' : 'font-bold'} leading-[15.75px] relative shrink-0 text-[13.5px] sm:text-[18.894px] sm:leading-[20.993px] w-full`} style={{ fontVariationSettings: "'wdth' 100" }}>
           {title}
         </p>
         <div className="font-normal leading-[17.32px] relative shrink-0 text-[11.25px] sm:text-[16.795px] sm:leading-[23.093px] w-full" style={{ fontVariationSettings: "'wdth' 100" }}>
@@ -128,7 +128,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           title={
             <>
               <span className="font-black" style={{ fontVariationSettings: "'wdth' 100" }}>Dice Roll </span>
-              <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>& Dice Manipulation</span>
+              <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>& Dice Manipulation</span>
             </>
           }
           description={
@@ -210,7 +210,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
             <>
               <p className="mb-[8.397px]">Players may declare charge powers (max one per ship per turn) or hold the charges. Ancients may use solar powers if they have energy to do so. Players may declare multiple charges, or hold them in response to opponent declarations.</p>
               <p>
-                If NO players declare charges now, then proceed to <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>End of Turn Resolution</span>.
+                If NO players declare charges now, then proceed to <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>End of Turn Resolution</span>.
               </p>
             </>
           }
@@ -235,7 +235,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
                 </p>
                 <p className="mb-[8.397px]">If a ship with Automatic damage and healing is destroyed, its power does NOT occur (except 'once only' powers).</p>
                 <p>
-                  All damage and healing is resolved in <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>End of Turn Resolution.</span>
+                  All damage and healing is resolved in <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>End of Turn Resolution.</span>
                 </p>
               </>
             }
@@ -251,7 +251,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           titleBold={true}
           description={
             <p>
-              Resolve all damage and healing effects simultaneously, then update health once. This includes damage and healing from all <span className="font-black" style={{ fontVariationSettings: "'wdth' 100" }}>Automatic</span> ship powers (including 'once-only'), and all damage and healing from Charges. Players cannot be above 35 health after resolution. If any player is 0 or below go to <span className="font-semibold" style={{ fontVariationSettings: "'wdth' 100" }}>Victory</span> (Core Rules).
+              Resolve all damage and healing effects simultaneously, then update health once. This includes damage and healing from all <span className="font-black" style={{ fontVariationSettings: "'wdth' 100" }}>Automatic</span> ship powers (including 'once-only'), and all damage and healing from Charges. Players cannot be above 35 health after resolution. If any player is 0 or below go to <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Victory</span> (Core Rules).
             </p>
           }
           exampleShips="(All Automatic Ships)"

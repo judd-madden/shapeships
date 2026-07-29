@@ -110,7 +110,7 @@ function Metric({
       )}
     >
       <p
-        className="font-['Roboto'] font-semibold leading-[36px] relative shrink-0 text-[36px] w-[50px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px] min-[768px]:max-[1599px]:w-[42px]"
+        className="font-['Roboto'] font-bold leading-[36px] relative shrink-0 text-[36px] w-[50px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px] min-[768px]:max-[1599px]:w-[42px]"
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {value}
@@ -197,7 +197,7 @@ function TripletStatValue({
       >
         <p
           className={cx(
-            "font-['Roboto'] font-semibold leading-[36px] relative shrink-0 text-[36px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px]",
+            "font-['Roboto'] font-bold leading-[36px] relative shrink-0 text-[36px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px]",
             isRight && 'text-right'
           )}
           style={{ fontVariationSettings: "'wdth' 100" }}
@@ -389,7 +389,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
 
             {/* Delta (server-authoritative) */}
             <p
-              className="font-['Roboto'] font-semibold leading-[28px] relative shrink-0 text-[28px] w-full text-right"
+              className="font-['Roboto'] font-bold leading-[28px] relative shrink-0 text-[28px] w-full text-right"
               style={{
                 fontVariationSettings: "'wdth' 100",
                 color: vm.myLastTurnNet > 0 
@@ -424,7 +424,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
 
               {/* Max Health */}
               <p
-                className="font-['Roboto'] font-semibold leading-[13px] relative shrink-0 text-[13px]"
+                className="font-['Roboto'] font-bold leading-[13px] relative shrink-0 text-[13px]"
                 style={{
                   fontVariationSettings: "'wdth' 100",
                   color: 'rgba(255,255,255,0.45)',
@@ -450,7 +450,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
 
             {/* Delta (server-authoritative) */}
             <p
-              className="font-['Roboto'] font-semibold leading-[28px] relative shrink-0 text-[28px] w-[100px] text-left min-[768px]:max-[1599px]:w-[86px]"
+              className="font-['Roboto'] font-bold leading-[28px] relative shrink-0 text-[28px] w-[100px] text-left min-[768px]:max-[1599px]:w-[86px]"
               style={{
                 fontVariationSettings: "'wdth' 100",
                 color: vm.opponentLastTurnNet > 0 
