@@ -1,14 +1,4 @@
-const BLOCKED_FOREIGN_INTERACTIVE_UPGRADE_IDS = new Set([
-  'FRI',
-  'GUA',
-  'SAC',
-  'KNO',
-  'DOM',
-]);
-
-export type BuildLegalityRestrictionCode =
-  | 'foreign_basic'
-  | 'foreign_interactive_upgrade';
+export type BuildLegalityRestrictionCode = 'foreign_basic';
 
 type NormalizedSpeciesId = 'human' | 'xenite' | 'centaur' | 'ancient';
 
@@ -54,13 +44,6 @@ export function evaluateForeignBuildLegality(args: {
     return {
       allowed: false,
       restrictionCode: 'foreign_basic',
-    };
-  }
-
-  if (BLOCKED_FOREIGN_INTERACTIVE_UPGRADE_IDS.has(args.shipDefId)) {
-    return {
-      allowed: false,
-      restrictionCode: 'foreign_interactive_upgrade',
     };
   }
 

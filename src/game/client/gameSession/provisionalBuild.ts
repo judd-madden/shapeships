@@ -61,9 +61,7 @@ export type ProvisionalShipEligibilityState =
   | 'MAX_LIMIT'
   | 'RULE_RESTRICTED';
 
-export type ProvisionalRestrictionReason =
-  | 'FOREIGN_BASIC'
-  | 'FOREIGN_INTERACTIVE_UPGRADE';
+export type ProvisionalRestrictionReason = 'FOREIGN_BASIC';
 
 export interface ProvisionalShipEligibility {
   state: ProvisionalShipEligibilityState;
@@ -72,13 +70,6 @@ export interface ProvisionalShipEligibility {
 }
 
 const FIXED_BUILD_ORDER: ShipDefId[] = ENGINE_SHIP_DEFINITIONS.map((shipDef) => shipDef.id);
-const BLOCKED_FOREIGN_INTERACTIVE_UPGRADE_IDS = new Set<ShipDefId>([
-  'FRI',
-  'GUA',
-  'SAC',
-  'KNO',
-  'DOM',
-]);
 
 function toNonNegativeInt(value: unknown): number {
   const num = Number(value);
@@ -120,10 +111,6 @@ function getForeignBuildRestriction(args: {
 
   if (shipDef.basicCost) {
     return 'FOREIGN_BASIC';
-  }
-
-  if (shipDef.upgradedCost && BLOCKED_FOREIGN_INTERACTIVE_UPGRADE_IDS.has(args.shipDefId)) {
-    return 'FOREIGN_INTERACTIVE_UPGRADE';
   }
 
   return null;

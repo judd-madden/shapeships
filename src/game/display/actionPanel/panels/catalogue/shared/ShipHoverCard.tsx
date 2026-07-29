@@ -176,16 +176,12 @@ function EligibilityFooter({
     }
 
     if (eligibility.state === 'RULE_RESTRICTED') {
-      const message = eligibility.restrictionReason === 'FOREIGN_BASIC'
-        ? 'Foreign basic ships cannot be built'
-        : 'In development';
-
       return (
         <p
           className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px]"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
-          {message}
+          Foreign basic ships cannot be built
         </p>
       );
     }

@@ -278,7 +278,7 @@ Deno.test('build retry preserves the third-Spiral marker and a later replacement
   );
 });
 
-Deno.test('Frigate successful creation keeps its existing trigger memory', () => {
+Deno.test('Ancient Frigate creation consumes foreign components and keeps its trigger memory', () => {
   const state = createResolutionState({
     lines: 0,
     ships: [
@@ -290,12 +290,38 @@ Deno.test('Frigate successful creation keeps its existing trigger memory', () =>
       frigateTriggers: [4],
     },
   });
-  state.players[0].faction = 'human';
   state.players[0].joiningLines = 3;
   resolve(state);
+  assert.deepEqual(
+    state.gameData.ships.p1.map((ship: any) => ship.shipDefId),
+    ['FRI'],
+  );
   const frigate = state.gameData.ships.p1[0];
   assert.equal(state.gameData.powerMemory.frigateTriggerByInstanceId[frigate.instanceId], 4);
   assert.equal(frigate.permanentConfiguration, undefined);
+});
+
+Deno.test('Ancient Frigate creation without foreign components uses ordinary component validation', () => {
+  const state = createResolutionState({
+    lines: 0,
+    payload: {
+      builds: [{ shipDefId: 'FRI', count: 1 }],
+      frigateTriggers: [4],
+    },
+  });
+  state.players[0].joiningLines = 3;
+  const result = resolve(state);
+
+  assert.deepEqual(state.gameData.ships.p1, []);
+  assert.equal(state.players[0].joiningLines, 3);
+  assert.equal(
+    result.events.some((event: any) =>
+      event.type === 'BUILD_ATTEMPT_SKIPPED' &&
+      event.shipDefId === 'FRI' &&
+      event.reason === 'missing_components'
+    ),
+    true,
+  );
 });
 
 Deno.test('normal LEG and ZEN builds use shared immediate Drawing consequences', () => {

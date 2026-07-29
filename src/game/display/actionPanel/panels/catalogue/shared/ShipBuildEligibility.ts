@@ -13,7 +13,7 @@ export type ShipEligibilityState =
 export interface ShipEligibility {
   state: ShipEligibilityState;
   missingComponentShipIds?: string[];
-  restrictionReason?: 'FOREIGN_BASIC' | 'FOREIGN_INTERACTIVE_UPGRADE';
+  restrictionReason?: 'FOREIGN_BASIC';
 }
 
 export function shouldEnableCatalogueGraphicHover(args: {

@@ -248,9 +248,7 @@ function MobileShipModalFooter({
     if (eligibility.state === 'RULE_RESTRICTED') {
       return (
         <UnavailableText>
-          {eligibility.restrictionReason === 'FOREIGN_BASIC'
-            ? 'Foreign basic ships cannot be built'
-            : 'In development'}
+          Foreign basic ships cannot be built
         </UnavailableText>
       );
     }
