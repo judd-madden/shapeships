@@ -10,6 +10,7 @@ import { isShipDefId } from '../../data/ShipDefinitions.core';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import {
   getFrigateTriggerByInstanceId,
+  getMaterializedSimulacrumFleetInstanceIdsByPlayerId,
   getShipsByPlayerId,
   getVoidShipsByPlayerId,
 } from './selectors';
@@ -457,6 +458,8 @@ export function deriveFleets(args: {
   } = args;
 
   const frigateTriggerByInstanceId = getFrigateTriggerByInstanceId(rawState);
+  const materializedSimulacrumFleetInstanceIdsByPlayerId =
+    getMaterializedSimulacrumFleetInstanceIdsByPlayerId(rawState);
 
   const shipsData = getShipsByPlayerId(rawState);
   const voidShipsData = getVoidShipsByPlayerId(rawState);
@@ -468,16 +471,25 @@ export function deriveFleets(args: {
 
   const isInBattlePhase = majorPhase === 'battle';
 
-  function isShipVisibleToViewer(ship: any): boolean {
+  function isShipVisibleToViewer(ship: any, ownerPlayerId: string | undefined): boolean {
     const createdTurn = ship?.createdTurn;
     if (typeof createdTurn !== 'number') return true;
     if (createdTurn < turnNumber) return true;
-    return isInBattlePhase;
+    if (isInBattlePhase) return true;
+    if (majorPhase !== 'build' || !ownerPlayerId) return false;
+    const instanceId = getShipInstanceId(ship);
+    return instanceId != null &&
+      materializedSimulacrumFleetInstanceIdsByPlayerId[ownerPlayerId]
+        ?.includes(instanceId) === true;
   }
 
-  const opponentShipsVisible = opponentShips.filter(isShipVisibleToViewer);
+  const opponentShipsVisible = opponentShips.filter((ship) =>
+    isShipVisibleToViewer(ship, opponent?.id)
+  );
   const myVoidShipsVisible = myVoidShips;
-  const opponentVoidShipsVisible = opponentVoidShips.filter(isShipVisibleToViewer);
+  const opponentVoidShipsVisible = opponentVoidShips.filter((ship) =>
+    isShipVisibleToViewer(ship, opponent?.id)
+  );
 
   function aggregateFleet(
     ships: any[],

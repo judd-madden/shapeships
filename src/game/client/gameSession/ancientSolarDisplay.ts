@@ -255,6 +255,10 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
 
     return [{
       originalIndex,
+      authoritativeLedgerEntryId:
+        typeof record.entryId === 'string' && record.entryId.length > 0
+          ? record.entryId
+          : undefined,
       order: record.order,
       sourceMode: record.sourceMode,
       solarPowerId: record.solarPowerId,
@@ -283,6 +287,7 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
         sourceMode: candidate.sourceMode,
         order: displayIdentityOrder,
       }),
+      authoritativeLedgerEntryId: candidate.authoritativeLedgerEntryId,
       solarPowerId: candidate.solarPowerId,
       order: candidate.order,
       sourceMode: candidate.sourceMode,
@@ -484,14 +489,20 @@ export function deriveAncientSolarDisplayEntries(args: {
   localPreviewCasts: readonly AncientManualSolarCast[];
   controlledCubeCount: number;
   isAuthoritativelyReady: boolean;
-  hideMaterializedSimulacrumEntries?: boolean;
+  suppressedAuthoritativeLedgerEntryIds?: ReadonlySet<string>;
 }): AncientSolarDisplayEntry[] {
   const authoritativeEntries = normalizeAuthoritativeAncientSolarEntries({
     playerId: args.playerId,
     ledger: args.ledger,
   });
-  const visibleAuthoritativeEntries = args.hideMaterializedSimulacrumEntries
-    ? authoritativeEntries.filter((entry) => entry.solarPowerId !== 'SSIM')
+  const visibleAuthoritativeEntries = args.suppressedAuthoritativeLedgerEntryIds
+    ? authoritativeEntries.filter((entry) =>
+        entry.solarPowerId !== 'SSIM' ||
+        entry.authoritativeLedgerEntryId == null ||
+        !args.suppressedAuthoritativeLedgerEntryIds!.has(
+          entry.authoritativeLedgerEntryId
+        )
+      )
     : authoritativeEntries;
 
   if (

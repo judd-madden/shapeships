@@ -22,9 +22,8 @@ import {
 } from './GameStateTypes.ts';
 import { getEffectiveDiceRollForPlayer } from '../../engine_shared/resolve/phaseComputedEffects.ts';
 import {
-  projectPublicShipsForSimulacrumDrawing,
-  projectRequesterHiddenDrawingSimulacrumShips,
-  projectRequesterShipsForSimulacrumDrawing,
+  deriveMaterializedSimulacrumFleetInstanceIdsByPlayerId,
+  deriveMaterializedSimulacrumLedgerEntryIdsByPlayerId,
   pruneCompletedSimulacrumCopiesAtBattleReveal,
 } from '../ancient/simulacrumSolarPower.ts';
 
@@ -932,6 +931,8 @@ export function projectPublicAncientState(normalizedState: any): {
   schemaVersion: 1;
   energyByPlayerId: Record<string, AncientPlayerEnergyState>;
   solarLedgerByPlayerId: Record<string, AncientSolarLedgerState>;
+  materializedSimulacrumFleetInstanceIdsByPlayerId: Record<string, string[]>;
+  materializedSimulacrumLedgerEntryIdsByPlayerId: Record<string, string[]>;
 } {
   const ancient = normalizedState?.gameData?.ancient as AncientState;
   const energyByPlayerId: Record<string, AncientPlayerEnergyState> = {};
@@ -948,6 +949,10 @@ export function projectPublicAncientState(normalizedState: any): {
     schemaVersion: ANCIENT_STATE_SCHEMA_VERSION,
     energyByPlayerId,
     solarLedgerByPlayerId,
+    materializedSimulacrumFleetInstanceIdsByPlayerId:
+      deriveMaterializedSimulacrumFleetInstanceIdsByPlayerId(normalizedState),
+    materializedSimulacrumLedgerEntryIdsByPlayerId:
+      deriveMaterializedSimulacrumLedgerEntryIdsByPlayerId(normalizedState),
   };
 }
 
@@ -1022,16 +1027,13 @@ export function projectPublicPlayersForClient(
 export function projectPublicShipsForClient(
   state: Readonly<any>,
 ): Record<string, ShipInstance[]> {
-  return projectPublicShipsForSimulacrumDrawing(state);
-}
-
-export function projectRequesterHiddenDrawingShips(
-  state: Readonly<any>,
-  requestingParticipantId?: string,
-): ShipInstance[] {
-  return projectRequesterHiddenDrawingSimulacrumShips(
-    state,
-    requestingParticipantId,
+  const shipsByPlayerId = state?.gameData?.ships;
+  if (!isObject(shipsByPlayerId)) return {};
+  return Object.fromEntries(
+    Object.entries(shipsByPlayerId).map(([playerId, fleet]) => [
+      playerId,
+      Array.isArray(fleet) ? structuredClone(fleet) : [],
+    ]),
   );
 }
 
@@ -1049,10 +1051,7 @@ export function sanitizeAncientStateForClient<T = any>(
   }
   const { ancient: _internalAncient, ...safeGameData } = gameData;
   if (isObject(safeGameData.ships)) {
-    safeGameData.ships = projectRequesterShipsForSimulacrumDrawing(
-      state,
-      requestingParticipantId,
-    );
+    safeGameData.ships = projectPublicShipsForClient(state);
   }
   const turnData = isObject(safeGameData.turnData) ? safeGameData.turnData : null;
   if (turnData) {

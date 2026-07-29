@@ -905,7 +905,7 @@ Deno.test('battle.reveal entry generates public Core Energy before the unchanged
   assert.equal('pendingBlackHoleDestructions' in projection, false);
 });
 
-Deno.test('public Ancient projection exposes only cloned Energy and ledger state', () => {
+Deno.test('public Ancient projection preserves cloned ledger state and adds derived materialization maps', () => {
   const state: any = normalizeAncientGameState(createBaseState()).state;
   state.gameData.ancient.energyByPlayerId.p1.pool.green = 3;
   state.gameData.ancient.solarLedgerByPlayerId.p1 = {
@@ -936,6 +936,8 @@ Deno.test('public Ancient projection exposes only cloned Energy and ledger state
   const projection = projectPublicAncientState(state);
   assert.deepEqual(Object.keys(projection).sort(), [
     'energyByPlayerId',
+    'materializedSimulacrumFleetInstanceIdsByPlayerId',
+    'materializedSimulacrumLedgerEntryIdsByPlayerId',
     'schemaVersion',
     'solarLedgerByPlayerId',
   ]);
@@ -944,6 +946,14 @@ Deno.test('public Ancient projection exposes only cloned Energy and ledger state
   assert.equal('acceptedDeclarationByPlayerId' in projection, false);
   assert.equal('pendingSimulacrumCopies' in projection, false);
   assert.equal('pendingBlackHoleDestructions' in projection, false);
+  assert.deepEqual(
+    projection.materializedSimulacrumFleetInstanceIdsByPlayerId,
+    { p1: [], p2: [] },
+  );
+  assert.deepEqual(
+    projection.materializedSimulacrumLedgerEntryIdsByPlayerId,
+    { p1: [], p2: [] },
+  );
   assert.deepEqual(state, before);
 
   projection.energyByPlayerId.p1.pool.green = 99;

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { materializeQueuedSimulacrumCopiesAtDrawing } from '../ancient/simulacrumSolarPower.ts';
+import { materializeQueuedSimulacrumCopiesAtTurnStart } from '../ancient/simulacrumSolarPower.ts';
 import { resolveBuildSubmitAuthoritatively } from './buildSubmitResolution.ts';
 
 function createResolutionState(args: {
@@ -368,7 +368,7 @@ Deno.test('normal LEG and ZEN builds use shared immediate Drawing consequences',
   );
 });
 
-Deno.test('Drawing build resolution can immediately consume Simulacrum materializations as upgrade components', () => {
+Deno.test('Drawing build resolution consumes turn-start Simulacrum copies as upgrade components', () => {
   const state = createResolutionState({
     turnNumber: 2,
     lines: 0,
@@ -435,7 +435,7 @@ Deno.test('Drawing build resolution can immediately consume Simulacrum materiali
     ],
   };
 
-  const materialized = materializeQueuedSimulacrumCopiesAtDrawing(state, 2, 900);
+  const materialized = materializeQueuedSimulacrumCopiesAtTurnStart(state, 2, 900);
   const result = resolve(materialized.state);
 
   assert.deepEqual(
@@ -452,7 +452,7 @@ Deno.test('Drawing build resolution can immediately consume Simulacrum materiali
   );
 });
 
-Deno.test('copied LEG joining lines fund an upgrade in the same Drawing', () => {
+Deno.test('turn-start copied LEG joining lines fund an upgrade in the same Drawing', () => {
   const state = createResolutionState({
     turnNumber: 2,
     lines: 0,
@@ -494,7 +494,7 @@ Deno.test('copied LEG joining lines fund an upgrade in the same Drawing', () => 
     }],
   };
 
-  const materialized = materializeQueuedSimulacrumCopiesAtDrawing(
+  const materialized = materializeQueuedSimulacrumCopiesAtTurnStart(
     state,
     2,
     500,
@@ -549,7 +549,7 @@ Deno.test('unused copied LEG lines clamp only through ordinary persistence', () 
     }],
   };
 
-  const materialized = materializeQueuedSimulacrumCopiesAtDrawing(
+  const materialized = materializeQueuedSimulacrumCopiesAtTurnStart(
     state,
     2,
     500,

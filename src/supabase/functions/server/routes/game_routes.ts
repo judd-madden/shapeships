@@ -30,7 +30,6 @@ import {
   projectPublicAncientState,
   projectPublicPlayersForClient,
   projectPublicShipsForClient,
-  projectRequesterHiddenDrawingShips,
   sanitizeAncientStateForClient,
   type AncientCompatibilityRisk,
 } from '../engine/state/ancientState.ts';
@@ -1991,8 +1990,6 @@ export function registerGameRoutes(
         requestingPlayerId,
       );
       const publicShips = projectPublicShipsForClient(gameData);
-      const hiddenDrawingSimulacrumShips =
-        projectRequesterHiddenDrawingShips(gameData, requestingPlayerId);
       const {
         ships: _omitShips,
         battleLogScratch: _omitBattleLogScratch,
@@ -2079,7 +2076,6 @@ export function registerGameRoutes(
             participant?.role
           ),
         },
-        hiddenDrawingSimulacrumShips,
       };
       const result = {
         winnerPlayerId: gameData.winnerPlayerId ?? null,

@@ -40,6 +40,9 @@
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { getCanonicalShipFamilyDisplayName } from '../../engine_shared/defs/ShipDefinitionNames.ts';
 import { getCopyTierFromFleet } from '../../engine_shared/resolve/phaseComputedEffects.ts';
+import {
+  getDirectMaterializedSimulacrumInstanceIdsForPlayer,
+} from '../ancient/simulacrumSolarPower.ts';
 
 const BONUS_LINES_PER_SHIP: Record<string, number> = {
   ORB: 1,
@@ -57,7 +60,7 @@ const JOINING_BONUS_LINES_PER_SHIP: Record<string, number> = {
  * Stored/saved joining lines are distinct from joiningBonusLines and are not handled here.
  *
  * FUTURE:
- * - LEG: +4 joining lines once, immediately during build.drawing
+ * - LEG: +4 joining lines once through immediate creation consequences
  */
 
 export type LineBonusBreakdown = {
@@ -156,6 +159,7 @@ function getCappedContributingCount(shipDefId: string, count: number): number {
 function isEligibleLineGenerationSource(
   ship: any,
   currentTurnNumber: unknown,
+  directMaterializedSimulacrumInstanceIds: ReadonlySet<string>,
 ): boolean {
   if (
     typeof currentTurnNumber !== 'number' ||
@@ -169,7 +173,10 @@ function isEligibleLineGenerationSource(
     return true;
   }
 
-  return createdTurn < currentTurnNumber;
+  if (createdTurn < currentTurnNumber) return true;
+  return createdTurn === currentTurnNumber &&
+    typeof ship?.instanceId === 'string' &&
+    directMaterializedSimulacrumInstanceIds.has(ship.instanceId);
 }
 
 export function computeLineBonusesForPlayer(
@@ -196,8 +203,14 @@ export function computeLineBonusesForPlayer(
   const currentTurnNumber =
     gameData?.gameData?.turnNumber ??
     gameData?.turnNumber;
+  const directMaterializedSimulacrumInstanceIds =
+    getDirectMaterializedSimulacrumInstanceIdsForPlayer(gameData, playerId);
   const lineGenerationShips = ships.filter((ship: any) =>
-    isEligibleLineGenerationSource(ship, currentTurnNumber)
+    isEligibleLineGenerationSource(
+      ship,
+      currentTurnNumber,
+      directMaterializedSimulacrumInstanceIds,
+    )
   );
   const shipCounts: Record<string, number> = {};
   const shipInstancesByDefId: Record<string, any[]> = {};

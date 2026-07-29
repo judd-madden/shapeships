@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { registerGameRoutes } from './game_routes.ts';
 import { registerIntentRoutes } from './intent_routes.ts';
 import { normalizeAncientGameState } from '../engine/state/ancientState.ts';
+import { onEnterPhase } from '../engine/phase/onEnterPhase.ts';
 
 type RouteHandler = (context: any) => Promise<Response> | Response;
 
@@ -463,7 +464,7 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
   assert.equal(fixture.writes.length, 0);
 });
 
-Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with owner-only requester projection', async () => {
+Deno.test('/game-state projects turn-start Simulacrum support maps without changing the public Solar ledger', async () => {
   const fixture = createGameRouteFixture();
   const setupState: any = createSetupState('drawing-simulacrum');
   setupState.turnNumber = 3;
@@ -516,7 +517,7 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
   const state: any = normalizeAncientGameState(setupState).state;
   state.gameData.ancient.pendingSimulacrumCopies = [
     {
-      pendingCopyId: 'p1-copy',
+      pendingCopyId: 'p1-ssim:simulacrum-copy:primary',
       declarationId: 'p1-declaration',
       ownerPlayerId: 'p1',
       sourceTargetInstanceId: 'p2-source',
@@ -535,7 +536,7 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       },
     },
     {
-      pendingCopyId: 'p2-copy',
+      pendingCopyId: 'p2-ssim:simulacrum-copy:primary',
       declarationId: 'p2-declaration',
       ownerPlayerId: 'p2',
       sourceTargetInstanceId: 'p1-source',
@@ -564,7 +565,23 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       paidEnergy: { green: 0, red: 0, blue: 3 },
       simulacrum: {
         sourceTargetInstanceId: 'p2-source',
-        copiedShipDefId: 'CAR',
+        copiedShipDefId: 'ZEN',
+        capturedStartOfBattleCharges: 0,
+        permanentConfiguration: {},
+      },
+    }],
+  };
+  state.gameData.ancient.solarLedgerByPlayerId.p2 = {
+    battleTurnNumber: 2,
+    entries: [{
+      entryId: 'p2-ssim',
+      order: 0,
+      solarPowerId: 'SSIM',
+      sourceMode: 'manual',
+      paidEnergy: { green: 0, red: 0, blue: 3 },
+      simulacrum: {
+        sourceTargetInstanceId: 'p1-source',
+        copiedShipDefId: 'FIG',
         capturedStartOfBattleCharges: 0,
         permanentConfiguration: {},
       },
@@ -591,8 +608,8 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
   const publicIds = (body: any, playerId: string) =>
     body.publicState.ships[playerId].map((entry: any) => entry.instanceId);
   for (const body of [owner, opponent, spectator]) {
-    assert.deepEqual(publicIds(body, 'p1'), ['p1-public']);
-    assert.deepEqual(publicIds(body, 'p2'), ['p2-public']);
+    assert.deepEqual(publicIds(body, 'p1'), ['p1-public', 'p1-hidden']);
+    assert.deepEqual(publicIds(body, 'p2'), ['p2-public', 'p2-hidden']);
     assert.equal(
       body.publicState.players.find((player: any) => player.id === 'p1').joiningLines,
       0,
@@ -609,7 +626,7 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       body.publicState.ancient.solarLedgerByPlayerId.p1.entries[0].simulacrum,
       {
         sourceTargetInstanceId: 'p2-source',
-        copiedShipDefId: 'CAR',
+        copiedShipDefId: 'ZEN',
         capturedStartOfBattleCharges: 0,
         permanentConfiguration: {},
       },
@@ -618,8 +635,23 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       'pendingSimulacrumCopies' in body.publicState.ancient,
       false,
     );
+    assert.deepEqual(
+      body.publicState.ancient
+        .materializedSimulacrumFleetInstanceIdsByPlayerId,
+      { p1: ['p1-hidden'], p2: ['p2-hidden'] },
+    );
+    assert.deepEqual(
+      body.publicState.ancient
+        .materializedSimulacrumLedgerEntryIdsByPlayerId,
+      { p1: ['p1-ssim'], p2: ['p2-ssim'] },
+    );
     assert.equal('ancient' in body.gameData, false);
+    assert.equal('hiddenDrawingSimulacrumShips' in body.requester, false);
   }
+  assert.deepEqual(
+    owner.publicState.ancient.solarLedgerByPlayerId,
+    state.gameData.ancient.solarLedgerByPlayerId,
+  );
   owner.publicState.ancient.solarLedgerByPlayerId.p1.entries[0].simulacrum
     .capturedStartOfBattleCharges = 99;
   owner.publicState.ancient.solarLedgerByPlayerId.p1.entries[0].simulacrum
@@ -629,39 +661,26 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
       .solarLedgerByPlayerId.p1.entries[0].simulacrum,
     {
       sourceTargetInstanceId: 'p2-source',
-      copiedShipDefId: 'CAR',
+      copiedShipDefId: 'ZEN',
       capturedStartOfBattleCharges: 0,
       permanentConfiguration: {},
     },
   );
-  assert.deepEqual(
-    owner.requester.hiddenDrawingSimulacrumShips.map(
-      (entry: any) => entry.instanceId,
-    ),
-    ['p1-hidden'],
-  );
-  assert.deepEqual(
-    opponent.requester.hiddenDrawingSimulacrumShips.map(
-      (entry: any) => entry.instanceId,
-    ),
-    ['p2-hidden'],
-  );
-  assert.deepEqual(spectator.requester.hiddenDrawingSimulacrumShips, []);
   assert.deepEqual(
     owner.gameData.ships.p1.map((entry: any) => entry.instanceId),
     ['p1-public', 'p1-hidden'],
   );
   assert.deepEqual(
     owner.gameData.ships.p2.map((entry: any) => entry.instanceId),
-    ['p2-public'],
+    ['p2-public', 'p2-hidden'],
   );
   assert.deepEqual(
     spectator.gameData.ships.p1.map((entry: any) => entry.instanceId),
-    ['p1-public'],
+    ['p1-public', 'p1-hidden'],
   );
   assert.deepEqual(
     spectator.gameData.ships.p2.map((entry: any) => entry.instanceId),
-    ['p2-public'],
+    ['p2-public', 'p2-hidden'],
   );
   assert.equal(owner.players.find((player: any) => player.id === 'p1').joiningLines, 4);
   assert.equal(owner.players.find((player: any) => player.id === 'p2').joiningLines, 0);
@@ -736,7 +755,79 @@ Deno.test('/game-state keeps Drawing Simulacrum fleets public-invariant with own
     await getState(createContext({ params: { gameId: 'drawing-simulacrum' } })),
   );
   assert.deepEqual(publicIds(revealed, 'p1'), ['p1-public', 'p1-hidden']);
-  assert.deepEqual(revealed.requester.hiddenDrawingSimulacrumShips, []);
+  assert.equal('hiddenDrawingSimulacrumShips' in revealed.requester, false);
+});
+
+Deno.test('/game-state projects the normal CAR choice action for a turn-start copied source', async () => {
+  const fixture = createGameRouteFixture();
+  const setupState: any = createSetupState('copied-car-action');
+  setupState.turnNumber = 3;
+  setupState.gameData.turnNumber = 3;
+  setupState.gameData.currentPhase = 'build';
+  setupState.gameData.currentSubPhase = 'dice_roll';
+  setupState.gameData.turnData.turnNumber = 3;
+  setupState.gameData.turnData.currentMajorPhase = 'build';
+  setupState.gameData.turnData.currentSubPhase = 'dice_roll';
+  setupState.players[0].faction = 'ancient';
+  setupState.players.push({
+    id: 'p2',
+    name: 'Player Two',
+    role: 'player',
+    faction: 'human',
+    isReady: false,
+    isActive: true,
+    health: 25,
+    lines: 0,
+    joiningLines: 0,
+  });
+  setupState.gameData.ships = { p1: [], p2: [] };
+  const state: any = normalizeAncientGameState(setupState).state;
+  state.gameData.ancient.pendingSimulacrumCopies = [{
+    pendingCopyId: 'copy-car',
+    declarationId: 'declaration-2',
+    ownerPlayerId: 'p1',
+    sourceTargetInstanceId: 'source-car',
+    copiedShipDefId: 'CAR',
+    queuedTurnNumber: 2,
+    materializationTurnNumber: 3,
+    queueOrder: 0,
+    capturedStartOfBattleCharges: 6,
+    permanentConfiguration: {},
+    sourceMode: 'primary',
+    status: 'queued',
+  }];
+
+  const entered = onEnterPhase(
+    state,
+    'battle.end_of_turn_resolution',
+    'build.dice_roll',
+    100,
+  );
+  assert.equal(entered.state.gameData.currentSubPhase, 'ships_that_build');
+  const copiedCar = entered.state.gameData.ships.p1.find(
+    (ship: any) => ship.shipDefId === 'CAR',
+  );
+  assert.ok(copiedCar);
+  fixture.store.set('game_copied-car-action', structuredClone(entered.state));
+
+  const getState = fixture.app.handler(
+    'GET',
+    '/make-server-825e19ab/game-state/:gameId',
+  );
+  const body = await responseJson(
+    await getState(createContext({ params: { gameId: 'copied-car-action' } })),
+  );
+  assert.deepEqual(body.requester.availableActions, [{
+    kind: 'choice',
+    actionId: 'CAR#0',
+    shipDefId: 'CAR',
+    sourceInstanceId: copiedCar.instanceId,
+    choices: [
+      { choiceId: 'defender' },
+      { choiceId: 'fighter' },
+      { choiceId: 'hold' },
+    ],
+  }]);
 });
 
 Deno.test('/game-state projects DOM transfer targets with shared Spiral capacity legality', async () => {

@@ -51,6 +51,7 @@ import {
   getJoiningBonusLinesByPlayerId,
   getJoiningLinesByPlayerId,
   getKnoRerollPassIndex,
+  getMaterializedSimulacrumLedgerEntryIdsByPlayerId,
   getLastTurnDamageByPlayerId,
   getLastTurnDamageDealtBreakdownByPlayerId,
   getLastTurnHealByPlayerId,
@@ -2383,10 +2384,14 @@ export function useGameSession(
     );
   const publicAncientSolarLedgers =
     rawState?.publicState?.ancient?.solarLedgerByPlayerId as Record<string, unknown> | undefined;
-  const shouldHandoffOwnSimulacrumLedgerToDrawingFleet =
-    phaseKey === 'build.drawing' &&
-    myRole === 'player' &&
-    displayLeftPlayer?.id === me?.id;
+  const materializedSimulacrumLedgerEntryIdsByPlayerId =
+    getMaterializedSimulacrumLedgerEntryIdsByPlayerId(rawState);
+  const getSuppressedSimulacrumLedgerEntryIds = (
+    playerId: string | null | undefined
+  ): ReadonlySet<string> | undefined =>
+    majorPhase === 'build' && playerId
+      ? new Set(materializedSimulacrumLedgerEntryIdsByPlayerId[playerId] ?? [])
+      : undefined;
   const displayLeftAncientSolarEntries = deriveAncientSolarDisplayEntries({
     playerId: displayLeftPlayer?.id,
     ledger: displayLeftPlayer?.id ? publicAncientSolarLedgers?.[displayLeftPlayer.id] : null,
@@ -2400,8 +2405,8 @@ export function useGameSession(
     localPreviewCasts: ancientSolarPresentationCasts,
     controlledCubeCount,
     isAuthoritativelyReady: ancientPlayerReady,
-    hideMaterializedSimulacrumEntries:
-      shouldHandoffOwnSimulacrumLedgerToDrawingFleet,
+    suppressedAuthoritativeLedgerEntryIds:
+      getSuppressedSimulacrumLedgerEntryIds(displayLeftPlayer?.id),
   });
   const displayRightAncientSolarEntries = normalizeSpecies(
     displayRightPlayer?.faction ?? displayRightPlayer?.species
@@ -2414,6 +2419,8 @@ export function useGameSession(
         localPreviewCasts: [],
         controlledCubeCount: 0,
         isAuthoritativelyReady: isPlayerReadyForPhase(rawState, displayRightPlayer?.id),
+        suppressedAuthoritativeLedgerEntryIds:
+          getSuppressedSimulacrumLedgerEntryIds(displayRightPlayer?.id),
       })
     : [];
   const ancientSolarEntriesForMarkers = [

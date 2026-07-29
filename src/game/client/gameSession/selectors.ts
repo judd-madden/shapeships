@@ -535,44 +535,37 @@ export function getChronoswarmRolls(state: any): unknown[] | undefined {
   return Array.isArray(rolls) ? rolls : undefined;
 }
 
-function getStableShipInstanceId(ship: any): string | null {
-  if (typeof ship?.instanceId === 'string' && ship.instanceId.trim().length > 0) {
-    return ship.instanceId;
-  }
-
-  return typeof ship?.id === 'string' && ship.id.trim().length > 0 ? ship.id : null;
+function normalizeStringListMap(value: unknown): Record<string, string[]> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([playerId, rawIds]) => [
+      playerId,
+      Array.isArray(rawIds)
+        ? Array.from(new Set(rawIds.filter(
+            (instanceId): instanceId is string =>
+              typeof instanceId === 'string' && instanceId.trim().length > 0
+          )))
+        : [],
+    ])
+  );
 }
 
-export function getRequesterHiddenDrawingSimulacrumShips(state: any): any[] {
-  if (getPhaseKey(state) !== 'build.drawing') {
-    return [];
-  }
+export function getMaterializedSimulacrumFleetInstanceIdsByPlayerId(
+  state: any
+): Record<string, string[]> {
+  return normalizeStringListMap(
+    state?.publicState?.ancient
+      ?.materializedSimulacrumFleetInstanceIdsByPlayerId
+  );
+}
 
-  const requesterPlayerId = state?.requester?.playerId;
-  const rawShips = state?.requester?.hiddenDrawingSimulacrumShips;
-  if (
-    typeof requesterPlayerId !== 'string' ||
-    requesterPlayerId.trim().length === 0 ||
-    !Array.isArray(rawShips)
-  ) {
-    return [];
-  }
-
-  const seenInstanceIds = new Set<string>();
-  return rawShips.flatMap((ship: any) => {
-    const instanceId = getStableShipInstanceId(ship);
-    if (
-      !instanceId ||
-      seenInstanceIds.has(instanceId) ||
-      typeof ship?.shipDefId !== 'string' ||
-      ship.shipDefId.trim().length === 0
-    ) {
-      return [];
-    }
-
-    seenInstanceIds.add(instanceId);
-    return [structuredClone(ship)];
-  });
+export function getMaterializedSimulacrumLedgerEntryIdsByPlayerId(
+  state: any
+): Record<string, string[]> {
+  return normalizeStringListMap(
+    state?.publicState?.ancient
+      ?.materializedSimulacrumLedgerEntryIdsByPlayerId
+  );
 }
 
 export function getShipsByPlayerId(state: any): Record<string, any[]> {
@@ -589,33 +582,7 @@ export function getShipsByPlayerId(state: any): Record<string, any[]> {
     baseShipsByPlayerId = {};
   }
 
-  const hiddenShips = getRequesterHiddenDrawingSimulacrumShips(state);
-  if (hiddenShips.length === 0) {
-    return baseShipsByPlayerId;
-  }
-
-  const requesterPlayerId = state.requester.playerId as string;
-  const requesterFleet = Array.isArray(baseShipsByPlayerId[requesterPlayerId])
-    ? baseShipsByPlayerId[requesterPlayerId]
-    : [];
-  const existingInstanceIds = new Set(
-    requesterFleet.flatMap((ship: any) => {
-      const instanceId = getStableShipInstanceId(ship);
-      return instanceId ? [instanceId] : [];
-    })
-  );
-  const hiddenShipsNotAlreadyPresent = hiddenShips.filter((ship: any) => {
-    const instanceId = getStableShipInstanceId(ship);
-    return instanceId != null && !existingInstanceIds.has(instanceId);
-  });
-
-  return {
-    ...baseShipsByPlayerId,
-    [requesterPlayerId]: [
-      ...requesterFleet,
-      ...hiddenShipsNotAlreadyPresent,
-    ],
-  };
+  return baseShipsByPlayerId;
 }
 
 export function getShipsForPlayer(state: any, playerId: string | null | undefined): any[] {

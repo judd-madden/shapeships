@@ -352,7 +352,7 @@ function requireMatchingMaterializedShip(args: {
   instanceId: string;
   ownerPlayerId: string;
   shipDefId: string;
-  drawingTurnNumber: number;
+  materializationTurnNumber: number;
   label: string;
 }): ShipInstance {
   const existing = findFleetShipByInstanceId(args.state, args.instanceId);
@@ -360,7 +360,7 @@ function requireMatchingMaterializedShip(args: {
     !existing ||
     existing.ownerPlayerId !== args.ownerPlayerId ||
     existing.ship.shipDefId !== args.shipDefId ||
-    existing.ship.createdTurn !== args.drawingTurnNumber
+    existing.ship.createdTurn !== args.materializationTurnNumber
   ) {
     throw new Error(
       `Simulacrum ${args.label} invariant failed: ${args.instanceId}`,
@@ -372,7 +372,7 @@ function requireMatchingMaterializedShip(args: {
 function validateMaterializationOutcome(args: {
   state: Readonly<any>;
   record: Readonly<AncientPendingSimulacrumCopy>;
-  drawingTurnNumber: number;
+  materializationTurnNumber: number;
 }): AncientSimulacrumMaterializationOutcome {
   const { record } = args;
   if (!isNonEmptyString(record.materializedInstanceId)) {
@@ -414,7 +414,7 @@ function validateMaterializationOutcome(args: {
     instanceId: record.materializedInstanceId,
     ownerPlayerId: record.ownerPlayerId,
     shipDefId: record.copiedShipDefId,
-    drawingTurnNumber: args.drawingTurnNumber,
+    materializationTurnNumber: args.materializationTurnNumber,
     label: "direct ship",
   });
   for (let index = 0; index < outcome!.producedShips.length; index += 1) {
@@ -424,16 +424,16 @@ function validateMaterializationOutcome(args: {
       instanceId: produced.instanceId,
       ownerPlayerId: record.ownerPlayerId,
       shipDefId: produced.shipDefId,
-      drawingTurnNumber: args.drawingTurnNumber,
+      materializationTurnNumber: args.materializationTurnNumber,
       label: "dependent ship",
     });
   }
   return structuredClone(outcome!);
 }
 
-export function materializeQueuedSimulacrumCopiesAtDrawing(
+export function materializeQueuedSimulacrumCopiesAtTurnStart(
   state: GameState,
-  drawingTurnNumber: number,
+  materializationTurnNumber: number,
   nowMs = Date.now(),
   createInstanceId: () => string = () => crypto.randomUUID(),
 ): { state: GameState; events: any[] } {
@@ -444,13 +444,13 @@ export function materializeQueuedSimulacrumCopiesAtDrawing(
     throw new Error("Simulacrum materialization requires initialized Ancient state");
   }
 
-  const currentDrawingRecords = pendingCopies.filter((record) =>
-    record.materializationTurnNumber === drawingTurnNumber
+  const currentMaterializationRecords = pendingCopies.filter((record) =>
+    record.materializationTurnNumber === materializationTurnNumber
   );
-  const selectedRecords = currentDrawingRecords.filter((record) =>
+  const selectedRecords = currentMaterializationRecords.filter((record) =>
     record.status === "queued"
   );
-  if (currentDrawingRecords.length === 0) {
+  if (currentMaterializationRecords.length === 0) {
     return { state: workingState, events: [] };
   }
 
@@ -458,7 +458,7 @@ export function materializeQueuedSimulacrumCopiesAtDrawing(
   getActivePlayerIds(workingState).forEach((playerId, index) =>
     seatIndexByPlayerId.set(playerId, index)
   );
-  for (const record of currentDrawingRecords) {
+  for (const record of currentMaterializationRecords) {
     if (!seatIndexByPlayerId.has(record.ownerPlayerId)) {
       throw new Error(
         `Simulacrum materialization owner is not an active player: ${record.ownerPlayerId}`,
@@ -488,7 +488,7 @@ export function materializeQueuedSimulacrumCopiesAtDrawing(
     }
   }
 
-  const orderedRecords = [...currentDrawingRecords].sort((left, right) =>
+  const orderedRecords = [...currentMaterializationRecords].sort((left, right) =>
     seatIndexByPlayerId.get(left.ownerPlayerId)! -
       seatIndexByPlayerId.get(right.ownerPlayerId)! ||
     left.queueOrder - right.queueOrder ||
@@ -529,7 +529,7 @@ export function materializeQueuedSimulacrumCopiesAtDrawing(
         instanceId: record.materializedInstanceId,
         ownerPlayerId: record.ownerPlayerId,
         shipDefId: record.copiedShipDefId,
-        drawingTurnNumber,
+        materializationTurnNumber,
         label: "legacy direct ship",
       });
       if (plannedInstanceIds.has(record.materializedInstanceId)) {
@@ -551,7 +551,7 @@ export function materializeQueuedSimulacrumCopiesAtDrawing(
       const outcome = validateMaterializationOutcome({
         state: workingState,
         record,
-        drawingTurnNumber,
+        materializationTurnNumber,
       });
       const recordedInstanceIds = [
         record.materializedInstanceId!,
@@ -638,7 +638,7 @@ export function materializeQueuedSimulacrumCopiesAtDrawing(
       state: workingState,
       playerId: record.ownerPlayerId,
       shipDefId: record.copiedShipDefId,
-      turnNumber: drawingTurnNumber,
+      turnNumber: materializationTurnNumber,
       creationSource: { kind: "produced", sourceShipDefId: "SSIM" },
       instanceId: plan.directInstanceId,
       ...(isChargeCapableDefinition(definition)
@@ -653,7 +653,7 @@ export function materializeQueuedSimulacrumCopiesAtDrawing(
       state: workingState,
       playerId: record.ownerPlayerId,
       builtShip: created.ship,
-      turnNumber: drawingTurnNumber,
+      turnNumber: materializationTurnNumber,
       grantJoiningLines(amount) {
         owner.joiningLines = (owner.joiningLines ?? 0) + amount;
       },
@@ -710,95 +710,140 @@ export function pruneCompletedSimulacrumCopiesAtBattleReveal(
   );
 }
 
-function getDrawingHiddenIdsByOwner(
+function getCurrentTurnNumber(state: Readonly<any>): number | null {
+  const canonicalGameData = state?.gameData?.ships ? state.gameData : state;
+  const value = canonicalGameData?.turnNumber ??
+    canonicalGameData?.turnData?.turnNumber ??
+    state?.turnNumber;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function getCurrentTurnMaterializedRecords(
   state: Readonly<any>,
-): Map<string, Set<string>> {
-  const result = new Map<string, Set<string>>();
-  const phase =
-    `${state?.gameData?.currentPhase}.${state?.gameData?.currentSubPhase}`;
-  if (phase !== "build.drawing") return result;
-  const turnNumber = state?.gameData?.turnNumber ??
-    state?.gameData?.turnData?.turnNumber ?? state?.turnNumber;
-  const pendingCopies =
-    state?.gameData?.ancient?.pendingSimulacrumCopies;
-  if (!Array.isArray(pendingCopies)) return result;
-  for (const record of pendingCopies as AncientPendingSimulacrumCopy[]) {
-    if (
-      record.status !== "materialized" ||
-      record.materializationTurnNumber !== turnNumber ||
-      !isNonEmptyString(record.materializedInstanceId)
-    ) {
-      continue;
+): AncientPendingSimulacrumCopy[] {
+  const turnNumber = getCurrentTurnNumber(state);
+  const canonicalGameData = state?.gameData?.ships ? state.gameData : state;
+  const pendingCopies = canonicalGameData?.ancient?.pendingSimulacrumCopies;
+  if (turnNumber === null || !Array.isArray(pendingCopies)) return [];
+  return pendingCopies.filter((record: AncientPendingSimulacrumCopy) =>
+    record?.status === "materialized" &&
+    record.materializationTurnNumber === turnNumber &&
+    isNonEmptyString(record.ownerPlayerId) &&
+    isNonEmptyString(record.materializedInstanceId)
+  );
+}
+
+function createEmptyPlayerIdMap(state: Readonly<any>): Record<string, string[]> {
+  return Object.fromEntries(
+    getActivePlayerIds(state).map((playerId) => [playerId, []]),
+  );
+}
+
+export function getDirectMaterializedSimulacrumInstanceIdsForPlayer(
+  state: Readonly<any>,
+  playerId: string,
+): Set<string> {
+  return new Set(
+    getCurrentTurnMaterializedRecords(state)
+      .filter((record) => record.ownerPlayerId === playerId)
+      .map((record) => record.materializedInstanceId!),
+  );
+}
+
+export function deriveMaterializedSimulacrumFleetInstanceIdsByPlayerId(
+  state: Readonly<any>,
+): Record<string, string[]> {
+  const result = createEmptyPlayerIdMap(state);
+  const seenByPlayerId = new Map<string, Set<string>>();
+  for (const record of getCurrentTurnMaterializedRecords(state)) {
+    const ids = result[record.ownerPlayerId] ?? [];
+    const seen = seenByPlayerId.get(record.ownerPlayerId) ?? new Set<string>();
+    for (const instanceId of [
+      record.materializedInstanceId,
+      ...(record.materializationOutcome?.producedShips ?? []).map((ship) =>
+        ship.instanceId
+      ),
+    ]) {
+      if (!isNonEmptyString(instanceId) || seen.has(instanceId)) continue;
+      seen.add(instanceId);
+      ids.push(instanceId);
     }
-    const ids = result.get(record.ownerPlayerId) ?? new Set<string>();
-    ids.add(record.materializedInstanceId);
-    for (const produced of record.materializationOutcome?.producedShips ?? []) {
-      if (isNonEmptyString(produced.instanceId)) {
-        ids.add(produced.instanceId);
-      }
-    }
-    result.set(record.ownerPlayerId, ids);
+    result[record.ownerPlayerId] = ids;
+    seenByPlayerId.set(record.ownerPlayerId, seen);
   }
   return result;
 }
 
-export function projectPublicShipsForSimulacrumDrawing(
-  state: Readonly<any>,
-): Record<string, ShipInstance[]> {
-  const hiddenByOwner = getDrawingHiddenIdsByOwner(state);
-  const shipsByPlayerId = state?.gameData?.ships;
-  if (!shipsByPlayerId || typeof shipsByPlayerId !== "object") return {};
-  return Object.fromEntries(
-    Object.entries(shipsByPlayerId).map(([ownerPlayerId, fleet]) => {
-      const hiddenIds = hiddenByOwner.get(ownerPlayerId) ?? new Set<string>();
-      const visibleFleet = Array.isArray(fleet)
-        ? fleet.filter((ship: any) => !hiddenIds.has(ship?.instanceId))
-        : [];
-      return [ownerPlayerId, structuredClone(visibleFleet)];
-    }),
-  );
+function getExpectedLedgerSourceMode(
+  record: Readonly<AncientPendingSimulacrumCopy>,
+): "manual" | "cube" {
+  return record.sourceMode === "cube" ? "cube" : "manual";
 }
 
-export function projectRequesterShipsForSimulacrumDrawing(
-  state: Readonly<any>,
-  requestingParticipantId?: string,
-): Record<string, ShipInstance[]> {
-  const publicShips = projectPublicShipsForSimulacrumDrawing(state);
-  if (!isNonEmptyString(requestingParticipantId)) return publicShips;
-  const participant = Array.isArray(state?.players)
-    ? state.players.find((candidate: any) =>
-      candidate?.id === requestingParticipantId
-    )
-    : undefined;
-  if (participant?.role !== "player") return publicShips;
-  const canonicalOwnFleet = getFleet(state, requestingParticipantId);
-  return {
-    ...publicShips,
-    [requestingParticipantId]: canonicalOwnFleet.map((ship) =>
-      structuredClone(ship)
-    ),
-  };
+function ledgerEntryMatchesMaterializedRecord(
+  entry: any,
+  record: Readonly<AncientPendingSimulacrumCopy>,
+): boolean {
+  return entry?.solarPowerId === "SSIM" &&
+    entry?.sourceMode === getExpectedLedgerSourceMode(record) &&
+    entry?.order === record.queueOrder &&
+    entry?.simulacrum?.copiedShipDefId === record.copiedShipDefId &&
+    entry?.simulacrum?.sourceTargetInstanceId ===
+      record.sourceTargetInstanceId;
 }
 
-export function projectRequesterHiddenDrawingSimulacrumShips(
+export function deriveMaterializedSimulacrumLedgerEntryIdsByPlayerId(
   state: Readonly<any>,
-  requestingParticipantId?: string,
-): ShipInstance[] {
-  if (!isNonEmptyString(requestingParticipantId)) return [];
-  const participant = Array.isArray(state?.players)
-    ? state.players.find((candidate: any) =>
-      candidate?.id === requestingParticipantId
-    )
-    : undefined;
-  if (participant?.role !== "player") return [];
-  const hiddenIds =
-    getDrawingHiddenIdsByOwner(state).get(requestingParticipantId) ??
-      new Set<string>();
-  // This requester field intentionally includes every hidden fleet instance
-  // caused by current-turn Simulacrum materialization, including dependents.
-  return structuredClone(
-    getFleet(state, requestingParticipantId).filter((ship) =>
-      hiddenIds.has(ship.instanceId)
-    ),
-  );
+): Record<string, string[]> {
+  const result = createEmptyPlayerIdMap(state);
+  const recordsByPlayerId = new Map<string, AncientPendingSimulacrumCopy[]>();
+  for (const record of getCurrentTurnMaterializedRecords(state)) {
+    const records = recordsByPlayerId.get(record.ownerPlayerId) ?? [];
+    records.push(record);
+    recordsByPlayerId.set(record.ownerPlayerId, records);
+  }
+
+  for (const [playerId, records] of recordsByPlayerId) {
+    const ledger = state?.gameData?.ancient?.solarLedgerByPlayerId?.[playerId];
+    if (!Array.isArray(ledger?.entries)) continue;
+    const entries = ledger.entries.filter((entry: any) =>
+      isNonEmptyString(entry?.entryId)
+    );
+    const usedEntryIds = new Set<string>();
+    const matchedEntryIds: string[] = [];
+    const unmatchedRecords: AncientPendingSimulacrumCopy[] = [];
+
+    for (const record of records) {
+      if (ledger.battleTurnNumber !== record.queuedTurnNumber) {
+        continue;
+      }
+      const exact = entries.find((entry: any) =>
+        !usedEntryIds.has(entry.entryId) &&
+        record.pendingCopyId ===
+          `${entry.entryId}:simulacrum-copy:${record.sourceMode}` &&
+        ledgerEntryMatchesMaterializedRecord(entry, record)
+      );
+      if (!exact) {
+        unmatchedRecords.push(record);
+        continue;
+      }
+      usedEntryIds.add(exact.entryId);
+      matchedEntryIds.push(exact.entryId);
+    }
+
+    for (const record of unmatchedRecords) {
+      if (ledger.battleTurnNumber !== record.queuedTurnNumber) continue;
+      const legacyMatch = entries.find((entry: any) =>
+        !usedEntryIds.has(entry.entryId) &&
+        ledgerEntryMatchesMaterializedRecord(entry, record)
+      );
+      if (!legacyMatch) continue;
+      usedEntryIds.add(legacyMatch.entryId);
+      matchedEntryIds.push(legacyMatch.entryId);
+    }
+
+    result[playerId] = matchedEntryIds;
+  }
+
+  return result;
 }

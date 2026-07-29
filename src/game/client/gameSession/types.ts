@@ -470,6 +470,7 @@ export interface AncientSimulacrumDisplayPresentation {
 
 interface BaseAncientSolarDisplayEntry {
   displayKey: string;
+  authoritativeLedgerEntryId?: string;
   order: number;
   sourceMode: AncientSolarDisplaySourceMode;
   isLocalPreview: boolean;

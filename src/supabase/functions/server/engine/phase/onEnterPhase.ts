@@ -36,7 +36,7 @@ import {
   playerRequiresChargeDeclarationInput,
 } from '../intent/chargeDeclarationEligibility.ts';
 import {
-  materializeQueuedSimulacrumCopiesAtDrawing,
+  materializeQueuedSimulacrumCopiesAtTurnStart,
 } from '../ancient/simulacrumSolarPower.ts';
 
 type KnoRerollPassIndex = 1 | 2 | 3;
@@ -424,8 +424,6 @@ function enterPhaseOnce(
   }
 
   if (toKey === 'build.drawing') {
-    // Snapshot and Simulacrum materialization are one authoritative transition.
-    // Keep the caller's state untouched if materialization validation throws.
     workingState = structuredClone(workingState);
     const existingSnapshot =
       workingState.gameData.turnData.buildDrawingPublicSavedResourcesByPlayerId;
@@ -453,20 +451,27 @@ function enterPhaseOnce(
       );
     }
 
-    const drawingTurnNumber =
-      workingState.gameData.turnNumber ??
-      workingState.gameData.turnData?.turnNumber ??
-      workingState.turnNumber ??
+  }
+
+  if (toKey === 'build.dice_roll') {
+    // Materialization is the first Dice Roll transition work. Validate and
+    // reconcile against an isolated candidate before any dice-phase state is
+    // mutated or any fleet-dependent setup scans the fleet.
+    const transitionCandidate = structuredClone(workingState);
+    const materializationTurnNumber =
+      transitionCandidate.gameData.turnNumber ??
+      transitionCandidate.gameData.turnData?.turnNumber ??
+      transitionCandidate.turnNumber ??
       0;
-    const materialized = materializeQueuedSimulacrumCopiesAtDrawing(
-      workingState,
-      drawingTurnNumber,
+    const materialized = materializeQueuedSimulacrumCopiesAtTurnStart(
+      transitionCandidate,
+      materializationTurnNumber,
       nowMs,
     );
     workingState = materialized.state;
     events.push(...materialized.events);
   }
-  
+
   const turnData = workingState.gameData.turnData;
 
   // ============================================================================

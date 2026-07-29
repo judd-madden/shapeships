@@ -52,6 +52,9 @@ import {
   getAncientSolarPowerDisplayName,
   parseAncientSolarSourceReason,
 } from '../../engine/ancient/ancientSolarPowerPresentation.ts';
+import {
+  getDirectMaterializedSimulacrumInstanceIdsForPlayer,
+} from '../../engine/ancient/simulacrumSolarPower.ts';
 
 function countCreatedShipsByTargetPlayerId(
   effects: Effect[]
@@ -116,6 +119,57 @@ function playerParticipatesInShipsThatBuildPass(
   return passIndex === 1 || getChronoswarmCountForPlayer(state, playerId) > 0;
 }
 
+function shipAlreadyUsedInShipsThatBuildPass(
+  state: GameState,
+  sourceInstanceId: string
+): boolean {
+  const passIndex = getShipsThatBuildPassIndex(state);
+  return state.gameData?.turnData?.shipsThatBuildPassUsageByInstanceId
+    ?.[sourceInstanceId]?.[passIndex] === true;
+}
+
+function recordAutomaticShipsThatBuildUsage(
+  state: GameState,
+  effects: Effect[],
+  effectEvents: EffectEvent[]
+): GameState {
+  const appliedEffectIds = new Set(effectEvents.map((event) => event.effectId));
+  const sourceInstanceIds = new Set(
+    effects
+      .filter(
+        (effect) =>
+          effect.source.type === 'ship' &&
+          (effect.source.shipDefId === 'BUG' || effect.source.shipDefId === 'ZEN') &&
+          appliedEffectIds.has(effect.id)
+      )
+      .map((effect) => effect.source.type === 'ship' ? effect.source.instanceId : '')
+      .filter((instanceId) => instanceId.length > 0)
+  );
+  if (sourceInstanceIds.size === 0) return state;
+
+  const passIndex = getShipsThatBuildPassIndex(state);
+  const priorTurnData = state.gameData.turnData || {};
+  const priorUsage = priorTurnData.shipsThatBuildPassUsageByInstanceId || {};
+  const nextUsage = { ...priorUsage };
+  for (const sourceInstanceId of sourceInstanceIds) {
+    nextUsage[sourceInstanceId] = {
+      ...priorUsage[sourceInstanceId],
+      [passIndex]: true,
+    };
+  }
+
+  return {
+    ...state,
+    gameData: {
+      ...state.gameData,
+      turnData: {
+        ...priorTurnData,
+        shipsThatBuildPassUsageByInstanceId: nextUsage,
+      },
+    },
+  };
+}
+
 function collectQueenAutoBuildEffects(
   state: GameState,
   phaseKey: PhaseKey
@@ -174,11 +228,17 @@ function collectBugBreederAutoBuildEffects(
     if (!playerParticipatesInShipsThatBuildPass(state, player.id)) continue;
 
     const fleet = state.gameData.ships?.[player.id] || [];
+    const directMaterializedSimulacrumIds =
+      getDirectMaterializedSimulacrumInstanceIdsForPlayer(state, player.id);
     const eligibleBugBreeders = fleet.filter(
       (ship) =>
         ship.shipDefId === 'BUG' &&
-        (ship.createdTurn ?? 0) < currentTurn &&
-        (ship.chargesCurrent ?? 0) >= 1
+        (
+          (ship.createdTurn ?? 0) < currentTurn ||
+          directMaterializedSimulacrumIds.has(ship.instanceId)
+        ) &&
+        (ship.chargesCurrent ?? 0) >= 1 &&
+        !shipAlreadyUsedInShipsThatBuildPass(state, ship.instanceId)
     );
 
     for (const bugBreeder of eligibleBugBreeders) {
@@ -236,8 +296,16 @@ function collectZenithAutoBuildEffects(
     if (!playerParticipatesInShipsThatBuildPass(state, player.id)) continue;
 
     const fleet = state.gameData.ships?.[player.id] || [];
+    const directMaterializedSimulacrumIds =
+      getDirectMaterializedSimulacrumInstanceIdsForPlayer(state, player.id);
     const eligibleZeniths = fleet.filter(
-      (ship) => ship.shipDefId === 'ZEN' && (ship.createdTurn ?? 0) < currentTurn
+      (ship) =>
+        ship.shipDefId === 'ZEN' &&
+        (
+          (ship.createdTurn ?? 0) < currentTurn ||
+          directMaterializedSimulacrumIds.has(ship.instanceId)
+        ) &&
+        !shipAlreadyUsedInShipsThatBuildPass(state, ship.instanceId)
     );
     const roll = passIndex === 2
       ? state.gameData?.turnData?.chronoswarmRolls?.[0]
@@ -600,9 +668,13 @@ function resolveShipsThatBuild(
   const createdShipsByPlayerId = countCreatedShipsByTargetPlayerId(effects);
   result = {
     ...result,
-    state: incrementShipsMadeThisTurnCounter(
-      result.state,
-      createdShipsByPlayerId
+    state: recordAutomaticShipsThatBuildUsage(
+      incrementShipsMadeThisTurnCounter(
+        result.state,
+        createdShipsByPlayerId
+      ),
+      effects,
+      result.events
     ),
   };
 
