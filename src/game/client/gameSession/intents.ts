@@ -18,6 +18,10 @@ import {
   isRenderableTargetedAction,
 } from './availableActions';
 import {
+  getDefaultCubeDiceChoiceId,
+  isRenderableCubeDiceChoiceAction,
+} from './cubeDiceChoice';
+import {
   findPlayerByIdentity,
   getCommitmentForPlayer,
   getPhaseKey,
@@ -549,7 +553,61 @@ export async function runReadyToggleFlow(args: {
 
         const choiceActions = getRenderableServerChoiceActions(phaseKey, resolvedAvailableActions);
 
-        const incompleteTargetedAction = choiceActions.find((action) =>
+        const diceRollActions =
+          phaseKey === 'build.dice_roll' && Array.isArray(resolvedAvailableActions)
+            ? resolvedAvailableActions
+            : [];
+        const cubeDiceChoiceAction =
+          phaseKey === 'build.dice_roll'
+            ? diceRollActions.filter(
+                (action: any) =>
+                  action?.actionId === 'CUB#0' && action?.shipDefId === 'CUB'
+              )
+            : [];
+        const knowledgeDiceChoiceActions =
+          phaseKey === 'build.dice_roll'
+            ? diceRollActions.filter(
+                (action: any) =>
+                  action?.actionId === 'KNO#0' && action?.shipDefId === 'KNO'
+              )
+            : [];
+
+        if (
+          cubeDiceChoiceAction.length > 0 &&
+          knowledgeDiceChoiceActions.length > 0
+        ) {
+          console.error(
+            '[useGameSession] build.dice_roll: blocking ready because CUB#0 and KNO#0 were projected together'
+          );
+          return;
+        }
+
+        if (cubeDiceChoiceAction.length > 1) {
+          console.error(
+            `[useGameSession] build.dice_roll: blocking ready because ${cubeDiceChoiceAction.length} CUB#0 aggregate actions were projected`
+          );
+          return;
+        }
+
+        if (
+          cubeDiceChoiceAction.length === 1 &&
+          !isRenderableCubeDiceChoiceAction(cubeDiceChoiceAction[0])
+        ) {
+          console.error(
+            '[useGameSession] build.dice_roll: blocking ready because the CUB#0 aggregate action is malformed'
+          );
+          return;
+        }
+
+        const submissionChoiceActions =
+          cubeDiceChoiceAction.length === 1
+            ? choiceActions.filter(
+                (action) =>
+                  action.actionId === 'CUB#0' && action.shipDefId === 'CUB'
+              )
+            : choiceActions;
+
+        const incompleteTargetedAction = submissionChoiceActions.find((action) =>
           isRenderableTargetedAction(action) &&
           args.destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
         );
@@ -561,17 +619,34 @@ export async function runReadyToggleFlow(args: {
           return;
         }
         
-        console.log(`[useGameSession] Found ${choiceActions.length} renderable server actions to process`);
+        console.log(`[useGameSession] Found ${submissionChoiceActions.length} renderable server actions to process`);
         
         // Build batch actions array (skip 'hold')
         const actions: any[] = [];
         
-        for (const action of choiceActions) {
+        for (const action of submissionChoiceActions) {
           const { sourceInstanceId, actionId } = action;
           
           // Determine selected choiceId
           const selectedChoiceId = args.selectedChoiceIdBySourceInstanceId[sourceInstanceId];
-          const choiceId = selectedChoiceId || getRenderableActionChoiceIds(action)[0];
+          const availableChoiceIds = getRenderableActionChoiceIds(action);
+          const choiceId =
+            phaseKey === 'build.dice_roll' &&
+            actionId === 'CUB#0' &&
+            action.shipDefId === 'CUB'
+              ? (
+                  selectedChoiceId && availableChoiceIds.includes(selectedChoiceId)
+                    ? selectedChoiceId
+                    : getDefaultCubeDiceChoiceId(action)
+                )
+              : selectedChoiceId || availableChoiceIds[0];
+
+          if (!choiceId) {
+            console.error(
+              `[useGameSession] ${phaseKey}: blocking ready because no valid choice is available for actionKey=${actionId}`
+            );
+            return;
+          }
           
           // KNO hold is stateful because it stops later reroll passes; ordinary hold means "submit no action".
           const shouldSubmitHold =

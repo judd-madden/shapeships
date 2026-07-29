@@ -28,6 +28,7 @@ import { HealthResolutionPanel } from './panels/HealthResolutionPanel';
 import { ActionPanelScrollArea } from './primitives/ActionPanelScrollArea';
 import { useLaptopCatalogueLayout, useLongCatalogueLayout } from './useLongCatalogueLayout';
 import { DesktopScaledCatalogueCanvas } from './panels/catalogue/shared/DesktopScaledCatalogueCanvas';
+import { CubeDiceChoicePanel } from './panels/CubeDiceChoicePanel';
 
 interface ActionPanelFrameProps {
   vm: ActionPanelViewModel;
@@ -440,6 +441,27 @@ export function ActionPanelFrame({
           <div className="absolute top-[20px] right-[50px] text-[var(--shapeships-pastel-red)]">^ Return to Drawing</div>
         </div>
       </div>
+    );
+  }
+
+  if (vm.activePanelId === 'ap.build.dice_roll.cube') {
+    if (!vm.cubeDiceChoice) {
+      return renderWithOverlay(
+        <div className="size-full flex items-center justify-center">
+          <p className="text-[var(--shapeships-grey-50)] text-[18px]">
+            No actions available.
+          </p>
+        </div>
+      );
+    }
+
+    return renderWithOverlay(
+      <ActionPanelScrollArea>
+        <CubeDiceChoicePanel
+          vm={vm.cubeDiceChoice}
+          onSelectChoice={actions.onSelectShipChoiceForInstance}
+        />
+      </ActionPanelScrollArea>
     );
   }
 

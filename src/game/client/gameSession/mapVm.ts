@@ -36,6 +36,7 @@ import {
   isRenderableTargetedActionComplete,
 } from './availableActions';
 import type { CentaurChargeSubTabId } from './types';
+import { deriveCubeDiceChoicePanelVm } from './cubeDiceChoice';
 
 function getNamedGroupHeading(
   phaseKey: string,
@@ -829,6 +830,38 @@ export function mapGameSessionVm(args: {
     finalReadySelected = false;
     finalReadyDisabledReason = null;
   }
+
+  const cubeDiceChoice = (() => {
+    if (
+      finalActivePanelId !== 'ap.build.dice_roll.cube' ||
+      !Array.isArray(availableActions)
+    ) {
+      return undefined;
+    }
+
+    const cubeActions = getRenderableServerChoiceActions(
+      phaseKey,
+      availableActions
+    ).filter(
+      (action) => action.actionId === 'CUB#0' && action.shipDefId === 'CUB'
+    );
+
+    if (cubeActions.length !== 1) {
+      if (cubeActions.length > 1) {
+        console.error(
+          `[mapVm] build.dice_roll: expected one CUB#0 aggregate action, received ${cubeActions.length}`
+        );
+      }
+      return undefined;
+    }
+
+    const action = cubeActions[0];
+    return deriveCubeDiceChoicePanelVm({
+      action,
+      selectedChoiceId:
+        selectedChoiceIdBySourceInstanceId[action.sourceInstanceId],
+    });
+  })();
   
   // Ship choices (derive groups from registry spec)
   let shipChoices:
@@ -1483,6 +1516,7 @@ export function mapGameSessionVm(args: {
       ancientChargeDeclaration,
       ancientCatalogueEnergy,
       ancientAutocastEnabled,
+      cubeDiceChoice,
       shipChoices,
       phaseLocalFamilySwitch:
         buildDrawingFamilySwitch && finalActivePanelId !== 'ap.menu.root'

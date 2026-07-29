@@ -12,6 +12,7 @@ import { LargeStyleChoicePanel } from '../../actionPanel/panels/LargeStyleChoice
 import { ShipChoicesPanel } from '../../actionPanel/panels/ShipChoicesPanel';
 import { MobileCatalogueScroller } from './MobileCatalogueScroller';
 import { MobileEndOfGameActionPanel } from './MobileEndOfGameActionPanel';
+import { CubeDiceChoicePanel } from '../../actionPanel/panels/CubeDiceChoicePanel';
 
 interface MobileActionPanelProps {
   vm: ActionPanelViewModel;
@@ -288,6 +289,30 @@ export function MobileActionPanel({
           selectedNumbers={vm.quantumMysticDrawing?.selectedNumbers ?? []}
           onSelectNumber={actions.onSelectQuantumMysticNumber}
           layout="mobile"
+        />
+      </MobileActionPanelWrapper>
+    );
+  }
+
+  if (vm.activePanelId === 'ap.build.dice_roll.cube') {
+    if (!vm.cubeDiceChoice) {
+      return renderWithHealthOverlay(
+        <MobileActionPanelWrapper ariaLabel="Mobile Cube dice choice panel empty state">
+          {renderNoActionsAvailable()}
+        </MobileActionPanelWrapper>
+      );
+    }
+
+    return renderWithHealthOverlay(
+      <MobileActionPanelWrapper
+        ariaLabel="Mobile Cube dice choice panel"
+        showScrollHint={vm.cubeDiceChoice.cubeChoices.length > 2}
+        scrollHintResetKey={`${vm.activePanelId}:${vm.cubeDiceChoice.cubeChoices.length}`}
+      >
+        <CubeDiceChoicePanel
+          vm={vm.cubeDiceChoice}
+          layout="mobile"
+          onSelectChoice={actions.onSelectShipChoiceForInstance}
         />
       </MobileActionPanelWrapper>
     );

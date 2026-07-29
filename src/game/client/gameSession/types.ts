@@ -658,6 +658,41 @@ export interface AncientCatalogueEnergyDisplay {
   };
 }
 
+export type CubeDiceChoiceId =
+  | 'main'
+  | `cube:${string}`;
+
+export type CubeDiceValue =
+  | 1
+  | 2
+  | 3
+  | 4
+  | 5
+  | 6;
+
+export interface CubeDiceChoiceOptionVm {
+  choiceId: CubeDiceChoiceId;
+  kind: 'main' | 'cube';
+  value: CubeDiceValue;
+  sourceInstanceId?: string;
+}
+
+export interface CubeDiceChoicePanelVm {
+  sourceInstanceId: string;
+  selectedChoiceId: CubeDiceChoiceId;
+  mainChoice: CubeDiceChoiceOptionVm & {
+    choiceId: 'main';
+    kind: 'main';
+  };
+  cubeChoices: Array<
+    CubeDiceChoiceOptionVm & {
+      choiceId: `cube:${string}`;
+      kind: 'cube';
+      sourceInstanceId: string;
+    }
+  >;
+}
+
 export interface ActionPanelViewModel {
   activePanelId: ActionPanelId;
   tabs: ActionPanelTabVm[];
@@ -694,6 +729,7 @@ export interface ActionPanelViewModel {
       choiceId: EvolverChoiceId;
     }>;
   };
+  cubeDiceChoice?: CubeDiceChoicePanelVm;
 
   shipChoices?: {
     groups: ShipChoicesPanelGroup[];

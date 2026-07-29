@@ -17,6 +17,7 @@ export type ActionPanelId =
   | 'ap.menu.root'
   // Build phase
   | 'ap.build.dice_roll.centaur'
+  | 'ap.build.dice_roll.cube'
   | 'ap.build.ships_that_build.human'
   | 'ap.build.ships_that_build.centaur.mixed'
   | 'ap.build.ships_that_build.xenite'
@@ -48,6 +49,7 @@ export const ACTION_PANEL_IDS: ActionPanelId[] = [
   'ap.idle.blank',
   'ap.menu.root',
   'ap.build.dice_roll.centaur',
+  'ap.build.dice_roll.cube',
   'ap.build.ships_that_build.human',
   'ap.build.ships_that_build.centaur.mixed',
   'ap.build.ships_that_build.xenite',
@@ -87,6 +89,7 @@ export const ACTION_PANEL_DISPLAY_NAMES = {
   'ap.idle.blank': 'AP - Idle Blank',
   'ap.menu.root': 'AP - Menu',
   'ap.build.dice_roll.centaur': 'AP - Dice Manipulation - Centaur',
+  'ap.build.dice_roll.cube': 'AP - Dice Manipulation - Cube',
   'ap.build.ships_that_build.human': 'AP - Ships That Build - Human',
   'ap.build.ships_that_build.centaur.mixed': 'AP - Ships That Build - Centaur Mixed',
   'ap.build.ships_that_build.xenite': 'AP - Ships That Build - Xenite',

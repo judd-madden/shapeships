@@ -4063,8 +4063,33 @@ useEffect(() => {
     );
 
     switch (phaseKey) {
-      case 'build.dice_roll':
-        return renderableChoiceActions.length > 0 ? 'ap.build.dice_roll.centaur' : null;
+      case 'build.dice_roll': {
+        const hasCubeAction = renderableChoiceActions.some(
+          (action) =>
+            action.actionId === 'CUB#0' && action.shipDefId === 'CUB'
+        );
+        const hasKnowledgeAction = renderableChoiceActions.some(
+          (action) =>
+            action.actionId === 'KNO#0' && action.shipDefId === 'KNO'
+        );
+
+        if (hasCubeAction && hasKnowledgeAction) {
+          console.error(
+            '[useGameSession] build.dice_roll: CUB#0 and KNO#0 were projected together; failing closed'
+          );
+          return null;
+        }
+
+        if (hasCubeAction) {
+          return 'ap.build.dice_roll.cube';
+        }
+
+        if (hasKnowledgeAction) {
+          return 'ap.build.dice_roll.centaur';
+        }
+
+        return null;
+      }
       
       case 'build.ships_that_build':
         if (renderableActionShipPresence.hasCarBuildAction) {
@@ -4302,6 +4327,17 @@ useEffect(() => {
     hasEvolverDrawingAction,
     hasQuantumMysticDrawingAction
   );
+
+  useEffect(() => {
+    if (
+      phaseKey === 'build.dice_roll' &&
+      activePanelId === 'ap.build.dice_roll.centaur' &&
+      actionsTargetPanelId === 'ap.build.dice_roll.cube'
+    ) {
+      setActivePanelId('ap.build.dice_roll.cube');
+    }
+  }, [actionsTargetPanelId, activePanelId, phaseKey]);
+
   const selfCataloguePanelId = speciesToCataloguePanelId(mySpecies ?? 'human');
   const effectiveFirstStrikePanelId =
     routedFirstStrikeFamily == null

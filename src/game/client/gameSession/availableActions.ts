@@ -10,6 +10,7 @@
 import type { ActionPanelId } from '../../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { FirstStrikeActionFamily } from './types';
+import { getDefaultCubeDiceChoiceId } from './cubeDiceChoice';
 
 export type PhaseKey = string;
 export type RenderableTargetedActionKind = 'destroy_target' | 'paired_destroy_target';
@@ -352,6 +353,10 @@ export function getRenderableActionChoiceIds(action: {
 export function getDefaultChoiceIdForRenderableAction(action: RenderableServerAction): string | undefined {
   const choiceIds = getRenderableActionChoiceIds(action);
   if (choiceIds.length === 0) return undefined;
+
+  if (action.actionId === 'CUB#0' && action.shipDefId === 'CUB') {
+    return getDefaultCubeDiceChoiceId(action);
+  }
 
   if (action.actionId === 'KNO#0') {
     return choiceIds.find((choiceId) => choiceId === 'hold') ?? choiceIds[0];
