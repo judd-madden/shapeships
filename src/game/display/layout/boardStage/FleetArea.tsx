@@ -834,6 +834,8 @@ export function FleetArea({
                   compact
                   hasCopiedShipBand={hasCopiedShipBand}
                   isBattleReveal={isBattleReveal}
+                  onFleetHoverEnter={onFleetHoverEnter}
+                  onFleetHoverLeave={onFleetHoverLeave}
                 />
               </div>
             ) : (
@@ -857,6 +859,8 @@ export function FleetArea({
                     <AncientSolarLedgerRow
                       entries={ancientSolarEntries}
                       isBattleReveal={isBattleReveal}
+                      onFleetHoverEnter={onFleetHoverEnter}
+                      onFleetHoverLeave={onFleetHoverLeave}
                     />
                   </div>
                 ) : null}

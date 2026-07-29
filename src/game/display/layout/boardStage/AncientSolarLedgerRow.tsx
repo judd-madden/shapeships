@@ -10,6 +10,7 @@ import type {
   AncientSolarDisplayEntry,
   LiveRowAncientSolarPowerId,
 } from '../../../client/gameSession/types';
+import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import {
   AnimatedBlackHole,
   AnimatedSiphon,
@@ -70,11 +71,15 @@ export function AncientSolarLedgerRow({
   compact = false,
   hasCopiedShipBand = false,
   isBattleReveal = false,
+  onFleetHoverEnter,
+  onFleetHoverLeave,
 }: {
   entries: readonly AncientSolarDisplayEntry[];
   compact?: boolean;
   hasCopiedShipBand?: boolean;
   isBattleReveal?: boolean;
+  onFleetHoverEnter?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
+  onFleetHoverLeave?: (shipId: ShipDefId) => void;
 }) {
   const [presentedEntries, setPresentedEntries] = useState<readonly AncientSolarDisplayEntry[]>(
     entries
@@ -85,12 +90,31 @@ export function AncientSolarLedgerRow({
   const nextClearCycleRef = useRef(1);
   const activeClearCycleRef = useRef<number | null>(null);
   const clearFallbackTimeoutRef = useRef<number | null>(null);
+  const activeHoveredEntryRef = useRef<{
+    displayKey: string;
+    solarPowerId: LiveRowAncientSolarPowerId;
+  } | null>(null);
+  const onFleetHoverLeaveRef = useRef(onFleetHoverLeave);
 
   latestIncomingEntriesRef.current = entries;
+  onFleetHoverLeaveRef.current = onFleetHoverLeave;
 
   const incomingPresentationSignature = buildSolarPresentationSignature(entries);
   const presentedPresentationSignature = buildSolarPresentationSignature(presentedEntries);
   const isClearingAtBattleReveal = activeClearCycle !== null;
+
+  const clearActiveHover = useCallback((displayKey?: string) => {
+    const activeHoveredEntry = activeHoveredEntryRef.current;
+    if (
+      activeHoveredEntry === null ||
+      (displayKey !== undefined && activeHoveredEntry.displayKey !== displayKey)
+    ) {
+      return;
+    }
+
+    activeHoveredEntryRef.current = null;
+    onFleetHoverLeaveRef.current?.(activeHoveredEntry.solarPowerId);
+  }, []);
 
   const completeClearCycle = useCallback((cycle: number) => {
     if (activeClearCycleRef.current !== cycle) {
@@ -154,6 +178,28 @@ export function AncientSolarLedgerRow({
   }, [activeClearCycle, completeClearCycle]);
 
   const displayKeys = presentedEntries.map((entry) => entry.displayKey);
+
+  useLayoutEffect(() => {
+    if (isClearingAtBattleReveal) {
+      clearActiveHover();
+      return;
+    }
+
+    const activeHoveredEntry = activeHoveredEntryRef.current;
+    if (
+      activeHoveredEntry !== null &&
+      !displayKeys.includes(activeHoveredEntry.displayKey)
+    ) {
+      clearActiveHover();
+    }
+  }, [clearActiveHover, displayKeys, isClearingAtBattleReveal]);
+
+  useEffect(() => {
+    return () => {
+      clearActiveHover();
+    };
+  }, [clearActiveHover]);
+
   const layoutSignature = displayKeys.join('|');
   const itemLayoutSignatures = Object.fromEntries(
     presentedEntries.map((entry) => [
@@ -199,6 +245,24 @@ export function AncientSolarLedgerRow({
               key={entry.displayKey}
               ref={getFlipRef(entry.displayKey)}
               className="inline-flex shrink-0 flex-col items-center justify-center gap-[4px]"
+              onMouseEnter={
+                onFleetHoverEnter
+                  ? (event) => {
+                      activeHoveredEntryRef.current = {
+                        displayKey: entry.displayKey,
+                        solarPowerId: entry.solarPowerId,
+                      };
+                      onFleetHoverEnter(entry.solarPowerId, event.currentTarget);
+                    }
+                  : undefined
+              }
+              onMouseLeave={
+                onFleetHoverLeave
+                  ? () => {
+                      clearActiveHover(entry.displayKey);
+                    }
+                  : undefined
+              }
             >
               <SolarPowerAnimationWrapper
                 solarPowerId={entry.solarPowerId}
