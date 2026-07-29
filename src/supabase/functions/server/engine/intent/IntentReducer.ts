@@ -51,6 +51,14 @@ import {
   getShipActivationSourcesFromAppliedEffects,
 } from '../state/shipActivationCues.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
+import {
+  anyPlayerIsCubeEligible,
+  getCubeEligiblePlayerIds,
+  getRepresentativeCubeInstanceId,
+  playerHasValidPendingCubeChoice,
+  playerIsCubeEligible,
+  validateCubeDiceChoice,
+} from '../phase/cubeDiceManipulation.ts';
 
 import {
   type IntentType,
@@ -363,6 +371,9 @@ function stageKnoRerollChoice(
   if (phaseKey !== 'build.dice_roll') {
     throw new Error('WRONG_PHASE');
   }
+  if (state?.gameData?.turnData?.diceManipulationStage !== 'kno') {
+    throw new Error('INVALID_KNO_STAGE');
+  }
   if (actionId !== 'KNO#0') {
     throw new Error('INVALID_KNO_ACTION');
   }
@@ -401,6 +412,32 @@ function stageKnoRerollChoice(
   }
 }
 
+function stageCubeDiceChoice(
+  state: any,
+  playerId: string,
+  sourceInstanceId: string,
+  actionId: string,
+  choiceId: string,
+) {
+  const phaseKey = getPhaseKey(state);
+  if (phaseKey !== 'build.dice_roll') throw new Error('WRONG_PHASE');
+
+  const validated = validateCubeDiceChoice(
+    state,
+    playerId,
+    sourceInstanceId,
+    actionId,
+    choiceId,
+  );
+
+  if (!state.gameData) state.gameData = {};
+  if (!state.gameData.turnData) state.gameData.turnData = {};
+  state.gameData.turnData.pendingCubeDiceChoiceByPlayerId = {
+    ...(state.gameData.turnData.pendingCubeDiceChoiceByPlayerId || {}),
+    [playerId]: validated.choiceId,
+  };
+}
+
 function clearResolvedKnoPassChoices(state: any, passIndex: KnoRerollPassIndex) {
   const pendingByPlayerId = state?.gameData?.turnData?.pendingKnoRerollChoiceByPassByPlayerId;
   if (!pendingByPlayerId) return;
@@ -430,7 +467,15 @@ function resolvePendingKnoRerollPass(state: any, nowMs: number, events: any[]) {
   const nextEligiblePassIndex = getNextEligibleKnoRerollPassIndex(state, passIndex);
 
   if (eligiblePlayerIds.length === 0) {
-    turnData.diceFinalized = nextEligiblePassIndex == null;
+    const cubeFollows = nextEligiblePassIndex == null && anyPlayerIsCubeEligible(state);
+    turnData.diceFinalized = false;
+    if (nextEligiblePassIndex == null && !cubeFollows) {
+      delete turnData.diceManipulationStage;
+      delete turnData.knoRerollPassIndex;
+      turnData.pendingKnoRerollChoiceByPassByPlayerId = {};
+      turnData.knoRerollStoppedByPlayerId = {};
+      turnData.diceFinalized = true;
+    }
     return state;
   }
 
@@ -478,7 +523,15 @@ function resolvePendingKnoRerollPass(state: any, nowMs: number, events: any[]) {
   }
 
   clearResolvedKnoPassChoices(state, passIndex);
-  turnData.diceFinalized = nextEligiblePassIndex == null;
+  const cubeFollows = nextEligiblePassIndex == null && anyPlayerIsCubeEligible(state);
+  turnData.diceFinalized = false;
+  if (nextEligiblePassIndex == null && !cubeFollows) {
+    delete turnData.diceManipulationStage;
+    delete turnData.knoRerollPassIndex;
+    turnData.pendingKnoRerollChoiceByPassByPlayerId = {};
+    turnData.knoRerollStoppedByPlayerId = {};
+    turnData.diceFinalized = true;
+  }
 
   if (!anyReroll) {
     return state;
@@ -503,6 +556,77 @@ function resolvePendingKnoRerollPass(state: any, nowMs: number, events: any[]) {
         : [];
     }),
   });
+}
+
+function resolvePendingCubeDiceChoices(state: any, nowMs: number, events: any[]) {
+  if (!state.gameData) state.gameData = {};
+  if (!state.gameData.turnData) state.gameData.turnData = {};
+
+  const turnData = state.gameData.turnData;
+  const eligiblePlayerIds = getCubeEligiblePlayerIds(state);
+  const pendingByPlayerId = turnData.pendingCubeDiceChoiceByPlayerId || {};
+  const selections = {
+    ...(turnData.cubeDiceSelectionByPlayerId || {}),
+  };
+  const effectiveByPlayerId = {
+    ...(turnData.effectiveDiceRollByPlayerId || {}),
+  };
+  const overrideByPlayerId = {
+    ...(turnData.diceOverrideSourceByPlayerId || {}),
+  };
+  const visibleByPlayerId = {
+    ...(turnData.visibleCubeDiceValueByPlayerId || {}),
+  };
+
+  for (const currentPlayerId of eligiblePlayerIds) {
+    const sourceInstanceId = getRepresentativeCubeInstanceId(state, currentPlayerId);
+    const choiceId = pendingByPlayerId[currentPlayerId];
+    if (!sourceInstanceId || typeof choiceId !== 'string') {
+      throw new Error('MISSING_CUBE_DICE_CHOICE');
+    }
+
+    const selection = validateCubeDiceChoice(
+      state,
+      currentPlayerId,
+      sourceInstanceId,
+      'CUB#0',
+      choiceId,
+    );
+
+    effectiveByPlayerId[currentPlayerId] = selection.value;
+    selections[currentPlayerId] = selection;
+
+    if (selection.sourceInstanceId) {
+      overrideByPlayerId[currentPlayerId] = 'CUB';
+      visibleByPlayerId[currentPlayerId] = selection.value;
+    } else if (overrideByPlayerId[currentPlayerId] === 'CUB') {
+      delete overrideByPlayerId[currentPlayerId];
+    }
+
+    events.push({
+      type: 'CUBE_DICE_CHOSEN',
+      playerId: currentPlayerId,
+      choiceId: selection.choiceId,
+      selectedValue: selection.value,
+      ...(selection.sourceInstanceId
+        ? { sourceInstanceId: selection.sourceInstanceId }
+        : {}),
+      atMs: nowMs,
+    });
+  }
+
+  turnData.effectiveDiceRollByPlayerId = effectiveByPlayerId;
+  turnData.cubeDiceSelectionByPlayerId = selections;
+  turnData.visibleCubeDiceValueByPlayerId = visibleByPlayerId;
+  turnData.pendingCubeDiceChoiceByPlayerId = {};
+  if (Object.keys(overrideByPlayerId).length > 0) {
+    turnData.diceOverrideSourceByPlayerId = overrideByPlayerId;
+  } else {
+    delete turnData.diceOverrideSourceByPlayerId;
+  }
+  delete turnData.diceManipulationStage;
+  turnData.diceFinalized = true;
+  return state;
 }
 
 function validateEvolverChoicesPayload(
@@ -1002,7 +1126,7 @@ async function handleSpeciesSelect(
         : 'UNKNOWN');
     
     // Advance phase using core (system-driven) advancement
-    const advanceResult = advancePhaseCore(state, nowMs);
+    const advanceResult = advancePhaseCore(state);
     
     if (advanceResult.ok) {
       state = advanceResult.state;
@@ -2230,7 +2354,7 @@ async function handleBuildSubmit(
     // B6) Advance phase
     const fromKey = phaseKey;
     
-    const advanceResult = advancePhaseCore(state);
+    const advanceResult = advancePhaseCore(state, nowMs);
     
     if (advanceResult.ok) {
       state = advanceResult.state;
@@ -2554,6 +2678,23 @@ function markPlayerReadyAndAdvance(
       }
     };
   }
+
+  if (
+    phaseKey === 'build.dice_roll' &&
+    state?.gameData?.turnData?.diceManipulationStage === 'cube' &&
+    playerIsCubeEligible(state, playerId) &&
+    !playerHasValidPendingCubeChoice(state, playerId)
+  ) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.BAD_PAYLOAD,
+        message: 'MISSING_CUBE_DICE_CHOICE',
+      },
+    };
+  }
   
   // Ensure phaseReadiness array exists
   if (!state.gameData) {
@@ -2606,14 +2747,19 @@ function markPlayerReadyAndAdvance(
       state = resolvePendingFirstStrikeSelections(state, nowMs, events);
     }
     if (phaseKey === 'build.dice_roll') {
-      state = resolvePendingKnoRerollPass(state, nowMs, events);
+      const stage = state?.gameData?.turnData?.diceManipulationStage;
+      if (stage === 'kno') {
+        state = resolvePendingKnoRerollPass(state, nowMs, events);
+      } else if (stage === 'cube') {
+        state = resolvePendingCubeDiceChoices(state, nowMs, events);
+      }
     }
     
     // Store current phase key for onEnterPhase
     const fromKey = phaseKey;
     
     // Advance phase using canonical phase engine
-    const advanceResult = advancePhaseCore(state);
+    const advanceResult = advancePhaseCore(state, nowMs);
     
     if (advanceResult.ok) {
       state = advanceResult.state;
@@ -2900,13 +3046,23 @@ function handleAction(
     
     try {
       if (phaseKey === 'build.dice_roll') {
-        stageKnoRerollChoice(
-          state,
-          playerId,
-          payload.sourceInstanceId,
-          payload.actionId,
-          payload.choiceId
-        );
+        if (state?.gameData?.turnData?.diceManipulationStage === 'cube') {
+          stageCubeDiceChoice(
+            state,
+            playerId,
+            payload.sourceInstanceId,
+            payload.actionId,
+            payload.choiceId,
+          );
+        } else {
+          stageKnoRerollChoice(
+            state,
+            playerId,
+            payload.sourceInstanceId,
+            payload.actionId,
+            payload.choiceId
+          );
+        }
         state = syncPhaseFields(state);
 
         return {
@@ -3116,6 +3272,61 @@ function handleActionsSubmit(
       }
     };
   }
+
+  if (
+    phaseKey === 'build.dice_roll' &&
+    state?.gameData?.turnData?.diceManipulationStage === 'cube'
+  ) {
+    if (payload.actions.length !== 1) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Cube Dice Manipulation requires exactly one CUB#0 action.',
+        },
+      };
+    }
+
+    const [cubeAction] = payload.actions;
+    if (
+      cubeAction?.actionType !== 'power' ||
+      cubeAction?.actionId !== 'CUB#0' ||
+      typeof cubeAction?.sourceInstanceId !== 'string' ||
+      typeof cubeAction?.choiceId !== 'string'
+    ) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: 'Invalid Cube Dice Manipulation batch.',
+        },
+      };
+    }
+
+    try {
+      validateCubeDiceChoice(
+        state,
+        playerId,
+        cubeAction.sourceInstanceId,
+        cubeAction.actionId,
+        cubeAction.choiceId,
+      );
+    } catch (err: any) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.BAD_PAYLOAD,
+          message: err?.message ?? String(err),
+        },
+      };
+    }
+  }
   
   // ============================================================================
   // BATCH PROCESSING: Apply each action atomically
@@ -3175,13 +3386,23 @@ function handleActionsSubmit(
     
     try {
       if (phaseKey === 'build.dice_roll') {
-        stageKnoRerollChoice(
-          state,
-          playerId,
-          item.sourceInstanceId,
-          item.actionId,
-          item.choiceId
-        );
+        if (state?.gameData?.turnData?.diceManipulationStage === 'cube') {
+          stageCubeDiceChoice(
+            state,
+            playerId,
+            item.sourceInstanceId,
+            item.actionId,
+            item.choiceId,
+          );
+        } else {
+          stageKnoRerollChoice(
+            state,
+            playerId,
+            item.sourceInstanceId,
+            item.actionId,
+            item.choiceId
+          );
+        }
         continue;
       }
 

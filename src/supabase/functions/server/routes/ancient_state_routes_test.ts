@@ -1298,6 +1298,142 @@ Deno.test('/game-state-head terminal maintenance persists normalization without 
   assert.equal(fixture.store.get(gameKey).stateRevision, 8);
 });
 
+Deno.test('/game-state keeps Cube rolls private while projecting one public value', async () => {
+  const fixture = createGameRouteFixture();
+  const state: any = createSetupState('cube-projection');
+  state.status = 'active';
+  state.turnNumber = 2;
+  state.players[0].faction = 'human';
+  state.players.push(
+    {
+      id: 'p2',
+      name: 'Player Two',
+      role: 'player',
+      faction: 'centaur',
+      health: 25,
+      lines: 0,
+      joiningLines: 0,
+    },
+    {
+      id: 'spectator',
+      name: 'Watcher',
+      role: 'spectator',
+      faction: null,
+      health: 25,
+      lines: 0,
+      joiningLines: 0,
+    },
+  );
+  Object.assign(state.gameData, {
+    turnNumber: 2,
+    currentPhase: 'build',
+    currentSubPhase: 'dice_roll',
+    diceRoll: 3,
+    phaseReadiness: [],
+  });
+  state.gameData.ships = {
+    p1: [
+      { instanceId: 'cube-a', shipDefId: 'CUB' },
+      { instanceId: 'cube-b', shipDefId: 'CUB' },
+    ],
+    p2: [
+      { instanceId: 'cube-lev', shipDefId: 'CUB' },
+      { instanceId: 'lev', shipDefId: 'LEV' },
+    ],
+    spectator: [],
+  };
+  state.gameData.turnData = {
+    turnNumber: 2,
+    currentMajorPhase: 'build',
+    currentSubPhase: 'dice_roll',
+    diceManipulationStage: 'cube',
+    diceRolled: true,
+    diceFinalized: false,
+    baseDiceRoll: 3,
+    effectiveDiceRoll: 3,
+    diceRoll: 3,
+    effectiveDiceRollByPlayerId: { p1: 3, p2: 6 },
+    cubeDiceRollsByPlayerId: {
+      p1: [
+        { sourceInstanceId: 'cube-a', value: 2 },
+        { sourceInstanceId: 'cube-b', value: 6 },
+      ],
+    },
+    pendingCubeDiceChoiceByPlayerId: { p1: 'cube:cube-b' },
+    cubeDiceSelectionByPlayerId: {},
+    visibleCubeDiceValueByPlayerId: { p1: 2 },
+    chronoswarmRolls: [],
+    chronoswarmCountByPlayerId: { p1: 0, p2: 0 },
+    chronoswarmSharedRollCount: 0,
+  };
+  fixture.store.set(
+    'game_cube-projection',
+    normalizeAncientGameState(state).state,
+  );
+
+  const getState = fixture.app.handler(
+    'GET',
+    '/make-server-825e19ab/game-state/:gameId',
+  );
+  const readAs = async (playerId: string) => {
+    fixture.setSessionId(playerId);
+    return await responseJson(await getState(createContext({
+      params: { gameId: 'cube-projection' },
+    })));
+  };
+
+  const owner = await readAs('p1');
+  const opponent = await readAs('p2');
+  const spectator = await readAs('spectator');
+
+  for (const body of [owner, opponent, spectator]) {
+    assert.deepEqual(body.publicState.visibleDice.cubeDiceValueByPlayerId, { p1: 2 });
+    assert.equal('cubeDiceRollsByPlayerId' in body.gameData.turnData, false);
+    assert.equal('cubeDiceSelectionByPlayerId' in body.gameData.turnData, false);
+  }
+  assert.deepEqual(
+    owner.requester.availableActions[0].choices,
+    [
+      { choiceId: 'main', projectedAmount: 3 },
+      { choiceId: 'cube:cube-a', projectedAmount: 2 },
+      { choiceId: 'cube:cube-b', projectedAmount: 6 },
+    ],
+  );
+  assert.deepEqual(owner.gameData.turnData.pendingCubeDiceChoiceByPlayerId, {
+    p1: 'cube:cube-b',
+  });
+  assert.deepEqual(opponent.requester.availableActions, []);
+  assert.deepEqual(spectator.requester.availableActions, []);
+  assert.deepEqual(opponent.gameData.turnData.pendingCubeDiceChoiceByPlayerId, {});
+  assert.deepEqual(spectator.gameData.turnData.pendingCubeDiceChoiceByPlayerId, {});
+  assert.equal(
+    'p2' in owner.publicState.visibleDice.cubeDiceValueByPlayerId,
+    false,
+  );
+
+  const resolvedState = fixture.store.get('game_cube-projection');
+  resolvedState.gameData.turnData.visibleCubeDiceValueByPlayerId.p1 = 6;
+  resolvedState.gameData.turnData.cubeDiceSelectionByPlayerId = {
+    p1: {
+      choiceId: 'cube:cube-b',
+      value: 6,
+      sourceInstanceId: 'cube-b',
+    },
+  };
+  resolvedState.gameData.turnData.pendingCubeDiceChoiceByPlayerId = {};
+  delete resolvedState.gameData.turnData.diceManipulationStage;
+  fixture.store.set('game_cube-projection', resolvedState);
+  const afterSelection = await readAs('spectator');
+  assert.deepEqual(
+    afterSelection.publicState.visibleDice.cubeDiceValueByPlayerId,
+    { p1: 6 },
+  );
+  assert.equal(
+    'cubeDiceRollsByPlayerId' in afterSelection.gameData.turnData,
+    false,
+  );
+});
+
 Deno.test('legacy action route rejects obsolete Solar action and sanitizes early/final state responses', async () => {
   const fixture = createGameRouteFixture();
   const state: any = normalizeAncientGameState(createSetupState()).state;

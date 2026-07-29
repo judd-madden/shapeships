@@ -38,6 +38,12 @@ import {
 import {
   materializeQueuedSimulacrumCopiesAtTurnStart,
 } from '../ancient/simulacrumSolarPower.ts';
+import {
+  anyPlayerIsCubeEligible,
+  getCubeEligiblePlayerIds,
+  playerIsCubeEligible,
+  rollLockedCubeDiceByPlayerId,
+} from './cubeDiceManipulation.ts';
 
 type KnoRerollPassIndex = 1 | 2 | 3;
 
@@ -562,7 +568,11 @@ function enterPhaseOnce(
   if (toKey === 'build.dice_roll') {
     const diceActivationSources: ShipActivationCueSource[] = [];
 
-    if (anyPlayerHasKno(workingState)) {
+    if (
+      turnData.diceManipulationStage !== 'kno' &&
+      turnData.diceManipulationStage !== 'cube' &&
+      anyPlayerHasKno(workingState)
+    ) {
       if (
         turnData.knoRerollPassIndex !== 1 &&
         turnData.knoRerollPassIndex !== 2 &&
@@ -570,6 +580,22 @@ function enterPhaseOnce(
       ) {
         turnData.knoRerollPassIndex = 1;
         turnData.knoRerollStoppedByPlayerId = {};
+      }
+    }
+
+    if (
+      turnData.diceManipulationStage !== 'kno' &&
+      turnData.diceManipulationStage !== 'cube'
+    ) {
+      if (anyPlayerHasKnoRerollForCurrentPass(workingState)) {
+        turnData.diceManipulationStage = 'kno';
+      } else if (anyPlayerIsCubeEligible(workingState)) {
+        turnData.diceManipulationStage = 'cube';
+        delete turnData.knoRerollPassIndex;
+        turnData.pendingKnoRerollChoiceByPassByPlayerId = {};
+        turnData.knoRerollStoppedByPlayerId = {};
+      } else {
+        delete turnData.diceManipulationStage;
       }
     }
 
@@ -628,11 +654,9 @@ function enterPhaseOnce(
         atMs: nowMs
       });
       
-      const hasKnoRerollWindow = anyPlayerHasKnoRerollForCurrentPass(workingState);
-
-      if (!hasKnoRerollWindow) {
+      if (!turnData.diceManipulationStage) {
         turnData.diceFinalized = true;
-        debugLog('[OnEnterPhase] Dice finalized automatically (no KNO reroll window)');
+        debugLog('[OnEnterPhase] Dice finalized automatically (no Dice Manipulation input)');
       }
     } else {
       // Dice already rolled - use canonical value
@@ -652,11 +676,7 @@ function enterPhaseOnce(
         }
       }
 
-      if (anyPlayerHasKnoRerollForCurrentPass(workingState)) {
-        turnData.diceFinalized = false;
-      } else {
-        turnData.diceFinalized = true;
-      }
+      turnData.diceFinalized = turnData.diceManipulationStage ? false : true;
 
       debugLog(`[OnEnterPhase] Dice already rolled this turn (${canonicalDice})`);
     }
@@ -712,7 +732,26 @@ function enterPhaseOnce(
       turnData.chronoswarmSharedRollCount = existingChronoswarmRolls.length;
     }
 
-    if (anyPlayerHasKnoRerollForCurrentPass(workingState)) {
+    if (turnData.diceManipulationStage === 'cube') {
+      if (turnData.cubeDiceRollsByPlayerId === undefined) {
+        const cubeDiceRollsByPlayerId = rollLockedCubeDiceByPlayerId(
+          workingState,
+          rollD6,
+        );
+        turnData.cubeDiceRollsByPlayerId = cubeDiceRollsByPlayerId;
+        turnData.visibleCubeDiceValueByPlayerId = Object.fromEntries(
+          Object.entries(cubeDiceRollsByPlayerId)
+            .filter(([, rolls]) => rolls.length > 0)
+            .map(([playerId, rolls]) => [playerId, rolls[0].value]),
+        );
+      }
+      turnData.diceFinalized = false;
+    }
+
+    if (
+      turnData.diceManipulationStage === 'kno' &&
+      anyPlayerHasKnoRerollForCurrentPass(workingState)
+    ) {
       if (!workingState.gameData.phaseReadiness) {
         workingState.gameData.phaseReadiness = [];
       }
@@ -744,6 +783,40 @@ function enterPhaseOnce(
           step: 'build.dice_roll',
           reason: 'no_available_kno_reroll',
           atMs: nowMs
+        });
+      }
+    } else if (turnData.diceManipulationStage === 'cube') {
+      if (!workingState.gameData.phaseReadiness) {
+        workingState.gameData.phaseReadiness = [];
+      }
+
+      const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
+      const eligiblePlayerIds = new Set(getCubeEligiblePlayerIds(workingState));
+
+      for (const player of activePlayers) {
+        if (eligiblePlayerIds.has(player.id) && playerIsCubeEligible(workingState, player.id)) {
+          continue;
+        }
+
+        const existingIndex = workingState.gameData.phaseReadiness.findIndex(
+          (r: any) => r.playerId === player.id && r.currentStep === 'build.dice_roll'
+        );
+        if (existingIndex >= 0) {
+          workingState.gameData.phaseReadiness[existingIndex].isReady = true;
+        } else {
+          workingState.gameData.phaseReadiness.push({
+            playerId: player.id,
+            isReady: true,
+            currentStep: 'build.dice_roll',
+          });
+        }
+
+        events.push({
+          type: 'PLAYER_AUTO_READY',
+          playerId: player.id,
+          step: 'build.dice_roll',
+          reason: 'no_available_cube_choice',
+          atMs: nowMs,
         });
       }
     }

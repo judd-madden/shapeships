@@ -417,14 +417,14 @@ Deno.test("turn start materializes in active seat and numeric queue order with e
 Deno.test("initial Dice Roll materializes before fleet setup and repeated entry is idempotent", () => {
   const state = createState({
     turnNumber: 5,
-    p1Ships: [ship("ordinary-kno", "KNO", { createdTurn: 4 })],
+    p1Ships: [],
   });
   (state.gameData as any).currentPhase = "build";
   (state.gameData as any).currentSubPhase = "dice_roll";
   state.gameData.turnData!.currentMajorPhase = "build";
   state.gameData.turnData!.currentSubPhase = "dice_roll";
   state.gameData.ancient!.pendingSimulacrumCopies = [
-    pending({ copiedShipDefId: "FIG" }),
+    pending({ copiedShipDefId: "CUB" }),
   ];
 
   const first = onEnterPhase(
@@ -443,6 +443,21 @@ Deno.test("initial Dice Roll materializes before fleet setup and repeated entry 
     true,
   );
   assert.equal(first.state.gameData.turnData?.diceRolled, true);
+  assert.equal(
+    first.state.gameData.turnData?.diceManipulationStage,
+    "cube",
+  );
+  const materializedCube = first.state.gameData.ships!["z-owner"].find(
+    (entry: ShipInstance) =>
+      entry.instanceId === materializedRecord.materializedInstanceId,
+  );
+  assert.equal(materializedCube?.createdTurn, 5);
+  assert.deepEqual(
+    first.state.gameData.turnData?.cubeDiceRollsByPlayerId?.["z-owner"]?.map(
+      (roll: { sourceInstanceId: string }) => roll.sourceInstanceId,
+    ),
+    [materializedRecord.materializedInstanceId],
+  );
   assert.equal(
     first.events.filter((event) =>
       event.type === "SIMULACRUM_COPY_MATERIALIZED"

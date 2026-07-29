@@ -24,6 +24,10 @@ import type {
   DamageHealChoiceId,
   FrigateTriggerPolicy,
 } from './botTypes.ts';
+import {
+  getCubeDiceActionForPlayer,
+  playerHasValidPendingCubeChoice,
+} from '../phase/cubeDiceManipulation.ts';
 
 const MAX_BOT_STEPS_PER_REQUEST = 8;
 const CARRIER_ACTION_ID = 'CAR#0';
@@ -96,6 +100,7 @@ function buildPowerIntentFromActions(args: {
   loopStep: number;
   actions: PowerActionPayload[];
   batchWhenMultiple?: boolean;
+  forceBatch?: boolean;
 }): IntentRequest | null {
   const { state, playerId, phaseKey, loopStep, actions } = args;
   if (actions.length === 0) {
@@ -104,8 +109,9 @@ function buildPowerIntentFromActions(args: {
 
   const turnNumber = state?.gameData?.turnNumber ?? 0;
   const batchWhenMultiple = args.batchWhenMultiple ?? true;
+  const forceBatch = args.forceBatch === true;
 
-  if (actions.length === 1 || !batchWhenMultiple) {
+  if (!forceBatch && (actions.length === 1 || !batchWhenMultiple)) {
     return {
       gameId: state.gameId,
       intentType: 'ACTION',
@@ -138,6 +144,46 @@ function buildPowerIntentFromActions(args: {
       intentType: 'ACTIONS_SUBMIT',
     }),
   };
+}
+
+function buildCubeDiceIntentForCurrentPhase(args: {
+  state: any;
+  playerId: string;
+  phaseKey: string;
+  loopStep: number;
+}): IntentRequest | null {
+  const { state, playerId, phaseKey, loopStep } = args;
+  if (
+    phaseKey !== 'build.dice_roll' ||
+    state?.gameData?.turnData?.diceManipulationStage !== 'cube' ||
+    playerHasValidPendingCubeChoice(state, playerId)
+  ) {
+    return null;
+  }
+
+  const action = getCubeDiceActionForPlayer(state, playerId);
+  if (!action || action.choices.length === 0) return null;
+
+  let bestChoice = action.choices[0];
+  for (const candidate of action.choices.slice(1)) {
+    if (candidate.projectedAmount > bestChoice.projectedAmount) {
+      bestChoice = candidate;
+    }
+  }
+
+  return buildPowerIntentFromActions({
+    state,
+    playerId,
+    phaseKey,
+    loopStep,
+    forceBatch: true,
+    actions: [{
+      actionType: 'power',
+      actionId: 'CUB#0',
+      sourceInstanceId: action.sourceInstanceId,
+      choiceId: bestChoice.choiceId,
+    }],
+  });
 }
 
 function createRunnerDebugEvent(playerId: string, reason: string, phaseKey: string | null) {
@@ -1408,7 +1454,11 @@ function buildKnowledgeDiceIntentForCurrentPhase(args: {
   plan: AuthoredBotPlan;
 }): IntentRequest | null {
   const { state, playerId, phaseKey, loopStep, plan } = args;
-  if (phaseKey !== 'build.dice_roll' || plan?.dicePolicy?.KNO?.mode !== 'reroll_odd_hold_even') {
+  if (
+    phaseKey !== 'build.dice_roll' ||
+    state?.gameData?.turnData?.diceManipulationStage !== 'kno' ||
+    plan?.dicePolicy?.KNO?.mode !== 'reroll_odd_hold_even'
+  ) {
     return null;
   }
 
@@ -1523,6 +1573,16 @@ function buildBotIntent(args: {
   }
 
   if (phaseKey === 'build.dice_roll' && plan) {
+    const cubeIntent = buildCubeDiceIntentForCurrentPhase({
+      state,
+      playerId,
+      phaseKey,
+      loopStep,
+    });
+    if (cubeIntent) {
+      return cubeIntent;
+    }
+
     const knowledgeIntent = buildKnowledgeDiceIntentForCurrentPhase({
       state,
       playerId,

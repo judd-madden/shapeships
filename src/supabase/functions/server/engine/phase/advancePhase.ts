@@ -2,6 +2,7 @@ import { PHASE_SEQUENCE, type PhaseKey, type MajorPhase, type SubPhase } from '.
 import { applyIncrementForTurn } from '../clock/clock.ts';
 import { createBattleLogFinalizeTurnEvent } from '../state/battleLogHistory.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
+import { anyPlayerIsCubeEligible } from './cubeDiceManipulation.ts';
 
 // Minimal server-side GameState interface (derived from actual game state structure)
 interface GameState {
@@ -212,6 +213,11 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           diceRolled: false,
           diceFinalized: false,
           diceRoll: null,
+          diceManipulationStage: undefined,
+          cubeDiceRollsByPlayerId: undefined,
+          pendingCubeDiceChoiceByPlayerId: undefined,
+          cubeDiceSelectionByPlayerId: undefined,
+          visibleCubeDiceValueByPlayerId: undefined,
           linesDistributed: false,
           anyChargesDeclared: false,
           anyChargesSpentInDeclaration: false,
@@ -247,40 +253,76 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
   }
 
   if (from === 'build.dice_roll') {
-    const passIndex = getKnoRerollPassIndex(state);
-    const nextPassIndex = getNextEligibleKnoRerollPassIndex(state, passIndex);
-    if (nextPassIndex != null) {
-      const next = setPhase(state, 'build', 'dice_roll');
-      const nextGd: any = next.gameData || {};
-      const nextTd: any = nextGd.turnData || {};
-      const passAdvanced: GameState = {
-        ...next,
-        gameData: {
-          ...nextGd,
-          turnData: {
-            ...nextTd,
-            knoRerollPassIndex: nextPassIndex,
+    const stage = state?.gameData?.turnData?.diceManipulationStage;
+    if (stage === 'kno') {
+      const passIndex = getKnoRerollPassIndex(state);
+      const nextPassIndex = getNextEligibleKnoRerollPassIndex(state, passIndex);
+      if (nextPassIndex != null) {
+        const next = setPhase(state, 'build', 'dice_roll');
+        const nextGd: any = next.gameData || {};
+        const nextTd: any = nextGd.turnData || {};
+        const passAdvanced: GameState = {
+          ...next,
+          gameData: {
+            ...nextGd,
+            turnData: {
+              ...nextTd,
+              diceManipulationStage: 'kno',
+              knoRerollPassIndex: nextPassIndex,
+              diceFinalized: false,
+            },
           },
-        },
-      };
-      const cleared = clearReadiness(passAdvanced);
+        };
+        const cleared = clearReadiness(passAdvanced);
 
-      debugLog(`[advancePhaseCore] KNO reroll pass: build.dice_roll pass ${passIndex} -> pass ${nextPassIndex}`);
+        debugLog(`[advancePhaseCore] KNO reroll pass: build.dice_roll pass ${passIndex} -> pass ${nextPassIndex}`);
 
-      return {
-        ok: true,
-        state: cleared,
-        from,
-        to: 'build.dice_roll',
-        events: [
-          {
-            type: 'KNO_REROLL_PASS_ADVANCED',
-            fromPassIndex: passIndex,
-            toPassIndex: nextPassIndex,
+        return {
+          ok: true,
+          state: cleared,
+          from,
+          to: 'build.dice_roll',
+          events: [
+            {
+              type: 'KNO_REROLL_PASS_ADVANCED',
+              fromPassIndex: passIndex,
+              toPassIndex: nextPassIndex,
+              atMs: nowMs ?? Date.now(),
+            },
+          ],
+        };
+      }
+
+      if (anyPlayerIsCubeEligible(state)) {
+        const next = setPhase(state, 'build', 'dice_roll');
+        const nextGd: any = next.gameData || {};
+        const nextTd: any = nextGd.turnData || {};
+        const cubeStage: GameState = {
+          ...next,
+          gameData: {
+            ...nextGd,
+            turnData: {
+              ...nextTd,
+              diceManipulationStage: 'cube',
+              knoRerollPassIndex: undefined,
+              pendingKnoRerollChoiceByPassByPlayerId: {},
+              knoRerollStoppedByPlayerId: {},
+              diceFinalized: false,
+            },
+          },
+        };
+
+        return {
+          ok: true,
+          state: clearReadiness(cubeStage),
+          from,
+          to: 'build.dice_roll',
+          events: [{
+            type: 'CUBE_DICE_STAGE_STARTED',
             atMs: nowMs ?? Date.now(),
-          },
-        ],
-      };
+          }],
+        };
+      }
     }
   }
 
@@ -350,6 +392,11 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           diceRolled: false,
           diceFinalized: false,
           diceRoll: null,
+          diceManipulationStage: undefined,
+          cubeDiceRollsByPlayerId: undefined,
+          pendingCubeDiceChoiceByPlayerId: undefined,
+          cubeDiceSelectionByPlayerId: undefined,
+          visibleCubeDiceValueByPlayerId: undefined,
           linesDistributed: false,
           anyChargesDeclared: false, // Reset charge declaration tracking
           anyChargesSpentInDeclaration: false,

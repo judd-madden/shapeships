@@ -125,6 +125,19 @@ export type ShipActivationCueBatch = {
   sources: ShipActivationCueSource[];
 };
 
+export type DiceManipulationStage = 'kno' | 'cube';
+export type CubeDieValue = 1 | 2 | 3 | 4 | 5 | 6;
+export type CubeDiceChoiceId = 'main' | `cube:${string}`;
+export type LockedCubeDieRoll = {
+  sourceInstanceId: string;
+  value: CubeDieValue;
+};
+export type CubeDiceSelection = {
+  choiceId: CubeDiceChoiceId;
+  value: CubeDieValue;
+  sourceInstanceId?: string;
+};
+
 export type AncientEnergyPool = {
   green: number;
   red: number;
@@ -319,6 +332,16 @@ export type GameData = {
     diceRolled?: boolean;
     /** Flag: dice modifiers have been finalized */
     diceFinalized?: boolean;
+    /** Internal stage within the authoritative build.dice_roll workflow */
+    diceManipulationStage?: DiceManipulationStage;
+    /** Complete authoritative Cube rolls, private except through requester actions */
+    cubeDiceRollsByPlayerId?: Record<string, LockedCubeDieRoll[]>;
+    /** Hidden staged Cube choice by player */
+    pendingCubeDiceChoiceByPlayerId?: Record<string, CubeDiceChoiceId>;
+    /** Accepted Cube selection retained for the rest of the turn */
+    cubeDiceSelectionByPlayerId?: Record<string, CubeDiceSelection>;
+    /** Single public Cube value exposed for each eligible controller */
+    visibleCubeDiceValueByPlayerId?: Record<string, CubeDieValue>;
 
     /**
      * Visibility-only snapshot captured on the first authoritative entry into

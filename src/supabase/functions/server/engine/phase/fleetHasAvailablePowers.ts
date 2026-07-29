@@ -25,6 +25,7 @@ import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.with
 import { EffectKind } from '../../engine_shared/effects/Effect.ts';
 import { getValidDestroyTargets } from '../../engine_shared/resolve/destroyRules.ts';
 import { isThirdSpiralFirstStrikeEligible } from '../../engine_shared/resolve/thirdSpiralFirstStrikeEligibility.ts';
+import { playerIsCubeEligible } from './cubeDiceManipulation.ts';
 
 type KnoRerollPassIndex = 1 | 2 | 3;
 
@@ -253,6 +254,14 @@ export function fleetHasAvailablePowers(
   allowedSubphases?: string[]
 ): boolean {
   if (phaseKey === 'build.dice_roll') {
+    const stage = state?.gameData?.turnData?.diceManipulationStage;
+    if (stage === 'cube') {
+      return playerIsCubeEligible(state, playerId);
+    }
+    if (stage !== 'kno') {
+      return false;
+    }
+
     const passIndex = getKnoRerollPassIndex(state);
     if (!playerCanActInKnoRerollPass(state, playerId, passIndex)) {
       return false;

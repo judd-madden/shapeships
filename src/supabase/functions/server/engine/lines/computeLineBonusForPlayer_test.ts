@@ -183,3 +183,18 @@ Deno.test('Convert requires a well-formed ledger from the immediately preceding 
     2,
   );
 });
+
+Deno.test('player-relative Cube effective value drives parity without changing the opponent', () => {
+  const gameData = createGameData();
+  gameData.ships.p1 = [{ instanceId: 'vig-p1', shipDefId: 'VIG' }];
+  gameData.ships.p2 = [{ instanceId: 'vig-p2', shipDefId: 'VIG' }];
+  gameData.turnData.baseDiceRoll = 2;
+  gameData.turnData.effectiveDiceRoll = 2;
+  gameData.turnData.diceRoll = 2;
+  gameData.turnData.effectiveDiceRollByPlayerId = { p1: 5, p2: 2 };
+
+  assert.equal(computeLineBonusesForPlayer(gameData, 'p1').bonusLinesOnEven, 0);
+  assert.equal(computeLineBonusesForPlayer(gameData, 'p2').bonusLinesOnEven, 2);
+  assert.equal(gameData.turnData.baseDiceRoll, 2);
+  assert.equal(gameData.turnData.effectiveDiceRoll, 2);
+});

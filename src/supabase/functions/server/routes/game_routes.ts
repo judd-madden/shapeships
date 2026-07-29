@@ -60,6 +60,7 @@ import { appendChatEntry } from './chat_kv.ts';
 import { ensureStateRevision, withBumpedStateRevision } from './state_revision.ts';
 import { debugLog } from '../utils/serverLogger.ts';
 import { getPlayerMaxHealth } from '../engine_shared/maximumHealth.ts';
+import { getCubeDiceActionForPlayer } from '../engine/phase/cubeDiceManipulation.ts';
 
 const INITIAL_SAVED_LINES = 3;
 
@@ -550,7 +551,7 @@ function shipAlreadyUsedInShipsThatBuildPass(state: any, sourceInstanceId: strin
   return state?.gameData?.turnData?.shipsThatBuildPassUsageByInstanceId?.[sourceInstanceId]?.[passIndex] === true;
 }
 
-function projectChronoswarmTurnData(gameData: any, requestingPlayerId: string): any {
+function projectDiceManipulationTurnData(gameData: any, requestingPlayerId: string): any {
   const turnData = gameData?.gameData?.turnData;
   if (!turnData) return gameData;
 
@@ -559,13 +560,23 @@ function projectChronoswarmTurnData(gameData: any, requestingPlayerId: string): 
     filteredPendingKnoRerollChoiceByPassByPlayerId[requestingPlayerId] =
       turnData.pendingKnoRerollChoiceByPassByPlayerId[requestingPlayerId];
   }
+  const filteredPendingCubeDiceChoiceByPlayerId: Record<string, string> = {};
+  if (turnData.pendingCubeDiceChoiceByPlayerId?.[requestingPlayerId]) {
+    filteredPendingCubeDiceChoiceByPlayerId[requestingPlayerId] =
+      turnData.pendingCubeDiceChoiceByPlayerId[requestingPlayerId];
+  }
+  const {
+    cubeDiceRollsByPlayerId: _omitCubeDiceRollsByPlayerId,
+    cubeDiceSelectionByPlayerId: _omitCubeDiceSelectionByPlayerId,
+    ...projectedTurnData
+  } = turnData;
 
   return {
     ...gameData,
     gameData: {
       ...gameData.gameData,
       turnData: {
-        ...turnData,
+        ...projectedTurnData,
         chronoswarmRolls: Array.isArray(turnData.chronoswarmRolls)
           ? turnData.chronoswarmRolls.filter((roll: unknown): roll is number => typeof roll === 'number')
           : [],
@@ -581,6 +592,7 @@ function projectChronoswarmTurnData(gameData: any, requestingPlayerId: string): 
               ? 1
               : undefined,
         pendingKnoRerollChoiceByPassByPlayerId: filteredPendingKnoRerollChoiceByPassByPlayerId,
+        pendingCubeDiceChoiceByPlayerId: filteredPendingCubeDiceChoiceByPlayerId,
         shipsThatBuildPassIndex:
           turnData.shipsThatBuildPassIndex === 2
             ? 2
@@ -621,6 +633,14 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
   if (!phaseKey) return [];
 
   if (phaseKey === 'build.dice_roll') {
+    if (state?.gameData?.turnData?.diceManipulationStage === 'cube') {
+      const cubeAction = getCubeDiceActionForPlayer(state, playerId);
+      return cubeAction ? [cubeAction] : [];
+    }
+    if (state?.gameData?.turnData?.diceManipulationStage !== 'kno') {
+      return [];
+    }
+
     const passIndex = getKnoRerollPassIndex(state);
     if (!playerCanActInKnoRerollPass(state, playerId, passIndex)) {
       return [];
@@ -1874,7 +1894,11 @@ export function registerGameRoutes(
         }
       }
 
-      gameData = projectChronoswarmTurnData(gameData, requestingPlayerId);
+      const availableActions = computeAvailableActionsForRequestingPlayer(
+        gameData,
+        requestingPlayerId,
+      );
+      gameData = projectDiceManipulationTurnData(gameData, requestingPlayerId);
 
       // Expose clock snapshot to client (STEP F)
       const clockData = gameData.gameData?.clock;
@@ -1982,8 +2006,6 @@ export function registerGameRoutes(
         }
       }
       
-      // Compute available actions for requesting player
-      const availableActions = computeAvailableActionsForRequestingPlayer(gameData, requestingPlayerId);
       const publicAncientState = projectPublicAncientState(gameData);
       const clientSafeGameData = sanitizeAncientStateForClient(
         gameData,
@@ -2027,6 +2049,7 @@ export function registerGameRoutes(
         chronoswarmRolls: Array.isArray(turnData.chronoswarmRolls)
           ? turnData.chronoswarmRolls
           : [],
+        cubeDiceValueByPlayerId: turnData.visibleCubeDiceValueByPlayerId ?? {},
       };
       const publicState = {
         players: ((projectPublicPlayersForClient(gameData) as any[]) ?? []).map((player: any) => ({

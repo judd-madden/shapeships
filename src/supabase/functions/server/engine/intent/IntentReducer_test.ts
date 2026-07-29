@@ -600,3 +600,125 @@ Deno.test('final SOL charge submitted atomically produces its depleted Heal 2 in
     true,
   );
 });
+
+function createCubeIntentState(): any {
+  return {
+    gameId: 'intent-cube-test',
+    status: 'active',
+    turnNumber: 3,
+    players: [
+      { id: 'p1', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'p2', role: 'player', faction: 'centaur', health: 25, lines: 0, joiningLines: 0 },
+    ],
+    gameData: {
+      turnNumber: 3,
+      currentPhase: 'build',
+      currentSubPhase: 'dice_roll',
+      diceRoll: 4,
+      ships: {
+        p1: [
+          { instanceId: 'cube-a', shipDefId: 'CUB' },
+          { instanceId: 'cube-b', shipDefId: 'CUB' },
+        ],
+        p2: [],
+      },
+      phaseReadiness: [{
+        playerId: 'p2',
+        isReady: true,
+        currentStep: 'build.dice_roll',
+      }],
+      turnData: {
+        turnNumber: 3,
+        currentMajorPhase: 'build',
+        currentSubPhase: 'dice_roll',
+        diceManipulationStage: 'cube',
+        diceRolled: true,
+        diceFinalized: false,
+        baseDiceRoll: 4,
+        effectiveDiceRoll: 4,
+        diceRoll: 4,
+        effectiveDiceRollByPlayerId: { p1: 4, p2: 4 },
+        diceOverrideSourceByPlayerId: { p1: 'CUB', p2: 'LEV' },
+        cubeDiceRollsByPlayerId: {
+          p1: [
+            { sourceInstanceId: 'cube-a', value: 2 },
+            { sourceInstanceId: 'cube-b', value: 6 },
+          ],
+        },
+        visibleCubeDiceValueByPlayerId: { p1: 2 },
+        pendingCubeDiceChoiceByPlayerId: {},
+        chronoswarmRolls: [],
+        chronoswarmCountByPlayerId: { p1: 0, p2: 0 },
+        chronoswarmSharedRollCount: 0,
+      },
+    },
+  };
+}
+
+Deno.test('Cube batch rejects multiple entries without mutating staged or resolved state', async () => {
+  const state = createCubeIntentState();
+  const before = {
+    pending: structuredClone(state.gameData.turnData.pendingCubeDiceChoiceByPlayerId),
+    readiness: structuredClone(state.gameData.phaseReadiness),
+    effective: structuredClone(state.gameData.turnData.effectiveDiceRollByPlayerId),
+  };
+  const result = await applyIntent(state, 'p1', {
+    gameId: state.gameId,
+    intentType: 'ACTIONS_SUBMIT',
+    turnNumber: 3,
+    nonce: 'duplicate-cube-batch',
+    payload: {
+      actions: [
+        {
+          actionType: 'power',
+          actionId: 'CUB#0',
+          sourceInstanceId: 'cube-a',
+          choiceId: 'main',
+        },
+        {
+          actionType: 'power',
+          actionId: 'CUB#0',
+          sourceInstanceId: 'cube-a',
+          choiceId: 'cube:cube-b',
+        },
+      ],
+    },
+  }, 100);
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(state.gameData.turnData.pendingCubeDiceChoiceByPlayerId, before.pending);
+  assert.deepEqual(state.gameData.phaseReadiness, before.readiness);
+  assert.deepEqual(state.gameData.turnData.effectiveDiceRollByPlayerId, before.effective);
+  assert.deepEqual(result.events, []);
+});
+
+Deno.test('Cube Main choice clears only the local stale CUB override', async () => {
+  const state = createCubeIntentState();
+  const staged = await applyIntent(state, 'p1', {
+    gameId: state.gameId,
+    intentType: 'ACTION',
+    turnNumber: 3,
+    nonce: 'cube-main',
+    payload: {
+      actionType: 'power',
+      actionId: 'CUB#0',
+      sourceInstanceId: 'cube-a',
+      choiceId: 'main',
+    },
+  }, 100);
+  assert.equal(staged.ok, true);
+
+  const resolved = await applyIntent(staged.state, 'p1', {
+    gameId: state.gameId,
+    intentType: 'DECLARE_READY',
+    turnNumber: 3,
+    nonce: 'cube-main-ready',
+  }, 200);
+  assert.equal(resolved.ok, true);
+  assert.equal(resolved.state.gameData.turnData.diceOverrideSourceByPlayerId.p1, undefined);
+  assert.equal(resolved.state.gameData.turnData.diceOverrideSourceByPlayerId.p2, 'LEV');
+  assert.deepEqual(
+    resolved.state.gameData.turnData.cubeDiceSelectionByPlayerId.p1,
+    { choiceId: 'main', value: 4 },
+  );
+});
