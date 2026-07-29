@@ -40,8 +40,6 @@ const FALLBACK_SIMULACRUM_RULES = [
   'Each ship may only be targeted ONCE per turn.',
   'Ships with charges are copied as they are at the START of this battle phase.',
   'Copied ships CAN be upgraded.',
-  'A Cube-cast makes an extra copy of target ship.',
-  'Cannot copy Cube.',
 ] as const;
 
 function splitSimulacrumRules(extraRules: string | undefined): string[] {

@@ -279,7 +279,7 @@ function normalizeSolarLedgerEntry(value: unknown): AncientSolarLedgerEntry | nu
     !isNonEmptyString(value.entryId) ||
     !isNonEmptyString(value.solarPowerId) ||
     !ANCIENT_SOLAR_POWER_ID_SET.has(value.solarPowerId as AncientSolarPowerId) ||
-    !['manual', 'autocast', 'cube'].includes(value.sourceMode)
+    !['manual', 'autocast'].includes(value.sourceMode)
   ) {
     return null;
   }
@@ -534,7 +534,7 @@ function normalizePendingSimulacrumCopy(
     !isNonEmptyString(value.ownerPlayerId) ||
     !isNonEmptyString(value.sourceTargetInstanceId) ||
     !isNonEmptyString(value.copiedShipDefId) ||
-    !['primary', 'cube'].includes(value.sourceMode) ||
+    value.sourceMode !== 'primary' ||
     !['queued', 'materialized'].includes(value.status)
   ) {
     return null;

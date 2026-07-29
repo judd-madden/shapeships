@@ -33,10 +33,6 @@ export type ImplementedAncientManualSolarPowerId =
   | 'SBLA'
   | 'SSIM';
 
-export type AncientCubeRepeatableManualSolarPowerId =
-  | Exclude<FixedAncientManualSolarPowerId, 'SVOR'>
-  | 'SSIM';
-
 export type AncientManualSolarCast =
   | { solarPowerId: FixedAncientManualSolarPowerId }
   | { solarPowerId: 'SSIP'; lockedAmount: number }
@@ -76,15 +72,6 @@ export const ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID = {
 const FIXED_ANCIENT_MANUAL_SOLAR_POWER_IDS = new Set<string>(
   Object.keys(ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID)
 );
-
-const ANCIENT_CUBE_REPEATABLE_MANUAL_SOLAR_POWER_IDS = new Set<string>([
-  'SLIF',
-  'SSTA',
-  'SAST',
-  'SSUP',
-  'SCON',
-  'SSIM',
-]);
 
 export type AncientChargeDeclarationWorkflow = {
   key: string;
@@ -154,15 +141,6 @@ export function isFixedAncientManualSolarPowerId(
   value: unknown
 ): value is FixedAncientManualSolarPowerId {
   return typeof value === 'string' && FIXED_ANCIENT_MANUAL_SOLAR_POWER_IDS.has(value);
-}
-
-export function isAncientCubeRepeatableManualSolarPowerId(
-  value: unknown
-): value is AncientCubeRepeatableManualSolarPowerId {
-  return (
-    typeof value === 'string' &&
-    ANCIENT_CUBE_REPEATABLE_MANUAL_SOLAR_POWER_IDS.has(value)
-  );
 }
 
 export function snapshotAncientManualSolarCastsForPresentation(
@@ -264,7 +242,6 @@ export function replayAncientManualSolarCasts(args: {
         Number.isInteger(cast.previewBlueCost) &&
         cast.previewBlueCost > 0 &&
         definition?.type === ShipType.BASIC &&
-        cast.copiedShipDefId !== 'CUB' &&
         definition.basicCost?.totalLines === cast.previewBlueCost;
       cost = validTarget && validPreviewCost
         ? { green: 0, red: 0, blue: cast.previewBlueCost }

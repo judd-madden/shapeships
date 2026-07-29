@@ -309,7 +309,6 @@ export function MobileCatalogueScroller({
           siphonSelector={declarationVm?.siphonSelector}
           simulacrumSelector={declarationVm?.simulacrumSelector}
           blackHoleSelector={declarationVm?.blackHoleSelector}
-          cubeRepeatPending={declarationVm?.cubeRepeatPending}
           autocastEnabled={declarationVm?.autocastEnabled ?? vm.ancientAutocastEnabled}
           autocastDisabled={declarationBlocked}
           declarationAttemptUnresolved={declarationVm?.attemptUnresolved === true}

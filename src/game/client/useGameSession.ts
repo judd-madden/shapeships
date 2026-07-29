@@ -206,7 +206,6 @@ import {
   getAncientChargeDeclarationActions,
   getAncientEnergyTotal,
   getUsableAncientEnergyPoolForPlayer,
-  isAncientCubeRepeatableManualSolarPowerId,
   isFixedAncientManualSolarPowerId,
   partitionAncientChargeDeclarationActions,
   replayAncientManualSolarCasts,
@@ -2375,15 +2374,6 @@ export function useGameSession(
   });
   const controlledAncientShips =
     me?.id != null ? getShipsByPlayerId(rawState)[me.id] : [];
-  const controlledCubeCount = Array.isArray(controlledAncientShips)
-    ? controlledAncientShips.filter((ship) => ship?.shipDefId === 'CUB').length
-    : 0;
-  const cubeRepeatPending =
-    activeAncientChargeDeclarationWorkflow?.stage === 'powers' &&
-    controlledCubeCount > 0 &&
-    !ancientSolarPresentationCasts.some((cast) =>
-      isAncientCubeRepeatableManualSolarPowerId(cast.solarPowerId)
-    );
   const publicAncientSolarLedgers =
     rawState?.publicState?.ancient?.solarLedgerByPlayerId as Record<string, unknown> | undefined;
   const materializedSimulacrumLedgerEntryIdsByPlayerId =
@@ -2405,7 +2395,6 @@ export function useGameSession(
       displayLeftPlayer?.id === me?.id,
     currentBattleTurnNumber: turnNumber,
     localPreviewCasts: ancientSolarPresentationCasts,
-    controlledCubeCount,
     isAuthoritativelyReady: ancientPlayerReady,
     suppressedAuthoritativeLedgerEntryIds:
       getSuppressedSimulacrumLedgerEntryIds(displayLeftPlayer?.id),
@@ -2419,7 +2408,6 @@ export function useGameSession(
         allowLocalPreview: false,
         currentBattleTurnNumber: turnNumber,
         localPreviewCasts: [],
-        controlledCubeCount: 0,
         isAuthoritativelyReady: isPlayerReadyForPhase(rawState, displayRightPlayer?.id),
         suppressedAuthoritativeLedgerEntryIds:
           getSuppressedSimulacrumLedgerEntryIds(displayRightPlayer?.id),
@@ -5098,7 +5086,6 @@ useEffect(() => {
               activeAncientChargeDeclarationWorkflow.blackHoleSelectedTargetInstanceIds.length,
             damagePreview: ancientBlackHoleDamagePreview,
           },
-          cubeRepeatPending,
           autocastEnabled: ancientAutocastEnabled,
           attemptUnresolved: activeAncientChargeDeclarationAttempt != null,
           rejectionRecoveryPending:

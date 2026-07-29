@@ -478,16 +478,6 @@ const MANUAL_OVERRIDES: Record<string, ManualPowerHandler> = {
     console.warn('[ManualOverrides] SPI_2 requires energy tracking (not yet implemented)');
     return { gameState: context.gameState };
   },
-  
-  // CUBE (CUB) - Repeat solar power
-  'CUB_0': (power, context) => {
-    // "Once per turn, you may repeat a solar power that you cast"
-    return {
-      gameState: context.gameState,
-      requiresChoice: true,
-      description: 'Player must choose which solar power to repeat'
-    };
-  },
 };
 
 // ============================================================================

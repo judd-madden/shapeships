@@ -30,7 +30,7 @@ function getValidSimulacrumTargetDescriptor(
 ): AncientSimulacrumTargetDescriptor | null {
   const targetInstanceId = getShipInstanceId(ship);
   const rawShipDefId = String(ship?.shipDefId ?? '');
-  if (!targetInstanceId || !isShipDefId(rawShipDefId) || rawShipDefId === 'CUB') {
+  if (!targetInstanceId || !isShipDefId(rawShipDefId)) {
     return null;
   }
 

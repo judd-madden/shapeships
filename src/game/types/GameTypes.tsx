@@ -436,12 +436,6 @@ export interface TurnData {
       [key: string]: boolean | number | string | undefined;
     };
   };
-  
-  // Solar powers used this turn (for Cube to repeat)
-  solarPowersUsed?: {
-    [playerId: string]: string[]; // Solar power IDs
-  };
-  
   // ============================================================================
   // DEPRECATED FIELDS (for migration compatibility)
   // ============================================================================

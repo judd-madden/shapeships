@@ -293,7 +293,6 @@ export function ActionPanelFrame({
               siphonSelector={declarationVm?.siphonSelector}
               simulacrumSelector={declarationVm?.simulacrumSelector}
               blackHoleSelector={declarationVm?.blackHoleSelector}
-              cubeRepeatPending={declarationVm?.cubeRepeatPending}
               autocastEnabled={declarationVm?.autocastEnabled ?? vm.ancientAutocastEnabled}
               autocastDisabled={declarationBlocked}
               declarationBlocked={declarationBlocked}
@@ -323,7 +322,6 @@ export function ActionPanelFrame({
           siphonSelector={declarationVm?.siphonSelector}
           simulacrumSelector={declarationVm?.simulacrumSelector}
           blackHoleSelector={declarationVm?.blackHoleSelector}
-          cubeRepeatPending={declarationVm?.cubeRepeatPending}
           autocastEnabled={declarationVm?.autocastEnabled ?? vm.ancientAutocastEnabled}
           autocastDisabled={declarationBlocked}
           declarationBlocked={declarationBlocked}

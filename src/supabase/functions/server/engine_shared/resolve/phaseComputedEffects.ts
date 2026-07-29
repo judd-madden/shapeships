@@ -59,7 +59,7 @@ export const COMPUTED_EFFECTS_AUDIT = [
   { shipDefId: 'KNO', mechanic: 'tiered thresholds + shared dice rerolls + automatic healing' },
 
   // Ancient (many need energy ledger not present yet)
-  { shipDefId: 'CUB', mechanic: 'once-per-turn: repeat last solar power (free)' },
+  { shipDefId: 'CUB', mechanic: 'future Dice Manipulation: extra die per controlled Cube; choose final roll' },
   { shipDefId: 'QUA', mechanic: 'dice-conditioned energy/heal' },
   { shipDefId: 'SPI', mechanic: 'per-source owned-count healing + max-health modifier' },
   { shipDefId: 'SSIM', mechanic: 'computed variable X (lines) + copy enemy basic ship' },

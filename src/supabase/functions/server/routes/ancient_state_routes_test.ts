@@ -1122,7 +1122,7 @@ Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient
   assert.equal(responseBody.requester.availableActions.some((action: any) => action.shipDefId === 'SOL'), false);
 });
 
-Deno.test('/game-state projects prior-Battle Convert through the build bonus economy', async () => {
+Deno.test('/game-state hard-prunes raw legacy Cube Convert entries before build projection', async () => {
   const fixture = createGameRouteFixture();
   const state: any = createSetupState('convert-build-projection');
   state.turnNumber = 4;
@@ -1156,8 +1156,10 @@ Deno.test('/game-state projects prior-Battle Convert through the build bonus eco
     linesDistributed: true,
   };
 
-  const normalized: any = normalizeAncientGameState(state).state;
-  normalized.gameData.ancient.solarLedgerByPlayerId.p1 = {
+  const canonicalState = normalizeAncientGameState(state).state;
+  const persistedLegacyState: unknown = structuredClone(canonicalState);
+  const rawPersistedState = persistedLegacyState as any;
+  rawPersistedState.gameData.ancient.solarLedgerByPlayerId.p1 = {
     battleTurnNumber: 3,
     entries: [
       {
@@ -1190,7 +1192,7 @@ Deno.test('/game-state projects prior-Battle Convert through the build bonus eco
       },
     ],
   };
-  fixture.store.set('game_convert-build-projection', normalized);
+  fixture.store.set('game_convert-build-projection', rawPersistedState);
 
   const getState = fixture.app.handler(
     'GET',
@@ -1200,19 +1202,28 @@ Deno.test('/game-state projects prior-Battle Convert through the build bonus eco
     params: { gameId: 'convert-build-projection' },
   })));
 
-  assert.equal(body.publicState.bonusLinesByPlayerId.p1, 4);
+  assert.deepEqual(
+    body.publicState.ancient.solarLedgerByPlayerId.p1.entries.map(
+      (entry: any) => [entry.entryId, entry.sourceMode],
+    ),
+    [
+      ['convert-manual', 'manual'],
+      ['convert-autocast', 'autocast'],
+    ],
+  );
+  assert.equal(body.publicState.bonusLinesByPlayerId.p1, 2);
   assert.deepEqual(body.publicState.bonusBreakdownByPlayerId.p1, [{
     rowKind: 'solar_power',
     solarPowerId: 'SCON',
     label: 'Convert',
-    count: 4,
-    amount: 4,
-    amountText: '4',
+    count: 2,
+    amount: 2,
+    amountText: '2',
   }]);
-  assert.equal(body.requester.buildEconomy.ordinaryBonusLines, 4);
+  assert.equal(body.requester.buildEconomy.ordinaryBonusLines, 2);
   assert.equal(
     body.requester.buildEconomyByPlayerId.p1.ordinaryBonusLines,
-    4,
+    2,
   );
   assert.equal(
     body.requester.buildEconomyByPlayerId.p2.ordinaryBonusLines,

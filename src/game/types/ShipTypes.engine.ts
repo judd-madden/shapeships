@@ -153,12 +153,8 @@ export interface SpecialLogic {
   countTarget?: ShipDefId;
   countMultiplier?: number; // Divide count by this (e.g., 3 for "every THREE fighters")
   
-  // Copy/repeat
+  // Copy
   copyTargetType?: 'enemy_basic_ship';
-  repeatSolarPower?: {
-    targetIndex: 'first' | number;
-    perShip: boolean;
-  };
   
   // Conditions
   condition?: string; // e.g., "charges_depleted", "health_lower_than_opponent"
@@ -316,10 +312,6 @@ export interface ShipInstance {
   customState?: {
     /** Frigate trigger number (1-6) */
     frigateTargetNumber?: number;
-    
-    /** Cube: which solar power has been repeated this turn */
-    cubeUsedThisTurn?: boolean;
-    
     /** Other ship-specific state */
     [key: string]: any;
   };

@@ -4,10 +4,7 @@ import type {
   AncientSimulacrumDisplayPresentation,
   LiveRowAncientSolarPowerId,
 } from './types';
-import {
-  isAncientCubeRepeatableManualSolarPowerId,
-  type AncientManualSolarCast,
-} from './ancientChargeDeclaration';
+import type { AncientManualSolarCast } from './ancientChargeDeclaration';
 import { calculateAncientSiphonEffect } from '../../data/ancientSiphonRules';
 import { isShipDefId } from '../../data/ShipDefinitions.core';
 import { getShipDefinitionById } from '../../data/ShipDefinitions.engine';
@@ -28,7 +25,6 @@ const LIVE_ROW_ANCIENT_SOLAR_POWER_IDS = new Set<string>([
 const ANCIENT_SOLAR_DISPLAY_SOURCE_MODES = new Set<string>([
   'manual',
   'autocast',
-  'cube',
 ]);
 
 function isNonNegativeInteger(value: unknown): value is number {
@@ -114,8 +110,7 @@ function normalizeSimulacrumDisplayPresentation(args: {
 }): AncientSimulacrumDisplayPresentation | null {
   if (
     typeof args.copiedShipDefId !== 'string' ||
-    !isShipDefId(args.copiedShipDefId) ||
-    args.copiedShipDefId === 'CUB'
+    !isShipDefId(args.copiedShipDefId)
   ) {
     return null;
   }
@@ -168,39 +163,6 @@ function buildDisplayKey(args: {
   order: number;
 }): string {
   return `solar:${args.playerId}:${args.battleTurnNumber}:${args.sourceMode}:${args.order}`;
-}
-
-function normalizeCubePresentationOrder(
-  entries: readonly AncientSolarDisplayEntry[]
-): AncientSolarDisplayEntry[] {
-  const cubeEntries = entries.filter((entry) => entry.sourceMode === 'cube');
-  if (cubeEntries.length === 0) {
-    return [...entries];
-  }
-
-  const nonCubeEntries = entries.filter((entry) => entry.sourceMode !== 'cube');
-  const manualSourceIndex = nonCubeEntries.findIndex(
-    (entry) =>
-      entry.sourceMode === 'manual' &&
-      isAncientCubeRepeatableManualSolarPowerId(entry.solarPowerId)
-  );
-  const sourceIndex = manualSourceIndex >= 0
-    ? manualSourceIndex
-    : nonCubeEntries.findIndex(
-        (entry) =>
-          entry.sourceMode === 'autocast' &&
-          isAncientCubeRepeatableManualSolarPowerId(entry.solarPowerId)
-      );
-
-  if (sourceIndex < 0) {
-    return [...entries];
-  }
-
-  return [
-    ...nonCubeEntries.slice(0, sourceIndex + 1),
-    ...cubeEntries,
-    ...nonCubeEntries.slice(sourceIndex + 1),
-  ];
 }
 
 export function normalizeAuthoritativeAncientSolarEntries(args: {
@@ -272,20 +234,16 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
 
   const seenIdentities = new Set<string>();
   const entries: AncientSolarDisplayEntry[] = [];
-  let cubeOrdinal = 0;
   for (const candidate of candidates) {
     const identity = `${candidate.sourceMode}:${candidate.order}`;
     if (seenIdentities.has(identity)) continue;
     seenIdentities.add(identity);
-    const displayIdentityOrder = candidate.sourceMode === 'cube'
-      ? cubeOrdinal++
-      : candidate.order;
     const baseEntry = {
       displayKey: buildDisplayKey({
         playerId: args.playerId,
         battleTurnNumber,
         sourceMode: candidate.sourceMode,
-        order: displayIdentityOrder,
+        order: candidate.order,
       }),
       authoritativeLedgerEntryId: candidate.authoritativeLedgerEntryId,
       solarPowerId: candidate.solarPowerId,
@@ -321,7 +279,7 @@ export function normalizeAuthoritativeAncientSolarEntries(args: {
     }
   }
 
-  return normalizeCubePresentationOrder(entries);
+  return entries;
 }
 
 function buildLocalManualEntries(args: {
@@ -397,97 +355,12 @@ function buildLocalManualEntries(args: {
   });
 }
 
-function buildLocalCubeEntries(args: {
-  playerId: string;
-  battleTurnNumber: number;
-  casts: readonly AncientManualSolarCast[];
-  manualEntries: readonly AncientSolarDisplayEntry[];
-  controlledCubeCount: number;
-}): AncientSolarDisplayEntry[] {
-  if (!isNonNegativeInteger(args.controlledCubeCount) || args.controlledCubeCount === 0) {
-    return [];
-  }
-
-  const repeatedCastIndex = args.casts.findIndex((cast) =>
-    isAncientCubeRepeatableManualSolarPowerId(cast.solarPowerId)
-  );
-  if (repeatedCastIndex < 0) {
-    return [];
-  }
-
-  const repeatedEntry = args.manualEntries.find(
-    (entry) => entry.order === repeatedCastIndex
-  );
-  if (!repeatedEntry) {
-    return [];
-  }
-
-  return Array.from({ length: args.controlledCubeCount }, (_, cubeIndex) => {
-    const order = args.manualEntries.length + cubeIndex;
-    const baseEntry = {
-      displayKey: buildDisplayKey({
-        playerId: args.playerId,
-        battleTurnNumber: args.battleTurnNumber,
-        sourceMode: 'cube',
-        order: cubeIndex,
-      }),
-      order,
-      sourceMode: 'cube' as const,
-      isLocalPreview: true,
-      ...(repeatedEntry.targetMarker
-        ? {
-            targetMarker: {
-              tone: repeatedEntry.targetMarker.tone,
-              targetInstanceIds: [
-                ...repeatedEntry.targetMarker.targetInstanceIds,
-              ],
-            },
-          }
-        : {}),
-    };
-
-    if (repeatedEntry.solarPowerId === 'SSIM') {
-      return {
-        ...baseEntry,
-        solarPowerId: 'SSIM' as const,
-        simulacrumPresentation: {
-          copiedShipDefId:
-            repeatedEntry.simulacrumPresentation.copiedShipDefId,
-          ...(repeatedEntry.simulacrumPresentation
-            .capturedStartOfBattleCharges !== undefined
-            ? {
-                capturedStartOfBattleCharges:
-                  repeatedEntry.simulacrumPresentation
-                    .capturedStartOfBattleCharges,
-              }
-            : {}),
-          ...(repeatedEntry.simulacrumPresentation.selectedNumber !== undefined
-            ? {
-                selectedNumber:
-                  repeatedEntry.simulacrumPresentation.selectedNumber,
-              }
-            : {}),
-        },
-      };
-    }
-
-    return {
-      ...baseEntry,
-      solarPowerId: repeatedEntry.solarPowerId,
-      ...(repeatedEntry.effectCaption !== undefined
-        ? { effectCaption: repeatedEntry.effectCaption }
-        : {}),
-    };
-  });
-}
-
 export function deriveAncientSolarDisplayEntries(args: {
   playerId: string | null | undefined;
   ledger: unknown;
   allowLocalPreview: boolean;
   currentBattleTurnNumber: number;
   localPreviewCasts: readonly AncientManualSolarCast[];
-  controlledCubeCount: number;
   isAuthoritativelyReady: boolean;
   suppressedAuthoritativeLedgerEntryIds?: ReadonlySet<string>;
 }): AncientSolarDisplayEntry[] {
@@ -518,19 +391,9 @@ export function deriveAncientSolarDisplayEntries(args: {
     return visibleAuthoritativeEntries;
   }
 
-  const manualEntries = buildLocalManualEntries({
+  return buildLocalManualEntries({
     playerId: args.playerId,
     battleTurnNumber: args.currentBattleTurnNumber,
     casts: args.localPreviewCasts,
   });
-  return normalizeCubePresentationOrder([
-    ...manualEntries,
-    ...buildLocalCubeEntries({
-      playerId: args.playerId,
-      battleTurnNumber: args.currentBattleTurnNumber,
-      casts: args.localPreviewCasts,
-      manualEntries,
-      controlledCubeCount: args.controlledCubeCount,
-    }),
-  ]);
 }

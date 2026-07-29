@@ -193,7 +193,7 @@ export type AncientAcceptedDeclaration = {
   autocastEnabled: boolean;
 };
 
-export type AncientSolarSourceMode = 'manual' | 'autocast' | 'cube';
+export type AncientSolarSourceMode = 'manual' | 'autocast';
 
 export type AncientSolarTargetReference = {
   playerId: string;
@@ -254,7 +254,7 @@ export type AncientPendingSimulacrumCopy = {
   queueOrder: number;
   capturedStartOfBattleCharges: number;
   permanentConfiguration: ShipPermanentConfiguration;
-  sourceMode: 'primary' | 'cube';
+  sourceMode: 'primary';
   status: 'queued' | 'materialized';
   materializedInstanceId?: string;
   materializationOutcome?: AncientSimulacrumMaterializationOutcome;

@@ -67,7 +67,7 @@ function solarEntry(args: {
   };
 }
 
-Deno.test('Solar breakdown uses canonical typed rows and groups manual, Autocast, and Cube casts', () => {
+Deno.test('Solar breakdown uses canonical typed rows and groups manual and Autocast casts', () => {
   const entries = [
     solarEntry({
       effectId: 'ancient-solar:3:p1:declaration:manual:0:damage',
@@ -81,17 +81,11 @@ Deno.test('Solar breakdown uses canonical typed rows and groups manual, Autocast
       powerId: 'SSUP',
       amount: 6,
     }),
-    solarEntry({
-      effectId: 'ancient-solar:3:p1:declaration:cube:0:damage',
-      kind: 'Damage',
-      powerId: 'SSUP',
-      amount: 6,
-    }),
   ];
 
   const result = resolvePhase(createState({
     entries,
-    damageByPlayerId: { p2: 18 },
+    damageByPlayerId: { p2: 12 },
   }), 'battle.end_of_turn_resolution');
 
   assert.deepEqual(
@@ -100,21 +94,21 @@ Deno.test('Solar breakdown uses canonical typed rows and groups manual, Autocast
       rowKind: 'solar_power',
       solarPowerId: 'SSUP',
       label: 'Supernova',
-      count: 3,
-      amount: 18,
-      amountText: '18',
+      count: 2,
+      amount: 12,
+      amountText: '12',
     }],
   );
   assert.equal(
     result.state.gameData.lastTurnDamageDealtBreakdownByPlayerId?.p1?.[0]
       .count,
-    3,
+    2,
   );
   assert.equal(result.state.players[0].health, 20);
-  assert.equal(result.state.players[1].health, 12);
+  assert.equal(result.state.players[1].health, 18);
   assert.deepEqual(result.state.gameData.lastTurnDamageByPlayerId, {
     p1: 0,
-    p2: 18,
+    p2: 12,
   });
 });
 

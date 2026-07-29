@@ -112,8 +112,8 @@ function pending(
   };
 }
 
-Deno.test("Simulacrum canonical target classification accepts evolved Basics and rejects non-Basics and Cube", () => {
-  for (const shipDefId of ["DEF", "OXI", "AST"]) {
+Deno.test("Simulacrum canonical target classification accepts all Basics including Cube and rejects non-Basics", () => {
+  for (const shipDefId of ["DEF", "OXI", "AST", "CUB"]) {
     const state = createState({
       p2Snapshot: [ship(`target-${shipDefId}`, shipDefId)],
     });
@@ -125,7 +125,7 @@ Deno.test("Simulacrum canonical target classification accepts evolved Basics and
     );
   }
 
-  for (const shipDefId of ["GUA", "SLIF", "CUB"]) {
+  for (const shipDefId of ["GUA", "SLIF"]) {
     const state = createState({
       p2Snapshot: [ship(`target-${shipDefId}`, shipDefId)],
     });
@@ -135,6 +135,53 @@ Deno.test("Simulacrum canonical target classification accepts evolved Basics and
       shipDefId,
     );
   }
+});
+
+Deno.test("Simulacrum copies Cube through the ordinary primary queue and materialization path", () => {
+  const cubCost = getShipById("CUB")!.totalLineCost as number;
+  const state = createState({
+    p2Snapshot: [ship("cube-target", "CUB")],
+  });
+  const resolved = resolve(state, ["cube-target"], cubCost);
+
+  assert.deepEqual(resolved.remainingEnergy, { green: 0, red: 0, blue: 0 });
+  assert.deepEqual(resolved.ledgerEntries.map((entry) => ({
+    solarPowerId: entry.solarPowerId,
+    sourceMode: entry.sourceMode,
+    paidEnergy: entry.paidEnergy,
+    copiedShipDefId: entry.simulacrum?.copiedShipDefId,
+  })), [{
+    solarPowerId: "SSIM",
+    sourceMode: "manual",
+    paidEnergy: { green: 0, red: 0, blue: cubCost },
+    copiedShipDefId: "CUB",
+  }]);
+  assert.deepEqual(
+    resolved.state.gameData.ancient!.pendingSimulacrumCopies.map((
+      record: AncientPendingSimulacrumCopy,
+    ) => ({
+      copiedShipDefId: record.copiedShipDefId,
+      sourceMode: record.sourceMode,
+      status: record.status,
+    })),
+    [{ copiedShipDefId: "CUB", sourceMode: "primary", status: "queued" }],
+  );
+
+  const materialized = materializeQueuedSimulacrumCopiesAtTurnStart(
+    resolved.state,
+    5,
+    1234,
+  );
+  assert.equal(
+    materialized.state.gameData.ships?.["z-owner"].some((entry) =>
+      entry.shipDefId === "CUB"
+    ),
+    true,
+  );
+  assert.equal(
+    materialized.state.gameData.ancient!.pendingSimulacrumCopies[0].status,
+    "materialized",
+  );
 });
 
 Deno.test("Simulacrum ledger and pending records share exact snapshot values without sharing configuration references", () => {
@@ -255,7 +302,7 @@ Deno.test("later unaffordable Simulacrum leaves the input state unchanged", () =
   assert.deepEqual(state, before);
 });
 
-Deno.test("Simulacrum aggregate quantity counts queued primary and Cube reservations without double-counting represented records", () => {
+Deno.test("Simulacrum aggregate quantity counts queued primary reservations without double-counting represented records", () => {
   for (const shipDefId of ["SPI", "QUA", "NEP", "ORB", "VIG"]) {
     const definition = getShipById(shipDefId)!;
     assert.equal(typeof definition.maxQuantity, "number", shipDefId);
@@ -267,9 +314,8 @@ Deno.test("Simulacrum aggregate quantity counts queued primary and Cube reservat
     });
     state.gameData.ancient!.pendingSimulacrumCopies = [
       pending({
-        pendingCopyId: `${shipDefId}-cube`,
+        pendingCopyId: `${shipDefId}-primary`,
         copiedShipDefId: shipDefId,
-        sourceMode: "cube",
       }),
     ];
     assert.throws(
@@ -302,101 +348,6 @@ Deno.test("Simulacrum aggregate quantity counts queued primary and Cube reservat
       proposedCount: 20,
     })
   );
-});
-
-Deno.test("Cube Simulacrum repeats preserve the first primary snapshot without consuming Energy or primary uniqueness", () => {
-  const firstTarget = ship("qua-target", "QUA", {
-    chargesCurrent: 4,
-    permanentConfiguration: { selectedNumber: 5 },
-  });
-  const laterTarget = ship("def-target", "DEF");
-  const state = createState({
-    p2Snapshot: [firstTarget, laterTarget],
-  });
-  const primary = resolve(state, ["qua-target", "def-target"]);
-  const sourceEntry = primary.ledgerEntries[0];
-  const cube = resolveSolarCastSequence({
-    state: primary.state,
-    playerId: "z-owner",
-    declarationId: "declaration-1",
-    battleTurnNumber: 4,
-    initialEnergy: primary.remainingEnergy,
-    casts: [
-      { solarPowerId: "SSIM", targetInstanceId: "qua-target" },
-      { solarPowerId: "SSIM", targetInstanceId: "qua-target" },
-    ],
-    resolvers: { SSIM: SIMULACRUM_SOLAR_RESOLVER },
-    sourceMode: "cube",
-    initialLedgerOrder: 2,
-  });
-
-  assert.deepEqual(
-    cube.state.gameData.ancient!.pendingSimulacrumCopies.map((
-      record: AncientPendingSimulacrumCopy,
-    ) => ({
-      pendingCopyId: record.pendingCopyId,
-      sourceTargetInstanceId: record.sourceTargetInstanceId,
-      copiedShipDefId: record.copiedShipDefId,
-      queueOrder: record.queueOrder,
-      capturedStartOfBattleCharges: record.capturedStartOfBattleCharges,
-      permanentConfiguration: record.permanentConfiguration,
-      sourceMode: record.sourceMode,
-    })),
-    [
-      {
-        pendingCopyId:
-          "ancient-solar:4:z-owner:declaration-1:manual:0:simulacrum-copy:primary",
-        sourceTargetInstanceId: "qua-target",
-        copiedShipDefId: "QUA",
-        queueOrder: 0,
-        capturedStartOfBattleCharges: 0,
-        permanentConfiguration: { selectedNumber: 5 },
-        sourceMode: "primary",
-      },
-      {
-        pendingCopyId:
-          "ancient-solar:4:z-owner:declaration-1:manual:1:simulacrum-copy:primary",
-        sourceTargetInstanceId: "def-target",
-        copiedShipDefId: "DEF",
-        queueOrder: 1,
-        capturedStartOfBattleCharges: 0,
-        permanentConfiguration: {},
-        sourceMode: "primary",
-      },
-      {
-        pendingCopyId:
-          "ancient-solar:4:z-owner:declaration-1:cube:0:simulacrum-copy:cube",
-        sourceTargetInstanceId: "qua-target",
-        copiedShipDefId: "QUA",
-        queueOrder: 2,
-        capturedStartOfBattleCharges: 0,
-        permanentConfiguration: { selectedNumber: 5 },
-        sourceMode: "cube",
-      },
-      {
-        pendingCopyId:
-          "ancient-solar:4:z-owner:declaration-1:cube:1:simulacrum-copy:cube",
-        sourceTargetInstanceId: "qua-target",
-        copiedShipDefId: "QUA",
-        queueOrder: 3,
-        capturedStartOfBattleCharges: 0,
-        permanentConfiguration: { selectedNumber: 5 },
-        sourceMode: "cube",
-      },
-    ],
-  );
-  assert.deepEqual(cube.remainingEnergy, primary.remainingEnergy);
-  assert.equal(cube.ledgerEntries.every((entry) =>
-    entry.sourceMode === "cube" &&
-    entry.paidEnergy.green === 0 &&
-    entry.paidEnergy.red === 0 &&
-    entry.paidEnergy.blue === 0
-  ), true);
-  for (const repeat of cube.ledgerEntries) {
-    assert.equal(repeat.solarPowerId, sourceEntry.solarPowerId);
-    assert.deepEqual(repeat.targets, sourceEntry.targets);
-    assert.deepEqual(repeat.simulacrum, sourceEntry.simulacrum);
-  }
 });
 
 Deno.test("turn start materializes in active seat and numeric queue order with exact state and history", () => {
@@ -1266,7 +1217,6 @@ Deno.test("materialized derivations separate direct, dependent, and matched ledg
       ship("exact-copy", "FIG", { createdTurn: 5 }),
       ship("legacy-zen", "ZEN", { createdTurn: 5 }),
       ship("legacy-ant", "ANT", { createdTurn: 5 }),
-      ship("cube-copy", "DEF", { createdTurn: 5 }),
     ],
   });
   (state.gameData as any).currentPhase = "build";
@@ -1295,19 +1245,10 @@ Deno.test("materialized derivations separate direct, dependent, and matched ledg
       },
     }),
     pending({
-      pendingCopyId: "ledger-cube:simulacrum-copy:cube",
-      sourceTargetInstanceId: "cube-target",
-      queueOrder: 2,
-      sourceMode: "cube",
-      status: "materialized",
-      materializedInstanceId: "cube-copy",
-      materializationOutcome: { joiningLinesGranted: 0, producedShips: [] },
-    }),
-    pending({
       pendingCopyId: "unmaterialized",
       sourceTargetInstanceId: "unmaterialized-target",
       copiedShipDefId: "ORB",
-      queueOrder: 3,
+      queueOrder: 2,
     }),
     pending({
       pendingCopyId: "future",
@@ -1342,19 +1283,8 @@ Deno.test("materialized derivations separate direct, dependent, and matched ledg
         },
       },
       {
-        entryId: "ledger-cube",
-        order: 2,
-        solarPowerId: "SSIM",
-        sourceMode: "cube",
-        paidEnergy: { green: 0, red: 0, blue: 0 },
-        simulacrum: {
-          sourceTargetInstanceId: "cube-target",
-          copiedShipDefId: "FIG",
-        },
-      },
-      {
         entryId: "unmaterialized-ledger",
-        order: 3,
+        order: 2,
         solarPowerId: "SSIM",
         sourceMode: "manual",
         paidEnergy: { green: 0, red: 0, blue: 1 },
@@ -1365,7 +1295,7 @@ Deno.test("materialized derivations separate direct, dependent, and matched ledg
       },
       {
         entryId: "unrelated-ledger",
-        order: 4,
+        order: 3,
         solarPowerId: "SSIM",
         sourceMode: "manual",
         paidEnergy: { green: 0, red: 0, blue: 1 },
@@ -1379,14 +1309,14 @@ Deno.test("materialized derivations separate direct, dependent, and matched ledg
 
   assert.deepEqual(
     deriveMaterializedSimulacrumFleetInstanceIdsByPlayerId(state)["z-owner"],
-    ["exact-copy", "legacy-zen", "legacy-ant", "cube-copy"],
+    ["exact-copy", "legacy-zen", "legacy-ant"],
   );
   assert.deepEqual(
     [...getDirectMaterializedSimulacrumInstanceIdsForPlayer(state, "z-owner")],
-    ["exact-copy", "legacy-zen", "cube-copy"],
+    ["exact-copy", "legacy-zen"],
   );
   assert.deepEqual(
     deriveMaterializedSimulacrumLedgerEntryIdsByPlayerId(state)["z-owner"],
-    ["ledger-exact", "ledger-cube", "legacy-ledger"],
+    ["ledger-exact", "legacy-ledger"],
   );
 });

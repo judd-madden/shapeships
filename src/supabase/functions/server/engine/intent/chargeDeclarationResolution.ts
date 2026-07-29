@@ -51,12 +51,6 @@ import { SIPHON_SOLAR_RESOLVER } from '../ancient/siphonSolarPower.ts';
 import { VORTEX_SOLAR_RESOLVER } from '../ancient/vortexSolarPower.ts';
 import { BLACK_HOLE_SOLAR_RESOLVER } from '../ancient/blackHoleSolarPower.ts';
 import { SIMULACRUM_SOLAR_RESOLVER } from '../ancient/simulacrumSolarPower.ts';
-import {
-  countControlledCubesAtReady,
-  findFirstManualCubeRepeatSource,
-  resolveCubeSolarRepeats,
-  type CubeSolarRepeatSource,
-} from '../ancient/cubeSolarPower.ts';
 
 const PRODUCTION_SOLAR_RESOLVERS: Readonly<ManualSolarResolverRegistry> = Object.freeze({
   ...PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
@@ -360,7 +354,6 @@ export function resolveChargeDeclarationSubmissionWithDependencies(args: {
     throw new Error('This Ancient player has no atomic charge declaration input');
   }
 
-  const lockedCubeCount = countControlledCubesAtReady(args.state, args.playerId);
   validateAuthoritativeSourceSets(args.state, args.playerId, normalized);
 
   let workingState = structuredClone(args.state);
@@ -467,88 +460,11 @@ export function resolveChargeDeclarationSubmissionWithDependencies(args: {
   nextEnergy = manualSolar.remainingEnergy;
 
   const ledgerEntries = [...manualSolar.ledgerEntries];
-  const manualCubeSource = findFirstManualCubeRepeatSource({
-    acceptedCasts: manualSolar.acceptedCasts,
-    ledgerEntries: manualSolar.ledgerEntries,
-  });
-
-  if (lockedCubeCount > 0 && manualCubeSource) {
-    const cubeSolar = resolveCubeSolarRepeats({
-      state: workingState,
-      playerId: args.playerId,
-      declarationId: normalized.declarationId,
-      battleTurnNumber,
-      initialEnergy: nextEnergy,
-      lockedCubeCount,
-      source: manualCubeSource,
-      resolvers: dependencies.manualSolarResolvers,
-      initialLedgerOrder: ledgerEntries.length,
-    });
-    workingState = cubeSolar.state;
-    nextEnergy = cubeSolar.remainingEnergy;
-    ledgerEntries.push(...cubeSolar.ledgerEntries);
-  }
 
   const autocastCasts = normalized.autocastEnabled
     ? buildMonoColourAutocastCasts(nextEnergy)
     : [];
-  if (
-    normalized.autocastEnabled &&
-    lockedCubeCount > 0 &&
-    !manualCubeSource &&
-    autocastCasts.length > 0
-  ) {
-    const firstAutocast = resolveSolarCastSequence({
-      state: workingState,
-      playerId: args.playerId,
-      declarationId: normalized.declarationId,
-      battleTurnNumber,
-      initialEnergy: nextEnergy,
-      casts: [autocastCasts[0]],
-      resolvers: dependencies.manualSolarResolvers,
-      sourceMode: 'autocast',
-      initialLedgerOrder: ledgerEntries.length,
-      initialCastIndex: 0,
-    });
-    workingState = firstAutocast.state;
-    nextEnergy = firstAutocast.remainingEnergy;
-    ledgerEntries.push(...firstAutocast.ledgerEntries);
-
-    const autocastCubeSource: CubeSolarRepeatSource = {
-      cast: firstAutocast.acceptedCasts[0],
-      ledgerEntry: firstAutocast.ledgerEntries[0],
-    };
-    const cubeSolar = resolveCubeSolarRepeats({
-      state: workingState,
-      playerId: args.playerId,
-      declarationId: normalized.declarationId,
-      battleTurnNumber,
-      initialEnergy: nextEnergy,
-      lockedCubeCount,
-      source: autocastCubeSource,
-      resolvers: dependencies.manualSolarResolvers,
-      initialLedgerOrder: ledgerEntries.length,
-    });
-    workingState = cubeSolar.state;
-    nextEnergy = cubeSolar.remainingEnergy;
-    ledgerEntries.push(...cubeSolar.ledgerEntries);
-
-    const remainingAutocast = resolveSolarCastSequence({
-      state: workingState,
-      playerId: args.playerId,
-      declarationId: normalized.declarationId,
-      battleTurnNumber,
-      initialEnergy: nextEnergy,
-      casts: autocastCasts.slice(1),
-      resolvers: dependencies.manualSolarResolvers,
-      sourceMode: 'autocast',
-      initialLedgerOrder: ledgerEntries.length,
-      initialCastIndex: 1,
-    });
-    workingState = remainingAutocast.state;
-    nextEnergy = remainingAutocast.remainingEnergy;
-    ledgerEntries.push(...remainingAutocast.ledgerEntries);
-  } else if (normalized.autocastEnabled) {
+  if (normalized.autocastEnabled) {
     const autocastSolar = resolveSolarCastSequence({
       state: workingState,
       playerId: args.playerId,

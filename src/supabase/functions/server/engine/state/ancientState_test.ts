@@ -343,7 +343,7 @@ Deno.test('normalization repairs malformed canonical data deterministically', ()
     blue: 0,
   });
   assert.equal(first.state.gameData.ancient.energyByPlayerId.p1.sources[0].sourceShipDefId, 'MER');
-  assert.equal(first.state.gameData.ancient.solarLedgerByPlayerId.p1.entries[0].solarPowerId, 'SAST');
+  assert.equal(first.state.gameData.ancient.solarLedgerByPlayerId.p1.entries[0].solarPowerId, 'SLIF');
   assert.equal(first.state.gameData.ancient.pendingSimulacrumCopies.length, 1);
   assert.equal(first.state.gameData.ancient.pendingBlackHoleDestructions.length, 1);
   assert.deepEqual(first.state.gameData.ancient.acceptedDeclarationByPlayerId, {});
@@ -371,18 +371,114 @@ Deno.test('normalization repairs malformed canonical data deterministically', ()
         path: 'gameData.ancient.pendingBlackHoleDestructions',
         stableId: 'destroy-1',
       },
-      {
-        code: 'duplicate_stable_id',
-        path: 'gameData.ancient.pendingSimulacrumCopies',
-        stableId: 'copy-1',
-      },
-      {
-        code: 'duplicate_stable_id',
-        path: 'gameData.ancient.solarLedgerByPlayerId.p1.entries',
-        stableId: 'ledger-1',
-      },
     ],
   );
+});
+
+Deno.test('normalization surgically hard-prunes raw legacy Cube source records and is stable', () => {
+  const persistedLegacyState: unknown = structuredClone(createBaseState());
+  const rawState = persistedLegacyState as any;
+  rawState.gameData.ships.p1 = [{
+    instanceId: 'already-materialized-cube-copy',
+    shipDefId: 'CUB',
+  }];
+  rawState.gameData.ancient = createEmptyAncientState(rawState.players);
+  rawState.gameData.ancient.solarLedgerByPlayerId.p1 = {
+    battleTurnNumber: 2,
+    entries: [
+      {
+        entryId: 'manual-life',
+        order: 0,
+        solarPowerId: 'SLIF',
+        sourceMode: 'manual',
+        paidEnergy: { green: 1, red: 0, blue: 0 },
+      },
+      {
+        entryId: 'autocast-convert',
+        order: 1,
+        solarPowerId: 'SCON',
+        sourceMode: 'autocast',
+        paidEnergy: { green: 0, red: 0, blue: 1 },
+      },
+      {
+        entryId: 'legacy-cube-life',
+        order: 2,
+        solarPowerId: 'SLIF',
+        sourceMode: 'cube',
+        paidEnergy: { green: 0, red: 0, blue: 0 },
+      },
+    ],
+  };
+  rawState.gameData.ancient.pendingSimulacrumCopies = [
+    {
+      pendingCopyId: 'primary-copy',
+      declarationId: 'declaration-1',
+      ownerPlayerId: 'p1',
+      sourceTargetInstanceId: 'target-primary',
+      copiedShipDefId: 'DEF',
+      queuedTurnNumber: 2,
+      materializationTurnNumber: 3,
+      queueOrder: 0,
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+      sourceMode: 'primary',
+      status: 'queued',
+    },
+    {
+      pendingCopyId: 'legacy-cube-materialized',
+      declarationId: 'declaration-1',
+      ownerPlayerId: 'p1',
+      sourceTargetInstanceId: 'target-cube',
+      copiedShipDefId: 'CUB',
+      queuedTurnNumber: 2,
+      materializationTurnNumber: 3,
+      queueOrder: 1,
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+      sourceMode: 'cube',
+      status: 'materialized',
+      materializedInstanceId: 'already-materialized-cube-copy',
+      materializationOutcome: { joiningLinesGranted: 0, producedShips: [] },
+    },
+  ];
+
+  const first = normalizeAncientGameState(rawState);
+  assert.deepEqual(
+    first.state.gameData.ancient.solarLedgerByPlayerId.p1.entries.map(
+      (entry: any) => [entry.entryId, entry.sourceMode],
+    ),
+    [
+      ['manual-life', 'manual'],
+      ['autocast-convert', 'autocast'],
+    ],
+  );
+  assert.deepEqual(
+    first.state.gameData.ancient.pendingSimulacrumCopies.map(
+      (record: any) => [record.pendingCopyId, record.sourceMode],
+    ),
+    [['primary-copy', 'primary']],
+  );
+  assert.deepEqual(first.compatibilityRisks, [
+    {
+      code: 'malformed_canonical_record',
+      path: 'gameData.ancient.pendingSimulacrumCopies[1]',
+    },
+    {
+      code: 'malformed_canonical_record',
+      path: 'gameData.ancient.solarLedgerByPlayerId.p1.entries[2]',
+    },
+  ]);
+  assert.equal(
+    first.state.gameData.ships.p1.some(
+      (ship: any) => ship.instanceId === 'already-materialized-cube-copy',
+    ),
+    true,
+  );
+
+  const second = normalizeAncientGameState(first.state);
+  assert.equal(second.changed, false);
+  assert.deepEqual(second.compatibilityRisks, []);
+  assert.deepEqual(second.state, first.state);
 });
 
 Deno.test('older valid accepted declaration placeholders normalize additively without a schema bump', () => {

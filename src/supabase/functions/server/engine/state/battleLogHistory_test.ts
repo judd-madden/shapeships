@@ -457,28 +457,20 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
                 solarLedgerEntry("SSUP", 1),
                 solarLedgerEntry("SLIF", 2, { sourceMode: "autocast" }),
                 solarLedgerEntry("SSUP", 3, { sourceMode: "autocast" }),
-                solarLedgerEntry("SSUP", 4, { sourceMode: "cube" }),
+                solarLedgerEntry("SSIM", 4, {
+                  simulacrum: {
+                    sourceTargetInstanceId: "car-source",
+                    copiedShipDefId: "CAR",
+                  },
+                }),
                 solarLedgerEntry("SSIM", 5, {
-                  simulacrum: {
-                    sourceTargetInstanceId: "car-source",
-                    copiedShipDefId: "CAR",
-                  },
-                }),
-                solarLedgerEntry("SSIM", 6, {
-                  sourceMode: "cube",
-                  simulacrum: {
-                    sourceTargetInstanceId: "car-source",
-                    copiedShipDefId: "CAR",
-                  },
-                }),
-                solarLedgerEntry("SSIM", 7, {
                   simulacrum: {
                     sourceTargetInstanceId: "fig-source",
                     copiedShipDefId: "FIG",
                   },
                 }),
-                solarLedgerEntry("SSIM", 8),
-                solarLedgerEntry("SBLA", 9, {
+                solarLedgerEntry("SSIM", 6),
+                solarLedgerEntry("SBLA", 7, {
                   targets: [{
                     playerId: "p2",
                     shipInstanceId: "active-orb",
@@ -487,8 +479,8 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
                     shipInstanceId: "void-def",
                   }],
                 }),
-                solarLedgerEntry("SBLA", 10),
-                solarLedgerEntry("SBLA", 11, {
+                solarLedgerEntry("SBLA", 8),
+                solarLedgerEntry("SBLA", 9, {
                   targets: [{
                     playerId: "p2",
                     shipInstanceId: "missing-target",
@@ -513,7 +505,7 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
             rowKind: "solar_power",
             solarPowerId: "SSUP",
             label: "Stale Supernova",
-            count: 3,
+            count: 2,
             amount: 10,
           }],
         },
@@ -527,8 +519,8 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
     "1 x INT Heal",
     "1 x FRI Hit",
     "2 x Life",
-    "3 x Supernova",
-    "2 x Simulacrum (CAR)",
+    "2 x Supernova",
+    "1 x Simulacrum (CAR)",
     "1 x Simulacrum (FIG)",
     "1 x Simulacrum",
     "1 x Black Hole destroyed ORB and DEF",
@@ -546,7 +538,7 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
       rowKind: "solar_power",
       solarPowerId: "SSUP",
       label: "Supernova",
-      count: 3,
+      count: 2,
       amount: 10,
     }],
   });

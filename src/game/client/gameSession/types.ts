@@ -461,7 +461,7 @@ export type BoardStatBreakdownRowVm =
       amountText: string;
     };
 
-export type AncientSolarDisplaySourceMode = 'manual' | 'autocast' | 'cube';
+export type AncientSolarDisplaySourceMode = 'manual' | 'autocast';
 
 export interface AncientSimulacrumDisplayPresentation {
   copiedShipDefId: ShipDefId;
@@ -740,7 +740,6 @@ export interface ActionPanelViewModel {
       selectedTargetCount: number;
       damagePreview: number;
     };
-    cubeRepeatPending: boolean;
     autocastEnabled: boolean;
     attemptUnresolved: boolean;
     rejectionRecoveryPending: boolean;

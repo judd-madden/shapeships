@@ -4,14 +4,14 @@ import { computeLineBonusesForPlayer } from './computeLineBonusForPlayer.ts';
 function solarEntry(
   entryId: string,
   solarPowerId: string,
-  sourceMode: 'manual' | 'autocast' | 'cube',
+  sourceMode: 'manual' | 'autocast',
 ) {
   return {
     entryId,
     order: 0,
     solarPowerId,
     sourceMode,
-    paidEnergy: { green: 0, red: 0, blue: sourceMode === 'cube' ? 0 : 1 },
+    paidEnergy: { green: 0, red: 0, blue: 1 },
   };
 }
 
@@ -33,8 +33,6 @@ function createGameData(): any {
           entries: [
             solarEntry('manual', 'SCON', 'manual'),
             solarEntry('autocast', 'SCON', 'autocast'),
-            solarEntry('cube-a', 'SCON', 'cube'),
-            solarEntry('cube-b', 'SCON', 'cube'),
             solarEntry('other-power', 'SLIF', 'manual'),
           ],
         },
@@ -57,16 +55,16 @@ Deno.test('Convert line bonuses support full-state and inner-game-data invocatio
   );
 
   assert.deepEqual(fromFull, fromInner);
-  assert.equal(fromInner.bonusLines, 4);
+  assert.equal(fromInner.bonusLines, 2);
   assert.equal(fromInner.bonusLinesOnEven, 0);
   assert.deepEqual(fromInner.contributingSourceInstanceIds, []);
   assert.deepEqual(fromInner.ordinaryRows, [{
     rowKind: 'solar_power',
     solarPowerId: 'SCON',
     label: 'Convert',
-    count: 4,
-    amount: 4,
-    amountText: '4',
+    count: 2,
+    amount: 2,
+    amountText: '2',
   }]);
 });
 
@@ -84,7 +82,7 @@ Deno.test('Convert combines with ordinary, even-only, SCI, and joining-line sour
 
   const result = computeLineBonusesForPlayer(gameData, 'p1');
 
-  assert.equal(result.bonusLines, 15);
+  assert.equal(result.bonusLines, 13);
   assert.equal(result.bonusLinesOnEven, 6);
   assert.equal(result.joiningBonusLines, 4);
   assert.deepEqual(
@@ -93,9 +91,9 @@ Deno.test('Convert combines with ordinary, even-only, SCI, and joining-line sour
       rowKind: 'solar_power',
       solarPowerId: 'SCON',
       label: 'Convert',
-      count: 4,
-      amount: 4,
-      amountText: '4',
+      count: 2,
+      amount: 2,
+      amountText: '2',
     },
   );
   assert.equal(
@@ -123,7 +121,7 @@ Deno.test('Convert remains fleet-independent and ignores another player ledger',
   const p1 = computeLineBonusesForPlayer(gameData, 'p1');
   const p2 = computeLineBonusesForPlayer(gameData, 'p2');
 
-  assert.equal(p1.bonusLines, 4);
+  assert.equal(p1.bonusLines, 2);
   assert.equal(p2.bonusLines, 1);
   assert.equal(p2.ordinaryRows[0]?.rowKind, 'solar_power');
   if (p2.ordinaryRows[0]?.rowKind === 'solar_power') {
@@ -182,6 +180,6 @@ Deno.test('Convert requires a well-formed ledger from the immediately preceding 
   });
   assert.equal(
     computeLineBonusesForPlayer(malformedEntry, 'p1').bonusLines,
-    4,
+    2,
   );
 });

@@ -312,16 +312,12 @@ export function resolveSolarCastSequence(args: {
     }
 
     const canonicalPaidEnergy = validatePaidEnergy(resolverResult.paidEnergy, cast.solarPowerId);
-    if (args.sourceMode !== 'cube') {
-      for (const colour of ENERGY_COLOURS) {
-        if (canonicalPaidEnergy[colour] > remainingEnergy[colour]) {
-          throw new Error(`Insufficient ${colour} Energy for ${cast.solarPowerId} at cast ${castIndex}`);
-        }
+    for (const colour of ENERGY_COLOURS) {
+      if (canonicalPaidEnergy[colour] > remainingEnergy[colour]) {
+        throw new Error(`Insufficient ${colour} Energy for ${cast.solarPowerId} at cast ${castIndex}`);
       }
     }
-    const paidEnergy = args.sourceMode === 'cube'
-      ? { green: 0, red: 0, blue: 0 }
-      : canonicalPaidEnergy;
+    const paidEnergy = canonicalPaidEnergy;
     const ledgerMetadata = validateLedgerMetadata(
       resolverResult.ledgerMetadata,
       cast.solarPowerId,

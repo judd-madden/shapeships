@@ -186,10 +186,7 @@ function requireSimulacrumTarget(context: Parameters<
   if (!definition) {
     throw new Error(`Unknown Simulacrum ship definition: ${target.shipDefId}`);
   }
-  if (
-    !isCanonicalBasicOnlyTargetShip(target.shipDefId) ||
-    target.shipDefId === "CUB"
-  ) {
+  if (!isCanonicalBasicOnlyTargetShip(target.shipDefId)) {
     throw new Error(`Illegal Simulacrum target definition: ${target.shipDefId}`);
   }
   if (
@@ -210,7 +207,7 @@ export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
   resolve(context) {
     if (context.sourceMode === "autocast") {
       throw new Error(
-        "Simulacrum may only be resolved from a manual Solar cast or Cube repeat",
+        "Simulacrum may only be resolved from a manual Solar cast",
       );
     }
     const { targetPlayerId, target, definition } = requireSimulacrumTarget(
@@ -222,17 +219,14 @@ export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
       throw new Error("Simulacrum requires initialized Ancient pending state");
     }
 
-    const pendingSourceMode = context.sourceMode === "cube"
-      ? "cube"
-      : "primary";
-    const duplicatePrimary = context.sourceMode === "manual" &&
-      ancient.pendingSimulacrumCopies.some(
-        (record: AncientPendingSimulacrumCopy) =>
-          record.ownerPlayerId === context.playerId &&
-          record.queuedTurnNumber === context.battleTurnNumber &&
-          record.sourceTargetInstanceId === target.instanceId &&
-          record.sourceMode === "primary",
-      );
+    const pendingSourceMode = "primary";
+    const duplicatePrimary = ancient.pendingSimulacrumCopies.some(
+      (record: AncientPendingSimulacrumCopy) =>
+        record.ownerPlayerId === context.playerId &&
+        record.queuedTurnNumber === context.battleTurnNumber &&
+        record.sourceTargetInstanceId === target.instanceId &&
+        record.sourceMode === "primary",
+    );
     if (duplicatePrimary) {
       throw new Error(
         `Simulacrum primary target already selected: ${target.instanceId}`,
@@ -317,11 +311,7 @@ function validateQueuedMaterializationInputs(
   record: Readonly<AncientPendingSimulacrumCopy>,
 ): NonNullable<ReturnType<typeof getShipById>> {
   const definition = getShipById(record.copiedShipDefId);
-  if (
-    !definition ||
-    !isCanonicalBasicOnlyTargetShip(record.copiedShipDefId) ||
-    record.copiedShipDefId === "CUB"
-  ) {
+  if (!definition || !isCanonicalBasicOnlyTargetShip(record.copiedShipDefId)) {
     throw new Error(
       `Invalid queued Simulacrum definition: ${record.copiedShipDefId}`,
     );
@@ -774,18 +764,12 @@ export function deriveMaterializedSimulacrumFleetInstanceIdsByPlayerId(
   return result;
 }
 
-function getExpectedLedgerSourceMode(
-  record: Readonly<AncientPendingSimulacrumCopy>,
-): "manual" | "cube" {
-  return record.sourceMode === "cube" ? "cube" : "manual";
-}
-
 function ledgerEntryMatchesMaterializedRecord(
   entry: any,
   record: Readonly<AncientPendingSimulacrumCopy>,
 ): boolean {
   return entry?.solarPowerId === "SSIM" &&
-    entry?.sourceMode === getExpectedLedgerSourceMode(record) &&
+    entry?.sourceMode === "manual" &&
     entry?.order === record.queueOrder &&
     entry?.simulacrum?.copiedShipDefId === record.copiedShipDefId &&
     entry?.simulacrum?.sourceTargetInstanceId ===

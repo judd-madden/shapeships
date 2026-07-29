@@ -91,7 +91,6 @@ export interface SolarPowerDeclaration {
   energyCost: { red?: number; green?: number; blue?: number };
   targetPlayerId?: string;
   targetShipId?: string;
-  cubeRepeated?: boolean; // If true, this was repeated by Cube
   timestamp: string;
 }
 

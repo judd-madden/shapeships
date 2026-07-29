@@ -464,17 +464,6 @@ export class PassiveModifiers {
       return shipDef.type === 'basic';
     });
   }
-  
-  /**
-   * Get available solar powers for Cube to repeat
-   */
-  getCubeRepeatableSolarPowers(playerId: PlayerId, gameState: GameState): string[] {
-    // Returns solar power IDs that were cast this turn
-    const turnData = gameState.gameData.turnData;
-    const solarPowersUsed = turnData?.solarPowersUsed?.[playerId] || [];
-    return solarPowersUsed;
-  }
-  
   /**
    * Check if Dreadnought should trigger for a ship build
    */
