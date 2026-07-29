@@ -265,6 +265,9 @@ interface AncientShipCataloguePanelProps {
   declarationEnergyCapacity?: AncientEnergyPool;
   declarationStage?: 'charges' | 'powers';
   canCastManualSolarPowerById?: Partial<Record<FixedAncientManualSolarPowerId, boolean>>;
+  solarHoverValuesById?: NonNullable<
+    ActionPanelViewModel['ancientChargeDeclaration']
+  >['solarHoverValuesById'];
   selectorMode?: AncientSolarSelectorMode | null;
   siphonSelector?: {
     maxSpend: number;
@@ -394,6 +397,7 @@ export function AncientShipCataloguePanel({
   declarationEnergyCapacity,
   declarationStage,
   canCastManualSolarPowerById,
+  solarHoverValuesById,
   selectorMode = null,
   siphonSelector,
   simulacrumSelector,
@@ -510,6 +514,10 @@ export function AncientShipCataloguePanel({
           buildCatalogue,
         })
     : null;
+  const hoveredSolarHeadingValue =
+    hover.presentState.activeShipId && hoveredShipIsSolar
+      ? solarHoverValuesById?.[hover.presentState.activeShipId]
+      : undefined;
   const hoveredSolarSlot = hover.state.activeShipId
     ? SOLAR_POWER_SLOTS.find((slot) => slot.id === hover.state.activeShipId)
     : undefined;
@@ -1039,6 +1047,8 @@ export function AncientShipCataloguePanel({
             eligibility={hoveredShipEligibility}
             motionState={hover.motionState}
             showCost={!hoveredShipIsSolar}
+            headingValue={hoveredSolarHeadingValue}
+            showPhaseLabel={!hoveredShipIsSolar}
           />
         )}
     </>

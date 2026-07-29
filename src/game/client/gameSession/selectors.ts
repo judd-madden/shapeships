@@ -594,6 +594,29 @@ export function getShipsForPlayer(state: any, playerId: string | null | undefine
   return Array.isArray(shipsByPlayerId[playerId]) ? shipsByPlayerId[playerId] : [];
 }
 
+export function getChargeScopedFleetForPlayer(
+  state: any,
+  playerId: string | null | undefined
+): any[] {
+  if (!playerId) {
+    return [];
+  }
+
+  const phaseKey = getPhaseKey(state);
+  if (
+    phaseKey === 'battle.charge_declaration' ||
+    phaseKey === 'battle.charge_response'
+  ) {
+    const snapshot =
+      state?.gameData?.turnData?.chargeDeclarationFleetSnapshotByPlayerId?.[playerId];
+    if (Array.isArray(snapshot)) {
+      return snapshot;
+    }
+  }
+
+  return getShipsForPlayer(state, playerId);
+}
+
 export function getVoidShipsByPlayerId(state: any): Record<string, any[]> {
   if (hasOwn(state?.publicState, 'voidShipsByPlayerId')) {
     return state.publicState.voidShipsByPlayerId ?? {};

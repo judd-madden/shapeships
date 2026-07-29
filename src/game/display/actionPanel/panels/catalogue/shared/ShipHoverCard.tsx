@@ -24,12 +24,20 @@ import type { HoverPanelMotionState } from '../../../../shared/useHoverPanelPres
 // NOTE (PASS 2): This hover card is now a smart component with portal rendering.
 // Positioning is anchored to the ship hitbox via anchorRect.
 
+export type ShipHoverHeadingValue = {
+  label?: string;
+  healing?: number;
+  damage?: number;
+};
+
 interface ShipHoverCardProps {
   shipId: ShipDefId;
   anchorRect: DOMRect;
   eligibility: ShipEligibility;
   motionState?: HoverPanelMotionState | null;
   showCost?: boolean;
+  headingValue?: ShipHoverHeadingValue;
+  showPhaseLabel?: boolean;
 }
 
 const TAIL_SIZE_PX = 12;
@@ -236,6 +244,8 @@ export function ShipHoverCard({
   eligibility,
   motionState,
   showCost = true,
+  headingValue,
+  showPhaseLabel = true,
 }: ShipHoverCardProps) {
   const model = getShipCardModel(shipId);
   const { placement, anchorX, anchorY, cardTransform, cardRef } =
@@ -332,10 +342,38 @@ export function ShipHoverCard({
             >
               {model.name}
             </p>
+            {headingValue ? (
+              <div className="ml-auto flex shrink-0 items-center gap-[6px]">
+                {headingValue.label ? (
+                  <span
+                    className="font-normal text-[13px] text-white"
+                    style={{ fontVariationSettings: "'wdth' 100" }}
+                  >
+                    {headingValue.label}
+                  </span>
+                ) : null}
+                {headingValue.healing !== undefined ? (
+                  <span
+                    className="font-black text-[20px] text-[var(--shapeships-pastel-green)]"
+                    style={{ fontVariationSettings: "'wdth' 100" }}
+                  >
+                    {headingValue.healing}
+                  </span>
+                ) : null}
+                {headingValue.damage !== undefined ? (
+                  <span
+                    className="font-black text-[20px] text-[var(--shapeships-pastel-red)]"
+                    style={{ fontVariationSettings: "'wdth' 100" }}
+                  >
+                    {headingValue.damage}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           
           {/* Phase Label */}
-          {model.phaseLabel && (
+          {showPhaseLabel && model.phaseLabel && (
             <p
               className="font-normal leading-[15px] relative shrink-0 text-[var(--shapeships-grey-20)] text-[13px] w-full"
               style={{ fontVariationSettings: "'wdth' 100" }}

@@ -44,6 +44,7 @@ import {
   getBonusBreakdownByPlayerId,
   getBonusLinesByPlayerId,
   getBonusLinesOnEvenByPlayerId,
+  getChargeScopedFleetForPlayer,
   getChronoswarmRolls,
   getClockData,
   getFrigateTriggerByInstanceId,
@@ -124,6 +125,7 @@ import {
   buildPersistentAncientSolarTargetMarkers,
   overlayAncientSolarTargetMarkers,
 } from './gameSession/ancientSolarTargetMarkers';
+import { deriveAncientSolarHoverValues } from './gameSession/ancientSolarHoverValues';
 import type {
   AcceptedFullStateFingerprint,
   AuthoritativeStateApplyMeta,
@@ -2711,6 +2713,14 @@ export function useGameSession(
     reservedTargetInstanceIds: reservedAncientBlackHoleTargetInstanceIds,
   });
   const ancientBlackHoleDamagePreview = deriveAncientBlackHoleDamagePreview(myShips);
+  const ancientSolarHoverValuesById = deriveAncientSolarHoverValues({
+    authoritativeDiceValue,
+    chargeScopedFleet: getChargeScopedFleetForPlayer(rawState, me?.id),
+    canCastManualSolarPowerById: canCastAncientManualSolarPowerById,
+    siphonSelector: ancientSiphonSelector,
+    canCastBlackHole: canCastAncientBlackHole,
+    blackHoleDamagePreview: ancientBlackHoleDamagePreview,
+  });
   const ancientBlackHoleSelectorActive =
     activeAncientChargeDeclarationWorkflow?.selectorMode === 'blackHole' &&
     activeAncientChargeDeclarationWorkflow.stage === 'powers' &&
@@ -5074,6 +5084,7 @@ useEffect(() => {
           provisionalEnergyCapacity: provisionalAncientEnergyBeforeManualCasts,
           localManualSolarCasts: activeAncientChargeDeclarationWorkflow.localManualSolarCasts,
           canCastManualSolarPowerById: canCastAncientManualSolarPowerById,
+          solarHoverValuesById: ancientSolarHoverValuesById,
           selectorMode: activeAncientChargeDeclarationWorkflow.selectorMode,
           siphonSelector: ancientSiphonSelector,
           simulacrumSelector: {

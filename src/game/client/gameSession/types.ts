@@ -17,6 +17,7 @@ import type {
   AncientSolarSelectorMode,
   FixedAncientManualSolarPowerId,
 } from './ancientChargeDeclaration';
+import type { AncientSolarHoverValue } from './ancientSolarHoverValues';
 
 export type ReadyUxState = {
   clickedThisPhase: boolean; // user explicitly clicked Ready in this phase instance
@@ -722,6 +723,7 @@ export interface ActionPanelViewModel {
     };
     localManualSolarCasts: AncientManualSolarCast[];
     canCastManualSolarPowerById: Record<FixedAncientManualSolarPowerId, boolean>;
+    solarHoverValuesById: Partial<Record<ShipDefId, AncientSolarHoverValue>>;
     selectorMode: AncientSolarSelectorMode | null;
     siphonSelector: {
       maxSpend: number;

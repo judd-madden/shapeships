@@ -304,6 +304,7 @@ export function MobileCatalogueScroller({
           declarationEnergyCapacity={declarationVm?.provisionalEnergyCapacity}
           declarationStage={declarationVm?.stage}
           canCastManualSolarPowerById={declarationVm?.canCastManualSolarPowerById}
+          solarHoverValuesById={declarationVm?.solarHoverValuesById}
           selectorMode={declarationVm?.selectorMode}
           siphonSelector={declarationVm?.siphonSelector}
           simulacrumSelector={declarationVm?.simulacrumSelector}
