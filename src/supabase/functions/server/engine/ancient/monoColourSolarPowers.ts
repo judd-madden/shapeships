@@ -4,12 +4,7 @@ import type {
   AncientSolarPowerId,
   GameState,
 } from '../state/GameStateTypes.ts';
-import {
-  EffectKind,
-  EffectTiming,
-  SurvivabilityRule,
-  type Effect,
-} from '../../engine_shared/effects/Effect.ts';
+import { EffectKind } from '../../engine_shared/effects/Effect.ts';
 import { getEffectiveDiceRollForPlayer } from '../../engine_shared/resolve/phaseComputedEffects.ts';
 import type {
   ManualSolarResolverDescriptor,
@@ -154,18 +149,7 @@ const convertResolver: ManualSolarResolverDescriptor = {
     return {
       candidateState: structuredClone(context.state),
       paidEnergy: cloneCost('SCON'),
-      effects: [{
-        id: `${context.castIdentity}:gain-lines`,
-        ownerPlayerId: context.playerId,
-        source: { type: 'system', reason: 'ancient-solar:SCON' },
-        timing: 'battle.charge_declaration',
-        activationTag: EffectTiming.Charge,
-        survivability: SurvivabilityRule.ResolvesIfDestroyed,
-        target: { playerId: context.playerId },
-        kind: EffectKind.GainLines,
-        amount: 1,
-        appliesToFutureBuildPhases: true,
-      }],
+      effects: [],
     };
   },
 };

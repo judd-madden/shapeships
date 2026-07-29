@@ -23,7 +23,10 @@ import {
   isAncientPlayer,
   resolveChargeDeclarationSource,
 } from '../engine/intent/chargeDeclarationEligibility.ts';
-import type { ShipInstance } from '../engine/state/GameStateTypes.ts';
+import type {
+  LastTurnBreakdownRow,
+  ShipInstance,
+} from '../engine/state/GameStateTypes.ts';
 import { getShipActivationCueBatches } from '../engine/state/shipActivationCues.ts';
 import {
   normalizeAncientGameState,
@@ -1888,13 +1891,10 @@ export function registerGameRoutes(
       const savedLinesByPlayerId: Record<string, number> = {};
       const joiningLinesByPlayerId: Record<string, number> = {};
       const joiningBonusLinesByPlayerId: Record<string, number> = {};
-      const bonusBreakdownByPlayerId: Record<string, Array<{
-        rowKind: 'ship' | 'adjustment';
-        label: string;
-        count?: number;
-        amount: number;
-        amountText: string;
-      }>> = {};
+      const bonusBreakdownByPlayerId: Record<
+        string,
+        LastTurnBreakdownRow[]
+      > = {};
       const buildEconomyByPlayerId: Record<string, {
         ordinaryLinesAvailable: number;
         joiningLinesAvailable: number;

@@ -1252,7 +1252,7 @@ Deno.test('manual casts remain first and Autocast continues with deterministic i
   assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, { green: 0, red: 0, blue: 0 });
   assert.deepEqual(result.state.gameData.pendingTurn.healByPlayerId, { p1: 9 });
   assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 8 });
-  assert.equal(result.state.players[0].lines, 2);
+  assert.equal(result.state.players[0].lines, 0);
   assert.equal(
     (result.state.gameData.turnData.shipActivationCueBatches ?? [])
       .flatMap((batch: any) => batch.sources ?? [])
@@ -1389,8 +1389,18 @@ Deno.test('Convert lines survive the real turn bump, combine with following gene
     }),
     nowMs: 1000,
   });
-  assert.equal(converted.state.players[0].lines, 9);
+  assert.equal(converted.state.players[0].lines, 0);
   assert.equal(converted.state.players[0].joiningLines, 0);
+  assert.deepEqual(
+    converted.state.gameData.ancient.energyByPlayerId.p1.pool,
+    { green: 0, red: 0, blue: 0 },
+  );
+  assert.equal(
+    converted.state.gameData.ancient.solarLedgerByPlayerId.p1.entries
+      .filter((entry: any) => entry.solarPowerId === 'SCON')
+      .length,
+    9,
+  );
 
   converted.state.currentPhase = 'battle';
   converted.state.currentSubPhase = 'end_of_turn_resolution';
@@ -1405,7 +1415,7 @@ Deno.test('Convert lines survive the real turn bump, combine with following gene
   assert.equal(transitioned.to, 'build.dice_roll');
   assert.equal(transitionedState.gameData.turnNumber, 4);
   assert.equal(transitionedState.gameData.turnData.turnNumber, 4);
-  assert.equal(transitionedState.players[0].lines, 9);
+  assert.equal(transitionedState.players[0].lines, 0);
   assert.equal(transitionedState.players[0].joiningLines, 0);
 
   const followingBuild = transitionedState;
@@ -1413,6 +1423,8 @@ Deno.test('Convert lines survive the real turn bump, combine with following gene
   followingBuild.gameData.turnData.diceFinalized = true;
   followingBuild.gameData.turnData.effectiveDiceRoll = 4;
   followingBuild.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 4, p2: 4 };
+  followingBuild.gameData.turnData.chronoswarmRolls = [2];
+  followingBuild.gameData.turnData.chronoswarmCountByPlayerId = { p1: 1, p2: 0 };
   followingBuild.gameData.turnData.linesDistributed = false;
   delete followingBuild.gameData.turnData.buildAppliedTurnNumber;
   // Stop the public on-enter helper after this hook so the focused fixture does
@@ -1424,15 +1436,33 @@ Deno.test('Convert lines survive the real turn bump, combine with following gene
     event.type === 'LINES_GRANTED' && event.playerId === 'p1'
   );
   assert.ok(lineGrant);
-  assert.equal(lineGrant.newTotal, lineGrant.totalGranted + 9);
+  assert.equal(lineGrant.baseLines, 4);
+  assert.equal(lineGrant.bonusLines, 9);
+  assert.equal(lineGrant.chronoswarmBonusLines, 2);
+  assert.equal(lineGrant.totalGranted, 15);
+  assert.equal(lineGrant.newTotal, 15);
   assert.equal(lineGrant.newTotal > 12, true);
   assert.equal(entered.state.players[0].lines, lineGrant.newTotal);
   assert.equal(entered.state.players[0].joiningLines, 0);
 
+  const enteredAgain = onEnterPhase(
+    entered.state,
+    'build.dice_roll',
+    'build.line_generation',
+    2001,
+  );
+  assert.equal(
+    enteredAgain.events.some((event: any) =>
+      event.type === 'LINES_GRANTED' && event.playerId === 'p1'
+    ),
+    false,
+  );
+  assert.equal(enteredAgain.state.players[0].lines, 15);
+
   const persisted = resolveBuildSubmitAuthoritatively({
-    state: entered.state,
+    state: enteredAgain.state,
     turnNumber: 4,
-    nowMs: 2001,
+    nowMs: 2002,
   });
   assert.equal(persisted.state.players[0].lines, 12);
   assert.equal(persisted.state.players[0].joiningLines, 0);
@@ -1486,7 +1516,7 @@ Deno.test('Cube repeats every eligible mono-colour Solar outcome once for free w
       energy: { green: 0, red: 0, blue: 1 },
       expectedHeal: 0,
       expectedDamage: 0,
-      expectedLines: 2,
+      expectedLines: 0,
       expectedLockedAmount: undefined,
     },
   ] as const;

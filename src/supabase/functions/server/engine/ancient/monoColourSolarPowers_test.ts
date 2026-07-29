@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { EffectKind, EffectTiming, SurvivabilityRule } from '../../engine_shared/effects/Effect.ts';
+import { EffectKind } from '../../engine_shared/effects/Effect.ts';
 import { resolveManualSolarDeclaration } from './manualSolarDeclaration.ts';
 import {
   buildMonoColourAutocastCasts,
@@ -81,28 +81,32 @@ Deno.test('all mono-colour resolvers use deterministic Solar system effects and 
   assert.deepEqual(result.state.gameData.pendingTurn.damageByPlayerId, { p2: 6 });
   assert.equal(result.state.players[0].health, 20);
   assert.equal(result.state.players[1].health, 20);
-  assert.equal(result.state.players[0].lines, 2);
+  assert.equal(result.state.players[0].lines, 0);
   assert.equal(result.state.players[0].joiningLines, 7);
+  assert.equal(result.ledgerEntries.length, 6);
   assert.deepEqual(result.ledgerEntries.map((entry) => entry.lockedAmount), [
     undefined, 5, undefined, 5, undefined, undefined,
   ]);
-
-  for (const [index, effect] of result.effects.entries()) {
-    const powerId = result.ledgerEntries[index].solarPowerId;
-    assert.deepEqual(effect.source, { type: 'system', reason: `ancient-solar:${powerId}` });
-    assert.equal(effect.activationTag, EffectTiming.Charge);
-    assert.equal(effect.survivability, SurvivabilityRule.ResolvesIfDestroyed);
-    assert.match(effect.id, new RegExp(`:manual:${index}:`));
-    assert.equal(
-      effect.timing,
-      effect.kind === EffectKind.GainLines
-        ? 'battle.charge_declaration'
-        : 'battle.end_of_turn_resolution',
-    );
-    if (effect.kind === EffectKind.GainLines) {
-      assert.equal(effect.appliesToFutureBuildPhases, true);
-    }
-  }
+  assert.deepEqual(
+    result.ledgerEntries
+      .filter((entry) => entry.solarPowerId === 'SCON')
+      .map((entry) => entry.sourceMode),
+    ['manual', 'manual'],
+  );
+  assert.equal(result.effects.length, 4);
+  assert.deepEqual(
+    result.effects.map((effect) => effect.source),
+    [
+      { type: 'system', reason: 'ancient-solar:SLIF' },
+      { type: 'system', reason: 'ancient-solar:SSTA' },
+      { type: 'system', reason: 'ancient-solar:SAST' },
+      { type: 'system', reason: 'ancient-solar:SSUP' },
+    ],
+  );
+  assert.equal(
+    result.effects.some((effect) => effect.kind === EffectKind.GainLines),
+    false,
+  );
 });
 
 Deno.test('mono-colour production powers reject every irrelevant client field', () => {

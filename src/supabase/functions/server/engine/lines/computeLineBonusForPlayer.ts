@@ -40,6 +40,7 @@
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { getCanonicalShipFamilyDisplayName } from '../../engine_shared/defs/ShipDefinitionNames.ts';
 import { getCopyTierFromFleet } from '../../engine_shared/resolve/phaseComputedEffects.ts';
+import type { LastTurnBreakdownRow } from '../state/GameStateTypes.ts';
 import {
   getDirectMaterializedSimulacrumInstanceIdsForPlayer,
 } from '../ancient/simulacrumSolarPower.ts';
@@ -68,27 +69,9 @@ export type LineBonusBreakdown = {
   bonusLinesOnEven: number;
   joiningBonusLines: number;
   contributingSourceInstanceIds: string[];
-  ordinaryRows: Array<{
-    rowKind: 'ship' | 'adjustment';
-    label: string;
-    count?: number;
-    amount: number;
-    amountText: string;
-  }>;
-  evenOnlyRows: Array<{
-    rowKind: 'ship' | 'adjustment';
-    label: string;
-    count?: number;
-    amount: number;
-    amountText: string;
-  }>;
-  joiningRows: Array<{
-    rowKind: 'ship' | 'adjustment';
-    label: string;
-    count?: number;
-    amount: number;
-    amountText: string;
-  }>;
+  ordinaryRows: LastTurnBreakdownRow[];
+  evenOnlyRows: LastTurnBreakdownRow[];
+  joiningRows: LastTurnBreakdownRow[];
 };
 
 function buildShipBreakdownRow(
@@ -123,6 +106,38 @@ function sortRows<T extends { amount: number; label: string }>(rows: T[]): T[] {
     if (b.amount !== a.amount) return b.amount - a.amount;
     return a.label.localeCompare(b.label);
   });
+}
+
+function getQualifyingConvertCount(
+  authoritativeGameData: any,
+  playerId: string,
+  currentTurnNumber: unknown,
+): number {
+  if (
+    !Number.isInteger(currentTurnNumber) ||
+    (currentTurnNumber as number) < 1
+  ) {
+    return 0;
+  }
+
+  const ledger =
+    authoritativeGameData?.ancient?.solarLedgerByPlayerId?.[playerId];
+  if (
+    !ledger ||
+    typeof ledger !== 'object' ||
+    !Number.isInteger(ledger.battleTurnNumber) ||
+    ledger.battleTurnNumber !== (currentTurnNumber as number) - 1 ||
+    !Array.isArray(ledger.entries)
+  ) {
+    return 0;
+  }
+
+  return ledger.entries.filter(
+    (entry: unknown) =>
+      entry !== null &&
+      typeof entry === 'object' &&
+      (entry as { solarPowerId?: unknown }).solarPowerId === 'SCON',
+  ).length;
 }
 
 function getEffectiveDiceRollFromGameData(
@@ -183,28 +198,20 @@ export function computeLineBonusesForPlayer(
   gameData: any,
   playerId: string,
 ): LineBonusBreakdown {
-  const ships =
-    gameData?.ships?.[playerId] ??
-    gameData?.gameData?.ships?.[playerId] ??
-    [];
-
-  if (ships.length === 0) {
-    return {
-      bonusLines: 0,
-      bonusLinesOnEven: 0,
-      joiningBonusLines: 0,
-      contributingSourceInstanceIds: [],
-      ordinaryRows: [],
-      evenOnlyRows: [],
-      joiningRows: [],
-    };
-  }
-
-  const currentTurnNumber =
-    gameData?.gameData?.turnNumber ??
-    gameData?.turnNumber;
+  const authoritativeGameData = gameData?.gameData ?? gameData;
+  const fleet = authoritativeGameData?.ships?.[playerId];
+  const ships = Array.isArray(fleet) ? fleet : [];
+  const currentTurnNumber = authoritativeGameData?.turnNumber;
+  const convertCount = getQualifyingConvertCount(
+    authoritativeGameData,
+    playerId,
+    currentTurnNumber,
+  );
   const directMaterializedSimulacrumInstanceIds =
-    getDirectMaterializedSimulacrumInstanceIdsForPlayer(gameData, playerId);
+    getDirectMaterializedSimulacrumInstanceIdsForPlayer(
+      authoritativeGameData,
+      playerId,
+    );
   const lineGenerationShips = ships.filter((ship: any) =>
     isEligibleLineGenerationSource(
       ship,
@@ -224,11 +231,14 @@ export function computeLineBonusesForPlayer(
     shipInstancesByDefId[shipDefId].push(shipInstance);
   }
 
-  const effectiveDiceRoll = getEffectiveDiceRollFromGameData(gameData, playerId);
+  const effectiveDiceRoll = getEffectiveDiceRollFromGameData(
+    authoritativeGameData,
+    playerId,
+  );
   const hasEvenEffectiveDiceRoll =
     typeof effectiveDiceRoll === 'number' && effectiveDiceRoll % 2 === 0;
 
-  let bonusLines = 0;
+  let bonusLines = convertCount;
   let bonusLinesOnEven = 0;
   let joiningBonusLines = 0;
   const ordinaryRows: LineBonusBreakdown['ordinaryRows'] = [];
@@ -236,6 +246,17 @@ export function computeLineBonusesForPlayer(
   const joiningRows: LineBonusBreakdown['joiningRows'] = [];
   const contributingSourceInstanceIds: string[] = [];
   const contributingSourceInstanceIdSet = new Set<string>();
+
+  if (convertCount > 0) {
+    ordinaryRows.push({
+      rowKind: 'solar_power',
+      solarPowerId: 'SCON',
+      label: 'Convert',
+      count: convertCount,
+      amount: convertCount,
+      amountText: String(convertCount),
+    });
+  }
 
   const addContributors = (shipDefId: string, count: number) => {
     const candidates = shipInstancesByDefId[shipDefId] ?? [];

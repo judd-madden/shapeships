@@ -1122,6 +1122,104 @@ Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient
   assert.equal(responseBody.requester.availableActions.some((action: any) => action.shipDefId === 'SOL'), false);
 });
 
+Deno.test('/game-state projects prior-Battle Convert through the build bonus economy', async () => {
+  const fixture = createGameRouteFixture();
+  const state: any = createSetupState('convert-build-projection');
+  state.turnNumber = 4;
+  state.currentPhase = 'build';
+  state.currentSubPhase = 'line_generation';
+  state.players[0].faction = 'ancient';
+  state.players[0].lines = 7;
+  state.players.push({
+    id: 'p2',
+    name: 'Player Two',
+    role: 'player',
+    faction: 'human',
+    isReady: false,
+    isActive: true,
+    health: 25,
+    lines: 3,
+    joiningLines: 0,
+  });
+  state.gameData.turnNumber = 4;
+  state.gameData.currentPhase = 'build';
+  state.gameData.currentSubPhase = 'line_generation';
+  state.gameData.ships = { p1: [], p2: [] };
+  state.gameData.turnData = {
+    turnNumber: 4,
+    currentMajorPhase: 'build',
+    currentSubPhase: 'line_generation',
+    diceRolled: true,
+    diceFinalized: true,
+    effectiveDiceRoll: 3,
+    effectiveDiceRollByPlayerId: { p1: 3, p2: 3 },
+    linesDistributed: true,
+  };
+
+  const normalized: any = normalizeAncientGameState(state).state;
+  normalized.gameData.ancient.solarLedgerByPlayerId.p1 = {
+    battleTurnNumber: 3,
+    entries: [
+      {
+        entryId: 'convert-manual',
+        order: 0,
+        solarPowerId: 'SCON',
+        sourceMode: 'manual',
+        paidEnergy: { green: 0, red: 0, blue: 1 },
+      },
+      {
+        entryId: 'convert-autocast',
+        order: 1,
+        solarPowerId: 'SCON',
+        sourceMode: 'autocast',
+        paidEnergy: { green: 0, red: 0, blue: 1 },
+      },
+      {
+        entryId: 'convert-cube-a',
+        order: 2,
+        solarPowerId: 'SCON',
+        sourceMode: 'cube',
+        paidEnergy: { green: 0, red: 0, blue: 0 },
+      },
+      {
+        entryId: 'convert-cube-b',
+        order: 3,
+        solarPowerId: 'SCON',
+        sourceMode: 'cube',
+        paidEnergy: { green: 0, red: 0, blue: 0 },
+      },
+    ],
+  };
+  fixture.store.set('game_convert-build-projection', normalized);
+
+  const getState = fixture.app.handler(
+    'GET',
+    '/make-server-825e19ab/game-state/:gameId',
+  );
+  const body = await responseJson(await getState(createContext({
+    params: { gameId: 'convert-build-projection' },
+  })));
+
+  assert.equal(body.publicState.bonusLinesByPlayerId.p1, 4);
+  assert.deepEqual(body.publicState.bonusBreakdownByPlayerId.p1, [{
+    rowKind: 'solar_power',
+    solarPowerId: 'SCON',
+    label: 'Convert',
+    count: 4,
+    amount: 4,
+    amountText: '4',
+  }]);
+  assert.equal(body.requester.buildEconomy.ordinaryBonusLines, 4);
+  assert.equal(
+    body.requester.buildEconomyByPlayerId.p1.ordinaryBonusLines,
+    4,
+  );
+  assert.equal(
+    body.requester.buildEconomyByPlayerId.p2.ordinaryBonusLines,
+    0,
+  );
+});
+
 Deno.test('/game-state terminal maintenance persists normalized Ancient state with one bump', async () => {
   const fixture = createGameRouteFixture();
   const gameId = 'terminal-state';
