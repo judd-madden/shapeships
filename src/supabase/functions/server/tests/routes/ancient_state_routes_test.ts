@@ -464,6 +464,251 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
   assert.equal(fixture.writes.length, 0);
 });
 
+Deno.test('JSON-reloaded Ancient state preserves owner, opponent, and spectator privacy', async () => {
+  const fixture = createGameRouteFixture();
+  const createPrivacyState = (gameId: string) => {
+    const state: any = createSetupState(gameId);
+    state.turnNumber = 3;
+    state.players[0].faction = 'ancient';
+    state.players.push(
+      {
+        id: 'p2',
+        name: 'Player Two',
+        role: 'player',
+        faction: 'ancient',
+        isReady: false,
+        isActive: true,
+        health: 25,
+        lines: 3,
+        joiningLines: 0,
+      },
+      {
+        id: 'spectator',
+        name: 'Watcher',
+        role: 'spectator',
+        faction: null,
+        isReady: false,
+        isActive: false,
+        health: 0,
+        lines: 0,
+        joiningLines: 0,
+      },
+    );
+    state.gameData.turnNumber = 3;
+    state.gameData.currentPhase = 'battle';
+    state.gameData.currentSubPhase = 'charge_declaration';
+    state.gameData.phaseReadiness = [{
+      playerId: 'p2',
+      isReady: true,
+      currentStep: 'battle.charge_declaration',
+    }];
+    state.gameData.ships = {
+      p1: [
+        { instanceId: 'owner-sol', shipDefId: 'SOL', chargesCurrent: 4 },
+        { instanceId: 'owner-cube', shipDefId: 'CUB', createdTurn: 3 },
+      ],
+      p2: [{ instanceId: 'opponent-def', shipDefId: 'DEF' }],
+      spectator: [],
+    };
+    state.gameData.turnData = {
+      turnNumber: 3,
+      currentMajorPhase: 'battle',
+      currentSubPhase: 'charge_declaration',
+      chargeDeclarationEligibleByPlayerId: { p1: false, p2: false },
+      chargeDeclarationEligibleSourceIdsByPlayerId: { p1: [], p2: [] },
+      solarGridDeclarationSourceIdsByPlayerId: {
+        p1: ['owner-sol'],
+        p2: [],
+      },
+      chargeDeclarationFleetSnapshotByPlayerId: {
+        p1: structuredClone(state.gameData.ships.p1),
+        p2: structuredClone(state.gameData.ships.p2),
+      },
+      chargePowerUsedByInstanceId: {},
+      diceManipulationStage: 'cube',
+      baseDiceRoll: 3,
+      effectiveDiceRollByPlayerId: { p1: 5, p2: 3 },
+      cubeDiceRollsByPlayerId: {
+        p1: [{ sourceInstanceId: 'owner-cube', value: 5 }],
+      },
+      pendingCubeDiceChoiceByPlayerId: {
+        p1: 'cube:owner-cube',
+      },
+      cubeDiceSelectionByPlayerId: {
+        p1: {
+          choiceId: 'cube:owner-cube',
+          value: 5,
+          sourceInstanceId: 'owner-cube',
+        },
+      },
+      visibleCubeDiceValueByPlayerId: { p1: 5 },
+    };
+    const normalized: any = normalizeAncientGameState(state).state;
+    normalized.gameData.ancient.energyByPlayerId.p1 = {
+      battleTurnNumber: 3,
+      pool: { green: 2, red: 1, blue: 0 },
+      sources: [],
+    };
+    normalized.gameData.ancient.acceptedDeclarationByPlayerId.p2 = {
+      schemaVersion: 1,
+      contractVersion: 1,
+      declarationId: 'opponent-private-declaration',
+      declarationFingerprint: JSON.stringify({
+        contractVersion: 1,
+        ordinaryChargeActions: [],
+        solarGridChoices: [],
+        solarCasts: [],
+        autocastEnabled: false,
+      }),
+      playerId: 'p2',
+      context: {
+        contextVersion: 1,
+        battleTurnNumber: 3,
+        initialEnergy: { green: 0, red: 0, blue: 0 },
+        energySourceIds: [],
+      },
+      ordinaryChargeActions: [],
+      solarGridChoices: [],
+      solarCasts: [],
+      autocastEnabled: false,
+    };
+    normalized.gameData.ancient.solarLedgerByPlayerId.p1 = {
+      battleTurnNumber: 3,
+      entries: [{
+        entryId: 'public-life',
+        order: 0,
+        solarPowerId: 'SLIF',
+        sourceMode: 'manual',
+        paidEnergy: { green: 1, red: 0, blue: 0 },
+      }],
+    };
+    normalized.gameData.ancient.pendingBlackHoleDestructions = [{
+      pendingDestructionId: 'private-black-hole',
+      declarationId: 'private-declaration',
+      ownerPlayerId: 'p1',
+      targetPlayerId: 'p2',
+      targetInstanceIds: ['opponent-def'],
+      battleTurnNumber: 3,
+      lockedDamage: 2,
+      status: 'committed',
+    }];
+    normalized.gameData.ancient.pendingSimulacrumCopies = [{
+      pendingCopyId: 'private-simulacrum',
+      declarationId: 'private-declaration',
+      ownerPlayerId: 'p1',
+      sourceTargetInstanceId: 'opponent-def',
+      copiedShipDefId: 'DEF',
+      queuedTurnNumber: 3,
+      materializationTurnNumber: 4,
+      queueOrder: 0,
+      capturedStartOfBattleCharges: 0,
+      permanentConfiguration: {},
+      sourceMode: 'primary',
+      status: 'queued',
+    }];
+    return normalized;
+  };
+
+  const chargeState = createPrivacyState('privacy-reload-charge');
+  fixture.store.set(
+    'game_privacy-reload-charge',
+    JSON.parse(JSON.stringify(chargeState)),
+  );
+  const getState = fixture.app.handler(
+    'GET',
+    '/make-server-825e19ab/game-state/:gameId',
+  );
+  const readAs = async (playerId: string, gameId: string) => {
+    fixture.setSessionId(playerId);
+    return await responseJson(await getState(createContext({
+      params: { gameId },
+    })));
+  };
+
+  const owner = await readAs('p1', 'privacy-reload-charge');
+  const opponent = await readAs('p2', 'privacy-reload-charge');
+  const spectator = await readAs('spectator', 'privacy-reload-charge');
+  for (const body of [owner, opponent, spectator]) {
+    assert.deepEqual(
+      body.publicState.ancient.energyByPlayerId.p1.pool,
+      { green: 2, red: 1, blue: 0 },
+    );
+    assert.equal(
+      body.publicState.ancient.solarLedgerByPlayerId.p1.entries[0].entryId,
+      'public-life',
+    );
+    assert.deepEqual(
+      body.publicState.visibleDice.cubeDiceValueByPlayerId,
+      { p1: 5 },
+    );
+    assert.equal('acceptedDeclarationByPlayerId' in body.publicState.ancient, false);
+    assert.equal('pendingBlackHoleDestructions' in body.publicState.ancient, false);
+    assert.equal('pendingSimulacrumCopies' in body.publicState.ancient, false);
+    assert.equal('cubeDiceRollsByPlayerId' in body.gameData.turnData, false);
+    assert.equal('cubeDiceSelectionByPlayerId' in body.gameData.turnData, false);
+  }
+  assert.equal(
+    owner.requester.availableActions.some((action: any) =>
+      action.sourceInstanceId === 'owner-sol'
+    ),
+    true,
+  );
+  assert.deepEqual(opponent.requester.availableActions, []);
+  assert.deepEqual(spectator.requester.availableActions, []);
+  assert.deepEqual(owner.gameData.turnData.pendingCubeDiceChoiceByPlayerId, {
+    p1: 'cube:owner-cube',
+  });
+  assert.deepEqual(opponent.gameData.turnData.pendingCubeDiceChoiceByPlayerId, {});
+  assert.deepEqual(spectator.gameData.turnData.pendingCubeDiceChoiceByPlayerId, {});
+
+  const drawingState = createPrivacyState('privacy-reload-drawing');
+  drawingState.gameData.currentPhase = 'build';
+  drawingState.gameData.currentSubPhase = 'drawing';
+  drawingState.gameData.turnData.currentMajorPhase = 'build';
+  drawingState.gameData.turnData.currentSubPhase = 'drawing';
+  drawingState.players.find((player: any) => player.id === 'p1').joiningLines = 4;
+  drawingState.gameData.turnData.buildDrawingPublicSavedResourcesByPlayerId = {
+    p1: { savedLines: 3, savedJoiningLines: 0 },
+    p2: { savedLines: 3, savedJoiningLines: 0 },
+  };
+  drawingState.gameData.ancient.pendingSimulacrumCopies[0] = {
+    ...drawingState.gameData.ancient.pendingSimulacrumCopies[0],
+    materializationTurnNumber: 3,
+    status: 'materialized',
+    materializedInstanceId: 'owner-cube',
+    materializationOutcome: {
+      joiningLinesGranted: 0,
+      producedShips: [],
+    },
+  };
+  fixture.store.set(
+    'game_privacy-reload-drawing',
+    JSON.parse(JSON.stringify(drawingState)),
+  );
+  const drawingOwner = await readAs('p1', 'privacy-reload-drawing');
+  const drawingOpponent = await readAs('p2', 'privacy-reload-drawing');
+  const drawingSpectator = await readAs('spectator', 'privacy-reload-drawing');
+  for (const body of [drawingOwner, drawingOpponent, drawingSpectator]) {
+    assert.equal('pendingSimulacrumCopies' in body.publicState.ancient, false);
+    assert.equal('hiddenDrawingSimulacrumShips' in body.requester, false);
+    assert.equal(
+      body.publicState.ships.p1.some((candidate: any) =>
+        candidate.instanceId === 'owner-cube'
+      ),
+      true,
+    );
+  }
+  assert.equal(drawingOwner.requester.buildEconomy.joiningLinesAvailable, 4);
+  assert.equal(
+    drawingOpponent.requester.buildEconomyByPlayerId.p1.joiningLinesAvailable,
+    0,
+  );
+  assert.equal(
+    drawingSpectator.requester.buildEconomyByPlayerId.p1.joiningLinesAvailable,
+    0,
+  );
+});
+
 Deno.test('/game-state projects turn-start Simulacrum support maps without changing the public Solar ledger', async () => {
   const fixture = createGameRouteFixture();
   const setupState: any = createSetupState('drawing-simulacrum');

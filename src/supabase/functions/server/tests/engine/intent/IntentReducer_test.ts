@@ -200,6 +200,179 @@ function chargeDeclarationIntent(args: {
   };
 }
 
+function createTwoAncientChargeState(): any {
+  const ships = {
+    p1: [
+      { instanceId: 'p1-int', shipDefId: 'INT', chargesCurrent: 1 },
+      { instanceId: 'p1-response-int', shipDefId: 'INT', chargesCurrent: 1 },
+      { instanceId: 'p1-sol', shipDefId: 'SOL', chargesCurrent: 4 },
+    ],
+    p2: [
+      { instanceId: 'p2-int', shipDefId: 'INT', chargesCurrent: 1 },
+      { instanceId: 'p2-response-int', shipDefId: 'INT', chargesCurrent: 1 },
+      { instanceId: 'p2-sol', shipDefId: 'SOL', chargesCurrent: 4 },
+    ],
+  };
+  return normalizeAncientGameState({
+    gameId: 'two-ancient-charge-test',
+    status: 'active',
+    turnNumber: 3,
+    players: [
+      { id: 'p1', role: 'player', faction: 'ancient', health: 20, lines: 0, joiningLines: 0 },
+      { id: 'p2', role: 'player', faction: 'ancient', health: 20, lines: 0, joiningLines: 0 },
+    ],
+    gameData: {
+      turnNumber: 3,
+      currentPhase: 'battle',
+      currentSubPhase: 'charge_declaration',
+      phaseReadiness: [],
+      ships,
+      voidShipsByPlayerId: { p1: [], p2: [] },
+      turnData: {
+        turnNumber: 3,
+        currentMajorPhase: 'battle',
+        currentSubPhase: 'charge_declaration',
+        chargeDeclarationEligibleByPlayerId: { p1: true, p2: true },
+        chargeDeclarationEligibleSourceIdsByPlayerId: {
+          p1: ['p1-int', 'p1-response-int'],
+          p2: ['p2-int', 'p2-response-int'],
+        },
+        solarGridDeclarationSourceIdsByPlayerId: {
+          p1: ['p1-sol'],
+          p2: ['p2-sol'],
+        },
+        chargeDeclarationFleetSnapshotByPlayerId: structuredClone(ships),
+        chargePowerUsedByInstanceId: {},
+        anyChargesSpentInDeclaration: false,
+      },
+      pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
+      powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
+      ancient: {
+        schemaVersion: 1,
+        energyByPlayerId: {
+          p1: {
+            battleTurnNumber: 3,
+            pool: { green: 1, red: 0, blue: 0 },
+            sources: [],
+          },
+          p2: {
+            battleTurnNumber: 3,
+            pool: { green: 1, red: 0, blue: 0 },
+            sources: [],
+          },
+        },
+        acceptedDeclarationByPlayerId: {},
+        solarLedgerByPlayerId: {
+          p1: { battleTurnNumber: 3, entries: [] },
+          p2: { battleTurnNumber: 3, entries: [] },
+        },
+        pendingSimulacrumCopies: [],
+        pendingBlackHoleDestructions: [],
+      },
+    },
+  }).state;
+}
+
+function twoAncientDeclarationIntent(playerId: 'p1' | 'p2'): IntentRequest {
+  return {
+    gameId: 'two-ancient-charge-test',
+    intentType: 'CHARGE_DECLARATION_SUBMIT',
+    turnNumber: 3,
+    payload: {
+      contractVersion: 1,
+      declarationId: `${playerId}-declaration`,
+      ordinaryChargeActions: [{
+        actionType: 'power',
+        actionId: 'INT#0',
+        sourceInstanceId: `${playerId}-int`,
+        choiceId: 'damage',
+      }],
+      solarGridChoices: [{
+        sourceInstanceId: `${playerId}-sol`,
+        choiceId: 'hold',
+      }],
+      solarCasts: [{ solarPowerId: 'SLIF' }],
+      autocastEnabled: false,
+    },
+  };
+}
+
+function canonicalTwoAncientOutcome(state: any) {
+  const playerIds = ['p1', 'p2'];
+  return {
+    phase: [
+      state.gameData.currentPhase,
+      state.gameData.currentSubPhase,
+      state.gameData.turnData.currentMajorPhase,
+      state.gameData.turnData.currentSubPhase,
+    ],
+    readiness: playerIds.map((playerId) => [
+      playerId,
+      state.gameData.phaseReadiness.some((entry: any) =>
+        entry.playerId === playerId && entry.isReady
+      ),
+    ]),
+    energy: playerIds.map((playerId) => [
+      playerId,
+      state.gameData.ancient.energyByPlayerId[playerId].pool,
+    ]),
+    acceptedFingerprints: playerIds.map((playerId) => [
+      playerId,
+      state.gameData.ancient.acceptedDeclarationByPlayerId[playerId]
+        ?.declarationFingerprint,
+    ]),
+    ledgers: playerIds.map((playerId) => [
+      playerId,
+      [...state.gameData.ancient.solarLedgerByPlayerId[playerId].entries]
+        .sort((left: any, right: any) => left.order - right.order)
+        .map((entry: any) => ({
+          entryId: entry.entryId,
+          order: entry.order,
+          solarPowerId: entry.solarPowerId,
+          sourceMode: entry.sourceMode,
+          paidEnergy: entry.paidEnergy,
+        })),
+    ]),
+    pendingTurn: {
+      damageByPlayerId: state.gameData.pendingTurn.damageByPlayerId,
+      healByPlayerId: state.gameData.pendingTurn.healByPlayerId,
+      breakdownEntries: state.gameData.pendingTurn.breakdownEntries
+        .map((entry: any) => ({
+          ownerPlayerId: entry.ownerPlayerId,
+          targetPlayerId: entry.targetPlayerId,
+          kind: entry.kind,
+          ...(typeof entry.amount === 'number' ? { amount: entry.amount } : {}),
+          ...(typeof entry.sourceLabel === 'string'
+            ? { sourceLabel: entry.sourceLabel }
+            : {}),
+          ...(typeof entry.sourceInstanceId === 'string'
+            ? { sourceInstanceId: entry.sourceInstanceId }
+            : {}),
+          ...(typeof entry.sourceShipDefId === 'string'
+            ? { sourceShipDefId: entry.sourceShipDefId }
+            : {}),
+        }))
+        .sort((left: any, right: any) =>
+          JSON.stringify(left).localeCompare(JSON.stringify(right))
+        ),
+    },
+    fleets: playerIds.map((playerId) => [
+      playerId,
+      [...state.gameData.ships[playerId]]
+        .sort((left: any, right: any) => left.instanceId.localeCompare(right.instanceId)),
+    ]),
+    players: playerIds.map((playerId) => {
+      const player = state.players.find((candidate: any) => candidate.id === playerId);
+      return {
+        playerId,
+        health: player.health,
+        lines: player.lines,
+        joiningLines: player.joiningLines,
+      };
+    }),
+  };
+}
+
 Deno.test('unknown Solar casts reject without readiness or state mutation', async () => {
   const state = createAtomicChargeState();
   const before = structuredClone(state);
@@ -535,6 +708,103 @@ Deno.test('identical accepted declaration retries after phase advancement withou
   assert.equal(newId.ok, false);
 });
 
+Deno.test('two Ancient declarations survive reload and complete exactly once in either submission order', async (t) => {
+  const outcomes: any[] = [];
+
+  for (const order of [
+    ['p1', 'p2'],
+    ['p2', 'p1'],
+  ] as const) {
+    await t.step(`${order[0]} submits before ${order[1]}`, async () => {
+      const [firstPlayerId, secondPlayerId] = order;
+      const firstIntent = twoAncientDeclarationIntent(firstPlayerId);
+      const secondIntent = twoAncientDeclarationIntent(secondPlayerId);
+      const first = await applyIntent(
+        createTwoAncientChargeState(),
+        firstPlayerId,
+        firstIntent,
+        1000,
+      );
+
+      assert.equal(first.ok, true);
+      assert.equal(first.state.gameData.currentSubPhase, 'charge_declaration');
+      assert.equal(
+        first.state.gameData.phaseReadiness.some((entry: any) =>
+          entry.playerId === firstPlayerId && entry.isReady
+        ),
+        true,
+      );
+      assert.equal(
+        first.events.filter((event: any) => event.type === 'CHARGE_DECLARATION_ACCEPTED').length,
+        1,
+      );
+
+      const acceptedBeforeReload = canonicalTwoAncientOutcome(first.state);
+      const reloaded = JSON.parse(JSON.stringify(first.state));
+      assert.deepEqual(canonicalTwoAncientOutcome(reloaded), acceptedBeforeReload);
+
+      const acceptedRetry = await applyIntent(
+        reloaded,
+        firstPlayerId,
+        firstIntent,
+        1001,
+      );
+      assert.equal(acceptedRetry.ok, true);
+      assert.deepEqual(acceptedRetry.events, []);
+      assert.deepEqual(
+        canonicalTwoAncientOutcome(acceptedRetry.state),
+        acceptedBeforeReload,
+      );
+
+      const completed = await applyIntent(
+        acceptedRetry.state,
+        secondPlayerId,
+        secondIntent,
+        1002,
+      );
+      assert.equal(completed.ok, true);
+      assert.equal(completed.state.gameData.currentSubPhase, 'charge_response');
+      assert.equal(
+        completed.events.filter((event: any) => event.type === 'CHARGE_DECLARATION_ACCEPTED').length,
+        1,
+      );
+      assert.deepEqual(
+        ['p1', 'p2'].map((playerId) =>
+          completed.state.gameData.ancient.energyByPlayerId[playerId].pool
+        ),
+        [
+          { green: 0, red: 0, blue: 0 },
+          { green: 0, red: 0, blue: 0 },
+        ],
+      );
+      assert.deepEqual(
+        ['p1', 'p2'].map((playerId) =>
+          completed.state.gameData.ancient.solarLedgerByPlayerId[playerId].entries
+            .map((entry: any) => entry.solarPowerId)
+        ),
+        [['SLIF'], ['SLIF']],
+      );
+
+      const beforeStaleRetry = canonicalTwoAncientOutcome(completed.state);
+      const staleRetry = await applyIntent(
+        completed.state,
+        firstPlayerId,
+        firstIntent,
+        1003,
+      );
+      assert.equal(staleRetry.ok, true);
+      assert.deepEqual(staleRetry.events, []);
+      assert.deepEqual(
+        canonicalTwoAncientOutcome(staleRetry.state),
+        beforeStaleRetry,
+      );
+      outcomes.push(beforeStaleRetry);
+    });
+  }
+
+  assert.deepEqual(outcomes[1], outcomes[0]);
+});
+
 Deno.test('non-Ancient legacy charge and Ready behavior remains available', async () => {
   const state = createAtomicChargeState();
   const action = await applyIntent(
@@ -546,6 +816,63 @@ Deno.test('non-Ancient legacy charge and Ready behavior remains available', asyn
   assert.equal(action.ok, true);
   const ready = await applyIntent(action.state, 'p2', readyIntent(state.gameId, 'p2'), 1001);
   assert.equal(ready.ok, true);
+});
+
+Deno.test('a no-Ancient match retains ordinary declaration behavior without Ancient stops', async (t) => {
+  for (const [playerFaction, opponentFaction] of [
+    ['human', 'xenite'],
+    ['xenite', 'centaur'],
+    ['centaur', 'human'],
+  ] as const) {
+    await t.step(`${playerFaction} versus ${opponentFaction}`, async () => {
+      const state = createAtomicChargeState({ p1HasInterceptor: true });
+      state.players[0].faction = playerFaction;
+      state.players[1].faction = opponentFaction;
+      state.gameData.ships.p1 = [
+        { instanceId: 'p1-int', shipDefId: 'INT', chargesCurrent: 1 },
+      ];
+      state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p1 =
+        structuredClone(state.gameData.ships.p1);
+      state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = {
+        p1: [],
+        p2: [],
+      };
+      state.gameData.ancient.energyByPlayerId.p1.pool = {
+        green: 0,
+        red: 0,
+        blue: 0,
+      };
+
+      const action = await applyIntent(
+        state,
+        'p1',
+        powerActionIntent(state.gameId, 'p1-int', 'INT#0', 'hold', {}),
+        1000,
+      );
+      assert.equal(action.ok, true);
+      const ready = await applyIntent(
+        action.state,
+        'p1',
+        readyIntent(state.gameId, 'p1'),
+        1001,
+      );
+      assert.equal(ready.ok, true);
+      assert.equal(
+        ready.state.gameData.ancient.acceptedDeclarationByPlayerId.p1,
+        undefined,
+      );
+      assert.deepEqual(
+        ready.state.gameData.ancient.energyByPlayerId.p1.pool,
+        { green: 0, red: 0, blue: 0 },
+      );
+      assert.deepEqual(
+        ready.state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1,
+        [],
+      );
+      assert.equal(ready.state.gameData.turnData.diceManipulationStage, undefined);
+      assert.equal(ready.state.gameData.turnData.cubeDiceRollsByPlayerId, undefined);
+    });
+  }
 });
 
 Deno.test('atomic declaration routing rejects stale turns, wrong phases, and malformed contracts', async () => {

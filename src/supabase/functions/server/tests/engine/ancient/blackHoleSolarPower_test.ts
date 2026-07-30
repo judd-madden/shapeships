@@ -8,6 +8,7 @@ import {
   BLACK_HOLE_SOLAR_RESOLVER,
   resolveCommittedBlackHoleDestructions,
 } from '../../../engine/ancient/blackHoleSolarPower.ts';
+import { resolveChargeDeclarationSubmission } from '../../../engine/intent/chargeDeclarationResolution.ts';
 
 const BLACK_HOLE_REGISTRY: ManualSolarResolverRegistry = {
   SBLA: BLACK_HOLE_SOLAR_RESOLVER,
@@ -580,6 +581,135 @@ Deno.test('standard Destroy semantics preserve Zenith spawning and Spiral health
     ['XEN', 'XEN'],
   );
   assert.equal(resolvedState.players[1].health, 35);
+});
+
+Deno.test('accepted Black Hole declaration survives JSON reload and resolves once', () => {
+  const state = createState({
+    p1Ships: [
+      ship('sol-a', 'SOL', { chargesCurrent: 4 }),
+      ship('starship', 'STA', { createdTurn: 3 }),
+      ship('core-green', 'PLU'),
+      ship('core-red', 'MER'),
+    ],
+    p2Ships: [
+      ship('enemy-z', 'INT'),
+      ship('enemy-a', 'FAM'),
+      ship('enemy-safe', 'DEF'),
+    ],
+  });
+  state.gameData.currentSubPhase = 'charge_declaration';
+  state.gameData.turnData.currentSubPhase = 'charge_declaration';
+  state.gameData.phaseReadiness = [];
+  state.gameData.turnData.chargeDeclarationEligibleByPlayerId = {
+    p1: false,
+    p2: false,
+  };
+  state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
+    p1: [],
+    p2: [],
+  };
+  state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = {
+    p1: ['sol-a'],
+    p2: [],
+  };
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId = {
+    p1: structuredClone(state.gameData.ships.p1),
+    p2: structuredClone(state.gameData.ships.p2),
+  };
+  state.gameData.ancient.energyByPlayerId = {
+    p1: {
+      battleTurnNumber: 3,
+      pool: { green: 4, red: 4, blue: 4 },
+      sources: [],
+    },
+    p2: {
+      battleTurnNumber: 3,
+      pool: { green: 0, red: 0, blue: 0 },
+      sources: [],
+    },
+  };
+  state.gameData.ancient.solarLedgerByPlayerId = {
+    p1: { battleTurnNumber: 3, entries: [] },
+    p2: { battleTurnNumber: 3, entries: [] },
+  };
+  const fleetsBeforeCommit = structuredClone(state.gameData.ships);
+
+  const committed = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: {
+      contractVersion: 1,
+      declarationId: 'black-hole-reload',
+      ordinaryChargeActions: [],
+      solarGridChoices: [{
+        sourceInstanceId: 'sol-a',
+        choiceId: 'hold',
+      }],
+      solarCasts: [{
+        solarPowerId: 'SBLA',
+        targetInstanceIds: ['enemy-z', 'enemy-a'],
+      }],
+      autocastEnabled: false,
+    },
+    nowMs: 1000,
+  });
+
+  assert.deepEqual(committed.state.gameData.ships, fleetsBeforeCommit);
+  assert.deepEqual(
+    committed.state.gameData.ancient.pendingBlackHoleDestructions.map(
+      (record: any) => ({
+        targetInstanceIds: record.targetInstanceIds,
+        lockedDamage: record.lockedDamage,
+        status: record.status,
+      }),
+    ),
+    [{
+      targetInstanceIds: ['enemy-a', 'enemy-z'],
+      lockedDamage: 2,
+      status: 'committed',
+    }],
+  );
+  assert.deepEqual(
+    committed.state.gameData.pendingTurn.damageByPlayerId,
+    { p2: 2 },
+  );
+
+  const reloaded = JSON.parse(JSON.stringify(committed.state));
+  assert.deepEqual(reloaded.gameData.ships, fleetsBeforeCommit);
+  assert.deepEqual(
+    reloaded.gameData.ancient.pendingBlackHoleDestructions[0].targetInstanceIds,
+    ['enemy-a', 'enemy-z'],
+  );
+  assert.equal(
+    reloaded.gameData.ancient.pendingBlackHoleDestructions[0].lockedDamage,
+    2,
+  );
+
+  const resolved = resolvePhase(reloaded, 'battle.end_of_turn_resolution');
+  const resolvedState: any = resolved.state;
+  assert.deepEqual(
+    resolvedState.gameData.voidShipsByPlayerId.p2.map(
+      (candidate: any) => candidate.instanceId,
+    ),
+    ['enemy-a', 'enemy-z'],
+  );
+  assert.deepEqual(
+    resolvedState.gameData.ships.p2.map((candidate: any) => candidate.instanceId),
+    ['enemy-safe'],
+  );
+  assert.equal(
+    resolvedState.gameData.ancient.pendingBlackHoleDestructions[0].status,
+    'resolved',
+  );
+  assert.equal(
+    resolvedState.gameData.powerMemory.onceOnlyFired['starship::STA#0'],
+    true,
+  );
+  assert.equal(resolvedState.gameData.lastTurnDamageByPlayerId.p2 >= 2, true);
+
+  const repeated = resolvePhase(resolvedState, 'battle.end_of_turn_resolution');
+  assert.deepEqual(repeated.events, []);
+  assert.deepEqual(repeated.state, resolvedState);
 });
 
 Deno.test('pre-Automatic Black Hole resolution is simultaneous and preserves once-only and staged Charge effects', () => {

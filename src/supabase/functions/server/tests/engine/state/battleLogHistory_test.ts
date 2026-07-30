@@ -390,12 +390,18 @@ Deno.test("history breakdown normalization preserves identity, legacy counts, so
 });
 
 Deno.test("completed-turn Solar ledger appends canonical action-only Battle lines in authoritative order", () => {
-  const summary = buildBattleLogTurnSummaryFromScratch({
-    scratch: {
+  const scratch: any = {
       currentTurnCapture: {
         turnNumber: 8,
         diceValue: 5,
-        buildAtomsByPlayerId: {},
+        buildAtomsByPlayerId: {
+          p1: [{
+            kind: "produced_build" as const,
+            shipDefId: "CUB",
+            sourceShipDefId: "SSIM",
+            count: 1,
+          }],
+        },
         battleAtomsByPlayerId: {
           p1: [{
             kind: "destroy",
@@ -420,9 +426,8 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
         savedResourcesByPlayerId: {},
       },
       lastFinalizedTurnNumber: 7,
-    },
-    finalizedTurnNumber: 8,
-    finalizedState: {
+    };
+  const finalizedState = {
       status: "active",
       players: [{
         id: "p1",
@@ -489,6 +494,7 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
                     shipInstanceId: "active-orb",
                   }],
                 }),
+                solarLedgerEntry("SCON", 10),
               ],
             },
             p2: {
@@ -510,9 +516,16 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
           }],
         },
       },
-    },
+    };
+  const summary = buildBattleLogTurnSummaryFromScratch({
+    scratch,
+    finalizedTurnNumber: 8,
+    finalizedState,
   });
 
+  assert.deepEqual(summary.buildLinesByPlayerId.p1, [
+    "1 x CUB (SSIM)",
+  ]);
   assert.deepEqual(summary.battleLinesByPlayerId.p1, [
     "GUA destroys BUG",
     "DOM stole CAR and FIG",
@@ -526,6 +539,7 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
     "1 x Black Hole destroyed ORB and DEF",
     "1 x Black Hole",
     "1 x Black Hole destroyed ORB",
+    "1 x Convert",
   ]);
   assert.deepEqual(summary.battleLinesByPlayerId.p2, []);
   assert.deepEqual(summary.analysisByPlayerId?.p1, {
@@ -554,9 +568,17 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
     initialStore,
     summary,
   );
+  const reloadedHistory = JSON.parse(JSON.stringify(firstAppend.historyStore));
+  const reloadedScratch = JSON.parse(JSON.stringify(scratch));
+  const reloadedFinalizedState = JSON.parse(JSON.stringify(finalizedState));
+  const replayedSummary = buildBattleLogTurnSummaryFromScratch({
+    scratch: reloadedScratch,
+    finalizedTurnNumber: 8,
+    finalizedState: reloadedFinalizedState,
+  });
   const secondAppend = appendBattleLogTurnSummaryIdempotently(
-    firstAppend.historyStore,
-    summary,
+    reloadedHistory,
+    replayedSummary,
   );
   const normalizedOnce = normalizeBattleLogHistoryStore(
     initialStore.gameId,
@@ -569,9 +591,37 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
 
   assert.equal(firstAppend.appended, true);
   assert.equal(secondAppend.appended, false);
+  const finalizedTurn = secondAppend.historyStore.turns[0];
+  const countLine = (lines: string[], expected: string) =>
+    lines.filter((line) => line === expected).length;
+  assert.equal(countLine(finalizedTurn.buildLinesByPlayerId.p1, "1 x CUB (SSIM)"), 1);
+  assert.equal(countLine(finalizedTurn.battleLinesByPlayerId.p1, "2 x Life"), 1);
+  assert.equal(
+    countLine(finalizedTurn.battleLinesByPlayerId.p1, "1 x Simulacrum (CAR)"),
+    1,
+  );
+  assert.equal(
+    countLine(
+      finalizedTurn.battleLinesByPlayerId.p1,
+      "1 x Black Hole destroyed ORB and DEF",
+    ),
+    1,
+  );
+  assert.equal(countLine(finalizedTurn.battleLinesByPlayerId.p1, "1 x Convert"), 1);
+  assert.equal(
+    finalizedTurn.battleLinesByPlayerId.p1.some((line) =>
+      line.includes("Cube") && line.includes("Solar")
+    ),
+    false,
+  );
+  assert.equal(
+    reloadedFinalizedState.gameData.ancient.solarLedgerByPlayerId.p1.entries
+      .filter((entry: any) => entry.sourceMode === "cube").length,
+    0,
+  );
   assert.deepEqual(
     secondAppend.historyStore.turns[0].battleLinesByPlayerId.p1,
-    summary.battleLinesByPlayerId.p1,
+    replayedSummary.battleLinesByPlayerId.p1,
   );
   assert.deepEqual(normalizedTwice, normalizedOnce);
 });

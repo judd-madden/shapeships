@@ -20,6 +20,12 @@ import { computePhaseComputedEffects } from "../../../engine_shared/resolve/phas
 import { resolvePhase } from "../../../engine_shared/resolve/resolvePhase.ts";
 import { computeLineBonusesForPlayer } from "../../../engine/lines/computeLineBonusForPlayer.ts";
 import { fleetHasAvailablePowers } from "../../../engine/phase/fleetHasAvailablePowers.ts";
+import { resolveChargeDeclarationSubmission } from "../../../engine/intent/chargeDeclarationResolution.ts";
+import {
+  applyIntent,
+  type IntentRequest,
+} from "../../../engine/intent/IntentReducer.ts";
+import { rollLockedCubeDiceByPlayerId } from "../../../engine/phase/cubeDiceManipulation.ts";
 
 function ship(
   instanceId: string,
@@ -181,6 +187,193 @@ Deno.test("Simulacrum copies Cube through the ordinary primary queue and materia
   assert.equal(
     materialized.state.gameData.ancient!.pendingSimulacrumCopies[0].status,
     "materialized",
+  );
+});
+
+Deno.test("accepted Simulacrum Cube survives reload through materialization and Dice Manipulation", async () => {
+  const cubCost = getShipById("CUB")!.totalLineCost as number;
+  const state: any = createState({
+    p2Ships: [],
+    p2Snapshot: [ship("cube-target", "CUB", { chargesCurrent: 0 })],
+  });
+  state.gameData.phaseReadiness = [];
+  state.gameData.turnData.currentMajorPhase = "battle";
+  state.gameData.turnData.currentSubPhase = "charge_declaration";
+  state.gameData.turnData.chargeDeclarationEligibleByPlayerId = {
+    "z-owner": false,
+    "a-owner": false,
+  };
+  state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
+    "z-owner": [],
+    "a-owner": [],
+  };
+  state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = {
+    "z-owner": [],
+    "a-owner": [],
+  };
+  state.gameData.ancient.energyByPlayerId["z-owner"] = {
+    battleTurnNumber: 4,
+    pool: { green: 0, red: 0, blue: cubCost },
+    sources: [],
+  };
+
+  const committed = resolveChargeDeclarationSubmission({
+    state,
+    playerId: "z-owner",
+    payload: {
+      contractVersion: 1,
+      declarationId: "simulacrum-cube-reload",
+      ordinaryChargeActions: [],
+      solarGridChoices: [],
+      solarCasts: [{
+        solarPowerId: "SSIM",
+        targetInstanceId: "cube-target",
+      }],
+      autocastEnabled: false,
+    },
+    nowMs: 1000,
+  });
+  const queued = committed.state.gameData.ancient.pendingSimulacrumCopies[0];
+  assert.equal(
+    committed.state.gameData.ancient.acceptedDeclarationByPlayerId["z-owner"]
+      .declarationId,
+    "simulacrum-cube-reload",
+  );
+  assert.deepEqual({
+    copiedShipDefId: queued.copiedShipDefId,
+    capturedStartOfBattleCharges: queued.capturedStartOfBattleCharges,
+    permanentConfiguration: queued.permanentConfiguration,
+    status: queued.status,
+  }, {
+    copiedShipDefId: "CUB",
+    capturedStartOfBattleCharges: 0,
+    permanentConfiguration: {},
+    status: "queued",
+  });
+
+  const reloaded: any = JSON.parse(JSON.stringify(committed.state));
+  const reloadedQueued =
+    reloaded.gameData.ancient.pendingSimulacrumCopies[0];
+  assert.deepEqual({
+    copiedShipDefId: reloadedQueued.copiedShipDefId,
+    capturedStartOfBattleCharges: reloadedQueued.capturedStartOfBattleCharges,
+    permanentConfiguration: reloadedQueued.permanentConfiguration,
+    status: reloadedQueued.status,
+  }, {
+    copiedShipDefId: "CUB",
+    capturedStartOfBattleCharges: 0,
+    permanentConfiguration: {},
+    status: "queued",
+  });
+
+  reloaded.turnNumber = 5;
+  reloaded.gameData.turnNumber = 5;
+  reloaded.gameData.currentPhase = "build";
+  reloaded.gameData.currentSubPhase = "dice_roll";
+  Object.assign(reloaded.gameData.turnData, {
+    turnNumber: 5,
+    currentMajorPhase: "build",
+    currentSubPhase: "dice_roll",
+    diceRolled: false,
+    diceFinalized: false,
+  });
+  const entered = onEnterPhase(
+    reloaded,
+    "battle.end_of_turn_resolution",
+    "build.dice_roll",
+    1100,
+  );
+  const materializedRecord =
+    entered.state.gameData.ancient!.pendingSimulacrumCopies[0];
+  const materializedInstanceId = materializedRecord.materializedInstanceId!;
+  assert.equal(materializedRecord.status, "materialized");
+  assert.equal(
+    entered.events.filter((event) =>
+      event.type === "SIMULACRUM_COPY_MATERIALIZED"
+    ).length,
+    1,
+  );
+  assert.equal(
+    entered.state.gameData.ships!["z-owner"].filter((candidate: ShipInstance) =>
+      candidate.instanceId === materializedInstanceId &&
+      candidate.shipDefId === "CUB"
+    ).length,
+    1,
+  );
+
+  const deterministicCubeRolls = rollLockedCubeDiceByPlayerId(
+    entered.state,
+    () => 5,
+  );
+  entered.state.gameData.turnData!.cubeDiceRollsByPlayerId =
+    deterministicCubeRolls;
+  entered.state.gameData.turnData!.visibleCubeDiceValueByPlayerId = {
+    "z-owner": 5,
+  };
+  const chooseCube: IntentRequest = {
+    gameId: "simulacrum-test",
+    intentType: "ACTION",
+    turnNumber: 5,
+    nonce: "choose-materialized-cube",
+    payload: {
+      actionType: "power",
+      actionId: "CUB#0",
+      sourceInstanceId: materializedInstanceId,
+      choiceId: `cube:${materializedInstanceId}`,
+    },
+  };
+  const chosen = await applyIntent(
+    entered.state,
+    "z-owner",
+    chooseCube,
+    1200,
+  );
+  assert.equal(chosen.ok, true);
+  const readied = await applyIntent(
+    chosen.state,
+    "z-owner",
+    {
+      gameId: "simulacrum-test",
+      intentType: "DECLARE_READY",
+      turnNumber: 5,
+      nonce: "ready-materialized-cube",
+      payload: {},
+    },
+    1300,
+  );
+  assert.equal(readied.ok, true);
+  assert.deepEqual(
+    readied.state.gameData.turnData.cubeDiceSelectionByPlayerId["z-owner"],
+    {
+      choiceId: `cube:${materializedInstanceId}`,
+      value: 5,
+      sourceInstanceId: materializedInstanceId,
+    },
+  );
+  assert.equal(
+    readied.state.gameData.turnData.effectiveDiceRollByPlayerId["z-owner"],
+    5,
+  );
+
+  const completedReload: any = JSON.parse(JSON.stringify(readied.state));
+  const repeated = onEnterPhase(
+    completedReload,
+    "build.dice_roll",
+    "build.dice_roll",
+    1400,
+  );
+  assert.equal(
+    repeated.state.gameData.ships!["z-owner"].filter((candidate: any) =>
+      candidate.instanceId === materializedInstanceId
+    ).length,
+    1,
+  );
+  assert.equal(
+    repeated.events.some((event) =>
+      event.type === "SIMULACRUM_COPY_MATERIALIZED" ||
+      event.type === "BATTLE_LOG_CAPTURE_BUILD_PRODUCED"
+    ),
+    false,
   );
 });
 
