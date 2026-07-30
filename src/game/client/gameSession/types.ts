@@ -100,7 +100,7 @@ export type FirstStrikeActionFamily =
 
 export type HudStatusTone = 'ready' | 'neutral' | 'hidden';
 
-export type LeftRailDiceManipulationShipDefId = 'LEV' | 'KNO' | 'CHR';
+export type LeftRailDiceManipulationShipDefId = 'LEV' | 'KNO' | 'CHR' | 'CUB';
 export type MobileDiceModifierShipDefId = LeftRailDiceManipulationShipDefId;
 
 export interface BattleLogTurnPlayerSummary {
@@ -289,13 +289,13 @@ export interface BattleLogTurnVm {
 export interface LeftRailDiceManipulationSlotViewModel {
   sourceShipDefId: LeftRailDiceManipulationShipDefId;
   diceValues?: Array<1 | 2 | 3 | 4 | 5 | 6>;
-  animateKey?: number;
+  animateKey?: number | string;
 }
 
 export interface MobileDiceModifierSlotViewModel {
   sourceShipDefId: MobileDiceModifierShipDefId;
   diceValues?: Array<1 | 2 | 3 | 4 | 5 | 6>;
-  animateKey?: number;
+  animateKey?: number | string;
 }
 
 export interface MobileDiceModifierSlotsViewModel {

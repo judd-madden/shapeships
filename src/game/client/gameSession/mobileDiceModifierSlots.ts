@@ -20,6 +20,8 @@ export function deriveMobileDiceModifierSlots(args: {
   turnNumber: number;
   chronoswarmRolls?: unknown[];
   chronoswarmAnimateKey?: number;
+  cubeDiceValueByPlayerId?: Record<string, unknown>;
+  cubeDiceAnimateKeyByPlayerId?: Record<string, number | string>;
 }): MobileDiceModifierSlotsViewModel {
   const {
     shipsByPlayerId,
@@ -28,6 +30,8 @@ export function deriveMobileDiceModifierSlots(args: {
     turnNumber,
     chronoswarmRolls,
     chronoswarmAnimateKey,
+    cubeDiceValueByPlayerId = {},
+    cubeDiceAnimateKeyByPlayerId = {},
   } = args;
   const normalizedChronoswarmRolls = normalizeDiceValues(chronoswarmRolls);
 
@@ -44,6 +48,11 @@ export function deriveMobileDiceModifierSlots(args: {
       chronoswarmSide,
       chronoswarmRolls: normalizedChronoswarmRolls,
       chronoswarmAnimateKey,
+      cubeDiceValue: normalizeDiceValue(
+        topPlayerId ? cubeDiceValueByPlayerId[topPlayerId] : undefined
+      ),
+      cubeDiceAnimateKey:
+        topPlayerId ? cubeDiceAnimateKeyByPlayerId[topPlayerId] : undefined,
     }),
     bottom: makeSlotForSide({
       side: 'bottom',
@@ -51,6 +60,11 @@ export function deriveMobileDiceModifierSlots(args: {
       chronoswarmSide,
       chronoswarmRolls: normalizedChronoswarmRolls,
       chronoswarmAnimateKey,
+      cubeDiceValue: normalizeDiceValue(
+        bottomPlayerId ? cubeDiceValueByPlayerId[bottomPlayerId] : undefined
+      ),
+      cubeDiceAnimateKey:
+        bottomPlayerId ? cubeDiceAnimateKeyByPlayerId[bottomPlayerId] : undefined,
     }),
   };
 }
@@ -97,6 +111,8 @@ function makeSlotForSide(args: {
   chronoswarmSide: Side | null;
   chronoswarmRolls: DiceValue[];
   chronoswarmAnimateKey?: number;
+  cubeDiceValue: DiceValue | null;
+  cubeDiceAnimateKey?: number | string;
 }): MobileDiceModifierSlotViewModel | null {
   const {
     side,
@@ -104,6 +120,8 @@ function makeSlotForSide(args: {
     chronoswarmSide,
     chronoswarmRolls,
     chronoswarmAnimateKey,
+    cubeDiceValue,
+    cubeDiceAnimateKey,
   } = args;
 
   if (chronoswarmSide === side) {
@@ -111,6 +129,14 @@ function makeSlotForSide(args: {
       sourceShipDefId: 'CHR',
       diceValues: chronoswarmRolls,
       animateKey: chronoswarmAnimateKey,
+    };
+  }
+
+  if (cubeDiceValue !== null) {
+    return {
+      sourceShipDefId: 'CUB',
+      diceValues: [cubeDiceValue],
+      animateKey: cubeDiceAnimateKey,
     };
   }
 
@@ -128,6 +154,17 @@ function makeSlotForSide(args: {
   }
 
   return null;
+}
+
+function normalizeDiceValue(value: unknown): DiceValue | null {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 6
+  )
+    ? value as DiceValue
+    : null;
 }
 
 function normalizeDiceValues(values: unknown[] | undefined): DiceValue[] {

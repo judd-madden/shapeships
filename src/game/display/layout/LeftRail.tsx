@@ -258,6 +258,8 @@ export function LeftRail({
 
     const diceValues = Array.isArray(slot.diceValues) ? slot.diceValues : [];
     const showDiceSpacer = slot.sourceShipDefId === 'KNO' && diceValues.length === 0;
+    const isAnimatedModifier =
+      slot.sourceShipDefId === 'CHR' || slot.sourceShipDefId === 'CUB';
 
     return (
       <div style={slotStyle}>
@@ -267,7 +269,8 @@ export function LeftRail({
               <Dice
                 key={`${slot.sourceShipDefId}-${index}`}
                 value={value}
-                animateKey={slot.sourceShipDefId === 'CHR' ? slot.animateKey : undefined}
+                animateKey={isAnimatedModifier ? slot.animateKey : undefined}
+                animateOnMount={slot.sourceShipDefId === 'CUB'}
                 className="w-[60px] h-[60px]"
                 enableRotate={false}
               />

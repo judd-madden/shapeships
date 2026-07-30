@@ -47,6 +47,7 @@ import {
   getChargeScopedFleetForPlayer,
   getChronoswarmRolls,
   getClockData,
+  getCubeDiceValueByPlayerId,
   getFrigateTriggerByInstanceId,
   getGameStatus,
   getJoiningBonusLinesByPlayerId,
@@ -1848,6 +1849,7 @@ export function useGameSession(
     });
   })();
   const chronoswarmRolls = getChronoswarmRolls(rawState);
+  const cubeDiceValueByPlayerId = getCubeDiceValueByPlayerId(rawState);
   const hasAuthoritativeChronoswarmDice = Array.isArray(chronoswarmRolls)
     ? chronoswarmRolls.some(
         (roll: unknown) =>
@@ -5074,6 +5076,7 @@ useEffect(() => {
     gameData: rawState?.gameData,
     shipsByPlayerId: getShipsByPlayerId(rawState),
     chronoswarmRolls,
+    cubeDiceValueByPlayerId,
     
     // Left rail dice presentation (client-delayed during health lock)
     leftRailDiceValue: presentedLeftRailDiceValue,

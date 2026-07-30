@@ -19,6 +19,7 @@ import type {
   GameSessionChatEntry,
   HealthResolutionPresentationVm,
   HudStatusTone,
+  LeftRailDiceManipulationSlotViewModel,
 } from './types';
 import {
   formatCountedShipChoiceHeading,
@@ -238,6 +239,7 @@ export function mapGameSessionVm(args: {
   gameData: any;
   shipsByPlayerId?: Record<string, any[]>;
   chronoswarmRolls?: unknown[];
+  cubeDiceValueByPlayerId?: Record<string, unknown>;
   
   // Left rail dice presentation (client-delayed during health lock)
   leftRailDiceValue: 1 | 2 | 3 | 4 | 5 | 6;
@@ -331,6 +333,7 @@ export function mapGameSessionVm(args: {
     gameData,
     shipsByPlayerId = {},
     chronoswarmRolls,
+    cubeDiceValueByPlayerId = {},
     leftRailDiceValue,
     leftRailDiceAnimateKey,
     leftRailTurnTakeoverTurn,
@@ -379,6 +382,42 @@ export function mapGameSessionVm(args: {
     const displayRightName = displayRightPlayer?.name || 'Player 2';
     const getDisplayPlayerIdentityKey = (player: any): string | null =>
       player?.id ?? player?.playerId ?? player?.sessionId ?? null;
+    const displayLeftPlayerId = getDisplayPlayerIdentityKey(displayLeftPlayer);
+    const displayRightPlayerId = getDisplayPlayerIdentityKey(displayRightPlayer);
+    const cubeDiceAnimateKeyByPlayerId: Record<string, string> = {};
+
+    const getCubeDiceSlotForPlayerId = (
+      playerId: string | null
+    ): LeftRailDiceManipulationSlotViewModel | null => {
+      if (!playerId) return null;
+
+      const value = cubeDiceValueByPlayerId[playerId];
+      if (
+        typeof value !== 'number' ||
+        !Number.isInteger(value) ||
+        value < 1 ||
+        value > 6
+      ) {
+        return null;
+      }
+
+      const diceValue = value as 1 | 2 | 3 | 4 | 5 | 6;
+      const animateKey = JSON.stringify(['CUB', playerId, turnNumber, diceValue]);
+      cubeDiceAnimateKeyByPlayerId[playerId] = animateKey;
+
+      return {
+        sourceShipDefId: 'CUB',
+        diceValues: [diceValue],
+        animateKey,
+      };
+    };
+
+    const cubeDiceSlotsInDisplayOrder = [
+      getCubeDiceSlotForPlayerId(displayLeftPlayerId),
+      getCubeDiceSlotForPlayerId(displayRightPlayerId),
+    ].filter(
+      (slot): slot is LeftRailDiceManipulationSlotViewModel => slot !== null
+    );
 
     // Use the same derivation as vm.gameCode (mapVm does not have `gameId`)
     const gameCode = effectiveGameId
@@ -1415,23 +1454,21 @@ export function mapGameSessionVm(args: {
             }
           : null;
 
+        const nonChrCandidates: LeftRailDiceManipulationSlotViewModel[] = [];
+        if (knoSlot) nonChrCandidates.push(knoSlot);
+        if (levSlot) nonChrCandidates.push(levSlot);
+        nonChrCandidates.push(...cubeDiceSlotsInDisplayOrder);
+
         if (chrSlot) {
           return {
-            left: knoSlot ?? levSlot,
+            left: nonChrCandidates[0] ?? null,
             right: chrSlot,
           };
         }
 
-        if (knoSlot && levSlot) {
-          return {
-            left: knoSlot,
-            right: levSlot,
-          };
-        }
-
         return {
-          left: knoSlot ?? levSlot,
-          right: null,
+          left: nonChrCandidates[0] ?? null,
+          right: nonChrCandidates[1] ?? null,
         };
       })(),
       turn: turnNumber,
@@ -1455,11 +1492,13 @@ export function mapGameSessionVm(args: {
           ...board,
           mobileDiceModifierSlots: deriveMobileDiceModifierSlots({
             shipsByPlayerId,
-            topPlayerId: getDisplayPlayerIdentityKey(displayRightPlayer),
-            bottomPlayerId: getDisplayPlayerIdentityKey(displayLeftPlayer),
+            topPlayerId: displayRightPlayerId,
+            bottomPlayerId: displayLeftPlayerId,
             turnNumber,
             chronoswarmRolls,
             chronoswarmAnimateKey: leftRailChronoswarmAnimateKey,
+            cubeDiceValueByPlayerId,
+            cubeDiceAnimateKeyByPlayerId,
           }),
           myFleetHealthDeltaFlash,
           opponentFleetHealthDeltaFlash,

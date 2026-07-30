@@ -79,13 +79,17 @@ function DiceStack({
     return null;
   }
 
+  const isAnimatedModifier =
+    slot.sourceShipDefId === 'CHR' || slot.sourceShipDefId === 'CUB';
+
   return (
     <div className="flex flex-col items-center gap-[1px]">
       {diceValues.map((value, index) => (
         <Dice
           key={`${slot.sourceShipDefId}-${index}`}
           value={value}
-          animateKey={slot.sourceShipDefId === 'CHR' ? slot.animateKey : undefined}
+          animateKey={isAnimatedModifier ? slot.animateKey : undefined}
+          animateOnMount={slot.sourceShipDefId === 'CUB'}
           className="h-[24px] w-[24px]"
           enableRotate={false}
         />

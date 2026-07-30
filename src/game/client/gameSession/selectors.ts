@@ -535,6 +535,32 @@ export function getChronoswarmRolls(state: any): unknown[] | undefined {
   return Array.isArray(rolls) ? rolls : undefined;
 }
 
+export function getCubeDiceValueByPlayerId(
+  state: any
+): Record<string, 1 | 2 | 3 | 4 | 5 | 6> {
+  const rawValues = state?.publicState?.visibleDice?.cubeDiceValueByPlayerId;
+  if (!rawValues || typeof rawValues !== 'object' || Array.isArray(rawValues)) {
+    return {};
+  }
+
+  const normalized: Record<string, 1 | 2 | 3 | 4 | 5 | 6> = {};
+  for (const [playerId, value] of Object.entries(rawValues)) {
+    if (playerId.trim().length === 0) continue;
+    if (
+      typeof value !== 'number' ||
+      !Number.isInteger(value) ||
+      value < 1 ||
+      value > 6
+    ) {
+      continue;
+    }
+
+    normalized[playerId] = value as 1 | 2 | 3 | 4 | 5 | 6;
+  }
+
+  return normalized;
+}
+
 function normalizeStringListMap(value: unknown): Record<string, string[]> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return Object.fromEntries(

@@ -20,7 +20,8 @@ const diceImages: Record<1 | 2 | 3 | 4 | 5 | 6, string> = {
 
 interface DiceProps {
     value: 1 | 2 | 3 | 4 | 5 | 6;
-    animateKey?: number;
+    animateKey?: number | string;
+    animateOnMount?: boolean;
     className?: string;
 
     // NEW (optional): rotation feature toggle + tuning
@@ -34,6 +35,7 @@ const STEP_MS = 180;
 export function Dice({
     value,
     animateKey,
+    animateOnMount = false,
     className = "",
     enableRotate = true,
     rotateMaxDeg = 45,
@@ -42,7 +44,7 @@ export function Dice({
     const [isRolling, setIsRolling] = useState(false);
     const [rollRotateDeg, setRollRotateDeg] = useState(0);
 
-    const prevAnimateKeyRef = useRef<number | undefined>(animateKey);
+    const prevAnimateKeyRef = useRef<number | string | undefined>(animateKey);
     const isMountedRef = useRef(false);
 
     const timersRef = useRef<{ timeouts: number[]; finalTimeoutId: number | null }>({
@@ -61,22 +63,24 @@ export function Dice({
     }
 
     useEffect(() => {
-        // First mount: no animation
+        // Preserve the existing first-mount posture unless the caller explicitly opts in.
         if (!isMountedRef.current) {
             isMountedRef.current = true;
             setDisplayValue(value);
             prevAnimateKeyRef.current = animateKey;
-            return;
-        }
+            if (!animateOnMount || animateKey === undefined) {
+                return;
+            }
+        } else {
+            const animateKeyChanged = animateKey !== prevAnimateKeyRef.current;
+            prevAnimateKeyRef.current = animateKey;
 
-        const animateKeyChanged = animateKey !== prevAnimateKeyRef.current;
-        prevAnimateKeyRef.current = animateKey;
-
-        // Only animate when animateKey changes.
-        if (!animateKeyChanged) {
-            // Still keep displayValue in sync if server updates it.
-            setDisplayValue(value);
-            return;
+            // Only animate when animateKey changes.
+            if (!animateKeyChanged) {
+                // Still keep displayValue in sync if server updates it.
+                setDisplayValue(value);
+                return;
+            }
         }
 
         clearTimers();
@@ -127,7 +131,7 @@ export function Dice({
         }, ROLL_MS);
 
         return () => clearTimers();
-    }, [value, animateKey, enableRotate, rotateMaxDeg]);
+    }, [value, animateKey, animateOnMount, enableRotate, rotateMaxDeg]);
 
     return (
         <div className={["relative size-[164px]", className].join(" ")}>
