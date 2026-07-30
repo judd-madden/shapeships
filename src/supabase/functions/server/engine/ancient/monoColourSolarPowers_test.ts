@@ -5,7 +5,7 @@ import {
   buildMonoColourAutocastCasts,
   MONO_COLOUR_SOLAR_COSTS,
   PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
-} from './monoColourSolarPowers.ts';
+} from './solarPowerResolvers.ts';
 
 function createState(): any {
   return {

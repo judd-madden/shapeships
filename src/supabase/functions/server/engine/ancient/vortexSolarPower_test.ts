@@ -4,7 +4,7 @@ import {
   resolveManualSolarDeclaration,
   resolveSolarCastSequence,
 } from './manualSolarDeclaration.ts';
-import { VORTEX_SOLAR_RESOLVER } from './vortexSolarPower.ts';
+import { VORTEX_SOLAR_RESOLVER } from './solarPowerResolvers.ts';
 
 const EXACT_COST = { green: 2, red: 2, blue: 2 };
 

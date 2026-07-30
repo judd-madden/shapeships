@@ -58,14 +58,14 @@ export const COMPUTED_EFFECTS_AUDIT = [
   { shipDefId: 'POW', mechanic: 'dice-conditioned recurring in future build phases' },
   { shipDefId: 'KNO', mechanic: 'tiered thresholds + shared dice rerolls + automatic healing' },
 
-  // Ancient (many need energy ledger not present yet)
-  { shipDefId: 'CUB', mechanic: 'future Dice Manipulation: extra die per controlled Cube; choose final roll' },
+  // Ancient (several mechanics are implemented in dedicated Ancient modules)
+  { shipDefId: 'CUB', mechanic: 'Dice Manipulation: extra die per controlled Cube; controller selects the turn roll' },
   { shipDefId: 'QUA', mechanic: 'dice-conditioned energy/heal' },
   { shipDefId: 'SPI', mechanic: 'per-source owned-count healing + max-health modifier' },
   { shipDefId: 'SSIM', mechanic: 'computed variable X (lines) + copy enemy basic ship' },
-  { shipDefId: 'SSIP', mechanic: 'count-by-category: per Core you have' },
-  { shipDefId: 'SSTA', mechanic: 'dice scaling: heal = dice + 5' },
-  { shipDefId: 'SSUP', mechanic: 'dice scaling: dmg = dice + 4' },
+  { shipDefId: 'SSIP', mechanic: 'equal green/red variable spend with piecewise heal and damage' },
+  { shipDefId: 'SSTA', mechanic: 'dice scaling: heal = effective dice + 3' },
+  { shipDefId: 'SSUP', mechanic: 'dice scaling: damage = effective dice + 3' },
   { shipDefId: 'SVOR', mechanic: 'distinct-type count (self)' },
   { shipDefId: 'MER', mechanic: 'energy gain each battle phase' },
   { shipDefId: 'PLU', mechanic: 'energy gain each battle phase' },
@@ -425,15 +425,6 @@ function markOnceOnlyFired(state: GameState, keys: string[]): GameState {
       },
     },
   };
-}
-
-/**
- * Placeholder for future Ancient energy mechanics.
- * No energy ledger exists yet in GameStateTypes; return 0 safely for now.
- */
-function getEnergySpentThisTurn(_state: GameState, _playerId: string): number {
-  // TODO(energy-ledger): implement when energy spend tracking lands in gameData.turnData.
-  return 0;
 }
 
 export type ComputedEffectsResult = { state: GameState; effects: Effect[] };

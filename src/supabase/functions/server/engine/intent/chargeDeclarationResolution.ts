@@ -46,9 +46,9 @@ import {
 import {
   buildMonoColourAutocastCasts,
   PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
-} from '../ancient/monoColourSolarPowers.ts';
-import { SIPHON_SOLAR_RESOLVER } from '../ancient/siphonSolarPower.ts';
-import { VORTEX_SOLAR_RESOLVER } from '../ancient/vortexSolarPower.ts';
+  SIPHON_SOLAR_RESOLVER,
+  VORTEX_SOLAR_RESOLVER,
+} from '../ancient/solarPowerResolvers.ts';
 import { BLACK_HOLE_SOLAR_RESOLVER } from '../ancient/blackHoleSolarPower.ts';
 import { SIMULACRUM_SOLAR_RESOLVER } from '../ancient/simulacrumSolarPower.ts';
 

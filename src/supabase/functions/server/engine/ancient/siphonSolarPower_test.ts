@@ -4,7 +4,7 @@ import {
   resolveManualSolarDeclaration,
   resolveSolarCastSequence,
 } from './manualSolarDeclaration.ts';
-import { SIPHON_SOLAR_RESOLVER } from './siphonSolarPower.ts';
+import { SIPHON_SOLAR_RESOLVER } from './solarPowerResolvers.ts';
 
 function createState(): any {
   return {

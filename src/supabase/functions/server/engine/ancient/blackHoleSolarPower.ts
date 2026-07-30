@@ -18,7 +18,7 @@ import type { ManualSolarResolverDescriptor } from './manualSolarDeclaration.ts'
 import {
   buildSolarHealthEffect,
   requireSolarOpponentPlayerId,
-} from './solarHealthEffects.ts';
+} from './solarPowerResolvers.ts';
 
 const BLACK_HOLE_CORE_IDS = new Set(['PLU', 'MER', 'NEP']);
 
