@@ -53,7 +53,9 @@ export type SolarPowerEntryAnimToken = {
 
 export type SolarPowerEntryVisualState = 'active' | 'settled' | 'clearing';
 
-const SOLAR_ENTRY_STAGGER_INTERVAL_MS = 250;
+const SOLAR_ENTRY_INITIAL_GAP_MS = 400;
+const SOLAR_ENTRY_GAP_DECREASE_MS = 40;
+const SOLAR_ENTRY_MIN_GAP_MS = 180;
 
 export function useSolarPowerEntryAnimTokens(
   displayKeys: readonly string[],
@@ -85,7 +87,9 @@ export function useSolarPowerEntryAnimTokens(
     const newDisplayKeys = displayKeys.filter((key) => !previousKeySet.has(key));
     const delayById = computeSequentialEntryDelayById(
       newDisplayKeys,
-      SOLAR_ENTRY_STAGGER_INTERVAL_MS
+      SOLAR_ENTRY_INITIAL_GAP_MS,
+      SOLAR_ENTRY_GAP_DECREASE_MS,
+      SOLAR_ENTRY_MIN_GAP_MS
     );
 
     setTokens((currentTokens) => {

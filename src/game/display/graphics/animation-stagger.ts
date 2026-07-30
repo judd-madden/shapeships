@@ -18,12 +18,23 @@ export type ActivationStaggerPlan = {
 
 export function computeSequentialEntryDelayById(
   orderedIds: readonly string[],
-  intervalMs: number
+  initialGapMs: number,
+  gapDecreaseMs: number,
+  minGapMs: number
 ): Record<string, number> {
   const delayById: Record<string, number> = {};
+  let cumulativeDelayMs = 0;
 
   orderedIds.forEach((id, index) => {
-    delayById[id] = index * intervalMs;
+    if (index > 0) {
+      const gapBeforeItemMs = Math.max(
+        minGapMs,
+        initialGapMs - ((index - 1) * gapDecreaseMs)
+      );
+      cumulativeDelayMs += gapBeforeItemMs;
+    }
+
+    delayById[id] = cumulativeDelayMs;
   });
 
   return delayById;

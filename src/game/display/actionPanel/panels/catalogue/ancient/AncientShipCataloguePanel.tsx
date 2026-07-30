@@ -521,10 +521,10 @@ export function AncientShipCataloguePanel({
     hoveredSolarSlot
   ) {
     if (hoveredSolarSlot.id === 'SSIP') {
-      if (canOpenSiphonSelector) {
+      if (canOpenSiphonSelector && siphonSelector) {
         mainIconSpendPreview = {
-          green: ANCIENT_SIPHON_MINIMUM_SPEND,
-          red: ANCIENT_SIPHON_MINIMUM_SPEND,
+          green: siphonSelector.maxSpend,
+          red: siphonSelector.maxSpend,
           blue: 0,
         };
       }
