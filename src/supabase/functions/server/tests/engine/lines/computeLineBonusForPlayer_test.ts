@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { computeLineBonusesForPlayer } from './computeLineBonusForPlayer.ts';
+import { computeLineBonusesForPlayer } from '../../../engine/lines/computeLineBonusForPlayer.ts';
 
 function solarEntry(
   entryId: string,

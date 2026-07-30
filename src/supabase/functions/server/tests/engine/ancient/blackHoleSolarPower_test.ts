@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
-import { resolvePhase } from '../../engine_shared/resolve/resolvePhase.ts';
+import { resolvePhase } from '../../../engine_shared/resolve/resolvePhase.ts';
 import {
   resolveSolarCastSequence,
   type ManualSolarResolverRegistry,
-} from './manualSolarDeclaration.ts';
+} from '../../../engine/ancient/manualSolarDeclaration.ts';
 import {
   BLACK_HOLE_SOLAR_RESOLVER,
   resolveCommittedBlackHoleDestructions,
-} from './blackHoleSolarPower.ts';
+} from '../../../engine/ancient/blackHoleSolarPower.ts';
 
 const BLACK_HOLE_REGISTRY: ManualSolarResolverRegistry = {
   SBLA: BLACK_HOLE_SOLAR_RESOLVER,

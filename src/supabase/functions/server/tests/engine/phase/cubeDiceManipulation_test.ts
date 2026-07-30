@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { applyIntent, type IntentRequest } from '../intent/IntentReducer.ts';
-import { onEnterPhase } from './onEnterPhase.ts';
-import { advancePhaseCore } from './advancePhase.ts';
+import { applyIntent, type IntentRequest } from '../../../engine/intent/IntentReducer.ts';
+import { onEnterPhase } from '../../../engine/phase/onEnterPhase.ts';
+import { advancePhaseCore } from '../../../engine/phase/advancePhase.ts';
 import {
   getCubeDiceActionForPlayer,
   rollLockedCubeDiceByPlayerId,
-} from './cubeDiceManipulation.ts';
+} from '../../../engine/phase/cubeDiceManipulation.ts';
 
 function ship(instanceId: string, shipDefId: string, createdTurn = 1) {
   return { instanceId, shipDefId, createdTurn };

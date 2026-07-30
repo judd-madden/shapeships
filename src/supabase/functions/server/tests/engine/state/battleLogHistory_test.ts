@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
-import { DEFAULT_PLAYER_MAX_HEALTH } from "../../engine_shared/maximumHealth.ts";
+import { DEFAULT_PLAYER_MAX_HEALTH } from "../../../engine_shared/maximumHealth.ts";
 import type {
   AncientSolarLedgerEntry,
   AncientSolarPowerId,
-} from "./GameStateTypes.ts";
+} from "../../../engine/state/GameStateTypes.ts";
 import {
   appendBattleLogTurnSummaryIdempotently,
   buildBattleLogTurnSummaryFromScratch,
   normalizeBattleLogHistoryStore,
-} from "./battleLogHistory.ts";
+} from "../../../engine/state/battleLogHistory.ts";
 
 function solarLedgerEntry(
   solarPowerId: AncientSolarPowerId,

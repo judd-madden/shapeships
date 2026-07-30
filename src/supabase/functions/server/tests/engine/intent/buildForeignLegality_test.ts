@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { evaluateForeignBuildLegality } from './buildForeignLegality.ts';
+import { evaluateForeignBuildLegality } from '../../../engine/intent/buildForeignLegality.ts';
 
 Deno.test('foreign interactive upgrades use ordinary build legality', () => {
   const foreignUpgrades = [

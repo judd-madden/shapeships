@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { materializeQueuedSimulacrumCopiesAtTurnStart } from '../ancient/simulacrumSolarPower.ts';
-import { resolveBuildSubmitAuthoritatively } from './buildSubmitResolution.ts';
+import { materializeQueuedSimulacrumCopiesAtTurnStart } from '../../../engine/ancient/simulacrumSolarPower.ts';
+import { resolveBuildSubmitAuthoritatively } from '../../../engine/intent/buildSubmitResolution.ts';
 
 function createResolutionState(args: {
   lines: number;

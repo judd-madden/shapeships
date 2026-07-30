@@ -3,13 +3,13 @@ import {
   resolveManualSolarDeclaration,
   resolveSolarCastSequence,
   type ManualSolarResolverRegistry,
-} from './manualSolarDeclaration.ts';
+} from '../../../engine/ancient/manualSolarDeclaration.ts';
 import {
   EffectKind,
   EffectTiming,
   SurvivabilityRule,
   type Effect,
-} from '../../engine_shared/effects/Effect.ts';
+} from '../../../engine_shared/effects/Effect.ts';
 
 function createState(): any {
   return {

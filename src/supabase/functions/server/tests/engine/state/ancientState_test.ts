@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { advancePhaseCore } from '../phase/advancePhase.ts';
-import { onEnterPhase } from '../phase/onEnterPhase.ts';
+import { advancePhaseCore } from '../../../engine/phase/advancePhase.ts';
+import { onEnterPhase } from '../../../engine/phase/onEnterPhase.ts';
 import {
   applyAncientBattleRevealPreparation,
   createEmptyAncientState,
@@ -10,14 +10,14 @@ import {
   projectPublicAncientState,
   projectPublicPlayersForClient,
   sanitizeAncientStateForClient,
-} from './ancientState.ts';
+} from '../../../engine/state/ancientState.ts';
 import {
   ancientAtomicDeclarationContractApplies,
   getEligibleOrdinaryChargeSourceIdsAtDeclarationStart,
   getAvailableOrdinaryChargeResponseSourceIds,
   getRelevantSolarGridSourceIdsAtDeclarationStart,
   playerRequiresChargeDeclarationInput,
-} from '../intent/chargeDeclarationEligibility.ts';
+} from '../../../engine/intent/chargeDeclarationEligibility.ts';
 
 Deno.test('Drawing saved-resource projection is public-invariant and requester-aware', () => {
   const state: any = createBaseState();

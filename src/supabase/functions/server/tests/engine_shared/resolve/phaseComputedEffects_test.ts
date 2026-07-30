@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { EffectKind, EffectTiming, SurvivabilityRule } from '../effects/Effect.ts';
-import { computePhaseComputedEffects } from './phaseComputedEffects.ts';
-import { resolvePhase } from './resolvePhase.ts';
+import { EffectKind, EffectTiming, SurvivabilityRule } from '../../../engine_shared/effects/Effect.ts';
+import { computePhaseComputedEffects } from '../../../engine_shared/resolve/phaseComputedEffects.ts';
+import { resolvePhase } from '../../../engine_shared/resolve/resolvePhase.ts';
 
 function createState(args: {
   p1Ships?: any[];

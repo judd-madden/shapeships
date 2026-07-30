@@ -3,10 +3,10 @@ import type {
   AncientPendingSimulacrumCopy,
   GameState,
   ShipInstance,
-} from "../state/GameStateTypes.ts";
-import { normalizeAncientGameState } from "../state/ancientState.ts";
-import { onEnterPhase } from "../phase/onEnterPhase.ts";
-import { resolveSolarCastSequence } from "./manualSolarDeclaration.ts";
+} from "../../../engine/state/GameStateTypes.ts";
+import { normalizeAncientGameState } from "../../../engine/state/ancientState.ts";
+import { onEnterPhase } from "../../../engine/phase/onEnterPhase.ts";
+import { resolveSolarCastSequence } from "../../../engine/ancient/manualSolarDeclaration.ts";
 import {
   assertSimulacrumQuantityAvailable,
   deriveMaterializedSimulacrumFleetInstanceIdsByPlayerId,
@@ -14,12 +14,12 @@ import {
   getDirectMaterializedSimulacrumInstanceIdsForPlayer,
   materializeQueuedSimulacrumCopiesAtTurnStart,
   SIMULACRUM_SOLAR_RESOLVER,
-} from "./simulacrumSolarPower.ts";
-import { getShipById } from "../../engine_shared/defs/ShipDefinitions.core.ts";
-import { computePhaseComputedEffects } from "../../engine_shared/resolve/phaseComputedEffects.ts";
-import { resolvePhase } from "../../engine_shared/resolve/resolvePhase.ts";
-import { computeLineBonusesForPlayer } from "../lines/computeLineBonusForPlayer.ts";
-import { fleetHasAvailablePowers } from "../phase/fleetHasAvailablePowers.ts";
+} from "../../../engine/ancient/simulacrumSolarPower.ts";
+import { getShipById } from "../../../engine_shared/defs/ShipDefinitions.core.ts";
+import { computePhaseComputedEffects } from "../../../engine_shared/resolve/phaseComputedEffects.ts";
+import { resolvePhase } from "../../../engine_shared/resolve/resolvePhase.ts";
+import { computeLineBonusesForPlayer } from "../../../engine/lines/computeLineBonusForPlayer.ts";
+import { fleetHasAvailablePowers } from "../../../engine/phase/fleetHasAvailablePowers.ts";
 
 function ship(
   instanceId: string,

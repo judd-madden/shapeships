@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
-import { applyIntent, type IntentRequest } from './IntentReducer.ts';
-import { normalizeAncientGameState } from '../state/ancientState.ts';
+import { applyIntent, type IntentRequest } from '../../../engine/intent/IntentReducer.ts';
+import { normalizeAncientGameState } from '../../../engine/state/ancientState.ts';
 
 function createBuildState() {
   return {

@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import type {
   GameState,
   PendingTurnBreakdownEntry,
-} from '../../engine/state/GameStateTypes.ts';
-import { resolvePhase } from './resolvePhase.ts';
+} from '../../../engine/state/GameStateTypes.ts';
+import { resolvePhase } from '../../../engine_shared/resolve/resolvePhase.ts';
 
 function createState(args: {
   entries: PendingTurnBreakdownEntry[];

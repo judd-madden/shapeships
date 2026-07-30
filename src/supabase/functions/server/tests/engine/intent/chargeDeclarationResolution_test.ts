@@ -4,18 +4,18 @@ import {
   normalizeChargeDeclarationPayload,
   resolveChargeDeclarationSubmission,
   resolveChargeDeclarationSubmissionWithDependencies,
-} from './chargeDeclarationResolution.ts';
-import type { ManualSolarResolverRegistry } from '../ancient/manualSolarDeclaration.ts';
-import { advancePhaseCore } from '../phase/advancePhase.ts';
-import { onEnterPhase } from '../phase/onEnterPhase.ts';
-import { resolveBuildSubmitAuthoritatively } from './buildSubmitResolution.ts';
+} from '../../../engine/intent/chargeDeclarationResolution.ts';
+import type { ManualSolarResolverRegistry } from '../../../engine/ancient/manualSolarDeclaration.ts';
+import { advancePhaseCore } from '../../../engine/phase/advancePhase.ts';
+import { onEnterPhase } from '../../../engine/phase/onEnterPhase.ts';
+import { resolveBuildSubmitAuthoritatively } from '../../../engine/intent/buildSubmitResolution.ts';
 import {
   EffectKind,
   EffectTiming,
   SurvivabilityRule,
   type Effect,
-} from '../../engine_shared/effects/Effect.ts';
-import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
+} from '../../../engine_shared/effects/Effect.ts';
+import { getShipById } from '../../../engine_shared/defs/ShipDefinitions.core.ts';
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {

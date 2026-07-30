@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { registerGameRoutes } from './game_routes.ts';
-import { registerIntentRoutes } from './intent_routes.ts';
-import { normalizeAncientGameState } from '../engine/state/ancientState.ts';
-import { onEnterPhase } from '../engine/phase/onEnterPhase.ts';
+import { registerGameRoutes } from '../../routes/game_routes.ts';
+import { registerIntentRoutes } from '../../routes/intent_routes.ts';
+import { normalizeAncientGameState } from '../../engine/state/ancientState.ts';
+import { onEnterPhase } from '../../engine/phase/onEnterPhase.ts';
 
 type RouteHandler = (context: any) => Promise<Response> | Response;
 

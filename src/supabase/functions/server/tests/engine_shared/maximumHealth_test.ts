@@ -4,8 +4,8 @@ import {
   countControlledSpirals,
   DEFAULT_PLAYER_MAX_HEALTH,
   getPlayerMaxHealth,
-} from "./maximumHealth.ts";
-import { resolvePhase } from "./resolve/resolvePhase.ts";
+} from "../../engine_shared/maximumHealth.ts";
+import { resolvePhase } from "../../engine_shared/resolve/resolvePhase.ts";
 
 function createState(args?: {
   p1Faction?: string;

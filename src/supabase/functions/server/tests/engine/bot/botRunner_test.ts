@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { runBotsUntilSettled } from './botRunner.ts';
+import { runBotsUntilSettled } from '../../../engine/bot/botRunner.ts';
 
 function createBotCubeState(mainValue: number, cubeValues: number[]) {
   const cubeShips = cubeValues.map((_, index) => ({

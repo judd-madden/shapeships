@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import type { GameState } from '../../engine/state/GameStateTypes.ts';
-import { EffectKind, EffectTiming, SurvivabilityRule } from './Effect.ts';
-import { applyEffects } from './applyEffects.ts';
+import type { GameState } from '../../../engine/state/GameStateTypes.ts';
+import { EffectKind, EffectTiming, SurvivabilityRule } from '../../../engine_shared/effects/Effect.ts';
+import { applyEffects } from '../../../engine_shared/effects/applyEffects.ts';
 
 function ship(instanceId: string, shipDefId: string) {
   return { instanceId, shipDefId };

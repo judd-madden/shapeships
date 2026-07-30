@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
-import type { GameState, ShipInstance } from '../../engine/state/GameStateTypes.ts';
+import type { GameState, ShipInstance } from '../../../engine/state/GameStateTypes.ts';
 import {
   getValidDestroyTargets,
   getValidShipOfEqualityTargets,
   getValidTransferTargets,
   isCanonicalBasicOnlyTargetShip,
-} from './destroyRules.ts';
-import { resolvePowerAction } from './resolvePowerAction.ts';
+} from '../../../engine_shared/resolve/destroyRules.ts';
+import { resolvePowerAction } from '../../../engine_shared/resolve/resolvePowerAction.ts';
 
 function ship(
   instanceId: string,

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
-import { fleetHasAvailablePowers } from './fleetHasAvailablePowers.ts';
-import { advancePhaseCore } from './advancePhase.ts';
+import { fleetHasAvailablePowers } from '../../../engine/phase/fleetHasAvailablePowers.ts';
+import { advancePhaseCore } from '../../../engine/phase/advancePhase.ts';
 import {
   isThirdSpiralFirstStrikeEligible,
   recordThirdSpiralFirstStrikeEligibility,
-} from '../../engine_shared/resolve/thirdSpiralFirstStrikeEligibility.ts';
+} from '../../../engine_shared/resolve/thirdSpiralFirstStrikeEligibility.ts';
 
 function spiral(instanceId: string, createdTurn = 3) {
   return { instanceId, shipDefId: 'SPI', createdTurn };
