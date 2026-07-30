@@ -6,6 +6,9 @@ import { resolvePhase } from '../../../engine_shared/resolve/resolvePhase.ts';
 function createState(args: {
   p1Ships?: any[];
   p2Ships?: any[];
+  p1VoidShips?: any[];
+  p2VoidShips?: any[];
+  cubeSelectionByPlayerId?: Record<string, unknown>;
   markerByInstanceId?: Record<string, unknown>;
 }) {
   return {
@@ -18,7 +21,14 @@ function createState(args: {
     gameData: {
       turnNumber: 3,
       ships: { p1: args.p1Ships ?? [], p2: args.p2Ships ?? [] },
-      turnData: { turnNumber: 3 },
+      voidShipsByPlayerId: {
+        p1: args.p1VoidShips ?? [],
+        p2: args.p2VoidShips ?? [],
+      },
+      turnData: {
+        turnNumber: 3,
+        cubeDiceSelectionByPlayerId: args.cubeSelectionByPlayerId,
+      },
       powerMemory: {
         onceOnlyFired: {},
         frigateTriggerByInstanceId: {},
@@ -43,6 +53,193 @@ function spi(instanceId: string) {
 function sol(instanceId: string, chargesCurrent: number) {
   return { instanceId, shipDefId: 'SOL', chargesCurrent };
 }
+
+function cub(instanceId: string) {
+  return { instanceId, shipDefId: 'CUB' };
+}
+
+Deno.test('coherent Cube selection emits one attributed Automatic Damage 2 per live Cube', () => {
+  const state = createState({
+    p1Ships: [cub('cube-a'), cub('cube-b')],
+    cubeSelectionByPlayerId: {
+      p1: { choiceId: 'cube:cube-a', sourceInstanceId: 'cube-a', value: 4 },
+    },
+  });
+  const effects = computePhaseComputedEffects(state, 'battle.end_of_turn_resolution').effects
+    .filter((effect) => (effect.source as any).shipDefId === 'CUB');
+
+  assert.deepEqual(effects, [
+    {
+      id: 'cube_damage_3_cube-a',
+      ownerPlayerId: 'p1',
+      source: { type: 'ship', instanceId: 'cube-a', shipDefId: 'CUB' },
+      timing: 'battle.end_of_turn_resolution',
+      activationTag: EffectTiming.Automatic,
+      survivability: SurvivabilityRule.DiesWithSource,
+      target: { playerId: 'p2' },
+      kind: EffectKind.Damage,
+      amount: 2,
+    },
+    {
+      id: 'cube_damage_3_cube-b',
+      ownerPlayerId: 'p1',
+      source: { type: 'ship', instanceId: 'cube-b', shipDefId: 'CUB' },
+      timing: 'battle.end_of_turn_resolution',
+      activationTag: EffectTiming.Automatic,
+      survivability: SurvivabilityRule.DiesWithSource,
+      target: { playerId: 'p2' },
+      kind: EffectKind.Damage,
+      amount: 2,
+    },
+  ]);
+});
+
+Deno.test('main, missing, malformed, and incoherent Cube selections emit no damage', () => {
+  const selections = [
+    { choiceId: 'main', sourceInstanceId: 'cube-a', value: 4 },
+    undefined,
+    { choiceId: 'cube:', sourceInstanceId: '', value: 4 },
+    { choiceId: 'cube:cube-a', value: 4 },
+    { choiceId: 'cube:cube-a', sourceInstanceId: 'cube-b', value: 4 },
+  ];
+
+  for (const selection of selections) {
+    const state = createState({
+      p1Ships: [cub('cube-a')],
+      cubeSelectionByPlayerId: selection === undefined ? {} : { p1: selection },
+    });
+    const effects = computePhaseComputedEffects(state, 'battle.end_of_turn_resolution').effects;
+    assert.equal(
+      effects.some((effect) => (effect.source as any).shipDefId === 'CUB'),
+      false,
+    );
+  }
+});
+
+Deno.test('equal main and Cube values still trigger from the coherent retained selection', () => {
+  const state = createState({
+    p1Ships: [cub('cube-a')],
+    cubeSelectionByPlayerId: {
+      p1: { choiceId: 'cube:cube-a', sourceInstanceId: 'cube-a', value: 5 },
+    },
+  });
+  state.gameData.turnData.baseDiceRoll = 5;
+  state.gameData.turnData.effectiveDiceRoll = 5;
+  state.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 5, p2: 5 };
+
+  const effects = computePhaseComputedEffects(state, 'battle.end_of_turn_resolution').effects
+    .filter((effect) => (effect.source as any).shipDefId === 'CUB');
+  assert.equal(effects.length, 1);
+  assert.equal((effects[0] as any).amount, 2);
+});
+
+Deno.test('only current live Cubes emit when the selected source is already VOID', () => {
+  const state = createState({
+    p1Ships: [cub('cube-survivor')],
+    p1VoidShips: [cub('cube-selected')],
+    cubeSelectionByPlayerId: {
+      p1: {
+        choiceId: 'cube:cube-selected',
+        sourceInstanceId: 'cube-selected',
+        value: 3,
+      },
+    },
+  });
+  const effects = computePhaseComputedEffects(state, 'battle.end_of_turn_resolution').effects
+    .filter((effect) => (effect.source as any).shipDefId === 'CUB');
+
+  assert.deepEqual(
+    effects.map((effect) => (effect.source as any).instanceId),
+    ['cube-survivor'],
+  );
+});
+
+Deno.test('Cube selection stays player-specific while damage follows current control', () => {
+  const formerControllerOnly = createState({
+    p1Ships: [cub('cube-p1-survivor')],
+    p2Ships: [cub('cube-transferred')],
+    cubeSelectionByPlayerId: {
+      p1: {
+        choiceId: 'cube:cube-transferred',
+        sourceInstanceId: 'cube-transferred',
+        value: 6,
+      },
+    },
+  });
+  const formerControllerEffects = computePhaseComputedEffects(
+    formerControllerOnly,
+    'battle.end_of_turn_resolution',
+  ).effects.filter((effect) => (effect.source as any).shipDefId === 'CUB');
+  assert.deepEqual(
+    formerControllerEffects.map((effect) => ({
+      ownerPlayerId: effect.ownerPlayerId,
+      instanceId: (effect.source as any).instanceId,
+    })),
+    [{ ownerPlayerId: 'p1', instanceId: 'cube-p1-survivor' }],
+  );
+
+  const bothControllersSelected = createState({
+    p1Ships: [cub('cube-p1-survivor')],
+    p2Ships: [cub('cube-transferred')],
+    cubeSelectionByPlayerId: {
+      p1: {
+        choiceId: 'cube:cube-transferred',
+        sourceInstanceId: 'cube-transferred',
+        value: 6,
+      },
+      p2: { choiceId: 'cube:cube-p2-source', sourceInstanceId: 'cube-p2-source', value: 2 },
+    },
+  });
+  const bothControllerEffects = computePhaseComputedEffects(
+    bothControllersSelected,
+    'battle.end_of_turn_resolution',
+  ).effects.filter((effect) => (effect.source as any).shipDefId === 'CUB');
+  assert.deepEqual(
+    bothControllerEffects.map((effect) => ({
+      ownerPlayerId: effect.ownerPlayerId,
+      instanceId: (effect.source as any).instanceId,
+      targetPlayerId: effect.target.playerId,
+    })),
+    [
+      { ownerPlayerId: 'p1', instanceId: 'cube-p1-survivor', targetPlayerId: 'p2' },
+      { ownerPlayerId: 'p2', instanceId: 'cube-transferred', targetPlayerId: 'p1' },
+    ],
+  );
+});
+
+Deno.test('Cube damage participates in Automatic modifiers, breakdown, and idempotency', () => {
+  const state = createState({
+    p1Ships: [
+      cub('cube-1'),
+      { instanceId: 'science-1', shipDefId: 'SCI' },
+      { instanceId: 'science-2', shipDefId: 'SCI' },
+      { instanceId: 'science-3', shipDefId: 'SCI' },
+    ],
+    cubeSelectionByPlayerId: {
+      p1: { choiceId: 'cube:cube-1', sourceInstanceId: 'cube-1', value: 2 },
+    },
+  });
+
+  const first = resolvePhase(state, 'battle.end_of_turn_resolution');
+  assert.equal(first.state.players.find((player: any) => player.id === 'p2')?.health, 16);
+  assert.equal(first.state.gameData.lastTurnDamageByPlayerId?.p2, 4);
+  assert.equal(
+    first.state.gameData.lastTurnDamageDealtBreakdownByPlayerId?.p1?.some(
+      (row: any) => row.label === 'Cube' && row.count === 1 && row.amount === 2,
+    ),
+    true,
+  );
+  assert.equal(
+    first.state.gameData.lastTurnDamageDealtBreakdownByPlayerId?.p1?.some(
+      (row: any) => row.label === 'Science Vessel' && row.amount === 2,
+    ),
+    true,
+  );
+
+  const second = resolvePhase(first.state, 'battle.end_of_turn_resolution');
+  assert.equal(second.state.players.find((player: any) => player.id === 'p2')?.health, 16);
+  assert.deepEqual(second.events, []);
+});
 
 Deno.test('live depleted SOL emits one attributed Automatic Heal 2 per source for any controller', () => {
   const state = createState({

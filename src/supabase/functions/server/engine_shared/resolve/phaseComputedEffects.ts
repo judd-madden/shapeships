@@ -59,7 +59,7 @@ export const COMPUTED_EFFECTS_AUDIT = [
   { shipDefId: 'KNO', mechanic: 'tiered thresholds + shared dice rerolls + automatic healing' },
 
   // Ancient (several mechanics are implemented in dedicated Ancient modules)
-  { shipDefId: 'CUB', mechanic: 'Dice Manipulation: extra die per controlled Cube; controller selects the turn roll' },
+  { shipDefId: 'CUB', mechanic: 'extra-die selection + conditional per-source Automatic Damage 2' },
   { shipDefId: 'QUA', mechanic: 'dice-conditioned energy/heal' },
   { shipDefId: 'SPI', mechanic: 'per-source owned-count healing + max-health modifier' },
   { shipDefId: 'SSIM', mechanic: 'computed variable X (lines) + copy enemy basic ship' },
@@ -124,6 +124,28 @@ function getOpponentIdMap(state: GameState): Map<string, string> {
 
 function getShips(state: GameState, playerId: string): ShipInstance[] {
   return state.gameData.ships?.[playerId] ?? [];
+}
+
+function hasCoherentRetainedCubeSelection(
+  state: GameState,
+  playerId: string
+): boolean {
+  const selection = state.gameData.turnData?.cubeDiceSelectionByPlayerId?.[playerId];
+  if (
+    typeof selection?.choiceId !== 'string' ||
+    typeof selection.sourceInstanceId !== 'string'
+  ) {
+    return false;
+  }
+
+  const prefix = 'cube:';
+  if (!selection.choiceId.startsWith(prefix)) return false;
+
+  const selectedSourceInstanceId = selection.choiceId.slice(prefix.length);
+  return (
+    selectedSourceInstanceId.length > 0 &&
+    selectedSourceInstanceId === selection.sourceInstanceId
+  );
 }
 
 function getShipsForOnceOnlyResolution(state: GameState, playerId: string): ShipInstance[] {
@@ -1153,6 +1175,35 @@ export function computePhaseComputedEffects(
 
       debugLog(
         `[computePhaseComputedEffects] ArkOfDomination automatic: owner=${ownerPlayerId} instance=${ship.instanceId} ownedShips=${ownedShipCount} heal=${healPerDom}`
+      );
+    }
+  }
+
+  // === CUBE (CUB): retained Cube selection makes each live controlled Cube deal 2 ===
+  for (const player of activePlayers) {
+    const ownerPlayerId = player.id;
+    if (!hasCoherentRetainedCubeSelection(state, ownerPlayerId)) continue;
+
+    const opponentId = opponentMap.get(ownerPlayerId);
+    if (!opponentId) continue;
+
+    for (const ship of getShips(state, ownerPlayerId)) {
+      if (ship.shipDefId !== 'CUB') continue;
+
+      computedEffects.push({
+        id: `cube_damage_${currentTurn}_${ship.instanceId}`,
+        ownerPlayerId,
+        source: { type: 'ship', instanceId: ship.instanceId, shipDefId: 'CUB' },
+        timing: phaseKey,
+        activationTag: EffectTiming.Automatic,
+        survivability: SurvivabilityRule.DiesWithSource,
+        target: { playerId: opponentId },
+        kind: EffectKind.Damage,
+        amount: 3,
+      });
+
+      debugLog(
+        `[computePhaseComputedEffects] Cube automatic: controller=${ownerPlayerId} instance=${ship.instanceId} damage=2 target=${opponentId}`
       );
     }
   }

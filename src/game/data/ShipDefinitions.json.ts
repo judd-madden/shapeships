@@ -1408,7 +1408,7 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "Automatic",
-        "text": "If you do, each of your Cubes deals 2 damage."
+        "text": "If you do, each of your Cubes deals 3 damage."
       }
     ],
     "energyCost": null,
