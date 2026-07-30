@@ -123,9 +123,16 @@ import {
   isLiveRowAncientSolarPowerId,
 } from './gameSession/ancientSolarDisplay';
 import {
+  allocateNextAncientBlackHoleTarget,
+  allocateNextAncientSimulacrumTarget,
+  buildAncientBlackHoleBoardTargeting,
   buildPersistentAncientSolarTargetMarkers,
+  buildAncientSimulacrumBoardTargeting,
+  deriveAncientBlackHoleDamagePreview,
+  deriveAncientBlackHoleTargetingState,
+  deriveAncientSimulacrumTargetingState,
   overlayAncientSolarTargetMarkers,
-} from './gameSession/ancientSolarTargetMarkers';
+} from './gameSession/ancientSolarTargeting';
 import { deriveAncientSolarHoverValues } from './gameSession/ancientSolarHoverValues';
 import type {
   AcceptedFullStateFingerprint,
@@ -221,19 +228,6 @@ import {
   ANCIENT_SIPHON_MINIMUM_SPEND,
   isValidAncientSiphonSpend,
 } from '../data/ancientSiphonRules';
-import {
-  allocateNextAncientBlackHoleTarget,
-  buildAncientBlackHoleBoardTargeting,
-  deriveAncientBlackHoleDamagePreview,
-  deriveAncientBlackHoleTargetingState,
-} from './gameSession/ancientBlackHoleTargeting';
-import {
-  allocateNextAncientSimulacrumTarget,
-  buildAncientSimulacrumBoardTargeting,
-  deriveAncientSimulacrumTargetingState,
-} from './gameSession/ancientSimulacrumTargeting';
-
-
 // ============================================================================
 
 // ============================================================================
@@ -245,7 +239,6 @@ interface UseGameSessionOptions {
   onNavigateToGame?: (gameId: string) => void;
 }
 
-const ANCIENT_SELECTION_ENABLED = import.meta.env.DEV;
 const EMPTY_BUILD_PREVIEW_COUNTS: Record<string, number> = {};
 const ANCIENT_AUTOCAST_ENABLED_STORAGE_KEY = 'shapeships.ancientAutocastEnabled.v1';
 
@@ -3643,14 +3636,12 @@ useEffect(() => {
     const canConfirmSpecies =
       !isSpeciesSelectionComplete &&
       myRole === 'player' &&
-      me?.isActive === true &&
-      (selectedSpecies !== 'ancient' || ANCIENT_SELECTION_ENABLED);
+      me?.isActive === true;
 
     const confirmDisabledReason =
       myRole !== 'player' ? 'Two players already present. You are spectating.' :
       me?.isActive !== true ? 'Inactive player cannot confirm' :
       isSpeciesSelectionComplete ? 'Already confirmed' :
-      selectedSpecies === 'ancient' && !ANCIENT_SELECTION_ENABLED ? 'Ancient is still in development.' :
       undefined;
 
     board = {
@@ -5530,11 +5521,6 @@ useEffect(() => {
         return;
       }
 
-      if (selectedSpecies === 'ancient' && !ANCIENT_SELECTION_ENABLED) {
-        console.error('[useGameSession] SPECIES_SUBMIT blocked: species disabled', { selectedSpecies });
-        return;
-      }
-      
       await runSpeciesConfirmFlow({
         selectedSpecies,
         botSpecies: isComputerGame ? selectedBotSpecies : undefined,

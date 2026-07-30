@@ -205,6 +205,10 @@ function mapSubphaseToPhase(subphase: string): ShipPowerPhase {
   if (normalized === 'Charge Declaration') return PhaseEnum.SIMULTANEOUS_DECLARATION;
   if (normalized === 'Dice Manipulation') return PhaseEnum.DICE_MANIPULATION;
   if (normalized === 'Automatic') return PhaseEnum.AUTOMATIC;
+  if (normalized === 'Energy') {
+    // Definition/presentation category, not an authoritative turn subphase.
+    return PhaseEnum.EVENT;
+  }
   
   // Passive powers (event-triggered)
   if (normalized === 'Passive' || normalized.includes('(Passive)') || normalized.includes('(passive)')) {
