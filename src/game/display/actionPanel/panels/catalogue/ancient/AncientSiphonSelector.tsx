@@ -75,59 +75,70 @@ export function AncientSiphonSelector({
               hoveredSpend !== null && valid && candidate <= hoveredSpend;
 
             return (
-              <button
+              <div
                 key={candidate}
-                type="button"
-                disabled={!valid}
-                aria-label={
-                  effectAmount === null
-                    ? `Siphon spend ${candidate} is unavailable`
-                    : `Spend ${candidate} green and ${candidate} red Energy for ${effectAmount} Healing and ${effectAmount} Damage`
-                }
-                className="flex shrink-0 flex-col items-center gap-[12px] rounded-[10px] bg-[var(--shapeships-grey-90)] px-[16px] py-[24px] focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_white] disabled:cursor-default"
-                style={{
-                  opacity: valid ? 1 : 0.4,
-                  boxShadow: cumulativelyHovered ? 'inset 0 0 0 2px white' : undefined,
-                }}
-                onMouseEnter={() => {
-                  const nextHoveredSpend = valid ? candidate : null;
-                  setHoveredSpend(nextHoveredSpend);
-                  onHoveredSpendChange(nextHoveredSpend);
-                }}
-                onClick={() => {
-                  if (valid) {
-                    setHoveredSpend(null);
-                    onHoveredSpendChange(null);
-                    onSelect(candidate);
-                  }
-                }}
+                className="flex shrink-0 flex-col items-center gap-[6px]"
+                style={{ opacity: valid ? 1 : 0.4 }}
               >
-                <AncientEnergyCostPips
-                  rows={[
-                    {
-                      color: 'green',
-                      count: candidate === ANCIENT_SIPHON_MINIMUM_SPEND
-                        ? ANCIENT_SIPHON_MINIMUM_SPEND
-                        : 1,
-                    },
-                    {
-                      color: 'red',
-                      count: candidate === ANCIENT_SIPHON_MINIMUM_SPEND
-                        ? ANCIENT_SIPHON_MINIMUM_SPEND
-                        : 1,
-                    },
-                  ]}
-                />
-                {effectAmount !== null && (
-                  <div
-                    className="flex flex-col items-center gap-[8px] font-['Roboto'] text-[22px] font-bold leading-none"
-                    style={{ fontVariationSettings: "'wdth' 100" }}
-                  >
-                    <span className="text-[var(--shapeships-pastel-green)]">{effectAmount}</span>
-                    <span className="text-[var(--shapeships-pastel-red)]">{effectAmount}</span>
-                  </div>
-                )}
-              </button>
+                <button
+                  type="button"
+                  disabled={!valid}
+                  aria-label={
+                    effectAmount === null
+                      ? `Siphon spend ${candidate} is unavailable`
+                      : `Spend ${candidate} green and ${candidate} red Energy for ${effectAmount} Healing and ${effectAmount} Damage`
+                  }
+                  className="flex shrink-0 flex-col items-center gap-[12px] rounded-[10px] bg-[var(--shapeships-grey-90)] px-[16px] py-[24px] focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_white] disabled:cursor-default"
+                  style={{
+                    boxShadow: cumulativelyHovered ? 'inset 0 0 0 2px white' : undefined,
+                  }}
+                  onMouseEnter={() => {
+                    const nextHoveredSpend = valid ? candidate : null;
+                    setHoveredSpend(nextHoveredSpend);
+                    onHoveredSpendChange(nextHoveredSpend);
+                  }}
+                  onClick={() => {
+                    if (valid) {
+                      setHoveredSpend(null);
+                      onHoveredSpendChange(null);
+                      onSelect(candidate);
+                    }
+                  }}
+                >
+                  <AncientEnergyCostPips
+                    rows={[
+                      {
+                        color: 'green',
+                        count: candidate === ANCIENT_SIPHON_MINIMUM_SPEND
+                          ? ANCIENT_SIPHON_MINIMUM_SPEND
+                          : 1,
+                      },
+                      {
+                        color: 'red',
+                        count: candidate === ANCIENT_SIPHON_MINIMUM_SPEND
+                          ? ANCIENT_SIPHON_MINIMUM_SPEND
+                          : 1,
+                      },
+                    ]}
+                  />
+                  {effectAmount !== null && (
+                    <div
+                      className="flex flex-col items-center gap-[8px] font-['Roboto'] text-[22px] font-bold leading-none"
+                      style={{ fontVariationSettings: "'wdth' 100" }}
+                    >
+                      <span className="text-[var(--shapeships-pastel-green)]">{effectAmount}</span>
+                      <span className="text-[var(--shapeships-pastel-red)]">{effectAmount}</span>
+                    </div>
+                  )}
+                </button>
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none font-['Roboto'] text-center text-[16px] font-bold leading-none text-white"
+                  style={{ fontVariationSettings: "'wdth' 100" }}
+                >
+                  {candidate}
+                </span>
+              </div>
             );
           })}
         </div>
