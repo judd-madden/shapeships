@@ -1,79 +1,93 @@
 # Shapeships
 
-Multiplayer, server-authoritative, turn-based fleet strategy game.
+Shapeships is a server-authoritative, simultaneous-turn 1v1 fleet strategy game.
 
-**Current repo posture:** local Vite client + Supabase Edge Functions backend, with active work across authoritative server rules, client/runtime orchestration, and presentation layers.
+**Current repo posture:** a React/Vite client and Supabase Edge Function server, with active work across authoritative rules, client/runtime orchestration, and desktop and mobile presentation.
 
 ## Start Here
 
 ### Core project guidance
+
 - [Repo agent rules](../AGENTS.md)
 - [Documentation index](documentation/INDEX.md)
+- [Current repository status](VERSION.md)
 
 ### Core architecture documents
+
 - [Canonical handoff](documentation/contracts/canonical-handoff.md)
 - [Code ownership map](documentation/contracts/code-ownership-map.md)
 - [Server/client turn-phase contract](documentation/contracts/ServerClientTurnPhaseContract.md)
 - [Guidelines](documentation/Guidelines.md)
 
-## Architectural truths
+## Architectural Truths
 
 ### Server authority
-The server is the source of truth for:
-- rules
-- legality
-- phase advancement
-- combat outcomes
-- effect application
-- canonical state transitions
 
-The client renders server state, submits intents, and projects local previews, but it is not authoritative.
+The server is the source of truth for:
+
+- rules and legality
+- phase advancement and clocks
+- combat outcomes and effect application
+- persistence and canonical state transitions
+
+The client renders projected server state, submits intents, and provides local previews, but it is not authoritative.
 
 ### Client runtime owns live wiring
-Live server interaction stays centralized in `game/client/**`, especially around `useGameSession` and its extracted client effect helpers. That runtime owns session-backed joins, live state polling, chat polling, history fetches, and view-model orchestration.
+
+Live server interaction stays centralized in `game/client/**`, especially `useGameSession` and its extracted effects. This layer owns session-backed joins, state and chat polling, on-demand history reads, intent submission, and view-model orchestration.
 
 ### Display is presentation
-Code in `game/display/**`, `components/**`, and `graphics/**` is presentation-oriented. It renders state, gathers input, and plays visual/audio feedback, but it should not become authoritative.
+
+Code in `game/display/**`, `components/**`, and `graphics/**` renders state, gathers input, and presents visual or audio feedback. It must not own server communication or authoritative rules.
 
 ### Client/UI coupling is normal
-In this repo, client runtime and UI work often move together in a single pass. That is acceptable as long as authoritative rules remain on the server.
 
-## Technology stack
-- **Client:** React + TypeScript + Vite + Tailwind
-- **Server:** Supabase Edge Functions (Deno) + Hono
-- **State transport:** session-backed HTTP calls, polling, and targeted refreshes
-- **Graphics/audio:** React SVG ship components, local assets, and current in-match sound cues
+Client runtime and display work may move together in a Client/UI pass as long as authoritative gameplay remains on the server.
 
-## Repo layout
-- `game/client/**` - session lifecycle, networking, polling helpers, view-model orchestration
-- `game/display/**` - in-match presentation screens, panels, board UI
-- `components/**` - shells, panels, and reusable UI primitives
-- `graphics/**` - ship graphics and visual assets
-- `supabase/functions/server/**` - Edge Function entrypoint, routes, authoritative engine, and server-owned shared logic
-- `supabase/functions/server/tests/**` - centralized authoritative-server regression tree; test code is not part of the production runtime
-- `documentation/**` - contracts, workflows, and infrastructure notes
+## Technology Stack
 
-## Current codebase overview
-- `App.tsx` is the current top-level app entry/container. It supports dev-oriented views, the active shell/player flow, and direct in-match game mode.
-- `ScreenManager` and the shell components are active project code, not dead scaffolding. The login and menu flow can create private games, create computer games, and launch directly into `GameScreen`.
-- `GameScreen` is the live in-match shell. It renders from `useGameSession`, which handles auto-join, authoritative state refresh, chat/history reads, intent submission, and client-only presentation state.
-- The runtime currently uses a polling-based read posture. Full game-state reads remain authoritative, lightweight head reads support change detection and clock snapshots, chat is polled separately, and battle-log history is fetched on demand from the session runtime.
-- In-match audio is currently lightweight and local to the client runtime. The present manifest includes a live dice cue and placeholder entries for additional species-specific sounds.
+- **Client:** React, TypeScript, Vite, and Tailwind CSS
+- **Server:** Supabase Edge Functions using Deno and Hono
+- **State transport:** session-backed HTTP calls, polling, targeted refreshes, and on-demand history reads
+- **Graphics and audio:** React SVG ship components, local assets, live dice and destruction cues, and placeholder species cues
 
-### Phase 13 status
+Species-specific sound coverage remains incomplete.
 
-- Ancient implementation is complete for the approved Phase 13 scope and is available through normal player selection.
-- P29 structural cleanup and focused server hardening are complete.
-- The P30 release-readiness audit reported no code-level blocker requiring a production change.
-- Real-player testing and balance refinement now begin.
-- Ancient bot support remains deferred.
+## Repository Layout
 
-See [VERSION.md](VERSION.md) for the detailed current repository snapshot.
+- `game/client/**` — session lifecycle, networking, polling, intent submission, and view-model orchestration
+- `game/display/**` — desktop and mobile match screens, panels, board UI, animation, and feedback
+- `components/**` — application shells, rules screens, panels, and reusable UI primitives
+- `graphics/**` — species ship graphics and visual assets
+- `supabase/functions/server/**` — Edge Function entrypoint, routes, authoritative engine, and server-owned shared logic
+- `supabase/functions/server/tests/**` — centralized authoritative-server regression tests; this is not production runtime code
+- `documentation/**` — current status, contracts, workflows, planning records, and infrastructure notes
+- `game/legacy/**` and server `legacy/**` — retained older code outside the preferred active implementation path
 
-## Development posture
-This project is intended to be worked on through:
+## Current Codebase Overview
+
+- `App.tsx` is the active top-level entry and development launcher; the player shell and scaffolding remain intentional active project code.
+- `ScreenManager` and the shell components provide display-name entry, menus, private and computer game creation, rules, and direct match launch.
+- `GameScreen` is the live match shell and switches between active desktop and mobile layouts.
+- `useGameSession` centralizes auto-join, session-backed networking, authoritative refreshes, chat, history, intent submission, and client-only presentation state.
+- Full state and lightweight head reads support authoritative polling and clock snapshots, chat is polled separately, and battle history is fetched on demand.
+- Server reads return requester-, opponent-, and spectator-safe projections, including available actions and filtered hidden commitments.
+- Authoritative server tests are centralized under `supabase/functions/server/tests/**`.
+
+## Current Product Posture
+
+Shapeships supports private multiplayer and computer games in timed and untimed formats. Human, Xenite, Centaur, and Ancient are available for player-controlled play; Human, Xenite, and Centaur also support computer opponents.
+
+Ancient is implemented for player-controlled play and is entering real-player testing and balance refinement. Ancient computer-opponent support remains deferred.
+
+See [VERSION.md](VERSION.md) for the detailed holistic product snapshot.
+
+## Development Posture
+
+Development uses:
+
 1. local Vite development for the client
 2. local or deployed Supabase Edge Functions for authoritative logic
 3. scoped implementation passes with architecture review
 
-See [documentation/INDEX.md](documentation/INDEX.md) for the current documentation map.
+See [documentation/INDEX.md](documentation/INDEX.md) for the documentation map.

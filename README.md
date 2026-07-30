@@ -2,77 +2,57 @@
 
 Shapeships is a free online 1v1 strategy game where shared dice become lines, lines become ships, and ships grow into strange, powerful fleets.
 
-Players build simultaneously, reveal their choices, and develop permanent fleets of damage engines, healing walls, economy pieces, upgrades, counters, and control effects.
+Each turn, a shared dice roll gives both players lines. Lines make ships. Ships have powers. Fleets stay on the board, so every turn compounds: damage engines, healing walls, greedy economy, control pieces, upgrades, counters, and sudden lethal turns.
+
+Shapeships isn’t about movement or targeting. Ships don't move, don't have health, and (mostly) don't interact with each other directly. When you build a ship, its power becomes a permanent part of your fleet. The game is won by building the fleet that outpaces, outlasts, or breaks your opponent’s.
 
 **Play Shapeships:** https://shapeships.juddmadden.com
 
-## Current Features
+## Current Game
 
-- Online 1v1 multiplayer
-- Server-controlled computer opponents
-- Simultaneous hidden build turns
-- Four player-selectable species: Human, Xenite, Centaur, and Ancient
-- Dozens of ships with distinct powers
-- Server-authoritative rules and combat resolution
-- Desktop and mobile layouts
-- Spectator mode and spectator chat
-- Battle logs and downloadable match history
-- End-of-game match statistics
-- Timed and untimed games
+- Create private online matches or play against a server-controlled computer opponent.
+- Choose timed or untimed play and develop a persistent fleet through simultaneous Build and Battle phases.
+- Read the opponent's visible fleet, commit hidden choices, and adapt when both plans are revealed.
+- Play through active desktop and mobile match layouts with contextual actions, targeting, rules, and timing references.
+- Watch or join matches as a spectator and use in-game chat.
+- Review battle logs, download match history, inspect endgame statistics, and quickly create a rematch.
+- Offer or refuse draws, resign, and resolve victories through the authoritative server.
 
-Ancient implementation is complete for the approved Phase 13 scope and is entering real-player testing and balance refinement.
+## Species
+
+- **Human — Metal. Explosions. Expansion.** Build a foundation, produce and upgrade ships, and turn steady development into pressure.
+- **Xenite — Swarm. Queen. Hive.** Multiply, mutate, and crowd the board until the whole fleet becomes the threat.
+- **Centaur — Power. Timing. Domination.** Create sharp swings and punish the opponent at decisive moments.
+- **Ancient — Energy. Solar Powers. Ever present.** Gather Energy and turn it into carefully timed powers that reshape battle.
+
+All four species are available for player-controlled play. Human, Xenite, and Centaur also support computer opponents; Ancient computer-opponent support remains deferred.
 
 ## Technology
 
-- React
-- TypeScript
-- Vite
-- Tailwind CSS
-- Supabase
-- Supabase Edge Functions
-- Deno
-- Hono
+The client uses React, TypeScript, Vite, and Tailwind CSS. The authoritative server runs as a Supabase Edge Function using Deno and Hono.
 
-Shapeships is server-authoritative. The server determines legality, phase progression, combat results, effect resolution, and canonical game state. The client renders server state, gathers player input, and submits intents.
+The server determines legality, phase progression, clocks, combat, effect resolution, persistence, and canonical game state. The client renders projected state, gathers input, and submits player intents.
 
-See [`src/README.md`](src/README.md) for more detailed project and architecture documentation.
+See [`src/README.md`](src/README.md) for repository and architecture orientation.
 
 ## GPT-5.6 and Codex
 
-Shapeships is developed through an AI-assisted design and engineering workflow using both GPT-5.6 and Codex.
+Shapeships began as a dice-and-paper design in which simple shared rules create complicated strategic decisions. Its species support distinct build orders and matchup theories, while repeated games expose counters, balance questions, and new ways to use the same dice.
 
-### GPT-5.6
+The game is developed through a designer-directed workflow using GPT-5.6 and Codex:
 
-GPT-5.6 was used for the large-scale design and implementation planning of Shapeships’ fourth species, Ancient, and continues to support later refinement and hardening.
+- The game designer owns product direction, rules, balance decisions, approval, runtime testing, and deployment.
+- GPT-5.6 supports systems analysis, rule reasoning, architecture planning, risk analysis, implementation sequencing, plan evaluation, and refinement.
+- Codex inspects and edits the live repository through approved, scoped passes that preserve the server-authoritative architecture.
+- The process was used extensively for the Ancient species and continues to support the broader game.
 
-This work includes:
+GPT-5.6 and Codex provide substantive design and engineering support, not incidental copywriting, but neither autonomously owns product decisions or deployment.
 
-- analysing interconnected rules and edge cases
-- separating reusable mechanics from genuinely new systems
-- defining server, client-runtime, and display responsibilities
-- identifying regression risks to the existing species
-- sequencing the work into small implementation passes
-- evaluating implementation plans
-- preparing scoped implementation briefs for Codex
-
-The original approved planning and implementation roadmap is available here:
+The original approved Ancient design and implementation roadmap is preserved as a detailed example of the GPT-5.6 planning process:
 
 - [Phase 13 Ancient Species — GPT-5.6 Planning Record](src/documentation/Phase%2013%20Ancient%20Species%20-%20GPT-5.6%20Planning%20Record.md)
 
-The planning record preserves useful historical design reasoning, but it is not the current implementation-status source. See [`src/VERSION.md`](src/VERSION.md) for the current repository snapshot.
-
-### Codex
-
-Codex has been the primary repository-attached implementation agent used throughout Shapeships development.
-
-Codex is used to:
-
-- inspect the live repository before changes are made
-- propose file-level implementation plans
-- implement scoped server, client-runtime, and UI passes
-- preserve the server-authoritative architecture
-- run TypeScript, build, and Deno validation
-- report changed files, risks, assumptions, and validation results
+That record provides historical planning context rather than current repository status. See [`src/VERSION.md`](src/VERSION.md) for the current snapshot.
 
 Repository guidance for Codex and other coding agents is defined in:
 
@@ -81,24 +61,13 @@ Repository guidance for Codex and other coding agents is defined in:
 - [Code ownership map](src/documentation/contracts/code-ownership-map.md)
 - [Codex pass template](src/documentation/workflows/CodexPassTemplate.md)
 
-### Development Workflow
-
-1. I define the game design, product intent, and acceptance criteria.
-2. GPT-5.6 helps analyse complex systems and turn them into reviewed engineering plans.
-3. Codex inspects the repository and implements approved work through tightly scoped passes.
-4. I review the code, run the game, test gameplay and presentation, and direct further refinements.
-
-GPT-5.6 and Codex are used for substantive design and engineering work, not only for incidental text generation or decorative content.
-
 ## Project Documentation
 
-Key documentation includes:
-
+- [Current repository status](src/VERSION.md)
 - [Documentation index](src/documentation/INDEX.md)
 - [Canonical architecture](src/documentation/contracts/canonical-handoff.md)
 - [Server/client phase contract](src/documentation/contracts/ServerClientTurnPhaseContract.md)
 - [Code ownership map](src/documentation/contracts/code-ownership-map.md)
-- [Codex pass template](src/documentation/workflows/CodexPassTemplate.md)
 
 ## Running Locally
 
@@ -131,10 +100,9 @@ Common repository checks include:
 npm run typecheck
 npm run build
 deno check src/supabase/functions/server/index.tsx
+deno test --allow-env src/supabase/functions/server/tests
 ```
 
 ## Status
 
-Shapeships is in public alpha and remains under active development.
-
-Human, Xenite, Centaur, and Ancient are available for player-controlled play in the current source build. Ancient is entering real-player testing and balance refinement. Ancient computer-opponent support remains deferred.
+Shapeships is in public alpha with four player-selectable species and active real-player testing and balancing. Ancient is the newest species entering that testing, and Ancient computer-opponent support remains deferred.
