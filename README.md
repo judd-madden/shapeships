@@ -11,7 +11,7 @@ Players build simultaneously, reveal their choices, and develop permanent fleets
 - Online 1v1 multiplayer
 - Server-controlled computer opponents
 - Simultaneous hidden build turns
-- Human, Xenite, and Centaur species
+- Four player-selectable species: Human, Xenite, Centaur, and Ancient
 - Dozens of ships with distinct powers
 - Server-authoritative rules and combat resolution
 - Desktop and mobile layouts
@@ -20,7 +20,7 @@ Players build simultaneously, reveal their choices, and develop permanent fleets
 - End-of-game match statistics
 - Timed and untimed games
 
-The fourth species, the Ancients, is currently undergoing detailed design and engineering planning.
+Ancient implementation is complete for the approved Phase 13 scope and is entering real-player testing and balance refinement.
 
 ## Technology
 
@@ -43,7 +43,7 @@ Shapeships is developed through an AI-assisted design and engineering workflow u
 
 ### GPT-5.6
 
-GPT-5.6 is being used for the large-scale design and engineering planning of Shapeships’ fourth species, the Ancients.
+GPT-5.6 was used for the large-scale design and implementation planning of Shapeships’ fourth species, Ancient, and continues to support later refinement and hardening.
 
 This work includes:
 
@@ -52,13 +52,14 @@ This work includes:
 - defining server, client-runtime, and display responsibilities
 - identifying regression risks to the existing species
 - sequencing the work into small implementation passes
+- evaluating implementation plans
 - preparing scoped implementation briefs for Codex
 
-The current planning record is available here:
+The original approved planning and implementation roadmap is available here:
 
 - [Phase 13 Ancient Species — GPT-5.6 Planning Record](src/documentation/Phase%2013%20Ancient%20Species%20-%20GPT-5.6%20Planning%20Record.md)
 
-The Ancient species is still in planning. This document records the engineering work completed so far and does not claim that Ancient gameplay has already been implemented.
+The planning record preserves useful historical design reasoning, but it is not the current implementation-status source. See [`src/VERSION.md`](src/VERSION.md) for the current repository snapshot.
 
 ### Codex
 
@@ -136,4 +137,4 @@ deno check src/supabase/functions/server/index.tsx
 
 Shapeships is in public alpha and remains under active development.
 
-The existing Human, Xenite, and Centaur game systems are playable. Ancient species work is currently in design and engineering planning.
+Human, Xenite, Centaur, and Ancient are available for player-controlled play in the current source build. Ancient is entering real-player testing and balance refinement. Ancient computer-opponent support remains deferred.

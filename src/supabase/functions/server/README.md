@@ -10,8 +10,9 @@ The current package is practical rather than perfectly clean. Route handlers, `e
 - `routes/` - Hono route families for session/auth, game lifecycle and state reads, intent submission, chat/history-related reads, and test/debug endpoints
 - `engine/` - authoritative server-side stateful logic used by the routes
 - `engine_shared/` - deterministic shared helpers, definitions, tables, and resolution code used heavily by both routes and `engine/`
+- `tests/` - centralized Deno regression tree mirroring production ownership areas such as `engine/`, `engine_shared/`, and `routes/`; it is not production runtime code
 - `legacy/` - older server-side code that remains in-repo but is not the preferred place for new work
-- `kv_store.tsx` and `test_all_endpoints.sh` - local server helpers and testing utilities
+- `kv_store.tsx` - local server storage helper
 
 ## Current route families
 
@@ -83,5 +84,25 @@ Code in this directory must remain Edge-compatible:
 
 ## Testing
 
-- Route and runtime smoke testing can use `test_all_endpoints.sh`
-- Additional checks should stay scoped to the server package and current Edge runtime assumptions
+At this snapshot, the centralized server suite contains 20 TypeScript test files and 226 passing cases.
+
+The test suite is centralized under `src/supabase/functions/server/tests/**` and mirrors production ownership areas including:
+
+- `engine/`
+- `engine_shared/`
+- `routes/`
+
+Current server validation commands:
+
+```bash
+deno check src/supabase/functions/server/index.tsx
+deno test --allow-env src/supabase/functions/server/tests
+```
+
+The live-server endpoint smoke utility is located at `tests/integration/test_all_endpoints.sh`. It requires a running local server and is not part of the normal Deno test suite.
+
+`routes/test_routes.ts` remains active conditional development-route code. Test routes are registered only when:
+
+```text
+ENABLE_TEST_ROUTES=true
+```

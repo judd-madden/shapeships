@@ -4,15 +4,20 @@ This directory contains the current documentation spine for the Shapeships codeb
 
 ## Reading Order
 
-1. [Canonical handoff](contracts/canonical-handoff.md)
-2. [Code ownership map](contracts/code-ownership-map.md)
-3. [Guidelines](Guidelines.md)
-4. [Server/client turn-phase contract](contracts/ServerClientTurnPhaseContract.md)
+1. [Current repository status](../VERSION.md)
+2. [Canonical handoff](contracts/canonical-handoff.md)
+3. [Code ownership map](contracts/code-ownership-map.md)
+4. [Guidelines](Guidelines.md)
+5. [Server/client turn-phase contract](contracts/ServerClientTurnPhaseContract.md)
 
 For AI agents and implementation rules, also read:
 - [../../AGENTS.md](../../AGENTS.md)
 
 ## Structure
+
+### Current status
+
+- [Current repository status](../VERSION.md) - primary snapshot for implementation completion, supported species, validation posture, and current testing work
 
 ### `contracts/`
 Canonical architecture and integration rules.
@@ -30,7 +35,9 @@ Operational templates and pass formats for implementation work.
 
 Phase roadmaps and decision registers for substantial implementation programs.
 
-- [Phase 13 Ancient Species - GPT-5.6 Planning Record](<Phase 13 Ancient Species - GPT-5.6 Planning Record.md>) - planning status, rules baseline, architecture, decision gates, and provisional implementation sequence for Ancient
+- [Phase 13 Ancient Species - GPT-5.6 Planning Record](<Phase 13 Ancient Species - GPT-5.6 Planning Record.md>) - historical normative planning baseline preserving the original approved Ancient rules, architecture, risks, and implementation sequence
+
+The Phase 13 record remains useful design and implementation context, but some planning-time rules, access assumptions, and implementation details were superseded by later approved passes. Use [the current repository status](../VERSION.md) for current implementation posture, the canonical definitions and authoritative server implementation for current gameplay, and the contracts for stable architecture and ownership rules.
 
 ### `infrastructure/`
 Non-normative operational and runtime notes.
@@ -39,6 +46,7 @@ Non-normative operational and runtime notes.
 
 ## Documentation policy
 - Keep architecture docs current and concise.
+- Keep current implementation status in [../VERSION.md](../VERSION.md).
 - Prefer updating canonical docs over creating scattered one-off notes.
 - Put workflow/process guidance in `workflows/`, not in architecture contracts.
 - Put infrastructure and runtime posture notes under `infrastructure/`.

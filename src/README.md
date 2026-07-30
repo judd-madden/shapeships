@@ -50,6 +50,7 @@ In this repo, client runtime and UI work often move together in a single pass. T
 - `components/**` - shells, panels, and reusable UI primitives
 - `graphics/**` - ship graphics and visual assets
 - `supabase/functions/server/**` - Edge Function entrypoint, routes, authoritative engine, and server-owned shared logic
+- `supabase/functions/server/tests/**` - centralized authoritative-server regression tree; test code is not part of the production runtime
 - `documentation/**` - contracts, workflows, and infrastructure notes
 
 ## Current codebase overview
@@ -58,6 +59,16 @@ In this repo, client runtime and UI work often move together in a single pass. T
 - `GameScreen` is the live in-match shell. It renders from `useGameSession`, which handles auto-join, authoritative state refresh, chat/history reads, intent submission, and client-only presentation state.
 - The runtime currently uses a polling-based read posture. Full game-state reads remain authoritative, lightweight head reads support change detection and clock snapshots, chat is polled separately, and battle-log history is fetched on demand from the session runtime.
 - In-match audio is currently lightweight and local to the client runtime. The present manifest includes a live dice cue and placeholder entries for additional species-specific sounds.
+
+### Phase 13 status
+
+- Ancient implementation is complete for the approved Phase 13 scope and is available through normal player selection.
+- P29 structural cleanup and focused server hardening are complete.
+- The P30 release-readiness audit reported no code-level blocker requiring a production change.
+- Real-player testing and balance refinement now begin.
+- Ancient bot support remains deferred.
+
+See [VERSION.md](VERSION.md) for the detailed current repository snapshot.
 
 ## Development posture
 This project is intended to be worked on through:
