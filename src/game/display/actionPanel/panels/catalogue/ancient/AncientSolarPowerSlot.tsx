@@ -51,7 +51,7 @@ export function AncientSolarPowerSlot({
       <button
         type="button"
         aria-label={ariaLabel}
-        className={className}
+        className={`${className} cursor-pointer`}
         style={{ opacity: isDimmed ? 0.4 : 1 }}
         onClick={onClick}
         onMouseEnter={onMouseEnter}

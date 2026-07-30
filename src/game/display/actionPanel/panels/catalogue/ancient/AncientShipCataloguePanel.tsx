@@ -402,6 +402,7 @@ export function AncientShipCataloguePanel({
 }: AncientShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const [hoveredSiphonSpend, setHoveredSiphonSpend] = useState<number | null>(null);
+  const [siphonInspectionOpen, setSiphonInspectionOpen] = useState(false);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
   const canvas = ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT[catalogueLayout];
@@ -417,7 +418,11 @@ export function AncientShipCataloguePanel({
     isDeclarationPresentation &&
     declarationStage === 'powers' &&
     !isDeclarationBlocked;
-  const selectorOpen = selectorMode != null;
+  const effectiveSelectorMode =
+    selectorMode ?? (siphonInspectionOpen ? 'siphon' : null);
+  const selectorOpen = effectiveSelectorMode !== null;
+  const isSiphonInspection =
+    siphonInspectionOpen && selectorMode == null;
   const canOpenSiphonSelector =
     isActiveResolvedPowersStage &&
     siphonSelector?.canOpen === true;
@@ -436,6 +441,10 @@ export function AncientShipCataloguePanel({
   const handleHoveredSiphonSpendChange = useCallback((spend: number | null) => {
     setHoveredSiphonSpend(spend);
   }, []);
+
+  useEffect(() => {
+    setSiphonInspectionOpen(false);
+  }, [presentation, declarationStage, selectorMode]);
 
   useEffect(() => {
     if (
@@ -866,25 +875,29 @@ export function AncientShipCataloguePanel({
                 style={{ left: '426px', top: '30px', fontVariationSettings: "'wdth' 100" }}
                 onClick={() => {
                   setHoveredSiphonSpend(null);
-                  actions.onCancelAncientSolarSelector();
+                  if (isSiphonInspection) {
+                    setSiphonInspectionOpen(false);
+                  } else {
+                    actions.onCancelAncientSolarSelector();
+                  }
                 }}
               >
                 Back
               </button>
-              {selectorMode === 'siphon' ? (
+              {effectiveSelectorMode === 'siphon' ? (
                 <AncientSiphonSelector
-                  maxSpend={siphonSelector?.maxSpend ?? 0}
+                  maxSpend={isSiphonInspection ? 0 : (siphonSelector?.maxSpend ?? 0)}
                   availableWidth={canvas.width - siphonSelectorX}
                   x={siphonSelectorX}
-                  onSelect={actions.onCastAncientSiphon}
+                  onSelect={isSiphonInspection ? () => {} : actions.onCastAncientSiphon}
                   onHoveredSpendChange={handleHoveredSiphonSpendChange}
                 />
-              ) : selectorMode === 'blackHole' ? (
+              ) : effectiveSelectorMode === 'blackHole' ? (
                 <AncientBlackHoleSelector
                   damagePreview={blackHoleSelector?.damagePreview ?? 0}
                   {...blackHoleSelectorLayout}
                 />
-              ) : selectorMode === 'simulacrum' ? (
+              ) : effectiveSelectorMode === 'simulacrum' ? (
                 <AncientSimulacrumSelector
                   graphic={SimulacrumGraphic}
                   blueAvailable={simulacrumSelector?.blueAvailable ?? 0}
@@ -940,10 +953,14 @@ export function AncientShipCataloguePanel({
                   onClick={
                     isManualCastButton && manualSolarPowerId && canCast && !isDeclarationBlocked
                       ? () => actions.onCastAncientSolarPower(manualSolarPowerId)
-                      : slot.id === 'SSIP' && canOpenSiphonSelector
+                      : slot.id === 'SSIP'
                         ? () => {
                             hover.onLeave(slot.id);
-                            actions.onOpenAncientSolarSelector('siphon');
+                            if (canOpenSiphonSelector) {
+                              actions.onOpenAncientSolarSelector('siphon');
+                            } else {
+                              setSiphonInspectionOpen(true);
+                            }
                           }
                       : slot.id === 'SBLA' && canOpenBlackHoleSelector
                         ? () => {
@@ -960,8 +977,10 @@ export function AncientShipCataloguePanel({
                   ariaLabel={
                     isManualCastButton && manualSolarPowerId
                       ? `Cast ${MANUAL_SOLAR_POWER_LABEL_BY_ID[manualSolarPowerId]}`
-                      : slot.id === 'SSIP' && canOpenSiphonSelector
-                        ? 'Choose Siphon Energy spend'
+                      : slot.id === 'SSIP'
+                        ? canOpenSiphonSelector
+                          ? 'Choose Siphon Energy spend'
+                          : 'Inspect Siphon damage'
                       : slot.id === 'SBLA' && canOpenBlackHoleSelector
                         ? 'Cast Black Hole'
                       : slot.id === 'SSIM' && canOpenSimulacrumSelector
