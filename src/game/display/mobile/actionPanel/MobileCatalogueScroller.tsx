@@ -25,6 +25,7 @@ interface MobileCatalogueScrollerProps {
   vm: ActionPanelViewModel;
   actions: GameSessionActions;
   onShipInspect?: (shipId: ShipDefId) => void;
+  onOpenAutocastInfo?: () => void;
   simulacrumSpecies?: SpeciesId;
 }
 
@@ -67,6 +68,7 @@ export function MobileCatalogueScroller({
   vm,
   actions,
   onShipInspect,
+  onOpenAutocastInfo,
   simulacrumSpecies,
 }: MobileCatalogueScrollerProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -311,6 +313,9 @@ export function MobileCatalogueScroller({
           blackHoleSelector={declarationVm?.blackHoleSelector}
           autocastEnabled={declarationVm?.autocastEnabled ?? vm.ancientAutocastEnabled}
           autocastDisabled={declarationBlocked}
+          autocastPresentation="mobile-under-heading"
+          autocastInfoPresentation="mobile-modal"
+          onOpenAutocastInfo={onOpenAutocastInfo}
           declarationAttemptUnresolved={declarationVm?.attemptUnresolved === true}
           declarationBlocked={declarationBlocked}
         />

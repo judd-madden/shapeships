@@ -18,6 +18,7 @@ import {
   type MobileStatAnchorRect,
 } from './MobileStatBreakdownPopovers';
 import { MobileActionPanel } from './actionPanel/MobileActionPanel';
+import { MobileAutocastInfoModal } from './actionPanel/MobileAutocastInfoModal';
 import { MobileShipModal } from './actionPanel/MobileShipModal';
 import { MobileSpeciesConfirmPhase, MobileSpeciesSelectionView } from './MobileSpeciesSelectionView';
 import { MobileTopNav } from './MobileTopNav';
@@ -105,6 +106,7 @@ export function MobileGameLayout({
   const [activeMobileBottomPanel, setActiveMobileBottomPanel] =
     useState<ActiveMobileBottomPanel>('normal');
   const [activeShipModalId, setActiveShipModalId] = useState<ShipDefId | null>(null);
+  const [isAutocastInfoOpen, setIsAutocastInfoOpen] = useState(false);
   const [activeFleetShipHover, setActiveFleetShipHover] =
     useState<ActiveFleetShipHover | null>(null);
   const [statPopoverAnchors, setStatPopoverAnchors] =
@@ -122,6 +124,9 @@ export function MobileGameLayout({
   const bottomStatPopoverRef = useRef<HTMLDivElement | null>(null);
   const fleetShipHoverCardRef = useRef<HTMLDivElement | null>(null);
   const isCataloguePanelActive = CATALOGUE_PANEL_IDS.has(actionPanelVm.activePanelId);
+  const isAncientCatalogueSurfaceActive =
+    actionPanelVm.activePanelId === 'ap.catalog.ships.ancient' ||
+    actionPanelVm.activePanelId === 'ap.battle.solar_powers.ancient';
   const simulacrumSpecies = resolveAncientSimulacrumSpecies(boardVm);
   const isEndGamePanel = actionPanelVm.activePanelId === 'ap.end_of_game.result' || actionPanelVm.endOfGame != null;
   const isGameOver = actionPanelVm.endOfGame != null;
@@ -162,6 +167,9 @@ export function MobileGameLayout({
   const handleCloseFleetShipHover = useCallback(() => {
     setActiveFleetShipHover(null);
   }, []);
+  const handleCloseAutocastInfo = useCallback(() => {
+    setIsAutocastInfoOpen(false);
+  }, []);
   const handleFleetShipHoverCardElementChange = useCallback((element: HTMLDivElement | null) => {
     fleetShipHoverCardRef.current = element;
   }, []);
@@ -172,16 +180,24 @@ export function MobileGameLayout({
   ) => {
     handleCloseStatPopovers();
     setActiveShipModalId(null);
+    handleCloseAutocastInfo();
     setActiveFleetShipHover({
       shipId,
       anchorRect: anchorEl.getBoundingClientRect(),
       side,
     });
-  }, [handleCloseStatPopovers]);
+  }, [handleCloseAutocastInfo, handleCloseStatPopovers]);
   const handleCatalogueShipInspect = useCallback((shipId: ShipDefId) => {
     handleCloseStatPopovers();
     setActiveFleetShipHover(null);
+    handleCloseAutocastInfo();
     setActiveShipModalId(shipId);
+  }, [handleCloseAutocastInfo, handleCloseStatPopovers]);
+  const handleOpenAutocastInfo = useCallback(() => {
+    handleCloseStatPopovers();
+    setActiveShipModalId(null);
+    setActiveFleetShipHover(null);
+    setIsAutocastInfoOpen(true);
   }, [handleCloseStatPopovers]);
   const handleReturnToBoard = useCallback(() => {
     setIsGameStatsOpen(false);
@@ -200,14 +216,16 @@ export function MobileGameLayout({
     setActiveMobileBottomPanel('normal');
     setActiveShipModalId(null);
     setActiveFleetShipHover(null);
+    handleCloseAutocastInfo();
     setActiveTakeover(takeover);
-  }, [handleCloseStatPopovers]);
+  }, [handleCloseAutocastInfo, handleCloseStatPopovers]);
   const handleVoidTabClick = useCallback(() => {
     handleCloseStatPopovers();
     setActiveShipModalId(null);
     setActiveFleetShipHover(null);
+    handleCloseAutocastInfo();
     setActiveMobileBottomPanel('void');
-  }, [handleCloseStatPopovers]);
+  }, [handleCloseAutocastInfo, handleCloseStatPopovers]);
   const handleToggleStatPopovers = useCallback(() => {
     if (statPopoverAnchors) {
       handleCloseStatPopovers();
@@ -225,11 +243,12 @@ export function MobileGameLayout({
 
     setActiveShipModalId(null);
     setActiveFleetShipHover(null);
+    handleCloseAutocastInfo();
     setStatPopoverAnchors({
       top: snapshotRect(topStatsEl.getBoundingClientRect()),
       bottom: snapshotRect(bottomStatsEl.getBoundingClientRect()),
     });
-  }, [handleCloseStatPopovers, statPopoverAnchors]);
+  }, [handleCloseAutocastInfo, handleCloseStatPopovers, statPopoverAnchors]);
   const handleOpenChat = useCallback(() => {
     setMobileChatReadState({
       gameCode: leftRailVm.gameCode,
@@ -255,6 +274,7 @@ export function MobileGameLayout({
       handleCloseStatPopovers();
       setActiveShipModalId(null);
       setActiveFleetShipHover(null);
+      handleCloseAutocastInfo();
       actions.onReadyToggle();
     },
     onActionPanelTabClick: (tabId) => {
@@ -262,6 +282,7 @@ export function MobileGameLayout({
       setActiveMobileBottomPanel('normal');
       setActiveShipModalId(null);
       setActiveFleetShipHover(null);
+      handleCloseAutocastInfo();
       actions.onActionPanelTabClick(tabId);
     },
   };
@@ -271,6 +292,21 @@ export function MobileGameLayout({
       setActiveShipModalId(null);
     }
   }, [isCataloguePanelActive]);
+
+  useEffect(() => {
+    if (!isAncientCatalogueSurfaceActive) {
+      handleCloseAutocastInfo();
+    }
+  }, [handleCloseAutocastInfo, isAncientCatalogueSurfaceActive]);
+
+  useEffect(() => {
+    if (actionPanelVm.ancientChargeDeclaration?.selectorMode != null) {
+      handleCloseAutocastInfo();
+    }
+  }, [
+    actionPanelVm.ancientChargeDeclaration?.selectorMode,
+    handleCloseAutocastInfo,
+  ]);
 
   useEffect(() => {
     setMobileChatReadState((state) => {
@@ -322,18 +358,25 @@ export function MobileGameLayout({
     handleCloseStatPopovers();
     setActiveShipModalId(null);
     setActiveFleetShipHover(null);
-  }, [activeDestroyTargetSourceInstanceId, handleCloseStatPopovers]);
+    handleCloseAutocastInfo();
+  }, [
+    activeDestroyTargetSourceInstanceId,
+    handleCloseAutocastInfo,
+    handleCloseStatPopovers,
+  ]);
 
   useEffect(() => {
     setActiveShipModalId(null);
     setActiveFleetShipHover(null);
     setActiveMobileBottomPanel('normal');
     handleCloseStatPopovers();
+    handleCloseAutocastInfo();
   }, [
     actionPanelVm.menu.phaseKey,
     actionPanelVm.menu.turnNumber,
     boardVm.mode,
     isGameOver,
+    handleCloseAutocastInfo,
     handleCloseStatPopovers,
   ]);
 
@@ -500,6 +543,7 @@ export function MobileGameLayout({
                   vm={actionPanelVm}
                   actions={mobileActions}
                   onShipInspect={handleCatalogueShipInspect}
+                  onOpenAutocastInfo={handleOpenAutocastInfo}
                   onOpenMenuTakeover={handleOpenMenu}
                   simulacrumSpecies={simulacrumSpecies}
                 />
@@ -564,6 +608,10 @@ export function MobileGameLayout({
           actions={mobileActions}
           onClose={() => setActiveShipModalId(null)}
         />
+      ) : null}
+
+      {activeTakeover === null && isAutocastInfoOpen ? (
+        <MobileAutocastInfoModal onClose={handleCloseAutocastInfo} />
       ) : null}
 
       {activeTakeover === null && activeFleetShipHover ? (

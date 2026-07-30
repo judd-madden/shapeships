@@ -18,6 +18,7 @@ interface MobileActionPanelProps {
   vm: ActionPanelViewModel;
   actions: GameSessionActions;
   onShipInspect?: (shipId: ShipDefId) => void;
+  onOpenAutocastInfo?: () => void;
   onOpenMenuTakeover?: () => void;
   simulacrumSpecies?: SpeciesId;
 }
@@ -112,6 +113,7 @@ export function MobileActionPanel({
   vm,
   actions,
   onShipInspect,
+  onOpenAutocastInfo,
   onOpenMenuTakeover,
   simulacrumSpecies,
 }: MobileActionPanelProps) {
@@ -229,6 +231,7 @@ export function MobileActionPanel({
           vm={vm}
           actions={actions}
           onShipInspect={onShipInspect}
+          onOpenAutocastInfo={onOpenAutocastInfo}
           simulacrumSpecies={simulacrumSpecies}
         />
       </div>

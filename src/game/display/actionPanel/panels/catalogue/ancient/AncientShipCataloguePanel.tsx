@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useState, type ComponentType, type CSSProperties } from 'react';
 import type { ActionPanelViewModel, GameSessionActions } from "../../../../../client/useGameSession";
 import type { SpeciesId } from '../../../../../../components/ui/primitives/buttons/SpeciesCardButton';
-import { Checkbox, InfoIcon } from '../../../../../../components/ui/primitives';
+import { InfoIcon } from '../../../../../../components/ui/primitives';
 import {
   Tooltip,
   TooltipContent,
@@ -58,6 +58,7 @@ import { AncientSolarPowerSlot } from './AncientSolarPowerSlot';
 import { AncientBlackHoleSelector } from './AncientBlackHoleSelector';
 import { AncientSimulacrumSelector } from './AncientSimulacrumSelector';
 import { AncientSiphonSelector } from './AncientSiphonSelector';
+import { AncientAutocastInfoContent } from './AncientAutocastInfoContent';
 import {
   isFixedAncientManualSolarPowerId,
   type AncientEnergyPool,
@@ -201,21 +202,6 @@ const MANUAL_SOLAR_POWER_LABEL_BY_ID: Record<FixedAncientManualSolarPowerId, str
   SCON: 'Convert',
   SVOR: 'Vortex',
 };
-const AUTOCAST_TOOLTIP_PATHS = [
-  {
-    color: 'var(--shapeships-green)',
-    powerNames: ['Star Birth', 'Life'],
-  },
-  {
-    color: 'var(--shapeships-red)',
-    powerNames: ['Supernova', 'Asteroid'],
-  },
-  {
-    color: 'var(--shapeships-cyan)',
-    powerNames: ['Convert'],
-  },
-] as const;
-
 const SOLAR_HEADER_POSITIONS: Record<
   CatalogueLayout,
   SolarPosition
@@ -280,6 +266,9 @@ interface AncientShipCataloguePanelProps {
   };
   autocastEnabled: boolean;
   autocastDisabled?: boolean;
+  autocastPresentation?: 'default' | 'mobile-under-heading';
+  autocastInfoPresentation?: 'tooltip' | 'mobile-modal';
+  onOpenAutocastInfo?: () => void;
   declarationAttemptUnresolved?: boolean;
   declarationBlocked?: boolean;
 }
@@ -288,6 +277,8 @@ interface AncientAutocastControlProps {
   checked: boolean;
   disabled?: boolean;
   onChange: (enabled: boolean) => void;
+  infoPresentation?: 'tooltip' | 'mobile-modal';
+  onOpenInfo?: () => void;
   className?: string;
   style?: CSSProperties;
 }
@@ -296,17 +287,20 @@ export function AncientAutocastControl({
   checked,
   disabled = false,
   onChange,
+  infoPresentation = 'tooltip',
+  onOpenInfo,
   className = '',
   style,
 }: AncientAutocastControlProps) {
+  const isMobileModalInfo = infoPresentation === 'mobile-modal';
   const infoButton = (
     <button
       type="button"
       aria-label="About Autocast"
-      disabled={disabled}
-      className={disabled
-        ? 'flex size-[24px] shrink-0 cursor-default items-center justify-center'
-        : 'flex size-[24px] shrink-0 items-center justify-center opacity-50 transition-opacity duration-100 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white'}
+      onClick={isMobileModalInfo ? onOpenInfo : undefined}
+      className={`flex shrink-0 items-center justify-center opacity-50 transition-opacity duration-100 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+        isMobileModalInfo ? 'size-[40px]' : 'size-[24px]'
+      }`}
     >
       <InfoIcon className="size-[24px]" />
     </button>
@@ -314,22 +308,42 @@ export function AncientAutocastControl({
 
   return (
     <div
-      className={`flex items-center gap-[2px] ${disabled ? 'opacity-40' : ''} ${className}`}
+      className={`flex items-center ${isMobileModalInfo ? 'gap-[4px]' : 'gap-[2px]'} ${className}`}
       style={style}
     >
-      <Checkbox
-        className="!size-[24px]"
-        checked={checked}
-        onChange={onChange}
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={checked}
         disabled={disabled}
-      />
-      <span
-        className="font-['Roboto'] text-[18px] font-bold leading-none text-white"
+        onClick={() => onChange(!checked)}
+        className={`flex items-center gap-[2px] font-['Roboto'] text-[18px] font-bold leading-none text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-default disabled:opacity-40 ${
+          isMobileModalInfo ? 'h-[40px]' : 'h-[24px]'
+        }`}
         style={{ fontVariationSettings: "'wdth' 100" }}
       >
-        Autocast
-      </span>
-      {disabled ? infoButton : (
+        <svg
+          aria-hidden="true"
+          className="size-[24px] shrink-0"
+          fill="none"
+          preserveAspectRatio="none"
+          viewBox="0 0 30 30"
+        >
+          {checked ? (
+            <path
+              d="M23.75 3.41675H6.25C4.8625 3.41675 3.75 4.54175 3.75 5.91675V23.4167C3.75 24.7917 4.8625 25.9167 6.25 25.9167H23.75C25.1375 25.9167 26.25 24.7917 26.25 23.4167V5.91675C26.25 4.54175 25.1375 3.41675 23.75 3.41675ZM12.5 20.9167L6.25 14.6667L8.0125 12.9042L12.5 17.3792L21.9875 7.89175L23.75 9.66675L12.5 20.9167Z"
+              fill="white"
+            />
+          ) : (
+            <path
+              d="M23.75 6.25V23.75H6.25V6.25H23.75ZM23.75 3.75H6.25C4.875 3.75 3.75 4.875 3.75 6.25V23.75C3.75 25.125 4.875 26.25 6.25 26.25H23.75C25.125 26.25 26.25 25.125 26.25 23.75V6.25C26.25 4.875 25.125 3.75 23.75 3.75Z"
+              fill="white"
+            />
+          )}
+        </svg>
+        <span>Autocast</span>
+      </button>
+      {isMobileModalInfo ? infoButton : (
         <Tooltip>
           <TooltipTrigger asChild>{infoButton}</TooltipTrigger>
           <TooltipContent
@@ -340,29 +354,7 @@ export function AncientAutocastControl({
           className="relative z-[80] bg-transparent p-0 shadow-none"
         >
           <div className="box-content w-[260px] max-w-[calc(100vw-80px)] translate-x-[10px] rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[24px] pb-[32px] pt-[24px] font-['Roboto'] text-[16px] font-normal leading-[19px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-            <div className="flex flex-col gap-[24px]">
-              <p>When you press READY, autocast spends all your remaining energy:</p>
-              <div className="grid grid-cols-3 gap-[24px] items-start">
-                {AUTOCAST_TOOLTIP_PATHS.map((path) => (
-                  <div key={path.powerNames[0]} className="flex min-w-0 flex-col gap-[8px]">
-                    <span
-                      aria-hidden="true"
-                      className="size-[14px] shrink-0 rounded-full"
-                      style={{ backgroundColor: path.color }}
-                    />
-                    <div className="flex flex-col items-start">
-                      {path.powerNames.map((powerName, index) => (
-                        <div key={powerName} className="flex flex-col items-start">
-                          {index > 0 && <span aria-hidden="true">🡫</span>}
-                          <span>{powerName}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p>Simulacrum and multicolour Powers must be cast manually.</p>
-            </div>
+            <AncientAutocastInfoContent />
           </div>
           <div
             aria-hidden="true"
@@ -397,6 +389,9 @@ export function AncientShipCataloguePanel({
   blackHoleSelector,
   autocastEnabled,
   autocastDisabled = false,
+  autocastPresentation = 'default',
+  autocastInfoPresentation = 'tooltip',
+  onOpenAutocastInfo,
   declarationAttemptUnresolved = false,
   declarationBlocked = false,
 }: AncientShipCataloguePanelProps) {
@@ -436,6 +431,12 @@ export function AncientShipCataloguePanel({
   const isAutocastDisabled =
     autocastDisabled ||
     (isLiveCatalogue && (!isActiveResolvedPowersStage || selectorOpen));
+  const shouldShowAutocast =
+    autocastPresentation !== 'mobile-under-heading' || !selectorOpen;
+  const autocastPosition =
+    autocastPresentation === 'mobile-under-heading'
+      ? { x: ANCIENT_CATALOGUE_SECTION_X.solar, y: 25 }
+      : solarHeaderPositions;
   const siphonSelectorX = SIPHON_SELECTOR_X[catalogueLayout];
   const blackHoleSelectorLayout = BLACK_HOLE_SELECTOR_LAYOUT[catalogueLayout];
   const handleHoveredSiphonSpendChange = useCallback((spend: number | null) => {
@@ -856,16 +857,20 @@ export function AncientShipCataloguePanel({
             )}
           </div>
 
-          <AncientAutocastControl
-            className="absolute"
-            style={{
-              left: solarHeaderPositions.x,
-              top: solarHeaderPositions.y,
-            }}
-            checked={autocastEnabled}
-            disabled={isAutocastDisabled}
-            onChange={actions.onSetAncientAutocastEnabled}
-          />
+          {shouldShowAutocast ? (
+            <AncientAutocastControl
+              className="absolute"
+              style={{
+                left: autocastPosition.x,
+                top: autocastPosition.y,
+              }}
+              checked={autocastEnabled}
+              disabled={isAutocastDisabled}
+              onChange={actions.onSetAncientAutocastEnabled}
+              infoPresentation={autocastInfoPresentation}
+              onOpenInfo={onOpenAutocastInfo}
+            />
+          ) : null}
 
           {selectorOpen ? (
             <>
