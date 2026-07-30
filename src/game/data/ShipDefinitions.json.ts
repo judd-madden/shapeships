@@ -1404,11 +1404,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Dice Manipulation",
-        "text": "Roll one extra dice per Cube. Choose the main dice OR one Cube dice as your roll this turn."
+        "text": "Roll an extra dice. You may use it INSTEAD of the main dice this turn."
       }
     ],
     "energyCost": null,
-    "extraRules": "Choose after any main dice rerolls.",
+    "extraRules": "Each Cube adds one extra dice. Choose after any main dice rerolls. Choose only one dice.",
     "stackCaption": "N/A",
     "colour": "Pastel Orange",
     "numberOfGraphics": 1
