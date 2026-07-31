@@ -99,7 +99,7 @@ function TimingRow({
 
 export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
   return (
-    <div className="content-stretch flex flex-col gap-[48px] items-start relative shrink-0 w-full">
+    <div className="content-stretch flex flex-col gap-[24px] sm:gap-[48px] items-start relative shrink-0 w-full">
       {/* Page Header */}
       <div className="content-stretch flex flex-col items-start justify-between gap-[16px] relative shrink-0 w-full md:flex-row md:items-end">
         <div className="content-stretch flex gap-[20px] items-center relative shrink-0">
@@ -134,7 +134,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           description={
             <p>Roll a six sided dice for all players. Dice Manipulation powers may change the result.</p>
           }
-          exampleShips="Leviathan, Chronoswarm, Ark of Knowledge."
+          exampleShips="Leviathan, Chronoswarm, Ark of Knowledge, Cube."
           showChevron={false}
         >
           <div className="absolute h-[36px] left-[10px] top-[22px] w-[38px] sm:h-[42px] sm:left-[14px] sm:w-[44px] md:h-[50px] md:left-[31px] md:top-[33.42px] md:w-[52px]">
@@ -196,7 +196,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           description={
             <p>Ship powers with First Strike occur. Any ships that are destroyed during this phase will not activate their Battle Phase powers (except 'once only' powers). Any ships that are stolen during this phase will be active for their owner.</p>
           }
-          exampleShips="Guardian, Sacrificial Pool, Ark of Domination."
+          exampleShips="Guardian, Sacrificial Pool, Ark of Domination, Spiral."
           chevronTop="top-[20px]"
         />
 

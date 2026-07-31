@@ -499,7 +499,7 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
   };
 
   return (
-    <div className="content-stretch flex flex-col gap-[48px] items-start relative shrink-0 w-full">
+    <div className="content-stretch flex flex-col gap-[24px] sm:gap-[48px] items-start relative shrink-0 w-full">
       {/* Page Header */}
       <div className="content-stretch relative flex size-full flex-col items-start justify-between gap-[16px] text-white md:flex-row md:items-end" data-name="Rules Header">
         <div className="content-stretch relative flex flex-wrap items-center gap-x-[20px] gap-y-[8px]" data-name="Species">
