@@ -128,7 +128,14 @@ export function getDefaultCubeDiceChoiceId(
 
   let bestChoice = validAction.choices[0];
   for (const candidate of validAction.choices.slice(1)) {
-    if (candidate.projectedAmount > bestChoice.projectedAmount) {
+    const isHigherValue =
+      candidate.projectedAmount > bestChoice.projectedAmount;
+    const isCubeTiedWithMain =
+      candidate.projectedAmount === bestChoice.projectedAmount &&
+      candidate.choiceId !== 'main' &&
+      bestChoice.choiceId === 'main';
+
+    if (isHigherValue || isCubeTiedWithMain) {
       bestChoice = candidate;
     }
   }
