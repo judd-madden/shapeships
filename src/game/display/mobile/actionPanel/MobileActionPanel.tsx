@@ -3,6 +3,7 @@ import { ChevronDown } from '../../../../components/ui/primitives/icons/ChevronD
 import type { ActionPanelViewModel, GameSessionActions } from '../../../client/useGameSession';
 import type { SpeciesId } from '../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
+import type { ImplementedAncientManualSolarPowerId } from '../../../client/gameSession/ancientChargeDeclaration';
 import { EvolverDrawingPanel } from '../../actionPanel/panels/EvolverDrawingPanel';
 import { FrigateDrawingPanel } from '../../actionPanel/panels/FrigateDrawingPanel';
 import { QuantumMysticDrawingPanel } from '../../actionPanel/panels/QuantumMysticDrawingPanel';
@@ -18,6 +19,9 @@ interface MobileActionPanelProps {
   vm: ActionPanelViewModel;
   actions: GameSessionActions;
   onShipInspect?: (shipId: ShipDefId) => void;
+  onSolarPowerInspect?: (solarPowerId: ImplementedAncientManualSolarPowerId) => void;
+  siphonInspectionOpen?: boolean;
+  onCloseSiphonInspection?: () => void;
   onOpenAutocastInfo?: () => void;
   onOpenMenuTakeover?: () => void;
   simulacrumSpecies?: SpeciesId;
@@ -113,6 +117,9 @@ export function MobileActionPanel({
   vm,
   actions,
   onShipInspect,
+  onSolarPowerInspect,
+  siphonInspectionOpen,
+  onCloseSiphonInspection,
   onOpenAutocastInfo,
   onOpenMenuTakeover,
   simulacrumSpecies,
@@ -231,6 +238,9 @@ export function MobileActionPanel({
           vm={vm}
           actions={actions}
           onShipInspect={onShipInspect}
+          onSolarPowerInspect={onSolarPowerInspect}
+          siphonInspectionOpen={siphonInspectionOpen}
+          onCloseSiphonInspection={onCloseSiphonInspection}
           onOpenAutocastInfo={onOpenAutocastInfo}
           simulacrumSpecies={simulacrumSpecies}
         />

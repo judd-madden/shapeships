@@ -5108,6 +5108,8 @@ useEffect(() => {
           simulacrumSelector: {
             ...ancientSimulacrumSelector,
             hoveredPreviewBlueCost: ancientSimulacrumHoveredPreviewBlueCost,
+            hasLegalTargetBeforeAffordability:
+              ancientSimulacrumTargeting.hasLegalTargetBeforeAffordability,
           },
           blackHoleSelector: {
             canOpen: canCastAncientBlackHole,

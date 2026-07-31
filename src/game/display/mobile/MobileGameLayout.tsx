@@ -9,6 +9,7 @@ import type {
   LeftRailViewModel,
 } from '../../client/useGameSession';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
+import type { ImplementedAncientManualSolarPowerId } from '../../client/gameSession/ancientChargeDeclaration';
 import { FleetShipHoverCard } from '../layout/boardStage/FleetShipHoverCard';
 import { MobileBoardView } from './MobileBoardView';
 import { MobileBottomPhase } from './MobileBottomPhase';
@@ -20,6 +21,7 @@ import {
 import { MobileActionPanel } from './actionPanel/MobileActionPanel';
 import { MobileAutocastInfoModal } from './actionPanel/MobileAutocastInfoModal';
 import { MobileShipModal } from './actionPanel/MobileShipModal';
+import { MobileSolarPowerModal } from './actionPanel/MobileSolarPowerModal';
 import { MobileSpeciesConfirmPhase, MobileSpeciesSelectionView } from './MobileSpeciesSelectionView';
 import { MobileTopNav } from './MobileTopNav';
 import { resolveAncientSimulacrumSpecies } from '../actionPanel/panels/catalogue/ancient/resolveAncientSimulacrumSpecies';
@@ -106,6 +108,9 @@ export function MobileGameLayout({
   const [activeMobileBottomPanel, setActiveMobileBottomPanel] =
     useState<ActiveMobileBottomPanel>('normal');
   const [activeShipModalId, setActiveShipModalId] = useState<ShipDefId | null>(null);
+  const [activeSolarModalId, setActiveSolarModalId] =
+    useState<ImplementedAncientManualSolarPowerId | null>(null);
+  const [isSiphonInspectionOpen, setIsSiphonInspectionOpen] = useState(false);
   const [isAutocastInfoOpen, setIsAutocastInfoOpen] = useState(false);
   const [activeFleetShipHover, setActiveFleetShipHover] =
     useState<ActiveFleetShipHover | null>(null);
@@ -170,6 +175,12 @@ export function MobileGameLayout({
   const handleCloseAutocastInfo = useCallback(() => {
     setIsAutocastInfoOpen(false);
   }, []);
+  const handleCloseSolarModal = useCallback(() => {
+    setActiveSolarModalId(null);
+  }, []);
+  const handleCloseSiphonInspection = useCallback(() => {
+    setIsSiphonInspectionOpen(false);
+  }, []);
   const handleFleetShipHoverCardElementChange = useCallback((element: HTMLDivElement | null) => {
     fleetShipHoverCardRef.current = element;
   }, []);
@@ -180,25 +191,71 @@ export function MobileGameLayout({
   ) => {
     handleCloseStatPopovers();
     setActiveShipModalId(null);
+    handleCloseSolarModal();
+    handleCloseSiphonInspection();
     handleCloseAutocastInfo();
     setActiveFleetShipHover({
       shipId,
       anchorRect: anchorEl.getBoundingClientRect(),
       side,
     });
-  }, [handleCloseAutocastInfo, handleCloseStatPopovers]);
+  }, [
+    handleCloseAutocastInfo,
+    handleCloseSiphonInspection,
+    handleCloseSolarModal,
+    handleCloseStatPopovers,
+  ]);
   const handleCatalogueShipInspect = useCallback((shipId: ShipDefId) => {
     handleCloseStatPopovers();
     setActiveFleetShipHover(null);
+    handleCloseSolarModal();
+    handleCloseSiphonInspection();
     handleCloseAutocastInfo();
     setActiveShipModalId(shipId);
-  }, [handleCloseAutocastInfo, handleCloseStatPopovers]);
-  const handleOpenAutocastInfo = useCallback(() => {
+  }, [
+    handleCloseAutocastInfo,
+    handleCloseSiphonInspection,
+    handleCloseSolarModal,
+    handleCloseStatPopovers,
+  ]);
+  const handleSolarPowerInspect = useCallback((
+    solarPowerId: ImplementedAncientManualSolarPowerId
+  ) => {
     handleCloseStatPopovers();
     setActiveShipModalId(null);
     setActiveFleetShipHover(null);
+    handleCloseAutocastInfo();
+    handleCloseSiphonInspection();
+    setActiveSolarModalId(solarPowerId);
+  }, [
+    handleCloseAutocastInfo,
+    handleCloseSiphonInspection,
+    handleCloseStatPopovers,
+  ]);
+  const handleViewSiphon = useCallback(() => {
+    handleCloseStatPopovers();
+    setActiveShipModalId(null);
+    setActiveFleetShipHover(null);
+    handleCloseAutocastInfo();
+    handleCloseSolarModal();
+    setIsSiphonInspectionOpen(true);
+  }, [
+    handleCloseAutocastInfo,
+    handleCloseSolarModal,
+    handleCloseStatPopovers,
+  ]);
+  const handleOpenAutocastInfo = useCallback(() => {
+    handleCloseStatPopovers();
+    setActiveShipModalId(null);
+    handleCloseSolarModal();
+    handleCloseSiphonInspection();
+    setActiveFleetShipHover(null);
     setIsAutocastInfoOpen(true);
-  }, [handleCloseStatPopovers]);
+  }, [
+    handleCloseSiphonInspection,
+    handleCloseSolarModal,
+    handleCloseStatPopovers,
+  ]);
   const handleReturnToBoard = useCallback(() => {
     setIsGameStatsOpen(false);
     setActiveTakeover(null);
@@ -215,17 +272,31 @@ export function MobileGameLayout({
     handleCloseStatPopovers();
     setActiveMobileBottomPanel('normal');
     setActiveShipModalId(null);
+    handleCloseSolarModal();
+    handleCloseSiphonInspection();
     setActiveFleetShipHover(null);
     handleCloseAutocastInfo();
     setActiveTakeover(takeover);
-  }, [handleCloseAutocastInfo, handleCloseStatPopovers]);
+  }, [
+    handleCloseAutocastInfo,
+    handleCloseSiphonInspection,
+    handleCloseSolarModal,
+    handleCloseStatPopovers,
+  ]);
   const handleVoidTabClick = useCallback(() => {
     handleCloseStatPopovers();
     setActiveShipModalId(null);
+    handleCloseSolarModal();
+    handleCloseSiphonInspection();
     setActiveFleetShipHover(null);
     handleCloseAutocastInfo();
     setActiveMobileBottomPanel('void');
-  }, [handleCloseAutocastInfo, handleCloseStatPopovers]);
+  }, [
+    handleCloseAutocastInfo,
+    handleCloseSiphonInspection,
+    handleCloseSolarModal,
+    handleCloseStatPopovers,
+  ]);
   const handleToggleStatPopovers = useCallback(() => {
     if (statPopoverAnchors) {
       handleCloseStatPopovers();
@@ -242,13 +313,21 @@ export function MobileGameLayout({
     }
 
     setActiveShipModalId(null);
+    handleCloseSolarModal();
+    handleCloseSiphonInspection();
     setActiveFleetShipHover(null);
     handleCloseAutocastInfo();
     setStatPopoverAnchors({
       top: snapshotRect(topStatsEl.getBoundingClientRect()),
       bottom: snapshotRect(bottomStatsEl.getBoundingClientRect()),
     });
-  }, [handleCloseAutocastInfo, handleCloseStatPopovers, statPopoverAnchors]);
+  }, [
+    handleCloseAutocastInfo,
+    handleCloseSiphonInspection,
+    handleCloseSolarModal,
+    handleCloseStatPopovers,
+    statPopoverAnchors,
+  ]);
   const handleOpenChat = useCallback(() => {
     setMobileChatReadState({
       gameCode: leftRailVm.gameCode,
@@ -273,6 +352,8 @@ export function MobileGameLayout({
     onReadyToggle: () => {
       handleCloseStatPopovers();
       setActiveShipModalId(null);
+      handleCloseSolarModal();
+      handleCloseSiphonInspection();
       setActiveFleetShipHover(null);
       handleCloseAutocastInfo();
       actions.onReadyToggle();
@@ -281,6 +362,8 @@ export function MobileGameLayout({
       handleCloseStatPopovers();
       setActiveMobileBottomPanel('normal');
       setActiveShipModalId(null);
+      handleCloseSolarModal();
+      handleCloseSiphonInspection();
       setActiveFleetShipHover(null);
       handleCloseAutocastInfo();
       actions.onActionPanelTabClick(tabId);
@@ -296,16 +379,27 @@ export function MobileGameLayout({
   useEffect(() => {
     if (!isAncientCatalogueSurfaceActive) {
       handleCloseAutocastInfo();
+      handleCloseSolarModal();
+      handleCloseSiphonInspection();
     }
-  }, [handleCloseAutocastInfo, isAncientCatalogueSurfaceActive]);
+  }, [
+    handleCloseAutocastInfo,
+    handleCloseSiphonInspection,
+    handleCloseSolarModal,
+    isAncientCatalogueSurfaceActive,
+  ]);
 
   useEffect(() => {
     if (actionPanelVm.ancientChargeDeclaration?.selectorMode != null) {
       handleCloseAutocastInfo();
+      handleCloseSolarModal();
+      handleCloseSiphonInspection();
     }
   }, [
     actionPanelVm.ancientChargeDeclaration?.selectorMode,
     handleCloseAutocastInfo,
+    handleCloseSiphonInspection,
+    handleCloseSolarModal,
   ]);
 
   useEffect(() => {
@@ -357,16 +451,22 @@ export function MobileGameLayout({
 
     handleCloseStatPopovers();
     setActiveShipModalId(null);
+    handleCloseSolarModal();
+    handleCloseSiphonInspection();
     setActiveFleetShipHover(null);
     handleCloseAutocastInfo();
   }, [
     activeDestroyTargetSourceInstanceId,
     handleCloseAutocastInfo,
+    handleCloseSiphonInspection,
+    handleCloseSolarModal,
     handleCloseStatPopovers,
   ]);
 
   useEffect(() => {
     setActiveShipModalId(null);
+    handleCloseSolarModal();
+    handleCloseSiphonInspection();
     setActiveFleetShipHover(null);
     setActiveMobileBottomPanel('normal');
     handleCloseStatPopovers();
@@ -377,6 +477,8 @@ export function MobileGameLayout({
     boardVm.mode,
     isGameOver,
     handleCloseAutocastInfo,
+    handleCloseSiphonInspection,
+    handleCloseSolarModal,
     handleCloseStatPopovers,
   ]);
 
@@ -543,6 +645,9 @@ export function MobileGameLayout({
                   vm={actionPanelVm}
                   actions={mobileActions}
                   onShipInspect={handleCatalogueShipInspect}
+                  onSolarPowerInspect={handleSolarPowerInspect}
+                  siphonInspectionOpen={isSiphonInspectionOpen}
+                  onCloseSiphonInspection={handleCloseSiphonInspection}
                   onOpenAutocastInfo={handleOpenAutocastInfo}
                   onOpenMenuTakeover={handleOpenMenu}
                   simulacrumSpecies={simulacrumSpecies}
@@ -607,6 +712,19 @@ export function MobileGameLayout({
           buildCatalogue={actionPanelVm.buildCatalogue}
           actions={mobileActions}
           onClose={() => setActiveShipModalId(null)}
+        />
+      ) : null}
+
+      {activeTakeover === null && activeSolarModalId ? (
+        <MobileSolarPowerModal
+          solarPowerId={activeSolarModalId}
+          declarationVm={actionPanelVm.ancientChargeDeclaration}
+          isDeclarationStageActive={
+            actionPanelVm.menu.phaseKey === 'battle.charge_declaration'
+          }
+          actions={mobileActions}
+          onViewSiphon={handleViewSiphon}
+          onClose={handleCloseSolarModal}
         />
       ) : null}
 

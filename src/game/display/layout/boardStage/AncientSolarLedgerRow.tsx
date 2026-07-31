@@ -294,8 +294,8 @@ export function AncientSolarLedgerRow({
     return (
       <div
         className={hasCopiedShipBand
-          ? 'h-[44px] w-full min-w-0 shrink-0'
-          : 'h-[50px] w-full min-w-0 shrink-0'}
+          ? 'h-[44px] w-full min-w-0 shrink-0 mb-[4px]'
+          : 'h-[50px] w-full min-w-0 shrink-0 mb-[4px]'}
       >
         {ledgerContents ? (
           <FitToBox

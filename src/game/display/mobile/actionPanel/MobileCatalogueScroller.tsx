@@ -7,6 +7,10 @@ import {
 import type { ActionPanelViewModel, GameSessionActions } from '../../../client/useGameSession';
 import type { SpeciesId } from '../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
+import type {
+  AncientSolarSelectorMode,
+  ImplementedAncientManualSolarPowerId,
+} from '../../../client/gameSession/ancientChargeDeclaration';
 import {
   ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT,
   ANCIENT_CATALOGUE_SECTION_X,
@@ -25,6 +29,9 @@ interface MobileCatalogueScrollerProps {
   vm: ActionPanelViewModel;
   actions: GameSessionActions;
   onShipInspect?: (shipId: ShipDefId) => void;
+  onSolarPowerInspect?: (solarPowerId: ImplementedAncientManualSolarPowerId) => void;
+  siphonInspectionOpen?: boolean;
+  onCloseSiphonInspection?: () => void;
   onOpenAutocastInfo?: () => void;
   simulacrumSpecies?: SpeciesId;
 }
@@ -44,6 +51,7 @@ interface PreviousAncientAnchorState {
   phasePresentation: AncientPhasePresentation;
   declarationStage: 'charges' | 'powers' | undefined;
   hadChargeStage: boolean | undefined;
+  specialSelector: AncientSolarSelectorMode | 'siphon-inspection' | null;
 }
 
 function getAncientPhasePresentation(
@@ -68,6 +76,9 @@ export function MobileCatalogueScroller({
   vm,
   actions,
   onShipInspect,
+  onSolarPowerInspect,
+  siphonInspectionOpen = false,
+  onCloseSiphonInspection,
   onOpenAutocastInfo,
   simulacrumSpecies,
 }: MobileCatalogueScrollerProps) {
@@ -94,6 +105,9 @@ export function MobileCatalogueScroller({
     ANCIENT_CATALOGUE_SECTION_X.basics * MOBILE_CATALOGUE_SCALE;
   const solarTarget =
     ANCIENT_CATALOGUE_SECTION_X.solar * MOBILE_CATALOGUE_SCALE;
+  const specialSelector: PreviousAncientAnchorState['specialSelector'] =
+    declarationVm?.selectorMode ??
+    (siphonInspectionOpen ? 'siphon-inspection' : null);
 
   const clampTarget = useCallback((element: HTMLDivElement, target: number) => {
     const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
@@ -196,6 +210,7 @@ export function MobileCatalogueScroller({
       phasePresentation,
       declarationStage: declarationVm?.stage,
       hadChargeStage: declarationVm?.hadChargeStage,
+      specialSelector,
     };
 
     if (prefersReducedMotion && animationFrameRef.current !== null) {
@@ -214,6 +229,12 @@ export function MobileCatalogueScroller({
       setAnchorImmediately(
         phasePresentation === 'solar-side' ? solarTarget : basicTarget
       );
+      previousAnchorStateRef.current = current;
+      return;
+    }
+
+    if (specialSelector !== null && previous.specialSelector === null) {
+      setAnchorImmediately(solarTarget);
       previousAnchorStateRef.current = current;
       return;
     }
@@ -260,6 +281,7 @@ export function MobileCatalogueScroller({
     prefersReducedMotion,
     setAnchorImmediately,
     solarTarget,
+    specialSelector,
     vm.menu.phaseKey,
   ]);
 
@@ -298,6 +320,9 @@ export function MobileCatalogueScroller({
       <MobileScaledCatalogueCanvas {...ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT.standard}>
         <AncientShipCataloguePanel
           {...commonProps}
+          onSolarPowerInspect={onSolarPowerInspect}
+          siphonInspectionOpen={siphonInspectionOpen}
+          onCloseSiphonInspection={onCloseSiphonInspection}
           catalogueLayout="standard"
           simulacrumSpecies={simulacrumSpecies}
           presentation={isAncientPowersPresentation ? 'declaration' : 'reference'}

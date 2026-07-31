@@ -167,6 +167,8 @@ export interface AncientSimulacrumTargetingState {
   eligibleTargetsByStackKey: Record<string, AncientSimulacrumTargetDescriptor[]>;
   selectedTargetInstanceIdsByStackKey: Record<string, string[]>;
   hasEligibleTarget: boolean;
+  /** A visible, unused enemy Basic target passes all non-Energy restrictions, including quantity limits. */
+  hasLegalTargetBeforeAffordability: boolean;
 }
 
 function getValidSimulacrumTargetDescriptor(
@@ -304,6 +306,7 @@ export function deriveAncientSimulacrumTargetingState(args: {
 
   const eligibleTargetsByStackKey: Record<string, AncientSimulacrumTargetDescriptor[]> = {};
   const selectedTargetInstanceIdsByStackKey: Record<string, string[]> = {};
+  let hasLegalTargetBeforeAffordability = false;
   for (const stack of args.opponentFleet) {
     const memberInstanceIds = Array.from(new Set(stack.memberInstanceIds))
       .sort((a, b) => a.localeCompare(b));
@@ -317,7 +320,7 @@ export function deriveAncientSimulacrumTargetingState(args: {
     const eligibleDescriptors = memberInstanceIds.flatMap((instanceId) => {
       if (selectedTargetInstanceIds.has(instanceId)) return [];
       const descriptor = descriptorByInstanceId.get(instanceId);
-      if (!descriptor || descriptor.previewBlueCost > args.remainingBlue) return [];
+      if (!descriptor) return [];
 
       const definition = getShipDefinitionById(descriptor.copiedShipDefId);
       if (
@@ -329,6 +332,8 @@ export function deriveAncientSimulacrumTargetingState(args: {
       ) {
         return [];
       }
+      hasLegalTargetBeforeAffordability = true;
+      if (descriptor.previewBlueCost > args.remainingBlue) return [];
       const presentation = getStackPresentationSnapshot(
         stack,
         descriptor.copiedShipDefId
@@ -350,6 +355,7 @@ export function deriveAncientSimulacrumTargetingState(args: {
     eligibleTargetsByStackKey,
     selectedTargetInstanceIdsByStackKey,
     hasEligibleTarget: Object.keys(eligibleTargetsByStackKey).length > 0,
+    hasLegalTargetBeforeAffordability,
   };
 }
 

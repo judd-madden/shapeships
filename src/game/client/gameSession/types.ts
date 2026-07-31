@@ -769,6 +769,7 @@ export interface ActionPanelViewModel {
       canOpen: boolean;
       blueAvailable: number;
       hoveredPreviewBlueCost: number | null;
+      hasLegalTargetBeforeAffordability: boolean;
     };
     blackHoleSelector: {
       canOpen: boolean;
