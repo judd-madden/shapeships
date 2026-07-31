@@ -1542,7 +1542,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "blue": 1,
       "xBlue": false
     },
-    "extraRules": "* Convert is the only way energy can be converted back into lines. Lines can be saved.",
+    "extraRules": "",
     "stackCaption": "N/A",
     "colour": "N/A",
     "numberOfGraphics": 1
@@ -1585,7 +1585,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charge Declaration",
-        "text": "Heal and deal damage based on energy spent. You must spend an EQUAL amount of green and red energy."
+        "text": "Spend an EQUAL amount of green and red energy on this power. Heal and deal damage based on the amount of energy spent."
       }
     ],
     "energyCost": {
@@ -1594,7 +1594,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "blue": 0,
       "xBlue": false
     },
-    "extraRules": "4-7 of each: 3X-4 healing and damage. 8+ of each: (X-4)×5 healing and damage.",
+    "extraRules": "4-7 of each: 3X-4 healing and damage. 8+ of each: (X-4)×5 healing and damage. No limit.",
     "stackCaption": "N/A",
     "colour": "N/A",
     "numberOfGraphics": 1
