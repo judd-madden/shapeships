@@ -247,6 +247,7 @@ interface AncientShipCataloguePanelProps {
   onShipInspect?: (shipId: ShipDefId) => void;
   onSolarPowerInspect?: (solarPowerId: ImplementedAncientManualSolarPowerId) => void;
   siphonInspectionOpen?: boolean;
+  siphonHorizontalScrollOwner?: 'self' | 'ancestor';
   onCloseSiphonInspection?: () => void;
   simulacrumSpecies?: SpeciesId;
   presentation?: 'reference' | 'declaration';
@@ -387,6 +388,7 @@ export function AncientShipCataloguePanel({
   onShipInspect,
   onSolarPowerInspect,
   siphonInspectionOpen: controlledSiphonInspectionOpen = false,
+  siphonHorizontalScrollOwner = 'self',
   onCloseSiphonInspection,
   simulacrumSpecies = 'human',
   presentation = 'reference',
@@ -913,6 +915,7 @@ export function AncientShipCataloguePanel({
                   maxSpend={isSiphonInspection ? 0 : (siphonSelector?.maxSpend ?? 0)}
                   availableWidth={canvas.width - siphonSelectorX}
                   x={siphonSelectorX}
+                  horizontalScrollOwner={siphonHorizontalScrollOwner}
                   onSelect={isSiphonInspection ? () => {} : actions.onCastAncientSiphon}
                   onHoveredSpendChange={handleHoveredSiphonSpendChange}
                 />

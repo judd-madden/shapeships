@@ -11,6 +11,7 @@ interface AncientSiphonSelectorProps {
   maxSpend: number;
   availableWidth: number;
   x: number;
+  horizontalScrollOwner?: 'self' | 'ancestor';
   onSelect: (lockedAmount: number) => void;
   onHoveredSpendChange: (hoveredSpend: number | null) => void;
 }
@@ -19,6 +20,7 @@ export function AncientSiphonSelector({
   maxSpend,
   availableWidth,
   x,
+  horizontalScrollOwner = 'self',
   onSelect,
   onHoveredSpendChange,
 }: AncientSiphonSelectorProps) {
@@ -66,7 +68,13 @@ export function AncientSiphonSelector({
         <span className="mt-[6px]">Damage</span>
       </div>
 
-      <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x">
+      <div
+        className={
+          horizontalScrollOwner === 'self'
+            ? 'min-w-0 flex-1 overflow-x-auto overflow-y-hidden overscroll-x-contain touch-pan-x'
+            : 'min-w-0 flex-1'
+        }
+      >
         <div className="flex w-max flex-nowrap gap-[4px]">
           {candidates.map((candidate) => {
             const effectAmount = calculateAncientSiphonEffect(candidate);

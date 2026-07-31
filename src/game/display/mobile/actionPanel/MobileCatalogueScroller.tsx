@@ -322,6 +322,7 @@ export function MobileCatalogueScroller({
           {...commonProps}
           onSolarPowerInspect={onSolarPowerInspect}
           siphonInspectionOpen={siphonInspectionOpen}
+          siphonHorizontalScrollOwner="ancestor"
           onCloseSiphonInspection={onCloseSiphonInspection}
           catalogueLayout="standard"
           simulacrumSpecies={simulacrumSpecies}
