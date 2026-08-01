@@ -50,6 +50,11 @@ import {
   appendShipActivationCueBatch,
   getShipActivationSourcesFromAppliedEffects,
 } from '../state/shipActivationCues.ts';
+import {
+  isChargeDeclarationLegalityInvariantError,
+  recordChargeDeclarationSpendAcknowledgements,
+  requireChargeDeclarationLegalityState,
+} from '../state/chargeDeclarationVisibility.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
 import {
   anyPlayerIsCubeEligible,
@@ -2618,7 +2623,9 @@ function handleChargeDeclarationSubmit(
       state,
       events: [],
       rejected: {
-        code: message.includes('only allowed during')
+        code: isChargeDeclarationLegalityInvariantError(error)
+          ? RejectionCode.INTERNAL_ERROR
+          : message.includes('only allowed during')
           ? RejectionCode.WRONG_PHASE
           : RejectionCode.BAD_PAYLOAD,
         message,
@@ -3045,6 +3052,10 @@ function handleAction(
     }
     
     try {
+      if (phaseKey === 'battle.charge_declaration') {
+        requireChargeDeclarationLegalityState(state);
+      }
+
       if (phaseKey === 'build.dice_roll') {
         if (state?.gameData?.turnData?.diceManipulationStage === 'cube') {
           stageCubeDiceChoice(
@@ -3109,6 +3120,9 @@ function handleAction(
       
       state = outcome.state;
       const effectEvents = getEffectEventsFromOutcomeEvents(outcome.events);
+      if (phaseKey === 'battle.charge_declaration') {
+        recordChargeDeclarationSpendAcknowledgements(state, playerId, effectEvents);
+      }
 
       if (phaseKey === 'build.ships_that_build') {
         incrementShipsMadeThisTurnCounter(
@@ -3194,7 +3208,9 @@ function handleAction(
         state,
         events: [],
         rejected: {
-          code: msg === 'CHARGE_ALREADY_USED_THIS_TURN'
+          code: isChargeDeclarationLegalityInvariantError(err)
+            ? RejectionCode.INTERNAL_ERROR
+            : msg === 'CHARGE_ALREADY_USED_THIS_TURN'
             ? RejectionCode.CHARGE_ALREADY_USED_THIS_TURN
             : RejectionCode.BAD_PAYLOAD,
           message: msg === 'CHARGE_ALREADY_USED_THIS_TURN'
@@ -3273,6 +3289,22 @@ function handleActionsSubmit(
     };
   }
 
+  if (phaseKey === 'battle.charge_declaration') {
+    try {
+      requireChargeDeclarationLegalityState(state);
+    } catch (error) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.INTERNAL_ERROR,
+          message: error instanceof Error ? error.message : String(error),
+        },
+      };
+    }
+  }
+
   if (
     phaseKey === 'build.dice_roll' &&
     state?.gameData?.turnData?.diceManipulationStage === 'cube'
@@ -3332,6 +3364,7 @@ function handleActionsSubmit(
   // BATCH PROCESSING: Apply each action atomically
   // ============================================================================
   const activationSources: ShipActivationCueSource[] = [];
+  const declarationSpendEffectEvents: EffectEvent[] = [];
 
   for (const item of payload.actions) {
     // Validate action type
@@ -3437,6 +3470,11 @@ function handleActionsSubmit(
 
       state = outcome.state;
       const effectEvents = getEffectEventsFromOutcomeEvents(outcome.events);
+      if (phaseKey === 'battle.charge_declaration') {
+        declarationSpendEffectEvents.push(
+          ...effectEvents.filter((event) => event.kind === 'SpendCharge'),
+        );
+      }
       activationSources.push(
         ...getShipActivationSourcesFromAppliedEffects(
           outcome.effects || [],
@@ -3503,13 +3541,35 @@ function handleActionsSubmit(
         state,
         events: [],
         rejected: {
-          code: msg === 'CHARGE_ALREADY_USED_THIS_TURN'
+          code: isChargeDeclarationLegalityInvariantError(err)
+            ? RejectionCode.INTERNAL_ERROR
+            : msg === 'CHARGE_ALREADY_USED_THIS_TURN'
             ? RejectionCode.CHARGE_ALREADY_USED_THIS_TURN
             : RejectionCode.BAD_PAYLOAD,
           message: msg === 'CHARGE_ALREADY_USED_THIS_TURN'
             ? 'This ship has already used a charge this turn.'
             : msg
         }
+      };
+    }
+  }
+
+  if (phaseKey === 'battle.charge_declaration') {
+    try {
+      recordChargeDeclarationSpendAcknowledgements(
+        state,
+        playerId,
+        declarationSpendEffectEvents,
+      );
+    } catch (error) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.INTERNAL_ERROR,
+          message: error instanceof Error ? error.message : String(error),
+        },
       };
     }
   }

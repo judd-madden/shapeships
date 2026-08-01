@@ -35,6 +35,9 @@ import {
   sanitizeAncientStateForClient,
   type AncientCompatibilityRisk,
 } from '../engine/state/ancientState.ts';
+import {
+  filterChargeDeclarationEventsForViewer,
+} from '../engine/state/chargeDeclarationVisibility.ts';
 
 function logAncientCompatibilityRisks(
   boundary: string,
@@ -160,6 +163,18 @@ function sanitizeStateForResponse(
   );
   const { battleLogScratch: _omitBattleLogScratch, ...responseState } = ancientSafeState;
   return responseState;
+}
+
+function sanitizeEventsForResponse(
+  state: any,
+  events: readonly any[],
+  requestingParticipantId?: string,
+): any[] {
+  return filterChargeDeclarationEventsForViewer(
+    state,
+    requestingParticipantId,
+    events,
+  );
 }
 
 async function prepareBattleLogPersistenceFromEvents(args: {
@@ -413,7 +428,11 @@ export function registerIntentRoutes(
           {
             ok: result.ok,
             state: sanitizeStateForResponse(result.state, sessionPlayerId),
-            events: result.events,
+            events: sanitizeEventsForResponse(
+              result.state,
+              result.events,
+              sessionPlayerId,
+            ),
             rejected: result.rejected,
           },
           400
@@ -595,7 +614,11 @@ export function registerIntentRoutes(
               battleLogProcessingResult.nextState,
               sessionPlayerId,
             ),
-            events: allEvents,
+            events: sanitizeEventsForResponse(
+              battleLogProcessingResult.nextState,
+              allEvents,
+              sessionPlayerId,
+            ),
             rejected: null,
           },
           200
@@ -698,7 +721,11 @@ export function registerIntentRoutes(
               battleLogProcessingResult.nextState,
               sessionPlayerId,
             ),
-            events: result.events, // keep original events from first apply (best-effort)
+            events: sanitizeEventsForResponse(
+              battleLogProcessingResult.nextState,
+              result.events,
+              sessionPlayerId,
+            ),
             rejected: null,
           },
           200

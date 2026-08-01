@@ -18,6 +18,7 @@ import { hasRevealed } from '../engine/intent/CommitStore.ts';
 import { resolveBuildSubmitAuthoritatively } from '../engine/intent/buildSubmitResolution.ts';
 import {
   getAcceptedDeclarationForCurrentBattle,
+  getChargeDeclarationLegalityState,
   getSnappedOrdinaryChargeSourceIds,
   getSnappedSolarGridSourceIds,
   isAncientPlayer,
@@ -36,6 +37,9 @@ import {
   sanitizeAncientStateForClient,
   type AncientCompatibilityRisk,
 } from '../engine/state/ancientState.ts';
+import {
+  projectChargeDeclarationStateForViewer,
+} from '../engine/state/chargeDeclarationVisibility.ts';
 import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
 import { computeLineBonusesForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
 import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers.ts';
@@ -390,9 +394,17 @@ function isHiddenBuildActivationCuePhase(phaseKey: string): boolean {
 function projectShipActivationCueBatches(
   value: unknown,
   currentPhaseKey: string | null,
-  gameStatus: unknown
+  gameStatus: unknown,
+  currentTurnNumber: number,
 ) {
   const batches = getShipActivationCueBatches(value);
+  if (currentPhaseKey === 'battle.charge_declaration') {
+    return batches.filter(
+      (batch) =>
+        batch.phaseKey !== 'battle.charge_declaration' ||
+        batch.turnNumber !== currentTurnNumber
+    );
+  }
   const mayRevealHiddenBuildCues =
     gameStatus === 'finished' ||
     (typeof currentPhaseKey === 'string' && currentPhaseKey.startsWith('battle.'));
@@ -414,8 +426,27 @@ function projectRequesterShipActivationCueBatches(
   requestingPlayerId: string,
   participantRole: unknown
 ) {
+  if (participantRole !== 'player') {
+    return [];
+  }
+
+  if (currentPhaseKey === 'battle.charge_declaration') {
+    return getShipActivationCueBatches(value)
+      .filter(
+        (batch) =>
+          batch.turnNumber === currentTurnNumber &&
+          batch.phaseKey === 'battle.charge_declaration'
+      )
+      .map((batch) => ({
+        ...batch,
+        sources: batch.sources.filter(
+          (source) => source.playerId === requestingPlayerId
+        ),
+      }))
+      .filter((batch) => batch.sources.length > 0);
+  }
+
   if (
-    participantRole !== 'player' ||
     gameStatus === 'finished' ||
     (typeof currentPhaseKey === 'string' && currentPhaseKey.startsWith('battle.'))
   ) {
@@ -666,6 +697,19 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
   // CHARGE PHASES: Derive choice actions from structured powers
   // ============================================================================
   if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+    const declarationTargetState = phaseKey === 'battle.charge_declaration'
+      ? getChargeDeclarationLegalityState(state)
+      : state;
+    if (phaseKey === 'battle.charge_declaration') {
+      const currentSubPhase = state?.gameData?.currentSubPhase;
+      const readiness = (state?.gameData?.phaseReadiness ?? []).find(
+        (entry: any) =>
+          entry?.playerId === playerId &&
+          entry?.isReady === true &&
+          (entry?.currentStep === phaseKey || entry?.currentStep === currentSubPhase),
+      );
+      if (readiness) return [];
+    }
     if (
       phaseKey === 'battle.charge_declaration' &&
       isAncientPlayer(state, playerId) &&
@@ -733,7 +777,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
 
         if (shipDefId === 'EQU') {
           const { validOwnTargets, validOpponentTargets } = getValidShipOfEqualityTargets(
-            state,
+            declarationTargetState,
             playerId
           );
 
@@ -1899,6 +1943,11 @@ export function registerGameRoutes(
         requestingPlayerId,
       );
       gameData = projectDiceManipulationTurnData(gameData, requestingPlayerId);
+      const declarationProjection = projectChargeDeclarationStateForViewer(
+        gameData,
+        requestingPlayerId,
+      );
+      const projectedGameData = declarationProjection.state;
 
       // Expose clock snapshot to client (STEP F)
       const clockData = gameData.gameData?.clock;
@@ -1937,10 +1986,14 @@ export function registerGameRoutes(
       const chronoswarmRolls = Array.isArray(turnData.chronoswarmRolls)
         ? turnData.chronoswarmRolls.filter((roll: unknown): roll is number => typeof roll === 'number')
         : [];
-      const playersInGame = gameData.players || [];
+      const playersInGame = projectedGameData.players || [];
       for (const player of playersInGame) {
         if (player.role === 'player') {
-          const publicSavedResources = getPublicSavedResourcesForPlayer(gameData, phaseKey, player.id);
+          const publicSavedResources = getPublicSavedResourcesForPlayer(
+            projectedGameData,
+            phaseKey,
+            player.id,
+          );
           const requesterOwnsEconomy =
             participant?.role === 'player' &&
             player.id === requestingPlayerId;
@@ -1963,8 +2016,14 @@ export function registerGameRoutes(
 
           savedLinesByPlayerId[player.id] = publicSavedResources.savedLines;
           joiningLinesByPlayerId[player.id] = publicSavedResources.savedJoiningLines;
+          if (!declarationProjection.structuralProjectionAvailable) {
+            continue;
+          }
           try {
-            const lineBonuses = computeLineBonusesForPlayer(gameData.gameData, player.id);
+            const lineBonuses = computeLineBonusesForPlayer(
+              projectedGameData.gameData,
+              player.id,
+            );
             bonusLinesByPlayerId[player.id] = lineBonuses.bonusLines;
             bonusLinesOnEvenByPlayerId[player.id] = lineBonuses.bonusLinesOnEven;
             joiningBonusLinesByPlayerId[player.id] = lineBonuses.joiningBonusLines;
@@ -2006,12 +2065,18 @@ export function registerGameRoutes(
         }
       }
       
-      const publicAncientState = projectPublicAncientState(gameData);
+      const publicAncientState = projectPublicAncientState(
+        gameData,
+        requestingPlayerId,
+      );
       const clientSafeGameData = sanitizeAncientStateForClient(
         gameData,
         requestingPlayerId,
       );
-      const publicShips = projectPublicShipsForClient(gameData);
+      const publicShips = projectPublicShipsForClient(
+        gameData,
+        requestingPlayerId,
+      );
       const {
         ships: _omitShips,
         battleLogScratch: _omitBattleLogScratch,
@@ -2052,14 +2117,22 @@ export function registerGameRoutes(
         cubeDiceValueByPlayerId: turnData.visibleCubeDiceValueByPlayerId ?? {},
       };
       const publicState = {
-        players: ((projectPublicPlayersForClient(gameData) as any[]) ?? []).map((player: any) => ({
-          ...player,
-          maxHealth: getPlayerMaxHealth(gameData, player.id),
-        })),
+        players: ((projectPublicPlayersForClient(
+          gameData,
+          requestingPlayerId,
+        ) as any[]) ?? []).map((player: any) =>
+          declarationProjection.structuralProjectionAvailable
+            ? {
+                ...player,
+                maxHealth: getPlayerMaxHealth(projectedGameData, player.id),
+              }
+            : player
+        ),
         phaseReadiness,
         clock: clockSnapshot,
         ships: publicShips,
-        voidShipsByPlayerId: gameData.gameData?.voidShipsByPlayerId ?? {},
+        voidShipsByPlayerId:
+          projectedGameData.gameData?.voidShipsByPlayerId ?? {},
         visibleDice,
         lastTurnStats: {
           netByPlayerId: gameData.gameData?.lastTurnNetByPlayerId ?? {},
@@ -2077,7 +2150,8 @@ export function registerGameRoutes(
           shipActivationCueBatches: projectShipActivationCueBatches(
             turnData.shipActivationCueBatches,
             phaseKey,
-            gameData.status
+            gameData.status,
+            currentTurnNumber,
           ),
         },
         ancient: publicAncientState,

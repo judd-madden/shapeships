@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { EffectKind, EffectTiming, SurvivabilityRule } from '../../../engine_shared/effects/Effect.ts';
 import { computePhaseComputedEffects } from '../../../engine_shared/resolve/phaseComputedEffects.ts';
 import { resolvePhase } from '../../../engine_shared/resolve/resolvePhase.ts';
+import { replaceChargeDeclarationVisibilityState } from '../../../engine/state/chargeDeclarationVisibility.ts';
+import { sanitizeAncientStateForClient } from '../../../engine/state/ancientState.ts';
 
 function createState(args: {
   p1Ships?: any[];
@@ -373,6 +375,52 @@ Deno.test('live current-turn QUA marker emits one ordinary attributed heal', () 
     kind: EffectKind.Heal,
     amount: 5,
   });
+});
+
+Deno.test('Charge Declaration projection hides QUA reveal memory without changing its later heal', () => {
+  const state = createState({
+    p1Ships: [qua('qua-projected')],
+    markerByInstanceId: {
+      'qua-projected': { battleTurnNumber: 3, controllerPlayerId: 'p1' },
+    },
+  });
+  state.gameData.currentPhase = 'battle';
+  state.gameData.currentSubPhase = 'charge_declaration';
+  state.gameData.turnData.currentMajorPhase = 'battle';
+  state.gameData.turnData.currentSubPhase = 'charge_declaration';
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId =
+    structuredClone(state.gameData.ships);
+  replaceChargeDeclarationVisibilityState(state);
+  const canonicalMemoryBefore = structuredClone(
+    state.gameData.powerMemory.quantumMysticRevealByInstanceId,
+  );
+
+  const projected: any = sanitizeAncientStateForClient(state, 'p1');
+  assert.deepEqual(projected.gameData.powerMemory, {
+    frigateTriggerByInstanceId: {},
+  });
+  assert.equal(
+    projected.gameData.ships.p1[0].permanentConfiguration.selectedNumber,
+    3,
+  );
+  assert.deepEqual(
+    state.gameData.powerMemory.quantumMysticRevealByInstanceId,
+    canonicalMemoryBefore,
+  );
+
+  const resolved = resolvePhase(state, 'battle.end_of_turn_resolution');
+  assert.equal(
+    resolved.state.players.find((player: any) => player.id === 'p1')?.health,
+    25,
+  );
+  assert.equal(
+    resolved.events.some((event: any) =>
+      event.type === 'EFFECT_APPLIED' &&
+      event.kind === 'Heal' &&
+      event.effectId === 'quantum_mystic_3_qua-projected'
+    ),
+    true,
+  );
 });
 
 Deno.test('missing, malformed, stale, and destroyed QUA markers emit no heal', () => {

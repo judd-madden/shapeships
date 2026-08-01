@@ -32,6 +32,7 @@ import {
 import { isThirdSpiralFirstStrikeEligible } from './thirdSpiralFirstStrikeEligibility.ts';
 import { countDistinctTypes } from './phaseComputedEffects.ts';
 import { canControlAdditionalSpirals } from '../maximumHealth.ts';
+import { getChargeDeclarationLegalityState } from '../../engine/intent/chargeDeclarationEligibility.ts';
 
 function getShipsThatBuildPassIndex(state: GameState): 1 | 2 {
   return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
@@ -305,7 +306,13 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
     : undefined;
 
   if (isShipOfEqualityDamage) {
-    const { validOwnTargets, validOpponentTargets } = getValidShipOfEqualityTargets(state, playerId);
+    const targetState = phaseKey === 'battle.charge_declaration'
+      ? getChargeDeclarationLegalityState(state)
+      : state;
+    const { validOwnTargets, validOpponentTargets } = getValidShipOfEqualityTargets(
+      targetState,
+      playerId,
+    );
 
     if (validOwnTargets.length === 0 || validOpponentTargets.length === 0) {
       throw new Error('No valid targets available.');

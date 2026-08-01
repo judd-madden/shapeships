@@ -16,6 +16,7 @@ import {
   type Effect,
 } from '../../../engine_shared/effects/Effect.ts';
 import { getShipById } from '../../../engine_shared/defs/ShipDefinitions.core.ts';
+import { replaceChargeDeclarationVisibilityState } from '../../../engine/state/chargeDeclarationVisibility.ts';
 
 function payload(overrides: Record<string, unknown> = {}) {
   return {
@@ -37,7 +38,7 @@ function holdSolarGrids() {
 }
 
 function createState(): any {
-  return {
+  const state = {
     gameId: 'charge-declaration-resolution-test',
     status: 'active',
     players: [
@@ -106,6 +107,8 @@ function createState(): any {
       },
     },
   };
+  replaceChargeDeclarationVisibilityState(state);
+  return state;
 }
 
 function solarHealthEffect(
@@ -221,6 +224,15 @@ Deno.test('mixed ordinary charge and independent SOL Use/Hold choices commit det
   assert.equal(result.state.gameData.ships.p1.find((ship: any) => ship.instanceId === 'int-1').chargesCurrent, 1);
   assert.equal(result.state.gameData.ships.p1.find((ship: any) => ship.instanceId === 'sol-a').chargesCurrent, 3);
   assert.equal(result.state.gameData.ships.p1.find((ship: any) => ship.instanceId === 'sol-b').chargesCurrent, 1);
+  assert.deepEqual(
+    result.state.gameData.turnData.chargeDeclarationAcknowledgements,
+    {
+      battleTurnNumber: 3,
+      chargeAfterByPlayerId: {
+        p1: { 'int-1': 1, 'sol-a': 3 },
+      },
+    },
+  );
   assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, { green: 2, red: 1, blue: 1 });
   assert.deepEqual(
     result.state.gameData.ancient.energyByPlayerId.p1.sources.map((source: any) => source.sourceId),
@@ -571,6 +583,9 @@ Deno.test('production Black Hole commits normalized targets and locked damage wi
     red: 4,
     blue: 4,
   };
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId =
+    structuredClone(state.gameData.ships);
+  replaceChargeDeclarationVisibilityState(state);
   const before = structuredClone(state);
   const result = resolveChargeDeclarationSubmission({
     state,
@@ -634,6 +649,48 @@ Deno.test('production Black Hole commits normalized targets and locked damage wi
   assert.equal(result.state.players[1].health, 20);
 });
 
+Deno.test('Black Hole locks entry targets but preserves the existing live owned-Core amount source', () => {
+  const state = createState();
+  state.gameData.ships.p1.push(
+    { instanceId: 'plu-entry', shipDefId: 'PLU' },
+    { instanceId: 'mer-entry', shipDefId: 'MER' },
+  );
+  state.gameData.ships.p2.push(
+    { instanceId: 'enemy-a', shipDefId: 'INT' },
+    { instanceId: 'enemy-b', shipDefId: 'FAM' },
+  );
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 4, red: 4, blue: 4 };
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId =
+    structuredClone(state.gameData.ships);
+  replaceChargeDeclarationVisibilityState(state);
+
+  state.gameData.ships.p2 = state.gameData.ships.p2.filter(
+    (ship: any) => ship.instanceId !== 'enemy-a',
+  );
+  state.gameData.voidShipsByPlayerId.p2.push({ instanceId: 'enemy-a', shipDefId: 'INT' });
+  state.gameData.ships.p1 = state.gameData.ships.p1.filter(
+    (ship: any) => ship.instanceId !== 'mer-entry',
+  );
+  state.gameData.voidShipsByPlayerId.p1.push({ instanceId: 'mer-entry', shipDefId: 'MER' });
+
+  const result = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      solarGridChoices: holdSolarGrids(),
+      solarCasts: [{
+        solarPowerId: 'SBLA',
+        targetInstanceIds: ['enemy-a', 'enemy-b'],
+      }],
+    }),
+    nowMs: 1000,
+  });
+  const [record] = result.state.gameData.ancient.pendingBlackHoleDestructions;
+  assert.deepEqual(record.targetInstanceIds, ['enemy-a', 'enemy-b']);
+  assert.equal(record.lockedDamage, 1);
+  assert.equal(result.state.gameData.pendingTurn.damageByPlayerId.p2, 1);
+});
+
 Deno.test('a repeated Black Hole reserved target rejects the declaration atomically', () => {
   const state = createState();
   state.gameData.ships.p2.push(
@@ -646,6 +703,9 @@ Deno.test('a repeated Black Hole reserved target rejects the declaration atomica
     red: 8,
     blue: 8,
   };
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId =
+    structuredClone(state.gameData.ships);
+  replaceChargeDeclarationVisibilityState(state);
   const before = structuredClone(state);
 
   assert.throws(() => resolveChargeDeclarationSubmission({
@@ -1135,6 +1195,7 @@ Deno.test('a previous Battle accepted record does not block a new declaration', 
   nextBattle.gameData.currentSubPhase = 'charge_declaration';
   nextBattle.gameData.turnData.currentSubPhase = 'charge_declaration';
   nextBattle.gameData.ancient.energyByPlayerId.p1.battleTurnNumber = 4;
+  replaceChargeDeclarationVisibilityState(nextBattle);
   const second = resolveChargeDeclarationSubmission({
     state: nextBattle,
     playerId: 'p1',

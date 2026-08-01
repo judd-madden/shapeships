@@ -30,6 +30,10 @@ import {
   applyAncientBattleRevealPreparation,
 } from '../state/ancientState.ts';
 import {
+  clearChargeDeclarationVisibilityState,
+  replaceChargeDeclarationVisibilityState,
+} from '../state/chargeDeclarationVisibility.ts';
+import {
   getEligibleOrdinaryChargeSourceIdsAtDeclarationStart,
   getRelevantSolarGridSourceIdsAtDeclarationStart,
   playerHasOrdinaryChargeResponseOption,
@@ -480,6 +484,13 @@ function enterPhaseOnce(
 
   const turnData = workingState.gameData.turnData;
 
+  if (
+    fromKey === 'battle.charge_declaration' &&
+    toKey !== 'battle.charge_declaration'
+  ) {
+    clearChargeDeclarationVisibilityState(workingState);
+  }
+
   // ============================================================================
   // BATTLE REVEAL VISIBILITY BARRIER - battle.reveal
   // ============================================================================
@@ -544,6 +555,7 @@ function enterPhaseOnce(
     turnData.solarGridDeclarationSourceIdsByPlayerId = solarSnapshotSourceIdsByPlayerId;
     turnData.chargeDeclarationEligibleByPlayerId = snapshot;
     turnData.chargeDeclarationFleetSnapshotByPlayerId = snapshotFleetByPlayerId;
+    replaceChargeDeclarationVisibilityState(workingState);
     
     debugLog(`[OnEnterPhase] Charge declaration snapshot:`, {
       eligibleByPlayerId: snapshot,
@@ -552,6 +564,8 @@ function enterPhaseOnce(
       fleetSnapshotSizesByPlayerId: Object.fromEntries(
         Object.entries(snapshotFleetByPlayerId).map(([playerId, fleet]) => [playerId, fleet.length])
       ),
+      visibilitySnapshotBattleTurnNumber:
+        turnData.chargeDeclarationVisibilitySnapshot?.battleTurnNumber,
     });
   }
   

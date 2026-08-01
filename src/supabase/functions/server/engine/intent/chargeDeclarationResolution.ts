@@ -39,6 +39,10 @@ import {
   getShipActivationSourcesFromAppliedEffects,
 } from '../state/shipActivationCues.ts';
 import {
+  recordChargeDeclarationSpendAcknowledgements,
+  requireChargeDeclarationLegalityState,
+} from '../state/chargeDeclarationVisibility.ts';
+import {
   resolveManualSolarDeclaration,
   resolveSolarCastSequence,
   type ManualSolarResolverRegistry,
@@ -354,6 +358,8 @@ export function resolveChargeDeclarationSubmissionWithDependencies(args: {
     throw new Error('This Ancient player has no atomic charge declaration input');
   }
 
+  requireChargeDeclarationLegalityState(args.state);
+
   validateAuthoritativeSourceSets(args.state, args.playerId, normalized);
 
   let workingState = structuredClone(args.state);
@@ -375,6 +381,11 @@ export function resolveChargeDeclarationSubmissionWithDependencies(args: {
     });
     workingState = outcome.state;
     const effectEvents = getEffectEvents(outcome.events);
+    recordChargeDeclarationSpendAcknowledgements(
+      workingState,
+      args.playerId,
+      effectEvents,
+    );
     activationSources.push(...getShipActivationSourcesFromAppliedEffects(outcome.effects, effectEvents));
     events.push(...createBattleLogBattleCaptureEventsFromResolution({
       stateBeforeResolution,
@@ -431,6 +442,11 @@ export function resolveChargeDeclarationSubmissionWithDependencies(args: {
     const applied = applyEffects(workingState, [effect]);
     workingState = applied.state;
     const effectEvents = getEffectEvents(applied.events);
+    recordChargeDeclarationSpendAcknowledgements(
+      workingState,
+      args.playerId,
+      effectEvents,
+    );
     activationSources.push(...getShipActivationSourcesFromAppliedEffects([effect], effectEvents));
     nextEnergy = {
       green: nextEnergy.green + 1,

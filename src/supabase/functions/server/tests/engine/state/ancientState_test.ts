@@ -18,6 +18,9 @@ import {
   getRelevantSolarGridSourceIdsAtDeclarationStart,
   playerRequiresChargeDeclarationInput,
 } from '../../../engine/intent/chargeDeclarationEligibility.ts';
+import {
+  requireChargeDeclarationLegalityState,
+} from '../../../engine/state/chargeDeclarationVisibility.ts';
 
 Deno.test('Drawing saved-resource projection is public-invariant and requester-aware', () => {
   const state: any = createBaseState();
@@ -1290,20 +1293,70 @@ Deno.test('Solar Power ships stay outside ordinary charge declaration and respon
     declaration.gameData.turnData.chargeDeclarationEligibleByPlayerId.p2,
     true,
   );
+  assert.equal(
+    declaration.gameData.turnData.chargeDeclarationVisibilitySnapshot.battleTurnNumber,
+    declaration.gameData.turnNumber,
+  );
+  assert.equal(
+    'chargeDeclarationFleetSnapshotByPlayerId' in
+      declaration.gameData.turnData.chargeDeclarationVisibilitySnapshot,
+    false,
+  );
+  assert.equal(
+    'pendingTurn' in declaration.gameData.turnData.chargeDeclarationVisibilitySnapshot,
+    false,
+  );
+  assert.deepEqual(
+    declaration.gameData.turnData.chargeDeclarationAcknowledgements,
+    {
+      battleTurnNumber: declaration.gameData.turnNumber,
+      chargeAfterByPlayerId: {},
+    },
+  );
 
-  declaration.gameData.currentSubPhase = 'charge_response';
-  declaration.gameData.turnData.currentSubPhase = 'charge_response';
-  declaration.gameData.turnData.anyChargesSpentInDeclaration = true;
-  const response = onEnterPhase(
+  declaration.gameData.turnData.chargeDeclarationAcknowledgements
+    .chargeAfterByPlayerId = { p2: { 'interceptor-1': 0 } };
+  declaration.players.find((player: any) => player.id === 'p1').health = 17;
+  const reentered = onEnterPhase(
     declaration,
+    'battle.first_strike',
+    'battle.charge_declaration',
+    1001,
+  ).state as any;
+  assert.deepEqual(
+    reentered.gameData.turnData.chargeDeclarationAcknowledgements,
+    {
+      battleTurnNumber: reentered.gameData.turnNumber,
+      chargeAfterByPlayerId: {},
+    },
+  );
+  assert.equal(
+    reentered.gameData.turnData.chargeDeclarationVisibilitySnapshot
+      .healthByPlayerId.p1,
+    17,
+  );
+
+  reentered.gameData.currentSubPhase = 'charge_response';
+  reentered.gameData.turnData.currentSubPhase = 'charge_response';
+  reentered.gameData.turnData.anyChargesSpentInDeclaration = true;
+  const response = onEnterPhase(
+    reentered,
     'battle.charge_declaration',
     'battle.charge_response',
-    1001,
+    1002,
   ).state as any;
   const p2Readiness = response.gameData.phaseReadiness.find(
     (entry: any) => entry.playerId === 'p2' && entry.currentStep === 'battle.charge_response',
   );
   assert.notEqual(p2Readiness?.isReady, true);
+  assert.equal(
+    response.gameData.turnData.chargeDeclarationVisibilitySnapshot,
+    undefined,
+  );
+  assert.equal(
+    response.gameData.turnData.chargeDeclarationAcknowledgements,
+    undefined,
+  );
 
   const nonAncientOnly: any = normalizeAncientGameState(createBaseState()).state;
   nonAncientOnly.gameData.currentPhase = 'battle';
@@ -1325,6 +1378,62 @@ Deno.test('Solar Power ships stay outside ordinary charge declaration and respon
     nonAncientDeclaration.gameData.turnData.chargeDeclarationEligibleByPlayerId.p2,
     true,
   );
+});
+
+Deno.test('stale Charge Declaration visibility redacts projection while legality fails without mutation', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  state.gameData.turnNumber = 3;
+  state.gameData.turnData.turnNumber = 3;
+  state.gameData.currentPhase = 'battle';
+  state.gameData.currentSubPhase = 'charge_declaration';
+  state.gameData.turnData.currentMajorPhase = 'battle';
+  state.gameData.turnData.currentSubPhase = 'charge_declaration';
+  state.gameData.ships = {
+    p1: [{ instanceId: 'p1-int', shipDefId: 'INT', chargesCurrent: 1 }],
+    p2: [{ instanceId: 'p2-int', shipDefId: 'INT', chargesCurrent: 1 }],
+  };
+  state.gameData.voidShipsByPlayerId = { p1: [], p2: [] };
+
+  const entered: any = onEnterPhase(
+    state,
+    'battle.first_strike',
+    'battle.charge_declaration',
+    1000,
+  ).state;
+  entered.gameData.turnNumber = 4;
+  entered.gameData.turnData.turnNumber = 4;
+  entered.gameData.pendingTurn = {
+    damageByPlayerId: { p2: 99 },
+    healByPlayerId: {},
+    breakdownEntries: [],
+  };
+  entered.gameData.powerMemory = {
+    onceOnlyFired: { secret: true },
+    frigateTriggerByInstanceId: { 'stable-frigate': 6 },
+    quantumMysticRevealByInstanceId: {
+      'internal-qua': { battleTurnNumber: 4, controllerPlayerId: 'p1' },
+    },
+    unknownFutureMemory: { secret: true },
+  };
+  const before = structuredClone(entered);
+
+  const projected: any = sanitizeAncientStateForClient(entered, 'p1');
+  assert.deepEqual(projected.gameData.ships, {});
+  assert.deepEqual(projected.gameData.voidShipsByPlayerId, {});
+  assert.equal('pendingTurn' in projected.gameData, false);
+  assert.deepEqual(projected.gameData.powerMemory, {
+    frigateTriggerByInstanceId: { 'stable-frigate': 6 },
+  });
+  assert.equal('health' in projected.players.find((player: any) => player.id === 'p1'), false);
+  assert.equal(
+    'chargeDeclarationVisibilitySnapshot' in projected.gameData.turnData,
+    false,
+  );
+  assert.throws(
+    () => requireChargeDeclarationLegalityState(entered),
+    /CHARGE_DECLARATION_LEGALITY_SNAPSHOT_MISSING/,
+  );
+  assert.deepEqual(entered, before);
 });
 
 Deno.test('P12 declaration input separates Energy, charged SOL, ordinary charge, acceptance, and response posture', () => {

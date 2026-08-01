@@ -9,6 +9,7 @@ import {
   resolveCommittedBlackHoleDestructions,
 } from '../../../engine/ancient/blackHoleSolarPower.ts';
 import { resolveChargeDeclarationSubmission } from '../../../engine/intent/chargeDeclarationResolution.ts';
+import { replaceChargeDeclarationVisibilityState } from '../../../engine/state/chargeDeclarationVisibility.ts';
 
 const BLACK_HOLE_REGISTRY: ManualSolarResolverRegistry = {
   SBLA: BLACK_HOLE_SOLAR_RESOLVER,
@@ -460,6 +461,26 @@ Deno.test('a later Black Hole rejects a reserved target immutably when one legal
   assert.deepEqual(state, before);
 });
 
+Deno.test('an opposing Black Hole record does not reserve declaration targets', () => {
+  const state = createState({
+    p2Ships: [ship('enemy-a', 'INT'), ship('enemy-b', 'FAM')],
+  });
+  state.gameData.ancient.pendingBlackHoleDestructions = [pendingRecord({
+    id: 'opponent-record',
+    ownerPlayerId: 'p2',
+    targetPlayerId: 'p1',
+    targets: ['enemy-a'],
+  })];
+  const result = resolveBlackHole({
+    state,
+    targetInstanceIds: ['enemy-a', 'enemy-b'],
+  });
+  assert.deepEqual(
+    result.state.gameData.ancient.pendingBlackHoleDestructions[1].targetInstanceIds,
+    ['enemy-a', 'enemy-b'],
+  );
+});
+
 Deno.test('delayed Black Hole resolution is immutable, fully ordered, missing-safe, and idempotent', () => {
   const state = createState({
     p1Ships: [ship('p1-target', 'INT')],
@@ -632,6 +653,7 @@ Deno.test('accepted Black Hole declaration survives JSON reload and resolves onc
     p1: { battleTurnNumber: 3, entries: [] },
     p2: { battleTurnNumber: 3, entries: [] },
   };
+  replaceChargeDeclarationVisibilityState(state);
   const fleetsBeforeCommit = structuredClone(state.gameData.ships);
 
   const committed = resolveChargeDeclarationSubmission({

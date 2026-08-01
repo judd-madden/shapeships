@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { runBotsUntilSettled } from '../../../engine/bot/botRunner.ts';
+import { replaceChargeDeclarationVisibilityState } from '../../../engine/state/chargeDeclarationVisibility.ts';
 
 function createBotCubeState(mainValue: number, cubeValues: number[]) {
   const cubeShips = cubeValues.map((_, index) => ({
@@ -115,5 +116,94 @@ Deno.test('bot Cube selection keeps Main on ties and stable Cube order otherwise
   assert.equal(
     cubeTie.state.gameData.turnData.cubeDiceSelectionByPlayerId.bot.choiceId,
     'cube:transferred-cube-01',
+  );
+});
+
+Deno.test('bot EQU planning retains declaration-entry targets after hidden canonical removal', async () => {
+  const state: any = {
+    gameId: 'bot-equality-snapshot-test',
+    status: 'active',
+    turnNumber: 3,
+    players: [
+      { id: 'human', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'bot', role: 'player', faction: 'centaur', health: 25, lines: 0, joiningLines: 0 },
+    ],
+    controllersByPlayerId: {
+      human: { kind: 'human' },
+      bot: {
+        kind: 'bot',
+        speciesId: 'CEN',
+        chosenPlanId: 'cen_vigor_power_destruction',
+      },
+    },
+    gameData: {
+      turnNumber: 3,
+      currentPhase: 'battle',
+      currentSubPhase: 'charge_declaration',
+      phaseReadiness: [{
+        playerId: 'human',
+        isReady: true,
+        currentStep: 'battle.charge_declaration',
+      }],
+      ships: {
+        human: [{ instanceId: 'human-def', shipDefId: 'DEF' }],
+        bot: [
+          { instanceId: 'bot-equ', shipDefId: 'EQU', chargesCurrent: 1 },
+          { instanceId: 'bot-def', shipDefId: 'DEF' },
+        ],
+      },
+      voidShipsByPlayerId: { human: [], bot: [] },
+      turnData: {
+        turnNumber: 3,
+        currentMajorPhase: 'battle',
+        currentSubPhase: 'charge_declaration',
+        chargeDeclarationEligibleByPlayerId: { human: false, bot: true },
+        chargeDeclarationEligibleSourceIdsByPlayerId: {
+          human: [],
+          bot: ['bot-equ'],
+        },
+        solarGridDeclarationSourceIdsByPlayerId: { human: [], bot: [] },
+        chargeDeclarationFleetSnapshotByPlayerId: {
+          human: [{ instanceId: 'human-def', shipDefId: 'DEF' }],
+          bot: [
+            { instanceId: 'bot-equ', shipDefId: 'EQU', chargesCurrent: 1 },
+            { instanceId: 'bot-def', shipDefId: 'DEF' },
+          ],
+        },
+        chargePowerUsedByInstanceId: {},
+        anyChargesSpentInDeclaration: false,
+      },
+      pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
+      powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
+      ancient: {
+        schemaVersion: 1,
+        energyByPlayerId: {},
+        acceptedDeclarationByPlayerId: {},
+        solarLedgerByPlayerId: {},
+        pendingSimulacrumCopies: [],
+        pendingBlackHoleDestructions: [],
+      },
+    },
+  };
+  replaceChargeDeclarationVisibilityState(state);
+  state.gameData.ships.human = [];
+  state.gameData.voidShipsByPlayerId.human = [
+    { instanceId: 'human-def', shipDefId: 'DEF' },
+  ];
+
+  const result = await runBotsUntilSettled({ state, nowMs: 1000 });
+  assert.equal(
+    result.events.some((event: any) =>
+      event.type === 'POWER_USED' &&
+      event.playerId === 'bot' &&
+      event.actionId === 'EQU#0'
+    ),
+    true,
+  );
+  assert.equal(
+    result.state.gameData.voidShipsByPlayerId.bot.some(
+      (ship: any) => ship.instanceId === 'bot-def',
+    ),
+    true,
   );
 });

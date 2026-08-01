@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
+import { replaceChargeDeclarationVisibilityState } from '../../../engine/state/chargeDeclarationVisibility.ts';
 import { applyIntent, type IntentRequest } from '../../../engine/intent/IntentReducer.ts';
-import { normalizeAncientGameState } from '../../../engine/state/ancientState.ts';
+import {
+  normalizeAncientGameState,
+  sanitizeAncientStateForClient,
+} from '../../../engine/state/ancientState.ts';
 
 function createBuildState() {
   return {
@@ -118,7 +122,7 @@ function createAtomicChargeState(args: {
   if (args.p1HasInterceptor) {
     p1Ships.unshift({ instanceId: 'p1-int', shipDefId: 'INT', chargesCurrent: 1 });
   }
-  return {
+  const state = {
     gameId: 'atomic-charge-reducer-test',
     status: 'active',
     turnNumber: 3,
@@ -176,6 +180,8 @@ function createAtomicChargeState(args: {
       },
     },
   };
+  replaceChargeDeclarationVisibilityState(state);
+  return state;
 }
 
 function chargeDeclarationIntent(args: {
@@ -213,7 +219,7 @@ function createTwoAncientChargeState(): any {
       { instanceId: 'p2-sol', shipDefId: 'SOL', chargesCurrent: 4 },
     ],
   };
-  return normalizeAncientGameState({
+  const state = normalizeAncientGameState({
     gameId: 'two-ancient-charge-test',
     status: 'active',
     turnNumber: 3,
@@ -271,6 +277,64 @@ function createTwoAncientChargeState(): any {
       },
     },
   }).state;
+  replaceChargeDeclarationVisibilityState(state);
+  return state;
+}
+
+function createEqualityDeclarationState(args: { destroyChargeSource?: boolean } = {}): any {
+  const ships = args.destroyChargeSource
+    ? {
+        p1: [
+          { instanceId: 'p1-equ', shipDefId: 'EQU', chargesCurrent: 1 },
+          { instanceId: 'p1-int-target', shipDefId: 'INT', chargesCurrent: 0 },
+        ],
+        p2: [
+          { instanceId: 'p2-int-source', shipDefId: 'INT', chargesCurrent: 1 },
+        ],
+      }
+    : {
+        p1: [
+          { instanceId: 'p1-equ', shipDefId: 'EQU', chargesCurrent: 1 },
+          { instanceId: 'p1-def', shipDefId: 'DEF' },
+        ],
+        p2: [
+          { instanceId: 'p2-equ', shipDefId: 'EQU', chargesCurrent: 1 },
+          { instanceId: 'p2-def', shipDefId: 'DEF' },
+        ],
+      };
+  const state: any = normalizeAncientGameState({
+    gameId: 'equality-declaration-test',
+    status: 'active',
+    turnNumber: 3,
+    players: [
+      { id: 'p1', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'p2', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+    ],
+    gameData: {
+      turnNumber: 3,
+      currentPhase: 'battle',
+      currentSubPhase: 'charge_declaration',
+      phaseReadiness: [],
+      ships,
+      voidShipsByPlayerId: { p1: [], p2: [] },
+      turnData: {
+        turnNumber: 3,
+        currentMajorPhase: 'battle',
+        currentSubPhase: 'charge_declaration',
+        chargeDeclarationEligibleByPlayerId: { p1: true, p2: true },
+        chargeDeclarationEligibleSourceIdsByPlayerId: args.destroyChargeSource
+          ? { p1: ['p1-equ'], p2: ['p2-int-source'] }
+          : { p1: ['p1-equ'], p2: ['p2-equ'] },
+        solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
+        chargeDeclarationFleetSnapshotByPlayerId: structuredClone(ships),
+        chargePowerUsedByInstanceId: {},
+        anyChargesSpentInDeclaration: false,
+      },
+      pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
+    },
+  }).state;
+  replaceChargeDeclarationVisibilityState(state);
+  return state;
 }
 
 function twoAncientDeclarationIntent(playerId: 'p1' | 'p2'): IntentRequest {
@@ -926,6 +990,196 @@ Deno.test('final SOL charge submitted atomically produces its depleted Heal 2 in
     ),
     true,
   );
+});
+
+Deno.test('simultaneous EQU declarations validate from entry fleets and both spend charge', async () => {
+  const initial = createEqualityDeclarationState();
+  const first = await applyIntent(initial, 'p1', powerActionIntent(
+    initial.gameId,
+    'p1-equ',
+    'EQU#0',
+    'damage',
+    { targetInstanceIds: ['p1-def', 'p2-def'] },
+  ), 1000);
+  assert.equal(first.ok, true);
+  assert.equal(first.state.gameData.ships.p1.some((ship: any) => ship.instanceId === 'p1-def'), false);
+  assert.equal(first.state.gameData.ships.p2.some((ship: any) => ship.instanceId === 'p2-def'), false);
+
+  const second = await applyIntent(first.state, 'p2', powerActionIntent(
+    initial.gameId,
+    'p2-equ',
+    'EQU#0',
+    'damage',
+    { targetInstanceIds: ['p2-def', 'p1-def'] },
+  ), 1001);
+  assert.equal(second.ok, true);
+  assert.equal(
+    second.state.gameData.ships.p2.find((ship: any) => ship.instanceId === 'p2-equ')
+      .chargesCurrent,
+    0,
+  );
+  assert.deepEqual(
+    second.state.gameData.turnData.chargeDeclarationAcknowledgements.chargeAfterByPlayerId,
+    { p1: { 'p1-equ': 0 }, p2: { 'p2-equ': 0 } },
+  );
+  assert.equal(
+    second.events.some((event: any) => event.type === 'PLAYER_AUTO_READY'),
+    false,
+  );
+});
+
+Deno.test('a declaration-entry charge source destroyed into VOID still resolves and acknowledges', async () => {
+  const initial = createEqualityDeclarationState({ destroyChargeSource: true });
+  const first = await applyIntent(initial, 'p1', powerActionIntent(
+    initial.gameId,
+    'p1-equ',
+    'EQU#0',
+    'damage',
+    { targetInstanceIds: ['p1-int-target', 'p2-int-source'] },
+  ), 1000);
+  assert.equal(first.ok, true);
+  assert.equal(
+    first.state.gameData.voidShipsByPlayerId.p2.some(
+      (ship: any) => ship.instanceId === 'p2-int-source',
+    ),
+    true,
+  );
+
+  const second = await applyIntent(first.state, 'p2', powerActionIntent(
+    initial.gameId,
+    'p2-int-source',
+    'INT#0',
+    'damage',
+    {},
+  ), 1001);
+  assert.equal(second.ok, true);
+  assert.equal(
+    second.state.gameData.voidShipsByPlayerId.p2.find(
+      (ship: any) => ship.instanceId === 'p2-int-source',
+    ).chargesCurrent,
+    0,
+  );
+  assert.equal(
+    second.state.gameData.turnData.chargeDeclarationAcknowledgements
+      .chargeAfterByPlayerId.p2['p2-int-source'],
+    0,
+  );
+});
+
+Deno.test('a successful ordinary declaration batch acknowledges every spent source', async () => {
+  const state = createAtomicChargeState();
+  state.gameData.ships.p2.push({
+    instanceId: 'p2-int-second',
+    shipDefId: 'INT',
+    chargesCurrent: 1,
+  });
+  state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId.p2.push(
+    'p2-int-second',
+  );
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p2 =
+    structuredClone(state.gameData.ships.p2);
+  replaceChargeDeclarationVisibilityState(state);
+
+  const result = await applyIntent(state, 'p2', {
+    gameId: state.gameId,
+    intentType: 'ACTIONS_SUBMIT',
+    turnNumber: 3,
+    nonce: 'ordinary-charge-batch',
+    payload: {
+      actions: [
+        {
+          actionType: 'power',
+          actionId: 'INT#0',
+          sourceInstanceId: 'p2-int',
+          choiceId: 'damage',
+        },
+        {
+          actionType: 'power',
+          actionId: 'INT#0',
+          sourceInstanceId: 'p2-int-second',
+          choiceId: 'damage',
+        },
+      ],
+    },
+  }, 1000);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(
+    result.state.gameData.turnData.chargeDeclarationAcknowledgements
+      .chargeAfterByPlayerId.p2,
+    { 'p2-int': 0, 'p2-int-second': 0 },
+  );
+});
+
+Deno.test('a failed ordinary declaration batch publishes no partial acknowledgement overlay', async () => {
+  const state = createAtomicChargeState();
+  state.gameData.turnData.chargeDeclarationAcknowledgements
+    .chargeAfterByPlayerId.p2 = { 'prior-successful-source': 0 };
+
+  const result = await applyIntent(state, 'p2', {
+    gameId: state.gameId,
+    intentType: 'ACTIONS_SUBMIT',
+    turnNumber: 3,
+    nonce: 'failed-ordinary-charge-batch',
+    payload: {
+      actions: [
+        {
+          actionType: 'power',
+          actionId: 'INT#0',
+          sourceInstanceId: 'p2-int',
+          choiceId: 'damage',
+        },
+        {
+          actionType: 'power',
+          actionId: 'INT#0',
+          sourceInstanceId: 'p2-int',
+          choiceId: 'hold',
+        },
+      ],
+    },
+  }, 1000);
+
+  assert.equal(result.ok, false);
+  assert.deepEqual(
+    result.state.gameData.turnData.chargeDeclarationAcknowledgements
+      .chargeAfterByPlayerId.p2,
+    { 'prior-successful-source': 0 },
+  );
+  assert.equal(
+    result.state.gameData.ships.p2.find(
+      (ship: any) => ship.instanceId === 'p2-int',
+    ).chargesCurrent,
+    0,
+  );
+  const requesterSafe: any = sanitizeAncientStateForClient(result.state, 'p2');
+  assert.equal(
+    requesterSafe.gameData.ships.p2.find(
+      (ship: any) => ship.instanceId === 'p2-int',
+    ).chargesCurrent,
+    1,
+  );
+  assert.deepEqual(
+    state.gameData.turnData.chargeDeclarationAcknowledgements
+      .chargeAfterByPlayerId.p2,
+    { 'prior-successful-source': 0 },
+  );
+});
+
+Deno.test('missing declaration legality snapshot rejects before canonical mutation', async () => {
+  const state = createEqualityDeclarationState();
+  delete state.gameData.turnData.chargeDeclarationVisibilitySnapshot;
+  const before = structuredClone(state);
+  const result = await applyIntent(state, 'p1', powerActionIntent(
+    state.gameId,
+    'p1-equ',
+    'EQU#0',
+    'damage',
+    { targetInstanceIds: ['p1-def', 'p2-def'] },
+  ), 1000);
+  assert.equal(result.ok, false);
+  assert.equal(result.rejected?.code, 'INTERNAL_ERROR');
+  assert.deepEqual(state, before);
+  assert.deepEqual(result.state, before);
 });
 
 function createCubeIntentState(): any {

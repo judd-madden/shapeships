@@ -245,6 +245,25 @@ export type AncientSolarLedgerState = {
   entries: AncientSolarLedgerEntry[];
 };
 
+/**
+ * Narrow declaration-entry public baseline. Fleets deliberately remain in
+ * chargeDeclarationFleetSnapshotByPlayerId so this record does not duplicate
+ * the largest turn-scoped structure.
+ */
+export type ChargeDeclarationVisibilitySnapshot = {
+  battleTurnNumber: number;
+  voidShipsByPlayerId: Record<string, ShipInstance[]>;
+  healthByPlayerId: Record<string, number>;
+  ancientEnergyByPlayerId: Record<string, AncientPlayerEnergyState>;
+  ancientSolarLedgerByPlayerId: Record<string, AncientSolarLedgerState>;
+};
+
+/** Requester-local acknowledgement derived only from accepted SpendCharge effects. */
+export type ChargeDeclarationAcknowledgements = {
+  battleTurnNumber: number;
+  chargeAfterByPlayerId: Record<string, Record<string, number>>;
+};
+
 export type AncientSimulacrumProducedShipOutcome = {
   instanceId: string;
   shipDefId: string;
@@ -416,6 +435,10 @@ export type GameData = {
     /** Internal declaration-start snapshot of charged SOL instances for Ancient controllers. */
     solarGridDeclarationSourceIdsByPlayerId?: Record<string, string[]>;
     chargeDeclarationFleetSnapshotByPlayerId?: Record<string, ShipInstance[]>;
+    /** Narrow client-visibility baseline for the simultaneous declaration window. */
+    chargeDeclarationVisibilitySnapshot?: ChargeDeclarationVisibilitySnapshot;
+    /** Minimal requester-only accepted SpendCharge feedback for this declaration window. */
+    chargeDeclarationAcknowledgements?: ChargeDeclarationAcknowledgements;
 
     /** Staged first-strike selections, scoped by player and source instance */
     pendingFirstStrikeSelectionsByPlayerId?: Record<string, Record<string, {

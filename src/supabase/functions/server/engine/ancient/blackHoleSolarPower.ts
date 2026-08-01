@@ -19,6 +19,7 @@ import {
   buildSolarHealthEffect,
   requireSolarOpponentPlayerId,
 } from './solarPowerResolvers.ts';
+import { getChargeDeclarationLegalityState } from '../intent/chargeDeclarationEligibility.ts';
 
 const BLACK_HOLE_CORE_IDS = new Set(['PLU', 'MER', 'NEP']);
 
@@ -30,6 +31,7 @@ function requireBlackHoleTargets(args: {
   submittedTargetInstanceIds: readonly string[];
 }): { targetPlayerId: string; targetInstanceIds: string[] } {
   const targetPlayerId = requireSolarOpponentPlayerId(args.state, args.playerId);
+  const legalityState = getChargeDeclarationLegalityState(args.state);
   const reservedTargetInstanceIds = new Set<string>(
     (args.state?.gameData?.ancient?.pendingBlackHoleDestructions ?? [])
       .filter((record: AncientPendingBlackHoleDestruction) =>
@@ -42,7 +44,7 @@ function requireBlackHoleTargets(args: {
         record.targetInstanceIds
       ),
   );
-  const legalTargets = getValidDestroyTargets(args.state, {
+  const legalTargets = getValidDestroyTargets(legalityState, {
     sourcePlayerId: args.playerId,
     targetScope: 'opponent',
     restriction: 'basic_only',

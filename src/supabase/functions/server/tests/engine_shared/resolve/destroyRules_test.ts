@@ -7,6 +7,10 @@ import {
   isCanonicalBasicOnlyTargetShip,
 } from '../../../engine_shared/resolve/destroyRules.ts';
 import { resolvePowerAction } from '../../../engine_shared/resolve/resolvePowerAction.ts';
+import {
+  replaceChargeDeclarationVisibilityState,
+  requireChargeDeclarationLegalityState,
+} from '../../../engine/state/chargeDeclarationVisibility.ts';
 
 function ship(
   instanceId: string,
@@ -232,6 +236,30 @@ Deno.test('Ship of Equality is not actionable when its only apparent cost match 
     validOwnTargets: [],
     validOpponentTargets: [],
   });
+});
+
+Deno.test('Ship of Equality target derivation retains declaration-entry fleets after canonical removal', () => {
+  const state = createState({
+    ownFleet: [ship('equ-source', 'EQU', { chargesCurrent: 1 }), ship('own-def', 'DEF')],
+    opponentFleet: [ship('opponent-def', 'DEF')],
+  });
+  (state.gameData as any).currentSubPhase = 'charge_declaration';
+  state.gameData!.turnData!.currentSubPhase = 'charge_declaration';
+  state.gameData!.turnData!.chargeDeclarationFleetSnapshotByPlayerId = structuredClone(
+    state.gameData!.ships,
+  );
+  replaceChargeDeclarationVisibilityState(state);
+
+  state.gameData!.ships!.p2 = [];
+  assert.deepEqual(getValidShipOfEqualityTargets(state, 'p1'), {
+    validOwnTargets: [],
+    validOpponentTargets: [],
+  });
+
+  const legalityState = requireChargeDeclarationLegalityState(state);
+  const targets = getValidShipOfEqualityTargets(legalityState, 'p1');
+  assert.deepEqual(instanceIds(targets.validOwnTargets), ['own-def']);
+  assert.deepEqual(instanceIds(targets.validOpponentTargets), ['opponent-def']);
 });
 
 Deno.test('Guardian dry-run rejects a protected Core target without mutating state', () => {

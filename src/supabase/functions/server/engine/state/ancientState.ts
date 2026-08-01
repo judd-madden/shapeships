@@ -26,6 +26,13 @@ import {
   deriveMaterializedSimulacrumLedgerEntryIdsByPlayerId,
   pruneCompletedSimulacrumCopiesAtBattleReveal,
 } from '../ancient/simulacrumSolarPower.ts';
+import {
+  isChargeDeclarationPrivacyActive,
+  projectChargeDeclarationAncientForViewer,
+  projectChargeDeclarationStateForViewer,
+  redactChargeDeclarationTurnDataForClient,
+} from './chargeDeclarationVisibility.ts';
+import { debugLog } from '../../utils/serverLogger.ts';
 
 export const ANCIENT_STATE_SCHEMA_VERSION = 1 as const;
 const ANCIENT_SOLAR_POWER_ID_SET = new Set<AncientSolarPowerId>(ANCIENT_SOLAR_POWER_IDS);
@@ -927,22 +934,28 @@ export function getAuthoritativeAncientEnergyTotal(state: any, playerId: string)
     normalizeAncientNumber(pool?.blue);
 }
 
-export function projectPublicAncientState(normalizedState: any): {
+export function projectPublicAncientState(
+  normalizedState: any,
+  requestingParticipantId?: string,
+): {
   schemaVersion: 1;
   energyByPlayerId: Record<string, AncientPlayerEnergyState>;
   solarLedgerByPlayerId: Record<string, AncientSolarLedgerState>;
   materializedSimulacrumFleetInstanceIdsByPlayerId: Record<string, string[]>;
   materializedSimulacrumLedgerEntryIdsByPlayerId: Record<string, string[]>;
 } {
-  const ancient = normalizedState?.gameData?.ancient as AncientState;
+  const ancientProjection = projectChargeDeclarationAncientForViewer(
+    normalizedState,
+    requestingParticipantId,
+  );
   const energyByPlayerId: Record<string, AncientPlayerEnergyState> = {};
   const solarLedgerByPlayerId: Record<string, AncientSolarLedgerState> = {};
   for (const playerId of getPlayerSeatIds(normalizedState?.players)) {
     energyByPlayerId[playerId] = structuredClone(
-      ancient.energyByPlayerId[playerId] ?? createEmptyAncientPlayerEnergyState(),
+      ancientProjection.energyByPlayerId[playerId] ?? createEmptyAncientPlayerEnergyState(),
     );
     solarLedgerByPlayerId[playerId] = structuredClone(
-      ancient.solarLedgerByPlayerId[playerId] ?? createEmptyAncientSolarLedgerState(),
+      ancientProjection.solarLedgerByPlayerId[playerId] ?? createEmptyAncientSolarLedgerState(),
     );
   }
   return {
@@ -1020,14 +1033,29 @@ function sanitizePlayers(
 
 export function projectPublicPlayersForClient(
   state: Readonly<any>,
+  requestingParticipantId?: string,
 ): unknown {
-  return sanitizePlayers(state?.players, state, undefined, true);
+  const projection = projectChargeDeclarationStateForViewer(
+    state,
+    requestingParticipantId,
+  );
+  return sanitizePlayers(
+    projection.state?.players,
+    projection.state,
+    undefined,
+    true,
+  );
 }
 
 export function projectPublicShipsForClient(
   state: Readonly<any>,
+  requestingParticipantId?: string,
 ): Record<string, ShipInstance[]> {
-  const shipsByPlayerId = state?.gameData?.ships;
+  const projection = projectChargeDeclarationStateForViewer(
+    state,
+    requestingParticipantId,
+  );
+  const shipsByPlayerId = projection.state?.gameData?.ships;
   if (!isObject(shipsByPlayerId)) return {};
   return Object.fromEntries(
     Object.entries(shipsByPlayerId).map(([playerId, fleet]) => [
@@ -1042,16 +1070,36 @@ export function sanitizeAncientStateForClient<T = any>(
   requestingParticipantId?: string,
 ): T {
   if (!isObject(state)) return state;
-  const gameData = isObject(state.gameData) ? state.gameData : null;
+  const declarationProjection = projectChargeDeclarationStateForViewer(
+    state,
+    requestingParticipantId,
+  );
+  if (
+    declarationProjection.active &&
+    (!declarationProjection.structuralProjectionAvailable ||
+      !declarationProjection.acknowledgementsAvailable)
+  ) {
+    debugLog('[ChargeDeclarationVisibility] Redacted response after projection invariant', {
+      requestingParticipantId: requestingParticipantId ?? null,
+      reason: declarationProjection.failureReason ?? 'unknown',
+    });
+  }
+  const projectedState = declarationProjection.state as any;
+  const gameData = isObject(projectedState.gameData) ? projectedState.gameData : null;
   if (!gameData) {
     return {
-      ...state,
-      ...(Array.isArray(state.players) ? { players: sanitizePlayers(state.players) } : {}),
+      ...projectedState,
+      ...(Array.isArray(projectedState.players)
+        ? { players: sanitizePlayers(projectedState.players) }
+        : {}),
     } as T;
   }
   const { ancient: _internalAncient, ...safeGameData } = gameData;
   if (isObject(safeGameData.ships)) {
-    safeGameData.ships = projectPublicShipsForClient(state);
+    safeGameData.ships = projectPublicShipsForClient(
+      projectedState,
+      requestingParticipantId,
+    );
   }
   const turnData = isObject(safeGameData.turnData) ? safeGameData.turnData : null;
   if (turnData) {
@@ -1061,22 +1109,25 @@ export function sanitizeAncientStateForClient<T = any>(
       solarGridDeclarationSourceIdsByPlayerId: _solarGridDeclarationSourceIds,
       ...safeTurnData
     } = turnData;
-    safeGameData.turnData = safeTurnData;
+    safeGameData.turnData = redactChargeDeclarationTurnDataForClient(
+      safeTurnData,
+      isChargeDeclarationPrivacyActive(projectedState),
+    ) ?? {};
   }
   if (Array.isArray(safeGameData.players)) {
     safeGameData.players = sanitizePlayers(
       safeGameData.players,
-      state,
+      projectedState,
       requestingParticipantId,
     );
   }
   return {
-    ...state,
-    ...(Array.isArray(state.players)
+    ...projectedState,
+    ...(Array.isArray(projectedState.players)
       ? {
           players: sanitizePlayers(
-            state.players,
-            state,
+            projectedState.players,
+            projectedState,
             requestingParticipantId,
           ),
         }

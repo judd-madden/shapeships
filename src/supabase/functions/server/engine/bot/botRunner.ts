@@ -28,6 +28,7 @@ import {
   getCubeDiceActionForPlayer,
   playerHasValidPendingCubeChoice,
 } from '../phase/cubeDiceManipulation.ts';
+import { getChargeDeclarationLegalityState } from '../intent/chargeDeclarationEligibility.ts';
 
 const MAX_BOT_STEPS_PER_REQUEST = 8;
 const CARRIER_ACTION_ID = 'CAR#0';
@@ -1393,8 +1394,11 @@ function buildEqualityChargeIntentForCurrentPhase(args: {
       continue;
     }
 
+    const targetState = phaseKey === 'battle.charge_declaration'
+      ? getChargeDeclarationLegalityState(state)
+      : state;
     const { validOwnTargets, validOpponentTargets } = getValidShipOfEqualityTargets(
-      state,
+      targetState,
       playerId,
     );
     if (validOwnTargets.length === 0 || validOpponentTargets.length === 0) {
@@ -1417,10 +1421,10 @@ function buildEqualityChargeIntentForCurrentPhase(args: {
 
     const ownTarget = validOwnTargets
       .filter((target) => target.totalLineCost === selectedSharedCost)
-      .sort((left, right) => compareOwnEqualitySacrificeTargets(state, left, right))[0];
+      .sort((left, right) => compareOwnEqualitySacrificeTargets(targetState, left, right))[0];
     const opponentTarget = validOpponentTargets
       .filter((target) => target.totalLineCost === selectedSharedCost)
-      .sort((left, right) => compareTargetsHighestTactical(state, left, right))[0];
+      .sort((left, right) => compareTargetsHighestTactical(targetState, left, right))[0];
 
     if (!ownTarget || !opponentTarget) {
       continue;

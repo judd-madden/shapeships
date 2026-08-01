@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
+import { replaceChargeDeclarationVisibilityState } from '../../engine/state/chargeDeclarationVisibility.ts';
 import { registerGameRoutes } from '../../routes/game_routes.ts';
 import { registerIntentRoutes } from '../../routes/intent_routes.ts';
-import { normalizeAncientGameState } from '../../engine/state/ancientState.ts';
+import {
+  applyAncientBattleRevealPreparation,
+  normalizeAncientGameState,
+} from '../../engine/state/ancientState.ts';
 import { onEnterPhase } from '../../engine/phase/onEnterPhase.ts';
 
 type RouteHandler = (context: any) => Promise<Response> | Response;
@@ -606,6 +610,7 @@ Deno.test('JSON-reloaded Ancient state preserves owner, opponent, and spectator 
       sourceMode: 'primary',
       status: 'queued',
     }];
+    replaceChargeDeclarationVisibilityState(normalized);
     return normalized;
   };
 
@@ -1286,6 +1291,7 @@ Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient
     pool: { green: 1, red: 0, blue: 0 },
     sources: [],
   };
+  replaceChargeDeclarationVisibilityState(normalized);
   fixture.store.set('game_solar-grid-projection', normalized);
 
   const getState = fixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
@@ -1365,6 +1371,404 @@ Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient
     params: { gameId: 'solar-grid-projection' },
   })));
   assert.equal(responseBody.requester.availableActions.some((action: any) => action.shipDefId === 'SOL'), false);
+});
+
+Deno.test('/game-state freezes declaration consequences for every viewer and releases them only after phase exit', async () => {
+  const fixture = createGameRouteFixture();
+  const state: any = normalizeAncientGameState(createSetupState('charge-privacy-barrier')).state;
+  state.turnNumber = 3;
+  state.players[0].faction = 'ancient';
+  state.players.push(
+    {
+      id: 'p2', name: 'Player Two', role: 'player', faction: 'human', isActive: true,
+      health: 35, lines: 4, joiningLines: 1,
+    },
+    {
+      id: 'spectator', name: 'Watcher', role: 'spectator', faction: null, isActive: true,
+      health: 0, lines: 0, joiningLines: 0,
+    },
+  );
+  state.gameData.turnNumber = 3;
+  state.gameData.currentPhase = 'battle';
+  state.gameData.currentSubPhase = 'charge_declaration';
+  state.gameData.phaseReadiness = [];
+  state.gameData.ships = {
+    p1: [
+      { instanceId: 'p1-equ', shipDefId: 'EQU', chargesCurrent: 1 },
+      { instanceId: 'p1-spi', shipDefId: 'SPI' },
+      { instanceId: 'p1-orb', shipDefId: 'ORB' },
+      { instanceId: 'p1-frigate', shipDefId: 'FRI' },
+      {
+        instanceId: 'p1-qua',
+        shipDefId: 'QUA',
+        permanentConfiguration: { selectedNumber: 4 },
+      },
+    ],
+    p2: [
+      { instanceId: 'p2-equ', shipDefId: 'EQU', chargesCurrent: 1 },
+      { instanceId: 'p2-spi', shipDefId: 'SPI' },
+      { instanceId: 'p2-orb', shipDefId: 'ORB' },
+    ],
+  };
+  state.gameData.voidShipsByPlayerId = { p1: [], p2: [] };
+  state.gameData.turnData = {
+    turnNumber: 3,
+    currentMajorPhase: 'battle',
+    currentSubPhase: 'charge_declaration',
+    chargeDeclarationEligibleByPlayerId: { p1: true, p2: true },
+    chargeDeclarationEligibleSourceIdsByPlayerId: {
+      p1: ['p1-equ'],
+      p2: ['p2-equ'],
+    },
+    solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
+    chargeDeclarationFleetSnapshotByPlayerId: structuredClone(state.gameData.ships),
+    chargePowerUsedByInstanceId: {},
+    anyChargesSpentInDeclaration: false,
+    effectiveDiceRollByPlayerId: { p1: 4, p2: 4 },
+  };
+  state.gameData.pendingTurn = {
+    damageByPlayerId: {},
+    healByPlayerId: {},
+    breakdownEntries: [],
+  };
+  state.gameData.powerMemory = {
+    onceOnlyFired: { 'pre-existing::memory': true },
+    frigateTriggerByInstanceId: { 'p1-frigate': 5 },
+    unknownFutureMemory: { secret: true },
+  };
+  applyAncientBattleRevealPreparation(state);
+  replaceChargeDeclarationVisibilityState(state);
+
+  state.players.find((player: any) => player.id === 'p1').health = 20;
+  state.players.find((player: any) => player.id === 'p1').name = 'Live Renamed Player';
+  state.players.find((player: any) => player.id === 'p1').lines = 9;
+  state.gameData.ships.p1 = [
+    { instanceId: 'p1-equ', shipDefId: 'EQU', chargesCurrent: 0 },
+    { instanceId: 'p1-frigate', shipDefId: 'FRI' },
+    {
+      instanceId: 'p1-qua',
+      shipDefId: 'QUA',
+      permanentConfiguration: { selectedNumber: 4 },
+    },
+  ];
+  state.gameData.ships.p2 = [
+    { instanceId: 'p2-equ', shipDefId: 'EQU', chargesCurrent: 1 },
+  ];
+  state.gameData.voidShipsByPlayerId = {
+    p1: [
+      { instanceId: 'p1-spi', shipDefId: 'SPI' },
+      { instanceId: 'p1-orb', shipDefId: 'ORB' },
+    ],
+    p2: [
+      { instanceId: 'p2-spi', shipDefId: 'SPI' },
+      { instanceId: 'p2-orb', shipDefId: 'ORB' },
+    ],
+  };
+  state.gameData.pendingTurn.damageByPlayerId = { p2: 7 };
+  state.gameData.powerMemory.onceOnlyFired = { 'p1-equ::EQU#0': true };
+  state.players.find((player: any) => player.id === 'p1').maxHealth = 1;
+  state.gameData.turnData.pendingEffects = [{ kind: 'Destroy', targetPlayerId: 'p2' }];
+  state.gameData.turnData.chargePowerUsedByInstanceId = { 'p1-equ': 3 };
+  state.gameData.turnData.anyChargesSpentInDeclaration = true;
+  state.gameData.turnData.chargeDeclarationAcknowledgements.chargeAfterByPlayerId = {
+    p1: { 'p1-equ': 0 },
+  };
+  state.gameData.turnData.shipActivationCueBatches = [
+    {
+      key: 'ship-activation:2:battle.charge_declaration:1',
+      turnNumber: 2,
+      phaseKey: 'battle.charge_declaration',
+      seq: 1,
+      sources: [{ playerId: 'p2', sourceInstanceId: 'prior-turn-source' }],
+    },
+    {
+      key: 'ship-activation:3:battle.charge_declaration:1',
+      turnNumber: 3,
+      phaseKey: 'battle.charge_declaration',
+      seq: 1,
+      sources: [{ playerId: 'p1', sourceInstanceId: 'p1-equ' }],
+    },
+  ];
+  state.gameData.phaseReadiness = [{
+    playerId: 'p1',
+    isReady: true,
+    currentStep: 'battle.charge_declaration',
+  }];
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 2, red: 1, blue: 1 };
+  state.gameData.ancient.solarLedgerByPlayerId.p1 = {
+    battleTurnNumber: 3,
+    entries: [{
+      entryId: 'own-accepted-ledger',
+      order: 0,
+      solarPowerId: 'SLIF',
+      sourceMode: 'manual',
+      paidEnergy: { green: 1, red: 0, blue: 0 },
+    }],
+  };
+  state.gameData.ancient.acceptedDeclarationByPlayerId.p1 = {
+    schemaVersion: 1,
+    contractVersion: 1,
+    declarationId: 'p1-accepted',
+    declarationFingerprint: JSON.stringify({
+      contractVersion: 1,
+      ordinaryChargeActions: [],
+      solarGridChoices: [],
+      solarCasts: [],
+      autocastEnabled: false,
+    }),
+    playerId: 'p1',
+    context: {
+      contextVersion: 1,
+      battleTurnNumber: 3,
+      initialEnergy: { green: 1, red: 0, blue: 0 },
+      energySourceIds: [],
+    },
+    ordinaryChargeActions: [],
+    solarGridChoices: [],
+    solarCasts: [],
+    autocastEnabled: false,
+  };
+  fixture.store.set('game_charge-privacy-barrier', state);
+
+  const getState = fixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
+  const readAs = async (participantId: string) => {
+    fixture.setSessionId(participantId);
+    return await responseJson(await getState(createContext({
+      params: { gameId: 'charge-privacy-barrier' },
+    })));
+  };
+  const p1Body = await readAs('p1');
+  const p2Body = await readAs('p2');
+  const spectatorBody = await readAs('spectator');
+
+  for (const body of [p1Body, p2Body, spectatorBody]) {
+    assert.deepEqual(
+      body.publicState.ships.p1.map((ship: any) => ship.instanceId),
+      ['p1-equ', 'p1-spi', 'p1-orb', 'p1-frigate', 'p1-qua'],
+    );
+    assert.deepEqual(
+      body.publicState.ships.p2.map((ship: any) => ship.instanceId),
+      ['p2-equ', 'p2-spi', 'p2-orb'],
+    );
+    assert.deepEqual(body.publicState.voidShipsByPlayerId, { p1: [], p2: [] });
+    assert.equal(body.publicState.players.find((player: any) => player.id === 'p1').health, 25);
+    assert.equal(body.publicState.players.find((player: any) => player.id === 'p1').maxHealth, 40);
+    assert.equal(body.publicState.players.find((player: any) => player.id === 'p1').name, 'Live Renamed Player');
+    assert.equal(body.publicState.players.find((player: any) => player.id === 'p1').lines, 9);
+    assert.equal(body.publicState.phaseReadiness[0].isReady, true);
+    assert.equal(body.publicState.bonusLinesByPlayerId.p1, 1);
+    assert.equal(body.requester.buildEconomyByPlayerId.p1.ordinaryBonusLines, 1);
+    assert.equal('pendingTurn' in body.gameData, false);
+    assert.deepEqual(body.gameData.powerMemory, {
+      frigateTriggerByInstanceId: { 'p1-frigate': 5 },
+    });
+    assert.equal(
+      body.publicState.ships.p1.find(
+        (ship: any) => ship.instanceId === 'p1-qua',
+      ).permanentConfiguration.selectedNumber,
+      4,
+    );
+    for (const internalField of [
+      'chargeDeclarationVisibilitySnapshot',
+      'chargeDeclarationAcknowledgements',
+      'chargeDeclarationFleetSnapshotByPlayerId',
+      'chargeDeclarationEligibleSourceIdsByPlayerId',
+      'chargePowerUsedByInstanceId',
+      'anyChargesSpentInDeclaration',
+      'pendingEffects',
+      'shipActivationCueBatches',
+    ]) {
+      assert.equal(internalField in body.gameData.turnData, false);
+    }
+    assert.deepEqual(
+      body.publicState.presentationEvents.shipActivationCueBatches.map(
+        (batch: any) => batch.key,
+      ),
+      ['ship-activation:2:battle.charge_declaration:1'],
+    );
+    assert.equal(
+      body.publicState.ancient.energyByPlayerId.p1.sources.some(
+        (source: any) =>
+          source.sourceInstanceId === 'p1-qua' &&
+          source.sourceShipDefId === 'QUA',
+      ),
+      true,
+    );
+    assert.equal(
+      'maxHealth' in body.players.find((player: any) => player.id === 'p1'),
+      false,
+    );
+  }
+  assert.equal(
+    p1Body.publicState.ships.p1.find((ship: any) => ship.instanceId === 'p1-equ').chargesCurrent,
+    0,
+  );
+  assert.equal(
+    p2Body.publicState.ships.p1.find((ship: any) => ship.instanceId === 'p1-equ').chargesCurrent,
+    1,
+  );
+  assert.equal(
+    spectatorBody.publicState.ships.p1.find((ship: any) => ship.instanceId === 'p1-equ').chargesCurrent,
+    1,
+  );
+  assert.deepEqual(p1Body.requester.availableActions, []);
+  assert.equal(p2Body.requester.availableActions.some((action: any) => action.shipDefId === 'EQU'), true);
+  assert.equal(p1Body.requester.presentationEvents.shipActivationCueBatches.length, 1);
+  assert.deepEqual(p2Body.requester.presentationEvents.shipActivationCueBatches, []);
+  assert.deepEqual(spectatorBody.requester.presentationEvents.shipActivationCueBatches, []);
+  assert.deepEqual(
+    p1Body.publicState.ancient.energyByPlayerId.p1.pool,
+    { green: 2, red: 1, blue: 1 },
+  );
+  assert.equal(
+    p1Body.publicState.ancient.solarLedgerByPlayerId.p1.entries[0].entryId,
+    'own-accepted-ledger',
+  );
+  assert.deepEqual(
+    p2Body.publicState.ancient.energyByPlayerId.p1.pool,
+    { green: 0, red: 0, blue: 2 },
+  );
+
+  const terminal = structuredClone(fixture.store.get('game_charge-privacy-barrier'));
+  terminal.status = 'finished';
+  terminal.result = 'win';
+  terminal.resultReason = 'timeout';
+  terminal.winnerPlayerId = 'p2';
+  fixture.store.set('game_charge-privacy-barrier', terminal);
+  const terminalBody = await readAs('spectator');
+  assert.deepEqual(
+    terminalBody.publicState.ships.p1.map((ship: any) => ship.instanceId),
+    ['p1-equ', 'p1-spi', 'p1-orb', 'p1-frigate', 'p1-qua'],
+  );
+  assert.deepEqual(terminalBody.publicState.voidShipsByPlayerId, { p1: [], p2: [] });
+  assert.deepEqual(terminalBody.gameData.powerMemory, {
+    frigateTriggerByInstanceId: { 'p1-frigate': 5 },
+  });
+  assert.deepEqual(
+    terminalBody.publicState.presentationEvents.shipActivationCueBatches.map(
+      (batch: any) => batch.key,
+    ),
+    ['ship-activation:2:battle.charge_declaration:1'],
+  );
+  assert.equal(terminalBody.result.resultReason, 'timeout');
+
+  const revealed = structuredClone(terminal);
+  revealed.status = 'active';
+  revealed.gameData.currentSubPhase = 'charge_response';
+  revealed.gameData.turnData.currentSubPhase = 'charge_response';
+  fixture.store.set('game_charge-privacy-barrier', revealed);
+  const revealedBody = await readAs('spectator');
+  assert.deepEqual(
+    revealedBody.publicState.ships.p1.map((ship: any) => ship.instanceId),
+    ['p1-equ', 'p1-frigate', 'p1-qua'],
+  );
+  assert.deepEqual(
+    revealedBody.publicState.voidShipsByPlayerId.p1.map((ship: any) => ship.instanceId),
+    ['p1-spi', 'p1-orb'],
+  );
+  assert.deepEqual(
+    revealedBody.publicState.presentationEvents.shipActivationCueBatches.map(
+      (batch: any) => batch.key,
+    ),
+    [
+      'ship-activation:2:battle.charge_declaration:1',
+      'ship-activation:3:battle.charge_declaration:1',
+    ],
+  );
+  assert.equal('pendingTurn' in revealedBody.gameData, true);
+  assert.equal('powerMemory' in revealedBody.gameData, true);
+});
+
+Deno.test('/game-state surfaces a stale declaration legality invariant even for a ready requester', async () => {
+  const fixture = createGameRouteFixture();
+  const state: any = normalizeAncientGameState(createSetupState('stale-ready-legality')).state;
+  state.turnNumber = 3;
+  state.gameData.turnNumber = 3;
+  state.gameData.currentPhase = 'battle';
+  state.gameData.currentSubPhase = 'charge_declaration';
+  state.gameData.ships = {
+    p1: [{ instanceId: 'p1-equ', shipDefId: 'EQU', chargesCurrent: 1 }],
+  };
+  state.gameData.turnData = {
+    turnNumber: 3,
+    currentMajorPhase: 'battle',
+    currentSubPhase: 'charge_declaration',
+    chargeDeclarationFleetSnapshotByPlayerId: structuredClone(state.gameData.ships),
+  };
+  state.gameData.phaseReadiness = [{
+    playerId: 'p1',
+    isReady: true,
+    currentStep: 'battle.charge_declaration',
+  }];
+  replaceChargeDeclarationVisibilityState(state);
+  state.gameData.turnData.chargeDeclarationVisibilitySnapshot.battleTurnNumber = 2;
+  fixture.store.set('game_stale-ready-legality', state);
+
+  const getState = fixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
+  const response = await getState(createContext({
+    params: { gameId: 'stale-ready-legality' },
+  }));
+  assert.equal(response.status, 500);
+  assert.equal((await responseJson(response)).error, 'Internal server error');
+});
+
+Deno.test('/intent filters declaration effects after history processing and returns requester-safe state', async () => {
+  const state: any = normalizeAncientGameState(createSetupState('intent-charge-privacy')).state;
+  state.turnNumber = 3;
+  state.players.push({
+    id: 'p2', name: 'Player Two', role: 'player', faction: 'human', isActive: true,
+    health: 25, lines: 0, joiningLines: 0,
+  });
+  state.gameData.turnNumber = 3;
+  state.gameData.currentPhase = 'battle';
+  state.gameData.currentSubPhase = 'charge_declaration';
+  state.gameData.phaseReadiness = [];
+  state.gameData.ships = {
+    p1: [{ instanceId: 'p1-int', shipDefId: 'INT', chargesCurrent: 1 }],
+    p2: [],
+  };
+  state.gameData.voidShipsByPlayerId = { p1: [], p2: [] };
+  state.gameData.pendingTurn = { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] };
+  state.gameData.turnData = {
+    turnNumber: 3,
+    currentMajorPhase: 'battle',
+    currentSubPhase: 'charge_declaration',
+    chargeDeclarationEligibleByPlayerId: { p1: true, p2: false },
+    chargeDeclarationEligibleSourceIdsByPlayerId: { p1: ['p1-int'], p2: [] },
+    solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
+    chargeDeclarationFleetSnapshotByPlayerId: structuredClone(state.gameData.ships),
+    chargePowerUsedByInstanceId: {},
+    anyChargesSpentInDeclaration: false,
+  };
+  replaceChargeDeclarationVisibilityState(state);
+  const fixture = createIntentRouteFixture({ storedState: state });
+  const intent = fixture.app.handler('POST', '/make-server-825e19ab/intent');
+  const response = await intent(createContext({
+    body: {
+      gameId: state.gameId,
+      intentType: 'ACTION',
+      turnNumber: 3,
+      payload: {
+        actionType: 'power',
+        actionId: 'INT#0',
+        sourceInstanceId: 'p1-int',
+        choiceId: 'damage',
+      },
+    },
+  }));
+  const body = await responseJson(response);
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.events, []);
+  assert.equal(body.state.gameData.ships.p1[0].chargesCurrent, 0);
+  assert.equal('pendingTurn' in body.state.gameData, false);
+  assert.equal('chargeDeclarationAcknowledgements' in body.state.gameData.turnData, false);
+  const persisted = fixture.store.get('game_intent-charge-privacy');
+  assert.equal(persisted.gameData.pendingTurn.damageByPlayerId.p2 > 0, true);
+  assert.equal(
+    persisted.gameData.turnData.chargeDeclarationAcknowledgements
+      .chargeAfterByPlayerId.p1['p1-int'],
+    0,
+  );
 });
 
 Deno.test('/game-state hard-prunes raw legacy Cube Convert entries before build projection', async () => {

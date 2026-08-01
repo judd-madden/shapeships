@@ -3,8 +3,15 @@ import { getAuthoritativeAncientEnergyTotal } from '../state/ancientState.ts';
 import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 import type { StructuredShipPower } from '../../engine_shared/effects/translateShipPowers.ts';
 import { getValidShipOfEqualityTargets } from '../../engine_shared/resolve/destroyRules.ts';
+import {
+  requireChargeDeclarationLegalityState,
+} from '../state/chargeDeclarationVisibility.ts';
 
 export type ChargePhaseKey = 'battle.charge_declaration' | 'battle.charge_response';
+
+export function getChargeDeclarationLegalityState<T = any>(state: T): T {
+  return requireChargeDeclarationLegalityState(state);
+}
 
 export function getChargeDeclarationBattleTurnNumber(state: any): number {
   const value = state?.gameData?.turnNumber ?? state?.gameData?.turnData?.turnNumber ?? state?.turnNumber ?? 0;
