@@ -48,6 +48,7 @@ import {
   getChronoswarmRolls,
   getClockData,
   getCubeDiceValueByPlayerId,
+  getEffectiveDiceValueForPlayer,
   getFrigateTriggerByInstanceId,
   getGameStatus,
   getJoiningBonusLinesByPlayerId,
@@ -2696,8 +2697,13 @@ export function useGameSession(
     reservedTargetInstanceIds: reservedAncientBlackHoleTargetInstanceIds,
   });
   const ancientBlackHoleDamagePreview = deriveAncientBlackHoleDamagePreview(myShips);
-  const ancientSolarHoverValuesById = deriveAncientSolarHoverValues({
+  const ancientEffectiveDiceValue = getEffectiveDiceValueForPlayer(
+    hasMatchingAuthoritativeGameId ? rawState : null,
+    me?.id,
     authoritativeDiceValue,
+  );
+  const ancientSolarHoverValuesById = deriveAncientSolarHoverValues({
+    effectiveDiceValue: ancientEffectiveDiceValue,
     chargeScopedFleet: getChargeScopedFleetForPlayer(rawState, me?.id),
     canCastManualSolarPowerById: canCastAncientManualSolarPowerById,
     siphonSelector: ancientSiphonSelector,

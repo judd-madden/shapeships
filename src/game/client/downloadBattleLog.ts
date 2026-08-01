@@ -506,7 +506,7 @@ function formatTurnBlock(turn: ValidatedBattleLogTurn, canonicalPlayers: Canonic
   const matchedPlayers = matchTurnPlayersToCanonicalOrder(turn.players, canonicalPlayers);
 
   return [
-    `TURN ${turn.turnNumber} \u2014 Dice ${formatDiceValue(turn.diceValue)}`,
+    `TURN ${turn.turnNumber} - Dice ${formatDiceValue(turn.diceValue)}`,
     '',
     'Build',
     ...formatSectionLines(matchedPlayers, canonicalPlayers, turn.buildLinesByPlayerId),
@@ -558,7 +558,7 @@ function formatSectionLines(
     const lines = matchedPlayer ? getOrderedLinesForPlayer(linesByPlayerId, matchedPlayer.playerId) : [];
 
     if (lines.length === 0) {
-      return [`${playerLabel}: \u2014`];
+      return [`${playerLabel}: -`];
     }
 
     return lines.map((line) => `${playerLabel}: ${line}`);
@@ -609,7 +609,7 @@ function formatAnalysisLines(
     const analysis = matchedAnalyses[index];
 
     if (!analysis) {
-      return [`${playerLabel}: \u2014`];
+      return [`${playerLabel}: -`];
     }
 
     const lines = [`${playerLabel}: ${formatAnalysisSummary({
@@ -702,7 +702,7 @@ function formatBreakdownAmount(amount: number): string {
 }
 
 function formatDiceValue(diceValue: number | null): string {
-  return typeof diceValue === 'number' ? String(diceValue) : '\u2014';
+  return typeof diceValue === 'number' ? String(diceValue) : '-';
 }
 
 function formatHealthDelta(delta: number): string {
@@ -722,21 +722,21 @@ function formatResultLine(
 
   switch (resultReason) {
     case 'decisive':
-      return winnerName ? `Decisive Victory \u2014 ${winnerName} wins` : 'Decisive Victory';
+      return winnerName ? `Decisive Victory - ${winnerName} wins` : 'Decisive Victory';
     case 'narrow':
-      return winnerName ? `Narrow Victory \u2014 ${winnerName} wins` : 'Narrow Victory';
+      return winnerName ? `Narrow Victory - ${winnerName} wins` : 'Narrow Victory';
     case 'timeout':
-      return winnerName ? `Time Victory \u2014 ${winnerName} wins` : 'Time Victory';
+      return winnerName ? `Time Victory - ${winnerName} wins` : 'Time Victory';
     case 'resignation':
-      return winnerName ? `Victory \u2014 ${winnerName} wins` : 'Victory';
+      return winnerName ? `Victory - ${winnerName} wins` : 'Victory';
     case 'agreement':
       return 'Draw by agreement';
     case 'mutual_destruction':
-      return 'Draw \u2014 Mutual destruction';
+      return 'Draw - Mutual destruction';
     case 'timeout_draw':
-      return 'Draw \u2014 Time expired';
+      return 'Draw - Time expired';
     default:
-      return winnerName ? `Victory \u2014 ${winnerName} wins` : 'Draw';
+      return winnerName ? `Victory - ${winnerName} wins` : 'Draw';
   }
 }
 

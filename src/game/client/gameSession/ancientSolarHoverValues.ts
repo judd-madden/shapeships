@@ -10,7 +10,7 @@ export type AncientSolarHoverValue = {
 };
 
 export function deriveAncientSolarHoverValues(args: {
-  authoritativeDiceValue: number;
+  effectiveDiceValue: number;
   chargeScopedFleet: readonly any[];
   canCastManualSolarPowerById: Readonly<
     Record<FixedAncientManualSolarPowerId, boolean>
@@ -32,10 +32,10 @@ export function deriveAncientSolarHoverValues(args: {
     values.SAST = { damage: 1 };
   }
   if (canCast.SSTA) {
-    values.SSTA = { healing: args.authoritativeDiceValue + 3 };
+    values.SSTA = { healing: args.effectiveDiceValue + 3 };
   }
   if (canCast.SSUP) {
-    values.SSUP = { damage: args.authoritativeDiceValue + 3 };
+    values.SSUP = { damage: args.effectiveDiceValue + 3 };
   }
   if (canCast.SVOR) {
     const distinctShipDefIds = new Set<ShipDefId>();

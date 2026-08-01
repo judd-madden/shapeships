@@ -17,6 +17,25 @@ const AUTOCAST_PATHS = [
   },
 ] as const;
 
+function AncientAutocastDownArrow() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="shrink-0"
+      width="10"
+      height="12"
+      viewBox="0 0 10 12"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M4.928 11.36L0 6.432V4.496L4.208 8.704V0H5.648V8.704L9.856 4.496V6.432L4.928 11.36Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function AncientAutocastInfoContent({
   className = '',
 }: AncientAutocastInfoContentProps) {
@@ -34,7 +53,7 @@ export function AncientAutocastInfoContent({
             <div className="flex flex-col items-start">
               {path.powerNames.map((powerName, index) => (
                 <div key={powerName} className="flex flex-col items-start">
-                  {index > 0 ? <span aria-hidden="true">🡫</span> : null}
+                  {index > 0 ? <AncientAutocastDownArrow /> : null}
                   <span>{powerName}</span>
                 </div>
               ))}

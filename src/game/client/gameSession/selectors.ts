@@ -535,6 +535,36 @@ export function getChronoswarmRolls(state: any): unknown[] | undefined {
   return Array.isArray(rolls) ? rolls : undefined;
 }
 
+export function getEffectiveDiceValueForPlayer(
+  state: any,
+  playerId: string | null | undefined,
+  fallbackDiceValue: unknown
+): 1 | 2 | 3 | 4 | 5 | 6 {
+  const candidates = [
+    playerId
+      ? state?.publicState?.visibleDice?.effectiveDiceRollByPlayerId?.[playerId]
+      : undefined,
+    playerId
+      ? state?.gameData?.turnData?.effectiveDiceRollByPlayerId?.[playerId]
+      : undefined,
+    fallbackDiceValue,
+    1,
+  ];
+
+  for (const candidate of candidates) {
+    if (
+      typeof candidate === 'number' &&
+      Number.isInteger(candidate) &&
+      candidate >= 1 &&
+      candidate <= 6
+    ) {
+      return candidate as 1 | 2 | 3 | 4 | 5 | 6;
+    }
+  }
+
+  return 1;
+}
+
 export function getCubeDiceValueByPlayerId(
   state: any
 ): Record<string, 1 | 2 | 3 | 4 | 5 | 6> {
