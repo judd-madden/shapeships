@@ -30,10 +30,16 @@ export type ShipHoverHeadingValue = {
   damage?: number;
 };
 
+export type ShipHoverActionHint =
+  | 'build'
+  | 'cast'
+  | 'view';
+
 interface ShipHoverCardProps {
   shipId: ShipDefId;
   anchorRect: DOMRect;
   eligibility: ShipEligibility;
+  actionHint?: Exclude<ShipHoverActionHint, 'build'>;
   motionState?: HoverPanelMotionState | null;
   showCost?: boolean;
   headingValue?: ShipHoverHeadingValue;
@@ -109,14 +115,42 @@ function ComponentShips({ shipIds }: { shipIds: readonly string[] }) {
 /**
  * Eligibility footer section
  */
+function ActionHint({ kind }: { kind: ShipHoverActionHint }) {
+  const label =
+    kind === 'build'
+      ? 'Click to Build'
+      : kind === 'cast'
+        ? 'Click to Cast'
+        : 'Click to View';
+
+  return (
+    <p
+      className="ss-catalogueActionHint relative shrink-0 font-['Roboto'] text-[15px] font-black leading-[12px] text-nowrap"
+      style={{ fontVariationSettings: "'wdth' 100" }}
+    >
+      {label}
+    </p>
+  );
+}
+
 function EligibilityFooter({
   eligibility,
   componentShipIds,
+  actionHint,
 }: {
   eligibility: ShipEligibility;
   componentShipIds: readonly string[];
+  actionHint?: Exclude<ShipHoverActionHint, 'build'>;
 }) {
+  const resolvedActionHint: ShipHoverActionHint | undefined =
+    actionHint ??
+    (eligibility.state === 'CAN_BUILD' ? 'build' : undefined);
+
   const footerContent = (() => {
+    if (resolvedActionHint) {
+      return <ActionHint kind={resolvedActionHint} />;
+    }
+
     if (eligibility.state === 'REFERENCE_ONLY') {
       if (componentShipIds.length === 0) {
         return null;
@@ -132,17 +166,6 @@ function EligibilityFooter({
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Build in Drawing Phase
-        </p>
-      );
-    }
-
-    if (eligibility.state === 'CAN_BUILD') {
-      return (
-        <p
-          className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
-          style={{ fontVariationSettings: "'wdth' 100" }}
-        >
-          Click to build
         </p>
       );
     }
@@ -242,6 +265,7 @@ export function ShipHoverCard({
   shipId,
   anchorRect,
   eligibility,
+  actionHint,
   motionState,
   showCost = true,
   headingValue,
@@ -426,6 +450,7 @@ export function ShipHoverCard({
         <EligibilityFooter
           eligibility={eligibility}
           componentShipIds={model.componentShipIds}
+          actionHint={actionHint}
         />
         </div>
       </div>

@@ -332,6 +332,22 @@ html:not(.app-ready) #root {
   transform: scale(1.05);
 }
 
+@keyframes ssCatalogueActionHintPulse {
+  0%,
+  100% {
+    color: var(--shapeships-white);
+  }
+
+  50% {
+    color: var(--shapeships-grey-50);
+  }
+}
+
+.ss-catalogueActionHint {
+  animation: ssCatalogueActionHintPulse 2.4s ease-in-out infinite;
+  color: var(--shapeships-white);
+}
+
 .ss-hoverPanelMotion {
   --ss-hover-panel-offset-x: 0px;
   --ss-hover-panel-offset-y: 0px;
@@ -376,6 +392,11 @@ html:not(.app-ready) #root {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .ss-catalogueActionHint {
+    animation: none;
+    color: var(--shapeships-white);
+  }
+
   .ss-hoverPanelMotion {
     --ss-hover-panel-offset-x: 0px !important;
     --ss-hover-panel-offset-y: 0px !important;

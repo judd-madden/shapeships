@@ -20,7 +20,10 @@ import {
 import { ActionPanelScrollArea } from "../../../primitives/ActionPanelScrollArea";
 import { CatalogueShipSlot } from "../shared/CatalogueShipSlot";
 import { CatalogueCostNumber } from "../shared/CatalogueCostNumber";
-import { ShipHoverCard } from "../shared/ShipHoverCard";
+import {
+  ShipHoverCard,
+  type ShipHoverActionHint,
+} from "../shared/ShipHoverCard";
 import { useShipCatalogueHover } from "../shared/useShipCatalogueHover";
 import {
   getShipEligibilityForHover,
@@ -553,6 +556,46 @@ export function AncientShipCataloguePanel({
     hover.presentState.activeShipId && hoveredShipIsSolar
       ? solarHoverValuesById?.[hover.presentState.activeShipId]
       : undefined;
+  const hoveredSolarPowerId =
+    hover.presentState.activeShipId && hoveredShipIsSolar
+      ? hover.presentState.activeShipId
+      : null;
+  const hoveredSolarActionHint: Exclude<ShipHoverActionHint, 'build'> | undefined = (() => {
+    if (!hoveredSolarPowerId || selectorOpen || isDeclarationBlocked) {
+      return undefined;
+    }
+
+    if (isFixedAncientManualSolarPowerId(hoveredSolarPowerId)) {
+      return isActiveResolvedPowersStage &&
+        canCastManualSolarPowerById?.[hoveredSolarPowerId] === true
+        ? 'cast'
+        : undefined;
+    }
+
+    if (hoveredSolarPowerId === 'SSIP') {
+      const canInspectSiphon =
+        onOpenSiphonInspection != null &&
+        (isActiveResolvedPowersStage || !isDeclarationPresentation);
+
+      return canOpenSiphonSelector || canInspectSiphon
+        ? 'view'
+        : undefined;
+    }
+
+    if (hoveredSolarPowerId === 'SSIM') {
+      return isActiveResolvedPowersStage && canOpenSimulacrumSelector
+        ? 'view'
+        : undefined;
+    }
+
+    if (hoveredSolarPowerId === 'SBLA') {
+      return isActiveResolvedPowersStage && canOpenBlackHoleSelector
+        ? 'view'
+        : undefined;
+    }
+
+    return undefined;
+  })();
   const hoveredSolarSlot = hover.state.activeShipId
     ? SOLAR_POWER_SLOTS.find((slot) => slot.id === hover.state.activeShipId)
     : undefined;
@@ -1065,6 +1108,7 @@ export function AncientShipCataloguePanel({
             shipId={hover.presentState.activeShipId}
             anchorRect={hover.presentState.anchorRect}
             eligibility={hoveredShipEligibility}
+            actionHint={hoveredSolarActionHint}
             motionState={hover.motionState}
             showCost={!hoveredShipIsSolar}
             headingValue={hoveredSolarHeadingValue}
