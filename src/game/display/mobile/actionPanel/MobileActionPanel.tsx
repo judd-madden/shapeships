@@ -21,6 +21,7 @@ interface MobileActionPanelProps {
   onShipInspect?: (shipId: ShipDefId) => void;
   onSolarPowerInspect?: (solarPowerId: ImplementedAncientManualSolarPowerId) => void;
   siphonInspectionOpen?: boolean;
+  onCloseSiphonInspection?: () => void;
   onOpenAutocastInfo?: () => void;
   onOpenMenuTakeover?: () => void;
   simulacrumSpecies?: SpeciesId;
@@ -118,6 +119,7 @@ export function MobileActionPanel({
   onShipInspect,
   onSolarPowerInspect,
   siphonInspectionOpen,
+  onCloseSiphonInspection,
   onOpenAutocastInfo,
   onOpenMenuTakeover,
   simulacrumSpecies,
@@ -238,6 +240,7 @@ export function MobileActionPanel({
           onShipInspect={onShipInspect}
           onSolarPowerInspect={onSolarPowerInspect}
           siphonInspectionOpen={siphonInspectionOpen}
+          onCloseSiphonInspection={onCloseSiphonInspection}
           onOpenAutocastInfo={onOpenAutocastInfo}
           simulacrumSpecies={simulacrumSpecies}
         />

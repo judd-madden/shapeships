@@ -50,9 +50,9 @@ export function AncientAutocastInfoContent({
               className="size-[14px] shrink-0 rounded-full"
               style={{ backgroundColor: path.color }}
             />
-            <div className="flex flex-col items-start">
+            <div className="flex flex-col items-start gap-[6px]">
               {path.powerNames.map((powerName, index) => (
-                <div key={powerName} className="flex flex-col items-start">
+                <div key={powerName} className="flex flex-col items-start gap-[6px]">
                   {index > 0 ? <AncientAutocastDownArrow /> : null}
                   <span>{powerName}</span>
                 </div>

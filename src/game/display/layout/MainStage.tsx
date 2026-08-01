@@ -122,15 +122,18 @@ export function MainStage({
   }
 
   function handleBackActivate() {
-    if (isSiphonInspectionOpen) {
-      setIsSiphonInspectionOpen(false);
+    if (ancientSelectorMode != null) {
+      actions.onCancelAncientSolarSelector();
       return;
     }
-    actions.onCancelAncientSolarSelector();
+    setIsSiphonInspectionOpen(false);
   }
 
+  const usesMainBack =
+    ancientSelectorMode != null ||
+    (isSiphonInspectionOpen && ancientPresentation === 'declaration');
   const mainPhaseControl: MainPhaseControl =
-    isSiphonInspectionOpen || ancientSelectorMode != null
+    usesMainBack
       ? { mode: 'back', onActivate: handleBackActivate }
       : { mode: 'ready', onActivate: handleReadyActivate };
 
@@ -230,6 +233,7 @@ export function MainStage({
             simulacrumSpecies={simulacrumSpecies}
             siphonInspectionOpen={isSiphonInspectionOpen}
             onOpenSiphonInspection={handleOpenSiphonInspection}
+            onCloseSiphonInspection={() => setIsSiphonInspectionOpen(false)}
           />
         </div>
       </div>

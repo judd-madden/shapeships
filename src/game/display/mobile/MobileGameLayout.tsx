@@ -133,6 +133,11 @@ export function MobileGameLayout({
   const isAncientCatalogueSurfaceActive =
     actionPanelVm.activePanelId === 'ap.catalog.ships.ancient' ||
     actionPanelVm.activePanelId === 'ap.battle.solar_powers.ancient';
+  const ancientPresentation =
+    actionPanelVm.menu.phaseKey === 'battle.charge_declaration' &&
+    actionPanelVm.ancientChargeDeclaration?.stage === 'powers'
+      ? 'declaration'
+      : 'reference';
   const simulacrumSpecies = resolveAncientSimulacrumSpecies(boardVm);
   const isEndGamePanel = actionPanelVm.activePanelId === 'ap.end_of_game.result' || actionPanelVm.endOfGame != null;
   const isGameOver = actionPanelVm.endOfGame != null;
@@ -371,16 +376,19 @@ export function MobileGameLayout({
     },
   };
   const ancientSelectorMode = actionPanelVm.ancientChargeDeclaration?.selectorMode ?? null;
+  const usesMainBack =
+    ancientSelectorMode != null ||
+    (isSiphonInspectionOpen && ancientPresentation === 'declaration');
   const mainPhaseControl: MainPhaseControl =
-    isSiphonInspectionOpen || ancientSelectorMode != null
+    usesMainBack
       ? {
           mode: 'back',
           onActivate: () => {
-            if (isSiphonInspectionOpen) {
-              handleCloseSiphonInspection();
+            if (ancientSelectorMode != null) {
+              actions.onCancelAncientSolarSelector();
               return;
             }
-            actions.onCancelAncientSolarSelector();
+            handleCloseSiphonInspection();
           },
         }
       : {
@@ -668,6 +676,7 @@ export function MobileGameLayout({
                   onShipInspect={handleCatalogueShipInspect}
                   onSolarPowerInspect={handleSolarPowerInspect}
                   siphonInspectionOpen={isSiphonInspectionOpen}
+                  onCloseSiphonInspection={handleCloseSiphonInspection}
                   onOpenAutocastInfo={handleOpenAutocastInfo}
                   onOpenMenuTakeover={handleOpenMenu}
                   simulacrumSpecies={simulacrumSpecies}

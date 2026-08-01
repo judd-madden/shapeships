@@ -31,6 +31,7 @@ interface MobileCatalogueScrollerProps {
   onShipInspect?: (shipId: ShipDefId) => void;
   onSolarPowerInspect?: (solarPowerId: ImplementedAncientManualSolarPowerId) => void;
   siphonInspectionOpen?: boolean;
+  onCloseSiphonInspection?: () => void;
   onOpenAutocastInfo?: () => void;
   simulacrumSpecies?: SpeciesId;
 }
@@ -77,6 +78,7 @@ export function MobileCatalogueScroller({
   onShipInspect,
   onSolarPowerInspect,
   siphonInspectionOpen = false,
+  onCloseSiphonInspection,
   onOpenAutocastInfo,
   simulacrumSpecies,
 }: MobileCatalogueScrollerProps) {
@@ -320,6 +322,7 @@ export function MobileCatalogueScroller({
           {...commonProps}
           onSolarPowerInspect={onSolarPowerInspect}
           siphonInspectionOpen={siphonInspectionOpen}
+          onCloseSiphonInspection={onCloseSiphonInspection}
           siphonHorizontalScrollOwner="ancestor"
           catalogueLayout="standard"
           simulacrumSpecies={simulacrumSpecies}

@@ -252,6 +252,7 @@ interface AncientShipCataloguePanelProps {
   siphonInspectionOpen?: boolean;
   siphonHorizontalScrollOwner?: 'self' | 'ancestor';
   onOpenSiphonInspection?: () => void;
+  onCloseSiphonInspection?: () => void;
   simulacrumSpecies?: SpeciesId;
   presentation?: 'reference' | 'declaration';
   catalogueEnergy?: ActionPanelViewModel['ancientCatalogueEnergy'];
@@ -393,6 +394,7 @@ export function AncientShipCataloguePanel({
   siphonInspectionOpen = false,
   siphonHorizontalScrollOwner = 'self',
   onOpenSiphonInspection,
+  onCloseSiphonInspection,
   simulacrumSpecies = 'human',
   presentation = 'reference',
   catalogueEnergy,
@@ -435,6 +437,15 @@ export function AncientShipCataloguePanel({
   const selectorOpen = effectiveSelectorMode !== null;
   const isSiphonInspection =
     selectorMode == null && siphonInspectionOpen;
+  const showReferenceSiphonBack =
+    effectiveSelectorMode === 'siphon' &&
+    selectorMode !== 'siphon' &&
+    isSiphonInspection &&
+    presentation === 'reference' &&
+    onCloseSiphonInspection != null;
+  const siphonInstructionLeft = showReferenceSiphonBack
+    ? 510
+    : ANCIENT_CATALOGUE_SECTION_X.solar;
   const siphonInstruction =
     effectiveSelectorMode !== 'siphon'
       ? null
@@ -695,8 +706,8 @@ export function AncientShipCataloguePanel({
                   : 'text-white'
               }`}
               style={{
-                left: `${ANCIENT_CATALOGUE_SECTION_X.solar}px`,
-                top: '30px',
+                left: `${siphonInstructionLeft}px`,
+                top: '34px',
                 fontVariationSettings: "'wdth' 100",
               }}
             >
@@ -967,6 +978,24 @@ export function AncientShipCataloguePanel({
 
           {selectorOpen ? (
             <>
+              {showReferenceSiphonBack ? (
+                <button
+                  type="button"
+                  className="absolute cursor-pointer rounded-[10px] border-0 bg-[var(--shapeships-grey-90)] px-[16px] py-[6px] font-['Roboto'] text-[16px] font-normal leading-normal text-white hover:bg-[var(--shapeships-grey-70)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+                  style={{
+                    left: '426px',
+                    top: '30px',
+                    fontVariationSettings: "'wdth' 100",
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setHoveredSiphonSpend(null);
+                    onCloseSiphonInspection();
+                  }}
+                >
+                  Back
+                </button>
+              ) : null}
               {effectiveSelectorMode === 'siphon' ? (
                 <AncientSiphonSelector
                   maxSpend={isSiphonInspection ? 0 : (siphonSelector?.maxSpend ?? 0)}
