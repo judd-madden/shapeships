@@ -9,7 +9,6 @@ interface HealthResolutionPanelProps {
 const PANEL_STAGGER_MS = 100;
 const PANEL_TRANSITION_MS = 300;
 const EXIT_START_MS = 2700;
-const BACKDROP_TRANSITION_MS = 300;
 
 function getValueColor(side: HealthResolutionSideVm): string {
   switch (side.valueTone) {
@@ -64,13 +63,11 @@ function MobileHealthResolutionSentence({ side }: { side: HealthResolutionSideVm
 }
 
 export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResolutionPanelProps) {
-  const [showBackdrop, setShowBackdrop] = useState(false);
   const [showDivider, setShowDivider] = useState(false);
   const [showLeft, setShowLeft] = useState(false);
   const [showRight, setShowRight] = useState(false);
 
   useEffect(() => {
-    setShowBackdrop(false);
     setShowDivider(false);
     setShowLeft(false);
     setShowRight(false);
@@ -90,13 +87,11 @@ export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResoluti
     raf1 = window.requestAnimationFrame(() => {
       raf2 = window.requestAnimationFrame(() => {
         scheduleIn(0, () => {
-          setShowBackdrop(true);
           setShowDivider(true);
         });
         scheduleIn(PANEL_STAGGER_MS, () => setShowLeft(true));
         scheduleIn(PANEL_STAGGER_MS * 2, () => setShowRight(true));
         scheduleIn(EXIT_START_MS, () => {
-          setShowBackdrop(false);
           setShowRight(false);
         });
         scheduleIn(EXIT_START_MS + PANEL_STAGGER_MS, () => setShowLeft(false));
@@ -119,14 +114,7 @@ export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResoluti
 
   if (layout === 'mobile') {
     return (
-      <div className="relative size-full overflow-hidden">
-        <div
-          aria-hidden="true"
-          className={`absolute inset-0 bg-black transition-opacity ease-out ${
-            showBackdrop ? 'opacity-100' : 'opacity-0'
-          }`}
-          style={{ transitionDuration: `${BACKDROP_TRANSITION_MS}ms` }}
-        />
+      <div className="relative size-full overflow-hidden bg-black">
         <div
           aria-hidden="true"
           className={`absolute left-[10px] right-[10px] top-1/2 h-px origin-center bg-[var(--shapeships-grey-70)] transition-all duration-300 ease-out ${
@@ -154,14 +142,7 @@ export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResoluti
   }
 
   return (
-    <div className="size-full relative overflow-hidden rounded-[8px]">
-      <div
-        aria-hidden="true"
-        className={`absolute inset-0 bg-black transition-opacity ease-out ${
-          showBackdrop ? 'opacity-100' : 'opacity-0'
-        }`}
-        style={{ transitionDuration: `${BACKDROP_TRANSITION_MS}ms` }}
-      />
+    <div className="size-full relative overflow-hidden rounded-[8px] bg-black">
       <div
         aria-hidden="true"
         className={`absolute top-[40px] bottom-[40px] w-px bg-[var(--shapeships-grey-70)] transition-all duration-300 ease-out ${
