@@ -13,6 +13,7 @@ import { ActionPanelFrame } from '../actionPanel/ActionPanelFrame';
 import { resolveAncientSimulacrumSpecies } from '../actionPanel/panels/catalogue/ancient/resolveAncientSimulacrumSpecies';
 import { Tab } from '../../../components/ui/primitives/navigation/Tab';
 import { GameStatsOverlayShell } from '../stats/GameStatsOverlayShell';
+import type { MainPhaseControl } from '../shared/mainPhaseControl';
 import type { 
   HudViewModel, 
   BoardViewModel, 
@@ -42,9 +43,20 @@ export function MainStage({
   onReturnToMainMenu
 }: MainStageProps) {
   const [isGameStatsOpen, setIsGameStatsOpen] = useState(false);
+  const [isSiphonInspectionOpen, setIsSiphonInspectionOpen] = useState(false);
   const simulacrumSpecies = resolveAncientSimulacrumSpecies(boardVm);
   const isEndGameResultPanel = actionPanelVm.activePanelId === 'ap.end_of_game.result';
   const canViewGameStats = gameStats != null;
+  const ancientSelectorMode = actionPanelVm.ancientChargeDeclaration?.selectorMode ?? null;
+  const ancientDeclarationStage = actionPanelVm.ancientChargeDeclaration?.stage ?? null;
+  const isAncientCatalogueSurfaceActive =
+    actionPanelVm.activePanelId === 'ap.catalog.ships.ancient' ||
+    actionPanelVm.activePanelId === 'ap.battle.solar_powers.ancient';
+  const ancientPresentation =
+    actionPanelVm.menu.phaseKey === 'battle.charge_declaration' &&
+    ancientDeclarationStage === 'powers'
+      ? 'declaration'
+      : 'reference';
   const endGameResultKey = useMemo(() => {
     const endOfGame = actionPanelVm.endOfGame;
 
@@ -69,6 +81,16 @@ export function MainStage({
     setIsGameStatsOpen(false);
   }, [endGameResultKey]);
 
+  useEffect(() => {
+    if (!isAncientCatalogueSurfaceActive || ancientSelectorMode != null) {
+      setIsSiphonInspectionOpen(false);
+    }
+  }, [ancientSelectorMode, isAncientCatalogueSurfaceActive]);
+
+  useEffect(() => {
+    setIsSiphonInspectionOpen(false);
+  }, [ancientDeclarationStage, ancientPresentation]);
+
   function handleOpenGameStats() {
     if (canViewGameStats) {
       setIsGameStatsOpen(true);
@@ -87,6 +109,30 @@ export function MainStage({
 
     setIsGameStatsOpen((current) => !current);
   }
+
+  function handleOpenSiphonInspection() {
+    if (isAncientCatalogueSurfaceActive && ancientSelectorMode == null) {
+      setIsSiphonInspectionOpen(true);
+    }
+  }
+
+  function handleReadyActivate() {
+    setIsSiphonInspectionOpen(false);
+    actions.onReadyToggle();
+  }
+
+  function handleBackActivate() {
+    if (isSiphonInspectionOpen) {
+      setIsSiphonInspectionOpen(false);
+      return;
+    }
+    actions.onCancelAncientSolarSelector();
+  }
+
+  const mainPhaseControl: MainPhaseControl =
+    isSiphonInspectionOpen || ancientSelectorMode != null
+      ? { mode: 'back', onActivate: handleBackActivate }
+      : { mode: 'ready', onActivate: handleReadyActivate };
 
   return (
     <div
@@ -125,7 +171,11 @@ export function MainStage({
 
         {/* Bottom Action Rail - hidden during choose species */}
         {boardVm.mode !== 'choose_species' && (
-          <BottomActionRail vm={bottomActionRailVm} actions={actions} />
+          <BottomActionRail
+            vm={bottomActionRailVm}
+            actions={actions}
+            mainPhaseControl={mainPhaseControl}
+          />
         )}
       </div>
 
@@ -178,6 +228,8 @@ export function MainStage({
             onToggleGameStats={handleToggleGameStats}
             onReturnToMainMenu={onReturnToMainMenu}
             simulacrumSpecies={simulacrumSpecies}
+            siphonInspectionOpen={isSiphonInspectionOpen}
+            onOpenSiphonInspection={handleOpenSiphonInspection}
           />
         </div>
       </div>

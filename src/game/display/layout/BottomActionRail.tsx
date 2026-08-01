@@ -6,13 +6,17 @@
 
 import { ReadyButton } from '../../../components/ui/primitives/buttons/ReadyButton';
 import type { BottomActionRailViewModel, GameSessionActions } from '../../client/useGameSession';
+import type { MainPhaseControl } from '../shared/mainPhaseControl';
 
 interface BottomActionRailProps {
   vm: BottomActionRailViewModel;
   actions: GameSessionActions;
+  mainPhaseControl: MainPhaseControl;
 }
 
-export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
+export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomActionRailProps) {
+  const isBack = mainPhaseControl.mode === 'back';
+
   return (
     <div
       className="content-stretch flex flex-col lg:flex-row items-start justify-between relative shrink-0 w-full"
@@ -59,11 +63,14 @@ export function BottomActionRail({ vm, actions }: BottomActionRailProps) {
         {vm.readyButtonVisible ? (
           <div className="w-[300px] ">
             <ReadyButton
-              label={vm.readyButtonLabel}
-              selected={vm.readySelected}
-              disabled={vm.readyDisabled || vm.readySelected}
-              note={(vm.readyDisabled ? vm.readyDisabledReason : vm.readyButtonNote) ?? undefined}
-              onClick={actions.onReadyToggle}
+              label={isBack ? 'BACK' : vm.readyButtonLabel}
+              selected={isBack ? false : vm.readySelected}
+              disabled={isBack ? false : vm.readyDisabled || vm.readySelected}
+              note={isBack
+                ? undefined
+                : (vm.readyDisabled ? vm.readyDisabledReason : vm.readyButtonNote) ?? undefined}
+              variant={isBack ? 'back' : 'ready'}
+              onClick={mainPhaseControl.onActivate}
             />
           </div>
         ) : (

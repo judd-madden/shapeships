@@ -221,6 +221,7 @@ import {
   selectAncientSolarPresentationCasts,
   snapshotAncientManualSolarCastsForPresentation,
   type AncientChargeDeclarationWorkflow,
+  type AncientManualSolarCast,
   type AncientSolarSelectorMode,
   type FrozenAncientChargeDeclarationAttempt,
   type FixedAncientManualSolarPowerId,
@@ -2794,7 +2795,9 @@ export function useGameSession(
           selectorStillAvailable = ancientSiphonSelector.canOpen;
           break;
         case 'blackHole':
-          selectorStillAvailable = canCastAncientBlackHole;
+          selectorStillAvailable =
+            canCastAncientBlackHole &&
+            ancientBlackHoleTargeting.requiredTargetCount > 0;
           break;
         case 'simulacrum':
           selectorStillAvailable =
@@ -2818,7 +2821,8 @@ export function useGameSession(
       (
         ancientBlackHoleHover.workflowKey !== ancientChargeDeclarationWorkflowKey ||
         activeAncientChargeDeclarationWorkflow?.selectorMode !== 'blackHole' ||
-        !canCastAncientBlackHole
+        !canCastAncientBlackHole ||
+        ancientBlackHoleTargeting.requiredTargetCount === 0
       )
     ) {
       setAncientBlackHoleHover(null);
@@ -2839,6 +2843,7 @@ export function useGameSession(
   }, [
     activeAncientChargeDeclarationWorkflow?.selectorMode,
     ancientBlackHoleHover,
+    ancientBlackHoleTargeting.requiredTargetCount,
     ancientChargeDeclarationWorkflowKey,
     ancientSimulacrumHover,
     ancientSimulacrumHoveredStackIsTargetable,
@@ -5937,14 +5942,26 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
           return current;
         }
 
+        const nextCasts: AncientManualSolarCast[] = [
+          ...current.localManualSolarCasts,
+          { solarPowerId: 'SSIP', lockedAmount },
+        ];
+        const nextReplay = replayAncientManualSolarCasts({
+          startingPool: provisionalAncientEnergyBeforeManualCasts,
+          localManualSolarCasts: nextCasts,
+        });
+        const canCastAgain =
+          nextReplay.valid &&
+          Math.min(
+            nextReplay.remainingEnergy.green,
+            nextReplay.remainingEnergy.red
+          ) >= ANCIENT_SIPHON_MINIMUM_SPEND;
+
         return {
           ...current,
-          selectorMode: null,
+          selectorMode: canCastAgain ? 'siphon' : null,
           blackHoleSelectedTargetInstanceIds: [],
-          localManualSolarCasts: [
-            ...current.localManualSolarCasts,
-            { solarPowerId: 'SSIP', lockedAmount },
-          ],
+          localManualSolarCasts: nextCasts,
         };
       });
     },
@@ -6077,18 +6094,40 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
             };
           }
 
+          const orderedTargetInstanceIds = [...nextTargetInstanceIds]
+            .sort((a, b) => a.localeCompare(b));
+          const nextCasts: AncientManualSolarCast[] = [
+            ...current.localManualSolarCasts,
+            {
+              solarPowerId: 'SBLA',
+              targetInstanceIds: orderedTargetInstanceIds,
+            },
+          ];
+          const nextReplay = replayAncientManualSolarCasts({
+            startingPool: provisionalAncientEnergyBeforeManualCasts,
+            localManualSolarCasts: nextCasts,
+          });
+          const nextReservedTargetInstanceIds = nextCasts.flatMap((cast) =>
+            cast.solarPowerId === 'SBLA' ? cast.targetInstanceIds : []
+          );
+          const nextTargeting = deriveAncientBlackHoleTargetingState({
+            opponentShipsVisible,
+            opponentFleet,
+            reservedTargetInstanceIds: nextReservedTargetInstanceIds,
+          });
+          const canCastAgain =
+            nextReplay.valid &&
+            canAffordAncientEnergyCost(
+              nextReplay.remainingEnergy,
+              ANCIENT_BLACK_HOLE_PREVIEW_COST
+            ) &&
+            nextTargeting.requiredTargetCount > 0;
+
           return {
             ...current,
-            selectorMode: null,
+            selectorMode: canCastAgain ? 'blackHole' : null,
             blackHoleSelectedTargetInstanceIds: [],
-            localManualSolarCasts: [
-              ...current.localManualSolarCasts,
-              {
-                solarPowerId: 'SBLA',
-                targetInstanceIds: nextTargetInstanceIds
-                  .sort((a, b) => a.localeCompare(b)),
-              },
-            ],
+            localManualSolarCasts: nextCasts,
           };
         });
         if (willComplete) {

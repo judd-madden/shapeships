@@ -12,6 +12,7 @@ interface ReadyButtonProps {
   disabled?: boolean;
   className?: string;
   note?: string;
+  variant?: 'ready' | 'back';
 }
 
 function TickIcon() {
@@ -33,7 +34,8 @@ export function ReadyButton({
   onClick, 
   disabled = false, 
   className = "", 
-  note 
+  note,
+  variant = 'ready',
 }: ReadyButtonProps) {
   if (selected) {
     return (
@@ -81,7 +83,11 @@ export function ReadyButton({
       onClick={onClick}
       disabled={disabled}
       className={`
-        ${disabled ? 'bg-[var(--shapeships-grey-50)]' : 'bg-white'}
+        ${variant === 'back'
+          ? 'bg-[var(--shapeships-grey-20)]'
+          : disabled
+            ? 'bg-[var(--shapeships-grey-50)]'
+            : 'bg-white'}
         h-[50px] 
         relative rounded-[10px] 
         w-full

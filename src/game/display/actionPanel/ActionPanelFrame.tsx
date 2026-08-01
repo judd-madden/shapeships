@@ -39,6 +39,8 @@ interface ActionPanelFrameProps {
   onToggleGameStats?: () => void;
   onReturnToMainMenu: () => void;
   simulacrumSpecies?: SpeciesId;
+  siphonInspectionOpen?: boolean;
+  onOpenSiphonInspection?: () => void;
 }
 
 const ANCIENT_ACTIONS_VERTICAL_GAP_PX = 20;
@@ -53,6 +55,8 @@ export function ActionPanelFrame({
   onToggleGameStats,
   onReturnToMainMenu,
   simulacrumSpecies = 'human',
+  siphonInspectionOpen = false,
+  onOpenSiphonInspection,
 }: ActionPanelFrameProps) {
   const displayName = ACTION_PANEL_DISPLAY_NAMES[vm.activePanelId];
   const healthResolutionOverlay = vm.healthResolutionOverlay;
@@ -282,6 +286,8 @@ export function ActionPanelFrame({
               catalogueLayout="long"
               hoverDisabled={hoverDisabled}
               simulacrumSpecies={simulacrumSpecies}
+              siphonInspectionOpen={siphonInspectionOpen}
+              onOpenSiphonInspection={onOpenSiphonInspection}
               interactionDisabled={isDeclaration}
               presentation={isDeclaration ? 'declaration' : 'reference'}
               catalogueEnergy={vm.ancientCatalogueEnergy}
@@ -311,6 +317,8 @@ export function ActionPanelFrame({
           catalogueLayout={catalogueLayout}
           hoverDisabled={hoverDisabled}
           simulacrumSpecies={simulacrumSpecies}
+          siphonInspectionOpen={siphonInspectionOpen}
+          onOpenSiphonInspection={onOpenSiphonInspection}
           interactionDisabled={isDeclaration}
           presentation={isDeclaration ? 'declaration' : 'reference'}
           catalogueEnergy={vm.ancientCatalogueEnergy}

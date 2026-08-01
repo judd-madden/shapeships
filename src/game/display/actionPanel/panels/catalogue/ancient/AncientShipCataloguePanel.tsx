@@ -248,7 +248,7 @@ interface AncientShipCataloguePanelProps {
   onSolarPowerInspect?: (solarPowerId: ImplementedAncientManualSolarPowerId) => void;
   siphonInspectionOpen?: boolean;
   siphonHorizontalScrollOwner?: 'self' | 'ancestor';
-  onCloseSiphonInspection?: () => void;
+  onOpenSiphonInspection?: () => void;
   simulacrumSpecies?: SpeciesId;
   presentation?: 'reference' | 'declaration';
   catalogueEnergy?: ActionPanelViewModel['ancientCatalogueEnergy'];
@@ -387,9 +387,9 @@ export function AncientShipCataloguePanel({
   interactionDisabled = false,
   onShipInspect,
   onSolarPowerInspect,
-  siphonInspectionOpen: controlledSiphonInspectionOpen = false,
+  siphonInspectionOpen = false,
   siphonHorizontalScrollOwner = 'self',
-  onCloseSiphonInspection,
+  onOpenSiphonInspection,
   simulacrumSpecies = 'human',
   presentation = 'reference',
   catalogueEnergy,
@@ -412,7 +412,6 @@ export function AncientShipCataloguePanel({
 }: AncientShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const [hoveredSiphonSpend, setHoveredSiphonSpend] = useState<number | null>(null);
-  const [localSiphonInspectionOpen, setLocalSiphonInspectionOpen] = useState(false);
   const isBuildableContext = buildCatalogue.context === 'buildable';
   const isUnavailableContext = buildCatalogue.context === 'unavailable';
   const canvas = ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT[catalogueLayout];
@@ -429,12 +428,10 @@ export function AncientShipCataloguePanel({
     declarationStage === 'powers' &&
     !isDeclarationBlocked;
   const effectiveSelectorMode =
-    selectorMode ??
-    (controlledSiphonInspectionOpen || localSiphonInspectionOpen ? 'siphon' : null);
+    selectorMode ?? (siphonInspectionOpen ? 'siphon' : null);
   const selectorOpen = effectiveSelectorMode !== null;
   const isSiphonInspection =
-    selectorMode == null &&
-    (controlledSiphonInspectionOpen || localSiphonInspectionOpen);
+    selectorMode == null && siphonInspectionOpen;
   const canOpenSiphonSelector =
     isActiveResolvedPowersStage &&
     siphonSelector?.canOpen === true;
@@ -459,10 +456,6 @@ export function AncientShipCataloguePanel({
   const handleHoveredSiphonSpendChange = useCallback((spend: number | null) => {
     setHoveredSiphonSpend(spend);
   }, []);
-
-  useEffect(() => {
-    setLocalSiphonInspectionOpen(false);
-  }, [presentation, declarationStage, selectorMode]);
 
   useEffect(() => {
     if (
@@ -891,25 +884,6 @@ export function AncientShipCataloguePanel({
 
           {selectorOpen ? (
             <>
-              <button
-                type="button"
-                className="absolute cursor-pointer rounded-[10px] border-0 bg-[var(--shapeships-grey-90)] px-[16px] py-[6px] font-['Roboto'] text-[16px] font-normal leading-normal text-white hover:bg-[var(--shapeships-grey-70)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
-                style={{ left: '426px', top: '30px', fontVariationSettings: "'wdth' 100" }}
-                onClick={() => {
-                  setHoveredSiphonSpend(null);
-                  if (isSiphonInspection) {
-                    if (controlledSiphonInspectionOpen) {
-                      onCloseSiphonInspection?.();
-                    } else {
-                      setLocalSiphonInspectionOpen(false);
-                    }
-                  } else {
-                    actions.onCancelAncientSolarSelector();
-                  }
-                }}
-              >
-                Back
-              </button>
               {effectiveSelectorMode === 'siphon' ? (
                 <AncientSiphonSelector
                   maxSpend={isSiphonInspection ? 0 : (siphonSelector?.maxSpend ?? 0)}
@@ -991,7 +965,7 @@ export function AncientShipCataloguePanel({
                             if (canOpenSiphonSelector) {
                               actions.onOpenAncientSolarSelector('siphon');
                             } else {
-                              setLocalSiphonInspectionOpen(true);
+                              onOpenSiphonInspection?.();
                             }
                           }
                       : slot.id === 'SBLA' && canOpenBlackHoleSelector

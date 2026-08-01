@@ -1,13 +1,17 @@
-import type { BottomActionRailViewModel, GameSessionActions } from '../../client/useGameSession';
+import type { BottomActionRailViewModel } from '../../client/useGameSession';
+import type { MainPhaseControl } from '../shared/mainPhaseControl';
 
 interface MobileBottomPhaseProps {
   vm: BottomActionRailViewModel;
-  actions: Pick<GameSessionActions, 'onReadyToggle'>;
+  mainPhaseControl: MainPhaseControl;
 }
 
-export function MobileBottomPhase({ vm, actions }: MobileBottomPhaseProps) {
-  const readyNote = (vm.readyDisabled ? vm.readyDisabledReason : vm.readyButtonNote) ?? null;
-  const readyDisabled = vm.readyDisabled || vm.readySelected;
+export function MobileBottomPhase({ vm, mainPhaseControl }: MobileBottomPhaseProps) {
+  const isBack = mainPhaseControl.mode === 'back';
+  const readyNote = isBack
+    ? null
+    : (vm.readyDisabled ? vm.readyDisabledReason : vm.readyButtonNote) ?? null;
+  const readyDisabled = isBack ? false : vm.readyDisabled || vm.readySelected;
 
   return (
     <div className="shrink-0 w-full flex flex-col items-center gap-[9px] px-[14px] pt-[4px]">
@@ -28,9 +32,11 @@ export function MobileBottomPhase({ vm, actions }: MobileBottomPhaseProps) {
         <button
           type="button"
           disabled={readyDisabled}
-          onClick={actions.onReadyToggle}
+          onClick={mainPhaseControl.onActivate}
           className={`flex h-[50px] w-full items-center justify-center gap-[5px] rounded-[5px] px-[14px] text-black transition-transform ${
-            vm.readySelected
+            isBack
+              ? 'bg-[var(--shapeships-grey-20)] cursor-pointer active:scale-[0.99]'
+              : vm.readySelected
               ? 'bg-[var(--shapeships-green)] cursor-not-allowed'
               : vm.readyDisabled
                 ? 'bg-[var(--shapeships-grey-50)] cursor-not-allowed'
@@ -41,7 +47,7 @@ export function MobileBottomPhase({ vm, actions }: MobileBottomPhaseProps) {
             className="min-w-0 truncate text-[16px] font-black leading-none"
             style={{ fontVariationSettings: "'wdth' 100" }}
           >
-            {vm.readyButtonLabel}
+            {isBack ? 'BACK' : vm.readyButtonLabel}
           </span>
           {readyNote ? (
             <span

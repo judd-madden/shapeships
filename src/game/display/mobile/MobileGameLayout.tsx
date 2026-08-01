@@ -31,6 +31,7 @@ import { MobileChatTakeover } from './takeovers/MobileChatTakeover';
 import { MobileEndGameStatsTakeover } from './takeovers/MobileEndGameStatsTakeover';
 import { MobileEndOfGameMenuTakeover } from './takeovers/MobileEndOfGameMenuTakeover';
 import { MobileMenuTakeover } from './takeovers/MobileMenuTakeover';
+import type { MainPhaseControl } from '../shared/mainPhaseControl';
 
 interface MobileGameLayoutProps {
   hudVm: HudViewModel;
@@ -369,6 +370,23 @@ export function MobileGameLayout({
       actions.onActionPanelTabClick(tabId);
     },
   };
+  const ancientSelectorMode = actionPanelVm.ancientChargeDeclaration?.selectorMode ?? null;
+  const mainPhaseControl: MainPhaseControl =
+    isSiphonInspectionOpen || ancientSelectorMode != null
+      ? {
+          mode: 'back',
+          onActivate: () => {
+            if (isSiphonInspectionOpen) {
+              handleCloseSiphonInspection();
+              return;
+            }
+            actions.onCancelAncientSolarSelector();
+          },
+        }
+      : {
+          mode: 'ready',
+          onActivate: mobileActions.onReadyToggle,
+        };
 
   useEffect(() => {
     if (!isCataloguePanelActive) {
@@ -622,7 +640,10 @@ export function MobileGameLayout({
 
           <div className="shrink-0 flex flex-col gap-[6px] w-full">
             {boardVm.mode === 'board' ? (
-              <MobileBottomPhase vm={bottomActionRailVm} actions={mobileActions} />
+              <MobileBottomPhase
+                vm={bottomActionRailVm}
+                mainPhaseControl={mainPhaseControl}
+              />
             ) : (
               <MobileSpeciesConfirmPhase
                 boardVm={boardVm}
@@ -647,7 +668,6 @@ export function MobileGameLayout({
                   onShipInspect={handleCatalogueShipInspect}
                   onSolarPowerInspect={handleSolarPowerInspect}
                   siphonInspectionOpen={isSiphonInspectionOpen}
-                  onCloseSiphonInspection={handleCloseSiphonInspection}
                   onOpenAutocastInfo={handleOpenAutocastInfo}
                   onOpenMenuTakeover={handleOpenMenu}
                   simulacrumSpecies={simulacrumSpecies}
