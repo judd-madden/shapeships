@@ -33,7 +33,7 @@ export function AncientBlackHoleSelector({
           </span>
         </div>
         <div>
-          <p className='text-[18px]'>You may select up to two basic enemy ships on the battlefield to destroy.</p>
+          <p className='text-[18px]'>Select up to two basic enemy ships on the battlefield to destroy.</p>
           <p className="text-[18px] mt-[16px]">Damage will still occur if no ships are destroyed.</p>
         </div>
       </div>

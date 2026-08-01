@@ -432,6 +432,29 @@ export function AncientShipCataloguePanel({
   const selectorOpen = effectiveSelectorMode !== null;
   const isSiphonInspection =
     selectorMode == null && siphonInspectionOpen;
+  const siphonInstruction =
+    effectiveSelectorMode !== 'siphon'
+      ? null
+      : selectorMode === 'siphon'
+        ? {
+            text: 'Choose the amount of energy you want to spend on Siphon:',
+            muted: false,
+          }
+        : isDeclarationPresentation &&
+            isSiphonInspection &&
+            !isDeclarationBlocked &&
+            siphonSelector?.canOpen !== true &&
+            declarationEnergy != null &&
+            Math.min(declarationEnergy.green, declarationEnergy.red) <
+              ANCIENT_SIPHON_MINIMUM_SPEND
+          ? {
+              text: 'Siphon scales with energy used. Not enough energy to cast.',
+              muted: true,
+            }
+          : {
+              text: 'Siphon scales with energy used.',
+              muted: false,
+            };
   const canOpenSiphonSelector =
     isActiveResolvedPowersStage &&
     siphonSelector?.canOpen === true;
@@ -620,6 +643,23 @@ export function AncientShipCataloguePanel({
           >
             Ancient Solar Powers
           </p>
+
+          {siphonInstruction ? (
+            <p
+              className={`absolute whitespace-nowrap font-['Roboto'] text-[16px] font-bold leading-normal ${
+                siphonInstruction.muted
+                  ? 'text-[var(--shapeships-grey-50)]'
+                  : 'text-white'
+              }`}
+              style={{
+                left: `${ANCIENT_CATALOGUE_SECTION_X.solar}px`,
+                top: '30px',
+                fontVariationSettings: "'wdth' 100",
+              }}
+            >
+              {siphonInstruction.text}
+            </p>
+          ) : null}
 
           {/* Vertical Divider */}
           <div

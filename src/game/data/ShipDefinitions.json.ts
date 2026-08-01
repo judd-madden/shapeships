@@ -1568,7 +1568,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "blue": 0,
       "xBlue": true
     },
-    "extraRules": "Ship is created at the start of the NEXT turn. Each ship may only be targeted once per turn. Ships with charges are copied as they are at the start of this battle phase. Copied ships CAN be upgraded.",
+    "extraRules": "Ship is created at the start of the NEXT turn. Each ship may only be targeted once per turn. Ships with charges are copied as they are at the start of this battle phase. Copied ships CAN be upgraded via the opponent's species tab.",
     "stackCaption": "N/A",
     "colour": "N/A",
     "numberOfGraphics": 4

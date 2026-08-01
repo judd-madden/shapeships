@@ -65,7 +65,7 @@ export function MobileSolarPowerModal({
       if (declarationAvailable && declarationVm?.siphonSelector.canOpen === true) {
         return {
           kind: 'button',
-          label: 'USE POWER',
+          label: 'VIEW POWER',
           onClick: () =>
             closeThen(() => actions.onOpenAncientSolarSelector('siphon')),
         };
@@ -97,7 +97,7 @@ export function MobileSolarPowerModal({
       if (declarationVm.simulacrumSelector.canOpen) {
         return {
           kind: 'button',
-          label: 'USE POWER',
+          label: 'VIEW POWER',
           onClick: () =>
             closeThen(() => actions.onOpenAncientSolarSelector('simulacrum')),
         };
@@ -110,7 +110,7 @@ export function MobileSolarPowerModal({
     if (declarationVm.blackHoleSelector.canOpen) {
       return {
         kind: 'button',
-        label: 'USE POWER',
+        label: 'VIEW POWER',
         onClick: () =>
           closeThen(() => actions.onOpenAncientSolarSelector('blackHole')),
       };
