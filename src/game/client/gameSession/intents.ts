@@ -179,7 +179,7 @@ export async function runSpeciesConfirmFlow(args: {
   mySessionId: string;
   getLatestRawState: () => any;
   bumpDiceRollSeq: (n: number) => void;
-}) {
+}): Promise<boolean> {
   try {
     const {
       selectedSpecies,
@@ -204,7 +204,7 @@ export async function runSpeciesConfirmFlow(args: {
     // Guard: cannot submit intents without a usable gameId
     if (!effectiveGameId) {
       console.warn('[intents] runSpeciesConfirmFlow called without effectiveGameId');
-      return;
+      return false;
     }
 
     const payload: { species: SpeciesId; botSpecies?: ComputerBotSpeciesId } = { species: selectedSpecies };
@@ -217,7 +217,7 @@ export async function runSpeciesConfirmFlow(args: {
 
     console.log('[useGameSession] onConfirmSpecies', phaseInstanceKey, { commitDone });
 
-    if (commitDone) return;
+    if (commitDone) return false;
 
     // PART D: Submit SPECIES_SUBMIT (single atomic intent with nonce)
     console.log('[useGameSession] Submitting SPECIES_SUBMIT...');
@@ -236,7 +236,7 @@ export async function runSpeciesConfirmFlow(args: {
     if (!response.ok) {
       const errorText = await readFailureResponseText(response);
       console.error('[useGameSession] SPECIES_SUBMIT failed:', errorText);
-      return;
+      return false;
     }
 
     const result = await response.json();
@@ -244,7 +244,7 @@ export async function runSpeciesConfirmFlow(args: {
     if (!result.ok) {
       logIgnoredIntentState('SPECIES_SUBMIT rejected', result);
       console.error('[useGameSession] SPECIES_SUBMIT rejected:', result.rejected);
-      return;
+      return false;
     }
     logIgnoredIntentState('SPECIES_SUBMIT succeeded', result);
 
@@ -291,15 +291,17 @@ export async function runSpeciesConfirmFlow(args: {
         debugPlayerId: me?.id,
       });
       // Do not mark as done - allow user to retry
-      return;
+      return false;
     }
 
     setSpeciesCommitDoneByPhase(prev => ({ ...prev, [phaseInstanceKey]: true }));
     setSpeciesRevealDoneByPhase(prev => ({ ...prev, [phaseInstanceKey]: true }));
     console.log('✅ [useGameSession] SPECIES_SUBMIT succeeded');
     console.log('✅ [useGameSession] Species selection complete!');
+    return true;
   } catch (err: any) {
     console.error('[useGameSession] Species confirmation error:', err);
+    return false;
   }
 }
 

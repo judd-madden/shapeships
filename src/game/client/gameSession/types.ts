@@ -503,6 +503,10 @@ export type BoardViewModel =
       isSpectator: boolean;
       canConfirmSpecies: boolean;
       isSpeciesSelectionComplete: boolean;
+      speciesConfirmationPending: boolean;
+      submittedSpecies: SpeciesId | null;
+      speciesControlsLocked: boolean;
+      isSpeciesConfirmedForDisplay: boolean;
       confirmDisabledReason?: string;
     }
   | {

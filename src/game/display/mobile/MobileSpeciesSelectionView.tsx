@@ -89,7 +89,7 @@ export function MobileSpeciesSelectionView({
       {boardVm.isComputerGame ? (
         <MobileComputerSpeciesRegion
           selectedSpecies={boardVm.selectedBotSpecies}
-          disabled={boardVm.isSpectator}
+          disabled={boardVm.isSpectator || boardVm.speciesControlsLocked}
           onSelectSpecies={actions.onSelectBotSpecies}
         />
       ) : (
@@ -106,16 +106,15 @@ export function MobileSpeciesConfirmPhase({
   bottomActionRailVm,
   actions,
 }: MobileSpeciesConfirmPhaseProps) {
-  const selectedSpeciesName = boardVm.selectedSpecies.toUpperCase();
-  const isAncientSelected = boardVm.selectedSpecies === 'ancient';
-  const confirmButtonPrefix = boardVm.isSpeciesSelectionComplete
-    ? 'CONFIRMED'
-    : isAncientSelected && !boardVm.canConfirmSpecies
-      ? 'DISABLED'
-      : 'CONFIRM';
+  const confirmationSpeciesName =
+    (boardVm.submittedSpecies ?? boardVm.selectedSpecies).toUpperCase();
   const confirmDisabled = !boardVm.canConfirmSpecies;
+  const ordinaryConfirmDisabled =
+    confirmDisabled &&
+    !boardVm.speciesConfirmationPending &&
+    !boardVm.isSpeciesConfirmedForDisplay;
   const confirmDisabledReason =
-    !boardVm.isSpectator && !boardVm.isSpeciesSelectionComplete && confirmDisabled
+    !boardVm.isSpectator && ordinaryConfirmDisabled
       ? boardVm.confirmDisabledReason ?? null
       : null;
 
@@ -128,6 +127,7 @@ export function MobileSpeciesConfirmPhase({
         <button
           type="button"
           disabled={confirmDisabled}
+          aria-busy={boardVm.speciesConfirmationPending}
           onClick={actions.onConfirmSpecies}
           className={`flex h-[44px] w-full items-center justify-center gap-[5px] rounded-[5px] px-[14px] text-black transition-transform ${
             confirmDisabled
@@ -135,18 +135,33 @@ export function MobileSpeciesConfirmPhase({
               : 'bg-white cursor-pointer active:scale-[0.99]'
           }`}
         >
-          <span
-            className="min-w-0 truncate text-[16px] font-black leading-none"
-            style={{ fontVariationSettings: "'wdth' 100" }}
-          >
-            {confirmButtonPrefix}
-          </span>
-          <span
-            className="min-w-0 truncate text-[15px] font-normal leading-none"
-            style={{ fontVariationSettings: "'wdth' 100" }}
-          >
-            - {selectedSpeciesName}
-          </span>
+          {boardVm.speciesConfirmationPending && !boardVm.isSpeciesConfirmedForDisplay ? (
+            <span
+              className="min-w-0 truncate text-[16px] font-black leading-none"
+              style={{ fontVariationSettings: "'wdth' 100" }}
+            >
+              {`CONFIRMING ${confirmationSpeciesName}...`}
+            </span>
+          ) : (
+            <>
+              <span
+                className="min-w-0 truncate text-[16px] font-black leading-none"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                {boardVm.isSpeciesConfirmedForDisplay
+                  ? 'CONFIRMED'
+                  : ordinaryConfirmDisabled
+                    ? 'DISABLED'
+                    : 'CONFIRM'}
+              </span>
+              <span
+                className="min-w-0 truncate text-[15px] font-normal leading-none"
+                style={{ fontVariationSettings: "'wdth' 100" }}
+              >
+                - {confirmationSpeciesName}
+              </span>
+            </>
+          )}
         </button>
       )}
 
@@ -318,14 +333,16 @@ function MobileSpeciesStatusRail({
   boardVm: MobileChooseSpeciesViewModel;
   leftRailVm: LeftRailViewModel;
 }) {
-  const selectedSpeciesLabel = getSpeciesLabel(boardVm.selectedSpecies);
+  const selectedSpeciesLabel = getSpeciesLabel(
+    boardVm.submittedSpecies ?? boardVm.selectedSpecies
+  );
   const currentPlayerStatusText = boardVm.isSpectator
     ? hudVm.p1Species || hudVm.p1StatusText || ''
-    : boardVm.isSpeciesSelectionComplete
+    : boardVm.isSpeciesConfirmedForDisplay
       ? `${selectedSpeciesLabel}`
       : 'Selecting';
   const currentPlayerStatusTone: HudStatusTone =
-    boardVm.isSpeciesSelectionComplete && !boardVm.isSpectator ? 'ready' : 'neutral';
+    boardVm.isSpeciesConfirmedForDisplay && !boardVm.isSpectator ? 'ready' : 'neutral';
 
   const topRow: MobileStatusRailRowData = {
     name: hudVm.p2Name,
@@ -396,6 +413,7 @@ function MobileChooseSpeciesRegion({
               key={option.speciesId}
               option={option}
               selected={boardVm.selectedSpecies === option.speciesId}
+              disabled={boardVm.speciesControlsLocked}
               onClick={() => onSelectSpecies(option.speciesId)}
             />
           ))}
@@ -408,18 +426,23 @@ function MobileChooseSpeciesRegion({
 function MobileSpeciesCard({
   option,
   selected,
+  disabled,
   onClick,
 }: {
   option: MobileSpeciesOption;
   selected: boolean;
+  disabled: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       aria-pressed={selected}
+      disabled={disabled}
       onClick={onClick}
-      className="relative h-[78px] w-full rounded-[11px] p-[4px] transition-transform active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+      className={`relative h-[78px] w-full rounded-[11px] p-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+        disabled ? 'cursor-default' : 'cursor-pointer transition-transform active:scale-[0.98]'
+      }`}
     >
       {selected ? (
         <span

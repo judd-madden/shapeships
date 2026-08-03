@@ -215,13 +215,12 @@ export function ChooseSpeciesStage({
     );
   }
 
-  const isAncientSelected = vm.selectedSpecies === 'ancient';
-  const selectedSpeciesName = vm.selectedSpecies.toUpperCase();
-  const confirmButtonPrefix = vm.isSpeciesSelectionComplete
-    ? 'CONFIRMED'
-    : isAncientSelected && !vm.canConfirmSpecies
-      ? 'DISABLED'
-      : 'CONFIRM';
+  const confirmationSpeciesName = (vm.submittedSpecies ?? vm.selectedSpecies).toUpperCase();
+  const ordinaryConfirmDisabled =
+    !vm.canConfirmSpecies &&
+    !vm.speciesConfirmationPending &&
+    !vm.isSpeciesConfirmedForDisplay;
+  const confirmDisabled = !vm.canConfirmSpecies;
 
   return (
     <div
@@ -243,31 +242,47 @@ export function ChooseSpeciesStage({
               <div className="content-stretch flex flex-col items-start pl-[4px] pr-0 py-0 relative shrink-0">
                 <button
                   onClick={onConfirmSpecies}
-                  disabled={!vm.canConfirmSpecies}
+                  disabled={confirmDisabled}
+                  aria-busy={vm.speciesConfirmationPending}
                   className={`
                     content-stretch flex gap-[4px] h-[50px] items-center justify-center leading-[normal] 
                     px-[20px] py-[19px] relative rounded-[10px] shrink-0 text-[18px] text-nowrap w-[300px] 
-                    ${vm.canConfirmSpecies 
-                      ? 'bg-white text-black cursor-pointer hover:bg-gray-100 transition-colors' 
-                      : 'bg-(--shapeships-grey-50) text-black cursor-not-allowed'}
+                    ${confirmDisabled
+                      ? 'bg-[var(--shapeships-grey-50)] text-black cursor-not-allowed'
+                      : 'bg-white text-black cursor-pointer hover:bg-gray-100 transition-colors'}
                   `}
                   type="button"
                 >
-                  <p
-                    className="font-['Roboto',sans-serif] font-black relative shrink-0"
-                    style={{ fontVariationSettings: "'wdth' 100" }}
-                  >
-                    {confirmButtonPrefix}
-                  </p>
-                  <p
-                    className="font-['Roboto',sans-serif] font-normal relative shrink-0"
-                    style={{ fontVariationSettings: "'wdth' 100" }}
-                  >
-                    - {selectedSpeciesName}
-                  </p>
+                  {vm.speciesConfirmationPending && !vm.isSpeciesConfirmedForDisplay ? (
+                    <p
+                      className="font-['Roboto',sans-serif] font-black relative shrink-0"
+                      style={{ fontVariationSettings: "'wdth' 100" }}
+                    >
+                      {`CONFIRMING ${confirmationSpeciesName}...`}
+                    </p>
+                  ) : (
+                    <>
+                      <p
+                        className="font-['Roboto',sans-serif] font-black relative shrink-0"
+                        style={{ fontVariationSettings: "'wdth' 100" }}
+                      >
+                        {vm.isSpeciesConfirmedForDisplay
+                          ? 'CONFIRMED'
+                          : ordinaryConfirmDisabled
+                            ? 'DISABLED'
+                            : 'CONFIRM'}
+                      </p>
+                      <p
+                        className="font-['Roboto',sans-serif] font-normal relative shrink-0"
+                        style={{ fontVariationSettings: "'wdth' 100" }}
+                      >
+                        - {confirmationSpeciesName}
+                      </p>
+                    </>
+                  )}
                 </button>
                 {/* Show disabled reason if button is disabled */}
-                {!vm.isSpeciesSelectionComplete && !vm.canConfirmSpecies && vm.confirmDisabledReason && (
+                {ordinaryConfirmDisabled && vm.confirmDisabledReason && (
                   <p className="text-gray-400 text-[12px] mt-[4px] pl-[4px]">
                     {vm.confirmDisabledReason}
                   </p>
@@ -285,6 +300,7 @@ export function ChooseSpeciesStage({
               backgroundClassName="bg-[var(--shapeships-pastel-blue)]"
               icon={<BlackCarrierIcon className="w-[58px] h-[50px]" color="black" />}
               selected={vm.selectedSpecies === 'human'}
+              disabled={vm.speciesControlsLocked}
               onClick={() => onSelectSpecies('human')}
             />
             <SpeciesCardButton
@@ -294,6 +310,7 @@ export function ChooseSpeciesStage({
               backgroundClassName="bg-[var(--shapeships-pastel-green)]"
               icon={<BlackXeniteIcon className="w-[42px] h-[42px]" color="black" />}
               selected={vm.selectedSpecies === 'xenite'}
+              disabled={vm.speciesControlsLocked}
               onClick={() => onSelectSpecies('xenite')}
             />
             <SpeciesCardButton
@@ -303,6 +320,7 @@ export function ChooseSpeciesStage({
               backgroundClassName="bg-[var(--shapeships-pastel-red)]"
               icon={<BlackShipOfWisdomIcon className="w-[59px] h-[59px]" color="black" />}
               selected={vm.selectedSpecies === 'centaur'}
+              disabled={vm.speciesControlsLocked}
               onClick={() => onSelectSpecies('centaur')}
             />
             <SpeciesCardButton
@@ -312,6 +330,7 @@ export function ChooseSpeciesStage({
               backgroundClassName="bg-[var(--shapeships-pastel-purple)]"
               icon={<BlackMercuryCoreIcon className="w-[32px] h-[61px]" color="black" />}
               selected={vm.selectedSpecies === 'ancient'}
+              disabled={vm.speciesControlsLocked}
               onClick={() => onSelectSpecies('ancient')}
             />
           </div>
@@ -323,7 +342,7 @@ export function ChooseSpeciesStage({
         {vm.isComputerGame ? (
           <ComputerSpeciesPanel
             selectedSpecies={vm.selectedBotSpecies}
-            disabled={false}
+            disabled={vm.speciesControlsLocked}
             onSelectSpecies={onSelectBotSpecies}
           />
         ) : (

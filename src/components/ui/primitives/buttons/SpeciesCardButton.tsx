@@ -12,6 +12,7 @@ interface SpeciesCardButtonProps {
   backgroundClassName: string;
   icon: React.ReactNode;
   selected: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }
 
@@ -21,12 +22,16 @@ export function SpeciesCardButton({
   backgroundClassName,
   icon,
   selected,
+  disabled = false,
   onClick,
 }: SpeciesCardButtonProps) {
   return (
     <button
       onClick={onClick}
-      className="content-stretch flex flex-col h-[129px] items-start p-[5px] relative rounded-[14px] shrink-0 w-[310px] cursor-pointer transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+      disabled={disabled}
+      className={`content-stretch flex flex-col h-[129px] items-start p-[5px] relative rounded-[14px] shrink-0 w-[310px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+        disabled ? 'cursor-default' : 'cursor-pointer transition-transform hover:scale-105'
+      }`}
       type="button"
     >
       {selected && (

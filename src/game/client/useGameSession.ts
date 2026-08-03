@@ -241,6 +241,14 @@ interface UseGameSessionOptions {
   onNavigateToGame?: (gameId: string) => void;
 }
 
+type PendingSpeciesConfirmation = {
+  requestId: number;
+  entryKey: string;
+  submittedSpecies: SpeciesId;
+  submittedBotSpecies: ComputerBotSpeciesId | null;
+  isComputerGame: boolean;
+};
+
 const EMPTY_BUILD_PREVIEW_COUNTS: Record<string, number> = {};
 const ANCIENT_AUTOCAST_ENABLED_STORAGE_KEY = 'shapeships.ancientAutocastEnabled.v1';
 
@@ -947,6 +955,10 @@ export function useGameSession(
   // Choose species state (client-only for now)
   const [selectedSpecies, setSelectedSpecies] = useState<SpeciesId>('human');
   const [selectedBotSpecies, setSelectedBotSpecies] = useState<ComputerBotSpeciesId>('human');
+  const [pendingSpeciesConfirmation, setPendingSpeciesConfirmation] =
+    useState<PendingSpeciesConfirmation | null>(null);
+  const speciesConfirmationGuardRef = useRef<number | null>(null);
+  const speciesConfirmationRequestIdRef = useRef(0);
   const [boardMode, setBoardMode] = useState<BoardViewModel['mode']>('board');
   
   // ============================================================================
@@ -2288,17 +2300,24 @@ export function useGameSession(
       Object.values(controllersByPlayerId).some((controller: any) => controller?.kind === 'bot')
     );
   }, [rawState]);
+  const speciesSelectionEntryKey = `${effectiveGameId ?? 'nogame'}::${phaseInstanceKey}`;
 
   useEffect(() => {
-    if (!isInSpeciesSelection) return;
+    if (!isInSpeciesSelection) {
+      lastSpeciesSelectionEntryKeyRef.current = null;
+      speciesConfirmationGuardRef.current = null;
+      setPendingSpeciesConfirmation(null);
+      return;
+    }
 
-    const speciesSelectionEntryKey = `${effectiveGameId ?? 'nogame'}::${phaseInstanceKey}`;
     if (lastSpeciesSelectionEntryKeyRef.current === speciesSelectionEntryKey) return;
 
     lastSpeciesSelectionEntryKeyRef.current = speciesSelectionEntryKey;
+    speciesConfirmationGuardRef.current = null;
+    setPendingSpeciesConfirmation(null);
     setSelectedSpecies('human');
     setSelectedBotSpecies('human');
-  }, [effectiveGameId, isInSpeciesSelection, phaseInstanceKey]);
+  }, [isInSpeciesSelection, speciesSelectionEntryKey]);
   
   // Helper: normalize species from server data
   function normalizeSpecies(serverValue: string | null | undefined): SpeciesId | null {
@@ -3643,6 +3662,15 @@ useEffect(() => {
   const isCommitDone = speciesCommitDoneByPhase[phaseInstanceKey] || false;
   const isRevealDone = speciesRevealDoneByPhase[phaseInstanceKey] || false;
   const isSpeciesSelectionComplete = isCommitDone && isRevealDone;
+  const activePendingSpeciesConfirmation =
+    isInSpeciesSelection && pendingSpeciesConfirmation?.entryKey === speciesSelectionEntryKey
+      ? pendingSpeciesConfirmation
+      : null;
+  const speciesConfirmationPending = activePendingSpeciesConfirmation !== null;
+  const speciesControlsLocked = isSpeciesSelectionComplete || speciesConfirmationPending;
+  const isSpeciesConfirmedForDisplay =
+    isSpeciesSelectionComplete ||
+    Boolean(activePendingSpeciesConfirmation?.isComputerGame);
 
   // Compute board mode based on server phase
   let board: BoardViewModel;
@@ -3654,7 +3682,7 @@ useEffect(() => {
     // Determine if Confirm button should be enabled
     // Strict gating: requires phase, player role, and active status
     const canConfirmSpecies =
-      !isSpeciesSelectionComplete &&
+      !speciesControlsLocked &&
       myRole === 'player' &&
       me?.isActive === true;
 
@@ -3673,6 +3701,10 @@ useEffect(() => {
       isSpectator: isViewerSpectator,
       canConfirmSpecies,
       isSpeciesSelectionComplete,
+      speciesConfirmationPending,
+      submittedSpecies: activePendingSpeciesConfirmation?.submittedSpecies ?? null,
+      speciesControlsLocked,
+      isSpeciesConfirmedForDisplay,
       confirmDisabledReason,
     };
   } else {
@@ -5500,6 +5532,7 @@ useEffect(() => {
     },
     
     onSelectSpecies: (species: SpeciesId) => {
+      if (speciesConfirmationGuardRef.current !== null || isSpeciesSelectionComplete) return;
       console.log('[useGameSession] Select species:', species);
       setSelectedSpecies(species);
       // Switch to the species' catalogue panel
@@ -5507,11 +5540,14 @@ useEffect(() => {
     },
 
     onSelectBotSpecies: (species: ComputerBotSpeciesId) => {
+      if (speciesConfirmationGuardRef.current !== null || isSpeciesSelectionComplete) return;
       console.log('[useGameSession] Select computer species:', species);
       setSelectedBotSpecies(species);
     },
     
     onConfirmSpecies: async () => {
+      if (speciesConfirmationGuardRef.current !== null || isSpeciesSelectionComplete) return;
+
       // PART E: Diagnostic logging before submission
       console.log('[useGameSession] onConfirmSpecies clicked:', {
         gameId: effectiveGameId,
@@ -5544,30 +5580,56 @@ useEffect(() => {
         return;
       }
 
-      await runSpeciesConfirmFlow({
-        selectedSpecies,
-        botSpecies: isComputerGame ? selectedBotSpecies : undefined,
-        phaseKey,
-        phaseInstanceKey,
-        effectiveGameId,
-        turnNumber,
+      const submittedSpecies = selectedSpecies;
+      const submittedBotSpecies = isComputerGame ? selectedBotSpecies : null;
+      const submissionEntryKey = speciesSelectionEntryKey;
+      const requestId = speciesConfirmationRequestIdRef.current + 1;
 
-        speciesCommitDoneByPhase,
-        speciesRevealDoneByPhase,
-        setSpeciesCommitDoneByPhase,
-        setSpeciesRevealDoneByPhase,
-
-        speciesCommitCache,
-
-        generateNonce,
-        makeCommitHash,
-        submitIntent,
-        appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
-        refreshGameStateOnce,
-        mySessionId: mySessionId!,
-        getLatestRawState: () => rawStateRef.current,
-        bumpDiceRollSeq: (n: number) => setDiceRollSeq(prev => prev + n),
+      speciesConfirmationRequestIdRef.current = requestId;
+      speciesConfirmationGuardRef.current = requestId;
+      setPendingSpeciesConfirmation({
+        requestId,
+        entryKey: submissionEntryKey,
+        submittedSpecies,
+        submittedBotSpecies,
+        isComputerGame,
       });
+
+      try {
+        const confirmed = await runSpeciesConfirmFlow({
+          selectedSpecies: submittedSpecies,
+          botSpecies: submittedBotSpecies ?? undefined,
+          phaseKey,
+          phaseInstanceKey,
+          effectiveGameId,
+          turnNumber,
+
+          speciesCommitDoneByPhase,
+          speciesRevealDoneByPhase,
+          setSpeciesCommitDoneByPhase,
+          setSpeciesRevealDoneByPhase,
+
+          speciesCommitCache,
+
+          generateNonce,
+          makeCommitHash,
+          submitIntent,
+          appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
+          refreshGameStateOnce,
+          mySessionId: mySessionId!,
+          getLatestRawState: () => rawStateRef.current,
+          bumpDiceRollSeq: (n: number) => setDiceRollSeq(prev => prev + n),
+        });
+
+        if (!confirmed) return;
+      } finally {
+        if (speciesConfirmationGuardRef.current === requestId) {
+          speciesConfirmationGuardRef.current = null;
+          setPendingSpeciesConfirmation((pending) =>
+            pending?.requestId === requestId ? null : pending
+          );
+        }
+      }
     },
     
     onCopyGameUrl: () => {
