@@ -38,6 +38,7 @@ export interface EndOfTurnHealthPresentationInput {
 export interface HealthResolutionPresentationTrigger {
   signature: string;
   resolvedTurnKey: string;
+  displayTurnNumber: number;
   healthPresentation: EndOfTurnHealthPresentationInput;
 }
 
@@ -52,6 +53,7 @@ interface UseEndOfTurnPresentationArgs {
   hasMatchingAuthoritativeGameId: boolean;
   phaseKey: string;
   turnNumber: number;
+  isFinished: boolean;
   isBootstrapping: boolean;
   authoritativeHoldPhaseKey: string | null;
   authoritativeHoldReason: string | null;
@@ -100,38 +102,39 @@ function createHealthResolutionSide(args: {
 
   if (net < 0) {
     return {
-      prefixText: `${subject} take${useYouCopy ? '' : 's'} `,
+      nameText: subject,
+      prefixText: `Take${useYouCopy ? '' : 's'} `,
       valueText: String(Math.abs(net)),
       suffixText: ' damage',
       valueTone: 'damage',
-      valueWeight: 'black',
     };
   }
 
   if (net > 0) {
     return {
-      prefixText: `${subject} heal${useYouCopy ? '' : 's'} `,
+      nameText: subject,
+      prefixText: `Heal${useYouCopy ? '' : 's'} `,
       valueText: String(net),
       suffixText: '',
       valueTone: 'heal',
-      valueWeight: 'black',
     };
   }
 
   return {
-    prefixText: `${subject} `,
+    nameText: subject,
+    prefixText: '',
     valueText: '\u00B10',
     suffixText: '',
     valueTone: 'neutral',
-    valueWeight: 'regular',
   };
 }
 
 function buildHealthResolutionPresentationSnapshot(args: {
   presentationKey: string;
+  displayTurnNumber: number;
   healthPresentation: EndOfTurnHealthPresentationInput;
 }): HealthResolutionPresentationVm | null {
-  const { presentationKey, healthPresentation } = args;
+  const { presentationKey, displayTurnNumber, healthPresentation } = args;
 
   if (
     healthPresentation.boardMode !== 'board' ||
@@ -143,6 +146,7 @@ function buildHealthResolutionPresentationSnapshot(args: {
   if (healthPresentation.viewerRole === 'player') {
     return {
       presentationKey,
+      displayTurnNumber,
       left: createHealthResolutionSide({
         subjectName: healthPresentation.meName,
         net: healthPresentation.myLastTurnNet,
@@ -162,6 +166,7 @@ function buildHealthResolutionPresentationSnapshot(args: {
 
   return {
     presentationKey,
+    displayTurnNumber,
     left: createHealthResolutionSide({
       subjectName: healthPresentation.spectatorLeftName,
       net: healthPresentation.spectatorLeftNet,
@@ -258,6 +263,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     hasMatchingAuthoritativeGameId,
     phaseKey,
     turnNumber,
+    isFinished,
     isBootstrapping,
     authoritativeHoldPhaseKey,
     authoritativeHoldReason,
@@ -356,7 +362,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
   function startHealthResolutionPresentation(
     presentationHealthInput: EndOfTurnHealthPresentationInput,
-    resolvedTurnKey: string
+    resolvedTurnKey: string,
+    displayTurnNumber: number
   ): string | null {
     if (!effectiveGameId) {
       return null;
@@ -365,6 +372,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     const presentationKey = `${effectiveGameId}::health::${resolvedTurnKey}`;
     const nextOverlay = buildHealthResolutionPresentationSnapshot({
       presentationKey,
+      displayTurnNumber,
       healthPresentation: presentationHealthInput,
     });
 
@@ -508,7 +516,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
     const presentationKey = startHealthResolutionPresentation(
       healthResolutionPresentationTrigger.healthPresentation,
-      resolvedTurnKey
+      resolvedTurnKey,
+      healthResolutionPresentationTrigger.displayTurnNumber
     );
     if (presentationKey == null) {
       return;
@@ -543,9 +552,17 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       return;
     }
 
+    // Current servers clear this legacy hold during end-of-turn auto-advance. If
+    // an older persisted game still supplies it, the held state is a
+    // pre-transition snapshot: terminal games stay on the resolved turn while
+    // non-terminal games are advancing into the next turn.
+    const legacyDisplayTurnNumber = isFinished
+      ? healthAuthoritativePhaseHold.turnNumber
+      : healthAuthoritativePhaseHold.turnNumber + 1;
     const presentationKey = startHealthResolutionPresentation(
       healthPresentation,
-      resolvedTurnKey
+      resolvedTurnKey,
+      legacyDisplayTurnNumber
     );
     if (presentationKey == null) {
       return;
@@ -556,6 +573,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   }, [
     healthAuthoritativePhaseHold?.signature,
     effectiveGameId,
+    isFinished,
     healthPresentation.boardMode,
     healthPresentation.viewerRole,
     healthPresentation.meName,

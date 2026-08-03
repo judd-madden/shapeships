@@ -2060,10 +2060,23 @@ export function useGameSession(
       return null;
     }
 
+    const responseTurnNumber = getTurnNumber(state);
+    const responseIsFinished =
+      state?.status === 'finished' ||
+      state?.gameData?.status === 'finished';
+    const resolvedTurnNumber = Number(resolvedTurnKey);
+    if (!Number.isInteger(resolvedTurnNumber) || resolvedTurnNumber < 1) {
+      return null;
+    }
+    const displayTurnNumber = responseIsFinished
+      ? resolvedTurnNumber
+      : responseTurnNumber;
+
     const signature = JSON.stringify({
       gameId: effectiveGameId,
       viewerRole: isViewerSpectator ? 'spectator' : 'player',
       resolvedTurnKey,
+      displayTurnNumber,
       localPlayerId,
       opponentPlayerId,
       myHealth,
@@ -2078,15 +2091,11 @@ export function useGameSession(
       opponentDamageTaken: opponentDamageTaken.value,
     });
 
-    const responseTurnNumber = getTurnNumber(state);
-    const responseIsFinished =
-      state?.status === 'finished' ||
-      state?.gameData?.status === 'finished';
-
     return {
       trigger: {
         signature,
         resolvedTurnKey,
+        displayTurnNumber,
         healthPresentation: {
           boardMode: 'board',
           viewerRole: isViewerSpectator ? 'spectator' : 'player',
@@ -3997,6 +4006,7 @@ useEffect(() => {
     hasMatchingAuthoritativeGameId,
     phaseKey,
     turnNumber,
+    isFinished,
     isBootstrapping,
     authoritativeHoldPhaseKey,
     authoritativeHoldReason,

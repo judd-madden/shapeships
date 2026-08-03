@@ -616,15 +616,16 @@ export interface ActionPanelTabVm {
 export type HealthResolutionValueTone = 'damage' | 'heal' | 'neutral';
 
 export interface HealthResolutionSideVm {
+  nameText: string;
   prefixText: string;
   valueText: string;
   suffixText: string;
   valueTone: HealthResolutionValueTone;
-  valueWeight: 'regular' | 'black';
 }
 
 export interface HealthResolutionPresentationVm {
   presentationKey: string;
+  displayTurnNumber: number;
   left: HealthResolutionSideVm;
   right: HealthResolutionSideVm;
 }

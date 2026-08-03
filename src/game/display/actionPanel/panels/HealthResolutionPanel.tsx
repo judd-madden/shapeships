@@ -1,14 +1,12 @@
-import { useEffect, useState } from 'react';
-import type { HealthResolutionPresentationVm, HealthResolutionSideVm } from '../../../client/gameSession/types';
+import type {
+  HealthResolutionPresentationVm,
+  HealthResolutionSideVm,
+} from '../../../client/gameSession/types';
 
 interface HealthResolutionPanelProps {
   vm: HealthResolutionPresentationVm;
   layout?: 'desktop' | 'mobile';
 }
-
-const PANEL_STAGGER_MS = 100;
-const PANEL_TRANSITION_MS = 300;
-const EXIT_START_MS = 2700;
 
 function getValueColor(side: HealthResolutionSideVm): string {
   switch (side.valueTone) {
@@ -22,21 +20,22 @@ function getValueColor(side: HealthResolutionSideVm): string {
   }
 }
 
-function getValueWeightClass(side: HealthResolutionSideVm): string {
-  return side.valueWeight === 'black' ? 'font-black' : 'font-normal';
-}
-
-function HealthResolutionSentence({ side }: { side: HealthResolutionSideVm }) {
+function OutcomeLine({
+  side,
+  layout,
+}: {
+  side: HealthResolutionSideVm;
+  layout: 'desktop' | 'mobile';
+}) {
   return (
     <p
-      className="font-['Roboto'] font-normal text-[44px] leading-[1.1] text-white whitespace-nowrap"
+      className={`max-w-full whitespace-nowrap font-['Roboto'] font-normal leading-none text-white ${
+        layout === 'mobile' ? 'text-[22px]' : 'text-[clamp(26px,2.9vw,44px)]'
+      }`}
       style={{ fontVariationSettings: "'wdth' 100" }}
     >
       <span>{side.prefixText}</span>
-      <span
-        className={getValueWeightClass(side)}
-        style={{ color: getValueColor(side) }}
-      >
+      <span className="font-bold" style={{ color: getValueColor(side) }}>
         {side.valueText}
       </span>
       <span>{side.suffixText}</span>
@@ -44,132 +43,124 @@ function HealthResolutionSentence({ side }: { side: HealthResolutionSideVm }) {
   );
 }
 
-function MobileHealthResolutionSentence({ side }: { side: HealthResolutionSideVm }) {
+function PlayerResult({
+  side,
+  layout,
+  alignment,
+}: {
+  side: HealthResolutionSideVm;
+  layout: 'desktop' | 'mobile';
+  alignment: 'left' | 'right';
+}) {
+  const isMobile = layout === 'mobile';
+
   return (
-    <p
-      className="font-['Roboto'] font-normal text-[24px] leading-[1.1] text-white text-center whitespace-nowrap"
-      style={{ fontVariationSettings: "'wdth' 100" }}
+    <div
+      className={`flex w-full min-w-0 max-w-full flex-col ${
+        isMobile ? 'gap-[4px]' : 'gap-[24px]'
+      } ${alignment === 'right' ? 'items-end text-right' : 'items-start text-left'}`}
     >
-      <span>{side.prefixText}</span>
-      <span
-        className={getValueWeightClass(side)}
-        style={{ color: getValueColor(side) }}
+      <p
+        className={`w-full truncate font-['Roboto'] font-medium leading-none text-white ${
+          isMobile ? 'text-[14px]' : 'text-[clamp(18px,1.7vw,26px)]'
+        }`}
+        style={{ fontVariationSettings: "'wdth' 100" }}
       >
-        {side.valueText}
-      </span>
-      <span>{side.suffixText}</span>
-    </p>
+        {side.nameText}
+      </p>
+      <OutcomeLine side={side} layout={layout} />
+    </div>
+  );
+}
+
+function TurnCard({
+  turnNumber,
+  layout,
+}: {
+  turnNumber: number;
+  layout: 'desktop' | 'mobile';
+}) {
+  const usesTeenNumberAdjustment = turnNumber >= 10 && turnNumber <= 19;
+  const numberTrackingClass = usesTeenNumberAdjustment
+    ? 'tracking-[-0.12em]'
+    : 'tracking-[-0.04em]';
+  const numberStyle = usesTeenNumberAdjustment
+    ? { transform: `translateX(${layout === 'mobile' ? '-6px' : '-12px'})` }
+    : undefined;
+
+  if (layout === 'mobile') {
+    return (
+      <div className="flex min-w-[125px] flex-col items-center justify-center gap-0 rounded-[10px] bg-white px-[20px] py-[15px] text-center text-black">
+        <p className="font-['Roboto'] text-[13px] font-medium leading-none">Turn</p>
+        <p
+          className={`font-['Roboto'] text-[75px] font-black leading-none ${numberTrackingClass}`}
+          style={numberStyle}
+        >
+          {turnNumber}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-0 rounded-[20px] bg-white text-center text-black"
+      style={{
+        minWidth: 'clamp(160px, 16vw, 250px)',
+        paddingInline: 'clamp(20px, 2.6vw, 40px)',
+        paddingBlock: 'clamp(20px, 2vw, 30px)',
+      }}
+    >
+      <p className="font-['Roboto'] text-[clamp(18px,1.7vw,26px)] font-medium leading-none">
+        Turn
+      </p>
+      <p
+        className={`font-['Roboto'] text-[clamp(90px,9.8vw,150px)] font-black leading-none ${numberTrackingClass}`}
+        style={numberStyle}
+      >
+        {turnNumber}
+      </p>
+    </div>
   );
 }
 
 export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResolutionPanelProps) {
-  const [showDivider, setShowDivider] = useState(false);
-  const [showLeft, setShowLeft] = useState(false);
-  const [showRight, setShowRight] = useState(false);
-
-  useEffect(() => {
-    setShowDivider(false);
-    setShowLeft(false);
-    setShowRight(false);
-    const timeoutIds: number[] = [];
-    let raf1: number | null = null;
-    let raf2: number | null = null;
-
-    function scheduleIn(delayMs: number, callback: () => void) {
-      if (delayMs <= 0) {
-        callback();
-        return;
-      }
-
-      timeoutIds.push(window.setTimeout(callback, delayMs));
-    }
-
-    raf1 = window.requestAnimationFrame(() => {
-      raf2 = window.requestAnimationFrame(() => {
-        scheduleIn(0, () => {
-          setShowDivider(true);
-        });
-        scheduleIn(PANEL_STAGGER_MS, () => setShowLeft(true));
-        scheduleIn(PANEL_STAGGER_MS * 2, () => setShowRight(true));
-        scheduleIn(EXIT_START_MS, () => {
-          setShowRight(false);
-        });
-        scheduleIn(EXIT_START_MS + PANEL_STAGGER_MS, () => setShowLeft(false));
-        scheduleIn(EXIT_START_MS + PANEL_STAGGER_MS * 2, () => setShowDivider(false));
-      });
-    });
-
-    return () => {
-      if (raf1 !== null) {
-        window.cancelAnimationFrame(raf1);
-      }
-      if (raf2 !== null) {
-        window.cancelAnimationFrame(raf2);
-      }
-      for (const timeoutId of timeoutIds) {
-        window.clearTimeout(timeoutId);
-      }
-    };
-  }, [vm.presentationKey]);
-
   if (layout === 'mobile') {
     return (
-      <div className="relative size-full overflow-hidden bg-black">
-        <div
-          aria-hidden="true"
-          className={`absolute left-[10px] right-[10px] top-1/2 h-px origin-center bg-[var(--shapeships-grey-70)] transition-all duration-300 ease-out ${
-            showDivider ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-90'
-          }`}
-        />
+      <div className="relative flex size-full items-center justify-center overflow-hidden bg-black px-[12px]">
+        <div className="grid w-full max-w-[420px] grid-cols-[125px_minmax(0,1fr)] items-center gap-[20px]">
+          <TurnCard turnNumber={vm.displayTurnNumber} layout="mobile" />
 
-        <div
-          className={`absolute left-0 right-0 top-0 flex h-1/2 items-center justify-center px-[12px] transition-all duration-300 ease-out ${
-            showRight ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-[4px]'
-          }`}
-        >
-          <MobileHealthResolutionSentence side={vm.right} />
-        </div>
-
-        <div
-          className={`absolute bottom-0 left-0 right-0 flex h-1/2 items-center justify-center px-[12px] transition-all duration-300 ease-out ${
-            showLeft ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-[4px]'
-          }`}
-        >
-          <MobileHealthResolutionSentence side={vm.left} />
+          <div className="flex min-w-0 flex-col items-start">
+            <PlayerResult side={vm.right} layout="mobile" alignment="left" />
+            <div
+              aria-hidden="true"
+              className="my-[16px] h-px w-full shrink-0 bg-[var(--shapeships-grey-70)]"
+            />
+            <PlayerResult side={vm.left} layout="mobile" alignment="left" />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="size-full relative overflow-hidden rounded-[8px] bg-black">
+    <div className="relative flex size-full items-center justify-center overflow-hidden rounded-[8px] bg-black px-[clamp(12px,2vw,40px)]">
       <div
-        aria-hidden="true"
-        className={`absolute top-[40px] bottom-[40px] w-px bg-[var(--shapeships-grey-70)] transition-all duration-300 ease-out ${
-          showDivider ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-90'
-        }`}
-        style={{ left: 'calc(49.74% + 3px)' }}
-      />
-
-      <div
-        className={`absolute top-0 bottom-0 left-[40px] flex items-center justify-end transition-all duration-300 ease-out ${
-          showLeft ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-[4px]'
-        }`}
-        style={{ right: 'calc(50.26% + 47px)' }}
+        className="grid w-full max-w-[1300px] items-center"
+        style={{
+          gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
+          columnGap: 'clamp(20px, 3vw, 50px)',
+        }}
       >
-        <div className="text-right">
-          <HealthResolutionSentence side={vm.left} />
+        <div className="w-full min-w-0">
+          <PlayerResult side={vm.left} layout="desktop" alignment="right" />
         </div>
-      </div>
 
-      <div
-        className={`absolute top-0 bottom-0 right-[40px] flex items-center justify-start transition-all duration-300 ease-out ${
-          showRight ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-[4px]'
-        }`}
-        style={{ left: 'calc(49.74% + 53px)' }}
-      >
-        <div className="text-left">
-          <HealthResolutionSentence side={vm.right} />
+        <TurnCard turnNumber={vm.displayTurnNumber} layout="desktop" />
+
+        <div className="w-full min-w-0">
+          <PlayerResult side={vm.right} layout="desktop" alignment="left" />
         </div>
       </div>
     </div>
