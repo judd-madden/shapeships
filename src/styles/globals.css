@@ -469,14 +469,6 @@ html:not(.app-ready) #root {
   --ss-hr-line-offset-x: calc(var(--ss-hr-movement) * -1);
 }
 
-.ss-health-resolution-player-line--mobile-top {
-  --ss-hr-line-offset-y: var(--ss-hr-movement);
-}
-
-.ss-health-resolution-player-line--mobile-bottom {
-  --ss-hr-line-offset-y: calc(var(--ss-hr-movement) * -1);
-}
-
 @keyframes ssHealthResolutionPlayerLineEnter {
   from {
     opacity: 0;
@@ -509,48 +501,11 @@ html:not(.app-ready) #root {
   }
 }
 
-.ss-health-resolution-mobile-divider {
-  animation:
-    ssHealthResolutionMobileDividerEnter
-      var(--ss-hr-enter-duration)
-      var(--ss-hr-enter-ease)
-      var(--ss-hr-enter-delay)
-      forwards,
-    ssHealthResolutionMobileDividerExit
-      var(--ss-hr-exit-duration)
-      var(--ss-hr-exit-ease)
-      var(--ss-hr-exit-delay)
-      forwards;
-  transform: scaleX(0);
-  transform-origin: left center;
-}
-
-@keyframes ssHealthResolutionMobileDividerEnter {
-  from {
-    transform: scaleX(0);
-  }
-
-  to {
-    transform: scaleX(1);
-  }
-}
-
-@keyframes ssHealthResolutionMobileDividerExit {
-  from {
-    transform: scaleX(1);
-  }
-
-  to {
-    transform: scaleX(0);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .ss-health-resolution-card-background,
   .ss-health-resolution-digit,
   .ss-health-resolution-turn-label,
-  .ss-health-resolution-player-line,
-  .ss-health-resolution-mobile-divider {
+  .ss-health-resolution-player-line {
     animation: none !important;
   }
 
@@ -568,9 +523,6 @@ html:not(.app-ready) #root {
     transform: none;
   }
 
-  .ss-health-resolution-mobile-divider {
-    transform: scaleX(1);
-  }
 }
 
 .catalogue-ship-fit > svg {

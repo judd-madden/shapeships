@@ -630,6 +630,7 @@ export interface HealthResolutionSideVm {
 export interface HealthResolutionPresentationVm {
   presentationKey: string;
   displayTurnNumber: number;
+  isTerminalTurn: boolean;
   left: HealthResolutionSideVm;
   right: HealthResolutionSideVm;
 }

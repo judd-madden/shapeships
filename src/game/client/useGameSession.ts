@@ -2083,12 +2083,14 @@ export function useGameSession(
     const displayTurnNumber = responseIsFinished
       ? resolvedTurnNumber
       : responseTurnNumber;
+    const isTerminalTurn = responseIsFinished;
 
     const signature = JSON.stringify({
       gameId: effectiveGameId,
       viewerRole: isViewerSpectator ? 'spectator' : 'player',
       resolvedTurnKey,
       displayTurnNumber,
+      isTerminalTurn,
       localPlayerId,
       opponentPlayerId,
       myHealth,
@@ -2108,6 +2110,7 @@ export function useGameSession(
         signature,
         resolvedTurnKey,
         displayTurnNumber,
+        isTerminalTurn,
         healthPresentation: {
           boardMode: 'board',
           viewerRole: isViewerSpectator ? 'spectator' : 'player',

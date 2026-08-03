@@ -39,6 +39,7 @@ export interface HealthResolutionPresentationTrigger {
   signature: string;
   resolvedTurnKey: string;
   displayTurnNumber: number;
+  isTerminalTurn: boolean;
   healthPresentation: EndOfTurnHealthPresentationInput;
 }
 
@@ -132,9 +133,10 @@ function createHealthResolutionSide(args: {
 function buildHealthResolutionPresentationSnapshot(args: {
   presentationKey: string;
   displayTurnNumber: number;
+  isTerminalTurn: boolean;
   healthPresentation: EndOfTurnHealthPresentationInput;
 }): HealthResolutionPresentationVm | null {
-  const { presentationKey, displayTurnNumber, healthPresentation } = args;
+  const { presentationKey, displayTurnNumber, isTerminalTurn, healthPresentation } = args;
 
   if (
     healthPresentation.boardMode !== 'board' ||
@@ -147,6 +149,7 @@ function buildHealthResolutionPresentationSnapshot(args: {
     return {
       presentationKey,
       displayTurnNumber,
+      isTerminalTurn,
       left: createHealthResolutionSide({
         subjectName: healthPresentation.meName,
         net: healthPresentation.myLastTurnNet,
@@ -167,6 +170,7 @@ function buildHealthResolutionPresentationSnapshot(args: {
   return {
     presentationKey,
     displayTurnNumber,
+    isTerminalTurn,
     left: createHealthResolutionSide({
       subjectName: healthPresentation.spectatorLeftName,
       net: healthPresentation.spectatorLeftNet,
@@ -363,7 +367,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   function startHealthResolutionPresentation(
     presentationHealthInput: EndOfTurnHealthPresentationInput,
     resolvedTurnKey: string,
-    displayTurnNumber: number
+    displayTurnNumber: number,
+    isTerminalTurn: boolean
   ): string | null {
     if (!effectiveGameId) {
       return null;
@@ -373,6 +378,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     const nextOverlay = buildHealthResolutionPresentationSnapshot({
       presentationKey,
       displayTurnNumber,
+      isTerminalTurn,
       healthPresentation: presentationHealthInput,
     });
 
@@ -517,7 +523,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     const presentationKey = startHealthResolutionPresentation(
       healthResolutionPresentationTrigger.healthPresentation,
       resolvedTurnKey,
-      healthResolutionPresentationTrigger.displayTurnNumber
+      healthResolutionPresentationTrigger.displayTurnNumber,
+      healthResolutionPresentationTrigger.isTerminalTurn
     );
     if (presentationKey == null) {
       return;
@@ -562,7 +569,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     const presentationKey = startHealthResolutionPresentation(
       healthPresentation,
       resolvedTurnKey,
-      legacyDisplayTurnNumber
+      legacyDisplayTurnNumber,
+      isFinished
     );
     if (presentationKey == null) {
       return;
