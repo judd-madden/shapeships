@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import type { GameState, ShipInstance } from '../../../engine/state/GameStateTypes.ts';
 import {
+  getReservedFirstStrikeTargetInstanceIds,
+  getReservedShipOfEqualityTargetInstanceIds,
   getValidDestroyTargets,
   getValidShipOfEqualityTargets,
   getValidTransferTargets,
@@ -260,6 +262,118 @@ Deno.test('Ship of Equality target derivation retains declaration-entry fleets a
   const targets = getValidShipOfEqualityTargets(legalityState, 'p1');
   assert.deepEqual(instanceIds(targets.validOwnTargets), ['own-def']);
   assert.deepEqual(instanceIds(targets.validOpponentTargets), ['opponent-def']);
+});
+
+Deno.test('reservation derivation is deterministic, source-aware, and tolerant of malformed records', () => {
+  const state: any = createState();
+  state.gameData.turnData.pendingFirstStrikeSelectionsByPlayerId.p1 = {
+    'source-b': {
+      actionId: 'GUA#0',
+      choiceId: 'destroy',
+      targetInstanceId: 'target-b',
+      targetInstanceIds: ['target-c', 'target-b', null],
+    },
+    'source-a': {
+      actionId: 'SAC#0',
+      choiceId: 'destroy',
+      targetInstanceId: 'target-a',
+    },
+    malformed: 'not-a-selection',
+  };
+  state.gameData.turnData.acceptedShipOfEqualityTargetsByPlayerId = {
+    p1: {
+      'equ-b': {
+        ownTargetInstanceId: 'own-b',
+        opponentTargetInstanceId: 'opponent-b',
+      },
+      'equ-a': {
+        ownTargetInstanceId: 'own-a',
+        opponentTargetInstanceId: 'opponent-a',
+      },
+      malformed: null,
+    },
+  };
+
+  assert.deepEqual(
+    getReservedFirstStrikeTargetInstanceIds(state, 'p1'),
+    ['target-a', 'target-b', 'target-c'],
+  );
+  assert.deepEqual(
+    getReservedFirstStrikeTargetInstanceIds(state, 'p1', 'source-b'),
+    ['target-a'],
+  );
+  assert.deepEqual(
+    getReservedShipOfEqualityTargetInstanceIds(structuredClone(state), 'p1'),
+    ['opponent-a', 'opponent-b', 'own-a', 'own-b'],
+  );
+});
+
+Deno.test('Ship of Equality filters reservations before recomputing shared costs and records only applied damage', () => {
+  const state = createState({
+    ownFleet: [
+      ship('equ-a', 'EQU', { chargesCurrent: 1 }),
+      ship('equ-b', 'EQU', { chargesCurrent: 1 }),
+      ship('own-def', 'DEF'),
+      ship('own-int', 'INT'),
+    ],
+    opponentFleet: [ship('opponent-def', 'DEF'), ship('opponent-int', 'INT')],
+  });
+  (state.gameData as any).currentSubPhase = 'charge_response';
+  state.gameData!.turnData!.currentSubPhase = 'charge_response';
+  state.gameData!.turnData!.chargeDeclarationEligibleSourceIdsByPlayerId = {
+    p1: ['equ-a', 'equ-b'],
+  };
+
+  const dryRunBefore = structuredClone(state);
+  resolvePowerAction({
+    state,
+    playerId: 'p1',
+    phaseKey: 'battle.charge_response',
+    actionId: 'EQU#0',
+    sourceInstanceId: 'equ-a',
+    choiceId: 'damage',
+    targetInstanceIds: ['own-def', 'opponent-def'],
+    apply: false,
+  });
+  assert.deepEqual(state, dryRunBefore);
+
+  const applied = resolvePowerAction({
+    state,
+    playerId: 'p1',
+    phaseKey: 'battle.charge_response',
+    actionId: 'EQU#0',
+    sourceInstanceId: 'equ-a',
+    choiceId: 'damage',
+    targetInstanceIds: ['own-def', 'opponent-def'],
+  });
+  assert.deepEqual(
+    applied.state.gameData!.turnData!.acceptedShipOfEqualityTargetsByPlayerId?.p1?.['equ-a'],
+    {
+      ownTargetInstanceId: 'own-def',
+      opponentTargetInstanceId: 'opponent-def',
+    },
+  );
+  assert.deepEqual(getValidShipOfEqualityTargets(applied.state, 'p1'), {
+    validOwnTargets: [
+      { instanceId: 'own-int', shipDefId: 'INT', ownerPlayerId: 'p1', totalLineCost: 4 },
+    ],
+    validOpponentTargets: [
+      { instanceId: 'opponent-int', shipDefId: 'INT', ownerPlayerId: 'p2', totalLineCost: 4 },
+    ],
+  });
+  assert.throws(
+    () => resolvePowerAction({
+      state: applied.state,
+      playerId: 'p1',
+      phaseKey: 'battle.charge_response',
+      actionId: 'EQU#0',
+      sourceInstanceId: 'equ-b',
+      choiceId: 'damage',
+      targetInstanceIds: ['own-def', 'opponent-int'],
+      apply: false,
+    }),
+    /already reserved by another EQU/,
+  );
 });
 
 Deno.test('Guardian dry-run rejects a protected Core target without mutating state', () => {

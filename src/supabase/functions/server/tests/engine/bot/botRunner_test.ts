@@ -207,3 +207,256 @@ Deno.test('bot EQU planning retains declaration-entry targets after hidden canon
     true,
   );
 });
+
+Deno.test('multi-EQU bot reserves its accepted pair and settles without repeat-target rejection', async () => {
+  const state: any = {
+    gameId: 'bot-multi-equ-reservation-test',
+    status: 'active',
+    turnNumber: 3,
+    players: [
+      { id: 'human', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'bot', role: 'player', faction: 'centaur', health: 25, lines: 0, joiningLines: 0 },
+    ],
+    controllersByPlayerId: {
+      human: { kind: 'human' },
+      bot: { kind: 'bot', speciesId: 'CEN', chosenPlanId: 'cen_vigor_power_destruction' },
+    },
+    gameData: {
+      turnNumber: 3,
+      currentPhase: 'battle',
+      currentSubPhase: 'charge_declaration',
+      phaseReadiness: [{
+        playerId: 'human',
+        isReady: true,
+        currentStep: 'battle.charge_declaration',
+      }],
+      ships: {
+        human: [{ instanceId: 'human-def', shipDefId: 'DEF' }],
+        bot: [
+          { instanceId: 'bot-equ-a', shipDefId: 'EQU', chargesCurrent: 1 },
+          { instanceId: 'bot-equ-b', shipDefId: 'EQU', chargesCurrent: 1 },
+          { instanceId: 'bot-equ-c', shipDefId: 'EQU', chargesCurrent: 1 },
+          { instanceId: 'bot-def', shipDefId: 'DEF' },
+        ],
+      },
+      voidShipsByPlayerId: { human: [], bot: [] },
+      turnData: {
+        turnNumber: 3,
+        currentMajorPhase: 'battle',
+        currentSubPhase: 'charge_declaration',
+        chargeDeclarationEligibleByPlayerId: { human: false, bot: true },
+        chargeDeclarationEligibleSourceIdsByPlayerId: {
+          human: [],
+          bot: ['bot-equ-a', 'bot-equ-b', 'bot-equ-c'],
+        },
+        solarGridDeclarationSourceIdsByPlayerId: { human: [], bot: [] },
+        chargeDeclarationFleetSnapshotByPlayerId: {},
+        chargePowerUsedByInstanceId: {},
+        anyChargesSpentInDeclaration: false,
+      },
+      pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
+      powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
+      ancient: {
+        schemaVersion: 1,
+        energyByPlayerId: {},
+        acceptedDeclarationByPlayerId: {},
+        solarLedgerByPlayerId: {},
+        pendingSimulacrumCopies: [],
+        pendingBlackHoleDestructions: [],
+      },
+    },
+  };
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId = structuredClone(
+    state.gameData.ships,
+  );
+  replaceChargeDeclarationVisibilityState(state);
+
+  const result = await runBotsUntilSettled({ state, nowMs: 1000 });
+  const equalityUses = result.events.filter(
+    (event: any) => event.type === 'POWER_USED' && event.actionId === 'EQU#0',
+  );
+  assert.equal(equalityUses.length, 1);
+  assert.equal(
+    result.events.some((event: any) => event.type === 'BOT_INTENT_REJECTED'),
+    false,
+  );
+  assert.equal(equalityUses[0].sourceInstanceId, 'bot-equ-a');
+  assert.deepEqual(equalityUses[0].targetInstanceIds, ['bot-def', 'human-def']);
+  assert.equal(
+    result.state.gameData.ships.bot.find((ship: any) => ship.instanceId === 'bot-equ-b')
+      .chargesCurrent,
+    1,
+  );
+});
+
+Deno.test('multi-EQU bot spends disjoint sources on every available shared-cost pair', async () => {
+  const state: any = {
+    gameId: 'bot-multi-equ-disjoint-test',
+    status: 'active',
+    turnNumber: 3,
+    players: [
+      { id: 'human', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'bot', role: 'player', faction: 'centaur', health: 25, lines: 0, joiningLines: 0 },
+    ],
+    controllersByPlayerId: {
+      human: { kind: 'human' },
+      bot: { kind: 'bot', speciesId: 'CEN', chosenPlanId: 'cen_vigor_power_destruction' },
+    },
+    gameData: {
+      turnNumber: 3,
+      currentPhase: 'battle',
+      currentSubPhase: 'charge_declaration',
+      phaseReadiness: [{
+        playerId: 'human',
+        isReady: true,
+        currentStep: 'battle.charge_declaration',
+      }],
+      ships: {
+        human: [
+          { instanceId: 'human-def', shipDefId: 'DEF' },
+          { instanceId: 'human-int', shipDefId: 'INT' },
+        ],
+        bot: [
+          { instanceId: 'bot-equ-a', shipDefId: 'EQU', chargesCurrent: 1 },
+          { instanceId: 'bot-equ-b', shipDefId: 'EQU', chargesCurrent: 1 },
+          { instanceId: 'bot-equ-c', shipDefId: 'EQU', chargesCurrent: 1 },
+          { instanceId: 'bot-def', shipDefId: 'DEF' },
+          { instanceId: 'bot-int', shipDefId: 'INT' },
+        ],
+      },
+      voidShipsByPlayerId: { human: [], bot: [] },
+      turnData: {
+        turnNumber: 3,
+        currentMajorPhase: 'battle',
+        currentSubPhase: 'charge_declaration',
+        chargeDeclarationEligibleByPlayerId: { human: false, bot: true },
+        chargeDeclarationEligibleSourceIdsByPlayerId: {
+          human: [],
+          bot: ['bot-equ-a', 'bot-equ-b', 'bot-equ-c'],
+        },
+        solarGridDeclarationSourceIdsByPlayerId: { human: [], bot: [] },
+        chargeDeclarationFleetSnapshotByPlayerId: {},
+        chargePowerUsedByInstanceId: {},
+        anyChargesSpentInDeclaration: false,
+      },
+      pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
+      powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
+      ancient: {
+        schemaVersion: 1,
+        energyByPlayerId: {},
+        acceptedDeclarationByPlayerId: {},
+        solarLedgerByPlayerId: {},
+        pendingSimulacrumCopies: [],
+        pendingBlackHoleDestructions: [],
+      },
+    },
+  };
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId = structuredClone(
+    state.gameData.ships,
+  );
+  replaceChargeDeclarationVisibilityState(state);
+
+  const result = await runBotsUntilSettled({ state, nowMs: 1000 });
+  const equalityUses = result.events.filter(
+    (event: any) => event.type === 'POWER_USED' && event.actionId === 'EQU#0',
+  );
+  assert.equal(
+    result.events.some((event: any) => event.type === 'BOT_INTENT_REJECTED'),
+    false,
+  );
+  assert.equal(
+    result.events.some((event: any) => event.type === 'BOT_RUNNER_LIMIT_REACHED'),
+    false,
+  );
+  assert.equal(result.botStepsApplied >= 2, true);
+  assert.notEqual(result.state.gameData.currentSubPhase, 'charge_declaration');
+  assert.deepEqual(
+    equalityUses.map((event: any) => ({
+      sourceInstanceId: event.sourceInstanceId,
+      targetInstanceIds: event.targetInstanceIds,
+    })),
+    [
+      {
+        sourceInstanceId: 'bot-equ-a',
+        targetInstanceIds: ['bot-def', 'human-def'],
+      },
+      {
+        sourceInstanceId: 'bot-equ-b',
+        targetInstanceIds: ['bot-int', 'human-int'],
+      },
+    ],
+  );
+});
+
+Deno.test('multi-GUA bot seeds staged reservations across sequential loop passes', async () => {
+  const state: any = {
+    gameId: 'bot-multi-gua-reservation-test',
+    status: 'active',
+    turnNumber: 3,
+    players: [
+      { id: 'opponent', role: 'player', faction: 'centaur', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'bot', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+    ],
+    controllersByPlayerId: {
+      opponent: { kind: 'human' },
+      bot: { kind: 'bot', speciesId: 'HUM', chosenPlanId: 'hum_guardian_tactical_control' },
+    },
+    gameData: {
+      turnNumber: 3,
+      currentPhase: 'battle',
+      currentSubPhase: 'first_strike',
+      phaseReadiness: [{
+        playerId: 'opponent',
+        isReady: true,
+        currentStep: 'battle.first_strike',
+      }],
+      ships: {
+        opponent: [{ instanceId: 'only-target', shipDefId: 'DEF' }],
+        bot: [
+          { instanceId: 'gua-a', shipDefId: 'GUA', chargesCurrent: 2 },
+          { instanceId: 'gua-b', shipDefId: 'GUA', chargesCurrent: 2 },
+          { instanceId: 'gua-c', shipDefId: 'GUA', chargesCurrent: 2 },
+        ],
+      },
+      voidShipsByPlayerId: { opponent: [], bot: [] },
+      turnData: {
+        turnNumber: 3,
+        currentMajorPhase: 'battle',
+        currentSubPhase: 'first_strike',
+        chargePowerUsedByInstanceId: {},
+      },
+      pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
+      powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
+      ancient: {
+        schemaVersion: 1,
+        energyByPlayerId: {},
+        acceptedDeclarationByPlayerId: {},
+        solarLedgerByPlayerId: {},
+        pendingSimulacrumCopies: [],
+        pendingBlackHoleDestructions: [],
+      },
+    },
+  };
+
+  const result = await runBotsUntilSettled({ state, nowMs: 1000 });
+  assert.equal(
+    result.events.filter(
+      (event: any) => event.type === 'POWER_USED' && event.actionId === 'GUA#0',
+    ).length,
+    1,
+  );
+  assert.equal(
+    result.events.some((event: any) => event.type === 'BOT_INTENT_REJECTED'),
+    false,
+  );
+  assert.equal(
+    result.state.gameData.ships.bot.find((ship: any) => ship.instanceId === 'gua-b')
+      .chargesCurrent,
+    2,
+  );
+  assert.equal(
+    result.state.gameData.ships.bot.find((ship: any) => ship.instanceId === 'gua-c')
+      .chargesCurrent,
+    2,
+  );
+});

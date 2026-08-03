@@ -204,6 +204,112 @@ Deno.test('ordinary charge list rejects duplicate source entries before transact
   })), /Duplicate ordinary charge source/);
 });
 
+Deno.test('Ancient multi-EQU declarations reject repeated targets atomically and accept disjoint pairs', () => {
+  const state = createState();
+  state.gameData.ships.p1 = [
+    { instanceId: 'equ-1', shipDefId: 'EQU', chargesCurrent: 1 },
+    { instanceId: 'equ-2', shipDefId: 'EQU', chargesCurrent: 1 },
+    { instanceId: 'own-def', shipDefId: 'DEF' },
+    { instanceId: 'own-int', shipDefId: 'INT' },
+    ...state.gameData.ships.p1.filter((ship: any) => ship.shipDefId === 'SOL'),
+  ];
+  state.gameData.ships.p2 = [
+    { instanceId: 'opponent-def', shipDefId: 'DEF' },
+    { instanceId: 'opponent-int', shipDefId: 'INT' },
+  ];
+  state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId.p1 = ['equ-1', 'equ-2'];
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId = structuredClone(
+    state.gameData.ships,
+  );
+  replaceChargeDeclarationVisibilityState(state);
+  const before = structuredClone(state);
+
+  assert.throws(
+    () => resolveChargeDeclarationSubmission({
+      state,
+      playerId: 'p1',
+      payload: payload({
+        declarationId: 'duplicate-equ-targets',
+        ordinaryChargeActions: [
+          {
+            actionType: 'power',
+            actionId: 'EQU#0',
+            sourceInstanceId: 'equ-1',
+            choiceId: 'damage',
+            targetInstanceIds: ['own-def', 'opponent-def'],
+          },
+          {
+            actionType: 'power',
+            actionId: 'EQU#0',
+            sourceInstanceId: 'equ-2',
+            choiceId: 'damage',
+            targetInstanceIds: ['own-def', 'opponent-int'],
+          },
+        ],
+        solarGridChoices: holdSolarGrids(),
+      }),
+      nowMs: 100,
+    }),
+    /already reserved by another EQU/,
+  );
+  assert.deepEqual(state, before);
+
+  const disjoint = resolveChargeDeclarationSubmission({
+    state,
+    playerId: 'p1',
+    payload: payload({
+      declarationId: 'disjoint-equ-targets',
+      ordinaryChargeActions: [
+        {
+          actionType: 'power',
+          actionId: 'EQU#0',
+          sourceInstanceId: 'equ-1',
+          choiceId: 'damage',
+          targetInstanceIds: ['own-def', 'opponent-def'],
+        },
+        {
+          actionType: 'power',
+          actionId: 'EQU#0',
+          sourceInstanceId: 'equ-2',
+          choiceId: 'damage',
+          targetInstanceIds: ['own-int', 'opponent-int'],
+        },
+      ],
+      solarGridChoices: holdSolarGrids(),
+    }),
+    nowMs: 101,
+  });
+  assert.equal(disjoint.status, 'applied');
+  assert.deepEqual(
+    Object.keys(
+      disjoint.state.gameData.turnData.acceptedShipOfEqualityTargetsByPlayerId.p1,
+    ).sort(),
+    ['equ-1', 'equ-2'],
+  );
+});
+
+Deno.test('accepted EQU target memory clears at the normal next-turn boundary', () => {
+  const state = createState();
+  state.gameData.currentSubPhase = 'end_of_turn_resolution';
+  state.gameData.turnData.currentSubPhase = 'end_of_turn_resolution';
+  state.gameData.turnData.acceptedShipOfEqualityTargetsByPlayerId = {
+    p1: {
+      'equ-1': {
+        ownTargetInstanceId: 'own-def',
+        opponentTargetInstanceId: 'opponent-def',
+      },
+    },
+  };
+
+  const advanced = advancePhaseCore(state, 100);
+  assert.equal(advanced.ok, true);
+  if (!advanced.ok) return;
+  assert.equal(
+    advanced.state.gameData?.turnData?.acceptedShipOfEqualityTargetsByPlayerId,
+    undefined,
+  );
+});
+
 Deno.test('mixed ordinary charge and independent SOL Use/Hold choices commit deterministically', () => {
   const state = createState();
   const result = resolveChargeDeclarationSubmission({

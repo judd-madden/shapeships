@@ -1,5 +1,7 @@
 import type { GameState } from '../../engine/state/GameStateTypes.ts';
 import { getShipById } from '../defs/ShipDefinitions.core.ts';
+import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.ts';
+import { EffectKind } from '../effects/Effect.ts';
 import { canControlAdditionalSpirals } from '../maximumHealth.ts';
 
 const PROTECTED_ANCIENT_CORE_IDS = new Set(['PLU', 'MER', 'NEP']);
@@ -18,6 +20,95 @@ export type ShipOfEqualityTargetSets = {
   validOwnTargets: DestroyTargetDescriptor[];
   validOpponentTargets: DestroyTargetDescriptor[];
 };
+
+function normalizeSelectionTargetInstanceIds(selection: unknown): string[] {
+  if (selection == null || typeof selection !== 'object' || Array.isArray(selection)) {
+    return [];
+  }
+
+  const record = selection as Record<string, unknown>;
+  const candidates = [
+    record.targetInstanceId,
+    ...(Array.isArray(record.targetInstanceIds) ? record.targetInstanceIds : []),
+  ];
+
+  return Array.from(new Set(
+    candidates.filter(
+      (candidate): candidate is string =>
+        typeof candidate === 'string' && candidate.length > 0,
+    ),
+  )).sort((left, right) => left.localeCompare(right));
+}
+
+function isReservedFirstStrikeTargetSelection(selection: unknown): boolean {
+  if (selection == null || typeof selection !== 'object' || Array.isArray(selection)) {
+    return false;
+  }
+
+  const record = selection as Record<string, unknown>;
+  if (typeof record.actionId !== 'string' || typeof record.choiceId !== 'string') {
+    return false;
+  }
+  const [shipDefId, powerIndexText] = record.actionId.split('#');
+  const powerIndex = Number(powerIndexText);
+  if (!shipDefId || !Number.isInteger(powerIndex) || powerIndex < 0) return false;
+  const power = getShipDefinition(shipDefId)?.structuredPowers?.[powerIndex];
+  if (power?.type !== 'choice') return false;
+  const option = power.options.find((candidate) => candidate.choiceId === record.choiceId);
+  return option?.effects?.some(
+    (effect) =>
+      effect.kind === EffectKind.Destroy ||
+      effect.kind === EffectKind.TransferShip,
+  ) === true;
+}
+
+export function getReservedFirstStrikeTargetInstanceIds(
+  state: GameState | any,
+  playerId: string,
+  excludeSourceInstanceId?: string,
+): string[] {
+  const selections =
+    state?.gameData?.turnData?.pendingFirstStrikeSelectionsByPlayerId?.[playerId];
+  if (selections == null || typeof selections !== 'object' || Array.isArray(selections)) {
+    return [];
+  }
+
+  const reserved = new Set<string>();
+  for (const sourceInstanceId of Object.keys(selections).sort((left, right) => left.localeCompare(right))) {
+    if (sourceInstanceId === excludeSourceInstanceId) continue;
+    const selection = selections[sourceInstanceId];
+    if (!isReservedFirstStrikeTargetSelection(selection)) continue;
+    for (const targetInstanceId of normalizeSelectionTargetInstanceIds(selection)) {
+      reserved.add(targetInstanceId);
+    }
+  }
+
+  return [...reserved].sort((left, right) => left.localeCompare(right));
+}
+
+export function getReservedShipOfEqualityTargetInstanceIds(
+  state: GameState | any,
+  playerId: string,
+): string[] {
+  const accepted =
+    state?.gameData?.turnData?.acceptedShipOfEqualityTargetsByPlayerId?.[playerId];
+  if (accepted == null || typeof accepted !== 'object' || Array.isArray(accepted)) {
+    return [];
+  }
+
+  const reserved = new Set<string>();
+  for (const sourceInstanceId of Object.keys(accepted).sort((left, right) => left.localeCompare(right))) {
+    const record = accepted[sourceInstanceId];
+    if (record == null || typeof record !== 'object' || Array.isArray(record)) continue;
+    for (const candidate of [record.ownTargetInstanceId, record.opponentTargetInstanceId]) {
+      if (typeof candidate === 'string' && candidate.length > 0) {
+        reserved.add(candidate);
+      }
+    }
+  }
+
+  return [...reserved].sort((left, right) => left.localeCompare(right));
+}
 
 export function getAuthoritativeFullLineCostForShipDef(shipDefId: string): number | null {
   const shipDef = getShipById(shipDefId);
@@ -150,17 +241,28 @@ export function getValidShipOfEqualityTargets(
   state: GameState | any,
   sourcePlayerId: string
 ): ShipOfEqualityTargetSets {
+  const reservedTargetInstanceIds = new Set(
+    getReservedShipOfEqualityTargetInstanceIds(state, sourcePlayerId),
+  );
   const validOwnTargets = getValidDestroyTargets(state, {
     sourcePlayerId,
     targetScope: 'self',
     restriction: 'basic_only',
-  }).filter((target) => target.shipDefId !== 'EQU');
+  }).filter(
+    (target) =>
+      target.shipDefId !== 'EQU' &&
+      !reservedTargetInstanceIds.has(target.instanceId),
+  );
 
   const validOpponentTargets = getValidDestroyTargets(state, {
     sourcePlayerId,
     targetScope: 'opponent',
     restriction: 'basic_only',
-  }).filter((target) => target.shipDefId !== 'EQU');
+  }).filter(
+    (target) =>
+      target.shipDefId !== 'EQU' &&
+      !reservedTargetInstanceIds.has(target.instanceId),
+  );
 
   if (validOwnTargets.length === 0 || validOpponentTargets.length === 0) {
     return { validOwnTargets: [], validOpponentTargets: [] };

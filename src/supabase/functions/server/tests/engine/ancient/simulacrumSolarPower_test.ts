@@ -26,6 +26,7 @@ import {
   type IntentRequest,
 } from "../../../engine/intent/IntentReducer.ts";
 import { rollLockedCubeDiceByPlayerId } from "../../../engine/phase/cubeDiceManipulation.ts";
+import { replaceChargeDeclarationVisibilityState } from "../../../engine/state/chargeDeclarationVisibility.ts";
 
 function ship(
   instanceId: string,
@@ -48,7 +49,7 @@ function createState(args: {
     { id: "a-owner", role: "player", faction: "human", health: 25 },
   ];
   const turnNumber = args.turnNumber ?? 4;
-  return normalizeAncientGameState({
+  const state = normalizeAncientGameState({
     gameId: "simulacrum-test",
     status: "active",
     players,
@@ -75,6 +76,8 @@ function createState(args: {
     },
     actions: [],
   }).state as GameState;
+  replaceChargeDeclarationVisibilityState(state);
+  return state;
 }
 
 function resolve(
@@ -216,6 +219,18 @@ Deno.test("accepted Simulacrum Cube survives reload through materialization and 
     pool: { green: 0, red: 0, blue: cubCost },
     sources: [],
   };
+  assert.equal(
+    state.gameData.ships?.["a-owner"].some((entry: ShipInstance) =>
+      entry.instanceId === "cube-target"
+    ),
+    false,
+  );
+  assert.equal(
+    state.gameData.turnData?.chargeDeclarationFleetSnapshotByPlayerId?.[
+      "a-owner"
+    ]?.some((entry: ShipInstance) => entry.instanceId === "cube-target"),
+    true,
+  );
 
   const committed = resolveChargeDeclarationSubmission({
     state,

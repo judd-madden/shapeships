@@ -59,7 +59,7 @@ export const COMPUTED_EFFECTS_AUDIT = [
   { shipDefId: 'KNO', mechanic: 'tiered thresholds + shared dice rerolls + automatic healing' },
 
   // Ancient (several mechanics are implemented in dedicated Ancient modules)
-  { shipDefId: 'CUB', mechanic: 'extra-die selection + conditional per-source Automatic Damage 2' },
+  { shipDefId: 'CUB', mechanic: 'extra-die selection + conditional per-source Automatic Damage 3' },
   { shipDefId: 'QUA', mechanic: 'dice-conditioned energy/heal' },
   { shipDefId: 'SPI', mechanic: 'per-source owned-count healing + max-health modifier' },
   { shipDefId: 'SSIM', mechanic: 'computed variable X (lines) + copy enemy basic ship' },
@@ -1179,7 +1179,7 @@ export function computePhaseComputedEffects(
     }
   }
 
-  // === CUBE (CUB): retained Cube selection makes each live controlled Cube deal 2 ===
+  // === CUBE (CUB): retained Cube selection makes each live controlled Cube deal 3 ===
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
     if (!hasCoherentRetainedCubeSelection(state, ownerPlayerId)) continue;
@@ -1203,7 +1203,7 @@ export function computePhaseComputedEffects(
       });
 
       debugLog(
-        `[computePhaseComputedEffects] Cube automatic: controller=${ownerPlayerId} instance=${ship.instanceId} damage=2 target=${opponentId}`
+        `[computePhaseComputedEffects] Cube automatic: controller=${ownerPlayerId} instance=${ship.instanceId} damage=3 target=${opponentId}`
       );
     }
   }

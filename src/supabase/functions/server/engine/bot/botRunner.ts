@@ -8,8 +8,10 @@ import { buildPhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { getShipDefinition } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 import { EffectKind } from '../../engine_shared/effects/Effect.ts';
 import {
+  getReservedFirstStrikeTargetInstanceIds,
   getValidDestroyTargets,
   getValidShipOfEqualityTargets,
+  getValidTransferTargets,
 } from '../../engine_shared/resolve/destroyRules.ts';
 import { getCentaurBotPlanById } from './centaurPlans.ts';
 import { getHumanBotPlanById } from './humanPlans.ts';
@@ -1247,7 +1249,9 @@ function buildFirstStrikeTargetIntentForCurrentPhase(args: {
     });
 
   const actions: PowerActionPayload[] = [];
-  const reservedTargetIds = new Set<string>();
+  const reservedTargetIds = new Set(
+    getReservedFirstStrikeTargetInstanceIds(state, playerId),
+  );
 
   for (const ship of sourceShips) {
     const policy = plan?.targetPolicy?.[ship.shipDefId as FirstStrikeTargetShipDefId];
@@ -1286,16 +1290,27 @@ function buildFirstStrikeTargetIntentForCurrentPhase(args: {
       continue;
     }
 
-    const validTargets = getValidDestroyTargets(state, {
+    const targetArgs = {
       sourcePlayerId: playerId,
       targetScope:
         choicePower.targetedEffect.targetPlayer === 'self' ? 'self' : 'opponent',
       restriction: choicePower.targetedEffect.restriction ?? 'any',
       applyOpponentSacProtection:
         shouldApplyOpponentSacProtectionForTargetedEffect(choicePower.targetedEffect),
-    }).filter((target) => !reservedTargetIds.has(target.instanceId));
-    const requiredTargetCount = getRequiredTargetCountForTargetedEffect(
-      choicePower.targetedEffect,
+    } as const;
+    const powerSpecificValidTargets =
+      choicePower.targetedEffect.kind === EffectKind.TransferShip
+        ? getValidTransferTargets(state, targetArgs)
+        : getValidDestroyTargets(state, targetArgs);
+    const validTargets = powerSpecificValidTargets.filter(
+      (target) => !reservedTargetIds.has(target.instanceId),
+    );
+    if (validTargets.length === 0) {
+      continue;
+    }
+    const requiredTargetCount = Math.min(
+      getRequiredTargetCountForTargetedEffect(choicePower.targetedEffect),
+      validTargets.length,
     );
 
     if (validTargets.length < requiredTargetCount) {

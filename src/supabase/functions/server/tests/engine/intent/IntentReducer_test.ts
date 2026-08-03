@@ -80,6 +80,39 @@ function createFirstStrikeState(removalKind: 'guardian' | 'sacrificial_pool' | '
   }).state;
 }
 
+function createReservationFirstStrikeState(opponentTargetIds = ['target-x', 'target-y', 'target-z']): any {
+  return normalizeAncientGameState({
+    gameId: 'first-strike-reservation-test',
+    status: 'active',
+    turnNumber: 3,
+    players: [
+      { id: 'p1', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'p2', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+    ],
+    gameData: {
+      turnNumber: 3,
+      currentPhase: 'battle',
+      currentSubPhase: 'first_strike',
+      phaseReadiness: [{ playerId: 'p2', isReady: true, currentStep: 'battle.first_strike' }],
+      ships: {
+        p1: [
+          { instanceId: 'gua-a', shipDefId: 'GUA', chargesCurrent: 2 },
+          { instanceId: 'gua-b', shipDefId: 'GUA', chargesCurrent: 2 },
+          { instanceId: 'sac-a', shipDefId: 'SAC', createdTurn: 3 },
+          { instanceId: 'dom-a', shipDefId: 'DOM', createdTurn: 3 },
+        ],
+        p2: opponentTargetIds.map((instanceId) => ({ instanceId, shipDefId: 'DEF' })),
+      },
+      powerMemory: { onceOnlyFired: {} },
+      turnData: {
+        turnNumber: 3,
+        currentMajorPhase: 'battle',
+        currentSubPhase: 'first_strike',
+      },
+    },
+  }).state;
+}
+
 function powerActionIntent(
   gameId: string,
   sourceInstanceId: string,
@@ -333,6 +366,38 @@ function createEqualityDeclarationState(args: { destroyChargeSource?: boolean } 
       pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
     },
   }).state;
+  replaceChargeDeclarationVisibilityState(state);
+  return state;
+}
+
+function createMultiEqualityDeclarationState(): any {
+  const state = createEqualityDeclarationState();
+  state.gameId = 'multi-equality-declaration-test';
+  state.gameData.ships = {
+    p1: [
+      { instanceId: 'p1-equ-a', shipDefId: 'EQU', chargesCurrent: 1 },
+      { instanceId: 'p1-equ-b', shipDefId: 'EQU', chargesCurrent: 1 },
+      { instanceId: 'p1-own-a', shipDefId: 'DEF' },
+      { instanceId: 'p1-own-b', shipDefId: 'DEF' },
+    ],
+    p2: [
+      { instanceId: 'p2-target-a', shipDefId: 'DEF' },
+      { instanceId: 'p2-target-b', shipDefId: 'DEF' },
+    ],
+  };
+  state.gameData.voidShipsByPlayerId = { p1: [], p2: [] };
+  state.gameData.turnData.chargeDeclarationEligibleByPlayerId = { p1: true, p2: false };
+  state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
+    p1: ['p1-equ-a', 'p1-equ-b'],
+    p2: [],
+  };
+  state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId = structuredClone(
+    state.gameData.ships,
+  );
+  state.gameData.turnData.chargePowerUsedByInstanceId = {};
+  state.gameData.turnData.acceptedShipOfEqualityTargetsByPlayerId = undefined;
+  state.gameData.turnData.shipActivationCueBatches = undefined;
+  state.battleLogScratch = undefined;
   replaceChargeDeclarationVisibilityState(state);
   return state;
 }
@@ -680,6 +745,361 @@ Deno.test('staged Spiral First Strike survives simultaneous Guardian, SAC, and D
       removalKind,
     );
   }
+});
+
+Deno.test('First Strike reservations reject overlap and preserve source replacement semantics', async () => {
+  const initial = createReservationFirstStrikeState();
+  const stagedA = await applyIntent(
+    initial,
+    'p1',
+    powerActionIntent(initial.gameId, 'gua-a', 'GUA#0', 'destroy', {
+      targetInstanceId: 'target-x',
+    }),
+    100,
+  );
+  assert.equal(stagedA.ok, true);
+
+  const beforeRejected = structuredClone(stagedA.state);
+  const rejected = await applyIntent(
+    stagedA.state,
+    'p1',
+    powerActionIntent(initial.gameId, 'gua-b', 'GUA#0', 'destroy', {
+      targetInstanceId: 'target-x',
+    }),
+    101,
+  );
+  assert.equal(rejected.ok, false);
+  assert.match(rejected.rejected?.message ?? '', /already reserved/);
+  assert.deepEqual(rejected.state, beforeRejected);
+
+  const retained = await applyIntent(
+    stagedA.state,
+    'p1',
+    powerActionIntent(initial.gameId, 'gua-a', 'GUA#0', 'destroy', {
+      targetInstanceId: 'target-x',
+    }),
+    102,
+  );
+  assert.equal(retained.ok, true);
+  const replaced = await applyIntent(
+    retained.state,
+    'p1',
+    powerActionIntent(initial.gameId, 'gua-a', 'GUA#0', 'destroy', {
+      targetInstanceId: 'target-y',
+    }),
+    103,
+  );
+  assert.equal(replaced.ok, true);
+  const released = await applyIntent(
+    replaced.state,
+    'p1',
+    powerActionIntent(initial.gameId, 'gua-b', 'GUA#0', 'destroy', {
+      targetInstanceId: 'target-x',
+    }),
+    104,
+  );
+  assert.equal(released.ok, true);
+});
+
+Deno.test('DOM clamps after reservations and zero remaining targets do not block Ready', async () => {
+  const oneRemaining = createReservationFirstStrikeState(['target-x', 'target-y']);
+  const guardian = await applyIntent(
+    oneRemaining,
+    'p1',
+    powerActionIntent(oneRemaining.gameId, 'gua-a', 'GUA#0', 'destroy', {
+      targetInstanceId: 'target-x',
+    }),
+    100,
+  );
+  const dom = await applyIntent(
+    guardian.state,
+    'p1',
+    powerActionIntent(oneRemaining.gameId, 'dom-a', 'DOM#0', 'steal', {
+      targetInstanceId: 'target-y',
+    }),
+    101,
+  );
+  assert.equal(dom.ok, true, dom.rejected?.message);
+  assert.deepEqual(
+    dom.state.gameData.turnData.pendingFirstStrikeSelectionsByPlayerId.p1['dom-a'],
+    {
+      actionId: 'DOM#0',
+      sourceInstanceId: 'dom-a',
+      choiceId: 'steal',
+      targetInstanceId: 'target-y',
+      targetInstanceIds: undefined,
+    },
+  );
+
+  const zeroRemaining = createReservationFirstStrikeState(['target-x']);
+  const onlyTargetStaged = await applyIntent(
+    zeroRemaining,
+    'p1',
+    powerActionIntent(zeroRemaining.gameId, 'gua-a', 'GUA#0', 'destroy', {
+      targetInstanceId: 'target-x',
+    }),
+    102,
+  );
+  const readied = await applyIntent(
+    onlyTargetStaged.state,
+    'p1',
+    readyIntent(zeroRemaining.gameId, 'p1'),
+    103,
+  );
+  assert.equal(readied.ok, true);
+  assert.equal(
+    readied.state.gameData.turnData.pendingFirstStrikeSelectionsByPlayerId,
+    undefined,
+  );
+});
+
+Deno.test('DOM reserves both selected targets against later same-player First Strike sources', async () => {
+  const initial = createReservationFirstStrikeState();
+  const dom = await applyIntent(
+    initial,
+    'p1',
+    powerActionIntent(initial.gameId, 'dom-a', 'DOM#0', 'steal', {
+      targetInstanceIds: ['target-x', 'target-y'],
+    }),
+    100,
+  );
+  assert.equal(dom.ok, true, dom.rejected?.message);
+
+  for (const [index, targetInstanceId] of ['target-x', 'target-y'].entries()) {
+    const before = structuredClone(dom.state);
+    const rejected = await applyIntent(
+      dom.state,
+      'p1',
+      {
+        ...powerActionIntent(initial.gameId, 'gua-a', 'GUA#0', 'destroy', {
+          targetInstanceId,
+        }),
+        nonce: `dom-reserved-target-${index}`,
+      },
+      101 + index,
+    );
+    assert.equal(rejected.ok, false);
+    assert.match(rejected.rejected?.message ?? '', /already reserved/);
+    assert.deepEqual(rejected.state, before);
+    assert.deepEqual(dom.state, before);
+  }
+});
+
+Deno.test('First Strike reservations remain per player when two legal sources target one concrete ship', async () => {
+  const state: any = normalizeAncientGameState({
+    gameId: 'cross-player-first-strike-reservation-test',
+    status: 'active',
+    turnNumber: 3,
+    players: [
+      { id: 'target-owner', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'p1', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'p2', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+    ],
+    gameData: {
+      turnNumber: 3,
+      currentPhase: 'battle',
+      currentSubPhase: 'first_strike',
+      phaseReadiness: [],
+      ships: {
+        'target-owner': [{ instanceId: 'shared-target-x', shipDefId: 'DEF' }],
+        p1: [{ instanceId: 'p1-gua', shipDefId: 'GUA', chargesCurrent: 2 }],
+        p2: [{ instanceId: 'p2-gua', shipDefId: 'GUA', chargesCurrent: 2 }],
+      },
+      turnData: {
+        turnNumber: 3,
+        currentMajorPhase: 'battle',
+        currentSubPhase: 'first_strike',
+      },
+    },
+  }).state;
+
+  const p1 = await applyIntent(state, 'p1', powerActionIntent(
+    state.gameId,
+    'p1-gua',
+    'GUA#0',
+    'destroy',
+    { targetInstanceId: 'shared-target-x' },
+  ), 100);
+  assert.equal(p1.ok, true);
+  const p2 = await applyIntent(p1.state, 'p2', {
+    ...powerActionIntent(
+      state.gameId,
+      'p2-gua',
+      'GUA#0',
+      'destroy',
+      { targetInstanceId: 'shared-target-x' },
+    ),
+    nonce: 'p2-shared-first-strike-target',
+  }, 101);
+  assert.equal(p2.ok, true, p2.rejected?.message);
+  assert.equal(
+    p2.state.gameData.turnData.pendingFirstStrikeSelectionsByPlayerId.p1['p1-gua']
+      .targetInstanceId,
+    'shared-target-x',
+  );
+  assert.equal(
+    p2.state.gameData.turnData.pendingFirstStrikeSelectionsByPlayerId.p2['p2-gua']
+      .targetInstanceId,
+    'shared-target-x',
+  );
+});
+
+Deno.test('ordinary multi-EQU batches reject overlap atomically and accept disjoint pairs', async () => {
+  const duplicateState = createMultiEqualityDeclarationState();
+  const duplicateBefore = structuredClone(duplicateState);
+  const duplicate = await applyIntent(duplicateState, 'p1', {
+    gameId: duplicateState.gameId,
+    intentType: 'ACTIONS_SUBMIT',
+    turnNumber: 3,
+    nonce: 'duplicate-equ-target-batch',
+    payload: {
+      actions: [
+        {
+          actionType: 'power',
+          actionId: 'EQU#0',
+          sourceInstanceId: 'p1-equ-a',
+          choiceId: 'damage',
+          targetInstanceIds: ['p1-own-a', 'p2-target-a'],
+        },
+        {
+          actionType: 'power',
+          actionId: 'EQU#0',
+          sourceInstanceId: 'p1-equ-b',
+          choiceId: 'damage',
+          targetInstanceIds: ['p1-own-a', 'p2-target-b'],
+        },
+      ],
+    },
+  }, 100);
+  assert.equal(duplicate.ok, false);
+  assert.match(duplicate.rejected?.message ?? '', /already reserved/);
+  assert.deepEqual(duplicate.events, []);
+  assert.deepEqual(duplicate.state, duplicateBefore);
+  assert.deepEqual(duplicateState, duplicateBefore);
+  assert.equal(
+    duplicate.state.gameData.turnData.acceptedShipOfEqualityTargetsByPlayerId,
+    undefined,
+  );
+  assert.equal(duplicate.state.gameData.turnData.shipActivationCueBatches, undefined);
+  assert.equal(duplicate.state.battleLogScratch, undefined);
+  assert.deepEqual(
+    duplicate.state.gameData.turnData.chargeDeclarationAcknowledgements
+      .chargeAfterByPlayerId,
+    duplicateBefore.gameData.turnData.chargeDeclarationAcknowledgements
+      .chargeAfterByPlayerId,
+  );
+
+  const disjointState = createMultiEqualityDeclarationState();
+  const disjoint = await applyIntent(disjointState, 'p1', {
+    gameId: disjointState.gameId,
+    intentType: 'ACTIONS_SUBMIT',
+    turnNumber: 3,
+    nonce: 'disjoint-equ-target-batch',
+    payload: {
+      actions: [
+        {
+          actionType: 'power',
+          actionId: 'EQU#0',
+          sourceInstanceId: 'p1-equ-a',
+          choiceId: 'damage',
+          targetInstanceIds: ['p1-own-a', 'p2-target-a'],
+        },
+        {
+          actionType: 'power',
+          actionId: 'EQU#0',
+          sourceInstanceId: 'p1-equ-b',
+          choiceId: 'damage',
+          targetInstanceIds: ['p1-own-b', 'p2-target-b'],
+        },
+      ],
+    },
+  }, 101);
+  assert.equal(disjoint.ok, true, disjoint.rejected?.message);
+  assert.deepEqual(
+    Object.keys(
+      disjoint.state.gameData.turnData.acceptedShipOfEqualityTargetsByPlayerId.p1,
+    ).sort(),
+    ['p1-equ-a', 'p1-equ-b'],
+  );
+});
+
+Deno.test('EQU reservations persist from Charge Declaration into live-state Charge Response', async () => {
+  const initial = createMultiEqualityDeclarationState();
+  const declaration = await applyIntent(initial, 'p1', powerActionIntent(
+    initial.gameId,
+    'p1-equ-a',
+    'EQU#0',
+    'damage',
+    { targetInstanceIds: ['p1-own-a', 'p2-target-a'] },
+  ), 100);
+  assert.equal(declaration.ok, true);
+
+  const responseState = structuredClone(declaration.state);
+  responseState.gameData.currentSubPhase = 'charge_response';
+  responseState.gameData.turnData.currentSubPhase = 'charge_response';
+  responseState.gameData.phaseReadiness = [];
+  const beforeReuse = structuredClone(responseState);
+  const reused = await applyIntent(responseState, 'p1', {
+    ...powerActionIntent(
+      initial.gameId,
+      'p1-equ-b',
+      'EQU#0',
+      'damage',
+      { targetInstanceIds: ['p1-own-a', 'p2-target-b'] },
+    ),
+    nonce: 'charge-response-reused-equ-target',
+  }, 101);
+  assert.equal(reused.ok, false);
+  assert.match(reused.rejected?.message ?? '', /already reserved/);
+  assert.deepEqual(reused.state, beforeReuse);
+  assert.deepEqual(responseState, beforeReuse);
+
+  const disjoint = await applyIntent(beforeReuse, 'p1', {
+    ...powerActionIntent(
+      initial.gameId,
+      'p1-equ-b',
+      'EQU#0',
+      'damage',
+      { targetInstanceIds: ['p1-own-b', 'p2-target-b'] },
+    ),
+    nonce: 'charge-response-disjoint-equ-targets',
+  }, 102);
+  assert.equal(disjoint.ok, true, disjoint.rejected?.message);
+});
+
+Deno.test('First Strike batch overlap rejects without mutating returned or supplied state', async () => {
+  const state = createReservationFirstStrikeState();
+  const before = structuredClone(state);
+  const result = await applyIntent(state, 'p1', {
+    gameId: state.gameId,
+    intentType: 'ACTIONS_SUBMIT',
+    turnNumber: 3,
+    nonce: 'duplicate-first-strike-batch',
+    payload: {
+      actions: [
+        {
+          actionType: 'power',
+          actionId: 'GUA#0',
+          sourceInstanceId: 'gua-a',
+          choiceId: 'destroy',
+          targetInstanceId: 'target-x',
+        },
+        {
+          actionType: 'power',
+          actionId: 'SAC#0',
+          sourceInstanceId: 'sac-a',
+          choiceId: 'destroy',
+          targetInstanceId: 'target-x',
+        },
+      ],
+    },
+  }, 100);
+
+  assert.equal(result.ok, false);
+  assert.match(result.rejected?.message ?? '', /already reserved/);
+  assert.deepEqual(result.state, before);
+  assert.deepEqual(state, before);
+  assert.deepEqual(result.events, []);
 });
 
 Deno.test('Ancient atomic contract permits chat and rejects every legacy declaration path before and after acceptance', async () => {
@@ -1115,6 +1535,7 @@ Deno.test('a failed ordinary declaration batch publishes no partial acknowledgem
   const state = createAtomicChargeState();
   state.gameData.turnData.chargeDeclarationAcknowledgements
     .chargeAfterByPlayerId.p2 = { 'prior-successful-source': 0 };
+  const originalState = structuredClone(state);
 
   const result = await applyIntent(state, 'p2', {
     gameId: state.gameId,
@@ -1149,7 +1570,7 @@ Deno.test('a failed ordinary declaration batch publishes no partial acknowledgem
     result.state.gameData.ships.p2.find(
       (ship: any) => ship.instanceId === 'p2-int',
     ).chargesCurrent,
-    0,
+    1,
   );
   const requesterSafe: any = sanitizeAncientStateForClient(result.state, 'p2');
   assert.equal(
@@ -1163,6 +1584,8 @@ Deno.test('a failed ordinary declaration batch publishes no partial acknowledgem
       .chargeAfterByPlayerId.p2,
     { 'prior-successful-source': 0 },
   );
+  assert.deepEqual(state, originalState);
+  assert.deepEqual(result.state, originalState);
 });
 
 Deno.test('missing declaration legality snapshot rejects before canonical mutation', async () => {

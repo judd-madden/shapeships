@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { replaceChargeDeclarationVisibilityState } from '../../engine/state/chargeDeclarationVisibility.ts';
+import { applyIntent } from '../../engine/intent/IntentReducer.ts';
 import { registerGameRoutes } from '../../routes/game_routes.ts';
 import { registerIntentRoutes } from '../../routes/intent_routes.ts';
 import {
@@ -343,6 +344,14 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
   state.gameData.turnData.thirdSpiralFirstStrikeEligibilityByPlayerId = {
     p1: { sourceInstanceId: 'spi-public', turnNumber: 0 },
   };
+  state.gameData.turnData.acceptedShipOfEqualityTargetsByPlayerId = {
+    p1: {
+      'private-equ-source': {
+        ownTargetInstanceId: 'private-own-target',
+        opponentTargetInstanceId: 'private-opponent-target',
+      },
+    },
+  };
   state.gameData.ancient.energyByPlayerId.p1.pool.green = 3;
   state.gameData.ancient.schemaVersion = 2;
   state.gameData.ancient.futureAuthority = { hidden: true };
@@ -440,6 +449,10 @@ Deno.test('/game-state projects curated Ancient data without writes and preserve
   for (const viewerBody of [body, opponentBody, spectatorBody]) {
     assert.equal(
       'thirdSpiralFirstStrikeEligibilityByPlayerId' in viewerBody.gameData.turnData,
+      false,
+    );
+    assert.equal(
+      'acceptedShipOfEqualityTargetsByPlayerId' in viewerBody.gameData.turnData,
       false,
     );
   }
@@ -1134,7 +1147,51 @@ Deno.test('/game-state projects DOM transfer targets with shared Spiral capacity
     ['enemy-vig', 'enemy-fig'],
   );
 
-  const underCapacityState = structuredClone(fixture.store.get('game_dom-projection'));
+  const oneUnreservedState = structuredClone(fixture.store.get('game_dom-projection'));
+  oneUnreservedState.gameData.turnData.pendingFirstStrikeSelectionsByPlayerId = {
+    p1: {
+      'other-source': {
+        actionId: 'GUA#0',
+        sourceInstanceId: 'other-source',
+        choiceId: 'destroy',
+        targetInstanceId: 'enemy-vig',
+      },
+    },
+  };
+  fixture.store.set('game_dom-projection', oneUnreservedState);
+  const oneUnreserved = await responseJson(
+    await getState(createContext({ params: { gameId: 'dom-projection' } })),
+  );
+  const domOneUnreserved = oneUnreserved.requester.availableActions.find(
+    (action: any) => action.shipDefId === 'DOM',
+  );
+  assert.deepEqual(
+    domOneUnreserved.validTargets.map((target: any) => target.instanceId),
+    ['enemy-fig'],
+  );
+  assert.equal(domOneUnreserved.requiredTargetCount, 1);
+
+  const zeroUnreservedState = structuredClone(oneUnreservedState);
+  zeroUnreservedState.gameData.turnData.pendingFirstStrikeSelectionsByPlayerId.p1[
+    'another-source'
+  ] = {
+    actionId: 'SAC#0',
+    sourceInstanceId: 'another-source',
+    choiceId: 'destroy',
+    targetInstanceId: 'enemy-fig',
+  };
+  fixture.store.set('game_dom-projection', zeroUnreservedState);
+  const zeroUnreserved = await responseJson(
+    await getState(createContext({ params: { gameId: 'dom-projection' } })),
+  );
+  assert.equal(
+    zeroUnreserved.requester.availableActions.some(
+      (action: any) => action.shipDefId === 'DOM',
+    ),
+    false,
+  );
+
+  const underCapacityState = normalizeAncientGameState(structuredClone(setupState)).state;
   underCapacityState.gameData.ships.p1 = underCapacityState.gameData.ships.p1.filter(
     (candidate: any) => candidate.instanceId !== 'own-spi-3',
   );
@@ -1149,6 +1206,141 @@ Deno.test('/game-state projects DOM transfer targets with shared Spiral capacity
     domUnderCapacity.validTargets.map((target: any) => target.instanceId),
     ['enemy-spi', 'enemy-vig', 'enemy-fig'],
   );
+});
+
+Deno.test('/game-state derives EQU pairs after same-player reservation filtering and ignores opponent reservations', async () => {
+  const state: any = normalizeAncientGameState(createSetupState('equ-reservation-projection')).state;
+  state.turnNumber = 3;
+  state.players[0].faction = 'human';
+  state.players.push({
+    id: 'p2', name: 'Player Two', role: 'player', faction: 'human', isActive: true,
+    health: 25, lines: 0, joiningLines: 0,
+  });
+  state.players.push({
+    id: 'spectator', name: 'Watcher', role: 'spectator', faction: null, isActive: true,
+    health: 0, lines: 0, joiningLines: 0,
+  });
+  state.gameData.turnNumber = 3;
+  state.gameData.currentPhase = 'battle';
+  state.gameData.currentSubPhase = 'charge_declaration';
+  state.gameData.phaseReadiness = [];
+  state.gameData.ships = {
+    p1: [
+      { instanceId: 'p1-equ-a', shipDefId: 'EQU', chargesCurrent: 1 },
+      { instanceId: 'p1-equ-b', shipDefId: 'EQU', chargesCurrent: 1 },
+      { instanceId: 'p1-def-reserved', shipDefId: 'DEF' },
+      { instanceId: 'p1-def-orphan', shipDefId: 'DEF' },
+      { instanceId: 'p1-int-opponent-reserved', shipDefId: 'INT' },
+    ],
+    p2: [
+      { instanceId: 'p2-equ-a', shipDefId: 'EQU', chargesCurrent: 1 },
+      { instanceId: 'p2-def-reserved', shipDefId: 'DEF' },
+      { instanceId: 'p2-int-opponent-reserved', shipDefId: 'INT' },
+    ],
+  };
+  state.gameData.voidShipsByPlayerId = { p1: [], p2: [] };
+  state.gameData.pendingTurn = {
+    damageByPlayerId: {},
+    healByPlayerId: {},
+    breakdownEntries: [],
+  };
+  state.gameData.turnData = {
+    turnNumber: 3,
+    currentMajorPhase: 'battle',
+    currentSubPhase: 'charge_declaration',
+    chargeDeclarationEligibleByPlayerId: { p1: true, p2: true },
+    chargeDeclarationEligibleSourceIdsByPlayerId: {
+      p1: ['p1-equ-a', 'p1-equ-b'],
+      p2: ['p2-equ-a'],
+    },
+    solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
+    chargeDeclarationFleetSnapshotByPlayerId: structuredClone(state.gameData.ships),
+    chargePowerUsedByInstanceId: {},
+    anyChargesSpentInDeclaration: false,
+  };
+  state.gameData.powerMemory = { onceOnlyFired: {}, frigateTriggerByInstanceId: {} };
+  replaceChargeDeclarationVisibilityState(state);
+
+  const p2Accepted = await applyIntent(state, 'p2', {
+    gameId: state.gameId,
+    intentType: 'ACTION',
+    turnNumber: 3,
+    nonce: 'p2-equ-accepted',
+    payload: {
+      actionType: 'power',
+      actionId: 'EQU#0',
+      sourceInstanceId: 'p2-equ-a',
+      choiceId: 'damage',
+      targetInstanceIds: ['p2-int-opponent-reserved', 'p1-int-opponent-reserved'],
+    },
+  }, 100);
+  assert.equal(p2Accepted.ok, true, p2Accepted.rejected?.message);
+
+  const p1Accepted = await applyIntent(p2Accepted.state, 'p1', {
+    gameId: state.gameId,
+    intentType: 'ACTION',
+    turnNumber: 3,
+    nonce: 'p1-equ-accepted',
+    payload: {
+      actionType: 'power',
+      actionId: 'EQU#0',
+      sourceInstanceId: 'p1-equ-a',
+      choiceId: 'damage',
+      targetInstanceIds: ['p1-def-reserved', 'p2-def-reserved'],
+    },
+  }, 101);
+  assert.equal(p1Accepted.ok, true, p1Accepted.rejected?.message);
+  assert.deepEqual(
+    p1Accepted.state.gameData.turnData.acceptedShipOfEqualityTargetsByPlayerId,
+    {
+      p1: {
+        'p1-equ-a': {
+          ownTargetInstanceId: 'p1-def-reserved',
+          opponentTargetInstanceId: 'p2-def-reserved',
+        },
+      },
+      p2: {
+        'p2-equ-a': {
+          ownTargetInstanceId: 'p2-int-opponent-reserved',
+          opponentTargetInstanceId: 'p1-int-opponent-reserved',
+        },
+      },
+    },
+  );
+
+  const fixture = createGameRouteFixture();
+  fixture.store.set('game_equ-reservation-projection', p1Accepted.state);
+  const getState = fixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
+  const p1Body = await responseJson(
+    await getState(createContext({ params: { gameId: 'equ-reservation-projection' } })),
+  );
+  const equalityAction = p1Body.requester.availableActions.find(
+    (action: any) => action.sourceInstanceId === 'p1-equ-b',
+  );
+  assert.ok(equalityAction);
+  assert.deepEqual(
+    equalityAction.validOwnTargets.map((target: any) => target.instanceId),
+    ['p1-int-opponent-reserved'],
+  );
+  assert.deepEqual(
+    equalityAction.validOpponentTargets.map((target: any) => target.instanceId),
+    ['p2-int-opponent-reserved'],
+  );
+
+  fixture.setSessionId('p2');
+  const p2Body = await responseJson(
+    await getState(createContext({ params: { gameId: 'equ-reservation-projection' } })),
+  );
+  fixture.setSessionId('spectator');
+  const spectatorBody = await responseJson(
+    await getState(createContext({ params: { gameId: 'equ-reservation-projection' } })),
+  );
+  for (const body of [p1Body, p2Body, spectatorBody]) {
+    assert.equal(
+      'acceptedShipOfEqualityTargetsByPlayerId' in body.gameData.turnData,
+      false,
+    );
+  }
 });
 
 Deno.test('/game-state projects only the qualifying Spiral action and hides its marker from every viewer', async () => {

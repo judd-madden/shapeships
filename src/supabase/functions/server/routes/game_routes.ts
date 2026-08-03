@@ -47,6 +47,7 @@ import { getShipDefinition } from '../engine_shared/defs/ShipDefinitions.withStr
 import type { StructuredShipPower } from '../engine_shared/effects/translateShipPowers.ts';
 import { EffectKind } from '../engine_shared/effects/Effect.ts';
 import {
+  getReservedFirstStrikeTargetInstanceIds,
   getValidDestroyTargets,
   getValidShipOfEqualityTargets,
   getValidTransferTargets,
@@ -885,9 +886,15 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
           targetScope: targetedEffect.targetPlayer === 'self' ? 'self' : 'opponent',
           restriction: targetedEffect.restriction ?? 'any',
         } as const;
-        const validTargets = targetedEffect.kind === EffectKind.TransferShip
+        const powerSpecificValidTargets = targetedEffect.kind === EffectKind.TransferShip
           ? getValidTransferTargets(state, targetArgs)
           : getValidDestroyTargets(state, targetArgs);
+        const reservedTargetIds = new Set(
+          getReservedFirstStrikeTargetInstanceIds(state, playerId, sourceInstanceId),
+        );
+        const validTargets = powerSpecificValidTargets.filter(
+          (target) => !reservedTargetIds.has(target.instanceId),
+        );
 
         if (validTargets.length === 0) {
           continue;

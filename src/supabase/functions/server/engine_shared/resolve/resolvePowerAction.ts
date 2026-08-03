@@ -25,6 +25,8 @@ import {
   type TranslateContext,
 } from '../effects/translateShipPowers.ts';
 import {
+  getReservedFirstStrikeTargetInstanceIds,
+  getReservedShipOfEqualityTargetInstanceIds,
   getValidDestroyTargets,
   getValidShipOfEqualityTargets,
   getValidTransferTargets,
@@ -314,15 +316,22 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
       playerId,
     );
 
-    if (validOwnTargets.length === 0 || validOpponentTargets.length === 0) {
-      throw new Error('No valid targets available.');
-    }
-
     const requestedTargetIds = resolvedTargetInstanceIds?.length
       ? resolvedTargetInstanceIds
       : typeof resolvedTargetInstanceId === 'string'
         ? [resolvedTargetInstanceId]
         : [];
+
+    const reservedEqualityTargetIds = new Set(
+      getReservedShipOfEqualityTargetInstanceIds(state, playerId),
+    );
+    if (requestedTargetIds.some((targetId) => reservedEqualityTargetIds.has(targetId))) {
+      throw new Error('Ship of Equality target is already reserved by another EQU.');
+    }
+
+    if (validOwnTargets.length === 0 || validOpponentTargets.length === 0) {
+      throw new Error('No valid targets available.');
+    }
 
     if (requestedTargetIds.length !== 2) {
       throw new Error('Expected exactly 2 target ship(s).');
@@ -371,20 +380,37 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
       targetScope: targetedEffect.targetPlayer === 'self' ? 'self' : 'opponent',
       restriction: targetedEffect.restriction ?? 'any',
     } as const;
-    const validTargets = targetedEffect.kind === EffectKind.TransferShip
+    const powerSpecificValidTargets = targetedEffect.kind === EffectKind.TransferShip
       ? getValidTransferTargets(state, targetArgs)
       : getValidDestroyTargets(state, targetArgs);
+    const reservedFirstStrikeTargetIds = phaseKey === 'battle.first_strike'
+      ? new Set(
+          getReservedFirstStrikeTargetInstanceIds(state, playerId, sourceInstanceId),
+        )
+      : new Set<string>();
+    const validTargets = powerSpecificValidTargets.filter(
+      (target) => !reservedFirstStrikeTargetIds.has(target.instanceId),
+    );
     const requiredTargetCount = getRequiredTargetCount(targetedEffect, validTargets.length);
-
-    if (requiredTargetCount <= 0) {
-      throw new Error('No valid targets available.');
-    }
 
     const requestedTargetIds = resolvedTargetInstanceIds?.length
       ? resolvedTargetInstanceIds
       : typeof resolvedTargetInstanceId === 'string'
         ? [resolvedTargetInstanceId]
         : [];
+
+    const requestedReservedTarget = requestedTargetIds.find(
+      (requestedTargetId) =>
+        reservedFirstStrikeTargetIds.has(requestedTargetId) &&
+        powerSpecificValidTargets.some((target) => target.instanceId === requestedTargetId),
+    );
+    if (requestedReservedTarget) {
+      throw new Error('Target ship is already reserved by another First Strike action.');
+    }
+
+    if (requiredTargetCount <= 0) {
+      throw new Error('No valid targets available.');
+    }
 
     if (requestedTargetIds.length !== requiredTargetCount) {
       throw new Error(`Expected exactly ${requiredTargetCount} target ship(s).`);
@@ -554,6 +580,28 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
     td.chargePowerUsedByInstanceId = {
       ...usedMap,
       [sourceInstanceId]: turnNumber,
+    };
+  }
+
+  if (isShipOfEqualityDamage) {
+    const [ownTargetInstanceId, opponentTargetInstanceId] = resolvedTargetInstanceIds ?? [];
+    if (!ownTargetInstanceId || !opponentTargetInstanceId) {
+      throw new Error('Ship of Equality requires exactly 2 target ship(s).');
+    }
+
+    const gd: any = resolvedState.gameData ?? (resolvedState.gameData = {} as any);
+    const td: any = gd.turnData ?? (gd.turnData = {});
+    const acceptedByPlayerId = td.acceptedShipOfEqualityTargetsByPlayerId || {};
+    const acceptedBySourceInstanceId = acceptedByPlayerId[playerId] || {};
+    td.acceptedShipOfEqualityTargetsByPlayerId = {
+      ...acceptedByPlayerId,
+      [playerId]: {
+        ...acceptedBySourceInstanceId,
+        [sourceInstanceId]: {
+          ownTargetInstanceId,
+          opponentTargetInstanceId,
+        },
+      },
     };
   }
 

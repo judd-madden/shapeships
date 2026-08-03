@@ -456,6 +456,7 @@ export function redactChargeDeclarationTurnDataForClient(
     chargeDeclarationEligibleByPlayerId: _eligibleByPlayerId,
     chargeDeclarationEligibleSourceIdsByPlayerId: _eligibleSourceIds,
     solarGridDeclarationSourceIdsByPlayerId: _solarGridSourceIds,
+    acceptedShipOfEqualityTargetsByPlayerId: _acceptedShipOfEqualityTargets,
     ...withoutInternalSnapshots
   } = value;
 

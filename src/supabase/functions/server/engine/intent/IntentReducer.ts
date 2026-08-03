@@ -3363,6 +3363,9 @@ function handleActionsSubmit(
   // ============================================================================
   // BATCH PROCESSING: Apply each action atomically
   // ============================================================================
+  const originalState = state;
+  state = structuredClone(state);
+  events = [];
   const activationSources: ShipActivationCueSource[] = [];
   const declarationSpendEffectEvents: EffectEvent[] = [];
 
@@ -3371,7 +3374,7 @@ function handleActionsSubmit(
     if (item.actionType !== 'power') {
       return {
         ok: false,
-        state,
+        state: originalState,
         events: [],
         rejected: {
           code: RejectionCode.BAD_PAYLOAD,
@@ -3384,7 +3387,7 @@ function handleActionsSubmit(
     if (!item.actionId || typeof item.actionId !== 'string' || item.actionId.trim() === '') {
       return {
         ok: false,
-        state,
+        state: originalState,
         events: [],
         rejected: {
           code: RejectionCode.BAD_PAYLOAD,
@@ -3396,7 +3399,7 @@ function handleActionsSubmit(
     if (!item.sourceInstanceId || typeof item.sourceInstanceId !== 'string' || item.sourceInstanceId.trim() === '') {
       return {
         ok: false,
-        state,
+        state: originalState,
         events: [],
         rejected: {
           code: RejectionCode.BAD_PAYLOAD,
@@ -3408,7 +3411,7 @@ function handleActionsSubmit(
     if (!item.choiceId || typeof item.choiceId !== 'string' || item.choiceId.trim() === '') {
       return {
         ok: false,
-        state,
+        state: originalState,
         events: [],
         rejected: {
           code: RejectionCode.BAD_PAYLOAD,
@@ -3538,7 +3541,7 @@ function handleActionsSubmit(
       
       return {
         ok: false,
-        state,
+        state: originalState,
         events: [],
         rejected: {
           code: isChargeDeclarationLegalityInvariantError(err)
@@ -3564,7 +3567,7 @@ function handleActionsSubmit(
     } catch (error) {
       return {
         ok: false,
-        state,
+        state: originalState,
         events: [],
         rejected: {
           code: RejectionCode.INTERNAL_ERROR,

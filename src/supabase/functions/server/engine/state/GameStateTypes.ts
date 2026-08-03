@@ -448,6 +448,12 @@ export type GameData = {
       targetInstanceId?: string;
       targetInstanceIds?: string[];
     }>>;
+
+    /** Accepted EQU damage targets, scoped by player and source for this turn. */
+    acceptedShipOfEqualityTargetsByPlayerId?: Record<string, Record<string, {
+      ownTargetInstanceId: string;
+      opponentTargetInstanceId: string;
+    }>>;
     
     /** Allow future turn-scoped flags */
     [key: string]: any;
