@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type {
   HealthResolutionPresentationVm,
   HealthResolutionSideVm,
@@ -6,6 +7,82 @@ import type {
 interface HealthResolutionPanelProps {
   vm: HealthResolutionPresentationVm;
   layout?: 'desktop' | 'mobile';
+}
+
+const HEALTH_RESOLUTION_MOTION = {
+  totalMs: 4000,
+  exitEndMs: 3940,
+  reverseScale: 0.8,
+
+  card: {
+    startMs: 0,
+    durationMs: 360,
+  },
+
+  digit: {
+    startMs: 360,
+    durationMs: 300,
+    staggerMs: 70,
+  },
+
+  turnLabel: {
+    startMs: 470,
+    durationMs: 180,
+  },
+
+  mobileDivider: {
+    startMs: 620,
+    durationMs: 160,
+  },
+
+  playerName: {
+    startMs: 800,
+    durationMs: 300,
+  },
+
+  playerOutcome: {
+    startMs: 900,
+    durationMs: 300,
+  },
+
+  movementPx: 3,
+  enterEase: 'cubic-bezier(0.16, 1, 0.3, 1)',
+  exitEase: 'cubic-bezier(0.7, 0, 0.84, 0)',
+} as const;
+
+type HealthResolutionMotionStyle = CSSProperties &
+  Record<
+    | '--ss-hr-enter-delay'
+    | '--ss-hr-enter-duration'
+    | '--ss-hr-exit-delay'
+    | '--ss-hr-exit-duration'
+    | '--ss-hr-enter-ease'
+    | '--ss-hr-exit-ease',
+    string
+  >;
+
+type HealthResolutionRootStyle = CSSProperties & {
+  '--ss-hr-movement': string;
+};
+
+type HealthResolutionNumberStyle = CSSProperties & {
+  '--ss-hr-digit-tracking': string;
+};
+
+function getMotionStyle(forwardStartMs: number, forwardDurationMs: number): HealthResolutionMotionStyle {
+  const reverseDurationMs = forwardDurationMs * HEALTH_RESOLUTION_MOTION.reverseScale;
+  const reverseStartMs =
+    HEALTH_RESOLUTION_MOTION.exitEndMs -
+    (forwardStartMs + forwardDurationMs) * HEALTH_RESOLUTION_MOTION.reverseScale;
+
+  return {
+    '--ss-hr-enter-delay': `${forwardStartMs}ms`,
+    '--ss-hr-enter-duration': `${forwardDurationMs}ms`,
+    '--ss-hr-exit-delay': `${reverseStartMs}ms`,
+    '--ss-hr-exit-duration': `${reverseDurationMs}ms`,
+    '--ss-hr-enter-ease': HEALTH_RESOLUTION_MOTION.enterEase,
+    '--ss-hr-exit-ease': HEALTH_RESOLUTION_MOTION.exitEase,
+  };
 }
 
 function getValueColor(side: HealthResolutionSideVm): string {
@@ -20,19 +97,29 @@ function getValueColor(side: HealthResolutionSideVm): string {
   }
 }
 
+type PlayerMotion = 'desktop-left' | 'desktop-right' | 'mobile-top' | 'mobile-bottom';
+
 function OutcomeLine({
   side,
   layout,
+  motion,
 }: {
   side: HealthResolutionSideVm;
   layout: 'desktop' | 'mobile';
+  motion: PlayerMotion;
 }) {
   return (
     <p
-      className={`max-w-full whitespace-nowrap font-['Roboto'] font-normal leading-none text-white ${
+      className={`ss-health-resolution-player-line ss-health-resolution-player-line--${motion} max-w-full whitespace-nowrap font-['Roboto'] font-normal leading-none text-white ${
         layout === 'mobile' ? 'text-[22px]' : 'text-[clamp(26px,2.9vw,44px)]'
       }`}
-      style={{ fontVariationSettings: "'wdth' 100" }}
+      style={{
+        ...getMotionStyle(
+          HEALTH_RESOLUTION_MOTION.playerOutcome.startMs,
+          HEALTH_RESOLUTION_MOTION.playerOutcome.durationMs,
+        ),
+        fontVariationSettings: "'wdth' 100",
+      }}
     >
       <span>{side.prefixText}</span>
       <span className="font-bold" style={{ color: getValueColor(side) }}>
@@ -47,10 +134,12 @@ function PlayerResult({
   side,
   layout,
   alignment,
+  motion,
 }: {
   side: HealthResolutionSideVm;
   layout: 'desktop' | 'mobile';
   alignment: 'left' | 'right';
+  motion: PlayerMotion;
 }) {
   const isMobile = layout === 'mobile';
 
@@ -61,14 +150,20 @@ function PlayerResult({
       } ${alignment === 'right' ? 'items-end text-right' : 'items-start text-left'}`}
     >
       <p
-        className={`w-full truncate font-['Roboto'] font-medium leading-none text-white ${
+        className={`ss-health-resolution-player-line ss-health-resolution-player-line--${motion} w-full truncate font-['Roboto'] font-medium leading-none text-white ${
           isMobile ? 'text-[14px]' : 'text-[clamp(18px,1.7vw,26px)]'
         }`}
-        style={{ fontVariationSettings: "'wdth' 100" }}
+        style={{
+          ...getMotionStyle(
+            HEALTH_RESOLUTION_MOTION.playerName.startMs,
+            HEALTH_RESOLUTION_MOTION.playerName.durationMs,
+          ),
+          fontVariationSettings: "'wdth' 100",
+        }}
       >
         {side.nameText}
       </p>
-      <OutcomeLine side={side} layout={layout} />
+      <OutcomeLine side={side} layout={layout} motion={motion} />
     </div>
   );
 }
@@ -80,64 +175,123 @@ function TurnCard({
   turnNumber: number;
   layout: 'desktop' | 'mobile';
 }) {
+  const digits = String(turnNumber).split('');
   const usesTeenNumberAdjustment = turnNumber >= 10 && turnNumber <= 19;
-  const numberTrackingClass = usesTeenNumberAdjustment
-    ? 'tracking-[-0.12em]'
-    : 'tracking-[-0.04em]';
-  const numberStyle = usesTeenNumberAdjustment
-    ? { transform: `translateX(${layout === 'mobile' ? '-6px' : '-12px'})` }
-    : undefined;
+  const numberStyle: HealthResolutionNumberStyle = {
+    '--ss-hr-digit-tracking': usesTeenNumberAdjustment ? '-0.12em' : '-0.04em',
+    ...(usesTeenNumberAdjustment
+      ? { transform: `translateX(${layout === 'mobile' ? '-6px' : '-12px'})` }
+      : {}),
+  };
+  const cardMotionStyle = getMotionStyle(
+    HEALTH_RESOLUTION_MOTION.card.startMs,
+    HEALTH_RESOLUTION_MOTION.card.durationMs,
+  );
+  const turnLabelMotionStyle = getMotionStyle(
+    HEALTH_RESOLUTION_MOTION.turnLabel.startMs,
+    HEALTH_RESOLUTION_MOTION.turnLabel.durationMs,
+  );
+
+  const content = (
+    <>
+      <div
+        aria-hidden="true"
+        className="ss-health-resolution-card-background"
+        style={cardMotionStyle}
+      />
+      <p
+        className={`ss-health-resolution-turn-label relative z-10 font-['Roboto'] font-medium leading-none ${
+          layout === 'mobile' ? 'text-[13px]' : 'text-[clamp(18px,1.7vw,26px)]'
+        }`}
+        style={turnLabelMotionStyle}
+      >
+        Turn
+      </p>
+      <p
+        className={`ss-health-resolution-number-row relative z-10 flex font-['Roboto'] font-black leading-none ${
+          layout === 'mobile' ? 'text-[75px]' : 'text-[clamp(90px,9.8vw,150px)]'
+        }`}
+        style={numberStyle}
+      >
+        {digits.map((digit, digitIndex) => {
+          const digitForwardStartMs =
+            HEALTH_RESOLUTION_MOTION.digit.startMs +
+            digitIndex * HEALTH_RESOLUTION_MOTION.digit.staggerMs;
+
+          return (
+            <span
+              key={`${digitIndex}-${digit}`}
+              className="ss-health-resolution-digit"
+              style={getMotionStyle(
+                digitForwardStartMs,
+                HEALTH_RESOLUTION_MOTION.digit.durationMs,
+              )}
+            >
+              {digit}
+            </span>
+          );
+        })}
+      </p>
+    </>
+  );
 
   if (layout === 'mobile') {
     return (
-      <div className="flex min-w-[125px] flex-col items-center justify-center gap-0 rounded-[10px] bg-white px-[20px] py-[15px] text-center text-black">
-        <p className="font-['Roboto'] text-[13px] font-medium leading-none">Turn</p>
-        <p
-          className={`font-['Roboto'] text-[75px] font-black leading-none ${numberTrackingClass}`}
-          style={numberStyle}
-        >
-          {turnNumber}
-        </p>
+      <div className="relative flex min-w-[125px] flex-col items-center justify-center gap-0 rounded-[10px] px-[20px] py-[15px] text-center text-black">
+        {content}
       </div>
     );
   }
 
   return (
     <div
-      className="flex flex-col items-center justify-center gap-0 rounded-[20px] bg-white text-center text-black"
+      className="relative flex flex-col items-center justify-center gap-0 rounded-[20px] text-center text-black"
       style={{
         minWidth: 'clamp(160px, 16vw, 250px)',
         paddingInline: 'clamp(20px, 2.6vw, 40px)',
         paddingBlock: 'clamp(20px, 2vw, 30px)',
       }}
     >
-      <p className="font-['Roboto'] text-[clamp(18px,1.7vw,26px)] font-medium leading-none">
-        Turn
-      </p>
-      <p
-        className={`font-['Roboto'] text-[clamp(90px,9.8vw,150px)] font-black leading-none ${numberTrackingClass}`}
-        style={numberStyle}
-      >
-        {turnNumber}
-      </p>
+      {content}
     </div>
   );
 }
 
 export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResolutionPanelProps) {
+  const rootStyle: HealthResolutionRootStyle = {
+    '--ss-hr-movement': `${HEALTH_RESOLUTION_MOTION.movementPx}px`,
+  };
+
   if (layout === 'mobile') {
     return (
-      <div className="relative flex size-full items-center justify-center overflow-hidden bg-black px-[12px]">
+      <div
+        className="relative flex size-full items-center justify-center overflow-hidden bg-black px-[12px]"
+        style={rootStyle}
+      >
         <div className="grid w-full max-w-[420px] grid-cols-[125px_minmax(0,1fr)] items-center gap-[20px]">
           <TurnCard turnNumber={vm.displayTurnNumber} layout="mobile" />
 
           <div className="flex min-w-0 flex-col items-start">
-            <PlayerResult side={vm.right} layout="mobile" alignment="left" />
+            <PlayerResult
+              side={vm.right}
+              layout="mobile"
+              alignment="left"
+              motion="mobile-top"
+            />
             <div
               aria-hidden="true"
-              className="my-[16px] h-px w-full shrink-0 bg-[var(--shapeships-grey-70)]"
+              className="ss-health-resolution-mobile-divider my-[16px] h-px w-full shrink-0 bg-[var(--shapeships-grey-70)]"
+              style={getMotionStyle(
+                HEALTH_RESOLUTION_MOTION.mobileDivider.startMs,
+                HEALTH_RESOLUTION_MOTION.mobileDivider.durationMs,
+              )}
             />
-            <PlayerResult side={vm.left} layout="mobile" alignment="left" />
+            <PlayerResult
+              side={vm.left}
+              layout="mobile"
+              alignment="left"
+              motion="mobile-bottom"
+            />
           </div>
         </div>
       </div>
@@ -145,7 +299,10 @@ export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResoluti
   }
 
   return (
-    <div className="relative flex size-full items-center justify-center overflow-hidden rounded-[8px] bg-black px-[clamp(12px,2vw,40px)]">
+    <div
+      className="relative flex size-full items-center justify-center overflow-hidden rounded-[8px] bg-black px-[clamp(12px,2vw,40px)]"
+      style={rootStyle}
+    >
       <div
         className="grid w-full max-w-[1300px] items-center"
         style={{
@@ -154,13 +311,23 @@ export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResoluti
         }}
       >
         <div className="w-full min-w-0">
-          <PlayerResult side={vm.left} layout="desktop" alignment="right" />
+          <PlayerResult
+            side={vm.left}
+            layout="desktop"
+            alignment="right"
+            motion="desktop-left"
+          />
         </div>
 
         <TurnCard turnNumber={vm.displayTurnNumber} layout="desktop" />
 
         <div className="w-full min-w-0">
-          <PlayerResult side={vm.right} layout="desktop" alignment="left" />
+          <PlayerResult
+            side={vm.right}
+            layout="desktop"
+            alignment="left"
+            motion="desktop-right"
+          />
         </div>
       </div>
     </div>

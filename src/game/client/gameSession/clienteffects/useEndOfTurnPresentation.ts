@@ -402,7 +402,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       activeHealthResolutionOverlayPresentationKeyRef.current = null;
       setHealthResolutionOverlay(undefined);
       setFleetAreaHealthDeltaFlashes({});
-    }, 3000);
+    }, 4000);
 
     return presentationKey;
   }
