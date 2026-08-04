@@ -1727,18 +1727,24 @@ export function useGameSession(
     },
     [hasHydratedTurnNumber],
   );
-  const knoRerollPassIndex = getKnoRerollPassIndex(rawState);
-  const phaseInstanceKey =
-    phaseKey === 'build.dice_roll' &&
-      (knoRerollPassIndex === 1 || knoRerollPassIndex === 2 || knoRerollPassIndex === 3)
-      ? `${turnNumber}::${phaseKey}::kno${knoRerollPassIndex}`
-      : `${turnNumber}::${phaseKey}`;
-  const deferredHandoffPhaseEntryKey = `${effectiveGameId ?? 'nogame'}::${phaseInstanceKey}`;
-  
   // Phase 3.x: server-authoritative actions availability (declare early to avoid TDZ)
   const availableActions = getAvailableActions(rawState);
   const hasServerActionsAvailable =
     Array.isArray(availableActions) && availableActions.length > 0;
+  const hasRenderableCubeDiceRollAction =
+    phaseKey === 'build.dice_roll' &&
+    getRenderableServerChoiceActions(phaseKey, availableActions).some(
+      (action) => action.actionId === 'CUB#0' && action.shipDefId === 'CUB'
+    );
+  const knoRerollPassIndex = getKnoRerollPassIndex(rawState);
+  const phaseInstanceKey =
+    phaseKey === 'build.dice_roll' && hasRenderableCubeDiceRollAction
+      ? `${turnNumber}::${phaseKey}::cube`
+      : phaseKey === 'build.dice_roll' &&
+          (knoRerollPassIndex === 1 || knoRerollPassIndex === 2 || knoRerollPassIndex === 3)
+        ? `${turnNumber}::${phaseKey}::kno${knoRerollPassIndex}`
+        : `${turnNumber}::${phaseKey}`;
+  const deferredHandoffPhaseEntryKey = `${effectiveGameId ?? 'nogame'}::${phaseInstanceKey}`;
   
   // ============================================================================
   // SHIP CHOICE SELECTION STATE (for charge panels)
@@ -4377,16 +4383,6 @@ useEffect(() => {
     hasQuantumMysticDrawingAction
   );
 
-  useEffect(() => {
-    if (
-      phaseKey === 'build.dice_roll' &&
-      activePanelId === 'ap.build.dice_roll.centaur' &&
-      actionsTargetPanelId === 'ap.build.dice_roll.cube'
-    ) {
-      setActivePanelId('ap.build.dice_roll.cube');
-    }
-  }, [actionsTargetPanelId, activePanelId, phaseKey]);
-
   const selfCataloguePanelId = speciesToCataloguePanelId(mySpecies ?? 'human');
   const effectiveFirstStrikePanelId =
     routedFirstStrikeFamily == null
@@ -4938,7 +4934,7 @@ useEffect(() => {
     // finish state, and the durable build.drawing request token.
     // We do not depend on activePanelId or hasActionsAvailable,
     // otherwise polling would re-trigger routing.
-  }, [phaseKey, selectedSpecies, buildDrawingRouteRequest, isFinished]);
+  }, [phaseInstanceKey, selectedSpecies, buildDrawingRouteRequest, isFinished]);
 
   useEffect(() => {
     if (!phaseKey || isFinished) return;
