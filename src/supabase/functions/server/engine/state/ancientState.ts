@@ -32,6 +32,10 @@ import {
   projectChargeDeclarationStateForViewer,
   redactChargeDeclarationTurnDataForClient,
 } from './chargeDeclarationVisibility.ts';
+import {
+  projectDrawingPreludeFleetsForViewer,
+  redactDrawingPreludeTurnDataForClient,
+} from './drawingPreludeProjection.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
 
 export const ANCIENT_STATE_SCHEMA_VERSION = 1 as const;
@@ -1057,11 +1061,10 @@ export function projectPublicShipsForClient(
   );
   const shipsByPlayerId = projection.state?.gameData?.ships;
   if (!isObject(shipsByPlayerId)) return {};
-  return Object.fromEntries(
-    Object.entries(shipsByPlayerId).map(([playerId, fleet]) => [
-      playerId,
-      Array.isArray(fleet) ? structuredClone(fleet) : [],
-    ]),
+  return projectDrawingPreludeFleetsForViewer(
+    projection.state,
+    shipsByPlayerId,
+    requestingParticipantId,
   );
 }
 
@@ -1121,8 +1124,13 @@ export function sanitizeAncientStateForClient<T = any>(
       solarGridDeclarationSourceIdsByPlayerId: _solarGridDeclarationSourceIds,
       ...safeTurnData
     } = turnData;
-    safeGameData.turnData = redactChargeDeclarationTurnDataForClient(
+    const drawingSafeTurnData = redactDrawingPreludeTurnDataForClient(
       safeTurnData,
+      projectedState,
+      requestingParticipantId,
+    ) ?? {};
+    safeGameData.turnData = redactChargeDeclarationTurnDataForClient(
+      drawingSafeTurnData,
       isChargeDeclarationPrivacyActive(projectedState),
     ) ?? {};
   }

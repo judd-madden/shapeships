@@ -40,6 +40,11 @@ import {
 import {
   projectChargeDeclarationStateForViewer,
 } from '../engine/state/chargeDeclarationVisibility.ts';
+import {
+  projectDrawingPreludeRequesterSummary,
+  projectPrivateDrawingPreludeCuesForRequester,
+  redactPrivateDrawingPreludeCuesForPublic,
+} from '../engine/state/drawingPreludeProjection.ts';
 import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
 import { computeLineBonusesForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
 import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers.ts';
@@ -2151,31 +2156,47 @@ export function registerGameRoutes(
         joiningBonusLinesByPlayerId,
         bonusBreakdownByPlayerId,
         presentationEvents: {
-          shipActivationCueBatches: projectShipActivationCueBatches(
-            turnData.shipActivationCueBatches,
-            phaseKey,
-            gameData.status,
-            currentTurnNumber,
+          shipActivationCueBatches: redactPrivateDrawingPreludeCuesForPublic(
+            gameData,
+            projectShipActivationCueBatches(
+              turnData.shipActivationCueBatches,
+              phaseKey,
+              gameData.status,
+              currentTurnNumber,
+            ),
           ),
         },
         ancient: publicAncientState,
       };
+      const drawingPrelude = projectDrawingPreludeRequesterSummary(
+        gameData,
+        requestingPlayerId,
+      );
+      const requesterShipActivationCueBatches = [
+        ...projectRequesterShipActivationCueBatches(
+          turnData.shipActivationCueBatches,
+          phaseKey,
+          gameData.status,
+          currentTurnNumber,
+          requestingPlayerId,
+          participant?.role
+        ),
+        ...projectPrivateDrawingPreludeCuesForRequester(
+          gameData,
+          turnData.shipActivationCueBatches,
+          requestingPlayerId,
+        ),
+      ].sort((left, right) => left.seq - right.seq);
       const requester = {
         playerId: requestingPlayerId,
         availableActions,
+        ...(drawingPrelude ? { drawingPrelude } : {}),
         buildEconomy: buildEconomyByPlayerId[requestingPlayerId] ?? null,
         buildEconomyByPlayerId,
         lastTurnDamageDealtBreakdownByPlayerId,
         lastTurnHealingReceivedBreakdownByPlayerId,
         presentationEvents: {
-          shipActivationCueBatches: projectRequesterShipActivationCueBatches(
-            turnData.shipActivationCueBatches,
-            phaseKey,
-            gameData.status,
-            currentTurnNumber,
-            requestingPlayerId,
-            participant?.role
-          ),
+          shipActivationCueBatches: requesterShipActivationCueBatches,
         },
       };
       const result = {

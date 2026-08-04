@@ -2583,3 +2583,170 @@ Deno.test('duplicate-safe /intent repairs once and skips a no-op persistence', a
     false,
   );
 });
+
+Deno.test('Drawing-prelude foundations project identical private fleets through GET and intent state responses', async () => {
+  const state: any = createSetupState('drawing-prelude-route-projection');
+  state.players.push(
+    {
+      id: 'p2', name: 'Player Two', role: 'player', faction: 'xenite',
+      isReady: false, isActive: true, health: 25, lines: 3, joiningLines: 0,
+    },
+    {
+      id: 'spectator', name: 'Spectator', role: 'spectator', faction: null,
+      isReady: false, isActive: false, health: 0, lines: 0, joiningLines: 0,
+    },
+  );
+  state.currentPhase = 'build';
+  state.currentSubPhase = 'drawing';
+  state.turnNumber = 5;
+  state.gameData.currentPhase = 'build';
+  state.gameData.currentSubPhase = 'drawing';
+  state.gameData.turnNumber = 5;
+  state.gameData.ships = {
+    p1: [
+      { instanceId: 'p1-public', shipDefId: 'DEF', createdTurn: 4 },
+      { instanceId: 'p1-hidden', shipDefId: 'FIG', createdTurn: 5 },
+    ],
+    p2: [
+      { instanceId: 'p2-public', shipDefId: 'XEN', createdTurn: 4 },
+      { instanceId: 'p2-hidden', shipDefId: 'ANT', createdTurn: 5 },
+    ],
+  };
+  state.gameData.turnData = {
+    turnNumber: 5,
+    currentMajorPhase: 'build',
+    currentSubPhase: 'drawing',
+    drawingPreludeByPlayerId: {
+      p1: {
+        turnNumber: 5, requiredPassCount: 1, activePassIndex: 1,
+        status: 'complete', eligibleSourcePowers: [], resolvedSourcePowerKeysByPass: {},
+      },
+      p2: {
+        turnNumber: 5, requiredPassCount: 1, activePassIndex: 1,
+        status: 'complete', eligibleSourcePowers: [], resolvedSourcePowerKeysByPass: {},
+      },
+    },
+    buildDrawingPublicFleetByPlayerId: {
+      p1: [{ instanceId: 'p1-public', shipDefId: 'DEF', createdTurn: 4 }],
+      p2: [{ instanceId: 'p2-public', shipDefId: 'XEN', createdTurn: 4 }],
+    },
+    shipActivationCueBatches: [
+      {
+        key: 'ship-activation:5:build.drawing:drawing-prelude:p1:pass:1',
+        turnNumber: 5, phaseKey: 'build.drawing', seq: 1,
+        sources: [{ playerId: 'p1', sourceInstanceId: 'p1-private-cue' }],
+      },
+      {
+        key: 'ship-activation:5:build.drawing:drawing-prelude:p2:pass:1',
+        turnNumber: 5, phaseKey: 'build.drawing', seq: 2,
+        sources: [{ playerId: 'p2', sourceInstanceId: 'p2-private-cue' }],
+      },
+    ],
+  };
+  state.battleLogScratch = { currentTurnCapture: null, lastFinalizedTurnNumber: null };
+  const normalized = normalizeAncientGameState(state).state;
+
+  const getFixture = createGameRouteFixture();
+  getFixture.store.set('game_drawing-prelude-route-projection', structuredClone(normalized));
+  const getState = getFixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
+  const ownerBody = await responseJson(await getState(createContext({
+    params: { gameId: 'drawing-prelude-route-projection' },
+  })));
+  assert.deepEqual(ownerBody.publicState.ships.p1.map((entry: any) => entry.instanceId), [
+    'p1-public', 'p1-hidden',
+  ]);
+  assert.deepEqual(ownerBody.publicState.ships.p2.map((entry: any) => entry.instanceId), [
+    'p2-public',
+  ]);
+  assert.deepEqual(ownerBody.requester.drawingPrelude, {
+    turnNumber: 5, status: 'complete', passIndex: 1, passCount: 1,
+  });
+  assert.deepEqual(
+    ownerBody.publicState.presentationEvents.shipActivationCueBatches,
+    [],
+  );
+  assert.deepEqual(
+    ownerBody.requester.presentationEvents.shipActivationCueBatches
+      .flatMap((batch: any) => batch.sources.map((source: any) => source.sourceInstanceId)),
+    ['p1-private-cue'],
+  );
+  assert.equal('drawingPreludeByPlayerId' in ownerBody.gameData.turnData, false);
+  assert.equal('buildDrawingPublicFleetByPlayerId' in ownerBody.gameData.turnData, false);
+
+  getFixture.setSessionId('spectator');
+  const spectatorBody = await responseJson(await getState(createContext({
+    params: { gameId: 'drawing-prelude-route-projection' },
+  })));
+  assert.deepEqual(spectatorBody.publicState.ships.p1.map((entry: any) => entry.instanceId), ['p1-public']);
+  assert.deepEqual(spectatorBody.publicState.ships.p2.map((entry: any) => entry.instanceId), ['p2-public']);
+  assert.equal('drawingPrelude' in spectatorBody.requester, false);
+
+  const intentFixture = createIntentRouteFixture({ storedState: normalized });
+  const intent = intentFixture.app.handler('POST', '/make-server-825e19ab/intent');
+  const intentResponse = await intent(createContext({
+    body: {
+      gameId: 'drawing-prelude-route-projection',
+      intentType: 'ACTION',
+      turnNumber: 99,
+      payload: { actionType: 'message', content: 'stale' },
+    },
+  }));
+  const intentBody = await responseJson(intentResponse);
+  assert.equal(intentResponse.status, 400);
+  assert.deepEqual(intentBody.state.gameData.ships.p1.map((entry: any) => entry.instanceId), [
+    'p1-public', 'p1-hidden',
+  ]);
+  assert.deepEqual(intentBody.state.gameData.ships.p2.map((entry: any) => entry.instanceId), [
+    'p2-public',
+  ]);
+  assert.equal('drawingPreludeByPlayerId' in intentBody.state.gameData.turnData, false);
+  assert.equal('buildDrawingPublicFleetByPlayerId' in intentBody.state.gameData.turnData, false);
+  assert.deepEqual(
+    intentBody.state.gameData.turnData.shipActivationCueBatches
+      .flatMap((batch: any) => batch.sources.map((source: any) => source.sourceInstanceId)),
+    ['p1-private-cue'],
+  );
+  assert.equal(intentFixture.writes.length, 0);
+
+  const acceptedFixture = createIntentRouteFixture({ storedState: normalized });
+  const acceptedIntent = acceptedFixture.app.handler(
+    'POST',
+    '/make-server-825e19ab/intent',
+  );
+  const acceptedResponse = await acceptedIntent(createContext({
+    body: {
+      gameId: 'drawing-prelude-route-projection',
+      intentType: 'ACTION',
+      turnNumber: 5,
+      payload: { actionType: 'message', content: 'accepted projection' },
+    },
+  }));
+  const acceptedBody = await responseJson(acceptedResponse);
+  assert.equal(acceptedResponse.status, 200);
+  assert.deepEqual(
+    acceptedBody.state.gameData.ships.p1.map((entry: any) => entry.instanceId),
+    ['p1-public', 'p1-hidden'],
+  );
+  assert.deepEqual(
+    acceptedBody.state.gameData.ships.p2.map((entry: any) => entry.instanceId),
+    ['p2-public'],
+  );
+  assert.equal(
+    'drawingPreludeByPlayerId' in acceptedBody.state.gameData.turnData,
+    false,
+  );
+  assert.equal(
+    'buildDrawingPublicFleetByPlayerId' in acceptedBody.state.gameData.turnData,
+    false,
+  );
+  assert.deepEqual(
+    acceptedBody.state.gameData.turnData.shipActivationCueBatches
+      .flatMap((batch: any) =>
+        batch.sources.map((source: any) => source.sourceInstanceId)
+      ),
+    ['p1-private-cue'],
+  );
+  assert.equal('requester' in acceptedBody, false);
+  assert.equal(acceptedBody.state.gameData.currentPhase, 'build');
+  assert.equal(acceptedBody.state.gameData.currentSubPhase, 'drawing');
+});

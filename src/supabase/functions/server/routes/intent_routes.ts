@@ -48,6 +48,9 @@ import {
 import {
   filterChargeDeclarationEventsForViewer,
 } from '../engine/state/chargeDeclarationVisibility.ts';
+import {
+  filterDrawingPreludeEventsForViewer,
+} from '../engine/state/drawingPreludeProjection.ts';
 
 function logAncientCompatibilityRisks(
   boundary: string,
@@ -169,7 +172,11 @@ function sanitizeEventsForResponse(
   return filterChargeDeclarationEventsForViewer(
     state,
     requestingParticipantId,
-    events,
+    filterDrawingPreludeEventsForViewer(
+      state,
+      requestingParticipantId,
+      events,
+    ),
   );
 }
 

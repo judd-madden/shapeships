@@ -37,6 +37,27 @@ export type ShipInstance = {
   permanentConfiguration?: ShipPermanentConfiguration;
 };
 
+export type DrawingPreludePassIndex = 1 | 2;
+
+export type DrawingPreludeSourcePower = {
+  key: string;
+  sourceInstanceId: string;
+  shipDefId: string;
+  rawPowerIndex: number;
+  mode: 'automatic' | 'interactive';
+};
+
+export type DrawingPreludePlayerState = {
+  turnNumber: number;
+  requiredPassCount: 1 | 2;
+  activePassIndex: DrawingPreludePassIndex;
+  status: 'awaiting_actions' | 'complete';
+  eligibleSourcePowers: DrawingPreludeSourcePower[];
+  resolvedSourcePowerKeysByPass: Partial<
+    Record<DrawingPreludePassIndex, string[]>
+  >;
+};
+
 /**
  * Player state in the game
  */
@@ -371,6 +392,11 @@ export type GameData = {
       savedLines: number;
       savedJoiningLines: number;
     }>;
+
+    /** Inactive Phase 14 Drawing-prelude turn scratch. */
+    drawingPreludeByPlayerId?: Record<string, DrawingPreludePlayerState>;
+    /** Drawing-entry public fleet baseline used by viewer projection. */
+    buildDrawingPublicFleetByPlayerId?: Record<string, ShipInstance[]>;
 
     /** Shared/public Chronoswarm rolls captured at build.dice_roll for this turn */
     chronoswarmRolls?: number[];
