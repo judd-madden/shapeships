@@ -1048,8 +1048,15 @@ export function AncientShipCataloguePanel({
             return (
               <div
                 key={slot.id}
-                className="absolute"
+                className="ss-catalogueShipSlot absolute"
                 data-solar-power-id={slot.id}
+                data-catalogue-graphic-hover={
+                  !hoverDisabled &&
+                  (presentation === 'reference' ||
+                    (isActiveResolvedPowersStage && isSolarUsable))
+                    ? '1'
+                    : undefined
+                }
                 style={{
                   left: position.x,
                   top: position.y,

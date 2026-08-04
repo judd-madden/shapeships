@@ -28,8 +28,8 @@ export function AncientSolarPowerSlot({
   ariaLabel,
 }: AncientSolarPowerSlotProps) {
   const className = costPlacement === 'below'
-    ? 'flex flex-col items-center gap-[8px] border-0 bg-transparent p-0 text-inherit'
-    : 'flex items-center gap-[8px] border-0 bg-transparent p-0 text-inherit';
+    ? 'ss-catalogueShipGraphic flex flex-col items-center gap-[8px] border-0 bg-transparent p-0 text-inherit'
+    : 'ss-catalogueShipGraphic flex items-center gap-[8px] border-0 bg-transparent p-0 text-inherit';
   const content = (
     <>
       <Graphic />
