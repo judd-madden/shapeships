@@ -96,12 +96,12 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   // ==========================================================================
   // INTERCEPTOR (INT)
   // ==========================================================================
-  // JSON power index 0: Choice power (Charge Declaration, Charge Response)
+  // JSON power index 0: Choice power (Charge Declaration)
   // Options: damage (5 damage), heal (7 heal), hold (no effect)
   'INT#0': [
     {
       type: 'choice',
-      timings: ['battle.charge_declaration', 'battle.charge_response'],
+      timings: ['battle.charge_declaration'],
       requiresCharge: true,
       chargeCost: 1,
       options: [
@@ -373,14 +373,14 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   // ==========================================================================
   // ANTLION (ANT)
   // ==========================================================================
-  // Choice power (Charge Declaration, Charge Response)
+  // Choice power (Charge Declaration)
   // - damage: SpendCharge(1) + Damage(3)
   // - heal: SpendCharge(1) + Heal(4)
   // - hold: no effect
   'ANT#0': [
     {
       type: 'choice',
-      timings: ['battle.charge_declaration', 'battle.charge_response'],
+      timings: ['battle.charge_declaration'],
       requiresCharge: true,
       chargeCost: 1,
       options: [
@@ -436,14 +436,14 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   // ==========================================================================
   // SHIP OF WISDOM (WIS)
   // ==========================================================================
-  // Choice power (Charge Declaration, Charge Response)
+  // Choice power (Charge Declaration)
   // - damage: SpendCharge(1) + Damage(3)
   // - heal: SpendCharge(1) + Heal(4)
   // - hold: no effect
   'WIS#0': [
     {
       type: 'choice',
-      timings: ['battle.charge_declaration', 'battle.charge_response'],
+      timings: ['battle.charge_declaration'],
       requiresCharge: true,
       chargeCost: 1,
       options: [
@@ -499,7 +499,7 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   // ==========================================================================
   // SHIP OF FAMILY (FAM)
   // ==========================================================================
-  // Choice power (Charge Declaration, Charge Response)
+  // Choice power (Charge Declaration)
   // - damage: SpendCharge(1) + Damage(distinct owned ship types)
   // - heal: SpendCharge(1) + Heal(distinct owned ship types)
   // - hold: no effect
@@ -507,7 +507,7 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   'FAM#0': [
     {
       type: 'choice',
-      timings: ['battle.charge_declaration', 'battle.charge_response'],
+      timings: ['battle.charge_declaration'],
       requiresCharge: true,
       chargeCost: 1,
       options: [
@@ -563,13 +563,13 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   // ==========================================================================
   // SHIP OF EQUALITY (EQU)
   // ==========================================================================
-  // Choice power (Charge Declaration, Charge Response)
+  // Choice power (Charge Declaration)
   // - damage: SpendCharge(1) + paired destroy resolved authoritatively in resolvePowerAction
   // - hold: no effect
   'EQU#0': [
     {
       type: 'choice',
-      timings: ['battle.charge_declaration', 'battle.charge_response'],
+      timings: ['battle.charge_declaration'],
       requiresCharge: true,
       chargeCost: 1,
       options: [

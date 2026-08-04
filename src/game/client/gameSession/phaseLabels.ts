@@ -23,7 +23,6 @@ const SUBPHASE_LABEL_OVERRIDES: Record<string, string> = {
   'battle.reveal': 'Reveal',
   'battle.first_strike': 'First Strike',
   'battle.charge_declaration': 'Charge Declaration',
-  'battle.charge_response': 'Charge Response',
   'battle.end_of_turn_resolution': 'End of Turn',
 };
 

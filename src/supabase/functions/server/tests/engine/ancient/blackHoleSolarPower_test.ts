@@ -621,10 +621,6 @@ Deno.test('accepted Black Hole declaration survives JSON reload and resolves onc
   state.gameData.currentSubPhase = 'charge_declaration';
   state.gameData.turnData.currentSubPhase = 'charge_declaration';
   state.gameData.phaseReadiness = [];
-  state.gameData.turnData.chargeDeclarationEligibleByPlayerId = {
-    p1: false,
-    p2: false,
-  };
   state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
     p1: [],
     p2: [],

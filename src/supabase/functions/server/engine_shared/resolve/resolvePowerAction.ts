@@ -79,7 +79,7 @@ export function getFleetForChargeScopedDynamicCount(
   playerId: string,
   phaseKey: PhaseKey
 ): ShipInstance[] {
-  if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+  if (phaseKey === 'battle.charge_declaration') {
     const snapshot =
       state?.gameData?.turnData?.chargeDeclarationFleetSnapshotByPlayerId?.[playerId];
 
@@ -146,8 +146,7 @@ export function resolvePowerAction(input: ResolvePowerActionInput): ResolvePower
   // 2. FIND SHIP INSTANCE
   // ============================================================================
 
-  const isChargePhase =
-    phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response';
+  const isChargePhase = phaseKey === 'battle.charge_declaration';
   const snappedSourceIds = isChargePhase ? getSnappedChargeSourceIds(state, playerId) : [];
 
   if (isChargePhase && !snappedSourceIds.includes(sourceInstanceId)) {

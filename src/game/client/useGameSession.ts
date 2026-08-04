@@ -3119,8 +3119,7 @@ export function useGameSession(
       phaseKey !== 'build.dice_roll' &&
       phaseKey !== 'build.ships_that_build' &&
       phaseKey !== 'battle.first_strike' &&
-      phaseKey !== 'battle.charge_declaration' &&
-      phaseKey !== 'battle.charge_response'
+      phaseKey !== 'battle.charge_declaration'
     ) {
       return;
     }
@@ -4169,7 +4168,6 @@ useEffect(() => {
           : getFirstStrikePanelIdForFamily(activeFirstStrikeFamily);
       
       case 'battle.charge_declaration':
-      case 'battle.charge_response':
         if (mySpecies === 'human') return 'ap.battle.charges.human';
         if (mySpecies === 'xenite') return 'ap.battle.charges.xenite';
         if (mySpecies === 'centaur') {
@@ -4284,7 +4282,7 @@ useEffect(() => {
   useEffect(() => {
     const isCentaurChargePhase =
       mySpecies === 'centaur' &&
-      (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response');
+      phaseKey === 'battle.charge_declaration';
 
     if (!isCentaurChargePhase || centaurChargeAvailableTabs.length === 0) {
       return;
@@ -4642,8 +4640,7 @@ useEffect(() => {
       phaseKey === 'build.dice_roll' ||
       phaseKey === 'build.ships_that_build' ||
       phaseKey === 'battle.first_strike' ||
-      phaseKey === 'battle.charge_declaration' ||
-      phaseKey === 'battle.charge_response';
+      phaseKey === 'battle.charge_declaration';
     
     if (isServerChoicePhase && availableActions == null) {
       readyEnabled = false;

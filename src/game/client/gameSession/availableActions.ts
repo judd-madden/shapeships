@@ -244,8 +244,7 @@ export function isDeferredAutoPanelHandoffPhase(phaseKey: PhaseKey): boolean {
     phaseKey === 'build.dice_roll' ||
     phaseKey === 'build.ships_that_build' ||
     phaseKey === 'battle.first_strike' ||
-    phaseKey === 'battle.charge_declaration' ||
-    phaseKey === 'battle.charge_response'
+    phaseKey === 'battle.charge_declaration'
   );
 }
 
@@ -268,7 +267,7 @@ export function getRenderableServerChoiceActions(
       return action.kind === 'choice' || action.kind === 'destroy_target';
     }
 
-    if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+    if (phaseKey === 'battle.charge_declaration') {
       return action.kind === 'choice' || action.kind === 'paired_destroy_target';
     }
 
@@ -311,7 +310,7 @@ export function getRenderableActionShipPresence(
       }
 
       if (
-        (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') &&
+        phaseKey === 'battle.charge_declaration' &&
         (action.shipDefId === 'WIS' ||
           action.shipDefId === 'FAM' ||
           action.shipDefId === 'INT' ||
@@ -321,7 +320,7 @@ export function getRenderableActionShipPresence(
       }
 
       if (
-        (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') &&
+        phaseKey === 'battle.charge_declaration' &&
         action.shipDefId === 'EQU'
       ) {
         presence.hasCentaurEquChargeAction = true;

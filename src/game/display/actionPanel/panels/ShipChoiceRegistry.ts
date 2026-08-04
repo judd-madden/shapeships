@@ -34,11 +34,6 @@ export interface ShipChoiceButtonsPanelSpec {
     | ShipChoiceNamedShipGroupSpec
   >;
 
-  /**
-   * UI-only. When true, ShipChoicesPanel should show the OpponentAlsoHasCharges callout.
-   * Condition wiring comes later; for now we can set true for charge declaration panels.
-   */
-  showOpponentAlsoHasCharges?: boolean;
 }
 
 export interface ShipChoiceCountedShipGroupSpec {
@@ -365,7 +360,6 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
 
   'ap.battle.charges.human': {
     kind: 'buttons',
-    showOpponentAlsoHasCharges: true,
     groups: [
       {
         kind: 'counted',
@@ -378,7 +372,6 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
 
   'ap.battle.charges.xenite': {
     kind: 'buttons',
-    showOpponentAlsoHasCharges: true,
     groups: [
       {
         kind: 'counted',
@@ -391,7 +384,6 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
 
   'ap.battle.charges.centaur': {
     kind: 'buttons',
-    showOpponentAlsoHasCharges: true,
     groups: [
       {
         kind: 'counted',
@@ -485,7 +477,6 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
 
   'ap.battle.charges.centaur.ship_of_equality': {
     kind: 'buttons',
-    showOpponentAlsoHasCharges: true,
     groups: [
       {
         kind: 'counted',
@@ -514,7 +505,6 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
 
   'ap.battle.charges.ancient': {
     kind: 'buttons',
-    showOpponentAlsoHasCharges: true,
     groups: [
       {
         kind: 'counted',

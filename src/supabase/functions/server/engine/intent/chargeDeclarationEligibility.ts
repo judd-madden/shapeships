@@ -7,7 +7,7 @@ import {
   requireChargeDeclarationLegalityState,
 } from '../state/chargeDeclarationVisibility.ts';
 
-export type ChargePhaseKey = 'battle.charge_declaration' | 'battle.charge_response';
+export type ChargePhaseKey = 'battle.charge_declaration';
 
 export function getChargeDeclarationLegalityState<T = any>(state: T): T {
   return requireChargeDeclarationLegalityState(state);
@@ -176,20 +176,4 @@ export function ancientAtomicDeclarationContractApplies(state: any, playerId: st
   if (!isAncientPlayer(state, playerId)) return false;
   return getAcceptedDeclarationForCurrentBattle(state, playerId) !== null ||
     playerRequiresChargeDeclarationInput(state, playerId);
-}
-
-export function getAvailableOrdinaryChargeResponseSourceIds(state: any, playerId: string): string[] {
-  return getSnappedOrdinaryChargeSourceIds(state, playerId).filter((sourceInstanceId) => {
-    const source = resolveChargeDeclarationSource(state, playerId, sourceInstanceId);
-    return !!source && sourceHasEligibleOrdinaryChargeChoice(
-      state,
-      playerId,
-      source,
-      'battle.charge_response',
-    );
-  });
-}
-
-export function playerHasOrdinaryChargeResponseOption(state: any, playerId: string): boolean {
-  return getAvailableOrdinaryChargeResponseSourceIds(state, playerId).length > 0;
 }

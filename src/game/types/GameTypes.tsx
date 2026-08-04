@@ -112,12 +112,6 @@ export interface DeclareChargeActionData {
   targetPlayerId?: string; // Target (if applicable)
 }
 
-export interface ChargeResponseActionData {
-  respondingShipId: string; // Ship responding with charge/solar
-  powerIndex: number;
-  respondingToShipId: string; // Original charge declarer
-}
-
 // Union type for all action data
 export type GameActionData = 
   | BuildShipActionData
@@ -127,7 +121,6 @@ export type GameActionData =
   | DiceManipulationActionData
   | UsePowerActionData
   | DeclareChargeActionData
-  | ChargeResponseActionData
   | Record<string, never>; // Empty object for actions with no data
 
 // ============================================================================
@@ -145,7 +138,7 @@ export interface CombatAction {
   id: string;
   playerId: string;
   shipId: string;
-  actionType: 'charge' | 'charge_response' | 'solar_response' | 'first_strike';
+  actionType: 'charge' | 'first_strike';
   powerIndex: number;
   targetPlayerId?: string;
   targetShipId?: string;
@@ -260,7 +253,6 @@ export interface PlayerShip {
   currentCharges?: number; // Current charges available
   maxCharges?: number; // Maximum charges this ship can hold
   chargesRemaining?: number; // Alias for currentCharges (for backward compat)
-  chargesDeclaredThisPhase?: string[]; // Power indices used this phase (for "one per subphase" rule)
   
   // ============================================================================
   // POWER USAGE HISTORY
@@ -309,7 +301,7 @@ export interface PowerUsageRecord {
 export interface GameAction {
   id: string;
   playerId: string;
-  type: 'build_ship' | 'upgrade_ship' | 'build_ship_via_power' | 'save_lines' | 'use_dice_manipulation' | 'use_ship_building_power' | 'use_drawing_phase_power' | 'trigger_upon_completion_power' | 'use_end_build_phase_power' | 'use_first_strike_power' | 'declare_charge' | 'use_solar_power' | 'respond_with_charge' | 'respond_with_solar_power' | 'use_end_battle_phase_power' | 'declare_ready' | 'surrender';
+  type: 'build_ship' | 'upgrade_ship' | 'build_ship_via_power' | 'save_lines' | 'use_dice_manipulation' | 'use_ship_building_power' | 'use_drawing_phase_power' | 'trigger_upon_completion_power' | 'use_end_build_phase_power' | 'use_first_strike_power' | 'declare_charge' | 'use_solar_power' | 'use_end_battle_phase_power' | 'declare_ready' | 'surrender';
   data: GameActionData;
   timestamp: string;
   validated?: boolean;
@@ -471,7 +463,7 @@ export interface TurnData {
   chargeDeclarations?: unknown[];
   
   /**
-   * @deprecated Use battleCommitments.response
+   * @deprecated Use battleCommitments.declaration
    */
   solarPowerDeclarations?: unknown[];
   

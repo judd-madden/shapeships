@@ -25,8 +25,7 @@ const PHASE_ROWS: PhaseRow[] = [
 
   { key: 'battle.first_strike', label: '6 First Strike', group: 'battle' },
   { key: 'battle.charge_declaration', label: '7 Charge Declaration', group: 'battle' },
-  { key: 'battle.charge_response', label: '8 Charge Response', group: 'battle' },
-  { key: 'battle.end_of_turn_resolution', label: '9 End of Turn Resolution', group: 'battle' },
+  { key: 'battle.end_of_turn_resolution', label: '8 End of Turn Resolution', group: 'battle' },
 ];
 
 export function PhaseBreakdownView({

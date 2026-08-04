@@ -7,6 +7,8 @@ import type {
 import {
   appendBattleLogTurnSummaryIdempotently,
   buildBattleLogTurnSummaryFromScratch,
+  createBattleLogBattleCaptureEventsFromResolution,
+  foldBattleLogCaptureEventsIntoScratch,
   normalizeBattleLogHistoryStore,
 } from "../../../engine/state/battleLogHistory.ts";
 
@@ -151,6 +153,56 @@ Deno.test("non-finite stored maximum health normalizes to the default", () => {
   assert.equal(
     normalized.turns[0].players[0].maxHealthEnd,
     DEFAULT_PLAYER_MAX_HEALTH,
+  );
+});
+
+Deno.test("accepted charge actions are captured once only during final Declaration", () => {
+  const resolution = {
+    stateBeforeResolution: {
+      gameData: { ships: { p1: [], p2: [] } },
+    },
+    turnNumber: 6,
+    playerId: "p1",
+    choiceId: "damage",
+    effects: [{
+      kind: "Damage",
+      amount: 5,
+      targetPlayerId: "p2",
+      timing: "end_of_turn",
+      source: {
+        type: "ship",
+        playerId: "p1",
+        shipDefId: "INT",
+        shipInstanceId: "p1-int",
+      },
+    }],
+    effectEvents: [],
+  };
+  const declarationEvents = createBattleLogBattleCaptureEventsFromResolution({
+    ...resolution,
+    phaseKey: "battle.charge_declaration",
+  } as any);
+  const outsideDeclaration = createBattleLogBattleCaptureEventsFromResolution({
+    ...resolution,
+    phaseKey: "battle.end_of_turn_resolution",
+  } as any);
+
+  assert.deepEqual(declarationEvents, [{
+    type: "BATTLE_LOG_CAPTURE_BATTLE_CHARGE_ACTION",
+    turnNumber: 6,
+    playerId: "p1",
+    sourceShipDefId: "INT",
+    actionLabel: "Damage",
+  }]);
+  assert.deepEqual(outsideDeclaration, []);
+
+  const scratch = foldBattleLogCaptureEventsIntoScratch(
+    { currentTurnCapture: null, lastFinalizedTurnNumber: 5 },
+    declarationEvents,
+  );
+  assert.equal(
+    scratch.currentTurnCapture?.battleAtomsByPlayerId.p1.length,
+    1,
   );
 });
 

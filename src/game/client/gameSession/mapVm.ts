@@ -906,10 +906,6 @@ export function mapGameSessionVm(args: {
   let shipChoices:
     | {
         groups: ShipChoicesPanelGroup[];
-        showOpponentAlsoHasCharges?: boolean;
-        opponentEligibleAtDeclarationStart?: boolean;
-        opponentAlsoHasChargesHeading?: string;
-        opponentAlsoHasChargesLines?: string[];
         selectedChoiceIdBySourceInstanceId?: Record<string, string>;
         centaurChargeTabs?: {
           activeTab: CentaurChargeSubTabId;
@@ -926,21 +922,13 @@ export function mapGameSessionVm(args: {
       phaseKey === 'build.dice_roll' ||
       phaseKey === 'build.ships_that_build' ||
       phaseKey === 'battle.first_strike' ||
-      phaseKey === 'battle.charge_declaration' || 
-      phaseKey === 'battle.charge_response';
+      phaseKey === 'battle.charge_declaration';
 
     const derivedGroups: ShipChoicesPanelGroup[] = [];
 
     if (isServerChoicePhase && Array.isArray(availableActions)) {
       // Server-choice phases: derive from authoritative availableActions
-      const choiceActions = getRenderableServerChoiceActions(phaseKey, availableActions).filter(
-        (action) =>
-          !(
-            phaseKey === 'battle.charge_response' &&
-            finalActivePanelId === 'ap.battle.charges.ancient' &&
-            (action.actionId === 'SOL#0' || action.shipDefId === 'SOL')
-          )
-      );
+      const choiceActions = getRenderableServerChoiceActions(phaseKey, availableActions);
 
       // Build map of instanceId -> currentCharges for phase-start snapshot
       const chargesByInstanceId = new Map<string, number>();
@@ -1132,19 +1120,8 @@ export function mapGameSessionVm(args: {
 
     // Only set shipChoices if we have groups
     if (derivedGroups.length > 0) {
-      const eligibleSnapshot =
-        gameData?.turnData?.chargeDeclarationEligibleByPlayerId as Record<string, boolean> | undefined;
-
-      const opponentEligibleAtDeclarationStart =
-        phaseKey === 'battle.charge_declaration' &&
-        !!(opponent?.id && eligibleSnapshot && eligibleSnapshot[opponent.id] === true);
-
       shipChoices = {
         groups: derivedGroups,
-        showOpponentAlsoHasCharges: shipChoiceSpec.showOpponentAlsoHasCharges ?? false,
-        opponentEligibleAtDeclarationStart,
-        opponentAlsoHasChargesHeading: undefined,
-        opponentAlsoHasChargesLines: undefined,
         selectedChoiceIdBySourceInstanceId,
         centaurChargeTabs:
           finalActivePanelId === 'ap.battle.charges.centaur' &&
@@ -1508,7 +1485,7 @@ export function mapGameSessionVm(args: {
     
     bottomActionRail: {
       // Future: build.drawing custom heading "X/Y lines available" + breakdown "Saved + Bonus + Dice" must come from server-authoritative fields (do not compute client-side).
-      // Future: charge declaration/response subtexts should be gated by server-projected availability (e.g. availableActions / boolean), not guessed client-side.
+      // Future: charge declaration subtexts should be gated by server-projected availability (e.g. availableActions / boolean), not guessed client-side.
       subphaseTitle,
       subphaseTitleSuffix,
       mobileSubphaseTitleExtra,

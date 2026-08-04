@@ -42,7 +42,6 @@ export enum ShipPowerPhase {
   // Battle Phase
   FIRST_STRIKE = 'First Strike',
   SIMULTANEOUS_DECLARATION = 'Simultaneous Declaration',
-  CONDITIONAL_RESPONSE = 'Conditional Response',
   
   // Special
   DICE_MANIPULATION = 'Dice Manipulation',

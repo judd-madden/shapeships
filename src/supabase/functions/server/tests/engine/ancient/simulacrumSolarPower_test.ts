@@ -202,10 +202,6 @@ Deno.test("accepted Simulacrum Cube survives reload through materialization and 
   state.gameData.phaseReadiness = [];
   state.gameData.turnData.currentMajorPhase = "battle";
   state.gameData.turnData.currentSubPhase = "charge_declaration";
-  state.gameData.turnData.chargeDeclarationEligibleByPlayerId = {
-    "z-owner": false,
-    "a-owner": false,
-  };
   state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
     "z-owner": [],
     "a-owner": [],

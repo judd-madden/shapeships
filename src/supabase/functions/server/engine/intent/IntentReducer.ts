@@ -2443,16 +2443,9 @@ async function handleBattleReveal(
   nowMs: number,
   events: any[]
 ): Promise<IntentResult> {
-  // TODO: Implement full battle reveal protocol
-  // When implemented, this should:
-  // 1. Validate payload contains declarations array
-  // 2. Check if any declarations are present (not empty or all "hold")
-  // 3. If ANY player makes declarations, set turnData.anyChargesDeclared = true
-  // 4. This flag gates battle.charge_response phase
-  // 
-  // NOTE: anyChargesDeclared is a turn-scoped gating flag, intentionally unset
-  // until battle intents are implemented. Charge Response gating is therefore
-  // dormant but correct.
+  // TODO: Implement the dormant battle commit/reveal protocol if a future pass
+  // adopts it. The active Charge Declaration path uses ACTION/ACTIONS_SUBMIT and
+  // CHARGE_DECLARATION_SUBMIT instead.
   
   return {
     ok: false,
@@ -3141,7 +3134,7 @@ function handleAction(
         );
       }
 
-      if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+      if (phaseKey === 'battle.charge_declaration') {
         events.push(
           ...createBattleLogBattleCaptureEventsFromResolution({
             stateBeforeResolution,
@@ -3158,14 +3151,6 @@ function handleAction(
       // ============================================================================
       // FLIP DECLARATION-SPENT FLAG (only in charge_declaration)
       // ============================================================================
-      if (phaseKey === 'battle.charge_declaration' && outcome.spentCharge === true) {
-        // Ensure turnData exists
-        if (!state.gameData) state.gameData = {};
-        if (!state.gameData.turnData) state.gameData.turnData = {};
-        
-        state.gameData.turnData.anyChargesSpentInDeclaration = true;
-      }
-      
       // ============================================================================
       // EMIT GENERIC EVENT
       // ============================================================================
@@ -3502,7 +3487,7 @@ function handleActionsSubmit(
         );
       }
 
-      if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
+      if (phaseKey === 'battle.charge_declaration') {
         events.push(
           ...createBattleLogBattleCaptureEventsFromResolution({
             stateBeforeResolution,
@@ -3514,13 +3499,6 @@ function handleActionsSubmit(
             effectEvents,
           }),
         );
-      }
-
-      if (phaseKey === 'battle.charge_declaration' && outcome.spentCharge === true) {
-        if (!state.gameData) state.gameData = {};
-        if (!state.gameData.turnData) state.gameData.turnData = {};
-
-        state.gameData.turnData.anyChargesSpentInDeclaration = true;
       }
 
       events.push({

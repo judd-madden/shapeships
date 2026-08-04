@@ -49,9 +49,6 @@ export type OrderedBotBuildPlan = {
 export type CarrierChoiceId = 'defender' | 'fighter' | 'hold';
 export type DamageHealChoiceId = 'damage' | 'heal';
 export type InterceptorChoiceId = DamageHealChoiceId;
-export type DamageHealChargePhase =
-  | 'battle.charge_declaration'
-  | 'battle.charge_response';
 export type FrigateFirstChoiceMode = 'match_current_roll';
 export type FrigateAdditionalChoiceMode = 'stack_existing' | 'spread_sequence';
 
@@ -70,7 +67,6 @@ export type DamageHealChargePolicy = {
   preferDamageWhen?: 'default';
   healSelfAtOrBelow?: number;
   damageOpponentAtOrBelow?: number;
-  phases?: DamageHealChargePhase[];
 };
 
 export type InterceptorChargePolicy = DamageHealChargePolicy;

@@ -524,8 +524,7 @@ export async function runReadyToggleFlow(args: {
     if (
       phaseKey === 'build.dice_roll' ||
       phaseKey === 'battle.first_strike' ||
-      phaseKey === 'battle.charge_declaration' ||
-      phaseKey === 'battle.charge_response'
+      phaseKey === 'battle.charge_declaration'
     ) {
       console.log(`[useGameSession] ${phaseKey}: preparing batch submission...`);
       const resolvedAvailableActions = await resolveAvailableActionsOrAbort({

@@ -64,7 +64,6 @@ function createState(): any {
         turnNumber: 3,
         currentMajorPhase: 'battle',
         currentSubPhase: 'charge_declaration',
-        chargeDeclarationEligibleByPlayerId: { p1: true, p2: false },
         chargeDeclarationEligibleSourceIdsByPlayerId: { p1: ['int-1', 'int-2'], p2: [] },
         solarGridDeclarationSourceIdsByPlayerId: { p1: ['sol-a', 'sol-b'], p2: [] },
         chargeDeclarationFleetSnapshotByPlayerId: {
@@ -77,7 +76,6 @@ function createState(): any {
           p2: [],
         },
         chargePowerUsedByInstanceId: {},
-        anyChargesSpentInDeclaration: false,
       },
       pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
       ancient: {
@@ -344,7 +342,6 @@ Deno.test('mixed ordinary charge and independent SOL Use/Hold choices commit det
     result.state.gameData.ancient.energyByPlayerId.p1.sources.map((source: any) => source.sourceId),
     ['initial-core', 'ancient-solar-grid-energy:3:p1:sol-a'],
   );
-  assert.equal(result.state.gameData.turnData.anyChargesSpentInDeclaration, true);
   assert.deepEqual(result.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.context, {
     contextVersion: 1,
     battleTurnNumber: 3,
@@ -433,7 +430,6 @@ Deno.test('fixture manual Solar resolvers commit ordered payments, pending effec
     },
   ]);
 
-  result.state.gameData.currentSubPhase = 'charge_response';
   const retry = resolveChargeDeclarationSubmissionWithDependencies({
     state: result.state,
     playerId: 'p1',
@@ -1241,7 +1237,6 @@ Deno.test('snapshotted SOL moved to VOID can use its charge and identical accept
   });
   const applied = resolveChargeDeclarationSubmission({ state, playerId: 'p1', payload: declaration, nowMs: 1000 });
   assert.equal(applied.state.gameData.voidShipsByPlayerId.p1[0].chargesCurrent, 0);
-  applied.state.gameData.currentSubPhase = 'charge_response';
   const retry = resolveChargeDeclarationSubmission({
     state: applied.state, playerId: 'p1', payload: declaration, nowMs: 1001,
   });
@@ -1453,13 +1448,12 @@ Deno.test('Autocast toggle off preserves unspent Energy and true retries are eve
     state: onState, playerId: 'p1', payload: onPayload, nowMs: 1000,
   });
   const snapshot = structuredClone(applied.state);
-  applied.state.gameData.currentSubPhase = 'charge_response';
   const retry = resolveChargeDeclarationSubmission({
     state: applied.state, playerId: 'p1', payload: onPayload, nowMs: 1001,
   });
   assert.equal(retry.status, 'idempotent');
   assert.deepEqual(retry.events, []);
-  assert.deepEqual({ ...retry.state, gameData: { ...retry.state.gameData, currentSubPhase: 'charge_declaration' } }, snapshot);
+  assert.deepEqual(retry.state, snapshot);
   assert.throws(() => resolveChargeDeclarationSubmission({
     state: applied.state,
     playerId: 'p1',

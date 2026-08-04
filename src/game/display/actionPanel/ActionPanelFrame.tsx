@@ -526,12 +526,6 @@ export function ActionPanelFrame({
               {renderPhaseLocalFamilySwitch()}
               <ShipChoicesPanel
                 groups={vm.shipChoices.groups}
-                showOpponentAlsoHasCharges={
-                  (vm.shipChoices.showOpponentAlsoHasCharges ?? false) &&
-                  (vm.shipChoices.opponentEligibleAtDeclarationStart ?? false)
-                }
-                opponentAlsoHasChargesHeading={vm.shipChoices.opponentAlsoHasChargesHeading}
-                opponentAlsoHasChargesLines={vm.shipChoices.opponentAlsoHasChargesLines}
                 selectedChoiceIdBySourceInstanceId={vm.shipChoices.selectedChoiceIdBySourceInstanceId}
                 centaurChargeTabs={vm.shipChoices.centaurChargeTabs}
                 onSelectChoiceForInstance={actions.onSelectShipChoiceForInstance}

@@ -318,17 +318,22 @@ Deno.test('Ship of Equality filters reservations before recomputing shared costs
     ],
     opponentFleet: [ship('opponent-def', 'DEF'), ship('opponent-int', 'INT')],
   });
-  (state.gameData as any).currentSubPhase = 'charge_response';
-  state.gameData!.turnData!.currentSubPhase = 'charge_response';
+  (state.gameData as any).currentSubPhase = 'charge_declaration';
+  state.gameData!.turnData!.currentSubPhase = 'charge_declaration';
   state.gameData!.turnData!.chargeDeclarationEligibleSourceIdsByPlayerId = {
     p1: ['equ-a', 'equ-b'],
   };
+  state.gameData!.turnData!.chargeDeclarationFleetSnapshotByPlayerId = {
+    p1: structuredClone(state.gameData!.ships!.p1),
+    p2: structuredClone(state.gameData!.ships!.p2),
+  };
+  replaceChargeDeclarationVisibilityState(state);
 
   const dryRunBefore = structuredClone(state);
   resolvePowerAction({
     state,
     playerId: 'p1',
-    phaseKey: 'battle.charge_response',
+    phaseKey: 'battle.charge_declaration',
     actionId: 'EQU#0',
     sourceInstanceId: 'equ-a',
     choiceId: 'damage',
@@ -340,7 +345,7 @@ Deno.test('Ship of Equality filters reservations before recomputing shared costs
   const applied = resolvePowerAction({
     state,
     playerId: 'p1',
-    phaseKey: 'battle.charge_response',
+    phaseKey: 'battle.charge_declaration',
     actionId: 'EQU#0',
     sourceInstanceId: 'equ-a',
     choiceId: 'damage',
@@ -365,7 +370,7 @@ Deno.test('Ship of Equality filters reservations before recomputing shared costs
     () => resolvePowerAction({
       state: applied.state,
       playerId: 'p1',
-      phaseKey: 'battle.charge_response',
+      phaseKey: 'battle.charge_declaration',
       actionId: 'EQU#0',
       sourceInstanceId: 'equ-b',
       choiceId: 'damage',

@@ -18,7 +18,7 @@
 // - requiresShipAlive / requiresOwnershipUnchanged (superseded by phase system)
 //
 // The new model uses:
-// - BattlePhase (FirstStrike, ChargeDeclaration, ChargeResponse, Resolution)
+// - BattlePhase (FirstStrike, ChargeDeclaration, Resolution)
 // - EffectTiming (Automatic, OnceOnly, Charge)
 // - SurvivabilityRule (DiesWithSource, ResolvesIfDestroyed)
 //

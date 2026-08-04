@@ -5,27 +5,16 @@
  * - One or more ship groups (horizontally stacked)
  * - Each group has a centered heading + ShipChoiceGroup instances
  * - ShipChoiceGroup instances are centered and wrap naturally
- * - Optional OpponentAlsoHasCharges callout on the far right (Prompt 3B)
  * 
  * ARCHITECTURAL NOTES:
  * - UI pass only (no server calls, no registry, no rule logic)
  * - Uses ShipChoiceGroup primitive from Prompt 2
- * - Uses OpponentAlsoHasCharges primitive from Prompt 3B
  * - Data-driven via props (no hardcoded groups)
  */
 
 import type { ShipChoicesPanelGroup, ShipChoiceGroupSpec } from '../../../types/ShipChoiceTypes';
 import type { CentaurChargeSubTabId } from '../../../client/gameSession/types';
 import { ShipChoiceGroup } from './ShipChoiceGroup';
-import { OpponentAlsoHasCharges } from './primitives/OpponentAlsoHasCharges';
-
-const DEFAULT_OPPONENT_CHARGES_HEADING = 'Your opponent also has charges available.';
-
-const DEFAULT_OPPONENT_CHARGES_LINES = [
-  'If you use any charges, they can respond.',
-  'If they use any charges, you can respond.',
-  'If you both hold all charges, play proceeds.',
-];
 
 // ============================================================================
 // TYPES
@@ -35,10 +24,6 @@ interface ShipChoicesPanelProps {
   groups: ShipChoicesPanelGroup[];
 
   className?: string;
-  
-  showOpponentAlsoHasCharges?: boolean;
-  opponentAlsoHasChargesHeading?: string;
-  opponentAlsoHasChargesLines?: string[];
 
   selectedChoiceIdBySourceInstanceId?: Record<string, string>;
   onSelectChoiceForInstance?: (sourceInstanceId: string, choiceId: string) => void;
@@ -57,9 +42,6 @@ interface ShipChoicesPanelProps {
 export function ShipChoicesPanel({
   groups,
   className,
-  showOpponentAlsoHasCharges = false,
-  opponentAlsoHasChargesHeading,
-  opponentAlsoHasChargesLines,
   selectedChoiceIdBySourceInstanceId,
   onSelectChoiceForInstance,
   centaurChargeTabs,
@@ -86,14 +68,8 @@ export function ShipChoicesPanel({
         />
       ))}
 
-      {showOpponentAlsoHasCharges ? (
-        <MobileOpponentAlsoHasChargesNote
-          heading={opponentAlsoHasChargesHeading}
-          lines={opponentAlsoHasChargesLines}
-        />
-      ) : null}
     </div>
-  ) : !showOpponentAlsoHasCharges ? (
+  ) : (
     <div
       className={`content-stretch flex gap-[40px] items-start justify-center ${className ?? ''}`}
       data-name="Ship Choices Panel"
@@ -106,29 +82,6 @@ export function ShipChoicesPanel({
           onSelectChoiceForInstance={onSelectChoiceForInstance}
         />
       ))}
-    </div>
-  ) : (
-    <div
-      className={`content-stretch flex gap-[40px] items-start ${className ?? ''}`}
-      data-name="Ship Choices Panel (with callout)"
-    >
-      <div className="flex-initial flex gap-[36px] items-start justify-center">
-        {groups.map((group, groupIndex) => (
-          <ShipGroupRenderer 
-            key={groupIndex} 
-            group={group}
-            selectedChoiceIdBySourceInstanceId={selectedChoiceIdBySourceInstanceId}
-            onSelectChoiceForInstance={onSelectChoiceForInstance}
-          />
-        ))}
-      </div>
-
-      <div className="shrink-0 pr-[20px]">
-        <OpponentAlsoHasCharges
-          heading={opponentAlsoHasChargesHeading}
-          lines={opponentAlsoHasChargesLines}
-        />
-      </div>
     </div>
   );
 
@@ -176,37 +129,6 @@ export function ShipChoicesPanel({
 
       <div className={isMobile ? 'w-full' : ''}>
         {content}
-      </div>
-    </div>
-  );
-}
-
-interface MobileOpponentAlsoHasChargesNoteProps {
-  heading?: string;
-  lines?: string[];
-}
-
-function MobileOpponentAlsoHasChargesNote({
-  heading = DEFAULT_OPPONENT_CHARGES_HEADING,
-  lines = DEFAULT_OPPONENT_CHARGES_LINES,
-}: MobileOpponentAlsoHasChargesNoteProps) {
-  return (
-    <div className="w-full rounded-[8px] bg-[var(--shapeships-grey-90)] px-[12px] py-[10px] text-center">
-      <p
-        className="font-['Roboto',sans-serif] font-bold leading-[normal] text-[14px] text-white"
-        style={{ fontVariationSettings: "'wdth' 100" }}
-      >
-        {heading}
-      </p>
-      <div
-        className="mt-[8px] font-['Roboto',sans-serif] font-normal leading-[normal] text-[13px] text-[var(--shapeships-grey-50)]"
-        style={{ fontVariationSettings: "'wdth' 100" }}
-      >
-        {lines.map((line, index) => (
-          <p key={index} className={index < lines.length - 1 ? 'mb-[6px]' : ''}>
-            {line}
-          </p>
-        ))}
       </div>
     </div>
   );

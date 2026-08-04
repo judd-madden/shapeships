@@ -1207,7 +1207,87 @@ Planning documents outside the repository are not silently edited by a repositor
 - **Risks:** Duplicate badges, hiding power timing, premature style specification.
 - **Deployability:** Independent after 14BC; scheduled after 14I in the Phase 14 implementation order.
 
-## Phase 14K — Normative Documentation Reconciliation
+## Phase 14K — Online Rules Pages Reconciliation
+
+Pass definition
+Pass type: Client/UI Pass
+Goal: Reconcile the complete in-app Rules section with the finalized Phase 14 rules and the latest approved rules PDF, while preserving deliberate online-specific wording and interaction explanations.
+Dependencies: 14D, 14I and 14J.
+Authoritative behavior changed: None.
+Primary scope:
+RulesPanel.tsx
+CoreRulesPanel.tsx
+TurnTimingsPanel.tsx
+SpeciesRulesPanel.tsx
+ShipRulesAdapter.tsx
+shared tag presentation used by the Rules pages
+directly related tests or development fixtures
+
+The existing 14I requirement should remain: active phase surfaces must become truthful immediately at cutover. But 14I should only make the necessary surgical corrections. 14K would then perform the proper page-by-page editorial and presentation audit.
+
+Source precedence for the pass
+
+I would lock this explicitly:
+
+Final locked Phase 14 decisions
+Latest approved rules PDF
+Explicitly accepted online-specific wording or UX adaptations
+Current online Rules pages as implementation evidence only
+
+That avoids the mistake of mechanically copying the PDF into the website.
+
+The PDF should be the content baseline, but differences may be correct online because the website needs to explain things such as:
+
+buttons and Ready behavior;
+hidden simultaneous submissions;
+automatic or forced Hold behavior;
+online-only selection and targeting interactions;
+server-managed timing that paper players perform manually;
+mobile or interface-specific explanations.
+
+Those should remain when they clarify the digital implementation without changing the underlying rule.
+
+Required audit categories
+
+The pass should classify each discrepancy rather than automatically editing it:
+
+Outdated online wording
+Update it to the PDF and Phase 14 rules.
+
+Deliberate online adaptation
+Preserve it, but verify that it describes the same underlying rule accurately.
+
+Actual rules/data discrepancy
+Do not hide it by changing the page. Raise it as a separate server/definition or mixed pass.
+
+That last category matters because the species pages consume mirrored ship-definition text. A PDF disagreement may indicate:
+
+stale Rules-page copy;
+a legitimate online wording difference;
+or an actual canonical definition problem.
+
+Codex should not assume which one it is.
+
+Likely content areas
+
+The new pass should cover at least:
+
+final Build and Battle sequence;
+Drawing prelude and Carrier behavior;
+removal of Charge Response;
+finality of Charge Declaration;
+declared charges surviving source destruction;
+ordinary Automatic survival distinction;
+Chronoswarm’s two Drawing-prelude passes;
+Simulacrum and Dreadnought retaining different timings;
+definitions and presentation of MAKES SHIPS and TARGETS SHIPS;
+every tagged ship’s species-page presentation;
+removal of old “Ships That Build” phase classification;
+all cross-links between Core Rules, Species Rules and Turn Timings.
+
+The Phase 14 plan already requires tags on rules surfaces and retains detailed timing wording, but that is a presentation contract, not a full editorial reconciliation.
+
+## Phase 14L — Normative Documentation Reconciliation
 
 - **Pass type:** Documentation Pass
 - **Goal:** Remove normative contradictions from active repository documents.
@@ -1222,7 +1302,7 @@ Planning documents outside the repository are not silently edited by a repositor
 - **Risks:** Rewriting history without supersession notes; silently editing outside scope.
 - **Deployability:** Independent documentation after behavior settles.
 
-## Phase 14L — Read-Only Closure Audit
+## Phase 14M — Read-Only Closure Audit
 
 - **Pass type:** Read-only Validation / Assessment Pass
 - **Goal:** Produce final regression and stale-contract evidence and assign any remaining defects to narrow follow-ups.

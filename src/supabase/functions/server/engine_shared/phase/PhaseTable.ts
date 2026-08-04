@@ -27,7 +27,6 @@ export const PHASE_SEQUENCE = [
   'battle.reveal',
   'battle.first_strike',
   'battle.charge_declaration',
-  'battle.charge_response',
   'battle.end_of_turn_resolution',
 ] as const;
 

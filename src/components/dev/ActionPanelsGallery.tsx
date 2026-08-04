@@ -150,15 +150,6 @@ const EVOLVER_DRAWING_FIXTURE: NonNullable<ActionPanelViewModel['evolverDrawing'
   ],
 };
 
-const CHARGE_CALLOUT = {
-  heading: 'Your opponent also has charges available.',
-  lines: [
-    'If you use any charge actions, they may respond.',
-    'If they respond, you may answer with your remaining charges.',
-    'If both sides hold all charges, play proceeds immediately.',
-  ],
-};
-
 function buildEligibility(
   state: BuildEligibility['state'],
   missingComponentTokens?: string[]
@@ -238,8 +229,6 @@ function buildStructuralAvailableActions(groups: ShipChoicesPanelGroup[]): any[]
 function buildShipChoiceFixture(args: {
   groups: ShipChoicesPanelGroup[];
   selectedChoices?: Array<[string, string]>;
-  showOpponentAlsoHasCharges?: boolean;
-  opponentEligibleAtDeclarationStart?: boolean;
   centaurChargeTabs?: CentaurChargeTabs;
 }): Pick<ActionPanelViewModel, 'shipChoices' | 'availableActions' | 'selectedChoiceIdBySourceInstanceId'> {
   const selectedChoiceIdBySourceInstanceId = Object.fromEntries(
@@ -249,14 +238,6 @@ function buildShipChoiceFixture(args: {
   return {
     shipChoices: {
       groups: args.groups,
-      showOpponentAlsoHasCharges: args.showOpponentAlsoHasCharges,
-      opponentEligibleAtDeclarationStart: args.opponentEligibleAtDeclarationStart,
-      opponentAlsoHasChargesHeading: args.showOpponentAlsoHasCharges
-        ? CHARGE_CALLOUT.heading
-        : undefined,
-      opponentAlsoHasChargesLines: args.showOpponentAlsoHasCharges
-        ? CHARGE_CALLOUT.lines
-        : undefined,
       selectedChoiceIdBySourceInstanceId,
       centaurChargeTabs: args.centaurChargeTabs,
     },
@@ -441,8 +422,6 @@ function buildHumanChargesFixture(): Pick<
       ['int-human-b', 'hold'],
       ['int-human-c', 'heal'],
     ],
-    showOpponentAlsoHasCharges: true,
-    opponentEligibleAtDeclarationStart: true,
   });
 }
 
@@ -478,8 +457,6 @@ function buildXeniteChargesFixture(): Pick<
       ['ant-xenite-a', 'heal'],
       ['ant-xenite-b', 'damage'],
     ],
-    showOpponentAlsoHasCharges: true,
-    opponentEligibleAtDeclarationStart: true,
   });
 }
 
@@ -553,8 +530,6 @@ function buildCentaurChargesFixture(): Pick<
       ['int-centaur-a', 'hold'],
       ['ant-centaur-a', 'heal'],
     ],
-    showOpponentAlsoHasCharges: true,
-    opponentEligibleAtDeclarationStart: true,
     centaurChargeTabs: {
       activeTab: 'charges',
       availableTabs: ['charges', 'ship_of_equality'],
@@ -597,8 +572,6 @@ function buildCentaurEqualityChargesFixture(): Pick<
       ['equ-centaur-a', 'damage'],
       ['equ-centaur-b', 'hold'],
     ],
-    showOpponentAlsoHasCharges: true,
-    opponentEligibleAtDeclarationStart: true,
     centaurChargeTabs: {
       activeTab: 'ship_of_equality',
       availableTabs: ['charges', 'ship_of_equality'],

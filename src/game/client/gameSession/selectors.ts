@@ -659,10 +659,7 @@ export function getChargeScopedFleetForPlayer(
   }
 
   const phaseKey = getPhaseKey(state);
-  if (
-    phaseKey === 'battle.charge_declaration' ||
-    phaseKey === 'battle.charge_response'
-  ) {
+  if (phaseKey === 'battle.charge_declaration') {
     const snapshot =
       state?.gameData?.turnData?.chargeDeclarationFleetSnapshotByPlayerId?.[playerId];
     if (Array.isArray(snapshot)) {

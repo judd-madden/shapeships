@@ -36,7 +36,6 @@ import {
 import {
   getEligibleOrdinaryChargeSourceIdsAtDeclarationStart,
   getRelevantSolarGridSourceIdsAtDeclarationStart,
-  playerHasOrdinaryChargeResponseOption,
   playerRequiresChargeDeclarationInput,
 } from '../intent/chargeDeclarationEligibility.ts';
 import {
@@ -208,8 +207,7 @@ function computeEffectiveDiceStateForPlayers(state: any, baseDice: number) {
  * Maps PhaseKey to canonical ship power subphase labels.
  * Used to determine if a phase has fleet powers that require player input.
  * 
- * NOTE: Charge Declaration and Charge Response use dedicated ordinary/SOL eligibility logic.
- * Solar posture never contributes to Charge Response.
+ * NOTE: Charge Declaration uses dedicated ordinary/SOL eligibility logic.
  */
 const PHASE_TO_SUBPHASE_MAP: Record<PhaseKey, string[]> = {
   'setup.species_selection': [],
@@ -221,7 +219,6 @@ const PHASE_TO_SUBPHASE_MAP: Record<PhaseKey, string[]> = {
   'battle.reveal': [], // Handled separately (commit/reveal gating)
   'battle.first_strike': ['First Strike'], // Declarable (e.g., Guardian)
   'battle.charge_declaration': [], // Uses dedicated charge/solar gating
-  'battle.charge_response': [], // Uses dedicated charge/solar gating
   'battle.end_of_turn_resolution': [],
 };
 
@@ -258,13 +255,6 @@ function anyPlayerRequiresChargeDeclarationInput(state: any): boolean {
   const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
   return activePlayers.some((player: any) =>
     playerRequiresChargeDeclarationInput(state, player.id)
-  );
-}
-
-function anyPlayerHasOrdinaryChargeResponseOption(state: any): boolean {
-  const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
-  return activePlayers.some((player: any) =>
-    playerHasOrdinaryChargeResponseOption(state, player.id)
   );
 }
 
@@ -311,8 +301,6 @@ function phaseRequiresPlayerInput(state: any, phaseKey: PhaseKey): boolean {
     return false;
   }
   
-  const turnData = state.gameData?.turnData || {};
-
   // setup.species_selection: requires input if not all players have selected
   if (phaseKey === 'setup.species_selection') {
     const allSelected = (state.players || []).every((p: any) => !!p.faction);
@@ -365,32 +353,6 @@ function phaseRequiresPlayerInput(state: any, phaseKey: PhaseKey): boolean {
   // battle.charge_declaration: ordinary charge, Ancient Energy, or charged SOL input
   if (phaseKey === 'battle.charge_declaration') {
     return anyPlayerRequiresChargeDeclarationInput(state);
-  }
-
-  // battle.charge_response: requires input only if charges declared AND options exist
-  if (phaseKey === 'battle.charge_response') {
-    // THREE-CONDITION GATE (paper-play accurate):
-    // 1. At least one ordinary response-capable charge was spent during declaration
-    if (turnData.anyChargesSpentInDeclaration !== true) {
-      return false;
-    }
-    
-    // 2. Both players were eligible at declaration start (snapshot check)
-    const snapshot = turnData.chargeDeclarationEligibleByPlayerId || {};
-    const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
-    
-    // Conservative: require exactly 2 active players for 1v1 gating
-    if (activePlayers.length !== 2) {
-      return false;
-    }
-    
-    const bothEligible = activePlayers.every((p: any) => snapshot[p.id] === true);
-    if (!bothEligible) {
-      return false; // At least one player was ineligible at declaration start
-    }
-    
-    // 3. After declaration, someone still has an ordinary charge response available
-    return anyPlayerHasOrdinaryChargeResponseOption(state);
   }
 
   // battle.end_of_turn_resolution: auto-advance (server resolves)
@@ -523,12 +485,10 @@ function enterPhaseOnce(
   // ============================================================================
   // CHARGE DECLARATION SNAPSHOT - battle.charge_declaration
   // ============================================================================
-  // Snapshot ordinary response-capable sources separately from Ancient SOL choices.
-  // Only the ordinary snapshot gates battle.charge_response later.
+  // Snapshot ordinary charged sources separately from Ancient SOL choices.
   
   if (toKey === 'battle.charge_declaration') {
     const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
-    const snapshot: Record<string, boolean> = {};
     const snapshotSourceIdsByPlayerId: Record<string, string[]> = {};
     const solarSnapshotSourceIdsByPlayerId: Record<string, string[]> = {};
     const snapshotFleetByPlayerId: Record<string, ShipInstance[]> = {};
@@ -548,17 +508,14 @@ function enterPhaseOnce(
       snapshotFleetByPlayerId[player.id] = Array.isArray(liveFleet)
         ? liveFleet.map((ship: ShipInstance) => structuredClone(ship))
         : [];
-      snapshot[player.id] = eligibleSourceIds.length > 0;
     }
     
     turnData.chargeDeclarationEligibleSourceIdsByPlayerId = snapshotSourceIdsByPlayerId;
     turnData.solarGridDeclarationSourceIdsByPlayerId = solarSnapshotSourceIdsByPlayerId;
-    turnData.chargeDeclarationEligibleByPlayerId = snapshot;
     turnData.chargeDeclarationFleetSnapshotByPlayerId = snapshotFleetByPlayerId;
     replaceChargeDeclarationVisibilityState(workingState);
     
     debugLog(`[OnEnterPhase] Charge declaration snapshot:`, {
-      eligibleByPlayerId: snapshot,
       eligibleSourceIdsByPlayerId: snapshotSourceIdsByPlayerId,
       solarGridSourceIdsByPlayerId: solarSnapshotSourceIdsByPlayerId,
       fleetSnapshotSizesByPlayerId: Object.fromEntries(
@@ -1042,13 +999,13 @@ function enterPhaseOnce(
   }
 
   // ============================================================================
-  // AUTO-READY INELIGIBLE PLAYERS - battle.charge_declaration / battle.charge_response
+  // AUTO-READY INELIGIBLE PLAYERS - battle.charge_declaration
   // ============================================================================
   // Responsibilities:
-  // 1. Auto-ready players who have no declaration input or ordinary response input
+  // 1. Auto-ready players who have no declaration input
   // 2. Only eligible players must click Ready to advance
 
-  if (toKey === 'battle.charge_declaration' || toKey === 'battle.charge_response') {
+  if (toKey === 'battle.charge_declaration') {
     // Ensure phaseReadiness array exists
     if (!workingState.gameData.phaseReadiness) {
       workingState.gameData.phaseReadiness = [];
@@ -1057,9 +1014,7 @@ function enterPhaseOnce(
     const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
 
     for (const player of activePlayers) {
-      const eligible = toKey === 'battle.charge_declaration'
-        ? playerRequiresChargeDeclarationInput(workingState, player.id)
-        : playerHasOrdinaryChargeResponseOption(workingState, player.id);
+      const eligible = playerRequiresChargeDeclarationInput(workingState, player.id);
 
       if (!eligible) {
         const existingIndex = workingState.gameData.phaseReadiness.findIndex(

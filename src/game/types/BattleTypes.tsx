@@ -1,5 +1,5 @@
 // Battle Phase Commitment Types
-// Implements simultaneous hidden declarations with exactly two windows max
+// Models simultaneous hidden declarations for the Battle phase
 //
 // ARCHITECTURAL ALIGNMENT:
 // - Uses canonical EffectKind and TriggeredEffect from EffectTypes
@@ -140,14 +140,7 @@ export interface SolarDeclaration {
  * LIFECYCLE:
  * 1. Players submit declarations (hidden)
  * 2. Both ready → declarationRevealed = true
- * 3. If anyDeclarationsMade → Conditional Response window opens
- * 4. Players submit responses (hidden)
- * 5. Both ready → responseRevealed = true
- * 6. Proceed to End of Turn Resolution
- * 
- * DERIVED STATE:
- * - anyDeclarationsMade can be computed from declaration content
- *   (but stored for performance - avoids recomputation)
+ * 3. Proceed to End of Turn Resolution
  */
 export interface BattleCommitmentState {
   /**
@@ -159,39 +152,11 @@ export interface BattleCommitmentState {
   declaration?: Record<PlayerId, HiddenBattleActions>;
   
   /**
-   * Second window: Conditional Response
-   * Record<PlayerId, HiddenBattleActions>
-   * 
-   * Only exists if anyDeclarationsMade = true
-   * undefined if no declarations made (skip Response window)
-   */
-  response?: Record<PlayerId, HiddenBattleActions>;
-  
-  /**
    * Has declaration window been revealed?
    * false = still hidden, true = revealed to both players
    */
   declarationRevealed: boolean;
   
-  /**
-   * Has response window been revealed?
-   * false = still hidden, true = revealed to both players
-   * N/A if no response window (anyDeclarationsMade = false)
-   */
-  responseRevealed: boolean;
-  
-  /**
-   * Were any declarations made?
-   * Determines if Response window opens.
-   * 
-   * ✅ STORED (not derived) for performance
-   * Could be computed as:
-   *   Object.values(declaration || {}).some(actions => 
-   *     actions.charges.length > 0 || actions.solarPowers.length > 0
-   *   )
-   * But stored to avoid recomputation on every render.
-   */
-  anyDeclarationsMade: boolean;
 }
 
 // ============================================================================
@@ -199,29 +164,12 @@ export interface BattleCommitmentState {
 // ============================================================================
 
 /**
- * Compute if any declarations were made
- * Helper for deriving anyDeclarationsMade from declaration state
- */
-export function hasAnyDeclarations(
-  declaration?: Record<PlayerId, HiddenBattleActions>
-): boolean {
-  if (!declaration) return false;
-  
-  return Object.values(declaration).some(actions => 
-    actions.charges.length > 0 || actions.solarPowers.length > 0
-  );
-}
-
-/**
  * Create empty battle commitment state
  */
 export function createEmptyBattleCommitmentState(): BattleCommitmentState {
   return {
     declaration: undefined,
-    response: undefined,
-    declarationRevealed: false,
-    responseRevealed: false,
-    anyDeclarationsMade: false
+    declarationRevealed: false
   };
 }
 

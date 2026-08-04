@@ -208,10 +208,12 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           }
           description={
             <>
-              <p className="mb-[8.397px]">Players may declare charge powers (max one per ship per turn) or hold the charges. Ancients may use solar powers if they have energy to do so. Players may declare multiple charges, or hold them in response to opponent declarations.</p>
-              <p>
-                If NO players declare charges now, then proceed to <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>End of Turn Resolution</span>.
+              <p className="mb-[8.397px]">Players may use charge powers (max one per ship per turn) or hold the charges for future turns. Ancients may use solar powers if they have energy to do so. These decisions are final for the turn.</p>
+              <p className="mb-[8.397px]">
+                If a charge-based ship is destroyed after declaring a charge, its charge still occurs. <span className="italic text-[11.1px] sm:text-[14.8px]" style={{ fontVariationSettings: "'wdth' 100" }}>See also Ship of Equality rules.</span>
               </p>
+              <p className="mb-[8.397px]">If a ship with Automatic damage and healing is destroyed, its power does NOT occur (except 'once only' powers).</p>
+              <p>All charge and Solar Power damage and healing is resolved in <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>End-of-Turn Resolution.</span></p>
             </>
           }
           exampleShips="Interceptor, Antlion, Ship of Equality, Ship of Wisdom, Ship of Family, Solar Powers."
@@ -219,33 +221,6 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
           chevronTop="top-[20px]"
         />
 
-        {/* Charge Response / Solar Powers - Wrapper with left border */}
-        <div className="content-stretch flex flex-col items-start relative shrink-0 w-full border-l-[12px] border-[var(--shapeships-grey-70)] border-solid md:border-l-[21px]">
-          <TimingRow
-            title={
-              <>
-                Charge Response <span className="text-[var(--shapeships-grey-20)]">/ Solar Powers</span>
-              </>
-            }
-            description={
-              <>
-                <p className="mb-[8.397px]">Players may declare charge powers in response to opponent's declarations or hold the charges. Ancients may use solar powers if they have energy to do so. Players may declare multiple charges, or hold them until a future turn.</p>
-                <p className="mb-[8.397px]">
-                  If a charge-based ship is destroyed, its charge still occurs. <span className="italic text-[11.1px] sm:text-[14.8px]" style={{ fontVariationSettings: "'wdth' 100" }}>See also Ship of Equality rules.</span>
-                </p>
-                <p className="mb-[8.397px]">If a ship with Automatic damage and healing is destroyed, its power does NOT occur (except 'once only' powers).</p>
-                <p>
-                  All damage and healing is resolved in <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>End of Turn Resolution.</span>
-                </p>
-              </>
-            }
-            leftPadding="pl-[56px] md:pl-[110px]"
-            chevronLeft="left-[60px]"
-            chevronTop="top-[24px]"
-          />
-        </div>
-
-        {/* End of Turn Resolution - Outside the bordered wrapper */}
         <TimingRow
           title="End of Turn Resolution"
           titleBold={true}

@@ -23,7 +23,6 @@ import type { PhaseKey } from '../phase/PhaseTable.ts';
 export enum BattlePhase {
   FirstStrike = 'FirstStrike',
   ChargeDeclaration = 'ChargeDeclaration',
-  ChargeResponse = 'ChargeResponse',
   Resolution = 'Resolution'
 }
 

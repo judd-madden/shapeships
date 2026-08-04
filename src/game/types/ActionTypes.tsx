@@ -29,7 +29,6 @@ export type { TriggeredEffect as QueuedEffect } from './EffectTypes'; // LEGACY 
  */
 export type ActionType = 
   | 'CHARGE_USE'           // Use a charge power (Simultaneous Declaration)
-  | 'CHARGE_RESPONSE'      // Response to opponent's charge use (Conditional Response)
   | 'SOLAR_USE'            // Use a solar power (Ancient species)
   | 'SHIP_BUILD'           // Build a ship during Ships That Build or Drawing
   | 'SHIP_TRANSFORM'       // Evolver: Xenite → Oxite/Asterite
@@ -259,15 +258,6 @@ export interface PhaseActionState {
      */
     acceptsPlayerInput?: boolean;
     
-    /**
-     * Is this a response window?
-     * Allows conditional responses to previous actions.
-     * 
-     * Examples: 
-     * - charge_response phase (after charge declarations)
-     * - Future: Combat response windows, interrupt mechanics
-     */
-    isResponseWindow?: boolean;
   };
 }
 

@@ -201,7 +201,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
               </p>
               <p className="mb-[12.18px]">
                 <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Players Shapeship POWERS that occur in the Battle Phase are actioned</span>
-                <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>. Players may declare charges (optional ship powers) and respond to charges. </span>
+                <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>. Players may declare charges (optional ship powers). </span>
               </p>
               <p className="mb-[12.18px]">
                 <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>Each player's HEALTH will update.</span>

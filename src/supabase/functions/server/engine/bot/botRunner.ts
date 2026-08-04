@@ -21,7 +21,6 @@ import type {
   AuthoredBotPlan,
   BotSpeciesId,
   CarrierChoiceId,
-  DamageHealChargePhase,
   DamageHealChargePolicy,
   DamageHealChoiceId,
   FrigateTriggerPolicy,
@@ -35,13 +34,9 @@ import { getChargeDeclarationLegalityState } from '../intent/chargeDeclarationEl
 const MAX_BOT_STEPS_PER_REQUEST = 8;
 const CARRIER_ACTION_ID = 'CAR#0';
 const FIRST_STRIKE_PHASE_KEY = 'battle.first_strike';
-const DEFAULT_DAMAGE_HEAL_CHARGE_PHASES: DamageHealChargePhase[] = [
-  'battle.charge_declaration',
-];
 const DEFAULT_MISSING_DAMAGE_HEAL_CHARGE_POLICY: DamageHealChargePolicy = {
   healSelfAtOrBelow: 14,
   damageOpponentAtOrBelow: 12,
-  phases: ['battle.charge_declaration', 'battle.charge_response'],
 };
 const DAMAGE_HEAL_CHARGE_SHIP_DEF_IDS = ['INT', 'ANT', 'WIS', 'FAM'] as const;
 const FIRST_STRIKE_TARGET_SHIP_DEF_IDS = ['GUA', 'SAC', 'DOM'] as const;
@@ -285,7 +280,6 @@ function isAuthoredBotPlanRequiredPhase(phaseKey: string): boolean {
     phaseKey === 'build.drawing' ||
     phaseKey === 'build.ships_that_build' ||
     phaseKey === 'battle.charge_declaration' ||
-    phaseKey === 'battle.charge_response' ||
     phaseKey === FIRST_STRIKE_PHASE_KEY
   );
 }
@@ -305,10 +299,6 @@ function isCarrierChoiceId(value: unknown): value is CarrierChoiceId {
 
 function isDamageHealChoiceId(value: unknown): value is DamageHealChoiceId {
   return value === 'damage' || value === 'heal';
-}
-
-function isDamageHealChargePhase(phaseKey: string): phaseKey is DamageHealChargePhase {
-  return phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response';
 }
 
 function isDamageHealChargeShipDefId(value: string): value is DamageHealChargeShipDefId {
@@ -339,23 +329,6 @@ function getDamageHealChargePolicyForOwnedShip(
     policy: DEFAULT_MISSING_DAMAGE_HEAL_CHARGE_POLICY,
     isDefaultPolicy: true,
   };
-}
-
-function getEffectiveDamageHealChargePhases(
-  policy: DamageHealChargePolicy,
-): DamageHealChargePhase[] {
-  if (!Array.isArray(policy.phases)) {
-    return DEFAULT_DAMAGE_HEAL_CHARGE_PHASES;
-  }
-
-  return policy.phases.filter(isDamageHealChargePhase);
-}
-
-function damageHealChargePolicyAllowsPhase(
-  policy: DamageHealChargePolicy,
-  phaseKey: DamageHealChargePhase,
-): boolean {
-  return getEffectiveDamageHealChargePhases(policy).includes(phaseKey);
 }
 
 function getTargetedChoiceEffect(option: any): any | null {
@@ -734,7 +707,6 @@ function resolveSnappedChargeSource(state: any, playerId: string, sourceInstance
 function getChargeSourceShipsForPhase(
   state: any,
   playerId: string,
-  phaseKey: DamageHealChargePhase,
 ): any[] {
   const sourceShips: any[] = [];
 
@@ -1049,11 +1021,11 @@ function buildDamageHealChargeIntentForCurrentPhase(args: {
   plan: AuthoredBotPlan;
 }): IntentRequest | null {
   const { state, playerId, phaseKey, loopStep, plan } = args;
-  if (!isDamageHealChargePhase(phaseKey)) {
+  if (phaseKey !== 'battle.charge_declaration') {
     return null;
   }
 
-  const sourceShips = getChargeSourceShipsForPhase(state, playerId, phaseKey);
+  const sourceShips = getChargeSourceShipsForPhase(state, playerId);
   if (sourceShips.length === 0) {
     return null;
   }
@@ -1083,10 +1055,6 @@ function buildDamageHealChargeIntentForCurrentPhase(args: {
       plan,
       ship.shipDefId,
     );
-    if (!damageHealChargePolicyAllowsPhase(policy, phaseKey)) {
-      continue;
-    }
-
     const choicePower = getStructuredChoicePowerForShipDef({
       shipDefId: ship.shipDefId,
       phaseKey,
@@ -1132,8 +1100,7 @@ function buildDamageHealChargeIntentForCurrentPhase(args: {
     actions.length > 0 &&
     actions.every((action) => action.actionId === 'INT#0') &&
     !usedDefaultDamageHealChargePolicy &&
-    Object.keys(plan?.chargePolicy ?? {}).every((shipDefId) => shipDefId === 'INT') &&
-    !Array.isArray(plan?.chargePolicy?.INT?.phases);
+    Object.keys(plan?.chargePolicy ?? {}).every((shipDefId) => shipDefId === 'INT');
 
   return buildPowerIntentFromActions({
     state,
@@ -1365,7 +1332,7 @@ function buildEqualityChargeIntentForCurrentPhase(args: {
   const { state, playerId, phaseKey, loopStep, plan } = args;
   const equalityTargetMode = plan?.targetPolicy?.EQU?.mode;
   if (
-    !isDamageHealChargePhase(phaseKey) ||
+    phaseKey !== 'battle.charge_declaration' ||
     (
       equalityTargetMode !== 'highest_shared_cost_pair' &&
       equalityTargetMode !== 'lowest_shared_cost_pair'
@@ -1374,7 +1341,7 @@ function buildEqualityChargeIntentForCurrentPhase(args: {
     return null;
   }
 
-  const sourceShips = getChargeSourceShipsForPhase(state, playerId, phaseKey)
+  const sourceShips = getChargeSourceShipsForPhase(state, playerId)
     .filter((ship: any) =>
       ship?.shipDefId === 'EQU' &&
       typeof ship?.instanceId === 'string' &&
@@ -1630,7 +1597,7 @@ function buildBotIntent(args: {
   }
 
   if (
-    (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') &&
+    phaseKey === 'battle.charge_declaration' &&
     plan
   ) {
     const equalityIntent = buildEqualityChargeIntentForCurrentPhase({

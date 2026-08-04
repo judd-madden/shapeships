@@ -179,10 +179,6 @@ function createAtomicChargeState(args: {
         turnNumber: 3,
         currentMajorPhase: 'battle',
         currentSubPhase: 'charge_declaration',
-        chargeDeclarationEligibleByPlayerId: {
-          p1: args.p1HasInterceptor === true,
-          p2: true,
-        },
         chargeDeclarationEligibleSourceIdsByPlayerId: {
           p1: args.p1HasInterceptor ? ['p1-int'] : [],
           p2: ['p2-int'],
@@ -193,7 +189,6 @@ function createAtomicChargeState(args: {
           p2: [{ instanceId: 'p2-int', shipDefId: 'INT', chargesCurrent: 1 }],
         },
         chargePowerUsedByInstanceId: {},
-        anyChargesSpentInDeclaration: false,
       },
       pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
       powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
@@ -271,7 +266,6 @@ function createTwoAncientChargeState(): any {
         turnNumber: 3,
         currentMajorPhase: 'battle',
         currentSubPhase: 'charge_declaration',
-        chargeDeclarationEligibleByPlayerId: { p1: true, p2: true },
         chargeDeclarationEligibleSourceIdsByPlayerId: {
           p1: ['p1-int', 'p1-response-int'],
           p2: ['p2-int', 'p2-response-int'],
@@ -282,7 +276,6 @@ function createTwoAncientChargeState(): any {
         },
         chargeDeclarationFleetSnapshotByPlayerId: structuredClone(ships),
         chargePowerUsedByInstanceId: {},
-        anyChargesSpentInDeclaration: false,
       },
       pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
       powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
@@ -354,14 +347,12 @@ function createEqualityDeclarationState(args: { destroyChargeSource?: boolean } 
         turnNumber: 3,
         currentMajorPhase: 'battle',
         currentSubPhase: 'charge_declaration',
-        chargeDeclarationEligibleByPlayerId: { p1: true, p2: true },
         chargeDeclarationEligibleSourceIdsByPlayerId: args.destroyChargeSource
           ? { p1: ['p1-equ'], p2: ['p2-int-source'] }
           : { p1: ['p1-equ'], p2: ['p2-equ'] },
         solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
         chargeDeclarationFleetSnapshotByPlayerId: structuredClone(ships),
         chargePowerUsedByInstanceId: {},
-        anyChargesSpentInDeclaration: false,
       },
       pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
     },
@@ -386,7 +377,6 @@ function createMultiEqualityDeclarationState(): any {
     ],
   };
   state.gameData.voidShipsByPlayerId = { p1: [], p2: [] };
-  state.gameData.turnData.chargeDeclarationEligibleByPlayerId = { p1: true, p2: false };
   state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
     p1: ['p1-equ-a', 'p1-equ-b'],
     p2: [],
@@ -1023,7 +1013,7 @@ Deno.test('ordinary multi-EQU batches reject overlap atomically and accept disjo
   );
 });
 
-Deno.test('EQU reservations persist from Charge Declaration into live-state Charge Response', async () => {
+Deno.test('EQU reservations persist across sequential final Declaration actions', async () => {
   const initial = createMultiEqualityDeclarationState();
   const declaration = await applyIntent(initial, 'p1', powerActionIntent(
     initial.gameId,
@@ -1034,12 +1024,8 @@ Deno.test('EQU reservations persist from Charge Declaration into live-state Char
   ), 100);
   assert.equal(declaration.ok, true);
 
-  const responseState = structuredClone(declaration.state);
-  responseState.gameData.currentSubPhase = 'charge_response';
-  responseState.gameData.turnData.currentSubPhase = 'charge_response';
-  responseState.gameData.phaseReadiness = [];
-  const beforeReuse = structuredClone(responseState);
-  const reused = await applyIntent(responseState, 'p1', {
+  const beforeReuse = structuredClone(declaration.state);
+  const reused = await applyIntent(declaration.state, 'p1', {
     ...powerActionIntent(
       initial.gameId,
       'p1-equ-b',
@@ -1047,12 +1033,12 @@ Deno.test('EQU reservations persist from Charge Declaration into live-state Char
       'damage',
       { targetInstanceIds: ['p1-own-a', 'p2-target-b'] },
     ),
-    nonce: 'charge-response-reused-equ-target',
+    nonce: 'declaration-reused-equ-target',
   }, 101);
   assert.equal(reused.ok, false);
   assert.match(reused.rejected?.message ?? '', /already reserved/);
   assert.deepEqual(reused.state, beforeReuse);
-  assert.deepEqual(responseState, beforeReuse);
+  assert.deepEqual(declaration.state, beforeReuse);
 
   const disjoint = await applyIntent(beforeReuse, 'p1', {
     ...powerActionIntent(
@@ -1062,7 +1048,7 @@ Deno.test('EQU reservations persist from Charge Declaration into live-state Char
       'damage',
       { targetInstanceIds: ['p1-own-b', 'p2-target-b'] },
     ),
-    nonce: 'charge-response-disjoint-equ-targets',
+    nonce: 'declaration-disjoint-equ-targets',
   }, 102);
   assert.equal(disjoint.ok, true, disjoint.rejected?.message);
 });
@@ -1147,7 +1133,7 @@ Deno.test('Ancient atomic contract permits chat and rejects every legacy declara
   assert.equal(afterAcceptanceLegacy.rejected?.code, 'PHASE_NOT_ALLOWED');
 });
 
-Deno.test('identical accepted declaration retries after phase advancement without replaying or changing state', async () => {
+Deno.test('final declaration advances once and stale retries do not replay or change state', async () => {
   const initial = createAtomicChargeState({ p2Ready: true, p1HasInterceptor: true });
   const intent = chargeDeclarationIntent({
     ordinaryChargeActions: [{
@@ -1156,12 +1142,19 @@ Deno.test('identical accepted declaration retries after phase advancement withou
   });
   const accepted = await applyIntent(initial, 'p1', intent, 1000);
   assert.equal(accepted.ok, true);
-  assert.equal(accepted.state.gameData.currentSubPhase, 'charge_response');
+  assert.equal(
+    accepted.events.some((event: any) =>
+      event.type === 'PHASE_ADVANCED' &&
+      event.from === 'battle.charge_declaration' &&
+      event.to === 'battle.end_of_turn_resolution'
+    ),
+    true,
+  );
   assert.equal(accepted.events.some((event: any) => event.type === 'CHARGE_DECLARATION_ACCEPTED'), true);
   const beforeRetry = structuredClone(accepted.state);
 
   const retry = await applyIntent(accepted.state, 'p1', intent, 1001);
-  assert.equal(retry.ok, true);
+  assert.equal(retry.ok, false);
   assert.deepEqual(retry.events, []);
   assert.deepEqual(retry.state, beforeRetry);
 
@@ -1176,7 +1169,7 @@ Deno.test('identical accepted declaration retries after phase advancement withou
     1002,
   );
   assert.equal(changed.ok, false);
-  assert.match(changed.rejected?.message ?? '', /different charge declaration/);
+  assert.match(changed.rejected?.message ?? '', /Expected turn 4, got 3/);
 
   const newId = await applyIntent(
     retry.state,
@@ -1193,8 +1186,6 @@ Deno.test('identical accepted declaration retries after phase advancement withou
 });
 
 Deno.test('two Ancient declarations survive reload and complete exactly once in either submission order', async (t) => {
-  const outcomes: any[] = [];
-
   for (const order of [
     ['p1', 'p2'],
     ['p2', 'p1'],
@@ -1247,7 +1238,18 @@ Deno.test('two Ancient declarations survive reload and complete exactly once in 
         1002,
       );
       assert.equal(completed.ok, true);
-      assert.equal(completed.state.gameData.currentSubPhase, 'charge_response');
+      assert.equal(
+        completed.events.some((event: any) =>
+          event.type === 'PHASE_ADVANCED' &&
+          event.from === 'battle.charge_declaration' &&
+          event.to === 'battle.end_of_turn_resolution'
+        ),
+        true,
+      );
+      assert.equal(
+        completed.state.gameData.turnData.chargeDeclarationVisibilitySnapshot,
+        undefined,
+      );
       assert.equal(
         completed.events.filter((event: any) => event.type === 'CHARGE_DECLARATION_ACCEPTED').length,
         1,
@@ -1276,17 +1278,14 @@ Deno.test('two Ancient declarations survive reload and complete exactly once in 
         firstIntent,
         1003,
       );
-      assert.equal(staleRetry.ok, true);
+      assert.equal(staleRetry.ok, false);
       assert.deepEqual(staleRetry.events, []);
       assert.deepEqual(
         canonicalTwoAncientOutcome(staleRetry.state),
         beforeStaleRetry,
       );
-      outcomes.push(beforeStaleRetry);
     });
   }
-
-  assert.deepEqual(outcomes[1], outcomes[0]);
 });
 
 Deno.test('non-Ancient legacy charge and Ready behavior remains available', async () => {
@@ -1392,7 +1391,6 @@ Deno.test('final SOL charge submitted atomically produces its depleted Heal 2 in
   state = declaration.state;
   assert.equal(state.gameData.ships.p1.find((ship: any) => ship.instanceId === 'sol-1').chargesCurrent, 0);
   assert.deepEqual(state.gameData.ancient.energyByPlayerId.p1.pool, { green: 1, red: 1, blue: 1 });
-  assert.equal(state.gameData.turnData.anyChargesSpentInDeclaration, false);
   assert.equal(state.players.find((player: any) => player.id === 'p1').health, 20);
 
   const resolved = await applyIntent(state, 'p2', readyIntent(state.gameId, 'p2'), 1001);

@@ -157,7 +157,6 @@ Deno.test('bot EQU planning retains declaration-entry targets after hidden canon
         turnNumber: 3,
         currentMajorPhase: 'battle',
         currentSubPhase: 'charge_declaration',
-        chargeDeclarationEligibleByPlayerId: { human: false, bot: true },
         chargeDeclarationEligibleSourceIdsByPlayerId: {
           human: [],
           bot: ['bot-equ'],
@@ -171,7 +170,6 @@ Deno.test('bot EQU planning retains declaration-entry targets after hidden canon
           ],
         },
         chargePowerUsedByInstanceId: {},
-        anyChargesSpentInDeclaration: false,
       },
       pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
       powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
@@ -244,7 +242,6 @@ Deno.test('multi-EQU bot reserves its accepted pair and settles without repeat-t
         turnNumber: 3,
         currentMajorPhase: 'battle',
         currentSubPhase: 'charge_declaration',
-        chargeDeclarationEligibleByPlayerId: { human: false, bot: true },
         chargeDeclarationEligibleSourceIdsByPlayerId: {
           human: [],
           bot: ['bot-equ-a', 'bot-equ-b', 'bot-equ-c'],
@@ -252,7 +249,6 @@ Deno.test('multi-EQU bot reserves its accepted pair and settles without repeat-t
         solarGridDeclarationSourceIdsByPlayerId: { human: [], bot: [] },
         chargeDeclarationFleetSnapshotByPlayerId: {},
         chargePowerUsedByInstanceId: {},
-        anyChargesSpentInDeclaration: false,
       },
       pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
       powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
@@ -329,7 +325,6 @@ Deno.test('multi-EQU bot spends disjoint sources on every available shared-cost 
         turnNumber: 3,
         currentMajorPhase: 'battle',
         currentSubPhase: 'charge_declaration',
-        chargeDeclarationEligibleByPlayerId: { human: false, bot: true },
         chargeDeclarationEligibleSourceIdsByPlayerId: {
           human: [],
           bot: ['bot-equ-a', 'bot-equ-b', 'bot-equ-c'],
@@ -337,7 +332,6 @@ Deno.test('multi-EQU bot spends disjoint sources on every available shared-cost 
         solarGridDeclarationSourceIdsByPlayerId: { human: [], bot: [] },
         chargeDeclarationFleetSnapshotByPlayerId: {},
         chargePowerUsedByInstanceId: {},
-        anyChargesSpentInDeclaration: false,
       },
       pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
       powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
@@ -458,5 +452,71 @@ Deno.test('multi-GUA bot seeds staged reservations across sequential loop passes
     result.state.gameData.ships.bot.find((ship: any) => ship.instanceId === 'gua-c')
       .chargesCurrent,
     2,
+  );
+});
+
+Deno.test('authored Human INT-only plans preserve sequential final Declaration actions', async () => {
+  const ships = {
+    opponent: [],
+    bot: [
+      { instanceId: 'bot-int-a', shipDefId: 'INT', chargesCurrent: 1 },
+      { instanceId: 'bot-int-b', shipDefId: 'INT', chargesCurrent: 1 },
+    ],
+  };
+  const state: any = {
+    gameId: 'bot-human-int-sequential-test',
+    status: 'active',
+    turnNumber: 3,
+    players: [
+      { id: 'opponent', role: 'player', faction: 'xenite', health: 5, lines: 0, joiningLines: 0 },
+      { id: 'bot', role: 'player', faction: 'human', health: 20, lines: 0, joiningLines: 0 },
+    ],
+    controllersByPlayerId: {
+      opponent: { kind: 'human' },
+      bot: { kind: 'bot', speciesId: 'HUM', chosenPlanId: 'hum_orbital_carrier_tactical' },
+    },
+    gameData: {
+      turnNumber: 3,
+      currentPhase: 'battle',
+      currentSubPhase: 'charge_declaration',
+      phaseReadiness: [{
+        playerId: 'opponent',
+        isReady: true,
+        currentStep: 'battle.charge_declaration',
+      }],
+      ships,
+      voidShipsByPlayerId: { opponent: [], bot: [] },
+      pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
+      powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
+      turnData: {
+        turnNumber: 3,
+        currentMajorPhase: 'battle',
+        currentSubPhase: 'charge_declaration',
+        chargeDeclarationEligibleSourceIdsByPlayerId: {
+          opponent: [],
+          bot: ['bot-int-a', 'bot-int-b'],
+        },
+        solarGridDeclarationSourceIdsByPlayerId: { opponent: [], bot: [] },
+        chargeDeclarationFleetSnapshotByPlayerId: structuredClone(ships),
+        chargePowerUsedByInstanceId: {},
+      },
+    },
+  };
+  replaceChargeDeclarationVisibilityState(state);
+
+  const result = await runBotsUntilSettled({ state, nowMs: 100 });
+  const interceptorUses = result.events.filter(
+    (event: any) => event.type === 'POWER_USED' && event.actionId === 'INT#0',
+  );
+
+  assert.equal(result.botStepsApplied, 3);
+  assert.deepEqual(
+    interceptorUses.map((event: any) => event.sourceInstanceId),
+    ['bot-int-a', 'bot-int-b'],
+  );
+  assert.equal(result.state.status, 'finished');
+  assert.equal(
+    result.events.some((event: any) => event.type === 'BOT_RUNNER_LIMIT_REACHED'),
+    false,
   );
 });

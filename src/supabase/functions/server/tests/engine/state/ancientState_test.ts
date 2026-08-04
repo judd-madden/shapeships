@@ -14,7 +14,6 @@ import {
 import {
   ancientAtomicDeclarationContractApplies,
   getEligibleOrdinaryChargeSourceIdsAtDeclarationStart,
-  getAvailableOrdinaryChargeResponseSourceIds,
   getRelevantSolarGridSourceIdsAtDeclarationStart,
   playerRequiresChargeDeclarationInput,
 } from '../../../engine/intent/chargeDeclarationEligibility.ts';
@@ -1266,7 +1265,7 @@ Deno.test('durable Ancient state survives ordinary turn rollover without Energy 
   assert.deepEqual((advanced.state as any).gameData.ancient, state.gameData.ancient);
 });
 
-Deno.test('Solar Power ships stay outside ordinary charge declaration and response snapshots', () => {
+Deno.test('Solar Power ships stay outside ordinary charge declaration snapshots', () => {
   const state: any = normalizeAncientGameState(createBaseState()).state;
   state.gameData.currentPhase = 'battle';
   state.gameData.currentSubPhase = 'charge_declaration';
@@ -1285,13 +1284,10 @@ Deno.test('Solar Power ships stay outside ordinary charge declaration and respon
     'battle.charge_declaration',
     1000,
   ).state as any;
-  assert.equal(
-    declaration.gameData.turnData.chargeDeclarationEligibleByPlayerId.p1,
-    false,
-  );
-  assert.equal(
-    declaration.gameData.turnData.chargeDeclarationEligibleByPlayerId.p2,
-    true,
+  assert.deepEqual(declaration.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId.p1, []);
+  assert.deepEqual(
+    declaration.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId.p2,
+    ['interceptor-1'],
   );
   assert.equal(
     declaration.gameData.turnData.chargeDeclarationVisibilitySnapshot.battleTurnNumber,
@@ -1336,25 +1332,18 @@ Deno.test('Solar Power ships stay outside ordinary charge declaration and respon
     17,
   );
 
-  reentered.gameData.currentSubPhase = 'charge_response';
-  reentered.gameData.turnData.currentSubPhase = 'charge_response';
-  reentered.gameData.turnData.anyChargesSpentInDeclaration = true;
-  const response = onEnterPhase(
+  const afterDeclaration = onEnterPhase(
     reentered,
     'battle.charge_declaration',
-    'battle.charge_response',
+    'battle.end_of_turn_resolution',
     1002,
   ).state as any;
-  const p2Readiness = response.gameData.phaseReadiness.find(
-    (entry: any) => entry.playerId === 'p2' && entry.currentStep === 'battle.charge_response',
-  );
-  assert.notEqual(p2Readiness?.isReady, true);
   assert.equal(
-    response.gameData.turnData.chargeDeclarationVisibilitySnapshot,
+    afterDeclaration.gameData.turnData.chargeDeclarationVisibilitySnapshot,
     undefined,
   );
   assert.equal(
-    response.gameData.turnData.chargeDeclarationAcknowledgements,
+    afterDeclaration.gameData.turnData.chargeDeclarationAcknowledgements,
     undefined,
   );
 
@@ -1368,15 +1357,9 @@ Deno.test('Solar Power ships stay outside ordinary charge declaration and respon
     p2: [{ instanceId: 'solar-2', shipDefId: 'SLIF' }],
   };
   nonAncientOnly.gameData.ancient.energyByPlayerId.p2.pool.green = 99;
-  const nonAncientDeclaration = onEnterPhase(
-    nonAncientOnly,
-    'battle.first_strike',
-    'battle.charge_declaration',
-    1002,
-  ).state as any;
-  assert.notEqual(
-    nonAncientDeclaration.gameData.turnData.chargeDeclarationEligibleByPlayerId.p2,
-    true,
+  assert.deepEqual(
+    getEligibleOrdinaryChargeSourceIdsAtDeclarationStart(nonAncientOnly, 'p2'),
+    [],
   );
 });
 
@@ -1436,7 +1419,7 @@ Deno.test('stale Charge Declaration visibility redacts projection while legality
   assert.deepEqual(entered, before);
 });
 
-Deno.test('P12 declaration input separates Energy, charged SOL, ordinary charge, acceptance, and response posture', () => {
+Deno.test('P12 declaration input separates Energy, charged SOL, ordinary charge, and acceptance', () => {
   const state: any = normalizeAncientGameState(createBaseState()).state;
   state.gameData.turnNumber = 3;
   state.gameData.turnData.turnNumber = 3;
@@ -1536,7 +1519,6 @@ Deno.test('P12 isolated declaration gates stop only for Energy, charged SOL, or 
     foreignChargeOnly.gameData.ships.p1,
   );
   assert.equal(playerRequiresChargeDeclarationInput(foreignChargeOnly, 'p1'), true);
-  assert.deepEqual(getAvailableOrdinaryChargeResponseSourceIds(foreignChargeOnly, 'p1'), ['int']);
 
   const nonAncient = createGateState();
   nonAncient.players[0].faction = 'human';
@@ -1544,10 +1526,9 @@ Deno.test('P12 isolated declaration gates stop only for Energy, charged SOL, or 
   nonAncient.gameData.ships.p1 = [{ instanceId: 'sol', shipDefId: 'SOL', chargesCurrent: 4 }];
   nonAncient.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1 = ['sol'];
   assert.equal(playerRequiresChargeDeclarationInput(nonAncient, 'p1'), false);
-  assert.deepEqual(getAvailableOrdinaryChargeResponseSourceIds(nonAncient, 'p1'), []);
 });
 
-Deno.test('response sanitizer is pure and strips Ancient internal and third-Spiral turn scratch', () => {
+Deno.test('requester sanitizer is pure and strips Ancient internal and third-Spiral turn scratch', () => {
   const state: any = normalizeAncientGameState(createBaseState()).state;
   state.players[0].energy = 99;
   state.gameData.turnData.pendingSOLARPowerDeclarations = { p1: [{ hidden: true }] };

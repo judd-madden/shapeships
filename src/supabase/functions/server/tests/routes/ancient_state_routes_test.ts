@@ -164,6 +164,7 @@ function createIntentRouteFixture(args?: {
   const store = new Map<string, any>();
   const writes: Array<{ key: string; value: any }> = [];
   const gameReads = [...(args?.gameReads ?? [])];
+  let sessionId = 'p1';
   if (args?.storedState) store.set(`game_${args.storedState.gameId}`, structuredClone(args.storedState));
   registerIntentRoutes(
     app as any,
@@ -178,10 +179,17 @@ function createIntentRouteFixture(args?: {
       store.set(key, copy);
       writes.push({ key, value: copy });
     },
-    async () => ({ sessionId: 'p1' }),
+    async () => ({ sessionId }),
     createFakeSupabase(store, writes),
   );
-  return { app, store, writes };
+  return {
+    app,
+    store,
+    writes,
+    setSessionId(value: string) {
+      sessionId = value;
+    },
+  };
 }
 
 function assertAncientSecretsAbsent(state: any): void {
@@ -531,7 +539,6 @@ Deno.test('JSON-reloaded Ancient state preserves owner, opponent, and spectator 
       turnNumber: 3,
       currentMajorPhase: 'battle',
       currentSubPhase: 'charge_declaration',
-      chargeDeclarationEligibleByPlayerId: { p1: false, p2: false },
       chargeDeclarationEligibleSourceIdsByPlayerId: { p1: [], p2: [] },
       solarGridDeclarationSourceIdsByPlayerId: {
         p1: ['owner-sol'],
@@ -1248,7 +1255,6 @@ Deno.test('/game-state derives EQU pairs after same-player reservation filtering
     turnNumber: 3,
     currentMajorPhase: 'battle',
     currentSubPhase: 'charge_declaration',
-    chargeDeclarationEligibleByPlayerId: { p1: true, p2: true },
     chargeDeclarationEligibleSourceIdsByPlayerId: {
       p1: ['p1-equ-a', 'p1-equ-b'],
       p2: ['p2-equ-a'],
@@ -1256,7 +1262,6 @@ Deno.test('/game-state derives EQU pairs after same-player reservation filtering
     solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
     chargeDeclarationFleetSnapshotByPlayerId: structuredClone(state.gameData.ships),
     chargePowerUsedByInstanceId: {},
-    anyChargesSpentInDeclaration: false,
   };
   state.gameData.powerMemory = { onceOnlyFired: {}, frigateTriggerByInstanceId: {} };
   replaceChargeDeclarationVisibilityState(state);
@@ -1468,7 +1473,6 @@ Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient
     turnNumber: 3,
     currentMajorPhase: 'battle',
     currentSubPhase: 'charge_declaration',
-    chargeDeclarationEligibleByPlayerId: { p1: true, p2: false },
     chargeDeclarationEligibleSourceIdsByPlayerId: { p1: ['foreign-int'], p2: [] },
     solarGridDeclarationSourceIdsByPlayerId: { p1: ['sol-z', 'sol-a'], p2: [] },
     chargeDeclarationFleetSnapshotByPlayerId: {
@@ -1555,14 +1559,6 @@ Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient
   assert.equal('acceptedDeclarationByPlayerId' in acceptedBody.publicState.ancient, false);
   assert.equal('solarGridDeclarationSourceIdsByPlayerId' in acceptedBody.gameData.turnData, false);
 
-  const responseState = structuredClone(acceptedState);
-  responseState.gameData.currentSubPhase = 'charge_response';
-  responseState.gameData.turnData.currentSubPhase = 'charge_response';
-  fixture.store.set('game_solar-grid-projection', responseState);
-  const responseBody = await responseJson(await getState(createContext({
-    params: { gameId: 'solar-grid-projection' },
-  })));
-  assert.equal(responseBody.requester.availableActions.some((action: any) => action.shipDefId === 'SOL'), false);
 });
 
 Deno.test('/game-state freezes declaration consequences for every viewer and releases them only after phase exit', async () => {
@@ -1607,7 +1603,6 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
     turnNumber: 3,
     currentMajorPhase: 'battle',
     currentSubPhase: 'charge_declaration',
-    chargeDeclarationEligibleByPlayerId: { p1: true, p2: true },
     chargeDeclarationEligibleSourceIdsByPlayerId: {
       p1: ['p1-equ'],
       p2: ['p2-equ'],
@@ -1615,7 +1610,6 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
     solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
     chargeDeclarationFleetSnapshotByPlayerId: structuredClone(state.gameData.ships),
     chargePowerUsedByInstanceId: {},
-    anyChargesSpentInDeclaration: false,
     effectiveDiceRollByPlayerId: { p1: 4, p2: 4 },
   };
   state.gameData.pendingTurn = {
@@ -1661,7 +1655,6 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
   state.players.find((player: any) => player.id === 'p1').maxHealth = 1;
   state.gameData.turnData.pendingEffects = [{ kind: 'Destroy', targetPlayerId: 'p2' }];
   state.gameData.turnData.chargePowerUsedByInstanceId = { 'p1-equ': 3 };
-  state.gameData.turnData.anyChargesSpentInDeclaration = true;
   state.gameData.turnData.chargeDeclarationAcknowledgements.chargeAfterByPlayerId = {
     p1: { 'p1-equ': 0 },
   };
@@ -1766,7 +1759,6 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
       'chargeDeclarationFleetSnapshotByPlayerId',
       'chargeDeclarationEligibleSourceIdsByPlayerId',
       'chargePowerUsedByInstanceId',
-      'anyChargesSpentInDeclaration',
       'pendingEffects',
       'shipActivationCueBatches',
     ]) {
@@ -1846,8 +1838,8 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
 
   const revealed = structuredClone(terminal);
   revealed.status = 'active';
-  revealed.gameData.currentSubPhase = 'charge_response';
-  revealed.gameData.turnData.currentSubPhase = 'charge_response';
+  revealed.gameData.currentSubPhase = 'end_of_turn_resolution';
+  revealed.gameData.turnData.currentSubPhase = 'end_of_turn_resolution';
   fixture.store.set('game_charge-privacy-barrier', revealed);
   const revealedBody = await readAs('spectator');
   assert.deepEqual(
@@ -1925,12 +1917,10 @@ Deno.test('/intent filters declaration effects after history processing and retu
     turnNumber: 3,
     currentMajorPhase: 'battle',
     currentSubPhase: 'charge_declaration',
-    chargeDeclarationEligibleByPlayerId: { p1: true, p2: false },
     chargeDeclarationEligibleSourceIdsByPlayerId: { p1: ['p1-int'], p2: [] },
     solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
     chargeDeclarationFleetSnapshotByPlayerId: structuredClone(state.gameData.ships),
     chargePowerUsedByInstanceId: {},
-    anyChargesSpentInDeclaration: false,
   };
   replaceChargeDeclarationVisibilityState(state);
   const fixture = createIntentRouteFixture({ storedState: state });
@@ -1961,6 +1951,152 @@ Deno.test('/intent filters declaration effects after history processing and retu
       .chargeAfterByPlayerId.p1['p1-int'],
     0,
   );
+});
+
+Deno.test('/intent terminal Declaration resolution finalizes once without initializing another turn', async () => {
+  const ships = {
+    p1: [{ instanceId: 'p1-int', shipDefId: 'INT', chargesCurrent: 1 }],
+    p2: [{ instanceId: 'p2-int', shipDefId: 'INT', chargesCurrent: 1 }],
+  };
+  const state: any = normalizeAncientGameState({
+    gameId: 'terminal-declaration-resolution',
+    status: 'active',
+    stateRevision: 5,
+    turnNumber: 3,
+    players: [
+      {
+        id: 'p1', name: 'Player One', role: 'player', faction: 'human', isActive: true,
+        health: 20, lines: 0, joiningLines: 0,
+      },
+      {
+        id: 'p2', name: 'Player Two', role: 'player', faction: 'human', isActive: true,
+        health: 5, lines: 0, joiningLines: 0,
+      },
+    ],
+    gameData: {
+      turnNumber: 3,
+      currentPhase: 'battle',
+      currentSubPhase: 'charge_declaration',
+      phaseReadiness: [],
+      ships,
+      voidShipsByPlayerId: { p1: [], p2: [] },
+      pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
+      powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
+      turnData: {
+        turnNumber: 3,
+        currentMajorPhase: 'battle',
+        currentSubPhase: 'charge_declaration',
+        chargeDeclarationEligibleSourceIdsByPlayerId: {
+          p1: ['p1-int'],
+          p2: ['p2-int'],
+        },
+        solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
+        chargeDeclarationFleetSnapshotByPlayerId: structuredClone(ships),
+        chargePowerUsedByInstanceId: {},
+      },
+    },
+    battleLogScratch: { currentTurnCapture: null, lastFinalizedTurnNumber: null },
+  }).state;
+  replaceChargeDeclarationVisibilityState(state);
+
+  const fixture = createIntentRouteFixture({ storedState: state });
+  const intent = fixture.app.handler('POST', '/make-server-825e19ab/intent');
+  const submit = async (body: Record<string, unknown>) => {
+    const response = await intent(createContext({
+      body: {
+        gameId: state.gameId,
+        turnNumber: 3,
+        ...body,
+      },
+    }));
+    return { response, body: await responseJson(response) };
+  };
+
+  fixture.setSessionId('p2');
+  assert.equal((await submit({
+    intentType: 'ACTION',
+    nonce: 'p2-hold',
+    payload: {
+      actionType: 'power',
+      actionId: 'INT#0',
+      sourceInstanceId: 'p2-int',
+      choiceId: 'hold',
+    },
+  })).response.status, 200);
+  const firstReady = await submit({
+    intentType: 'DECLARE_READY',
+    nonce: 'p2-ready',
+    payload: {},
+  });
+  assert.equal(firstReady.response.status, 200);
+  assert.equal(
+    fixture.store.get('game_terminal-declaration-resolution').gameData.currentSubPhase,
+    'charge_declaration',
+  );
+
+  fixture.setSessionId('p1');
+  assert.equal((await submit({
+    intentType: 'ACTION',
+    nonce: 'p1-damage',
+    payload: {
+      actionType: 'power',
+      actionId: 'INT#0',
+      sourceInstanceId: 'p1-int',
+      choiceId: 'damage',
+    },
+  })).response.status, 200);
+  const finalReady = await submit({
+    intentType: 'DECLARE_READY',
+    nonce: 'p1-ready',
+    payload: {},
+  });
+  assert.equal(finalReady.response.status, 200);
+  assert.equal(finalReady.body.state.status, 'finished');
+  assert.equal(
+    finalReady.body.events.filter((event: any) =>
+      event.type === 'BATTLE_LOG_FINALIZE_TURN'
+    ).length,
+    1,
+  );
+  assert.equal(
+    finalReady.body.events.some((event: any) =>
+      event.type === 'PHASE_ADVANCED' &&
+      event.from === 'battle.charge_declaration' &&
+      event.to === 'battle.end_of_turn_resolution'
+    ),
+    true,
+  );
+
+  const persisted = fixture.store.get('game_terminal-declaration-resolution');
+  assert.equal(persisted.status, 'finished');
+  assert.equal(persisted.turnNumber, 3);
+  assert.equal(persisted.gameData.turnNumber, 3);
+  assert.equal(persisted.players.find((player: any) => player.id === 'p2').health, 0);
+  assert.equal(
+    'chargeDeclarationVisibilitySnapshot' in persisted.gameData.turnData,
+    false,
+  );
+  assert.equal(
+    'chargeDeclarationAcknowledgements' in persisted.gameData.turnData,
+    false,
+  );
+  assert.equal('diceRoll' in persisted.gameData, false);
+  assert.equal('diceRolled' in persisted.gameData.turnData, false);
+
+  const historyKey = 'game_history_terminal-declaration-resolution';
+  const history = fixture.store.get(historyKey);
+  assert.equal(history.completedTurnCount, 1);
+  assert.equal(history.turns.length, 1);
+  assert.equal(history.turns[0].turnNumber, 3);
+
+  const afterFinish = await submit({
+    intentType: 'DECLARE_READY',
+    nonce: 'p1-ready-after-finish',
+    payload: {},
+  });
+  assert.equal(afterFinish.response.status, 400);
+  assert.equal(fixture.store.get(historyKey).completedTurnCount, 1);
+  assert.equal(fixture.store.get(historyKey).turns.length, 1);
 });
 
 Deno.test('/game-state hard-prunes raw legacy Cube Convert entries before build projection', async () => {

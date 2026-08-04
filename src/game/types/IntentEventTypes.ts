@@ -112,7 +112,8 @@ export type BuildRevealIntent = IntentBase & {
 
 /**
  * BATTLE_COMMIT - Player commits hash of battle actions
- * Used for both Simultaneous Declaration and Conditional Response
+ * Dormant client-side commit/reveal scaffold; the active runtime uses the
+ * dedicated Charge Declaration intents instead.
  */
 export type BattleCommitIntent = IntentBase & {
   type: 'BATTLE_COMMIT';

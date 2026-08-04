@@ -2150,8 +2150,7 @@ export function createBattleLogBattleCaptureEventsFromResolution(args: {
       : null;
 
   if (
-    (args.phaseKey === "battle.charge_declaration" ||
-      args.phaseKey === "battle.charge_response") &&
+    args.phaseKey === "battle.charge_declaration" &&
     normalizedChoiceId
   ) {
     const hasMatchingEffect = args.effects.some((effect) =>

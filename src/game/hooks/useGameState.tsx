@@ -173,7 +173,7 @@ export function useGameState(gameId: string, playerId: string) {
         major === 'setup' ||
         // During "ready / advance" windows, poll a bit more
         (major === 'build' && (sub === 'ships_that_build' || sub === 'drawing')) ||
-        (major === 'battle' && (sub === 'charge_declaration' || sub === 'charge_response')) ||
+        (major === 'battle' && sub === 'charge_declaration') ||
         !gameState?.players || gameState.players.length < 2;
       
       if (shouldPollFrequently) {

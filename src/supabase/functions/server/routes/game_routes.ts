@@ -192,7 +192,6 @@ function createFreshGameData(
         accumulatedDamage: {},
         accumulatedHealing: {},
         healthAtTurnStart: {},
-        chargesDeclared: false,
         diceRoll: null,
         linesDistributed: false
       },
@@ -285,7 +284,6 @@ function createFreshComputerGameData(
         accumulatedDamage: {},
         accumulatedHealing: {},
         healthAtTurnStart: {},
-        chargesDeclared: false,
         diceRoll: null,
         linesDistributed: false,
       },
@@ -482,7 +480,7 @@ function getSubphasesForAvailableActions(phaseKey: string | null): string[] {
 }
 
 function getChargeSourceShipsForPhase(state: any, playerId: string, phaseKey: string): ShipInstance[] {
-  if (phaseKey !== 'battle.charge_declaration' && phaseKey !== 'battle.charge_response') {
+  if (phaseKey !== 'battle.charge_declaration') {
     return [];
   }
 
@@ -506,10 +504,9 @@ function getProjectedChoiceMetadataForChargeAction(
   choiceId: string
 ) {
   if (shipDefId === 'FAM' && (choiceId === 'damage' || choiceId === 'heal')) {
-    const snapshot =
-      phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response'
-        ? state?.gameData?.turnData?.chargeDeclarationFleetSnapshotByPlayerId?.[playerId]
-        : undefined;
+    const snapshot = phaseKey === 'battle.charge_declaration'
+      ? state?.gameData?.turnData?.chargeDeclarationFleetSnapshotByPlayerId?.[playerId]
+      : undefined;
     const countFleet = Array.isArray(snapshot) ? snapshot : liveFleet;
 
     return {
@@ -695,22 +692,18 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
   }
 
   // ============================================================================
-  // CHARGE PHASES: Derive choice actions from structured powers
+  // CHARGE DECLARATION: Derive choice actions from structured powers
   // ============================================================================
-  if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') {
-    const declarationTargetState = phaseKey === 'battle.charge_declaration'
-      ? getChargeDeclarationLegalityState(state)
-      : state;
-    if (phaseKey === 'battle.charge_declaration') {
-      const currentSubPhase = state?.gameData?.currentSubPhase;
-      const readiness = (state?.gameData?.phaseReadiness ?? []).find(
-        (entry: any) =>
-          entry?.playerId === playerId &&
-          entry?.isReady === true &&
-          (entry?.currentStep === phaseKey || entry?.currentStep === currentSubPhase),
-      );
-      if (readiness) return [];
-    }
+  if (phaseKey === 'battle.charge_declaration') {
+    const declarationTargetState = getChargeDeclarationLegalityState(state);
+    const currentSubPhase = state?.gameData?.currentSubPhase;
+    const readiness = (state?.gameData?.phaseReadiness ?? []).find(
+      (entry: any) =>
+        entry?.playerId === playerId &&
+        entry?.isReady === true &&
+        (entry?.currentStep === phaseKey || entry?.currentStep === currentSubPhase),
+    );
+    if (readiness) return [];
     if (
       phaseKey === 'battle.charge_declaration' &&
       isAncientPlayer(state, playerId) &&
@@ -725,7 +718,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
     const usedMap: Record<string, number> =
       state?.gameData?.turnData?.chargePowerUsedByInstanceId ?? {};
     
-    // Keep live fleet for response-time legality and projections.
+    // Keep live fleet for current legality and projections.
     const fleet = state?.gameData?.ships?.[playerId] ?? [];
     const sourceShips = getChargeSourceShipsForPhase(state, playerId, phaseKey);
     
@@ -809,7 +802,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
       }
     }
     
-    if (phaseKey === 'battle.charge_declaration' && isAncientPlayer(state, playerId)) {
+    if (isAncientPlayer(state, playerId)) {
       for (const sourceInstanceId of getSnappedSolarGridSourceIds(state, playerId)) {
         actions.push({
           kind: 'choice',

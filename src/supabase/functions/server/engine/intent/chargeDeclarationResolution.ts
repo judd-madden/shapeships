@@ -365,8 +365,6 @@ export function resolveChargeDeclarationSubmissionWithDependencies(args: {
   let workingState = structuredClone(args.state);
   const events: any[] = [];
   const activationSources: ShipActivationCueSource[] = [];
-  let ordinaryChargeSpent = false;
-
   for (const action of normalized.ordinaryChargeActions) {
     const stateBeforeResolution = workingState;
     const outcome = resolvePowerAction({
@@ -408,7 +406,6 @@ export function resolveChargeDeclarationSubmissionWithDependencies(args: {
       spentCharge: outcome.spentCharge,
       atMs: args.nowMs,
     });
-    ordinaryChargeSpent ||= outcome.spentCharge;
   }
 
   const battleTurnNumber = getChargeDeclarationBattleTurnNumber(workingState);
@@ -506,9 +503,6 @@ export function resolveChargeDeclarationSubmissionWithDependencies(args: {
     battleTurnNumber,
     entries: ledgerEntries,
   };
-  if (ordinaryChargeSpent) {
-    workingState.gameData.turnData.anyChargesSpentInDeclaration = true;
-  }
   workingState.gameData.ancient.acceptedDeclarationByPlayerId[args.playerId] = buildAcceptedDeclaration({
     normalized,
     playerId: args.playerId,

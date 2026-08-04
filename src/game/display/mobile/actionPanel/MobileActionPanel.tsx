@@ -358,12 +358,6 @@ export function MobileActionPanel({
           <ShipChoicesPanel
             groups={vm.shipChoices.groups}
             layout="mobile"
-            showOpponentAlsoHasCharges={
-              (vm.shipChoices.showOpponentAlsoHasCharges ?? false) &&
-              (vm.shipChoices.opponentEligibleAtDeclarationStart ?? false)
-            }
-            opponentAlsoHasChargesHeading={vm.shipChoices.opponentAlsoHasChargesHeading}
-            opponentAlsoHasChargesLines={vm.shipChoices.opponentAlsoHasChargesLines}
             selectedChoiceIdBySourceInstanceId={vm.shipChoices.selectedChoiceIdBySourceInstanceId}
             centaurChargeTabs={vm.shipChoices.centaurChargeTabs}
             onSelectChoiceForInstance={actions.onSelectShipChoiceForInstance}

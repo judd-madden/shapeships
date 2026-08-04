@@ -427,10 +427,6 @@ export type GameData = {
      */
     buildAppliedTurnNumber?: number;
     
-    /** Existing turn flags used elsewhere (present at runtime even if not typed) */
-    anyChargesSpentInDeclaration?: boolean;
-    anyChargesDeclared?: boolean;
-    chargeDeclarationEligibleByPlayerId?: Record<string, boolean>;
     chargeDeclarationEligibleSourceIdsByPlayerId?: Record<string, string[]>;
     /** Internal declaration-start snapshot of charged SOL instances for Ancient controllers. */
     solarGridDeclarationSourceIdsByPlayerId?: Record<string, string[]>;

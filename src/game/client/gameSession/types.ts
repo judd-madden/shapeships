@@ -739,10 +739,6 @@ export interface ActionPanelViewModel {
 
   shipChoices?: {
     groups: ShipChoicesPanelGroup[];
-    showOpponentAlsoHasCharges?: boolean;
-    opponentEligibleAtDeclarationStart?: boolean;
-    opponentAlsoHasChargesHeading?: string;
-    opponentAlsoHasChargesLines?: string[];
     selectedChoiceIdBySourceInstanceId?: Record<string, string>;
     centaurChargeTabs?: {
       activeTab: CentaurChargeSubTabId;
