@@ -20,15 +20,25 @@ import {
   clearBattleLogScratchAfterFinalization,
   createBattleLogScratchFromLegacyHistoryStore,
   foldBattleLogCaptureEventsIntoScratch,
+  getBattleLogArchiveCheckpointFromState,
   getBattleLogScratchFromState,
   getBattleLogHistoryKey,
   normalizeBattleLogHistoryStore,
   normalizeBattleLogScratch,
   partitionBattleLogCaptureEventsByFinalizedTurn,
   selectBattleLogFinalizeTurnEvent,
+  type BattleLogArchiveCheckpoint,
+  type BattleLogHistoryStore,
 } from '../engine/state/battleLogHistory.ts';
 import { appendChatEntry, type ChatStore } from './chat_kv.ts';
-import { ensureStateRevision, withBumpedStateRevision } from './state_revision.ts';
+import {
+  ensureStateRevision,
+  getPersistedHistoryRevisionToken,
+  getPersistedStateRevisionToken,
+  getStateRevisionBase,
+  withStateRevisionFromBase,
+} from './state_revision.ts';
+import type { IntentPersistence } from './intent_persistence.ts';
 import { debugLog } from '../utils/serverLogger.ts';
 import {
   normalizeAncientGameState,
@@ -60,74 +70,69 @@ function logAncientCompatibilityRisks(
   });
 }
 
-async function persistGameStateAndHistoryTogether(
-  supabase: any,
-  gameKey: string,
-  gameState: any,
-  historyKey: string,
-  historyStore: any,
-): Promise<void> {
-  const { error } = await supabase
-    .from('kv_store_825e19ab')
-    .upsert([
-      { key: gameKey, value: gameState },
-      { key: historyKey, value: historyStore },
-    ]);
+const MAX_INTENT_CONFLICT_RETRIES = 2;
+const MAX_HISTORY_CONFLICT_RETRIES = 2;
 
-  if (error) {
-    throw error;
+type ArchiveReconciliation =
+  | { status: 'none' | 'archived' }
+  | { status: 'unresolved'; reason: string }
+  | { status: 'divergent' };
+
+async function reconcileArchiveCheckpoint(args: {
+  persistence: IntentPersistence;
+  gameId: string;
+  checkpoint: BattleLogArchiveCheckpoint | null;
+}): Promise<ArchiveReconciliation> {
+  if (!args.checkpoint) return { status: 'none' };
+  const historyKey = getBattleLogHistoryKey(args.gameId);
+
+  for (let attempt = 0; attempt <= MAX_HISTORY_CONFLICT_RETRIES; attempt += 1) {
+    const loaded = await args.persistence.load(historyKey);
+    if (loaded.status === 'error') {
+      return { status: 'unresolved', reason: loaded.error.message };
+    }
+
+    const rawHistory = loaded.status === 'found' ? loaded.value : null;
+    const historyStore = normalizeBattleLogHistoryStore(args.gameId, rawHistory);
+    const appendResult = appendBattleLogTurnSummaryIdempotently(
+      historyStore,
+      args.checkpoint.summary,
+    );
+
+    if (appendResult.status === 'divergent') {
+      return { status: 'divergent' };
+    }
+    if (appendResult.status === 'already_present') {
+      return { status: 'archived' };
+    }
+
+    const writeResult = loaded.status === 'missing'
+      ? await args.persistence.insertIfMissing(historyKey, appendResult.historyStore)
+      : await (() => {
+          const token = getPersistedHistoryRevisionToken(rawHistory);
+          if (token.kind === 'invalid') {
+            return Promise.resolve({
+              status: 'error' as const,
+              error: { message: 'INVALID_PERSISTED_HISTORY_REVISION' },
+            });
+          }
+          return args.persistence.conditionalUpdate({
+            key: historyKey,
+            value: appendResult.historyStore,
+            revisionField: 'revision',
+            expected: token,
+          });
+        })();
+
+    if (writeResult.status === 'updated') return { status: 'archived' };
+    if (writeResult.status === 'error') {
+      return { status: 'unresolved', reason: writeResult.error.message };
+    }
   }
-}
 
-async function persistGameState(
-  supabase: any,
-  gameKey: string,
-  gameState: any,
-): Promise<void> {
-  const { error } = await supabase
-    .from('kv_store_825e19ab')
-    .upsert([{ key: gameKey, value: gameState }]);
-
-  if (error) {
-    throw error;
-  }
-}
-
-function getBattleLogDebugPhaseKey(state: any): string | null {
-  const gameData = state?.gameData;
-  const majorPhase = gameData?.currentPhase;
-  const subPhase = gameData?.currentSubPhase;
-
-  if (
-    typeof majorPhase === 'string' &&
-    majorPhase.length > 0 &&
-    typeof subPhase === 'string' &&
-    subPhase.length > 0
-  ) {
-    return `${majorPhase}.${subPhase}`;
-  }
-
-  const turnData = gameData?.turnData;
-  const turnMajorPhase = turnData?.currentMajorPhase;
-  const turnSubPhase = turnData?.currentSubPhase;
-
-  if (
-    typeof turnMajorPhase === 'string' &&
-    turnMajorPhase.length > 0 &&
-    typeof turnSubPhase === 'string' &&
-    turnSubPhase.length > 0
-  ) {
-    return `${turnMajorPhase}.${turnSubPhase}`;
-  }
-
-  return null;
-}
-
-function summarizeBattleLogDebugState(state: any) {
   return {
-    turnNumber: state?.gameData?.turnNumber ?? null,
-    status: state?.status ?? null,
-    phaseKey: getBattleLogDebugPhaseKey(state),
+    status: 'unresolved',
+    reason: 'History conditional-write retry budget exhausted',
   };
 }
 
@@ -137,15 +142,6 @@ function summarizeBattleLogHistoryStore(historyStore: any) {
     completedTurnCount: historyStore?.completedTurnCount ?? null,
     legacyCurrentTurnCaptureTurnNumber:
       historyStore?.currentTurnCapture?.turnNumber ?? null,
-  };
-}
-
-function summarizeBattleLogScratch(scratch: any) {
-  return {
-    currentTurnCaptureTurnNumber:
-      scratch?.currentTurnCapture?.turnNumber ?? null,
-    lastFinalizedTurnNumber:
-      scratch?.lastFinalizedTurnNumber ?? null,
   };
 }
 
@@ -181,24 +177,20 @@ async function prepareBattleLogPersistenceFromEvents(args: {
   gameId: string,
   nextState: any,
   events: any[],
-  kvGet: (key: string) => Promise<any>,
+  historyStore: BattleLogHistoryStore | null,
 }) {
   const {
-    gameId,
     nextState,
     events,
-    kvGet,
+    historyStore,
   } = args;
-  const historyKey = getBattleLogHistoryKey(gameId);
-  let historyStore: any | null = null;
   let usedLegacyHistorySeed = false;
   let scratch = getBattleLogScratchFromState(nextState);
 
   if (typeof nextState?.battleLogScratch === 'undefined') {
-    historyStore = normalizeBattleLogHistoryStore(
-      gameId,
-      await kvGet(historyKey),
-    );
+    if (!historyStore) {
+      throw new Error('LEGACY_BATTLE_LOG_HISTORY_NOT_LOADED');
+    }
     const legacyScratch = createBattleLogScratchFromLegacyHistoryStore(
       historyStore,
     );
@@ -228,8 +220,7 @@ async function prepareBattleLogPersistenceFromEvents(args: {
     nextState.battleLogScratch = scratchAfterProcessing;
     return {
       nextState,
-      historyStore: null,
-      shouldPersistHistory: false,
+      finalizedSummary: null,
       finalizedTurnNumber: null,
       archiveAppended: false,
       usedLegacyHistorySeed,
@@ -265,30 +256,22 @@ async function prepareBattleLogPersistenceFromEvents(args: {
           currentTurnCapture: null,
           lastFinalizedTurnNumber:
             scratchBeforeProcessing.lastFinalizedTurnNumber ?? null,
+          archiveCheckpoint: scratchBeforeProcessing.archiveCheckpoint ?? null,
         };
   const scratchForFinalizedTurn = foldBattleLogCaptureEventsIntoScratch(
     scratchSeedForFinalizedTurn,
     finalizedTurnEvents,
   );
 
-  if (!historyStore) {
-    historyStore = normalizeBattleLogHistoryStore(
-      gameId,
-      await kvGet(historyKey),
-    );
-  }
-  const historyBeforeProcessing = summarizeBattleLogHistoryStore(historyStore);
+  const historyBeforeProcessing = historyStore
+    ? summarizeBattleLogHistoryStore(historyStore)
+    : null;
 
   const finalizedSummary = buildBattleLogTurnSummaryFromScratch({
     scratch: scratchForFinalizedTurn,
     finalizedTurnNumber,
     finalizedState: nextState,
   });
-  const appendResult = appendBattleLogTurnSummaryIdempotently(
-    historyStore,
-    finalizedSummary,
-  );
-
   const currentScratchTurnNumber =
     scratchBeforeProcessing.currentTurnCapture?.turnNumber ?? null;
   let scratchAfterProcessing =
@@ -301,6 +284,7 @@ async function prepareBattleLogPersistenceFromEvents(args: {
               scratchBeforeProcessing.lastFinalizedTurnNumber ?? finalizedTurnNumber,
               finalizedTurnNumber,
             ),
+          archiveCheckpoint: scratchBeforeProcessing.archiveCheckpoint ?? null,
         }
       : clearBattleLogScratchAfterFinalization(
           scratchForFinalizedTurn,
@@ -317,10 +301,8 @@ async function prepareBattleLogPersistenceFromEvents(args: {
 
   return {
     nextState,
-    historyStore: appendResult.historyStore,
-    shouldPersistHistory: true,
+    finalizedSummary,
     finalizedTurnNumber,
-    archiveAppended: appendResult.appended,
     usedLegacyHistorySeed,
     scratchBeforeProcessing,
     scratchAfterProcessing,
@@ -329,10 +311,458 @@ async function prepareBattleLogPersistenceFromEvents(args: {
     selectedFinalizeEvent: finalizeSelection.event,
     ignoredEarlierCaptureEventCount: earlierTurnEvents.length,
     historyBeforeProcessing,
-    historyAfterProcessing: summarizeBattleLogHistoryStore(
-      appendResult.historyStore,
-    ),
+    historyAfterProcessing: null,
   };
+}
+
+async function appendSuccessfulChatEvents(args: {
+  gameId: string;
+  events: readonly any[];
+  kvGet: (key: string) => Promise<any>;
+  kvSet: (key: string, value: any) => Promise<void>;
+}): Promise<void> {
+  for (const event of args.events) {
+    if (event?.type !== 'CHAT_MESSAGE') continue;
+    const chatEntryType = event.chatEntryType === 'system' ? 'system' : 'message';
+    try {
+      await appendChatEntry(
+        args.gameId,
+        chatEntryType === 'system'
+          ? {
+              type: 'system',
+              content: event.content,
+              timestamp: event.timestamp,
+            }
+          : {
+              type: 'message',
+              playerId: event.playerId,
+              playerName: event.playerName ?? 'Unknown',
+              content: event.content,
+              timestamp: event.timestamp,
+            },
+        args.kvGet,
+        args.kvSet,
+      );
+    } catch (error) {
+      console.warn(`[Chat] Failed to append message for game ${args.gameId}:`, error);
+    }
+  }
+}
+
+function responseBody(args: {
+  ok: boolean;
+  state: any;
+  events?: readonly any[];
+  playerId: string;
+  rejected?: { code: string; message: string } | null;
+}) {
+  return {
+    ok: args.ok,
+    state: sanitizeStateForResponse(args.state, args.playerId),
+    events: sanitizeEventsForResponse(
+      args.state,
+      args.events ?? [],
+      args.playerId,
+    ),
+    rejected: args.rejected ?? null,
+  };
+}
+
+function setArchiveCheckpoint(
+  state: any,
+  checkpoint: BattleLogArchiveCheckpoint | null,
+): any {
+  state.battleLogScratch = {
+    ...getBattleLogScratchFromState(state),
+    archiveCheckpoint: checkpoint ? structuredClone(checkpoint) : null,
+  };
+  return state;
+}
+
+async function handleIntentRequest(args: {
+  c: any;
+  kvGet: (key: string) => Promise<any>;
+  kvSet: (key: string, value: any) => Promise<void>;
+  requireSession: (c: any) => Promise<any>;
+  persistence: IntentPersistence;
+}) {
+  const { c, kvGet, kvSet, requireSession, persistence } = args;
+  let committedFallbackResponse: ReturnType<typeof responseBody> | null = null;
+  try {
+    const session = await requireSession(c);
+    if (session instanceof Response) return session;
+    const sessionPlayerId = session.sessionId;
+    const body = await c.req.json();
+    if (!body.gameId || !body.intentType || body.turnNumber === undefined) {
+      return c.json({
+        ok: false,
+        state: null,
+        events: [],
+        rejected: {
+          code: 'BAD_PAYLOAD',
+          message: 'Missing required fields: gameId, intentType, turnNumber',
+        },
+      }, 400);
+    }
+
+    const intentRequest: IntentRequest = {
+      gameId: body.gameId,
+      intentType: body.intentType,
+      turnNumber: body.turnNumber,
+      commitHash: body.commitHash,
+      payload: body.payload,
+      nonce: body.nonce,
+    };
+    const gameKey = `game_${intentRequest.gameId}`;
+    const nowMs = Date.now();
+
+    for (let attempt = 0; attempt <= MAX_INTENT_CONFLICT_RETRIES; attempt += 1) {
+      const loaded = await persistence.load(gameKey);
+      if (loaded.status === 'error') {
+        return c.json({
+          ok: false,
+          state: null,
+          events: [],
+          rejected: { code: 'PERSISTENCE_ERROR', message: loaded.error.message },
+        }, 500);
+      }
+      if (loaded.status === 'missing') {
+        return c.json({
+          ok: false,
+          state: null,
+          events: [],
+          rejected: {
+            code: 'GAME_NOT_FOUND',
+            message: `Game ${intentRequest.gameId} not found`,
+          },
+        }, 404);
+      }
+
+      const rawState = structuredClone(loaded.value);
+      const revisionToken = getPersistedStateRevisionToken(rawState);
+      if (revisionToken.kind === 'invalid') {
+        return c.json({
+          ok: false,
+          state: null,
+          events: [],
+          rejected: {
+            code: 'INVALID_PERSISTED_STATE_REVISION',
+            message: 'Stored game stateRevision is invalid',
+          },
+        }, 500);
+      }
+      const persistedBaseRevision = getStateRevisionBase(revisionToken);
+      const loadedCheckpoint = getBattleLogArchiveCheckpointFromState(rawState);
+      const loadedCheckpointSerialized = loadedCheckpoint
+        ? JSON.stringify(loadedCheckpoint)
+        : null;
+      const archiveResolution = await reconcileArchiveCheckpoint({
+        persistence,
+        gameId: intentRequest.gameId,
+        checkpoint: loadedCheckpoint,
+      });
+      if (archiveResolution.status === 'divergent' && loadedCheckpoint) {
+        console.error('[BattleLog] Archive checkpoint diverges from stored history', {
+          gameId: intentRequest.gameId,
+          finalizedTurnNumber: loadedCheckpoint.finalizedTurnNumber,
+          acceptedStateRevision: loadedCheckpoint.acceptedStateRevision,
+        });
+      }
+
+      const ensuredState = ensureStateRevision(structuredClone(rawState));
+      const ingressNormalization = normalizeAncientGameState(ensuredState);
+      let latestState = ingressNormalization.state;
+      const ancientCompatibilityRisks = [
+        ...ingressNormalization.compatibilityRisks,
+      ];
+      const compatibilityRepairRequired =
+        JSON.stringify(rawState) !== JSON.stringify(latestState);
+      if (loadedCheckpoint && archiveResolution.status === 'archived') {
+        latestState = setArchiveCheckpoint(latestState, null);
+      } else if (loadedCheckpoint) {
+        latestState = setArchiveCheckpoint(latestState, loadedCheckpoint);
+      }
+
+      const previousStatus = latestState?.status;
+      latestState = accrueClocks(latestState, nowMs);
+      const applied = await applyIntent(
+        latestState,
+        sessionPlayerId,
+        intentRequest,
+        nowMs,
+      );
+
+      if (!applied.ok) {
+        if (applied.rejected?.code !== 'DUPLICATE_COMMIT') {
+          return c.json(responseBody({
+            ok: false,
+            state: applied.state,
+            events: [],
+            playerId: sessionPlayerId,
+            rejected: applied.rejected,
+          }), 400);
+        }
+
+        if (!compatibilityRepairRequired) {
+          return c.json(responseBody({
+            ok: true,
+            state: applied.state,
+            events: [],
+            playerId: sessionPlayerId,
+          }), 200);
+        }
+
+        const repairedState = withStateRevisionFromBase(
+          applied.state,
+          persistedBaseRevision,
+        );
+        const repairWrite = await persistence.conditionalUpdate({
+          key: gameKey,
+          value: repairedState,
+          revisionField: 'stateRevision',
+          expected: revisionToken,
+        });
+        if (repairWrite.status === 'conflict') continue;
+        if (repairWrite.status === 'error') {
+          return c.json({
+            ok: false,
+            state: null,
+            events: [],
+            rejected: {
+              code: 'PERSISTENCE_ERROR',
+              message: repairWrite.error.message,
+            },
+          }, 500);
+        }
+        logAncientCompatibilityRisks(
+          'intent-duplicate-compatibility-repair',
+          ancientCompatibilityRisks,
+        );
+        return c.json(responseBody({
+          ok: true,
+          state: repairedState,
+          events: [],
+          playerId: sessionPlayerId,
+        }), 200);
+      }
+
+      const botRun = await runBotsUntilSettled({ state: applied.state, nowMs });
+      const finalNormalization = normalizeAncientGameState(botRun.state);
+      ancientCompatibilityRisks.push(...finalNormalization.compatibilityRisks);
+      let candidateState = finalNormalization.state;
+      const successfulEvents = [...applied.events, ...botRun.events];
+      const terminalOccurred =
+        previousStatus !== 'finished' && candidateState?.status === 'finished';
+      if (
+        terminalOccurred &&
+        !successfulEvents.some((event) => event?.type === 'GAME_OVER')
+      ) {
+        successfulEvents.push({
+          type: 'GAME_OVER',
+          result: candidateState?.result ?? 'draw',
+          resultReason: candidateState?.resultReason,
+          winnerPlayerId: candidateState?.winnerPlayerId ?? null,
+          atMs: nowMs,
+        });
+      }
+
+      let historyStore: BattleLogHistoryStore | null = null;
+      if (typeof candidateState?.battleLogScratch === 'undefined') {
+        const historyLoad = await persistence.load(
+          getBattleLogHistoryKey(intentRequest.gameId),
+        );
+        if (historyLoad.status === 'error') {
+          return c.json({
+            ok: false,
+            state: sanitizeStateForResponse(rawState, sessionPlayerId),
+            events: [],
+            rejected: {
+              code: 'PERSISTENCE_ERROR',
+              message: historyLoad.error.message,
+            },
+          }, 500);
+        }
+        historyStore = normalizeBattleLogHistoryStore(
+          intentRequest.gameId,
+          historyLoad.status === 'found' ? historyLoad.value : null,
+        );
+      }
+      const battleLogResult = await prepareBattleLogPersistenceFromEvents({
+        gameId: intentRequest.gameId,
+        nextState: candidateState,
+        events: successfulEvents,
+        historyStore,
+      });
+      candidateState = battleLogResult.nextState;
+      const finalizedSummary = battleLogResult.finalizedSummary;
+
+      if (
+        finalizedSummary &&
+        loadedCheckpoint &&
+        archiveResolution.status !== 'archived'
+      ) {
+        const divergent = archiveResolution.status === 'divergent';
+        console.error('[BattleLog] New finalization blocked by earlier checkpoint', {
+          gameId: intentRequest.gameId,
+          earlierFinalizedTurnNumber: loadedCheckpoint.finalizedTurnNumber,
+          status: archiveResolution.status,
+        });
+        return c.json({
+          ok: false,
+          state: sanitizeStateForResponse(rawState, sessionPlayerId),
+          events: [],
+          rejected: {
+            code: divergent
+              ? 'HISTORY_ARCHIVE_DIVERGENCE'
+              : 'HISTORY_ARCHIVE_FINALIZATION_BLOCKED',
+            message: divergent
+              ? 'Stored Battle Log content diverges from the pending archive checkpoint'
+              : 'The previous completed turn could not yet be archived',
+          },
+        }, divergent ? 500 : 503);
+      }
+
+      const acceptedStateRevision = persistedBaseRevision + 1;
+      let newCheckpoint: BattleLogArchiveCheckpoint | null = null;
+      if (finalizedSummary) {
+        newCheckpoint = {
+          finalizedTurnNumber: battleLogResult.finalizedTurnNumber,
+          acceptedStateRevision,
+          summary: finalizedSummary,
+        };
+        candidateState = setArchiveCheckpoint(candidateState, newCheckpoint);
+      } else if (
+        loadedCheckpoint &&
+        (archiveResolution.status === 'unresolved' ||
+          archiveResolution.status === 'divergent')
+      ) {
+        candidateState = setArchiveCheckpoint(candidateState, loadedCheckpoint);
+        const candidateCheckpointSerialized = JSON.stringify(
+          getBattleLogArchiveCheckpointFromState(candidateState),
+        );
+        if (candidateCheckpointSerialized !== loadedCheckpointSerialized) {
+          return c.json({
+            ok: false,
+            state: sanitizeStateForResponse(rawState, sessionPlayerId),
+            events: [],
+            rejected: {
+              code: 'PERSISTENCE_INVARIANT_ERROR',
+              message: 'Archive checkpoint changed during a non-finalizing mutation',
+            },
+          }, 500);
+        }
+      }
+
+      candidateState = withStateRevisionFromBase(
+        candidateState,
+        persistedBaseRevision,
+      );
+      const committedResponse = responseBody({
+        ok: true,
+        state: candidateState,
+        events: successfulEvents,
+        playerId: sessionPlayerId,
+      });
+      const gameWrite = await persistence.conditionalUpdate({
+        key: gameKey,
+        value: candidateState,
+        revisionField: 'stateRevision',
+        expected: revisionToken,
+      });
+      if (gameWrite.status === 'conflict') continue;
+      if (gameWrite.status === 'error') {
+        return c.json({
+          ok: false,
+          state: null,
+          events: [],
+          rejected: {
+            code: 'PERSISTENCE_ERROR',
+            message: gameWrite.error.message,
+          },
+        }, 500);
+      }
+      committedFallbackResponse = committedResponse;
+
+      // The game mutation is committed. Every operation below is isolated so it
+      // can never convert this accepted request into an HTTP failure.
+      try {
+        await appendSuccessfulChatEvents({
+          gameId: intentRequest.gameId,
+          events: successfulEvents,
+          kvGet,
+          kvSet,
+        });
+      } catch (error) {
+        console.warn('[Intent] Post-commit chat processing failed', error);
+      }
+      try {
+        if (newCheckpoint) {
+          const historyResult = await reconcileArchiveCheckpoint({
+            persistence,
+            gameId: intentRequest.gameId,
+            checkpoint: newCheckpoint,
+          });
+          if (historyResult.status === 'unresolved') {
+            console.error('[BattleLog] Archive checkpoint remains unresolved', {
+              gameId: intentRequest.gameId,
+              finalizedTurnNumber: newCheckpoint.finalizedTurnNumber,
+              reason: historyResult.reason,
+            });
+          } else if (historyResult.status === 'divergent') {
+            console.error('[BattleLog] Archive checkpoint diverges from history', {
+              gameId: intentRequest.gameId,
+              finalizedTurnNumber: newCheckpoint.finalizedTurnNumber,
+            });
+          }
+        }
+      } catch (error) {
+        console.error('[BattleLog] Post-commit archive attempt failed', error);
+      }
+      try {
+        logAncientCompatibilityRisks('intent-success', ancientCompatibilityRisks);
+      } catch (error) {
+        console.warn('[Intent] Post-commit compatibility logging failed', error);
+      }
+
+      return c.json(committedResponse, 200);
+    }
+
+    const latest = await persistence.load(gameKey);
+    if (latest.status === 'error') {
+      return c.json({
+        ok: false,
+        state: null,
+        events: [],
+        rejected: {
+          code: 'PERSISTENCE_ERROR',
+          message: latest.error.message,
+        },
+      }, 500);
+    }
+    const latestState = latest.status === 'found' ? latest.value : null;
+    return c.json({
+      ok: false,
+      state: sanitizeStateForResponse(latestState, sessionPlayerId),
+      events: [],
+      rejected: {
+        code: 'PERSISTENCE_CONFLICT_RETRY_EXHAUSTED',
+        message: 'The game changed during all persistence attempts',
+      },
+    }, 409);
+  } catch (error) {
+    if (committedFallbackResponse) {
+      console.error('[Intent] Post-commit operation failed; preserving accepted response:', error);
+      return c.json(committedFallbackResponse, 200);
+    }
+    console.error('[Intent] Internal error before authoritative commit:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return c.json({
+      ok: false,
+      state: null,
+      events: [],
+      rejected: { code: 'INTERNAL_ERROR', message },
+    }, 500);
+  }
 }
 
 export function registerIntentRoutes(
@@ -340,424 +770,18 @@ export function registerIntentRoutes(
   kvGet: (key: string) => Promise<any>,
   kvSet: (key: string, value: any) => Promise<void>,
   requireSession: (c: any) => Promise<any>,
-  supabase: any
+  persistence: IntentPersistence,
 ) {
-  
-  // ============================================================================
-  // POST /intent - Commit/Reveal Protocol Endpoint
-  // ============================================================================
-  
-  app.post("/make-server-825e19ab/intent", async (c) => {
-    try {
-      // ========================================================================
-      // AUTH: Validate session (matches game_routes.ts pattern)
-      // ========================================================================
-      
-      const session = await requireSession(c);
-      if (session instanceof Response) return session;
-      
-      const sessionPlayerId = session.sessionId;
-      
-      debugLog(`[Intent] Request from session: ${sessionPlayerId}`);
-      
-      // ========================================================================
-      // PARSE REQUEST
-      // ========================================================================
-      
-      const body = await c.req.json();
-      
-      if (!body.gameId || !body.intentType || body.turnNumber === undefined) {
-        return c.json({
-          ok: false,
-          state: null,
-          events: [],
-          rejected: {
-            code: 'BAD_PAYLOAD',
-            message: 'Missing required fields: gameId, intentType, turnNumber'
-          }
-        }, 400);
-      }
-      
-      const intentRequest: IntentRequest = {
-        gameId: body.gameId,
-        intentType: body.intentType,
-        turnNumber: body.turnNumber,
-        commitHash: body.commitHash,
-        payload: body.payload,
-        nonce: body.nonce
-      };
-      
-      debugLog(`[Intent] Type: ${intentRequest.intentType}, Game: ${intentRequest.gameId}, Turn: ${intentRequest.turnNumber}`);
-      
-      // ========================================================================
-      // LOAD / APPLY with lost-update protection (merge-safe)
-      // ========================================================================
-      
-      const gameKey = `game_${intentRequest.gameId}`;
-      const nowMs = Date.now();
+  app.post("/make-server-825e19ab/intent", (c) =>
+    handleIntentRequest({
+      c,
+      kvGet,
+      kvSet,
+      requireSession,
+      persistence,
+    })
+  );
 
-      // 1) Load initial snapshot
-      let baseState = await kvGet(gameKey);
-
-      if (!baseState) {
-        debugLog(`[Intent] Game not found: ${gameKey}`);
-        return c.json(
-          {
-            ok: false,
-            state: null,
-            events: [],
-            rejected: { code: 'GAME_NOT_FOUND', message: `Game ${intentRequest.gameId} not found` },
-          },
-          404
-        );
-      }
-      baseState = ensureStateRevision(baseState);
-      const baseAncientNormalization = normalizeAncientGameState(baseState);
-      baseState = baseAncientNormalization.state;
-      const ancientCompatibilityRisks = [
-        ...baseAncientNormalization.compatibilityRisks,
-      ];
-
-      // 2) Apply against snapshot (no clock accrue here; clocks accrue on latestState only)
-      const baseStateBeforeInitialApply = structuredClone(baseState);
-      let result = await applyIntent(baseState, sessionPlayerId, intentRequest, nowMs);
-
-      if (!result.ok) {
-        debugLog(`[Intent] Rejected: ${result.rejected?.code} - ${result.rejected?.message}`);
-        return c.json(
-          {
-            ok: result.ok,
-            state: sanitizeStateForResponse(result.state, sessionPlayerId),
-            events: sanitizeEventsForResponse(
-              result.state,
-              result.events,
-              sessionPlayerId,
-            ),
-            rejected: result.rejected,
-          },
-          400
-        );
-      }
-
-      // 3) Reload latest to avoid overwriting concurrent writer
-      let latestState = await kvGet(gameKey);
-      if (!latestState) latestState = result.state;
-      latestState = ensureStateRevision(latestState);
-      const latestStateBeforeAncientNormalization = structuredClone(latestState);
-      const latestAncientNormalization = normalizeAncientGameState(latestState);
-      latestState = latestAncientNormalization.state;
-      ancientCompatibilityRisks.push(
-        ...latestAncientNormalization.compatibilityRisks,
-      );
-
-      // Accrue clocks on latest using SAME nowMs (deterministic for this request)
-      const prevStatus = latestState?.status;
-      latestState = accrueClocks(latestState, nowMs);
-
-      // 4) Re-apply intent on latest
-      const latestStateBeforeRetryApply = structuredClone(latestState);
-      const retry = await applyIntent(latestState, sessionPlayerId, intentRequest, nowMs);
-
-      if (retry.ok) {
-        const botRunResult = await runBotsUntilSettled({
-          state: retry.state,
-          nowMs,
-        });
-
-        // ========================================================================
-        // TERMINAL DETECTION: Emit GAME_OVER if terminal transition occurred
-        // ========================================================================
-        
-        const finalAncientNormalization = normalizeAncientGameState(
-          botRunResult.state,
-        );
-        ancientCompatibilityRisks.push(
-          ...finalAncientNormalization.compatibilityRisks,
-        );
-        const finalState = withBumpedStateRevision(
-          finalAncientNormalization.state,
-        );
-        const nextStatus = finalState?.status;
-        const terminalOccurred = prevStatus !== 'finished' && nextStatus === 'finished';
-        const allEvents = [...retry.events, ...botRunResult.events];
-        
-        if (terminalOccurred) {
-          // Check if GAME_OVER already present (avoid duplicates)
-          const alreadyHasGameOver = allEvents.some(e => e?.type === 'GAME_OVER');
-          
-          if (!alreadyHasGameOver) {
-            const gameOverEvent = {
-              type: 'GAME_OVER',
-              result: retry.state?.result ?? 'draw',
-              resultReason: retry.state?.resultReason,
-              winnerPlayerId: retry.state?.winnerPlayerId ?? null,
-              atMs: nowMs,
-            };
-            
-            allEvents.push(gameOverEvent);
-          }
-        }
-
-        const previousStateSummary = summarizeBattleLogDebugState(latestStateBeforeRetryApply);
-        const livePreviousStateSummary = summarizeBattleLogDebugState(latestState);
-        const battleLogProcessingResult = await prepareBattleLogPersistenceFromEvents({
-          gameId: intentRequest.gameId,
-          nextState: finalState,
-          events: allEvents,
-          kvGet,
-        });
-        debugLog('[BattleLog][IntentRoute]', {
-          branch: 'retry.ok',
-          intentType: intentRequest.intentType,
-          requestTurnNumber: intentRequest.turnNumber,
-          previousState: previousStateSummary,
-          nextState: summarizeBattleLogDebugState(finalState),
-          botStepsApplied: botRunResult.botStepsApplied,
-          finalizedTurnNumber: battleLogProcessingResult.finalizedTurnNumber,
-          selectedFinalizeEvent: battleLogProcessingResult.selectedFinalizeEvent,
-          finalizeEventCount: battleLogProcessingResult.finalizeEventCount,
-          finalizeEventDistinctTurnNumbers:
-            battleLogProcessingResult.finalizeEventDistinctTurnNumbers,
-          ignoredEarlierCaptureEventCount:
-            battleLogProcessingResult.ignoredEarlierCaptureEventCount,
-          usedLegacyHistorySeed: battleLogProcessingResult.usedLegacyHistorySeed,
-          archiveAppended: battleLogProcessingResult.archiveAppended,
-          scratchBeforeProcessing: summarizeBattleLogScratch(
-            battleLogProcessingResult.scratchBeforeProcessing,
-          ),
-          scratchAfterProcessing: summarizeBattleLogScratch(
-            battleLogProcessingResult.scratchAfterProcessing,
-          ),
-          historyBeforeProcessing:
-            battleLogProcessingResult.historyBeforeProcessing,
-          historyAfterProcessing:
-            battleLogProcessingResult.historyAfterProcessing,
-          previousStateMutatedSinceSnapshot:
-            JSON.stringify(previousStateSummary) !== JSON.stringify(livePreviousStateSummary),
-          livePreviousStateAtProcessing: livePreviousStateSummary,
-        });
-        
-        // ========================================================================
-        // CHAT SEPARATION: Scan events for CHAT_MESSAGE
-        // ========================================================================
-        
-        // Scan returned events for CHAT_MESSAGE (emitted by reducer)
-        for (const event of allEvents) {
-          if (event.type === 'CHAT_MESSAGE') {
-            const chatEntryType = event.chatEntryType === 'system' ? 'system' : 'message';
-
-            // Append to separate chat KV using data from event
-            try {
-              await appendChatEntry(
-                intentRequest.gameId,
-                chatEntryType === 'system'
-                  ? {
-                      type: 'system',
-                      content: event.content,
-                      timestamp: event.timestamp
-                    }
-                  : {
-                      type: 'message',
-                      playerId: event.playerId,
-                      playerName: event.playerName ?? 'Unknown',
-                      content: event.content,
-                      timestamp: event.timestamp
-                    },
-                kvGet,
-                kvSet
-              );
-            } catch (error) {
-              console.warn(`[Chat] Failed to append message for game ${intentRequest.gameId}:`, error);
-            }
-          }
-        }
-        
-        if (battleLogProcessingResult.shouldPersistHistory) {
-          const historyKey = getBattleLogHistoryKey(intentRequest.gameId);
-          await persistGameStateAndHistoryTogether(
-            supabase,
-            gameKey,
-            battleLogProcessingResult.nextState,
-            historyKey,
-            battleLogProcessingResult.historyStore,
-          );
-        } else {
-          await persistGameState(
-            supabase,
-            gameKey,
-            battleLogProcessingResult.nextState,
-          );
-        }
-        logAncientCompatibilityRisks(
-          'intent-success',
-          ancientCompatibilityRisks,
-        );
-        debugLog('[BattleLog][IntentRoute]', {
-          branch: 'retry.ok',
-          persistedStateTurnNumber:
-            battleLogProcessingResult.nextState?.gameData?.turnNumber ?? null,
-          persistedScratch: summarizeBattleLogScratch(
-            battleLogProcessingResult.nextState?.battleLogScratch,
-          ),
-          persistedHistory: battleLogProcessingResult.historyStore
-            ? summarizeBattleLogHistoryStore(
-                battleLogProcessingResult.historyStore,
-              )
-            : null,
-        });
-        debugLog(`[Intent] Success (merged): ${intentRequest.intentType}, Events: ${allEvents.length}`);
-
-        return c.json(
-          {
-            ok: true,
-            state: sanitizeStateForResponse(
-              battleLogProcessingResult.nextState,
-              sessionPlayerId,
-            ),
-            events: sanitizeEventsForResponse(
-              battleLogProcessingResult.nextState,
-              allEvents,
-              sessionPlayerId,
-            ),
-            rejected: null,
-          },
-          200
-        );
-      }
-
-      // If the retry failed ONLY because our commit is already present, treat as success.
-      // This is the expected outcome if another request already persisted our submission.
-      if (retry.rejected?.code === 'DUPLICATE_COMMIT') {
-        const previousStateSummary = summarizeBattleLogDebugState(baseStateBeforeInitialApply);
-        const livePreviousStateSummary = summarizeBattleLogDebugState(baseState);
-        const battleLogProcessingResult = await prepareBattleLogPersistenceFromEvents({
-          gameId: intentRequest.gameId,
-          nextState: ensureStateRevision(latestState),
-          events: result.events,
-          kvGet,
-        });
-        debugLog('[BattleLog][IntentRoute]', {
-          branch: 'duplicate-safe',
-          intentType: intentRequest.intentType,
-          requestTurnNumber: intentRequest.turnNumber,
-          previousState: previousStateSummary,
-          nextState: summarizeBattleLogDebugState(latestState),
-          finalizedTurnNumber: battleLogProcessingResult.finalizedTurnNumber,
-          selectedFinalizeEvent: battleLogProcessingResult.selectedFinalizeEvent,
-          finalizeEventCount: battleLogProcessingResult.finalizeEventCount,
-          finalizeEventDistinctTurnNumbers:
-            battleLogProcessingResult.finalizeEventDistinctTurnNumbers,
-          ignoredEarlierCaptureEventCount:
-            battleLogProcessingResult.ignoredEarlierCaptureEventCount,
-          usedLegacyHistorySeed: battleLogProcessingResult.usedLegacyHistorySeed,
-          archiveAppended: battleLogProcessingResult.archiveAppended,
-          scratchBeforeProcessing: summarizeBattleLogScratch(
-            battleLogProcessingResult.scratchBeforeProcessing,
-          ),
-          scratchAfterProcessing: summarizeBattleLogScratch(
-            battleLogProcessingResult.scratchAfterProcessing,
-          ),
-          historyBeforeProcessing:
-            battleLogProcessingResult.historyBeforeProcessing,
-          historyAfterProcessing:
-            battleLogProcessingResult.historyAfterProcessing,
-          previousStateMutatedSinceSnapshot:
-            JSON.stringify(previousStateSummary) !== JSON.stringify(livePreviousStateSummary),
-          livePreviousStateAtProcessing: livePreviousStateSummary,
-        });
-
-        const duplicateStateChanged =
-          JSON.stringify(latestStateBeforeAncientNormalization) !==
-            JSON.stringify(battleLogProcessingResult.nextState);
-        if (duplicateStateChanged) {
-          battleLogProcessingResult.nextState = withBumpedStateRevision(
-            battleLogProcessingResult.nextState,
-          );
-        }
-        const shouldPersistDuplicate =
-          duplicateStateChanged || battleLogProcessingResult.shouldPersistHistory;
-
-        if (shouldPersistDuplicate && battleLogProcessingResult.shouldPersistHistory) {
-          const historyKey = getBattleLogHistoryKey(intentRequest.gameId);
-          await persistGameStateAndHistoryTogether(
-            supabase,
-            gameKey,
-            battleLogProcessingResult.nextState,
-            historyKey,
-            battleLogProcessingResult.historyStore,
-          );
-        } else if (shouldPersistDuplicate) {
-          await persistGameState(
-            supabase,
-            gameKey,
-            battleLogProcessingResult.nextState,
-          );
-        }
-        if (shouldPersistDuplicate) {
-          logAncientCompatibilityRisks(
-            'intent-duplicate-safe',
-            ancientCompatibilityRisks,
-          );
-        }
-        debugLog('[BattleLog][IntentRoute]', {
-          branch: 'duplicate-safe',
-          persistedStateTurnNumber:
-            battleLogProcessingResult.nextState?.gameData?.turnNumber ?? null,
-          persistedScratch: summarizeBattleLogScratch(
-            battleLogProcessingResult.nextState?.battleLogScratch,
-          ),
-          persistedHistory: battleLogProcessingResult.historyStore
-            ? summarizeBattleLogHistoryStore(
-                battleLogProcessingResult.historyStore,
-              )
-            : null,
-        });
-        debugLog(`[Intent] Success (idempotent duplicate): ${intentRequest.intentType}`);
-
-        return c.json(
-          {
-            ok: true,
-            state: sanitizeStateForResponse(
-              battleLogProcessingResult.nextState,
-              sessionPlayerId,
-            ),
-            events: sanitizeEventsForResponse(
-              battleLogProcessingResult.nextState,
-              result.events,
-              sessionPlayerId,
-            ),
-            rejected: null,
-          },
-          200
-        );
-      }
-
-      // Any other failure: return the retry rejection (it reflects latest truth)
-      debugLog(`[Intent] Rejected on merge-retry: ${retry.rejected?.code} - ${retry.rejected?.message}`);
-      return c.json(
-        {
-          ok: false,
-          state: sanitizeStateForResponse(retry.state, sessionPlayerId),
-          events: [],
-          rejected: retry.rejected,
-        },
-        400
-      );
-      
-    } catch (error) {
-      console.error("[Intent] Internal error:", error);
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return c.json({
-        ok: false,
-        state: null,
-        events: [],
-        rejected: {
-          code: 'INTERNAL_ERROR',
-          message
-        }
-      }, 500);
-    }
-  });
   
   // ============================================================================
   // GET /chat-state/:gameId - Fetch Chat Messages

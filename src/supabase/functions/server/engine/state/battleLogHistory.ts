@@ -128,7 +128,23 @@ export type BattleLogCurrentTurnCapture = {
 export type BattleLogScratch = {
   currentTurnCapture: BattleLogCurrentTurnCapture | null;
   lastFinalizedTurnNumber?: number | null;
+  archiveCheckpoint?: BattleLogArchiveCheckpoint | null;
 };
+
+export type BattleLogArchiveCheckpoint = {
+  finalizedTurnNumber: number;
+  acceptedStateRevision: number;
+  summary: BattleLogTurnSummary;
+};
+
+export type BattleLogAppendResult =
+  | { status: "appended"; historyStore: BattleLogHistoryStore }
+  | { status: "already_present"; historyStore: BattleLogHistoryStore }
+  | {
+      status: "divergent";
+      existing: BattleLogTurnSummary;
+      candidate: BattleLogTurnSummary;
+    };
 
 export type BattleLogFinalizeTurnReason =
   | "turn_bump"
@@ -1330,6 +1346,7 @@ export function createEmptyBattleLogScratch(): BattleLogScratch {
   return {
     currentTurnCapture: null,
     lastFinalizedTurnNumber: null,
+    archiveCheckpoint: null,
   };
 }
 
@@ -1373,6 +1390,21 @@ export function normalizeBattleLogScratch(
   }
 
   const scratch = rawScratch as Partial<BattleLogScratch>;
+  const rawCheckpoint = scratch.archiveCheckpoint;
+  const archiveCheckpoint =
+    rawCheckpoint &&
+      typeof rawCheckpoint === "object" &&
+      isFiniteNumber(rawCheckpoint.finalizedTurnNumber) &&
+      Number.isInteger(rawCheckpoint.finalizedTurnNumber) &&
+      rawCheckpoint.finalizedTurnNumber > 0 &&
+      isFiniteNumber(rawCheckpoint.acceptedStateRevision) &&
+      Number.isInteger(rawCheckpoint.acceptedStateRevision) &&
+      rawCheckpoint.acceptedStateRevision > 0 &&
+      rawCheckpoint.summary &&
+      typeof rawCheckpoint.summary === "object" &&
+      rawCheckpoint.summary.turnNumber === rawCheckpoint.finalizedTurnNumber
+      ? structuredClone(rawCheckpoint)
+      : null;
   return {
     currentTurnCapture: normalizeBattleLogCurrentTurnCapture(
       scratch.currentTurnCapture,
@@ -1380,7 +1412,14 @@ export function normalizeBattleLogScratch(
     lastFinalizedTurnNumber: isFiniteNumber(scratch.lastFinalizedTurnNumber)
       ? scratch.lastFinalizedTurnNumber
       : null,
+    archiveCheckpoint,
   };
+}
+
+export function getBattleLogArchiveCheckpointFromState(
+  state: GameStateLike | null | undefined,
+): BattleLogArchiveCheckpoint | null {
+  return normalizeBattleLogScratch(state?.battleLogScratch).archiveCheckpoint ?? null;
 }
 
 export function getBattleLogScratchFromState(
@@ -1401,6 +1440,7 @@ export function createBattleLogScratchFromLegacyHistoryStore(
       store.currentTurnCapture,
     ),
     lastFinalizedTurnNumber: getLatestTurnNumberFromHistoryStore(store),
+    archiveCheckpoint: null,
   };
 }
 
@@ -1418,6 +1458,7 @@ export function clearBattleLogScratchAfterFinalization(
         priorFinalizedTurnNumber > finalizedTurnNumber
         ? priorFinalizedTurnNumber
         : finalizedTurnNumber,
+    archiveCheckpoint: normalizedScratch.archiveCheckpoint ?? null,
   };
 }
 
@@ -1876,21 +1917,54 @@ export function buildBattleLogTurnSummaryFromScratch(args: {
   };
 }
 
+function canonicalizeJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeJsonValue);
+  }
+  if (value && typeof value === "object") {
+    const ordered: Record<string, unknown> = {};
+    for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+      const child = (value as Record<string, unknown>)[key];
+      if (typeof child !== "undefined") {
+        ordered[key] = canonicalizeJsonValue(child);
+      }
+    }
+    return ordered;
+  }
+  return value;
+}
+
+export function areBattleLogTurnSummariesEqual(
+  left: BattleLogTurnSummary,
+  right: BattleLogTurnSummary,
+): boolean {
+  const canonicalLeft = canonicalizeJsonValue(cloneBattleLogTurnSummary(left));
+  const canonicalRight = canonicalizeJsonValue(cloneBattleLogTurnSummary(right));
+  return JSON.stringify(canonicalLeft) === JSON.stringify(canonicalRight);
+}
+
 export function appendBattleLogTurnSummaryIdempotently(
   store: BattleLogHistoryStore,
   summary: BattleLogTurnSummary,
-): { historyStore: BattleLogHistoryStore; appended: boolean } {
+): BattleLogAppendResult {
   const nextStore = normalizeBattleLogHistoryStore(store.gameId, store);
-  const turnAlreadyPresent = nextStore.turns.some(
+  const existing = nextStore.turns.find(
     (turn) => turn.turnNumber === summary.turnNumber,
   );
 
-  if (turnAlreadyPresent) {
+  if (existing) {
+    if (!areBattleLogTurnSummariesEqual(existing, summary)) {
+      return {
+        status: "divergent",
+        existing: cloneBattleLogTurnSummary(existing),
+        candidate: cloneBattleLogTurnSummary(summary),
+      };
+    }
     nextStore.completedTurnCount = nextStore.turns.length;
     nextStore.currentTurnCapture = null;
     return {
+      status: "already_present",
       historyStore: nextStore,
-      appended: false,
     };
   }
 
@@ -1900,8 +1974,8 @@ export function appendBattleLogTurnSummaryIdempotently(
   nextStore.currentTurnCapture = null;
 
   return {
+    status: "appended",
     historyStore: nextStore,
-    appended: true,
   };
 }
 
@@ -1922,7 +1996,10 @@ export function finalizeBattleLogTurn(
     finalizedState,
   });
 
-  return appendBattleLogTurnSummaryIdempotently(store, summary).historyStore;
+  const appendResult = appendBattleLogTurnSummaryIdempotently(store, summary);
+  return appendResult.status === "divergent"
+    ? normalizeBattleLogHistoryStore(store.gameId, store)
+    : appendResult.historyStore;
 }
 
 export function createBattleLogBuildManualCaptureEvent(args: {

@@ -3,6 +3,7 @@ import { replaceChargeDeclarationVisibilityState } from '../../engine/state/char
 import { applyIntent } from '../../engine/intent/IntentReducer.ts';
 import { registerGameRoutes } from '../../routes/game_routes.ts';
 import { registerIntentRoutes } from '../../routes/intent_routes.ts';
+import type { IntentPersistence } from '../../routes/intent_persistence.ts';
 import {
   applyAncientBattleRevealPreparation,
   normalizeAncientGameState,
@@ -128,6 +129,9 @@ function createGameRouteFixture() {
     },
     async () => ({ sessionId }),
     () => `generated-${++generatedId}`,
+    async (key) => store.has(key)
+      ? { status: 'found', value: structuredClone(store.get(key)) }
+      : { status: 'missing' },
   );
   return {
     app,
@@ -139,19 +143,44 @@ function createGameRouteFixture() {
   };
 }
 
-function createFakeSupabase(store: Map<string, any>, writes: any[]) {
+function createFakeIntentPersistence(
+  store: Map<string, any>,
+  writes: any[],
+  gameReads: any[],
+): IntentPersistence {
   return {
-    from() {
-      return {
-        async upsert(entries: Array<{ key: string; value: any }>) {
-          for (const entry of entries) {
-            const copy = structuredClone(entry.value);
-            store.set(entry.key, copy);
-            writes.push({ key: entry.key, value: copy });
-          }
-          return { error: null };
-        },
-      };
+    async load(key) {
+      if (key.startsWith('game_') && !key.startsWith('game_history_') && gameReads.length > 0) {
+        const value = structuredClone(gameReads.shift());
+        store.set(key, structuredClone(value));
+        return { status: 'found', value };
+      }
+      if (!store.has(key)) return { status: 'missing' };
+      return { status: 'found', value: structuredClone(store.get(key)) };
+    },
+    async conditionalUpdate(args) {
+      const current = store.get(args.key);
+      if (!current) return { status: 'conflict' };
+      const hasRevision = Object.prototype.hasOwnProperty.call(
+        current,
+        args.revisionField,
+      );
+      const matches = args.expected.kind === 'missing'
+        ? !hasRevision
+        : args.expected.kind === 'valid' &&
+          current[args.revisionField] === args.expected.revision;
+      if (!matches) return { status: 'conflict' };
+      const copy = structuredClone(args.value);
+      store.set(args.key, copy);
+      writes.push({ key: args.key, value: copy });
+      return { status: 'updated' };
+    },
+    async insertIfMissing(key, value) {
+      if (store.has(key)) return { status: 'conflict' };
+      const copy = structuredClone(value);
+      store.set(key, copy);
+      writes.push({ key, value: copy });
+      return { status: 'updated' };
     },
   };
 }
@@ -180,7 +209,7 @@ function createIntentRouteFixture(args?: {
       writes.push({ key, value: copy });
     },
     async () => ({ sessionId }),
-    createFakeSupabase(store, writes),
+    createFakeIntentPersistence(store, writes, gameReads),
   );
   return {
     app,
@@ -2519,9 +2548,8 @@ function createBuildDrawingState(gameId: string, committed: boolean, repaired: b
 }
 
 Deno.test('duplicate-safe /intent repairs once and skips a no-op persistence', async () => {
-  const base = createBuildDrawingState('duplicate-repair', false, false);
   const latest = createBuildDrawingState('duplicate-repair', true, false);
-  const repair = createIntentRouteFixture({ gameReads: [base, latest] });
+  const repair = createIntentRouteFixture({ gameReads: [latest] });
   const handler = repair.app.handler('POST', '/make-server-825e19ab/intent');
   const repairResponse = await handler(createContext({
     body: {
@@ -2538,9 +2566,8 @@ Deno.test('duplicate-safe /intent repairs once and skips a no-op persistence', a
   assert.equal(repairWrites.length, 1);
   assert.equal(repairWrites[0].value.stateRevision, 6);
 
-  const cleanBase = createBuildDrawingState('duplicate-noop', false, true);
   const cleanLatest = createBuildDrawingState('duplicate-noop', true, true);
-  const noop = createIntentRouteFixture({ gameReads: [cleanBase, cleanLatest] });
+  const noop = createIntentRouteFixture({ gameReads: [cleanLatest] });
   const noopHandler = noop.app.handler('POST', '/make-server-825e19ab/intent');
   const noopResponse = await noopHandler(createContext({
     body: {

@@ -56,7 +56,9 @@ import { isThirdSpiralFirstStrikeEligible } from '../engine_shared/resolve/third
 import { countDistinctTypes } from '../engine_shared/resolve/phaseComputedEffects.ts';
 import { rollD6 } from '../engine/util/rollD6.ts';
 import {
+  appendBattleLogTurnSummaryIdempotently,
   createEmptyBattleLogHistoryStore,
+  getBattleLogArchiveCheckpointFromState,
   getBattleLogHistoryKey,
   normalizeBattleLogHistoryStore,
   toBattleLogHistoryResponse,
@@ -64,6 +66,7 @@ import {
 import { appendChatEntry } from './chat_kv.ts';
 import { ensureStateRevision, withBumpedStateRevision } from './state_revision.ts';
 import { debugLog } from '../utils/serverLogger.ts';
+import type { IntentPersistence } from './intent_persistence.ts';
 import { getPlayerMaxHealth } from '../engine_shared/maximumHealth.ts';
 import { getCubeDiceActionForPlayer } from '../engine/phase/cubeDiceManipulation.ts';
 
@@ -1162,7 +1165,8 @@ export function registerGameRoutes(
   kvGet: (key: string) => Promise<any>,
   kvSet: (key: string, value: any) => Promise<void>,
   requireSession: (c: any) => Promise<any>,
-  generateGameId: () => string
+  generateGameId: () => string,
+  loadPersistedRow: IntentPersistence['load'],
 ) {
   async function prepareGameStateRead(
     gameId: string,
@@ -2243,19 +2247,47 @@ export function registerGameRoutes(
 
       const gameId = c.req.param('gameId');
       const requestingPlayerId = session.sessionId;
-      const gameData = await kvGet(`game_${gameId}`);
+      const gameLoad = await loadPersistedRow(`game_${gameId}`);
 
-      if (!gameData) {
+      if (gameLoad.status === 'error') {
+        console.error('Get game history game-row read error:', gameLoad.error);
+        return c.json({ error: "Internal server error" }, 500);
+      }
+      if (gameLoad.status === 'missing') {
         return c.json({ error: "Game not found" }, 404);
       }
+      const gameData = gameLoad.value;
 
       const participant = gameData.players.find((p: any) => p.id === requestingPlayerId);
       if (!participant) {
         return c.json({ error: "Not authorized to view this game" }, 403);
       }
 
-      const rawHistory = await kvGet(getBattleLogHistoryKey(gameId));
-      const historyStore = normalizeBattleLogHistoryStore(gameId, rawHistory);
+      const historyLoad = await loadPersistedRow(getBattleLogHistoryKey(gameId));
+      if (historyLoad.status === 'error') {
+        console.error('Get game history history-row read error:', historyLoad.error);
+        return c.json({ error: "Internal server error" }, 500);
+      }
+      let historyStore = normalizeBattleLogHistoryStore(
+        gameId,
+        historyLoad.status === 'found' ? historyLoad.value : null,
+      );
+      const checkpoint = getBattleLogArchiveCheckpointFromState(gameData);
+      if (checkpoint) {
+        const mergeResult = appendBattleLogTurnSummaryIdempotently(
+          historyStore,
+          checkpoint.summary,
+        );
+        if (mergeResult.status === 'divergent') {
+          console.error('[BattleLog] History GET found checkpoint divergence', {
+            gameId,
+            finalizedTurnNumber: checkpoint.finalizedTurnNumber,
+            acceptedStateRevision: checkpoint.acceptedStateRevision,
+          });
+        } else {
+          historyStore = mergeResult.historyStore;
+        }
+      }
       return c.json(toBattleLogHistoryResponse(historyStore));
     } catch (error) {
       console.error("Get game history error:", error);

@@ -6,10 +6,13 @@ import type {
 } from "../../../engine/state/GameStateTypes.ts";
 import {
   appendBattleLogTurnSummaryIdempotently,
+  areBattleLogTurnSummariesEqual,
   buildBattleLogTurnSummaryFromScratch,
+  clearBattleLogScratchAfterFinalization,
   createBattleLogBattleCaptureEventsFromResolution,
   foldBattleLogCaptureEventsIntoScratch,
   normalizeBattleLogHistoryStore,
+  normalizeBattleLogScratch,
 } from "../../../engine/state/battleLogHistory.ts";
 
 function solarLedgerEntry(
@@ -75,6 +78,129 @@ Deno.test("new battle history summaries derive maximum health at turn end", () =
     savedLinesEnd: 7,
     savedJoiningLinesEnd: 2,
   });
+});
+
+Deno.test("archive checkpoint survives scratch normalization, folding, and clearing byte-for-byte", () => {
+  const summary: any = {
+    turnNumber: 3,
+    diceValue: 4,
+    players: [],
+    buildLinesByPlayerId: { p1: ["1 x Scout"] },
+    battleLinesByPlayerId: { p1: ["1 x Frigate hit"] },
+  };
+  const checkpoint = {
+    finalizedTurnNumber: 3,
+    acceptedStateRevision: 9,
+    summary,
+  };
+  const serialized = JSON.stringify(checkpoint);
+  const normalized = normalizeBattleLogScratch({
+    currentTurnCapture: null,
+    lastFinalizedTurnNumber: 3,
+    archiveCheckpoint: checkpoint,
+  });
+  const folded = foldBattleLogCaptureEventsIntoScratch(normalized, []);
+  const cleared = clearBattleLogScratchAfterFinalization(folded, 3);
+
+  assert.equal(JSON.stringify(normalized.archiveCheckpoint), serialized);
+  assert.equal(JSON.stringify(folded.archiveCheckpoint), serialized);
+  assert.equal(JSON.stringify(cleared.archiveCheckpoint), serialized);
+});
+
+Deno.test("same-turn history append distinguishes canonical equality from divergence", () => {
+  const summary: any = {
+    turnNumber: 2,
+    diceValue: 5,
+    players: [{
+      playerId: "p1",
+      name: "One",
+      healthEnd: 20,
+      maxHealthEnd: 30,
+      healthDelta: -1,
+      fleetValueEnd: 4,
+    }],
+    buildLinesByPlayerId: { p1: ["A", "B"] },
+    battleLinesByPlayerId: { p1: ["C"] },
+  };
+  const reorderedKeys: any = {
+    battleLinesByPlayerId: { p1: ["C"] },
+    buildLinesByPlayerId: { p1: ["A", "B"] },
+    players: [{ ...summary.players[0] }],
+    diceValue: 5,
+    turnNumber: 2,
+  };
+  assert.equal(areBattleLogTurnSummariesEqual(summary, reorderedKeys), true);
+
+  const first = appendBattleLogTurnSummaryIdempotently(
+    normalizeBattleLogHistoryStore("g", null),
+    summary,
+  );
+  assert.equal(first.status, "appended");
+  if (first.status !== "appended") throw new Error("expected append");
+  assert.equal(
+    appendBattleLogTurnSummaryIdempotently(first.historyStore, reorderedKeys).status,
+    "already_present",
+  );
+  const reorderedArray = structuredClone(summary);
+  reorderedArray.buildLinesByPlayerId.p1.reverse();
+  assert.equal(
+    appendBattleLogTurnSummaryIdempotently(first.historyStore, reorderedArray).status,
+    "divergent",
+  );
+});
+
+Deno.test("capture-derived build and battle rows cannot be reconstructed after scratch clear", () => {
+  const capturedScratch: any = {
+    currentTurnCapture: {
+      turnNumber: 6,
+      diceValue: 2,
+      buildAtomsByPlayerId: {
+        p1: [
+          { kind: "manual_build", shipDefId: "SCO" },
+          {
+            kind: "produced_build",
+            shipDefId: "FRI",
+            sourceShipDefId: "CAR",
+            count: 1,
+          },
+        ],
+      },
+      battleAtomsByPlayerId: {
+        p1: [{ kind: "frigate_hit", bucket: 2 }],
+      },
+      savedResourcesByPlayerId: {},
+    },
+    lastFinalizedTurnNumber: 5,
+    archiveCheckpoint: null,
+  };
+  const finalizedState: any = {
+    status: "active",
+    players: [{
+      id: "p1",
+      name: "One",
+      role: "player",
+      health: 20,
+      lines: 0,
+      joiningLines: 0,
+    }],
+    gameData: { turnNumber: 7, ships: { p1: [] } },
+  };
+  const captured = buildBattleLogTurnSummaryFromScratch({
+    scratch: capturedScratch,
+    finalizedTurnNumber: 6,
+    finalizedState,
+  });
+  const cleared = clearBattleLogScratchAfterFinalization(capturedScratch, 6);
+  const reconstructed = buildBattleLogTurnSummaryFromScratch({
+    scratch: cleared,
+    finalizedTurnNumber: 6,
+    finalizedState,
+  });
+
+  assert.notDeepEqual(captured.buildLinesByPlayerId.p1, []);
+  assert.notDeepEqual(captured.battleLinesByPlayerId.p1, []);
+  assert.deepEqual(reconstructed.buildLinesByPlayerId.p1, []);
+  assert.deepEqual(reconstructed.battleLinesByPlayerId.p1, []);
 });
 
 Deno.test("legacy history normalizes maximum health without changing summary data", () => {
@@ -620,6 +746,8 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
     initialStore,
     summary,
   );
+  assert.equal(firstAppend.status, "appended");
+  if (firstAppend.status !== "appended") throw new Error("expected append");
   const reloadedHistory = JSON.parse(JSON.stringify(firstAppend.historyStore));
   const reloadedScratch = JSON.parse(JSON.stringify(scratch));
   const reloadedFinalizedState = JSON.parse(JSON.stringify(finalizedState));
@@ -632,6 +760,10 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
     reloadedHistory,
     replayedSummary,
   );
+  assert.equal(secondAppend.status, "already_present");
+  if (secondAppend.status !== "already_present") {
+    throw new Error("expected idempotent append");
+  }
   const normalizedOnce = normalizeBattleLogHistoryStore(
     initialStore.gameId,
     secondAppend.historyStore,
@@ -641,8 +773,6 @@ Deno.test("completed-turn Solar ledger appends canonical action-only Battle line
     normalizedOnce,
   );
 
-  assert.equal(firstAppend.appended, true);
-  assert.equal(secondAppend.appended, false);
   const finalizedTurn = secondAppend.historyStore.turns[0];
   const countLine = (lines: string[], expected: string) =>
     lines.filter((line) => line === expected).length;

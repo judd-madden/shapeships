@@ -1538,7 +1538,10 @@ Deno.test('requester sanitizer is pure and strips Ancient internal and third-Spi
   state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = {
     p1: ['private-sol-snapshot'],
   };
-  state.battleLogScratch = { private: true };
+  state.battleLogScratch = {
+    private: true,
+    archiveCheckpoint: { privateSummary: true },
+  };
   const before = structuredClone(state);
   const safe = sanitizeAncientStateForClient(state) as any;
 
@@ -1552,6 +1555,7 @@ Deno.test('requester sanitizer is pure and strips Ancient internal and third-Spi
   );
   assert.equal('solarGridDeclarationSourceIdsByPlayerId' in safe.gameData.turnData, false);
   assert.deepEqual(safe.battleLogScratch, { private: true });
+  assert.equal('archiveCheckpoint' in safe.battleLogScratch, false);
 });
 
 Deno.test('Simulacrum queue normalization adds and preserves numeric queue order without a schema bump', () => {

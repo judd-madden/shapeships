@@ -1085,12 +1085,24 @@ export function sanitizeAncientStateForClient<T = any>(
     });
   }
   const projectedState = declarationProjection.state as any;
-  const gameData = isObject(projectedState.gameData) ? projectedState.gameData : null;
+  const responseState = isObject(projectedState.battleLogScratch)
+    ? (() => {
+        const {
+          archiveCheckpoint: _privateArchiveCheckpoint,
+          ...safeBattleLogScratch
+        } = projectedState.battleLogScratch;
+        return {
+          ...projectedState,
+          battleLogScratch: safeBattleLogScratch,
+        };
+      })()
+    : projectedState;
+  const gameData = isObject(responseState.gameData) ? responseState.gameData : null;
   if (!gameData) {
     return {
-      ...projectedState,
-      ...(Array.isArray(projectedState.players)
-        ? { players: sanitizePlayers(projectedState.players) }
+      ...responseState,
+      ...(Array.isArray(responseState.players)
+        ? { players: sanitizePlayers(responseState.players) }
         : {}),
     } as T;
   }
@@ -1122,12 +1134,12 @@ export function sanitizeAncientStateForClient<T = any>(
     );
   }
   return {
-    ...projectedState,
-    ...(Array.isArray(projectedState.players)
+    ...responseState,
+    ...(Array.isArray(responseState.players)
       ? {
           players: sanitizePlayers(
-            projectedState.players,
-            projectedState,
+            responseState.players,
+            responseState,
             requestingParticipantId,
           ),
         }

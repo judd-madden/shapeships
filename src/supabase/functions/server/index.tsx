@@ -27,6 +27,7 @@ import { registerAuthRoutes } from "./routes/auth_routes.ts";
 import { registerTestRoutes } from "./routes/test_routes.ts";
 import { registerGameRoutes } from "./routes/game_routes.ts";
 import { registerIntentRoutes } from "./routes/intent_routes.ts";
+import { createIntentPersistence } from "./routes/intent_persistence.ts";
 
 const app = new Hono();
 
@@ -235,8 +236,22 @@ registerAuthRoutes(app, kvGet, kvSet);
 if (ENABLE_TEST_ROUTES) {
   registerTestRoutes(app, kvGet, kvSet, kvDel);
 }
-registerGameRoutes(app, kvGet, kvSet, requireSession, generateGameId);
-registerIntentRoutes(app, kvGet, kvSet, requireSession, supabase);
+const intentPersistence = createIntentPersistence(supabase);
+registerGameRoutes(
+  app,
+  kvGet,
+  kvSet,
+  requireSession,
+  generateGameId,
+  intentPersistence.load,
+);
+registerIntentRoutes(
+  app,
+  kvGet,
+  kvSet,
+  requireSession,
+  intentPersistence,
+);
 
 // ============================================================================
 // SESSION METADATA ENDPOINT (ADDITIONAL)
