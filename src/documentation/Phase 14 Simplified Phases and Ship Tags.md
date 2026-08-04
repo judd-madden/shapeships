@@ -1048,8 +1048,9 @@ Planning documents outside the repository are not silently edited by a repositor
 | 14H | Bot and Battle Log Integration | Server | Batched bot input and ordered private capture | Review separately; release with 14I |
 | 14I | Drawing Cutover and Active Phase-Surface Reconciliation | Mixed | Remove old phase and activate complete prelude | Atomic with active 14F–14H |
 | 14J | Tag Display Integration | Client/UI | Aggregated tag presentation | Independent after 14BC |
-| 14K | Normative Documentation Reconciliation | Documentation | Active documents aligned | After 14D/14I |
-| 14L | Read-Only Closure Audit | Validation | Final evidence and narrow follow-up register | Read-only |
+| 14K | Online Rules Pages Reconciliation | Client/UI | Update all player facing rules pages | 
+| 14L | Normative Documentation Reconciliation | Documentation | Active documents aligned | After 14D/14I |
+| 14M | Read-Only Closure Audit | Validation | Final evidence and narrow follow-up register | Read-only |
 
 14F–14H may be implemented and reviewed as separate server slices, but no active deployment may expose them without 14I.
 
