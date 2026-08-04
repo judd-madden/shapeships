@@ -33,9 +33,20 @@ import { SHIP_DEFINITIONS_JSON, SHIP_DEFS_VERSION } from './ShipDefinitions.json
 /**
  * Ship power structure from JSON
  */
+export type ShipPowerTag = 'makes_ships' | 'targets_ships';
+
+export type ShipPowerActivationTiming =
+  | 'start_of_drawing'
+  | 'when_built'
+  | 'on_destruction'
+  | 'end_of_build'
+  | 'turn_start_materialisation';
+
 export interface ShipPowerCore {
-  subphase: string;
-  text: string;
+  readonly subphase: string;
+  readonly text: string;
+  readonly tags?: readonly ShipPowerTag[];
+  readonly activationTiming?: ShipPowerActivationTiming;
 }
 
 /**
@@ -43,26 +54,33 @@ export interface ShipPowerCore {
  * (Minimal type - extends as needed for server processing)
  */
 export interface ShipDefinitionCore {
-  id: string;
-  species: string;
-  shipType: string;
-  name: string;
-  totalLineCost: number | null;
-  joiningLineCost: number | null;
-  componentShips: string[];
-  charges: number | null;
-  maxQuantity?: number;
-  powers: ShipPowerCore[];
-  energyCost: {
-    red: number;
-    green: number;
-    blue: number;
-    xBlue: boolean;
+  readonly id: string;
+  readonly species: string;
+  readonly shipType: string;
+  readonly name: string;
+  readonly totalLineCost: number | null;
+  readonly joiningLineCost: number | null;
+  readonly componentShips: readonly string[];
+  readonly charges: number | null;
+  readonly maxQuantity?: number;
+  readonly powers: readonly ShipPowerCore[];
+  readonly energyCost: {
+    readonly red: number;
+    readonly green: number;
+    readonly blue: number;
+    readonly xBlue: boolean;
   } | null;
-  extraRules: string;
-  stackCaption: string;
-  colour: string;
-  numberOfGraphics: number;
+  readonly extraRules: string;
+  readonly stackCaption: string;
+  readonly colour: string;
+  readonly numberOfGraphics: number;
+}
+
+export interface ShipPowerMetadataRow {
+  readonly shipDefId: string;
+  readonly rawPowerIndex: number;
+  readonly tags: readonly ShipPowerTag[];
+  readonly activationTiming: ShipPowerActivationTiming | null;
 }
 
 // ============================================================================
@@ -75,13 +93,48 @@ export interface ShipDefinitionCore {
  * This is the ONLY ship definitions array that engine_shared code should use.
  * It comes directly from the server-local JSON source.
  */
-export const SHIP_DEFINITIONS_CORE_SERVER: ShipDefinitionCore[] = SHIP_DEFINITIONS_JSON as any;
+export const SHIP_DEFINITIONS_CORE_SERVER: readonly ShipDefinitionCore[] =
+  SHIP_DEFINITIONS_JSON;
 
 /**
  * Server-side version identifier
  * Exposed for diagnostics and drift detection
  */
 export const SHIP_DEFS_VERSION_SERVER = SHIP_DEFS_VERSION;
+
+const SHIP_POWER_TAG_ORDER: readonly ShipPowerTag[] = [
+  'makes_ships',
+  'targets_ships',
+];
+
+/**
+ * Return normalized metadata for every raw power in definition order.
+ */
+export function getShipPowerMetadataRows(
+  definitions: readonly ShipDefinitionCore[] = SHIP_DEFINITIONS_CORE_SERVER,
+): ShipPowerMetadataRow[] {
+  return definitions.flatMap((ship) =>
+    ship.powers.map((power, rawPowerIndex) => ({
+      shipDefId: ship.id,
+      rawPowerIndex,
+      tags: power.tags ? [...power.tags] : [],
+      activationTiming: power.activationTiming ?? null,
+    }))
+  );
+}
+
+/**
+ * Aggregate raw per-power tags for inspection only.
+ * This helper is not an authoritative activation or legality query.
+ */
+export function getAggregatedShipPowerTags(
+  ship: Pick<ShipDefinitionCore, 'powers'>,
+): ShipPowerTag[] {
+  const presentTags = new Set(
+    ship.powers.flatMap((power) => power.tags ?? []),
+  );
+  return SHIP_POWER_TAG_ORDER.filter((tag) => presentTags.has(tag));
+}
 
 // ============================================================================
 // LOOKUP HELPERS

@@ -13,13 +13,22 @@
  * - Real newline characters ('\n') are FORBIDDEN and validated against
  */
 
-import type { EnergyCost } from './EnergyCostTypes';
+import type { EnergyCost } from './EnergyCostTypes.ts';
 
 // ============================================================================
 // CORE TYPES
 // ============================================================================
 
 export type ShipId = string;
+
+export type ShipPowerTag = 'makes_ships' | 'targets_ships';
+
+export type ShipPowerActivationTiming =
+  | 'start_of_drawing'
+  | 'when_built'
+  | 'on_destruction'
+  | 'end_of_build'
+  | 'turn_start_materialisation';
 
 /**
  * Energy cost structure for Solar Powers
@@ -33,9 +42,11 @@ export type EnergyCostCore = EnergyCost;
  * INVARIANT: text field must contain literal "\\n" sequences, not real newlines
  */
 export interface ShipPowerCore {
-  subphase: string;  // e.g., "Automatic", "Charge Declaration", "Line Generation"
-  text: string;      // Power description with literal "\\n" sequences allowed
-  effectAst?: any;   // Optional structured effect AST (for advanced interpretation)
+  readonly subphase: string;  // e.g., "Automatic", "Charge Declaration", "Line Generation"
+  readonly text: string;      // Power description with literal "\\n" sequences allowed
+  readonly tags?: readonly ShipPowerTag[];
+  readonly activationTiming?: ShipPowerActivationTiming;
+  readonly effectAst?: any;   // Optional structured effect AST (for advanced interpretation)
 }
 
 /**

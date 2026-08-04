@@ -131,7 +131,9 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Ships That Build",
-        "text": "Has 6 charges. In each 'Ships That Build' phase, may:\\n- Make a Defender (use 1 charge) OR\\n- Make a Fighter (use 2 charges)"
+        "text": "Has 6 charges. In each 'Ships That Build' phase, may:\\n- Make a Defender (use 1 charge) OR\\n- Make a Fighter (use 2 charges)",
+        "tags": ["makes_ships"],
+        "activationTiming": "start_of_drawing"
       }
     ],
     "energyCost": null,
@@ -234,7 +236,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "First Strike",
-        "text": "Has 2 charges:\\n- Destroy a basic enemy ship (use 1 charge)."
+        "text": "Has 2 charges:\\n- Destroy a basic enemy ship (use 1 charge).",
+        "tags": ["targets_ships"]
       },
       {
         "subphase": "Automatic",
@@ -360,7 +363,9 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "End of Build Phase",
-        "text": "Make one Fighter for each ship you made this turn."
+        "text": "Make one Fighter for each ship you made this turn.",
+        "tags": ["makes_ships"],
+        "activationTiming": "end_of_build"
       },
       {
         "subphase": "Automatic",
@@ -488,7 +493,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Drawing",
-        "text": "When built and in each future 'Drawing' phase, may turn one Xenite into an Oxite or an Asterite."
+        "text": "When built and in each future 'Drawing' phase, may turn one Xenite into an Oxite or an Asterite.",
+        "tags": ["targets_ships"]
       }
     ],
     "energyCost": null,
@@ -576,7 +582,9 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Ships That Build",
-        "text": "Has 4 charges. Each 'Ships That Build' phase, make a Xenite and use 1 charge."
+        "text": "Has 4 charges. Each 'Ships That Build' phase, make a Xenite and use 1 charge.",
+        "tags": ["makes_ships"],
+        "activationTiming": "start_of_drawing"
       }
     ],
     "energyCost": null,
@@ -597,15 +605,21 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Drawing",
-        "text": "When built, make an Antlion."
+        "text": "When built, make an Antlion.",
+        "tags": ["makes_ships"],
+        "activationTiming": "when_built"
       },
       {
         "subphase": "Ships That Build",
-        "text": "Each 'Ships That Build' phase:\\nIf dice roll is a 2, make a Xenite.\\nIf dice roll is a 3, make an Antlion.\\nIf dice roll is a 4, make two Xenites."
+        "text": "Each 'Ships That Build' phase:\\nIf dice roll is a 2, make a Xenite.\\nIf dice roll is a 3, make an Antlion.\\nIf dice roll is a 4, make two Xenites.",
+        "tags": ["makes_ships"],
+        "activationTiming": "start_of_drawing"
       },
       {
         "subphase": "Upon Destruction",
-        "text": "Upon destruction, make two Xenites."
+        "text": "Upon destruction, make two Xenites.",
+        "tags": ["makes_ships"],
+        "activationTiming": "on_destruction"
       }
     ],
     "energyCost": null,
@@ -738,7 +752,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "First Strike",
-        "text": "Once only on the turn it is built, you may destroy one basic enemy ship."
+        "text": "Once only on the turn it is built, you may destroy one basic enemy ship.",
+        "tags": ["targets_ships"]
       },
       {
         "subphase": "Automatic",
@@ -772,7 +787,9 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Ships That Build",
-        "text": "Each 'Ships That Build' phase, make a Xenite."
+        "text": "Each 'Ships That Build' phase, make a Xenite.",
+        "tags": ["makes_ships"],
+        "activationTiming": "start_of_drawing"
       },
       {
         "subphase": "Automatic",
@@ -914,7 +931,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charge Declaration",
-        "text": "Has 2 charges:\\n- Destroy one basic ship of yours, and one basic ship of your opponents with an EQUAL line cost (use 1 charge)."
+        "text": "Has 2 charges:\\n- Destroy one basic ship of yours, and one basic ship of your opponents with an EQUAL line cost (use 1 charge).",
+        "tags": ["targets_ships"]
       }
     ],
     "energyCost": null,
@@ -1234,7 +1252,8 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "First Strike",
-        "text": "Once, on the turn it is built, at the start of the battle phase, take permanent control of TWO basic (non-upgraded) enemy ships."
+        "text": "Once, on the turn it is built, at the start of the battle phase, take permanent control of TWO basic (non-upgraded) enemy ships.",
+        "tags": ["targets_ships"]
       },
       {
         "subphase": "Automatic",
@@ -1336,7 +1355,8 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "First Strike",
-        "text": "Once only on the turn the third Spiral is built, you may destroy one basic enemy ship."
+        "text": "Once only on the turn the third Spiral is built, you may destroy one basic enemy ship.",
+        "tags": ["targets_ships"]
       }
     ],
     "energyCost": null,
@@ -1559,7 +1579,9 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charge Declaration",
-        "text": "Make a copy of a basic enemy ship.\\nX = Number of lines in ship."
+        "text": "Make a copy of a basic enemy ship.\\nX = Number of lines in ship.",
+        "tags": ["makes_ships", "targets_ships"],
+        "activationTiming": "turn_start_materialisation"
       }
     ],
     "energyCost": {
@@ -1637,7 +1659,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charge Declaration",
-        "text": "Destroy TWO of the opponent's basic ships.\\nDeal 1 damage for each Core you have."
+        "text": "Destroy TWO of the opponent's basic ships.\\nDeal 1 damage for each Core you have.",
+        "tags": ["targets_ships"]
       }
     ],
     "energyCost": {
@@ -1660,7 +1683,7 @@ export const SHIP_DEFINITIONS_JSON = [
  * IMPORTANT: This version should match the server-side version when synced.
  * Server version is in: /supabase/functions/server/engine_shared/defs/ShipDefinitions.json.ts
  */
-export const SHIP_DEFS_VERSION = '2026-07-24';
+export const SHIP_DEFS_VERSION = '2026-08-04';
 
 // ============================================================================
 // TYPE INFERENCE HELPERS
