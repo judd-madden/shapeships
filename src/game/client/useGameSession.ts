@@ -4383,12 +4383,15 @@ useEffect(() => {
 
   const hasFrigateDrawingAction =
     phaseKey === 'build.drawing' &&
+    canEditCurrentDrawingBuild &&
     frigateDemandCount > 0;
   const hasEvolverDrawingAction =
     phaseKey === 'build.drawing' &&
+    canEditCurrentDrawingBuild &&
     evolverRowIdsSet.size > 0;
   const hasQuantumMysticDrawingAction =
     phaseKey === 'build.drawing' &&
+    canEditCurrentDrawingBuild &&
     quantumMysticDemandCount > 0;
   const buildDrawingAvailableFamilies: BuildDrawingActionFamily[] = [
     ...(hasEvolverDrawingAction ? ['evolver' as const] : []),
@@ -5462,7 +5465,8 @@ useEffect(() => {
           currentCarrierActions: carrierPreludeActionValidation.ok
             ? carrierPreludeActionValidation.actions
             : null,
-          explicitCarrierChoiceIdBySourceInstanceId: {
+          carrierChoiceIdBySourceInstanceId: {
+            ...shipChoiceSelectionByInstanceId,
             ...explicitShipChoiceBySourceRef.current,
           },
           requesterPlayerId: meReadyKey ?? me?.id ?? null,

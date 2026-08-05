@@ -226,7 +226,7 @@ export function validateProjectedCarrierActions(
 export function constructCarrierPreludeBatch(args: {
   previousActions: readonly ProjectedCarrierAction[];
   refreshedActions: readonly ProjectedCarrierAction[];
-  explicitChoiceIdBySourceInstanceId: Readonly<Record<string, string>>;
+  selectedChoiceIdBySourceInstanceId: Readonly<Record<string, string>>;
 }): CarrierPreludeBatchResult {
   if (args.refreshedActions.length === 0) {
     return { ok: false, reason: 'cannot submit an empty Carrier batch' };
@@ -236,28 +236,22 @@ export function constructCarrierPreludeBatch(args: {
   const refreshedBySource = new Map(
     args.refreshedActions.map((action) => [action.sourceInstanceId, action] as const),
   );
-  const explicitSources = new Set(
-    Object.keys(args.explicitChoiceIdBySourceInstanceId).filter((sourceInstanceId) =>
-      previousSources.has(sourceInstanceId)
-    ),
-  );
-
-  for (const sourceInstanceId of explicitSources) {
+  for (const sourceInstanceId of previousSources) {
     const refreshedAction = refreshedBySource.get(sourceInstanceId);
-    const selectedChoiceId = args.explicitChoiceIdBySourceInstanceId[sourceInstanceId];
+    const selectedChoiceId = args.selectedChoiceIdBySourceInstanceId[sourceInstanceId];
     if (
       !refreshedAction ||
       typeof selectedChoiceId !== 'string' ||
       !refreshedAction.choices.some((choice) => choice.choiceId === selectedChoiceId)
     ) {
-      return { ok: false, reason: 'an explicit Carrier selection is no longer projected' };
+      return { ok: false, reason: 'a selected Carrier choice is no longer projected' };
     }
   }
 
   const actions: CarrierPreludeBatchAction[] = [];
   for (const action of args.refreshedActions) {
-    const choiceId = explicitSources.has(action.sourceInstanceId)
-      ? args.explicitChoiceIdBySourceInstanceId[action.sourceInstanceId]
+    const choiceId = previousSources.has(action.sourceInstanceId)
+      ? args.selectedChoiceIdBySourceInstanceId[action.sourceInstanceId]
       : action.choices[0]?.choiceId;
 
     if (

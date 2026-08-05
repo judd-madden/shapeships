@@ -178,6 +178,29 @@ Deno.test('Drawing stage precedence and suffixes are requester-local and stable'
   });
   assertEquals(playerAStage, { kind: 'submitted' });
   assertEquals(playerBStage, { kind: 'prelude', passIndex: 1 });
+
+  // Retained local preview demand must not keep Drawing action navigation alive
+  // after this requester has submitted.
+  const canEditSubmittedDrawing =
+    canSubmitDrawingBuild({
+      participation: 'participant',
+      phaseKey: 'build.drawing',
+      turnNumber: 8,
+      normalizedPrelude: complete,
+    }) && playerAStage.kind === 'normal';
+  const retainedPreviewDemand = {
+    frigate: 1,
+    evolver: 1,
+    quantumMystic: 1,
+  };
+  const localDrawingFamilies = [
+    canEditSubmittedDrawing && retainedPreviewDemand.evolver > 0 ? 'evolver' : null,
+    canEditSubmittedDrawing && retainedPreviewDemand.frigate > 0 ? 'frigate' : null,
+    canEditSubmittedDrawing && retainedPreviewDemand.quantumMystic > 0 ? 'quantum_mystic' : null,
+  ].filter((family) => family != null);
+  const localDrawingActionsTarget = localDrawingFamilies[0] ?? null;
+  assertEquals(localDrawingFamilies, []);
+  assertEquals(localDrawingActionsTarget, null);
 });
 
 Deno.test('Carrier projection validation is exact, pass-aware, and nonempty', () => {
@@ -194,13 +217,13 @@ Deno.test('Carrier projection validation is exact, pass-aware, and nonempty', ()
   }], 1).ok);
 });
 
-Deno.test('Carrier batches preserve explicit intent and remain all-or-nothing', () => {
+Deno.test('Carrier batches submit remembered selections and remain all-or-nothing', () => {
   const previous = [carrier('car-a'), carrier('car-b')];
   const refreshed = [carrier('car-a'), carrier('car-b')];
   const batch = constructCarrierPreludeBatch({
     previousActions: previous,
     refreshedActions: refreshed,
-    explicitChoiceIdBySourceInstanceId: {
+    selectedChoiceIdBySourceInstanceId: {
       'car-a': 'fighter',
       'car-b': 'hold',
     },
@@ -223,24 +246,68 @@ Deno.test('Carrier batches preserve explicit intent and remain all-or-nothing', 
     },
   ]);
 
-  const defaulted = constructCarrierPreludeBatch({
+  const rememberedDefender = constructCarrierPreludeBatch({
+    previousActions: [carrier('car-a')],
+    refreshedActions: [carrier('car-a')],
+    selectedChoiceIdBySourceInstanceId: { 'car-a': 'defender' },
+  });
+  assert(rememberedDefender.ok);
+  assertEquals(rememberedDefender.actions[0]?.choiceId, 'defender');
+
+  const defaultedNewSource = constructCarrierPreludeBatch({
     previousActions: [carrier('car-a')],
     refreshedActions: [carrier('car-a'), carrier('car-new')],
-    explicitChoiceIdBySourceInstanceId: {},
+    selectedChoiceIdBySourceInstanceId: { 'car-a': 'fighter' },
   });
-  assert(defaulted.ok);
-  assertEquals(defaulted.actions.map((action) => action.choiceId), ['defender', 'defender']);
+  assert(defaultedNewSource.ok);
+  assertEquals(
+    defaultedNewSource.actions.map((action) => action.choiceId),
+    ['fighter', 'defender'],
+  );
 
   assert(!constructCarrierPreludeBatch({
     previousActions: previous,
     refreshedActions: [carrier('car-b')],
-    explicitChoiceIdBySourceInstanceId: { 'car-a': 'fighter' },
+    selectedChoiceIdBySourceInstanceId: { 'car-a': 'fighter', 'car-b': 'hold' },
   }).ok);
   assert(!constructCarrierPreludeBatch({
     previousActions: previous,
     refreshedActions: [carrier('car-a', 1, ['defender', 'hold']), carrier('car-b')],
-    explicitChoiceIdBySourceInstanceId: { 'car-a': 'fighter' },
+    selectedChoiceIdBySourceInstanceId: { 'car-a': 'fighter', 'car-b': 'hold' },
   }).ok);
+  assert(!constructCarrierPreludeBatch({
+    previousActions: previous,
+    refreshedActions: refreshed,
+    selectedChoiceIdBySourceInstanceId: { 'car-a': 'fighter' },
+  }).ok);
+  assert(!constructCarrierPreludeBatch({
+    previousActions: [],
+    refreshedActions: [],
+    selectedChoiceIdBySourceInstanceId: {},
+  }).ok);
+});
+
+Deno.test('current-turn Carrier clicks override remembered selections before batching', () => {
+  const rememberedSelections = {
+    'car-a': 'fighter',
+    'car-b': 'defender',
+  };
+  const currentTurnClicks = {
+    'car-a': 'hold',
+  };
+  const carrierChoiceIdBySourceInstanceId = {
+    ...rememberedSelections,
+    ...currentTurnClicks,
+  };
+
+  const batch = constructCarrierPreludeBatch({
+    previousActions: [carrier('car-a'), carrier('car-b')],
+    refreshedActions: [carrier('car-a'), carrier('car-b')],
+    selectedChoiceIdBySourceInstanceId: carrierChoiceIdBySourceInstanceId,
+  });
+
+  assert(batch.ok);
+  assertEquals(batch.actions.map((action) => action.choiceId), ['hold', 'defender']);
 });
 
 Deno.test('BUILD_SUBMIT eligibility is participant-only and requester-current', () => {

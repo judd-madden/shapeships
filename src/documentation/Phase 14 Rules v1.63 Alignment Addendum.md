@@ -521,18 +521,6 @@ Phase 14 is not complete unless all of the following are true:
 
 ---
 
-## 13. Immediate next pass
+## 13. Current status
 
-The immediate next implementation pass is:
-
-## Phase 14H-R — Rules v1.63 Bot and Battle Log Revision
-
-Codex must read:
-
-1. repository agent and architecture documents;
-2. the main Phase 14 planning document;
-3. this addendum;
-4. the current 14H implementation and tests;
-5. the v1.63 rules PDF where timing wording is relevant.
-
-Codex must propose its file plan before editing and keep 14H-R server-only.
+Phase 14H-R and the combined Phase 14I server/client cutover are complete. The next implementation pass is Phase 14J. The Phase 14I server and client cutovers must deploy together.

@@ -330,7 +330,7 @@ export async function runReadyToggleFlow(args: {
   normalizedDrawingPrelude: NormalizedDrawingPrelude;
   drawingStage: DrawingStage;
   currentCarrierActions: ProjectedCarrierAction[] | null;
-  explicitCarrierChoiceIdBySourceInstanceId: Record<string, string>;
+  carrierChoiceIdBySourceInstanceId: Record<string, string>;
   requesterPlayerId: string | null;
 
   // core routing
@@ -396,7 +396,7 @@ export async function runReadyToggleFlow(args: {
     normalizedDrawingPrelude,
     drawingStage,
     currentCarrierActions,
-    explicitCarrierChoiceIdBySourceInstanceId,
+    carrierChoiceIdBySourceInstanceId,
     requesterPlayerId,
     effectiveGameId,
     turnNumber,
@@ -583,7 +583,7 @@ export async function runReadyToggleFlow(args: {
       const batch = constructCarrierPreludeBatch({
         previousActions: currentCarrierActions,
         refreshedActions: refreshedProjection.actions,
-        explicitChoiceIdBySourceInstanceId: explicitCarrierChoiceIdBySourceInstanceId,
+        selectedChoiceIdBySourceInstanceId: carrierChoiceIdBySourceInstanceId,
       });
       if (!batch.ok) {
         console.warn(`[useGameSession] build.drawing: Carrier batch aborted (${batch.reason})`);
