@@ -1,5 +1,6 @@
 import { BattleIcon } from '../../../../../components/ui/primitives/icons/BattleIcon';
 import { BuildIcon } from '../../../../../components/ui/primitives/icons/BuildIcon';
+import { RUNTIME_PHASE_ROWS } from '../../../../client/gameSession/phaseLabels';
 
 type PhaseBreakdownLayout = 'desktop' | 'mobile';
 
@@ -10,32 +11,14 @@ interface PhaseBreakdownViewProps {
   layout?: PhaseBreakdownLayout;
 }
 
-type PhaseRow = {
-  key: string;
-  label: string;
-  group: 'build' | 'battle';
-};
-
-const PHASE_ROWS: PhaseRow[] = [
-  { key: 'build.dice_roll', label: '1 Dice Roll & Dice Manipulation', group: 'build' },
-  { key: 'build.line_generation', label: '2 Line Generation', group: 'build' },
-  { key: 'build.ships_that_build', label: '3 Ships That Build', group: 'build' },
-  { key: 'build.drawing', label: '4 Drawing', group: 'build' },
-  { key: 'build.end_of_build', label: '5 End of Build Phase', group: 'build' },
-
-  { key: 'battle.first_strike', label: '6 First Strike', group: 'battle' },
-  { key: 'battle.charge_declaration', label: '7 Charge Declaration', group: 'battle' },
-  { key: 'battle.end_of_turn_resolution', label: '8 End of Turn Resolution', group: 'battle' },
-];
-
 export function PhaseBreakdownView({
   turnNumber,
   phaseKey,
   hasActionsForMe,
   layout = 'desktop',
 }: PhaseBreakdownViewProps) {
-  const buildRows = PHASE_ROWS.filter(r => r.group === 'build');
-  const battleRows = PHASE_ROWS.filter(r => r.group === 'battle');
+  const buildRows = RUNTIME_PHASE_ROWS.filter(r => r.group === 'build');
+  const battleRows = RUNTIME_PHASE_ROWS.filter(r => r.group === 'battle');
 
   const isDrawingPhase = phaseKey === 'build.drawing';
 
@@ -44,7 +27,7 @@ export function PhaseBreakdownView({
       ? 'var(--shapeships-green)'
       : 'var(--shapeships-grey-50)';
 
-  const renderRow = (row: PhaseRow) => {
+  const renderRow = (row: (typeof RUNTIME_PHASE_ROWS)[number]) => {
     const isCurrent = row.key === phaseKey;
     const isMobile = layout === 'mobile';
 

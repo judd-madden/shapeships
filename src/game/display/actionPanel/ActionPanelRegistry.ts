@@ -18,9 +18,7 @@ export type ActionPanelId =
   // Build phase
   | 'ap.build.dice_roll.centaur'
   | 'ap.build.dice_roll.cube'
-  | 'ap.build.ships_that_build.human'
-  | 'ap.build.ships_that_build.centaur.mixed'
-  | 'ap.build.ships_that_build.xenite'
+  | 'ap.build.drawing.prelude.carrier'
   | 'ap.build.drawing.human'
   | 'ap.build.drawing.xenite'
   | 'ap.build.drawing.ancient'
@@ -50,9 +48,7 @@ export const ACTION_PANEL_IDS: ActionPanelId[] = [
   'ap.menu.root',
   'ap.build.dice_roll.centaur',
   'ap.build.dice_roll.cube',
-  'ap.build.ships_that_build.human',
-  'ap.build.ships_that_build.centaur.mixed',
-  'ap.build.ships_that_build.xenite',
+  'ap.build.drawing.prelude.carrier',
   'ap.build.drawing.human',
   'ap.build.drawing.xenite',
   'ap.build.drawing.ancient',
@@ -90,9 +86,7 @@ export const ACTION_PANEL_DISPLAY_NAMES = {
   'ap.menu.root': 'AP - Menu',
   'ap.build.dice_roll.centaur': 'AP - Dice Manipulation - Centaur',
   'ap.build.dice_roll.cube': 'AP - Dice Manipulation - Cube',
-  'ap.build.ships_that_build.human': 'AP - Ships That Build - Human',
-  'ap.build.ships_that_build.centaur.mixed': 'AP - Ships That Build - Centaur Mixed',
-  'ap.build.ships_that_build.xenite': 'AP - Ships That Build - Xenite',
+  'ap.build.drawing.prelude.carrier': 'AP - Drawing Prelude - Carrier',
   'ap.build.drawing.human': 'AP - Drawing - Human',
   'ap.build.drawing.xenite': 'AP - Drawing - Xenite',
   'ap.build.drawing.ancient': 'AP - Drawing - Ancient',
@@ -110,3 +104,15 @@ export const ACTION_PANEL_DISPLAY_NAMES = {
   'ap.battle.charges.ancient.simulacrum': 'AP - Charges - Ancient - Simulacrum',
   'ap.end_of_game.result': 'AP - Game Result',
 } satisfies Record<ActionPanelId, string>;
+
+export function isActionPanelId(value: unknown): value is ActionPanelId {
+  return typeof value === 'string' &&
+    (ACTION_PANEL_IDS as readonly string[]).includes(value);
+}
+
+export function normalizeActionPanelId(
+  value: unknown,
+  fallback: ActionPanelId,
+): ActionPanelId {
+  return isActionPanelId(value) ? value : fallback;
+}

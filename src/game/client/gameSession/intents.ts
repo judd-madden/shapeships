@@ -31,6 +31,16 @@ import {
   isCommitmentRevealed,
 } from './selectors';
 import type { FrozenAncientChargeDeclarationAttempt } from './ancientChargeDeclaration';
+import {
+  canSubmitDrawingBuild,
+  constructCarrierPreludeBatch,
+  normalizeDrawingPrelude,
+  validateProjectedCarrierActions,
+  type DrawingStage,
+  type DrawingViewerParticipation,
+  type NormalizedDrawingPrelude,
+  type ProjectedCarrierAction,
+} from './drawingPrelude';
 
 const INTENT_TIMEOUT_MS = 8000; // fail fast to avoid wedged commits
 
@@ -316,6 +326,12 @@ export async function runReadyToggleFlow(args: {
   phaseKey: string;
   myRole: 'player' | 'spectator' | 'unknown';
   mySessionId: string | null;
+  drawingParticipation: DrawingViewerParticipation;
+  normalizedDrawingPrelude: NormalizedDrawingPrelude;
+  drawingStage: DrawingStage;
+  currentCarrierActions: ProjectedCarrierAction[] | null;
+  explicitCarrierChoiceIdBySourceInstanceId: Record<string, string>;
+  requesterPlayerId: string | null;
 
   // core routing
   effectiveGameId: string | null;
@@ -359,6 +375,7 @@ export async function runReadyToggleFlow(args: {
   // charge panel context (Prompt 9)
   availableActions: any[] | null;
   getLatestAvailableActions: () => any[] | null;
+  getLatestRawState: () => any;
   selectedChoiceIdBySourceInstanceId: Record<string, string>;
   allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]>;
   allocatedDestroyTargetIdBySourceInstanceId: Record<string, string>;
@@ -375,6 +392,12 @@ export async function runReadyToggleFlow(args: {
     phaseKey,
     myRole,
     mySessionId,
+    drawingParticipation,
+    normalizedDrawingPrelude,
+    drawingStage,
+    currentCarrierActions,
+    explicitCarrierChoiceIdBySourceInstanceId,
+    requesterPlayerId,
     effectiveGameId,
     turnNumber,
     buildInstanceKey,
@@ -514,6 +537,90 @@ export async function runReadyToggleFlow(args: {
         args.onAncientDeclarationEventsHandled?.();
       }
 
+      await refreshGameStateOnce();
+      return;
+    }
+
+    if (phaseKey === 'build.drawing' && drawingStage.kind === 'prelude') {
+      if (
+        normalizedDrawingPrelude.kind !== 'awaiting_actions' ||
+        normalizedDrawingPrelude.passIndex !== drawingStage.passIndex ||
+        currentCarrierActions == null
+      ) {
+        console.warn('[useGameSession] build.drawing: blocking Carrier submit for invalid initial workflow');
+        return;
+      }
+
+      await refreshGameStateOnce();
+      const refreshedState = args.getLatestRawState();
+      const refreshedTurnNumber = getTurnNumber(refreshedState);
+      const refreshedPrelude = normalizeDrawingPrelude({
+        phaseKey: getPhaseKey(refreshedState),
+        turnNumber: refreshedTurnNumber,
+        participation: drawingParticipation,
+        requesterDrawingPrelude: refreshedState?.requester?.drawingPrelude,
+      });
+      if (
+        refreshedPrelude.kind !== 'awaiting_actions' ||
+        refreshedPrelude.turnNumber !== normalizedDrawingPrelude.turnNumber ||
+        refreshedPrelude.passIndex !== drawingStage.passIndex
+      ) {
+        console.warn('[useGameSession] build.drawing: Carrier workflow changed during refresh; aborting');
+        return;
+      }
+
+      const refreshedProjection = validateProjectedCarrierActions(
+        args.getLatestAvailableActions(),
+        refreshedPrelude.passIndex,
+      );
+      if (!refreshedProjection.ok) {
+        console.warn(
+          `[useGameSession] build.drawing: invalid refreshed Carrier projection (${refreshedProjection.reason})`,
+        );
+        return;
+      }
+
+      const batch = constructCarrierPreludeBatch({
+        previousActions: currentCarrierActions,
+        refreshedActions: refreshedProjection.actions,
+        explicitChoiceIdBySourceInstanceId: explicitCarrierChoiceIdBySourceInstanceId,
+      });
+      if (!batch.ok) {
+        console.warn(`[useGameSession] build.drawing: Carrier batch aborted (${batch.reason})`);
+        return;
+      }
+
+      const batchResponse = await submitIntent({
+        gameId: effectiveGameId,
+        intentType: 'ACTIONS_SUBMIT',
+        turnNumber: refreshedTurnNumber,
+        payload: { actions: batch.actions },
+        nonce: generateNonce(),
+      });
+      if (!batchResponse.ok) {
+        const errorText = await readFailureResponseText(batchResponse);
+        console.error('[useGameSession] Drawing-prelude ACTIONS_SUBMIT failed:', errorText);
+        return;
+      }
+
+      const result = await batchResponse.json();
+      if (!result.ok) {
+        logIgnoredIntentState('Drawing-prelude ACTIONS_SUBMIT rejected', result);
+        console.error('[useGameSession] Drawing-prelude ACTIONS_SUBMIT rejected:', result.rejected);
+        return;
+      }
+      logIgnoredIntentState('Drawing-prelude ACTIONS_SUBMIT succeeded', result);
+      const events = Array.isArray(result.events) ? result.events : [];
+      appendEvents(events, {
+        label: `ACTIONS_SUBMIT (${batch.actions.length})`,
+        turn: refreshedTurnNumber,
+        phaseKey,
+      });
+      onIntentResult?.(result, {
+        label: `ACTIONS_SUBMIT (${batch.actions.length})`,
+        turn: refreshedTurnNumber,
+        phaseKey,
+      });
       await refreshGameStateOnce();
       return;
     }
@@ -785,189 +892,36 @@ export async function runReadyToggleFlow(args: {
       return;
     }
     
-    // ========================================================================
-    // BUILD.SHIPS_THAT_BUILD: Batch submit ACTIONS_SUBMIT for all selected choices, then DECLARE_READY
-    // ========================================================================
-    if (phaseKey === 'build.ships_that_build') {
-      console.log(`[useGameSession] ${phaseKey}: preparing batch submission...`);
-      const resolvedAvailableActions = await resolveAvailableActionsOrAbort({
-        phaseKey,
-        availableActions: args.availableActions,
-        getLatestAvailableActions: args.getLatestAvailableActions,
-        refreshGameStateOnce,
-      });
-
-      if (resolvedAvailableActions == null) {
-        return;
-      }
-
-      {
-        const choiceActions = getRenderableServerChoiceActions(phaseKey, resolvedAvailableActions);
-
-        const incompleteTargetedAction = choiceActions.find((action) =>
-          isRenderableTargetedAction(action) &&
-          args.destroyTargetSatisfiedBySourceInstanceId[action.sourceInstanceId] !== true
-        );
-
-        if (incompleteTargetedAction) {
-          console.warn(
-            `[useGameSession] ${phaseKey}: blocking ready because targeted action is incomplete for ${incompleteTargetedAction.sourceInstanceId}`
-          );
-          return;
-        }
-        
-        console.log(`[useGameSession] Found ${choiceActions.length} renderable server actions to process`);
-        
-        // Build batch actions array (skip 'hold')
-        const actions: any[] = [];
-        
-        for (const action of choiceActions) {
-          const { sourceInstanceId, actionId } = action;
-          
-          // Determine selected choiceId
-          const selectedChoiceId = args.selectedChoiceIdBySourceInstanceId[sourceInstanceId];
-          const choiceId = selectedChoiceId || getRenderableActionChoiceIds(action)[0];
-          
-          // Skip if choice is 'hold' (no ACTION sent)
-          if (choiceId === 'hold') {
-            continue;
-          }
-
-          if (isRenderableTargetedAction(action)) {
-            const targetInstanceIds = getAllocatedTargetIdsForRenderableAction(
-              action,
-              args.allocatedDestroyTargetIdsBySourceInstanceId,
-              args.allocatedDestroyTargetIdBySourceInstanceId
-            );
-            if (targetInstanceIds.length === 0) {
-              console.log(
-                `[useGameSession] Skipping incomplete targeted build action for ${sourceInstanceId}: no allocated target available`
-              );
-              continue;
-            }
-
-            actions.push(buildPowerAction({
-              actionId,
-              sourceInstanceId,
-              choiceId,
-              targetInstanceId: targetInstanceIds[0],
-              targetInstanceIds,
-            }));
-            continue;
-          }
-
-          actions.push(buildPowerAction({
-            actionId,
-            sourceInstanceId,
-            choiceId,
-          }));
-        }
-        
-        // Submit batch if any actions exist
-        if (actions.length > 0) {
-          console.log(`[useGameSession] ${phaseKey}: submitting ACTIONS_SUBMIT count=${actions.length}`);
-          
-          const batchResponse = await submitIntent({
-            gameId: effectiveGameId,
-            intentType: 'ACTIONS_SUBMIT',
-            turnNumber,
-            payload: { actions },
-          });
-          
-          if (!batchResponse.ok) {
-            const errorText = await readFailureResponseText(batchResponse);
-            console.error('[useGameSession] ACTIONS_SUBMIT failed:', errorText);
-            return;
-          }
-          
-          const result = await batchResponse.json();
-          
-          if (!result.ok) {
-            logIgnoredIntentState('ACTIONS_SUBMIT rejected', result);
-            console.error('[useGameSession] ACTIONS_SUBMIT rejected:', result.rejected);
-            return;
-          }
-          logIgnoredIntentState('ACTIONS_SUBMIT succeeded', result);
-          
-          const events = result.events || [];
-          appendEvents(events, {
-            label: `ACTIONS_SUBMIT (${actions.length})`,
-            turn: turnNumber,
-            phaseKey,
-          });
-          onIntentResult?.(result, {
-            label: `ACTIONS_SUBMIT (${actions.length})`,
-            turn: turnNumber,
-            phaseKey,
-          });
-          
-          const diceCount = countDiceRolledEvents(events);
-          if (diceCount > 0) {
-            bumpDiceRollSeq(diceCount);
-          }
-          
-          console.log(`✅ [useGameSession] ACTIONS_SUBMIT accepted (${actions.length})`);
-        } else {
-          console.log('[useGameSession] No actions to submit (all hold or no choices)');
-        }
-      }
-      
-      // After ACTIONS_SUBMIT (or if no actions), submit DECLARE_READY
-      console.log(`[useGameSession] ${phaseKey}: submitting DECLARE_READY...`);
-      
-      const readyResponse = await submitIntent({
-        gameId: effectiveGameId,
-        intentType: 'DECLARE_READY',
-        turnNumber,
-      });
-      
-      if (!readyResponse.ok) {
-        const errorText = await readFailureResponseText(readyResponse);
-        console.error('[useGameSession] DECLARE_READY failed:', errorText);
-        return;
-      }
-      
-      const readyResult = await readyResponse.json();
-      
-      if (!readyResult.ok) {
-        logIgnoredIntentState('DECLARE_READY rejected', readyResult);
-        console.error('[useGameSession] DECLARE_READY rejected:', readyResult.rejected);
-        return;
-      }
-      logIgnoredIntentState('DECLARE_READY succeeded', readyResult);
-      
-      const readyEvents = readyResult.events || [];
-      appendEvents(readyEvents, {
-        label: 'DECLARE_READY',
-        turn: turnNumber,
-        phaseKey,
-      });
-      onIntentResult?.(readyResult, {
-        label: 'DECLARE_READY',
-        turn: turnNumber,
-        phaseKey,
-      });
-      
-      const readyDiceCount = countDiceRolledEvents(readyEvents);
-      if (readyDiceCount > 0) {
-        bumpDiceRollSeq(readyDiceCount);
-      }
-      
-      console.log('✅ [useGameSession] DECLARE_READY accepted');
-      await refreshGameStateOnce();
-      return;
-    }
-    
     // A2) build.drawing → BUILD_SUBMIT only (no DECLARE_READY)
     if (phaseKey === 'build.drawing') {
+      const latestState = args.getLatestRawState();
+      const serverTurnNumber = getTurnNumber(latestState);
+      const latestNormalizedPrelude = normalizeDrawingPrelude({
+        phaseKey: getPhaseKey(latestState),
+        turnNumber: serverTurnNumber,
+        participation: drawingParticipation,
+        requesterDrawingPrelude: latestState?.requester?.drawingPrelude,
+      });
+      if (!canSubmitDrawingBuild({
+        participation: drawingParticipation,
+        phaseKey: getPhaseKey(latestState),
+        turnNumber: serverTurnNumber,
+        normalizedPrelude: latestNormalizedPrelude,
+      })) {
+        console.warn('[useGameSession] build.drawing: BUILD_SUBMIT blocked by requester prelude gate');
+        return;
+      }
+
+      if (
+        isCommitmentCommitted(
+          getCommitmentForPlayer(latestState, buildInstanceKey, requesterPlayerId),
+        )
+      ) {
+        console.log('[useGameSession] build.drawing: requester build is already committed');
+        return;
+      }
+
       console.log('[useGameSession] build.drawing: submitting BUILD_SUBMIT...');
-      
-      // A) Derive authoritative serverTurnNumber from latest rawState at click time
-      const serverTurnNumber =
-        rawState?.gameData?.turnData?.turnNumber ??
-        rawState?.gameData?.turnNumber ??
-        rawState?.turnNumber ??
-        turnNumber;
       
       console.log('[useGameSession] Using authoritative serverTurnNumber:', serverTurnNumber);
       

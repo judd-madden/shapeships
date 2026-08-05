@@ -38,6 +38,7 @@ import {
 } from './availableActions';
 import type { CentaurChargeSubTabId } from './types';
 import { deriveCubeDiceChoicePanelVm } from './cubeDiceChoice';
+import type { DrawingStage } from './drawingPrelude';
 
 function getNamedGroupHeading(
   phaseKey: string,
@@ -189,6 +190,7 @@ export function mapGameSessionVm(args: {
   activePanelId: ActionPanelId;
   tabs: ActionPanelTabVm[];
   buildCatalogue: GameSessionViewModel['actionPanel']['buildCatalogue'];
+  drawingStage: DrawingStage;
 
   board: BoardViewModel;
   healthResolutionLockActive: boolean;
@@ -307,6 +309,7 @@ export function mapGameSessionVm(args: {
     activePanelId,
     tabs,
     buildCatalogue,
+    drawingStage,
     board,
     healthResolutionPresentationActive,
     healthResolutionOverlay,
@@ -813,16 +816,28 @@ export function mapGameSessionVm(args: {
   }
 
   if (
-    phaseKey === 'build.ships_that_build' &&
     !isFinished &&
+    phaseKey === 'build.drawing' &&
     !healthResolutionPresentationActive &&
-    !readyUx?.sendingNow &&
-    !autoReadyWaiting &&
-    !p1IsReady &&
-    readyEnabled
+    !readyUx?.sendingNow
   ) {
-    readyButtonLabel = 'READY';
-    readyButtonNote = 'Proceed to Drawing';
+    if (drawingStage.kind === 'prelude') {
+      readyButtonLabel = 'CONFIRM';
+      readyButtonNote = null;
+      finalReadySelected = false;
+    } else if (drawingStage.kind === 'blocked') {
+      readyButtonLabel = 'SYNCING...';
+      readyButtonNote = null;
+      finalReadyDisabled = true;
+      finalReadySelected = false;
+      finalReadyDisabledReason = null;
+    } else if (drawingStage.kind === 'submitted') {
+      readyButtonLabel = 'WAITING...';
+      readyButtonNote = null;
+      finalReadyDisabled = true;
+      finalReadySelected = false;
+      finalReadyDisabledReason = null;
+    }
   }
 
   if (
@@ -920,7 +935,8 @@ export function mapGameSessionVm(args: {
     // Check if this is a server-choice phase (use server availableActions)
     const isServerChoicePhase = 
       phaseKey === 'build.dice_roll' ||
-      phaseKey === 'build.ships_that_build' ||
+      (phaseKey === 'build.drawing' &&
+        finalActivePanelId === 'ap.build.drawing.prelude.carrier') ||
       phaseKey === 'battle.first_strike' ||
       phaseKey === 'battle.charge_declaration';
 
@@ -1506,6 +1522,7 @@ export function mapGameSessionVm(args: {
       activePanelId: finalActivePanelId,
       tabs: finalTabs,
       buildCatalogue,
+      drawingStage,
       menu: {
         title,
         subtitle: inProgressSubtitle,

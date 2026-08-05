@@ -23,7 +23,10 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { attemptMobileGameFullscreen } from '../../utils/mobileFullscreen';
 import { authenticatedGet, authenticatedPost, ensureSession } from '../../utils/sessionManager';
-import type { ActionPanelId } from '../display/actionPanel/ActionPanelRegistry';
+import {
+  normalizeActionPanelId,
+  type ActionPanelId,
+} from '../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../types/ShipTypes.engine';
 import type { ShipChoicesPanelGroup } from '../types/ShipChoiceTypes';
@@ -47,6 +50,7 @@ import {
   getChargeScopedFleetForPlayer,
   getChronoswarmRolls,
   getClockData,
+  getCommitmentForPlayer,
   getCubeDiceValueByPlayerId,
   getEffectiveDiceValueForPlayer,
   getFrigateTriggerByInstanceId,
@@ -72,10 +76,19 @@ import {
   getTurnNumber,
   getWinnerPlayerId,
   isGameFinished,
+  isCommitmentCommitted,
   isPlayerReadyForPhase,
   formatClock,
   formatClockMs,
 } from './gameSession/selectors';
+import {
+  canSubmitDrawingBuild,
+  deriveDrawingStage,
+  getDrawingPhaseInstanceSuffix,
+  normalizeDrawingPrelude,
+  validateProjectedCarrierActions,
+  type DrawingViewerParticipation,
+} from './gameSession/drawingPrelude';
 import { deriveViewerSeats } from './gameSession/viewerSeats';
 import {
   deriveFleets,
@@ -1038,6 +1051,10 @@ export function useGameSession(
   // Build submitted tracking: maps turnNumber → submitted flag
   // Used to gate ship clicks after submission
   const [buildSubmittedByTurn, setBuildSubmittedByTurn] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    setBuildSubmittedByTurn({});
+  }, [effectiveGameId]);
   
   // Reveal-sync latch: true when BUILD_REVEAL submitted but server fleet not yet updated
   // Prevents flicker by keeping preview overlay active until server catches up
@@ -1737,8 +1754,57 @@ export function useGameSession(
       (action) => action.actionId === 'CUB#0' && action.shipDefId === 'CUB'
     );
   const knoRerollPassIndex = getKnoRerollPassIndex(rawState);
+  const buildServerKey = `BUILD_${turnNumber}`;
+  const drawingParticipation: DrawingViewerParticipation = isViewerPlayer
+    ? 'participant'
+    : isViewerSpectator
+      ? 'non_participant'
+      : 'unresolved';
+  const normalizedDrawingPrelude = normalizeDrawingPrelude({
+    phaseKey,
+    turnNumber,
+    participation: drawingParticipation,
+    requesterDrawingPrelude: rawState?.requester?.drawingPrelude,
+  });
+  const authoritativeDrawingCommitment = getCommitmentForPlayer(
+    rawState,
+    buildServerKey,
+    meReadyKey ?? me?.id,
+  );
+  const hasExistingDrawingCommitment =
+    isCommitmentCommitted(authoritativeDrawingCommitment) ||
+    buildSubmittedByTurn[turnNumber] === true;
+  const drawingStage = deriveDrawingStage({
+    normalizedPrelude: normalizedDrawingPrelude,
+    hasExistingDrawingCommitment,
+  });
+  const drawingBuildSubmitEligible = canSubmitDrawingBuild({
+    participation: drawingParticipation,
+    phaseKey,
+    turnNumber,
+    normalizedPrelude: normalizedDrawingPrelude,
+  });
+  const canEditCurrentDrawingBuild =
+    drawingBuildSubmitEligible && drawingStage.kind === 'normal';
+  const carrierPreludeActionValidation =
+    drawingStage.kind === 'prelude'
+      ? validateProjectedCarrierActions(availableActions, drawingStage.passIndex)
+      : { ok: false as const, reason: 'Drawing prelude is not awaiting actions' };
+  const drawingViewerIdentity =
+    drawingParticipation === 'participant'
+      ? `player:${meReadyKey ?? me?.id ?? 'unresolved'}`
+      : `viewer:${viewerMode}`;
+  const drawingPhaseInstanceKey = [
+    effectiveGameId ?? 'nogame',
+    drawingViewerIdentity,
+    turnNumber,
+    'build.drawing',
+    getDrawingPhaseInstanceSuffix(drawingStage),
+  ].join('::');
   const phaseInstanceKey =
-    phaseKey === 'build.dice_roll' && hasRenderableCubeDiceRollAction
+    phaseKey === 'build.drawing'
+      ? drawingPhaseInstanceKey
+      : phaseKey === 'build.dice_roll' && hasRenderableCubeDiceRollAction
       ? `${turnNumber}::${phaseKey}::cube`
       : phaseKey === 'build.dice_roll' &&
           (knoRerollPassIndex === 1 || knoRerollPassIndex === 2 || knoRerollPassIndex === 3)
@@ -1751,6 +1817,8 @@ export function useGameSession(
   // ============================================================================
   
   const [shipChoiceSelectionByInstanceId, setShipChoiceSelectionByInstanceId] = useState<Record<string, string>>({});
+  const explicitShipChoiceBySourceRef = useRef<Record<string, string>>({});
+  const drawingPreludeSubmissionGuardRef = useRef<string | null>(null);
   const [ancientChargeDeclarationWorkflow, setAncientChargeDeclarationWorkflow] =
     useState<AncientChargeDeclarationWorkflow | null>(null);
   const [ancientChargeDeclarationAttempt, setAncientChargeDeclarationAttempt] =
@@ -1817,9 +1885,6 @@ export function useGameSession(
 
   // Client-only key (UI gating / local phase completion concept)
   const buildPhaseInstanceKey = `${turnNumber}::build`;
-  
-  // Server-facing commitments key (MUST match turnData.commitments keys)
-  const buildServerKey = `BUILD_${turnNumber}`;
   
   // Determine major phase for icon
   const majorPhase = phaseKey.split('.')[0] || 'build';
@@ -3112,21 +3177,29 @@ export function useGameSession(
   // ============================================================================
   // SHIP CHOICE SELECTION EFFECT (maintain defaults for server-choice phases)
   // ============================================================================
+
+  useEffect(() => {
+    explicitShipChoiceBySourceRef.current = {};
+  }, [phaseInstanceKey]);
   
   useEffect(() => {
     // Only for server-choice phases
     if (
       phaseKey !== 'build.dice_roll' &&
-      phaseKey !== 'build.ships_that_build' &&
+      !(phaseKey === 'build.drawing' && drawingStage.kind === 'prelude') &&
       phaseKey !== 'battle.first_strike' &&
       phaseKey !== 'battle.charge_declaration'
     ) {
       return;
     }
     
-    const choiceActions = getRenderableServerChoiceActions(phaseKey, availableActions).filter(
-      (action) => getRenderableActionChoiceIds(action).length > 0
-    );
+    const choiceActions = (
+      phaseKey === 'build.drawing'
+        ? carrierPreludeActionValidation.ok
+          ? carrierPreludeActionValidation.actions
+          : []
+        : getRenderableServerChoiceActions(phaseKey, availableActions)
+    ).filter((action) => getRenderableActionChoiceIds(action).length > 0);
     
     // If server says there are no choice actions, clear our local selection map.
     if (choiceActions.length === 0) {
@@ -3203,9 +3276,8 @@ export function useGameSession(
   // - turnNumber changes (new turn begins)
   // - effectiveGameId changes (switched games)
   // 
-  // IMPORTANT: We must NOT reset on phaseKey changes because clicking Ready
-  // advances subphases within BUILD (e.g. build.drawing → build.end_of_build),
-  // and we want preview to persist through the entire BUILD major phase.
+  // IMPORTANT: We must NOT reset on phaseKey changes because the server owns
+  // Drawing workflow progress and the preview persists until the turn changes.
   // 
   // This effect does NOT depend on buildPreviewCounts (avoids noise)
   useBuildPreviewResetEffect({
@@ -3288,7 +3360,7 @@ useEffect(() => {
     ? buildEconomyForMeRead.value
     : null;
   const normalizedBuildDrawingEconomyForDisplay =
-    isLocalBuildDrawing && buildEconomyForMeRead.present
+    isLocalBuildDrawing && canEditCurrentDrawingBuild && buildEconomyForMeRead.present
       ? normalizeBuildEconomyForDisplay(buildEconomyForMeRead.value)
       : null;
   const buildEconomyForMeDisplay = (() => {
@@ -4145,15 +4217,6 @@ useEffect(() => {
         return null;
       }
       
-      case 'build.ships_that_build':
-        if (renderableActionShipPresence.hasCarBuildAction) {
-          return mySpecies === 'human'
-            ? 'ap.build.ships_that_build.human'
-            : 'ap.build.ships_that_build.centaur.mixed';
-        }
-        if (mySpecies === 'xenite') return 'ap.build.ships_that_build.xenite';
-        return null;
-      
       case 'build.drawing':
         return getBuildDrawingActionPanelId(
           activeBuildDrawingFamily,
@@ -4370,26 +4433,35 @@ useEffect(() => {
       : null;
 
   // Determine target panel ID for Actions tab (panel routing target when actions exist)
-  const actionsTargetPanelId = phaseToActionPanelId(
-    phaseKey,
-    mySpecies,
-    availableActions,
-    activeBuildDrawingFamily,
-    routedFirstStrikeFamily,
-    hasFrigateDrawingAction,
-    hasEvolverDrawingAction,
-    hasQuantumMysticDrawingAction
-  );
+  const actionsTargetPanelId =
+    drawingStage.kind === 'prelude' && carrierPreludeActionValidation.ok
+      ? 'ap.build.drawing.prelude.carrier'
+      : phaseToActionPanelId(
+          phaseKey,
+          mySpecies,
+          availableActions,
+          activeBuildDrawingFamily,
+          routedFirstStrikeFamily,
+          hasFrigateDrawingAction,
+          hasEvolverDrawingAction,
+          hasQuantumMysticDrawingAction
+        );
 
   const selfCataloguePanelId = speciesToCataloguePanelId(mySpecies ?? 'human');
   const effectiveFirstStrikePanelId =
     routedFirstStrikeFamily == null
       ? null
       : getFirstStrikePanelIdForFamily(routedFirstStrikeFamily);
-  const presentedActivePanelId =
+  const presentedActivePanelCandidate =
     isMixedFirstStrike && isFirstStrikeActionPanelId(activePanelId)
       ? effectiveFirstStrikePanelId ?? selfCataloguePanelId
       : activePanelId;
+  const presentedActivePanelId = normalizeActionPanelId(
+    presentedActivePanelCandidate,
+    drawingStage.kind === 'prelude' && carrierPreludeActionValidation.ok
+      ? 'ap.build.drawing.prelude.carrier'
+      : selfCataloguePanelId,
+  );
 
   // Client-only "special actions" that should make Actions tab visible even if server reports none.
   // This remains preview/runtime-only; legality is still server-authoritative.
@@ -4548,6 +4620,7 @@ useEffect(() => {
   const isBuildableCatalogueContext =
     isRelevantLiveCatalogueContext &&
     phaseKey === 'build.drawing' &&
+    canEditCurrentDrawingBuild &&
     buildEconomyForMe != null;
   const buildCatalogueContext =
     isBuildableCatalogueContext
@@ -4614,6 +4687,32 @@ useEffect(() => {
   } else if (resumeSyncLocked) {
     readyEnabled = false;
     readyDisabledReason = 'Syncing authoritative state...';
+  } else if (phaseKey === 'build.drawing' && drawingStage.kind === 'blocked') {
+    readyEnabled = false;
+    readyDisabledReason = 'Syncing authoritative state...';
+  } else if (phaseKey === 'build.drawing' && drawingStage.kind === 'submitted') {
+    readyEnabled = false;
+    readyDisabledReason = null;
+  } else if (
+    phaseKey === 'build.drawing' &&
+    drawingStage.kind === 'prelude' &&
+    !carrierPreludeActionValidation.ok
+  ) {
+    readyEnabled = false;
+    readyDisabledReason = 'Loading actions…';
+  } else if (
+    phaseKey === 'build.drawing' &&
+    drawingStage.kind === 'normal' &&
+    !drawingBuildSubmitEligible
+  ) {
+    readyEnabled = false;
+    readyDisabledReason = 'Syncing authoritative state...';
+  } else if (
+    phaseKey === 'build.drawing' &&
+    drawingParticipation !== 'participant'
+  ) {
+    readyEnabled = false;
+    readyDisabledReason = 'Spectators cannot ready up.';
   } else if (!amPlayer) {
     readyEnabled = false;
     readyDisabledReason = 'Spectators cannot ready up.';
@@ -4638,7 +4737,6 @@ useEffect(() => {
     // Gate Ready in server-choice phases until availableActions arrives
     const isServerChoicePhase = 
       phaseKey === 'build.dice_roll' ||
-      phaseKey === 'build.ships_that_build' ||
       phaseKey === 'battle.first_strike' ||
       phaseKey === 'battle.charge_declaration';
     
@@ -4915,6 +5013,8 @@ useEffect(() => {
       mySpecies,
       selectedSpecies,
       buildDrawingRouteRequest,
+      drawingStage,
+      carrierPreludeActionsValid: carrierPreludeActionValidation.ok,
     });
 
     if (decision.kind === 'setActivePanelId' && decision.nextPanelId !== activePanelId) {
@@ -4931,7 +5031,13 @@ useEffect(() => {
     // finish state, and the durable build.drawing request token.
     // We do not depend on activePanelId or hasActionsAvailable,
     // otherwise polling would re-trigger routing.
-  }, [phaseInstanceKey, selectedSpecies, buildDrawingRouteRequest, isFinished]);
+  }, [
+    phaseInstanceKey,
+    selectedSpecies,
+    buildDrawingRouteRequest,
+    carrierPreludeActionValidation.ok,
+    isFinished,
+  ]);
 
   useEffect(() => {
     if (!phaseKey || isFinished) return;
@@ -5074,6 +5180,7 @@ useEffect(() => {
     activePanelId: presentedActivePanelId,
     tabs,
     buildCatalogue,
+    drawingStage,
 
     board,
     healthResolutionLockActive,
@@ -5252,6 +5359,19 @@ useEffect(() => {
         return;
       }
 
+      const guardedDrawingPreludeKey =
+        phaseKey === 'build.drawing' &&
+        drawingStage.kind === 'prelude' &&
+        carrierPreludeActionValidation.ok
+          ? phaseInstanceKey
+          : null;
+      if (guardedDrawingPreludeKey) {
+        if (drawingPreludeSubmissionGuardRef.current !== null) {
+          return;
+        }
+        drawingPreludeSubmissionGuardRef.current = guardedDrawingPreludeKey;
+      }
+
       // Snapshot build preview before async flow to prevent race conditions
       const buildPreviewSnapshot = { ...getActiveBuildPreviewCountsRefForTurn(turnNumber) };
       
@@ -5309,7 +5429,9 @@ useEffect(() => {
       
       // Only show "SENDING..." if this click is actually allowed to send
       const willAttemptSend =
-        myRole === 'player' &&
+        (phaseKey === 'build.drawing'
+          ? drawingParticipation === 'participant'
+          : myRole === 'player') &&
         !isFinished &&
         !healthResolutionPresentationActive &&
         !isNonInputBattleTransitionPhase &&
@@ -5334,6 +5456,16 @@ useEffect(() => {
           phaseKey,
           myRole,
           mySessionId,
+          drawingParticipation,
+          normalizedDrawingPrelude,
+          drawingStage,
+          currentCarrierActions: carrierPreludeActionValidation.ok
+            ? carrierPreludeActionValidation.actions
+            : null,
+          explicitCarrierChoiceIdBySourceInstanceId: {
+            ...explicitShipChoiceBySourceRef.current,
+          },
+          requesterPlayerId: meReadyKey ?? me?.id ?? null,
 
           effectiveGameId,
           turnNumber,
@@ -5370,6 +5502,7 @@ useEffect(() => {
           // Charge panel context (Prompt 9)
           availableActions: Array.isArray(availableActions) ? availableActions : null,
           getLatestAvailableActions,
+          getLatestRawState: () => rawStateRef.current,
           selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
           allocatedDestroyTargetIdsBySourceInstanceId,
           allocatedDestroyTargetIdBySourceInstanceId,
@@ -5400,6 +5533,9 @@ useEffect(() => {
           },
         });
       } finally {
+        if (drawingPreludeSubmissionGuardRef.current === guardedDrawingPreludeKey) {
+          drawingPreludeSubmissionGuardRef.current = null;
+        }
         if (willAttemptSend) {
           // Clear SENDING... regardless of success/failure so the UI can't get stuck.
           setReadyUxByPhaseInstanceKey(prev => ({
@@ -5656,6 +5792,10 @@ useEffect(() => {
       if (phaseKey !== 'build.drawing') {
         return; // Silent no-op outside build.drawing
       }
+
+      if (!canEditCurrentDrawingBuild) {
+        return;
+      }
       
       // Gate 2: Only for players (not spectators)
       if (myRole !== 'player') {
@@ -5751,6 +5891,7 @@ useEffect(() => {
     },
     
 onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
+  if (!canEditCurrentDrawingBuild) return;
   if (!Number.isInteger(triggerNumber) || triggerNumber < 1 || triggerNumber > 6) {
     return;
   }
@@ -5778,6 +5919,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
 },
 
     onSelectQuantumMysticNumber: (quantumMysticIndex: number, selectedNumber: number) => {
+      if (!canEditCurrentDrawingBuild) return;
       if (!Number.isInteger(selectedNumber) || selectedNumber < 1 || selectedNumber > 6) {
         return;
       }
@@ -5811,6 +5953,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     },
 
     onSelectEvolverChoice: (rowId: string, choiceId: EvolverChoiceId) => {
+      if (!canEditCurrentDrawingBuild) return;
       if (choiceId !== 'hold' && choiceId !== 'oxite' && choiceId !== 'asterite') {
         return;
       }
@@ -5828,6 +5971,9 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     },
 
     onSelectBuildDrawingFamily: (family: BuildDrawingActionFamily) => {
+      if (!canEditCurrentDrawingBuild) {
+        return;
+      }
       if (!buildDrawingAvailableFamilies.includes(family)) {
         return;
       }
@@ -5852,6 +5998,19 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending
       ) {
         return;
+      }
+      if (phaseKey === 'build.drawing' && drawingStage.kind === 'prelude') {
+        if (!carrierPreludeActionValidation.ok) return;
+        const projectedAction = carrierPreludeActionValidation.actions.find(
+          (action) => action.sourceInstanceId === sourceInstanceId,
+        );
+        if (!projectedAction?.choices.some((choice) => choice.choiceId === choiceId)) {
+          return;
+        }
+        explicitShipChoiceBySourceRef.current = {
+          ...explicitShipChoiceBySourceRef.current,
+          [sourceInstanceId]: choiceId,
+        };
       }
       setShipChoiceSelectionByInstanceId(prev => ({ ...prev, [sourceInstanceId]: choiceId }));
       applyDestroyTargetingChoiceSideEffects(sourceInstanceId, choiceId);

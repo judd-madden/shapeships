@@ -17,8 +17,8 @@ export function useBuildPreviewResetEffect(args: {
   // - effectiveGameId changes (switched games)
   // 
   // IMPORTANT: We must NOT reset on phaseKey changes because clicking Ready
-  // advances subphases within BUILD (e.g. build.drawing → build.end_of_build),
-  // and we want preview to persist through the entire BUILD major phase.
+  // advances server-owned workflow state within Drawing, and we want preview
+  // to persist until the turn changes.
   // 
   // This effect does NOT depend on buildPreviewCounts (avoids noise)
   useEffect(() => {

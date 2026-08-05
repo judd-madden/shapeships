@@ -240,7 +240,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
     ],
   },
 
-  'ap.build.ships_that_build.human': {
+  'ap.build.drawing.prelude.carrier': {
     kind: 'buttons',
     groups: [
       {
@@ -250,45 +250,6 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
         buttons: CAR_BUILD_BUTTONS,
       },
     ],
-  },
-
-  'ap.build.ships_that_build.centaur.mixed': {
-    kind: 'buttons',
-    groups: [
-      {
-        kind: 'counted',
-        shipDefId: 'CAR',
-        headingTemplate: '{count} {shipName} with charges available.',
-        buttons: CAR_BUILD_BUTTONS,
-      },
-    ],
-  },
-
-  'ap.build.ships_that_build.xenite': {
-    kind: 'buttons',
-    groups: [],
-    // v1.2 SAC - no longer used, kept for self-targeting and targeting within Ships That Build reference
-    // Historical section kept for reference only:
-    // {
-    //   kind: 'named',
-    //   heading: 'Sacrificial Pool',
-    //   ships: [
-    //     {
-    //       shipDefId: 'SAC',
-    //       buttons: [
-    //         {
-    //           size: 'large',
-    //           label: 'Destroy Own Ship',
-    //           requiresTargeting: true,
-    //           showsInstructions: true,
-    //           instructionText: 'You must select a basic ship of yours.',
-    //           choiceId: 'destroy',
-    //         },
-    //         { size: 'small', label: 'Do Nothing', choiceId: 'hold' },
-    //       ],
-    //     },
-    //   ],
-    // }
   },
 
   'ap.build.drawing.human': {

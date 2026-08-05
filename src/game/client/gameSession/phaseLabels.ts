@@ -17,14 +17,28 @@ const SUBPHASE_LABEL_OVERRIDES: Record<string, string> = {
   'setup.species_selection': 'Species Selection',
   'build.dice_roll': 'Dice Roll',
   'build.line_generation': 'Line Generation',
-  'build.ships_that_build': 'Ships That Build',
   'build.drawing': 'Drawing',
-  'build.end_of_build': 'End of Build',
   'battle.reveal': 'Reveal',
   'battle.first_strike': 'First Strike',
   'battle.charge_declaration': 'Charge Declaration',
   'battle.end_of_turn_resolution': 'End of Turn',
 };
+
+export type RuntimePhaseRow = {
+  key: string;
+  label: string;
+  group: 'build' | 'battle';
+};
+
+export const RUNTIME_PHASE_ROWS: readonly RuntimePhaseRow[] = [
+  { key: 'build.dice_roll', label: '1 Dice Roll & Dice Manipulation', group: 'build' },
+  { key: 'build.line_generation', label: '2 Line Generation', group: 'build' },
+  { key: 'build.drawing', label: '3 Drawing', group: 'build' },
+  { key: 'battle.reveal', label: '4 Reveal', group: 'battle' },
+  { key: 'battle.first_strike', label: '5 First Strike', group: 'battle' },
+  { key: 'battle.charge_declaration', label: '6 Charges / Solar Powers', group: 'battle' },
+  { key: 'battle.end_of_turn_resolution', label: '7 Turn Resolution', group: 'battle' },
+] as const;
 
 // Title case helper
 function titleCase(str: string): string {

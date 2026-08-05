@@ -128,7 +128,7 @@ function hasHiddenBuildPhaseChargeUse(def: ReturnType<typeof getShipDefinitionBy
   }
 
   return Array.isArray(def?.powers) && def.powers.some(
-    (power: any) => String(power?.rawSubphase ?? '').trim() === 'Ships That Build'
+    (power: any) => power?.activationTiming === 'start_of_drawing'
   );
 }
 

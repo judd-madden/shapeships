@@ -7,9 +7,13 @@
  * Phase 3 will eventually replace this with server-projected `availableActions`.
  */
 
-import type { ActionPanelId } from '../../display/actionPanel/ActionPanelRegistry';
+import {
+  isActionPanelId,
+  type ActionPanelId,
+} from '../../display/actionPanel/ActionPanelRegistry';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { FirstStrikeActionFamily } from './types';
+import type { DrawingStage } from './drawingPrelude';
 import { getDefaultCubeDiceChoiceId } from './cubeDiceChoice';
 
 export type PhaseKey = string;
@@ -25,10 +29,12 @@ export interface AutoPanelRoutingInput {
   phaseKey: PhaseKey;
   hasActionsAvailable: boolean;
   actionsTargetPanelId: ActionPanelId | null;
-  activePanelId: ActionPanelId;
+  activePanelId: string;
   mySpecies: SpeciesId | null;
   selectedSpecies: SpeciesId | null;
   buildDrawingRouteRequest: BuildDrawingRouteRequest;
+  drawingStage?: DrawingStage;
+  carrierPreludeActionsValid?: boolean;
 }
 
 export type AutoPanelRoutingDecision =
@@ -218,7 +224,6 @@ export function isRenderableTargetedAction(action: { kind?: string } | null | un
 }
 
 export interface RenderableActionShipPresence {
-  hasCarBuildAction: boolean;
   hasCentaurNonEquChargeAction: boolean;
   hasCentaurEquChargeAction: boolean;
   hasGuardianFirstStrikeAction: boolean;
@@ -242,7 +247,6 @@ export function speciesToCataloguePanelId(species: SpeciesId): ActionPanelId {
 export function isDeferredAutoPanelHandoffPhase(phaseKey: PhaseKey): boolean {
   return (
     phaseKey === 'build.dice_roll' ||
-    phaseKey === 'build.ships_that_build' ||
     phaseKey === 'battle.first_strike' ||
     phaseKey === 'battle.charge_declaration'
   );
@@ -263,7 +267,7 @@ export function getRenderableServerChoiceActions(
 
     if (!hasBaseFields) return false;
 
-    if (phaseKey === 'battle.first_strike' || phaseKey === 'build.ships_that_build') {
+    if (phaseKey === 'battle.first_strike') {
       return action.kind === 'choice' || action.kind === 'destroy_target';
     }
 
@@ -283,10 +287,6 @@ export function getRenderableActionShipPresence(
 
   return renderableActions.reduce<RenderableActionShipPresence>(
     (presence, action) => {
-      if (phaseKey === 'build.ships_that_build' && action.shipDefId === 'CAR') {
-        presence.hasCarBuildAction = true;
-      }
-
       if (
         phaseKey === 'battle.first_strike' &&
         action.shipDefId === 'GUA'
@@ -329,7 +329,6 @@ export function getRenderableActionShipPresence(
       return presence;
     },
     {
-      hasCarBuildAction: false,
       hasCentaurNonEquChargeAction: false,
       hasCentaurEquChargeAction: false,
       hasGuardianFirstStrikeAction: false,
@@ -439,13 +438,6 @@ export function isRenderableTargetedActionComplete(args: {
   ).length === getRenderableActionRequiredTargetCount(action);
 }
 
-// TODO(BETA): Early-drawing during build.ships_that_build
-// If phaseKey === 'build.ships_that_build' AND I have zero actions available in that phase,
-// route me to the same panel used for build.drawing (catalogue/drawing UI) BUT keep it draft-only:
-// - do not submit intents
-// - revalidate draft when phaseKey becomes 'build.drawing'
-
-
 /**
  * Mirrors the routing effects that previously lived inline in useGameSession.ts.
  * We keep the decisions separated by returning a single highest-priority action.
@@ -466,10 +458,13 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
     mySpecies,
     selectedSpecies,
     buildDrawingRouteRequest,
+    drawingStage,
+    carrierPreludeActionsValid,
   } = input;
 
   const selfCatalogue = speciesToCataloguePanelId(mySpecies ?? 'human');
   const selectedSpeciesCatalogue = speciesToCataloguePanelId(selectedSpecies ?? 'human');
+  const hasKnownActivePanel = isActionPanelId(activePanelId);
 
   // 1) FORCE SELECTED-SPECIES CATALOGUE DURING SETUP.SPECIES_SELECTION
   if (phaseKey === 'setup.species_selection') {
@@ -488,6 +483,47 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
   // Default panel should be self catalogue, BUT do not override explicit user navigation
   // to Menu (and to Actions if it’s available/visible in this phase).
   if (phaseKey === 'build.drawing') {
+    if (drawingStage?.kind === 'passive') {
+      return hasKnownActivePanel
+        ? { kind: 'none' }
+        : {
+            kind: 'setActivePanelId',
+            nextPanelId: 'ap.idle.blank',
+            log: '[useGameSession] build.drawing: recovering unknown passive-viewer panel',
+          };
+    }
+
+    if (drawingStage?.kind === 'blocked') {
+      return hasKnownActivePanel
+        ? { kind: 'none' }
+        : {
+            kind: 'setActivePanelId',
+            nextPanelId: 'ap.idle.blank',
+            log: '[useGameSession] build.drawing: recovering unknown blocked-workflow panel',
+          };
+    }
+
+    if (drawingStage?.kind === 'prelude') {
+      if (carrierPreludeActionsValid !== true) {
+        return hasKnownActivePanel
+          ? { kind: 'none' }
+          : {
+              kind: 'setActivePanelId',
+              nextPanelId: 'ap.idle.blank',
+              log: '[useGameSession] build.drawing: awaiting a valid Carrier projection',
+            };
+      }
+
+      if (activePanelId !== 'ap.build.drawing.prelude.carrier') {
+        return {
+          kind: 'setActivePanelId',
+          nextPanelId: 'ap.build.drawing.prelude.carrier',
+          log: `[useGameSession] build.drawing: opening Carrier prelude pass ${drawingStage.passIndex}`,
+        };
+      }
+      return { kind: 'none' };
+    }
+
     // Allow Menu tab during build.drawing
     if (activePanelId === 'ap.menu.root') return { kind: 'none' };
 
@@ -524,7 +560,7 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
     }
 
     // Allow any catalogue panel once the user has already navigated there.
-    if (isCataloguePanel(activePanelId)) {
+    if (isActionPanelId(activePanelId) && isCataloguePanel(activePanelId)) {
       return { kind: 'none' };
     }
 
@@ -537,6 +573,14 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
       };
     }
     return { kind: 'none' };
+  }
+
+  if (!hasKnownActivePanel) {
+    return {
+      kind: 'setActivePanelId',
+      nextPanelId: selfCatalogue,
+      log: `[useGameSession] Unknown panel id: falling back to self catalogue panel: ${selfCatalogue}`,
+    };
   }
 
 

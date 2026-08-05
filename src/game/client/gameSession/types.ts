@@ -12,6 +12,7 @@ import type { ShipChoicesPanelGroup } from '../../types/ShipChoiceTypes';
 import type { FleetAnimVM } from '../../display/graphics/animation';
 import type { ActivationStaggerPlan } from '../../display/graphics/animation-stagger';
 import type { ProvisionalShipEligibility } from './provisionalBuild';
+import type { DrawingStage } from './drawingPrelude';
 import type {
   AncientManualSolarCast,
   AncientSolarSelectorMode,
@@ -703,6 +704,7 @@ export interface ActionPanelViewModel {
   activePanelId: ActionPanelId;
   tabs: ActionPanelTabVm[];
   buildCatalogue: ActionPanelBuildCatalogueViewModel;
+  drawingStage?: DrawingStage;
   menu: {
     title: string;
     subtitle: string;

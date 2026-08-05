@@ -271,11 +271,11 @@ function buildCentaurDiceRollFixture(): Pick<
   });
 }
 
-function buildHumanShipsThatBuildFixture(): Pick<
+function buildCarrierPreludeFixture(): Pick<
   ActionPanelViewModel,
   'shipChoices' | 'availableActions' | 'selectedChoiceIdBySourceInstanceId'
 > {
-  const group = getCountedGroupSpec('ap.build.ships_that_build.human', 0);
+  const group = getCountedGroupSpec('ap.build.drawing.prelude.carrier', 0);
   const carrierA = makeShipChoiceInstance({
     shipDefId: group.shipDefId,
     buttons: group.buttons,
@@ -301,48 +301,6 @@ function buildHumanShipsThatBuildFixture(): Pick<
     selectedChoices: [
       ['car-human-a', 'fighter'],
       ['car-human-b', 'hold'],
-    ],
-  });
-}
-
-function buildCentaurShipsThatBuildFixture(): Pick<
-  ActionPanelViewModel,
-  'shipChoices' | 'availableActions' | 'selectedChoiceIdBySourceInstanceId'
-> {
-  const group = getCountedGroupSpec('ap.build.ships_that_build.centaur.mixed', 0);
-  const carrierA = makeShipChoiceInstance({
-    shipDefId: group.shipDefId,
-    buttons: group.buttons,
-    sourceInstanceId: 'car-centaur-a',
-    availableChoiceIds: ['defender', 'fighter', 'hold'],
-    currentCharges: 4,
-  });
-  const carrierB = makeShipChoiceInstance({
-    shipDefId: group.shipDefId,
-    buttons: group.buttons,
-    sourceInstanceId: 'car-centaur-b',
-    availableChoiceIds: ['defender', 'hold'],
-    currentCharges: 1,
-  });
-  const carrierC = makeShipChoiceInstance({
-    shipDefId: group.shipDefId,
-    buttons: group.buttons,
-    sourceInstanceId: 'car-centaur-c',
-    availableChoiceIds: ['defender', 'fighter', 'hold'],
-    currentCharges: 2,
-  });
-
-  return buildShipChoiceFixture({
-    groups: [
-      {
-        heading: formatCountedShipChoiceHeading(group, 3),
-        ships: [carrierA, carrierB, carrierC],
-      },
-    ],
-    selectedChoices: [
-      ['car-centaur-a', 'defender'],
-      ['car-centaur-b', 'hold'],
-      ['car-centaur-c', 'fighter'],
     ],
   });
 }
@@ -585,10 +543,8 @@ function buildShipChoicePanelFixture(
   switch (panelId) {
     case 'ap.build.dice_roll.centaur':
       return buildCentaurDiceRollFixture();
-    case 'ap.build.ships_that_build.human':
-      return buildHumanShipsThatBuildFixture();
-    case 'ap.build.ships_that_build.centaur.mixed':
-      return buildCentaurShipsThatBuildFixture();
+    case 'ap.build.drawing.prelude.carrier':
+      return buildCarrierPreludeFixture();
     case 'ap.battle.first_strike.human':
       return buildHumanFirstStrikeFixture();
     case 'ap.battle.charges.human':
