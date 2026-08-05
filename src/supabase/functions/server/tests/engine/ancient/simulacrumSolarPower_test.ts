@@ -17,9 +17,9 @@ import {
 } from "../../../engine/ancient/simulacrumSolarPower.ts";
 import { getShipById } from "../../../engine_shared/defs/ShipDefinitions.core.ts";
 import { computePhaseComputedEffects } from "../../../engine_shared/resolve/phaseComputedEffects.ts";
-import { resolvePhase } from "../../../engine_shared/resolve/resolvePhase.ts";
 import { computeLineBonusesForPlayer } from "../../../engine/lines/computeLineBonusForPlayer.ts";
-import { fleetHasAvailablePowers } from "../../../engine/phase/fleetHasAvailablePowers.ts";
+import { projectDrawingPreludeCarrierActions } from "../../../engine/state/drawingPreludeProjection.ts";
+import { createDrawingPreludeInitializationCandidate } from "../../../engine/state/drawingPreludeState.ts";
 import { resolveChargeDeclarationSubmission } from "../../../engine/intent/chargeDeclarationResolution.ts";
 import {
   applyIntent,
@@ -119,6 +119,22 @@ function pending(
     status: "queued",
     ...overrides,
   };
+}
+
+function enterDrawing(
+  state: GameState,
+  nowMs = 200,
+): { state: GameState; events: any[] } {
+  (state.gameData as any).currentPhase = "build";
+  (state.gameData as any).currentSubPhase = "drawing";
+  state.gameData.turnData!.currentMajorPhase = "build";
+  state.gameData.turnData!.currentSubPhase = "drawing";
+  return onEnterPhase(
+    state,
+    "build.line_generation",
+    "build.drawing",
+    nowMs,
+  ) as { state: GameState; events: any[] };
 }
 
 Deno.test("Simulacrum canonical target classification accepts all Basics including Cube and rejects non-Basics", () => {
@@ -618,6 +634,137 @@ Deno.test("turn start materializes in active seat and numeric queue order with e
   ]);
 });
 
+Deno.test("a live controlled CHR snapshot commits two deterministic Simulacrum slots and retries without a third copy", () => {
+  const state = createState({
+    turnNumber: 5,
+    p1Ships: [ship("controlled-chr", "CHR", { createdTurn: 1 })],
+  });
+  state.gameData.ancient!.pendingSimulacrumCopies = [pending({ copiedShipDefId: "FIG" })];
+  const ids = ["fig-slot-1", "fig-slot-2"];
+
+  const first = materializeQueuedSimulacrumCopiesAtTurnStart(
+    state,
+    5,
+    100,
+    () => ids.shift()!,
+  );
+  const record = first.state.gameData.ancient!.pendingSimulacrumCopies[0];
+  assert.equal(record.materializationMultiplicity, 2);
+  assert.equal(record.materializedInstanceId, "fig-slot-1");
+  assert.equal(record.repeatedMaterializedInstanceId, "fig-slot-2");
+  assert.deepEqual(
+    first.events.filter((event) => event.type === "SIMULACRUM_COPY_MATERIALIZED")
+      .map((event) => event.materializationSlot),
+    [1, 2],
+  );
+  assert.deepEqual(
+    first.events.filter((event) => event.type === "BATTLE_LOG_CAPTURE_BUILD_PRODUCED")
+      .map((event) => event.producedBuildOccurrence),
+    [{ stage: "turn_start_materialisation" }, { stage: "turn_start_materialisation" }],
+  );
+  assert.deepEqual(
+    getDirectMaterializedSimulacrumInstanceIdsForPlayer(first.state, "z-owner"),
+    new Set(["fig-slot-1", "fig-slot-2"]),
+  );
+  assert.deepEqual(
+    deriveMaterializedSimulacrumFleetInstanceIdsByPlayerId(first.state)["z-owner"],
+    ["fig-slot-1", "fig-slot-2"],
+  );
+
+  const retried = materializeQueuedSimulacrumCopiesAtTurnStart(first.state, 5, 101);
+  assert.deepEqual(retried.state, first.state);
+  assert.deepEqual(retried.events, []);
+  assert.equal(
+    retried.state.gameData.ships!["z-owner"].filter((entry) => entry.shipDefId === "FIG").length,
+    2,
+  );
+});
+
+Deno.test("species and stale Chronoswarm metadata do not qualify a Simulacrum repeat", () => {
+  const state = createState({
+    turnNumber: 5,
+    p1Ships: [],
+    players: [
+      { id: "z-owner", role: "player", faction: "xenite", health: 25 },
+      { id: "a-owner", role: "player", faction: "human", health: 25 },
+    ],
+  });
+  (state.gameData.turnData as any).chronoswarmRolls = [4, 5];
+  (state.gameData.turnData as any).chronoswarmCountByPlayerId = { "z-owner": 2 };
+  state.gameData.ancient!.pendingSimulacrumCopies = [pending({ copiedShipDefId: "FIG" })];
+  const result = materializeQueuedSimulacrumCopiesAtTurnStart(
+    state,
+    5,
+    100,
+    () => "single-fig",
+  );
+  assert.equal(
+    result.state.gameData.ancient!.pendingSimulacrumCopies[0].materializationMultiplicity,
+    1,
+  );
+  assert.equal(result.state.gameData.ships!["z-owner"].length, 1);
+});
+
+Deno.test("an impossible queued CHR is rejected atomically before it could affect same-batch qualification", () => {
+  const state = createState({ turnNumber: 5, p1Ships: [] });
+  state.gameData.ancient!.pendingSimulacrumCopies = [
+    pending({ pendingCopyId: "defensive-invalid-chr", copiedShipDefId: "CHR", queueOrder: 0 }),
+    pending({ pendingCopyId: "copy-fig", copiedShipDefId: "FIG", queueOrder: 1 }),
+  ];
+  const before = structuredClone(state);
+  assert.throws(
+    () => materializeQueuedSimulacrumCopiesAtTurnStart(state, 5, 100),
+    /Invalid queued Simulacrum definition: CHR/,
+  );
+  assert.deepEqual(state, before);
+});
+
+Deno.test("two-slot aggregate capacity failure leaves the authoritative state unchanged", () => {
+  const maximum = getShipById("SPI")!.maxQuantity as number;
+  const state = createState({
+    turnNumber: 5,
+    p1Ships: [
+      ship("controlled-chr", "CHR", { createdTurn: 1 }),
+      ...Array.from({ length: maximum - 1 }, (_, index) =>
+        ship(`spi-${index}`, "SPI", { createdTurn: 1 })
+      ),
+    ],
+  });
+  state.gameData.ancient!.pendingSimulacrumCopies = [pending({ copiedShipDefId: "SPI" })];
+  const before = structuredClone(state);
+  assert.throws(
+    () => materializeQueuedSimulacrumCopiesAtTurnStart(state, 5, 100),
+    /maximum quantity|quantity/i,
+  );
+  assert.deepEqual(state, before);
+});
+
+Deno.test("both repeated direct copies are eligible frozen Drawing-prelude sources", () => {
+  const state = createState({
+    turnNumber: 5,
+    p1Ships: [ship("controlled-chr", "CHR", { createdTurn: 1 })],
+  });
+  state.gameData.ancient!.pendingSimulacrumCopies = [
+    pending({ copiedShipDefId: "BUG", capturedStartOfBattleCharges: 2 }),
+  ];
+  const ids = ["bug-slot-1", "bug-slot-2"];
+  const materialized = materializeQueuedSimulacrumCopiesAtTurnStart(
+    state,
+    5,
+    100,
+    () => ids.shift()!,
+  ).state;
+  const candidate = createDrawingPreludeInitializationCandidate(materialized);
+  assert.equal(candidate.ok, true);
+  if (!candidate.ok) return;
+  assert.deepEqual(
+    candidate.value.playerStateByPlayerId["z-owner"].eligibleSourcePowers
+      .filter((source) => source.shipDefId === "BUG")
+      .map((source) => source.sourceInstanceId),
+    ["bug-slot-1", "bug-slot-2"],
+  );
+});
+
 Deno.test("initial Dice Roll materializes before fleet setup and repeated entry is idempotent", () => {
   const state = createState({
     turnNumber: 5,
@@ -734,7 +881,7 @@ Deno.test("only direct current-turn Simulacrum copies receive Line Generation el
   assert.deepEqual(odd.contributingSourceInstanceIds, ["copied-orb"]);
 });
 
-Deno.test("copied CAR uses normal Ships That Build eligibility and stops auto-advance", () => {
+Deno.test("copied CAR is eligible only through the Drawing-prelude projector", () => {
   const state = createState({ turnNumber: 5 });
   state.gameData.ancient!.pendingSimulacrumCopies = [
     pending({
@@ -748,32 +895,12 @@ Deno.test("copied CAR uses normal Ships That Build eligibility and stops auto-ad
     100,
     () => "copied-car",
   ).state;
-  (materialized.gameData as any).currentPhase = "build";
-  (materialized.gameData as any).currentSubPhase = "ships_that_build";
-  materialized.gameData.turnData!.currentMajorPhase = "build";
-  materialized.gameData.turnData!.currentSubPhase = "ships_that_build";
-
-  assert.equal(
-    fleetHasAvailablePowers(
-      materialized,
-      "build.ships_that_build",
-      "z-owner",
-      ["Ships That Build"],
+  const entered = enterDrawing(materialized);
+  assert.deepEqual(
+    projectDrawingPreludeCarrierActions(entered.state, "z-owner").map((action) =>
+      action.sourceInstanceId
     ),
-    true,
-  );
-  const entered = onEnterPhase(
-    materialized,
-    "build.line_generation",
-    "build.ships_that_build",
-    200,
-  );
-  assert.equal(
-    entered.events.some((event) =>
-      event.type === "PHASE_ADVANCED" &&
-      event.from === "build.ships_that_build"
-    ),
-    false,
+    ["copied-car"],
   );
 });
 
@@ -942,7 +1069,7 @@ Deno.test("directly materialized BUG builds once on its first turn while an ordi
     () => "copied-bug",
   ).state;
 
-  const first = resolvePhase(materialized, "build.ships_that_build");
+  const first = enterDrawing(materialized, 20);
   const firstFleet = first.state.gameData.ships!["z-owner"];
   assert.equal(
     firstFleet.find((entry) => entry.instanceId === "copied-bug")
@@ -961,7 +1088,9 @@ Deno.test("directly materialized BUG builds once on its first turn while an ordi
   assert.equal(
     first.events.some((event) =>
       event.type === "EFFECT_APPLIED" &&
-      event.effectId === "bug_build_5_copied-bug_charge" &&
+      event.effectId.startsWith(
+        "drawing-prelude:5:z-owner:pass:1:copied-bug:BUG#0:automatic:",
+      ) &&
       event.details?.before === 2 &&
       event.details?.after === 1
     ),
@@ -978,7 +1107,7 @@ Deno.test("directly materialized BUG builds once on its first turn while an ordi
     true,
   );
 
-  const second = resolvePhase(first.state, "build.ships_that_build");
+  const second = enterDrawing(first.state, 30);
   const secondFleet = second.state.gameData.ships!["z-owner"];
   assert.equal(
     secondFleet.find((entry) => entry.instanceId === "copied-bug")
@@ -1019,7 +1148,7 @@ Deno.test("directly materialized ZEN uses its qualifying first-turn roll once wi
     false,
   );
 
-  const first = resolvePhase(materialized, "build.ships_that_build");
+  const first = enterDrawing(materialized, 20);
   assert.equal(
     first.state.gameData.ships!["z-owner"].filter((entry) =>
       entry.shipDefId === "XEN"
@@ -1037,7 +1166,7 @@ Deno.test("directly materialized ZEN uses its qualifying first-turn roll once wi
     true,
   );
 
-  const second = resolvePhase(first.state, "build.ships_that_build");
+  const second = enterDrawing(first.state, 30);
   assert.equal(
     second.state.gameData.ships!["z-owner"].filter((entry) =>
       entry.shipDefId === "XEN"
@@ -1068,7 +1197,7 @@ Deno.test("directly materialized ZEN remains inactive on a non-qualifying roll a
     "z-owner": 1,
   };
 
-  const result = resolvePhase(materialized, "build.ships_that_build");
+  const result = enterDrawing(materialized, 20);
   assert.deepEqual(
     result.state.gameData.ships!["z-owner"].map((entry) => entry.shipDefId),
     ["ZEN", "ZEN"],

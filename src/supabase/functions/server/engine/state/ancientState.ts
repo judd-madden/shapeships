@@ -551,20 +551,18 @@ function normalizePendingSimulacrumCopy(
     return null;
   }
   const configuration = isObject(value.permanentConfiguration) ? value.permanentConfiguration : {};
-  const rawOutcome = isObject(value.materializationOutcome)
-    ? value.materializationOutcome
-    : null;
-  const rawProducedShips = rawOutcome?.producedShips;
-  const materializationOutcome =
-    rawOutcome &&
-      isNonNegativeInteger(rawOutcome.joiningLinesGranted) &&
-      Array.isArray(rawProducedShips) &&
-      rawProducedShips.every((produced) =>
-        isObject(produced) &&
-        isNonEmptyString(produced.instanceId) &&
-        isNonEmptyString(produced.shipDefId) &&
-        isNonEmptyString(produced.sourceShipDefId)
-      )
+  const normalizeOutcome = (raw: unknown) => {
+    const rawOutcome = isObject(raw) ? raw : null;
+    const rawProducedShips = rawOutcome?.producedShips;
+    return rawOutcome &&
+        isNonNegativeInteger(rawOutcome.joiningLinesGranted) &&
+        Array.isArray(rawProducedShips) &&
+        rawProducedShips.every((produced) =>
+          isObject(produced) &&
+          isNonEmptyString(produced.instanceId) &&
+          isNonEmptyString(produced.shipDefId) &&
+          isNonEmptyString(produced.sourceShipDefId)
+        )
       ? {
         joiningLinesGranted: rawOutcome.joiningLinesGranted,
         producedShips: rawProducedShips.map((produced) => ({
@@ -574,6 +572,16 @@ function normalizePendingSimulacrumCopy(
         })),
       }
       : null;
+  };
+  const materializationOutcome = normalizeOutcome(value.materializationOutcome);
+  const repeatedMaterializationOutcome = normalizeOutcome(value.repeatedMaterializationOutcome);
+  const hasRepeatSlot = isNonEmptyString(value.repeatedMaterializedInstanceId) ||
+    repeatedMaterializationOutcome !== null;
+  const materializationMultiplicity = value.materializationMultiplicity === 2 || hasRepeatSlot
+    ? 2
+    : value.materializationMultiplicity === 1 || value.status === 'materialized'
+    ? 1
+    : undefined;
   return {
     pendingCopyId: value.pendingCopyId,
     declarationId: value.declarationId,
@@ -593,10 +601,15 @@ function normalizePendingSimulacrumCopy(
     },
     sourceMode: value.sourceMode,
     status: value.status,
+    ...(materializationMultiplicity ? { materializationMultiplicity } : {}),
     ...(isNonEmptyString(value.materializedInstanceId)
       ? { materializedInstanceId: value.materializedInstanceId }
       : {}),
     ...(materializationOutcome ? { materializationOutcome } : {}),
+    ...(isNonEmptyString(value.repeatedMaterializedInstanceId)
+      ? { repeatedMaterializedInstanceId: value.repeatedMaterializedInstanceId }
+      : {}),
+    ...(repeatedMaterializationOutcome ? { repeatedMaterializationOutcome } : {}),
   };
 }
 

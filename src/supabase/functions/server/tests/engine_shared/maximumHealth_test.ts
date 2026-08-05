@@ -5,7 +5,10 @@ import {
   DEFAULT_PLAYER_MAX_HEALTH,
   getPlayerMaxHealth,
 } from "../../engine_shared/maximumHealth.ts";
-import { resolvePhase } from "../../engine_shared/resolve/resolvePhase.ts";
+import {
+  resolvePhase,
+  resolveRevealSpecialPowers,
+} from "../../engine_shared/resolve/resolvePhase.ts";
 
 function createState(args?: {
   p1Faction?: string;
@@ -98,7 +101,7 @@ Deno.test("controlled Spirals derive capped maximum health independently of fact
   assert.equal(canControlAdditionalSpirals(capacityState, "p1", 2), false);
 });
 
-Deno.test("RED sets its owner to derived maximum health through resolvePhase", () => {
+Deno.test("RED sets its owner to derived maximum health during Reveal", () => {
   const state = createState({
     p1Health: -4,
     p1Ships: [
@@ -112,7 +115,7 @@ Deno.test("RED sets its owner to derived maximum health through resolvePhase", (
     ],
   });
 
-  const result = resolvePhase(state, "build.end_of_build");
+  const result = resolveRevealSpecialPowers(state);
 
   assert.equal(
     result.state.players.find((player: any) => player.id === "p1")?.health,

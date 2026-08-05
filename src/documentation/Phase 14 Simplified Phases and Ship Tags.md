@@ -1182,6 +1182,8 @@ Planning documents outside the repository are not silently edited by a repositor
 
 ## Phase 14I — Drawing Cutover and Active Phase-Surface Reconciliation
 
+**Implementation status:** Phase 14H-R is complete. Phase 14I is split into 14I-S — Authoritative Server Phase Cutover and 14I-C — Functional Client Cutover. Phase 14I-S is complete, and Phase 14I-C is the next required pass. Phase 14 remains incomplete and is not deployable until 14I-C is complete; the server and client cutovers must release atomically.
+
 - **Pass type:** Mixed Pass
 - **Goal:** Remove `build.ships_that_build`, activate the complete prelude, route desktop/mobile through requester stages and make active phase/timing surfaces truthful.
 - **Why now:** Persistence, state, mechanics, Chronoswarm, bots, history and projection are complete.
@@ -1705,7 +1707,7 @@ The original accepted roadmap began with:
 
 ## Phase 14BC — Definition Metadata and Mirror Parity
 
-Phase 14BC and the other passes through 14H are complete. The immediate next implementation pass is 14H-R, followed by the amended 14I, as defined by the [Phase 14 Rules v1.63 Alignment Addendum](<Phase 14 Rules v1.63 Alignment Addendum.md>). The rationale below is retained as completed-pass history.
+Phase 14BC and the other passes through 14H-R are complete. Phase 14I-S — Authoritative Server Phase Cutover is also complete. Phase 14I-C — Functional Client Cutover is the next required pass, as defined by the [Phase 14 Rules v1.63 Alignment Addendum](<Phase 14 Rules v1.63 Alignment Addendum.md>). Phase 14 remains incomplete and non-deployable until the server and client cutovers can release atomically. The rationale below is retained as completed-pass history.
 
 It was selected as the safest first implementation pass because it:
 

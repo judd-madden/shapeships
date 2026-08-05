@@ -31,7 +31,6 @@ import {
 } from '../phase/cubeDiceManipulation.ts';
 import { getChargeDeclarationLegalityState } from '../intent/chargeDeclarationEligibility.ts';
 import {
-  hasCurrentDrawingPreludePrivacyClaim,
   projectDrawingPreludeCarrierActions,
   projectDrawingPreludeRequesterSummary,
 } from '../state/drawingPreludeProjection.ts';
@@ -49,25 +48,6 @@ const FIRST_STRIKE_TARGET_SHIP_DEF_IDS = ['GUA', 'SAC', 'DOM'] as const;
 type DamageHealChargeShipDefId = (typeof DAMAGE_HEAL_CHARGE_SHIP_DEF_IDS)[number];
 type FirstStrikeTargetShipDefId = (typeof FIRST_STRIKE_TARGET_SHIP_DEF_IDS)[number];
 type KnoRerollPassIndex = 1 | 2 | 3;
-
-function getShipsThatBuildPassIndex(state: any): 1 | 2 {
-  return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
-}
-
-function getChronoswarmCountForPlayer(state: any, playerId: string): number {
-  const raw = state?.gameData?.turnData?.chronoswarmCountByPlayerId?.[playerId];
-  return Number.isInteger(raw) && raw > 0 ? raw : 0;
-}
-
-function playerParticipatesInShipsThatBuildPass(state: any, playerId: string): boolean {
-  const passIndex = getShipsThatBuildPassIndex(state);
-  return passIndex === 1 || getChronoswarmCountForPlayer(state, playerId) > 0;
-}
-
-function shipAlreadyUsedInShipsThatBuildPass(state: any, sourceInstanceId: string): boolean {
-  const passIndex = getShipsThatBuildPassIndex(state);
-  return state?.gameData?.turnData?.shipsThatBuildPassUsageByInstanceId?.[sourceInstanceId]?.[passIndex] === true;
-}
 
 function getPhaseKey(state: any): string | null {
   const major = state?.gameData?.currentPhase;
@@ -283,7 +263,6 @@ function isAuthoredBotPlanRequiredPhase(phaseKey: string): boolean {
   return (
     phaseKey === 'build.dice_roll' ||
     phaseKey === 'build.drawing' ||
-    phaseKey === 'build.ships_that_build' ||
     phaseKey === 'battle.charge_declaration' ||
     phaseKey === FIRST_STRIKE_PHASE_KEY
   );
@@ -618,57 +597,6 @@ function getRepresentativeKnoInstanceIdForPass(
 
   if (knoInstanceIds.length === 0) return null;
   return knoInstanceIds[passIndex - 1] ?? knoInstanceIds[0];
-}
-
-function getCarrierShipsThatBuildPower(): any | null {
-  const [, powerIndexRaw] = CARRIER_ACTION_ID.split('#');
-  const powerIndex = Number(powerIndexRaw);
-  if (!Number.isInteger(powerIndex) || powerIndex < 0) {
-    return null;
-  }
-
-  const carrierDef = getShipDefinition('CAR');
-  const power = carrierDef?.structuredPowers?.[powerIndex];
-
-  if (!power || power.type !== 'choice') {
-    return null;
-  }
-
-  if (!Array.isArray(power.options) || !power.timings?.includes('build.ships_that_build')) {
-    return null;
-  }
-
-  return power;
-}
-
-function getLegalCarrierChoiceIdsForShip(ship: any): Array<Exclude<CarrierChoiceId, 'hold'>> {
-  const carrierPower = getCarrierShipsThatBuildPower();
-  if (!carrierPower) {
-    return [];
-  }
-
-  const chargesCurrent = Number(ship?.chargesCurrent ?? 0);
-  const legalChoiceIds: Array<Exclude<CarrierChoiceId, 'hold'>> = [];
-
-  for (const option of carrierPower.options) {
-    const choiceId = option?.choiceId;
-    if (!isCarrierChoiceId(choiceId) || choiceId === 'hold') {
-      continue;
-    }
-
-    const requiresCharge = (option?.requiresCharge ?? false) || (carrierPower.requiresCharge ?? false);
-    if (!requiresCharge) {
-      legalChoiceIds.push(choiceId);
-      continue;
-    }
-
-    const chargeCost = option?.chargeCost ?? carrierPower.chargeCost ?? 1;
-    if (chargesCurrent >= chargeCost) {
-      legalChoiceIds.push(choiceId);
-    }
-  }
-
-  return legalChoiceIds;
 }
 
 function getSnappedChargeSourceIds(state: any, playerId: string): string[] {
@@ -1114,75 +1042,6 @@ function buildDamageHealChargeIntentForCurrentPhase(args: {
   });
 }
 
-function buildCarrierIntentForCurrentPhase(args: {
-  state: any;
-  playerId: string;
-  phaseKey: string;
-  loopStep: number;
-  plan: AuthoredBotPlan;
-}): IntentRequest | null {
-  const { state, playerId, phaseKey, loopStep, plan } = args;
-
-  if (!playerParticipatesInShipsThatBuildPass(state, playerId)) {
-    return null;
-  }
-
-  const fleet = state?.gameData?.ships?.[playerId] ?? [];
-  if (!Array.isArray(fleet)) {
-    return null;
-  }
-
-  const carrierShips = fleet
-    .filter((ship: any) =>
-      ship?.shipDefId === 'CAR' &&
-      typeof ship?.instanceId === 'string' &&
-      ship.instanceId.length > 0 &&
-      !shipAlreadyUsedInShipsThatBuildPass(state, ship.instanceId)
-    )
-    .sort((a: any, b: any) => a.instanceId.localeCompare(b.instanceId));
-
-  for (const carrierShip of carrierShips) {
-    const legalChoiceIds = getLegalCarrierChoiceIdsForShip(carrierShip);
-    const choiceId = plan?.drawingPrelude?.CAR
-      ? chooseCarrierDrawingPreludeChoiceId({
-          state,
-          playerId,
-          plan,
-          legalChoiceIds,
-        })
-      : chooseDefaultCarrierChoiceId({
-          state,
-          playerId,
-          legalChoiceIds,
-        });
-
-    if (!choiceId) {
-      continue;
-    }
-
-    return {
-      gameId: state.gameId,
-      intentType: 'ACTION',
-      turnNumber: state?.gameData?.turnNumber ?? 0,
-      payload: {
-        actionType: 'power',
-        actionId: CARRIER_ACTION_ID,
-        sourceInstanceId: carrierShip.instanceId,
-        choiceId,
-      },
-      nonce: buildBotNonce({
-        state,
-        phaseKey,
-        loopStep,
-        playerId,
-        intentType: 'ACTION',
-      }),
-    };
-  }
-
-  return null;
-}
-
 export function buildDrawingPreludeCarrierIntentForBot(args: {
   state: any;
   playerId: string;
@@ -1580,26 +1439,24 @@ function buildBotIntent(args: {
       return { debugReason: 'missing_matching_plan' };
     }
 
-    if (hasCurrentDrawingPreludePrivacyClaim(state)) {
-      const requesterPrelude = projectDrawingPreludeRequesterSummary(
+    const requesterPrelude = projectDrawingPreludeRequesterSummary(
+      state,
+      playerId,
+    );
+    if (!requesterPrelude) {
+      return { debugReason: 'invalid_drawing_prelude_state' };
+    }
+    if (requesterPrelude.status === 'awaiting_actions') {
+      const preludeIntent = buildDrawingPreludeCarrierIntentForBot({
         state,
         playerId,
-      );
-      if (!requesterPrelude) {
-        return { debugReason: 'invalid_drawing_prelude_state' };
-      }
-      if (requesterPrelude.status === 'awaiting_actions') {
-        const preludeIntent = buildDrawingPreludeCarrierIntentForBot({
-          state,
-          playerId,
-          phaseKey,
-          loopStep,
-          plan,
-        });
-        return preludeIntent ?? {
-          debugReason: 'unprojectable_drawing_prelude_actions',
-        };
-      }
+        phaseKey,
+        loopStep,
+        plan,
+      });
+      return preludeIntent ?? {
+        debugReason: 'unprojectable_drawing_prelude_actions',
+      };
     }
 
     const buildSubmitPayload = appendFrigateTriggersToBuildSubmit({
@@ -1691,20 +1548,6 @@ function buildBotIntent(args: {
     }
   }
 
-  if (phaseKey === 'build.ships_that_build' && plan) {
-    const carrierIntent = buildCarrierIntentForCurrentPhase({
-      state,
-      playerId,
-      phaseKey,
-      loopStep,
-      plan,
-    });
-
-    if (carrierIntent) {
-      return carrierIntent;
-    }
-  }
-
   return {
     gameId: state.gameId,
     intentType: 'DECLARE_READY',
@@ -1734,6 +1577,9 @@ export async function runBotsUntilSettled(args: {
 
     const phaseKey = getPhaseKey(state);
     if (!phaseKey) {
+      break;
+    }
+    if (state?.gameData?.turnData?.phaseHold?.phaseKey === phaseKey) {
       break;
     }
 

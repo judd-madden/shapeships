@@ -210,14 +210,14 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   // ==========================================================================
   // CARRIER (CAR)
   // ==========================================================================
-  // Choice power in build.ships_that_build:
+  // Choice power projected and resolved only by the build.drawing prelude:
   // - defender: SpendCharge(1) + CreateShip('DEF')
   // - fighter:  SpendCharge(2) + CreateShip('FIG')
   // - hold:     no effect
   'CAR#0': [
     {
       type: 'choice',
-      timings: ['build.ships_that_build'],
+      timings: ['build.drawing'],
       requiresCharge: true,
       // NOTE: power-level chargeCost is NOT used for gating here (options have different costs)
       options: [
@@ -742,30 +742,7 @@ export const STRUCTURED_POWERS_OVERLAYS: Record<ShipPowerKey, StructuredShipPowe
   // ==========================================================================
   // SACRIFICIAL POOL (SAC)
   // ==========================================================================
-  // v1.2 SAC - no longer used, kept for self-targeting and targeting within Ships That Build reference
-  // Choice power in build.ships_that_build:
-  // - destroy: Destroy one of your own legal basic ships
-  // - hold:    do nothing
-  // {
-  //   type: 'choice',
-  //   timings: ['build.ships_that_build'],
-  //   options: [
-  //     {
-  //       choiceId: 'destroy',
-  //       effects: [
-  //         {
-  //           kind: EffectKind.Destroy,
-  //           restriction: 'basic_only',
-  //           count: 1,
-  //           targetPlayer: 'self',
-  //         },
-  //       ],
-  //     },
-  //     { choiceId: 'hold', effects: [] },
-  //   ],
-  // }
-  //
-  // v1.3 SAC
+  // Current SAC behavior.
   'SAC#0': [
     {
       type: 'choice',

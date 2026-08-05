@@ -48,6 +48,10 @@ export type DrawingPreludeFoundationResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: DrawingPreludeFoundationError };
 
+export type DrawingPreludeEntryAdvanceResult =
+  | { ok: true; state: GameState; events: any[] }
+  | { ok: false; error: { code: string; message: string } };
+
 export type CarrierDrawingPreludeChoiceId = 'defender' | 'fighter';
 
 export type CarrierDrawingPreludeChoiceLegality = {
@@ -655,6 +659,121 @@ export function finalizeDrawingPreludeInitializationCandidate(
       },
     },
   };
+}
+
+/**
+ * Authoritative build.drawing entry path. The provisional state containing
+ * unresolved automatic sources is scoped to this call and is never returned.
+ * The ordinary candidate finalizer remains strict and unchanged.
+ */
+export function initializeDrawingPreludeOnEntry(args: {
+  state: Readonly<GameState>;
+  nowMs: number;
+  advancePlayer: (args: {
+    state: GameState;
+    playerId: string;
+    nowMs: number;
+  }) => DrawingPreludeEntryAdvanceResult;
+}): DrawingPreludeFoundationResult<{ state: GameState; events: any[] }> {
+  const activePlayerIds = getActivePlayerIds(args.state);
+  const currentTurn = getCanonicalTurnNumber(args.state);
+  if (!activePlayerIds || currentTurn === null) {
+    return failure('INVALID_CANDIDATE', 'Drawing entry requires a canonical turn and active-player set');
+  }
+
+  const existingPrelude = args.state.gameData.turnData?.drawingPreludeByPlayerId;
+  const existingSnapshot = args.state.gameData.turnData?.buildDrawingPublicFleetByPlayerId;
+  if (existingPrelude !== undefined || existingSnapshot !== undefined) {
+    if (
+      !isRecord(existingPrelude) ||
+      !isRecord(existingSnapshot) ||
+      !hasExactPlayerIds(existingPrelude, activePlayerIds) ||
+      !hasExactPlayerIds(existingSnapshot, activePlayerIds) ||
+      activePlayerIds.some((playerId) => {
+        const playerState = existingPrelude[playerId];
+        return (
+          !isStructurallyValidDrawingPreludePlayerState(playerState, currentTurn) ||
+          !isStructurallyValidDrawingPreludeSnapshot(existingSnapshot[playerId]) ||
+          getUnresolvedSources(playerState).some((source) => source.mode === 'automatic')
+        );
+      })
+    ) {
+      return failure('INVALID_CANDIDATE', 'Existing Drawing-prelude entry state is incomplete or malformed');
+    }
+    return { ok: true, value: { state: args.state as GameState, events: [] } };
+  }
+
+  const created = createDrawingPreludeInitializationCandidate(args.state);
+  if (!created.ok) return created;
+  const candidate = created.value;
+
+  const provisionalPlayers = Object.fromEntries(
+    activePlayerIds.map((playerId) => [
+      playerId,
+      {
+        ...structuredClone(candidate.playerStateByPlayerId[playerId]),
+        status: 'awaiting_actions' as const,
+      },
+    ]),
+  );
+  let workingState = {
+    ...structuredClone(args.state),
+    gameData: {
+      ...structuredClone(args.state.gameData),
+      turnData: {
+        ...structuredClone(args.state.gameData.turnData ?? {}),
+        drawingPreludeByPlayerId: provisionalPlayers,
+        buildDrawingPublicFleetByPlayerId: structuredClone(
+          candidate.buildDrawingPublicFleetByPlayerId,
+        ),
+      },
+    },
+  } as GameState;
+  const events: any[] = [];
+
+  for (const playerId of activePlayerIds) {
+    const advanced = args.advancePlayer({
+      state: workingState,
+      playerId,
+      nowMs: args.nowMs,
+    });
+    if (!advanced.ok) {
+      return failure(
+        'INVALID_CANDIDATE',
+        `Drawing-entry automatic advancement failed for ${playerId}: ${advanced.error.code}: ${advanced.error.message}`,
+      );
+    }
+    workingState = advanced.state;
+    events.push(...advanced.events);
+  }
+
+  const persistedPrelude = workingState.gameData.turnData?.drawingPreludeByPlayerId;
+  const persistedSnapshot = workingState.gameData.turnData?.buildDrawingPublicFleetByPlayerId;
+  if (
+    !isRecord(persistedPrelude) ||
+    !isRecord(persistedSnapshot) ||
+    !hasExactPlayerIds(persistedPrelude, activePlayerIds) ||
+    !hasExactPlayerIds(persistedSnapshot, activePlayerIds)
+  ) {
+    return failure('INVALID_CANDIDATE', 'Drawing-entry advancement did not produce a complete persistable player set');
+  }
+  for (const playerId of activePlayerIds) {
+    const playerState = persistedPrelude[playerId];
+    if (
+      !isStructurallyValidDrawingPreludePlayerState(playerState, currentTurn) ||
+      playerState.eligibleSourcePowers.some((source) =>
+        source.mode === 'automatic' &&
+        !isDrawingPreludeSourceResolved(playerState, source.key)
+      ) ||
+      !isStructurallyValidDrawingPreludeSnapshot(persistedSnapshot[playerId]) ||
+      JSON.stringify(persistedSnapshot[playerId]) !==
+        JSON.stringify(candidate.buildDrawingPublicFleetByPlayerId[playerId])
+    ) {
+      return failure('INVALID_CANDIDATE', `Drawing-entry result is not persistable for player ${playerId}`);
+    }
+  }
+
+  return { ok: true, value: { state: workingState, events } };
 }
 
 export function isStructurallyValidDrawingPreludePlayerState(

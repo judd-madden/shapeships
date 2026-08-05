@@ -70,6 +70,7 @@ export type BattleLogTurnSummary = {
 };
 
 export type ProducedBuildOccurrence =
+  | { stage: "turn_start_materialisation" }
   | { stage: "drawing_prelude"; passIndex: 1 | 2 }
   | { stage: "drawing" }
   | { stage: "reveal" };
@@ -278,7 +279,7 @@ type CaptureResolutionArgs = {
   playerId: string;
   effects: Effect[];
   effectEvents: EffectEvent[];
-  producedBuildOccurrence?: ProducedBuildOccurrence;
+  producedBuildOccurrence: ProducedBuildOccurrence;
 };
 
 function isFiniteNumber(value: unknown): value is number {
@@ -313,7 +314,11 @@ function normalizeProducedBuildOccurrence(
       passIndex: occurrence.passIndex,
     };
   }
-  if (occurrence.stage === "drawing" || occurrence.stage === "reveal") {
+  if (
+    occurrence.stage === "turn_start_materialisation" ||
+    occurrence.stage === "drawing" ||
+    occurrence.stage === "reveal"
+  ) {
     if (!hasExactOwnKeys(occurrence, ["stage"])) return null;
     return { stage: occurrence.stage };
   }
@@ -1338,10 +1343,10 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
     (atom): atom is Extract<BuildCaptureAtom, { kind: "produced_build" }> =>
       atom.kind === "produced_build",
   );
-  const hasDrawingPreludeOccurrence = producedBuilds.some((atom) =>
-    atom.producedBuildOccurrence?.stage === "drawing_prelude"
+  const hasAuthoritativeOccurrence = producedBuilds.some((atom) =>
+    atom.producedBuildOccurrence !== undefined
   );
-  if (!hasDrawingPreludeOccurrence) return formatLegacyBuildLines(buildAtoms);
+  if (!hasAuthoritativeOccurrence) return formatLegacyBuildLines(buildAtoms);
 
   if (producedBuilds.some((atom) => !atom.producedBuildOccurrence)) {
     throw new Error("BATTLE_LOG_PRODUCED_OCCURRENCE_INVARIANT");
@@ -1371,6 +1376,9 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
     (atom) => atom.shipDefId,
     (atom, count) => `${count} x ${atom.shipDefId}`,
   );
+  const turnStartMaterialisation = producedBuilds.filter((atom) =>
+    atom.producedBuildOccurrence?.stage === "turn_start_materialisation"
+  );
   const preludePass1 = producedBuilds.filter((atom) =>
     atom.producedBuildOccurrence?.stage === "drawing_prelude" &&
     atom.producedBuildOccurrence.passIndex === 1
@@ -1389,6 +1397,7 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
   return [
     ...rerollLines,
     ...chronoswarmLines,
+    ...collapseProducedBuildLines(turnStartMaterialisation),
     ...collapseProducedBuildLines(preludePass1),
     ...collapseProducedBuildLines(preludePass2),
     ...manualLines,
@@ -2226,9 +2235,7 @@ export function createBattleLogBuildCaptureEventsFromResolution(
         shipDefId,
         sourceShipDefId: match.effect.source.shipDefId,
         count: 1,
-        ...(args.producedBuildOccurrence
-          ? { producedBuildOccurrence: args.producedBuildOccurrence }
-          : {}),
+        producedBuildOccurrence: args.producedBuildOccurrence,
       }),
     );
   }
@@ -2249,9 +2256,7 @@ export function createBattleLogBuildCaptureEventsFromResolution(
         shipDefId: "XEN",
         sourceShipDefId: match.effect.source.shipDefId,
         count: createdShipsFromDestroy,
-        ...(args.producedBuildOccurrence
-          ? { producedBuildOccurrence: args.producedBuildOccurrence }
-          : {}),
+        producedBuildOccurrence: args.producedBuildOccurrence,
       }),
     );
   }

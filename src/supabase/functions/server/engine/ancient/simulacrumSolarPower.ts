@@ -359,18 +359,21 @@ function requireMatchingMaterializedShip(args: {
   return existing.ship;
 }
 
-function validateMaterializationOutcome(args: {
+function validateMaterializationSlotOutcome(args: {
   state: Readonly<any>;
   record: Readonly<AncientPendingSimulacrumCopy>;
   materializationTurnNumber: number;
+  directInstanceId: unknown;
+  outcome: AncientSimulacrumMaterializationOutcome | undefined;
+  slot: 1 | 2;
 }): AncientSimulacrumMaterializationOutcome {
   const { record } = args;
-  if (!isNonEmptyString(record.materializedInstanceId)) {
+  if (!isNonEmptyString(args.directInstanceId)) {
     throw new Error(
-      `Simulacrum completed outcome lacks direct instance ID: ${record.pendingCopyId}`,
+      `Simulacrum slot ${args.slot} lacks direct instance ID: ${record.pendingCopyId}`,
     );
   }
-  const outcome = record.materializationOutcome;
+  const outcome = args.outcome;
   const expected = getImmediateDrawingBuiltConsequences(
     record.copiedShipDefId,
     SIMULACRUM_IMMEDIATE_CONSEQUENCE_POLICY,
@@ -401,11 +404,11 @@ function validateMaterializationOutcome(args: {
 
   requireMatchingMaterializedShip({
     state: args.state,
-    instanceId: record.materializedInstanceId,
+    instanceId: args.directInstanceId,
     ownerPlayerId: record.ownerPlayerId,
     shipDefId: record.copiedShipDefId,
     materializationTurnNumber: args.materializationTurnNumber,
-    label: "direct ship",
+    label: `slot ${args.slot} direct ship`,
   });
   for (let index = 0; index < outcome!.producedShips.length; index += 1) {
     const produced = outcome!.producedShips[index];
@@ -437,9 +440,6 @@ export function materializeQueuedSimulacrumCopiesAtTurnStart(
   const currentMaterializationRecords = pendingCopies.filter((record) =>
     record.materializationTurnNumber === materializationTurnNumber
   );
-  const selectedRecords = currentMaterializationRecords.filter((record) =>
-    record.status === "queued"
-  );
   if (currentMaterializationRecords.length === 0) {
     return { state: workingState, events: [] };
   }
@@ -456,42 +456,28 @@ export function materializeQueuedSimulacrumCopiesAtTurnStart(
     }
   }
 
-  const capacityKeys = new Set(
-    selectedRecords.map((record) =>
-      `${record.ownerPlayerId}\u0000${record.copiedShipDefId}`
-    ),
-  );
-  for (const key of capacityKeys) {
-    const [ownerPlayerId, copiedShipDefId] = key.split("\u0000");
-    try {
-      assertSimulacrumQuantityAvailable({
-        state: workingState,
-        ownerPlayerId,
-        copiedShipDefId,
-        proposedCount: 0,
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(
-        `Simulacrum materialization capacity invariant failed: ${message}`,
-      );
-    }
-  }
-
   const orderedRecords = [...currentMaterializationRecords].sort((left, right) =>
     seatIndexByPlayerId.get(left.ownerPlayerId)! -
       seatIndexByPlayerId.get(right.ownerPlayerId)! ||
     left.queueOrder - right.queueOrder ||
     left.pendingCopyId.localeCompare(right.pendingCopyId)
   );
-  type MaterializationPlan = {
+  const chronoswarmQualifiedOwnerIds = new Set(
+    getActivePlayerIds(workingState).filter((playerId) =>
+      getFleet(workingState, playerId).some((ship) => ship.shipDefId === "CHR")
+    ),
+  );
+
+  type MaterializationSlotPlan = {
     record: AncientPendingSimulacrumCopy;
+    slot: 1 | 2;
     directInstanceId: string;
     producedInstanceIds: string[];
     mode: "create" | "reconcile" | "noop";
   };
-  const plans: MaterializationPlan[] = [];
+  const plans: MaterializationSlotPlan[] = [];
   const plannedInstanceIds = new Set<string>();
+  const plannedCreateCountByOwnerAndDefinition = new Map<string, number>();
 
   for (const record of orderedRecords) {
     const definition = validateQueuedMaterializationInputs(record);
@@ -507,100 +493,147 @@ export function materializeQueuedSimulacrumCopiesAtTurnStart(
       }
     }
 
-    if (
-      record.status === "materialized" &&
-      !record.materializationOutcome &&
-      expected.joiningLinesGranted === 0 &&
-      expected.producedShipDefIds.length === 0 &&
-      isNonEmptyString(record.materializedInstanceId)
-    ) {
-      requireMatchingMaterializedShip({
-        state: workingState,
-        instanceId: record.materializedInstanceId,
-        ownerPlayerId: record.ownerPlayerId,
-        shipDefId: record.copiedShipDefId,
-        materializationTurnNumber,
-        label: "legacy direct ship",
-      });
-      if (plannedInstanceIds.has(record.materializedInstanceId)) {
-        throw new Error(
-          `Duplicate Simulacrum materialization outcome ID: ${record.materializedInstanceId}`,
-        );
-      }
-      plans.push({
-        record,
-        directInstanceId: record.materializedInstanceId,
-        producedInstanceIds: [],
-        mode: "noop",
-      });
-      plannedInstanceIds.add(record.materializedInstanceId);
-      continue;
-    }
+    const inferredMultiplicity: 1 | 2 =
+      record.materializationMultiplicity === 2 ||
+        isNonEmptyString(record.repeatedMaterializedInstanceId) ||
+        !!record.repeatedMaterializationOutcome
+        ? 2
+        : record.status === "materialized" || record.materializationMultiplicity === 1
+        ? 1
+        : chronoswarmQualifiedOwnerIds.has(record.ownerPlayerId)
+        ? 2
+        : 1;
+    const plannedRecord = record.status === "materialized"
+      ? record
+      : { ...record, materializationMultiplicity: inferredMultiplicity };
 
-    if (record.status === "materialized" || record.materializationOutcome) {
-      const outcome = validateMaterializationOutcome({
-        state: workingState,
-        record,
-        materializationTurnNumber,
-      });
-      const recordedInstanceIds = [
-        record.materializedInstanceId!,
-        ...outcome.producedShips.map((ship) => ship.instanceId),
-      ];
-      for (const instanceId of recordedInstanceIds) {
-        if (plannedInstanceIds.has(instanceId)) {
+    for (let slot = 1; slot <= inferredMultiplicity; slot += 1) {
+      const materializationSlot = slot as 1 | 2;
+      const recordedDirectInstanceId = materializationSlot === 1
+        ? record.materializedInstanceId
+        : record.repeatedMaterializedInstanceId;
+      const recordedOutcome = materializationSlot === 1
+        ? record.materializationOutcome
+        : record.repeatedMaterializationOutcome;
+
+      if (
+        record.status === "materialized" &&
+        !recordedOutcome &&
+        expected.joiningLinesGranted === 0 &&
+        expected.producedShipDefIds.length === 0 &&
+        isNonEmptyString(recordedDirectInstanceId)
+      ) {
+        requireMatchingMaterializedShip({
+          state: workingState,
+          instanceId: recordedDirectInstanceId,
+          ownerPlayerId: record.ownerPlayerId,
+          shipDefId: record.copiedShipDefId,
+          materializationTurnNumber,
+          label: `legacy slot ${materializationSlot} direct ship`,
+        });
+        if (plannedInstanceIds.has(recordedDirectInstanceId)) {
           throw new Error(
-            `Duplicate Simulacrum materialization outcome ID: ${instanceId}`,
+            `Duplicate Simulacrum materialization outcome ID: ${recordedDirectInstanceId}`,
+          );
+        }
+        plannedInstanceIds.add(recordedDirectInstanceId);
+        plans.push({
+          record: plannedRecord,
+          slot: materializationSlot,
+          directInstanceId: recordedDirectInstanceId,
+          producedInstanceIds: [],
+          mode: "noop",
+        });
+        continue;
+      }
+
+      if (recordedOutcome || record.status === "materialized") {
+        const outcome = validateMaterializationSlotOutcome({
+          state: workingState,
+          record,
+          materializationTurnNumber,
+          directInstanceId: recordedDirectInstanceId,
+          outcome: recordedOutcome,
+          slot: materializationSlot,
+        });
+        const recordedInstanceIds = [
+          recordedDirectInstanceId!,
+          ...outcome.producedShips.map((ship) => ship.instanceId),
+        ];
+        for (const instanceId of recordedInstanceIds) {
+          if (plannedInstanceIds.has(instanceId)) {
+            throw new Error(
+              `Duplicate Simulacrum materialization outcome ID: ${instanceId}`,
+            );
+          }
+          plannedInstanceIds.add(instanceId);
+        }
+        plans.push({
+          record: plannedRecord,
+          slot: materializationSlot,
+          directInstanceId: recordedDirectInstanceId!,
+          producedInstanceIds: outcome.producedShips.map((ship) => ship.instanceId),
+          mode: record.status === "materialized" ? "noop" : "reconcile",
+        });
+        continue;
+      }
+
+      const directInstanceId = recordedDirectInstanceId ?? createInstanceId();
+      const producedInstanceIds = expected.producedShipDefIds.map(() => createInstanceId());
+      for (const instanceId of [directInstanceId, ...producedInstanceIds]) {
+        if (!isNonEmptyString(instanceId)) {
+          throw new Error(
+            `Invalid Simulacrum planned instance ID: ${record.pendingCopyId}`,
+          );
+        }
+        if (
+          plannedInstanceIds.has(instanceId) ||
+          findFleetShipByInstanceId(workingState, instanceId)
+        ) {
+          throw new Error(
+            `Simulacrum materialized instance ID collision: ${instanceId}`,
           );
         }
         plannedInstanceIds.add(instanceId);
       }
-      plans.push({
-        record,
-        directInstanceId: record.materializedInstanceId!,
-        producedInstanceIds: outcome.producedShips.map((ship) =>
-          ship.instanceId
-        ),
-        mode: record.status === "materialized" ? "noop" : "reconcile",
-      });
-      continue;
-    }
-
-    const directInstanceId = record.materializedInstanceId ??
-      createInstanceId();
-    const producedInstanceIds = expected.producedShipDefIds.map(() =>
-      createInstanceId()
-    );
-    for (const instanceId of [directInstanceId, ...producedInstanceIds]) {
-      if (!isNonEmptyString(instanceId)) {
-        throw new Error(
-          `Invalid Simulacrum planned instance ID: ${record.pendingCopyId}`,
-        );
-      }
       if (
-        plannedInstanceIds.has(instanceId) ||
-        findFleetShipByInstanceId(workingState, instanceId)
+        isChargeCapableDefinition(definition) &&
+        !isNonNegativeInteger(record.capturedStartOfBattleCharges)
       ) {
         throw new Error(
-          `Simulacrum materialized instance ID collision: ${instanceId}`,
+          `Invalid queued Simulacrum charges: ${record.pendingCopyId}`,
         );
       }
-      plannedInstanceIds.add(instanceId);
+      for (const shipDefId of [record.copiedShipDefId, ...expected.producedShipDefIds]) {
+        const key = `${record.ownerPlayerId}\u0000${shipDefId}`;
+        plannedCreateCountByOwnerAndDefinition.set(
+          key,
+          (plannedCreateCountByOwnerAndDefinition.get(key) ?? 0) + 1,
+        );
+      }
+      plans.push({
+        record: plannedRecord,
+        slot: materializationSlot,
+        directInstanceId,
+        producedInstanceIds,
+        mode: "create",
+      });
     }
-    if (
-      isChargeCapableDefinition(definition) &&
-      !isNonNegativeInteger(record.capturedStartOfBattleCharges)
-    ) {
+  }
+
+  for (const [key, plannedCreateCount] of plannedCreateCountByOwnerAndDefinition) {
+    const [ownerPlayerId, shipDefId] = key.split("\u0000");
+    const definition = getShipById(shipDefId);
+    if (!definition) throw new Error(`Unknown Simulacrum planned definition: ${shipDefId}`);
+    if (typeof definition.maxQuantity !== "number") continue;
+    const currentCount = getFleet(workingState, ownerPlayerId).filter((ship) =>
+      ship.shipDefId === shipDefId
+    ).length;
+    if (currentCount + plannedCreateCount > definition.maxQuantity) {
       throw new Error(
-        `Invalid queued Simulacrum charges: ${record.pendingCopyId}`,
+        `Simulacrum materialization capacity invariant failed: ${shipDefId} would exceed canonical maximum quantity`,
       );
     }
-    plans.push({
-      record,
-      directInstanceId,
-      producedInstanceIds,
-      mode: "create",
-    });
   }
 
   const materializedByPendingId = new Map<
@@ -611,13 +644,13 @@ export function materializeQueuedSimulacrumCopiesAtTurnStart(
 
   for (const plan of plans) {
     const { record } = plan;
-    if (plan.mode === "noop") {
-      materializedByPendingId.set(record.pendingCopyId, record);
-      continue;
-    }
-    if (plan.mode === "reconcile") {
+    const priorMaterialized = materializedByPendingId.get(record.pendingCopyId) ?? record;
+    if (plan.mode === "noop" || plan.mode === "reconcile") {
       materializedByPendingId.set(record.pendingCopyId, {
-        ...record,
+        ...priorMaterialized,
+        ...(record.materializationMultiplicity
+          ? { materializationMultiplicity: record.materializationMultiplicity }
+          : {}),
         status: "materialized",
       });
       continue;
@@ -629,7 +662,11 @@ export function materializeQueuedSimulacrumCopiesAtTurnStart(
       playerId: record.ownerPlayerId,
       shipDefId: record.copiedShipDefId,
       turnNumber: materializationTurnNumber,
-      creationSource: { kind: "produced", sourceShipDefId: "SSIM" },
+      creationSource: {
+        kind: "produced",
+        sourceShipDefId: "SSIM",
+        producedBuildOccurrence: { stage: "turn_start_materialisation" },
+      },
       instanceId: plan.directInstanceId,
       ...(isChargeCapableDefinition(definition)
         ? { chargesOverride: record.capturedStartOfBattleCharges }
@@ -649,6 +686,7 @@ export function materializeQueuedSimulacrumCopiesAtTurnStart(
       },
       producedInstanceIds: plan.producedInstanceIds,
       consequencePolicy: SIMULACRUM_IMMEDIATE_CONSEQUENCE_POLICY,
+      producedBuildOccurrence: { stage: "turn_start_materialisation" },
     });
     const materializationOutcome: AncientSimulacrumMaterializationOutcome = {
       joiningLinesGranted: consequences.joiningLinesGranted,
@@ -658,12 +696,23 @@ export function materializeQueuedSimulacrumCopiesAtTurnStart(
         sourceShipDefId: created.ship.shipDefId,
       })),
     };
-    materializedByPendingId.set(record.pendingCopyId, {
-      ...record,
+    const materializedRecord: AncientPendingSimulacrumCopy = {
+      ...priorMaterialized,
       status: "materialized",
-      materializedInstanceId: created.ship.instanceId,
-      materializationOutcome,
-    });
+      ...(record.materializationMultiplicity
+        ? { materializationMultiplicity: record.materializationMultiplicity }
+        : {}),
+      ...(plan.slot === 1
+        ? {
+          materializedInstanceId: created.ship.instanceId,
+          materializationOutcome,
+        }
+        : {
+          repeatedMaterializedInstanceId: created.ship.instanceId,
+          repeatedMaterializationOutcome: materializationOutcome,
+        }),
+    };
+    materializedByPendingId.set(record.pendingCopyId, materializedRecord);
     events.push({
       type: "SIMULACRUM_COPY_MATERIALIZED",
       pendingCopyId: record.pendingCopyId,
@@ -672,6 +721,7 @@ export function materializeQueuedSimulacrumCopiesAtTurnStart(
       sourceTargetInstanceId: record.sourceTargetInstanceId,
       shipDefId: record.copiedShipDefId,
       shipInstanceId: created.ship.instanceId,
+      materializationSlot: plan.slot,
       sourceMode: record.sourceMode,
       atMs: nowMs,
     });
@@ -736,7 +786,11 @@ export function getDirectMaterializedSimulacrumInstanceIdsForPlayer(
   return new Set(
     getCurrentTurnMaterializedRecords(state)
       .filter((record) => record.ownerPlayerId === playerId)
-      .map((record) => record.materializedInstanceId!),
+      .flatMap((record) => [
+        record.materializedInstanceId,
+        record.repeatedMaterializedInstanceId,
+      ])
+      .filter(isNonEmptyString),
   );
 }
 
@@ -751,6 +805,10 @@ export function deriveMaterializedSimulacrumFleetInstanceIdsByPlayerId(
     for (const instanceId of [
       record.materializedInstanceId,
       ...(record.materializationOutcome?.producedShips ?? []).map((ship) =>
+        ship.instanceId
+      ),
+      record.repeatedMaterializedInstanceId,
+      ...(record.repeatedMaterializationOutcome?.producedShips ?? []).map((ship) =>
         ship.instanceId
       ),
     ]) {

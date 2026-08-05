@@ -230,13 +230,13 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           knoRerollPassIndex: undefined,
           pendingKnoRerollChoiceByPassByPlayerId: {},
           knoRerollStoppedByPlayerId: {},
-          shipsThatBuildPassIndex: undefined,
-          shipsThatBuildPassUsageByInstanceId: {},
+          drawingPreludeByPlayerId: undefined,
+          buildDrawingPublicFleetByPlayerId: undefined,
           thirdSpiralFirstStrikeEligibilityByPlayerId: undefined,
           shipsMadeThisTurnByPlayerId: {},
           buildPhaseNonDestroyRemovedShipsByPlayerId: {},
           queenCreatedXenitesThisTurnByPlayerId: {},
-          buildEndOfBuildAppliedTurnNumber: 0,
+          revealSpecialPowersAppliedTurnNumber: 0,
           endOfTurnResolutionAppliedTurnNumber: 0,
           phaseHold: undefined,
         },
@@ -324,50 +324,6 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
     }
   }
 
-  if (from === 'build.ships_that_build') {
-    const gd: any = state.gameData || {};
-    const td: any = gd.turnData || {};
-    const passIndex: 1 | 2 = td.shipsThatBuildPassIndex === 2 ? 2 : 1;
-    const chronoswarmCountByPlayerId = td.chronoswarmCountByPlayerId || {};
-    const hasChronoswarmSecondPass = (state.players || [])
-      .filter((p: any) => p.role === 'player')
-      .some((p: any) => (chronoswarmCountByPlayerId[p.id] || 0) > 0);
-
-    if (passIndex === 1 && hasChronoswarmSecondPass) {
-      const next = setPhase(state, 'build', 'ships_that_build');
-      const nextGd: any = next.gameData || {};
-      const nextTd: any = nextGd.turnData || {};
-      const passAdvanced: GameState = {
-        ...next,
-        gameData: {
-          ...nextGd,
-          turnData: {
-            ...nextTd,
-            shipsThatBuildPassIndex: 2,
-          },
-        },
-      };
-      const cleared = clearReadiness(passAdvanced);
-
-      debugLog('[advancePhaseCore] Chronoswarm second pass: build.ships_that_build pass 1 → pass 2');
-
-      return {
-        ok: true,
-        state: cleared,
-        from,
-        to: 'build.ships_that_build',
-        events: [
-          {
-            type: 'SHIPS_THAT_BUILD_PASS_ADVANCED',
-            fromPassIndex: 1,
-            toPassIndex: 2,
-            atMs: nowMs ?? Date.now(),
-          },
-        ],
-      };
-    }
-  }
-
   // End of sequence: new turn -> build.dice_roll
   if (idx === PHASE_SEQUENCE.length - 1) {
     const next = setPhase(state, 'build', 'dice_roll');
@@ -407,13 +363,13 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           knoRerollPassIndex: undefined,
           pendingKnoRerollChoiceByPassByPlayerId: {},
           knoRerollStoppedByPlayerId: {},
-          shipsThatBuildPassIndex: undefined,
-          shipsThatBuildPassUsageByInstanceId: {},
+          drawingPreludeByPlayerId: undefined,
+          buildDrawingPublicFleetByPlayerId: undefined,
           thirdSpiralFirstStrikeEligibilityByPlayerId: undefined,
           shipsMadeThisTurnByPlayerId: {},
           buildPhaseNonDestroyRemovedShipsByPlayerId: {},
           queenCreatedXenitesThisTurnByPlayerId: {},
-          buildEndOfBuildAppliedTurnNumber: 0,
+          revealSpecialPowersAppliedTurnNumber: 0,
           endOfTurnResolutionAppliedTurnNumber: 0,
           phaseHold: undefined,
         },

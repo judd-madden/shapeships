@@ -20,9 +20,7 @@ export const PHASE_SEQUENCE = [
 
   'build.dice_roll',
   'build.line_generation',
-  'build.ships_that_build',
   'build.drawing',
-  'build.end_of_build',
 
   'battle.reveal',
   'battle.first_strike',

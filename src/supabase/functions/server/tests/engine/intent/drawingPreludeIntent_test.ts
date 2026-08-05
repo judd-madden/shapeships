@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { applyIntent, type IntentRequest } from '../../../engine/intent/IntentReducer.ts';
 import type { GameState } from '../../../engine/state/GameStateTypes.ts';
 import { normalizeAncientGameState } from '../../../engine/state/ancientState.ts';
+import { resolvePowerAction } from '../../../engine_shared/resolve/resolvePowerAction.ts';
 
 function stateWithCarrier(): GameState {
   return {
@@ -135,6 +136,42 @@ Deno.test('BUILD_SUBMIT gate precedes payload parsing and accepts structurally v
     nonce: 'two-pass-complete',
   }, 11);
   assert.equal(accepted.ok, true);
+});
+
+Deno.test('Drawing rejects generic readiness and requires a present current-turn prelude for BUILD_SUBMIT', async () => {
+  const state = stateWithCarrier();
+  delete state.gameData.turnData!.drawingPreludeByPlayerId;
+  delete state.gameData.turnData!.buildDrawingPublicFleetByPlayerId;
+
+  const ready = await applyIntent(state, 'p1', request('DECLARE_READY'), 10);
+  assert.equal(ready.ok, false);
+  assert.equal(ready.rejected?.code, 'PHASE_NOT_ALLOWED');
+  assert.strictEqual(ready.state, state);
+
+  const build = await applyIntent(
+    state,
+    'p1',
+    { ...request('BUILD_SUBMIT', { builds: [] }), nonce: 'missing-prelude' },
+    11,
+  );
+  assert.equal(build.ok, false);
+  assert.equal(build.rejected?.code, 'DRAWING_PRELUDE_INCOMPLETE');
+  assert.strictEqual(build.state, state);
+});
+
+Deno.test('generic structured power resolution rejects CAR during Drawing', () => {
+  const state = stateWithCarrier();
+  assert.throws(
+    () => resolvePowerAction({
+      state,
+      playerId: 'p1',
+      phaseKey: 'build.drawing',
+      actionId: 'CAR#0',
+      sourceInstanceId: 'car-1',
+      choiceId: 'defender',
+    }),
+    /only through the authoritative Drawing-prelude reducer/,
+  );
 });
 
 Deno.test('Drawing-prelude Carrier intents require the current explicit pass token', async () => {

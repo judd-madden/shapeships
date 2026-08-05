@@ -365,7 +365,7 @@ export const SHIP_DEFINITIONS_JSON = [
         "subphase": "End of Build Phase",
         "text": "Make one Fighter for each ship you made this turn.",
         "tags": ["makes_ships"],
-        "activationTiming": "end_of_build"
+        "activationTiming": "reveal"
       },
       {
         "subphase": "Automatic",
@@ -1683,7 +1683,7 @@ export const SHIP_DEFINITIONS_JSON = [
  * IMPORTANT: This version should match the server-side version when synced.
  * Server version is in: /supabase/functions/server/engine_shared/defs/ShipDefinitions.json.ts
  */
-export const SHIP_DEFS_VERSION = '2026-08-04';
+export const SHIP_DEFS_VERSION = '2026-08-05';
 
 // ============================================================================
 // TYPE INFERENCE HELPERS

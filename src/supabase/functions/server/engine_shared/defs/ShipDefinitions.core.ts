@@ -39,7 +39,7 @@ export type ShipPowerActivationTiming =
   | 'start_of_drawing'
   | 'when_built'
   | 'on_destruction'
-  | 'end_of_build'
+  | 'reveal'
   | 'turn_start_materialisation';
 
 export interface ShipPowerCore {

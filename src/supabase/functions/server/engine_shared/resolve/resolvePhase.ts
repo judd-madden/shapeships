@@ -41,7 +41,6 @@ import { getShipDefinition } from '../defs/ShipDefinitions.withStructuredPowers.
 import {
   computePhaseComputedEffects,
   applyComputedEffectModifiers,
-  getEffectiveDiceRollForPlayer,
 } from './phaseComputedEffects.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
 import { getPlayerMaxHealth } from '../maximumHealth.ts';
@@ -52,239 +51,6 @@ import {
   getAncientSolarPowerDisplayName,
   parseAncientSolarSourceReason,
 } from '../../engine/ancient/ancientSolarPowerPresentation.ts';
-import {
-  getDirectMaterializedSimulacrumInstanceIdsForPlayer,
-} from '../../engine/ancient/simulacrumSolarPower.ts';
-import {
-  createBugBreederSourceEffects,
-  createQueenSourceEffects,
-  createRecurringZenithSourceEffects,
-} from './shipsThatBuildSourceEffects.ts';
-import {
-  countVerifiedCreatedShipsByTargetPlayerId,
-  matchAppliedCreateShipEffectsOneToOne,
-} from '../effects/appliedEffectVerification.ts';
-
-function incrementShipsMadeThisTurnCounter(
-  state: GameState,
-  countsByPlayerId: Record<string, number>
-): GameState {
-  const entries = Object.entries(countsByPlayerId).filter(([, amount]) =>
-    Number.isInteger(amount) && amount > 0
-  );
-
-  if (entries.length === 0) return state;
-
-  const priorTurnData = state.gameData.turnData || {};
-  const priorCounts = priorTurnData.shipsMadeThisTurnByPlayerId || {};
-  const nextCounts = { ...priorCounts };
-
-  for (const [playerId, amount] of entries) {
-    nextCounts[playerId] = (nextCounts[playerId] || 0) + amount;
-  }
-
-  return {
-    ...state,
-    gameData: {
-      ...state.gameData,
-      turnData: {
-        ...priorTurnData,
-        shipsMadeThisTurnByPlayerId: nextCounts,
-      },
-    },
-  };
-}
-
-function getShipsThatBuildPassIndex(state: GameState): 1 | 2 {
-  return state.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
-}
-
-function getChronoswarmCountForPlayer(state: GameState, playerId: string): number {
-  const raw = state.gameData?.turnData?.chronoswarmCountByPlayerId?.[playerId];
-  const value = typeof raw === 'number' ? raw : 0;
-  return Number.isInteger(value) && value > 0 ? value : 0;
-}
-
-function playerParticipatesInShipsThatBuildPass(
-  state: GameState,
-  playerId: string
-): boolean {
-  const passIndex = getShipsThatBuildPassIndex(state);
-  return passIndex === 1 || getChronoswarmCountForPlayer(state, playerId) > 0;
-}
-
-function shipAlreadyUsedInShipsThatBuildPass(
-  state: GameState,
-  sourceInstanceId: string
-): boolean {
-  const passIndex = getShipsThatBuildPassIndex(state);
-  return state.gameData?.turnData?.shipsThatBuildPassUsageByInstanceId
-    ?.[sourceInstanceId]?.[passIndex] === true;
-}
-
-function recordAutomaticShipsThatBuildUsage(
-  state: GameState,
-  effects: Effect[],
-  effectEvents: EffectEvent[]
-): GameState {
-  const appliedEffectIds = new Set(effectEvents.map((event) => event.effectId));
-  const sourceInstanceIds = new Set(
-    effects
-      .filter(
-        (effect) =>
-          effect.source.type === 'ship' &&
-          (effect.source.shipDefId === 'BUG' || effect.source.shipDefId === 'ZEN') &&
-          appliedEffectIds.has(effect.id)
-      )
-      .map((effect) => effect.source.type === 'ship' ? effect.source.instanceId : '')
-      .filter((instanceId) => instanceId.length > 0)
-  );
-  if (sourceInstanceIds.size === 0) return state;
-
-  const passIndex = getShipsThatBuildPassIndex(state);
-  const priorTurnData = state.gameData.turnData || {};
-  const priorUsage = priorTurnData.shipsThatBuildPassUsageByInstanceId || {};
-  const nextUsage = { ...priorUsage };
-  for (const sourceInstanceId of sourceInstanceIds) {
-    nextUsage[sourceInstanceId] = {
-      ...priorUsage[sourceInstanceId],
-      [passIndex]: true,
-    };
-  }
-
-  return {
-    ...state,
-    gameData: {
-      ...state.gameData,
-      turnData: {
-        ...priorTurnData,
-        shipsThatBuildPassUsageByInstanceId: nextUsage,
-      },
-    },
-  };
-}
-
-function collectQueenAutoBuildEffects(
-  state: GameState,
-  phaseKey: PhaseKey
-): CreateShipEffect[] {
-  const currentTurn =
-    state.gameData?.turnData?.turnNumber ??
-    state.gameData?.turnNumber ??
-    1;
-
-  const activePlayers = state.players.filter((player) => player.role === 'player');
-  const effects: CreateShipEffect[] = [];
-
-  for (const player of activePlayers) {
-    if (!playerParticipatesInShipsThatBuildPass(state, player.id)) continue;
-
-    const fleet = state.gameData.ships?.[player.id] || [];
-    const eligibleQueens = fleet.filter(
-      (ship) => ship.shipDefId === 'QUE' && (ship.createdTurn ?? 0) < currentTurn
-    );
-
-    for (const queen of eligibleQueens) {
-      effects.push(...createQueenSourceEffects({
-        source: queen,
-        playerId: player.id,
-        turnNumber: currentTurn,
-        phaseKey,
-      }) as CreateShipEffect[]);
-    }
-  }
-
-  return effects;
-}
-
-function collectBugBreederAutoBuildEffects(
-  state: GameState,
-  phaseKey: PhaseKey
-): Effect[] {
-  const currentTurn =
-    state.gameData?.turnData?.turnNumber ??
-    state.gameData?.turnNumber ??
-    1;
-
-  const activePlayers = state.players.filter((player) => player.role === 'player');
-  const effects: Effect[] = [];
-
-  for (const player of activePlayers) {
-    if (!playerParticipatesInShipsThatBuildPass(state, player.id)) continue;
-
-    const fleet = state.gameData.ships?.[player.id] || [];
-    const directMaterializedSimulacrumIds =
-      getDirectMaterializedSimulacrumInstanceIdsForPlayer(state, player.id);
-    const eligibleBugBreeders = fleet.filter(
-      (ship) =>
-        ship.shipDefId === 'BUG' &&
-        (
-          (ship.createdTurn ?? 0) < currentTurn ||
-          directMaterializedSimulacrumIds.has(ship.instanceId)
-        ) &&
-        (ship.chargesCurrent ?? 0) >= 1 &&
-        !shipAlreadyUsedInShipsThatBuildPass(state, ship.instanceId)
-    );
-
-    for (const bugBreeder of eligibleBugBreeders) {
-      effects.push(...createBugBreederSourceEffects({
-        source: bugBreeder,
-        playerId: player.id,
-        turnNumber: currentTurn,
-        phaseKey,
-      }));
-    }
-  }
-
-  return effects;
-}
-
-function collectZenithAutoBuildEffects(
-  state: GameState,
-  phaseKey: PhaseKey
-): CreateShipEffect[] {
-  const currentTurn =
-    state.gameData?.turnData?.turnNumber ??
-    state.gameData?.turnNumber ??
-    1;
-
-  const activePlayers = state.players.filter((player) => player.role === 'player');
-  const effects: CreateShipEffect[] = [];
-  const passIndex = getShipsThatBuildPassIndex(state);
-
-  for (const player of activePlayers) {
-    if (!playerParticipatesInShipsThatBuildPass(state, player.id)) continue;
-
-    const fleet = state.gameData.ships?.[player.id] || [];
-    const directMaterializedSimulacrumIds =
-      getDirectMaterializedSimulacrumInstanceIdsForPlayer(state, player.id);
-    const eligibleZeniths = fleet.filter(
-      (ship) =>
-        ship.shipDefId === 'ZEN' &&
-        (
-          (ship.createdTurn ?? 0) < currentTurn ||
-          directMaterializedSimulacrumIds.has(ship.instanceId)
-        ) &&
-        !shipAlreadyUsedInShipsThatBuildPass(state, ship.instanceId)
-    );
-    const roll = passIndex === 2
-      ? state.gameData?.turnData?.chronoswarmRolls?.[0]
-      : getEffectiveDiceRollForPlayer(state, player.id);
-
-    for (const zenith of eligibleZeniths) {
-      effects.push(...createRecurringZenithSourceEffects({
-        source: zenith,
-        playerId: player.id,
-        turnNumber: currentTurn,
-        phaseKey,
-        roll,
-      }) as CreateShipEffect[]);
-    }
-  }
-
-  return effects;
-}
-
 type TurnTotals = {
   damageByPlayerId: Record<string, number>;
   healByPlayerId: Record<string, number>;
@@ -520,16 +286,6 @@ export function resolvePhase(
   debugLog(`[resolvePhase] Resolving phase: ${phaseKey}`);
   debugLog(`[resolvePhase] GameStateTypes version: ${GAME_STATE_TYPES_VERSION}`);
 
-  // Handle ships_that_build phase (create ships from ship-building powers)
-  if (phaseKey === 'build.ships_that_build') {
-    return resolveShipsThatBuild(state, phaseKey);
-  }
-
-  // Handle end-of-build automatic ship creation
-  if (phaseKey === 'build.end_of_build') {
-    return resolveBuildEndOfBuild(state, phaseKey);
-  }
-
   // Handle battle end-of-turn resolution (damage/heal effects)
   if (phaseKey === 'battle.end_of_turn_resolution') {
     return resolveBattleEndOfTurn(state, phaseKey);
@@ -540,99 +296,11 @@ export function resolvePhase(
   return { state, events: [] };
 }
 
-// ============================================================================
-// SHIPS THAT BUILD RESOLUTION
-// ============================================================================
-
-/**
- * Resolve the ships_that_build phase by creating ships from ship-building powers
- *
- * @param state - Current game state
- * @param phaseKey - Phase key to resolve
- * @returns Updated state and events
- */
-function resolveShipsThatBuild(
+export function resolveRevealSpecialPowers(
   state: GameState,
-  phaseKey: PhaseKey
 ): { state: GameState; events: any[] } {
-  debugLog(`[resolveShipsThatBuild] Resolving phase: ${phaseKey}`);
-  const stateBeforeResolution = state;
-  const turnNumber =
-    stateBeforeResolution.gameData?.turnData?.turnNumber ??
-    stateBeforeResolution.gameData?.turnNumber ??
-    1;
-
-  // Collect all effects from all ships
-  const effects = [
-    ...collectEffectsForPhase(state, phaseKey),
-    ...collectBugBreederAutoBuildEffects(state, phaseKey),
-    ...collectQueenAutoBuildEffects(state, phaseKey),
-    ...collectZenithAutoBuildEffects(state, phaseKey),
-  ];
-
-  debugLog(`[resolveShipsThatBuild] Collected ${effects.length} effects for ${phaseKey}`);
-
-  // Apply effects to state
-  let result = applyEffects(state, effects);
-  const allEvents: any[] = [...result.events];
-  const appliedCreationMatches = matchAppliedCreateShipEffectsOneToOne({
-    expectedEffects: effects,
-    effectEvents: result.events,
-  });
-  const createdShipsByPlayerId = countVerifiedCreatedShipsByTargetPlayerId(
-    appliedCreationMatches,
-  );
-  result = {
-    ...result,
-    state: recordAutomaticShipsThatBuildUsage(
-      incrementShipsMadeThisTurnCounter(
-        result.state,
-        createdShipsByPlayerId
-      ),
-      effects,
-      result.events
-    ),
-  };
-
-  debugLog(`[resolveShipsThatBuild] Applied effects, generated ${result.events.length} events`);
-
-  for (const player of state.players.filter((entry) => entry.role === 'player')) {
-    const playerEffects = effects.filter((effect) => effect.ownerPlayerId === player.id);
-    allEvents.push(
-      ...createBattleLogBuildCaptureEventsFromResolution({
-        stateBeforeResolution,
-        turnNumber,
-        playerId: player.id,
-        effects: playerEffects,
-        effectEvents: result.events,
-      }),
-    );
-  }
-
-  const shipsThatBuildPassIndex =
-    state.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
-  const stateWithActivationCues = appendShipActivationCueBatch(result.state, {
-    key: `ship-activation:${turnNumber}:${phaseKey}:pass:${shipsThatBuildPassIndex}`,
-    phaseKey,
-    sources: getShipActivationSourcesFromAppliedEffects(effects, result.events),
-  });
-
-  return {
-    ...result,
-    state: stateWithActivationCues,
-    events: allEvents,
-  };
-}
-
-// ============================================================================
-// BUILD END-OF-BUILD RESOLUTION
-// ============================================================================
-
-function resolveBuildEndOfBuild(
-  state: GameState,
-  phaseKey: PhaseKey
-): { state: GameState; events: any[] } {
-  debugLog(`[resolveBuildEndOfBuild] Resolving phase: ${phaseKey}`);
+  const phaseKey: PhaseKey = 'battle.reveal';
+  debugLog(`[resolveRevealSpecialPowers] Resolving phase: ${phaseKey}`);
   const stateBeforeResolution = state;
 
   const currentTurn =
@@ -641,8 +309,8 @@ function resolveBuildEndOfBuild(
     1;
 
   const priorTurnData = state.gameData.turnData || {};
-  if (priorTurnData.buildEndOfBuildAppliedTurnNumber === currentTurn) {
-    debugLog(`[resolveBuildEndOfBuild] Already applied for turn ${currentTurn}, skipping`);
+  if (priorTurnData.revealSpecialPowersAppliedTurnNumber === currentTurn) {
+    debugLog(`[resolveRevealSpecialPowers] Already applied for turn ${currentTurn}, skipping`);
     return { state, events: [] };
   }
 
@@ -652,7 +320,7 @@ function resolveBuildEndOfBuild(
       ...state.gameData,
       turnData: {
         ...priorTurnData,
-        buildEndOfBuildAppliedTurnNumber: currentTurn,
+        revealSpecialPowersAppliedTurnNumber: currentTurn,
       },
     },
   };
@@ -686,7 +354,7 @@ function resolveBuildEndOfBuild(
 
       if (!builtRedThisTurn) return player;
 
-      // RED sets health directly during build.end_of_build; this is not healing.
+      // RED sets health directly during battle.reveal; this is not healing.
       return {
         ...player,
         health: getPlayerMaxHealth(workingState, player.id),
@@ -733,13 +401,13 @@ function resolveBuildEndOfBuild(
       }
 
       debugLog(
-        `[resolveBuildEndOfBuild] Dreadnought ${dreadnought.instanceId} spawning ${shipsMade} fighter(s) for player ${player.id}`
+        `[resolveRevealSpecialPowers] Dreadnought ${dreadnought.instanceId} spawning ${shipsMade} fighter(s) for player ${player.id}`
       );
     }
   }
 
   if (fighterEffects.length === 0) {
-    debugLog('[resolveBuildEndOfBuild] No Dreadnought fighters to spawn');
+    debugLog('[resolveRevealSpecialPowers] No Dreadnought fighters to spawn');
     return {
       state: appendShipActivationCueBatch(workingState, {
         key: `ship-activation:${currentTurn}:${phaseKey}`,
@@ -768,7 +436,7 @@ function resolveBuildEndOfBuild(
   }
 
   debugLog(
-    `[resolveBuildEndOfBuild] Spawned ${fighterEffects.length} fighter(s), generated ${applied.events.length} events`
+    `[resolveRevealSpecialPowers] Spawned ${fighterEffects.length} fighter(s), generated ${applied.events.length} events`
   );
 
   const stateWithActivationCues = appendShipActivationCueBatch(applied.state, {

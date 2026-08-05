@@ -41,7 +41,6 @@ import {
   projectChargeDeclarationStateForViewer,
 } from '../engine/state/chargeDeclarationVisibility.ts';
 import {
-  hasCurrentDrawingPreludePrivacyClaim,
   projectDrawingPreludeCarrierActions,
   projectDrawingPreludeRequesterSummary,
   projectPrivateDrawingPreludeCuesForRequester,
@@ -393,13 +392,6 @@ function getPhaseKey(state: any): string | null {
   return buildPhaseKey(major, sub);
 }
 
-function isHiddenBuildActivationCuePhase(phaseKey: string): boolean {
-  return (
-    phaseKey === 'build.ships_that_build' ||
-    phaseKey === 'build.end_of_build'
-  );
-}
-
 function projectShipActivationCueBatches(
   value: unknown,
   currentPhaseKey: string | null,
@@ -414,17 +406,7 @@ function projectShipActivationCueBatches(
         batch.turnNumber !== currentTurnNumber
     );
   }
-  const mayRevealHiddenBuildCues =
-    gameStatus === 'finished' ||
-    (typeof currentPhaseKey === 'string' && currentPhaseKey.startsWith('battle.'));
-
-  if (mayRevealHiddenBuildCues) {
-    return batches;
-  }
-
-  return batches.filter(
-    (batch) => !isHiddenBuildActivationCuePhase(batch.phaseKey)
-  );
+  return batches;
 }
 
 function projectRequesterShipActivationCueBatches(
@@ -462,19 +444,7 @@ function projectRequesterShipActivationCueBatches(
     return [];
   }
 
-  return getShipActivationCueBatches(value)
-    .filter(
-      (batch) =>
-        batch.turnNumber === currentTurnNumber &&
-        isHiddenBuildActivationCuePhase(batch.phaseKey)
-    )
-    .map((batch) => ({
-      ...batch,
-      sources: batch.sources.filter(
-        (source) => source.playerId === requestingPlayerId
-      ),
-    }))
-    .filter((batch) => batch.sources.length > 0);
+  return [];
 }
 
 // ============================================================================
@@ -482,7 +452,6 @@ function projectRequesterShipActivationCueBatches(
 // ============================================================================
 function getSubphasesForAvailableActions(phaseKey: string | null): string[] {
   switch (phaseKey) {
-    case 'build.ships_that_build': return ['Ships That Build'];
     case 'battle.first_strike': return ['First Strike'];
     // Keep this minimal for now. Add more as you implement more player-input phases.
     default: return [];
@@ -528,10 +497,6 @@ function getProjectedChoiceMetadataForChargeAction(
   return { choiceId };
 }
 
-function getShipsThatBuildPassIndex(state: any): 1 | 2 {
-  return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
-}
-
 type KnoRerollPassIndex = 1 | 2 | 3;
 
 function getKnoRerollPassIndex(state: any): KnoRerollPassIndex {
@@ -573,21 +538,6 @@ function getRepresentativeKnoInstanceIdForPass(state: any, playerId: string, pas
 
   if (knoInstanceIds.length === 0) return null;
   return knoInstanceIds[passIndex - 1] ?? knoInstanceIds[0];
-}
-
-function getChronoswarmCountForPlayer(state: any, playerId: string): number {
-  const raw = state?.gameData?.turnData?.chronoswarmCountByPlayerId?.[playerId];
-  return Number.isInteger(raw) && raw > 0 ? raw : 0;
-}
-
-function playerParticipatesInShipsThatBuildPass(state: any, playerId: string): boolean {
-  const passIndex = getShipsThatBuildPassIndex(state);
-  return passIndex === 1 || getChronoswarmCountForPlayer(state, playerId) > 0;
-}
-
-function shipAlreadyUsedInShipsThatBuildPass(state: any, sourceInstanceId: string): boolean {
-  const passIndex = getShipsThatBuildPassIndex(state);
-  return state?.gameData?.turnData?.shipsThatBuildPassUsageByInstanceId?.[sourceInstanceId]?.[passIndex] === true;
 }
 
 function projectDiceManipulationTurnData(gameData: any, requestingPlayerId: string): any {
@@ -632,12 +582,6 @@ function projectDiceManipulationTurnData(gameData: any, requestingPlayerId: stri
               : undefined,
         pendingKnoRerollChoiceByPassByPlayerId: filteredPendingKnoRerollChoiceByPassByPlayerId,
         pendingCubeDiceChoiceByPlayerId: filteredPendingCubeDiceChoiceByPlayerId,
-        shipsThatBuildPassIndex:
-          turnData.shipsThatBuildPassIndex === 2
-            ? 2
-            : turnData.shipsThatBuildPassIndex === 1
-              ? 1
-              : undefined,
         chronoswarmSharedRollCount:
           typeof turnData.chronoswarmSharedRollCount === 'number'
             ? turnData.chronoswarmSharedRollCount
@@ -671,7 +615,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
 
   if (!phaseKey) return [];
 
-  if (phaseKey === 'build.drawing' && hasCurrentDrawingPreludePrivacyClaim(state)) {
+  if (phaseKey === 'build.drawing') {
     return projectDrawingPreludeCarrierActions(state, playerId);
   }
 
@@ -915,106 +859,6 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
           choices,
           validTargets,
           requiredTargetCount: getProjectedRequiredTargetCount(targetedEffect, validTargets.length),
-        });
-      }
-    }
-
-    actions.sort((a, b) => {
-      if (a.shipDefId !== b.shipDefId) return a.shipDefId.localeCompare(b.shipDefId);
-      if (a.sourceInstanceId !== b.sourceInstanceId) return a.sourceInstanceId.localeCompare(b.sourceInstanceId);
-      return a.actionId.localeCompare(b.actionId);
-    });
-
-    return actions;
-  }
-
-  // ============================================================================
-  // BUILD.ShipsThatBuild: Derive choice actions from structured powers (Carrier, future builders)
-  // ============================================================================
-  if (phaseKey === 'build.ships_that_build') {
-    const actions: any[] = [];
-    if (!playerParticipatesInShipsThatBuildPass(state, playerId)) {
-      return [];
-    }
-
-    const fleet = state?.gameData?.ships?.[playerId] ?? [];
-
-    for (const shipInstance of fleet) {
-      const shipDefId = shipInstance.shipDefId;
-      const sourceInstanceId = shipInstance.instanceId;
-      if (shipAlreadyUsedInShipsThatBuildPass(state, sourceInstanceId)) continue;
-
-      const shipDef = getShipDefinition(shipDefId);
-      if (!shipDef || !shipDef.structuredPowers) continue;
-
-      for (let powerIndex = 0; powerIndex < shipDef.structuredPowers.length; powerIndex++) {
-        const power: StructuredShipPower = shipDef.structuredPowers[powerIndex];
-        if (power.type !== 'choice') continue;
-        if (!power.timings.includes(phaseKey)) continue;
-
-        const chargesCurrent = shipInstance.chargesCurrent ?? 0;
-
-        // Option-level eligibility (Carrier has mixed costs)
-        const eligibleChoices = (power as any).options
-          .filter((opt: any) => {
-            const cid = opt?.choiceId;
-            if (cid === 'hold') return true;
-
-            const optRequiresCharge = (opt?.requiresCharge ?? false) || (power.requiresCharge ?? false);
-            if (!optRequiresCharge) return true;
-
-            const cost = opt?.chargeCost ?? power.chargeCost ?? 1;
-            return chargesCurrent >= cost;
-          })
-          .map((opt: any) => ({ choiceId: opt.choiceId }));
-
-        const eligibleChoiceIds = new Set(
-          eligibleChoices
-            .map((choice: any) => choice?.choiceId)
-            .filter((choiceId: unknown): choiceId is string => typeof choiceId === 'string')
-        );
-
-        // Only emit if there is at least one real (non-hold) option
-        const hasNonHold = eligibleChoices.some((c: any) => c.choiceId !== 'hold');
-        if (!hasNonHold) continue;
-
-        const destroyOption = power.options.find((opt: any) =>
-          eligibleChoiceIds.has(opt?.choiceId) &&
-          getTargetedChoiceEffect(opt) != null
-        );
-
-        if (destroyOption) {
-          const destroyEffect = getTargetedChoiceEffect(destroyOption);
-          if (!destroyEffect) continue;
-
-          const validTargets = getValidDestroyTargets(state, {
-            sourcePlayerId: playerId,
-            targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
-            restriction: destroyEffect.restriction ?? 'any',
-          });
-
-          if (validTargets.length === 0) {
-            continue;
-          }
-
-          actions.push({
-            kind: 'destroy_target',
-            actionId: `${shipDefId}#${powerIndex}`,
-            shipDefId,
-            sourceInstanceId,
-            choices: eligibleChoices,
-            validTargets,
-            requiredTargetCount: getProjectedRequiredTargetCount(destroyEffect, validTargets.length),
-          });
-          continue;
-        }
-
-        actions.push({
-          kind: 'choice',
-          actionId: `${shipDefId}#${powerIndex}`,
-          shipDefId,
-          sourceInstanceId,
-          choices: eligibleChoices,
         });
       }
     }

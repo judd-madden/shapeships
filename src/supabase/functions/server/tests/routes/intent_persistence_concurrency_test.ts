@@ -141,6 +141,11 @@ function createBuildState(gameId: string) {
         currentMajorPhase: 'build',
         currentSubPhase: 'drawing',
         commitments: {},
+        drawingPreludeByPlayerId: {
+          p1: { turnNumber: 1, requiredPassCount: 1, activePassIndex: 1, status: 'complete', eligibleSourcePowers: [], resolvedSourcePowerKeysByPass: {} },
+          p2: { turnNumber: 1, requiredPassCount: 1, activePassIndex: 1, status: 'complete', eligibleSourcePowers: [], resolvedSourcePowerKeysByPass: {} },
+        },
+        buildDrawingPublicFleetByPlayerId: { p1: [], p2: [] },
       },
     },
     battleLogScratch: {

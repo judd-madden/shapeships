@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { DEFAULT_PLAYER_MAX_HEALTH } from "../../../engine_shared/maximumHealth.ts";
-import { resolvePhase } from "../../../engine_shared/resolve/resolvePhase.ts";
+import { resolveRevealSpecialPowers } from "../../../engine_shared/resolve/resolvePhase.ts";
 import type {
   AncientSolarLedgerEntry,
   AncientSolarPowerId,
@@ -143,6 +143,13 @@ Deno.test("produced occurrence validation accepts only exact stage shapes", () =
   assert.deepEqual(
     (createBattleLogBuildProducedCaptureEvent({
       ...base,
+      producedBuildOccurrence: { stage: "turn_start_materialisation" },
+    }) as any).producedBuildOccurrence,
+    { stage: "turn_start_materialisation" },
+  );
+  assert.deepEqual(
+    (createBattleLogBuildProducedCaptureEvent({
+      ...base,
       producedBuildOccurrence: { stage: "drawing_prelude", passIndex: 1 },
     }) as any).producedBuildOccurrence,
     { stage: "drawing_prelude", passIndex: 1 },
@@ -169,6 +176,7 @@ Deno.test("produced occurrence validation accepts only exact stage shapes", () =
     { stage: "drawing_prelude" },
     { stage: "drawing_prelude", passIndex: 3 },
     { stage: "drawing", passIndex: 1 },
+    { stage: "turn_start_materialisation", extra: true },
     { stage: "end_of_build" },
     { stage: "end_of_build", extra: true },
     { stage: "reveal", extra: true },
@@ -229,6 +237,8 @@ Deno.test("malformed produced occurrence metadata fails closed during scratch no
 Deno.test("metadata-aware Build formatting orders and aggregates only within stage and pass", () => {
   const summary = buildSummaryForAtoms([
     { kind: "manual_build", shipDefId: "FIG" },
+    { kind: "produced_build", shipDefId: "SPI", sourceShipDefId: "SSIM", count: 2,
+      producedBuildOccurrence: { stage: "turn_start_materialisation" } },
     { kind: "produced_build", shipDefId: "DEF", sourceShipDefId: "CAR", count: 1,
       producedBuildOccurrence: { stage: "drawing_prelude", passIndex: 2 } },
     { kind: "reroll", sourceShipDefId: "KNO", values: [1, 6] },
@@ -247,6 +257,7 @@ Deno.test("metadata-aware Build formatting orders and aggregates only within sta
   ]);
   assert.deepEqual(summary.buildLinesByPlayerId.p1, [
     "KNO rerolled 1 -> 6",
+    "2 x SPI (SSIM)",
     "3 x DEF (CAR)",
     "2 x XEN (BUG)",
     "1 x DEF (CAR)",
@@ -256,7 +267,7 @@ Deno.test("metadata-aware Build formatting orders and aggregates only within sta
   ]);
 });
 
-Deno.test("metadata-aware mode rejects partial classification and no-prelude mode stays legacy", () => {
+Deno.test("metadata-aware mode rejects partial classification for every authoritative occurrence", () => {
   assert.throws(
     () => buildSummaryForAtoms([
       { kind: "produced_build", shipDefId: "DEF", sourceShipDefId: "CAR", count: 1,
@@ -266,20 +277,21 @@ Deno.test("metadata-aware mode rejects partial classification and no-prelude mod
     /BATTLE_LOG_PRODUCED_OCCURRENCE_INVARIANT/,
   );
 
-  const legacy = buildSummaryForAtoms([
+  const classifiedWithoutPrelude = buildSummaryForAtoms([
     { kind: "manual_build", shipDefId: "DEF" },
     { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "DRE", count: 1,
       producedBuildOccurrence: { stage: "drawing" } },
     { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "DRE", count: 2,
       producedBuildOccurrence: { stage: "reveal" } },
   ]);
-  assert.deepEqual(legacy.buildLinesByPlayerId.p1, [
+  assert.deepEqual(classifiedWithoutPrelude.buildLinesByPlayerId.p1, [
     "1 x DEF",
-    "3 x FIG (DRE)",
+    "1 x FIG (DRE)",
+    "2 x FIG (DRE)",
   ]);
 });
 
-Deno.test("Dreadnought End-of-Build resolver captures the private Reveal stage once", () => {
+Deno.test("Dreadnought Reveal resolver captures the private Reveal stage once", () => {
   const state: any = {
     gameId: "dreadnought-occurrence",
     status: "active",
@@ -289,21 +301,21 @@ Deno.test("Dreadnought End-of-Build resolver captures the private Reveal stage o
     ],
     gameData: {
       turnNumber: 4,
-      currentPhase: "build",
-      currentSubPhase: "end_of_build",
+      currentPhase: "battle",
+      currentSubPhase: "reveal",
       ships: {
         p1: [{ instanceId: "dre-1", shipDefId: "DRE", createdTurn: 1 }],
         p2: [],
       },
       turnData: {
         turnNumber: 4,
-        currentMajorPhase: "build",
-        currentSubPhase: "end_of_build",
+        currentMajorPhase: "battle",
+        currentSubPhase: "reveal",
         shipsMadeThisTurnByPlayerId: { p1: 1, p2: 0 },
       },
     },
   };
-  const result = resolvePhase(state, "build.end_of_build");
+  const result = resolveRevealSpecialPowers(state);
   const captures = result.events.filter((event: any) =>
     event.type === "BATTLE_LOG_CAPTURE_BUILD_PRODUCED"
   );

@@ -354,6 +354,7 @@ function createNormalBuildShipDuringDrawing(args: {
     turnNumber,
     workingFleet,
     grantJoiningLines: args.grantJoiningLines,
+    producedBuildOccurrence: { stage: 'drawing' },
   });
   return {
     ship: created.ship,
@@ -1130,7 +1131,11 @@ function resolvePlayerBuildSubmit(args: {
       turnNumber,
       workingFleet,
       countAsCreatedShip: false,
-      creationSource: { kind: 'produced', sourceShipDefId: 'EVO' },
+      creationSource: {
+        kind: 'produced',
+        sourceShipDefId: 'EVO',
+        producedBuildOccurrence: { stage: 'drawing' },
+      },
       grantJoiningLines() {},
     });
 

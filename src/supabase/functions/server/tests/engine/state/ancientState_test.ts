@@ -974,7 +974,7 @@ Deno.test('battle.reveal entry generates public Core Energy before the unchanged
   const nowMs = 10_000;
   const entered = onEnterPhase(
     state,
-    'build.end_of_build',
+    'build.drawing',
     'battle.reveal',
     nowMs,
   ).state as any;
@@ -1001,6 +1001,56 @@ Deno.test('battle.reveal entry generates public Core Energy before the unchanged
   assert.equal('acceptedDeclarationByPlayerId' in projection, false);
   assert.equal('pendingSimulacrumCopies' in projection, false);
   assert.equal('pendingBlackHoleDestructions' in projection, false);
+});
+
+Deno.test('Reveal entry applies RED and DRE once before Ancient preparation', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  state.gameData.turnNumber = 4;
+  state.gameData.currentPhase = 'battle';
+  state.gameData.currentSubPhase = 'reveal';
+  state.gameData.turnData.turnNumber = 4;
+  state.gameData.turnData.currentMajorPhase = 'battle';
+  state.gameData.turnData.currentSubPhase = 'reveal';
+  state.gameData.turnData.shipsMadeThisTurnByPlayerId = { p1: 2, p2: 0 };
+  state.players[0].faction = 'ancient';
+  state.players[0].health = 1;
+  state.gameData.ships.p1 = [
+    { instanceId: 'plu-reveal-order', shipDefId: 'PLU', createdTurn: 1 },
+    { instanceId: 'red-reveal-order', shipDefId: 'RED', createdTurn: 4 },
+    { instanceId: 'dre-reveal-order', shipDefId: 'DRE', createdTurn: 1 },
+  ];
+  delete state.gameData.turnData.phaseHold;
+  delete state.gameData.turnData.battleRevealHoldPresentedTurnNumber;
+
+  const first = onEnterPhase(state, 'build.drawing', 'battle.reveal', 20_000);
+  assert.equal(first.state.gameData.turnData.revealSpecialPowersAppliedTurnNumber, 4);
+  assert.equal(first.state.players[0].health > 1, true);
+  assert.equal(
+    first.state.gameData.ships.p1.filter((ship: any) => ship.shipDefId === 'FIG').length,
+    2,
+  );
+  assert.deepEqual(first.state.gameData.ancient.energyByPlayerId.p1.pool, {
+    green: 1,
+    red: 0,
+    blue: 0,
+  });
+  assert.deepEqual(
+    first.events.filter((event: any) => event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED')
+      .map((event: any) => event.producedBuildOccurrence),
+    [{ stage: 'reveal' }, { stage: 'reveal' }],
+  );
+
+  const retryState: any = structuredClone(first.state);
+  delete retryState.gameData.turnData.phaseHold;
+  const retry = onEnterPhase(retryState, 'build.drawing', 'battle.reveal', 20_001);
+  assert.equal(
+    retry.state.gameData.ships.p1.filter((ship: any) => ship.shipDefId === 'FIG').length,
+    2,
+  );
+  assert.equal(
+    retry.events.some((event: any) => event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'),
+    false,
+  );
 });
 
 Deno.test('public Ancient projection preserves cloned ledger state and adds derived materialization maps', () => {
@@ -1651,6 +1701,11 @@ Deno.test('Simulacrum materialization outcomes normalize durably without inventi
           sourceShipDefId: 'ZEN',
         }],
       },
+      repeatedMaterializedInstanceId: 'zen-copy-repeat',
+      repeatedMaterializationOutcome: {
+        joiningLinesGranted: 0,
+        producedShips: [],
+      },
     },
     {
       ...baseRecord,
@@ -1678,6 +1733,21 @@ Deno.test('Simulacrum materialization outcomes normalize durably without inventi
         sourceShipDefId: 'ZEN',
       }],
     },
+  );
+  const complete = normalized.gameData.ancient.pendingSimulacrumCopies.find(
+    (record: any) => record.pendingCopyId === 'complete',
+  );
+  assert.equal(complete.materializationMultiplicity, 2);
+  assert.equal(complete.repeatedMaterializedInstanceId, 'zen-copy-repeat');
+  assert.deepEqual(complete.repeatedMaterializationOutcome, {
+    joiningLinesGranted: 0,
+    producedShips: [],
+  });
+  assert.equal(
+    normalized.gameData.ancient.pendingSimulacrumCopies.find(
+      (record: any) => record.pendingCopyId === 'malformed',
+    ).materializationMultiplicity,
+    1,
   );
   assert.equal(
     'materializationOutcome' in

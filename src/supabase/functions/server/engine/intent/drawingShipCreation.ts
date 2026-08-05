@@ -7,6 +7,7 @@ import type {
 import {
   createBattleLogBuildManualCaptureEvent,
   createBattleLogBuildProducedCaptureEvent,
+  type ProducedBuildOccurrence,
 } from "../state/battleLogHistory.ts";
 
 export type DrawingWorkingFleetEntry = {
@@ -18,7 +19,11 @@ export type DrawingWorkingFleetEntry = {
 
 export type DrawingShipCreationSource =
   | { kind: "manual" }
-  | { kind: "produced"; sourceShipDefId: string };
+  | {
+    kind: "produced";
+    sourceShipDefId: string;
+    producedBuildOccurrence: ProducedBuildOccurrence;
+  };
 
 export type ImmediateDrawingBuiltConsequences = {
   joiningLinesGranted: number;
@@ -204,7 +209,7 @@ export function createShipDuringDrawing(args: {
       playerId: args.playerId,
       shipDefId: ship.shipDefId,
       sourceShipDefId: args.creationSource.sourceShipDefId,
-      producedBuildOccurrence: { stage: "drawing" },
+      producedBuildOccurrence: args.creationSource.producedBuildOccurrence,
     });
 
   return { ship, events: [event] };
@@ -219,6 +224,7 @@ export function applyImmediateDrawingBuiltConsequences(args: {
   grantJoiningLines: (amount: number) => void;
   producedInstanceIds?: string[];
   consequencePolicy?: ImmediateDrawingBuiltConsequencePolicy;
+  producedBuildOccurrence: ProducedBuildOccurrence;
 }): {
   joiningLinesGranted: number;
   producedShips: ShipInstance[];
@@ -256,6 +262,7 @@ export function applyImmediateDrawingBuiltConsequences(args: {
       creationSource: {
         kind: "produced",
         sourceShipDefId: args.builtShip.shipDefId,
+        producedBuildOccurrence: args.producedBuildOccurrence,
       },
       workingFleet: args.workingFleet,
       instanceId: args.producedInstanceIds?.[index],

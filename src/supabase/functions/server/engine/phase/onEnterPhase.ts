@@ -17,7 +17,10 @@ import { fleetHasAvailablePowers } from './fleetHasAvailablePowers.ts';
 import { hasCommitted, hasRevealed, allCommittedPlayersRevealed } from '../intent/CommitStore.ts';
 import { getBuildCommitKey } from '../intent/IntentTypes.ts';
 import { computeLineBonusesForPlayer } from '../lines/computeLineBonusForPlayer.ts';
-import { resolvePhase } from '../../engine_shared/resolve/resolvePhase.ts';
+import {
+  resolvePhase,
+  resolveRevealSpecialPowers,
+} from '../../engine_shared/resolve/resolvePhase.ts';
 import { isPhaseKey, type PhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { rollD6 } from '../util/rollD6.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
@@ -41,6 +44,8 @@ import {
 import {
   materializeQueuedSimulacrumCopiesAtTurnStart,
 } from '../ancient/simulacrumSolarPower.ts';
+import { initializeDrawingPreludeOnEntry } from '../state/drawingPreludeState.ts';
+import { advanceDrawingPreludeForPlayer } from '../intent/drawingPreludeResolution.ts';
 import {
   anyPlayerIsCubeEligible,
   getCubeEligiblePlayerIds,
@@ -213,9 +218,7 @@ const PHASE_TO_SUBPHASE_MAP: Record<PhaseKey, string[]> = {
   'setup.species_selection': [],
   'build.dice_roll': ['Dice Roll'], // Reserved for future dice-mod powers
   'build.line_generation': ['Line Generation'],
-  'build.ships_that_build': ['Ships That Build'],
   'build.drawing': [], // Handled separately (lines > 0)
-  'build.end_of_build': [],
   'battle.reveal': [], // Handled separately (commit/reveal gating)
   'battle.first_strike': ['First Strike'], // Declarable (e.g., Guardian)
   'battle.charge_declaration': [], // Uses dedicated charge/solar gating
@@ -321,19 +324,9 @@ function phaseRequiresPlayerInput(state: any, phaseKey: PhaseKey): boolean {
     return false;
   }
 
-  // build.ships_that_build: pause only if at least one player has eligible powers
-  if (phaseKey === 'build.ships_that_build') {
-    return phaseHasAvailableFleetPowers(state, phaseKey);
-  }
-
-  // build.drawing: ONLY manual phase - always requires READY
+  // build.drawing: per-player prelude and BUILD_SUBMIT drive completion.
   if (phaseKey === 'build.drawing') {
     return true;
-  }
-
-  // build.end_of_build: auto-advance (server processes)
-  if (phaseKey === 'build.end_of_build') {
-    return false;
   }
 
   // ═════════════════════════════════════════════════════════════════════════
@@ -423,6 +416,19 @@ function enterPhaseOnce(
       );
     }
 
+    const initialized = initializeDrawingPreludeOnEntry({
+      state: workingState,
+      nowMs,
+      advancePlayer: advanceDrawingPreludeForPlayer,
+    });
+    if (!initialized.ok) {
+      throw new Error(
+        `DRAWING_PRELUDE_ENTRY_FAILED: ${initialized.error.code}: ${initialized.error.message}`,
+      );
+    }
+    workingState = initialized.value.state;
+    events.push(...initialized.value.events);
+
   }
 
   if (toKey === 'build.dice_roll') {
@@ -444,7 +450,7 @@ function enterPhaseOnce(
     events.push(...materialized.events);
   }
 
-  const turnData = workingState.gameData.turnData;
+  let turnData = workingState.gameData.turnData;
 
   if (
     fromKey === 'battle.charge_declaration' &&
@@ -459,7 +465,12 @@ function enterPhaseOnce(
   // Persist battle.reveal as a real current phase before later battle auto-advance.
   // This is presentation/visibility barrier state, not a gameplay rule.
   if (toKey === 'battle.reveal') {
+    const revealResolution = resolveRevealSpecialPowers(workingState);
+    workingState = revealResolution.state;
+    events.push(...revealResolution.events);
+
     workingState = applyAncientBattleRevealPreparation(workingState);
+    turnData = workingState.gameData.turnData;
 
     const turnNumber =
       workingState.gameData?.turnNumber ??
@@ -889,65 +900,6 @@ function enterPhaseOnce(
     }
   }
   
-  // ============================================================================
-  // SHIPS THAT BUILD - build.ships_that_build
-  // ============================================================================
-  // Responsibilities:
-  // 1. Auto-ready all ineligible players (no ships with "Ships That Build" powers)
-  // 2. Only eligible players must click Ready to advance
-  
-  if (toKey === 'build.ships_that_build') {
-    if (turnData.shipsThatBuildPassIndex !== 1 && turnData.shipsThatBuildPassIndex !== 2) {
-      turnData.shipsThatBuildPassIndex = 1;
-    }
-
-    // Ensure phaseReadiness array exists
-    if (!workingState.gameData.phaseReadiness) {
-      workingState.gameData.phaseReadiness = [];
-    }
-    
-    const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
-    
-    for (const player of activePlayers) {
-      // Check if player has eligible fleet powers for this phase
-      const eligible = fleetHasAvailablePowers(
-        workingState,
-        'build.ships_that_build',
-        player.id,
-        ['Ships That Build']
-      );
-      
-      if (!eligible) {
-        // Player is ineligible - auto-ready them
-        const existingIndex = workingState.gameData.phaseReadiness.findIndex(
-          (r: any) => r.playerId === player.id && r.currentStep === 'build.ships_that_build'
-        );
-        
-        if (existingIndex >= 0) {
-          // Update existing record
-          workingState.gameData.phaseReadiness[existingIndex].isReady = true;
-        } else {
-          // Add new readiness record
-          workingState.gameData.phaseReadiness.push({
-            playerId: player.id,
-            isReady: true,
-            currentStep: 'build.ships_that_build'
-          });
-        }
-        
-        debugLog(`[OnEnterPhase] Auto-readied ineligible player: ${player.id}`);
-        
-        events.push({
-          type: 'PLAYER_AUTO_READY',
-          playerId: player.id,
-          step: 'build.ships_that_build',
-          reason: 'no_available_powers',
-          atMs: nowMs
-        });
-      }
-    }
-  }
-
   // ============================================================================
   // FIRST STRIKE - battle.first_strike
   // ============================================================================

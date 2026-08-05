@@ -20,7 +20,14 @@ function createBuildState() {
       currentSubPhase: 'drawing',
       phaseReadiness: [],
       ships: { p1: [], p2: [] },
-      turnData: { commitments: {} },
+      turnData: {
+        commitments: {},
+        drawingPreludeByPlayerId: {
+          p1: { turnNumber: 1, requiredPassCount: 1, activePassIndex: 1, status: 'complete', eligibleSourcePowers: [], resolvedSourcePowerKeysByPass: {} },
+          p2: { turnNumber: 1, requiredPassCount: 1, activePassIndex: 1, status: 'complete', eligibleSourcePowers: [], resolvedSourcePowerKeysByPass: {} },
+        },
+        buildDrawingPublicFleetByPlayerId: { p1: [], p2: [] },
+      },
     },
   };
 }

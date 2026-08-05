@@ -309,8 +309,11 @@ export type AncientPendingSimulacrumCopy = {
   permanentConfiguration: ShipPermanentConfiguration;
   sourceMode: 'primary';
   status: 'queued' | 'materialized';
+  materializationMultiplicity?: 1 | 2;
   materializedInstanceId?: string;
   materializationOutcome?: AncientSimulacrumMaterializationOutcome;
+  repeatedMaterializedInstanceId?: string;
+  repeatedMaterializationOutcome?: AncientSimulacrumMaterializationOutcome;
 };
 
 export type AncientPendingBlackHoleDestruction = {
@@ -410,11 +413,6 @@ export type GameData = {
     pendingKnoRerollChoiceByPassByPlayerId?: Record<string, Partial<Record<1 | 2 | 3, 'reroll' | 'hold'>>>;
     /** Turn-scoped stop state for Ark of Knowledge rerolls */
     knoRerollStoppedByPlayerId?: Record<string, true>;
-    /** Internal pass index for the single build.ships_that_build phase */
-    shipsThatBuildPassIndex?: 1 | 2;
-    /** Tracks interactive Ships That Build usage by ship instance and pass */
-    shipsThatBuildPassUsageByInstanceId?: Record<string, Partial<Record<1 | 2, true>>>;
-
     /** Exact Drawing-created Spiral that crossed its controller from two to three this turn */
     thirdSpiralFirstStrikeEligibilityByPlayerId?: Record<string, {
       sourceInstanceId: string;
@@ -442,10 +440,10 @@ export type GameData = {
     queenCreatedXenitesThisTurnByPlayerId?: Record<string, number>;
 
     /**
-     * Idempotency flag for server-only build.end_of_build resolution.
-     * Stores the turn number whose build.end_of_build phase has already resolved.
+     * Idempotency flag for server-only battle.reveal special-power resolution.
+     * Stores the turn number whose Reveal special powers have already resolved.
      */
-    buildEndOfBuildAppliedTurnNumber?: number;
+    revealSpecialPowersAppliedTurnNumber?: number;
 
     /**
      * Narrow idempotency flag for authoritative BUILD_SUBMIT resolution in

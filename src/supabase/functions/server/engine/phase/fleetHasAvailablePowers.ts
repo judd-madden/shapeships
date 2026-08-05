@@ -37,10 +37,6 @@ function getTargetedChoiceEffect(option: any) {
   ) ?? null;
 }
 
-function getShipsThatBuildPassIndex(state: any): 1 | 2 {
-  return state?.gameData?.turnData?.shipsThatBuildPassIndex === 2 ? 2 : 1;
-}
-
 function getKnoRerollPassIndex(state: any): KnoRerollPassIndex {
   const passIndex = state?.gameData?.turnData?.knoRerollPassIndex;
   return passIndex === 2 || passIndex === 3 ? passIndex : 1;
@@ -75,21 +71,6 @@ function anyPlayerHasKnoRerollForCurrentPass(state: any): boolean {
   return activePlayers.some((player: any) => playerCanActInKnoRerollPass(state, player.id, passIndex));
 }
 
-function getChronoswarmCountForPlayer(state: any, playerId: string): number {
-  const raw = state?.gameData?.turnData?.chronoswarmCountByPlayerId?.[playerId];
-  return Number.isInteger(raw) && raw > 0 ? raw : 0;
-}
-
-function playerParticipatesInShipsThatBuildPass(state: any, playerId: string): boolean {
-  const passIndex = getShipsThatBuildPassIndex(state);
-  return passIndex === 1 || getChronoswarmCountForPlayer(state, playerId) > 0;
-}
-
-function shipAlreadyUsedInShipsThatBuildPass(state: any, sourceInstanceId: string): boolean {
-  const passIndex = getShipsThatBuildPassIndex(state);
-  return state?.gameData?.turnData?.shipsThatBuildPassUsageByInstanceId?.[sourceInstanceId]?.[passIndex] === true;
-}
-
 function isTargetedChoicePowerAvailableForShip(
   state: any,
   playerId: string,
@@ -119,60 +100,6 @@ function isTargetedChoicePowerAvailableForShip(
   }
 
   return true;
-}
-
-function shipHasInteractiveShipsThatBuildChoice(
-  state: any,
-  playerId: string,
-  ship: any,
-  phaseKey: PhaseKey
-): boolean {
-  if (phaseKey !== 'build.ships_that_build') return false;
-  if (!playerParticipatesInShipsThatBuildPass(state, playerId)) return false;
-  if (shipAlreadyUsedInShipsThatBuildPass(state, ship?.instanceId)) return false;
-
-  const shipDef = getShipDefinition(ship?.shipDefId);
-  if (!shipDef?.structuredPowers) return false;
-
-  for (const power of shipDef.structuredPowers) {
-    if (power.type !== 'choice') continue;
-    if (!power.timings.includes(phaseKey)) continue;
-
-    const chargesCurrent = Number(ship?.chargesCurrent ?? 0);
-    const eligibleChoices = power.options.filter((option) => {
-      if (option.choiceId === 'hold') return true;
-
-      const requiresCharge = (option.requiresCharge ?? false) || (power.requiresCharge ?? false);
-      if (!requiresCharge) return true;
-
-      const chargeCost = option.chargeCost ?? power.chargeCost ?? 1;
-      return chargesCurrent >= chargeCost;
-    });
-
-    const nonHoldChoices = eligibleChoices.filter((option) => option.choiceId !== 'hold');
-    if (nonHoldChoices.length === 0) continue;
-
-    const destroyOption = nonHoldChoices.find((option) => getTargetedChoiceEffect(option) != null);
-
-    if (!destroyOption) {
-      return true;
-    }
-
-    const destroyEffect = getTargetedChoiceEffect(destroyOption);
-    if (!destroyEffect) continue;
-
-    const validTargets = getValidDestroyTargets(state, {
-      sourcePlayerId: playerId,
-      targetScope: destroyEffect.targetPlayer === 'self' ? 'self' : 'opponent',
-      restriction: destroyEffect.restriction ?? 'any',
-    });
-
-    if (validTargets.length > 0) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 function shipHasInteractiveTargetedDestroyChoice(
@@ -269,16 +196,13 @@ export function fleetHasAvailablePowers(
     return anyPlayerHasKnoRerollForCurrentPass(state);
   }
 
+  if (phaseKey === 'build.drawing') {
+    return false;
+  }
+
   const ships = state?.gameData?.ships?.[playerId] ?? [];
 
   for (const ship of ships) {
-    if (phaseKey === 'build.ships_that_build') {
-      if (shipHasInteractiveShipsThatBuildChoice(state, playerId, ship, phaseKey)) {
-        return true;
-      }
-      continue;
-    }
-
     if (phaseKey === 'battle.first_strike') {
       const targetedDestroyAvailability = shipHasInteractiveTargetedDestroyChoice(
         state,

@@ -1058,7 +1058,7 @@ Deno.test('/game-state projects turn-start Simulacrum support maps without chang
   assert.equal('hiddenDrawingSimulacrumShips' in revealed.requester, false);
 });
 
-Deno.test('/game-state projects the normal CAR choice action for a turn-start copied source', async () => {
+Deno.test('/game-state projects the dedicated Drawing-prelude CAR action for a turn-start copied source', async () => {
   const fixture = createGameRouteFixture();
   const setupState: any = createSetupState('copied-car-action');
   setupState.turnNumber = 3;
@@ -1103,7 +1103,7 @@ Deno.test('/game-state projects the normal CAR choice action for a turn-start co
     'build.dice_roll',
     100,
   );
-  assert.equal(entered.state.gameData.currentSubPhase, 'ships_that_build');
+  assert.equal(entered.state.gameData.currentSubPhase, 'drawing');
   const copiedCar = entered.state.gameData.ships.p1.find(
     (ship: any) => ship.shipDefId === 'CAR',
   );
@@ -1122,6 +1122,7 @@ Deno.test('/game-state projects the normal CAR choice action for a turn-start co
     actionId: 'CAR#0',
     shipDefId: 'CAR',
     sourceInstanceId: copiedCar.instanceId,
+    passIndex: 1,
     choices: [
       { choiceId: 'defender' },
       { choiceId: 'fighter' },
@@ -2694,6 +2695,33 @@ Deno.test('Drawing-prelude route Carrier actions equal the shared pure projectio
     params: { gameId: 'drawing-prelude-action-parity' },
   })));
   assert.deepEqual(body.requester.availableActions, expected);
+});
+
+Deno.test('Drawing route never falls through to generic CAR projection when prelude state is absent', async () => {
+  const state: any = createSetupState('drawing-prelude-no-fallthrough');
+  state.currentPhase = 'build';
+  state.currentSubPhase = 'drawing';
+  state.turnNumber = 5;
+  state.players[0].faction = 'human';
+  state.gameData.currentPhase = 'build';
+  state.gameData.currentSubPhase = 'drawing';
+  state.gameData.turnNumber = 5;
+  state.gameData.ships = {
+    p1: [{ instanceId: 'generic-car', shipDefId: 'CAR', chargesCurrent: 2, createdTurn: 4 }],
+  };
+  state.gameData.turnData = {
+    turnNumber: 5,
+    currentMajorPhase: 'build',
+    currentSubPhase: 'drawing',
+  };
+  const normalized = normalizeAncientGameState(state).state;
+  const fixture = createGameRouteFixture();
+  fixture.store.set('game_drawing-prelude-no-fallthrough', normalized);
+  const getState = fixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
+  const body = await responseJson(await getState(createContext({
+    params: { gameId: 'drawing-prelude-no-fallthrough' },
+  })));
+  assert.deepEqual(body.requester.availableActions, []);
 });
 
 Deno.test('Drawing-prelude foundations project identical private fleets through GET and intent state responses', async () => {

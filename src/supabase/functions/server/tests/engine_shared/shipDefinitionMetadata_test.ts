@@ -137,7 +137,7 @@ Deno.test('raw power tag membership is exact and authoring invariants hold', () 
 Deno.test('exactly eight maker powers have their explicit activation timing', () => {
   const expectedTimings = new Map<string, string>([
     ['CAR#0', 'start_of_drawing'],
-    ['DRE#0', 'end_of_build'],
+    ['DRE#0', 'reveal'],
     ['BUG#0', 'start_of_drawing'],
     ['ZEN#0', 'when_built'],
     ['ZEN#1', 'start_of_drawing'],

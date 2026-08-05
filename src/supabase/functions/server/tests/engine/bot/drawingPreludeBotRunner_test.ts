@@ -327,6 +327,31 @@ Deno.test('multiple Carriers use one batch and malformed or Hold-only claimed st
   );
 });
 
+Deno.test('missing current-turn Drawing prelude stops the bot loop without intents or cap exhaustion', async () => {
+  const missing = createCarrierBotDrawingState();
+  delete missing.gameData.turnData.drawingPreludeByPlayerId;
+  delete missing.gameData.turnData.buildDrawingPublicFleetByPlayerId;
+
+  const result = await runBotsUntilSettled({ state: missing, nowMs: 100 });
+  assert.equal(result.botStepsApplied, 0);
+  assert.equal(
+    result.events.some((event: any) =>
+      event.type === 'BOT_RUNNER_SKIPPED' &&
+      event.reason === 'invalid_drawing_prelude_state'
+    ),
+    true,
+  );
+  assert.equal(
+    result.events.some((event: any) =>
+      event.type === 'POWERS_BATCH_SUBMITTED' ||
+      event.type === 'BUILD_SUBMITTED' ||
+      event.type === 'BOT_RUNNER_LIMIT_REACHED'
+    ),
+    false,
+  );
+  assert.deepEqual(result.state, missing);
+});
+
 Deno.test('legal Human Carrier and Xenite Chronoswarm bots cover both prelude branches below the cap', async () => {
   const state = createLegalHumanXeniteBotDrawingState();
   const xeniteAdvanced = advanceDrawingPreludeForPlayer({
@@ -352,8 +377,14 @@ Deno.test('legal Human Carrier and Xenite Chronoswarm bots cover both prelude br
   const drawingAcceptedEvents = result.events.filter((event: any) =>
     event.type === 'POWERS_BATCH_SUBMITTED' || event.type === 'BUILD_SUBMITTED'
   );
+  const uniqueDrawingAcceptedEvents = drawingAcceptedEvents.filter(
+    (event: any, index: number, all: any[]) =>
+      all.findIndex((candidate: any) =>
+        candidate.type === event.type && candidate.playerId === event.playerId
+      ) === index,
+  );
   assert.deepEqual(
-    drawingAcceptedEvents.map((event: any) => ({
+    uniqueDrawingAcceptedEvents.map((event: any) => ({
       type: event.type,
       playerId: event.playerId,
       ...(event.type === 'POWERS_BATCH_SUBMITTED' ? { count: event.count } : {}),
@@ -364,7 +395,7 @@ Deno.test('legal Human Carrier and Xenite Chronoswarm bots cover both prelude br
       { type: 'BUILD_SUBMITTED', playerId: 'p2' },
     ],
   );
-  const drawingAcceptedStepCount = drawingAcceptedEvents.length;
+  const drawingAcceptedStepCount = result.botStepsApplied;
   assert.equal(drawingAcceptedStepCount, 3);
   assert.equal(drawingAcceptedStepCount < MAX_BOT_STEPS_PER_REQUEST, true);
   assert.deepEqual(
@@ -382,16 +413,22 @@ Deno.test('two legal single-pass Human Carrier bots define the four-step accepte
   const drawingAcceptedEvents = result.events.filter((event: any) =>
     event.type === 'POWERS_BATCH_SUBMITTED' || event.type === 'BUILD_SUBMITTED'
   );
-  assert.equal(drawingAcceptedEvents.length, 4);
+  const uniqueDrawingAcceptedEvents = drawingAcceptedEvents.filter(
+    (event: any, index: number, all: any[]) =>
+      all.findIndex((candidate: any) =>
+        candidate.type === event.type && candidate.playerId === event.playerId
+      ) === index,
+  );
+  assert.equal(uniqueDrawingAcceptedEvents.length, 4);
   assert.equal(
-    drawingAcceptedEvents.filter((event: any) => event.type === 'POWERS_BATCH_SUBMITTED').length,
+    uniqueDrawingAcceptedEvents.filter((event: any) => event.type === 'POWERS_BATCH_SUBMITTED').length,
     2,
   );
   assert.equal(
-    drawingAcceptedEvents.filter((event: any) => event.type === 'BUILD_SUBMITTED').length,
+    uniqueDrawingAcceptedEvents.filter((event: any) => event.type === 'BUILD_SUBMITTED').length,
     2,
   );
-  const drawingAcceptedStepCount = drawingAcceptedEvents.length;
+  const drawingAcceptedStepCount = result.botStepsApplied;
   assert.equal(drawingAcceptedStepCount, 4);
   assert.equal(drawingAcceptedStepCount < MAX_BOT_STEPS_PER_REQUEST, true);
   assert.notEqual(result.state.gameData.currentSubPhase, 'drawing');

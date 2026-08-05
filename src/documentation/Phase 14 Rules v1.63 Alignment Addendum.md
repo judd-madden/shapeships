@@ -4,7 +4,7 @@
 - **Pass type:** Documentation / Planning
 - **Rules baseline:** Shapeships rules v1.63
 - **Extends:** `Phase 14 Simplified Phases and Ship Tags.md`
-- **Implementation checkpoint:** Phase 14H completed but not yet revised; active cutover has not begun
+- **Implementation checkpoint:** Phase 14H-R and Phase 14I-S complete; Phase 14I-C is next
 - **Compatibility posture:** No persisted-game migration; old in-progress games may be discarded at cutover
 - **Date:** 2026-08-05
 
@@ -30,6 +30,12 @@ The example-game pages in the current rules PDF are unfinished and are not an im
 
 ## 2. Current implementation checkpoint
 
+Phase 14H-R is complete.
+
+Phase 14I has been split into **14I-S — Authoritative Server Phase Cutover** and **14I-C — Functional Client Cutover**. Phase 14I-S is complete. Phase 14I-C is the next required pass.
+
+Phase 14 remains incomplete and is not deployable until Phase 14I-C is complete; the server and client cutovers must release atomically.
+
 The following Phase 14 passes are complete:
 
 - 14A — Normative Planning Record
@@ -40,16 +46,15 @@ The following Phase 14 passes are complete:
 - 14F — Single-Pass Drawing Prelude
 - 14G — Chronoswarm and Copied-Builder Behavior
 - 14H — Bot and Battle Log Integration
+- 14H-R — Rules v1.63 Bot and Battle Log Revision
+- 14I-S — Authoritative Server Phase Cutover
 
-The active game still retains the old global Build routing until 14I. The Drawing-prelude work prepared by 14E–14H remains dormant until the atomic cutover.
-
-Phase 14H now requires a narrow revision, named **14H-R**, before 14I begins.
+The authoritative server now uses the flattened phase topology and active Drawing prelude. The intentionally deferred client/runtime still contains the former phase routing and must be cut over before release.
 
 The next execution order is:
 
-1. 14H-R — Rules v1.63 Bot and Battle Log Revision
-2. 14I — Drawing and Reveal Cutover
-3. 14J onward as already planned
+1. 14I-C — Functional Client Cutover
+2. 14J onward as already planned
 
 ---
 
@@ -359,6 +364,8 @@ No client/UI changes belong in 14H-R.
 ## 10. Phase 14I — Drawing and Reveal Cutover amendment
 
 The existing 14I brief is superseded by this section where they differ.
+
+**Implementation status:** 14I-S — Authoritative Server Phase Cutover is complete. 14I-C — Functional Client Cutover remains required. Nothing in this status changes the atomic-release requirement.
 
 - **Pass type:** Mixed Pass
 - **Goal:** Remove both obsolete Build phases, activate the complete per-player Drawing prelude, move Dreadnought and Redemption to Reveal, and reconcile every active phase surface.
