@@ -49,7 +49,7 @@ function request(intentType: IntentRequest['intentType'], payload?: unknown): In
 
 Deno.test('current Drawing-prelude claim routes Carrier ACTION and stale replay fail-closed', async () => {
   const state = stateWithCarrier();
-  const intent = request('ACTION', { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-1', choiceId: 'defender' });
+  const intent = request('ACTION', { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-1', choiceId: 'defender', passIndex: 1 });
   const accepted = await applyIntent(state, 'p1', intent, 10);
   assert.equal(accepted.ok, true);
   assert.equal(accepted.events.some((event: any) => event.type === 'POWERS_BATCH_SUBMITTED'), false);
@@ -72,7 +72,7 @@ Deno.test('current privacy claim with missing requester entry cannot fall throug
       resolvedSourcePowerKeysByPass: {},
     },
   };
-  const action = { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-1', choiceId: 'defender' };
+  const action = { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-1', choiceId: 'defender', passIndex: 1 };
   for (const intent of [request('ACTION', action), request('ACTIONS_SUBMIT', { actions: [action] })]) {
     const result = await applyIntent(state, 'p1', intent, 10);
     assert.equal(result.ok, false);
@@ -93,7 +93,7 @@ Deno.test('chat ACTION remains unaffected by active Drawing-prelude ownership', 
   assert.equal(result.events.some((event: any) => event.type === 'CHAT_MESSAGE'), true);
 });
 
-Deno.test('BUILD_SUBMIT gate precedes payload parsing and distinguishes incomplete and unsupported', async () => {
+Deno.test('BUILD_SUBMIT gate precedes payload parsing and accepts structurally valid two-pass completion', async () => {
   const awaiting = stateWithCarrier();
   const incomplete = await applyIntent(awaiting, 'p1', request('BUILD_SUBMIT'), 10);
   assert.equal(incomplete.ok, false);
@@ -106,8 +106,20 @@ Deno.test('BUILD_SUBMIT gate precedes payload parsing and distinguishes incomple
   const missing = await applyIntent(malformed, 'p1', request('BUILD_SUBMIT'), 10);
   assert.equal(missing.rejected?.code, 'DRAWING_PRELUDE_INCOMPLETE');
 
-  const unsupported = stateWithCarrier();
-  unsupported.gameData.turnData!.drawingPreludeByPlayerId!.p1 = {
+  const awaitingPass2 = stateWithCarrier();
+  awaitingPass2.gameData.turnData!.drawingPreludeByPlayerId!.p1 = {
+    turnNumber: 3,
+    requiredPassCount: 2,
+    activePassIndex: 2,
+    status: 'awaiting_actions',
+    eligibleSourcePowers: [{ key: 'car-1:CAR#0', sourceInstanceId: 'car-1', shipDefId: 'CAR', rawPowerIndex: 0, mode: 'interactive' }],
+    resolvedSourcePowerKeysByPass: { 1: ['car-1:CAR#0'] },
+  };
+  const pass2Incomplete = await applyIntent(awaitingPass2, 'p1', request('BUILD_SUBMIT'), 10);
+  assert.equal(pass2Incomplete.rejected?.code, 'DRAWING_PRELUDE_INCOMPLETE');
+
+  const complete = stateWithCarrier();
+  complete.gameData.turnData!.drawingPreludeByPlayerId!.p1 = {
     turnNumber: 3,
     requiredPassCount: 2,
     activePassIndex: 2,
@@ -115,8 +127,39 @@ Deno.test('BUILD_SUBMIT gate precedes payload parsing and distinguishes incomple
     eligibleSourcePowers: [],
     resolvedSourcePowerKeysByPass: {},
   };
-  const deferred = await applyIntent(unsupported, 'p1', request('BUILD_SUBMIT'), 10);
-  assert.equal(deferred.rejected?.code, 'DRAWING_PRELUDE_UNSUPPORTED');
+  const parsedAfterGate = await applyIntent(complete, 'p1', request('BUILD_SUBMIT'), 10);
+  assert.equal(parsedAfterGate.rejected?.code, 'BAD_PAYLOAD');
+
+  const accepted = await applyIntent(complete, 'p1', {
+    ...request('BUILD_SUBMIT', { builds: [] }),
+    nonce: 'two-pass-complete',
+  }, 11);
+  assert.equal(accepted.ok, true);
+});
+
+Deno.test('Drawing-prelude Carrier intents require the current explicit pass token', async () => {
+  const state = stateWithCarrier();
+  const missing = await applyIntent(state, 'p1', request('ACTION', {
+    actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-1', choiceId: 'defender',
+  }), 10);
+  assert.equal(missing.ok, false);
+  assert.equal(missing.rejected?.code, 'BAD_PAYLOAD');
+  assert.strictEqual(missing.state, state);
+
+  const pass2 = structuredClone(state);
+  pass2.gameData.turnData!.chronoswarmRolls = [4];
+  pass2.gameData.turnData!.drawingPreludeByPlayerId!.p1 = {
+    ...pass2.gameData.turnData!.drawingPreludeByPlayerId!.p1,
+    requiredPassCount: 2,
+    activePassIndex: 2,
+    resolvedSourcePowerKeysByPass: { 1: ['car-1:CAR#0'] },
+  };
+  const stale = await applyIntent(pass2, 'p1', request('ACTION', {
+    actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-1', choiceId: 'defender', passIndex: 1,
+  }), 11);
+  assert.equal(stale.ok, false);
+  assert.equal(stale.rejected?.code, 'BAD_PAYLOAD');
+  assert.strictEqual(stale.state, pass2);
 });
 
 Deno.test('empty Drawing-prelude batch is a player payload rejection without mutation', async () => {
@@ -146,7 +189,7 @@ Deno.test('Carrier-produced DEF and depleted CAR participate in the same Drawing
   const carrier = await applyIntent(
     state,
     'p1',
-    request('ACTION', { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-1', choiceId: 'defender' }),
+    request('ACTION', { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-1', choiceId: 'defender', passIndex: 1 }),
     10,
   );
   assert.equal(carrier.ok, true);

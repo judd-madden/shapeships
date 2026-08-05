@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { GameState } from '../../../engine/state/GameStateTypes.ts';
 import {
-  advanceSinglePassDrawingPreludeForPlayer,
+  advanceDrawingPreludeForPlayer,
   createDrawingPreludeEffectId,
   resolveDrawingPreludePowerAction,
   resolveDrawingPreludePowerActionsBatch,
@@ -60,8 +60,15 @@ function createState(sources: Array<{ instanceId: string; shipDefId: string; cha
   } as GameState;
 }
 
-function power(sourceInstanceId: string, choiceId: string) {
-  return { actionType: 'power', actionId: 'CAR#0', sourceInstanceId, choiceId };
+function power(sourceInstanceId: string, choiceId: string, passIndex: 1 | 2 = 1) {
+  return { actionType: 'power', actionId: 'CAR#0', sourceInstanceId, choiceId, passIndex };
+}
+
+function requireTwoPasses(state: GameState, chronoswarmRoll: unknown = 2): GameState {
+  const next = structuredClone(state);
+  next.gameData.turnData!.drawingPreludeByPlayerId!.p1.requiredPassCount = 2;
+  (next.gameData.turnData as any).chronoswarmRolls = [chronoswarmRoll];
+  return next;
 }
 
 Deno.test('Drawing-prelude effect identity is deterministic and pass-aware', () => {
@@ -80,7 +87,7 @@ Deno.test('Drawing-prelude effect identity is deterministic and pass-aware', () 
 
 Deno.test('automatic BUG applies charge and creation, verifies accounting, capture, marker, cue, and privacy', () => {
   const state = createState([{ instanceId: 'bug-1', shipDefId: 'BUG', chargesCurrent: 1 }]);
-  const result = advanceSinglePassDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
+  const result = advanceDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.state.gameData.ships?.p1?.find((ship) => ship.instanceId === 'bug-1')?.chargesCurrent, 0);
@@ -91,14 +98,14 @@ Deno.test('automatic BUG applies charge and creation, verifies accounting, captu
   assert.equal(result.events.every((event) => event.drawingPreludeVisibility?.playerId === 'p1'), true);
   assert.equal(result.events.filter((event) => event.type === 'EFFECT_APPLIED').length, 2);
   assert.equal(result.state.gameData.turnData?.shipActivationCueBatches?.[0].sources[0].sourceInstanceId, 'bug-1');
-  const repeated = advanceSinglePassDrawingPreludeForPlayer({ state: result.state, playerId: 'p1', nowMs: 11 });
+  const repeated = advanceDrawingPreludeForPlayer({ state: result.state, playerId: 'p1', nowMs: 11 });
   assert.equal(repeated.ok, true);
   if (repeated.ok) assert.equal(repeated.changed, false);
 });
 
 Deno.test('status-only completion reports changed when an awaiting prelude has no sources', () => {
   const state = createState([]);
-  const result = advanceSinglePassDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
+  const result = advanceDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.changed, true);
@@ -111,7 +118,7 @@ Deno.test('automatic zero-output BUG and ZEN mark exactly once without capture o
     { instanceId: 'zen-1', shipDefId: 'ZEN' },
   ]);
   state.gameData.turnData!.effectiveDiceRollByPlayerId = { p1: 1 };
-  const result = advanceSinglePassDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
+  const result = advanceDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.deepEqual(result.events, []);
@@ -126,7 +133,7 @@ Deno.test('automatic QUE and recurring ZEN retain source accounting and roll out
       { instanceId: 'zen-1', shipDefId: 'ZEN' },
     ]);
     state.gameData.turnData!.effectiveDiceRollByPlayerId = { p1: roll };
-    const result = advanceSinglePassDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
+    const result = advanceDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
     assert.equal(result.ok, true);
     if (!result.ok) continue;
     const created = result.events
@@ -192,7 +199,7 @@ Deno.test('accepted Hold emits only one private POWER_USED and no cue', () => {
 Deno.test('live advancement forces zero-charge Carrier Hold without events, cues, or legacy marker mutation', () => {
   const state = createState([{ instanceId: 'car-0', shipDefId: 'CAR', chargesCurrent: 0 }]);
   const readinessBefore = structuredClone((state.gameData as any).phaseReadiness);
-  const result = advanceSinglePassDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 20 });
+  const result = advanceDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 20 });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.changed, true);
@@ -210,7 +217,7 @@ Deno.test('strict cue merge preserves automatic occurrence order before later Ca
     { instanceId: 'bug-1', shipDefId: 'BUG', chargesCurrent: 1 },
     { instanceId: 'car-1', shipDefId: 'CAR', chargesCurrent: 1 },
   ]);
-  const advanced = advanceSinglePassDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
+  const advanced = advanceDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
   assert.equal(advanced.ok, true);
   if (!advanced.ok) return;
   const carrier = resolveDrawingPreludePowerAction({ state: advanced.state, playerId: 'p1', action: power('car-1', 'defender'), nowMs: 11 });
@@ -260,4 +267,212 @@ Deno.test('frozen live-definition mismatch and unresolved automatic input are in
   const blocked = resolveDrawingPreludePowerAction({ state: automatic, playerId: 'p1', action: power('car-1', 'defender'), nowMs: 1 });
   assert.equal(blocked.ok, false);
   assert.equal(blocked.ok ? '' : blocked.error.kind, 'invariant');
+});
+
+Deno.test('two-pass advancement completes empty passes, reports transitions, and then no-ops', () => {
+  const state = requireTwoPasses(createState([]), 6);
+  const result = advanceDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.changed, true);
+  assert.equal(result.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.activePassIndex, 2);
+  assert.equal(result.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.status, 'complete');
+
+  const repeated = advanceDrawingPreludeForPlayer({ state: result.state, playerId: 'p1', nowMs: 11 });
+  assert.equal(repeated.ok, true);
+  if (!repeated.ok) return;
+  assert.equal(repeated.changed, false);
+  assert.strictEqual(repeated.state, result.state);
+  assert.deepEqual(repeated.events, []);
+});
+
+Deno.test('BUG, QUE, and recurring ZEN repeat from frozen sources with pass-specific rolls and cues', () => {
+  const state = requireTwoPasses(createState([
+    { instanceId: 'bug-1', shipDefId: 'BUG', chargesCurrent: 1 },
+    { instanceId: 'queen-1', shipDefId: 'QUE' },
+    { instanceId: 'zen-1', shipDefId: 'ZEN' },
+  ]), 3);
+  state.gameData.turnData!.effectiveDiceRollByPlayerId = { p1: 2 };
+
+  const result = advanceDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const playerState = result.state.gameData.turnData?.drawingPreludeByPlayerId?.p1;
+  const expectedKeys = ['bug-1:BUG#0', 'queen-1:QUE#0', 'zen-1:ZEN#1'];
+  assert.deepEqual(playerState?.resolvedSourcePowerKeysByPass[1], expectedKeys);
+  assert.deepEqual(playerState?.resolvedSourcePowerKeysByPass[2], expectedKeys);
+  assert.equal(playerState?.status, 'complete');
+  assert.equal(result.state.gameData.ships?.p1?.find((ship) => ship.instanceId === 'bug-1')?.chargesCurrent, 0);
+  assert.equal(result.state.gameData.turnData?.shipsMadeThisTurnByPlayerId?.p1, 5);
+  assert.equal(result.state.gameData.turnData?.queenCreatedXenitesThisTurnByPlayerId?.p1, 2);
+
+  const createdDefs = result.events
+    .filter((event) => event.type === 'EFFECT_APPLIED' && event.kind === 'CreateShip')
+    .map((event) => event.details.shipDefId);
+  assert.deepEqual(createdDefs, ['XEN', 'XEN', 'XEN', 'XEN', 'ANT']);
+  const effectIds = result.events
+    .filter((event) => event.type === 'EFFECT_APPLIED')
+    .map((event) => event.effectId as string);
+  assert.equal(effectIds.some((id) => id.includes(':pass:1:')), true);
+  assert.equal(effectIds.some((id) => id.includes(':pass:2:')), true);
+
+  const pass1Cue = result.state.gameData.turnData?.shipActivationCueBatches?.find((batch) =>
+    batch.key === createPrivateDrawingPreludeCueKey({ turnNumber: 3, playerId: 'p1', passIndex: 1 })
+  );
+  const pass2Cue = result.state.gameData.turnData?.shipActivationCueBatches?.find((batch) =>
+    batch.key === createPrivateDrawingPreludeCueKey({ turnNumber: 3, playerId: 'p1', passIndex: 2 })
+  );
+  assert.deepEqual(pass1Cue?.sources.map((source) => source.sourceInstanceId), ['bug-1', 'queen-1', 'zen-1']);
+  assert.deepEqual(pass2Cue?.sources.map((source) => source.sourceInstanceId), ['queen-1', 'zen-1']);
+});
+
+Deno.test('malformed pass-2 Chronoswarm rolls reject the whole cross-pass transaction atomically', () => {
+  for (const roll of [undefined, '2', 2.5, 0, 7, Number.NaN]) {
+    const state = requireTwoPasses(
+      createState([{ instanceId: 'bug-1', shipDefId: 'BUG', chargesCurrent: 1 }]),
+      roll,
+    );
+    if (typeof roll === 'undefined') state.gameData.turnData!.chronoswarmRolls = [];
+    const before = structuredClone(state);
+    const result = advanceDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
+    assert.equal(result.ok, false, String(roll));
+    if (result.ok) continue;
+    assert.equal(result.error.code, 'INVALID_CHRONOSWARM_ROLL');
+    assert.strictEqual(result.state, state);
+    assert.deepEqual(result.state, before);
+    assert.deepEqual(result.events, []);
+  }
+});
+
+Deno.test('the same Carrier acts once per pass and stale pass tokens reject without mutation', () => {
+  const state = requireTwoPasses(
+    createState([{ instanceId: 'car-1', shipDefId: 'CAR', chargesCurrent: 2 }]),
+    6,
+  );
+  const pass1 = resolveDrawingPreludePowerAction({
+    state,
+    playerId: 'p1',
+    action: power('car-1', 'defender', 1),
+    nowMs: 20,
+  });
+  assert.equal(pass1.ok, true);
+  if (!pass1.ok) return;
+  assert.equal(pass1.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.activePassIndex, 2);
+  assert.equal(pass1.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.status, 'awaiting_actions');
+  assert.equal(pass1.state.gameData.ships?.p1?.find((ship) => ship.instanceId === 'car-1')?.chargesCurrent, 1);
+
+  const stale = resolveDrawingPreludePowerAction({
+    state: pass1.state,
+    playerId: 'p1',
+    action: power('car-1', 'defender', 1),
+    nowMs: 21,
+  });
+  assert.equal(stale.ok, false);
+  if (!stale.ok) assert.equal(stale.error.code, 'STALE_PRELUDE_PASS');
+  assert.strictEqual(stale.state, pass1.state);
+
+  const pass2 = resolveDrawingPreludePowerAction({
+    state: pass1.state,
+    playerId: 'p1',
+    action: power('car-1', 'defender', 2),
+    nowMs: 22,
+  });
+  assert.equal(pass2.ok, true);
+  if (!pass2.ok) return;
+  assert.equal(pass2.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.status, 'complete');
+  assert.deepEqual(pass2.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.resolvedSourcePowerKeysByPass, {
+    1: ['car-1:CAR#0'],
+    2: ['car-1:CAR#0'],
+  });
+  assert.equal(
+    pass2.events.filter((event) => event.type === 'EFFECT_APPLIED')
+      .every((event) => event.effectId.includes(':pass:2:')),
+    true,
+  );
+});
+
+Deno.test('pass-1 Carrier spending controls pass-2 choices and may force pass-2 Hold in one transaction', () => {
+  const state = requireTwoPasses(
+    createState([{ instanceId: 'car-1', shipDefId: 'CAR', chargesCurrent: 2 }]),
+    4,
+  );
+  const result = resolveDrawingPreludePowerAction({
+    state,
+    playerId: 'p1',
+    action: power('car-1', 'fighter', 1),
+    nowMs: 20,
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  const playerState = result.state.gameData.turnData?.drawingPreludeByPlayerId?.p1;
+  assert.equal(playerState?.activePassIndex, 2);
+  assert.equal(playerState?.status, 'complete');
+  assert.deepEqual(playerState?.resolvedSourcePowerKeysByPass[1], ['car-1:CAR#0']);
+  assert.deepEqual(playerState?.resolvedSourcePowerKeysByPass[2], ['car-1:CAR#0']);
+  assert.equal(result.events.filter((event) => event.type === 'POWER_USED').length, 1);
+  assert.equal(result.state.gameData.turnData?.shipsThatBuildPassUsageByInstanceId, undefined);
+  assert.equal(result.state.gameData.turnData?.chargePowerUsedByInstanceId, undefined);
+});
+
+Deno.test('last pass-1 Carrier action resolves pass-2 automatics before exposing pass-2 Carrier input', () => {
+  const state = requireTwoPasses(createState([
+    { instanceId: 'queen-1', shipDefId: 'QUE' },
+    { instanceId: 'car-1', shipDefId: 'CAR', chargesCurrent: 2 },
+  ]), 5);
+  const prepared = advanceDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
+  assert.equal(prepared.ok, true);
+  if (!prepared.ok) return;
+  assert.equal(prepared.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.activePassIndex, 1);
+
+  const crossed = resolveDrawingPreludePowerAction({
+    state: prepared.state,
+    playerId: 'p1',
+    action: power('car-1', 'defender', 1),
+    nowMs: 11,
+  });
+  assert.equal(crossed.ok, true);
+  if (!crossed.ok) return;
+  const playerState = crossed.state.gameData.turnData?.drawingPreludeByPlayerId?.p1;
+  assert.equal(playerState?.activePassIndex, 2);
+  assert.equal(playerState?.status, 'awaiting_actions');
+  assert.equal(crossed.state.gameData.turnData?.queenCreatedXenitesThisTurnByPlayerId?.p1, 2);
+  assert.deepEqual(playerState?.resolvedSourcePowerKeysByPass[2], ['queen-1:QUE#0']);
+  assert.equal(playerState?.resolvedSourcePowerKeysByPass[2]?.includes('car-1:CAR#0'), false);
+});
+
+Deno.test('a batch that reaches malformed pass 2 rolls back all pass-1 actions and acknowledgements', () => {
+  const state = requireTwoPasses(createState([
+    { instanceId: 'car-1', shipDefId: 'CAR', chargesCurrent: 1 },
+    { instanceId: 'car-2', shipDefId: 'CAR', chargesCurrent: 1 },
+  ]), undefined);
+  state.gameData.turnData!.chronoswarmRolls = [];
+  const before = structuredClone(state);
+  const result = resolveDrawingPreludePowerActionsBatch({
+    state,
+    playerId: 'p1',
+    actions: [power('car-1', 'defender', 1), power('car-2', 'defender', 1)],
+    nowMs: 20,
+  });
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.error.code, 'INVALID_CHRONOSWARM_ROLL');
+  assert.strictEqual(result.state, state);
+  assert.deepEqual(result.state, before);
+  assert.deepEqual(result.events, []);
+});
+
+Deno.test('ships added after freezing do not join pass 2', () => {
+  const state = requireTwoPasses(createState([]), 2);
+  state.gameData.turnData!.drawingPreludeByPlayerId!.p1.activePassIndex = 2;
+  state.gameData.ships!.p1.push({
+    instanceId: 'later-bug',
+    shipDefId: 'BUG',
+    chargesCurrent: 1,
+    createdTurn: 3,
+  });
+  const result = advanceDrawingPreludeForPlayer({ state, playerId: 'p1', nowMs: 10 });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.status, 'complete');
+  assert.equal(result.state.gameData.ships?.p1?.filter((ship) => ship.shipDefId === 'XEN').length, 0);
+  assert.equal(result.state.gameData.ships?.p1?.find((ship) => ship.instanceId === 'later-bug')?.chargesCurrent, 1);
 });

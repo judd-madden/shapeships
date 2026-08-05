@@ -115,6 +115,12 @@ export type PowerActionPayload = {
   choiceId?: PowerChoiceId;
 
   /**
+   * Pass token for pass-scoped power windows such as the Drawing prelude.
+   * Dedicated resolvers decide when this field is required.
+   */
+  passIndex?: 1 | 2;
+
+  /**
    * Reserved for later targeting (not used in Slice 2 yet).
    */
   targetInstanceId?: string;

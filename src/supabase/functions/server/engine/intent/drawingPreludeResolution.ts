@@ -46,6 +46,7 @@ export type DrawingPreludePowerAction = {
   actionId?: string;
   sourceInstanceId?: string;
   choiceId?: string;
+  passIndex?: 1 | 2;
   targetInstanceId?: string;
   targetInstanceIds?: string[];
 };
@@ -64,7 +65,7 @@ function currentPhase(state: Readonly<GameState>) {
   return buildPhaseKey(gameData.currentPhase, gameData.currentSubPhase);
 }
 
-function requireSinglePassPlayer(
+function requireCurrentPlayer(
   state: Readonly<GameState>,
   playerId: string,
 ): { ok: true; playerState: DrawingPreludePlayerState } | { ok: false; error: DrawingPreludeResolutionError } {
@@ -75,10 +76,36 @@ function requireSinglePassPlayer(
   if (!playerState) {
     return { ok: false, error: { kind: 'invariant', code: 'INVALID_REQUESTER_PRELUDE', message: 'Current Drawing-prelude requester state is missing or malformed' } };
   }
-  if (playerState.requiredPassCount !== 1 || playerState.activePassIndex !== 1) {
-    return { ok: false, error: { kind: 'unsupported', code: 'UNSUPPORTED_PRELUDE_PASS', message: 'Two-pass Drawing prelude is deferred' } };
-  }
   return { ok: true, playerState };
+}
+
+function getRollForActivePass(
+  state: Readonly<GameState>,
+  playerId: string,
+  playerState: Readonly<DrawingPreludePlayerState>,
+): { ok: true; roll: number | undefined } | { ok: false; error: DrawingPreludeResolutionError } {
+  if (playerState.activePassIndex === 1) {
+    return { ok: true, roll: getEffectiveDiceRollForPlayer(state as GameState, playerId) };
+  }
+
+  const roll = state.gameData.turnData?.chronoswarmRolls?.[0];
+  if (
+    typeof roll !== 'number' ||
+    !Number.isFinite(roll) ||
+    !Number.isInteger(roll) ||
+    roll < 1 ||
+    roll > 6
+  ) {
+    return {
+      ok: false,
+      error: {
+        kind: 'invariant',
+        code: 'INVALID_CHRONOSWARM_ROLL',
+        message: 'Drawing-prelude pass 2 requires a canonical first Chronoswarm roll from 1 to 6',
+      },
+    };
+  }
+  return { ok: true, roll };
 }
 
 function effectNamespace(
@@ -169,6 +196,7 @@ function loadAutomaticEffects(
   playerId: string,
   playerState: DrawingPreludePlayerState,
   source: DrawingPreludeSourcePower,
+  roll: number | undefined,
 ): { effects: Effect[]; namespace: string } | null {
   const live = validateAutomaticSource(state, playerId, source);
   if (!live) return null;
@@ -195,7 +223,7 @@ function loadAutomaticEffects(
     ? createQueenSourceEffects(common)
     : createRecurringZenithSourceEffects({
         ...common,
-        roll: getEffectiveDiceRollForPlayer(state, playerId),
+        roll,
       });
   return { effects, namespace };
 }
@@ -213,13 +241,13 @@ function allResolved(playerState: DrawingPreludePlayerState): boolean {
   );
 }
 
-export function advanceSinglePassDrawingPreludeForPlayer(args: {
+export function advanceDrawingPreludeForPlayer(args: {
   state: GameState;
   playerId: string;
   nowMs: number;
 }): DrawingPreludeResolutionResult {
   const originalState = args.state;
-  const required = requireSinglePassPlayer(originalState, args.playerId);
+  const required = requireCurrentPlayer(originalState, args.playerId);
   if (!required.ok) return fail(originalState, required.error.kind, required.error.code, required.error.message);
   if (required.playerState.status === 'complete') {
     return { ok: true, state: originalState, events: [], changed: false };
@@ -227,83 +255,126 @@ export function advanceSinglePassDrawingPreludeForPlayer(args: {
 
   let working = structuredClone(originalState) as GameState;
   const emitted: any[] = [];
-  const cueSources: ShipActivationCueSource[] = [];
   let changed = false;
 
-  for (const frozenSource of required.playerState.eligibleSourcePowers) {
-    const livePlayerState = getCurrentDrawingPreludePlayerState(working, args.playerId)!;
-    if (isDrawingPreludeSourceResolved(livePlayerState, frozenSource.key)) continue;
-    if (frozenSource.mode !== 'automatic') continue;
-
-    const prepared = loadAutomaticEffects(working, args.playerId, livePlayerState, frozenSource);
-    if (!prepared) return fail(originalState, 'invariant', 'INVALID_AUTOMATIC_SOURCE', `Frozen automatic source is invalid: ${frozenSource.key}`);
-    if (prepared.effects.length > 0) {
-      const before = working;
-      const applied = applyEffects(working, prepared.effects);
-      const verified = verifyAppliedEffectsOneToOne({
-        expectedEffects: prepared.effects,
-        effectEvents: applied.events,
-        effectIdNamespace: prepared.namespace,
-      });
-      if (!verified.ok) return fail(originalState, 'invariant', verified.code, verified.message);
-      working = applied.state;
-      incrementVerifiedCreatedCounts(working, countVerifiedCreatedShipsByTargetPlayerId(verified.matches));
-      emitted.push(...applied.events);
-      emitted.push(...createBattleLogBuildCaptureEventsFromResolution({
-        stateBeforeResolution: before,
-        turnNumber: livePlayerState.turnNumber,
-        playerId: args.playerId,
-        effects: prepared.effects,
-        effectEvents: applied.events,
-      }));
-      cueSources.push({ playerId: args.playerId, sourceInstanceId: frozenSource.sourceInstanceId });
+  for (let passIteration = 0; passIteration < 2; passIteration += 1) {
+    let livePlayerState = getCurrentDrawingPreludePlayerState(working, args.playerId);
+    if (!livePlayerState) {
+      return fail(originalState, 'invariant', 'INVALID_REQUESTER_PRELUDE', 'Drawing-prelude state became malformed');
     }
-    if (!markResolvedInPlace(working, args.playerId, frozenSource.key)) {
-      return fail(originalState, 'invariant', 'MARKER_FAILURE', 'Could not record automatic source resolution');
+    const passIndex = livePlayerState.activePassIndex;
+    const passRoll = getRollForActivePass(working, args.playerId, livePlayerState);
+    if (!passRoll.ok) {
+      return fail(originalState, passRoll.error.kind, passRoll.error.code, passRoll.error.message);
     }
-    changed = true;
-  }
+    const cueSources: ShipActivationCueSource[] = [];
 
-  let livePlayerState = getCurrentDrawingPreludePlayerState(working, args.playerId);
-  if (!livePlayerState) return fail(originalState, 'invariant', 'INVALID_REQUESTER_PRELUDE', 'Drawing-prelude state became malformed');
-  for (const source of livePlayerState.eligibleSourcePowers) {
-    if (source.mode !== 'interactive' || isDrawingPreludeSourceResolved(livePlayerState, source.key)) continue;
-    const validated = validateFrozenCarrierDrawingPreludeSource(working, args.playerId, source);
-    if (!validated.ok) return fail(originalState, 'invariant', validated.error.code, validated.error.message);
-    const legality = getCarrierDrawingPreludeChoiceLegality(working, args.playerId, source);
-    if (!legality.ok) return fail(originalState, 'invariant', legality.error.code, legality.error.message);
-    if (legality.value.holdOnly) {
-      if (!markResolvedInPlace(working, args.playerId, source.key)) {
-        return fail(originalState, 'invariant', 'MARKER_FAILURE', 'Could not record forced Carrier Hold');
+    for (const frozenSource of livePlayerState.eligibleSourcePowers) {
+      const currentPlayerState = getCurrentDrawingPreludePlayerState(working, args.playerId);
+      if (!currentPlayerState) {
+        return fail(originalState, 'invariant', 'INVALID_REQUESTER_PRELUDE', 'Drawing-prelude state became malformed');
+      }
+      if (isDrawingPreludeSourceResolved(currentPlayerState, frozenSource.key, passIndex)) continue;
+      if (frozenSource.mode !== 'automatic') continue;
+
+      const prepared = loadAutomaticEffects(
+        working,
+        args.playerId,
+        currentPlayerState,
+        frozenSource,
+        passRoll.roll,
+      );
+      if (!prepared) {
+        return fail(originalState, 'invariant', 'INVALID_AUTOMATIC_SOURCE', `Frozen automatic source is invalid: ${frozenSource.key}`);
+      }
+      if (prepared.effects.length > 0) {
+        const before = working;
+        const applied = applyEffects(working, prepared.effects);
+        const verified = verifyAppliedEffectsOneToOne({
+          expectedEffects: prepared.effects,
+          effectEvents: applied.events,
+          effectIdNamespace: prepared.namespace,
+        });
+        if (!verified.ok) return fail(originalState, 'invariant', verified.code, verified.message);
+        working = applied.state;
+        incrementVerifiedCreatedCounts(working, countVerifiedCreatedShipsByTargetPlayerId(verified.matches));
+        emitted.push(...applied.events);
+        emitted.push(...createBattleLogBuildCaptureEventsFromResolution({
+          stateBeforeResolution: before,
+          turnNumber: currentPlayerState.turnNumber,
+          playerId: args.playerId,
+          effects: prepared.effects,
+          effectEvents: applied.events,
+        }));
+        cueSources.push({ playerId: args.playerId, sourceInstanceId: frozenSource.sourceInstanceId });
+      }
+      if (!markResolvedInPlace(working, args.playerId, frozenSource.key)) {
+        return fail(originalState, 'invariant', 'MARKER_FAILURE', 'Could not record automatic source resolution');
       }
       changed = true;
-      livePlayerState = getCurrentDrawingPreludePlayerState(working, args.playerId)!;
     }
-  }
 
-  livePlayerState = getCurrentDrawingPreludePlayerState(working, args.playerId);
-  if (!livePlayerState) return fail(originalState, 'invariant', 'INVALID_REQUESTER_PRELUDE', 'Drawing-prelude state became malformed');
-  const nextStatus = allResolved(livePlayerState) ? 'complete' : 'awaiting_actions';
-  const canonicalPlayerState = working.gameData.turnData!.drawingPreludeByPlayerId![args.playerId];
-  if (canonicalPlayerState.status !== nextStatus) changed = true;
-  canonicalPlayerState.status = nextStatus;
+    livePlayerState = getCurrentDrawingPreludePlayerState(working, args.playerId);
+    if (!livePlayerState) {
+      return fail(originalState, 'invariant', 'INVALID_REQUESTER_PRELUDE', 'Drawing-prelude state became malformed');
+    }
+    for (const source of livePlayerState.eligibleSourcePowers) {
+      if (
+        source.mode !== 'interactive' ||
+        isDrawingPreludeSourceResolved(livePlayerState, source.key, passIndex)
+      ) continue;
+      const validated = validateFrozenCarrierDrawingPreludeSource(working, args.playerId, source);
+      if (!validated.ok) return fail(originalState, 'invariant', validated.error.code, validated.error.message);
+      const legality = getCarrierDrawingPreludeChoiceLegality(working, args.playerId, source);
+      if (!legality.ok) return fail(originalState, 'invariant', legality.error.code, legality.error.message);
+      if (legality.value.holdOnly) {
+        if (!markResolvedInPlace(working, args.playerId, source.key)) {
+          return fail(originalState, 'invariant', 'MARKER_FAILURE', 'Could not record forced Carrier Hold');
+        }
+        changed = true;
+        livePlayerState = getCurrentDrawingPreludePlayerState(working, args.playerId)!;
+      }
+    }
 
-  if (cueSources.length > 0) {
-    const merged = mergePrivateDrawingPreludeCueBatchStrict(working, {
-      key: createPrivateDrawingPreludeCueKey({
+    if (cueSources.length > 0) {
+      const merged = mergePrivateDrawingPreludeCueBatchStrict(working, {
+        key: createPrivateDrawingPreludeCueKey({
+          turnNumber: livePlayerState.turnNumber,
+          playerId: args.playerId,
+          passIndex,
+        }),
         turnNumber: livePlayerState.turnNumber,
         playerId: args.playerId,
-        passIndex: livePlayerState.activePassIndex,
-      }),
-      turnNumber: livePlayerState.turnNumber,
-      playerId: args.playerId,
-      sources: cueSources,
-    });
-    if (!merged.ok) return fail(originalState, 'invariant', merged.error.code, merged.error.message);
-    working = merged.state;
+        sources: cueSources,
+      });
+      if (!merged.ok) return fail(originalState, 'invariant', merged.error.code, merged.error.message);
+      working = merged.state;
+    }
+
+    livePlayerState = getCurrentDrawingPreludePlayerState(working, args.playerId);
+    if (!livePlayerState) {
+      return fail(originalState, 'invariant', 'INVALID_REQUESTER_PRELUDE', 'Drawing-prelude state became malformed');
+    }
+    const canonicalPlayerState = working.gameData.turnData!.drawingPreludeByPlayerId![args.playerId];
+    if (!allResolved(livePlayerState)) {
+      if (canonicalPlayerState.status !== 'awaiting_actions') changed = true;
+      canonicalPlayerState.status = 'awaiting_actions';
+      return { ok: true, state: working, events: markOwnerPrivate(emitted, args.playerId), changed };
+    }
+
+    if (passIndex === 1 && livePlayerState.requiredPassCount === 2) {
+      canonicalPlayerState.activePassIndex = 2;
+      canonicalPlayerState.status = 'awaiting_actions';
+      changed = true;
+      continue;
+    }
+
+    if (canonicalPlayerState.status !== 'complete') changed = true;
+    canonicalPlayerState.status = 'complete';
+    return { ok: true, state: working, events: markOwnerPrivate(emitted, args.playerId), changed };
   }
 
-  return { ok: true, state: working, events: markOwnerPrivate(emitted, args.playerId), changed };
+  return fail(originalState, 'invariant', 'PRELUDE_PASS_BOUND_EXCEEDED', 'Drawing prelude exceeded its two-pass advancement bound');
 }
 
 function resolveCarrierActions(args: {
@@ -315,7 +386,7 @@ function resolveCarrierActions(args: {
 }): DrawingPreludeResolutionResult {
   const originalState = args.state;
   if (args.actions.length === 0) return fail(originalState, 'player', 'EMPTY_BATCH', 'Drawing-prelude batch cannot be empty');
-  const required = requireSinglePassPlayer(originalState, args.playerId);
+  const required = requireCurrentPlayer(originalState, args.playerId);
   if (!required.ok) return fail(originalState, required.error.kind, required.error.code, required.error.message);
   const seen = new Set<string>();
   for (const action of args.actions) {
@@ -326,9 +397,13 @@ function resolveCarrierActions(args: {
       !action.sourceInstanceId ||
       typeof action.choiceId !== 'string' ||
       !action.choiceId ||
+      (action.passIndex !== 1 && action.passIndex !== 2) ||
       action.targetInstanceId !== undefined ||
       action.targetInstanceIds !== undefined
     ) return fail(originalState, 'player', 'INVALID_CARRIER_ACTION', 'Only complete CAR#0 power actions are accepted');
+    if (action.passIndex !== required.playerState.activePassIndex) {
+      return fail(originalState, 'player', 'STALE_PRELUDE_PASS', 'Carrier action does not belong to the current Drawing-prelude pass');
+    }
     if (seen.has(action.sourceInstanceId)) return fail(originalState, 'player', 'DUPLICATE_BATCH_SOURCE', 'A Carrier source may appear only once per batch');
     seen.add(action.sourceInstanceId);
   }
@@ -346,6 +421,9 @@ function resolveCarrierActions(args: {
   for (const action of args.actions) {
     const playerState = getCurrentDrawingPreludePlayerState(working, args.playerId);
     if (!playerState) return fail(originalState, 'invariant', 'INVALID_REQUESTER_PRELUDE', 'Current Drawing-prelude requester state is malformed');
+    if (action.passIndex !== playerState.activePassIndex) {
+      return fail(originalState, 'player', 'STALE_PRELUDE_PASS', 'Carrier action does not belong to the current Drawing-prelude pass');
+    }
     const source = playerState.eligibleSourcePowers.find((candidate) =>
       candidate.sourceInstanceId === action.sourceInstanceId
     );
@@ -431,7 +509,7 @@ function resolveCarrierActions(args: {
   }
 
   if (args.batch) emitted.push({ type: 'POWERS_BATCH_SUBMITTED', playerId: args.playerId, phaseKey: 'build.drawing', count: args.actions.length, atMs: args.nowMs });
-  const advanced = advanceSinglePassDrawingPreludeForPlayer({ state: working, playerId: args.playerId, nowMs: args.nowMs });
+  const advanced = advanceDrawingPreludeForPlayer({ state: working, playerId: args.playerId, nowMs: args.nowMs });
   if (!advanced.ok) return fail(originalState, advanced.error.kind, advanced.error.code, advanced.error.message);
   return {
     ok: true,

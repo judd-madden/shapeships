@@ -134,7 +134,7 @@ Deno.test("Simulacrum canonical target classification accepts all Basics includi
     );
   }
 
-  for (const shipDefId of ["GUA", "SLIF"]) {
+  for (const shipDefId of ["GUA", "QUE", "SLIF"]) {
     const state = createState({
       p2Snapshot: [ship(`target-${shipDefId}`, shipDefId)],
     });

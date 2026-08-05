@@ -2136,17 +2136,6 @@ async function handleBuildSubmit(
         },
       };
     }
-    if (playerPrelude.requiredPassCount !== 1 || playerPrelude.activePassIndex !== 1) {
-      return {
-        ok: false,
-        state,
-        events: [],
-        rejected: {
-          code: RejectionCode.DRAWING_PRELUDE_UNSUPPORTED,
-          message: 'Two-pass Drawing prelude is deferred',
-        },
-      };
-    }
     if (playerPrelude.status !== 'complete') {
       return {
         ok: false,

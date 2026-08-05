@@ -115,6 +115,21 @@ Deno.test('Requester summaries require settled semantics and remain owner-only',
   });
   assert.equal(projectDrawingPreludeRequesterSummary(state, 'spec'), null);
 
+  state.gameData.turnData!.drawingPreludeByPlayerId!.p1 = {
+    turnNumber: 5,
+    requiredPassCount: 2,
+    activePassIndex: 2,
+    status: 'complete',
+    eligibleSourcePowers: [],
+    resolvedSourcePowerKeysByPass: {},
+  };
+  assert.deepEqual(projectDrawingPreludeRequesterSummary(state, 'p1'), {
+    turnNumber: 5,
+    status: 'complete',
+    passIndex: 2,
+    passCount: 2,
+  });
+
   state.gameData.ships!.p1 = [
     { instanceId: 'carrier', shipDefId: 'CAR', createdTurn: 5, chargesCurrent: 1 },
   ];
@@ -179,7 +194,7 @@ Deno.test('events emitted by live Carrier resolution are owner-only and sanitize
   const resolved = resolveDrawingPreludePowerAction({
     state,
     playerId: 'p1',
-    action: { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-live', choiceId: 'defender' },
+    action: { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-live', choiceId: 'defender', passIndex: 1 },
     nowMs: 10,
   });
   assert.equal(resolved.ok, true);
@@ -192,6 +207,39 @@ Deno.test('events emitted by live Carrier resolution are owner-only and sanitize
   assert.equal(ownerEvents.some((event) => 'drawingPreludeVisibility' in event), false);
   assert.deepEqual(filterDrawingPreludeEventsForViewer(resolved.state, 'p2', resolved.events), []);
   assert.deepEqual(filterDrawingPreludeEventsForViewer(resolved.state, 'spec', resolved.events), []);
+});
+
+Deno.test('pass-2 Carrier events remain owner-private and use the pass-2 cue key', () => {
+  const state = createProjectedState();
+  (state.gameData as any).currentPhase = 'build';
+  (state.gameData as any).currentSubPhase = 'drawing';
+  state.gameData.ships!.p1 = [{ instanceId: 'car-live', shipDefId: 'CAR', chargesCurrent: 1, createdTurn: 4 }];
+  state.gameData.turnData!.chronoswarmRolls = [4];
+  state.gameData.turnData!.drawingPreludeByPlayerId!.p1 = {
+    turnNumber: 5,
+    requiredPassCount: 2,
+    activePassIndex: 2,
+    status: 'awaiting_actions',
+    eligibleSourcePowers: [{ key: 'car-live:CAR#0', sourceInstanceId: 'car-live', shipDefId: 'CAR', rawPowerIndex: 0, mode: 'interactive' }],
+    resolvedSourcePowerKeysByPass: { 1: ['car-live:CAR#0'] },
+  };
+  const resolved = resolveDrawingPreludePowerAction({
+    state,
+    playerId: 'p1',
+    action: { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-live', choiceId: 'defender', passIndex: 2 },
+    nowMs: 10,
+  });
+  assert.equal(resolved.ok, true);
+  if (!resolved.ok) return;
+  assert.equal(resolved.events.every((event) => event.drawingPreludeVisibility?.playerId === 'p1'), true);
+  assert.deepEqual(filterDrawingPreludeEventsForViewer(resolved.state, 'p2', resolved.events), []);
+  assert.deepEqual(filterDrawingPreludeEventsForViewer(resolved.state, 'spec', resolved.events), []);
+  assert.equal(
+    resolved.state.gameData.turnData?.shipActivationCueBatches?.some((batch) =>
+      batch.key === createPrivateDrawingPreludeCueKey({ turnNumber: 5, playerId: 'p1', passIndex: 2 })
+    ),
+    true,
+  );
 });
 
 Deno.test('Private cue filtering is limited to exact current-turn Drawing-prelude keys', () => {

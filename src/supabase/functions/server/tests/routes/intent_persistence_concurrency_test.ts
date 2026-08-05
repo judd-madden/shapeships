@@ -171,6 +171,34 @@ function createDrawingPreludeCarrierState(gameId: string) {
   return state;
 }
 
+function createCrossPassDrawingPreludeState(gameId: string) {
+  const state: any = createBuildState(gameId);
+  state.gameData.ships.p1 = [
+    { instanceId: 'car-1', shipDefId: 'CAR', chargesCurrent: 1, createdTurn: 0 },
+    { instanceId: 'queen-1', shipDefId: 'QUE', createdTurn: 0 },
+  ];
+  const eligibleSourcePowers = [
+    { key: 'car-1:CAR#0', sourceInstanceId: 'car-1', shipDefId: 'CAR', rawPowerIndex: 0, mode: 'interactive' },
+    { key: 'queen-1:QUE#0', sourceInstanceId: 'queen-1', shipDefId: 'QUE', rawPowerIndex: 0, mode: 'automatic' },
+  ];
+  state.gameData.turnData.chronoswarmRolls = [3];
+  state.gameData.turnData.drawingPreludeByPlayerId = {
+    p1: {
+      turnNumber: 1,
+      requiredPassCount: 2,
+      activePassIndex: 1,
+      status: 'awaiting_actions',
+      eligibleSourcePowers,
+      resolvedSourcePowerKeysByPass: { 1: ['queen-1:QUE#0'] },
+    },
+  };
+  state.gameData.turnData.buildDrawingPublicFleetByPlayerId = {
+    p1: structuredClone(state.gameData.ships.p1),
+    p2: [],
+  };
+  return state;
+}
+
 function createIndependentDrawingPreludeSubmissionState(gameId: string) {
   const state: any = createBuildState(gameId);
   state.gameData.ships.p2 = [{ instanceId: 'p2-car', shipDefId: 'CAR', chargesCurrent: 1, createdTurn: 0 }];
@@ -286,7 +314,7 @@ Deno.test('concurrent duplicate Drawing-prelude Carrier action commits once and 
   const body = {
     intentType: 'ACTION' as const,
     nonce: 'carrier-defender',
-    payload: { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-1', choiceId: 'defender' },
+    payload: { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-1', choiceId: 'defender', passIndex: 1 },
   };
 
   const responses = await Promise.all([
@@ -341,6 +369,58 @@ Deno.test('concurrent duplicate Drawing-prelude Carrier action commits once and 
   assert.equal(persistence.writes.filter((write) => write.key === `game_${gameId}`).length, 1);
 });
 
+Deno.test('one Carrier intent crosses into pass 2, folds private captures, and persists exactly one revision', async () => {
+  const gameId = 'drawing-prelude-cross-pass';
+  const persistence = new ScriptedPersistence();
+  persistence.store.set(`game_${gameId}`, createCrossPassDrawingPreludeState(gameId));
+  const app = createApp(persistence);
+  const body = {
+    intentType: 'ACTION' as const,
+    nonce: 'cross-pass-carrier',
+    payload: {
+      actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-1',
+      choiceId: 'defender', passIndex: 1,
+    },
+  };
+
+  const response = await intentRequest(app, gameId, 'p1', body);
+  const responseJson = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(responseJson.events.some((event: any) => 'drawingPreludeVisibility' in event), false);
+  assert.equal(responseJson.events.filter((event: any) => event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED').length, 2);
+
+  const committed = persistence.store.get(`game_${gameId}`);
+  const playerState = committed.gameData.turnData.drawingPreludeByPlayerId.p1;
+  assert.equal(committed.stateRevision, 6);
+  assert.equal(playerState.activePassIndex, 2);
+  assert.equal(playerState.status, 'complete');
+  assert.deepEqual(playerState.resolvedSourcePowerKeysByPass, {
+    1: ['car-1:CAR#0', 'queen-1:QUE#0'],
+    2: ['car-1:CAR#0', 'queen-1:QUE#0'],
+  });
+  assert.deepEqual(
+    committed.gameData.turnData.shipActivationCueBatches.map((batch: any) => batch.key),
+    [
+      'ship-activation:1:build.drawing:drawing-prelude:p1:pass:1',
+      'ship-activation:1:build.drawing:drawing-prelude:p1:pass:2',
+    ],
+  );
+  assert.equal(
+    committed.battleLogScratch.currentTurnCapture.buildAtomsByPlayerId.p1
+      .filter((atom: any) => atom.kind === 'produced_build').length,
+    2,
+  );
+  assert.equal(persistence.writes.filter((write) => write.key === `game_${gameId}`).length, 1);
+
+  const replay = await intentRequest(app, gameId, 'p1', body);
+  const replayJson = await replay.json();
+  assert.equal(replay.status, 400);
+  assert.equal(replayJson.rejected.code, 'BAD_PAYLOAD');
+  assert.deepEqual(replayJson.events, []);
+  assert.equal(persistence.store.get(`game_${gameId}`).stateRevision, 6);
+  assert.equal(persistence.writes.filter((write) => write.key === `game_${gameId}`).length, 1);
+});
+
 Deno.test('complete requester may submit while opponent Drawing prelude remains awaiting', async () => {
   const gameId = 'independent-drawing-prelude-submit';
   const persistence = new ScriptedPersistence();
@@ -362,6 +442,30 @@ Deno.test('complete requester may submit while opponent Drawing prelude remains 
   assert.equal(storedAfterSubmit.gameData.turnData.drawingPreludeByPlayerId.p2.status, 'awaiting_actions');
   assert.equal(storedAfterSubmit.gameData.currentSubPhase, 'drawing');
   assert.equal(storedAfterSubmit.gameData.ships.p1.some((ship: any) => ship.shipDefId === 'DEF'), false);
+});
+
+Deno.test('complete requester may submit while opponent awaits pass 2', async () => {
+  const gameId = 'independent-drawing-prelude-submit-pass-2';
+  const persistence = new ScriptedPersistence();
+  const state: any = createIndependentDrawingPreludeSubmissionState(gameId);
+  state.gameData.turnData.chronoswarmRolls = [2];
+  state.gameData.turnData.drawingPreludeByPlayerId.p2.requiredPassCount = 2;
+  state.gameData.turnData.drawingPreludeByPlayerId.p2.activePassIndex = 2;
+  state.gameData.turnData.drawingPreludeByPlayerId.p2.resolvedSourcePowerKeysByPass = {
+    1: ['p2-car:CAR#0'],
+  };
+  persistence.store.set(`game_${gameId}`, state);
+
+  const response = await intentRequest(createApp(persistence), gameId, 'p1', {
+    intentType: 'BUILD_SUBMIT',
+    nonce: 'p1-independent-pass-2',
+    payload: { builds: [] },
+  });
+  assert.equal(response.status, 200);
+  const stored = persistence.store.get(`game_${gameId}`);
+  assert.equal(stored.gameData.turnData.drawingPreludeByPlayerId.p2.activePassIndex, 2);
+  assert.equal(stored.gameData.turnData.drawingPreludeByPlayerId.p2.status, 'awaiting_actions');
+  assert.equal(stored.gameData.currentSubPhase, 'drawing');
 });
 
 Deno.test('concurrent p1 and p2 BUILD_SUBMIT requests retry CAS and preserve both accepted mutations', async () => {

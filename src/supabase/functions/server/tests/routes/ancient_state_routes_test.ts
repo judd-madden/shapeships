@@ -1167,9 +1167,30 @@ Deno.test('/game-state projects strict Drawing-prelude Carrier actions from froz
   const getState = fixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
   const body = await responseJson(await getState(createContext({ params: { gameId: 'drawing-prelude-actions' } })));
   assert.deepEqual(body.requester.availableActions, [
-    { kind: 'choice', actionId: 'CAR#0', shipDefId: 'CAR', sourceInstanceId: 'car-low', choices: [{ choiceId: 'defender' }, { choiceId: 'hold' }] },
-    { kind: 'choice', actionId: 'CAR#0', shipDefId: 'CAR', sourceInstanceId: 'car-full', choices: [{ choiceId: 'defender' }, { choiceId: 'fighter' }, { choiceId: 'hold' }] },
+    { kind: 'choice', actionId: 'CAR#0', shipDefId: 'CAR', sourceInstanceId: 'car-low', passIndex: 1, choices: [{ choiceId: 'defender' }, { choiceId: 'hold' }] },
+    { kind: 'choice', actionId: 'CAR#0', shipDefId: 'CAR', sourceInstanceId: 'car-full', passIndex: 1, choices: [{ choiceId: 'defender' }, { choiceId: 'fighter' }, { choiceId: 'hold' }] },
   ]);
+
+  state.gameData.turnData.drawingPreludeByPlayerId.p1.requiredPassCount = 2;
+  state.gameData.turnData.drawingPreludeByPlayerId.p1.activePassIndex = 2;
+  state.gameData.turnData.drawingPreludeByPlayerId.p1.resolvedSourcePowerKeysByPass = {
+    1: ['car-low:CAR#0', 'car-full:CAR#0'],
+  };
+  state.gameData.turnData.chronoswarmRolls = [4];
+  fixture.store.set('game_drawing-prelude-actions', structuredClone(state));
+  const beforePass2Get = structuredClone(fixture.store.get('game_drawing-prelude-actions'));
+  const pass2Body = await responseJson(await getState(createContext({ params: { gameId: 'drawing-prelude-actions' } })));
+  assert.deepEqual(pass2Body.requester.drawingPrelude, {
+    turnNumber: 3,
+    status: 'awaiting_actions',
+    passIndex: 2,
+    passCount: 2,
+  });
+  assert.deepEqual(pass2Body.requester.availableActions, [
+    { kind: 'choice', actionId: 'CAR#0', shipDefId: 'CAR', sourceInstanceId: 'car-low', passIndex: 2, choices: [{ choiceId: 'defender' }, { choiceId: 'hold' }] },
+    { kind: 'choice', actionId: 'CAR#0', shipDefId: 'CAR', sourceInstanceId: 'car-full', passIndex: 2, choices: [{ choiceId: 'defender' }, { choiceId: 'fighter' }, { choiceId: 'hold' }] },
+  ]);
+  assert.deepEqual(fixture.store.get('game_drawing-prelude-actions'), beforePass2Get);
 
   state.gameData.ships.p1[1].shipDefId = 'DEF';
   fixture.store.set('game_drawing-prelude-actions', state);

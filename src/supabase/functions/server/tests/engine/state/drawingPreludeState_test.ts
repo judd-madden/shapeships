@@ -419,3 +419,37 @@ Deno.test('frozen Carrier validation binds live definition, raw coordinate, timi
     rawPower.structuredPowers = priorOverlay;
   }
 });
+
+Deno.test('Drawing-prelude pass count freezes zero, one, and multiple Chronoswarms to one or two passes', () => {
+  for (const [count, expectedPassCount] of [[0, 1], [1, 2], [4, 2]] as const) {
+    const state = createState({ chronoswarms: { p1: count, p2: 0 } });
+    const candidate = candidateFor(state);
+    assert.equal(candidate.playerStateByPlayerId.p1.requiredPassCount, expectedPassCount);
+
+    state.gameData.turnData!.chronoswarmCountByPlayerId!.p1 = count === 0 ? 1 : 0;
+    state.gameData.ships!.p1.push(ship('later-chrono', 'CHR', { createdTurn: 5 }));
+    assert.equal(candidate.playerStateByPlayerId.p1.requiredPassCount, expectedPassCount);
+  }
+});
+
+Deno.test('frozen eligibility follows the current controller fleet across species', () => {
+  const state = createState({
+    p1Ships: [
+      ship('foreign-bug', 'BUG', { createdTurn: 4, chargesCurrent: 1 }),
+      ship('foreign-queen', 'QUE', { createdTurn: 4 }),
+      ship('foreign-zen', 'ZEN', { createdTurn: 4 }),
+    ],
+    p2Ships: [
+      ship('foreign-carrier', 'CAR', { createdTurn: 5, chargesCurrent: 2 }),
+    ],
+  });
+  const candidate = candidateFor(state);
+  assert.deepEqual(
+    candidate.playerStateByPlayerId.p1.eligibleSourcePowers.map((source) => source.key),
+    ['foreign-bug:BUG#0', 'foreign-queen:QUE#0', 'foreign-zen:ZEN#1'],
+  );
+  assert.deepEqual(
+    candidate.playerStateByPlayerId.p2.eligibleSourcePowers.map((source) => source.key),
+    ['foreign-carrier:CAR#0'],
+  );
+});

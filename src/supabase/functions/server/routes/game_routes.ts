@@ -680,17 +680,19 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
     const playerPrelude = getCurrentDrawingPreludePlayerState(state, playerId);
     if (
       !playerPrelude ||
-      playerPrelude.requiredPassCount !== 1 ||
-      playerPrelude.activePassIndex !== 1 ||
       playerPrelude.status !== 'awaiting_actions'
     ) return [];
     if (playerPrelude.eligibleSourcePowers.some((source) =>
-      source.mode === 'automatic' && !isDrawingPreludeSourceResolved(playerPrelude, source.key)
+      source.mode === 'automatic' &&
+      !isDrawingPreludeSourceResolved(playerPrelude, source.key, playerPrelude.activePassIndex)
     )) return [];
 
     const actions: any[] = [];
     for (const source of playerPrelude.eligibleSourcePowers) {
-      if (source.mode !== 'interactive' || isDrawingPreludeSourceResolved(playerPrelude, source.key)) continue;
+      if (
+        source.mode !== 'interactive' ||
+        isDrawingPreludeSourceResolved(playerPrelude, source.key, playerPrelude.activePassIndex)
+      ) continue;
       const validated = validateFrozenCarrierDrawingPreludeSource(state, playerId, source);
       if (!validated.ok) return [];
       const legality = getCarrierDrawingPreludeChoiceLegality(state, playerId, source);
@@ -701,6 +703,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
         actionId: 'CAR#0',
         shipDefId: 'CAR',
         sourceInstanceId: source.sourceInstanceId,
+        passIndex: playerPrelude.activePassIndex,
         choices: [
           ...legality.value.nonHoldChoiceIds.map((choiceId) => ({ choiceId })),
           { choiceId: 'hold' },
