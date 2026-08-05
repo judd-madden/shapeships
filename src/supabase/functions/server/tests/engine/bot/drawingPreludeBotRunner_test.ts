@@ -5,18 +5,15 @@ import {
   runBotsUntilSettled,
 } from '../../../engine/bot/botRunner.ts';
 import type { AuthoredBotPlan } from '../../../engine/bot/botTypes.ts';
-import { applyIntent } from '../../../engine/intent/IntentReducer.ts';
 import { advanceDrawingPreludeForPlayer } from '../../../engine/intent/drawingPreludeResolution.ts';
 import { projectDrawingPreludeCarrierActions } from '../../../engine/state/drawingPreludeProjection.ts';
 
-function createBotDrawingState(args: {
+function createCarrierBotDrawingState(args: {
   twoBots?: boolean;
-  passCount?: 1 | 2;
   carrierCount?: number;
   charges?: number;
 } = {}): any {
   const twoBots = args.twoBots === true;
-  const passCount = args.passCount ?? 2;
   const carrierCount = args.carrierCount ?? 1;
   const charges = args.charges ?? 4;
   const playerIds = twoBots ? ['p1', 'p2'] : ['p1', 'p2'];
@@ -41,7 +38,7 @@ function createBotDrawingState(args: {
     }));
     return [playerId, {
       turnNumber: 3,
-      requiredPassCount: passCount,
+      requiredPassCount: 1,
       activePassIndex: 1,
       status: eligibleSourcePowers.length > 0 ? 'awaiting_actions' : 'complete',
       eligibleSourcePowers,
@@ -82,7 +79,8 @@ function createBotDrawingState(args: {
         currentMajorPhase: 'build',
         currentSubPhase: 'drawing',
         effectiveDiceRollByPlayerId: { p1: 4, p2: 4 },
-        chronoswarmRolls: [4],
+        chronoswarmRolls: [],
+        chronoswarmCountByPlayerId: { p1: 0, p2: 0 },
         commitments: {},
         drawingPreludeByPlayerId,
         buildDrawingPublicFleetByPlayerId: structuredClone(ships),
@@ -94,8 +92,46 @@ function createBotDrawingState(args: {
   };
 }
 
+function createLegalHumanXeniteBotDrawingState(): any {
+  const state = createCarrierBotDrawingState({
+    twoBots: true,
+    carrierCount: 2,
+    charges: 2,
+  });
+  const xeniteFleet = [
+    { instanceId: 'p2-chronoswarm', shipDefId: 'CHR', createdTurn: 1 },
+    { instanceId: 'p2-queen', shipDefId: 'QUE', createdTurn: 1 },
+  ];
+
+  state.players[1].faction = 'xenite';
+  state.controllersByPlayerId.p2 = {
+    kind: 'bot',
+    speciesId: 'XEN',
+    chosenPlanId: 'xen_chrono_queen_standard',
+  };
+  state.gameData.ships.p2 = xeniteFleet;
+  state.gameData.turnData.buildDrawingPublicFleetByPlayerId.p2 = structuredClone(xeniteFleet);
+  state.gameData.turnData.chronoswarmRolls = [4];
+  state.gameData.turnData.chronoswarmCountByPlayerId.p2 = 1;
+  state.gameData.turnData.drawingPreludeByPlayerId.p2 = {
+    turnNumber: 3,
+    requiredPassCount: 2,
+    activePassIndex: 1,
+    status: 'awaiting_actions',
+    eligibleSourcePowers: [{
+      key: 'p2-queen:QUE#0',
+      sourceInstanceId: 'p2-queen',
+      shipDefId: 'QUE',
+      rawPowerIndex: 0,
+      mode: 'automatic',
+    }],
+    resolvedSourcePowerKeysByPass: {},
+  };
+  return state;
+}
+
 Deno.test('Drawing-prelude bot intent mirrors projector sources, choices, pass tokens, and explicit Hold', () => {
-  const state = createBotDrawingState({ passCount: 1, carrierCount: 2, charges: 2 });
+  const state = createCarrierBotDrawingState({ carrierCount: 2, charges: 2 });
   const projected = projectDrawingPreludeCarrierActions(state, 'p1');
   const before = JSON.stringify(state);
   const holdPlan: AuthoredBotPlan = {
@@ -127,27 +163,27 @@ Deno.test('Drawing-prelude bot intent mirrors projector sources, choices, pass t
   assert.equal(JSON.stringify(state), before);
 });
 
-Deno.test('one bot submits one batch per pass and only then submits its Drawing build', async () => {
-  const state = createBotDrawingState();
+Deno.test('one Human bot submits one Carrier batch and only then submits its Drawing build', async () => {
+  const state = createCarrierBotDrawingState();
   const result = await runBotsUntilSettled({ state, nowMs: 100 });
   const submitted = result.events.filter((event: any) =>
     event.type === 'POWERS_BATCH_SUBMITTED' || event.type === 'BUILD_SUBMITTED'
   );
   assert.deepEqual(
     submitted.map((event: any) => event.type),
-    ['POWERS_BATCH_SUBMITTED', 'POWERS_BATCH_SUBMITTED', 'BUILD_SUBMITTED'],
+    ['POWERS_BATCH_SUBMITTED', 'BUILD_SUBMITTED'],
   );
   assert.deepEqual(
     result.state.gameData.turnData.drawingPreludeByPlayerId.p1
       .resolvedSourcePowerKeysByPass,
-    { 1: ['p1-car-1:CAR#0'], 2: ['p1-car-1:CAR#0'] },
+    { 1: ['p1-car-1:CAR#0'] },
   );
-  assert.equal(result.botStepsApplied, 3);
+  assert.equal(result.botStepsApplied, 2);
   assert.equal(result.events.some((event: any) => event.type === 'BOT_RUNNER_LIMIT_REACHED'), false);
 });
 
 Deno.test('authoritative forced Hold lets the bot build without submitting a Carrier batch', async () => {
-  const state = createBotDrawingState({ passCount: 1, charges: 0 });
+  const state = createCarrierBotDrawingState({ charges: 0 });
   const advanced = advanceDrawingPreludeForPlayer({
     state,
     playerId: 'p1',
@@ -175,125 +211,91 @@ Deno.test('authoritative forced Hold lets the bot build without submitting a Car
   assert.equal(result.botStepsApplied, 1);
 });
 
-Deno.test('pass-2 bot choice is replanned from authoritative pass-1 state', async () => {
-  const state = createBotDrawingState({ charges: 4 });
-  const plan: AuthoredBotPlan = {
-    id: 'test-fresh-pass-choice',
-    speciesId: 'HUM',
-    buildGoals: [],
-    drawingPrelude: {
-      CAR: {
-        priorityGoals: [{
-          choiceId: 'defender',
-          targetShipDefId: 'DEF',
-          targetCount: 1,
-        }],
-        fallbackChoiceId: 'fighter',
-      },
-    },
-  };
-  const pass1Intent = buildDrawingPreludeCarrierIntentForBot({
-    state,
-    playerId: 'p1',
-    phaseKey: 'build.drawing',
-    loopStep: 0,
-    plan,
-  });
-  assert.equal((pass1Intent?.payload as any).actions[0].choiceId, 'defender');
-  const pass1 = await applyIntent(state, 'p1', pass1Intent!, 100);
-  assert.equal(pass1.ok, true);
-  if (!pass1.ok) return;
+Deno.test('legal Xenite Chronoswarm automatics complete both passes before the bot submits its build', async () => {
+  const state = createLegalHumanXeniteBotDrawingState();
+  state.controllersByPlayerId.p1 = { kind: 'human' };
+
+  const beforeAuthoritativeCompletion = await runBotsUntilSettled({ state, nowMs: 80 });
+  assert.equal(beforeAuthoritativeCompletion.botStepsApplied, 0);
   assert.equal(
-    pass1.state.gameData.ships?.p1?.filter((ship: any) => ship.shipDefId === 'DEF').length,
-    1,
+    beforeAuthoritativeCompletion.events.some((event: any) =>
+      event.type === 'POWERS_BATCH_SUBMITTED' || event.type === 'BUILD_SUBMITTED'
+    ),
+    false,
   );
 
-  const projectedPass2 = projectDrawingPreludeCarrierActions(pass1.state, 'p1');
-  const pass2Intent = buildDrawingPreludeCarrierIntentForBot({
-    state: pass1.state,
-    playerId: 'p1',
-    phaseKey: 'build.drawing',
-    loopStep: 1,
-    plan,
+  const advanced = advanceDrawingPreludeForPlayer({ state, playerId: 'p2', nowMs: 90 });
+  assert.equal(advanced.ok, true);
+  if (!advanced.ok) return;
+  const xenitePrelude = advanced.state.gameData.turnData?.drawingPreludeByPlayerId?.p2;
+  assert.equal(xenitePrelude?.status, 'complete');
+  assert.equal(xenitePrelude?.activePassIndex, 2);
+  assert.deepEqual(xenitePrelude?.resolvedSourcePowerKeysByPass, {
+    1: ['p2-queen:QUE#0'],
+    2: ['p2-queen:QUE#0'],
   });
   assert.deepEqual(
-    (pass2Intent?.payload as any).actions.map((action: any) => ({
-      sourceInstanceId: action.sourceInstanceId,
-      choiceId: action.choiceId,
-      passIndex: action.passIndex,
-    })),
-    projectedPass2.map((action) => ({
-      sourceInstanceId: action.sourceInstanceId,
-      choiceId: 'fighter',
-      passIndex: action.passIndex,
-    })),
+    advanced.events.filter((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'
+    ).map((event: any) => event.producedBuildOccurrence),
+    [
+      { stage: 'drawing_prelude', passIndex: 1 },
+      { stage: 'drawing_prelude', passIndex: 2 },
+    ],
   );
-});
+  assert.equal(
+    advanced.events.some((event: any) => event.type === 'POWERS_BATCH_SUBMITTED'),
+    false,
+  );
 
-Deno.test('one-charge two-pass Carrier needs one batch then build after automatic pass-2 Hold', async () => {
-  const result = await runBotsUntilSettled({
-    state: createBotDrawingState({ charges: 1 }),
-    nowMs: 100,
-  });
+  const result = await runBotsUntilSettled({ state: advanced.state, nowMs: 100 });
   assert.deepEqual(
     result.events.filter((event: any) =>
       event.type === 'POWERS_BATCH_SUBMITTED' || event.type === 'BUILD_SUBMITTED'
-    ).map((event: any) => event.type),
-    ['POWERS_BATCH_SUBMITTED', 'BUILD_SUBMITTED'],
+    ).map((event: any) => ({ type: event.type, playerId: event.playerId })),
+    [{ type: 'BUILD_SUBMITTED', playerId: 'p2' }],
   );
-  assert.deepEqual(
-    result.state.gameData.turnData.drawingPreludeByPlayerId.p1
-      .resolvedSourcePowerKeysByPass,
-    { 1: ['p1-car-1:CAR#0'], 2: ['p1-car-1:CAR#0'] },
-  );
-  assert.equal(result.botStepsApplied, 2);
+  assert.equal(result.botStepsApplied, 1);
 });
 
-Deno.test('complete bot builds independently while a human opponent awaits either prelude pass', async () => {
-  for (const opponentPassIndex of [1, 2] as const) {
-    const state = createBotDrawingState({ twoBots: true, charges: 0 });
-    state.controllersByPlayerId.p2 = { kind: 'human' };
-    state.gameData.ships.p2[0].chargesCurrent = 2;
-    const opponentPrelude = state.gameData.turnData.drawingPreludeByPlayerId.p2;
-    opponentPrelude.activePassIndex = opponentPassIndex;
-    opponentPrelude.resolvedSourcePowerKeysByPass = opponentPassIndex === 2
-      ? { 1: ['p2-car-1:CAR#0'] }
-      : {};
+Deno.test('complete bot builds independently while a human opponent awaits its single Carrier pass', async () => {
+  const state = createCarrierBotDrawingState({ twoBots: true, charges: 0 });
+  state.controllersByPlayerId.p2 = { kind: 'human' };
+  state.gameData.ships.p2[0].chargesCurrent = 2;
 
-    const completed = advanceDrawingPreludeForPlayer({
-      state,
-      playerId: 'p1',
-      nowMs: 90,
-    });
-    assert.equal(completed.ok, true);
-    if (!completed.ok) continue;
-    assert.equal(
-      completed.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.status,
-      'complete',
-    );
+  const completed = advanceDrawingPreludeForPlayer({
+    state,
+    playerId: 'p1',
+    nowMs: 90,
+  });
+  assert.equal(completed.ok, true);
+  if (!completed.ok) return;
+  assert.equal(
+    completed.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.status,
+    'complete',
+  );
 
-    const result = await runBotsUntilSettled({ state: completed.state, nowMs: 100 });
-    assert.equal(
-      result.events.some((event: any) =>
-        event.type === 'BUILD_SUBMITTED' && event.playerId === 'p1'
-      ),
-      true,
-    );
-    assert.equal(result.botStepsApplied, 1);
-    assert.equal(
-      result.state.gameData.turnData.drawingPreludeByPlayerId.p2.status,
-      'awaiting_actions',
-    );
-    assert.equal(
-      result.state.gameData.turnData.drawingPreludeByPlayerId.p2.activePassIndex,
-      opponentPassIndex,
-    );
-  }
+  const result = await runBotsUntilSettled({ state: completed.state, nowMs: 100 });
+  assert.equal(
+    result.events.some((event: any) =>
+      event.type === 'BUILD_SUBMITTED' && event.playerId === 'p1'
+    ),
+    true,
+  );
+  assert.equal(result.botStepsApplied, 1);
+  assert.equal(
+    result.state.gameData.turnData.drawingPreludeByPlayerId.p2.status,
+    'awaiting_actions',
+  );
+  assert.equal(
+    result.state.gameData.turnData.drawingPreludeByPlayerId.p2.activePassIndex,
+    1,
+  );
 });
 
 Deno.test('multiple Carriers use one batch and malformed or Hold-only claimed states fail safely', async () => {
   const multi = await runBotsUntilSettled({
-    state: createBotDrawingState({ passCount: 1, carrierCount: 2, charges: 2 }),
+    state: createCarrierBotDrawingState({ carrierCount: 2, charges: 2 }),
     nowMs: 100,
   });
   assert.deepEqual(
@@ -302,7 +304,7 @@ Deno.test('multiple Carriers use one batch and malformed or Hold-only claimed st
     [2],
   );
 
-  const malformed = createBotDrawingState({ passCount: 1 });
+  const malformed = createCarrierBotDrawingState();
   malformed.gameData.turnData.drawingPreludeByPlayerId.p1.activePassIndex = 2;
   const malformedResult = await runBotsUntilSettled({ state: malformed, nowMs: 100 });
   assert.equal(malformedResult.botStepsApplied, 0);
@@ -314,7 +316,7 @@ Deno.test('multiple Carriers use one batch and malformed or Hold-only claimed st
     true,
   );
 
-  const holdOnly = createBotDrawingState({ passCount: 1, charges: 0 });
+  const holdOnly = createCarrierBotDrawingState({ charges: 0 });
   const holdOnlyResult = await runBotsUntilSettled({ state: holdOnly, nowMs: 100 });
   assert.equal(holdOnlyResult.botStepsApplied, 0);
   assert.equal(
@@ -325,27 +327,73 @@ Deno.test('multiple Carriers use one batch and malformed or Hold-only claimed st
   );
 });
 
-Deno.test('two two-pass bots complete the supported Drawing chain in six accepted steps below the cap', async () => {
-  const state = createBotDrawingState({ twoBots: true });
-  const result = await runBotsUntilSettled({
+Deno.test('legal Human Carrier and Xenite Chronoswarm bots cover both prelude branches below the cap', async () => {
+  const state = createLegalHumanXeniteBotDrawingState();
+  const xeniteAdvanced = advanceDrawingPreludeForPlayer({
     state,
+    playerId: 'p2',
+    nowMs: 90,
+  });
+  assert.equal(xeniteAdvanced.ok, true);
+  if (!xeniteAdvanced.ok) return;
+  assert.equal(
+    xeniteAdvanced.state.gameData.turnData?.drawingPreludeByPlayerId?.p2.status,
+    'complete',
+  );
+  assert.equal(
+    xeniteAdvanced.events.some((event: any) => event.type === 'POWERS_BATCH_SUBMITTED'),
+    false,
+  );
+
+  const result = await runBotsUntilSettled({
+    state: xeniteAdvanced.state,
     nowMs: 100,
   });
   const drawingAcceptedEvents = result.events.filter((event: any) =>
     event.type === 'POWERS_BATCH_SUBMITTED' || event.type === 'BUILD_SUBMITTED'
   );
-  assert.equal(drawingAcceptedEvents.length, 6);
+  assert.deepEqual(
+    drawingAcceptedEvents.map((event: any) => ({
+      type: event.type,
+      playerId: event.playerId,
+      ...(event.type === 'POWERS_BATCH_SUBMITTED' ? { count: event.count } : {}),
+    })),
+    [
+      { type: 'POWERS_BATCH_SUBMITTED', playerId: 'p1', count: 2 },
+      { type: 'BUILD_SUBMITTED', playerId: 'p1' },
+      { type: 'BUILD_SUBMITTED', playerId: 'p2' },
+    ],
+  );
+  const drawingAcceptedStepCount = drawingAcceptedEvents.length;
+  assert.equal(drawingAcceptedStepCount, 3);
+  assert.equal(drawingAcceptedStepCount < MAX_BOT_STEPS_PER_REQUEST, true);
+  assert.deepEqual(
+    Object.keys(result.state.gameData.turnData.commitments.BUILD_3).sort(),
+    ['p1', 'p2'],
+  );
+});
+
+Deno.test('two legal single-pass Human Carrier bots define the four-step accepted-intent ceiling', async () => {
+  // Automatic Xenite passes add authoritative work but no accepted bot-intent step.
+  const result = await runBotsUntilSettled({
+    state: createCarrierBotDrawingState({ twoBots: true, carrierCount: 2 }),
+    nowMs: 100,
+  });
+  const drawingAcceptedEvents = result.events.filter((event: any) =>
+    event.type === 'POWERS_BATCH_SUBMITTED' || event.type === 'BUILD_SUBMITTED'
+  );
+  assert.equal(drawingAcceptedEvents.length, 4);
   assert.equal(
-    drawingAcceptedEvents.filter((event: any) =>
-      event.type === 'POWERS_BATCH_SUBMITTED'
-    ).length,
-    4,
+    drawingAcceptedEvents.filter((event: any) => event.type === 'POWERS_BATCH_SUBMITTED').length,
+    2,
   );
   assert.equal(
     drawingAcceptedEvents.filter((event: any) => event.type === 'BUILD_SUBMITTED').length,
     2,
   );
-  assert.equal(drawingAcceptedEvents.length < MAX_BOT_STEPS_PER_REQUEST, true);
+  const drawingAcceptedStepCount = drawingAcceptedEvents.length;
+  assert.equal(drawingAcceptedStepCount, 4);
+  assert.equal(drawingAcceptedStepCount < MAX_BOT_STEPS_PER_REQUEST, true);
   assert.notEqual(result.state.gameData.currentSubPhase, 'drawing');
 });
 

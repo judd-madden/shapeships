@@ -72,7 +72,7 @@ export type BattleLogTurnSummary = {
 export type ProducedBuildOccurrence =
   | { stage: "drawing_prelude"; passIndex: 1 | 2 }
   | { stage: "drawing" }
-  | { stage: "end_of_build" };
+  | { stage: "reveal" };
 
 type BuildCaptureAtom =
   | {
@@ -313,7 +313,7 @@ function normalizeProducedBuildOccurrence(
       passIndex: occurrence.passIndex,
     };
   }
-  if (occurrence.stage === "drawing" || occurrence.stage === "end_of_build") {
+  if (occurrence.stage === "drawing" || occurrence.stage === "reveal") {
     if (!hasExactOwnKeys(occurrence, ["stage"])) return null;
     return { stage: occurrence.stage };
   }
@@ -1382,8 +1382,8 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
   const drawing = producedBuilds.filter((atom) =>
     atom.producedBuildOccurrence?.stage === "drawing"
   );
-  const endOfBuild = producedBuilds.filter((atom) =>
-    atom.producedBuildOccurrence?.stage === "end_of_build"
+  const reveal = producedBuilds.filter((atom) =>
+    atom.producedBuildOccurrence?.stage === "reveal"
   );
 
   return [
@@ -1393,7 +1393,7 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
     ...collapseProducedBuildLines(preludePass2),
     ...manualLines,
     ...collapseProducedBuildLines(drawing),
-    ...collapseProducedBuildLines(endOfBuild),
+    ...collapseProducedBuildLines(reveal),
   ];
 }
 

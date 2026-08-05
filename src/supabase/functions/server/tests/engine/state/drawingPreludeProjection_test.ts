@@ -161,7 +161,7 @@ Deno.test('Requester summaries require settled semantics and remain owner-only',
   assert.equal(projectDrawingPreludeRequesterSummary(state, 'p1'), null);
 });
 
-Deno.test('Carrier action projection is pure, pass-aware, charge-aware, and fail-closed', () => {
+Deno.test('synthetic unreachable pass-2 Carrier projection remains pure, pass-aware, charge-aware, and fail-closed', () => {
   const state = createProjectedState();
   state.gameData.ships!.p1 = [
     { instanceId: 'carrier', shipDefId: 'CAR', createdTurn: 4, chargesCurrent: 2 },
@@ -209,7 +209,7 @@ Deno.test('Drawing-prelude event routing strips private metadata and fails close
     },
     {
       type: 'PUBLIC_CAPTURE_EVENT',
-      producedBuildOccurrence: { stage: 'drawing' },
+      producedBuildOccurrence: { stage: 'reveal' },
     },
     { type: 'MALFORMED_PRIVATE', drawingPreludeVisibility: { audience: 'owner' } },
   ];
@@ -257,7 +257,7 @@ Deno.test('events emitted by live Carrier resolution are owner-only and sanitize
   assert.deepEqual(filterDrawingPreludeEventsForViewer(resolved.state, 'spec', resolved.events), []);
 });
 
-Deno.test('pass-2 Carrier events remain owner-private and use the pass-2 cue key', () => {
+Deno.test('synthetic unreachable pass-2 Carrier events remain owner-private and use the pass-2 cue key', () => {
   const state = createProjectedState();
   (state.gameData as any).currentPhase = 'build';
   (state.gameData as any).currentSubPhase = 'drawing';

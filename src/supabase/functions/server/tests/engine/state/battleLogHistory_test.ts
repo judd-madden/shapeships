@@ -154,6 +154,13 @@ Deno.test("produced occurrence validation accepts only exact stage shapes", () =
     }) as any).producedBuildOccurrence,
     { stage: "drawing" },
   );
+  assert.deepEqual(
+    (createBattleLogBuildProducedCaptureEvent({
+      ...base,
+      producedBuildOccurrence: { stage: "reveal" },
+    }) as any).producedBuildOccurrence,
+    { stage: "reveal" },
+  );
   assert.equal(
     "producedBuildOccurrence" in createBattleLogBuildProducedCaptureEvent(base),
     false,
@@ -162,7 +169,9 @@ Deno.test("produced occurrence validation accepts only exact stage shapes", () =
     { stage: "drawing_prelude" },
     { stage: "drawing_prelude", passIndex: 3 },
     { stage: "drawing", passIndex: 1 },
+    { stage: "end_of_build" },
     { stage: "end_of_build", extra: true },
+    { stage: "reveal", extra: true },
     { stage: "unknown" },
     [],
   ]) {
@@ -234,7 +243,7 @@ Deno.test("metadata-aware Build formatting orders and aggregates only within sta
     { kind: "produced_build", shipDefId: "ANT", sourceShipDefId: "ZEN", count: 2,
       producedBuildOccurrence: { stage: "drawing" } },
     { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "DRE", count: 3,
-      producedBuildOccurrence: { stage: "end_of_build" } },
+      producedBuildOccurrence: { stage: "reveal" } },
   ]);
   assert.deepEqual(summary.buildLinesByPlayerId.p1, [
     "KNO rerolled 1 -> 6",
@@ -262,7 +271,7 @@ Deno.test("metadata-aware mode rejects partial classification and no-prelude mod
     { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "DRE", count: 1,
       producedBuildOccurrence: { stage: "drawing" } },
     { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "DRE", count: 2,
-      producedBuildOccurrence: { stage: "end_of_build" } },
+      producedBuildOccurrence: { stage: "reveal" } },
   ]);
   assert.deepEqual(legacy.buildLinesByPlayerId.p1, [
     "1 x DEF",
@@ -270,7 +279,7 @@ Deno.test("metadata-aware mode rejects partial classification and no-prelude mod
   ]);
 });
 
-Deno.test("Dreadnought End-of-Build capture carries the private end stage once", () => {
+Deno.test("Dreadnought End-of-Build resolver captures the private Reveal stage once", () => {
   const state: any = {
     gameId: "dreadnought-occurrence",
     status: "active",
@@ -299,7 +308,7 @@ Deno.test("Dreadnought End-of-Build capture carries the private end stage once",
     event.type === "BATTLE_LOG_CAPTURE_BUILD_PRODUCED"
   );
   assert.equal(captures.length, 1);
-  assert.deepEqual(captures[0].producedBuildOccurrence, { stage: "end_of_build" });
+  assert.deepEqual(captures[0].producedBuildOccurrence, { stage: "reveal" });
 });
 
 Deno.test("archive checkpoint survives scratch normalization, folding, and clearing byte-for-byte", () => {

@@ -762,7 +762,7 @@ function resolveBuildEndOfBuild(
         playerId: player.id,
         effects: playerEffects,
         effectEvents: applied.events,
-        producedBuildOccurrence: { stage: 'end_of_build' },
+        producedBuildOccurrence: { stage: 'reveal' },
       }),
     );
   }
