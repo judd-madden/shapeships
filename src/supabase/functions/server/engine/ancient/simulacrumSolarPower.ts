@@ -95,17 +95,39 @@ function capturePermanentConfiguration(
   return structuredClone({ selectedNumber });
 }
 
-function queuedRecordAlreadyHasFleetShip(
+function playerControlsLiveChronoswarm(
+  state: Readonly<any>,
+  playerId: string,
+): boolean {
+  return getFleet(state, playerId).some((ship) => ship.shipDefId === "CHR");
+}
+
+function getQueuedReservationMultiplicity(
   state: Readonly<any>,
   record: Readonly<AncientPendingSimulacrumCopy>,
-): boolean {
-  if (!isNonEmptyString(record.materializedInstanceId)) return false;
-  const existing = findFleetShipByInstanceId(
-    state,
-    record.materializedInstanceId,
-  );
-  return existing?.ownerPlayerId === record.ownerPlayerId &&
-    existing.ship.shipDefId === record.copiedShipDefId;
+): 1 | 2 {
+  if (
+    record.materializationMultiplicity === 2 ||
+    isNonEmptyString(record.repeatedMaterializedInstanceId) ||
+    !!record.repeatedMaterializationOutcome
+  ) {
+    return 2;
+  }
+  if (record.materializationMultiplicity === 1) return 1;
+  return playerControlsLiveChronoswarm(state, record.ownerPlayerId) ? 2 : 1;
+}
+
+function countRepresentedQueuedSlots(
+  state: Readonly<any>,
+  record: Readonly<AncientPendingSimulacrumCopy>,
+): number {
+  return [record.materializedInstanceId, record.repeatedMaterializedInstanceId]
+    .filter(isNonEmptyString)
+    .filter((instanceId) => {
+      const existing = findFleetShipByInstanceId(state, instanceId);
+      return existing?.ownerPlayerId === record.ownerPlayerId &&
+        existing.ship.shipDefId === record.copiedShipDefId;
+    }).length;
 }
 
 export function assertSimulacrumQuantityAvailable(args: {
@@ -138,12 +160,18 @@ export function assertSimulacrumQuantityAvailable(args: {
   const pendingCopies =
     args.state?.gameData?.ancient?.pendingSimulacrumCopies;
   const queuedCount = Array.isArray(pendingCopies)
-    ? pendingCopies.filter((record: AncientPendingSimulacrumCopy) =>
-      record?.status === "queued" &&
-      record.ownerPlayerId === args.ownerPlayerId &&
-      record.copiedShipDefId === args.copiedShipDefId &&
-      !queuedRecordAlreadyHasFleetShip(args.state, record)
-    ).length
+    ? pendingCopies
+      .filter((record: AncientPendingSimulacrumCopy) =>
+        record?.status === "queued" &&
+        record.ownerPlayerId === args.ownerPlayerId &&
+        record.copiedShipDefId === args.copiedShipDefId
+      )
+      .reduce((count: number, record: AncientPendingSimulacrumCopy) =>
+        count + Math.max(
+          getQueuedReservationMultiplicity(args.state, record) -
+            countRepresentedQueuedSlots(args.state, record),
+          0,
+        ), 0)
     : 0;
 
   if (
@@ -233,11 +261,17 @@ export const SIMULACRUM_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
       );
     }
 
+    const requiredMultiplicity = playerControlsLiveChronoswarm(
+      candidateState,
+      context.playerId,
+    )
+      ? 2
+      : 1;
     assertSimulacrumQuantityAvailable({
       state: candidateState,
       ownerPlayerId: context.playerId,
       copiedShipDefId: target.shipDefId,
-      proposedCount: 1,
+      proposedCount: requiredMultiplicity,
     });
 
     const pendingCopyId =
@@ -464,7 +498,7 @@ export function materializeQueuedSimulacrumCopiesAtTurnStart(
   );
   const chronoswarmQualifiedOwnerIds = new Set(
     getActivePlayerIds(workingState).filter((playerId) =>
-      getFleet(workingState, playerId).some((ship) => ship.shipDefId === "CHR")
+      playerControlsLiveChronoswarm(workingState, playerId)
     ),
   );
 

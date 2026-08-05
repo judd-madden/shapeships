@@ -396,7 +396,7 @@ export type GameData = {
       savedJoiningLines: number;
     }>;
 
-    /** Inactive Phase 14 Drawing-prelude turn scratch. */
+    /** Authoritative per-player Drawing-prelude turn scratch. */
     drawingPreludeByPlayerId?: Record<string, DrawingPreludePlayerState>;
     /** Drawing-entry public fleet baseline used by viewer projection. */
     buildDrawingPublicFleetByPlayerId?: Record<string, ShipInstance[]>;
@@ -425,7 +425,7 @@ export type GameData = {
     /**
      * Authoritative count of ships that materially entered each player's fleet
      * during the current turn. Used by turn-scoped powers such as Queen and
-     * by end-of-build powers such as Dreadnought in the current phase layout.
+     * by Reveal powers such as Dreadnought in the current phase layout.
      */
     shipsMadeThisTurnByPlayerId?: Record<string, number>;
 

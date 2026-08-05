@@ -1395,9 +1395,9 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
   );
 
   return [
+    ...collapseProducedBuildLines(turnStartMaterialisation),
     ...rerollLines,
     ...chronoswarmLines,
-    ...collapseProducedBuildLines(turnStartMaterialisation),
     ...collapseProducedBuildLines(preludePass1),
     ...collapseProducedBuildLines(preludePass2),
     ...manualLines,

@@ -256,8 +256,8 @@ Deno.test("metadata-aware Build formatting orders and aggregates only within sta
       producedBuildOccurrence: { stage: "reveal" } },
   ]);
   assert.deepEqual(summary.buildLinesByPlayerId.p1, [
-    "KNO rerolled 1 -> 6",
     "2 x SPI (SSIM)",
+    "KNO rerolled 1 -> 6",
     "3 x DEF (CAR)",
     "2 x XEN (BUG)",
     "1 x DEF (CAR)",

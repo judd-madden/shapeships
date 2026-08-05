@@ -522,6 +522,43 @@ Deno.test("later unaffordable Simulacrum leaves the input state unchanged", () =
   assert.deepEqual(state, before);
 });
 
+Deno.test("Simulacrum declaration rejects a mandatory Chronoswarm repeat that would exceed capacity", () => {
+  const state = createState({
+    p1Ships: [
+      ship("controlled-chr", "CHR", { createdTurn: 1 }),
+      ship("spi-1", "SPI", { createdTurn: 1 }),
+      ship("spi-2", "SPI", { createdTurn: 1 }),
+    ],
+    p2Snapshot: [ship("target-spi", "SPI")],
+  });
+  const before = structuredClone(state);
+
+  assert.throws(
+    () => resolve(state, ["target-spi"]),
+    /Simulacrum would exceed canonical maximum quantity for SPI/,
+  );
+  assert.deepEqual(state, before);
+  assert.deepEqual(state.gameData.ancient!.pendingSimulacrumCopies, []);
+});
+
+Deno.test("existing queued Simulacrum records reserve their Chronoswarm multiplicity", () => {
+  const state = createState({
+    p1Ships: [ship("controlled-chr", "CHR", { createdTurn: 1 })],
+    p2Snapshot: [
+      ship("target-spi-1", "SPI"),
+      ship("target-spi-2", "SPI"),
+    ],
+  });
+  const before = structuredClone(state);
+
+  assert.throws(
+    () => resolve(state, ["target-spi-1", "target-spi-2"]),
+    /Simulacrum would exceed canonical maximum quantity for SPI/,
+  );
+  assert.deepEqual(state, before);
+  assert.deepEqual(state.gameData.ancient!.pendingSimulacrumCopies, []);
+});
+
 Deno.test("Simulacrum aggregate quantity counts queued primary reservations without double-counting represented records", () => {
   for (const shipDefId of ["SPI", "QUA", "NEP", "ORB", "VIG"]) {
     const definition = getShipById(shipDefId)!;
