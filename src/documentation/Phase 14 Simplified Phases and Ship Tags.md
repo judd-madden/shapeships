@@ -9,6 +9,8 @@
 - **Compatibility posture:** No persisted-game migration; old in-progress games may be discarded
 - **Last verified against live code:** 2026-08-04
 
+> **Rules v1.63 alignment:** This document is supplemented and partially superseded by [Phase 14 Rules v1.63 Alignment Addendum](<Phase 14 Rules v1.63 Alignment Addendum.md>). Where the two documents conflict, the v1.63 addendum is normative. The original document remains authoritative only for unaffected Phase 14 architecture, completed-pass history, and pass details not superseded by the addendum.
+
 ---
 
 ## Contents
@@ -39,7 +41,7 @@
 24. Mechanisms retained and reused
 25. Dependency diagram
 26. Completion criteria
-27. Recommended immediate first implementation pass
+27. Historical first implementation recommendation
 
 ---
 
@@ -1697,13 +1699,15 @@ Do not retain obsolete response/global-pass fields solely for compatibility.
 
 ---
 
-# 27. Recommended immediate first implementation pass
+# 27. Historical first implementation recommendation
 
-After acceptance of this document, begin with:
+The original accepted roadmap began with:
 
 ## Phase 14BC — Definition Metadata and Mirror Parity
 
-It is the safest first implementation pass because it:
+Phase 14BC and the other passes through 14H are complete. The immediate next implementation pass is 14H-R, followed by the amended 14I, as defined by the [Phase 14 Rules v1.63 Alignment Addendum](<Phase 14 Rules v1.63 Alignment Addendum.md>). The rationale below is retained as completed-pass history.
+
+It was selected as the safest first implementation pass because it:
 
 - changes no gameplay behavior;
 - establishes stable raw-power identity;
@@ -1711,4 +1715,4 @@ It is the safest first implementation pass because it:
 - locks server/client parity before either gameplay or presentation consumes the data;
 - can be validated without deploying either phase cutover.
 
-Phase 14D may follow independently. Phase 14E0 must complete before active Drawing-prelude deployment, but it does not block 14BC or 14D.
+In the original sequence, Phase 14D could follow independently, and Phase 14E0 had to complete before active Drawing-prelude deployment without blocking 14BC or 14D.

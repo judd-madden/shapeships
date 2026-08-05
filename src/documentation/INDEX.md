@@ -36,6 +36,7 @@ Operational templates and pass formats for implementation work.
 Phase roadmaps and decision registers for substantial implementation programs.
 
 - [Phase 13 Ancient Species - GPT-5.6 Planning Record](<Phase 13 Ancient Species - GPT-5.6 Planning Record.md>) - historical normative planning baseline preserving the original approved Ancient rules, architecture, risks, and implementation sequence
+- [Phase 14 Rules v1.63 Alignment Addendum](<Phase 14 Rules v1.63 Alignment Addendum.md>) - current normative Phase 14 rules alignment and implementation sequence, supplementing and superseding conflicting portions of the [original Phase 14 roadmap](<Phase 14 Simplified Phases and Ship Tags.md>)
 
 The Phase 13 record remains useful design and implementation context, but some planning-time rules, access assumptions, and implementation details were superseded by later approved passes. Use [the current repository status](../VERSION.md) for current implementation posture, the canonical definitions and authoritative server implementation for current gameplay, and the contracts for stable architecture and ownership rules.
 
