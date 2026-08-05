@@ -80,6 +80,36 @@ Deno.test("new battle history summaries derive maximum health at turn end", () =
   });
 });
 
+Deno.test("owner-private Drawing-prelude capture folds before filtering and formats once", () => {
+  const scratch = foldBattleLogCaptureEventsIntoScratch(
+    { currentTurnCapture: null, lastFinalizedTurnNumber: null },
+    [{
+      type: "BATTLE_LOG_CAPTURE_BUILD_PRODUCED",
+      turnNumber: 4,
+      playerId: "p1",
+      shipDefId: "DEF",
+      sourceShipDefId: "CAR",
+      count: 1,
+      drawingPreludeVisibility: { audience: "owner", playerId: "p1" },
+    }],
+  );
+  assert.equal(
+    scratch.currentTurnCapture?.buildAtomsByPlayerId.p1.filter((atom) => atom.kind === "produced_build").length,
+    1,
+  );
+  const summary = buildBattleLogTurnSummaryFromScratch({
+    scratch,
+    finalizedTurnNumber: 4,
+    finalizedState: {
+      status: "active",
+      players: [{ id: "p1", name: "One", role: "player", health: 25, lines: 0, joiningLines: 0 }],
+      gameData: { turnNumber: 4, ships: { p1: [] } },
+    },
+  });
+  assert.equal(summary.buildLinesByPlayerId.p1.length, 1);
+  assert.match(summary.buildLinesByPlayerId.p1[0], /DEF|Defender/);
+});
+
 Deno.test("archive checkpoint survives scratch normalization, folding, and clearing byte-for-byte", () => {
   const summary: any = {
     turnNumber: 3,

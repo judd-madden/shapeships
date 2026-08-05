@@ -8,8 +8,10 @@ import {
   getCarrierDrawingPreludeChoiceLegality,
   getCurrentDrawingPreludeCandidatePlayerState,
   recordDrawingPreludeAutomaticEvaluation,
+  validateFrozenCarrierDrawingPreludeSource,
   type DrawingPreludeFoundationResult,
 } from '../../../engine/state/drawingPreludeState.ts';
+import { getShipDefinition } from '../../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
 
 function ship(
   instanceId: string,
@@ -390,4 +392,30 @@ Deno.test('Candidate, finalized state, descriptors, and snapshots are deeply iso
   assert.deepEqual((finalized.gameData as any).phaseReadiness, (before.gameData as any).phaseReadiness);
   assert.deepEqual(finalized.players, before.players);
   assert.deepEqual(finalized.actions, before.actions);
+});
+
+Deno.test('frozen Carrier validation binds live definition, raw coordinate, timing, and overlay', () => {
+  const state = createState({
+    p1Ships: [ship('car', 'CAR', { chargesCurrent: 2 })],
+  });
+  const source = candidateFor(state).playerStateByPlayerId.p1.eligibleSourcePowers[0];
+  assert.equal(validateFrozenCarrierDrawingPreludeSource(state, 'p1', source).ok, true);
+
+  const mismatch = structuredClone(state);
+  mismatch.gameData.ships!.p1[0].shipDefId = 'DEF';
+  assert.equal(validateFrozenCarrierDrawingPreludeSource(mismatch, 'p1', source).ok, false);
+
+  const rawPower = getShipDefinition('CAR')!.powers[0] as any;
+  const priorTiming = rawPower.activationTiming;
+  const priorOverlay = rawPower.structuredPowers;
+  try {
+    rawPower.activationTiming = 'end_of_build';
+    assert.equal(validateFrozenCarrierDrawingPreludeSource(state, 'p1', source).ok, false);
+    rawPower.activationTiming = priorTiming;
+    rawPower.structuredPowers = [];
+    assert.equal(validateFrozenCarrierDrawingPreludeSource(state, 'p1', source).ok, false);
+  } finally {
+    rawPower.activationTiming = priorTiming;
+    rawPower.structuredPowers = priorOverlay;
+  }
 });

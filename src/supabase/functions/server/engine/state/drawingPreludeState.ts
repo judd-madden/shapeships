@@ -1,6 +1,11 @@
 import {
   getShipDefinition,
 } from '../../engine_shared/defs/ShipDefinitions.withStructuredPowers.ts';
+import { EffectKind } from '../../engine_shared/effects/Effect.ts';
+import type {
+  StructuredChoiceOption,
+  StructuredShipPower,
+} from '../../engine_shared/effects/translateShipPowers.ts';
 import {
   getDirectMaterializedSimulacrumInstanceIdsForPlayer,
 } from '../ancient/simulacrumSolarPower.ts';
@@ -48,6 +53,11 @@ export type CarrierDrawingPreludeChoiceId = 'defender' | 'fighter';
 export type CarrierDrawingPreludeChoiceLegality = {
   nonHoldChoiceIds: CarrierDrawingPreludeChoiceId[];
   holdOnly: boolean;
+};
+
+export type ValidatedCarrierDrawingPreludeSource = {
+  liveSource: ShipInstance;
+  choicePower: Extract<StructuredShipPower, { type: 'choice' }>;
 };
 
 const MODE_BY_RAW_COORDINATE: Readonly<
@@ -244,6 +254,29 @@ export function markDrawingPreludeCandidateSourceResolved(
   return { ok: true, value: next };
 }
 
+export function markCurrentDrawingPreludeSourceResolved(
+  state: Readonly<GameState>,
+  playerId: string,
+  sourceKey: string,
+): DrawingPreludeFoundationResult<GameState> {
+  const playerState = getCurrentDrawingPreludePlayerState(state, playerId);
+  if (!playerState) {
+    return failure('INVALID_CANDIDATE', `No valid current Drawing-prelude state for player ${playerId}`);
+  }
+  if (!playerState.eligibleSourcePowers.some((source) => source.key === sourceKey)) {
+    return failure('INVALID_SOURCE_KEY', `Source key is not frozen for player ${playerId}: ${sourceKey}`);
+  }
+  if (isDrawingPreludeSourceResolved(playerState, sourceKey)) {
+    return { ok: true, value: state as GameState };
+  }
+
+  const next = structuredClone(state) as GameState;
+  const nextPlayerState = next.gameData.turnData!.drawingPreludeByPlayerId![playerId];
+  nextPlayerState.resolvedSourcePowerKeysByPass[nextPlayerState.activePassIndex] =
+    getOrderedResolvedKeys(playerState, playerState.activePassIndex, sourceKey);
+  return { ok: true, value: next };
+}
+
 export function recordDrawingPreludeAutomaticEvaluation(
   candidate: Readonly<DrawingPreludeInitializationCandidate>,
   playerId: string,
@@ -270,6 +303,81 @@ function findControlledSource(
   return fleet.find((ship) => ship.instanceId === sourceInstanceId) ?? null;
 }
 
+function optionHasExactCarrierShape(
+  option: StructuredChoiceOption | undefined,
+  choiceId: 'defender' | 'fighter' | 'hold',
+): boolean {
+  if (!option || option.choiceId !== choiceId) return false;
+  if (choiceId === 'hold') {
+    return option.effects.length === 0 &&
+      (option.requiresCharge ?? false) === false &&
+      (option.chargeCost ?? 0) === 0;
+  }
+
+  const chargeCost = choiceId === 'defender' ? 1 : 2;
+  const createdShipDefId = choiceId === 'defender' ? 'DEF' : 'FIG';
+  const [spend, create] = option.effects;
+  return option.effects.length === 2 &&
+    option.requiresCharge === true &&
+    option.chargeCost === chargeCost &&
+    spend?.type === 'effect' &&
+    spend.kind === EffectKind.SpendCharge &&
+    spend.amount === chargeCost &&
+    spend.targetPlayer === 'self' &&
+    create?.type === 'effect' &&
+    create.kind === EffectKind.CreateShip &&
+    create.shipDefId === createdShipDefId &&
+    create.targetPlayer === 'self';
+}
+
+export function validateFrozenCarrierDrawingPreludeSource(
+  state: Readonly<GameState>,
+  playerId: string,
+  source: Readonly<DrawingPreludeSourcePower>,
+): DrawingPreludeFoundationResult<ValidatedCarrierDrawingPreludeSource> {
+  if (
+    source.shipDefId !== 'CAR' ||
+    source.rawPowerIndex !== 0 ||
+    source.mode !== 'interactive' ||
+    source.key !== `${source.sourceInstanceId}:CAR#0`
+  ) {
+    return failure('INVALID_CARRIER_COORDINATE', 'Carrier resolution requires the exact frozen CAR#0 coordinate');
+  }
+
+  const liveSource = findControlledSource(state, playerId, source.sourceInstanceId);
+  if (!liveSource) {
+    return failure('INVALID_CARRIER_SOURCE', `Frozen Carrier source is not controlled by player ${playerId}`);
+  }
+  if (liveSource.shipDefId !== source.shipDefId) {
+    return failure('INVALID_CARRIER_SOURCE', `Frozen Carrier definition no longer matches live source ${source.sourceInstanceId}`);
+  }
+
+  const definition = getShipDefinition(source.shipDefId);
+  const rawPower = definition?.powers[source.rawPowerIndex];
+  if (!rawPower || rawPower.activationTiming !== 'start_of_drawing') {
+    return failure('INVALID_CARRIER_COORDINATE', 'CAR#0 must remain a start-of-drawing raw power');
+  }
+  const overlays = rawPower.structuredPowers;
+  if (!Array.isArray(overlays) || overlays.length !== 1 || overlays[0].type !== 'choice') {
+    return failure('INVALID_CARRIER_OVERLAY', 'CAR#0 must contain exactly one raw-coordinate choice overlay');
+  }
+  const choicePower = overlays[0];
+  const optionIds = choicePower.options.map((option) => option.choiceId);
+  if (
+    optionIds.length !== 3 ||
+    new Set(optionIds).size !== 3 ||
+    !optionHasExactCarrierShape(choicePower.options.find((option) => option.choiceId === 'defender'), 'defender') ||
+    !optionHasExactCarrierShape(choicePower.options.find((option) => option.choiceId === 'fighter'), 'fighter') ||
+    !optionHasExactCarrierShape(choicePower.options.find((option) => option.choiceId === 'hold'), 'hold')
+  ) {
+    return failure('INVALID_CARRIER_OVERLAY', 'CAR#0 defender, fighter, and Hold overlay shape changed');
+  }
+  return {
+    ok: true,
+    value: { liveSource: structuredClone(liveSource), choicePower },
+  };
+}
+
 export function getCarrierDrawingPreludeChoiceLegality(
   state: Readonly<GameState>,
   playerId: string,
@@ -283,14 +391,9 @@ export function getCarrierDrawingPreludeChoiceLegality(
     return failure('INVALID_CARRIER_COORDINATE', 'Carrier legality requires the frozen CAR#0 coordinate');
   }
 
-  const definition = getShipDefinition(source.shipDefId);
-  const rawPower = definition?.powers[source.rawPowerIndex];
-  const overlays = rawPower?.structuredPowers;
-  if (!Array.isArray(overlays) || overlays.length !== 1 || overlays[0].type !== 'choice') {
-    return failure('INVALID_CARRIER_OVERLAY', 'CAR#0 must contain exactly one raw-coordinate choice overlay');
-  }
-
-  const choicePower = overlays[0];
+  const validated = validateFrozenCarrierDrawingPreludeSource(state, playerId, source);
+  if (!validated.ok) return validated;
+  const { choicePower, liveSource: controlledSource } = validated.value;
   const optionIds = choicePower.options.map((option) => option.choiceId);
   if (
     optionIds.length !== 3 ||
@@ -302,10 +405,6 @@ export function getCarrierDrawingPreludeChoiceLegality(
     return failure('INVALID_CARRIER_OVERLAY', 'CAR#0 choice overlay must contain defender, fighter, and hold exactly once');
   }
 
-  const controlledSource = findControlledSource(state, playerId, source.sourceInstanceId);
-  if (!controlledSource) {
-    return failure('INVALID_CARRIER_SOURCE', `Frozen Carrier source is not controlled by player ${playerId}`);
-  }
   const chargesCurrent = Number(controlledSource?.chargesCurrent ?? 0);
   if (!Number.isFinite(chargesCurrent) || chargesCurrent < 0) {
     return failure('INVALID_CARRIER_SOURCE', `Frozen Carrier source has invalid current charges: ${source.sourceInstanceId}`);

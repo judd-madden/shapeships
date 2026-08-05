@@ -38,6 +38,10 @@ import { accrueClocks } from '../clock/clock.ts';
 import { buildPhaseKey } from '../../engine_shared/phase/PhaseTable.ts';
 import { resolvePowerAction } from '../../engine_shared/resolve/resolvePowerAction.ts';
 import { applyEffects, type EffectEvent } from '../../engine_shared/effects/applyEffects.ts';
+import {
+  countVerifiedCreatedShipsByTargetPlayerId,
+  matchAppliedCreateShipEffectsOneToOne,
+} from '../../engine_shared/effects/appliedEffectVerification.ts';
 import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { rollD6 } from '../util/rollD6.ts';
 import { resolveBuildSubmitAuthoritatively } from './buildSubmitResolution.ts';
@@ -50,6 +54,13 @@ import {
   appendShipActivationCueBatch,
   getShipActivationSourcesFromAppliedEffects,
 } from '../state/shipActivationCues.ts';
+import { hasCurrentDrawingPreludePrivacyClaim } from '../state/drawingPreludeProjection.ts';
+import { getCurrentDrawingPreludePlayerState } from '../state/drawingPreludeState.ts';
+import {
+  resolveDrawingPreludePowerAction,
+  resolveDrawingPreludePowerActionsBatch,
+  type DrawingPreludeResolutionResult,
+} from './drawingPreludeResolution.ts';
 import {
   isChargeDeclarationLegalityInvariantError,
   recordChargeDeclarationSpendAcknowledgements,
@@ -135,6 +146,27 @@ export interface IntentResult {
   };
 }
 
+function toIntentResultFromDrawingPrelude(
+  result: DrawingPreludeResolutionResult,
+): IntentResult {
+  if (result.ok) {
+    return { ok: true, state: result.state, events: result.events };
+  }
+  return {
+    ok: false,
+    state: result.state,
+    events: [],
+    rejected: {
+      code: result.error.kind === 'invariant'
+        ? RejectionCode.INTERNAL_ERROR
+        : result.error.kind === 'unsupported'
+        ? RejectionCode.DRAWING_PRELUDE_UNSUPPORTED
+        : RejectionCode.BAD_PAYLOAD,
+      message: result.error.message,
+    },
+  };
+}
+
 type KnoRerollPassIndex = 1 | 2 | 3;
 
 function isFinishedGameChatMessageIntent(intent: IntentRequest): boolean {
@@ -155,11 +187,6 @@ function getCurrentPhaseHold(state: any) {
 
 function isSupportedPhaseHoldReason(holdReason: unknown): holdReason is 'end_of_turn_health' | 'battle_reveal' {
   return holdReason === 'end_of_turn_health' || holdReason === 'battle_reveal';
-}
-
-function countCreatedShipsFromEffects(effects: any[] | undefined): number {
-  if (!Array.isArray(effects)) return 0;
-  return effects.filter((effect: any) => effect?.kind === 'CreateShip').length;
 }
 
 function getEffectEventsFromOutcomeEvents(events: any[] | undefined): EffectEvent[] {
@@ -2095,7 +2122,44 @@ async function handleBuildSubmit(
       }
     };
   }
-  
+
+  if (hasCurrentDrawingPreludePrivacyClaim(state)) {
+    const playerPrelude = getCurrentDrawingPreludePlayerState(state, playerId);
+    if (!playerPrelude) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.DRAWING_PRELUDE_INCOMPLETE,
+          message: 'Current Drawing-prelude requester state is missing or malformed',
+        },
+      };
+    }
+    if (playerPrelude.requiredPassCount !== 1 || playerPrelude.activePassIndex !== 1) {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.DRAWING_PRELUDE_UNSUPPORTED,
+          message: 'Two-pass Drawing prelude is deferred',
+        },
+      };
+    }
+    if (playerPrelude.status !== 'complete') {
+      return {
+        ok: false,
+        state,
+        events: [],
+        rejected: {
+          code: RejectionCode.DRAWING_PRELUDE_INCOMPLETE,
+          message: 'Drawing-prelude actions must be completed before build submission',
+        },
+      };
+    }
+  }
+
   // B2) Validate payload
   if (!intent.payload || !intent.nonce) {
     return {
@@ -2989,6 +3053,19 @@ function handleAction(
   
   // Handle power actions
   if (payload.actionType === 'power') {
+    const drawingPreludePhaseKey = getPhaseKey(state);
+    if (
+      drawingPreludePhaseKey === 'build.drawing' &&
+      hasCurrentDrawingPreludePrivacyClaim(state)
+    ) {
+      return toIntentResultFromDrawingPrelude(resolveDrawingPreludePowerAction({
+        state,
+        playerId,
+        action: payload,
+        nowMs,
+      }));
+    }
+
     // ============================================================================
     // VALIDATION: Required fields
     // ============================================================================
@@ -3043,7 +3120,7 @@ function handleAction(
         }
       };
     }
-    
+
     try {
       if (phaseKey === 'battle.charge_declaration') {
         requireChargeDeclarationLegalityState(state);
@@ -3118,10 +3195,16 @@ function handleAction(
       }
 
       if (phaseKey === 'build.ships_that_build') {
+        const appliedCreationCounts = countVerifiedCreatedShipsByTargetPlayerId(
+          matchAppliedCreateShipEffectsOneToOne({
+            expectedEffects: outcome.effects || [],
+            effectEvents,
+          }),
+        );
         incrementShipsMadeThisTurnCounter(
           state,
           playerId,
-          countCreatedShipsFromEffects(outcome.effects)
+          appliedCreationCounts[playerId] ?? 0,
         );
         events.push(
           ...createBattleLogBuildCaptureEventsFromResolution({
@@ -3272,6 +3355,14 @@ function handleActionsSubmit(
         message: 'Cannot determine current phase'
       }
     };
+  }
+  if (phaseKey === 'build.drawing' && hasCurrentDrawingPreludePrivacyClaim(state)) {
+    return toIntentResultFromDrawingPrelude(resolveDrawingPreludePowerActionsBatch({
+      state,
+      playerId,
+      actions: payload.actions,
+      nowMs,
+    }));
   }
 
   if (phaseKey === 'battle.charge_declaration') {
@@ -3471,10 +3562,16 @@ function handleActionsSubmit(
       );
 
       if (phaseKey === 'build.ships_that_build') {
+        const appliedCreationCounts = countVerifiedCreatedShipsByTargetPlayerId(
+          matchAppliedCreateShipEffectsOneToOne({
+            expectedEffects: outcome.effects || [],
+            effectEvents,
+          }),
+        );
         incrementShipsMadeThisTurnCounter(
           state,
           playerId,
-          countCreatedShipsFromEffects(outcome.effects)
+          appliedCreationCounts[playerId] ?? 0,
         );
         events.push(
           ...createBattleLogBuildCaptureEventsFromResolution({

@@ -1129,6 +1129,54 @@ Deno.test('/game-state projects the normal CAR choice action for a turn-start co
   }]);
 });
 
+Deno.test('/game-state projects strict Drawing-prelude Carrier actions from frozen order', async () => {
+  const fixture = createGameRouteFixture();
+  const state: any = createSetupState('drawing-prelude-actions');
+  state.turnNumber = 3;
+  state.currentPhase = 'build';
+  state.currentSubPhase = 'drawing';
+  state.gameData.turnNumber = 3;
+  state.gameData.currentPhase = 'build';
+  state.gameData.currentSubPhase = 'drawing';
+  state.gameData.turnData.turnNumber = 3;
+  state.gameData.turnData.currentMajorPhase = 'build';
+  state.gameData.turnData.currentSubPhase = 'drawing';
+  state.players.push({ id: 'p2', name: 'Two', role: 'player', faction: 'human', health: 25, lines: 3, joiningLines: 0 });
+  state.gameData.ships = {
+    p1: [
+      { instanceId: 'car-low', shipDefId: 'CAR', chargesCurrent: 1 },
+      { instanceId: 'car-full', shipDefId: 'CAR', chargesCurrent: 2 },
+    ],
+    p2: [],
+  };
+  state.gameData.turnData.drawingPreludeByPlayerId = {
+    p1: {
+      turnNumber: 3,
+      requiredPassCount: 1,
+      activePassIndex: 1,
+      status: 'awaiting_actions',
+      eligibleSourcePowers: [
+        { key: 'car-low:CAR#0', sourceInstanceId: 'car-low', shipDefId: 'CAR', rawPowerIndex: 0, mode: 'interactive' },
+        { key: 'car-full:CAR#0', sourceInstanceId: 'car-full', shipDefId: 'CAR', rawPowerIndex: 0, mode: 'interactive' },
+      ],
+      resolvedSourcePowerKeysByPass: {},
+    },
+  };
+  state.gameData.turnData.buildDrawingPublicFleetByPlayerId = { p1: structuredClone(state.gameData.ships.p1), p2: [] };
+  fixture.store.set('game_drawing-prelude-actions', state);
+  const getState = fixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
+  const body = await responseJson(await getState(createContext({ params: { gameId: 'drawing-prelude-actions' } })));
+  assert.deepEqual(body.requester.availableActions, [
+    { kind: 'choice', actionId: 'CAR#0', shipDefId: 'CAR', sourceInstanceId: 'car-low', choices: [{ choiceId: 'defender' }, { choiceId: 'hold' }] },
+    { kind: 'choice', actionId: 'CAR#0', shipDefId: 'CAR', sourceInstanceId: 'car-full', choices: [{ choiceId: 'defender' }, { choiceId: 'fighter' }, { choiceId: 'hold' }] },
+  ]);
+
+  state.gameData.ships.p1[1].shipDefId = 'DEF';
+  fixture.store.set('game_drawing-prelude-actions', state);
+  const failedClosed = await responseJson(await getState(createContext({ params: { gameId: 'drawing-prelude-actions' } })));
+  assert.deepEqual(failedClosed.requester.availableActions, []);
+});
+
 Deno.test('/game-state projects DOM transfer targets with shared Spiral capacity legality', async () => {
   const fixture = createGameRouteFixture();
   const setupState: any = createSetupState('dom-projection');

@@ -41,10 +41,17 @@ import {
   projectChargeDeclarationStateForViewer,
 } from '../engine/state/chargeDeclarationVisibility.ts';
 import {
+  hasCurrentDrawingPreludePrivacyClaim,
   projectDrawingPreludeRequesterSummary,
   projectPrivateDrawingPreludeCuesForRequester,
   redactPrivateDrawingPreludeCuesForPublic,
 } from '../engine/state/drawingPreludeProjection.ts';
+import {
+  getCarrierDrawingPreludeChoiceLegality,
+  getCurrentDrawingPreludePlayerState,
+  isDrawingPreludeSourceResolved,
+  validateFrozenCarrierDrawingPreludeSource,
+} from '../engine/state/drawingPreludeState.ts';
 import { buildPhaseKey } from '../engine_shared/phase/PhaseTable.ts';
 import { computeLineBonusesForPlayer } from '../engine/lines/computeLineBonusForPlayer.ts';
 import { fleetHasAvailablePowers } from '../engine/phase/fleetHasAvailablePowers.ts';
@@ -668,6 +675,40 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
   const phaseKey = getPhaseKey(state);
 
   if (!phaseKey) return [];
+
+  if (phaseKey === 'build.drawing' && hasCurrentDrawingPreludePrivacyClaim(state)) {
+    const playerPrelude = getCurrentDrawingPreludePlayerState(state, playerId);
+    if (
+      !playerPrelude ||
+      playerPrelude.requiredPassCount !== 1 ||
+      playerPrelude.activePassIndex !== 1 ||
+      playerPrelude.status !== 'awaiting_actions'
+    ) return [];
+    if (playerPrelude.eligibleSourcePowers.some((source) =>
+      source.mode === 'automatic' && !isDrawingPreludeSourceResolved(playerPrelude, source.key)
+    )) return [];
+
+    const actions: any[] = [];
+    for (const source of playerPrelude.eligibleSourcePowers) {
+      if (source.mode !== 'interactive' || isDrawingPreludeSourceResolved(playerPrelude, source.key)) continue;
+      const validated = validateFrozenCarrierDrawingPreludeSource(state, playerId, source);
+      if (!validated.ok) return [];
+      const legality = getCarrierDrawingPreludeChoiceLegality(state, playerId, source);
+      if (!legality.ok) return [];
+      if (legality.value.holdOnly) continue;
+      actions.push({
+        kind: 'choice',
+        actionId: 'CAR#0',
+        shipDefId: 'CAR',
+        sourceInstanceId: source.sourceInstanceId,
+        choices: [
+          ...legality.value.nonHoldChoiceIds.map((choiceId) => ({ choiceId })),
+          { choiceId: 'hold' },
+        ],
+      });
+    }
+    return actions;
+  }
 
   if (phaseKey === 'build.dice_roll') {
     if (state?.gameData?.turnData?.diceManipulationStage === 'cube') {

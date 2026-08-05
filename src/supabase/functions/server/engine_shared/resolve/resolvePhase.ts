@@ -55,21 +55,15 @@ import {
 import {
   getDirectMaterializedSimulacrumInstanceIdsForPlayer,
 } from '../../engine/ancient/simulacrumSolarPower.ts';
-
-function countCreatedShipsByTargetPlayerId(
-  effects: Effect[]
-): Record<string, number> {
-  const counts: Record<string, number> = {};
-
-  for (const effect of effects) {
-    if (effect.kind !== EffectKind.CreateShip) continue;
-
-    const playerId = effect.target.playerId;
-    counts[playerId] = (counts[playerId] || 0) + 1;
-  }
-
-  return counts;
-}
+import {
+  createBugBreederSourceEffects,
+  createQueenSourceEffects,
+  createRecurringZenithSourceEffects,
+} from './shipsThatBuildSourceEffects.ts';
+import {
+  countVerifiedCreatedShipsByTargetPlayerId,
+  matchAppliedCreateShipEffectsOneToOne,
+} from '../effects/appliedEffectVerification.ts';
 
 function incrementShipsMadeThisTurnCounter(
   state: GameState,
@@ -191,21 +185,12 @@ function collectQueenAutoBuildEffects(
     );
 
     for (const queen of eligibleQueens) {
-      effects.push({
-        id: `queen_build_${currentTurn}_${queen.instanceId}`,
-        ownerPlayerId: player.id,
-        source: {
-          type: 'ship',
-          instanceId: queen.instanceId,
-          shipDefId: queen.shipDefId,
-        },
-        timing: phaseKey,
-        activationTag: EffectTiming.Automatic,
-        target: { playerId: player.id },
-        survivability: SurvivabilityRule.DiesWithSource,
-        kind: EffectKind.CreateShip,
-        shipDefId: 'XEN',
-      });
+      effects.push(...createQueenSourceEffects({
+        source: queen,
+        playerId: player.id,
+        turnNumber: currentTurn,
+        phaseKey,
+      }) as CreateShipEffect[]);
     }
   }
 
@@ -242,37 +227,12 @@ function collectBugBreederAutoBuildEffects(
     );
 
     for (const bugBreeder of eligibleBugBreeders) {
-      effects.push({
-        id: `bug_build_${currentTurn}_${bugBreeder.instanceId}_charge`,
-        ownerPlayerId: player.id,
-        source: {
-          type: 'ship',
-          instanceId: bugBreeder.instanceId,
-          shipDefId: bugBreeder.shipDefId,
-        },
-        timing: phaseKey,
-        activationTag: EffectTiming.Automatic,
-        target: { playerId: player.id },
-        survivability: SurvivabilityRule.DiesWithSource,
-        kind: EffectKind.SpendCharge,
-        amount: 1,
-      });
-
-      effects.push({
-        id: `bug_build_${currentTurn}_${bugBreeder.instanceId}_xenite`,
-        ownerPlayerId: player.id,
-        source: {
-          type: 'ship',
-          instanceId: bugBreeder.instanceId,
-          shipDefId: bugBreeder.shipDefId,
-        },
-        timing: phaseKey,
-        activationTag: EffectTiming.Automatic,
-        target: { playerId: player.id },
-        survivability: SurvivabilityRule.DiesWithSource,
-        kind: EffectKind.CreateShip,
-        shipDefId: 'XEN',
-      });
+      effects.push(...createBugBreederSourceEffects({
+        source: bugBreeder,
+        playerId: player.id,
+        turnNumber: currentTurn,
+        phaseKey,
+      }));
     }
   }
 
@@ -312,63 +272,13 @@ function collectZenithAutoBuildEffects(
       : getEffectiveDiceRollForPlayer(state, player.id);
 
     for (const zenith of eligibleZeniths) {
-      if (roll === 2) {
-        effects.push({
-          id: `zenith_build_${currentTurn}_${zenith.instanceId}_xen_0`,
-          ownerPlayerId: player.id,
-          source: {
-            type: 'ship',
-            instanceId: zenith.instanceId,
-            shipDefId: zenith.shipDefId,
-          },
-          timing: phaseKey,
-          activationTag: EffectTiming.Automatic,
-          target: { playerId: player.id },
-          survivability: SurvivabilityRule.DiesWithSource,
-          kind: EffectKind.CreateShip,
-          shipDefId: 'XEN',
-        });
-        continue;
-      }
-
-      if (roll === 3) {
-        effects.push({
-          id: `zenith_build_${currentTurn}_${zenith.instanceId}_ant_0`,
-          ownerPlayerId: player.id,
-          source: {
-            type: 'ship',
-            instanceId: zenith.instanceId,
-            shipDefId: zenith.shipDefId,
-          },
-          timing: phaseKey,
-          activationTag: EffectTiming.Automatic,
-          target: { playerId: player.id },
-          survivability: SurvivabilityRule.DiesWithSource,
-          kind: EffectKind.CreateShip,
-          shipDefId: 'ANT',
-        });
-        continue;
-      }
-
-      if (roll === 4) {
-        for (let i = 0; i < 2; i++) {
-          effects.push({
-            id: `zenith_build_${currentTurn}_${zenith.instanceId}_xen_${i}`,
-            ownerPlayerId: player.id,
-            source: {
-              type: 'ship',
-              instanceId: zenith.instanceId,
-              shipDefId: zenith.shipDefId,
-            },
-            timing: phaseKey,
-            activationTag: EffectTiming.Automatic,
-            target: { playerId: player.id },
-            survivability: SurvivabilityRule.DiesWithSource,
-            kind: EffectKind.CreateShip,
-            shipDefId: 'XEN',
-          });
-        }
-      }
+      effects.push(...createRecurringZenithSourceEffects({
+        source: zenith,
+        playerId: player.id,
+        turnNumber: currentTurn,
+        phaseKey,
+        roll,
+      }) as CreateShipEffect[]);
     }
   }
 
@@ -665,7 +575,13 @@ function resolveShipsThatBuild(
   // Apply effects to state
   let result = applyEffects(state, effects);
   const allEvents: any[] = [...result.events];
-  const createdShipsByPlayerId = countCreatedShipsByTargetPlayerId(effects);
+  const appliedCreationMatches = matchAppliedCreateShipEffectsOneToOne({
+    expectedEffects: effects,
+    effectEvents: result.events,
+  });
+  const createdShipsByPlayerId = countVerifiedCreatedShipsByTargetPlayerId(
+    appliedCreationMatches,
+  );
   result = {
     ...result,
     state: recordAutomaticShipsThatBuildUsage(

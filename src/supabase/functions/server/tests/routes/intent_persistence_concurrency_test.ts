@@ -7,6 +7,9 @@ import type {
 } from '../../routes/intent_persistence.ts';
 import { normalizeAncientGameState } from '../../engine/state/ancientState.ts';
 import { replaceChargeDeclarationVisibilityState } from '../../engine/state/chargeDeclarationVisibility.ts';
+import { applyIntent } from '../../engine/intent/IntentReducer.ts';
+import { filterDrawingPreludeEventsForViewer } from '../../engine/state/drawingPreludeProjection.ts';
+import { buildBattleLogTurnSummaryFromScratch } from '../../engine/state/battleLogHistory.ts';
 
 type Write = { key: string; value: any };
 
@@ -148,6 +151,51 @@ function createBuildState(gameId: string) {
   }).state;
 }
 
+function createDrawingPreludeCarrierState(gameId: string) {
+  const state: any = createBuildState(gameId);
+  state.gameData.ships.p1 = [{ instanceId: 'car-1', shipDefId: 'CAR', chargesCurrent: 1, createdTurn: 0 }];
+  state.gameData.turnData.drawingPreludeByPlayerId = {
+    p1: {
+      turnNumber: 1,
+      requiredPassCount: 1,
+      activePassIndex: 1,
+      status: 'awaiting_actions',
+      eligibleSourcePowers: [{ key: 'car-1:CAR#0', sourceInstanceId: 'car-1', shipDefId: 'CAR', rawPowerIndex: 0, mode: 'interactive' }],
+      resolvedSourcePowerKeysByPass: {},
+    },
+  };
+  state.gameData.turnData.buildDrawingPublicFleetByPlayerId = {
+    p1: structuredClone(state.gameData.ships.p1),
+    p2: [],
+  };
+  return state;
+}
+
+function createIndependentDrawingPreludeSubmissionState(gameId: string) {
+  const state: any = createBuildState(gameId);
+  state.gameData.ships.p2 = [{ instanceId: 'p2-car', shipDefId: 'CAR', chargesCurrent: 1, createdTurn: 0 }];
+  state.gameData.turnData.drawingPreludeByPlayerId = {
+    p1: {
+      turnNumber: 1,
+      requiredPassCount: 1,
+      activePassIndex: 1,
+      status: 'complete',
+      eligibleSourcePowers: [],
+      resolvedSourcePowerKeysByPass: {},
+    },
+    p2: {
+      turnNumber: 1,
+      requiredPassCount: 1,
+      activePassIndex: 1,
+      status: 'awaiting_actions',
+      eligibleSourcePowers: [{ key: 'p2-car:CAR#0', sourceInstanceId: 'p2-car', shipDefId: 'CAR', rawPowerIndex: 0, mode: 'interactive' }],
+      resolvedSourcePowerKeysByPass: {},
+    },
+  };
+  state.gameData.turnData.buildDrawingPublicFleetByPlayerId = { p1: [], p2: structuredClone(state.gameData.ships.p2) };
+  return state;
+}
+
 function createBotCubeState(gameId: string, cubeValues: [number, number]) {
   const cubeShips = cubeValues.map((_, index) => ({
     instanceId: `transferred-cube-0${index + 1}`,
@@ -227,6 +275,94 @@ function intentRequest(app: Hono, gameId: string, playerId: string, body: any) {
     body: JSON.stringify({ gameId, turnNumber: 1, ...body }),
   });
 }
+
+Deno.test('concurrent duplicate Drawing-prelude Carrier action commits once and stale retry is HTTP 400', async () => {
+  const gameId = 'concurrent-drawing-prelude-carrier';
+  const persistence = new ScriptedPersistence();
+  const initialState = createDrawingPreludeCarrierState(gameId);
+  persistence.store.set(`game_${gameId}`, initialState);
+  persistence.enableTwoLoadBarrier();
+  const app = createApp(persistence);
+  const body = {
+    intentType: 'ACTION' as const,
+    nonce: 'carrier-defender',
+    payload: { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-1', choiceId: 'defender' },
+  };
+
+  const responses = await Promise.all([
+    intentRequest(app, gameId, 'p1', body),
+    intentRequest(app, gameId, 'p1', body),
+  ]);
+  const statuses = responses.map((response) => response.status).sort();
+  assert.deepEqual(statuses, [200, 400]);
+  const rejectedResponse = responses.find((response) => response.status === 400)!;
+  const rejectedBody = await rejectedResponse.json();
+  assert.equal(rejectedBody.rejected.code, 'BAD_PAYLOAD');
+  const acceptedResponse = responses.find((response) => response.status === 200)!;
+  const acceptedBody = await acceptedResponse.json();
+  assert.equal(acceptedBody.events.some((event: any) => event.type === 'EFFECT_APPLIED'), true);
+  assert.equal(acceptedBody.events.some((event: any) => event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'), true);
+  assert.equal(acceptedBody.events.some((event: any) => event.type === 'POWER_USED'), true);
+  assert.equal(acceptedBody.events.some((event: any) => 'drawingPreludeVisibility' in event), false);
+
+  const canonicalResult = await applyIntent(initialState, 'p1', {
+    gameId,
+    turnNumber: 1,
+    ...body,
+  }, 10);
+  assert.equal(canonicalResult.ok, true);
+  assert.deepEqual(filterDrawingPreludeEventsForViewer(canonicalResult.state, 'p2', canonicalResult.events), []);
+  assert.deepEqual(filterDrawingPreludeEventsForViewer(canonicalResult.state, undefined, canonicalResult.events), []);
+
+  const committed = persistence.store.get(`game_${gameId}`);
+  assert.equal(committed.stateRevision, 6);
+  assert.equal(committed.gameData.ships.p1.filter((ship: any) => ship.shipDefId === 'DEF').length, 1);
+  assert.equal(committed.gameData.turnData.drawingPreludeByPlayerId.p1.resolvedSourcePowerKeysByPass[1].length, 1);
+  assert.equal(committed.gameData.turnData.shipActivationCueBatches[0].sources.length, 1);
+  assert.equal(
+    committed.battleLogScratch.currentTurnCapture.buildAtomsByPlayerId.p1.filter((atom: any) => atom.kind === 'produced_build').length,
+    1,
+  );
+  const summary = buildBattleLogTurnSummaryFromScratch({
+    scratch: committed.battleLogScratch,
+    finalizedTurnNumber: 1,
+    finalizedState: committed,
+  });
+  assert.equal(summary.buildLinesByPlayerId.p1.length, 1);
+  assert.match(summary.buildLinesByPlayerId.p1[0], /DEF/);
+  assert.deepEqual(
+    buildBattleLogTurnSummaryFromScratch({
+      scratch: committed.battleLogScratch,
+      finalizedTurnNumber: 1,
+      finalizedState: committed,
+    }).buildLinesByPlayerId.p1,
+    summary.buildLinesByPlayerId.p1,
+  );
+  assert.equal(persistence.writes.filter((write) => write.key === `game_${gameId}`).length, 1);
+});
+
+Deno.test('complete requester may submit while opponent Drawing prelude remains awaiting', async () => {
+  const gameId = 'independent-drawing-prelude-submit';
+  const persistence = new ScriptedPersistence();
+  persistence.store.set(`game_${gameId}`, createIndependentDrawingPreludeSubmissionState(gameId));
+  const response = await intentRequest(createApp(persistence), gameId, 'p1', {
+    intentType: 'BUILD_SUBMIT',
+    nonce: 'p1-independent',
+    payload: { builds: [{ shipDefId: 'DEF', count: 1 }] },
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(body.state.gameData.currentSubPhase, 'drawing');
+
+  const storedAfterSubmit = persistence.store.get(`game_${gameId}`);
+  assert.equal(storedAfterSubmit.stateRevision, 6);
+  assert.ok(storedAfterSubmit.gameData.turnData.commitments.BUILD_1.p1);
+  assert.equal(storedAfterSubmit.gameData.turnData.commitments.BUILD_1.p2, undefined);
+  assert.equal(storedAfterSubmit.gameData.turnData.drawingPreludeByPlayerId.p2.status, 'awaiting_actions');
+  assert.equal(storedAfterSubmit.gameData.currentSubPhase, 'drawing');
+  assert.equal(storedAfterSubmit.gameData.ships.p1.some((ship: any) => ship.shipDefId === 'DEF'), false);
+});
 
 Deno.test('concurrent p1 and p2 BUILD_SUBMIT requests retry CAS and preserve both accepted mutations', async () => {
   const gameId = 'concurrent-builds';

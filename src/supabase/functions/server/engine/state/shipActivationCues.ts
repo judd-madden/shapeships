@@ -175,3 +175,103 @@ export function appendShipActivationCueBatch(
     return state;
   }
 }
+
+export type StrictShipActivationCueMergeResult =
+  | { ok: true; state: GameState }
+  | { ok: false; error: { code: string; message: string } };
+
+export function mergePrivateDrawingPreludeCueBatchStrict(
+  state: GameState,
+  args: {
+    key: string;
+    turnNumber: number;
+    playerId: string;
+    sources: readonly unknown[];
+  },
+): StrictShipActivationCueMergeResult {
+  const fail = (code: string, message: string): StrictShipActivationCueMergeResult => ({
+    ok: false,
+    error: { code, message },
+  });
+  if (!args.key || !Number.isInteger(args.turnNumber) || !args.playerId) {
+    return fail('INVALID_CUE_REQUEST', 'Private Drawing-prelude cue request is malformed');
+  }
+
+  const normalizedSources = dedupeShipActivationCueSources(args.sources);
+  if (
+    normalizedSources.length === 0 ||
+    args.sources.some((source) => normalizeSource(source) === null) ||
+    normalizedSources.some((source) => source.playerId !== args.playerId)
+  ) {
+    return fail('INVALID_CUE_SOURCES', 'Private Drawing-prelude cue sources are malformed, duplicated, or mixed-owner');
+  }
+
+  const turnData = state.gameData.turnData ?? {};
+  const rawBatches = turnData.shipActivationCueBatches;
+  if (rawBatches !== undefined && !Array.isArray(rawBatches)) {
+    return fail('MALFORMED_CUE_STORE', 'Ship activation cue storage is malformed');
+  }
+  const matchingRaw = (rawBatches ?? []).filter(
+    (value: unknown) => value && typeof value === 'object' &&
+      (value as { key?: unknown }).key === args.key,
+  );
+  if (matchingRaw.length > 1) {
+    return fail('DUPLICATE_CUE_KEY', `Multiple private cue batches use ${args.key}`);
+  }
+
+  const existingBatches = getShipActivationCueBatches(rawBatches);
+  const existing = matchingRaw.length === 1 ? normalizeBatch(matchingRaw[0]) : null;
+  if (matchingRaw.length === 1 && !existing) {
+    return fail('MALFORMED_MATCHING_CUE', `Private cue batch ${args.key} is malformed`);
+  }
+  if (existing) {
+    if (
+      existing.turnNumber !== args.turnNumber ||
+      existing.phaseKey !== 'build.drawing' ||
+      existing.sources.some((source) => source.playerId !== args.playerId)
+    ) {
+      return fail('CONFLICTING_CUE', `Private cue batch ${args.key} conflicts with the accepted transaction`);
+    }
+    const mergedSources = dedupeShipActivationCueSources([
+      ...existing.sources,
+      ...normalizedSources,
+    ]);
+    const nextBatches = existingBatches.map((batch) =>
+      batch.key === args.key ? { ...batch, sources: mergedSources } : batch
+    );
+    return {
+      ok: true,
+      state: {
+        ...state,
+        gameData: {
+          ...state.gameData,
+          turnData: { ...turnData, shipActivationCueBatches: nextBatches },
+        },
+      },
+    };
+  }
+
+  const seq = existingBatches.reduce((highest, batch) => Math.max(highest, batch.seq), 0) + 1;
+  return {
+    ok: true,
+    state: {
+      ...state,
+      gameData: {
+        ...state.gameData,
+        turnData: {
+          ...turnData,
+          shipActivationCueBatches: [
+            ...existingBatches,
+            {
+              key: args.key,
+              turnNumber: args.turnNumber,
+              phaseKey: 'build.drawing',
+              seq,
+              sources: normalizedSources,
+            },
+          ].slice(-MAX_SHIP_ACTIVATION_CUE_BATCHES),
+        },
+      },
+    },
+  };
+}

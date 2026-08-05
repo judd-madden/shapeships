@@ -90,7 +90,7 @@ Deno.test('the canonical phase sequence retains global Ships That Build before D
   assert.equal(drawingIndex, shipsThatBuildIndex + 1);
 });
 
-Deno.test('BUILD_SUBMIT remains accepted while an injected settled prelude entry awaits a Carrier choice', async () => {
+Deno.test('BUILD_SUBMIT is gated while an injected current prelude entry awaits a Carrier choice', async () => {
   const state = createDrawingState();
   const turnData = state.gameData.turnData!;
   turnData.drawingPreludeByPlayerId = {
@@ -127,23 +127,19 @@ Deno.test('BUILD_SUBMIT remains accepted while an injected settled prelude entry
     2_000,
   );
 
-  assert.equal(result.ok, true);
-  assert.equal(result.rejected, undefined);
-  assert.equal(
-    result.events.some((event: any) => 'drawingPreludeVisibility' in event),
-    false,
-  );
+  assert.equal(result.ok, false);
+  assert.equal(result.rejected?.code, 'DRAWING_PRELUDE_INCOMPLETE');
+  assert.deepEqual(result.events, []);
   assert.equal(
     result.state.gameData.turnData.drawingPreludeByPlayerId.p1.status,
     'awaiting_actions',
   );
 });
 
-Deno.test('protected live workflow modules do not import the inactive foundation', async () => {
+Deno.test('phase machinery and legacy phase resolution do not initialize the dormant foundation', async () => {
   const protectedModules = [
     '../../../engine/phase/onEnterPhase.ts',
     '../../../engine/phase/advancePhase.ts',
-    '../../../engine/intent/IntentReducer.ts',
     '../../../engine_shared/resolve/resolvePhase.ts',
     '../../../engine_shared/phase/PhaseTable.ts',
   ];
@@ -158,4 +154,10 @@ Deno.test('protected live workflow modules do not import the inactive foundation
       `${modulePath} must not invoke the Drawing-prelude foundation`,
     );
   }
+
+  const reducerSource = await Deno.readTextFile(
+    new URL('../../../engine/intent/IntentReducer.ts', import.meta.url),
+  );
+  assert.equal(reducerSource.includes('createDrawingPreludeInitializationCandidate'), false);
+  assert.equal(reducerSource.includes('finalizeDrawingPreludeInitializationCandidate'), false);
 });

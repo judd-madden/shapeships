@@ -10,6 +10,7 @@ import {
   redactDrawingPreludeTurnDataForClient,
   redactPrivateDrawingPreludeCuesForPublic,
 } from '../../../engine/state/drawingPreludeProjection.ts';
+import { resolveDrawingPreludePowerAction } from '../../../engine/intent/drawingPreludeResolution.ts';
 
 function ship(instanceId: string, shipDefId: string, createdTurn = 4): ShipInstance {
   return { instanceId, shipDefId, createdTurn };
@@ -160,6 +161,37 @@ Deno.test('Drawing-prelude event routing strips private metadata and fails close
   ]);
   assert.deepEqual(filterDrawingPreludeEventsForViewer(state, 'p2', events), [events[0]]);
   assert.deepEqual(filterDrawingPreludeEventsForViewer(state, 'spec', events), [events[0]]);
+});
+
+Deno.test('events emitted by live Carrier resolution are owner-only and sanitized', () => {
+  const state = createProjectedState();
+  (state.gameData as any).currentPhase = 'build';
+  (state.gameData as any).currentSubPhase = 'drawing';
+  state.gameData.ships!.p1 = [{ instanceId: 'car-live', shipDefId: 'CAR', chargesCurrent: 1, createdTurn: 4 }];
+  state.gameData.turnData!.drawingPreludeByPlayerId!.p1 = {
+    turnNumber: 5,
+    requiredPassCount: 1,
+    activePassIndex: 1,
+    status: 'awaiting_actions',
+    eligibleSourcePowers: [{ key: 'car-live:CAR#0', sourceInstanceId: 'car-live', shipDefId: 'CAR', rawPowerIndex: 0, mode: 'interactive' }],
+    resolvedSourcePowerKeysByPass: {},
+  };
+  const resolved = resolveDrawingPreludePowerAction({
+    state,
+    playerId: 'p1',
+    action: { actionType: 'power', actionId: 'CAR#0', sourceInstanceId: 'car-live', choiceId: 'defender' },
+    nowMs: 10,
+  });
+  assert.equal(resolved.ok, true);
+  if (!resolved.ok) return;
+  const ownerEvents = filterDrawingPreludeEventsForViewer(resolved.state, 'p1', resolved.events);
+  assert.equal(ownerEvents.length, resolved.events.length);
+  assert.equal(ownerEvents.some((event) => event.type === 'EFFECT_APPLIED'), true);
+  assert.equal(ownerEvents.some((event) => event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'), true);
+  assert.equal(ownerEvents.some((event) => event.type === 'POWER_USED'), true);
+  assert.equal(ownerEvents.some((event) => 'drawingPreludeVisibility' in event), false);
+  assert.deepEqual(filterDrawingPreludeEventsForViewer(resolved.state, 'p2', resolved.events), []);
+  assert.deepEqual(filterDrawingPreludeEventsForViewer(resolved.state, 'spec', resolved.events), []);
 });
 
 Deno.test('Private cue filtering is limited to exact current-turn Drawing-prelude keys', () => {
