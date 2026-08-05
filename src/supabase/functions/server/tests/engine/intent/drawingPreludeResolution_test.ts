@@ -97,6 +97,12 @@ Deno.test('automatic BUG applies charge and creation, verifies accounting, captu
   assert.equal(result.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.status, 'complete');
   assert.equal(result.events.every((event) => event.drawingPreludeVisibility?.playerId === 'p1'), true);
   assert.equal(result.events.filter((event) => event.type === 'EFFECT_APPLIED').length, 2);
+  assert.deepEqual(
+    result.events.find((event) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'
+    )?.producedBuildOccurrence,
+    { stage: 'drawing_prelude', passIndex: 1 },
+  );
   assert.equal(result.state.gameData.turnData?.shipActivationCueBatches?.[0].sources[0].sourceInstanceId, 'bug-1');
   const repeated = advanceDrawingPreludeForPlayer({ state: result.state, playerId: 'p1', nowMs: 11 });
   assert.equal(repeated.ok, true);
@@ -159,6 +165,12 @@ Deno.test('Carrier resolution uses pass-aware IDs, marks all events, and emits n
   assert.equal(effectEvents.every((event) => event.effectId.startsWith('drawing-prelude:3:p1:pass:1:car-1:CAR#0:defender:')), true);
   assert.equal(result.events.some((event) => event.type === 'POWERS_BATCH_SUBMITTED'), false);
   assert.equal(result.events.every((event) => event.drawingPreludeVisibility?.playerId === 'p1'), true);
+  assert.deepEqual(
+    result.events.find((event) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'
+    )?.producedBuildOccurrence,
+    { stage: 'drawing_prelude', passIndex: 1 },
+  );
   assert.equal(result.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.status, 'complete');
   assert.equal(result.state.gameData.ships?.p1?.find((ship) => ship.instanceId === 'car-1')?.chargesCurrent, 1);
   assert.equal(result.state.gameData.turnData?.shipsThatBuildPassUsageByInstanceId, undefined);
@@ -475,4 +487,77 @@ Deno.test('ships added after freezing do not join pass 2', () => {
   assert.equal(result.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.status, 'complete');
   assert.equal(result.state.gameData.ships?.p1?.filter((ship) => ship.shipDefId === 'XEN').length, 0);
   assert.equal(result.state.gameData.ships?.p1?.find((ship) => ship.instanceId === 'later-bug')?.chargesCurrent, 1);
+});
+
+Deno.test('current-turn copied and controlled foreign sources execute through both passes without species gating', () => {
+  const state = requireTwoPasses(createState([
+    { instanceId: 'ssim-copied-bug', shipDefId: 'BUG', chargesCurrent: 2 },
+    { instanceId: 'ssim-copied-zen', shipDefId: 'ZEN', chargesCurrent: 0 },
+    { instanceId: 'controlled-car', shipDefId: 'CAR', chargesCurrent: 2 },
+    { instanceId: 'controlled-queen', shipDefId: 'QUE', chargesCurrent: 0 },
+  ]), 4);
+  state.players[0].faction = 'centaur';
+  state.gameData.ships!.p1.find((ship) => ship.instanceId === 'ssim-copied-bug')!.createdTurn = 3;
+  state.gameData.ships!.p1.find((ship) => ship.instanceId === 'ssim-copied-zen')!.createdTurn = 3;
+  state.gameData.ships!.p1.find((ship) => ship.instanceId === 'controlled-car')!.createdTurn = 1;
+  state.gameData.ships!.p1.find((ship) => ship.instanceId === 'controlled-queen')!.createdTurn = 1;
+
+  const pass1Automatic = advanceDrawingPreludeForPlayer({
+    state,
+    playerId: 'p1',
+    nowMs: 1,
+  });
+  assert.equal(pass1Automatic.ok, true);
+  if (!pass1Automatic.ok) return;
+  const pass1 = resolveDrawingPreludePowerAction({
+    state: pass1Automatic.state,
+    playerId: 'p1',
+    action: power('controlled-car', 'hold', 1),
+    nowMs: 2,
+  });
+  assert.equal(pass1.ok, true);
+  if (!pass1.ok) return;
+  assert.equal(
+    pass1.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.activePassIndex,
+    2,
+  );
+  const pass2 = resolveDrawingPreludePowerAction({
+    state: pass1.state,
+    playerId: 'p1',
+    action: power('controlled-car', 'hold', 2),
+    nowMs: 3,
+  });
+  assert.equal(pass2.ok, true);
+  if (!pass2.ok) return;
+
+  const exactKeys = [
+    'ssim-copied-bug:BUG#0',
+    'ssim-copied-zen:ZEN#1',
+    'controlled-car:CAR#0',
+    'controlled-queen:QUE#0',
+  ];
+  assert.deepEqual(
+    pass2.state.gameData.turnData?.drawingPreludeByPlayerId?.p1
+      .resolvedSourcePowerKeysByPass,
+    { 1: exactKeys, 2: exactKeys },
+  );
+  const captures = [...pass1Automatic.events, ...pass1.events, ...pass2.events]
+    .filter((event) => event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED');
+  for (const sourceShipDefId of ['BUG', 'ZEN', 'QUE']) {
+    for (const passIndex of [1, 2]) {
+      assert.equal(
+        captures.some((event) =>
+          event.sourceShipDefId === sourceShipDefId &&
+          event.producedBuildOccurrence?.stage === 'drawing_prelude' &&
+          event.producedBuildOccurrence.passIndex === passIndex
+        ),
+        true,
+        `${sourceShipDefId} must produce a capture in pass ${passIndex}`,
+      );
+    }
+  }
+  assert.equal(
+    pass2.state.gameData.turnData?.drawingPreludeByPlayerId?.p1.status,
+    'complete',
+  );
 });

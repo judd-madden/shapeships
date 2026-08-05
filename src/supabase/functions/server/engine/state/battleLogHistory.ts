@@ -69,6 +69,11 @@ export type BattleLogTurnSummary = {
   analysisByPlayerId?: Record<string, BattleLogTurnPlayerAnalysis>;
 };
 
+export type ProducedBuildOccurrence =
+  | { stage: "drawing_prelude"; passIndex: 1 | 2 }
+  | { stage: "drawing" }
+  | { stage: "end_of_build" };
+
 type BuildCaptureAtom =
   | {
       kind: "reroll";
@@ -88,6 +93,7 @@ type BuildCaptureAtom =
       shipDefId: string;
       sourceShipDefId: string;
       count: number;
+      producedBuildOccurrence?: ProducedBuildOccurrence;
     };
 
 type BattleCaptureAtom =
@@ -181,6 +187,7 @@ type BattleLogCaptureEvent =
       shipDefId: string;
       sourceShipDefId: string;
       count: number;
+      producedBuildOccurrence?: ProducedBuildOccurrence;
     }
   | {
       type: "BATTLE_LOG_CAPTURE_BATTLE_CHARGE_ACTION";
@@ -271,10 +278,61 @@ type CaptureResolutionArgs = {
   playerId: string;
   effects: Effect[];
   effectEvents: EffectEvent[];
+  producedBuildOccurrence?: ProducedBuildOccurrence;
 };
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
+}
+
+function hasExactOwnKeys(
+  value: Record<string, unknown>,
+  expectedKeys: readonly string[],
+): boolean {
+  const keys = Object.keys(value).sort();
+  const expected = [...expectedKeys].sort();
+  return keys.length === expected.length &&
+    keys.every((key, index) => key === expected[index]);
+}
+
+function normalizeProducedBuildOccurrence(
+  value: unknown,
+): ProducedBuildOccurrence | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const occurrence = value as Record<string, unknown>;
+  if (occurrence.stage === "drawing_prelude") {
+    if (
+      !hasExactOwnKeys(occurrence, ["stage", "passIndex"]) ||
+      !Number.isInteger(occurrence.passIndex) ||
+      (occurrence.passIndex !== 1 && occurrence.passIndex !== 2)
+    ) {
+      return null;
+    }
+    return {
+      stage: "drawing_prelude",
+      passIndex: occurrence.passIndex,
+    };
+  }
+  if (occurrence.stage === "drawing" || occurrence.stage === "end_of_build") {
+    if (!hasExactOwnKeys(occurrence, ["stage"])) return null;
+    return { stage: occurrence.stage };
+  }
+  return null;
+}
+
+function readOptionalProducedBuildOccurrence(
+  holder: Record<string, unknown>,
+): ProducedBuildOccurrence | undefined {
+  if (!Object.prototype.hasOwnProperty.call(holder, "producedBuildOccurrence")) {
+    return undefined;
+  }
+  const occurrence = normalizeProducedBuildOccurrence(
+    holder.producedBuildOccurrence,
+  );
+  if (!occurrence) {
+    throw new Error("BATTLE_LOG_INVALID_PRODUCED_OCCURRENCE_INVARIANT");
+  }
+  return occurrence;
 }
 
 function isD6Roll(value: unknown): value is number {
@@ -547,11 +605,15 @@ function cloneBuildCaptureAtom(atom: BuildCaptureAtom): BuildCaptureAtom {
     };
   }
 
+  const producedBuildOccurrence = readOptionalProducedBuildOccurrence(
+    atom as unknown as Record<string, unknown>,
+  );
   return {
     kind: "produced_build",
     shipDefId: atom.shipDefId,
     sourceShipDefId: atom.sourceShipDefId,
     count: atom.count,
+    ...(producedBuildOccurrence ? { producedBuildOccurrence } : {}),
   };
 }
 
@@ -1188,7 +1250,38 @@ function formatAncientSolarBattleLines(
   );
 }
 
-function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
+function collapseProducedBuildLines(
+  producedBuilds: Array<Extract<BuildCaptureAtom, { kind: "produced_build" }>>,
+): string[] {
+  const producedLines: string[] = [];
+  const producedCounts = new Map<string, number>();
+  const producedOrder: string[] = [];
+  const producedSamples = new Map<
+    string,
+    Extract<BuildCaptureAtom, { kind: "produced_build" }>
+  >();
+
+  for (const atom of producedBuilds) {
+    const key = `${atom.shipDefId}::${atom.sourceShipDefId}`;
+    if (!producedCounts.has(key)) {
+      producedCounts.set(key, 0);
+      producedOrder.push(key);
+      producedSamples.set(key, atom);
+    }
+    producedCounts.set(key, (producedCounts.get(key) ?? 0) + atom.count);
+  }
+
+  for (const key of producedOrder) {
+    const sample = producedSamples.get(key)!;
+    const count = producedCounts.get(key) ?? 0;
+    producedLines.push(
+      `${count} x ${sample.shipDefId} (${sample.sourceShipDefId})`,
+    );
+  }
+  return producedLines;
+}
+
+function formatLegacyBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
   const rerollLines: string[] = [];
   const chronoswarmLines: string[] = [];
   const manualBuilds: Array<
@@ -1230,37 +1323,77 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
     (atom, count) => `${count} x ${atom.shipDefId}`,
   );
 
-  const producedLines: string[] = [];
-  const producedCounts = new Map<string, number>();
-  const producedOrder: string[] = [];
-  const producedSamples = new Map<
-    string,
-    Extract<BuildCaptureAtom, { kind: "produced_build" }>
-  >();
-
-  for (const atom of producedBuilds) {
-    const key = `${atom.shipDefId}::${atom.sourceShipDefId}`;
-    if (!producedCounts.has(key)) {
-      producedCounts.set(key, 0);
-      producedOrder.push(key);
-      producedSamples.set(key, atom);
-    }
-    producedCounts.set(key, (producedCounts.get(key) ?? 0) + atom.count);
-  }
-
-  for (const key of producedOrder) {
-    const sample = producedSamples.get(key)!;
-    const count = producedCounts.get(key) ?? 0;
-    producedLines.push(
-      `${count} x ${sample.shipDefId} (${sample.sourceShipDefId})`,
-    );
-  }
+  const producedLines = collapseProducedBuildLines(producedBuilds);
 
   return [
     ...rerollLines,
     ...chronoswarmLines,
     ...manualLines,
     ...producedLines,
+  ];
+}
+
+function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
+  const producedBuilds = buildAtoms.filter(
+    (atom): atom is Extract<BuildCaptureAtom, { kind: "produced_build" }> =>
+      atom.kind === "produced_build",
+  );
+  const hasDrawingPreludeOccurrence = producedBuilds.some((atom) =>
+    atom.producedBuildOccurrence?.stage === "drawing_prelude"
+  );
+  if (!hasDrawingPreludeOccurrence) return formatLegacyBuildLines(buildAtoms);
+
+  if (producedBuilds.some((atom) => !atom.producedBuildOccurrence)) {
+    throw new Error("BATTLE_LOG_PRODUCED_OCCURRENCE_INVARIANT");
+  }
+
+  const rerollLines: string[] = [];
+  const chronoswarmLines: string[] = [];
+  const manualBuilds: Array<
+    Extract<BuildCaptureAtom, { kind: "manual_build" }>
+  > = [];
+  for (const atom of buildAtoms) {
+    if (atom.kind === "reroll") {
+      rerollLines.push(
+        `${atom.sourceShipDefId} rerolled ${atom.values.join(" -> ")}`,
+      );
+    } else if (atom.kind === "chronoswarm_roll") {
+      const rolls = normalizeChronoswarmRolls(atom.rolls);
+      if (rolls.length === 1) chronoswarmLines.push(`CHR rolled ${rolls[0]}`);
+      else if (rolls.length > 1) chronoswarmLines.push(`CHR rolled ${rolls.join(", ")}`);
+    } else if (atom.kind === "manual_build") {
+      manualBuilds.push(atom);
+    }
+  }
+
+  const manualLines = collapseCountLines(
+    manualBuilds,
+    (atom) => atom.shipDefId,
+    (atom, count) => `${count} x ${atom.shipDefId}`,
+  );
+  const preludePass1 = producedBuilds.filter((atom) =>
+    atom.producedBuildOccurrence?.stage === "drawing_prelude" &&
+    atom.producedBuildOccurrence.passIndex === 1
+  );
+  const preludePass2 = producedBuilds.filter((atom) =>
+    atom.producedBuildOccurrence?.stage === "drawing_prelude" &&
+    atom.producedBuildOccurrence.passIndex === 2
+  );
+  const drawing = producedBuilds.filter((atom) =>
+    atom.producedBuildOccurrence?.stage === "drawing"
+  );
+  const endOfBuild = producedBuilds.filter((atom) =>
+    atom.producedBuildOccurrence?.stage === "end_of_build"
+  );
+
+  return [
+    ...rerollLines,
+    ...chronoswarmLines,
+    ...collapseProducedBuildLines(preludePass1),
+    ...collapseProducedBuildLines(preludePass2),
+    ...manualLines,
+    ...collapseProducedBuildLines(drawing),
+    ...collapseProducedBuildLines(endOfBuild),
   ];
 }
 
@@ -1685,13 +1818,19 @@ export function foldBattleLogCaptureEventsIntoScratch(
         });
         break;
       case "BATTLE_LOG_CAPTURE_BUILD_PRODUCED":
-        getOrCreateBuildAtomsForPlayer(capture, rawEvent.playerId).push({
-          kind: "produced_build",
-          shipDefId: rawEvent.shipDefId,
-          sourceShipDefId: rawEvent.sourceShipDefId,
-          count: rawEvent.count,
-        });
-        break;
+        {
+          const producedBuildOccurrence = readOptionalProducedBuildOccurrence(
+            rawEvent as unknown as Record<string, unknown>,
+          );
+          getOrCreateBuildAtomsForPlayer(capture, rawEvent.playerId).push({
+            kind: "produced_build",
+            shipDefId: rawEvent.shipDefId,
+            sourceShipDefId: rawEvent.sourceShipDefId,
+            count: rawEvent.count,
+            ...(producedBuildOccurrence ? { producedBuildOccurrence } : {}),
+          });
+          break;
+        }
       case "BATTLE_LOG_CAPTURE_BATTLE_CHARGE_ACTION":
         getOrCreateBattleAtomsForPlayer(capture, rawEvent.playerId).push({
           kind: "charge_action",
@@ -2019,7 +2158,17 @@ export function createBattleLogBuildProducedCaptureEvent(args: {
   shipDefId: string;
   sourceShipDefId: string;
   count?: number;
+  producedBuildOccurrence?: ProducedBuildOccurrence;
 }): BattleLogCaptureEvent {
+  const producedBuildOccurrence = typeof args.producedBuildOccurrence === "undefined"
+    ? null
+    : normalizeProducedBuildOccurrence(args.producedBuildOccurrence);
+  if (
+    typeof args.producedBuildOccurrence !== "undefined" &&
+    !producedBuildOccurrence
+  ) {
+    throw new Error("INVALID_PRODUCED_BUILD_OCCURRENCE");
+  }
   return {
     type: "BATTLE_LOG_CAPTURE_BUILD_PRODUCED",
     turnNumber: args.turnNumber,
@@ -2027,6 +2176,7 @@ export function createBattleLogBuildProducedCaptureEvent(args: {
     shipDefId: args.shipDefId,
     sourceShipDefId: args.sourceShipDefId,
     count: isFiniteNumber(args.count) && args.count > 0 ? args.count : 1,
+    ...(producedBuildOccurrence ? { producedBuildOccurrence } : {}),
   };
 }
 
@@ -2076,6 +2226,9 @@ export function createBattleLogBuildCaptureEventsFromResolution(
         shipDefId,
         sourceShipDefId: match.effect.source.shipDefId,
         count: 1,
+        ...(args.producedBuildOccurrence
+          ? { producedBuildOccurrence: args.producedBuildOccurrence }
+          : {}),
       }),
     );
   }
@@ -2096,6 +2249,9 @@ export function createBattleLogBuildCaptureEventsFromResolution(
         shipDefId: "XEN",
         sourceShipDefId: match.effect.source.shipDefId,
         count: createdShipsFromDestroy,
+        ...(args.producedBuildOccurrence
+          ? { producedBuildOccurrence: args.producedBuildOccurrence }
+          : {}),
       }),
     );
   }

@@ -3,6 +3,7 @@ import type { GameState, ShipInstance } from '../../../engine/state/GameStateTyp
 import {
   createPrivateDrawingPreludeCueKey,
   filterDrawingPreludeEventsForViewer,
+  projectDrawingPreludeCarrierActions,
   projectDrawingPreludeFleetsForViewer,
   projectDrawingPreludeRequesterSummary,
   projectDrawingPreludeCuesForIntentState,
@@ -160,22 +161,69 @@ Deno.test('Requester summaries require settled semantics and remain owner-only',
   assert.equal(projectDrawingPreludeRequesterSummary(state, 'p1'), null);
 });
 
+Deno.test('Carrier action projection is pure, pass-aware, charge-aware, and fail-closed', () => {
+  const state = createProjectedState();
+  state.gameData.ships!.p1 = [
+    { instanceId: 'carrier', shipDefId: 'CAR', createdTurn: 4, chargesCurrent: 2 },
+  ];
+  state.gameData.turnData!.drawingPreludeByPlayerId!.p1 = {
+    turnNumber: 5,
+    requiredPassCount: 2,
+    activePassIndex: 2,
+    status: 'awaiting_actions',
+    eligibleSourcePowers: [{
+      key: 'carrier:CAR#0', sourceInstanceId: 'carrier', shipDefId: 'CAR',
+      rawPowerIndex: 0, mode: 'interactive',
+    }],
+    resolvedSourcePowerKeysByPass: { 1: ['carrier:CAR#0'] },
+  };
+  const serialized = JSON.stringify(state);
+  assert.deepEqual(projectDrawingPreludeCarrierActions(state, 'p1'), [{
+    kind: 'choice', actionId: 'CAR#0', shipDefId: 'CAR',
+    sourceInstanceId: 'carrier', passIndex: 2,
+    choices: [{ choiceId: 'defender' }, { choiceId: 'fighter' }, { choiceId: 'hold' }],
+  }]);
+  assert.equal(JSON.stringify(state), serialized);
+
+  state.gameData.ships!.p1[0].chargesCurrent = 1;
+  assert.deepEqual(
+    projectDrawingPreludeCarrierActions(state, 'p1')[0].choices,
+    [{ choiceId: 'defender' }, { choiceId: 'hold' }],
+  );
+  state.gameData.ships!.p1[0].chargesCurrent = 0;
+  assert.deepEqual(projectDrawingPreludeCarrierActions(state, 'p1'), []);
+
+  state.gameData.ships!.p1[0].chargesCurrent = 1;
+  state.gameData.turnData!.drawingPreludeByPlayerId!.p1.eligibleSourcePowers[0].rawPowerIndex = 1;
+  assert.deepEqual(projectDrawingPreludeCarrierActions(state, 'p1'), []);
+});
+
 Deno.test('Drawing-prelude event routing strips private metadata and fails closed', () => {
   const state = createProjectedState();
   const events = [
     { type: 'EXISTING_EVENT', value: 1 },
     {
       type: 'PRIVATE_EVENT', secret: 'owner-only',
+      producedBuildOccurrence: { stage: 'drawing_prelude', passIndex: 1 },
       drawingPreludeVisibility: { audience: 'owner', playerId: 'p1' },
+    },
+    {
+      type: 'PUBLIC_CAPTURE_EVENT',
+      producedBuildOccurrence: { stage: 'drawing' },
     },
     { type: 'MALFORMED_PRIVATE', drawingPreludeVisibility: { audience: 'owner' } },
   ];
   assert.deepEqual(filterDrawingPreludeEventsForViewer(state, 'p1', events), [
     events[0],
     { type: 'PRIVATE_EVENT', secret: 'owner-only' },
+    { type: 'PUBLIC_CAPTURE_EVENT' },
   ]);
-  assert.deepEqual(filterDrawingPreludeEventsForViewer(state, 'p2', events), [events[0]]);
-  assert.deepEqual(filterDrawingPreludeEventsForViewer(state, 'spec', events), [events[0]]);
+  assert.deepEqual(filterDrawingPreludeEventsForViewer(state, 'p2', events), [
+    events[0], { type: 'PUBLIC_CAPTURE_EVENT' },
+  ]);
+  assert.deepEqual(filterDrawingPreludeEventsForViewer(state, 'spec', events), [
+    events[0], { type: 'PUBLIC_CAPTURE_EVENT' },
+  ]);
 });
 
 Deno.test('events emitted by live Carrier resolution are owner-only and sanitized', () => {

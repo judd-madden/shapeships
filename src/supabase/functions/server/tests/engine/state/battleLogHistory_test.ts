@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { DEFAULT_PLAYER_MAX_HEALTH } from "../../../engine_shared/maximumHealth.ts";
+import { resolvePhase } from "../../../engine_shared/resolve/resolvePhase.ts";
 import type {
   AncientSolarLedgerEntry,
   AncientSolarPowerId,
@@ -10,10 +11,32 @@ import {
   buildBattleLogTurnSummaryFromScratch,
   clearBattleLogScratchAfterFinalization,
   createBattleLogBattleCaptureEventsFromResolution,
+  createBattleLogBuildProducedCaptureEvent,
   foldBattleLogCaptureEventsIntoScratch,
   normalizeBattleLogHistoryStore,
   normalizeBattleLogScratch,
 } from "../../../engine/state/battleLogHistory.ts";
+
+function buildSummaryForAtoms(buildAtoms: any[]) {
+  return buildBattleLogTurnSummaryFromScratch({
+    scratch: {
+      currentTurnCapture: {
+        turnNumber: 4,
+        diceValue: 6,
+        buildAtomsByPlayerId: { p1: buildAtoms },
+        battleAtomsByPlayerId: {},
+        savedResourcesByPlayerId: {},
+      },
+      lastFinalizedTurnNumber: 3,
+    },
+    finalizedTurnNumber: 4,
+    finalizedState: {
+      status: "active",
+      players: [{ id: "p1", name: "One", role: "player", health: 25, lines: 0, joiningLines: 0 }],
+      gameData: { turnNumber: 4, ships: { p1: [] } },
+    },
+  });
+}
 
 function solarLedgerEntry(
   solarPowerId: AncientSolarPowerId,
@@ -108,6 +131,175 @@ Deno.test("owner-private Drawing-prelude capture folds before filtering and form
   });
   assert.equal(summary.buildLinesByPlayerId.p1.length, 1);
   assert.match(summary.buildLinesByPlayerId.p1[0], /DEF|Defender/);
+});
+
+Deno.test("produced occurrence validation accepts only exact stage shapes", () => {
+  const base = {
+    turnNumber: 4,
+    playerId: "p1",
+    shipDefId: "DEF",
+    sourceShipDefId: "CAR",
+  };
+  assert.deepEqual(
+    (createBattleLogBuildProducedCaptureEvent({
+      ...base,
+      producedBuildOccurrence: { stage: "drawing_prelude", passIndex: 1 },
+    }) as any).producedBuildOccurrence,
+    { stage: "drawing_prelude", passIndex: 1 },
+  );
+  assert.deepEqual(
+    (createBattleLogBuildProducedCaptureEvent({
+      ...base,
+      producedBuildOccurrence: { stage: "drawing" },
+    }) as any).producedBuildOccurrence,
+    { stage: "drawing" },
+  );
+  assert.equal(
+    "producedBuildOccurrence" in createBattleLogBuildProducedCaptureEvent(base),
+    false,
+  );
+  for (const producedBuildOccurrence of [
+    { stage: "drawing_prelude" },
+    { stage: "drawing_prelude", passIndex: 3 },
+    { stage: "drawing", passIndex: 1 },
+    { stage: "end_of_build", extra: true },
+    { stage: "unknown" },
+    [],
+  ]) {
+    assert.throws(
+      () => createBattleLogBuildProducedCaptureEvent({
+        ...base,
+        producedBuildOccurrence,
+      } as any),
+      /INVALID_PRODUCED_BUILD_OCCURRENCE/,
+    );
+  }
+});
+
+Deno.test("malformed produced occurrence metadata fails closed during scratch normalization and event folding", () => {
+  const malformedOccurrence = { stage: "drawing_prelude", passIndex: 1, extra: true };
+  assert.throws(
+    () => normalizeBattleLogScratch({
+      currentTurnCapture: {
+        turnNumber: 4,
+        diceValue: 4,
+        buildAtomsByPlayerId: {
+          p1: [{
+            kind: "produced_build",
+            shipDefId: "DEF",
+            sourceShipDefId: "CAR",
+            count: 1,
+            producedBuildOccurrence: malformedOccurrence,
+          }],
+        },
+        battleAtomsByPlayerId: {},
+        savedResourcesByPlayerId: {},
+      },
+      lastFinalizedTurnNumber: 3,
+    } as any),
+    /BATTLE_LOG_INVALID_PRODUCED_OCCURRENCE_INVARIANT/,
+  );
+
+  assert.throws(
+    () => foldBattleLogCaptureEventsIntoScratch(
+      { currentTurnCapture: null, lastFinalizedTurnNumber: 3 },
+      [{
+        type: "BATTLE_LOG_CAPTURE_BUILD_PRODUCED",
+        turnNumber: 4,
+        playerId: "p1",
+        shipDefId: "DEF",
+        sourceShipDefId: "CAR",
+        count: 1,
+        producedBuildOccurrence: malformedOccurrence,
+      }],
+    ),
+    /BATTLE_LOG_INVALID_PRODUCED_OCCURRENCE_INVARIANT/,
+  );
+});
+
+Deno.test("metadata-aware Build formatting orders and aggregates only within stage and pass", () => {
+  const summary = buildSummaryForAtoms([
+    { kind: "manual_build", shipDefId: "FIG" },
+    { kind: "produced_build", shipDefId: "DEF", sourceShipDefId: "CAR", count: 1,
+      producedBuildOccurrence: { stage: "drawing_prelude", passIndex: 2 } },
+    { kind: "reroll", sourceShipDefId: "KNO", values: [1, 6] },
+    { kind: "produced_build", shipDefId: "DEF", sourceShipDefId: "CAR", count: 1,
+      producedBuildOccurrence: { stage: "drawing_prelude", passIndex: 1 } },
+    { kind: "produced_build", shipDefId: "XEN", sourceShipDefId: "BUG", count: 2,
+      producedBuildOccurrence: { stage: "drawing_prelude", passIndex: 1 } },
+    { kind: "produced_build", shipDefId: "DEF", sourceShipDefId: "CAR", count: 2,
+      producedBuildOccurrence: { stage: "drawing_prelude", passIndex: 1 } },
+    { kind: "produced_build", shipDefId: "ANT", sourceShipDefId: "ZEN", count: 1,
+      producedBuildOccurrence: { stage: "drawing" } },
+    { kind: "produced_build", shipDefId: "ANT", sourceShipDefId: "ZEN", count: 2,
+      producedBuildOccurrence: { stage: "drawing" } },
+    { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "DRE", count: 3,
+      producedBuildOccurrence: { stage: "end_of_build" } },
+  ]);
+  assert.deepEqual(summary.buildLinesByPlayerId.p1, [
+    "KNO rerolled 1 -> 6",
+    "3 x DEF (CAR)",
+    "2 x XEN (BUG)",
+    "1 x DEF (CAR)",
+    "1 x FIG",
+    "3 x ANT (ZEN)",
+    "3 x FIG (DRE)",
+  ]);
+});
+
+Deno.test("metadata-aware mode rejects partial classification and no-prelude mode stays legacy", () => {
+  assert.throws(
+    () => buildSummaryForAtoms([
+      { kind: "produced_build", shipDefId: "DEF", sourceShipDefId: "CAR", count: 1,
+        producedBuildOccurrence: { stage: "drawing_prelude", passIndex: 1 } },
+      { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "DRE", count: 1 },
+    ]),
+    /BATTLE_LOG_PRODUCED_OCCURRENCE_INVARIANT/,
+  );
+
+  const legacy = buildSummaryForAtoms([
+    { kind: "manual_build", shipDefId: "DEF" },
+    { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "DRE", count: 1,
+      producedBuildOccurrence: { stage: "drawing" } },
+    { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "DRE", count: 2,
+      producedBuildOccurrence: { stage: "end_of_build" } },
+  ]);
+  assert.deepEqual(legacy.buildLinesByPlayerId.p1, [
+    "1 x DEF",
+    "3 x FIG (DRE)",
+  ]);
+});
+
+Deno.test("Dreadnought End-of-Build capture carries the private end stage once", () => {
+  const state: any = {
+    gameId: "dreadnought-occurrence",
+    status: "active",
+    players: [
+      { id: "p1", name: "One", role: "player", faction: "human", health: 25, lines: 0, joiningLines: 0 },
+      { id: "p2", name: "Two", role: "player", faction: "human", health: 25, lines: 0, joiningLines: 0 },
+    ],
+    gameData: {
+      turnNumber: 4,
+      currentPhase: "build",
+      currentSubPhase: "end_of_build",
+      ships: {
+        p1: [{ instanceId: "dre-1", shipDefId: "DRE", createdTurn: 1 }],
+        p2: [],
+      },
+      turnData: {
+        turnNumber: 4,
+        currentMajorPhase: "build",
+        currentSubPhase: "end_of_build",
+        shipsMadeThisTurnByPlayerId: { p1: 1, p2: 0 },
+      },
+    },
+  };
+  const result = resolvePhase(state, "build.end_of_build");
+  const captures = result.events.filter((event: any) =>
+    event.type === "BATTLE_LOG_CAPTURE_BUILD_PRODUCED"
+  );
+  assert.equal(captures.length, 1);
+  assert.deepEqual(captures[0].producedBuildOccurrence, { stage: "end_of_build" });
 });
 
 Deno.test("archive checkpoint survives scratch normalization, folding, and clearing byte-for-byte", () => {

@@ -332,6 +332,7 @@ Deno.test('concurrent duplicate Drawing-prelude Carrier action commits once and 
   assert.equal(acceptedBody.events.some((event: any) => event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'), true);
   assert.equal(acceptedBody.events.some((event: any) => event.type === 'POWER_USED'), true);
   assert.equal(acceptedBody.events.some((event: any) => 'drawingPreludeVisibility' in event), false);
+  assert.equal(acceptedBody.events.some((event: any) => 'producedBuildOccurrence' in event), false);
 
   const canonicalResult = await applyIntent(initialState, 'p1', {
     gameId,
@@ -350,6 +351,11 @@ Deno.test('concurrent duplicate Drawing-prelude Carrier action commits once and 
   assert.equal(
     committed.battleLogScratch.currentTurnCapture.buildAtomsByPlayerId.p1.filter((atom: any) => atom.kind === 'produced_build').length,
     1,
+  );
+  assert.deepEqual(
+    committed.battleLogScratch.currentTurnCapture.buildAtomsByPlayerId.p1
+      .find((atom: any) => atom.kind === 'produced_build').producedBuildOccurrence,
+    { stage: 'drawing_prelude', passIndex: 1 },
   );
   const summary = buildBattleLogTurnSummaryFromScratch({
     scratch: committed.battleLogScratch,
@@ -387,6 +393,7 @@ Deno.test('one Carrier intent crosses into pass 2, folds private captures, and p
   const responseJson = await response.json();
   assert.equal(response.status, 200);
   assert.equal(responseJson.events.some((event: any) => 'drawingPreludeVisibility' in event), false);
+  assert.equal(responseJson.events.some((event: any) => 'producedBuildOccurrence' in event), false);
   assert.equal(responseJson.events.filter((event: any) => event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED').length, 2);
 
   const committed = persistence.store.get(`game_${gameId}`);
@@ -409,6 +416,15 @@ Deno.test('one Carrier intent crosses into pass 2, folds private captures, and p
     committed.battleLogScratch.currentTurnCapture.buildAtomsByPlayerId.p1
       .filter((atom: any) => atom.kind === 'produced_build').length,
     2,
+  );
+  assert.deepEqual(
+    committed.battleLogScratch.currentTurnCapture.buildAtomsByPlayerId.p1
+      .filter((atom: any) => atom.kind === 'produced_build')
+      .map((atom: any) => atom.producedBuildOccurrence),
+    [
+      { stage: 'drawing_prelude', passIndex: 1 },
+      { stage: 'drawing_prelude', passIndex: 2 },
+    ],
   );
   assert.equal(persistence.writes.filter((write) => write.key === `game_${gameId}`).length, 1);
 

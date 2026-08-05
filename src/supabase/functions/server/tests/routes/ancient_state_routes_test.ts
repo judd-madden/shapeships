@@ -9,6 +9,7 @@ import {
   normalizeAncientGameState,
 } from '../../engine/state/ancientState.ts';
 import { onEnterPhase } from '../../engine/phase/onEnterPhase.ts';
+import { projectDrawingPreludeCarrierActions } from '../../engine/state/drawingPreludeProjection.ts';
 
 type RouteHandler = (context: any) => Promise<Response> | Response;
 
@@ -2651,6 +2652,48 @@ Deno.test('duplicate-safe /intent repairs once and skips a no-op persistence', a
     noop.writes.some((write) => write.key === 'game_duplicate-noop'),
     false,
   );
+});
+
+Deno.test('Drawing-prelude route Carrier actions equal the shared pure projection', async () => {
+  const state: any = createSetupState('drawing-prelude-action-parity');
+  state.currentPhase = 'build';
+  state.currentSubPhase = 'drawing';
+  state.turnNumber = 5;
+  state.players[0].faction = 'human';
+  state.gameData.currentPhase = 'build';
+  state.gameData.currentSubPhase = 'drawing';
+  state.gameData.turnNumber = 5;
+  state.gameData.ships = {
+    p1: [{ instanceId: 'parity-car', shipDefId: 'CAR', chargesCurrent: 1, createdTurn: 4 }],
+  };
+  state.gameData.turnData = {
+    turnNumber: 5,
+    currentMajorPhase: 'build',
+    currentSubPhase: 'drawing',
+    drawingPreludeByPlayerId: {
+      p1: {
+        turnNumber: 5, requiredPassCount: 1, activePassIndex: 1,
+        status: 'awaiting_actions',
+        eligibleSourcePowers: [{
+          key: 'parity-car:CAR#0', sourceInstanceId: 'parity-car',
+          shipDefId: 'CAR', rawPowerIndex: 0, mode: 'interactive',
+        }],
+        resolvedSourcePowerKeysByPass: {},
+      },
+    },
+    buildDrawingPublicFleetByPlayerId: {
+      p1: structuredClone(state.gameData.ships.p1),
+    },
+  };
+  const normalized = normalizeAncientGameState(state).state;
+  const expected = projectDrawingPreludeCarrierActions(normalized, 'p1');
+  const fixture = createGameRouteFixture();
+  fixture.store.set('game_drawing-prelude-action-parity', normalized);
+  const getState = fixture.app.handler('GET', '/make-server-825e19ab/game-state/:gameId');
+  const body = await responseJson(await getState(createContext({
+    params: { gameId: 'drawing-prelude-action-parity' },
+  })));
+  assert.deepEqual(body.requester.availableActions, expected);
 });
 
 Deno.test('Drawing-prelude foundations project identical private fleets through GET and intent state responses', async () => {

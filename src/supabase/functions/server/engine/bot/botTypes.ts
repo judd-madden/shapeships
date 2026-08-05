@@ -58,7 +58,7 @@ export type CarrierPriorityGoal = {
   targetCount: number;
 };
 
-export type CarrierShipsThatBuildPolicy = {
+export type CarrierDrawingPreludePolicy = {
   priorityGoals?: CarrierPriorityGoal[];
   fallbackChoiceId?: CarrierChoiceId;
 };
@@ -102,8 +102,8 @@ export type AuthoredBotPlan = {
   loopGoals?: BotBuildGoal[];
   adaptiveBuildRules?: BotAdaptiveBuildRule[];
   orderedBuildPlan?: OrderedBotBuildPlan;
-  shipsThatBuild?: {
-    CAR?: CarrierShipsThatBuildPolicy;
+  drawingPrelude?: {
+    CAR?: CarrierDrawingPreludePolicy;
   };
   chargePolicy?: {
     INT?: DamageHealChargePolicy;

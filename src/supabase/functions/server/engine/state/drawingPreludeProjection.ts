@@ -6,8 +6,10 @@ import type {
 } from './GameStateTypes.ts';
 import {
   getCarrierDrawingPreludeChoiceLegality,
+  getCurrentDrawingPreludePlayerState,
   isDrawingPreludeSourceResolved,
   isStructurallyValidDrawingPreludePlayerState,
+  validateFrozenCarrierDrawingPreludeSource,
 } from './drawingPreludeState.ts';
 import { getShipActivationCueBatches } from './shipActivationCues.ts';
 
@@ -16,6 +18,15 @@ export type DrawingPreludeRequesterSummary = {
   status: 'awaiting_actions' | 'complete';
   passIndex: 1 | 2;
   passCount: 1 | 2;
+};
+
+export type DrawingPreludeCarrierAction = {
+  kind: 'choice';
+  actionId: 'CAR#0';
+  shipDefId: 'CAR';
+  sourceInstanceId: string;
+  passIndex: 1 | 2;
+  choices: Array<{ choiceId: 'defender' | 'fighter' | 'hold' }>;
 };
 
 type DrawingPreludeCueKey = {
@@ -118,6 +129,73 @@ function getUnresolvedCurrentPassSources(playerState: DrawingPreludePlayerState)
   return playerState.eligibleSourcePowers.filter((source) =>
     !isDrawingPreludeSourceResolved(playerState, source.key, playerState.activePassIndex)
   );
+}
+
+export function projectDrawingPreludeCarrierActions(
+  state: Readonly<GameState>,
+  requestingPlayerId: string,
+): DrawingPreludeCarrierAction[] {
+  if (
+    !hasCurrentDrawingPreludePrivacyClaim(state) ||
+    getParticipantRole(state, requestingPlayerId) !== 'player'
+  ) {
+    return [];
+  }
+
+  const playerPrelude = getCurrentDrawingPreludePlayerState(
+    state,
+    requestingPlayerId,
+  );
+  if (!playerPrelude || playerPrelude.status !== 'awaiting_actions') return [];
+  if (playerPrelude.eligibleSourcePowers.some((source) =>
+    source.mode === 'automatic' &&
+    !isDrawingPreludeSourceResolved(
+      playerPrelude,
+      source.key,
+      playerPrelude.activePassIndex,
+    )
+  )) {
+    return [];
+  }
+
+  const actions: DrawingPreludeCarrierAction[] = [];
+  for (const source of playerPrelude.eligibleSourcePowers) {
+    if (
+      source.mode !== 'interactive' ||
+      isDrawingPreludeSourceResolved(
+        playerPrelude,
+        source.key,
+        playerPrelude.activePassIndex,
+      )
+    ) {
+      continue;
+    }
+    const validated = validateFrozenCarrierDrawingPreludeSource(
+      state,
+      requestingPlayerId,
+      source,
+    );
+    if (!validated.ok) return [];
+    const legality = getCarrierDrawingPreludeChoiceLegality(
+      state,
+      requestingPlayerId,
+      source,
+    );
+    if (!legality.ok) return [];
+    if (legality.value.holdOnly) continue;
+    actions.push({
+      kind: 'choice',
+      actionId: 'CAR#0',
+      shipDefId: 'CAR',
+      sourceInstanceId: source.sourceInstanceId,
+      passIndex: playerPrelude.activePassIndex,
+      choices: [
+        ...legality.value.nonHoldChoiceIds.map((choiceId) => ({ choiceId })),
+        { choiceId: 'hold' },
+      ],
+    });
+  }
+  return structuredClone(actions);
 }
 
 export function projectDrawingPreludeRequesterSummary(
@@ -282,7 +360,12 @@ export function filterDrawingPreludeEventsForViewer(
   const filtered: any[] = [];
   for (const event of events) {
     if (!isObject(event) || !Object.prototype.hasOwnProperty.call(event, 'drawingPreludeVisibility')) {
-      filtered.push(event);
+      if (!isObject(event)) {
+        filtered.push(event);
+        continue;
+      }
+      const { producedBuildOccurrence: _privateOccurrence, ...safeEvent } = event;
+      filtered.push(structuredClone(safeEvent));
       continue;
     }
     const visibility = event.drawingPreludeVisibility;
@@ -300,7 +383,11 @@ export function filterDrawingPreludeEventsForViewer(
     ) {
       continue;
     }
-    const { drawingPreludeVisibility: _privateVisibility, ...safeEvent } = event;
+    const {
+      drawingPreludeVisibility: _privateVisibility,
+      producedBuildOccurrence: _privateOccurrence,
+      ...safeEvent
+    } = event;
     filtered.push(structuredClone(safeEvent));
   }
   return filtered;

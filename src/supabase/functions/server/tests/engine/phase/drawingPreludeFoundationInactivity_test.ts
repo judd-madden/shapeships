@@ -160,4 +160,19 @@ Deno.test('phase machinery and legacy phase resolution do not initialize the dor
   );
   assert.equal(reducerSource.includes('createDrawingPreludeInitializationCandidate'), false);
   assert.equal(reducerSource.includes('finalizeDrawingPreludeInitializationCandidate'), false);
+
+  const botTypesSource = await Deno.readTextFile(
+    new URL('../../../engine/bot/botTypes.ts', import.meta.url),
+  );
+  const humanPlansSource = await Deno.readTextFile(
+    new URL('../../../engine/bot/humanPlans.ts', import.meta.url),
+  );
+  const botRunnerSource = await Deno.readTextFile(
+    new URL('../../../engine/bot/botRunner.ts', import.meta.url),
+  );
+  assert.equal(botTypesSource.includes('CarrierShipsThatBuildPolicy'), false);
+  assert.equal(botTypesSource.includes('shipsThatBuild?:'), false);
+  assert.equal(humanPlansSource.includes('shipsThatBuild:'), false);
+  assert.equal(botRunnerSource.includes("phaseKey === 'build.ships_that_build'"), true);
+  assert.equal(botRunnerSource.includes('plan?.drawingPrelude?.CAR'), true);
 });

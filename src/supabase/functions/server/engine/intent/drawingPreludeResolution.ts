@@ -305,6 +305,10 @@ export function advanceDrawingPreludeForPlayer(args: {
           playerId: args.playerId,
           effects: prepared.effects,
           effectEvents: applied.events,
+          producedBuildOccurrence: {
+            stage: 'drawing_prelude',
+            passIndex,
+          },
         }));
         cueSources.push({ playerId: args.playerId, sourceInstanceId: frozenSource.sourceInstanceId });
       }
@@ -480,6 +484,10 @@ function resolveCarrierActions(args: {
         playerId: args.playerId,
         effects,
         effectEvents,
+        producedBuildOccurrence: {
+          stage: 'drawing_prelude',
+          passIndex: playerState.activePassIndex,
+        },
       }));
       cueSources.push({ playerId: args.playerId, sourceInstanceId: source.sourceInstanceId });
     }

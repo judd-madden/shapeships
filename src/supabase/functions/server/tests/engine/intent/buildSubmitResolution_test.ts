@@ -359,6 +359,12 @@ Deno.test('normal LEG and ZEN builds use shared immediate Drawing consequences',
     ),
     ['ZEN:manual', 'ANT:ZEN'],
   );
+  assert.deepEqual(
+    zenResult.events.find((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'
+    )?.producedBuildOccurrence,
+    { stage: 'drawing' },
+  );
 
   const legState = createResolutionState({
     lines: 8,

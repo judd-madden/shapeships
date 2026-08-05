@@ -30,8 +30,13 @@ import {
   playerHasValidPendingCubeChoice,
 } from '../phase/cubeDiceManipulation.ts';
 import { getChargeDeclarationLegalityState } from '../intent/chargeDeclarationEligibility.ts';
+import {
+  hasCurrentDrawingPreludePrivacyClaim,
+  projectDrawingPreludeCarrierActions,
+  projectDrawingPreludeRequesterSummary,
+} from '../state/drawingPreludeProjection.ts';
 
-const MAX_BOT_STEPS_PER_REQUEST = 8;
+export const MAX_BOT_STEPS_PER_REQUEST = 8;
 const CARRIER_ACTION_ID = 'CAR#0';
 const FIRST_STRIKE_PHASE_KEY = 'battle.first_strike';
 const DEFAULT_MISSING_DAMAGE_HEAL_CHARGE_POLICY: DamageHealChargePolicy = {
@@ -797,19 +802,19 @@ function chooseDamageHealChoiceId(args: {
   return null;
 }
 
-function chooseCarrierChoiceId(args: {
+export function chooseCarrierDrawingPreludeChoiceId(args: {
   state: any;
   playerId: string;
   plan: AuthoredBotPlan;
-  legalChoiceIds: Array<Exclude<CarrierChoiceId, 'hold'>>;
-}): Exclude<CarrierChoiceId, 'hold'> | null {
+  legalChoiceIds: CarrierChoiceId[];
+}): CarrierChoiceId | null {
   const { state, playerId, plan, legalChoiceIds } = args;
   if (legalChoiceIds.length === 0) {
     return null;
   }
 
-  const legalChoiceIdSet = new Set<Exclude<CarrierChoiceId, 'hold'>>(legalChoiceIds);
-  const carrierPolicy = plan?.shipsThatBuild?.CAR;
+  const legalChoiceIdSet = new Set<CarrierChoiceId>(legalChoiceIds);
+  const carrierPolicy = plan?.drawingPrelude?.CAR;
 
   for (const goal of carrierPolicy?.priorityGoals ?? []) {
     if (!legalChoiceIdSet.has(goal.choiceId)) {
@@ -823,22 +828,19 @@ function chooseCarrierChoiceId(args: {
   }
 
   const fallbackChoiceId = carrierPolicy?.fallbackChoiceId;
-  if (
-    fallbackChoiceId &&
-    fallbackChoiceId !== 'hold' &&
-    legalChoiceIdSet.has(fallbackChoiceId)
-  ) {
+  if (fallbackChoiceId && legalChoiceIdSet.has(fallbackChoiceId)) {
     return fallbackChoiceId;
   }
 
+  if (legalChoiceIdSet.has('hold')) return 'hold';
   return legalChoiceIds[0] ?? null;
 }
 
 function chooseDefaultCarrierChoiceId(args: {
   state: any;
   playerId: string;
-  legalChoiceIds: Array<Exclude<CarrierChoiceId, 'hold'>>;
-}): Exclude<CarrierChoiceId, 'hold'> | null {
+  legalChoiceIds: CarrierChoiceId[];
+}): CarrierChoiceId | null {
   const { state, playerId, legalChoiceIds } = args;
   if (legalChoiceIds.length === 0) {
     return null;
@@ -850,7 +852,7 @@ function chooseDefaultCarrierChoiceId(args: {
   );
   const playerHealth = Number(player?.health ?? 0);
   const opponentHealth = Number(opponent?.health ?? 0);
-  const legalChoiceIdSet = new Set<Exclude<CarrierChoiceId, 'hold'>>(legalChoiceIds);
+  const legalChoiceIdSet = new Set<CarrierChoiceId>(legalChoiceIds);
   const preferredChoiceId: Exclude<CarrierChoiceId, 'hold'> =
     playerHealth <= 14 || playerHealth < opponentHealth ? 'defender' : 'fighter';
 
@@ -864,7 +866,7 @@ function chooseDefaultCarrierChoiceId(args: {
     }
   }
 
-  return null;
+  return legalChoiceIdSet.has('hold') ? 'hold' : null;
 }
 
 function clampFrigateTrigger(value: unknown): number | null {
@@ -1141,8 +1143,8 @@ function buildCarrierIntentForCurrentPhase(args: {
 
   for (const carrierShip of carrierShips) {
     const legalChoiceIds = getLegalCarrierChoiceIdsForShip(carrierShip);
-    const choiceId = plan?.shipsThatBuild?.CAR
-      ? chooseCarrierChoiceId({
+    const choiceId = plan?.drawingPrelude?.CAR
+      ? chooseCarrierDrawingPreludeChoiceId({
           state,
           playerId,
           plan,
@@ -1179,6 +1181,48 @@ function buildCarrierIntentForCurrentPhase(args: {
   }
 
   return null;
+}
+
+export function buildDrawingPreludeCarrierIntentForBot(args: {
+  state: any;
+  playerId: string;
+  phaseKey: string;
+  loopStep: number;
+  plan: AuthoredBotPlan;
+}): IntentRequest | null {
+  const { state, playerId, phaseKey, loopStep, plan } = args;
+  const projectedActions = projectDrawingPreludeCarrierActions(state, playerId);
+  if (projectedActions.length === 0) return null;
+
+  const actions: PowerActionPayload[] = [];
+  for (const projected of projectedActions) {
+    const legalChoiceIds = projected.choices.map((choice) => choice.choiceId);
+    const choiceId = plan.drawingPrelude?.CAR
+      ? chooseCarrierDrawingPreludeChoiceId({
+          state,
+          playerId,
+          plan,
+          legalChoiceIds,
+        })
+      : chooseDefaultCarrierChoiceId({ state, playerId, legalChoiceIds });
+    if (!choiceId || !legalChoiceIds.includes(choiceId)) return null;
+    actions.push({
+      actionType: 'power',
+      actionId: projected.actionId,
+      sourceInstanceId: projected.sourceInstanceId,
+      choiceId,
+      passIndex: projected.passIndex,
+    });
+  }
+
+  return buildPowerIntentFromActions({
+    state,
+    playerId,
+    phaseKey,
+    loopStep,
+    actions,
+    forceBatch: true,
+  });
 }
 
 function buildFirstStrikeTargetIntentForCurrentPhase(args: {
@@ -1534,6 +1578,28 @@ function buildBotIntent(args: {
   if (phaseKey === 'build.drawing') {
     if (!plan) {
       return { debugReason: 'missing_matching_plan' };
+    }
+
+    if (hasCurrentDrawingPreludePrivacyClaim(state)) {
+      const requesterPrelude = projectDrawingPreludeRequesterSummary(
+        state,
+        playerId,
+      );
+      if (!requesterPrelude) {
+        return { debugReason: 'invalid_drawing_prelude_state' };
+      }
+      if (requesterPrelude.status === 'awaiting_actions') {
+        const preludeIntent = buildDrawingPreludeCarrierIntentForBot({
+          state,
+          playerId,
+          phaseKey,
+          loopStep,
+          plan,
+        });
+        return preludeIntent ?? {
+          debugReason: 'unprojectable_drawing_prelude_actions',
+        };
+      }
     }
 
     const buildSubmitPayload = appendFrigateTriggersToBuildSubmit({

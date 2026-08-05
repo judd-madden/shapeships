@@ -204,6 +204,7 @@ export function createShipDuringDrawing(args: {
       playerId: args.playerId,
       shipDefId: ship.shipDefId,
       sourceShipDefId: args.creationSource.sourceShipDefId,
+      producedBuildOccurrence: { stage: "drawing" },
     });
 
   return { ship, events: [event] };
