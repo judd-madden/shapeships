@@ -677,7 +677,7 @@ export function mapGameSessionVm(args: {
     joining: number;
     combined: number;
     wasCapped: boolean;
-  }): string {
+  }): string | null {
     const cappedSuffix = args.wasCapped ? ' (max)' : '';
 
     if (args.ordinary > 0 && args.joining > 0) {
@@ -694,7 +694,7 @@ export function mapGameSessionVm(args: {
       return `Save ${args.joining}j${cappedSuffix}`;
     }
 
-    return `Save ${args.combined} lines${cappedSuffix}`;
+    return null;
   }
 
   // ============================================================================

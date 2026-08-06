@@ -360,6 +360,18 @@ export function getDefaultChoiceIdForRenderableAction(action: RenderableServerAc
     return choiceIds.find((choiceId) => choiceId === 'hold') ?? choiceIds[0];
   }
 
+  if (
+    action.actionId === 'GUA#0' &&
+    action.shipDefId === 'GUA' &&
+    action.kind === 'destroy_target' &&
+    Array.isArray(action.validTargets) &&
+    action.validTargets.length > 0
+  ) {
+    return choiceIds.find((choiceId) => choiceId === 'destroy')
+      ?? choiceIds.find((choiceId) => choiceId === 'hold')
+      ?? choiceIds[0];
+  }
+
   // Targeted destroy actions require an explicit targetInstanceId.
   // Default to hold so destroy-target rows can render without auto-submitting an invalid destroy.
   if (isRenderableTargetedAction(action)) {
