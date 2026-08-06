@@ -9,9 +9,12 @@
 import React from 'react';
 import { SHIP_DEFINITIONS } from '../../game/data/ShipDefinitionsUI';
 import type { ShipDefinitionUI } from '../../game/types/ShipTypes.ui';
-import { DrawingIcon } from '../ui/primitives/icons/DrawingIcon';
-import { ChargesIcon } from '../ui/primitives/icons/ChargesIcon';
+import {
+  getShipPhaseLabel,
+  getShipPowerPresentation,
+} from '../../game/data/ShipPowerPresentation';
 import { resolveShipGraphic } from '../../game/display/graphics/resolveShipGraphic';
+import { ShipPowerRow } from '../../game/display/shared/ShipPowerRow';
 import { ShipPowerTagBadgeRow } from '../../game/display/shared/ShipPowerTagBadgeRow';
 import { getShipPowerTagLabels } from '../../game/data/ShipPowerTags';
 import {
@@ -40,71 +43,6 @@ interface SpeciesRulesPanelProps {
 const SOLAR_POWER_NAME_TEXT_CLASSES: Record<string, EnergyCostTextClass> = {
 
 };
-
-// Build/Battle icon mapping from CSV subphase (UI-ONLY INTERPRETATION)
-// Note: Automatic and Charges are treated as Battle icons for UI consistency
-// and do not imply exact engine timing.
-function getPhaseIcon(subphase: string): 'build' | 'battle' {
-  const buildSubphases = [
-    'Dice Roll',
-    'Line Generation',
-    'Drawing',
-  ];
-
-  const battleSubphases = [
-    'Reveal',
-    'First Strike',
-    'Charges',
-    'Automatic',
-    'Upon Destruction',
-    'Energy',
-    'Solar',
-  ];
-
-  if (buildSubphases.some((s) => subphase.includes(s))) {
-    return 'build';
-  }
-
-  if (battleSubphases.some((s) => subphase.includes(s))) {
-    return 'battle';
-  }
-
-  // Default to battle for unknown subphases
-  return 'battle';
-}
-
-// Get subphase label (display only, comma-separated, uppercase)
-// Deduplicates subphases, preserves order of first appearance
-function getSubphaseLabel(ship: ShipDefinitionUI): string {
-  const seen = new Set<string>();
-  const uniqueSubphases: string[] = [];
-
-  for (const power of ship.powers) {
-    const subphase = power.subphase;
-    // Skip empty values and N/A
-    if (!subphase || subphase.trim() === '' || subphase.toUpperCase() === 'N/A') {
-      continue;
-    }
-
-    const normalized = subphase.toUpperCase();
-    if (normalized === 'PASSIVE' || normalized === 'UPON DESTRUCTION') {
-      continue;
-    }
-
-    if (!seen.has(normalized)) {
-      seen.add(normalized);
-      uniqueSubphases.push(normalized);
-    }
-  }
-
-  return uniqueSubphases.join(', ');
-}
-
-// Convert literal \n sequences to real newlines at UI boundary
-// Power text is stored with literal "\\n" sequences in the data layer
-function renderPowerText(text: string): string {
-  return text.replace(/\\n/g, '\n');
-}
 
 // Get energy cost rows (Ancient Solar Powers only)
 // Reads from ship.energyCost field (canonical JSON data)
@@ -205,13 +143,9 @@ function SiphonRulesTable() {
 function SectionHeader({
   title,
   note,
-  showPhaseLegend = false,
-  battleOnly = false,
 }: {
   title: string;
   note?: string;
-  showPhaseLegend?: boolean;
-  battleOnly?: boolean;
 }) {
   return (
     <>
@@ -221,38 +155,6 @@ function SectionHeader({
             <p className="font-bold leading-[normal] relative shrink-0 text-[15px] text-white uppercase sm:text-[22px]" style={{ fontVariationSettings: "'wdth' 100" }}>
               {title}
             </p>
-            {showPhaseLegend && battleOnly && (
-              <div className="content-stretch relative flex w-full flex-wrap items-center justify-start gap-[16px] md:w-auto md:justify-end md:gap-[28px]">
-                <div className="content-stretch relative flex gap-[8px] items-center shrink-0">
-                  <div className="relative shrink-0 size-[36.994px]">
-                    <ChargesIcon className="w-full h-full" color="white" />
-                  </div>
-                  <p className="font-medium leading-[15.6px] relative text-[11.27px] text-white max-w-[145.666px] sm:text-[15.029px] sm:leading-[20.809px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    Powers that occur in the <span className="font-black">Battle Phase.</span>
-                  </p>
-                </div>
-              </div>
-            )}
-            {showPhaseLegend && !battleOnly && (
-              <div className="content-stretch relative flex w-full flex-wrap items-center justify-start gap-[16px] md:w-auto md:justify-end md:gap-[28px]">
-                <div className="content-stretch relative flex gap-[8px] items-center shrink-0">
-                  <div className="relative shrink-0 size-[36.994px]">
-                    <DrawingIcon className="w-full h-full" color="#D5D5D5" />
-                  </div>
-                  <p className="font-medium leading-[15.6px] relative text-[11.27px] text-white max-w-[141.041px] sm:text-[15.029px] sm:leading-[20.809px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    Powers that occur in the <span className="font-black">Build Phase.</span>
-                  </p>
-                </div>
-                <div className="content-stretch relative flex gap-[8px] items-center shrink-0">
-                  <div className="relative shrink-0 size-[36.994px]">
-                    <ChargesIcon className="w-full h-full" color="white" />
-                  </div>
-                  <p className="font-medium leading-[15.6px] relative text-[11.27px] text-white max-w-[145.666px] sm:text-[15.029px] sm:leading-[20.809px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    Powers that occur in the <span className="font-black">Battle Phase.</span>
-                  </p>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -330,7 +232,7 @@ function ShipRow({
                 )}
                 <div className="flex w-full flex-col items-start gap-[4px]">
                   <p className="font-normal leading-[11.5px] relative shrink-0 text-[var(--shapeships-grey-20)] text-[10.5px] w-full sm:text-[13px] sm:leading-[14.13px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                    {getSubphaseLabel(ship)}
+                    {getShipPhaseLabel(ship.powers)}
                   </p>
                   <ShipPowerTagBadgeRow labels={powerTagLabels} />
                 </div>
@@ -340,28 +242,19 @@ function ShipRow({
             {/* Powers */}
             <div className="content-stretch relative flex min-w-0 flex-1 flex-col items-start">
               {ship.powers.map((power, index) => {
-                const phaseType = getPhaseIcon(power.subphase);
+                const presentation = getShipPowerPresentation(power);
 
                 return (
-                  <div key={index} className="content-stretch flex min-w-0 gap-[4px] sm:gap-[10px] items-start relative shrink-0 w-full">
-                    {/* Phase icon */}
-                    <div className="relative shrink-0 size-[16px] mt-[2px] md:size-[24px] md:mt-0">
-                      {phaseType === 'build' ? (
-                        <div className="opacity-50">
-                          <DrawingIcon className="w-full h-full" color="#D5D5D5" />
-                        </div>
-                      ) : (
-                        <div className="opacity-50">
-                          <ChargesIcon className="w-full h-full" color="#D5D5D5" />
-                        </div>
-                      )}
-                    </div>
-
+                  <ShipPowerRow
+                    key={index}
+                    iconKind={presentation.iconKind}
+                    fallbackIconClassName="sm:pt-[9px]"
+                  >
                     {/* Power text (preserve CSV wording exactly) */}
                     <p className="basis-0 font-normal grow leading-[20px] min-h-px min-w-0 relative shrink-0 text-[13.5px] pb-[10px] text-white whitespace-pre-wrap sm:text-[18px] sm:leading-[26px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                      {renderPowerText(power.text)}
+                      {presentation.text}
                     </p>
-                  </div>
+                  </ShipPowerRow>
                 );
               })}
 
@@ -376,12 +269,12 @@ function ShipRow({
                       {evolvedShips.map((evolvedShip) => {
                         const evolvedGraphic = resolveShipGraphic(evolvedShip, { context: 'default' });
                         const EvolvedShipGraphic = evolvedGraphic?.component;
-                        const evolvedSubphase = getSubphaseLabel(evolvedShip);
+                        const evolvedSubphase = getShipPhaseLabel(evolvedShip.powers);
 
                         return (
                           <div key={evolvedShip.id} className="flex min-w-0 max-w-full gap-[12px] items-start sm:min-w-[220px]">
                             {/* Evolved ship graphic */}
-                            <div className="relative shrink-0 w-[48px] h-[48px] flex items-center justify-center">
+                            <div className="relative shrink-0 w-[28px] h-[28px] sm:w-[48px] sm:h-[48px] flex items-center justify-center">
                               {EvolvedShipGraphic && <EvolvedShipGraphic className="max-w-full h-auto" />}
                             </div>
 
@@ -394,24 +287,18 @@ function ShipRow({
                                 {evolvedSubphase}
                               </p>
                               {evolvedShip.powers.map((power, idx) => {
-                                const phaseType = getPhaseIcon(power.subphase);
+                                const presentation = getShipPowerPresentation(power);
                                 return (
-                                  <div key={idx} className="flex min-w-0 gap-[6px] items-start mt-[4px]">
-                                    <div className="relative shrink-0 size-[16px]">
-                                      {phaseType === 'build' ? (
-                                        <div className="opacity-50">
-                                          <DrawingIcon className="w-full h-full" color="#D5D5D5" />
-                                        </div>
-                                      ) : (
-                                        <div className="opacity-50">
-                                          <ChargesIcon className="w-full h-full" color="#D5D5D5" />
-                                        </div>
-                                      )}
-                                    </div>
+                                  <ShipPowerRow
+                                    key={idx}
+                                    iconKind={presentation.iconKind}
+                                    className="mt-[4px]"
+                                    fallbackIconClassName="pt-[2px]! sm:pt-[4px]! w-[8px]!"
+                                  >
                                     <p className="min-w-0 font-normal leading-[13.5px] text-[10.5px] text-white sm:text-[14px] sm:leading-[18px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                                      {renderPowerText(power.text)}
+                                      {presentation.text}
                                     </p>
-                                  </div>
+                                  </ShipPowerRow>
                                 );
                               })}
                             </div>
@@ -427,8 +314,8 @@ function ShipRow({
               {ship.extraRules && (
                 <div className="relative shrink-0 w-full">
                   <div className="flex flex-row items-center size-full">
-                    <div className="content-stretch relative flex w-full items-center  pr-0 py-0 pl-[20px] lg:pl-[35px]">
-                      <p className="basis-0 font-normal grow italic leading-[15px] min-h-px min-w-0 relative shrink-0 text-[12px] text-white whitespace-pre-wrap sm:text-[16px] sm:leading-[20px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                    <div className="content-stretch relative flex w-full items-center  pr-0 py-0 pl-[32px]">
+                      <p className="basis-0 font-normal grow italic leading-[15px] min-h-px min-w-0 relative shrink-0 text-[12px] text-white whitespace-pre-wrap sm:text-[16px] sm:leading-[20px]">
                         {ship.extraRules}
                       </p>
                     </div>
@@ -535,7 +422,7 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
       {/* BASIC SHIPS */}
       <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full">
         <div className="absolute border-[var(--shapeships-grey-70)] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none" />
-        <SectionHeader title="Basic Ships" showPhaseLegend={true} />
+        <SectionHeader title="Basic Ships" />
         {basicShipsOnly.map((ship, index) => {
           // CSV-driven: Pass evolved ships to Evolver row (ship ID 'EVO')
           const shouldShowEvolvedShips = ship.id === 'EVO' && evolvedShips.length > 0;
@@ -558,8 +445,6 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
             <SectionHeader
               title="Solar Powers"
               note="Each requires the energy shown to be cast."
-              showPhaseLegend={true}
-              battleOnly={true}
             />
             {solarPowers.map((ship, index) => (
               <ShipRow key={ship.id} ship={ship} isAlternate={index % 2 === 1} />
@@ -573,7 +458,6 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
             <SectionHeader
               title="Upgraded Ships"
               note={species === 'Xenite' ? 'Xenites within upgraded ships cannot be Evolved and do NOT count for Mantis and Hell Hornet powers.' : undefined}
-              showPhaseLegend={true}
             />
             {upgradedShips.map((ship, index) => (
               <ShipRow key={ship.id} ship={ship} isAlternate={index % 2 === 1} />
