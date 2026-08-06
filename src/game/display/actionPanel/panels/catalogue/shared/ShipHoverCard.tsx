@@ -18,6 +18,7 @@ import { SHIP_DEFINITIONS_MAP } from '../../../../../data/ShipDefinitionsUI';
 import { parseShipToken } from '../../../../graphics/shipToken';
 import { resolveShipGraphic } from '../../../../graphics/resolveShipGraphic';
 import { isShipDefId } from '../../../../../data/ShipDefinitions.core';
+import { ShipPowerTagBadgeRow } from '../../../../shared/ShipPowerTagBadgeRow';
 import { useAnchoredHoverPlacement } from '../../../../shared/useAnchoredHoverPlacement';
 import type { HoverPanelMotionState } from '../../../../shared/useHoverPanelPresence';
 
@@ -396,15 +397,20 @@ export function ShipHoverCard({
             ) : null}
           </div>
           
-          {/* Phase Label */}
-          {showPhaseLabel && model.phaseLabel && (
-            <p
-              className="font-normal leading-[15px] relative shrink-0 text-[var(--shapeships-grey-20)] text-[13px] w-full"
-              style={{ fontVariationSettings: "'wdth' 100" }}
-            >
-              {model.phaseLabel}
-            </p>
-          )}
+          {(showPhaseLabel && model.phaseLabel) || model.powerTagLabels.length > 0 ? (
+            <div className="flex w-full flex-col items-start gap-[4px]">
+              {/* Phase Label */}
+              {showPhaseLabel && model.phaseLabel ? (
+                <p
+                  className="font-normal leading-[15px] relative shrink-0 text-[var(--shapeships-grey-20)] text-[13px] w-full"
+                  style={{ fontVariationSettings: "'wdth' 100" }}
+                >
+                  {model.phaseLabel}
+                </p>
+              ) : null}
+              <ShipPowerTagBadgeRow labels={model.powerTagLabels} />
+            </div>
+          ) : null}
         </div>
 
         {/* Joining Lines */}

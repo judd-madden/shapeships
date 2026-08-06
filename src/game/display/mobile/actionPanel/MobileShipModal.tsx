@@ -16,6 +16,7 @@ import {
   getShipEligibilityForHover,
   type ShipEligibility,
 } from '../../actionPanel/panels/catalogue/shared/ShipBuildEligibility';
+import { ShipPowerTagBadgeRow } from '../../shared/ShipPowerTagBadgeRow';
 
 interface MobileShipModalProps {
   shipId: ShipDefId;
@@ -110,13 +111,18 @@ export function MobileShipModal({
                 </p>
               </div>
 
-              {model.phaseLabel ? (
-                <p
-                  className="text-[13px] font-normal uppercase leading-[16px] text-[var(--shapeships-grey-20)]"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
-                >
-                  {model.phaseLabel}
-                </p>
+              {model.phaseLabel || model.powerTagLabels.length > 0 ? (
+                <div className="flex flex-col items-start gap-[4px]">
+                  {model.phaseLabel ? (
+                    <p
+                      className="text-[13px] font-normal uppercase leading-[16px] text-[var(--shapeships-grey-20)]"
+                      style={{ fontVariationSettings: "'wdth' 100" }}
+                    >
+                      {model.phaseLabel}
+                    </p>
+                  ) : null}
+                  <ShipPowerTagBadgeRow labels={model.powerTagLabels} />
+                </div>
               ) : null}
             </div>
 

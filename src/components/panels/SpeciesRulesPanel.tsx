@@ -12,6 +12,8 @@ import type { ShipDefinitionUI } from '../../game/types/ShipTypes.ui';
 import { BuildIcon } from '../ui/primitives/icons/BuildIcon';
 import { BattleIcon } from '../ui/primitives/icons/BattleIcon';
 import { resolveShipGraphic } from '../../game/display/graphics/resolveShipGraphic';
+import { ShipPowerTagBadgeRow } from '../../game/display/shared/ShipPowerTagBadgeRow';
+import { getShipPowerTagLabels } from '../../game/data/ShipPowerTags';
 import {
   ANCIENT_SIPHON_HIGH_BAND_INCREMENT,
   ANCIENT_SIPHON_RULES_TABLE_ROWS,
@@ -282,6 +284,7 @@ function ShipRow({
   const isUpgradedShip = ship.shipType === 'Upgraded';
   const energyCostRows = getEnergyCostRows(ship);
   const solarPowerNameTextClass = getSolarPowerNameTextClass(ship);
+  const powerTagLabels = getShipPowerTagLabels(ship.powers);
 
   return (
     <div className={`relative shrink-0 w-full ${isAlternate ? 'bg-[var(--shapeships-grey-90)]' : ''}`}>
@@ -323,9 +326,12 @@ function ShipRow({
                     (+{joiningCost})
                   </p>
                 )}
-                <p className="font-normal leading-[11.5px] relative shrink-0 text-[var(--shapeships-grey-20)] text-[10.5px] w-full sm:text-[13px] sm:leading-[14.13px]" style={{ fontVariationSettings: "'wdth' 100" }}>
-                  {getSubphaseLabel(ship)}
-                </p>
+                <div className="flex w-full flex-col items-start gap-[4px]">
+                  <p className="font-normal leading-[11.5px] relative shrink-0 text-[var(--shapeships-grey-20)] text-[10.5px] w-full sm:text-[13px] sm:leading-[14.13px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+                    {getSubphaseLabel(ship)}
+                  </p>
+                  <ShipPowerTagBadgeRow labels={powerTagLabels} />
+                </div>
               </div>
             </div>
 

@@ -8,6 +8,7 @@ import {
   type ImplementedAncientManualSolarPowerId,
 } from '../../../client/gameSession/ancientChargeDeclaration';
 import { getShipCardModel } from '../../actionPanel/panels/catalogue/shared/ShipCardModel';
+import { ShipPowerTagBadgeRow } from '../../shared/ShipPowerTagBadgeRow';
 
 interface MobileSolarPowerModalProps {
   solarPowerId: ImplementedAncientManualSolarPowerId;
@@ -165,6 +166,8 @@ export function MobileSolarPowerModal({
                   <SolarPreview value={headingValue} />
                 </div>
               ) : null}
+
+              <ShipPowerTagBadgeRow labels={model.powerTagLabels} />
             </div>
 
             {model.powers.length > 0 ? (

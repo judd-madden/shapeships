@@ -1,6 +1,10 @@
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
 import type { ShipDefinitionUI } from '../../../../../types/ShipTypes.ui';
 import { SHIP_DEFINITIONS_MAP } from '../../../../../data/ShipDefinitionsUI';
+import {
+  getShipPowerTagLabels,
+  type ShipPowerTagLabel,
+} from '../../../../../data/ShipPowerTags';
 
 export type PowerIcon = 'build' | 'battle';
 
@@ -14,6 +18,7 @@ export interface ShipCardModel {
   cost: number;
   joiningLines?: number;
   phaseLabel?: string;
+  powerTagLabels: readonly ShipPowerTagLabel[];
   powers: ShipPowerViewModel[];
   italicNotes?: string;
   componentShipIds: readonly string[];
@@ -94,6 +99,7 @@ export function getShipCardModel(shipId: ShipDefId): ShipCardModel | null {
     ? ship.joiningLineCost
     : undefined;
   const phaseLabel = getSubphaseLabel(ship);
+  const powerTagLabels = getShipPowerTagLabels(ship.powers);
   const powers: ShipPowerViewModel[] = ship.powers.map((power) => ({
     icon: getPhaseIcon(power.subphase),
     text: renderPowerText(power.text),
@@ -106,6 +112,7 @@ export function getShipCardModel(shipId: ShipDefId): ShipCardModel | null {
     cost,
     joiningLines,
     phaseLabel,
+    powerTagLabels,
     powers,
     italicNotes,
     componentShipIds,
