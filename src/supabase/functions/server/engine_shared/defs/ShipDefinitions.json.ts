@@ -1109,7 +1109,15 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Dice Roll",
-        "text": "If you have 1: You may reroll the dice once.\\nIf you have 2: You may reroll the dice up to two times.\\nIf you have 3: You may reroll the dice up to three times."
+        "text": "If you have 1: You may reroll the dice once."
+      },
+      {
+        "subphase": "Dice Roll",
+        "text": "If you have 2: You may reroll the dice up to two times."
+      },
+      {
+        "subphase": "Dice Roll",
+        "text": "If you have 3: You may reroll the dice up to three times."
       },
       {
         "subphase": "Automatic",
@@ -1170,7 +1178,7 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "Reveal",
-        "text": "When built, set your health to maximum.\\nThis is not 'healing', and occurs during the Reveal phase."
+        "text": "When built, set your health to maximum. This is not 'healing', and occurs during the Reveal phase."
       }
     ],
     "energyCost": null,

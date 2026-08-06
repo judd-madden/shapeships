@@ -14,7 +14,7 @@ export function ShipPowerTagBadgeRow({ labels }: ShipPowerTagBadgeRowProps) {
       {labels.map((label) => (
         <span
           key={label}
-          className="whitespace-nowrap rounded-[4px] bg-white/15 px-[8px] py-[5px] text-[12px] font-normal uppercase leading-none text-[var(--shapeships-grey-20)]"
+          className="whitespace-nowrap rounded-[4px] bg-white/15 px-[8px] py-[5px] text-[10px] sm:text-[12px] font-normal uppercase leading-none text-[var(--shapeships-grey-20)]"
           style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {label}
