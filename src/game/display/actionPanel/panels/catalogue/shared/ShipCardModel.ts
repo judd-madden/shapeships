@@ -1,17 +1,14 @@
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
-import type { ShipDefinitionUI } from '../../../../../types/ShipTypes.ui';
 import { SHIP_DEFINITIONS_MAP } from '../../../../../data/ShipDefinitionsUI';
+import {
+  getShipPhaseLabel,
+  getShipPowerPresentation,
+  type ShipPowerPresentation,
+} from '../../../../../data/ShipPowerPresentation';
 import {
   getShipPowerTagLabels,
   type ShipPowerTagLabel,
 } from '../../../../../data/ShipPowerTags';
-
-export type PowerIcon = 'build' | 'battle';
-
-export interface ShipPowerViewModel {
-  icon: PowerIcon;
-  text: string;
-}
 
 export interface ShipCardModel {
   name: string;
@@ -19,7 +16,7 @@ export interface ShipCardModel {
   joiningLines?: number;
   phaseLabel?: string;
   powerTagLabels: readonly ShipPowerTagLabel[];
-  powers: ShipPowerViewModel[];
+  powers: ShipPowerPresentation[];
   italicNotes?: string;
   componentShipIds: readonly string[];
 }
@@ -27,62 +24,6 @@ export interface ShipCardModel {
 export interface GroupedShipToken {
   token: string;
   count: number;
-}
-
-function getPhaseIcon(subphase: string): PowerIcon {
-  const buildSubphases = [
-    'Dice Roll',
-    'Line Generation',
-    'Drawing',
-  ];
-
-  const battleSubphases = [
-    'Reveal',
-    'First Strike',
-    'Charges',
-    'Automatic',
-    'Upon Destruction',
-    'Energy',
-    'Solar',
-  ];
-
-  if (buildSubphases.some((label) => subphase.includes(label))) {
-    return 'build';
-  }
-
-  if (battleSubphases.some((label) => subphase.includes(label))) {
-    return 'battle';
-  }
-
-  return 'battle';
-}
-
-function renderPowerText(text: string): string {
-  return text.replace(/\\n/g, '\n');
-}
-
-function getSubphaseLabel(ship: ShipDefinitionUI): string {
-  const seen = new Set<string>();
-  const uniqueSubphases: string[] = [];
-
-  for (const power of ship.powers) {
-    const subphase = power.subphase;
-    if (!subphase || subphase.trim() === '' || subphase.toUpperCase() === 'N/A') {
-      continue;
-    }
-
-    const normalized = subphase.toUpperCase();
-    if (normalized === 'PASSIVE' || normalized === 'UPON DESTRUCTION') {
-      continue;
-    }
-
-    if (!seen.has(normalized)) {
-      seen.add(normalized);
-      uniqueSubphases.push(normalized);
-    }
-  }
-
-  return uniqueSubphases.join(', ');
 }
 
 export function getShipCardModel(shipId: ShipDefId): ShipCardModel | null {
@@ -100,12 +41,9 @@ export function getShipCardModel(shipId: ShipDefId): ShipCardModel | null {
   const joiningLines = ship.joiningLineCost && ship.joiningLineCost > 0
     ? ship.joiningLineCost
     : undefined;
-  const phaseLabel = getSubphaseLabel(ship);
+  const phaseLabel = getShipPhaseLabel(ship.powers);
   const powerTagLabels = getShipPowerTagLabels(ship.powers);
-  const powers: ShipPowerViewModel[] = ship.powers.map((power) => ({
-    icon: getPhaseIcon(power.subphase),
-    text: renderPowerText(power.text),
-  }));
+  const powers = ship.powers.map(getShipPowerPresentation);
   const italicNotes = ship.extraRules || undefined;
   const componentShipIds = ship.componentShips ?? [];
 

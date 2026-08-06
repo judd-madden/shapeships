@@ -1,5 +1,5 @@
-import { BattleIcon } from '../../../../../components/ui/primitives/icons/BattleIcon';
-import { BuildIcon } from '../../../../../components/ui/primitives/icons/BuildIcon';
+import { ChargesIcon } from '../../../../../components/ui/primitives/icons/ChargesIcon';
+import { DrawingIcon } from '../../../../../components/ui/primitives/icons/DrawingIcon';
 import { RUNTIME_PHASE_ROWS } from '../../../../client/gameSession/phaseLabels';
 
 type PhaseBreakdownLayout = 'desktop' | 'mobile';
@@ -91,7 +91,7 @@ export function PhaseBreakdownView({
                 >
                   BUILD PHASE
                 </span>
-                <BuildIcon className="size-[24px]" color="var(--shapeships-white)" />
+                <DrawingIcon className="size-[24px]" color="var(--shapeships-white)" />
               </div>
               <div className="flex flex-col gap-[4px]">
                 {buildRows.map(renderRow)}
@@ -106,7 +106,7 @@ export function PhaseBreakdownView({
                 >
                   BATTLE PHASE
                 </span>
-                <BattleIcon className="size-[24px]" color="var(--shapeships-white)" />
+                <ChargesIcon className="size-[24px]" color="var(--shapeships-white)" />
               </div>
               <div className="flex flex-col gap-[4px]">
                 {battleRows.map(renderRow)}
@@ -151,7 +151,7 @@ export function PhaseBreakdownView({
             >
               BUILD PHASE
             </span>
-            <BuildIcon className="size-[26px]" color="var(--shapeships-white)" />
+            <DrawingIcon className="size-[26px]" color="var(--shapeships-white)" />
           </div>
                   <div className="flex flex-col gap-[4px]">
             {buildRows.map(renderRow)}
@@ -167,7 +167,7 @@ export function PhaseBreakdownView({
             >
               BATTLE PHASE
             </span>
-            <BattleIcon className="size-[26px]" color="var(--shapeships-white)" />
+            <ChargesIcon className="size-[26px]" color="var(--shapeships-white)" />
           </div>
           <div className="flex flex-col gap-[4px]">
             {battleRows.map(renderRow)}

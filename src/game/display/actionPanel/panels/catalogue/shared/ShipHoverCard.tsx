@@ -9,8 +9,6 @@
  */
 
 import * as ReactDOM from 'react-dom';
-import { BuildIcon } from '../../../../../../components/ui/primitives/icons/BuildIcon';
-import { BattleIcon } from '../../../../../../components/ui/primitives/icons/BattleIcon';
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
 import type { ShipEligibility } from './ShipBuildEligibility';
 import { getShipCardModel, groupShipCounts as groupShipTokenCounts } from './ShipCardModel';
@@ -21,6 +19,7 @@ import { isShipDefId } from '../../../../../data/ShipDefinitions.core';
 import { ShipPowerTagBadgeRow } from '../../../../shared/ShipPowerTagBadgeRow';
 import { useAnchoredHoverPlacement } from '../../../../shared/useAnchoredHoverPlacement';
 import type { HoverPanelMotionState } from '../../../../shared/useHoverPanelPresence';
+import { ShipPowerRow } from '../../../../shared/ShipPowerRow';
 
 // NOTE (PASS 2): This hover card is now a smart component with portal rendering.
 // Positioning is anchored to the ship hitbox via anchorRect.
@@ -239,19 +238,14 @@ function EligibilityFooter({
   );
 }
 
-/**
- * Power text component with proper nudging
- */
 function PowerText({ text }: { text: string }) {
   return (
-    <div className="basis-0 content-stretch flex grow items-center justify-center min-h-px min-w-px pb-0 pt-[2px] px-0 relative shrink-0">
-      <p
-        className="basis-0 font-normal grow leading-[20px] min-h-px min-w-px relative shrink-0 text-[16px] text-white whitespace-pre-wrap"
-        style={{ fontVariationSettings: "'wdth' 100" }}
-      >
-        {text}
-      </p>
-    </div>
+    <p
+      className="font-normal leading-[20px] text-[16px] text-left text-white whitespace-pre-wrap"
+      style={{ fontVariationSettings: "'wdth' 100" }}
+    >
+      {text}
+    </p>
   );
 }
 
@@ -432,10 +426,9 @@ export function ShipHoverCard({
         {model.powers.length > 0 && (
           <div className="content-stretch flex flex-col gap-[8px] items-start relative shrink-0 w-full">
             {model.powers.map((power, index) => (
-              <div key={index} className="content-stretch flex gap-[6px] items-start relative shrink-0 w-full">
-                {power.icon === 'build' ? <BuildIcon /> : <BattleIcon />}
+              <ShipPowerRow key={index} iconKind={power.iconKind}>
                 <PowerText text={power.text} />
-              </div>
+              </ShipPowerRow>
             ))}
           </div>
         )}

@@ -1,7 +1,5 @@
 import { useCallback } from 'react';
 import * as ReactDOM from 'react-dom';
-import { BuildIcon } from '../../../../components/ui/primitives/icons/BuildIcon';
-import { BattleIcon } from '../../../../components/ui/primitives/icons/BattleIcon';
 import { CloseIcon } from '../../../../components/ui/primitives/icons/CloseIcon';
 import { getShipHoverModel } from '../../../data/ShipRulesAdapter';
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
@@ -10,6 +8,7 @@ import {
   type AnchoredHoverPlacementMode,
 } from '../../shared/useAnchoredHoverPlacement';
 import type { HoverPanelMotionState } from '../../shared/useHoverPanelPresence';
+import { ShipPowerRow } from '../../shared/ShipPowerRow';
 
 interface FleetShipHoverCardProps {
   shipId: ShipDefId;
@@ -31,24 +30,15 @@ function cx(...parts: Array<string | undefined | false>) {
 
 function PowerText({ text, density }: { text: string; density: 'desktop' | 'mobile' }) {
   return (
-    <div className="basis-0 content-stretch flex grow items-center justify-center min-h-px min-w-px pb-0 pt-[2px] px-0 relative shrink-0">
-      <p
-        className={cx(
-          'basis-0 font-normal grow min-h-px min-w-px relative shrink-0 text-white whitespace-pre-wrap',
-          density === 'mobile' ? 'text-[14px] leading-[18px]' : 'text-[16px] leading-[20px]'
-        )}
-        style={{ fontVariationSettings: "'wdth' 100" }}
-      >
-        {text}
-      </p>
-    </div>
-  );
-}
-
-function getPowerIconClassName(density: 'desktop' | 'mobile') {
-  return cx(
-    'shrink-0',
-    density === 'mobile' && '!size-[20px]'
+    <p
+      className={cx(
+        'font-normal text-left text-white whitespace-pre-wrap',
+        density === 'mobile' ? 'text-[14px] leading-[18px]' : 'text-[16px] leading-[20px]'
+      )}
+      style={{ fontVariationSettings: "'wdth' 100" }}
+    >
+      {text}
+    </p>
   );
 }
 
@@ -190,17 +180,9 @@ export function FleetShipHoverCard({
         {model.powers.length > 0 ? (
           <div className="content-stretch flex flex-col gap-[8px] items-start relative shrink-0 w-full">
             {model.powers.map((power, index) => (
-              <div
-                key={`${power.icon}-${index}`}
-                className="content-stretch flex gap-[6px] items-start relative shrink-0 w-full"
-              >
-                {power.icon === 'pencil' ? (
-                  <BuildIcon className={getPowerIconClassName(density)} />
-                ) : (
-                  <BattleIcon className={getPowerIconClassName(density)} />
-                )}
+              <ShipPowerRow key={`${power.iconKind}-${index}`} iconKind={power.iconKind}>
                 <PowerText text={power.text} density={density} />
-              </div>
+              </ShipPowerRow>
             ))}
           </div>
         ) : null}

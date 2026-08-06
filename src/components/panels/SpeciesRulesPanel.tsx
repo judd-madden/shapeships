@@ -9,8 +9,8 @@
 import React from 'react';
 import { SHIP_DEFINITIONS } from '../../game/data/ShipDefinitionsUI';
 import type { ShipDefinitionUI } from '../../game/types/ShipTypes.ui';
-import { BuildIcon } from '../ui/primitives/icons/BuildIcon';
-import { BattleIcon } from '../ui/primitives/icons/BattleIcon';
+import { DrawingIcon } from '../ui/primitives/icons/DrawingIcon';
+import { ChargesIcon } from '../ui/primitives/icons/ChargesIcon';
 import { resolveShipGraphic } from '../../game/display/graphics/resolveShipGraphic';
 import { ShipPowerTagBadgeRow } from '../../game/display/shared/ShipPowerTagBadgeRow';
 import { getShipPowerTagLabels } from '../../game/data/ShipPowerTags';
@@ -225,7 +225,7 @@ function SectionHeader({
               <div className="content-stretch relative flex w-full flex-wrap items-center justify-start gap-[16px] md:w-auto md:justify-end md:gap-[28px]">
                 <div className="content-stretch relative flex gap-[8px] items-center shrink-0">
                   <div className="relative shrink-0 size-[36.994px]">
-                    <BattleIcon className="w-full h-full" color="white" />
+                    <ChargesIcon className="w-full h-full" color="white" />
                   </div>
                   <p className="font-medium leading-[15.6px] relative text-[11.27px] text-white max-w-[145.666px] sm:text-[15.029px] sm:leading-[20.809px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Powers that occur in the <span className="font-black">Battle Phase.</span>
@@ -237,7 +237,7 @@ function SectionHeader({
               <div className="content-stretch relative flex w-full flex-wrap items-center justify-start gap-[16px] md:w-auto md:justify-end md:gap-[28px]">
                 <div className="content-stretch relative flex gap-[8px] items-center shrink-0">
                   <div className="relative shrink-0 size-[36.994px]">
-                    <BuildIcon className="w-full h-full" color="#D5D5D5" />
+                    <DrawingIcon className="w-full h-full" color="#D5D5D5" />
                   </div>
                   <p className="font-medium leading-[15.6px] relative text-[11.27px] text-white max-w-[141.041px] sm:text-[15.029px] sm:leading-[20.809px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Powers that occur in the <span className="font-black">Build Phase.</span>
@@ -245,7 +245,7 @@ function SectionHeader({
                 </div>
                 <div className="content-stretch relative flex gap-[8px] items-center shrink-0">
                   <div className="relative shrink-0 size-[36.994px]">
-                    <BattleIcon className="w-full h-full" color="white" />
+                    <ChargesIcon className="w-full h-full" color="white" />
                   </div>
                   <p className="font-medium leading-[15.6px] relative text-[11.27px] text-white max-w-[145.666px] sm:text-[15.029px] sm:leading-[20.809px]" style={{ fontVariationSettings: "'wdth' 100" }}>
                     Powers that occur in the <span className="font-black">Battle Phase.</span>
@@ -348,11 +348,11 @@ function ShipRow({
                     <div className="relative shrink-0 size-[16px] mt-[2px] md:size-[24px] md:mt-0">
                       {phaseType === 'build' ? (
                         <div className="opacity-50">
-                          <BuildIcon className="w-full h-full" color="#D5D5D5" />
+                          <DrawingIcon className="w-full h-full" color="#D5D5D5" />
                         </div>
                       ) : (
                         <div className="opacity-50">
-                          <BattleIcon className="w-full h-full" color="#D5D5D5" />
+                          <ChargesIcon className="w-full h-full" color="#D5D5D5" />
                         </div>
                       )}
                     </div>
@@ -400,11 +400,11 @@ function ShipRow({
                                     <div className="relative shrink-0 size-[16px]">
                                       {phaseType === 'build' ? (
                                         <div className="opacity-50">
-                                          <BuildIcon className="w-full h-full" color="#D5D5D5" />
+                                          <DrawingIcon className="w-full h-full" color="#D5D5D5" />
                                         </div>
                                       ) : (
                                         <div className="opacity-50">
-                                          <BattleIcon className="w-full h-full" color="#D5D5D5" />
+                                          <ChargesIcon className="w-full h-full" color="#D5D5D5" />
                                         </div>
                                       )}
                                     </div>

@@ -193,20 +193,36 @@ Blue:           #2555FF
 <ChevronDown color="white" />
 ```
 
-#### BuildIcon
-- **Features**: Configurable color
-- **Props**: `className`, `color` (default: "#D5D5D5")
+#### DiceRollIcon
+- **Features**: Configurable color, natural 25×26 size
+- **Props**: `className`, `color` (default: "white")
 
 ```tsx
-<BuildIcon color="#9CFF84" />
+<DiceRollIcon color="white" />
 ```
 
-#### BattleIcon
+#### DrawingIcon
 - **Features**: Configurable color
 - **Props**: `className`, `color` (default: "#D5D5D5")
 
 ```tsx
-<BattleIcon color="#FF8282" />
+<DrawingIcon color="#9CFF84" />
+```
+
+#### FirstStrikeIcon
+- **Features**: Configurable color, natural 26×26 size
+- **Props**: `className`, `color` (default: "white")
+
+```tsx
+<FirstStrikeIcon color="white" />
+```
+
+#### ChargesIcon
+- **Features**: Configurable color
+- **Props**: `className`, `color` (default: "#D5D5D5")
+
+```tsx
+<ChargesIcon color="#FF8282" />
 ```
 
 ### Dice (`/dice/`)

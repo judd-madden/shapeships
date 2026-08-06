@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { BattleIcon } from '../../../../components/ui/primitives/icons/BattleIcon';
-import { BuildIcon } from '../../../../components/ui/primitives/icons/BuildIcon';
 import { CloseIcon } from '../../../../components/ui/primitives/icons/CloseIcon';
 import { SHIP_DEFINITIONS_MAP } from '../../../data/ShipDefinitionsUI';
 import { isShipDefId } from '../../../data/ShipDefinitions.core';
@@ -17,6 +15,7 @@ import {
   type ShipEligibility,
 } from '../../actionPanel/panels/catalogue/shared/ShipBuildEligibility';
 import { ShipPowerTagBadgeRow } from '../../shared/ShipPowerTagBadgeRow';
+import { ShipPowerRow } from '../../shared/ShipPowerRow';
 
 interface MobileShipModalProps {
   shipId: ShipDefId;
@@ -139,19 +138,14 @@ export function MobileShipModal({
             {model.powers.length > 0 ? (
               <div className="flex flex-col gap-[9px]">
                 {model.powers.map((power, index) => (
-                  <div key={index} className="flex items-start gap-[8px]">
-                    {power.icon === 'build' ? (
-                      <BuildIcon className="mt-[1px] !size-[20px] shrink-0" />
-                    ) : (
-                      <BattleIcon className="mt-[1px] !size-[20px] shrink-0" />
-                    )}
+                  <ShipPowerRow key={index} iconKind={power.iconKind}>
                     <p
                       className="min-w-0 flex-1 whitespace-pre-wrap text-[16px] font-normal leading-[20px] text-white"
                       style={{ fontVariationSettings: "'wdth' 100" }}
                     >
                       {power.text}
                     </p>
-                  </div>
+                  </ShipPowerRow>
                 ))}
               </div>
             ) : null}

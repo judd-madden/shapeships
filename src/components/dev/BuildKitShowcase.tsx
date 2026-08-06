@@ -18,8 +18,10 @@ import {
   Tab,
   SecondaryNavItem,
   ChevronDown,
-  BuildIcon,
-  BattleIcon,
+  DiceRollIcon,
+  DrawingIcon,
+  FirstStrikeIcon,
+  ChargesIcon,
   HeartIcon,
   Dice
 } from '../ui/primitives';
@@ -158,12 +160,20 @@ export function BuildKitShowcase() {
               <ChevronDown />
             </div>
             <div>
-              <p className="text-sm text-[#888888] mb-2">Build</p>
-              <BuildIcon />
+              <p className="text-sm text-[#888888] mb-2">Dice Roll</p>
+              <DiceRollIcon />
             </div>
             <div>
-              <p className="text-sm text-[#888888] mb-2">Battle</p>
-              <BattleIcon />
+              <p className="text-sm text-[#888888] mb-2">Drawing</p>
+              <DrawingIcon />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">First Strike</p>
+              <FirstStrikeIcon />
+            </div>
+            <div>
+              <p className="text-sm text-[#888888] mb-2">Charges</p>
+              <ChargesIcon />
             </div>
             <div>
               <p className="text-sm text-[#888888] mb-2">Heart</p>

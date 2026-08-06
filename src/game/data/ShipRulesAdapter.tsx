@@ -8,23 +8,12 @@
  */
 
 import type { ShipDefId } from '../types/ShipTypes.engine';
-import type { ShipDefinitionUI } from '../types/ShipTypes.ui';
 import { SHIP_DEFINITIONS_MAP } from './ShipDefinitionsUI';
-
-/**
- * Icon type for ship powers
- * - pencil: Drawing-side powers (Dice Roll, Line Generation, Drawing)
- * - star: Battle-side powers (Reveal, First Strike, Charges, etc.)
- */
-export type PowerIcon = 'pencil' | 'star';
-
-/**
- * Ship power display model for hover cards
- */
-export interface ShipPowerViewModel {
-  icon: PowerIcon;
-  text: string; // Already processed with newlines
-}
+import {
+  getShipPhaseLabel,
+  getShipPowerPresentation,
+  type ShipPowerPresentation,
+} from './ShipPowerPresentation';
 
 /**
  * Complete ship hover card view model
@@ -34,79 +23,9 @@ export interface ShipHoverModel {
   cost: number;
   joiningLines?: number;
   phaseLabel?: string;
-  powers: ShipPowerViewModel[];
+  powers: ShipPowerPresentation[];
   italicNotes?: string;
   componentShipIds: readonly string[];
-}
-
-/**
- * Determine phase icon from subphase string
- * Same logic as SpeciesRulesPanel.getPhaseIcon()
- */
-function getPhaseIcon(subphase: string): PowerIcon {
-  const buildSubphases = [
-    'Dice Roll',
-    'Line Generation',
-    'Drawing'
-  ];
-  
-  const battleSubphases = [
-    'Reveal',
-    'First Strike',
-    'Charges',
-    'Automatic',
-    'Upon Destruction',
-    'Energy',
-    'Solar'
-  ];
-  
-  if (buildSubphases.some(s => subphase.includes(s))) {
-    return 'pencil';
-  }
-  
-  if (battleSubphases.some(s => subphase.includes(s))) {
-    return 'star';
-  }
-  
-  // Default to star for unknown subphases
-  return 'star';
-}
-
-/**
- * Convert literal \\n sequences to real newlines
- * Same logic as SpeciesRulesPanel.renderPowerText()
- */
-function renderPowerText(text: string): string {
-  return text.replace(/\\n/g, '\n');
-}
-
-/**
- * Get deduplicated phase label from ship powers
- * Same logic as SpeciesRulesPanel.getSubphaseLabel()
- */
-function getSubphaseLabel(ship: ShipDefinitionUI): string {
-  const seen = new Set<string>();
-  const uniqueSubphases: string[] = [];
-  
-  for (const power of ship.powers) {
-    const subphase = power.subphase;
-    // Skip empty values and N/A
-    if (!subphase || subphase.trim() === '' || subphase.toUpperCase() === 'N/A') {
-      continue;
-    }
-    
-    const normalized = subphase.toUpperCase();
-    if (normalized === 'PASSIVE' || normalized === 'UPON DESTRUCTION') {
-      continue;
-    }
-
-    if (!seen.has(normalized)) {
-      seen.add(normalized);
-      uniqueSubphases.push(normalized);
-    }
-  }
-  
-  return uniqueSubphases.join(', ');
 }
 
 /**
@@ -132,13 +51,10 @@ export function getShipHoverModel(shipId: ShipDefId): ShipHoverModel | null {
     : undefined;
   
   // Extract phase label
-  const phaseLabel = getSubphaseLabel(ship);
+  const phaseLabel = getShipPhaseLabel(ship.powers);
   
   // Transform powers
-  const powers: ShipPowerViewModel[] = ship.powers.map(power => ({
-    icon: getPhaseIcon(power.subphase),
-    text: renderPowerText(power.text)
-  }));
+  const powers = ship.powers.map(getShipPowerPresentation);
   
   // Extract italic notes (extraRules)
   const italicNotes = ship.extraRules || undefined;

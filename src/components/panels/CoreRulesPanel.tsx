@@ -9,8 +9,8 @@
 import React from 'react';
 import { FighterShip, TacticalCruiserShip } from '../../graphics/human/assets';
 import { ShipOfEquality2Ship, ShipOfEquality1Ship } from '../../graphics/centaur/assets';
-import { BuildIcon } from '../ui/primitives/icons/BuildIcon';
-import { BattleIcon } from '../ui/primitives/icons/BattleIcon';
+import { DrawingIcon } from '../ui/primitives/icons/DrawingIcon';
+import { ChargesIcon } from '../ui/primitives/icons/ChargesIcon';
 
 type RulesTab = 'core' | 'human' | 'xenite' | 'centaur' | 'ancient' | 'timings';
 
@@ -147,7 +147,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
         {/* Build Phase */}
         <PhaseSection>
           <div className="relative flex h-[96px] w-full shrink-0 items-center justify-center md:w-[134px]">
-            <BuildIcon className="scale-[4]" color="#D5D5D5" />
+            <DrawingIcon className="scale-[4]" color="#D5D5D5" />
           </div>
           <div className="content-stretch relative flex min-w-0 flex-1 flex-col items-start gap-[12px]">
             <div className="content-stretch flex items-center relative shrink-0">
@@ -185,7 +185,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
         {/* Battle Phase */}
         <PhaseSection>
           <div className="relative flex h-[96px] w-full shrink-0 items-center justify-center md:w-[134px]">
-            <BattleIcon className="scale-[4]" color="white" />
+            <ChargesIcon className="scale-[4]" color="white" />
           </div>
           <div className="content-stretch relative flex min-w-0 flex-1 flex-col items-start gap-[15px]">
             <div className="content-stretch flex items-center relative shrink-0">

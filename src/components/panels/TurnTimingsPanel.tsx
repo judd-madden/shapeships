@@ -7,8 +7,8 @@
  */
 
 import React from 'react';
-import { BuildIcon } from '../ui/primitives/icons/BuildIcon';
-import { BattleIcon } from '../ui/primitives/icons/BattleIcon';
+import { DrawingIcon } from '../ui/primitives/icons/DrawingIcon';
+import { ChargesIcon } from '../ui/primitives/icons/ChargesIcon';
 import { HeartIcon } from '../ui/primitives/icons/HeartIcon';
 import { ChevronDown } from '../ui/primitives/icons/ChevronDown';
 import { Dice } from '../ui/primitives/dice/Dice';
@@ -121,7 +121,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
       <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full border-[3px] border-[var(--shapeships-grey-70)] border-solid">
         <PhaseHeader 
           title="Build Phase" 
-          icon={<BuildIcon className="w-[33.589px] h-[33.589px]" color="#D5D5D5" />}
+          icon={<DrawingIcon className="w-[33.589px] h-[33.589px]" color="#D5D5D5" />}
         />
         
         <TimingRow
@@ -188,7 +188,7 @@ export function TurnTimingsPanel({ onNavigate }: TurnTimingsPanelProps) {
       <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full border-[3px] border-[var(--shapeships-grey-70)] border-solid">
         <PhaseHeader 
           title="BATTLE PHASE" 
-          icon={<BattleIcon className="w-[33.589px] h-[33.589px]" color="white" />}
+          icon={<ChargesIcon className="w-[33.589px] h-[33.589px]" color="white" />}
         />
         
         <TimingRow

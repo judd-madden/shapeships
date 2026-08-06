@@ -29,8 +29,10 @@ export { SecondaryNavItem } from './navigation/SecondaryNavItem';
 
 // Icons
 export { ChevronDown } from './icons/ChevronDown';
-export { BuildIcon } from './icons/BuildIcon';
-export { BattleIcon } from './icons/BattleIcon';
+export { DiceRollIcon } from './icons/DiceRollIcon';
+export { DrawingIcon } from './icons/DrawingIcon';
+export { FirstStrikeIcon } from './icons/FirstStrikeIcon';
+export { ChargesIcon } from './icons/ChargesIcon';
 export { HeartIcon } from './icons/HeartIcon';
 export { InfoIcon } from './icons/InfoIcon';
 

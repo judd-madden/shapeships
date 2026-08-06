@@ -6,8 +6,8 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Dice } from '../../../components/ui/primitives';
-import { BuildIcon } from '../../../components/ui/primitives/icons/BuildIcon';
-import { BattleIcon } from '../../../components/ui/primitives/icons/BattleIcon';
+import { DrawingIcon } from '../../../components/ui/primitives/icons/DrawingIcon';
+import { ChargesIcon } from '../../../components/ui/primitives/icons/ChargesIcon';
 import { CloseIcon } from '../../../components/ui/primitives/icons/CloseIcon';
 import { OpenFullIcon } from '../../../components/ui/primitives/icons/OpenFullIcon';
 import type { LeftRailViewModel, GameSessionActions } from '../../client/useGameSession';
@@ -376,7 +376,7 @@ export function LeftRail({
         <div className="bg-black p-[10px] flex items-center justify-center gap-[10px]">
           <p className="text-white text-[18px] font-bold">Turn {vm.turn} -</p>
           <p className="text-white text-[18px] font-bold">{vm.phase}</p>
-          {vm.phaseIcon === 'build' ? <BuildIcon /> : <BattleIcon />}
+          {vm.phaseIcon === 'build' ? <DrawingIcon /> : <ChargesIcon />}
         </div>
         
         {/* Subphase */}

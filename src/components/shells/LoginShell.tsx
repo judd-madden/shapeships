@@ -11,7 +11,7 @@ import { LoginPanel } from '../panels/LoginPanel';
 import { CreateAccountPanel } from '../panels/CreateAccountPanel';
 import { ForgotPasswordPanel } from '../panels/ForgotPasswordPanel';
 import { PlayersIcon } from '../ui/primitives/icons/PlayersIcon';
-import { BuildIcon } from '../ui/primitives/icons/BuildIcon';
+import { DrawingIcon } from '../ui/primitives/icons/DrawingIcon';
 import { ClockIcon } from '../ui/primitives/icons/ClockIcon';
 import { LogoIcon } from '../ui/primitives/icons/LogoIcon';
 import { Dice } from '../ui/primitives/dice/Dice';
@@ -59,7 +59,7 @@ export function LoginShell({
               
               {/* Feature 1: Free space battle game */}
               <div className="flex relative  max-w-[260px] shrink-0 items-center gap-[6px] sm:gap-[12px]">
-                <BuildIcon className="relative shrink-0 size-[32px] sm:size-[48px]" />
+                <DrawingIcon className="relative shrink-0 size-[32px] sm:size-[48px]" />
                 <p className="relative shrink-0 font-medium text-[16px] leading-[18px] not-italic sm:text-[21px] sm:leading-[24px]">
                   Free strategy game
                 </p>
