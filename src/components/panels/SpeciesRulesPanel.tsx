@@ -42,25 +42,23 @@ const SOLAR_POWER_NAME_TEXT_CLASSES: Record<string, EnergyCostTextClass> = {
 };
 
 // Build/Battle icon mapping from CSV subphase (UI-ONLY INTERPRETATION)
-// Note: Automatic and Charge Declaration are treated as Battle icons for UI consistency
+// Note: Automatic and Charges are treated as Battle icons for UI consistency
 // and do not imply exact engine timing.
 function getPhaseIcon(subphase: string): 'build' | 'battle' {
   const buildSubphases = [
-    'Dice Manipulation',
+    'Dice Roll',
     'Line Generation',
-    'Ships That Build',
     'Drawing',
-    'End of Build Phase',
   ];
 
   const battleSubphases = [
+    'Reveal',
     'First Strike',
-    'Charge Declaration',
+    'Charges',
     'Automatic',
     'Upon Destruction',
     'Energy',
     'Solar',
-    'End of Battle Phase',
   ];
 
   if (buildSubphases.some((s) => subphase.includes(s))) {
@@ -89,6 +87,10 @@ function getSubphaseLabel(ship: ShipDefinitionUI): string {
     }
 
     const normalized = subphase.toUpperCase();
+    if (normalized === 'PASSIVE' || normalized === 'UPON DESTRUCTION') {
+      continue;
+    }
+
     if (!seen.has(normalized)) {
       seen.add(normalized);
       uniqueSubphases.push(normalized);

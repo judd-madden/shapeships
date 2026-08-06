@@ -31,21 +31,19 @@ export interface GroupedShipToken {
 
 function getPhaseIcon(subphase: string): PowerIcon {
   const buildSubphases = [
-    'Dice Manipulation',
+    'Dice Roll',
     'Line Generation',
-    'Ships That Build',
     'Drawing',
-    'End of Build Phase',
   ];
 
   const battleSubphases = [
+    'Reveal',
     'First Strike',
-    'Charge Declaration',
+    'Charges',
     'Automatic',
     'Upon Destruction',
     'Energy',
     'Solar',
-    'End of Battle Phase',
   ];
 
   if (buildSubphases.some((label) => subphase.includes(label))) {
@@ -74,6 +72,10 @@ function getSubphaseLabel(ship: ShipDefinitionUI): string {
     }
 
     const normalized = subphase.toUpperCase();
+    if (normalized === 'PASSIVE' || normalized === 'UPON DESTRUCTION') {
+      continue;
+    }
+
     if (!seen.has(normalized)) {
       seen.add(normalized);
       uniqueSubphases.push(normalized);

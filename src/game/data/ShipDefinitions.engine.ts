@@ -198,12 +198,11 @@ function mapSubphaseToPhase(subphase: string): ShipPowerPhase {
   const normalized = subphase.trim();
   
   if (normalized === 'Line Generation') return PhaseEnum.LINE_GENERATION;
-  if (normalized === 'Ships That Build') return PhaseEnum.SHIPS_THAT_BUILD;
   if (normalized === 'Drawing') return PhaseEnum.DRAWING;
-  if (normalized === 'End of Build Phase') return PhaseEnum.END_OF_BUILD;
+  if (normalized === 'Reveal') return PhaseEnum.END_OF_BUILD;
   if (normalized === 'First Strike') return PhaseEnum.FIRST_STRIKE;
-  if (normalized === 'Charge Declaration') return PhaseEnum.SIMULTANEOUS_DECLARATION;
-  if (normalized === 'Dice Manipulation') return PhaseEnum.DICE_MANIPULATION;
+  if (normalized === 'Charges') return PhaseEnum.SIMULTANEOUS_DECLARATION;
+  if (normalized === 'Dice Roll') return PhaseEnum.DICE_MANIPULATION;
   if (normalized === 'Automatic') return PhaseEnum.AUTOMATIC;
   if (normalized === 'Energy') {
     // Definition/presentation category, not an authoritative turn subphase.
@@ -299,7 +298,7 @@ function inferEffect(text: string): {
     };
   }
   
-  if (lower === 'generate an additional line in each future build phase.') {
+  if (lower === 'generate an additional line each future turn.') {
     return {
       kind: EffectKind.GAIN_LINES,
       baseAmount: 1

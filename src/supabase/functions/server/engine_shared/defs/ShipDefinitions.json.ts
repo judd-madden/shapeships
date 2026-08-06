@@ -18,7 +18,7 @@
  * - → ShipDefinitions.withStructuredPowers.ts (join layer)
  * - → engine_shared resolution logic
  * 
- * VERSION: 2026-08-05
+ * VERSION: 2026-08-06
  * Last synced with: /game/data/ShipDefinitions.json.ts
  * 
  */
@@ -98,12 +98,12 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": 1,
     "powers": [
       {
-        "subphase": "Charge Declaration",
-        "text": "Interceptors have 1 charge:\\n- Deal 5 damage (uses charge) OR\\n- Heal 7 (uses charge)"
+        "subphase": "Charges",
+        "text": "Has 1 charge:\\n- Deal 5 damage (uses charge) OR\\n- Heal 7 (uses charge)"
       }
     ],
     "energyCost": null,
-    "extraRules": "Can hold charge. Interceptor will be marked when the charge has been used.",
+    "extraRules": "Interceptor is marked when the charge has been used.",
     "stackCaption": "1/1 charges - X damage or X healing (on turn it's used) - no caption when depleted",
     "colour": "Pastel Purple",
     "numberOfGraphics": 2
@@ -121,11 +121,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Line Generation",
-        "text": "Generate an additional line in each future build phase."
+        "text": "Generate an additional line each future turn."
       }
     ],
     "energyCost": null,
-    "extraRules": "You can have a maximum of 6 Orbitals. Lines may be saved.",
+    "extraRules": "You can have a maximum of 6 Orbitals.",
     "stackCaption": "+X lines",
     "colour": "Pastel Blue",
     "numberOfGraphics": 1
@@ -141,14 +141,14 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": 6,
     "powers": [
       {
-        "subphase": "Ships That Build",
-        "text": "Has 6 charges. In each 'Ships That Build' phase, may:\\n- Make a Defender (use 1 charge) OR\\n- Make a Fighter (use 2 charges)",
+        "subphase": "Drawing",
+        "text": "Has 6 charges. Each future turn, may:\\n- Make a Defender (use 1 charge) OR\\n- Make a Fighter (use 2 charges)",
         "tags": ["makes_ships"],
         "activationTiming": "start_of_drawing"
       }
     ],
     "energyCost": null,
-    "extraRules": "Carrier will be marked each time a charge is used.",
+    "extraRules": "Carrier is marked each time a charge is used.",
     "stackCaption": "X/6 charges - no caption when depleted",
     "colour": "Pastel Yellow",
     "numberOfGraphics": 7
@@ -189,11 +189,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Drawing",
-        "text": "Choose a trigger number for this ship, 1-6."
+        "text": "When built, choose a number between 1 and 6 for the Frigate."
       },
       {
         "subphase": "Automatic",
-        "text": "If dice roll matches the trigger number, deal 6 damage. Including the turn this is built."
+        "text": "When the dice roll matches that number, deal 6 damage (this includes the turn when the Frigate is built)."
       },
       {
         "subphase": "Automatic",
@@ -226,7 +226,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Includes Tactical Cruiser as a type. Types are counted during End of Turn Resolution.",
+    "extraRules": "Includes Tactical Cruiser as a type.",
     "stackCaption": "X damage",
     "colour": "Orange",
     "numberOfGraphics": 1
@@ -247,7 +247,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "First Strike",
-        "text": "Has 2 charges:\\n- Destroy a basic enemy ship (use 1 charge).",
+        "text": "Guardians have 2 charges:\\n- Destroy a basic enemy ship (use 1 charge)",
         "tags": ["targets_ships"]
       },
       {
@@ -256,7 +256,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Guardian will be marked each time a charge is used. Cannot destroy upgraded ships. The Guardian power occurs during Battle Phase before other ship powers. See 'Destroying' rules for info.",
+    "extraRules": "Guardian is marked each time a charge is used.",
     "stackCaption": "X/2 charges - no caption when depleted",
     "colour": "Blue",
     "numberOfGraphics": 3
@@ -290,7 +290,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Healing & Damage: Doubling does not apply to 'upon completion' or charge powers. Dice: Each future build phase, generate additional lines equal to the dice roll. (For Frigates, use dice number as read).",
+    "extraRules": "Healing & Damage: Doubling does NOT apply to 'once only' or charge powers. Dice: Each future turn, generate additional lines equal to the dice roll. (For Frigates, use dice number as read).",
     "stackCaption": "X healing, X damage, +X lines",
     "colour": "Pink",
     "numberOfGraphics": 1
@@ -299,7 +299,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "id": "BAT",
     "species": "Human",
     "shipType": "Upgraded",
-    "name": "Battle Cruiser",
+    "name": "Battlecruiser",
     "totalLineCost": 20,
     "joiningLineCost": 6,
     "componentShips": [
@@ -312,7 +312,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Line Generation",
-        "text": "Generate 2 additional lines in each future build phase."
+        "text": "Generate TWO additional lines each future turn."
       },
       {
         "subphase": "Automatic",
@@ -324,7 +324,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Lines may be saved.",
+    "extraRules": "",
     "stackCaption": "X healing, X damage, +X lines",
     "colour": "Cyan",
     "numberOfGraphics": 1
@@ -350,7 +350,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Carrier charges must all be used before upgrading. Damage does not count Carriers within upgraded ships.",
+    "extraRules": "Damage does not count Carriers within upgraded ships.",
     "stackCaption": "X damage",
     "colour": "Green",
     "numberOfGraphics": 1
@@ -373,7 +373,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "End of Build Phase",
+        "subphase": "Reveal",
         "text": "Make one Fighter for each ship you made this turn.",
         "tags": ["makes_ships"],
         "activationTiming": "reveal"
@@ -388,7 +388,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Includes Carrier-made ships, basic ships, and upgraded ships. Does not include itself. Fighters made by its power are not counted as ships made for its power.",
+    "extraRules": "Fighters are made during Reveal phase. Count includes basic ships, upgraded ships, and Carrier-made ships. Does not include itself. Fighters made by its power are not counted as ships made for its power.",
     "stackCaption": "X damage",
     "colour": "Red",
     "numberOfGraphics": 1
@@ -411,8 +411,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Dice Manipulation",
-        "text": "All dice rolls read as 6 for you."
+        "subphase": "Dice Roll",
+        "text": "Each future turn, all dice rolls read as 6 for you."
       },
       {
         "subphase": "Automatic",
@@ -424,7 +424,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Carrier charges must all be used before upgrading. Overrides reroll powers.",
+    "extraRules": "Overrides reroll powers.",
     "stackCaption": "X healing, X damage",
     "colour": "Purple",
     "numberOfGraphics": 1
@@ -461,12 +461,12 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": 1,
     "powers": [
       {
-        "subphase": "Charge Declaration",
+        "subphase": "Charges",
         "text": "Has 1 charge:\\n- Deal 3 damage (uses charge) OR\\n- Heal 4 (uses charge)"
       }
     ],
     "energyCost": null,
-    "extraRules": "Can hold charge. Antlion will be marked when the charge has been used.",
+    "extraRules": "Antlion is marked when the charge has been used.",
     "stackCaption": "1/1 charges - X damage or X healing (on turn it's used) - no caption when depleted",
     "colour": "Pastel Orange",
     "numberOfGraphics": 2
@@ -504,12 +504,12 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Drawing",
-        "text": "When built and in each future 'Drawing' phase, may turn one Xenite into an Oxite or an Asterite.",
+        "text": "When built and in each future turn, may turn one Xenite into an Oxite or an Asterite.",
         "tags": ["targets_ships"]
       }
     ],
     "energyCost": null,
-    "extraRules": "Oxite - Heal 1. Asterite - Deal 1 damage. These ships count as Xenite ship type, with a cost of 2.",
+    "extraRules": "Oxite - Heal 1. Asterite - Deal 1 damage. These ships still count as Xenite ship type, with a cost of 2.",
     "stackCaption": "No caption",
     "colour": "Pastel Purple",
     "numberOfGraphics": 1
@@ -592,14 +592,14 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": 4,
     "powers": [
       {
-        "subphase": "Ships That Build",
-        "text": "Has 4 charges. Each 'Ships That Build' phase, make a Xenite and use 1 charge.",
+        "subphase": "Drawing",
+        "text": "Has 4 charges. Each future turn, make a Xenite and use 1 charge.",
         "tags": ["makes_ships"],
         "activationTiming": "start_of_drawing"
       }
     ],
     "energyCost": null,
-    "extraRules": "Bug Breeder will be marked when a charge is used.",
+    "extraRules": "Bug Breeder is marked when a charge is used.",
     "stackCaption": "X/4 charges - no caption when depleted",
     "colour": "Pastel Blue",
     "numberOfGraphics": 5
@@ -621,8 +621,8 @@ export const SHIP_DEFINITIONS_JSON = [
         "activationTiming": "when_built"
       },
       {
-        "subphase": "Ships That Build",
-        "text": "Each 'Ships That Build' phase:\\nIf dice roll is a 2, make a Xenite.\\nIf dice roll is a 3, make an Antlion.\\nIf dice roll is a 4, make two Xenites.",
+        "subphase": "Drawing",
+        "text": "Each future Drawing phase:\\n- If dice roll is a 2, make a Xenite.\\n- If dice roll is a 3, make an Antlion.\\n- If dice roll is a 4, make two Xenites.",
         "tags": ["makes_ships"],
         "activationTiming": "start_of_drawing"
       },
@@ -705,7 +705,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Line Generation",
-        "text": "Generate an additional line in each future build phase."
+        "text": "Generate an additional line each future turn."
       },
       {
         "subphase": "Automatic",
@@ -713,7 +713,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Types are counted during End of Turn Resolution.",
+    "extraRules": "",
     "stackCaption": "+X lines, X healing",
     "colour": "Yellow",
     "numberOfGraphics": 1
@@ -734,7 +734,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Line Generation",
-        "text": "Generate an additional line in each future build phase."
+        "text": "Generate an additional line each future turn."
       },
       {
         "subphase": "Automatic",
@@ -742,7 +742,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Types are counted during End of Turn Resolution.",
+    "extraRules": "",
     "stackCaption": "+X lines, X damage",
     "colour": "Blue",
     "numberOfGraphics": 1
@@ -776,7 +776,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Destroy power occurs during Battle Phase before other ship powers. See 'Destroying' rules for info.",
+    "extraRules": "See 'Destroying' rules for info.",
     "stackCaption": "No caption",
     "colour": "Red",
     "numberOfGraphics": 1
@@ -797,8 +797,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Ships That Build",
-        "text": "Each 'Ships That Build' phase, make a Xenite.",
+        "subphase": "Drawing",
+        "text": "Each future turn, make a Xenite.",
         "tags": ["makes_ships"],
         "activationTiming": "start_of_drawing"
       },
@@ -833,20 +833,20 @@ export const SHIP_DEFINITIONS_JSON = [
     "maxQuantity": 3,
     "powers": [
       {
-        "subphase": "Ships That Build",
-        "text": "If you have 1: Roll an extra dice each turn. The 'Ships That Build' phase occurs TWICE for you each turn."
+        "subphase": "Dice Roll",
+        "text": "If you have 1: Roll an extra dice each turn. Your 'Makes Ships' powers occur TWICE for you each turn."
       },
       {
-        "subphase": "Dice Manipulation",
+        "subphase": "Dice Roll",
         "text": "If you have 2: Roll two extra dice each turn."
       },
       {
-        "subphase": "Dice Manipulation",
+        "subphase": "Dice Roll",
         "text": "If you have 3: Roll three extra dice each turn."
       }
     ],
     "energyCost": null,
-    "extraRules": "Dice are visible to all players. If multiple players have Chronoswarms, they all use the same dice roll(s). Bug Breeders and Queens produce twice, Zeniths produce based on the main roll AND the first Chronoswarm roll.",
+    "extraRules": "Dice are visible to all players. If multiple players have Chronoswarms, they all use the same dice roll(s). Bug Breeders and Queens make twice. Zeniths make based on the main roll AND the first Chronoswarm roll. Zenith 'when built' and 'upon destruction' are not affected.",
     "stackCaption": "No caption",
     "colour": "Pink",
     "numberOfGraphics": 1
@@ -941,13 +941,13 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": 2,
     "powers": [
       {
-        "subphase": "Charge Declaration",
-        "text": "Has 2 charges:\\n- Destroy one basic ship of yours, and one basic ship of your opponents with an EQUAL line cost (use 1 charge).",
+        "subphase": "Charges",
+        "text": "Has 2 charges:\\n- Destroy one basic ship of yours, and one basic ship of your opponent's with an EQUAL number of total lines (use 1 charge).",
         "tags": ["targets_ships"]
       }
     ],
     "energyCost": null,
-    "extraRules": "Will be marked when a charge is used. Cannot target other Ships of Equality. If there are not two valid targets, cannot be used. If either target is destroyed, charge is still used.",
+    "extraRules": "Charges are marked as they are used. Cannot target other Ships of Equality. If there are not two valid targets, cannot be used. If either target is destroyed, charge is still used.",
     "stackCaption": "X/2 charges - no caption when depleted",
     "colour": "Pastel Orange",
     "numberOfGraphics": 3
@@ -963,12 +963,12 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": 2,
     "powers": [
       {
-        "subphase": "Charge Declaration",
+        "subphase": "Charges",
         "text": "Has 2 charges:\\n- Deal 3 damage (use 1 charge) OR\\n- Heal 4 (use 1 charge)"
       }
     ],
     "energyCost": null,
-    "extraRules": "",
+    "extraRules": "Charges are marked as they are used.",
     "stackCaption": "X/2 charges - X damage or X healing (on turn it's used) - no caption when depleted",
     "colour": "Pastel Purple",
     "numberOfGraphics": 3
@@ -986,11 +986,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Line Generation",
-        "text": "Each future build phase, if dice roll is even (2, 4, 6) generate TWO additional lines."
+        "text": "Each future turn, if dice roll is even (2, 4, 6) generate TWO additional lines."
       }
     ],
     "energyCost": null,
-    "extraRules": "You can have a maximum of 4 Ships of Vigor. Lines can be saved.",
+    "extraRules": "You can have a maximum of 4 Ships of Vigor.",
     "stackCaption": "+X lines on even dice, no caption on odd dice",
     "colour": "Pastel Blue",
     "numberOfGraphics": 1
@@ -1006,12 +1006,12 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": 3,
     "powers": [
       {
-        "subphase": "Charge Declaration",
+        "subphase": "Charges",
         "text": "Has 3 charges:\\n- Deal 1 damage for each TYPE of ship you have (use 1 charge) OR\\n- Heal 1 for each TYPE of ship you have (use 1 charge)"
       }
     ],
     "energyCost": null,
-    "extraRules": "Types are counted during Charge Declaration.",
+    "extraRules": "Charges are marked as they are used.",
     "stackCaption": "X/3 charges - X damage or X healing (on turn it's used) - no caption when depleted",
     "colour": "Pastel Pink",
     "numberOfGraphics": 4
@@ -1040,7 +1040,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Joining lines can be drawn immediately or saved. These may only be used as joining lines. If they complete an upgraded ship it is active this turn.",
+    "extraRules": "Joining lines can be used immediately or saved. These may only be used as joining lines. If they complete an upgraded ship it is active this turn.",
     "stackCaption": "X healing, X damage",
     "colour": "Pastel Yellow",
     "numberOfGraphics": 1
@@ -1108,7 +1108,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "maxQuantity": 3,
     "powers": [
       {
-        "subphase": "Dice Manipulation",
+        "subphase": "Dice Roll",
         "text": "If you have 1: You may reroll the dice once.\\nIf you have 2: You may reroll the dice up to two times.\\nIf you have 3: You may reroll the dice up to three times."
       },
       {
@@ -1166,11 +1166,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Line Generation",
-        "text": "Generate 2 joining lines each future build phase."
+        "text": "Generate 2 joining lines each future turn."
       },
       {
-        "subphase": "End of Build Phase",
-        "text": "When built set your health to maximum. This is not 'healing', and occurs before the Battle Phase."
+        "subphase": "Reveal",
+        "text": "When built, set your health to maximum.\\nThis is not 'healing', and occurs during the Reveal phase."
       }
     ],
     "energyCost": null,
@@ -1197,7 +1197,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Line Generation",
-        "text": "Each future build phase, if dice roll is even (2, 4, 6) generate FOUR additional lines."
+        "text": "Each future turn, if dice roll is even (2, 4, 6) generate FOUR additional lines."
       },
       {
         "subphase": "Automatic",
@@ -1209,7 +1209,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "You can have a maximum of 3 Arks of Power. Lines can be saved.",
+    "extraRules": "You can have a maximum of 3 Arks of Power.",
     "stackCaption": "X healing, X damage, +X lines",
     "colour": "Cyan",
     "numberOfGraphics": 1
@@ -1259,11 +1259,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Line Generation",
-        "text": "Generate 2 joining lines each future build phase."
+        "text": "Generate 2 joining lines each future turn."
       },
       {
         "subphase": "First Strike",
-        "text": "Once, on the turn it is built, at the start of the battle phase, take permanent control of TWO basic (non-upgraded) enemy ships.",
+        "text": "Once, on the turn it is built, during First Strike, take permanent control of TWO basic (non-upgraded) enemy ships.",
         "tags": ["targets_ships"]
       },
       {
@@ -1272,7 +1272,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Enemy ships will be removed from their fleet and added to your fleet. Their Charge powers and Automatic powers will be active for you.",
+    "extraRules": "Enemy ships are removed from their fleet and added to yours. They are active for you this turn.",
     "stackCaption": "+X joining lines, X health",
     "colour": "Purple",
     "numberOfGraphics": 1
@@ -1289,7 +1289,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Energy",
-        "text": "Gain 1 green energy each battle phase."
+        "text": "Gain 1 green energy each turn."
       }
     ],
     "energyCost": null,
@@ -1310,7 +1310,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Energy",
-        "text": "Gain 1 red energy each battle phase."
+        "text": "Gain 1 red energy each turn."
       }
     ],
     "energyCost": null,
@@ -1332,11 +1332,11 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Energy",
-        "text": "Choose a trigger number for this ship, 1-6."
+        "text": "When built, choose a number between 1 and 6 for the Quantum Mystic."
       },
       {
         "subphase": "Automatic",
-        "text": "If dice roll matches the trigger number, gain 2 blue energy and heal 5. Including the turn this is built."
+        "text": "When the dice roll matches that number, gain 2 blue energy and heal 5 (this includes the turn when the Quantum Mystic is built)."
       }
     ],
     "energyCost": null,
@@ -1389,7 +1389,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Energy",
-        "text": "Gain 1 blue energy each battle phase."
+        "text": "Gain 1 blue energy each turn."
       }
     ],
     "energyCost": null,
@@ -1409,8 +1409,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": 4,
     "powers": [
       {
-        "subphase": "Charge Declaration",
-        "text": "Has 4 charges:\\n- Gain 1 energy of each colour this battle phase (use 1 charge)"
+        "subphase": "Energy",
+        "text": "Has 4 charges. Each turn, gain 1 energy of each colour and use 1 charge."
       },
       {
         "subphase": "Automatic",
@@ -1434,7 +1434,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Dice Manipulation",
+        "subphase": "Dice Roll",
         "text": "Roll an extra dice each turn. You may use that dice INSTEAD of the main dice."
       },
       {
@@ -1459,7 +1459,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Charge Declaration",
+        "subphase": "Charges",
         "text": "Heal 1."
       }
     ],
@@ -1485,7 +1485,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Charge Declaration",
+        "subphase": "Charges",
         "text": "Heal equal to the dice roll +3."
       }
     ],
@@ -1511,7 +1511,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Charge Declaration",
+        "subphase": "Charges",
         "text": "Deal 1 damage."
       }
     ],
@@ -1537,7 +1537,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Charge Declaration",
+        "subphase": "Charges",
         "text": "Deal damage equal to the dice roll +3."
       }
     ],
@@ -1563,8 +1563,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Charge Declaration",
-        "text": "Generate an additional line next build phase."
+        "subphase": "Charges",
+        "text": "Generate an additional line during Line Generation next turn."
       }
     ],
     "energyCost": {
@@ -1589,7 +1589,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Charge Declaration",
+        "subphase": "Charges",
         "text": "Make a copy of a basic enemy ship.\\nX = Number of lines in ship.",
         "tags": ["makes_ships", "targets_ships"],
         "activationTiming": "turn_start_materialisation"
@@ -1601,7 +1601,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "blue": 0,
       "xBlue": true
     },
-    "extraRules": "Ship is created at the start of the NEXT turn. Each ship may only be targeted once per turn. Ships with charges are copied as they are at the start of this battle phase. Copied ships CAN be upgraded via the opponent's species tab.",
+    "extraRules": "Ship is created at the start of the NEXT turn. Each ship may only be targeted once per turn. Ships with charges are copied as they are at Reveal phase. Copied ships CAN be upgraded via the opponent's species tab.",
     "stackCaption": "N/A",
     "colour": "N/A",
     "numberOfGraphics": 4
@@ -1617,7 +1617,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Charge Declaration",
+        "subphase": "Charges",
         "text": "Spend an EQUAL amount of green and red energy on this power. Heal and deal damage based on the amount of energy spent."
       }
     ],
@@ -1643,7 +1643,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Charge Declaration",
+        "subphase": "Charges",
         "text": "Deal 2 damage for each TYPE of ship you have."
       }
     ],
@@ -1669,9 +1669,13 @@ export const SHIP_DEFINITIONS_JSON = [
     "charges": null,
     "powers": [
       {
-        "subphase": "Charge Declaration",
-        "text": "Destroy TWO of the opponent's basic ships.\\nDeal 1 damage for each Core you have.",
+        "subphase": "Charges",
+        "text": "Destroy TWO of the opponent's basic ships.",
         "tags": ["targets_ships"]
+      },
+      {
+        "subphase": "Charges",
+        "text": "Deal 1 damage for each Core you have."
       }
     ],
     "energyCost": {
@@ -1680,7 +1684,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "blue": 4,
       "xBlue": false
     },
-    "extraRules": "See 'Destroying Rules' for more information.",
+    "extraRules": "Can still be cast if there are no valid targets. See 'Destroying Rules' for more information.",
     "stackCaption": "N/A",
     "colour": "N/A",
     "numberOfGraphics": 1
@@ -1694,7 +1698,7 @@ export const SHIP_DEFINITIONS_JSON = [
  * IMPORTANT: This version should match the client-side version when synced.
  * Client version is in: /game/data/ShipDefinitions.json.ts
  */
-export const SHIP_DEFS_VERSION = '2026-08-05';
+export const SHIP_DEFS_VERSION = '2026-08-06';
 
 // ============================================================================
 // TYPE INFERENCE HELPERS

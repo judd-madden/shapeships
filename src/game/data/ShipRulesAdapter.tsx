@@ -13,8 +13,8 @@ import { SHIP_DEFINITIONS_MAP } from './ShipDefinitionsUI';
 
 /**
  * Icon type for ship powers
- * - pencil: Build-phase powers (Ships That Build, Line Generation, etc.)
- * - star: Battle-phase powers (Automatic, Charge Declaration, etc.)
+ * - pencil: Drawing-side powers (Dice Roll, Line Generation, Drawing)
+ * - star: Battle-side powers (Reveal, First Strike, Charges, etc.)
  */
 export type PowerIcon = 'pencil' | 'star';
 
@@ -45,21 +45,19 @@ export interface ShipHoverModel {
  */
 function getPhaseIcon(subphase: string): PowerIcon {
   const buildSubphases = [
-    'Dice Manipulation',
+    'Dice Roll',
     'Line Generation',
-    'Ships That Build',
-    'Drawing',
-    'End of Build Phase'
+    'Drawing'
   ];
   
   const battleSubphases = [
+    'Reveal',
     'First Strike',
-    'Charge Declaration',
+    'Charges',
     'Automatic',
     'Upon Destruction',
     'Energy',
-    'Solar',
-    'End of Battle Phase'
+    'Solar'
   ];
   
   if (buildSubphases.some(s => subphase.includes(s))) {
@@ -98,6 +96,10 @@ function getSubphaseLabel(ship: ShipDefinitionUI): string {
     }
     
     const normalized = subphase.toUpperCase();
+    if (normalized === 'PASSIVE' || normalized === 'UPON DESTRUCTION') {
+      continue;
+    }
+
     if (!seen.has(normalized)) {
       seen.add(normalized);
       uniqueSubphases.push(normalized);
