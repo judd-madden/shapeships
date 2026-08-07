@@ -29,6 +29,7 @@ export { SecondaryNavItem } from './navigation/SecondaryNavItem';
 
 // Icons
 export { ChevronDown } from './icons/ChevronDown';
+export { DownArrowIcon } from './icons/DownArrowIcon';
 export { DiceRollIcon } from './icons/DiceRollIcon';
 export { DrawingIcon } from './icons/DrawingIcon';
 export { FirstStrikeIcon } from './icons/FirstStrikeIcon';

@@ -1,10 +1,11 @@
-import type { ActionPanelViewModel, GameSessionActions } from '../../../client/useGameSession';
+import type { ActionPanelViewModel, GameSessionActions, TurnPhaseVm } from '../../../client/useGameSession';
 import { Checkbox, GameMenuButton } from '../../../../components/ui/primitives';
-import { PhaseBreakdownView } from '../../actionPanel/panels/menu/PhaseBreakdownView';
 import { MobileTakeoverShell } from './MobileTakeoverShell';
+import { TurnPhaseList } from '../../shared/TurnPhaseList';
 
 interface MobileMenuTakeoverProps {
   vm: ActionPanelViewModel['menu'];
+  turnPhasesVm: TurnPhaseVm;
   actions: GameSessionActions;
   onClose: () => void;
   onReturnToMainMenu: () => void;
@@ -47,6 +48,7 @@ function MobilePreferenceToggle({
 
 export function MobileMenuTakeover({
   vm,
+  turnPhasesVm,
   actions,
   onClose,
   onReturnToMainMenu,
@@ -141,16 +143,9 @@ export function MobileMenuTakeover({
           </div>
         </div>
 
-        <div
-          className="w-full grow shrink-0 px-[18px] py-[22px]"
-          style={{ background: 'rgba(25, 25, 25, 0.7)' }}
-        >
-          <PhaseBreakdownView
-            layout="mobile"
-            turnNumber={vm.turnNumber}
-            phaseKey={vm.phaseKey}
-            hasActionsForMe={vm.hasActionsForMe}
-          />
+        <div className="w-full grow shrink-0 bg-[var(--shapeships-grey-90)] px-[18px] py-[22px]">
+          <h2 className="mb-[16px] text-[16px] font-bold text-[var(--shapeships-white)]">Turn Phases</h2>
+          <TurnPhaseList vm={turnPhasesVm} />
         </div>
       </div>
     </MobileTakeoverShell>

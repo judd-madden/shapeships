@@ -11,7 +11,6 @@ import { OpenFullIcon } from '../../../components/ui/primitives/icons/OpenFullIc
 import type { LeftRailViewModel, GameSessionActions, TurnPhaseVm } from '../../client/useGameSession';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
-import { useLeftRailTurnTakeover } from '../graphics/animation';
 import { BattleLogPanelContent } from '../shared/BattleLogPanelContent';
 import { ChatPanelContent } from '../shared/ChatPanelContent';
 import { TurnPhaseIndicator } from '../shared/TurnPhaseIndicator';
@@ -52,11 +51,6 @@ export function LeftRail({
   const battleLogScrollRestoreTimeoutRef = useRef<number | null>(null);
   const firstTurnBuildHelperShowTimeoutRef = useRef<number | null>(null);
   const firstTurnBuildHelperDismissTimeoutRef = useRef<number | null>(null);
-  const turnTakeover = useLeftRailTurnTakeover({
-    turn: vm.turnTakeoverTurn,
-    animateKey: vm.turnTakeoverAnimateKey,
-  });
-
   function clearBattleLogScrollRestoreTimers() {
     if (battleLogScrollRestoreFrameRef.current !== null) {
       window.cancelAnimationFrame(battleLogScrollRestoreFrameRef.current);
@@ -332,7 +326,7 @@ export function LeftRail({
   return (
     <div
       ref={railRootRef}
-      className="relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0 hidden lg:flex [--battle-log-bottom-inset:25px] min-[768px]:max-[1599px]:gap-[14px] min-[768px]:max-[1599px]:pt-[16px] min-[768px]:max-[1599px]:pb-[16px] min-[768px]:max-[1599px]:[--battle-log-bottom-inset:16px]"
+      className="relative w-[290px] self-stretch min-h-0 flex flex-col gap-5 pt-[25px] pb-[25px] shrink-0 hidden lg:flex [--battle-log-bottom-inset:25px] min-[768px]:max-[1599px]:gap-4 min-[768px]:max-[1599px]:pt-[16px] min-[768px]:max-[1599px]:pb-[16px] min-[768px]:max-[1599px]:[--battle-log-bottom-inset:16px]"
     >
       {isFirstTurnBuildHelperMounted && (
         <div
@@ -395,30 +389,12 @@ export function LeftRail({
       {/* The sister-panel slot owns the rail's primary flexible height. */}
       <div ref={battleLogSlotRef} className="basis-0 flex-1 min-h-[120px]" aria-hidden="true" />
 
-      <div className="relative shrink-0">
+      <div className="-mt-1 shrink-0 min-[768px]:max-[1599px]:mt-0">
         <TurnPhaseIndicator vm={turnPhases} />
-
-        {turnTakeover.turn !== null && (
-          <div
-            key={turnTakeover.runKey}
-            aria-hidden="true"
-            className="ss-leftRailTurnTakeover"
-            data-run-key={turnTakeover.runKey}
-            style={turnTakeover.timingStyle}
-            onAnimationEnd={turnTakeover.onOverlayAnimationEnd}
-          >
-            <div className="ss-leftRailTurnTakeover__wipe" />
-            <div className="ss-leftRailTurnTakeover__textWrap">
-              <p className="ss-leftRailTurnTakeover__text text-[60px] leading-none font-black italic">
-                Turn <span className="tracking-tighter">{turnTakeover.turn}</span>
-              </p>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Chat keeps its former 243px footprint as a minimum and may grow to 302px. */}
-      <div className="h-[302px] min-h-[243px] max-h-[302px] shrink bg-black rounded-[10px] border-2 border-[var(--shapeships-grey-70)] overflow-hidden">
+      <div className="-mt-1 h-[302px] min-h-[243px] max-h-[302px] shrink overflow-hidden rounded-[10px] border-2 border-[var(--shapeships-grey-70)] bg-[var(--shapeships-black)] min-[768px]:max-[1599px]:mt-0">
         <ChatPanelContent
           layout="desktop"
           gameCode={vm.gameCode}
@@ -443,7 +419,7 @@ export function LeftRail({
               : `top ${BATTLE_LOG_TRANSITION_MS}ms ease-out, bottom ${BATTLE_LOG_TRANSITION_MS}ms ease-out`,
         }}
       >
-        <div className="flex h-[48px] shrink-0 items-center justify-between border-b border-[var(--shapeships-grey-70)] px-[18px]">
+        <div className="flex h-[48px] shrink-0 items-center justify-between px-[18px]">
           <div className="flex min-w-0 items-center gap-[18px]">
             <button
               type="button"

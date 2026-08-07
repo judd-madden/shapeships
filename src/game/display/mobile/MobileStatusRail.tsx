@@ -5,9 +5,11 @@ import type {
   HudStatusTone,
   HudViewModel,
   LeftRailViewModel,
+  TurnPhaseVm,
 } from '../../client/useGameSession';
 import { toSpeciesKey } from '../layout/boardStage/FleetArea';
 import { MobileDiceModifierSlots } from './MobileDiceModifierSlots';
+import { TurnPhaseStatusStrip } from '../shared/TurnPhaseStatusStrip';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 type MobileRowPosition = 'top' | 'bottom';
@@ -16,6 +18,7 @@ interface MobileStatusRailProps {
   hudVm: HudViewModel;
   boardVm: MobileBoardViewModel;
   leftRailVm: LeftRailViewModel;
+  turnPhasesVm: TurnPhaseVm;
   mobileDiceModifierSlots: MobileBoardViewModel['mobileDiceModifierSlots'];
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -50,6 +53,7 @@ interface MobileStatusRailFrameProps {
   bottomClock: string;
   diceValue: LeftRailViewModel['diceValue'];
   diceAnimateKey: number;
+  turnPhasesVm?: TurnPhaseVm;
   mobileDiceModifierSlots?: MobileBoardViewModel['mobileDiceModifierSlots'];
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -73,6 +77,7 @@ export function MobileStatusRail({
   hudVm,
   boardVm,
   leftRailVm,
+  turnPhasesVm,
   mobileDiceModifierSlots,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
@@ -132,6 +137,7 @@ export function MobileStatusRail({
       bottomClock={hudVm.p1Clock}
       diceValue={leftRailVm.diceValue}
       diceAnimateKey={leftRailVm.diceAnimateKey}
+      turnPhasesVm={turnPhasesVm}
       mobileDiceModifierSlots={mobileDiceModifierSlots}
       firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
       firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
@@ -153,6 +159,7 @@ export function MobileStatusRailFrame({
   bottomClock,
   diceValue,
   diceAnimateKey,
+  turnPhasesVm,
   mobileDiceModifierSlots = EMPTY_MOBILE_DICE_MODIFIER_SLOTS,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
@@ -274,10 +281,10 @@ export function MobileStatusRailFrame({
   ]);
 
   return (
-    <div className="relative shrink-0 w-full py-[8px]">
+    <div className="relative shrink-0 w-full py-[2px]">
       <MobileDiceModifierSlots slots={mobileDiceModifierSlots} />
       <div className="flex items-stretch gap-[12px] px-[14px] w-full">
-        <div className="flex-1 min-w-0 flex flex-col gap-[6px]">
+        <div className="flex-1 min-w-0 flex flex-col gap-0">
           <MobilePlayerStatusRow
             rowRef={topRowRef}
             statsAnchorRef={topStatsAnchorRef}
@@ -286,7 +293,11 @@ export function MobileStatusRailFrame({
             showDeltas={showDeltas}
             onToggle={onStatusRowToggle}
           />
-          <div className="h-px w-full bg-gradient-to-r from-transparent via-white to-transparent opacity-70" />
+          {turnPhasesVm ? (
+            <TurnPhaseStatusStrip vm={turnPhasesVm} />
+          ) : (
+            <div className="h-px w-full bg-gradient-to-r from-transparent via-white to-transparent opacity-70" />
+          )}
           <MobilePlayerStatusRow
             rowRef={bottomRowRef}
             statsAnchorRef={bottomStatsAnchorRef}

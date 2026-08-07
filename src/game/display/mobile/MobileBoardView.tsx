@@ -4,6 +4,7 @@ import type {
   GameSessionActions,
   HudViewModel,
   LeftRailViewModel,
+  TurnPhaseVm,
 } from '../../client/useGameSession';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import { FleetArea, toSpeciesKey } from '../layout/boardStage/FleetArea';
@@ -16,6 +17,7 @@ interface MobileBoardViewProps {
   hudVm: HudViewModel;
   boardVm: MobileBoardViewModel;
   leftRailVm: LeftRailViewModel;
+  turnPhasesVm: TurnPhaseVm;
   isBattleReveal: boolean;
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -43,6 +45,7 @@ export function MobileBoardView({
   hudVm,
   boardVm,
   leftRailVm,
+  turnPhasesVm,
   isBattleReveal,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
@@ -110,6 +113,7 @@ export function MobileBoardView({
         hudVm={hudVm}
         boardVm={boardVm}
         leftRailVm={leftRailVm}
+        turnPhasesVm={turnPhasesVm}
         mobileDiceModifierSlots={boardVm.mobileDiceModifierSlots}
         firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
         firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}

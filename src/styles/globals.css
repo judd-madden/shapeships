@@ -656,104 +656,6 @@ html:not(.app-ready) #root {
 }
 
 /* ============================================================================
-   Turn Change Indicator / LeftRail takeover animation
-   ========================================================================== */
-
-.ss-leftRailTurnTakeover {
-  animation: ssLeftRailTurnTakeoverLifecycle var(--ss-turn-takeover-total) linear both;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  position: absolute;
-  z-index: 10;
-}
-
-@keyframes ssLeftRailTurnTakeoverLifecycle {
-  0%,
-  100% {
-    opacity: 1;
-  }
-}
-
-.ss-leftRailTurnTakeover__wipe {
-  animation: ssLeftRailTurnTakeoverWipe var(--ss-turn-takeover-total) linear both;
-  background: var(--shapeships-white);
-  inset: 0;
-  position: absolute;
-  transform: translate3d(-102%, 0, 0);
-  transform-origin: left center;
-  will-change: transform;
-}
-
-@keyframes ssLeftRailTurnTakeoverWipe {
-  0% {
-    transform: translate3d(-102%, 0, 0);
-    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
-  }
-
-  13.8% {
-    transform: translate3d(0, 0, 0);
-  }
-
-  83.7% {
-    transform: translate3d(0, 0, 0);
-    animation-timing-function: cubic-bezier(0.7, 0, 0.84, 0);
-  }
-
-  92.6%,
-  100% {
-    transform: translate3d(102%, 0, 0);
-  }
-}
-
-.ss-leftRailTurnTakeover__textWrap {
-  align-items: center;
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  position: absolute;
-  z-index: 1;
-}
-
-.ss-leftRailTurnTakeover__text {
-  animation: ssLeftRailTurnTakeoverText var(--ss-turn-takeover-total) linear both;
-  color: var(--shapeships-black);
-  opacity: 0;
-  transform: translate3d(-80px, 0, 0);
-  white-space: nowrap;
-  will-change: transform, opacity;
-}
-
-@keyframes ssLeftRailTurnTakeoverText {
-  0%,
-  2.4% {
-    opacity: 0;
-    transform: translate3d(-80px, 0, 0);
-    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  18.1% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-
-  82.2% {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-    animation-timing-function: cubic-bezier(0.33, 1, 0.68, 1);
-  }
-
-  91.1% {
-    opacity: 0;
-  }
-
-  100% {
-    opacity: 0;
-    transform: translate3d(200px, 0, 0);
-  }
-}
-
-/* ============================================================================
    Board live-fleet turn pulse
    ========================================================================== */
 
@@ -795,12 +697,6 @@ html:not(.app-ready) #root {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ss-leftRailTurnTakeover,
-  .ss-leftRailTurnTakeover__wipe,
-  .ss-leftRailTurnTakeover__text {
-    animation-duration: 1ms !important;
-  }
-
   .ss-boardTurnPulse {
     --ss-board-turn-pulse-duration: 200ms;
     --ss-board-turn-pulse-peak-scale: 1;

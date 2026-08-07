@@ -250,8 +250,6 @@ export function mapGameSessionVm(args: {
   // Left rail dice presentation (client-delayed during health lock)
   leftRailDiceValue: 1 | 2 | 3 | 4 | 5 | 6;
   leftRailDiceAnimateKey: number;
-  leftRailTurnTakeoverTurn: number | null;
-  leftRailTurnTakeoverAnimateKey: number;
   leftRailChronoswarmAnimateKey: number;
 
   // Client-only build preview counts (used for special panels like Frigate trigger selection)
@@ -348,8 +346,6 @@ export function mapGameSessionVm(args: {
     cubeDiceValueByPlayerId = {},
     leftRailDiceValue,
     leftRailDiceAnimateKey,
-    leftRailTurnTakeoverTurn,
-    leftRailTurnTakeoverAnimateKey,
     leftRailChronoswarmAnimateKey,
     buildPreviewCounts,
     frigateSelectedTriggers,
@@ -1408,8 +1404,6 @@ export function mapGameSessionVm(args: {
     leftRail: {
       diceValue: leftRailDiceValue,
       diceAnimateKey: leftRailDiceAnimateKey,
-      turnTakeoverTurn: leftRailTurnTakeoverTurn,
-      turnTakeoverAnimateKey: leftRailTurnTakeoverAnimateKey,
       diceManipulationSlots: (() => {
         const authoritativeShipsByPlayerId =
           gameData?.ships ??

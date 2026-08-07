@@ -84,7 +84,7 @@ export function ChatPanelContent({
   return (
     <div className="flex h-full min-h-0 flex-col bg-black">
       <div className="h-[42px] shrink-0 px-5 pt-3 pb-2 flex items-center justify-between relative">
-        {showPanelTitle ? <p className="text-white text-[18px] font-black">Chat</p> : null}
+        {showPanelTitle ? <p className="text-white text-[16px] font-black">Chat</p> : null}
         <button
           type="button"
           onClick={handleCopyUrl}

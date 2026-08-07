@@ -629,6 +629,7 @@ export function MobileGameLayout({
               hudVm={hudVm}
               boardVm={boardVm}
               leftRailVm={leftRailVm}
+              turnPhasesVm={turnPhasesVm}
               isBattleReveal={isBattleReveal}
               firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
               firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
@@ -716,6 +717,7 @@ export function MobileGameLayout({
             ) : (
               <MobileMenuTakeover
                 vm={actionPanelVm.menu}
+                turnPhasesVm={turnPhasesVm}
                 actions={actions}
                 onClose={handleReturnToBoard}
                 onReturnToMainMenu={onReturnToMainMenu}

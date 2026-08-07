@@ -355,9 +355,6 @@ export interface LeftRailViewModel {
   // Dice
   diceValue: 1 | 2 | 3 | 4 | 5 | 6;
   diceAnimateKey: number; // increments on each DICE_ROLLED event (drives animation)
-  turnTakeoverTurn: number | null;
-  turnTakeoverAnimateKey: number;
-
   diceManipulationSlots: {
     left: LeftRailDiceManipulationSlotViewModel | null;
     right: LeftRailDiceManipulationSlotViewModel | null;

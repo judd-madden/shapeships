@@ -4122,8 +4122,6 @@ useEffect(() => {
     healthDeltaPresentationKey,
     leftRailDiceValue: presentedLeftRailDiceValue,
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
-    leftRailTurnTakeoverTurn: presentedTurnTakeoverTurn,
-    leftRailTurnTakeoverAnimateKey: presentedTurnTakeoverSeq,
     leftRailChronoswarmAnimateKey: presentedChronoswarmAnimateSeq,
   } = useEndOfTurnPresentation({
     effectiveGameId,
@@ -5251,8 +5249,6 @@ useEffect(() => {
     // Left rail dice presentation (client-delayed during health lock)
     leftRailDiceValue: presentedLeftRailDiceValue,
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
-    leftRailTurnTakeoverTurn: presentedTurnTakeoverTurn,
-    leftRailTurnTakeoverAnimateKey: presentedTurnTakeoverSeq,
     leftRailChronoswarmAnimateKey: presentedChronoswarmAnimateSeq,
 
     // Client-only: build preview + Frigate triggers for build.drawing special panels
@@ -6614,8 +6610,6 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       leftRail: {
         diceValue: 1,
         diceAnimateKey: 0,
-        turnTakeoverTurn: null,
-        turnTakeoverAnimateKey: 0,
         diceManipulationSlots: {
           left: null,
           right: null,
