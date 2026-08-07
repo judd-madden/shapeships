@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
+import { AnimatedEllipsisText } from '../ui/primitives/AnimatedEllipsisText';
 import { publicAnonKey } from '../../utils/supabase/info';
 import { gameFunctionBaseUrl } from '../../utils/supabase/runtimeConfig';
 
@@ -97,7 +98,7 @@ export function CreateAccountPanel({ onNavigate, onAccountCreated }: CreateAccou
             </div>
             
             <Button type="submit" disabled={loading} className="w-full bg-shapeships-green text-shapeships-white hover:bg-shapeships-green/90">
-              {loading ? 'Creating Account...' : 'Create Account'}
+              <AnimatedEllipsisText text={loading ? 'Creating Account...' : 'Create Account'} />
             </Button>
           </form>
 

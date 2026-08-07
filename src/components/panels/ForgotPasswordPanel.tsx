@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
+import { AnimatedEllipsisText } from '../ui/primitives/AnimatedEllipsisText';
 import { supabase } from '../../utils/supabase/client';
 
 interface ForgotPasswordPanelProps {
@@ -57,7 +58,7 @@ export function ForgotPasswordPanel({ onNavigate }: ForgotPasswordPanelProps) {
             </div>
             
             <Button type="submit" disabled={loading} className="w-full bg-shapeships-orange text-shapeships-white hover:bg-shapeships-orange/90">
-              {loading ? 'Sending...' : 'Send Reset Email'}
+              <AnimatedEllipsisText text={loading ? 'Sending...' : 'Send Reset Email'} />
             </Button>
           </form>
 

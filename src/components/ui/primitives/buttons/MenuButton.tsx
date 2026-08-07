@@ -5,6 +5,8 @@
  * States: Default, Hover, Selected, Active (join only)
  */
 
+import { AnimatedEllipsisText } from '../AnimatedEllipsisText';
+
 type MenuButtonVariant = 'private' | 'public' | 'community' | 'join';
 
 interface MenuButtonProps {
@@ -68,7 +70,7 @@ export function MenuButton({
         <p 
           className="font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap text-white"
         >
-          {children}
+          <AnimatedEllipsisText text={children} />
         </p>
       </button>
     );
@@ -96,7 +98,7 @@ export function MenuButton({
         <p 
           className="font-black leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
         >
-          {children}
+          <AnimatedEllipsisText text={children} />
         </p>
       </button>
     );
@@ -123,7 +125,7 @@ export function MenuButton({
       <p 
         className="font-black leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
       >
-        {children}
+        <AnimatedEllipsisText text={children} />
       </p>
     </button>
   );

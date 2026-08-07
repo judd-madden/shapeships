@@ -5,6 +5,7 @@
  */
 
 import { ReadyButton } from '../../../components/ui/primitives/buttons/ReadyButton';
+import { AnimatedEllipsisText } from '../../../components/ui/primitives/AnimatedEllipsisText';
 import type { BottomActionRailViewModel, GameSessionActions } from '../../client/useGameSession';
 import type { MainPhaseControl } from '../shared/mainPhaseControl';
 
@@ -36,7 +37,7 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
           <p
             className="font-normal relative shrink-0 text-[16px] w-full min-[768px]:max-[1599px]:text-[14px]"
           >
-            {vm.subphaseSubheading}
+            <AnimatedEllipsisText text={vm.subphaseSubheading} />
           </p>
         </div>
       </div>

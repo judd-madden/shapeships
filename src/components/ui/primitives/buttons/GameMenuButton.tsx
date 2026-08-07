@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { AnimatedEllipsisText } from '../AnimatedEllipsisText';
 
 interface GameMenuButtonProps {
   onClick?: () => void | Promise<void>;
@@ -123,7 +124,7 @@ export function GameMenuButton({
       <p 
         className="font-bold leading-[normal] relative shrink-0 text-[16px] text-black text-nowrap"
       >
-        {buttonLabel}
+        <AnimatedEllipsisText text={buttonLabel} />
       </p>
     </button>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AnimatedEllipsisText } from '../../../components/ui/primitives/AnimatedEllipsisText';
 import { CopiedToast } from '../../../components/ui/primitives/CopiedToast';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { BlackCarrierIcon } from '../../../components/ui/primitives/icons/BlackCarrierIcon';
@@ -139,7 +140,7 @@ export function MobileSpeciesConfirmPhase({
             <span
               className="min-w-0 truncate text-[16px] font-black leading-none"
             >
-              {`CONFIRMING ${confirmationSpeciesName}...`}
+              <AnimatedEllipsisText text={`CONFIRMING ${confirmationSpeciesName}...`} />
             </span>
           ) : (
             <>

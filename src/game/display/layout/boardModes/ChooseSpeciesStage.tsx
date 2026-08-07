@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react';
+import { AnimatedEllipsisText } from '../../../../components/ui/primitives/AnimatedEllipsisText';
 import { type SpeciesId } from '../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { SpeciesCardButton } from '../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { BlackCarrierIcon } from '../../../../components/ui/primitives/icons/BlackCarrierIcon';
@@ -249,7 +250,7 @@ export function ChooseSpeciesStage({
                     <p
                       className="font-black relative shrink-0"
                     >
-                      {`CONFIRMING ${confirmationSpeciesName}...`}
+                      <AnimatedEllipsisText text={`CONFIRMING ${confirmationSpeciesName}...`} />
                     </p>
                   ) : (
                     <>

@@ -254,6 +254,48 @@ html:not(.app-ready) #root {
   visibility: hidden;
 }
 
+/* Shared terminal ellipsis animation for pending player-facing labels. */
+.ss-animatedEllipsisText-dot {
+  display: inline-block;
+}
+
+.ss-animatedEllipsisText-dot--one {
+  animation: ssAnimatedEllipsisTextDotOne 1.5s linear infinite;
+}
+
+.ss-animatedEllipsisText-dot--two {
+  animation: ssAnimatedEllipsisTextDotTwo 1.5s linear infinite;
+}
+
+.ss-animatedEllipsisText-dot--three {
+  animation: ssAnimatedEllipsisTextDotThree 1.5s linear infinite;
+}
+
+@keyframes ssAnimatedEllipsisTextDotOne {
+  0%, 8% { opacity: 0; }
+  16%, 84% { opacity: 1; }
+  92%, 100% { opacity: 0; }
+}
+
+@keyframes ssAnimatedEllipsisTextDotTwo {
+  0%, 28% { opacity: 0; }
+  36%, 84% { opacity: 1; }
+  92%, 100% { opacity: 0; }
+}
+
+@keyframes ssAnimatedEllipsisTextDotThree {
+  0%, 48% { opacity: 0; }
+  56%, 84% { opacity: 1; }
+  92%, 100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-animatedEllipsisText-dot {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* Player-facing UI root wrapper - sets default text color for all player screens */
 .ss-playerRoot {
   color: white;

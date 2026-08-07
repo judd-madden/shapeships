@@ -4,6 +4,8 @@
  * States: Default, Hover
  */
 
+import { AnimatedEllipsisText } from '../AnimatedEllipsisText';
+
 interface PrimaryButtonProps {
   onClick?: () => void;
   disabled?: boolean;
@@ -44,7 +46,7 @@ export function PrimaryButton({
       <p 
         className="font-black leading-[normal] relative shrink-0 text-[22px] text-black text-nowrap"
       >
-        {loading ? loadingLabel ?? children : children}
+        <AnimatedEllipsisText text={loading ? loadingLabel ?? children : children} />
       </p>
     </button>
   );

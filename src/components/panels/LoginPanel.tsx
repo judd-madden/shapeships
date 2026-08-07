@@ -8,6 +8,7 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
+import { AnimatedEllipsisText } from '../ui/primitives/AnimatedEllipsisText';
 import { supabase } from '../../utils/supabase/client';
 
 interface LoginPanelProps {
@@ -72,7 +73,7 @@ export function LoginPanel({ onNavigate, onLogin }: LoginPanelProps) {
           </div>
           
           <Button type="submit" disabled={loading} className="w-full bg-shapeships-blue text-shapeships-white hover:bg-shapeships-blue/90">
-            {loading ? 'Processing...' : 'Login'}
+            <AnimatedEllipsisText text={loading ? 'Processing...' : 'Login'} />
           </Button>
         </form>
 

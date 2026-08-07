@@ -1,3 +1,4 @@
+import { AnimatedEllipsisText } from '../../../components/ui/primitives/AnimatedEllipsisText';
 import type { BottomActionRailViewModel } from '../../client/useGameSession';
 import type { MainPhaseControl } from '../shared/mainPhaseControl';
 
@@ -23,7 +24,7 @@ export function MobileBottomPhase({ vm, mainPhaseControl }: MobileBottomPhasePro
           ) : null}
         </p>
         <p className="min-w-0 truncate whitespace-nowrap text-right text-[14px] font-normal leading-5">
-          {vm.subphaseSubheading}
+          <AnimatedEllipsisText text={vm.subphaseSubheading} />
         </p>
       </div>
 
@@ -45,13 +46,13 @@ export function MobileBottomPhase({ vm, mainPhaseControl }: MobileBottomPhasePro
           <span
             className="min-w-0 truncate text-[16px] font-black leading-none"
           >
-            {isBack ? 'BACK' : vm.readyButtonLabel}
+            <AnimatedEllipsisText text={isBack ? 'BACK' : vm.readyButtonLabel} />
           </span>
           {readyNote ? (
             <span
               className="min-w-0 truncate text-[15px] font-normal leading-none"
             >
-              {readyNote}
+              <AnimatedEllipsisText text={readyNote} />
             </span>
           ) : null}
         </button>
