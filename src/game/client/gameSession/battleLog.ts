@@ -12,7 +12,7 @@ import type {
 
 type BattleLogVm = Pick<
   LeftRailViewModel,
-  'battleLogNames' | 'battleLogTurns' | 'battleLogAutoScrollKey'
+  'battleLogNames' | 'battleLogTurns' | 'battleLogCompletedTurnCount' | 'battleLogAutoScrollKey'
 >;
 
 type MapBattleLogTurnsArgs = {
@@ -65,6 +65,10 @@ export function mapBattleLogTurns(args: MapBattleLogTurnsArgs): BattleLogVm {
   return {
     battleLogNames,
     battleLogTurns,
+    battleLogCompletedTurnCount: Math.max(
+      0,
+      Math.trunc(args.battleLogHistory?.completedTurnCount ?? 0),
+    ),
     battleLogAutoScrollKey: [
       'battle',
       args.battleLogHistory?.gameId ?? 'none',

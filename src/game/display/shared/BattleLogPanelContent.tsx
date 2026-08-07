@@ -36,14 +36,16 @@ export function BattleLogPanelContent({
           isMobile ? undefined : 'rounded-t-[10px]'
         )}
       >
-        <div className="flex items-center justify-between">
-          {showPanelTitle ? (
-            <p className="text-white text-[18px] font-black">Battle Log</p>
-          ) : (
-            <div aria-hidden="true" />
-          )}
-          {headerAction}
-        </div>
+        {showPanelTitle || headerAction ? (
+          <div className="flex items-center justify-between">
+            {showPanelTitle ? (
+              <p className="text-white text-[18px] font-black">Battle Log</p>
+            ) : (
+              <div aria-hidden="true" />
+            )}
+            {headerAction}
+          </div>
+        ) : null}
         <div className="grid grid-cols-2 gap-[20px] text-[15px] leading-none text-[var(--shapeships-grey-20)]">
           <p className="text-left font-bold">{battleLogNames.me}</p>
           <p className="text-right font-bold">{battleLogNames.opponent}</p>

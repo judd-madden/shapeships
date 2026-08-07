@@ -69,6 +69,7 @@ import {
   getPlayerIdentityKey,
   getPublicAncientEnergyCapacityForPlayer,
   getPublicAncientEnergyForPlayer,
+  getPublicTurnPhaseProgress,
   getResultReason,
   getSavedLinesByPlayerId,
   getShipActivationCueBatches,
@@ -175,6 +176,8 @@ import type {
   FirstStrikeActionFamily,
   GameStateClockSnapshot,
   GameStateRequestMeta,
+  TurnPhaseMilestoneId,
+  TurnPhaseVm,
 } from './gameSession/types';
 
 export type {
@@ -194,6 +197,8 @@ export type {
   GameSessionActions,
   FleetAreaHealthDeltaFlashVm,
   CentaurChargeSubTabId,
+  TurnPhaseMilestoneId,
+  TurnPhaseVm,
 } from './gameSession/types';
 
 import {
@@ -1732,6 +1737,7 @@ export function useGameSession(
   // Phase data
   const phaseKey = rawState ? getPhaseKey(rawState) : 'unknown';
   const turnNumber = rawState ? getTurnNumber(rawState) : 1;
+  const turnPhaseProgress = getPublicTurnPhaseProgress(rawState);
   const hasHydratedTurnNumber =
     rawState != null &&
     typeof turnNumber === 'number' &&
@@ -5189,6 +5195,7 @@ useEffect(() => {
     turnNumber,
     phaseKey,
     phaseIcon,
+    turnPhaseProgress,
 
     effectiveGameId,
     allPlayers,
@@ -6577,6 +6584,17 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         p2Name: 'Player 2',
       },
       gameStats: null,
+      turnPhases: {
+        turnNumber: null,
+        currentMilestone: null,
+        milestones: [
+          { id: 'dice_roll', label: 'Dice Roll', isMandatory: true, isAvailable: false, hasOccurred: false },
+          { id: 'drawing', label: 'Drawing', isMandatory: true, isAvailable: false, hasOccurred: false },
+          { id: 'first_strike', label: 'First Strike', isMandatory: false, isAvailable: false, hasOccurred: false },
+          { id: 'charges', label: 'Charges / Solar Powers', isMandatory: false, isAvailable: false, hasOccurred: false },
+          { id: 'turn_resolution', label: 'Turn Resolution', isMandatory: true, isAvailable: false, hasOccurred: false },
+        ],
+      },
       hud: {
         p1Name: 'Player 1',
         p1Species: 'Unknown',
@@ -6614,6 +6632,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
           opponent: 'Player 2',
         },
         battleLogTurns: [],
+        battleLogCompletedTurnCount: 0,
         battleLogAutoScrollKey: 'battle:bootstrap:0',
       },
       board: {

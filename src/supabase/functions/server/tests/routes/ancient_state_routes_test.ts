@@ -1685,6 +1685,11 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
     chargePowerUsedByInstanceId: {},
     effectiveDiceRollByPlayerId: { p1: 4, p2: 4 },
   };
+  state.gameData.turnData.turnPhaseProgress = {
+    turnNumber: 3,
+    firstStrike: { expected: true, occurred: true },
+    charges: { expected: true, occurred: false },
+  };
   state.gameData.pendingTurn = {
     damageByPlayerId: {},
     healByPlayerId: {},
@@ -1813,6 +1818,11 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
     assert.equal(body.publicState.players.find((player: any) => player.id === 'p1').lines, 9);
     assert.equal(body.publicState.phaseReadiness[0].isReady, true);
     assert.equal(body.publicState.bonusLinesByPlayerId.p1, 1);
+    assert.deepEqual(body.publicState.turnPhaseProgress, {
+      turnNumber: 3,
+      firstStrike: { expected: true, occurred: true },
+      charges: { expected: true, occurred: false },
+    });
     assert.equal(body.requester.buildEconomyByPlayerId.p1.ordinaryBonusLines, 1);
     assert.equal('pendingTurn' in body.gameData, false);
     assert.deepEqual(body.gameData.powerMemory, {
@@ -1832,6 +1842,7 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
       'chargePowerUsedByInstanceId',
       'pendingEffects',
       'shipActivationCueBatches',
+      'turnPhaseProgress',
     ]) {
       assert.equal(internalField in body.gameData.turnData, false);
     }

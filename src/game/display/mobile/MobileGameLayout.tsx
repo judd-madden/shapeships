@@ -7,6 +7,7 @@ import type {
   GameSessionViewModel,
   HudViewModel,
   LeftRailViewModel,
+  TurnPhaseVm,
 } from '../../client/useGameSession';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import type { ImplementedAncientManualSolarPowerId } from '../../client/gameSession/ancientChargeDeclaration';
@@ -37,6 +38,7 @@ interface MobileGameLayoutProps {
   hudVm: HudViewModel;
   boardVm: BoardViewModel;
   leftRailVm: LeftRailViewModel;
+  turnPhasesVm: TurnPhaseVm;
   bottomActionRailVm: BottomActionRailViewModel;
   actionPanelVm: ActionPanelViewModel;
   gameStats: GameSessionViewModel['gameStats'];
@@ -88,6 +90,7 @@ export function MobileGameLayout({
   hudVm,
   boardVm,
   leftRailVm,
+  turnPhasesVm,
   bottomActionRailVm,
   actionPanelVm,
   gameStats,
@@ -597,7 +600,10 @@ export function MobileGameLayout({
   }, [activeFleetShipHover, handleCloseFleetShipHover]);
 
   return (
-    <div className="h-full min-h-0 w-full min-w-0 overflow-hidden flex flex-col bg-transparent text-white">
+    <div
+      className="h-full min-h-0 w-full min-w-0 overflow-hidden flex flex-col bg-transparent text-white"
+      data-turn-phase-milestone={turnPhasesVm.currentMilestone ?? undefined}
+    >
       <MobileTopNav
         turnLabel={turnLabel}
         isGameOver={isGameOver}

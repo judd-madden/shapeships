@@ -146,6 +146,18 @@ export type ShipActivationCueBatch = {
   sources: ShipActivationCueSource[];
 };
 
+export type TurnPhaseProgressState = {
+  turnNumber: number;
+  firstStrike: {
+    expected: boolean;
+    occurred: boolean;
+  };
+  charges: {
+    expected: boolean;
+    occurred: boolean;
+  };
+};
+
 export type DiceManipulationStage = 'kno' | 'cube';
 export type CubeDieValue = 1 | 2 | 3 | 4 | 5 | 6;
 export type CubeDiceChoiceId = 'main' | `cube:${string}`;
@@ -356,6 +368,8 @@ export type GameData = {
     diceRoll?: number;
     linesDistributed?: boolean;
     shipActivationCueBatches?: ShipActivationCueBatch[];
+    /** Internal presentation snapshot; exposed only via publicState. */
+    turnPhaseProgress?: TurnPhaseProgressState;
     
     /** Canonical dice roll (1-6, rolled once per turn) */
     baseDiceRoll?: number;

@@ -239,6 +239,7 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           revealSpecialPowersAppliedTurnNumber: 0,
           endOfTurnResolutionAppliedTurnNumber: 0,
           phaseHold: undefined,
+          turnPhaseProgress: undefined,
         },
       },
     };
@@ -372,6 +373,7 @@ export function advancePhaseCore(state: GameState, nowMs?: number): AdvanceResul
           revealSpecialPowersAppliedTurnNumber: 0,
           endOfTurnResolutionAppliedTurnNumber: 0,
           phaseHold: undefined,
+          turnPhaseProgress: undefined,
         },
       },
     };

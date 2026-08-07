@@ -218,6 +218,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             hudVm={vm.hud}
             boardVm={mobileBoardVm}
             leftRailVm={vm.leftRail}
+            turnPhasesVm={vm.turnPhases}
             bottomActionRailVm={vm.bottomActionRail}
             actionPanelVm={vm.actionPanel}
             gameStats={vm.gameStats}
@@ -245,6 +246,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
           {/* Left Rail - fixed width */}
           <LeftRail
             vm={vm.leftRail}
+            turnPhases={vm.turnPhases}
             actions={actions}
             firstTurnBuildHelperEligible={firstTurnBuildHelper.firstTurnBuildHelperEligible}
             firstTurnBuildHelperDismissSignal={firstTurnBuildHelper.firstTurnBuildHelperDismissSignal}

@@ -158,6 +158,33 @@ export interface BattleLogHistoryResponse {
   turns: BattleLogTurnSummary[];
 }
 
+export interface PublicTurnPhaseProgress {
+  turnNumber: number;
+  firstStrike: { expected: boolean; occurred: boolean };
+  charges: { expected: boolean; occurred: boolean };
+}
+
+export type TurnPhaseMilestoneId =
+  | 'dice_roll'
+  | 'drawing'
+  | 'first_strike'
+  | 'charges'
+  | 'turn_resolution';
+
+export interface TurnPhaseMilestoneVm {
+  id: TurnPhaseMilestoneId;
+  label: string;
+  isMandatory: boolean;
+  isAvailable: boolean;
+  hasOccurred: boolean;
+}
+
+export interface TurnPhaseVm {
+  turnNumber: number | null;
+  currentMilestone: TurnPhaseMilestoneId | null;
+  milestones: TurnPhaseMilestoneVm[];
+}
+
 export interface GameStatsPlayerTurnViewModel {
   playerId: string;
   label: string;
@@ -356,6 +383,7 @@ export interface LeftRailViewModel {
     opponent: string;
   };
   battleLogTurns: BattleLogTurnVm[];
+  battleLogCompletedTurnCount: number;
   battleLogAutoScrollKey: string;
 }
 
@@ -814,6 +842,7 @@ export interface GameSessionViewModel {
   isBootstrapping: boolean; // true until valid server state with valid phaseKey
   viewer: GameSessionViewerViewModel;
   gameStats: GameStatsViewModel | null;
+  turnPhases: TurnPhaseVm;
   hud: HudViewModel;
   leftRail: LeftRailViewModel;
   board: BoardViewModel;

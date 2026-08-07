@@ -74,6 +74,7 @@ import { debugLog } from '../utils/serverLogger.ts';
 import type { IntentPersistence } from './intent_persistence.ts';
 import { getPlayerMaxHealth } from '../engine_shared/maximumHealth.ts';
 import { getCubeDiceActionForPlayer } from '../engine/phase/cubeDiceManipulation.ts';
+import { projectPublicTurnPhaseProgress } from '../engine/phase/turnPhaseProgress.ts';
 
 const INITIAL_SAVED_LINES = 3;
 
@@ -1930,6 +1931,7 @@ export function registerGameRoutes(
       } = clientSafeGameData;
       const {
         shipActivationCueBatches: _omitShipActivationCueBatches,
+        turnPhaseProgress: _omitTurnPhaseProgress,
         ...responseTurnData
       } = responseState.gameData?.turnData ?? {};
       const responseGameData = responseState.gameData
@@ -1962,6 +1964,7 @@ export function registerGameRoutes(
           : [],
         cubeDiceValueByPlayerId: turnData.visibleCubeDiceValueByPlayerId ?? {},
       };
+      const turnPhaseProgress = projectPublicTurnPhaseProgress(gameData);
       const publicState = {
         players: ((projectPublicPlayersForClient(
           gameData,
@@ -2004,6 +2007,9 @@ export function registerGameRoutes(
           ),
         },
         ancient: publicAncientState,
+        ...(turnPhaseProgress
+          ? { turnPhaseProgress }
+          : {}),
       };
       const drawingPrelude = projectDrawingPreludeRequesterSummary(
         gameData,

@@ -61,3 +61,51 @@ This document should guide:
 
 For implementation-pass structure, see:
 - [../workflows/CodexPassTemplate.md](../workflows/CodexPassTemplate.md)
+
+## 6. Condensed Turn-Phase Presentation
+
+The presentation model compresses the canonical seven-phase runtime sequence without changing it:
+
+| Canonical phase | Presented milestone |
+| --- | --- |
+| `build.dice_roll` | Dice Roll |
+| `build.line_generation` | Dice Roll |
+| `build.drawing` | Drawing |
+| `battle.reveal` | Drawing |
+| `battle.first_strike` | First Strike |
+| `battle.charge_declaration` | Charges / Solar Powers |
+| `battle.end_of_turn_resolution` | Turn Resolution |
+
+The Bottom Rail and action surfaces continue to report the real canonical phase. The condensed milestone is presentation-only.
+
+### 6.1 Optional-phase forecast ownership
+
+The server owns the current-turn forecast for First Strike and Charges. It uses the same eligibility primitives as authoritative phase gating and publishes only this curated public DTO:
+
+```ts
+publicState.turnPhaseProgress?: {
+  turnNumber: number;
+  firstStrike: { expected: boolean; occurred: boolean };
+  charges: { expected: boolean; occurred: boolean };
+};
+```
+
+The projection is shared by both players and spectators. It is not exposed through requester data, legacy `gameData.turnData`, `/game-state-head`, or `/game-history`.
+
+Forecast update boundaries are:
+
+1. Dice Roll entry after queued Simulacrum materialization: public First Strike, ordinary Charges, and guaranteed Ancient Reveal Energy sources; QUA is excluded.
+2. Line Generation entry after effective dice finalize: the same forecast with matching QUA included.
+3. Drawing: frozen; private Drawing changes are not evaluated.
+4. Reveal after Reveal powers and Ancient preparation: both forecasts refresh from the now-public authoritative state, with Charges using the live declaration gate.
+5. Charge Declaration entry after the First Strike result and declaration snapshot: Charges refreshes from the live declaration gate.
+
+An optional milestone is latched as occurred only when its authoritative entry gate finds work. That latch survives later source removal for the rest of the turn and resets at the next turn.
+
+### 6.2 Client presentation ownership
+
+The client runtime maps canonical phase keys and the curated public forecast into one shared five-milestone VM. Desktop and mobile consume the same VM and must not derive optional-phase eligibility from ship definitions, tags, power text, or private state.
+
+Mandatory milestones are available during an ordinary turn. Optional milestones are presented as available when `expected || occurred`. A forecast with a mismatched turn number is ignored.
+
+Setup has no current milestone. A finished game also has no current milestone after presentation completes; while the existing terminal Health Resolution presentation lifecycle is active, the runtime may continue presenting Turn Resolution using that lifecycle's display turn number. This adds no authoritative timing or new client timer.

@@ -82,7 +82,7 @@ export function ChatPanelContent({
   }
 
   return (
-    <div className={cx('flex min-h-0 flex-col bg-black', isMobile ? 'h-full' : undefined)}>
+    <div className="flex h-full min-h-0 flex-col bg-black">
       <div className="h-[42px] shrink-0 px-5 pt-3 pb-2 flex items-center justify-between relative">
         {showPanelTitle ? <p className="text-white text-[18px] font-black">Chat</p> : null}
         <button
@@ -97,7 +97,7 @@ export function ChatPanelContent({
       </div>
 
       <LeftRailScrollArea
-        outerClassName={cx(isMobile ? 'min-h-0 flex-1 px-5 pb-2' : 'h-[154px] px-5 pb-2')}
+        outerClassName="basis-0 min-h-0 flex-1 px-5 pb-2"
         innerClassName="justify-end gap-1 text-[15px]"
         stickToBottomOnChange
       >

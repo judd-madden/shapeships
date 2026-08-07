@@ -5,6 +5,8 @@
  * These are dependency-light, rawState-safe helpers.
  */
 
+import type { PublicTurnPhaseProgress } from './types';
+
 function hasOwn(value: unknown, key: string): boolean {
   return value != null && Object.prototype.hasOwnProperty.call(Object(value), key);
 }
@@ -198,6 +200,35 @@ export function getTurnNumber(state: any): number {
     state?.turnNumber ??
     1
   );
+}
+
+export function getPublicTurnPhaseProgress(
+  state: any,
+): PublicTurnPhaseProgress | null {
+  const value = state?.publicState?.turnPhaseProgress;
+  if (
+    !value ||
+    !Number.isInteger(value.turnNumber) ||
+    value.turnNumber <= 0 ||
+    typeof value.firstStrike?.expected !== 'boolean' ||
+    typeof value.firstStrike?.occurred !== 'boolean' ||
+    typeof value.charges?.expected !== 'boolean' ||
+    typeof value.charges?.occurred !== 'boolean'
+  ) {
+    return null;
+  }
+
+  return {
+    turnNumber: value.turnNumber,
+    firstStrike: {
+      expected: value.firstStrike.expected,
+      occurred: value.firstStrike.occurred,
+    },
+    charges: {
+      expected: value.charges.expected,
+      occurred: value.charges.occurred,
+    },
+  };
 }
 
 export function getGameStatus(state: any): string {

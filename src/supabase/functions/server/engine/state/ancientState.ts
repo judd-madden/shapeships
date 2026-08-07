@@ -821,6 +821,66 @@ function getValidSelectedNumber(value: unknown): number | null {
     : null;
 }
 
+function getRevealFleet(state: any, playerId: string): any[] {
+  const fleet = state?.gameData?.ships?.[playerId];
+  return Array.isArray(fleet) ? fleet : [];
+}
+
+function getAncientCoreRevealShips(fleet: any[]): any[] {
+  return fleet
+    .filter((ship: any) =>
+      isNonEmptyString(ship?.instanceId) && isAncientCoreShipDefId(ship?.shipDefId)
+    )
+    .sort((a: any, b: any) => {
+      const rankDifference =
+        ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID[a.shipDefId as AncientCoreShipDefId].rank -
+        ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID[b.shipDefId as AncientCoreShipDefId].rank;
+      return rankDifference || a.instanceId.localeCompare(b.instanceId);
+    });
+}
+
+function getMatchingQuantumMysticRevealShips(
+  state: any,
+  playerId: string,
+  fleet: any[],
+): any[] {
+  const effectiveDiceRoll = getEffectiveDiceRollForPlayer(state, playerId);
+  return fleet
+    .filter((ship: any) => {
+      if (ship?.shipDefId !== 'QUA' || !isNonEmptyString(ship?.instanceId)) return false;
+      const selectedNumber = getValidSelectedNumber(
+        ship?.permanentConfiguration?.selectedNumber,
+      );
+      return selectedNumber !== null && selectedNumber === effectiveDiceRoll;
+    })
+    .sort((a: any, b: any) => a.instanceId.localeCompare(b.instanceId));
+}
+
+function getChargedSolarGridRevealShips(fleet: any[]): any[] {
+  return fleet.filter((ship: any) =>
+    ship?.shipDefId === 'SOL' &&
+    isNonEmptyString(ship?.instanceId) &&
+    normalizeAncientNumber(ship?.chargesCurrent) > 0
+  );
+}
+
+export function playerHasExpectedAncientRevealEnergy(
+  state: any,
+  playerId: string,
+  options: { includeQuantumMystic: boolean },
+): boolean {
+  const player = Array.isArray(state?.players)
+    ? state.players.find((candidate: any) => candidate?.id === playerId)
+    : undefined;
+  if (player?.role !== 'player' || getPlayerSpecies(player) !== 'ancient') return false;
+
+  const fleet = getRevealFleet(state, playerId);
+  if (getAncientCoreRevealShips(fleet).length > 0) return true;
+  if (getChargedSolarGridRevealShips(fleet).length > 0) return true;
+  return options.includeQuantumMystic &&
+    getMatchingQuantumMysticRevealShips(state, playerId, fleet).length > 0;
+}
+
 export function applyAncientBattleRevealPreparation<T = any>(state: T): T {
   let canonicalState = state as any;
   const battleTurnNumber = normalizeAncientNumber(
@@ -842,15 +902,8 @@ export function applyAncientBattleRevealPreparation<T = any>(state: T): T {
 
   const solarGridCandidates = getPlayerSeatIds(canonicalState.players)
     .flatMap((playerId) => {
-      const fleet = Array.isArray(canonicalState.gameData.ships?.[playerId])
-        ? canonicalState.gameData.ships[playerId]
-        : [];
-      return fleet
-        .filter((ship: any) =>
-          ship?.shipDefId === 'SOL' &&
-          isNonEmptyString(ship?.instanceId) &&
-          normalizeAncientNumber(ship?.chargesCurrent) > 0
-        )
+      const fleet = getRevealFleet(canonicalState, playerId);
+      return getChargedSolarGridRevealShips(fleet)
         .map((ship: any) => ({ playerId, ship }));
     })
     .sort((a, b) =>
@@ -897,21 +950,11 @@ export function applyAncientBattleRevealPreparation<T = any>(state: T): T {
     };
     const player = canonicalState.players.find((candidate: any) => candidate?.id === playerId);
     const sources: AncientEnergySource[] = [];
-    const fleet = Array.isArray(canonicalState.gameData.ships?.[playerId])
-      ? canonicalState.gameData.ships[playerId]
-      : [];
+    const fleet = getRevealFleet(canonicalState, playerId);
     const isAncientController = getPlayerSpecies(player) === 'ancient';
 
     if (isAncientController) {
-      const coreShips = fleet
-        .filter((ship: any) =>
-          isNonEmptyString(ship?.instanceId) && isAncientCoreShipDefId(ship?.shipDefId)
-        )
-        .sort((a: any, b: any) => {
-          const rankDifference = ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID[a.shipDefId as AncientCoreShipDefId].rank -
-            ANCIENT_CORE_ENERGY_BY_SHIP_DEF_ID[b.shipDefId as AncientCoreShipDefId].rank;
-          return rankDifference || a.instanceId.localeCompare(b.instanceId);
-        });
+      const coreShips = getAncientCoreRevealShips(fleet);
 
       for (const [order, ship] of coreShips.entries()) {
         const shipDefId = ship.shipDefId as AncientCoreShipDefId;
@@ -927,16 +970,11 @@ export function applyAncientBattleRevealPreparation<T = any>(state: T): T {
       }
     }
 
-    const effectiveDiceRoll = getEffectiveDiceRollForPlayer(canonicalState, playerId);
-    const matchingQuantumMystics = fleet
-      .filter((ship: any) => {
-        if (ship?.shipDefId !== 'QUA' || !isNonEmptyString(ship?.instanceId)) return false;
-        const selectedNumber = getValidSelectedNumber(
-          ship?.permanentConfiguration?.selectedNumber,
-        );
-        return selectedNumber !== null && selectedNumber === effectiveDiceRoll;
-      })
-      .sort((a: any, b: any) => a.instanceId.localeCompare(b.instanceId));
+    const matchingQuantumMystics = getMatchingQuantumMysticRevealShips(
+      canonicalState,
+      playerId,
+      fleet,
+    );
 
     for (const ship of matchingQuantumMystics) {
       quantumMysticRevealByInstanceId[ship.instanceId] = {
@@ -1198,6 +1236,7 @@ export function sanitizeAncientStateForClient<T = any>(
       pendingSOLARPowerDeclarations: _obsoleteSolarDeclarations,
       thirdSpiralFirstStrikeEligibilityByPlayerId: _thirdSpiralFirstStrikeEligibility,
       ancientBattleRevealPreparedTurnNumber: _ancientBattleRevealPreparedTurnNumber,
+      turnPhaseProgress: _turnPhaseProgress,
       ...safeTurnData
     } = turnData;
     const drawingSafeTurnData = redactDrawingPreludeTurnDataForClient(

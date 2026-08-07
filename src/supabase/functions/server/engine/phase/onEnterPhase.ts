@@ -51,6 +51,16 @@ import {
   playerIsCubeEligible,
   rollLockedCubeDiceByPlayerId,
 } from './cubeDiceManipulation.ts';
+import {
+  ensureFinalizedDiceTurnPhaseProgress,
+  gameHasFirstStrikeWork,
+  gameRequiresChargeDeclarationInput,
+  initializeDiceRollTurnPhaseProgress,
+  markOptionalTurnPhaseOccurred,
+  refreshFinalizedDiceTurnPhaseProgress,
+  refreshPostFirstStrikeChargesProgress,
+  refreshRevealedTurnPhaseProgress,
+} from './turnPhaseProgress.ts';
 
 type KnoRerollPassIndex = 1 | 2 | 3;
 
@@ -253,13 +263,6 @@ function phaseHasAvailableFleetPowers(state: any, phaseKey: PhaseKey): boolean {
   return false;
 }
 
-function anyPlayerRequiresChargeDeclarationInput(state: any): boolean {
-  const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
-  return activePlayers.some((player: any) =>
-    playerRequiresChargeDeclarationInput(state, player.id)
-  );
-}
-
 /**
  * Check if any player is missing BUILD_REVEAL for the current turn.
  * 
@@ -339,12 +342,12 @@ function phaseRequiresPlayerInput(state: any, phaseKey: PhaseKey): boolean {
 
   // battle.first_strike: pause only if at least one player has eligible powers
   if (phaseKey === 'battle.first_strike') {
-    return phaseHasAvailableFleetPowers(state, phaseKey);
+    return gameHasFirstStrikeWork(state);
   }
 
   // battle.charge_declaration: ordinary charge or authoritative Ancient Energy input
   if (phaseKey === 'battle.charge_declaration') {
-    return anyPlayerRequiresChargeDeclarationInput(state);
+    return gameRequiresChargeDeclarationInput(state);
   }
 
   // battle.end_of_turn_resolution: auto-advance (server resolves)
@@ -388,6 +391,7 @@ function enterPhaseOnce(
   }
 
   if (toKey === 'build.drawing') {
+    workingState = ensureFinalizedDiceTurnPhaseProgress(workingState);
     workingState = structuredClone(workingState);
     const existingSnapshot =
       workingState.gameData.turnData.buildDrawingPublicSavedResourcesByPlayerId;
@@ -447,6 +451,7 @@ function enterPhaseOnce(
     );
     workingState = materialized.state;
     events.push(...materialized.events);
+    workingState = initializeDiceRollTurnPhaseProgress(workingState);
   }
 
   let turnData = workingState.gameData.turnData;
@@ -469,6 +474,7 @@ function enterPhaseOnce(
     events.push(...revealResolution.events);
 
     workingState = applyAncientBattleRevealPreparation(workingState);
+    workingState = refreshRevealedTurnPhaseProgress(workingState);
     turnData = workingState.gameData.turnData;
 
     const turnNumber =
@@ -517,6 +523,8 @@ function enterPhaseOnce(
     turnData.chargeDeclarationEligibleSourceIdsByPlayerId = snapshotSourceIdsByPlayerId;
     turnData.chargeDeclarationFleetSnapshotByPlayerId = snapshotFleetByPlayerId;
     replaceChargeDeclarationVisibilityState(workingState);
+    workingState = refreshPostFirstStrikeChargesProgress(workingState);
+    turnData = workingState.gameData.turnData;
     
     debugLog(`[OnEnterPhase] Charge declaration snapshot:`, {
       eligibleSourceIdsByPlayerId: snapshotSourceIdsByPlayerId,
@@ -815,6 +823,10 @@ function enterPhaseOnce(
   // 3. Apply base lines + bonus lines (Orbitals)
   
   if (toKey === 'build.line_generation') {
+    if (turnData.diceFinalized === true) {
+      workingState = refreshFinalizedDiceTurnPhaseProgress(workingState);
+      turnData = workingState.gameData.turnData;
+    }
     // Idempotency check
     if (turnData.linesDistributed === true) {
       debugLog(`[OnEnterPhase] Lines already distributed this turn, skipping`);
@@ -899,6 +911,9 @@ function enterPhaseOnce(
   // 2. Only eligible players must click Ready to advance
 
   if (toKey === 'battle.first_strike') {
+    if (gameHasFirstStrikeWork(workingState)) {
+      workingState = markOptionalTurnPhaseOccurred(workingState, 'firstStrike');
+    }
     if (!workingState.gameData.phaseReadiness) {
       workingState.gameData.phaseReadiness = [];
     }
@@ -949,6 +964,9 @@ function enterPhaseOnce(
   // 2. Only eligible players must click Ready to advance
 
   if (toKey === 'battle.charge_declaration') {
+    if (gameRequiresChargeDeclarationInput(workingState)) {
+      workingState = markOptionalTurnPhaseOccurred(workingState, 'charges');
+    }
     // Ensure phaseReadiness array exists
     if (!workingState.gameData.phaseReadiness) {
       workingState.gameData.phaseReadiness = [];

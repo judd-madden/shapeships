@@ -20,6 +20,7 @@ import type {
   HealthResolutionPresentationVm,
   HudStatusTone,
   LeftRailDiceManipulationSlotViewModel,
+  PublicTurnPhaseProgress,
 } from './types';
 import {
   formatCountedShipChoiceHeading,
@@ -40,6 +41,7 @@ import type { CentaurChargeSubTabId } from './types';
 import { deriveCubeDiceChoicePanelVm } from './cubeDiceChoice';
 import type { DrawingStage } from './drawingPrelude';
 import { derivePhasePresentation } from './phaseLabels';
+import { deriveTurnPhaseVm } from './turnPhases';
 
 function getNamedGroupHeading(
   phaseKey: string,
@@ -184,6 +186,7 @@ export function mapGameSessionVm(args: {
   turnNumber: number;
   phaseKey: string;
   phaseIcon: 'build' | 'battle';
+  turnPhaseProgress: PublicTurnPhaseProgress | null;
 
   effectiveGameId: string | null;
   allPlayers: any[];
@@ -309,6 +312,7 @@ export function mapGameSessionVm(args: {
     turnNumber,
     phaseKey,
     phaseIcon,
+    turnPhaseProgress,
     effectiveGameId,
     allPlayers,
     activePanelId,
@@ -454,6 +458,14 @@ export function mapGameSessionVm(args: {
       displayRightName,
       isSpectator,
     });
+  const turnPhases = deriveTurnPhaseVm({
+    phaseKey,
+    turnNumber,
+    progress: turnPhaseProgress,
+    isFinished,
+    healthResolutionPresentationActive,
+    healthResolutionDisplayTurnNumber: healthResolutionOverlay?.displayTurnNumber,
+  });
   const playerEntries = Array.isArray(allPlayers)
     ? allPlayers.filter((player: any) => player?.role === 'player')
     : [];
@@ -1373,6 +1385,7 @@ export function mapGameSessionVm(args: {
     isBootstrapping,
     viewer,
     gameStats,
+    turnPhases,
     
     hud: {
       p1Name: displayLeftName,

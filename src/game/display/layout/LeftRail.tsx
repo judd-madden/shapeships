@@ -1,24 +1,25 @@
 /**
  * Left Rail
- * Fixed-width left sidebar with brand, dice, turn/phase, chat, and battle log
+ * Fixed-width left sidebar with brand, dice, sister panel, phase indicator, and chat
  * Presentation-first layout with small local UI timing for rail-only effects.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Dice } from '../../../components/ui/primitives';
-import { DrawingIcon } from '../../../components/ui/primitives/icons/DrawingIcon';
-import { ChargesIcon } from '../../../components/ui/primitives/icons/ChargesIcon';
 import { CloseIcon } from '../../../components/ui/primitives/icons/CloseIcon';
 import { OpenFullIcon } from '../../../components/ui/primitives/icons/OpenFullIcon';
-import type { LeftRailViewModel, GameSessionActions } from '../../client/useGameSession';
+import type { LeftRailViewModel, GameSessionActions, TurnPhaseVm } from '../../client/useGameSession';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 import { useLeftRailTurnTakeover } from '../graphics/animation';
 import { BattleLogPanelContent } from '../shared/BattleLogPanelContent';
 import { ChatPanelContent } from '../shared/ChatPanelContent';
+import { TurnPhaseIndicator } from '../shared/TurnPhaseIndicator';
+import { TurnPhasesPanelContent } from '../shared/TurnPhasesPanelContent';
 
 interface LeftRailProps {
   vm: LeftRailViewModel;
+  turnPhases: TurnPhaseVm;
   actions: GameSessionActions;
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -31,13 +32,16 @@ const BATTLE_LOG_TRANSITION_MS = 160;
 
 export function LeftRail({
   vm,
+  turnPhases,
   actions,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
   onFirstTurnBuildHelperDismiss,
 }: LeftRailProps) {
+  const [selectedSisterView, setSelectedSisterView] = useState<'battleLog' | 'turnPhases'>('turnPhases');
   const [isBattleLogExpanded, setIsBattleLogExpanded] = useState(false);
   const [collapsedBattleLogTop, setCollapsedBattleLogTop] = useState<number | null>(null);
+  const [collapsedBattleLogBottom, setCollapsedBattleLogBottom] = useState<number | null>(null);
   const [isFirstTurnBuildHelperMounted, setIsFirstTurnBuildHelperMounted] = useState(false);
   const [isFirstTurnBuildHelperVisible, setIsFirstTurnBuildHelperVisible] = useState(false);
   const railRootRef = useRef<HTMLDivElement | null>(null);
@@ -143,9 +147,15 @@ export function LeftRail({
       const railRect = railRoot.getBoundingClientRect();
       const slotRect = battleLogSlot.getBoundingClientRect();
       const nextTop = Math.max(0, slotRect.top - railRect.top);
+      const nextBottom = Math.max(0, railRect.bottom - slotRect.bottom);
 
       setCollapsedBattleLogTop((currentTop) =>
         currentTop !== null && Math.abs(currentTop - nextTop) < 0.5 ? currentTop : nextTop
+      );
+      setCollapsedBattleLogBottom((currentBottom) =>
+        currentBottom !== null && Math.abs(currentBottom - nextBottom) < 0.5
+          ? currentBottom
+          : nextBottom
       );
     };
 
@@ -172,7 +182,12 @@ export function LeftRail({
     return () => {
       clearBattleLogScrollRestoreTimers();
     };
-  }, [isBattleLogExpanded, collapsedBattleLogTop]);
+  }, [isBattleLogExpanded, collapsedBattleLogTop, collapsedBattleLogBottom]);
+
+  useEffect(() => {
+    setSelectedSisterView('turnPhases');
+    setIsBattleLogExpanded(false);
+  }, [vm.gameCode]);
 
   useEffect(() => {
     if (firstTurnBuildHelperDismissSignal === 0) {
@@ -302,7 +317,17 @@ export function LeftRail({
     setIsBattleLogExpanded((current) => !current);
   }
 
+  function handleSisterViewSelect(nextView: 'battleLog' | 'turnPhases') {
+    if (nextView === 'turnPhases' && isBattleLogExpanded) {
+      handleBattleLogExpandToggle();
+    }
+    setSelectedSisterView(nextView);
+  }
+
   const battleLogOverlayTop = isBattleLogExpanded ? 20 : (collapsedBattleLogTop ?? 0);
+  const battleLogOverlayBottom = isBattleLogExpanded
+    ? 'var(--battle-log-bottom-inset, 25px)'
+    : (collapsedBattleLogBottom ?? 0);
 
   return (
     <div
@@ -367,18 +392,11 @@ export function LeftRail({
       {renderDiceManipulationSlot('left')}
       {renderDiceManipulationSlot('right')}
 
-      {/* Turn / Phase / Subphase Card */}
-      <div className="relative shrink-0 rounded-[10px] border-2 border-[var(--shapeships-grey-70)] overflow-hidden">
-        {/* Turn and phase icon */}
-        <div className="bg-black p-[10px] flex items-center justify-center gap-[10px]">
-          <p className="text-white text-[18px] font-bold">Turn {vm.turn}</p>
-          {vm.phaseIcon === 'build' ? <DrawingIcon /> : <ChargesIcon />}
-        </div>
-        
-        {/* Subphase */}
-        <div className="bg-[var(--shapeships-grey-90)] px-[10px] py-[10px] pb-[12px]">
-          <p className="text-white text-[18px] font-medium text-center">{vm.subphase}</p>
-        </div>
+      {/* The sister-panel slot owns the rail's primary flexible height. */}
+      <div ref={battleLogSlotRef} className="basis-0 flex-1 min-h-[120px]" aria-hidden="true" />
+
+      <div className="relative shrink-0">
+        <TurnPhaseIndicator vm={turnPhases} />
 
         {turnTakeover.turn !== null && (
           <div
@@ -399,8 +417,8 @@ export function LeftRail({
         )}
       </div>
 
-      {/* Chat Area (fixed height, scrollable) */}
-      <div className="shrink-0 bg-black rounded-[10px] border-2 border-[var(--shapeships-grey-70)] overflow-hidden">
+      {/* Chat keeps its former 243px footprint as a minimum and may grow to 302px. */}
+      <div className="h-[302px] min-h-[243px] max-h-[302px] shrink bg-black rounded-[10px] border-2 border-[var(--shapeships-grey-70)] overflow-hidden">
         <ChatPanelContent
           layout="desktop"
           gameCode={vm.gameCode}
@@ -414,33 +432,81 @@ export function LeftRail({
         />
       </div>
 
-      {/* Battle Log slot preserves layout while the real card overlays above it. */}
-      <div ref={battleLogSlotRef} className="basis-0 flex-1 min-h-0" aria-hidden="true" />
-
       <div
-        className="absolute left-0 right-0 z-50 flex min-h-0 flex-col rounded-[10px] border-2 border-[var(--shapeships-grey-70)] bg-black"
+        className="absolute left-0 right-0 z-50 flex min-h-0 flex-col rounded-[10px] border-2 border-[var(--shapeships-grey-70)] bg-[var(--shapeships-black)]"
         style={{
           top: battleLogOverlayTop,
-          // Match the current rail padding inset so the overlay never drops below the collapsed card.
-          bottom: 'var(--battle-log-bottom-inset, 25px)',
-          transition: collapsedBattleLogTop === null ? undefined : `top ${BATTLE_LOG_TRANSITION_MS}ms ease-out`,
+          bottom: battleLogOverlayBottom,
+          transition:
+            collapsedBattleLogTop === null
+              ? undefined
+              : `top ${BATTLE_LOG_TRANSITION_MS}ms ease-out, bottom ${BATTLE_LOG_TRANSITION_MS}ms ease-out`,
         }}
       >
-        <BattleLogPanelContent
-          layout="desktop"
-          viewportRef={battleLogViewportRef}
-          battleLogNames={vm.battleLogNames}
-          battleLogTurns={vm.battleLogTurns}
-          battleLogAutoScrollKey={vm.battleLogAutoScrollKey}
-          headerAction={
+        <div className="flex h-[48px] shrink-0 items-center justify-between border-b border-[var(--shapeships-grey-70)] px-[18px]">
+          <div className="flex min-w-0 items-center gap-[18px]">
             <button
-              className="bg-black rounded-[7px] p-0 opacity-50 hover:opacity-100 transition-opacity cursor-pointer"
+              type="button"
+              className={`text-[16px] font-bold ${
+                selectedSisterView === 'battleLog'
+                  ? 'text-[var(--shapeships-white)]'
+                  : 'text-[var(--shapeships-grey-50)]'
+              }`}
+              onClick={() => handleSisterViewSelect('battleLog')}
+            >
+              Battle Log ({vm.battleLogCompletedTurnCount})
+            </button>
+            <button
+              type="button"
+              className={`text-[16px] font-bold ${
+                selectedSisterView === 'turnPhases'
+                  ? 'text-[var(--shapeships-white)]'
+                  : 'text-[var(--shapeships-grey-50)]'
+              }`}
+              onClick={() => handleSisterViewSelect('turnPhases')}
+            >
+              Turn Phases
+            </button>
+          </div>
+          {selectedSisterView === 'battleLog' ? (
+            <button
+              type="button"
+              aria-label={isBattleLogExpanded ? 'Collapse Battle Log' : 'Expand Battle Log'}
+              className="rounded-[7px] bg-[var(--shapeships-black)] p-0 opacity-50 transition-opacity hover:opacity-100 cursor-pointer"
               onClick={handleBattleLogExpandToggle}
             >
               {isBattleLogExpanded ? <CloseIcon /> : <OpenFullIcon />}
             </button>
-          }
-        />
+          ) : null}
+        </div>
+
+        <div className="relative basis-0 flex-1 min-h-0">
+          <div
+            aria-hidden={selectedSisterView !== 'battleLog'}
+            inert={selectedSisterView !== 'battleLog'}
+            className={`absolute inset-0 min-h-0 ${
+              selectedSisterView === 'battleLog' ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+          >
+            <BattleLogPanelContent
+              layout="desktop"
+              viewportRef={battleLogViewportRef}
+              battleLogNames={vm.battleLogNames}
+              battleLogTurns={vm.battleLogTurns}
+              battleLogAutoScrollKey={vm.battleLogAutoScrollKey}
+              showPanelTitle={false}
+            />
+          </div>
+          <div
+            aria-hidden={selectedSisterView !== 'turnPhases'}
+            inert={selectedSisterView !== 'turnPhases'}
+            className={`absolute inset-0 flex min-h-0 flex-col ${
+              selectedSisterView === 'turnPhases' ? 'opacity-100' : 'pointer-events-none opacity-0'
+            }`}
+          >
+            <TurnPhasesPanelContent vm={turnPhases} />
+          </div>
+        </div>
       </div>
     </div>
   );
