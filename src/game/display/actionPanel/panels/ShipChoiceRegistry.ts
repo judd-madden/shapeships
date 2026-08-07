@@ -301,7 +301,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
     shipDefId: 'DOM',
     title: 'Ark of Domination',
     instruction: 'You must select two basic enemy ships on the battlefield to steal!',
-    helpText: 'Any stolen ship Battle Phase powers WILL be active for you this turn.',
+    helpText: 'Any stolen ship powers that occur later this turn WILL be active for you.',
   },
 
   // v1.3 SAC

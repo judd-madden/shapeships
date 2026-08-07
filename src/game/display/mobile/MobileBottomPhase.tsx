@@ -15,17 +15,17 @@ export function MobileBottomPhase({ vm, mainPhaseControl }: MobileBottomPhasePro
 
   return (
     <div className="shrink-0 w-full flex flex-col items-center gap-[9px] px-[14px] pt-[4px]">
-      <p
-        className="w-full text-center text-[20px] font-black leading-5 text-white"
-      >
-        {vm.subphaseTitle}
-        {vm.subphaseTitleSuffix ? (
-          <span className="font-normal"> {vm.subphaseTitleSuffix}</span>
-        ) : null}
-        {vm.mobileSubphaseTitleExtra ? (
-          <span className="font-normal"> {vm.mobileSubphaseTitleExtra}</span>
-        ) : null}
-      </p>
+      <div className="flex w-full min-w-0 items-baseline justify-between gap-[12px] text-white">
+        <p className="min-w-0 truncate whitespace-nowrap text-left text-[20px] font-black leading-5">
+          {vm.subphaseTitle}
+          {vm.subphaseTitleSuffix ? (
+            <span className="font-normal"> {vm.subphaseTitleSuffix}</span>
+          ) : null}
+        </p>
+        <p className="min-w-0 truncate whitespace-nowrap text-right text-[14px] font-normal leading-5">
+          {vm.subphaseSubheading}
+        </p>
+      </div>
 
       {vm.readyButtonVisible ? (
         <button

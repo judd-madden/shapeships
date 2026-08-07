@@ -369,10 +369,9 @@ export function LeftRail({
 
       {/* Turn / Phase / Subphase Card */}
       <div className="relative shrink-0 rounded-[10px] border-2 border-[var(--shapeships-grey-70)] overflow-hidden">
-        {/* Turn and Major Phase */}
+        {/* Turn and phase icon */}
         <div className="bg-black p-[10px] flex items-center justify-center gap-[10px]">
-          <p className="text-white text-[18px] font-bold">Turn {vm.turn} -</p>
-          <p className="text-white text-[18px] font-bold">{vm.phase}</p>
+          <p className="text-white text-[18px] font-bold">Turn {vm.turn}</p>
           {vm.phaseIcon === 'build' ? <DrawingIcon /> : <ChargesIcon />}
         </div>
         

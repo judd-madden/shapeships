@@ -20,7 +20,7 @@ const SUBPHASE_LABEL_OVERRIDES: Record<string, string> = {
   'build.drawing': 'Drawing',
   'battle.reveal': 'Reveal',
   'battle.first_strike': 'First Strike',
-  'battle.charge_declaration': 'Charge Declaration',
+  'battle.charge_declaration': 'Charges',
   'battle.end_of_turn_resolution': 'End of Turn',
 };
 
@@ -94,4 +94,104 @@ export function getSubphaseLabelFromPhaseKey(phaseKey: string): string {
   
   // Replace underscores with spaces and title-case
   return titleCase(lastSegment.replace(/_/g, ' '));
+}
+
+export type PhasePresentation = {
+  title: string;
+  titleSuffix: string | null;
+  subheading: string;
+};
+
+export function derivePhasePresentation(args: {
+  phaseKey: string;
+  isFinished: boolean;
+  isSpectator: boolean;
+  drawingStageKind: 'prelude' | 'normal' | 'submitted' | 'blocked' | 'passive';
+  drawingEconomy?: { ordinary: number; joining: number } | null;
+  committedDrawingProjection?: { ordinary: number; joining: number } | null;
+  requesterIsReady: boolean;
+  opponentIsReady: boolean;
+  hasAvailableActions: boolean;
+  ancientChargeStage?: 'charges' | 'powers' | null;
+}): PhasePresentation {
+  const blank = '\u00A0';
+  const withJoining = (base: string, joining: number): string =>
+    joining > 0 ? `${base} +${joining} joining` : base;
+
+  if (args.isFinished) {
+    return { title: 'Game Over', titleSuffix: null, subheading: blank };
+  }
+
+  if (args.phaseKey === 'battle.end_of_turn_resolution') {
+    return {
+      title: 'End of Turn',
+      titleSuffix: null,
+      subheading: 'Healing and damage is resolved',
+    };
+  }
+
+  if (args.isSpectator) {
+    return args.phaseKey === 'build.drawing'
+      ? { title: 'Drawing', titleSuffix: null, subheading: 'Players are drawing ships' }
+      : {
+          title: getSubphaseLabelFromPhaseKey(args.phaseKey),
+          titleSuffix: null,
+          subheading: blank,
+        };
+  }
+
+  if (
+    args.phaseKey === 'battle.charge_declaration' &&
+    args.ancientChargeStage === 'powers'
+  ) {
+    return {
+      title: 'Solar Powers',
+      titleSuffix: null,
+      subheading: 'Use your Energy to cast Solar Powers',
+    };
+  }
+
+  if (args.phaseKey === 'build.drawing') {
+    if (args.drawingStageKind === 'submitted') {
+      const committed = args.committedDrawingProjection;
+      return committed
+        ? {
+            title: String(committed.ordinary),
+            titleSuffix: withJoining('lines saved', committed.joining),
+            subheading: 'Opponent drawing...',
+          }
+        : { title: 'Drawing', titleSuffix: null, subheading: 'Opponent drawing...' };
+    }
+
+    const economy = args.drawingEconomy;
+    if (economy && (args.drawingStageKind === 'prelude' || args.drawingStageKind === 'normal')) {
+      return {
+        title: String(economy.ordinary),
+        titleSuffix: withJoining('lines available', economy.joining),
+        subheading:
+          args.drawingStageKind === 'prelude'
+            ? 'You have powers available'
+            : 'Spend lines to build ships',
+      };
+    }
+
+    return { title: 'Drawing', titleSuffix: null, subheading: blank };
+  }
+
+  if (args.phaseKey === 'battle.first_strike' || args.phaseKey === 'battle.charge_declaration') {
+    const title = getSubphaseLabelFromPhaseKey(args.phaseKey);
+    if (args.requesterIsReady && !args.opponentIsReady) {
+      return { title, titleSuffix: null, subheading: 'Opponent choosing...' };
+    }
+    if (args.hasAvailableActions) {
+      return { title, titleSuffix: null, subheading: 'You have powers available' };
+    }
+    return { title, titleSuffix: null, subheading: blank };
+  }
+
+  return {
+    title: getSubphaseLabelFromPhaseKey(args.phaseKey),
+    titleSuffix: null,
+    subheading: blank,
+  };
 }

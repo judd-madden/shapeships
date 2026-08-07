@@ -39,6 +39,7 @@ import {
 import type { CentaurChargeSubTabId } from './types';
 import { deriveCubeDiceChoicePanelVm } from './cubeDiceChoice';
 import type { DrawingStage } from './drawingPrelude';
+import { derivePhasePresentation } from './phaseLabels';
 
 function getNamedGroupHeading(
   phaseKey: string,
@@ -276,6 +277,10 @@ export function mapGameSessionVm(args: {
     projectedSavedCombined: number;
     projectedSavedWasCapped: boolean;
   } | null;
+  committedDrawingProjection?: {
+    ordinary: number;
+    joining: number;
+  } | null;
   ancientChargeDeclaration?: GameSessionViewModel['actionPanel']['ancientChargeDeclaration'];
   ancientCatalogueEnergy?: GameSessionViewModel['actionPanel']['ancientCatalogueEnergy'];
   ancientAutocastEnabled: boolean;
@@ -351,6 +356,7 @@ export function mapGameSessionVm(args: {
     centaurChargeSubTab,
     centaurChargeAvailableTabs,
     buildDrawingEconomyDisplay,
+    committedDrawingProjection,
     ancientChargeDeclaration,
     ancientCatalogueEnergy,
     ancientAutocastEnabled,
@@ -771,39 +777,29 @@ export function mapGameSessionVm(args: {
     }
   }
 
-  let subphaseTitle = isFinished ? 'Game Over' : getSubphaseLabelFromPhaseKey(phaseKey);
-  let subphaseTitleSuffix: string | null = null;
-  let mobileSubphaseTitleExtra: string | null = null;
-  let subphaseSubheading = isFinished ? '\u00A0' : getMajorPhaseLabel(phaseKey);
+  const phasePresentation = derivePhasePresentation({
+    phaseKey,
+    isFinished,
+    isSpectator,
+    drawingStageKind: drawingStage.kind,
+    drawingEconomy: buildDrawingEconomyDisplay
+      ? {
+          ordinary: buildDrawingEconomyDisplay.ordinaryAvailable,
+          joining: buildDrawingEconomyDisplay.joiningAvailable,
+        }
+      : null,
+    committedDrawingProjection,
+    requesterIsReady: p1IsReady,
+    opponentIsReady: p2IsReady,
+    hasAvailableActions: iHaveActionsThisPhase,
+    ancientChargeStage: ancientChargeDeclaration?.stage ?? null,
+  });
+  const subphaseTitle = phasePresentation.title;
+  const subphaseTitleSuffix = phasePresentation.titleSuffix;
+  const mobileSubphaseTitleExtra: string | null = null;
+  const subphaseSubheading = phasePresentation.subheading;
 
-  if (!isFinished && phaseKey === 'battle.end_of_turn_resolution') {
-    subphaseTitle = 'End of Turn';
-    subphaseSubheading = 'Healing and damage is resolved';
-  }
-
-  if (
-    !isFinished &&
-    phaseKey === 'battle.charge_declaration' &&
-    ancientChargeDeclaration?.stage === 'powers'
-  ) {
-    subphaseTitle = 'Solar Powers';
-    subphaseSubheading = 'Use your Energy to cast Solar Powers';
-  }
-
-  if (!isFinished && isSpectator && phaseKey === 'build.drawing') {
-    subphaseTitle = 'Drawing';
-    subphaseTitleSuffix = null;
-    subphaseSubheading = 'Players are drawing ships';
-  } else if (!isFinished && buildDrawingEconomyDisplay != null) {
-    subphaseTitle = String(buildDrawingEconomyDisplay.ordinaryAvailable);
-    subphaseTitleSuffix = 'lines available';
-    mobileSubphaseTitleExtra = buildDrawingEconomyDisplay.joiningAvailable > 0
-      ? `+${buildDrawingEconomyDisplay.joiningAvailable} joining`
-      : null;
-    subphaseSubheading = buildDrawingEconomyDisplay.joiningAvailable > 0
-      ? `${buildDrawingEconomyDisplay.joiningAvailable} joining lines available`
-      : 'Spend lines to build ships';
-
+  if (!isFinished && phaseKey === 'build.drawing' && buildDrawingEconomyDisplay != null) {
     if (!healthResolutionPresentationActive && !readyUx?.sendingNow && !autoReadyWaiting && !p1IsReady) {
       readyButtonLabel = 'READY';
       readyButtonNote = formatBuildDrawingReadyNote({

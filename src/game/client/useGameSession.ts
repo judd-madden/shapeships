@@ -346,6 +346,12 @@ type BuildDrawingEconomyContinuity = {
   economy: any;
 };
 
+type CommittedDrawingProjection = {
+  key: string;
+  ordinary: number;
+  joining: number;
+};
+
 type MixedFirstStrikeHandoffState = {
   phaseInstanceKey: string;
   orderedFamilies: FirstStrikeActionFamily[];
@@ -813,6 +819,7 @@ export function useGameSession(
   const displayLineContinuityRef = useRef<Record<string, number>>({});
   const buildDrawingEconomyContinuityRef =
     useRef<BuildDrawingEconomyContinuity | null>(null);
+  const committedDrawingProjectionRef = useRef<CommittedDrawingProjection | null>(null);
 
   function setResumeSyncLockedState(nextValue: boolean): void {
     resumeSyncLockedRef.current = nextValue;
@@ -1714,6 +1721,7 @@ export function useGameSession(
     displayContinuityIdentityKeyRef.current = displayContinuityIdentityKey;
     displayLineContinuityRef.current = {};
     buildDrawingEconomyContinuityRef.current = null;
+    committedDrawingProjectionRef.current = null;
   }
   
   // ============================================================================
@@ -1770,12 +1778,13 @@ export function useGameSession(
     buildServerKey,
     meReadyKey ?? me?.id,
   );
-  const hasExistingDrawingCommitment =
-    isCommitmentCommitted(authoritativeDrawingCommitment) ||
-    buildSubmittedByTurn[turnNumber] === true;
+  const hasAuthoritativeDrawingCommitment =
+    isCommitmentCommitted(authoritativeDrawingCommitment);
+  const drawingSubmissionInputLocked =
+    hasAuthoritativeDrawingCommitment || buildSubmittedByTurn[turnNumber] === true;
   const drawingStage = deriveDrawingStage({
     normalizedPrelude: normalizedDrawingPrelude,
-    hasExistingDrawingCommitment,
+    hasExistingDrawingCommitment: hasAuthoritativeDrawingCommitment,
   });
   const drawingBuildSubmitEligible = canSubmitDrawingBuild({
     participation: drawingParticipation,
@@ -1784,7 +1793,14 @@ export function useGameSession(
     normalizedPrelude: normalizedDrawingPrelude,
   });
   const canEditCurrentDrawingBuild =
-    drawingBuildSubmitEligible && drawingStage.kind === 'normal';
+    drawingBuildSubmitEligible &&
+    drawingStage.kind === 'normal' &&
+    !drawingSubmissionInputLocked;
+  const committedDrawingProjectionKey = [
+    effectiveGameId ?? 'nogame',
+    meReadyKey ?? me?.id ?? 'unresolved',
+    turnNumber,
+  ].join('::');
   const carrierPreludeActionValidation =
     drawingStage.kind === 'prelude'
       ? validateProjectedCarrierActions(availableActions, drawingStage.passIndex)
@@ -1854,6 +1870,7 @@ export function useGameSession(
     quantumMysticPreviewNumberByRowIdRef.current = {};
     setEvolverChoicesByRowId({});
     evolverChoicesByRowIdRef.current = {};
+    committedDrawingProjectionRef.current = null;
     setAwaitingBuildRevealSync(false);
     
     console.log('[useGameSession] Turn boundary reset: cleared preview state for turn', serverTurnNumber);
@@ -3324,7 +3341,9 @@ useEffect(() => {
     ? buildEconomyForMeRead.value
     : null;
   const normalizedBuildDrawingEconomyForDisplay =
-    isLocalBuildDrawing && canEditCurrentDrawingBuild && buildEconomyForMeRead.present
+    isLocalBuildDrawing &&
+    (drawingStage.kind === 'prelude' || canEditCurrentDrawingBuild) &&
+    buildEconomyForMeRead.present
       ? normalizeBuildEconomyForDisplay(buildEconomyForMeRead.value)
       : null;
   const buildEconomyForMeDisplay = (() => {
@@ -3491,6 +3510,14 @@ useEffect(() => {
         projectedSavedWasCapped: displayProvisionalBuild.projectedSavedWasCapped,
       }
     : null;
+  const committedDrawingProjection =
+    hasAuthoritativeDrawingCommitment &&
+    committedDrawingProjectionRef.current?.key === committedDrawingProjectionKey
+      ? {
+          ordinary: committedDrawingProjectionRef.current.ordinary,
+          joining: committedDrawingProjectionRef.current.joining,
+        }
+      : null;
 
   useEffect(() => {
     setEvolverChoicesByRowId((prev) => {
@@ -4662,6 +4689,13 @@ useEffect(() => {
     readyDisabledReason = null;
   } else if (
     phaseKey === 'build.drawing' &&
+    drawingSubmissionInputLocked &&
+    !hasAuthoritativeDrawingCommitment
+  ) {
+    readyEnabled = false;
+    readyDisabledReason = 'Syncing authoritative state...';
+  } else if (
+    phaseKey === 'build.drawing' &&
     drawingStage.kind === 'prelude' &&
     !carrierPreludeActionValidation.ok
   ) {
@@ -5217,6 +5251,7 @@ useEffect(() => {
     centaurChargeSubTab: activeCentaurChargeSubTab,
     centaurChargeAvailableTabs,
     buildDrawingEconomyDisplay,
+    committedDrawingProjection,
     ancientChargeDeclaration: activeAncientChargeDeclarationWorkflow
       ? {
           stage: activeAncientChargeDeclarationWorkflow.stage,
@@ -5337,6 +5372,18 @@ useEffect(() => {
           return;
         }
         drawingPreludeSubmissionGuardRef.current = guardedDrawingPreludeKey;
+      }
+
+      if (
+        phaseKey === 'build.drawing' &&
+        drawingStage.kind === 'normal' &&
+        buildDrawingEconomyDisplay != null
+      ) {
+        committedDrawingProjectionRef.current = {
+          key: committedDrawingProjectionKey,
+          ordinary: buildDrawingEconomyDisplay.projectedSavedOrdinary,
+          joining: buildDrawingEconomyDisplay.projectedSavedJoining,
+        };
       }
 
       // Snapshot build preview before async flow to prevent race conditions
