@@ -177,6 +177,7 @@ import type {
   GameStateClockSnapshot,
   GameStateRequestMeta,
   TurnPhaseMilestoneId,
+  TurnPhasePresentationVm,
   TurnPhaseVm,
 } from './gameSession/types';
 
@@ -198,8 +199,10 @@ export type {
   FleetAreaHealthDeltaFlashVm,
   CentaurChargeSubTabId,
   TurnPhaseMilestoneId,
+  TurnPhasePresentationVm,
   TurnPhaseVm,
 } from './gameSession/types';
+import { useTurnPhasePresentation } from './gameSession/clienteffects/useTurnPhasePresentation';
 
 import {
   type BuildDrawingRouteRequest,
@@ -4123,6 +4126,8 @@ useEffect(() => {
     leftRailDiceValue: presentedLeftRailDiceValue,
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
     leftRailChronoswarmAnimateKey: presentedChronoswarmAnimateSeq,
+    presentedTurnReleaseKey,
+    presentedTurnReleaseTurnNumber,
   } = useEndOfTurnPresentation({
     effectiveGameId,
     hasMatchingAuthoritativeGameId,
@@ -5305,6 +5310,13 @@ useEffect(() => {
       : undefined,
     ancientCatalogueEnergy,
     ancientAutocastEnabled,
+  });
+  const turnPhasePresentation = useTurnPhasePresentation({
+    gameId: effectiveGameId,
+    vm: vm.turnPhases,
+    healthResolutionOverlay,
+    presentedTurnReleaseKey,
+    presentedTurnReleaseTurnNumber,
   });
   
   // ============================================================================
@@ -6591,6 +6603,14 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
           { id: 'turn_resolution', label: 'Turn Resolution', isMandatory: true, isAvailable: false, hasOccurred: false },
         ],
       },
+      turnPhasePresentation: {
+        presentedMilestone: null,
+        presentedTurnNumber: null,
+        movementDurationMs: 0,
+        movementEasing: 'linear',
+        advancePulseKey: 0,
+        reducedMotion: false,
+      },
       hud: {
         p1Name: 'Player 1',
         p1Species: 'Unknown',
@@ -6769,5 +6789,5 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     };
   }
   
-  return { vm, actions, loading, error };
+  return { vm: { ...vm, turnPhasePresentation }, actions, loading, error };
 }

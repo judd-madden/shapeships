@@ -459,8 +459,8 @@ export function mapGameSessionVm(args: {
     turnNumber,
     progress: turnPhaseProgress,
     isFinished,
-    healthResolutionPresentationActive,
-    healthResolutionDisplayTurnNumber: healthResolutionOverlay?.displayTurnNumber,
+    displayLeftSpeciesId,
+    displayRightSpeciesId,
   });
   const playerEntries = Array.isArray(allPlayers)
     ? allPlayers.filter((player: any) => player?.role === 'player')
@@ -1382,6 +1382,14 @@ export function mapGameSessionVm(args: {
     viewer,
     gameStats,
     turnPhases,
+    turnPhasePresentation: {
+      presentedMilestone: turnPhases.currentMilestone,
+      presentedTurnNumber: turnPhases.turnNumber,
+      movementDurationMs: 0,
+      movementEasing: 'linear',
+      advancePulseKey: 0,
+      reducedMotion: false,
+    },
     
     hud: {
       p1Name: displayLeftName,

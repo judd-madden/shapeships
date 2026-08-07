@@ -5,6 +5,7 @@ import type {
   HudStatusTone,
   HudViewModel,
   LeftRailViewModel,
+  TurnPhasePresentationVm,
   TurnPhaseVm,
 } from '../../client/useGameSession';
 import { toSpeciesKey } from '../layout/boardStage/FleetArea';
@@ -19,6 +20,7 @@ interface MobileStatusRailProps {
   boardVm: MobileBoardViewModel;
   leftRailVm: LeftRailViewModel;
   turnPhasesVm: TurnPhaseVm;
+  turnPhasePresentation: TurnPhasePresentationVm;
   mobileDiceModifierSlots: MobileBoardViewModel['mobileDiceModifierSlots'];
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -54,6 +56,7 @@ interface MobileStatusRailFrameProps {
   diceValue: LeftRailViewModel['diceValue'];
   diceAnimateKey: number;
   turnPhasesVm?: TurnPhaseVm;
+  turnPhasePresentation?: TurnPhasePresentationVm;
   mobileDiceModifierSlots?: MobileBoardViewModel['mobileDiceModifierSlots'];
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -78,6 +81,7 @@ export function MobileStatusRail({
   boardVm,
   leftRailVm,
   turnPhasesVm,
+  turnPhasePresentation,
   mobileDiceModifierSlots,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
@@ -138,6 +142,7 @@ export function MobileStatusRail({
       diceValue={leftRailVm.diceValue}
       diceAnimateKey={leftRailVm.diceAnimateKey}
       turnPhasesVm={turnPhasesVm}
+      turnPhasePresentation={turnPhasePresentation}
       mobileDiceModifierSlots={mobileDiceModifierSlots}
       firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
       firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
@@ -160,6 +165,7 @@ export function MobileStatusRailFrame({
   diceValue,
   diceAnimateKey,
   turnPhasesVm,
+  turnPhasePresentation,
   mobileDiceModifierSlots = EMPTY_MOBILE_DICE_MODIFIER_SLOTS,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
@@ -293,8 +299,8 @@ export function MobileStatusRailFrame({
             showDeltas={showDeltas}
             onToggle={onStatusRowToggle}
           />
-          {turnPhasesVm ? (
-            <TurnPhaseStatusStrip vm={turnPhasesVm} />
+          {turnPhasesVm && turnPhasePresentation ? (
+            <TurnPhaseStatusStrip vm={turnPhasesVm} presentation={turnPhasePresentation} />
           ) : (
             <div className="h-px w-full bg-gradient-to-r from-transparent via-white to-transparent opacity-70" />
           )}

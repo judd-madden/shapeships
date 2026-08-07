@@ -32,29 +32,32 @@ export function deriveTurnPhaseVm(args: {
   turnNumber: number;
   progress: PublicTurnPhaseProgress | null;
   isFinished: boolean;
-  healthResolutionPresentationActive: boolean;
+  displayLeftSpeciesId?: string | null;
+  displayRightSpeciesId?: string | null;
+  /** @deprecated Presentation ownership now lives in useTurnPhasePresentation. */
+  healthResolutionPresentationActive?: boolean;
+  /** @deprecated Presentation ownership now lives in useTurnPhasePresentation. */
   healthResolutionDisplayTurnNumber?: number | null;
 }): TurnPhaseVm {
-  const terminalHealthTurn =
-    args.isFinished && args.healthResolutionPresentationActive
-      ? args.healthResolutionDisplayTurnNumber ?? args.turnNumber
-      : null;
-  const presentedTurnNumber = terminalHealthTurn ??
-    (Number.isInteger(args.turnNumber) && args.turnNumber > 0 ? args.turnNumber : null);
-  const currentMilestone = terminalHealthTurn != null
-    ? 'turn_resolution'
-    : args.isFinished
-      ? null
-      : PHASE_TO_MILESTONE[args.phaseKey] ?? null;
+  const presentedTurnNumber = Number.isInteger(args.turnNumber) && args.turnNumber > 0
+    ? args.turnNumber
+    : null;
+  const currentMilestone = args.isFinished ? null : PHASE_TO_MILESTONE[args.phaseKey] ?? null;
+  const hasAncientPlayer =
+    args.displayLeftSpeciesId === 'ancient' || args.displayRightSpeciesId === 'ancient';
   const matchingProgress =
     args.progress && args.progress.turnNumber === presentedTurnNumber
       ? args.progress
       : null;
 
   const milestones: TurnPhaseMilestoneVm[] = MILESTONE_SPECS.map((spec) => {
+    const label = spec.id === 'charges'
+      ? hasAncientPlayer ? 'Charges / Solar Powers' : 'Charges'
+      : spec.label;
     if (spec.isMandatory) {
       return {
         ...spec,
+        label,
         isAvailable: presentedTurnNumber != null,
         hasOccurred: false,
       };
@@ -66,6 +69,7 @@ export function deriveTurnPhaseVm(args: {
     const hasOccurred = status?.occurred ?? false;
     return {
       ...spec,
+      label,
       isAvailable: (status?.expected ?? false) || hasOccurred,
       hasOccurred,
     };

@@ -308,6 +308,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   const [presentedLeftRailDiceValue, setPresentedLeftRailDiceValue] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
   const [presentedLeftRailDiceAnimateSeq, setPresentedLeftRailDiceAnimateSeq] = useState(0);
   const [presentedChronoswarmAnimateSeq, setPresentedChronoswarmAnimateSeq] = useState(0);
+  const [presentedTurnReleaseKey, setPresentedTurnReleaseKey] = useState(0);
+  const [presentedTurnReleaseTurnNumber, setPresentedTurnReleaseTurnNumber] = useState<number | null>(null);
 
   const healthAuthoritativePhaseHold: AuthoritativePhaseHoldVm | null =
     effectiveGameId &&
@@ -476,6 +478,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     setPresentedLeftRailDiceValue(1);
     setPresentedLeftRailDiceAnimateSeq(0);
     setPresentedChronoswarmAnimateSeq(0);
+    setPresentedTurnReleaseKey(0);
+    setPresentedTurnReleaseTurnNumber(null);
     phaseHoldContinuationInFlightSignatureRef.current = null;
     phaseHoldContinuationCompletedSignatureRef.current = null;
     currentAuthoritativeHoldSignatureRef.current = null;
@@ -633,6 +637,9 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       return;
     }
 
+    setPresentedTurnReleaseTurnNumber(nextTurnNumber);
+    setPresentedTurnReleaseKey((previousKey) => previousKey + 1);
+
     if (hasChronoswarmDice) {
       setPresentedChronoswarmAnimateSeq((prev) => prev + 1);
     }
@@ -752,5 +759,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     leftRailDiceValue: presentedLeftRailDiceValue,
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
     leftRailChronoswarmAnimateKey: presentedChronoswarmAnimateSeq,
+    presentedTurnReleaseKey,
+    presentedTurnReleaseTurnNumber,
   };
 }

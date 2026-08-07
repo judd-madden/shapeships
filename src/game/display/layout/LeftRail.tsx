@@ -8,7 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Dice } from '../../../components/ui/primitives';
 import { CloseIcon } from '../../../components/ui/primitives/icons/CloseIcon';
 import { OpenFullIcon } from '../../../components/ui/primitives/icons/OpenFullIcon';
-import type { LeftRailViewModel, GameSessionActions, TurnPhaseVm } from '../../client/useGameSession';
+import type { LeftRailViewModel, GameSessionActions, TurnPhasePresentationVm, TurnPhaseVm } from '../../client/useGameSession';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 import { BattleLogPanelContent } from '../shared/BattleLogPanelContent';
@@ -19,6 +19,7 @@ import { TurnPhasesPanelContent } from '../shared/TurnPhasesPanelContent';
 interface LeftRailProps {
   vm: LeftRailViewModel;
   turnPhases: TurnPhaseVm;
+  turnPhasePresentation: TurnPhasePresentationVm;
   actions: GameSessionActions;
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -32,6 +33,7 @@ const BATTLE_LOG_TRANSITION_MS = 160;
 export function LeftRail({
   vm,
   turnPhases,
+  turnPhasePresentation,
   actions,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
@@ -330,7 +332,7 @@ export function LeftRail({
     >
       {isFirstTurnBuildHelperMounted && (
         <div
-          className="pointer-events-none absolute left-[250px] top-[100px] z-30"
+          className="pointer-events-none absolute left-[250px] top-[100px] z-60"
           style={{
             opacity: isFirstTurnBuildHelperVisible ? 1 : 0,
             transition: `opacity ${FIRST_TURN_BUILD_HELPER_FADE_MS}ms ease-out`,
@@ -390,7 +392,7 @@ export function LeftRail({
       <div ref={battleLogSlotRef} className="basis-0 flex-1 min-h-[120px]" aria-hidden="true" />
 
       <div className="-mt-1 shrink-0 min-[768px]:max-[1599px]:mt-0">
-        <TurnPhaseIndicator vm={turnPhases} />
+        <TurnPhaseIndicator vm={turnPhases} presentation={turnPhasePresentation} />
       </div>
 
       {/* Chat keeps its former 243px footprint as a minimum and may grow to 302px. */}
@@ -480,7 +482,7 @@ export function LeftRail({
               selectedSisterView === 'turnPhases' ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
           >
-            <TurnPhasesPanelContent vm={turnPhases} />
+            <TurnPhasesPanelContent vm={turnPhases} presentation={turnPhasePresentation} />
           </div>
         </div>
       </div>

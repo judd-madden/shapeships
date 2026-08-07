@@ -7,6 +7,7 @@ import type {
   GameSessionViewModel,
   HudViewModel,
   LeftRailViewModel,
+  TurnPhasePresentationVm,
   TurnPhaseVm,
 } from '../../client/useGameSession';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
@@ -39,6 +40,7 @@ interface MobileGameLayoutProps {
   boardVm: BoardViewModel;
   leftRailVm: LeftRailViewModel;
   turnPhasesVm: TurnPhaseVm;
+  turnPhasePresentation: TurnPhasePresentationVm;
   bottomActionRailVm: BottomActionRailViewModel;
   actionPanelVm: ActionPanelViewModel;
   gameStats: GameSessionViewModel['gameStats'];
@@ -91,6 +93,7 @@ export function MobileGameLayout({
   boardVm,
   leftRailVm,
   turnPhasesVm,
+  turnPhasePresentation,
   bottomActionRailVm,
   actionPanelVm,
   gameStats,
@@ -630,6 +633,7 @@ export function MobileGameLayout({
               boardVm={boardVm}
               leftRailVm={leftRailVm}
               turnPhasesVm={turnPhasesVm}
+              turnPhasePresentation={turnPhasePresentation}
               isBattleReveal={isBattleReveal}
               firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
               firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
@@ -718,6 +722,7 @@ export function MobileGameLayout({
               <MobileMenuTakeover
                 vm={actionPanelVm.menu}
                 turnPhasesVm={turnPhasesVm}
+                turnPhasePresentation={turnPhasePresentation}
                 actions={actions}
                 onClose={handleReturnToBoard}
                 onReturnToMainMenu={onReturnToMainMenu}

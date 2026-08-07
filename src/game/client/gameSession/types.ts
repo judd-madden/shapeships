@@ -185,6 +185,15 @@ export interface TurnPhaseVm {
   milestones: TurnPhaseMilestoneVm[];
 }
 
+export interface TurnPhasePresentationVm {
+  presentedMilestone: TurnPhaseMilestoneId | null;
+  presentedTurnNumber: number | null;
+  movementDurationMs: number;
+  movementEasing: string;
+  advancePulseKey: number;
+  reducedMotion: boolean;
+}
+
 export interface GameStatsPlayerTurnViewModel {
   playerId: string;
   label: string;
@@ -840,6 +849,7 @@ export interface GameSessionViewModel {
   viewer: GameSessionViewerViewModel;
   gameStats: GameStatsViewModel | null;
   turnPhases: TurnPhaseVm;
+  turnPhasePresentation: TurnPhasePresentationVm;
   hud: HudViewModel;
   leftRail: LeftRailViewModel;
   board: BoardViewModel;

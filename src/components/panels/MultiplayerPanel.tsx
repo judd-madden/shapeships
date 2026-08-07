@@ -57,6 +57,7 @@ const PLAYER_SHOUT_OUTS = [
   'James Harrison',
   'loredude',
   'Luke',
+  'Sandcastle',
   'thomaslf',
   'Tom',
   'zergo',
@@ -153,7 +154,7 @@ export function MultiplayerPanel({
 
         <section className="flex w-full max-w-[800px] flex-col items-center">
           <SectionHeading>Player Shout-outs</SectionHeading>
-          <div className="mt-[24px] flex max-w-[670px] flex-wrap items-center justify-center gap-x-[24px] gap-y-[16px]">
+          <div className="mt-[24px] flex max-w-[670px] flex-wrap items-center justify-center gap-x-[20px] gap-y-[16px]">
             {PLAYER_SHOUT_OUTS.map((name) => (
               <span
                 key={name}
