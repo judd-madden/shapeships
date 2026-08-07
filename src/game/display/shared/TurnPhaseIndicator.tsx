@@ -44,7 +44,13 @@ export function TurnPhaseIndicator({ vm, presentation }: { vm: TurnPhaseVm; pres
                     <TurnPhaseMilestoneIcon id={milestone.id} className="size-[34px]" />
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" sideOffset={8}>{milestone.label}</TooltipContent>
+                <TooltipContent
+                  side="bottom"
+                  sideOffset={8}
+                  className="rounded-[10px] border-2 border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-3 py-1.5 text-[16px] text-[var(--shapeships-white)]"
+                >
+                  {milestone.label}
+                </TooltipContent>
               </Tooltip>
             );
           })}

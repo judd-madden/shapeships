@@ -3,7 +3,6 @@ import type { TurnPhaseMilestoneId } from '../types';
 export const TURN_PHASE_PRESENTATION_TIMING = {
   minimumVisibleMs: {
     diceRoll: 1000,
-    drawing: 450,
     turnResolution: 2000,
   },
   movementMs: {

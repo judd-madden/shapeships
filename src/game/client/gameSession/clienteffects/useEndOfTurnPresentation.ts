@@ -132,11 +132,18 @@ function createHealthResolutionSide(args: {
 
 function buildHealthResolutionPresentationSnapshot(args: {
   presentationKey: string;
+  resolvedTurnNumber: number;
   displayTurnNumber: number;
   isTerminalTurn: boolean;
   healthPresentation: EndOfTurnHealthPresentationInput;
 }): HealthResolutionPresentationVm | null {
-  const { presentationKey, displayTurnNumber, isTerminalTurn, healthPresentation } = args;
+  const {
+    presentationKey,
+    resolvedTurnNumber,
+    displayTurnNumber,
+    isTerminalTurn,
+    healthPresentation,
+  } = args;
 
   if (
     healthPresentation.boardMode !== 'board' ||
@@ -148,6 +155,7 @@ function buildHealthResolutionPresentationSnapshot(args: {
   if (healthPresentation.viewerRole === 'player') {
     return {
       presentationKey,
+      resolvedTurnNumber,
       displayTurnNumber,
       isTerminalTurn,
       left: createHealthResolutionSide({
@@ -169,6 +177,7 @@ function buildHealthResolutionPresentationSnapshot(args: {
 
   return {
     presentationKey,
+    resolvedTurnNumber,
     displayTurnNumber,
     isTerminalTurn,
     left: createHealthResolutionSide({
@@ -374,9 +383,15 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       return null;
     }
 
+    const resolvedTurnNumber = Number(resolvedTurnKey);
+    if (!Number.isInteger(resolvedTurnNumber) || resolvedTurnNumber < 1) {
+      return null;
+    }
+
     const presentationKey = `${effectiveGameId}::health::${resolvedTurnKey}`;
     const nextOverlay = buildHealthResolutionPresentationSnapshot({
       presentationKey,
+      resolvedTurnNumber,
       displayTurnNumber,
       isTerminalTurn,
       healthPresentation: presentationHealthInput,

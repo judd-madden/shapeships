@@ -4,7 +4,10 @@ import { TURN_PHASE_PRESENTATION_TIMING } from '../../client/gameSession/cliente
 import { TurnPhaseMilestoneIcon } from './TurnPhaseMilestoneIcon';
 
 export function TurnPhaseList({ vm, presentation }: { vm: TurnPhaseVm; presentation: TurnPhasePresentationVm }) {
-  const verticalSlabOpacity = presentation.wrapStage === 'reposition' ? 0 : 1;
+  const verticalSlabOpacity =
+    presentation.wrapStage === 'exit' || presentation.wrapStage === 'reposition'
+      ? 0
+      : 1;
 
   return (
     <div>

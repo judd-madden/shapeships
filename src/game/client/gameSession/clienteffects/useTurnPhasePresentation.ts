@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type {
   HealthResolutionPresentationVm,
+  TurnPhaseContext,
   TurnPhaseMilestoneId,
   TurnPhasePresentationVm,
   TurnPhaseVm,
@@ -40,6 +41,23 @@ interface Args {
   isFinished: boolean;
 }
 
+interface HeartPresentationOwner {
+  presentationKey: string;
+  resolvedTurnNumber: number;
+  isTerminalTurn: boolean;
+}
+
+type PresentationStage =
+  | 'idle'
+  | 'moving'
+  | 'dice_dwell'
+  | 'heart_move'
+  | 'heart_hold'
+  | 'wrap_exit'
+  | 'wrap_reposition'
+  | 'wrap_enter'
+  | 'terminal_exit';
+
 export function useTurnPhasePresentation({
   gameId,
   vm,
@@ -57,16 +75,15 @@ export function useTurnPhasePresentation({
   const latestTargetRef = useRef<TurnPhaseMilestoneId | null>(null);
   const latestTargetTurnRef = useRef<number | null>(null);
   const contextRef = useRef(vm.context);
+  const previousAuthoritativeContextRef = useRef<TurnPhaseContext>('bootstrap');
   const finishedRef = useRef(isFinished);
-  const overlayActiveRef = useRef(healthResolutionOverlay != null);
+  const handledHealthPresentationKeyRef = useRef<string | null>(null);
+  const pendingHeartOwnerRef = useRef<HeartPresentationOwner | null>(null);
+  const activeHeartOwnerRef = useRef<HeartPresentationOwner | null>(null);
   const terminalRequestedRef = useRef(false);
   const heartHoldStartedRef = useRef(false);
   const heartHoldCompletedRef = useRef(false);
-  const stageRef = useRef<
-    'idle' | 'moving' | 'dice_dwell' | 'drawing_move' | 'drawing_dwell' |
-    'heart_move' | 'heart_hold' | 'wrap_exit' | 'wrap_reposition' | 'wrap_enter' |
-    'terminal_exit'
-  >('idle');
+  const stageRef = useRef<PresentationStage>('idle');
   const currentRef = useRef<TurnPhaseMilestoneId | null>(null);
   const currentTurnRef = useRef<number | null>(null);
   const [presentation, setPresentation] = useState<TurnPhasePresentationVm>({
@@ -123,9 +140,19 @@ export function useTurnPhasePresentation({
     return duration;
   };
 
+  const resetHeartLifecycleForDice = () => {
+    activeHeartOwnerRef.current = null;
+    pendingHeartOwnerRef.current = null;
+    heartHoldStartedRef.current = false;
+    heartHoldCompletedRef.current = false;
+    terminalRequestedRef.current = false;
+  };
+
   const clearPresentation = (turnNumber: number | null) => {
     clearTimer();
     stageRef.current = 'idle';
+    pendingHeartOwnerRef.current = null;
+    activeHeartOwnerRef.current = null;
     heartHoldStartedRef.current = false;
     heartHoldCompletedRef.current = false;
     publish(null, turnNumber, null, 0);
@@ -151,53 +178,69 @@ export function useTurnPhasePresentation({
     }, TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.exit);
   };
 
+  const beginDiceDwell = (turnNumber: number) => {
+    clearTimer();
+    stageRef.current = 'dice_dwell';
+    publish('dice_roll', turnNumber, 0, 0);
+    timerRef.current = setTimeout(() => {
+      stageRef.current = 'idle';
+      catchUp();
+    }, TURN_PHASE_PRESENTATION_TIMING.minimumVisibleMs.diceRoll);
+  };
+
   const continueAfterHeartHold = () => {
     heartHoldCompletedRef.current = true;
-    if (terminalRequestedRef.current || (finishedRef.current && !overlayActiveRef.current)) {
+    const heartOwner = activeHeartOwnerRef.current;
+    const resolvedTurnNumber =
+      heartOwner?.resolvedTurnNumber ?? currentTurnRef.current;
+
+    if (heartOwner?.isTerminalTurn || terminalRequestedRef.current) {
       beginTerminalExit();
       return;
     }
 
     const releasedTurn = pendingReleaseTurnRef.current;
-    if (releasedTurn == null) {
+    if (
+      releasedTurn == null ||
+      resolvedTurnNumber == null ||
+      releasedTurn <= resolvedTurnNumber
+    ) {
       stageRef.current = 'idle';
       return;
     }
 
+    pendingReleaseTurnRef.current = null;
     clearTimer();
+
+    if (reducedMotion) {
+      resetHeartLifecycleForDice();
+      beginDiceDwell(releasedTurn);
+      return;
+    }
+
     stageRef.current = 'wrap_exit';
     publish(
       'turn_resolution',
-      currentTurnRef.current,
+      resolvedTurnNumber,
       5,
       TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.exit,
       'exit'
     );
     timerRef.current = setTimeout(() => {
-      const nextTurn = pendingReleaseTurnRef.current;
-      if (nextTurn == null || terminalRequestedRef.current) {
-        if (terminalRequestedRef.current) beginTerminalExit();
-        return;
-      }
-
       stageRef.current = 'wrap_reposition';
-      publish('dice_roll', nextTurn, -1, 0, 'reposition');
+      publish('dice_roll', releasedTurn, -1, 0, 'reposition');
       timerRef.current = setTimeout(() => {
         stageRef.current = 'wrap_enter';
         publish(
           'dice_roll',
-          nextTurn,
+          releasedTurn,
           0,
           TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.enter,
           'enter'
         );
         timerRef.current = setTimeout(() => {
-          stageRef.current = 'dice_dwell';
-          publish('dice_roll', nextTurn, 0, 0);
-          timerRef.current = setTimeout(() => {
-            stageRef.current = 'idle';
-            catchUp();
-          }, TURN_PHASE_PRESENTATION_TIMING.minimumVisibleMs.diceRoll);
+          resetHeartLifecycleForDice();
+          beginDiceDwell(releasedTurn);
         }, TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.enter);
       }, 0);
     }, TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.exit);
@@ -209,20 +252,37 @@ export function useTurnPhasePresentation({
     heartHoldCompletedRef.current = false;
     clearTimer();
     stageRef.current = 'heart_hold';
-    timerRef.current = setTimeout(() => {
-      continueAfterHeartHold();
-    }, TURN_PHASE_PRESENTATION_TIMING.minimumVisibleMs.turnResolution);
+    timerRef.current = setTimeout(
+      continueAfterHeartHold,
+      TURN_PHASE_PRESENTATION_TIMING.minimumVisibleMs.turnResolution
+    );
+  };
+
+  const beginHeartPresentation = (owner: HeartPresentationOwner, animate: boolean) => {
+    pendingHeartOwnerRef.current = null;
+    activeHeartOwnerRef.current = owner;
+    heartHoldStartedRef.current = false;
+    heartHoldCompletedRef.current = false;
+    terminalRequestedRef.current = owner.isTerminalTurn || finishedRef.current;
+    clearTimer();
+    const duration = publishMilestone('turn_resolution', owner.resolvedTurnNumber, animate);
+    stageRef.current = 'heart_move';
+    timerRef.current = setTimeout(beginHeartHold, duration);
+  };
+
+  const beginPendingHeartPresentation = () => {
+    const owner = pendingHeartOwnerRef.current;
+    if (owner == null) return false;
+    beginHeartPresentation(
+      owner,
+      currentRef.current != null && currentRef.current !== 'turn_resolution'
+    );
+    return true;
   };
 
   const moveTo = (target: TurnPhaseMilestoneId, turnNumber: number | null) => {
     const duration = publishMilestone(target, turnNumber, true);
     clearTimer();
-    if (target === 'turn_resolution') {
-      stageRef.current = 'heart_move';
-      timerRef.current = setTimeout(beginHeartHold, duration);
-      return;
-    }
-
     stageRef.current = 'moving';
     timerRef.current = setTimeout(() => {
       stageRef.current = 'idle';
@@ -231,46 +291,59 @@ export function useTurnPhasePresentation({
   };
 
   const catchUp = () => {
+    if (beginPendingHeartPresentation()) return;
+
+    if (currentRef.current === 'turn_resolution') {
+      if (heartHoldCompletedRef.current) continueAfterHeartHold();
+      else if (!heartHoldStartedRef.current) beginHeartHold();
+      return;
+    }
+
     const target = latestTargetRef.current;
+    const targetTurn = latestTargetTurnRef.current;
     const current = currentRef.current;
     if (target == null || target === current) {
       stageRef.current = 'idle';
       return;
     }
-    if (current === 'dice_roll' && getTurnPhaseMilestoneIndex(target) > 1) {
-      stageRef.current = 'drawing_move';
-      const duration = publishMilestone('drawing', currentTurnRef.current, true);
-      clearTimer();
-      timerRef.current = setTimeout(() => {
-        stageRef.current = 'drawing_dwell';
-        timerRef.current = setTimeout(() => {
-          stageRef.current = 'idle';
-          catchUp();
-        }, TURN_PHASE_PRESENTATION_TIMING.minimumVisibleMs.drawing);
-      }, duration);
-      return;
-    }
+
     if (current == null) {
-      publishMilestone(target, latestTargetTurnRef.current, false);
-      if (target === 'turn_resolution') beginHeartHold();
+      stageRef.current = 'idle';
+      publishMilestone(target, targetTurn, false);
       return;
     }
-    moveTo(target, currentTurnRef.current ?? latestTargetTurnRef.current);
+
+    // Later turns begin only through the presented-turn release seam. Merely
+    // observing a newer server turn must not synthesize a turn-start wrap.
+    if (currentTurnRef.current !== targetTurn) {
+      stageRef.current = 'idle';
+      return;
+    }
+
+    if (getTurnPhaseMilestoneIndex(target) < getTurnPhaseMilestoneIndex(current)) {
+      stageRef.current = 'idle';
+      return;
+    }
+
+    moveTo(target, targetTurn);
   };
 
-  const authoritativeMilestone = healthResolutionOverlay ? 'turn_resolution' : vm.currentMilestone;
-  const authoritativeTurnNumber = healthResolutionOverlay?.displayTurnNumber ?? vm.turnNumber;
-  latestTargetRef.current = authoritativeMilestone;
-  latestTargetTurnRef.current = authoritativeTurnNumber;
+  // These are the only ongoing authoritative presentation targets. Health is
+  // accepted separately as a one-shot presentation event.
+  latestTargetRef.current = vm.currentMilestone;
+  latestTargetTurnRef.current = vm.turnNumber;
   contextRef.current = vm.context;
   finishedRef.current = isFinished;
-  overlayActiveRef.current = healthResolutionOverlay != null;
 
   useLayoutEffect(() => {
     clearTimer();
     authoritativelySeededRef.current = false;
     lastReleaseKeyRef.current = presentedTurnReleaseKey;
     pendingReleaseTurnRef.current = null;
+    previousAuthoritativeContextRef.current = 'bootstrap';
+    handledHealthPresentationKeyRef.current = null;
+    pendingHeartOwnerRef.current = null;
+    activeHeartOwnerRef.current = null;
     terminalRequestedRef.current = false;
     heartHoldStartedRef.current = false;
     heartHoldCompletedRef.current = false;
@@ -301,14 +374,31 @@ export function useTurnPhasePresentation({
 
     authoritativelySeededRef.current = true;
     lastReleaseKeyRef.current = presentedTurnReleaseKey;
+    previousAuthoritativeContextRef.current = vm.context;
+
     if (healthResolutionOverlay) {
-      publishMilestone('turn_resolution', healthResolutionOverlay.displayTurnNumber, false);
-      beginHeartHold();
-      return;
+      const resolvedTurnNumber = healthResolutionOverlay.resolvedTurnNumber;
+      const hasSupersedingRelease =
+        presentedTurnReleaseTurnNumber != null &&
+        presentedTurnReleaseTurnNumber > resolvedTurnNumber;
+      const belongsToCurrentPresentation = healthResolutionOverlay.isTerminalTurn
+        ? isFinished && (vm.turnNumber == null || vm.turnNumber === resolvedTurnNumber)
+        : vm.turnNumber != null &&
+          (vm.turnNumber === resolvedTurnNumber || vm.turnNumber === resolvedTurnNumber + 1);
+
+      handledHealthPresentationKeyRef.current = healthResolutionOverlay.presentationKey;
+      if (!hasSupersedingRelease && belongsToCurrentPresentation) {
+        beginHeartPresentation({
+          presentationKey: healthResolutionOverlay.presentationKey,
+          resolvedTurnNumber,
+          isTerminalTurn: healthResolutionOverlay.isTerminalTurn,
+        }, false);
+        return;
+      }
     }
 
     if (isFinished || vm.context === 'species_selection' || vm.currentMilestone == null) {
-      clearPresentation(vm.turnNumber);
+      clearPresentation(vm.context === 'species_selection' ? null : vm.turnNumber);
       return;
     }
 
@@ -316,10 +406,12 @@ export function useTurnPhasePresentation({
   }, [
     gameId,
     healthResolutionOverlay?.presentationKey,
-    healthResolutionOverlay?.displayTurnNumber,
+    healthResolutionOverlay?.resolvedTurnNumber,
+    healthResolutionOverlay?.isTerminalTurn,
     isBootstrapping,
     isFinished,
     presentedTurnReleaseKey,
+    presentedTurnReleaseTurnNumber,
     vm.context,
     vm.currentMilestone,
     vm.turnNumber,
@@ -336,70 +428,102 @@ export function useTurnPhasePresentation({
   }, [presentedTurnReleaseKey, presentedTurnReleaseTurnNumber]);
 
   useLayoutEffect(() => {
-    if (!authoritativelySeededRef.current || reducedMotion) return;
+    if (!authoritativelySeededRef.current || !healthResolutionOverlay) return;
+    if (handledHealthPresentationKeyRef.current === healthResolutionOverlay.presentationKey) return;
 
-    if (isFinished) {
-      terminalRequestedRef.current = true;
-    }
+    handledHealthPresentationKeyRef.current = healthResolutionOverlay.presentationKey;
+    pendingHeartOwnerRef.current = {
+      presentationKey: healthResolutionOverlay.presentationKey,
+      resolvedTurnNumber: healthResolutionOverlay.resolvedTurnNumber,
+      isTerminalTurn: healthResolutionOverlay.isTerminalTurn,
+    };
 
-    if (vm.context === 'species_selection') {
-      clearPresentation(null);
-      return;
-    }
-
-    if (isFinished && !healthResolutionOverlay) {
-      if (currentRef.current !== 'turn_resolution') {
-        clearPresentation(vm.turnNumber);
-      } else if (heartHoldCompletedRef.current) {
-        beginTerminalExit();
-      } else if (!heartHoldStartedRef.current) {
-        beginHeartHold();
+    if (
+      currentRef.current === 'turn_resolution' &&
+      stageRef.current !== 'moving' &&
+      stageRef.current !== 'heart_move'
+    ) {
+      activeHeartOwnerRef.current = pendingHeartOwnerRef.current;
+      pendingHeartOwnerRef.current = null;
+      terminalRequestedRef.current =
+        healthResolutionOverlay.isTerminalTurn || finishedRef.current;
+      if (stageRef.current === 'idle') {
+        if (heartHoldCompletedRef.current) continueAfterHeartHold();
+        else if (!heartHoldStartedRef.current) beginHeartHold();
       }
       return;
     }
 
-    if (authoritativeMilestone == null || stageRef.current !== 'idle') return;
-    if (currentRef.current === 'turn_resolution' && authoritativeMilestone === 'turn_resolution') {
-      beginHeartHold();
-      return;
+    if (stageRef.current === 'idle') {
+      beginPendingHeartPresentation();
     }
-    if (currentRef.current == null || authoritativeTurnNumber !== currentTurnRef.current) {
-      publishMilestone(authoritativeMilestone, authoritativeTurnNumber, false);
-      if (authoritativeMilestone === 'turn_resolution') beginHeartHold();
-      return;
-    }
-    if (getTurnPhaseMilestoneIndex(authoritativeMilestone) < getTurnPhaseMilestoneIndex(currentRef.current)) return;
-    catchUp();
   }, [
-    authoritativeMilestone,
-    authoritativeTurnNumber,
     healthResolutionOverlay?.presentationKey,
-    isFinished,
-    reducedMotion,
-    vm.context,
-    vm.turnNumber,
+    healthResolutionOverlay?.resolvedTurnNumber,
+    healthResolutionOverlay?.isTerminalTurn,
   ]);
 
   useLayoutEffect(() => {
-    if (!reducedMotion || !authoritativelySeededRef.current) return;
-    clearTimer();
-    stageRef.current = 'idle';
-    if (healthResolutionOverlay) {
-      publishMilestone('turn_resolution', healthResolutionOverlay.displayTurnNumber, false);
-    } else if (isFinished || vm.context === 'species_selection' || vm.currentMilestone == null) {
-      clearPresentation(vm.turnNumber);
-    } else {
-      publishMilestone(vm.currentMilestone, vm.turnNumber, false);
+    if (!authoritativelySeededRef.current) return;
+
+    const previousContext = previousAuthoritativeContextRef.current;
+    previousAuthoritativeContextRef.current = vm.context;
+
+    if (vm.context === 'species_selection') {
+      terminalRequestedRef.current = false;
+      clearPresentation(null);
+      return;
     }
+
+    if (
+      previousContext === 'species_selection' &&
+      vm.context === 'turn' &&
+      vm.turnNumber != null &&
+      !isFinished
+    ) {
+      terminalRequestedRef.current = false;
+      beginDiceDwell(vm.turnNumber);
+      return;
+    }
+
+    if (isFinished) {
+      terminalRequestedRef.current = true;
+      if (currentRef.current === 'turn_resolution') {
+        if (stageRef.current === 'idle' && heartHoldCompletedRef.current) {
+          continueAfterHeartHold();
+        } else if (stageRef.current === 'idle' && !heartHoldStartedRef.current) {
+          beginHeartHold();
+        }
+      } else if (pendingHeartOwnerRef.current == null) {
+        clearPresentation(vm.turnNumber);
+      }
+      return;
+    }
+
+    if (stageRef.current !== 'idle') return;
+    if (beginPendingHeartPresentation()) return;
+
+    if (currentRef.current === 'turn_resolution') {
+      if (heartHoldCompletedRef.current) continueAfterHeartHold();
+      else if (!heartHoldStartedRef.current) beginHeartHold();
+      return;
+    }
+
+    catchUp();
   }, [
-    healthResolutionOverlay?.presentationKey,
-    healthResolutionOverlay?.displayTurnNumber,
     isFinished,
-    reducedMotion,
     vm.context,
     vm.currentMilestone,
     vm.turnNumber,
   ]);
+
+  useLayoutEffect(() => {
+    setPresentation((current) => ({
+      ...current,
+      movementDurationMs: reducedMotion ? 0 : current.movementDurationMs,
+      reducedMotion,
+    }));
+  }, [reducedMotion]);
 
   useEffect(() => () => clearTimer(), []);
   return presentation;
