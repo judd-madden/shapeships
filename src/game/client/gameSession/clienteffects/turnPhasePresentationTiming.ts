@@ -4,15 +4,19 @@ export const TURN_PHASE_PRESENTATION_TIMING = {
   minimumVisibleMs: {
     diceRoll: 1000,
     drawing: 450,
+    turnResolution: 2000,
   },
   movementMs: {
     adjacent: 300,
     twoSteps: 360,
     threeOrMoreSteps: 420,
   },
+  turnWrapMs: {
+    exit: 300,
+    enter: 300,
+  },
   movementEasing: 'cubic-bezier(0.22, 1, 0.36, 1)',
   availabilityFadeMs: 180,
-  advanceChevronBlinkMs: 700,
 } as const;
 
 const MILESTONE_INDEX: Record<TurnPhaseMilestoneId, number> = {

@@ -31,6 +31,7 @@ export function deriveTurnPhaseVm(args: {
   phaseKey: string;
   turnNumber: number;
   progress: PublicTurnPhaseProgress | null;
+  isBootstrapping?: boolean;
   isFinished: boolean;
   displayLeftSpeciesId?: string | null;
   displayRightSpeciesId?: string | null;
@@ -43,6 +44,11 @@ export function deriveTurnPhaseVm(args: {
     ? args.turnNumber
     : null;
   const currentMilestone = args.isFinished ? null : PHASE_TO_MILESTONE[args.phaseKey] ?? null;
+  const context = args.isBootstrapping
+    ? 'bootstrap'
+    : args.phaseKey === 'setup.species_selection'
+      ? 'species_selection'
+      : 'turn';
   const hasAncientPlayer =
     args.displayLeftSpeciesId === 'ancient' || args.displayRightSpeciesId === 'ancient';
   const matchingProgress =
@@ -78,6 +84,7 @@ export function deriveTurnPhaseVm(args: {
   return {
     turnNumber: presentedTurnNumber,
     currentMilestone,
+    context,
     milestones,
   };
 }

@@ -182,15 +182,22 @@ export interface TurnPhaseMilestoneVm {
 export interface TurnPhaseVm {
   turnNumber: number | null;
   currentMilestone: TurnPhaseMilestoneId | null;
+  context: TurnPhaseContext;
   milestones: TurnPhaseMilestoneVm[];
 }
+
+export type TurnPhaseContext = 'bootstrap' | 'species_selection' | 'turn';
+
+export type TurnPhaseWrapStage = 'idle' | 'exit' | 'reposition' | 'enter';
 
 export interface TurnPhasePresentationVm {
   presentedMilestone: TurnPhaseMilestoneId | null;
   presentedTurnNumber: number | null;
+  slabPositionIndex: number | null;
+  wrapStage: TurnPhaseWrapStage;
+  headingContext: TurnPhaseContext;
   movementDurationMs: number;
   movementEasing: string;
-  advancePulseKey: number;
   reducedMotion: boolean;
 }
 

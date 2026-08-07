@@ -1,18 +1,5 @@
 @custom-variant dark (&:is(.dark *));
 
-@keyframes ss-turnPhaseChevronPulse {
-  0%, 100% { opacity: 0; }
-  22%, 36% { opacity: 1; }
-  55% { opacity: 0.2; }
-  72%, 84% { opacity: 1; }
-}
-
-.ss-turnPhaseChevronPulse {
-  animation-name: ss-turnPhaseChevronPulse;
-  animation-timing-function: ease-in-out;
-  animation-fill-mode: both;
-}
-
 :root {
   --font-size: 14px;
   font-family: Roboto, sans-serif;

@@ -5317,6 +5317,8 @@ useEffect(() => {
     healthResolutionOverlay,
     presentedTurnReleaseKey,
     presentedTurnReleaseTurnNumber,
+    isBootstrapping,
+    isFinished,
   });
   
   // ============================================================================
@@ -6595,6 +6597,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       turnPhases: {
         turnNumber: null,
         currentMilestone: null,
+        context: 'bootstrap',
         milestones: [
           { id: 'dice_roll', label: 'Dice Roll', isMandatory: true, isAvailable: false, hasOccurred: false },
           { id: 'drawing', label: 'Drawing', isMandatory: true, isAvailable: false, hasOccurred: false },
@@ -6606,9 +6609,11 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       turnPhasePresentation: {
         presentedMilestone: null,
         presentedTurnNumber: null,
+        slabPositionIndex: null,
+        wrapStage: 'idle',
+        headingContext: 'bootstrap',
         movementDurationMs: 0,
         movementEasing: 'linear',
-        advancePulseKey: 0,
         reducedMotion: false,
       },
       hud: {

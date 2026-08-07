@@ -4,7 +4,7 @@ import { TURN_PHASE_PRESENTATION_TIMING } from '../../client/gameSession/cliente
 import { TurnPhaseMilestoneIcon } from './TurnPhaseMilestoneIcon';
 
 export function TurnPhaseList({ vm, presentation }: { vm: TurnPhaseVm; presentation: TurnPhasePresentationVm }) {
-  const currentIndex = vm.milestones.findIndex((milestone) => milestone.id === presentation.presentedMilestone);
+  const verticalSlabOpacity = presentation.wrapStage === 'reposition' ? 0 : 1;
 
   return (
     <div>
@@ -13,8 +13,18 @@ export function TurnPhaseList({ vm, presentation }: { vm: TurnPhaseVm; presentat
         START OF TURN
       </p>
       <div className="relative grid grid-rows-[repeat(5,32px)] gap-[8px]">
-        {currentIndex >= 0 ? (
-          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 h-[32px] rounded-[5px] bg-[var(--shapeships-grey-90)]" style={{ transform: `translateY(${currentIndex * 40}px)`, transition: presentation.reducedMotion ? 'none' : `transform ${presentation.movementDurationMs}ms ${presentation.movementEasing}` }} />
+        {presentation.slabPositionIndex != null ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 h-[32px] rounded-[5px] bg-[var(--shapeships-grey-90)]"
+            style={{
+              opacity: verticalSlabOpacity,
+              transform: `translateY(${presentation.slabPositionIndex * 40}px)`,
+              transition: presentation.reducedMotion || presentation.wrapStage === 'reposition'
+                ? 'none'
+                : `transform ${presentation.movementDurationMs}ms ${presentation.movementEasing}, opacity ${presentation.movementDurationMs}ms ease`,
+            }}
+          />
         ) : null}
         {vm.milestones.map((milestone) => {
           const isCurrent = milestone.id === presentation.presentedMilestone;

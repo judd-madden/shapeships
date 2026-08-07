@@ -458,6 +458,7 @@ export function mapGameSessionVm(args: {
     phaseKey,
     turnNumber,
     progress: turnPhaseProgress,
+    isBootstrapping,
     isFinished,
     displayLeftSpeciesId,
     displayRightSpeciesId,
@@ -1385,9 +1386,13 @@ export function mapGameSessionVm(args: {
     turnPhasePresentation: {
       presentedMilestone: turnPhases.currentMilestone,
       presentedTurnNumber: turnPhases.turnNumber,
+      slabPositionIndex: turnPhases.currentMilestone == null
+        ? null
+        : turnPhases.milestones.findIndex((milestone) => milestone.id === turnPhases.currentMilestone),
+      wrapStage: 'idle',
+      headingContext: turnPhases.context,
       movementDurationMs: 0,
       movementEasing: 'linear',
-      advancePulseKey: 0,
       reducedMotion: false,
     },
     
