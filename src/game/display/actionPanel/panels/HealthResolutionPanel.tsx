@@ -176,9 +176,9 @@ function TurnCard({
   const isTerminalVariant = isTerminalTurn;
   const usesTeenNumberAdjustment = turnNumber >= 10 && turnNumber <= 19;
   const numberStyle: HealthResolutionNumberStyle = {
-    '--ss-hr-digit-tracking': usesTeenNumberAdjustment ? '-0.12em' : '-0.04em',
+    '--ss-hr-digit-tracking': usesTeenNumberAdjustment ? '0' : '-1px',
     ...(usesTeenNumberAdjustment
-      ? { transform: `translateX(${layout === 'mobile' ? '-6px' : '-12px'})` }
+      ? { transform: `translateX(${layout === 'mobile' ? '0' : '-3px'})` }
       : {}),
   };
   const cardMotionStyle: HealthResolutionMotionStyle = {

@@ -221,6 +221,7 @@ import {
   buildAncientChargeDeclarationPayload,
   canAffordAncientEnergyCost,
   deriveAncientBlackHoleCastability,
+  deriveAncientAutocastEntryDecision,
   deriveAncientChargeDeclarationInitialStage,
   deriveAncientManualSolarCastability,
   deriveAncientSimulacrumSelectorState,
@@ -1845,6 +1846,7 @@ export function useGameSession(
   const [ancientSimulacrumHover, setAncientSimulacrumHover] =
     useState<{ workflowKey: string; stackKey: string } | null>(null);
   const ancientRejectionRecoveryBaselineStateRef = useRef<any>(null);
+  const ancientAutoEntryGuardWorkflowKeyRef = useRef<string | null>(null);
   
   // ============================================================================
   // TASK A: HARD RESET PREVIEW STATE ON TURN CHANGE
@@ -2465,6 +2467,7 @@ export function useGameSession(
           key: ancientChargeDeclarationWorkflowKey,
           stage: deriveAncientChargeDeclarationInitialStage(ancientDeclarationActions),
           hadChargeStage: ancientDeclarationActions.length > 0,
+          entryDisposition: 'unresolved',
           localManualSolarCasts: [],
           selectorMode: null,
           blackHoleSelectedTargetInstanceIds: [],
@@ -2659,6 +2662,7 @@ export function useGameSession(
       key: ancientChargeDeclarationWorkflowKey,
       stage: nextStage,
       hadChargeStage: refreshedDeclarationActions.length > 0,
+      entryDisposition: 'manual',
       localManualSolarCasts: [],
       selectorMode: null,
       blackHoleSelectedTargetInstanceIds: [],
@@ -2827,6 +2831,17 @@ export function useGameSession(
       activeAncientChargeDeclarationWorkflow?.rejectionRecoveryPending === true,
     hasEligibleTarget: ancientSimulacrumTargeting.hasEligibleTarget,
   });
+  const ancientAutocastEntryDecision = deriveAncientAutocastEntryDecision({
+    remainingEnergy: provisionalAncientEnergy,
+    hasEligibleSimulacrumTarget: ancientSimulacrumTargeting.hasEligibleTarget,
+    siphonMinimumSpend: ANCIENT_SIPHON_MINIMUM_SPEND,
+  });
+  const ancientChargesDirectSubmissionEligible =
+    activeAncientChargeDeclarationWorkflow?.stage === 'charges' &&
+    activeAncientChargeDeclarationWorkflow.entryDisposition === 'unresolved' &&
+    ancientAutocastEnabled &&
+    getAncientEnergyTotal(provisionalAncientEnergy) > 0 &&
+    !ancientAutocastEntryDecision.requiresManualPause;
   const hasLocalSimulacrumCast =
     activeAncientChargeDeclarationWorkflow?.localManualSolarCasts.some(
       (cast) => cast.solarPowerId === 'SSIM'
@@ -5256,6 +5271,9 @@ useEffect(() => {
       ? {
           stage: activeAncientChargeDeclarationWorkflow.stage,
           hadChargeStage: activeAncientChargeDeclarationWorkflow.hadChargeStage,
+          entryDisposition: activeAncientChargeDeclarationWorkflow.entryDisposition,
+          manualOnlyPauseRequired: ancientAutocastEntryDecision.requiresManualPause,
+          chargesDirectSubmissionEligible: ancientChargesDirectSubmissionEligible,
           provisionalEnergy: provisionalAncientEnergy,
           provisionalEnergyCapacity: authoritativeAncientEnergy,
           localManualSolarCasts: activeAncientChargeDeclarationWorkflow.localManualSolarCasts,
@@ -5340,8 +5358,9 @@ useEffect(() => {
     navigateToGameId(gameIdToJoin);
   }
 
-  const actions: GameSessionActions = {
-    onReadyToggle: async () => {
+  async function handleReadyToggle(
+    submissionOrigin: 'manual' | 'auto-entry'
+  ): Promise<void> {
       if (healthResolutionPresentationActive) {
         return;
       }
@@ -5353,12 +5372,19 @@ useEffect(() => {
         if (!readyEnabled || readyDisabledReason || activeAncientChargeDeclarationAttempt) {
           return;
         }
+        if (!ancientChargesDirectSubmissionEligible) {
+          setAncientChargeDeclarationWorkflow({
+            ...activeAncientChargeDeclarationWorkflow,
+            stage: 'powers',
+            entryDisposition: 'manual',
+          });
+          setActivePanelId('ap.catalog.ships.ancient');
+          return;
+        }
         setAncientChargeDeclarationWorkflow({
           ...activeAncientChargeDeclarationWorkflow,
-          stage: 'powers',
+          entryDisposition: 'auto-submitting',
         });
-        setActivePanelId('ap.catalog.ships.ancient');
-        return;
       }
 
       const guardedDrawingPreludeKey =
@@ -5393,7 +5419,10 @@ useEffect(() => {
       const clickedPhaseInstanceKey = phaseInstanceKey;
       let ancientAttemptForSubmission = activeAncientChargeDeclarationAttempt;
       if (
-        activeAncientChargeDeclarationWorkflow?.stage === 'powers' &&
+        (
+          activeAncientChargeDeclarationWorkflow?.stage === 'powers' ||
+          ancientChargesDirectSubmissionEligible
+        ) &&
         phaseKey === 'battle.charge_declaration' &&
         myRole === 'player' &&
         !isFinished &&
@@ -5453,10 +5482,13 @@ useEffect(() => {
         !readyDisabledReason;
       
       if (willAttemptSend) {
-        // Mark that player explicitly acted this phase, and we are now waiting on server.
+        // Automatic entry is not an explicit Ready click, but still uses the same sending UX.
         setReadyUxByPhaseInstanceKey(prev => ({
           ...prev,
-          [clickedPhaseInstanceKey]: { clickedThisPhase: true, sendingNow: true },
+          [clickedPhaseInstanceKey]: {
+            clickedThisPhase: submissionOrigin === 'manual',
+            sendingNow: true,
+          },
         }));
       }
       
@@ -5534,6 +5566,7 @@ useEffect(() => {
                     localManualSolarCasts: [],
                     selectorMode: null,
                     blackHoleSelectedTargetInstanceIds: [],
+                    entryDisposition: 'manual',
                     rejectionRecoveryPending: true,
                   }
                 : current
@@ -5556,14 +5589,22 @@ useEffect(() => {
           setReadyUxByPhaseInstanceKey(prev => ({
             ...prev,
             [clickedPhaseInstanceKey]: {
-              ...(prev[clickedPhaseInstanceKey] ?? { clickedThisPhase: true, sendingNow: false }),
+              ...(prev[clickedPhaseInstanceKey] ?? {
+                clickedThisPhase: submissionOrigin === 'manual',
+                sendingNow: false,
+              }),
               sendingNow: false,
             },
           }));
         }
       }
+  }
+
+  const actions: GameSessionActions = {
+    onReadyToggle: () => {
+      void handleReadyToggle('manual');
     },
-    
+
     onUndoActions: () => {
       console.log('[useGameSession] Undo actions clicked (no-op)');
     },
@@ -5691,7 +5732,7 @@ useEffect(() => {
       console.log('[useGameSession] Select computer species:', species);
       setSelectedBotSpecies(species);
     },
-    
+
     onConfirmSpecies: async () => {
       if (speciesConfirmationGuardRef.current !== null || isSpeciesSelectionComplete) return;
 
@@ -6452,6 +6493,69 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       handleDestroyTargetStackMouseDown(side, stackKey);
     },
   };
+
+  useLayoutEffect(() => {
+    const workflow = activeAncientChargeDeclarationWorkflow;
+    if (
+      !workflow ||
+      workflow.hadChargeStage ||
+      workflow.stage !== 'powers' ||
+      workflow.entryDisposition !== 'unresolved' ||
+      phaseKey !== 'battle.charge_declaration' ||
+      !ancientDeclarationActionsLoaded ||
+      ancientPlayerReady ||
+      activeAncientChargeDeclarationAttempt != null ||
+      workflow.rejectionRecoveryPending
+    ) {
+      return;
+    }
+
+    if (!ancientAutocastEnabled || ancientAutocastEntryDecision.requiresManualPause) {
+      setAncientChargeDeclarationWorkflow((current) =>
+        current?.key === ancientChargeDeclarationWorkflowKey &&
+        current.entryDisposition === 'unresolved'
+          ? { ...current, entryDisposition: 'manual' }
+          : current
+      );
+      return;
+    }
+
+    if (
+      rawState == null ||
+      effectiveGameId == null ||
+      mySessionId == null ||
+      !readyEnabled ||
+      readyDisabledReason != null ||
+      !ancientManualSolarCastReplay.valid ||
+      ancientAutoEntryGuardWorkflowKeyRef.current === ancientChargeDeclarationWorkflowKey
+    ) {
+      return;
+    }
+
+    ancientAutoEntryGuardWorkflowKeyRef.current = ancientChargeDeclarationWorkflowKey;
+    setAncientChargeDeclarationWorkflow((current) =>
+      current?.key === ancientChargeDeclarationWorkflowKey &&
+      current.entryDisposition === 'unresolved'
+        ? { ...current, entryDisposition: 'auto-submitting' }
+        : current
+    );
+    void handleReadyToggle('auto-entry');
+  }, [
+    activeAncientChargeDeclarationAttempt,
+    activeAncientChargeDeclarationWorkflow,
+    ancientAutocastEnabled,
+    ancientAutocastEntryDecision.requiresManualPause,
+    ancientChargeDeclarationWorkflowKey,
+    ancientDeclarationActionsLoaded,
+    ancientManualSolarCastReplay.valid,
+    ancientPlayerReady,
+    effectiveGameId,
+    mySessionId,
+    phaseKey,
+    rawState,
+    readyDisabledReason,
+    readyEnabled,
+  ]);
   
   // ============================================================================
   // BOOTSTRAP RETURN (when no gameId provided)

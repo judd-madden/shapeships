@@ -41,7 +41,9 @@ export function AncientAutocastInfoContent({
 }: AncientAutocastInfoContentProps) {
   return (
     <div className={`flex flex-col gap-[24px] ${className}`}>
-      <p>When you press READY, autocast spends all your remaining energy:</p>
+      <p>
+        Autocast spends your remaining Energy in this order, then declares READY:
+      </p>
       <div className="grid grid-cols-3 items-start gap-[24px]">
         {AUTOCAST_PATHS.map((path) => (
           <div key={path.powerNames[0]} className="flex min-w-0 flex-col gap-[8px]">
@@ -61,7 +63,9 @@ export function AncientAutocastInfoContent({
           </div>
         ))}
       </div>
-      <p>Simulacrum and multicolour Powers must be cast manually.</p>
+      <p>
+        Autocast pauses if Simulacrum, Siphon, Vortex, or Black Hole are available.
+      </p>
     </div>
   );
 }

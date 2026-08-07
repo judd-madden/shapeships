@@ -13,6 +13,17 @@ import {
 import { isShipDefId } from '../../data/ShipDefinitions.core';
 import { getShipDefinitionById } from '../../data/ShipDefinitions.engine';
 import { ShipType, type ShipDefId } from '../../types/ShipTypes.engine';
+import {
+  ANCIENT_BLACK_HOLE_PREVIEW_COST,
+  ANCIENT_VORTEX_PREVIEW_COST,
+} from './ancientAutocastDecision';
+
+export {
+  ANCIENT_BLACK_HOLE_PREVIEW_COST,
+  ANCIENT_VORTEX_PREVIEW_COST,
+  deriveAncientAutocastEntryDecision,
+  type AncientManualOnlySolarPowerId,
+} from './ancientAutocastDecision';
 
 export type { AncientEnergyPool } from './selectors';
 
@@ -54,19 +65,13 @@ export type AncientChargeDeclarationSolarCastPayload =
   | { solarPowerId: 'SBLA'; targetInstanceIds: string[] }
   | { solarPowerId: 'SSIM'; targetInstanceId: string };
 
-export const ANCIENT_BLACK_HOLE_PREVIEW_COST: AncientEnergyPool = {
-  green: 4,
-  red: 4,
-  blue: 4,
-};
-
 export const ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID = {
   SLIF: { green: 1, red: 0, blue: 0 },
   SSTA: { green: 3, red: 0, blue: 0 },
   SAST: { green: 0, red: 1, blue: 0 },
   SSUP: { green: 0, red: 3, blue: 0 },
   SCON: { green: 0, red: 0, blue: 1 },
-  SVOR: { green: 2, red: 2, blue: 2 },
+  SVOR: ANCIENT_VORTEX_PREVIEW_COST,
 } as const satisfies Readonly<Record<FixedAncientManualSolarPowerId, AncientEnergyPool>>;
 
 const FIXED_ANCIENT_MANUAL_SOLAR_POWER_IDS = new Set<string>(
@@ -77,6 +82,7 @@ export type AncientChargeDeclarationWorkflow = {
   key: string;
   stage: AncientChargeDeclarationStage;
   hadChargeStage: boolean;
+  entryDisposition: 'unresolved' | 'manual' | 'auto-submitting';
   localManualSolarCasts: AncientManualSolarCast[];
   selectorMode: AncientSolarSelectorMode | null;
   blackHoleSelectedTargetInstanceIds: string[];

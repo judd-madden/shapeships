@@ -751,6 +751,9 @@ export interface ActionPanelViewModel {
   ancientChargeDeclaration?: {
     stage: 'charges' | 'powers';
     hadChargeStage: boolean;
+    entryDisposition: 'unresolved' | 'manual' | 'auto-submitting';
+    manualOnlyPauseRequired: boolean;
+    chargesDirectSubmissionEligible: boolean;
     provisionalEnergy: {
       green: number;
       red: number;
