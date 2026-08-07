@@ -20,7 +20,6 @@ import {
   getAcceptedDeclarationForCurrentBattle,
   getChargeDeclarationLegalityState,
   getSnappedOrdinaryChargeSourceIds,
-  getSnappedSolarGridSourceIds,
   isAncientPlayer,
   resolveChargeDeclarationSource,
 } from '../engine/intent/chargeDeclarationEligibility.ts';
@@ -760,18 +759,6 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
       }
     }
     
-    if (isAncientPlayer(state, playerId)) {
-      for (const sourceInstanceId of getSnappedSolarGridSourceIds(state, playerId)) {
-        actions.push({
-          kind: 'choice',
-          actionId: 'SOL#0',
-          shipDefId: 'SOL',
-          sourceInstanceId,
-          choices: [{ choiceId: 'use' }, { choiceId: 'hold' }],
-        });
-      }
-    }
-
     // Stable ordering: by shipDefId, then instanceId, then actionId
     actions.sort((a, b) => {
       if (a.shipDefId !== b.shipDefId) {

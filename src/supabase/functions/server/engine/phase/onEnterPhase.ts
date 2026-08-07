@@ -38,7 +38,6 @@ import {
 } from '../state/chargeDeclarationVisibility.ts';
 import {
   getEligibleOrdinaryChargeSourceIdsAtDeclarationStart,
-  getRelevantSolarGridSourceIdsAtDeclarationStart,
   playerRequiresChargeDeclarationInput,
 } from '../intent/chargeDeclarationEligibility.ts';
 import {
@@ -343,7 +342,7 @@ function phaseRequiresPlayerInput(state: any, phaseKey: PhaseKey): boolean {
     return phaseHasAvailableFleetPowers(state, phaseKey);
   }
 
-  // battle.charge_declaration: ordinary charge, Ancient Energy, or charged SOL input
+  // battle.charge_declaration: ordinary charge or authoritative Ancient Energy input
   if (phaseKey === 'battle.charge_declaration') {
     return anyPlayerRequiresChargeDeclarationInput(state);
   }
@@ -496,12 +495,11 @@ function enterPhaseOnce(
   // ============================================================================
   // CHARGE DECLARATION SNAPSHOT - battle.charge_declaration
   // ============================================================================
-  // Snapshot ordinary charged sources separately from Ancient SOL choices.
+  // Snapshot ordinary charged sources and the declaration-start fleet.
   
   if (toKey === 'battle.charge_declaration') {
     const activePlayers = workingState.players?.filter((p: any) => p.role === 'player') || [];
     const snapshotSourceIdsByPlayerId: Record<string, string[]> = {};
-    const solarSnapshotSourceIdsByPlayerId: Record<string, string[]> = {};
     const snapshotFleetByPlayerId: Record<string, ShipInstance[]> = {};
     
     for (const player of activePlayers) {
@@ -509,26 +507,19 @@ function enterPhaseOnce(
         workingState,
         player.id,
       );
-      const solarSourceIds = getRelevantSolarGridSourceIdsAtDeclarationStart(
-        workingState,
-        player.id,
-      );
       const liveFleet = workingState?.gameData?.ships?.[player.id] ?? [];
       snapshotSourceIdsByPlayerId[player.id] = eligibleSourceIds;
-      solarSnapshotSourceIdsByPlayerId[player.id] = solarSourceIds;
       snapshotFleetByPlayerId[player.id] = Array.isArray(liveFleet)
         ? liveFleet.map((ship: ShipInstance) => structuredClone(ship))
         : [];
     }
     
     turnData.chargeDeclarationEligibleSourceIdsByPlayerId = snapshotSourceIdsByPlayerId;
-    turnData.solarGridDeclarationSourceIdsByPlayerId = solarSnapshotSourceIdsByPlayerId;
     turnData.chargeDeclarationFleetSnapshotByPlayerId = snapshotFleetByPlayerId;
     replaceChargeDeclarationVisibilityState(workingState);
     
     debugLog(`[OnEnterPhase] Charge declaration snapshot:`, {
       eligibleSourceIdsByPlayerId: snapshotSourceIdsByPlayerId,
-      solarGridSourceIdsByPlayerId: solarSnapshotSourceIdsByPlayerId,
       fleetSnapshotSizesByPlayerId: Object.fromEntries(
         Object.entries(snapshotFleetByPlayerId).map(([playerId, fleet]) => [playerId, fleet.length])
       ),

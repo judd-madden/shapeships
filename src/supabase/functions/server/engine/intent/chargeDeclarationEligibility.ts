@@ -44,12 +44,6 @@ export function getSnappedOrdinaryChargeSourceIds(state: any, playerId: string):
   );
 }
 
-export function getSnappedSolarGridSourceIds(state: any, playerId: string): string[] {
-  return normalizeSourceIds(
-    state?.gameData?.turnData?.solarGridDeclarationSourceIdsByPlayerId?.[playerId]
-  );
-}
-
 export function resolveChargeDeclarationSource(
   state: any,
   playerId: string,
@@ -65,19 +59,6 @@ export function resolveChargeDeclarationSource(
 export function getChargeDeclarationFleetSnapshot(state: any, playerId: string): ShipInstance[] {
   const snapshot = state?.gameData?.turnData?.chargeDeclarationFleetSnapshotByPlayerId?.[playerId];
   return Array.isArray(snapshot) ? snapshot : [];
-}
-
-export function resolveSnapshottedSolarGridSource(
-  state: any,
-  playerId: string,
-  sourceInstanceId: string,
-): { snapshot: ShipInstance; current: ShipInstance } | null {
-  if (!getSnappedSolarGridSourceIds(state, playerId).includes(sourceInstanceId)) return null;
-  const snapshot = getChargeDeclarationFleetSnapshot(state, playerId).find(
-    (ship) => ship.instanceId === sourceInstanceId && ship.shipDefId === 'SOL'
-  );
-  const current = resolveChargeDeclarationSource(state, playerId, sourceInstanceId);
-  return snapshot && current?.shipDefId === 'SOL' ? { snapshot, current } : null;
 }
 
 function sourceHasEligibleOrdinaryChargeChoice(
@@ -130,22 +111,6 @@ export function getEligibleOrdinaryChargeSourceIdsAtDeclarationStart(
     .sort((a: string, b: string) => a.localeCompare(b));
 }
 
-export function getRelevantSolarGridSourceIdsAtDeclarationStart(
-  state: any,
-  playerId: string,
-): string[] {
-  if (!isAncientPlayer(state, playerId)) return [];
-  const fleet = state?.gameData?.ships?.[playerId] ?? [];
-  return (Array.isArray(fleet) ? fleet : [])
-    .filter((ship: ShipInstance) =>
-      ship?.shipDefId === 'SOL' &&
-      typeof ship?.instanceId === 'string' &&
-      (ship.chargesCurrent ?? 0) > 0
-    )
-    .map((ship: ShipInstance) => ship.instanceId)
-    .sort((a: string, b: string) => a.localeCompare(b));
-}
-
 function hasSnapshotEntry(state: any, field: string, playerId: string): boolean {
   const map = state?.gameData?.turnData?.[field];
   return !!map && typeof map === 'object' && Object.hasOwn(map, playerId);
@@ -157,18 +122,11 @@ function getOrdinaryDeclarationSourceIds(state: any, playerId: string): string[]
     : getEligibleOrdinaryChargeSourceIdsAtDeclarationStart(state, playerId);
 }
 
-function getSolarDeclarationSourceIds(state: any, playerId: string): string[] {
-  return hasSnapshotEntry(state, 'solarGridDeclarationSourceIdsByPlayerId', playerId)
-    ? getSnappedSolarGridSourceIds(state, playerId)
-    : getRelevantSolarGridSourceIdsAtDeclarationStart(state, playerId);
-}
-
 export function playerRequiresChargeDeclarationInput(state: any, playerId: string): boolean {
   if (getAcceptedDeclarationForCurrentBattle(state, playerId)) return false;
   const hasOrdinarySource = getOrdinaryDeclarationSourceIds(state, playerId).length > 0;
   if (!isAncientPlayer(state, playerId)) return hasOrdinarySource;
   return getAuthoritativeAncientEnergyTotal(state, playerId) > 0 ||
-    getSolarDeclarationSourceIds(state, playerId).length > 0 ||
     hasOrdinarySource;
 }
 

@@ -70,7 +70,7 @@ export const COMPUTED_EFFECTS_AUDIT = [
   { shipDefId: 'MER', mechanic: 'energy gain each battle phase' },
   { shipDefId: 'PLU', mechanic: 'energy gain each battle phase' },
   { shipDefId: 'NEP', mechanic: 'energy gain each battle phase' },
-  { shipDefId: 'SOL', mechanic: 'atomic charge-to-Energy choice + recurring depleted Automatic Heal 2' },
+  { shipDefId: 'SOL', mechanic: 'automatic Battle Reveal charge-to-Energy generation + recurring depleted Automatic Heal 2' },
 ] as const;
 
 // ─────────────────────────────────────────────────────────────────────────────

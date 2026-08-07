@@ -227,7 +227,7 @@ function assertAncientSecretsAbsent(state: any): void {
   assert.equal('energy' in state.players[0], false);
   assert.equal('ancient' in state.gameData, false);
   assert.equal('pendingSOLARPowerDeclarations' in state.gameData.turnData, false);
-  assert.equal('solarGridDeclarationSourceIdsByPlayerId' in state.gameData.turnData, false);
+  assert.equal('ancientBattleRevealPreparedTurnNumber' in state.gameData.turnData, false);
 }
 
 function createUnnormalizedTimeoutState(gameId: string) {
@@ -570,10 +570,6 @@ Deno.test('JSON-reloaded Ancient state preserves owner, opponent, and spectator 
       currentMajorPhase: 'battle',
       currentSubPhase: 'charge_declaration',
       chargeDeclarationEligibleSourceIdsByPlayerId: { p1: [], p2: [] },
-      solarGridDeclarationSourceIdsByPlayerId: {
-        p1: ['owner-sol'],
-        p2: [],
-      },
       chargeDeclarationFleetSnapshotByPlayerId: {
         p1: structuredClone(state.gameData.ships.p1),
         p2: structuredClone(state.gameData.ships.p2),
@@ -610,7 +606,6 @@ Deno.test('JSON-reloaded Ancient state preserves owner, opponent, and spectator 
       declarationFingerprint: JSON.stringify({
         contractVersion: 1,
         ordinaryChargeActions: [],
-        solarGridChoices: [],
         solarCasts: [],
         autocastEnabled: false,
       }),
@@ -622,7 +617,6 @@ Deno.test('JSON-reloaded Ancient state preserves owner, opponent, and spectator 
         energySourceIds: [],
       },
       ordinaryChargeActions: [],
-      solarGridChoices: [],
       solarCasts: [],
       autocastEnabled: false,
     };
@@ -706,7 +700,7 @@ Deno.test('JSON-reloaded Ancient state preserves owner, opponent, and spectator 
     owner.requester.availableActions.some((action: any) =>
       action.sourceInstanceId === 'owner-sol'
     ),
-    true,
+    false,
   );
   assert.deepEqual(opponent.requester.availableActions, []);
   assert.deepEqual(spectator.requester.availableActions, []);
@@ -1359,7 +1353,6 @@ Deno.test('/game-state derives EQU pairs after same-player reservation filtering
       p1: ['p1-equ-a', 'p1-equ-b'],
       p2: ['p2-equ-a'],
     },
-    solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
     chargeDeclarationFleetSnapshotByPlayerId: structuredClone(state.gameData.ships),
     chargePowerUsedByInstanceId: {},
   };
@@ -1548,7 +1541,7 @@ Deno.test('/game-state projects only the qualifying Spiral action and hides its 
   );
 });
 
-Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient declarer and hides SOL snapshot scratch', async () => {
+Deno.test('/game-state omits SOL actions while preserving ordinary Ancient declaration actions', async () => {
   const fixture = createGameRouteFixture();
   const state: any = createSetupState('solar-grid-projection');
   state.turnNumber = 3;
@@ -1574,7 +1567,6 @@ Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient
     currentMajorPhase: 'battle',
     currentSubPhase: 'charge_declaration',
     chargeDeclarationEligibleSourceIdsByPlayerId: { p1: ['foreign-int'], p2: [] },
-    solarGridDeclarationSourceIdsByPlayerId: { p1: ['sol-z', 'sol-a'], p2: [] },
     chargeDeclarationFleetSnapshotByPlayerId: {
       p1: structuredClone(state.gameData.ships.p1),
       p2: structuredClone(state.gameData.ships.p2),
@@ -1596,24 +1588,15 @@ Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient
   })));
   assert.deepEqual(
     p1Body.requester.availableActions.map((action: any) => [action.shipDefId, action.sourceInstanceId]),
-    [['INT', 'foreign-int'], ['SOL', 'sol-a'], ['SOL', 'sol-z']],
+    [['INT', 'foreign-int']],
   );
-  assert.deepEqual(
-    p1Body.requester.availableActions.filter((action: any) => action.shipDefId === 'SOL')
-      .map((action: any) => action.choices),
-    [
-      [{ choiceId: 'use' }, { choiceId: 'hold' }],
-      [{ choiceId: 'use' }, { choiceId: 'hold' }],
-    ],
-  );
-  assert.equal('solarGridDeclarationSourceIdsByPlayerId' in p1Body.gameData.turnData, false);
+  assert.equal(p1Body.requester.availableActions.some((action: any) => action.shipDefId === 'SOL'), false);
 
   fixture.setSessionId('p2');
   const p2Body = await responseJson(await getState(createContext({
     params: { gameId: 'solar-grid-projection' },
   })));
   assert.equal(p2Body.requester.availableActions.some((action: any) => action.shipDefId === 'SOL'), false);
-  assert.equal('solarGridDeclarationSourceIdsByPlayerId' in p2Body.gameData.turnData, false);
 
   const acceptedState = structuredClone(fixture.store.get('game_solar-grid-projection'));
   acceptedState.gameData.ancient.energyByPlayerId.p1.pool = { green: 2, red: 1, blue: 1 };
@@ -1624,10 +1607,6 @@ Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient
     declarationFingerprint: JSON.stringify({
       contractVersion: 1,
       ordinaryChargeActions: [],
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-z', choiceId: 'hold' },
-      ],
       solarCasts: [],
       autocastEnabled: false,
     }),
@@ -1639,10 +1618,6 @@ Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient
       energySourceIds: [],
     },
     ordinaryChargeActions: [],
-    solarGridChoices: [
-      { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-      { sourceInstanceId: 'sol-z', choiceId: 'hold' },
-    ],
     solarCasts: [],
     autocastEnabled: false,
   };
@@ -1657,7 +1632,6 @@ Deno.test('/game-state projects stable SOL choices only to an unaccepted Ancient
     { green: 2, red: 1, blue: 1 },
   );
   assert.equal('acceptedDeclarationByPlayerId' in acceptedBody.publicState.ancient, false);
-  assert.equal('solarGridDeclarationSourceIdsByPlayerId' in acceptedBody.gameData.turnData, false);
 
 });
 
@@ -1707,7 +1681,6 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
       p1: ['p1-equ'],
       p2: ['p2-equ'],
     },
-    solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
     chargeDeclarationFleetSnapshotByPlayerId: structuredClone(state.gameData.ships),
     chargePowerUsedByInstanceId: {},
     effectiveDiceRollByPlayerId: { p1: 4, p2: 4 },
@@ -1797,7 +1770,6 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
     declarationFingerprint: JSON.stringify({
       contractVersion: 1,
       ordinaryChargeActions: [],
-      solarGridChoices: [],
       solarCasts: [],
       autocastEnabled: false,
     }),
@@ -1809,7 +1781,6 @@ Deno.test('/game-state freezes declaration consequences for every viewer and rel
       energySourceIds: [],
     },
     ordinaryChargeActions: [],
-    solarGridChoices: [],
     solarCasts: [],
     autocastEnabled: false,
   };
@@ -2018,7 +1989,6 @@ Deno.test('/intent filters declaration effects after history processing and retu
     currentMajorPhase: 'battle',
     currentSubPhase: 'charge_declaration',
     chargeDeclarationEligibleSourceIdsByPlayerId: { p1: ['p1-int'], p2: [] },
-    solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
     chargeDeclarationFleetSnapshotByPlayerId: structuredClone(state.gameData.ships),
     chargePowerUsedByInstanceId: {},
   };
@@ -2090,7 +2060,6 @@ Deno.test('/intent terminal Declaration resolution finalizes once without initia
           p1: ['p1-int'],
           p2: ['p2-int'],
         },
-        solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
         chargeDeclarationFleetSnapshotByPlayerId: structuredClone(ships),
         chargePowerUsedByInstanceId: {},
       },

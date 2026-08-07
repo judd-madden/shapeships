@@ -14,12 +14,12 @@ import {
 import {
   ancientAtomicDeclarationContractApplies,
   getEligibleOrdinaryChargeSourceIdsAtDeclarationStart,
-  getRelevantSolarGridSourceIdsAtDeclarationStart,
   playerRequiresChargeDeclarationInput,
 } from '../../../engine/intent/chargeDeclarationEligibility.ts';
 import {
   requireChargeDeclarationLegalityState,
 } from '../../../engine/state/chargeDeclarationVisibility.ts';
+import { computePhaseComputedEffects } from '../../../engine_shared/resolve/phaseComputedEffects.ts';
 
 Deno.test('Drawing saved-resource projection is public-invariant and requester-aware', () => {
   const state: any = createBaseState();
@@ -502,7 +502,6 @@ Deno.test('older valid accepted declaration placeholders normalize additively wi
   assert.equal(normalized.state.gameData.ancient.schemaVersion, 1);
   assert.equal(accepted.contractVersion, 1);
   assert.deepEqual(accepted.ordinaryChargeActions, []);
-  assert.deepEqual(accepted.solarGridChoices, []);
   assert.deepEqual(accepted.solarCasts, []);
   assert.equal(accepted.autocastEnabled, false);
   assert.equal(typeof accepted.declarationFingerprint, 'string');
@@ -526,7 +525,6 @@ Deno.test('accepted declaration Autocast booleans normalize compatibly and parti
         energySourceIds: [],
       },
       ordinaryChargeActions: [],
-      solarGridChoices: [],
       solarCasts: [],
       ...(includeField ? { autocastEnabled } : {}),
     };
@@ -577,7 +575,6 @@ Deno.test('accepted Solar casts normalize as an ordered repeated list with path-
       energySourceIds: [],
     },
     ordinaryChargeActions: [],
-    solarGridChoices: [],
     solarCasts: [
       { solarPowerId: 'SLIF' },
       { solarPowerId: 'UNKNOWN' },
@@ -707,6 +704,94 @@ Deno.test('Battle Reveal Core Energy uses live Cores of every age and excludes o
     pool: { green: 0, red: 0, blue: 0 },
     sources: [],
   });
+});
+
+Deno.test('Battle Reveal automatically spends live SOL charges and prepares deterministic Ancient Energy once per turn', () => {
+  const state: any = normalizeAncientGameState(createBaseState()).state;
+  state.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 4, p2: 4 };
+  state.gameData.ships = {
+    p1: [
+      { instanceId: 'sol-z', shipDefId: 'SOL', chargesCurrent: 4 },
+      { instanceId: 'plu', shipDefId: 'PLU' },
+      { instanceId: 'sol-a', shipDefId: 'SOL', chargesCurrent: 1 },
+      { instanceId: 'qua', shipDefId: 'QUA', permanentConfiguration: { selectedNumber: 4 } },
+      { instanceId: 'sol-built', shipDefId: 'SOL', chargesCurrent: 4, createdTurn: 2 },
+      { instanceId: 'sol-empty', shipDefId: 'SOL', chargesCurrent: 0 },
+    ],
+    p2: [
+      { instanceId: 'human-sol', shipDefId: 'SOL', chargesCurrent: 2 },
+      { instanceId: 'human-empty', shipDefId: 'SOL', chargesCurrent: 0 },
+    ],
+  };
+
+  const prepared = applyAncientBattleRevealPreparation(state) as any;
+  assert.deepEqual(
+    Object.fromEntries(prepared.gameData.ships.p1.filter((ship: any) => ship.shipDefId === 'SOL')
+      .map((ship: any) => [ship.instanceId, ship.chargesCurrent])),
+    { 'sol-z': 3, 'sol-a': 0, 'sol-built': 3, 'sol-empty': 0 },
+  );
+  assert.equal(prepared.gameData.ships.p2[0].chargesCurrent, 1);
+  assert.deepEqual(prepared.gameData.ancient.energyByPlayerId.p1.pool, {
+    green: 4,
+    red: 3,
+    blue: 5,
+  });
+  assert.deepEqual(
+    prepared.gameData.ancient.energyByPlayerId.p1.sources.map((source: any) => source.sourceInstanceId),
+    ['plu', 'qua', 'sol-a', 'sol-built', 'sol-z'],
+  );
+  assert.deepEqual(prepared.gameData.ancient.energyByPlayerId.p2.pool, {
+    green: 0,
+    red: 0,
+    blue: 0,
+  });
+  assert.deepEqual(
+    prepared.gameData.turnData.shipActivationCueBatches.at(-1).sources.map((source: any) =>
+      source.sourceInstanceId
+    ),
+    ['human-sol', 'sol-a', 'sol-built', 'sol-z'],
+  );
+  assert.equal(prepared.gameData.turnData.ancientBattleRevealPreparedTurnNumber, 2);
+
+  const firstPreparation = structuredClone(prepared);
+  const retried = applyAncientBattleRevealPreparation(prepared);
+  assert.deepEqual(retried, firstPreparation);
+
+  const automaticSolIds = computePhaseComputedEffects(
+    retried as any,
+    'battle.end_of_turn_resolution',
+  ).effects.filter((effect) => (effect.source as any).shipDefId === 'SOL')
+    .map((effect) => (effect.source as any).instanceId);
+  assert.deepEqual(automaticSolIds, ['sol-a', 'sol-empty', 'human-empty']);
+
+  const afterDestruction = structuredClone(retried) as any;
+  afterDestruction.gameData.ships.p1 = afterDestruction.gameData.ships.p1.filter(
+    (ship: any) => ship.instanceId !== 'sol-a',
+  );
+  assert.deepEqual(
+    afterDestruction.gameData.ancient.energyByPlayerId.p1,
+    retried.gameData.ancient.energyByPlayerId.p1,
+  );
+  assert.equal(
+    computePhaseComputedEffects(afterDestruction, 'battle.end_of_turn_resolution').effects.some(
+      (effect) => (effect.source as any).instanceId === 'sol-a',
+    ),
+    false,
+  );
+
+  const nextTurn = structuredClone(retried) as any;
+  nextTurn.turnNumber = 3;
+  nextTurn.gameData.turnNumber = 3;
+  nextTurn.gameData.turnData.turnNumber = 3;
+  const nextPrepared = applyAncientBattleRevealPreparation(nextTurn) as any;
+  assert.equal(nextPrepared.gameData.ships.p1.find((ship: any) => ship.instanceId === 'sol-z').chargesCurrent, 2);
+  assert.equal(nextPrepared.gameData.ships.p1.find((ship: any) => ship.instanceId === 'sol-a').chargesCurrent, 0);
+  assert.equal(nextPrepared.gameData.ships.p2[0].chargesCurrent, 0);
+  assert.deepEqual(
+    nextPrepared.gameData.ancient.energyByPlayerId.p1.sources.map((source: any) => source.sourceInstanceId),
+    ['plu', 'qua', 'sol-built', 'sol-z'],
+  );
+  assert.equal(nextPrepared.gameData.turnData.shipActivationCueBatches.length, 2);
 });
 
 Deno.test('Battle Reveal replaces stale Energy and ledger idempotently while preserving unrelated Ancient state', () => {
@@ -1469,7 +1554,7 @@ Deno.test('stale Charge Declaration visibility redacts projection while legality
   assert.deepEqual(entered, before);
 });
 
-Deno.test('P12 declaration input separates Energy, charged SOL, ordinary charge, and acceptance', () => {
+Deno.test('declaration input separates Energy, ordinary charge, and acceptance', () => {
   const state: any = normalizeAncientGameState(createBaseState()).state;
   state.gameData.turnNumber = 3;
   state.gameData.turnData.turnNumber = 3;
@@ -1491,15 +1576,10 @@ Deno.test('P12 declaration input separates Energy, charged SOL, ordinary charge,
     ],
     p2: [{ instanceId: 'non-ancient-sol', shipDefId: 'SOL', chargesCurrent: 4 }],
   };
-  assert.deepEqual(getRelevantSolarGridSourceIdsAtDeclarationStart(state, 'p1'), ['charged-sol']);
-  assert.deepEqual(getRelevantSolarGridSourceIdsAtDeclarationStart(state, 'p2'), []);
   assert.deepEqual(getEligibleOrdinaryChargeSourceIdsAtDeclarationStart(state, 'p1'), ['foreign-int']);
 
   state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = {
     p1: ['foreign-int'], p2: [],
-  };
-  state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = {
-    p1: ['charged-sol'], p2: [],
   };
   assert.equal(playerRequiresChargeDeclarationInput(state, 'p1'), true);
   assert.equal(playerRequiresChargeDeclarationInput(state, 'p2'), false);
@@ -1517,7 +1597,6 @@ Deno.test('P12 declaration input separates Energy, charged SOL, ordinary charge,
       energySourceIds: [],
     },
     ordinaryChargeActions: [],
-    solarGridChoices: [{ sourceInstanceId: 'charged-sol', choiceId: 'hold' }],
     solarCasts: [],
     autocastEnabled: false,
   };
@@ -1525,14 +1604,13 @@ Deno.test('P12 declaration input separates Energy, charged SOL, ordinary charge,
   assert.equal(ancientAtomicDeclarationContractApplies(state, 'p1'), true);
 });
 
-Deno.test('P12 isolated declaration gates stop only for Energy, charged SOL, or ordinary charge', () => {
+Deno.test('isolated declaration gates stop only for Energy or ordinary charge', () => {
   const createGateState = () => {
     const state: any = normalizeAncientGameState(createBaseState()).state;
     state.gameData.turnNumber = 3;
     state.gameData.turnData.turnNumber = 3;
     state.gameData.ships = { p1: [], p2: [] };
     state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId = { p1: [], p2: [] };
-    state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = { p1: [], p2: [] };
     state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId = { p1: [], p2: [] };
     state.gameData.ancient.energyByPlayerId.p1 = {
       battleTurnNumber: 3,
@@ -1552,11 +1630,10 @@ Deno.test('P12 isolated declaration gates stop only for Energy, charged SOL, or 
 
   const chargedSolOnly = createGateState();
   chargedSolOnly.gameData.ships.p1 = [{ instanceId: 'sol', shipDefId: 'SOL', chargesCurrent: 4 }];
-  chargedSolOnly.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1 = ['sol'];
   chargedSolOnly.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p1 = structuredClone(
     chargedSolOnly.gameData.ships.p1,
   );
-  assert.equal(playerRequiresChargeDeclarationInput(chargedSolOnly, 'p1'), true);
+  assert.equal(playerRequiresChargeDeclarationInput(chargedSolOnly, 'p1'), false);
 
   const depletedSolOnly = createGateState();
   depletedSolOnly.gameData.ships.p1 = [{ instanceId: 'sol', shipDefId: 'SOL', chargesCurrent: 0 }];
@@ -1574,7 +1651,6 @@ Deno.test('P12 isolated declaration gates stop only for Energy, charged SOL, or 
   nonAncient.players[0].faction = 'human';
   nonAncient.gameData.ancient.energyByPlayerId.p1.pool.green = 8;
   nonAncient.gameData.ships.p1 = [{ instanceId: 'sol', shipDefId: 'SOL', chargesCurrent: 4 }];
-  nonAncient.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1 = ['sol'];
   assert.equal(playerRequiresChargeDeclarationInput(nonAncient, 'p1'), false);
 });
 
@@ -1585,9 +1661,7 @@ Deno.test('requester sanitizer is pure and strips Ancient internal and third-Spi
   state.gameData.turnData.thirdSpiralFirstStrikeEligibilityByPlayerId = {
     p1: { sourceInstanceId: 'spi-3', turnNumber: 1 },
   };
-  state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = {
-    p1: ['private-sol-snapshot'],
-  };
+  state.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 2;
   state.battleLogScratch = {
     private: true,
     archiveCheckpoint: { privateSummary: true },
@@ -1603,7 +1677,7 @@ Deno.test('requester sanitizer is pure and strips Ancient internal and third-Spi
     'thirdSpiralFirstStrikeEligibilityByPlayerId' in safe.gameData.turnData,
     false,
   );
-  assert.equal('solarGridDeclarationSourceIdsByPlayerId' in safe.gameData.turnData, false);
+  assert.equal('ancientBattleRevealPreparedTurnNumber' in safe.gameData.turnData, false);
   assert.deepEqual(safe.battleLogScratch, { private: true });
   assert.equal('archiveCheckpoint' in safe.battleLogScratch, false);
 });

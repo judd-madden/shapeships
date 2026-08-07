@@ -87,10 +87,6 @@ export type AncientChargeDeclarationPayload = {
   contractVersion: 1;
   declarationId: string;
   ordinaryChargeActions: ReturnType<typeof buildPowerAction>[];
-  solarGridChoices: Array<{
-    sourceInstanceId: string;
-    choiceId: 'use' | 'hold';
-  }>;
   solarCasts: AncientChargeDeclarationSolarCastPayload[];
   autocastEnabled: boolean;
 };
@@ -113,24 +109,10 @@ export function getAncientChargeDeclarationActions(
   return getRenderableServerChoiceActions('battle.charge_declaration', availableActions as any[] | null | undefined);
 }
 
-export function partitionAncientChargeDeclarationActions(actions: readonly RenderableServerAction[]): {
-  solarGridActions: RenderableServerAction[];
-  ordinaryChargeActions: RenderableServerAction[];
-} {
-  return actions.reduce<{
-    solarGridActions: RenderableServerAction[];
-    ordinaryChargeActions: RenderableServerAction[];
-  }>(
-    (partitioned, action) => {
-      if (action.actionId === 'SOL#0' || action.shipDefId === 'SOL') {
-        partitioned.solarGridActions.push(action);
-      } else {
-        partitioned.ordinaryChargeActions.push(action);
-      }
-      return partitioned;
-    },
-    { solarGridActions: [], ordinaryChargeActions: [] }
-  );
+export function deriveAncientChargeDeclarationInitialStage(
+  ordinaryChargeActions: readonly RenderableServerAction[]
+): AncientChargeDeclarationStage {
+  return ordinaryChargeActions.length > 0 ? 'charges' : 'powers';
 }
 
 export function getAncientEnergyTotal(pool: AncientEnergyPool): number {
@@ -363,26 +345,6 @@ export function getUsableAncientEnergyPoolForPlayer(
   return { green: pool.green, red: pool.red, blue: pool.blue };
 }
 
-export function deriveProvisionalAncientEnergy(args: {
-  authoritativePool: AncientEnergyPool;
-  solarGridActions: readonly RenderableServerAction[];
-  selectedChoiceIdBySourceInstanceId: Record<string, string>;
-}): AncientEnergyPool {
-  const useCount = args.solarGridActions.reduce((count, action) => {
-    const choiceId = getSelectedChoiceIdForRenderableAction(
-      action,
-      args.selectedChoiceIdBySourceInstanceId
-    );
-    return count + (choiceId === 'use' ? 1 : 0);
-  }, 0);
-
-  return {
-    green: args.authoritativePool.green + useCount,
-    red: args.authoritativePool.red + useCount,
-    blue: args.authoritativePool.blue + useCount,
-  };
-}
-
 export function buildAncientChargeDeclarationPayload(args: {
   declarationId: string;
   actions: readonly RenderableServerAction[];
@@ -392,9 +354,7 @@ export function buildAncientChargeDeclarationPayload(args: {
   localManualSolarCasts: readonly AncientManualSolarCast[];
   autocastEnabled: boolean;
 }): AncientChargeDeclarationPayload {
-  const { solarGridActions, ordinaryChargeActions } = partitionAncientChargeDeclarationActions(args.actions);
-
-  const ordinaryActions = ordinaryChargeActions.flatMap((action) => {
+  const ordinaryActions = args.actions.flatMap((action) => {
     const choiceId = getSelectedChoiceIdForRenderableAction(
       action,
       args.selectedChoiceIdBySourceInstanceId
@@ -424,21 +384,10 @@ export function buildAncientChargeDeclarationPayload(args: {
     })];
   });
 
-  const solarGridChoices = solarGridActions
-    .map((action) => ({
-      sourceInstanceId: action.sourceInstanceId,
-      choiceId: getSelectedChoiceIdForRenderableAction(
-        action,
-        args.selectedChoiceIdBySourceInstanceId
-      ) === 'use' ? 'use' as const : 'hold' as const,
-    }))
-    .sort((a, b) => a.sourceInstanceId.localeCompare(b.sourceInstanceId));
-
   return {
     contractVersion: 1,
     declarationId: args.declarationId,
     ordinaryChargeActions: ordinaryActions,
-    solarGridChoices,
     solarCasts: args.localManualSolarCasts.map((cast) => {
       if (cast.solarPowerId === 'SSIP') {
         return { solarPowerId: 'SSIP', lockedAmount: cast.lockedAmount };

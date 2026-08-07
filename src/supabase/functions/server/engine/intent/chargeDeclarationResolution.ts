@@ -3,7 +3,6 @@ import type {
   AncientEnergyPool,
   AncientNormalizedOrdinaryChargeChoice,
   AncientNormalizedSolarCast,
-  AncientNormalizedSolarGridChoice,
   ShipActivationCueSource,
 } from '../state/GameStateTypes.ts';
 import {
@@ -19,18 +18,10 @@ import {
   getAcceptedDeclarationForCurrentBattle,
   getChargeDeclarationBattleTurnNumber,
   getSnappedOrdinaryChargeSourceIds,
-  getSnappedSolarGridSourceIds,
   isAncientPlayer,
-  resolveSnapshottedSolarGridSource,
 } from './chargeDeclarationEligibility.ts';
 import { resolvePowerAction } from '../../engine_shared/resolve/resolvePowerAction.ts';
-import { applyEffects, type EffectEvent } from '../../engine_shared/effects/applyEffects.ts';
-import {
-  EffectKind,
-  EffectTiming,
-  SurvivabilityRule,
-  type Effect,
-} from '../../engine_shared/effects/Effect.ts';
+import type { EffectEvent } from '../../engine_shared/effects/applyEffects.ts';
 import {
   createBattleLogBattleCaptureEventsFromResolution,
 } from '../state/battleLogHistory.ts';
@@ -68,7 +59,6 @@ export type NormalizedChargeDeclaration = {
   contractVersion: 1;
   declarationId: string;
   ordinaryChargeActions: AncientNormalizedOrdinaryChargeChoice[];
-  solarGridChoices: AncientNormalizedSolarGridChoice[];
   solarCasts: AncientNormalizedSolarCast[];
   autocastEnabled: boolean;
 };
@@ -153,15 +143,23 @@ export function normalizeChargeDeclarationPayload(value: unknown): NormalizedCha
     throw new Error('Missing or invalid charge declaration payload');
   }
   const payload = value as ChargeDeclarationSubmitPayload;
+  const allowedFields = new Set([
+    'contractVersion',
+    'declarationId',
+    'ordinaryChargeActions',
+    'solarCasts',
+    'autocastEnabled',
+  ]);
+  const unsupportedField = Object.keys(payload).find((field) => !allowedFields.has(field));
+  if (unsupportedField) {
+    throw new Error(`Charge declaration payload contains unsupported field: ${unsupportedField}`);
+  }
   if (payload.contractVersion !== CHARGE_DECLARATION_CONTRACT_VERSION) {
     throw new Error(`Unsupported charge declaration contract version: ${String(payload.contractVersion)}`);
   }
   const declarationId = requireNonEmptyString(payload.declarationId, 'declarationId');
   if (!Array.isArray(payload.ordinaryChargeActions)) {
     throw new Error('ordinaryChargeActions must be an array');
-  }
-  if (!Array.isArray(payload.solarGridChoices)) {
-    throw new Error('solarGridChoices must be an array');
   }
   if (!Array.isArray(payload.solarCasts)) {
     throw new Error('solarCasts must be an array');
@@ -195,30 +193,10 @@ export function normalizeChargeDeclarationPayload(value: unknown): NormalizedCha
     };
   });
 
-  const seenSolarSources = new Set<string>();
-  const solarGridChoices = payload.solarGridChoices.map((candidate: any, index) => {
-    if (!candidate || typeof candidate !== 'object') {
-      throw new Error(`solarGridChoices[${index}] must be an object`);
-    }
-    const sourceInstanceId = requireNonEmptyString(
-      candidate.sourceInstanceId,
-      `solarGridChoices[${index}].sourceInstanceId`,
-    );
-    if (seenSolarSources.has(sourceInstanceId)) {
-      throw new Error(`Duplicate Solar Grid source: ${sourceInstanceId}`);
-    }
-    seenSolarSources.add(sourceInstanceId);
-    if (candidate.choiceId !== 'use' && candidate.choiceId !== 'hold') {
-      throw new Error(`Invalid Solar Grid choice for ${sourceInstanceId}`);
-    }
-    return { sourceInstanceId, choiceId: candidate.choiceId as 'use' | 'hold' };
-  }).sort((a, b) => a.sourceInstanceId.localeCompare(b.sourceInstanceId));
-
   return {
     contractVersion: CHARGE_DECLARATION_CONTRACT_VERSION,
     declarationId,
     ordinaryChargeActions,
-    solarGridChoices,
     solarCasts: normalizeSolarCasts(payload.solarCasts),
     autocastEnabled: payload.autocastEnabled,
   };
@@ -228,7 +206,6 @@ export function fingerprintChargeDeclaration(normalized: NormalizedChargeDeclara
   return JSON.stringify({
     contractVersion: normalized.contractVersion,
     ordinaryChargeActions: normalized.ordinaryChargeActions,
-    solarGridChoices: normalized.solarGridChoices,
     solarCasts: normalized.solarCasts,
     autocastEnabled: normalized.autocastEnabled,
   });
@@ -259,26 +236,6 @@ function validateAuthoritativeSourceSets(
     }
   }
 
-  const requiredSolarIds = getSnappedSolarGridSourceIds(state, playerId);
-  const submittedSolarIds = normalized.solarGridChoices.map((choice) => choice.sourceInstanceId);
-  if (
-    requiredSolarIds.length !== submittedSolarIds.length ||
-    requiredSolarIds.some((sourceInstanceId, index) => submittedSolarIds[index] !== sourceInstanceId)
-  ) {
-    const missing = requiredSolarIds.filter((sourceInstanceId) => !submittedSolarIds.includes(sourceInstanceId));
-    const extra = submittedSolarIds.filter((sourceInstanceId) => !requiredSolarIds.includes(sourceInstanceId));
-    throw new Error(`Solar Grid choices must exactly match the declaration snapshot; missing=${missing.join(',')}; extra=${extra.join(',')}`);
-  }
-
-  for (const choice of normalized.solarGridChoices) {
-    const source = resolveSnapshottedSolarGridSource(state, playerId, choice.sourceInstanceId);
-    if (!source || (source.snapshot.chargesCurrent ?? 0) <= 0) {
-      throw new Error(`Invalid snapshotted Solar Grid source: ${choice.sourceInstanceId}`);
-    }
-    if (choice.choiceId === 'use' && (source.current.chargesCurrent ?? 0) <= 0) {
-      throw new Error(`Solar Grid has no charge to use: ${choice.sourceInstanceId}`);
-    }
-  }
 }
 
 function cloneEnergyPool(value: any): AncientEnergyPool {
@@ -309,7 +266,6 @@ function buildAcceptedDeclaration(args: {
       energySourceIds: args.initialEnergySourceIds,
     },
     ordinaryChargeActions: structuredClone(args.normalized.ordinaryChargeActions),
-    solarGridChoices: structuredClone(args.normalized.solarGridChoices),
     solarCasts: structuredClone(args.normalized.solarCasts),
     autocastEnabled: args.normalized.autocastEnabled,
   };
@@ -418,47 +374,6 @@ export function resolveChargeDeclarationSubmissionWithDependencies(args: {
   const nextSources = Array.isArray(initialEnergyState?.sources)
     ? structuredClone(initialEnergyState.sources)
     : [];
-  let nextSourceOrder = nextSources.reduce(
-    (maximum: number, source: any) => Math.max(maximum, Number.isFinite(source?.order) ? source.order : -1),
-    -1,
-  ) + 1;
-
-  for (const choice of normalized.solarGridChoices) {
-    if (choice.choiceId === 'hold') continue;
-    const effect: Effect = {
-      id: `solar_grid_charge:${battleTurnNumber}:${args.playerId}:${choice.sourceInstanceId}`,
-      ownerPlayerId: args.playerId,
-      source: { type: 'ship', instanceId: choice.sourceInstanceId, shipDefId: 'SOL' },
-      timing: 'battle.charge_declaration',
-      activationTag: EffectTiming.Charge,
-      survivability: SurvivabilityRule.ResolvesIfDestroyed,
-      target: { playerId: args.playerId, shipInstanceId: choice.sourceInstanceId },
-      kind: EffectKind.SpendCharge,
-      amount: 1,
-    };
-    const applied = applyEffects(workingState, [effect]);
-    workingState = applied.state;
-    const effectEvents = getEffectEvents(applied.events);
-    recordChargeDeclarationSpendAcknowledgements(
-      workingState,
-      args.playerId,
-      effectEvents,
-    );
-    activationSources.push(...getShipActivationSourcesFromAppliedEffects([effect], effectEvents));
-    nextEnergy = {
-      green: nextEnergy.green + 1,
-      red: nextEnergy.red + 1,
-      blue: nextEnergy.blue + 1,
-    };
-    nextSources.push({
-      sourceId: `ancient-solar-grid-energy:${battleTurnNumber}:${args.playerId}:${choice.sourceInstanceId}`,
-      sourceInstanceId: choice.sourceInstanceId,
-      sourceShipDefId: 'SOL',
-      battleTurnNumber,
-      order: nextSourceOrder++,
-      amounts: { green: 1, red: 1, blue: 1 },
-    });
-  }
 
   const manualSolar = resolveManualSolarDeclaration({
     state: workingState,

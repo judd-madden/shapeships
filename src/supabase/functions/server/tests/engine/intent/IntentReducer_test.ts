@@ -158,7 +158,12 @@ function createAtomicChargeState(args: {
   p1HasInterceptor?: boolean;
 } = {}): any {
   const solCharges = args.solCharges ?? 4;
-  const p1Ships: any[] = [{ instanceId: 'sol-1', shipDefId: 'SOL', chargesCurrent: solCharges }];
+  const solarGridSpentAtReveal = solCharges > 0;
+  const p1Ships: any[] = [{
+    instanceId: 'sol-1',
+    shipDefId: 'SOL',
+    chargesCurrent: solarGridSpentAtReveal ? solCharges - 1 : 0,
+  }];
   if (args.p1HasInterceptor) {
     p1Ships.unshift({ instanceId: 'p1-int', shipDefId: 'INT', chargesCurrent: 1 });
   }
@@ -190,7 +195,6 @@ function createAtomicChargeState(args: {
           p1: args.p1HasInterceptor ? ['p1-int'] : [],
           p2: ['p2-int'],
         },
-        solarGridDeclarationSourceIdsByPlayerId: { p1: ['sol-1'], p2: [] },
         chargeDeclarationFleetSnapshotByPlayerId: {
           p1: structuredClone(p1Ships),
           p2: [{ instanceId: 'p2-int', shipDefId: 'INT', chargesCurrent: 1 }],
@@ -202,7 +206,20 @@ function createAtomicChargeState(args: {
       ancient: {
         schemaVersion: 1,
         energyByPlayerId: {
-          p1: { battleTurnNumber: 3, pool: { green: 0, red: 0, blue: 0 }, sources: [] },
+          p1: {
+            battleTurnNumber: 3,
+            pool: solarGridSpentAtReveal
+              ? { green: 1, red: 1, blue: 1 }
+              : { green: 0, red: 0, blue: 0 },
+            sources: solarGridSpentAtReveal ? [{
+              sourceId: 'ancient-solar-grid-energy:3:p1:sol-1',
+              sourceInstanceId: 'sol-1',
+              sourceShipDefId: 'SOL',
+              battleTurnNumber: 3,
+              order: 0,
+              amounts: { green: 1, red: 1, blue: 1 },
+            }] : [],
+          },
           p2: { battleTurnNumber: 3, pool: { green: 0, red: 0, blue: 0 }, sources: [] },
         },
         acceptedDeclarationByPlayerId: {},
@@ -222,7 +239,6 @@ function createAtomicChargeState(args: {
 function chargeDeclarationIntent(args: {
   declarationId?: string;
   ordinaryChargeActions?: any[];
-  solarChoice?: 'use' | 'hold';
   solarCasts?: any[];
   autocastEnabled?: boolean;
 } = {}): IntentRequest {
@@ -234,7 +250,6 @@ function chargeDeclarationIntent(args: {
       contractVersion: 1,
       declarationId: args.declarationId ?? 'atomic-declaration-1',
       ordinaryChargeActions: args.ordinaryChargeActions ?? [],
-      solarGridChoices: [{ sourceInstanceId: 'sol-1', choiceId: args.solarChoice ?? 'hold' }],
       solarCasts: args.solarCasts ?? [],
       autocastEnabled: args.autocastEnabled ?? false,
     },
@@ -276,10 +291,6 @@ function createTwoAncientChargeState(): any {
         chargeDeclarationEligibleSourceIdsByPlayerId: {
           p1: ['p1-int', 'p1-response-int'],
           p2: ['p2-int', 'p2-response-int'],
-        },
-        solarGridDeclarationSourceIdsByPlayerId: {
-          p1: ['p1-sol'],
-          p2: ['p2-sol'],
         },
         chargeDeclarationFleetSnapshotByPlayerId: structuredClone(ships),
         chargePowerUsedByInstanceId: {},
@@ -357,7 +368,6 @@ function createEqualityDeclarationState(args: { destroyChargeSource?: boolean } 
         chargeDeclarationEligibleSourceIdsByPlayerId: args.destroyChargeSource
           ? { p1: ['p1-equ'], p2: ['p2-int-source'] }
           : { p1: ['p1-equ'], p2: ['p2-equ'] },
-        solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
         chargeDeclarationFleetSnapshotByPlayerId: structuredClone(ships),
         chargePowerUsedByInstanceId: {},
       },
@@ -412,10 +422,6 @@ function twoAncientDeclarationIntent(playerId: 'p1' | 'p2'): IntentRequest {
         actionId: 'INT#0',
         sourceInstanceId: `${playerId}-int`,
         choiceId: 'damage',
-      }],
-      solarGridChoices: [{
-        sourceInstanceId: `${playerId}-sol`,
-        choiceId: 'hold',
       }],
       solarCasts: [{ solarPowerId: 'SLIF' }],
       autocastEnabled: false,
@@ -523,7 +529,7 @@ Deno.test('CHARGE_DECLARATION_SUBMIT commits production Autocast, readiness, and
   const result = await applyIntent(
     state,
     'p1',
-    chargeDeclarationIntent({ solarChoice: 'use', autocastEnabled: true }),
+    chargeDeclarationIntent({ autocastEnabled: true }),
     1000,
   );
   assert.equal(result.ok, true);
@@ -1323,10 +1329,6 @@ Deno.test('a no-Ancient match retains ordinary declaration behavior without Anci
       ];
       state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p1 =
         structuredClone(state.gameData.ships.p1);
-      state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = {
-        p1: [],
-        p2: [],
-      };
       state.gameData.ancient.energyByPlayerId.p1.pool = {
         green: 0,
         red: 0,
@@ -1355,10 +1357,6 @@ Deno.test('a no-Ancient match retains ordinary declaration behavior without Anci
         ready.state.gameData.ancient.energyByPlayerId.p1.pool,
         { green: 0, red: 0, blue: 0 },
       );
-      assert.deepEqual(
-        ready.state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1,
-        [],
-      );
       assert.equal(ready.state.gameData.turnData.diceManipulationStage, undefined);
       assert.equal(ready.state.gameData.turnData.cubeDiceRollsByPlayerId, undefined);
     });
@@ -1386,12 +1384,12 @@ Deno.test('atomic declaration routing rejects stale turns, wrong phases, and mal
   assert.equal(malformedResult.rejected?.code, 'BAD_PAYLOAD');
 });
 
-Deno.test('final SOL charge submitted atomically produces its depleted Heal 2 in the same turn', async () => {
+Deno.test('automatic final SOL charge produces its depleted Heal 2 in the same turn', async () => {
   let state = createAtomicChargeState({ solCharges: 1 });
   const declaration = await applyIntent(
     state,
     'p1',
-    chargeDeclarationIntent({ solarChoice: 'use' }),
+    chargeDeclarationIntent(),
     1000,
   );
   assert.equal(declaration.ok, true);

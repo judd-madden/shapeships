@@ -145,11 +145,6 @@ export type ActionsBatchPayload = {
 
 export const CHARGE_DECLARATION_CONTRACT_VERSION = 1 as const;
 
-export type SolarGridDeclarationChoice = {
-  sourceInstanceId: string;
-  choiceId: 'use' | 'hold';
-};
-
 export type SolarCastPayload = {
   solarPowerId: AncientSolarPowerId;
   targetInstanceId?: string;
@@ -161,7 +156,6 @@ export type ChargeDeclarationSubmitPayload = {
   contractVersion: typeof CHARGE_DECLARATION_CONTRACT_VERSION;
   declarationId: string;
   ordinaryChargeActions: PowerActionPayload[];
-  solarGridChoices: SolarGridDeclarationChoice[];
   solarCasts: SolarCastPayload[];
   autocastEnabled: boolean;
 };

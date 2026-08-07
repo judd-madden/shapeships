@@ -196,11 +196,6 @@ export type AncientNormalizedOrdinaryChargeChoice = {
   targetInstanceIds?: string[];
 };
 
-export type AncientNormalizedSolarGridChoice = {
-  sourceInstanceId: string;
-  choiceId: 'use' | 'hold';
-};
-
 export const ANCIENT_SOLAR_POWER_IDS = [
   'SLIF', 'SSTA', 'SAST', 'SSUP', 'SCON', 'SSIM', 'SSIP', 'SVOR', 'SBLA',
 ] as const;
@@ -222,7 +217,6 @@ export type AncientAcceptedDeclaration = {
   playerId: string;
   context: AncientDeclarationContext;
   ordinaryChargeActions: AncientNormalizedOrdinaryChargeChoice[];
-  solarGridChoices: AncientNormalizedSolarGridChoice[];
   solarCasts: AncientNormalizedSolarCast[];
   autocastEnabled: boolean;
 };
@@ -445,6 +439,9 @@ export type GameData = {
      */
     revealSpecialPowersAppliedTurnNumber?: number;
 
+    /** Turn whose automatic Ancient Battle Reveal Energy preparation is complete. */
+    ancientBattleRevealPreparedTurnNumber?: number;
+
     /**
      * Narrow idempotency flag for authoritative BUILD_SUBMIT resolution in
      * build.drawing. Stores the turn number already resolved for drawing builds.
@@ -452,8 +449,6 @@ export type GameData = {
     buildAppliedTurnNumber?: number;
     
     chargeDeclarationEligibleSourceIdsByPlayerId?: Record<string, string[]>;
-    /** Internal declaration-start snapshot of charged SOL instances for Ancient controllers. */
-    solarGridDeclarationSourceIdsByPlayerId?: Record<string, string[]>;
     chargeDeclarationFleetSnapshotByPlayerId?: Record<string, ShipInstance[]>;
     /** Narrow client-visibility baseline for the simultaneous declaration window. */
     chargeDeclarationVisibilitySnapshot?: ChargeDeclarationVisibilitySnapshot;

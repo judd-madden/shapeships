@@ -221,15 +221,14 @@ import {
   buildAncientChargeDeclarationPayload,
   canAffordAncientEnergyCost,
   deriveAncientBlackHoleCastability,
+  deriveAncientChargeDeclarationInitialStage,
   deriveAncientManualSolarCastability,
   deriveAncientSimulacrumSelectorState,
   deriveAncientSiphonSelectorState,
-  deriveProvisionalAncientEnergy,
   getAncientChargeDeclarationActions,
   getAncientEnergyTotal,
   getUsableAncientEnergyPoolForPlayer,
   isFixedAncientManualSolarPowerId,
-  partitionAncientChargeDeclarationActions,
   replayAncientManualSolarCasts,
   selectAncientSolarPresentationCasts,
   snapshotAncientManualSolarCastsForPresentation,
@@ -2424,8 +2423,6 @@ export function useGameSession(
   const authoritativeAncientEnergyCapacity =
     getPublicAncientEnergyCapacityForPlayer(rawState, me?.id);
   const ancientDeclarationActions = getAncientChargeDeclarationActions(availableActions);
-  const { solarGridActions: ancientSolarGridActions } =
-    partitionAncientChargeDeclarationActions(ancientDeclarationActions);
   const ancientChargeDeclarationWorkflowKey =
     `${effectiveGameId ?? 'nogame'}::${me?.id ?? 'noplayer'}::${phaseInstanceKey}`;
   const ancientPlayerReady = isPlayerReadyForPhase(rawState, me?.id);
@@ -2449,7 +2446,7 @@ export function useGameSession(
     shouldPresentAncientChargeDeclaration && !hasPendingAncientRejectionRecovery
       ? {
           key: ancientChargeDeclarationWorkflowKey,
-          stage: ancientDeclarationActions.length > 0 ? 'charges' : 'powers',
+          stage: deriveAncientChargeDeclarationInitialStage(ancientDeclarationActions),
           hadChargeStage: ancientDeclarationActions.length > 0,
           localManualSolarCasts: [],
           selectorMode: null,
@@ -2471,8 +2468,6 @@ export function useGameSession(
     workflow: activeAncientChargeDeclarationWorkflow,
     frozenAttempt: activeAncientChargeDeclarationAttempt,
   });
-  const controlledAncientShips =
-    me?.id != null ? getShipsByPlayerId(rawState)[me.id] : [];
   const publicAncientSolarLedgers =
     rawState?.publicState?.ancient?.solarLedgerByPlayerId as Record<string, unknown> | undefined;
   const materializedSimulacrumLedgerEntryIdsByPlayerId =
@@ -2518,41 +2513,11 @@ export function useGameSession(
   ];
   const showAncientSolarTargetMarkers =
     majorPhase === 'battle' && !isFinished;
-  const provisionalAncientEnergyBeforeManualCasts = deriveProvisionalAncientEnergy({
-    authoritativePool: authoritativeAncientEnergy,
-    solarGridActions: ancientSolarGridActions,
-    selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId,
-  });
   const ancientManualSolarCastReplay = replayAncientManualSolarCasts({
-    startingPool: provisionalAncientEnergyBeforeManualCasts,
+    startingPool: authoritativeAncientEnergy,
     localManualSolarCasts: activeAncientChargeDeclarationWorkflow?.localManualSolarCasts ?? [],
   });
   const provisionalAncientEnergy = ancientManualSolarCastReplay.remainingEnergy;
-  const actingPlayerCurrentChargesByInstanceId =
-    activeAncientChargeDeclarationWorkflow != null
-      ? ancientSolarGridActions.reduce<Record<string, number>>((overrides, action) => {
-          if (
-            getSelectedChoiceIdForRenderableAction(
-              action,
-              shipChoiceSelectionByInstanceId
-            ) !== 'use'
-          ) {
-            return overrides;
-          }
-
-          const solarGrid = controlledAncientShips.find((ship) => {
-            const instanceId = ship?.instanceId ?? ship?.id;
-            return instanceId === action.sourceInstanceId && ship?.shipDefId === 'SOL';
-          });
-          const authoritativeCharges = Number(solarGrid?.chargesCurrent);
-          if (!Number.isFinite(authoritativeCharges)) {
-            return overrides;
-          }
-
-          overrides[action.sourceInstanceId] = Math.max(0, authoritativeCharges - 1);
-          return overrides;
-        }, {})
-      : undefined;
   const canCastAncientManualSolarPowerById = deriveAncientManualSolarCastability({
     stage: activeAncientChargeDeclarationWorkflow?.stage ?? 'charges',
     remainingEnergy: provisionalAncientEnergy,
@@ -2748,7 +2713,6 @@ export function useGameSession(
     opponent,
     turnNumber,
     majorPhase,
-    actingPlayerCurrentChargesByInstanceId,
     opponentPublicCurrentChargesByInstanceId: opponent?.id
       ? publicMultiChargeByPlayerId[opponent.id]
       : undefined,
@@ -5258,7 +5222,7 @@ useEffect(() => {
           stage: activeAncientChargeDeclarationWorkflow.stage,
           hadChargeStage: activeAncientChargeDeclarationWorkflow.hadChargeStage,
           provisionalEnergy: provisionalAncientEnergy,
-          provisionalEnergyCapacity: provisionalAncientEnergyBeforeManualCasts,
+          provisionalEnergyCapacity: authoritativeAncientEnergy,
           localManualSolarCasts: activeAncientChargeDeclarationWorkflow.localManualSolarCasts,
           canCastManualSolarPowerById: canCastAncientManualSolarPowerById,
           solarHoverValuesById: ancientSolarHoverValuesById,
@@ -6036,7 +6000,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         }
 
         const replay = replayAncientManualSolarCasts({
-          startingPool: provisionalAncientEnergyBeforeManualCasts,
+          startingPool: authoritativeAncientEnergy,
           localManualSolarCasts: current.localManualSolarCasts,
         });
         const cost = ANCIENT_MANUAL_SOLAR_POWER_PREVIEW_COST_BY_ID[solarPowerId];
@@ -6065,7 +6029,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         }
 
         const replay = replayAncientManualSolarCasts({
-          startingPool: provisionalAncientEnergyBeforeManualCasts,
+          startingPool: authoritativeAncientEnergy,
           localManualSolarCasts: current.localManualSolarCasts,
         });
         if (!replay.valid) {
@@ -6162,7 +6126,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         }
 
         const replay = replayAncientManualSolarCasts({
-          startingPool: provisionalAncientEnergyBeforeManualCasts,
+          startingPool: authoritativeAncientEnergy,
           localManualSolarCasts: current.localManualSolarCasts,
         });
         if (
@@ -6178,7 +6142,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
           { solarPowerId: 'SSIP', lockedAmount },
         ];
         const nextReplay = replayAncientManualSolarCasts({
-          startingPool: provisionalAncientEnergyBeforeManualCasts,
+          startingPool: authoritativeAncientEnergy,
           localManualSolarCasts: nextCasts,
         });
         const canCastAgain =
@@ -6335,7 +6299,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
             },
           ];
           const nextReplay = replayAncientManualSolarCasts({
-            startingPool: provisionalAncientEnergyBeforeManualCasts,
+            startingPool: authoritativeAncientEnergy,
             localManualSolarCasts: nextCasts,
           });
           const nextReservedTargetInstanceIds = nextCasts.flatMap((cast) =>
@@ -6383,7 +6347,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
           }
 
           const replay = replayAncientManualSolarCasts({
-            startingPool: provisionalAncientEnergyBeforeManualCasts,
+            startingPool: authoritativeAncientEnergy,
             localManualSolarCasts: current.localManualSolarCasts,
           });
           if (!replay.valid) {

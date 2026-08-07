@@ -23,18 +23,10 @@ function payload(overrides: Record<string, unknown> = {}) {
     contractVersion: 1,
     declarationId: 'declaration-1',
     ordinaryChargeActions: [],
-    solarGridChoices: [],
     solarCasts: [],
     autocastEnabled: false,
     ...overrides,
   };
-}
-
-function holdSolarGrids() {
-  return [
-    { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-    { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-  ];
 }
 
 function createState(): any {
@@ -65,7 +57,6 @@ function createState(): any {
         currentMajorPhase: 'battle',
         currentSubPhase: 'charge_declaration',
         chargeDeclarationEligibleSourceIdsByPlayerId: { p1: ['int-1', 'int-2'], p2: [] },
-        solarGridDeclarationSourceIdsByPlayerId: { p1: ['sol-a', 'sol-b'], p2: [] },
         chargeDeclarationFleetSnapshotByPlayerId: {
           p1: [
             { instanceId: 'int-1', shipDefId: 'INT', chargesCurrent: 2 },
@@ -129,10 +120,6 @@ function solarHealthEffect(
 
 Deno.test('charge declaration payload normalization is versioned, explicit, and deterministically fingerprinted', () => {
   const first = normalizeChargeDeclarationPayload(payload({
-    solarGridChoices: [
-      { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      { sourceInstanceId: 'sol-a', choiceId: 'use' },
-    ],
     solarCasts: [
       { solarPowerId: 'SLIF' },
       { solarPowerId: 'SAST', targetInstanceIds: ['target-b', 'target-a'] },
@@ -141,10 +128,6 @@ Deno.test('charge declaration payload normalization is versioned, explicit, and 
   }));
   const second = normalizeChargeDeclarationPayload(payload({
     declarationId: 'different-id',
-    solarGridChoices: [
-      { sourceInstanceId: 'sol-a', choiceId: 'use' },
-      { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-    ],
     solarCasts: [
       { solarPowerId: 'SLIF' },
       { solarPowerId: 'SAST', targetInstanceIds: ['target-a', 'target-b'] },
@@ -244,7 +227,6 @@ Deno.test('Ancient multi-EQU declarations reject repeated targets atomically and
             targetInstanceIds: ['own-def', 'opponent-int'],
           },
         ],
-        solarGridChoices: holdSolarGrids(),
       }),
       nowMs: 100,
     }),
@@ -273,7 +255,6 @@ Deno.test('Ancient multi-EQU declarations reject repeated targets atomically and
           targetInstanceIds: ['own-int', 'opponent-int'],
         },
       ],
-      solarGridChoices: holdSolarGrids(),
     }),
     nowMs: 101,
   });
@@ -308,7 +289,7 @@ Deno.test('accepted EQU target memory clears at the normal next-turn boundary', 
   );
 });
 
-Deno.test('mixed ordinary charge and independent SOL Use/Hold choices commit deterministically', () => {
+Deno.test('ordinary charge resolution does not spend SOL or add Energy', () => {
   const state = createState();
   const result = resolveChargeDeclarationSubmission({
     state,
@@ -317,30 +298,26 @@ Deno.test('mixed ordinary charge and independent SOL Use/Hold choices commit det
       ordinaryChargeActions: [{
         actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'int-1', choiceId: 'damage',
       }],
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-a', choiceId: 'use' },
-      ],
     }),
     nowMs: 1000,
   });
   assert.equal(result.status, 'applied');
   assert.equal(result.state.gameData.ships.p1.find((ship: any) => ship.instanceId === 'int-1').chargesCurrent, 1);
-  assert.equal(result.state.gameData.ships.p1.find((ship: any) => ship.instanceId === 'sol-a').chargesCurrent, 3);
+  assert.equal(result.state.gameData.ships.p1.find((ship: any) => ship.instanceId === 'sol-a').chargesCurrent, 4);
   assert.equal(result.state.gameData.ships.p1.find((ship: any) => ship.instanceId === 'sol-b').chargesCurrent, 1);
   assert.deepEqual(
     result.state.gameData.turnData.chargeDeclarationAcknowledgements,
     {
       battleTurnNumber: 3,
       chargeAfterByPlayerId: {
-        p1: { 'int-1': 1, 'sol-a': 3 },
+        p1: { 'int-1': 1 },
       },
     },
   );
-  assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, { green: 2, red: 1, blue: 1 });
+  assert.deepEqual(result.state.gameData.ancient.energyByPlayerId.p1.pool, { green: 1, red: 0, blue: 0 });
   assert.deepEqual(
     result.state.gameData.ancient.energyByPlayerId.p1.sources.map((source: any) => source.sourceId),
-    ['initial-core', 'ancient-solar-grid-energy:3:p1:sol-a'],
+    ['initial-core'],
   );
   assert.deepEqual(result.state.gameData.ancient.acceptedDeclarationByPlayerId.p1.context, {
     contextVersion: 1,
@@ -358,6 +335,15 @@ Deno.test('mixed ordinary charge and independent SOL Use/Hold choices commit det
 
 Deno.test('fixture manual Solar resolvers commit ordered payments, pending effects, accepted casts, and ledger atomically', () => {
   const state = createState();
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 2, red: 1, blue: 1 };
+  state.gameData.ancient.energyByPlayerId.p1.sources.push({
+    sourceId: 'ancient-solar-grid-energy:3:p1:sol-a',
+    sourceInstanceId: 'sol-a',
+    sourceShipDefId: 'SOL',
+    battleTurnNumber: 3,
+    order: 1,
+    amounts: { green: 1, red: 1, blue: 1 },
+  });
   const resolvers: ManualSolarResolverRegistry = {
     SLIF: {
       acceptedFields: {},
@@ -379,10 +365,6 @@ Deno.test('fixture manual Solar resolvers commit ordered payments, pending effec
     },
   };
   const declaration = payload({
-    solarGridChoices: [
-      { sourceInstanceId: 'sol-a', choiceId: 'use' },
-      { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-    ],
     solarCasts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SLIF' }],
   });
   const result = resolveChargeDeclarationSubmissionWithDependencies({
@@ -453,7 +435,6 @@ Deno.test('production Simulacrum commits ordered queue records, exact blue payme
     { instanceId: 'enemy-def', shipDefId: 'DEF' },
   ];
   state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId.p1 = [];
-  state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1 = [];
   state.gameData.ancient.energyByPlayerId.p1.pool = {
     green: 0,
     red: 0,
@@ -586,7 +567,6 @@ Deno.test('production Simulacrum rolls back its complete declaration for a dupli
     state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p2 =
       structuredClone(state.gameData.ships.p2);
     state.gameData.turnData.chargeDeclarationEligibleSourceIdsByPlayerId.p1 = [];
-    state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1 = [];
     state.gameData.ancient.energyByPlayerId.p1.pool = {
       green: 0,
       red: 0,
@@ -605,7 +585,7 @@ Deno.test('production Simulacrum rolls back its complete declaration for a dupli
   }
 });
 
-Deno.test('later unaffordable fixture cast rolls back ordinary charge, Grid, Energy, effects, ledger, and acceptance', () => {
+Deno.test('later unaffordable fixture cast rolls back ordinary charge, Energy, effects, ledger, and acceptance', () => {
   const state = createState();
   const before = structuredClone(state);
   const resolvers: ManualSolarResolverRegistry = {
@@ -640,10 +620,6 @@ Deno.test('later unaffordable fixture cast rolls back ordinary charge, Grid, Ene
       ordinaryChargeActions: [{
         actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'int-1', choiceId: 'damage',
       }],
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'use' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SAST' }],
     }),
     nowMs: 1000,
@@ -658,10 +634,6 @@ Deno.test('production Simulacrum rejects a missing target without changing state
     state,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [{ solarPowerId: 'SSIM' }],
     }),
     nowMs: 1000,
@@ -693,10 +665,6 @@ Deno.test('production Black Hole commits normalized targets and locked damage wi
     state,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [{
         solarPowerId: 'SBLA',
         targetInstanceIds: ['enemy-sta', 'enemy-int'],
@@ -779,7 +747,6 @@ Deno.test('Black Hole locks entry targets but preserves the existing live owned-
     state,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: holdSolarGrids(),
       solarCasts: [{
         solarPowerId: 'SBLA',
         targetInstanceIds: ['enemy-a', 'enemy-b'],
@@ -814,7 +781,6 @@ Deno.test('a repeated Black Hole reserved target rejects the declaration atomica
     state,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: holdSolarGrids(),
       solarCasts: [
         {
           solarPowerId: 'SBLA',
@@ -886,10 +852,6 @@ Deno.test('production FAM and Vortex share Charge Declaration snapshot TYPE sema
         sourceInstanceId: 'fam-live',
         choiceId: 'damage',
       }],
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [{ solarPowerId: 'SVOR' }],
     }),
     nowMs: 1000,
@@ -949,10 +911,6 @@ Deno.test('Vortex participates in ordered payments and a later unaffordable cast
     state: orderedState,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [
         { solarPowerId: 'SLIF' },
         { solarPowerId: 'SVOR' },
@@ -994,10 +952,6 @@ Deno.test('Vortex participates in ordered payments and a later unaffordable cast
     state: rollbackState,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [
         { solarPowerId: 'SBLA' },
         { solarPowerId: 'SVOR' },
@@ -1015,10 +969,6 @@ Deno.test('production Siphon locks selected spend separately from piecewise ledg
     state,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [{ solarPowerId: 'SSIP', lockedAmount: 4 }],
     }),
     nowMs: 1000,
@@ -1067,10 +1017,6 @@ Deno.test('multiple Siphons resolve sequentially when each remains affordable', 
     state,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [
         { solarPowerId: 'SSIP', lockedAmount: 4 },
         { solarPowerId: 'SSIP', lockedAmount: 5 },
@@ -1099,10 +1045,6 @@ Deno.test('earlier manual casts and Siphon payments constrain later casts in ord
     state: lifeThenSiphon,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [
         { solarPowerId: 'SLIF' },
         { solarPowerId: 'SSIP', lockedAmount: 4 },
@@ -1120,10 +1062,6 @@ Deno.test('earlier manual casts and Siphon payments constrain later casts in ord
     state: siphonThenStarBirth,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [
         { solarPowerId: 'SSIP', lockedAmount: 4 },
         { solarPowerId: 'SSTA' },
@@ -1142,10 +1080,6 @@ Deno.test('manual Siphon reduces the pool consumed by fixed mono-colour Autocast
     state,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [{ solarPowerId: 'SSIP', lockedAmount: 4 }],
       autocastEnabled: true,
     }),
@@ -1173,10 +1107,6 @@ Deno.test('a later invalid Siphon rejects the entire production declaration atom
       ordinaryChargeActions: [{
         actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'int-1', choiceId: 'damage',
       }],
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'use' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [
         { solarPowerId: 'SSIP', lockedAmount: 4 },
         { solarPowerId: 'SSIP', lockedAmount: 5 },
@@ -1187,31 +1117,17 @@ Deno.test('a later invalid Siphon rejects the entire production declaration atom
   assert.deepEqual(state, before);
 });
 
-Deno.test('invalid later ordinary action and invalid SOL coverage leave the entire input state unchanged', () => {
+Deno.test('invalid ordinary actions leave the entire input state unchanged', () => {
   for (const invalidPayload of [
     payload({
       ordinaryChargeActions: [
         { actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'int-1', choiceId: 'damage' },
         { actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'int-2', choiceId: 'forged' },
       ],
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
-    }),
-    payload({
-      ordinaryChargeActions: [
-        { actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'int-1', choiceId: 'damage' },
-      ],
-      solarGridChoices: [{ sourceInstanceId: 'sol-a', choiceId: 'use' }],
     }),
     payload({
       ordinaryChargeActions: [
         { actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'forged', choiceId: 'damage' },
-      ],
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
       ],
     }),
   ]) {
@@ -1224,71 +1140,9 @@ Deno.test('invalid later ordinary action and invalid SOL coverage leave the enti
   }
 });
 
-Deno.test('snapshotted SOL moved to VOID can use its charge and identical accepted retry is eventless', () => {
-  const state = createState();
-  const moved = state.gameData.ships.p1.find((ship: any) => ship.instanceId === 'sol-b');
-  state.gameData.ships.p1 = state.gameData.ships.p1.filter((ship: any) => ship.instanceId !== 'sol-b');
-  state.gameData.voidShipsByPlayerId.p1.push(moved);
-  const declaration = payload({
-    solarGridChoices: [
-      { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-      { sourceInstanceId: 'sol-b', choiceId: 'use' },
-    ],
-  });
-  const applied = resolveChargeDeclarationSubmission({ state, playerId: 'p1', payload: declaration, nowMs: 1000 });
-  assert.equal(applied.state.gameData.voidShipsByPlayerId.p1[0].chargesCurrent, 0);
-  const retry = resolveChargeDeclarationSubmission({
-    state: applied.state, playerId: 'p1', payload: declaration, nowMs: 1001,
-  });
-  assert.equal(retry.status, 'idempotent');
-  assert.deepEqual(retry.events, []);
-  assert.equal(retry.state.gameData.voidShipsByPlayerId.p1[0].chargesCurrent, 0);
-  assert.throws(() => resolveChargeDeclarationSubmission({
-    state: applied.state,
-    playerId: 'p1',
-    payload: payload({ declarationId: 'new-id', solarGridChoices: declaration.solarGridChoices }),
-    nowMs: 1002,
-  }), /different charge declaration/);
-});
-
-Deno.test('non-Ancient and forged or depleted SOL submissions are rejected', () => {
-  const nonAncient = createState();
-  nonAncient.players[0].faction = 'human';
-  assert.throws(() => resolveChargeDeclarationSubmission({
-    state: nonAncient,
-    playerId: 'p1',
-    payload: payload({
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
-    }),
-    nowMs: 1000,
-  }), /Only Ancient players/);
-
-  const depleted = createState();
-  depleted.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId.p1 = ['sol-b'];
-  depleted.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId.p1 = [
-    { instanceId: 'sol-b', shipDefId: 'SOL', chargesCurrent: 0 },
-  ];
-  assert.throws(() => resolveChargeDeclarationSubmission({
-    state: depleted,
-    playerId: 'p1',
-    payload: payload({ solarGridChoices: [{ sourceInstanceId: 'sol-b', choiceId: 'use' }] }),
-    nowMs: 1000,
-  }), /Invalid snapshotted Solar Grid/);
-});
-
 Deno.test('a previous Battle accepted record does not block a new declaration', () => {
-  const firstState = createState();
-  const firstPayload = payload({
-    solarGridChoices: [
-      { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-      { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-    ],
-  });
   const first = resolveChargeDeclarationSubmission({
-    state: firstState, playerId: 'p1', payload: firstPayload, nowMs: 1000,
+    state: createState(), playerId: 'p1', payload: payload(), nowMs: 1000,
   });
   const nextBattle = first.state;
   nextBattle.gameData.turnNumber = 4;
@@ -1300,13 +1154,7 @@ Deno.test('a previous Battle accepted record does not block a new declaration', 
   const second = resolveChargeDeclarationSubmission({
     state: nextBattle,
     playerId: 'p1',
-    payload: payload({
-      declarationId: 'battle-4-declaration',
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
-    }),
+    payload: payload({ declarationId: 'battle-4-declaration' }),
     nowMs: 2000,
   });
   assert.equal(second.status, 'applied');
@@ -1342,10 +1190,6 @@ Deno.test('production Autocast follows the exact fixed category order and exhaus
       state,
       playerId: 'p1',
       payload: payload({
-        solarGridChoices: [
-          { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-          { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-        ],
         autocastEnabled: true,
       }),
       nowMs: 1000,
@@ -1375,10 +1219,6 @@ Deno.test('manual casts remain first and Autocast continues with deterministic i
   state.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 4 };
   state.gameData.ancient.energyByPlayerId.p1.pool = { green: 5, red: 4, blue: 2 };
   const declaration = payload({
-    solarGridChoices: [
-      { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-      { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-    ],
     solarCasts: [
       { solarPowerId: 'SLIF' },
       { solarPowerId: 'SAST' },
@@ -1434,7 +1274,7 @@ Deno.test('Autocast toggle off preserves unspent Energy and true retries are eve
   const off = resolveChargeDeclarationSubmission({
     state,
     playerId: 'p1',
-    payload: payload({ solarGridChoices: choices, autocastEnabled: false }),
+    payload: payload({ autocastEnabled: false }),
     nowMs: 1000,
   });
   assert.deepEqual(off.state.gameData.ancient.energyByPlayerId.p1.pool, { green: 3, red: 3, blue: 1 });
@@ -1443,7 +1283,7 @@ Deno.test('Autocast toggle off preserves unspent Energy and true retries are eve
   const onState = createState();
   onState.gameData.turnData.effectiveDiceRollByPlayerId = { p1: 2 };
   onState.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 3, blue: 1 };
-  const onPayload = payload({ solarGridChoices: choices, autocastEnabled: true });
+  const onPayload = payload({ autocastEnabled: true });
   const applied = resolveChargeDeclarationSubmission({
     state: onState, playerId: 'p1', payload: onPayload, nowMs: 1000,
   });
@@ -1457,14 +1297,14 @@ Deno.test('Autocast toggle off preserves unspent Energy and true retries are eve
   assert.throws(() => resolveChargeDeclarationSubmission({
     state: applied.state,
     playerId: 'p1',
-    payload: payload({ solarGridChoices: choices, autocastEnabled: false }),
+    payload: payload({ autocastEnabled: false }),
     nowMs: 1002,
   }), /different charge declaration/);
 });
 
-Deno.test('late injected Autocast failure rolls back ordinary charge, Grid, manual and automatic effects, lines, and acceptance', () => {
+Deno.test('late injected Autocast failure rolls back ordinary charge, manual and automatic effects, lines, and acceptance', () => {
   const state = createState();
-  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 3, red: 0, blue: 1 };
+  state.gameData.ancient.energyByPlayerId.p1.pool = { green: 4, red: 1, blue: 2 };
   const before = structuredClone(state);
   const resolvers: ManualSolarResolverRegistry = {
     SLIF: {
@@ -1523,10 +1363,6 @@ Deno.test('late injected Autocast failure rolls back ordinary charge, Grid, manu
       ordinaryChargeActions: [{
         actionType: 'power', actionId: 'INT#0', sourceInstanceId: 'int-1', choiceId: 'damage',
       }],
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'use' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [{ solarPowerId: 'SLIF' }, { solarPowerId: 'SCON' }],
       autocastEnabled: true,
     }),
@@ -1542,10 +1378,6 @@ Deno.test('Convert lines survive the real turn bump, combine with following gene
     state,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'hold' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: Array.from({ length: 9 }, () => ({ solarPowerId: 'SCON' })),
     }),
     nowMs: 1000,
@@ -1694,7 +1526,6 @@ Deno.test('multiple Cubes do not repeat manual mono-colour Solar outcomes or pay
       state,
       playerId: 'p1',
       payload: payload({
-        solarGridChoices: holdSolarGrids(),
         solarCasts: [{ solarPowerId: scenario.solarPowerId }],
       }),
       nowMs: 1000,
@@ -1725,7 +1556,6 @@ Deno.test('multiple Cubes do not repeat manual mono-colour Solar outcomes or pay
       state: result.state,
       playerId: 'p1',
       payload: payload({
-        solarGridChoices: holdSolarGrids(),
         solarCasts: [{ solarPowerId: scenario.solarPowerId }],
       }),
       nowMs: 1001,
@@ -1747,7 +1577,6 @@ Deno.test('Cube has no effect on mixed manual Solar resolution or presentation c
     state,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: holdSolarGrids(),
       solarCasts: [
         { solarPowerId: 'SSIP', lockedAmount: 4 },
         { solarPowerId: 'SLIF' },
@@ -1792,7 +1621,6 @@ Deno.test('multiple Cubes do not duplicate the first Autocast outcome', () => {
     state,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: holdSolarGrids(),
       autocastEnabled: true,
     }),
     nowMs: 1000,
@@ -1819,7 +1647,6 @@ Deno.test('multiple Cubes do not duplicate the first Autocast outcome', () => {
     state: result.state,
     playerId: 'p1',
     payload: payload({
-      solarGridChoices: holdSolarGrids(),
       autocastEnabled: true,
     }),
     nowMs: 1001,
@@ -1849,7 +1676,6 @@ Deno.test('multiple Cubes do not change ordinary Simulacrum primary casts and re
     blue: defCost + figCost,
   };
   const declaration = payload({
-    solarGridChoices: holdSolarGrids(),
     solarCasts: [
       { solarPowerId: 'SSIM', targetInstanceId: 'enemy-def' },
       { solarPowerId: 'SSIM', targetInstanceId: 'enemy-fig' },
@@ -1921,10 +1747,6 @@ Deno.test('multiple Cubes do not force an extra Simulacrum copy at canonical cap
         sourceInstanceId: 'int-1',
         choiceId: 'damage',
       }],
-      solarGridChoices: [
-        { sourceInstanceId: 'sol-a', choiceId: 'use' },
-        { sourceInstanceId: 'sol-b', choiceId: 'hold' },
-      ],
       solarCasts: [{ solarPowerId: 'SSIM', targetInstanceId: 'enemy-spi' }],
     }),
     nowMs: 1000,

@@ -161,7 +161,6 @@ Deno.test('bot EQU planning retains declaration-entry targets after hidden canon
           human: [],
           bot: ['bot-equ'],
         },
-        solarGridDeclarationSourceIdsByPlayerId: { human: [], bot: [] },
         chargeDeclarationFleetSnapshotByPlayerId: {
           human: [{ instanceId: 'human-def', shipDefId: 'DEF' }],
           bot: [
@@ -246,7 +245,6 @@ Deno.test('multi-EQU bot reserves its accepted pair and settles without repeat-t
           human: [],
           bot: ['bot-equ-a', 'bot-equ-b', 'bot-equ-c'],
         },
-        solarGridDeclarationSourceIdsByPlayerId: { human: [], bot: [] },
         chargeDeclarationFleetSnapshotByPlayerId: {},
         chargePowerUsedByInstanceId: {},
       },
@@ -329,7 +327,6 @@ Deno.test('multi-EQU bot spends disjoint sources on every available shared-cost 
           human: [],
           bot: ['bot-equ-a', 'bot-equ-b', 'bot-equ-c'],
         },
-        solarGridDeclarationSourceIdsByPlayerId: { human: [], bot: [] },
         chargeDeclarationFleetSnapshotByPlayerId: {},
         chargePowerUsedByInstanceId: {},
       },
@@ -496,7 +493,6 @@ Deno.test('authored Human INT-only plans preserve sequential final Declaration a
           opponent: [],
           bot: ['bot-int-a', 'bot-int-b'],
         },
-        solarGridDeclarationSourceIdsByPlayerId: { opponent: [], bot: [] },
         chargeDeclarationFleetSnapshotByPlayerId: structuredClone(ships),
         chargePowerUsedByInstanceId: {},
       },

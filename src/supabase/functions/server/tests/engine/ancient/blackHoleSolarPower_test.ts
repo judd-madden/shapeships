@@ -625,10 +625,6 @@ Deno.test('accepted Black Hole declaration survives JSON reload and resolves onc
     p1: [],
     p2: [],
   };
-  state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = {
-    p1: ['sol-a'],
-    p2: [],
-  };
   state.gameData.turnData.chargeDeclarationFleetSnapshotByPlayerId = {
     p1: structuredClone(state.gameData.ships.p1),
     p2: structuredClone(state.gameData.ships.p2),
@@ -659,10 +655,6 @@ Deno.test('accepted Black Hole declaration survives JSON reload and resolves onc
       contractVersion: 1,
       declarationId: 'black-hole-reload',
       ordinaryChargeActions: [],
-      solarGridChoices: [{
-        sourceInstanceId: 'sol-a',
-        choiceId: 'hold',
-      }],
       solarCasts: [{
         solarPowerId: 'SBLA',
         targetInstanceIds: ['enemy-z', 'enemy-a'],

@@ -778,7 +778,6 @@ function createTerminalDeclarationState(gameId: string) {
         currentMajorPhase: 'battle',
         currentSubPhase: 'charge_declaration',
         chargeDeclarationEligibleSourceIdsByPlayerId: { p1: ['p1-int'], p2: ['p2-int'] },
-        solarGridDeclarationSourceIdsByPlayerId: { p1: [], p2: [] },
         chargeDeclarationFleetSnapshotByPlayerId: structuredClone(ships),
         chargePowerUsedByInstanceId: {},
       },

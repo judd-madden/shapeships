@@ -7,7 +7,6 @@ import type {
   AncientPlayerEnergyState,
   AncientNormalizedOrdinaryChargeChoice,
   AncientNormalizedSolarCast,
-  AncientNormalizedSolarGridChoice,
   AncientSimulacrumPresentation,
   AncientSolarLedgerEntry,
   AncientSolarLedgerState,
@@ -37,6 +36,17 @@ import {
   redactDrawingPreludeTurnDataForClient,
 } from './drawingPreludeProjection.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
+import { applyEffects } from '../../engine_shared/effects/applyEffects.ts';
+import {
+  EffectKind,
+  EffectTiming,
+  SurvivabilityRule,
+  type Effect,
+} from '../../engine_shared/effects/Effect.ts';
+import {
+  appendShipActivationCueBatch,
+  getShipActivationSourcesFromAppliedEffects,
+} from './shipActivationCues.ts';
 
 export const ANCIENT_STATE_SCHEMA_VERSION = 1 as const;
 const ANCIENT_SOLAR_POWER_ID_SET = new Set<AncientSolarPowerId>(ANCIENT_SOLAR_POWER_IDS);
@@ -391,21 +401,6 @@ function normalizeAcceptedOrdinaryChargeActions(value: unknown): AncientNormaliz
   return actions;
 }
 
-function normalizeAcceptedSolarGridChoices(value: unknown): AncientNormalizedSolarGridChoice[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter((candidate) =>
-      isObject(candidate) &&
-      isNonEmptyString(candidate.sourceInstanceId) &&
-      (candidate.choiceId === 'use' || candidate.choiceId === 'hold')
-    )
-    .map((candidate: any) => ({
-      sourceInstanceId: candidate.sourceInstanceId,
-      choiceId: candidate.choiceId as 'use' | 'hold',
-    }))
-    .sort((a, b) => a.sourceInstanceId.localeCompare(b.sourceInstanceId));
-}
-
 function normalizeStoredSolarCast(value: unknown): AncientNormalizedSolarCast | null {
   if (!isObject(value)) return null;
   const allowedFields = new Set(['solarPowerId', 'targetInstanceId', 'targetInstanceIds', 'lockedAmount']);
@@ -469,14 +464,12 @@ function normalizeAcceptedSolarCasts(
 
 function fingerprintAcceptedDeclarationContent(value: {
   ordinaryChargeActions: AncientNormalizedOrdinaryChargeChoice[];
-  solarGridChoices: AncientNormalizedSolarGridChoice[];
   solarCasts: AncientNormalizedSolarCast[];
   autocastEnabled: boolean;
 }): string {
   return JSON.stringify({
     contractVersion: ANCIENT_STATE_SCHEMA_VERSION,
     ordinaryChargeActions: value.ordinaryChargeActions,
-    solarGridChoices: value.solarGridChoices,
     solarCasts: value.solarCasts,
     autocastEnabled: value.autocastEnabled,
   });
@@ -502,7 +495,6 @@ function normalizeAcceptedDeclaration(
   }
   const context = value.context;
   const ordinaryChargeActions = normalizeAcceptedOrdinaryChargeActions(value.ordinaryChargeActions);
-  const solarGridChoices = normalizeAcceptedSolarGridChoices(value.solarGridChoices);
   const solarCasts = normalizeAcceptedSolarCasts(value.solarCasts, `${path}.solarCasts`, risks);
   let autocastEnabled = false;
   if (typeof value.autocastEnabled === 'boolean') {
@@ -516,7 +508,6 @@ function normalizeAcceptedDeclaration(
     declarationId: value.declarationId,
     declarationFingerprint: fingerprintAcceptedDeclarationContent({
       ordinaryChargeActions,
-      solarGridChoices,
       solarCasts,
       autocastEnabled,
     }),
@@ -528,7 +519,6 @@ function normalizeAcceptedDeclaration(
       energySourceIds: normalizeStringList(context.energySourceIds),
     },
     ordinaryChargeActions,
-    solarGridChoices,
     solarCasts,
     autocastEnabled,
   };
@@ -832,17 +822,67 @@ function getValidSelectedNumber(value: unknown): number | null {
 }
 
 export function applyAncientBattleRevealPreparation<T = any>(state: T): T {
-  const canonicalState = state as any;
+  let canonicalState = state as any;
   const battleTurnNumber = normalizeAncientNumber(
     canonicalState.gameData.turnNumber ??
       canonicalState.gameData.turnData?.turnNumber ??
       canonicalState.turnNumber ??
       0,
   );
+  if (
+    canonicalState.gameData.turnData?.ancientBattleRevealPreparedTurnNumber ===
+      battleTurnNumber
+  ) {
+    return state;
+  }
   pruneCompletedSimulacrumCopiesAtBattleReveal(
     canonicalState as GameState,
     battleTurnNumber,
   );
+
+  const solarGridCandidates = getPlayerSeatIds(canonicalState.players)
+    .flatMap((playerId) => {
+      const fleet = Array.isArray(canonicalState.gameData.ships?.[playerId])
+        ? canonicalState.gameData.ships[playerId]
+        : [];
+      return fleet
+        .filter((ship: any) =>
+          ship?.shipDefId === 'SOL' &&
+          isNonEmptyString(ship?.instanceId) &&
+          normalizeAncientNumber(ship?.chargesCurrent) > 0
+        )
+        .map((ship: any) => ({ playerId, ship }));
+    })
+    .sort((a, b) =>
+      a.ship.instanceId.localeCompare(b.ship.instanceId) ||
+      a.playerId.localeCompare(b.playerId)
+    );
+  const solarChargeEffects: Effect[] = solarGridCandidates.map(({ playerId, ship }) => ({
+    id: `solar_grid_reveal_charge:${battleTurnNumber}:${playerId}:${ship.instanceId}`,
+    ownerPlayerId: playerId,
+    source: { type: 'ship', instanceId: ship.instanceId, shipDefId: 'SOL' },
+    timing: 'battle.reveal',
+    activationTag: EffectTiming.Automatic,
+    survivability: SurvivabilityRule.DiesWithSource,
+    target: { playerId, shipInstanceId: ship.instanceId },
+    kind: EffectKind.SpendCharge,
+    amount: 1,
+  }));
+  const appliedSolarCharges = solarChargeEffects.length > 0
+    ? applyEffects(canonicalState as GameState, solarChargeEffects)
+    : { state: canonicalState as GameState, events: [] };
+  canonicalState = appliedSolarCharges.state;
+  const appliedSolarEffectIds = new Set(
+    appliedSolarCharges.events.map((event) => event.effectId),
+  );
+  const spentSolarGridIdsByPlayerId = new Map<string, Set<string>>();
+  for (const { playerId, ship } of solarGridCandidates) {
+    const effectId = `solar_grid_reveal_charge:${battleTurnNumber}:${playerId}:${ship.instanceId}`;
+    if (!appliedSolarEffectIds.has(effectId)) continue;
+    const playerSources = spentSolarGridIdsByPlayerId.get(playerId) ?? new Set<string>();
+    playerSources.add(ship.instanceId);
+    spentSolarGridIdsByPlayerId.set(playerId, playerSources);
+  }
   const energyByPlayerId: Record<string, AncientPlayerEnergyState> = {};
   const solarLedgerByPlayerId: Record<string, AncientSolarLedgerState> = {};
   const quantumMysticRevealByInstanceId: Record<string, {
@@ -915,6 +955,20 @@ export function applyAncientBattleRevealPreparation<T = any>(state: T): T {
       });
     }
 
+    if (isAncientController) {
+      const spentSolarGridIds = spentSolarGridIdsByPlayerId.get(playerId) ?? new Set<string>();
+      for (const sourceInstanceId of [...spentSolarGridIds].sort((a, b) => a.localeCompare(b))) {
+        sources.push({
+          sourceId: `ancient-solar-grid-energy:${battleTurnNumber}:${playerId}:${sourceInstanceId}`,
+          sourceInstanceId,
+          sourceShipDefId: 'SOL',
+          battleTurnNumber,
+          order: sources.length,
+          amounts: { green: 1, red: 1, blue: 1 },
+        });
+      }
+    }
+
     const pool = sources.reduce<AncientEnergyPool>(
       (total, source) => ({
         green: total.green + source.amounts.green,
@@ -937,7 +991,16 @@ export function applyAncientBattleRevealPreparation<T = any>(state: T): T {
     ...(canonicalState.gameData.powerMemory ?? {}),
     quantumMysticRevealByInstanceId,
   };
-  return state;
+  canonicalState.gameData.turnData.ancientBattleRevealPreparedTurnNumber = battleTurnNumber;
+  canonicalState = appendShipActivationCueBatch(canonicalState as GameState, {
+    key: `ship-activation:${battleTurnNumber}:battle.reveal:solar-grid-energy`,
+    phaseKey: 'battle.reveal',
+    sources: getShipActivationSourcesFromAppliedEffects(
+      solarChargeEffects,
+      appliedSolarCharges.events,
+    ),
+  });
+  return canonicalState as T;
 }
 
 export function getAuthoritativeAncientEnergyTotal(state: any, playerId: string): number {
@@ -1134,7 +1197,7 @@ export function sanitizeAncientStateForClient<T = any>(
     const {
       pendingSOLARPowerDeclarations: _obsoleteSolarDeclarations,
       thirdSpiralFirstStrikeEligibilityByPlayerId: _thirdSpiralFirstStrikeEligibility,
-      solarGridDeclarationSourceIdsByPlayerId: _solarGridDeclarationSourceIds,
+      ancientBattleRevealPreparedTurnNumber: _ancientBattleRevealPreparedTurnNumber,
       ...safeTurnData
     } = turnData;
     const drawingSafeTurnData = redactDrawingPreludeTurnDataForClient(

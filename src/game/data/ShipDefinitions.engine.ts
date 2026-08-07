@@ -359,7 +359,6 @@ const MANUAL_POWER_OVERRIDES: Record<string, Record<number, Partial<EngineShipPo
   'SOL': {
     0: {
       kind: EffectKind.GAIN_ENERGY,
-      requiresCharge: true,
       chargesRequired: 1,
       specialLogic: {
         energyGeneration: { red: 1, green: 1, blue: 1 },

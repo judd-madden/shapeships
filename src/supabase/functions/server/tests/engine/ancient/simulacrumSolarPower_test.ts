@@ -222,10 +222,6 @@ Deno.test("accepted Simulacrum Cube survives reload through materialization and 
     "z-owner": [],
     "a-owner": [],
   };
-  state.gameData.turnData.solarGridDeclarationSourceIdsByPlayerId = {
-    "z-owner": [],
-    "a-owner": [],
-  };
   state.gameData.ancient.energyByPlayerId["z-owner"] = {
     battleTurnNumber: 4,
     pool: { green: 0, red: 0, blue: cubCost },
@@ -251,7 +247,6 @@ Deno.test("accepted Simulacrum Cube survives reload through materialization and 
       contractVersion: 1,
       declarationId: "simulacrum-cube-reload",
       ordinaryChargeActions: [],
-      solarGridChoices: [],
       solarCasts: [{
         solarPowerId: "SSIM",
         targetInstanceId: "cube-target",
