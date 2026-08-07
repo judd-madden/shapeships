@@ -60,7 +60,7 @@ export function TopHud({ vm }: TopHudProps) {
         {vm.p1StatusTone !== 'hidden' && (
           <StatusWrapper>
             <p
-              className={`font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
+              className={`font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
                 vm.p1StatusTone === 'ready' ? 'text-[var(--shapeships-pastel-green)]' : 'text-white'
               }`}
             >
@@ -69,7 +69,7 @@ export function TopHud({ vm }: TopHudProps) {
           </StatusWrapper>
         )}
         <p
-          className={`font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[28px] text-center w-full ${
+          className={`font-bold leading-[normal] relative shrink-0 text-[28px] text-center w-full ${
             vm.p1IsReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
           }`}
         >
@@ -98,13 +98,13 @@ export function TopHud({ vm }: TopHudProps) {
                   text={vm.p1Name}
                   maxFontSize={36}
                   align="right"
-                  className="font-['Roboto'] font-normal leading-[normal] text-[36px] text-white"
+                  className="font-normal leading-[normal] text-[36px] text-white"
                 />
               </div>
             </div>
           </div>
           <p
-            className="capitalize font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[15px] text-right text-white w-full"
+            className="capitalize font-normal leading-[normal] relative shrink-0 text-[15px] text-right text-white w-full"
           >
             {vm.p1Species}
           </p>
@@ -125,14 +125,14 @@ export function TopHud({ vm }: TopHudProps) {
                   text={vm.p2Name}
                   maxFontSize={36}
                   align="left"
-                  className="font-['Roboto'] font-normal leading-[normal] text-[36px] text-white"
+                  className="font-normal leading-[normal] text-[36px] text-white"
                 />
               </div>
               <OnlineStatus isOnline={vm.p2IsOnline} />
             </div>
           </div>
           <p
-            className="capitalize font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[15px] text-white w-full"
+            className="capitalize font-normal leading-[normal] relative shrink-0 text-[15px] text-white w-full"
           >
             {vm.p2Species}
           </p>
@@ -147,7 +147,7 @@ export function TopHud({ vm }: TopHudProps) {
         {vm.p2StatusTone !== 'hidden' && (
           <StatusWrapper>
             <p
-              className={`font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
+              className={`font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
                 vm.p2StatusTone === 'ready' ? 'text-[var(--shapeships-pastel-green)]' : 'text-white'
               }`}
             >
@@ -156,7 +156,7 @@ export function TopHud({ vm }: TopHudProps) {
           </StatusWrapper>
         )}
         <p
-          className={`font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[28px] text-center w-full ${
+          className={`font-bold leading-[normal] relative shrink-0 text-[28px] text-center w-full ${
             vm.p2IsReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
           }`}
         >

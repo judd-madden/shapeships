@@ -44,7 +44,7 @@ export function LoginShell({
             
             {/* Logo */}
             <div className="relative inline-grid max-w-full shrink-0 grid-cols-[max-content] grid-rows-[max-content] place-items-start leading-[0]">
-              <p className="[grid-area:1_/_1] relative ml-[69px] mt-[0.49px] font-['Roboto'] text-[30px] font-bold leading-[normal] not-italic text-nowrap sm:ml-[126px] sm:text-[72px] lg:ml-[160px] lg:text-[88px] xl:ml-[203.9px] xl:text-[105.935px]">
+              <p className="[grid-area:1_/_1] relative ml-[69px] mt-[0.49px] text-[30px] font-bold leading-[normal] not-italic text-nowrap sm:ml-[126px] sm:text-[72px] lg:ml-[160px] lg:text-[88px] xl:ml-[203.9px] xl:text-[105.935px]">
                 SHAPESHIPS
               </p>
               <div className="[grid-area:1_/_1] relative ml-0 mt-0 flex h-[45px] w-[53.25px] items-center justify-center sm:h-[96px] sm:w-[112px] lg:h-[118px] lg:w-[138px] xl:h-[136.015px] xl:w-[159.556px]">

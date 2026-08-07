@@ -34,7 +34,7 @@ export function SecondaryNavItem({
         `}
       >
         <p 
-          className="font-['Roboto'] font-bold leading-[normal] relative text-[18px] text-black text-nowrap"
+          className="font-bold leading-[normal] relative text-[18px] text-black text-nowrap"
         >
           {label}
         </p>
@@ -58,7 +58,7 @@ export function SecondaryNavItem({
       `}
     >
       <p 
-        className="font-['Roboto'] font-bold leading-[normal] relative text-[18px] text-nowrap text-white group-hover:underline decoration-solid"
+        className="font-bold leading-[normal] relative text-[18px] text-nowrap text-white group-hover:underline decoration-solid"
         style={{ 
           textUnderlinePosition: 'from-font'
         }}

@@ -184,7 +184,7 @@ export function MobileActionPanel({
             onClick={entry.onClick}
           >
             <p
-              className="font-['Roboto'] font-bold leading-[normal] text-[14px] text-nowrap text-white"
+              className="font-bold leading-[normal] text-[14px] text-nowrap text-white"
             >
               {entry.label}
             </p>

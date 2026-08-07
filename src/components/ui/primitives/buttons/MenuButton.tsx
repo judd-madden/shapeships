@@ -66,7 +66,7 @@ export function MenuButton({
         `}
       >
         <p 
-          className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap text-white"
+          className="font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap text-white"
         >
           {children}
         </p>
@@ -94,7 +94,7 @@ export function MenuButton({
         `}
       >
         <p 
-          className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
+          className="font-black leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
         >
           {children}
         </p>
@@ -121,7 +121,7 @@ export function MenuButton({
       `}
     >
       <p 
-        className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
+        className="font-black leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
       >
         {children}
       </p>

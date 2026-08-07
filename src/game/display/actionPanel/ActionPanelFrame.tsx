@@ -164,7 +164,7 @@ export function ActionPanelFrame({
             onClick={entry.onClick}
           >
             <p
-              className="font-['Roboto'] font-bold leading-[normal] text-[18px] text-nowrap text-white"
+              className="font-bold leading-[normal] text-[18px] text-nowrap text-white"
             >
               {entry.label}
             </p>

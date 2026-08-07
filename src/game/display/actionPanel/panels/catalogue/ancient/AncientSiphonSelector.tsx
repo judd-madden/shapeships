@@ -60,7 +60,7 @@ export function AncientSiphonSelector({
       </div>
 
       <div
-        className="flex w-[72px] shrink-0 flex-col items-end font-['Roboto'] text-right text-[18px] font-normal leading-[1.1] text-white"
+        className="flex w-[72px] shrink-0 flex-col items-end text-right text-[18px] font-normal leading-[1.1] text-white"
       >
         <span>Energy</span>
         <span className="mt-[18px]">Healing</span>
@@ -130,7 +130,7 @@ export function AncientSiphonSelector({
                   />
                   {effectAmount !== null && (
                     <div
-                      className="flex flex-col items-center gap-[8px] font-['Roboto'] text-[22px] font-bold leading-none"
+                      className="flex flex-col items-center gap-[8px] text-[22px] font-bold leading-none"
                     >
                       <span className="text-[var(--shapeships-pastel-green)]">{effectAmount}</span>
                       <span className="text-[var(--shapeships-pastel-red)]">{effectAmount}</span>
@@ -139,7 +139,7 @@ export function AncientSiphonSelector({
                 </button>
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none font-['Roboto'] text-center text-[16px] font-bold leading-none text-white"
+                  className="pointer-events-none text-center text-[16px] font-bold leading-none text-white"
                 >
                   {candidate}
                 </span>

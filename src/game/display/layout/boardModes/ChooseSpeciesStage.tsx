@@ -69,7 +69,7 @@ function ComputerSpeciesDropdown({
         }`}
       >
         <span
-          className="font-['Roboto',sans-serif] text-[18px] sm:text-[22px] font-black leading-none"
+          className="text-[18px] sm:text-[22px] font-black leading-none"
         >
           {selectedLabel}
         </span>
@@ -91,7 +91,7 @@ function ComputerSpeciesDropdown({
               className="flex h-[60px] w-full items-center px-[20px] text-left text-white hover:bg-[var(--shapeships-grey-90)]"
             >
               <span
-                className="font-['Roboto',sans-serif] text-[22px] font-black leading-none"
+                className="text-[22px] font-black leading-none"
               >
                 {option.label}
               </span>
@@ -115,7 +115,7 @@ function ComputerSpeciesPanel({
   return (
     <div className="content-stretch flex flex-col gap-[24px] items-center pb-[80px] w-[500px] px-0 relative shrink-0">
       <p
-        className="font-['Roboto',sans-serif] font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
+        className="font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
       >
         Choose Computer Species
       </p>
@@ -155,12 +155,12 @@ export function ChooseSpeciesStage({
         <div className="basis-0 content-stretch flex grow h-full items-center justify-center min-h-px min-w-px relative shrink-0">
           <div className="content-stretch flex flex-col gap-[12px] items-center relative shrink-0 w-[641px] text-center">
             <p
-              className="font-['Roboto',sans-serif] font-black leading-[normal] relative shrink-0 text-[30px] text-white"
+              className="font-black leading-[normal] relative shrink-0 text-[30px] text-white"
             >
               You are spectating.
             </p>
             <p
-              className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[18px] text-white"
+              className="font-normal leading-[normal] relative shrink-0 text-[18px] text-white"
             >
               Waiting for players to choose species.
             </p>
@@ -178,7 +178,7 @@ export function ChooseSpeciesStage({
           ) : (
             <div className="content-stretch flex flex-col gap-[24px] items-center pb-0 pt-[130px] px-0 relative shrink-0 w-[657.6px]">
               <p
-                className="font-['Roboto',sans-serif] font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
+                className="font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
               >
                 Share Game URL
               </p>
@@ -188,7 +188,7 @@ export function ChooseSpeciesStage({
                 type="button"
               >
                 <p
-                  className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
+                  className="font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
                 >
                   {vm.gameUrl}
                 </p>
@@ -227,7 +227,7 @@ export function ChooseSpeciesStage({
           <div className="content-stretch flex flex-col gap-[12px] items-center relative shrink-0 w-full">
             <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
               <p
-                className="font-['Roboto',sans-serif] font-black leading-[normal] relative shrink-0 text-[30px] text-nowrap text-white"
+                className="font-black leading-[normal] relative shrink-0 text-[30px] text-nowrap text-white"
               >
                 Choose Your Species
               </p>
@@ -247,14 +247,14 @@ export function ChooseSpeciesStage({
                 >
                   {vm.speciesConfirmationPending && !vm.isSpeciesConfirmedForDisplay ? (
                     <p
-                      className="font-['Roboto',sans-serif] font-black relative shrink-0"
+                      className="font-black relative shrink-0"
                     >
                       {`CONFIRMING ${confirmationSpeciesName}...`}
                     </p>
                   ) : (
                     <>
                       <p
-                        className="font-['Roboto',sans-serif] font-black relative shrink-0"
+                        className="font-black relative shrink-0"
                       >
                         {vm.isSpeciesConfirmedForDisplay
                           ? 'CONFIRMED'
@@ -263,7 +263,7 @@ export function ChooseSpeciesStage({
                             : 'CONFIRM'}
                       </p>
                       <p
-                        className="font-['Roboto',sans-serif] font-normal relative shrink-0"
+                        className="font-normal relative shrink-0"
                       >
                         - {confirmationSpeciesName}
                       </p>
@@ -337,7 +337,7 @@ export function ChooseSpeciesStage({
         ) : (
           <div className="content-stretch flex flex-col gap-[24px] items-center pb-0 px-0 relative shrink-0 ">
             <p
-              className="font-['Roboto',sans-serif] font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
+              className="font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
             >
               Share Game URL
             </p>
@@ -347,7 +347,7 @@ export function ChooseSpeciesStage({
               type="button"
             >
               <p
-                className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
+                className="font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
               >
                 {vm.gameUrl}
               </p>
@@ -355,7 +355,7 @@ export function ChooseSpeciesStage({
                 <CopyIcon className="w-[42px] h-[42px]" color="black" />
               </div>
               {/*<p
-                className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[15.4px] text-black text-center text-nowrap"
+                className="font-normal leading-[normal] relative shrink-0 text-[15.4px] text-black text-center text-nowrap"
               >
                 COPY URL
               </p>*/}

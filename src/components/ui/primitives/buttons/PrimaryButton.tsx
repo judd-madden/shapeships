@@ -42,7 +42,7 @@ export function PrimaryButton({
       `}
     >
       <p 
-        className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[22px] text-black text-nowrap"
+        className="font-black leading-[normal] relative shrink-0 text-[22px] text-black text-nowrap"
       >
         {loading ? loadingLabel ?? children : children}
       </p>

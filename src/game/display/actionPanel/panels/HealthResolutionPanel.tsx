@@ -105,7 +105,7 @@ function OutcomeLine({
 }) {
   return (
     <p
-      className={`ss-health-resolution-player-line ss-health-resolution-player-line--${motion} max-w-full font-['Roboto'] font-normal leading-none text-white ${
+      className={`ss-health-resolution-player-line ss-health-resolution-player-line--${motion} max-w-full font-normal leading-none text-white ${
         layout === 'mobile'
           ? 'whitespace-normal text-[22px]'
           : 'whitespace-nowrap text-[clamp(26px,2.9vw,44px)]'
@@ -146,7 +146,7 @@ function PlayerResult({
       } ${alignment === 'right' ? 'items-end text-right' : 'items-start text-left'}`}
     >
       <p
-        className={`ss-health-resolution-player-line ss-health-resolution-player-line--${motion} w-full truncate font-['Roboto'] font-medium leading-none text-white ${
+        className={`ss-health-resolution-player-line ss-health-resolution-player-line--${motion} w-full truncate font-medium leading-none text-white ${
           isMobile ? 'text-[14px]' : 'text-[clamp(18px,1.7vw,26px)]'
         }`}
         style={{
@@ -206,7 +206,7 @@ function TurnCard({
         style={cardMotionStyle}
       />
       <p
-        className={`ss-health-resolution-turn-label relative z-10 font-['Roboto'] font-medium leading-none ${
+        className={`ss-health-resolution-turn-label relative z-10 font-medium leading-none ${
           layout === 'mobile' ? 'text-[13px]' : 'text-[clamp(18px,1.7vw,26px)]'
         }`}
         style={turnLabelMotionStyle}
@@ -214,7 +214,7 @@ function TurnCard({
         Turn
       </p>
       <p
-        className={`ss-health-resolution-number-row relative z-10 flex font-['Roboto'] font-black leading-none ${
+        className={`ss-health-resolution-number-row relative z-10 flex font-black leading-none ${
           layout === 'mobile' ? 'text-[75px]' : 'text-[clamp(90px,9.8vw,150px)]'
         }`}
         style={numberStyle}

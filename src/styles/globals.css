@@ -257,7 +257,6 @@ html:not(.app-ready) #root {
 /* Player-facing UI root wrapper - sets default text color for all player screens */
 .ss-playerRoot {
   color: white;
-  font-family: Roboto, sans-serif;
 
     /* background-image: url('https://juddmadden.com/shapeships/images/space-background.jpg');*/
     background-image: url('../graphics/global/space-background.jpg');

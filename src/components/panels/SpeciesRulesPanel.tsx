@@ -102,7 +102,7 @@ function SiphonRulesTable() {
   return (
     <div className="relative mt-[10px] w-full shrink-0 overflow-x-auto pb-[20px]">
       <div className="flex w-max items-start gap-[16px] pl-0 sm:pl-[20px] lg:pl-[35px]">
-        <div className="flex shrink-0 flex-col items-end font-['Roboto'] text-[14px] font-medium leading-[1] text-white mt-[8px]">
+        <div className="flex shrink-0 flex-col items-end text-[14px] font-medium leading-[1] text-white mt-[8px]">
           <p className="text-right text-[14px] font-medium leading-[1.1] ">
             Energy spent
             <br />
@@ -124,7 +124,7 @@ function SiphonRulesTable() {
           </div>
         ))}
 
-        <div className="flex shrink-0 flex-col items-center pt-[15px] font-['Roboto'] text-[16px] font-bold leading-[1.1]">
+        <div className="flex shrink-0 flex-col items-center pt-[15px] text-[16px] font-bold leading-[1.1]">
           <p className="text-white">+</p>
           <div className="mt-[12px] flex flex-col items-center gap-[6px]">
             <p className="text-[16px] text-shapeships-pastel-green">
@@ -398,23 +398,23 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
       {/* Page Header */}
       <div className="content-stretch relative flex size-full flex-col items-start justify-between gap-[16px] text-white md:flex-row md:items-end" data-name="Rules Header">
         <div className="content-stretch relative flex flex-wrap items-center gap-x-[20px] gap-y-[8px]" data-name="Species">
-          <p className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[24px] sm:text-[36px]">
+          <p className="font-black leading-[normal] relative shrink-0 text-[24px] sm:text-[36px]">
             {speciesData.displayName}
           </p>
-          <p className="font-['Roboto'] font-bold leading-[normal] not-italic relative shrink-0 text-[13.5px] sm:text-[20px]">
-            <span className="font-['Roboto'] font-normal text-white">{`from `}</span>
-            <span className="font-['Roboto'] font-bold">
+          <p className="font-bold leading-[normal] not-italic relative shrink-0 text-[13.5px] sm:text-[20px]">
+            <span className="font-normal text-white">{`from `}</span>
+            <span className="font-bold">
               {getSpeciesOrigin(species)}
             </span>
           </p>
         </div>
-        <p className="font-['Roboto'] font-normal leading-[16.5px] relative shrink-0 text-[12px] w-full max-w-[255px] whitespace-pre-line sm:text-[16px] sm:leading-[22px] md:text-right">
+        <p className="font-normal leading-[16.5px] relative shrink-0 text-[12px] w-full max-w-[255px] whitespace-pre-line sm:text-[16px] sm:leading-[22px] md:text-right">
           {getSpeciesTagline(species)}
         </p>
       </div>
 
       {species === 'Ancient' && (
-        <p className="font-['Roboto'] font-normal leading-[20px] relative w-full text-[13.5px] text-white sm:text-[18px] sm:leading-[26px]">
+        <p className="font-normal leading-[20px] relative w-full text-[13.5px] text-white sm:text-[18px] sm:leading-[26px]">
           <span className="font-bold">Energy</span> is a resource unique to the Ancient species. Each of the three Cores generate a different colour energy, this is used to cast Solar Powers. The Ancients use Solar Powers instead of Upgraded Ships. You may cast multiple Solar Powers in a turn, if you have the energy to do so. Note: Energy cannot be saved over multiple turns.
         </p>
       )}

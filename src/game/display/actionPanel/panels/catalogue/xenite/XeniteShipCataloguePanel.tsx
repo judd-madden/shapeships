@@ -133,14 +133,14 @@ export function XeniteShipCataloguePanel({
 
           {/* Section Titles */}
           <p
-            className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
+            className="absolute font-bold leading-[normal] text-[18px] text-white"
             style={{ left: '0', top: '0' }}
           >
             Xenite Basic Ships
           </p>
           
           <p
-            className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
+            className="absolute font-bold leading-[normal] text-[18px] text-white"
             style={{ left: '427px', top: '0' }}
           >
             Xenite Upgraded Ships

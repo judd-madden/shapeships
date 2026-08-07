@@ -40,7 +40,7 @@ export function InputField({
           px-[20px] py-[19px] 
           relative rounded-[10px] 
           w-full
-          font-['Roboto'] font-normal leading-[normal] text-[24px] text-white
+          font-normal leading-[normal] text-[24px] text-white
           border-2 border-solid border-[var(--shapeships-grey-70)]
           focus:border-white
           hover:border-[var(--shapeships-grey-50)]

@@ -30,7 +30,7 @@ export function BattleLogLine({ line, align }: BattleLogLineProps) {
   return (
     <p
       className={[
-        "font-['Roboto'] text-[14px] leading-[18px] font-normal whitespace-pre-wrap break-words",
+        "text-[14px] leading-[18px] font-normal whitespace-pre-wrap break-words",
         align === 'right' ? 'text-right' : 'text-left',
       ].join(' ')}
       style={{ color: 'var(--shapeships-grey-20)' }}

@@ -326,18 +326,18 @@ export function MobileStatusRailFrame({
                     className="absolute right-[18px] top-[-5px] size-[10px] rotate-45 bg-[var(--shapeships-pastel-green)]"
                   />
                   <span
-                    className="font-['Roboto'] text-[14px] font-black leading-[16px]"
+                    className="text-[14px] font-black leading-[16px]"
                   >
                     The dice gives lines to both players.
                   </span>
                   <span className="flex flex-col gap-2.5">
                     <span
-                      className="font-['Roboto'] text-[12px] font-normal leading-[14px]"
+                      className="text-[12px] font-normal leading-[14px]"
                     >
                       You start with <span className="font-bold">3 saved lines</span>.
                     </span>
                     <span
-                      className="font-['Roboto'] text-[12px] font-normal leading-[14px]"
+                      className="text-[12px] font-normal leading-[14px]"
                     >
                       Spend lines to build ships. Unspent lines are saved.
                     </span>

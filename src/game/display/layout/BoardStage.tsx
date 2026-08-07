@@ -110,7 +110,7 @@ function Metric({
       )}
     >
       <p
-        className="font-['Roboto'] font-bold leading-[36px] relative shrink-0 text-[36px] w-[50px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px] min-[768px]:max-[1599px]:w-[42px]"
+        className="font-bold leading-[36px] relative shrink-0 text-[36px] w-[50px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px] min-[768px]:max-[1599px]:w-[42px]"
       >
         {value}
       </p>
@@ -118,7 +118,7 @@ function Metric({
       {hasLabel ? (
         <p
           className={cx(
-            "font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[11px] text-nowrap uppercase",
+            "font-normal leading-[normal] relative shrink-0 text-[11px] text-nowrap uppercase",
             isRight && 'text-right'
           )}
         >
@@ -195,7 +195,7 @@ function TripletStatValue({
       >
         <p
           className={cx(
-            "font-['Roboto'] font-bold leading-[36px] relative shrink-0 text-[36px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px]",
+            "font-bold leading-[36px] relative shrink-0 text-[36px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px]",
             isRight && 'text-right'
           )}
         >
@@ -242,7 +242,7 @@ function StatTripletRow({
         onHoverLeave={onHoverLeave}
       />
       <p
-        className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[14px] text-center w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
+        className="font-normal leading-[normal] relative shrink-0 text-[14px] text-center w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
       >
         {centerLabel}
       </p>
@@ -373,7 +373,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
           data-name="Health Wrapper"
         >
           <div
-            className="content-stretch flex flex-col font-['Roboto'] font-bold gap-px items-end relative shrink-0 text-right w-[100px] min-[768px]:max-[1599px]:w-[86px]"
+            className="content-stretch flex flex-col font-bold gap-px items-end relative shrink-0 text-right w-[100px] min-[768px]:max-[1599px]:w-[86px]"
             data-name="P1 Health Group"
           >
             <p
@@ -384,7 +384,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
 
             {/* Delta (server-authoritative) */}
             <p
-              className="font-['Roboto'] font-bold leading-[28px] relative shrink-0 text-[28px] w-full text-right"
+              className="font-bold leading-[28px] relative shrink-0 text-[28px] w-full text-right"
               style={{
                 color: vm.myLastTurnNet > 0 
                   ? 'var(--shapeships-pastel-green)' 
@@ -410,14 +410,14 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
           >
             <div className="flex flex-col items-center justify-start w-[64px] text-center min-[768px]:max-[1599px]:w-[56px]">
               <p
-                className="font-['Roboto'] font-normal leading-[1.25] relative shrink-0 text-white text-[15px] min-[768px]:max-[1599px]:text-[13px]"
+                className="font-normal leading-[1.25] relative shrink-0 text-white text-[15px] min-[768px]:max-[1599px]:text-[13px]"
               >
                 Health
               </p>
 
               {/* Max Health */}
               <p
-                className="font-['Roboto'] font-bold leading-[13px] relative shrink-0 text-[13px]"
+                className="font-bold leading-[13px] relative shrink-0 text-[13px]"
                 style={{
                   color: 'rgba(255,255,255,0.45)',
                 }}
@@ -430,7 +430,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
           </div>
 
           <div
-            className="content-stretch flex flex-col font-['Roboto'] font-bold items-start relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]"
+            className="content-stretch flex flex-col font-bold items-start relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]"
             data-name="P2 Health Group"
           >
             <p
@@ -441,7 +441,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
 
             {/* Delta (server-authoritative) */}
             <p
-              className="font-['Roboto'] font-bold leading-[28px] relative shrink-0 text-[28px] w-[100px] text-left min-[768px]:max-[1599px]:w-[86px]"
+              className="font-bold leading-[28px] relative shrink-0 text-[28px] w-[100px] text-left min-[768px]:max-[1599px]:w-[86px]"
               style={{
                 color: vm.opponentLastTurnNet > 0 
                   ? 'var(--shapeships-pastel-green)' 
@@ -482,7 +482,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             </div>
           
             <p
-              className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[15px] text-center text-white w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
+              className="font-normal leading-[normal] relative shrink-0 text-[15px] text-center text-white w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
             >
               Saved
               <br aria-hidden="true" />
@@ -564,7 +564,7 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
 
             <div className="content-stretch flex items-center justify-center pb-0 pt-[8px] px-0 relative shrink-0">
               <p
-                className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[15px] text-center w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
+                className="font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[15px] text-center w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
               >
                 Bonus
               </p>

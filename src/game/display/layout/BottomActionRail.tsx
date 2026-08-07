@@ -26,15 +26,15 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
       <div className="basis-0 grow min-h-px min-w-px relative shrink-0" data-name="Subphase Info">
         <div className="content-stretch flex flex-col gap-[3px] items-start leading-[normal] pl-[20px] pr-0 py-0 relative text-white w-full min-[768px]:max-[1599px]:pl-[12px]">
           <p
-            className="font-['Roboto'] font-black relative shrink-0 text-[36px] w-full min-[768px]:max-[1599px]:text-[30px]"
+            className="font-black relative shrink-0 text-[36px] w-full min-[768px]:max-[1599px]:text-[30px]"
           >
             {vm.subphaseTitle}
             {vm.subphaseTitleSuffix ? (
-              <span className="font-['Roboto'] font-normal"> {vm.subphaseTitleSuffix}</span>
+              <span className="font-normal"> {vm.subphaseTitleSuffix}</span>
             ) : null}
           </p>
           <p
-            className="font-['Roboto'] font-normal relative shrink-0 text-[16px] w-full min-[768px]:max-[1599px]:text-[14px]"
+            className="font-normal relative shrink-0 text-[16px] w-full min-[768px]:max-[1599px]:text-[14px]"
           >
             {vm.subphaseSubheading}
           </p>
@@ -48,7 +48,7 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
       >
         {vm.canUndoActions && (
           <p
-            className="[text-underline-position:from-font] decoration-solid font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[16px] text-right text-white underline w-[130px] cursor-pointer min-[768px]:max-[1599px]:w-[80px]"
+            className="[text-underline-position:from-font] decoration-solid font-normal leading-[normal] relative shrink-0 text-[16px] text-right text-white underline w-[130px] cursor-pointer min-[768px]:max-[1599px]:w-[80px]"
             onClick={actions.onUndoActions}
           >
             Undo Actions
@@ -75,7 +75,7 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
           <div className="w-[300px]" />
         )}
         <p
-          className="font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[0px] text-[16px] text-white w-[130px] min-[768px]:max-[1599px]:w-[40px]"
+          className="font-bold leading-[normal] relative shrink-0 text-[0px] text-[16px] text-white w-[130px] min-[768px]:max-[1599px]:w-[40px]"
         >
         </p>
       </div>
@@ -87,7 +87,7 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
       >
         {vm.spectatorCount > 0 && (
           <p
-            className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[16px] text-right text-white w-full"
+            className="font-normal leading-[normal] relative shrink-0 text-[16px] text-right text-white w-full"
           >
             {vm.isSpectatorViewer
               ? `You are spectating. ${vm.spectatorCount} total spectator${vm.spectatorCount !== 1 ? 's' : ''}`

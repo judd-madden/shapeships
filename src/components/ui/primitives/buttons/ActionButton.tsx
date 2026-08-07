@@ -63,13 +63,13 @@ export function ActionButton({
     >
       <div className={`flex gap-[4px] items-center justify-center ${contentDensityClass} ${textColorClass}`}>
         <p 
-          className={`font-['Roboto'] font-bold leading-[normal] ${textDensityClass}`}
+          className={`font-bold leading-[normal] ${textDensityClass}`}
         >
           {label}
         </p>
         {detail && (
           <p 
-            className={`font-['Roboto'] font-normal leading-[normal] ${density === 'mobile' ? 'shrink-0' : ''}`}
+            className={`font-normal leading-[normal] ${density === 'mobile' ? 'shrink-0' : ''}`}
           >
             {detail}
           </p>

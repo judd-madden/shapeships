@@ -37,7 +37,7 @@ export function Tab({
         <div className="content-stretch flex items-center justify-center px-[20px] py-[10px] relative w-full">
           <p 
             className={`
-              font-['Roboto'] font-bold leading-[normal] relative text-[18px] text-nowrap text-white
+              font-bold leading-[normal] relative text-[18px] text-nowrap text-white
               ${!selected ? 'group-hover:underline decoration-solid' : ''}
             `}
             style={{ 

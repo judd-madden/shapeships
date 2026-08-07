@@ -23,12 +23,12 @@ export function AncientSimulacrumLedgerGraphic({
       {Graphic ? (
         <Graphic className="block shrink-0" />
       ) : (
-        <span className="pointer-events-none select-none text-center font-['Roboto'] text-[14px] font-bold leading-none text-[var(--shapeships-cyan)]">
+        <span className="pointer-events-none select-none text-center text-[14px] font-bold leading-none text-[var(--shapeships-cyan)]">
           {presentation.copiedShipDefId}
         </span>
       )}
       {presentation.selectedNumber !== undefined ? (
-        <span className="pointer-events-none mt-[4px] select-none text-center font-['Roboto'] text-[18px] font-bold leading-none text-[var(--shapeships-cyan)]">
+        <span className="pointer-events-none mt-[4px] select-none text-center text-[18px] font-bold leading-none text-[var(--shapeships-cyan)]">
           {presentation.selectedNumber}
         </span>
       ) : null}

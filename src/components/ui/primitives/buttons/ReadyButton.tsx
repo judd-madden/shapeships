@@ -58,13 +58,13 @@ export function ReadyButton({
           <div className="content-stretch flex gap-[4px] items-center justify-center px-[20px] py-[19px] relative size-full">
             <TickIcon />
             <p 
-              className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
+              className="font-black leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
             >
               {label}
             </p>
             {note && (
               <p 
-                className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
+                className="font-normal leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
               >
                 <span> — </span>
                 <span>{note}</span>
@@ -95,7 +95,7 @@ export function ReadyButton({
       `}
     >
       <div className="flex flex-row items-center justify-center size-full">
-        <div className="content-stretch flex font-['Roboto'] font-black gap-[4px] items-center justify-center px-[20px] py-[19px] relative size-full text-[18px] text-black text-nowrap">
+        <div className="content-stretch flex font-black gap-[4px] items-center justify-center px-[20px] py-[19px] relative size-full text-[18px] text-black text-nowrap">
           <p className="leading-[normal] relative shrink-0">
             {label}
           </p>

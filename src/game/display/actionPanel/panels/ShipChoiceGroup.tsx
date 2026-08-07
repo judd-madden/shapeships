@@ -263,7 +263,7 @@ export function ShipChoiceGroup({
           
           {/* Instruction text */}
           <p
-            className={`font-['Roboto',sans-serif] font-bold leading-[normal] relative text-[var(--shapeships-pastel-red)] text-center whitespace-pre-wrap break-words ${isMobile ? 'text-[14px]' : 'text-[18px]'}`}
+            className={`font-bold leading-[normal] relative text-[var(--shapeships-pastel-red)] text-center whitespace-pre-wrap break-words ${isMobile ? 'text-[14px]' : 'text-[18px]'}`}
           >
             {selectedButton.instructionText}
           </p>

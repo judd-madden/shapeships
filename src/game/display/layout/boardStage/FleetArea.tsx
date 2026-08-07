@@ -380,7 +380,7 @@ function ShipStack({
         {(ship.shipDefId === 'FRI' || ship.shipDefId === 'QUA') && ship.caption ? (
           <div
             className={cx(
-              "relative z-10 mt-[4px] font-['Roboto'] font-bold leading-none text-center text-[18px]"
+              "relative z-10 mt-[4px] font-bold leading-none text-center text-[18px]"
             )}
             style={{
               color: numberColour ?? 'white',
@@ -397,7 +397,7 @@ function ShipStack({
       {showCount ? (
         <div className={cx('relative z-10 ml-[8px]')}>
           <div
-            className={cx("font-['Roboto'] font-bold")}
+            className={cx("font-bold")}
             style={{
               fontSize: '50px',
               lineHeight: 1,

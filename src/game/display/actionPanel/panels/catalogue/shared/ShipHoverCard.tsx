@@ -124,7 +124,7 @@ function ActionHint({ kind }: { kind: ShipHoverActionHint }) {
 
   return (
     <p
-      className="ss-catalogueActionHint relative shrink-0 font-['Roboto'] text-[15px] font-black leading-[12px] text-nowrap"
+      className="ss-catalogueActionHint relative shrink-0 text-[15px] font-black leading-[12px] text-nowrap"
     >
       {label}
     </p>

@@ -279,7 +279,7 @@ export function AncientSolarLedgerRow({
                 })()}
               </SolarPowerAnimationWrapper>
               {entry.effectCaption !== undefined ? (
-                <span className="pointer-events-none select-none text-center font-['Roboto'] text-[18px] font-bold leading-none text-white">
+                <span className="pointer-events-none select-none text-center text-[18px] font-bold leading-none text-white">
                   {entry.effectCaption}
                 </span>
               ) : null}

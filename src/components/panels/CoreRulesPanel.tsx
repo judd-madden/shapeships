@@ -233,7 +233,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
                 <div className="h-[77.97px] relative shrink-0 w-[90.098px] flex items-center justify-center">
                   <FighterShip className="w-[90px] h-[78px]" />
                 </div>
-                <p className="font-['Roboto'] font-medium leading-[18.25px] min-w-full text-[11.875px] text-center text-white tracking-[-0.1584px] w-[min-content] sm:text-[15.838px] sm:leading-[24.365px]">
+                <p className="font-medium leading-[18.25px] min-w-full text-[11.875px] text-center text-white tracking-[-0.1584px] w-[min-content] sm:text-[15.838px] sm:leading-[24.365px]">
                   Fighter
                 </p>
               </div>
@@ -243,7 +243,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
                 <div className="h-[38.887px] relative shrink-0 w-[74.664px] flex items-center justify-center">
                   <ShipOfEquality2Ship className="w-[87px] h-[45px]" />
                 </div>
-                <p className="font-['Roboto'] font-medium leading-[16.45px] min-w-full text-[11.875px] text-center text-white tracking-[-0.1584px] w-[min-content] sm:text-[15.838px] sm:leading-[21.929px]">
+                <p className="font-medium leading-[16.45px] min-w-full text-[11.875px] text-center text-white tracking-[-0.1584px] w-[min-content] sm:text-[15.838px] sm:leading-[21.929px]">
                   Ship of Equality
                 </p>
               </div>
@@ -253,7 +253,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
                 <div className="h-[38.887px] relative shrink-0 w-[74.664px] flex items-center justify-center">
                   <ShipOfEquality1Ship className="w-[87px] h-[45px]" />
                 </div>
-                <p className="font-['Roboto'] font-medium leading-[16.45px] min-w-full text-[11.875px] text-center text-white tracking-[-0.1584px] w-[min-content] sm:text-[15.838px] sm:leading-[21.929px]">
+                <p className="font-medium leading-[16.45px] min-w-full text-[11.875px] text-center text-white tracking-[-0.1584px] w-[min-content] sm:text-[15.838px] sm:leading-[21.929px]">
                   1 (of 2) charges
                   <br />
                   used

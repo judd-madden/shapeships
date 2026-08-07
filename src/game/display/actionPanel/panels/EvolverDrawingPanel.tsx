@@ -108,7 +108,7 @@ export function EvolverDrawingPanel({
     >
       {/* Heading Text (Top) */}
       <h3
-        className={`font-['Roboto',sans-serif] font-bold leading-[normal] relative shrink-0 text-white text-center w-full ${isMobile ? 'text-[15px]' : 'text-[18px]'}`}
+        className={`font-bold leading-[normal] relative shrink-0 text-white text-center w-full ${isMobile ? 'text-[15px]' : 'text-[18px]'}`}
       >
         {headingText}
       </h3>

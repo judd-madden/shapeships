@@ -37,7 +37,7 @@ export function AncientSolarPowerSlot({
       {showPlus ? (
         <span
           aria-hidden="true"
-          className="shrink-0 font-['Roboto'] text-[38px] font-bold leading-none text-white"
+          className="shrink-0 text-[38px] font-bold leading-none text-white"
         >
           +
         </span>

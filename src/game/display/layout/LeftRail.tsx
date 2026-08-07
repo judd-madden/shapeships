@@ -326,18 +326,18 @@ export function LeftRail({
               className="absolute left-[-6px] top-[50px] size-[12px] rotate-45 bg-[var(--shapeships-pastel-green)]"
             />
             <p
-              className="font-['Roboto'] text-[26px] font-black leading-[1.05]"
+              className="text-[26px] font-black leading-[1.05]"
             >
               The dice gives lines to both players.
             </p>
             <div className="flex flex-col gap-[12px]">
               <p
-                className="font-['Roboto'] text-[18px] font-normal leading-[1.2]"
+                className="text-[18px] font-normal leading-[1.2]"
               >
                 You start with <span className="font-bold">3 saved lines</span>.
               </p>
               <p
-                className="font-['Roboto'] text-[18px] font-normal leading-[1.2]"
+                className="text-[18px] font-normal leading-[1.2]"
               >
                 Spend lines to build ships. Unspent lines are saved.
               </p>
@@ -349,7 +349,7 @@ export function LeftRail({
       {/* Brand / Title */}
       <div className="shrink-0 flex items-center justify-between">
         <div className="flex-1">
-          <p className="font-['Roboto'] font-bold text-[45px] leading-[45px] text-white text-center min-[768px]:max-[1599px]:text-[40px] min-[768px]:max-[1599px]:leading-[40px]">
+          <p className="font-bold text-[45px] leading-[45px] text-white text-center min-[768px]:max-[1599px]:text-[40px] min-[768px]:max-[1599px]:leading-[40px]">
             SHAPESHIPS
           </p>
         </div>
@@ -392,7 +392,7 @@ export function LeftRail({
           >
             <div className="ss-leftRailTurnTakeover__wipe" />
             <div className="ss-leftRailTurnTakeover__textWrap">
-              <p className="ss-leftRailTurnTakeover__text font-['Roboto'] text-[60px] leading-none font-black italic">
+              <p className="ss-leftRailTurnTakeover__text text-[60px] leading-none font-black italic">
                 Turn <span className="tracking-tighter">{turnTakeover.turn}</span>
               </p>
             </div>

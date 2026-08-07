@@ -70,7 +70,7 @@ export function CubeDiceChoicePanel({
       }`}
     >
       <p
-        className={`text-center font-['Roboto'] font-bold leading-[normal] text-white ${
+        className={`text-center font-bold leading-[normal] text-white ${
           isMobile ? 'text-[15px]' : 'text-[18px]'
         }`}
       >

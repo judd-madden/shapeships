@@ -152,7 +152,7 @@ export function GameStatsBoard({
 
   if (variant === 'mobile') {
     return (
-      <div className="h-full min-h-0 w-full min-w-0 overflow-hidden font-['Roboto']">
+      <div className="h-full min-h-0 w-full min-w-0 overflow-hidden">
         <div
           className="h-full min-h-0 w-full min-w-0 overflow-x-auto overflow-y-hidden"
           data-name="Game Stats Mobile Board Scroll"
@@ -206,7 +206,7 @@ export function GameStatsBoard({
 
   return (
     <div
-      className="grid h-full min-h-0 w-full min-w-0 overflow-hidden font-['Roboto']"
+      className="grid h-full min-h-0 w-full min-w-0 overflow-hidden"
       style={{
         gridTemplateColumns: `${SUMMARY_WIDTH_PX}px ${AXIS_GUTTER_WIDTH_PX}px minmax(0, 1fr)`,
         gridTemplateRows: `${HEADER_HEIGHT_PX}px repeat(4, minmax(0, 1fr))`,

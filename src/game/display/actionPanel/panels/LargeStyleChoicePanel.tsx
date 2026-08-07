@@ -120,14 +120,14 @@ export function LargeStyleChoicePanel({
         data-name="Large Style Choice Panel"
       >
         <p
-          className="relative w-full max-w-[330px] font-['Roboto',sans-serif] font-bold text-white text-[14px] leading-[16px]"
+          className="relative w-full max-w-[330px] font-bold text-white text-[14px] leading-[16px]"
         >
           {title}
         </p>
 
         {instruction ? (
           <p
-            className="relative w-full max-w-[330px] shrink-0 font-['Roboto',sans-serif] font-bold text-[var(--shapeships-pastel-red)] text-[14px] leading-[16px] whitespace-pre-wrap"
+            className="relative w-full max-w-[330px] shrink-0 font-bold text-[var(--shapeships-pastel-red)] text-[14px] leading-[16px] whitespace-pre-wrap"
           >
             {instruction}
           </p>
@@ -150,7 +150,7 @@ export function LargeStyleChoicePanel({
 
         {helpText ? (
           <p
-            className="w-full max-w-[330px] shrink-0 font-['Roboto',sans-serif] font-normal text-[var(--shapeships-grey-50)] text-[14px] leading-[16px] whitespace-pre-wrap"
+            className="w-full max-w-[330px] shrink-0 font-normal text-[var(--shapeships-grey-50)] text-[14px] leading-[16px] whitespace-pre-wrap"
             data-name="Help Text"
           >
             {helpText}
@@ -179,7 +179,7 @@ export function LargeStyleChoicePanel({
 
       {/* Center Column: Title + Instruction */}
       <div
-        className="content-stretch flex flex-col font-['Roboto',sans-serif] font-bold gap-[16px] items-start leading-[normal] relative shrink-0 text-[18px] w-[300px]"
+        className="content-stretch flex flex-col font-bold gap-[16px] items-start leading-[normal] relative shrink-0 text-[18px] w-[300px]"
         data-name="Title and Instruction"
       >
         {/* Title (White, Centered) */}
@@ -200,7 +200,7 @@ export function LargeStyleChoicePanel({
       {/* Right Column: Help Text (Grey 50) */}
       {helpText && (
         <p
-          className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-grey-50)] text-[18px] w-[270px] whitespace-pre-wrap"
+          className="font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-grey-50)] text-[18px] w-[270px] whitespace-pre-wrap"
           data-name="Help Text"
         >
           {helpText}

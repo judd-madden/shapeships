@@ -91,7 +91,7 @@ function TimerPresetButton({
         ].join(' ')}
       >
         <p
-          className="text-center font-['Roboto',sans-serif] text-[25.5px] leading-[1] text-inherit sm:text-[34px]"
+          className="text-center text-[25.5px] leading-[1] text-inherit sm:text-[34px]"
           style={{
             letterSpacing: preset.tightenSpacing ? '-0.05em' : undefined,
           }}
@@ -129,7 +129,7 @@ function ModeToggleRow({ label, selected, onSelect }: ModeToggleRowProps) {
     >
       <RadioButton selected={selected} className="pointer-events-none" />
       <p
-        className="font-['Roboto',sans-serif] font-bold leading-[normal] relative shrink-0 text-[19.5px] text-nowrap sm:text-[26px]"
+        className="font-bold leading-[normal] relative shrink-0 text-[19.5px] text-nowrap sm:text-[26px]"
       >
         {label}
       </p>
@@ -179,12 +179,12 @@ export function CreatePrivateGamePanel({
     <div className="content-stretch flex w-full flex-col gap-[20px] sm:gap-[30px] 2xl:gap-[50px]">
       <div className="mx-auto flex w-full max-w-[1080px] flex-col items-start gap-[9px] leading-[normal]">
         <p
-          className="font-['Roboto',sans-serif] text-[24px] font-black leading-[normal] sm:text-[36px]"
+          className="text-[24px] font-black leading-[normal] sm:text-[36px]"
         >
           {heading}
         </p>
         <p
-          className="font-['Roboto',sans-serif] text-[15px] font-normal sm:text-[20px]"
+          className="text-[15px] font-normal sm:text-[20px]"
         >
           {subheading}
         </p>
@@ -221,7 +221,7 @@ export function CreatePrivateGamePanel({
             </div>
 
             <p
-              className="text-center font-['Roboto',sans-serif] text-[15px] font-normal leading-[normal] sm:text-[20px]"
+              className="text-center text-[15px] font-normal leading-[normal] sm:text-[20px]"
             >
               Minutes per player + increment per turn
             </p>

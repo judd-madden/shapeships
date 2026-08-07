@@ -66,7 +66,7 @@ export function AncientSimulacrumSelector({
 
   return (
     <div
-      className="absolute flex items-center font-['Roboto']"
+      className="absolute flex items-center"
       style={{
         left: `${selectorLayout.x}px`,
         top: `${selectorLayout.y}px`,

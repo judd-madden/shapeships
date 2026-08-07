@@ -15,7 +15,7 @@ interface CatalogueCostNumberProps {
 export function CatalogueCostNumber({ cost, className = '' }: CatalogueCostNumberProps) {
   return (
     <p
-      className={`font-['Roboto'] font-bold leading-[normal] text-[18px] pt-[6px] text-center text-white ${className}`}
+      className={`font-bold leading-[normal] text-[18px] pt-[6px] text-center text-white ${className}`}
     >
       {cost}
     </p>

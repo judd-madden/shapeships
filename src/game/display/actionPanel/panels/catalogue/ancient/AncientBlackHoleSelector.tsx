@@ -38,7 +38,7 @@ export function AncientBlackHoleSelector({
       </div>
 
       <div
-        className="flex w-[270px] shrink-0 flex-col gap-[16px] font-['Roboto'] text-[18px] font-normal leading-[1.3] text-[var(--shapeships-grey-50)]"
+        className="flex w-[270px] shrink-0 flex-col gap-[16px] text-[18px] font-normal leading-[1.3] text-[var(--shapeships-grey-50)]"
       >
         <p>If a charge-based ship is destroyed, it’s charge still occurs.</p>
         <p>

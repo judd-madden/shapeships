@@ -55,7 +55,7 @@ export function ActionButtonSmall({
     >
       <div className={`flex items-center justify-center ${contentDensityClass}`}>
         <p 
-          className={`font-['Roboto'] font-normal leading-[normal] ${textDensityClass} ${textColorClass}`}
+          className={`font-normal leading-[normal] ${textDensityClass} ${textColorClass}`}
         >
           {label}
         </p>

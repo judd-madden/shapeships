@@ -332,7 +332,7 @@ export function AncientAutocastControl({
         aria-checked={checked}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`flex items-center gap-[2px] font-['Roboto'] text-[18px] font-bold leading-none text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-default disabled:opacity-40 ${
+        className={`flex items-center gap-[2px] text-[18px] font-bold leading-none text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-default disabled:opacity-40 ${
           isMobileModalInfo ? 'h-[40px]' : 'h-[24px]'
         }`}
       >
@@ -367,7 +367,7 @@ export function AncientAutocastControl({
           showArrow={false}
           className="relative z-[80] bg-transparent p-0 shadow-none"
         >
-          <div className="box-content w-[260px] max-w-[calc(100vw-80px)] translate-x-[10px] rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[24px] pb-[32px] pt-[24px] font-['Roboto'] text-[16px] font-normal leading-[19px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
+          <div className="box-content w-[260px] max-w-[calc(100vw-80px)] translate-x-[10px] rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[24px] pb-[32px] pt-[24px] text-[16px] font-normal leading-[19px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
             <AncientAutocastInfoContent />
           </div>
           <div
@@ -676,7 +676,7 @@ export function AncientShipCataloguePanel({
 
           {/* Section Titles */}
           <p
-            className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
+            className="absolute font-bold leading-[normal] text-[18px] text-white"
             style={{
               left: `${ANCIENT_CATALOGUE_SECTION_X.basics}px`,
               top: "0",
@@ -686,7 +686,7 @@ export function AncientShipCataloguePanel({
           </p>
 
           <p
-            className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
+            className="absolute font-bold leading-[normal] text-[18px] text-white"
             style={{
               left: `${ANCIENT_CATALOGUE_SECTION_X.solar}px`,
               top: "0",
@@ -697,7 +697,7 @@ export function AncientShipCataloguePanel({
 
           {siphonInstruction ? (
             <p
-              className={`absolute whitespace-nowrap font-['Roboto'] text-[16px] font-bold leading-normal ${
+              className={`absolute whitespace-nowrap text-[16px] font-bold leading-normal ${
                 siphonInstruction.muted
                   ? 'text-[var(--shapeships-grey-50)]'
                   : 'text-white'
@@ -977,7 +977,7 @@ export function AncientShipCataloguePanel({
               {showReferenceSiphonBack ? (
                 <button
                   type="button"
-                  className="absolute cursor-pointer rounded-[10px] border-0 bg-[var(--shapeships-grey-90)] px-[16px] py-[6px] font-['Roboto'] text-[16px] font-normal leading-normal text-white hover:bg-[var(--shapeships-grey-70)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+                  className="absolute cursor-pointer rounded-[10px] border-0 bg-[var(--shapeships-grey-90)] px-[16px] py-[6px] text-[16px] font-normal leading-normal text-white hover:bg-[var(--shapeships-grey-70)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
                   style={{
                     left: '426px',
                     top: '30px',

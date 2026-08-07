@@ -71,7 +71,7 @@ function SectionHeading({ children }: SectionHeadingProps) {
         className="h-px min-w-0 flex-1 bg-gradient-to-r from-transparent to-[var(--shapeships-white)] opacity-30"
       />
       <h3
-        className="shrink-0 text-center font-['Roboto',sans-serif] text-[clamp(18px,2.5cqw,20px)] font-bold leading-[normal] text-shapeships-white"
+        className="shrink-0 text-center text-[clamp(18px,2.5cqw,20px)] font-bold leading-[normal] text-shapeships-white"
       >
         {children}
       </h3>
@@ -94,7 +94,7 @@ export function MultiplayerPanel({
     <div className="w-full [container-type:inline-size]">
       <div className="mx-auto flex w-full flex-col items-center text-center">
         <h2
-          className="mb-[clamp(24px,4.1cqw,40px)] font-['Roboto',sans-serif] text-[clamp(64px,11cqw,106px)] font-black italic leading-[0.9] text-shapeships-white"
+          className="mb-[clamp(24px,4.1cqw,40px)] text-[clamp(64px,11cqw,106px)] font-black italic leading-[0.9] text-shapeships-white"
         >
           Our galaxy at war!
         </h2>
@@ -109,7 +109,7 @@ export function MultiplayerPanel({
               CREATE PRIVATE GAME
             </MenuButton>
             <p
-              className="font-['Roboto',sans-serif] text-[clamp(18px,2.5cqw,20px)] font-bold leading-[normal] text-shapeships-white"
+              className="text-[clamp(18px,2.5cqw,20px)] font-bold leading-[normal] text-shapeships-white"
             >
               Challenge your friends
             </p>
@@ -123,7 +123,7 @@ export function MultiplayerPanel({
               FIND OPPONENTS
             </MenuButton>
             <p
-              className="font-['Roboto',sans-serif] text-[clamp(18px,2.5cqw,20px)] font-bold leading-[normal] text-shapeships-white"
+              className="text-[clamp(18px,2.5cqw,20px)] font-bold leading-[normal] text-shapeships-white"
             >
               Join the Discord Community
             </p>
@@ -140,7 +140,7 @@ export function MultiplayerPanel({
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-['Roboto',sans-serif] text-[clamp(16px,2.25cqw,18px)] font-normal leading-[normal] hover:underline"
+                className="text-[clamp(16px,2.25cqw,18px)] font-normal leading-[normal] hover:underline"
                 style={{
                   color: link.color,
                 }}
@@ -157,7 +157,7 @@ export function MultiplayerPanel({
             {PLAYER_SHOUT_OUTS.map((name) => (
               <span
                 key={name}
-                className="font-['Roboto',sans-serif] text-[clamp(14px,1.875cqw,15px)] font-normal leading-[normal] text-shapeships-white"
+                className="text-[clamp(14px,1.875cqw,15px)] font-normal leading-[normal] text-shapeships-white"
               >
                 {name}
               </span>

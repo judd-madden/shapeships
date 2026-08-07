@@ -25,7 +25,7 @@ export function CopiedToast({ className }: CopiedToastProps) {
       }}
     >
       <p
-        className="font-['Roboto',sans-serif] font-normal leading-[normal] text-[16px] text-black text-center text-nowrap"
+        className="font-normal leading-[normal] text-[16px] text-black text-center text-nowrap"
       >
         Copied!
       </p>

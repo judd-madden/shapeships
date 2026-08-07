@@ -47,7 +47,7 @@ export function LobbyRow({
           ${className}
         `}
       >
-        <div className="content-stretch flex font-['Roboto'] font-normal gap-[20px] items-center leading-[normal] relative text-[20px] text-black">
+        <div className="content-stretch flex font-normal gap-[20px] items-center leading-[normal] relative text-[20px] text-black">
           <p className="relative w-[195px]">
             {playerName}
           </p>
@@ -67,7 +67,7 @@ export function LobbyRow({
         {variants && (
           <div className="content-stretch flex items-center justify-center pl-[215px] pr-0 py-0 relative">
             <p 
-              className="font-['Roboto'] font-normal leading-[normal] relative text-[15px] text-[var(--shapeships-grey-70)] w-[662px]"
+              className="font-normal leading-[normal] relative text-[15px] text-[var(--shapeships-grey-70)] w-[662px]"
             >
               {variants}
             </p>
@@ -90,7 +90,7 @@ export function LobbyRow({
         ${className}
       `}
     >
-      <div className="content-stretch flex font-['Roboto'] font-normal gap-[20px] items-center leading-[normal] relative text-[20px] text-white">
+      <div className="content-stretch flex font-normal gap-[20px] items-center leading-[normal] relative text-[20px] text-white">
         <p className="relative w-[195px]">
           {playerName}
         </p>
@@ -110,7 +110,7 @@ export function LobbyRow({
       {variants && (
         <div className="content-stretch flex items-center justify-center pl-[215px] pr-0 py-0 relative">
           <p 
-            className="font-['Roboto'] font-normal leading-[normal] relative text-[15px] text-[var(--shapeships-grey-50)] w-[662px]"
+            className="font-normal leading-[normal] relative text-[15px] text-[var(--shapeships-grey-50)] w-[662px]"
           >
             {variants}
           </p>
