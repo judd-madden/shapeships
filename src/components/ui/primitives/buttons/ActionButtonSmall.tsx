@@ -56,7 +56,6 @@ export function ActionButtonSmall({
       <div className={`flex items-center justify-center ${contentDensityClass}`}>
         <p 
           className={`font-['Roboto'] font-normal leading-[normal] ${textDensityClass} ${textColorClass}`}
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {label}
         </p>

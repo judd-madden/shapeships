@@ -401,7 +401,6 @@ function ShipStack({
             style={{
               fontSize: '50px',
               lineHeight: 1,
-              fontVariationSettings: "'wdth' 100",
               color: numberColour ?? 'white',
               pointerEvents: 'none',
               userSelect: 'none',

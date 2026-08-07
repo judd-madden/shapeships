@@ -24,7 +24,6 @@ export function AncientBlackHoleSelector({
 
       <div
         className="flex w-[330px] shrink-0 flex-col gap-[16px] text-[18px] font-normal leading-[1.3] text-white"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         <div className="flex items-baseline gap-[24px] font-bold">
           <span>Black Hole</span>
@@ -40,7 +39,6 @@ export function AncientBlackHoleSelector({
 
       <div
         className="flex w-[270px] shrink-0 flex-col gap-[16px] font-['Roboto'] text-[18px] font-normal leading-[1.3] text-[var(--shapeships-grey-50)]"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         <p>If a charge-based ship is destroyed, it’s charge still occurs.</p>
         <p>

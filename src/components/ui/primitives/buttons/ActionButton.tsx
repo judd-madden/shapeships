@@ -64,14 +64,12 @@ export function ActionButton({
       <div className={`flex gap-[4px] items-center justify-center ${contentDensityClass} ${textColorClass}`}>
         <p 
           className={`font-['Roboto'] font-bold leading-[normal] ${textDensityClass}`}
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {label}
         </p>
         {detail && (
           <p 
             className={`font-['Roboto'] font-normal leading-[normal] ${density === 'mobile' ? 'shrink-0' : ''}`}
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {detail}
           </p>

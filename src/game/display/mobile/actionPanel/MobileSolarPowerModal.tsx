@@ -132,7 +132,6 @@ export function MobileSolarPowerModal({
           aria-label={`Close ${model.name} Solar Power details`}
           onClick={onClose}
           className="absolute right-[8px] top-[8px] z-10 flex size-[44px] items-center justify-center text-[30px] font-normal leading-none text-white"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           <CloseIcon className="!size-[20px]" />
         </button>
@@ -143,7 +142,6 @@ export function MobileSolarPowerModal({
               <div className="flex min-w-0 items-center gap-[16px] pr-[10px]">
                 <p
                   className="min-w-0 flex-1 text-[22px] font-bold leading-[26px] text-white"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   {model.name}
                 </p>
@@ -157,7 +155,6 @@ export function MobileSolarPowerModal({
                   {headingValue.label ? (
                     <span
                       className="text-[13px] font-normal text-white"
-                      style={{ fontVariationSettings: "'wdth' 100" }}
                     >
                       {headingValue.label}
                     </span>
@@ -175,7 +172,6 @@ export function MobileSolarPowerModal({
                   <ShipPowerRow key={index} iconKind={power.iconKind}>
                     <p
                       className="min-w-0 flex-1 whitespace-pre-wrap text-[16px] font-normal leading-[20px] text-white"
-                      style={{ fontVariationSettings: "'wdth' 100" }}
                     >
                       {power.text}
                     </p>
@@ -191,14 +187,12 @@ export function MobileSolarPowerModal({
                     type="button"
                     onClick={() => setRulesExpanded((current) => !current)}
                     className="w-fit text-left text-[14px] font-bold italic leading-[18px] text-white"
-                    style={{ fontVariationSettings: "'wdth' 100" }}
                   >
                     {rulesExpanded ? '- Close Rules Notes' : '+ Expand Rules Notes'}
                   </button>
                   {rulesExpanded ? (
                     <p
                       className="whitespace-pre-wrap text-[13px] font-normal italic leading-[18px] text-white"
-                      style={{ fontVariationSettings: "'wdth' 100" }}
                     >
                       {model.italicNotes}
                     </p>
@@ -207,7 +201,6 @@ export function MobileSolarPowerModal({
               ) : (
                 <p
                   className="whitespace-pre-wrap text-[13px] font-normal italic leading-[18px] text-white"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   {model.italicNotes}
                 </p>
@@ -223,14 +216,12 @@ export function MobileSolarPowerModal({
               type="button"
               onClick={footerAction.onClick}
               className="flex h-[50px] w-full items-center justify-center rounded-[10px] bg-white px-[16px] text-[18px] font-black leading-none text-black active:scale-[0.99]"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {footerAction.label}
             </button>
           ) : (
             <p
               className="text-[17px] font-medium leading-[20px] text-[var(--shapeships-grey-50)]"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {footerAction.label}
             </p>
@@ -254,7 +245,6 @@ function SolarPreview({
       {value.healing !== undefined ? (
         <span
           className="text-[20px] font-black text-[var(--shapeships-pastel-green)]"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {value.healing}
         </span>
@@ -262,7 +252,6 @@ function SolarPreview({
       {value.damage !== undefined ? (
         <span
           className="text-[20px] font-black text-[var(--shapeships-pastel-red)]"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {value.damage}
         </span>

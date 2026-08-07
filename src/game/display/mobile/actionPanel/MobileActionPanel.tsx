@@ -185,7 +185,6 @@ export function MobileActionPanel({
           >
             <p
               className="font-['Roboto'] font-bold leading-[normal] text-[14px] text-nowrap text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {entry.label}
             </p>

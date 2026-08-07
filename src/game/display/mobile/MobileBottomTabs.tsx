@@ -101,7 +101,6 @@ export function MobileBottomTabs({
           >
             <span
               className="min-w-0 truncate text-[13px] font-bold leading-none"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {tab.label}
             </span>

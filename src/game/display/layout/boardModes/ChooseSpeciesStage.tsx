@@ -70,7 +70,6 @@ function ComputerSpeciesDropdown({
       >
         <span
           className="font-['Roboto',sans-serif] text-[18px] sm:text-[22px] font-black leading-none"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {selectedLabel}
         </span>
@@ -93,7 +92,6 @@ function ComputerSpeciesDropdown({
             >
               <span
                 className="font-['Roboto',sans-serif] text-[22px] font-black leading-none"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 {option.label}
               </span>
@@ -118,7 +116,6 @@ function ComputerSpeciesPanel({
     <div className="content-stretch flex flex-col gap-[24px] items-center pb-[80px] w-[500px] px-0 relative shrink-0">
       <p
         className="font-['Roboto',sans-serif] font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         Choose Computer Species
       </p>
@@ -159,13 +156,11 @@ export function ChooseSpeciesStage({
           <div className="content-stretch flex flex-col gap-[12px] items-center relative shrink-0 w-[641px] text-center">
             <p
               className="font-['Roboto',sans-serif] font-black leading-[normal] relative shrink-0 text-[30px] text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               You are spectating.
             </p>
             <p
               className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[18px] text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Waiting for players to choose species.
             </p>
@@ -184,7 +179,6 @@ export function ChooseSpeciesStage({
             <div className="content-stretch flex flex-col gap-[24px] items-center pb-0 pt-[130px] px-0 relative shrink-0 w-[657.6px]">
               <p
                 className="font-['Roboto',sans-serif] font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Share Game URL
               </p>
@@ -195,7 +189,6 @@ export function ChooseSpeciesStage({
               >
                 <p
                   className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   {vm.gameUrl}
                 </p>
@@ -235,7 +228,6 @@ export function ChooseSpeciesStage({
             <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
               <p
                 className="font-['Roboto',sans-serif] font-black leading-[normal] relative shrink-0 text-[30px] text-nowrap text-white"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Choose Your Species
               </p>
@@ -256,7 +248,6 @@ export function ChooseSpeciesStage({
                   {vm.speciesConfirmationPending && !vm.isSpeciesConfirmedForDisplay ? (
                     <p
                       className="font-['Roboto',sans-serif] font-black relative shrink-0"
-                      style={{ fontVariationSettings: "'wdth' 100" }}
                     >
                       {`CONFIRMING ${confirmationSpeciesName}...`}
                     </p>
@@ -264,7 +255,6 @@ export function ChooseSpeciesStage({
                     <>
                       <p
                         className="font-['Roboto',sans-serif] font-black relative shrink-0"
-                        style={{ fontVariationSettings: "'wdth' 100" }}
                       >
                         {vm.isSpeciesConfirmedForDisplay
                           ? 'CONFIRMED'
@@ -274,7 +264,6 @@ export function ChooseSpeciesStage({
                       </p>
                       <p
                         className="font-['Roboto',sans-serif] font-normal relative shrink-0"
-                        style={{ fontVariationSettings: "'wdth' 100" }}
                       >
                         - {confirmationSpeciesName}
                       </p>
@@ -349,7 +338,6 @@ export function ChooseSpeciesStage({
           <div className="content-stretch flex flex-col gap-[24px] items-center pb-0 px-0 relative shrink-0 ">
             <p
               className="font-['Roboto',sans-serif] font-black leading-[normal] min-w-full relative shrink-0 text-[30px] text-center text-white w-[min-content]"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Share Game URL
             </p>
@@ -360,7 +348,6 @@ export function ChooseSpeciesStage({
             >
               <p
                 className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 {vm.gameUrl}
               </p>
@@ -369,7 +356,6 @@ export function ChooseSpeciesStage({
               </div>
               {/*<p
                 className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[15.4px] text-black text-center text-nowrap"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 COPY URL
               </p>*/}

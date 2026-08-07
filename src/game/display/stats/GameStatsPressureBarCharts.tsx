@@ -137,7 +137,6 @@ function PressureValueLabel({
         color: layout.labelInset ? 'var(--shapeships-black)' : color,
         fontSize: VALUE_LABEL_FONT_SIZE_PX,
         lineHeight: `${VALUE_LABEL_LINE_HEIGHT_PX}px`,
-        fontVariationSettings: "'wdth' 100",
         zIndex: 1,
       }}
     >

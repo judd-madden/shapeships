@@ -91,7 +91,6 @@ export function EndOfGameActionPanel({
           {/* Headline */}
           <p
             className="leading-[normal] relative shrink-0 text-[50px] text-center"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {bannerText}
           </p>
@@ -100,13 +99,11 @@ export function EndOfGameActionPanel({
           <div className="content-stretch flex gap-[24px] items-center relative shrink-0 text-[18px]">
             <p
               className="leading-[normal] relative shrink-0 text-center"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {metaLeftText}
             </p>
             <p
               className="leading-[normal] relative shrink-0 text-center"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {metaRightText}
             </p>
@@ -123,7 +120,6 @@ export function EndOfGameActionPanel({
             </GameMenuButton>
             <p
               className="mt-[8px] text-center text-[16px] font-normal leading-[1.3] text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {rematchHelperText}
             </p>

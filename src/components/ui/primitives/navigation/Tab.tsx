@@ -41,7 +41,6 @@ export function Tab({
               ${!selected ? 'group-hover:underline decoration-solid' : ''}
             `}
             style={{ 
-              fontVariationSettings: "'wdth' 100",
               textUnderlinePosition: 'from-font'
             }}
           >

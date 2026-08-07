@@ -48,19 +48,19 @@ export function LobbyRow({
         `}
       >
         <div className="content-stretch flex font-['Roboto'] font-normal gap-[20px] items-center leading-[normal] relative text-[20px] text-black">
-          <p className="relative w-[195px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="relative w-[195px]">
             {playerName}
           </p>
-          <p className="relative w-[168px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="relative w-[168px]">
             {gameMode}
           </p>
-          <p className="relative w-[144px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="relative w-[144px]">
             {matchType}
           </p>
-          <p className="relative w-[182px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="relative w-[182px]">
             {timeControl}
           </p>
-          <p className="relative w-[109px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="relative w-[109px]">
             {duration}
           </p>
         </div>
@@ -68,7 +68,6 @@ export function LobbyRow({
           <div className="content-stretch flex items-center justify-center pl-[215px] pr-0 py-0 relative">
             <p 
               className="font-['Roboto'] font-normal leading-[normal] relative text-[15px] text-[var(--shapeships-grey-70)] w-[662px]"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {variants}
             </p>
@@ -92,19 +91,19 @@ export function LobbyRow({
       `}
     >
       <div className="content-stretch flex font-['Roboto'] font-normal gap-[20px] items-center leading-[normal] relative text-[20px] text-white">
-        <p className="relative w-[195px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className="relative w-[195px]">
           {playerName}
         </p>
-        <p className="relative w-[168px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className="relative w-[168px]">
           {gameMode}
         </p>
-        <p className="relative w-[144px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className="relative w-[144px]">
           {matchType}
         </p>
-        <p className="relative w-[182px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className="relative w-[182px]">
           {timeControl}
         </p>
-        <p className="relative w-[109px]" style={{ fontVariationSettings: "'wdth' 100" }}>
+        <p className="relative w-[109px]">
           {duration}
         </p>
       </div>
@@ -112,7 +111,6 @@ export function LobbyRow({
         <div className="content-stretch flex items-center justify-center pl-[215px] pr-0 py-0 relative">
           <p 
             className="font-['Roboto'] font-normal leading-[normal] relative text-[15px] text-[var(--shapeships-grey-50)] w-[662px]"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {variants}
           </p>

@@ -46,13 +46,11 @@ export function SpeciesCardButton({
         <div className="content-stretch flex flex-col gap-[8px] items-start relative shrink-0 text-black w-[180px]">
           <p
             className="font-['Roboto',sans-serif] font-black leading-[normal] relative shrink-0 text-[22px] text-left uppercase w-full"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {title}
           </p>
           <p
             className="font-['Roboto',sans-serif] font-medium leading-[20px] relative shrink-0 text-[13px] text-left w-full"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {blurbLines.join(' ')}
           </p>

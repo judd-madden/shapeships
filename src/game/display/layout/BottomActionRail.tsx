@@ -27,7 +27,6 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
         <div className="content-stretch flex flex-col gap-[3px] items-start leading-[normal] pl-[20px] pr-0 py-0 relative text-white w-full min-[768px]:max-[1599px]:pl-[12px]">
           <p
             className="font-['Roboto'] font-black relative shrink-0 text-[36px] w-full min-[768px]:max-[1599px]:text-[30px]"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {vm.subphaseTitle}
             {vm.subphaseTitleSuffix ? (
@@ -36,7 +35,6 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
           </p>
           <p
             className="font-['Roboto'] font-normal relative shrink-0 text-[16px] w-full min-[768px]:max-[1599px]:text-[14px]"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {vm.subphaseSubheading}
           </p>
@@ -51,7 +49,6 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
         {vm.canUndoActions && (
           <p
             className="[text-underline-position:from-font] decoration-solid font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[16px] text-right text-white underline w-[130px] cursor-pointer min-[768px]:max-[1599px]:w-[80px]"
-            style={{ fontVariationSettings: "'wdth' 100" }}
             onClick={actions.onUndoActions}
           >
             Undo Actions
@@ -79,7 +76,6 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
         )}
         <p
           className="font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[0px] text-[16px] text-white w-[130px] min-[768px]:max-[1599px]:w-[40px]"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
         </p>
       </div>
@@ -92,7 +88,6 @@ export function BottomActionRail({ vm, actions, mainPhaseControl }: BottomAction
         {vm.spectatorCount > 0 && (
           <p
             className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[16px] text-right text-white w-full"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {vm.isSpectatorViewer
               ? `You are spectating. ${vm.spectatorCount} total spectator${vm.spectatorCount !== 1 ? 's' : ''}`

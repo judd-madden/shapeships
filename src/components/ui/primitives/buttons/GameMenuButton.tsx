@@ -122,7 +122,6 @@ export function GameMenuButton({
     >
       <p 
         className="font-bold leading-[normal] relative shrink-0 text-[16px] text-black text-nowrap"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {buttonLabel}
       </p>

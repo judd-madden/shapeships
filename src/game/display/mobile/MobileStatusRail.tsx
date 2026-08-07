@@ -327,20 +327,17 @@ export function MobileStatusRailFrame({
                   />
                   <span
                     className="font-['Roboto'] text-[14px] font-black leading-[16px]"
-                    style={{ fontVariationSettings: "'wdth' 100" }}
                   >
                     The dice gives lines to both players.
                   </span>
                   <span className="flex flex-col gap-2.5">
                     <span
                       className="font-['Roboto'] text-[12px] font-normal leading-[14px]"
-                      style={{ fontVariationSettings: "'wdth' 100" }}
                     >
                       You start with <span className="font-bold">3 saved lines</span>.
                     </span>
                     <span
                       className="font-['Roboto'] text-[12px] font-normal leading-[14px]"
-                      style={{ fontVariationSettings: "'wdth' 100" }}
                     >
                       Spend lines to build ships. Unspent lines are saved.
                     </span>

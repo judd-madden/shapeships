@@ -40,7 +40,6 @@ export function MobileEndOfGameMenuTakeover({
               </GameMenuButton>
               <p
                 className="mt-[8px] text-center text-[15px] font-normal leading-[19px] text-white"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 {endOfGame.rematchHelperText}
               </p>
@@ -77,13 +76,11 @@ export function MobileEndOfGameMenuTakeover({
           <div className="flex min-w-0 max-w-full flex-col items-center gap-[7px]">
             <p
               className="max-w-full text-[32px] font-black leading-[34px]"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {endOfGame.bannerText}
             </p>
             <p
               className="max-w-full text-[16px] font-bold leading-[20px]"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {endOfGame.metaLeftText} {endOfGame.metaRightText}
             </p>
@@ -96,7 +93,6 @@ export function MobileEndOfGameMenuTakeover({
           >
             <span
               className="text-[16px] font-black leading-none"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               View Board
             </span>

@@ -143,14 +143,14 @@ export function CentaurShipCataloguePanel({
           {/* Section Titles */}
           <p
             className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
-            style={{ left: '0', top: '0', fontVariationSettings: "'wdth' 100" }}
+            style={{ left: '0', top: '0' }}
           >
             Centaur Basic Ships
           </p>
           
           <p
             className="absolute font-['Roboto'] font-bold leading-[normal] text-[18px] text-white"
-            style={{ left: '427px', top: '0', fontVariationSettings: "'wdth' 100" }}
+            style={{ left: '427px', top: '0' }}
           >
             Centaur Upgraded Ships
           </p>

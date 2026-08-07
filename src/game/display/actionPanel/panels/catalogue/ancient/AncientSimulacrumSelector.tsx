@@ -71,7 +71,6 @@ export function AncientSimulacrumSelector({
         left: `${selectorLayout.x}px`,
         top: `${selectorLayout.y}px`,
         gap: `${selectorLayout.gap}px`,
-        fontVariationSettings: "'wdth' 100",
       }}
     >
       <div className="shrink-0">

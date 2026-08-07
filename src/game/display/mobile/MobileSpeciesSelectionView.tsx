@@ -138,7 +138,6 @@ export function MobileSpeciesConfirmPhase({
           {boardVm.speciesConfirmationPending && !boardVm.isSpeciesConfirmedForDisplay ? (
             <span
               className="min-w-0 truncate text-[16px] font-black leading-none"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {`CONFIRMING ${confirmationSpeciesName}...`}
             </span>
@@ -146,7 +145,6 @@ export function MobileSpeciesConfirmPhase({
             <>
               <span
                 className="min-w-0 truncate text-[16px] font-black leading-none"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 {boardVm.isSpeciesConfirmedForDisplay
                   ? 'CONFIRMED'
@@ -156,7 +154,6 @@ export function MobileSpeciesConfirmPhase({
               </span>
               <span
                 className="min-w-0 truncate text-[15px] font-normal leading-none"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 - {confirmationSpeciesName}
               </span>
@@ -168,7 +165,6 @@ export function MobileSpeciesConfirmPhase({
       {confirmDisabledReason ? (
         <p
           className="mt-[-4px] w-full truncate text-center text-[11px] text-[var(--shapeships-grey-50)]"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {confirmDisabledReason}
         </p>
@@ -214,7 +210,6 @@ function MobileShareGameUrlRegion({
       <div className="relative flex w-full max-w-[332px] flex-col items-center justify-center gap-[6px] py-[8px]">
         <p
           className="w-full text-center text-[18px] font-black leading-[18px] text-white"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Share Game URL
         </p>
@@ -225,7 +220,6 @@ function MobileShareGameUrlRegion({
         >
           <span
             className="min-w-0 flex-1 truncate text-center text-[13px] font-normal leading-none"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {gameUrl}
           </span>
@@ -266,7 +260,6 @@ function MobileComputerSpeciesRegion({
       <div className="relative flex w-full max-w-[332px] flex-col items-center justify-center gap-[6px] py-[8px]">
         <p
           className="w-full text-center text-[18px] font-black leading-[18px] text-white"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Choose Computer Species
         </p>
@@ -287,7 +280,6 @@ function MobileComputerSpeciesRegion({
           >
             <span
               className="text-[18px] font-black leading-none"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {selectedLabel}
             </span>
@@ -310,7 +302,6 @@ function MobileComputerSpeciesRegion({
                 >
                   <span
                     className="text-[18px] font-black leading-none"
-                    style={{ fontVariationSettings: "'wdth' 100" }}
                   >
                     {option.label}
                   </span>
@@ -383,13 +374,11 @@ function MobileChooseSpeciesRegion({
         <div className="flex max-w-[300px] flex-col items-center gap-[8px] text-center">
           <p
             className="text-[20px] font-black leading-5 text-white"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             You are spectating.
           </p>
           <p
             className="text-[14px] font-normal leading-[18px] text-[var(--shapeships-grey-50)]"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             Waiting for players to choose species.
           </p>
@@ -403,7 +392,6 @@ function MobileChooseSpeciesRegion({
       <div className="flex h-full min-h-0 w-full flex-col items-center justify-center gap-[10px]">
         <p
           className="w-full text-center text-[18px] font-black leading-5 text-white"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Choose Your Species
         </p>
@@ -456,13 +444,11 @@ function MobileSpeciesCard({
         <span className="flex min-w-0 flex-1 flex-col items-start gap-[3px] text-left">
           <span
             className="w-full truncate text-[15px] font-black leading-[17px]"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {option.title}
           </span>
           <span
             className="line-clamp-2 text-[10px] font-medium leading-[12px]"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {option.blurb}
           </span>

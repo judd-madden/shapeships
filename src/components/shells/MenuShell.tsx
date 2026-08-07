@@ -112,7 +112,6 @@ export function MenuShell({
                 target="_blank"
                 rel="noopener noreferrer"
                 className="[text-underline-position:from-font] relative shrink-0 cursor-pointer decoration-solid underline hover:opacity-80"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Official
               </a>
@@ -121,7 +120,6 @@ export function MenuShell({
                 target="_blank" 
                 rel="noreferrer"
                 className="[text-underline-position:from-font] relative shrink-0 cursor-pointer decoration-solid hover:opacity-80" 
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Discord
               </a>
@@ -130,7 +128,6 @@ export function MenuShell({
                 target="_blank" 
                 rel="noreferrer"
                 className="[text-underline-position:from-font] relative shrink-0 cursor-pointer decoration-solid hover:opacity-80" 
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 YouTube
               </a>
@@ -139,7 +136,6 @@ export function MenuShell({
                 target="_blank" 
                 rel="noreferrer"
                 className="[text-underline-position:from-font] relative shrink-0 cursor-pointer decoration-solid hover:opacity-80" 
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Reddit
               </a>
@@ -157,7 +153,6 @@ export function MenuShell({
               <OnlineStatusIcon status="online" />
               <p
                 className="min-w-0 max-w-full font-['Roboto',sans-serif] text-[30px] font-normal leading-none [overflow-wrap:anywhere] sm:text-[40px] xl:text-[56px]"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 {displayName}
               </p>
@@ -165,7 +160,6 @@ export function MenuShell({
             <button
               type="button"
               className="sm:pl-[36px] lg:pl-[40px] text-shapeships-grey-50 cursor-pointer font-['Roboto',sans-serif] text-[13.5px] leading-[normal] hover:underline sm:text-[18px]"
-              style={{ fontVariationSettings: "'wdth' 100" }}
               onClick={alphaDisableAuth ? onExit : onLogout}
             >
               Change Name
@@ -192,7 +186,6 @@ export function MenuShell({
                   className={`relative shrink-0 font-['Roboto',sans-serif] text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'multiplayer' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   Multiplayer
                 </p>
@@ -210,7 +203,6 @@ export function MenuShell({
                   className={`relative shrink-0 font-['Roboto',sans-serif] text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'playComputer' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   Single Player
                 </p>
@@ -228,7 +220,6 @@ export function MenuShell({
                   className={`hidden min-[400px]:block relative shrink-0 font-['Roboto',sans-serif] text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'rules' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   How to Play
                 </p>
@@ -236,7 +227,6 @@ export function MenuShell({
                   className={`min-[400px]:hidden block relative shrink-0 font-['Roboto',sans-serif] text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'rules' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   Rules
                 </p>

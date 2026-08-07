@@ -115,7 +115,6 @@ function OutcomeLine({
           HEALTH_RESOLUTION_MOTION.playerOutcome.startMs,
           HEALTH_RESOLUTION_MOTION.playerOutcome.durationMs,
         ),
-        fontVariationSettings: "'wdth' 100",
       }}
     >
       <span>{side.prefixText}</span>
@@ -155,7 +154,6 @@ function PlayerResult({
             HEALTH_RESOLUTION_MOTION.playerName.startMs,
             HEALTH_RESOLUTION_MOTION.playerName.durationMs,
           ),
-          fontVariationSettings: "'wdth' 100",
         }}
       >
         {side.nameText}

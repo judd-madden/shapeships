@@ -59,17 +59,15 @@ export function ReadyButton({
             <TickIcon />
             <p 
               className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {label}
             </p>
             {note && (
               <p 
                 className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
-                <span style={{ fontVariationSettings: "'wdth' 100" }}> — </span>
-                <span style={{ fontVariationSettings: "'wdth' 100" }}>{note}</span>
+                <span> — </span>
+                <span>{note}</span>
               </p>
             )}
           </div>
@@ -98,13 +96,13 @@ export function ReadyButton({
     >
       <div className="flex flex-row items-center justify-center size-full">
         <div className="content-stretch flex font-['Roboto'] font-black gap-[4px] items-center justify-center px-[20px] py-[19px] relative size-full text-[18px] text-black text-nowrap">
-          <p className="leading-[normal] relative shrink-0" style={{ fontVariationSettings: "'wdth' 100" }}>
+          <p className="leading-[normal] relative shrink-0">
             {label}
           </p>
           {note && (
-            <p className="font-normal leading-[normal] relative shrink-0" style={{ fontVariationSettings: "'wdth' 100" }}>
-              <span style={{ fontVariationSettings: "'wdth' 100" }}> — </span>
-              <span style={{ fontVariationSettings: "'wdth' 100" }}>{note}</span>
+            <p className="font-normal leading-[normal] relative shrink-0">
+              <span> — </span>
+              <span>{note}</span>
             </p>
           )}
         </div>

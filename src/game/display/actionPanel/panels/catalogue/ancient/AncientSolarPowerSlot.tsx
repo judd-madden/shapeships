@@ -38,7 +38,6 @@ export function AncientSolarPowerSlot({
         <span
           aria-hidden="true"
           className="shrink-0 font-['Roboto'] text-[38px] font-bold leading-none text-white"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           +
         </span>

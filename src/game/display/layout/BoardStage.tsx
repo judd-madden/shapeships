@@ -111,7 +111,6 @@ function Metric({
     >
       <p
         className="font-['Roboto'] font-bold leading-[36px] relative shrink-0 text-[36px] w-[50px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px] min-[768px]:max-[1599px]:w-[42px]"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {value}
       </p>
@@ -122,7 +121,6 @@ function Metric({
             "font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[11px] text-nowrap uppercase",
             isRight && 'text-right'
           )}
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {label}
           {label2 ? (
@@ -200,7 +198,6 @@ function TripletStatValue({
             "font-['Roboto'] font-bold leading-[36px] relative shrink-0 text-[36px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px]",
             isRight && 'text-right'
           )}
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {value}
         </p>
@@ -246,7 +243,6 @@ function StatTripletRow({
       />
       <p
         className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[14px] text-center w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {centerLabel}
       </p>
@@ -382,7 +378,6 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
           >
             <p
               className="leading-[64px] relative shrink-0 text-[64px] text-white w-full min-[768px]:max-[1599px]:text-[56px] min-[768px]:max-[1599px]:leading-[56px]"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {displayedMyHealth}
             </p>
@@ -391,7 +386,6 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             <p
               className="font-['Roboto'] font-bold leading-[28px] relative shrink-0 text-[28px] w-full text-right"
               style={{
-                fontVariationSettings: "'wdth' 100",
                 color: vm.myLastTurnNet > 0 
                   ? 'var(--shapeships-pastel-green)' 
                   : vm.myLastTurnNet < 0 
@@ -417,7 +411,6 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             <div className="flex flex-col items-center justify-start w-[64px] text-center min-[768px]:max-[1599px]:w-[56px]">
               <p
                 className="font-['Roboto'] font-normal leading-[1.25] relative shrink-0 text-white text-[15px] min-[768px]:max-[1599px]:text-[13px]"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Health
               </p>
@@ -426,7 +419,6 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
               <p
                 className="font-['Roboto'] font-bold leading-[13px] relative shrink-0 text-[13px]"
                 style={{
-                  fontVariationSettings: "'wdth' 100",
                   color: 'rgba(255,255,255,0.45)',
                 }}
               >
@@ -443,7 +435,6 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
           >
             <p
               className="leading-[64px] relative shrink-0 text-[64px] text-white w-[100px] text-left min-[768px]:max-[1599px]:w-[86px] min-[768px]:max-[1599px]:text-[56px] min-[768px]:max-[1599px]:leading-[56px]"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {displayedOpponentHealth}
             </p>
@@ -452,7 +443,6 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             <p
               className="font-['Roboto'] font-bold leading-[28px] relative shrink-0 text-[28px] w-[100px] text-left min-[768px]:max-[1599px]:w-[86px]"
               style={{
-                fontVariationSettings: "'wdth' 100",
                 color: vm.opponentLastTurnNet > 0 
                   ? 'var(--shapeships-pastel-green)' 
                   : vm.opponentLastTurnNet < 0 
@@ -493,7 +483,6 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
           
             <p
               className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[15px] text-center text-white w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Saved
               <br aria-hidden="true" />
@@ -576,7 +565,6 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             <div className="content-stretch flex items-center justify-center pb-0 pt-[8px] px-0 relative shrink-0">
               <p
                 className="font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[15px] text-center w-[64px] min-[768px]:max-[1599px]:text-[13px] min-[768px]:max-[1599px]:w-[56px]"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Bonus
               </p>

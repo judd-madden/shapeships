@@ -73,7 +73,6 @@ export function CubeDiceChoicePanel({
         className={`text-center font-['Roboto'] font-bold leading-[normal] text-white ${
           isMobile ? 'text-[15px]' : 'text-[18px]'
         }`}
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         Choose your dice for this turn
       </p>

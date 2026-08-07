@@ -275,7 +275,6 @@ function HeaderSummaryCell() {
     <div className="col-start-1 row-start-1 flex min-w-0 items-center pl-[30px]">
       <h2
         className="truncate text-[18px] font-bold leading-none text-[var(--shapeships-white)]"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         GAME STATS
       </h2>
@@ -288,7 +287,6 @@ function HeaderTurnCell() {
     <div className="col-start-2 row-start-1 flex min-w-0 items-center justify-end pr-[8px]">
       <span
         className="text-[18px] font-medium leading-none text-[var(--shapeships-white)]"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         Turn
       </span>
@@ -317,7 +315,6 @@ function TurnHeaderRow({ turns }: { turns: GameStatsViewModel['turns'] }) {
             className="flex items-center justify-center text-[18px] font-bold leading-none text-[var(--shapeships-white)]"
             style={{
               width: TURN_NUMBER_INNER_WIDTH_PX,
-              fontVariationSettings: "'wdth' 100",
             }}
           >
             {turn.turnNumber}
@@ -384,7 +381,6 @@ function AxisLegend({ scale }: { scale: GameStatsScale }) {
             style={{
               top: `${scale.positions[index] ?? 0}%`,
               transform: 'translateY(-50%)',
-              fontVariationSettings: "'wdth' 100",
             }}
           >
             {label}

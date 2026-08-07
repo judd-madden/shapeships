@@ -36,7 +36,6 @@ export function ChatSendButton({
     >
       <p 
         className="font-medium leading-[normal] relative shrink-0 text-[13px] text-nowrap text-white"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {children}
       </p>

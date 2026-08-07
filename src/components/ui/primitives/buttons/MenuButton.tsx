@@ -67,7 +67,6 @@ export function MenuButton({
       >
         <p 
           className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap text-white"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {children}
         </p>
@@ -96,7 +95,6 @@ export function MenuButton({
       >
         <p 
           className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {children}
         </p>
@@ -124,7 +122,6 @@ export function MenuButton({
     >
       <p 
         className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-black text-nowrap"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {children}
       </p>

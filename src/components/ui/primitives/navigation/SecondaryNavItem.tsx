@@ -35,7 +35,6 @@ export function SecondaryNavItem({
       >
         <p 
           className="font-['Roboto'] font-bold leading-[normal] relative text-[18px] text-black text-nowrap"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {label}
         </p>
@@ -61,7 +60,6 @@ export function SecondaryNavItem({
       <p 
         className="font-['Roboto'] font-bold leading-[normal] relative text-[18px] text-nowrap text-white group-hover:underline decoration-solid"
         style={{ 
-          fontVariationSettings: "'wdth' 100",
           textUnderlinePosition: 'from-font'
         }}
       >

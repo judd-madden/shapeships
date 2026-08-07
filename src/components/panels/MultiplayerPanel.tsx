@@ -72,7 +72,6 @@ function SectionHeading({ children }: SectionHeadingProps) {
       />
       <h3
         className="shrink-0 text-center font-['Roboto',sans-serif] text-[clamp(18px,2.5cqw,20px)] font-bold leading-[normal] text-shapeships-white"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {children}
       </h3>
@@ -96,7 +95,6 @@ export function MultiplayerPanel({
       <div className="mx-auto flex w-full flex-col items-center text-center">
         <h2
           className="mb-[clamp(24px,4.1cqw,40px)] font-['Roboto',sans-serif] text-[clamp(64px,11cqw,106px)] font-black italic leading-[0.9] text-shapeships-white"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Our galaxy at war!
         </h2>
@@ -112,7 +110,6 @@ export function MultiplayerPanel({
             </MenuButton>
             <p
               className="font-['Roboto',sans-serif] text-[clamp(18px,2.5cqw,20px)] font-bold leading-[normal] text-shapeships-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Challenge your friends
             </p>
@@ -127,7 +124,6 @@ export function MultiplayerPanel({
             </MenuButton>
             <p
               className="font-['Roboto',sans-serif] text-[clamp(18px,2.5cqw,20px)] font-bold leading-[normal] text-shapeships-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Join the Discord Community
             </p>
@@ -147,7 +143,6 @@ export function MultiplayerPanel({
                 className="font-['Roboto',sans-serif] text-[clamp(16px,2.25cqw,18px)] font-normal leading-[normal] hover:underline"
                 style={{
                   color: link.color,
-                  fontVariationSettings: "'wdth' 100",
                 }}
               >
                 {link.label}
@@ -163,7 +158,6 @@ export function MultiplayerPanel({
               <span
                 key={name}
                 className="font-['Roboto',sans-serif] text-[clamp(14px,1.875cqw,15px)] font-normal leading-[normal] text-shapeships-white"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 {name}
               </span>

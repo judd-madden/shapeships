@@ -121,7 +121,6 @@ export function LargeStyleChoicePanel({
       >
         <p
           className="relative w-full max-w-[330px] font-['Roboto',sans-serif] font-bold text-white text-[14px] leading-[16px]"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {title}
         </p>
@@ -129,7 +128,6 @@ export function LargeStyleChoicePanel({
         {instruction ? (
           <p
             className="relative w-full max-w-[330px] shrink-0 font-['Roboto',sans-serif] font-bold text-[var(--shapeships-pastel-red)] text-[14px] leading-[16px] whitespace-pre-wrap"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {instruction}
           </p>
@@ -153,7 +151,6 @@ export function LargeStyleChoicePanel({
         {helpText ? (
           <p
             className="w-full max-w-[330px] shrink-0 font-['Roboto',sans-serif] font-normal text-[var(--shapeships-grey-50)] text-[14px] leading-[16px] whitespace-pre-wrap"
-            style={{ fontVariationSettings: "'wdth' 100" }}
             data-name="Help Text"
           >
             {helpText}
@@ -188,7 +185,6 @@ export function LargeStyleChoicePanel({
         {/* Title (White, Centered) */}
         <p
           className="relative text-white w-full"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {title}
         </p>
@@ -196,7 +192,6 @@ export function LargeStyleChoicePanel({
         {/* Instruction (Pastel Red) */}
         <p
           className="min-w-full relative shrink-0 text-[var(--shapeships-pastel-red)] w-[min-content] whitespace-pre-wrap"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {instruction}
         </p>
@@ -206,7 +201,6 @@ export function LargeStyleChoicePanel({
       {helpText && (
         <p
           className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-grey-50)] text-[18px] w-[270px] whitespace-pre-wrap"
-          style={{ fontVariationSettings: "'wdth' 100" }}
           data-name="Help Text"
         >
           {helpText}

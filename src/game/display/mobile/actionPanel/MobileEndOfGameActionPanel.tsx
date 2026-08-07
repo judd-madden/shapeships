@@ -18,13 +18,11 @@ export function MobileEndOfGameActionPanel({
       <div className="flex min-w-0 max-w-full flex-col items-center gap-[5px]">
         <p
           className="max-w-full text-[30px] px-[24px] font-black leading-[32px]"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {endOfGame.bannerText}
         </p>
         <p
           className="max-w-full text-[15px] font-bold leading-[18px]"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {endOfGame.metaLeftText} {endOfGame.metaRightText}
         </p>
@@ -38,7 +36,6 @@ export function MobileEndOfGameActionPanel({
       >
         <span
           className="text-[16px] font-black leading-none"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Menu
         </span>

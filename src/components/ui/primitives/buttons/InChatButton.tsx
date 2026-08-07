@@ -37,7 +37,6 @@ export function InChatButton({
     >
       <p 
         className="font-normal leading-[normal] relative shrink-0 text-[14px] text-black text-nowrap"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {children}
       </p>

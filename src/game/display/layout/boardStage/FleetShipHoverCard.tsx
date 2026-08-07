@@ -35,7 +35,6 @@ function PowerText({ text, density }: { text: string; density: 'desktop' | 'mobi
         'font-normal text-left text-white whitespace-pre-wrap',
         density === 'mobile' ? 'text-[14px] leading-[18px]' : 'text-[16px] leading-[20px]'
       )}
-      style={{ fontVariationSettings: "'wdth' 100" }}
     >
       {text}
     </p>
@@ -172,7 +171,6 @@ export function FleetShipHoverCard({
             'font-bold leading-[normal] text-white',
             density === 'mobile' ? 'text-[18px]' : 'text-[20px]'
           )}
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {model.name}
         </p>

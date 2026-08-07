@@ -101,7 +101,6 @@ function ComponentShips({ shipIds }: { shipIds: readonly string[] }) {
             </div>
             <p
               className="font-black leading-[normal] relative shrink-0 text-[20px] text-nowrap text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {count}
             </p>
@@ -126,7 +125,6 @@ function ActionHint({ kind }: { kind: ShipHoverActionHint }) {
   return (
     <p
       className="ss-catalogueActionHint relative shrink-0 font-['Roboto'] text-[15px] font-black leading-[12px] text-nowrap"
-      style={{ fontVariationSettings: "'wdth' 100" }}
     >
       {label}
     </p>
@@ -163,7 +161,6 @@ function EligibilityFooter({
       return (
         <p
           className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Build in Drawing Phase
         </p>
@@ -175,7 +172,6 @@ function EligibilityFooter({
         <>
           <p
             className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             Need component ships
           </p>
@@ -188,7 +184,6 @@ function EligibilityFooter({
       return (
         <p
           className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Not enough lines
         </p>
@@ -199,7 +194,6 @@ function EligibilityFooter({
       return (
         <p
           className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Maximum limit reached
         </p>
@@ -210,7 +204,6 @@ function EligibilityFooter({
       return (
         <p
           className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px]"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Foreign basic ships cannot be built
         </p>
@@ -242,7 +235,6 @@ function PowerText({ text }: { text: string }) {
   return (
     <p
       className="font-normal leading-[20px] text-[16px] text-left text-white whitespace-pre-wrap"
-      style={{ fontVariationSettings: "'wdth' 100" }}
     >
       {text}
     </p>
@@ -350,14 +342,12 @@ export function ShipHoverCard({
             {showCost ? (
               <p
                 className="font-black relative shrink-0"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 {model.cost}
               </p>
             ) : null}
             <p
               className="font-bold relative shrink-0"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {model.name}
             </p>
@@ -366,7 +356,6 @@ export function ShipHoverCard({
                 {headingValue.label ? (
                   <span
                     className="font-normal text-[13px] text-white"
-                    style={{ fontVariationSettings: "'wdth' 100" }}
                   >
                     {headingValue.label}
                   </span>
@@ -374,7 +363,6 @@ export function ShipHoverCard({
                 {headingValue.healing !== undefined ? (
                   <span
                     className="font-black text-[20px] text-[var(--shapeships-pastel-green)]"
-                    style={{ fontVariationSettings: "'wdth' 100" }}
                   >
                     {headingValue.healing}
                   </span>
@@ -382,7 +370,6 @@ export function ShipHoverCard({
                 {headingValue.damage !== undefined ? (
                   <span
                     className="font-black text-[20px] text-[var(--shapeships-pastel-red)]"
-                    style={{ fontVariationSettings: "'wdth' 100" }}
                   >
                     {headingValue.damage}
                   </span>
@@ -397,7 +384,6 @@ export function ShipHoverCard({
               {showPhaseLabel && model.phaseLabel ? (
                 <p
                   className="font-normal leading-[15px] relative shrink-0 text-[var(--shapeships-grey-20)] text-[13px] w-full"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   {model.phaseLabel}
                 </p>
@@ -411,12 +397,11 @@ export function ShipHoverCard({
         {model.joiningLines && (
           <p
             className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
-            <span className="font-bold" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <span className="font-bold">
               {model.joiningLines}
             </span>
-            <span className="font-normal" style={{ fontVariationSettings: "'wdth' 100" }}>
+            <span className="font-normal">
               {' joining lines'}
             </span>
           </p>
@@ -438,7 +423,6 @@ export function ShipHoverCard({
           <div className="content-stretch flex items-center relative shrink-0 w-full">
             <p
               className="basis-0 font-normal grow italic leading-[17px] min-h-px min-w-px relative shrink-0 text-[13px] text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {model.italicNotes}
             </p>

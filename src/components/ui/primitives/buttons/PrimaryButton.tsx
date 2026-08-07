@@ -43,7 +43,6 @@ export function PrimaryButton({
     >
       <p 
         className="font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[22px] text-black text-nowrap"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {loading ? loadingLabel ?? children : children}
       </p>

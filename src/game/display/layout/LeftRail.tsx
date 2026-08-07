@@ -327,20 +327,17 @@ export function LeftRail({
             />
             <p
               className="font-['Roboto'] text-[26px] font-black leading-[1.05]"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               The dice gives lines to both players.
             </p>
             <div className="flex flex-col gap-[12px]">
               <p
                 className="font-['Roboto'] text-[18px] font-normal leading-[1.2]"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 You start with <span className="font-bold">3 saved lines</span>.
               </p>
               <p
                 className="font-['Roboto'] text-[18px] font-normal leading-[1.2]"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 Spend lines to build ships. Unspent lines are saved.
               </p>

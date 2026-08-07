@@ -49,9 +49,6 @@ export function InputField({
           placeholder:text-white
           ${error ? '!border-[var(--shapeships-pastel-red)]' : ''}
         `}
-        style={{ 
-          fontVariationSettings: "'wdth' 100"
-        }}
       />
     </div>
   );

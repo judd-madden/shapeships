@@ -36,7 +36,6 @@ const PILL_BASE_STYLE = {
   background: 'var(--shapeships-black)',
   borderRadius: 99,
   fontSize: 18,
-  fontVariationSettings: "'wdth' 100",
   fontWeight: 700,
   lineHeight: '20px',
   padding: '1px 8px',

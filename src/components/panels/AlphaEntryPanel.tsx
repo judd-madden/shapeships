@@ -76,7 +76,6 @@ export function AlphaEntryPanel({
         <div className="content-stretch relative flex w-full flex-col items-center gap-[20px] px-[20px] sm:py-[25px] sm:px-[32px] md:px-[40px]">
           <p 
             className="font-black leading-[normal] relative shrink-0 text-[27px] text-center w-full sm:text-[36px]"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             Enter your name
           </p>
@@ -124,7 +123,6 @@ export function AlphaEntryPanel({
         <div className="content-stretch relative flex w-full flex-col items-center gap-[20px] px-[20px] py-[0px] sm:py-[25px] sm:px-[32px] md:px-[40px]">
           <p 
             className="font-normal leading-[16px] relative shrink-0 text-[12px] text-center w-full sm:text-[16px] sm:leading-[22px]"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             <span>
               <br aria-hidden="true" />

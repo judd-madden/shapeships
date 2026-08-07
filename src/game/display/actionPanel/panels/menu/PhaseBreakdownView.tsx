@@ -54,7 +54,6 @@ export function PhaseBreakdownView({
         <span
           className={`${isMobile ? 'text-[12px] leading-[16px]' : 'text-[14px] leading-[20px]'} font-normal`}
           style={{
-            fontVariationSettings: "'wdth' 100",
             color: isCurrent ? 'white' : 'var(--shapeships-grey-50)',
           }}
         >
@@ -76,7 +75,6 @@ export function PhaseBreakdownView({
           >
             <span
               className="text-[24px] font-bold leading-[normal] text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Turn {turnNumber}
             </span>
@@ -87,7 +85,6 @@ export function PhaseBreakdownView({
               <div className="mb-[2px] flex items-center justify-start gap-[10px]">
                 <span
                   className="text-[16px] font-bold text-white"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   BUILD PHASE
                 </span>
@@ -102,7 +99,6 @@ export function PhaseBreakdownView({
               <div className="mb-[2px] flex items-center justify-start gap-[10px]">
                 <span
                   className="text-[16px] font-bold text-white"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   BATTLE PHASE
                 </span>
@@ -134,7 +130,6 @@ export function PhaseBreakdownView({
       >
         <span
           className="text-[30px] font-bold leading-[normal] text-white"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           Turn {turnNumber}
         </span>
@@ -147,7 +142,6 @@ export function PhaseBreakdownView({
           <div className="flex items-center gap-[10px] mb-[4px]">
             <span
               className="text-[18px] font-bold text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               BUILD PHASE
             </span>
@@ -163,7 +157,6 @@ export function PhaseBreakdownView({
           <div className="flex items-center gap-[10px] mb-[4px]">
             <span
               className="text-[18px] font-bold text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               BATTLE PHASE
             </span>

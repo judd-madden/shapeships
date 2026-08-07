@@ -22,7 +22,6 @@ export function MobileAutocastInfoModal({
         <div className="min-h-0 flex-1 overflow-y-auto px-[20px] pb-[18px] pt-[20px]">
           <h2
             className="mb-[20px] text-[22px] font-black leading-none text-white"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             AUTOCAST
           </h2>
@@ -35,7 +34,6 @@ export function MobileAutocastInfoModal({
             type="button"
             onClick={onClose}
             className="flex h-[50px] w-full items-center justify-center rounded-[10px] bg-white px-[16px] text-[18px] font-black leading-none text-black active:scale-[0.99]"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             CLOSE
           </button>

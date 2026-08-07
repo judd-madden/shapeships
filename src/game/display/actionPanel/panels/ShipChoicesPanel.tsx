@@ -117,7 +117,6 @@ export function ShipChoicesPanel({
               >
                 <p
                   className={`font-['Roboto'] font-bold leading-[normal] text-nowrap text-white ${isMobile ? 'text-[13px]' : 'text-[18px]'}`}
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   {label}
                 </p>
@@ -202,7 +201,6 @@ function ShipGroupRenderer({
         {group.groupHelpText ? (
           <div
             className="w-full rounded-[8px] py-[12px] text-center font-['Roboto',sans-serif] font-normal leading-[normal] text-[var(--shapeships-grey-50)] text-[14px] whitespace-pre-wrap"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {group.groupHelpText}
           </div>
@@ -310,7 +308,6 @@ function ShipGroupRenderer({
         {/* Right: Group Help Text (grey, 16px, 270px width) */}
         <div
           className="font-['Roboto',sans-serif] font-normal leading-[normal] relative shrink-0 text-[var(--shapeships-grey-50)] text-[16px] w-[270px] whitespace-pre-wrap"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {group.groupHelpText}
         </div>

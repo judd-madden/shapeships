@@ -87,7 +87,6 @@ export function MobileShipModal({
           aria-label="Close ship details"
           onClick={onClose}
           className="absolute right-[8px] top-[8px] z-10 flex size-[44px] items-center justify-center text-[30px] font-normal leading-none text-white"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           <CloseIcon className="!size-[20px]" />
         </button>
@@ -98,13 +97,11 @@ export function MobileShipModal({
               <div className="flex min-w-0 items-center gap-[7px] text-[22px] leading-none text-white">
                 <p
                   className="shrink-0 font-black"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   {model.cost}
                 </p>
                 <p
                   className="min-w-0 font-bold leading-[26px]"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   {model.name}
                 </p>
@@ -115,7 +112,6 @@ export function MobileShipModal({
                   {model.phaseLabel ? (
                     <p
                       className="text-[13px] font-normal uppercase leading-[16px] text-[var(--shapeships-grey-20)]"
-                      style={{ fontVariationSettings: "'wdth' 100" }}
                     >
                       {model.phaseLabel}
                     </p>
@@ -128,7 +124,6 @@ export function MobileShipModal({
             {model.joiningLines ? (
               <p
                 className="text-[15px] font-medium leading-[16px] text-[var(--shapeships-grey-50)]"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 <span className="font-bold">{model.joiningLines}</span>
                 <span className="font-normal"> joining lines</span>
@@ -141,7 +136,6 @@ export function MobileShipModal({
                   <ShipPowerRow key={index} iconKind={power.iconKind}>
                     <p
                       className="min-w-0 flex-1 whitespace-pre-wrap text-[16px] font-normal leading-[20px] text-white"
-                      style={{ fontVariationSettings: "'wdth' 100" }}
                     >
                       {power.text}
                     </p>
@@ -157,14 +151,12 @@ export function MobileShipModal({
                     type="button"
                     onClick={() => setRulesExpanded((current) => !current)}
                     className="w-fit text-left text-[14px] font-bold italic leading-[18px] text-white"
-                    style={{ fontVariationSettings: "'wdth' 100" }}
                   >
                     {rulesExpanded ? '- Close Rules Notes' : '+ Expand Rules Notes'}
                   </button>
                   {rulesExpanded ? (
                     <p
                       className="whitespace-pre-wrap text-[13px] font-normal italic leading-[18px] text-white"
-                      style={{ fontVariationSettings: "'wdth' 100" }}
                     >
                       {model.italicNotes}
                     </p>
@@ -173,7 +165,6 @@ export function MobileShipModal({
               ) : (
                 <p
                   className="text-[13px] font-normal italic leading-[18px] text-white"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   {model.italicNotes}
                 </p>
@@ -211,7 +202,6 @@ function MobileShipModalFooter({
           type="button"
           onClick={onBuild}
           className="flex h-[50px] w-full items-center justify-center rounded-[10px] bg-white px-[16px] text-[18px] font-black leading-none text-black active:scale-[0.99]"
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           BUILD - {displayCost} lines
         </button>
@@ -272,7 +262,6 @@ function UnavailableText({ children }: { children: string }) {
   return (
     <p
       className="text-[17px] font-medium leading-[20px] text-[var(--shapeships-grey-50)]"
-      style={{ fontVariationSettings: "'wdth' 100" }}
     >
       {children}
     </p>
@@ -316,7 +305,6 @@ function MobileComponentShips({ shipIds }: { shipIds: readonly string[] }) {
             {count > 1 ? (
               <p
                 className="text-[21px] font-black leading-none text-white"
-                style={{ fontVariationSettings: "'wdth' 100" }}
               >
                 {count}
               </p>

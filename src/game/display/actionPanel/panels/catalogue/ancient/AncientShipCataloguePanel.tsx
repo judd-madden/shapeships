@@ -335,7 +335,6 @@ export function AncientAutocastControl({
         className={`flex items-center gap-[2px] font-['Roboto'] text-[18px] font-bold leading-none text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:cursor-default disabled:opacity-40 ${
           isMobileModalInfo ? 'h-[40px]' : 'h-[24px]'
         }`}
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         <svg
           aria-hidden="true"
@@ -681,7 +680,6 @@ export function AncientShipCataloguePanel({
             style={{
               left: `${ANCIENT_CATALOGUE_SECTION_X.basics}px`,
               top: "0",
-              fontVariationSettings: "'wdth' 100",
             }}
           >
             Ancient Basic Ships
@@ -692,7 +690,6 @@ export function AncientShipCataloguePanel({
             style={{
               left: `${ANCIENT_CATALOGUE_SECTION_X.solar}px`,
               top: "0",
-              fontVariationSettings: "'wdth' 100",
             }}
           >
             Ancient Solar Powers
@@ -708,7 +705,6 @@ export function AncientShipCataloguePanel({
               style={{
                 left: `${siphonInstructionLeft}px`,
                 top: '34px',
-                fontVariationSettings: "'wdth' 100",
               }}
             >
               {siphonInstruction.text}
@@ -985,7 +981,6 @@ export function AncientShipCataloguePanel({
                   style={{
                     left: '426px',
                     top: '30px',
-                    fontVariationSettings: "'wdth' 100",
                   }}
                   onClick={(event) => {
                     event.stopPropagation();

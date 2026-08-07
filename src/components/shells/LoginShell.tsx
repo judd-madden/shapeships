@@ -106,7 +106,6 @@ export function LoginShell({
               target="_blank"
               rel="noopener noreferrer"
               className="[text-underline-position:from-font] decoration-solid relative shrink-0 underline cursor-pointer hover:opacity-80"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Official
             </a>
@@ -115,7 +114,6 @@ export function LoginShell({
               target="_blank"
               rel="noopener noreferrer"
               className="[text-underline-position:from-font] decoration-solid relative shrink-0 underline cursor-pointer hover:opacity-80"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Discord
             </a>
@@ -124,7 +122,6 @@ export function LoginShell({
               target="_blank"
               rel="noopener noreferrer"
               className="[text-underline-position:from-font] decoration-solid relative shrink-0 underline cursor-pointer hover:opacity-80"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               YouTube
             </a>
@@ -133,7 +130,6 @@ export function LoginShell({
               target="_blank"
               rel="noopener noreferrer"
               className="[text-underline-position:from-font] decoration-solid relative shrink-0 underline cursor-pointer hover:opacity-80"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               Reddit
             </a>

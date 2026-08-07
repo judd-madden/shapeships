@@ -105,7 +105,6 @@ export function AncientEnergyDisplay({
               className="shrink-0 text-[22px] font-bold leading-[normal]"
               style={{
                 color: ENERGY_COLOR_CSS[row.color],
-                fontVariationSettings: "'wdth' 100",
               }}
             >
               {row.amount}

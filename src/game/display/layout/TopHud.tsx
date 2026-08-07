@@ -63,7 +63,6 @@ export function TopHud({ vm }: TopHudProps) {
               className={`font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
                 vm.p1StatusTone === 'ready' ? 'text-[var(--shapeships-pastel-green)]' : 'text-white'
               }`}
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {vm.p1StatusText}
             </p>
@@ -73,7 +72,6 @@ export function TopHud({ vm }: TopHudProps) {
           className={`font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[28px] text-center w-full ${
             vm.p1IsReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
           }`}
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {vm.p1Clock}
         </p>
@@ -101,14 +99,12 @@ export function TopHud({ vm }: TopHudProps) {
                   maxFontSize={36}
                   align="right"
                   className="font-['Roboto'] font-normal leading-[normal] text-[36px] text-white"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 />
               </div>
             </div>
           </div>
           <p
             className="capitalize font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[15px] text-right text-white w-full"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {vm.p1Species}
           </p>
@@ -130,7 +126,6 @@ export function TopHud({ vm }: TopHudProps) {
                   maxFontSize={36}
                   align="left"
                   className="font-['Roboto'] font-normal leading-[normal] text-[36px] text-white"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 />
               </div>
               <OnlineStatus isOnline={vm.p2IsOnline} />
@@ -138,7 +133,6 @@ export function TopHud({ vm }: TopHudProps) {
           </div>
           <p
             className="capitalize font-['Roboto'] font-normal leading-[normal] relative shrink-0 text-[15px] text-white w-full"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {vm.p2Species}
           </p>
@@ -156,7 +150,6 @@ export function TopHud({ vm }: TopHudProps) {
               className={`font-['Roboto'] font-black leading-[normal] relative shrink-0 text-[18px] text-nowrap ${
                 vm.p2StatusTone === 'ready' ? 'text-[var(--shapeships-pastel-green)]' : 'text-white'
               }`}
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {vm.p2StatusText}
             </p>
@@ -166,7 +159,6 @@ export function TopHud({ vm }: TopHudProps) {
           className={`font-['Roboto'] font-bold leading-[normal] relative shrink-0 text-[28px] text-center w-full ${
             vm.p2IsReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
           }`}
-          style={{ fontVariationSettings: "'wdth' 100" }}
         >
           {vm.p2Clock}
         </p>

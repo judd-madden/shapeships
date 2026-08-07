@@ -61,7 +61,6 @@ export function SelectedNumberDrawingPanel({
     >
       <h3
         className={`font-['Roboto',sans-serif] font-bold leading-[normal] relative shrink-0 text-white text-center ${isMobile ? 'w-full text-[15px]' : 'text-[18px]'}`}
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {instructionText}
       </h3>
@@ -92,7 +91,6 @@ export function SelectedNumberDrawingPanel({
 
       <p
         className={`font-['Roboto',sans-serif] font-normal leading-[normal] shrink-0 text-center text-white w-full whitespace-pre-wrap ${isMobile ? 'text-[13px]' : 'text-[16px]'}`}
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         {explanationText}
       </p>

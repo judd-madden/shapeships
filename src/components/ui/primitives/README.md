@@ -301,4 +301,4 @@ Access the Build Kit showcase via the Development Dashboard:
 - ❌ DO NOT modify colors outside the definitive palette
 - ✅ DO accept visual state via props
 - ✅ DO maintain exact pixel specifications from Figma
-- ✅ DO use Roboto font family with proper font-variation-settings
+- ✅ DO use the established Roboto font family and normal project typography conventions

@@ -18,7 +18,6 @@ export function GameStatsSummaryColumn({ groups }: GameStatsSummaryColumnProps) 
             className="truncate text-[16px] font-normal leading-[1.1]"
             style={{
               color: group.color,
-              fontVariationSettings: "'wdth' 100",
             }}
             title={group.label}
           >
@@ -29,7 +28,6 @@ export function GameStatsSummaryColumn({ groups }: GameStatsSummaryColumnProps) 
               className="shrink-0 text-[28px] font-black leading-none"
               style={{
                 color: group.color,
-                fontVariationSettings: "'wdth' 100",
               }}
             >
               {formatSummaryValue(group.value)}
@@ -38,7 +36,6 @@ export function GameStatsSummaryColumn({ groups }: GameStatsSummaryColumnProps) 
               className="min-w-0 truncate text-[14px] font-normal leading-none"
               style={{
                 color: group.color,
-                fontVariationSettings: "'wdth' 100",
               }}
             >
               {group.note}

@@ -19,7 +19,7 @@ function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
       {row.rowKind === 'ship' || row.rowKind === 'solar_power' ? (
         <div
           className="min-w-0 flex items-center gap-[4px] text-left text-white"
-          style={{ fontSize: '14px', lineHeight: 1.4, fontVariationSettings: "'wdth' 100" }}
+          style={{ fontSize: '14px', lineHeight: 1.4 }}
         >
           <span className="font-normal">{row.count ?? 0}</span>
           <span className="font-normal" style={{ color: 'var(--shapeships-grey-50)' }}>
@@ -30,7 +30,7 @@ function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
       ) : (
         <div
           className="min-w-0 truncate text-left font-normal text-white"
-          style={{ fontSize: '14px', lineHeight: 1.4, fontVariationSettings: "'wdth' 100" }}
+          style={{ fontSize: '14px', lineHeight: 1.4 }}
         >
           {row.label}
         </div>
@@ -38,7 +38,7 @@ function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
 
       <div
         className="shrink-0 text-right font-black text-white"
-        style={{ fontSize: '14px', lineHeight: 1.4, fontVariationSettings: "'wdth' 100" }}
+        style={{ fontSize: '14px', lineHeight: 1.4 }}
       >
         {row.amountText}
       </div>

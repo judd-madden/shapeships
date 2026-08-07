@@ -65,7 +65,6 @@ export function MenuActionPanel({
           {/* Title */}
           <p
             className="font-bold leading-[normal] relative shrink-0 text-[24px] text-center text-white"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {title}
           </p>
@@ -73,7 +72,6 @@ export function MenuActionPanel({
           {/* Subtitle */}
           <p
             className="font-bold leading-[normal] relative shrink-0 text-[16px] text-center text-white"
-            style={{ fontVariationSettings: "'wdth' 100" }}
           >
             {subtitle}
           </p>

@@ -61,7 +61,6 @@ export function AncientSiphonSelector({
 
       <div
         className="flex w-[72px] shrink-0 flex-col items-end font-['Roboto'] text-right text-[18px] font-normal leading-[1.1] text-white"
-        style={{ fontVariationSettings: "'wdth' 100" }}
       >
         <span>Energy</span>
         <span className="mt-[18px]">Healing</span>
@@ -132,7 +131,6 @@ export function AncientSiphonSelector({
                   {effectAmount !== null && (
                     <div
                       className="flex flex-col items-center gap-[8px] font-['Roboto'] text-[22px] font-bold leading-none"
-                      style={{ fontVariationSettings: "'wdth' 100" }}
                     >
                       <span className="text-[var(--shapeships-pastel-green)]">{effectAmount}</span>
                       <span className="text-[var(--shapeships-pastel-red)]">{effectAmount}</span>
@@ -142,7 +140,6 @@ export function AncientSiphonSelector({
                 <span
                   aria-hidden="true"
                   className="pointer-events-none font-['Roboto'] text-center text-[16px] font-bold leading-none text-white"
-                  style={{ fontVariationSettings: "'wdth' 100" }}
                 >
                   {candidate}
                 </span>

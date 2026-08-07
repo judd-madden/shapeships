@@ -97,13 +97,11 @@ export function MobileMenuTakeover({
           <div className="mt-[30px] flex w-full flex-col items-center gap-[8px]">
             <p
               className="max-w-full text-center text-[24px] font-bold leading-[28px] text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {vm.title}
             </p>
             <p
               className="max-w-full text-center text-[16px] font-bold leading-[20px] text-white"
-              style={{ fontVariationSettings: "'wdth' 100" }}
             >
               {vm.subtitle}
             </p>
