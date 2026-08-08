@@ -15,7 +15,6 @@
  * - Passes view-models down to layout components
  */
 
-import { Checkbox } from '../../components/ui/primitives';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameSound } from '../client/audio/useGameSound';
 import { type GameSessionViewModel, useGameSession } from '../client/useGameSession';
@@ -123,33 +122,6 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
     setBoardFlashEnabled((current) => !current);
   }
 
-  function renderPreferenceToggle(args: {
-    label: string;
-    checked: boolean;
-    onChange: (checked: boolean) => void;
-    onToggle: () => void;
-  }) {
-    const { label, checked, onChange, onToggle } = args;
-
-    return (
-      <div className="flex items-center gap-[4px]">
-        <Checkbox
-          className="w-[22px] h-[22px]"
-          checked={checked}
-          onChange={onChange}
-        />
-        <button
-          type="button"
-          onClick={onToggle}
-          className="text-white transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
-          style={{ fontSize: '15px', fontWeight: 400, lineHeight: 1.2 }}
-        >
-          {label}
-        </button>
-      </div>
-    );
-  }
-
   // ============================================================================
   // CHUNK 9.1: BOOT GATING — Show loading screen until valid server state
   // ============================================================================
@@ -191,25 +163,6 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             : 'opacity-0 delay-0 duration-300'
         }`}
       />
-
-      {!mobileBoardVm && (
-        <div className="fixed right-[10px] top-[10px] z-50">
-          <div className="flex items-center gap-[12px] rounded-[10px] px-[10px] py-[10px] min-[768px]:max-[1599px]:p-0">
-            {renderPreferenceToggle({
-              label: 'Sound',
-              checked: soundEnabled,
-              onChange: setSoundEnabled,
-              onToggle: toggleSound,
-            })}
-            {renderPreferenceToggle({
-              label: 'Flash',
-              checked: boardFlashEnabled,
-              onChange: setBoardFlashEnabled,
-              onToggle: toggleBoardFlash,
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Foreground layout (existing UI) */}
       {mobileBoardVm ? (
@@ -263,6 +216,10 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             actionPanelVm={vm.actionPanel}
             gameStats={vm.gameStats}
             actions={mainStageActions}
+            soundEnabled={soundEnabled}
+            boardFlashEnabled={boardFlashEnabled}
+            onSoundEnabledChange={setSoundEnabled}
+            onBoardFlashEnabledChange={setBoardFlashEnabled}
             onReturnToMainMenu={onBack}
           />
 

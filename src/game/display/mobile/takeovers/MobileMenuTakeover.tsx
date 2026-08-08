@@ -82,23 +82,9 @@ export function MobileMenuTakeover({
       bodyClassName="flex flex-col"
     >
       <div className="flex min-h-full flex-col">
-        <div className="flex grow shrink-0 flex-col items-center justify-center px-[16px] pb-[26px] pt-[24px]">
-          <div className="flex flex-wrap items-center justify-center gap-x-[26px] gap-y-[12px]">
-            <MobilePreferenceToggle
-              label="Sound"
-              checked={soundEnabled}
-              onChange={onSoundEnabledChange}
-              onToggle={onToggleSound}
-            />
-            <MobilePreferenceToggle
-              label="Flash"
-              checked={boardFlashEnabled}
-              onChange={onBoardFlashEnabledChange}
-              onToggle={onToggleBoardFlash}
-            />
-          </div>
+        <div className="flex grow shrink-0 flex-col items-center justify-center px-[16px] pb-[24px] pt-[8px]">
 
-          <div className="mt-[30px] flex w-full flex-col items-center gap-[8px]">
+          <div className="flex w-full flex-col items-center gap-[8px]">
             <p
               className="max-w-full text-center text-[24px] font-bold leading-[28px] text-white"
             >
@@ -145,6 +131,20 @@ export function MobileMenuTakeover({
           </div>
         </div>
 
+          <div className="flex flex-wrap items-center justify-center gap-x-[26px] gap-y-[12px] mb-[32px]">
+            <MobilePreferenceToggle
+              label="Sound"
+              checked={soundEnabled}
+              onChange={onSoundEnabledChange}
+              onToggle={onToggleSound}
+            />
+            <MobilePreferenceToggle
+              label="Health Flash"
+              checked={boardFlashEnabled}
+              onChange={onBoardFlashEnabledChange}
+              onToggle={onToggleBoardFlash}
+            />
+          </div>
         <div className="w-full grow shrink-0 bg-[var(--shapeships-grey-90)] px-[18px] py-[22px]">
           <h2 className="mb-[16px] text-[16px] font-bold text-[var(--shapeships-white)]">Turn Phases</h2>
           <TurnPhaseList vm={turnPhasesVm} presentation={turnPhasePresentation} />

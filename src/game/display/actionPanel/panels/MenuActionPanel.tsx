@@ -2,20 +2,15 @@
  * Menu Action Panel
  * Shown when vm.activePanelId === 'ap.menu.root'
  * Displays in-progress game menu with draw offer and resign options
- *
- * NEW: Turn Flow widget (static phase list + current-phase dot)
  */
 
+import { Checkbox } from '../../../../components/ui/primitives';
 import { GameMenuButton } from '../../../../components/ui/primitives/buttons/GameMenuButton';
-import { PhaseBreakdownView } from './menu/PhaseBreakdownView';
 
 interface MenuActionPanelProps {
   title: string;     // "Shapeships Game: {me} v {opponent}"
   subtitle: string;  // "In Progress. Turn {n}."
-  turnNumber: number;
-  phaseKey: string;
   isSpectator: boolean;
-  hasActionsForMe: boolean;
   canOfferDraw: boolean;
   canResign: boolean;
   canAbortGame: boolean;
@@ -23,15 +18,16 @@ interface MenuActionPanelProps {
   onResignGame: () => void;
   onAbortGame: () => void;
   onReturnToMainMenu: () => void;
+  soundEnabled: boolean;
+  boardFlashEnabled: boolean;
+  onSoundEnabledChange: (checked: boolean) => void;
+  onBoardFlashEnabledChange: (checked: boolean) => void;
 }
 
 export function MenuActionPanel({
   title,
   subtitle,
-  turnNumber,
-  phaseKey,
   isSpectator,
-  hasActionsForMe,
   canOfferDraw,
   canResign,
   canAbortGame,
@@ -39,6 +35,10 @@ export function MenuActionPanel({
   onResignGame,
   onAbortGame,
   onReturnToMainMenu,
+  soundEnabled,
+  boardFlashEnabled,
+  onSoundEnabledChange,
+  onBoardFlashEnabledChange,
 }: MenuActionPanelProps) {
   const dangerAction = canAbortGame
     ? {
@@ -55,55 +55,57 @@ export function MenuActionPanel({
       };
 
   return (
-      <div className="flex items-center justify-center relative w-full h-full">
-        <div className="flex items-center justify-center w-full" style={{ gap: 40 }}>
-        {/* Left: Turn flow */}
-        <PhaseBreakdownView turnNumber={turnNumber} phaseKey={phaseKey} hasActionsForMe={hasActionsForMe} layout="desktop" />
+    <div className="relative flex size-full items-center justify-center">
+      <div className="content-stretch relative flex shrink-0 flex-col items-center">
+        <p className="relative shrink-0 text-center text-[24px] font-bold leading-[normal] text-white">
+          {title}
+        </p>
 
-        {/* Right: Existing menu block */}
-        <div className="content-stretch flex flex-col gap-[20px] items-center relative shrink-0">
-          {/* Title */}
-          <p
-            className="font-bold leading-[normal] relative shrink-0 text-[24px] text-center text-white"
-          >
-            {title}
-          </p>
+        <p className="relative mt-[20px] shrink-0 text-center text-[16px] font-bold leading-[normal] text-white">
+          {subtitle}
+        </p>
 
-          {/* Subtitle */}
-          <p
-            className="font-bold leading-[normal] relative shrink-0 text-[16px] text-center text-white"
-          >
-            {subtitle}
-          </p>
-
-          {/* Buttons */}
-          <div className="content-stretch flex gap-[20px] items-center justify-center pt-[8px] relative shrink-0 w-full">
-            {isSpectator ? (
-              <GameMenuButton onClick={onReturnToMainMenu}>
-                Back to Main Menu
+        <div className="content-stretch relative mt-[20px] flex w-full shrink-0 items-center justify-center gap-[20px] pt-[8px]">
+          {isSpectator ? (
+            <GameMenuButton onClick={onReturnToMainMenu}>
+              Back to Main Menu
+            </GameMenuButton>
+          ) : (
+            <>
+              <GameMenuButton
+                disabled={!canOfferDraw}
+                requiresConfirm={true}
+                confirmLabel="Offer Draw (Confirm)"
+                onClick={onOfferDraw}
+              >
+                Offer Draw
               </GameMenuButton>
-            ) : (
-              <>
-                <GameMenuButton
-                  disabled={!canOfferDraw}
-                  requiresConfirm={true}
-                  confirmLabel="Offer Draw (Confirm)"
-                  onClick={onOfferDraw}
-                >
-                  Offer Draw
-                </GameMenuButton>
 
-                <GameMenuButton
-                  disabled={dangerAction.disabled}
-                  requiresConfirm={true}
-                  confirmLabel={dangerAction.confirmLabel}
-                  onClick={dangerAction.onClick}
-                >
-                  {dangerAction.label}
-                </GameMenuButton>
-              </>
-            )}
-          </div>
+              <GameMenuButton
+                disabled={dangerAction.disabled}
+                requiresConfirm={true}
+                confirmLabel={dangerAction.confirmLabel}
+                onClick={dangerAction.onClick}
+              >
+                {dangerAction.label}
+              </GameMenuButton>
+            </>
+          )}
+        </div>
+
+        <div className="mt-[32px] flex items-center justify-center gap-[32px]">
+          <Checkbox
+            checked={soundEnabled}
+            onChange={onSoundEnabledChange}
+            label="Sound"
+            labelClassName="text-[18px] font-bold leading-none text-white"
+          />
+          <Checkbox
+            checked={boardFlashEnabled}
+            onChange={onBoardFlashEnabledChange}
+            label="Health Flash"
+            labelClassName="text-[18px] font-bold leading-none text-white"
+          />
         </div>
       </div>
     </div>

@@ -37,6 +37,10 @@ interface ActionPanelFrameProps {
   canViewGameStats?: boolean;
   onOpenGameStats?: () => void;
   onToggleGameStats?: () => void;
+  soundEnabled: boolean;
+  boardFlashEnabled: boolean;
+  onSoundEnabledChange: (checked: boolean) => void;
+  onBoardFlashEnabledChange: (checked: boolean) => void;
   onReturnToMainMenu: () => void;
   simulacrumSpecies?: SpeciesId;
   siphonInspectionOpen?: boolean;
@@ -54,6 +58,10 @@ export function ActionPanelFrame({
   canViewGameStats = false,
   onOpenGameStats,
   onToggleGameStats,
+  soundEnabled,
+  boardFlashEnabled,
+  onSoundEnabledChange,
+  onBoardFlashEnabledChange,
   onReturnToMainMenu,
   simulacrumSpecies = 'human',
   siphonInspectionOpen = false,
@@ -348,10 +356,7 @@ export function ActionPanelFrame({
         <MenuActionPanel
           title={vm.menu.title}
           subtitle={vm.menu.subtitle}
-          turnNumber={vm.menu.turnNumber}
-          phaseKey={vm.menu.phaseKey}
           isSpectator={vm.menu.isSpectator}
-          hasActionsForMe={vm.menu.hasActionsForMe}
           canOfferDraw={vm.menu.canOfferDraw}
           canResign={vm.menu.canResign}
           canAbortGame={vm.menu.canAbortGame === true}
@@ -359,6 +364,10 @@ export function ActionPanelFrame({
           onResignGame={actions.onResignGame}
           onAbortGame={onReturnToMainMenu}
           onReturnToMainMenu={onReturnToMainMenu}
+          soundEnabled={soundEnabled}
+          boardFlashEnabled={boardFlashEnabled}
+          onSoundEnabledChange={onSoundEnabledChange}
+          onBoardFlashEnabledChange={onBoardFlashEnabledChange}
         />
       </div>
     );

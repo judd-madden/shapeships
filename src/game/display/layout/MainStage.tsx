@@ -30,6 +30,10 @@ interface MainStageProps {
   actionPanelVm: ActionPanelViewModel;
   gameStats: GameSessionViewModel['gameStats'];
   actions: GameSessionActions;
+  soundEnabled: boolean;
+  boardFlashEnabled: boolean;
+  onSoundEnabledChange: (checked: boolean) => void;
+  onBoardFlashEnabledChange: (checked: boolean) => void;
   onReturnToMainMenu: () => void;
 }
 
@@ -40,6 +44,10 @@ export function MainStage({
   actionPanelVm, 
   gameStats,
   actions,
+  soundEnabled,
+  boardFlashEnabled,
+  onSoundEnabledChange,
+  onBoardFlashEnabledChange,
   onReturnToMainMenu
 }: MainStageProps) {
   const [isGameStatsOpen, setIsGameStatsOpen] = useState(false);
@@ -228,6 +236,10 @@ export function MainStage({
             canViewGameStats={canViewGameStats}
             onOpenGameStats={handleOpenGameStats}
             onToggleGameStats={handleToggleGameStats}
+            soundEnabled={soundEnabled}
+            boardFlashEnabled={boardFlashEnabled}
+            onSoundEnabledChange={onSoundEnabledChange}
+            onBoardFlashEnabledChange={onBoardFlashEnabledChange}
             onReturnToMainMenu={onReturnToMainMenu}
             simulacrumSpecies={simulacrumSpecies}
             siphonInspectionOpen={isSiphonInspectionOpen}
