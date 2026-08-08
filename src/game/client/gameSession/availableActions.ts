@@ -478,9 +478,14 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
   const selectedSpeciesCatalogue = speciesToCataloguePanelId(selectedSpecies ?? 'human');
   const hasKnownActivePanel = isActionPanelId(activePanelId);
 
+  // Menu is a user-owned desktop surface. Ordinary automatic routing must
+  // never replace it; terminal routing is handled separately by the caller.
+  if (activePanelId === 'ap.menu.root') {
+    return { kind: 'none' };
+  }
+
   // 1) FORCE SELECTED-SPECIES CATALOGUE DURING SETUP.SPECIES_SELECTION
   if (phaseKey === 'setup.species_selection') {
-    if (activePanelId === 'ap.menu.root') return { kind: 'none' };
     if (activePanelId !== selectedSpeciesCatalogue) {
       return {
         kind: 'setActivePanelId',
@@ -535,9 +540,6 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
       }
       return { kind: 'none' };
     }
-
-    // Allow Menu tab during build.drawing
-    if (activePanelId === 'ap.menu.root') return { kind: 'none' };
 
     // Allow Actions tab if it exists / is currently available
     if (hasActionsAvailable && actionsTargetPanelId && activePanelId === actionsTargetPanelId) {
@@ -599,11 +601,6 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
   // 3) DEFAULT TO ACTIONS ON PHASE ENTRY (if available)
   // Only applies on phase transition (caller controls effect trigger).
   if (hasActionsAvailable && actionsTargetPanelId) {
-    // Respect Menu — do not auto-route away from Menu
-    if (activePanelId === 'ap.menu.root') {
-      return { kind: 'none' };
-    }
-  
     return {
       kind: 'setActivePanelId',
       nextPanelId: actionsTargetPanelId,
@@ -613,10 +610,6 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
 
   // 4) HOLD SAFE WAITING PANELS DURING DEFERRED SERVER-CHOICE HANDOFFS
   if (!hasActionsAvailable && isDeferredAutoPanelHandoffPhase(phaseKey)) {
-    if (activePanelId === 'ap.menu.root') {
-      return { kind: 'none' };
-    }
-
     if (isCataloguePanel(activePanelId)) {
       return { kind: 'none' };
     }
@@ -627,7 +620,6 @@ export function decideAutoPanelRouting(input: AutoPanelRoutingInput): AutoPanelR
     const fallbackPanelId = selfCatalogue;
 
     if (activePanelId === fallbackPanelId) return { kind: 'none' };
-    if (activePanelId === 'ap.menu.root') return { kind: 'none' };
     return {
       kind: 'setActivePanelId',
       nextPanelId: fallbackPanelId,

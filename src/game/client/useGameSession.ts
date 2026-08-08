@@ -2677,12 +2677,15 @@ export function useGameSession(
       blackHoleSelectedTargetInstanceIds: [],
       rejectionRecoveryPending: false,
     });
-    setActivePanelId(
-      nextStage === 'charges'
-        ? 'ap.battle.charges.ancient'
-        : 'ap.catalog.ships.ancient'
-    );
+    if (activePanelId !== 'ap.menu.root') {
+      setActivePanelId(
+        nextStage === 'charges'
+          ? 'ap.battle.charges.ancient'
+          : 'ap.catalog.ships.ancient'
+      );
+    }
   }, [
+    activePanelId,
     ancientChargeDeclarationWorkflow,
     ancientChargeDeclarationWorkflowKey,
     effectiveGameId,
@@ -5633,10 +5636,6 @@ useEffect(() => {
     
     onActionPanelTabClick: (tabId: ActionPanelTabId) => {
       console.log('[useGameSession] Action panel tab clicked:', tabId);
-
-      if (healthResolutionPresentationActive) {
-        return;
-      }
 
       if (
         tabId === 'tab.actions' &&

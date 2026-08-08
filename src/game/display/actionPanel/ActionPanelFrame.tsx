@@ -343,7 +343,7 @@ export function ActionPanelFrame({
   }
 
   if (vm.activePanelId === 'ap.menu.root') {
-    return renderWithOverlay(
+    return (
       <div className="size-full">
         <MenuActionPanel
           title={vm.menu.title}
