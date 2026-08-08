@@ -334,12 +334,14 @@ export interface LeftRailDiceManipulationSlotViewModel {
   sourceShipDefId: LeftRailDiceManipulationShipDefId;
   diceValues?: Array<1 | 2 | 3 | 4 | 5 | 6>;
   animateKey?: number | string;
+  highlighted?: boolean;
 }
 
 export interface MobileDiceModifierSlotViewModel {
   sourceShipDefId: MobileDiceModifierShipDefId;
   diceValues?: Array<1 | 2 | 3 | 4 | 5 | 6>;
   animateKey?: number | string;
+  highlighted?: boolean;
 }
 
 export interface MobileDiceModifierSlotsViewModel {

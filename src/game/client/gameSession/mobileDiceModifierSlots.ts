@@ -22,6 +22,7 @@ export function deriveMobileDiceModifierSlots(args: {
   chronoswarmAnimateKey?: number;
   cubeDiceValueByPlayerId?: Record<string, unknown>;
   cubeDiceAnimateKeyByPlayerId?: Record<string, number | string>;
+  cubeDiceUsedByPlayerId?: Record<string, true>;
 }): MobileDiceModifierSlotsViewModel {
   const {
     shipsByPlayerId,
@@ -32,6 +33,7 @@ export function deriveMobileDiceModifierSlots(args: {
     chronoswarmAnimateKey,
     cubeDiceValueByPlayerId = {},
     cubeDiceAnimateKeyByPlayerId = {},
+    cubeDiceUsedByPlayerId = {},
   } = args;
   const normalizedChronoswarmRolls = normalizeDiceValues(chronoswarmRolls);
 
@@ -53,6 +55,7 @@ export function deriveMobileDiceModifierSlots(args: {
       ),
       cubeDiceAnimateKey:
         topPlayerId ? cubeDiceAnimateKeyByPlayerId[topPlayerId] : undefined,
+      cubeHighlighted: topPlayerId ? cubeDiceUsedByPlayerId[topPlayerId] === true : false,
     }),
     bottom: makeSlotForSide({
       side: 'bottom',
@@ -65,6 +68,7 @@ export function deriveMobileDiceModifierSlots(args: {
       ),
       cubeDiceAnimateKey:
         bottomPlayerId ? cubeDiceAnimateKeyByPlayerId[bottomPlayerId] : undefined,
+      cubeHighlighted: bottomPlayerId ? cubeDiceUsedByPlayerId[bottomPlayerId] === true : false,
     }),
   };
 }
@@ -113,6 +117,7 @@ function makeSlotForSide(args: {
   chronoswarmAnimateKey?: number;
   cubeDiceValue: DiceValue | null;
   cubeDiceAnimateKey?: number | string;
+  cubeHighlighted: boolean;
 }): MobileDiceModifierSlotViewModel | null {
   const {
     side,
@@ -122,6 +127,7 @@ function makeSlotForSide(args: {
     chronoswarmAnimateKey,
     cubeDiceValue,
     cubeDiceAnimateKey,
+    cubeHighlighted,
   } = args;
 
   if (chronoswarmSide === side) {
@@ -137,6 +143,7 @@ function makeSlotForSide(args: {
       sourceShipDefId: 'CUB',
       diceValues: [cubeDiceValue],
       animateKey: cubeDiceAnimateKey,
+      highlighted: cubeHighlighted,
     };
   }
 

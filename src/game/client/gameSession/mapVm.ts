@@ -246,6 +246,7 @@ export function mapGameSessionVm(args: {
   shipsByPlayerId?: Record<string, any[]>;
   chronoswarmRolls?: unknown[];
   cubeDiceValueByPlayerId?: Record<string, unknown>;
+  cubeDiceUsedByPlayerId?: Record<string, true>;
   
   // Left rail dice presentation (client-delayed during health lock)
   leftRailDiceValue: 1 | 2 | 3 | 4 | 5 | 6;
@@ -344,6 +345,7 @@ export function mapGameSessionVm(args: {
     shipsByPlayerId = {},
     chronoswarmRolls,
     cubeDiceValueByPlayerId = {},
+    cubeDiceUsedByPlayerId = {},
     leftRailDiceValue,
     leftRailDiceAnimateKey,
     leftRailChronoswarmAnimateKey,
@@ -418,6 +420,7 @@ export function mapGameSessionVm(args: {
         sourceShipDefId: 'CUB',
         diceValues: [diceValue],
         animateKey,
+        highlighted: cubeDiceUsedByPlayerId[playerId] === true,
       };
     };
 
@@ -1515,6 +1518,7 @@ export function mapGameSessionVm(args: {
             chronoswarmAnimateKey: leftRailChronoswarmAnimateKey,
             cubeDiceValueByPlayerId,
             cubeDiceAnimateKeyByPlayerId,
+            cubeDiceUsedByPlayerId,
           }),
           myFleetHealthDeltaFlash,
           opponentFleetHealthDeltaFlash,

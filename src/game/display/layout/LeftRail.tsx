@@ -8,6 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Dice } from '../../../components/ui/primitives';
 import { CloseIcon } from '../../../components/ui/primitives/icons/CloseIcon';
 import { OpenFullIcon } from '../../../components/ui/primitives/icons/OpenFullIcon';
+import { Cube } from '../../../graphics/ancient/Cube';
 import type { LeftRailViewModel, GameSessionActions, TurnPhasePresentationVm, TurnPhaseVm } from '../../client/useGameSession';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
@@ -272,10 +273,13 @@ export function LeftRail({
     const slot = vm.diceManipulationSlots[side];
     if (!slot) return null;
 
-    const def = getShipDefinitionUI(slot.sourceShipDefId);
-    if (!def) return null;
-    const graphic = resolveShipGraphic(def, { context: 'default' });
-    const ShipGraphic = graphic?.component ?? null;
+    const ShipGraphic = (() => {
+      if (slot.sourceShipDefId === 'CUB') return null;
+
+      const def = getShipDefinitionUI(slot.sourceShipDefId);
+      if (!def) return null;
+      return resolveShipGraphic(def, { context: 'default' })?.component ?? null;
+    })();
 
     const slotStyle =
       side === 'left'
@@ -330,7 +334,11 @@ export function LeftRail({
           <div className="w-[60px] h-[60px]" aria-hidden="true" />
         ) : null}
 
-        {ShipGraphic && (
+        {slot.sourceShipDefId === 'CUB' ? (
+          <div className="w-[52px] h-[52px]">
+            <Cube className="w-[52px] h-[52px]" highlighted={slot.highlighted === true} />
+          </div>
+        ) : ShipGraphic && (
           <div className="w-[52px] h-[52px]">
             <ShipGraphic className="w-[52px] h-[52px]" />
           </div>

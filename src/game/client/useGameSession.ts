@@ -51,6 +51,7 @@ import {
   getChronoswarmRolls,
   getClockData,
   getCommitmentForPlayer,
+  getCubeDiceUsedByPlayerId,
   getCubeDiceValueByPlayerId,
   getEffectiveDiceValueForPlayer,
   getFrigateTriggerByInstanceId,
@@ -1944,6 +1945,7 @@ export function useGameSession(
   })();
   const chronoswarmRolls = getChronoswarmRolls(rawState);
   const cubeDiceValueByPlayerId = getCubeDiceValueByPlayerId(rawState);
+  const cubeDiceUsedByPlayerId = getCubeDiceUsedByPlayerId(rawState);
   const hasAuthoritativeChronoswarmDice = Array.isArray(chronoswarmRolls)
     ? chronoswarmRolls.some(
         (roll: unknown) =>
@@ -5242,6 +5244,7 @@ useEffect(() => {
     shipsByPlayerId: getShipsByPlayerId(rawState),
     chronoswarmRolls,
     cubeDiceValueByPlayerId,
+    cubeDiceUsedByPlayerId,
     
     // Left rail dice presentation (client-delayed during health lock)
     leftRailDiceValue: presentedLeftRailDiceValue,

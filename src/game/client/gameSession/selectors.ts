@@ -622,6 +622,39 @@ export function getCubeDiceValueByPlayerId(
   return normalized;
 }
 
+export function getCubeDiceUsedByPlayerId(state: any): Record<string, true> {
+  const usedByPlayerId: Record<string, true> = {};
+  const resolvedOverrides = state?.gameData?.turnData?.diceOverrideSourceByPlayerId;
+
+  if (
+    resolvedOverrides &&
+    typeof resolvedOverrides === 'object' &&
+    !Array.isArray(resolvedOverrides)
+  ) {
+    for (const [playerId, source] of Object.entries(resolvedOverrides)) {
+      if (playerId.trim().length > 0 && source === 'CUB') {
+        usedByPlayerId[playerId] = true;
+      }
+    }
+  }
+
+  const requesterPlayerId = state?.requester?.playerId;
+  const pendingChoices = state?.gameData?.turnData?.pendingCubeDiceChoiceByPlayerId;
+  if (
+    typeof requesterPlayerId === 'string' &&
+    requesterPlayerId.trim().length > 0 &&
+    pendingChoices &&
+    typeof pendingChoices === 'object' &&
+    !Array.isArray(pendingChoices) &&
+    typeof pendingChoices[requesterPlayerId] === 'string' &&
+    pendingChoices[requesterPlayerId].startsWith('cube:')
+  ) {
+    usedByPlayerId[requesterPlayerId] = true;
+  }
+
+  return usedByPlayerId;
+}
+
 function normalizeStringListMap(value: unknown): Record<string, string[]> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return Object.fromEntries(

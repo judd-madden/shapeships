@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import { Dice } from '../../../components/ui/primitives';
+import { Cube } from '../../../graphics/ancient/Cube';
 import type { BoardViewModel } from '../../client/useGameSession';
 import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
@@ -35,13 +36,13 @@ function MobileDiceModifierGroup({
     return null;
   }
 
-  const def = getShipDefinitionUI(slot.sourceShipDefId);
-  if (!def) {
-    return null;
-  }
+  const ShipGraphic = (() => {
+    if (slot.sourceShipDefId === 'CUB') return null;
 
-  const graphic = resolveShipGraphic(def, { context: 'default' });
-  const ShipGraphic = graphic?.component ?? null;
+    const def = getShipDefinitionUI(slot.sourceShipDefId);
+    if (!def) return null;
+    return resolveShipGraphic(def, { context: 'default' })?.component ?? null;
+  })();
   const diceValues = Array.isArray(slot.diceValues) ? slot.diceValues : [];
   const groupPositionClassName =
     side === 'top'
@@ -56,11 +57,11 @@ function MobileDiceModifierGroup({
       {side === 'top' ? (
         <>
           <DiceStack slot={slot} diceValues={diceValues} />
-          <ShipIcon ShipGraphic={ShipGraphic} />
+          <ShipIcon slot={slot} ShipGraphic={ShipGraphic} />
         </>
       ) : (
         <>
-          <ShipIcon ShipGraphic={ShipGraphic} />
+          <ShipIcon slot={slot} ShipGraphic={ShipGraphic} />
           <DiceStack slot={slot} diceValues={diceValues} />
         </>
       )}
@@ -99,10 +100,20 @@ function DiceStack({
 }
 
 function ShipIcon({
+  slot,
   ShipGraphic,
 }: {
+  slot: NonNullable<MobileDiceModifierSlot>;
   ShipGraphic: ComponentType<{ className?: string }> | null;
 }) {
+  if (slot.sourceShipDefId === 'CUB') {
+    return (
+      <div className="h-[22px] w-[22px]">
+        <Cube className="h-[22px] w-[22px]" highlighted={slot.highlighted === true} />
+      </div>
+    );
+  }
+
   if (!ShipGraphic) {
     return null;
   }
