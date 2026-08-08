@@ -606,9 +606,7 @@ export function AncientShipCataloguePanel({
     isActiveResolvedPowersStage &&
     simulacrumSelector?.canOpen === true &&
     !selectorOpen;
-  const isAutocastDisabled =
-    autocastDisabled ||
-    (isLiveCatalogue && (!isActiveResolvedPowersStage || selectorOpen));
+  const isAutocastDisabled = autocastDisabled;
   const shouldShowAutocast =
     autocastPresentation !== 'mobile-under-heading' || !selectorOpen;
   const autocastPosition =
