@@ -1,5 +1,6 @@
 import * as ReactDOM from 'react-dom';
 import type { BoardStatBreakdownRowVm } from '../../../client/gameSession/types';
+import { HoverPanelFrame } from '../../shared/HoverPanelFrame';
 import type { HoverPanelMotionState } from '../../shared/useHoverPanelPresence';
 
 interface BoardStatBreakdownHoverCardProps {
@@ -67,7 +68,6 @@ export function BoardStatBreakdownHoverCard({
     : anchorRect.right + anchorOffsetX;
   const anchorY = anchorRect.top + (anchorRect.height / 2);
   const isLeft = side === 'left';
-  const hasMotion = motionState != null;
 
   return ReactDOM.createPortal(
     <div
@@ -85,36 +85,19 @@ export function BoardStatBreakdownHoverCard({
           transform: isLeft ? 'translate(-100%, -50%)' : 'translate(0, -50%)',
         }}
       >
-        <div
-          className={`relative flex w-full flex-col gap-[4px] rounded-[10px] bg-[var(--shapeships-grey-90)] px-[20px] py-[16px]${hasMotion ? ' ss-hoverPanelMotion' : ''}`}
-          data-hover-panel-motion-direction={hasMotion ? (isLeft ? 'left' : 'right') : undefined}
-          data-hover-panel-motion-state={motionState ?? undefined}
-          style={{
-            pointerEvents: 'none',
-          }}
+        <HoverPanelFrame
+          placement={isLeft ? 'left' : 'right'}
+          motionDirection={isLeft ? 'left' : 'right'}
+          motionState={motionState}
+          className="flex w-full flex-col gap-[4px] px-[20px] py-[16px]"
         >
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 rounded-[10px] border border-solid border-[var(--shapeships-grey-70)] pointer-events-none"
-          />
-
-          <div
-            aria-hidden="true"
-            className="absolute top-1/2 size-[12px] -translate-y-1/2 rotate-45 border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] pointer-events-none"
-            style={
-              isLeft
-                ? { right: '-6px', borderTopWidth: '1px', borderRightWidth: '1px' }
-                : { left: '-6px', borderBottomWidth: '1px', borderLeftWidth: '1px' }
-            }
-          />
-
           {rows.map((row, index) => (
             <BreakdownRow
               key={`${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? index : index}`}
               row={row}
             />
           ))}
-        </div>
+        </HoverPanelFrame>
       </div>
     </div>,
     portalTarget

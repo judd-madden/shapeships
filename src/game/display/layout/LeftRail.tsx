@@ -411,7 +411,7 @@ export function LeftRail({
       </div>
 
       <div
-        className="absolute left-0 right-0 z-50 flex min-h-0 flex-col rounded-[10px] border-2 border-[var(--shapeships-grey-70)] bg-[var(--shapeships-black)]"
+        className="absolute left-0 right-0 z-50 flex min-h-0 flex-col rounded-[10px] border-2 border-[var(--shapeships-grey-70)] bg-[var(--shapeships-black)] mt-[4px]"
         style={{
           top: battleLogOverlayTop,
           bottom: battleLogOverlayBottom,

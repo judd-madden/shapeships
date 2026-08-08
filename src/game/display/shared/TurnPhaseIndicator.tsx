@@ -1,9 +1,16 @@
-import { Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui/tooltip';
+import { useState } from 'react';
 import type { TurnPhasePresentationVm, TurnPhaseVm } from '../../client/useGameSession';
 import { TURN_PHASE_PRESENTATION_TIMING } from '../../client/gameSession/clienteffects/turnPhasePresentationTiming';
+import {
+  TurnPhaseHoverLabel,
+  type TurnPhaseHoverLabelValue,
+} from './TurnPhaseHoverLabel';
 import { TurnPhaseMilestoneIcon } from './TurnPhaseMilestoneIcon';
+import { useHoverPanelPresence } from './useHoverPanelPresence';
 
 export function TurnPhaseIndicator({ vm, presentation }: { vm: TurnPhaseVm; presentation: TurnPhasePresentationVm }) {
+  const [activeHover, setActiveHover] = useState<TurnPhaseHoverLabelValue | null>(null);
+  const { presentValue, motionState } = useHoverPanelPresence(activeHover);
   const currentLabel = vm.milestones.find(
     (milestone) => milestone.id === presentation.presentedMilestone
   )?.label ?? null;
@@ -38,24 +45,29 @@ export function TurnPhaseIndicator({ vm, presentation }: { vm: TurnPhaseVm; pres
           {vm.milestones.map((milestone) => {
             const isCurrent = milestone.id === presentation.presentedMilestone;
             return (
-              <Tooltip key={milestone.id}>
-                <TooltipTrigger asChild>
-                  <div data-available={milestone.isAvailable} className={`flex items-center justify-center ${isCurrent || milestone.isAvailable ? 'opacity-100' : 'opacity-20'}`} style={{ transition: presentation.reducedMotion ? 'none' : `opacity ${TURN_PHASE_PRESENTATION_TIMING.availabilityFadeMs}ms ease` }}>
-                    <TurnPhaseMilestoneIcon id={milestone.id} className="size-[34px]" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="bottom"
-                  sideOffset={8}
-                  className="rounded-[10px] border-2 border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-3 py-1.5 text-[16px] text-[var(--shapeships-white)]"
-                >
-                  {milestone.label}
-                </TooltipContent>
-              </Tooltip>
+              <div
+                key={milestone.id}
+                data-available={milestone.isAvailable}
+                className={`flex items-center justify-center ${isCurrent || milestone.isAvailable ? 'opacity-100' : 'opacity-20'}`}
+                style={{ transition: presentation.reducedMotion ? 'none' : `opacity ${TURN_PHASE_PRESENTATION_TIMING.availabilityFadeMs}ms ease` }}
+                onPointerEnter={(event) => {
+                  setActiveHover({
+                    milestoneId: milestone.id,
+                    label: milestone.label,
+                    anchorRect: event.currentTarget.getBoundingClientRect(),
+                  });
+                }}
+                onPointerLeave={() => setActiveHover(null)}
+              >
+                <TurnPhaseMilestoneIcon id={milestone.id} className="size-[34px]" />
+              </div>
             );
           })}
         </div>
       </div>
+      {presentValue ? (
+        <TurnPhaseHoverLabel value={presentValue} motionState={motionState} />
+      ) : null}
     </div>
   );
 }

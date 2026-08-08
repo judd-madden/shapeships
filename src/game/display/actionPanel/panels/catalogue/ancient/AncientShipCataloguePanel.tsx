@@ -8,15 +8,20 @@
  * NO backend calls, NO rules validation, NO engine imports
  */
 
-import { useCallback, useEffect, useState, type ComponentType, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentType,
+  type CSSProperties,
+} from 'react';
+import * as ReactDOM from 'react-dom';
 import type { ActionPanelViewModel, GameSessionActions } from "../../../../../client/useGameSession";
 import type { SpeciesId } from '../../../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import { InfoIcon } from '../../../../../../components/ui/primitives';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '../../../../../../components/ui/tooltip';
 import { ActionPanelScrollArea } from "../../../primitives/ActionPanelScrollArea";
 import { CatalogueShipSlot } from "../shared/CatalogueShipSlot";
 import { CatalogueCostNumber } from "../shared/CatalogueCostNumber";
@@ -62,6 +67,11 @@ import { AncientBlackHoleSelector } from './AncientBlackHoleSelector';
 import { AncientSimulacrumSelector } from './AncientSimulacrumSelector';
 import { AncientSiphonSelector } from './AncientSiphonSelector';
 import { AncientAutocastInfoContent } from './AncientAutocastInfoContent';
+import { HoverPanelFrame } from '../../../../shared/HoverPanelFrame';
+import {
+  useHoverPanelPresence,
+  type HoverPanelMotionState,
+} from '../../../../shared/useHoverPanelPresence';
 import {
   isFixedAncientManualSolarPowerId,
   type AncientEnergyPool,
@@ -298,6 +308,93 @@ interface AncientAutocastControlProps {
   style?: CSSProperties;
 }
 
+const AUTOCAST_INFO_VIEWPORT_PADDING_PX = 40;
+const AUTOCAST_INFO_GAP_PX = 10;
+const AUTOCAST_INFO_TAIL_PROTRUSION_PX = 12 / Math.sqrt(2);
+const AUTOCAST_INFO_MIN_TAIL_INSET_PX = 12;
+
+function AncientAutocastHoverInfo({
+  anchorRect,
+  motionState,
+  tooltipId,
+}: {
+  anchorRect: DOMRect;
+  motionState: HoverPanelMotionState | null;
+  tooltipId: string;
+}) {
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const anchorCenterX = anchorRect.left + (anchorRect.width / 2);
+  const [position, setPosition] = useState<{
+    left: number;
+    tailOffset: number | string;
+    alignRight: boolean;
+  }>({ left: anchorRect.right + 10, tailOffset: 'calc(100% - 22px)', alignRight: true });
+
+  useLayoutEffect(() => {
+    const updatePosition = () => {
+      const card = cardRef.current;
+      if (!card) {
+        return;
+      }
+
+      const cardWidth = card.getBoundingClientRect().width;
+      const desiredLeft = anchorRect.right + 10 - cardWidth;
+      const maxLeft = Math.max(
+        AUTOCAST_INFO_VIEWPORT_PADDING_PX,
+        window.innerWidth - AUTOCAST_INFO_VIEWPORT_PADDING_PX - cardWidth
+      );
+      const cardLeft = Math.min(
+        maxLeft,
+        Math.max(AUTOCAST_INFO_VIEWPORT_PADDING_PX, desiredLeft)
+      );
+      const maxTailOffset = Math.max(
+        AUTOCAST_INFO_MIN_TAIL_INSET_PX,
+        cardWidth - AUTOCAST_INFO_MIN_TAIL_INSET_PX
+      );
+      const tailOffset = Math.min(
+        maxTailOffset,
+        Math.max(AUTOCAST_INFO_MIN_TAIL_INSET_PX, anchorCenterX - cardLeft)
+      );
+
+      setPosition({ left: cardLeft, tailOffset, alignRight: false });
+    };
+
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    return () => window.removeEventListener('resize', updatePosition);
+  }, [anchorCenterX, anchorRect.right]);
+
+  const portalTarget = document.getElementById('ship-hover-layer');
+  if (!portalTarget) {
+    return null;
+  }
+
+  return ReactDOM.createPortal(
+    <div
+      className="absolute pointer-events-none"
+      style={{
+        left: `${position.left}px`,
+        top: `${anchorRect.top - AUTOCAST_INFO_GAP_PX - AUTOCAST_INFO_TAIL_PROTRUSION_PX}px`,
+        transform: position.alignRight ? 'translate(-100%, -100%)' : 'translateY(-100%)',
+      }}
+    >
+      <HoverPanelFrame
+        ref={cardRef}
+        id={tooltipId}
+        role="tooltip"
+        placement="top"
+        motionDirection="top"
+        motionState={motionState}
+        tailOffset={position.tailOffset}
+        className="box-content w-[300px] max-w-[calc(100vw-80px)] px-[24px] pb-[32px] pt-[24px] text-[16px] font-normal leading-[19px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]"
+      >
+        <AncientAutocastInfoContent />
+      </HoverPanelFrame>
+    </div>,
+    portalTarget
+  );
+}
+
 export function AncientAutocastControl({
   checked,
   disabled = false,
@@ -308,11 +405,54 @@ export function AncientAutocastControl({
   style,
 }: AncientAutocastControlProps) {
   const isMobileModalInfo = infoPresentation === 'mobile-modal';
+  const isInfoHoveredRef = useRef(false);
+  const isInfoFocusedRef = useRef(false);
+  const infoTooltipId = useId();
+  const [activeInfoAnchor, setActiveInfoAnchor] = useState<DOMRect | null>(null);
+  const { presentValue: presentInfoAnchor, motionState: infoMotionState } =
+    useHoverPanelPresence(activeInfoAnchor);
   const infoButton = (
     <button
       type="button"
       aria-label="About Autocast"
+      aria-describedby={!isMobileModalInfo && presentInfoAnchor ? infoTooltipId : undefined}
       onClick={isMobileModalInfo ? onOpenInfo : undefined}
+      onPointerEnter={
+        isMobileModalInfo
+          ? undefined
+          : (event) => {
+              isInfoHoveredRef.current = true;
+              setActiveInfoAnchor(event.currentTarget.getBoundingClientRect());
+            }
+      }
+      onPointerLeave={
+        isMobileModalInfo
+          ? undefined
+          : () => {
+              isInfoHoveredRef.current = false;
+              if (!isInfoFocusedRef.current) {
+                setActiveInfoAnchor(null);
+              }
+            }
+      }
+      onFocus={
+        isMobileModalInfo
+          ? undefined
+          : (event) => {
+              isInfoFocusedRef.current = true;
+              setActiveInfoAnchor(event.currentTarget.getBoundingClientRect());
+            }
+      }
+      onBlur={
+        isMobileModalInfo
+          ? undefined
+          : () => {
+              isInfoFocusedRef.current = false;
+              if (!isInfoHoveredRef.current) {
+                setActiveInfoAnchor(null);
+              }
+            }
+      }
       className={`flex shrink-0 items-center justify-center opacity-50 transition-opacity duration-100 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
         isMobileModalInfo ? 'size-[40px]' : 'size-[24px]'
       }`}
@@ -357,26 +497,14 @@ export function AncientAutocastControl({
         </svg>
         <span>Autocast</span>
       </button>
-      {isMobileModalInfo ? infoButton : (
-        <Tooltip>
-          <TooltipTrigger asChild>{infoButton}</TooltipTrigger>
-          <TooltipContent
-          side="top"
-          align="end"
-          sideOffset={10}
-          showArrow={false}
-          className="relative z-[80] bg-transparent p-0 shadow-none"
-        >
-          <div className="box-content w-[300px] max-w-[calc(100vw-80px)] translate-x-[10px] rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] px-[24px] pb-[32px] pt-[24px] text-[16px] font-normal leading-[19px] text-white shadow-[0_8px_30px_rgba(0,0,0,0.5)]">
-            <AncientAutocastInfoContent />
-          </div>
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute bottom-[-6px] right-[6px] size-[12px] rotate-45 border-b border-r border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)]"
-          />
-          </TooltipContent>
-        </Tooltip>
-      )}
+      {infoButton}
+      {!isMobileModalInfo && presentInfoAnchor ? (
+        <AncientAutocastHoverInfo
+          anchorRect={presentInfoAnchor}
+          motionState={infoMotionState}
+          tooltipId={infoTooltipId}
+        />
+      ) : null}
     </div>
   );
 }

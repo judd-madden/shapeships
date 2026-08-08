@@ -7,6 +7,7 @@ import {
   useAnchoredHoverPlacement,
   type AnchoredHoverPlacementMode,
 } from '../../shared/useAnchoredHoverPlacement';
+import { HoverPanelFrame } from '../../shared/HoverPanelFrame';
 import type { HoverPanelMotionState } from '../../shared/useHoverPanelPresence';
 import { ShipPowerRow } from '../../shared/ShipPowerRow';
 
@@ -21,8 +22,6 @@ interface FleetShipHoverCardProps {
   onCardElementChange?: (element: HTMLDivElement | null) => void;
   motionState?: HoverPanelMotionState | null;
 }
-
-const TAIL_SIZE_PX = 12;
 
 function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');
@@ -57,7 +56,6 @@ export function FleetShipHoverCard({
     useAnchoredHoverPlacement(anchorRect, { preferredPlacement, mode: placementMode });
   const isInteractive = Boolean(onClose);
   const isMobileViewportCentered = placementMode === 'mobile-viewport-centered';
-  const hasMotion = motionState != null;
   const setCardElement = useCallback(
     (element: HTMLDivElement | null) => {
       cardRef.current = element;
@@ -90,70 +88,16 @@ export function FleetShipHoverCard({
           transform: cardTransform,
         }}
       >
-        <div
-          className={cx(
-            hasMotion && 'ss-hoverPanelMotion',
-            'relative flex w-full flex-col items-start gap-[12px] rounded-[10px] bg-[var(--shapeships-grey-90)] px-[20px] pb-[20px] pt-[16px]'
-          )}
-          data-hover-panel-motion-direction={hasMotion ? placement : undefined}
-          data-hover-panel-motion-state={motionState ?? undefined}
+        <HoverPanelFrame
+          placement={placement}
+          motionDirection={placement}
+          motionState={motionState}
+          tailOffset={isMobileViewportCentered ? tailX : undefined}
+          interactive={isInteractive}
+          className="flex w-full flex-col items-start gap-[12px] px-[20px] pb-[20px] pt-[16px]"
           onPointerDown={isInteractive ? (event) => event.stopPropagation() : undefined}
           onClick={isInteractive ? (event) => event.stopPropagation() : undefined}
-          style={{
-            pointerEvents: isInteractive ? 'auto' : 'none',
-          }}
         >
-          <div
-            aria-hidden="true"
-            className="absolute inset-0 rounded-[10px] border border-solid border-[var(--shapeships-grey-70)] pointer-events-none"
-          />
-
-          <div
-            aria-hidden="true"
-            className="absolute rotate-45 border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] pointer-events-none"
-            style={
-              placement === 'left'
-                ? {
-                    top: '50%',
-                    right: '-1px',
-                    width: `${TAIL_SIZE_PX}px`,
-                    height: `${TAIL_SIZE_PX}px`,
-                    transform: 'translateY(-50%)',
-                    borderTopWidth: '1px',
-                    borderRightWidth: '1px',
-                  }
-                : placement === 'bottom'
-                ? isMobileViewportCentered
-                  ? {
-                      left: `${tailX ?? 24}px`,
-                      top: '2px',
-                      width: `${TAIL_SIZE_PX}px`,
-                      height: `${TAIL_SIZE_PX}px`,
-                      transform: 'translate(-50%, -50%)',
-                      borderLeftWidth: '1px',
-                      borderTopWidth: '1px',
-                    }
-                  : {
-                      left: 'calc(50% - 6px)',
-                      top: '-1px',
-                      width: `${TAIL_SIZE_PX}px`,
-                      height: `${TAIL_SIZE_PX}px`,
-                      transform: 'translate(-50%, -50%)',
-                      borderLeftWidth: '1px',
-                      borderTopWidth: '1px',
-                    }
-                : {
-                    left: isMobileViewportCentered ? `${tailX ?? 24}px` : 'calc(50% - 6px)',
-                    top: 'calc(100% + 2px)',
-                    width: `${TAIL_SIZE_PX}px`,
-                    height: `${TAIL_SIZE_PX}px`,
-                    transform: 'translate(-50%, -50%)',
-                    borderBottomWidth: '1px',
-                    borderRightWidth: '1px',
-                  }
-            }
-          />
-
         {onClose ? (
           <button
             type="button"
@@ -184,7 +128,7 @@ export function FleetShipHoverCard({
             ))}
           </div>
         ) : null}
-        </div>
+        </HoverPanelFrame>
       </div>
     </div>
   );

@@ -17,6 +17,7 @@ import { parseShipToken } from '../../../../graphics/shipToken';
 import { resolveShipGraphic } from '../../../../graphics/resolveShipGraphic';
 import { isShipDefId } from '../../../../../data/ShipDefinitions.core';
 import { ShipPowerTagBadgeRow } from '../../../../shared/ShipPowerTagBadgeRow';
+import { HoverPanelFrame } from '../../../../shared/HoverPanelFrame';
 import { useAnchoredHoverPlacement } from '../../../../shared/useAnchoredHoverPlacement';
 import type { HoverPanelMotionState } from '../../../../shared/useHoverPanelPresence';
 import { ShipPowerRow } from '../../../../shared/ShipPowerRow';
@@ -45,8 +46,6 @@ interface ShipHoverCardProps {
   headingValue?: ShipHoverHeadingValue;
   showPhaseLabel?: boolean;
 }
-
-const TAIL_SIZE_PX = 12;
 
 /**
  * Component ship display (graphics only, no text names)
@@ -244,10 +243,6 @@ function PowerText({ text }: { text: string }) {
 /**
  * Main hover card component
  */
-function cx(...parts: Array<string | undefined | false>) {
-  return parts.filter(Boolean).join(' ');
-}
-
 export function ShipHoverCard({
   shipId,
   anchorRect,
@@ -261,7 +256,6 @@ export function ShipHoverCard({
   const model = getShipCardModel(shipId);
   const { placement, anchorX, anchorY, cardTransform, cardRef } =
     useAnchoredHoverPlacement(anchorRect);
-  const hasMotion = motionState != null;
   
   if (!model) {
     console.warn(`[ShipHoverCard] No model for ship: ${shipId}`);
@@ -292,48 +286,12 @@ export function ShipHoverCard({
           transform: cardTransform,
         }}
       >
-        <div
-          className={cx(
-            hasMotion && 'ss-hoverPanelMotion',
-            'relative bg-[var(--shapeships-grey-90)] content-stretch flex w-full flex-col gap-[12px] items-start rounded-[10px] px-[20px] pb-[20px] pt-[16px]'
-          )}
-          data-hover-panel-motion-direction={hasMotion ? 'top' : undefined}
-          data-hover-panel-motion-state={motionState ?? undefined}
-          style={{
-            pointerEvents: 'none',
-          }}
+        <HoverPanelFrame
+          placement={placement}
+          motionDirection="top"
+          motionState={motionState}
+          className="content-stretch flex w-full flex-col items-start gap-[12px] px-[20px] pb-[20px] pt-[16px]"
         >
-          {/* Border overlay */}
-          <div
-            aria-hidden="true"
-            className="absolute border border-[var(--shapeships-grey-70)] border-solid inset-0 pointer-events-none rounded-[10px]"
-          />
-
-          <div
-            aria-hidden="true"
-            className="absolute rotate-45 border-solid border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] pointer-events-none"
-            style={
-              placement === 'left'
-                ? {
-                    top: '50%',
-                    right: '-6px',
-                    width: `${TAIL_SIZE_PX}px`,
-                    height: `${TAIL_SIZE_PX}px`,
-                    transform: 'translateY(-50%)',
-                    borderTopWidth: '1px',
-                    borderRightWidth: '1px',
-                  }
-                : {
-                    left: 'calc(50% - 6px)',
-                    top: 'calc(100% + 2px)',
-                    width: `${TAIL_SIZE_PX}px`,
-                    height: `${TAIL_SIZE_PX}px`,
-                    transform: 'translate(-50%, -50%)',
-                    borderBottomWidth: '1px',
-                    borderRightWidth: '1px',
-                  }
-            }
-          />
       
         {/* Top Section: Cost + Name + Phase */}
         <div className="content-stretch flex flex-col gap-[6px] items-start relative shrink-0 w-full">
@@ -435,7 +393,7 @@ export function ShipHoverCard({
           componentShipIds={model.componentShipIds}
           actionHint={actionHint}
         />
-        </div>
+        </HoverPanelFrame>
       </div>
     </div>
   );
