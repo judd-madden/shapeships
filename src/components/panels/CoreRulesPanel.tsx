@@ -9,8 +9,8 @@
 import React from 'react';
 import { FighterShip, TacticalCruiserShip } from '../../graphics/human/assets';
 import { ShipOfEquality2Ship, ShipOfEquality1Ship } from '../../graphics/centaur/assets';
-import { DrawingIcon } from '../ui/primitives/icons/DrawingIcon';
-import { ChargesIcon } from '../ui/primitives/icons/ChargesIcon';
+import { ShipPowerTagBadgeRow } from '../../game/display/shared/ShipPowerTagBadgeRow';
+import { ChevronDown } from '../ui/primitives/icons/ChevronDown';
 
 type RulesTab = 'core' | 'human' | 'xenite' | 'centaur' | 'ancient' | 'timings';
 
@@ -26,16 +26,6 @@ function HrGradient() {
   );
 }
 
-function PhaseSection({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-[var(--shapeships-grey-90)] relative shrink-0 w-full">
-      <div className="content-stretch relative flex w-full flex-col items-start gap-[20px] px-[20px] pb-[24px] pt-[20px] md:flex-row md:gap-[30px] md:px-[30px] md:pb-[30px] md:pr-[40px] md:pt-[24px]">
-        {children}
-      </div>
-    </div>
-  );
-}
-
 function RuleRow({
   aside,
   children,
@@ -47,6 +37,51 @@ function RuleRow({
     <div className="content-stretch relative flex w-full shrink-0 flex-col items-start gap-[16px] md:flex-row md:gap-[30px]">
       <div className="w-full md:w-[164px] md:shrink-0">{aside}</div>
       <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+const STATIC_TURN_PHASES = [
+  { label: 'Dice Roll', greyedOut: false },
+  { label: 'Line Generation', greyedOut: true },
+  { label: 'Drawing', greyedOut: false },
+  { label: 'Reveal', greyedOut: true },
+  { label: 'First Strike', greyedOut: false },
+  { label: 'Charges', greyedOut: false },
+  { label: 'Turn Resolution', greyedOut: true },
+] as const;
+
+function StaticTurnPhaseStrip() {
+  return (
+    <div className="mt-[16px] w-full max-w-full">
+      <div className="mb-[6px] flex items-end justify-between">
+        <span className="bg-white font-bold leading-none text-black px-[16px] py-[12px] text-[14px]">
+          START OF TURN
+        </span>
+        <span className="invisible sm:visible bg-white font-bold leading-none text-black px-[16px] py-[12px] text-[14px]">
+          END OF TURN
+        </span>
+      </div>
+      <div className="flex flex-col sm:flex-row w-full items-center justify-center sm:justify-around overflow-hidden bg-[var(--shapeships-grey-90)] px-[32px] py-[32px]">
+        {STATIC_TURN_PHASES.map((phase, index) => (
+          <React.Fragment key={phase.label}>
+            <div className={`flex min-w-0 items-center justify-center text-center ${phase.greyedOut ? 'opacity-40' : 'opacity-100'}`}>
+              <span className="text-[16px] sm:text-[15px] lg:text-[17px] font-bold leading-[1]">
+                {phase.label}
+              </span>
+            </div>
+            {index < STATIC_TURN_PHASES.length - 1 ? (
+              <ChevronDown
+                className="size-[20px] shrink-0 sm:-rotate-90 sm:size-[24px]"
+                color="var(--shapeships-grey-50)"
+              />
+            ) : null}
+          </React.Fragment>
+        ))}
+      </div>      
+        <span className="inline-block mt-[8px] sm:mt-0 sm:invisible visible bg-white font-bold leading-none text-black px-[16px] py-[12px] text-[14px]">
+          END OF TURN
+        </span>
     </div>
   );
 }
@@ -71,7 +106,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
             </p>
           )}
         >
-          <div className="relative flex-1 text-[16.5px] font-bold leading-[24px] sm:text-[22px] sm:leading-[32px]">
+          <div className="relative flex-1 text-[16.5px] font-bold leading-[24px] sm:text-[20px] sm:leading-[32px]">
             <p className="mb-[9.75px]">Build your fleet up over the game to defeat your opponent in battle!</p>
             <p className="font-normal">
               Shapeships isn't about movement or targeting. Ships don't move, don't have health, and (mostly) don't interact with each other directly. When you build a ship, its power becomes a permanent part of your fleet — dealing damage, healing you, or changing how future turns work (extra lines, altered dice, free ships, and more). Fleets grow stronger each turn until one player is defeated.
@@ -89,7 +124,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
             </p>
           )}
         >
-          <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
+          <div className="relative flex-1 text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
             <p className="mb-[9.75px]">
               <span className="font-normal">Players each start with </span>
               <span className="font-bold">25 health</span>
@@ -111,112 +146,52 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
 
         <HrGradient />
 
-        {/* Turns */}
+        {/* Gameplay */}
         <RuleRow
           aside={(
             <p className="font-bold leading-[18.25px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.365px]">
-              Turns
+              Gameplay
             </p>
           )}
         >
-          <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
-            <p className="mb-[9.75px]">
-              <span className="font-normal">Each turn has two phases: the </span>
-              <span className="font-bold">Build</span>
-              <span className="font-normal"> phase, then the </span>
-              <span className="font-bold">Battle</span>
-              <span className="font-normal"> phase. All players play the build phase together, then all players play the battle phase together.</span>
+          <div className="relative flex-1 text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
+            <ul className="list-disc space-y-[16px] pl-[18px] marker:text-white">
+              <li>At the start of each turn, roll the dice. All players gain <span className="font-bold">LINES</span> equal to the dice roll. Plus any bonuses.</li>
+              <li><span className="font-bold">LINES</span> make Shapeships, which are defined shapes that have powers.</li>
+              <li>Players draw simultaneously, then reveal simultaneously.</li>
+              <li>You must draw completed ships. You may save lines over multiple turns.</li>
+              <li>During each phase, players may action their Shapeship <span className="font-bold">POWERS</span> if they have any available.</li>
+              <li>At the end of each turn, player <span className="font-bold">HEALTH</span> will update.</li>
+              <li>If either player's health is 0 or less at the end of the turn the game is over.</li>
+            </ul>
+          </div>
+        </RuleRow>
+        <HrGradient />
+
+        {/* Turn Phases */}
+        <RuleRow
+          aside={(
+            <p className="font-bold leading-[18.25px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.365px]">
+              Turn Phases
             </p>
+          )}
+        >
+          <div className="relative flex-1 text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
+            <p className="mb-[9.75px]">All players play each phase together. Greyed-out phases never require player choice.</p>
             <p>
-              <span className="font-normal">See </span>
-              <span
-                className="font-bold underline cursor-pointer hover:opacity-80"
-                onClick={() => onNavigate?.('timings')}
-              >
-                Turn Timings
-              </span>
-              <span className="font-normal"> for full phase details.</span>
+              See{' '}
+              <span className="cursor-pointer font-bold underline hover:opacity-80" onClick={() => onNavigate?.('timings')}>
+                Turn Phases
+              </span>{' '}
+              for a full breakdown.
             </p>
           </div>
         </RuleRow>
       </div>
 
-      {/* Phases */}
-      <div className="content-stretch flex flex-col gap-[24px] items-start relative shrink-0 w-full">
-        {/* Build Phase */}
-        <PhaseSection>
-          <div className="relative flex h-[96px] w-full shrink-0 items-center justify-center md:w-[134px]">
-            <DrawingIcon className="scale-[4]" color="#D5D5D5" />
-          </div>
-          <div className="content-stretch relative flex min-w-0 flex-1 flex-col items-start gap-[12px]">
-            <div className="content-stretch flex items-center relative shrink-0">
-              <p className="font-bold leading-[18.25px] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[18.25px] sm:text-[24.365px] sm:leading-[24.365px]">
-                Build Phase
-              </p>
-            </div>
+      <StaticTurnPhaseStrip />
 
-            {/* Build Phase Content */}
-            <div className="relative w-full min-w-0 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
-              <p className="font-bold mb-[12.18px]">
-                Roll a six-sided dice.
-              </p>
-              <p className="font-bold mb-[12.18px]">
-                All players gain that many LINES this turn (plus any bonuses).
-              </p>
-              <p className="mb-[12.18px]">
-                <span className="font-normal">LINES make Shapeships, which are defined shapes that have powers (see </span>
-                <span className="font-bold">Shapeships </span>
-                <span className="font-normal">below).</span>
-              </p>
-              <p className="font-normal mb-[12.18px]">
-                Players draw lines simultaneously, and drawing is hidden until the Battle Phase. You may save lines over multiple turns.
-              </p>
-              <p>
-                <span className="font-bold">Players may action their Shapeship POWERS that occur in the Build Phase. </span>
-                <span className="font-normal italic">
-                  Dice Manipulation, Line Generation, Ships That Build, Drawing, End of Build Phase.
-                </span>
-              </p>
-            </div>
-          </div>
-        </PhaseSection>
-
-        {/* Battle Phase */}
-        <PhaseSection>
-          <div className="relative flex h-[96px] w-full shrink-0 items-center justify-center md:w-[134px]">
-            <ChargesIcon className="scale-[4]" color="white" />
-          </div>
-          <div className="content-stretch relative flex min-w-0 flex-1 flex-col items-start gap-[15px]">
-            <div className="content-stretch flex items-center relative shrink-0">
-              <p className="font-bold leading-[18.25px] relative shrink-0 text-[var(--shapeships-pastel-blue)] text-[18.25px] sm:text-[24.365px] sm:leading-[24.365px]">
-                Battle Phase
-              </p>
-            </div>
-
-            {/* Battle Phase Content */}
-            <div className="relative w-full min-w-0 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
-              <p className="font-bold mb-[12.18px]">
-                Players' ships are revealed.
-              </p>
-              <p className="mb-[12.18px]">
-                <span className="font-bold">Players Shapeship POWERS that occur in the Battle Phase are actioned</span>
-                <span className="font-normal">. Players may declare charges (optional ship powers). </span>
-              </p>
-              <p className="mb-[12.18px]">
-                <span className="font-bold">Each player's HEALTH will update.</span>
-                <span className="font-normal"> (if it has changed). </span>
-              </p>
-              <p>
-                <span className="font-normal">If either player's health is </span>
-                <span className="font-bold">0</span>
-                <span className="font-normal"> or less at the end of the turn the game is over (see </span>
-                <span className="font-bold">Victory </span>
-                <span className="font-normal">below).</span>
-              </p>
-            </div>
-          </div>
-        </PhaseSection>
-      </div>
+      <HrGradient />
 
       {/* Shapeships Section */}
       <RuleRow
@@ -263,18 +238,20 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </div>
         )}
       >
-        <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
+        <div className="relative flex-1 text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
           <p className="mb-[12.18px]">
             <span className="font-normal">Shapeships are defined shapes that have </span>
             <span className="font-bold">powers</span>
-            <span className="font-normal">. </span>
-            <span className="font-normal italic">For example: 3 lines can make a Human shapeship called a Fighter. Its power is to deal 1 damage every turn.</span>
+            <span className="font-normal">.</span>
+          </p>
+          <p className="font-normal italic mb-[12.18px]">
+            For example: 3 lines can make a Human shapeship called a Fighter. Its power is to deal 1 damage every turn.
           </p>
           <p className="mb-[12.18px]">
             <span className="font-bold">Basic Ships</span>
             <span className="font-normal"> are the building blocks of your fleet. These can be combined into </span>
             <span className="font-bold">Upgraded Ships</span>
-            <span className="font-normal"> (see below).</span>
+            <span className="font-normal"> (see right).</span>
           </p>
           <p className="font-normal mb-[12.18px]">
             Ships cannot be split up into separate lines once completed.
@@ -285,7 +262,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </p>
           <p>
             <span className="italic">Once Only: </span>
-            <span className="font-normal">Some Automatic powers occur just once when a ship is completed. Any healing or damage from these powers is resolved at the end of the turn. (Even if the ship is destroyed during Battle Phase).</span>
+            <span className="font-normal">Some Automatic powers occur just once when a ship is completed. Any healing or damage from these powers is resolved at the end of the turn. (Even if the ship is destroyed later that turn).</span>
           </p>
         </div>
       </RuleRow>
@@ -315,7 +292,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </div>
         )}
       >
-        <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
+        <div className="relative flex-1 text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
           <p className="mb-[12.18px]">
             <span className="font-normal">You can </span>
             <span className="font-bold">combine</span>
@@ -336,69 +313,37 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
 
       <HrGradient />
 
-      {/* Victory Section */}
+      {/* Saving Lines */}
       <RuleRow
         aside={(
           <p className="font-bold leading-[18.55px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.75px]">
-            Victory
+            Saving Lines
           </p>
         )}
       >
-        <div className="content-stretch relative flex flex-1 flex-col items-start gap-[24px]">
-          {/* Decisive Victory */}
-          <div className="relative shrink-0 w-full">
-            <p className="font-bold leading-[20px] mb-[7.43px] text-[13.5px] sm:text-[18px] sm:leading-[26px]">
-              Decisive Victory
-            </p>
-            <p className="leading-[20px] text-[13.5px] sm:text-[18px] sm:leading-[26px]">
-              <span className="font-normal">If at the end of a turn, after all powers are resolved, one player's health is </span>
-              <span className="font-bold">0</span>
-              <span className="font-normal"> or less and the other player's health is </span>
-              <span className="font-bold">1</span>
-              <span className="font-normal"> or more, that player wins the game!</span>
-            </p>
-          </div>
+        <p className="relative flex-1 text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
+          You may save a maximum of 12 lines (including joining lines).
+        </p>
+      </RuleRow>
 
-          {/* Narrow Victory */}
-          <div className="relative shrink-0 w-full">
-            <p className="font-bold leading-[20px] mb-[7.43px] text-[13.922px] sm:text-[18.563px] sm:leading-[26px]">
-              Narrow Victory
-            </p>
-            <p className="leading-[20px] text-[13.922px] sm:text-[18.563px] sm:leading-[26px]">
-              <span className="font-normal">If at the end of a turn, after all powers are resolved, both players health is </span>
-              <span className="font-bold">0</span>
-              <span className="font-normal"> or less, the player who is closer to </span>
-              <span className="font-bold">0</span>
-              <span className="font-normal"> wins. e.g. if Player A has </span>
-              <span className="font-bold">-3</span>
-              <span className="font-normal"> and Player B has </span>
-              <span className="font-bold">-5</span>
-              <span className="font-normal">, Player A wins. </span>
-            </p>
-          </div>
+      <HrGradient />
 
-          {/* Draw */}
-          <div className="relative shrink-0 w-full">
-            <p className="font-bold leading-[20px] mb-[7.43px] text-[13.5px] sm:text-[18px] sm:leading-[26px]">
-              Draw
-            </p>
-            <p className="leading-[20px] text-[13.5px] sm:text-[18px] sm:leading-[26px]">
-              <span className="font-normal">If at the end of a turn, after all powers are resolved, both players health is </span>
-              <span className="font-bold">0</span>
-              <span className="font-normal"> or less </span>
-              <span className="font-normal italic">and the same</span>
-              <span className="font-normal">, the game is drawn. </span>
-            </p>
+      {/* Special Powers */}
+      <RuleRow
+        aside={(
+          <p className="font-bold leading-[18.55px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.75px]">
+            Special Powers
+          </p>
+        )}
+      >
+        <div className="flex flex-1 flex-col gap-[20px] text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
+          <div>
+            <ShipPowerTagBadgeRow labels={['MAKES SHIPS']} />
+            <p className="mt-[9.75px]">Some powers make ships. The listed phase shows when those ships are made. Ships made before or during Drawing can be used for upgrades during that Drawing phase.</p>
           </div>
-
-          {/* Draw by mutual prosperity */}
-          <div className="leading-[20px] relative shrink-0 text-[13.5px] w-full sm:text-[18px] sm:leading-[26px]">
-            <p className="font-bold mb-[7.43px]">
-              Draw by mutual prosperity
-            </p>
-            <p className="font-normal">
-              If both players have 35 (maximum) health for three turns in a row, they may agree to a draw and live in peace.
-            </p>
+          <div>
+            <ShipPowerTagBadgeRow labels={['TARGETS SHIPS']} />
+            <p className="mt-[9.75px]">Some powers target other ships in your fleet or your opponent's fleet.</p>
           </div>
         </div>
       </RuleRow>
@@ -413,36 +358,55 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </p>
         )}
       >
-        <div className="relative flex-1 text-[13.5px] leading-[20px] sm:text-[18px] sm:leading-[26px]">
+        <div className="relative flex-1  text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
           <p className="mb-[12.375px]">
             <span className="font-normal">Ships with the </span>
             <span className="font-bold">Destroy </span>
             <span className="font-normal">power can only destroy Basic Ships. They CANNOT destroy Upgraded Ships.</span>
           </p>
           <p className="mb-[12.375px]">
-            <span className="font-normal">Depending on when a ship is destroyed, its Battle Phase power may not occur (see </span>
-            <span className="font-bold">Turn Timing Breakdown</span>
-            <span className="font-normal">).</span>
+            If a Charge power has already been declared, its effect still occurs if the source ship is destroyed. If a ship with an Automatic power is destroyed, its power does NOT occur (except Once Only powers, which DO occur).
           </p>
           <p className="font-normal">
-            Once a ship is destroyed it is out of the game, and does not count for X powers.
+            Once a ship is destroyed it is out of the game, and does not count for X powers. You may erase or scribble over it.
           </p>
         </div>
       </RuleRow>
 
       <HrGradient />
 
-      {/* Saving Lines */}
+      {/* Victory Section */}
       <RuleRow
         aside={(
           <p className="font-bold leading-[18.55px] relative shrink-0 text-[16.5px] sm:text-[22px] sm:leading-[24.75px]">
-            Saving Lines
+            Victory
           </p>
         )}
       >
-        <p className="relative flex-1 text-[13.5px] font-normal leading-[20px] sm:text-[18px] sm:leading-[26px]">
-          You may save a maximum of 12 lines (including joining lines).
-        </p>
+        <div className="content-stretch relative flex flex-1 flex-col items-start gap-[24px]">
+          <div className="relative shrink-0 w-full">
+            <p className="font-bold mb-[7.43px]  text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">Decisive Victory</p>
+            <p className=" text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
+              If at the end of a turn, after all powers are resolved, one player's health is 0 or less and the other player's health is 1 or more, that player wins the game!
+            </p>
+          </div>
+          <div className="relative shrink-0 w-full">
+            <p className="font-bold mb-[7.43px]  text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">Narrow Victory</p>
+            <p className=" text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
+              If at the end of a turn, after all powers are resolved, both players health is 0 or less, the player who is closer to 0 wins. e.g. If Player A has -3 and Player B has -5, Player A wins.
+            </p>
+          </div>
+          <div className="relative shrink-0 w-full">
+            <p className="font-bold mb-[7.43px]  text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">Draw</p>
+            <p className=" text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
+              If at the end of a turn, after all powers are resolved, both players health is 0 or less <span className="italic">and the same</span>, the game is drawn.
+            </p>
+          </div>
+          <div className="relative shrink-0 w-full  text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
+            <p className="font-bold mb-[7.43px]">Draw by mutual prosperity</p>
+            <p className="font-normal">If both players have 35 (maximum) health for three turns in a row, they may agree to a draw and live in peace.</p>
+          </div>
+        </div>
       </RuleRow>
 
       {/* Next: Human Species Button */}
