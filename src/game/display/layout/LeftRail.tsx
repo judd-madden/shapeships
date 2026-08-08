@@ -21,25 +21,54 @@ interface LeftRailProps {
   turnPhases: TurnPhaseVm;
   turnPhasePresentation: TurnPhasePresentationVm;
   actions: GameSessionActions;
+  isFinished: boolean;
+  isPlayerViewer: boolean;
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
   onFirstTurnBuildHelperDismiss?: () => void;
 }
 
+type SisterView = 'battleLog' | 'turnPhases';
+
 const FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS = 500;
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 const BATTLE_LOG_TRANSITION_MS = 160;
+const BATTLE_LOG_SESSION_PREFERENCE_KEY = 'shapeships.preferBattleLog.v1';
+
+function readInitialSisterView(): SisterView {
+  if (typeof window === 'undefined') {
+    return 'turnPhases';
+  }
+
+  try {
+    return window.sessionStorage.getItem(BATTLE_LOG_SESSION_PREFERENCE_KEY) === 'true'
+      ? 'battleLog'
+      : 'turnPhases';
+  } catch {
+    return 'turnPhases';
+  }
+}
+
+function persistBattleLogSessionPreference() {
+  try {
+    window.sessionStorage.setItem(BATTLE_LOG_SESSION_PREFERENCE_KEY, 'true');
+  } catch {
+    // Keep the game usable when session storage is unavailable.
+  }
+}
 
 export function LeftRail({
   vm,
   turnPhases,
   turnPhasePresentation,
   actions,
+  isFinished,
+  isPlayerViewer,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
   onFirstTurnBuildHelperDismiss,
 }: LeftRailProps) {
-  const [selectedSisterView, setSelectedSisterView] = useState<'battleLog' | 'turnPhases'>('turnPhases');
+  const [selectedSisterView, setSelectedSisterView] = useState<SisterView>(readInitialSisterView);
   const [isBattleLogExpanded, setIsBattleLogExpanded] = useState(false);
   const [collapsedBattleLogTop, setCollapsedBattleLogTop] = useState<number | null>(null);
   const [collapsedBattleLogBottom, setCollapsedBattleLogBottom] = useState<number | null>(null);
@@ -53,6 +82,7 @@ export function LeftRail({
   const battleLogScrollRestoreTimeoutRef = useRef<number | null>(null);
   const firstTurnBuildHelperShowTimeoutRef = useRef<number | null>(null);
   const firstTurnBuildHelperDismissTimeoutRef = useRef<number | null>(null);
+  const previousIsFinishedRef = useRef(isFinished);
   function clearBattleLogScrollRestoreTimers() {
     if (battleLogScrollRestoreFrameRef.current !== null) {
       window.cancelAnimationFrame(battleLogScrollRestoreFrameRef.current);
@@ -181,9 +211,18 @@ export function LeftRail({
   }, [isBattleLogExpanded, collapsedBattleLogTop, collapsedBattleLogBottom]);
 
   useEffect(() => {
-    setSelectedSisterView('turnPhases');
     setIsBattleLogExpanded(false);
   }, [vm.gameCode]);
+
+  useEffect(() => {
+    const wasFinished = previousIsFinishedRef.current;
+
+    if (!wasFinished && isFinished && isPlayerViewer && selectedSisterView === 'battleLog') {
+      persistBattleLogSessionPreference();
+    }
+
+    previousIsFinishedRef.current = isFinished;
+  }, [isFinished, isPlayerViewer, selectedSisterView]);
 
   useEffect(() => {
     if (firstTurnBuildHelperDismissSignal === 0) {

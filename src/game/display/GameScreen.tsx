@@ -84,7 +84,8 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
     onReadyToggle: firstTurnBuildHelper.handleReadyToggle,
   };
 
-  const celebrateOnFinish = Boolean(vm.actionPanel.endOfGame);
+  const isFinished = Boolean(vm.actionPanel.endOfGame);
+  const celebrateOnFinish = isFinished;
 
   useEffect(() => {
     try {
@@ -203,6 +204,8 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             turnPhases={vm.turnPhases}
             turnPhasePresentation={vm.turnPhasePresentation}
             actions={actions}
+            isFinished={isFinished}
+            isPlayerViewer={vm.viewer.isPlayerViewer}
             firstTurnBuildHelperEligible={firstTurnBuildHelper.firstTurnBuildHelperEligible}
             firstTurnBuildHelperDismissSignal={firstTurnBuildHelper.firstTurnBuildHelperDismissSignal}
             onFirstTurnBuildHelperDismiss={firstTurnBuildHelper.dismissFirstTurnBuildHelper}
