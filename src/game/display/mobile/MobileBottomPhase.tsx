@@ -15,15 +15,15 @@ export function MobileBottomPhase({ vm, mainPhaseControl }: MobileBottomPhasePro
   const readyDisabled = isBack ? false : vm.readyDisabled || vm.readySelected;
 
   return (
-    <div className="shrink-0 w-full flex flex-col items-center gap-[9px] px-[14px] pt-[4px]">
+    <div className="shrink-0 w-full flex flex-col items-center gap-[6px] px-[14px] pt-[4px]">
       <div className="flex w-full min-w-0 items-baseline justify-between gap-[12px] text-white">
-        <p className="min-w-0 truncate whitespace-nowrap text-left text-[20px] font-black leading-5">
+        <p className="min-w-0 truncate whitespace-nowrap text-left text-[20px] font-black leading-[1.2]">
           {vm.subphaseTitle}
           {vm.subphaseTitleSuffix ? (
             <span className="font-normal"> {vm.subphaseTitleSuffix}</span>
           ) : null}
         </p>
-        <p className="min-w-0 truncate whitespace-nowrap text-right text-[14px] font-normal leading-5">
+        <p className="min-w-0 truncate whitespace-nowrap text-right text-[12px] font-normal leading-5">
           <AnimatedEllipsisText text={vm.subphaseSubheading} />
         </p>
       </div>

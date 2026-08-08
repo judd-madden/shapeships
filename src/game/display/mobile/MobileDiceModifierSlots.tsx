@@ -45,8 +45,8 @@ function MobileDiceModifierGroup({
   const diceValues = Array.isArray(slot.diceValues) ? slot.diceValues : [];
   const groupPositionClassName =
     side === 'top'
-      ? 'right-[16px] bottom-full mb-[2px]'
-      : 'right-[16px] top-full';
+      ? 'right-[10px] bottom-full mb-[2px]'
+      : 'right-[10px] top-full';
 
   return (
     <div
@@ -90,7 +90,7 @@ function DiceStack({
           value={value}
           animateKey={isAnimatedModifier ? slot.animateKey : undefined}
           animateOnMount={slot.sourceShipDefId === 'CUB'}
-          className="h-[24px] w-[24px]"
+          className="h-[22px] w-[22px]"
           enableRotate={false}
         />
       ))}
@@ -108,8 +108,8 @@ function ShipIcon({
   }
 
   return (
-    <div className="h-[28px] w-[28px]">
-      <ShipGraphic className="h-[28px] w-[28px]" />
+    <div className="h-[22px] w-[22px]">
+      <ShipGraphic className="h-[22px] w-[22px]" />
     </div>
   );
 }

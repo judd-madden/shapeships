@@ -290,7 +290,7 @@ export function MobileStatusRailFrame({
     <div className="relative shrink-0 w-full py-[2px]">
       <MobileDiceModifierSlots slots={mobileDiceModifierSlots} />
       <div className="flex items-stretch gap-[12px] px-[14px] w-full">
-        <div className="flex-1 min-w-0 flex flex-col gap-0">
+        <div className="flex-1 min-w-0 flex flex-col gap-[3px]">
           <MobilePlayerStatusRow
             rowRef={topRowRef}
             statsAnchorRef={topStatsAnchorRef}
