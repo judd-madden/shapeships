@@ -32,7 +32,7 @@ export function TurnPhaseList({ vm, presentation }: { vm: TurnPhaseVm; presentat
         {vm.milestones.map((milestone) => {
           const isCurrent = milestone.id === presentation.presentedMilestone;
           return (
-            <div key={milestone.id} data-current={isCurrent || undefined} data-available={milestone.isAvailable} className={`relative z-10 flex h-[32px] items-center gap-[8px] px-[10px] ${isCurrent || milestone.isAvailable ? 'opacity-100' : 'opacity-20'}`} style={{ transition: presentation.reducedMotion ? 'none' : `opacity ${TURN_PHASE_PRESENTATION_TIMING.availabilityFadeMs}ms ease` }}>
+            <div key={milestone.id} data-current={isCurrent || undefined} data-available={milestone.isAvailable} className={`relative z-10 flex h-[32px] items-center gap-[8px] px-[10px] ${isCurrent || milestone.isAvailable ? 'opacity-100' : 'opacity-30'}`} style={{ transition: presentation.reducedMotion ? 'none' : `opacity ${TURN_PHASE_PRESENTATION_TIMING.availabilityFadeMs}ms ease` }}>
               <TurnPhaseMilestoneIcon id={milestone.id} className="size-[24px]" />
               <span className="text-[15px] font-normal text-[var(--shapeships-white)]">{milestone.label}</span>
             </div>

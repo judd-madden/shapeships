@@ -426,17 +426,6 @@ export function LeftRail({
             <button
               type="button"
               className={`text-[16px] font-bold ${
-                selectedSisterView === 'battleLog'
-                  ? 'text-[var(--shapeships-white)]'
-                  : 'text-[var(--shapeships-grey-50)]'
-              }`}
-              onClick={() => handleSisterViewSelect('battleLog')}
-            >
-              Battle Log ({vm.battleLogCompletedTurnCount})
-            </button>
-            <button
-              type="button"
-              className={`text-[16px] font-bold ${
                 selectedSisterView === 'turnPhases'
                   ? 'text-[var(--shapeships-white)]'
                   : 'text-[var(--shapeships-grey-50)]'
@@ -444,6 +433,17 @@ export function LeftRail({
               onClick={() => handleSisterViewSelect('turnPhases')}
             >
               Turn Phases
+            </button>
+            <button
+              type="button"
+              className={`text-[16px] font-bold ${
+                selectedSisterView === 'battleLog'
+                  ? 'text-[var(--shapeships-white)]'
+                  : 'text-[var(--shapeships-grey-50)]'
+              }`}
+              onClick={() => handleSisterViewSelect('battleLog')}
+            >
+              Battle Log ({vm.battleLogCompletedTurnCount})
             </button>
           </div>
           {selectedSisterView === 'battleLog' ? (

@@ -30,7 +30,7 @@ export function TurnPhaseStatusStrip({ vm, presentation }: { vm: TurnPhaseVm; pr
           {vm.milestones.map((milestone) => (
             <div
               key={milestone.id}
-              className={`flex select-none items-center justify-center ${milestone.id === presentation.presentedMilestone || milestone.isAvailable ? 'opacity-100' : 'opacity-20'}`}
+              className={`flex select-none items-center justify-center ${milestone.id === presentation.presentedMilestone || milestone.isAvailable ? 'opacity-100' : 'opacity-30'}`}
               style={{ transition: presentation.reducedMotion ? 'none' : `opacity ${TURN_PHASE_PRESENTATION_TIMING.availabilityFadeMs}ms ease` }}
               onPointerDown={(event) => {
                 if (activePointerIdRef.current !== null) {

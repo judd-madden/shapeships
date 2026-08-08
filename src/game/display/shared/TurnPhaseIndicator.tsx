@@ -48,7 +48,7 @@ export function TurnPhaseIndicator({ vm, presentation }: { vm: TurnPhaseVm; pres
               <div
                 key={milestone.id}
                 data-available={milestone.isAvailable}
-                className={`flex items-center justify-center ${isCurrent || milestone.isAvailable ? 'opacity-100' : 'opacity-20'}`}
+                className={`flex items-center justify-center ${isCurrent || milestone.isAvailable ? 'opacity-100' : 'opacity-30'}`}
                 style={{ transition: presentation.reducedMotion ? 'none' : `opacity ${TURN_PHASE_PRESENTATION_TIMING.availabilityFadeMs}ms ease` }}
                 onPointerEnter={(event) => {
                   setActiveHover({

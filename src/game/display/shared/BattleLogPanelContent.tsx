@@ -60,8 +60,8 @@ export function BattleLogPanelContent({
         {battleLogTurns.length > 0 ? (
           battleLogTurns.map((turn) => <BattleLogTurnCard key={turn.turnNumber} turn={turn} />)
         ) : (
-          <p className="px-[20px] py-[14px] text-[15px] leading-[18px] text-[var(--shapeships-grey-50)]">
-            No completed turns yet.
+          <p className="px-[20px] py-[24px] text-[16px] leading-[22px] text-[var(--shapeships-grey-50)]">
+            The battle is about to begin!<br />May the dice be with you.
           </p>
         )}
       </LeftRailScrollArea>
