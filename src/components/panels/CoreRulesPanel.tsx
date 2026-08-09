@@ -10,7 +10,12 @@ import React from 'react';
 import { FighterShip, TacticalCruiserShip } from '../../graphics/human/assets';
 import { ShipOfEquality2Ship, ShipOfEquality1Ship } from '../../graphics/centaur/assets';
 import { ShipPowerTagBadgeRow } from '../../game/display/shared/ShipPowerTagBadgeRow';
+import { ChargesIcon } from '../ui/primitives/icons/ChargesIcon';
 import { ChevronDown } from '../ui/primitives/icons/ChevronDown';
+import { DiceRollIcon } from '../ui/primitives/icons/DiceRollIcon';
+import { DrawingIcon } from '../ui/primitives/icons/DrawingIcon';
+import { FirstStrikeIcon } from '../ui/primitives/icons/FirstStrikeIcon';
+import { HeartIcon } from '../ui/primitives/icons/HeartIcon';
 
 type RulesTab = 'core' | 'human' | 'xenite' | 'centaur' | 'ancient' | 'timings';
 
@@ -41,15 +46,36 @@ function RuleRow({
   );
 }
 
-const STATIC_TURN_PHASES = [
-  { label: 'Dice Roll', greyedOut: false },
+type StaticTurnPhaseIconKind = 'dice-roll' | 'drawing' | 'first-strike' | 'charges' | 'heart';
+
+interface StaticTurnPhase {
+  label: string;
+  greyedOut: boolean;
+  icon?: StaticTurnPhaseIconKind;
+}
+
+const STATIC_TURN_PHASES: readonly StaticTurnPhase[] = [
+  { label: 'Dice Roll', greyedOut: false, icon: 'dice-roll' },
   { label: 'Line Generation', greyedOut: true },
-  { label: 'Drawing', greyedOut: false },
+  { label: 'Drawing', greyedOut: false, icon: 'drawing' },
   { label: 'Reveal', greyedOut: true },
-  { label: 'First Strike', greyedOut: false },
-  { label: 'Charges', greyedOut: false },
-  { label: 'Turn Resolution', greyedOut: true },
-] as const;
+  { label: 'First Strike', greyedOut: false, icon: 'first-strike' },
+  { label: 'Charges', greyedOut: false, icon: 'charges' },
+  { label: 'Turn Resolution', greyedOut: true, icon: 'heart' },
+];
+
+function StaticTurnPhaseIcon({ icon }: { icon: StaticTurnPhaseIconKind }) {
+  const props = {
+    className: `size-[24px] xl:size-[32px] shrink-0 ${icon === 'heart' ? 'opacity-50' : ''}`,
+    color: 'var(--shapeships-white)',
+  };
+
+  if (icon === 'dice-roll') return <DiceRollIcon {...props} />;
+  if (icon === 'drawing') return <DrawingIcon {...props} />;
+  if (icon === 'first-strike') return <FirstStrikeIcon {...props} />;
+  if (icon === 'charges') return <ChargesIcon {...props} />;
+  return <HeartIcon {...props} />;
+}
 
 function StaticTurnPhaseStrip() {
   return (
@@ -62,17 +88,18 @@ function StaticTurnPhaseStrip() {
           END OF TURN
         </span>
       </div>
-      <div className="flex flex-col sm:flex-row w-full items-center justify-center sm:justify-around overflow-hidden bg-[var(--shapeships-grey-90)] px-[32px] py-[32px]">
+      <div className="flex flex-col gap-[4px] sm:gap-0 sm:flex-row w-full items-center justify-center sm:justify-around overflow-hidden bg-[var(--shapeships-grey-90)] px-[32px] py-[32px]">
         {STATIC_TURN_PHASES.map((phase, index) => (
           <React.Fragment key={phase.label}>
-            <div className={`flex min-w-0 items-center justify-center text-center ${phase.greyedOut ? 'opacity-40' : 'opacity-100'}`}>
-              <span className="text-[16px] sm:text-[15px] lg:text-[17px] font-bold leading-[1]">
+            <div className="flex min-w-0 items-center gap-[8px] text-left sm:w-auto sm:flex-col sm:justify-center sm:text-center">
+              {phase.icon ? <StaticTurnPhaseIcon icon={phase.icon} /> : null}
+              <span className={`text-[16px] sm:text-[15px] lg:text-[17px] font-bold leading-[1] ${phase.greyedOut ? 'opacity-40' : ''}`}>
                 {phase.label}
               </span>
             </div>
             {index < STATIC_TURN_PHASES.length - 1 ? (
               <ChevronDown
-                className="size-[20px] shrink-0 sm:-rotate-90 sm:size-[24px]"
+                className="size-[24px]! xl:size-[30px]! shrink-0 sm:-rotate-90"
                 color="var(--shapeships-grey-50)"
               />
             ) : null}
