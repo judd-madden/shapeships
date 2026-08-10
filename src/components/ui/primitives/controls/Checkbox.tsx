@@ -30,7 +30,7 @@ export function Checkbox({
       onClick={() => onChange?.(!checked)}
       disabled={disabled}
       className={`relative cursor-pointer ${
-        hasLabel ? 'inline-flex items-center gap-[7px]' : 'size-[30px]'
+        hasLabel ? 'inline-flex items-center gap-[4px] sm:gap-[6px]' : 'size-[30px]'
       } ${className}`}
       aria-checked={checked}
       role="checkbox"

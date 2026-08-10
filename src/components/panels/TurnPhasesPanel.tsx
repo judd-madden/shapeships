@@ -310,7 +310,7 @@ export function TurnPhasesPanel() {
       </div>
 
       <div className="flex w-full flex-col items-start">
-        <div className="flex w-full items-end justify-between">
+        <div className="flex w-full items-center justify-between">
           <div className="@min-[940px]:w-[200px]">
             <TurnMarker />
           </div>

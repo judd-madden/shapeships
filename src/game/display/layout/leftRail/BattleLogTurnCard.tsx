@@ -81,7 +81,7 @@ export function BattleLogTurnCard({ turn }: BattleLogTurnCardProps) {
 
       {turn.showBuildSection ? (
         <div className="flex flex-col gap-[4px]">
-          <SectionHeader label="BUILD" />
+          <SectionHeader label="DRAWING" />
           <div className="grid grid-cols-2 gap-[12px]">
             <div className="flex flex-col">
               {turn.me.buildLines.map((line, index) => (
