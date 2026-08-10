@@ -335,7 +335,7 @@ const SPECIES_NAVIGATION: Record<SpeciesName, { next: RulesTab; label: string }>
   Human: { next: 'xenite', label: 'Xenite' },
   Xenite: { next: 'centaur', label: 'Centaur' },
   Centaur: { next: 'ancient', label: 'Ancient' },
-  Ancient: { next: 'timings', label: 'Turn Timings' },
+  Ancient: { next: 'timings', label: 'Turn Phases' },
 };
 
 export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProps) {

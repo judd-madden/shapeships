@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import { SecondaryNavItem } from '../ui/primitives/navigation/SecondaryNavItem';
 import { CoreRulesPanel } from './CoreRulesPanel';
-import { TurnTimingsPanel } from './TurnTimingsPanel';
+import { TurnPhasesPanel } from './TurnPhasesPanel';
 import { SpeciesRulesPanel } from './SpeciesRulesPanel';
 
 type RulesTab = 'core' | 'human' | 'xenite' | 'centaur' | 'ancient' | 'timings';
@@ -26,7 +26,7 @@ export function RulesPanel() {
   };
 
   return (
-    <div className="content-stretch relative flex w-full min-w-0 max-w-[1200px] flex-col items-start gap-[32px] sm:gap-[50px] ">
+    <div className="@container content-stretch relative flex w-full min-w-0 max-w-[1200px] flex-col items-start gap-[32px] sm:gap-[50px] ">
       {/* Secondary Navigation */}
       <div className="content-center relative flex w-full flex-wrap items-center gap-[10px] pb-[8px] md:pb-[16px] lg:pb-[24px]">
         <SecondaryNavItem 
@@ -60,7 +60,7 @@ export function RulesPanel() {
           className={mobileNavTextClass}
         />
         <SecondaryNavItem 
-          label="Turn Timings" 
+          label="Turn Phases"
           selected={activeTab === 'timings'} 
           onClick={() => handleNavigate('timings')} 
           className={mobileNavTextClass}
@@ -73,7 +73,7 @@ export function RulesPanel() {
       {activeTab === 'xenite' && <SpeciesRulesPanel species="Xenite" onNavigate={handleNavigate} />}
       {activeTab === 'centaur' && <SpeciesRulesPanel species="Centaur" onNavigate={handleNavigate} />}
       {activeTab === 'ancient' && <SpeciesRulesPanel species="Ancient" onNavigate={handleNavigate} />}
-      {activeTab === 'timings' && <TurnTimingsPanel onNavigate={handleNavigate} />}
+      {activeTab === 'timings' && <TurnPhasesPanel />}
     </div>
   );
 }
