@@ -2491,49 +2491,12 @@ Deno.test('/game-state keeps Cube rolls private while projecting one public valu
   );
 });
 
-Deno.test('legacy action route rejects obsolete Solar action and sanitizes early/final state responses', async () => {
+Deno.test('production game route registration excludes the legacy send-action endpoint', () => {
   const fixture = createGameRouteFixture();
-  const state: any = normalizeAncientGameState(createSetupState()).state;
-  state.players[0].energy = 5;
-  state.gameData.turnData.pendingSOLARPowerDeclarations = { p1: [{ hidden: true }] };
-  state.gameData.phaseReadiness = [{
-    playerId: 'p1',
-    isReady: true,
-    currentStep: 'setup.species_selection',
-  }];
-  fixture.store.set('game_game-1', state);
-  const sendAction = fixture.app.handler('POST', '/make-server-825e19ab/send-action/:gameId');
-
-  const obsoleteResponse = await sendAction(createContext({
-    params: { gameId: 'game-1' },
-    body: { actionType: 'use_solar_power', content: {} },
-  }));
-  assert.equal(obsoleteResponse.status, 400);
-
-  const messageResponse = await sendAction(createContext({
-    params: { gameId: 'game-1' },
-    body: { actionType: 'message', content: { content: 'hello' } },
-  }));
-  const messageBody = await responseJson(messageResponse);
-  assert.equal(messageResponse.status, 200);
-  assert.equal('ancient' in messageBody.gameState.gameData, false);
-  assert.equal('energy' in messageBody.gameState.players[0], false);
-
-  const persisted = fixture.store.get('game_game-1');
-  persisted.players[0].faction = 'human';
-  persisted.gameData.phaseReadiness = [{
-    playerId: 'p1',
-    isReady: true,
-    currentStep: 'setup.species_selection',
-  }];
-  fixture.store.set('game_game-1', persisted);
-  const advanceResponse = await sendAction(createContext({
-    params: { gameId: 'game-1' },
-    body: { actionType: 'advance_phase', content: {} },
-  }));
-  const advanceBody = await responseJson(advanceResponse);
-  assert.equal(advanceResponse.status, 200);
-  assert.equal('ancient' in advanceBody.gameState.gameData, false);
+  assert.equal(
+    fixture.app.routes.has('POST /make-server-825e19ab/send-action/:gameId'),
+    false,
+  );
 });
 
 Deno.test('/intent success and rejection keep one-bump persistence and composed sanitization', async () => {

@@ -100,7 +100,6 @@ export function registerTestRoutes(
         { method: "GET", path: "/make-server-825e19ab/game-state/:gameId", description: "Get current game state" },
         { method: "GET", path: "/make-server-825e19ab/game-state-head/:gameId", description: "Get current game state head snapshot" },
         { method: "GET", path: "/make-server-825e19ab/game-history/:gameId", description: "Get persisted battle log history" },
-        { method: "POST", path: "/make-server-825e19ab/send-action/:gameId", description: "Submit game action" },
         { method: "POST", path: "/make-server-825e19ab/intent", description: "Submit game intent (Alpha v6)" },
         { method: "POST", path: "/make-server-825e19ab/echo", description: "Echo test endpoint" },
         { method: "GET", path: "/make-server-825e19ab/endpoints", description: "List all endpoints" },

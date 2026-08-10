@@ -121,11 +121,11 @@ else
 fi
 echo ""
 
-echo "6️⃣  Testing Game Action (Select Species)"
+echo "6️⃣  Testing Game Intent (Select Species)"
 echo "----------------------------------------"
 if [ ! -z "$GAME_ID" ] && [ ! -z "$SESSION_TOKEN" ]; then
-    test_endpoint "Select Species" "$BASE_URL/send-action/$GAME_ID" "POST" \
-        '{"actionType":"select_species","content":{"species":"human"}}' \
+    test_endpoint "Select Species" "$BASE_URL/intent" "POST" \
+        '{"gameId":"'$GAME_ID'","intentType":"SPECIES_SUBMIT","turnNumber":0,"payload":{"species":"human"},"nonce":"endpoint-smoke-species"}' \
         "-H 'X-Session-Token: $SESSION_TOKEN'"
 else
     echo -e "${YELLOW}⏭️  SKIP${NC} - Missing prerequisites"
@@ -135,28 +135,6 @@ echo ""
 echo "7️⃣  Testing System Diagnostics"
 echo "------------------------------"
 test_endpoint "System Test" "$BASE_URL/system-test"
-echo ""
-
-echo "8️⃣  Testing Intent Endpoint (Should return 501)"
-echo "-----------------------------------------------"
-if [ ! -z "$GAME_ID" ] && [ ! -z "$SESSION_TOKEN" ]; then
-    INTENT_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/intent" \
-        -H "X-Session-Token: $SESSION_TOKEN" \
-        -H "Content-Type: application/json" \
-        -d '{"intent":{"intentId":"test","gameId":"'$GAME_ID'","playerId":"test","type":"ACTION","phase":"build","actionType":"test","data":{}}}')
-    
-    INTENT_CODE=$(echo "$INTENT_RESPONSE" | tail -n 1)
-    
-    if [ "$INTENT_CODE" = "501" ]; then
-        echo -e "${GREEN}✅ PASS${NC} - Intent returns correct 501 Not Implemented"
-        ((TESTS_PASSED++))
-    else
-        echo -e "${RED}❌ FAIL${NC} - Intent returned HTTP $INTENT_CODE (expected 501)"
-        ((TESTS_FAILED++))
-    fi
-else
-    echo -e "${YELLOW}⏭️  SKIP${NC} - Missing prerequisites"
-fi
 echo ""
 
 echo "========================================"
