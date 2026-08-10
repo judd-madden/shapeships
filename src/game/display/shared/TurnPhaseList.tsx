@@ -1,7 +1,7 @@
 import { DownArrowIcon } from '../../../components/ui/primitives';
 import type { TurnPhasePresentationVm, TurnPhaseVm } from '../../client/useGameSession';
 import { TURN_PHASE_PRESENTATION_TIMING } from '../../client/gameSession/clienteffects/turnPhasePresentationTiming';
-import { TurnPhaseMilestoneIcon } from './TurnPhaseMilestoneIcon';
+import { TurnPhaseMilestoneIcon } from './TurnPhasePrimitives';
 
 export function TurnPhaseList({ vm, presentation }: { vm: TurnPhaseVm; presentation: TurnPhasePresentationVm }) {
   const verticalSlabOpacity =

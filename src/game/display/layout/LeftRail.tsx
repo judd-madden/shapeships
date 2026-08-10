@@ -15,7 +15,8 @@ import { resolveShipGraphic } from '../graphics/resolveShipGraphic';
 import { BattleLogPanelContent } from '../shared/BattleLogPanelContent';
 import { ChatPanelContent } from '../shared/ChatPanelContent';
 import { TurnPhaseIndicator } from '../shared/TurnPhaseIndicator';
-import { TurnPhasesPanelContent } from '../shared/TurnPhasesPanelContent';
+import { TurnPhaseList } from '../shared/TurnPhaseList';
+import { LeftRailScrollArea } from './leftRail/LeftRailScrollArea';
 
 interface LeftRailProps {
   vm: LeftRailViewModel;
@@ -529,7 +530,9 @@ export function LeftRail({
               selectedSisterView === 'turnPhases' ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
           >
-            <TurnPhasesPanelContent vm={turnPhases} presentation={turnPhasePresentation} />
+            <LeftRailScrollArea outerClassName="basis-0 flex-1 px-[18px] py-[14px]">
+              <TurnPhaseList vm={turnPhases} presentation={turnPhasePresentation} />
+            </LeftRailScrollArea>
           </div>
         </div>
       </div>

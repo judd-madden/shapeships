@@ -33,12 +33,13 @@ Operational templates and pass formats for implementation work.
 
 ### Planning records
 
-Phase roadmaps and decision registers for substantial implementation programs.
+Historical phase roadmaps and decision registers retained as implementation context. These records are not current-state authority; executable code and the current contracts above govern present behavior.
 
-- [Phase 13 Ancient Species - GPT-5.6 Planning Record](<Phase 13 Ancient Species - GPT-5.6 Planning Record.md>) - historical normative planning baseline preserving the original approved Ancient rules, architecture, risks, and implementation sequence
-- [Phase 14 Rules v1.63 Alignment Addendum](<Phase 14 Rules v1.63 Alignment Addendum.md>) - current normative Phase 14 rules alignment and implementation sequence, supplementing and superseding conflicting portions of the [original Phase 14 roadmap](<Phase 14 Simplified Phases and Ship Tags.md>)
+- [Phase 13 Ancient Species - GPT-5.6 Planning Record](<Phase 13 Ancient Species - GPT-5.6 Planning Record.md>) - historical Phase 13 planning and implementation record
+- [Phase 14 Simplified Phases and Ship Tags](<Phase 14 Simplified Phases and Ship Tags.md>) - historical Phase 14 implementation roadmap
+- [Phase 14 Rules v1.63 Alignment Addendum](<Phase 14 Rules v1.63 Alignment Addendum.md>) - historical Phase 14 rules-alignment and refinement record
 
-The Phase 13 record remains useful design and implementation context, but some planning-time rules, access assumptions, and implementation details were superseded by later approved passes. Use [the current repository status](../VERSION.md) for current implementation posture, the canonical definitions and authoritative server implementation for current gameplay, and the contracts for stable architecture and ownership rules.
+Use [the current repository status](../VERSION.md) for current implementation posture, the canonical definitions and authoritative server implementation for current gameplay, and the contracts for stable architecture and ownership rules.
 
 ### `infrastructure/`
 Non-normative operational and runtime notes.

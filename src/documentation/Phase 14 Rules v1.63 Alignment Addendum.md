@@ -1,12 +1,14 @@
 # Phase 14 — Rules v1.63 Alignment and 14H/14I Cutover Addendum
 
-- **Status:** Normative Phase 14 addendum
+- **Status:** Historical Phase 14 implementation and refinement record
 - **Pass type:** Documentation / Planning
 - **Rules baseline:** Shapeships rules v1.63
 - **Extends:** `Phase 14 Simplified Phases and Ship Tags.md`
-- **Implementation checkpoint:** Phase 14I-S and Phase 14I-C complete; Phase 14J is next
+- **Implementation checkpoint:** Phase 14 implementation progressed through Phase 14K
 - **Compatibility posture:** No persisted-game migration; old in-progress games may be discarded at cutover
 - **Date:** 2026-08-05
+
+> **Historical authority:** This addendum is retained as a record of Phase 14 rules alignment and implementation refinement. Current executable code and current repository contracts supersede stale implementation details in the body. It is not the source of current-state phase truth.
 
 ---
 

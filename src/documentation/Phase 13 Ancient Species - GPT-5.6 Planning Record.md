@@ -2,9 +2,9 @@
 
 ## GPT-5.6 Planning Record
 
-> **Historical planning record:** This document preserves the approved Phase 13 planning baseline and the assumptions used to design and sequence the Ancient implementation. Ancient implementation is now complete for the approved Phase 13 scope and is ready for real-player testing and balance refinement. Some rules, access assumptions, and implementation details in the body were superseded through later separately approved passes. See [the current repository status](../VERSION.md) for current implementation status. Current canonical definitions and authoritative server behavior govern current gameplay where later approved changes differ from this record.
+> **Historical Phase 13 planning and implementation record:** This document is retained as implementation history. Subsequent Phase 14 work and later implementation and QA refinements supersede obsolete phase topology and current-state assertions in its body. Current executable code and current repository contracts are authoritative for present behavior.
 
-> **Status: Normative Phase 13 planning document. Ancient is not yet a playable production species.**
+> **Historical snapshot status recorded by this plan:** Phase 13 treated this as a normative planning document and Ancient as not yet a playable production species. This statement is retained as planning-time context, not current status.
 
 This document is the approved Phase 13 planning baseline. It records the Ancient rules model, intended architecture, and slice-by-slice implementation sequence. Normative planning status does not mean Ancient is implemented or production-enabled, and it does not authorize an unscoped implementation pass.
 

@@ -19,14 +19,31 @@ The server is authoritative for:
 
 The client must treat server phase and turn values as canonical.
 
-### 1.2 Turn freshness
+### 1.2 Canonical phase sequence
+The canonical server sequence is:
+
+1. `setup.species_selection` — Species Selection
+2. `build.dice_roll` — Dice Roll
+3. `build.line_generation` — Line Generation
+4. `build.drawing` — Drawing
+5. `battle.reveal` — Reveal
+6. `battle.first_strike` — First Strike
+7. `battle.charge_declaration` — Charge Declaration
+8. `battle.end_of_turn_resolution` — Turn Resolution
+
+The former global phases `build.ships_that_build`, `build.end_of_build`, and `battle.charge_response` are not entries in the canonical sequence.
+
+Drawing prelude, player-local Drawing waiting or submission states, KNO and Cube dice-roll stages, and similar requester or internal workflow stages remain within their owning canonical phase. They must not be represented as additional global phases.
+
+Servers own progression through this sequence. Clients render the canonical phase and turn supplied by the server and must not synthesize phase or turn progression.
+
+### 1.3 Turn freshness
 Clients and harnesses should always use fresh server state when preparing turn-sensitive submissions.
 
 Do not rely on stale locally remembered turn values for authoritative submissions.
 
-### 1.3 Species-selection guardrail
-During `setup.species_selection`, only the species-selection intent flow should be used.
-Do not force generic ready/advance behavior into that phase unless the server contract explicitly supports it.
+### 1.4 Species-selection guardrail
+`setup.species_selection` is a special setup flow rather than generic Ready behavior. Only the species-selection intent flow should be used unless the server contract explicitly supports another action.
 
 ## 2. Client Responsibilities
 Client/runtime code may:
@@ -64,7 +81,7 @@ For implementation-pass structure, see:
 
 ## 6. Condensed Turn-Phase Presentation
 
-The presentation model compresses the canonical seven-phase runtime sequence without changing it:
+The presentation model compresses the seven canonical phases in an ordinary turn, excluding setup Species Selection, without changing them:
 
 | Canonical phase | Presented milestone |
 | --- | --- |

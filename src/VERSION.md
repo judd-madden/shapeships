@@ -15,7 +15,7 @@ Fleets remain visible while current-turn choices stay private. Players read the 
 - The server rolls shared dice and generates each player's available lines.
 - Players draw ships, build permanent fleet pieces, save resources, and complete upgrades or other species-specific development.
 - New choices remain private until the authoritative fleet reveal.
-- Battle phases handle first-strike effects, charges, responses, and other available action choices.
+- Battle phases reveal fleets, handle first-strike effects and charge declarations, then resolve end-of-turn effects.
 - Damage and healing resolve simultaneously before the server checks victory and advances the match.
 
 ## Play Modes

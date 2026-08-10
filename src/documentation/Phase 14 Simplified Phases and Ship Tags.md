@@ -1,15 +1,15 @@
 # Phase 14 — Simplified Phases and Ship Tags
 
-## Normative Planning and Pass-Decomposition Document
+## Historical Planning and Pass-Decomposition Document
 
-- **Status:** Normative implementation roadmap
+- **Status:** Historical Phase 14 implementation roadmap
 - **Pass type:** Documentation / Planning
 - **Rules baseline:** Shapeships v1.6 plus the locked Phase 14 decisions in this document
 - **Architecture baseline:** Current server-authoritative repository contracts
 - **Compatibility posture:** No persisted-game migration; old in-progress games may be discarded
 - **Last verified against live code:** 2026-08-04
 
-> **Rules v1.63 alignment:** This document is supplemented and partially superseded by [Phase 14 Rules v1.63 Alignment Addendum](<Phase 14 Rules v1.63 Alignment Addendum.md>). Where the two documents conflict, the v1.63 addendum is normative. The original document remains authoritative only for unaffected Phase 14 architecture, completed-pass history, and pass details not superseded by the addendum.
+> **Historical authority:** Implementation has progressed through Phase 14K. This roadmap is retained as implementation history; later QA and rules refinements and the current executable code supersede implementation details where they differ. Current phase truth belongs in the executable code and [server/client turn-phase contract](contracts/ServerClientTurnPhaseContract.md), not this historical roadmap. The [Phase 14 Rules v1.63 Alignment Addendum](<Phase 14 Rules v1.63 Alignment Addendum.md>) records later Phase 14 refinement history.
 
 ---
 

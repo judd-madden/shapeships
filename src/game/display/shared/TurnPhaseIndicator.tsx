@@ -4,8 +4,8 @@ import { TURN_PHASE_PRESENTATION_TIMING } from '../../client/gameSession/cliente
 import {
   TurnPhaseHoverLabel,
   type TurnPhaseHoverLabelValue,
-} from './TurnPhaseHoverLabel';
-import { TurnPhaseMilestoneIcon } from './TurnPhaseMilestoneIcon';
+  TurnPhaseMilestoneIcon,
+} from './TurnPhasePrimitives';
 import { useHoverPanelPresence } from './useHoverPanelPresence';
 
 export function TurnPhaseIndicator({ vm, presentation }: { vm: TurnPhaseVm; presentation: TurnPhasePresentationVm }) {
