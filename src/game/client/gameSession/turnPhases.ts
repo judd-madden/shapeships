@@ -64,7 +64,7 @@ export function deriveTurnPhaseVm(args: {
       return {
         ...spec,
         label,
-        isAvailable: presentedTurnNumber != null,
+        isAvailable: !args.isFinished && presentedTurnNumber != null,
         hasOccurred: false,
       };
     }
@@ -76,7 +76,7 @@ export function deriveTurnPhaseVm(args: {
     return {
       ...spec,
       label,
-      isAvailable: (status?.expected ?? false) || hasOccurred,
+      isAvailable: !args.isFinished && ((status?.expected ?? false) || hasOccurred),
       hasOccurred,
     };
   });
