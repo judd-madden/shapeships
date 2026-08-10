@@ -611,7 +611,7 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "Drawing",
-        "text": "Each future Drawing phase:\\n- If dice roll is a 2, make a Xenite.\\n- If dice roll is a 3, make an Antlion.\\n- If dice roll is a 4, make two Xenites.",
+        "text": "Each future turn:\\n- If dice roll is a 2, make a Xenite.\\n- If dice roll is a 3, make an Antlion.\\n- If dice roll is a 4, make two Xenites.",
         "tags": ["makes_ships"],
         "activationTiming": "start_of_drawing"
       },
