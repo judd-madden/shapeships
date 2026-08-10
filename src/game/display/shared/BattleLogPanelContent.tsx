@@ -6,7 +6,6 @@ import { LeftRailScrollArea } from '../layout/leftRail/LeftRailScrollArea';
 interface BattleLogPanelContentProps {
   battleLogNames: LeftRailViewModel['battleLogNames'];
   battleLogTurns: LeftRailViewModel['battleLogTurns'];
-  battleLogAutoScrollKey: LeftRailViewModel['battleLogAutoScrollKey'];
   layout?: 'desktop' | 'mobile';
   viewportRef?: React.Ref<HTMLDivElement | null>;
   headerAction?: React.ReactNode;
@@ -20,7 +19,6 @@ function cx(...parts: Array<string | undefined | false>) {
 export function BattleLogPanelContent({
   battleLogNames,
   battleLogTurns,
-  battleLogAutoScrollKey,
   layout = 'desktop',
   viewportRef,
   headerAction,
@@ -55,7 +53,6 @@ export function BattleLogPanelContent({
       <LeftRailScrollArea
         viewportRef={viewportRef}
         outerClassName={cx('basis-0 flex-1 pb-3', isMobile ? 'rounded-b-[10px]' : 'rounded-b-[10px]')}
-        forceScrollOnChangeKey={battleLogAutoScrollKey}
       >
         {battleLogTurns.length > 0 ? (
           battleLogTurns.map((turn) => <BattleLogTurnCard key={turn.turnNumber} turn={turn} />)

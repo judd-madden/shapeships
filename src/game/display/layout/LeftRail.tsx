@@ -79,7 +79,7 @@ export function LeftRail({
   const railRootRef = useRef<HTMLDivElement | null>(null);
   const battleLogSlotRef = useRef<HTMLDivElement | null>(null);
   const battleLogViewportRef = useRef<HTMLDivElement | null>(null);
-  const pendingBattleLogScrollRestoreRef = useRef<{ distanceFromBottom: number } | null>(null);
+  const pendingBattleLogScrollRestoreRef = useRef<{ scrollTop: number } | null>(null);
   const battleLogScrollRestoreFrameRef = useRef<number | null>(null);
   const battleLogScrollRestoreTimeoutRef = useRef<number | null>(null);
   const firstTurnBuildHelperShowTimeoutRef = useRef<number | null>(null);
@@ -109,8 +109,7 @@ export function LeftRail({
     }
 
     const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-    const nextScrollTop = viewport.scrollHeight - viewport.clientHeight - snapshot.distanceFromBottom;
-    viewport.scrollTop = Math.max(0, Math.min(maxScrollTop, nextScrollTop));
+    viewport.scrollTop = Math.max(0, Math.min(maxScrollTop, snapshot.scrollTop));
   }
 
   function scheduleBattleLogScrollRestore() {
@@ -351,7 +350,7 @@ export function LeftRail({
     const viewport = battleLogViewportRef.current;
     if (viewport && viewport.scrollHeight > viewport.clientHeight) {
       pendingBattleLogScrollRestoreRef.current = {
-        distanceFromBottom: viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight,
+        scrollTop: viewport.scrollTop,
       };
     } else {
       pendingBattleLogScrollRestoreRef.current = null;
@@ -518,7 +517,6 @@ export function LeftRail({
               viewportRef={battleLogViewportRef}
               battleLogNames={vm.battleLogNames}
               battleLogTurns={vm.battleLogTurns}
-              battleLogAutoScrollKey={vm.battleLogAutoScrollKey}
               showPanelTitle={false}
             />
           </div>

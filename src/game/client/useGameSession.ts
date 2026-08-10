@@ -6628,7 +6628,6 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         },
         battleLogTurns: [],
         battleLogCompletedTurnCount: 0,
-        battleLogAutoScrollKey: 'battle:bootstrap:0',
       },
       board: {
         mode: 'board',

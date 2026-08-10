@@ -399,7 +399,6 @@ export interface LeftRailViewModel {
   };
   battleLogTurns: BattleLogTurnVm[];
   battleLogCompletedTurnCount: number;
-  battleLogAutoScrollKey: string;
 }
 
 export interface BoardFleetSummary {

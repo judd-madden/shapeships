@@ -6,7 +6,6 @@ interface LeftRailScrollAreaProps {
   outerClassName?: string;
   innerClassName?: string;
   stickToBottomOnChange?: boolean;
-  forceScrollOnChangeKey?: string | number;
   viewportRef?: React.Ref<HTMLDivElement | null>;
 }
 
@@ -32,7 +31,6 @@ export function LeftRailScrollArea({
   outerClassName,
   innerClassName,
   stickToBottomOnChange,
-  forceScrollOnChangeKey,
   viewportRef,
 }: LeftRailScrollAreaProps) {
   const localViewportRef = useRef<HTMLDivElement | null>(null);
@@ -65,12 +63,6 @@ export function LeftRailScrollArea({
     // Scroll sentinel into view; no animation
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [children, stickToBottomOnChange]);
-
-  useEffect(() => {
-    if (forceScrollOnChangeKey === undefined) return;
-
-    bottomRef.current?.scrollIntoView({ block: 'end' });
-  }, [forceScrollOnChangeKey]);
 
   return (
     <div

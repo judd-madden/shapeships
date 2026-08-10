@@ -12,7 +12,7 @@ import type {
 
 type BattleLogVm = Pick<
   LeftRailViewModel,
-  'battleLogNames' | 'battleLogTurns' | 'battleLogCompletedTurnCount' | 'battleLogAutoScrollKey'
+  'battleLogNames' | 'battleLogTurns' | 'battleLogCompletedTurnCount'
 >;
 
 type MapBattleLogTurnsArgs = {
@@ -50,7 +50,7 @@ export function mapBattleLogTurns(args: MapBattleLogTurnsArgs): BattleLogVm {
   };
 
   const turns = Array.isArray(args.battleLogHistory?.turns)
-    ? [...args.battleLogHistory.turns].sort((left, right) => left.turnNumber - right.turnNumber)
+    ? [...args.battleLogHistory.turns].sort((left, right) => right.turnNumber - left.turnNumber)
     : [];
 
   const battleLogTurns = turns.map((turn) =>
@@ -69,13 +69,6 @@ export function mapBattleLogTurns(args: MapBattleLogTurnsArgs): BattleLogVm {
       0,
       Math.trunc(args.battleLogHistory?.completedTurnCount ?? 0),
     ),
-    battleLogAutoScrollKey: [
-      'battle',
-      args.battleLogHistory?.gameId ?? 'none',
-      args.battleLogHistory?.revision ?? 0,
-      args.battleLogHistory?.completedTurnCount ?? 0,
-      battleLogTurns.length,
-    ].join(':'),
   };
 }
 

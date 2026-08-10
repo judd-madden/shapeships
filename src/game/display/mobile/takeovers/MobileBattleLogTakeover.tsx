@@ -20,7 +20,6 @@ export function MobileBattleLogTakeover({ vm, onClose }: MobileBattleLogTakeover
         showPanelTitle={false}
         battleLogNames={vm.battleLogNames}
         battleLogTurns={vm.battleLogTurns}
-        battleLogAutoScrollKey={vm.battleLogAutoScrollKey}
       />
     </MobileTakeoverShell>
   );
