@@ -1723,6 +1723,7 @@ For Ancient only, as they don't have upgraded ships, they just have a set of WIT
 - I'd like to include at a rarer chance, foreign basic and upgraded ships in Ancient challenges.
 - They have 14 challenges with their basic ships, we would be adding only WITH foreign ship pool of 15.
 - Let's say like 1 in 4 is WITH foreign ship as the Ancient challenge. Some big upgrades will be hard but that's fine.
+- '1 in 4' should mean a deterministic 25% assignment branch
 If foreign challenge for the Ancient player, we include some small copy underneath:
 - Use Simulacrum to copy opponent ships, use their species tab for upgrades
 

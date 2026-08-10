@@ -50,7 +50,7 @@ export function TurnPhaseStatusStrip({ vm, presentation }: { vm: TurnPhaseVm; pr
               onLostPointerCapture={dismissPointer}
               onContextMenu={(event) => event.preventDefault()}
             >
-              <TurnPhaseMilestoneIcon id={milestone.id} className="size-[18px]" />
+              <TurnPhaseMilestoneIcon id={milestone.id} className="size-[20px]" />
             </div>
           ))}
         </div>

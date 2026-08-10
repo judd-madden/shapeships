@@ -454,10 +454,10 @@ export function AncientAutocastControl({
             }
       }
       className={`flex shrink-0 items-center justify-center opacity-50 transition-opacity duration-100 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
-        isMobileModalInfo ? 'size-[40px]' : 'size-[24px]'
+        isMobileModalInfo ? 'size-[40px]' : 'size-[32px]'
       }`}
     >
-      <InfoIcon className="size-[24px]" />
+      <InfoIcon className="size-[32px]" />
     </button>
   );
 
