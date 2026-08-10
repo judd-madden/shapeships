@@ -252,6 +252,7 @@ export function mapGameSessionVm(args: {
   leftRailDiceValue: 1 | 2 | 3 | 4 | 5 | 6;
   leftRailDiceAnimateKey: number;
   leftRailChronoswarmAnimateKey: number;
+  leftRailCubeAnimateKey: number;
 
   // Client-only build preview counts (used for special panels like Frigate trigger selection)
   buildPreviewCounts: Record<string, number>;
@@ -349,6 +350,7 @@ export function mapGameSessionVm(args: {
     leftRailDiceValue,
     leftRailDiceAnimateKey,
     leftRailChronoswarmAnimateKey,
+    leftRailCubeAnimateKey,
     buildPreviewCounts,
     frigateSelectedTriggers,
     quantumMysticSelectedNumbers,
@@ -395,7 +397,7 @@ export function mapGameSessionVm(args: {
       player?.id ?? player?.playerId ?? player?.sessionId ?? null;
     const displayLeftPlayerId = getDisplayPlayerIdentityKey(displayLeftPlayer);
     const displayRightPlayerId = getDisplayPlayerIdentityKey(displayRightPlayer);
-    const cubeDiceAnimateKeyByPlayerId: Record<string, string> = {};
+    const cubeDiceAnimateKeyByPlayerId: Record<string, number> = {};
 
     const getCubeDiceSlotForPlayerId = (
       playerId: string | null
@@ -413,7 +415,7 @@ export function mapGameSessionVm(args: {
       }
 
       const diceValue = value as 1 | 2 | 3 | 4 | 5 | 6;
-      const animateKey = JSON.stringify(['CUB', playerId, turnNumber, diceValue]);
+      const animateKey = leftRailCubeAnimateKey;
       cubeDiceAnimateKeyByPlayerId[playerId] = animateKey;
 
       return {

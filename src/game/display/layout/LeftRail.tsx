@@ -325,7 +325,6 @@ export function LeftRail({
                 key={`${slot.sourceShipDefId}-${index}`}
                 value={value}
                 animateKey={isAnimatedModifier ? slot.animateKey : undefined}
-                animateOnMount={slot.sourceShipDefId === 'CUB'}
                 className="w-[60px] h-[60px]"
                 enableRotate={false}
               />

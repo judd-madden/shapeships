@@ -18,6 +18,11 @@ export const TURN_PHASE_PRESENTATION_TIMING = {
   availabilityFadeMs: 180,
 } as const;
 
+export const TURN_START_DICE_PRESENTATION_DELAY_MS =
+  TURN_PHASE_PRESENTATION_TIMING.minimumVisibleMs.turnResolution +
+  TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.exit +
+  TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.enter;
+
 const MILESTONE_INDEX: Record<TurnPhaseMilestoneId, number> = {
   dice_roll: 0,
   drawing: 1,

@@ -90,7 +90,6 @@ function DiceStack({
           key={`${slot.sourceShipDefId}-${index}`}
           value={value}
           animateKey={isAnimatedModifier ? slot.animateKey : undefined}
-          animateOnMount={slot.sourceShipDefId === 'CUB'}
           className="h-[22px] w-[22px]"
           enableRotate={false}
         />

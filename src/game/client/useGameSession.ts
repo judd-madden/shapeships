@@ -4120,6 +4120,7 @@ useEffect(() => {
     leftRailDiceValue: presentedLeftRailDiceValue,
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
     leftRailChronoswarmAnimateKey: presentedChronoswarmAnimateSeq,
+    leftRailCubeAnimateKey: presentedCubeAnimateSeq,
     presentedTurnReleaseKey,
     presentedTurnReleaseTurnNumber,
   } = useEndOfTurnPresentation({
@@ -5250,6 +5251,7 @@ useEffect(() => {
     leftRailDiceValue: presentedLeftRailDiceValue,
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
     leftRailChronoswarmAnimateKey: presentedChronoswarmAnimateSeq,
+    leftRailCubeAnimateKey: presentedCubeAnimateSeq,
 
     // Client-only: build preview + Frigate triggers for build.drawing special panels
     buildPreviewCounts: activeBuildPreviewCountsRef,
