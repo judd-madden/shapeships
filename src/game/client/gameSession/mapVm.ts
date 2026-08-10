@@ -569,25 +569,41 @@ export function mapGameSessionVm(args: {
       : displayRightWon
         ? displayRightSpeciesId
         : normalizeSpecies(winnerPlayer?.faction ?? winnerPlayer?.species);
+  const viewerWon = Boolean(
+    winnerPlayerId &&
+    viewer.isPlayerViewer &&
+    (
+      winnerPlayerId === me?.playerId ||
+      winnerPlayerId === me?.id ||
+      winnerPlayerId === me?.sessionId
+    )
+  );
+  const playerViewerLost = Boolean(
+    winnerPlayerId &&
+    viewer.isPlayerViewer &&
+    !isSpectator &&
+    !viewerWon
+  );
+  const viewerResultLabel = playerViewerLost ? 'Defeat' : 'Victory';
 
   let bannerText: string;
   let bannerBgCssVar: string;
 
   switch (resultReason) {
     case 'decisive':
-      bannerText = `Decisive Victory! ${winnerName} wins!`;
+      bannerText = `Decisive ${viewerResultLabel}! ${winnerName} wins!`;
       bannerBgCssVar = speciesToBannerBgCssVar(winnerSpeciesId);
       break;
     case 'narrow':
-      bannerText = `Narrow Victory! ${winnerName} wins!`;
+      bannerText = `Narrow ${viewerResultLabel}! ${winnerName} wins!`;
       bannerBgCssVar = speciesToBannerBgCssVar(winnerSpeciesId);
       break;
     case 'timeout':
-      bannerText = `Time Victory! ${winnerName} wins!`;
+      bannerText = `Time ${viewerResultLabel}! ${winnerName} wins!`;
       bannerBgCssVar = speciesToBannerBgCssVar(winnerSpeciesId);
       break;
     case 'resignation':
-      bannerText = `Victory! ${winnerName} wins!`;
+      bannerText = `${viewerResultLabel}! ${winnerName} wins!`;
       bannerBgCssVar = speciesToBannerBgCssVar(winnerSpeciesId);
       break;
     case 'agreement':
@@ -604,7 +620,7 @@ export function mapGameSessionVm(args: {
       break;
     default:
       if (winnerPlayerId) {
-        bannerText = `Victory! ${winnerName} wins!`;
+        bannerText = `${viewerResultLabel}! ${winnerName} wins!`;
         bannerBgCssVar = speciesToBannerBgCssVar(winnerSpeciesId);
       } else {
         bannerText = 'Draw!';

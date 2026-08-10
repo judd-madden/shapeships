@@ -1713,3 +1713,18 @@ Phase 15 is a contained Play Computer meta-feature:
 - **5+3 replaces 5+0 as the lowest selectable timer preset**.
 
 The first content-writing target is 12 Mission stories: one for each currently supported directional human-player/computer-species matchup.
+
+
+# 31. Addendum for Challenges
+If the selected ship is a basic ship, we include some small copy underneath:
+- Only ships in final fleet are counted, ships may be used in upgrades
+
+For Ancient only, as they don't have upgraded ships, they just have a set of WITH/WITHOUT for 7 basics.
+- I'd like to include at a rarer chance, foreign basic and upgraded ships in Ancient challenges.
+- They have 14 challenges with their basic ships, we would be adding only WITH foreign ship pool of 15.
+- Let's say like 1 in 4 is WITH foreign ship as the Ancient challenge. Some big upgrades will be hard but that's fine.
+If foreign challenge for the Ancient player, we include some small copy underneath:
+- Use Simulacrum to copy opponent ships, use their species tab for upgrades
+
+This addendum shouldn't extend much, we're still just scanning the final fleet.
+(and adding some copy based on the condition of the selected challenge on the Mission Modal).
