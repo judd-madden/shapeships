@@ -36,6 +36,7 @@ const FIRST_TURN_BUILD_HELPER_SHOW_DELAY_MS = 500;
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 const BATTLE_LOG_TRANSITION_MS = 160;
 const BATTLE_LOG_SESSION_PREFERENCE_KEY = 'shapeships.preferBattleLog.v1';
+const CHAT_MINIMIZED_STORAGE_KEY = 'shapeships.chatMinimized.v1';
 
 function readInitialSisterView(): SisterView {
   if (typeof window === 'undefined') {
@@ -59,6 +60,36 @@ function persistBattleLogSessionPreference() {
   }
 }
 
+function readInitialChatMinimized(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    const storedValue = window.localStorage.getItem(CHAT_MINIMIZED_STORAGE_KEY);
+
+    if (storedValue === 'true') {
+      return true;
+    }
+
+    if (storedValue === 'false') {
+      return false;
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function persistChatMinimizedPreference(isMinimized: boolean) {
+  try {
+    window.localStorage.setItem(CHAT_MINIMIZED_STORAGE_KEY, String(isMinimized));
+  } catch {
+    // Keep the preference in memory if browser storage is unavailable.
+  }
+}
+
 export function LeftRail({
   vm,
   turnPhases,
@@ -72,6 +103,7 @@ export function LeftRail({
 }: LeftRailProps) {
   const [selectedSisterView, setSelectedSisterView] = useState<SisterView>(readInitialSisterView);
   const [isBattleLogExpanded, setIsBattleLogExpanded] = useState(false);
+  const [isChatMinimized, setIsChatMinimized] = useState(readInitialChatMinimized);
   const [collapsedBattleLogTop, setCollapsedBattleLogTop] = useState<number | null>(null);
   const [collapsedBattleLogBottom, setCollapsedBattleLogBottom] = useState<number | null>(null);
   const [isFirstTurnBuildHelperMounted, setIsFirstTurnBuildHelperMounted] = useState(false);
@@ -366,6 +398,11 @@ export function LeftRail({
     setSelectedSisterView(nextView);
   }
 
+  function handleChatMinimizedChange(nextIsMinimized: boolean) {
+    setIsChatMinimized(nextIsMinimized);
+    persistChatMinimizedPreference(nextIsMinimized);
+  }
+
   const battleLogOverlayTop = isBattleLogExpanded ? 20 : (collapsedBattleLogTop ?? 0);
   const battleLogOverlayBottom = isBattleLogExpanded
     ? 'var(--battle-log-bottom-inset, 25px)'
@@ -441,10 +478,18 @@ export function LeftRail({
         <TurnPhaseIndicator vm={turnPhases} presentation={turnPhasePresentation} />
       </div>
 
-      {/* Chat keeps its former 243px footprint as a minimum and may grow to 302px. */}
-      <div className="-mt-1 h-[302px] min-h-[243px] max-h-[302px] shrink overflow-hidden rounded-[10px] border-2 border-[var(--shapeships-grey-70)] bg-[var(--shapeships-black)] min-[768px]:max-[1599px]:mt-0">
+      {/* Expanded Chat may compress to 243px; minimized Chat remains one fixed row. */}
+      <div
+        className={`-mt-1 overflow-hidden rounded-[10px] border-2 border-[var(--shapeships-grey-70)] bg-[var(--shapeships-black)] min-[768px]:max-[1599px]:mt-0 ${
+          isChatMinimized
+            ? 'h-[48px] min-h-[48px] max-h-[48px] shrink-0'
+            : 'h-[302px] min-h-[243px] max-h-[302px] shrink'
+        }`}
+      >
         <ChatPanelContent
           layout="desktop"
+          isMinimized={isChatMinimized}
+          onMinimizedChange={handleChatMinimizedChange}
           gameCode={vm.gameCode}
           chatMessages={vm.chatMessages}
           drawOffer={vm.drawOffer}

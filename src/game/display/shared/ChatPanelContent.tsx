@@ -18,6 +18,8 @@ interface ChatPanelContentProps {
   layout?: 'desktop' | 'mobile';
   autoFocusInput?: boolean;
   showPanelTitle?: boolean;
+  isMinimized?: boolean;
+  onMinimizedChange?: (isMinimized: boolean) => void;
 }
 
 function cx(...parts: Array<string | undefined | false>) {
@@ -36,12 +38,22 @@ export function ChatPanelContent({
   layout = 'desktop',
   autoFocusInput = false,
   showPanelTitle = true,
+  isMinimized = false,
+  onMinimizedChange,
 }: ChatPanelContentProps) {
   const [showCopiedToast, setShowCopiedToast] = useState(false);
   const [chatDraft, setChatDraft] = useState('');
   const inputRef = useRef<HTMLInputElement | null>(null);
   const copiedToastTimeoutRef = useRef<number | null>(null);
   const isMobile = layout === 'mobile';
+  const isDesktopMinimized = !isMobile && isMinimized;
+  const latestMessage = chatMessages[chatMessages.length - 1];
+  const actionableRematchTargetGameId =
+    latestMessage?.type === 'rematch_invite' &&
+    latestMessage.targetGameId &&
+    onJoinRematchInvite
+      ? latestMessage.targetGameId
+      : null;
 
   useEffect(() => {
     if (!autoFocusInput) {
@@ -81,10 +93,73 @@ export function ChatPanelContent({
     setChatDraft('');
   }
 
+  if (isDesktopMinimized) {
+    return (
+      <div className="flex h-full min-h-0 items-center gap-[10px] bg-black px-[18px]">
+        <button
+          type="button"
+          aria-label="Restore Chat"
+          className="flex shrink-0 cursor-pointer items-center gap-[6px] text-white"
+          onClick={() => onMinimizedChange?.(false)}
+        >
+          <span className="text-[16px] font-black">Chat</span>
+          <span aria-hidden="true" className="text-[22px] font-normal leading-none">
+            +
+          </span>
+        </button>
+
+        <p className="min-w-0 flex-1 truncate text-[14px] leading-[18px] text-[var(--shapeships-grey-20)]">
+          {latestMessage?.type === 'player' ? (
+            <>
+              <span className="font-bold">{latestMessage.playerName}:</span>{' '}
+              <span className="font-normal">{latestMessage.text}</span>
+            </>
+          ) : latestMessage ? (
+            <span
+              className={
+                latestMessage.type === 'rematch_invite'
+                  ? 'font-bold text-[var(--shapeships-pastel-green)]'
+                  : 'font-normal'
+              }
+            >
+              {latestMessage.text}
+            </span>
+          ) : null}
+        </p>
+
+        {actionableRematchTargetGameId ? (
+          <InChatButton
+            className="shrink-0"
+            onClick={() => onJoinRematchInvite?.(actionableRematchTargetGameId)}
+          >
+            Join Game
+          </InChatButton>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-black">
       <div className="h-[42px] shrink-0 px-5 pt-3 pb-2 flex items-center justify-between relative">
-        {showPanelTitle ? <p className="text-white text-[16px] font-black">Chat</p> : null}
+        {showPanelTitle ? (
+          !isMobile && onMinimizedChange ? (
+            <button
+              type="button"
+              aria-label="Minimize Chat"
+              className="flex cursor-pointer items-center gap-[6px] text-white"
+              onClick={() => onMinimizedChange(true)}
+            >
+              <span className="text-[16px] font-black">Chat</span>
+              <span
+                aria-hidden="true"
+                className="h-[2px] w-[12px] rounded-full bg-current"
+              />
+            </button>
+          ) : (
+            <p className="text-white text-[16px] font-black">Chat</p>
+          )
+        ) : null}
         <button
           type="button"
           onClick={handleCopyUrl}
