@@ -79,9 +79,27 @@ export function BattleLogTurnCard({ turn }: BattleLogTurnCardProps) {
         </div>
       </div>
 
+      {turn.showBattleSection ? (
+        <div className="flex flex-col gap-[4px]">
+          <SectionHeader label="" />
+          <div className="grid grid-cols-2 gap-[16px]">
+            <div className="flex flex-col">
+              {turn.me.battleLines.map((line, index) => (
+                <BattleLogLine key={`me-battle-${turn.turnNumber}-${index}`} line={line} align="left" />
+              ))}
+            </div>
+            <div className="flex flex-col">
+              {turn.opponent.battleLines.map((line, index) => (
+                <BattleLogLine key={`op-battle-${turn.turnNumber}-${index}`} line={line} align="right" />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {turn.showBuildSection ? (
         <div className="flex flex-col gap-[4px]">
-          <SectionHeader label="DRAWING" />
+          <SectionHeader label="" />
           <div className="grid grid-cols-2 gap-[12px]">
             <div className="flex flex-col">
               {turn.me.buildLines.map((line, index) => (
@@ -91,24 +109,6 @@ export function BattleLogTurnCard({ turn }: BattleLogTurnCardProps) {
             <div className="flex flex-col">
               {turn.opponent.buildLines.map((line, index) => (
                 <BattleLogLine key={`op-build-${turn.turnNumber}-${index}`} line={line} align="right" />
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {turn.showBattleSection ? (
-        <div className="flex flex-col gap-[4px]">
-          <SectionHeader label="BATTLE" />
-          <div className="grid grid-cols-2 gap-[12px]">
-            <div className="flex flex-col">
-              {turn.me.battleLines.map((line, index) => (
-                <BattleLogLine key={`me-battle-${turn.turnNumber}-${index}`} line={line} align="left" />
-              ))}
-            </div>
-            <div className="flex flex-col">
-              {turn.opponent.battleLines.map((line, index) => (
-                <BattleLogLine key={`op-battle-${turn.turnNumber}-${index}`} line={line} align="right" />
               ))}
             </div>
           </div>
