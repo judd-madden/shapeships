@@ -12,6 +12,7 @@
 import React, { useState } from 'react';
 import { MultiplayerPanel } from '../panels/MultiplayerPanel';
 import { RulesPanel } from '../panels/RulesPanel';
+import { LorePanel } from '../panels/LorePanel';
 import { CreatePrivateGamePanel, type CreatePrivateGameSettings } from '../panels/CreatePrivateGamePanel';
 import { LogoIcon } from '../ui/primitives/icons/LogoIcon';
 import { OnlineStatusIcon } from '../ui/primitives/icons/OnlineStatusIcon';
@@ -29,7 +30,7 @@ interface MenuShellProps {
   alphaDisableAuth: boolean;
 }
 
-type ActivePanel = 'multiplayer' | 'createPrivateGame' | 'playComputer' | 'rules';
+type ActivePanel = 'multiplayer' | 'createPrivateGame' | 'playComputer' | 'rules' | 'lore';
 
 export function MenuShell({ 
   onNavigate, 
@@ -175,14 +176,14 @@ export function MenuShell({
             {/* Main Nav */}
             <div className="content-stretch relative flex w-full flex-row justify-between sm:items-start sm:gap-x-[28px] gap-y-[24px] py-0 pr-0  min-[641px]:flex-nowrap min-[641px]:gap-y-0 min-[1025px]:flex-col min-[1025px]:gap-x-0 min-[1025px]:gap-y-[36px] min-[1025px]:pl-[20px] xl:gap-y-[50px] xl:pl-[40px]">
               {/* Multiplayer */}
-              <div 
+              <div
                 className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[0px] sm:pb-[5px] pt-0"
                 onClick={() => setActivePanel('multiplayer')}
               >
                 {activePanel === 'multiplayer' && (
                   <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
-                <p 
+                <p
                   className={`relative shrink-0 text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'multiplayer' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
@@ -208,7 +209,7 @@ export function MenuShell({
                 </p>
               </div>
 
-              {/* Rules & Codex */}
+              {/* Rules */}
               <div 
                 className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[0px] sm:pb-[5px] pt-0"
                 onClick={() => setActivePanel('rules')}
@@ -217,18 +218,35 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`hidden min-[400px]:block relative shrink-0 text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
+                  className={`hidden min-[1025px]:block relative shrink-0 text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'rules' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                 >
                   How to Play
                 </p>
                 <p 
-                  className={`min-[400px]:hidden block relative shrink-0 text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
+                  className={`block min-[1025px]:hidden relative shrink-0 text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'rules' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                 >
                   Rules
+                </p>
+              </div>
+
+              {/* Lore */}
+              <div
+                className="content-stretch relative flex shrink-0 cursor-pointer items-center justify-center px-0 pb-[0px] sm:pb-[5px] pt-0"
+                onClick={() => setActivePanel('lore')}
+              >
+                {activePanel === 'lore' && (
+                  <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px] sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
+                )}
+                <p
+                  className={`relative shrink-0 text-[16px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
+                    activePanel === 'lore' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
+                  }`}
+                >
+                  Lore
                 </p>
               </div>
             </div>
@@ -244,6 +262,9 @@ export function MenuShell({
             )}
             {activePanel === 'rules' && (
               <RulesPanel />
+            )}
+            {activePanel === 'lore' && (
+              <LorePanel />
             )}
             {activePanel === 'createPrivateGame' && (
               <CreatePrivateGamePanel
