@@ -103,7 +103,7 @@ function logAncientCompatibilityRisks(
 }
 
 const PRIVATE_GAME_TIMED_PRESETS = {
-  '5_0': { minutes: 5, incrementSeconds: 0, baseMs: 300_000, incrementMs: 0 },
+  '5_3': { minutes: 5, incrementSeconds: 3, baseMs: 300_000, incrementMs: 3_000 },
   '10_5': { minutes: 10, incrementSeconds: 5, baseMs: 600_000, incrementMs: 5_000 },
   '15_10': { minutes: 15, incrementSeconds: 10, baseMs: 900_000, incrementMs: 10_000 },
   '30_20': { minutes: 30, incrementSeconds: 20, baseMs: 1_800_000, incrementMs: 20_000 },
@@ -158,7 +158,7 @@ function resolveCreateGameTimeControl(body: CreateGameRequestBody): TimeControlC
 
   const timeControl = resolveTimedPrivateGamePreset(body.minutes, body.incrementSeconds);
   if (!timeControl) {
-    throw new Error('Invalid timed preset. Supported presets are 5+0, 10+5, 15+10, and 30+20.');
+    throw new Error('Invalid timed preset. Supported presets are 5+3, 10+5, 15+10, and 30+20.');
   }
 
   return timeControl;

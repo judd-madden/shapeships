@@ -25,7 +25,7 @@ interface CreatePrivateGamePanelProps {
   primaryActionStyle?: 'private' | 'emphasisWhite';
 }
 
-type TimerPresetKey = '5_0' | '10_5' | '15_10' | '30_20';
+type TimerPresetKey = '5_3' | '10_5' | '15_10' | '30_20';
 
 type TimerPreset = {
   key: TimerPresetKey;
@@ -37,14 +37,14 @@ type TimerPreset = {
 };
 
 const TIMER_PRESETS: TimerPreset[] = [
-  { key: '5_0', minutes: 5, incrementSeconds: 0, primaryLabel: '5', secondaryLabel: '0', tightenSpacing: true },
+  { key: '5_3', minutes: 5, incrementSeconds: 3, primaryLabel: '5', secondaryLabel: '3', tightenSpacing: true },
   { key: '10_5', minutes: 10, incrementSeconds: 5, primaryLabel: '10', secondaryLabel: '5', tightenSpacing: true },
   { key: '15_10', minutes: 15, incrementSeconds: 10, primaryLabel: '15', secondaryLabel: '10', tightenSpacing: true },
   { key: '30_20', minutes: 30, incrementSeconds: 20, primaryLabel: '30', secondaryLabel: '20', tightenSpacing: false },
 ];
 
 const TIMER_PRESET_BY_KEY: Record<TimerPresetKey, { minutes: number; incrementSeconds: number }> = {
-  '5_0': { minutes: 5, incrementSeconds: 0 },
+  '5_3': { minutes: 5, incrementSeconds: 3 },
   '10_5': { minutes: 10, incrementSeconds: 5 },
   '15_10': { minutes: 15, incrementSeconds: 10 },
   '30_20': { minutes: 30, incrementSeconds: 20 },
