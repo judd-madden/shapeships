@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type {
   ActionPanelViewModel,
   BoardViewModel,
@@ -11,6 +11,7 @@ import type {
   TurnPhaseVm,
 } from '../../client/useGameSession';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
+import { SHIP_DEFINITIONS_MAP } from '../../data/ShipDefinitionsUI';
 import type { ImplementedAncientManualSolarPowerId } from '../../client/gameSession/ancientChargeDeclaration';
 import { FleetShipHoverCard } from '../layout/boardStage/FleetShipHoverCard';
 import { MobileBoardView } from './MobileBoardView';
@@ -34,8 +35,17 @@ import { MobileEndGameStatsTakeover } from './takeovers/MobileEndGameStatsTakeov
 import { MobileEndOfGameMenuTakeover } from './takeovers/MobileEndOfGameMenuTakeover';
 import { MobileMenuTakeover } from './takeovers/MobileMenuTakeover';
 import type { MainPhaseControl } from '../shared/mainPhaseControl';
+import { MissionChallengeOverlay } from '../mission/MissionChallengeOverlay';
+import {
+  getMissionPresentationIdentity,
+  isNewVisibleMissionPresentation,
+  shouldLockMissionInteraction,
+  shouldShowMissionChallengeAction,
+  type MissionOverlayMode,
+} from '../mission/missionChallengePresentation';
 
 interface MobileGameLayoutProps {
+  gameId: string;
   hudVm: HudViewModel;
   boardVm: BoardViewModel;
   leftRailVm: LeftRailViewModel;
@@ -44,6 +54,8 @@ interface MobileGameLayoutProps {
   bottomActionRailVm: BottomActionRailViewModel;
   actionPanelVm: ActionPanelViewModel;
   gameStats: GameSessionViewModel['gameStats'];
+  viewer: GameSessionViewModel['viewer'];
+  missionChallenge: GameSessionViewModel['missionChallenge'];
   actions: GameSessionActions;
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
@@ -89,6 +101,7 @@ const CATALOGUE_PANEL_IDS = new Set<ActionPanelViewModel['activePanelId']>([
 ]);
 
 export function MobileGameLayout({
+  gameId,
   hudVm,
   boardVm,
   leftRailVm,
@@ -97,6 +110,8 @@ export function MobileGameLayout({
   bottomActionRailVm,
   actionPanelVm,
   gameStats,
+  viewer,
+  missionChallenge,
   actions,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
@@ -115,6 +130,9 @@ export function MobileGameLayout({
   const [activeMobileBottomPanel, setActiveMobileBottomPanel] =
     useState<ActiveMobileBottomPanel>('normal');
   const [activeShipModalId, setActiveShipModalId] = useState<ShipDefId | null>(null);
+  const [isMissionReopenOpen, setIsMissionReopenOpen] = useState(false);
+  const [missionReferenceShipId, setMissionReferenceShipId] =
+    useState<ShipDefId | null>(null);
   const [activeSolarModalId, setActiveSolarModalId] =
     useState<ImplementedAncientManualSolarPowerId | null>(null);
   const [isSiphonInspectionOpen, setIsSiphonInspectionOpen] = useState(false);
@@ -135,6 +153,9 @@ export function MobileGameLayout({
   const topStatPopoverRef = useRef<HTMLDivElement | null>(null);
   const bottomStatPopoverRef = useRef<HTMLDivElement | null>(null);
   const fleetShipHoverCardRef = useRef<HTMLDivElement | null>(null);
+  const previousMissionPresentationIdentityRef = useRef<string | null>(null);
+  const markMissionFindingsSeenRef = useRef(actions.onMarkCurrentMissionFindingsSeen);
+  markMissionFindingsSeenRef.current = actions.onMarkCurrentMissionFindingsSeen;
   const isCataloguePanelActive = CATALOGUE_PANEL_IDS.has(actionPanelVm.activePanelId);
   const isAncientCatalogueSurfaceActive =
     actionPanelVm.activePanelId === 'ap.catalog.ships.ancient' ||
@@ -147,6 +168,45 @@ export function MobileGameLayout({
   const simulacrumSpecies = resolveAncientSimulacrumSpecies(boardVm);
   const isEndGamePanel = actionPanelVm.activePanelId === 'ap.end_of_game.result' || actionPanelVm.endOfGame != null;
   const isGameOver = actionPanelVm.endOfGame != null;
+  const isMissionIntroPending = missionChallenge?.introPending === true;
+  const shouldShowInitialMission = Boolean(
+    boardVm.mode === 'board' &&
+    missionChallenge &&
+    !missionChallenge.isFinished &&
+    missionChallenge.shouldPresentInitialIntro
+  );
+  const shouldShowReopenedMission = Boolean(
+    !shouldShowInitialMission &&
+    boardVm.mode === 'board' &&
+    missionChallenge &&
+    !missionChallenge.isFinished &&
+    missionChallenge.introPending === false &&
+    viewer.isPlayerViewer &&
+    isMissionReopenOpen
+  );
+  const missionOverlayMode: MissionOverlayMode | null = shouldShowInitialMission
+    ? 'initial'
+    : shouldShowReopenedMission
+      ? 'reopen'
+      : null;
+  const isMissionOverlayVisible = missionOverlayMode !== null;
+  const isMissionInteractionLocked = shouldLockMissionInteraction({
+    introPending: isMissionIntroPending,
+    overlayVisible: isMissionOverlayVisible,
+  });
+  const missionPresentationIdentity = missionChallenge
+    ? getMissionPresentationIdentity({
+        gameId,
+        missionId: missionChallenge.mission.id,
+        mode: missionOverlayMode,
+      })
+    : null;
+  const canShowMissionChallengeAction = shouldShowMissionChallengeAction({
+    hasMission: missionChallenge !== null,
+    isPlayerViewer: viewer.isPlayerViewer,
+    isFinished: missionChallenge?.isFinished ?? false,
+    introPending: missionChallenge?.introPending ?? false,
+  });
   const hasVoidShips =
     boardVm.mode === 'board' &&
     (boardVm.myVoidFleet.length > 0 || boardVm.opponentVoidFleet.length > 0);
@@ -192,6 +252,18 @@ export function MobileGameLayout({
   }, []);
   const handleCloseSiphonInspection = useCallback(() => {
     setIsSiphonInspectionOpen(false);
+  }, []);
+  const closeConflictingMissionSurfaces = useCallback(() => {
+    setActiveTakeover(null);
+    setIsGameStatsOpen(false);
+    setActiveMobileBottomPanel('normal');
+    setActiveShipModalId(null);
+    setMissionReferenceShipId(null);
+    setActiveSolarModalId(null);
+    setIsSiphonInspectionOpen(false);
+    setIsAutocastInfoOpen(false);
+    setActiveFleetShipHover(null);
+    setStatPopoverAnchors(null);
   }, []);
   const handleFleetShipHoverCardElementChange = useCallback((element: HTMLDivElement | null) => {
     fleetShipHoverCardRef.current = element;
@@ -354,6 +426,21 @@ export function MobileGameLayout({
   const handleOpenMenu = useCallback(() => {
     handleOpenTakeover('menu');
   }, [handleOpenTakeover]);
+  const handleOpenMissionChallenge = useCallback(() => {
+    if (!canShowMissionChallengeAction) {
+      return;
+    }
+
+    closeConflictingMissionSurfaces();
+    setIsMissionReopenOpen(true);
+  }, [canShowMissionChallengeAction, closeConflictingMissionSurfaces]);
+  const handleMissionChallengeShipInspect = useCallback((shipId: ShipDefId) => {
+    if (!isMissionOverlayVisible || !SHIP_DEFINITIONS_MAP[shipId]) {
+      return;
+    }
+
+    setMissionReferenceShipId(shipId);
+  }, [isMissionOverlayVisible]);
   const shouldShowEndGameStatsTakeover =
     activeTakeover === 'menu' &&
     actionPanelVm.endOfGame != null &&
@@ -407,6 +494,59 @@ export function MobileGameLayout({
       setActiveShipModalId(null);
     }
   }, [isCataloguePanelActive]);
+
+  useLayoutEffect(() => {
+    setIsMissionReopenOpen(false);
+    setMissionReferenceShipId(null);
+  }, [gameId, missionChallenge?.mission.id]);
+
+  useLayoutEffect(() => {
+    setIsMissionReopenOpen(false);
+    setMissionReferenceShipId(null);
+  }, [actionPanelVm.menu.phaseKey, actionPanelVm.menu.turnNumber]);
+
+  useEffect(() => {
+    if (
+      boardVm.mode !== 'board' ||
+      missionChallenge === null ||
+      missionChallenge.isFinished ||
+      missionChallenge.introPending
+    ) {
+      setIsMissionReopenOpen(false);
+    }
+  }, [boardVm.mode, missionChallenge]);
+
+  useEffect(() => {
+    if (!isMissionOverlayVisible) {
+      setMissionReferenceShipId(null);
+    }
+  }, [isMissionOverlayVisible]);
+
+  useLayoutEffect(() => {
+    if (isMissionIntroPending) {
+      setIsMissionReopenOpen(false);
+      closeConflictingMissionSurfaces();
+    }
+  }, [closeConflictingMissionSurfaces, isMissionIntroPending]);
+
+  useLayoutEffect(() => {
+    if (missionPresentationIdentity !== null) {
+      closeConflictingMissionSurfaces();
+    }
+  }, [closeConflictingMissionSurfaces, missionPresentationIdentity]);
+
+  useEffect(() => {
+    const previousIdentity = previousMissionPresentationIdentityRef.current;
+    if (
+      isNewVisibleMissionPresentation(
+        previousIdentity,
+        missionPresentationIdentity
+      )
+    ) {
+      markMissionFindingsSeenRef.current();
+    }
+    previousMissionPresentationIdentityRef.current = missionPresentationIdentity;
+  }, [missionPresentationIdentity]);
 
   useEffect(() => {
     if (!isAncientCatalogueSurfaceActive) {
@@ -607,24 +747,31 @@ export function MobileGameLayout({
       className="h-full min-h-0 w-full min-w-0 overflow-hidden flex flex-col bg-transparent text-white"
       data-turn-phase-milestone={turnPhasesVm.currentMilestone ?? undefined}
     >
-      <MobileTopNav
-        turnLabel={turnLabel}
-        isGameOver={isGameOver}
-        activeTakeover={activeTakeover}
-        unreadChatCount={mobileUnreadChatCount}
-        onReturnToBoard={handleReturnToBoard}
-        onOpenChat={handleOpenChat}
-        onOpenBattleLog={handleOpenBattleLog}
-        onOpenMenu={handleOpenMenu}
-      />
+      <div
+        aria-hidden={isMissionInteractionLocked}
+        inert={isMissionInteractionLocked}
+        className={cx(isMissionInteractionLocked && 'pointer-events-none')}
+      >
+        <MobileTopNav
+          turnLabel={turnLabel}
+          isGameOver={isGameOver}
+          activeTakeover={activeTakeover}
+          unreadChatCount={mobileUnreadChatCount}
+          onReturnToBoard={handleReturnToBoard}
+          onOpenChat={handleOpenChat}
+          onOpenBattleLog={handleOpenBattleLog}
+          onOpenMenu={handleOpenMenu}
+        />
+      </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col pt-[8px]">
         <div
-          aria-hidden={activeTakeover !== null}
-          inert={activeTakeover !== null}
+          aria-hidden={activeTakeover !== null || isMissionInteractionLocked}
+          inert={activeTakeover !== null || isMissionInteractionLocked}
           className={cx(
             'flex min-h-0 flex-1 flex-col',
-            activeTakeover !== null && 'pointer-events-none opacity-0'
+            activeTakeover !== null && 'pointer-events-none opacity-0',
+            isMissionInteractionLocked && 'pointer-events-none'
           )}
         >
           {boardVm.mode === 'board' ? (
@@ -697,7 +844,7 @@ export function MobileGameLayout({
           </div>
         </div>
 
-        {activeTakeover ? (
+        {activeTakeover && !isMissionInteractionLocked ? (
           <div className="absolute inset-0 z-[70] flex min-h-0 flex-col mt-[16px]">
             {shouldShowEndGameStatsTakeover ? (
               <MobileEndGameStatsTakeover
@@ -724,6 +871,8 @@ export function MobileGameLayout({
                 turnPhasesVm={turnPhasesVm}
                 turnPhasePresentation={turnPhasePresentation}
                 actions={actions}
+                showChallengeAction={canShowMissionChallengeAction}
+                onOpenChallenge={handleOpenMissionChallenge}
                 onClose={handleReturnToBoard}
                 onReturnToMainMenu={onReturnToMainMenu}
                 soundEnabled={soundEnabled}
@@ -738,7 +887,31 @@ export function MobileGameLayout({
         ) : null}
       </div>
 
-      {activeTakeover === null && boardVm.mode === 'board' && statPopoverAnchors ? (
+      {missionOverlayMode && missionChallenge && boardVm.mode === 'board' ? (
+        <div className="pointer-events-auto fixed inset-0 z-[50] flex items-center justify-center py-[16px]">
+          <MissionChallengeOverlay
+            missionChallenge={missionChallenge}
+            mode={missionOverlayMode}
+            onChallengeShipInspect={handleMissionChallengeShipInspect}
+            onClose={() => setIsMissionReopenOpen(false)}
+            onPlay={actions.onAcknowledgeMissionIntro}
+            onSetMinimizeMissionsThisSession={
+              actions.onSetMinimizeMissionsThisSession
+            }
+            opponentSpecies={boardVm.opponentSpeciesId}
+            playerName={
+              viewer.viewerMode === 'p1_player'
+                ? viewer.p1Name
+                : viewer.viewerMode === 'p2_player'
+                  ? viewer.p2Name
+                  : ''
+            }
+            playerSpecies={boardVm.mySpeciesId}
+          />
+        </div>
+      ) : null}
+
+      {!isMissionInteractionLocked && activeTakeover === null && boardVm.mode === 'board' && statPopoverAnchors ? (
         <MobileStatBreakdownPopovers
           boardVm={boardVm}
           topAnchorRect={statPopoverAnchors.top}
@@ -748,7 +921,7 @@ export function MobileGameLayout({
         />
       ) : null}
 
-      {activeTakeover === null && activeShipModalId ? (
+      {!isMissionInteractionLocked && activeTakeover === null && activeShipModalId ? (
         <MobileShipModal
           shipId={activeShipModalId}
           buildCatalogue={actionPanelVm.buildCatalogue}
@@ -757,7 +930,7 @@ export function MobileGameLayout({
         />
       ) : null}
 
-      {activeTakeover === null && activeSolarModalId ? (
+      {!isMissionInteractionLocked && activeTakeover === null && activeSolarModalId ? (
         <MobileSolarPowerModal
           solarPowerId={activeSolarModalId}
           declarationVm={actionPanelVm.ancientChargeDeclaration}
@@ -770,11 +943,11 @@ export function MobileGameLayout({
         />
       ) : null}
 
-      {activeTakeover === null && isAutocastInfoOpen ? (
+      {!isMissionInteractionLocked && activeTakeover === null && isAutocastInfoOpen ? (
         <MobileAutocastInfoModal onClose={handleCloseAutocastInfo} />
       ) : null}
 
-      {activeTakeover === null && activeFleetShipHover ? (
+      {!isMissionInteractionLocked && activeTakeover === null && activeFleetShipHover ? (
         <div className="fixed inset-0 z-[55] pointer-events-none">
           <FleetShipHoverCard
             shipId={activeFleetShipHover.shipId}
@@ -787,6 +960,16 @@ export function MobileGameLayout({
             preferredPlacement={activeFleetShipHover.side === 'opponent' ? 'bottom' : 'top'}
           />
         </div>
+      ) : null}
+
+      {missionOverlayMode && missionReferenceShipId ? (
+        <MobileShipModal
+          shipId={missionReferenceShipId}
+          buildCatalogue={actionPanelVm.buildCatalogue}
+          actions={mobileActions}
+          referenceOnly={true}
+          onClose={() => setMissionReferenceShipId(null)}
+        />
       ) : null}
     </div>
   );

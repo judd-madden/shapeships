@@ -1,5 +1,6 @@
 import type { ActionPanelViewModel, GameSessionActions, TurnPhasePresentationVm, TurnPhaseVm } from '../../../client/useGameSession';
 import { Checkbox, GameMenuButton } from '../../../../components/ui/primitives';
+import { ChallengeIcon } from '../../../../components/ui/primitives/icons/ChallengeIcon';
 import { MobileTakeoverShell } from './MobileTakeoverShell';
 import { TurnPhaseList } from '../../shared/TurnPhaseList';
 
@@ -8,6 +9,8 @@ interface MobileMenuTakeoverProps {
   turnPhasesVm: TurnPhaseVm;
   turnPhasePresentation: TurnPhasePresentationVm;
   actions: GameSessionActions;
+  showChallengeAction: boolean;
+  onOpenChallenge: () => void;
   onClose: () => void;
   onReturnToMainMenu: () => void;
   soundEnabled: boolean;
@@ -52,6 +55,8 @@ export function MobileMenuTakeover({
   turnPhasesVm,
   turnPhasePresentation,
   actions,
+  showChallengeAction,
+  onOpenChallenge,
   onClose,
   onReturnToMainMenu,
   soundEnabled,
@@ -126,6 +131,18 @@ export function MobileMenuTakeover({
                 >
                   {dangerAction.label}
                 </GameMenuButton>
+
+                {showChallengeAction ? (
+                  <GameMenuButton
+                    className="h-[54px] w-[260px] max-w-full"
+                    onClick={onOpenChallenge}
+                  >
+                    <span className="flex items-center gap-[10px]">
+                      <ChallengeIcon className="h-[28px] w-auto text-black" />
+                      <span>Challenge</span>
+                    </span>
+                  </GameMenuButton>
+                ) : null}
               </>
             )}
           </div>

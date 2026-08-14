@@ -10,6 +10,8 @@ import {
   getMissionPresentationIdentity,
   interpolateMissionPlayer,
   isNewVisibleMissionPresentation,
+  shouldLockMissionInteraction,
+  shouldShowMissionChallengeAction,
 } from './missionChallengePresentation';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
@@ -88,4 +90,52 @@ Deno.test('presentation identity changes only for genuine visible transitions', 
   assert(isNewVisibleMissionPresentation(initial, reopen));
   assert(!isNewVisibleMissionPresentation(reopen, null));
   assert(isNewVisibleMissionPresentation(null, reopen));
+});
+
+Deno.test('Mission interaction stays locked for pending or visible presentation', () => {
+  assert(shouldLockMissionInteraction({
+    introPending: true,
+    overlayVisible: false,
+  }));
+  assert(shouldLockMissionInteraction({
+    introPending: false,
+    overlayVisible: true,
+  }));
+  assert(!shouldLockMissionInteraction({
+    introPending: false,
+    overlayVisible: false,
+  }));
+});
+
+Deno.test('Challenge action requires an acknowledged active player Mission', () => {
+  assert(!shouldShowMissionChallengeAction({
+    hasMission: true,
+    isPlayerViewer: true,
+    isFinished: false,
+    introPending: true,
+  }));
+  assert(shouldShowMissionChallengeAction({
+    hasMission: true,
+    isPlayerViewer: true,
+    isFinished: false,
+    introPending: false,
+  }));
+  assert(!shouldShowMissionChallengeAction({
+    hasMission: true,
+    isPlayerViewer: false,
+    isFinished: false,
+    introPending: false,
+  }));
+  assert(!shouldShowMissionChallengeAction({
+    hasMission: true,
+    isPlayerViewer: true,
+    isFinished: true,
+    introPending: false,
+  }));
+  assert(!shouldShowMissionChallengeAction({
+    hasMission: false,
+    isPlayerViewer: true,
+    isFinished: false,
+    introPending: false,
+  }));
 });

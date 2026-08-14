@@ -52,3 +52,24 @@ export function isNewVisibleMissionPresentation(
 ): boolean {
   return currentIdentity !== null && currentIdentity !== previousIdentity;
 }
+
+export function shouldLockMissionInteraction(args: {
+  introPending: boolean;
+  overlayVisible: boolean;
+}): boolean {
+  return args.introPending || args.overlayVisible;
+}
+
+export function shouldShowMissionChallengeAction(args: {
+  hasMission: boolean;
+  isPlayerViewer: boolean;
+  isFinished: boolean;
+  introPending: boolean;
+}): boolean {
+  return (
+    args.hasMission &&
+    args.isPlayerViewer &&
+    !args.isFinished &&
+    !args.introPending
+  );
+}

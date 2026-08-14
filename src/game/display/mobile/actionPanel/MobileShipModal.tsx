@@ -21,6 +21,7 @@ interface MobileShipModalProps {
   shipId: ShipDefId;
   buildCatalogue: ActionPanelViewModel['buildCatalogue'];
   actions: Pick<GameSessionActions, 'onBuildShip'>;
+  referenceOnly?: boolean;
   onClose: () => void;
 }
 
@@ -28,12 +29,15 @@ export function MobileShipModal({
   shipId,
   buildCatalogue,
   actions,
+  referenceOnly = false,
   onClose,
 }: MobileShipModalProps) {
   const [rulesExpanded, setRulesExpanded] = useState(false);
   const autoCloseAfterBuildRef = useRef(false);
   const model = getShipCardModel(shipId);
-  const eligibility = getShipEligibilityForHover({ shipId, buildCatalogue });
+  const eligibility: ShipEligibility = referenceOnly
+    ? { state: 'REFERENCE_ONLY' }
+    : getShipEligibilityForHover({ shipId, buildCatalogue });
 
   useEffect(() => {
     setRulesExpanded(false);

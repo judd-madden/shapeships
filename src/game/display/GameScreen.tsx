@@ -169,6 +169,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
       {mobileBoardVm ? (
         <div className="relative z-10 w-full h-full min-h-0">
           <MobileGameLayout
+            gameId={gameId}
             hudVm={vm.hud}
             boardVm={mobileBoardVm}
             leftRailVm={vm.leftRail}
@@ -177,6 +178,8 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             bottomActionRailVm={vm.bottomActionRail}
             actionPanelVm={vm.actionPanel}
             gameStats={vm.gameStats}
+            viewer={vm.viewer}
+            missionChallenge={vm.missionChallenge}
             actions={mainStageActions}
             firstTurnBuildHelperEligible={firstTurnBuildHelper.firstTurnBuildHelperEligible}
             firstTurnBuildHelperDismissSignal={firstTurnBuildHelper.firstTurnBuildHelperDismissSignal}

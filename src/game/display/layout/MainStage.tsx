@@ -4,7 +4,7 @@
  * NO LOGIC - composition matching Figma design exactly (Pass 1.25)
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { GameVerticalLine } from '../../../components/ui/primitives';
 import { TopHud } from './TopHud';
 import { BoardStage } from './BoardStage';
@@ -17,6 +17,8 @@ import { MissionChallengeOverlay } from '../mission/MissionChallengeOverlay';
 import {
   getMissionPresentationIdentity,
   isNewVisibleMissionPresentation,
+  shouldLockMissionInteraction,
+  shouldShowMissionChallengeAction,
   type MissionOverlayMode,
 } from '../mission/missionChallengePresentation';
 import type { MainPhaseControl } from '../shared/mainPhaseControl';
@@ -103,6 +105,10 @@ export function MainStage({
       ? 'reopen'
       : null;
   const isMissionOverlayVisible = missionOverlayMode !== null;
+  const isMissionInteractionLocked = shouldLockMissionInteraction({
+    introPending: missionChallenge?.introPending === true,
+    overlayVisible: isMissionOverlayVisible,
+  });
   const missionPresentationIdentity = missionChallenge
     ? getMissionPresentationIdentity({
         gameId,
@@ -110,9 +116,12 @@ export function MainStage({
         mode: missionOverlayMode,
       })
     : null;
-  const canShowMissionChallengeAction = Boolean(
-    missionChallenge && !missionChallenge.isFinished && viewer.isPlayerViewer,
-  );
+  const canShowMissionChallengeAction = shouldShowMissionChallengeAction({
+    hasMission: missionChallenge !== null,
+    isPlayerViewer: viewer.isPlayerViewer,
+    isFinished: missionChallenge?.isFinished ?? false,
+    introPending: missionChallenge?.introPending ?? false,
+  });
   const endGameResultKey = useMemo(() => {
     const endOfGame = actionPanelVm.endOfGame;
 
@@ -150,6 +159,10 @@ export function MainStage({
   useEffect(() => {
     setIsMissionReopenOpen(false);
   }, [gameId, missionChallenge?.mission.id]);
+
+  useLayoutEffect(() => {
+    setIsMissionReopenOpen(false);
+  }, [actionPanelVm.menu.phaseKey, actionPanelVm.menu.turnNumber]);
 
   useEffect(() => {
     if (
@@ -246,7 +259,7 @@ export function MainStage({
       {/* Main Stage Wrapper */}
       <div
         className={`content-stretch flex flex-col grow items-center justify-between mb-[-24px] min-h-px min-w-px relative w-full z-20 ${
-          isMissionOverlayVisible ? 'pointer-events-none' : ''
+          isMissionInteractionLocked ? 'pointer-events-none' : ''
         }`}
         data-name="Main Stage Wrapper"
       >
@@ -281,7 +294,7 @@ export function MainStage({
       {/* Action Panel Wrapper */}
       <div
         className={`content-stretch flex flex-col h-[344px] items-end relative w-full ${
-          isMissionOverlayVisible ? 'pointer-events-none' : ''
+          isMissionInteractionLocked ? 'pointer-events-none' : ''
         }`}
         data-name="Action Panel Wrapper"
       >
