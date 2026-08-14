@@ -232,11 +232,11 @@ function CompactShips({ ships }: { ships: Record<Species, string[]> }) {
 }
 
 function PhaseRow({ phase, showShips }: { phase: PhaseDefinition; showShips: boolean }) {
-  const background = phase.greyed ? 'bg-[var(--shapeships-grey-90)]' : 'bg-black';
+  const background = phase.greyed ? 'bg-[var(--shapeships-grey-90)]' : ' ';
   const allBody = phase.rightBody ? [...phase.body, ...phase.rightBody] : phase.body;
 
   return (
-    <div className={`${background} border-b border-[var(--shapeships-grey-70)] last:border-b-0`}>
+    <div className={`${background} border-b border-[var(--shapeships-grey-70)] last:border-b-0 last:rounded-b-[10px]`}>
       {/* Extra Small / Small */}
       <div className="flex flex-col px-[16px] py-[20px] @min-[480px]:px-[20px] @min-[480px]:py-[24px] @min-[720px]:hidden">
         <div className="flex flex-col gap-[7px]">
@@ -256,7 +256,7 @@ function PhaseRow({ phase, showShips }: { phase: PhaseDefinition; showShips: boo
       </div>
 
       {/* Large */}
-      <div className="hidden min-h-[150px] items-stretch @min-[940px]:flex">
+      <div className="hidden min-h-[150px] items-stretch @min-[940px]:flex  rounded-[10px]">
         <div className="w-[200px] shrink-0 px-[20px] py-[24px]">
           <PhaseHeading phase={phase} large />
         </div>
@@ -328,7 +328,7 @@ export function TurnPhasesPanel() {
           </div>
         </div>
 
-        <div className="w-full border-2 border-solid border-[var(--shapeships-grey-70)]">
+        <div className="w-full border-2 border-solid border-[var(--shapeships-grey-70)] bg-black rounded-[10px]">
           {PHASES.map((phase) => <PhaseRow key={phase.id} phase={phase} showShips={showShips} />)}
         </div>
 

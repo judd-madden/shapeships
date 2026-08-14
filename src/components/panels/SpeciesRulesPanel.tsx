@@ -421,7 +421,7 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
 
       {/* BASIC SHIPS */}
       <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full">
-        <div className="absolute border-[var(--shapeships-grey-70)] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none" />
+        <div className="absolute border-[var(--shapeships-grey-70)] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none  rounded-[10px]" />
         <SectionHeader title="Basic Ships" />
         {basicShipsOnly.map((ship, index) => {
           // CSV-driven: Pass evolved ships to Evolver row (ship ID 'EVO')
@@ -440,8 +440,8 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
       {/* UPGRADED SHIPS or SOLAR POWERS */}
       {species === 'Ancient' ? (
         solarPowers.length > 0 && (
-          <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full">
-            <div className="absolute border-[var(--shapeships-grey-70)] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none" />
+          <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full  rounded-[10px]">
+            <div className="absolute border-[var(--shapeships-grey-70)] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none rounded-[10px]" />
             <SectionHeader
               title="Solar Powers"
               note="Each requires the energy shown to be cast."
@@ -453,8 +453,8 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
         )
       ) : (
         upgradedShips.length > 0 && (
-          <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full">
-            <div className="absolute border-[var(--shapeships-grey-70)] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none" />
+          <div className="bg-black content-stretch flex flex-col items-start relative shrink-0 w-full ">
+            <div className="absolute border-[var(--shapeships-grey-70)] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none rounded-[10px]" />
             <SectionHeader
               title="Upgraded Ships"
               note={species === 'Xenite' ? 'Xenites within upgraded ships cannot be Evolved and do NOT count for Mantis and Hell Hornet powers.' : undefined}

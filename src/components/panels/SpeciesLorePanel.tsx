@@ -22,7 +22,7 @@ export function SpeciesLorePanel({ speciesId }: { speciesId: SpeciesLoreId }) {
   const lore = speciesLore[speciesId];
 
   return (
-    <div className="flex w-full min-w-0 flex-col items-start gap-[48px] sm:gap-[64px]">
+    <div className="flex w-full min-w-0 flex-col items-start gap-[48px] sm:gap-[64px] px-[16px] pt-[12px] pb-[24px]  sm:px-[50px] sm:pt-[32px] sm:pb-[50px] bg-black/60 rounded-[10px]">
       <article className="flex w-full min-w-0 flex-col items-start">
         <div className={`${metadataGridClass} w-full items-end`}>
           <h2 className="font-black leading-[normal] text-[24px] sm:text-[36px]">{lore.title}</h2>

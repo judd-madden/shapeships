@@ -115,7 +115,7 @@ function StaticTurnPhaseStrip() {
 
 export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
   return (
-    <div className="content-stretch flex flex-col gap-[24px] sm:gap-[36px] items-start relative shrink-0 w-full">
+    <div className="content-stretch flex flex-col gap-[24px] sm:gap-[36px] items-start relative shrink-0 w-full px-[16px] pt-[12px] pb-[24px]  sm:px-[50px] sm:pt-[32px] sm:pb-[50px] bg-black/60 rounded-[10px]">
       {/* Page Title */}
       <p className="font-black leading-[normal] relative shrink-0 text-[24px] sm:text-[36px]">
         Core Rules

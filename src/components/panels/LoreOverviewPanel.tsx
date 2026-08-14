@@ -27,7 +27,7 @@ function SectionHeader({ title }: { title: string }) {
 
 export function LoreOverviewPanel() {
   return (
-    <div className="flex w-full min-w-0 flex-col items-start gap-[50px] sm:gap-[72px]">
+    <div className="flex w-full min-w-0 flex-col items-start gap-[50px] sm:gap-[72px] px-[16px] pt-[12px] pb-[24px]  sm:px-[50px] sm:pt-[32px] sm:pb-[50px] bg-black/60 rounded-[10px]">
       <section className="flex w-full min-w-0 flex-col items-start">
         <SectionHeader title="General" />
         {generalLoreRows.map((row, index) => {
