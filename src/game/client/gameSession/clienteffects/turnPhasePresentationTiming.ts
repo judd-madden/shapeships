@@ -1,8 +1,10 @@
 import type { TurnPhaseMilestoneId } from '../types';
 
+export const DICE_VISUAL_ROLL_DURATION_MS = 1000;
+
 export const TURN_PHASE_PRESENTATION_TIMING = {
   minimumVisibleMs: {
-    diceRoll: 1000,
+    diceRoll: DICE_VISUAL_ROLL_DURATION_MS,
     turnResolution: 2000,
   },
   movementMs: {
@@ -22,6 +24,9 @@ export const TURN_START_DICE_PRESENTATION_DELAY_MS =
   TURN_PHASE_PRESENTATION_TIMING.minimumVisibleMs.turnResolution +
   TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.exit +
   TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.enter;
+
+export const TURN_START_DICE_SETTLED_DELAY_MS =
+  TURN_START_DICE_PRESENTATION_DELAY_MS + DICE_VISUAL_ROLL_DURATION_MS;
 
 const MILESTONE_INDEX: Record<TurnPhaseMilestoneId, number> = {
   dice_roll: 0,

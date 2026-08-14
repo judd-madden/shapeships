@@ -25,11 +25,21 @@
  */
 
 import { useLayoutEffect, useRef, useState } from 'react';
+import type { TurnPhaseMilestoneId } from '../types';
+import { getTurnPhaseMilestoneIndex } from './turnPhasePresentationTiming';
+import {
+  appendUniqueActivationEvents,
+  classifyDrawingActivationPresentation,
+} from './turnStartPresentationGates';
 
 export type AnimToken = { entryNonce: number; activationNonce: number; stackAddNonce: number };
 export type AnimTokenMap = Record<string, AnimToken>;
 export type ResolvedFleetActivationEvent = {
   eventKey: string;
+  batchKey: string;
+  turnNumber: number;
+  phaseKey: string;
+  seq: number;
   side: 'my' | 'opponent' | null;
   renderKey?: string;
 };
@@ -68,12 +78,16 @@ export function useFleetAnimTokens(params: {
   opponentCountsByRenderKey: Record<string, number>;
   activationEvents: ResolvedFleetActivationEvent[] | null;
   activationHardContinuityKey: string;
+  presentedMilestone: TurnPhaseMilestoneId | null;
+  presentedTurnNumber: number | null;
 }) {
   const {
     myCountsByRenderKey,
     opponentCountsByRenderKey,
     activationEvents,
     activationHardContinuityKey,
+    presentedMilestone,
+    presentedTurnNumber,
   } = params;
 
   const [myAnimTokens, setMyAnimTokens] = useState<AnimTokenMap>({});
@@ -87,6 +101,7 @@ export function useFleetAnimTokens(params: {
   const didInitializeActivationRef = useRef(false);
   const activationHardContinuityKeyRef = useRef<string | null>(null);
   const seenActivationEventKeysRef = useRef<Set<string>>(new Set());
+  const pendingActivationEventsRef = useRef<ResolvedFleetActivationEvent[]>([]);
 
   // Detect entry (0->1+) and stack-add (N->N+1 where N>0).
   // True entry remains fully diff-owned; only local manual stack-add is deduped.
@@ -187,10 +202,6 @@ export function useFleetAnimTokens(params: {
   }, [myCountsByRenderKey, opponentCountsByRenderKey]);
 
   useLayoutEffect(() => {
-    if (activationEvents === null) {
-      return;
-    }
-
     if (
       !didInitializeActivationRef.current ||
       activationHardContinuityKeyRef.current !== activationHardContinuityKey
@@ -198,18 +209,51 @@ export function useFleetAnimTokens(params: {
       didInitializeActivationRef.current = true;
       activationHardContinuityKeyRef.current = activationHardContinuityKey;
       seenActivationEventKeysRef.current = new Set(
-        activationEvents.map((event) => event.eventKey)
+        (activationEvents ?? []).map((event) => event.eventKey)
       );
+      pendingActivationEventsRef.current = [];
       return;
     }
+
+    if (activationEvents === null) return;
+
+    const unseenIncomingEvents = activationEvents.filter(
+      (event) =>
+        !seenActivationEventKeysRef.current.has(event.eventKey) &&
+        !pendingActivationEventsRef.current.some(
+          (pendingEvent) => pendingEvent.eventKey === event.eventKey
+        )
+    );
+    const candidates = appendUniqueActivationEvents(
+      pendingActivationEventsRef.current,
+      unseenIncomingEvents
+    );
+    const readyEvents: ResolvedFleetActivationEvent[] = [];
+    const nextPendingEvents: ResolvedFleetActivationEvent[] = [];
+
+    for (const event of candidates) {
+      const disposition = classifyDrawingActivationPresentation({
+        eventTurnNumber: event.turnNumber,
+        eventPhaseKey: event.phaseKey,
+        presentedTurnNumber,
+        presentedMilestoneIndex: getTurnPhaseMilestoneIndex(presentedMilestone),
+      });
+
+      if (disposition === 'pending') {
+        nextPendingEvents.push(event);
+        continue;
+      }
+
+      seenActivationEventKeysRef.current.add(event.eventKey);
+      if (disposition === 'ready') readyEvents.push(event);
+    }
+
+    pendingActivationEventsRef.current = nextPendingEvents;
 
     const myActivationRenderKeys = new Set<string>();
     const opponentActivationRenderKeys = new Set<string>();
 
-    for (const event of activationEvents) {
-      if (seenActivationEventKeysRef.current.has(event.eventKey)) continue;
-
-      seenActivationEventKeysRef.current.add(event.eventKey);
+    for (const event of readyEvents) {
       if (!event.renderKey) continue;
 
       if (event.side === 'my') {
@@ -238,7 +282,12 @@ export function useFleetAnimTokens(params: {
         )
       );
     }
-  }, [activationEvents, activationHardContinuityKey]);
+  }, [
+    activationEvents,
+    activationHardContinuityKey,
+    presentedMilestone,
+    presentedTurnNumber,
+  ]);
 
   // Immediate local entry still means "true new rendered stack" and is not
   // deduped here. Callers should use it only when they truly want manual entry.

@@ -1,5 +1,6 @@
 // src/components/ui/primitives/dice/Dice.tsx
 import { useEffect, useRef, useState } from "react";
+import { DICE_VISUAL_ROLL_DURATION_MS } from "../../../../game/client/gameSession/clienteffects/turnPhasePresentationTiming";
 
 import imgD1 from "../../../../graphics/global/d1.png";
 import imgD2 from "../../../../graphics/global/d2.png";
@@ -29,7 +30,6 @@ interface DiceProps {
     rotateMaxDeg?: number; // e.g. 45
 }
 
-const ROLL_MS = 1000;
 const STEP_MS = 180;
 
 export function Dice({
@@ -128,7 +128,7 @@ export function Dice({
             clearTimers();
             setDisplayValue(value);
             setIsRolling(false);
-        }, ROLL_MS);
+        }, DICE_VISUAL_ROLL_DURATION_MS);
 
         return () => clearTimers();
     }, [value, animateKey, animateOnMount, enableRotate, rotateMaxDeg]);

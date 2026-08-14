@@ -121,6 +121,7 @@ import { useBuildPreviewResetEffect, useAutoRevealBuildEffect } from './gameSess
 import { useFleetOrder } from './gameSession/clienteffects/useFleetOrder';
 import {
   useFleetAnimTokens,
+  type AnimTokenMap,
   type ResolvedFleetActivationEvent,
 } from './gameSession/clienteffects/useFleetAnimTokens';
 import { useUntimedPollingThrottle } from './gameSession/clienteffects/useUntimedPollingThrottle';
@@ -205,6 +206,7 @@ export type {
   TurnPhaseVm,
 } from './gameSession/types';
 import { useTurnPhasePresentation } from './gameSession/clienteffects/useTurnPhasePresentation';
+import type { TurnStartEconomyPresentation } from './gameSession/clienteffects/turnStartPresentationGates';
 
 import {
   type BuildDrawingRouteRequest,
@@ -715,6 +717,22 @@ function isPlausibleGameStatePayload(
   }
 
   return expectedGameId == null || record.gameId === expectedGameId;
+}
+
+function buildFleetAnimSide(
+  tokens: AnimTokenMap,
+  fleet: BoardFleetSummary[]
+): FleetAnimVM['my'] {
+  const side: FleetAnimVM['my'] = {};
+  for (const summary of fleet) {
+    const token = tokens[summary.renderKey];
+    if (!token) continue;
+    side[summary.renderKey] = {
+      ...token,
+      stackCount: summary.count,
+    };
+  }
+  return side;
 }
 
 export function useGameSession(
@@ -3722,6 +3740,10 @@ useEffect(() => {
         if (source.playerId === displayLeftPlayerId) {
           return {
             eventKey,
+            batchKey: batch.key,
+            turnNumber: batch.turnNumber,
+            phaseKey: batch.phaseKey,
+            seq: batch.seq,
             side: 'my',
             renderKey: myRenderKeyByInstanceId.get(source.sourceInstanceId),
           };
@@ -3730,23 +3752,25 @@ useEffect(() => {
         if (source.playerId === displayRightPlayerId) {
           return {
             eventKey,
+            batchKey: batch.key,
+            turnNumber: batch.turnNumber,
+            phaseKey: batch.phaseKey,
+            seq: batch.seq,
             side: 'opponent',
             renderKey: opponentRenderKeyByInstanceId.get(source.sourceInstanceId),
           };
         }
 
-        return { eventKey, side: null };
+        return {
+          eventKey,
+          batchKey: batch.key,
+          turnNumber: batch.turnNumber,
+          phaseKey: batch.phaseKey,
+          seq: batch.seq,
+          side: null,
+        };
       })
     ) ?? null;
-
-  const { myAnimTokens, opponentAnimTokens, bumpMyStackAdd } = useFleetAnimTokens({
-    myCountsByRenderKey,
-    opponentCountsByRenderKey,
-    activationEvents: resolvedActivationEvents,
-    activationHardContinuityKey,
-  });
-
-  
 
   // ============================================================================
   // BOARD MODE + COMPLETION TRACKING (ME/OPPONENT)
@@ -3768,6 +3792,7 @@ useEffect(() => {
 
   // Compute board mode based on server phase
   let board: BoardViewModel;
+  let boardEconomyPresentation: TurnStartEconomyPresentation<BoardStatBreakdownRowVm> | null = null;
 
   if (isInSpeciesSelection) {
     // Choose species mode
@@ -3931,6 +3956,23 @@ useEffect(() => {
       buildDrawingEconomyDisplay?.joiningAvailable ?? mySavedJoiningLines;
     const opponentDisplayedSavedJoiningLines = opponentSavedJoiningLines;
 
+    boardEconomyPresentation = {
+      myBonusLines,
+      opponentBonusLines,
+      myBonusLinesOnEven,
+      opponentBonusLinesOnEven,
+      myDisplayedSavedLines,
+      opponentDisplayedSavedLines,
+      myDisplayedSavedJoiningLines,
+      opponentDisplayedSavedJoiningLines,
+      mySavedJoiningLines,
+      opponentSavedJoiningLines,
+      myJoiningBonusLines,
+      opponentJoiningBonusLines,
+      myBonusBreakdownRows,
+      opponentBonusBreakdownRows,
+    };
+
     board = {
       mode: 'board',
       mySpeciesId: effectiveMySpecies,
@@ -3963,25 +4005,7 @@ useEffect(() => {
       },
       
       // Animation tokens (client-only)
-      fleetAnim: (() => {
-        const makeSide = (tokens: Record<string, any>, fleet: BoardFleetSummary[]) => {
-          const out: any = {};
-          for (const s of fleet) {
-            const t = tokens[s.renderKey];
-            if (!t) continue;
-            out[s.renderKey] = {
-              ...t,
-              stackCount: s.count,
-            };
-          }
-          return out;
-        };
-
-        return {
-          my: makeSide(myAnimTokens, myFleetWithPreview),
-          opponent: makeSide(opponentAnimTokens, opponentFleetRendered),
-        };
-      })(),
+      fleetAnim: { my: {}, opponent: {} },
 
       // Last turn deltas (server-authoritative)
       myLastTurnHeal: activeHealthPresentationOverride?.myLastTurnHeal ?? myLastTurnHeal,
@@ -4128,6 +4152,7 @@ useEffect(() => {
     leftRailCubeAnimateKey: presentedCubeAnimateSeq,
     presentedTurnReleaseKey,
     presentedTurnReleaseTurnNumber,
+    presentedEconomy,
   } = useEndOfTurnPresentation({
     effectiveGameId,
     hasMatchingAuthoritativeGameId,
@@ -4141,9 +4166,13 @@ useEffect(() => {
     healthResolutionPresentationTrigger,
     healthPresentation: endOfTurnHealthPresentationInput,
     leftRail: endOfTurnLeftRailInput,
+    economyPresentation: boardEconomyPresentation,
     boardFlashEnabled,
     continueAuthoritativePhaseHold,
   });
+  if (board.mode === 'board' && presentedEconomy != null) {
+    board = { ...board, ...presentedEconomy };
+  }
   const healthResolutionPresentationActive =
     healthResolutionLockActive || healthResolutionOverlay != null;
 
@@ -5321,6 +5350,14 @@ useEffect(() => {
     presentedTurnReleaseTurnNumber,
     isBootstrapping,
     isFinished,
+  });
+  const { myAnimTokens, opponentAnimTokens, bumpMyStackAdd } = useFleetAnimTokens({
+    myCountsByRenderKey,
+    opponentCountsByRenderKey,
+    activationEvents: resolvedActivationEvents,
+    activationHardContinuityKey,
+    presentedMilestone: turnPhasePresentation.presentedMilestone,
+    presentedTurnNumber: turnPhasePresentation.presentedTurnNumber,
   });
   
   // ============================================================================
@@ -6826,5 +6863,20 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     };
   }
   
-  return { vm: { ...vm, turnPhasePresentation }, actions, loading, error };
+  const presentedBoard = vm.board.mode === 'board'
+    ? {
+        ...vm.board,
+        fleetAnim: {
+          my: buildFleetAnimSide(myAnimTokens, myFleetWithPreview),
+          opponent: buildFleetAnimSide(opponentAnimTokens, opponentFleetRendered),
+        },
+      }
+    : vm.board;
+
+  return {
+    vm: { ...vm, board: presentedBoard, turnPhasePresentation },
+    actions,
+    loading,
+    error,
+  };
 }

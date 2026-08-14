@@ -1,11 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type {
   BoardViewModel,
+  BoardStatBreakdownRowVm,
   FleetAreaHealthDeltaFlashVm,
   HealthResolutionPresentationVm,
   HealthResolutionSideVm,
 } from '../types';
-import { TURN_START_DICE_PRESENTATION_DELAY_MS } from './turnPhasePresentationTiming';
+import {
+  DICE_VISUAL_ROLL_DURATION_MS,
+  TURN_START_DICE_PRESENTATION_DELAY_MS,
+} from './turnPhasePresentationTiming';
+import {
+  createTurnStartEconomyPresentationState,
+  settleTurnStartEconomyPresentation,
+  syncTurnStartEconomyPresentation,
+  type TurnStartEconomyPresentation,
+} from './turnStartPresentationGates';
 
 export interface ContinueAuthoritativePhaseHoldArgs {
   holdSignature: string;
@@ -63,6 +73,7 @@ interface UseEndOfTurnPresentationArgs {
   healthResolutionPresentationTrigger?: HealthResolutionPresentationTrigger | null;
   healthPresentation: EndOfTurnHealthPresentationInput;
   leftRail: EndOfTurnLeftRailInput;
+  economyPresentation: TurnStartEconomyPresentation<BoardStatBreakdownRowVm> | null;
   boardFlashEnabled?: boolean;
   continueAuthoritativePhaseHold: (
     args: ContinueAuthoritativePhaseHoldArgs
@@ -285,6 +296,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     healthResolutionPresentationTrigger,
     healthPresentation,
     leftRail,
+    economyPresentation,
     boardFlashEnabled = true,
     continueAuthoritativePhaseHold,
   } = args;
@@ -295,6 +307,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   const currentAuthoritativeHoldSignatureRef = useRef<string | null>(null);
   const healthResolutionOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const turnStartDicePresentationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const turnStartDiceSettledTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSeenHealthResolutionOverlayHoldSignatureRef = useRef<string | null>(null);
   const lastSeenHealthResolutionTriggerSignatureRef = useRef<string | null>(null);
   const startedHealthPresentationIdentitiesRef = useRef<Set<string>>(new Set());
@@ -310,6 +323,12 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   const scheduledTurnStartDicePresentationRef = useRef<{
     gameId: string;
     signature: string;
+    turnNumber: number;
+    value: 1 | 2 | 3 | 4 | 5 | 6;
+    hasChronoswarmDice: boolean;
+  } | null>(null);
+  const scheduledTurnStartDiceSettledRef = useRef<{
+    gameId: string;
     turnNumber: number;
   } | null>(null);
   const currentGameIdRef = useRef(effectiveGameId);
@@ -330,6 +349,14 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   const [presentedCubeAnimateSeq, setPresentedCubeAnimateSeq] = useState(0);
   const [presentedTurnReleaseKey, setPresentedTurnReleaseKey] = useState(0);
   const [presentedTurnReleaseTurnNumber, setPresentedTurnReleaseTurnNumber] = useState<number | null>(null);
+  const [presentedTurnDiceSettledKey, setPresentedTurnDiceSettledKey] = useState(0);
+  const [presentedTurnDiceSettledTurnNumber, setPresentedTurnDiceSettledTurnNumber] = useState<number | null>(null);
+  const [economyPresentationState, setEconomyPresentationState] =
+    useState(() => createTurnStartEconomyPresentationState({
+      gameId: effectiveGameId,
+      turnNumber: economyPresentation == null ? null : turnNumber,
+      economy: economyPresentation,
+    }));
 
   const healthAuthoritativePhaseHold: AuthoritativePhaseHoldVm | null =
     effectiveGameId &&
@@ -502,6 +529,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     clearTimer(phaseHoldContinuationTimerRef);
     clearTimer(healthResolutionOverlayTimerRef);
     clearTimer(turnStartDicePresentationTimerRef);
+    clearTimer(turnStartDiceSettledTimerRef);
     setHealthResolutionOverlay(undefined);
     setFleetAreaHealthDeltaFlashes({});
     setHealthDeltaPresentationKey(undefined);
@@ -511,6 +539,13 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     setPresentedCubeAnimateSeq(0);
     setPresentedTurnReleaseKey(0);
     setPresentedTurnReleaseTurnNumber(null);
+    setPresentedTurnDiceSettledKey(0);
+    setPresentedTurnDiceSettledTurnNumber(null);
+    setEconomyPresentationState(createTurnStartEconomyPresentationState({
+      gameId: effectiveGameId,
+      turnNumber: economyPresentation == null ? null : turnNumber,
+      economy: economyPresentation,
+    }));
     phaseHoldContinuationInFlightSignatureRef.current = null;
     phaseHoldContinuationCompletedSignatureRef.current = null;
     currentAuthoritativeHoldSignatureRef.current = null;
@@ -522,14 +557,27 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     lastSeenAuthoritativeLeftRailDiceSignatureRef.current = null;
     lastPresentedLeftRailReleaseTurnRef.current = null;
     scheduledTurnStartDicePresentationRef.current = null;
+    scheduledTurnStartDiceSettledRef.current = null;
   }, [effectiveGameId]);
+
+  useLayoutEffect(() => {
+    setEconomyPresentationState((current) =>
+      syncTurnStartEconomyPresentation(current, {
+        gameId: effectiveGameId,
+        turnNumber: economyPresentation == null ? null : turnNumber,
+        economy: economyPresentation,
+      })
+    );
+  }, [effectiveGameId, economyPresentation, turnNumber]);
 
   useEffect(() => {
     return () => {
       clearTimer(phaseHoldContinuationTimerRef);
       clearTimer(healthResolutionOverlayTimerRef);
       clearTimer(turnStartDicePresentationTimerRef);
+      clearTimer(turnStartDiceSettledTimerRef);
       scheduledTurnStartDicePresentationRef.current = null;
+      scheduledTurnStartDiceSettledRef.current = null;
     };
   }, []);
 
@@ -665,6 +713,34 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     }
   }
 
+  function schedulePresentedTurnStartDiceSettled(args: {
+    gameId: string;
+    turnNumber: number;
+  }): void {
+    clearTimer(turnStartDiceSettledTimerRef);
+    const identity = { gameId: args.gameId, turnNumber: args.turnNumber };
+    scheduledTurnStartDiceSettledRef.current = identity;
+    turnStartDiceSettledTimerRef.current = setTimeout(() => {
+      turnStartDiceSettledTimerRef.current = null;
+
+      if (
+        scheduledTurnStartDiceSettledRef.current !== identity ||
+        currentGameIdRef.current !== identity.gameId ||
+        currentTurnNumberRef.current !== identity.turnNumber ||
+        currentFinishedRef.current
+      ) {
+        return;
+      }
+
+      scheduledTurnStartDiceSettledRef.current = null;
+      setEconomyPresentationState((current) =>
+        settleTurnStartEconomyPresentation(current, identity.turnNumber)
+      );
+      setPresentedTurnDiceSettledTurnNumber(identity.turnNumber);
+      setPresentedTurnDiceSettledKey((previousKey) => previousKey + 1);
+    }, DICE_VISUAL_ROLL_DURATION_MS);
+  }
+
   function schedulePresentedTurnStartDice(args: {
     gameId: string;
     value: 1 | 2 | 3 | 4 | 5 | 6;
@@ -673,10 +749,14 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     hasChronoswarmDice: boolean;
   }): void {
     clearTimer(turnStartDicePresentationTimerRef);
+    clearTimer(turnStartDiceSettledTimerRef);
+    scheduledTurnStartDiceSettledRef.current = null;
     const identity = {
       gameId: args.gameId,
       signature: args.signature,
       turnNumber: args.turnNumber,
+      value: args.value,
+      hasChronoswarmDice: args.hasChronoswarmDice,
     };
     scheduledTurnStartDicePresentationRef.current = identity;
     turnStartDicePresentationTimerRef.current = setTimeout(() => {
@@ -694,9 +774,13 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
       scheduledTurnStartDicePresentationRef.current = null;
       releasePresentedTurnStartDice({
-        value: args.value,
-        hasChronoswarmDice: args.hasChronoswarmDice,
+        value: identity.value,
+        hasChronoswarmDice: identity.hasChronoswarmDice,
         animateCubeDice: true,
+      });
+      schedulePresentedTurnStartDiceSettled({
+        gameId: identity.gameId,
+        turnNumber: identity.turnNumber,
       });
     }, TURN_START_DICE_PRESENTATION_DELAY_MS);
   }
@@ -761,7 +845,9 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       !leftRail.authoritativeDiceSignature
     ) {
       clearTimer(turnStartDicePresentationTimerRef);
+      clearTimer(turnStartDiceSettledTimerRef);
       scheduledTurnStartDicePresentationRef.current = null;
+      scheduledTurnStartDiceSettledRef.current = null;
       return;
     }
 
@@ -791,6 +877,18 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     }
 
     lastSeenAuthoritativeLeftRailDiceSignatureRef.current = leftRail.authoritativeDiceSignature;
+    const scheduledTurnStartDice = scheduledTurnStartDicePresentationRef.current;
+    if (
+      scheduledTurnStartDice?.gameId === effectiveGameId &&
+      scheduledTurnStartDice.turnNumber === turnNumber
+    ) {
+      scheduledTurnStartDice.signature = nextSnapshot.signature;
+      scheduledTurnStartDice.value = nextSnapshot.value;
+      scheduledTurnStartDice.hasChronoswarmDice = nextSnapshot.hasChronoswarmDice;
+      pendingAuthoritativeLeftRailDiceRef.current = null;
+      return;
+    }
+
     clearTimer(turnStartDicePresentationTimerRef);
     scheduledTurnStartDicePresentationRef.current = null;
 
@@ -888,5 +986,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     leftRailCubeAnimateKey: presentedCubeAnimateSeq,
     presentedTurnReleaseKey,
     presentedTurnReleaseTurnNumber,
+    presentedTurnDiceSettledKey,
+    presentedTurnDiceSettledTurnNumber,
+    presentedEconomy: economyPresentationState.presented,
   };
 }
