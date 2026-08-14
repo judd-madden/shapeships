@@ -344,7 +344,7 @@ type MissionStory = {
   id: string;
   playerSpecies: 'human' | 'xenite' | 'centaur' | 'ancient';
   opponentSpecies: 'human' | 'xenite' | 'centaur';
-  findingId: string;
+  findingIds: string[];
   title: string;
   location: string;
   author: string;
@@ -410,17 +410,57 @@ Reuse the existing Shapeships Discord destination/pattern rather than inventing 
 
 ## 6.7 Mission Finding reference
 
-Every Mission story references one stable Lore Mission Finding ID through `findingId`.
+Every Mission story references one or more stable Lore Mission Finding IDs through `findingIds`.
 
-The stable Finding ID, rather than displayed topic/location text, row index, rendered prose, or matchup shorthand such as `HvH`, is the joining identity.
+`findingIds` must contain at least one stable Finding ID for every shipped Mission.
+
+The stable Finding IDs, rather than displayed topic/location text, row indexes, rendered prose, or matchup shorthand such as `HvH`, are the joining identities.
 
 The relationship is:
 
 ```text
-Mission story -> findingId -> Lore Mission Finding row
+Mission story -> one or more findingIds -> Lore Mission Finding rows
 ```
 
-Multiple Mission stories and directional matchup pools may reference the same Finding. The number of Mission Finding rows therefore does not need to equal the number of directional bot matchup pools.
+A Mission may reveal multiple Findings. Multiple directional matchup pools, Mission stories within one matchup, and future additional stories may also reference the same Finding. The number of Mission Finding rows therefore does not need to equal the number of directional bot matchup pools.
+
+Do not introduce:
+
+- a singular primary `findingId` plus secondary IDs;
+- matchup-driven discovery logic;
+- Finding-to-matchup ownership;
+- duplicated Finding IDs in canonical assignment state.
+
+Canonical Mission assignment continues to identify the Mission by `missionId`. The resolved Mission story supplies its `findingIds`.
+
+## 6.8 Initial canonical Mission Finding mapping
+
+The initial 12 Mission stories use the following canonical mapping:
+
+| Directional matchup | Finding IDs |
+|---|---|
+| Human v Human | `sol-1`, `rebel-alliance` |
+| Human v Xenite | `mintaka` |
+| Human v Centaur | `delta-aquarii` |
+| Xenite v Human | `mintaka` |
+| Xenite v Xenite | `betelgeuse` |
+| Xenite v Centaur | `gamma-leporis` |
+| Centaur v Human | `delta-aquarii` |
+| Centaur v Xenite | `gamma-leporis` |
+| Centaur v Centaur | `proxima-centauri`, `rebel-alliance` |
+| Ancient v Human | `ancient-mysteries` |
+| Ancient v Xenite | `ancient-mysteries` |
+| Ancient v Centaur | `ancient-mysteries` |
+
+These IDs are stable content identities. Visible Mission Finding titles, topics, locations, and prose may change later without changing these IDs.
+
+The initial Mission content shown in the supplied canonical Mission matrix is authoritative for the first 12 stories. All 12 initial Missions use:
+
+```text
+author: juddly
+```
+
+The author remains part of authored Mission metadata even where the current frontend presentation intentionally does not display it.
 
 ---
 
@@ -683,9 +723,11 @@ Preferred posture:
 - server owns the Mission pool/content used for assignment;
 - canonical assignment stores the stable `missionId`;
 - the requester projection resolves the matching Mission content for the human player;
-- the resolved Mission projection includes that story's stable `findingId`.
+- the resolved Mission projection includes that story's stable `findingIds`.
 
 Do not create a separately maintained client Mission-content mirror unless implementation proves it necessary.
+
+Do not persist `findingIds` redundantly in the canonical assignment when the assigned `missionId` can resolve them from authored Mission data. Do not add a separate endpoint or discovery intent for Mission Finding discovery.
 
 ## 11.4 Requester DTO, not broad raw-state leakage
 
@@ -695,7 +737,7 @@ The game-state projection should deliberately expose Mission & Challenge data to
 
 The bot does not need it.
 
-Whether the player has actually seen the linked Mission Finding is not canonical server state and must not be added to the assignment merely because `findingId` is projected.
+Whether the player has actually seen the linked Mission Findings is not canonical server state and must not be added to the assignment merely because `findingIds` is projected. Actual seen/revealed state remains client-owned and session-scoped.
 
 ---
 
@@ -882,9 +924,9 @@ Minimization never removes Mission & Challenge from:
 
 ## 14.8 Mission Finding discovery remains separate
 
-Automatic acknowledgement caused by `Minimize Missions` does not count as seeing the Mission and does not reveal its associated Mission Finding.
+Automatic acknowledgement caused by `Minimize Missions` does not count as seeing the Mission and does not reveal its associated Mission Findings.
 
-If that same Mission is later visibly opened from the in-game or postgame Mission & Challenge surface, its Finding is revealed then.
+If that same Mission is later visibly opened from the in-game or postgame Mission & Challenge surface, every associated Finding is revealed then.
 
 Do not infer Mission Finding discovery from `introPending === false` or from successful `MISSION_INTRO_ACK`.
 
@@ -928,7 +970,7 @@ Conceptually it needs:
 
 - whether the current viewer has a Mission & Challenge;
 - Mission story fields;
-- Mission `findingId`;
+- Mission `findingIds`;
 - challenge ship ID;
 - challenge condition;
 - whether intro is pending;
@@ -968,9 +1010,11 @@ shapeships.missionFindingsSeen.v1
 The helper should provide:
 
 - read current seen IDs;
-- idempotently add one `findingId`;
+- idempotently add every ID in a Mission's `findingIds`;
 - graceful handling when `sessionStorage` is unavailable;
 - no game-result or server-state dependency.
+
+The operation is set-based. The session storage shape remains a flat set/list of individual Finding IDs; no nested Mission-to-Finding discovery structure is required.
 
 Keep this state separate from the `Minimize Missions` preference even though both use `sessionStorage`.
 
@@ -1034,13 +1078,13 @@ On constrained viewports, allow the content region to scroll rather than permane
 
 The community invitation and Minimize checkbox are intentionally secondary to the Mission and PLAY action.
 
-## 17.6 Visible Mission reveals its Finding
+## 17.6 Visible Mission reveals its Findings
 
-When the initial Mission & Challenge content is genuinely visible to the player, mark its assigned `findingId` seen in the session discovery store.
+When the initial Mission & Challenge content is genuinely visible to the player, mark every ID in its assigned `findingIds` seen in the session discovery store.
 
 PLAY is not required for this discovery.
 
-Do not mark the Finding merely because Mission data hydrated in the VM or because an auto-acknowledged Mission existed without being shown.
+Do not mark any Finding merely because Mission data hydrated in the VM or because an auto-acknowledged Mission existed without being shown.
 
 ---
 
@@ -1135,9 +1179,9 @@ Do not add this menu action to ordinary multiplayer players.
 
 Spectator behavior is deferred unless a later product decision explicitly adds Mission viewing for spectators.
 
-## 19.6 Reopen reveals the Mission Finding
+## 19.6 Reopen reveals the Mission Findings
 
-Opening Mission & Challenge from the in-game Menu marks the associated `findingId` seen if it was not already seen.
+Opening Mission & Challenge from the in-game Menu marks every associated ID in `findingIds` seen if it was not already seen.
 
 Closing the reopened Mission has no additional server or discovery effect.
 
@@ -1260,9 +1304,9 @@ Phase 15 does not require separate victory/failure prose for each Mission.
 
 The same authored story is reused.
 
-## 21.6 Postgame open reveals the Mission Finding
+## 21.6 Postgame open reveals the Mission Findings
 
-Opening the postgame Mission & Challenge surface marks the associated `findingId` seen if needed.
+Opening the postgame Mission & Challenge surface marks every associated ID in `findingIds` seen if needed.
 
 Mission success, Optional Challenge success, win/loss/draw, timeout, and resignation do not affect discovery. The requirement is only that the Mission content was visibly opened.
 
@@ -1348,24 +1392,16 @@ Mission stories should live in one clearly identifiable authored-data module/fil
 The preferred author experience is:
 
 1. choose the directional matchup pool;
-2. add a record with stable ID, `findingId`, title, location, author, and paragraphs;
+2. add a record with stable Mission ID, non-empty `findingIds`, title, location, author, and paragraphs;
 3. no gameplay code changes;
 4. no challenge-copy changes;
 5. no client rules duplication.
 
 ## 24.2 Mission Finding mapping
 
-Each Mission authoring record also declares the stable Mission Finding it reveals.
+Each Mission authoring record independently declares every stable Mission Finding that visibly presenting that Mission should reveal.
 
-Designer mappings may initially be supplied in shorthand such as:
-
-```text
-MINTAKA > HvH
-```
-
-but implementation stores the stable `findingId` on the Mission story rather than encoding the matchup into the Lore row.
-
-Additional future Missions in the same matchup independently reference whichever Finding they reveal. Multiple Missions or matchup pools may reference the same Finding.
+Additional future Missions in the same matchup may reference the same Finding or Findings, a different Finding, or multiple Findings. Multiple Missions and matchup pools may reference the same Finding. Adding Mission variety must not require changing the Lore discovery architecture.
 
 ## 24.3 Initial content coverage gate
 
@@ -1409,7 +1445,7 @@ Add the authoritative Mission/Challenge assignment, intro gate, result evaluator
 
 ### Expected scope
 
-- Mission story data/types and matchup pools, including stable `findingId` metadata;
+- Mission story data/types and matchup pools, including non-empty stable `findingIds` metadata and all 12 canonical initial Mission stories;
 - challenge eligibility derivation from canonical ship definitions;
 - deterministic assignment helper;
 - canonical assignment state;
@@ -1418,7 +1454,7 @@ Add the authoritative Mission/Challenge assignment, intro gate, result evaluator
 - Mission intro acknowledgement intent/reducer support;
 - server-side guard preventing human gameplay under pending intro;
 - server clock-live gating for pending intro;
-- requester Mission & Challenge DTO projection, including the resolved Mission `findingId`;
+- requester Mission & Challenge DTO projection, including the resolved Mission `findingIds`;
 - pure finished-game Mission/Challenge evaluator.
 
 ### Required server validation
@@ -1426,9 +1462,15 @@ Add the authoritative Mission/Challenge assignment, intro gate, result evaluator
 At minimum cover:
 
 - all 12 matchup pools have content;
-- every shipped Mission has a valid stable `findingId`;
+- every shipped Mission has a non-empty stable `findingIds` list;
+- every initial Mission has exactly the canonical Finding mapping in section 6.8;
+- every initial Mission retains `author: 'juddly'` as authored metadata;
+- a Mission may safely contain multiple Finding IDs;
+- multiple Missions may safely reference the same Finding;
+- the full initial Mission set collectively references every current Mission Finding;
 - assignment is directional;
 - assignment is stable/idempotent;
+- assignment stability and reroll behavior remain unchanged by Mission Finding metadata;
 - challenge target belongs to human species;
 - Solar Powers are excluded;
 - Xenite evolved and Ancient Basic ships remain eligible;
@@ -1439,6 +1481,10 @@ At minimum cover:
 - WITH/WITHOUT evaluator uses final active fleet;
 - loss/draw prevents challenge success;
 - timeout/resignation terminal truth evaluates consistently through the shared result helper.
+
+### Mission Finding constraints
+
+Phase 15B must not add server-side seen/revealed Finding state, a discovery intent, Lore prose to canonical state, matchup-based discovery inference, or redundant canonical storage of `findingIds` when `missionId` already identifies the authored Mission.
 
 ---
 
@@ -1483,7 +1529,7 @@ Expose Mission & Challenge state/actions to presentation and implement the sessi
 - `sessionStorage` preference helper, default OFF;
 - automatic acknowledgement for later games when preference is ON;
 - safe fallback to visible intro when auto-ack fails;
-- focused session-scoped Mission Finding seen-state helper/store with idempotent read/add behavior and graceful storage failure handling.
+- focused session-scoped Mission Finding seen-state helper/store with idempotent read/add-all behavior and graceful storage failure handling.
 
 ### Constraints
 
@@ -1515,8 +1561,8 @@ Implement the desktop Mission & Challenge experience from the approved design.
 - first-turn green helper deferred until acknowledgement;
 - purple Mission & Challenge Menu action;
 - mid-game reopen with Close behavior;
-- mark the Mission `findingId` seen when the initial Mission is visibly presented;
-- mark the Mission `findingId` seen when the in-game Mission surface is opened.
+- mark every ID in the Mission's `findingIds` seen when the initial Mission is visibly presented;
+- mark every ID in the Mission's `findingIds` seen when the in-game Mission surface is opened.
 
 ### Validation posture
 
@@ -1570,7 +1616,7 @@ Expose Mission & Challenge results from the existing finished-game presentation.
 - Challenge tick/cross;
 - same story/challenge/reference content;
 - desktop and mobile integration;
-- mark the Mission `findingId` seen when the postgame Mission & Challenge surface is opened.
+- mark every ID in the Mission's `findingIds` seen when the postgame Mission & Challenge surface is opened.
 
 ### Deferred detail
 
@@ -1708,15 +1754,18 @@ Across the full Phase 15 program, validate at least:
 
 ### Mission Findings
 
-- every shipped Mission has a valid stable `findingId`;
-- the designer-supplied Mission-to-Finding mapping is preserved;
+- every shipped Mission has a non-empty stable `findingIds` list;
+- every initial Mission has exactly the canonical Mission-to-Finding mapping in section 6.8;
+- every initial Mission retains `author: 'juddly'` as authored metadata;
+- one Mission may safely reference multiple Findings;
 - multiple Missions may safely reference one Finding;
-- an initial Mission that is visibly shown reveals its Finding;
+- the full initial Mission set collectively references every current Mission Finding;
+- an initial Mission that is visibly shown reveals every Finding in its `findingIds`;
 - pressing PLAY is not required for discovery;
 - game result is irrelevant to discovery;
 - an automatically minimized/auto-acknowledged Mission remains unseen if never opened;
-- opening that Mission later from the in-game Menu reveals it;
-- opening that Mission from the postgame surface reveals it;
+- opening that Mission later from the in-game Menu reveals all of its Findings;
+- opening that Mission from the postgame surface reveals all of its Findings;
 - repeated views are idempotent;
 - seen IDs survive normal navigation/reload within the browser session where supported by `sessionStorage`;
 - unrelated Finding IDs remain locked;
@@ -1801,7 +1850,7 @@ Prefer a focused helper/module for Mission session preference/auto-ack logic rat
 
 ## 27.9 Mission Finding false-positive risk
 
-Do not reveal a Finding from raw Mission data availability, assignment, hydration, or `MISSION_INTRO_ACK`.
+Do not reveal any Finding from raw Mission data availability, assignment, hydration, or `MISSION_INTRO_ACK`.
 
 Discovery must be tied to a genuinely visible Mission presentation/open state so minimized Missions that were never opened remain blurred.
 
@@ -1815,7 +1864,7 @@ Phase 15 is complete when all of the following are true:
 - normal multiplayer games never receive the feature;
 - the current 12 directional matchup pools are supported;
 - initial content can launch with one Mission per pool;
-- every Mission maps through a stable `findingId` to a Lore Mission Finding;
+- every Mission maps through a non-empty stable `findingIds` list to one or more Lore Mission Findings;
 - challenge targets are chosen from the human player's canonical fleet-capable species definitions;
 - all current Human, Xenite, Centaur, and Ancient fleet ships are eligible as intended;
 - Ancient Solar Powers are excluded;
@@ -1827,7 +1876,7 @@ Phase 15 is complete when all of the following are true:
 - PLAY acknowledges the intro through the normal client/server seam;
 - Minimize Missions is session-only, default OFF, and auto-acknowledges later intros safely;
 - Mission Findings are blurred by default in Lore;
-- visibly seeing an associated Mission reveals that Finding for the browser session;
+- visibly seeing an associated Mission reveals every Finding in its `findingIds` for the browser session;
 - minimized Missions that are never opened do not reveal Findings;
 - Mission Finding discovery is independent of Mission/Challenge success and remains local/session-scoped;
 - the first-turn green helper waits until the intro is complete;
@@ -1877,7 +1926,7 @@ Phase 15 is a contained Play Computer meta-feature:
 - **final evaluation from the authoritative active fleet only**;
 - **in-game and postgame reopen surfaces**;
 - **5+3 replaces 5+0 as the lowest selectable timer preset**;
-- **visibly seeing a Mission reveals its linked Lore Mission Finding for the browser session**.
+- **visibly seeing a Mission reveals all of its linked Lore Mission Findings for the browser session**.
 
 The first content-writing target is 12 Mission stories: one for each currently supported directional human-player/computer-species matchup.
 
