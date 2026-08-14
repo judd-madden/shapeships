@@ -118,12 +118,17 @@ export function ensurePlayerClock(
  * Determine if clocks should be actively accruing
  * 
  * Returns true ONLY if:
+ * - No human Mission intro is pending
  * - Both players have confirmed/revealed species
  * - turnNumber >= 1
  * 
  * If false, clocks pause (but lastUpdateAtMs is updated to prevent back-charging)
  */
 export function clocksAreLive(state: any): boolean {
+  if (state?.missionChallengeAssignment?.introPending === true) {
+    return false;
+  }
+
   // Extract players
   const players = state?.players ?? [];
   const playerUsers = players.filter((p: any) => p.role === 'player');

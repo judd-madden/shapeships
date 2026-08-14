@@ -2,6 +2,7 @@ import type {
   BattleLogScratch,
 } from "./battleLogHistory.ts";
 import type { SeatController } from "../bot/botTypes.ts";
+import type { MissionChallengeAssignment } from "../mission/MissionChallenge.ts";
 
 /**
  * GAME STATE TYPES
@@ -561,6 +562,9 @@ export type GameState = {
 
   /** Authoritative seat controller metadata */
   controllersByPlayerId?: Record<string, SeatController>;
+
+  /** Server-private durable Mission/Challenge assignment for Play Computer. */
+  missionChallengeAssignment?: MissionChallengeAssignment;
   
   /** Game data container */
   gameData: GameData;

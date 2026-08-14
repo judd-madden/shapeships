@@ -51,6 +51,7 @@ import {
 import {
   filterDrawingPreludeEventsForViewer,
 } from '../engine/state/drawingPreludeProjection.ts';
+import { stripMissionChallengeAssignment } from '../engine/mission/MissionChallenge.ts';
 
 function logAncientCompatibilityRisks(
   boundary: string,
@@ -161,7 +162,7 @@ function sanitizeStateForResponse(
     requestingParticipantId,
   );
   const { battleLogScratch: _omitBattleLogScratch, ...responseState } = ancientSafeState;
-  return responseState;
+  return stripMissionChallengeAssignment(responseState);
 }
 
 function sanitizeEventsForResponse(

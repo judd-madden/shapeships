@@ -123,6 +123,7 @@ import {
   getXeniteBotPlanById,
 } from '../bot/xenitePlans.ts';
 import type { BotSpeciesId } from '../bot/botTypes.ts';
+import { ensureMissionChallengeAssignment } from '../mission/MissionChallenge.ts';
 
 export interface IntentRequest {
   gameId: string;
@@ -179,6 +180,18 @@ function isFinishedGameChatMessageIntent(intent: IntentRequest): boolean {
 
 function isPhaseHoldContinuationIntent(intent: IntentRequest): boolean {
   return intent.intentType === 'CONTINUE_PHASE_HOLD';
+}
+
+function isAllowedWhileMissionIntroPending(intent: IntentRequest): boolean {
+  if (
+    intent.intentType === 'MISSION_INTRO_ACK' ||
+    intent.intentType === 'SURRENDER' ||
+    intent.intentType === 'CONTINUE_PHASE_HOLD'
+  ) {
+    return true;
+  }
+
+  return intent.intentType === 'ACTION' && intent.payload?.actionType === 'message';
 }
 
 function getCurrentPhaseHold(state: any) {
@@ -881,6 +894,24 @@ export async function applyIntent(
     }
   }
 
+  const missionAssignment = state.missionChallengeAssignment;
+  const isAssignedPendingHuman =
+    missionAssignment?.introPending === true &&
+    missionAssignment?.playerId === sessionPlayerId &&
+    state.controllersByPlayerId?.[sessionPlayerId]?.kind === 'human';
+
+  if (isAssignedPendingHuman && !isAllowedWhileMissionIntroPending(intent)) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.MISSION_INTRO_PENDING,
+        message: 'Acknowledge the Mission intro before submitting gameplay',
+      },
+    };
+  }
+
   if (intent.intentType === 'CONTINUE_PHASE_HOLD' && player.role === 'spectator') {
     return {
       ok: false,
@@ -936,6 +967,7 @@ export async function applyIntent(
   if (phaseKey === 'setup.species_selection') {
     const allowedInSpeciesSelection = new Set([
       'SPECIES_SUBMIT',
+      'MISSION_INTRO_ACK',
       'ACTION',        // ✅ allow chat at all times
       'SURRENDER',   // optional, if you want resign to work during setup
     ]);
@@ -947,7 +979,7 @@ export async function applyIntent(
         events: [],
         rejected: {
           code: RejectionCode.PHASE_NOT_ALLOWED,
-          message: `Intent ${intent.intentType} not allowed during setup.species_selection. Allowed: SPECIES_SUBMIT, ACTION, SURRENDER`
+          message: `Intent ${intent.intentType} not allowed during setup.species_selection. Allowed: SPECIES_SUBMIT, MISSION_INTRO_ACK, ACTION, SURRENDER`
         }
       };
     }
@@ -1025,6 +1057,9 @@ export async function applyIntent(
 
     case 'DECLARE_READY':
       return handleDeclareReady(state, sessionPlayerId, intent, nowMs, events);
+
+    case 'MISSION_INTRO_ACK':
+      return handleMissionIntroAck(state, sessionPlayerId, events);
 
     case 'CONTINUE_PHASE_HOLD':
       return handleContinuePhaseHold(state, sessionPlayerId, intent, nowMs, events);
@@ -1536,6 +1571,7 @@ async function handleSpeciesSubmit(
           speciesId: nextBotSpeciesId,
           chosenPlanId: nextPlanId,
         };
+        state = ensureMissionChallengeAssignment(state);
       }
 
       debugLog('[SPECIES_SUBMIT] applied', {
@@ -1608,6 +1644,7 @@ async function handleSpeciesSubmit(
       speciesId: nextBotSpeciesId,
       chosenPlanId: nextPlanId,
     };
+    state = ensureMissionChallengeAssignment(state);
   }
   
   debugLog('[SPECIES_SUBMIT] applied', {
@@ -1691,6 +1728,57 @@ async function handleSpeciesSubmit(
     ok: true,
     state,
     events
+  };
+}
+
+// ============================================================================
+// MISSION_INTRO_ACK
+// ============================================================================
+
+function handleMissionIntroAck(
+  state: any,
+  playerId: string,
+  events: any[],
+): IntentResult {
+  const assignment = state?.missionChallengeAssignment;
+  const player = state?.players?.find((candidate: any) => candidate?.id === playerId);
+  const isAssignedHuman =
+    assignment?.playerId === playerId &&
+    player?.role === 'player' &&
+    state?.controllersByPlayerId?.[playerId]?.kind === 'human';
+
+  if (!isAssignedHuman) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.MISSION_INTRO_UNAVAILABLE,
+        message: 'No Mission intro is available for this participant',
+      },
+    };
+  }
+
+  if (assignment.introPending !== true) {
+    return {
+      ok: true,
+      state: syncPhaseFields(state),
+      events,
+    };
+  }
+
+  state = {
+    ...state,
+    missionChallengeAssignment: {
+      ...assignment,
+      introPending: false,
+    },
+  };
+
+  return {
+    ok: true,
+    state: syncPhaseFields(state),
+    events,
   };
 }
 

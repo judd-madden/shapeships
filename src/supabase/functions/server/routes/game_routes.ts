@@ -74,6 +74,10 @@ import type { IntentPersistence } from './intent_persistence.ts';
 import { getPlayerMaxHealth } from '../engine_shared/maximumHealth.ts';
 import { getCubeDiceActionForPlayer } from '../engine/phase/cubeDiceManipulation.ts';
 import { projectPublicTurnPhaseProgress } from '../engine/phase/turnPhaseProgress.ts';
+import {
+  projectMissionChallengeForRequester,
+  stripMissionChallengeAssignment,
+} from '../engine/mission/MissionChallenge.ts';
 
 const INITIAL_SAVED_LINES = 3;
 
@@ -1915,9 +1919,11 @@ export function registerGameRoutes(
         gameData,
         requestingPlayerId,
       );
-      const clientSafeGameData = sanitizeAncientStateForClient(
-        gameData,
-        requestingPlayerId,
+      const clientSafeGameData = stripMissionChallengeAssignment(
+        sanitizeAncientStateForClient(
+          gameData,
+          requestingPlayerId,
+        ),
       );
       const publicShips = projectPublicShipsForClient(
         gameData,
@@ -2014,6 +2020,10 @@ export function registerGameRoutes(
         gameData,
         requestingPlayerId,
       );
+      const missionChallenge = projectMissionChallengeForRequester(
+        gameData,
+        requestingPlayerId,
+      );
       const requesterShipActivationCueBatches = [
         ...projectRequesterShipActivationCueBatches(
           turnData.shipActivationCueBatches,
@@ -2033,6 +2043,7 @@ export function registerGameRoutes(
         playerId: requestingPlayerId,
         availableActions,
         ...(drawingPrelude ? { drawingPrelude } : {}),
+        ...(missionChallenge ? { missionChallenge } : {}),
         buildEconomy: buildEconomyByPlayerId[requestingPlayerId] ?? null,
         buildEconomyByPlayerId,
         lastTurnDamageDealtBreakdownByPlayerId,
