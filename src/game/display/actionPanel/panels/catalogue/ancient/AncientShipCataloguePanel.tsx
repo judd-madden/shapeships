@@ -570,6 +570,10 @@ export function AncientShipCataloguePanel({
     isSiphonInspection &&
     presentation === 'reference' &&
     onCloseSiphonInspection != null;
+  const showBlackHoleBack =
+    effectiveSelectorMode === 'blackHole' &&
+    selectorMode === 'blackHole' &&
+    presentation === 'declaration';
   const siphonInstructionLeft = showReferenceSiphonBack
     ? 510
     : ANCIENT_CATALOGUE_SECTION_X.solar;
@@ -1112,6 +1116,26 @@ export function AncientShipCataloguePanel({
                     event.stopPropagation();
                     setHoveredSiphonSpend(null);
                     onCloseSiphonInspection();
+                  }}
+                >
+                  Back
+                </button>
+              ) : null}
+              {showBlackHoleBack ? (
+                <button
+                  type="button"
+                  className={`absolute cursor-pointer rounded-[10px] border-0 bg-[var(--shapeships-grey-90)] px-[16px] py-[6px] text-[16px] font-normal leading-normal text-white hover:bg-[var(--shapeships-grey-70)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white ${
+                    autocastPresentation === 'mobile-under-heading'
+                      ? 'min-h-[62px] min-w-[90px]'
+                      : ''
+                  }`}
+                  style={{
+                    left: `${blackHoleSelectorLayout.x - 10}px`,
+                    top: autocastPresentation === 'mobile-under-heading' ? '4px' : '24px',
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    actions.onCancelAncientSolarSelector();
                   }}
                 >
                   Back

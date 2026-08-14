@@ -20,9 +20,12 @@ import type {
 } from './ancientChargeDeclaration';
 import type { AncientSolarHoverValue } from './ancientSolarHoverValues';
 
+export type ReadySendingKind = 'default' | 'ancient-autocast';
+
 export type ReadyUxState = {
   clickedThisPhase: boolean; // user explicitly clicked Ready in this phase instance
   sendingNow: boolean;       // client is awaiting server response for the Ready flow
+  sendingKind: ReadySendingKind | null; // semantic submission captured when sending starts
 };
 
 export type ViewerMode = 'p1_player' | 'p2_player' | 'spectator' | 'unknown';

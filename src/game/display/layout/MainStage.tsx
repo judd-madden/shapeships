@@ -138,7 +138,7 @@ export function MainStage({
   }
 
   const usesMainBack =
-    ancientSelectorMode != null ||
+    (ancientSelectorMode != null && ancientSelectorMode !== 'blackHole') ||
     (isSiphonInspectionOpen && ancientPresentation === 'declaration');
   const mainPhaseControl: MainPhaseControl =
     usesMainBack

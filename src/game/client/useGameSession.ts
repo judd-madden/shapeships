@@ -177,6 +177,7 @@ import type {
   FirstStrikeActionFamily,
   GameStateClockSnapshot,
   GameStateRequestMeta,
+  ReadyUxState,
   TurnPhaseMilestoneId,
   TurnPhasePresentationVm,
   TurnPhaseVm,
@@ -1134,7 +1135,7 @@ export function useGameSession(
   // Used to show "SENDING..." while awaiting server response
   // and "WAITING..." when auto-readied with no actions
   const [readyUxByPhaseInstanceKey, setReadyUxByPhaseInstanceKey] = useState<
-    Record<string, { clickedThisPhase: boolean; sendingNow: boolean }>
+    Record<string, ReadyUxState>
   >({});
   
   // Client-only dice roll sequence counter (increments on each DICE_ROLLED event)
@@ -1898,7 +1899,11 @@ export function useGameSession(
   // MUST be defined early — used by preview merge, build gating, and ready logic
   // Ready UX state for current phase (for SENDING/WAITING labels)
   const readyUxForCurrentPhase =
-    readyUxByPhaseInstanceKey[phaseInstanceKey] ?? { clickedThisPhase: false, sendingNow: false };
+    readyUxByPhaseInstanceKey[phaseInstanceKey] ?? {
+      clickedThisPhase: false,
+      sendingNow: false,
+      sendingKind: null,
+    };
 
   // Client-only key (UI gating / local phase completion concept)
   const buildPhaseInstanceKey = `${turnNumber}::build`;
@@ -2896,9 +2901,9 @@ export function useGameSession(
           selectorStillAvailable = ancientSiphonSelector.canOpen;
           break;
         case 'blackHole':
-          selectorStillAvailable =
-            canCastAncientBlackHole &&
-            ancientBlackHoleTargeting.requiredTargetCount > 0;
+          // Zero legal targets is a confirmable Black Hole damage cast, not an
+          // unavailable selector state.
+          selectorStillAvailable = canCastAncientBlackHole;
           break;
         case 'simulacrum':
           selectorStillAvailable =
@@ -5379,6 +5384,104 @@ useEffect(() => {
         return;
       }
 
+      // Black Hole confirmation is a local draft mutation. It must be handled
+      // before creating a frozen declaration attempt or entering Ready sending UX.
+      if (
+        activeAncientChargeDeclarationWorkflow?.stage === 'powers' &&
+        activeAncientChargeDeclarationWorkflow.selectorMode === 'blackHole' &&
+        phaseKey === 'battle.charge_declaration'
+      ) {
+        if (
+          !readyEnabled ||
+          readyDisabledReason ||
+          activeAncientChargeDeclarationAttempt ||
+          !canCastAncientBlackHole
+        ) {
+          return;
+        }
+
+        const selectedTargetInstanceIds =
+          activeAncientChargeDeclarationWorkflow.blackHoleSelectedTargetInstanceIds;
+        const legalTargetInstanceIds = new Set(
+          ancientBlackHoleTargeting.legalTargetInstanceIds
+        );
+        const selectionIsValid =
+          selectedTargetInstanceIds.length === ancientBlackHoleTargeting.requiredTargetCount &&
+          new Set(selectedTargetInstanceIds).size === selectedTargetInstanceIds.length &&
+          selectedTargetInstanceIds.every((instanceId) => legalTargetInstanceIds.has(instanceId));
+        if (!selectionIsValid) {
+          return;
+        }
+
+        setAncientChargeDeclarationWorkflow((current) => {
+          if (
+            current?.key !== ancientChargeDeclarationWorkflowKey ||
+            current.stage !== 'powers' ||
+            current.selectorMode !== 'blackHole' ||
+            current.rejectionRecoveryPending
+          ) {
+            return current;
+          }
+
+          const currentSelectedTargetInstanceIds =
+            current.blackHoleSelectedTargetInstanceIds;
+          const currentSelectionIsValid =
+            currentSelectedTargetInstanceIds.length ===
+              ancientBlackHoleTargeting.requiredTargetCount &&
+            new Set(currentSelectedTargetInstanceIds).size ===
+              currentSelectedTargetInstanceIds.length &&
+            currentSelectedTargetInstanceIds.every((instanceId) =>
+              legalTargetInstanceIds.has(instanceId)
+            );
+          if (!currentSelectionIsValid) {
+            return current;
+          }
+
+          const currentReplay = replayAncientManualSolarCasts({
+            startingPool: authoritativeAncientEnergy,
+            localManualSolarCasts: current.localManualSolarCasts,
+          });
+          if (
+            !currentReplay.valid ||
+            !canAffordAncientEnergyCost(
+              currentReplay.remainingEnergy,
+              ANCIENT_BLACK_HOLE_PREVIEW_COST
+            )
+          ) {
+            return current;
+          }
+
+          const nextCasts: AncientManualSolarCast[] = [
+            ...current.localManualSolarCasts,
+            {
+              solarPowerId: 'SBLA',
+              targetInstanceIds: [...currentSelectedTargetInstanceIds].sort((a, b) =>
+                a.localeCompare(b)
+              ),
+            },
+          ];
+          const nextReplay = replayAncientManualSolarCasts({
+            startingPool: authoritativeAncientEnergy,
+            localManualSolarCasts: nextCasts,
+          });
+          const canCastAgain =
+            nextReplay.valid &&
+            canAffordAncientEnergyCost(
+              nextReplay.remainingEnergy,
+              ANCIENT_BLACK_HOLE_PREVIEW_COST
+            );
+
+          return {
+            ...current,
+            selectorMode: canCastAgain ? 'blackHole' : null,
+            blackHoleSelectedTargetInstanceIds: [],
+            localManualSolarCasts: nextCasts,
+          };
+        });
+        setAncientBlackHoleHover(null);
+        return;
+      }
+
       if (
         activeAncientChargeDeclarationWorkflow?.stage === 'charges' &&
         phaseKey === 'battle.charge_declaration'
@@ -5432,6 +5535,7 @@ useEffect(() => {
       // Capture the phase key at click time (important: don't drift if phase advances mid-await)
       const clickedPhaseInstanceKey = phaseInstanceKey;
       let ancientAttemptForSubmission = activeAncientChargeDeclarationAttempt;
+      let ancientAutocastWillRunForSubmission = false;
       if (
         (
           activeAncientChargeDeclarationWorkflow?.stage === 'powers' ||
@@ -5456,6 +5560,9 @@ useEffect(() => {
           localManualSolarCasts: activeAncientChargeDeclarationWorkflow.localManualSolarCasts,
           autocastEnabled: ancientAutocastEnabled,
         });
+        ancientAutocastWillRunForSubmission =
+          payload.autocastEnabled &&
+          getAncientEnergyTotal(ancientManualSolarCastReplay.remainingEnergy) > 0;
         ancientAttemptForSubmission = {
           workflowKey: ancientChargeDeclarationWorkflowKey,
           presentationSolarCasts:
@@ -5502,6 +5609,9 @@ useEffect(() => {
           [clickedPhaseInstanceKey]: {
             clickedThisPhase: submissionOrigin === 'manual',
             sendingNow: true,
+            sendingKind: ancientAutocastWillRunForSubmission
+              ? 'ancient-autocast'
+              : 'default',
           },
         }));
       }
@@ -5606,8 +5716,10 @@ useEffect(() => {
               ...(prev[clickedPhaseInstanceKey] ?? {
                 clickedThisPhase: submissionOrigin === 'manual',
                 sendingNow: false,
+                sendingKind: null,
               }),
               sendingNow: false,
+              sendingKind: null,
             },
           }));
         }
@@ -6156,17 +6268,6 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
             ) {
               return current;
             }
-            if (ancientBlackHoleTargeting.requiredTargetCount === 0) {
-              return {
-                ...current,
-                selectorMode: null,
-                blackHoleSelectedTargetInstanceIds: [],
-                localManualSolarCasts: [
-                  ...current.localManualSolarCasts,
-                  { solarPowerId: 'SBLA', targetInstanceIds: [] },
-                ],
-              };
-            }
             return {
               ...current,
               selectorMode: 'blackHole',
@@ -6337,9 +6438,6 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
           return;
         }
 
-        const willComplete =
-          ancientBlackHoleSelectedTargetInstanceIds.length + 1 ===
-          ancientBlackHoleTargeting.requiredTargetCount;
         setAncientChargeDeclarationWorkflow((current) => {
           if (
             current?.key !== ancientChargeDeclarationWorkflowKey ||
@@ -6363,52 +6461,11 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
             ...selectedTargetInstanceIds,
             allocatedTargetInstanceId,
           ];
-          if (nextTargetInstanceIds.length !== ancientBlackHoleTargeting.requiredTargetCount) {
-            return {
-              ...current,
-              blackHoleSelectedTargetInstanceIds: nextTargetInstanceIds,
-            };
-          }
-
-          const orderedTargetInstanceIds = [...nextTargetInstanceIds]
-            .sort((a, b) => a.localeCompare(b));
-          const nextCasts: AncientManualSolarCast[] = [
-            ...current.localManualSolarCasts,
-            {
-              solarPowerId: 'SBLA',
-              targetInstanceIds: orderedTargetInstanceIds,
-            },
-          ];
-          const nextReplay = replayAncientManualSolarCasts({
-            startingPool: authoritativeAncientEnergy,
-            localManualSolarCasts: nextCasts,
-          });
-          const nextReservedTargetInstanceIds = nextCasts.flatMap((cast) =>
-            cast.solarPowerId === 'SBLA' ? cast.targetInstanceIds : []
-          );
-          const nextTargeting = deriveAncientBlackHoleTargetingState({
-            opponentShipsVisible,
-            opponentFleet,
-            reservedTargetInstanceIds: nextReservedTargetInstanceIds,
-          });
-          const canCastAgain =
-            nextReplay.valid &&
-            canAffordAncientEnergyCost(
-              nextReplay.remainingEnergy,
-              ANCIENT_BLACK_HOLE_PREVIEW_COST
-            ) &&
-            nextTargeting.requiredTargetCount > 0;
-
           return {
             ...current,
-            selectorMode: canCastAgain ? 'blackHole' : null,
-            blackHoleSelectedTargetInstanceIds: [],
-            localManualSolarCasts: nextCasts,
+            blackHoleSelectedTargetInstanceIds: nextTargetInstanceIds,
           };
         });
-        if (willComplete) {
-          setAncientBlackHoleHover(null);
-        }
         return;
       }
       if (ancientSimulacrumSelectorActive) {

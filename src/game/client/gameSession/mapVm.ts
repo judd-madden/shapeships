@@ -21,6 +21,7 @@ import type {
   HudStatusTone,
   LeftRailDiceManipulationSlotViewModel,
   PublicTurnPhaseProgress,
+  ReadyUxState,
 } from './types';
 import {
   formatCountedShipChoiceHeading,
@@ -230,7 +231,7 @@ export function mapGameSessionVm(args: {
     | null;
   
   // Ready UX state (SENDING/WAITING labels)
-  readyUx: { clickedThisPhase: boolean; sendingNow: boolean };
+  readyUx: ReadyUxState;
   
   // Server availableActions for charge panels
   availableActions: any[] | null;
@@ -781,7 +782,8 @@ export function mapGameSessionVm(args: {
     finalReadyDisabledReason = null;
   } else if (readyUx?.sendingNow) {
     // Case 1: user clicked Ready and we are awaiting server validation/refresh
-    readyButtonLabel = 'SENDING...';
+    readyButtonLabel =
+      readyUx.sendingKind === 'ancient-autocast' ? 'AUTOCASTING...' : 'SENDING...';
     finalReadyDisabled = true;
     finalReadySelected = false;
     finalReadyDisabledReason = null;
@@ -879,6 +881,13 @@ export function mapGameSessionVm(args: {
       ancientChargeDeclaration.provisionalEnergy.red +
       ancientChargeDeclaration.provisionalEnergy.blue;
     if (
+      ancientChargeDeclaration.stage === 'powers' &&
+      ancientChargeDeclaration.selectorMode === 'blackHole'
+    ) {
+      readyButtonLabel = 'CONFIRM';
+      readyButtonNote = null;
+      finalReadySelected = false;
+    } else if (
       ancientChargeDeclaration.stage === 'charges' &&
       ancientChargeDeclaration.chargesDirectSubmissionEligible
     ) {
