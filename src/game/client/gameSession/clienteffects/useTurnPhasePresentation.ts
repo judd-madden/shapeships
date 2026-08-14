@@ -69,6 +69,8 @@ export function useTurnPhasePresentation({
 }: Args): TurnPhasePresentationVm {
   const reducedMotion = useReducedMotionPreference();
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const repositionFrameRef = useRef<number | null>(null);
+  const enterFrameRef = useRef<number | null>(null);
   const authoritativelySeededRef = useRef(false);
   const lastReleaseKeyRef = useRef(0);
   const pendingReleaseTurnRef = useRef<number | null>(null);
@@ -100,6 +102,14 @@ export function useTurnPhasePresentation({
   const clearTimer = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = null;
+    if (repositionFrameRef.current !== null) {
+      window.cancelAnimationFrame(repositionFrameRef.current);
+      repositionFrameRef.current = null;
+    }
+    if (enterFrameRef.current !== null) {
+      window.cancelAnimationFrame(enterFrameRef.current);
+      enterFrameRef.current = null;
+    }
   };
 
   const publish = (
@@ -229,20 +239,24 @@ export function useTurnPhasePresentation({
     timerRef.current = setTimeout(() => {
       stageRef.current = 'wrap_reposition';
       publish('dice_roll', releasedTurn, -1, 0, 'reposition');
-      timerRef.current = setTimeout(() => {
-        stageRef.current = 'wrap_enter';
-        publish(
-          'dice_roll',
-          releasedTurn,
-          0,
-          TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.enter,
-          'enter'
-        );
-        timerRef.current = setTimeout(() => {
-          resetHeartLifecycleForDice();
-          beginDiceDwell(releasedTurn);
-        }, TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.enter);
-      }, 0);
+      repositionFrameRef.current = window.requestAnimationFrame(() => {
+        repositionFrameRef.current = null;
+        enterFrameRef.current = window.requestAnimationFrame(() => {
+          enterFrameRef.current = null;
+          stageRef.current = 'wrap_enter';
+          publish(
+            'dice_roll',
+            releasedTurn,
+            0,
+            TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.enter,
+            'enter'
+          );
+          timerRef.current = setTimeout(() => {
+            resetHeartLifecycleForDice();
+            beginDiceDwell(releasedTurn);
+          }, TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.enter);
+        });
+      });
     }, TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.exit);
   };
 

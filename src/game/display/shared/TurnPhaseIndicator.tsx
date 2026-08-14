@@ -14,6 +14,7 @@ export function TurnPhaseIndicator({ vm, presentation }: { vm: TurnPhaseVm; pres
   const currentLabel = vm.milestones.find(
     (milestone) => milestone.id === presentation.presentedMilestone
   )?.label ?? null;
+  const isRepositioning = presentation.wrapStage === 'reposition';
   const heading = presentation.headingContext === 'species_selection'
     ? 'Species Selection'
     : presentation.presentedTurnNumber != null
@@ -34,8 +35,11 @@ export function TurnPhaseIndicator({ vm, presentation }: { vm: TurnPhaseVm; pres
             aria-hidden="true"
             className="pointer-events-none absolute inset-y-0 left-0 z-0 w-1/5 bg-[var(--shapeships-grey-70)]"
             style={{
+              opacity: isRepositioning ? 0 : 1,
               transform: `translateX(${presentation.slabPositionIndex * 100}%)`,
-              transition: presentation.reducedMotion ? 'none' : `transform ${presentation.movementDurationMs}ms ${presentation.movementEasing}`,
+              transition: presentation.reducedMotion || isRepositioning
+                ? 'none'
+                : `transform ${presentation.movementDurationMs}ms ${presentation.movementEasing}`,
             }}
           >
             <div className="absolute left-[calc(50%-9px)] top-0 h-[9px] w-[18px] bg-[var(--shapeships-grey-90)] [clip-path:polygon(0_0,100%_0,50%_100%)]" />

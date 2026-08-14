@@ -12,6 +12,7 @@ export function TurnPhaseStatusStrip({ vm, presentation }: { vm: TurnPhaseVm; pr
   const activePointerIdRef = useRef<number | null>(null);
   const [activePress, setActivePress] = useState<TurnPhaseHoverLabelValue | null>(null);
   const { presentValue, motionState } = useHoverPanelPresence(activePress);
+  const isRepositioning = presentation.wrapStage === 'reposition';
 
   const dismissPointer = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (activePointerIdRef.current !== event.pointerId) {
@@ -25,7 +26,19 @@ export function TurnPhaseStatusStrip({ vm, presentation }: { vm: TurnPhaseVm; pr
   return (
     <div className="relative h-[32px]">
       <div className="relative h-full overflow-hidden rounded-[4px] bg-[var(--shapeships-grey-90)]">
-        {presentation.slabPositionIndex != null ? <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 z-0 w-1/5 bg-[var(--shapeships-grey-70)]" style={{ transform: `translateX(${presentation.slabPositionIndex * 100}%)`, transition: presentation.reducedMotion ? 'none' : `transform ${presentation.movementDurationMs}ms ${presentation.movementEasing}` }} /> : null}
+        {presentation.slabPositionIndex != null ? (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-y-0 left-0 z-0 w-1/5 bg-[var(--shapeships-grey-70)]"
+            style={{
+              opacity: isRepositioning ? 0 : 1,
+              transform: `translateX(${presentation.slabPositionIndex * 100}%)`,
+              transition: presentation.reducedMotion || isRepositioning
+                ? 'none'
+                : `transform ${presentation.movementDurationMs}ms ${presentation.movementEasing}`,
+            }}
+          />
+        ) : null}
         <div className="relative z-10 grid h-full grid-cols-5">
           {vm.milestones.map((milestone) => (
             <div
