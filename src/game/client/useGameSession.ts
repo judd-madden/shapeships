@@ -100,6 +100,19 @@ import {
 import { appendEventsToTape } from './gameSession/eventTape';
 import { usePhaseCommitCache } from './gameSession/commitCache';
 import { mapGameSessionVm } from './gameSession/mapVm';
+import {
+  buildMissionChallengeViewModel,
+  claimMissionAcknowledgement,
+  createMissionAutoAckState,
+  normalizeRequesterMissionChallenge,
+  shouldAutomaticallyAcknowledgeMission,
+  type MissionAutoAckState,
+} from './gameSession/missionChallenge';
+import {
+  markMissionFindingIdsSeen,
+  readMinimizeMissionsThisSession,
+  writeMinimizeMissionsThisSession,
+} from './gameSession/missionChallengeSession';
 import { runSpeciesConfirmFlow, runReadyToggleFlow, maybeAutoRevealBuild, type CanonicalBuildSubmitPayload } from './gameSession/intents';
 import {
   addShipToBuildDraft,
@@ -275,6 +288,7 @@ type PendingSpeciesConfirmation = {
 };
 
 const EMPTY_BUILD_PREVIEW_COUNTS: Record<string, number> = {};
+const MISSION_INTRO_ACK_TIMEOUT_MS = 8000;
 
 function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRowVm[] {
   if (!Array.isArray(rawRows)) {
@@ -794,6 +808,13 @@ export function useGameSession(
   // Server state
   const [rawState, setRawState] = useState<any>(null);
   const rawStateRef = useRef<any>(null);
+  const [minimizeMissionsThisSession, setMinimizeMissionsThisSession] =
+    useState(readMinimizeMissionsThisSession);
+  const minimizeMissionsThisSessionRef = useRef(minimizeMissionsThisSession);
+  minimizeMissionsThisSessionRef.current = minimizeMissionsThisSession;
+  const missionAutoAckStateRef = useRef<MissionAutoAckState>(
+    createMissionAutoAckState(effectiveGameId, minimizeMissionsThisSession),
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resumeSyncLocked, setResumeSyncLocked] = useState(false);
@@ -1258,6 +1279,7 @@ export function useGameSession(
     resumeToken: untimedResumeToken,
   } = useUntimedPollingThrottle();
   const isFinished = isGameFinished(rawState);
+  const normalizedMissionChallenge = normalizeRequesterMissionChallenge(rawState);
   const isUntimedAuthoritative =
     rawState?.gameData != null &&
     rawState.gameData.clock == null;
@@ -1519,6 +1541,111 @@ export function useGameSession(
   async function submitIntent(body: any, timeoutMs?: number): Promise<Response> {
     return authenticatedPost('/intent', body, timeoutMs);
   }
+
+  const missionAcknowledgementRuntimeRef = useRef({
+    gameId: effectiveGameId as string | null,
+    getRawState: () => rawStateRef.current,
+    submitIntent,
+    refreshGameStateOnce,
+  });
+  missionAcknowledgementRuntimeRef.current = {
+    gameId: effectiveGameId,
+    getRawState: () => rawStateRef.current,
+    submitIntent,
+    refreshGameStateOnce,
+  };
+
+  const acknowledgeMissionIntro = useCallback(async (
+    source: 'manual' | 'automatic',
+  ): Promise<void> => {
+    const runtime = missionAcknowledgementRuntimeRef.current;
+    const activeGameId = runtime.gameId;
+    const autoAckState = missionAutoAckStateRef.current;
+    const latestRawState = runtime.getRawState();
+
+    if (
+      !activeGameId ||
+      autoAckState.gameId !== activeGameId ||
+      autoAckState.inFlight ||
+      latestRawState?.gameId !== activeGameId
+    ) {
+      return;
+    }
+
+    const latestMissionChallenge = normalizeRequesterMissionChallenge(latestRawState);
+    if (latestMissionChallenge?.introPending !== true) return;
+
+    const claimedState = claimMissionAcknowledgement({
+      state: autoAckState,
+      gameId: activeGameId,
+      missionChallenge: latestMissionChallenge,
+      source,
+    });
+    if (!claimedState) return;
+    missionAutoAckStateRef.current = claimedState;
+    const turnNumberAtSubmission = getTurnNumber(latestRawState);
+
+    try {
+      const response = await runtime.submitIntent(
+        {
+          gameId: activeGameId,
+          intentType: 'MISSION_INTRO_ACK',
+          turnNumber: turnNumberAtSubmission,
+        },
+        MISSION_INTRO_ACK_TIMEOUT_MS,
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(
+          '[useGameSession] MISSION_INTRO_ACK failed:',
+          response.status,
+          errorText,
+        );
+      } else {
+        const result = await response.json();
+        if (!result?.ok) {
+          console.error(
+            '[useGameSession] MISSION_INTRO_ACK rejected:',
+            result?.rejected?.code,
+            result?.rejected?.message,
+          );
+        }
+      }
+    } catch (err: any) {
+      console.error('[useGameSession] MISSION_INTRO_ACK error:', err?.message ?? err);
+    } finally {
+      if (missionAcknowledgementRuntimeRef.current.gameId === activeGameId) {
+        await runtime.refreshGameStateOnce();
+        const refreshedMissionChallenge = normalizeRequesterMissionChallenge(
+          runtime.getRawState(),
+        );
+        if (refreshedMissionChallenge?.introPending === false) {
+          console.log('[useGameSession] MISSION_INTRO_ACK confirmed by authoritative refresh');
+        }
+      }
+      claimedState.inFlight = false;
+    }
+  }, []);
+
+  useEffect(() => {
+    missionAutoAckStateRef.current = createMissionAutoAckState(
+      effectiveGameId,
+      minimizeMissionsThisSessionRef.current,
+    );
+  }, [effectiveGameId]);
+
+  useEffect(() => {
+    if (
+      shouldAutomaticallyAcknowledgeMission({
+        state: missionAutoAckStateRef.current,
+        gameId: effectiveGameId,
+        missionChallenge: normalizedMissionChallenge,
+      })
+    ) {
+      void acknowledgeMissionIntro('automatic');
+    }
+  }, [acknowledgeMissionIntro, effectiveGameId, normalizedMissionChallenge]);
 
   const phaseHoldHealthPresentationHandlerRef = useRef(handleIntentResultForHealthPresentation);
   phaseHoldHealthPresentationHandlerRef.current = handleIntentResultForHealthPresentation;
@@ -5189,6 +5316,11 @@ useEffect(() => {
   // Format clock times (show "--:--" when undefined, never fake "00:00")
   const p1ClockFormatted = p1DisplayMs == null ? '--:--' : formatClockMs(p1DisplayMs);
   const p2ClockFormatted = p2DisplayMs == null ? '--:--' : formatClockMs(p2DisplayMs);
+  const missionChallengeVm = buildMissionChallengeViewModel({
+    normalized: normalizedMissionChallenge,
+    isFinished,
+    minimizeMissionsThisSession,
+  });
   
   const vm: GameSessionViewModel = mapGameSessionVm({
     isBootstrapping,
@@ -5199,6 +5331,7 @@ useEffect(() => {
       p1Name: p1?.name ?? 'Player 1',
       p2Name: p2?.name ?? 'Player 2',
     },
+    missionChallenge: missionChallengeVm,
 
     me,
     opponent,
@@ -5775,6 +5908,24 @@ useEffect(() => {
     onOpenMenu: () => {
       console.log('[useGameSession] Open menu clicked');
       setActivePanelId(menuTargetPanelId);
+    },
+
+    onSetMinimizeMissionsThisSession: (enabled: boolean) => {
+      minimizeMissionsThisSessionRef.current = enabled;
+      setMinimizeMissionsThisSession(enabled);
+      writeMinimizeMissionsThisSession(enabled);
+    },
+
+    onAcknowledgeMissionIntro: () => {
+      void acknowledgeMissionIntro('manual');
+    },
+
+    onMarkCurrentMissionFindingsSeen: () => {
+      const latestMissionChallenge = normalizeRequesterMissionChallenge(
+        rawStateRef.current,
+      );
+      if (!latestMissionChallenge) return;
+      markMissionFindingIdsSeen(latestMissionChallenge.mission.findingIds);
     },
     
     onActionPanelTabClick: (tabId: ActionPanelTabId) => {
@@ -6663,6 +6814,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         p1Name: 'Player 1',
         p2Name: 'Player 2',
       },
+      missionChallenge: null,
       gameStats: null,
       turnPhases: {
         turnNumber: null,
@@ -6825,6 +6977,9 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       onReadyToggle: () => {},
       onUndoActions: () => {},
       onOpenMenu: () => {},
+      onSetMinimizeMissionsThisSession: () => {},
+      onAcknowledgeMissionIntro: () => {},
+      onMarkCurrentMissionFindingsSeen: () => {},
       onActionPanelTabClick: () => {},
       onShipClick: () => {},
       onSendChat: () => {},

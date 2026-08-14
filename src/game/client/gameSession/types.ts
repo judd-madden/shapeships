@@ -859,6 +859,7 @@ export interface ActionPanelViewModel {
 export interface GameSessionViewModel {
   isBootstrapping: boolean; // true until valid server state with valid phaseKey
   viewer: GameSessionViewerViewModel;
+  missionChallenge: MissionChallengeViewModel | null;
   gameStats: GameStatsViewModel | null;
   turnPhases: TurnPhaseVm;
   turnPhasePresentation: TurnPhasePresentationVm;
@@ -877,6 +878,9 @@ export interface GameSessionActions {
   onReadyToggle: () => void;
   onUndoActions: () => void;
   onOpenMenu: () => void;
+  onSetMinimizeMissionsThisSession: (enabled: boolean) => void;
+  onAcknowledgeMissionIntro: () => void;
+  onMarkCurrentMissionFindingsSeen: () => void;
   onActionPanelTabClick: (tabId: ActionPanelTabId) => void;
   onShipClick: (shipId: string) => void;
   onSendChat: (text: string) => void;
@@ -909,3 +913,31 @@ export interface GameSessionActions {
   onDestroyTargetStackMouseDown: (side: 'my' | 'opponent', stackKey: string) => void;
 }
 export type ComputerBotSpeciesId = Exclude<SpeciesId, 'ancient'>;
+
+export interface MissionChallengeMissionViewModel {
+  id: string;
+  year: number;
+  title: string;
+  location: string;
+  author: string;
+  paragraphs: string[];
+  findingIds: string[];
+}
+
+export interface MissionChallengeResultViewModel {
+  missionSucceeded: boolean;
+  fleetConditionMet: boolean;
+  challengeSucceeded: boolean;
+}
+
+export interface MissionChallengeViewModel {
+  mission: MissionChallengeMissionViewModel;
+  challenge: {
+    shipDefId: ShipDefId;
+    condition: 'with' | 'without';
+  };
+  introPending: boolean;
+  isFinished: boolean;
+  result: MissionChallengeResultViewModel | null;
+  minimizeMissionsThisSession: boolean;
+}
