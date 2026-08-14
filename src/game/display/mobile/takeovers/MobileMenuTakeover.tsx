@@ -87,7 +87,7 @@ export function MobileMenuTakeover({
       bodyClassName="flex flex-col"
     >
       <div className="flex min-h-full flex-col">
-        <div className="flex grow shrink-0 flex-col items-center justify-center px-[16px] pb-[24px] pt-[8px]">
+        <div className="flex grow shrink-0 flex-col items-center justify-center px-[16px] pb-[20px] pt-[8px]">
 
           <div className="flex w-full flex-col items-center gap-[8px]">
             <p
@@ -102,7 +102,7 @@ export function MobileMenuTakeover({
             </p>
           </div>
 
-          <div className="mt-[28px] flex w-full flex-col items-center gap-[14px]">
+          <div className="mt-[20px] flex w-full flex-col items-center gap-[14px]">
             {vm.isSpectator ? (
               <GameMenuButton
                 className="h-[54px] w-[260px] max-w-full"
@@ -148,7 +148,7 @@ export function MobileMenuTakeover({
           </div>
         </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-x-[26px] gap-y-[12px] mb-[32px]">
+          <div className="flex flex-wrap items-center justify-center gap-x-[26px] gap-y-[12px] mb-[24px]">
             <MobilePreferenceToggle
               label="Sound"
               checked={soundEnabled}

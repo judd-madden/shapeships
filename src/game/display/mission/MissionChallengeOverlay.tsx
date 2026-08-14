@@ -116,12 +116,12 @@ export function MissionChallengeOverlay({
 
         <div className="mt-[20px] min-h-0 overflow-y-auto pr-[4px] min-[768px]:pr-[8px]">
           <h2
-            className="text-[26px] font-black italic leading-[30px] min-[768px]:text-[46px] min-[768px]:leading-1"
+            className="text-[26px] font-black italic leading-[30px] min-[768px]:text-[46px] min-[768px]:leading-none"
             id="mission-challenge-title"
           >
             {missionChallenge.mission.title}
           </h2>
-          <div className="mt-[16px] space-y-[8px] text-[14px] leading-[20px] min-[768px]:mt-[20px] min-[768px]:space-y-[9px] min-[768px]:text-[22px] min-[768px]:leading-[28px]">
+          <div className="mt-[16px] space-y-[8px] text-[14px] leading-[20px] min-[768px]:mt-[20px] min-[768px]:space-y-[9px] min-[768px]:text-[22px] min-[768px]:leading-[30px]">
             {missionChallenge.mission.paragraphs.map((paragraph, index) => (
               <p key={index}>
                 {interpolateMissionPlayer(paragraph, playerName)}
