@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react';
 import humanLoreImage from '../../graphics/lore/human-lore-img.svg';
+import xeniteLoreImage from '../../graphics/lore/xenite-lore-img.svg';
+import centaurLoreImage from '../../graphics/lore/centaur-lore-img.svg';
+import ancientLoreImage from '../../graphics/lore/ancient-lore-img.svg';
 
 export type SpeciesLoreId = 'human' | 'xenite' | 'centaur' | 'ancient';
 
@@ -152,7 +155,7 @@ export const speciesLore: Record<SpeciesLoreId, SpeciesLore> = {
     title: 'Human Lore',
     author: SPECIES_AUTHOR,
     imageSrc: humanLoreImage,
-    imageAlt: 'Human fleet shapes',
+    imageAlt: 'Human ships',
     content: (
       <>
         <p>Humans just love THINGS, don’t they. More, more, more. Always wanting more. Always looking to the future, to the beyond. Thus their prolific expansion into space. Searching for more. Nosing around where they shouldn’t be. Disturbing the balance. A virus of steel.</p>
@@ -168,6 +171,8 @@ export const speciesLore: Record<SpeciesLoreId, SpeciesLore> = {
     name: 'Xenite',
     title: 'Xenite Lore',
     author: SPECIES_AUTHOR,
+    imageSrc: xeniteLoreImage,
+    imageAlt: 'Xenite ships',
     content: (
       <>
         <p>There are no individuals. There is only the swarm. A giant neural network as large as half the galaxy. It is one brain. XAMEHBZ.</p>
@@ -185,6 +190,8 @@ export const speciesLore: Record<SpeciesLoreId, SpeciesLore> = {
     name: 'Centaur',
     title: 'Centaur Lore',
     author: SPECIES_AUTHOR,
+    imageSrc: centaurLoreImage,
+    imageAlt: 'Centaur ships',
     content: (
       <>
         <p>When you basically live forever, it changes your perspective on the universe somewhat.</p>
@@ -200,6 +207,8 @@ export const speciesLore: Record<SpeciesLoreId, SpeciesLore> = {
     name: 'Ancient',
     title: 'Ancient Lore',
     author: SPECIES_AUTHOR,
+    imageSrc: ancientLoreImage,
+    imageAlt: 'Ancient ships and solar powers',
     content: (
       <>
         <p>Awakened by galactic war. The Ancients have been dormant for millennia.</p>
