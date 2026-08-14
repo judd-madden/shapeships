@@ -11,6 +11,8 @@ import {
   buildBattleLogTurnSummaryFromScratch,
   clearBattleLogScratchAfterFinalization,
   createBattleLogBattleCaptureEventsFromResolution,
+  createBattleLogBuildCubeChangeCaptureEvent,
+  createBattleLogBuildCubeRollsCaptureEvent,
   createBattleLogBuildProducedCaptureEvent,
   foldBattleLogCaptureEventsIntoScratch,
   normalizeBattleLogHistoryStore,
@@ -234,37 +236,105 @@ Deno.test("malformed produced occurrence metadata fails closed during scratch no
   );
 });
 
-Deno.test("metadata-aware Build formatting orders and aggregates only within stage and pass", () => {
+Deno.test("Build formatting preserves buckets and groups produced rows across stage boundaries", () => {
   const summary = buildSummaryForAtoms([
     { kind: "manual_build", shipDefId: "FIG" },
     { kind: "produced_build", shipDefId: "SPI", sourceShipDefId: "SSIM", count: 2,
       producedBuildOccurrence: { stage: "turn_start_materialisation" } },
     { kind: "produced_build", shipDefId: "DEF", sourceShipDefId: "CAR", count: 1,
+      sourceShipInstanceId: "car-2",
       producedBuildOccurrence: { stage: "drawing_prelude", passIndex: 2 } },
+    { kind: "chronoswarm_roll", rolls: [2, 5] },
     { kind: "reroll", sourceShipDefId: "KNO", values: [1, 6] },
+    { kind: "cube_rolls", rolls: [2, 4, 5] },
     { kind: "produced_build", shipDefId: "DEF", sourceShipDefId: "CAR", count: 1,
+      sourceShipInstanceId: "car-1",
       producedBuildOccurrence: { stage: "drawing_prelude", passIndex: 1 } },
     { kind: "produced_build", shipDefId: "XEN", sourceShipDefId: "BUG", count: 2,
+      sourceShipInstanceId: "bug-1",
       producedBuildOccurrence: { stage: "drawing_prelude", passIndex: 1 } },
     { kind: "produced_build", shipDefId: "DEF", sourceShipDefId: "CAR", count: 2,
+      sourceShipInstanceId: "car-1",
       producedBuildOccurrence: { stage: "drawing_prelude", passIndex: 1 } },
+    { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "CAR", count: 1,
+      sourceShipInstanceId: "car-2",
+      producedBuildOccurrence: { stage: "drawing" } },
     { kind: "produced_build", shipDefId: "ANT", sourceShipDefId: "ZEN", count: 1,
+      sourceShipInstanceId: "zen-1",
       producedBuildOccurrence: { stage: "drawing" } },
     { kind: "produced_build", shipDefId: "ANT", sourceShipDefId: "ZEN", count: 2,
-      producedBuildOccurrence: { stage: "drawing" } },
+      sourceShipInstanceId: "zen-2",
+      producedBuildOccurrence: { stage: "reveal" } },
     { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "DRE", count: 3,
+      sourceShipInstanceId: "dre-1",
       producedBuildOccurrence: { stage: "reveal" } },
   ]);
   assert.deepEqual(summary.buildLinesByPlayerId.p1, [
-    "2 x SPI (SSIM)",
+    "CHR rolled 2, 5",
     "KNO rerolled 1 -> 6",
-    "3 x DEF (CAR)",
-    "2 x XEN (BUG)",
-    "1 x DEF (CAR)",
+    "CUB rolled 2, 4, 5",
     "1 x FIG",
-    "3 x ANT (ZEN)",
+    "2 x SPI (SSIM)",
+    "4 x DEF (2 CAR)",
+    "1 x FIG (CAR)",
+    "2 x XEN (BUG)",
+    "3 x ANT (2 ZEN)",
     "3 x FIG (DRE)",
   ]);
+});
+
+Deno.test("produced source counts fail safely when any collapsed contribution lacks identity", () => {
+  const summary = buildSummaryForAtoms([
+    { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "CAR", count: 1,
+      sourceShipInstanceId: "car-1" },
+    { kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "CAR", count: 2 },
+  ]);
+  assert.deepEqual(summary.buildLinesByPlayerId.p1, ["3 x FIG (CAR)"]);
+});
+
+Deno.test("authoritative Cube rolls capture folds all rolls into completed Build history", () => {
+  const event = createBattleLogBuildCubeRollsCaptureEvent({
+    turnNumber: 4,
+    playerId: "p1",
+    cubeRollValues: [2, 4, 5],
+  });
+  const scratch = foldBattleLogCaptureEventsIntoScratch(
+    { currentTurnCapture: null, lastFinalizedTurnNumber: 3 },
+    [event],
+  );
+  const summary = buildBattleLogTurnSummaryFromScratch({
+    scratch,
+    finalizedTurnNumber: 4,
+    finalizedState: {
+      status: "active",
+      players: [{ id: "p1", name: "One", role: "player", health: 25 }],
+      gameData: { turnNumber: 4, ships: { p1: [] } },
+    },
+  });
+  assert.deepEqual(summary.buildLinesByPlayerId.p1, ["CUB rolled 2, 4, 5"]);
+});
+
+Deno.test("legacy Cube change capture remains compatible with unfinalized scratch", () => {
+  const event = createBattleLogBuildCubeChangeCaptureEvent({
+    turnNumber: 4,
+    playerId: "p1",
+    fromValue: 3,
+    toValue: 5,
+  });
+  const scratch = foldBattleLogCaptureEventsIntoScratch(
+    { currentTurnCapture: null, lastFinalizedTurnNumber: 3 },
+    [event],
+  );
+  const summary = buildBattleLogTurnSummaryFromScratch({
+    scratch,
+    finalizedTurnNumber: 4,
+    finalizedState: {
+      status: "active",
+      players: [{ id: "p1", name: "One", role: "player", health: 25 }],
+      gameData: { turnNumber: 4, ships: { p1: [] } },
+    },
+  });
+  assert.deepEqual(summary.buildLinesByPlayerId.p1, ["CUB rolled 5"]);
 });
 
 Deno.test("metadata-aware mode rejects partial classification for every authoritative occurrence", () => {
@@ -286,8 +356,7 @@ Deno.test("metadata-aware mode rejects partial classification for every authorit
   ]);
   assert.deepEqual(classifiedWithoutPrelude.buildLinesByPlayerId.p1, [
     "1 x DEF",
-    "1 x FIG (DRE)",
-    "2 x FIG (DRE)",
+    "3 x FIG (DRE)",
   ]);
 });
 

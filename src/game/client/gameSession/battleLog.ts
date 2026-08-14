@@ -237,12 +237,14 @@ function mapBattleLogLines(
 }
 
 function tokenizeBuildLine(line: string): BattleLogTokenVm[] {
-  const countedBuildMatch = line.match(/^(\d+)\s+x\s+([A-Z0-9]{3,5})(?:\s+\(([A-Z0-9]{3,5})\))?$/);
+  const countedBuildMatch = line.match(
+    /^(\d+)\s+x\s+([A-Z0-9]{3,5})(?:\s+\((?:(\d+)\s+)?([A-Z0-9]{3,5})\))?$/
+  );
   if (!countedBuildMatch) {
     return tokenizeGenericLine(line);
   }
 
-  const [, count, builtShipDefId, sourceShipDefId] = countedBuildMatch;
+  const [, count, builtShipDefId, sourceCount, sourceShipDefId] = countedBuildMatch;
   if (!isKnownShipId(builtShipDefId) || (sourceShipDefId && !isKnownShipId(sourceShipDefId))) {
     return tokenizeGenericLine(line);
   }
@@ -259,6 +261,9 @@ function tokenizeBuildLine(line: string): BattleLogTokenVm[] {
 
   if (sourceShipDefId) {
     tokens.push(makeTextToken(' ('));
+    if (sourceCount) {
+      tokens.push(makeTextToken(`${sourceCount} `));
+    }
     tokens.push(makeShipToken(sourceShipDefId, false));
     tokens.push(makeTextToken(')'));
   }

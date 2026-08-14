@@ -365,6 +365,13 @@ Deno.test('normal LEG and ZEN builds use shared immediate Drawing consequences',
     )?.producedBuildOccurrence,
     { stage: 'drawing' },
   );
+  assert.equal(
+    zenResult.events.find((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'
+    )?.sourceShipInstanceId,
+    zenState.gameData.ships.p1.find((entry: any) => entry.shipDefId === 'ZEN')
+      ?.instanceId,
+  );
 
   const legState = createResolutionState({
     lines: 8,
@@ -398,6 +405,34 @@ Deno.test('normal LEG and ZEN builds use shared immediate Drawing consequences',
     ),
     ['ZEN', 'ANT'],
   );
+});
+
+Deno.test('Evolver conversion capture uses authoritative EVO processing order', () => {
+  const state = createResolutionState({
+    lines: 0,
+    ships: [
+      { instanceId: 'evo-1', shipDefId: 'EVO' },
+      { instanceId: 'evo-2', shipDefId: 'EVO' },
+      { instanceId: 'xen-1', shipDefId: 'XEN' },
+      { instanceId: 'xen-2', shipDefId: 'XEN' },
+    ],
+    payload: {
+      builds: [],
+      evolverChoices: [
+        { sourceKey: 'untrusted-first', choiceId: 'hold' },
+        { sourceKey: 'untrusted-second', choiceId: 'oxite' },
+      ],
+    },
+  });
+  state.players[0].faction = 'xenite';
+
+  const result = resolve(state);
+  const capture = result.events.find((event: any) =>
+    event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED' &&
+    event.sourceShipDefId === 'EVO'
+  );
+  assert.equal(capture?.shipDefId, 'OXI');
+  assert.equal(capture?.sourceShipInstanceId, 'evo-2');
 });
 
 Deno.test('Drawing build resolution consumes turn-start Simulacrum copies as upgrade components', () => {

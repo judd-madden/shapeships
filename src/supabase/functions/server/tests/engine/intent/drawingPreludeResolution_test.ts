@@ -103,6 +103,12 @@ Deno.test('automatic BUG applies charge and creation, verifies accounting, captu
     )?.producedBuildOccurrence,
     { stage: 'drawing_prelude', passIndex: 1 },
   );
+  assert.equal(
+    result.events.find((event) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'
+    )?.sourceShipInstanceId,
+    'bug-1',
+  );
   assert.equal(result.state.gameData.turnData?.shipActivationCueBatches?.[0].sources[0].sourceInstanceId, 'bug-1');
   const repeated = advanceDrawingPreludeForPlayer({ state: result.state, playerId: 'p1', nowMs: 11 });
   assert.equal(repeated.ok, true);

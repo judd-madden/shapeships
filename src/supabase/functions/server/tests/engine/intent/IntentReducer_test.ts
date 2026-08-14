@@ -1699,7 +1699,7 @@ Deno.test('Cube batch rejects multiple entries without mutating staged or resolv
   assert.deepEqual(result.events, []);
 });
 
-Deno.test('Cube Main choice clears only the local stale CUB override', async () => {
+Deno.test('Cube Main choice clears only the local stale CUB override and captures every roll', async () => {
   const state = createCubeIntentState();
   const staged = await applyIntent(state, 'p1', {
     gameId: state.gameId,
@@ -1727,5 +1727,89 @@ Deno.test('Cube Main choice clears only the local stale CUB override', async () 
   assert.deepEqual(
     resolved.state.gameData.turnData.cubeDiceSelectionByPlayerId.p1,
     { choiceId: 'main', value: 4 },
+  );
+  assert.deepEqual(
+    resolved.events.filter((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_CUBE_ROLLS'
+    ),
+    [{
+      type: 'BATTLE_LOG_CAPTURE_BUILD_CUBE_ROLLS',
+      turnNumber: 3,
+      playerId: 'p1',
+      cubeRollValues: [2, 6],
+    }],
+  );
+});
+
+Deno.test('accepted changed Cube choice emits one authoritative all-rolls Battle Log capture', async () => {
+  const state = createCubeIntentState();
+  const staged = await applyIntent(state, 'p1', {
+    gameId: state.gameId,
+    intentType: 'ACTION',
+    turnNumber: 3,
+    nonce: 'cube-changed',
+    payload: {
+      actionType: 'power',
+      actionId: 'CUB#0',
+      sourceInstanceId: 'cube-a',
+      choiceId: 'cube:cube-b',
+    },
+  }, 100);
+  assert.equal(staged.ok, true);
+
+  const resolved = await applyIntent(staged.state, 'p1', {
+    gameId: state.gameId,
+    intentType: 'DECLARE_READY',
+    turnNumber: 3,
+    nonce: 'cube-changed-ready',
+  }, 200);
+  assert.equal(resolved.ok, true);
+  assert.deepEqual(
+    resolved.events.filter((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_CUBE_ROLLS'
+    ),
+    [{
+      type: 'BATTLE_LOG_CAPTURE_BUILD_CUBE_ROLLS',
+      turnNumber: 3,
+      playerId: 'p1',
+      cubeRollValues: [2, 6],
+    }],
+  );
+});
+
+Deno.test('accepted equal-value Cube die still captures every authoritative roll', async () => {
+  const state = createCubeIntentState();
+  state.gameData.turnData.cubeDiceRollsByPlayerId.p1[0].value = 4;
+  const staged = await applyIntent(state, 'p1', {
+    gameId: state.gameId,
+    intentType: 'ACTION',
+    turnNumber: 3,
+    nonce: 'cube-tie',
+    payload: {
+      actionType: 'power',
+      actionId: 'CUB#0',
+      sourceInstanceId: 'cube-a',
+      choiceId: 'cube:cube-a',
+    },
+  }, 100);
+  assert.equal(staged.ok, true);
+
+  const resolved = await applyIntent(staged.state, 'p1', {
+    gameId: state.gameId,
+    intentType: 'DECLARE_READY',
+    turnNumber: 3,
+    nonce: 'cube-tie-ready',
+  }, 200);
+  assert.equal(resolved.ok, true);
+  assert.deepEqual(
+    resolved.events.filter((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_CUBE_ROLLS'
+    ),
+    [{
+      type: 'BATTLE_LOG_CAPTURE_BUILD_CUBE_ROLLS',
+      turnNumber: 3,
+      playerId: 'p1',
+      cubeRollValues: [4, 6],
+    }],
   );
 });

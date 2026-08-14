@@ -1101,7 +1101,10 @@ function resolvePlayerBuildSubmit(args: {
   remainingOrdinaryLines = nonUpgradedStageResolution.remainingOrdinaryLines;
   remainingJoiningLines = nonUpgradedStageResolution.remainingJoiningLines;
 
-  for (const evolverChoice of payload?.evolverChoices ?? []) {
+  const evolverSourceInstances = workingFleet
+    .filter((entry) => entry.shipDefId === 'EVO')
+    .map((entry) => entry.instanceId);
+  for (const [evolverChoiceIndex, evolverChoice] of (payload?.evolverChoices ?? []).entries()) {
     if (evolverChoice?.choiceId !== 'oxite' && evolverChoice?.choiceId !== 'asterite') {
       continue;
     }
@@ -1134,6 +1137,7 @@ function resolvePlayerBuildSubmit(args: {
       creationSource: {
         kind: 'produced',
         sourceShipDefId: 'EVO',
+        sourceShipInstanceId: evolverSourceInstances[evolverChoiceIndex],
         producedBuildOccurrence: { stage: 'drawing' },
       },
       grantJoiningLines() {},

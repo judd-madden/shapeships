@@ -364,7 +364,12 @@ export function filterDrawingPreludeEventsForViewer(
         filtered.push(event);
         continue;
       }
-      const { producedBuildOccurrence: _privateOccurrence, ...safeEvent } = event;
+      const {
+        cubeRollValues: _privateCubeRollValues,
+        producedBuildOccurrence: _privateOccurrence,
+        sourceShipInstanceId: _privateSourceShipInstanceId,
+        ...safeEvent
+      } = event;
       filtered.push(structuredClone(safeEvent));
       continue;
     }
@@ -385,7 +390,9 @@ export function filterDrawingPreludeEventsForViewer(
     }
     const {
       drawingPreludeVisibility: _privateVisibility,
+      cubeRollValues: _privateCubeRollValues,
       producedBuildOccurrence: _privateOccurrence,
+      sourceShipInstanceId: _privateSourceShipInstanceId,
       ...safeEvent
     } = event;
     filtered.push(structuredClone(safeEvent));

@@ -48,6 +48,7 @@ import { resolveBuildSubmitAuthoritatively } from './buildSubmitResolution.ts';
 import {
   createBattleLogBattleCaptureEventsFromResolution,
   createBattleLogBuildCaptureEventsFromResolution,
+  createBattleLogBuildCubeRollsCaptureEvent,
   createBattleLogBuildRerollCaptureEvents,
 } from '../state/battleLogHistory.ts';
 import {
@@ -69,6 +70,7 @@ import { debugLog } from '../../utils/serverLogger.ts';
 import {
   anyPlayerIsCubeEligible,
   getCubeEligiblePlayerIds,
+  getLockedCubeRollsForPlayer,
   getRepresentativeCubeInstanceId,
   playerHasValidPendingCubeChoice,
   playerIsCubeEligible,
@@ -608,7 +610,6 @@ function resolvePendingCubeDiceChoices(state: any, nowMs: number, events: any[])
   const visibleByPlayerId = {
     ...(turnData.visibleCubeDiceValueByPlayerId || {}),
   };
-
   for (const currentPlayerId of eligiblePlayerIds) {
     const sourceInstanceId = getRepresentativeCubeInstanceId(state, currentPlayerId);
     const choiceId = pendingByPlayerId[currentPlayerId];
@@ -633,6 +634,14 @@ function resolvePendingCubeDiceChoices(state: any, nowMs: number, events: any[])
     } else if (overrideByPlayerId[currentPlayerId] === 'CUB') {
       delete overrideByPlayerId[currentPlayerId];
     }
+
+    const cubeRollValues = getLockedCubeRollsForPlayer(state, currentPlayerId)
+      .map((roll) => roll.value);
+    events.push(createBattleLogBuildCubeRollsCaptureEvent({
+      turnNumber: state.gameData.turnNumber || 1,
+      playerId: currentPlayerId,
+      cubeRollValues,
+    }));
 
     events.push({
       type: 'CUBE_DICE_CHOSEN',

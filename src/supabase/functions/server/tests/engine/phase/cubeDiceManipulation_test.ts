@@ -345,6 +345,12 @@ Deno.test('Cube Ready requires a staged choice and two controllers resolve indep
     130,
   );
   assert.equal(p1Ready.state.gameData.turnData.diceManipulationStage, 'cube');
+  assert.equal(
+    p1Ready.events.some((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_CUBE_ROLLS'
+    ),
+    false,
+  );
 
   const p2Choice = await applyIntent(
     p1Ready.state,
@@ -362,6 +368,25 @@ Deno.test('Cube Ready requires a staged choice and two controllers resolve indep
   assert.equal(resolved.state.gameData.turnData.effectiveDiceRollByPlayerId.p2, 2);
   assert.equal(resolved.state.gameData.turnData.visibleCubeDiceValueByPlayerId.p1, 5);
   assert.equal(resolved.state.gameData.turnData.visibleCubeDiceValueByPlayerId.p2, 4);
+  assert.deepEqual(
+    resolved.events.filter((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_CUBE_ROLLS'
+    ),
+    [
+      {
+        type: 'BATTLE_LOG_CAPTURE_BUILD_CUBE_ROLLS',
+        turnNumber: 1,
+        playerId: 'p1',
+        cubeRollValues: [5],
+      },
+      {
+        type: 'BATTLE_LOG_CAPTURE_BUILD_CUBE_ROLLS',
+        turnNumber: 1,
+        playerId: 'p2',
+        cubeRollValues: [4],
+      },
+    ],
+  );
 });
 
 Deno.test('LEV suppresses Cube rolls and public Cube values', () => {

@@ -22,6 +22,7 @@ export type DrawingShipCreationSource =
   | {
     kind: "produced";
     sourceShipDefId: string;
+    sourceShipInstanceId?: string;
     producedBuildOccurrence: ProducedBuildOccurrence;
   };
 
@@ -209,6 +210,7 @@ export function createShipDuringDrawing(args: {
       playerId: args.playerId,
       shipDefId: ship.shipDefId,
       sourceShipDefId: args.creationSource.sourceShipDefId,
+      sourceShipInstanceId: args.creationSource.sourceShipInstanceId,
       producedBuildOccurrence: args.creationSource.producedBuildOccurrence,
     });
 
@@ -262,6 +264,7 @@ export function applyImmediateDrawingBuiltConsequences(args: {
       creationSource: {
         kind: "produced",
         sourceShipDefId: args.builtShip.shipDefId,
+        sourceShipInstanceId: args.builtShip.instanceId,
         producedBuildOccurrence: args.producedBuildOccurrence,
       },
       workingFleet: args.workingFleet,

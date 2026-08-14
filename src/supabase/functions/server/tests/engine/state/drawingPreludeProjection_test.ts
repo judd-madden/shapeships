@@ -204,11 +204,14 @@ Deno.test('Drawing-prelude event routing strips private metadata and fails close
     { type: 'EXISTING_EVENT', value: 1 },
     {
       type: 'PRIVATE_EVENT', secret: 'owner-only',
+      sourceShipInstanceId: 'private-source',
       producedBuildOccurrence: { stage: 'drawing_prelude', passIndex: 1 },
       drawingPreludeVisibility: { audience: 'owner', playerId: 'p1' },
     },
     {
       type: 'PUBLIC_CAPTURE_EVENT',
+      cubeRollValues: [2, 4, 5],
+      sourceShipInstanceId: 'private-public-source',
       producedBuildOccurrence: { stage: 'reveal' },
     },
     { type: 'MALFORMED_PRIVATE', drawingPreludeVisibility: { audience: 'owner' } },
@@ -253,6 +256,7 @@ Deno.test('events emitted by live Carrier resolution are owner-only and sanitize
   assert.equal(ownerEvents.some((event) => event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'), true);
   assert.equal(ownerEvents.some((event) => event.type === 'POWER_USED'), true);
   assert.equal(ownerEvents.some((event) => 'drawingPreludeVisibility' in event), false);
+  assert.equal(ownerEvents.some((event) => 'sourceShipInstanceId' in event), false);
   assert.deepEqual(filterDrawingPreludeEventsForViewer(resolved.state, 'p2', resolved.events), []);
   assert.deepEqual(filterDrawingPreludeEventsForViewer(resolved.state, 'spec', resolved.events), []);
 });
