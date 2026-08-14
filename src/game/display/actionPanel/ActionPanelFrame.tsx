@@ -42,6 +42,8 @@ interface ActionPanelFrameProps {
   onSoundEnabledChange: (checked: boolean) => void;
   onBoardFlashEnabledChange: (checked: boolean) => void;
   onReturnToMainMenu: () => void;
+  showChallengeAction?: boolean;
+  onOpenChallenge?: () => void;
   simulacrumSpecies?: SpeciesId;
   siphonInspectionOpen?: boolean;
   onOpenSiphonInspection?: () => void;
@@ -63,6 +65,8 @@ export function ActionPanelFrame({
   onSoundEnabledChange,
   onBoardFlashEnabledChange,
   onReturnToMainMenu,
+  showChallengeAction = false,
+  onOpenChallenge,
   simulacrumSpecies = 'human',
   siphonInspectionOpen = false,
   onOpenSiphonInspection,
@@ -364,6 +368,8 @@ export function ActionPanelFrame({
           onResignGame={actions.onResignGame}
           onAbortGame={onReturnToMainMenu}
           onReturnToMainMenu={onReturnToMainMenu}
+          showChallengeAction={showChallengeAction}
+          onOpenChallenge={onOpenChallenge}
           soundEnabled={soundEnabled}
           boardFlashEnabled={boardFlashEnabled}
           onSoundEnabledChange={onSoundEnabledChange}

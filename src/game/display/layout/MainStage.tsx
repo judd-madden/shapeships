@@ -4,7 +4,7 @@
  * NO LOGIC - composition matching Figma design exactly (Pass 1.25)
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { GameVerticalLine } from '../../../components/ui/primitives';
 import { TopHud } from './TopHud';
 import { BoardStage } from './BoardStage';
@@ -13,6 +13,12 @@ import { ActionPanelFrame } from '../actionPanel/ActionPanelFrame';
 import { resolveAncientSimulacrumSpecies } from '../actionPanel/panels/catalogue/ancient/resolveAncientSimulacrumSpecies';
 import { Tab } from '../../../components/ui/primitives/navigation/Tab';
 import { GameStatsOverlayShell } from '../stats/GameStatsOverlayShell';
+import { MissionChallengeOverlay } from '../mission/MissionChallengeOverlay';
+import {
+  getMissionPresentationIdentity,
+  isNewVisibleMissionPresentation,
+  type MissionOverlayMode,
+} from '../mission/missionChallengePresentation';
 import type { MainPhaseControl } from '../shared/mainPhaseControl';
 import type { 
   HudViewModel, 
@@ -24,11 +30,14 @@ import type {
 } from '../../client/useGameSession';
 
 interface MainStageProps {
+  gameId: string;
   hudVm: HudViewModel;
   boardVm: BoardViewModel;
   bottomActionRailVm: BottomActionRailViewModel;
   actionPanelVm: ActionPanelViewModel;
   gameStats: GameSessionViewModel['gameStats'];
+  viewer: GameSessionViewModel['viewer'];
+  missionChallenge: GameSessionViewModel['missionChallenge'];
   actions: GameSessionActions;
   soundEnabled: boolean;
   boardFlashEnabled: boolean;
@@ -38,11 +47,14 @@ interface MainStageProps {
 }
 
 export function MainStage({ 
+  gameId,
   hudVm, 
   boardVm, 
   bottomActionRailVm, 
   actionPanelVm, 
   gameStats,
+  viewer,
+  missionChallenge,
   actions,
   soundEnabled,
   boardFlashEnabled,
@@ -52,6 +64,10 @@ export function MainStage({
 }: MainStageProps) {
   const [isGameStatsOpen, setIsGameStatsOpen] = useState(false);
   const [isSiphonInspectionOpen, setIsSiphonInspectionOpen] = useState(false);
+  const [isMissionReopenOpen, setIsMissionReopenOpen] = useState(false);
+  const previousMissionPresentationIdentityRef = useRef<string | null>(null);
+  const markMissionFindingsSeenRef = useRef(actions.onMarkCurrentMissionFindingsSeen);
+  markMissionFindingsSeenRef.current = actions.onMarkCurrentMissionFindingsSeen;
   const simulacrumSpecies = resolveAncientSimulacrumSpecies(boardVm);
   const isEndGameResultPanel = actionPanelVm.activePanelId === 'ap.end_of_game.result';
   const canViewGameStats = gameStats != null;
@@ -65,6 +81,38 @@ export function MainStage({
     ancientDeclarationStage === 'powers'
       ? 'declaration'
       : 'reference';
+  const isBoardMode = boardVm.mode === 'board';
+  const shouldShowInitialMission = Boolean(
+    isBoardMode &&
+    missionChallenge &&
+    !missionChallenge.isFinished &&
+    missionChallenge.shouldPresentInitialIntro,
+  );
+  const shouldShowReopenedMission = Boolean(
+    !shouldShowInitialMission &&
+    isBoardMode &&
+    missionChallenge &&
+    !missionChallenge.isFinished &&
+    missionChallenge.introPending === false &&
+    viewer.isPlayerViewer &&
+    isMissionReopenOpen,
+  );
+  const missionOverlayMode: MissionOverlayMode | null = shouldShowInitialMission
+    ? 'initial'
+    : shouldShowReopenedMission
+      ? 'reopen'
+      : null;
+  const isMissionOverlayVisible = missionOverlayMode !== null;
+  const missionPresentationIdentity = missionChallenge
+    ? getMissionPresentationIdentity({
+        gameId,
+        missionId: missionChallenge.mission.id,
+        mode: missionOverlayMode,
+      })
+    : null;
+  const canShowMissionChallengeAction = Boolean(
+    missionChallenge && !missionChallenge.isFinished && viewer.isPlayerViewer,
+  );
   const endGameResultKey = useMemo(() => {
     const endOfGame = actionPanelVm.endOfGame;
 
@@ -99,6 +147,33 @@ export function MainStage({
     setIsSiphonInspectionOpen(false);
   }, [ancientDeclarationStage, ancientPresentation]);
 
+  useEffect(() => {
+    setIsMissionReopenOpen(false);
+  }, [gameId, missionChallenge?.mission.id]);
+
+  useEffect(() => {
+    if (
+      missionChallenge === null ||
+      missionChallenge.isFinished ||
+      missionChallenge.introPending
+    ) {
+      setIsMissionReopenOpen(false);
+    }
+  }, [missionChallenge]);
+
+  useEffect(() => {
+    const previousIdentity = previousMissionPresentationIdentityRef.current;
+    if (
+      isNewVisibleMissionPresentation(
+        previousIdentity,
+        missionPresentationIdentity,
+      )
+    ) {
+      markMissionFindingsSeenRef.current();
+    }
+    previousMissionPresentationIdentityRef.current = missionPresentationIdentity;
+  }, [missionPresentationIdentity]);
+
   function handleOpenGameStats() {
     if (canViewGameStats) {
       setIsGameStatsOpen(true);
@@ -121,6 +196,17 @@ export function MainStage({
   function handleOpenSiphonInspection() {
     if (isAncientCatalogueSurfaceActive && ancientSelectorMode == null) {
       setIsSiphonInspectionOpen(true);
+    }
+  }
+
+  function handleOpenMissionChallenge() {
+    if (
+      missionChallenge &&
+      !missionChallenge.isFinished &&
+      missionChallenge.introPending === false &&
+      viewer.isPlayerViewer
+    ) {
+      setIsMissionReopenOpen(true);
     }
   }
 
@@ -159,7 +245,9 @@ export function MainStage({
 
       {/* Main Stage Wrapper */}
       <div
-        className="content-stretch flex flex-col grow items-center justify-between mb-[-24px] min-h-px min-w-px relative w-full z-20"
+        className={`content-stretch flex flex-col grow items-center justify-between mb-[-24px] min-h-px min-w-px relative w-full z-20 ${
+          isMissionOverlayVisible ? 'pointer-events-none' : ''
+        }`}
         data-name="Main Stage Wrapper"
       >
         {/* Top Hud */}
@@ -192,7 +280,9 @@ export function MainStage({
 
       {/* Action Panel Wrapper */}
       <div
-        className="content-stretch flex flex-col h-[344px] items-end relative w-full"
+        className={`content-stretch flex flex-col h-[344px] items-end relative w-full ${
+          isMissionOverlayVisible ? 'pointer-events-none' : ''
+        }`}
         data-name="Action Panel Wrapper"
       >
         {isGameStatsOpen ? (
@@ -241,6 +331,8 @@ export function MainStage({
             onSoundEnabledChange={onSoundEnabledChange}
             onBoardFlashEnabledChange={onBoardFlashEnabledChange}
             onReturnToMainMenu={onReturnToMainMenu}
+            showChallengeAction={canShowMissionChallengeAction}
+            onOpenChallenge={handleOpenMissionChallenge}
             simulacrumSpecies={simulacrumSpecies}
             siphonInspectionOpen={isSiphonInspectionOpen}
             onOpenSiphonInspection={handleOpenSiphonInspection}
@@ -248,6 +340,29 @@ export function MainStage({
           />
         </div>
       </div>
+
+      {missionOverlayMode && missionChallenge && isBoardMode ? (
+        <div className="pointer-events-auto absolute inset-0 z-50 flex items-start justify-center pb-[16px] pt-[170px] min-[768px]:max-[1599px]:pt-[120px]">
+          <MissionChallengeOverlay
+            missionChallenge={missionChallenge}
+            mode={missionOverlayMode}
+            onClose={() => setIsMissionReopenOpen(false)}
+            onPlay={actions.onAcknowledgeMissionIntro}
+            onSetMinimizeMissionsThisSession={
+              actions.onSetMinimizeMissionsThisSession
+            }
+            opponentSpecies={boardVm.opponentSpeciesId}
+            playerName={
+              viewer.viewerMode === 'p1_player'
+                ? viewer.p1Name
+                : viewer.viewerMode === 'p2_player'
+                  ? viewer.p2Name
+                  : ''
+            }
+            playerSpecies={boardVm.mySpeciesId}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

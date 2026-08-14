@@ -8,6 +8,7 @@ import {
   createMissionAutoAckState,
   normalizeRequesterMissionChallenge,
   shouldAutomaticallyAcknowledgeMission,
+  shouldPresentInitialMissionIntro,
 } from './missionChallenge';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
@@ -137,6 +138,17 @@ Deno.test('rejects malformed core DTO fields', () => {
       },
     },
   }) === null);
+  assert(normalizeRequesterMissionChallenge({
+    requester: {
+      missionChallenge: {
+        ...requesterState().requester.missionChallenge,
+        mission: {
+          ...requesterState().requester.missionChallenge.mission,
+          findingIds: [],
+        },
+      },
+    },
+  }) === null);
 });
 
 Deno.test('does not read root or gameData Mission fallbacks', () => {
@@ -158,11 +170,93 @@ Deno.test('builds one central VM without deriving result truth', () => {
     normalized,
     isFinished: true,
     minimizeMissionsThisSession: true,
+    shouldPresentInitialIntro: false,
   });
   assert(vm);
   assert(vm.isFinished === true);
   assert(vm.minimizeMissionsThisSession === true);
+  assert(vm.shouldPresentInitialIntro === false);
   assertEquals(vm.result, normalized?.result);
+});
+
+Deno.test('initial Mission presentation follows captured auto-ack state', () => {
+  const pendingMission = normalizeRequesterMissionChallenge(requesterState());
+  const acknowledgedMission = normalizeRequesterMissionChallenge(
+    requesterState({ introPending: false }),
+  );
+  assert(pendingMission);
+  assert(acknowledgedMission);
+
+  const normalGame = createMissionAutoAckState('game-a', false);
+  assert(shouldPresentInitialMissionIntro({
+    state: normalGame,
+    gameId: 'game-a',
+    missionChallenge: pendingMission,
+  }));
+
+  // Changing the live preference does not mutate the captured state.
+  assert(normalGame.eligible === false);
+  assert(shouldPresentInitialMissionIntro({
+    state: normalGame,
+    gameId: 'game-a',
+    missionChallenge: pendingMission,
+  }));
+
+  const minimizedGame = createMissionAutoAckState('game-b', true);
+  assert(!shouldPresentInitialMissionIntro({
+    state: minimizedGame,
+    gameId: 'game-b',
+    missionChallenge: pendingMission,
+  }));
+
+  const automaticClaim = claimMissionAcknowledgement({
+    state: minimizedGame,
+    gameId: 'game-b',
+    missionChallenge: pendingMission,
+    source: 'automatic',
+  });
+  assert(automaticClaim);
+  assert(!shouldPresentInitialMissionIntro({
+    state: automaticClaim,
+    gameId: 'game-b',
+    missionChallenge: pendingMission,
+  }));
+
+  automaticClaim.inFlight = false;
+  automaticClaim.automaticAttemptSettled = true;
+  assert(shouldPresentInitialMissionIntro({
+    state: automaticClaim,
+    gameId: 'game-b',
+    missionChallenge: pendingMission,
+  }));
+  assert(!shouldPresentInitialMissionIntro({
+    state: automaticClaim,
+    gameId: 'game-b',
+    missionChallenge: acknowledgedMission,
+  }));
+});
+
+Deno.test('manual PLAY does not hide an initial Mission optimistically', () => {
+  const pendingMission = normalizeRequesterMissionChallenge(requesterState());
+  assert(pendingMission);
+
+  const fallback = createMissionAutoAckState('game-b', true);
+  fallback.autoAttempted = true;
+  fallback.automaticAttemptSettled = true;
+  const manualClaim = claimMissionAcknowledgement({
+    state: fallback,
+    gameId: 'game-b',
+    missionChallenge: pendingMission,
+    source: 'manual',
+  });
+  assert(manualClaim);
+  assert(manualClaim.inFlight === true);
+  assert(manualClaim.automaticAttemptSettled === true);
+  assert(shouldPresentInitialMissionIntro({
+    state: manualClaim,
+    gameId: 'game-b',
+    missionChallenge: pendingMission,
+  }));
 });
 
 Deno.test('auto-ack eligibility is captured per game and waits for a pending Mission', () => {

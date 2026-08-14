@@ -6,6 +6,7 @@
 
 import { Checkbox } from '../../../../components/ui/primitives';
 import { GameMenuButton } from '../../../../components/ui/primitives/buttons/GameMenuButton';
+import { ChallengeIcon } from '../../../../components/ui/primitives/icons/ChallengeIcon';
 
 interface MenuActionPanelProps {
   title: string;     // "Shapeships Game: {me} v {opponent}"
@@ -18,6 +19,8 @@ interface MenuActionPanelProps {
   onResignGame: () => void;
   onAbortGame: () => void;
   onReturnToMainMenu: () => void;
+  showChallengeAction: boolean;
+  onOpenChallenge?: () => void;
   soundEnabled: boolean;
   boardFlashEnabled: boolean;
   onSoundEnabledChange: (checked: boolean) => void;
@@ -35,6 +38,8 @@ export function MenuActionPanel({
   onResignGame,
   onAbortGame,
   onReturnToMainMenu,
+  showChallengeAction,
+  onOpenChallenge,
   soundEnabled,
   boardFlashEnabled,
   onSoundEnabledChange,
@@ -89,6 +94,18 @@ export function MenuActionPanel({
               >
                 {dangerAction.label}
               </GameMenuButton>
+
+              {showChallengeAction ? (
+                <GameMenuButton
+                  className="!w-[150px] !px-[20px]"
+                  onClick={onOpenChallenge}
+                >
+                  <span className="flex items-center gap-[10px]">
+                    <ChallengeIcon className="h-[28px] w-auto text-black" />
+                    <span>Challenge</span>
+                  </span>
+                </GameMenuButton>
+              ) : null}
             </>
           )}
         </div>

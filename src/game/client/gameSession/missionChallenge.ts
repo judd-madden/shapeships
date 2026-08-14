@@ -27,6 +27,7 @@ export interface MissionAutoAckState {
   gameId: string | null;
   eligible: boolean;
   autoAttempted: boolean;
+  automaticAttemptSettled: boolean;
   inFlight: boolean;
 }
 
@@ -39,7 +40,13 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 function normalizeFindingIds(value: unknown): string[] | null {
-  if (!Array.isArray(value) || !value.every(isNonEmptyString)) return null;
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    !value.every(isNonEmptyString)
+  ) {
+    return null;
+  }
   return Array.from(new Set(value));
 }
 
@@ -117,6 +124,7 @@ export function buildMissionChallengeViewModel(args: {
   normalized: NormalizedMissionChallenge | null;
   isFinished: boolean;
   minimizeMissionsThisSession: boolean;
+  shouldPresentInitialIntro: boolean;
 }): MissionChallengeViewModel | null {
   if (!args.normalized) return null;
   return {
@@ -127,6 +135,7 @@ export function buildMissionChallengeViewModel(args: {
     },
     challenge: { ...args.normalized.challenge },
     introPending: args.normalized.introPending,
+    shouldPresentInitialIntro: args.shouldPresentInitialIntro,
     isFinished: args.isFinished,
     result: args.normalized.result ? { ...args.normalized.result } : null,
     minimizeMissionsThisSession: args.minimizeMissionsThisSession,
@@ -137,7 +146,33 @@ export function createMissionAutoAckState(
   gameId: string | null,
   eligible: boolean,
 ): MissionAutoAckState {
-  return { gameId, eligible, autoAttempted: false, inFlight: false };
+  return {
+    gameId,
+    eligible,
+    autoAttempted: false,
+    automaticAttemptSettled: false,
+    inFlight: false,
+  };
+}
+
+export function shouldPresentInitialMissionIntro(args: {
+  state: MissionAutoAckState;
+  gameId: string | null;
+  missionChallenge: NormalizedMissionChallenge | null;
+}): boolean {
+  if (
+    args.gameId === null ||
+    args.state.gameId !== args.gameId ||
+    args.missionChallenge?.introPending !== true
+  ) {
+    return false;
+  }
+
+  if (!args.state.eligible) {
+    return true;
+  }
+
+  return args.state.autoAttempted && args.state.automaticAttemptSettled;
 }
 
 export function shouldAutomaticallyAcknowledgeMission(args: {
@@ -184,6 +219,10 @@ export function claimMissionAcknowledgement(args: {
     ...args.state,
     autoAttempted:
       args.source === 'automatic' ? true : args.state.autoAttempted,
+    automaticAttemptSettled:
+      args.source === 'automatic'
+        ? false
+        : args.state.automaticAttemptSettled,
     inFlight: true,
   };
 }

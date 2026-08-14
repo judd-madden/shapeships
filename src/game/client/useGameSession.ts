@@ -106,6 +106,7 @@ import {
   createMissionAutoAckState,
   normalizeRequesterMissionChallenge,
   shouldAutomaticallyAcknowledgeMission,
+  shouldPresentInitialMissionIntro,
   type MissionAutoAckState,
 } from './gameSession/missionChallenge';
 import {
@@ -815,6 +816,7 @@ export function useGameSession(
   const missionAutoAckStateRef = useRef<MissionAutoAckState>(
     createMissionAutoAckState(effectiveGameId, minimizeMissionsThisSession),
   );
+  const [, setMissionAutoAckRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [resumeSyncLocked, setResumeSyncLocked] = useState(false);
@@ -1583,6 +1585,7 @@ export function useGameSession(
     });
     if (!claimedState) return;
     missionAutoAckStateRef.current = claimedState;
+    setMissionAutoAckRevision((current) => current + 1);
     const turnNumberAtSubmission = getTurnNumber(latestRawState);
 
     try {
@@ -1625,6 +1628,12 @@ export function useGameSession(
         }
       }
       claimedState.inFlight = false;
+      if (source === 'automatic') {
+        claimedState.automaticAttemptSettled = true;
+      }
+      if (missionAutoAckStateRef.current === claimedState) {
+        setMissionAutoAckRevision((current) => current + 1);
+      }
     }
   }, []);
 
@@ -1633,6 +1642,7 @@ export function useGameSession(
       effectiveGameId,
       minimizeMissionsThisSessionRef.current,
     );
+    setMissionAutoAckRevision((current) => current + 1);
   }, [effectiveGameId]);
 
   useEffect(() => {
@@ -5320,6 +5330,11 @@ useEffect(() => {
     normalized: normalizedMissionChallenge,
     isFinished,
     minimizeMissionsThisSession,
+    shouldPresentInitialIntro: shouldPresentInitialMissionIntro({
+      state: missionAutoAckStateRef.current,
+      gameId: effectiveGameId,
+      missionChallenge: normalizedMissionChallenge,
+    }),
   });
   
   const vm: GameSessionViewModel = mapGameSessionVm({

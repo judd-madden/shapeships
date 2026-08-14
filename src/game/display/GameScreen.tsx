@@ -213,11 +213,14 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
 
           {/* Main Stage - fills remaining width */}
           <MainStage
+            gameId={gameId}
             hudVm={vm.hud}
             boardVm={vm.board}
             bottomActionRailVm={vm.bottomActionRail}
             actionPanelVm={vm.actionPanel}
             gameStats={vm.gameStats}
+            viewer={vm.viewer}
+            missionChallenge={vm.missionChallenge}
             actions={mainStageActions}
             soundEnabled={soundEnabled}
             boardFlashEnabled={boardFlashEnabled}
@@ -277,6 +280,7 @@ function useFirstTurnBuildHelper(
     vm.leftRail.turn === 1 &&
     typeof phaseKey === 'string' &&
     phaseKey.startsWith('build.') &&
+    vm.missionChallenge?.introPending !== true &&
     vm.actionPanel.menu.canResign === true;
 
   function dismissFirstTurnBuildHelperInternal(): boolean {
