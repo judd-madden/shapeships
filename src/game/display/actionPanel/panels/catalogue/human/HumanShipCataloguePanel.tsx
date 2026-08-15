@@ -87,6 +87,7 @@ export function HumanShipCataloguePanel({
         isDimmed,
         isClickable: true,
         enableGraphicHover,
+        catalogueChallengeIndicator: buildCatalogue.catalogueChallengeIndicator,
         onClick: () => onShipInspect(shipId),
       };
     }
@@ -96,6 +97,7 @@ export function HumanShipCataloguePanel({
         isDimmed,
         isClickable: false,
         enableGraphicHover,
+        catalogueChallengeIndicator: buildCatalogue.catalogueChallengeIndicator,
       };
     }
 
@@ -103,6 +105,7 @@ export function HumanShipCataloguePanel({
       isDimmed,
       isClickable: isBuildableContext && canAddShip,
       enableGraphicHover,
+      catalogueChallengeIndicator: buildCatalogue.catalogueChallengeIndicator,
       onClick: () => actions.onBuildShip(shipId),
     };
   }

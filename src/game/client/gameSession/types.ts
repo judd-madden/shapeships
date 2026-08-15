@@ -693,6 +693,10 @@ export interface ActionPanelBuildCatalogueViewModel {
   canAddShipById: Partial<Record<ShipDefId, boolean>>;
   displayCostByShipId: Partial<Record<ShipDefId, number>>;
   eligibilityByShipId: Partial<Record<ShipDefId, ProvisionalShipEligibility>>;
+  catalogueChallengeIndicator: {
+    shipDefId: ShipDefId;
+    condition: 'with' | 'without';
+  } | null;
 }
 
 export type AncientCatalogueEnergyMode = 'reference' | 'dormant' | 'active';

@@ -655,6 +655,7 @@ export function AncientShipCataloguePanel({
         isDimmed,
         isClickable: true,
         enableGraphicHover,
+        catalogueChallengeIndicator: buildCatalogue.catalogueChallengeIndicator,
         onClick: () => onShipInspect(shipId),
       };
     }
@@ -664,6 +665,7 @@ export function AncientShipCataloguePanel({
         isDimmed,
         isClickable: false,
         enableGraphicHover,
+        catalogueChallengeIndicator: buildCatalogue.catalogueChallengeIndicator,
       };
     }
 
@@ -671,6 +673,7 @@ export function AncientShipCataloguePanel({
       isDimmed,
       isClickable: isBuildableContext && canAddShip,
       enableGraphicHover,
+      catalogueChallengeIndicator: buildCatalogue.catalogueChallengeIndicator,
       onClick: () => actions.onBuildShip(shipId),
     };
   }

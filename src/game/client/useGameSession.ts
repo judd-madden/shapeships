@@ -4818,6 +4818,10 @@ useEffect(() => {
     canAddShipById: provisionalBuild.canAddShipById,
     displayCostByShipId: provisionalBuild.displayCostByShipId,
     eligibilityByShipId: provisionalBuild.eligibilityByShipId,
+    catalogueChallengeIndicator:
+      normalizedMissionChallenge && !minimizeMissionsThisSession
+        ? normalizedMissionChallenge.challenge
+        : null,
   } as const;
   
   // ============================================================================
@@ -6970,6 +6974,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
           canAddShipById: {},
           displayCostByShipId: {},
           eligibilityByShipId: {},
+          catalogueChallengeIndicator: null,
         },
           menu: {
               title: 'Menu',

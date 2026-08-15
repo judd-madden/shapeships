@@ -96,6 +96,7 @@ export function CentaurShipCataloguePanel({
         isDimmed,
         isClickable: true,
         enableGraphicHover,
+        catalogueChallengeIndicator: buildCatalogue.catalogueChallengeIndicator,
         onClick: () => onShipInspect(shipId),
       };
     }
@@ -105,6 +106,7 @@ export function CentaurShipCataloguePanel({
         isDimmed,
         isClickable: false,
         enableGraphicHover,
+        catalogueChallengeIndicator: buildCatalogue.catalogueChallengeIndicator,
       };
     }
 
@@ -112,6 +114,7 @@ export function CentaurShipCataloguePanel({
       isDimmed,
       isClickable: isBuildableContext && canAddShip,
       enableGraphicHover,
+      catalogueChallengeIndicator: buildCatalogue.catalogueChallengeIndicator,
       onClick: () => actions.onBuildShip(shipId),
     };
   }
