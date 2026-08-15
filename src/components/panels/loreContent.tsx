@@ -15,6 +15,7 @@ export interface GeneralLoreRow {
 }
 
 export interface MissionFinding {
+  id: string;
   topic: string;
   author: string;
   content: ReactNode;
@@ -103,21 +104,25 @@ export const generalLoreRows: readonly GeneralLoreRow[] = [
 
 export const missionFindings: readonly MissionFinding[] = [
   {
+    id: 'sol-1',
     topic: 'Sol',
     author: 'juddly',
     content: <p>Human Rebels have a base on <em>Neptune</em>.</p>,
   },
   {
+    id: 'proxima-centauri',
     topic: 'Proxima Centauri',
     author: 'juddly',
     content: <p>Centaur Rebels have a base in the <em>Proxima Centauri</em> system.</p>,
   },
   {
+    id: 'rebel-alliance',
     topic: 'Rebel Alliance',
     author: 'juddly',
     content: <p>There is a coalition of Rebel Humans and Rebel Centaur who want to join forces against the Xenites.</p>,
   },
   {
+    id: 'mintaka',
     topic: 'Mintaka',
     author: 'juddly',
     content: (
@@ -127,21 +132,25 @@ export const missionFindings: readonly MissionFinding[] = [
     ),
   },
   {
+    id: 'betelgeuse',
     topic: 'Betelgeuse',
     author: 'juddly',
     content: <p>Xenite colonies can mutate, there is a current mutation near the red supergiant <em>Betelgeuse</em>.</p>,
   },
   {
+    id: 'gamma-leporis',
     topic: 'Gamma Leporis',
     author: 'juddly',
     content: <p>Xenites and Centaurs are contesting the <em>Gamma Leporis</em> system.</p>,
   },
   {
+    id: 'delta-aquarii',
     topic: 'Delta Aquarii',
     author: 'juddly',
     content: <p>Humans want to take the <em>Delta Aquarii</em> system from the Centaurs.</p>,
   },
   {
+    id: 'ancient-mysteries',
     topic: 'Sol, Epsilon Eridani, Unknown',
     author: 'juddly',
     content: <p>Ancients are present in several systems.</p>,

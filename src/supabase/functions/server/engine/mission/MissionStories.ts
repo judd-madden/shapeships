@@ -140,7 +140,7 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     playerSpecies: "ancient",
     opponentSpecies: "xenite",
     findingIds: ["ancient-mysteries"],
-    title: "Remind the Xenites of Their Place",
+    title: "Remind the Xenite mind of its Place",
     location: "[unknown]",
     author: "juddly",
     paragraphs: [
