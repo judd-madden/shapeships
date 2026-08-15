@@ -150,7 +150,7 @@ export function EndOfGameActionPanel({
             >
               <span className="flex items-center gap-[10px]">
                 <ChallengeIcon className="h-[28px] w-auto text-black" />
-                <span>Challenge</span>
+                <span>Mission</span>
               </span>
             </GameMenuButton>
           ) : null}

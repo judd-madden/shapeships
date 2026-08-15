@@ -333,6 +333,47 @@ export function MainStage({
             mainPhaseControl={mainPhaseControl}
           />
         )}
+
+        {missionOverlayMode && missionChallenge && isBoardMode ? (
+          <div
+            className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center"
+            onClick={(event) => {
+              if (
+                event.target !== event.currentTarget ||
+                missionOverlayMode === 'initial'
+              ) {
+                return;
+              }
+
+              if (missionOverlayMode === 'result') {
+                setPostgameSurface(null);
+              } else {
+                setIsMissionReopenOpen(false);
+              }
+            }}
+          >
+            <MissionChallengeOverlay
+              missionChallenge={missionChallenge}
+              mode={missionOverlayMode}
+              onClose={missionOverlayMode === 'result'
+                ? () => setPostgameSurface(null)
+                : () => setIsMissionReopenOpen(false)}
+              onPlay={actions.onAcknowledgeMissionIntro}
+              onSetMinimizeMissionsThisSession={
+                actions.onSetMinimizeMissionsThisSession
+              }
+              opponentSpecies={boardVm.opponentSpeciesId}
+              playerName={
+                viewer.viewerMode === 'p1_player'
+                  ? viewer.p1Name
+                  : viewer.viewerMode === 'p2_player'
+                    ? viewer.p2Name
+                    : ''
+              }
+              playerSpecies={boardVm.mySpeciesId}
+            />
+          </div>
+        ) : null}
       </div>
 
       {/* Action Panel Wrapper */}
@@ -401,30 +442,6 @@ export function MainStage({
         </div>
       </div>
 
-      {missionOverlayMode && missionChallenge && isBoardMode ? (
-        <div className={`${missionOverlayMode === 'result' ? 'pointer-events-none' : 'pointer-events-auto'} absolute inset-0 z-50 flex items-start justify-center pb-[16px] pt-[170px] min-[768px]:max-[1599px]:pt-[120px]`}>
-          <MissionChallengeOverlay
-            missionChallenge={missionChallenge}
-            mode={missionOverlayMode}
-            onClose={missionOverlayMode === 'result'
-              ? () => setPostgameSurface(null)
-              : () => setIsMissionReopenOpen(false)}
-            onPlay={actions.onAcknowledgeMissionIntro}
-            onSetMinimizeMissionsThisSession={
-              actions.onSetMinimizeMissionsThisSession
-            }
-            opponentSpecies={boardVm.opponentSpeciesId}
-            playerName={
-              viewer.viewerMode === 'p1_player'
-                ? viewer.p1Name
-                : viewer.viewerMode === 'p2_player'
-                  ? viewer.p2Name
-                  : ''
-            }
-            playerSpecies={boardVm.mySpeciesId}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }

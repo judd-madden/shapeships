@@ -5329,6 +5329,7 @@ useEffect(() => {
   const missionChallengeVm = buildMissionChallengeViewModel({
     normalized: normalizedMissionChallenge,
     isFinished,
+    isIntroAcknowledgementPending: missionAutoAckStateRef.current.inFlight,
     minimizeMissionsThisSession,
     shouldPresentInitialIntro: shouldPresentInitialMissionIntro({
       state: missionAutoAckStateRef.current,

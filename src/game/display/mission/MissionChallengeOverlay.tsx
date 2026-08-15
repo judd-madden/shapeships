@@ -1,4 +1,5 @@
 import { Checkbox } from '../../../components/ui/primitives';
+import { AnimatedEllipsisText } from '../../../components/ui/primitives/AnimatedEllipsisText';
 import { ChallengeIcon } from '../../../components/ui/primitives/icons/ChallengeIcon';
 import { CloseIcon } from '../../../components/ui/primitives/icons/CloseIcon';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
@@ -72,6 +73,10 @@ export function MissionChallengeOverlay({
     ? pluralizeShipName(challengeShip.name)
     : challengeShipId;
   const challengeCopy = `Win ${missionChallenge.challenge.condition} ${pluralShipName}`;
+  const challengeInstructionClassName =
+    missionChallenge.challenge.condition === 'with'
+      ? 'text-[var(--shapeships-pastel-green)]'
+      : 'text-[var(--shapeships-pastel-red)]';
   const explanatoryCopy = challengeShip
     ? getChallengeExplanatoryCopy({
         playerSpecies,
@@ -92,14 +97,13 @@ export function MissionChallengeOverlay({
     <div
       aria-labelledby="mission-challenge-title"
       aria-modal={mode === 'result' ? undefined : true}
-      className="pointer-events-auto flex max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[10px] bg-[var(--shapeships-grey-90)] text-white shadow-[0_0_250px_rgba(0,0,0,1.0)] min-[768px]:max-h-full min-[768px]:w-[900px] min-[768px]:max-w-[calc(100%_-_32px)]"
+      className="pointer-events-auto flex max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[10px] bg-[var(--shapeships-grey-90)] text-white shadow-[0_0_250px_160px_rgba(0,0,0,1)] min-[768px]:max-h-full min-[768px]:w-[900px] min-[768px]:max-w-[calc(100%_-_32px)]"
       role="dialog"
     >
       <div className="flex min-h-0 flex-1 flex-col px-[16px] pb-[24px] pt-[16px] min-[768px]:px-[50px] min-[768px]:pb-[36px] min-[768px]:pt-[40px]">
-        <div className="flex shrink-0 flex-col items-start gap-[12px] font-bold leading-none min-[768px]:flex-row min-[768px]:items-center min-[768px]:justify-between min-[768px]:gap-[24px]">
-          {mode === 'result' ? (
+        <div className="flex shrink-0 flex-col items-start gap-[8px] font-bold leading-none min-[768px]:flex-row min-[768px]:items-center min-[768px]:justify-between min-[768px]:gap-[24px]">          {mode === 'result' ? (
             <>
-              <div className="flex items-center gap-[12px] min-[768px]:gap-[16px]">
+              <div className="flex items-center gap-[8px] min-[768px]:gap-[16px]">
                 <p className="text-[14px] min-[768px]:text-[18px]">YOUR MISSION</p>
                 {resultPresentation ? (
                   <ResultStatusBadge
@@ -145,7 +149,7 @@ export function MissionChallengeOverlay({
           )}
         </div>
 
-        <div className="mt-[18px] grid w-full shrink-0 grid-cols-2 items-start gap-[16px] text-[12px] leading-[16px] min-[768px]:flex min-[768px]:w-auto min-[768px]:gap-[56px] min-[768px]:text-[14px]">
+        <div className="mt-[12px] flex w-full shrink-0 grid-cols-2 items-start gap-[24px] text-[12px] leading-[16px] min-[768px]:flex min-[768px]:w-auto min-[768px]:gap-[56px] min-[768px]:text-[14px]">
           <MissionMetadata label="YEAR" value={String(missionChallenge.mission.year)} />
           <MissionMetadata
             label="SYSTEM"
@@ -153,14 +157,14 @@ export function MissionChallengeOverlay({
           />
         </div>
 
-        <div className="mt-[20px] min-h-0 overflow-y-auto pr-[4px] min-[768px]:pr-[8px]">
+        <div className="mt-[12px] sm:mt-[20px] min-h-0 overflow-y-auto">
           <h2
             className="text-[26px] font-black italic leading-[30px] min-[768px]:text-[46px] min-[768px]:leading-none"
             id="mission-challenge-title"
           >
             {missionChallenge.mission.title}
           </h2>
-          <div className="mt-[16px] space-y-[8px] text-[14px] leading-[20px] min-[768px]:mt-[20px] min-[768px]:space-y-[9px] min-[768px]:text-[22px] min-[768px]:leading-[30px]">
+          <div className="mt-[12px] space-y-[8px] text-[14px] leading-[20px] min-[768px]:mt-[20px] min-[768px]:space-y-[9px] min-[768px]:text-[22px] min-[768px]:leading-[30px]">
             {missionChallenge.mission.paragraphs.map((paragraph, index) => (
               <p key={index}>
                 {interpolateMissionPlayer(paragraph, playerName)}
@@ -169,7 +173,7 @@ export function MissionChallengeOverlay({
           </div>
         </div>
 
-        <div className="mt-[20px] grid shrink-0 grid-cols-[minmax(88px,110px)_minmax(0,1fr)] items-center gap-[18px] min-[768px]:grid-cols-[110px_minmax(0,1fr)_180px]">
+        <div className="mt-[12px] sm:mt-[20px] grid shrink-0 grid-cols-[minmax(88px,110px)_minmax(0,1fr)] items-center gap-[18px] min-[768px]:grid-cols-[110px_minmax(0,1fr)_180px]">
           {onChallengeShipInspect && challengeShip ? (
             <button
               aria-label={`Inspect ${challengeShip.name} ship reference`}
@@ -203,11 +207,11 @@ export function MissionChallengeOverlay({
               <ChallengeIcon className="h-[22px] w-auto shrink-0 text-white min-[768px]:h-[25px]" />
               <p className="text-[14px] font-bold leading-none min-[768px]:text-[18px]">OPTIONAL CHALLENGE</p>
             </div>
-            <p className="mt-[8px] text-[18px] leading-[22px] text-[var(--shapeships-pastel-red)] min-[768px]:text-[26px] min-[768px]:leading-[30px]">
+            <p className={`mt-[8px] text-[18px] leading-[22px] min-[768px]:text-[26px] min-[768px]:leading-[30px] ${challengeInstructionClassName}`}>
               {challengeCopy}
             </p>
             {explanatoryCopy ? (
-              <p className="mt-[6px] text-[12px] leading-[15px] text-[var(--shapeships-grey-20)]">
+              <p className="mt-[4px] text-[12px] sm:text-[14px] sm:mt-[12px] leading-[15px] text-[var(--shapeships-grey-20)]">
                 {explanatoryCopy}
               </p>
             ) : null}
@@ -220,11 +224,21 @@ export function MissionChallengeOverlay({
             />
           ) : mode === 'initial' ? (
             <button
-              className="col-span-2 h-[50px] w-full rounded-[10px] bg-white text-[18px] font-black text-black transition-colors hover:bg-[var(--shapeships-grey-20)] min-[768px]:col-span-1 min-[768px]:w-[180px]"
+              aria-busy={missionChallenge.isIntroAcknowledgementPending}
+              className={`col-span-2 h-[50px] w-full rounded-[10px] text-[18px] font-black text-black transition-colors min-[768px]:col-span-1 min-[768px]:w-[180px] ${
+                missionChallenge.isIntroAcknowledgementPending
+                  ? 'cursor-not-allowed bg-[var(--shapeships-grey-50)]'
+                  : 'cursor-pointer bg-white hover:bg-[var(--shapeships-grey-20)]'
+              }`}
+              disabled={missionChallenge.isIntroAcknowledgementPending}
               onClick={onPlay}
               type="button"
             >
-              PLAY
+              <AnimatedEllipsisText
+                text={missionChallenge.isIntroAcknowledgementPending
+                  ? 'ENTERING...'
+                  : 'PLAY'}
+              />
             </button>
           ) : mode === 'reopen' ? (
             <button
@@ -255,8 +269,8 @@ export function MissionChallengeOverlay({
           <Checkbox
             checked={missionChallenge.minimizeMissionsThisSession}
             className="shrink-0"
-            label="Minimize Missions this session"
-            labelClassName="whitespace-nowrap text-[15px] font-medium leading-none text-white"
+            label="Ignore Missions this session"
+            labelClassName="whitespace-nowrap text-[15px] leading-none text-white"
             onChange={onSetMinimizeMissionsThisSession}
           />
         </div>
@@ -303,7 +317,7 @@ function ResultStatusBadge({
 
 function MissionMetadata({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-[4px] min-[768px]:flex-row min-[768px]:items-baseline min-[768px]:gap-[12px]">
+    <div className="flex flex-col min-[768px]:flex-row min-[768px]:items-baseline min-[768px]:gap-[12px]">
       <span className="text-[var(--shapeships-grey-50)]">{label}</span>
       <span>{value}</span>
     </div>

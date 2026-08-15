@@ -948,12 +948,26 @@ export function MobileGameLayout({
       </div>
 
       {missionOverlayMode && missionChallenge && boardVm.mode === 'board' ? (
-        <div className={cx(
-          'fixed inset-x-0 bottom-0 z-[50] flex items-center justify-center py-[16px]',
-          missionOverlayMode === 'result'
-            ? 'pointer-events-none top-[45px]'
-            : 'pointer-events-auto top-0'
-        )}>
+        <div
+          className={cx(
+            'pointer-events-auto fixed inset-x-0 bottom-0 z-[50] flex items-center justify-center py-[16px]',
+            missionOverlayMode === 'result' ? 'top-[45px]' : 'top-0'
+          )}
+          onClick={(event) => {
+            if (
+              event.target !== event.currentTarget ||
+              missionOverlayMode === 'initial'
+            ) {
+              return;
+            }
+
+            if (missionOverlayMode === 'result') {
+              setIsPostgameMissionOpen(false);
+            } else {
+              setIsMissionReopenOpen(false);
+            }
+          }}
+        >
           <MissionChallengeOverlay
             missionChallenge={missionChallenge}
             mode={missionOverlayMode}

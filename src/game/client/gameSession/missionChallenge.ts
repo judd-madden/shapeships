@@ -123,6 +123,7 @@ export function normalizeRequesterMissionChallenge(
 export function buildMissionChallengeViewModel(args: {
   normalized: NormalizedMissionChallenge | null;
   isFinished: boolean;
+  isIntroAcknowledgementPending: boolean;
   minimizeMissionsThisSession: boolean;
   shouldPresentInitialIntro: boolean;
 }): MissionChallengeViewModel | null {
@@ -135,6 +136,7 @@ export function buildMissionChallengeViewModel(args: {
     },
     challenge: { ...args.normalized.challenge },
     introPending: args.normalized.introPending,
+    isIntroAcknowledgementPending: args.isIntroAcknowledgementPending,
     shouldPresentInitialIntro: args.shouldPresentInitialIntro,
     isFinished: args.isFinished,
     result: args.normalized.result ? { ...args.normalized.result } : null,

@@ -41,7 +41,7 @@ function MissionFindingsHeader({ unlockedCount, totalCount }: { unlockedCount: n
             {unlockedCount}/{totalCount}
           </p>
         </div>
-        <p className="mt-[4px] text-[14px] leading-[20px] text-[var(--shapeships-grey-50)] sm:mt-[8px] sm:text-[16px] sm:leading-[24px]">
+        <p className="my-[6px] text-[14px] leading-[20px] text-white sm:my-[12px] sm:text-[18px] sm:leading-[24px]">
           Play Single Player to unlock.
         </p>
       </div>
@@ -88,8 +88,8 @@ export function LoreOverviewPanel() {
 
           return (
             <Fragment key={finding.id}>
-              <div className="flex w-full min-w-0 flex-col overflow-hidden py-[12px] sm:py-[20px]">
-                <div className={`${overviewGridClass} flex w-full min-w-0 flex-col gap-[4px] ${isUnlocked ? '' : 'blur-[20px]'}`}>
+              <div className="flex w-full min-w-0 flex-col py-[12px] sm:py-[20px]">
+                <div className={`${overviewGridClass} flex w-full min-w-0 flex-col gap-[4px] ${isUnlocked ? '' : 'blur-[14px]'}`}>
                   <p className="min-w-0 uppercase text-[14px] font-medium leading-[18px] text-[var(--shapeships-grey-50)] sm:text-[16px] sm:leading-[20px] sm:mt-[8px]">
                     {finding.topic}
                   </p>

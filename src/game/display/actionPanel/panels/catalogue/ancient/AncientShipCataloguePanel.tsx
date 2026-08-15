@@ -862,7 +862,7 @@ export function AncientShipCataloguePanel({
             {/* Pluto Core */}
             <div
               className="content-stretch flex flex-col gap-[8px] items-center shrink-0"
-              style={{ width: "40px" }}
+              style={{ width: "44px" }}
               onMouseEnter={(e) =>
                 hover.onEnter("PLU", e.currentTarget)
               }
@@ -873,7 +873,7 @@ export function AncientShipCataloguePanel({
                 graphic={
                   <div
                     className="relative shrink-0"
-                    style={{ height: "70px", width: "40px" }}
+                    style={{ height: "70px", width: "44px" }}
                   >
                     <PlutoCore />
                   </div>
@@ -890,7 +890,7 @@ export function AncientShipCataloguePanel({
             {/* Mercury Core */}
             <div
               className="content-stretch flex flex-col gap-[8px] items-center shrink-0"
-              style={{ width: "40px" }}
+              style={{ width: "44px" }}
               onMouseEnter={(e) =>
                 hover.onEnter("MER", e.currentTarget)
               }
@@ -901,7 +901,7 @@ export function AncientShipCataloguePanel({
                 graphic={
                   <div
                     className="relative shrink-0"
-                    style={{ height: "85px", width: "40px" }}
+                    style={{ height: "85px", width: "44px" }}
                   >
                     <MercuryCore />
                   </div>
@@ -946,7 +946,7 @@ export function AncientShipCataloguePanel({
             {/* Spiral */}
             <div
               className="content-stretch flex flex-col gap-[8px] items-center shrink-0"
-              style={{ width: "60px" }}
+              style={{ width: "64px" }}
               onMouseEnter={(e) =>
                 hover.onEnter("SPI", e.currentTarget)
               }
@@ -957,7 +957,7 @@ export function AncientShipCataloguePanel({
                 graphic={
                   <div
                     className="relative shrink-0"
-                    style={{ height: "60px", width: "60px" }}
+                    style={{ height: "60px", width: "64px" }}
                   >
                     <Spiral />
                   </div>
@@ -1012,7 +1012,7 @@ export function AncientShipCataloguePanel({
             {/* Solar Reserve (use SolarReserve4 as default) */}
             <div
               className="content-stretch flex flex-col gap-[8px] items-center shrink-0"
-              style={{ width: "80px" }}
+              style={{ width: "88px" }}
               onMouseEnter={(e) =>
                 hover.onEnter("SOL", e.currentTarget)
               }
@@ -1023,7 +1023,7 @@ export function AncientShipCataloguePanel({
                 graphic={
                   <div
                     className="relative shrink-0"
-                    style={{ height: "85px", width: "80px" }}
+                    style={{ height: "85px", width: "88px" }}
                   >
                     <SolarReserve4 />
                   </div>
@@ -1040,7 +1040,7 @@ export function AncientShipCataloguePanel({
             {/* Cube */}
             <div
               className="content-stretch flex flex-col gap-[8px] items-center shrink-0"
-              style={{ width: "70px" }}
+              style={{ width: "74px" }}
               onMouseEnter={(e) =>
                 hover.onEnter("CUB", e.currentTarget)
               }
@@ -1051,7 +1051,7 @@ export function AncientShipCataloguePanel({
                 graphic={
                   <div
                     className="relative shrink-0"
-                    style={{ height: "70px", width: "70px" }}
+                    style={{ height: "70px", width: "74px" }}
                   >
                     <Cube />
                   </div>

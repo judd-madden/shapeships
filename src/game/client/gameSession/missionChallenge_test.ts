@@ -169,11 +169,13 @@ Deno.test('builds one central VM without deriving result truth', () => {
   const vm = buildMissionChallengeViewModel({
     normalized,
     isFinished: true,
+    isIntroAcknowledgementPending: true,
     minimizeMissionsThisSession: true,
     shouldPresentInitialIntro: false,
   });
   assert(vm);
   assert(vm.isFinished === true);
+  assert(vm.isIntroAcknowledgementPending === true);
   assert(vm.minimizeMissionsThisSession === true);
   assert(vm.shouldPresentInitialIntro === false);
   assertEquals(vm.result, normalized?.result);

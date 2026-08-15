@@ -937,6 +937,7 @@ export interface MissionChallengeViewModel {
     condition: 'with' | 'without';
   };
   introPending: boolean;
+  isIntroAcknowledgementPending: boolean;
   shouldPresentInitialIntro: boolean;
   isFinished: boolean;
   result: MissionChallengeResultViewModel | null;
