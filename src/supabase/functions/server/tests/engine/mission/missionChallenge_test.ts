@@ -7,6 +7,7 @@ import {
   getAncientForeignChallengeDefinitions,
   getOrdinaryChallengeDefinitions,
   MISSION_ASSIGNMENT_SALTS,
+  MISSION_INTRO_GATE_ENABLED,
   type MissionChallengeAssignment,
   projectMissionChallengeForRequester,
   stripMissionChallengeAssignment,
@@ -273,6 +274,8 @@ Deno.test("Ancient assignment uses an exact deterministic foreign bucket and ind
 });
 
 Deno.test("assignment covers every matchup and strict ensure reconstructs but never replaces", () => {
+  assert.equal(MISSION_INTRO_GATE_ENABLED, false);
+
   for (const [playerSpecies, opponentSpecies] of MATCHUPS) {
     const first = createMissionChallengeAssignment({
       gameId: "stable-game",
@@ -287,6 +290,7 @@ Deno.test("assignment covers every matchup and strict ensure reconstructs but ne
       opponentSpecies,
     });
     assert.deepEqual(repeated, first);
+    assert.equal(first.introPending, false);
     assert.equal(
       getMissionPool(playerSpecies, opponentSpecies).some((mission) =>
         mission.id === first.missionId
@@ -472,6 +476,22 @@ Deno.test("projection resolves personal content while structural stripping remov
   );
   assert.equal(projection?.mission.year, 2814);
   assert.equal(projection?.mission.author, "juddly");
+  assert.equal(projection?.introPending, false);
+
+  const persistedPending = {
+    ...assigned,
+    missionChallengeAssignment: {
+      ...assigned.missionChallengeAssignment,
+      introPending: true,
+    },
+  };
+  assert.equal(
+    projectMissionChallengeForRequester(
+      persistedPending,
+      "human-player",
+    )?.introPending,
+    false,
+  );
   assert.equal(
     projectMissionChallengeForRequester(assigned, "computer-player"),
     null,

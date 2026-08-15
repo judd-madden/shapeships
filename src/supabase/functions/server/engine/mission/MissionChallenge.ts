@@ -29,6 +29,8 @@ export type MissionChallengeResult = {
   fleetConditionMet: boolean;
 };
 
+export const MISSION_INTRO_GATE_ENABLED = false;
+
 export const MISSION_ASSIGNMENT_SALTS = {
   mission: "phase15b:mission:v1",
   ancientForeignBranch: "phase15b:ancient-foreign-branch:v1",
@@ -179,7 +181,7 @@ export function createMissionChallengeAssignment(args: {
       shipDefId: challengeDefinition.id,
       condition,
     },
-    introPending: true,
+    introPending: MISSION_INTRO_GATE_ENABLED,
   };
 }
 
@@ -284,7 +286,7 @@ export function projectMissionChallengeForRequester(
       findingIds: [...mission.findingIds],
     },
     challenge: { ...assignment.challenge },
-    introPending: assignment.introPending,
+    introPending: MISSION_INTRO_GATE_ENABLED && assignment.introPending,
     ...(result ? { result } : {}),
   };
 }

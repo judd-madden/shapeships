@@ -1,4 +1,26 @@
 project_id = "zleyobvzbipeowmdmpxl"
 
+[api]
+port = 55321
+
+[db]
+port = 55322
+shadow_port = 55320
+
+[studio]
+port = 55323
+
+[inbucket]
+port = 55324
+smtp_port = 55325
+pop3_port = 55326
+
+[analytics]
+port = 55327
+vector_port = 55328
+
+[db.pooler]
+port = 55329
+
 [functions.make-server-825e19ab]
 entrypoint = "../src/supabase/functions/server/index.tsx"

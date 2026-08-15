@@ -203,6 +203,9 @@ async function getGameState(
 
 Deno.test("/game-state strips canonical assignment and projects Mission only to its human owner", async () => {
   const fixture = createRouteFixture();
+  const stored = fixture.store.get(`game_${fixture.state.gameId}`);
+  stored.missionChallengeAssignment.introPending = true;
+  fixture.store.set(`game_${fixture.state.gameId}`, stored);
   const human = await getGameState(fixture, "human");
   const bot = await getGameState(fixture, "bot");
   const spectator = await getGameState(fixture, "spectator");
@@ -220,6 +223,7 @@ Deno.test("/game-state strips canonical assignment and projects Mission only to 
     "mintaka",
   ]);
   assert.ok(human.requester.missionChallenge.mission.paragraphs.length > 0);
+  assert.equal(human.requester.missionChallenge.introPending, false);
   assert.equal("missionChallenge" in bot.requester, false);
   assert.equal("missionChallenge" in spectator.requester, false);
 });
@@ -246,21 +250,29 @@ Deno.test("/intent strips canonical assignment from successful and rejected resp
   assert.equal(containsCanonicalAssignmentKey(successBody.state), false);
 
   const rejectedFixture = createRouteFixture();
+  const persistedPending = rejectedFixture.store.get(
+    `game_${rejectedFixture.state.gameId}`,
+  );
+  persistedPending.missionChallengeAssignment.introPending = true;
+  rejectedFixture.store.set(
+    `game_${rejectedFixture.state.gameId}`,
+    persistedPending,
+  );
   const rejected = await rejectedFixture.app.handler(
     "POST",
     "/make-server-825e19ab/intent",
   )(createContext({
     body: {
       gameId: rejectedFixture.state.gameId,
-      intentType: "DECLARE_READY",
+      intentType: "BUILD_SUBMIT",
       turnNumber: 0,
-      payload: {},
-      nonce: "mission-blocked-ready",
+      payload: { builds: [] },
+      nonce: "mission-gate-bypass",
     },
   }));
   const rejectedBody = await responseJson(rejected);
   assert.equal(rejectedBody.ok, false);
-  assert.equal(rejectedBody.rejected.code, "MISSION_INTRO_PENDING");
+  assert.equal(rejectedBody.rejected.code, "PHASE_NOT_ALLOWED");
   assert.equal(containsCanonicalAssignmentKey(rejectedBody.state), false);
 });
 

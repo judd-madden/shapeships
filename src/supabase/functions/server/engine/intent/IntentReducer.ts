@@ -123,7 +123,10 @@ import {
   getXeniteBotPlanById,
 } from '../bot/xenitePlans.ts';
 import type { BotSpeciesId } from '../bot/botTypes.ts';
-import { ensureMissionChallengeAssignment } from '../mission/MissionChallenge.ts';
+import {
+  ensureMissionChallengeAssignment,
+  MISSION_INTRO_GATE_ENABLED,
+} from '../mission/MissionChallenge.ts';
 
 export interface IntentRequest {
   gameId: string;
@@ -896,6 +899,7 @@ export async function applyIntent(
 
   const missionAssignment = state.missionChallengeAssignment;
   const isAssignedPendingHuman =
+    MISSION_INTRO_GATE_ENABLED &&
     missionAssignment?.introPending === true &&
     missionAssignment?.playerId === sessionPlayerId &&
     state.controllersByPlayerId?.[sessionPlayerId]?.kind === 'human';

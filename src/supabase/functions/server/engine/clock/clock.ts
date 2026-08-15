@@ -9,6 +9,8 @@
  * - Server is the sole source of truth for time
  */
 
+import { MISSION_INTRO_GATE_ENABLED } from "../mission/MissionChallenge.ts";
+
 // ============================================================================
 // CLOCK STATE INTERFACE
 // ============================================================================
@@ -118,14 +120,17 @@ export function ensurePlayerClock(
  * Determine if clocks should be actively accruing
  * 
  * Returns true ONLY if:
- * - No human Mission intro is pending
+ * - The enabled Mission intro gate has no pending human intro
  * - Both players have confirmed/revealed species
  * - turnNumber >= 1
  * 
  * If false, clocks pause (but lastUpdateAtMs is updated to prevent back-charging)
  */
 export function clocksAreLive(state: any): boolean {
-  if (state?.missionChallengeAssignment?.introPending === true) {
+  if (
+    MISSION_INTRO_GATE_ENABLED &&
+    state?.missionChallengeAssignment?.introPending === true
+  ) {
     return false;
   }
 

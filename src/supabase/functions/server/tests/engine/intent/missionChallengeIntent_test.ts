@@ -171,7 +171,7 @@ Deno.test("computer species resolution assigns before normal phase progression",
 
   assert.equal(result.ok, true);
   assert.equal(result.state.missionChallengeAssignment?.playerId, "human");
-  assert.equal(result.state.missionChallengeAssignment?.introPending, true);
+  assert.equal(result.state.missionChallengeAssignment?.introPending, false);
   assert.notEqual(result.state.gameData.currentPhase, "mission");
   assert.notEqual(result.state.gameData.currentSubPhase, "mission");
   assert.equal(
@@ -230,9 +230,9 @@ Deno.test("same-species idempotent submission reconstructs a missing assignment 
   assert.strictEqual(preserved.state.missionChallengeAssignment, existing);
 });
 
-Deno.test("pending intro rejects human gameplay but permits only the four narrow exceptions", async () => {
+Deno.test("disabled intro gate lets persisted pending games reach normal intent validation", async () => {
   for (
-    const blocked of [
+    const ordinaryIntent of [
       intent("BUILD_SUBMIT", { builds: [] }),
       intent("DECLARE_READY"),
       intent("ACTION", {
@@ -247,12 +247,27 @@ Deno.test("pending intro rejects human gameplay but permits only the four narrow
     const result = await applyIntent(
       pendingGameState(),
       "human",
-      blocked,
+      ordinaryIntent,
       2_000,
     );
-    assert.equal(result.ok, false, blocked.intentType);
-    assert.equal(result.rejected?.code, RejectionCode.MISSION_INTRO_PENDING);
+    assert.notEqual(
+      result.rejected?.code,
+      RejectionCode.MISSION_INTRO_PENDING,
+      ordinaryIntent.intentType,
+    );
   }
+
+  const build = await applyIntent(
+    pendingGameState(),
+    "human",
+    intent("BUILD_SUBMIT", { builds: [] }),
+    2_000,
+  );
+  assert.equal(build.ok, false);
+  assert.equal(
+    build.rejected?.code,
+    RejectionCode.DRAWING_PRELUDE_INCOMPLETE,
+  );
 
   const chat = await applyIntent(
     pendingGameState(),
@@ -339,33 +354,20 @@ Deno.test("acknowledgement is idempotent for the assigned human and unavailable 
   );
 });
 
-Deno.test("pending intro pauses clock with fresh timestamps and acknowledgement avoids back-charge", async () => {
+Deno.test("disabled intro gate keeps clocks live for persisted pending games", () => {
   const pending = pendingGameState({ timed: true });
-  assert.equal(clocksAreLive(pending), false);
-  const paused = accrueClocks(pending, 11_000);
-  assert.deepEqual(paused.gameData.clock.remainingMsByPlayerId, {
-    human: 60_000,
-    bot: 60_000,
-  });
-  assert.equal(paused.gameData.clock.lastUpdateAtMs, 11_000);
-
-  const acknowledged = await applyIntent(
-    paused,
-    "human",
-    intent("MISSION_INTRO_ACK"),
-    11_000,
-  );
-  assert.equal(acknowledged.ok, true);
-  assert.equal(clocksAreLive(acknowledged.state), true);
-  const accrued = accrueClocks(acknowledged.state, 12_000);
+  assert.equal(pending.missionChallengeAssignment.introPending, true);
+  assert.equal(clocksAreLive(pending), true);
+  const accrued = accrueClocks(pending, 11_000);
   assert.deepEqual(accrued.gameData.clock.remainingMsByPlayerId, {
-    human: 59_000,
-    bot: 59_000,
+    human: 50_000,
+    bot: 50_000,
   });
-  assert.equal(clocksAreLive(pendingGameState()), false);
+  assert.equal(accrued.gameData.clock.lastUpdateAtMs, 11_000);
+  assert.equal(clocksAreLive(pendingGameState()), true);
 });
 
-Deno.test("bot gameplay and bot runner remain live while the human intro is pending", async () => {
+Deno.test("bot gameplay and bot runner remain unchanged while the intro gate is disabled", async () => {
   const surrender = await applyIntent(
     pendingGameState(),
     "bot",
@@ -392,5 +394,5 @@ Deno.test("bot gameplay and bot runner remain live while the human intro is pend
     nowMs: 1_001,
   });
   assert.ok(settled.botStepsApplied > 0);
-  assert.equal(settled.state.missionChallengeAssignment.introPending, true);
+  assert.equal(settled.state.missionChallengeAssignment.introPending, false);
 });
