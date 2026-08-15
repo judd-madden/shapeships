@@ -237,7 +237,7 @@ export const aiAnalysisRows: readonly AiAnalysisRow[] = [
     question: 'What do we want?',
     answers: {
       human: 'More. More systems. More ships. More knowledge. More Science. There is always another horizon and obviously we should go there.',
-      xenite: 'To grow. To heal. To remove the things eating away at it. Eventually perhaps the whole galaxy can be whole again.',
+      xenite: 'To grow. To heal. To remove the things eating away at it. Eventually perhaps the galaxy can be whole again.',
       centaur: 'A universe worthy of them. Wisdom. Vigor. Equality. Family. Knowledge. Power. These are not slogans. These are things worth shaping civilization around. Eventually: Domination.',
       ancient: 'Quiet. Balance. An end to this endless little war. Then perhaps they can return to sleep.',
     },

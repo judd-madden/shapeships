@@ -1,6 +1,7 @@
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
+import type { MissionChallengeResultViewModel } from '../../client/gameSession/types';
 
-export type MissionOverlayMode = 'initial' | 'reopen';
+export type MissionOverlayMode = 'initial' | 'reopen' | 'result';
 
 export const BASIC_CHALLENGE_NOTE =
   'Only ships in final fleet are counted, ships may be used in upgrades';
@@ -72,4 +73,34 @@ export function shouldShowMissionChallengeAction(args: {
     !args.isFinished &&
     !args.introPending
   );
+}
+
+export function shouldShowPostgameMissionChallengeAction(args: {
+  hasMission: boolean;
+  isPlayerViewer: boolean;
+  isFinished: boolean;
+  hasResult: boolean;
+}): boolean {
+  return (
+    args.hasMission &&
+    args.isPlayerViewer &&
+    args.isFinished &&
+    args.hasResult
+  );
+}
+
+export function getMissionChallengeResultPresentation(
+  result: MissionChallengeResultViewModel,
+): {
+  missionLabel: 'COMPLETE' | 'FAILED';
+  missionSucceeded: boolean;
+  challengeLabel: 'COMPLETE' | 'INCOMPLETE';
+  challengeSucceeded: boolean;
+} {
+  return {
+    missionLabel: result.missionSucceeded ? 'COMPLETE' : 'FAILED',
+    missionSucceeded: result.missionSucceeded,
+    challengeLabel: result.challengeSucceeded ? 'COMPLETE' : 'INCOMPLETE',
+    challengeSucceeded: result.challengeSucceeded,
+  };
 }

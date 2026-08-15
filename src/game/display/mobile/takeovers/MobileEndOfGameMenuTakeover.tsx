@@ -1,10 +1,13 @@
 import type { ActionPanelViewModel } from '../../../client/useGameSession';
 import { GameMenuButton } from '../../../../components/ui/primitives';
+import { ChallengeIcon } from '../../../../components/ui/primitives/icons/ChallengeIcon';
 import { MobileTakeoverShell } from './MobileTakeoverShell';
 
 interface MobileEndOfGameMenuTakeoverProps {
   endOfGame: NonNullable<ActionPanelViewModel['endOfGame']>;
   canViewGameStats: boolean;
+  showChallengeAction: boolean;
+  onOpenChallenge: () => void;
   onOpenGameStats: () => void;
   onClose: () => void;
   onReturnToMainMenu: () => void;
@@ -15,6 +18,8 @@ interface MobileEndOfGameMenuTakeoverProps {
 export function MobileEndOfGameMenuTakeover({
   endOfGame,
   canViewGameStats,
+  showChallengeAction,
+  onOpenChallenge,
   onOpenGameStats,
   onClose,
   onReturnToMainMenu,
@@ -28,8 +33,8 @@ export function MobileEndOfGameMenuTakeover({
       bodyClassName="flex flex-col"
     >
       <div className="flex min-h-full flex-col">
-        <div className="flex grow shrink-0 flex-col items-center justify-center px-[16px] py-[28px]">
-          <div className="flex w-full flex-col items-center gap-[32px]">
+        <div className="flex grow shrink-0 flex-col items-center justify-center px-[16px] py-[20px]">
+          <div className="flex w-full flex-col items-center gap-[16px]">
             <div className="flex w-[260px] max-w-full flex-col items-center">
               <GameMenuButton
                 className="h-[54px] w-[260px] max-w-full"
@@ -59,6 +64,18 @@ export function MobileEndOfGameMenuTakeover({
             >
               Download Battle Log
             </GameMenuButton>
+
+            {showChallengeAction ? (
+              <GameMenuButton
+                className="h-[54px] w-[260px] max-w-full"
+                onClick={onOpenChallenge}
+              >
+                <span className="flex items-center gap-[10px]">
+                  <ChallengeIcon className="h-[28px] w-auto text-black" />
+                  <span>Challenge</span>
+                </span>
+              </GameMenuButton>
+            ) : null}
 
             <GameMenuButton
               className="h-[54px] w-[260px] max-w-full"

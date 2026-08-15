@@ -184,7 +184,7 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p
-                  className={`relative shrink-0 text-[14px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
+                  className={`relative shrink-0 text-[14px] min-[400px]:text-[15px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'multiplayer' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                 >
@@ -201,7 +201,7 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`relative shrink-0 text-[14px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
+                  className={`relative shrink-0 text-[14px] min-[400px]:text-[15px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'playComputer' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                 >
@@ -218,14 +218,14 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px]  sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p 
-                  className={`hidden min-[1025px]:block relative shrink-0 text-[14px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
+                  className={`hidden min-[1025px]:block relative shrink-0 text-[14px] min-[400px]:text-[15px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'rules' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                 >
                   How to Play
                 </p>
                 <p 
-                  className={`block min-[1025px]:hidden relative shrink-0 text-[14px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
+                  className={`block min-[1025px]:hidden relative shrink-0 text-[14px] min-[400px]:text-[15px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'rules' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                 >
@@ -242,7 +242,7 @@ export function MenuShell({
                   <div aria-hidden="true" className="absolute border-shapeships-pastel-purple border-[0px_0px_3px] border-solid inset-[0_0_-3px_0] sm:border-[0px_0px_7px] sm:border-solid inset-[0_0_-7px_0] pointer-events-none" />
                 )}
                 <p
-                  className={`relative shrink-0 text-[14px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
+                  className={`relative shrink-0 text-[14px] min-[400px]:text-[15px] sm:text-[18px] font-black leading-[24px] text-nowrap uppercase sm:text-[24px] sm:leading-[32px] md:text-[28px] ${
                     activePanel === 'lore' ? 'text-shapeships-pastel-purple' : 'hover:text-shapeships-pastel-purple/80'
                   }`}
                 >

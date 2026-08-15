@@ -19,6 +19,7 @@ import {
   isNewVisibleMissionPresentation,
   shouldLockMissionInteraction,
   shouldShowMissionChallengeAction,
+  shouldShowPostgameMissionChallengeAction,
   type MissionOverlayMode,
 } from '../mission/missionChallengePresentation';
 import type { MainPhaseControl } from '../shared/mainPhaseControl';
@@ -48,6 +49,8 @@ interface MainStageProps {
   onReturnToMainMenu: () => void;
 }
 
+type PostgameSurface = 'stats' | 'mission' | null;
+
 export function MainStage({ 
   gameId,
   hudVm, 
@@ -64,7 +67,7 @@ export function MainStage({
   onBoardFlashEnabledChange,
   onReturnToMainMenu
 }: MainStageProps) {
-  const [isGameStatsOpen, setIsGameStatsOpen] = useState(false);
+  const [postgameSurface, setPostgameSurface] = useState<PostgameSurface>(null);
   const [isSiphonInspectionOpen, setIsSiphonInspectionOpen] = useState(false);
   const [isMissionReopenOpen, setIsMissionReopenOpen] = useState(false);
   const previousMissionPresentationIdentityRef = useRef<string | null>(null);
@@ -73,6 +76,8 @@ export function MainStage({
   const simulacrumSpecies = resolveAncientSimulacrumSpecies(boardVm);
   const isEndGameResultPanel = actionPanelVm.activePanelId === 'ap.end_of_game.result';
   const canViewGameStats = gameStats != null;
+  const isGameStatsOpen = postgameSurface === 'stats';
+  const isPostgameMissionOpen = postgameSurface === 'mission';
   const ancientSelectorMode = actionPanelVm.ancientChargeDeclaration?.selectorMode ?? null;
   const ancientDeclarationStage = actionPanelVm.ancientChargeDeclaration?.stage ?? null;
   const isAncientCatalogueSurfaceActive =
@@ -99,15 +104,30 @@ export function MainStage({
     viewer.isPlayerViewer &&
     isMissionReopenOpen,
   );
+  const canShowPostgameMissionChallengeAction =
+    shouldShowPostgameMissionChallengeAction({
+      hasMission: missionChallenge !== null,
+      isPlayerViewer: viewer.isPlayerViewer,
+      isFinished: missionChallenge?.isFinished ?? false,
+      hasResult: missionChallenge?.result !== null && missionChallenge?.result !== undefined,
+    });
+  const shouldShowPostgameMission = Boolean(
+    isBoardMode &&
+    canShowPostgameMissionChallengeAction &&
+    isPostgameMissionOpen,
+  );
   const missionOverlayMode: MissionOverlayMode | null = shouldShowInitialMission
     ? 'initial'
     : shouldShowReopenedMission
       ? 'reopen'
-      : null;
-  const isMissionOverlayVisible = missionOverlayMode !== null;
+      : shouldShowPostgameMission
+        ? 'result'
+        : null;
+  const isActiveMissionOverlayVisible =
+    missionOverlayMode === 'initial' || missionOverlayMode === 'reopen';
   const isMissionInteractionLocked = shouldLockMissionInteraction({
     introPending: missionChallenge?.introPending === true,
-    overlayVisible: isMissionOverlayVisible,
+    overlayVisible: isActiveMissionOverlayVisible,
   });
   const missionPresentationIdentity = missionChallenge
     ? getMissionPresentationIdentity({
@@ -135,16 +155,31 @@ export function MainStage({
       endOfGame.metaRightText,
     ].join('\u0000');
   }, [actionPanelVm.endOfGame]);
+  const missionResultKey = missionChallenge?.result
+    ? [
+        missionChallenge.result.missionSucceeded,
+        missionChallenge.result.fleetConditionMet,
+        missionChallenge.result.challengeSucceeded,
+      ].join('\u0000')
+    : null;
 
   useEffect(() => {
-    if (!isEndGameResultPanel || !canViewGameStats) {
-      setIsGameStatsOpen(false);
+    if (!isEndGameResultPanel) {
+      setPostgameSurface(null);
+    } else if (!canViewGameStats) {
+      setPostgameSurface((current) => current === 'stats' ? null : current);
     }
   }, [canViewGameStats, isEndGameResultPanel]);
 
   useEffect(() => {
-    setIsGameStatsOpen(false);
-  }, [endGameResultKey]);
+    setPostgameSurface(null);
+  }, [endGameResultKey, gameId, missionChallenge?.mission.id, missionResultKey]);
+
+  useEffect(() => {
+    if (!canShowPostgameMissionChallengeAction) {
+      setPostgameSurface((current) => current === 'mission' ? null : current);
+    }
+  }, [canShowPostgameMissionChallengeAction]);
 
   useEffect(() => {
     if (!isAncientCatalogueSurfaceActive || ancientSelectorMode != null) {
@@ -189,21 +224,21 @@ export function MainStage({
 
   function handleOpenGameStats() {
     if (canViewGameStats) {
-      setIsGameStatsOpen(true);
+      setPostgameSurface('stats');
     }
   }
 
   function handleCloseGameStats() {
-    setIsGameStatsOpen(false);
+    setPostgameSurface(null);
   }
 
   function handleToggleGameStats() {
     if (!canViewGameStats) {
-      setIsGameStatsOpen(false);
+      setPostgameSurface(null);
       return;
     }
 
-    setIsGameStatsOpen((current) => !current);
+    setPostgameSurface((current) => current === 'stats' ? null : 'stats');
   }
 
   function handleOpenSiphonInspection() {
@@ -221,6 +256,15 @@ export function MainStage({
     ) {
       setIsMissionReopenOpen(true);
     }
+  }
+
+  function handleTogglePostgameMissionChallenge() {
+    if (!canShowPostgameMissionChallengeAction) {
+      setPostgameSurface(null);
+      return;
+    }
+
+    setPostgameSurface((current) => current === 'mission' ? null : 'mission');
   }
 
   function handleReadyActivate() {
@@ -339,6 +383,9 @@ export function MainStage({
             canViewGameStats={canViewGameStats}
             onOpenGameStats={handleOpenGameStats}
             onToggleGameStats={handleToggleGameStats}
+            isPostgameMissionOpen={isPostgameMissionOpen}
+            showPostgameChallengeAction={canShowPostgameMissionChallengeAction}
+            onTogglePostgameChallenge={handleTogglePostgameMissionChallenge}
             soundEnabled={soundEnabled}
             boardFlashEnabled={boardFlashEnabled}
             onSoundEnabledChange={onSoundEnabledChange}
@@ -355,11 +402,13 @@ export function MainStage({
       </div>
 
       {missionOverlayMode && missionChallenge && isBoardMode ? (
-        <div className="pointer-events-auto absolute inset-0 z-50 flex items-start justify-center pb-[16px] pt-[170px] min-[768px]:max-[1599px]:pt-[120px]">
+        <div className={`${missionOverlayMode === 'result' ? 'pointer-events-none' : 'pointer-events-auto'} absolute inset-0 z-50 flex items-start justify-center pb-[16px] pt-[170px] min-[768px]:max-[1599px]:pt-[120px]`}>
           <MissionChallengeOverlay
             missionChallenge={missionChallenge}
             mode={missionOverlayMode}
-            onClose={() => setIsMissionReopenOpen(false)}
+            onClose={missionOverlayMode === 'result'
+              ? () => setPostgameSurface(null)
+              : () => setIsMissionReopenOpen(false)}
             onPlay={actions.onAcknowledgeMissionIntro}
             onSetMinimizeMissionsThisSession={
               actions.onSetMinimizeMissionsThisSession

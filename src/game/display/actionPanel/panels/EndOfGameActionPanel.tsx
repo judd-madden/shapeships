@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { GameMenuButton } from '../../../../components/ui/primitives/buttons/GameMenuButton';
+import { ChallengeIcon } from '../../../../components/ui/primitives/icons/ChallengeIcon';
 
 interface EndOfGameActionPanelProps {
   bannerText: string;       // headline (already composed in VM)
@@ -17,6 +18,9 @@ interface EndOfGameActionPanelProps {
   canViewGameStats?: boolean;
   onOpenGameStats?: () => void;
   onToggleGameStats?: () => void;
+  isPostgameMissionOpen?: boolean;
+  showChallengeAction?: boolean;
+  onToggleChallenge?: () => void;
   onReturnToMainMenu: () => void;
   onRematch: () => void;
   onDownloadBattleLog: () => void;
@@ -32,6 +36,9 @@ export function EndOfGameActionPanel({
   canViewGameStats = false,
   onOpenGameStats,
   onToggleGameStats,
+  isPostgameMissionOpen = false,
+  showChallengeAction = false,
+  onToggleChallenge,
   onReturnToMainMenu,
   onRematch,
   onDownloadBattleLog,
@@ -135,6 +142,18 @@ export function EndOfGameActionPanel({
           <GameMenuButton onClick={onDownloadBattleLog}>
             Download Battle Log
           </GameMenuButton>
+
+          {showChallengeAction ? (
+            <GameMenuButton
+              className={isPostgameMissionOpen ? 'bg-white' : ''}
+              onClick={onToggleChallenge}
+            >
+              <span className="flex items-center gap-[10px]">
+                <ChallengeIcon className="h-[28px] w-auto text-black" />
+                <span>Challenge</span>
+              </span>
+            </GameMenuButton>
+          ) : null}
 
           <GameMenuButton onClick={onReturnToMainMenu}>
             Return to Main Menu

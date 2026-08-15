@@ -37,6 +37,9 @@ interface ActionPanelFrameProps {
   canViewGameStats?: boolean;
   onOpenGameStats?: () => void;
   onToggleGameStats?: () => void;
+  isPostgameMissionOpen?: boolean;
+  showPostgameChallengeAction?: boolean;
+  onTogglePostgameChallenge?: () => void;
   soundEnabled: boolean;
   boardFlashEnabled: boolean;
   onSoundEnabledChange: (checked: boolean) => void;
@@ -60,6 +63,9 @@ export function ActionPanelFrame({
   canViewGameStats = false,
   onOpenGameStats,
   onToggleGameStats,
+  isPostgameMissionOpen = false,
+  showPostgameChallengeAction = false,
+  onTogglePostgameChallenge,
   soundEnabled,
   boardFlashEnabled,
   onSoundEnabledChange,
@@ -405,6 +411,9 @@ export function ActionPanelFrame({
           canViewGameStats={canViewGameStats}
           onOpenGameStats={onOpenGameStats}
           onToggleGameStats={onToggleGameStats}
+          isPostgameMissionOpen={isPostgameMissionOpen}
+          showChallengeAction={showPostgameChallengeAction}
+          onToggleChallenge={onTogglePostgameChallenge}
           onReturnToMainMenu={onReturnToMainMenu}
           onRematch={actions.onRematch}
           onDownloadBattleLog={actions.onDownloadBattleLog}

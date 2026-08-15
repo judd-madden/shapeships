@@ -29,7 +29,7 @@ export type MissionChallengeResult = {
   fleetConditionMet: boolean;
 };
 
-export const MISSION_INTRO_GATE_ENABLED = false;
+export const MISSION_INTRO_GATE_ENABLED = true;
 
 export const MISSION_ASSIGNMENT_SALTS = {
   mission: "phase15b:mission:v1",

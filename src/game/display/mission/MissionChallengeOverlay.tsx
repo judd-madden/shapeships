@@ -1,5 +1,6 @@
 import { Checkbox } from '../../../components/ui/primitives';
 import { ChallengeIcon } from '../../../components/ui/primitives/icons/ChallengeIcon';
+import { CloseIcon } from '../../../components/ui/primitives/icons/CloseIcon';
 import type { SpeciesId } from '../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { MissionChallengeViewModel } from '../../client/gameSession/types';
 import { pluralizeShipName } from '../../data/ShipDefinitionNames';
@@ -11,6 +12,7 @@ import { useShipCatalogueHover } from '../actionPanel/panels/catalogue/shared/us
 import {
   formatMissionSystem,
   getChallengeExplanatoryCopy,
+  getMissionChallengeResultPresentation,
   interpolateMissionPlayer,
   type MissionOverlayMode,
 } from './missionChallengePresentation';
@@ -79,8 +81,9 @@ export function MissionChallengeOverlay({
     : null;
   const playerSpeciesPresentation = SPECIES_PRESENTATION[playerSpecies];
   const opponentSpeciesPresentation = SPECIES_PRESENTATION[opponentSpecies];
-  const primaryLabel = mode === 'initial' ? 'PLAY' : 'CLOSE';
-  const primaryAction = mode === 'initial' ? onPlay : onClose;
+  const resultPresentation = mode === 'result' && missionChallenge.result
+    ? getMissionChallengeResultPresentation(missionChallenge.result)
+    : null;
   const challengeShipGraphicContent = ChallengeShipGraphic ? (
     <ChallengeShipGraphic className="max-h-[92px] max-w-full min-[768px]:max-w-[108px]" />
   ) : null;
@@ -88,22 +91,58 @@ export function MissionChallengeOverlay({
   return (
     <div
       aria-labelledby="mission-challenge-title"
-      aria-modal="true"
+      aria-modal={mode === 'result' ? undefined : true}
       className="pointer-events-auto flex max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[10px] bg-[var(--shapeships-grey-90)] text-white shadow-[0_0_250px_rgba(0,0,0,1.0)] min-[768px]:max-h-full min-[768px]:w-[900px] min-[768px]:max-w-[calc(100%_-_32px)]"
       role="dialog"
     >
       <div className="flex min-h-0 flex-1 flex-col px-[16px] pb-[24px] pt-[16px] min-[768px]:px-[50px] min-[768px]:pb-[36px] min-[768px]:pt-[40px]">
         <div className="flex shrink-0 flex-col items-start gap-[12px] font-bold leading-none min-[768px]:flex-row min-[768px]:items-center min-[768px]:justify-between min-[768px]:gap-[24px]">
-          <p className="text-[14px] min-[768px]:text-[18px]">YOUR MISSION</p>
-          <p className="flex items-center gap-[8px] whitespace-nowrap text-[14px] min-[768px]:text-[18px]">
-            <span className={playerSpeciesPresentation.className}>
-              {playerSpeciesPresentation.label}
-            </span>
-            <span>vs</span>
-            <span className={opponentSpeciesPresentation.className}>
-              {opponentSpeciesPresentation.label}
-            </span>
-          </p>
+          {mode === 'result' ? (
+            <>
+              <div className="flex items-center gap-[12px] min-[768px]:gap-[16px]">
+                <p className="text-[14px] min-[768px]:text-[18px]">YOUR MISSION</p>
+                {resultPresentation ? (
+                  <ResultStatusBadge
+                    label={resultPresentation.missionLabel}
+                    succeeded={resultPresentation.missionSucceeded}
+                    compact
+                  />
+                ) : null}
+              </div>
+              <div className="flex justify-between w-full items-center gap-[16px] min-[768px]:w-auto">
+                <p className="flex items-center gap-[8px] whitespace-nowrap text-[14px] min-[768px]:text-[18px]">
+                  <span className={playerSpeciesPresentation.className}>
+                    {playerSpeciesPresentation.label}
+                  </span>
+                  <span>vs</span>
+                  <span className={opponentSpeciesPresentation.className}>
+                    {opponentSpeciesPresentation.label}
+                  </span>
+                </p>
+                <button
+                  aria-label="Close Mission & Challenge"
+                  className="flex size-[32px] shrink-0 items-center justify-center bg-transparent p-0 text-white outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-white"
+                  onClick={onClose}
+                  type="button"
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-[14px] min-[768px]:text-[18px]">YOUR MISSION</p>
+              <p className="flex items-center gap-[8px] whitespace-nowrap text-[14px] min-[768px]:text-[18px]">
+                <span className={playerSpeciesPresentation.className}>
+                  {playerSpeciesPresentation.label}
+                </span>
+                <span>vs</span>
+                <span className={opponentSpeciesPresentation.className}>
+                  {opponentSpeciesPresentation.label}
+                </span>
+              </p>
+            </>
+          )}
         </div>
 
         <div className="mt-[18px] grid w-full shrink-0 grid-cols-2 items-start gap-[16px] text-[12px] leading-[16px] min-[768px]:flex min-[768px]:w-auto min-[768px]:gap-[56px] min-[768px]:text-[14px]">
@@ -174,13 +213,28 @@ export function MissionChallengeOverlay({
             ) : null}
           </div>
 
-          <button
-            className="col-span-2 h-[50px] w-full rounded-[10px] bg-white text-[18px] font-black text-black transition-colors hover:bg-[var(--shapeships-grey-20)] min-[768px]:col-span-1 min-[768px]:w-[180px]"
-            onClick={primaryAction}
-            type="button"
-          >
-            {primaryLabel}
-          </button>
+          {resultPresentation ? (
+            <ResultStatusBadge
+              label={resultPresentation.challengeLabel}
+              succeeded={resultPresentation.challengeSucceeded}
+            />
+          ) : mode === 'initial' ? (
+            <button
+              className="col-span-2 h-[50px] w-full rounded-[10px] bg-white text-[18px] font-black text-black transition-colors hover:bg-[var(--shapeships-grey-20)] min-[768px]:col-span-1 min-[768px]:w-[180px]"
+              onClick={onPlay}
+              type="button"
+            >
+              PLAY
+            </button>
+          ) : mode === 'reopen' ? (
+            <button
+              className="col-span-2 h-[50px] w-full rounded-[10px] bg-white text-[18px] font-black text-black transition-colors hover:bg-[var(--shapeships-grey-20)] min-[768px]:col-span-1 min-[768px]:w-[180px]"
+              onClick={onClose}
+              type="button"
+            >
+              CLOSE
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -216,6 +270,33 @@ export function MissionChallengeOverlay({
           shipId={hover.presentState.activeShipId}
         />
       ) : null}
+    </div>
+  );
+}
+
+function ResultStatusBadge({
+  label,
+  succeeded,
+  compact = false,
+}: {
+  label: 'COMPLETE' | 'FAILED' | 'INCOMPLETE';
+  succeeded: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-center justify-center rounded-[10px] text-[16px] font-black ${succeeded ? 'text-black' : 'text-white'} ${
+        compact
+          ? 'h-[36px] min-w-[124px] px-[16px] min-[768px]:h-[50px] min-[768px]:w-[180px] min-[768px]:text-[18px]'
+          : 'col-span-2 h-[50px] w-full text-[18px] min-[768px]:col-span-1 min-[768px]:w-[180px]'
+      }`}
+      style={{
+        background: succeeded
+          ? 'var(--shapeships-green)'
+          : 'var(--shapeships-grey-70)',
+      }}
+    >
+      {label}
     </div>
   );
 }

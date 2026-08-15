@@ -7,11 +7,13 @@ import {
   BASIC_CHALLENGE_NOTE,
   formatMissionSystem,
   getChallengeExplanatoryCopy,
+  getMissionChallengeResultPresentation,
   getMissionPresentationIdentity,
   interpolateMissionPlayer,
   isNewVisibleMissionPresentation,
   shouldLockMissionInteraction,
   shouldShowMissionChallengeAction,
+  shouldShowPostgameMissionChallengeAction,
 } from './missionChallengePresentation';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
@@ -84,12 +86,19 @@ Deno.test('presentation identity changes only for genuine visible transitions', 
     missionId: 'mission-a',
     mode: 'reopen',
   });
+  const result = getMissionPresentationIdentity({
+    gameId: 'game-a',
+    missionId: 'mission-a',
+    mode: 'result',
+  });
 
   assert(isNewVisibleMissionPresentation(null, initial));
   assert(!isNewVisibleMissionPresentation(initial, rerender));
   assert(isNewVisibleMissionPresentation(initial, reopen));
   assert(!isNewVisibleMissionPresentation(reopen, null));
   assert(isNewVisibleMissionPresentation(null, reopen));
+  assert(isNewVisibleMissionPresentation(reopen, result));
+  assertEquals(result, 'game-a\u0000mission-a\u0000result');
 });
 
 Deno.test('Mission interaction stays locked for pending or visible presentation', () => {
@@ -138,4 +147,43 @@ Deno.test('Challenge action requires an acknowledged active player Mission', () 
     isFinished: false,
     introPending: false,
   }));
+});
+
+Deno.test('postgame Challenge action requires a finished requester Mission result', () => {
+  const eligible = {
+    hasMission: true,
+    isPlayerViewer: true,
+    isFinished: true,
+    hasResult: true,
+  };
+
+  assert(shouldShowPostgameMissionChallengeAction(eligible));
+  assert(!shouldShowPostgameMissionChallengeAction({ ...eligible, hasMission: false }));
+  assert(!shouldShowPostgameMissionChallengeAction({ ...eligible, isPlayerViewer: false }));
+  assert(!shouldShowPostgameMissionChallengeAction({ ...eligible, isFinished: false }));
+  assert(!shouldShowPostgameMissionChallengeAction({ ...eligible, hasResult: false }));
+});
+
+Deno.test('result presentation uses only authoritative Mission and Challenge outcomes', () => {
+  assertEquals(getMissionChallengeResultPresentation({
+    missionSucceeded: true,
+    fleetConditionMet: true,
+    challengeSucceeded: true,
+  }), {
+    missionLabel: 'COMPLETE',
+    missionSucceeded: true,
+    challengeLabel: 'COMPLETE',
+    challengeSucceeded: true,
+  });
+
+  assertEquals(getMissionChallengeResultPresentation({
+    missionSucceeded: false,
+    fleetConditionMet: true,
+    challengeSucceeded: false,
+  }), {
+    missionLabel: 'FAILED',
+    missionSucceeded: false,
+    challengeLabel: 'INCOMPLETE',
+    challengeSucceeded: false,
+  });
 });

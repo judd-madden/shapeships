@@ -41,6 +41,7 @@ import {
   isNewVisibleMissionPresentation,
   shouldLockMissionInteraction,
   shouldShowMissionChallengeAction,
+  shouldShowPostgameMissionChallengeAction,
   type MissionOverlayMode,
 } from '../mission/missionChallengePresentation';
 
@@ -131,6 +132,7 @@ export function MobileGameLayout({
     useState<ActiveMobileBottomPanel>('normal');
   const [activeShipModalId, setActiveShipModalId] = useState<ShipDefId | null>(null);
   const [isMissionReopenOpen, setIsMissionReopenOpen] = useState(false);
+  const [isPostgameMissionOpen, setIsPostgameMissionOpen] = useState(false);
   const [missionReferenceShipId, setMissionReferenceShipId] =
     useState<ShipDefId | null>(null);
   const [activeSolarModalId, setActiveSolarModalId] =
@@ -184,15 +186,31 @@ export function MobileGameLayout({
     viewer.isPlayerViewer &&
     isMissionReopenOpen
   );
+  const canShowPostgameMissionChallengeAction =
+    shouldShowPostgameMissionChallengeAction({
+      hasMission: missionChallenge !== null,
+      isPlayerViewer: viewer.isPlayerViewer,
+      isFinished: missionChallenge?.isFinished ?? false,
+      hasResult: missionChallenge?.result !== null && missionChallenge?.result !== undefined,
+    });
+  const shouldShowPostgameMission = Boolean(
+    boardVm.mode === 'board' &&
+    canShowPostgameMissionChallengeAction &&
+    isPostgameMissionOpen
+  );
   const missionOverlayMode: MissionOverlayMode | null = shouldShowInitialMission
     ? 'initial'
     : shouldShowReopenedMission
       ? 'reopen'
-      : null;
+      : shouldShowPostgameMission
+        ? 'result'
+        : null;
   const isMissionOverlayVisible = missionOverlayMode !== null;
+  const isActiveMissionOverlayVisible =
+    missionOverlayMode === 'initial' || missionOverlayMode === 'reopen';
   const isMissionInteractionLocked = shouldLockMissionInteraction({
     introPending: isMissionIntroPending,
-    overlayVisible: isMissionOverlayVisible,
+    overlayVisible: isActiveMissionOverlayVisible,
   });
   const missionPresentationIdentity = missionChallenge
     ? getMissionPresentationIdentity({
@@ -213,6 +231,20 @@ export function MobileGameLayout({
   const shouldForceMobileActionPanel =
     actionPanelVm.healthResolutionOverlay != null || isEndGamePanel;
   const canViewGameStats = gameStats != null;
+  const endGameResultKey = actionPanelVm.endOfGame
+    ? [
+        actionPanelVm.endOfGame.bannerText,
+        actionPanelVm.endOfGame.metaLeftText,
+        actionPanelVm.endOfGame.metaRightText,
+      ].join('\u0000')
+    : null;
+  const missionResultKey = missionChallenge?.result
+    ? [
+        missionChallenge.result.missionSucceeded,
+        missionChallenge.result.fleetConditionMet,
+        missionChallenge.result.challengeSucceeded,
+      ].join('\u0000')
+    : null;
   const showVoidTab = boardVm.mode === 'board' && hasVoidShips;
   const isVoidPanelSelected =
     activeMobileBottomPanel === 'void' &&
@@ -342,6 +374,7 @@ export function MobileGameLayout({
   ]);
   const handleReturnToBoard = useCallback(() => {
     setIsGameStatsOpen(false);
+    setIsPostgameMissionOpen(false);
     setActiveTakeover(null);
   }, []);
   const handleCloseGameStats = useCallback(() => {
@@ -349,6 +382,7 @@ export function MobileGameLayout({
   }, []);
   const handleOpenGameStats = useCallback(() => {
     if (gameStats) {
+      setIsPostgameMissionOpen(false);
       setIsGameStatsOpen(true);
     }
   }, [gameStats]);
@@ -360,6 +394,7 @@ export function MobileGameLayout({
     handleCloseSiphonInspection();
     setActiveFleetShipHover(null);
     handleCloseAutocastInfo();
+    setIsPostgameMissionOpen(false);
     setActiveTakeover(takeover);
   }, [
     handleCloseAutocastInfo,
@@ -432,8 +467,18 @@ export function MobileGameLayout({
     }
 
     closeConflictingMissionSurfaces();
+    setIsPostgameMissionOpen(false);
     setIsMissionReopenOpen(true);
   }, [canShowMissionChallengeAction, closeConflictingMissionSurfaces]);
+  const handleOpenPostgameMissionChallenge = useCallback(() => {
+    if (!canShowPostgameMissionChallengeAction) {
+      return;
+    }
+
+    closeConflictingMissionSurfaces();
+    setIsMissionReopenOpen(false);
+    setIsPostgameMissionOpen(true);
+  }, [canShowPostgameMissionChallengeAction, closeConflictingMissionSurfaces]);
   const handleMissionChallengeShipInspect = useCallback((shipId: ShipDefId) => {
     if (!isMissionOverlayVisible || !SHIP_DEFINITIONS_MAP[shipId]) {
       return;
@@ -497,13 +542,25 @@ export function MobileGameLayout({
 
   useLayoutEffect(() => {
     setIsMissionReopenOpen(false);
+    setIsPostgameMissionOpen(false);
     setMissionReferenceShipId(null);
   }, [gameId, missionChallenge?.mission.id]);
 
+  useEffect(() => {
+    setIsPostgameMissionOpen(false);
+  }, [endGameResultKey, missionResultKey]);
+
   useLayoutEffect(() => {
     setIsMissionReopenOpen(false);
+    setIsPostgameMissionOpen(false);
     setMissionReferenceShipId(null);
   }, [actionPanelVm.menu.phaseKey, actionPanelVm.menu.turnNumber]);
+
+  useEffect(() => {
+    if (!canShowPostgameMissionChallengeAction || endGameResultKey === null) {
+      setIsPostgameMissionOpen(false);
+    }
+  }, [canShowPostgameMissionChallengeAction, endGameResultKey]);
 
   useEffect(() => {
     if (
@@ -525,6 +582,7 @@ export function MobileGameLayout({
   useLayoutEffect(() => {
     if (isMissionIntroPending) {
       setIsMissionReopenOpen(false);
+      setIsPostgameMissionOpen(false);
       closeConflictingMissionSurfaces();
     }
   }, [closeConflictingMissionSurfaces, isMissionIntroPending]);
@@ -859,6 +917,8 @@ export function MobileGameLayout({
               <MobileEndOfGameMenuTakeover
                 endOfGame={actionPanelVm.endOfGame}
                 canViewGameStats={canViewGameStats}
+                showChallengeAction={canShowPostgameMissionChallengeAction}
+                onOpenChallenge={handleOpenPostgameMissionChallenge}
                 onOpenGameStats={handleOpenGameStats}
                 onClose={handleReturnToBoard}
                 onReturnToMainMenu={onReturnToMainMenu}
@@ -888,12 +948,19 @@ export function MobileGameLayout({
       </div>
 
       {missionOverlayMode && missionChallenge && boardVm.mode === 'board' ? (
-        <div className="pointer-events-auto fixed inset-0 z-[50] flex items-center justify-center py-[16px]">
+        <div className={cx(
+          'fixed inset-x-0 bottom-0 z-[50] flex items-center justify-center py-[16px]',
+          missionOverlayMode === 'result'
+            ? 'pointer-events-none top-[45px]'
+            : 'pointer-events-auto top-0'
+        )}>
           <MissionChallengeOverlay
             missionChallenge={missionChallenge}
             mode={missionOverlayMode}
             onChallengeShipInspect={handleMissionChallengeShipInspect}
-            onClose={() => setIsMissionReopenOpen(false)}
+            onClose={missionOverlayMode === 'result'
+              ? () => setIsPostgameMissionOpen(false)
+              : () => setIsMissionReopenOpen(false)}
             onPlay={actions.onAcknowledgeMissionIntro}
             onSetMinimizeMissionsThisSession={
               actions.onSetMinimizeMissionsThisSession
