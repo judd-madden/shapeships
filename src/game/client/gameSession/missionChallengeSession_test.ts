@@ -3,14 +3,18 @@ declare const Deno: {
 };
 
 import {
+  LORE_UNREAD_STORAGE_KEY,
   MINIMIZE_MISSIONS_STORAGE_KEY,
   MISSION_FINDINGS_SEEN_STORAGE_KEY,
+  clearLoreUnread,
   markMissionFindingIdsSeen,
+  readLoreUnread,
   readMinimizeMissionsThisSession,
   readSeenMissionFindingIds,
   writeMinimizeMissionsThisSession,
   type StorageLike,
-} from './missionChallengeSession';
+// @ts-ignore -- Deno 2.7 requires an explicit extension for this direct test run.
+} from './missionChallengeSession.ts';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
   if (!condition) throw new Error(message);
@@ -108,4 +112,78 @@ Deno.test('Mission Findings tolerate unavailable and throwing storage', () => {
   assertEquals(readSeenMissionFindingIds(throwingStorage), []);
   assertEquals(markMissionFindingIdsSeen(['mintaka'], null), ['mintaka']);
   assertEquals(markMissionFindingIdsSeen(['mintaka'], throwingStorage), ['mintaka']);
+});
+
+Deno.test('Lore unread defaults safely and only accepts true', () => {
+  const storage = new FakeStorage();
+  assert(readLoreUnread(storage) === false);
+  storage.values.set(LORE_UNREAD_STORAGE_KEY, 'malformed');
+  assert(readLoreUnread(storage) === false);
+  storage.values.set(LORE_UNREAD_STORAGE_KEY, 'false');
+  assert(readLoreUnread(storage) === false);
+  storage.values.set(LORE_UNREAD_STORAGE_KEY, 'true');
+  assert(readLoreUnread(storage) === true);
+});
+
+Deno.test('Lore unread follows genuinely new Mission Finding growth', () => {
+  const storage = new FakeStorage();
+
+  markMissionFindingIdsSeen(['mintaka'], storage);
+  assert(readLoreUnread(storage) === true);
+
+  clearLoreUnread(storage);
+  assert(readLoreUnread(storage) === false);
+  assertEquals(readSeenMissionFindingIds(storage), ['mintaka']);
+
+  markMissionFindingIdsSeen(['mintaka'], storage);
+  assert(readLoreUnread(storage) === false);
+
+  markMissionFindingIdsSeen(['sol-1'], storage);
+  assert(readLoreUnread(storage) === true);
+
+  clearLoreUnread(storage);
+  markMissionFindingIdsSeen(['mintaka', 'sol-1', 'rebel-alliance'], storage);
+  assert(readLoreUnread(storage) === true);
+});
+
+Deno.test('Lore unread ignores inputs that do not grow the normalized seen set', () => {
+  const storage = new FakeStorage();
+  storage.values.set(
+    MISSION_FINDINGS_SEEN_STORAGE_KEY,
+    JSON.stringify(['mintaka']),
+  );
+
+  markMissionFindingIdsSeen(['', '   ', 'mintaka', 'mintaka'], storage);
+  assert(readLoreUnread(storage) === false);
+  assertEquals(readSeenMissionFindingIds(storage), ['mintaka']);
+});
+
+Deno.test('Lore unread remains safe with unavailable and throwing storage', () => {
+  assert(readLoreUnread(null) === false);
+  assert(readLoreUnread(throwingStorage) === false);
+  clearLoreUnread(null);
+  clearLoreUnread(throwingStorage);
+});
+
+Deno.test('Lore unread is not written when the seen-ID write fails', () => {
+  const unreadWrites: string[] = [];
+  const seenWriteThrowingStorage: StorageLike = {
+    getItem() {
+      return null;
+    },
+    setItem(key, value) {
+      if (key === MISSION_FINDINGS_SEEN_STORAGE_KEY) {
+        throw new Error('seen write blocked');
+      }
+      if (key === LORE_UNREAD_STORAGE_KEY) {
+        unreadWrites.push(value);
+      }
+    },
+  };
+
+  assertEquals(
+    markMissionFindingIdsSeen(['mintaka'], seenWriteThrowingStorage),
+    ['mintaka'],
+  );
+  assertEquals(unreadWrites, []);
 });

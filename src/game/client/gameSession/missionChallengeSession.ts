@@ -5,6 +5,7 @@ export interface StorageLike {
 
 export const MINIMIZE_MISSIONS_STORAGE_KEY = 'shapeships.minimizeMissions.v1';
 export const MISSION_FINDINGS_SEEN_STORAGE_KEY = 'shapeships.missionFindingsSeen.v1';
+export const LORE_UNREAD_STORAGE_KEY = 'shapeships.loreUnread.v1';
 
 function getSessionStorage(): StorageLike | null {
   if (typeof window === 'undefined') return null;
@@ -68,11 +69,37 @@ export function markMissionFindingIdsSeen(
 ): string[] {
   const existing = readSeenMissionFindingIds(storage);
   const result = normalizeIds([...existing, ...ids]);
+  const hasNewFinding = result.length > existing.length;
   if (!storage) return result;
   try {
     storage.setItem(MISSION_FINDINGS_SEEN_STORAGE_KEY, JSON.stringify(result));
+    if (hasNewFinding) {
+      storage.setItem(LORE_UNREAD_STORAGE_KEY, 'true');
+    }
   } catch {
     // Discovery is convenience state and must never interrupt gameplay.
   }
   return result;
+}
+
+export function readLoreUnread(
+  storage: StorageLike | null = getSessionStorage(),
+): boolean {
+  if (!storage) return false;
+  try {
+    return storage.getItem(LORE_UNREAD_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function clearLoreUnread(
+  storage: StorageLike | null = getSessionStorage(),
+): void {
+  if (!storage) return;
+  try {
+    storage.setItem(LORE_UNREAD_STORAGE_KEY, 'false');
+  } catch {
+    // Unread state is presentation-only and must never interrupt navigation.
+  }
 }
