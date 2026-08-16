@@ -1,6 +1,7 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { readSeenMissionFindingIds } from '../../game/client/gameSession/missionChallengeSession';
-import { generalLoreRows, missionFindings } from './loreContent';
+import { generalLoreRows, missionFindings, speciesLore } from './loreContent';
+
 
 const overviewGridClass = 'md:grid md:grid-cols-[130px_minmax(0,1fr)] md:gap-x-[20px]';
 
@@ -54,6 +55,15 @@ export function LoreOverviewPanel() {
   const [seenFindingIds] = useState(() => new Set(readSeenMissionFindingIds()));
   const unlockedCount = missionFindings.filter((finding) => seenFindingIds.has(finding.id)).length;
 
+  useEffect(() => {
+    Object.values(speciesLore).forEach(({ imageSrc }) => {
+      if (!imageSrc) return;
+
+      const image = new Image();
+      image.src = imageSrc;
+      void image.decode().catch(() => {});
+    });
+  }, []);
   return (
     <div className="flex w-full min-w-0 flex-col items-start gap-[50px] sm:gap-[72px] px-[16px] pt-[12px] pb-[24px]  sm:px-[50px] sm:pt-[32px] sm:pb-[50px] bg-black/60 rounded-[10px]">
       <section className="flex w-full min-w-0 flex-col items-start">
