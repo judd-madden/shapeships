@@ -1,15 +1,10 @@
 import { Fragment, useState, useEffect } from 'react';
 import { readSeenMissionFindingIds } from '../../game/client/gameSession/missionChallengeSession';
+import { isMissionFindingUnlocked } from '../../game/client/gameSession/missionFindingUnlocks';
 import { generalLoreRows, missionFindings, speciesLore } from './loreContent';
-import type { MissionFinding } from './loreContent';
 
 
 const overviewGridClass = 'md:grid md:grid-cols-[130px_minmax(0,1fr)] md:gap-x-[20px]';
-
-function isMissionFindingUnlocked(finding: MissionFinding, seenFindingIds: ReadonlySet<string>) {
-  const requiredFindingIds = finding.requiredFindingIds ?? [finding.id];
-  return requiredFindingIds.every((findingId) => seenFindingIds.has(findingId));
-}
 
 function LoreDivider() {
   return (

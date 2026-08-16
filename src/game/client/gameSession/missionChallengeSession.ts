@@ -1,3 +1,6 @@
+// @ts-ignore -- Deno direct tests require an explicit extension for this import.
+import { didUnlockAnyMissionFinding } from './missionFindingUnlocks.ts';
+
 export interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -69,11 +72,14 @@ export function markMissionFindingIdsSeen(
 ): string[] {
   const existing = readSeenMissionFindingIds(storage);
   const result = normalizeIds([...existing, ...ids]);
-  const hasNewFinding = result.length > existing.length;
+  const hasNewUnlockedFinding = didUnlockAnyMissionFinding(
+    new Set(existing),
+    new Set(result),
+  );
   if (!storage) return result;
   try {
     storage.setItem(MISSION_FINDINGS_SEEN_STORAGE_KEY, JSON.stringify(result));
-    if (hasNewFinding) {
+    if (hasNewUnlockedFinding) {
       storage.setItem(LORE_UNREAD_STORAGE_KEY, 'true');
     }
   } catch {

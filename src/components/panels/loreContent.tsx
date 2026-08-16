@@ -3,6 +3,7 @@ import humanLoreImage from '../../graphics/lore/human-lore-img.svg';
 import xeniteLoreImage from '../../graphics/lore/xenite-lore-img.svg';
 import centaurLoreImage from '../../graphics/lore/centaur-lore-img.svg';
 import ancientLoreImage from '../../graphics/lore/ancient-lore-img.svg';
+import { MULTI_MISSION_FINDING_REQUIREMENTS } from '../../game/client/gameSession/missionFindingUnlocks';
 
 export type SpeciesLoreId = 'human' | 'xenite' | 'centaur' | 'ancient';
 
@@ -118,6 +119,7 @@ export const missionFindings: readonly MissionFinding[] = [
   },
   {
     id: 'rebel-alliance',
+    requiredFindingIds: MULTI_MISSION_FINDING_REQUIREMENTS['rebel-alliance'],
     topic: 'Rebel Alliance',
     author: 'juddly',
     content: <p>There is a coalition of Rebel Humans and Rebel Centaur who want to join forces against the Xenites.</p>,
@@ -152,11 +154,7 @@ export const missionFindings: readonly MissionFinding[] = [
   },
   {
     id: 'ancient-mysteries',
-    requiredFindingIds: [
-      'ancient-mysteries-human',
-      'ancient-mysteries-xenite',
-      'ancient-mysteries-centaur',
-    ],
+    requiredFindingIds: MULTI_MISSION_FINDING_REQUIREMENTS['ancient-mysteries'],
     topic: 'Sol, Epsilon Eridani, Unknown',
     author: 'juddly',
     content: <p>Ancients are present in several systems.</p>,

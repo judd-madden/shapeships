@@ -21,7 +21,7 @@ import {
 } from "../../../engine/mission/MissionStories.ts";
 
 const MATCHUPS: Array<[MissionSpecies, MissionOpponentSpecies, string[]]> = [
-  ["human", "human", ["sol-1", "rebel-alliance"]],
+  ["human", "human", ["sol-1", "rebel-alliance-human"]],
   ["human", "xenite", ["mintaka"]],
   ["human", "centaur", ["delta-aquarii"]],
   ["xenite", "human", ["mintaka"]],
@@ -29,7 +29,7 @@ const MATCHUPS: Array<[MissionSpecies, MissionOpponentSpecies, string[]]> = [
   ["xenite", "centaur", ["gamma-leporis"]],
   ["centaur", "human", ["delta-aquarii"]],
   ["centaur", "xenite", ["gamma-leporis"]],
-  ["centaur", "centaur", ["proxima-centauri", "rebel-alliance"]],
+  ["centaur", "centaur", ["proxima-centauri", "rebel-alliance-centaur"]],
   ["ancient", "human", ["ancient-mysteries-human"]],
   ["ancient", "xenite", ["ancient-mysteries-xenite"]],
   ["ancient", "centaur", ["ancient-mysteries-centaur"]],
@@ -115,7 +115,8 @@ Deno.test("Mission registry has the canonical directional content and Finding co
       "gamma-leporis",
       "mintaka",
       "proxima-centauri",
-      "rebel-alliance",
+      "rebel-alliance-centaur",
+      "rebel-alliance-human",
       "sol-1",
     ],
   );

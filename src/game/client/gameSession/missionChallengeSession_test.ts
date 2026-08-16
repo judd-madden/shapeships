@@ -75,19 +75,25 @@ Deno.test('Minimize Missions tolerates unavailable and throwing storage', () => 
 Deno.test('Mission Findings read empty and add flat unique IDs deterministically', () => {
   const storage = new FakeStorage();
   assertEquals(readSeenMissionFindingIds(storage), []);
-  assertEquals(markMissionFindingIdsSeen(['rebel-alliance'], storage), ['rebel-alliance']);
   assertEquals(
-    markMissionFindingIdsSeen(['sol-1', 'rebel-alliance', 'mintaka'], storage),
-    ['rebel-alliance', 'sol-1', 'mintaka'],
+    markMissionFindingIdsSeen(['rebel-alliance-human'], storage),
+    ['rebel-alliance-human'],
+  );
+  assertEquals(
+    markMissionFindingIdsSeen(
+      ['sol-1', 'rebel-alliance-human', 'mintaka'],
+      storage,
+    ),
+    ['rebel-alliance-human', 'sol-1', 'mintaka'],
   );
   assertEquals(readSeenMissionFindingIds(storage), [
-    'rebel-alliance',
+    'rebel-alliance-human',
     'sol-1',
     'mintaka',
   ]);
   assertEquals(
     JSON.parse(storage.values.get(MISSION_FINDINGS_SEEN_STORAGE_KEY) ?? 'null'),
-    ['rebel-alliance', 'sol-1', 'mintaka'],
+    ['rebel-alliance-human', 'sol-1', 'mintaka'],
   );
 });
 
@@ -125,24 +131,60 @@ Deno.test('Lore unread defaults safely and only accepts true', () => {
   assert(readLoreUnread(storage) === true);
 });
 
-Deno.test('Lore unread follows genuinely new Mission Finding growth', () => {
+Deno.test('Lore unread follows newly unlocked visible Mission Findings', () => {
   const storage = new FakeStorage();
 
   markMissionFindingIdsSeen(['mintaka'], storage);
   assert(readLoreUnread(storage) === true);
 
+  markMissionFindingIdsSeen(['ancient-mysteries-human'], storage);
+  assert(readLoreUnread(storage) === true);
+
   clearLoreUnread(storage);
   assert(readLoreUnread(storage) === false);
-  assertEquals(readSeenMissionFindingIds(storage), ['mintaka']);
 
   markMissionFindingIdsSeen(['mintaka'], storage);
   assert(readLoreUnread(storage) === false);
 
-  markMissionFindingIdsSeen(['sol-1'], storage);
+  markMissionFindingIdsSeen(['ancient-mysteries-centaur'], storage);
+  assert(readLoreUnread(storage) === false);
+
+  markMissionFindingIdsSeen(['ancient-mysteries-xenite'], storage);
+  assert(readLoreUnread(storage) === true);
+
+  assertEquals(readSeenMissionFindingIds(storage), [
+    'mintaka',
+    'ancient-mysteries-human',
+    'ancient-mysteries-centaur',
+    'ancient-mysteries-xenite',
+  ]);
+});
+
+Deno.test('Lore unread unlocks grouped Rebel Alliance requirements in either order', () => {
+  const humanFirstStorage = new FakeStorage();
+  markMissionFindingIdsSeen(['rebel-alliance-human'], humanFirstStorage);
+  assert(readLoreUnread(humanFirstStorage) === false);
+  markMissionFindingIdsSeen(['rebel-alliance-centaur'], humanFirstStorage);
+  assert(readLoreUnread(humanFirstStorage) === true);
+
+  const centaurFirstStorage = new FakeStorage();
+  markMissionFindingIdsSeen(['rebel-alliance-centaur'], centaurFirstStorage);
+  assert(readLoreUnread(centaurFirstStorage) === false);
+  markMissionFindingIdsSeen(['rebel-alliance-human'], centaurFirstStorage);
+  assert(readLoreUnread(centaurFirstStorage) === true);
+});
+
+Deno.test('Lore unread recognizes ordinary rows emitted with grouped partial progress', () => {
+  const storage = new FakeStorage();
+
+  markMissionFindingIdsSeen(['sol-1', 'rebel-alliance-human'], storage);
   assert(readLoreUnread(storage) === true);
 
   clearLoreUnread(storage);
-  markMissionFindingIdsSeen(['mintaka', 'sol-1', 'rebel-alliance'], storage);
+  markMissionFindingIdsSeen(['rebel-alliance-human'], storage);
+  assert(readLoreUnread(storage) === false);
+
+  markMissionFindingIdsSeen(['rebel-alliance-centaur'], storage);
   assert(readLoreUnread(storage) === true);
 });
 
