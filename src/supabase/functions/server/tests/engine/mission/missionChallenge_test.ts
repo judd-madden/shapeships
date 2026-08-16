@@ -30,9 +30,9 @@ const MATCHUPS: Array<[MissionSpecies, MissionOpponentSpecies, string[]]> = [
   ["centaur", "human", ["delta-aquarii"]],
   ["centaur", "xenite", ["gamma-leporis"]],
   ["centaur", "centaur", ["proxima-centauri", "rebel-alliance"]],
-  ["ancient", "human", ["ancient-mysteries"]],
-  ["ancient", "xenite", ["ancient-mysteries"]],
-  ["ancient", "centaur", ["ancient-mysteries"]],
+  ["ancient", "human", ["ancient-mysteries-human"]],
+  ["ancient", "xenite", ["ancient-mysteries-xenite"]],
+  ["ancient", "centaur", ["ancient-mysteries-centaur"]],
 ];
 
 function findSeedForBucket(
@@ -107,7 +107,9 @@ Deno.test("Mission registry has the canonical directional content and Finding co
     [...new Set(MISSION_STORIES.flatMap((mission) => mission.findingIds))]
       .sort(),
     [
-      "ancient-mysteries",
+      "ancient-mysteries-centaur",
+      "ancient-mysteries-human",
+      "ancient-mysteries-xenite",
       "betelgeuse",
       "delta-aquarii",
       "gamma-leporis",

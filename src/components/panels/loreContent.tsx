@@ -16,6 +16,7 @@ export interface GeneralLoreRow {
 
 export interface MissionFinding {
   id: string;
+  requiredFindingIds?: readonly string[];
   topic: string;
   author: string;
   content: ReactNode;
@@ -151,6 +152,11 @@ export const missionFindings: readonly MissionFinding[] = [
   },
   {
     id: 'ancient-mysteries',
+    requiredFindingIds: [
+      'ancient-mysteries-human',
+      'ancient-mysteries-xenite',
+      'ancient-mysteries-centaur',
+    ],
     topic: 'Sol, Epsilon Eridani, Unknown',
     author: 'juddly',
     content: <p>Ancients are present in several systems.</p>,

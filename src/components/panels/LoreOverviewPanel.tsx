@@ -1,9 +1,15 @@
 import { Fragment, useState, useEffect } from 'react';
 import { readSeenMissionFindingIds } from '../../game/client/gameSession/missionChallengeSession';
 import { generalLoreRows, missionFindings, speciesLore } from './loreContent';
+import type { MissionFinding } from './loreContent';
 
 
 const overviewGridClass = 'md:grid md:grid-cols-[130px_minmax(0,1fr)] md:gap-x-[20px]';
+
+function isMissionFindingUnlocked(finding: MissionFinding, seenFindingIds: ReadonlySet<string>) {
+  const requiredFindingIds = finding.requiredFindingIds ?? [finding.id];
+  return requiredFindingIds.every((findingId) => seenFindingIds.has(findingId));
+}
 
 function LoreDivider() {
   return (
@@ -53,7 +59,9 @@ function MissionFindingsHeader({ unlockedCount, totalCount }: { unlockedCount: n
 
 export function LoreOverviewPanel() {
   const [seenFindingIds] = useState(() => new Set(readSeenMissionFindingIds()));
-  const unlockedCount = missionFindings.filter((finding) => seenFindingIds.has(finding.id)).length;
+  const unlockedCount = missionFindings.filter((finding) =>
+    isMissionFindingUnlocked(finding, seenFindingIds)
+  ).length;
 
   useEffect(() => {
     Object.values(speciesLore).forEach(({ imageSrc }) => {
@@ -94,7 +102,7 @@ export function LoreOverviewPanel() {
       <section className="flex w-full min-w-0 flex-col items-start">
         <MissionFindingsHeader unlockedCount={unlockedCount} totalCount={missionFindings.length} />
         {missionFindings.map((finding) => {
-          const isUnlocked = seenFindingIds.has(finding.id);
+          const isUnlocked = isMissionFindingUnlocked(finding, seenFindingIds);
 
           return (
             <Fragment key={finding.id}>

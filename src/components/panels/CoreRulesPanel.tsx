@@ -365,11 +365,15 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
       >
         <div className="flex flex-1 flex-col gap-[20px] text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
           <div>
-            <ShipPowerTagBadgeRow labels={['MAKES SHIPS']} />
+            <div className="[&>div>span]:rounded-[6px]! [&>div>span]:px-[12px]! [&>div>span]:py-[7.5px]! [&>div>span]:text-[15px]! sm:[&>div>span]:text-[18px]!">
+    <ShipPowerTagBadgeRow labels={['MAKES SHIPS']} />
+  </div>
             <p className="mt-[9.75px]">Some powers make ships. The listed phase shows when those ships are made. Ships made before or during Drawing can be used for upgrades during that Drawing phase.</p>
           </div>
           <div>
-            <ShipPowerTagBadgeRow labels={['TARGETS SHIPS']} />
+            <div className="[&>div>span]:rounded-[6px]! [&>div>span]:px-[12px]! [&>div>span]:py-[7.5px]! [&>div>span]:text-[15px]! sm:[&>div>span]:text-[18px]!">
+    <ShipPowerTagBadgeRow labels={['TARGETS SHIPS']} />
+  </div>
             <p className="mt-[9.75px]">Some powers target other ships in your fleet or your opponent's fleet.</p>
           </div>
         </div>
