@@ -5,7 +5,7 @@ declare const Deno: {
 import {
   deriveMatchupIntroViewModel,
   getMatchupIntroDurationMs,
-} from './matchupIntro';
+} from '../../gameSession/matchupIntro';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
   if (!condition) throw new Error(message);

@@ -193,7 +193,7 @@ export function useAutoJoinEffect(args: {
                 return;
               }
 
-              console.warn(`âš ï¸ [useGameSession] Auth confirm failed after benign join (attempt ${attempt}/${MAX_ATTEMPTS})`);
+              console.warn(`⚠️ [useGameSession] Auth confirm failed after benign join (attempt ${attempt}/${MAX_ATTEMPTS})`);
               if (attempt < MAX_ATTEMPTS) {
                 await new Promise((resolve) => setTimeout(resolve, 500));
                 continue;
@@ -210,7 +210,7 @@ export function useAutoJoinEffect(args: {
               response.status === 403;
 
             if (isGameFull) {
-              console.log(`âš ï¸ [useGameSession] Game full - falling back to spectator join...`);
+              console.log(`⚠️ [useGameSession] Game full - falling back to spectator join...`);
 
               response = await authenticatedPost(`/join-game/${effectiveGameId}`, {
                 playerName: effectivePlayerName,
@@ -227,7 +227,7 @@ export function useAutoJoinEffect(args: {
                   return;
                 }
 
-                console.warn(`âš ï¸ [useGameSession] Auth confirm failed after spectator join (attempt ${attempt}/${MAX_ATTEMPTS})`);
+                console.warn(`⚠️ [useGameSession] Auth confirm failed after spectator join (attempt ${attempt}/${MAX_ATTEMPTS})`);
                 if (attempt < MAX_ATTEMPTS) {
                   await new Promise((resolve) => setTimeout(resolve, 500));
                   continue;
@@ -242,7 +242,7 @@ export function useAutoJoinEffect(args: {
               return;
             }
 
-            console.warn(`âš ï¸ [useGameSession] Auto-join failed for gameId=${effectiveGameId}: ${response.status} ${errorText}`);
+            console.warn(`⚠️ [useGameSession] Auto-join failed for gameId=${effectiveGameId}: ${response.status} ${errorText}`);
             return;
           }
 
@@ -255,7 +255,7 @@ export function useAutoJoinEffect(args: {
             return;
           }
 
-          console.warn(`âš ï¸ [useGameSession] Auth confirm failed after join (attempt ${attempt}/${MAX_ATTEMPTS})`);
+          console.warn(`⚠️ [useGameSession] Auth confirm failed after join (attempt ${attempt}/${MAX_ATTEMPTS})`);
           if (attempt < MAX_ATTEMPTS) {
             await new Promise((resolve) => setTimeout(resolve, 500));
             continue;

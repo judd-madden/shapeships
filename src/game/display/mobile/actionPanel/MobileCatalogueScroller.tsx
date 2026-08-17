@@ -10,7 +10,7 @@ import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import type {
   AncientSolarSelectorMode,
   ImplementedAncientManualSolarPowerId,
-} from '../../../client/gameSession/ancientChargeDeclaration';
+} from '../../../client/gameSession/ancient/ancientChargeDeclaration';
 import {
   ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT,
   ANCIENT_CATALOGUE_SECTION_X,

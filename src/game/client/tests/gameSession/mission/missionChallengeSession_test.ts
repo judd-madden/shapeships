@@ -13,8 +13,7 @@ import {
   readSeenMissionFindingIds,
   writeMinimizeMissionsThisSession,
   type StorageLike,
-// @ts-ignore -- Deno 2.7 requires an explicit extension for this direct test run.
-} from './missionChallengeSession.ts';
+} from '../../../gameSession/mission/missionChallengeSession';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
   if (!condition) throw new Error(message);

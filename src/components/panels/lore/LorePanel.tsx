@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SecondaryNavItem } from '../ui/primitives/navigation/SecondaryNavItem';
+import { SecondaryNavItem } from '../../ui/primitives/navigation/SecondaryNavItem';
 import { LoreOverviewPanel } from './LoreOverviewPanel';
 import { SpeciesLorePanel } from './SpeciesLorePanel';
 import type { SpeciesLoreId } from './loreContent';

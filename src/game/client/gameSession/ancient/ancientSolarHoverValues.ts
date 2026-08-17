@@ -1,6 +1,6 @@
-import { isShipDefId } from '../../data/ShipDefinitions.core';
-import { calculateAncientSiphonEffect } from '../../data/ancientSiphonRules';
-import type { ShipDefId } from '../../types/ShipTypes.engine';
+import { isShipDefId } from '../../../data/ShipDefinitions.core';
+import { calculateAncientSiphonEffect } from '../../../data/ancientSiphonRules';
+import type { ShipDefId } from '../../../types/ShipTypes.engine';
 import type { FixedAncientManualSolarPowerId } from './ancientChargeDeclaration';
 
 export type AncientSolarHoverValue = {

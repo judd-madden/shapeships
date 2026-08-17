@@ -9,7 +9,7 @@ import {
   normalizeRequesterMissionChallenge,
   shouldAutomaticallyAcknowledgeMission,
   shouldPresentInitialMissionIntro,
-} from './missionChallenge';
+} from '../../../gameSession/mission/missionChallenge';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
   if (!condition) throw new Error(message);

@@ -30,7 +30,7 @@ import {
   isCommitmentCommitted,
   isCommitmentRevealed,
 } from './selectors';
-import type { FrozenAncientChargeDeclarationAttempt } from './ancientChargeDeclaration';
+import type { FrozenAncientChargeDeclarationAttempt } from './ancient/ancientChargeDeclaration';
 import {
   canSubmitDrawingBuild,
   constructCarrierPreludeBatch,

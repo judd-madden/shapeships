@@ -20,7 +20,7 @@ import { useFlipLayout } from '../../graphics/useFlipLayout';
 import { FitToBox } from './FitToBox';
 import { FleetAreaHealthDeltaFlash } from './FleetAreaHealthDeltaFlash';
 import type { FleetAreaHealthDeltaFlashShape } from './FleetAreaHealthDeltaFlash';
-import { AncientSolarLedgerRow } from './AncientSolarLedgerRow';
+import { AncientSolarLedgerRow } from './ancient/AncientSolarLedgerRow';
 
 function cx(...parts: Array<string | undefined | false>) {
   return parts.filter(Boolean).join(' ');

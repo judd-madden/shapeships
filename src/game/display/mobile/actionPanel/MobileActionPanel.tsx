@@ -3,7 +3,7 @@ import { ChevronDown } from '../../../../components/ui/primitives/icons/ChevronD
 import type { ActionPanelViewModel, GameSessionActions } from '../../../client/useGameSession';
 import type { SpeciesId } from '../../../../components/ui/primitives/buttons/SpeciesCardButton';
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
-import type { ImplementedAncientManualSolarPowerId } from '../../../client/gameSession/ancientChargeDeclaration';
+import type { ImplementedAncientManualSolarPowerId } from '../../../client/gameSession/ancient/ancientChargeDeclaration';
 import { EvolverDrawingPanel } from '../../actionPanel/panels/EvolverDrawingPanel';
 import { FrigateDrawingPanel } from '../../actionPanel/panels/FrigateDrawingPanel';
 import { QuantumMysticDrawingPanel } from '../../actionPanel/panels/QuantumMysticDrawingPanel';

@@ -1,5 +1,5 @@
-import type { ShipDefId } from '../../types/ShipTypes.engine';
-import type { MissionChallengeViewModel } from './types';
+import type { ShipDefId } from '../../../types/ShipTypes.engine';
+import type { MissionChallengeViewModel } from '../types';
 
 export interface NormalizedMissionChallenge {
   mission: {

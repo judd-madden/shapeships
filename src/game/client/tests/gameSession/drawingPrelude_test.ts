@@ -10,17 +10,7 @@ import {
   normalizeDrawingPrelude,
   validateProjectedCarrierActions,
   type ProjectedCarrierAction,
-} from './drawingPrelude';
-import {
-  ACTION_PANEL_IDS,
-  isActionPanelId,
-  normalizeActionPanelId,
-} from '../../display/actionPanel/ActionPanelRegistry';
-import {
-  derivePhasePresentation,
-  getSubphaseLabelFromPhaseKey,
-  RUNTIME_PHASE_ROWS,
-} from './phaseLabels';
+} from '../../gameSession/drawingPrelude';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
   if (!condition) throw new Error(message);
@@ -47,22 +37,6 @@ function carrier(
     passIndex,
     choices: choices.map((choiceId) => ({ choiceId })),
   };
-}
-
-function phasePresentation(
-  overrides: Partial<Parameters<typeof derivePhasePresentation>[0]>,
-) {
-  return derivePhasePresentation({
-    phaseKey: 'battle.reveal',
-    isFinished: false,
-    isSpectator: false,
-    drawingStageKind: 'passive',
-    requesterIsReady: false,
-    opponentIsReady: false,
-    hasAvailableActions: false,
-    ancientChargeStage: null,
-    ...overrides,
-  });
 }
 
 Deno.test('Drawing prelude normalization distinguishes players, spectators, and unresolved viewers', () => {
@@ -360,152 +334,4 @@ Deno.test('BUILD_SUBMIT eligibility is participant-only and requester-current', 
     turnNumber: 5,
     normalizedPrelude: complete,
   }));
-});
-
-Deno.test('runtime panel and phase-row cutover has one Carrier panel and Drawing to Reveal', () => {
-  const carrierPanelIds = ACTION_PANEL_IDS.filter((id) => id.includes('carrier'));
-  assertEquals(carrierPanelIds, ['ap.build.drawing.prelude.carrier']);
-  assert(isActionPanelId('ap.build.drawing.prelude.carrier'));
-  assert(!isActionPanelId('ap.build.ships_that_build.human'));
-  assertEquals(RUNTIME_PHASE_ROWS.length, 7);
-  const drawingIndex = RUNTIME_PHASE_ROWS.findIndex((row) => row.key === 'build.drawing');
-  assert(drawingIndex >= 0);
-  assertEquals(RUNTIME_PHASE_ROWS[drawingIndex + 1]?.key, 'battle.reveal');
-  assert(!RUNTIME_PHASE_ROWS.some((row) => row.key === 'build.ships_that_build'));
-  assert(!RUNTIME_PHASE_ROWS.some((row) => row.key === 'build.end_of_build'));
-});
-
-Deno.test('player-facing phase presentation follows authoritative interaction state', () => {
-  assertEquals(getSubphaseLabelFromPhaseKey('battle.charge_declaration'), 'Charges');
-
-  assertEquals(
-    phasePresentation({
-      phaseKey: 'build.drawing',
-      drawingStageKind: 'prelude',
-      drawingEconomy: { ordinary: 8, joining: 2 },
-    }),
-    {
-      title: '8',
-      titleSuffix: 'lines available +2 joining',
-      subheading: 'You have powers available',
-    },
-  );
-  assertEquals(
-    phasePresentation({
-      phaseKey: 'build.drawing',
-      drawingStageKind: 'normal',
-      drawingEconomy: { ordinary: 5, joining: 1 },
-    }),
-    {
-      title: '5',
-      titleSuffix: 'lines available +1 joining',
-      subheading: 'Spend lines to build ships',
-    },
-  );
-
-  const localLockOnlyStage = deriveDrawingStage({
-    normalizedPrelude: {
-      kind: 'complete',
-      turnNumber: 6,
-      passIndex: 1,
-      passCount: 1,
-    },
-    hasExistingDrawingCommitment: false,
-  });
-  assertEquals(localLockOnlyStage, { kind: 'normal' });
-  assertEquals(
-    phasePresentation({
-      phaseKey: 'build.drawing',
-      drawingStageKind: localLockOnlyStage.kind,
-      drawingEconomy: { ordinary: 4, joining: 0 },
-    }).titleSuffix,
-    'lines available',
-  );
-  assertEquals(
-    phasePresentation({
-      phaseKey: 'build.drawing',
-      drawingStageKind: 'submitted',
-      committedDrawingProjection: { ordinary: 3, joining: 2 },
-    }),
-    {
-      title: '3',
-      titleSuffix: 'lines saved +2 joining',
-      subheading: 'Opponent drawing...',
-    },
-  );
-  assertEquals(
-    phasePresentation({
-      phaseKey: 'build.drawing',
-      drawingStageKind: 'submitted',
-    }),
-    {
-      title: 'Drawing',
-      titleSuffix: null,
-      subheading: 'Opponent drawing...',
-    },
-  );
-
-  for (const phaseKey of ['battle.first_strike', 'battle.charge_declaration']) {
-    assertEquals(
-      phasePresentation({ phaseKey, hasAvailableActions: true }).subheading,
-      'You have powers available',
-    );
-    assertEquals(
-      phasePresentation({
-        phaseKey,
-        requesterIsReady: true,
-        opponentIsReady: false,
-      }).subheading,
-      'Opponent choosing...',
-    );
-    assertEquals(
-      phasePresentation({
-        phaseKey,
-        requesterIsReady: true,
-        opponentIsReady: false,
-        hasAvailableActions: true,
-      }).subheading,
-      'Opponent choosing...',
-    );
-  }
-
-  assertEquals(
-    phasePresentation({
-      phaseKey: 'battle.charge_declaration',
-      ancientChargeStage: 'powers',
-      hasAvailableActions: true,
-    }),
-    {
-      title: 'Solar Powers',
-      titleSuffix: null,
-      subheading: 'Use your Energy to cast Solar Powers',
-    },
-  );
-  assertEquals(
-    phasePresentation({
-      phaseKey: 'battle.first_strike',
-      isSpectator: true,
-      hasAvailableActions: true,
-      requesterIsReady: true,
-    }).subheading,
-    '\u00A0',
-  );
-  assertEquals(
-    phasePresentation({
-      phaseKey: 'battle.charge_declaration',
-      isSpectator: true,
-      ancientChargeStage: 'powers',
-    }).subheading,
-    '\u00A0',
-  );
-});
-
-Deno.test('former retained panel id recovers to the current Carrier fallback', () => {
-  assertEquals(
-    normalizeActionPanelId(
-      'ap.build.ships_that_build.human',
-      'ap.build.drawing.prelude.carrier',
-    ),
-    'ap.build.drawing.prelude.carrier',
-  );
 });

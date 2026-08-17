@@ -6,7 +6,7 @@ import {
   MATCHUP_INTRO_MOTION_DURATION_MS,
   MATCHUP_INTRO_SPECIES_STAGGER_MS,
   MATCHUP_INTRO_VISUAL_DURATION_MS,
-} from './useMatchupIntroPresentation';
+} from '../../matchup/useMatchupIntroPresentation';
 
 function assertEqual(actual: unknown, expected: unknown): void {
   if (!Object.is(actual, expected)) {

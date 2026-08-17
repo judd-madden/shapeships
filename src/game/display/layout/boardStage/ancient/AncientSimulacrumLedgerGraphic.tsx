@@ -1,6 +1,6 @@
-import { getShipDefinitionUI } from '../../../data/ShipDefinitionsUI';
-import type { AncientSimulacrumDisplayPresentation } from '../../../client/gameSession/types';
-import { resolveShipGraphic } from '../../graphics/resolveShipGraphic';
+import { getShipDefinitionUI } from '../../../../data/ShipDefinitionsUI';
+import type { AncientSimulacrumDisplayPresentation } from '../../../../client/gameSession/types';
+import { resolveShipGraphic } from '../../../graphics/resolveShipGraphic';
 
 export function AncientSimulacrumLedgerGraphic({
   presentation,

@@ -78,7 +78,7 @@ import {
   type AncientSolarSelectorMode,
   type FixedAncientManualSolarPowerId,
   type ImplementedAncientManualSolarPowerId,
-} from '../../../../../client/gameSession/ancientChargeDeclaration';
+} from '../../../../../client/gameSession/ancient/ancientChargeDeclaration';
 import { ANCIENT_SIPHON_MINIMUM_SPEND } from '../../../../../data/ancientSiphonRules';
 
 type CatalogueFrame = 'desktop' | 'bare';

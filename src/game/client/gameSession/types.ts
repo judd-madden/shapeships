@@ -17,8 +17,8 @@ import type {
   AncientManualSolarCast,
   AncientSolarSelectorMode,
   FixedAncientManualSolarPowerId,
-} from './ancientChargeDeclaration';
-import type { AncientSolarHoverValue } from './ancientSolarHoverValues';
+} from './ancient/ancientChargeDeclaration';
+import type { AncientSolarHoverValue } from './ancient/ancientSolarHoverValues';
 import type { MatchupIntroViewModel } from './matchupIntro';
 
 export type ReadySendingKind = 'default' | 'ancient-autocast';

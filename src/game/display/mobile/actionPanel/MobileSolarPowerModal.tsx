@@ -4,7 +4,7 @@ import type { ActionPanelViewModel, GameSessionActions } from '../../../client/u
 import {
   isFixedAncientManualSolarPowerId,
   type ImplementedAncientManualSolarPowerId,
-} from '../../../client/gameSession/ancientChargeDeclaration';
+} from '../../../client/gameSession/ancient/ancientChargeDeclaration';
 import { getShipCardModel } from '../../actionPanel/panels/catalogue/shared/ShipCardModel';
 import { ShipPowerTagBadgeRow } from '../../shared/ShipPowerTagBadgeRow';
 import { ShipPowerRow } from '../../shared/ShipPowerRow';

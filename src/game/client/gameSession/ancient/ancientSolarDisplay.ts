@@ -3,12 +3,12 @@ import type {
   AncientSolarDisplaySourceMode,
   AncientSimulacrumDisplayPresentation,
   LiveRowAncientSolarPowerId,
-} from './types';
+} from '../types';
 import type { AncientManualSolarCast } from './ancientChargeDeclaration';
-import { calculateAncientSiphonEffect } from '../../data/ancientSiphonRules';
-import { isShipDefId } from '../../data/ShipDefinitions.core';
-import { getShipDefinitionById } from '../../data/ShipDefinitions.engine';
-import { ShipType } from '../../types/ShipTypes.engine';
+import { calculateAncientSiphonEffect } from '../../../data/ancientSiphonRules';
+import { isShipDefId } from '../../../data/ShipDefinitions.core';
+import { getShipDefinitionById } from '../../../data/ShipDefinitions.engine';
+import { ShipType } from '../../../types/ShipTypes.engine';
 
 const LIVE_ROW_ANCIENT_SOLAR_POWER_IDS = new Set<string>([
   'SLIF',

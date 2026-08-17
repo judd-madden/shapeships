@@ -9,24 +9,24 @@ import {
 import type {
   AncientSolarDisplayEntry,
   LiveRowAncientSolarPowerId,
-} from '../../../client/gameSession/types';
-import type { ShipDefId } from '../../../types/ShipTypes.engine';
+} from '../../../../client/gameSession/types';
+import type { ShipDefId } from '../../../../types/ShipTypes.engine';
 import {
   AnimatedBlackHole,
   AnimatedSiphon,
   AnimatedStarBirth,
   AnimatedSupernova,
   AnimatedVortex,
-} from '../../../../graphics/ancient/animations';
-import { Asteroid, Convert, Life } from '../../../../graphics/ancient/assets';
+} from '../../../../../graphics/ancient/animations';
+import { Asteroid, Convert, Life } from '../../../../../graphics/ancient/assets';
 import {
   SolarLedgerClearAnimationWrapper,
   SolarPowerAnimationWrapper,
   useSolarPowerEntryAnimTokens,
-} from '../../graphics/animation';
-import { useFlipLayout } from '../../graphics/useFlipLayout';
+} from '../../../graphics/animation';
+import { useFlipLayout } from '../../../graphics/useFlipLayout';
 import { AncientSimulacrumLedgerGraphic } from './AncientSimulacrumLedgerGraphic';
-import { FitToBox } from './FitToBox';
+import { FitToBox } from '../FitToBox';
 
 const SOLAR_ROW_FLIP_DURATION_MS = 400;
 const SOLAR_ROW_ANCESTOR_SCALE_EPSILON = 0.001;

@@ -6,7 +6,7 @@ import {
   getDefaultChoiceIdForRenderableAction,
   getSelectedChoiceIdForRenderableAction,
   type RenderableServerAction,
-} from './availableActions';
+} from '../../gameSession/availableActions';
 
 function assertEquals(actual: unknown, expected: unknown, message: string): void {
   if (actual !== expected) {

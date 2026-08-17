@@ -2,8 +2,8 @@ declare const Deno: {
   test(name: string, fn: () => void | Promise<void>): void;
 };
 
-import { getPublicTurnPhaseProgress } from './selectors';
-import { deriveTurnPhaseVm } from './turnPhases';
+import { getPublicTurnPhaseProgress } from '../../gameSession/selectors';
+import { deriveTurnPhaseVm } from '../../gameSession/turnPhases';
 
 function assertEqual(actual: unknown, expected: unknown): void {
   if (!Object.is(actual, expected)) {
@@ -63,7 +63,18 @@ Deno.test('seven canonical phases map to the fixed five milestones', () => {
       isFinished: false,
       healthResolutionPresentationActive: false,
     }).milestones.map((milestone) => milestone.label),
-    ['Dice Roll', 'Drawing', 'First Strike', 'Charges / Solar Powers', 'Turn Resolution'],
+    ['Dice Roll', 'Drawing', 'First Strike', 'Charges', 'Turn Resolution'],
+  );
+
+  assertEqual(
+    deriveTurnPhaseVm({
+      phaseKey: 'build.dice_roll',
+      turnNumber: 7,
+      progress,
+      isFinished: false,
+      displayLeftSpeciesId: 'ancient',
+    }).milestones.find((milestone) => milestone.id === 'charges')?.label,
+    'Charges / Solar Powers',
   );
 });
 
@@ -89,7 +100,7 @@ Deno.test('mandatory availability and optional expected-or-occurred semantics re
   assertEqual(stale.milestones.find((item) => item.id === 'first_strike')?.isAvailable, false);
 });
 
-Deno.test('setup and terminal health presentation use the existing lifecycle seam', () => {
+Deno.test('setup and finished states use the current lifecycle contract', () => {
   const setup = deriveTurnPhaseVm({
     phaseKey: 'setup.species_selection',
     turnNumber: 0,
@@ -100,23 +111,12 @@ Deno.test('setup and terminal health presentation use the existing lifecycle sea
   assertEqual(setup.turnNumber, null);
   assertEqual(setup.currentMilestone, null);
 
-  const terminalActive = deriveTurnPhaseVm({
+  const terminal = deriveTurnPhaseVm({
     phaseKey: 'battle.end_of_turn_resolution',
     turnNumber: 8,
     progress: null,
     isFinished: true,
-    healthResolutionPresentationActive: true,
-    healthResolutionDisplayTurnNumber: 7,
   });
-  assertEqual(terminalActive.turnNumber, 7);
-  assertEqual(terminalActive.currentMilestone, 'turn_resolution');
-
-  const terminalComplete = deriveTurnPhaseVm({
-    phaseKey: 'battle.end_of_turn_resolution',
-    turnNumber: 8,
-    progress: null,
-    isFinished: true,
-    healthResolutionPresentationActive: false,
-  });
-  assertEqual(terminalComplete.currentMilestone, null);
+  assertEqual(terminal.turnNumber, 8);
+  assertEqual(terminal.currentMilestone, null);
 });

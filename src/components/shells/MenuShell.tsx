@@ -12,7 +12,7 @@
 import React, { useEffect, useState } from 'react';
 import { MultiplayerPanel } from '../panels/MultiplayerPanel';
 import { RulesPanel } from '../panels/RulesPanel';
-import { LorePanel } from '../panels/LorePanel';
+import { LorePanel } from '../panels/lore/LorePanel';
 import { CreatePrivateGamePanel, type CreatePrivateGameSettings } from '../panels/CreatePrivateGamePanel';
 import { LogoIcon } from '../ui/primitives/icons/LogoIcon';
 import { OnlineStatusIcon } from '../ui/primitives/icons/OnlineStatusIcon';
@@ -20,7 +20,7 @@ import { attemptMobileGameFullscreen } from '../../utils/mobileFullscreen';
 import {
   clearLoreUnread,
   readLoreUnread,
-} from '../../game/client/gameSession/missionChallengeSession';
+} from '../../game/client/gameSession/mission/missionChallengeSession';
 
 interface MenuShellProps {
   onNavigate: (shell: string) => void;

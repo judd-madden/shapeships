@@ -3,16 +3,16 @@ import {
   getRenderableServerChoiceActions,
   getSelectedChoiceIdForRenderableAction,
   type RenderableServerAction,
-} from './availableActions';
-import { buildPowerAction } from './powerIntents';
-import type { AncientEnergyPool } from './selectors';
+} from '../availableActions';
+import { buildPowerAction } from '../powerIntents';
+import type { AncientEnergyPool } from '../selectors';
 import {
   ANCIENT_SIPHON_MINIMUM_SPEND,
   isValidAncientSiphonSpend,
-} from '../../data/ancientSiphonRules';
-import { isShipDefId } from '../../data/ShipDefinitions.core';
-import { getShipDefinitionById } from '../../data/ShipDefinitions.engine';
-import { ShipType, type ShipDefId } from '../../types/ShipTypes.engine';
+} from '../../../data/ancientSiphonRules';
+import { isShipDefId } from '../../../data/ShipDefinitions.core';
+import { getShipDefinitionById } from '../../../data/ShipDefinitions.engine';
+import { ShipType, type ShipDefId } from '../../../types/ShipTypes.engine';
 import {
   ANCIENT_BLACK_HOLE_PREVIEW_COST,
   ANCIENT_VORTEX_PREVIEW_COST,
@@ -25,7 +25,7 @@ export {
   type AncientManualOnlySolarPowerId,
 } from './ancientAutocastDecision';
 
-export type { AncientEnergyPool } from './selectors';
+export type { AncientEnergyPool } from '../selectors';
 
 export type AncientChargeDeclarationStage = 'charges' | 'powers';
 export type AncientSolarSelectorMode = 'siphon' | 'blackHole' | 'simulacrum';

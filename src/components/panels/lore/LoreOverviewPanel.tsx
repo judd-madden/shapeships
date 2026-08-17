@@ -1,6 +1,6 @@
 import { Fragment, useState, useEffect } from 'react';
-import { readSeenMissionFindingIds } from '../../game/client/gameSession/missionChallengeSession';
-import { isMissionFindingUnlocked } from '../../game/client/gameSession/missionFindingUnlocks';
+import { readSeenMissionFindingIds } from '../../../game/client/gameSession/mission/missionChallengeSession';
+import { isMissionFindingUnlocked } from '../../../game/client/gameSession/mission/missionFindingUnlocks';
 import { generalLoreRows, missionFindings, speciesLore } from './loreContent';
 
 

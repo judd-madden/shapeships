@@ -12,7 +12,7 @@ import type {
 } from '../../client/useGameSession';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
 import { SHIP_DEFINITIONS_MAP } from '../../data/ShipDefinitionsUI';
-import type { ImplementedAncientManualSolarPowerId } from '../../client/gameSession/ancientChargeDeclaration';
+import type { ImplementedAncientManualSolarPowerId } from '../../client/gameSession/ancient/ancientChargeDeclaration';
 import { FleetShipHoverCard } from '../layout/boardStage/FleetShipHoverCard';
 import { MobileBoardView } from './MobileBoardView';
 import { MobileBottomPhase } from './MobileBottomPhase';

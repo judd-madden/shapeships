@@ -108,12 +108,12 @@ import {
   shouldAutomaticallyAcknowledgeMission,
   shouldPresentInitialMissionIntro,
   type MissionAutoAckState,
-} from './gameSession/missionChallenge';
+} from './gameSession/mission/missionChallenge';
 import {
   markMissionFindingIdsSeen,
   readMinimizeMissionsThisSession,
   writeMinimizeMissionsThisSession,
-} from './gameSession/missionChallengeSession';
+} from './gameSession/mission/missionChallengeSession';
 import { runSpeciesConfirmFlow, runReadyToggleFlow, maybeAutoRevealBuild, type CanonicalBuildSubmitPayload } from './gameSession/intents';
 import {
   addShipToBuildDraft,
@@ -153,7 +153,7 @@ import { useDestroyTargetingRuntime } from './gameSession/destroyTargeting';
 import {
   deriveAncientSolarDisplayEntries,
   isLiveRowAncientSolarPowerId,
-} from './gameSession/ancientSolarDisplay';
+} from './gameSession/ancient/ancientSolarDisplay';
 import {
   allocateNextAncientBlackHoleTarget,
   allocateNextAncientSimulacrumTarget,
@@ -164,8 +164,8 @@ import {
   deriveAncientBlackHoleTargetingState,
   deriveAncientSimulacrumTargetingState,
   overlayAncientSolarTargetMarkers,
-} from './gameSession/ancientSolarTargeting';
-import { deriveAncientSolarHoverValues } from './gameSession/ancientSolarHoverValues';
+} from './gameSession/ancient/ancientSolarTargeting';
+import { deriveAncientSolarHoverValues } from './gameSession/ancient/ancientSolarHoverValues';
 import type {
   AcceptedFullStateFingerprint,
   AuthoritativeStateApplyMeta,
@@ -265,7 +265,7 @@ import {
   type AncientSolarSelectorMode,
   type FrozenAncientChargeDeclarationAttempt,
   type FixedAncientManualSolarPowerId,
-} from './gameSession/ancientChargeDeclaration';
+} from './gameSession/ancient/ancientChargeDeclaration';
 import {
   ANCIENT_SIPHON_MINIMUM_SPEND,
   isValidAncientSiphonSpend,

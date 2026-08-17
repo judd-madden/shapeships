@@ -1,13 +1,13 @@
-import { isShipDefId } from '../../data/ShipDefinitions.core';
-import { getShipDefinitionById } from '../../data/ShipDefinitions.engine';
-import { ShipType, type ShipDefId } from '../../types/ShipTypes.engine';
+import { isShipDefId } from '../../../data/ShipDefinitions.core';
+import { getShipDefinitionById } from '../../../data/ShipDefinitions.engine';
+import { ShipType, type ShipDefId } from '../../../types/ShipTypes.engine';
 import type { AncientManualSolarCast } from './ancientChargeDeclaration';
 import type {
   AncientSolarDisplayEntry,
   BoardDestroyTargetingViewModel,
   BoardFleetSummary,
   BoardTargetSelectedTone,
-} from './types';
+} from '../types';
 
 function getShipInstanceId(ship: any): string | null {
   const instanceId = ship?.instanceId ?? ship?.id;

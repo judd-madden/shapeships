@@ -4,7 +4,7 @@ import type {
   BattleLogTurnPlayerAnalysis,
   BattleLogTurnPlayerSummary,
 } from './gameSession/types';
-import { isLiveRowAncientSolarPowerId } from './gameSession/ancientSolarDisplay';
+import { isLiveRowAncientSolarPowerId } from './gameSession/ancient/ancientSolarDisplay';
 
 type RuntimePlayerInfo = {
   identityKey: string | null;
@@ -49,7 +49,7 @@ type NormalizedRuntimePlayer = {
 };
 
 const FILE_NAME_PLAYER_MAX_LENGTH = 32;
-const FILE_NAME_INVALID_CHARS = /[<>:"/\\|?*\u0000-\u001F]/g;
+const FILE_NAME_INVALID_PUNCTUATION = /[<>:"/\\|?*]/g;
 const COLLAPSE_WHITESPACE_PATTERN = /\s+/g;
 export function downloadBattleLog(args: DownloadBattleLogArgs): void {
   const history = validateBattleLogHistory(args.battleLogHistory);
@@ -768,8 +768,11 @@ function buildBattleLogFilename(canonicalPlayers: CanonicalPlayer[], exportedAt:
 }
 
 function sanitizeFileNameSegment(segment: string, maxLength?: number): string {
-  const sanitized = segment
-    .replace(FILE_NAME_INVALID_CHARS, ' ')
+  const withoutControlCharacters = Array.from(segment, (character) =>
+    character.charCodeAt(0) <= 0x1f ? ' ' : character
+  ).join('');
+  const sanitized = withoutControlCharacters
+    .replace(FILE_NAME_INVALID_PUNCTUATION, ' ')
     .replace(COLLAPSE_WHITESPACE_PATTERN, ' ')
     .trim()
     .replace(/^[.\s]+|[.\s]+$/g, '');

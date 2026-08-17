@@ -1,5 +1,4 @@
-// @ts-ignore -- Deno direct tests require an explicit extension for this import.
-import { didUnlockAnyMissionFinding } from './missionFindingUnlocks.ts';
+import { didUnlockAnyMissionFinding } from './missionFindingUnlocks';
 
 export interface StorageLike {
   getItem(key: string): string | null;
