@@ -1297,6 +1297,7 @@ export function AncientShipCataloguePanel({
             showCost={!hoveredShipIsSolar}
             headingValue={hoveredSolarHeadingValue}
             showPhaseLabel={!hoveredShipIsSolar}
+            catalogueChallengeIndicator={buildCatalogue.catalogueChallengeIndicator}
           />
         )}
     </>

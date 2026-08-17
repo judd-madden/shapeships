@@ -486,6 +486,7 @@ export function HumanShipCataloguePanel({
           anchorRect={hover.presentState.anchorRect}
           eligibility={hoveredShipEligibility}
           motionState={hover.motionState}
+          catalogueChallengeIndicator={buildCatalogue.catalogueChallengeIndicator}
         />
       )}
     </>

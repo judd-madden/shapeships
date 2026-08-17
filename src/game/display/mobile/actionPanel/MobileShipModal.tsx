@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ChallengeIcon } from '../../../../components/ui/primitives/icons/ChallengeIcon';
 import { CloseIcon } from '../../../../components/ui/primitives/icons/CloseIcon';
 import { SHIP_DEFINITIONS_MAP } from '../../../data/ShipDefinitionsUI';
 import { isShipDefId } from '../../../data/ShipDefinitions.core';
@@ -14,6 +15,7 @@ import {
   getShipEligibilityForHover,
   type ShipEligibility,
 } from '../../actionPanel/panels/catalogue/shared/ShipBuildEligibility';
+import type { CatalogueChallengeCondition } from '../../actionPanel/panels/catalogue/shared/CatalogueShipSlot';
 import { ShipPowerTagBadgeRow } from '../../shared/ShipPowerTagBadgeRow';
 import { ShipPowerRow } from '../../shared/ShipPowerRow';
 
@@ -38,6 +40,9 @@ export function MobileShipModal({
   const eligibility: ShipEligibility = referenceOnly
     ? { state: 'REFERENCE_ONLY' }
     : getShipEligibilityForHover({ shipId, buildCatalogue });
+  const challengeCondition = !referenceOnly && buildCatalogue.catalogueChallengeIndicator?.shipDefId === shipId
+    ? buildCatalogue.catalogueChallengeIndicator.condition
+    : null;
 
   useEffect(() => {
     setRulesExpanded(false);
@@ -181,6 +186,7 @@ export function MobileShipModal({
           displayCost={displayCost}
           modelComponentShipIds={model.componentShipIds}
           eligibility={eligibility}
+          challengeCondition={challengeCondition}
           onBuild={handleBuild}
         />
       </div>
@@ -192,11 +198,13 @@ function MobileShipModalFooter({
   displayCost,
   modelComponentShipIds,
   eligibility,
+  challengeCondition,
   onBuild,
 }: {
   displayCost: number;
   modelComponentShipIds: readonly string[];
   eligibility: ShipEligibility;
+  challengeCondition: CatalogueChallengeCondition | null;
   onBuild: () => void;
 }) {
   const content = (() => {
@@ -250,14 +258,34 @@ function MobileShipModalFooter({
     return null;
   })();
 
-  if (!content) {
+  if (!content && !challengeCondition) {
     return null;
   }
 
   return (
     <div className="shrink-0 px-[20px] pb-[20px]">
-      <div className="mb-[16px] h-px w-full bg-[var(--shapeships-grey-70)]" />
-      {content}
+      {challengeCondition ? <MobileChallengeRequirement condition={challengeCondition} /> : null}
+      {content ? (
+        <>
+          <div className={`${challengeCondition ? 'my-[16px]' : 'mb-[16px]'} h-px w-full bg-[var(--shapeships-grey-70)]`} />
+          {content}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function MobileChallengeRequirement({ condition }: { condition: CatalogueChallengeCondition }) {
+  const colorClassName = condition === 'with'
+    ? 'text-[var(--shapeships-pastel-green)]'
+    : 'text-[var(--shapeships-pastel-red)]';
+
+  return (
+    <div className={`flex items-center gap-[4px] ${colorClassName}`}>
+      <ChallengeIcon className="h-auto w-[16px] shrink-0" />
+      <p className="text-[17px] font-medium leading-[20px]">
+        {condition === 'with' ? 'Win with' : 'Win without'}
+      </p>
     </div>
   );
 }

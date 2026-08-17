@@ -9,8 +9,11 @@
  */
 
 import * as ReactDOM from 'react-dom';
+import { ChallengeIcon } from '../../../../../../components/ui/primitives/icons/ChallengeIcon';
+import type { ActionPanelBuildCatalogueViewModel } from '../../../../../client/gameSession/types';
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
 import type { ShipEligibility } from './ShipBuildEligibility';
+import type { CatalogueChallengeCondition } from './CatalogueShipSlot';
 import { getShipCardModel, groupShipCounts as groupShipTokenCounts } from './ShipCardModel';
 import { SHIP_DEFINITIONS_MAP } from '../../../../../data/ShipDefinitionsUI';
 import { parseShipToken } from '../../../../graphics/shipToken';
@@ -45,6 +48,7 @@ interface ShipHoverCardProps {
   showCost?: boolean;
   headingValue?: ShipHoverHeadingValue;
   showPhaseLabel?: boolean;
+  catalogueChallengeIndicator?: ActionPanelBuildCatalogueViewModel['catalogueChallengeIndicator'];
 }
 
 /**
@@ -130,14 +134,31 @@ function ActionHint({ kind }: { kind: ShipHoverActionHint }) {
   );
 }
 
+function ChallengeRequirement({ condition }: { condition: CatalogueChallengeCondition }) {
+  const colorClassName = condition === 'with'
+    ? 'text-[var(--shapeships-pastel-green)]'
+    : 'text-[var(--shapeships-pastel-red)]';
+
+  return (
+    <div className={`ml-auto flex shrink-0 items-center gap-[4px] ${colorClassName}`}>
+      <ChallengeIcon className="h-auto w-[14px] shrink-0" />
+      <p className="text-nowrap text-[15px] font-medium leading-[12px]">
+        {condition === 'with' ? 'Win with' : 'Win without'}
+      </p>
+    </div>
+  );
+}
+
 function EligibilityFooter({
   eligibility,
   componentShipIds,
   actionHint,
+  challengeCondition,
 }: {
   eligibility: ShipEligibility;
   componentShipIds: readonly string[];
   actionHint?: Exclude<ShipHoverActionHint, 'build'>;
+  challengeCondition: CatalogueChallengeCondition | null;
 }) {
   const resolvedActionHint: ShipHoverActionHint | undefined =
     actionHint ??
@@ -212,7 +233,7 @@ function EligibilityFooter({
     return null;
   })();
 
-  if (!footerContent) {
+  if (!footerContent && !challengeCondition) {
     return null;
   }
 
@@ -225,7 +246,14 @@ function EligibilityFooter({
           </svg>
         </div>
       </div>
-      {footerContent}
+      <div className="flex w-full items-center gap-[12px]">
+        {footerContent ? (
+          <div className="flex min-w-0 flex-1 flex-col items-start gap-[12px]">
+            {footerContent}
+          </div>
+        ) : null}
+        {challengeCondition ? <ChallengeRequirement condition={challengeCondition} /> : null}
+      </div>
     </>
   );
 }
@@ -252,8 +280,12 @@ export function ShipHoverCard({
   showCost = true,
   headingValue,
   showPhaseLabel = true,
+  catalogueChallengeIndicator = null,
 }: ShipHoverCardProps) {
   const model = getShipCardModel(shipId);
+  const challengeCondition = catalogueChallengeIndicator?.shipDefId === shipId
+    ? catalogueChallengeIndicator.condition
+    : null;
   const { placement, anchorX, anchorY, cardTransform, cardRef } =
     useAnchoredHoverPlacement(anchorRect);
   
@@ -392,6 +424,7 @@ export function ShipHoverCard({
           eligibility={eligibility}
           componentShipIds={model.componentShipIds}
           actionHint={actionHint}
+          challengeCondition={challengeCondition}
         />
         </HoverPanelFrame>
       </div>
