@@ -55,6 +55,16 @@ Ancient is implemented for the approved player-controlled scope and is entering 
 - Battle logs, on-demand persisted history, downloadable match records, and endgame statistics
 - Local sound and board-flash preferences, animation, visual feedback, and targeted reduced-motion handling
 
+## Missions & Challenges
+
+Each Play Computer game assigns the human player one matchup-specific narrative Mission and one optional Challenge to win with or without a selected ship. Missions do not change gameplay rules, and Missions & Challenges do not apply to normal multiplayer games.
+
+The Mission is presented after species selection. While its intro is pending, the server gates the human player's ordinary gameplay and pauses timed-game clocks; the client acknowledges it through the existing session networking seam. Players can minimize Mission intros for later computer games in the same browser session.
+
+When the game finishes, the server evaluates Challenge success from the authoritative winner and the human player's final active fleet. Viewing certain Missions also unlocks related Mission Findings in Lore, with some grouped Findings requiring multiple relevant Missions to be viewed.
+
+Separately, multiplayer games show a brief post-species matchup introduction before gameplay begins, with clocks paused authoritatively during the introduction.
+
 ## Runtime and Architecture
 
 - React, TypeScript, Vite, and Tailwind CSS client

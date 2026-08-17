@@ -18,6 +18,9 @@ Responsibilities:
 - combat resolution
 - intent validation
 - effect execution
+- Mission and Challenge assignment for Play Computer games
+- canonical Mission-intro pending state, acknowledgement, gameplay and clock gating
+- final Challenge evaluation from the finished game and active fleet
 
 This layer determines the final authoritative outcome of game actions.
 
@@ -30,6 +33,8 @@ Responsibilities:
 - communication with the server
 - view-model generation
 - orchestration of UI state
+- Mission networking through the existing session seam
+- session-local Mission minimization preference and presentation orchestration
 
 Networking should remain centralized here.
 
@@ -44,6 +49,8 @@ Responsibilities:
 - layout
 - animation
 - visual feedback
+- Mission and Challenge presentation, including desktop and mobile overlays
+- catalogue/reference indicators and Mission Finding presentation in Lore
 
 This layer must not become authoritative.
 

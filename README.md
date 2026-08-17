@@ -11,6 +11,7 @@ Shapeships isn’t about movement or targeting. Ships don't move, don't have hea
 ## Current Game
 
 - Create private online matches or play against a server-controlled computer opponent.
+- Play Computer games include a matchup-specific narrative Mission and an optional Challenge to win with or without a selected ship.
 - Choose timed or untimed play and develop a persistent fleet through simultaneous Build and Battle phases.
 - Read the opponent's visible fleet, commit hidden choices, and adapt when both plans are revealed.
 - Play through active desktop and mobile match layouts with contextual actions, targeting, rules, and timing references.
