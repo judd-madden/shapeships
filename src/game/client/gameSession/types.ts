@@ -354,6 +354,10 @@ export interface MobileDiceModifierSlotsViewModel {
 }
 
 export interface HudViewModel {
+  clockIncrementSeconds: number | null;
+  clockIncrementScopeKey: string | null;
+  clockIncrementTurnNumber: number | null;
+
   // Player 1 (local, always left)
   p1Name: string;
   p1Species: string;

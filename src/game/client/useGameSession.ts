@@ -50,6 +50,7 @@ import {
   getChargeScopedFleetForPlayer,
   getChronoswarmRolls,
   getCommitmentForPlayer,
+  getConfiguredClockIncrementSeconds,
   getCubeDiceUsedByPlayerId,
   getCubeDiceValueByPlayerId,
   getEffectiveDiceValueForPlayer,
@@ -5298,6 +5299,7 @@ useEffect(() => {
   
   const p1ClockFormatted = formatPlayerClock(displayLeftPlayer?.id, p1IsReady);
   const p2ClockFormatted = formatPlayerClock(displayRightPlayer?.id, p2IsReady);
+  const clockIncrementSeconds = getConfiguredClockIncrementSeconds(rawState);
   const missionChallengeVm = buildMissionChallengeViewModel({
     normalized: normalizedMissionChallenge,
     isFinished,
@@ -5338,6 +5340,9 @@ useEffect(() => {
     
     p1ClockFormatted,
     p2ClockFormatted,
+    clockIncrementSeconds,
+    clockIncrementScopeKey: effectiveGameId,
+    clockIncrementTurnNumber: hasHydratedTurnNumber ? turnNumber : null,
 
     p1StatusText,
     p2StatusText,
@@ -6828,6 +6833,9 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         reducedMotion: false,
       },
       hud: {
+        clockIncrementSeconds: null,
+        clockIncrementScopeKey: null,
+        clockIncrementTurnNumber: null,
         p1Name: 'Player 1',
         p1Species: 'Unknown',
         p1IsOnline: false,

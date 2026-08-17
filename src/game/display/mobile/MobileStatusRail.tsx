@@ -11,6 +11,7 @@ import type {
 import { toSpeciesKey } from '../layout/boardStage/FleetArea';
 import { MobileDiceModifierSlots } from './MobileDiceModifierSlots';
 import { TurnPhaseStatusStrip } from '../shared/TurnPhaseStatusStrip';
+import { ClockWithIncrement } from '../shared/ClockWithIncrement';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 type MobileRowPosition = 'top' | 'bottom';
@@ -53,6 +54,9 @@ interface MobileStatusRailFrameProps {
   showDeltas?: boolean;
   topClock: string;
   bottomClock: string;
+  clockIncrementSeconds?: number | null;
+  clockIncrementScopeKey?: string | null;
+  clockIncrementTurnNumber?: number | null;
   diceValue: LeftRailViewModel['diceValue'];
   diceAnimateKey: number;
   turnPhasesVm?: TurnPhaseVm;
@@ -139,6 +143,9 @@ export function MobileStatusRail({
       showDeltas={showDeltas}
       topClock={hudVm.p2Clock}
       bottomClock={hudVm.p1Clock}
+      clockIncrementSeconds={hudVm.clockIncrementSeconds}
+      clockIncrementScopeKey={hudVm.clockIncrementScopeKey}
+      clockIncrementTurnNumber={hudVm.clockIncrementTurnNumber}
       diceValue={leftRailVm.diceValue}
       diceAnimateKey={leftRailVm.diceAnimateKey}
       turnPhasesVm={turnPhasesVm}
@@ -162,6 +169,9 @@ export function MobileStatusRailFrame({
   showDeltas = true,
   topClock,
   bottomClock,
+  clockIncrementSeconds = null,
+  clockIncrementScopeKey = null,
+  clockIncrementTurnNumber = null,
   diceValue,
   diceAnimateKey,
   turnPhasesVm,
@@ -315,8 +325,14 @@ export function MobileStatusRailFrame({
         </div>
 
         <div className="shrink-0 w-[56px] flex flex-col items-center justify-between py-[1px]">
-          <span className="w-[56px] truncate text-center text-[15px] font-bold leading-4 text-[var(--shapeships-grey-50)]">
-            {topClock}
+          <span className="w-[56px] text-center text-[15px] font-bold leading-4 text-[var(--shapeships-grey-50)]">
+            <ClockWithIncrement
+              clock={topClock}
+              incrementSeconds={clockIncrementSeconds}
+              scopeKey={clockIncrementScopeKey}
+              turnNumber={clockIncrementTurnNumber}
+              variant="mobile"
+            />
           </span>
           <div className="relative flex items-center justify-center">
             <Dice
@@ -363,8 +379,14 @@ export function MobileStatusRailFrame({
               </div>
             )}
           </div>
-          <span className="w-[56px] truncate text-center text-[15px] font-bold leading-4 text-white">
-            {bottomClock}
+          <span className="w-[56px] text-center text-[15px] font-bold leading-4 text-white">
+            <ClockWithIncrement
+              clock={bottomClock}
+              incrementSeconds={clockIncrementSeconds}
+              scopeKey={clockIncrementScopeKey}
+              turnNumber={clockIncrementTurnNumber}
+              variant="mobile"
+            />
           </span>
         </div>
       </div>

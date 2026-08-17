@@ -11,6 +11,7 @@
 import type React from 'react';
 import type { HudViewModel } from '../../client/useGameSession';
 import { FitSingleLineText } from '../../../components/ui/primitives/layout/FitSingleLineText';
+import { ClockWithIncrement } from '../shared/ClockWithIncrement';
 
 interface TopHudProps {
   vm: HudViewModel;
@@ -73,7 +74,13 @@ export function TopHud({ vm }: TopHudProps) {
             vm.p1IsReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
           }`}
         >
-          {vm.p1Clock}
+          <ClockWithIncrement
+            clock={vm.p1Clock}
+            incrementSeconds={vm.clockIncrementSeconds}
+            scopeKey={vm.clockIncrementScopeKey}
+            turnNumber={vm.clockIncrementTurnNumber}
+            variant="desktop"
+          />
         </p>
       </div>
 
@@ -160,7 +167,13 @@ export function TopHud({ vm }: TopHudProps) {
             vm.p2IsReady ? 'text-[var(--shapeships-grey-50)]' : 'text-[var(--shapeships-grey-20)]'
           }`}
         >
-          {vm.p2Clock}
+          <ClockWithIncrement
+            clock={vm.p2Clock}
+            incrementSeconds={vm.clockIncrementSeconds}
+            scopeKey={vm.clockIncrementScopeKey}
+            turnNumber={vm.clockIncrementTurnNumber}
+            variant="desktop"
+          />
         </p>
       </div>
     </div>

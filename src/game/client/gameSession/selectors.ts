@@ -772,6 +772,21 @@ export function formatClockMs(ms: number): string {
 }
 
 /**
+ * Extract the configured clock increment from authoritative full-state data.
+ * HEAD clock snapshots intentionally do not participate in this selector.
+ */
+export function getConfiguredClockIncrementSeconds(state: any): number | null {
+  const incrementMs = state?.gameData?.clock?.timeControl?.incrementMs;
+
+  if (typeof incrementMs !== 'number' || !Number.isFinite(incrementMs) || incrementMs <= 0) {
+    return null;
+  }
+
+  const incrementSeconds = Math.floor(incrementMs / 1000);
+  return incrementSeconds > 0 ? incrementSeconds : null;
+}
+
+/**
  * Extract clock data from server state
  */
 export function getClockData(state: any): {

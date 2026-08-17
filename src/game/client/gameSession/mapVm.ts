@@ -179,6 +179,9 @@ export function mapGameSessionVm(args: {
   
   p1ClockFormatted: string;
   p2ClockFormatted: string;
+  clockIncrementSeconds: number | null;
+  clockIncrementScopeKey: string | null;
+  clockIncrementTurnNumber: number | null;
 
   p1StatusText?: string;
   p2StatusText?: string;
@@ -310,6 +313,9 @@ export function mapGameSessionVm(args: {
     p2IsReady,
     p1ClockFormatted,
     p2ClockFormatted,
+    clockIncrementSeconds,
+    clockIncrementScopeKey,
+    clockIncrementTurnNumber,
     p1StatusText,
     p2StatusText,
     p1StatusTone,
@@ -1433,6 +1439,9 @@ export function mapGameSessionVm(args: {
     },
     
     hud: {
+      clockIncrementSeconds,
+      clockIncrementScopeKey,
+      clockIncrementTurnNumber,
       p1Name: displayLeftName,
       p1Species: displayLeftSpeciesLabel,
       p1IsOnline: true,

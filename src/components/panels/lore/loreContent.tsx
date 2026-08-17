@@ -106,16 +106,16 @@ export const generalLoreRows: readonly GeneralLoreRow[] = [
 
 export const missionFindings: readonly MissionFinding[] = [
   {
+    id: 'barnards-star',
+    topic: "Barnard's Star",
+    author: 'juddly',
+    content: <p>Humans have control of the red dwarf <em>Barnard's Star</em>. Pirates still exist.</p>,
+  },
+  {
     id: 'sol-1',
     topic: 'Sol',
     author: 'juddly',
     content: <p>Human Rebels have a base on <em>Neptune</em>.</p>,
-  },
-  {
-    id: 'barnards-star',
-    topic: "Barnard's Star",
-    author: 'juddly',
-    content: <p>Humans have control of <em>Barnard's Star</em>. Pirates still exist.</p>,
   },
   {
     id: 'proxima-centauri',
