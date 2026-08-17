@@ -183,25 +183,27 @@ export function ChooseSpeciesStage({
               >
                 Share Game URL
               </p>
-              <button
-                onClick={handleCopyUrl}
-                className="bg-white content-stretch flex gap-[13.3px] items-center px-[21px] py-[7px] relative rounded-[7px] shrink-0 cursor-pointer hover:bg-gray-100 transition-colors"
-                type="button"
-              >
-                <p
-                  className="font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
+              <div className="relative shrink-0">
+                <button
+                  onClick={handleCopyUrl}
+                  className="bg-white content-stretch flex gap-[13.3px] items-center px-[21px] py-[7px] relative rounded-[7px] shrink-0 cursor-pointer hover:bg-gray-100 transition-colors"
+                  type="button"
                 >
-                  {vm.gameUrl}
-                </p>
-                <div className="relative shrink-0 size-[42px]">
-                  <CopyIcon className="w-[42px] h-[42px]" color="black" />
-                </div>
-              </button>
-              {showCopiedToast && (
-                <div className="relative">
-                  <CopiedToast className="absolute top-[100%] left-[50%] transform -translate-x-[50%]" />
-                </div>
-              )}
+                  <p
+                    className="font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
+                  >
+                    {vm.gameUrl}
+                  </p>
+                  <div className="relative shrink-0 size-[42px]">
+                    <CopyIcon className="w-[42px] h-[42px]" color="black" />
+                  </div>
+                </button>
+                {showCopiedToast ? (
+                  <div className="absolute left-1/2 top-full mt-[24px] -translate-x-1/2">
+                    <CopiedToast />
+                  </div>
+                ) : null}
+              </div>
             </div>
           )}
         </div>
@@ -342,30 +344,32 @@ export function ChooseSpeciesStage({
             >
               Share Game URL
             </p>
-            <button
-              onClick={handleCopyUrl}
-              className="bg-white content-stretch flex gap-[13.3px] items-center px-[21px] py-[7px] relative rounded-[7px] shrink-0 cursor-pointer hover:bg-gray-100 transition-colors"
-              type="button"
-            >
-              <p
-                className="font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
+            <div className="relative shrink-0">
+              <button
+                onClick={handleCopyUrl}
+                className="bg-white content-stretch flex gap-[13.3px] items-center px-[21px] py-[7px] relative rounded-[7px] shrink-0 cursor-pointer hover:bg-gray-100 transition-colors"
+                type="button"
               >
-                {vm.gameUrl}
-              </p>
-              <div className="relative shrink-0 size-[42px]">
-                <CopyIcon className="w-[42px] h-[42px]" color="black" />
-              </div>
-              {/*<p
-                className="font-normal leading-[normal] relative shrink-0 text-[15.4px] text-black text-center text-nowrap"
-              >
-                COPY URL
-              </p>*/}
-            </button>
-            {showCopiedToast && (
-              <div className="relative">
-                <CopiedToast className="absolute top-[100%] left-[50%] transform -translate-x-[50%]" />
-              </div>
-            )}
+                <p
+                  className="font-normal leading-[normal] relative shrink-0 text-[16px] text-black text-center text-nowrap"
+                >
+                  {vm.gameUrl}
+                </p>
+                <div className="relative shrink-0 size-[42px]">
+                  <CopyIcon className="w-[42px] h-[42px]" color="black" />
+                </div>
+                {/*<p
+                  className="font-normal leading-[normal] relative shrink-0 text-[15.4px] text-black text-center text-nowrap"
+                >
+                  COPY URL
+                </p>*/}
+              </button>
+              {showCopiedToast ? (
+                <div className="absolute left-1/2 top-full mt-[24px] -translate-x-1/2">
+                  <CopiedToast />
+                </div>
+              ) : null}
+            </div>
           </div>
         )}
       </div>
