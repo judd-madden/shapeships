@@ -285,6 +285,7 @@ export function usePollingEffect(args: {
   applyAuthoritativeRawState: (s: any, meta: AuthoritativeStateApplyMeta) => boolean;
   shouldRetryGameStateRequestImmediately: (requestMeta: GameStateRequestMeta) => boolean;
   isResumeSyncLocked: () => boolean;
+  maybeUnlockResumeSyncFromValidatedUnchangedHead: () => void;
   hasAcceptedFullGameState: () => boolean;
   getLastAcceptedFullFingerprint: () => AcceptedFullStateFingerprint | null;
   getLastAcceptedFullSyncAtMs: () => number;
@@ -296,7 +297,7 @@ export function usePollingEffect(args: {
   isFinished: boolean;
   isUntimedAuthoritative: boolean;
   untimedPollingMode: UntimedPollingMode;
-  untimedResumeToken: number;
+  foregroundResumeToken: number;
   postGamePollMs?: number;
 }) {
   const {
@@ -309,6 +310,7 @@ export function usePollingEffect(args: {
     applyAuthoritativeRawState,
     shouldRetryGameStateRequestImmediately,
     isResumeSyncLocked,
+    maybeUnlockResumeSyncFromValidatedUnchangedHead,
     hasAcceptedFullGameState,
     getLastAcceptedFullFingerprint,
     getLastAcceptedFullSyncAtMs,
@@ -319,20 +321,23 @@ export function usePollingEffect(args: {
     isFinished,
     isUntimedAuthoritative,
     untimedPollingMode,
-    untimedResumeToken,
+    foregroundResumeToken,
     postGamePollMs,
   } = args;
 
   const lastGatedGameIdRef = useRef<string | null>(null);
   const terminalStopGameIdRef = useRef<string | null>(null);
   const terminalStopReasonRef = useRef<'finished' | '403' | '404' | null>(null);
-  const lastHandledResumeTokenRef = useRef<number | null>(null);
+  const lastHandledForegroundResumeTokenRef = useRef<number | null>(null);
 
   useEffect(() => {
     terminalStopGameIdRef.current = effectiveGameId;
     terminalStopReasonRef.current = null;
-    lastHandledResumeTokenRef.current = untimedResumeToken;
-  }, [effectiveGameId, untimedResumeToken]);
+  }, [effectiveGameId, foregroundResumeToken]);
+
+  useEffect(() => {
+    lastHandledForegroundResumeTokenRef.current = foregroundResumeToken;
+  }, [effectiveGameId]);
 
   useEffect(() => {
     if (!effectiveGameId) {
@@ -377,8 +382,7 @@ export function usePollingEffect(args: {
 
     const initialDelayMs = getRecurringDelayMs(isFinished);
     const hasResumeEvent =
-      isUntimedAuthoritative &&
-      lastHandledResumeTokenRef.current !== untimedResumeToken;
+      lastHandledForegroundResumeTokenRef.current !== foregroundResumeToken;
 
     if (isFinished && initialDelayMs == null) {
       terminalStopReasonRef.current = 'finished';
@@ -394,7 +398,7 @@ export function usePollingEffect(args: {
     let shouldStopPolling = false;
     let isPolling = false;
     let latestHeadRequestToken = 0;
-    let pendingResumeFullSync = hasResumeEvent;
+    let foregroundResumeValidationPending = hasResumeEvent;
 
     const clearPollTimer = () => {
       if (pollTimer) {
@@ -586,6 +590,11 @@ export function usePollingEffect(args: {
           return { kind: 'fallback_full', reason: 'malformed_head_payload' };
         }
 
+        if (data.gameId !== effectiveGameId) {
+          console.warn('[useGameSession] Head poll returned a mismatched gameId, forcing immediate full sync');
+          return { kind: 'fallback_full', reason: 'mismatched_head_game_id' };
+        }
+
         if (!isUntimedAuthoritative) {
           if (!isClockSnapshot(data.clock)) {
             console.warn('[useGameSession] Timed head poll missing usable clock snapshot, forcing immediate full sync');
@@ -621,7 +630,7 @@ export function usePollingEffect(args: {
       hasResumeEvent;
 
     if (hasResumeEvent) {
-      lastHandledResumeTokenRef.current = untimedResumeToken;
+      lastHandledForegroundResumeTokenRef.current = foregroundResumeToken;
     }
 
     let consecutivePollFailures = 0;
@@ -655,23 +664,34 @@ export function usePollingEffect(args: {
       };
 
       try {
-        const shouldForceFullForResume = pendingResumeFullSync;
-        pendingResumeFullSync = false;
         const shouldFetchInitialFull = !hasAcceptedFullGameState();
-        const shouldUseHeadPath =
-          !shouldFetchInitialFull &&
-          !shouldForceFullForResume;
+        const shouldUseHeadPath = !shouldFetchInitialFull;
 
         if (!shouldUseHeadPath) {
           const fullResult = await fetchFullGameState({
-            unlockEligible: hasResumeEvent || isResumeSyncLocked(),
-            reason: shouldFetchInitialFull ? 'initial_load' : 'resume_sync',
+            unlockEligible: isResumeSyncLocked(),
+            reason: 'initial_load',
           });
           applyFullResult(fullResult);
         } else {
           const headResult = await fetchHeadState();
 
           if (headResult.kind === 'ok') {
+            const headFinished = headResult.head.status === 'finished';
+            const headDiffers = headDiffersFromAcceptedFull(
+              headResult.head,
+              getLastAcceptedFullFingerprint(),
+            );
+
+            if (
+              foregroundResumeValidationPending &&
+              !headFinished &&
+              !headDiffers
+            ) {
+              foregroundResumeValidationPending = false;
+              maybeUnlockResumeSyncFromValidatedUnchangedHead();
+            }
+
             const isActivePollingPosture =
               !isUntimedAuthoritative ||
               untimedPollingMode === 'active';
@@ -680,18 +700,15 @@ export function usePollingEffect(args: {
               getLastAcceptedFullSyncAtMs() > 0 &&
               Date.now() - getLastAcceptedFullSyncAtMs() >= SAFETY_FULL_REFRESH_MS;
             const shouldTriggerFullFromHead =
-              headResult.head.status === 'finished' ||
-              headDiffersFromAcceptedFull(
-                headResult.head,
-                getLastAcceptedFullFingerprint(),
-              ) ||
+              headFinished ||
+              headDiffers ||
               safetyFullRefreshDue;
 
             if (shouldTriggerFullFromHead && !isGameStateRequestInFlight()) {
               const fullResult = await fetchFullGameState({
                 unlockEligible: false,
                 reason:
-                  headResult.head.status === 'finished'
+                  headFinished
                     ? 'head_finished_confirmation'
                     : safetyFullRefreshDue
                       ? 'safety_full_refresh'
@@ -775,7 +792,7 @@ export function usePollingEffect(args: {
     isFinished,
     isUntimedAuthoritative,
     untimedPollingMode,
-    untimedResumeToken,
+    foregroundResumeToken,
     postGamePollMs,
     finishGameStateRequest,
     hasAcceptedFullGameState,

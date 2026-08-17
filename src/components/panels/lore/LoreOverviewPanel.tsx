@@ -44,7 +44,7 @@ function MissionFindingsHeader({ unlockedCount, totalCount }: { unlockedCount: n
           </p>
         </div>
         <p className="my-[6px] text-[14px] leading-[20px] text-white sm:my-[12px] sm:text-[18px] sm:leading-[24px]">
-          Play Single Player to unlock.
+          Play Single Player to unlock. <span style={{ color: 'var(--shapeships-grey-50)' }}>This is stored in your current session.</span>
         </p>
       </div>
       <LoreDivider />

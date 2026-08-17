@@ -19,12 +19,13 @@ function getInitialMode(): UntimedPollingMode {
 
 export function useUntimedPollingThrottle(): {
   mode: UntimedPollingMode;
-  resumeToken: number;
+  foregroundResumeToken: number;
 } {
   const [mode, setMode] = useState<UntimedPollingMode>(() => getInitialMode());
-  const [resumeToken, setResumeToken] = useState(0);
+  const [foregroundResumeToken, setForegroundResumeToken] = useState(0);
   const modeRef = useRef<UntimedPollingMode>(mode);
   const lastActivityAtRef = useRef(Date.now());
+  const wasBackgroundedRef = useRef(false);
 
   useEffect(() => {
     modeRef.current = mode;
@@ -35,20 +36,22 @@ export function useUntimedPollingThrottle(): {
       return;
     }
 
-    const setModeIfChanged = (
-      nextMode: UntimedPollingMode,
-      options?: { incrementResumeToken?: boolean }
-    ) => {
+    const setModeIfChanged = (nextMode: UntimedPollingMode) => {
       if (modeRef.current === nextMode) {
         return;
       }
 
       modeRef.current = nextMode;
       setMode(nextMode);
+    };
 
-      if (options?.incrementResumeToken) {
-        setResumeToken((value) => value + 1);
+    const emitForegroundResumeIfNeeded = () => {
+      if (!wasBackgroundedRef.current) {
+        return;
       }
+
+      wasBackgroundedRef.current = false;
+      setForegroundResumeToken((value) => value + 1);
     };
 
     const handleVisibleResume = () => {
@@ -59,10 +62,8 @@ export function useUntimedPollingThrottle(): {
         return;
       }
 
-      const previousMode = modeRef.current;
-      setModeIfChanged('active', {
-        incrementResumeToken: previousMode === 'hidden' || previousMode === 'idle',
-      });
+      setModeIfChanged('active');
+      emitForegroundResumeIfNeeded();
     };
 
     const handleActivity = () => {
@@ -73,7 +74,7 @@ export function useUntimedPollingThrottle(): {
       }
 
       if (modeRef.current === 'idle') {
-        setModeIfChanged('active', { incrementResumeToken: true });
+        setModeIfChanged('active');
         return;
       }
 
@@ -84,11 +85,16 @@ export function useUntimedPollingThrottle(): {
 
     const handleVisibilityChange = () => {
       if (isDocumentHidden()) {
+        wasBackgroundedRef.current = true;
         setModeIfChanged('hidden');
         return;
       }
 
       handleVisibleResume();
+    };
+
+    const handleBlur = () => {
+      wasBackgroundedRef.current = true;
     };
 
     const idleCheckId = window.setInterval(() => {
@@ -102,6 +108,7 @@ export function useUntimedPollingThrottle(): {
     }, IDLE_CHECK_INTERVAL_MS);
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
     window.addEventListener('focus', handleVisibleResume);
     window.addEventListener('pointerdown', handleActivity, true);
     window.addEventListener('keydown', handleActivity, true);
@@ -110,6 +117,7 @@ export function useUntimedPollingThrottle(): {
     return () => {
       window.clearInterval(idleCheckId);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleVisibleResume);
       window.removeEventListener('pointerdown', handleActivity, true);
       window.removeEventListener('keydown', handleActivity, true);
@@ -119,6 +127,6 @@ export function useUntimedPollingThrottle(): {
 
   return {
     mode,
-    resumeToken,
+    foregroundResumeToken,
   };
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import type { MutableRefObject } from 'react';
 import type { GameSessionChatEntry } from '../types';
 import type { UntimedPollingMode } from './useUntimedPollingThrottle';
@@ -125,7 +125,6 @@ export function useChatPolling(args: {
   scheduleNextChatPollRef: MutableRefObject<((delayMs?: number) => void) | null>;
   isUntimedAuthoritative: boolean;
   untimedPollingMode: UntimedPollingMode;
-  untimedResumeToken: number;
 }) {
   const {
     effectiveGameId,
@@ -141,13 +140,7 @@ export function useChatPolling(args: {
     scheduleNextChatPollRef,
     isUntimedAuthoritative,
     untimedPollingMode,
-    untimedResumeToken,
   } = args;
-  const lastHandledResumeTokenRef = useRef(untimedResumeToken);
-
-  useEffect(() => {
-    lastHandledResumeTokenRef.current = untimedResumeToken;
-  }, [effectiveGameId]);
 
   function extendChatBurstWindow(): void {
     chatBurstUntilRef.current = Math.max(
@@ -225,9 +218,6 @@ export function useChatPolling(args: {
     if (isUntimedAuthoritative && untimedPollingMode === 'hidden') return;
 
     let mounted = true;
-    const hasResumeEvent =
-      isUntimedAuthoritative &&
-      lastHandledResumeTokenRef.current !== untimedResumeToken;
 
     const clearChatPollTimer = () => {
       if (chatPollTimerRef.current) {
@@ -254,12 +244,7 @@ export function useChatPolling(args: {
 
     const shouldFetchImmediately =
       !isUntimedAuthoritative ||
-      untimedPollingMode === 'active' ||
-      hasResumeEvent;
-
-    if (hasResumeEvent) {
-      lastHandledResumeTokenRef.current = untimedResumeToken;
-    }
+      untimedPollingMode === 'active';
 
     const pollChat = async () => {
       await fetchChatOnce({
@@ -291,7 +276,6 @@ export function useChatPolling(args: {
     hasJoinedCurrentGame,
     isUntimedAuthoritative,
     untimedPollingMode,
-    untimedResumeToken,
   ]);
 
   return {

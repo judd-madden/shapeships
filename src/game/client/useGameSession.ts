@@ -825,7 +825,7 @@ export function useGameSession(
   const [error, setError] = useState<string | null>(null);
   const [resumeSyncLocked, setResumeSyncLocked] = useState(false);
   const resumeSyncLockedRef = useRef(false);
-  const lastHandledResumeSyncTokenRef = useRef<number | null>(null);
+  const lastHandledForegroundResumeSyncTokenRef = useRef<number | null>(null);
   const resumeLockActivationRequestSeqRef = useRef(0);
   const latestStartedGameStateRequestSeqRef = useRef(0);
   const latestAppliedGameStateRequestSeqRef = useRef(0);
@@ -938,6 +938,18 @@ export function useGameSession(
     }
 
     if (requestMeta.requestSeq <= requestActivationRequestSeq) {
+      return;
+    }
+
+    setResumeSyncLockedState(false);
+  }
+
+  function maybeUnlockResumeSyncFromValidatedUnchangedHead(): void {
+    if (
+      !resumeSyncLockedRef.current ||
+      rawStateRef.current?.gameData == null ||
+      rawStateRef.current.gameData.clock != null
+    ) {
       return;
     }
 
@@ -1282,7 +1294,7 @@ export function useGameSession(
 
   const {
     mode: untimedPollingMode,
-    resumeToken: untimedResumeToken,
+    foregroundResumeToken,
   } = useUntimedPollingThrottle();
   const isFinished = isGameFinished(rawState);
   const normalizedMissionChallenge = normalizeRequesterMissionChallenge(rawState);
@@ -1294,7 +1306,7 @@ export function useGameSession(
 
   useEffect(() => {
     setResumeSyncLockedState(false);
-    lastHandledResumeSyncTokenRef.current = untimedResumeToken;
+    lastHandledForegroundResumeSyncTokenRef.current = foregroundResumeToken;
     resumeLockActivationRequestSeqRef.current = 0;
     latestStartedGameStateRequestSeqRef.current = 0;
     latestAppliedGameStateRequestSeqRef.current = 0;
@@ -1305,11 +1317,11 @@ export function useGameSession(
   }, [effectiveGameId]);
 
   useEffect(() => {
-    if (lastHandledResumeSyncTokenRef.current === untimedResumeToken) {
+    if (lastHandledForegroundResumeSyncTokenRef.current === foregroundResumeToken) {
       return;
     }
 
-    lastHandledResumeSyncTokenRef.current = untimedResumeToken;
+    lastHandledForegroundResumeSyncTokenRef.current = foregroundResumeToken;
 
     if (rawState == null || !isUntimedAuthoritative) {
       return;
@@ -1318,7 +1330,7 @@ export function useGameSession(
     resumeLockActivationRequestSeqRef.current = latestStartedGameStateRequestSeqRef.current;
     lastImmediateRetrySourceRequestSeqRef.current = null;
     setResumeSyncLockedState(true);
-  }, [isUntimedAuthoritative, rawState, untimedResumeToken]);
+  }, [isUntimedAuthoritative, rawState, foregroundResumeToken]);
 
   // Keep result text minimal and TDZ-safe.
   // (Winner mapping can be added later, but do not depend on me/opponent here.)
@@ -1338,6 +1350,7 @@ export function useGameSession(
     applyAuthoritativeRawState,
     shouldRetryGameStateRequestImmediately,
     isResumeSyncLocked: () => resumeSyncLockedRef.current,
+    maybeUnlockResumeSyncFromValidatedUnchangedHead,
     hasAcceptedFullGameState,
     getLastAcceptedFullFingerprint,
     getLastAcceptedFullSyncAtMs,
@@ -1348,7 +1361,7 @@ export function useGameSession(
     isFinished,
     isUntimedAuthoritative,
     untimedPollingMode,
-    untimedResumeToken,
+    foregroundResumeToken,
     postGamePollMs: POSTGAME_POLL_MS,
   });
 
@@ -1366,7 +1379,6 @@ export function useGameSession(
     scheduleNextChatPollRef,
     isUntimedAuthoritative,
     untimedPollingMode,
-    untimedResumeToken,
   });
   
   // ============================================================================
