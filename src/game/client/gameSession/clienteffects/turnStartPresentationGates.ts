@@ -15,6 +15,73 @@ export interface TurnStartEconomyPresentation<TBreakdownRow = unknown> {
   opponentBonusBreakdownRows: TBreakdownRow[];
 }
 
+export type PresentedDiceValue = 1 | 2 | 3 | 4 | 5 | 6;
+
+export interface TurnStartDiceModifierPresentation {
+  chronoswarmRolls: PresentedDiceValue[];
+  cubeDiceValueByPlayerId: Record<string, PresentedDiceValue>;
+}
+
+function normalizePresentedDiceValue(value: unknown): PresentedDiceValue | null {
+  return typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 6
+    ? value as PresentedDiceValue
+    : null;
+}
+
+export function normalizeTurnStartDiceModifierPresentation(args: {
+  chronoswarmRolls?: unknown[];
+  cubeDiceValueByPlayerId?: Record<string, unknown>;
+}): TurnStartDiceModifierPresentation {
+  const chronoswarmRolls = Array.isArray(args.chronoswarmRolls)
+    ? args.chronoswarmRolls
+        .map(normalizePresentedDiceValue)
+        .filter((value): value is PresentedDiceValue => value != null)
+    : [];
+  const cubeDiceValueByPlayerId: Record<string, PresentedDiceValue> = {};
+
+  for (const [playerId, rawValue] of Object.entries(args.cubeDiceValueByPlayerId ?? {})) {
+    const value = normalizePresentedDiceValue(rawValue);
+    if (value != null) {
+      cubeDiceValueByPlayerId[playerId] = value;
+    }
+  }
+
+  return { chronoswarmRolls, cubeDiceValueByPlayerId };
+}
+
+export function holdTurnStartDiceModifierPresentation(args: {
+  presented: TurnStartDiceModifierPresentation;
+  authoritative: TurnStartDiceModifierPresentation;
+}): TurnStartDiceModifierPresentation {
+  const chronoswarmRolls = args.authoritative.chronoswarmRolls.map(
+    (_value, index) => args.presented.chronoswarmRolls[index] ?? 1
+  );
+  const cubeDiceValueByPlayerId: Record<string, PresentedDiceValue> = {};
+
+  for (const playerId of Object.keys(args.authoritative.cubeDiceValueByPlayerId)) {
+    cubeDiceValueByPlayerId[playerId] =
+      args.presented.cubeDiceValueByPlayerId[playerId] ?? 1;
+  }
+
+  return { chronoswarmRolls, cubeDiceValueByPlayerId };
+}
+
+export function classifyFirstTurnDiceSignature(args: {
+  observedEligibleNoSignature: boolean;
+}): 'hydrate' | 'present_roll' {
+  return args.observedEligibleNoSignature ? 'present_roll' : 'hydrate';
+}
+
+export function isCurrentTurnDicePresentationSettled(args: {
+  turnNumber: number;
+  settledTurnNumber: number | null;
+}): boolean {
+  return args.settledTurnNumber === args.turnNumber;
+}
+
 export interface TurnStartEconomyPresentationState<TBreakdownRow = unknown> {
   gameId: string | null;
   authoritativeTurnNumber: number | null;

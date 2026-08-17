@@ -221,7 +221,10 @@ export type {
   TurnPhaseVm,
 } from './gameSession/types';
 import { useTurnPhasePresentation } from './gameSession/clienteffects/useTurnPhasePresentation';
-import type { TurnStartEconomyPresentation } from './gameSession/clienteffects/turnStartPresentationGates';
+import {
+  isCurrentTurnDicePresentationSettled,
+  type TurnStartEconomyPresentation,
+} from './gameSession/clienteffects/turnStartPresentationGates';
 
 import {
   type BuildDrawingRouteRequest,
@@ -2111,12 +2114,8 @@ export function useGameSession(
   const chronoswarmRolls = getChronoswarmRolls(rawState);
   const cubeDiceValueByPlayerId = getCubeDiceValueByPlayerId(rawState);
   const cubeDiceUsedByPlayerId = getCubeDiceUsedByPlayerId(rawState);
-  const hasAuthoritativeChronoswarmDice = Array.isArray(chronoswarmRolls)
-    ? chronoswarmRolls.some(
-        (roll: unknown) =>
-          typeof roll === 'number' && Number.isInteger(roll) && roll >= 1 && roll <= 6
-      )
-    : false;
+  const chronoswarmRollsPresentationSignature = JSON.stringify(chronoswarmRolls ?? []);
+  const cubeDicePresentationSignature = JSON.stringify(cubeDiceValueByPlayerId);
 
   function normalizeFinishReasonToken(value: unknown): string | null {
     if (typeof value !== 'string') {
@@ -4283,12 +4282,14 @@ useEffect(() => {
     () => ({
       authoritativeDiceValue,
       authoritativeDiceSignature: authoritativeMainLeftRailDiceSignature,
-      hasChronoswarmDice: hasAuthoritativeChronoswarmDice,
+      authoritativeChronoswarmRolls: chronoswarmRolls,
+      authoritativeCubeDiceValueByPlayerId: cubeDiceValueByPlayerId,
     }),
     [
       authoritativeDiceValue,
       authoritativeMainLeftRailDiceSignature,
-      hasAuthoritativeChronoswarmDice,
+      chronoswarmRollsPresentationSignature,
+      cubeDicePresentationSignature,
     ]
   );
   const {
@@ -4299,10 +4300,13 @@ useEffect(() => {
     healthDeltaPresentationKey,
     leftRailDiceValue: presentedLeftRailDiceValue,
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
+    presentedChronoswarmRolls,
+    presentedCubeDiceValueByPlayerId,
     leftRailChronoswarmAnimateKey: presentedChronoswarmAnimateSeq,
     leftRailCubeAnimateKey: presentedCubeAnimateSeq,
     presentedTurnReleaseKey,
     presentedTurnReleaseTurnNumber,
+    presentedTurnDiceSettledTurnNumber,
     presentedEconomy,
   } = useEndOfTurnPresentation({
     effectiveGameId,
@@ -4650,10 +4654,21 @@ useEffect(() => {
     routedFirstStrikeFamily == null
       ? null
       : getFirstStrikePanelIdForFamily(routedFirstStrikeFamily);
-  const presentedActivePanelCandidate =
+  const routedPresentedActivePanelCandidate =
     isMixedFirstStrike && isFirstStrikeActionPanelId(activePanelId)
       ? effectiveFirstStrikePanelId ?? selfCataloguePanelId
       : activePanelId;
+  const currentTurnDicePresentationSettled =
+    isCurrentTurnDicePresentationSettled({
+      turnNumber,
+      settledTurnNumber: presentedTurnDiceSettledTurnNumber,
+    });
+  const presentedActivePanelCandidate =
+    phaseKey === 'build.dice_roll' &&
+    routedPresentedActivePanelCandidate === 'ap.build.dice_roll.cube' &&
+    !currentTurnDicePresentationSettled
+      ? 'ap.idle.blank'
+      : routedPresentedActivePanelCandidate;
   const presentedActivePanelId = normalizeActionPanelId(
     presentedActivePanelCandidate,
     drawingStage.kind === 'prelude' && carrierPreludeActionValidation.ok
@@ -5444,8 +5459,8 @@ useEffect(() => {
     // Raw gameData for server truth
     gameData: rawState?.gameData,
     shipsByPlayerId: getShipsByPlayerId(rawState),
-    chronoswarmRolls,
-    cubeDiceValueByPlayerId,
+    presentedChronoswarmRolls,
+    presentedCubeDiceValueByPlayerId,
     cubeDiceUsedByPlayerId,
     
     // Left rail dice presentation (client-delayed during health lock)

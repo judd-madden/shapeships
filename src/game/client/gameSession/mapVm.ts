@@ -247,8 +247,8 @@ export function mapGameSessionVm(args: {
   // Raw gameData for server truth
   gameData: any;
   shipsByPlayerId?: Record<string, any[]>;
-  chronoswarmRolls?: unknown[];
-  cubeDiceValueByPlayerId?: Record<string, unknown>;
+  presentedChronoswarmRolls?: unknown[];
+  presentedCubeDiceValueByPlayerId?: Record<string, unknown>;
   cubeDiceUsedByPlayerId?: Record<string, true>;
   
   // Left rail dice presentation (client-delayed during health lock)
@@ -349,8 +349,8 @@ export function mapGameSessionVm(args: {
     destroyTargetSatisfiedBySourceInstanceId,
     gameData,
     shipsByPlayerId = {},
-    chronoswarmRolls,
-    cubeDiceValueByPlayerId = {},
+    presentedChronoswarmRolls,
+    presentedCubeDiceValueByPlayerId = {},
     cubeDiceUsedByPlayerId = {},
     leftRailDiceValue,
     leftRailDiceAnimateKey,
@@ -409,7 +409,7 @@ export function mapGameSessionVm(args: {
     ): LeftRailDiceManipulationSlotViewModel | null => {
       if (!playerId) return null;
 
-      const value = cubeDiceValueByPlayerId[playerId];
+      const value = presentedCubeDiceValueByPlayerId[playerId];
       if (
         typeof value !== 'number' ||
         !Number.isInteger(value) ||
@@ -1478,8 +1478,8 @@ export function mapGameSessionVm(args: {
             )
         );
 
-        const chronoswarmRolls = Array.isArray(gameData?.turnData?.chronoswarmRolls)
-          ? gameData.turnData.chronoswarmRolls.filter(
+        const chronoswarmRolls = Array.isArray(presentedChronoswarmRolls)
+          ? presentedChronoswarmRolls.filter(
               (roll: unknown): roll is 1 | 2 | 3 | 4 | 5 | 6 =>
                 typeof roll === 'number' && Number.isInteger(roll) && roll >= 1 && roll <= 6
             )
@@ -1547,9 +1547,9 @@ export function mapGameSessionVm(args: {
             topPlayerId: displayRightPlayerId,
             bottomPlayerId: displayLeftPlayerId,
             turnNumber,
-            chronoswarmRolls,
+            chronoswarmRolls: presentedChronoswarmRolls,
             chronoswarmAnimateKey: leftRailChronoswarmAnimateKey,
-            cubeDiceValueByPlayerId,
+            cubeDiceValueByPlayerId: presentedCubeDiceValueByPlayerId,
             cubeDiceAnimateKeyByPlayerId,
             cubeDiceUsedByPlayerId,
           }),

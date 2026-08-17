@@ -11,9 +11,13 @@ import {
   TURN_START_DICE_PRESENTATION_DELAY_MS,
 } from './turnPhasePresentationTiming';
 import {
+  classifyFirstTurnDiceSignature,
   createTurnStartEconomyPresentationState,
+  holdTurnStartDiceModifierPresentation,
+  normalizeTurnStartDiceModifierPresentation,
   settleTurnStartEconomyPresentation,
   syncTurnStartEconomyPresentation,
+  type TurnStartDiceModifierPresentation,
   type TurnStartEconomyPresentation,
 } from './turnStartPresentationGates';
 
@@ -57,7 +61,8 @@ export interface HealthResolutionPresentationTrigger {
 export interface EndOfTurnLeftRailInput {
   authoritativeDiceValue: 1 | 2 | 3 | 4 | 5 | 6;
   authoritativeDiceSignature: string | null;
-  hasChronoswarmDice: boolean;
+  authoritativeChronoswarmRolls: unknown[] | undefined;
+  authoritativeCubeDiceValueByPlayerId: Record<string, unknown>;
 }
 
 interface UseEndOfTurnPresentationArgs {
@@ -316,16 +321,22 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     value: 1 | 2 | 3 | 4 | 5 | 6;
     signature: string;
     turnNumber: number;
-    hasChronoswarmDice: boolean;
+    modifiers: TurnStartDiceModifierPresentation;
   } | null>(null);
   const lastSeenAuthoritativeLeftRailDiceSignatureRef = useRef<string | null>(null);
   const lastPresentedLeftRailReleaseTurnRef = useRef<number | null>(null);
+  const observedEligibleNoDiceSignatureRef = useRef(false);
   const scheduledTurnStartDicePresentationRef = useRef<{
     gameId: string;
     signature: string;
     turnNumber: number;
     value: 1 | 2 | 3 | 4 | 5 | 6;
-    hasChronoswarmDice: boolean;
+    modifiers: TurnStartDiceModifierPresentation;
+  } | null>(null);
+  const activeTurnStartDicePresentationRef = useRef<{
+    gameId: string;
+    turnNumber: number;
+    modifiers: TurnStartDiceModifierPresentation;
   } | null>(null);
   const scheduledTurnStartDiceSettledRef = useRef<{
     gameId: string;
@@ -344,6 +355,10 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     }>({});
   const [healthDeltaPresentationKey, setHealthDeltaPresentationKey] = useState<string | undefined>(undefined);
   const [presentedLeftRailDiceValue, setPresentedLeftRailDiceValue] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
+  const [presentedChronoswarmRolls, setPresentedChronoswarmRolls] =
+    useState<TurnStartDiceModifierPresentation['chronoswarmRolls']>([]);
+  const [presentedCubeDiceValueByPlayerId, setPresentedCubeDiceValueByPlayerId] =
+    useState<TurnStartDiceModifierPresentation['cubeDiceValueByPlayerId']>({});
   const [presentedLeftRailDiceAnimateSeq, setPresentedLeftRailDiceAnimateSeq] = useState(0);
   const [presentedChronoswarmAnimateSeq, setPresentedChronoswarmAnimateSeq] = useState(0);
   const [presentedCubeAnimateSeq, setPresentedCubeAnimateSeq] = useState(0);
@@ -559,6 +574,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     setFleetAreaHealthDeltaFlashes({});
     setHealthDeltaPresentationKey(undefined);
     setPresentedLeftRailDiceValue(1);
+    setPresentedChronoswarmRolls([]);
+    setPresentedCubeDiceValueByPlayerId({});
     setPresentedLeftRailDiceAnimateSeq(0);
     setPresentedChronoswarmAnimateSeq(0);
     setPresentedCubeAnimateSeq(0);
@@ -581,7 +598,9 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     pendingAuthoritativeLeftRailDiceRef.current = null;
     lastSeenAuthoritativeLeftRailDiceSignatureRef.current = null;
     lastPresentedLeftRailReleaseTurnRef.current = null;
+    observedEligibleNoDiceSignatureRef.current = false;
     scheduledTurnStartDicePresentationRef.current = null;
+    activeTurnStartDicePresentationRef.current = null;
     scheduledTurnStartDiceSettledRef.current = null;
   }, [effectiveGameId]);
 
@@ -724,16 +743,19 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
   function releasePresentedTurnStartDice(args: {
     value: 1 | 2 | 3 | 4 | 5 | 6;
-    hasChronoswarmDice: boolean;
+    modifiers: TurnStartDiceModifierPresentation;
+    animateChronoswarmDice: boolean;
     animateCubeDice: boolean;
   }): void {
-    const { value, hasChronoswarmDice, animateCubeDice } = args;
+    const { value, modifiers, animateChronoswarmDice, animateCubeDice } = args;
     setPresentedLeftRailDiceValue(value);
+    setPresentedChronoswarmRolls(modifiers.chronoswarmRolls);
+    setPresentedCubeDiceValueByPlayerId(modifiers.cubeDiceValueByPlayerId);
     setPresentedLeftRailDiceAnimateSeq((prev) => prev + 1);
-    if (hasChronoswarmDice) {
+    if (animateChronoswarmDice && modifiers.chronoswarmRolls.length > 0) {
       setPresentedChronoswarmAnimateSeq((prev) => prev + 1);
     }
-    if (animateCubeDice) {
+    if (animateCubeDice && Object.keys(modifiers.cubeDiceValueByPlayerId).length > 0) {
       setPresentedCubeAnimateSeq((prev) => prev + 1);
     }
   }
@@ -758,6 +780,17 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       }
 
       scheduledTurnStartDiceSettledRef.current = null;
+      const activePresentation = activeTurnStartDicePresentationRef.current;
+      if (
+        activePresentation?.gameId === identity.gameId &&
+        activePresentation.turnNumber === identity.turnNumber
+      ) {
+        setPresentedChronoswarmRolls(activePresentation.modifiers.chronoswarmRolls);
+        setPresentedCubeDiceValueByPlayerId(
+          activePresentation.modifiers.cubeDiceValueByPlayerId
+        );
+        activeTurnStartDicePresentationRef.current = null;
+      }
       setEconomyPresentationState((current) =>
         settleTurnStartEconomyPresentation(current, identity.turnNumber)
       );
@@ -771,17 +804,18 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     value: 1 | 2 | 3 | 4 | 5 | 6;
     signature: string;
     turnNumber: number;
-    hasChronoswarmDice: boolean;
+    modifiers: TurnStartDiceModifierPresentation;
   }): void {
     clearTimer(turnStartDicePresentationTimerRef);
     clearTimer(turnStartDiceSettledTimerRef);
     scheduledTurnStartDiceSettledRef.current = null;
+    activeTurnStartDicePresentationRef.current = null;
     const identity = {
       gameId: args.gameId,
       signature: args.signature,
       turnNumber: args.turnNumber,
       value: args.value,
-      hasChronoswarmDice: args.hasChronoswarmDice,
+      modifiers: args.modifiers,
     };
     scheduledTurnStartDicePresentationRef.current = identity;
     turnStartDicePresentationTimerRef.current = setTimeout(() => {
@@ -798,9 +832,15 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       }
 
       scheduledTurnStartDicePresentationRef.current = null;
+      activeTurnStartDicePresentationRef.current = {
+        gameId: identity.gameId,
+        turnNumber: identity.turnNumber,
+        modifiers: identity.modifiers,
+      };
       releasePresentedTurnStartDice({
         value: identity.value,
-        hasChronoswarmDice: identity.hasChronoswarmDice,
+        modifiers: identity.modifiers,
+        animateChronoswarmDice: true,
         animateCubeDice: true,
       });
       schedulePresentedTurnStartDiceSettled({
@@ -815,21 +855,26 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     value: 1 | 2 | 3 | 4 | 5 | 6;
     signature: string;
     turnNumber: number;
-    hasChronoswarmDice: boolean;
+    modifiers: TurnStartDiceModifierPresentation;
     animateMainDie: boolean;
+    forceTurnStartPresentation?: boolean;
   }): void {
     const {
       gameId,
       value,
       signature,
       turnNumber: nextTurnNumber,
-      hasChronoswarmDice,
+      modifiers,
       animateMainDie,
+      forceTurnStartPresentation = false,
     } = args;
     const previousPresentedTurn = lastPresentedLeftRailReleaseTurnRef.current;
 
     if (!animateMainDie) {
       setPresentedLeftRailDiceValue(value);
+      setPresentedChronoswarmRolls(modifiers.chronoswarmRolls);
+      setPresentedCubeDiceValueByPlayerId(modifiers.cubeDiceValueByPlayerId);
+      setPresentedTurnDiceSettledTurnNumber(nextTurnNumber);
       lastPresentedLeftRailReleaseTurnRef.current = nextTurnNumber;
       return;
     }
@@ -842,66 +887,93 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       previousPresentedTurn != null && nextTurnNumber > previousPresentedTurn;
     lastPresentedLeftRailReleaseTurnRef.current = nextTurnNumber;
 
-    if (!isLaterTurnTransition || nextTurnNumber === 1) {
+    if (!isLaterTurnTransition && !forceTurnStartPresentation) {
       releasePresentedTurnStartDice({
         value,
-        hasChronoswarmDice: false,
+        modifiers,
+        animateChronoswarmDice: false,
         animateCubeDice: false,
       });
       return;
     }
 
     releasePresentedTurn(nextTurnNumber);
+    setPresentedTurnDiceSettledTurnNumber(null);
+    const heldModifiers = holdTurnStartDiceModifierPresentation({
+      presented: {
+        chronoswarmRolls: presentedChronoswarmRolls,
+        cubeDiceValueByPlayerId: presentedCubeDiceValueByPlayerId,
+      },
+      authoritative: modifiers,
+    });
+    setPresentedChronoswarmRolls(heldModifiers.chronoswarmRolls);
+    setPresentedCubeDiceValueByPlayerId(heldModifiers.cubeDiceValueByPlayerId);
     schedulePresentedTurnStartDice({
       gameId,
       value,
       signature,
       turnNumber: nextTurnNumber,
-      hasChronoswarmDice,
+      modifiers,
     });
   }
 
   useLayoutEffect(() => {
+    const canObserveAuthoritativeDice =
+      !!effectiveGameId &&
+      hasMatchingAuthoritativeGameId &&
+      !isBootstrapping &&
+      !isFinished;
+
     if (
-      !effectiveGameId ||
-      !hasMatchingAuthoritativeGameId ||
-      isBootstrapping ||
-      isFinished ||
+      canObserveAuthoritativeDice &&
+      phaseKey === 'setup.species_selection' &&
+      !leftRail.authoritativeDiceSignature
+    ) {
+      observedEligibleNoDiceSignatureRef.current = true;
+    }
+
+    if (
+      !canObserveAuthoritativeDice ||
       !leftRail.authoritativeDiceSignature
     ) {
       clearTimer(turnStartDicePresentationTimerRef);
       clearTimer(turnStartDiceSettledTimerRef);
       scheduledTurnStartDicePresentationRef.current = null;
       scheduledTurnStartDiceSettledRef.current = null;
+      activeTurnStartDicePresentationRef.current = null;
       return;
     }
 
+    const modifiers = normalizeTurnStartDiceModifierPresentation({
+      chronoswarmRolls: leftRail.authoritativeChronoswarmRolls,
+      cubeDiceValueByPlayerId: leftRail.authoritativeCubeDiceValueByPlayerId,
+    });
     const nextSnapshot = {
       value: leftRail.authoritativeDiceValue,
       signature: leftRail.authoritativeDiceSignature,
       turnNumber,
-      hasChronoswarmDice: leftRail.hasChronoswarmDice,
+      modifiers,
     } as const;
 
     if (lastSeenAuthoritativeLeftRailDiceSignatureRef.current == null) {
       lastSeenAuthoritativeLeftRailDiceSignatureRef.current = leftRail.authoritativeDiceSignature;
       pendingAuthoritativeLeftRailDiceRef.current = null;
+      const firstSignatureDisposition = classifyFirstTurnDiceSignature({
+        observedEligibleNoSignature: observedEligibleNoDiceSignatureRef.current,
+      });
+      observedEligibleNoDiceSignatureRef.current = false;
       releasePresentedLeftRailTurn({
         gameId: effectiveGameId,
         value: leftRail.authoritativeDiceValue,
         signature: leftRail.authoritativeDiceSignature,
         turnNumber,
-        hasChronoswarmDice: leftRail.hasChronoswarmDice,
-        animateMainDie: false,
+        modifiers,
+        animateMainDie: firstSignatureDisposition === 'present_roll',
+        forceTurnStartPresentation: firstSignatureDisposition === 'present_roll',
       });
       return;
     }
 
-    if (lastSeenAuthoritativeLeftRailDiceSignatureRef.current === leftRail.authoritativeDiceSignature) {
-      return;
-    }
-
-    lastSeenAuthoritativeLeftRailDiceSignatureRef.current = leftRail.authoritativeDiceSignature;
     const scheduledTurnStartDice = scheduledTurnStartDicePresentationRef.current;
     if (
       scheduledTurnStartDice?.gameId === effectiveGameId &&
@@ -909,10 +981,39 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     ) {
       scheduledTurnStartDice.signature = nextSnapshot.signature;
       scheduledTurnStartDice.value = nextSnapshot.value;
-      scheduledTurnStartDice.hasChronoswarmDice = nextSnapshot.hasChronoswarmDice;
+      scheduledTurnStartDice.modifiers = nextSnapshot.modifiers;
+      lastSeenAuthoritativeLeftRailDiceSignatureRef.current =
+        leftRail.authoritativeDiceSignature;
       pendingAuthoritativeLeftRailDiceRef.current = null;
       return;
     }
+
+    const activeTurnStartDice = activeTurnStartDicePresentationRef.current;
+    if (
+      activeTurnStartDice?.gameId === effectiveGameId &&
+      activeTurnStartDice.turnNumber === turnNumber
+    ) {
+      activeTurnStartDice.modifiers = nextSnapshot.modifiers;
+      return;
+    }
+
+    const pendingTurnStartDice = pendingAuthoritativeLeftRailDiceRef.current;
+    if (pendingTurnStartDice?.turnNumber === turnNumber) {
+      pendingTurnStartDice.value = nextSnapshot.value;
+      pendingTurnStartDice.signature = nextSnapshot.signature;
+      pendingTurnStartDice.modifiers = nextSnapshot.modifiers;
+      return;
+    }
+
+    if (lastSeenAuthoritativeLeftRailDiceSignatureRef.current === leftRail.authoritativeDiceSignature) {
+      setPresentedChronoswarmRolls(nextSnapshot.modifiers.chronoswarmRolls);
+      setPresentedCubeDiceValueByPlayerId(
+        nextSnapshot.modifiers.cubeDiceValueByPlayerId
+      );
+      return;
+    }
+
+    lastSeenAuthoritativeLeftRailDiceSignatureRef.current = leftRail.authoritativeDiceSignature;
 
     clearTimer(turnStartDicePresentationTimerRef);
     scheduledTurnStartDicePresentationRef.current = null;
@@ -928,7 +1029,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       value: nextSnapshot.value,
       signature: nextSnapshot.signature,
       turnNumber: nextSnapshot.turnNumber,
-      hasChronoswarmDice: nextSnapshot.hasChronoswarmDice,
+      modifiers: nextSnapshot.modifiers,
       animateMainDie: true,
     });
   }, [
@@ -939,7 +1040,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     isFinished,
     leftRail.authoritativeDiceSignature,
     leftRail.authoritativeDiceValue,
-    leftRail.hasChronoswarmDice,
+    leftRail.authoritativeChronoswarmRolls,
+    leftRail.authoritativeCubeDiceValueByPlayerId,
     turnNumber,
   ]);
 
@@ -959,7 +1061,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       value: pendingSnapshot.value,
       signature: pendingSnapshot.signature,
       turnNumber: pendingSnapshot.turnNumber,
-      hasChronoswarmDice: pendingSnapshot.hasChronoswarmDice,
+      modifiers: pendingSnapshot.modifiers,
       animateMainDie: true,
     });
   }, [effectiveGameId, healthAuthoritativeHoldActive, isFinished]);
@@ -1006,6 +1108,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     opponentFleetHealthDeltaFlash: fleetAreaHealthDeltaFlashes.opponent,
     healthDeltaPresentationKey,
     leftRailDiceValue: presentedLeftRailDiceValue,
+    presentedChronoswarmRolls,
+    presentedCubeDiceValueByPlayerId,
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
     leftRailChronoswarmAnimateKey: presentedChronoswarmAnimateSeq,
     leftRailCubeAnimateKey: presentedCubeAnimateSeq,
