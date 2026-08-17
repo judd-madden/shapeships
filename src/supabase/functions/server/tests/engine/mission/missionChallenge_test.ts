@@ -20,19 +20,27 @@ import {
   type MissionSpecies,
 } from "../../../engine/mission/MissionStories.ts";
 
-const MATCHUPS: Array<[MissionSpecies, MissionOpponentSpecies, string[]]> = [
-  ["human", "human", ["sol-1", "rebel-alliance-human"]],
-  ["human", "xenite", ["mintaka"]],
-  ["human", "centaur", ["delta-aquarii"]],
-  ["xenite", "human", ["mintaka"]],
-  ["xenite", "xenite", ["betelgeuse"]],
-  ["xenite", "centaur", ["gamma-leporis"]],
-  ["centaur", "human", ["delta-aquarii"]],
-  ["centaur", "xenite", ["gamma-leporis"]],
-  ["centaur", "centaur", ["proxima-centauri", "rebel-alliance-centaur"]],
-  ["ancient", "human", ["ancient-mysteries-human"]],
-  ["ancient", "xenite", ["ancient-mysteries-xenite"]],
-  ["ancient", "centaur", ["ancient-mysteries-centaur"]],
+const MATCHUPS: Array<[MissionSpecies, MissionOpponentSpecies, string[][]]> = [
+  [
+    "human",
+    "human",
+    [["sol-1", "rebel-alliance-human"], ["barnards-star"]],
+  ],
+  ["human", "xenite", [["mintaka"]]],
+  ["human", "centaur", [["delta-aquarii"]]],
+  ["xenite", "human", [["mintaka"]]],
+  ["xenite", "xenite", [["betelgeuse"]]],
+  ["xenite", "centaur", [["gamma-leporis"]]],
+  ["centaur", "human", [["delta-aquarii"]]],
+  ["centaur", "xenite", [["gamma-leporis"]]],
+  [
+    "centaur",
+    "centaur",
+    [["proxima-centauri", "rebel-alliance-centaur"]],
+  ],
+  ["ancient", "human", [["ancient-mysteries-human"]]],
+  ["ancient", "xenite", [["ancient-mysteries-xenite"]]],
+  ["ancient", "centaur", [["ancient-mysteries-centaur"]]],
 ];
 
 function findSeedForBucket(
@@ -86,14 +94,43 @@ function computerState(args: {
 
 Deno.test("Mission registry has the canonical directional content and Finding coverage", () => {
   assert.equal(MISSION_YEAR, 2814);
-  assert.equal(MISSION_STORIES.length, 12);
-  assert.equal(new Set(MISSION_STORIES.map((mission) => mission.id)).size, 12);
+  assert.equal(MISSION_STORIES.length, 13);
+  assert.equal(new Set(MISSION_STORIES.map((mission) => mission.id)).size, 13);
 
-  for (const [playerSpecies, opponentSpecies, findingIds] of MATCHUPS) {
+  for (const [playerSpecies, opponentSpecies, findingIdsByMission] of MATCHUPS) {
     const pool = getMissionPool(playerSpecies, opponentSpecies);
-    assert.equal(pool.length, 1, `${playerSpecies} v ${opponentSpecies}`);
-    assert.deepEqual(pool[0].findingIds, findingIds);
+    assert.equal(
+      pool.length,
+      findingIdsByMission.length,
+      `${playerSpecies} v ${opponentSpecies}`,
+    );
+    assert.deepEqual(
+      pool.map((mission) => mission.findingIds),
+      findingIdsByMission,
+    );
   }
+
+  const humanVsHuman = getMissionPool("human", "human");
+  assert.deepEqual(humanVsHuman.map((mission) => mission.id), [
+    "mission-human-v-human-eliminate-rebels",
+    "mission-human-v-human-defend-against-pirates",
+  ]);
+
+  const pirates = MISSION_STORIES.find((mission) =>
+    mission.id === "mission-human-v-human-defend-against-pirates"
+  );
+  assert.deepEqual(pirates, {
+    id: "mission-human-v-human-defend-against-pirates",
+    playerSpecies: "human",
+    opponentSpecies: "human",
+    findingIds: ["barnards-star"],
+    title: "Defend Against Pirates",
+    location: "Barnard's Star",
+    author: "juddly",
+    paragraphs: [
+      "[player], you have been attacked by pirates! Yep - those still exist in 2814. They want your metal. We're still a long way from the safety of Barnard's Star: we must defend ourselves.",
+    ],
+  });
 
   for (const mission of MISSION_STORIES) {
     assert.equal(mission.author, "juddly");
@@ -110,6 +147,7 @@ Deno.test("Mission registry has the canonical directional content and Finding co
       "ancient-mysteries-centaur",
       "ancient-mysteries-human",
       "ancient-mysteries-xenite",
+      "barnards-star",
       "betelgeuse",
       "delta-aquarii",
       "gamma-leporis",
@@ -128,7 +166,7 @@ Deno.test("Mission registry has the canonical directional content and Finding co
     MISSION_STORIES.filter((mission) =>
       mission.paragraphs.some((text) => text.includes("[player]"))
     ).length,
-    3,
+    4,
   );
 
   const reclaim = MISSION_STORIES.find((mission) =>
@@ -148,6 +186,34 @@ Deno.test("Mission registry has the canonical directional content and Finding co
     mission.id === "mission-centaur-v-centaur-defeat-rebel-cowards"
   );
   assert.ok(centaur?.paragraphs[0].startsWith("It’s time"));
+});
+
+Deno.test("Human v Human assignment selects both Mission stories deterministically", () => {
+  const pool = getMissionPool("human", "human");
+  assert.equal(pool.length, 2);
+
+  for (let bucket = 0; bucket < pool.length; bucket += 1) {
+    const gameId = findSeedForBucket(
+      MISSION_ASSIGNMENT_SALTS.mission,
+      pool.length,
+      bucket,
+    );
+    const first = createMissionChallengeAssignment({
+      gameId,
+      playerId: "p1",
+      playerSpecies: "human",
+      opponentSpecies: "human",
+    });
+    const repeated = createMissionChallengeAssignment({
+      gameId,
+      playerId: "p1",
+      playerSpecies: "human",
+      opponentSpecies: "human",
+    });
+
+    assert.equal(first.missionId, pool[bucket].id);
+    assert.deepEqual(repeated, first);
+  }
 });
 
 Deno.test("ordinary and Ancient foreign challenge pools remain distinct", () => {

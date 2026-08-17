@@ -112,6 +112,12 @@ export const missionFindings: readonly MissionFinding[] = [
     content: <p>Human Rebels have a base on <em>Neptune</em>.</p>,
   },
   {
+    id: 'barnards-star',
+    topic: "Barnard's Star",
+    author: 'juddly',
+    content: <p>Humans have control of <em>Barnard's Star</em>. Pirates still exist.</p>,
+  },
+  {
     id: 'proxima-centauri',
     topic: 'Proxima Centauri',
     author: 'juddly',

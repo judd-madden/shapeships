@@ -28,6 +28,18 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     ],
   },
   {
+    id: "mission-human-v-human-defend-against-pirates",
+    playerSpecies: "human",
+    opponentSpecies: "human",
+    findingIds: ["barnards-star"],
+    title: "Defend Against Pirates",
+    location: "Barnard's Star",
+    author: "juddly",
+    paragraphs: [
+      "[player], you have been attacked by pirates! Yep - those still exist in 2814. They want your metal. We're still a long way from the safety of Barnard's Star: we must defend ourselves.",
+    ],
+  },
+  {
     id: "mission-human-v-xenite-save-colonies",
     playerSpecies: "human",
     opponentSpecies: "xenite",
