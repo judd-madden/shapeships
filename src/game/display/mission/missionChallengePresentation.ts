@@ -3,10 +3,58 @@ import type { MissionChallengeResultViewModel } from '../../client/gameSession/t
 
 export type MissionOverlayMode = 'initial' | 'reopen' | 'result';
 
-export const BASIC_CHALLENGE_NOTE =
-  'Only ships in final fleet are counted, ships may be used in upgrades';
 export const ANCIENT_FOREIGN_CHALLENGE_NOTE =
   'Use Simulacrum to copy opponent ships, use their species tab for upgrades';
+
+export function getChallengePresentationCopy(args: {
+  condition: 'with' | 'without';
+  playerSpecies: SpeciesId;
+  targetSpecies: string;
+  targetShipType: string;
+  targetShipName: string;
+  targetPluralShipName: string;
+}): {
+  heading: string;
+  explanatoryCopy: string | null;
+} {
+  const heading = args.condition === 'with'
+    ? `Win with ${/^[aeiou]/i.test(args.targetShipName) ? 'an' : 'a'} ${args.targetShipName}`
+    : `Win without ${args.targetPluralShipName}`;
+  const targetSpecies = args.targetSpecies.toLowerCase();
+
+  if (args.playerSpecies === 'ancient' && targetSpecies !== 'ancient') {
+    return {
+      heading,
+      explanatoryCopy: ANCIENT_FOREIGN_CHALLENGE_NOTE,
+    };
+  }
+
+  if (args.condition === 'without') {
+    return {
+      heading,
+      explanatoryCopy: `No ${args.targetPluralShipName} in your final fleet.`,
+    };
+  }
+
+  if (args.playerSpecies !== 'ancient' && args.targetShipType === 'Basic') {
+    return {
+      heading,
+      explanatoryCopy: `At least one ${args.targetShipName} in your final fleet. ${args.targetPluralShipName} consumed by upgrades don't count.`,
+    };
+  }
+
+  if (
+    args.targetShipType === 'Upgraded' ||
+    args.targetShipType === 'Basic - Evolved'
+  ) {
+    return {
+      heading,
+      explanatoryCopy: `At least one ${args.targetShipName} in your final fleet.`,
+    };
+  }
+
+  return { heading, explanatoryCopy: null };
+}
 
 export function formatMissionSystem(location: string): string {
   return location.replace(/ system$/i, '');
@@ -17,24 +65,6 @@ export function interpolateMissionPlayer(
   playerName: string,
 ): string {
   return paragraph.split('[player]').join(playerName);
-}
-
-export function getChallengeExplanatoryCopy(args: {
-  playerSpecies: SpeciesId;
-  targetSpecies: string;
-  targetShipType: string;
-}): string | null {
-  const targetSpecies = args.targetSpecies.toLowerCase();
-
-  if (args.playerSpecies === 'ancient' && targetSpecies !== 'ancient') {
-    return ANCIENT_FOREIGN_CHALLENGE_NOTE;
-  }
-
-  if (args.playerSpecies !== 'ancient' && args.targetShipType === 'Basic') {
-    return BASIC_CHALLENGE_NOTE;
-  }
-
-  return null;
 }
 
 export function getMissionPresentationIdentity(args: {

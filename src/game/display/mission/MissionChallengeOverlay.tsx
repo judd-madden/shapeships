@@ -12,7 +12,7 @@ import { ShipHoverCard } from '../actionPanel/panels/catalogue/shared/ShipHoverC
 import { useShipCatalogueHover } from '../actionPanel/panels/catalogue/shared/useShipCatalogueHover';
 import {
   formatMissionSystem,
-  getChallengeExplanatoryCopy,
+  getChallengePresentationCopy,
   getMissionChallengeResultPresentation,
   interpolateMissionPlayer,
   type MissionOverlayMode,
@@ -69,21 +69,23 @@ export function MissionChallengeOverlay({
     ? resolveShipGraphic(challengeShip, { context: 'default' })
     : null;
   const ChallengeShipGraphic = challengeGraphic?.component;
-  const pluralShipName = challengeShip
-    ? pluralizeShipName(challengeShip.name)
-    : challengeShipId;
-  const challengeCopy = `Win ${missionChallenge.challenge.condition} ${pluralShipName}`;
+  const challengePresentation = challengeShip
+    ? getChallengePresentationCopy({
+        condition: missionChallenge.challenge.condition,
+        playerSpecies,
+        targetSpecies: challengeShip.species,
+        targetShipType: challengeShip.shipType,
+        targetShipName: challengeShip.name,
+        targetPluralShipName: pluralizeShipName(challengeShip.name),
+      })
+    : {
+        heading: `Win ${missionChallenge.challenge.condition} ${challengeShipId}`,
+        explanatoryCopy: null,
+      };
   const challengeInstructionClassName =
     missionChallenge.challenge.condition === 'with'
       ? 'text-[var(--shapeships-pastel-green)]'
       : 'text-[var(--shapeships-pastel-red)]';
-  const explanatoryCopy = challengeShip
-    ? getChallengeExplanatoryCopy({
-        playerSpecies,
-        targetSpecies: challengeShip.species,
-        targetShipType: challengeShip.shipType,
-      })
-    : null;
   const playerSpeciesPresentation = SPECIES_PRESENTATION[playerSpecies];
   const opponentSpeciesPresentation = SPECIES_PRESENTATION[opponentSpecies];
   const resultPresentation = mode === 'result' && missionChallenge.result
@@ -213,11 +215,11 @@ export function MissionChallengeOverlay({
               <p className="text-[14px] font-bold leading-none min-[768px]:text-[18px]">OPTIONAL CHALLENGE</p>
             </div>
             <p className={`mt-[8px] text-[18px] leading-[22px] min-[768px]:text-[26px] min-[768px]:leading-[30px] ${challengeInstructionClassName}`}>
-              {challengeCopy}
+              {challengePresentation.heading}
             </p>
-            {explanatoryCopy ? (
+            {challengePresentation.explanatoryCopy ? (
               <p className="mt-[4px] text-[12px] sm:text-[14px] sm:mt-[12px] leading-[15px] text-[var(--shapeships-grey-20)]">
-                {explanatoryCopy}
+                {challengePresentation.explanatoryCopy}
               </p>
             ) : null}
           </div>

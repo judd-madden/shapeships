@@ -327,7 +327,7 @@ export function MobileStatusRailFrame({
             />
             {isFirstTurnBuildHelperMounted && (
               <div
-                className="pointer-events-none absolute right-0 top-[calc(100%+32px)] z-[30]"
+                className="pointer-events-none absolute right-0 top-[calc(100%+44px)] z-[30]"
                 style={{
                   opacity: isFirstTurnBuildHelperVisible ? 1 : 0,
                   transition: `opacity ${FIRST_TURN_BUILD_HELPER_FADE_MS}ms ease-out`,
