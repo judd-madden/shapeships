@@ -128,7 +128,7 @@ import {
   MISSION_INTRO_GATE_ENABLED,
 } from '../mission/MissionChallenge.ts';
 
-export const MATCHUP_INTRO_DURATION_MS = 3000;
+export const MATCHUP_INTRO_DURATION_MS = 3300;
 
 export interface IntentRequest {
   gameId: string;

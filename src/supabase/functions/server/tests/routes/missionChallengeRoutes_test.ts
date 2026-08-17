@@ -223,7 +223,7 @@ Deno.test("/game-state strips canonical assignment and projects Mission only to 
     "mintaka",
   ]);
   assert.ok(human.requester.missionChallenge.mission.paragraphs.length > 0);
-  assert.equal(human.requester.missionChallenge.introPending, false);
+  assert.equal(human.requester.missionChallenge.introPending, true);
   assert.equal("missionChallenge" in bot.requester, false);
   assert.equal("missionChallenge" in spectator.requester, false);
 });
@@ -272,7 +272,7 @@ Deno.test("/intent strips canonical assignment from successful and rejected resp
   }));
   const rejectedBody = await responseJson(rejected);
   assert.equal(rejectedBody.ok, false);
-  assert.equal(rejectedBody.rejected.code, "PHASE_NOT_ALLOWED");
+  assert.equal(rejectedBody.rejected.code, "MISSION_INTRO_PENDING");
   assert.equal(containsCanonicalAssignmentKey(rejectedBody.state), false);
 });
 

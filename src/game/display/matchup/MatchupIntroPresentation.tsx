@@ -102,7 +102,7 @@ export function MatchupIntroPlayerOverlay({
 
   return (
     <>
-      {/* Name owns its own complete 4s travel. */}
+      {/* Name owns the complete 3150ms motion duration. */}
       <div
         key={`${matchupIntro.presentationKey}:${direction}:name`}
         className={`${sharedPlayerClassName} ss-matchup-player--name`}
@@ -119,7 +119,7 @@ export function MatchupIntroPlayerOverlay({
         </div>
       </div>
 
-      {/* Species runs the identical travel, delayed by 250ms. */}
+      {/* Species runs the identical travel, delayed by 150ms. */}
       <div
         key={`${matchupIntro.presentationKey}:${direction}:species`}
         className={`${sharedPlayerClassName} ss-matchup-player--species`}

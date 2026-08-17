@@ -80,6 +80,7 @@ async function createHeldState(timed = true) {
 Deno.test('multiplayer species resolution creates one exact authoritative Turn 0 hold', async () => {
   const state = await createHeldState();
   const hold = state.gameData.turnData.phaseHold;
+  assert.equal(MATCHUP_INTRO_DURATION_MS, 3_300);
   assert.equal(state.gameData.currentPhase, 'setup');
   assert.equal(state.gameData.currentSubPhase, 'species_selection');
   assert.equal(state.gameData.turnNumber, 0);
@@ -95,13 +96,13 @@ Deno.test('multiplayer species resolution creates one exact authoritative Turn 0
 
 Deno.test('continuation is early-safe and releases the normal opening exactly once', async () => {
   const held = await createHeldState();
-  const early = await applyIntent(held, 'p1', intent('CONTINUE_PHASE_HOLD'), 4_999);
+  const early = await applyIntent(held, 'p1', intent('CONTINUE_PHASE_HOLD'), 5_299);
   assert.equal(early.ok, true);
   assert.equal(early.state.gameData.turnNumber, 0);
   assert.equal(early.state.gameData.turnData.phaseHold.holdReason, 'matchup_intro');
   assert.equal(early.state.gameData.turnData.baseDiceRoll, undefined);
 
-  const released = await applyIntent(early.state, 'p2', intent('CONTINUE_PHASE_HOLD'), 5_000);
+  const released = await applyIntent(early.state, 'p2', intent('CONTINUE_PHASE_HOLD'), 5_300);
   assert.equal(released.ok, true);
   assert.equal(released.state.gameData.turnNumber, 1);
   assert.equal(released.state.gameData.currentPhase, 'build');
@@ -112,7 +113,7 @@ Deno.test('continuation is early-safe and releases the normal opening exactly on
   assert.ok(Number.isInteger(released.state.gameData.turnData.baseDiceRoll));
   const openingRoll = released.state.gameData.turnData.baseDiceRoll;
 
-  const duplicate = await applyIntent(released.state, 'p1', intent('CONTINUE_PHASE_HOLD'), 5_001);
+  const duplicate = await applyIntent(released.state, 'p1', intent('CONTINUE_PHASE_HOLD'), 5_301);
   assert.equal(duplicate.ok, true);
   assert.equal(duplicate.state.gameData.turnNumber, 1);
   assert.equal(duplicate.state.gameData.turnData.baseDiceRoll, openingRoll);
@@ -132,7 +133,7 @@ Deno.test('matchup hold narrows setup interaction and spectators cannot release 
   assert.equal(missionAck.ok, false);
   assert.equal(missionAck.rejected?.code, RejectionCode.PHASE_NOT_ALLOWED);
 
-  const spectator = await applyIntent(held, 'spec', intent('CONTINUE_PHASE_HOLD'), 5_000);
+  const spectator = await applyIntent(held, 'spec', intent('CONTINUE_PHASE_HOLD'), 5_300);
   assert.equal(spectator.ok, false);
   assert.equal(spectator.rejected?.code, RejectionCode.SPECTATOR_RESTRICTED);
 });

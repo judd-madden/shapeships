@@ -1384,7 +1384,7 @@ html:not(.app-ready) #root {
    - return easing
    - player fade
 
-   species runs the same independent motion, staggered by 250ms
+   species runs the same independent motion, staggered by 150ms
    -------------------------------------------------------------------------- */
 
 

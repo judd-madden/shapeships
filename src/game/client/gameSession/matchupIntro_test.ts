@@ -34,7 +34,7 @@ const baseArgs = {
     phaseKey: 'setup.species_selection',
     holdReason: 'matchup_intro',
     holdStartedAtMs: 10_000,
-    holdUntilMs: 13_000,
+    holdUntilMs: 13_300,
   },
   localPlayer: { id: 'p2', name: 'Local Player', faction: 'xenite' },
   opponentPlayer: { id: 'p1', name: 'Opponent', faction: 'human' },
@@ -45,7 +45,7 @@ Deno.test('derives a player-relative matchup only from a valid authoritative hol
   assert(vm);
   assertDeepEqual(vm.localPlayer, { name: 'Local Player', speciesId: 'xenite' });
   assertDeepEqual(vm.opponentPlayer, { name: 'Opponent', speciesId: 'human' });
-  assertEqual(vm.endsAtMs - vm.startedAtMs, 3_000);
+  assertEqual(vm.endsAtMs - vm.startedAtMs, 3_300);
   assertEqual(deriveMatchupIntroViewModel({ ...baseArgs, isPlayerViewer: false }), null);
   assertEqual(deriveMatchupIntroViewModel({ ...baseArgs, isFinished: true }), null);
   assertEqual(deriveMatchupIntroViewModel({ ...baseArgs, phaseKey: 'build.dice_roll' }), null);
@@ -62,7 +62,7 @@ Deno.test('presentation identity is stable and duration comes only from authorit
   assert(second);
   assertEqual(first.presentationKey, second.presentationKey);
 
-  assertEqual(getMatchupIntroDurationMs(first), 3_000);
+  assertEqual(getMatchupIntroDurationMs(first), 3_300);
 
   const scaled = { startedAtMs: 50, endsAtMs: 3_450 };
   assertEqual(getMatchupIntroDurationMs(scaled), 3_400);

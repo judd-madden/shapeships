@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MatchupIntroViewModel } from '../../client/gameSession/matchupIntro';
 
-export const MATCHUP_INTRO_MOTION_DURATION_MS = 3_500;
-export const MATCHUP_INTRO_SPECIES_STAGGER_MS = 180;
+export const MATCHUP_INTRO_MOTION_DURATION_MS = 3_150;
+export const MATCHUP_INTRO_SPECIES_STAGGER_MS = 150;
 
 export const MATCHUP_INTRO_VISUAL_DURATION_MS =
   MATCHUP_INTRO_MOTION_DURATION_MS + MATCHUP_INTRO_SPECIES_STAGGER_MS;
