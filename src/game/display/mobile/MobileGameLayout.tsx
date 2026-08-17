@@ -56,6 +56,7 @@ interface MobileGameLayoutProps {
   actionPanelVm: ActionPanelViewModel;
   gameStats: GameSessionViewModel['gameStats'];
   viewer: GameSessionViewModel['viewer'];
+  matchupIntro: GameSessionViewModel['matchupIntro'];
   missionChallenge: GameSessionViewModel['missionChallenge'];
   actions: GameSessionActions;
   firstTurnBuildHelperEligible?: boolean;
@@ -112,6 +113,7 @@ export function MobileGameLayout({
   actionPanelVm,
   gameStats,
   viewer,
+  matchupIntro,
   missionChallenge,
   actions,
   firstTurnBuildHelperEligible = false,
@@ -133,6 +135,12 @@ export function MobileGameLayout({
   const [activeShipModalId, setActiveShipModalId] = useState<ShipDefId | null>(null);
   const [isMissionReopenOpen, setIsMissionReopenOpen] = useState(false);
   const [isPostgameMissionOpen, setIsPostgameMissionOpen] = useState(false);
+
+  useEffect(() => {
+    if (matchupIntro) {
+      setActiveTakeover(null);
+    }
+  }, [matchupIntro]);
   const [missionReferenceShipId, setMissionReferenceShipId] =
     useState<ShipDefId | null>(null);
   const [activeSolarModalId, setActiveSolarModalId] =
@@ -840,6 +848,7 @@ export function MobileGameLayout({
               turnPhasesVm={turnPhasesVm}
               turnPhasePresentation={turnPhasePresentation}
               isBattleReveal={isBattleReveal}
+              matchupIntro={matchupIntro}
               firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
               firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
               onFirstTurnBuildHelperDismiss={onFirstTurnBuildHelperDismiss}

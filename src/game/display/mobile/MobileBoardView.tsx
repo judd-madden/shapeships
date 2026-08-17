@@ -8,7 +8,12 @@ import type {
   TurnPhaseVm,
 } from '../../client/useGameSession';
 import type { ShipDefId } from '../../types/ShipTypes.engine';
+import type { MatchupIntroViewModel } from '../../client/gameSession/matchupIntro';
 import { FleetArea, toSpeciesKey } from '../layout/boardStage/FleetArea';
+import {
+  MatchupIntroPlayerOverlay,
+  MatchupIntroVersus,
+} from '../matchup/MatchupIntroPresentation';
 import { usePresentedFleetRevealPulse } from '../layout/boardStage/usePresentedFleetRevealPulse';
 import { MobileStatusRail } from './MobileStatusRail';
 
@@ -21,6 +26,7 @@ interface MobileBoardViewProps {
   turnPhasesVm: TurnPhaseVm;
   turnPhasePresentation: TurnPhasePresentationVm;
   isBattleReveal: boolean;
+  matchupIntro?: MatchupIntroViewModel | null;
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
   onFirstTurnBuildHelperDismiss?: () => void;
@@ -50,6 +56,7 @@ export function MobileBoardView({
   turnPhasesVm,
   turnPhasePresentation,
   isBattleReveal,
+  matchupIntro = null,
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
   onFirstTurnBuildHelperDismiss,
@@ -110,24 +117,39 @@ export function MobileBoardView({
               ? undefined
               : (shipId, anchorEl) => onFleetShipInspect?.(shipId, anchorEl, 'opponent')
           }
+          overlay={matchupIntro ? (
+            <MatchupIntroPlayerOverlay
+              matchupIntro={matchupIntro}
+              player={matchupIntro.opponentPlayer}
+              variant="mobile"
+              direction="from-bottom"
+            />
+          ) : null}
         />
       </div>
-      <MobileStatusRail
-        hudVm={hudVm}
-        boardVm={boardVm}
-        leftRailVm={leftRailVm}
-        turnPhasesVm={turnPhasesVm}
-        turnPhasePresentation={turnPhasePresentation}
-        mobileDiceModifierSlots={boardVm.mobileDiceModifierSlots}
-        firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
-        firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
-        onFirstTurnBuildHelperDismiss={onFirstTurnBuildHelperDismiss}
-        topRowRef={topStatusRowRef}
-        bottomRowRef={bottomStatusRowRef}
-        topStatsAnchorRef={topStatsAnchorRef}
-        bottomStatsAnchorRef={bottomStatsAnchorRef}
-        onStatusRowToggle={onStatusRowToggle}
-      />
+      <div className="relative shrink-0 w-full">
+        <MobileStatusRail
+          hudVm={hudVm}
+          boardVm={boardVm}
+          leftRailVm={leftRailVm}
+          turnPhasesVm={turnPhasesVm}
+          turnPhasePresentation={turnPhasePresentation}
+          mobileDiceModifierSlots={boardVm.mobileDiceModifierSlots}
+          firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
+          firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
+          onFirstTurnBuildHelperDismiss={onFirstTurnBuildHelperDismiss}
+          topRowRef={topStatusRowRef}
+          bottomRowRef={bottomStatusRowRef}
+          topStatsAnchorRef={topStatsAnchorRef}
+          bottomStatsAnchorRef={bottomStatsAnchorRef}
+          onStatusRowToggle={onStatusRowToggle}
+        />
+        {matchupIntro ? (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-hidden select-none">
+            <MatchupIntroVersus matchupIntro={matchupIntro} variant="mobile" />
+          </div>
+        ) : null}
+      </div>
       <div
         aria-label="Player fleet area"
         className="flex flex-1 min-h-0 w-full overflow-visible"
@@ -166,6 +188,14 @@ export function MobileBoardView({
               ? undefined
               : (shipId, anchorEl) => onFleetShipInspect?.(shipId, anchorEl, 'my')
           }
+          overlay={matchupIntro ? (
+            <MatchupIntroPlayerOverlay
+              matchupIntro={matchupIntro}
+              player={matchupIntro.localPlayer}
+              variant="mobile"
+              direction="from-top"
+            />
+          ) : null}
         />
       </div>
     </div>

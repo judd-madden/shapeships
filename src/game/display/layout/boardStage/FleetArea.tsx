@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { FleetAreaHealthDeltaFlashVm } from '../../../client/useGameSession';
 import type {
   AncientSolarDisplayEntry,
@@ -524,6 +525,7 @@ export function FleetArea({
   voidFitMinScale = 0.15,
   voidFitMaxScale = 0.6,
   liveRowOverrides,
+  overlay,
 }: {
   title: string;
   ships?: FleetStackVm[];
@@ -558,6 +560,7 @@ export function FleetArea({
   voidFitMinScale?: number;
   voidFitMaxScale?: number;
   liveRowOverrides?: FleetRowOverrides;
+  overlay?: ReactNode;
 }) {
   const rowSets = ROW_SETS_BY_SPECIES[species];
   const grouped =
@@ -922,6 +925,18 @@ export function FleetArea({
           </div>
         ) : null}
       </div>
+
+      {overlay ? (
+        <div
+          aria-hidden="true"
+          data-side={side}
+          className="ss-matchup-overlay-mask pointer-events-none absolute inset-y-0 z-20 overflow-hidden select-none"
+        >
+          <div className="ss-matchup-overlay-coordinate-frame absolute inset-y-0">
+            {overlay}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

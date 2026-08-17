@@ -19,6 +19,7 @@ import type {
   FixedAncientManualSolarPowerId,
 } from './ancientChargeDeclaration';
 import type { AncientSolarHoverValue } from './ancientSolarHoverValues';
+import type { MatchupIntroViewModel } from './matchupIntro';
 
 export type ReadySendingKind = 'default' | 'ancient-autocast';
 
@@ -863,6 +864,7 @@ export interface ActionPanelViewModel {
 export interface GameSessionViewModel {
   isBootstrapping: boolean; // true until valid server state with valid phaseKey
   viewer: GameSessionViewerViewModel;
+  matchupIntro: MatchupIntroViewModel | null;
   missionChallenge: MissionChallengeViewModel | null;
   gameStats: GameStatsViewModel | null;
   turnPhases: TurnPhaseVm;

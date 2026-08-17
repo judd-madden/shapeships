@@ -1067,3 +1067,426 @@ html:not(.app-ready) #root {
         animation: none;
     }
 }
+
+/* ============================================================================
+   Phase 15I: in-board multiplayer matchup presentation
+   Display-owned duration: 4s. Local playback always starts at 0.
+
+   Motion:
+   - one continuous heavily eased approach to Fleet centre
+   - exact Fleet centre reached at 82%
+   - immediate fast reverse from 82-100%
+   - no overshoot / apex drift
+   - player stacks use a quick fade instead of masking at Fleet edges
+   - species inherits parent movement and appears ~200ms later
+   ========================================================================== */
+
+/* ============================================================================
+   Matchup overlay mask geometry
+
+   Mobile:
+   Mask remains bounded to the real Fleet area.
+
+   Desktop:
+   The mask extends from the Fleet through half of the centre stats column,
+   so its centre-facing clipping edge lands on the true board centre line.
+
+   The nested coordinate frame remains the original Fleet width, so:
+   - 0% / 100% positions still mean "just outside the Fleet"
+   - 50% still means exact Fleet centre
+   - text fitting still uses Fleet width
+   ========================================================================== */
+
+
+.ss-matchup-overlay-mask {
+    left: 8px;
+    right: 8px;
+}
+
+
+.ss-matchup-overlay-coordinate-frame {
+    left: 0;
+    right: 0;
+}
+
+
+/* Desktop / laptop:
+   Board centre column = 200px
+   Board gap from Fleet to centre column = 8px
+
+   Fleet edge -> true board centre:
+   8px + 100px = 108px
+*/
+@media (min-width: 768px) and (max-width: 1599px) {
+    .ss-matchup-overlay-mask[data-side='my'] {
+        right: -108px;
+    }
+
+    .ss-matchup-overlay-mask[data-side='my']
+    .ss-matchup-overlay-coordinate-frame {
+        left: 0;
+        right: 108px;
+    }
+
+
+    .ss-matchup-overlay-mask[data-side='opponent'] {
+        left: -108px;
+    }
+
+    .ss-matchup-overlay-mask[data-side='opponent']
+    .ss-matchup-overlay-coordinate-frame {
+        left: 108px;
+        right: 0;
+    }
+}
+
+
+/* Large desktop:
+   Board centre column = 230px
+   Board gap from Fleet to centre column = 8px
+
+   Fleet edge -> true board centre:
+   8px + 115px = 123px
+*/
+@media (min-width: 1600px) {
+    .ss-matchup-overlay-mask[data-side='my'] {
+        right: -123px;
+    }
+
+    .ss-matchup-overlay-mask[data-side='my']
+    .ss-matchup-overlay-coordinate-frame {
+        left: 0;
+        right: 123px;
+    }
+
+
+    .ss-matchup-overlay-mask[data-side='opponent'] {
+        left: -123px;
+    }
+
+    .ss-matchup-overlay-mask[data-side='opponent']
+    .ss-matchup-overlay-coordinate-frame {
+        left: 123px;
+        right: 0;
+    }
+}
+
+/* --------------------------------------------------------------------------
+   Main Bezier Timing
+   -------------------------------------------------------------------------- */
+.ss-matchup-player,
+.ss-matchup-vs {
+    --ss-matchup-entry-easing: cubic-bezier(.24,.74,.28,1);
+    --ss-matchup-return-easing: cubic-bezier(0.05, 1, 0.1, 1);
+
+    pointer-events: none;
+    user-select: none;
+    color: white;
+}
+
+
+/* --------------------------------------------------------------------------
+   Player stack
+   -------------------------------------------------------------------------- */
+
+
+.ss-matchup-player {
+    position: absolute;
+    display: flex;
+    width: calc(100% - 32px);
+    min-width: 0;
+
+    align-items: center;
+    justify-content: center;
+
+    animation-name: ssMatchupTravel;
+    animation-duration: var(--ss-matchup-duration);
+    animation-fill-mode: both;
+
+    will-change: left, top, transform;
+}
+
+
+.ss-matchup-player-stack {
+    display: flex;
+    width: 100%;
+    min-width: 0;
+
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+    animation: ssMatchupPlayerFade var(--ss-matchup-duration) linear both;
+}
+
+
+.ss-matchup-line {
+    min-width: 0;
+}
+
+
+/* --------------------------------------------------------------------------
+   Static shadow offsets
+
+   Shadows are welded to their text owner.
+   They do not animate independently.
+   -------------------------------------------------------------------------- */
+
+
+.ss-matchup-player--desktop .ss-matchup-name-shadow,
+.ss-matchup-player--desktop .ss-matchup-species-shadow,
+.ss-matchup-vs--desktop .ss-matchup-vs-shadow {
+    transform: translate(5px, 5px);
+}
+
+
+.ss-matchup-player--mobile .ss-matchup-name-shadow,
+.ss-matchup-vs--mobile .ss-matchup-vs-shadow {
+    transform: translate(3px, 3px);
+}
+
+
+.ss-matchup-player--mobile .ss-matchup-species-shadow {
+    transform: translate(2px, 2px);
+}
+
+
+/* --------------------------------------------------------------------------
+   Direction variables
+
+   All four directions share one travel animation.
+   -------------------------------------------------------------------------- */
+
+
+.ss-matchup-player--from-right {
+    --ss-start-left: 100%;
+    --ss-start-top: 50%;
+    --ss-start-x: 0%;
+    --ss-start-y: -50%;
+}
+
+
+.ss-matchup-player--from-left {
+    --ss-start-left: 0%;
+    --ss-start-top: 50%;
+    --ss-start-x: -100%;
+    --ss-start-y: -50%;
+}
+
+
+.ss-matchup-player--from-bottom {
+    --ss-start-left: 50%;
+    --ss-start-top: 100%;
+    --ss-start-x: -50%;
+    --ss-start-y: 0%;
+}
+
+
+.ss-matchup-player--from-top {
+    --ss-start-left: 50%;
+    --ss-start-top: 0%;
+    --ss-start-x: -50%;
+    --ss-start-y: -100%;
+}
+
+
+/* --------------------------------------------------------------------------
+   Main travel
+
+   0-82%:
+   A single extreme ease-out does all the work.
+
+   With cubic-bezier(0.05, 1, 0.1, 1), roughly 90% of the physical journey
+   is already complete around 18% of the total animation, after which the
+   text smoothly converges on the exact Fleet centre.
+
+   82-100%:
+   Immediate reverse using the same fast easing character.
+   -------------------------------------------------------------------------- */
+
+
+@keyframes ssMatchupTravel {
+    0% {
+        left: var(--ss-start-left);
+        top: var(--ss-start-top);
+
+        transform: translate(
+            var(--ss-start-x),
+            var(--ss-start-y)
+        );
+
+        animation-timing-function: var(--ss-matchup-entry-easing);
+    }
+
+    82% {
+        left: 50%;
+        top: 50%;
+
+        transform: translate(-50%, -50%);
+
+        animation-timing-function: var(--ss-matchup-return-easing);
+    }
+
+    100% {
+        left: var(--ss-start-left);
+        top: var(--ss-start-top);
+
+        transform: translate(
+            var(--ss-start-x),
+            var(--ss-start-y)
+        );
+    }
+}
+
+
+/* --------------------------------------------------------------------------
+   Player fade
+
+   The stack fades up quickly, remains fully visible for almost the entire
+   sequence, then fades quickly before reaching its final start position.
+   -------------------------------------------------------------------------- */
+
+
+@keyframes ssMatchupPlayerFade {
+    0% {
+        opacity: 0;
+    }
+
+    16% {
+        opacity: 0;
+    }
+
+    24% {
+        opacity: 1;
+    }
+
+    82% {
+        opacity: 1;
+    }
+
+    94%,
+    100% {
+        opacity: 0;
+    }
+}
+
+
+/* --------------------------------------------------------------------------
+   Species stagger
+
+   Name and species are independent moving layers.
+
+   Both use the exact same:
+   - ssMatchupTravel
+   - 4s motion duration
+   - entry easing
+   - apex timing
+   - return easing
+   - player fade
+
+   species runs the same independent motion, staggered by 250ms
+   -------------------------------------------------------------------------- */
+
+
+.ss-matchup-player--species {
+    animation-delay: var(--ss-matchup-species-delay);
+}
+
+
+.ss-matchup-player--species .ss-matchup-player-stack {
+    animation-delay: var(--ss-matchup-species-delay);
+}
+
+
+/* --------------------------------------------------------------------------
+   VS
+
+   Keep the existing centre mask treatment for VS.
+   -------------------------------------------------------------------------- */
+
+
+.ss-matchup-vs {
+    animation: ssMatchupVs var(--ss-matchup-duration) both;
+}
+
+
+@keyframes ssMatchupVs {
+    0%,
+    30% {
+        clip-path: inset(100% 0 0 0);
+    }
+
+    46%,
+    82% {
+        clip-path: inset(0 0 0 0);
+    }
+
+    94%,
+    100% {
+        clip-path: inset(0 0 100% 0);
+    }
+}
+
+
+/* --------------------------------------------------------------------------
+   Reduced motion
+   -------------------------------------------------------------------------- */
+
+
+.ss-matchup-player[data-reduced-motion='true'] {
+    animation-name: ssMatchupReducedPlayer;
+}
+
+
+.ss-matchup-player[data-reduced-motion='true'] .ss-matchup-player-stack {
+    animation: none;
+}
+
+
+.ss-matchup-vs[data-reduced-motion='true'] {
+    animation-name: ssMatchupReducedVs;
+}
+
+
+@keyframes ssMatchupReducedPlayer {
+    0% {
+        left: 50%;
+        top: 50%;
+        opacity: 0;
+        transform: translate(-50%, -50%);
+    }
+
+    8%,
+    85% {
+        left: 50%;
+        top: 50%;
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+
+    100% {
+        left: 50%;
+        top: 50%;
+        opacity: 0;
+        transform: translate(-50%, -50%);
+    }
+}
+
+
+@keyframes ssMatchupReducedVs {
+    0% {
+        opacity: 0;
+        clip-path: none;
+    }
+
+    8%,
+    85% {
+        opacity: 1;
+        clip-path: none;
+    }
+
+    100% {
+        opacity: 0;
+        clip-path: none;
+    }
+}

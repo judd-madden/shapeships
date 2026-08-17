@@ -16,9 +16,15 @@ import { useFleetShipHover } from './boardStage/useFleetShipHover';
 import { BoardStatBreakdownHoverCard } from './boardStage/BoardStatBreakdownHoverCard';
 import { useBoardStatHover, type BoardStatHoverKey } from './boardStage/useBoardStatHover';
 import { usePresentedFleetRevealPulse } from './boardStage/usePresentedFleetRevealPulse';
+import {
+  MatchupIntroPlayerOverlay,
+  MatchupIntroVersus,
+} from '../matchup/MatchupIntroPresentation';
+import type { MatchupIntroViewModel } from '../../client/gameSession/matchupIntro';
 
 interface BoardStageProps {
   vm: BoardViewModel;
+  matchupIntro: MatchupIntroViewModel | null;
   actions: GameSessionActions;
   phaseKey: string;
 }
@@ -258,7 +264,7 @@ function StatTripletRow({
   );
 }
 
-export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
+export function BoardStage({ vm, matchupIntro, actions, phaseKey }: BoardStageProps) {
   const isBattleReveal = phaseKey === 'battle.reveal';
   const fleetHover = useFleetShipHover();
   const statHover = useBoardStatHover();
@@ -361,6 +367,14 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
         onFleetHoverEnter={fleetHover.onEnter}
         onFleetHoverLeave={fleetHover.onLeave}
         turnPulse={leftRevealPulse}
+        overlay={matchupIntro ? (
+          <MatchupIntroPlayerOverlay
+            matchupIntro={matchupIntro}
+            player={matchupIntro.localPlayer}
+            variant="desktop"
+            direction="from-right"
+          />
+        ) : null}
       />
 
       <div
@@ -603,6 +617,14 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
             </div>
           </div>
         </div>
+
+        {matchupIntro ? (
+          <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-hidden select-none">
+            <div className="-translate-y-[29px]">
+              <MatchupIntroVersus matchupIntro={matchupIntro} variant="desktop" />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <FleetArea 
@@ -625,6 +647,14 @@ export function BoardStage({ vm, actions, phaseKey }: BoardStageProps) {
         onFleetHoverEnter={fleetHover.onEnter}
         onFleetHoverLeave={fleetHover.onLeave}
         turnPulse={rightRevealPulse}
+        overlay={matchupIntro ? (
+          <MatchupIntroPlayerOverlay
+            matchupIntro={matchupIntro}
+            player={matchupIntro.opponentPlayer}
+            variant="desktop"
+            direction="from-left"
+          />
+        ) : null}
       />
 
       {fleetHover.presentState.activeShipId && fleetHover.presentState.anchorRect ? (

@@ -23,6 +23,7 @@ import { MainStage } from './layout/MainStage';
 import { StarsBackground } from './graphics/StarsBackground';
 import { MobileGameLayout } from './mobile/MobileGameLayout';
 import { useMobileGameLayout } from './mobile/useMobileGameLayout';
+import { useMatchupIntroPresentation } from './matchup/useMatchupIntroPresentation';
 
 const FIRST_TURN_BUILD_HELPER_FADE_MS = 150;
 const SOUND_ENABLED_STORAGE_KEY = 'shapeships.soundEnabled.v1';
@@ -68,7 +69,18 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
   });
   const isMobileGameLayout = useMobileGameLayout();
   const isMobileLandscapeBlocked = useMobileLandscapeBlocker();
-  const firstTurnBuildHelper = useFirstTurnBuildHelper(gameId, vm, actions.onReadyToggle);
+  const isFinished = Boolean(vm.actionPanel.endOfGame);
+  const presentedMatchupIntro = useMatchupIntroPresentation({
+    gameId,
+    authoritativeMatchupIntro: vm.matchupIntro,
+    isFinished,
+  });
+  const firstTurnBuildHelper = useFirstTurnBuildHelper(
+    gameId,
+    vm,
+    actions.onReadyToggle,
+    presentedMatchupIntro === null
+  );
   const voidShipInstanceIds = useMemo(() => {
     if (vm.board.mode !== 'board') {
       return undefined;
@@ -84,7 +96,6 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
     onReadyToggle: firstTurnBuildHelper.handleReadyToggle,
   };
 
-  const isFinished = Boolean(vm.actionPanel.endOfGame);
   const celebrateOnFinish = isFinished;
 
   useEffect(() => {
@@ -179,6 +190,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             actionPanelVm={vm.actionPanel}
             gameStats={vm.gameStats}
             viewer={vm.viewer}
+            matchupIntro={presentedMatchupIntro}
             missionChallenge={vm.missionChallenge}
             actions={mainStageActions}
             firstTurnBuildHelperEligible={firstTurnBuildHelper.firstTurnBuildHelperEligible}
@@ -223,6 +235,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             actionPanelVm={vm.actionPanel}
             gameStats={vm.gameStats}
             viewer={vm.viewer}
+            matchupIntro={presentedMatchupIntro}
             missionChallenge={vm.missionChallenge}
             actions={mainStageActions}
             soundEnabled={soundEnabled}
@@ -269,7 +282,8 @@ function useMobileLandscapeBlocker(): boolean {
 function useFirstTurnBuildHelper(
   gameId: string,
   vm: GameSessionViewModel,
-  onReadyToggle: () => void
+  onReadyToggle: () => void,
+  matchupPresentationComplete: boolean
 ) {
   const [hasDismissedFirstTurnBuildHelper, setHasDismissedFirstTurnBuildHelper] = useState(false);
   const [firstTurnBuildHelperDismissSignal, setFirstTurnBuildHelperDismissSignal] = useState(0);
@@ -280,6 +294,7 @@ function useFirstTurnBuildHelper(
   const phaseKey = vm.actionPanel.menu.phaseKey;
   const firstTurnBuildHelperEligible =
     vm.board.mode !== 'choose_species' &&
+    matchupPresentationComplete &&
     vm.leftRail.turn === 1 &&
     typeof phaseKey === 'string' &&
     phaseKey.startsWith('build.') &&

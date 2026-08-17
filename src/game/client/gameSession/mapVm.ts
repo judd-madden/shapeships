@@ -159,6 +159,7 @@ function getProjectedActionButtons(args: {
 export function mapGameSessionVm(args: {
   isBootstrapping: boolean;
   viewer: GameSessionViewModel['viewer'];
+  matchupIntro: GameSessionViewModel['matchupIntro'];
   missionChallenge: GameSessionViewModel['missionChallenge'];
 
   me: any;
@@ -293,6 +294,7 @@ export function mapGameSessionVm(args: {
   const {
     isBootstrapping,
     viewer,
+    matchupIntro,
     missionChallenge,
     me,
     opponent,
@@ -1413,6 +1415,7 @@ export function mapGameSessionVm(args: {
   const vm: GameSessionViewModel = {
     isBootstrapping,
     viewer,
+    matchupIntro,
     missionChallenge,
     gameStats,
     turnPhases,

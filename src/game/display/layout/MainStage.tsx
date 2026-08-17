@@ -40,6 +40,7 @@ interface MainStageProps {
   actionPanelVm: ActionPanelViewModel;
   gameStats: GameSessionViewModel['gameStats'];
   viewer: GameSessionViewModel['viewer'];
+  matchupIntro: GameSessionViewModel['matchupIntro'];
   missionChallenge: GameSessionViewModel['missionChallenge'];
   actions: GameSessionActions;
   soundEnabled: boolean;
@@ -59,6 +60,7 @@ export function MainStage({
   actionPanelVm, 
   gameStats,
   viewer,
+  matchupIntro,
   missionChallenge,
   actions,
   soundEnabled,
@@ -311,7 +313,12 @@ export function MainStage({
         <TopHud vm={hudVm} />
 
         {/* Board Stage */}
-        <BoardStage vm={boardVm} actions={actions} phaseKey={actionPanelVm.menu.phaseKey} />
+        <BoardStage
+          vm={boardVm}
+          matchupIntro={matchupIntro}
+          actions={actions}
+          phaseKey={actionPanelVm.menu.phaseKey}
+        />
 
         {isGameStatsOpen && gameStats ? (
           <div className="absolute left-0 right-0 top-[100px] bottom-[-170px] z-40 flex items-stretch justify-center ">

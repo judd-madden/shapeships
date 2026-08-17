@@ -139,6 +139,7 @@ import {
   type ResolvedFleetActivationEvent,
 } from './gameSession/clienteffects/useFleetAnimTokens';
 import { useUntimedPollingThrottle } from './gameSession/clienteffects/useUntimedPollingThrottle';
+import { deriveMatchupIntroViewModel } from './gameSession/matchupIntro';
 import {
   buildPhaseHoldSignature,
   useEndOfTurnPresentation,
@@ -1722,6 +1723,10 @@ export function useGameSession(
           (
             returnedPhaseHoldPhaseKey === 'battle.reveal' &&
             returnedPhaseHoldReason === 'battle_reveal'
+          ) ||
+          (
+            returnedPhaseHoldPhaseKey === 'setup.species_selection' &&
+            returnedPhaseHoldReason === 'matchup_intro'
           );
         const returnedHoldSignature =
           returnedPhaseHold &&
@@ -3926,12 +3931,22 @@ useEffect(() => {
   const isSpeciesConfirmedForDisplay =
     isSpeciesSelectionComplete ||
     Boolean(activePendingSpeciesConfirmation?.isComputerGame);
+  const rawPhaseHold = getPhaseHold(rawState);
+  const matchupIntroVm = deriveMatchupIntroViewModel({
+    gameId: effectiveGameId,
+    isFinished,
+    isPlayerViewer: isViewerPlayer,
+    phaseKey,
+    phaseHold: rawPhaseHold,
+    localPlayer: me,
+    opponentPlayer: opponent,
+  });
 
   // Compute board mode based on server phase
   let board: BoardViewModel;
   let boardEconomyPresentation: TurnStartEconomyPresentation<BoardStatBreakdownRowVm> | null = null;
 
-  if (isInSpeciesSelection) {
+  if (isInSpeciesSelection && matchupIntroVm === null) {
     // Choose species mode
     const shareGameUrl = effectiveGameId ? buildShareGameUrl(effectiveGameId) : '';
 
@@ -4185,7 +4200,6 @@ useEffect(() => {
     };
   }
 
-  const rawPhaseHold = getPhaseHold(rawState);
   const authoritativeHoldPhaseKey =
     rawPhaseHold && typeof rawPhaseHold === 'object' && typeof rawPhaseHold.phaseKey === 'string'
       ? rawPhaseHold.phaseKey
@@ -5341,7 +5355,6 @@ useEffect(() => {
       missionChallenge: normalizedMissionChallenge,
     }),
   });
-  
   const vm: GameSessionViewModel = mapGameSessionVm({
     isBootstrapping,
     viewer: {
@@ -5351,6 +5364,7 @@ useEffect(() => {
       p1Name: p1?.name ?? 'Player 1',
       p2Name: p2?.name ?? 'Player 2',
     },
+    matchupIntro: matchupIntroVm,
     missionChallenge: missionChallengeVm,
 
     me,
@@ -6834,6 +6848,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         p1Name: 'Player 1',
         p2Name: 'Player 2',
       },
+      matchupIntro: null,
       missionChallenge: null,
       gameStats: null,
       turnPhases: {

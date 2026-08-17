@@ -128,6 +128,8 @@ import {
   MISSION_INTRO_GATE_ENABLED,
 } from '../mission/MissionChallenge.ts';
 
+export const MATCHUP_INTRO_DURATION_MS = 3000;
+
 export interface IntentRequest {
   gameId: string;
   intentType: IntentType;
@@ -202,8 +204,40 @@ function getCurrentPhaseHold(state: any) {
   return phaseHold && typeof phaseHold === 'object' ? phaseHold : null;
 }
 
-function isSupportedPhaseHoldReason(holdReason: unknown): holdReason is 'end_of_turn_health' | 'battle_reveal' {
-  return holdReason === 'end_of_turn_health' || holdReason === 'battle_reveal';
+function isSupportedPhaseHoldReason(
+  holdReason: unknown,
+): holdReason is 'end_of_turn_health' | 'battle_reveal' | 'matchup_intro' {
+  return holdReason === 'end_of_turn_health' ||
+    holdReason === 'battle_reveal' ||
+    holdReason === 'matchup_intro';
+}
+
+function isCurrentMatchupIntroHold(state: any): boolean {
+  const phaseHold = getCurrentPhaseHold(state);
+  return getPhaseKey(state) === 'setup.species_selection' &&
+    phaseHold?.phaseKey === 'setup.species_selection' &&
+    phaseHold?.holdReason === 'matchup_intro';
+}
+
+function isAllowedWhileMatchupIntroHeld(
+  state: any,
+  playerId: string,
+  intent: IntentRequest,
+): boolean {
+  if (intent.intentType === 'CONTINUE_PHASE_HOLD' || intent.intentType === 'SURRENDER') {
+    return true;
+  }
+
+  if (intent.intentType === 'ACTION') {
+    return intent.payload?.actionType === 'message';
+  }
+
+  if (intent.intentType === 'SPECIES_SUBMIT') {
+    const player = state?.players?.find((candidate: any) => candidate?.id === playerId);
+    return player?.faction != null && intent.payload?.species === player.faction;
+  }
+
+  return false;
 }
 
 function getEffectEventsFromOutcomeEvents(events: any[] | undefined): EffectEvent[] {
@@ -897,6 +931,21 @@ export async function applyIntent(
     }
   }
 
+  if (
+    isCurrentMatchupIntroHold(state) &&
+    !isAllowedWhileMatchupIntroHeld(state, sessionPlayerId, intent)
+  ) {
+    return {
+      ok: false,
+      state,
+      events: [],
+      rejected: {
+        code: RejectionCode.PHASE_NOT_ALLOWED,
+        message: 'Only matchup continuation, chat, surrender, or an idempotent species retry is allowed during the matchup intro',
+      },
+    };
+  }
+
   const missionAssignment = state.missionChallengeAssignment;
   const isAssignedPendingHuman =
     MISSION_INTRO_GATE_ENABLED &&
@@ -972,6 +1021,7 @@ export async function applyIntent(
     const allowedInSpeciesSelection = new Set([
       'SPECIES_SUBMIT',
       'MISSION_INTRO_ACK',
+      'CONTINUE_PHASE_HOLD',
       'ACTION',        // ✅ allow chat at all times
       'SURRENDER',   // optional, if you want resign to work during setup
     ]);
@@ -983,7 +1033,7 @@ export async function applyIntent(
         events: [],
         rejected: {
           code: RejectionCode.PHASE_NOT_ALLOWED,
-          message: `Intent ${intent.intentType} not allowed during setup.species_selection. Allowed: SPECIES_SUBMIT, MISSION_INTRO_ACK, ACTION, SURRENDER`
+          message: `Intent ${intent.intentType} not allowed during setup.species_selection. Allowed: SPECIES_SUBMIT, MISSION_INTRO_ACK, CONTINUE_PHASE_HOLD, ACTION, SURRENDER`
         }
       };
     }
@@ -1682,6 +1732,30 @@ async function handleSpeciesSubmit(
       turnNumber: intent.turnNumber,
       atMs: nowMs
     });
+
+    const isNormalMultiplayer = activePlayers.length === 2 && getComputerBotSeat(state) === null;
+
+    if (isNormalMultiplayer) {
+      if (!state.gameData.turnData) {
+        state.gameData.turnData = {};
+      }
+
+      if (!isCurrentMatchupIntroHold(state)) {
+        state.gameData.turnData.phaseHold = {
+          phaseKey: 'setup.species_selection',
+          holdReason: 'matchup_intro',
+          holdStartedAtMs: nowMs,
+          holdUntilMs: nowMs + MATCHUP_INTRO_DURATION_MS,
+        };
+      }
+
+      state = syncPhaseFields(state);
+      return {
+        ok: true,
+        state,
+        events,
+      };
+    }
     
     // Advance phase
     const fromKey = phaseKey;

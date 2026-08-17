@@ -127,6 +127,14 @@ export function ensurePlayerClock(
  * If false, clocks pause (but lastUpdateAtMs is updated to prevent back-charging)
  */
 export function clocksAreLive(state: any): boolean {
+  const phaseHold = state?.gameData?.turnData?.phaseHold;
+  if (
+    phaseHold?.phaseKey === 'setup.species_selection' &&
+    phaseHold?.holdReason === 'matchup_intro'
+  ) {
+    return false;
+  }
+
   if (
     MISSION_INTRO_GATE_ENABLED &&
     state?.missionChallengeAssignment?.introPending === true

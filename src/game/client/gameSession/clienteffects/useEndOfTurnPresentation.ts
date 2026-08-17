@@ -404,8 +404,33 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
           }),
         }
       : null;
+  const matchupIntroAuthoritativePhaseHold: AuthoritativePhaseHoldVm | null =
+    effectiveGameId &&
+    hasMatchingAuthoritativeGameId &&
+    !isBootstrapping &&
+    healthPresentation.viewerRole === 'player' &&
+    phaseKey === 'setup.species_selection' &&
+    authoritativeHoldPhaseKey === 'setup.species_selection' &&
+    authoritativeHoldReason === 'matchup_intro' &&
+    typeof authoritativeHoldUntilMs === 'number'
+      ? {
+          phaseKey: authoritativeHoldPhaseKey,
+          holdReason: authoritativeHoldReason,
+          holdUntilMs: authoritativeHoldUntilMs,
+          turnNumber,
+          signature: buildPhaseHoldSignature({
+            gameId: effectiveGameId,
+            turnNumber,
+            phaseKey: authoritativeHoldPhaseKey,
+            holdReason: authoritativeHoldReason,
+            holdUntilMs: authoritativeHoldUntilMs,
+          }),
+        }
+      : null;
   const authoritativePhaseHold =
-    healthAuthoritativePhaseHold ?? battleRevealAuthoritativePhaseHold;
+    matchupIntroAuthoritativePhaseHold ??
+    healthAuthoritativePhaseHold ??
+    battleRevealAuthoritativePhaseHold;
 
   const healthAuthoritativeHoldActive = healthAuthoritativePhaseHold != null;
   const healthResolutionLockActive = healthAuthoritativeHoldActive;
