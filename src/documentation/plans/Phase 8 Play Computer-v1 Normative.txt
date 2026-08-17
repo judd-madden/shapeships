@@ -1,0 +1,593 @@
+Play Computer Mode — Human Bot v1
+Normative Planning Document
+
+Project: Shapeships
+Status: Normative planning document
+Scope: server-authoritative solo Human-vs-bot mode, plus the minimal frontend pathway required to create and test bot games in the real shell flow
+
+If later implementation instructions conflict with this document, this document wins unless explicitly superseded.
+
+-------------------------------------------------------------------------------
+1. Purpose
+-------------------------------------------------------------------------------
+
+This document defines the first formal implementation shape for Play Computer mode in Shapeships.
+
+Its purpose is to:
+- add a real solo game path that uses the normal authoritative game engine
+- keep the bot as a server-controlled player seat rather than a separate rules system
+- keep the first bot intentionally simple and plan-driven
+- support straightforward upgraded Human build targets in the first version
+- include the minimal frontend entry path needed to create and test bot games end to end
+- establish a compact bot-plan language that can be extended later without rewriting core bot logic
+
+This first version is not intended to be “AI” in the search / simulation sense.
+It is intended to be a clean, deterministic, authorable opponent that behaves coherently and is easy to expand.
+
+-------------------------------------------------------------------------------
+2. Architectural stance
+-------------------------------------------------------------------------------
+
+2.1 Server authority remains unchanged
+
+Play Computer mode must preserve the existing Shapeships architectural invariants:
+- the server remains authoritative for legality, combat outcomes, phase progression, effect application, and canonical game state
+- the client remains non-authoritative and must not become a second rules engine
+- display code remains presentation-only
+
+The bot must fit inside the existing authoritative game model rather than creating a parallel solo-rules path.
+
+2.2 Bot is a controller, not a separate game system
+
+The game still runs as a normal Shapeships match.
+One seat is simply controlled by server-side bot logic.
+
+This means Play Computer mode uses:
+- the normal phase model
+- the normal reducer / authoritative game logic
+- the normal build submission path
+- the normal reveal / readiness model
+- the normal battle resolution
+- the normal game-history / battle-log posture
+
+2.3 Bot is server-side, not client-side
+
+The bot must live on the server.
+It must not be implemented in browser state, in useGameSession, or in display-layer code.
+
+Reasons:
+- keeps legality authoritative
+- avoids hidden-information leaks
+- avoids client/server drift
+- avoids duplicate rules implementations
+- fits the existing ownership boundaries cleanly
+
+2.4 Bot must not call the server’s own HTTP endpoints
+
+The bot must use the same internal authoritative intent / reducer path as a human action would ultimately use, but it must not literally make HTTP requests back into the same server.
+
+This is required to keep the system:
+- cheaper
+- simpler
+- more deterministic
+- easier to debug
+
+-------------------------------------------------------------------------------
+3. Scope summary
+-------------------------------------------------------------------------------
+
+3.1 In scope for Human Bot v1
+
+- frontend shell entry at the same level as Multiplayer
+- minimal bot-game setup screen in the shell flow
+- one human seat vs one bot-controlled seat
+- Human bot only
+- plan-driven bot species selection
+- plan-driven build.drawing behavior
+- plan-driven build.ships_that_build behavior for supported ships
+- auto-ready through unsupported or no-choice phases
+- straightforward upgraded Human ships allowed as plan targets when they do not require extra choice logic
+- small initial set of example Human plans
+
+3.2 Out of scope for Human Bot v1
+
+- search / minimax / simulation AI
+- local browser bot logic
+- bot execution triggered by read polling
+- full all-species support
+- difficulty system
+- campaign / progression / rewards
+- full support for every charge / targeting / trigger ship in the first pass
+- special UI for bot “thinking”
+- broad frontend redesign beyond the minimal entry path and setup screen
+
+-------------------------------------------------------------------------------
+4. Frontend entry path (required early)
+-------------------------------------------------------------------------------
+
+A real frontend pathway to create bot games is in scope for this planning document and should be treated as an early implementation requirement.
+This is necessary so bot games can be entered and tested through the normal product flow rather than through ad hoc development-only seams.
+
+4.1 Main menu entry
+
+Add a new top-level shell menu item:
+- PLAY COMPUTER
+
+This item must sit at the same navigation level as MULTIPLAYER.
+It must reuse the existing menu button styling, hover behavior, selected state, and shell patterns.
+
+4.2 Bot setup screen
+
+Clicking PLAY COMPUTER should navigate to a screen that is effectively a sibling of the Create Private Game flow.
+
+This screen should:
+- reuse the current overall structure and patterns of CreatePrivateGame as much as practical
+- support the same time-control concepts
+- include a Not timed option
+- adjust copy and labels appropriately for human-vs-bot setup
+- launch a game with one bot-controlled seat instead of a second human seat
+
+This screen does not need a bespoke solo architecture.
+It should remain a light adaptation of existing create-game flow.
+
+4.3 Recommended first setup fields
+
+The first setup screen should be sufficient to launch and test real bot games.
+A recommended initial field set is:
+- Not timed
+- Timed
+- minutes per player
+- increment per turn
+- optional plan selection for testing, or Random Human Plan if plan selection is intentionally deferred
+
+4.4 Species-selection posture
+
+Unless implementation proves otherwise, species selection should remain in the normal in-game flow rather than being front-loaded into the bot setup screen.
+
+This avoids inventing a separate solo-game rules/setup architecture and keeps Play Computer aligned with existing match flow.
+
+-------------------------------------------------------------------------------
+5. Bot controller model
+-------------------------------------------------------------------------------
+
+5.1 Seat control model
+
+A game should represent seat control explicitly.
+Conceptually:
+- a human-controlled seat
+- a bot-controlled seat
+
+A bot-controlled seat must carry enough metadata to determine:
+- that the seat is a bot
+- which species the bot is using for this version
+- which plan the bot has selected
+
+5.2 First-version species limit
+
+Human is the only supported bot species in this first version.
+
+This restriction is deliberate.
+It keeps the first bot pass narrow while still allowing meaningful variety through multiple Human plans.
+
+-------------------------------------------------------------------------------
+6. Bot behavior model
+-------------------------------------------------------------------------------
+
+6.1 Plans are data, not code
+
+The bot’s behavior must primarily come from authored plan data.
+Core bot logic should stay small and generic.
+
+This is a locked design choice for v1.
+Future content expansion should mainly involve adding or refining plans, not repeatedly rewriting core bot logic.
+
+6.2 No persistent fragile step pointer
+
+The bot must not rely on a mutable persistent step pointer such as:
+- currentStepIndex
+- nextShipId
+- remembered next planned target
+
+Instead, each decision must be made from fresh authoritative state by scanning the chosen plan from the top.
+
+This keeps the bot robust against:
+- plan edits
+- fleet changes
+- future destroy / steal / transfer effects
+- stale assumptions across phase changes
+
+6.3 Phase-by-phase posture
+
+setup.species_selection
+- bot chooses the plan’s species and follows the normal species flow
+
+build.ships_that_build
+- bot reads supported legal choices for eligible ships
+- bot applies per-ship Ships That Build policy
+- bot submits the corresponding internal authoritative action(s)
+
+build.drawing
+- bot generates one build draft from fresh authoritative state plus the chosen plan
+- bot submits that draft through the normal authoritative build path
+
+unsupported or no-choice battle phases
+- bot readies through them cleanly
+
+later battle-choice support
+- may be added through the same framework in later passes
+
+-------------------------------------------------------------------------------
+7. Supported Human ship posture for v1
+-------------------------------------------------------------------------------
+
+7.1 Strong early Human targets
+
+The first Human bot version may target straightforward Human ships such as:
+- DEF
+- FIG
+- COM
+- ORB
+- CAR
+- TAC
+- BAT
+- DRE
+- EAR
+- LEV
+- SCI if useful
+
+These are acceptable because they are mostly straightforward automatic-effect ships or simple build goals.
+
+7.2 Deferred early battle-choice ships
+
+The following are intentionally deferrable in the first bot slices:
+- INT
+- GUA
+- FRI
+
+Reason:
+These widen the policy layer through charge choice, targeting, or trigger-number logic.
+They are not out of scope forever, but they are not required for the first playable bot pass.
+
+7.3 Straightforward upgraded ships are allowed in v1
+
+Straightforward upgraded Human ships are explicitly in scope as plan targets in v1 when they do not require extra custom choice handling.
+
+Examples include:
+- TAC
+- BAT
+- DRE
+- EAR
+- LEV
+
+This is a locked interpretation.
+The bot should be allowed to target upgraded ships whose authoritative legality, component requirements, joining requirements, and consumption are already owned by the server.
+The bot should aim toward the upgraded target; it should not reimplement those rules itself.
+
+-------------------------------------------------------------------------------
+8. Bot-plan language
+-------------------------------------------------------------------------------
+
+The first bot-plan language must stay small, readable, and extensible.
+
+8.1 Base plan shape
+
+A plan should define:
+- id
+- speciesId
+- ordered buildGoals
+- optional shipsThatBuild policy
+- optional future-facing charge policy
+- optional notes
+
+8.2 Build goals
+
+Each build goal should express:
+- a target shipDefId
+- a targetCount
+- whether the bot should save until affordable
+- optional simple conditions
+
+This is the main way a plan expresses fleet intent.
+
+8.3 Allowed v1 condition family
+
+Conditions should stay intentionally small in v1.
+Recommended condition families include:
+- turnAtLeast
+- selfHealthAtMost
+- opponentHealthAtMost
+- haveShip
+- opponentHasShip
+
+The plan language must not grow into a giant general-purpose rules language in this first pass.
+
+8.4 Ships That Build policy is separate from build goals
+
+Ships That Build behavior must be modeled separately from the ordered build-goal list.
+
+Reason:
+The question “what fleet shape do I want?” is different from the question “when this existing ship receives a build-phase choice, what should it choose?”
+
+Carrier is the canonical first example of this split.
+
+8.5 Charge policy may exist as a future-facing seam
+
+A charge-policy section may exist in the schema now, but it is not required to be widely supported in Human Bot v1.
+It exists as a clean extension seam for later ships such as:
+- INT
+- GUA
+- WIS
+- ANT
+- FAM
+
+-------------------------------------------------------------------------------
+9. Planning algorithm
+-------------------------------------------------------------------------------
+
+The build planner must be generic and intentionally simple.
+
+For each build goal in order:
+1. count current authoritative fleet plus already-added draft result
+2. if the target count is already satisfied, continue
+3. if goal conditions fail, continue
+4. if the ship can be built now, add it to the draft
+5. if it cannot be built now but saveUntilAffordable is true, stop and save
+6. otherwise continue scanning for the next valid goal
+
+Stop when:
+- no more legal or affordable progress can be made
+- the planner chooses to save
+- or no remaining goal is achievable
+
+Locked rule:
+The planner must not become a second rules engine.
+It may reason about intent, but final legality remains server-authoritative.
+
+-------------------------------------------------------------------------------
+10. Bot execution model and load posture
+-------------------------------------------------------------------------------
+
+10.1 Event-driven, not poll-driven
+
+The bot must not wake up on GET /game-state polling.
+GET /game-state must remain read-only.
+
+Bot execution should occur only after authoritative write or transition points, such as:
+- after bot-game creation
+- after a human action resolves
+- after a bot internal action resolves, if more bot work is still required
+- after setup / phase transitions where the bot is now the acting seat
+
+10.2 Internal action loop
+
+After an authoritative write:
+1. resolve the normal state change
+2. check whether a bot seat now needs to act
+3. if yes, choose one bot action
+4. apply it internally through the authoritative path
+5. repeat until:
+   - the game is waiting on the human
+   - no supported bot action remains
+   - or a safety cap is reached
+
+10.3 Safety cap
+
+Use a hard per-request cap such as 8–12 internal bot actions.
+This is required to avoid runaway loops.
+
+10.4 Load posture
+
+The main load risks are not “bot intelligence cost”.
+A scripted plan bot should be cheap.
+
+The risks to avoid are:
+- bot execution during read polling
+- bot HTTP self-calls
+- unbounded internal loops
+- unnecessary repeated recomputation on every transition
+
+-------------------------------------------------------------------------------
+11. Minimal file plan
+-------------------------------------------------------------------------------
+
+The first bot implementation should stay compact.
+A compact server-side file plan is preferred over a sprawling bot sub-architecture.
+
+11.1 engine/bot/botTypes.ts
+Purpose:
+- shared bot types
+- seat-controller metadata
+- plan schema
+- condition schema
+- optional future policy types
+
+11.2 engine/bot/humanPlans.ts
+Purpose:
+- authored Human bot plans only
+- primary content-authoring surface
+- little or no logic
+
+11.3 engine/bot/buildPlanner.ts
+Purpose:
+- takes authoritative state plus chosen plan
+- scans build goals
+- produces one build-draft / build-decision result
+- handles simple condition checks and save behavior
+
+11.4 engine/bot/botRunner.ts
+Purpose:
+- phase-aware orchestration
+- species selection
+- Ships That Build handling
+- build planner invocation
+- auto-ready behavior
+- internal loop until waiting on human / done / safety cap
+
+11.5 integration seam in existing authoritative flow
+Purpose:
+- after authoritative write completes, determine whether the bot should act
+- run the internal bot loop
+- persist the resulting authoritative state
+
+This integration seam does not require a separate new file if the current route / reducer seams are already suitable.
+
+11.6 Deliberate non-goal
+
+Do not create a large bot architecture prematurely.
+Only split further if later charge / target logic proves the need.
+
+-------------------------------------------------------------------------------
+12. Recommended pass structure
+-------------------------------------------------------------------------------
+
+12.1 Pass 1 — Frontend entry and server foundations
+
+Goal:
+Create a real bot-game path and the first playable Human bot foundation.
+
+Includes:
+- PLAY COMPUTER shell entry
+- minimal bot-game setup screen derived from current create-game patterns
+- bot seat metadata on game creation
+- Human plan selection or Random Human Plan support
+- species-selection support
+- build.drawing support
+- auto-ready through unsupported phases
+
+12.2 Pass 2 — Ships That Build support
+
+Goal:
+Support plan-driven build-phase choices for simple supported ships.
+
+Includes:
+- Carrier policy support
+- plan-driven build.ships_that_build behavior
+- end-to-end verification in real matches
+
+12.3 Pass 3 — Later battle-choice support
+
+Goal:
+Expand into deferred Human battle-choice ships.
+
+Examples:
+- INT
+- GUA
+- later FRI if wanted
+
+This pass is intentionally later and must not silently widen Pass 1 or Pass 2.
+
+-------------------------------------------------------------------------------
+13. Validation shape
+-------------------------------------------------------------------------------
+
+The first playable acceptance test should be:
+- from the shell UI, create a bot game through PLAY COMPUTER
+- enter the real game screen
+- human uses the normal flow
+- bot chooses Human and joins the normal flow
+- bot submits coherent build drafts over multiple turns
+- bot saves lines when needed
+- bot can complete at least one straightforward upgraded path
+- if Carrier is part of the chosen plan, bot uses it coherently in build.ships_that_build
+- unsupported battle-choice phases do not deadlock; bot readies through them cleanly
+- the game progresses end to end without a special harness
+
+-------------------------------------------------------------------------------
+14. Example plans appendix
+-------------------------------------------------------------------------------
+
+The main body of this planning document is architecture-focused.
+Only a small number of example plans should be included.
+
+14.1 In-scope example plan A
+
+Plan: human_carrier_dread_v1
+Intent:
+- build toward two Carriers
+- complete one Dreadnought
+- follow with Fighter pressure and Commander scaling
+
+Compact shape:
+- CAR x2
+- DRE x1
+- FIG x6
+- COM x1
+- FIG x10
+
+Ships That Build policy:
+- CAR default -> fighter
+
+Reason this example matters:
+- proves straightforward upgraded ships are valid plan targets
+- proves Carrier needs a separate per-ship choice policy
+- proves follow-up spam goals are easy to express
+
+14.2 In-scope example plan B
+
+Plan: human_orbital_midrange_v1
+Intent:
+- establish line advantage and a defensive base
+- turn that into stable midrange pressure
+
+Compact shape:
+- DEF x2
+- ORB x1
+- BAT x1
+- FIG x4
+- COM x1
+- DEF x4
+
+Reason this example matters:
+- proves recurring line-generation goals fit naturally
+- stays entirely within automatic / no-choice gameplay
+
+14.3 Deferred illustrative example (not v1 scope)
+
+Plan: human_charge_pressure_future
+Intent:
+- mix pressure with later charge-based adaptation
+
+Illustrative shape only:
+- DEF x2
+- INT x1
+- FRI x1
+- FIG x4
+- GUA x1
+
+Possible future policy ideas:
+- INT -> heal if low health, else damage
+- GUA -> destroy highest-value basic target
+- FRI -> future trigger preference policy
+
+Important:
+This example is illustrative only and must not widen v1 scope.
+It exists only to show that the schema can extend later.
+
+-------------------------------------------------------------------------------
+15. Locked implementation guidance
+-------------------------------------------------------------------------------
+
+- Human is the only supported bot species in v1
+- PLAY COMPUTER is a top-level shell item at the same level as MULTIPLAYER
+- the bot setup screen should be a light adaptation of create-game flow, not a new solo architecture
+- straightforward upgraded Human ships are allowed as first-version bot plan targets
+- the bot must re-scan fresh authoritative state rather than rely on a persistent step pointer
+- bot execution is event-driven, not poll-driven
+- bot actions use the internal authoritative path, not HTTP self-calls
+- unsupported bot-choice phases must not deadlock the game; the bot must ready through them cleanly
+
+-------------------------------------------------------------------------------
+16. Bottom line
+-------------------------------------------------------------------------------
+
+The correct Human Bot v1 shape is:
+- server-side Human bot
+- plan-driven
+- normal authoritative game flow
+- PLAY COMPUTER entry in the shell
+- lightweight bot setup screen using existing create-game patterns
+- straightforward upgraded ships allowed when they are simple plan targets
+- compact file plan
+- event-driven bot execution rather than poll-driven behavior
+
+This produces a real playable solo mode without introducing a second rules engine or a large new architecture.

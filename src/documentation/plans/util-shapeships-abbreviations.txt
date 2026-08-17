@@ -1,0 +1,77 @@
+Shapeships Ship Abbreviations
+Source: ShipDefinitions.json.ts
+
+Human
+-----
+DEF - Defender
+FIG - Fighter
+COM - Commander
+INT - Interceptor
+ORB - Orbital
+CAR - Carrier
+STA - Starship
+FRI - Frigate
+TAC - Tactical Cruiser
+GUA - Guardian
+SCI - Science Vessel
+BAT - Battle Cruiser
+EAR - Earth Ship
+DRE - Dreadnought
+LEV - Leviathan
+
+Xenite
+------
+XEN - Xenite
+ANT - Antlion
+MAN - Mantis
+EVO - Evolver
+OXI - Oxite
+AST - Asterite
+HEL - Hell Hornet
+BUG - Bug Breeder
+ZEN - Zenith
+DSW - Defense Swarm
+AAR - Antlion Array
+OXF - Oxite Face
+ASF - Asterite Face
+SAC - Sacrificial Pool
+QUE - Queen
+CHR - Chronoswarm
+HVE - Hive
+
+Centaur
+-------
+FEA - Ship of Fear
+ANG - Ship of Anger
+EQU - Ship of Equality
+WIS - Ship of Wisdom
+VIG - Ship of Vigor
+FAM - Ship of Family
+LEG - Ship of Legacy
+TER - Ark of Terror
+FUR - Ark of Fury
+KNO - Ark of Knowledge
+ENT - Ark of Entropy
+RED - Ark of Redemption
+POW - Ark of Power
+DES - Ark of Destruction
+DOM - Ark of Domination
+
+Ancient
+-------
+MER - Mercury Core
+PLU - Pluto Core
+QUA - Quantum Mystic
+SPI - Spiral
+URA - Uranus Core
+SOL - Solar Grid
+CUB - Cube
+SAST - Asteroid
+SSUP - Supernova
+SLIF - Life
+SSTA - Star Birth
+SCON - Convert
+SSIM - Simulacrum
+SSIP - Siphon
+SVOR - Vortex
+SBLA - Black Hole

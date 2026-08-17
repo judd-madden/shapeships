@@ -1,0 +1,347 @@
+Spectator Mode
+Normative Planning Document
+
+Project: Shapeships
+Status: Planning
+Scope: spectator support for live matches, including public-state hydration, viewer-safe runtime behavior, and spectator-facing UI rules
+
+If later implementation instructions conflict with this document, this document wins for spectator product/runtime/UI behavior unless explicitly superseded.
+If this document conflicts with the live-state contract guardrails in Phase 10, the Phase 10 contract guardrails still win unless this document explicitly narrows spectator implementation behavior around them.
+
+--------------------------------------------------------------------------------
+1. Purpose
+--------------------------------------------------------------------------------
+
+This document defines the intended implementation shape for spectator mode in Shapeships.
+
+Its purpose is to:
+
+- support a third viewer joining a live game link as a spectator
+- let spectators watch an in-progress match from authoritative public state
+- keep spectator mode aligned with the server-authoritative architecture
+- preserve hidden information during build/drawing
+- define the viewer-facing product behavior needed for spectator mode
+- keep spectator implementation chunked and deliberate rather than continuing to grow ad hoc logic in useGameSession
+
+This document covers product behavior, runtime posture, and implementation sequencing for spectator mode.
+It is not a standalone rules-system redesign.
+
+--------------------------------------------------------------------------------
+2. Architectural stance
+--------------------------------------------------------------------------------
+
+2.1 Server authority remains unchanged
+
+Spectator mode must preserve the existing Shapeships architectural invariants:
+
+- the server remains authoritative for rules, legality, phase progression, combat outcomes, effect application, and canonical state transitions
+- the client remains non-authoritative
+- display code remains presentation-only
+
+Spectator mode must not move rule interpretation into the browser.
+
+2.2 Spectators consume public authoritative state
+
+Spectators must be driven from the public authoritative DTO posture, not from requester-only logic and not from hidden local reconstruction.
+
+Locked posture:
+- players consume publicState plus requester-only fields where applicable
+- spectators consume publicState only
+- spectators do not receive availableActions, hidden preview state, or other requester-only private projections
+
+2.3 No second networking seam
+
+Live networking remains centralized in the client runtime layer.
+
+Locked posture:
+- spectator support does not create a separate networking architecture outside the existing runtime seam
+- useGameSession remains the live integration seam
+- spectator-specific derivation should be extracted into helper modules rather than continuing to bloat useGameSession
+
+2.4 Viewer-mode derivation should be explicit
+
+The current runtime/UI is heavily shaped around a player perspective such as me/opponent.
+Spectator mode requires a viewer-safe seat perspective such as p1/p2.
+
+Locked posture:
+- spectator mode should introduce an explicit viewer/seat derivation seam
+- the client should not rely on scattered me/opponent branches to approximate spectator behavior
+
+--------------------------------------------------------------------------------
+3. Locked spectator product behavior
+--------------------------------------------------------------------------------
+
+3.1 Entry posture
+
+When a third viewer opens a live game link, that viewer is a spectator.
+
+This document does not define lobby/claim-seat behavior.
+It defines the viewer posture after spectator status is established.
+
+3.2 Chat
+
+Spectators can chat.
+
+This is a deliberate product choice for the current casual spectator posture.
+
+3.3 Battle log and tabs
+
+Spectators can:
+- expand the battle log
+- click tabs
+- browse the same public strategic surfaces that a player can browse, subject to hidden-information constraints
+
+3.4 Default tab
+
+The default spectator tab is:
+- p1species
+
+This is locked unless a later dedicated product decision supersedes it.
+
+3.5 Menu posture
+
+The spectator menu only includes:
+- Back to main menu
+
+Spectators do not receive player-only actions such as:
+- draw
+- resign
+
+3.6 Seat labels and perspective
+
+Spectators must see the match from stable seat labels, not from a player-relative lens.
+
+Locked posture:
+- spectator-facing labels use p1 and p2
+- spectator-facing UI must not use me and opponent language
+
+3.7 Mid-game hydration
+
+A spectator must be able to enter a game midway and receive the current public authoritative state, including:
+- phase/turn
+- clocks
+- public fleets
+- public visible dice
+- result state if the game is finished
+- battle log/history through the separate history surface
+
+This is a required capability, not a stretch goal.
+
+--------------------------------------------------------------------------------
+4. Visibility rules
+--------------------------------------------------------------------------------
+
+4.1 Public-only viewing
+
+Spectators may see only what is public at that point in the authoritative game timeline.
+
+4.2 Hidden drawing remains hidden
+
+Spectators must not see:
+- hidden build preview
+- requester-only build economy projections
+- hidden draft spending
+- hidden component consumption during drawing
+- other requester-only or internal-only data
+
+4.3 Fleet visibility
+
+Spectator fleets must reflect authoritative public visibility timing.
+
+This includes:
+- revealed drawing and public fleet state once it is meant to be visible
+- other public outcomes that become visible through the normal server-authoritative match flow
+
+The client must not guess additional visibility beyond what the server projects.
+
+4.4 History visibility
+
+Completed-turn history is spectator-safe once the history contract permits spectator access.
+
+Spectator history remains separate from hot /game-state and should not be re-embedded into the live response.
+
+--------------------------------------------------------------------------------
+5. Runtime posture
+--------------------------------------------------------------------------------
+
+5.1 Viewer mode must be explicit
+
+The runtime should derive whether the current viewer is:
+- p1 player
+- p2 player
+- spectator
+
+This viewer mode should become a first-class runtime concept rather than an implicit accident of missing player identity.
+
+5.2 Seat model
+
+The runtime should derive a stable seat model that supports:
+
+- p1 seat summary
+- p2 seat summary
+- current viewer mode
+- player-relative aliases for player mode only
+- spectator-safe labels and default selections
+
+This should be computed centrally and then fed into the display layer.
+
+5.3 Recommended helper posture
+
+To keep useGameSession from growing further, spectator logic should be split out into a small helper seam under the client runtime layer.
+
+Recommended responsibilities of that seam:
+- derive viewer mode
+- derive stable seat order and seat summaries
+- expose spectator-safe labels
+- determine default tab/menu posture by viewer mode
+- mediate whether the UI should use me/opponent or p1/p2 language
+
+This is guidance for implementation scope, not a locked filename.
+
+--------------------------------------------------------------------------------
+6. Display/UI rules
+--------------------------------------------------------------------------------
+
+6.1 HUD and labels
+
+Spectator-facing HUD/status text should use p1/p2 naming and public status truth.
+
+6.2 Board and fleet areas
+
+Board and fleet visuals must render from the spectator-safe public fleet projection only.
+
+6.3 Tabs
+
+Spectators may click tabs as a viewer.
+The runtime should ensure the default tab is p1species on entry.
+
+6.4 Menu
+
+The menu must remove player-only actions for spectators and keep only Back to main menu.
+
+6.5 Battle log
+
+The battle log remains available and expandable for spectators.
+It should continue to use the same stable player/seat ordering as the rest of the game state and UI.
+
+--------------------------------------------------------------------------------
+7. Relationship to Phase 10
+--------------------------------------------------------------------------------
+
+7.1 Spectator depends on Phase 10-shaped foundations
+
+Spectator mode does not require all of Phase 10 to be complete first.
+
+But spectator mode does require the front half of Phase 10 to exist in the right shape:
+
+- selector centralization
+- DTO layering
+- public/requester separation
+- stable seat/controller projection
+- public fleets/clocks/readiness/result visible through the normalized live-state contract
+
+7.2 Spectator should not wait for all later prune work
+
+The later Phase 10 cleanup passes such as broad dead-bloat prune and family-by-family duplicate removal do not need to finish before spectator mode can ship.
+
+7.3 Spectator must not create a one-off contract fork
+
+Spectator implementation must use the real normalized DTO direction rather than a temporary spectator-only response shape.
+
+--------------------------------------------------------------------------------
+8. Recommended implementation order
+--------------------------------------------------------------------------------
+
+Spectator work should be executed in the following chunks.
+
+Spectator Pass S0 — Documentation pass
+- Phase 10 spectator clarifications addendum
+- this spectator planning document
+- battle-log contract update/addendum for spectator access
+
+Spectator Pass S1 — Spectator foundations via Phase 10 slices
+Type: Mixed pass
+
+Goal:
+- implement the minimum contract/runtime foundations spectator needs without doing all later Phase 10 cleanup
+
+Includes:
+- Phase 10B selector seam normalization
+- Phase 10C DTO layering for spectator-needed public families
+- a narrow DTO-first switch for the same families where needed
+- no broad prune
+
+Spectator Pass S2 — Runtime viewer/seat derivation
+Type: Client Runtime pass
+
+Goal:
+- add a clean viewer-mode + seat-derivation seam
+- keep networking centralized
+- stop forcing spectator behavior through scattered me/opponent assumptions
+
+Spectator Pass S3 — Spectator UI behavior
+Type: Client/UI pass
+
+Goal:
+- implement spectator-facing menu, tab default, p1/p2 labelling, and public-view rendering behavior
+
+Includes:
+- default p1species tab
+- Back to main menu only
+- p1/p2 labels
+- spectator-safe board/fleet mapping
+- battle-log expand/click behavior where not already correct
+
+Spectator Pass S4 — Validation and polish
+Type: Mixed follow-up if needed
+
+Goal:
+- verify live spectator entry, clocks, history refresh, and hidden-info safety
+- fix any remaining viewer-specific regressions with small targeted passes
+
+--------------------------------------------------------------------------------
+9. Non-goals
+--------------------------------------------------------------------------------
+
+This spectator program does not include:
+
+- spectator-controlled gameplay intents
+- seat-claiming / lobby redesign
+- replay system work
+- a separate observer client app
+- broad shell redesign
+- changing core game rules
+- bypassing hidden-information requirements
+- finishing all remaining Phase 10 cleanup before spectator mode exists
+
+--------------------------------------------------------------------------------
+10. Validation expectations
+--------------------------------------------------------------------------------
+
+Spectator work is not complete unless the following are validated in real live-game flows, where relevant to the pass scope:
+
+- a spectator can join a game already in progress
+- spectator clocks hydrate and continue correctly
+- spectator sees the correct public fleets only
+- hidden drawing/requester-only data does not leak
+- spectator default tab is p1species
+- spectator menu only shows Back to main menu
+- spectator labels are p1/p2 rather than me/opponent
+- spectator can chat
+- spectator can expand the battle log
+- spectator history refresh remains separate from hot live polling
+- player flows still behave correctly after the spectator-related DTO/runtime work
+
+--------------------------------------------------------------------------------
+11. End state
+--------------------------------------------------------------------------------
+
+Spectator mode is complete when all of the following are true:
+
+- a third viewer can open a live match and enter as a spectator
+- the spectator experience is driven from public authoritative state only
+- the runtime has an explicit viewer/seat perspective rather than a fragile me/opponent fallback
+- the spectator UI defaults and menu behavior match the locked product rules in this document
+- spectator support coexists cleanly with the ongoing Phase 10 migration program
+
+That is the intended spectator implementation posture for Shapeships.

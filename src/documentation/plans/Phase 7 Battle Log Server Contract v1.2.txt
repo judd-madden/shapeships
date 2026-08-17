@@ -1,0 +1,350 @@
+Battle Log Server Contract v1.2
+
+Purpose
+This document defines the current server-side contract for the Shapeships Battle Log.
+
+This contract is:
+- server-authored
+- finalized once per completed turn
+- plain-text oriented
+- fetched separately from hot live game polling
+
+It is not part of gameData.
+It is not included in the per-second live state payload.
+It is intended to support both player and spectator history viewing through a separate history surface.
+
+-------------------------------------------------------------------------------
+1. Ownership and timing
+-------------------------------------------------------------------------------
+
+The server creates one immutable summary per completed turn.
+
+A turn summary is finalized:
+- after battle.end_of_turn_resolution has completed
+- after health has been updated
+- after terminal win/draw checks have run
+- before or as the server transitions into the next turn
+- and also for the final turn if the game ends
+
+The history contains completed turns only.
+Never store partial current-turn rows in this contract.
+
+-------------------------------------------------------------------------------
+2. Storage posture
+-------------------------------------------------------------------------------
+
+Use a separate history store/key from live game state.
+
+Recommended key:
+- game_history_${gameId}
+
+Do not store the growing transcript under gameData.
+
+Live /game-state remains lean.
+History is fetched on demand.
+
+-------------------------------------------------------------------------------
+3. API shape
+-------------------------------------------------------------------------------
+
+GET /make-server-825e19ab/game-history/:gameId
+
+Auth:
+- same session/auth rules as /game-state
+- players in the game may fetch it
+- spectators in the game may fetch it
+- this is a public completed-turn history surface, not a requester-only gameplay surface
+
+Response shape:
+
+type BattleLogHistoryResponse = {
+  gameId: string;
+  revision: number;
+  completedTurnCount: number;
+  turns: BattleLogTurnSummary[];
+};
+
+type BattleLogTurnSummary = {
+  turnNumber: number;
+  diceValue: number | null;
+
+  players: Array<{
+    playerId: string;
+    name: string;
+    healthEnd: number;
+    healthDelta: number;
+  }>;
+
+  buildLinesByPlayerId: Record<string, string[]>;
+  battleLinesByPlayerId: Record<string, string[]>;
+};
+
+-------------------------------------------------------------------------------
+4. Field meanings
+-------------------------------------------------------------------------------
+
+revision
+- increments whenever a new completed turn summary is appended
+- lets the client cheaply know whether history changed
+- can optionally also be exposed as a tiny top-level live-state field outside gameData
+
+completedTurnCount
+- number of finalized rows available
+- usually equals turns.length
+
+diceValue
+- the main public die result for that completed turn
+- first pass only uses the single canonical value shown in the design
+- do not widen this yet for Chronoswarm
+
+players[*].healthEnd
+- final health after that turn resolved
+
+players[*].healthDelta
+- net change for that turn
+- positive, zero, or negative
+- drives display like:
+  27 +2
+  21 -2
+  27 ±0
+
+buildLinesByPlayerId
+- plain-text build outcome / event rows for that player for the completed turn
+- this is not restricted to manually drawn ships only
+- it may include:
+  - ships completed from revealed drawing
+  - ships created by build-phase ship powers
+  - notable public build-phase interventions such as dice rerolls
+
+battleLinesByPlayerId
+- plain-text rows for notable public battle actions that occurred that turn
+
+-------------------------------------------------------------------------------
+5. Inclusion rules
+-------------------------------------------------------------------------------
+
+BUILD rows: include
+- ships completed from the player's revealed build that turn
+- ships created during build-phase powers that entered play that turn
+- source tags for produced ships when relevant, such as:
+  - 1 x DEF (CAR)
+  - 2 x XEN (BUG)
+  - 1 x XEN (QUE)
+- notable public build-phase interventions that changed shared public build context, such as:
+  - KNO rerolled 3 -> 5
+  - KNO rerolled 3 -> 5 -> 2
+
+Important rule:
+- "player choice only" is not the sole inclusion test for BUILD
+- ships built by other ships during build-phase powers MUST be shown
+- public build-phase dice interventions MAY also be shown
+
+BUILD rows: exclude
+- line counts
+- saved lines
+- component-consumption detail for upgrades
+- hidden draft activity before reveal
+- "why" explanations
+
+This section should read as outcome / event only.
+
+BATTLE rows: include
+Only notable public battle actions, for example:
+- charge choices that resolved
+  - 1 x INT Heal
+  - 1 x ANT Damage
+  - 1 x FAM Damage
+- destroy actions
+  - GUA destroys BUG
+  - SAC destroys ZEN
+  - EQU destroyed FAM and CAR
+- steal / transfer actions
+  - DOM stole CAR and FIG
+
+BATTLE rows: exclude
+- ordinary automatic heal/damage math
+- once-only passive effects like Starship / Ship of Anger
+- passive trigger math
+- aggregate damage totals
+- battle-phase plumbing/status text
+
+Important rule:
+- a battle action that resolved should still be logged even if that source ship was also destroyed that turn
+- if a charge-based ship is destroyed, its charge still occurs under the rules, so both public facts may appear in the log
+
+Examples:
+- EQU destroyed FAM and CAR
+- 1 x FAM Damage
+
+If Starship was built this turn, it appears in BUILD only.
+Its damage is reflected only in healthDelta.
+
+Frigate note for v1:
+- FRI trigger lines are excluded in v1
+- they are treated as passive trigger math, not as player-declared battle actions
+- their effect is reflected only in healthDelta
+
+-------------------------------------------------------------------------------
+6. Inclusion heuristic
+-------------------------------------------------------------------------------
+
+Include an event if at least one of these is true:
+- a player explicitly chose it this turn
+- it built or created ships during the Build Phase
+- it changed shared public build context for the turn
+- it caused a discrete public destruction, steal, or transfer
+
+Exclude an event if it is:
+- ordinary automatic damage / heal math
+- passive count / tier / once-only resolution
+- a trigger that happened without a fresh player choice that turn
+- aggregate totals or explanatory text
+
+This keeps the Battle Log strategic and readable rather than turning it into a full resolver transcript.
+
+-------------------------------------------------------------------------------
+7. Plain-text formatting rules
+-------------------------------------------------------------------------------
+
+Build line format:
+- "{count} x {SHIP_DEF_ID}"
+- "{count} x {SHIP_DEF_ID} ({SOURCE_SHIP_DEF_ID})"
+- "{SOURCE_SHIP_DEF_ID} rerolled {from} -> {to}"
+- "{SOURCE_SHIP_DEF_ID} rerolled {from} -> {mid} -> {to}"
+
+Examples:
+- 1 x CAR
+- 2 x DEF
+- 1 x DEF (CAR)
+- 2 x XEN (BUG)
+- KNO rerolled 3 -> 5
+
+Battle line format:
+
+For charge-style actions:
+- "{count} x {SOURCE_SHIP_DEF_ID} {ACTION_LABEL}"
+
+Examples:
+- 1 x INT Heal
+- 1 x ANT Damage
+- 1 x FAM Damage
+
+For targeted destroy / sacrifice / paired-destroy actions:
+- "{SOURCE_SHIP_DEF_ID} destroys {TARGET_SHIP_DEF_ID}"
+- "{SOURCE_SHIP_DEF_ID} destroyed {TARGET_A} and {TARGET_B}"
+
+Examples:
+- GUA destroys BUG
+- SAC destroys ZEN
+- EQU destroyed FAM and CAR
+
+For steal / transfer actions:
+- "{SOURCE_SHIP_DEF_ID} stole {TARGET_A} and {TARGET_B}"
+
+Examples:
+- DOM stole CAR and FIG
+
+Use acronyms by default.
+
+-------------------------------------------------------------------------------
+8. Ordering rules
+-------------------------------------------------------------------------------
+
+Player ordering
+- use the same stable player order as the rest of the game state / UI
+- this stable ordering must also be suitable for spectator viewing
+
+Turn ordering
+- ascending by turnNumber
+
+Build row ordering within a player
+1. public build-context interventions (for example dice rerolls)
+2. manual revealed build rows
+3. produced / spawned build rows with source tags
+
+Within each bucket:
+- preserve natural authoritative occurrence order if available
+- otherwise use deterministic stable order
+
+Battle row ordering within a player
+Use public battle resolution order:
+1. first strike / pre-battle destroys or steals
+2. charge declaration / response outcomes
+3. other explicit public battle actions if added later
+
+Collapse identical rows where sensible:
+- 2 x ANT Heal
+instead of two separate identical lines
+
+Prefer a single combined row for multi-target public actions where the action is conceptually one event:
+- DOM stole CAR and FIG
+- EQU destroyed FAM and CAR
+
+-------------------------------------------------------------------------------
+9. Refresh contract
+-------------------------------------------------------------------------------
+
+The client should not fetch this every second.
+
+Client fetch rules:
+- once on screen mount
+- again when a turn completes
+- again when status becomes finished
+- optionally again on manual expand if older rows are lazy-loaded later
+
+This refresh posture applies equally to player and spectator viewing.
+
+Two acceptable trigger models:
+
+Better model
+Add tiny top-level live-state fields:
+- battleLogRevision: number
+- battleLogCompletedTurns: number
+
+These are outside gameData.
+
+Leaner first pass
+Add nothing to /game-state.
+Client refetches history when:
+- gameData.turnNumber increments, or
+- status becomes finished
+
+Either model is acceptable.
+The revision field is nicer, but not mandatory.
+
+-------------------------------------------------------------------------------
+10. Internal implementation note
+-------------------------------------------------------------------------------
+
+For the external contract above, the server will likely need a small internal helper
+and a small authoritative capture path.
+
+Recommended helper:
+- one dedicated server helper that assembles a finalized BattleLogTurnSummary
+
+Likely inputs:
+- finalized turn number
+- finalized dice value
+- player health end + delta
+- revealed build commitment for that turn
+- build-phase create-ship outcomes with source tags
+- public build-phase dice intervention outcomes
+- public battle-action outcomes for that turn
+
+Important:
+- internal scratch/capture data does not need to be public contract
+- only the finalized completed-turn summary shape above is the public history contract
+
+-------------------------------------------------------------------------------
+11. End-state clarification
+-------------------------------------------------------------------------------
+
+The battle-log contract is healthy when all of the following are true:
+
+- completed-turn history remains separate from hot /game-state
+- players can read it
+- spectators can read it
+- the contract remains public-history-oriented rather than requester-only gameplay-oriented
+- stable ordering matches the rest of the live game presentation
+
+That is the intended history posture for the Shapeships Battle Log.

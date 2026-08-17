@@ -6,7 +6,7 @@ Status: Normative planning addendum
 Scope: session-scoped discovery link between Play Computer Missions and Lore > Mission Findings
 
 This addendum extends:
-- `Phase 15 Missions and Challenges.md`
+- [Phase 15 Missions and Challenges - Revised with Mission Findings](<Phase 15 Missions and Challenges - Revised with Mission Findings.md>)
 
 If later implementation instructions conflict with this addendum, this addendum wins for Mission Findings discovery behavior within its scope unless explicitly superseded.
 

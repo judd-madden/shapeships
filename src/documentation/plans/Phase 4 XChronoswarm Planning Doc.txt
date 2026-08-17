@@ -1,0 +1,344 @@
+Phase 4 Chronoswarm - Dedicated Planning Doc
+
+Status
+Dedicated pass. Server phase-structure pass first. UI pass last.
+
+Purpose
+Implement Chronoswarm as an inserted extra build cycle that occurs after normal build.end_of_build and before battle.reveal, while reusing as much of the existing build-phase machinery as possible.
+
+This pass is NOT the full Economy pass.
+Chronoswarm should still add ordinary lines into the same existing pooled line field that normal build uses, but we do not need to formalize the full saved/generated/spent economy accounting yet.
+
+Note: Chronoswarm eligibility is ownership-based, not species-based: any player who currently owns an eligible Chronoswarm gets the extra Chronoswarm build cycle, including rare cases created via steal/copy effects.
+
+--------------------------------------------------------------------------------
+1. Locked Rule Decisions For This Pass
+--------------------------------------------------------------------------------
+
+1.1 Chronoswarm timing
+- Chronoswarm occurs in End of Build Phase, before battle.
+- It does not occur on the turn the Chronoswarm was built.
+- It inserts an extra build cycle into the same turn; it is not a new turn.
+
+1.2 Chronoswarm contents
+The extra cycle includes:
+- Dice Roll
+- Ships That Build
+- Drawing
+
+Operationally, we keep a build.chronoswarm_line_generation phase key as part of the engine sequence, but its job is only to add the Chronoswarm dice results into the ordinary line pool.
+
+1.3 Bonus lines during Chronoswarm
+- No bonus line powers apply during Chronoswarm line generation.
+- This is broader than just excluding OXF / ASF and is now a locked project rule for this pass.
+- Normal build still uses the main die + saved lines + normal bonus-line powers.
+- Chronoswarm build uses only the Chronoswarm dice batch added into the same ordinary line pool.
+
+1.4 Multiple Chronoswarms
+- If a player has 2 or 3 eligible Chronoswarms, the extra build rolls 2 or 3 dice respectively.
+- If multiple players have Chronoswarms, they use the same shared extra dice rolls.
+- Zenith uses only the last Chronoswarm die, not each die.
+
+1.5 Line pool behavior
+- Chronoswarm-generated lines are ordinary lines.
+- They go into the same pooled line field as normal build lines.
+- Players may spend or save lines in either build.drawing or build.chronoswarm.drawing.
+- Any leftover lines remain in the same pooled line field after Chronoswarm.
+- Full Economy formalization is deferred.
+
+1.6 Ships That Build during Chronoswarm
+Chronoswarm gives a second Ships That Build timing window in the same turn.
+That means all ships whose build powers are active in Ships That Build should get another chance to act in the Chronoswarm cycle, subject to their normal per-ship/per-turn rules.
+
+Important practical examples:
+- Bug Breeder: yes, gets another build-phase trigger window.
+- Zenith: yes, gets another build-phase trigger window using the last Chronoswarm die.
+- Queen: yes, gets another build-phase trigger window.
+- Sacrificial Pool: yes, if already part of the live Ships That Build framework, it should also be available in Chronoswarm Ships That Build.
+
+1.7 Queen damage counting
+Locked rule:
+- Queen does NOT count the Xenite created by that same Queen.
+- This applies in normal build and in Chronoswarm build.
+- If two Queens both create Xenites this turn, they do count each other's created Xenites.
+- Therefore the exclusion rule is not "count - 1".
+- The exclusion rule is "exclude the specific self-made Xenite(s) created by this Queen instance".
+
+1.8 Battle readiness
+- Ships created during Chronoswarm Ships That Build or Chronoswarm Drawing are active for the upcoming battle, exactly like other pre-battle build outputs unless a specific ship rule says otherwise.
+
+--------------------------------------------------------------------------------
+2. Current Codebase Observations
+--------------------------------------------------------------------------------
+
+2.1 Current server phase model
+The server currently has a single shared canonical phase sequence:
+- setup.species_selection
+- build.dice_roll
+- build.line_generation
+- build.ships_that_build
+- build.drawing
+- build.end_of_build
+- battle.reveal
+- battle.first_strike
+- battle.charge_declaration
+- battle.charge_response
+- battle.end_of_turn_resolution
+
+Chronoswarm should be added by extending this canonical sequence, not by trying to keep one player in build.end_of_build while another player is elsewhere.
+
+2.2 Current phase resolution reuse point
+resolvePhase(...) already routes special logic for:
+- build.ships_that_build
+- build.end_of_build
+- battle.end_of_turn_resolution
+
+This is the main reuse seam.
+Chronoswarm should reuse the same resolution families where possible instead of inventing parallel logic.
+
+2.3 Current line behavior
+The current architecture already behaves as if player.lines is the pooled ordinary line bucket.
+That is enough for this pass.
+Chronoswarm should add its generated lines into that same field rather than creating a separate temporary Chronoswarm line wallet.
+
+2.4 Current Queen implementation issue
+Current Queen automatic damage logic is too blunt.
+It currently behaves like:
+- if the Queen itself was built this turn: count all ships made this turn
+- otherwise: count max(totalShipsMadeThisTurn - 1, 0)
+
+That is not correct for the locked rule above.
+It under-models multi-Queen cases and only subtracts one ship generically instead of excluding the self-made Xenite(s) from that specific Queen instance.
+
+Chronoswarm should not be built on top of that simplification.
+Queen needs per-source exclusion memory.
+
+--------------------------------------------------------------------------------
+3. Recommended High-Level Architecture
+--------------------------------------------------------------------------------
+
+Chronoswarm should be modeled as:
+- one inserted, server-authoritative mini build cycle
+- shared by the whole match at the phase level
+- with only eligible Chronoswarm owners having meaningful actions
+
+Do NOT model Chronoswarm as:
+- a second turn
+- a client-side fake extra phase
+- one player remaining in build.end_of_build while the other enters extra build
+- a separate Chronoswarm-only line currency
+
+The right mental model is:
+Chronoswarm is an extra build session inside the same turn, between build.end_of_build and battle.reveal.
+
+--------------------------------------------------------------------------------
+4. Recommended Chronoswarm Phase Sequence
+--------------------------------------------------------------------------------
+
+Add the following canonical phase keys:
+- build.chronoswarm_dice_roll
+- build.chronoswarm_line_generation
+- build.chronoswarm_ships_that_build
+- build.chronoswarm_drawing
+
+Progression becomes:
+- build.end_of_build
+- if no eligible Chronoswarm owners: battle.reveal
+- if at least one eligible Chronoswarm owner:
+  - build.chronoswarm_dice_roll
+  - build.chronoswarm_line_generation
+  - build.chronoswarm_ships_that_build
+  - build.chronoswarm_drawing
+  - battle.reveal
+
+Notes:
+- A separate build.chronoswarm_end phase is not required unless later debugging or UI structure clearly benefits from it.
+- Keeping the mini-cycle small is preferable.
+
+--------------------------------------------------------------------------------
+5. Recommended Chronoswarm State Shape
+--------------------------------------------------------------------------------
+
+Add a small authoritative chronoswarmState under turnData.
+It should contain only what the extra build session needs.
+
+Recommended shape:
+- active: boolean
+- initializedTurnNumber: number | null
+- eligiblePlayerIds: string[]
+- chronoswarmCountByPlayerId: Record<string, number>
+- sharedRolls: number[]
+- effectiveRollForTriggeredEffects: number | null
+- resolvedAtLeastOnce: boolean (optional guard if useful)
+
+Design notes:
+- Eligibility should be snapped once when leaving normal build.end_of_build.
+- sharedRolls should be generated once and persisted for the rest of the Chronoswarm cycle.
+- effectiveRollForTriggeredEffects should be the last die in sharedRolls.
+
+Not recommended:
+- a separate Chronoswarm saved-lines field
+- a giant parallel turn model
+- per-player duplicate build-state trees unless later proven necessary
+
+--------------------------------------------------------------------------------
+6. Reuse Strategy By Existing System
+--------------------------------------------------------------------------------
+
+6.1 Phase progression
+Reuse and extend:
+- engine_shared/phase/PhaseTable.ts
+- engine/phase/advancePhase.ts
+- engine/phase/onEnterPhase.ts
+
+Need:
+- new Chronoswarm phase keys in canonical order
+- insertion routing from build.end_of_build
+- auto-advance rules for Chronoswarm phases that need no player input
+
+6.2 Ships That Build
+Reuse and broaden:
+- engine_shared/resolve/resolvePhase.ts
+- any helper families already used by build.ships_that_build
+
+Need:
+- build.chronoswarm_ships_that_build to flow through the same shared resolver family as build.ships_that_build
+- Zenith in this phase must read Chronoswarm effective die (the last Chronoswarm roll)
+- Queen and Bug Breeder should get the second build-phase window automatically by phase-context reuse, not duplicate ship-specific special casing
+
+6.3 Drawing submit path
+Reuse with the smallest possible gate broadening:
+- engine/intent/IntentReducer.ts BUILD_SUBMIT path
+
+Need:
+- BUILD_SUBMIT must accept both build.drawing and build.chronoswarm_drawing
+- commit/reveal storage should remain authoritative and shared
+- builds applied during Chronoswarm drawing should use the same ship creation path and the same ordinary line pool
+
+This is the most acceptable temporary stub for the pass.
+The stub is not fake line logic; it is only a phase-gate broadening so the real build pipeline can run in the Chronoswarm drawing phase.
+
+6.4 Available-actions / pause gating
+Reuse and broaden:
+- engine/phase/onEnterPhase.ts
+- engine/phase/fleetHasAvailablePowers.ts
+- routes/game_routes.ts availableActions projection if phase-gated
+
+Need:
+- build.chronoswarm_ships_that_build must pause when any eligible player has available Ships That Build actions
+- build.chronoswarm_drawing must pause when any eligible player has lines and can build or save
+- non-eligible players should remain in the same shared phase but effectively have no actionable inputs
+
+6.5 Line generation
+Use a dedicated narrow Chronoswarm path.
+Do NOT reuse normal line bonus computation as-is.
+
+Need:
+- build.chronoswarm_line_generation should add only the Chronoswarm dice batch total into the same ordinary line pool
+- no bonus-line powers during Chronoswarm
+- no separate Chronoswarm-only line storage
+
+--------------------------------------------------------------------------------
+7. Queen Fix Requirement
+--------------------------------------------------------------------------------
+
+Chronoswarm increases the importance of fixing Queen correctly.
+The current simplification is not sufficient.
+
+Required behavior:
+For each Queen instance, automatic damage should count:
+- all ships made this turn by that player
+- except the Xenite created by that same Queen instance
+
+That means the engine needs a way to identify self-made Queen Xenites specifically.
+
+Recommended direction:
+Store per-source creation memory when automatic build-phase CreateShip effects are applied.
+Example concept:
+- turnData.createdShipSourceByInstanceId or similar authoritative event memory
+- or a narrower per-turn memory keyed by created ship instance -> source ship instance
+
+Then Queen damage can be computed as:
+- total ships made this turn
+- minus count of this Queen instance's self-created Xenite(s)
+
+This naturally preserves the locked two-Queen interaction:
+- Queen A excludes Queen A's Xenite
+- Queen B excludes Queen B's Xenite
+- both still count the other Queen's Xenite
+
+--------------------------------------------------------------------------------
+8. Remaining Ambiguities
+--------------------------------------------------------------------------------
+
+As of this planning doc, there are no major remaining rule ambiguities blocking implementation.
+The following are already locked for this project:
+- no bonus line powers during Chronoswarm
+- Queen excludes only self-made Xenite(s), not all Queen-created Xenites
+- Chronoswarm-generated lines go into the same pooled line field
+- Chronoswarm drawing leftover lines remain in that same pooled line field
+- Chronoswarm-created ships are active for the upcoming battle
+
+The pass should therefore proceed without waiting on further rules clarification.
+
+--------------------------------------------------------------------------------
+9. Proposed Implementation Stages
+--------------------------------------------------------------------------------
+
+Stage A - Chronoswarm phase skeleton
+Goal:
+- Extend canonical phase sequence
+- Route from build.end_of_build into Chronoswarm when eligible
+- Add chronoswarmState initialization
+
+Stage B - Chronoswarm dice and line injection
+Goal:
+- Roll shared Chronoswarm dice once
+- Persist sharedRolls and effective last roll
+- Add summed Chronoswarm dice into each eligible owner's ordinary line pool
+- No bonus-line powers
+
+Stage C - Chronoswarm Ships That Build reuse
+Goal:
+- Reuse current build.ships_that_build resolver family for build.chronoswarm_ships_that_build
+- Ensure Zenith reads last Chronoswarm die
+- Ensure Bug Breeder / Queen / Sacrificial Pool get the extra build-phase window through the same system
+
+Stage D - Chronoswarm Drawing reuse
+Goal:
+- Broaden BUILD_SUBMIT gating to allow build.chronoswarm_drawing
+- Reuse the same authoritative build submit/apply pipeline
+- Spend from the same ordinary line pool
+
+Stage E - Queen self-made exclusion correction
+Goal:
+- Replace blunt -1 logic with per-source self-made exclusion
+- Keep two-Queen interaction correct
+- Ensure Chronoswarm-created Queen Xenites are handled the same way
+
+Stage F - Client / UI pass
+Goal:
+- Surface Chronoswarm phase labels
+- Show the extra rolled dice in UI (similar to Leviathan visibility, but using real persisted Chronoswarm rolls)
+- Keep UI read-only with respect to rules; server remains authoritative
+
+--------------------------------------------------------------------------------
+10. Out Of Scope For This Ship Pass
+--------------------------------------------------------------------------------
+
+Explicitly out of scope unless required by implementation:
+- full Economy ledger redesign
+- global saved/generated/spent line accounting refactor
+- unrelated UI polish
+- battle log redesign
+- general-purpose new action frameworks beyond what Chronoswarm strictly needs
+
+--------------------------------------------------------------------------------
+11. Final Planning Summary
+--------------------------------------------------------------------------------
+
+Chronoswarm should be implemented as a dedicated inserted build mini-cycle with new canonical phase keys, a small turn-scoped chronoswarmState, shared extra dice, no bonus-line powers, and maximum reuse of the existing Ships That Build and Drawing machinery.
+
+The only notable adjacent correction that should be treated as part of safe Chronoswarm groundwork is the Queen damage exclusion rule: the current implementation is too blunt and must be upgraded from a generic -1 count to a per-source self-made exclusion model.
+
+This keeps the pass understandable, minimizes framework duplication, preserves the current shared line pool, and avoids turning the ship into a premature full Economy rewrite.

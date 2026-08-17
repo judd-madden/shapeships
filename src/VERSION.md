@@ -113,4 +113,4 @@ Targeted validation continues around desktop and mobile polish, reconnect behavi
 - [Documentation index](documentation/INDEX.md)
 - [Canonical architecture](documentation/contracts/canonical-handoff.md)
 - [Server/client turn-phase contract](documentation/contracts/ServerClientTurnPhaseContract.md)
-- [Phase 13 Ancient Species — GPT-5.6 Planning Record](<documentation/Phase 13 Ancient Species - GPT-5.6 Planning Record.md>)
+- [Phase 13 Ancient Species — GPT-5.6 Planning Record](<documentation/plans/Phase 13 Ancient Species - GPT-5.6 Planning Record.md>)

@@ -1,0 +1,458 @@
+Phase 11 Mobile
+Normative Planning Document
+
+Project: Shapeships
+Status: Planning
+Scope: mobile game-screen layout, mobile interaction model, mobile takeover screens, and touch-first presentation behavior for the existing server-authoritative game client
+
+If later implementation instructions conflict with this document, this document wins for Phase 11 Mobile behavior unless explicitly superseded.
+If this document conflicts with the Phase 10 live-state / selector migration contract, the Phase 10 contract guardrails win unless this document explicitly narrows mobile display behavior around them.
+
+-------------------------------------------------------------------------------
+1. Purpose
+-------------------------------------------------------------------------------
+
+This document defines the intended implementation shape for Shapeships mobile play.
+
+Its purpose is to:
+- turn the existing desktop-first game screen into a usable phone layout without changing the rules engine
+- preserve the same central client/runtime sources for all game view data
+- avoid duplicate mobile-only gameplay view-models or rule derivation
+- keep mobile work mostly contained under a dedicated display/mobile surface
+- replace hover-dependent desktop interactions with touch-first modals, popovers, and takeovers
+- preserve the existing server-authoritative architecture
+- provide a safe pass structure for implementation after the Phase 10 selector work is complete enough
+
+This phase is about mobile presentation and interaction. It is not a gameplay-system rewrite, DTO migration, or server-rules phase.
+
+-------------------------------------------------------------------------------
+2. Architectural stance
+-------------------------------------------------------------------------------
+
+2.1 Server authority remains unchanged
+
+Phase 11 Mobile must preserve the existing Shapeships architecture:
+- the server remains authoritative for legality, rule outcomes, phase progression, combat resolution, effect application, and canonical state transitions
+- the client runtime reflects authoritative state, submits intents, and owns client-side orchestration
+- display components render view-models, gather user intent, and call callbacks
+- display components do not become authoritative
+
+No mobile component may directly call server endpoints, interpret final legality, resolve combat, mutate canonical state, or invent phase/turn truth.
+
+2.2 Phase 10 selector dependency
+
+Phase 11 implementation should start after the main Phase 10 selector seam work is complete enough to provide stable centralized runtime reads.
+
+This planning document may be written before Phase 10 finishes, but Phase 11 implementation must target the post-Phase-10 selector posture rather than adding new raw-state reads to support mobile.
+
+Locked interpretation:
+- Phase 10 normalizes the runtime read seam first
+- Phase 11 consumes the resulting runtime/view-model surface
+- Phase 11 must not become a substitute for Phase 10
+- Phase 11 must not add mobile-only contract hacks to bypass the Phase 10 migration plan
+
+2.3 One central view-model source
+
+Mobile and desktop must draw from the same central client/runtime sources.
+
+Locked posture:
+- no duplicate mobile gameplay VM tree
+- no second mobile rules/legality derivation
+- no mobile-specific fleet/stat/action logic that drifts from desktop
+- no mobile-only server contract fork
+- no direct raw /game-state reads in mobile display files
+
+Mobile may have display-local ephemeral state such as:
+- active takeover screen
+- currently opened ship modal
+- currently opened stat breakdown popover
+- local dismissed overlay state
+- local keyboard/open input posture where needed
+
+If a mobile surface needs derived game data that is also meaningful outside mobile, that derivation belongs in the existing client runtime / selector seam, not inside mobile display components.
+
+2.4 Display containment
+
+The preferred implementation posture is to contain new mobile display work under:
+
+src/game/display/mobile/**
+
+A small branch or wrapper in GameScreen is acceptable so the screen can choose desktop layout vs mobile layout.
+
+Do not reorganize the existing desktop display tree as part of Phase 11 unless a small shared-component extraction is necessary.
+
+2.5 Reuse before reinvention
+
+Mobile should reuse existing rendering and view-model assets wherever practical.
+
+In particular:
+- do not reinvent fleet rendering if the existing fleet-area rendering can be reused or lightly extracted
+- do not duplicate ship graphics resolution
+- do not duplicate action intent builders
+- do not duplicate battle-log parsing
+- do not duplicate catalogue eligibility or cost derivation
+
+If the current desktop BoardStage layout blocks mobile stacking, the preferred fallback is a surgical shared extraction of the reusable fleet/ship-stack rendering piece, not a wholesale desktop reorganization.
+
+-------------------------------------------------------------------------------
+3. Scope summary
+-------------------------------------------------------------------------------
+
+3.1 In scope
+
+Phase 11 includes:
+- responsive/mobile game-screen shell
+- mobile top navigation: SHAPESHIPS / Turn as board anchor, Chat, Battle Log, Menu as takeovers
+- mobile board stack: opponent fleet, central status strip, player fleet, economy line, Ready button
+- mobile bottom interaction area for Actions and catalogue tabs
+- mobile catalogue browsing and tap-to-inspect ship modal
+- mobile ship build/use modal behavior
+- mobile action-panel presentation for existing action semantics
+- mobile stat breakdown popovers for compact battle stats
+- mobile chat takeover, including keyboard-safe layout
+- mobile battle-log takeover
+- mobile menu / turn-info takeover
+- touch-target, safe-area, overflow, and viewport-height handling
+- mobile-specific display state needed to manage popovers, modals, and takeovers
+
+3.2 Out of scope
+
+Phase 11 does not include:
+- authoritative server rule changes
+- Phase 10 DTO / selector migration itself
+- new mobile-specific server endpoints
+- new gameplay systems
+- Ancient species implementation
+- new bot behavior
+- spectator implementation beyond ensuring mobile does not block future spectator posture
+- desktop redesign
+- broad movement of existing desktop files
+- replacing the existing action system
+- replacing the existing catalogue data model
+- replacing the existing battle-log server/history contract
+- PWA/install work unless a later pass explicitly adds it
+
+-------------------------------------------------------------------------------
+4. Design inventory
+-------------------------------------------------------------------------------
+
+The Phase 11 design set currently includes the following mobile states.
+
+4.1 Main board and catalogue
+
+The default mobile board contains:
+- top nav with SHAPESHIPS + Turn as the board/home anchor
+- Chat / Battle Log / Menu as top-level takeover controls
+- opponent fleet above the central status strip
+- central status strip with health, last-turn delta, compact stat totals, die, clocks, and status labels
+- player fleet below the central status strip
+- economy line such as "14 lines available"
+- large Ready button
+- bottom interaction region with Actions and species catalogue tabs
+
+4.2 Larger-fleet board check
+
+A denser fleet state has been mocked to confirm the mobile board can support more than the first-turn / sparse-fleet case.
+
+4.3 Ship modal: upgraded ship
+
+The Dreadnought modal establishes the upgraded ship inspection pattern:
+- ship cost and name
+- phase/type metadata
+- joining-line requirement
+- concise power summary
+- optional expandable rules notes
+- large Build CTA
+
+4.4 Ship modal: basic ship
+
+The Fighter modal establishes the minimal basic-ship inspection pattern:
+- cost and name
+- type metadata
+- concise power summary
+- large Build CTA
+
+4.5 Actions panel
+
+The Carrier actions mock establishes a mobile action workspace:
+- tab switches to Actions
+- action count heading
+- per-source-ship groups
+- large touch buttons for choices
+- selected / default choice styling
+- Hold option where relevant
+
+4.6 Battle stat popovers
+
+Tapping either compact battle-stat row shows both players' breakdown popovers at once.
+
+Each player popover has up to four conceptual slots:
+- last turn healing
+- last turn damage
+- last turn bonus
+- saved lines
+
+Healing and damage slots always show, including zero values.
+Bonus and saved-line slots show only when non-zero.
+
+4.7 Chat takeover
+
+The Chat screen is a mobile takeover rather than a rail panel.
+It includes:
+- title
+- game code / copy affordance
+- close affordance
+- scrollable messages
+- draw offer actions when present
+- input area and send button
+- keyboard-state consideration
+
+4.8 Battle Log takeover
+
+The Battle Log screen is a mobile takeover.
+It includes:
+- title and close affordance
+- stable two-player headers
+- completed-turn rows
+- dice value per turn
+- health end + delta per player
+- BUILD and BATTLE sections
+- scrollable history
+
+4.9 Menu / turn-info takeover
+
+The Menu screen is a mobile takeover.
+It includes:
+- game code/title
+- match status and elapsed time
+- Offer Draw / Resign Game where allowed
+- current turn chip
+- Build Phase and Battle Phase timeline with current subphase highlighted
+
+4.10 Large mobile checks
+
+Larger mobile frames have been designed as responsive checks.
+They are useful validation targets but not the primary constraint.
+The primary implementation target remains the tighter phone layout.
+
+-------------------------------------------------------------------------------
+5. Locked mobile UX model
+-------------------------------------------------------------------------------
+
+5.1 Board/home anchor
+
+The left top-nav cluster is the board/home anchor:
+
+SHAPESHIPS · Turn X
+
+Clicking or tapping either part returns to the board from Chat, Battle Log, or Menu.
+The whole cluster should be one generous tap target.
+
+When a takeover is open, this cluster may be visually dimmed but remains available as the return-to-board action.
+
+5.2 Takeover navigation
+
+Chat, Battle Log, and Menu are top-level takeovers.
+They do not live in the bottom interaction area.
+
+Locked behavior:
+- tapping Chat opens the Chat takeover
+- tapping Battle Log opens the Battle Log takeover
+- tapping Menu opens the Menu / turn-info takeover
+- active takeover item is visually bright
+- inactive takeover items are dimmed
+- opening a takeover clears temporary stat popovers and ship modals
+
+5.3 Board stack
+
+The mobile board stack is:
+- top nav
+- opponent fleet
+- central match/status strip
+- player fleet
+- economy/context line
+- Ready button
+- bottom interaction tabs and content
+
+The board must not become a compressed desktop sidebar layout.
+
+5.4 Bottom interaction region
+
+The bottom region is for gameplay interaction only:
+- Actions
+- species catalogue tabs
+- current action or catalogue content
+
+It does not contain Chat, Battle Log, or Menu.
+
+5.5 Hover becomes tap
+
+Mobile does not rely on hover.
+
+Desktop hover behavior maps to one of:
+- tap-to-open modal
+- tap-to-open popover
+- tap-to-select
+- tap-to-confirm through explicit CTA
+
+5.6 Temporary overlays clear predictably
+
+Temporary overlays such as stat popovers and ship modals should clear when:
+- tapping outside them
+- opening another temporary overlay
+- opening Chat / Battle Log / Menu
+- changing bottom tabs
+- submitting Ready
+- leaving the relevant phase
+- receiving a phase transition that invalidates the displayed content
+
+5.7 No board reflow for temporary overlays
+
+Stat popovers and modals overlay existing content.
+They must not push the board, fleets, or bottom interaction region down.
+
+-------------------------------------------------------------------------------
+6. Responsive targets
+-------------------------------------------------------------------------------
+
+6.1 Primary target
+
+Primary design target:
+- 360 x 800 CSS pixels
+
+This is the tightest common target and should be treated as the design constraint.
+
+6.2 Secondary checks
+
+Secondary validation frames:
+- 390 x 844
+- 412 x 915
+- 414 x 896
+- larger mobile / big phone checks as needed
+
+6.3 Browser height caution
+
+The implementation must assume mobile browser chrome, safe areas, and keyboard states can reduce usable height.
+
+Critical controls should avoid relying on the full nominal viewport height.
+The chat input and primary CTAs must remain usable when the keyboard is open.
+
+6.4 Breakpoint posture
+
+Mobile layout activation should be based on viewport/responsive conditions, not user-agent detection.
+
+Exact breakpoint values should be determined during implementation, but the expected intent is:
+- mobile shell for phone-width portrait layouts
+- desktop shell for wide layouts
+- no attempt to make the desktop layout merely shrink to phone width
+
+-------------------------------------------------------------------------------
+7. Runtime and view-model posture
+-------------------------------------------------------------------------------
+
+7.1 Same session hook and action callbacks
+
+Mobile uses the same useGameSession output and action callbacks as desktop.
+
+The mobile shell consumes the existing game session VM and actions.
+It does not create a parallel session hook.
+
+7.2 No mobile gameplay VM fork
+
+Do not create a separate mobile VM that duplicates existing game VM logic.
+
+Acceptable:
+- display-local UI state for active modal/takeover/popover
+- small display-only formatting helpers
+- runtime extensions to existing shared VM where the data is generally useful
+
+Not acceptable:
+- a second mobile-only fleet VM derived independently from raw state
+- a second mobile-only action VM derived independently from raw availableActions
+- mobile-only battle-log parsing
+- mobile-only rules/eligibility computation
+
+7.3 Phase 10 selector alignment
+
+After Phase 10 selector work, Phase 11 should consume the centralized selector/runtime outputs.
+If a missing selector blocks mobile display, add or extend the shared selector seam rather than reading raw state in display/mobile.
+
+7.4 Display-local UI state
+
+Mobile-specific UI state may live in the mobile shell or nearby mobile display components when it is purely presentational.
+
+Examples:
+- active mobile screen: board | chat | battleLog | menu
+- selected ship for modal
+- expanded rules notes in a ship modal
+- stat breakdown open/closed
+- local close/dismiss transitions
+
+-------------------------------------------------------------------------------
+8. Display component structure
+-------------------------------------------------------------------------------
+
+8.1 Preferred file area
+
+New mobile display files should live under:
+
+src/game/display/mobile/**
+
+Recommended conceptual components:
+- MobileGameLayout
+- MobileTopNav
+- MobileBoardView
+- MobileStatusStrip
+- MobileBottomInteractionArea
+- MobileShipModal
+- MobileStatBreakdownPopovers
+- MobileTakeoverShell
+- MobileChatTakeover
+- MobileBattleLogTakeover
+- MobileMenuTakeover
+
+Exact filenames may change during implementation.
+
+8.2 GameScreen branch
+
+GameScreen may branch between desktop and mobile shells after bootstrapping and after useGameSession has produced the shared VM/actions.
+
+The branch should be shallow:
+- desktop receives the existing layout path
+- mobile receives the mobile layout path
+- both receive the same underlying VM/actions
+
+8.3 Desktop file movement
+
+Do not move existing desktop files as part of the first mobile implementation unless necessary.
+
+Allowed exceptions:
+- a small shared primitive extraction if needed to avoid duplicating fleet or ship-stack rendering
+- a narrow export adjustment if an existing rendering helper can be reused safely
+- small prop additions to existing display primitives when both desktop and mobile benefit
+
+This is not permission for a broad desktop layout refactor.
+
+8.4 Fleet rendering reuse
+
+Do not reimplement the fleet rendering rules for mobile.
+
+Preferred order:
+1. Reuse existing fleet rendering directly if practical.
+2. If desktop BoardStage's current composition prevents reuse, extract the existing reusable fleet/ship-stack rendering into a shared display primitive and have both desktop and mobile consume it.
+3. Only if extraction is unsafe, create a mobile wrapper that consumes the same fleet stack VM and uses the same graphics resolver, without duplicating rule/ordering logic.
+
+8.5 Catalogue and action panel reuse
+
+Mobile should reuse existing catalogue/action data and callback semantics.
+
+Mobile may use different presentation components for layout and touch sizing, but the source of truth for:
+- visible tabs
+- available actions
+- catalogue state
+- build eligibility
+- dynamic costs
+- choice IDs
+- action submission callbacks
+
+must remain shared.

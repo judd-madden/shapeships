@@ -1,0 +1,502 @@
+Phase 10 Game State DTO and Migration Contract
+
+Project: Shapeships
+Status: Normative planning document
+Scope: normalization of live game-state contracts, separation of internal authoritative state from client-facing DTOs, and staged migration/pruning of /game-state without destabilizing the client runtime
+
+If later implementation instructions conflict with this document, this document wins for live game-state contract work unless explicitly superseded.
+
+--------------------------------------------------------------------------------
+1. Purpose
+--------------------------------------------------------------------------------
+
+This document defines the Phase 10 program for normalizing Shapeships live state contracts.
+
+Its purpose is to:
+
+- separate authoritative internal server state from client-facing response DTOs
+- lock the intended roles of:
+  - /game-state-head
+  - /game-state
+  - /game-history
+- reduce contract drift caused by mixed root + nested response families
+- support staged pruning of hot payload bloat without breaking the client
+- preserve requester-only hidden-info projections where needed
+- provide a safe migration order for runtime and server changes
+
+This phase is about contracts and migration discipline, not a gameplay-system rewrite. The existing architecture already establishes that the server is authoritative, the client consumes server truth, and history should be separate from hot state. Phase 10 formalizes how that should look at the live response layer.
+
+--------------------------------------------------------------------------------
+2. Why this phase exists
+--------------------------------------------------------------------------------
+
+The current codebase is in a mixed-contract posture:
+
+- full /game-state includes a large nested gameData object and also returns root projections
+- the client runtime still reads both root and nested families
+- some fields are duplicated for migration convenience
+- some response families mix public truth, requester-only truth, and internal-engine convenience in one broad payload
+- /game-state-head has already introduced a cleaner minimal polling contract, but full /game-state has not yet been normalized to match that posture
+
+This is not just a payload-size problem. It is a contract clarity problem. Without a normalized target contract, pruning is risky and future changes accumulate drift. That risk is real because the current client still reads mixed families such as status/phase/turn/clock/readiness/ships through multiple paths. The existing architecture documents already require the client to consume server truth through the runtime seam rather than depending on ad hoc raw-state reads across the codebase.
+
+--------------------------------------------------------------------------------
+3. Core goals
+--------------------------------------------------------------------------------
+
+Phase 10 should achieve the following:
+
+1. Internal state is not the API
+   - canonical persisted game state may remain engine-oriented
+   - /game-state should be a deliberate DTO, not a raw dump
+
+2. /game-state-head remains tiny
+   - head polling is for freshness checks, phase/turn/clock truth, and refresh decisions
+   - it must not grow into a second full-state payload
+
+3. /game-state becomes a curated full DTO
+   - complete enough for the live client
+   - explicit about public vs requester-only fields
+   - stable enough for runtime selectors to target cleanly
+
+4. History stays separate
+   - finalized turn history is not part of hot live polling
+   - completed-turn summaries remain in /game-history only, per the existing battle-log contract
+
+5. Migration is staged
+   - no broad prune before the client runtime has a centralized selector seam
+   - duplicate families are removed one family at a time, not as a single mega-pass
+
+--------------------------------------------------------------------------------
+4. Non-goals
+--------------------------------------------------------------------------------
+
+Phase 10 must not silently widen into:
+
+- gameplay rules changes
+- phase machine redesign
+- matchup-specific canonical state
+- server-authority changes
+- display-layer redesign
+- broad economy redesign
+- broad bot/history/sound/system work unrelated to live state contracts
+- a requirement that internal canonical state become “pretty” before DTO cleanup begins
+
+This phase is about contract normalization and migration safety.
+
+--------------------------------------------------------------------------------
+5. Locked architectural interpretation
+--------------------------------------------------------------------------------
+
+5.1 Server authority is unchanged
+
+The server remains authoritative for:
+
+- legality
+- phase advancement
+- turn progression
+- effect application
+- combat outcomes
+- canonical state transitions
+
+Nothing in this document moves authority into the client.
+
+5.2 Client consumes DTOs, not raw internal state
+
+The client runtime should ultimately consume a stable DTO contract from /game-state, with centralized selectors mediating any temporary fallbacks during migration.
+
+The existence of internal server fields does not make them public contract.
+
+5.3 Display remains presentation-only
+
+Display/UI files continue to receive view models and callbacks. They must not become a second state contract seam or start interpreting raw authoritative payloads directly.
+
+5.4 History remains separate from hot polling
+
+Turn history is server-authored, finalized once per completed turn, fetched separately, and explicitly not part of hot per-second live state. That remains locked.
+
+--------------------------------------------------------------------------------
+6. Contract layers
+--------------------------------------------------------------------------------
+
+Phase 10 formally defines four distinct layers.
+
+6.1 Canonical persisted server state
+Role: internal engine truth
+Audience: server only
+Stability: internal, not public API
+
+This layer may contain:
+
+- players/resources/health
+- fleets and destroyed/void structures as needed by rules
+- current phase/turn
+- clocks
+- current-turn scratch
+- power memory
+- live commitment/reveal state
+- other deterministic engine memory
+
+This layer exists to let the engine continue the match correctly. It is not required to mirror the public DTO shape. Phase 3 explicitly established the legitimacy of internal pendingTurn and powerMemory state for deterministic end-of-turn resolution and once-only persistence.
+
+6.2 /game-state-head
+Role: tiny poll/freshness DTO
+Audience: live client runtime
+Stability: strong contract
+
+This response should remain minimal and should not accumulate broad gameplay projection.
+
+Minimum intended families:
+
+- gameId
+- status
+- stateRevision
+- turnNumber
+- phaseKey
+- minimal clock truth required for lightweight ticking / refresh decisions
+
+This contract already aligns with the direction of Phase 10 and should be protected from scope creep.
+
+6.3 /game-state
+Role: curated full live DTO
+Audience: live client runtime
+Stability: the main migration target of this phase
+
+This response should include what the active client actually needs, but in a deliberate shape with explicit visibility boundaries.
+
+6.4 /game-history
+Role: completed-turn archive DTO
+Audience: live client battle-log/history UI
+Stability: separate contract
+
+This remains the home for finalized turn summaries only and must not be merged back into hot live state.
+
+--------------------------------------------------------------------------------
+7. Target posture for /game-state
+--------------------------------------------------------------------------------
+
+The exact field names may evolve, but the structural separation is locked.
+
+Recommended target posture:
+
+```ts
+type GameStateDto = {
+  gameId: string
+  status: GameStatus
+  stateRevision: number
+
+  meta: {
+    turnNumber: number
+    phaseKey: string
+    subPhaseKey?: string
+  }
+
+  players: PlayerSummaryDto[]
+  clock?: ClockDto
+
+  publicState: {
+    fleets: FleetsDto
+    visibleDice?: VisibleDiceDto
+    phaseReadiness?: PhaseReadinessDto
+    lastTurnStats?: LastTurnStatsDto
+    controllersByPlayerId?: Record<string, ControllerSeatDto>
+  }
+
+  requester?: {
+    availableActions?: AvailableActionDto[]
+    buildEconomy?: BuildEconomyDto
+    bonusLinesByPlayerId?: Record<string, number>
+    bonusLinesOnEvenByPlayerId?: Record<string, number>
+    savedLinesByPlayerId?: Record<string, number>
+    joiningLinesByPlayerId?: Record<string, number>
+    joiningBonusLinesByPlayerId?: Record<string, number>
+    bonusBreakdownByPlayerId?: Record<string, BonusBreakdownDto[]>
+    lastTurnDamageDealtBreakdownByPlayerId?: Record<string, BreakdownRowDto[]>
+    lastTurnHealingReceivedBreakdownByPlayerId?: Record<string, BreakdownRowDto[]>
+    hiddenPreviewState?: HiddenPreviewDto
+  }
+
+  result?: {
+    winnerPlayerId?: string
+    resultReason?: string
+  }
+}
+```
+
+This example is illustrative, not a locked exact schema. What is locked is:
+
+- phase/turn live under one clear DTO family
+- public state and requester-only state are separated
+- result fields are explicit
+- the DTO is curated rather than mirroring gameData
+
+--------------------------------------------------------------------------------
+8. Visibility model
+--------------------------------------------------------------------------------
+
+Every major field family must belong to one of these categories.
+
+8.1 Head-only
+Used for lightweight polling and refresh decisions only.
+
+Examples:
+- head turnNumber
+- head phaseKey
+- head minimal clock truth
+- head stateRevision
+
+8.2 Public live state
+Visible to both players and, where applicable, spectators.
+
+Examples:
+- joined players and public player summaries
+- public fleet state
+- visible dice state
+- public readiness state
+- final result state
+- stable controller ownership if publicly relevant
+
+8.3 Requester-only live state
+Visible only to the requesting seat and intentionally hidden from the opponent.
+
+Examples:
+- availableActions
+- build economy projections tied to requester interaction
+- hidden build preview state
+- requester-only breakdowns or guidance that reveal hidden actionable information
+
+This category is required by existing build/economy visibility rules. The acting player may see local provisional or hidden-info-safe state that the opponent must not see until reveal. Phase 6 already locked this interpretation.
+
+8.4 Internal-only
+Never part of the public DTO unless a later pass explicitly exposes a derived public subset.
+
+Examples:
+- raw pendingTurn
+- broad powerMemory.onceOnlyFired
+- internal effect bookkeeping
+- old commitment history not needed for the current turn
+- internal engine-only scratch maps
+
+8.5 History-only
+Only in /game-history, never in hot /game-state.
+
+Examples:
+- finalized completed-turn summaries
+- archived build/battle turn lines
+- history revision counters if used for history refresh posture
+
+--------------------------------------------------------------------------------
+9. Field-family ownership rules
+--------------------------------------------------------------------------------
+
+Each major family must ultimately have:
+
+- one intended public DTO location
+- one intended requester-only DTO location, if needed
+- one selector entry point in client runtime
+- one migration status
+- one prune status
+
+The main families for Phase 10 are:
+
+1. status
+2. phase/turn metadata
+3. clock
+4. players
+5. fleets/ships
+6. visible dice
+7. availableActions
+8. build economy
+9. bonus/saved/joining line families
+10. phase readiness
+11. last-turn summary stats
+12. detailed last-turn breakdowns
+13. result fields
+14. controllers/seat ownership
+15. commitments
+16. power memory
+17. events
+18. history hints
+
+This table should be maintained during implementation passes. The important rule is that a family is not removed just because it “looks duplicated.” It is removed only after its target DTO location and selector behavior are explicitly defined.
+
+--------------------------------------------------------------------------------
+10. Migration discipline
+--------------------------------------------------------------------------------
+
+Phase 10 locks the following migration rule:
+
+10.1 Do not prune broad families before selector centralization
+The client runtime currently consumes mixed root/nested families. Therefore the first implementation step after this planning document must be selector normalization, not server-side broad pruning.
+
+10.2 Introduce new DTO paths before removing old ones
+The server may publish the new DTO location while temporarily preserving legacy fields.
+
+10.3 Selectors become DTO-first with legacy fallback
+Client runtime selectors should prefer the normalized DTO path and then fall back to legacy fields during migration.
+
+10.4 Remove duplicate families one family at a time
+Do not combine:
+- phase/turn cleanup
+- clock cleanup
+- stats cleanup
+- economy cleanup
+- fleet cleanup
+into one large pass.
+
+10.5 Canonical internal cleanup comes after response normalization
+The canonical server state may be slimmed later, but response normalization does not require immediate internal state redesign.
+
+--------------------------------------------------------------------------------
+11. Current known posture from audit
+--------------------------------------------------------------------------------
+
+The current audit of the updated codebase establishes the following broad truths:
+
+- availableActions, build-economy maps, bonus/joining line maps, breakdown maps, and several result/controller fields are already live at root in full /game-state
+- clock, commitments, power-memory fragments, ships, and multiple phase/turn fields are still consumed from nested gameData families in the runtime
+- some families such as status/turn/phase/readiness/ships remain mixed
+- full-state events appears to be the strongest likely dead-bloat candidate
+- full-state root clock appears redundant today for full-runtime consumption, though root clock remains required on /game-state-head
+
+This confirms that normalization is a many-pass migration, not a single prune pass.
+
+--------------------------------------------------------------------------------
+12. Recommended implementation order
+--------------------------------------------------------------------------------
+
+Pass 10A — Planning document
+This document.
+
+Pass 10B — Client selector seam normalization
+Type: Client Runtime Pass
+
+Goal:
+- centralize raw /game-state reads into one selector seam
+- no behavior changes
+- DTO-first posture may be prepared, but no prune yet
+
+Outcome:
+- later server changes require selector edits instead of repo-wide raw-state hunts
+
+Pass 10C — Server DTO layering
+Type: Server Pass
+
+Goal:
+- add the normalized /game-state DTO families
+- keep legacy root/nested fallbacks alive temporarily
+- do not remove old fields yet
+
+Pass 10D — Client DTO-first switch
+Type: Client Runtime Pass
+
+Goal:
+- selectors prefer normalized DTO paths
+- legacy fallback preserved
+
+Pass 10E — Safe dead-bloat prune
+Type: Server Pass
+
+Goal:
+- remove only clearly dead or dev-only full-state response baggage
+- likely first targets:
+  - full-state events
+  - any other confirmed-unused response clutter
+
+This pass should remain deliberately conservative.
+
+Pass 10F onward — Duplicate family cleanup
+One family per pass.
+
+Recommended order:
+1. phase/turn metadata
+2. clock
+3. last-turn summary stats
+4. economy / bonus / joining families
+5. readiness
+6. fleet/ship family if still needed
+
+Final optional pass — Canonical internal cleanup
+Only after live response migration is stable.
+
+Candidate targets:
+- old commitment/history residue in hot canonical state
+- internal duplication that no longer serves the engine
+- internal scratch isolation improvements
+
+--------------------------------------------------------------------------------
+13. Prune policy
+--------------------------------------------------------------------------------
+
+A field family may be pruned only when all of the following are true:
+
+1. the target DTO location is defined
+2. the client runtime selector seam reads the target DTO path
+3. legacy fallback has shipped
+4. no active runtime reads remain against the old path
+5. validation confirms no regression in:
+   - species selection
+   - build drawing
+   - ships-that-build
+   - charge phases
+   - clocks
+   - history refresh
+   - postgame state
+
+This policy is locked for Phase 10.
+
+--------------------------------------------------------------------------------
+14. Specific locked decisions
+--------------------------------------------------------------------------------
+
+14.1 /game-state-head must remain minimal
+Do not broaden it into a second full-state payload.
+
+14.2 /game-history remains separate
+Do not merge completed-turn history back into hot /game-state. This is already an established server contract and remains correct.
+
+14.3 Requester-only projections are legitimate
+Do not flatten away requester-only fields just because they complicate the response. Hidden-info-safe requester projection is a real game requirement.
+
+14.4 Internal memory is not automatically public contract
+The existence of engine memory such as powerMemory or pendingTurn does not make those raw maps public DTO fields. Only derived visible subsets should be exposed where the UI truly needs them.
+
+14.5 Broad prune before selector normalization is forbidden
+This is the main guardrail of Phase 10.
+
+--------------------------------------------------------------------------------
+15. Validation expectations
+--------------------------------------------------------------------------------
+
+Each implementation pass under Phase 10 should validate the relevant contract behavior and the normal live game loops.
+
+Typical checks:
+
+- npm run typecheck
+- npm run build
+- deno check src/supabase/functions/server/index.tsx
+
+Behavioral validation should include, where relevant:
+
+- head polling still refreshes correctly
+- full-state load still hydrates the client correctly
+- action-panel routing still works
+- hidden-info behavior during build remains correct
+- clock behavior remains correct
+- history fetching remains separate and correct
+- result/winner state remains correct
+
+--------------------------------------------------------------------------------
+16. End state
+--------------------------------------------------------------------------------
+
+Phase 10 is complete when all of the following are true:
+
+- the client runtime consumes a normalized /game-state DTO primarily through centralized selectors
+- /game-state-head is stable and minimal
+- /game-history remains separate and lean
+- the full response no longer mixes unnecessary duplicate root + nested contract families
+- broad dead response baggage has been removed
+- any remaining complexity in canonical server state is engine-motivated, not accidental API leakage
+
+That is the intended end posture for live state in Shapeships.

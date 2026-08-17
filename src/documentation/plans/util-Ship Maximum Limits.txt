@@ -1,0 +1,12 @@
+Ship Maximum Limits
+ORB - Orbital - 6
+SCI - Science Vessel - 3
+
+CHR - Chronoswarm - 3
+
+VIG - Ship of Vigor - 4
+KNO - Ark of Knowledge - 3
+POW - Ark of Power - 3
+
+QUA - Quantum Mystic - 6
+URA - Uranus Core - 6

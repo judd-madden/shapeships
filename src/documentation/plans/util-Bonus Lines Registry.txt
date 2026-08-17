@@ -1,0 +1,25 @@
+Bonus Lines Registry
+(each bonus is "each future build phase" meaning that it does not trigger this turn, but on all subsequent turns)
+
+Ships with simple bonuses
+
+ORB +1
+BAT +2
+
+OXF +1
+ASF +1
+
+
+Ships with complex bonuses
+
+SCI#3 (Science Vessel number three in players fleet) Gain lines equal to the dice roll this turn
+
+VIG +2 when dice roll is EVEN this turn
+POW +4 when dice roll is EVEN this turn
+
+
+Ships with joining line bonuses (Centaur only)
+
+LEG +4 joining lines once, immediately during build.drawing phase
+RED +2 joining lines (each future build phase)
+DOM +2 joining lines (each future build phase)

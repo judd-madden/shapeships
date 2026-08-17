@@ -1,0 +1,1142 @@
+# Phase 12 Stats
+Normative Planning Document
+
+Project: Shapeships
+Status: Planning
+Scope: end-of-game stats visualization, completed-game history derivation, fleet value history extension, responsive stats overlay, and endgame action-panel integration
+
+If later implementation instructions conflict with this document, this document wins for Phase 12 Stats behavior unless explicitly superseded.
+
+-------------------------------------------------------------------------------
+
+## 1. Purpose
+
+Phase 12 adds an end-of-game stats surface to Shapeships.
+
+Its purpose is to:
+- show the course of a completed match visually
+- keep all stats derived from completed-turn game history
+- add only the missing structured data required for Fleet Value
+- preserve the server-authoritative architecture
+- avoid parsing plain-text battle-log rows in display code
+- integrate the stats surface into the existing end-of-game UI
+- support responsive desktop, laptop, and mobile presentation without redesigning the charts per device
+
+This phase is not a mid-game analytics feature. Stats are shown only after the game has ended.
+
+-------------------------------------------------------------------------------
+
+## 2. Product scope
+
+### 2.1 In scope
+
+Phase 12 includes:
+
+- End-of-game “Game Stats” overlay.
+- Endgame button reorder and new stats toggle button.
+- “View Stats” / “View Board” toggle behavior.
+- Four visual rows:
+  1. Health over time.
+  2. Your Healing vs Opponent Damage.
+  3. Your Damage vs Opponent Healing.
+  4. Fleet Value.
+- Desktop hover behavior for exact turn values.
+- Mobile and narrow-screen horizontal scroll / scale behavior.
+- Server history extension for Fleet Value only.
+- Client runtime derivation of chart-ready stats from game history.
+- Player-relative labels for players:
+  - Your Health
+  - Opponent Health
+  - Your Healing
+  - Opponent Damage
+  - Your Damage
+  - Opponent Healing
+  - Your Fleet Value
+  - Opponent Fleet Value
+- Spectator-safe labels using player names instead of Your/Opponent.
+
+### 2.2 Out of scope
+
+Phase 12 does not include:
+
+- Mid-game stats.
+- Live incomplete-turn stats.
+- Per-turn current-build preview stats.
+- Peak Fleet Value display.
+- Lost Fleet Value display.
+- Total Line Cost wording in the visible UI.
+- New battle-log textual rows.
+- Full replay mode.
+- Interactive selected-turn state.
+- Tap-to-select turn behavior on mobile.
+- New gameplay systems.
+- Server rule changes unrelated to history stat projection.
+- New chart types beyond the four designed rows.
+- Parsing plain-text build/battle log rows to infer stats.
+- Any new authoritative logic in client or display code.
+
+-------------------------------------------------------------------------------
+
+## 3. Architectural stance
+
+### 3.1 Server authority remains unchanged
+
+The server remains authoritative for:
+- rules
+- legality
+- combat outcomes
+- effect application
+- canonical state transitions
+- completed-turn history finalization
+- Fleet Value calculation
+
+The client and display layers render server-authored data only.
+
+### 3.2 Stats use completed game history
+
+The stats surface derives from `/game-history/:gameId`.
+
+The stats surface must not read or depend on hot per-second `/game-state` payloads except for ordinary endgame UI state already used by the game screen.
+
+Stats must use completed-turn history only.
+
+### 3.3 Endgame-only
+
+Stats are available only when the game status is finished.
+
+There is no mid-game stats button and no “stats through Turn X” state.
+
+### 3.4 Display is presentation-only
+
+Display components may:
+- render charts
+- manage hover state
+- manage stats-open / board-open UI state
+- scale and scroll chart containers
+
+Display components must not:
+- compute authoritative combat results
+- parse battle-log text to reconstruct ship states
+- calculate Fleet Value from text rows
+- call server endpoints directly
+- create a second game-history networking path outside the client runtime seam
+
+### 3.5 Client runtime owns derivation
+
+Client runtime or a nearby client helper should convert raw game-history DTOs into a chart-ready stats view model.
+
+Display components consume the chart-ready view model.
+
+-------------------------------------------------------------------------------
+
+## 4. Data contract
+
+### 4.1 Existing history data to reuse
+
+Phase 12 should reuse existing game-history fields wherever available.
+
+The existing completed-turn history already includes:
+- turn number
+- dice value
+- players
+- player health at end of turn
+- player health delta
+- build lines
+- battle lines
+
+Health over time is derived directly from `players[*].healthEnd`.
+
+Health deltas are derived directly from `players[*].healthDelta`.
+
+Damage and healing should reuse the existing server-authored turn analysis data if it is already exposed in the current history response or runtime history path.
+
+Expected analysis values, if already present:
+- `damageTaken`
+- `healReceived`
+
+The stats layer should derive player-relative pressure values:
+
+```ts
+yourHealing = your.healReceived
+opponentDamage = your.damageTaken
+
+yourDamage = opponent.damageTaken
+opponentHealing = opponent.healReceived
+```
+
+Do not add duplicate health, health delta, damage, or healing fields if the current history path already exposes them.
+
+### 4.2 Required new data: Fleet Value
+
+The only intended new server-authored stat is Fleet Value at the end of each completed turn.
+
+Locked per-player shape:
+
+```ts
+players: Array<{
+  playerId: string
+  name: string
+  healthEnd: number
+  healthDelta: number
+  fleetValueEnd: number
+}>
+```
+
+`fleetValueEnd` should live on each completed-turn player summary, alongside `healthEnd` and `healthDelta`.
+
+### 4.3 Fleet Value definition
+
+Fleet Value is:
+
+> The sum of the total line cost of all ships currently in that player’s fleet at the end of the completed turn.
+
+Rules:
+- Count active fleet ships only.
+- Exclude destroyed / void ships.
+- Exclude consumed upgrade components.
+- Count stolen/transferred ships under their current owner at end of turn.
+- Use canonical server ship definitions for total line cost.
+- Compute on the server when finalizing the completed-turn history summary.
+- Do not compute by parsing build/battle text.
+- Do not compute from client-side mirrored definitions.
+
+### 4.4 Damage/healing inspection gate
+
+Before implementing server changes, inspect the current `/game-history` response and runtime history parser.
+
+If damage/healing analysis values are already present:
+- reuse them
+- do not add new fields
+
+If they are not exposed in the history DTO but are already computed in server history finalization:
+- expose the existing analysis values minimally
+- do not create a second analysis computation path
+
+If they are not computed at all in history finalization:
+- add the smallest server-authored completed-turn analysis projection needed for this design
+- do not infer damage/healing from plain-text battle rows
+
+### 4.5 No plain-text parsing for stats
+
+Stats must not parse:
+- `buildLinesByPlayerId`
+- `battleLinesByPlayerId`
+- downloaded battle-log text
+- rendered Battle Log rows
+
+Plain-text history rows remain a readable log surface, not a stats computation contract.
+
+-------------------------------------------------------------------------------
+
+## 5. Endgame UI integration
+
+### 5.1 Endgame button order
+
+The end-of-game action buttons must be reordered to match the stats design.
+
+Button order:
+
+1. New Game
+2. View Stats / View Board
+3. Download Battle Log
+4. Return to Main Menu
+
+When stats are closed, the second button reads:
+
+```text
+View Stats
+```
+
+When stats are open, the second button reads:
+
+```text
+View Board
+```
+
+The same button toggles between the board/result view and the stats view.
+
+### 5.2 Existing endgame actions preserved
+
+Existing behavior must be preserved:
+- New Game still starts the appropriate new game flow.
+- Download Battle Log still downloads the log.
+- Return to Main Menu still returns to menu.
+- Play-again subcopy remains under the button row where currently appropriate.
+
+### 5.3 Stats container relationship to endgame panel
+
+When stats are open:
+- the stats container overlays/covers the upper endgame result area and the central fleet playfield area
+- the endgame action button row remains visible underneath
+- the stats surface must not cover the top HUD
+- the stats surface must not cover the endgame action buttons
+- the colored victory/result banner may be hidden underneath the stats container
+
+The effect should be:
+
+```text
+Top HUD remains visible
+Stats container occupies the central/endgame content area
+Endgame buttons remain visible underneath
+```
+
+### 5.4 Close behavior
+
+Stats can close through:
+- the View Board button
+- the close X in the stats header
+
+Both paths return to the normal board/endgame result view.
+
+The close X should use the existing close primitive where available.
+
+### 5.5 Initial state
+
+On game over, the default view remains the existing board/endgame result view.
+
+Stats are shown only after the user chooses View Stats.
+
+-------------------------------------------------------------------------------
+
+## 6. Viewer labeling
+
+### 6.1 Player view
+
+For a player viewing their own completed game, labels are relative:
+
+- Your Health
+- Opponent Health
+- Your Healing
+- Opponent Damage
+- Your Damage
+- Opponent Healing
+- Your Fleet Value
+- Opponent Fleet Value
+
+### 6.2 Spectator view
+
+For spectators, do not use Your/Opponent labels.
+
+Use player names instead.
+
+Example:
+
+- judd Health
+- Computer Health
+- judd Healing
+- Computer Damage
+- judd Damage
+- Computer Healing
+- judd Fleet Value
+- Computer Fleet Value
+
+If names are long, truncate in the left summary column using the existing text overflow posture.
+
+### 6.3 Stable player ordering
+
+Stats must preserve the same stable player ordering used by the rest of the game state, battle log, and spectator surfaces.
+
+-------------------------------------------------------------------------------
+
+## 7. Stats rows
+
+The stats container has four graph rows.
+
+All rows share:
+- the same turn columns
+- the same horizontal scroll area
+- the same hover turn band
+- the same left summary column width
+- the same chart body width
+- vertically aligned turn grid positions
+
+### 7.1 Row 1 — Health over time
+
+Purpose:
+- show both players’ health trajectories across the game
+
+Summary column:
+- Your Health / Opponent Health in player view
+- player names in spectator view
+- final health values
+- number note: `final`
+
+Graph:
+- line graph
+- small circular nodes at every completed turn
+- You line: `--shapeships-white`
+- Opponent line: `--shapeships-grey-50`
+- node diameter: 8px
+- line width: 3px
+- values below the visible floor clamp visually
+- final/summary values still show real values
+
+Hover:
+- show both health values near their corresponding nodes
+- values should sit under the node by default
+- if labels collide, offset one above and one below
+- label colors follow row 1 series colors
+
+### 7.2 Row 2 — Your Healing vs Opponent Damage
+
+Purpose:
+- show whether the player’s healing kept up with opponent pressure
+
+Summary column:
+- Your Healing total
+- Opponent Damage total
+
+Graph:
+- paired vertical bars around a central horizontal zero rule
+- healing bars extend upward
+- damage bars extend downward
+- bars sit tight against the central 2px horizontal rule
+- Your Healing uses `--shapeships-green`
+- Opponent Damage uses `--shapeships-pastel-red`
+
+Values:
+- label above or below each bar
+- 15px medium
+- centered to each bar
+- 4px gap between label and bar
+
+Hover:
+- show net turn value:
+
+```ts
+net = yourHealingThisTurn - opponentDamageThisTurn
+```
+
+- positive values use normal positive health-delta color
+- negative values use normal negative health-delta color
+- zero uses normal plus-minus-zero grey treatment
+
+### 7.3 Row 3 — Your Damage vs Opponent Healing
+
+Purpose:
+- show whether the player’s damage broke through opponent healing
+
+Summary column:
+- Your Damage total
+- Opponent Healing total
+
+Graph:
+- paired vertical bars around a central horizontal zero rule
+- damage bars extend upward
+- healing bars extend downward
+- bars sit tight against the central 2px horizontal rule
+- Your Damage uses `--shapeships-orange`
+- Opponent Healing uses `--shapeships-pastel-green`
+
+Values:
+- label above or below each bar
+- 15px medium
+- centered to each bar
+- 4px gap between label and bar
+
+Hover:
+- show net turn value:
+
+```ts
+net = yourDamageThisTurn - opponentHealingThisTurn
+```
+
+- positive values use normal positive health-delta color
+- negative values use normal negative health-delta color
+- zero uses normal plus-minus-zero grey treatment
+
+### 7.4 Row 4 — Fleet Value
+
+Purpose:
+- show each player’s fleet growth over the completed game
+
+Visible UI wording:
+- Fleet Value
+
+Do not use:
+- Total Line Cost
+- TLC
+- Lost Fleet Value
+- Peak Fleet Value
+
+Summary column:
+- Your Fleet Value final
+- Opponent Fleet Value final
+
+Graph:
+- step line graph
+- no circular nodes
+- Your Fleet Value uses `--shapeships-pastel-blue`
+- Opponent Fleet Value uses `--shapeships-pastel-purple`
+- line width: 3px
+- dynamic y-scale based on max fleet value in either series
+- y-scale should round up to a clean grid value
+
+Hover:
+- show both Fleet Value numbers for the hovered turn
+- use row 4 colors
+- early turns: place hover labels near upper area of the fleet row
+- late turns: place hover labels near lower area of the fleet row
+- simple halfway rule is sufficient:
+
+```ts
+isLateTurn = hoveredTurnIndex > turnCount / 2
+```
+
+-------------------------------------------------------------------------------
+
+## 8. Visual contract
+
+### 8.1 Color variables
+
+Use existing Shapeships global variables.
+
+Allowed color families for this feature:
+- `--shapeships-white`
+- `--shapeships-black`
+- `--shapeships-grey-50`
+- `--shapeships-grey-70`
+- `--shapeships-grey-90`
+- `--shapeships-green`
+- `--shapeships-pastel-green`
+- `--shapeships-orange`
+- `--shapeships-pastel-red`
+- `--shapeships-pastel-blue`
+- `--shapeships-pastel-purple`
+
+Raw hex should be avoided except where explicitly specified for row background gradients.
+
+### 8.2 Stats container
+
+Style:
+- same general style as existing game containers
+- border: 2px solid `--shapeships-grey-70`
+- border radius: 10px
+- top corners rounded
+- bottom corners square if required by the current endgame integration
+- background: black / near-black consistent with existing containers
+- overflow hidden at the outer container level where needed
+
+The stats container must visually belong to the current Shapeships UI. Do not introduce a new dashboard design language.
+
+### 8.3 Header row
+
+Height:
+- 45px
+
+Content:
+- GAME STATS
+- Turn
+- turn numbers
+- close X
+
+Typography:
+- GAME STATS: 18px, bold
+- Turn: 18px, medium
+- turn numbers: 18px, bold
+- close X: existing primitive sizing
+
+Turn number container:
+- each turn number uses a 25px internal container for centered placement
+- this keeps the number visually centered above the turn column even when the turn column is wider than the number
+
+### 8.4 Row backgrounds
+
+Each graph row:
+- fills height evenly after accounting for the 45px header row
+- background gradient:
+  - `#141414` at 100% opacity
+  - to `#141414` at 0% opacity
+- vertical gradient direction should match the design mock
+- row separator lines should use existing grey treatment
+
+Each row padding:
+- top: 8px
+- left: 20px
+- bottom: 8px
+- right: approximately 40px
+
+### 8.5 Left summary column
+
+Width:
+- 160px
+
+This width does not include graph-axis labels/gutters.
+
+Each row’s summary column contains two groups:
+- group 1: Your / first player
+- group 2: Opponent / second player
+
+Group layout:
+- groups stacked vertically
+- aligned left
+- gap between groups: 8px
+- heading on first line
+- 2px gap
+- number and number note on second line
+- number and note vertically center-aligned to each other
+- number/note gap: 4px
+
+Typography:
+- heading: 16px, regular
+- number: 28px, black weight
+- number note: 14px, regular
+
+Summary group colors by row:
+- row 1:
+  - Your / first player: `--shapeships-white`
+  - Opponent / second player: `--shapeships-grey-50`
+- row 2:
+  - Your Healing: `--shapeships-green`
+  - Opponent Damage: `--shapeships-pastel-red`
+- row 3:
+  - Your Damage: `--shapeships-orange`
+  - Opponent Healing: `--shapeships-pastel-green`
+- row 4:
+  - Your Fleet Value: `--shapeships-pastel-blue`
+  - Opponent Fleet Value: `--shapeships-pastel-purple`
+
+### 8.6 Graph axes and legends
+
+Graph legend font:
+- 12px
+- medium
+
+Graph left vertical line:
+- 2px
+- `--shapeships-grey-70`
+
+Graph horizontal guide lines:
+- 1px
+- `--shapeships-grey-90`
+
+Rows 2 and 3:
+- central zero rule is 2px
+- `--shapeships-grey-90`
+- bars sit directly on either side of this rule
+
+### 8.7 Bar charts
+
+Rows 2 and 3 bars:
+- normal bar width: 35px
+- minimum bar width for dense long games: 20px
+- if turn count is high, reduce bar width before reducing readability of the whole chart
+- labels centered to bars
+- labels 15px medium
+- label-to-bar gap: 4px
+
+Rows 2 and 3 should share one pressure scale for the match:
+- calculate the max absolute value across all row 2 and row 3 damage/healing values
+- minimum scale should support the 40-value design cleanly
+- round the scale up to a clean interval
+- apply the same scale to row 2 and row 3 so the pressure comparison remains meaningful
+
+### 8.8 Line charts
+
+Row 1:
+- line width: 3px
+- node diameter: 8px
+- nodes at every completed turn
+
+Row 4:
+- step line width: 3px
+- no nodes
+
+### 8.9 Health scale
+
+Health row visual scale:
+- top should support max-health display cleanly
+- bottom should visually clamp large negative values
+- bottom label may use `-INF` as shown in the design
+- values below the visual floor draw at the floor
+- text labels and summary values still show the real health value
+
+### 8.10 Fleet scale
+
+Fleet Value row scale:
+- dynamic based on maximum Fleet Value across both players
+- round upward to a clean grid value
+- maintain readable horizontal guide spacing
+- do not show Peak or Lost labels
+
+-------------------------------------------------------------------------------
+
+## 9. Hover behavior
+
+### 9.1 No selected turn state
+
+There is no persistent selected turn.
+
+Stats do not open with a selected turn.
+
+The highlighted column appears only while hovering a turn column on desktop.
+
+### 9.2 Hover hit areas
+
+Hover should be based on invisible full-height turn hit rectangles.
+
+Each turn hit rectangle spans:
+- the header row
+- all four graph rows
+
+This prevents flicker when the mouse moves between lines, bars, labels, and grid areas.
+
+### 9.3 Hover highlight
+
+Turn highlight:
+- 10% white overlay
+- covers the whole hovered turn column
+- includes header row
+- appears above graph legends/rules
+- appears below graph data
+- must not obscure line/bar readability
+
+Z-order:
+1. row backgrounds
+2. grid/axis lines
+3. hover highlight
+4. chart data
+5. hover labels
+
+If implementation layering makes this exact order difficult, prioritize:
+- hover band visible but subtle
+- chart data remains readable
+- labels remain readable
+
+### 9.4 Hover labels by row
+
+Row 1:
+- show health values near each health node
+- labels follow row 1 colors
+- default placement under node
+- collision fallback: offset one above and one below
+
+Row 2:
+- show net value:
+
+```ts
+yourHealingThisTurn - opponentDamageThisTurn
+```
+
+- positive: use normal positive health-delta treatment
+- negative: use normal negative health-delta treatment
+- zero: use normal plus-minus-zero grey treatment
+
+Row 3:
+- show net value:
+
+```ts
+yourDamageThisTurn - opponentHealingThisTurn
+```
+
+- positive: use normal positive health-delta treatment
+- negative: use normal negative health-delta treatment
+- zero: use normal plus-minus-zero grey treatment
+
+Row 4:
+- show both Fleet Value numbers
+- use pastel blue and pastel purple
+- early turns: top-align labels within the Fleet Value row
+- late turns: bottom-align labels within the Fleet Value row
+- simple halfway rule is sufficient
+
+### 9.5 Hover on mobile
+
+Mobile has no hover requirement.
+
+Mobile must still show the full stats board with left summary final/total values.
+
+Tap-to-select turn is not part of Phase 12.
+
+-------------------------------------------------------------------------------
+
+## 10. Responsive behavior
+
+### 10.1 Desktop and laptop width
+
+The stats board should fit short games to available width.
+
+For long games, it should horizontally scroll.
+
+Recommended sizing model:
+
+```ts
+turnColumnWidth = clampByViewport(...)
+minTurnColumnWidth = 20 for bars
+preferredTurnColumnWidth = enough to support 35px bars and centered labels
+chartMinWidth = leftSummaryWidth + axisGutterWidth + turnCount * turnColumnWidth + rightPadding
+chartRenderedWidth = max(availableWidth, chartMinWidth)
+```
+
+Behavior:
+- for short games, stretch columns to fill available space
+- for 20+ turn games, allow horizontal overflow
+- do not compress turn columns until labels/bars become unreadable
+- prefer horizontal scroll over unreadable compression
+
+### 10.2 Desktop and laptop height
+
+Rows fill the available stats container height evenly after the 45px header row.
+
+The stats surface should remain inside the central/endgame content area and must not cover the endgame action button row.
+
+If height is constrained:
+- reduce graph row height proportionally
+- preserve header height
+- preserve left summary legibility
+- preserve button row visibility
+- do not introduce independent vertical scroll inside individual graph rows
+
+### 10.3 Mobile
+
+Mobile uses the same stats board.
+
+Mobile behavior:
+- scale the board down as needed
+- horizontal scroll is allowed and expected
+- do not create a separate mobile-specific stats design
+- do not create a mobile-only stats view model
+- do not require hover
+- do not require tap-to-select turn
+
+The mobile implementation may use a takeover-style stats surface if that best fits the existing mobile endgame layout, but it must still render the same four-row board and same data model.
+
+### 10.4 Scroll containment
+
+Horizontal scroll should be contained inside the stats container or its chart body.
+
+The rest of the endgame screen should not become horizontally scrollable.
+
+-------------------------------------------------------------------------------
+
+## 11. Chart view model
+
+The client/runtime stats derivation should produce a single chart-ready view model.
+
+Recommended conceptual shape:
+
+```ts
+type GameStatsViewModel = {
+  turnCount: number
+  turns: Array<{
+    turnNumber: number
+
+    viewer: {
+      playerId: string
+      label: string
+      healthEnd: number
+      healthDelta: number
+      healingReceived: number
+      damageTaken: number
+      damageDealt: number
+      fleetValueEnd: number
+    }
+
+    opponent: {
+      playerId: string
+      label: string
+      healthEnd: number
+      healthDelta: number
+      healingReceived: number
+      damageTaken: number
+      damageDealt: number
+      fleetValueEnd: number
+    }
+
+    row2Net: number
+    row3Net: number
+  }>
+
+  summary: {
+    viewer: {
+      label: string
+      finalHealth: number
+      totalHealing: number
+      totalDamage: number
+      finalFleetValue: number
+    }
+
+    opponent: {
+      label: string
+      finalHealth: number
+      totalHealing: number
+      totalDamage: number
+      finalFleetValue: number
+    }
+  }
+
+  labels: {
+    viewerHealth: string
+    opponentHealth: string
+    viewerHealing: string
+    opponentDamage: string
+    viewerDamage: string
+    opponentHealing: string
+    viewerFleetValue: string
+    opponentFleetValue: string
+  }
+
+  scaleHints: {
+    pressureMax: number
+    fleetValueMax: number
+    healthFloor: number
+  }
+}
+```
+
+This is an illustrative shape, not a locked exact TypeScript interface.
+
+Locked requirements:
+- display receives chart-ready arrays
+- display does not derive player perspective from raw history
+- display does not parse text rows
+- display does not compute Fleet Value
+- display may compute local pixel coordinates and scales
+
+-------------------------------------------------------------------------------
+
+## 12. Implementation posture
+
+### 12.1 One feature, multiple safe implementation slices
+
+Phase 12 should be implemented in multiple safe slices, but the product target is not split into v1/v2.
+
+The phase is complete only when the full designed stats feature is implemented.
+
+Recommended implementation slices:
+
+1. Server/history extension for Fleet Value.
+2. Client/runtime stats derivation from game history.
+3. Endgame action-panel reorder and stats toggle state.
+4. Stats overlay component and four chart rows.
+5. Desktop hover behavior.
+6. Responsive width/height behavior.
+7. Mobile containment and scaled/horizontal-scroll behavior.
+8. Final visual polish and validation.
+
+These are execution slices, not deferred product versions.
+
+### 12.2 Expected pass types
+
+Server/history extension:
+- Server Pass
+- expected scope: `src/supabase/functions/server/**`
+
+Client/runtime stats derivation:
+- Client Runtime Pass or Client/UI Pass depending on current file structure
+- expected scope: `src/game/client/**`
+
+Display implementation:
+- Client/UI Pass
+- expected scope:
+  - `src/game/display/**`
+  - `src/components/**` if existing close/button primitives are reused
+  - `src/graphics/**` only if needed for existing primitive references
+
+No tooling pass is expected.
+
+Mixed passes require explicit approval if a single implementation slice touches both server history and client/UI files.
+
+### 12.3 File-structure guidance
+
+Prefer small, contained files.
+
+Likely implementation areas:
+- existing game-history server helper / finalization helper
+- existing client battle-log/history fetch/parser code
+- new stats derivation helper under client runtime
+- new stats display component under game display
+- existing end-of-game panel / action panel files
+- existing mobile endgame/takeover surface if needed
+
+Avoid broad rewrites of:
+- game state DTO
+- battle log display
+- BoardStage
+- GameScreen
+- mobile layout
+- server phase engine
+
+### 12.4 Reuse existing primitives
+
+Reuse:
+- existing endgame button styles
+- existing close primitive
+- existing container/border styles
+- existing health delta formatting rules
+- existing CSS variables
+- existing history fetching path
+- existing viewer/player labels where possible
+
+Do not invent a new design system.
+
+-------------------------------------------------------------------------------
+
+## 13. Endgame action-panel rules
+
+### 13.1 Button labels
+
+Stats closed:
+
+```text
+New Game
+View Stats
+Download Battle Log
+Return to Main Menu
+```
+
+Stats open:
+
+```text
+New Game
+View Board
+Download Battle Log
+Return to Main Menu
+```
+
+### 13.2 Button behavior
+
+`View Stats`:
+- opens stats
+- hides/covers the upper result/board area with stats container
+- leaves buttons visible
+
+`View Board`:
+- closes stats
+- returns to normal endgame board/result view
+
+Close X:
+- same behavior as View Board
+
+### 13.3 Bot copy
+
+When playing against computer, the existing “Play again against computer” subcopy remains below the button row.
+
+Its placement should not be broken by the stats overlay.
+
+-------------------------------------------------------------------------------
+
+## 14. Acceptance criteria
+
+Phase 12 is complete when all of the following are true:
+
+### 14.1 Data
+
+- `/game-history` exposes Fleet Value at end of each completed turn as `fleetValueEnd` on each completed-turn player summary.
+- Fleet Value is computed server-side from authoritative fleet state.
+- Fleet Value uses canonical server ship definitions.
+- Health uses existing completed-turn health fields.
+- Health deltas use existing completed-turn health delta fields.
+- Damage/healing use existing server-authored history analysis if present.
+- No display code parses plain-text build/battle rows for stats.
+- No duplicate health/damage/healing fields are added unless inspection proves the endpoint lacks the existing values.
+
+### 14.2 Endgame UI
+
+- Endgame buttons are reordered:
+  1. New Game
+  2. View Stats / View Board
+  3. Download Battle Log
+  4. Return to Main Menu
+- View Stats opens the stats surface.
+- View Board closes the stats surface.
+- Close X closes the stats surface.
+- Endgame action buttons remain visible while stats are open.
+- Top HUD remains visible while stats are open.
+
+### 14.3 Stats rows
+
+- Row 1 renders health over time.
+- Row 2 renders Your Healing vs Opponent Damage.
+- Row 3 renders Your Damage vs Opponent Healing.
+- Row 4 renders Fleet Value.
+- All rows share vertically aligned turn columns.
+- Short games fit to width.
+- Long games horizontally scroll.
+- The visible UI uses “Fleet Value,” not “Total Line Cost” or “TLC.”
+
+### 14.4 Hover
+
+- Desktop hover highlights a full turn column.
+- Hover highlight includes header and all chart rows.
+- Hover highlight is 10% white.
+- Hover labels render for:
+  - health values
+  - row 2 net value
+  - row 3 net value
+  - Fleet Value values
+- No selected turn persists after hover leaves.
+- Hover hit areas do not flicker between chart elements.
+
+### 14.5 Responsive
+
+- Desktop and laptop fit the stats surface into the endgame content area without covering the button row.
+- Long games scroll horizontally inside the stats container.
+- Mobile renders the same board scaled and horizontally scrollable.
+- Mobile does not add separate stats logic or a separate stats data model.
+
+### 14.6 Spectator
+
+- Spectators see player names instead of Your/Opponent labels.
+- Stable player ordering is preserved.
+- Spectator stats use the same public completed-turn history data.
+
+### 14.7 Architecture
+
+- Server remains authoritative.
+- Client runtime owns history fetch/derivation.
+- Display remains presentation-only.
+- No new server endpoint is added unless current history routing requires a narrow extension.
+- No new hot `/game-state` payload family is added for stats.
+- Stats remain endgame-only.
+
+-------------------------------------------------------------------------------
+
+## 15. Validation expectations
+
+Server/history slice:
+- run `deno check src/supabase/functions/server/index.tsx`
+- run `deno task check` if available/practical
+- verify history summaries include Fleet Value for completed turns
+- verify final turn includes Fleet Value when the game ends
+
+Client/runtime/display slices:
+- run `npm run typecheck`
+- run `npm run build` if practical
+- do not run Vite/dev server from Codex
+- browser/Vite testing handled by user
+
+Manual browser validation by user should cover:
+- 10–12 turn game
+- 20+ turn game
+- game with large damage/healing numbers
+- game with negative final health
+- bot endgame
+- human-vs-human endgame
+- spectator endgame if spectator path is available
+- mobile portrait
+- laptop width
+- desktop width
+- horizontal overflow
+- hover stability
+
+-------------------------------------------------------------------------------
+
+## 16. Bottom line
+
+Phase 12 adds a finished-game stats surface that shows the completed match clearly without becoming a new rules system.
+
+The locked product target is:
+
+- endgame only
+- four designed rows
+- no mid-game analytics
+- no peak/lost fleet value
+- no visible Total Line Cost wording
+- one missing server stat: Fleet Value at completed-turn end
+- all other stats reused from existing completed-turn history
+- endgame buttons reordered with View Stats / View Board toggle
+- stats container overlays the upper result/board area while preserving the button row
+- responsive chart board with horizontal scrolling for long games
+- mobile uses the same scaled/scrollable board
+- display code renders; server/client runtime own truth and derivation

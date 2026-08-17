@@ -1,0 +1,770 @@
+Phase 3: Human Powers — Planning Document (Normative)
+
+Phase 3 Execution Order (Do Not Deviate)
+
+3.0A – End-of-turn hardening
+
+3.0B – Action plumbing + guardrails
+
+3.1 – Effect applier expansions
+
+3.2 – Dice canonicalization
+
+3.2.5 – Preview compute function
+
+3.3 – Computed effects
+
+3.4 – Power memory
+
+3.5 – Line generation
+
+3.6 – Charges + targeting
+
+3.7 – Frigate + Dreadnought
+
+
+Goal
+
+All Human ships apply their powers server-authoritatively, and the client UI reflects server state (health, deltas/log, charges, dice, available actions) without implementing rules on the client.
+
+Non-goals (this phase)
+
+Ship eligibility / costs / line spending / line cap (do later in “Eligibility & Economy” phase)
+
+Upgrading / combining ships (later pass)
+
+Non-Human species powers (later phases)
+
+Key constraints
+
+
+Added clarifications (Phase 3 execution rules)
+
+Health mutation boundary: health must only change inside battle.end_of_turn_resolution (after an aggregation stage).
+Charge/actions boundary: activated powers that deal damage/heal must NOT directly change health during charge phases; they write into a per-turn accumulator (pendingTurn) that is applied at end-of-turn.
+Preview consistency: build.drawing preview totals must be computed via the same pure computation path used for real end-of-turn resolution (single shared function).
+Determinism locks: dice precedence is normative and must not drift without rule/versioning.
+Bonus action determinism: completion-triggered actions (e.g. Dreadnought free Fighter) must be represented explicitly in state (pendingBonusActions) to remain stable across reloads.
+Client editability: protect useGameSession from exceeding ~2000 lines by extracting types + derivations + intent builders before Phase 3 expansion.
+
+All rules live on the server (/supabase/functions/server/).
+
+Client is display + intent submission only. No client-side power logic.
+
+Minimize files: extend existing structure. Where “computed” is needed, keep it as one new file max, otherwise inline into existing resolver.
+
+Architecture: where logic sits
+Server: authoritative power execution
+
+Primary integration point (existing):
+
+engine_shared/resolve/resolvePhase.ts
+
+Owns “what happens at phase entry / resolution”
+
+Calls translateShipPowers() + applyEffects()
+
+Power authoring inputs (existing):
+
+engine_shared/defs/StructuredPowers.overlays.ts
+
+engine_shared/defs/ShipDefinitions*.json|ts (your canonical definitions)
+
+engine_shared/effects/translateShipPowers.ts (pure: no state inspection)
+
+engine_shared/effects/applyEffects.ts (mutates state)
+
+Computed powers approach (fits your structure)
+
+Keep translateShipPowers() as-is for “static” powers.
+
+Add one computed expansion step inside resolvePhase:
+
+Compute extra Effect[] for count/type/tiered/once-only/dice-based cases
+
+Merge with translateShipPowers() results
+
+Apply via applyEffects()
+
+File policy:
+If computed logic stays small, keep it in resolvePhase.ts. If it grows, create one file only:
+
+engine_shared/resolve/phaseComputedEffects.ts (single file)
+
+No subfolders.
+
+Client: mirrors only contracts + renders actions
+
+Client needs only:
+
+Types for availableActions and any extra server-projected fields (dice, per-ship fields)
+
+UI panels that render based on availableActions (not ship logic)
+
+Intent submission via useGameSession
+
+Chat ACTION stays supported; we add more ACTION variants.
+
+Output contracts (what server must expose)
+GameState additions/projections needed for Phase 3 UI
+
+These can be stored in state or derived in /game-state response (either is fine; prefer derived if possible).
+
+Minimum:
+
+health (already)
+
+health deltas for last resolution (per player): lastHealthDelta or { lastDamage, lastHeal, lastNet }
+
+dice for the turn:
+
+baseDiceRoll
+
+effectiveDiceRoll (after modifiers like Leviathan/Science tier)
+
+per-ship:
+
+chargesCurrent (already exists in ship instances)
+
+any “memory” fields needed for unique ships (see below)
+
+availableActions for current player in relevant phases (detailed below)
+
+Ship power coverage checklist (Human)
+#Automatic (no player choice)
+
+DEF: heal 1
+
+FIG: damage 1
+
+ORB: +1 future line generation
+
+BAT: +2 future line generation; heal 3; damage 2
+
+TAC: damage = number of distinct ship types you have
+
+COM: damage = floor(fighters / 3)
+
+EAR: damage = 3 × carriers you have
+
+STA: damage 8 once only on the turn built
+
+LEV: effective dice reads as 6; damage 12; heal 12
+
+SCI: tiered (1: double healing; 2: double damage; 3: gain lines equal to dice roll (does not modify dice))
+
+DRE: when you complete a ship, make a free Fighter during build.drawing; automatic: deal 10 damage (plus anything else per defs)
+
+NOTE: “may” implies action unless you decide to auto-apply (see action policy below)
+
+#Action-based (player choices / targeting / charges)
+
+FRI: choose trigger number; if dice matches, deal 6 damage (including built turn); heal 2
+
+INT: 1 charge: choose heal 5 OR damage 5 (spends charge)
+
+CAR: 6 charges: in each future build phase, may create Defender (cost 1) or Fighter (cost 2)
+
+GUA: 2 charges: destroy a basic enemy ship (choose target; cost 1)
+
+
+🔵 Phase 3.0A — End-of-Turn Resolution Hardening (Do This First)
+Goal
+
+Make end-of-turn resolution:
+
+Deterministic
+
+Simultaneous (no order bias)
+
+UI-friendly (explicit deltas)
+
+Future-proof for doubling, modifiers, destruction
+
+Cleanly integrated with victory
+
+Everything else in Phase 3 builds on this.
+
+What you currently have
+
+Inside resolvePhase('battle.end_of_turn_resolution'):
+
+Collect effects from structured powers
+
+Apply effects sequentially via applyEffects()
+
+Clamp health to max 35
+
+Check victory
+
+Emit event(s) 
+
+shapeship-rules
+
+What’s missing or fragile:
+
+Damage/heal are applied in sequence, not as a single simultaneous net result.
+
+There is no explicit per-turn delta structure stored for UI.
+
+Doubling logic (Science) and dice modifiers will complicate order if not centralized.
+
+There’s no explicit “aggregation stage” before mutation.
+
+Required Changes
+
+0️⃣ Enforce the health mutation boundary (new)
+
+Health must not change in any earlier phase (including charge declaration / charge resolution).
+All Heal/Damage-producing actions should write into a per-turn accumulator (pendingTurn) and only be applied during battle.end_of_turn_resolution.
+
+Recommended state shape:
+pendingTurn: {
+  damageByPlayerId: Record<PlayerId, number>,
+  healByPlayerId: Record<PlayerId, number>,
+  entries?: Array<{ source, amount, type, meta }>, // optional for logs/debug
+}
+
+This keeps simultaneity true and prevents order bugs when you introduce doubling/modifiers.
+
+1️⃣ Introduce an aggregation stage (before mutation)
+
+Instead of:
+
+applyEffects(effect1)
+applyEffects(effect2)
+...
+
+
+Do:
+
+Collect all Effect[]
+
+Reduce into per-player totals:
+
+totalDamageByPlayer
+
+totalHealByPlayer
+
+Compute:
+
+newHealth = clamp(oldHealth - damage + heal)
+
+
+Apply results in one pass.
+
+This guarantees:
+
+True simultaneity
+
+No order dependency
+
+Clean insertion point for future modifiers
+
+You can implement this directly inside resolvePhase.ts without new files.
+
+2️⃣ Store health deltas for UI
+
+Add to state (or projection):
+
+For each player:
+
+lastTurnDamage
+lastTurnHeal
+lastTurnNet
+
+
+Or simply:
+
+lastHealthDelta
+
+
+But storing both damage and heal separately is better for debugging and logs.
+
+This feeds:
+
+The green/red delta numbers under health
+
+Battle log clarity
+
+Replay accuracy
+
+3️⃣ Victory evaluation after aggregation
+
+Victory should occur after both players’ new health is computed.
+
+Rules:
+
+Both <= 0 and equal → mutual destruction draw
+
+Both <= 0 and unequal → higher health wins
+
+One <= 0 → other wins
+
+Otherwise → continue
+
+You already have most of this logic; just ensure it runs after aggregated health application and not inside per-effect logic.
+
+4️⃣ Keep max-health clamp here
+
+Clamping to 35 stays here.
+
+Even though line cap is deferred, health cap belongs here.
+
+Why this must come first
+
+If you implement:
+
+Science Vessel doubling
+
+Leviathan dice overrides
+
+Count-based damage
+
+Trigger-based Frigate damage
+
+Interceptor 5-damage charge
+
+…before this is hardened, you will end up debugging:
+
+“Why is damage doubled twice?”
+
+“Why does heal cancel damage incorrectly?”
+
+“Why does order matter?”
+
+Fixing resolution first prevents cascading bugs.
+
+
+Phase 3 Implementation Plan (Chunks)
+
+Chunk 3.0B — Baseline plumbing + guardrails
+
+Objective: ensure the server has all plumbing to express powers without proliferating files.
+
+Server changes
+
+Extend ACTION intent type (do not remove chat):
+
+Keep: ACTION { actionType:'message', content }
+
+Add: ACTION { actionType:'power', actionId, sourceInstanceId?, choiceId?, targetInstanceId? }
+
+Add availableActions projection mechanism:
+
+Either store on state or derive in /game-state handler.
+
+Must be scoped to “current player” + “current phase”.
+
+Add minimal events/logging:
+
+Emit events for: damage/heal totals, ship created, ship destroyed, charge spent, trigger fired.
+
+These can reuse your existing battle log/event tape approach.
+
+Client changes
+
+
+useGameSession size guardrail (do now, before adding Phase 3 wiring)
+
+Current risk: useGameSession tends to absorb types + panel selection + action mapping + intent builders. Phase 3 will push it past the ~2000 line AI-safe ceiling unless extracted early.
+
+Do these mechanical extractions FIRST:
+• Move all exported VM/types into: game/client/gameSession/types.ts
+• Move availableActions → activePanelId / shipChoices derivation into: game/client/gameSession/availableActions.ts
+• Move ACTION payload builders into: game/client/gameSession/powerIntents.ts
+• Keep useGameSession.ts as orchestrator only (poller + state holder + callback wiring).
+• Put debounced BUILD_DRAFT_SET sync into: game/client/gameSession/clienteffects/useBuildDraftSync.ts
+
+Acceptance: useGameSession line count stays < 2000 while Phase 3 is implemented.
+
+Add TS types for availableActions payload.
+
+Ensure Action Panel registry can select panel by availableActions[*].kind (or actionId).
+
+Acceptance criteria
+
+Chat still works unchanged.
+
+/game-state contains availableActions: [] safely for phases with no actions.
+
+Client renders “no actions” state as today when list is empty.
+
+
+
+
+
+Chunk 3.1 — Effect applier expansions
+
+Objective: implement the effect kinds needed by Human.
+
+Server changes (single file extension)
+
+Extend engine_shared/effects/applyEffects.ts to handle:
+
+GainLines (simple add; cap deferred)
+
+CreateShip (append ship instance; set createdTurn; init charges if relevant)
+
+DestroyShip (remove target instance; emit event)
+
+SpendCharge (decrement charges; validation occurs earlier but applier enforces invariants)
+
+Acceptance criteria
+
+You can apply these effects in unit/dev harness without crashing.
+
+Ship instances created have stable IDs, correct owner, and correct initial chargesCurrent.
+
+
+
+
+Chunk 3.2 — Dice becomes canonical (base + effective)
+
+Objective: many powers depend on dice; define it once.
+
+Server changes
+
+In the phase where dice is rolled (build.dice_roll), store:
+
+baseDiceRoll
+
+effectiveDiceRoll initially equal to base
+
+Add a deterministic modifier step that can update effectiveDiceRoll based on state:
+
+Leviathan forces read-as-6
+
+Science Vessel tier 3 does not actually modify the dice, the player just gains lines equal to the effectiveDiceRoll
+
+Precedence rule (normative)
+
+If Leviathan present for player: effectiveDiceRoll = 6 (hard override)
+
+Else: apply multiplier modifiers to base roll
+
+(If your JSON implies a different precedence, follow the JSON/rules doc; but you must pick one rule and keep it deterministic.)
+
+In Centaur Pass, Ark of Knowledge can reroll the baseDiceRoll if the player chooses too, Leviathan still overrides this for it's owner.
+
+Client
+
+Display uses effectiveDiceRoll wherever dice is shown/used for triggers.
+We will implement the Dice graphics, showing 1-6 and a quick animation.
+
+Acceptance criteria
+
+Dice values persist for the turn and are visible to both players (as per your game UX).
+
+Effective dice remains stable for the whole turn.
+
+
+
+
+Chunk 3.2.5 — Server-projected preview totals (Build Draft)
+
+Goal
+While in build.drawing, the current player sees preview totals update as they click ships, before Ready.
+
+Server changes
+
+
+Preview/resolution identity (normative)
+
+Introduce ONE pure computation function on server and reuse it everywhere:
+computeTurnTotals(state, { draftCounts? }) -> { damage, heal, bonusLines, notes }
+
+Use this for:
+• build.drawing myPreview projection
+• post-reveal “actual pre-charge” totals projection
+• battle.end_of_turn_resolution aggregation inputs
+
+This prevents preview drift and guarantees that the only difference between preview and reality is state changes (destruction/charges), not duplicated math.
+
+Add a new intent (or extend existing build intent family):
+
+BUILD_DRAFT_SET (recommended, idempotent): payload is the current draft counts, not “+1”.
+
+Example: { DEF: 2, FIG: 1, ... } for this turn.
+
+Store draft per player per turn (e.g. state.pendingBuildByPlayer[playerId] = { turnNumber, counts })
+
+In /game-state projection:
+
+Return requester-only fields like:
+
+myPreview: { damage, heal, bonusLines }
+
+Return opponent “actual” (from revealed fleet) as usual.
+
+After opponent reveals, both sides can see opponent actual totals (pre-charges).
+
+Preview computation uses the same server logic you’ll use for real resolution later (so preview may change if destruction/charges alter reality — which you already accept).
+
+Client changes (useGameSession only)
+
+On ship click in build.drawing:
+
+Update local draft counts (you already do this in Phase 1/2 wiring style).
+
+Send BUILD_DRAFT_SET with the full draft snapshot (debounce optional).
+
+Display:
+
+Whenever ships are added to fleet during any build phase: show myPreview.* as the “preview” numbers.
+
+Once both reveal: show both players’ “actual pre-charge” totals (server truth).
+
+When charges are used: totals update immediately from server state (as you described).
+
+At start of next turn / when leaving build.drawing: clear draft (client + server).
+
+This keeps the client “dumb” and preserves the “single integration seam” rule. 
+
+Preview totals should use effectiveDiceRoll for any dice-dependent preview (e.g., Frigate trigger once chosen). 
+ 
+
+
+
+Chunk 3.3 — “Computed effects” (count/type/tier/once-only) in ONE place
+
+Objective: support COM/TAC/EAR/SCI/STA/LEV/FRI without per-ship resolvers.
+
+Implementation rule
+
+“Computed effects are used both for (a) end-of-turn resolution and (b) build-phase preview projection.”
+
+Add computed effect generation inside engine_shared/resolve/resolvePhase.ts.
+
+If it grows, extract to one file: engine_shared/resolve/phaseComputedEffects.ts. No more.
+
+Capabilities to implement (generic helpers inside the same file)
+
+Counting helpers:
+
+count ships of type (e.g., Fighters)
+
+count distinct ship types
+
+count Carriers, etc.
+
+Tiered helpers:
+
+tier = min(countOfShip, 3)
+
+emit tier-specific modifiers (double heal, double damage, double dice)
+
+Once-only helpers:
+
+Require a persistent “memory” store (see Chunk 3.4)
+
+“once only on built turn” = only when ship.createdTurn === state.turnNumber and not yet fired
+
+Trigger helpers:
+
+Frigate trigger number stored per instance
+
+Compare effectiveDiceRoll to trigger, emit damage + log
+
+Apply timing (normative)
+
+All automatic damage/heal resolves during battle.end_of_turn_resolution unless explicitly defined otherwise.
+
+Dice is computed during build.dice_roll, but referenced during end-of-turn and/or trigger checks.
+
+Acceptance criteria
+
+With only server changes, Human COM/TAC/EAR/SCI/STA/LEV/FRI produce correct effects (even if UI is minimal).
+
+No client power logic required.
+
+
+
+Chunk 3.4 — Ship “power memory” (persists through destruction)
+
+Objective: support once-only persistence + Frigate trigger selection.
+
+Server changes
+
+Add a powerMemory structure to state. Keep it minimal and generic:
+
+powerMemory.onceOnlyFired: Record<shipInstanceId, true>
+
+powerMemory.frigateTrigger: Record<shipInstanceId, number>
+
+(Optionally later) powerMemory.custom: Record<shipInstanceId, any>
+
+Destruction rule
+
+When a ship is destroyed, do not delete its memory. Move it to 'The VOID' which will be a space on the battlefield where destroyed ships go (their opacity will be reduced to 25%, ships will still stack if multiple)
+
+
+Once-only resolution note (important)
+
+For “once only on the turn it is built” powers:
+• Gate by ship.createdTurn === state.turnNumber
+• AND powerMemory.onceOnlyFired[instanceId] not set
+
+If the rules intend the once-only effect to still resolve even if the ship is destroyed before end-of-turn, then the resolver must not require the ship instance to still exist at resolution time — it should rely on createdTurn + memory.
+
+Acceptance criteria
+
+STA once-only cannot be re-triggered via rebuild/destruction edge cases.
+
+Frigate trigger persists for that instance even if it leaves play (if that’s rules-accurate for your game; otherwise keep memory but irrelevant).
+
+
+
+Chunk 3.5 — Lines: Orbital + Battlecruiser generation
+
+Objective: implement reusable line-generation powers without implementing eligibility/spend.
+
+Server changes
+
+Add a way to represent “future line bonus” in state, either:
+
+derived each build phase from current fleet
+
+or stored modifier updated on creation/destruction (simpler later; but derived is fine now)
+
+Given your current interim computeLineBonusForPlayer, simplest is:
+
+Replace interim hard-coded table with logic driven by ship presence:
+
+Orbital contributes +1
+
+Battlecruiser contributes +2
+
+Hook into your existing line generation phase.
+
+Acceptance criteria
+
+With an Orbital built, future turns generate +1 line (for now just observe server lines increasing).
+
+With a Battlecruiser, +2.
+
+
+
+Chunk 3.6 — Action system for charges + creation + targeting (INT/CAR/GUA)
+
+Objective: power actions driven by server-provided availableActions, with shared UI patterns.
+
+Server: available actions projection
+
+In phases where actions are allowed:
+
+build phase: Carrier build-choice action per eligible Carrier with enough charges
+
+battle charge declaration / or appropriate phase: Interceptor choice action
+
+battle (or appropriate window): Guardian destroy action including valid targets list
+
+Each available action includes:
+
+actionId (stable string)
+
+kind (charge_choice, spawn_choice, destroy_target, frigate_trigger_choice, etc.)
+
+sourceInstanceId
+
+choices[] (id + label + effect summary)
+
+validTargets[] (only for targeting actions)
+
+chargeCost info and “disabled reason” if needed
+
+Server: ACTION validation & application
+
+Validate phase window
+
+Validate ownership, charges, target is valid
+
+Apply effects via applyEffects (CreateShip/DestroyShip/SpendCharge/Heal/Damage)
+
+Client: shared panels
+
+Interceptor panel = generic “charge choice” panel
+
+Carrier panel = generic “spawn choice” panel
+
+Guardian panel = generic “target selection” panel
+
+Fleet UI uses validTargets to highlight and allow click selection, then submits ACTION
+
+Acceptance criteria
+
+INT: player can spend its 1 charge to heal 5 or damage 5; charge decrements; cannot repeat.
+
+CAR: player can spend charges to spawn Fighter/Defender in build phase; charge decrements correctly.
+
+GUA: player can select a valid enemy basic ship; destroy it; charge decrements.
+
+
+
+Chunk 3.7 — Human unique actions: Frigate trigger and Dreadnought bonus
+
+Objective: finish the few truly custom items using the same action plumbing.
+
+Frigate trigger choice
+
+On first draw/build of a Frigate instance (createdTurn), expose an available action:
+
+kind: frigate_trigger_choice
+
+choices: 1–6
+
+On ACTION, store powerMemory.frigateTrigger[instanceId] = n
+
+Ensure it is only selectable once.
+
+Dreadnought “may create free Fighter when you complete a ship”
+
+Two options (pick one and be consistent):
+
+Action-based (recommended): when a ship completion occurs and Dreadnought present, expose availableActions for that player: “Create free Fighter” (one-time per completion event)
+
+Auto-apply: always create it (but this removes “may”)
+
+Given your UI direction, choose (1).
+
+Acceptance criteria
+
+Frigate panel appears exactly when it should, can be set once, then never again.
+
+Dreadnought bonus is available and works deterministically.
+
+Testing approach (pragmatic, no eligibility)
+
+Set both players to effectively unlimited build capacity (your current flow already doesn’t enforce spending).
+
+Focus tests per chunk:
+
+Spawn, destroy, charge spend, memory persistence
+
+Dice effective roll
+
+End-of-turn totals (damage/heal) plus log correctness
+
+Action availability by phase and ownership
+
+Deliverable checklist for Phase 3 completion
+
+Server:
+
+Effects: Heal/Damage/CreateShip/DestroyShip/GainLines/SpendCharge implemented
+
+Dice: base + effective stored and deterministic modifiers applied
+
+Computed effects implemented for count/type/tier/once-only/trigger
+
+Action projection + validation supports INT/CAR/GUA/FRI/DRE
+
+Human powers all covered
+
+Client:
+
+Types for server availableActions
+
+Shared action panels + targeting UX
+
+UI reflects charges, dice, health deltas/log based on server state/events

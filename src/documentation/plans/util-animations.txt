@@ -1,0 +1,77 @@
+That's all done. Let's implement the rest of the Human Basic ships. Let's also make the Activation animation the default for all ships (some will override it). Rename from fighter specific to default - the specific animation may change later.
+
+COM - Commander
+Entry: 0.1s fade in, (at same time) 0.3s rotate to natural position 90 degrees counter-clockwise ease-out
+Activation: Default
+
+ORB - Orbital
+Same as Defender
+
+CAR - Carrier
+Entry: 0.1s fade in, (at same time) 0.3s rotate to natural position 120 degrees counter-clockwise ease-out
+Activation: 0.3s rotate from natural position 60 degrees counter-clockwise ease-in-out
+
+
+STA - Starship 
+Entry: 0.1s fade in, (at same time) 0.3s rotate to natural position 90 degrees counter-clockwise ease-out, at same time scale from 0.5 to natural
+
+
+Lets continue with Xenite animations.
+
+XEN - Entry: Fade in 0.1s, Pop and slight spiral in with bounce from scale 0.5 to natural, bounce 4 times at about 80% decreasing in delta, over 0.4s. ease-out.
+Activation: 'jiggle' from natural side to side 15 degrees. (note Xenites only activate on entry so they themselves can't activate jiggle, this is here for any ships that are 'Like Xenite'.
+
+ANT - Default
+
+MAN - Like Xenite
+
+EVO - Like Defender
+
+HEL - Like Xenite
+
+BUG - Like Xenite
+
+ZEN - Like Xenite
+
+DSW - Default
+
+AAR - Default
+
+OXF - Like Defender
+ASF - Like Defender
+SAC - Like Xenite
+QUE - Like Xenite
+CHR - Default
+HVE - Default
+
+
+Let's continue with Centaur Animations:
+
+FEA - Like Default but from left to natural position, this can be a new preset called 'to-right'
+ANG - To Right
+EQU - To Right
+WIS - Like Defender
+VIG - Default
+FAM - Like Starship
+LEG - To Right
+TER - To Right
+FUR - To Right
+KNO - Default
+ENT - To Right
+RED - Default
+POW - Default
+DES - Default
+DOM - Default
+
+Ancient - 
+
+
+
+Stars Animation
+This only runs in Game Screen, when the game is created. Can be the same for both players.
+There will be many randomly set attributes. (all randomly set upon game creation / load-in or wherever makes sense.)
+Spawn:
+I want 2-5 (randomly choose between and including 2 and 5) small white circles (we can use empty divs with rounded corners). Randomly set the size of each circle to be between 2px and 6px. Once every 30 or so games, we also create a black circle 30px with 10px blur. Once every 30 or so games (different random source) we also create a 'Saturn' style planet that contains a second div with rounded corners size 2px high by 12px wide, 25 degrees rotation layered on top of a 6px circle (center center).
+All these circles (including black blur and Saturn) should be randomly positioned both X and Y in the background layer of GameScreen (above the body background image but behind ALL panels, text, etc.)
+Each circle is then randomly given a movement vector, 3000px in a straight line with a random angle. The duration of each movement should be randomized between 5minutes and 30minutes (is that too long for a CSS animation?).
+Does this place much load on the browser / could it cause memory overflows or anything?

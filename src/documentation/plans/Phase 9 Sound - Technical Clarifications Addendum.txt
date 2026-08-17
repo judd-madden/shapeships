@@ -1,0 +1,265 @@
+Phase 9 Sound
+Technical Clarifications Addendum
+Normative Addendum
+
+Project: Shapeships
+Status: Planning Addendum
+Scope: technical implementation clarifications for the lightweight client-side sound layer defined in Phase 9 Sound
+
+This addendum extends:
+- Phase 9 Sound.txt
+
+If later implementation instructions conflict with this addendum, this addendum wins for the technical implementation details within its scope unless explicitly superseded.
+If this addendum conflicts with the core architectural rules of the main Phase 9 Sound document, the core architectural rules still win unless this addendum explicitly refines them.
+
+-------------------------------------------------------------------------------
+1. Purpose
+-------------------------------------------------------------------------------
+
+This addendum defines the extra technical guardrails for implementing the Phase 9 sound layer cleanly and safely.
+
+Its purpose is to:
+- lock the replay-deduping posture more explicitly
+- separate asset warm-up from actual playback triggers
+- define overlap/restart behavior for short cues
+- prevent late playback after unmount or navigation
+- lock basic asset hygiene expectations
+- tighten validation expectations for real browser behavior
+
+This addendum does not widen Phase 9 into a larger audio framework.
+It exists to reduce implementation drift and avoid common browser-audio mistakes.
+
+-------------------------------------------------------------------------------
+2. Scope position relative to the main Phase 9 document
+-------------------------------------------------------------------------------
+
+The main Phase 9 document already locks the broad architecture:
+- client-side presentation only
+- local preference persistence
+- lazy loading
+- audio unlock handling
+- replay guards
+- stable trigger posture
+- small dedicated sound controller
+
+This addendum does not replace that posture.
+It refines the technical implementation details so that the first sound passes do not accumulate avoidable bugs.
+
+-------------------------------------------------------------------------------
+3. Locked implementation clarifications
+-------------------------------------------------------------------------------
+
+3.1 Replay dedupe must use stable cue-instance keys
+
+A cue must not be deduped merely by checking the current phase string or a general render condition.
+
+Each cue family should use a stable trigger key derived from the actual event source.
+
+Locked posture:
+- dice cue: dedupe from the same stable signal already used for the visible roll/change event
+- reveal stings: dedupe from authoritative reveal entry for that turn
+- finish replay: dedupe from the transition into finished state plus the winner identity
+
+Sound must not replay merely because polling continues or because a component rerenders.
+
+3.2 Loading and playback are separate concerns
+
+Phase 9 must treat:
+- asset loading / decoding / cache warm-up
+and
+- actual audible playback
+
+as separate responsibilities.
+
+Locked posture:
+- a cue may be warmed before it is played
+- a cue must still only play from the intended runtime/display trigger
+- “asset became available” is not itself a valid playback trigger
+
+This is especially important for the dice cue and later reveal stings.
+
+3.3 Short-cue overlap policy
+
+Short cues in Phase 9 should not freely stack over themselves by default.
+
+Locked posture for the dice cue:
+- restart-not-overlap
+
+Meaning:
+- if the same dice cue is triggered again while already playing, the implementation should restart that cue rather than layering multiple simultaneous copies
+
+This keeps the result clear and prevents accidental loudness spikes.
+
+3.4 Delayed playback must be cancellable
+
+Some later cues, especially reveal stings, may use a small stagger.
+
+Locked posture:
+- any delayed playback scheduling must be cancellable
+- scheduled playback must be canceled on unmount, screen exit, or controller disposal
+- no delayed cue may fire after the owning game screen/controller is gone
+
+This is required to avoid stray sound after navigation.
+
+3.5 Graceful blocked-playback behavior
+
+If the browser has not yet allowed audible playback, the app must fail quietly.
+
+Locked posture:
+- gameplay continues normally
+- no blocking modal is introduced
+- later user interaction may unlock audio and allow subsequent cues to work
+- failed playback attempts must not produce repeated user-facing errors
+
+-------------------------------------------------------------------------------
+4. Asset hygiene and content handling
+-------------------------------------------------------------------------------
+
+4.1 Stable cue-id naming
+
+Cue lookup should use stable cue ids rather than scattered one-off imports.
+
+Recommended posture:
+- use concise, explicit ids such as dice, human_me, human_opp, xenite_me, xenite_opp, centaur_me, centaur_opp
+
+This naming posture is effectively locked unless a later broader asset-management pass supersedes it.
+
+4.2 Silence trimming
+
+Assets should not contain avoidable leading silence or long dead tails.
+
+Locked posture:
+- trim leading silence where practical
+- avoid long trailing silence unless the cue intentionally needs it
+
+This matters because Phase 9 cues are short and repeatedly heard.
+
+4.3 Loudness consistency
+
+Phase 9 cues should feel broadly consistent in perceived loudness.
+
+Locked posture:
+- avoid major volume jumps between dice and sting assets
+- normalize or otherwise level assets during preparation where practical
+
+This is an asset-preparation requirement, not a reason to add a complex in-app mixing system.
+
+4.4 Keep cues short
+
+The main document already prefers short cues.
+This addendum makes that a firmer implementation expectation.
+
+Locked posture:
+- dice cue should remain very short and repeat-safe
+- reveal stings should remain short enough not to stall reveal pacing
+
+-------------------------------------------------------------------------------
+5. Preference and loading clarifications
+-------------------------------------------------------------------------------
+
+5.1 Versioned local storage key is recommended
+
+The sound preference should use a dedicated, clean local storage key.
+
+Recommended posture:
+- shapeships.soundEnabled
+or
+- shapeships.soundEnabled.v1
+
+A versioned key is preferred if there is any chance the behavior may need to reset cleanly in a future pass.
+
+5.2 Disabled means no playback and minimal speculative loading
+
+When sound is disabled:
+- no cues should play
+- sound-specific warm-up should be minimized
+- re-enabling later in the same browser session should still work cleanly
+
+This does not require extreme anti-loading behavior, but the implementation should not casually preload the sound library while muted.
+
+-------------------------------------------------------------------------------
+6. Controller lifecycle posture
+-------------------------------------------------------------------------------
+
+6.1 The sound controller owns cleanup
+
+The dedicated sound helper/hook/controller should own:
+- asset cache references
+- pending delayed playback handles
+- dedupe guards
+- cleanup on unmount
+
+These responsibilities should not be spread ad hoc across multiple display components.
+
+6.2 No sound-specific growth inside useGameSession
+
+The main Phase 9 document already prefers keeping sound separate from useGameSession.
+This addendum locks the practical interpretation:
+- useGameSession may expose existing state/view-model signals
+- the sound controller may observe those signals
+- sound-specific asset/cache/unlock/dedupe logic should stay outside useGameSession
+
+-------------------------------------------------------------------------------
+7. Validation addendum
+-------------------------------------------------------------------------------
+
+A Phase 9 sound pass is not complete unless it also satisfies the following technical checks where relevant to the pass scope.
+
+7.1 Browser unlock validation
+
+Validate that:
+- first sound playback works after ordinary user interaction
+- no reload is required after the first successful unlock
+
+7.2 Duplicate-trigger validation
+
+Validate that:
+- polling alone does not replay the cue
+- rerender/remount noise does not replay the cue within the same event window
+
+7.3 Teardown validation
+
+Validate that:
+- navigating away from the game screen prevents delayed or pending sound from firing afterward
+
+7.4 Restart policy validation
+
+For the dice cue, validate that:
+- rapid retriggering restarts the cue rather than stacking overlapping copies
+
+7.5 Preference validation
+
+Validate that:
+- disabled sound survives reload and later game navigation locally
+- re-enabling sound in the same browser session works without special recovery steps
+
+-------------------------------------------------------------------------------
+8. Locked guidance for the first dice pass
+-------------------------------------------------------------------------------
+
+For the first dice-audio pass specifically, the implementation should be treated as the reference pattern for the rest of Phase 9.
+
+That means the dice pass should establish all of the following cleanly:
+- one cue id
+- one manifest lookup path
+- one warm-up path
+- one playback trigger path
+- one dedupe key posture
+- one unlock posture
+- one cleanup posture
+- one restart-not-overlap behavior
+
+If the dice pass requires messy exceptions, the architecture is probably wrong.
+
+-------------------------------------------------------------------------------
+9. Non-goals reaffirmed
+-------------------------------------------------------------------------------
+
+This addendum does not authorize:
+- a heavy audio engine
+- generalized mixers or category sliders
+- server-synced sound settings
+- speculative sound triggers based on inferred future state
+- a broad refactor of runtime or display architecture
+
+The goal remains a small, reliable, presentational sound layer.

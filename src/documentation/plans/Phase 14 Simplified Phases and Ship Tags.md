@@ -9,7 +9,7 @@
 - **Compatibility posture:** No persisted-game migration; old in-progress games may be discarded
 - **Last verified against live code:** 2026-08-04
 
-> **Historical authority:** Implementation has progressed through Phase 14K. This roadmap is retained as implementation history; later QA and rules refinements and the current executable code supersede implementation details where they differ. Current phase truth belongs in the executable code and [server/client turn-phase contract](contracts/ServerClientTurnPhaseContract.md), not this historical roadmap. The [Phase 14 Rules v1.63 Alignment Addendum](<Phase 14 Rules v1.63 Alignment Addendum.md>) records later Phase 14 refinement history.
+> **Historical authority:** Implementation has progressed through Phase 14K. This roadmap is retained as implementation history; later QA and rules refinements and the current executable code supersede implementation details where they differ. Current phase truth belongs in the executable code and [server/client turn-phase contract](../contracts/ServerClientTurnPhaseContract.md), not this historical roadmap. The [Phase 14 Rules v1.63 Alignment Addendum](<Phase 14 Rules v1.63 Alignment Addendum.md>) records later Phase 14 refinement history.
 
 ---
 

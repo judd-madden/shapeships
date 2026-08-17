@@ -1,0 +1,322 @@
+Phase 3.1 Slice 3 - Carrier
+
+
+1) Goal check against the current codebase
+✅ “Carrier panel lets you spend a charge to build a specific ship type”
+
+Client UI spec already exists for the panel:
+
+/src/game/display/actionPanel/panels/ShipChoiceRegistry.ts
+
+ap.build.ships_that_build.human already has Make Defender / Make Fighter / Hold.
+
+But: those buttons currently aren’t wired to server choice actions in this phase (see sections below).
+
+✅ “This slice validates CreateShip + spend charge + phase ordering”
+
+On the server, the underlying primitives are already real and correct:
+
+EffectKind.CreateShip is implemented in:
+
+/src/supabase/functions/server/engine_shared/effects/applyEffects.ts
+
+It creates a new instance, and if the created ship def has charges, it initializes chargesCurrent correctly.
+
+EffectKind.SpendCharge is implemented in:
+
+/src/supabase/functions/server/engine_shared/effects/applyEffects.ts
+
+It supports amount > 1, so Carrier’s “fighter costs 2 charges” works naturally.
+
+“Once per turn per ship instance” is already enforced via:
+
+/src/supabase/functions/server/engine_shared/resolve/resolvePowerAction.ts
+
+It writes to turnData.chargePowerUsedByInstanceId on the server.
+
+So: CreateShip and SpendCharge are ready. What’s missing is: exposing Carrier as a structured “choice” in build.ships_that_build and projecting it to the client as availableActions.
+
+✅ “After commit/reveal … persisted, reload-safe”
+
+This phase should not be commit/reveal; it’s ACTION + DECLARE_READY (same as your charge phases).
+That still satisfies the “reload-safe/persisted” requirement because ACTION mutates authoritative state stored in KV.
+
+✅ “Timing matches ships_that_build”
+
+Phase ordering already includes build.ships_that_build in:
+
+/src/supabase/functions/server/engine_shared/phase/PhaseTable.ts
+
+So we’re good as long as we implement Carrier’s power with timing build.ships_that_build.
+
+2) The real gaps you need to close
+Gap A — Carrier has no structured power overlay yet
+
+Your structured powers overlay file explicitly lists Carrier as pending:
+
+/src/supabase/functions/server/engine_shared/defs/StructuredPowers.overlays.ts
+
+Interceptor is implemented there; Carrier needs the same treatment.
+
+Gap B — Server “availableActions” doesn’t emit choice actions for build.ships_that_build
+
+Right now:
+
+/src/supabase/functions/server/routes/game_routes.ts
+
+computeAvailableActionsForRequestingPlayer(...) only derives choice actions for:
+
+battle.charge_declaration
+
+battle.charge_response
+
+For build.ships_that_build it falls back to fleetHasAvailablePowers(...) and returns { kind: 'phase_input' }.
+
+That’s not enough. For this slice you need per-instance choice actions, same as Interceptors.
+
+Gap C — Variable charge costs per option (Carrier) require per-option eligibility
+
+Your current “choice actions” projection checks only power-level chargeCost (default 1).
+Carrier has 1-charge option and 2-charge option, so the server must:
+
+include only choices that are legal for that instance right now, or
+
+include all and let the client get rejected (bad UX)
+
+You want this extensible, so do it properly now:
+
+server emits choices: [{choiceId}, ...] filtered per-instance based on chargesCurrent and each option’s chargeCost.
+
+Gap D — Client only treats charge phases as “server choice phases”
+
+On the client:
+
+/src/game/client/gameSession/mapVm.ts
+
+It only uses availableActions to build ShipChoice groups during charge phases.
+
+For build.ships_that_build it derives from fleet counts (which will be wrong: includes depleted carriers, can’t disable “fighter”, and can’t map to instance IDs).
+
+And:
+
+/src/game/client/gameSession/intents.ts
+
+runReadyToggleFlow only batch-submits ACTIONs in charge phases.
+
+You need the exact same flow for build.ships_that_build.
+
+Gap E — Board rendering is currently incapable of showing “Carrier graphic state by charges”
+
+This is important given your “7 graphic states” requirement.
+
+Right now BoardStage always calls:
+
+resolveShipGraphic(..., { context:'live', currentCharges: null })
+in:
+
+/src/game/display/layout/BoardStage.tsx
+
+So it will never select charges_5/charges_4/etc based on state.
+Interceptors “worked” visually because you were using the condition split stacks for maxCharges==1, not because BoardStage was reading chargesCurrent.
+
+For Carrier (maxCharges=6), you need BoardStage to pass actual currentCharges per rendered entry (or otherwise provide explicitCharges).
+
+3) Files you will touch (minimal, correct surface area)
+Server (authoritative)
+
+Add Carrier structured choice power
+
+/src/supabase/functions/server/engine_shared/defs/StructuredPowers.overlays.ts
+
+Add:
+
+CAR#0 as a type: 'choice'
+
+timings: ['build.ships_that_build']
+
+options (example IDs):
+
+defender → SpendCharge(1) + CreateShip('DEF')
+
+fighter → SpendCharge(2) + CreateShip('FIG')
+
+hold → no effects, and explicitly requiresCharge:false
+
+This matches your “no special cases” goal: it’s identical in shape to INT.
+
+Project build.ships_that_build as choice actions (like charge phases)
+
+/src/supabase/functions/server/routes/game_routes.ts
+
+in computeAvailableActionsForRequestingPlayer
+
+Add a branch for:
+
+phaseKey === 'build.ships_that_build'
+
+Implementation approach (extensible):
+
+reuse the same “scan fleet → shipDef.structuredPowers → choice powers whose timings include phaseKey”
+
+enforce “once per turn per ship instance” via turnData.chargePowerUsedByInstanceId
+
+filter choices by per-option charge cost
+
+use option.chargeCost ?? power.chargeCost ?? 1
+
+include hold always
+
+include fighter only if chargesCurrent >= 2, etc.
+
+Return actions shaped exactly like charge phases:
+
+{
+  kind: 'choice',
+  actionId: `${shipDefId}#${powerIndex}`,
+  shipDefId,
+  sourceInstanceId,
+  choices: [{ choiceId }, ...]
+}
+
+This also sets you up cleanly for Bug Breeder later: same mechanism, different overlay.
+
+Client (UI + wiring)
+
+Give Carrier buttons real choiceIds
+
+/src/game/display/actionPanel/panels/ShipChoiceRegistry.ts
+
+ap.build.ships_that_build.human
+
+Right now, Carrier buttons don’t include choiceId for DEF/FIG.
+You need them to match your server overlay’s choiceIds (e.g. defender, fighter, hold).
+
+Treat build.ships_that_build as a “server choice phase” in VM mapping
+
+/src/game/client/gameSession/mapVm.ts
+
+Right now it only does “server availableActions → groups” if it’s a charge phase.
+
+Change that gating from “isChargePhase” to something like:
+
+isServerChoicePhase = charge_declaration || charge_response || build.ships_that_build
+
+Then:
+
+build groups using availableActions for build.ships_that_build
+
+importantly: set each button’s disabled flag based on availableChoiceIds
+
+so if a carrier has 1 charge, “fighter” is disabled, “defender/hold” enabled
+
+This is the key to avoiding “server rejected” UX.
+
+Maintain selection defaults for build.ships_that_build
+
+/src/game/client/useGameSession.ts
+
+the useEffect that maintains shipChoiceSelectionByInstanceId is currently charge-only.
+
+Extend it to include build.ships_that_build:
+
+default selection should be:
+
+defender if present
+
+else first available choice
+
+Submit ACTIONs during build.ships_that_build on Ready
+
+/src/game/client/gameSession/intents.ts
+
+in runReadyToggleFlow
+
+Add a branch mirroring the charge one:
+
+if phaseKey === 'build.ships_that_build':
+
+iterate availableActions choice actions
+
+for each instance:
+
+use selection map to pick choiceId
+
+skip hold
+
+submit ACTION
+
+then DECLARE_READY
+
+This keeps the protocol consistent across “choice phases”.
+
+Board graphics (Carrier charge-state visuals)
+
+Board must pass currentCharges through to resolveShipGraphic
+
+/src/game/client/gameSession/fleets.ts
+
+BoardFleetSummary currently does not expose currentCharges to the board renderer.
+
+You should add currentCharges?: number | null on the summary entries, especially for:
+
+maxCharges > 1 active instance stacks (__inst_...)
+
+(and you can also set it for the 0/1 charge buckets if you want consistency)
+
+Then:
+
+/src/game/display/layout/BoardStage.tsx
+
+update FleetArea’s ship entry type to include currentCharges
+
+pass currentCharges into resolveShipGraphic instead of always null
+
+This is what makes “Carrier has 7 graphics and updates as charges are spent” real.
+
+4) “Done” validation flow (what you’ll be able to test)
+
+A single match should validate everything:
+
+Turn N, build a Carrier in build.drawing, click Ready → carrier appears with 6 charges.
+
+Next build.ships_that_build:
+
+action panel shows “X Carriers with charges available”
+
+pick “Make Fighter” for a carrier that has ≥2 charges (fighter enabled)
+
+Click Ready:
+
+server applies SpendCharge(2) + CreateShip(FIG)
+
+new Fighter instance appears immediately (same phase)
+
+carrier graphic updates to charges_4
+
+Reload page:
+
+Fighter persists
+
+carrier still at charges_4 (reload safe)
+
+5) Extensibility notes (Bug Breeder and other builders)
+
+If you implement Slice 3 as described, Bug Breeder becomes trivial:
+
+add BUG#0 overlay with timing build.ships_that_build
+
+options include “make xenite” cost 1, “hold”
+
+everything else (projection, UI wiring, ready flow) already works
+
+The only truly “new” thing Carrier forces is per-option charge eligibility, which you should implement now because more ships will need it.
+
+If you want, next step I can turn this into your usual strict Make prompt (server pass first, then client pass), with the exact snippets to paste into:
+
+StructuredPowers.overlays.ts
+
+computeAvailableActionsForRequestingPlayer
+
+the 3 client wiring points (ShipChoiceRegistry, mapVm, runReadyToggleFlow)
+
+plus the board currentCharges plumbing.

@@ -1658,7 +1658,7 @@ Connect the existing Lore Mission Findings rows to the session discovery state.
 
 ### Goal
 
-Implement the separate multiplayer-only matchup intro defined by `Phase 15 Multiplayer Matchup Intro Addendum.md`.
+Implement the separate multiplayer-only matchup intro defined by [Phase 15 Addendum - Multiplayer Matchup Intro](<Phase 15 Addendum - Multiplayer Matchup Intro.md>).
 
 This remains a sibling addendum feature. It reuses the established Phase 15 intro/clock infrastructure where clean but does not add Missions or Challenges to multiplayer.
 

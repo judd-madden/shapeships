@@ -1,0 +1,487 @@
+Phase 9 Sound
+Normative Planning Document
+
+Project: Shapeships
+Status: Planning
+Scope: lightweight client-side sound layer for dice, species entry stings, and optional winner replay using match-scoped lazy loading
+
+If later implementation instructions conflict with this document, this document wins unless explicitly superseded.
+
+-------------------------------------------------------------------------------
+1. Purpose
+-------------------------------------------------------------------------------
+
+This document defines the first formal implementation shape for sound in Shapeships.
+
+Its purpose is to:
+- add a small, reliable sound layer without widening server or rules scope
+- support one shared dice-roll cue
+- support species entry stings for the current match only:
+  - Human ME
+  - Human OPP
+  - Xenite ME
+  - Xenite OPP
+  - Centaur ME
+  - Centaur OPP
+- defer Ancient entry stings for a later pass
+- optionally replay only the winner's already-loaded sting at end of game
+- avoid casually loading the full audio library when only a small subset is needed for a live match
+- preserve the existing server-authoritative architecture and keep sound purely presentational
+
+This phase is not intended to introduce a general audio engine, music system, spatial audio, voice, chat sound, or large reactive soundscape.
+
+-------------------------------------------------------------------------------
+2. Architectural stance
+-------------------------------------------------------------------------------
+
+2.1 Server authority remains unchanged
+
+Phase 9 Sound must preserve the existing Shapeships architectural invariants:
+- the server remains authoritative for rules, legality, combat outcomes, state transitions, and canonical game state
+- the client remains non-authoritative
+- display code remains presentation-oriented
+
+Sound must react to authoritative state and existing client/runtime display signals.
+Sound must not introduce any new authoritative behavior.
+
+2.2 Client-side presentation only
+
+The sound layer is a client/UI concern only.
+
+It should:
+- observe existing state/view-model signals
+- play audio cues locally
+- remember a local user preference for sound enabled/disabled
+- load only the cues needed for the current match
+
+It must not:
+- add new server endpoints
+- add sound-specific fields to canonical game state unless some future pass proves they are truly required
+- move sound decisions into the server
+- become a second phase engine or timing engine
+
+2.3 Keep networking and orchestration boundaries clean
+
+Sound should not widen the live networking seam.
+
+The preferred posture is:
+- continue deriving authoritative game state in the existing client runtime
+- drive sound from already-derived client/runtime or display-ready signals
+- keep the actual audio playback logic in a tiny dedicated client-side sound controller rather than bloating useGameSession
+
+2.4 No large audio framework by default
+
+Do not introduce a heavy audio subsystem unless implementation proves it necessary.
+
+Phase 9 should start with:
+- one compact manifest of cues
+- one small playback/controller hook or helper
+- one lightweight preference toggle
+- small trigger guards to prevent replay spam during polling or remounts
+
+-------------------------------------------------------------------------------
+3. Scope summary
+-------------------------------------------------------------------------------
+
+3.1 In scope for Phase 9
+
+- a Sound toggle in the same general UI position/pattern where Turn Blur previously lived
+- local remembered sound preference across games on the same browser/device
+- one dice-roll sound
+- match-scoped lazy loading for the two relevant species entry stings only
+- one optional end-of-game replay of the winner's sting
+- browser-safe audio unlock behavior
+- replay guards so polling and re-renders do not repeatedly retrigger cues
+
+3.2 Out of scope for Phase 9
+
+- Ancient species entry sting
+- background music
+- per-ship SFX
+- button clicks, hover sounds, chat sounds, countdown sounds, timeout alarms
+- voiceover/narration
+- volume sliders, mixers, per-category mute, advanced sound settings
+- server-synced user audio preferences
+- asset streaming/CDN redesign beyond ordinary client asset loading
+- broad refactors of useGameSession, BoardStage, or shell navigation unrelated to the sound layer
+
+-------------------------------------------------------------------------------
+4. Locked product interpretation
+-------------------------------------------------------------------------------
+
+4.1 Sound categories for this phase
+
+The first sound layer consists of only three cue families:
+
+A. Dice roll cue
+- one short shared cue
+
+B. Species entry stings
+- one ME sting and one OPP sting for each active implemented species
+- Human, Xenite, Centaur only in this phase
+
+C. Finish replay
+- optional replay of the winner's already-loaded species sting
+- no separate victory fanfare in this phase
+
+4.2 Ancient is explicitly deferred
+
+Ancient entry sting work is deferred.
+This phase must not silently widen into Ancient sound support.
+
+4.3 Only the current match's species stings should load
+
+This is a locked requirement.
+
+If a match is Human vs Xenite, the client should not casually load:
+- Centaur stings
+- Ancient stings
+- unrelated extra cues
+
+The intended live-match footprint is:
+- dice cue
+- my species sting
+- opponent species sting
+
+That is the normal target.
+
+4.4 Winner replay should reuse an existing cue
+
+If finish replay is implemented, it should replay the already-loaded winner sting.
+Do not add a separate end-game asset family in this phase.
+
+4.5 Sound is optional and user-controlled
+
+Sound must be controlled by a simple user-facing toggle.
+When disabled:
+- no cues should play
+- eager or speculative audio loading should be minimized
+- re-enabling later in the session should still work cleanly
+
+-------------------------------------------------------------------------------
+5. Preference and persistence posture
+-------------------------------------------------------------------------------
+
+5.1 Local client preference only
+
+Sound preference is a client-local browser preference.
+It is not part of authoritative game state and is not synced through the server.
+
+5.2 Persistence expectation
+
+The preference should be remembered across game navigation, reloads, and subsequent matches on the same browser/device using local browser storage.
+
+This is the intended meaning of "remembered across games" for Phase 9.
+
+5.3 Reuse the prior toggle posture
+
+The Sound toggle should follow the same general posture the product previously used for the Turn Blur toggle:
+- local browser persistence
+- lightweight UI wiring
+- no server dependency
+
+The exact storage key name may change, but the architectural posture should remain the same.
+
+-------------------------------------------------------------------------------
+6. Asset loading posture
+-------------------------------------------------------------------------------
+
+6.1 Lazy loading is the default
+
+Sound files are expected to be materially larger than ordinary UI constants and should not all be fetched up front.
+
+The default posture for Phase 9 is lazy loading.
+
+6.2 Recommended match-scoped load shape
+
+At runtime, Phase 9 should normally load only:
+- dice cue
+- current player's species sting
+- opponent player's species sting
+
+Examples:
+- Human vs Human:
+  - dice
+  - Human ME
+  - Human OPP
+- Human vs Xenite:
+  - dice
+  - Human ME
+  - Xenite OPP
+- Centaur vs Xenite:
+  - dice
+  - Centaur ME
+  - Xenite OPP
+
+6.3 No full-library preload
+
+Do not preload all six stings just because the game screen mounted.
+Do not preload deferred Ancient cues.
+
+6.4 Warm-up timing
+
+The recommended warm-up posture is:
+- dice cue may be loaded early when sound is enabled
+- species stings should load only once the match species are known and the game is actually moving toward gameplay
+
+This gives time for the relevant cues to warm before reveal without paying for unrelated assets.
+
+-------------------------------------------------------------------------------
+7. Trigger model
+-------------------------------------------------------------------------------
+
+7.1 General rule
+
+Sound cues should be driven by stable, already-existing client/runtime or presentation signals where possible, not by ad hoc timers or speculative local phase invention.
+
+7.2 Dice roll cue
+
+The dice cue should trigger from the same live signal used to visually represent a new dice-roll event.
+
+Preferred posture:
+- piggyback on the existing dice animation/change signal rather than inventing a second independent roll detector
+
+Why:
+- keeps sound aligned with the visible roll moment
+- avoids replay on ordinary re-renders
+- avoids adding a second interpretation of "when the roll happened"
+
+7.3 Species entry sting trigger
+
+Species entry stings should trigger on authoritative entry into battle reveal for the current turn.
+
+Important requirements:
+- must not replay repeatedly while polling inside the same reveal window
+- must be keyed against stable authoritative progression such as turn + reveal entry, not general render count
+- should play only once per side per reveal event
+
+7.4 End-of-game winner replay trigger
+
+If implemented, the winner replay should trigger only on the transition into finished state.
+
+It must:
+- play once
+- not loop
+- not replay on later polling updates of the same finished game
+- not play for a draw unless a later product decision explicitly adds a draw cue
+
+-------------------------------------------------------------------------------
+8. Entry sting ordering and UX posture
+-------------------------------------------------------------------------------
+
+8.1 Do not hard-stack both reveal stings at the exact same instant by default
+
+If both side stings fire simultaneously, the result may feel muddy or overly loud.
+
+Preferred posture:
+- play one side first
+- stagger the other side shortly after
+
+8.2 Small stagger is recommended
+
+A small stagger between the two reveal stings is recommended.
+
+The exact delay can be tuned later, but the intended behavior is:
+- recognizably sequential
+- still brisk
+- still inside the reveal moment
+
+8.3 ME / OPP distinction is intentional
+
+The product intentionally distinguishes the sting asset by perspective:
+- ME cue
+- OPP cue
+
+This is not redundant naming.
+It is the actual product design for this phase and should be preserved.
+
+-------------------------------------------------------------------------------
+9. Browser audio constraints
+-------------------------------------------------------------------------------
+
+9.1 Audio unlock must be handled deliberately
+
+Modern browsers commonly restrict audible playback until the user has interacted with the page.
+
+Phase 9 should explicitly account for this.
+
+9.2 Locked implementation posture
+
+The sound layer should support an audio unlock/resume step tied to ordinary user interaction.
+
+This should be lightweight and local.
+It should not require a special full-screen gate or separate onboarding screen.
+
+9.3 Graceful failure posture
+
+If the browser has not yet allowed playback:
+- the app should fail quietly
+- gameplay should continue normally
+- later interaction should allow the sound layer to recover and work without forcing a reload
+
+-------------------------------------------------------------------------------
+10. Asset/content guidance
+-------------------------------------------------------------------------------
+
+10.1 Keep cues short
+
+Phase 9 cues should stay short and practical.
+This is especially important because the dice cue and reveal stings may be heard many times.
+
+10.2 Prioritize repeat-listen quality
+
+The strongest selection criterion is not maximum drama on first listen.
+The strongest criterion is whether the cue still feels good after repeated play.
+
+10.3 Dice cue posture
+
+The dice cue should be:
+- short
+- clear
+- punchy
+- not overly long or theatrical
+
+10.4 Entry sting posture
+
+Entry stings should be:
+- recognizably factional/perspectival
+- brief enough not to stall the reveal rhythm
+- strong enough to reinforce reveal identity without becoming the entire moment
+
+-------------------------------------------------------------------------------
+11. Recommended technical posture
+-------------------------------------------------------------------------------
+
+11.1 Keep the sound controller separate from useGameSession
+
+The sound controller should be small and dedicated.
+
+Recommended conceptual split:
+- existing runtime continues deriving authoritative state and UI signals
+- GameScreen (or a nearby shell seam) owns the Sound toggle wiring
+- a small sound helper/hook owns:
+  - enabled flag
+  - asset cache
+  - unlock state
+  - trigger dedupe guards
+  - playback calls
+
+11.2 No server authority leakage into sound
+
+Sound code must not:
+- validate rules
+- infer legality
+- advance phases
+- invent winners
+
+It should only respond to already-established truth.
+
+11.3 Prefer cue ids over hard-coded scattered imports
+
+Use one compact manifest or lookup table for cue ids and asset loading.
+This keeps asset management readable and prevents duplicated import sprawl.
+
+-------------------------------------------------------------------------------
+12. Recommended pass structure
+-------------------------------------------------------------------------------
+
+12.1 Pass 9A - Sound foundations
+
+Goal:
+Add the minimal local sound framework without yet widening the cue set.
+
+Includes:
+- Sound toggle
+- local preference persistence
+- audio unlock handling
+- cue manifest
+- small controller/hook
+- replay guards
+
+12.2 Pass 9B - Dice roll cue
+
+Goal:
+Wire the dice cue to the existing roll animation/change event.
+
+Includes:
+- one dice cue
+- one trigger path
+- dedupe against rerender/poll spam
+
+12.3 Pass 9C - Species reveal stings
+
+Goal:
+Load and play only the two required stings for the current match.
+
+Includes:
+- match-scoped lazy loading for ME/OPP species cues
+- reveal-entry trigger
+- small stagger between sides
+- no Ancient support yet
+
+12.4 Pass 9D - Finish replay
+
+Goal:
+Optionally replay the winner's already-loaded sting once when the game finishes.
+
+Includes:
+- finished-state transition guard
+- winner-only behavior
+- no loop
+- no separate victory asset family
+
+This pass is intentionally optional and should not be allowed to destabilize the earlier phases.
+
+-------------------------------------------------------------------------------
+13. Validation expectations
+-------------------------------------------------------------------------------
+
+Phase 9 is successful when:
+- sound can be toggled on and off from the game UI
+- the preference is remembered locally across games/reloads on the same browser/device
+- only the dice cue plus the two relevant match stings are loaded in a normal match
+- dice sound triggers once per real roll event, not repeatedly during polling
+- reveal stings trigger once on reveal entry and do not spam during the same phase
+- end-of-game replay, if enabled, fires once for the winner only
+- disabling sound prevents cue playback cleanly
+- browser audio restrictions do not break gameplay flow
+- no server routes, rules, or authoritative state contracts are required for this feature
+
+-------------------------------------------------------------------------------
+14. Risks and watchouts
+-------------------------------------------------------------------------------
+
+14.1 Poll-driven replay spam
+
+Because the game is live-polled, the biggest implementation risk is accidental replay of cues on every refresh.
+
+This must be guarded carefully.
+
+14.2 Hidden remount replay
+
+If GameScreen or nearby components remount, naive sound effects may replay.
+The sound layer should dedupe against authoritative event keys rather than raw component mount behavior.
+
+14.3 Asset bloat drift
+
+Once a sound layer exists, there will be pressure to add many more cues.
+That may be desirable later, but it is out of scope for Phase 9.
+
+14.4 useGameSession bloat
+
+Sound is exactly the kind of feature that can accidentally add more orchestration noise to useGameSession.
+That should be avoided.
+
+-------------------------------------------------------------------------------
+15. Locked guidance summary
+-------------------------------------------------------------------------------
+
+- Phase 9 is a lightweight client-side sound layer only.
+- Server authority and canonical state remain unchanged.
+- The first sound set is: dice, Human/Xenite/Centaur ME and OPP stings, optional winner replay.
+- Ancient sting is deferred.
+- Only the current match's two stings should load, plus dice.
+- Sound must be user-toggleable and locally remembered.
+- Triggering should piggyback on existing authoritative/runtime signals.
+- Replay spam from polling/remounts is the primary technical risk and must be explicitly guarded.
+- Do not widen this phase into a general audio engine, music system, or full soundscape.

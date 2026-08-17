@@ -1,0 +1,526 @@
+
+-------------------------------------------------------------------------------
+9. Mobile top navigation
+-------------------------------------------------------------------------------
+
+9.1 Items
+
+Mobile top nav contains:
+- SHAPESHIPS · Turn X
+- Chat, with unread indicator if present
+- Battle Log
+- Menu
+
+9.2 Board anchor behavior
+
+SHAPESHIPS · Turn X returns to the board from any takeover.
+It does not open a separate modal by default.
+
+9.3 Active state behavior
+
+When board is active:
+- SHAPESHIPS · Turn X is bright
+- Chat / Battle Log / Menu may be neutral/dim
+
+When a takeover is active:
+- active takeover item is bright
+- SHAPESHIPS · Turn X remains available but dimmed
+- inactive takeover items are dimmed
+
+9.4 Long text handling
+
+The nav must survive narrow widths.
+Text should not wrap into a second row during ordinary gameplay.
+If needed, use truncation or reduced spacing rather than adding vertical height.
+
+-------------------------------------------------------------------------------
+10. Mobile board and status strip
+-------------------------------------------------------------------------------
+
+10.1 Board content
+
+The mobile board shows:
+- opponent public fleet
+- player public/provisional-visible fleet according to current visibility rules
+- central status strip
+- dice display
+- phase/status labels
+- economy/context line
+- Ready button
+
+10.2 Health and last-turn delta
+
+Player rows show large health numbers and compact last-turn deltas:
+- health is primary
+- last-turn delta is visually attached to health
+- positive and negative deltas use the existing tone language
+
+10.3 Compact battle stats
+
+Each player row shows compact aggregate stats in a fixed order.
+The intended compact row is:
+- healing
+- damage
+- bonus
+- saved lines
+
+The stat order must remain consistent everywhere.
+
+10.4 Player row tap behavior
+
+The whole player/stat row should be a generous tap target.
+Tapping either compact stat row opens both players' stat breakdown popovers.
+
+10.5 Dice and status
+
+The dice display remains prominent but should not dominate fleet reading.
+Each player status/time near the dice should show current status truth such as:
+- Ready
+- Drawing
+- Waiting-related states where applicable
+
+10.6 Economy/context line
+
+The line above Ready is a contextual economy/action line.
+Examples:
+- 14 lines available
+- Select a target
+- Waiting for opponent
+- Health resolution
+- No actions available
+
+Exact copy should come from existing/shared runtime or panel state where possible.
+
+10.7 Ready button
+
+Ready remains a primary large touch target on the board.
+Ready behavior and enabled/disabled state continue to come from existing runtime/action rules.
+
+-------------------------------------------------------------------------------
+11. Battle stat breakdown popovers
+-------------------------------------------------------------------------------
+
+11.1 Trigger
+
+Tapping either player compact stat row opens both players' breakdown popovers.
+
+11.2 Contents
+
+Each player popover can show four slots:
+- Last turn healing
+- Last turn damage
+- Last turn bonus
+- Saved lines
+
+Healing and damage always show, including zero.
+Bonus and saved lines show only if non-zero.
+
+11.3 Data source
+
+Popovers must use existing/shared stat and breakdown data from the runtime/selector seam.
+They must not parse raw events or recompute gameplay math in display/mobile.
+
+11.4 Clear behavior
+
+The popovers close when:
+- tapping outside
+- tapping the compact stat row again
+- opening a ship modal
+- opening a takeover
+- changing tabs
+- Ready is submitted
+- the relevant phase/turn changes
+
+11.5 Layout
+
+Popovers overlay the board and do not reflow content.
+They may anchor visually to each player row but should remain within screen bounds.
+
+-------------------------------------------------------------------------------
+12. Mobile catalogue and ship modal behavior
+-------------------------------------------------------------------------------
+
+12.1 Catalogue browsing
+
+The mobile catalogue lives in the bottom interaction region.
+It may use horizontal scrolling for species/tabs and ship groups.
+
+12.2 Tap-to-inspect
+
+Tapping a ship opens a ship modal/sheet.
+A ship tap does not immediately build unless a later explicit product decision changes this.
+
+12.3 Build CTA
+
+The modal contains the explicit action button, such as:
+- BUILD - 3 lines
+- BUILD - 10 lines
+- UNAVAILABLE - [reason]
+- SELECT / USE where appropriate for non-build contexts
+
+12.4 Modal content hierarchy
+
+Ship modal content should prioritize:
+1. cost + ship name
+2. phase/timing/type metadata
+3. resource requirement such as joining lines if relevant
+4. concise power summary
+5. optional expandable rules notes
+6. primary CTA
+
+12.5 Rules notes
+
+Long explanatory copy should be collapsed by default where practical.
+Expanded rules notes must make the modal scrollable rather than pushing the CTA off-screen permanently.
+
+12.6 Unavailable ships
+
+Unavailable ships still need a mobile inspection path so players can understand why they cannot build/use them.
+
+Reasons may include:
+- not enough lines
+- missing components
+- wrong phase
+- max reached
+- foreign basic cannot be built
+- charge requirements not met
+- in development / unavailable context
+
+Final legality remains server-authoritative.
+
+12.7 Background interaction
+
+Opening a ship modal should dim or visually suppress the catalogue beneath it.
+Tapping outside or the close button closes the modal.
+
+-------------------------------------------------------------------------------
+13. Mobile action panel behavior
+-------------------------------------------------------------------------------
+
+13.1 Actions tab
+
+The Actions tab is the mobile workspace for current phase choices.
+It should show existing server-projected actions using touch-first layout.
+
+13.2 Choice groups
+
+Repeated per-ship choices, such as multiple Carriers, should display as separate groups with:
+- source ship visual
+- available choices
+- selected/default choice
+- disabled state where a choice is not available
+- Hold option where relevant
+
+13.3 Submission model
+
+Mobile actions use the existing action submission flow.
+Do not create mobile-only intent payloads if existing payloads are sufficient.
+
+13.4 Completed groups
+
+If many actionable ships exist, completed/resolved groups may need a compact or collapsed visual state.
+This should be presentational only and must not change authoritative action semantics.
+
+13.5 Targeting states
+
+Targeting states need dedicated mobile treatment.
+Future targeting mocks should define:
+- which board/fleet items become tappable
+- selected target state
+- cancel behavior
+- confirm behavior where needed
+- unavailable target styling
+
+Targeting legality remains server-authoritative.
+
+-------------------------------------------------------------------------------
+14. Mobile takeovers
+-------------------------------------------------------------------------------
+
+14.1 Shared takeover shell
+
+Chat, Battle Log, and Menu should use a shared mobile takeover shell where practical.
+The shell should handle:
+- title row
+- close affordance
+- scroll body
+- safe-area padding
+- background dimming / board suppression
+
+14.2 Chat takeover
+
+Chat includes:
+- message history
+- game code / copy affordance
+- draw offer actions when present
+- input area
+- send button
+- keyboard-safe behavior
+
+Keyboard validation is required for this pass.
+
+14.3 Battle Log takeover
+
+Battle Log uses the existing battle-log/history contract and client parsing path.
+It remains a completed-turn history surface, not hot live state.
+
+Mobile battle log should preserve:
+- stable player order
+- turn ordering
+- dice display
+- health end + delta
+- BUILD and BATTLE grouping
+- readable wrapping for long names and rows
+
+14.4 Menu / turn-info takeover
+
+Menu includes:
+- game code/title
+- status and elapsed time
+- player-allowed game actions such as Offer Draw / Resign Game when applicable
+- current turn display
+- phase/subphase timeline
+
+Menu must not expose player-only actions to spectators when spectator mode is later implemented.
+
+-------------------------------------------------------------------------------
+15. Accessibility and touch requirements
+-------------------------------------------------------------------------------
+
+15.1 Touch targets
+
+Interactive elements should use generous tap targets even when the visible label is small.
+This includes:
+- top nav items
+- player stat rows
+- Ready button
+- modal close buttons
+- action choices
+- catalogue ships
+- takeover close controls
+
+15.2 Text sizing
+
+The mobile layout may use dense notation, but critical state must remain legible:
+- health
+- Ready / status
+- economy line
+- action choices
+- modal CTA
+
+15.3 Reduced motion
+
+Existing reduced-motion posture should remain respected.
+Mobile must not add animation dependencies that make the game harder to use with reduced motion enabled.
+
+15.4 Safe areas
+
+The implementation should account for:
+- bottom gesture area
+- top browser/safe-area insets
+- keyboard height
+- small viewport heights
+
+-------------------------------------------------------------------------------
+16. Relationship to spectator mode
+-------------------------------------------------------------------------------
+
+Spectator mode is not part of Phase 11 Mobile.
+
+However, Phase 11 should avoid choices that make future spectator mobile support harder.
+
+Specifically:
+- do not bake me/opponent assumptions into mobile display components beyond existing shared VM labels
+- keep the top nav/takeover model compatible with spectator menu restrictions later
+- keep battle log ordering stable
+- keep hidden drawing visibility controlled by runtime/DTO state, not mobile display guesses
+
+Future spectator-mobile behavior should be implemented through the spectator planning documents and Phase 10-shaped public/requester DTO posture.
+
+-------------------------------------------------------------------------------
+17. Recommended implementation order
+-------------------------------------------------------------------------------
+
+Phase 11 should be implemented in small passes.
+
+Phase 11A — Planning document
+Type: Documentation pass
+Goal: create this normative planning document.
+
+Phase 10 prerequisite — Selector seam work
+Type: Phase 10 Client Runtime / DTO work
+Goal: complete the selector/runtime foundation that Phase 11 will consume.
+
+Phase 11B — Mobile shell foundation
+Type: Client/UI Pass
+Goal:
+- add a mobile display branch with minimal placeholder composition
+- keep desktop layout intact
+- prove GameScreen can choose mobile vs desktop without changing server behavior
+
+Expected scope:
+- src/game/display/GameScreen.tsx
+- src/game/display/mobile/**
+- possibly a small responsive hook/helper
+
+Phase 11C — Mobile board/status layout
+Type: Client/UI Pass
+Goal:
+- implement mobile top nav
+- implement mobile board stack
+- render existing fleet/status/dice/economy/Ready data from shared VM/actions
+
+Expected scope:
+- src/game/display/mobile/**
+- small shared fleet extraction only if necessary
+
+Phase 11D — Mobile bottom interaction area
+Type: Client/UI Pass
+Goal:
+- implement mobile Actions/species tabs
+- render catalogue/action content in the mobile bottom region
+- preserve existing action callbacks
+
+Phase 11E — Mobile ship modal and catalogue tap behavior
+Type: Client/UI Pass
+Goal:
+- replace hover-dependent ship inspection on mobile with tap-to-open modal/sheet
+- implement basic and upgraded ship modal states
+- keep Build CTA routed through existing actions
+
+Phase 11F — Mobile action panels
+Type: Client/UI Pass
+Goal:
+- adapt action panels for touch-first presentation
+- cover Carrier / Ships That Build style grouped choices first
+- then verify charge choice and targeting-adjacent panels
+
+Phase 11G — Mobile stat breakdown popovers
+Type: Client/UI Pass
+Goal:
+- implement tap-to-open both-player stat breakdown popovers
+- consume shared last-turn stat/breakdown data
+- implement outside-tap and transition clear behavior
+
+Phase 11H — Mobile takeovers
+Type: Client/UI Pass
+Goal:
+- implement Chat, Battle Log, and Menu as mobile takeovers
+- validate keyboard behavior for Chat
+- validate scroll behavior for Battle Log
+
+Phase 11I — Mobile polish and edge states
+Type: Client/UI Follow-up
+Goal:
+- long names
+- large fleets
+- no actions
+- unavailable ships
+- safe areas
+- reduced motion
+- keyboard quirks
+- large-mobile checks
+- orientation and viewport-height edge cases
+
+-------------------------------------------------------------------------------
+18. Validation checklist
+-------------------------------------------------------------------------------
+
+A Phase 11 implementation is not complete unless the relevant passes validate the following.
+
+18.1 Architecture validation
+
+- server files are not modified unless a later explicitly approved mixed pass requires it
+- mobile display files do not call server endpoints
+- mobile display files do not parse raw /game-state directly
+- mobile uses the same useGameSession VM/actions as desktop
+- no duplicated mobile gameplay VM is introduced
+
+18.2 Layout validation
+
+Validate at minimum:
+- 360 x 800
+- 390 x 844
+- 412 x 915 or equivalent larger phone
+
+Check:
+- top nav does not wrap
+- health/stat strip remains readable
+- dice/status remains readable
+- Ready remains tappable
+- bottom interaction region remains usable
+- ship modal CTA remains reachable
+
+18.3 Interaction validation
+
+Validate:
+- SHAPESHIPS / Turn returns to board from every takeover
+- Chat opens and closes cleanly
+- Battle Log opens and closes cleanly
+- Menu opens and closes cleanly
+- catalogue ship tap opens modal
+- modal closes by close button and outside tap
+- stat row tap opens both popovers
+- outside tap clears popovers
+- changing tabs clears temporary overlays
+- Ready clears temporary overlays and submits through existing action path
+
+18.4 Gameplay presentation validation
+
+Validate with real game states:
+- sparse fleets
+- dense fleets
+- positive/negative/zero health deltas
+- non-zero and zero damage/healing
+- non-zero bonus lines
+- non-zero saved lines
+- no actions available
+- multiple action groups, especially Carrier-like repeated choices
+- long player names
+
+18.5 Keyboard validation
+
+Validate Chat with keyboard open:
+- input remains reachable
+- send remains reachable
+- message list remains scrollable
+- close path remains available or recoverable
+
+18.6 Regression validation
+
+Desktop must continue to work after mobile passes.
+
+Expected checks for Client/UI passes:
+- npm run typecheck
+- npm run build where practical
+- manual two-browser smoke test for mobile and desktop layouts where practical
+
+-------------------------------------------------------------------------------
+19. Deferred questions
+-------------------------------------------------------------------------------
+
+The following should be decided during implementation or follow-up design, not guessed in the planning document.
+
+1. Exact mobile breakpoint.
+2. Whether mobile branch uses a media-query hook in GameScreen or a CSS-driven shell switch.
+3. Whether existing BoardStage fleet rendering can be reused directly or needs a small shared extraction.
+4. Exact unavailable-ship modal copy for every ineligible reason.
+5. Exact targeting UX for Guardian / Equality / Domination-style target flows.
+6. Whether Ready should remain above tabs in every phase or receive phase-specific layout variants later.
+7. Whether Menu and Turn Info stay combined permanently or split later.
+8. Whether battle-log turn rows need collapsed/expanded modes for very long games.
+9. Whether mobile landscape should be supported or treated as out of scope for v1.
+
+-------------------------------------------------------------------------------
+20. Locked non-decision
+-------------------------------------------------------------------------------
+
+Phase 11 planning does not need to wait until Phase 10 is fully complete.
+
+But Phase 11 implementation should wait until the relevant Phase 10 selector foundation is available.
+
+The correct posture is:
+- plan Phase 11 now
+- run Phase 10 selector work first
+- implement Phase 11 against the centralized post-Phase-10 runtime/view-model seam
+

@@ -1,0 +1,414 @@
+Phase 3.1 Slice 2 — Client Prompt 9 (ShipChoice panels batch-submit on READY using server availableActions, labels remain in ShipChoiceRegistry)
+Goal (strict)
+
+Implement the correct ShipChoice UX:
+
+Clicking a ShipChoice button does NOT send network actions.
+
+Clicking READY submits the chosen options for all actionable ship instances in a batch, then sends DECLARE_READY.
+
+“Hold” choices are omitted (no ACTION sent for hold).
+
+ShipChoice panels must be driven by server availableActions (per-instance), while labels/detail remain in ShipChoiceRegistry.ts.
+
+This prompt wires charge panels (battle.charge_declaration + battle.charge_response) end-to-end.
+
+Server compatibility assumptions (already in your repo)
+
+The server now:
+
+returns availableActions[] entries shaped like:
+
+{ kind:'choice', actionId, shipDefId, sourceInstanceId, choices:[{choiceId}] }
+
+accepts ACTION with payload:
+
+{ actionType:'power', actionId, sourceInstanceId, choiceId }
+
+still expects DECLARE_READY to advance the phase once both players are ready.
+
+Do not change server in this prompt.
+
+Files to edit (ONLY these)
+
+game/types/ShipChoiceTypes.ts
+
+game/display/actionPanel/panels/ShipChoiceRegistry.ts
+
+game/display/actionPanel/ActionPanelFrame.tsx
+
+game/display/actionPanel/panels/ShipChoicesPanel.tsx
+
+game/display/actionPanel/panels/ShipChoiceGroup.tsx
+
+game/client/gameSession/mapVm.ts
+
+game/client/useGameSession.ts
+
+game/client/gameSession/intents.ts
+
+game/client/gameSession/powerIntents.ts (READ ONLY; use existing helper)
+
+No new files.
+
+1) Add semantic choiceId to ShipChoice buttons (UI owns copy, choiceId drives submission)
+1.1 game/types/ShipChoiceTypes.ts
+
+Extend ShipChoiceButtonSpec with:
+
+  /**
+   * Semantic choice identifier used for server power submission.
+   * Examples: 'damage' | 'heal' | 'hold'
+   * UI strings (label/detail) remain authoritative in ShipChoiceRegistry.
+   */
+  choiceId?: string;
+
+No other type changes in this file.
+
+1.2 game/display/actionPanel/panels/ShipChoiceRegistry.ts
+
+For these charge panels, add choiceId to each button:
+
+ap.battle.charges.human (INT)
+
+Deal 5 Damage → choiceId: 'damage'
+
+Heal 5 → choiceId: 'heal'
+
+Hold Charge → choiceId: 'hold'
+
+ap.battle.charges.xenite (ANT)
+
+Same semantic IDs: damage/heal/hold
+
+ap.battle.charges.centaur (at least WIS/FAM/EQU groups present here)
+
+Same semantic IDs: damage/heal/hold
+
+Leave non-charge panels unchanged for now.
+
+2) Drive ShipChoice VM groups from server availableActions (not fleet count) for charge phases
+2.1 Add required per-instance metadata to ShipChoiceGroupSpec
+
+In game/types/ShipChoiceTypes.ts, extend ShipChoiceGroupSpec with:
+
+  /**
+   * Server-derived actionable instance identity for ShipChoice phases.
+   * Present for charge panels (battle.charge_*).
+   */
+  sourceInstanceId?: string;
+
+  /**
+   * Server action identifier (e.g. "INT#0")
+   */
+  actionId?: string;
+
+  /**
+   * Allowed semantic choices for this instance, from server availableActions.
+   * Example: ['damage','heal','hold']
+   */
+  availableChoiceIds?: string[];
+
+No other changes.
+
+2.2 game/client/gameSession/mapVm.ts — accept availableActions in args
+
+Update mapGameSessionVm(args) signature to include:
+
+  availableActions: any[] | null;
+
+Then update the call site in useGameSession.ts (later step) to pass the existing availableActions variable (or rawState?.availableActions ?? null).
+
+2.3 mapVm.ts — derive ShipChoices for charge phases from availableActions
+
+In the existing “Ship choices (derive groups from registry spec)” block:
+
+Keep the registry lookup:
+
+const shipChoiceSpec = getShipChoicePanelSpec(finalActivePanelId);
+
+Then modify the logic inside if (shipChoiceSpec && shipChoiceSpec.kind === 'buttons'):
+
+New rule:
+
+If phaseKey is either:
+
+battle.charge_declaration
+
+battle.charge_response
+
+…then derive groups from args.availableActions, not from fleet counts.
+
+Implementation details (charge phases only)
+
+Filter availableActions to those with:
+
+kind === 'choice'
+
+sourceInstanceId string
+
+actionId string
+
+shipDefId string
+
+choices array of { choiceId: string }
+
+For each groupSpec in shipChoiceSpec.groups:
+
+If groupSpec.kind === 'counted':
+
+Find all matching server actions where shipDefId === groupSpec.shipDefId
+
+Let count = matches.length
+
+If count === 0, continue
+
+heading = groupSpec.headingTemplate.replace('{count}', String(count))
+
+ships = matches.map(m => ({ shipDefId: groupSpec.shipDefId, buttons: groupSpec.buttons, sourceInstanceId: m.sourceInstanceId, actionId: m.actionId, availableChoiceIds: m.choices.map(c => c.choiceId) }))
+
+If groupSpec.kind === 'named':
+
+For each ship in groupSpec.ships, find matching actions by shipDefId, and expand ships per action instance exactly as above (one ShipChoiceGroupSpec per server action instance).
+
+Preserve existing groupHelpText passthrough.
+
+Keep existing non-charge-phase behavior as-is (fleet-derived) for now.
+
+This ensures the number of ship-choice “cards” exactly matches server eligibility.
+
+3) Add controlled selection state + click behavior (click selects only)
+
+We’ll keep selection state in useGameSession so READY can submit it.
+
+3.1 game/display/actionPanel/panels/ShipChoiceGroup.tsx
+
+Convert the selection behavior to be controllable from above.
+
+Add props:
+
+Add to ShipChoiceGroupProps:
+
+  /**
+   * When provided, selection is controlled externally using semantic choiceId.
+   */
+  selectedChoiceId?: string;
+
+  /**
+   * Called when user selects a choice (UI-only; parent decides what to do).
+   */
+  onSelectChoiceId?: (choiceId: string) => void;
+Replace internal selection logic
+
+Currently ShipChoiceGroup uses useState(selectedIndex) and onClick={() => setSelectedIndex(index)}.
+
+Change to:
+
+Determine selectedIndex from selectedChoiceId if provided:
+
+find the first button where button.choiceId === selectedChoiceId
+
+fallback to index 0 if not found
+
+Keep a tiny internal state only as fallback when selectedChoiceId is undefined (for non-wired panels), so we don’t break other ship choice panels.
+
+Concrete behavior:
+
+If selectedChoiceId is provided → treat component as controlled (no internal state needed except optional)
+
+If not provided → keep existing internal useState(0) behavior
+
+On button click:
+
+If the clicked button has spec.choiceId:
+
+call onSelectChoiceId(spec.choiceId) if provided
+
+Also update internal state only when uncontrolled.
+
+Do not add network calls here.
+
+3.2 game/display/actionPanel/panels/ShipChoicesPanel.tsx
+
+Add two optional props:
+
+  selectedChoiceIdBySourceInstanceId?: Record<string, string>;
+  onSelectChoiceForInstance?: (sourceInstanceId: string, choiceId: string) => void;
+
+When rendering each ShipChoiceGroup, if ship.sourceInstanceId exists:
+
+compute selectedChoiceId = selectedChoiceIdBySourceInstanceId?.[ship.sourceInstanceId]
+
+pass:
+
+selectedChoiceId={selectedChoiceId}
+
+onSelectChoiceId={(choiceId) => onSelectChoiceForInstance?.(ship.sourceInstanceId!, choiceId)}
+Otherwise render as before (uncontrolled).
+
+3.3 game/display/actionPanel/ActionPanelFrame.tsx
+
+When rendering <ShipChoicesPanel ... />, pass through:
+
+selectedChoiceIdBySourceInstanceId={vm.shipChoices?.selectedChoiceIdBySourceInstanceId}
+
+onSelectChoiceForInstance={actions.onSelectShipChoiceForInstance}
+
+This requires the next section: vm + actions additions.
+
+4) Wire selection state + READY batch submission in useGameSession
+4.1 game/client/useGameSession.ts — maintain selection map for charge panels
+
+Add state near other UI state:
+
+const [shipChoiceSelectionByInstanceId, setShipChoiceSelectionByInstanceId] = useState<Record<string, string>>({});
+
+Add an effect that runs when:
+
+phaseKey changes, OR
+
+availableActions changes
+
+Effect behavior (charge phases only: battle.charge_declaration / battle.charge_response):
+
+Extract actionable choice actions from availableActions with kind:'choice'
+
+For each {sourceInstanceId, choices:[{choiceId}]}:
+
+If there is already a selection for this instance, keep it if it is still allowed
+
+Otherwise, default selection:
+
+Prefer the first button’s choiceId from the registry spec for the active panel (e.g. 'damage') if that choiceId exists in the instance’s allowed choiceIds
+
+Else use choices[0].choiceId
+
+Remove any selections whose instanceId is no longer present.
+
+This keeps the UI stable across polling updates.
+
+To get the registry’s default for the current active panel:
+
+use getShipChoicePanelSpec(activePanelId) (already available in mapVm; you can also import it here if needed, but prefer to derive default simply as: first button in group’s buttons for that shipDefId, since for charge panels it’s always in registry)
+
+Keep it simple: for now default to 'damage' when present in allowed choices, else first allowed.
+
+Also implement a selection action callback:
+
+onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => void
+
+This should update shipChoiceSelectionByInstanceId for that instance.
+
+4.2 game/client/gameSession/mapVm.ts — include selection map in vm.shipChoices
+
+Update the shipChoices shape in mapVm.ts (where it currently sets shipChoices = { groups, showOpponentAlsoHasCharges, ... }) to also include:
+
+selectedChoiceIdBySourceInstanceId: args.selectedChoiceIdBySourceInstanceId
+
+So you must also add to mapGameSessionVm(args) signature:
+
+  selectedChoiceIdBySourceInstanceId: Record<string, string>;
+
+…and pass it from useGameSession.ts when calling mapGameSessionVm.
+
+4.3 game/client/useGameSession.ts — pass new args into mapVm
+
+In the mapGameSessionVm({ ... }) call, add:
+
+availableActions: Array.isArray(availableActions) ? availableActions : null
+
+selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId
+
+4.4 game/client/useGameSession.ts — extend GameSessionActions
+
+Find const actions: GameSessionActions = { ... } and add:
+
+onSelectShipChoiceForInstance: (sourceInstanceId: string, choiceId: string) => {
+  setShipChoiceSelectionByInstanceId(prev => ({ ...prev, [sourceInstanceId]: choiceId }));
+},
+
+Also ensure GameSessionActions type (defined in useGameSession.ts) includes this method.
+
+5) READY button: batch submit selected power actions, then DECLARE_READY (charge phases only)
+5.1 Implement this in game/client/gameSession/intents.ts (canonical place)
+
+Modify runReadyToggleFlow in game/client/gameSession/intents.ts.
+
+Add new args
+
+Add to function args:
+
+  availableActions: any[] | null;
+  selectedChoiceIdBySourceInstanceId: Record<string, string>;
+
+Update the call site in useGameSession.ts where runReadyToggleFlow({ ... }) is invoked to pass:
+
+availableActions: Array.isArray(rawState?.availableActions) ? rawState.availableActions : null
+
+selectedChoiceIdBySourceInstanceId: shipChoiceSelectionByInstanceId
+
+Add a new branch near the top of runReadyToggleFlow
+
+Right after the existing readyEnabled checks and before other phase branches, add:
+
+If phaseKey is charge phases:
+
+if (phaseKey === 'battle.charge_declaration' || phaseKey === 'battle.charge_response') { ... }
+
+Inside:
+
+Validate availableActions is array; if not, just fall through to existing DECLARE_READY behavior (don’t crash).
+
+Filter to kind:'choice' actions with required fields.
+
+For each action:
+
+Determine selected choiceId = selectedChoiceIdBySourceInstanceId[sourceInstanceId]
+
+If missing, default to first provided choices[0].choiceId
+
+If selected choice is 'hold', omit (skip sending ACTION)
+
+Submit each ACTION sequentially (stop on first failure):
+
+intent: intentType: 'ACTION'
+
+payload: use existing helper buildPowerAction({ actionId, sourceInstanceId, choiceId })
+
+import it at top: import { buildPowerAction } from './powerIntents';
+
+If all ACTIONs succeed, then submit DECLARE_READY exactly like other phases.
+
+Append events from each submission the same way existing flows do (reusing appendEvents(result.events || [], {...})).
+
+Keep timeouts the same as existing submissions.
+
+Important: do NOT submit anything for omitted “hold”.
+
+Guardrails (MANDATORY)
+
+No button click sends network calls.
+
+Only READY submits.
+
+Only apply this batching behavior for battle.charge_declaration and battle.charge_response in this prompt.
+
+Do not change other intent flows.
+
+Acceptance Criteria
+
+Charge panels render N ship instances based on server availableActions, not fleet counts.
+
+Clicking a button only updates local selection and highlights the choice.
+
+Clicking READY:
+
+submits ACTION power intents for all non-hold selections (sequential)
+
+then submits DECLARE_READY
+
+“Hold” selections send no ACTION.
+
+Server receives { actionType:'power', actionId, sourceInstanceId, choiceId } with non-empty fields, satisfying the server reducer.
+
+Other panels remain unaffected and still behave as before.

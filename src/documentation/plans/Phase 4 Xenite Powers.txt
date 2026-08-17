@@ -1,0 +1,278 @@
+Phase 4 Xenite Powers
+Normative Planning Document
+
+Project: Shapeships
+Status: Planning
+Scope: Xenite powers implementation sequencing after Dreadnought
+
+1. Purpose
+
+This document defines the normative implementation plan for Xenite powers following completion of the Human Dreadnought pass. Its purpose is to group Xenite ships by implementation shape, maximize reuse of existing server-authoritative frameworks, and defer ships with custom rule requirements into dedicated later passes.
+
+2. Planning Principles
+
+Prefer reuse of established Human-side frameworks wherever the Xenite power shape is materially the same.
+
+Bundle ships together only when they share action plumbing, state requirements, and resolution semantics.
+
+Defer powers that introduce new timing hooks, new counting semantics, or new replacement / immunity rules into dedicated passes.
+
+Use canonical JSON definitions as the authoritative source for power behavior.
+
+Treat this document as the sequencing authority for Xenite implementation planning. Individual later slice documents may refine file plans, but must not silently widen scope.
+
+3. Reusable Frameworks Already Established
+
+The Xenite plan should reuse the following implementation families already present or actively established in the Human work:
+
+Static automatic effects: flat damage and flat heal effects resolved server-authoritatively.
+
+Computed automatic effects: count-based, type-based, once-only, and capped effects derived at resolution time.
+
+Charge choice actions: ship-specific actions that spend charge and choose between multiple outcomes.
+
+Ships-that-build actions: build-phase choices that create ships in future build phases.
+
+Destroy targeting: targeted destroy actions with explicit valid target derivation.
+
+Line-generation hooks: powers that add future generated lines.
+
+Per-ship memory / once-only support: authoritative storage for built-this-turn or already-used-style conditions.
+
+4. Phase 4 Scope Decision
+
+Phase 4 is defined as a Xenite powers program, not a generic economy / eligibility / upgrades cleanup pass. The immediate goal is to extract the largest coherent set of Xenite ships that cleanly maps onto existing frameworks and can be implemented with limited new system surface.
+
+5. Pass Structure
+
+The Xenite program is split into an initial reuse-heavy pass and several later dedicated passes. This structure is normative unless a later code review proves that a deferred ship can be absorbed without introducing new framework complexity.
+
+5.1 Phase 4A — Xenite Powers Pass 1 (Easy Mappers)
+
+In scope:
+
+XEN — Xenite
+
+OXI — Oxite
+
+AST — Asterite
+
+ANT — Antlion
+
+BUG — Bug Breeder
+
+MAN — Mantis
+
+HLH — Hell Hornet
+
+OXF — Oxite Face
+
+ASF — Asterite Face
+
+These ships are in scope because they map directly to existing static-effect, computed-effect, charge-choice, ships-that-build, or line-generation patterns.
+
+5.2 Deferred Xenite Passes
+
+EVO — Evolver: dedicated replacement / conversion pass
+
+ZEN — Zenith: dedicated trigger-builder pass
+
+DSW / AAR — Defense Swarm / Antlion Array: dedicated low-health conditional resolution pass unless later proven framework-neutral
+
+QUE — Queen: dedicated ship-counting / exclusion pass, subject to comparison against the new Dreadnought implementation
+
+HIV — Hive: dedicated counting-rules override pass
+
+SCP — Sacrificial Pool: dedicated sacrifice / immunity pass
+
+CHR — Chronoswarm: dedicated phase-structure pass
+
+6. Ship-by-Ship Mapping
+Xenite
+
+If canonical JSON remains once-only heal on build, treat as a small once-only computed effect. If later corrected to no power, it becomes a no-op ship.
+
+Status: Easy mapper
+
+Oxite
+
+Flat heal effect; same family as Defender.
+
+Status: Easy mapper
+
+Asterite
+
+Flat damage effect; same family as Fighter.
+
+Status: Easy mapper
+
+Antlion
+
+1-charge choose-one power; same family as Interceptor with different values.
+
+Status: Easy mapper
+
+Bug Breeder
+
+Future build-phase ship creation; same family as Carrier.
+
+Status: Easy mapper
+
+Mantis
+
+Count-based capped heal from Xenite counts; computed effect.
+
+Status: Easy mapper
+
+Hell Hornet
+
+Blend of once-only built effect plus Xenite-count scaling effect; computed effect.
+
+Status: Easy mapper
+
+Oxite Face
+
+Future line generation plus opponent-distinct-type count heal; Orbital + Tactical-style computed effect.
+
+Status: Easy mapper
+
+Asterite Face
+
+Future line generation plus opponent-distinct-type count damage; Orbital + Tactical-style computed effect.
+
+Status: Easy mapper
+
+Evolver
+
+Friendly Xenite-only replacement action. No target search across arbitrary ships is required, but it still needs a conversion action that destroys XEN and creates OXI or AST. If no Xenite exists, Hold is the only valid action.
+
+Status: Deferred
+
+Zenith
+
+Mixture of on-build creation, future build-phase dice-conditioned creation, and on-destroy trigger creation. The on-destroy hook pushes it into a separate pass.
+
+Status: Deferred
+
+Defense Swarm
+
+Conditional output based on whether player health was lower at the start of the turn. Requires explicit review of whether existing resolution ordering can satisfy the rule without new state.
+
+Status: Deferred
+
+Antlion Array
+
+Same structural issue as Defense Swarm.
+
+Status: Deferred
+
+Queen
+
+Builds Xenite in build phase and deals damage based on ships made this turn, excluding the Xenite created by that Queen. Must be explicitly compared against the new Dreadnought ship-counting patch before scoping.
+
+Status: Deferred
+
+Hive
+
+Adds rule-changing count semantics for other Xenite powers; not just a local effect.
+
+Status: Deferred
+
+Sacrificial Pool
+
+Friendly sacrifice, line-to-spawn conversion, and destroy-immunity rule override.
+
+Status: Deferred
+
+Chronoswarm
+
+Changes phase structure and build cadence; clearly dedicated.
+
+Status: Deferred
+
+7. Clarifications Incorporated Into This Plan
+7.1 Evolver
+
+Evolver does not require generic friendly targeting. It can only act on a Xenite. The action model is therefore narrower than Guardian-style targeting: the ship either converts one available Xenite into Oxite or Asterite, or Holds if no Xenite exists.
+
+Normative interpretation:
+
+Evolver needs a Xenite-only conversion action, not a generic target picker.
+
+Expected server shape: validate presence of at least one eligible Xenite; on resolve, destroy one Xenite and create either OXI or AST.
+
+If no Xenite exists, the only legal action is Hold.
+
+7.2 Defense Swarm / Antlion Array
+
+These ships remain deferred for now. There is an open question whether their “if your health was lower at the start of the turn” condition can be satisfied by existing resolution ordering alone, or whether an explicit start-of-turn health snapshot is required.
+
+Normative status:
+
+Deferred pending dedicated review.
+
+A future implementation pass must decide whether ordering is sufficient or whether authoritative start-of-turn state must be stored.
+
+7.3 Queen
+
+Queen is not ruled out as custom by default. It must be compared directly against the new Dreadnought ship-counting patch in the updated codebase.
+
+Normative interpretation:
+
+Shared shape with Dreadnought candidate: count ships made this turn.
+
+Potential custom requirement: exclude the Xenite created by that Queen from the count.
+
+Status in this document: still deferred, but specifically marked for Dreadnought-parity review rather than assumed-new-framework status.
+
+8. Normative Scope for Phase 4A (Easy Mappers)
+
+Phase 4A must stay tightly scoped to ships whose behavior can be implemented by recombining current frameworks with only value changes or minor computed-effect extensions.
+
+Not in scope for Phase 4A:
+
+New phase structure
+
+New broad targeting system
+
+New destroy-immunity system
+
+New replacement-counting rules that affect other ships globally
+
+Trigger-on-destruction framework
+
+Start-of-turn health snapshot requirement unless a dedicated review proves it is already implicitly available
+
+9. Anticipated Implementation Families in Phase 4A
+
+Flat heal family: Oxite
+
+Flat damage family: Asterite
+
+Charge-choice family: Antlion
+
+Ships-that-build family: Bug Breeder
+
+Count-based computed heal family: Mantis
+
+Count-based + once-only computed damage family: Hell Hornet
+
+Line generation + opponent-distinct-type computed family: Oxite Face and Asterite Face
+
+Minimal/no-op or once-only-on-build family: Xenite, depending on current canonical JSON
+
+10. Risks and Review Gates
+
+Canonical JSON and PDF rules must be kept aligned before implementation begins, even if JSON remains the source of truth.
+
+Computed effect ordering must be deterministic and explicit for any ship whose effect depends on counts or once-only state.
+
+Any ship that appears to require shared turn ledgers, start-of-turn snapshots, or global counting overrides must be moved out of the easy-mapper pass immediately.
+
+Queen must be re-reviewed against the updated Dreadnought patch before it receives a dedicated pass classification.
+
+11. Recommended Next Step
+
+After approval of this document, the next artifact should be a strict implementation brief for Phase 4A — Xenite Powers Pass 1 (Easy Mappers), with an exact file plan against the latest codebase and explicit reuse targets from the Human implementations.
+
+If you want, I’ll immediately turn this into the stricter next document: the actual Phase 4A pass brief.

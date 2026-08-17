@@ -1,0 +1,29 @@
+@everyone
+
+#SHAPESHIPS ONLINE PLAY
+
+https://shapeships.juddmadden.com/
+
+###Alpha is now live!
+
+- Play private games against friends
+- Play against the computer
+- Choose from Human, Xenite, and Centaur
+- Download Battle Logs for game analysis
+- Play on desktop — mobile is not supported yet
+
+This has taken months of work. Way more than I thought, actually. Coding with AI is certainly not ideal, but I found my own way to make it work.
+Development is continuing, pretty much daily. There is still a lot to do, as you can see under 'Development Roadmap' in the app.
+
+###v1.3 Rules update.
+The app has allowed a much deeper exploration of the meta. I've also been teaching AI the meta through Battle Log analysis. So we needed a bunch of balance changes.
+
+- Faster online play means games can go much bigger than they usually do on paper. Some large ships that looked unattainable are very reachable at higher levels of play, so *Leviathan*, *Ark of Destruction*, and *Ark of Domination* have been nerfed. They are all still very strong.
+- Xenites have received a few buffs. The 2-cost *Xenite* ship now heals 1 when built.
+- Xenites now have the new *Sacrificial Pool*, giving them a way to destroy opponent ships. This was a much-needed alignment between the species.
+- Centaur's *Ark of Knowledge 3* proved itself quite a problem (healing and damage are equal to the higher of the two). Had to nerf. It's now a more simplified Reroll extension, closer in scope to *Chronoswarm 3*.
+- Various changes to ship timings, *Chronoswarm* changes, and smaller rules cleanups.
+
+I'll share my thoughts on the meta in the next few weeks.
+
+Super keen to hear everyone's thoughts once you've explored. Discord will be the main place for feedback and finding opponents.

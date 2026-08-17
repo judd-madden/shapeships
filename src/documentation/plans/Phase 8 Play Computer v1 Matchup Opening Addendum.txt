@@ -1,0 +1,297 @@
+Play Computer Mode — Human Bot v1
+Normative Addendum — Matchup-Aware Opening Logic
+
+Project: Shapeships
+Status: Normative addendum
+Scope: deferred opening-book layer for matchup-aware and roll-aware bot openers, to be implemented only after the core Play Computer program is stable
+
+This addendum extends:
+- Phase 8 Play Computer-v1 Normative.txt
+
+If later implementation instructions conflict with this addendum, this addendum wins for matchup-opening behavior unless explicitly superseded.
+If this addendum conflicts with the core Human Bot v1 architecture, the core architectural rules still win unless this addendum explicitly states otherwise.
+
+-------------------------------------------------------------------------------
+1. Purpose
+-------------------------------------------------------------------------------
+
+This addendum defines a later bot layer for matchup-aware opening behavior.
+
+Its purpose is to:
+- let bots vary their first-turn and early-turn behavior by matchup rather than blindly following one generic opener
+- let bots react to important opening-roll thresholds when the value of a specific opening build changes materially
+- preserve the existing server-authoritative, plan-driven bot posture rather than replacing it with search or simulation AI
+- formalize an opening-book concept that can sit on top of the existing bot plan system without widening the first implementation pass
+
+This is explicitly a later layer.
+It must not be folded into the first playable bot pass.
+
+-------------------------------------------------------------------------------
+2. Scope position relative to the existing Phase 8 document
+-------------------------------------------------------------------------------
+
+The core Phase 8 document intentionally keeps Human Bot v1 simple, plan-driven, server-side, and compact, with later support for additional choice logic added in later passes.
+
+This addendum does not replace that posture.
+It adds a later-stage opening-book layer that sits above normal build goals and can choose or reshape the start of a plan before ordinary plan execution continues.
+
+This means:
+- the bot remains server-side
+- the bot remains event-driven, not poll-driven
+- the bot still acts from fresh authoritative state
+- the bot still uses authored data rather than a search tree
+- the opening layer is a later extension, not a prerequisite for Human Bot v1
+
+-------------------------------------------------------------------------------
+3. Locked interpretation
+-------------------------------------------------------------------------------
+
+3.1 Matchup-aware opening logic is real strategic scope
+
+Bots are allowed to have opening logic that depends on:
+- their own species
+- the opponent species
+- important opening-turn dice outcomes
+- later, additional narrowly scoped public opening-state facts if clearly justified
+
+This is a locked interpretation.
+The bot is not required to pretend that all matchups are strategically identical.
+
+3.2 This is an opening-book layer, not a full dynamic strategy engine
+
+The intended system is:
+- authored opening rules
+- authored matchup notes / matchup-specific plan selection
+- narrow roll-aware branching where the opening materially changes
+- then normal plan execution resumes
+
+This is NOT:
+- minimax
+- simulation search
+- broad tactical lookahead every turn
+- a general meta-reasoning engine
+
+3.3 Later pass only
+
+This addendum is explicitly deferred until after:
+- core bot seat creation
+- basic build planning
+- supported Ships That Build behavior
+- normal game progression stability
+
+The opening-book layer must be added as a later dedicated bot pass.
+It must not silently widen the first bot foundation pass.
+
+-------------------------------------------------------------------------------
+4. Why this layer exists
+-------------------------------------------------------------------------------
+
+A purely generic opening can be strategically wrong in specific matchups.
+
+Examples of the intended class of behavior:
+- in some matchups, an otherwise strong greedy line-generation opener may be too punishable and should be avoided
+- in some matchups, a high opening roll should trigger a tempo opener that spends the roll more efficiently than the default line
+- mirror and cross-species matchups may have distinct opening priorities even when the midgame plan family is similar
+
+Therefore the bot system should eventually distinguish between:
+- general long-form plan intent
+- matchup-specific opening selection
+- roll-specific opening deviations
+
+-------------------------------------------------------------------------------
+5. Opening-book model
+-------------------------------------------------------------------------------
+
+5.1 Opening layer sits above the ordinary plan
+
+The ordinary plan system remains the core behavior model.
+The opening-book layer exists only to determine the earliest branch.
+
+Recommended model:
+- choose a matchup opening profile
+- optionally choose a branch inside that profile based on opening roll or other narrow public facts
+- execute that opening sequence
+- then hand control back to the ordinary plan / loop system
+
+5.2 Opening horizon must stay narrow
+
+The opening-book layer should remain intentionally short.
+Recommended scope:
+- first turn only, or
+- first few turns until a defined opening exit condition is satisfied
+
+It must not become a second full-plan system that shadows the entire game.
+
+5.3 Exit condition back to the normal plan
+
+Each opening profile should define a clean exit such as:
+- after turn 1
+- after turn 2
+- after one designated anchor ship is completed
+- after an opening target set is satisfied
+
+Once the opening exits, the bot should return to ordinary plan scanning.
+
+-------------------------------------------------------------------------------
+6. Allowed opening inputs
+-------------------------------------------------------------------------------
+
+The opening-book layer may read only a narrow, public, authoritative input set.
+
+Allowed opening inputs:
+- self species
+- opponent species
+- authoritative current turn
+- authoritative current phase
+- authoritative opening dice / effective dice where relevant
+- authoritative saved-line state if the opening extends past turn 1
+- narrow public fleet facts if needed for an opening exit condition
+
+This addendum does NOT authorize the opening layer to read hidden or speculative information outside the normal authoritative bot context.
+
+-------------------------------------------------------------------------------
+7. Opening data model
+-------------------------------------------------------------------------------
+
+The opening layer should remain authored data, not imperative bespoke code per matchup.
+
+Recommended conceptual shape:
+
+- species matchup key
+- opening profile id
+- optional roll branches
+- ordered opening goals
+- optional opening-specific Ships That Build policy overrides
+- opening exit condition
+- fallback plan id or normal-plan continuation target
+
+Example conceptual categories:
+- matchupOpenings[selfSpecies][opponentSpecies]
+- each entry may contain 1..N authored opening profiles
+- an opening profile may contain roll-conditioned branches such as:
+  - default branch
+  - high-roll branch
+  - low-roll safety branch
+
+This does not need to be the final exact type shape, but the authored-data posture is locked.
+
+-------------------------------------------------------------------------------
+8. Roll-aware opening branching
+-------------------------------------------------------------------------------
+
+8.1 Important roll thresholds are allowed
+
+The opening layer may branch on opening-roll thresholds when the strategic value of that roll is materially different.
+
+Examples of valid branch classes:
+- “if the opening roll reaches the tempo threshold for a specific build, take it”
+- “if the opening roll is weak, use the safe opener”
+- “if the opening roll is strong enough to complete a premium first-turn tempo line, prefer that over the default opener”
+
+8.2 Narrow and explicit, not broad
+
+Roll-aware branching must stay:
+- narrow
+- authored
+- explicit
+- easy to debug
+
+It must not become a broad value-search engine over every possible legal build.
+
+-------------------------------------------------------------------------------
+9. Matchup matrix posture
+-------------------------------------------------------------------------------
+
+The bot program should eventually support matchup-specific openings including mirrors, for the species set that is in active bot scope at that time.
+
+This should be treated as a matrix problem:
+- one opening family per self-species / opponent-species pairing
+- mirrors included
+- with optional multiple authored opening profiles per pairing if desired
+
+The exact matrix size depends on which species are in active bot scope at the time of implementation.
+This addendum does not lock the matrix to a species roster beyond that.
+
+-------------------------------------------------------------------------------
+10. Relationship to the ordinary plan system
+-------------------------------------------------------------------------------
+
+10.1 Opening logic chooses or reshapes the start, not the whole game
+
+The opening layer should do one of the following:
+- choose which long-form plan to start from for this matchup
+- prepend a small opening sequence before the normal plan
+- temporarily override the first few goals of an existing plan
+
+All three are acceptable if the resulting system stays compact and data-driven.
+
+10.2 Ordinary planner remains authoritative for the later turn-by-turn build sequence
+
+Once the opening exits, the bot should return to the normal plan scanner already defined in the core Phase 8 document.
+The normal planner remains the main engine for:
+- build-goal scanning
+- save behavior
+- loop behavior
+- supported Ships That Build behavior
+
+-------------------------------------------------------------------------------
+11. Recommended implementation order
+-------------------------------------------------------------------------------
+
+This addendum should be treated as an extra later bot pass.
+Recommended order:
+
+Pass A
+- complete the basic bot foundation from the core Phase 8 document
+- ensure the bot can create games, choose species, build coherently, save, and finish games without deadlocks
+
+Pass B
+- complete supported Ships That Build behavior and any immediate loop-goal support needed for stable plan execution
+
+Pass C
+- add matchup-opening foundations:
+  - opening profile types
+  - matchup profile lookup
+  - opening exit conditions
+  - debug visibility if useful
+
+Pass D
+- author the first matchup-opening matrix entries
+- verify the bot can branch correctly by matchup and opening roll
+
+This must remain a later dedicated pass, not a silent widening of the initial bot pass.
+
+-------------------------------------------------------------------------------
+12. Validation expectations for this addendum
+-------------------------------------------------------------------------------
+
+A matchup-opening pass is successful when:
+- the bot selects different opening behavior for at least some different matchups
+- the bot can take a roll-dependent opening deviation where explicitly authored
+- the opening branch is deterministic from authoritative input
+- once the opening exits, the bot cleanly resumes ordinary plan execution
+- opening logic does not introduce read-poll execution, HTTP self-calls, or hidden client authority
+
+-------------------------------------------------------------------------------
+13. Locked guidance
+-------------------------------------------------------------------------------
+
+- matchup-aware opening logic is in scope later
+- opening logic may depend on self species, opponent species, and important opening roll thresholds
+- this must remain an authored opening-book layer, not a search AI system
+- this layer is deferred until after the core bot foundation and supported Ships That Build behavior are stable
+- the opening-book layer must hand back to the normal plan system after a narrow opening horizon
+- mirrors are included wherever matchup-opening support is implemented
+
+-------------------------------------------------------------------------------
+14. Bottom line
+-------------------------------------------------------------------------------
+
+The bot roadmap should include a later matchup-opening addendum layer.
+That layer should let bots:
+- recognize matchup context
+- recognize key opening-roll opportunities or danger cases
+- choose a safer or faster authored opening accordingly
+- then return to normal plan execution
+
+This preserves the existing server-authoritative, plan-driven bot architecture while acknowledging that Shapeships has real matchup-specific opening meta that a stronger later bot should reflect.

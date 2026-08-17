@@ -1,0 +1,352 @@
+Shapeships — Client Wiring Phase 1
+Canonical Chunk Plan (Authoritative)
+
+This document defines the approved, canonical execution plan for wiring the real Shapeships client (GameScreen) to the live server.
+
+It is intended to live alongside the Rules PDF as a long-lived reference for all future chats and implementation passes.
+
+If later instructions conflict with this document, this document wins unless explicitly superseded.
+
+Purpose
+
+Transition from harness-first development to a real playable Human vs Human match
+
+Wire the existing UI to the server-authoritative engine
+
+Make progress in small, verifiable, non-destructive chunks
+
+Avoid UI redesign, rule invention, or architectural refactors during Phase 1
+
+Global Constraints (Non-Negotiable)
+Server Authority
+
+No client-side rule logic
+
+No client-side victory logic
+
+Client never invents turn numbers
+
+Identity
+
+Player identity is derived from session token only
+
+Client never sends playerId
+
+Phase Keys
+
+Dot-notation everywhere (e.g. build.dice_roll)
+
+Scope Limits
+
+Human vs Human only
+
+Ships: Defender (DEF), Fighter (FIG)
+
+No shields, no new species, no UI redesign
+
+Client Architecture Assumptions (Normative)
+
+The following client-side architectural constraints are authoritative for all chunks in this plan.
+
+Single Integration Seam
+
+All communication with the live server MUST occur exclusively inside
+useGameSession
+
+No other client file may:
+
+Call server endpoints
+
+Manage sessions
+
+Track commit / reveal completion
+
+Send intents directly
+
+If server interaction appears necessary elsewhere, the architecture is being violated.
+
+Display Layer (Pure UI)
+
+All files under:
+
+/game/display/**
+
+
+are presentation-only.
+
+They MUST:
+
+Receive view-models via props
+
+Emit callbacks via props
+
+Render state exactly as provided
+
+They MUST NOT:
+
+Call the server
+
+Import networking code
+
+Interpret game rules
+
+Derive legality, damage, or victory
+
+Advance phases or turns
+
+Unless a chunk explicitly states otherwise, display files are not modified.
+
+Client Responsibilities (and Limits)
+
+The client is responsible only for:
+
+Reflecting server-authoritative state
+
+Submitting player intents
+
+Tracking local UX completion
+(e.g. “this player has already committed/revealed this phase”)
+
+The client is explicitly NOT responsible for:
+
+Rule enforcement
+
+Phase advancement
+
+Combat resolution
+
+Win / loss determination
+
+Player identity derivation
+
+All such logic remains server-authoritative.
+
+Chunk Interpretation Rule
+
+Each chunk description:
+
+Assumes this architecture
+
+Describes what to wire, not where to invent logic
+
+Must be implemented without violating the above constraints
+
+If a chunk appears to require UI logic, rule invention, or server calls outside
+useGameSession, the implementation approach is incorrect.
+
+Change Discipline
+
+Chunks modify only the files they explicitly scope
+
+Architectural refactors are out of scope for Phase 1
+
+Any deviation must be explicitly documented and justified
+
+Chunk Strategy
+
+Each chunk:
+
+Has a visible outcome
+
+Is testable in isolation
+
+Touches as few files as possible
+
+Does not require Make to retain excessive context
+
+Chunks are strictly ordered.
+
+Chunk 0 — Live Game entry path
+
+Visible outcome: A real GameScreen can be opened for a gameId, even if it only shows loading state.
+
+Scope
+
+Dev Dashboard routes into GameScreen
+
+GameScreen props:
+
+{ gameId: string; playerName: string; onBack: () => void }
+
+
+Remove all playerId usage
+
+Why first
+
+Locks navigation shape
+
+Prevents repeated rewiring later
+
+Chunk 1 — Read-only live board (poll /game-state)
+
+Visible outcome: Board reflects real server state in real time.
+
+Scope
+
+Modify useGameSession to:
+
+Ensure session
+
+Poll GET /game-state/:gameId
+
+Map live state into existing UI:
+
+gameId
+
+turnNumber
+
+phase / subphase (phaseKey)
+
+both player health
+
+fleet summaries (e.g. DEF × 2, FIG × 1)
+
+Explicitly excluded
+
+No intents
+
+No buttons
+
+Success
+
+Two browsers show identical live state
+
+Chunk 2 — Event tape plumbing (dev-only)
+
+Visible outcome: Debug event log updates when intents are later added.
+
+Scope
+
+Add local eventTape: any[] to useGameSession
+
+Append intentResponse.events after each intent
+
+Render in existing Battle Log UI (simple lines)
+
+No persistence.
+
+Chunk 3 — Auto-join attempt on mount
+
+Visible outcome: Opening the game URL in a second browser joins automatically.
+
+Scope
+
+On GameScreen mount:
+
+Attempt POST /join-game/:gameId once
+
+Ignore benign errors (already joined / game full)
+
+Continue polling regardless
+
+No join screen.
+
+Chunk 4 — Species selection wiring (Human only)
+
+Visible outcome: Selecting Human commits, reveals, and advances.
+
+Scope
+
+Wire existing species catalogue UI
+
+Implement:
+
+SPECIES_COMMIT
+
+SPECIES_REVEAL
+
+Track local completion keyed by:
+
+`${turnNumber}::${phaseKey}`
+
+
+No Ready logic yet.
+
+Chunk 5 — Ready button wiring + gating
+
+Visible outcome: Ready button works and disables correctly.
+
+Scope
+
+Implement DECLARE_READY
+
+Gating rules:
+
+Species phase: Ready disabled until commit + reveal complete
+
+All other phases: Ready enabled (initially)
+
+Ready remains outside the Action Panel.
+
+Chunk 6 — Build selection capture (no new designs)
+
+Visible outcome: Clicking DEF / FIG accumulates counts.
+
+Scope
+
+Local state in useGameSession:
+
+{ DEF: number; FIG: number }
+
+
+Each click increments count
+
+Reset when phase exits or build submits
+
+No server calls.
+
+Chunk 7 — Build commit / reveal via Ready
+
+Visible outcome: Ready submits the build to the server.
+
+Scope
+
+Ready triggers:
+
+BUILD_COMMIT
+
+BUILD_REVEAL
+
+Payload reflects accumulated counts
+
+Append events
+
+Refresh state
+
+Whether DECLARE_READY is also sent depends on server phase rules.
+
+Chunk 8 — End-of-game lockout
+
+Visible outcome: Finished games disable actions and show result.
+
+Scope
+
+If state.status === 'finished':
+
+Disable intents
+
+Display winner / result
+
+No polish.
+
+Deferred / Explicit Non-Goals
+
+No UI refactors
+
+No abstraction cleanups
+
+No new panels
+
+No new species
+
+No shields
+
+No client-side auto-advance
+
+Notes
+
+This plan is intentionally conservative
+
+Each chunk must be completed and verified before starting the next
+
+Any deviation must be recorded explicitly

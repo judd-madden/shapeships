@@ -1,0 +1,348 @@
+Shapeships — Client Wiring Phase 2
+
+Canonical Chunk Plan (Authoritative)
+(Human v Human only, DEF/FIG only)
+
+Shapeships — Client Wiring Phase 2 (this document) is normative.
+If later instructions conflict with this document, this document wins unless explicitly superseded.
+
+Purpose
+
+Phase 2 advances the real GameScreen from “Phase 1 wired” to “playable-feeling and
+server-truth readable” by adding:
+
+Client-friendly phase labels in the Left Rail (and reusable elsewhere)
+
+Phase-aware player status (Ready vs current subphase label)
+
+Phase-aware clocks (server authoritative; run only when not Ready)
+
+Fleet graphics rendering in both fleet areas (DEF/FIG only)
+
+This phase intentionally does NOT add new ships, new species, charge UI, chat,
+undo, battle log polish, or line economy logic.
+
+Global Constraints (Non-Negotiable)
+Server Authority
+
+Client must not enforce rules, victory, or phase advancement.
+
+Client must not invent turn numbers, legality, line totals, or action availability.
+
+Client must reflect server truth + submit intents only.
+
+Identity
+
+Player identity derives from session token only.
+
+Client never sends playerId.
+
+Integration Seam
+
+All live server calls remain exclusively inside useGameSession.
+
+Display layer (/game/display/**) remains presentation-only:
+
+receives view-model via props
+
+emits callbacks via props
+
+no networking, no rule interpretation, no derived legality
+
+Scope Limits
+
+Species: Human only
+
+Ships: Defender (DEF), Fighter (FIG)
+
+No UI redesign
+
+Explicitly Deferred (Out of Scope for Phase 2)
+
+BottomActionRail > Subphase Heading custom panels (e.g. “X/X lines available”)
+
+Dice / lines economy logic or spending rules
+
+Charge declaration / response UI
+
+Undo
+
+Chat
+
+Battle log cleanup
+
+Positioning rules beyond simple “arbitrary placement”
+
+More ships or species
+
+Key UX Definitions (Phase 2)
+Player Status Model (Joined Players Only)
+
+Status is always one of:
+
+"Ready" (green)
+
+"<Subphase label>" (neutral), e.g. "Drawing", "Charge Declaration"
+
+NO “Acting” prefix.
+
+NO “Waiting” status for joined players.
+
+Pre-Join Handling
+
+If opponent not joined:
+
+do not show a status indicator for that slot
+
+use the name slot area to show “Waiting…”
+
+Readiness Semantics
+
+“Ready” means one of:
+
+the server indicates the player has declared ready for the current phase, OR
+
+the phase requires no input from that player (server-truth derived), and the
+player should present as effectively ready
+
+Clock Semantics
+
+A player’s clock runs only while they are NOT “Ready” (and they are joined).
+
+Clock pauses when “Ready”.
+
+Client does not decide a loss at 0 time.
+
+If server ends the game on time, client reflects finished state
+(handled by Phase 1 Chunk 8).
+
+Chunk Strategy
+
+Each chunk:
+
+has a visible outcome
+
+is testable in isolation
+
+touches as few files as possible
+
+avoids rule invention
+
+Chunks are strictly ordered in this phase:
+
+Chunk 9 → Chunk 10 → Chunk 11 → Chunk 12
+
+Chunk 9 — Phase Labels (Client-Friendly, Left Rail First)
+Visible Outcome
+
+Left Rail displays human-friendly labels for:
+
+Major Phase (ensure consistent formatting)
+
+Subphase title (derived from PhaseKey)
+
+Scope (Strict)
+
+Left Rail only for UI changes.
+
+Introduce a reusable phase-label utility for later chunks
+(TopHud status will reuse this).
+
+Implementation Notes
+
+Create: /game/client/phaseLabels.ts
+
+exports helpers such as:
+
+getMajorPhaseLabel(...)
+
+getSubphaseLabelFromPhaseKey(phaseKey)
+
+use:
+
+explicit override map for known PhaseKeys
+
+safe fallback: split on '.' and title-case last segment
+
+Guardrails
+
+Do NOT modify server PhaseTable for UI labels.
+
+Do NOT introduce new phase concepts.
+
+phaseLabels.ts is client-only and contains no React.
+
+Success Criteria
+
+Left Rail always shows readable titles as phases change.
+
+No other UI text or layout changes.
+
+Chunk 10 — Player Status Display (TopHud)
+Visible Outcome
+
+For both players (once joined), TopHud shows:
+
+"Ready" OR "<Subphase label>"
+
+If opponent not joined:
+
+name slot shows “Waiting…”
+
+no status indicator shown
+
+Scope
+
+Derive a minimal player-status view-model in useGameSession:
+
+statusText: string | undefined
+
+statusTone: ready | neutral | hidden (or equivalent)
+
+Use phaseLabels.ts to generate subphase labels (no duplication).
+
+Derivation Rules
+
+Must be based on server state from polling.
+
+Client-local completion (commit/reveal UX) may be used only where already
+permitted by Phase 1, and must remain UX-only (never rule truth).
+
+Joined gating:
+
+if player not joined → hide status, show “Waiting…” in name slot.
+
+Guardrails
+
+No new UI panels.
+
+No BottomActionRail Subphase Heading changes.
+
+No “Waiting” label once a player is joined.
+
+Success Criteria
+
+Two-browser test shows correct Ready / subphase labels for self and opponent.
+
+Status updates correctly as phases advance.
+
+Chunk 11 — Server Clock + Client Clock Wiring
+Visible Outcome
+
+Each player clock:
+
+ticks only while that player is NOT “Ready”
+
+pauses when “Ready”
+
+is hidden/disabled if player not joined
+
+Scope (Explicitly Client + Server)
+Server (Authoritative)
+
+Implement real server-side clocks:
+
+persistent remaining time per player
+
+decremented only while that player needs to act
+
+paused when player becomes ready
+
+Expose clock truth in /game-state:
+
+remaining time per player
+
+sufficient timestamp or derived data so client does not invent time
+
+Server remains sole authority on:
+
+time expiry rules
+
+marking game finished
+
+Client
+
+Implement a single clock driver in useGameSession:
+
+consumes server clock fields
+
+animates ticking only when status ≠ Ready
+
+does NOT invent or persist time authority
+
+Non-Goals
+
+Client does not declare time-loss.
+
+Both players start with the same time.
+
+No new UI beyond correct clock behavior.
+
+Success Criteria
+
+Clicking Ready pauses your clock immediately.
+
+When a phase requires action, your clock resumes.
+
+Reloading does not reset clocks (server persistence confirmed).
+
+Chunk 12 — Fleet Graphics Rendering (DEF / FIG)
+Visible Outcome
+
+Both fleet areas render ship graphics for DEF and FIG.
+
+Placement is simple/arbitrary (grid or stack).
+
+Scope
+
+Render strictly from server-truth fleet state.
+
+No local ghost ships.
+
+No upgrades.
+
+No per-ship interactions.
+
+Implementation Notes
+
+Use the existing proven React object rendering method.
+
+Support:
+
+Defender graphic
+
+Fighter graphic
+
+Success Criteria
+
+After build reveal:
+
+both players see their own fleets
+
+both players see opponent fleets
+
+counts match server state exactly
+
+Exit Criteria for Phase 2
+
+Phase 2 is complete when:
+
+Left Rail subphase labels are human-friendly (Chunk 9)
+
+TopHud shows correct Ready / subphase status (Chunk 10)
+
+Server clock exists and client clocks run only when not Ready (Chunk 11)
+
+Fleets render DEF / FIG graphics from server truth (Chunk 12)
+
+All deferred items remain fully deferred:
+
+Subphase Heading custom panels (lines readout)
+
+Dice / lines economy logic
+
+Charge UI
+
+Undo, Chat, Battle Log polish
+
+Positioning rules beyond simple placement

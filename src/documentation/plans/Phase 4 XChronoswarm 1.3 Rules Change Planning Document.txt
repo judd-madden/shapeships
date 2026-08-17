@@ -1,0 +1,460 @@
+Phase 4 Chronoswarm 1.3 Rules Change Planning Document
+
+Status
+Dedicated planning document. Server-first implementation. UI pass remains secondary and should stay lightweight.
+
+Purpose
+Replace the older Chronoswarm mini-build-cycle plan with a simpler rules model that fits the current online phase structure more naturally.
+
+This version treats Chronoswarm as:
+- extra shared public line dice during the normal build dice window
+- a second Ships That Build window before Drawing
+- still inside the same turn
+- without inserting a second Drawing phase
+- without inventing new Economy systems
+
+This document supersedes older Chronoswarm planning for implementation purposes.
+
+Core Design Goal
+Keep the existing single main-roll model intact.
+Chronoswarm should add extra public build value and a second build-trigger window, but it should not force a second general-purpose build phase, a second drawing submit phase, or a parallel dice/economy model.
+
+--------------------------------------------------------------------------------
+1. Locked Rules For This Version
+--------------------------------------------------------------------------------
+
+1.1 Chronoswarm count
+If a player owns eligible Chronoswarms at the relevant build timing:
+- 1 Chronoswarm: roll 1 extra Chronoswarm die
+- 2 Chronoswarms: roll 2 extra Chronoswarm dice
+- 3 Chronoswarms: roll 3 extra Chronoswarm dice
+
+Chronoswarm eligibility is ownership-based, not species-based.
+If a player somehow owns an eligible Chronoswarm through steal/copy effects, they count.
+
+1.2 Shared Chronoswarm rolls
+Chronoswarm dice are public and shared:
+- visible to both players and spectators
+- if multiple players own Chronoswarms, they use the same Chronoswarm roll set
+- the number of extra shared rolls is based on the highest eligible Chronoswarm count currently owned by any player for that turn's build timing
+
+This preserves the existing "shared public information" feel and avoids asymmetric hidden extra-roll logic.
+
+1.3 Main die remains the only normal die
+The current main build die remains the only normal roll for:
+- Ark of Knowledge rerolls
+- Leviathan per-player override behavior
+- ordinary "effective dice roll" logic already used by current systems unless a ship is explicitly given a Chronoswarm exception
+
+Locked clarifications:
+- Ark of Knowledge rerolls only the main die
+- multiple Knowledges only give the owner multiple chances to reroll the main die
+- Chronoswarm extra dice are not rerolled by Knowledge
+- Leviathan only overrides the owner's main effective die to 6
+- Leviathan does not interact with Chronoswarm dice
+
+1.4 What Chronoswarm dice do
+Chronoswarm dice give ordinary build lines just like the main die.
+
+They do NOT become a second global "effective dice roll" stream for the engine.
+They are line-generation inputs only, except where a ship is explicitly defined to use a Chronoswarm roll.
+
+1.5 Ships That Build occurs twice for eligible owners
+Chronoswarm grants a second Ships That Build window during the same build phase, before Drawing.
+
+The practical order for this version is:
+- normal build dice handling
+- normal line generation, now including Chronoswarm extra dice
+- Ships That Build pass 1
+- Ships That Build pass 2 for the Chronoswarm effect
+- Drawing
+- End of Build
+
+This is still one build phase and one turn.
+
+1.6 Bug Breeder and Queen
+Bug Breeders and Queens produce in both Ships That Build passes.
+
+This is a locked rule for this version.
+
+1.7 Zenith
+Zenith produces from:
+- the main roll in the first Ships That Build pass
+- the first Chronoswarm roll in the second Ships That Build pass
+
+This is intentionally narrower than "Zenith reads all Chronoswarm dice".
+It gives Zenith a clean second trigger without requiring a many-roll special case.
+
+1.8 No special Chronoswarm bonus-line rule
+The old Chronoswarm-only bonus-line exclusion rule is removed.
+There is no separate Chronoswarm mini economy.
+
+Instead:
+- line generation stays on the current stub pattern
+- we use the existing pooled line behavior
+- Chronoswarm extra dice simply add more ordinary lines during line generation
+
+This is a major simplification and is locked for this version.
+
+1.9 No second Drawing phase
+Chronoswarm does not create an extra Drawing phase.
+Players only do Drawing once.
+
+This is one of the main simplifications and should not be backed away from casually.
+
+--------------------------------------------------------------------------------
+2. Scope Boundaries
+--------------------------------------------------------------------------------
+
+2.1 In scope
+This planning pass covers:
+- Chronoswarm extra shared dice
+- Chronoswarm line generation contribution
+- second Ships That Build timing window
+- server-authoritative projection of any extra Chronoswarm roll data needed by UI
+- minimal client display work to show extra public rolls and second-build effects cleanly
+
+2.2 Explicitly out of scope
+This pass does NOT attempt:
+- an Economy refactor
+- saved/generated/spent line accounting formalization
+- a new multi-wallet line system
+- a second build commit/reveal cycle
+- a second Drawing submit pipeline
+- broad "multiple effective dice rolls for all powers" support
+- speculative client-side rule logic
+- a generalized future system for every imaginable multi-window build mechanic
+
+2.3 Economy guidance for this pass
+Do not drift into Economy Phase work.
+
+We should continue using the current stub pattern:
+- line generation adds to the existing pooled player line state
+- build spending consumes from the same current pooled line state
+- no separate Chronoswarm line wallet
+- no saved-lines redesign
+- no attempt to formalize a full audit trail for line sources yet
+
+That is good enough for this pass and is much safer.
+
+--------------------------------------------------------------------------------
+3. Why This Version Fits The Current Codebase Better
+--------------------------------------------------------------------------------
+
+3.1 The current phase model is single-track and canonical
+The current server architecture is built around one shared canonical phase sequence.
+The old Chronoswarm plan required inserting a new mini build cycle after End of Build and before battle.
+That would have widened:
+- phase table
+- phase advancement
+- on-enter hooks
+- readiness handling
+- build submit gating
+- game-state projection
+- client phase labels and UI routing
+
+This new version avoids almost all of that.
+
+3.2 The current build seams already support this better
+The current server already has natural seams for:
+- build.dice_roll
+- build.line_generation
+- build.ships_that_build
+- build.drawing
+
+Chronoswarm 1.3 mostly asks us to enrich those existing seams rather than create new canonical phases.
+
+3.3 One Drawing is much cleaner for players
+The old model made players mentally do:
+- build
+- then extra build
+- then draw again
+
+This model keeps:
+- one line-generation moment
+- one drawing moment
+- one easier spectator story
+
+That is a real UX improvement, not just a coding convenience.
+
+3.4 The complexity that remains is narrower
+The hard problem is no longer "insert another build cycle into the global phase machine".
+The hard problem is now:
+- add extra public build lines safely
+- support a second Ships That Build pass safely
+- keep usage tracking scoped per pass/window where needed
+
+That is a much better problem to solve.
+
+--------------------------------------------------------------------------------
+4. Current Codebase Observations
+--------------------------------------------------------------------------------
+
+4.1 build.dice_roll already exists as the right conceptual home
+The server already treats build.dice_roll as the place where:
+- the main die is generated
+- effective dice values are established
+- dice-mod behavior can live later
+
+Chronoswarm extra rolls should be attached to this same overall timing rather than inventing a new separate Chronoswarm dice phase.
+
+4.2 build.line_generation is already a stub-style pooled-line seam
+The current line-generation path is already the right place to keep this simple:
+- resolve the finalized main roll
+- compute bonus lines from existing sources
+- add lines into the existing pooled player state
+
+Chronoswarm should extend this seam, not replace it.
+
+4.3 build.ships_that_build is the real reuse seam
+The current shared resolver already handles build-phase auto-build families there.
+That is where Chronoswarm should get its second trigger window.
+
+4.4 build.drawing should stay single-use
+The current BUILD_SUBMIT flow is built around one drawing submission window.
+That is good. We should keep it that way.
+
+Broadening BUILD_SUBMIT to a second drawing window would re-open a lot of unnecessary complexity.
+This version avoids that entirely.
+
+4.5 Main-roll integrity matters
+The current codebase already has a working concept of:
+- baseDiceRoll
+- effectiveDiceRoll
+- effectiveDiceRollByPlayerId
+
+That should remain the main die truth.
+Chronoswarm extra dice should not mutate those fields into a general multi-roll engine model.
+
+--------------------------------------------------------------------------------
+5. Recommended Server Mental Model
+--------------------------------------------------------------------------------
+
+Chronoswarm 1.3 should be modeled as three things only:
+
+A. Extra shared build dice
+At build dice timing, the server may generate 0 to 3 shared Chronoswarm rolls and persist them for the current turn.
+
+B. Extra ordinary lines
+At line-generation timing, those extra shared rolls contribute ordinary lines into the same pooled line state already used today.
+
+C. Second Ships That Build pass
+During the build phase, the server runs a second Ships That Build window for Chronoswarm-enabled behavior before Drawing.
+
+That is the whole model.
+Do not expand it into a bigger system unless implementation proves something truly unavoidable.
+
+--------------------------------------------------------------------------------
+6. Recommended State Shape
+--------------------------------------------------------------------------------
+
+Add only the minimum turn-scoped Chronoswarm state needed.
+
+Recommended shape under turnData:
+- chronoswarmRolls: number[]
+- chronoswarmSharedRollCount: number
+- chronoswarmEligibleByPlayerId: Record<string, boolean>
+- shipsThatBuildPassIndex: 1 | 2 (or similar narrow window marker)
+
+Optional if helpful:
+- chronoswarmMaxCount: number
+
+Important design notes:
+- chronoswarmRolls should be generated once and then persist for the turn
+- eligibility should be based on current authoritative fleet ownership at the relevant build timing
+- the pass/window marker is more important than a giant Chronoswarm subsystem object
+
+Not recommended:
+- a separate Chronoswarm economy tree
+- a second build submission tree
+- a second phaseReadiness family just for Chronoswarm
+- a second general dice model for every roll-based rule
+
+--------------------------------------------------------------------------------
+7. Line Generation Guidance
+--------------------------------------------------------------------------------
+
+7.1 Keep the existing stub pattern
+We should not overdesign line generation here.
+
+The intended behavior is simple:
+- resolve the normal finalized main roll exactly as today
+- compute current ordinary bonus lines exactly as today
+- add Chronoswarm extra-roll total as additional ordinary lines
+- write the total into the same current pooled line state
+
+That is enough.
+
+7.2 No Chronoswarm-only wallet
+Do not create:
+- chronoswarmLines
+- temporary extra-build lines
+- phase-local spend buckets
+
+Just use the same pooled lines field already in use.
+
+7.3 No Chronoswarm-specific bonus-line framework
+Do not create a second bonus-line calculation path.
+The old "Chronoswarm build uses special rules and excludes bonus lines" idea is gone.
+
+We should simply:
+- keep existing bonus-line logic intact
+- add Chronoswarm extra-roll sum on top in line generation
+- stop there
+
+7.4 Keep main-roll-only bonus logic intact unless explicitly needed
+Existing even-roll or effective-roll-based powers should continue to read the main roll model.
+Chronoswarm extra dice should not silently broaden those rules.
+
+That keeps the system predictable.
+
+--------------------------------------------------------------------------------
+8. Ships That Build Guidance
+--------------------------------------------------------------------------------
+
+8.1 Two passes, not two phases
+Implementation should think in terms of:
+- pass 1 = normal Ships That Build
+- pass 2 = Chronoswarm Ships That Build
+
+This does NOT require new canonical phase keys if the current resolver/on-enter path can safely support a second pass within the existing build structure.
+
+That should be the preferred direction.
+
+8.2 Window-scoped usage is the key problem
+The main technical caution is per-window usage tracking.
+
+Today, some build-phase actions are effectively once-per-turn via turn-scoped usage maps.
+Chronoswarm changes the requirement:
+- some actions now need to be available once in pass 1 and again in pass 2
+- without becoming unlimited
+- without reusing battle-phase charge semantics incorrectly
+
+So the correct shape is probably:
+- current usage keyed by source instance plus pass/window
+or
+- a narrow pass-aware usage map for Ships That Build only
+
+This is the real implementation challenge.
+
+8.3 Bug Breeder and Queen
+They should simply trigger in both passes.
+Prefer reuse of the current auto-build helper path rather than creating bespoke Chronoswarm-only copies.
+
+8.4 Zenith
+Zenith needs a narrow explicit exception:
+- pass 1 reads the main roll
+- pass 2 reads chronoswarmRolls[0] if present
+
+If there is no Chronoswarm roll, there is no second Zenith trigger.
+
+This should stay local and explicit.
+
+8.5 Keep second-pass logic server-authoritative
+Do not ask the client to infer:
+- whether a second pass exists
+- which ships may act again
+- which roll Zenith should use
+
+The server should project whatever is necessary.
+
+--------------------------------------------------------------------------------
+9. Recommended Pass Direction
+--------------------------------------------------------------------------------
+
+Phase 4 Chronoswarm 1.3 should probably be approached in this order:
+
+Pass A: Server state and turn model
+- add minimal turnData Chronoswarm fields
+- compute/store shared Chronoswarm rolls during build dice timing
+- project those rolls through game-state for UI visibility
+
+Pass B: Server line generation integration
+- extend current line-generation path to add Chronoswarm extra-roll sum into pooled ordinary lines
+- do not broaden into Economy work
+
+Pass C: Server Ships That Build second-window support
+- add pass/window-aware handling
+- let Queen and Bug Breeder produce twice
+- let Zenith use main roll in pass 1 and first Chrono roll in pass 2
+
+Pass D: Client/UI follow-up
+- display Chronoswarm extra public dice alongside the main die cleanly
+- explain second Ships That Build effects only through projected server state
+- keep client logic lightweight and presentational
+
+This order keeps the most dangerous rule questions on the server and postpones UI polish until the contract is stable.
+
+--------------------------------------------------------------------------------
+10. UI / Player Experience Guidance
+--------------------------------------------------------------------------------
+
+10.1 Player-facing simplification
+This rules version should feel simpler because players only need to understand:
+- there is still one normal build roll
+- Chronoswarm may add extra public dice
+- those dice add more lines
+- certain auto-build ships go again before drawing
+- then the player draws once
+
+That is much easier than an entire extra build mini-cycle.
+
+10.2 Spectator visibility
+Chronoswarm dice should be visible public information.
+That is good for spectators and for debugging.
+
+10.3 Avoid overbuilding special UI
+Do not invent a whole special Chronoswarm screen flow unless the existing build UI truly cannot present:
+- main roll
+- Chronoswarm extra rolls
+- resulting line total
+
+Most likely this can be handled with modest extension to the existing dice/left-rail presentation.
+
+--------------------------------------------------------------------------------
+11. Risks and Watchouts
+--------------------------------------------------------------------------------
+
+11.1 "Highest owner count" rule should be locked early
+If multiple players own Chronoswarms, the implementation needs one clean rule for how many shared dice are rolled.
+This document assumes:
+- use the highest eligible Chronoswarm count owned by any player for that turn
+
+That should be confirmed and then kept stable.
+
+11.2 Usage tracking may reveal a need for one extra helper abstraction
+If current Ships That Build usage logic is too tightly once-per-turn, a small helper abstraction may be required.
+That is acceptable.
+A broad phase-model rewrite is not.
+
+11.3 Do not let Chronoswarm silently mutate all roll-based powers
+The temptation will be to let other ships read Chronoswarm dice because they exist.
+Do not do that.
+Keep Chronoswarm dice narrow and explicit.
+
+11.4 Avoid "future-proofing" this into a giant multi-roll system
+That would erase much of the simplification benefit.
+Only add the minimum data and helpers this version actually needs.
+
+--------------------------------------------------------------------------------
+12. Final Recommendation
+--------------------------------------------------------------------------------
+
+Chronoswarm 1.3 is the better Shapeships-online version.
+
+It is better because it:
+- keeps the current phase model mostly intact
+- avoids a second Drawing phase
+- avoids a Chronoswarm-only Economy system
+- preserves one main-roll model
+- gives players faster and cleaner turns
+- still preserves the exciting feeling of extra build momentum
+
+The correct implementation attitude is:
+- extend existing build seams
+- follow current line-generation stub patterns
+- keep Chronoswarm extra rolls narrow and public
+- solve second Ships That Build pass usage carefully
+- do not wander into Economy work
+
+That should make Chronoswarm both more fun to play and materially easier to implement safely in the current codebase.

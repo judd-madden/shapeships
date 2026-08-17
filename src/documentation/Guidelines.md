@@ -62,5 +62,6 @@ Do not quietly expand the scope of a pass.
 - canonical architecture rules belong in `contracts/`
 - workflow/process templates belong in `workflows/`
 - infrastructure notes belong in `infrastructure/`
+- historical phase planning records belong in `plans/`
 
 Keep this file short.

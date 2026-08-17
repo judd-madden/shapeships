@@ -1,0 +1,398 @@
+Yes — do it “per ship / per UI slice”. That’s the cleanest way to validate without inventing throwaway harnesses or hardcoded test scaffolding.
+
+The mistake to avoid is: “finish the whole effect system first, then try to test it.” You’ll end up with a pile of unverified verbs and no confidence.
+
+Below is how I’d structure it so each step is provable using real gameplay UI + real server state, with only minimal, permanent wiring (no temporary test pages).
+
+Core principle: only add “plumbing” when a ship slice needs it
+
+Even if SpendCharge is “global plumbing”, you still validate it by shipping Interceptor’s charge panel immediately after adding it — not by making a fake resolver.
+
+So: we’ll add SpendCharge properly, but we won’t try to prove it works until a real ship uses it.
+
+Slice 0: Small global plumbing baseline (no UI yet)
+
+This is the minimum we need so the later slices don’t get blocked:
+
+EffectKind.SpendCharge in Effect.ts
+
+applyEffects supports:
+
+GainLines
+
+CreateShip
+
+Destroy (targeted by shipInstanceId)
+
+SpendCharge
+
+But we don’t “celebrate” yet. The validation will happen in the slices below.
+
+Why do this first anyway?
+
+Because Carrier and Interceptor both need SpendCharge.
+
+And Carrier needs CreateShip.
+
+And Guardian needs Destroy.
+
+So this is one “enabler” change, but validation happens via the real ships.
+
+
+
+Slice 1: Gain lines (Orbital / Battlecruiser) + visible UI proof
+
+You suggested this first — correct. It’s the lowest-risk vertical slice because it doesn’t need action panels.
+
+What “done” means (verifiable)
+
+Client: when you build Orbital/Battlecruiser, BoardStage shows the Bonus Lines changing immediately (preview) and then matching server after commit/reveal.
+
+Server: player lines reflects the bonus once the relevant phase resolves (whatever your normative doc says: build.line_generation / similar).
+
+Consistency: end of turn doesn’t “double apply” lines on refresh/reload.
+
+How to validate without fake tests
+
+Use your normal match flow:
+
+Join game → pick Human → build Orbital/Battlecruiser → ready.
+
+Add one small visibility enhancement:
+
+BoardStage: show Lines broken into:
+
+Base lines (existing)
+
+Bonus lines (derived, or just show the delta in parentheses)
+
+On the server side, don’t add new logs everywhere — just ensure the server state returned already includes lines and you can see it in the client VM (and/or your existing dev tape if you have one).
+
+This slice validates: GainLines + phase wiring + UI mirror.
+
+
+
+Slice 2: Use charges (Interceptor) with one real action panel
+
+Second slice should be Interceptor, yes.
+
+What “done” means (verifiable)
+
+UI panel appears only when Interceptor has a charge available (or whatever your gating is).
+
+Player chooses:
+
+“5 heal” OR “5 damage” OR “hold”
+
+After both players ready:
+
+spend charge is visible (charges decremented)
+
+damage/heal results are visible as deltas in end-of-turn resolution and affect health correctly
+
+Minimal required systems (all permanent)
+
+Charge declaration intent (player submits choice)
+
+Resolver emits:
+
+SpendCharge
+
+Damage or Heal effect (or a “pendingTurn add” effect depending on your architecture)
+
+applyEffects handles SpendCharge and the damage/heal accumulation boundary exactly as now.
+
+How to validate without fake tests
+
+Start a match with just Interceptor in fleet.
+
+Use the existing action panel pipeline:
+
+Active panel id set by server phase → client shows correct panel → client submits intent → server resolves.
+
+Validate by observing:
+
+charge count changes
+
+end-of-turn deltas and health update
+
+This slice validates: SpendCharge + “real intent” + end-of-turn math.
+
+
+
+
+
+Slice 3: Carrier builds ships (Ships That Build panel)
+
+Carrier is the first one that truly proves CreateShip.
+
+What “done” means (verifiable)
+
+Carrier panel lets you spend a charge to build a specific ship type (per rules)
+
+After commit/reveal:
+
+the new ship instance appears in fleet (and is persisted, reload-safe)
+
+charges decremented correctly
+
+If the rules say the created ships arrive in a specific subphase (ships_that_build), the timing matches.
+
+How to validate without fake tests
+
+One match: build Carrier, then in the ships_that_build phase use the panel.
+
+Observe the new ship stack appear for both players correctly.
+
+This slice validates: CreateShip + spend charge + phase ordering.
+
+
+
+Slice 4: Guardian / Destroy (First Strike panel)
+
+Yes, leave Destroy last. It’s where you can accidentally mix “selection logic” into the applier.
+
+What “done” means (verifiable)
+
+First Strike panel forces the player to pick a concrete target ship (shipInstanceId)
+
+Server resolves:
+
+Destroy effect(s) with explicit shipInstanceId
+
+applyEffects removes that instance
+
+Fleet display updates cleanly (including stacks decrementing)
+
+No “target not found” crashes on edge cases (already dead, etc.)
+
+This slice validates: Destroy targeted + UI selection + resolver correctness.
+
+Why this avoids “temporary test structures”
+
+Because every slice is validated by:
+
+real gameplay flow
+
+real action panels
+
+real commit/reveal
+
+server state round-trips
+
+BoardStage display
+
+The only “extra” work is UI instrumentation that is permanent and useful anyway:
+
+showing bonus lines
+
+showing charges
+
+showing per-turn deltas (you already want this)
+
+optional: a small dev-only text line showing current phase name (also useful forever)
+
+
+Slice 5 — Starship (Once-Only, Persistent Through Destruction)
+Objective
+
+Implement Starship’s once-only 8 damage using:
+
+createdTurn
+
+powerMemory.onceOnlyFired
+
+pendingTurn accumulator
+
+End-of-turn aggregation
+
+This slice proves:
+
+The health mutation boundary works.
+
+Once-only powers survive destruction. (destruction tests will be conducted after Guardian is implemented).
+
+Memory persists correctly.
+
+Aggregation is truly simultaneous.
+
+Server Changes (Minimal + Targeted)
+1️⃣ Computed Effect Rule (Single Location)
+
+Inside your computed effects stage
+(resolvePhase.ts or phaseComputedEffects.ts per your plan 
+
+Phase 3 Human Powers - Planning…
+
+)
+
+Add:
+
+If ship.defId === STARSHIP:
+  if ship.createdTurn === state.turnNumber
+     AND powerMemory.onceOnlyFired[instanceId] not set:
+
+       Emit Effect:
+         type: AddPendingDamage
+         targetPlayerId: opponent
+         amount: 8
+         meta: { source: instanceId, kind: 'starship_once_only' }
+
+       Set powerMemory.onceOnlyFired[instanceId] = true
+
+
+Important:
+
+Do NOT check whether the ship still exists in fleet.
+
+Gate purely by createdTurn + memory.
+
+This ensures destruction during Battle Phase does NOT cancel it.
+
+2️⃣ Use the Pending Accumulator (Already Specified)
+
+Damage must write into:
+
+state.pendingTurn.damageByPlayerId[playerId] += 8
+
+
+Health must NOT change here.
+
+Health only changes inside battle.end_of_turn_resolution aggregation stage 
+
+Phase 3 Human Powers - Planning…
+
+.
+
+3️⃣ End-of-Turn Resolution (No Changes Needed if 3.0A Done)
+
+Aggregation already:
+
+newHealth = clamp(oldHealth - damage + heal)
+
+
+Starship damage simply contributes to totals.
+
+No special ordering required.
+
+4️⃣ Memory Persistence Rule
+
+When ship is destroyed:
+
+DO NOT delete its memory entry.
+
+Ship instance may move to “VOID” (per your spec).
+
+Memory must remain intact for replay/log stability.
+
+This is exactly why you introduced powerMemory.
+
+Client Changes
+
+None required beyond existing delta display.
+
+The UI will automatically show:
+
++8 damage delta on opponent
+
+Even if Starship was destroyed before resolution
+
+This is exactly the test we want.
+
+✅ Acceptance Tests (Real Gameplay, No Harness)
+Test 1 — Normal Case
+
+Build Starship
+
+End turn without destruction
+
+Expected:
+
+Opponent loses 8
+
+Starship does not fire again next turn
+
+Test 2 — Destroyed Before Resolution (Critical)
+
+Build Starship
+
+Opponent uses Guardian (First Strike) to destroy it
+
+Continue to end-of-turn resolution
+
+Expected:
+
+Opponent still takes 8 damage
+
+Ship remains destroyed
+
+Effect does not re-fire later
+
+This proves:
+
+Destruction does not cancel once-only
+
+Memory is working
+
+Aggregation boundary is correct
+
+Test 3 — Reload Safety
+
+Build Starship
+
+Reload browser before resolution
+
+Finish turn
+
+Expected:
+
+Damage still resolves once
+
+No duplication
+
+This proves determinism and memory persistence.
+
+📦 What This Slice Unlocks
+
+Once Starship works, you have validated:
+
+Once-only gating
+
+createdTurn correctness
+
+powerMemory correctness
+
+pendingTurn aggregation boundary
+
+destruction survival
+
+UI delta plumbing
+
+That architecture is then reusable for:
+
+
+Centaur Fear/Anger once-only
+
+Ark of Domination control capture
+
+Any future “on completion” effect
+
+This slice is small but structurally foundational.
+
+🔒 Why This Must Be Separate From General Computed Effects
+
+Starship is the first “memory + persistence + destruction survival” power.
+
+If you mix it into a larger computed-effects batch, you won’t know whether:
+
+Memory failed
+
+Aggregation boundary failed
+
+createdTurn was wrong
+
+Destruction logic interfered
+
+Keep this as its own slice.
+
+It’s a structural integrity test.

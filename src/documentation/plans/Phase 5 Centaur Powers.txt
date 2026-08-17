@@ -1,0 +1,428 @@
+# Phase 5 Centaur Powers
+Normative Planning Document
+
+Project: Shapeships  
+Status: Planning / audit complete  
+Scope: Centaur powers implementation sequencing after the remaining Xenite custom ships
+
+## 1. Purpose
+
+This document defines the proposed Phase 5 program for Centaur powers.
+
+Its purpose is to:
+- audit each Centaur ship against the current server-authoritative framework already built for Human and Xenite work
+- identify which ships can be implemented with **zero new framework**
+- split mixed ships into **easy parts** and **hard parts** where only part of the power is already covered
+- isolate the genuinely new Centaur systems into dedicated later passes
+
+This document follows the same planning posture used in the Human Phase 3 plan and the Xenite Phase 4 plan: reuse established families first, and defer powers that require new state, new timing hooks, or new action/targeting semantics into dedicated passes.
+
+## 2. Planning Principles
+
+1. Prefer direct reuse of existing server-authoritative frameworks.
+2. Classify ships by **implementation shape**, not by species grouping alone.
+3. Where a ship has one easy power and one hard power, split the ship into parts rather than classifying the whole ship as hard.
+4. Keep new systems narrow and explicit. Do not quietly widen generic frameworks unless the reuse case is strong.
+5. Canonical JSON and the current codebase are the primary implementation source. The rules PDF remains a rules reference, but JSON/code should drive pass planning when parsing ambiguity exists.
+
+## 3. Reusable Frameworks Already Present
+
+From the Human Phase 3 plan, the current framework families already include: aggregated end-of-turn resolution, computed effects, dice canonicalization, power memory, charge-choice actions, build-phase ship creation, destroy targeting, and line-generation hooks. The Human plan also explicitly anticipated Ark of Knowledge as a future Centaur reroll case once dice became canonical. fileciteturn1file4 fileciteturn1file9
+
+From the Xenite Phase 4 plan, the current planning pattern is to separate “easy mappers” from ships that introduce new system surface such as new targeting rules, start-of-turn snapshots, trigger-on-destruction, or rule-changing overrides. fileciteturn1file7 fileciteturn1file8
+
+On direct code inspection of the uploaded codebase, the following framework families are already live enough to be reused for Centaur:
+- flat automatic heal/damage via structured overlays
+- once-only-on-build automatic effects via `powerMemory.onceOnlyFired` and computed effects
+- count-based and distinct-type computed effects in `phaseComputedEffects.ts`
+- effective-dice-based computed effects
+- charge choice actions with per-instance charge spending
+- build-phase choice actions that create ships
+- targeted destroy of enemy basics
+- derived line bonus computation for simple recurring future build lines
+- charge-state graphics already present for Centaur charge ships
+
+## 4. Phase 5 Scope Decision
+
+Phase 5 should not attempt to “do Centaur all at once.”
+
+The Centaur set clearly breaks into:
+- **Phase 5A: zero-new-framework ships**
+- **Phase 5B+: ships that need small local extensions but not a brand-new architecture**
+- **deferred dedicated passes** for joining-line economy, reroll authority, control transfer, and paired destroy targeting
+
+That keeps the easy ships moving while protecting the codebase from a mixed grab-bag pass.
+
+## 5. Audit Summary
+
+### 5.1 Zero new framework
+
+These ships can be implemented entirely by recombining current systems:
+- **FEA — Ship of Fear**
+- **ANG — Ship of Anger**
+- **WIS — Ship of Wisdom**
+- **ENT — Ark of Entropy**
+- **TER — Ark of Terror**
+- **FUR — Ark of Fury**
+- **DES — Ark of Destruction**
+
+### 5.2 Easy extension, but not literally zero
+
+These ships fit existing families but need a narrow extension inside an existing subsystem:
+- **VIG — Ship of Vigor**
+- **FAM — Ship of Family**
+- **POW — Ark of Power**
+
+### 5.3 Mixed ships: easy parts + hard parts
+
+These ships should be split by power component:
+- **LEG — Ship of Legacy**
+- **KNO — Ark of Knowledge**
+- **RED — Ark of Redemption**
+- **DOM — Ark of Domination**
+
+### 5.4 Dedicated new-system ships
+
+These introduce genuinely new action or state requirements:
+- **EQU — Ship of Equality**
+
+## 6. Ship-by-Ship Audit
+
+## 6.1 Phase 5A — Zero-new-framework ships
+
+### FEA — Ship of Fear
+Rule shape: once-only heal on build turn.
+
+Status: **Zero new framework**
+
+Reuse target:
+- same family as Starship/Xenite once-only memory and survivability-through-destruction handling
+
+Implementation shape:
+- computed once-only heal effect on build turn
+- `powerMemory.onceOnlyFired`
+- resolves during `battle.end_of_turn_resolution`
+
+### ANG — Ship of Anger
+Rule shape: once-only damage on build turn.
+
+Status: **Zero new framework**
+
+Reuse target:
+- same family as Starship / Hell Hornet once-only damage
+
+Implementation shape:
+- computed once-only damage effect on build turn
+- same memory and survivability pattern as FEA
+
+### WIS — Ship of Wisdom
+Rule shape: 2-charge choose-one power: 3 damage or 4 heal.
+
+Status: **Zero new framework**
+
+Reuse target:
+- same family as Antlion charge-choice action
+
+Implementation shape:
+- structured choice overlay in charge phases
+- `SpendCharge(1)` + `Damage(3)` or `Heal(4)`
+- no new UI pattern
+
+### ENT — Ark of Entropy
+Rule shape: flat automatic trio: deal 7, take 4, heal 2.
+
+Status: **Zero new framework**
+
+Reuse target:
+- same family as mixed flat automatic overlays already used elsewhere
+
+Implementation shape:
+- one self-target damage effect
+- one self-target heal effect
+- one opponent-target damage effect
+- all resolved in ordinary end-of-turn aggregation
+
+### TER — Ark of Terror
+Rule shape: automatic heal equal to the dice roll this turn.
+
+Status: **Zero new framework**
+
+Reuse target:
+- same family as existing computed effects that read `effectiveDiceRoll`
+
+Implementation shape:
+- computed automatic heal amount = effective dice roll for owner
+
+### FUR — Ark of Fury
+Rule shape: automatic damage equal to the dice roll this turn.
+
+Status: **Zero new framework**
+
+Reuse target:
+- same family as TER, but damage to opponent
+
+Implementation shape:
+- computed automatic damage amount = effective dice roll for owner
+
+### DES — Ark of Destruction
+Rule shape: deal 3 damage for each of your other ships.
+
+Status: **Zero new framework**
+
+Reuse target:
+- same family as count-based computed effects, specifically a variant of the existing “count your ships” helpers
+
+Implementation shape:
+- computed automatic damage
+- amount = `3 * count(other ships)`
+- exclusion of self is already a trivial helper-level distinction, not a new subsystem
+
+## 6.2 Easy-extension ships
+
+### VIG — Ship of Vigor
+Rule shape: if dice roll is even, generate 2 additional future build lines.
+
+Status: **Easy extension**
+
+Easy part:
+- belongs in the existing line-generation subsystem
+- uses existing effective-dice truth and future build line bonus concept
+
+What is new:
+- line bonus becomes conditional on dice parity
+- current line-bonus code explicitly marks VIG and POW as future, not yet implemented
+
+Planning note:
+- this is still not a new framework; it is a narrow extension to `computeLineBonusForPlayer`
+
+### FAM — Ship of Family
+Rule shape: 3 charges, choose damage or heal equal to number of your ship types.
+
+Status: **Easy extension**
+
+Easy part:
+- charge-choice UI/action family already exists
+- distinct-type computation already exists for Tactical Cruiser
+
+What is new:
+- current choice-effect translation is value-static; Family needs the amount computed from current fleet state at action resolution time
+
+Planning note:
+- the cleanest implementation is a narrow extension for a dynamic computed amount on a choice option, not a brand-new action system
+
+### POW — Ark of Power
+Rule shape:
+- if dice is even, gain 4 future build lines
+- automatic deal 2
+- automatic heal 3
+
+Status: **Easy extension**
+
+Easy parts:
+- flat damage/heal are zero-new-framework
+- conditional even-dice line bonus is same narrow extension as VIG
+
+What is new:
+- same line-bonus parity extension needed by VIG
+
+## 6.3 Mixed ships: easy parts vs hard parts
+
+### LEG — Ship of Legacy
+Rule shape:
+- when built, generate 4 joining lines
+- automatic deal 1
+- automatic heal 2
+
+Status: **Mixed**
+
+Easy parts:
+- deal 1 / heal 2 are zero-new-framework flat automatic effects
+
+Hard part:
+- “generate 4 joining lines” requires an authoritative joining-line resource, persistence/projection, save behavior, and upgrade consumption path
+
+Normative classification:
+- do **not** block the automatic parts on joining-line work, but the ship is not Phase 5A-complete until joining lines exist authoritatively
+
+### KNO — Ark of Knowledge
+Rule shape:
+- reroll dice during build phase (once or twice based on copy count)
+- heal 2
+- at 3 copies, damage and healing become equal to whichever is higher this turn, including once-only and charges
+
+Status: **Mixed / mostly hard**
+
+Easy part:
+- flat automatic heal 2 is zero-new-framework
+
+Hard parts:
+- build-phase reroll authority with simultaneous players and shared/global dice result
+- tiered reroll count by copy count
+- a resolution-wide “equalize damage and healing to the higher of the two” modifier that explicitly includes once-only and charge outputs
+
+Normative classification:
+- KNO should not be included in an easy pass beyond possibly wiring the flat heal component if you deliberately allow partial ship completion
+
+### RED — Ark of Redemption
+Rule shape:
+- generate 2 joining lines each future build phase
+- when built, set health to maximum at end of build phase
+
+Status: **Mixed**
+
+Hard parts:
+- recurring authoritative joining-line resource
+- end-of-build non-healing health set
+
+Notes:
+- “set health to maximum” is not conceptually huge, but it is a new effect type / phase-timed mutation outside standard end-of-turn damage-heal aggregation
+- because joining lines are also required, RED belongs with the joining-line pass, not the easy pass
+
+### DOM — Ark of Domination
+Rule shape:
+- generate 2 joining lines each future build phase
+- once on built turn, first strike: permanently control two enemy basic ships
+- automatic heal 3 for each of your ships
+
+Status: **Mixed / mostly hard**
+
+Easy part:
+- count-based automatic heal is straightforward with existing computed helpers
+
+Hard parts:
+- joining-line resource
+- control transfer / owner swap of existing enemy basic ships
+- once-only built-turn first-strike targeting for exactly two valid enemy basics
+- downstream consequences of stolen ships for future counts, upgrades, charges, and display ownership
+
+Normative classification:
+- DOM needs its own dedicated pass; only its heal component is currently “easy”
+
+## 6.4 Dedicated new-system ship
+
+### EQU — Ship of Equality
+Canonical JSON / current codebase shape inspected:
+- charge power destroys one basic ship of yours and one basic ship of your opponent’s with equal line cost
+- cannot target other Ships of Equality
+- if there are not two valid targets, cannot be used
+- if either target is destroyed, charge is still used
+
+Status: **Dedicated pass required**
+
+Why this is not just Guardian reuse:
+- Guardian targets only one enemy basic
+- Equality needs **paired self + opponent targeting**
+- legality depends on an equality relation between the two targets’ total line cost
+- it has a special exclusion rule and partial-failure spend semantics
+
+This is a meaningful new action/validation shape.
+
+## 7. Recommended Pass Structure
+
+### Phase 5A — Centaur Easy Mappers (true zero-new-framework)
+In scope:
+- FEA
+- ANG
+- WIS
+- ENT
+- TER
+- FUR
+- DES
+
+Goal:
+- ship a clean Centaur starter pass using only current frameworks
+
+Expected reuse:
+- once-only computed effects
+- flat automatic overlays
+- charge-choice action plumbing
+- dice-scaling computed effects
+- count-based computed effects
+
+### Phase 5B — Centaur Narrow Extensions
+In scope:
+- VIG
+- FAM
+- POW
+
+Goal:
+- extend existing subsystems without inventing a new architecture
+
+Required narrow extensions:
+- parity-based line bonus computation
+- dynamic computed amount for charge-choice effects
+
+### Phase 5C — Joining Lines Foundations
+In scope:
+- authoritative joining-line resource
+- projection / saved-joining-line display
+- upgrade consumption path
+- immediate and future joining-line gains
+
+Unlocked ships/parts:
+- LEG joining-line power
+- RED joining-line power
+- DOM joining-line power
+
+### Phase 5D — Special Build/Resolution Rules
+In scope:
+- RED built-turn “set health to maximum” effect
+- KNO tier-3 “damage/healing equal to whichever is higher” modifier
+
+Goal:
+- add explicit non-standard resolution behaviors without mixing them into easy-mapper work
+
+### Phase 5E — Dice Reroll Authority
+In scope:
+- Ark of Knowledge reroll action(s)
+- global/shared reroll behavior for all players
+- interaction with Leviathan override
+- deterministic handling when both players can reroll
+
+Goal:
+- keep dice authority server-side and stable for preview and battle logic
+
+### Phase 5F — Equality Targeting
+In scope:
+- Ship of Equality paired target selection and validation
+
+Goal:
+- add the smallest possible new targeting mode instead of distorting Guardian targeting into a general-purpose engine
+
+### Phase 5G — Domination Control Transfer
+In scope:
+- Ark of Domination first-strike steal-two-basic-ships flow
+- persistent ownership transfer on ship instances
+- UI/render ownership consequences
+
+Goal:
+- handle control transfer as a dedicated system, because it affects counts, future actions, and fleet ownership semantics broadly
+
+## 8. Recommended Immediate Next Step
+
+The best next document is a strict implementation brief for **Phase 5A — Centaur Easy Mappers** only.
+
+That pass should stay server-first and include exactly:
+- FEA
+- ANG
+- WIS
+- ENT
+- TER
+- FUR
+- DES
+
+This gives you a substantial Centaur foothold with very low framework risk, while leaving the genuinely new systems isolated for later passes.
+
+## 9. Bottom-Line Audit Verdict
+
+If the question is “which Centaur ships can we do right now without inventing new machinery?”, the answer is:
+
+**FEA, ANG, WIS, ENT, TER, FUR, DES**
+
+If the question is “which ships are close, but need a small extension?”, the answer is:
+
+**VIG, FAM, POW**
+
+If the question is “which ones should be deliberately deferred into dedicated framework passes?”, the answer is:
+
+**EQU, LEG, KNO, RED, DOM**

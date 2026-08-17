@@ -31,13 +31,16 @@ Operational templates and pass formats for implementation work.
 
 - [CodexPassTemplate.md](workflows/CodexPassTemplate.md) - reusable template for implementation passes
 
-### Planning records
+### `plans/`
 
-Historical phase roadmaps and decision registers retained as implementation context. These records are not current-state authority; executable code and the current contracts above govern present behavior.
+Historical phase roadmaps and planning records retained as implementation context. These records are not current-state authority; executable code, [VERSION.md](../VERSION.md), and the current contracts above govern present behavior.
 
-- [Phase 13 Ancient Species - GPT-5.6 Planning Record](<Phase 13 Ancient Species - GPT-5.6 Planning Record.md>) - historical Phase 13 planning and implementation record
-- [Phase 14 Simplified Phases and Ship Tags](<Phase 14 Simplified Phases and Ship Tags.md>) - historical Phase 14 implementation roadmap
-- [Phase 14 Rules v1.63 Alignment Addendum](<Phase 14 Rules v1.63 Alignment Addendum.md>) - historical Phase 14 rules-alignment and refinement record
+- [Phase 13 Ancient Species - GPT-5.6 Planning Record](<plans/Phase 13 Ancient Species - GPT-5.6 Planning Record.md>) - historical Phase 13 planning and implementation record
+- [Phase 14 Simplified Phases and Ship Tags](<plans/Phase 14 Simplified Phases and Ship Tags.md>) - historical Phase 14 implementation roadmap
+- [Phase 14 Rules v1.63 Alignment Addendum](<plans/Phase 14 Rules v1.63 Alignment Addendum.md>) - historical Phase 14 rules-alignment and refinement record
+- [Phase 15 Missions and Challenges - Revised with Mission Findings](<plans/Phase 15 Missions and Challenges - Revised with Mission Findings.md>) - historical Phase 15 planning record
+- [Phase 15 Addendum - Mission Findings Discovery](<plans/Phase 15 Addendum - Mission Findings Discovery .md>) - historical Phase 15 discovery addendum
+- [Phase 15 Addendum - Multiplayer Matchup Intro](<plans/Phase 15 Addendum - Multiplayer Matchup Intro.md>) - historical Phase 15 multiplayer addendum
 
 Use [the current repository status](../VERSION.md) for current implementation posture, the canonical definitions and authoritative server implementation for current gameplay, and the contracts for stable architecture and ownership rules.
 
@@ -52,3 +55,4 @@ Non-normative operational and runtime notes.
 - Prefer updating canonical docs over creating scattered one-off notes.
 - Put workflow/process guidance in `workflows/`, not in architecture contracts.
 - Put infrastructure and runtime posture notes under `infrastructure/`.
+- Put historical phase planning records under `plans/`.

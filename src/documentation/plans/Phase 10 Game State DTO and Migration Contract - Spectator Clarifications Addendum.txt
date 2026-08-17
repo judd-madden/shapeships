@@ -1,0 +1,209 @@
+Phase 10 Game State DTO and Migration Contract
+Spectator Clarifications Addendum
+
+Project: Shapeships
+Status: Normative addendum
+Scope: contract-level clarifications required so spectator mode can be implemented through the correct live-state DTO posture without widening Phase 10 into a spectator product/UI specification
+
+This addendum extends:
+- Phase 10 Game State DTO and Migration Contract.txt
+
+If later implementation instructions conflict with this addendum, this addendum wins for spectator-related live-state contract behavior unless explicitly superseded.
+If this addendum conflicts with the core migration guardrails of Phase 10, the core Phase 10 guardrails still win unless this addendum explicitly refines them.
+
+--------------------------------------------------------------------------------
+1. Purpose
+--------------------------------------------------------------------------------
+
+This addendum defines how spectator mode should relate to the Phase 10 live-state contract program.
+
+Its purpose is to:
+
+- make spectator mode an explicit consumer of the normalized live-state DTO shape
+- lock the requirement that publicState be sufficient for spectator hydration
+- keep spectator-related contract work aligned with the Phase 10 migration order
+- prevent ad hoc spectator-only response hacks
+- keep spectator product/UI behavior documented separately from the Phase 10 contract program
+
+This addendum does not turn Phase 10 into a spectator UI specification.
+Phase 10 remains a live-state contract and migration program.
+
+--------------------------------------------------------------------------------
+2. Scope position relative to the main Phase 10 document
+--------------------------------------------------------------------------------
+
+The core Phase 10 document already defines:
+- /game-state-head as the small freshness/polling contract
+- /game-state as the curated live DTO
+- /game-history as the separate completed-turn archive
+- the publicState vs requester split
+- selector centralization before broad prune
+- staged migration with legacy fallback
+
+Those rules remain correct.
+
+This addendum clarifies that spectator mode is one of the intended consumers that should shape the early DTO layering work, but spectator-specific runtime/UI behavior remains outside Phase 10 proper.
+
+--------------------------------------------------------------------------------
+3. Locked clarifications
+--------------------------------------------------------------------------------
+
+3.1 Spectator is a first-class consumer of publicState
+
+Spectator mode is not a side-channel or special-case consumer of raw internal state.
+
+Locked posture:
+- players consume publicState plus requester-only data where applicable
+- spectators consume publicState only
+- spectators must not depend on requester-only or internal-only families
+
+This is a direct consequence of the public/requester split already established in Phase 10.
+
+3.2 PublicState must be sufficient for mid-game spectator hydration
+
+A spectator who enters a live game midway must be able to hydrate from public DTO truth without reconstructing hidden or requester-only logic on the client.
+
+At minimum, the public live contract must be sufficient for:
+- stable player/seat summaries
+- stable seat ordering
+- current turn and phase truth
+- public fleet visibility
+- public readiness/status truth
+- public clock truth
+- visible public dice state where relevant
+- final result state
+- public controller/seat ownership where needed to interpret the match correctly
+
+This requirement is contract-level, not merely UI-level.
+
+3.3 Stable seat order is part of the public contract
+
+Spectator mode requires a stable, public-facing seat model.
+
+Locked posture:
+- the live DTO must support stable p1 / p2 interpretation
+- the client must not derive spectator seat labels from a me/opponent heuristic
+- any seat/controller ownership projection used for this must live in the public DTO, not requester-only DTO
+
+This does not require a specific field name, but it does require that stable seat interpretation be publicly available.
+
+3.4 Public fleets must remain genuinely public
+
+Spectator mode must not infer or receive hidden drawing/requester-only fleet state.
+
+Locked posture:
+- spectators only receive the same public fleet visibility that should be visible to non-acting observers
+- hidden drawing preview, requester-only build preview, and other private projections remain outside spectator reach
+- public fleet changes continue to appear only at their correct authoritative visibility timing
+
+This preserves the hidden-information posture already locked elsewhere in the project.
+
+3.5 History remains separate and spectator-safe
+
+Spectator support must not cause battle-log or completed-turn history to be merged back into hot /game-state.
+
+Locked posture:
+- spectator history uses the existing separate /game-history posture
+- if spectator access is supported for history, that remains a history contract concern, not a reason to widen live-state payloads
+
+3.6 Spectator work is allowed to execute early Phase 10 slices
+
+Spectator mode is allowed to trigger implementation of the early Phase 10 migration slices.
+
+Locked posture:
+- spectator foundations may execute selector centralization and DTO layering before later prune work
+- spectator mode does not require completion of all later Phase 10 cleanup passes first
+- broad prune remains forbidden until the existing selector-first migration guardrails are satisfied
+
+This means spectator mode may legitimately drive:
+- Pass 10B
+- Pass 10C
+- a narrow 10D-style DTO-first switch for the relevant families
+
+before later prune/family cleanup passes are complete.
+
+3.7 No spectator-only temporary DTO hack
+
+Do not add a separate short-lived spectator response shape that bypasses the intended Phase 10 target contract.
+
+Locked posture:
+- any spectator-supporting DTO additions should be chosen to match the durable normalized contract direction
+- temporary fallbacks may exist during migration
+- temporary spectator-only naming or duplicated response families should be avoided unless absolutely necessary for a narrowly scoped migration reason
+
+--------------------------------------------------------------------------------
+4. What remains outside Phase 10
+--------------------------------------------------------------------------------
+
+The following remain outside the scope of Phase 10 proper and should live in a dedicated spectator planning document and later implementation passes:
+
+- spectator default tab behavior
+- spectator menu actions
+- p1/p2 vs me/opponent presentation rules in UI
+- spectator chat affordances
+- battle-log expansion behavior
+- other runtime/display behavior specific to viewer mode
+
+These are real feature requirements, but they are not DTO-contract scope.
+
+--------------------------------------------------------------------------------
+5. Recommended execution order with spectator in mind
+--------------------------------------------------------------------------------
+
+The recommended order becomes:
+
+Pass 10A
+- main Phase 10 planning document
+- this addendum
+
+Pass 10B
+- client selector seam normalization
+- no behavior change
+- prepare a single runtime read seam so spectator work does not scatter raw-state reads further
+
+Pass 10C
+- server DTO layering for the public families required by spectator and the existing player runtime
+- keep legacy fields alive
+- do not prune old fields yet
+
+Pass 10D-lite
+- switch the relevant runtime selectors to prefer normalized DTO paths for the spectator-needed families
+- preserve legacy fallback
+
+Spectator runtime/UI passes
+- implement viewer/seat derivation and presentation behavior against the new contract shape
+
+Later Phase 10 cleanup
+- safe dead-bloat prune
+- family-by-family duplicate cleanup
+- optional canonical internal cleanup
+
+This sequencing is locked unless a later review proves a narrower or safer migration path.
+
+--------------------------------------------------------------------------------
+6. Validation addendum
+--------------------------------------------------------------------------------
+
+Phase 10 passes that touch spectator-relevant families should also validate the following, where relevant to scope:
+
+- a spectator can hydrate a live game mid-turn from public DTO truth
+- spectator state does not expose requester-only hidden preview data
+- spectator clocks and readiness hydrate correctly from public data
+- spectator-visible fleets match authoritative public visibility timing
+- spectator history remains fetched through the separate history contract
+- legacy player flows remain correct during DTO migration
+
+This validation adds to, and does not replace, the existing Phase 10 validation rules.
+
+--------------------------------------------------------------------------------
+7. End-state clarification
+--------------------------------------------------------------------------------
+
+Phase 10 should be considered healthy for spectator support when all of the following are true:
+
+- publicState is sufficient for spectator hydration without requester-only leakage
+- the runtime selector seam can read normalized DTO paths cleanly
+- spectator mode can be built on top of the same durable DTO shape that normal player flows use
+- later Phase 10 cleanup can proceed without breaking spectator as a supported consumer
+
+That is the intended spectator-facing clarification to the Phase 10 program.

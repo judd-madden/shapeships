@@ -6,7 +6,7 @@ Status: Normative planning addendum
 Scope: multiplayer-only matchup presentation and authoritative pre-opening gate immediately after species selection
 
 This addendum extends:
-- `Phase 15 Missions and Challenges.md`
+- [Phase 15 Missions and Challenges - Revised with Mission Findings](<Phase 15 Missions and Challenges - Revised with Mission Findings.md>)
 
 If later implementation instructions conflict with this addendum, this addendum wins for the multiplayer matchup-intro behavior within its scope unless explicitly superseded.
 

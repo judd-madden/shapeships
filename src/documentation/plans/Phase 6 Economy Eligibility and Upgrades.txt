@@ -1,0 +1,344 @@
+Phase 6 Economy Eligibility and Upgrades
+Normative Planning Document
+
+Project: Shapeships
+Status: Planning
+Scope: authoritative build economy, ship affordability, upgrade consumption, hidden-info-safe preview, and build UI wiring
+
+1. Purpose
+
+This document defines the Phase 6 program for build economy, eligibility, and upgrades.
+
+Its purpose is to:
+- formalize line generation, saved-line persistence, and line spending as server-authoritative build economy
+- make ship build legality depend on authoritative affordability and component availability
+- support basic-to-upgraded ship conversion by consuming the required basic ships when the upgraded ship is completed
+- preserve immediate client preview during build.drawing without moving final legality or final fleet mutation off the server
+- finish the deferred UI wiring for affordability, saved lines, dynamic cost display, and BottomRail economy copy
+
+This phase should be treated as one build/economy program, but implemented in small passes.
+
+2. Planning Principles
+
+1. Keep the server authoritative for legality, phase progression, state mutation, and final fleet outcomes.
+2. Keep the client fast and responsive by allowing requester-only provisional preview during build.drawing.
+3. Prefer the simplest viable model for Alpha: saved resources persist, upgrade progress does not.
+4. Treat upgrades as atomic conversion transactions, not as destroy effects and not as partial multi-turn state.
+5. Reuse canonical ship definitions for costs, component requirements, and joining requirements.
+6. Respect hidden information: the acting player may preview local spending and component consumption; the opponent must not see hidden build changes until reveal.
+7. Do not redesign the phase machine. Use the existing build stop points and authoritative refresh points.
+
+3. Scope Decision
+
+Phase 6 covers three tightly related concerns that should be designed together:
+- Economy: lines being granted, tracked, saved, and spent correctly
+- Eligibility: whether a ship can currently be built, including affordability and required components
+- Upgrades: basic ships being consumed when an upgraded ship is completed
+
+These concerns should not be split into unrelated systems. Build eligibility depends on the same authoritative economy and fleet state that final build submission uses.
+
+4. Non-goals
+
+This phase should not:
+- redesign phase ordering
+- introduce partial upgrade progress across turns
+- require a server round trip for each click during build.drawing
+- move build legality into display-only components
+- broaden into unrelated future systems such as Ancient, Chronoswarm, Knowledge rerolls, Equality special handling, or Domination control transfer
+
+5. Locked Rules Interpretations
+
+5.1 Upgrade model
+
+Locked interpretation:
+- only two build levels are in scope here: basic to upgraded
+- a basic ship remains a normal ship until an upgrade is legally completed
+- when the upgrade is completed, the component basics are consumed immediately
+- the upgraded ship is created immediately
+- there is no stored partial upgrade progress across turns
+
+This means upgrades are instant conversion transactions, not ongoing state.
+
+5.2 Resource model
+
+Locked interpretation:
+- ordinary lines can pay ordinary/basic ship costs
+- ordinary lines can also cover joining requirements for upgraded ships
+- joining lines can only pay joining requirements
+- leftover eligible resources are auto-saved
+- the saved carry-forward pool is clamped to the 12-line cap on persistence, not on temporary in-turn availability after the new roll is added
+
+5.3 Visibility model
+
+Locked interpretation:
+- the acting player may see immediate local build preview during build.drawing
+- the opponent must not see lines being spent during hidden drawing
+- the opponent must not see component ships disappear during hidden drawing when they are locally consumed into a previewed upgrade
+- the opponent should see Saved Lines update during Line Generation
+- the opponent should see final authoritative post-drawing saved totals at battle.reveal
+- authoritative public fleet changes from drawing and upgrades become visible at battle.reveal, not during hidden drawing
+
+5.4 Save behavior
+
+Locked interpretation:
+- leftover resources are auto-saved when the build submission is finalized
+- the Ready button may surface that result directly, for example: READY — Save 3 lines
+- no separate save-lines interaction is needed unless a later UX requirement proves necessary
+
+6. Simplicity Model For Alpha
+
+Phase 6 should use the simplest viable draft model.
+
+Recommended starting model:
+- keep a current build draft for the acting player during build.drawing
+- represent that draft as aggregate counts per ship type unless implementation proves a real ambiguity that cannot be resolved cleanly
+- derive provisional affordability, provisional component availability, and provisional resulting fleet from that draft
+
+Because the upgrade model is only basic to upgraded, ships should not be competing through deeper upgrade chains. When an upgraded ship is added to the draft, the required basic ships are consumed for that provisional result, and eligibility refreshes against the remaining provisional fleet.
+
+If aggregate counts prove insufficient in practice for provisional component allocation, a lightweight draft-entry model may be introduced later. That is a fallback, not the default plan.
+
+7. Authoritative Data Model
+
+7.1 Persistent player state
+
+Phase 6 should formalize persistent build resources as:
+- saved ordinary lines
+- saved joining lines
+
+These persist across turns.
+
+7.2 Build-phase derived availability
+
+At each build phase, the server should derive:
+- saved ordinary carried in
+- saved joining carried in
+- ordinary lines from the current roll / line generation
+- ordinary bonus lines from ship effects
+- joining bonus lines from ship effects
+- total ordinary available this turn
+- total joining available this turn
+
+This should remain server-authoritative and projectable through /game-state.
+
+7.3 Upgrade affordability model
+
+Upgrades should use:
+- component requirements from canonical ship definitions
+- joining cost from canonical ship definitions
+- ordinary-line fallback for any joining shortfall
+- charge depletion rules on charged basics before component eligibility where relevant
+
+7.4 Consumption semantics
+
+Consuming a ship as an upgrade component is not destroy.
+
+It should be a dedicated authoritative consumption path:
+- remove component instances from the fleet
+- do not send them to VOID
+- do not fire destroy semantics
+- do not count them as battle destruction
+
+8. Client Preview Model
+
+During build.drawing, the acting client should keep a requester-only provisional build model:
+- local draft counts
+- provisional remaining ordinary lines
+- provisional remaining joining lines
+- provisional component consumption
+- provisional resulting fleet
+- provisional eligibility map
+
+This preview should drive immediate UI feedback:
+- ships appear immediately when clicked
+- upgraded-ship eligibility refreshes immediately after relevant basic ships are preview-added or preview-consumed
+- once an upgrade is preview-added, its consumed basics disappear from the acting player’s provisional fleet
+- the opponent does not see these hidden changes until reveal
+
+No per-click server wait is required. Final legality remains a server responsibility at build submission time.
+
+9. Eligibility Model
+
+A ship is build-eligible only if all of the following are true:
+- the player can afford the cost under the ordinary / joining resource rules
+- all required basic components exist in the relevant authoritative or provisional fleet state
+- any required charge depletion conditions are satisfied for component ships with charges
+- any max-quantity or other existing build restrictions are satisfied
+
+Eligibility must refresh whenever the acting player’s provisional build draft changes.
+
+10. Dynamic Cost Display
+
+The ShipCatalogue should not treat cost as static text once provisional build state exists.
+
+Required behavior:
+- catalogue cost numbers should update as the player spends lines or builds component ships
+- for example, if a Frigate normally shows cost 8 and the player has already provisionally built a Fighter worth 3 that will be consumed by that Frigate, the displayed effective cost should update to 5
+- dynamic cost display should reflect the provisional current build state seen by the acting player
+- the opponent should not see this hidden drawing information
+
+This is a presentation pass, but it depends on the same provisional evaluator used by eligibility.
+
+11. Recommended Pass Structure
+
+11.1 Pass 1 — Server Pass: Economy foundations
+
+Goal:
+- formalize saved ordinary lines, saved joining lines, and build-phase line availability on the server
+
+Scope:
+- authoritative line-generation totals
+- saved carry-forward persistence
+- joining-line persistence
+- requester/public projection rules for line fields
+
+Output:
+- a clean /game-state build economy shape
+- no ship spending yet
+- no upgrade consumption yet
+
+Why first:
+- BottomRail, eligibility, Ready copy, dynamic cost display, and spend validation all need a stable economy contract underneath them
+
+11.2 Pass 2 — Mixed Pass: Provisional build draft plus requester-only preview
+
+Goal:
+- add a lightweight current build draft and immediate local preview without waiting on the server
+
+Scope:
+- current draft counts in client runtime
+- provisional affordability
+- provisional component use
+- provisional resulting fleet
+- requester-only preview wiring
+
+Recommended shape:
+- keep it aggregate and simple unless implementation proves a real ambiguity
+
+Why now:
+- preserves instant click feel before final authoritative spend and upgrade consumption are wired
+
+11.3 Pass 3 — Server Pass: Authoritative BUILD_SUBMIT validation and spending
+
+Goal:
+- make final build submission authoritative for spend, legality, component consumption, and carry-forward save totals
+
+Server should:
+- validate the submitted draft against fresh authoritative state
+- apply ordinary/basic ship costs
+- apply joining costs for upgrades
+- allow ordinary fallback into joining requirements
+- consume basic components atomically for upgrades
+- create resulting upgraded ships atomically
+- persist leftover saved ordinary and saved joining
+
+This is the core truth pass.
+
+11.4 Pass 4 — Client/UI Pass: Eligibility and dynamic cost UX
+
+Goal:
+- wire catalogue legality and cost display to the provisional/runtime and authoritative contract
+
+Required behavior:
+- legal ship: full opacity, hoverable, clickable
+- illegal ship: 40% opacity, hoverable, not clickable
+- displayed cost updates as provisional component ships are built or consumed
+- eligibility refreshes immediately for the acting player as the local draft changes
+
+This pass should stay presentational. Final legality still belongs to the server.
+
+11.5 Pass 5 — Client/UI Pass: BottomRail, Ready copy, and hidden-info polish
+
+Goal:
+- make the economy readable and phase-aware without leaking hidden information
+
+Includes:
+- dynamic BottomRail build text
+- saved lines display behavior
+- Ready button copy such as READY — Save 3 lines
+- requester/public visibility handling so the opponent does not see hidden spend or hidden component consumption before reveal
+- Saved Lines field timing behavior: update during Line Generation, then again at battle.reveal
+
+11.6 Pass 6 — Follow-up polish pass for economy-dependent ship touch-ups
+
+Goal:
+- revisit any ship behaviors intentionally stubbed or deferred until the build economy and joining-line systems are real
+
+Notable follow-up:
+- LEG immediate grant of 4 joining lines on build, which should receive a careful dedicated pass only after the major economy / eligibility / upgrade foundations are in place
+
+12. Key Interactions To Watch
+
+12.1 Ships That Build must feed Drawing
+
+Ships created in build.ships_that_build must be available as components and as fleet members for the same build.drawing phase.
+
+12.2 Charged basics may block upgrades
+
+If an upgraded ship requires a charged basic ship as a component, any rule requiring that ship to be fully depleted before combining must be enforced in both preview and final submit validation.
+
+12.3 Hidden info must stay hidden
+
+Requester preview can be rich. Opponent state must remain frozen until reveal where appropriate.
+
+12.4 Existing stop points already provide safety
+
+The current phase sequencing already provides strong authoritative refresh points:
+- Line Generation completes before Drawing spending
+- Ships That Build completes before Drawing
+- reveal happens before battle powers resolve
+
+This means preview drift risk is naturally limited by existing phase boundaries.
+
+13. Remaining Open Decisions
+
+13.1 Draft payload shape
+
+Recommended default:
+- aggregate counts per ship type for the current build draft
+
+Fallback only if needed:
+- lightweight draft entries if implementation reveals a real ambiguity that aggregate counts cannot represent cleanly
+
+13.2 Server preview sync
+
+Recommended first version:
+- local requester-only preview during drawing
+- final server validation on submit
+- no per-click server traffic
+
+Optional later refinement:
+- debounced requester-only draft sync if future parity or reconnection behavior requires it
+
+13.3 Component allocation policy
+
+If multiple eligible basic instances could satisfy an upgraded ship’s requirements, the server must choose a deterministic allocation rule so preview and final authoritative outcome do not drift.
+
+14. Acceptance Criteria
+
+Phase 6 is complete when:
+- saved ordinary and saved joining lines are authoritative
+- ordinary can cover joining requirements, but joining cannot cover ordinary/basic costs
+- leftover resources auto-save correctly with the cap applied on persistence
+- ships can only be built if affordable and component-valid
+- unaffordable ships are 40% opacity, still hoverable, not clickable
+- ShipCatalogue cost numbers update dynamically against the acting player’s provisional build state
+- upgrades consume their basic components authoritatively
+- ships created in Ships That Build can be used for upgrades in the same Drawing phase
+- acting player gets immediate build preview
+- opponent does not see hidden spend or hidden component disappearance before reveal
+- BottomRail and Ready text reflect real server-backed economy fields
+- Saved Lines timing matches the intended public / hidden information rules
+- LEG and similar economy-dependent ship touch-ups can be implemented cleanly afterward
+
+15. Bottom Line
+
+The Phase 6 target is:
+- server-authoritative economy
+- simple current build draft
+- instant requester-only preview
+- authoritative submit validation
+- atomic upgrade consumption
+- strict hidden-info boundaries until reveal
+
+This is the simplest clean implementation shape that satisfies the current rules, preserves responsiveness, and avoids creating a second build rules engine on the client.
