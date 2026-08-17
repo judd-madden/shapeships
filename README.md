@@ -51,7 +51,7 @@ GPT-5.6 and Codex provide substantive design and engineering support, not incide
 
 The original approved Ancient design and implementation roadmap is preserved as a detailed example of the GPT-5.6 planning process:
 
-- [Phase 13 Ancient Species — GPT-5.6 Planning Record](src/documentation/Phase%2013%20Ancient%20Species%20-%20GPT-5.6%20Planning%20Record.md)
+- [Phase 13 Ancient Species — GPT-5.6 Planning Record](src/documentation/plans/Phase%2013%20Ancient%20Species%20-%20GPT-5.6%20Planning%20Record.md)
 
 That record provides historical planning context rather than current repository status. See [`src/VERSION.md`](src/VERSION.md) for the current snapshot.
 

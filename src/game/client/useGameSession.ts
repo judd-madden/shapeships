@@ -49,7 +49,6 @@ import {
   getBonusLinesOnEvenByPlayerId,
   getChargeScopedFleetForPlayer,
   getChronoswarmRolls,
-  getClockData,
   getCommitmentForPlayer,
   getCubeDiceUsedByPlayerId,
   getCubeDiceValueByPlayerId,
@@ -80,8 +79,6 @@ import {
   isGameFinished,
   isCommitmentCommitted,
   isPlayerReadyForPhase,
-  formatClock,
-  formatClockMs,
 } from './gameSession/selectors';
 import {
   canSubmitDrawingBuild,
@@ -139,6 +136,7 @@ import {
   type ResolvedFleetActivationEvent,
 } from './gameSession/clienteffects/useFleetAnimTokens';
 import { useUntimedPollingThrottle } from './gameSession/clienteffects/useUntimedPollingThrottle';
+import { useClockPresentation } from './gameSession/clienteffects/useClockPresentation';
 import { deriveMatchupIntroViewModel } from './gameSession/matchupIntro';
 import {
   buildPhaseHoldSignature,
@@ -191,7 +189,6 @@ import type {
   CentaurChargeSubTabId,
   BuildDrawingActionFamily,
   FirstStrikeActionFamily,
-  GameStateClockSnapshot,
   GameStateRequestMeta,
   ReadyUxState,
   TurnPhaseMilestoneId,
@@ -1037,35 +1034,12 @@ export function useGameSession(
   const speciesConfirmationRequestIdRef = useRef(0);
   const [boardMode, setBoardMode] = useState<BoardViewModel['mode']>('board');
   
-  // ============================================================================
-  // CLOCK INTERPOLATION STATE (DISPLAY-ONLY, NON-AUTHORITATIVE)
-  // ============================================================================
-  
-  // Store last server clock snapshot for interpolation
-  const lastClockRef = useRef<{
-    serverNowMs: number;
-    remainingMsByPlayerId: Record<string, number>;
-    clocksAreLive: boolean;
-  } | null>(null);
-  
   // Previous rendered fleets are runtime-owned so pure helpers can reconcile the next frame.
   const prevMyRenderedFleetRef = useRef<BoardFleetSummary[]>([]);
   const prevOpponentRenderedFleetRef = useRef<BoardFleetSummary[]>([]);
   const prevShouldShowPreviewRef = useRef(false);
   const lastCommittedPreviewRenderedMyFleetRef = useRef<BoardFleetSummary[]>([]);
   
-  // Tick driver for smooth clock display (forces rerenders)
-  const [clockTick, setClockTick] = useState(0);
-
-  const applyHeadClockSnapshot = useCallback((clockSnapshot: GameStateClockSnapshot | null): void => {
-    if (!clockSnapshot) {
-      return;
-    }
-
-    lastClockRef.current = clockSnapshot;
-    setClockTick((tick) => tick + 1);
-  }, []);
-
   const getLastAcceptedFullFingerprint = useCallback(
     (): AcceptedFullStateFingerprint | null => lastAcceptedFullFingerprintRef.current,
     [],
@@ -1297,6 +1271,11 @@ export function useGameSession(
     foregroundResumeToken,
   } = useUntimedPollingThrottle();
   const isFinished = isGameFinished(rawState);
+  const { applyHeadClockSnapshot, formatPlayerClock } = useClockPresentation({
+    effectiveGameId,
+    rawState,
+    isFinished,
+  });
   const normalizedMissionChallenge = normalizeRequesterMissionChallenge(rawState);
   const isUntimedAuthoritative =
     rawState?.gameData != null &&
@@ -5053,34 +5032,6 @@ useEffect(() => {
   const p2StatusTone: HudStatusTone =
     !p2StatusText ? 'hidden' : (p2StatusText === 'Ready' ? 'ready' : 'neutral');
   
-  // ============================================================================
-  // CLOCK DATA EXTRACTION
-  // ============================================================================
-  
-  // Extract clock data from server state (only when rawState changes)
-  // Store in ref for interpolation - this anchors to server poll updates
-  useEffect(() => {
-    if (!rawState) return;
-    const clockData = getClockData(rawState);
-    lastClockRef.current = clockData;
-  }, [rawState]);
-  
-  // Determine if clocks should tick (display-only animation driver)
-  const shouldTick =
-    !isFinished &&
-    lastClockRef.current &&
-    lastClockRef.current.clocksAreLive &&
-    ((p1HasJoined && !p1IsReady) || (p2HasJoined && !p2IsReady));
-  
-  // Tick driver effect (forces rerenders for smooth clock animation)
-  // Use 250ms interval for smoother visual updates (still displays as MM:SS)
-  useEffect(() => {
-    if (!shouldTick) return;
-    const id = window.setInterval(() => setClockTick(t => t + 1), 250);
-    return () => window.clearInterval(id);
-  }, [shouldTick]);
-  
-
   // Detect build.drawing routing requests from live state and previous snapshots.
   // This effect is the sole owner of the previous-demand refs, and it latches
   // a durable one-shot route request before advancing those refs.
@@ -5345,32 +5296,8 @@ useEffect(() => {
   ]);
 
   
-  // Display-only interpolation helper
-  // Snaps to server on every poll, interpolates between polls
-  function getDisplayMs(playerId?: string, isReady?: boolean): number | undefined {
-    const snap = lastClockRef.current;
-    if (!snap || !playerId) return undefined;
-
-    const base = snap.remainingMsByPlayerId[playerId];
-    if (base == null) return undefined;
-
-    // Game over: freeze display at last server snapshot (no interpolation)
-    if (isFinished) return base;
-
-    if (!snap.clocksAreLive) return base;
-    if (isReady) return base;
-
-    const elapsed = Math.max(0, Date.now() - snap.serverNowMs);
-    return Math.max(0, base - elapsed);
-  }
-  
-  // Get interpolated display values for both players
-  const p1DisplayMs = getDisplayMs(displayLeftPlayer?.id, p1IsReady);
-  const p2DisplayMs = getDisplayMs(displayRightPlayer?.id, p2IsReady);
-  
-  // Format clock times (show "--:--" when undefined, never fake "00:00")
-  const p1ClockFormatted = p1DisplayMs == null ? '--:--' : formatClockMs(p1DisplayMs);
-  const p2ClockFormatted = p2DisplayMs == null ? '--:--' : formatClockMs(p2DisplayMs);
+  const p1ClockFormatted = formatPlayerClock(displayLeftPlayer?.id, p1IsReady);
+  const p2ClockFormatted = formatPlayerClock(displayRightPlayer?.id, p2IsReady);
   const missionChallengeVm = buildMissionChallengeViewModel({
     normalized: normalizedMissionChallenge,
     isFinished,
