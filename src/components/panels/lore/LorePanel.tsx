@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SecondaryNavItem } from '../../ui/primitives/navigation/SecondaryNavItem';
-import { LoreOverviewPanel } from './LoreOverviewPanel';
+import { GalacticWarPanel } from './GalacticWarPanel';
+import { MissionFindingsPanel } from './MissionFindingsPanel';
 import { SpeciesLorePanel } from './SpeciesLorePanel';
-import type { SpeciesLoreId } from './loreContent';
+import { speciesLore, type SpeciesLoreId } from './loreContent';
 
-type LoreTab = 'overview' | SpeciesLoreId;
+type LoreTab = 'mission-findings' | 'galactic-war' | SpeciesLoreId;
 
 const loreTabs: readonly { id: LoreTab; label: string }[] = [
-  { id: 'overview', label: 'Shapeships Lore' },
+  { id: 'mission-findings', label: 'Mission Findings' },
+  { id: 'galactic-war', label: 'Galactic War' },
   { id: 'human', label: 'Human' },
   { id: 'xenite', label: 'Xenite' },
   { id: 'centaur', label: 'Centaur' },
@@ -15,7 +17,17 @@ const loreTabs: readonly { id: LoreTab; label: string }[] = [
 ];
 
 export function LorePanel() {
-  const [activeTab, setActiveTab] = useState<LoreTab>('overview');
+  const [activeTab, setActiveTab] = useState<LoreTab>('mission-findings');
+
+  useEffect(() => {
+    Object.values(speciesLore).forEach(({ imageSrc }) => {
+      if (!imageSrc) return;
+
+      const image = new Image();
+      image.src = imageSrc;
+      void image.decode().catch(() => {});
+    });
+  }, []);
 
   const handleNavigate = (tab: LoreTab) => {
     setActiveTab(tab);
@@ -38,7 +50,11 @@ export function LorePanel() {
         ))}
       </nav>
 
-      {activeTab === 'overview' ? <LoreOverviewPanel /> : <SpeciesLorePanel speciesId={activeTab} />}
+      {activeTab === 'mission-findings' && <MissionFindingsPanel />}
+      {activeTab === 'galactic-war' && <GalacticWarPanel />}
+      {activeTab !== 'mission-findings' && activeTab !== 'galactic-war' && (
+        <SpeciesLorePanel speciesId={activeTab} />
+      )}
     </div>
   );
 }
