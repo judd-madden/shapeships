@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SecondaryNavItem } from '../../ui/primitives/navigation/SecondaryNavItem';
 import { GalacticWarPanel } from './GalacticWarPanel';
 import { MissionFindingsPanel } from './MissionFindingsPanel';
@@ -18,15 +18,24 @@ const loreTabs: readonly { id: LoreTab; label: string }[] = [
 
 export function LorePanel() {
   const [activeTab, setActiveTab] = useState<LoreTab>('mission-findings');
+  const preloadedSpeciesImagesRef = useRef<HTMLImageElement[]>([]);
 
   useEffect(() => {
-    Object.values(speciesLore).forEach(({ imageSrc }) => {
-      if (!imageSrc) return;
+    const preloadedImages = Object.values(speciesLore).flatMap(({ imageSrc }) => {
+      if (!imageSrc) return [];
 
       const image = new Image();
       image.src = imageSrc;
       void image.decode().catch(() => {});
+
+      return [image];
     });
+
+    preloadedSpeciesImagesRef.current = preloadedImages;
+
+    return () => {
+      preloadedSpeciesImagesRef.current = [];
+    };
   }, []);
 
   const handleNavigate = (tab: LoreTab) => {

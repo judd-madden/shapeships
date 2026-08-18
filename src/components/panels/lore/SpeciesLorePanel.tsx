@@ -47,9 +47,21 @@ export function SpeciesLorePanel({ speciesId }: { speciesId: SpeciesLoreId }) {
         </div>
       </article>
 
-      {lore.imageSrc ? (
-        <img className="h-auto w-full" src={lore.imageSrc} alt={lore.imageAlt ?? `${lore.name} fleet shapes`} />
-      ) : null}
+      {Object.values(speciesLore).map((species) => {
+        if (!species.imageSrc) return null;
+
+        const isActive = species.id === speciesId;
+
+        return (
+          <img
+            key={species.id}
+            className={isActive ? 'h-auto w-full' : 'hidden h-auto w-full'}
+            src={species.imageSrc}
+            alt={isActive ? (species.imageAlt ?? `${species.name} fleet shapes`) : ''}
+            aria-hidden={!isActive}
+          />
+        );
+      })}
 
       <section className="flex w-full min-w-0 flex-col items-start">
         <div className="w-full md:hidden">
