@@ -194,6 +194,7 @@ const SOLAR_POWER_SLOTS = [
 ] as const satisfies readonly SolarPowerSlotConfig[];
 
 const SOLAR_POWER_IDS = new Set<ShipDefId>(SOLAR_POWER_SLOTS.map((slot) => slot.id));
+const BLACK_HOLE_SOLAR_SLOT = SOLAR_POWER_SLOTS.find((slot) => slot.id === 'SBLA');
 
 function buildEnergySpendPreview(
   costRows: readonly AncientEnergyCostRow[]
@@ -792,6 +793,12 @@ export function AncientShipCataloguePanel({
               red: 0,
               blue: simulacrumSelector.hoveredPreviewBlueCost,
             }
+        : selectorMode === 'blackHole'
+          ? !isActiveResolvedPowersStage ||
+            (blackHoleSelector?.selectedTargetCount ?? 0) <= 0 ||
+            BLACK_HOLE_SOLAR_SLOT == null
+            ? null
+            : buildEnergySpendPreview(BLACK_HOLE_SOLAR_SLOT.costRows)
         : selectorOpen
           ? null
           : mainIconSpendPreview;
@@ -1133,7 +1140,7 @@ export function AncientShipCataloguePanel({
                       : ''
                   }`}
                   style={{
-                    left: `${blackHoleSelectorLayout.x - 10}px`,
+                    left: `${ANCIENT_CATALOGUE_SECTION_X.solar}px`,
                     top: autocastPresentation === 'mobile-under-heading' ? '4px' : '24px',
                   }}
                   onClick={(event) => {

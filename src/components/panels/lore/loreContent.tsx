@@ -80,7 +80,7 @@ export const generalLoreRows: readonly GeneralLoreRow[] = [
   {
     status: 'debated',
     author: 'juddly',
-    content: <p>The location of the Xenite home system. The exonym <em>Xenon</em> isn't exactly on the map.</p>,
+    content: <p>The home system of the Xenites is debated. The exonym <em>Xenon</em> isn't exactly on the map.</p>,
   },
   {
     status: 'debated',
