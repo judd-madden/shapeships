@@ -794,8 +794,14 @@ export function getClockData(state: any): {
   clocksAreLive: boolean;
   serverNowMs: number;
 } {
-  const gameDataHasClock = hasOwn(state?.gameData, 'clock');
-  const clock = gameDataHasClock ? state?.gameData?.clock : state?.clock;
+  const publicStateHasClock = hasOwn(state?.publicState, 'clock');
+  const rootHasClock = hasOwn(state, 'clock');
+  const usesLegacyClock = !publicStateHasClock && !rootHasClock;
+  const clock = publicStateHasClock
+    ? state.publicState.clock
+    : rootHasClock
+    ? state.clock
+    : state?.gameData?.clock;
   
   if (!clock) {
     return {
@@ -807,15 +813,17 @@ export function getClockData(state: any): {
   
   const remainingMsByPlayerId = clock.remainingMsByPlayerId ?? {};
   
-  // Determine if clocks are live:
-  // - If server explicitly provides clocksAreLive boolean, use it
-  // - Otherwise, treat as live ONLY if:
+  // Normalized/public clock snapshots are authoritative and fail safe to paused.
+  // Only legacy nested clocks may infer liveness when the field is absent.
+  // Legacy inference treats clocks as live ONLY if:
   //   - Clock has at least one player time
   //   - Turn number >= 1 (not setup)
   //   - Phase is NOT setup.species_selection
   let clocksAreLive: boolean;
   
-  if (clock.clocksAreLive !== undefined) {
+  if (!usesLegacyClock) {
+    clocksAreLive = clock.clocksAreLive === true;
+  } else if (typeof clock.clocksAreLive === 'boolean') {
     clocksAreLive = clock.clocksAreLive;
   } else {
     // Extract phaseKey and turnNumber using same legacy fallbacks as elsewhere
@@ -830,11 +838,11 @@ export function getClockData(state: any): {
       phaseKey !== 'setup.species_selection';
   }
   
-  // Anchor to server's last update timestamp, fallback to serverNowMs or Date.now()
-  const serverNowMs = 
-    clock.lastUpdateAtMs ?? 
-    clock.serverNowMs ?? 
-    Date.now();
+  // Public projections anchor at serverNowMs. Legacy clocks retain their
+  // internal lastUpdateAtMs fallback for migration compatibility.
+  const serverNowMs = usesLegacyClock
+    ? clock.lastUpdateAtMs ?? clock.serverNowMs ?? Date.now()
+    : clock.serverNowMs ?? Date.now();
   
   return {
     remainingMsByPlayerId,

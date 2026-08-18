@@ -324,7 +324,7 @@ export function MobileStatusRailFrame({
           />
         </div>
 
-        <div className="shrink-0 w-[56px] flex flex-col items-center justify-between py-[1px]">
+        <div className="shrink-0 w-[56px] flex flex-col items-center justify-center gap-[4px] py-[1px]">
           <span className="w-[56px] text-center text-[15px] font-bold leading-4 text-[var(--shapeships-grey-50)]">
             <ClockWithIncrement
               clock={topClock}
