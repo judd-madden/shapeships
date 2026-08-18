@@ -56,11 +56,11 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     playerSpecies: "human",
     opponentSpecies: "centaur",
     findingIds: ["delta-aquarii"],
-    title: "Take Over This Outer Centaur System",
+    title: "Take Delta Aquarii from the Centaur",
     location: "Delta Aquarii system",
     author: "juddly",
     paragraphs: [
-      "Few Centaurs remain in the Delta Aquarii system, it is ours for the taking. We need more resources for our growing colonies. These Centaurs COULD just move to a nearby system, but they're quite stubborn when it comes to territory - got it, [player]?",
+      "Few Centaurs remain in this outer system, it is ours for the taking. We need more resources for our growing colonies. These Centaurs COULD just move to another system, but they're quite stubborn when it comes to territory - got it, [player]?",
     ],
   },
   {

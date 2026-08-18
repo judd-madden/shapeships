@@ -5,6 +5,11 @@ export interface StorageLike {
   setItem(key: string, value: string): void;
 }
 
+export interface RecordCompletedMissionFindingIdsResult {
+  completedFindingIds: string[];
+  didUnlockMissionFinding: boolean;
+}
+
 export const MINIMIZE_MISSIONS_STORAGE_KEY = 'shapeships.minimizeMissions.v1';
 export const MISSION_FINDINGS_COMPLETED_STORAGE_KEY =
   'shapeships.missionFindingsCompleted.v1';
@@ -69,23 +74,42 @@ export function readCompletedMissionFindingIds(
 export function recordCompletedMissionFindingIds(
   ids: readonly string[],
   storage: StorageLike | null = getSessionStorage(),
-): string[] {
+): RecordCompletedMissionFindingIdsResult {
   const existing = readCompletedMissionFindingIds(storage);
   const result = normalizeIds([...existing, ...ids]);
   const hasNewUnlockedFinding = didUnlockAnyMissionFinding(
     new Set(existing),
     new Set(result),
   );
-  if (!storage) return result;
+  if (!storage) {
+    return {
+      completedFindingIds: result,
+      didUnlockMissionFinding: false,
+    };
+  }
+
   try {
     storage.setItem(MISSION_FINDINGS_COMPLETED_STORAGE_KEY, JSON.stringify(result));
-    if (hasNewUnlockedFinding) {
-      storage.setItem(LORE_UNREAD_STORAGE_KEY, 'true');
-    }
   } catch {
     // Discovery is convenience state and must never interrupt gameplay.
+    return {
+      completedFindingIds: result,
+      didUnlockMissionFinding: false,
+    };
   }
-  return result;
+
+  if (hasNewUnlockedFinding) {
+    try {
+      storage.setItem(LORE_UNREAD_STORAGE_KEY, 'true');
+    } catch {
+      // The completed Finding remains persisted when unread state is unavailable.
+    }
+  }
+
+  return {
+    completedFindingIds: result,
+    didUnlockMissionFinding: hasNewUnlockedFinding,
+  };
 }
 
 export function readLoreUnread(

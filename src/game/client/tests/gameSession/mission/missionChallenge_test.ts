@@ -177,7 +177,7 @@ Deno.test('builds one central VM without deriving result truth', () => {
     isIntroAcknowledgementPending: true,
     minimizeMissionsThisSession: true,
     shouldPresentInitialIntro: false,
-    postgameResultAutoOpenRequestKey: null,
+    postgameResultAutoOpenRequest: null,
   });
   assert(vm);
   assert(vm.isFinished === true);
@@ -238,6 +238,8 @@ function missionResultSnapshot(
     isPlayerViewer: true,
     minimizeMissionsThisSession: false,
     hasResult: false,
+    findingCompletionHandled: false,
+    loreUnlocked: false,
     ...overrides,
   };
 }
@@ -263,7 +265,7 @@ Deno.test('postgame Mission result requires a matching live terminal presentatio
     hydratedLegacyOverlay,
     missionResultSnapshot({ hasResult: true }),
   );
-  assert(hydratedAfterClear.requestKey === null);
+  assert(hydratedAfterClear.request === null);
 
   const mismatched = advanceMissionResultAutoPresentation(
     initial,
@@ -274,7 +276,7 @@ Deno.test('postgame Mission result requires a matching live terminal presentatio
     }),
   );
   assert(mismatched.matchedPresentationKey === null);
-  assert(mismatched.requestKey === null);
+  assert(mismatched.request === null);
 });
 
 Deno.test('postgame Mission result stays armed after presentation clear until result arrives', () => {
@@ -302,7 +304,7 @@ Deno.test('postgame Mission result stays armed after presentation clear until re
   );
   assert(clearedWithoutResult.matchedPresentationKey === presentationKey);
   assert(clearedWithoutResult.presentationCleared === true);
-  assert(clearedWithoutResult.requestKey === null);
+  assert(clearedWithoutResult.request === null);
 
   const stillWaiting = advanceMissionResultAutoPresentation(
     clearedWithoutResult,
@@ -312,17 +314,31 @@ Deno.test('postgame Mission result stays armed after presentation clear until re
   );
   assertEquals(stillWaiting, clearedWithoutResult);
 
-  const requested = advanceMissionResultAutoPresentation(
+  const resultBeforeCompletionPersistence = advanceMissionResultAutoPresentation(
     stillWaiting,
     missionResultSnapshot({
       liveTerminalTriggerPresentationKey: presentationKey,
       hasResult: true,
     }),
   );
+  assert(resultBeforeCompletionPersistence.request === null);
   assert(
-    requested.requestKey ===
-      'game-a::health::7\u0000mission-h-x\u0000result',
+    resultBeforeCompletionPersistence.matchedPresentationKey === presentationKey,
   );
+
+  const requested = advanceMissionResultAutoPresentation(
+    resultBeforeCompletionPersistence,
+    missionResultSnapshot({
+      liveTerminalTriggerPresentationKey: presentationKey,
+      hasResult: true,
+      findingCompletionHandled: true,
+      loreUnlocked: true,
+    }),
+  );
+  assertEquals(requested.request, {
+    key: 'game-a::health::7\u0000mission-h-x\u0000result',
+    loreUnlocked: true,
+  });
 
   const ignoredConsume = consumeMissionResultAutoPresentationRequest(
     requested,
@@ -331,18 +347,20 @@ Deno.test('postgame Mission result stays armed after presentation clear until re
   assertEquals(ignoredConsume, requested);
   const consumed = consumeMissionResultAutoPresentationRequest(
     requested,
-    requested.requestKey ?? '',
+    requested.request?.key ?? '',
   );
-  assert(consumed.requestKey === null);
+  assert(consumed.request === null);
 
   const afterRemount = advanceMissionResultAutoPresentation(
     consumed,
     missionResultSnapshot({
       liveTerminalTriggerPresentationKey: presentationKey,
       hasResult: true,
+      findingCompletionHandled: true,
+      loreUnlocked: true,
     }),
   );
-  assert(afterRemount.requestKey === null);
+  assert(afterRemount.request === null);
 });
 
 Deno.test('postgame Mission result pending state clears on explicit invalidation', () => {
@@ -361,7 +379,7 @@ Deno.test('postgame Mission result pending state clears on explicit invalidation
     missionResultSnapshot({ minimizeMissionsThisSession: true }),
   );
   assert(minimized.matchedPresentationKey === null);
-  assert(minimized.requestKey === null);
+  assert(minimized.request === null);
 
   const ineligibleViewer = advanceMissionResultAutoPresentation(
     matched,

@@ -940,6 +940,11 @@ export interface MissionChallengeResultViewModel {
   challengeSucceeded: boolean;
 }
 
+export interface MissionResultAutoOpenRequest {
+  key: string;
+  loreUnlocked: boolean;
+}
+
 export interface MissionChallengeViewModel {
   mission: MissionChallengeMissionViewModel;
   challenge: {
@@ -952,5 +957,5 @@ export interface MissionChallengeViewModel {
   isFinished: boolean;
   result: MissionChallengeResultViewModel | null;
   minimizeMissionsThisSession: boolean;
-  postgameResultAutoOpenRequestKey: string | null;
+  postgameResultAutoOpenRequest: MissionResultAutoOpenRequest | null;
 }

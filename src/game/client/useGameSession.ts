@@ -828,6 +828,17 @@ export function useGameSession(
     useState<MissionResultAutoPresentationState>(() =>
       createMissionResultAutoPresentationState(effectiveGameId, null)
     );
+  const missionFindingCompletionRef = useRef<{
+    gameId: string | null;
+    missionId: string | null;
+    handled: boolean;
+    loreUnlocked: boolean;
+  }>({
+    gameId: effectiveGameId,
+    missionId: null,
+    handled: false,
+    loreUnlocked: false,
+  });
   const [, setMissionAutoAckRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -4341,26 +4352,46 @@ useEffect(() => {
       : null;
 
   useEffect(() => {
+    const missionId = normalizedMissionChallenge?.mission.id ?? null;
+    let findingCompletion = missionFindingCompletionRef.current;
+
+    if (
+      findingCompletion.gameId !== effectiveGameId ||
+      findingCompletion.missionId !== missionId
+    ) {
+      findingCompletion = {
+        gameId: effectiveGameId,
+        missionId,
+        handled: false,
+        loreUnlocked: false,
+      };
+      missionFindingCompletionRef.current = findingCompletion;
+    }
+
     if (
       isViewerPlayer &&
-      normalizedMissionChallenge?.result?.missionSucceeded === true
+      normalizedMissionChallenge?.result !== null &&
+      normalizedMissionChallenge?.result !== undefined &&
+      !findingCompletion.handled
     ) {
-      recordCompletedMissionFindingIds(
-        getCompletedMissionFindingIds(normalizedMissionChallenge),
-      );
+      const persistenceResult = normalizedMissionChallenge.result.missionSucceeded
+        ? recordCompletedMissionFindingIds(
+            getCompletedMissionFindingIds(normalizedMissionChallenge),
+          )
+        : null;
+      findingCompletion = {
+        ...findingCompletion,
+        handled: true,
+        loreUnlocked:
+          persistenceResult?.didUnlockMissionFinding === true,
+      };
+      missionFindingCompletionRef.current = findingCompletion;
     }
-  }, [
-    effectiveGameId,
-    isViewerPlayer,
-    normalizedMissionChallenge?.mission.id,
-    normalizedMissionChallenge?.result?.missionSucceeded,
-  ]);
 
-  useEffect(() => {
     setMissionResultAutoPresentationState((current) =>
       advanceMissionResultAutoPresentation(current, {
         gameId: effectiveGameId,
-        missionId: normalizedMissionChallenge?.mission.id ?? null,
+        missionId,
         liveTerminalTriggerPresentationKey: liveTerminalHealthPresentationKey,
         activeHealthPresentationKey:
           healthResolutionOverlay?.presentationKey ?? null,
@@ -4370,6 +4401,8 @@ useEffect(() => {
         minimizeMissionsThisSession,
         hasResult: normalizedMissionChallenge?.result !== null &&
           normalizedMissionChallenge?.result !== undefined,
+        findingCompletionHandled: findingCompletion.handled,
+        loreUnlocked: findingCompletion.loreUnlocked,
       })
     );
   }, [
@@ -5371,11 +5404,11 @@ useEffect(() => {
       gameId: effectiveGameId,
       missionChallenge: normalizedMissionChallenge,
     }),
-    postgameResultAutoOpenRequestKey:
+    postgameResultAutoOpenRequest:
       missionResultAutoPresentationState.gameId === effectiveGameId &&
       missionResultAutoPresentationState.missionId ===
         (normalizedMissionChallenge?.mission.id ?? null)
-        ? missionResultAutoPresentationState.requestKey
+        ? missionResultAutoPresentationState.request
         : null,
   });
   const vm: GameSessionViewModel = mapGameSessionVm({

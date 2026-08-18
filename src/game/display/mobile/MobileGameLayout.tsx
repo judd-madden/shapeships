@@ -77,6 +77,7 @@ type ActiveFleetShipHover = {
 
 type ActiveTakeover = 'chat' | 'battleLog' | 'menu' | null;
 type ActiveMobileBottomPanel = 'normal' | 'void';
+type PostgameMissionPresentation = { loreUnlocked: boolean } | null;
 
 type MobileStatPopoverAnchors = {
   top: MobileStatAnchorRect;
@@ -132,7 +133,9 @@ export function MobileGameLayout({
     useState<ActiveMobileBottomPanel>('normal');
   const [activeShipModalId, setActiveShipModalId] = useState<ShipDefId | null>(null);
   const [isMissionReopenOpen, setIsMissionReopenOpen] = useState(false);
-  const [isPostgameMissionOpen, setIsPostgameMissionOpen] = useState(false);
+  const [postgameMissionPresentation, setPostgameMissionPresentation] =
+    useState<PostgameMissionPresentation>(null);
+  const isPostgameMissionOpen = postgameMissionPresentation !== null;
 
   useEffect(() => {
     if (matchupIntro) {
@@ -375,7 +378,7 @@ export function MobileGameLayout({
   ]);
   const handleReturnToBoard = useCallback(() => {
     setIsGameStatsOpen(false);
-    setIsPostgameMissionOpen(false);
+    setPostgameMissionPresentation(null);
     setActiveTakeover(null);
   }, []);
   const handleCloseGameStats = useCallback(() => {
@@ -383,7 +386,7 @@ export function MobileGameLayout({
   }, []);
   const handleOpenGameStats = useCallback(() => {
     if (gameStats) {
-      setIsPostgameMissionOpen(false);
+      setPostgameMissionPresentation(null);
       setIsGameStatsOpen(true);
     }
   }, [gameStats]);
@@ -395,7 +398,7 @@ export function MobileGameLayout({
     handleCloseSiphonInspection();
     setActiveFleetShipHover(null);
     handleCloseAutocastInfo();
-    setIsPostgameMissionOpen(false);
+    setPostgameMissionPresentation(null);
     setActiveTakeover(takeover);
   }, [
     handleCloseAutocastInfo,
@@ -468,17 +471,17 @@ export function MobileGameLayout({
     }
 
     closeConflictingMissionSurfaces();
-    setIsPostgameMissionOpen(false);
+    setPostgameMissionPresentation(null);
     setIsMissionReopenOpen(true);
   }, [canShowMissionChallengeAction, closeConflictingMissionSurfaces]);
-  const handleOpenPostgameMissionChallenge = useCallback(() => {
+  const handleOpenPostgameMissionChallenge = useCallback((loreUnlocked = false) => {
     if (!canShowPostgameMissionChallengeAction) {
       return;
     }
 
     closeConflictingMissionSurfaces();
     setIsMissionReopenOpen(false);
-    setIsPostgameMissionOpen(true);
+    setPostgameMissionPresentation({ loreUnlocked });
   }, [canShowPostgameMissionChallengeAction, closeConflictingMissionSurfaces]);
   const handleMissionChallengeShipInspect = useCallback((shipId: ShipDefId) => {
     if (!isMissionOverlayVisible || !SHIP_DEFINITIONS_MAP[shipId]) {
@@ -543,38 +546,38 @@ export function MobileGameLayout({
 
   useLayoutEffect(() => {
     setIsMissionReopenOpen(false);
-    setIsPostgameMissionOpen(false);
+    setPostgameMissionPresentation(null);
     setMissionReferenceShipId(null);
   }, [gameId, missionChallenge?.mission.id]);
 
   useEffect(() => {
-    setIsPostgameMissionOpen(false);
+    setPostgameMissionPresentation(null);
   }, [endGameResultKey, missionResultKey]);
 
   useLayoutEffect(() => {
     setIsMissionReopenOpen(false);
-    setIsPostgameMissionOpen(false);
+    setPostgameMissionPresentation(null);
     setMissionReferenceShipId(null);
   }, [actionPanelVm.menu.phaseKey, actionPanelVm.menu.turnNumber]);
 
   useEffect(() => {
     if (!canShowPostgameMissionChallengeAction || endGameResultKey === null) {
-      setIsPostgameMissionOpen(false);
+      setPostgameMissionPresentation(null);
     }
   }, [canShowPostgameMissionChallengeAction, endGameResultKey]);
 
   useEffect(() => {
-    const requestKey = missionChallenge?.postgameResultAutoOpenRequestKey;
-    if (!requestKey || !canShowPostgameMissionChallengeAction) {
+    const request = missionChallenge?.postgameResultAutoOpenRequest;
+    if (!request || !canShowPostgameMissionChallengeAction) {
       return;
     }
 
-    handleOpenPostgameMissionChallenge();
-    consumeMissionResultAutoOpenRequestRef.current(requestKey);
+    handleOpenPostgameMissionChallenge(request.loreUnlocked);
+    consumeMissionResultAutoOpenRequestRef.current(request.key);
   }, [
     canShowPostgameMissionChallengeAction,
     handleOpenPostgameMissionChallenge,
-    missionChallenge?.postgameResultAutoOpenRequestKey,
+    missionChallenge?.postgameResultAutoOpenRequest,
   ]);
 
   useEffect(() => {
@@ -597,7 +600,7 @@ export function MobileGameLayout({
   useLayoutEffect(() => {
     if (isMissionIntroPending) {
       setIsMissionReopenOpen(false);
-      setIsPostgameMissionOpen(false);
+      setPostgameMissionPresentation(null);
       closeConflictingMissionSurfaces();
     }
   }, [closeConflictingMissionSurfaces, isMissionIntroPending]);
@@ -965,18 +968,23 @@ export function MobileGameLayout({
             }
 
             if (missionOverlayMode === 'result') {
-              setIsPostgameMissionOpen(false);
+              setPostgameMissionPresentation(null);
             } else {
               setIsMissionReopenOpen(false);
             }
           }}
         >
           <MissionChallengeOverlay
+            loreUnlocked={
+              missionOverlayMode === 'result'
+                ? postgameMissionPresentation?.loreUnlocked ?? false
+                : false
+            }
             missionChallenge={missionChallenge}
             mode={missionOverlayMode}
             onChallengeShipInspect={handleMissionChallengeShipInspect}
             onClose={missionOverlayMode === 'result'
-              ? () => setIsPostgameMissionOpen(false)
+              ? () => setPostgameMissionPresentation(null)
               : () => setIsMissionReopenOpen(false)}
             onPlay={actions.onAcknowledgeMissionIntro}
             onSetMinimizeMissionsThisSession={

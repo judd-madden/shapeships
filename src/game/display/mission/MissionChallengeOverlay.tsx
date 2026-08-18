@@ -22,6 +22,7 @@ const DISCORD_URL = 'https://discord.gg/MjPtf4G6Gt';
 
 interface MissionChallengeOverlayProps {
   missionChallenge: MissionChallengeViewModel;
+  loreUnlocked: boolean;
   playerSpecies: SpeciesId;
   opponentSpecies: SpeciesId;
   playerName: string;
@@ -53,6 +54,7 @@ const SPECIES_PRESENTATION: Record<SpeciesId, { label: string; className: string
 
 export function MissionChallengeOverlay({
   missionChallenge,
+  loreUnlocked,
   playerSpecies,
   opponentSpecies,
   playerName,
@@ -113,6 +115,9 @@ export function MissionChallengeOverlay({
                 succeeded={resultPresentation.missionSucceeded}
                 compact
               />
+            ) : null}
+            {resultPresentation && loreUnlocked ? (
+              <LoreUnlockedIndicator className="hidden min-[768px]:flex" />
             ) : null}
           </div>
           <div className="flex items-center gap-[16px]">
@@ -257,6 +262,10 @@ export function MissionChallengeOverlay({
             </button>
           ) : null}
         </div>
+
+        {resultPresentation && loreUnlocked ? (
+          <LoreUnlockedIndicator className="mt-[16px] flex justify-center min-[768px]:hidden" />
+        ) : null}
       </div>
 
       <div className="flex min-h-[54px] shrink-0 flex-col items-center bg-[var(--shapeships-grey-70)] px-[16px] py-[16px] text-[15px] leading-[20px] min-[768px]:flex-row min-[768px]:flex-wrap min-[768px]:justify-between min-[768px]:gap-x-[24px] min-[768px]:gap-y-[10px] min-[768px]:px-[38px] min-[768px]:py-[12px] min-[768px]:leading-none">
@@ -291,6 +300,18 @@ export function MissionChallengeOverlay({
           shipId={hover.presentState.activeShipId}
         />
       ) : null}
+    </div>
+  );
+}
+
+function LoreUnlockedIndicator({ className }: { className: string }) {
+  return (
+    <div className={`${className} items-center gap-[8px] text-[16px] font-medium leading-none`}>
+      <span
+        aria-hidden="true"
+        className="size-[12px] shrink-0 rounded-full bg-[var(--shapeships-pastel-purple)]"
+      />
+      <span>Lore Unlocked</span>
     </div>
   );
 }

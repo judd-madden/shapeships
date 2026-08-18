@@ -1,5 +1,8 @@
 import type { ShipDefId } from '../../../types/ShipTypes.engine';
-import type { MissionChallengeViewModel } from '../types';
+import type {
+  MissionChallengeViewModel,
+  MissionResultAutoOpenRequest,
+} from '../types';
 
 export interface NormalizedMissionChallenge {
   mission: {
@@ -36,7 +39,7 @@ export interface MissionResultAutoPresentationState {
   missionId: string | null;
   matchedPresentationKey: string | null;
   presentationCleared: boolean;
-  requestKey: string | null;
+  request: MissionResultAutoOpenRequest | null;
 }
 
 export interface MissionResultAutoPresentationSnapshot {
@@ -49,6 +52,8 @@ export interface MissionResultAutoPresentationSnapshot {
   isPlayerViewer: boolean;
   minimizeMissionsThisSession: boolean;
   hasResult: boolean;
+  findingCompletionHandled: boolean;
+  loreUnlocked: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -146,7 +151,7 @@ export function buildMissionChallengeViewModel(args: {
   isIntroAcknowledgementPending: boolean;
   minimizeMissionsThisSession: boolean;
   shouldPresentInitialIntro: boolean;
-  postgameResultAutoOpenRequestKey: string | null;
+  postgameResultAutoOpenRequest: MissionResultAutoOpenRequest | null;
 }): MissionChallengeViewModel | null {
   if (!args.normalized) return null;
   return {
@@ -162,8 +167,8 @@ export function buildMissionChallengeViewModel(args: {
     isFinished: args.isFinished,
     result: args.normalized.result ? { ...args.normalized.result } : null,
     minimizeMissionsThisSession: args.minimizeMissionsThisSession,
-    postgameResultAutoOpenRequestKey:
-      args.postgameResultAutoOpenRequestKey,
+    postgameResultAutoOpenRequest:
+      args.postgameResultAutoOpenRequest,
   };
 }
 
@@ -184,7 +189,7 @@ export function createMissionResultAutoPresentationState(
     missionId,
     matchedPresentationKey: null,
     presentationCleared: false,
-    requestKey: null,
+    request: null,
   };
 }
 
@@ -213,7 +218,7 @@ export function advanceMissionResultAutoPresentation(
     if (
       next.matchedPresentationKey === null &&
       !next.presentationCleared &&
-      next.requestKey === null
+      next.request === null
     ) {
       return next;
     }
@@ -223,7 +228,7 @@ export function advanceMissionResultAutoPresentation(
     );
   }
 
-  if (next.requestKey !== null) {
+  if (next.request !== null) {
     return next;
   }
 
@@ -252,7 +257,8 @@ export function advanceMissionResultAutoPresentation(
     next.matchedPresentationKey === null ||
     !next.presentationCleared ||
     !snapshot.isFinished ||
-    !snapshot.hasResult
+    !snapshot.hasResult ||
+    !snapshot.findingCompletionHandled
   ) {
     return next;
   }
@@ -261,7 +267,10 @@ export function advanceMissionResultAutoPresentation(
     ...next,
     matchedPresentationKey: null,
     presentationCleared: false,
-    requestKey: `${next.matchedPresentationKey}\u0000${snapshot.missionId}\u0000result`,
+    request: {
+      key: `${next.matchedPresentationKey}\u0000${snapshot.missionId}\u0000result`,
+      loreUnlocked: snapshot.loreUnlocked,
+    },
   };
 }
 
@@ -269,8 +278,8 @@ export function consumeMissionResultAutoPresentationRequest(
   state: MissionResultAutoPresentationState,
   requestKey: string,
 ): MissionResultAutoPresentationState {
-  return state.requestKey === requestKey
-    ? { ...state, requestKey: null }
+  return state.request?.key === requestKey
+    ? { ...state, request: null }
     : state;
 }
 

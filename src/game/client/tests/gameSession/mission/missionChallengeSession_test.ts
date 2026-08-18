@@ -76,14 +76,20 @@ Deno.test('Mission Findings read empty and add flat unique IDs deterministically
   assertEquals(readCompletedMissionFindingIds(storage), []);
   assertEquals(
     recordCompletedMissionFindingIds(['rebel-alliance-human'], storage),
-    ['rebel-alliance-human'],
+    {
+      completedFindingIds: ['rebel-alliance-human'],
+      didUnlockMissionFinding: false,
+    },
   );
   assertEquals(
     recordCompletedMissionFindingIds(
       ['sol-1', 'rebel-alliance-human', 'mintaka'],
       storage,
     ),
-    ['rebel-alliance-human', 'sol-1', 'mintaka'],
+    {
+      completedFindingIds: ['rebel-alliance-human', 'sol-1', 'mintaka'],
+      didUnlockMissionFinding: true,
+    },
   );
   assertEquals(readCompletedMissionFindingIds(storage), [
     'rebel-alliance-human',
@@ -115,7 +121,10 @@ Deno.test('Mission Findings ignore invalid IDs and malformed stored JSON', () =>
   assertEquals(readCompletedMissionFindingIds(storage), []);
   assertEquals(
     recordCompletedMissionFindingIds(['', '   ', 'mintaka', 'mintaka'], storage),
-    ['mintaka'],
+    {
+      completedFindingIds: ['mintaka'],
+      didUnlockMissionFinding: true,
+    },
   );
 
   storage.values.set(
@@ -128,8 +137,14 @@ Deno.test('Mission Findings ignore invalid IDs and malformed stored JSON', () =>
 Deno.test('Mission Findings tolerate unavailable and throwing storage', () => {
   assertEquals(readCompletedMissionFindingIds(null), []);
   assertEquals(readCompletedMissionFindingIds(throwingStorage), []);
-  assertEquals(recordCompletedMissionFindingIds(['mintaka'], null), ['mintaka']);
-  assertEquals(recordCompletedMissionFindingIds(['mintaka'], throwingStorage), ['mintaka']);
+  assertEquals(recordCompletedMissionFindingIds(['mintaka'], null), {
+    completedFindingIds: ['mintaka'],
+    didUnlockMissionFinding: false,
+  });
+  assertEquals(recordCompletedMissionFindingIds(['mintaka'], throwingStorage), {
+    completedFindingIds: ['mintaka'],
+    didUnlockMissionFinding: false,
+  });
 });
 
 Deno.test('Lore unread defaults safely and only accepts true', () => {
@@ -146,7 +161,10 @@ Deno.test('Lore unread defaults safely and only accepts true', () => {
 Deno.test('Lore unread follows newly unlocked completed Mission Findings', () => {
   const storage = new FakeStorage();
 
-  recordCompletedMissionFindingIds(['mintaka'], storage);
+  assertEquals(recordCompletedMissionFindingIds(['mintaka'], storage), {
+    completedFindingIds: ['mintaka'],
+    didUnlockMissionFinding: true,
+  });
   assert(readLoreUnread(storage) === true);
 
   recordCompletedMissionFindingIds(['ancient-mysteries-human'], storage);
@@ -155,7 +173,10 @@ Deno.test('Lore unread follows newly unlocked completed Mission Findings', () =>
   clearLoreUnread(storage);
   assert(readLoreUnread(storage) === false);
 
-  recordCompletedMissionFindingIds(['mintaka'], storage);
+  assertEquals(recordCompletedMissionFindingIds(['mintaka'], storage), {
+    completedFindingIds: ['mintaka', 'ancient-mysteries-human'],
+    didUnlockMissionFinding: false,
+  });
   assert(readLoreUnread(storage) === false);
 
   recordCompletedMissionFindingIds(['ancient-mysteries-centaur'], storage);
@@ -174,9 +195,21 @@ Deno.test('Lore unread follows newly unlocked completed Mission Findings', () =>
 
 Deno.test('Lore unread unlocks grouped Rebel Alliance requirements in either order', () => {
   const humanFirstStorage = new FakeStorage();
-  recordCompletedMissionFindingIds(['rebel-alliance-human'], humanFirstStorage);
+  assertEquals(
+    recordCompletedMissionFindingIds(['rebel-alliance-human'], humanFirstStorage),
+    {
+      completedFindingIds: ['rebel-alliance-human'],
+      didUnlockMissionFinding: false,
+    },
+  );
   assert(readLoreUnread(humanFirstStorage) === false);
-  recordCompletedMissionFindingIds(['rebel-alliance-centaur'], humanFirstStorage);
+  assertEquals(
+    recordCompletedMissionFindingIds(['rebel-alliance-centaur'], humanFirstStorage),
+    {
+      completedFindingIds: ['rebel-alliance-human', 'rebel-alliance-centaur'],
+      didUnlockMissionFinding: true,
+    },
+  );
   assert(readLoreUnread(humanFirstStorage) === true);
 
   const centaurFirstStorage = new FakeStorage();
@@ -189,7 +222,13 @@ Deno.test('Lore unread unlocks grouped Rebel Alliance requirements in either ord
 Deno.test('Lore unread recognizes ordinary rows emitted with grouped partial progress', () => {
   const storage = new FakeStorage();
 
-  recordCompletedMissionFindingIds(['sol-1', 'rebel-alliance-human'], storage);
+  assertEquals(
+    recordCompletedMissionFindingIds(['sol-1', 'rebel-alliance-human'], storage),
+    {
+      completedFindingIds: ['sol-1', 'rebel-alliance-human'],
+      didUnlockMissionFinding: true,
+    },
+  );
   assert(readLoreUnread(storage) === true);
 
   clearLoreUnread(storage);
@@ -237,7 +276,10 @@ Deno.test('Lore unread is not written when the completed-ID write fails', () => 
 
   assertEquals(
     recordCompletedMissionFindingIds(['mintaka'], completedWriteThrowingStorage),
-    ['mintaka'],
+    {
+      completedFindingIds: ['mintaka'],
+      didUnlockMissionFinding: false,
+    },
   );
   assertEquals(unreadWrites, []);
 });

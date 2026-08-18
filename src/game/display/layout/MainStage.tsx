@@ -48,7 +48,10 @@ interface MainStageProps {
   onReturnToMainMenu: () => void;
 }
 
-type PostgameSurface = 'stats' | 'mission' | null;
+type PostgameSurface =
+  | 'stats'
+  | { kind: 'mission'; loreUnlocked: boolean }
+  | null;
 
 export function MainStage({ 
   gameId,
@@ -79,7 +82,8 @@ export function MainStage({
   const isEndGameResultPanel = actionPanelVm.activePanelId === 'ap.end_of_game.result';
   const canViewGameStats = gameStats != null;
   const isGameStatsOpen = postgameSurface === 'stats';
-  const isPostgameMissionOpen = postgameSurface === 'mission';
+  const isPostgameMissionOpen =
+    typeof postgameSurface === 'object' && postgameSurface?.kind === 'mission';
   const ancientSelectorMode = actionPanelVm.ancientChargeDeclaration?.selectorMode ?? null;
   const ancientDeclarationStage = actionPanelVm.ancientChargeDeclaration?.stage ?? null;
   const isAncientCatalogueSurfaceActive =
@@ -172,21 +176,28 @@ export function MainStage({
 
   useEffect(() => {
     if (!canShowPostgameMissionChallengeAction) {
-      setPostgameSurface((current) => current === 'mission' ? null : current);
+      setPostgameSurface((current) =>
+        typeof current === 'object' && current?.kind === 'mission'
+          ? null
+          : current
+      );
     }
   }, [canShowPostgameMissionChallengeAction]);
 
   useEffect(() => {
-    const requestKey = missionChallenge?.postgameResultAutoOpenRequestKey;
-    if (!requestKey || !canShowPostgameMissionChallengeAction) {
+    const request = missionChallenge?.postgameResultAutoOpenRequest;
+    if (!request || !canShowPostgameMissionChallengeAction) {
       return;
     }
 
-    setPostgameSurface('mission');
-    consumeMissionResultAutoOpenRequestRef.current(requestKey);
+    setPostgameSurface({
+      kind: 'mission',
+      loreUnlocked: request.loreUnlocked,
+    });
+    consumeMissionResultAutoOpenRequestRef.current(request.key);
   }, [
     canShowPostgameMissionChallengeAction,
-    missionChallenge?.postgameResultAutoOpenRequestKey,
+    missionChallenge?.postgameResultAutoOpenRequest,
   ]);
 
   useEffect(() => {
@@ -259,7 +270,11 @@ export function MainStage({
       return;
     }
 
-    setPostgameSurface((current) => current === 'mission' ? null : 'mission');
+    setPostgameSurface((current) =>
+      typeof current === 'object' && current?.kind === 'mission'
+        ? null
+        : { kind: 'mission', loreUnlocked: false }
+    );
   }
 
   function handleReadyActivate() {
@@ -353,6 +368,13 @@ export function MainStage({
             }}
           >
             <MissionChallengeOverlay
+              loreUnlocked={
+                missionOverlayMode === 'result' &&
+                typeof postgameSurface === 'object' &&
+                postgameSurface?.kind === 'mission'
+                  ? postgameSurface.loreUnlocked
+                  : false
+              }
               missionChallenge={missionChallenge}
               mode={missionOverlayMode}
               onClose={missionOverlayMode === 'result'
