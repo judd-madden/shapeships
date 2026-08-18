@@ -534,7 +534,10 @@ export function LeftRail({
               }`}
               onClick={() => handleSisterViewSelect('battleLog')}
             >
-              Battle Log ({vm.battleLogCompletedTurnCount})
+              Battle Log
+              {selectedSisterView !== 'battleLog'
+                ? ` (${vm.battleLogCompletedTurnCount})`
+                : null}
             </button>
           </div>
           {selectedSisterView === 'battleLog' ? (
