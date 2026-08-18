@@ -677,11 +677,11 @@ export function mapGameSessionVm(args: {
   // E7) RESULT META LINE STRINGS
   // ============================================================================
   
-  const metaLeftText = `Game Over. ${turnNumber} turns.`;
+  const metaLeftText = `Game Over. ${turnNumber} ${turnNumber === 1 ? 'turn' : 'turns'}.`;
   const metaRightText = title; // Same title string as in-progress
   const rematchHelperText =
     opponent?.id != null && controllersByPlayerId?.[opponent.id]?.kind === 'bot'
-      ? 'Play again against computer'
+      ? 'Play computer again'
       : 'Link will be posted in chat';
   
   // ============================================================================

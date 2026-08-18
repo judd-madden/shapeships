@@ -183,13 +183,13 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
         >
           <div className="relative flex-1 text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
             <ul className="list-disc space-y-[16px] pl-[18px] marker:text-white">
-              <li>At the start of each turn, roll the dice. All players gain <span className="font-bold">LINES</span> equal to the dice roll. Plus any bonuses.</li>
+              <li>At the start of each turn, the dice is rolled. All players gain <span className="font-bold">LINES</span> equal to the dice roll, plus any bonuses.</li>
               <li><span className="font-bold">LINES</span> make Shapeships, which are defined shapes that have powers.</li>
               <li>Players draw simultaneously, then reveal simultaneously.</li>
               <li>You must draw completed ships. You may save lines over multiple turns.</li>
-              <li>During each phase, players may action their Shapeship <span className="font-bold">POWERS</span> if they have any available.</li>
-              <li>At the end of each turn, player <span className="font-bold">HEALTH</span> will update.</li>
-              <li>If either player's health is 0 or less at the end of the turn the game is over.</li>
+              <li>During each phase, players may use their Shapeship <span className="font-bold">POWERS</span> if they have any available.</li>
+              <li>At the end of each turn, each player's <span className="font-bold">HEALTH</span> will update.</li>
+              <li>If either player's health is 0 or less at the end of the turn, the game is over.</li>
             </ul>
           </div>
         </RuleRow>
@@ -278,7 +278,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
             <span className="font-bold">Basic Ships</span>
             <span className="font-normal"> are the building blocks of your fleet. These can be combined into </span>
             <span className="font-bold">Upgraded Ships</span>
-            <span className="font-normal"> (see right).</span>
+            <span className="font-normal"> (see below).</span>
           </p>
           <p className="font-normal mb-[12.18px]">
             Ships cannot be split up into separate lines once completed.
@@ -289,7 +289,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           </p>
           <p>
             <span className="italic">Once Only: </span>
-            <span className="font-normal">Some Automatic powers occur just once when a ship is completed. Any healing or damage from these powers is resolved at the end of the turn. (Even if the ship is destroyed later that turn).</span>
+            <span className="font-normal">Some Automatic powers occur just once when a ship is completed. Any healing or damage from these powers is resolved at the end of the turn, even if the ship is destroyed later that turn.</span>
           </p>
         </div>
       </RuleRow>
@@ -326,10 +326,10 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
             <span className="font-normal"> Basic Ships into Upgraded Ships. This is done by drawing 'joining lines'.</span>
           </p>
           <p className="font-normal mb-[12.18px]">
-            The upgraded ship's power is active the turn it is complete (and the basic ship's powers are no longer active).
+            The Upgraded Ship's powers are active the turn it is completed, and its component Basic Ships' powers are no longer active.
           </p>
           <p className="font-normal mb-[12.18px]">
-            Upgrades are permanent. Once complete, upgraded ships only have THEIR powers. They cannot be used as separate ships (or reverted to separate ships).
+            Upgrades are permanent. Once complete, only the Upgraded Ship's powers remain; its component Basic Ships cannot be used separately or restored.
           </p>
           <p>
             <span className="italic">Combining Ships with Charges: </span>
@@ -399,7 +399,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
             If a Charge power has already been declared, its effect still occurs if the source ship is destroyed. If a ship with an Automatic power is destroyed, its power does NOT occur (except Once Only powers, which DO occur).
           </p>
           <p className="font-normal">
-            Once a ship is destroyed it is out of the game, and does not count for X powers. You may erase or scribble over it.
+            Once a ship is destroyed, it is out of the game, and does not count for X powers. You may erase or scribble over it.
           </p>
         </div>
       </RuleRow>
@@ -418,24 +418,20 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           <div className="relative shrink-0 w-full">
             <p className="font-bold mb-[7.43px]  text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">Decisive Victory</p>
             <p className=" text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
-              If at the end of a turn, after all powers are resolved, one player's health is 0 or less and the other player's health is 1 or more, that player wins the game!
+              If at the end of a turn, after all powers are resolved, one player has 0 health or less, and the other player has 1 health or more, it's a Decisive Victory.
             </p>
           </div>
           <div className="relative shrink-0 w-full">
             <p className="font-bold mb-[7.43px]  text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">Narrow Victory</p>
             <p className=" text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
-              If at the end of a turn, after all powers are resolved, both players health is 0 or less, the player who is closer to 0 wins. e.g. If Player A has -3 and Player B has -5, Player A wins.
+              If at the end of a turn, after all powers are resolved, both players have 0 health or less, the player closer to 0 wins a Narrow Victory. <span className="italic">Player A at -3 beats Player B at -5.</span>
             </p>
           </div>
           <div className="relative shrink-0 w-full">
             <p className="font-bold mb-[7.43px]  text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">Draw</p>
             <p className=" text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
-              If at the end of a turn, after all powers are resolved, both players health is 0 or less <span className="italic">and the same</span>, the game is drawn.
+              If at the end of a turn, after all powers are resolved, both players have 0 health or less <span className="italic">and health is equal</span>, the game is drawn.
             </p>
-          </div>
-          <div className="relative shrink-0 w-full  text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
-            <p className="font-bold mb-[7.43px]">Draw by mutual prosperity</p>
-            <p className="font-normal">If both players have 35 (maximum) health for three turns in a row, they may agree to a draw and live in peace.</p>
           </div>
         </div>
       </RuleRow>

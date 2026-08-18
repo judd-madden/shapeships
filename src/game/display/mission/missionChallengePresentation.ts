@@ -4,7 +4,7 @@ import type { MissionChallengeResultViewModel } from '../../client/gameSession/t
 export type MissionOverlayMode = 'initial' | 'reopen' | 'result';
 
 export const ANCIENT_FOREIGN_CHALLENGE_NOTE =
-  'Use Simulacrum to copy opponent ships, use their species tab for upgrades';
+  'Use Simulacrum to copy your opponent’s ships. Use their species tab for upgrades.';
 
 export function getChallengePresentationCopy(args: {
   condition: 'with' | 'without';

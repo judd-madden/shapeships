@@ -90,7 +90,7 @@ export function MobileSolarPowerModal({
             closeThen(() => actions.onCastAncientSolarPower(solarPowerId)),
         };
       }
-      return { kind: 'unavailable', label: 'Not enough energy' };
+      return { kind: 'unavailable', label: 'Not enough Energy' };
     }
 
     if (solarPowerId === 'SSIM') {
@@ -103,7 +103,7 @@ export function MobileSolarPowerModal({
         };
       }
       return declarationVm.simulacrumSelector.hasLegalTargetBeforeAffordability
-        ? { kind: 'unavailable', label: 'Not enough energy' }
+        ? { kind: 'unavailable', label: 'Not enough Energy' }
         : { kind: 'unavailable', label: 'No eligible targets' };
     }
 
@@ -115,7 +115,7 @@ export function MobileSolarPowerModal({
           closeThen(() => actions.onOpenAncientSolarSelector('blackHole')),
       };
     }
-    return { kind: 'unavailable', label: 'Not enough energy' };
+    return { kind: 'unavailable', label: 'Not enough Energy' };
   })();
 
   return (

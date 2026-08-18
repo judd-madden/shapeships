@@ -193,7 +193,7 @@ const ANT_CHARGE_BUTTONS: ShipChoiceButtonSpec[] = [
 const SOL_CHARGE_BUTTONS: ShipChoiceButtonSpec[] = [
   {
     size: 'large',
-    label: 'Gain 1 of each energy',
+    label: 'Gain 1 of each Energy',
     detail: '(use charge)',
     choiceId: 'use',
   },
@@ -422,7 +422,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
             detail: '(use 1 charge)',
             requiresTargeting: true,
             showsInstructions: true,
-            instructionText: 'Select one basic ship of yours and one basic ship of your opponent\'s with equal total lines.',
+            instructionText: 'Select one of your Basic Ships and one of your opponent’s Basic Ships with EQUAL total line cost.',
             choiceId: 'damage',
           },
           {
@@ -431,7 +431,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
             choiceId: 'hold',
           },
         ],
-        groupHelpText: 'If a charge-based ship is destroyed, it\'s charge still occurs.\n\nIf a ship with Automatic damage and healing is destroyed, it\'s power does NOT occur (except \'once only\' powers).',
+        groupHelpText: 'If a charge-based ship is destroyed, its charge still occurs.\n\nIf a ship with an Automatic power is destroyed, its power does NOT occur (except Once Only powers).',
       },
     ],
   },
@@ -450,7 +450,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
             detail: '(use 1 charge)',
             requiresTargeting: true,
             showsInstructions: true,
-            instructionText: 'You must select a basic ship of yours. You must select a basic ship of your opponents with an EQUAL number of lines.',
+            instructionText: 'Select one of your Basic Ships and one of your opponent’s Basic Ships with EQUAL total line cost.',
             choiceId: 'damage',
           },
           {
@@ -459,7 +459,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
             choiceId: 'hold',
           },
         ],
-        groupHelpText: 'If a charge-based ship is destroyed, it\'s charge still occurs.\n\nIf a ship with Automatic damage and healing is destroyed, it\'s power does NOT occur (except \'once only\' powers).',
+        groupHelpText: 'If a charge-based ship is destroyed, its charge still occurs.\n\nIf a ship with an Automatic power is destroyed, its power does NOT occur (except Once Only powers).',
       },
     ],
   },
@@ -484,7 +484,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
             detail: '(use 1 charge)',
             requiresTargeting: true,
             showsInstructions: true,
-            instructionText: 'Select one basic ship of yours and one basic enemy ship with equal total lines.',
+            instructionText: 'Select one of your Basic Ships and one of your opponent’s Basic Ships with EQUAL total line cost.',
             choiceId: 'damage',
           },
           { size: 'small', label: 'Hold Charge', choiceId: 'hold' },
@@ -530,7 +530,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
     shipDefId: 'SBLA',
     title: 'Black Hole',
     instruction: 'You must select two basic enemy ships on the battlefield.',
-    helpText: 'Placeholder help text.',
+    helpText: ' ',
   },
 
   'ap.battle.charges.ancient.simulacrum': {
@@ -538,7 +538,7 @@ export const SHIP_CHOICE_PANEL_REGISTRY: Partial<Record<ActionPanelId, ShipChoic
     shipDefId: 'SSIM',
     title: 'Simulacrum',
     instruction: 'You must select a basic enemy ship on the battlefield to copy.',
-    helpText: 'Placeholder help text.',
+    helpText: ' ',
   },
 };
 

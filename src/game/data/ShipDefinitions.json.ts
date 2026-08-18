@@ -279,7 +279,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Healing & Damage: Doubling does NOT apply to 'once only' or charge powers. Dice: Each future turn, generate additional lines equal to the dice roll. (For Frigates, use dice number as read).",
+    "extraRules": "Healing & Damage: Doubling does NOT apply to Once Only or charge powers. Dice: Each future turn, generate additional lines equal to the dice roll. (For Frigates, use dice number as read).",
     "stackCaption": "X healing, X damage, +X lines",
     "colour": "Pink",
     "numberOfGraphics": 1
@@ -498,7 +498,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Oxite - Heal 1. Asterite - Deal 1 damage. These ships still count as Xenite ship type, with a cost of 2.",
+    "extraRules": "Oxite - Heal 1. Asterite - Deal 1 damage. These ships still count as the Xenite ship type, with a cost of 2.",
     "stackCaption": "No caption",
     "colour": "Pastel Purple",
     "numberOfGraphics": 1
@@ -975,7 +975,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Line Generation",
-        "text": "Each future turn, if dice roll is even (2, 4, 6) generate TWO additional lines."
+        "text": "Each future turn, if the dice roll is even (2, 4, 6) generate TWO additional lines."
       }
     ],
     "energyCost": null,
@@ -1029,7 +1029,7 @@ export const SHIP_DEFINITIONS_JSON = [
       }
     ],
     "energyCost": null,
-    "extraRules": "Joining lines can be used immediately or saved. These may only be used as joining lines. If they complete an upgraded ship it is active this turn.",
+    "extraRules": "Joining lines can be used immediately or saved. These may only be used as joining lines. If they complete an upgraded ship, it is active this turn.",
     "stackCaption": "X healing, X damage",
     "colour": "Pastel Yellow",
     "numberOfGraphics": 1
@@ -1194,7 +1194,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Line Generation",
-        "text": "Each future turn, if dice roll is even (2, 4, 6) generate FOUR additional lines."
+        "text": "Each future turn, if the dice roll is even (2, 4, 6) generate FOUR additional lines."
       },
       {
         "subphase": "Automatic",
@@ -1286,7 +1286,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Energy",
-        "text": "Gain 1 green energy each turn."
+        "text": "Gain 1 green Energy each turn."
       }
     ],
     "energyCost": null,
@@ -1307,7 +1307,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Energy",
-        "text": "Gain 1 red energy each turn."
+        "text": "Gain 1 red Energy each turn."
       }
     ],
     "energyCost": null,
@@ -1333,7 +1333,7 @@ export const SHIP_DEFINITIONS_JSON = [
       },
       {
         "subphase": "Automatic",
-        "text": "When the dice roll matches that number, gain 2 blue energy and heal 5 (this includes the turn when the Quantum Mystic is built)."
+        "text": "When the dice roll matches that number, gain 2 blue Energy and heal 5 (this includes the turn when the Quantum Mystic is built)."
       }
     ],
     "energyCost": null,
@@ -1386,7 +1386,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Energy",
-        "text": "Gain 1 blue energy each turn."
+        "text": "Gain 1 blue Energy each turn."
       }
     ],
     "energyCost": null,
@@ -1407,7 +1407,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Energy",
-        "text": "Has 4 charges. Each turn, gain 1 energy of each colour and use 1 charge."
+        "text": "Has 4 charges. Each turn, gain 1 Energy of each colour and use 1 charge."
       },
       {
         "subphase": "Automatic",
@@ -1587,7 +1587,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charges",
-        "text": "Make a copy of a basic enemy ship.\\nX = Number of lines in ship.",
+        "text": "Make a copy of a basic enemy ship.\\nX = Ship's line cost.",
         "tags": ["makes_ships", "targets_ships"],
         "activationTiming": "turn_start_materialisation"
       }
@@ -1598,7 +1598,7 @@ export const SHIP_DEFINITIONS_JSON = [
       "blue": 0,
       "xBlue": true
     },
-    "extraRules": "Ship is created at the start of the NEXT turn. Each ship may only be targeted once per turn. Ships with charges are copied as they are at Reveal phase. Copied ships CAN be upgraded via the opponent's species tab.",
+    "extraRules": "Ship is created at the start of the NEXT turn. Each ship may only be targeted once per turn. Ships with charges are copied as they were at Reveal phase. Copied ships CAN be upgraded via the opponent's species tab.",
     "stackCaption": "N/A",
     "colour": "N/A",
     "numberOfGraphics": 4
@@ -1615,7 +1615,7 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Charges",
-        "text": "Spend an EQUAL amount of green and red energy on this power. Heal and deal damage based on the amount of energy spent."
+        "text": "Spend EQUAL amounts of green and red Energy on this power. Heal and deal damage based on the amount of Energy spent."
       }
     ],
     "energyCost": {

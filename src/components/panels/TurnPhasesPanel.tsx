@@ -67,7 +67,7 @@ const PHASES: PhaseDefinition[] = [
       Ancient: ['Cube'],
     },
     body: [
-      <>Roll a six-sided die for all players. Some powers may change the result.</>,
+      <>A six-sided dice is rolled for all players. Some powers may change the result.</>,
     ],
   },
   {
@@ -80,7 +80,7 @@ const PHASES: PhaseDefinition[] = [
       Ancient: ['Convert'],
     },
     body: [
-      <>Calculate available lines by adding the dice roll, any saved lines, and any bonus lines from ship powers.</>,
+      <>Available lines are calculated by adding the dice roll, any saved lines, and any bonus lines from ship powers.</>,
     ],
   },
   {
@@ -93,7 +93,7 @@ const PHASES: PhaseDefinition[] = [
     },
     body: [
       <>Players draw ships and/or save lines.</>,
-      <>Drawing powers tagged with <span className="font-bold">MAKES SHIPS</span> occur at the start of this phase - but not on the turn they are built.</>,
+      <>Some <span className="font-medium">MAKES SHIPS</span> powers occur at the start of Drawing, but not on the turn they are built.</>,
     ],
   },
   {
@@ -116,9 +116,9 @@ const PHASES: PhaseDefinition[] = [
       Ancient: ['Spiral'],
     },
     body: [
-      <>Ship powers with First Strike occur.</>,
+      <>First Strike ship powers occur.</>,
       <>Any ships destroyed during this phase will not activate their Charges or Automatic powers, except Once Only powers.</>,
-      <>Any ships that are stolen during this phase will be active for their owner this turn.</>,
+      <>Any ships that are stolen during this phase will be active for their new owner this turn.</>,
     ],
   },
   {
@@ -130,9 +130,9 @@ const PHASES: PhaseDefinition[] = [
       Ancient: ['All Solar Powers'],
     },
     body: [
-      <>Players may declare charge powers (max one per ship per turn) or hold the Charges.</>,
+      <>Players may declare charge powers (max one per ship per turn) or hold their Charges.</>,
       <>Holding a Charge means that it cannot be used this turn.</>,
-      <>Players may declare multiple Charges. Ancients may use Solar Powers if they have energy available.</>,
+      <>Players may declare multiple Charges. Ancients may use Solar Powers if they have Energy available.</>,
     ],
   },
   {
@@ -141,11 +141,11 @@ const PHASES: PhaseDefinition[] = [
     ships: { Human: [], Xenite: [], Centaur: [], Ancient: [] },
     body: [
       <>Resolve all damage and healing effects simultaneously, then update health once.</>,
-      <>This includes damage and healing from all <span className="font-bold">Automatic ship powers</span> (including ‘once-only’), and all damage and healing from First Strike, Charges and Solar Powers.</>,
+      <>This includes damage and healing from all <span className="font-bold">Automatic ship powers</span> (including Once Only), and all damage and healing from First Strike, Charges and Solar Powers.</>,
     ],
     rightBody: [
-      <>Players cannot be above maximum health (normally 35) after resolution.</>,
-      <>If any player is 0 or below go to <span className="font-bold">Victory</span> (Core Rules).</>,
+      <>Players cannot exceed maximum health (normally 35) after resolution.</>,
+      <>If any player is at 0 health or below, see <span className="font-bold">Victory</span> (Core Rules).</>,
     ],
   },
 ];

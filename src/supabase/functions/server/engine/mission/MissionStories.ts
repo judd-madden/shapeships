@@ -24,7 +24,7 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     location: "Sol system",
     author: "juddly",
     paragraphs: [
-      "We must eliminate the Rebel Humans in our home system. Neptune is overrun by these traitors to our species, our history. They want an alliance with the Centaur against the Xenite. Do they not remember the past? Humans can only rely on HUMANS. Right, [player]?",
+      "We must eliminate the Rebel Humans in our home system. Neptune is overrun by these traitors to our species, our history. They want an alliance with the Centaurs against the Xenites. Do they not remember the past? Humans can only rely on HUMANS. Right, [player]?",
     ],
   },
   {
@@ -48,7 +48,7 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     location: "Mintaka system",
     author: "juddly",
     paragraphs: [
-      "We have detected a Xenite cluster moving against Mintaka. This is a crucial Human system, with mining and civilian colonies. The vast Xenite mind is ruthless and must be stopped. Millions of innocent lives are in your hands [player].",
+      "We have detected a Xenite cluster moving against Mintaka. This is a crucial Human system, with mining and civilian colonies. The vast Xenite mind is ruthless and must be stopped. Millions of innocent lives are in your hands, [player].",
     ],
   },
   {
@@ -56,11 +56,11 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     playerSpecies: "human",
     opponentSpecies: "centaur",
     findingIds: ["delta-aquarii"],
-    title: "Take Delta Aquarii from the Centaur",
+    title: "Take Delta Aquarii from the Centaurs",
     location: "Delta Aquarii system",
     author: "juddly",
     paragraphs: [
-      "Few Centaurs remain in this outer system, it is ours for the taking. We need more resources for our growing colonies. These Centaurs COULD just move to another system, but they're quite stubborn when it comes to territory - got it, [player]?",
+      "Few Centaurs remain in this outer system. It is ours for the taking. We need more resources for our growing colonies. These Centaurs COULD just move to another system, but they're quite stubborn when it comes to territory - got it, [player]?",
     ],
   },
   {
@@ -84,7 +84,7 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     location: "Betelgeuse system",
     author: "juddly",
     paragraphs: [
-      "Xenites have mutated within the central Betelgeuse system. I must remove them and restore Hive alignment. - XAMEHBZ",
+      "Xenites have mutated within the central Betelgeuse system. I must remove them and restore Hive alignment.\n- XAMEHBZ",
     ],
   },
   {
@@ -96,7 +96,7 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     location: "Gamma Leporis system",
     author: "juddly",
     paragraphs: [
-      "Centaurs are overstepping their lines with increasing frequency. They must pay for this disobedience. Perhaps it's time I eliminated them from this system for good.  -XAMEHBZ",
+      "Centaurs are overstepping their lines with increasing frequency. They must pay for this disobedience. Perhaps it's time I eliminated them from this system for good.\n- XAMEHBZ",
     ],
   },
   {
@@ -132,7 +132,7 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     location: "Proxima Centauri system",
     author: "juddly",
     paragraphs: [
-      "It’s time to crush the Centaur Rebel stronghold in Proxima Centauri. These defectors want to join weights with the Humans against the Xenite! This is an unacceptable admission of weakness. We are superior. We do not need the Humans.",
+      "It’s time to crush the Centaur Rebel stronghold in Proxima Centauri. These defectors want to join weight with the Humans against the Xenites! This is an unacceptable admission of weakness. We are superior. We do not need the Humans.",
     ],
   },
   {

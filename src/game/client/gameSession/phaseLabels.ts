@@ -21,7 +21,7 @@ const SUBPHASE_LABEL_OVERRIDES: Record<string, string> = {
   'battle.reveal': 'Reveal',
   'battle.first_strike': 'First Strike',
   'battle.charge_declaration': 'Charges',
-  'battle.end_of_turn_resolution': 'End of Turn',
+  'battle.end_of_turn_resolution': 'Turn Resolution',
 };
 
 export type RuntimePhaseRow = {
@@ -124,9 +124,9 @@ export function derivePhasePresentation(args: {
 
   if (args.phaseKey === 'battle.end_of_turn_resolution') {
     return {
-      title: 'End of Turn',
+      title: 'Turn Resolution',
       titleSuffix: null,
-      subheading: 'Healing and damage is resolved',
+      subheading: 'Healing and damage are resolved',
     };
   }
 

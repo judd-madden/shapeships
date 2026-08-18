@@ -38,7 +38,7 @@ const SIMULACRUM_SELECTOR_LAYOUT: Record<
 
 const FALLBACK_SIMULACRUM_RULES = [
   'Each ship may only be targeted ONCE per turn.',
-  'Ships with charges are copied as they are at Reveal phase.',
+  'Ships with charges are copied as they were at Reveal phase.',
   "Copied ships CAN be upgraded via the opponent's species tab.",
 ] as const;
 
@@ -89,8 +89,7 @@ export function AncientSimulacrumSelector({
           </span>
         </div>
         <p className="text-[18px] font-normal leading-[1.2]">
-          Select a basic enemy ship on the battlefield to copy, up to the value of blue energy
-          available.
+          Select a basic enemy ship on the battlefield to copy, up to the value of blue Energy available.
         </p>
       </div>
 

@@ -583,7 +583,7 @@ export function AncientShipCataloguePanel({
       ? null
       : selectorMode === 'siphon'
         ? {
-            text: 'Choose the amount of energy you want to spend on Siphon:',
+            text: 'Choose the amount of Energy you want to spend on Siphon:',
             muted: false,
           }
         : isDeclarationPresentation &&
@@ -594,11 +594,11 @@ export function AncientShipCataloguePanel({
             Math.min(declarationEnergy.green, declarationEnergy.red) <
               ANCIENT_SIPHON_MINIMUM_SPEND
           ? {
-              text: 'Siphon scales with energy used. Not enough energy to cast.',
+              text: 'Siphon scales with Energy used. Not enough Energy to cast.',
               muted: true,
             }
           : {
-              text: 'Siphon scales with energy used.',
+              text: 'Siphon scales with Energy used.',
               muted: false,
             };
   const canOpenSiphonSelector =

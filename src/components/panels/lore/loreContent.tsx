@@ -57,7 +57,7 @@ export const generalLoreRows: readonly GeneralLoreRow[] = [
   {
     status: 'fact',
     author: 'juddly',
-    content: <p>Faster than light travel is possible but difficult.</p>,
+    content: <p>Faster-than-light travel is possible but difficult.</p>,
   },
   {
     status: 'fact',
@@ -95,7 +95,7 @@ export const generalLoreRows: readonly GeneralLoreRow[] = [
   {
     status: 'debated',
     author: 'juddly',
-    content: <p>Each species would be classified as a Type II civilization (stellar) on the Kardashev scale. Xenite could be close to Type III (galactic).</p>,
+    content: <p>Each species would be classified as a Type II civilization (stellar) on the Kardashev scale. Xenites could be close to Type III (galactic).</p>,
   },
   {
     status: 'debated',
@@ -128,7 +128,7 @@ export const missionFindings: readonly MissionFinding[] = [
     requiredFindingIds: MULTI_MISSION_FINDING_REQUIREMENTS['rebel-alliance'],
     topic: 'Rebel Alliance',
     author: 'juddly',
-    content: <p>There is a coalition of Rebel Humans and Rebel Centaur who want to join forces against the Xenites.</p>,
+    content: <p>There is a coalition of Rebel Humans and Rebel Centaurs who want to join forces against the Xenites.</p>,
   },
   {
     id: 'mintaka',
@@ -136,7 +136,7 @@ export const missionFindings: readonly MissionFinding[] = [
     author: 'juddly',
     content: (
       <p>
-        There are Human Colonies in the <em>Mintaka</em> system, Xenites are attempting to ‘reclaim’ them.
+        There are Human colonies in the <em>Mintaka</em> system. Xenites are attempting to ‘reclaim’ them.
       </p>
     ),
   },
@@ -144,7 +144,7 @@ export const missionFindings: readonly MissionFinding[] = [
     id: 'betelgeuse',
     topic: 'Betelgeuse',
     author: 'juddly',
-    content: <p>Xenite colonies can mutate, there is a current mutation near the red supergiant <em>Betelgeuse</em>.</p>,
+    content: <p>Xenite colonies can mutate. There is a current mutation near the red supergiant <em>Betelgeuse</em>.</p>,
   },
   {
     id: 'gamma-leporis',
@@ -215,7 +215,7 @@ export const speciesLore: Record<SpeciesLoreId, SpeciesLore> = {
         <p>Centaurs care not about things. Things come and go. It is only your principles that matter.</p>
         <p>They embrace <span style={{ color: 'var(--shapeships-pastel-green)' }}>Fear</span> and <span style={{ color: 'var(--shapeships-pastel-red)' }}>Anger</span> - even <span style={{ color: 'var(--shapeships-green)' }}>Terror</span> and <span style={{ color: 'var(--shapeships-orange)' }}>Fury</span>. They conquer with <span style={{ color: 'var(--shapeships-pastel-blue)' }}>Vigor</span>, <span style={{ color: 'var(--shapeships-pastel-purple)' }}>Wisdom</span>, <span style={{ color: 'var(--shapeships-pastel-orange)' }}>Equality</span>. With <span style={{ color: 'var(--shapeships-pastel-pink)' }}>Family</span>.</p>
         <p>Admire their Arks, principles captured in perfect form. With <span style={{ color: 'var(--shapeships-pink)' }}>Knowledge</span> they can change reality. With <span style={{ color: 'var(--shapeships-cyan)' }}>Power</span> they can proliferate. Their behemoths: the Arks of <span style={{ color: 'var(--shapeships-red)' }}>Destruction</span> and <span style={{ color: 'var(--shapeships-purple)' }}>Domination</span> - both harnessing the entire weight of the Centaur fleet.</p>
-        <p><strong>Their individuals have the power. They are the most superior lifeform in the galaxy.</strong></p>
+        <p><strong>Their individuals have the power. They are the greatest lifeform in the galaxy.</strong></p>
       </>
     ),
   },
@@ -231,7 +231,7 @@ export const speciesLore: Record<SpeciesLoreId, SpeciesLore> = {
         <p>Awakened by galactic war. The Ancients have been dormant for millennia.</p>
         <p>Yes, they're from Sol (that's Humanity's home solar system).</p>
         <p>They made life on Earth. They made life in many places. Alpha Centauri, for example. Maybe Xenon a long, long time ago.</p>
-        <p>By most Human definitions, the Ancients are gods. Harvesting solar energy unlike any of the other species. <span style={{ color: 'var(--shapeships-pastel-purple)' }}>Quantum Mystics</span>. <span style={{ color: 'var(--shapeships-pastel-green)' }}>Cores</span> <span style={{ color: 'var(--shapeships-pastel-red)' }}>of</span> <span style={{ color: 'var(--shapeships-pastel-blue)' }}>energy</span>. <span style={{ color: 'var(--shapeships-pastel-orange)' }}>Cubes</span> that manipulate time.</p>
+        <p>By most Human definitions, the Ancients are gods. Harvesting solar energy unlike any of the other species. <span style={{ color: 'var(--shapeships-pastel-purple)' }}>Quantum Mystics</span>. <span style={{ color: 'var(--shapeships-pastel-green)' }}>Cores</span> <span style={{ color: 'var(--shapeships-pastel-red)' }}>of</span> <span style={{ color: 'var(--shapeships-pastel-blue)' }}>Energy</span>. <span style={{ color: 'var(--shapeships-pastel-orange)' }}>Cubes</span> that manipulate time.</p>
         <p><span style={{ color: 'var(--shapeships-red)' }}>Asteroids</span> and <span style={{ color: 'var(--shapeships-red)' }}>Supernova</span>. <span style={{ color: 'var(--shapeships-green)' }}>Life</span> and <span style={{ color: 'var(--shapeships-green)' }}>Star Birth</span>. Powers to destroy and to survive.</p>
         <p><span style={{ color: 'var(--shapeships-cyan)' }}>Simulacrum</span>: They created you and they can become you. Survive long enough and you'll see the <span style={{ color: 'var(--shapeships-green)' }}>Sip</span><span style={{ color: 'var(--shapeships-red)' }}>hon</span>, the <span style={{ color: 'var(--shapeships-green)' }}>Vo</span><span style={{ color: 'var(--shapeships-red)' }}>rt</span><span style={{ color: 'var(--shapeships-cyan)' }}>ex</span>. The <span style={{ color: 'var(--shapeships-green)' }}>Bla</span><span style={{ color: 'var(--shapeships-red)' }}>ck H</span><span style={{ color: 'var(--shapeships-cyan)' }}>ole</span>. They want to return to peaceful slumber. Enough war.</p>
         <p><strong>Time has no meaning. Also it's everything.</strong></p>
@@ -282,8 +282,8 @@ export const aiAnalysisRows: readonly AiAnalysisRow[] = [
     answers: {
       human: 'Xenites are an infestation. Centaurs are unbearably arrogant. Ancients are either the greatest discovery in Human history or an existential catastrophe. Naturally we intend to investigate them.',
       xenite: 'Humans are cancer. Centaurs are parasites that somehow mistake individuality for superiority. The Ancients are... familiar. Something very old remains in the memory of the Hive.',
-      centaur: 'Humans are brilliant, frantic children obsessed with possessions. Xenite is the horrifying absence of the individual. Ancients are extraordinarily powerful, certainly—but power alone does not make one superior.',
-      ancient: 'Humanity is young. Centaurs are young. Xenite may be young. They have all become very noisy. Whether the Ancients regard them as children, experiments, mistakes—or simply life—is unclear.',
+      centaur: 'Humans are brilliant, frantic children obsessed with possessions. Xenites are the horrifying absence of the individual. Ancients are extraordinarily powerful, certainly—but power alone does not make one superior.',
+      ancient: 'Humanity is young. Centaurs are young. Xenites may be young. They have all become very noisy. Whether the Ancients regard them as children, experiments, mistakes—or simply life—is unclear.',
     },
   },
   {
@@ -292,7 +292,7 @@ export const aiAnalysisRows: readonly AiAnalysisRow[] = [
       human: "Most people think the dice are chance. Scientists are increasingly uncomfortable with that answer. Time can be measured. Predicted. Manipulated, perhaps. That's enough reason to keep trying.",
       xenite: 'There is no chance. There are only things XAMEHBZ has sensed and things it has not sensed yet. Time passes through the Hive like a signal. The Chronoswarm hears more of it than the rest.',
       centaur: 'Chance is another word for ignorance. Knowledge changes what appears inevitable. A sufficiently wise Centaur does not predict the future. They understand which future was always going to happen.',
-      ancient: "Time has no meaning. Also it's everything.",
+      ancient: "Ancients may see chance as part of time itself: not a fixed future, but possibilities becoming real. Their Cubes suggest they cannot revisit the past, but can influence which moments take hold.",
     },
   },
 ];

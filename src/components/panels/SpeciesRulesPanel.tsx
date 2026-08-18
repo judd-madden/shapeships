@@ -61,7 +61,7 @@ function getEnergyCostRows(ship: ShipDefinitionUI): EnergyCostRow[] {
   // Red energy
   if (cost.red > 0) {
     rows.push({
-      label: `${cost.red} red energy`,
+      label: `${cost.red} red Energy`,
       textClass: 'text-shapeships-red',
     });
   }
@@ -69,7 +69,7 @@ function getEnergyCostRows(ship: ShipDefinitionUI): EnergyCostRow[] {
   // Green energy
   if (cost.green > 0) {
     rows.push({
-      label: `${cost.green} green energy`,
+      label: `${cost.green} green Energy`,
       textClass: 'text-shapeships-green',
     });
   }
@@ -77,12 +77,12 @@ function getEnergyCostRows(ship: ShipDefinitionUI): EnergyCostRow[] {
   // Blue energy (either X blue or numeric blue)
   if (cost.xBlue) {
     rows.push({
-      label: 'X blue energy',
+      label: 'X blue Energy',
       textClass: 'text-shapeships-cyan',
     });
   } else if (cost.blue > 0) {
     rows.push({
-      label: `${cost.blue} blue energy`,
+      label: `${cost.blue} blue Energy`,
       textClass: 'text-shapeships-cyan',
     });
   }
@@ -415,7 +415,7 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
 
       {species === 'Ancient' && (
         <p className="font-normal leading-[20px] relative w-full text-[13.5px] text-white sm:text-[18px] sm:leading-[26px]">
-          <span className="font-bold">Energy</span> is a resource unique to the Ancient species. Each of the three Cores generate a different colour energy, this is used to cast Solar Powers. The Ancients use Solar Powers instead of Upgraded Ships. You may cast multiple Solar Powers in a turn, if you have the energy to do so. Note: Energy cannot be saved over multiple turns.
+          <span className="font-bold">Energy</span> is a resource unique to the Ancient species. Each of the three Cores generates a different colour of Energy, which is used to cast Solar Powers. You may cast multiple Solar Powers in a turn if you have enough Energy. Energy cannot be saved between turns.
         </p>
       )}
 
@@ -444,7 +444,7 @@ export function SpeciesRulesPanel({ species, onNavigate }: SpeciesRulesPanelProp
             <div className="absolute border-[var(--shapeships-grey-70)] border-t-[5px] border-l-[3px] border-r-[3px] border-b-[3px] border-solid inset-[-3px] pointer-events-none rounded-[10px]" />
             <SectionHeader
               title="Solar Powers"
-              note="Each requires the energy shown to be cast."
+              note="Each requires the Energy shown to be cast."
             />
             {solarPowers.map((ship, index) => (
               <ShipRow key={ship.id} ship={ship} isAlternate={index % 2 === 1} />

@@ -40,10 +40,9 @@ export function AncientBlackHoleSelector({
       <div
         className="flex w-[270px] shrink-0 flex-col gap-[16px] text-[18px] font-normal leading-[1.3] text-[var(--shapeships-grey-50)]"
       >
-        <p>If a charge-based ship is destroyed, it’s charge still occurs.</p>
+        <p>If a charge-based ship is destroyed, its charge still occurs.</p>
         <p>
-          If a ship with Automatic damage and healing is destroyed, it’s power does NOT occur
-          (except ‘once only’ powers).
+          If a ship with an Automatic power is destroyed, its power does NOT occur (except Once Only powers).
         </p>
       </div>
     </div>
