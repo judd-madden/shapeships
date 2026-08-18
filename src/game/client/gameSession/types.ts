@@ -890,7 +890,7 @@ export interface GameSessionActions {
   onOpenMenu: () => void;
   onSetMinimizeMissionsThisSession: (enabled: boolean) => void;
   onAcknowledgeMissionIntro: () => void;
-  onMarkCurrentMissionFindingsSeen: () => void;
+  onConsumeMissionResultAutoOpenRequest: (requestKey: string) => void;
   onActionPanelTabClick: (tabId: ActionPanelTabId) => void;
   onShipClick: (shipId: string) => void;
   onSendChat: (text: string) => void;
@@ -952,4 +952,5 @@ export interface MissionChallengeViewModel {
   isFinished: boolean;
   result: MissionChallengeResultViewModel | null;
   minimizeMissionsThisSession: boolean;
+  postgameResultAutoOpenRequestKey: string | null;
 }

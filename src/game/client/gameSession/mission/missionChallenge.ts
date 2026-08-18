@@ -31,6 +31,26 @@ export interface MissionAutoAckState {
   inFlight: boolean;
 }
 
+export interface MissionResultAutoPresentationState {
+  gameId: string | null;
+  missionId: string | null;
+  matchedPresentationKey: string | null;
+  presentationCleared: boolean;
+  requestKey: string | null;
+}
+
+export interface MissionResultAutoPresentationSnapshot {
+  gameId: string | null;
+  missionId: string | null;
+  liveTerminalTriggerPresentationKey: string | null;
+  activeHealthPresentationKey: string | null;
+  healthResolutionPresentationActive: boolean;
+  isFinished: boolean;
+  isPlayerViewer: boolean;
+  minimizeMissionsThisSession: boolean;
+  hasResult: boolean;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -126,6 +146,7 @@ export function buildMissionChallengeViewModel(args: {
   isIntroAcknowledgementPending: boolean;
   minimizeMissionsThisSession: boolean;
   shouldPresentInitialIntro: boolean;
+  postgameResultAutoOpenRequestKey: string | null;
 }): MissionChallengeViewModel | null {
   if (!args.normalized) return null;
   return {
@@ -141,7 +162,116 @@ export function buildMissionChallengeViewModel(args: {
     isFinished: args.isFinished,
     result: args.normalized.result ? { ...args.normalized.result } : null,
     minimizeMissionsThisSession: args.minimizeMissionsThisSession,
+    postgameResultAutoOpenRequestKey:
+      args.postgameResultAutoOpenRequestKey,
   };
+}
+
+export function getCompletedMissionFindingIds(
+  missionChallenge: NormalizedMissionChallenge | null,
+): string[] {
+  return missionChallenge?.result?.missionSucceeded === true
+    ? [...missionChallenge.mission.findingIds]
+    : [];
+}
+
+export function createMissionResultAutoPresentationState(
+  gameId: string | null,
+  missionId: string | null,
+): MissionResultAutoPresentationState {
+  return {
+    gameId,
+    missionId,
+    matchedPresentationKey: null,
+    presentationCleared: false,
+    requestKey: null,
+  };
+}
+
+export function advanceMissionResultAutoPresentation(
+  state: MissionResultAutoPresentationState,
+  snapshot: MissionResultAutoPresentationSnapshot,
+): MissionResultAutoPresentationState {
+  let next = state;
+
+  if (
+    state.gameId !== snapshot.gameId ||
+    state.missionId !== snapshot.missionId
+  ) {
+    next = createMissionResultAutoPresentationState(
+      snapshot.gameId,
+      snapshot.missionId,
+    );
+  }
+
+  if (
+    snapshot.gameId === null ||
+    snapshot.missionId === null ||
+    !snapshot.isPlayerViewer ||
+    snapshot.minimizeMissionsThisSession
+  ) {
+    if (
+      next.matchedPresentationKey === null &&
+      !next.presentationCleared &&
+      next.requestKey === null
+    ) {
+      return next;
+    }
+    return createMissionResultAutoPresentationState(
+      snapshot.gameId,
+      snapshot.missionId,
+    );
+  }
+
+  if (next.requestKey !== null) {
+    return next;
+  }
+
+  if (
+    next.matchedPresentationKey === null &&
+    snapshot.liveTerminalTriggerPresentationKey !== null &&
+    snapshot.activeHealthPresentationKey ===
+      snapshot.liveTerminalTriggerPresentationKey
+  ) {
+    next = {
+      ...next,
+      matchedPresentationKey: snapshot.liveTerminalTriggerPresentationKey,
+      presentationCleared: false,
+    };
+  }
+
+  if (
+    next.matchedPresentationKey !== null &&
+    !next.presentationCleared &&
+    !snapshot.healthResolutionPresentationActive
+  ) {
+    next = { ...next, presentationCleared: true };
+  }
+
+  if (
+    next.matchedPresentationKey === null ||
+    !next.presentationCleared ||
+    !snapshot.isFinished ||
+    !snapshot.hasResult
+  ) {
+    return next;
+  }
+
+  return {
+    ...next,
+    matchedPresentationKey: null,
+    presentationCleared: false,
+    requestKey: `${next.matchedPresentationKey}\u0000${snapshot.missionId}\u0000result`,
+  };
+}
+
+export function consumeMissionResultAutoPresentationRequest(
+  state: MissionResultAutoPresentationState,
+  requestKey: string,
+): MissionResultAutoPresentationState {
+  return state.requestKey === requestKey
+    ? { ...state, requestKey: null }
+    : state;
 }
 
 export function createMissionAutoAckState(

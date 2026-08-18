@@ -61,7 +61,7 @@ Each Play Computer game assigns the human player one matchup-specific narrative 
 
 The Mission is presented after species selection. While its intro is pending, the server gates the human player's ordinary gameplay and pauses timed-game clocks; the client acknowledges it through the existing session networking seam. Players can minimize Mission intros for later computer games in the same browser session.
 
-When the game finishes, the server evaluates Challenge success from the authoritative winner and the human player's final active fleet. Viewing certain Missions also unlocks related Mission Findings in Lore, with some grouped Findings requiring multiple relevant Missions to be viewed.
+When the game finishes, the server evaluates Mission success from the authoritative winner and Challenge success from the human player's final active fleet. After a live terminal Health Resolution presentation clears, the client automatically shows the existing Mission result unless Missions are minimized for the session; reopening or hydrating an already-finished game does not trigger that automatic presentation. Completing certain Missions unlocks related Mission Findings in Lore for the current browser session, with some grouped Findings requiring multiple relevant Missions to be completed.
 
 Separately, multiplayer games show a brief post-species matchup introduction before gameplay begins, with clocks paused authoritatively during the introduction.
 

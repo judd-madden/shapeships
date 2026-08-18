@@ -22,19 +22,19 @@ const groupedFindingIds = new Set<string>([
 
 export function isMissionFindingUnlocked(
   finding: MissionFindingUnlockDefinition,
-  seenFindingIds: ReadonlySet<string>,
+  completedFindingIds: ReadonlySet<string>,
 ): boolean {
   const requiredFindingIds = finding.requiredFindingIds ?? [finding.id];
-  return requiredFindingIds.every((findingId) => seenFindingIds.has(findingId));
+  return requiredFindingIds.every((findingId) => completedFindingIds.has(findingId));
 }
 
 export function didUnlockAnyMissionFinding(
-  previousSeenFindingIds: ReadonlySet<string>,
-  seenFindingIds: ReadonlySet<string>,
+  previousCompletedFindingIds: ReadonlySet<string>,
+  completedFindingIds: ReadonlySet<string>,
 ): boolean {
-  const unlockedSingleIdFinding = Array.from(seenFindingIds).some(
+  const unlockedSingleIdFinding = Array.from(completedFindingIds).some(
     (findingId) =>
-      !previousSeenFindingIds.has(findingId) && !groupedFindingIds.has(findingId),
+      !previousCompletedFindingIds.has(findingId) && !groupedFindingIds.has(findingId),
   );
   if (unlockedSingleIdFinding) return true;
 
@@ -42,8 +42,8 @@ export function didUnlockAnyMissionFinding(
     ([id, requiredFindingIds]) => {
       const finding = { id, requiredFindingIds };
       return (
-        !isMissionFindingUnlocked(finding, previousSeenFindingIds) &&
-        isMissionFindingUnlocked(finding, seenFindingIds)
+        !isMissionFindingUnlocked(finding, previousCompletedFindingIds) &&
+        isMissionFindingUnlocked(finding, completedFindingIds)
       );
     },
   );

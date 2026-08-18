@@ -67,23 +67,6 @@ export function interpolateMissionPlayer(
   return paragraph.split('[player]').join(playerName);
 }
 
-export function getMissionPresentationIdentity(args: {
-  gameId: string;
-  missionId: string;
-  mode: MissionOverlayMode | null;
-}): string | null {
-  return args.mode === null
-    ? null
-    : `${args.gameId}\u0000${args.missionId}\u0000${args.mode}`;
-}
-
-export function isNewVisibleMissionPresentation(
-  previousIdentity: string | null,
-  currentIdentity: string | null,
-): boolean {
-  return currentIdentity !== null && currentIdentity !== previousIdentity;
-}
-
 export function shouldLockMissionInteraction(args: {
   introPending: boolean;
   overlayVisible: boolean;

@@ -3,12 +3,17 @@ declare const Deno: {
 };
 
 import {
+  advanceMissionResultAutoPresentation,
   buildMissionChallengeViewModel,
   claimMissionAcknowledgement,
   createMissionAutoAckState,
+  createMissionResultAutoPresentationState,
+  consumeMissionResultAutoPresentationRequest,
+  getCompletedMissionFindingIds,
   normalizeRequesterMissionChallenge,
   shouldAutomaticallyAcknowledgeMission,
   shouldPresentInitialMissionIntro,
+  type MissionResultAutoPresentationSnapshot,
 } from '../../../gameSession/mission/missionChallenge';
 
 function assert(condition: unknown, message = 'assertion failed'): asserts condition {
@@ -172,6 +177,7 @@ Deno.test('builds one central VM without deriving result truth', () => {
     isIntroAcknowledgementPending: true,
     minimizeMissionsThisSession: true,
     shouldPresentInitialIntro: false,
+    postgameResultAutoOpenRequestKey: null,
   });
   assert(vm);
   assert(vm.isFinished === true);
@@ -179,6 +185,196 @@ Deno.test('builds one central VM without deriving result truth', () => {
   assert(vm.minimizeMissionsThisSession === true);
   assert(vm.shouldPresentInitialIntro === false);
   assertEquals(vm.result, normalized?.result);
+});
+
+Deno.test('Mission Finding completion consumes only authoritative Mission success', () => {
+  const visibleIntro = normalizeRequesterMissionChallenge(requesterState());
+  const reopenedMission = normalizeRequesterMissionChallenge(
+    requesterState({ introPending: false }),
+  );
+  const successfulMissionWithFailedChallenge = normalizeRequesterMissionChallenge(
+    requesterState({
+      introPending: false,
+      result: {
+        missionSucceeded: true,
+        fleetConditionMet: false,
+        challengeSucceeded: false,
+      },
+    }),
+  );
+  const failedMissionWithSuccessfulChallenge = normalizeRequesterMissionChallenge(
+    requesterState({
+      introPending: false,
+      result: {
+        missionSucceeded: false,
+        fleetConditionMet: true,
+        challengeSucceeded: true,
+      },
+    }),
+  );
+
+  assertEquals(getCompletedMissionFindingIds(visibleIntro), []);
+  assertEquals(getCompletedMissionFindingIds(reopenedMission), []);
+  assertEquals(
+    getCompletedMissionFindingIds(successfulMissionWithFailedChallenge),
+    ['mintaka', 'rebel-alliance'],
+  );
+  assertEquals(
+    getCompletedMissionFindingIds(failedMissionWithSuccessfulChallenge),
+    [],
+  );
+});
+
+function missionResultSnapshot(
+  overrides: Partial<MissionResultAutoPresentationSnapshot> = {},
+): MissionResultAutoPresentationSnapshot {
+  return {
+    gameId: 'game-a',
+    missionId: 'mission-h-x',
+    liveTerminalTriggerPresentationKey: null,
+    activeHealthPresentationKey: null,
+    healthResolutionPresentationActive: false,
+    isFinished: true,
+    isPlayerViewer: true,
+    minimizeMissionsThisSession: false,
+    hasResult: false,
+    ...overrides,
+  };
+}
+
+Deno.test('postgame Mission result requires a matching live terminal presentation', () => {
+  const initial = createMissionResultAutoPresentationState(
+    'game-a',
+    'mission-h-x',
+  );
+  const presentationKey = 'game-a::health::7';
+
+  const hydratedLegacyOverlay = advanceMissionResultAutoPresentation(
+    initial,
+    missionResultSnapshot({
+      activeHealthPresentationKey: presentationKey,
+      healthResolutionPresentationActive: true,
+      hasResult: true,
+    }),
+  );
+  assert(hydratedLegacyOverlay.matchedPresentationKey === null);
+
+  const hydratedAfterClear = advanceMissionResultAutoPresentation(
+    hydratedLegacyOverlay,
+    missionResultSnapshot({ hasResult: true }),
+  );
+  assert(hydratedAfterClear.requestKey === null);
+
+  const mismatched = advanceMissionResultAutoPresentation(
+    initial,
+    missionResultSnapshot({
+      liveTerminalTriggerPresentationKey: presentationKey,
+      activeHealthPresentationKey: 'game-a::health::8',
+      healthResolutionPresentationActive: true,
+    }),
+  );
+  assert(mismatched.matchedPresentationKey === null);
+  assert(mismatched.requestKey === null);
+});
+
+Deno.test('postgame Mission result stays armed after presentation clear until result arrives', () => {
+  const presentationKey = 'game-a::health::7';
+  const initial = createMissionResultAutoPresentationState(
+    'game-a',
+    'mission-h-x',
+  );
+  const matched = advanceMissionResultAutoPresentation(
+    initial,
+    missionResultSnapshot({
+      liveTerminalTriggerPresentationKey: presentationKey,
+      activeHealthPresentationKey: presentationKey,
+      healthResolutionPresentationActive: true,
+    }),
+  );
+  assert(matched.matchedPresentationKey === presentationKey);
+  assert(matched.presentationCleared === false);
+
+  const clearedWithoutResult = advanceMissionResultAutoPresentation(
+    matched,
+    missionResultSnapshot({
+      liveTerminalTriggerPresentationKey: presentationKey,
+    }),
+  );
+  assert(clearedWithoutResult.matchedPresentationKey === presentationKey);
+  assert(clearedWithoutResult.presentationCleared === true);
+  assert(clearedWithoutResult.requestKey === null);
+
+  const stillWaiting = advanceMissionResultAutoPresentation(
+    clearedWithoutResult,
+    missionResultSnapshot({
+      liveTerminalTriggerPresentationKey: presentationKey,
+    }),
+  );
+  assertEquals(stillWaiting, clearedWithoutResult);
+
+  const requested = advanceMissionResultAutoPresentation(
+    stillWaiting,
+    missionResultSnapshot({
+      liveTerminalTriggerPresentationKey: presentationKey,
+      hasResult: true,
+    }),
+  );
+  assert(
+    requested.requestKey ===
+      'game-a::health::7\u0000mission-h-x\u0000result',
+  );
+
+  const ignoredConsume = consumeMissionResultAutoPresentationRequest(
+    requested,
+    'different-request',
+  );
+  assertEquals(ignoredConsume, requested);
+  const consumed = consumeMissionResultAutoPresentationRequest(
+    requested,
+    requested.requestKey ?? '',
+  );
+  assert(consumed.requestKey === null);
+
+  const afterRemount = advanceMissionResultAutoPresentation(
+    consumed,
+    missionResultSnapshot({
+      liveTerminalTriggerPresentationKey: presentationKey,
+      hasResult: true,
+    }),
+  );
+  assert(afterRemount.requestKey === null);
+});
+
+Deno.test('postgame Mission result pending state clears on explicit invalidation', () => {
+  const presentationKey = 'game-a::health::7';
+  const matched = advanceMissionResultAutoPresentation(
+    createMissionResultAutoPresentationState('game-a', 'mission-h-x'),
+    missionResultSnapshot({
+      liveTerminalTriggerPresentationKey: presentationKey,
+      activeHealthPresentationKey: presentationKey,
+      healthResolutionPresentationActive: true,
+    }),
+  );
+
+  const minimized = advanceMissionResultAutoPresentation(
+    matched,
+    missionResultSnapshot({ minimizeMissionsThisSession: true }),
+  );
+  assert(minimized.matchedPresentationKey === null);
+  assert(minimized.requestKey === null);
+
+  const ineligibleViewer = advanceMissionResultAutoPresentation(
+    matched,
+    missionResultSnapshot({ isPlayerViewer: false }),
+  );
+  assert(ineligibleViewer.matchedPresentationKey === null);
+
+  const nextGame = advanceMissionResultAutoPresentation(
+    matched,
+    missionResultSnapshot({ gameId: 'game-b', missionId: 'mission-b' }),
+  );
+  assert(nextGame.gameId === 'game-b');
+  assert(nextGame.matchedPresentationKey === null);
 });
 
 Deno.test('initial Mission presentation follows captured auto-ack state', () => {

@@ -15,8 +15,6 @@ import { Tab } from '../../../components/ui/primitives/navigation/Tab';
 import { GameStatsOverlayShell } from '../stats/GameStatsOverlayShell';
 import { MissionChallengeOverlay } from '../mission/MissionChallengeOverlay';
 import {
-  getMissionPresentationIdentity,
-  isNewVisibleMissionPresentation,
   shouldLockMissionInteraction,
   shouldShowMissionChallengeAction,
   shouldShowPostgameMissionChallengeAction,
@@ -72,9 +70,11 @@ export function MainStage({
   const [postgameSurface, setPostgameSurface] = useState<PostgameSurface>(null);
   const [isSiphonInspectionOpen, setIsSiphonInspectionOpen] = useState(false);
   const [isMissionReopenOpen, setIsMissionReopenOpen] = useState(false);
-  const previousMissionPresentationIdentityRef = useRef<string | null>(null);
-  const markMissionFindingsSeenRef = useRef(actions.onMarkCurrentMissionFindingsSeen);
-  markMissionFindingsSeenRef.current = actions.onMarkCurrentMissionFindingsSeen;
+  const consumeMissionResultAutoOpenRequestRef = useRef(
+    actions.onConsumeMissionResultAutoOpenRequest,
+  );
+  consumeMissionResultAutoOpenRequestRef.current =
+    actions.onConsumeMissionResultAutoOpenRequest;
   const simulacrumSpecies = resolveAncientSimulacrumSpecies(boardVm);
   const isEndGameResultPanel = actionPanelVm.activePanelId === 'ap.end_of_game.result';
   const canViewGameStats = gameStats != null;
@@ -131,13 +131,6 @@ export function MainStage({
     introPending: missionChallenge?.introPending === true,
     overlayVisible: isActiveMissionOverlayVisible,
   });
-  const missionPresentationIdentity = missionChallenge
-    ? getMissionPresentationIdentity({
-        gameId,
-        missionId: missionChallenge.mission.id,
-        mode: missionOverlayMode,
-      })
-    : null;
   const canShowMissionChallengeAction = shouldShowMissionChallengeAction({
     hasMission: missionChallenge !== null,
     isPlayerViewer: viewer.isPlayerViewer,
@@ -184,6 +177,19 @@ export function MainStage({
   }, [canShowPostgameMissionChallengeAction]);
 
   useEffect(() => {
+    const requestKey = missionChallenge?.postgameResultAutoOpenRequestKey;
+    if (!requestKey || !canShowPostgameMissionChallengeAction) {
+      return;
+    }
+
+    setPostgameSurface('mission');
+    consumeMissionResultAutoOpenRequestRef.current(requestKey);
+  }, [
+    canShowPostgameMissionChallengeAction,
+    missionChallenge?.postgameResultAutoOpenRequestKey,
+  ]);
+
+  useEffect(() => {
     if (!isAncientCatalogueSurfaceActive || ancientSelectorMode != null) {
       setIsSiphonInspectionOpen(false);
     }
@@ -210,19 +216,6 @@ export function MainStage({
       setIsMissionReopenOpen(false);
     }
   }, [missionChallenge]);
-
-  useEffect(() => {
-    const previousIdentity = previousMissionPresentationIdentityRef.current;
-    if (
-      isNewVisibleMissionPresentation(
-        previousIdentity,
-        missionPresentationIdentity,
-      )
-    ) {
-      markMissionFindingsSeenRef.current();
-    }
-    previousMissionPresentationIdentityRef.current = missionPresentationIdentity;
-  }, [missionPresentationIdentity]);
 
   function handleOpenGameStats() {
     if (canViewGameStats) {

@@ -6,7 +6,8 @@ export interface StorageLike {
 }
 
 export const MINIMIZE_MISSIONS_STORAGE_KEY = 'shapeships.minimizeMissions.v1';
-export const MISSION_FINDINGS_SEEN_STORAGE_KEY = 'shapeships.missionFindingsSeen.v1';
+export const MISSION_FINDINGS_COMPLETED_STORAGE_KEY =
+  'shapeships.missionFindingsCompleted.v1';
 export const LORE_UNREAD_STORAGE_KEY = 'shapeships.loreUnread.v1';
 
 function getSessionStorage(): StorageLike | null {
@@ -52,12 +53,12 @@ export function writeMinimizeMissionsThisSession(
   }
 }
 
-export function readSeenMissionFindingIds(
+export function readCompletedMissionFindingIds(
   storage: StorageLike | null = getSessionStorage(),
 ): string[] {
   if (!storage) return [];
   try {
-    const raw = storage.getItem(MISSION_FINDINGS_SEEN_STORAGE_KEY);
+    const raw = storage.getItem(MISSION_FINDINGS_COMPLETED_STORAGE_KEY);
     if (raw === null) return [];
     return normalizeIds(JSON.parse(raw));
   } catch {
@@ -65,11 +66,11 @@ export function readSeenMissionFindingIds(
   }
 }
 
-export function markMissionFindingIdsSeen(
+export function recordCompletedMissionFindingIds(
   ids: readonly string[],
   storage: StorageLike | null = getSessionStorage(),
 ): string[] {
-  const existing = readSeenMissionFindingIds(storage);
+  const existing = readCompletedMissionFindingIds(storage);
   const result = normalizeIds([...existing, ...ids]);
   const hasNewUnlockedFinding = didUnlockAnyMissionFinding(
     new Set(existing),
@@ -77,7 +78,7 @@ export function markMissionFindingIdsSeen(
   );
   if (!storage) return result;
   try {
-    storage.setItem(MISSION_FINDINGS_SEEN_STORAGE_KEY, JSON.stringify(result));
+    storage.setItem(MISSION_FINDINGS_COMPLETED_STORAGE_KEY, JSON.stringify(result));
     if (hasNewUnlockedFinding) {
       storage.setItem(LORE_UNREAD_STORAGE_KEY, 'true');
     }

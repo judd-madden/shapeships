@@ -5,12 +5,12 @@ declare const Deno: {
 import {
   LORE_UNREAD_STORAGE_KEY,
   MINIMIZE_MISSIONS_STORAGE_KEY,
-  MISSION_FINDINGS_SEEN_STORAGE_KEY,
+  MISSION_FINDINGS_COMPLETED_STORAGE_KEY,
   clearLoreUnread,
-  markMissionFindingIdsSeen,
+  recordCompletedMissionFindingIds,
   readLoreUnread,
   readMinimizeMissionsThisSession,
-  readSeenMissionFindingIds,
+  readCompletedMissionFindingIds,
   writeMinimizeMissionsThisSession,
   type StorageLike,
 } from '../../../gameSession/mission/missionChallengeSession';
@@ -73,50 +73,63 @@ Deno.test('Minimize Missions tolerates unavailable and throwing storage', () => 
 
 Deno.test('Mission Findings read empty and add flat unique IDs deterministically', () => {
   const storage = new FakeStorage();
-  assertEquals(readSeenMissionFindingIds(storage), []);
+  assertEquals(readCompletedMissionFindingIds(storage), []);
   assertEquals(
-    markMissionFindingIdsSeen(['rebel-alliance-human'], storage),
+    recordCompletedMissionFindingIds(['rebel-alliance-human'], storage),
     ['rebel-alliance-human'],
   );
   assertEquals(
-    markMissionFindingIdsSeen(
+    recordCompletedMissionFindingIds(
       ['sol-1', 'rebel-alliance-human', 'mintaka'],
       storage,
     ),
     ['rebel-alliance-human', 'sol-1', 'mintaka'],
   );
-  assertEquals(readSeenMissionFindingIds(storage), [
+  assertEquals(readCompletedMissionFindingIds(storage), [
     'rebel-alliance-human',
     'sol-1',
     'mintaka',
   ]);
   assertEquals(
-    JSON.parse(storage.values.get(MISSION_FINDINGS_SEEN_STORAGE_KEY) ?? 'null'),
+    JSON.parse(storage.values.get(MISSION_FINDINGS_COMPLETED_STORAGE_KEY) ?? 'null'),
     ['rebel-alliance-human', 'sol-1', 'mintaka'],
+  );
+});
+
+Deno.test('Mission Findings do not migrate the old visibility-based session key', () => {
+  const storage = new FakeStorage();
+  storage.values.set(
+    'shapeships.missionFindingsSeen.v1',
+    JSON.stringify(['mintaka']),
+  );
+
+  assertEquals(readCompletedMissionFindingIds(storage), []);
+  assert(
+    storage.values.has(MISSION_FINDINGS_COMPLETED_STORAGE_KEY) === false,
   );
 });
 
 Deno.test('Mission Findings ignore invalid IDs and malformed stored JSON', () => {
   const storage = new FakeStorage();
-  storage.values.set(MISSION_FINDINGS_SEEN_STORAGE_KEY, '{bad json');
-  assertEquals(readSeenMissionFindingIds(storage), []);
+  storage.values.set(MISSION_FINDINGS_COMPLETED_STORAGE_KEY, '{bad json');
+  assertEquals(readCompletedMissionFindingIds(storage), []);
   assertEquals(
-    markMissionFindingIdsSeen(['', '   ', 'mintaka', 'mintaka'], storage),
+    recordCompletedMissionFindingIds(['', '   ', 'mintaka', 'mintaka'], storage),
     ['mintaka'],
   );
 
   storage.values.set(
-    MISSION_FINDINGS_SEEN_STORAGE_KEY,
+    MISSION_FINDINGS_COMPLETED_STORAGE_KEY,
     JSON.stringify(['sol-1', '', 4, 'sol-1']),
   );
-  assertEquals(readSeenMissionFindingIds(storage), ['sol-1']);
+  assertEquals(readCompletedMissionFindingIds(storage), ['sol-1']);
 });
 
 Deno.test('Mission Findings tolerate unavailable and throwing storage', () => {
-  assertEquals(readSeenMissionFindingIds(null), []);
-  assertEquals(readSeenMissionFindingIds(throwingStorage), []);
-  assertEquals(markMissionFindingIdsSeen(['mintaka'], null), ['mintaka']);
-  assertEquals(markMissionFindingIdsSeen(['mintaka'], throwingStorage), ['mintaka']);
+  assertEquals(readCompletedMissionFindingIds(null), []);
+  assertEquals(readCompletedMissionFindingIds(throwingStorage), []);
+  assertEquals(recordCompletedMissionFindingIds(['mintaka'], null), ['mintaka']);
+  assertEquals(recordCompletedMissionFindingIds(['mintaka'], throwingStorage), ['mintaka']);
 });
 
 Deno.test('Lore unread defaults safely and only accepts true', () => {
@@ -130,28 +143,28 @@ Deno.test('Lore unread defaults safely and only accepts true', () => {
   assert(readLoreUnread(storage) === true);
 });
 
-Deno.test('Lore unread follows newly unlocked visible Mission Findings', () => {
+Deno.test('Lore unread follows newly unlocked completed Mission Findings', () => {
   const storage = new FakeStorage();
 
-  markMissionFindingIdsSeen(['mintaka'], storage);
+  recordCompletedMissionFindingIds(['mintaka'], storage);
   assert(readLoreUnread(storage) === true);
 
-  markMissionFindingIdsSeen(['ancient-mysteries-human'], storage);
+  recordCompletedMissionFindingIds(['ancient-mysteries-human'], storage);
   assert(readLoreUnread(storage) === true);
 
   clearLoreUnread(storage);
   assert(readLoreUnread(storage) === false);
 
-  markMissionFindingIdsSeen(['mintaka'], storage);
+  recordCompletedMissionFindingIds(['mintaka'], storage);
   assert(readLoreUnread(storage) === false);
 
-  markMissionFindingIdsSeen(['ancient-mysteries-centaur'], storage);
+  recordCompletedMissionFindingIds(['ancient-mysteries-centaur'], storage);
   assert(readLoreUnread(storage) === false);
 
-  markMissionFindingIdsSeen(['ancient-mysteries-xenite'], storage);
+  recordCompletedMissionFindingIds(['ancient-mysteries-xenite'], storage);
   assert(readLoreUnread(storage) === true);
 
-  assertEquals(readSeenMissionFindingIds(storage), [
+  assertEquals(readCompletedMissionFindingIds(storage), [
     'mintaka',
     'ancient-mysteries-human',
     'ancient-mysteries-centaur',
@@ -161,42 +174,42 @@ Deno.test('Lore unread follows newly unlocked visible Mission Findings', () => {
 
 Deno.test('Lore unread unlocks grouped Rebel Alliance requirements in either order', () => {
   const humanFirstStorage = new FakeStorage();
-  markMissionFindingIdsSeen(['rebel-alliance-human'], humanFirstStorage);
+  recordCompletedMissionFindingIds(['rebel-alliance-human'], humanFirstStorage);
   assert(readLoreUnread(humanFirstStorage) === false);
-  markMissionFindingIdsSeen(['rebel-alliance-centaur'], humanFirstStorage);
+  recordCompletedMissionFindingIds(['rebel-alliance-centaur'], humanFirstStorage);
   assert(readLoreUnread(humanFirstStorage) === true);
 
   const centaurFirstStorage = new FakeStorage();
-  markMissionFindingIdsSeen(['rebel-alliance-centaur'], centaurFirstStorage);
+  recordCompletedMissionFindingIds(['rebel-alliance-centaur'], centaurFirstStorage);
   assert(readLoreUnread(centaurFirstStorage) === false);
-  markMissionFindingIdsSeen(['rebel-alliance-human'], centaurFirstStorage);
+  recordCompletedMissionFindingIds(['rebel-alliance-human'], centaurFirstStorage);
   assert(readLoreUnread(centaurFirstStorage) === true);
 });
 
 Deno.test('Lore unread recognizes ordinary rows emitted with grouped partial progress', () => {
   const storage = new FakeStorage();
 
-  markMissionFindingIdsSeen(['sol-1', 'rebel-alliance-human'], storage);
+  recordCompletedMissionFindingIds(['sol-1', 'rebel-alliance-human'], storage);
   assert(readLoreUnread(storage) === true);
 
   clearLoreUnread(storage);
-  markMissionFindingIdsSeen(['rebel-alliance-human'], storage);
+  recordCompletedMissionFindingIds(['rebel-alliance-human'], storage);
   assert(readLoreUnread(storage) === false);
 
-  markMissionFindingIdsSeen(['rebel-alliance-centaur'], storage);
+  recordCompletedMissionFindingIds(['rebel-alliance-centaur'], storage);
   assert(readLoreUnread(storage) === true);
 });
 
-Deno.test('Lore unread ignores inputs that do not grow the normalized seen set', () => {
+Deno.test('Lore unread ignores inputs that do not grow the normalized completed set', () => {
   const storage = new FakeStorage();
   storage.values.set(
-    MISSION_FINDINGS_SEEN_STORAGE_KEY,
+    MISSION_FINDINGS_COMPLETED_STORAGE_KEY,
     JSON.stringify(['mintaka']),
   );
 
-  markMissionFindingIdsSeen(['', '   ', 'mintaka', 'mintaka'], storage);
+  recordCompletedMissionFindingIds(['', '   ', 'mintaka', 'mintaka'], storage);
   assert(readLoreUnread(storage) === false);
-  assertEquals(readSeenMissionFindingIds(storage), ['mintaka']);
+  assertEquals(readCompletedMissionFindingIds(storage), ['mintaka']);
 });
 
 Deno.test('Lore unread remains safe with unavailable and throwing storage', () => {
@@ -206,15 +219,15 @@ Deno.test('Lore unread remains safe with unavailable and throwing storage', () =
   clearLoreUnread(throwingStorage);
 });
 
-Deno.test('Lore unread is not written when the seen-ID write fails', () => {
+Deno.test('Lore unread is not written when the completed-ID write fails', () => {
   const unreadWrites: string[] = [];
-  const seenWriteThrowingStorage: StorageLike = {
+  const completedWriteThrowingStorage: StorageLike = {
     getItem() {
       return null;
     },
     setItem(key, value) {
-      if (key === MISSION_FINDINGS_SEEN_STORAGE_KEY) {
-        throw new Error('seen write blocked');
+      if (key === MISSION_FINDINGS_COMPLETED_STORAGE_KEY) {
+        throw new Error('completed write blocked');
       }
       if (key === LORE_UNREAD_STORAGE_KEY) {
         unreadWrites.push(value);
@@ -223,7 +236,7 @@ Deno.test('Lore unread is not written when the seen-ID write fails', () => {
   };
 
   assertEquals(
-    markMissionFindingIdsSeen(['mintaka'], seenWriteThrowingStorage),
+    recordCompletedMissionFindingIds(['mintaka'], completedWriteThrowingStorage),
     ['mintaka'],
   );
   assertEquals(unreadWrites, []);

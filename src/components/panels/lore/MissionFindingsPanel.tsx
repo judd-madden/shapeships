@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import { readSeenMissionFindingIds } from '../../../game/client/gameSession/mission/missionChallengeSession';
+import { readCompletedMissionFindingIds } from '../../../game/client/gameSession/mission/missionChallengeSession';
 import { isMissionFindingUnlocked } from '../../../game/client/gameSession/mission/missionFindingUnlocks';
 import { missionFindings } from './loreContent';
 
@@ -29,7 +29,7 @@ function MissionFindingsHeader({ unlockedCount, totalCount }: { unlockedCount: n
           </p>
         </div>
         <p className="my-[6px] text-[14px] leading-[20px] text-white sm:my-[12px] sm:text-[18px] sm:leading-[24px]">
-          Play Single Player to unlock. <span style={{ color: 'var(--shapeships-grey-50)' }}>Mission Findings reset each play session.</span>
+          Win Single Player games to unlock. <span style={{ color: 'var(--shapeships-grey-50)' }}>Mission Findings reset each play session.</span>
         </p>
       </div>
       <LoreDivider />
@@ -38,9 +38,11 @@ function MissionFindingsHeader({ unlockedCount, totalCount }: { unlockedCount: n
 }
 
 export function MissionFindingsPanel() {
-  const [seenFindingIds] = useState(() => new Set(readSeenMissionFindingIds()));
+  const [completedFindingIds] = useState(
+    () => new Set(readCompletedMissionFindingIds()),
+  );
   const unlockedCount = missionFindings.filter((finding) =>
-    isMissionFindingUnlocked(finding, seenFindingIds)
+    isMissionFindingUnlocked(finding, completedFindingIds)
   ).length;
 
   return (
@@ -48,7 +50,10 @@ export function MissionFindingsPanel() {
       <section className="flex w-full min-w-0 flex-col items-start">
         <MissionFindingsHeader unlockedCount={unlockedCount} totalCount={missionFindings.length} />
         {missionFindings.map((finding) => {
-          const isUnlocked = isMissionFindingUnlocked(finding, seenFindingIds);
+          const isUnlocked = isMissionFindingUnlocked(
+            finding,
+            completedFindingIds,
+          );
 
           return (
             <Fragment key={finding.id}>

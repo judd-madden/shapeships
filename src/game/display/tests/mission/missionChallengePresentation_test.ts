@@ -7,9 +7,7 @@ import {
   formatMissionSystem,
   getChallengePresentationCopy,
   getMissionChallengeResultPresentation,
-  getMissionPresentationIdentity,
   interpolateMissionPlayer,
-  isNewVisibleMissionPresentation,
   shouldLockMissionInteraction,
   shouldShowMissionChallengeAction,
   shouldShowPostgameMissionChallengeAction,
@@ -148,37 +146,6 @@ Deno.test('preserves Ancient foreign Challenge guidance ahead of generic copy', 
     heading: 'Win with an Ark of Terror',
     explanatoryCopy: ANCIENT_FOREIGN_CHALLENGE_NOTE,
   });
-});
-
-Deno.test('presentation identity changes only for genuine visible transitions', () => {
-  const initial = getMissionPresentationIdentity({
-    gameId: 'game-a',
-    missionId: 'mission-a',
-    mode: 'initial',
-  });
-  const rerender = getMissionPresentationIdentity({
-    gameId: 'game-a',
-    missionId: 'mission-a',
-    mode: 'initial',
-  });
-  const reopen = getMissionPresentationIdentity({
-    gameId: 'game-a',
-    missionId: 'mission-a',
-    mode: 'reopen',
-  });
-  const result = getMissionPresentationIdentity({
-    gameId: 'game-a',
-    missionId: 'mission-a',
-    mode: 'result',
-  });
-
-  assert(isNewVisibleMissionPresentation(null, initial));
-  assert(!isNewVisibleMissionPresentation(initial, rerender));
-  assert(isNewVisibleMissionPresentation(initial, reopen));
-  assert(!isNewVisibleMissionPresentation(reopen, null));
-  assert(isNewVisibleMissionPresentation(null, reopen));
-  assert(isNewVisibleMissionPresentation(reopen, result));
-  assertEquals(result, 'game-a\u0000mission-a\u0000result');
 });
 
 Deno.test('Mission interaction stays locked for pending or visible presentation', () => {

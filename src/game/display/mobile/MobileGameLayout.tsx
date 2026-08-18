@@ -37,8 +37,6 @@ import { MobileMenuTakeover } from './takeovers/MobileMenuTakeover';
 import type { MainPhaseControl } from '../shared/mainPhaseControl';
 import { MissionChallengeOverlay } from '../mission/MissionChallengeOverlay';
 import {
-  getMissionPresentationIdentity,
-  isNewVisibleMissionPresentation,
   shouldLockMissionInteraction,
   shouldShowMissionChallengeAction,
   shouldShowPostgameMissionChallengeAction,
@@ -163,9 +161,11 @@ export function MobileGameLayout({
   const topStatPopoverRef = useRef<HTMLDivElement | null>(null);
   const bottomStatPopoverRef = useRef<HTMLDivElement | null>(null);
   const fleetShipHoverCardRef = useRef<HTMLDivElement | null>(null);
-  const previousMissionPresentationIdentityRef = useRef<string | null>(null);
-  const markMissionFindingsSeenRef = useRef(actions.onMarkCurrentMissionFindingsSeen);
-  markMissionFindingsSeenRef.current = actions.onMarkCurrentMissionFindingsSeen;
+  const consumeMissionResultAutoOpenRequestRef = useRef(
+    actions.onConsumeMissionResultAutoOpenRequest,
+  );
+  consumeMissionResultAutoOpenRequestRef.current =
+    actions.onConsumeMissionResultAutoOpenRequest;
   const isCataloguePanelActive = CATALOGUE_PANEL_IDS.has(actionPanelVm.activePanelId);
   const isAncientCatalogueSurfaceActive =
     actionPanelVm.activePanelId === 'ap.catalog.ships.ancient' ||
@@ -220,13 +220,6 @@ export function MobileGameLayout({
     introPending: isMissionIntroPending,
     overlayVisible: isActiveMissionOverlayVisible,
   });
-  const missionPresentationIdentity = missionChallenge
-    ? getMissionPresentationIdentity({
-        gameId,
-        missionId: missionChallenge.mission.id,
-        mode: missionOverlayMode,
-      })
-    : null;
   const canShowMissionChallengeAction = shouldShowMissionChallengeAction({
     hasMission: missionChallenge !== null,
     isPlayerViewer: viewer.isPlayerViewer,
@@ -571,6 +564,20 @@ export function MobileGameLayout({
   }, [canShowPostgameMissionChallengeAction, endGameResultKey]);
 
   useEffect(() => {
+    const requestKey = missionChallenge?.postgameResultAutoOpenRequestKey;
+    if (!requestKey || !canShowPostgameMissionChallengeAction) {
+      return;
+    }
+
+    handleOpenPostgameMissionChallenge();
+    consumeMissionResultAutoOpenRequestRef.current(requestKey);
+  }, [
+    canShowPostgameMissionChallengeAction,
+    handleOpenPostgameMissionChallenge,
+    missionChallenge?.postgameResultAutoOpenRequestKey,
+  ]);
+
+  useEffect(() => {
     if (
       boardVm.mode !== 'board' ||
       missionChallenge === null ||
@@ -596,23 +603,10 @@ export function MobileGameLayout({
   }, [closeConflictingMissionSurfaces, isMissionIntroPending]);
 
   useLayoutEffect(() => {
-    if (missionPresentationIdentity !== null) {
+    if (isMissionOverlayVisible) {
       closeConflictingMissionSurfaces();
     }
-  }, [closeConflictingMissionSurfaces, missionPresentationIdentity]);
-
-  useEffect(() => {
-    const previousIdentity = previousMissionPresentationIdentityRef.current;
-    if (
-      isNewVisibleMissionPresentation(
-        previousIdentity,
-        missionPresentationIdentity
-      )
-    ) {
-      markMissionFindingsSeenRef.current();
-    }
-    previousMissionPresentationIdentityRef.current = missionPresentationIdentity;
-  }, [missionPresentationIdentity]);
+  }, [closeConflictingMissionSurfaces, isMissionOverlayVisible]);
 
   useEffect(() => {
     if (!isAncientCatalogueSurfaceActive) {

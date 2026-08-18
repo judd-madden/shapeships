@@ -65,6 +65,13 @@ export interface EndOfTurnLeftRailInput {
   authoritativeCubeDiceValueByPlayerId: Record<string, unknown>;
 }
 
+export function getHealthResolutionPresentationKey(
+  gameId: string,
+  resolvedTurnKey: string,
+): string {
+  return `${gameId}::health::${resolvedTurnKey}`;
+}
+
 interface UseEndOfTurnPresentationArgs {
   effectiveGameId: string | null;
   hasMatchingAuthoritativeGameId: boolean;
@@ -469,7 +476,10 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
       return null;
     }
 
-    const presentationKey = `${effectiveGameId}::health::${resolvedTurnKey}`;
+    const presentationKey = getHealthResolutionPresentationKey(
+      effectiveGameId,
+      resolvedTurnKey,
+    );
     const nextOverlay = buildHealthResolutionPresentationSnapshot({
       presentationKey,
       resolvedTurnNumber,
