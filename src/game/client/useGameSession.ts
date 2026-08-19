@@ -105,6 +105,7 @@ import {
   createMissionAutoAckState,
   createMissionResultAutoPresentationState,
   consumeMissionResultAutoPresentationRequest,
+  getCompletedMissionId,
   getCompletedMissionFindingIds,
   normalizeRequesterMissionChallenge,
   shouldAutomaticallyAcknowledgeMission,
@@ -113,6 +114,8 @@ import {
   type MissionResultAutoPresentationState,
 } from './gameSession/mission/missionChallenge';
 import {
+  readCompletedMissionIds,
+  recordCompletedMissionId,
   recordCompletedMissionFindingIds,
   readMinimizeMissionsThisSession,
   writeMinimizeMissionsThisSession,
@@ -4378,16 +4381,22 @@ useEffect(() => {
       normalizedMissionChallenge?.result !== undefined &&
       !findingCompletion.handled
     ) {
-      const persistenceResult = normalizedMissionChallenge.result.missionSucceeded
-        ? recordCompletedMissionFindingIds(
-            getCompletedMissionFindingIds(normalizedMissionChallenge),
-          )
-        : null;
+      let didUnlockMissionFinding = false;
+      if (normalizedMissionChallenge.result.missionSucceeded) {
+        const completedMissionId = getCompletedMissionId(
+          normalizedMissionChallenge,
+        );
+        if (completedMissionId) {
+          recordCompletedMissionId(completedMissionId);
+        }
+        didUnlockMissionFinding = recordCompletedMissionFindingIds(
+          getCompletedMissionFindingIds(normalizedMissionChallenge),
+        ).didUnlockMissionFinding;
+      }
       findingCompletion = {
         ...findingCompletion,
         handled: true,
-        loreUnlocked:
-          persistenceResult?.didUnlockMissionFinding === true,
+        loreUnlocked: didUnlockMissionFinding,
       };
       missionFindingCompletionRef.current = findingCompletion;
     }
@@ -6186,6 +6195,9 @@ useEffect(() => {
 
       const submittedSpecies = selectedSpecies;
       const submittedBotSpecies = isComputerGame ? selectedBotSpecies : null;
+      const completedMissionIds = submittedBotSpecies
+        ? readCompletedMissionIds()
+        : undefined;
       const submissionEntryKey = speciesSelectionEntryKey;
       const requestId = speciesConfirmationRequestIdRef.current + 1;
 
@@ -6203,6 +6215,7 @@ useEffect(() => {
         const confirmed = await runSpeciesConfirmFlow({
           selectedSpecies: submittedSpecies,
           botSpecies: submittedBotSpecies ?? undefined,
+          completedMissionIds,
           phaseKey,
           phaseInstanceKey,
           effectiveGameId,

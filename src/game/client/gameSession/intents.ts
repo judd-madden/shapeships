@@ -44,6 +44,28 @@ import {
 
 const INTENT_TIMEOUT_MS = 8000; // fail fast to avoid wedged commits
 
+export interface SpeciesSubmitTransportPayload {
+  species: SpeciesId;
+  botSpecies?: ComputerBotSpeciesId;
+  completedMissionIds?: string[];
+}
+
+export function buildSpeciesSubmitPayload(args: {
+  selectedSpecies: SpeciesId;
+  botSpecies?: ComputerBotSpeciesId;
+  completedMissionIds?: readonly string[];
+}): SpeciesSubmitTransportPayload {
+  if (!args.botSpecies) {
+    return { species: args.selectedSpecies };
+  }
+
+  return {
+    species: args.selectedSpecies,
+    botSpecies: args.botSpecies,
+    completedMissionIds: [...(args.completedMissionIds ?? [])],
+  };
+}
+
 export type CanonicalBuildSubmitPayload = {
   builds: Array<{ shipDefId: string; count: number }>;
   frigateTriggers?: number[];
@@ -170,6 +192,7 @@ function makeCanonicalBuildPayload(
 export async function runSpeciesConfirmFlow(args: {
   selectedSpecies: SpeciesId;
   botSpecies?: ComputerBotSpeciesId;
+  completedMissionIds?: readonly string[];
   phaseKey: string;
   phaseInstanceKey: string;
   effectiveGameId: string | null;
@@ -194,6 +217,7 @@ export async function runSpeciesConfirmFlow(args: {
     const {
       selectedSpecies,
       botSpecies,
+      completedMissionIds,
       phaseKey,
       phaseInstanceKey,
       effectiveGameId,
@@ -217,10 +241,11 @@ export async function runSpeciesConfirmFlow(args: {
       return false;
     }
 
-    const payload: { species: SpeciesId; botSpecies?: ComputerBotSpeciesId } = { species: selectedSpecies };
-    if (botSpecies) {
-      payload.botSpecies = botSpecies;
-    }
+    const payload = buildSpeciesSubmitPayload({
+      selectedSpecies,
+      botSpecies,
+      completedMissionIds,
+    });
     
     // Check if already submitted (using commit done flag for backward compatibility)
     const commitDone = !!speciesCommitDoneByPhase[phaseInstanceKey];

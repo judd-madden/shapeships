@@ -5,8 +5,10 @@ import {
   type IntentRequest,
 } from "../../../engine/intent/IntentReducer.ts";
 import { RejectionCode } from "../../../engine/intent/IntentTypes.ts";
+import { validateReveal } from "../../../engine/intent/Hash.ts";
 import { runBotsUntilSettled } from "../../../engine/bot/botRunner.ts";
 import type { MissionChallengeAssignment } from "../../../engine/mission/MissionChallenge.ts";
+import { getMissionPool } from "../../../engine/mission/MissionStories.ts";
 import { normalizeAncientGameState } from "../../../engine/state/ancientState.ts";
 
 function setupComputerState(
@@ -64,6 +66,15 @@ function setupComputerState(
     ...(args.assigned ? { missionChallengeAssignment: args.assigned } : {}),
   };
   return normalizeAncientGameState(state).state;
+}
+
+function setupMultiplayerState() {
+  const state = setupComputerState();
+  state.controllersByPlayerId = {
+    human: { kind: "human" },
+    bot: { kind: "human" },
+  } as any;
+  return state;
 }
 
 function pendingGameState(
@@ -180,6 +191,101 @@ Deno.test("computer species resolution assigns before normal phase progression",
   );
 });
 
+Deno.test("species submit metadata stays transient and canonical reveal hashing remains valid", async () => {
+  const nonce = "canonical-species-nonce";
+  const result = await applyIntent(
+    setupComputerState(),
+    "human",
+    {
+      gameId: "mission-intent-game",
+      intentType: "SPECIES_SUBMIT",
+      turnNumber: 0,
+      payload: {
+        species: "human",
+        botSpecies: "xenite",
+        completedMissionIds: { malformed: true },
+      },
+      nonce,
+    },
+    1_000,
+  );
+
+  assert.equal(result.ok, true);
+  const commitment =
+    result.state.gameData.turnData.commitments.SPECIES_0.human;
+  assert.deepEqual(commitment.revealPayload, {
+    species: "human",
+    botSpecies: "xenite",
+  });
+  assert.equal(
+    await validateReveal(
+      commitment.revealPayload,
+      commitment.nonce,
+      commitment.commitHash,
+    ),
+    true,
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(
+      result.state.missionChallengeAssignment,
+      "completedMissionIds",
+    ),
+    false,
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(result.state, "completedMissionIds"),
+    false,
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(
+      result.state.gameData,
+      "completedMissionIds",
+    ),
+    false,
+  );
+  assert.equal(
+    result.events.some((event: any) =>
+      Object.prototype.hasOwnProperty.call(event, "completedMissionIds")
+    ),
+    false,
+  );
+});
+
+Deno.test("multiplayer ignores Mission metadata without persisting it", async () => {
+  const result = await applyIntent(
+    setupMultiplayerState(),
+    "human",
+    {
+      gameId: "mission-intent-game",
+      intentType: "SPECIES_SUBMIT",
+      turnNumber: 0,
+      payload: {
+        species: "human",
+        completedMissionIds: ["mission-human-v-human-eliminate-rebels"],
+      },
+      nonce: "multiplayer-hint",
+    },
+    1_000,
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(
+    result.state.gameData.turnData.commitments.SPECIES_0.human.revealPayload,
+    { species: "human" },
+  );
+  assert.equal(result.state.missionChallengeAssignment, undefined);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(result.state, "completedMissionIds"),
+    false,
+  );
+  assert.equal(
+    result.events.some((event: any) =>
+      Object.prototype.hasOwnProperty.call(event, "completedMissionIds")
+    ),
+    false,
+  );
+});
+
 Deno.test("same-species idempotent submission reconstructs a missing assignment and preserves an existing one", async () => {
   const request = {
     gameId: "mission-intent-game",
@@ -228,6 +334,95 @@ Deno.test("same-species idempotent submission reconstructs a missing assignment 
   );
   assert.equal(preserved.ok, true);
   assert.strictEqual(preserved.state.missionChallengeAssignment, existing);
+
+  for (const completedMissionIds of [
+    [],
+    ["mission-human-v-human-eliminate-rebels"],
+    [
+      "mission-human-v-human-eliminate-rebels",
+      "mission-human-v-human-defend-against-pirates",
+    ],
+  ]) {
+    const repeated = await applyIntent(
+      preserved.state,
+      "human",
+      {
+        ...request,
+        payload: { ...request.payload, completedMissionIds },
+      },
+      1_001,
+    );
+    assert.equal(repeated.ok, true);
+    assert.strictEqual(repeated.state.missionChallengeAssignment, existing);
+  }
+});
+
+Deno.test("missing assignment recovery uses one current hint then becomes immutable", async () => {
+  const state = setupComputerState({ speciesSet: true });
+  state.players.find((player: any) => player.id === "bot")!.faction = "human";
+  (state.controllersByPlayerId.bot as any).speciesId = "HUM";
+  const pool = getMissionPool("human", "human");
+
+  const recovered = await applyIntent(
+    state,
+    "human",
+    {
+      gameId: "mission-intent-game",
+      intentType: "SPECIES_SUBMIT",
+      turnNumber: 0,
+      payload: {
+        species: "human",
+        botSpecies: "human",
+        completedMissionIds: [pool[0].id],
+      },
+      nonce: "recovery-first",
+    },
+    1_000,
+  );
+  assert.equal(recovered.ok, true);
+  assert.equal(recovered.state.missionChallengeAssignment.missionId, pool[1].id);
+  const recoveredAssignment = recovered.state.missionChallengeAssignment;
+  const acknowledged = await applyIntent(
+    recovered.state,
+    "human",
+    {
+      gameId: "mission-intent-game",
+      intentType: "MISSION_INTRO_ACK",
+      turnNumber: 0,
+      payload: {},
+      nonce: "recovery-ack",
+    },
+    1_001,
+  );
+  assert.equal(acknowledged.ok, true);
+  assert.equal(
+    acknowledged.state.missionChallengeAssignment.missionId,
+    recoveredAssignment.missionId,
+  );
+  assert.deepEqual(
+    acknowledged.state.missionChallengeAssignment.challenge,
+    recoveredAssignment.challenge,
+  );
+  const assignment = acknowledged.state.missionChallengeAssignment;
+
+  const repeated = await applyIntent(
+    acknowledged.state,
+    "human",
+    {
+      gameId: "mission-intent-game",
+      intentType: "SPECIES_SUBMIT",
+      turnNumber: 0,
+      payload: {
+        species: "human",
+        botSpecies: "human",
+        completedMissionIds: [pool[1].id],
+      },
+      nonce: "recovery-second",
+    },
+    1_002,
+  );
+  assert.equal(repeated.ok, true, JSON.stringify(repeated.rejected));
+  assert.strictEqual(repeated.state.missionChallengeAssignment, assignment);
 });
 
 Deno.test("enabled intro gate blocks ordinary human gameplay while preserving narrow exceptions", async () => {

@@ -216,6 +216,66 @@ Deno.test("Human v Human assignment selects both Mission stories deterministical
   }
 });
 
+Deno.test("Mission completion hints prefer remaining matchup Missions and fall back safely", () => {
+  const twoMissionPool = getMissionPool("human", "human");
+  const gameId = findSeedForBucket(
+    MISSION_ASSIGNMENT_SALTS.mission,
+    twoMissionPool.length,
+    0,
+  );
+  const baseArgs = {
+    gameId,
+    playerId: "p1",
+    playerSpecies: "human" as const,
+    opponentSpecies: "human" as const,
+  };
+  const omitted = createMissionChallengeAssignment(baseArgs);
+  const empty = createMissionChallengeAssignment({
+    ...baseArgs,
+    completedMissionIds: [],
+  });
+  assert.deepEqual(empty, omitted);
+
+  const preferred = createMissionChallengeAssignment({
+    ...baseArgs,
+    completedMissionIds: [twoMissionPool[0].id],
+  });
+  assert.equal(preferred.missionId, twoMissionPool[1].id);
+  assert.notEqual(preferred.missionId, omitted.missionId);
+  assert.deepEqual(preferred.challenge, omitted.challenge);
+
+  const exhausted = createMissionChallengeAssignment({
+    ...baseArgs,
+    completedMissionIds: twoMissionPool.map((mission) => mission.id),
+  });
+  assert.deepEqual(exhausted, omitted);
+
+  const malformedValues: unknown[] = [
+    null,
+    "not-an-array",
+    [null, 4, "", "   ", "foreign-mission", "foreign-mission"],
+  ];
+  for (const completedMissionIds of malformedValues) {
+    assert.deepEqual(
+      createMissionChallengeAssignment({ ...baseArgs, completedMissionIds }),
+      omitted,
+    );
+  }
+});
+
+Deno.test("completed single-Mission matchups still assign their only Mission", () => {
+  const pool = getMissionPool("human", "xenite");
+  assert.equal(pool.length, 1);
+  const assignment = createMissionChallengeAssignment({
+    gameId: "single-mission-completed",
+    playerId: "p1",
+    playerSpecies: "human",
+    opponentSpecies: "xenite",
+    completedMissionIds: [pool[0].id],
+  });
+  assert.equal(assignment.missionId, pool[0].id);
+});
+
 Deno.test("ordinary and Ancient foreign challenge pools remain distinct", () => {
   assert.equal(getOrdinaryChallengeDefinitions("human").length, 15);
   assert.equal(getOrdinaryChallengeDefinitions("xenite").length, 17);

@@ -81,6 +81,7 @@ import {
   type IntentType,
   type ComputerBotSpeciesPayload,
   type SpeciesRevealPayload,
+  type SpeciesSubmitPayload,
   type BuildRevealPayload,
   type BuildSubmitPayload,
   type EvolverBuildChoiceEntry,
@@ -1474,7 +1475,7 @@ async function handleSpeciesSubmit(
   }
 
   // Validate species payload
-  const payload = intent.payload as SpeciesRevealPayload;
+  const payload = intent.payload as SpeciesSubmitPayload;
 
   if (!isPlayerSpeciesPayload(payload.species)) {
     return {
@@ -1600,6 +1601,11 @@ async function handleSpeciesSubmit(
       };
     }
   }
+
+  const canonicalRevealPayload: SpeciesRevealPayload = {
+    species: payload.species,
+    ...(requestedBotSpecies ? { botSpecies: requestedBotSpecies } : {}),
+  };
   
   // Idempotent check: if player already has faction set
   if (player.faction) {
@@ -1625,7 +1631,9 @@ async function handleSpeciesSubmit(
           speciesId: nextBotSpeciesId,
           chosenPlanId: nextPlanId,
         };
-        state = ensureMissionChallengeAssignment(state);
+        state = ensureMissionChallengeAssignment(state, {
+          completedMissionIds: payload.completedMissionIds,
+        });
       }
 
       debugLog('[SPECIES_SUBMIT] applied', {
@@ -1672,7 +1680,7 @@ async function handleSpeciesSubmit(
   
   // Compute commit hash
   const { makeCommitHash } = await import('./Hash.ts');
-  const commitHash = await makeCommitHash(intent.payload, intent.nonce);
+  const commitHash = await makeCommitHash(canonicalRevealPayload, intent.nonce);
 
   // Immediately set faction on submit (CANONICAL)
   player.faction = payload.species;
@@ -1698,7 +1706,9 @@ async function handleSpeciesSubmit(
       speciesId: nextBotSpeciesId,
       chosenPlanId: nextPlanId,
     };
-    state = ensureMissionChallengeAssignment(state);
+    state = ensureMissionChallengeAssignment(state, {
+      completedMissionIds: payload.completedMissionIds,
+    });
   }
   
   debugLog('[SPECIES_SUBMIT] applied', {
@@ -1709,7 +1719,14 @@ async function handleSpeciesSubmit(
 
   // Store commit and reveal together (atomic submission)
   storeCommit(state, commitKey, playerId, commitHash, nowMs);
-  storeReveal(state, commitKey, playerId, intent.payload, intent.nonce, nowMs);
+  storeReveal(
+    state,
+    commitKey,
+    playerId,
+    canonicalRevealPayload,
+    intent.nonce,
+    nowMs,
+  );
   
   // Mark player as ready for this phase (stops clock and updates status)
   upsertPhaseReadiness(state, playerId, phaseKey);

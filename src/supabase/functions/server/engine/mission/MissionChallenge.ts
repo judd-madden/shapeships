@@ -133,9 +133,32 @@ export function createMissionChallengeAssignment(args: {
   playerId: string;
   playerSpecies: MissionSpecies;
   opponentSpecies: MissionOpponentSpecies;
+  completedMissionIds?: unknown;
 }): MissionChallengeAssignment {
+  const fullMissionPool = getMissionPool(
+    args.playerSpecies,
+    args.opponentSpecies,
+  );
+  const matchupMissionIds = new Set(
+    fullMissionPool.map((mission) => mission.id),
+  );
+  const completedMissionIds = new Set(
+    Array.isArray(args.completedMissionIds)
+      ? args.completedMissionIds.filter((id): id is string =>
+        typeof id === "string" &&
+        id.trim().length > 0 &&
+        matchupMissionIds.has(id)
+      )
+      : [],
+  );
+  const uncompletedMissionPool = fullMissionPool.filter((mission) =>
+    !completedMissionIds.has(mission.id)
+  );
+  const assignmentMissionPool = uncompletedMissionPool.length > 0
+    ? uncompletedMissionPool
+    : fullMissionPool;
   const mission = chooseDeterministically(
-    getMissionPool(args.playerSpecies, args.opponentSpecies),
+    assignmentMissionPool,
     args.gameId,
     MISSION_ASSIGNMENT_SALTS.mission,
   );
@@ -187,6 +210,7 @@ export function createMissionChallengeAssignment(args: {
 
 export function ensureMissionChallengeAssignment<T extends Record<string, any>>(
   state: T,
+  options: { completedMissionIds?: unknown } = {},
 ): T {
   if (state.missionChallengeAssignment) {
     return state;
@@ -222,6 +246,7 @@ export function ensureMissionChallengeAssignment<T extends Record<string, any>>(
       playerId: human.id,
       playerSpecies,
       opponentSpecies,
+      completedMissionIds: options.completedMissionIds,
     }),
   };
 }

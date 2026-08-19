@@ -180,6 +180,14 @@ export function getCompletedMissionFindingIds(
     : [];
 }
 
+export function getCompletedMissionId(
+  missionChallenge: NormalizedMissionChallenge | null,
+): string | null {
+  return missionChallenge?.result?.missionSucceeded === true
+    ? missionChallenge.mission.id
+    : null;
+}
+
 export function createMissionResultAutoPresentationState(
   gameId: string | null,
   missionId: string | null,

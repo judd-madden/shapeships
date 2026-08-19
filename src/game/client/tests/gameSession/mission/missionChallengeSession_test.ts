@@ -6,7 +6,10 @@ import {
   LORE_UNREAD_STORAGE_KEY,
   MINIMIZE_MISSIONS_STORAGE_KEY,
   MISSION_FINDINGS_COMPLETED_STORAGE_KEY,
+  MISSIONS_COMPLETED_STORAGE_KEY,
   clearLoreUnread,
+  readCompletedMissionIds,
+  recordCompletedMissionId,
   recordCompletedMissionFindingIds,
   readLoreUnread,
   readMinimizeMissionsThisSession,
@@ -145,6 +148,47 @@ Deno.test('Mission Findings tolerate unavailable and throwing storage', () => {
     completedFindingIds: ['mintaka'],
     didUnlockMissionFinding: false,
   });
+});
+
+Deno.test('completed Missions use a separate versioned session key', () => {
+  const storage = new FakeStorage();
+  assertEquals(readCompletedMissionIds(storage), []);
+  assertEquals(
+    recordCompletedMissionId('mission-human-v-human-eliminate-rebels', storage),
+    ['mission-human-v-human-eliminate-rebels'],
+  );
+  assertEquals(
+    recordCompletedMissionId('mission-human-v-human-eliminate-rebels', storage),
+    ['mission-human-v-human-eliminate-rebels'],
+  );
+  assertEquals(
+    JSON.parse(storage.values.get(MISSIONS_COMPLETED_STORAGE_KEY) ?? 'null'),
+    ['mission-human-v-human-eliminate-rebels'],
+  );
+  assert(storage.values.has(MISSION_FINDINGS_COMPLETED_STORAGE_KEY) === false);
+  assert(storage.values.has(LORE_UNREAD_STORAGE_KEY) === false);
+});
+
+Deno.test('completed Missions normalize malformed data and tolerate unavailable storage', () => {
+  const storage = new FakeStorage();
+  storage.values.set(MISSIONS_COMPLETED_STORAGE_KEY, '{bad json');
+  assertEquals(readCompletedMissionIds(storage), []);
+
+  storage.values.set(
+    MISSIONS_COMPLETED_STORAGE_KEY,
+    JSON.stringify(['mission-a', '', 4, 'mission-a', 'mission-b']),
+  );
+  assertEquals(readCompletedMissionIds(storage), ['mission-a', 'mission-b']);
+  assertEquals(recordCompletedMissionId('   ', storage), [
+    'mission-a',
+    'mission-b',
+  ]);
+  assertEquals(readCompletedMissionIds(null), []);
+  assertEquals(readCompletedMissionIds(throwingStorage), []);
+  assertEquals(recordCompletedMissionId('mission-a', null), ['mission-a']);
+  assertEquals(recordCompletedMissionId('mission-a', throwingStorage), [
+    'mission-a',
+  ]);
 });
 
 Deno.test('Lore unread defaults safely and only accepts true', () => {

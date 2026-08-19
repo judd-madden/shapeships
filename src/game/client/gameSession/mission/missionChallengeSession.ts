@@ -13,6 +13,8 @@ export interface RecordCompletedMissionFindingIdsResult {
 export const MINIMIZE_MISSIONS_STORAGE_KEY = 'shapeships.minimizeMissions.v1';
 export const MISSION_FINDINGS_COMPLETED_STORAGE_KEY =
   'shapeships.missionFindingsCompleted.v1';
+export const MISSIONS_COMPLETED_STORAGE_KEY =
+  'shapeships.missionsCompleted.v1';
 export const LORE_UNREAD_STORAGE_KEY = 'shapeships.loreUnread.v1';
 
 function getSessionStorage(): StorageLike | null {
@@ -69,6 +71,41 @@ export function readCompletedMissionFindingIds(
   } catch {
     return [];
   }
+}
+
+export function readCompletedMissionIds(
+  storage: StorageLike | null = getSessionStorage(),
+): string[] {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(MISSIONS_COMPLETED_STORAGE_KEY);
+    if (raw === null) return [];
+    return normalizeIds(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+export function recordCompletedMissionId(
+  id: string,
+  storage: StorageLike | null = getSessionStorage(),
+): string[] {
+  const completedMissionIds = normalizeIds([
+    ...readCompletedMissionIds(storage),
+    id,
+  ]);
+  if (!storage) return completedMissionIds;
+
+  try {
+    storage.setItem(
+      MISSIONS_COMPLETED_STORAGE_KEY,
+      JSON.stringify(completedMissionIds),
+    );
+  } catch {
+    // Completion preference is convenience state and must never interrupt gameplay.
+  }
+
+  return completedMissionIds;
 }
 
 export function recordCompletedMissionFindingIds(

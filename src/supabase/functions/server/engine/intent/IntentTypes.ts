@@ -48,6 +48,10 @@ export type SpeciesRevealPayload = {
   botSpecies?: ComputerBotSpeciesPayload;
 };
 
+export type SpeciesSubmitPayload = SpeciesRevealPayload & {
+  completedMissionIds?: unknown;
+};
+
 export type BuildRevealPayload = {
   builds: Array<{ shipDefId: string; count?: number }>;
 };

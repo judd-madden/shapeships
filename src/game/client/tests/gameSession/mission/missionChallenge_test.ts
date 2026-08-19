@@ -10,6 +10,7 @@ import {
   createMissionResultAutoPresentationState,
   consumeMissionResultAutoPresentationRequest,
   getCompletedMissionFindingIds,
+  getCompletedMissionId,
   normalizeRequesterMissionChallenge,
   shouldAutomaticallyAcknowledgeMission,
   shouldPresentInitialMissionIntro,
@@ -223,6 +224,13 @@ Deno.test('Mission Finding completion consumes only authoritative Mission succes
     getCompletedMissionFindingIds(failedMissionWithSuccessfulChallenge),
     [],
   );
+  assertEquals(getCompletedMissionId(visibleIntro), null);
+  assertEquals(getCompletedMissionId(reopenedMission), null);
+  assertEquals(
+    getCompletedMissionId(successfulMissionWithFailedChallenge),
+    successfulMissionWithFailedChallenge?.mission.id ?? null,
+  );
+  assertEquals(getCompletedMissionId(failedMissionWithSuccessfulChallenge), null);
 });
 
 function missionResultSnapshot(
