@@ -136,7 +136,7 @@ export const missionFindings: readonly MissionFinding[] = [
     author: 'juddly',
     content: (
       <p>
-        There are Human colonies in the <em>Mintaka</em> system. Xenites are attempting to ‘reclaim’ them.
+        There are Human colonies in the <em>Mintaka</em> system. Xenites are ‘reclaiming’ them.
       </p>
     ),
   },
@@ -156,7 +156,7 @@ export const missionFindings: readonly MissionFinding[] = [
     id: 'delta-aquarii',
     topic: 'Delta Aquarii',
     author: 'juddly',
-    content: <p>Humans are attempting to take the <em>Delta Aquarii</em> system from the Centaurs.</p>,
+    content: <p>Humans are taking the <em>Delta Aquarii</em> system from the Centaurs.</p>,
   },
   {
     id: 'ancient-mysteries',

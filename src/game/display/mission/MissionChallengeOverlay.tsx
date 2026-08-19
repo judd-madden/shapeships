@@ -311,7 +311,7 @@ function LoreUnlockedIndicator({ className }: { className: string }) {
         aria-hidden="true"
         className="size-[12px] shrink-0 rounded-full bg-[var(--shapeships-pastel-purple)]"
       />
-      <span>Lore Unlocked</span>
+      <span className="ss-missionLoreUnlockedText">Lore Unlocked</span>
     </div>
   );
 }

@@ -296,6 +296,22 @@ html:not(.app-ready) #root {
   }
 }
 
+@keyframes ssMissionLoreUnlockedTextPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.ss-missionLoreUnlockedText {
+  animation: ssMissionLoreUnlockedTextPulse 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ss-missionLoreUnlockedText {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* Player-facing UI root wrapper - sets default text color for all player screens */
 .ss-playerRoot {
   color: white;
