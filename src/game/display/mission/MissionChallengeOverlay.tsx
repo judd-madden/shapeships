@@ -112,6 +112,7 @@ export function MissionChallengeOverlay({
             {resultPresentation ? (
               <ResultStatusBadge
                 label={resultPresentation.missionLabel}
+                onClick={onClose}
                 succeeded={resultPresentation.missionSucceeded}
                 compact
               />
@@ -155,6 +156,7 @@ export function MissionChallengeOverlay({
           {resultPresentation ? (
             <ResultStatusBadge
               label={resultPresentation.missionLabel}
+              onClick={onClose}
               succeeded={resultPresentation.missionSucceeded}
               mobileMissionResult
             />
@@ -232,6 +234,7 @@ export function MissionChallengeOverlay({
           {resultPresentation ? (
             <ResultStatusBadge
               label={resultPresentation.challengeLabel}
+              onClick={onClose}
               succeeded={resultPresentation.challengeSucceeded}
             />
           ) : mode === 'initial' ? (
@@ -318,18 +321,20 @@ function LoreUnlockedIndicator({ className }: { className: string }) {
 
 function ResultStatusBadge({
   label,
+  onClick,
   succeeded,
   compact = false,
   mobileMissionResult = false,
 }: {
   label: 'COMPLETE' | 'FAILED' | 'INCOMPLETE';
+  onClick: () => void;
   succeeded: boolean;
   compact?: boolean;
   mobileMissionResult?: boolean;
 }) {
   return (
-    <div
-      className={`flex items-center justify-center rounded-[10px] text-[16px] font-black ${succeeded ? 'text-black' : 'text-white'} ${
+    <button
+      className={`flex cursor-pointer items-center justify-center rounded-[10px] text-[16px] font-black outline-none transition-transform duration-150 min-[768px]:hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-white ${succeeded ? 'text-black' : 'text-white'} ${
         mobileMissionResult
           ? 'h-[50px] min-w-[112px] px-[12px]'
           : compact
@@ -341,9 +346,11 @@ function ResultStatusBadge({
           ? 'var(--shapeships-green)'
           : 'var(--shapeships-grey-70)',
       }}
+      onClick={onClick}
+      type="button"
     >
       {label}
-    </div>
+    </button>
   );
 }
 
