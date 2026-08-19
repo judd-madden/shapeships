@@ -128,7 +128,7 @@ export const missionFindings: readonly MissionFinding[] = [
     requiredFindingIds: MULTI_MISSION_FINDING_REQUIREMENTS['rebel-alliance'],
     topic: 'Rebel Alliance',
     author: 'juddly',
-    content: <p>There is a coalition of Rebel Humans and Rebel Centaurs who want to join forces against the Xenites.</p>,
+    content: <p>There is a coalition of Human and Centaur Rebels who want to join forces against the Xenites.</p>,
   },
   {
     id: 'mintaka',
@@ -150,20 +150,20 @@ export const missionFindings: readonly MissionFinding[] = [
     id: 'gamma-leporis',
     topic: 'Gamma Leporis',
     author: 'juddly',
-    content: <p>Xenites and Centaurs are contesting the <em>Gamma Leporis</em> system.</p>,
+    content: <p>Xenites and Centaurs are at war over the <em>Gamma Leporis</em> system.</p>,
   },
   {
     id: 'delta-aquarii',
     topic: 'Delta Aquarii',
     author: 'juddly',
-    content: <p>Humans want to take the <em>Delta Aquarii</em> system from the Centaurs.</p>,
+    content: <p>Humans are attempting to take the <em>Delta Aquarii</em> system from the Centaurs.</p>,
   },
   {
     id: 'ancient-mysteries',
     requiredFindingIds: MULTI_MISSION_FINDING_REQUIREMENTS['ancient-mysteries'],
     topic: 'Sol, Epsilon Eridani, Unknown',
     author: 'juddly',
-    content: <p>Ancients are present in several systems.</p>,
+    content: <p>Ancients are present in multiple systems.</p>,
   },
 ];
 
