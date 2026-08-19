@@ -4114,10 +4114,14 @@ useEffect(() => {
       ? normalizeBoardStatBreakdownRows(bonusBreakdownByPlayerId?.[displayRightPlayerId])
       : [];
     const myDisplayedSavedLines =
-      buildDrawingEconomyDisplay?.ordinaryAvailable ?? mySavedLines;
+      committedDrawingProjection?.ordinary ??
+      buildDrawingEconomyDisplay?.ordinaryAvailable ??
+      mySavedLines;
     const opponentDisplayedSavedLines = opponentSavedLines;
     const myDisplayedSavedJoiningLines =
-      buildDrawingEconomyDisplay?.joiningAvailable ?? mySavedJoiningLines;
+      committedDrawingProjection?.joining ??
+      buildDrawingEconomyDisplay?.joiningAvailable ??
+      mySavedJoiningLines;
     const opponentDisplayedSavedJoiningLines = opponentSavedJoiningLines;
 
     boardEconomyPresentation = {
