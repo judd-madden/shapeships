@@ -28,7 +28,7 @@ function MissionFindingsHeader({ unlockedCount, totalCount }: { unlockedCount: n
             {unlockedCount}/{totalCount}
           </p>
         </div>
-        <p className="my-[6px] text-[14px] leading-[20px] text-white sm:my-[12px] sm:text-[18px] sm:leading-[24px]">
+        <p className="my-[12px] text-[16px] leading-[22px] text-white sm:my-[20px] sm:text-[20px] sm:leading-[28px]">
           Win Single Player games to unlock. <span style={{ color: 'var(--shapeships-grey-50)' }}>Mission Findings reset each play session.</span>
         </p>
       </div>

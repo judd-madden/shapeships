@@ -181,7 +181,7 @@ export const speciesLore: Record<SpeciesLoreId, SpeciesLore> = {
         <p>High-tech <span style={{ color: 'var(--shapeships-pastel-blue)' }}>Orbitals</span> hang in space, the backbone of the human economy. Huge <span style={{ color: 'var(--shapeships-pastel-yellow)' }}>Carriers</span> mass <span style={{ color: 'var(--shapeships-pastel-red)' }}>Fighters</span> and <span style={{ color: 'var(--shapeships-pastel-green)' }}>Defenders</span> - soldiers in this endless war. This quest for more.</p>
         <p><span style={{ color: 'var(--shapeships-pastel-purple)' }}>Interceptors</span> can turn the battle. <span style={{ color: 'var(--shapeships-orange)' }}>Tactical Cruisers</span> can lay siege - but it’s the truly vast ships that inspire: witness the mighty <span style={{ color: 'var(--shapeships-cyan)' }}>Battlecruiser</span>, the grand <span style={{ color: 'var(--shapeships-green)' }}>Earth Ship</span>, the infamous <span style={{ color: 'var(--shapeships-red)' }}>Dreadnought</span>. These marvels of humanity, these ICONS. These supreme tools of protection, expansion, destruction.</p>
         <p>And then of course there are the <span style={{ color: 'var(--shapeships-pastel-pink)' }}>Starships</span>, the first great steps on the path to Science. To the manipulation of reality itself: <span style={{ color: 'var(--shapeships-pink)' }}>Science Vessels</span>, and the <span style={{ color: 'var(--shapeships-purple)' }}>Leviathan</span>.</p>
-        <p><strong>They destroy, but it’s for the best. They’re the good guys.</strong></p>
+        <p><strong>They destroy, but it’s for the best.<br />They’re the good guys.</strong></p>
       </>
     ),
   },
@@ -198,7 +198,7 @@ export const speciesLore: Record<SpeciesLoreId, SpeciesLore> = {
         <p>The brain has cancer. Filthy Humans. Arrogant Centaurs. Ravaging its planets for resources. This is its galaxy. They are the invaders.</p>
         <p>It is made of many, many parts. The ubiquitous <strong>Xenites</strong>, empowering the swarm - ready to evolve or become a <span style={{ color: 'var(--shapeships-cyan)' }}>Queen</span>. <span style={{ color: 'var(--shapeships-pastel-blue)' }}>Bug Breeders</span> that spawn, even more dangerous when they are depleted husks. The strange <span style={{ color: 'var(--shapeships-blue)' }}>Evolved</span> <span style={{ color: 'var(--shapeships-yellow)' }}>Faces</span>, impossible for a Human to describe in words.</p>
         <p>It wants more <span style={{ color: 'var(--shapeships-cyan)' }}>Queens</span>. <span style={{ color: 'var(--shapeships-green)' }}>Defense Swarms</span> buy time. Witness its massive <span style={{ color: 'var(--shapeships-pastel-yellow)' }}>Zeniths</span>, themselves only a prelude to something much scarier: the <span style={{ color: 'var(--shapeships-pink)' }}>Chronoswarm</span>.</p>
-        <p><strong>The <span style={{ color: 'var(--shapeships-purple)' }}>Hive</span> will win. It always has.</strong></p>
+        <p><strong>The <span style={{ color: 'var(--shapeships-purple)' }}>Hive</span> will win.<br />It always has.</strong></p>
       </>
     ),
   },
@@ -215,7 +215,7 @@ export const speciesLore: Record<SpeciesLoreId, SpeciesLore> = {
         <p>Centaurs care not about things. Things come and go. It is only your principles that matter.</p>
         <p>They embrace <span style={{ color: 'var(--shapeships-pastel-green)' }}>Fear</span> and <span style={{ color: 'var(--shapeships-pastel-red)' }}>Anger</span> - even <span style={{ color: 'var(--shapeships-green)' }}>Terror</span> and <span style={{ color: 'var(--shapeships-orange)' }}>Fury</span>. They conquer with <span style={{ color: 'var(--shapeships-pastel-blue)' }}>Vigor</span>, <span style={{ color: 'var(--shapeships-pastel-purple)' }}>Wisdom</span>, <span style={{ color: 'var(--shapeships-pastel-orange)' }}>Equality</span>. With <span style={{ color: 'var(--shapeships-pastel-pink)' }}>Family</span>.</p>
         <p>Admire their Arks, principles captured in perfect form. With <span style={{ color: 'var(--shapeships-pink)' }}>Knowledge</span> they can change reality. With <span style={{ color: 'var(--shapeships-cyan)' }}>Power</span> they can proliferate. Their behemoths: the Arks of <span style={{ color: 'var(--shapeships-red)' }}>Destruction</span> and <span style={{ color: 'var(--shapeships-purple)' }}>Domination</span> - both harnessing the entire weight of the Centaur fleet.</p>
-        <p><strong>Their individuals have the power. They are the greatest lifeform in the galaxy.</strong></p>
+        <p><strong>Their individuals have the power.<br />They are the greatest lifeform in the galaxy.</strong></p>
       </>
     ),
   },
@@ -228,13 +228,12 @@ export const speciesLore: Record<SpeciesLoreId, SpeciesLore> = {
     imageAlt: 'Ancient ships and solar powers',
     content: (
       <>
-        <p>Awakened by galactic war. The Ancients have been dormant for millennia.</p>
-        <p>Yes, they're from Sol (that's also Humanity's home system).</p>
+        <p>Awakened by galactic war. The Ancients have been dormant for millennia. Yes, they're from Sol (that's also Humanity's home system).</p>
         <p>They made life on Earth. They made life in many places. Alpha Centauri, for example. Maybe Xenon - the memories are hazy on that one.</p>
         <p>By most Human definitions, the Ancients are gods. Harvesting solar energy unlike any of the other species. <span style={{ color: 'var(--shapeships-pastel-purple)' }}>Quantum Mystics</span>. <span style={{ color: 'var(--shapeships-pastel-green)' }}>Cores</span> <span style={{ color: 'var(--shapeships-pastel-red)' }}>of</span> <span style={{ color: 'var(--shapeships-pastel-blue)' }}>Energy</span>. <span style={{ color: 'var(--shapeships-pastel-orange)' }}>Cubes</span> that manipulate time.</p>
         <p><span style={{ color: 'var(--shapeships-red)' }}>Asteroids</span> and <span style={{ color: 'var(--shapeships-red)' }}>Supernova</span>. <span style={{ color: 'var(--shapeships-green)' }}>Life</span> and <span style={{ color: 'var(--shapeships-green)' }}>Star Birth</span>. Powers to destroy and to survive.</p>
         <p><span style={{ color: 'var(--shapeships-cyan)' }}>Simulacrum</span>: They created you and they can become you. Survive long enough and you'll see the <span style={{ color: 'var(--shapeships-green)' }}>Sip</span><span style={{ color: 'var(--shapeships-red)' }}>hon</span>, the <span style={{ color: 'var(--shapeships-green)' }}>Vo</span><span style={{ color: 'var(--shapeships-red)' }}>rt</span><span style={{ color: 'var(--shapeships-cyan)' }}>ex</span>. The <span style={{ color: 'var(--shapeships-green)' }}>Bla</span><span style={{ color: 'var(--shapeships-red)' }}>ck H</span><span style={{ color: 'var(--shapeships-cyan)' }}>ole</span>. They want to return to peaceful slumber. Can everyone just quieten down please?</p>
-        <p><strong>Time has no meaning. Also it's everything.</strong></p>
+        <p><strong>Time has no meaning.<br />Also it's everything.</strong></p>
       </>
     ),
   },
