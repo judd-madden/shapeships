@@ -71,6 +71,32 @@ Deno.test('player-facing phase presentation follows authoritative interaction st
       subheading: 'Spend lines to build ships',
     },
   );
+  assertEquals(
+    phasePresentation({
+      phaseKey: 'build.drawing',
+      drawingStageKind: 'normal',
+      drawingEconomy: { ordinary: 8, joining: 3 },
+      heldDrawingProjection: { ordinary: 4, joining: 2 },
+    }),
+    {
+      title: '4',
+      titleSuffix: 'lines saved +2 joining',
+      subheading: 'Spend lines to build ships',
+    },
+  );
+  assertEquals(
+    phasePresentation({
+      phaseKey: 'build.drawing',
+      drawingStageKind: 'normal',
+      drawingEconomy: { ordinary: 8, joining: 3 },
+      heldDrawingProjection: null,
+    }),
+    {
+      title: 'Drawing',
+      titleSuffix: null,
+      subheading: '\u00A0',
+    },
+  );
 
   const localLockOnlyStage = deriveDrawingStage({
     normalizedPrelude: {

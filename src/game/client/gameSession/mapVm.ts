@@ -286,6 +286,10 @@ export function mapGameSessionVm(args: {
     projectedSavedCombined: number;
     projectedSavedWasCapped: boolean;
   } | null;
+  heldDrawingProjection?: {
+    ordinary: number;
+    joining: number;
+  } | null;
   committedDrawingProjection?: {
     ordinary: number;
     joining: number;
@@ -371,6 +375,7 @@ export function mapGameSessionVm(args: {
     centaurChargeSubTab,
     centaurChargeAvailableTabs,
     buildDrawingEconomyDisplay,
+    heldDrawingProjection,
     committedDrawingProjection,
     ancientChargeDeclaration,
     ancientCatalogueEnergy,
@@ -830,6 +835,7 @@ export function mapGameSessionVm(args: {
           joining: buildDrawingEconomyDisplay.joiningAvailable,
         }
       : null,
+    heldDrawingProjection,
     committedDrawingProjection,
     requesterIsReady: p1IsReady,
     opponentIsReady: p2IsReady,

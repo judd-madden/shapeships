@@ -4749,6 +4749,16 @@ useEffect(() => {
       turnNumber,
       settledTurnNumber: presentedTurnDiceSettledTurnNumber,
     });
+  const heldDrawingProjection =
+    phaseKey === 'build.drawing' &&
+    !currentTurnDicePresentationSettled
+      ? board.mode === 'board'
+        ? {
+            ordinary: board.myDisplayedSavedLines,
+            joining: board.myDisplayedSavedJoiningLines,
+          }
+        : null
+      : undefined;
   const presentedActivePanelCandidate =
     phaseKey === 'build.dice_roll' &&
     routedPresentedActivePanelCandidate === 'ap.build.dice_roll.cube' &&
@@ -5531,6 +5541,7 @@ useEffect(() => {
     centaurChargeSubTab: activeCentaurChargeSubTab,
     centaurChargeAvailableTabs,
     buildDrawingEconomyDisplay,
+    heldDrawingProjection,
     committedDrawingProjection,
     ancientChargeDeclaration: activeAncientChargeDeclarationWorkflow
       ? {

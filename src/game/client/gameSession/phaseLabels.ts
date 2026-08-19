@@ -108,6 +108,7 @@ export function derivePhasePresentation(args: {
   isSpectator: boolean;
   drawingStageKind: 'prelude' | 'normal' | 'submitted' | 'blocked' | 'passive';
   drawingEconomy?: { ordinary: number; joining: number } | null;
+  heldDrawingProjection?: { ordinary: number; joining: number } | null;
   committedDrawingProjection?: { ordinary: number; joining: number } | null;
   requesterIsReady: boolean;
   opponentIsReady: boolean;
@@ -163,8 +164,24 @@ export function derivePhasePresentation(args: {
         : { title: 'Drawing', titleSuffix: null, subheading: 'Opponent drawing...' };
     }
 
+    const isActiveDrawingStage =
+      args.drawingStageKind === 'prelude' || args.drawingStageKind === 'normal';
+    if (isActiveDrawingStage && args.heldDrawingProjection !== undefined) {
+      const held = args.heldDrawingProjection;
+      return held
+        ? {
+            title: String(held.ordinary),
+            titleSuffix: withJoining('lines saved', held.joining),
+            subheading:
+              args.drawingStageKind === 'prelude'
+                ? 'You have powers available'
+                : 'Spend lines to build ships',
+          }
+        : { title: 'Drawing', titleSuffix: null, subheading: blank };
+    }
+
     const economy = args.drawingEconomy;
-    if (economy && (args.drawingStageKind === 'prelude' || args.drawingStageKind === 'normal')) {
+    if (economy && isActiveDrawingStage) {
       return {
         title: String(economy.ordinary),
         titleSuffix: withJoining('lines available', economy.joining),
