@@ -102,10 +102,15 @@ export function MissionChallengeOverlay({
     <div
       aria-labelledby="mission-challenge-title"
       aria-modal={mode === 'result' ? undefined : true}
-      className="pointer-events-auto flex max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[10px] bg-[var(--shapeships-grey-90)] text-white shadow-[0_0_250px_160px_rgba(0,0,0,1)] min-[768px]:max-h-full min-[768px]:w-[900px] min-[768px]:max-w-[calc(100%_-_32px)]"
+      className="pointer-events-auto relative isolate flex max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[10px] bg-[var(--shapeships-grey-90)] text-white shadow-[0_0_250px_160px_rgba(0,0,0,1)] min-[768px]:max-h-full min-[768px]:w-[900px] min-[768px]:max-w-[calc(100%_-_32px)]"
       role="dialog"
     >
-      <div className="flex min-h-0 flex-1 flex-col px-[16px] pb-[24px] pt-[16px] min-[768px]:px-[50px] min-[768px]:pb-[36px] min-[768px]:pt-[40px]">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-[1] bg-white/[0.03] [clip-path:polygon(41%_0,100%_0,100%_100%,90%_100%)] min-[768px]:[clip-path:polygon(64%_0,100%_0,100%_100%,89%_100%)]"
+      />
+
+      <div className="relative z-[2] flex min-h-0 flex-1 flex-col px-[16px] pb-[24px] pt-[16px] min-[768px]:px-[50px] min-[768px]:pb-[36px] min-[768px]:pt-[40px]">
         <div className="hidden shrink-0 items-center justify-between gap-[24px] font-bold leading-none min-[768px]:flex">
           <div className="flex items-center gap-[16px]">
             <p className="text-[18px]">YOUR MISSION</p>
@@ -272,7 +277,7 @@ export function MissionChallengeOverlay({
       </div>
 
       <div className="flex min-h-[54px] shrink-0 flex-col items-center bg-[var(--shapeships-grey-70)] px-[16px] py-[16px] text-[15px] leading-[20px] min-[768px]:flex-row min-[768px]:flex-wrap min-[768px]:justify-between min-[768px]:gap-x-[24px] min-[768px]:gap-y-[10px] min-[768px]:px-[38px] min-[768px]:py-[12px] min-[768px]:leading-none">
-        <p className="text-center min-[768px]:text-left">
+        <p className="relative z-[2] text-center min-[768px]:text-left">
           Have a mission idea?{' '}
           <a
             className="underline hover:opacity-80"
@@ -284,7 +289,7 @@ export function MissionChallengeOverlay({
           </a>{' '}
           or DM juddly
         </p>
-        <div className="mt-[14px] flex w-full justify-center border-t border-white/30 pt-[14px] min-[768px]:mt-0 min-[768px]:w-auto min-[768px]:justify-start min-[768px]:border-0 min-[768px]:pt-0">
+        <div className="relative z-[2] mt-[14px] flex w-full justify-center border-t border-white/30 pt-[14px] min-[768px]:mt-0 min-[768px]:w-auto min-[768px]:justify-start min-[768px]:border-0 min-[768px]:pt-0">
           <Checkbox
             checked={missionChallenge.minimizeMissionsThisSession}
             className="shrink-0"

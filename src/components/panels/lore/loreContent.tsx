@@ -163,7 +163,7 @@ export const missionFindings: readonly MissionFinding[] = [
     requiredFindingIds: MULTI_MISSION_FINDING_REQUIREMENTS['ancient-mysteries'],
     topic: 'Sol, Epsilon Eridani, Unknown',
     author: 'juddly',
-    content: <p>Ancients are present in multiple systems.</p>,
+    content: <p>Ancients are at war in multiple systems.</p>,
   },
 ];
 
