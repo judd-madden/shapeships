@@ -240,10 +240,10 @@ export function MissionChallengeOverlay({
           ) : mode === 'initial' ? (
             <button
               aria-busy={missionChallenge.isIntroAcknowledgementPending}
-              className={`col-span-2 h-[50px] w-full rounded-[10px] text-[18px] font-black text-black transition-colors min-[768px]:col-span-1 min-[768px]:w-[180px] ${
+              className={`col-span-2 h-[50px] w-full rounded-[10px] text-[18px] font-black text-black transition-transform min-[768px]:col-span-1 min-[768px]:w-[180px] ${
                 missionChallenge.isIntroAcknowledgementPending
                   ? 'cursor-not-allowed bg-[var(--shapeships-grey-50)]'
-                  : 'cursor-pointer bg-white hover:bg-[var(--shapeships-grey-20)]'
+                  : 'cursor-pointer bg-white hover:scale-110'
               }`}
               disabled={missionChallenge.isIntroAcknowledgementPending}
               onClick={onPlay}
