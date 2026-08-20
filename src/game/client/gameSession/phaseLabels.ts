@@ -105,6 +105,7 @@ export type PhasePresentation = {
 export function derivePhasePresentation(args: {
   phaseKey: string;
   isFinished: boolean;
+  healthResolutionPresentationActive: boolean;
   isSpectator: boolean;
   drawingStageKind: 'prelude' | 'normal' | 'submitted' | 'blocked' | 'passive';
   drawingEconomy?: { ordinary: number; joining: number } | null;
@@ -118,6 +119,14 @@ export function derivePhasePresentation(args: {
   const blank = '\u00A0';
   const withJoining = (base: string, joining: number): string =>
     joining > 0 ? `${base} +${joining} joining` : base;
+
+  if (args.healthResolutionPresentationActive) {
+    return {
+      title: 'Turn Resolution',
+      titleSuffix: null,
+      subheading: 'Healing and damage are resolved',
+    };
+  }
 
   if (args.isFinished) {
     return { title: 'Game Over', titleSuffix: null, subheading: blank };

@@ -827,6 +827,7 @@ export function mapGameSessionVm(args: {
   const phasePresentation = derivePhasePresentation({
     phaseKey,
     isFinished,
+    healthResolutionPresentationActive,
     isSpectator,
     drawingStageKind: drawingStage.kind,
     drawingEconomy: buildDrawingEconomyDisplay

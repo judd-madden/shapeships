@@ -27,6 +27,7 @@ function phasePresentation(
   return derivePhasePresentation({
     phaseKey: 'battle.reveal',
     isFinished: false,
+    healthResolutionPresentationActive: false,
     isSpectator: false,
     drawingStageKind: 'passive',
     requesterIsReady: false,
@@ -46,6 +47,63 @@ Deno.test('runtime phase rows follow the current Drawing-to-Reveal model', () =>
 
 Deno.test('player-facing phase presentation follows authoritative interaction state', () => {
   assertEquals(getSubphaseLabelFromPhaseKey('battle.charge_declaration'), 'Charges');
+
+  assertEquals(
+    phasePresentation({
+      phaseKey: 'build.drawing',
+      drawingStageKind: 'normal',
+      heldDrawingProjection: { ordinary: 4, joining: 1 },
+      healthResolutionPresentationActive: true,
+    }),
+    {
+      title: 'Turn Resolution',
+      titleSuffix: null,
+      subheading: 'Healing and damage are resolved',
+    },
+  );
+  assertEquals(
+    phasePresentation({
+      phaseKey: 'build.drawing',
+      drawingStageKind: 'submitted',
+      committedDrawingProjection: { ordinary: 3, joining: 2 },
+      healthResolutionPresentationActive: true,
+    }),
+    {
+      title: 'Turn Resolution',
+      titleSuffix: null,
+      subheading: 'Healing and damage are resolved',
+    },
+  );
+  assertEquals(
+    phasePresentation({
+      isFinished: true,
+      healthResolutionPresentationActive: true,
+    }),
+    {
+      title: 'Turn Resolution',
+      titleSuffix: null,
+      subheading: 'Healing and damage are resolved',
+    },
+  );
+  assertEquals(
+    phasePresentation({
+      isFinished: true,
+      healthResolutionPresentationActive: false,
+    }),
+    {
+      title: 'Game Over',
+      titleSuffix: null,
+      subheading: '\u00A0',
+    },
+  );
+  assertEquals(
+    phasePresentation({ phaseKey: 'battle.end_of_turn_resolution' }),
+    {
+      title: 'Turn Resolution',
+      titleSuffix: null,
+      subheading: 'Healing and damage are resolved',
+    },
+  );
 
   assertEquals(
     phasePresentation({
