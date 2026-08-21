@@ -4,6 +4,12 @@ import { isMissionFindingUnlocked } from '../../../game/client/gameSession/missi
 import { missionFindings } from './loreContent';
 
 const overviewGridClass = 'md:grid md:grid-cols-[130px_minmax(0,1fr)] md:gap-x-[20px]';
+const lockedFindingTopics = ['LOREM', 'IPSUMED'] as const;
+const lockedFindingBodies = [
+  'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Phasellus et erat a velit egestas.',
+  'Dolor sit amet, consectetur adipiscing elit. Phasellus et erat a velit.',
+  'Phasellus et erat a velit egestas tincidunt.',
+] as const;
 
 function LoreDivider() {
   return (
@@ -49,7 +55,7 @@ export function MissionFindingsPanel() {
     <div className="flex w-full min-w-0 flex-col items-start gap-[50px] sm:gap-[72px] px-[16px] pt-[12px] pb-[24px]  sm:px-[50px] sm:pt-[32px] sm:pb-[50px] bg-black/60 rounded-[10px]">
       <section className="flex w-full min-w-0 flex-col items-start">
         <MissionFindingsHeader unlockedCount={unlockedCount} totalCount={missionFindings.length} />
-        {missionFindings.map((finding) => {
+        {missionFindings.map((finding, index) => {
           const isUnlocked = isMissionFindingUnlocked(
             finding,
             completedFindingIds,
@@ -60,10 +66,14 @@ export function MissionFindingsPanel() {
               <div className="flex w-full min-w-0 flex-col py-[12px] sm:py-[20px]">
                 <div className={`${overviewGridClass} flex w-full min-w-0 flex-col gap-[4px] ${isUnlocked ? '' : 'blur-[14px]'}`}>
                   <p className="min-w-0 uppercase text-[14px] font-medium leading-[18px] text-[var(--shapeships-grey-50)] sm:text-[16px] sm:leading-[20px] sm:mt-[8px]">
-                    {finding.topic}
+                    {isUnlocked
+                      ? finding.topic
+                      : lockedFindingTopics[index % lockedFindingTopics.length]}
                   </p>
                   <div className="min-w-0 text-[16.5px] leading-[24px] sm:text-[20px] sm:leading-[32px]">
-                    {finding.content}
+                    {isUnlocked
+                      ? finding.content
+                      : <p>{lockedFindingBodies[index % lockedFindingBodies.length]}</p>}
                   </div>
                   {/* <p className="text-[12px] leading-[16px] text-[var(--shapeships-grey-50)] sm:text-[14px] sm:leading-[18px]">
                     {finding.author}
