@@ -13,6 +13,7 @@ import {
 import {
   classifyFirstTurnDiceSignature,
   createTurnStartEconomyPresentationState,
+  getTurnStartEconomyPresentationKey,
   holdTurnStartDiceModifierPresentation,
   normalizeTurnStartDiceModifierPresentation,
   settleTurnStartEconomyPresentation,
@@ -312,6 +313,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     boardFlashEnabled = true,
     continueAuthoritativePhaseHold,
   } = args;
+  const economyPresentationKey =
+    getTurnStartEconomyPresentationKey(economyPresentation);
 
   const phaseHoldContinuationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const phaseHoldContinuationInFlightSignatureRef = useRef<string | null>(null);
@@ -622,7 +625,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
         economy: economyPresentation,
       })
     );
-  }, [effectiveGameId, economyPresentation, turnNumber]);
+  }, [effectiveGameId, economyPresentationKey, turnNumber]);
 
   useEffect(() => {
     return () => {
