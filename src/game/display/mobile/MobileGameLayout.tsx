@@ -812,7 +812,7 @@ export function MobileGameLayout({
     >
       <div
         aria-hidden={isMissionInteractionLocked}
-        inert={isMissionInteractionLocked}
+        inert={(isMissionInteractionLocked ? '' : undefined) as unknown as boolean | undefined}
         className={cx(isMissionInteractionLocked && 'pointer-events-none')}
       >
         <MobileTopNav
@@ -830,7 +830,10 @@ export function MobileGameLayout({
       <div className="relative flex min-h-0 flex-1 flex-col pt-[8px]">
         <div
           aria-hidden={activeTakeover !== null || isMissionInteractionLocked}
-          inert={activeTakeover !== null || isMissionInteractionLocked}
+          inert={
+            ((activeTakeover !== null || isMissionInteractionLocked) ? '' : undefined) as unknown as
+              boolean | undefined
+          }
           className={cx(
             'flex min-h-0 flex-1 flex-col',
             activeTakeover !== null && 'pointer-events-none opacity-0',

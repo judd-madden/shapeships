@@ -555,7 +555,9 @@ export function LeftRail({
         <div className="relative basis-0 flex-1 min-h-0">
           <div
             aria-hidden={selectedSisterView !== 'battleLog'}
-            inert={selectedSisterView !== 'battleLog'}
+            inert={
+              (selectedSisterView !== 'battleLog' ? '' : undefined) as unknown as boolean | undefined
+            }
             className={`absolute inset-0 min-h-0 ${
               selectedSisterView === 'battleLog' ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
@@ -570,7 +572,9 @@ export function LeftRail({
           </div>
           <div
             aria-hidden={selectedSisterView !== 'turnPhases'}
-            inert={selectedSisterView !== 'turnPhases'}
+            inert={
+              (selectedSisterView !== 'turnPhases' ? '' : undefined) as unknown as boolean | undefined
+            }
             className={`absolute inset-0 flex min-h-0 flex-col ${
               selectedSisterView === 'turnPhases' ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
