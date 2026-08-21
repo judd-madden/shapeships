@@ -14,7 +14,13 @@ import {
   getShipsByPlayerId,
   getVoidShipsByPlayerId,
 } from './selectors';
+import {
+  classifyShipVisibilityToViewer,
+  getCurrentTurnHiddenShipInstanceIds,
+} from './fleetPresentation';
 import type { BoardFleetSummary } from './types';
+
+export { filterFleetSummariesBySuppressedMemberIds } from './fleetPresentation';
 
 type FleetSummarySortFields = Pick<BoardFleetSummary, 'shipDefId' | 'stackKey' | 'condition'>;
 
@@ -472,15 +478,14 @@ export function deriveFleets(args: {
   const isInBattlePhase = majorPhase === 'battle';
 
   function isShipVisibleToViewer(ship: any, ownerPlayerId: string | undefined): boolean {
-    const createdTurn = ship?.createdTurn;
-    if (typeof createdTurn !== 'number') return true;
-    if (createdTurn < turnNumber) return true;
-    if (isInBattlePhase) return true;
-    if (majorPhase !== 'build' || !ownerPlayerId) return false;
-    const instanceId = getShipInstanceId(ship);
-    return instanceId != null &&
-      materializedSimulacrumFleetInstanceIdsByPlayerId[ownerPlayerId]
-        ?.includes(instanceId) === true;
+    return classifyShipVisibilityToViewer({
+      ship,
+      ownerPlayerId,
+      turnNumber,
+      majorPhase,
+      isInBattlePhase,
+      materializedSimulacrumFleetInstanceIdsByPlayerId,
+    });
   }
 
   const opponentShipsVisible = opponentShips.filter((ship) =>
@@ -490,6 +495,15 @@ export function deriveFleets(args: {
   const opponentVoidShipsVisible = opponentVoidShips.filter((ship) =>
     isShipVisibleToViewer(ship, opponent?.id)
   );
+  const myCurrentTurnPresentationSuppressedInstanceIds =
+    getCurrentTurnHiddenShipInstanceIds({
+      ships: myShips,
+      ownerPlayerId: me?.id,
+      turnNumber,
+      majorPhase,
+      isInBattlePhase,
+      materializedSimulacrumFleetInstanceIdsByPlayerId,
+    });
 
   function aggregateFleet(
     ships: any[],
@@ -591,6 +605,7 @@ export function deriveFleets(args: {
     opponentVoidShips,
     myVoidShipsVisible,
     opponentVoidShipsVisible,
+    myCurrentTurnPresentationSuppressedInstanceIds,
     myFleet,
     opponentFleet,
     myVoidFleet,

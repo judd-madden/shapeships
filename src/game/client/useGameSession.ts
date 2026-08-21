@@ -92,6 +92,7 @@ import {
 import { deriveViewerSeats } from './gameSession/viewerSeats';
 import {
   deriveFleets,
+  filterFleetSummariesBySuppressedMemberIds,
   orderFleetSummariesByRenderKey,
   reconcileFleetRenderKeys,
 } from './gameSession/fleets';
@@ -2911,6 +2912,7 @@ export function useGameSession(
     opponentFleet,
     myVoidFleet,
     opponentVoidFleet,
+    myCurrentTurnPresentationSuppressedInstanceIds,
   } = deriveFleets({
     rawState,
     me,
@@ -3862,10 +3864,6 @@ useEffect(() => {
     return unsplit?.renderKey ?? null;
   }
   
-  // Build count maps for the token hook (server fleet + preview overlay for "me")
-  const myCountsByRenderKey: Record<string, number> = {};
-  for (const entry of myFleetWithPreview) myCountsByRenderKey[entry.renderKey] = entry.count;
-
   const opponentCountsByRenderKey: Record<string, number> = {};
   for (const entry of opponentFleetRendered) opponentCountsByRenderKey[entry.renderKey] = entry.count;
 
@@ -4345,6 +4343,24 @@ useEffect(() => {
     boardFlashEnabled,
     continueAuthoritativePhaseHold,
   });
+  const shouldSuppressCurrentTurnCreatedLocalShips =
+    board.mode === 'board' &&
+    me?.role === 'player' &&
+    hasMatchingAuthoritativeGameId &&
+    !isBootstrapping &&
+    !isFinished &&
+    presentedTurnReleaseTurnNumber === turnNumber &&
+    presentedTurnDiceSettledTurnNumber !== turnNumber;
+  const presentedLocalFleet = filterFleetSummariesBySuppressedMemberIds(
+    myFleetWithPreview,
+    shouldSuppressCurrentTurnCreatedLocalShips
+      ? myCurrentTurnPresentationSuppressedInstanceIds
+      : []
+  );
+  const myCountsByRenderKey: Record<string, number> = {};
+  for (const entry of presentedLocalFleet) {
+    myCountsByRenderKey[entry.renderKey] = entry.count;
+  }
   if (board.mode === 'board' && presentedEconomy != null) {
     board = { ...board, ...presentedEconomy };
   }
@@ -7145,8 +7161,9 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
   const presentedBoard = vm.board.mode === 'board'
     ? {
         ...vm.board,
+        myFleet: presentedLocalFleet,
         fleetAnim: {
-          my: buildFleetAnimSide(myAnimTokens, myFleetWithPreview),
+          my: buildFleetAnimSide(myAnimTokens, presentedLocalFleet),
           opponent: buildFleetAnimSide(opponentAnimTokens, opponentFleetRendered),
         },
       }
