@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { AnimatedEllipsisText } from '../ui/primitives/AnimatedEllipsisText';
-import { supabase } from '../../utils/supabase/client';
+import { getSupabaseAuthClient } from '../../utils/supabase/client';
 
 interface LoginPanelProps {
   onNavigate: (panel: string) => void;
@@ -28,6 +28,7 @@ export function LoginPanel({ onNavigate, onLogin }: LoginPanelProps) {
     setMessage('');
 
     try {
+      const supabase = getSupabaseAuthClient();
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,

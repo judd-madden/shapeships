@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { AnimatedEllipsisText } from '../ui/primitives/AnimatedEllipsisText';
-import { supabase } from '../../utils/supabase/client';
+import { getSupabaseAuthClient } from '../../utils/supabase/client';
 
 interface ForgotPasswordPanelProps {
   onNavigate: (panel: string) => void;
@@ -26,6 +26,7 @@ export function ForgotPasswordPanel({ onNavigate }: ForgotPasswordPanelProps) {
     setMessage('');
 
     try {
+      const supabase = getSupabaseAuthClient();
       const { error } = await supabase.auth.resetPasswordForEmail(email);
       
       if (error) throw error;
