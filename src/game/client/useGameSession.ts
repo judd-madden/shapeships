@@ -115,6 +115,7 @@ import {
   consumeMissionResultAutoPresentationRequest,
   getCompletedMissionId,
   getCompletedMissionFindingIds,
+  isCompletedSpeciesMissionIntroSetupGate,
   normalizeRequesterMissionChallenge,
   shouldAutomaticallyAcknowledgeMission,
   shouldPresentInitialMissionIntro,
@@ -2625,6 +2626,12 @@ export function useGameSession(
   const p2Species = normalizeSpecies(p2?.faction ?? p2?.species);
   const displayLeftSpecies = normalizeSpecies(displayLeftPlayer?.faction ?? displayLeftPlayer?.species);
   const displayRightSpecies = normalizeSpecies(displayRightPlayer?.faction ?? displayRightPlayer?.species);
+  const missionIntroSetupGateActive = isCompletedSpeciesMissionIntroSetupGate({
+    phaseKey,
+    isComputerGame,
+    introPending: normalizedMissionChallenge?.introPending === true,
+    playerSpecies: [p1Species, p2Species],
+  });
 
   const authoritativeAncientEnergy = getPublicAncientEnergyForPlayer(rawState, me?.id);
   const authoritativeAncientEnergyCapacity =
@@ -3963,7 +3970,11 @@ useEffect(() => {
   let board: BoardViewModel;
   let boardEconomyPresentation: TurnStartEconomyPresentation<BoardStatBreakdownRowVm> | null = null;
 
-  if (isInSpeciesSelection && matchupIntroVm === null) {
+  if (
+    isInSpeciesSelection &&
+    matchupIntroVm === null &&
+    !missionIntroSetupGateActive
+  ) {
     // Choose species mode
     const shareGameUrl = effectiveGameId ? buildShareGameUrl(effectiveGameId) : '';
 
@@ -4152,6 +4163,7 @@ useEffect(() => {
       opponentSpeciesId: effectiveOpponentSpecies,
 
       turnNumber,
+      showTurnStartEconomyPresentation: !missionIntroSetupGateActive,
 
       // Server-authoritative health
       myHealth: activeHealthPresentationOverride?.myHealth ?? myHealth,
@@ -7068,6 +7080,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         mySpeciesId: 'human',
         opponentSpeciesId: 'human',
         turnNumber: 1,
+        showTurnStartEconomyPresentation: true,
         myHealth: 25,
         opponentHealth: 25,
         myMaxHealth: DEFAULT_MAX_HEALTH,

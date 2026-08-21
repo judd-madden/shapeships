@@ -171,6 +171,9 @@ Deno.test('computer species resolution keeps Mission gating and never creates a 
 
   assert.equal(result.ok, true);
   assert.equal(result.state.gameData.turnData.phaseHold?.holdReason, undefined);
-  assert.equal(result.state.gameData.turnNumber, 1);
+  assert.equal(result.state.gameData.turnNumber, 0);
+  assert.equal(result.state.gameData.currentPhase, 'setup');
+  assert.equal(result.state.gameData.currentSubPhase, 'species_selection');
+  assert.equal(result.state.gameData.turnData.baseDiceRoll, undefined);
   assert.equal(result.state.missionChallengeAssignment?.introPending, true);
 });

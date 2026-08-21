@@ -4,9 +4,12 @@ declare const Deno: {
 
 import {
   classifyFirstTurnDiceSignature,
+  createTurnStartEconomyPresentationState,
   holdTurnStartDiceModifierPresentation,
   isCurrentTurnDicePresentationSettled,
   normalizeTurnStartDiceModifierPresentation,
+  settleTurnStartEconomyPresentation,
+  syncTurnStartEconomyPresentation,
 } from '../../gameSession/clienteffects/turnStartPresentationGates';
 
 function assertEquals(actual: unknown, expected: unknown, message: string): void {
@@ -30,6 +33,53 @@ Deno.test('first signature after an eligible no-signature state presents Turn 1 
     classifyFirstTurnDiceSignature({ observedEligibleNoSignature: true }),
     'present_roll',
     'setup-to-Turn-1 transition should use the normal roll presentation'
+  );
+});
+
+Deno.test('Turn 1 economy stays on the pre-turn baseline until dice presentation settles', () => {
+  const baseline = {
+    myBonusLines: 0,
+    opponentBonusLines: 0,
+    myBonusLinesOnEven: 0,
+    opponentBonusLinesOnEven: 0,
+    myDisplayedSavedLines: 3,
+    opponentDisplayedSavedLines: 3,
+    myDisplayedSavedJoiningLines: 0,
+    opponentDisplayedSavedJoiningLines: 0,
+    mySavedJoiningLines: 0,
+    opponentSavedJoiningLines: 0,
+    myJoiningBonusLines: 0,
+    opponentJoiningBonusLines: 0,
+    myBonusBreakdownRows: [],
+    opponentBonusBreakdownRows: [],
+  };
+  const turnOne = {
+    ...baseline,
+    myBonusLines: 2,
+    opponentBonusLines: 1,
+    myDisplayedSavedLines: 8,
+    opponentDisplayedSavedLines: 7,
+  };
+  const initial = createTurnStartEconomyPresentationState({
+    gameId: 'mission-game',
+    turnNumber: 0,
+    economy: baseline,
+  });
+  const pending = syncTurnStartEconomyPresentation(initial, {
+    gameId: 'mission-game',
+    turnNumber: 1,
+    economy: turnOne,
+  });
+
+  assertEquals(
+    pending.presented,
+    baseline,
+    'new-turn economy should remain hidden behind the existing dice settlement gate'
+  );
+  assertEquals(
+    settleTurnStartEconomyPresentation(pending, 1).presented,
+    turnOne,
+    'Turn 1 economy should release when the existing dice presentation settles'
   );
 });
 

@@ -11,6 +11,7 @@ import {
   consumeMissionResultAutoPresentationRequest,
   getCompletedMissionFindingIds,
   getCompletedMissionId,
+  isCompletedSpeciesMissionIntroSetupGate,
   normalizeRequesterMissionChallenge,
   shouldAutomaticallyAcknowledgeMission,
   shouldPresentInitialMissionIntro,
@@ -49,6 +50,33 @@ function requesterState(overrides: Record<string, unknown> = {}) {
     },
   };
 }
+
+Deno.test('completed computer species setup routes to the Mission-gated board only while pending', () => {
+  const base = {
+    phaseKey: 'setup.species_selection',
+    isComputerGame: true,
+    introPending: true,
+    playerSpecies: ['human', 'xenite'],
+  } as const;
+
+  assert(isCompletedSpeciesMissionIntroSetupGate(base));
+  assert(!isCompletedSpeciesMissionIntroSetupGate({
+    ...base,
+    playerSpecies: ['human', null],
+  }));
+  assert(!isCompletedSpeciesMissionIntroSetupGate({
+    ...base,
+    isComputerGame: false,
+  }));
+  assert(!isCompletedSpeciesMissionIntroSetupGate({
+    ...base,
+    introPending: false,
+  }));
+  assert(!isCompletedSpeciesMissionIntroSetupGate({
+    ...base,
+    phaseKey: 'build.dice_roll',
+  }));
+});
 
 Deno.test('normalizes only the requester Mission DTO and preserves authored data', () => {
   const raw = requesterState();

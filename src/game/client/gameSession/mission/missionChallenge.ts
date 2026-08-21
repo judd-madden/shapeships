@@ -64,6 +64,19 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+export function isCompletedSpeciesMissionIntroSetupGate(args: {
+  phaseKey: string;
+  isComputerGame: boolean;
+  introPending: boolean;
+  playerSpecies: readonly unknown[];
+}): boolean {
+  return args.phaseKey === 'setup.species_selection' &&
+    args.isComputerGame &&
+    args.introPending &&
+    args.playerSpecies.length === 2 &&
+    args.playerSpecies.every(isNonEmptyString);
+}
+
 function normalizeFindingIds(value: unknown): string[] | null {
   if (
     !Array.isArray(value) ||

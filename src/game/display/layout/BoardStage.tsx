@@ -324,9 +324,11 @@ export function BoardStage({ vm, matchupIntro, actions, phaseKey }: BoardStagePr
   const opponentBonusClusterHasVisibleContent =
     opponentDisplayedBonusLines !== 0 || vm.opponentJoiningBonusLines > 0;
   const myBonusHoverTrackable =
-    myBonusClusterHasVisibleContent || vm.myBonusBreakdownRows.length > 0;
+    vm.showTurnStartEconomyPresentation &&
+    (myBonusClusterHasVisibleContent || vm.myBonusBreakdownRows.length > 0);
   const opponentBonusHoverTrackable =
-    opponentBonusClusterHasVisibleContent || vm.opponentBonusBreakdownRows.length > 0;
+    vm.showTurnStartEconomyPresentation &&
+    (opponentBonusClusterHasVisibleContent || vm.opponentBonusBreakdownRows.length > 0);
   const opponentBonusAnchorRef =
     vm.opponentJoiningBonusLines > 0 ? opponentBonusJoiningAnchorRef : opponentBonusPrimaryAnchorRef;
   const statHoverRowsByKey: Record<BoardStatHoverKey, { rows: typeof vm.myLastDamageBreakdownRows; side: 'left' | 'right' }> = {
@@ -479,6 +481,7 @@ export function BoardStage({ vm, matchupIntro, actions, phaseKey }: BoardStagePr
         {/* Stats */}
         <div className="content-stretch flex flex-col gap-[20px] items-center relative shrink-0 w-full min-[768px]:max-[1599px]:gap-[12px]" data-name="Stats Wrapper">
           {/* Saved Lines */}
+          {vm.showTurnStartEconomyPresentation ? (
           <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Saved Lines Group">
             {/* P1 */}
             <div className="content-stretch flex items-start justify-end relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]" data-name="P1 Saved Wrapper">
@@ -518,6 +521,7 @@ export function BoardStage({ vm, matchupIntro, actions, phaseKey }: BoardStagePr
               </div>
             </div>
           </div>
+          ) : null}
 
           <StatTripletRow
             left={String(vm.myLastTurnDamage ?? 0)}
@@ -545,6 +549,7 @@ export function BoardStage({ vm, matchupIntro, actions, phaseKey }: BoardStagePr
           />
 
           {/* Bonus */}
+          {vm.showTurnStartEconomyPresentation ? (
           <div className="content-stretch flex gap-[10px] items-start justify-center relative shrink-0 w-full" data-name="Bonus Group">
             <div className="content-stretch flex gap-[4px] items-center justify-end relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]" data-name="P1 Bonuses">
               <HoverAnchor
@@ -616,6 +621,7 @@ export function BoardStage({ vm, matchupIntro, actions, phaseKey }: BoardStagePr
               </HoverAnchor>
             </div>
           </div>
+          ) : null}
         </div>
 
         {matchupIntro ? (

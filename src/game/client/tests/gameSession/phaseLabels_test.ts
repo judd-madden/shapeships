@@ -252,3 +252,17 @@ Deno.test('player-facing phase presentation follows authoritative interaction st
     '\u00A0',
   );
 });
+
+Deno.test('Mission setup gate blanks phase heading and subheading', () => {
+  assertEquals(
+    phasePresentation({
+      phaseKey: 'setup.species_selection',
+      missionIntroSetupGateActive: true,
+    }),
+    {
+      title: '',
+      titleSuffix: null,
+      subheading: '',
+    },
+  );
+});

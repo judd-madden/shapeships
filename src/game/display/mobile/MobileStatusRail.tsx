@@ -114,10 +114,18 @@ export function MobileStatusRail({
     netDelta: boardVm.opponentLastTurnNet,
     healing: boardVm.opponentLastTurnHeal,
     damage: boardVm.opponentLastTurnDamage,
-    bonus: opponentDisplayedBonus,
-    joiningBonus: boardVm.opponentJoiningBonusLines,
-    savedLines: boardVm.opponentDisplayedSavedLines,
-    savedJoiningLines: boardVm.opponentDisplayedSavedJoiningLines,
+    bonus: boardVm.showTurnStartEconomyPresentation
+      ? opponentDisplayedBonus
+      : undefined,
+    joiningBonus: boardVm.showTurnStartEconomyPresentation
+      ? boardVm.opponentJoiningBonusLines
+      : undefined,
+    savedLines: boardVm.showTurnStartEconomyPresentation
+      ? boardVm.opponentDisplayedSavedLines
+      : undefined,
+    savedJoiningLines: boardVm.showTurnStartEconomyPresentation
+      ? boardVm.opponentDisplayedSavedJoiningLines
+      : undefined,
   };
 
   const currentPlayerStatus: MobileStatusRailRowData = {
@@ -129,10 +137,18 @@ export function MobileStatusRail({
     netDelta: boardVm.myLastTurnNet,
     healing: boardVm.myLastTurnHeal,
     damage: boardVm.myLastTurnDamage,
-    bonus: myDisplayedBonus,
-    joiningBonus: boardVm.myJoiningBonusLines,
-    savedLines: boardVm.myDisplayedSavedLines,
-    savedJoiningLines: boardVm.myDisplayedSavedJoiningLines,
+    bonus: boardVm.showTurnStartEconomyPresentation
+      ? myDisplayedBonus
+      : undefined,
+    joiningBonus: boardVm.showTurnStartEconomyPresentation
+      ? boardVm.myJoiningBonusLines
+      : undefined,
+    savedLines: boardVm.showTurnStartEconomyPresentation
+      ? boardVm.myDisplayedSavedLines
+      : undefined,
+    savedJoiningLines: boardVm.showTurnStartEconomyPresentation
+      ? boardVm.myDisplayedSavedJoiningLines
+      : undefined,
   };
   const showDeltas = boardVm.turnNumber > 1 || boardVm.healthDeltaPresentationKey != null;
 

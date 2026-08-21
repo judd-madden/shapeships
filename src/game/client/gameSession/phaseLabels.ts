@@ -104,6 +104,7 @@ export type PhasePresentation = {
 
 export function derivePhasePresentation(args: {
   phaseKey: string;
+  missionIntroSetupGateActive?: boolean;
   isFinished: boolean;
   healthResolutionPresentationActive: boolean;
   isSpectator: boolean;
@@ -119,6 +120,10 @@ export function derivePhasePresentation(args: {
   const blank = '\u00A0';
   const withJoining = (base: string, joining: number): string =>
     joining > 0 ? `${base} +${joining} joining` : base;
+
+  if (args.missionIntroSetupGateActive) {
+    return { title: '', titleSuffix: null, subheading: '' };
+  }
 
   if (args.healthResolutionPresentationActive) {
     return {

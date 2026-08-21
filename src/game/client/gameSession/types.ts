@@ -566,6 +566,7 @@ export type BoardViewModel =
       opponentSpeciesId: SpeciesId;
       
       turnNumber: number;
+      showTurnStartEconomyPresentation: boolean;
       myHealth: number;
       opponentHealth: number;
       myMaxHealth: number;

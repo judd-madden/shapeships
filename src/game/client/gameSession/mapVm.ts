@@ -824,8 +824,13 @@ export function mapGameSessionVm(args: {
     }
   }
 
+  const missionIntroSetupGateActive =
+    phaseKey === 'setup.species_selection' &&
+    board.mode === 'board' &&
+    missionChallenge?.introPending === true;
   const phasePresentation = derivePhasePresentation({
     phaseKey,
+    missionIntroSetupGateActive,
     isFinished,
     healthResolutionPresentationActive,
     isSpectator,

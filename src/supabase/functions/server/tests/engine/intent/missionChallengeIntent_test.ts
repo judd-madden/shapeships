@@ -7,7 +7,10 @@ import {
 import { RejectionCode } from "../../../engine/intent/IntentTypes.ts";
 import { validateReveal } from "../../../engine/intent/Hash.ts";
 import { runBotsUntilSettled } from "../../../engine/bot/botRunner.ts";
-import type { MissionChallengeAssignment } from "../../../engine/mission/MissionChallenge.ts";
+import {
+  ensureMissionChallengeAssignment,
+  type MissionChallengeAssignment,
+} from "../../../engine/mission/MissionChallenge.ts";
 import { getMissionPool } from "../../../engine/mission/MissionStories.ts";
 import { normalizeAncientGameState } from "../../../engine/state/ancientState.ts";
 
@@ -166,7 +169,7 @@ function intent(
   };
 }
 
-Deno.test("computer species resolution assigns before normal phase progression", async () => {
+Deno.test("computer species resolution holds Turn 0 until Mission acknowledgement releases normal startup", async () => {
   const result = await applyIntent(
     setupComputerState(),
     "human",
@@ -183,12 +186,92 @@ Deno.test("computer species resolution assigns before normal phase progression",
   assert.equal(result.ok, true);
   assert.equal(result.state.missionChallengeAssignment?.playerId, "human");
   assert.equal(result.state.missionChallengeAssignment?.introPending, true);
-  assert.notEqual(result.state.gameData.currentPhase, "mission");
-  assert.notEqual(result.state.gameData.currentSubPhase, "mission");
+  assert.equal(result.state.gameData.turnNumber, 0);
+  assert.equal(result.state.gameData.currentPhase, "setup");
+  assert.equal(result.state.gameData.currentSubPhase, "species_selection");
+  assert.equal(result.state.gameData.turnData.baseDiceRoll, undefined);
+  assert.equal(result.state.gameData.turnData.diceRolled, undefined);
+  assert.equal(result.state.gameData.turnData.linesDistributed, undefined);
+  assert.equal(
+    result.events.some((event: any) =>
+      event?.type === "DICE_ROLLED" || event?.type === "LINES_GRANTED"
+    ),
+    false,
+  );
   assert.equal(
     result.state.players.find((player: any) => player.id === "bot")?.faction,
     "xenite",
   );
+
+  const acknowledged = await applyIntent(
+    result.state,
+    "human",
+    {
+      gameId: "mission-intent-game",
+      intentType: "MISSION_INTRO_ACK",
+      turnNumber: 0,
+      payload: {},
+      nonce: "mission-intro-ack",
+    },
+    1_001,
+  );
+
+  assert.equal(acknowledged.ok, true);
+  assert.equal(acknowledged.state.missionChallengeAssignment.introPending, false);
+  assert.equal(acknowledged.state.gameData.turnNumber, 1);
+  assert.ok(acknowledged.events.some((event: any) =>
+    event?.type === "PHASE_ADVANCED" &&
+    event?.from === "setup.species_selection" &&
+    event?.to === "build.dice_roll"
+  ));
+  assert.ok(acknowledged.events.some((event: any) => event?.type === "DICE_ROLLED"));
+  assert.ok(Number.isInteger(acknowledged.state.gameData.turnData.baseDiceRoll));
+
+  const repeated = await applyIntent(
+    acknowledged.state,
+    "human",
+    {
+      gameId: "mission-intent-game",
+      intentType: "MISSION_INTRO_ACK",
+      turnNumber: 1,
+      payload: {},
+      nonce: "mission-intro-ack-repeated",
+    },
+    1_002,
+  );
+  assert.equal(repeated.ok, true);
+  assert.equal(repeated.state.gameData.turnNumber, 1);
+  assert.equal(
+    repeated.events.some((event: any) =>
+      event?.type === "PHASE_ADVANCED" && event?.from === "setup.species_selection"
+    ),
+    false,
+  );
+});
+
+Deno.test("completed computer setup without a pending Mission releases immediately", async () => {
+  const assigned: MissionChallengeAssignment = {
+    playerId: "human",
+    missionId: "mission-human-v-xenite-save-colonies",
+    challenge: { shipDefId: "DEF", condition: "with" },
+    introPending: false,
+  };
+  const result = await applyIntent(
+    setupComputerState({ assigned }),
+    "human",
+    {
+      gameId: "mission-intent-game",
+      intentType: "SPECIES_SUBMIT",
+      turnNumber: 0,
+      payload: { species: "human", botSpecies: "xenite" },
+      nonce: "species-without-pending-intro",
+    },
+    1_000,
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.state.gameData.turnNumber, 1);
+  assert.ok(Number.isInteger(result.state.gameData.turnData.baseDiceRoll));
 });
 
 Deno.test("species submit metadata stays transient and canonical reveal hashing remains valid", async () => {
@@ -382,8 +465,13 @@ Deno.test("missing assignment recovery uses one current hint then becomes immuta
   assert.equal(recovered.ok, true);
   assert.equal(recovered.state.missionChallengeAssignment.missionId, pool[1].id);
   const recoveredAssignment = recovered.state.missionChallengeAssignment;
+  const repeatedState = ensureMissionChallengeAssignment(recovered.state, {
+    completedMissionIds: [pool[1].id],
+  });
+  assert.strictEqual(repeatedState.missionChallengeAssignment, recoveredAssignment);
+
   const acknowledged = await applyIntent(
-    recovered.state,
+    repeatedState,
     "human",
     {
       gameId: "mission-intent-game",
@@ -392,7 +480,7 @@ Deno.test("missing assignment recovery uses one current hint then becomes immuta
       payload: {},
       nonce: "recovery-ack",
     },
-    1_001,
+    1_002,
   );
   assert.equal(acknowledged.ok, true);
   assert.equal(
@@ -403,26 +491,7 @@ Deno.test("missing assignment recovery uses one current hint then becomes immuta
     acknowledged.state.missionChallengeAssignment.challenge,
     recoveredAssignment.challenge,
   );
-  const assignment = acknowledged.state.missionChallengeAssignment;
-
-  const repeated = await applyIntent(
-    acknowledged.state,
-    "human",
-    {
-      gameId: "mission-intent-game",
-      intentType: "SPECIES_SUBMIT",
-      turnNumber: 0,
-      payload: {
-        species: "human",
-        botSpecies: "human",
-        completedMissionIds: [pool[1].id],
-      },
-      nonce: "recovery-second",
-    },
-    1_002,
-  );
-  assert.equal(repeated.ok, true, JSON.stringify(repeated.rejected));
-  assert.strictEqual(repeated.state.missionChallengeAssignment, assignment);
+  assert.equal(acknowledged.state.gameData.turnNumber, 1);
 });
 
 Deno.test("enabled intro gate blocks ordinary human gameplay while preserving narrow exceptions", async () => {
@@ -570,16 +639,7 @@ Deno.test("enabled intro gate pauses clocks without back-charging and acknowledg
   });
 });
 
-Deno.test("bot gameplay remains available without acknowledging the human Mission intro", async () => {
-  const surrender = await applyIntent(
-    pendingGameState(),
-    "bot",
-    intent("SURRENDER"),
-    2_000,
-  );
-  assert.equal(surrender.ok, true);
-  assert.equal(surrender.state.winnerPlayerId, "human");
-
+Deno.test("bot applies zero steps while completed computer setup waits for Mission acknowledgement", async () => {
   const speciesResult = await applyIntent(
     setupComputerState(),
     "human",
@@ -596,6 +656,11 @@ Deno.test("bot gameplay remains available without acknowledging the human Missio
     state: speciesResult.state,
     nowMs: 1_001,
   });
-  assert.ok(settled.botStepsApplied > 0);
+  assert.equal(settled.botStepsApplied, 0);
+  assert.equal(settled.events.length, 0);
+  assert.equal(settled.state.gameData.turnNumber, 0);
+  assert.equal(settled.state.gameData.currentPhase, "setup");
+  assert.equal(settled.state.gameData.currentSubPhase, "species_selection");
+  assert.equal(settled.state.gameData.turnData.baseDiceRoll, undefined);
   assert.equal(settled.state.missionChallengeAssignment.introPending, true);
 });

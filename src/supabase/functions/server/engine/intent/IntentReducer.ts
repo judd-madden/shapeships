@@ -241,6 +241,81 @@ function isAllowedWhileMatchupIntroHeld(
   return false;
 }
 
+function hasCompletedSpeciesSelection(state: any): boolean {
+  const activePlayers = Array.isArray(state?.players)
+    ? state.players.filter((player: any) => player?.role === 'player')
+    : [];
+
+  return activePlayers.length === 2 &&
+    activePlayers.every((player: any) => player?.faction != null);
+}
+
+function releaseCompletedSpeciesSelectionSetup(
+  state: any,
+  nowMs: number,
+  events: any[],
+): IntentResult {
+  const fromKey = getPhaseKey(state);
+
+  if (fromKey !== 'setup.species_selection' || !hasCompletedSpeciesSelection(state)) {
+    events.push({
+      type: 'PHASE_ADVANCE_BLOCKED',
+      from: fromKey,
+      reason: 'Species selection setup is not complete',
+      atMs: nowMs,
+    });
+
+    return {
+      ok: true,
+      state: syncPhaseFields(state),
+      events,
+    };
+  }
+
+  const advanceResult = advancePhaseCore(state, nowMs);
+
+  if (!advanceResult.ok) {
+    events.push({
+      type: 'PHASE_ADVANCE_BLOCKED',
+      from: fromKey,
+      reason: advanceResult.error,
+      atMs: nowMs,
+    });
+
+    return {
+      ok: true,
+      state: syncPhaseFields(state),
+      events,
+    };
+  }
+
+  state = advanceResult.state;
+  state.gameData.phaseReadiness = [];
+  events.push(...advanceResult.events);
+  state = syncPhaseFields(state);
+
+  const toKey = getPhaseKey(state);
+
+  events.push({
+    type: 'PHASE_ADVANCED',
+    from: fromKey,
+    to: toKey,
+    atMs: nowMs,
+  });
+
+  if (toKey) {
+    const onEnterResult = onEnterPhase(state, fromKey, toKey, nowMs);
+    state = onEnterResult.state;
+    events.push(...onEnterResult.events);
+  }
+
+  return {
+    ok: true,
+    state: syncPhaseFields(state),
+    events,
+  };
+}
+
 function getEffectEventsFromOutcomeEvents(events: any[] | undefined): EffectEvent[] {
   if (!Array.isArray(events)) return [];
   return events.filter((event: any): event is EffectEvent => event?.type === 'EFFECT_APPLIED');
@@ -1114,7 +1189,7 @@ export async function applyIntent(
       return handleDeclareReady(state, sessionPlayerId, intent, nowMs, events);
 
     case 'MISSION_INTRO_ACK':
-      return handleMissionIntroAck(state, sessionPlayerId, events);
+      return handleMissionIntroAck(state, sessionPlayerId, nowMs, events);
 
     case 'CONTINUE_PHASE_HOLD':
       return handleContinuePhaseHold(state, sessionPlayerId, intent, nowMs, events);
@@ -1739,7 +1814,7 @@ async function handleSpeciesSubmit(
   
   // Completion check: advance when both players have faction set (not based on commit store)
   const activePlayers = state.players.filter((p: any) => p.role === 'player');
-  const bothChosen = activePlayers.length === 2 && activePlayers.every((p: any) => p.faction != null);
+  const bothChosen = hasCompletedSpeciesSelection(state);
   
   if (bothChosen) {
     debugLog('[SPECIES_SUBMIT] both chosen -> advance', { turnNumber: state.gameData.turnNumber });
@@ -1774,45 +1849,19 @@ async function handleSpeciesSubmit(
       };
     }
     
-    // Advance phase
-    const fromKey = phaseKey;
-    
-    const advanceResult = advancePhaseCore(state, nowMs);
-    
-    if (advanceResult.ok) {
-      state = advanceResult.state;
-      
-      // Clear readiness on successful phase advance
-      state.gameData.phaseReadiness = [];
-      state = syncPhaseFields(state);
-      
-      const toKey = getPhaseKey(state);
-      
-      debugLog(`[SPECIES_SUBMIT] Phase advanced: ${fromKey} → ${toKey}`);
-      
-      events.push({
-        type: 'PHASE_ADVANCED',
-        from: fromKey,
-        to: toKey,
-        atMs: nowMs
-      });
-      
-      // Trigger on-enter hooks for new phase
-      if (toKey) {
-        const onEnterResult = onEnterPhase(state, fromKey, toKey, nowMs);
-        state = onEnterResult.state;
-        events.push(...onEnterResult.events);
-      }
-    } else {
-      console.error(`[SPECIES_SUBMIT] Phase advance blocked: ${advanceResult.error}`);
-      
-      events.push({
-        type: 'PHASE_ADVANCE_BLOCKED',
-        from: fromKey,
-        reason: advanceResult.error,
-        atMs: nowMs
-      });
+    if (
+      isComputerGame &&
+      MISSION_INTRO_GATE_ENABLED &&
+      state.missionChallengeAssignment?.introPending === true
+    ) {
+      return {
+        ok: true,
+        state: syncPhaseFields(state),
+        events,
+      };
     }
+
+    return releaseCompletedSpeciesSelectionSetup(state, nowMs, events);
   } else {
     debugLog('[SPECIES_SUBMIT] Waiting for other player(s) to submit...');
   }
@@ -1833,6 +1882,7 @@ async function handleSpeciesSubmit(
 function handleMissionIntroAck(
   state: any,
   playerId: string,
+  nowMs: number,
   events: any[],
 ): IntentResult {
   const assignment = state?.missionChallengeAssignment;
@@ -1869,6 +1919,14 @@ function handleMissionIntroAck(
       introPending: false,
     },
   };
+
+  if (
+    getPhaseKey(state) === 'setup.species_selection' &&
+    getComputerBotSeat(state) !== null &&
+    hasCompletedSpeciesSelection(state)
+  ) {
+    return releaseCompletedSpeciesSelectionSetup(state, nowMs, events);
+  }
 
   return {
     ok: true,
@@ -3132,6 +3190,10 @@ function handleContinuePhaseHold(
       state,
       events,
     };
+  }
+
+  if (phaseKey === 'setup.species_selection') {
+    return releaseCompletedSpeciesSelectionSetup(state, nowMs, events);
   }
 
   const fromKey = phaseKey;
