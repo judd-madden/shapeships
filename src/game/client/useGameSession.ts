@@ -59,6 +59,7 @@ import {
   getJoiningBonusLinesByPlayerId,
   getJoiningLinesByPlayerId,
   getKnoRerollPassIndex,
+  getMaterializedSimulacrumFleetInstanceIdsByPlayerId,
   getMaterializedSimulacrumLedgerEntryIdsByPlayerId,
   getLastTurnDamageByPlayerId,
   getLastTurnDamageDealtBreakdownByPlayerId,
@@ -96,6 +97,12 @@ import {
   orderFleetSummariesByRenderKey,
   reconcileFleetRenderKeys,
 } from './gameSession/fleets';
+import {
+  buildPresentationFleetCountsByLiveRenderKey,
+  getCurrentTurnRegisteredSimulacrumInstanceIds,
+  getDeferredBugDrawingSpendCountByInstanceId,
+  projectDeferredBugChargePresentation,
+} from './gameSession/fleetPresentation';
 import { appendEventsToTape } from './gameSession/eventTape';
 import { usePhaseCommitCache } from './gameSession/commitCache';
 import { mapGameSessionVm } from './gameSession/mapVm';
@@ -3864,9 +3871,6 @@ useEffect(() => {
     return unsplit?.renderKey ?? null;
   }
   
-  const opponentCountsByRenderKey: Record<string, number> = {};
-  for (const entry of opponentFleetRendered) opponentCountsByRenderKey[entry.renderKey] = entry.count;
-
   const rawActivationCueBatches =
     rawState && hasMatchingAuthoritativeGameId && !isBootstrapping
       ? getShipActivationCueBatches(rawState)
@@ -4351,16 +4355,61 @@ useEffect(() => {
     !isFinished &&
     presentedTurnReleaseTurnNumber === turnNumber &&
     presentedTurnDiceSettledTurnNumber !== turnNumber;
-  const presentedLocalFleet = filterFleetSummariesBySuppressedMemberIds(
-    myFleetWithPreview,
+  const materializedSimulacrumFleetInstanceIdsByPlayerId =
+    getMaterializedSimulacrumFleetInstanceIdsByPlayerId(rawState);
+  const currentTurnLocalSimulacrumInstanceIds =
+    getCurrentTurnRegisteredSimulacrumInstanceIds({
+      ships: myShips,
+      ownerPlayerId: getPlayerIdentityKey(me),
+      turnNumber,
+      materializedSimulacrumFleetInstanceIdsByPlayerId,
+    });
+  const currentTurnOpponentSimulacrumInstanceIds =
+    getCurrentTurnRegisteredSimulacrumInstanceIds({
+      ships: opponentShips,
+      ownerPlayerId: getPlayerIdentityKey(opponent),
+      turnNumber,
+      materializedSimulacrumFleetInstanceIdsByPlayerId,
+    });
+  const localFleetWithoutUnsettledCreations =
+    filterFleetSummariesBySuppressedMemberIds(
+      myFleetWithPreview,
+      shouldSuppressCurrentTurnCreatedLocalShips
+        ? [
+            ...myCurrentTurnPresentationSuppressedInstanceIds,
+            ...currentTurnLocalSimulacrumInstanceIds,
+          ]
+        : []
+    );
+  const deferredBugDrawingSpendCountByInstanceId =
     shouldSuppressCurrentTurnCreatedLocalShips
-      ? myCurrentTurnPresentationSuppressedInstanceIds
+      ? getDeferredBugDrawingSpendCountByInstanceId({
+          activationCueBatches: rawActivationCueBatches,
+          localPlayerId: getPlayerIdentityKey(me),
+          turnNumber,
+          ships: myShips,
+        })
+      : {};
+  const presentedLocalFleet = projectDeferredBugChargePresentation({
+    fleet: localFleetWithoutUnsettledCreations,
+    ships: myShips,
+    deferredSpendCountByInstanceId: deferredBugDrawingSpendCountByInstanceId,
+    bugMaxCharges: getShipDefinitionById('BUG')?.maxCharges ?? 4,
+  });
+  const presentedOpponentFleet = filterFleetSummariesBySuppressedMemberIds(
+    opponentFleetRendered,
+    shouldSuppressCurrentTurnCreatedLocalShips
+      ? currentTurnOpponentSimulacrumInstanceIds
       : []
   );
-  const myCountsByRenderKey: Record<string, number> = {};
-  for (const entry of presentedLocalFleet) {
-    myCountsByRenderKey[entry.renderKey] = entry.count;
-  }
+  const myCountsByRenderKey = buildPresentationFleetCountsByLiveRenderKey({
+    presentedFleet: presentedLocalFleet,
+    liveFleet: myFleetWithPreview,
+  });
+  const opponentCountsByRenderKey = buildPresentationFleetCountsByLiveRenderKey({
+    presentedFleet: presentedOpponentFleet,
+    liveFleet: opponentFleetRendered,
+  });
   if (board.mode === 'board' && presentedEconomy != null) {
     board = { ...board, ...presentedEconomy };
   }
@@ -7162,9 +7211,10 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     ? {
         ...vm.board,
         myFleet: presentedLocalFleet,
+        opponentFleet: presentedOpponentFleet,
         fleetAnim: {
           my: buildFleetAnimSide(myAnimTokens, presentedLocalFleet),
-          opponent: buildFleetAnimSide(opponentAnimTokens, opponentFleetRendered),
+          opponent: buildFleetAnimSide(opponentAnimTokens, presentedOpponentFleet),
         },
       }
     : vm.board;

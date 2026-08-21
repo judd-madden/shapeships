@@ -3,9 +3,13 @@ declare const Deno: {
 };
 
 import {
+  buildPresentationFleetCountsByLiveRenderKey,
   classifyShipVisibilityToViewer,
   filterFleetSummariesBySuppressedMemberIds,
   getCurrentTurnHiddenShipInstanceIds,
+  getCurrentTurnRegisteredSimulacrumInstanceIds,
+  getDeferredBugDrawingSpendCountByInstanceId,
+  projectDeferredBugChargePresentation,
 } from '../../gameSession/fleetPresentation';
 
 interface FleetSummary {
@@ -242,5 +246,399 @@ Deno.test('existing opponent and opponent-VOID visibility keeps Simulacrum mater
       .map((ship) => ship.instanceId),
     ['void-sim'],
     'the existing opponent VOID visibility classification must be preserved'
+  );
+});
+
+Deno.test('BUG Drawing cue counts are unique per batch, player, and source instance', () => {
+  const passOne = {
+    key: 'ship-activation:3:build.drawing:drawing-prelude:local:pass:1',
+    turnNumber: 3,
+    phaseKey: 'build.drawing',
+    sources: [
+      { playerId: 'local', sourceInstanceId: 'bug-a' },
+      { playerId: 'local', sourceInstanceId: 'bug-a' },
+      { playerId: 'local', sourceInstanceId: 'xen-a' },
+    ],
+  };
+  const counts = getDeferredBugDrawingSpendCountByInstanceId({
+    activationCueBatches: [
+      passOne,
+      passOne,
+      {
+        key: 'ship-activation:3:build.drawing:drawing-prelude:local:pass:2',
+        turnNumber: 3,
+        phaseKey: 'build.drawing',
+        sources: [{ playerId: 'local', sourceInstanceId: 'bug-a' }],
+      },
+      {
+        key: 'wrong-player',
+        turnNumber: 3,
+        phaseKey: 'build.drawing',
+        sources: [{ playerId: 'opponent', sourceInstanceId: 'bug-a' }],
+      },
+      {
+        key: 'wrong-phase',
+        turnNumber: 3,
+        phaseKey: 'build.dice_roll',
+        sources: [{ playerId: 'local', sourceInstanceId: 'bug-a' }],
+      },
+      {
+        key: 'wrong-turn',
+        turnNumber: 2,
+        phaseKey: 'build.drawing',
+        sources: [{ playerId: 'local', sourceInstanceId: 'bug-a' }],
+      },
+    ],
+    localPlayerId: 'local',
+    turnNumber: 3,
+    ships: [
+      { shipDefId: 'BUG', instanceId: 'bug-a', chargesCurrent: 2 },
+      { shipDefId: 'XEN', instanceId: 'xen-a' },
+    ],
+  });
+
+  assertEquals(
+    counts,
+    { 'bug-a': 2 },
+    'separate Chronoswarm pass batches count separately while duplicate observations count once'
+  );
+});
+
+Deno.test('active BUG presentation restores only its deferred source charges and caps at maximum', () => {
+  const bugSummary = makeSummary({
+    shipDefId: 'BUG',
+    stackKey: 'BUG__inst_bug-a',
+    renderKey: 'stable-bug-a',
+    count: 1,
+    memberInstanceIds: ['bug-a'],
+    currentCharges: 3,
+  });
+  const ordinaryChargeSummary = makeSummary({
+    shipDefId: 'CUB',
+    stackKey: 'CUB__inst_cube-a',
+    renderKey: 'stable-cube-a',
+    count: 1,
+    memberInstanceIds: ['cube-a'],
+    currentCharges: 1,
+  });
+  const liveFleet = [bugSummary, ordinaryChargeSummary];
+  const presentedFleet = projectDeferredBugChargePresentation({
+    fleet: liveFleet,
+    ships: [
+      { shipDefId: 'BUG', instanceId: 'bug-a', chargesCurrent: 3 },
+      { shipDefId: 'CUB', instanceId: 'cube-a', chargesCurrent: 1 },
+    ],
+    deferredSpendCountByInstanceId: {
+      'bug-a': 2,
+      'cube-a': 1,
+    },
+    bugMaxCharges: 4,
+  });
+
+  assertEquals(presentedFleet[0].currentCharges, 4, 'BUG display restoration is capped at four');
+  assertEquals(presentedFleet[0].renderKey, 'stable-bug-a', 'active BUG render identity remains stable');
+  assertSame(
+    presentedFleet[1],
+    ordinaryChargeSummary,
+    'ordinary charge summaries remain live and unmodified'
+  );
+  assertEquals(bugSummary.currentCharges, 3, 'the authoritative/live BUG summary is not mutated');
+});
+
+Deno.test('single depleted BUG is temporarily presented as its charged source instance', () => {
+  const liveSummary = makeSummary({
+    shipDefId: 'BUG',
+    stackKey: 'BUG__charges_0',
+    renderKey: 'stable-depleted-bug',
+    count: 1,
+    memberInstanceIds: ['bug-a'],
+    condition: 'charges_0',
+    currentCharges: 0,
+  });
+  const presentedFleet = projectDeferredBugChargePresentation({
+    fleet: [liveSummary],
+    ships: [{ shipDefId: 'BUG', instanceId: 'bug-a', chargesCurrent: 0 }],
+    deferredSpendCountByInstanceId: { 'bug-a': 1 },
+    bugMaxCharges: 4,
+  });
+
+  assertEquals(
+    presentedFleet,
+    [{
+      ...liveSummary,
+      stackKey: 'BUG__inst_bug-a',
+      memberInstanceIds: ['bug-a'],
+      condition: undefined,
+      currentCharges: 1,
+    }],
+    'the source keeps its pre-spend graphic without changing its stable render identity'
+  );
+  assertEquals(liveSummary.condition, 'charges_0', 'the live depleted condition remains authoritative');
+});
+
+Deno.test('deferred BUG sources split individually from a multi-member depleted stack', () => {
+  const liveSummary = makeSummary({
+    shipDefId: 'BUG',
+    stackKey: 'BUG__charges_0',
+    renderKey: 'live-depleted-stack',
+    count: 3,
+    memberInstanceIds: ['bug-old', 'bug-a', 'bug-b'],
+    condition: 'charges_0',
+    currentCharges: 0,
+  });
+  const presentedFleet = projectDeferredBugChargePresentation({
+    fleet: [liveSummary],
+    ships: [
+      { shipDefId: 'BUG', instanceId: 'bug-old', chargesCurrent: 0 },
+      { shipDefId: 'BUG', instanceId: 'bug-a', chargesCurrent: 0 },
+      { shipDefId: 'BUG', instanceId: 'bug-b', chargesCurrent: 0 },
+    ],
+    deferredSpendCountByInstanceId: { 'bug-a': 1, 'bug-b': 2 },
+    bugMaxCharges: 4,
+  });
+
+  assertEquals(
+    presentedFleet,
+    [
+      {
+        ...liveSummary,
+        count: 1,
+        memberInstanceIds: ['bug-old'],
+      },
+      {
+        ...liveSummary,
+        count: 1,
+        stackKey: 'BUG__inst_bug-a',
+        renderKey: 'presentation__BUG__inst_bug-a',
+        memberInstanceIds: ['bug-a'],
+        condition: undefined,
+        currentCharges: 1,
+      },
+      {
+        ...liveSummary,
+        count: 1,
+        stackKey: 'BUG__inst_bug-b',
+        renderKey: 'presentation__BUG__inst_bug-b',
+        memberInstanceIds: ['bug-b'],
+        condition: undefined,
+        currentCharges: 2,
+      },
+    ],
+    'only deferred source instances leave the depleted aggregate'
+  );
+  assertEquals(
+    liveSummary.memberInstanceIds,
+    ['bug-old', 'bug-a', 'bug-b'],
+    'the live aggregate membership remains unchanged for runtime and activation lookup'
+  );
+});
+
+Deno.test('settled BUG presentation returns the live authoritative fleet unchanged', () => {
+  const liveFleet = [makeSummary({
+    shipDefId: 'BUG',
+    stackKey: 'BUG__charges_0',
+    count: 1,
+    memberInstanceIds: ['bug-a'],
+    condition: 'charges_0',
+    currentCharges: 0,
+  })];
+  const presentedFleet = projectDeferredBugChargePresentation({
+    fleet: liveFleet,
+    ships: [{ shipDefId: 'BUG', instanceId: 'bug-a', chargesCurrent: 0 }],
+    deferredSpendCountByInstanceId: {},
+    bugMaxCharges: 4,
+  });
+
+  assertSame(presentedFleet, liveFleet, 'release removes the presentation override immediately');
+});
+
+Deno.test('registered Simulacrum presentation IDs require both registry membership and current turn', () => {
+  const ships = [
+    { shipDefId: 'XEN', instanceId: 'sim-current', createdTurn: 4 },
+    { shipDefId: 'XEN', instanceId: 'sim-old', createdTurn: 3 },
+    { shipDefId: 'XEN', instanceId: 'ordinary-current', createdTurn: 4 },
+  ];
+  const ids = getCurrentTurnRegisteredSimulacrumInstanceIds({
+    ships,
+    ownerPlayerId: 'local',
+    turnNumber: 4,
+    materializedSimulacrumFleetInstanceIdsByPlayerId: {
+      local: ['sim-current', 'sim-old'],
+    },
+  });
+
+  assertEquals(ids, ['sim-current'], 'createdTurn scopes registry entries but never identifies SSIM alone');
+  assertEquals(ships.length, 3, 'authoritative/runtime ship inputs remain intact');
+});
+
+Deno.test('presentation animation counts delay SSIM additions and coalesce BUG-only splits', () => {
+  const liveFleet = [
+    makeSummary({
+      shipDefId: 'BUG',
+      stackKey: 'BUG__charges_0',
+      renderKey: 'live-depleted-stack',
+      count: 2,
+      memberInstanceIds: ['bug-old', 'bug-a'],
+      condition: 'charges_0',
+      currentCharges: 0,
+    }),
+    makeSummary({
+      shipDefId: 'XEN',
+      renderKey: 'live-xen-stack',
+      count: 2,
+      memberInstanceIds: ['xen-old', 'sim-current'],
+    }),
+  ];
+  const unsettledFleet = [
+    makeSummary({
+      shipDefId: 'BUG',
+      stackKey: 'BUG__charges_0',
+      renderKey: 'live-depleted-stack',
+      count: 1,
+      memberInstanceIds: ['bug-old'],
+      condition: 'charges_0',
+      currentCharges: 0,
+    }),
+    makeSummary({
+      shipDefId: 'BUG',
+      stackKey: 'BUG__inst_bug-a',
+      renderKey: 'presentation__BUG__inst_bug-a',
+      count: 1,
+      memberInstanceIds: ['bug-a'],
+      currentCharges: 1,
+    }),
+    makeSummary({
+      shipDefId: 'XEN',
+      renderKey: 'live-xen-stack',
+      count: 1,
+      memberInstanceIds: ['xen-old'],
+    }),
+  ];
+
+  assertEquals(
+    buildPresentationFleetCountsByLiveRenderKey({
+      presentedFleet: unsettledFleet,
+      liveFleet,
+    }),
+    {
+      'live-depleted-stack': 2,
+      'live-xen-stack': 1,
+    },
+    'BUG splits map to live identity while the unsettled SSIM member remains uncounted'
+  );
+  assertEquals(
+    buildPresentationFleetCountsByLiveRenderKey({
+      presentedFleet: liveFleet,
+      liveFleet,
+    }),
+    {
+      'live-depleted-stack': 2,
+      'live-xen-stack': 2,
+    },
+    'settle exposes only the SSIM N-to-N+1 count change'
+  );
+});
+
+Deno.test('local and opponent registered SSIM additions stay out of presentation counts until release', () => {
+  const localShips = [
+    { shipDefId: 'XEN', instanceId: 'local-sim', createdTurn: 5 },
+  ];
+  const opponentShips = [
+    { shipDefId: 'XEN', instanceId: 'opponent-xen-old', createdTurn: 4 },
+    { shipDefId: 'XEN', instanceId: 'opponent-sim', createdTurn: 5 },
+  ];
+  const registry = {
+    local: ['local-sim'],
+    opponent: ['opponent-sim'],
+  };
+  const localLiveFleet = [makeSummary({
+    shipDefId: 'XEN',
+    renderKey: 'local-xen',
+    count: 1,
+    memberInstanceIds: ['local-sim'],
+  })];
+  const opponentLiveFleet = [makeSummary({
+    shipDefId: 'XEN',
+    renderKey: 'opponent-xen',
+    count: 2,
+    memberInstanceIds: ['opponent-xen-old', 'opponent-sim'],
+  })];
+  const localPresentedFleet = filterFleetSummariesBySuppressedMemberIds(
+    localLiveFleet,
+    getCurrentTurnRegisteredSimulacrumInstanceIds({
+      ships: localShips,
+      ownerPlayerId: 'local',
+      turnNumber: 5,
+      materializedSimulacrumFleetInstanceIdsByPlayerId: registry,
+    })
+  );
+  const opponentPresentedFleet = filterFleetSummariesBySuppressedMemberIds(
+    opponentLiveFleet,
+    getCurrentTurnRegisteredSimulacrumInstanceIds({
+      ships: opponentShips,
+      ownerPlayerId: 'opponent',
+      turnNumber: 5,
+      materializedSimulacrumFleetInstanceIdsByPlayerId: registry,
+    })
+  );
+
+  assertEquals(localPresentedFleet, [], 'local SSIM 0-to-1 is withheld before release');
+  assertEquals(opponentPresentedFleet[0].count, 1, 'opponent SSIM N-to-N+1 is withheld before release');
+  assertEquals(
+    buildPresentationFleetCountsByLiveRenderKey({
+      presentedFleet: localPresentedFleet,
+      liveFleet: localLiveFleet,
+    }),
+    {},
+    'local entry count is not consumed early'
+  );
+  assertEquals(
+    buildPresentationFleetCountsByLiveRenderKey({
+      presentedFleet: opponentPresentedFleet,
+      liveFleet: opponentLiveFleet,
+    }),
+    { 'opponent-xen': 1 },
+    'opponent stack-add count is not consumed early'
+  );
+  assertEquals(localLiveFleet[0].count, 1, 'local runtime fleet remains authoritative and present');
+  assertEquals(opponentLiveFleet[0].count, 2, 'opponent runtime fleet remains authoritative and present');
+});
+
+Deno.test('ordinary non-BUG charge presentation remains live across charge and bucket changes', () => {
+  const charged = makeSummary({
+    shipDefId: 'CUB',
+    stackKey: 'CUB__inst_cube-a',
+    count: 1,
+    memberInstanceIds: ['cube-a'],
+    currentCharges: 1,
+  });
+  const depleted = makeSummary({
+    shipDefId: 'CUB',
+    stackKey: 'CUB__charges_0',
+    count: 1,
+    memberInstanceIds: ['cube-a'],
+    condition: 'charges_0',
+    currentCharges: 0,
+  });
+
+  assertSame(
+    projectDeferredBugChargePresentation({
+      fleet: [charged],
+      ships: [{ shipDefId: 'CUB', instanceId: 'cube-a', chargesCurrent: 1 }],
+      deferredSpendCountByInstanceId: { 'cube-a': 1 },
+      bugMaxCharges: 4,
+    })[0],
+    charged,
+    'ordinary 2-to-1 charge display remains live'
+  );
+  assertSame(
+    projectDeferredBugChargePresentation({
+      fleet: [depleted],
+      ships: [{ shipDefId: 'CUB', instanceId: 'cube-a', chargesCurrent: 0 }],
+      deferredSpendCountByInstanceId: { 'cube-a': 1 },
+      bugMaxCharges: 4,
+    })[0],
+    depleted,
+    'ordinary 1-to-0 semantic bucket display remains live'
   );
 });
