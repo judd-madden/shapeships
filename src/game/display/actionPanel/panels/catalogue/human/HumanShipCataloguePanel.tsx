@@ -18,6 +18,7 @@ import { ShipHoverCard } from '../shared/ShipHoverCard';
 import { useShipCatalogueHover } from '../shared/useShipCatalogueHover';
 import {
   getShipEligibilityForHover,
+  shouldDimCatalogueShip,
   shouldEnableCatalogueGraphicHover,
 } from '../shared/ShipBuildEligibility';
 import type { ShipDefId } from '../../../../../types/ShipTypes.engine';
@@ -66,7 +67,6 @@ export function HumanShipCataloguePanel({
 }: HumanShipCataloguePanelProps) {
   const hover = useShipCatalogueHover(hoverDisabled);
   const isBuildableContext = buildCatalogue.context === 'buildable';
-  const isUnavailableContext = buildCatalogue.context === 'unavailable';
   const isLongCatalogueLayout = catalogueLayout === 'long';
   const canvas = isLongCatalogueLayout ? HUMAN_LONG_CANVAS : HUMAN_DESKTOP_CANVAS;
   const leviathanPosition = isLongCatalogueLayout
@@ -75,7 +75,10 @@ export function HumanShipCataloguePanel({
 
   function getSlotProps(shipId: ShipDefId) {
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
-    const isDimmed = isUnavailableContext || (isBuildableContext && !canAddShip);
+    const isDimmed = shouldDimCatalogueShip({
+      context: buildCatalogue.context,
+      canAddShip,
+    });
     const enableGraphicHover = shouldEnableCatalogueGraphicHover({
       context: buildCatalogue.context,
       canAddShip,

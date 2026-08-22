@@ -14,6 +14,17 @@ export interface ShipEligibility {
   state: ShipEligibilityState;
   missingComponentShipIds?: string[];
   restrictionReason?: 'FOREIGN_BASIC';
+  unavailableExplanation?: ActionPanelBuildCatalogueViewModel['unavailableExplanation'];
+}
+
+export function shouldDimCatalogueShip(args: {
+  context: ActionPanelBuildCatalogueViewModel['context'];
+  canAddShip: boolean;
+}): boolean {
+  return (
+    args.context === 'unavailable' ||
+    (args.context === 'buildable' && !args.canAddShip)
+  );
 }
 
 export function shouldEnableCatalogueGraphicHover(args: {
@@ -47,7 +58,10 @@ export function getShipEligibilityForHover(args: {
   }
 
   if (buildCatalogue.context === 'unavailable') {
-    return { state: 'BUILD_STATE_UNAVAILABLE' };
+    return {
+      state: 'BUILD_STATE_UNAVAILABLE',
+      unavailableExplanation: buildCatalogue.unavailableExplanation,
+    };
   }
 
   const eligibility = buildCatalogue.eligibilityByShipId[shipId];

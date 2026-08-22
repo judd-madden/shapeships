@@ -32,6 +32,7 @@ import {
 import { useShipCatalogueHover } from "../shared/useShipCatalogueHover";
 import {
   getShipEligibilityForHover,
+  shouldDimCatalogueShip,
   shouldEnableCatalogueGraphicHover,
   type ShipEligibility,
 } from "../shared/ShipBuildEligibility";
@@ -546,7 +547,6 @@ export function AncientShipCataloguePanel({
   const hover = useShipCatalogueHover(hoverDisabled);
   const [hoveredSiphonSpend, setHoveredSiphonSpend] = useState<number | null>(null);
   const isBuildableContext = buildCatalogue.context === 'buildable';
-  const isUnavailableContext = buildCatalogue.context === 'unavailable';
   const canvas = ANCIENT_CATALOGUE_CANVAS_BY_LAYOUT[catalogueLayout];
   const solarHeaderPositions = SOLAR_HEADER_POSITIONS[catalogueLayout];
   const energyHeaderPosition = ANCIENT_ENERGY_HEADER_POSITION_BY_LAYOUT[catalogueLayout];
@@ -643,8 +643,10 @@ export function AncientShipCataloguePanel({
     const canAddShip = buildCatalogue.canAddShipById[shipId] === true;
     const isDimmed =
       isDeclarationPresentation ||
-      isUnavailableContext ||
-      (isBuildableContext && !canAddShip);
+      shouldDimCatalogueShip({
+        context: buildCatalogue.context,
+        canAddShip,
+      });
     const enableGraphicHover = shouldEnableCatalogueGraphicHover({
       context: buildCatalogue.context,
       canAddShip,

@@ -3,10 +3,13 @@ declare const Deno: {
 };
 
 import {
+  applyTurnStartCataloguePresentationGate,
   classifyFirstTurnDiceSignature,
   createTurnStartEconomyPresentationState,
+  deriveBuildDrawingReadyNote,
   holdTurnStartDiceModifierPresentation,
   isCurrentTurnDicePresentationSettled,
+  isNormalDrawingInteractionHeld,
   normalizeTurnStartDiceModifierPresentation,
   settleTurnStartEconomyPresentation,
   syncTurnStartEconomyPresentation,
@@ -129,5 +132,248 @@ Deno.test('current-turn result UI remains gated until that turn settles', () => 
     isCurrentTurnDicePresentationSettled({ turnNumber: 3, settledTurnNumber: 3 }),
     true,
     'the current result may be exposed after settle'
+  );
+});
+
+Deno.test('unsettled Drawing downgrades only an otherwise buildable catalogue', () => {
+  const unsettledDrawing = {
+    phaseKey: 'build.drawing',
+    currentTurnDicePresentationSettled: false,
+  };
+
+  assertEquals(
+    applyTurnStartCataloguePresentationGate({
+      ...unsettledDrawing,
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: false,
+      normalContext: 'buildable',
+    }),
+    'unavailable',
+    'newly available Drawing build interaction should remain unavailable until dice settle'
+  );
+  assertEquals(
+    applyTurnStartCataloguePresentationGate({
+      ...unsettledDrawing,
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: false,
+      normalContext: 'reference_only',
+    }),
+    'reference_only',
+    'existing reference-only policy should pass through unchanged'
+  );
+  assertEquals(
+    applyTurnStartCataloguePresentationGate({
+      ...unsettledDrawing,
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: false,
+      normalContext: 'unavailable',
+    }),
+    'unavailable',
+    'existing unavailable policy should pass through unchanged'
+  );
+});
+
+Deno.test('settlement and non-Drawing phases preserve the normal catalogue context', () => {
+  assertEquals(
+    applyTurnStartCataloguePresentationGate({
+      phaseKey: 'build.drawing',
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: false,
+      currentTurnDicePresentationSettled: true,
+      normalContext: 'buildable',
+    }),
+    'buildable',
+    'settled Drawing should restore buildability immediately'
+  );
+  assertEquals(
+    applyTurnStartCataloguePresentationGate({
+      phaseKey: 'battle.first_strike',
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: false,
+      currentTurnDicePresentationSettled: false,
+      normalContext: 'unavailable',
+    }),
+    'unavailable',
+    'dice settlement must not redefine non-Drawing catalogue policy'
+  );
+});
+
+Deno.test('Play Computer catalogue stays unavailable from Mission intro through Turn 1 dice', () => {
+  const progression = [
+    applyTurnStartCataloguePresentationGate({
+      phaseKey: 'setup.species_selection',
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: false,
+      currentTurnDicePresentationSettled: false,
+      normalContext: 'reference_only',
+    }),
+    applyTurnStartCataloguePresentationGate({
+      phaseKey: 'setup.species_selection',
+      missionIntroHoldActive: true,
+      matchupIntroHoldActive: false,
+      currentTurnDicePresentationSettled: false,
+      normalContext: 'reference_only',
+    }),
+    applyTurnStartCataloguePresentationGate({
+      phaseKey: 'build.drawing',
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: false,
+      currentTurnDicePresentationSettled: false,
+      normalContext: 'buildable',
+    }),
+    applyTurnStartCataloguePresentationGate({
+      phaseKey: 'build.drawing',
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: false,
+      currentTurnDicePresentationSettled: true,
+      normalContext: 'buildable',
+    }),
+  ];
+
+  assertEquals(
+    progression,
+    ['reference_only', 'unavailable', 'unavailable', 'buildable'],
+    'Mission games should progress from species reference through intro/dice unavailable to settled buildable'
+  );
+});
+
+Deno.test('multiplayer catalogue stays unavailable from matchup intro through Turn 1 dice', () => {
+  const progression = [
+    applyTurnStartCataloguePresentationGate({
+      phaseKey: 'setup.species_selection',
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: false,
+      currentTurnDicePresentationSettled: false,
+      normalContext: 'reference_only',
+    }),
+    applyTurnStartCataloguePresentationGate({
+      phaseKey: 'setup.species_selection',
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: true,
+      currentTurnDicePresentationSettled: false,
+      normalContext: 'reference_only',
+    }),
+    applyTurnStartCataloguePresentationGate({
+      phaseKey: 'build.drawing',
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: false,
+      currentTurnDicePresentationSettled: false,
+      normalContext: 'buildable',
+    }),
+    applyTurnStartCataloguePresentationGate({
+      phaseKey: 'build.drawing',
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: false,
+      currentTurnDicePresentationSettled: true,
+      normalContext: 'buildable',
+    }),
+  ];
+
+  assertEquals(
+    progression,
+    ['reference_only', 'unavailable', 'unavailable', 'buildable'],
+    'multiplayer should progress from species reference through matchup/dice unavailable to settled buildable'
+  );
+});
+
+Deno.test('intro hold flags do not redefine unrelated phases', () => {
+  assertEquals(
+    applyTurnStartCataloguePresentationGate({
+      phaseKey: 'battle.first_strike',
+      missionIntroHoldActive: true,
+      matchupIntroHoldActive: true,
+      currentTurnDicePresentationSettled: true,
+      normalContext: 'reference_only',
+    }),
+    'reference_only',
+    'stale or irrelevant intro flags must not affect non-setup catalogue policy'
+  );
+});
+
+Deno.test('ordinary Drawing interaction is held without delaying prelude workflows', () => {
+  assertEquals(
+    isNormalDrawingInteractionHeld({
+      phaseKey: 'build.drawing',
+      drawingStageKind: 'normal',
+      currentTurnDicePresentationSettled: false,
+    }),
+    true,
+    'ordinary build and Ready interaction should be held before settlement'
+  );
+  assertEquals(
+    isNormalDrawingInteractionHeld({
+      phaseKey: 'build.drawing',
+      drawingStageKind: 'prelude',
+      currentTurnDicePresentationSettled: false,
+    }),
+    false,
+    'Drawing preludes should remain outside the ordinary interaction hold'
+  );
+  assertEquals(
+    isNormalDrawingInteractionHeld({
+      phaseKey: 'battle.first_strike',
+      drawingStageKind: 'normal',
+      currentTurnDicePresentationSettled: false,
+    }),
+    false,
+    'unrelated phases should remain outside the Drawing hold'
+  );
+});
+
+Deno.test('Drawing Ready economy copy releases exactly at dice settlement', () => {
+  const economy = {
+    projectedSavedOrdinary: 5,
+    projectedSavedJoining: 0,
+    projectedSavedCombined: 5,
+    projectedSavedWasCapped: false,
+  };
+
+  assertEquals(
+    deriveBuildDrawingReadyNote({
+      phaseKey: 'build.drawing',
+      drawingStageKind: 'normal',
+      currentTurnDicePresentationSettled: false,
+      economy,
+    }),
+    null,
+    'unsettled Drawing must not expose projected save-lines copy'
+  );
+  assertEquals(
+    deriveBuildDrawingReadyNote({
+      phaseKey: 'build.drawing',
+      drawingStageKind: 'normal',
+      currentTurnDicePresentationSettled: true,
+      economy,
+    }),
+    'Save 5 lines',
+    'settlement should restore the ordinary Drawing Ready note without another delay'
+  );
+});
+
+Deno.test('hydrated current turns already considered settled do not acquire a new gate', () => {
+  const currentTurnDicePresentationSettled = isCurrentTurnDicePresentationSettled({
+    turnNumber: 4,
+    settledTurnNumber: 4,
+  });
+
+  assertEquals(
+    isNormalDrawingInteractionHeld({
+      phaseKey: 'build.drawing',
+      drawingStageKind: 'normal',
+      currentTurnDicePresentationSettled,
+    }),
+    false,
+    'an already-settled hydrated turn should expose ordinary Drawing immediately'
+  );
+  assertEquals(
+    applyTurnStartCataloguePresentationGate({
+      phaseKey: 'build.drawing',
+      missionIntroHoldActive: false,
+      matchupIntroHoldActive: false,
+      currentTurnDicePresentationSettled,
+      normalContext: 'buildable',
+    }),
+    'buildable',
+    'settled hydration and ordinary later turns should retain their normal catalogue context'
   );
 });

@@ -238,6 +238,8 @@ export type {
 } from './gameSession/types';
 import { useTurnPhasePresentation } from './gameSession/clienteffects/useTurnPhasePresentation';
 import {
+  applyTurnStartCataloguePresentationGate,
+  isNormalDrawingInteractionHeld,
   isCurrentTurnDicePresentationSettled,
   type TurnStartEconomyPresentation,
 } from './gameSession/clienteffects/turnStartPresentationGates';
@@ -4839,6 +4841,11 @@ useEffect(() => {
       turnNumber,
       settledTurnNumber: presentedTurnDiceSettledTurnNumber,
     });
+  const normalDrawingInteractionHeld = isNormalDrawingInteractionHeld({
+    phaseKey,
+    drawingStageKind: drawingStage.kind,
+    currentTurnDicePresentationSettled,
+  });
   const heldDrawingProjection =
     phaseKey === 'build.drawing' &&
     !currentTurnDicePresentationSettled
@@ -5021,15 +5028,30 @@ useEffect(() => {
     phaseKey === 'build.drawing' &&
     canEditCurrentDrawingBuild &&
     buildEconomyForMe != null;
-  const buildCatalogueContext =
+  const normalBuildCatalogueContext =
     isBuildableCatalogueContext
       ? 'buildable'
       : isRelevantLiveCatalogueContext
         ? 'unavailable'
       : 'reference_only';
+  const buildCatalogueContext = applyTurnStartCataloguePresentationGate({
+    phaseKey,
+    missionIntroHoldActive: missionIntroSetupGateActive,
+    matchupIntroHoldActive: matchupIntroVm !== null,
+    currentTurnDicePresentationSettled,
+    normalContext: normalBuildCatalogueContext,
+  });
+  const buildCatalogueTemporarilyUnavailableForPresentation =
+    buildCatalogueContext === 'unavailable' &&
+    normalBuildCatalogueContext !== 'unavailable';
 
   const buildCatalogue = {
     context: buildCatalogueContext,
+    unavailableExplanation:
+      buildCatalogueContext === 'unavailable' &&
+      !buildCatalogueTemporarilyUnavailableForPresentation
+        ? 'build_in_drawing_phase'
+        : null,
     canAddShipById: provisionalBuild.canAddShipById,
     displayCostByShipId: provisionalBuild.displayCostByShipId,
     eligibilityByShipId: provisionalBuild.eligibilityByShipId,
@@ -5090,6 +5112,9 @@ useEffect(() => {
   } else if (resumeSyncLocked) {
     readyEnabled = false;
     readyDisabledReason = 'Syncing authoritative state...';
+  } else if (normalDrawingInteractionHeld) {
+    readyEnabled = false;
+    readyDisabledReason = null;
   } else if (phaseKey === 'build.drawing' && drawingStage.kind === 'blocked') {
     readyEnabled = false;
     readyDisabledReason = 'Syncing authoritative state...';
@@ -5574,6 +5599,7 @@ useEffect(() => {
     readyEnabled,
     readyDisabledReason,
     resumeSyncLocked,
+    currentTurnDicePresentationSettled,
 
     battleLogHistory,
 
@@ -5745,6 +5771,10 @@ useEffect(() => {
     submissionOrigin: 'manual' | 'auto-entry'
   ): Promise<void> {
       if (healthResolutionPresentationActive) {
+        return;
+      }
+
+      if (normalDrawingInteractionHeld) {
         return;
       }
 
@@ -6353,6 +6383,10 @@ useEffect(() => {
       // Gate 1: Only in build.drawing phase
       if (phaseKey !== 'build.drawing') {
         return; // Silent no-op outside build.drawing
+      }
+
+      if (normalDrawingInteractionHeld) {
+        return;
       }
 
       if (!canEditCurrentDrawingBuild) {
@@ -7152,6 +7186,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         tabs: [],
         buildCatalogue: {
           context: 'reference_only',
+          unavailableExplanation: null,
           canAddShipById: {},
           displayCostByShipId: {},
           eligibilityByShipId: {},

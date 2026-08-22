@@ -43,6 +43,7 @@ import { deriveCubeDiceChoicePanelVm } from './cubeDiceChoice';
 import type { DrawingStage } from './drawingPrelude';
 import { derivePhasePresentation } from './phaseLabels';
 import { deriveTurnPhaseVm } from './turnPhases';
+import { deriveBuildDrawingReadyNote } from './clienteffects/turnStartPresentationGates';
 
 function getNamedGroupHeading(
   phaseKey: string,
@@ -213,6 +214,7 @@ export function mapGameSessionVm(args: {
   readyEnabled: boolean;
   readyDisabledReason: string | null;
   resumeSyncLocked: boolean;
+  currentTurnDicePresentationSettled: boolean;
 
   battleLogHistory: BattleLogHistoryResponse | null;
 
@@ -343,6 +345,7 @@ export function mapGameSessionVm(args: {
     readyEnabled,
     readyDisabledReason,
     resumeSyncLocked,
+    currentTurnDicePresentationSettled,
     battleLogHistory,
     getMajorPhaseLabel,
     getSubphaseLabelFromPhaseKey,
@@ -724,31 +727,6 @@ export function mapGameSessionVm(args: {
       }
     : undefined;
 
-  function formatBuildDrawingReadyNote(args: {
-    ordinary: number;
-    joining: number;
-    combined: number;
-    wasCapped: boolean;
-  }): string | null {
-    const cappedSuffix = args.wasCapped ? ' (max)' : '';
-
-    if (args.ordinary > 0 && args.joining > 0) {
-      const lineLabel = args.ordinary === 1 ? 'line' : 'lines';
-      return `Save ${args.ordinary} ${lineLabel} + ${args.joining}j${cappedSuffix}`;
-    }
-
-    if (args.ordinary > 0) {
-      const lineLabel = args.ordinary === 1 ? 'line' : 'lines';
-      return `Save ${args.ordinary} ${lineLabel}${cappedSuffix}`;
-    }
-
-    if (args.joining > 0) {
-      return `Save ${args.joining}j${cappedSuffix}`;
-    }
-
-    return null;
-  }
-
   // ============================================================================
   // READY BUTTON LABEL DERIVATION (CLIENT UX LAYER)
   // ============================================================================
@@ -856,11 +834,11 @@ export function mapGameSessionVm(args: {
   if (!isFinished && phaseKey === 'build.drawing' && buildDrawingEconomyDisplay != null) {
     if (!healthResolutionPresentationActive && !readyUx?.sendingNow && !autoReadyWaiting && !p1IsReady) {
       readyButtonLabel = 'READY';
-      readyButtonNote = formatBuildDrawingReadyNote({
-        ordinary: buildDrawingEconomyDisplay.projectedSavedOrdinary,
-        joining: buildDrawingEconomyDisplay.projectedSavedJoining,
-        combined: buildDrawingEconomyDisplay.projectedSavedCombined,
-        wasCapped: buildDrawingEconomyDisplay.projectedSavedWasCapped,
+      readyButtonNote = deriveBuildDrawingReadyNote({
+        phaseKey,
+        drawingStageKind: drawingStage.kind,
+        currentTurnDicePresentationSettled,
+        economy: buildDrawingEconomyDisplay,
       });
     }
   }

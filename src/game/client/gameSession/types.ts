@@ -696,6 +696,7 @@ export interface FleetAreaHealthDeltaFlashVm {
 
 export interface ActionPanelBuildCatalogueViewModel {
   context: 'buildable' | 'reference_only' | 'unavailable';
+  unavailableExplanation: 'build_in_drawing_phase' | null;
   canAddShipById: Partial<Record<ShipDefId, boolean>>;
   displayCostByShipId: Partial<Record<ShipDefId, number>>;
   eligibilityByShipId: Partial<Record<ShipDefId, ProvisionalShipEligibility>>;

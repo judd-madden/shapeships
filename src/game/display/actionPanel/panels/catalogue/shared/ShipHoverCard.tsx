@@ -178,6 +178,10 @@ function EligibilityFooter({
     }
 
     if (eligibility.state === 'BUILD_STATE_UNAVAILABLE') {
+      if (eligibility.unavailableExplanation !== 'build_in_drawing_phase') {
+        return null;
+      }
+
       return (
         <p
           className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"

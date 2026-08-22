@@ -3,6 +3,7 @@ declare const Deno: {
 };
 
 import {
+  decideAutoPanelRouting,
   getDefaultChoiceIdForRenderableAction,
   getSelectedChoiceIdForRenderableAction,
   type RenderableServerAction,
@@ -99,4 +100,31 @@ Deno.test('Cube and KNO special defaults remain unchanged', () => {
     'hold',
     'KNO should retain its Hold default'
   );
+});
+
+Deno.test('Carrier Drawing prelude routing remains independent of dice presentation', () => {
+  const decision = decideAutoPanelRouting({
+    phaseKey: 'build.drawing',
+    hasActionsAvailable: true,
+    actionsTargetPanelId: 'ap.build.drawing.prelude.carrier',
+    activePanelId: 'ap.catalog.ships.human',
+    mySpecies: 'human',
+    selectedSpecies: null,
+    buildDrawingRouteRequest: null,
+    drawingStage: { kind: 'prelude', passIndex: 1 },
+    carrierPreludeActionsValid: true,
+  });
+
+  assertEquals(
+    decision.kind,
+    'setActivePanelId',
+    'a valid authoritative Carrier prelude should still route immediately'
+  );
+  if (decision.kind === 'setActivePanelId') {
+    assertEquals(
+      decision.nextPanelId,
+      'ap.build.drawing.prelude.carrier',
+      'Carrier should route to its prelude action panel'
+    );
+  }
 });

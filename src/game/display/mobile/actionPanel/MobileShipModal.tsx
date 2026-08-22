@@ -244,6 +244,10 @@ function MobileShipModalFooter({
     }
 
     if (eligibility.state === 'BUILD_STATE_UNAVAILABLE') {
+      if (eligibility.unavailableExplanation !== 'build_in_drawing_phase') {
+        return null;
+      }
+
       return <UnavailableText>Build in Drawing Phase</UnavailableText>;
     }
 

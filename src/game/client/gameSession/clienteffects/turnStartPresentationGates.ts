@@ -82,6 +82,88 @@ export function isCurrentTurnDicePresentationSettled(args: {
   return args.settledTurnNumber === args.turnNumber;
 }
 
+export type BuildCatalogueContext = 'buildable' | 'reference_only' | 'unavailable';
+
+export function applyTurnStartCataloguePresentationGate(args: {
+  phaseKey: string;
+  missionIntroHoldActive: boolean;
+  matchupIntroHoldActive: boolean;
+  currentTurnDicePresentationSettled: boolean;
+  normalContext: BuildCatalogueContext;
+}): BuildCatalogueContext {
+  if (
+    args.phaseKey === 'setup.species_selection' &&
+    (args.missionIntroHoldActive || args.matchupIntroHoldActive)
+  ) {
+    return 'unavailable';
+  }
+
+  if (
+    args.phaseKey === 'build.drawing' &&
+    !args.currentTurnDicePresentationSettled &&
+    args.normalContext === 'buildable'
+  ) {
+    return 'unavailable';
+  }
+
+  return args.normalContext;
+}
+
+export function isNormalDrawingInteractionHeld(args: {
+  phaseKey: string;
+  drawingStageKind: string;
+  currentTurnDicePresentationSettled: boolean;
+}): boolean {
+  return (
+    args.phaseKey === 'build.drawing' &&
+    args.drawingStageKind === 'normal' &&
+    !args.currentTurnDicePresentationSettled
+  );
+}
+
+export interface BuildDrawingReadyEconomy {
+  projectedSavedOrdinary: number;
+  projectedSavedJoining: number;
+  projectedSavedCombined: number;
+  projectedSavedWasCapped: boolean;
+}
+
+export function deriveBuildDrawingReadyNote(args: {
+  phaseKey: string;
+  drawingStageKind: string;
+  currentTurnDicePresentationSettled: boolean;
+  economy: BuildDrawingReadyEconomy | null | undefined;
+}): string | null {
+  if (
+    args.economy == null ||
+    isNormalDrawingInteractionHeld(args) ||
+    args.phaseKey !== 'build.drawing' ||
+    args.drawingStageKind !== 'normal'
+  ) {
+    return null;
+  }
+
+  const cappedSuffix = args.economy.projectedSavedWasCapped ? ' (max)' : '';
+  const ordinary = args.economy.projectedSavedOrdinary;
+  const joining = args.economy.projectedSavedJoining;
+
+  if (ordinary > 0 && joining > 0) {
+    const lineLabel = ordinary === 1 ? 'line' : 'lines';
+    return `Save ${ordinary} ${lineLabel} + ${joining}j${cappedSuffix}`;
+  }
+
+  if (ordinary > 0) {
+    const lineLabel = ordinary === 1 ? 'line' : 'lines';
+    return `Save ${ordinary} ${lineLabel}${cappedSuffix}`;
+  }
+
+  if (joining > 0) {
+    return `Save ${joining}j${cappedSuffix}`;
+  }
+
+  return null;
+}
+
 export interface TurnStartEconomyPresentationState<TBreakdownRow = unknown> {
   gameId: string | null;
   authoritativeTurnNumber: number | null;
