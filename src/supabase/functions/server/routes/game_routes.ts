@@ -68,7 +68,13 @@ import {
   toBattleLogHistoryResponse,
 } from '../engine/state/battleLogHistory.ts';
 import { appendChatEntry } from './chat_kv.ts';
-import { ensureStateRevision, withBumpedStateRevision } from './state_revision.ts';
+import {
+  ensureStateRevision,
+  getPersistedStateRevisionToken,
+  getStateRevisionBase,
+  withBumpedStateRevision,
+  withStateRevisionFromBase,
+} from './state_revision.ts';
 import { debugLog } from '../utils/serverLogger.ts';
 import type { IntentPersistence } from './intent_persistence.ts';
 import { getPlayerMaxHealth } from '../engine_shared/maximumHealth.ts';
@@ -80,6 +86,7 @@ import {
 } from '../engine/mission/MissionChallenge.ts';
 
 const INITIAL_SAVED_LINES = 3;
+const MAX_GAME_STATE_READ_CONFLICT_RETRIES = 2;
 
 function logAncientCompatibilityRisks(
   boundary: string,
@@ -1003,8 +1010,13 @@ type PreparedGameStateRead =
     }
   | {
       ok: false;
-      error: 'not_found' | 'forbidden';
+      error: 'not_found' | 'forbidden' | 'conflict' | 'persistence_error';
     };
+
+type GameRoutePersistence = Pick<
+  IntentPersistence,
+  'load' | 'conditionalUpdate'
+>;
 
 export function registerGameRoutes(
   app: Hono,
@@ -1012,53 +1024,113 @@ export function registerGameRoutes(
   kvSet: (key: string, value: any) => Promise<void>,
   requireSession: (c: any) => Promise<any>,
   generateGameId: () => string,
-  loadPersistedRow: IntentPersistence['load'],
+  persistence: GameRoutePersistence,
 ) {
   async function prepareGameStateRead(
     gameId: string,
     requestingPlayerId: string,
   ): Promise<PreparedGameStateRead> {
-    const storedState = await kvGet(`game_${gameId}`);
+    const gameKey = `game_${gameId}`;
+    let nowMs: number | null = null;
+    for (
+      let attempt = 0;
+      attempt <= MAX_GAME_STATE_READ_CONFLICT_RETRIES;
+      attempt += 1
+    ) {
+      const loaded = await persistence.load(gameKey);
+      if (loaded.status === 'error') {
+        console.error('Game-state read persistence error:', loaded.error);
+        return { ok: false, error: 'persistence_error' };
+      }
+      if (loaded.status === 'missing') {
+        return { ok: false, error: 'not_found' };
+      }
+      nowMs ??= Date.now();
 
-    if (!storedState) {
-      return { ok: false, error: 'not_found' };
-    }
+      const storedState = structuredClone(loaded.value);
+      const revisionToken = getPersistedStateRevisionToken(storedState);
+      if (revisionToken.kind === 'invalid') {
+        console.error('Game-state read found invalid persisted stateRevision', {
+          gameId,
+          rawValue: revisionToken.rawValue,
+        });
+        return { ok: false, error: 'persistence_error' };
+      }
 
-    const nowMs = Date.now();
-    const prevStatus = storedState?.status;
-    let maintainedState = applyGameStateMaintenance(
-      ensureStateRevision(storedState),
-      nowMs,
-    );
-    const nextStatus = maintainedState?.status;
-    const terminalOccurred = prevStatus !== 'finished' && nextStatus === 'finished';
-    const ancientNormalization = normalizeAncientGameState(maintainedState);
-    maintainedState = ancientNormalization.state;
-
-    if (terminalOccurred) {
-      maintainedState = withBumpedStateRevision(maintainedState);
-      await kvSet(`game_${gameId}`, maintainedState);
-      logAncientCompatibilityRisks(
-        'terminal-maintenance',
-        ancientNormalization.compatibilityRisks,
+      const prevStatus = storedState?.status;
+      let maintainedState = applyGameStateMaintenance(
+        ensureStateRevision(storedState),
+        nowMs,
       );
+      const nextStatus = maintainedState?.status;
+      const terminalOccurred =
+        prevStatus !== 'finished' && nextStatus === 'finished';
+      const ancientNormalization = normalizeAncientGameState(maintainedState);
+      maintainedState = ancientNormalization.state;
+
+      if (terminalOccurred) {
+        maintainedState = withStateRevisionFromBase(
+          maintainedState,
+          getStateRevisionBase(revisionToken),
+        );
+        const writeResult = await persistence.conditionalUpdate({
+          key: gameKey,
+          value: maintainedState,
+          revisionField: 'stateRevision',
+          expected: revisionToken,
+        });
+        if (writeResult.status === 'conflict') {
+          continue;
+        }
+        if (writeResult.status === 'error') {
+          console.error(
+            'Game-state timeout persistence error:',
+            writeResult.error,
+          );
+          return { ok: false, error: 'persistence_error' };
+        }
+        logAncientCompatibilityRisks(
+          'terminal-maintenance',
+          ancientNormalization.compatibilityRisks,
+        );
+      }
+
+      const participant = maintainedState?.players?.find(
+        (player: any) => player?.id === requestingPlayerId,
+      );
+      if (!participant) {
+        return { ok: false, error: 'forbidden' };
+      }
+
+      return {
+        ok: true,
+        maintainedState,
+        nowMs,
+        terminalOccurred,
+        requestingPlayerId,
+        participant,
+      };
     }
 
-    const participant = maintainedState?.players?.find(
-      (player: any) => player?.id === requestingPlayerId,
-    );
-    if (!participant) {
-      return { ok: false, error: 'forbidden' };
-    }
+    return { ok: false, error: 'conflict' };
+  }
 
-    return {
-      ok: true,
-      maintainedState,
-      nowMs,
-      terminalOccurred,
-      requestingPlayerId,
-      participant,
-    };
+  function gameStateReadErrorResponse(
+    c: any,
+    preparedRead: Extract<PreparedGameStateRead, { ok: false }>,
+  ) {
+    if (preparedRead.error === 'not_found') {
+      return c.json({ error: "Game not found" }, 404);
+    }
+    if (preparedRead.error === 'forbidden') {
+      return c.json({ error: "Not authorized to view this game" }, 403);
+    }
+    if (preparedRead.error === 'conflict') {
+      return c.json({
+        error: "Game changed during timeout finalization; retry the request",
+      }, 409);
+    }
+    return c.json({ error: "Internal server error" }, 500);
   }
   
   // ============================================================================
@@ -1667,10 +1739,7 @@ export function registerGameRoutes(
 
       const preparedRead = await prepareGameStateRead(gameId, requestingPlayerId);
       if (!preparedRead.ok) {
-        if (preparedRead.error === 'not_found') {
-          return c.json({ error: "Game not found" }, 404);
-        }
-        return c.json({ error: "Not authorized to view this game" }, 403);
+        return gameStateReadErrorResponse(c, preparedRead);
       }
 
       const { maintainedState, nowMs, participant } = preparedRead;
@@ -2084,10 +2153,7 @@ export function registerGameRoutes(
       const preparedRead = await prepareGameStateRead(gameId, requestingPlayerId);
 
       if (!preparedRead.ok) {
-        if (preparedRead.error === 'not_found') {
-          return c.json({ error: "Game not found" }, 404);
-        }
-        return c.json({ error: "Not authorized to view this game" }, 403);
+        return gameStateReadErrorResponse(c, preparedRead);
       }
 
       const { maintainedState, nowMs } = preparedRead;
@@ -2121,7 +2187,7 @@ export function registerGameRoutes(
 
       const gameId = c.req.param('gameId');
       const requestingPlayerId = session.sessionId;
-      const gameLoad = await loadPersistedRow(`game_${gameId}`);
+      const gameLoad = await persistence.load(`game_${gameId}`);
 
       if (gameLoad.status === 'error') {
         console.error('Get game history game-row read error:', gameLoad.error);
@@ -2137,7 +2203,7 @@ export function registerGameRoutes(
         return c.json({ error: "Not authorized to view this game" }, 403);
       }
 
-      const historyLoad = await loadPersistedRow(getBattleLogHistoryKey(gameId));
+      const historyLoad = await persistence.load(getBattleLogHistoryKey(gameId));
       if (historyLoad.status === 'error') {
         console.error('Get game history history-row read error:', historyLoad.error);
         return c.json({ error: "Internal server error" }, 500);

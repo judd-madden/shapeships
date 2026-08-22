@@ -40,6 +40,36 @@ function createFixture(history: any = null, readErrorKey: string | null = null) 
   if (history) store.set(`game_history_${gameId}`, structuredClone(history));
   const writes: Array<{ key: string; value: any }> = [];
   const app = new Hono();
+  const persistence = {
+    async load(key: string) {
+      if (key === readErrorKey) {
+        return {
+          status: 'error' as const,
+          error: { message: 'database unavailable' },
+        };
+      }
+      return store.has(key)
+        ? { status: 'found' as const, value: structuredClone(store.get(key)) }
+        : { status: 'missing' as const };
+    },
+    async conditionalUpdate(args: any) {
+      const current = store.get(args.key);
+      if (!current) return { status: 'conflict' as const };
+      const hasRevision = Object.prototype.hasOwnProperty.call(
+        current,
+        args.revisionField,
+      );
+      const matches = args.expected.kind === 'missing'
+        ? !hasRevision
+        : args.expected.kind === 'valid' &&
+          current[args.revisionField] === args.expected.revision;
+      if (!matches) return { status: 'conflict' as const };
+      const value = structuredClone(args.value);
+      writes.push({ key: args.key, value });
+      store.set(args.key, value);
+      return { status: 'updated' as const };
+    },
+  };
   registerGameRoutes(
     app,
     async (key) => structuredClone(store.get(key)),
@@ -49,14 +79,7 @@ function createFixture(history: any = null, readErrorKey: string | null = null) 
     },
     async () => ({ sessionId: 'p1' }),
     () => 'unused',
-    async (key) => {
-      if (key === readErrorKey) {
-        return { status: 'error', error: { message: 'database unavailable' } };
-      }
-      return store.has(key)
-        ? { status: 'found', value: structuredClone(store.get(key)) }
-        : { status: 'missing' };
-    },
+    persistence,
   );
   return { app, gameId, checkpointSummary, store, writes };
 }

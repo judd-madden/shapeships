@@ -46,6 +46,28 @@ function createRouteFixture() {
   const app = new RouteHarness();
   const store = new Map<string, any>();
   let generatedId = 0;
+  const persistence = {
+    async load(key: string) {
+      return store.has(key)
+        ? { status: "found" as const, value: structuredClone(store.get(key)) }
+        : { status: "missing" as const };
+    },
+    async conditionalUpdate(args: any) {
+      const current = store.get(args.key);
+      if (!current) return { status: "conflict" as const };
+      const hasRevision = Object.prototype.hasOwnProperty.call(
+        current,
+        args.revisionField,
+      );
+      const matches = args.expected.kind === "missing"
+        ? !hasRevision
+        : args.expected.kind === "valid" &&
+          current[args.revisionField] === args.expected.revision;
+      if (!matches) return { status: "conflict" as const };
+      store.set(args.key, structuredClone(args.value));
+      return { status: "updated" as const };
+    },
+  };
 
   registerGameRoutes(
     app as any,
@@ -55,10 +77,7 @@ function createRouteFixture() {
     },
     async () => ({ sessionId: "player-1" }),
     () => `generated-${++generatedId}`,
-    async (key) =>
-      store.has(key)
-        ? { status: "found", value: structuredClone(store.get(key)) }
-        : { status: "missing" },
+    persistence,
   );
 
   return { app, store };

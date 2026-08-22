@@ -118,6 +118,7 @@ function createGameRouteFixture() {
   const app = new RouteHarness();
   const store = new Map<string, any>();
   const writes: Array<{ key: string; value: any }> = [];
+  const persistence = createFakeIntentPersistence(store, writes, []);
   let sessionId = 'p1';
   let generatedId = 0;
   registerGameRoutes(
@@ -130,9 +131,7 @@ function createGameRouteFixture() {
     },
     async () => ({ sessionId }),
     () => `generated-${++generatedId}`,
-    async (key) => store.has(key)
-      ? { status: 'found', value: structuredClone(store.get(key)) }
-      : { status: 'missing' },
+    persistence,
   );
   return {
     app,

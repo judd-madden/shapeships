@@ -243,7 +243,7 @@ registerGameRoutes(
   kvSet,
   requireSession,
   generateGameId,
-  intentPersistence.load,
+  intentPersistence,
 );
 registerIntentRoutes(
   app,

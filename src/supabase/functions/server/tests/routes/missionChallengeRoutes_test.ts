@@ -166,7 +166,7 @@ function createRouteFixture() {
     kvSet,
     requireSession,
     () => "unused-generated-id",
-    persistence.load,
+    persistence,
   );
   registerIntentRoutes(app as any, kvGet, kvSet, requireSession, persistence);
 
