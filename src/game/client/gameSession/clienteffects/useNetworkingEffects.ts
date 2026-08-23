@@ -184,7 +184,7 @@ export function useAutoJoinEffect(args: {
               response.status === 409;
 
             if (isBenignError) {
-              console.log(`âœ… [useGameSession] Already joined gameId=${effectiveGameId} (benign) - confirming via game-state...`);
+              console.log(`[useGameSession] Already joined gameId=${effectiveGameId} (benign) - confirming via game-state...`);
 
               const authorized = await confirmAuthorized();
               if (authorized) {
@@ -199,7 +199,7 @@ export function useAutoJoinEffect(args: {
                 continue;
               }
 
-              console.error(`âŒ [useGameSession] Auth confirm failed after ${MAX_ATTEMPTS} attempts - giving up`);
+              console.error(`[useGameSession] Auth confirm failed after ${MAX_ATTEMPTS} attempts - giving up`);
               return;
             }
 
@@ -218,7 +218,7 @@ export function useAutoJoinEffect(args: {
               });
 
               if (response.ok) {
-                console.log(`âœ… [useGameSession] Auto-join request ok (confirming via game-state)...`);
+                console.log(`[useGameSession] Auto-join request ok (confirming via game-state)...`);
 
                 const authorized = await confirmAuthorized();
                 if (authorized) {
@@ -233,12 +233,12 @@ export function useAutoJoinEffect(args: {
                   continue;
                 }
 
-                console.error(`âŒ [useGameSession] Auth confirm failed after ${MAX_ATTEMPTS} attempts - giving up`);
+                console.error(`[useGameSession] Auth confirm failed after ${MAX_ATTEMPTS} attempts - giving up`);
                 return;
               }
 
               const spectatorErrorText = await response.text();
-              console.error(`âŒ [useGameSession] Spectator join failed: ${response.status} ${spectatorErrorText}`);
+              console.error(`[useGameSession] Spectator join failed: ${response.status} ${spectatorErrorText}`);
               return;
             }
 
@@ -246,7 +246,7 @@ export function useAutoJoinEffect(args: {
             return;
           }
 
-          console.log(`âœ… [useGameSession] Auto-join request ok (confirming via game-state)...`);
+          console.log(`[useGameSession] Auto-join request ok (confirming via game-state)...`);
 
           const authorized = await confirmAuthorized();
           if (authorized) {
@@ -261,11 +261,11 @@ export function useAutoJoinEffect(args: {
             continue;
           }
 
-          console.error(`âŒ [useGameSession] Auth confirm failed after ${MAX_ATTEMPTS} attempts - giving up`);
+          console.error(`[useGameSession] Auth confirm failed after ${MAX_ATTEMPTS} attempts - giving up`);
           return;
         }
       } catch (err: any) {
-        console.error(`âŒ [useGameSession] Auto-join error for gameId=${effectiveGameId}:`, err.message);
+        console.error(`[useGameSession] Auto-join error for gameId=${effectiveGameId}:`, err.message);
       }
     };
 
@@ -444,7 +444,7 @@ export function usePollingEffect(args: {
       const errorText = await response.text();
 
       if (response.status === 403) {
-        console.error(`âŒ [useGameSession] Poll error gameId=${effectiveGameId}: Not authorized (403) - stopping polling`);
+        console.error(`[useGameSession] Poll error gameId=${effectiveGameId}: Not authorized (403) - stopping polling`);
         stopPolling('403');
         if (mounted) {
           setError('Not authorized to view this game');
@@ -454,7 +454,7 @@ export function usePollingEffect(args: {
       }
 
       if (response.status === 404 && errorText.toLowerCase().includes('game not found')) {
-        console.error(`âŒ [useGameSession] Poll error gameId=${effectiveGameId}: Game not found (404) - stopping polling`);
+        console.error(`[useGameSession] Poll error gameId=${effectiveGameId}: Game not found (404) - stopping polling`);
         stopPolling('404');
         if (mounted) {
           setError(`Game not found: ${effectiveGameId}`);
@@ -529,7 +529,7 @@ export function usePollingEffect(args: {
         return { kind: 'success', nextPollDelayMs };
       } catch (err: any) {
         console.error(
-          `âŒ [useGameSession] Poll full-sync error gameId=${effectiveGameId}${options?.reason ? ` (${options.reason})` : ''}:`,
+          `[useGameSession] Poll full-sync error gameId=${effectiveGameId}${options?.reason ? ` (${options.reason})` : ''}:`,
           err,
         );
         if (mounted) {
@@ -611,7 +611,7 @@ export function usePollingEffect(args: {
 
         return { kind: 'ok', head: data };
       } catch (err: any) {
-        console.error(`âŒ [useGameSession] Poll head error gameId=${effectiveGameId}:`, err);
+        console.error(`[useGameSession] Poll head error gameId=${effectiveGameId}:`, err);
         if (mounted) {
           setError(err.message);
           setLoading(false);
@@ -736,7 +736,7 @@ export function usePollingEffect(args: {
           }
         }
       } catch (err: any) {
-        console.error(`âŒ [useGameSession] Poll error gameId=${effectiveGameId}:`, err);
+        console.error(`[useGameSession] Poll error gameId=${effectiveGameId}:`, err);
         if (mounted) {
           setError(err.message);
           setLoading(false);

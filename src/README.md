@@ -62,7 +62,6 @@ Species-specific sound coverage remains incomplete.
 - `supabase/functions/server/**` — Edge Function entrypoint, routes, authoritative engine, and server-owned shared logic
 - `supabase/functions/server/tests/**` — centralized authoritative-server regression tests; this is not production runtime code
 - `documentation/**` — current status, contracts, workflows, planning records, and infrastructure notes
-- `game/legacy/**` and server `legacy/**` — retained older code outside the preferred active implementation path
 
 ## Current Codebase Overview
 

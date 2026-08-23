@@ -1,4 +1,4 @@
-\# Client Runtime Agent Rules
+# Client Runtime Agent Rules
 
 
 
@@ -8,11 +8,11 @@ This directory contains the client runtime for Shapeships.
 
 Architecture context:
 
-\- ../../documentation/contracts/canonical-handoff.md
+- ../../documentation/contracts/canonical-handoff.md
 
-\- ../../documentation/contracts/code-ownership-map.md
+- ../../documentation/contracts/code-ownership-map.md
 
-\- ../../AGENTS.md (repo root)
+- ../../AGENTS.md (repo root)
 
 
 
@@ -20,7 +20,7 @@ Architecture context:
 
 
 
-\## Responsibilities
+## Responsibilities
 
 
 
@@ -28,13 +28,13 @@ Client runtime code handles:
 
 
 
-\- session lifecycle
+- session lifecycle
 
-\- server communication
+- server communication
 
-\- view model generation
+- view model generation
 
-\- orchestration of UI state
+- orchestration of UI state
 
 
 
@@ -46,11 +46,11 @@ Networking should remain centralized in this layer.
 
 
 
-\## Authority Rules
+## Authority Rules
 
 
 
-The client is \*\*not authoritative\*\*.
+The client is **not authoritative**.
 
 
 
@@ -58,11 +58,11 @@ Client code may:
 
 
 
-\- render server state
+- render server state
 
-\- send intents to the server
+- send intents to the server
 
-\- compute previews
+- compute previews
 
 
 
@@ -70,11 +70,11 @@ Client code must not:
 
 
 
-\- resolve combat
+- resolve combat
 
-\- determine rule legality
+- determine rule legality
 
-\- mutate canonical game state
+- mutate canonical game state
 
 
 
@@ -86,7 +86,7 @@ If server and client disagree, the server wins.
 
 
 
-\## Relationship to Display Layer
+## Relationship to Display Layer
 
 
 
@@ -94,11 +94,11 @@ Client runtime feeds data to:
 
 
 
-\- `game/display/\*\*`
+- `game/display/**`
 
-\- `components/\*\*`
+- `components/**`
 
-\- `graphics/\*\*`
+- `graphics/**`
 
 
 
@@ -114,7 +114,7 @@ Avoid moving networking into display components.
 
 
 
-\## Editing Rules
+## Editing Rules
 
 
 
@@ -122,13 +122,13 @@ Agents should:
 
 
 
-\- modify view-model logic here rather than inside UI components
+- modify view-model logic here rather than inside UI components
 
-\- keep networking centralized
+- keep networking centralized
 
-\- prefer small, targeted edits
+- prefer small, targeted edits
 
-\- preserve existing data flow patterns
+- preserve existing data flow patterns
 
 
 
@@ -136,7 +136,7 @@ Agents should:
 
 
 
-\## Forbidden Changes (Without Explicit Approval)
+## Forbidden Changes (Without Explicit Approval)
 
 
 
@@ -144,13 +144,13 @@ Do not:
 
 
 
-\- implement gameplay rules here
+- implement gameplay rules here
 
-\- move authoritative logic from the server
+- move authoritative logic from the server
 
-\- introduce new networking entry points in UI components
+- introduce new networking entry points in UI components
 
-\- modify build/tooling configuration
+- modify build/tooling configuration
 
 
 
@@ -158,7 +158,7 @@ Do not:
 
 
 
-\## Validation
+## Validation
 
 
 
@@ -166,9 +166,9 @@ After edits run:
 
 
 
-\- npm run typecheck
+- npm run typecheck
 
-\- npm run build (if needed)
+- npm run build (if needed)
 
 
 
@@ -176,11 +176,11 @@ Report:
 
 
 
-\- files modified
+- files modified
 
-\- view-model changes
+- view-model changes
 
-\- validation results
+- validation results
 
 
 
@@ -188,13 +188,13 @@ Report:
 
 
 
-\## When Unsure
+## When Unsure
 
 
 
-1\. keep rule logic on the server
+1. keep rule logic on the server
 
-2\. keep networking centralized
+2. keep networking centralized
 
-3\. keep UI components presentation-focused
+3. keep UI components presentation-focused
 
