@@ -136,7 +136,7 @@ export function CoreRulesPanel({ onNavigate }: CoreRulesPanelProps) {
           <div className="relative flex-1 text-[16.5px] font-bold leading-[24px] sm:text-[20px] sm:leading-[32px]">
             <p className="mb-[9.75px]">Build your fleet up over the game to defeat your opponent in battle!</p>
             <p className="font-normal">
-              Shapeships isn't about movement or targeting. Ships don't move, don't have health, and (mostly) don't interact with each other directly. When you build a ship, its power becomes a permanent part of your fleet — dealing damage, healing you, or changing how future turns work (extra lines, altered dice, free ships, and more). Fleets grow stronger each turn until one player is defeated.
+              Shapeships isn't about movement or aim. Ships don't move, don't have health, and (mostly) don't interact with each other directly. When you build a ship, its power becomes a permanent part of your fleet — dealing damage, healing you, or changing how future turns work (extra lines, altered dice, free ships, and more). Fleets grow stronger each turn until one player is defeated.
             </p>
           </div>
         </RuleRow>

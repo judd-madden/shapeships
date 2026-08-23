@@ -277,7 +277,7 @@ export function HealthResolutionPanel({ vm, layout = 'desktop' }: HealthResoluti
   if (layout === 'mobile') {
     return (
       <div
-        className="relative flex size-full items-center justify-center overflow-hidden bg-black px-[12px] border-t border-[var(--shapeships-grey-70)] mt-[-1px]"
+        className="relative flex w-full items-center justify-center overflow-hidden bg-black px-[12px] border-t border-[var(--shapeships-grey-70)] mt-[-1px] h-[calc(100%+1px)] sm:h-full"
         style={rootStyle}
       >
         <div className="grid w-full max-w-[420px] grid-cols-[minmax(0,1fr)_minmax(110px,auto)_minmax(0,1fr)] items-center gap-[16px]">

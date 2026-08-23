@@ -102,7 +102,7 @@ export function MissionChallengeOverlay({
     <div
       aria-labelledby="mission-challenge-title"
       aria-modal={mode === 'result' ? undefined : true}
-      className="pointer-events-auto relative isolate flex max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[10px] bg-[var(--shapeships-grey-90)] text-white shadow-[0_0_250px_160px_rgba(0,0,0,1)] min-[768px]:max-h-full min-[768px]:w-[900px] min-[768px]:max-w-[calc(100%_-_32px)]"
+      className="pointer-events-auto relative isolate flex max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] flex-col overflow-hidden rounded-[10px] bg-[var(--shapeships-grey-90)] text-white shadow-[0_0_120px_50px_rgba(0,0,0,1)] sm:shadow-[0_0_250px_160px_rgba(0,0,0,1)] min-[768px]:max-h-full min-[768px]:w-[900px] min-[768px]:max-w-[calc(100%_-_32px)]"
       role="dialog"
     >
       <div
