@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { runBotsUntilSettled } from '../../../engine/bot/botRunner.ts';
+import {
+  MAX_BOT_STEPS_PER_REQUEST,
+  runBotsUntilSettled,
+} from '../../../engine/bot/botRunner.ts';
+import { applyIntent } from '../../../engine/intent/IntentReducer.ts';
 import { replaceChargeDeclarationVisibilityState } from '../../../engine/state/chargeDeclarationVisibility.ts';
 
 function createBotCubeState(mainValue: number, cubeValues: number[]) {
@@ -72,6 +76,92 @@ function createBotCubeState(mainValue: number, cubeValues: number[]) {
         chronoswarmCountByPlayerId: { human: 0, bot: 0 },
         chronoswarmSharedRollCount: 0,
       },
+    },
+  };
+}
+
+function createExactCapCentaurBotState(): any {
+  return {
+    gameId: 'bot-exact-cap-settled-test',
+    status: 'active',
+    turnNumber: 3,
+    players: [
+      {
+        id: 'human',
+        role: 'player',
+        faction: 'human',
+        health: 25,
+        lines: 0,
+        joiningLines: 0,
+      },
+      {
+        id: 'bot',
+        role: 'player',
+        faction: 'centaur',
+        health: 10,
+        lines: 0,
+        joiningLines: 0,
+      },
+    ],
+    controllersByPlayerId: {
+      human: { kind: 'human' },
+      bot: {
+        kind: 'bot',
+        speciesId: 'CEN',
+        chosenPlanId: 'cen_greed_dom',
+      },
+    },
+    gameData: {
+      turnNumber: 3,
+      currentPhase: 'battle',
+      currentSubPhase: 'first_strike',
+      phaseReadiness: [{
+        playerId: 'human',
+        isReady: true,
+        currentStep: 'battle.first_strike',
+      }],
+      ships: {
+        human: [
+          { instanceId: 'human-orb', shipDefId: 'ORB', createdTurn: 1 },
+          { instanceId: 'human-int', shipDefId: 'INT', chargesCurrent: 1, createdTurn: 1 },
+          { instanceId: 'human-def', shipDefId: 'DEF', createdTurn: 1 },
+        ],
+        bot: [
+          { instanceId: 'bot-dom', shipDefId: 'DOM', createdTurn: 3 },
+          { instanceId: 'bot-equ', shipDefId: 'EQU', chargesCurrent: 1, createdTurn: 1 },
+          { instanceId: 'bot-fam', shipDefId: 'FAM', chargesCurrent: 1, createdTurn: 1 },
+          { instanceId: 'bot-kno', shipDefId: 'KNO', createdTurn: 1 },
+          { instanceId: 'bot-fea', shipDefId: 'FEA', createdTurn: 1 },
+        ],
+      },
+      voidShipsByPlayerId: { human: [], bot: [] },
+      pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
+      powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
+      ancient: {
+        schemaVersion: 1,
+        energyByPlayerId: {},
+        acceptedDeclarationByPlayerId: {},
+        solarLedgerByPlayerId: {},
+        pendingSimulacrumCopies: [],
+        pendingBlackHoleDestructions: [],
+      },
+      turnData: {
+        turnNumber: 3,
+        currentMajorPhase: 'battle',
+        currentSubPhase: 'first_strike',
+        commitments: {},
+        chargePowerUsedByInstanceId: {},
+        chronoswarmRolls: [],
+        chronoswarmCountByPlayerId: { human: 0, bot: 0 },
+        chronoswarmSharedRollCount: 0,
+      },
+    },
+    actions: [],
+    events: [],
+    battleLogScratch: {
+      currentTurnCapture: null,
+      lastFinalizedTurnNumber: null,
+      archiveCheckpoint: null,
     },
   };
 }
@@ -515,4 +605,101 @@ Deno.test('authored Human INT-only plans preserve sequential final Declaration a
     result.events.some((event: any) => event.type === 'BOT_RUNNER_LIMIT_REACHED'),
     false,
   );
+});
+
+Deno.test('current supported bot ceiling reaches eight accepted intents already settled', async () => {
+  const firstRun = await runBotsUntilSettled({
+    state: createExactCapCentaurBotState(),
+    nowMs: 100,
+  });
+
+  assert.equal(firstRun.botStepsApplied, MAX_BOT_STEPS_PER_REQUEST);
+  assert.equal(
+    firstRun.events.some((event: any) => event.type === 'BOT_RUNNER_LIMIT_REACHED'),
+    true,
+  );
+  assert.equal(
+    firstRun.events.some((event: any) => event.type === 'BOT_INTENT_REJECTED'),
+    false,
+  );
+  // DOM and KNO choices are staged by one accepted intent and resolved by the
+  // following ready intent, so their resolution events are interleaved with
+  // PLAYER_READY rather than mapping one-to-one to runner steps.
+  assert.deepEqual(
+    firstRun.events
+      .filter((event: any) =>
+        event.type === 'POWER_USED' ||
+        event.type === 'PLAYER_READY' ||
+        event.type === 'BUILD_SUBMITTED'
+      )
+      .map((event: any) =>
+        event.type === 'POWER_USED'
+          ? `${event.type}:${event.actionId}`
+          : event.type
+      ),
+    [
+      'PLAYER_READY',
+      'POWER_USED:DOM#0',
+      'POWER_USED:EQU#0',
+      'POWER_USED:INT#0',
+      'POWER_USED:FAM#0',
+      'PLAYER_READY',
+      'PLAYER_READY',
+      'BUILD_SUBMITTED',
+      'PLAYER_READY',
+    ],
+  );
+
+  const settledState = firstRun.state;
+  assert.equal(settledState.gameData.currentPhase, 'build');
+  assert.equal(settledState.gameData.currentSubPhase, 'drawing');
+  assert.equal(
+    settledState.gameData.phaseReadiness.some((entry: any) =>
+      entry.playerId === 'bot' &&
+      entry.currentStep === 'build.drawing' &&
+      entry.isReady === true
+    ),
+    true,
+  );
+  assert.equal(
+    settledState.gameData.turnData.commitments.BUILD_4.bot.revealPayload != null,
+    true,
+  );
+  assert.equal(
+    settledState.gameData.turnData.drawingPreludeByPlayerId.bot.status,
+    'complete',
+  );
+  assert.equal(
+    settledState.gameData.turnData.commitments.BUILD_4.human,
+    undefined,
+  );
+
+  // Reaching the numerical cap does not imply unresolved bot work. This exact
+  // current-rule ceiling is fully settled after its eighth accepted bot intent.
+  const secondRun = await runBotsUntilSettled({ state: settledState, nowMs: 101 });
+  assert.equal(secondRun.botStepsApplied, 0);
+  assert.deepEqual(secondRun.state, settledState);
+  assert.equal(
+    secondRun.events.some((event: any) =>
+      event.type === 'POWER_USED' ||
+      event.type === 'PLAYER_READY' ||
+      event.type === 'BUILD_SUBMITTED' ||
+      event.type === 'BOT_RUNNER_LIMIT_REACHED'
+    ),
+    false,
+  );
+
+  const humanBuild = await applyIntent(
+    structuredClone(settledState),
+    'human',
+    {
+      gameId: settledState.gameId,
+      intentType: 'BUILD_SUBMIT',
+      turnNumber: 4,
+      payload: { builds: [] },
+      nonce: 'human-after-exact-bot-cap',
+    },
+    102,
+  );
+  assert.equal(humanBuild.ok, true);
 });
