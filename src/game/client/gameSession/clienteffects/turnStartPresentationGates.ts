@@ -82,6 +82,16 @@ export function isCurrentTurnDicePresentationSettled(args: {
   return args.settledTurnNumber === args.turnNumber;
 }
 
+export function shouldHoldSetupTurnDiceCatchUp(args: {
+  setupTurnDiceCatchUpPending: boolean;
+  currentTurnDicePresentationSettled: boolean;
+}): boolean {
+  return (
+    args.setupTurnDiceCatchUpPending &&
+    !args.currentTurnDicePresentationSettled
+  );
+}
+
 export type BuildCatalogueContext = 'buildable' | 'reference_only' | 'unavailable';
 
 export function applyTurnStartCataloguePresentationGate(args: {

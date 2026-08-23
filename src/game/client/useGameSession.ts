@@ -5666,6 +5666,7 @@ useEffect(() => {
     healthResolutionOverlay,
     presentedTurnReleaseKey,
     presentedTurnReleaseTurnNumber,
+    currentTurnDicePresentationSettled,
     isBootstrapping,
     isFinished,
   });

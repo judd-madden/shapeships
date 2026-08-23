@@ -11,6 +11,7 @@ import {
   getTurnPhaseMovementDurationMs,
   TURN_PHASE_PRESENTATION_TIMING,
 } from './turnPhasePresentationTiming';
+import { shouldHoldSetupTurnDiceCatchUp } from './turnStartPresentationGates';
 
 function readPrefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
@@ -37,6 +38,7 @@ interface Args {
   healthResolutionOverlay?: HealthResolutionPresentationVm;
   presentedTurnReleaseKey: number;
   presentedTurnReleaseTurnNumber: number | null;
+  currentTurnDicePresentationSettled: boolean;
   isBootstrapping: boolean;
   isFinished: boolean;
 }
@@ -64,6 +66,7 @@ export function useTurnPhasePresentation({
   healthResolutionOverlay,
   presentedTurnReleaseKey,
   presentedTurnReleaseTurnNumber,
+  currentTurnDicePresentationSettled,
   isBootstrapping,
   isFinished,
 }: Args): TurnPhasePresentationVm {
@@ -74,6 +77,10 @@ export function useTurnPhasePresentation({
   const authoritativelySeededRef = useRef(false);
   const lastReleaseKeyRef = useRef(0);
   const pendingReleaseTurnRef = useRef<number | null>(null);
+  const setupTurnDiceCatchUpPendingRef = useRef(false);
+  const currentTurnDicePresentationSettledRef = useRef(
+    currentTurnDicePresentationSettled
+  );
   const latestTargetRef = useRef<TurnPhaseMilestoneId | null>(null);
   const latestTargetTurnRef = useRef<number | null>(null);
   const contextRef = useRef(vm.context);
@@ -161,6 +168,7 @@ export function useTurnPhasePresentation({
   const clearPresentation = (turnNumber: number | null) => {
     clearTimer();
     stageRef.current = 'idle';
+    setupTurnDiceCatchUpPendingRef.current = false;
     pendingHeartOwnerRef.current = null;
     activeHeartOwnerRef.current = null;
     heartHoldStartedRef.current = false;
@@ -188,9 +196,14 @@ export function useTurnPhasePresentation({
     }, TURN_PHASE_PRESENTATION_TIMING.turnWrapMs.exit);
   };
 
-  const beginDiceDwell = (turnNumber: number) => {
+  const beginDiceDwell = (
+    turnNumber: number,
+    holdSetupTurnCatchUpUntilDiceSettled = false
+  ) => {
     clearTimer();
     stageRef.current = 'dice_dwell';
+    setupTurnDiceCatchUpPendingRef.current =
+      holdSetupTurnCatchUpUntilDiceSettled;
     publish('dice_roll', turnNumber, 0, 0);
     timerRef.current = setTimeout(() => {
       stageRef.current = 'idle';
@@ -313,6 +326,19 @@ export function useTurnPhasePresentation({
       return;
     }
 
+    if (
+      shouldHoldSetupTurnDiceCatchUp({
+        setupTurnDiceCatchUpPending:
+          setupTurnDiceCatchUpPendingRef.current,
+        currentTurnDicePresentationSettled:
+          currentTurnDicePresentationSettledRef.current,
+      })
+    ) {
+      stageRef.current = 'idle';
+      return;
+    }
+    setupTurnDiceCatchUpPendingRef.current = false;
+
     const target = latestTargetRef.current;
     const targetTurn = latestTargetTurnRef.current;
     const current = currentRef.current;
@@ -346,6 +372,8 @@ export function useTurnPhasePresentation({
   // accepted separately as a one-shot presentation event.
   latestTargetRef.current = vm.currentMilestone;
   latestTargetTurnRef.current = vm.turnNumber;
+  currentTurnDicePresentationSettledRef.current =
+    currentTurnDicePresentationSettled;
   contextRef.current = vm.context;
   finishedRef.current = isFinished;
 
@@ -354,6 +382,7 @@ export function useTurnPhasePresentation({
     authoritativelySeededRef.current = false;
     lastReleaseKeyRef.current = presentedTurnReleaseKey;
     pendingReleaseTurnRef.current = null;
+    setupTurnDiceCatchUpPendingRef.current = false;
     previousAuthoritativeContextRef.current = 'bootstrap';
     handledHealthPresentationKeyRef.current = null;
     pendingHeartOwnerRef.current = null;
@@ -496,7 +525,7 @@ export function useTurnPhasePresentation({
       !isFinished
     ) {
       terminalRequestedRef.current = false;
-      beginDiceDwell(vm.turnNumber);
+      beginDiceDwell(vm.turnNumber, true);
       return;
     }
 
@@ -530,6 +559,19 @@ export function useTurnPhasePresentation({
     vm.currentMilestone,
     vm.turnNumber,
   ]);
+
+  useLayoutEffect(() => {
+    if (
+      !authoritativelySeededRef.current ||
+      !setupTurnDiceCatchUpPendingRef.current ||
+      !currentTurnDicePresentationSettled ||
+      stageRef.current !== 'idle'
+    ) {
+      return;
+    }
+
+    catchUp();
+  }, [currentTurnDicePresentationSettled]);
 
   useLayoutEffect(() => {
     setPresentation((current) => ({

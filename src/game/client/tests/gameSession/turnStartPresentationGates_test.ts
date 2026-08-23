@@ -12,6 +12,7 @@ import {
   isNormalDrawingInteractionHeld,
   normalizeTurnStartDiceModifierPresentation,
   settleTurnStartEconomyPresentation,
+  shouldHoldSetupTurnDiceCatchUp,
   syncTurnStartEconomyPresentation,
 } from '../../gameSession/clienteffects/turnStartPresentationGates';
 
@@ -132,6 +133,44 @@ Deno.test('current-turn result UI remains gated until that turn settles', () => 
     isCurrentTurnDicePresentationSettled({ turnNumber: 3, settledTurnNumber: 3 }),
     true,
     'the current result may be exposed after settle'
+  );
+});
+
+Deno.test('setup-entry phase catch-up stays on Dice until current-turn dice settle', () => {
+  assertEquals(
+    shouldHoldSetupTurnDiceCatchUp({
+      setupTurnDiceCatchUpPending: true,
+      currentTurnDicePresentationSettled: false,
+    }),
+    true,
+    'the live setup-to-turn path should remain at Dice while its presentation is unsettled'
+  );
+  assertEquals(
+    shouldHoldSetupTurnDiceCatchUp({
+      setupTurnDiceCatchUpPending: true,
+      currentTurnDicePresentationSettled: true,
+    }),
+    false,
+    'the normal phase catch-up path should resume as soon as dice settle'
+  );
+});
+
+Deno.test('dice settlement does not add a phase hold outside setup entry', () => {
+  assertEquals(
+    shouldHoldSetupTurnDiceCatchUp({
+      setupTurnDiceCatchUpPending: false,
+      currentTurnDicePresentationSettled: false,
+    }),
+    false,
+    'later-turn Dice timing must remain independent of the setup-entry gate'
+  );
+  assertEquals(
+    shouldHoldSetupTurnDiceCatchUp({
+      setupTurnDiceCatchUpPending: false,
+      currentTurnDicePresentationSettled: true,
+    }),
+    false,
+    'hydrated settled turns must not manufacture a new phase hold'
   );
 });
 
