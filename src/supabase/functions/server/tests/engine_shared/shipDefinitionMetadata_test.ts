@@ -3,6 +3,7 @@ import {
   getAggregatedShipPowerTags,
   getShipByIdOrThrow,
   getShipPowerMetadataRows,
+  SHIP_DEFINITIONS_CORE_SERVER,
   SHIP_DEFS_VERSION_SERVER,
   type ShipPowerTag,
 } from '../../engine_shared/defs/ShipDefinitions.core.ts';
@@ -85,8 +86,9 @@ const clientRows = normalizeClientRows(clientDefinitions);
 const invalidFreeFormTag: ShipPowerTag = 'free_form_tag';
 void invalidFreeFormTag;
 
-Deno.test('server and client raw definition metadata and versions have exact parity', () => {
+Deno.test('server and client raw definitions, metadata, and versions have exact parity', () => {
   assert.equal(SHIP_DEFS_VERSION_SERVER, parseClientVersion(clientSource));
+  assert.deepEqual(clientDefinitions, SHIP_DEFINITIONS_CORE_SERVER);
   assert.deepEqual(clientRows, serverRows);
 });
 
