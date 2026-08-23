@@ -72,7 +72,6 @@ import {
   ensureStateRevision,
   getPersistedStateRevisionToken,
   getStateRevisionBase,
-  withBumpedStateRevision,
   withStateRevisionFromBase,
 } from './state_revision.ts';
 import { debugLog } from '../utils/serverLogger.ts';
@@ -86,7 +85,7 @@ import {
 } from '../engine/mission/MissionChallenge.ts';
 
 const INITIAL_SAVED_LINES = 3;
-const MAX_GAME_STATE_READ_CONFLICT_RETRIES = 2;
+const MAX_GAME_RECORD_CONFLICT_RETRIES = 2;
 
 function logAncientCompatibilityRisks(
   boundary: string,
@@ -759,7 +758,7 @@ function computeAvailableActionsForRequestingPlayer(state: any, playerId: string
           });
           continue;
         }
-        
+
         actions.push({
           kind: 'choice',
           actionId,
@@ -1034,7 +1033,7 @@ export function registerGameRoutes(
     let nowMs: number | null = null;
     for (
       let attempt = 0;
-      attempt <= MAX_GAME_STATE_READ_CONFLICT_RETRIES;
+      attempt <= MAX_GAME_RECORD_CONFLICT_RETRIES;
       attempt += 1
     ) {
       const loaded = await persistence.load(gameKey);
@@ -1379,17 +1378,43 @@ export function registerGameRoutes(
 
       debugLog(`Joining game ${gameId} - Session: ${session.sessionId}, Display name: ${playerName}`);
 
-      let gameData = await kvGet(`game_${gameId}`);
-      if (!gameData) {
-        return c.json({ error: "Game not found" }, 404);
-      }
-      gameData = ensureStateRevision(gameData);
-      const ingressAncientNormalization = normalizeAncientGameState(gameData);
-      gameData = ingressAncientNormalization.state;
-      let didMutate = ingressAncientNormalization.changed;
-      const ancientCompatibilityRisks = [
-        ...ingressAncientNormalization.compatibilityRisks,
-      ];
+      const gameKey = `game_${gameId}`;
+      for (
+        let attempt = 0;
+        attempt <= MAX_GAME_RECORD_CONFLICT_RETRIES;
+        attempt += 1
+      ) {
+        const loaded = await persistence.load(gameKey);
+        if (loaded.status === 'error') {
+          console.error('Join game persistence load error:', loaded.error);
+          return c.json({ error: "Internal server error" }, 500);
+        }
+        if (loaded.status === 'missing') {
+          return c.json({ error: "Game not found" }, 404);
+        }
+
+        const storedState = structuredClone(loaded.value);
+        const revisionToken = getPersistedStateRevisionToken(storedState);
+        if (revisionToken.kind === 'invalid') {
+          console.error('Join game found invalid persisted stateRevision', {
+            gameId,
+            rawValue: revisionToken.rawValue,
+          });
+          return c.json({ error: "Internal server error" }, 500);
+        }
+
+        let gameData = ensureStateRevision(storedState);
+        const ingressAncientNormalization = normalizeAncientGameState(gameData);
+        gameData = ingressAncientNormalization.state;
+        let didMutate =
+          revisionToken.kind === 'missing' || ingressAncientNormalization.changed;
+        const ancientCompatibilityRisks = [
+          ...ingressAncientNormalization.compatibilityRisks,
+        ];
+        let joinDebugEvent: {
+          name: 'JOIN_GAME_ACTIVATED_PLAYER' | 'JOIN_GAME_REACTIVATED_PLAYER';
+          details: Record<string, unknown>;
+        } | null = null;
 
       const existingPlayer = gameData.players.find((p: any) => p.id === playerId);
 
@@ -1457,15 +1482,18 @@ export function registerGameRoutes(
         }
         
         // PART C: Log activation
-        debugLog("JOIN_GAME_ACTIVATED_PLAYER", {
-          gameId,
-          sessionId: playerId,
-          role: finalRole,
-          isActive: finalRole === 'player',
-        });
+        joinDebugEvent = {
+          name: 'JOIN_GAME_ACTIVATED_PLAYER',
+          details: {
+            gameId,
+            sessionId: playerId,
+            role: finalRole,
+            isActive: finalRole === 'player',
+          },
+        };
       } else {
         // PART C: Rejoin - idempotently preserve existing player/spectator roles.
-        
+
         // If finalRole is 'player', ensure the existing player is active
         if (finalRole === 'player') {
           // Always set isActive=true for players (idempotent)
@@ -1494,12 +1522,15 @@ export function registerGameRoutes(
             }
           }
           
-          debugLog("JOIN_GAME_REACTIVATED_PLAYER", {
-            gameId,
-            sessionId: playerId,
-            role: existingPlayer.role,
-            isActive: true,
-          });
+          joinDebugEvent = {
+            name: 'JOIN_GAME_REACTIVATED_PLAYER',
+            details: {
+              gameId,
+              sessionId: playerId,
+              role: existingPlayer.role,
+              isActive: true,
+            },
+          };
         } else {
           // finalRole is 'spectator' - ensure isActive is false
           if (existingPlayer.isActive !== false) {
@@ -1522,17 +1553,40 @@ export function registerGameRoutes(
         ...egressAncientNormalization.compatibilityRisks,
       );
 
-      if (didMutate) {
-        gameData = withBumpedStateRevision(gameData);
-        await kvSet(`game_${gameId}`, gameData);
-        logAncientCompatibilityRisks('join-game', ancientCompatibilityRisks);
+        if (didMutate) {
+          gameData = withStateRevisionFromBase(
+            gameData,
+            getStateRevisionBase(revisionToken),
+          );
+          const writeResult = await persistence.conditionalUpdate({
+            key: gameKey,
+            value: gameData,
+            revisionField: 'stateRevision',
+            expected: revisionToken,
+          });
+          if (writeResult.status === 'conflict') {
+            continue;
+          }
+          if (writeResult.status === 'error') {
+            console.error('Join game persistence update error:', writeResult.error);
+            return c.json({ error: "Internal server error" }, 500);
+          }
+          logAncientCompatibilityRisks('join-game', ancientCompatibilityRisks);
+        }
+
+        if (joinDebugEvent) {
+          debugLog(joinDebugEvent.name, joinDebugEvent.details);
+        }
+        debugLog("Player joined game:", gameId, playerName);
+        return c.json({
+          message: "Joined game successfully",
+          gameData: sanitizeAncientStateForClient(gameData, playerId),
+        });
       }
-      
-      debugLog("Player joined game:", gameId, playerName);
+
       return c.json({
-        message: "Joined game successfully",
-        gameData: sanitizeAncientStateForClient(gameData, playerId),
-      });
+        error: "Game changed while joining; retry the request",
+      }, 409);
 
     } catch (error) {
       console.error("Join game error:", error);
@@ -1567,17 +1621,39 @@ export function registerGameRoutes(
 
       debugLog(`Role switch from session ${session.sessionId}: ${newRole} in game ${gameId}`);
 
-      let gameData = await kvGet(`game_${gameId}`);
-      if (!gameData) {
-        return c.json({ error: "Game not found" }, 404);
-      }
-      gameData = ensureStateRevision(gameData);
-      const ingressAncientNormalization = normalizeAncientGameState(gameData);
-      gameData = ingressAncientNormalization.state;
-      let didMutate = ingressAncientNormalization.changed;
-      const ancientCompatibilityRisks = [
-        ...ingressAncientNormalization.compatibilityRisks,
-      ];
+      const gameKey = `game_${gameId}`;
+      for (
+        let attempt = 0;
+        attempt <= MAX_GAME_RECORD_CONFLICT_RETRIES;
+        attempt += 1
+      ) {
+        const loaded = await persistence.load(gameKey);
+        if (loaded.status === 'error') {
+          console.error('Switch role persistence load error:', loaded.error);
+          return c.json({ error: "Internal server error" }, 500);
+        }
+        if (loaded.status === 'missing') {
+          return c.json({ error: "Game not found" }, 404);
+        }
+
+        const storedState = structuredClone(loaded.value);
+        const revisionToken = getPersistedStateRevisionToken(storedState);
+        if (revisionToken.kind === 'invalid') {
+          console.error('Switch role found invalid persisted stateRevision', {
+            gameId,
+            rawValue: revisionToken.rawValue,
+          });
+          return c.json({ error: "Internal server error" }, 500);
+        }
+
+        let gameData = ensureStateRevision(storedState);
+        const ingressAncientNormalization = normalizeAncientGameState(gameData);
+        gameData = ingressAncientNormalization.state;
+        let didMutate =
+          revisionToken.kind === 'missing' || ingressAncientNormalization.changed;
+        const ancientCompatibilityRisks = [
+          ...ingressAncientNormalization.compatibilityRisks,
+        ];
 
       const player = gameData.players.find((p: any) => p.id === playerId);
       if (!player) {
@@ -1703,17 +1779,40 @@ export function registerGameRoutes(
         ...egressAncientNormalization.compatibilityRisks,
       );
 
-      if (didMutate) {
-        gameData = withBumpedStateRevision(gameData);
-        await kvSet(`game_${gameId}`, gameData);
-        logAncientCompatibilityRisks('switch-role', ancientCompatibilityRisks);
+        if (didMutate) {
+          gameData = withStateRevisionFromBase(
+            gameData,
+            getStateRevisionBase(revisionToken),
+          );
+          const writeResult = await persistence.conditionalUpdate({
+            key: gameKey,
+            value: gameData,
+            revisionField: 'stateRevision',
+            expected: revisionToken,
+          });
+          if (writeResult.status === 'conflict') {
+            continue;
+          }
+          if (writeResult.status === 'error') {
+            console.error(
+              'Switch role persistence update error:',
+              writeResult.error,
+            );
+            return c.json({ error: "Internal server error" }, 500);
+          }
+          logAncientCompatibilityRisks('switch-role', ancientCompatibilityRisks);
+        }
+
+        debugLog("Player switched role:", gameId, player.name, oldRole, "->", newRole);
+        return c.json({
+          message: "Role switched successfully",
+          gameData: sanitizeAncientStateForClient(gameData, playerId),
+        });
       }
-      
-      debugLog("Player switched role:", gameId, player.name, oldRole, "->", newRole);
+
       return c.json({
-        message: "Role switched successfully",
-        gameData: sanitizeAncientStateForClient(gameData, playerId),
-      });
+        error: "Game changed while switching role; retry the request",
+      }, 409);
 
     } catch (error) {
       console.error("Switch role error:", error);
