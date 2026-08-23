@@ -99,9 +99,11 @@ import {
 } from './gameSession/fleets';
 import {
   buildPresentationFleetCountsByLiveRenderKey,
+  buildLocalAncientExactTargetPresentationEntries,
   getCurrentTurnRegisteredSimulacrumInstanceIds,
   getDeferredBugDrawingSpendCountByInstanceId,
   projectDeferredBugChargePresentation,
+  projectExactTargetFleetPresentation,
 } from './gameSession/fleetPresentation';
 import { appendEventsToTape } from './gameSession/eventTape';
 import { usePhaseCommitCache } from './gameSession/commitCache';
@@ -3256,6 +3258,7 @@ export function useGameSession(
     allocatedDestroyTargetIdsBySourceInstanceId,
     destroyTargetSatisfiedBySourceInstanceId,
     boardDestroyTargeting,
+    exactTargetPresentationEntries: ordinaryExactTargetPresentationEntries,
     shouldResetDestroyTargetRows,
     consumePendingDestroyTargetReset,
     applyDestroyTargetingChoiceSideEffects,
@@ -3773,23 +3776,11 @@ useEffect(() => {
     displayRightFleet,
     prevOpponentRenderedFleetRef.current
   );
-  const persistentAncientSolarTargetMarkers =
-    buildPersistentAncientSolarTargetMarkers({
-      active: showAncientSolarTargetMarkers,
-      solarEntries: ancientSolarEntriesForMarkers,
-      myFleet: myFleetWithPreview,
-      opponentFleet: opponentFleetRendered,
-    });
   const baseBoardDestroyTargeting = ancientBlackHoleSelectorActive
     ? ancientBlackHoleBoardTargeting
     : ancientSimulacrumSelectorActive
       ? ancientSimulacrumBoardTargeting
       : boardDestroyTargeting;
-  const boardDestroyTargetingWithAncientSolarMarkers =
-    overlayAncientSolarTargetMarkers({
-      activeTargeting: baseBoardDestroyTargeting,
-      persistentMarkers: persistentAncientSolarTargetMarkers,
-    });
   
   // ============================================================================
   // FLEET ORDER HOOK (UI-only stable ordering, append-only)
@@ -4196,7 +4187,7 @@ useEffect(() => {
       presentedMyRevealBlurSeq: isViewerSpectator ? presentedOpponentRevealBlurSeq : 0,
       presentedOpponentRevealBlurSeq,
 
-      destroyTargeting: boardDestroyTargetingWithAncientSolarMarkers,
+      destroyTargeting: baseBoardDestroyTargeting,
     };
   }
 
@@ -4369,18 +4360,84 @@ useEffect(() => {
           ships: myShips,
         })
       : {};
-  const presentedLocalFleet = projectDeferredBugChargePresentation({
+  const localFleetBeforeExactTargetProjection = projectDeferredBugChargePresentation({
     fleet: localFleetWithoutUnsettledCreations,
     ships: myShips,
     deferredSpendCountByInstanceId: deferredBugDrawingSpendCountByInstanceId,
     bugMaxCharges: getShipDefinitionById('BUG')?.maxCharges ?? 4,
   });
-  const presentedOpponentFleet = filterFleetSummariesBySuppressedMemberIds(
+  const opponentFleetBeforeExactTargetProjection = filterFleetSummariesBySuppressedMemberIds(
     opponentFleetRendered,
     shouldSuppressCurrentTurnCreatedLocalShips
       ? currentTurnOpponentSimulacrumInstanceIds
       : []
   );
+  const localAncientExactTargetPresentationEntries = me?.role === 'player'
+    ? buildLocalAncientExactTargetPresentationEntries({
+        blackHoleSelectedTargetInstanceIds:
+          ancientBlackHoleSelectedTargetInstanceIds,
+        localPresentationCasts: ancientSolarPresentationCasts,
+      })
+    : [];
+  const exactTargetPresentationEntryByInstanceId = new Map(
+    (me?.role === 'player' ? ordinaryExactTargetPresentationEntries : []).map(
+      (entry) => [entry.instanceId, entry] as const
+    )
+  );
+  for (const entry of localAncientExactTargetPresentationEntries) {
+    const existing = exactTargetPresentationEntryByInstanceId.get(entry.instanceId);
+    if (!existing || entry.selectedTone) {
+      // An active Ancient selector replaces ordinary board targeting. Local cast
+      // tones without an active selector are applied by the normal marker overlay.
+      exactTargetPresentationEntryByInstanceId.set(entry.instanceId, entry);
+    }
+  }
+  const exactTargetPresentationEntries = Array.from(
+    exactTargetPresentationEntryByInstanceId.values()
+  );
+  const projectedMyTargetPresentation = projectExactTargetFleetPresentation({
+    side: 'my',
+    fleet: localFleetBeforeExactTargetProjection,
+    renderOrder: myFleetRenderOrder,
+    exactTargets: exactTargetPresentationEntries,
+    targetStatesByStackKey: baseBoardDestroyTargeting.targetStatesBySide.my,
+    previewShipDefIdByStackKey:
+      baseBoardDestroyTargeting.previewShipDefIdBySide.my,
+  });
+  const projectedOpponentTargetPresentation = projectExactTargetFleetPresentation({
+    side: 'opponent',
+    fleet: opponentFleetBeforeExactTargetProjection,
+    renderOrder: opponentFleetRenderOrder,
+    exactTargets: exactTargetPresentationEntries,
+    targetStatesByStackKey: baseBoardDestroyTargeting.targetStatesBySide.opponent,
+    previewShipDefIdByStackKey:
+      baseBoardDestroyTargeting.previewShipDefIdBySide.opponent,
+  });
+  const presentedLocalFleet = projectedMyTargetPresentation.fleet;
+  const presentedOpponentFleet = projectedOpponentTargetPresentation.fleet;
+  const projectedBoardDestroyTargeting = {
+    activeSourceInstanceId: baseBoardDestroyTargeting.activeSourceInstanceId,
+    targetStatesBySide: {
+      my: projectedMyTargetPresentation.targetStatesByStackKey,
+      opponent: projectedOpponentTargetPresentation.targetStatesByStackKey,
+    },
+    previewShipDefIdBySide: {
+      my: projectedMyTargetPresentation.previewShipDefIdByStackKey,
+      opponent: projectedOpponentTargetPresentation.previewShipDefIdByStackKey,
+    },
+  };
+  const persistentAncientSolarTargetMarkers =
+    buildPersistentAncientSolarTargetMarkers({
+      active: showAncientSolarTargetMarkers,
+      solarEntries: ancientSolarEntriesForMarkers,
+      myFleet: presentedLocalFleet,
+      opponentFleet: presentedOpponentFleet,
+    });
+  const boardDestroyTargetingWithAncientSolarMarkers =
+    overlayAncientSolarTargetMarkers({
+      activeTargeting: projectedBoardDestroyTargeting,
+      persistentMarkers: persistentAncientSolarTargetMarkers,
+    });
   const myCountsByRenderKey = buildPresentationFleetCountsByLiveRenderKey({
     presentedFleet: presentedLocalFleet,
     liveFleet: myFleetWithPreview,
@@ -7213,6 +7270,9 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         ...vm.board,
         myFleet: presentedLocalFleet,
         opponentFleet: presentedOpponentFleet,
+        myFleetRenderOrder: projectedMyTargetPresentation.renderOrder,
+        opponentFleetRenderOrder: projectedOpponentTargetPresentation.renderOrder,
+        destroyTargeting: boardDestroyTargetingWithAncientSolarMarkers,
         fleetAnim: {
           my: buildFleetAnimSide(myAnimTokens, presentedLocalFleet),
           opponent: buildFleetAnimSide(opponentAnimTokens, presentedOpponentFleet),

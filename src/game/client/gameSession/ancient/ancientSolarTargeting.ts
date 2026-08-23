@@ -2,6 +2,7 @@ import { isShipDefId } from '../../../data/ShipDefinitions.core';
 import { getShipDefinitionById } from '../../../data/ShipDefinitions.engine';
 import { ShipType, type ShipDefId } from '../../../types/ShipTypes.engine';
 import type { AncientManualSolarCast } from './ancientChargeDeclaration';
+import { buildExactMembershipSelectedTargetStates } from '../fleetPresentation';
 import type {
   AncientSolarDisplayEntry,
   BoardDestroyTargetingViewModel,
@@ -454,36 +455,14 @@ export function buildPersistentAncientSolarTargetMarkers(args: {
     }
   }
 
-  const addFleetMarkers = (
-    side: keyof BoardDestroyTargetingViewModel['targetStatesBySide'],
-    fleet: readonly BoardFleetSummary[]
-  ) => {
-    for (const stack of fleet) {
-      let selectedTone: BoardTargetSelectedTone | null = null;
-      for (const instanceId of stack.memberInstanceIds) {
-        const instanceTone = toneByInstanceId.get(instanceId);
-        if (instanceTone === 'red') {
-          selectedTone = 'red';
-          break;
-        }
-        if (instanceTone === 'cyan') {
-          selectedTone = 'cyan';
-        }
-      }
-
-      if (selectedTone) {
-        targeting.targetStatesBySide[side][stack.stackKey] = {
-          isTargetable: false,
-          isHovered: false,
-          isSelected: true,
-          selectedTone,
-        };
-      }
-    }
-  };
-
-  addFleetMarkers('my', args.myFleet);
-  addFleetMarkers('opponent', args.opponentFleet);
+  targeting.targetStatesBySide.my = buildExactMembershipSelectedTargetStates({
+    fleet: args.myFleet,
+    toneByInstanceId,
+  });
+  targeting.targetStatesBySide.opponent = buildExactMembershipSelectedTargetStates({
+    fleet: args.opponentFleet,
+    toneByInstanceId,
+  });
   return targeting;
 }
 

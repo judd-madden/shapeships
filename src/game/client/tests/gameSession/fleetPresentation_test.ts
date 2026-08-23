@@ -3,12 +3,16 @@ declare const Deno: {
 };
 
 import {
+  buildExactDestroyTargetPresentationEntries,
+  buildExactMembershipSelectedTargetStates,
+  buildLocalAncientExactTargetPresentationEntries,
   buildPresentationFleetCountsByLiveRenderKey,
   classifyShipVisibilityToViewer,
   filterFleetSummariesBySuppressedMemberIds,
   getCurrentTurnHiddenShipInstanceIds,
   getCurrentTurnRegisteredSimulacrumInstanceIds,
   getDeferredBugDrawingSpendCountByInstanceId,
+  projectExactTargetFleetPresentation,
   projectDeferredBugChargePresentation,
 } from '../../gameSession/fleetPresentation';
 
@@ -640,5 +644,407 @@ Deno.test('ordinary non-BUG charge presentation remains live across charge and b
     })[0],
     depleted,
     'ordinary 1-to-0 semantic bucket display remains live'
+  );
+});
+
+Deno.test('exact target projection detaches one member and preserves current remainder interaction', () => {
+  const def = makeSummary({
+    shipDefId: 'DEF',
+    count: 10,
+    memberInstanceIds: Array.from({ length: 10 }, (_, index) => `def-${index + 1}`),
+  });
+  const projection = projectExactTargetFleetPresentation({
+    side: 'opponent',
+    fleet: [def],
+    renderOrder: [def.renderKey],
+    exactTargets: [{
+      instanceId: 'def-1',
+      side: 'opponent',
+      selectedTone: 'red',
+      previewShipDefId: 'GUA',
+    }],
+    targetStatesByStackKey: {
+      DEF: {
+        isTargetable: true,
+        isHovered: true,
+        isSelected: true,
+        selectedTone: 'red',
+      },
+    },
+    previewShipDefIdByStackKey: { DEF: 'GUA' },
+  });
+
+  assertEquals(
+    projection.fleet.map((summary) => ({
+      count: summary.count,
+      stackKey: summary.stackKey,
+      memberInstanceIds: summary.memberInstanceIds,
+    })),
+    [
+      {
+        count: 9,
+        stackKey: 'DEF',
+        memberInstanceIds: Array.from({ length: 9 }, (_, index) => `def-${index + 2}`),
+      },
+      {
+        count: 1,
+        stackKey: 'presentation__target__inst_def-1',
+        memberInstanceIds: ['def-1'],
+      },
+    ],
+    'the exact member should detach from the source stack'
+  );
+  assertEquals(
+    projection.targetStatesByStackKey.DEF,
+    { isTargetable: true, isHovered: true, isSelected: false },
+    'the remainder should consume post-selection availability without inherited selection'
+  );
+  assertEquals(
+    projection.targetStatesByStackKey['presentation__target__inst_def-1'],
+    {
+      isTargetable: false,
+      isHovered: false,
+      isSelected: true,
+      selectedTone: 'red',
+    },
+    'the synthetic singleton should be selected and non-actionable'
+  );
+  assertEquals(
+    projection.previewShipDefIdByStackKey,
+    {
+      DEF: 'GUA',
+      'presentation__target__inst_def-1': 'GUA',
+    },
+    'current hover preview and exact selected preview should be retained independently'
+  );
+});
+
+Deno.test('exact target projection clears stale remainder hover preview', () => {
+  const def = makeSummary({
+    shipDefId: 'DEF',
+    count: 2,
+    memberInstanceIds: ['def-1', 'def-2'],
+  });
+  const projection = projectExactTargetFleetPresentation({
+    side: 'opponent',
+    fleet: [def],
+    renderOrder: [def.renderKey],
+    exactTargets: [{ instanceId: 'def-1', side: 'opponent', selectedTone: 'red' }],
+    targetStatesByStackKey: {
+      DEF: {
+        isTargetable: true,
+        isHovered: false,
+        isSelected: true,
+        selectedTone: 'red',
+      },
+    },
+    previewShipDefIdByStackKey: { DEF: 'GUA' },
+  });
+
+  assertEquals(
+    projection.targetStatesByStackKey.DEF,
+    { isTargetable: true, isHovered: false, isSelected: false },
+    'the helper should not invent hover state'
+  );
+  assertEquals(
+    projection.previewShipDefIdByStackKey.DEF,
+    undefined,
+    'a source preview without current hover should not remain on the remainder'
+  );
+});
+
+Deno.test('multiple exact targets expand in place without contaminating base order', () => {
+  const fig = makeSummary({ shipDefId: 'FIG', count: 1, memberInstanceIds: ['fig-1'] });
+  const def = makeSummary({
+    shipDefId: 'DEF',
+    count: 4,
+    memberInstanceIds: ['def-1', 'def-2', 'def-3', 'def-4'],
+  });
+  const car = makeSummary({ shipDefId: 'CAR', count: 1, memberInstanceIds: ['car-1'] });
+  const baseOrder = [fig.renderKey, def.renderKey, car.renderKey];
+  const projection = projectExactTargetFleetPresentation({
+    side: 'opponent',
+    fleet: [fig, def, car],
+    renderOrder: baseOrder,
+    exactTargets: [
+      { instanceId: 'def-1', side: 'opponent', selectedTone: 'red' },
+      { instanceId: 'def-2', side: 'opponent', selectedTone: 'purple' },
+    ],
+    targetStatesByStackKey: {
+      DEF: { isTargetable: true, isHovered: false, isSelected: true },
+    },
+    previewShipDefIdByStackKey: {},
+  });
+
+  assertEquals(
+    projection.fleet.map((summary) => summary.shipDefId),
+    ['FIG', 'DEF', 'DEF', 'DEF', 'CAR'],
+    'detached targets should remain adjacent to DEF before CAR'
+  );
+  assertEquals(
+    projection.renderOrder,
+    [
+      fig.renderKey,
+      def.renderKey,
+      'presentation__target__render_def-1',
+      'presentation__target__render_def-2',
+      car.renderKey,
+    ],
+    'the projected order should expand only the source position'
+  );
+  assertEquals(baseOrder, [fig.renderKey, def.renderKey, car.renderKey], 'base order is untouched');
+  assertEquals(
+    projection.targetStatesByStackKey['presentation__target__inst_def-2']?.selectedTone,
+    'purple',
+    'exact targets may retain distinct existing tones'
+  );
+});
+
+Deno.test('all exact members detach while preserving source order position', () => {
+  const fig = makeSummary({ shipDefId: 'FIG', count: 1, memberInstanceIds: ['fig-1'] });
+  const def = makeSummary({
+    shipDefId: 'DEF',
+    count: 2,
+    memberInstanceIds: ['def-1', 'def-2'],
+  });
+  const car = makeSummary({ shipDefId: 'CAR', count: 1, memberInstanceIds: ['car-1'] });
+  const projection = projectExactTargetFleetPresentation({
+    side: 'opponent',
+    fleet: [fig, def, car],
+    renderOrder: [fig.renderKey, def.renderKey, car.renderKey],
+    exactTargets: [
+      { instanceId: 'def-1', side: 'opponent' },
+      { instanceId: 'def-2', side: 'opponent' },
+    ],
+    targetStatesByStackKey: { DEF: { isTargetable: false, isHovered: false, isSelected: true } },
+    previewShipDefIdByStackKey: {},
+  });
+
+  assertEquals(
+    projection.fleet.map((summary) => summary.renderKey),
+    [
+      fig.renderKey,
+      'presentation__target__render_def-1',
+      'presentation__target__render_def-2',
+      car.renderKey,
+    ],
+    'no zero-count remainder should be emitted'
+  );
+  assertEquals(
+    projection.renderOrder,
+    projection.fleet.map((summary) => summary.renderKey),
+    'the singleton sequence should replace the source order slot'
+  );
+});
+
+Deno.test('base singleton and empty exact input preserve existing identity and structure', () => {
+  const singleton = makeSummary({
+    shipDefId: 'DEF',
+    count: 1,
+    memberInstanceIds: ['def-1'],
+  });
+  const selectedState = {
+    DEF: { isTargetable: false, isHovered: false, isSelected: true },
+  };
+  const singletonProjection = projectExactTargetFleetPresentation({
+    side: 'opponent',
+    fleet: [singleton],
+    renderOrder: [singleton.renderKey],
+    exactTargets: [{ instanceId: 'def-1', side: 'opponent' }],
+    targetStatesByStackKey: selectedState,
+    previewShipDefIdByStackKey: {},
+  });
+  const publicMarkerOnlyProjection = projectExactTargetFleetPresentation({
+    side: 'opponent',
+    fleet: [makeSummary({
+      shipDefId: 'DEF',
+      count: 3,
+      memberInstanceIds: ['def-1', 'def-2', 'def-3'],
+    })],
+    renderOrder: ['render__DEF'],
+    exactTargets: [],
+    targetStatesByStackKey: selectedState,
+    previewShipDefIdByStackKey: {},
+  });
+
+  assertSame(singletonProjection.fleet[0], singleton, 'base singleton should not be synthesized');
+  assertEquals(singletonProjection.renderOrder, [singleton.renderKey], 'singleton order is unchanged');
+  assertEquals(publicMarkerOnlyProjection.fleet[0].count, 3, 'stack marker alone cannot split');
+  assertEquals(
+    publicMarkerOnlyProjection.fleet[0].stackKey,
+    'DEF',
+    'public marker projection retains the real stack'
+  );
+});
+
+Deno.test('detached singleton copies exact source presentation metadata', () => {
+  const qua = makeSummary({
+    shipDefId: 'QUA',
+    stackKey: 'QUA__cap_5',
+    count: 3,
+    memberInstanceIds: ['qua-1', 'qua-2', 'qua-3'],
+    caption: '5',
+  });
+  const charged = makeSummary({
+    shipDefId: 'CUB',
+    stackKey: 'CUB__charges_0',
+    count: 2,
+    memberInstanceIds: ['cub-1', 'cub-2'],
+    condition: 'charges_0',
+    currentCharges: 0,
+  });
+  const projection = projectExactTargetFleetPresentation({
+    side: 'opponent',
+    fleet: [qua, charged],
+    renderOrder: [qua.renderKey, charged.renderKey],
+    exactTargets: [
+      { instanceId: 'qua-1', side: 'opponent' },
+      { instanceId: 'cub-1', side: 'opponent' },
+    ],
+    targetStatesByStackKey: {},
+    previewShipDefIdByStackKey: {},
+  });
+  const quaSingleton = projection.fleet.find((summary) =>
+    summary.memberInstanceIds.includes('qua-1')
+  )!;
+  const chargedSingleton = projection.fleet.find((summary) =>
+    summary.memberInstanceIds.includes('cub-1')
+  )!;
+
+  assertEquals(quaSingleton.caption, '5', 'configured QUA caption should be copied from its bucket');
+  assertEquals(chargedSingleton.condition, 'charges_0', 'condition should be copied');
+  assertEquals(chargedSingleton.currentCharges, 0, 'charge presentation should be copied');
+});
+
+Deno.test('removing exact targets derives recombination from the unchanged base fleet', () => {
+  const def = makeSummary({
+    shipDefId: 'DEF',
+    count: 3,
+    memberInstanceIds: ['def-1', 'def-2', 'def-3'],
+  });
+  const project = (instanceIds: string[]) => projectExactTargetFleetPresentation({
+    side: 'opponent' as const,
+    fleet: [def],
+    renderOrder: [def.renderKey],
+    exactTargets: instanceIds.map((instanceId) => ({
+      instanceId,
+      side: 'opponent' as const,
+    })),
+    targetStatesByStackKey: {},
+    previewShipDefIdByStackKey: {},
+  });
+
+  assertEquals(project(['def-1', 'def-2']).fleet[0].count, 1, 'two targets leave one remainder');
+  assertEquals(project(['def-1']).fleet[0].count, 2, 'undoing one recombines only that member');
+  assertSame(project([]).fleet[0], def, 'clearing local IDs restores the original base summary');
+});
+
+Deno.test('persistent marker membership resolves projected exact members only', () => {
+  const def = makeSummary({
+    shipDefId: 'DEF',
+    count: 4,
+    memberInstanceIds: ['def-1', 'def-2', 'def-3', 'def-4'],
+  });
+  const projection = projectExactTargetFleetPresentation({
+    side: 'opponent',
+    fleet: [def],
+    renderOrder: [def.renderKey],
+    exactTargets: [
+      { instanceId: 'def-1', side: 'opponent' },
+      { instanceId: 'def-2', side: 'opponent' },
+    ],
+    targetStatesByStackKey: {
+      DEF: { isTargetable: true, isHovered: false, isSelected: true },
+    },
+    previewShipDefIdByStackKey: {},
+  });
+  const markers = buildExactMembershipSelectedTargetStates({
+    fleet: projection.fleet,
+    toneByInstanceId: new Map([
+      ['def-1', 'red' as const],
+      ['def-2', 'red' as const],
+    ]),
+  });
+
+  assertEquals(markers.DEF, undefined, 'remainder is not reselected');
+  assertEquals(
+    projection.targetStatesByStackKey.DEF,
+    { isTargetable: true, isHovered: false, isSelected: false },
+    'the active projection preserves an unselected targetable remainder'
+  );
+  assertEquals(
+    markers['presentation__target__inst_def-1']?.isSelected,
+    true,
+    'marker follows def-1 membership to its singleton'
+  );
+  assertEquals(
+    markers['presentation__target__inst_def-2']?.isSelected,
+    true,
+    'marker follows def-2 membership to its singleton'
+  );
+});
+
+Deno.test('ordinary exact presentation reuses existing DOM and destroy aggregation', () => {
+  const previews = { dom: 'DOM', gua: 'GUA' } as const;
+  const purple = buildExactDestroyTargetPresentationEntries({
+    selections: [{
+      targetInstanceId: 'def-1',
+      locatorKey: 'opponent::DEF',
+      sourceInstanceId: 'dom',
+    }],
+    getPreviewShipDefIdForSource: (sourceId) => previews[sourceId as keyof typeof previews] ?? null,
+  });
+  const mixed = buildExactDestroyTargetPresentationEntries({
+    selections: [
+      { targetInstanceId: 'def-1', locatorKey: 'opponent::DEF', sourceInstanceId: 'dom' },
+      { targetInstanceId: 'def-1', locatorKey: 'opponent::DEF', sourceInstanceId: 'gua' },
+    ],
+    getPreviewShipDefIdForSource: (sourceId) => previews[sourceId as keyof typeof previews] ?? null,
+  });
+
+  assertEquals(purple, [{
+    instanceId: 'def-1',
+    side: 'opponent',
+    selectedTone: 'purple',
+    previewShipDefId: 'DOM',
+  }], 'DOM-only allocation remains purple with its preview');
+  assertEquals(mixed[0].selectedTone, 'red', 'mixed sources retain existing red aggregation');
+  assertEquals(mixed[0].previewShipDefId, undefined, 'ambiguous source preview remains omitted');
+});
+
+Deno.test('Ancient structural entries accept only local draft and frozen-cast shapes', () => {
+  const entries = buildLocalAncientExactTargetPresentationEntries({
+    blackHoleSelectedTargetInstanceIds: ['black-hole-in-progress'],
+    localPresentationCasts: [
+      { solarPowerId: 'SBLA', targetInstanceIds: ['black-hole-draft'] },
+      {
+        solarPowerId: 'SSIM',
+        targetInstanceId: 'simulacrum-draft',
+      },
+    ],
+  });
+
+  assertEquals(
+    entries.map((entry) => entry.instanceId).sort(),
+    ['black-hole-draft', 'black-hole-in-progress', 'simulacrum-draft'],
+    'local current and snapshot-compatible cast targets become structural inputs'
+  );
+  assertEquals(
+    entries.find((entry) => entry.instanceId === 'black-hole-in-progress'),
+    {
+      instanceId: 'black-hole-in-progress',
+      side: 'opponent',
+      selectedTone: 'red',
+      previewShipDefId: 'SBLA',
+    },
+    'in-progress Black Hole keeps its active selector presentation'
+  );
+  assertEquals(
+    buildLocalAncientExactTargetPresentationEntries({
+      blackHoleSelectedTargetInstanceIds: [],
+      localPresentationCasts: [],
+    }),
+    [],
+    'public ledger markers have no input seam into structural derivation'
   );
 });

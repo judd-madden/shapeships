@@ -10,6 +10,11 @@ import {
   type RenderableServerAction,
 } from './availableActions';
 import { deriveFleetStackInfo } from './fleets';
+import {
+  buildExactDestroyTargetPresentationEntries,
+  type AllocatedDestroyTargetPresentationSource,
+  type ExactTargetPresentationEntry,
+} from './fleetPresentation';
 import type {
   BoardDestroyTargetingViewModel,
   BoardTargetSelectedTone,
@@ -41,6 +46,7 @@ export interface UseDestroyTargetingRuntimeResult {
   allocatedDestroyTargetIdsBySourceInstanceId: Record<string, string[]>;
   destroyTargetSatisfiedBySourceInstanceId: Record<string, boolean>;
   boardDestroyTargeting: BoardDestroyTargetingViewModel;
+  exactTargetPresentationEntries: ExactTargetPresentationEntry[];
   shouldResetDestroyTargetRows: boolean;
   consumePendingDestroyTargetReset: () => void;
   applyDestroyTargetingChoiceSideEffects: (sourceInstanceId: string, choiceId: string) => void;
@@ -523,6 +529,7 @@ export function useDestroyTargetingRuntime(
   const cleanedDestroyTargetLocatorKeysBySourceInstanceId: Record<string, string[]> = {};
   const destroyTargetSourceAnalysisBySourceInstanceId: Record<string, DestroyTargetSourceAnalysis> = {};
   const selectedDestroySourcesByLocatorKey: Record<string, string[]> = {};
+  const allocatedDestroyTargetPresentationSources: AllocatedDestroyTargetPresentationSource[] = [];
   const reservedConcreteTargetIds = new Set<string>();
 
   for (const [sourceInstanceId, action] of orderedDestroyTargetActionEntries) {
@@ -593,6 +600,15 @@ export function useDestroyTargetingRuntime(
 
     if (allocatedTargetIds.length > 0) {
       allocatedDestroyTargetIdsBySourceInstanceId[sourceInstanceId] = allocatedTargetIds;
+      for (let index = 0; index < allocatedTargetIds.length; index += 1) {
+        const locatorKey = cleanedSelectedLocatorKeys[index];
+        if (!locatorKey) continue;
+        allocatedDestroyTargetPresentationSources.push({
+          targetInstanceId: allocatedTargetIds[index],
+          locatorKey,
+          sourceInstanceId,
+        });
+      }
     }
 
     destroyTargetSatisfiedBySourceInstanceId[sourceInstanceId] = isSatisfied;
@@ -711,6 +727,12 @@ export function useDestroyTargetingRuntime(
   }
 
   const activeDestroyPreviewShipDefId = getDestroyPreviewShipDefIdForSource(activeDestroyTargetSourceInstanceId);
+  const exactTargetPresentationEntries =
+    buildExactDestroyTargetPresentationEntries({
+      selections: allocatedDestroyTargetPresentationSources,
+      getPreviewShipDefIdForSource: (sourceInstanceId) =>
+        getDestroyPreviewShipDefIdForSource(sourceInstanceId),
+    });
 
   const targetStatesBySide: BoardDestroyTargetingViewModel['targetStatesBySide'] = {
     my: {},
@@ -947,6 +969,7 @@ export function useDestroyTargetingRuntime(
             previewShipDefIdBySide,
           }
         : makeEmptyBoardDestroyTargeting(),
+    exactTargetPresentationEntries,
     shouldResetDestroyTargetRows,
     consumePendingDestroyTargetReset,
     applyDestroyTargetingChoiceSideEffects,
