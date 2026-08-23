@@ -83,6 +83,7 @@ import {
   projectMissionChallengeForRequester,
   stripMissionChallengeAssignment,
 } from '../engine/mission/MissionChallenge.ts';
+import { allocateGameId } from './game_id_allocation.ts';
 
 const INITIAL_SAVED_LINES = 3;
 const MAX_GAME_RECORD_CONFLICT_RETRIES = 2;
@@ -1014,7 +1015,7 @@ type PreparedGameStateRead =
 
 type GameRoutePersistence = Pick<
   IntentPersistence,
-  'load' | 'conditionalUpdate'
+  'load' | 'conditionalUpdate' | 'insertIfMissing'
 >;
 
 export function registerGameRoutes(
@@ -1166,12 +1167,35 @@ export function registerGameRoutes(
 
       debugLog(`Creating game - Session: ${session.sessionId}, Display name: ${playerName}`);
 
-      const gameId = generateGameId();
-      const gameData = ensureStateRevision(
-        createFreshGameData(gameId, playerId, playerName, timeControl),
-      );
+      const allocation = await allocateGameId({
+        generateGameId,
+        createGameState: (candidateGameId) =>
+          ensureStateRevision(
+            createFreshGameData(
+              candidateGameId,
+              playerId,
+              playerName,
+              timeControl,
+            ),
+          ),
+        insertIfMissing: (key, value) =>
+          persistence.insertIfMissing(key, value),
+      });
+      if (allocation.status === 'error') {
+        console.error(
+          'Create game allocation persistence error:',
+          allocation.error,
+        );
+        return c.json({ error: "Internal server error" }, 500);
+      }
+      if (allocation.status === 'exhausted') {
+        console.error(
+          'Create game allocation exhausted all candidate attempts',
+        );
+        return c.json({ error: "Internal server error" }, 500);
+      }
 
-      await kvSet(`game_${gameId}`, gameData);
+      const { gameId } = allocation;
       await kvSet(
         getBattleLogHistoryKey(gameId),
         createEmptyBattleLogHistoryStore(gameId),
@@ -1210,16 +1234,35 @@ export function registerGameRoutes(
         return c.json({ error: message }, 400);
       }
 
-      const gameId = generateGameId();
+      const allocation = await allocateGameId({
+        generateGameId,
+        createGameState: (candidateGameId) =>
+          ensureStateRevision(
+            createFreshComputerGameData(
+              candidateGameId,
+              playerId,
+              playerName,
+              timeControl,
+            ),
+          ),
+        insertIfMissing: (key, value) =>
+          persistence.insertIfMissing(key, value),
+      });
+      if (allocation.status === 'error') {
+        console.error(
+          'Create computer game allocation persistence error:',
+          allocation.error,
+        );
+        return c.json({ error: "Internal server error" }, 500);
+      }
+      if (allocation.status === 'exhausted') {
+        console.error(
+          'Create computer game allocation exhausted all candidate attempts',
+        );
+        return c.json({ error: "Internal server error" }, 500);
+      }
 
-      const gameData = createFreshComputerGameData(
-        gameId,
-        playerId,
-        playerName,
-        timeControl,
-      );
-
-      await kvSet(`game_${gameId}`, ensureStateRevision(gameData));
+      const { gameId } = allocation;
       await kvSet(
         getBattleLogHistoryKey(gameId),
         createEmptyBattleLogHistoryStore(gameId),
@@ -1269,7 +1312,6 @@ export function registerGameRoutes(
         return c.json({ error: "New game can only be created from a finished game" }, 400);
       }
 
-      const newGameId = generateGameId();
       const inheritedTimeControl = sourceGame?.gameData?.clock?.timeControl ?? null;
       const opponentPlayer = sourceGame.players.find((player: any) =>
         player?.role === 'player' && player?.id !== playerId
@@ -1279,20 +1321,48 @@ export function registerGameRoutes(
         : null;
       const isBotRematch = opponentController?.kind === 'bot';
 
+      const allocation = await allocateGameId({
+        generateGameId,
+        createGameState: (candidateGameId) =>
+          ensureStateRevision(
+            isBotRematch
+              ? createFreshComputerGameData(
+                candidateGameId,
+                playerId,
+                playerName,
+                inheritedTimeControl,
+              )
+              : createFreshGameData(
+                candidateGameId,
+                playerId,
+                playerName,
+                inheritedTimeControl,
+              ),
+          ),
+        insertIfMissing: (key, value) =>
+          persistence.insertIfMissing(key, value),
+      });
+      if (allocation.status === 'error') {
+        console.error(
+          'New game from finished game allocation persistence error:',
+          allocation.error,
+        );
+        return c.json({ error: "Internal server error" }, 500);
+      }
+      if (allocation.status === 'exhausted') {
+        console.error(
+          'New game from finished game allocation exhausted all candidate attempts',
+        );
+        return c.json({ error: "Internal server error" }, 500);
+      }
+
+      const newGameId = allocation.gameId;
+      await kvSet(
+        getBattleLogHistoryKey(newGameId),
+        createEmptyBattleLogHistoryStore(newGameId),
+      );
+
       if (isBotRematch) {
-        const newGameData = createFreshComputerGameData(
-          newGameId,
-          playerId,
-          playerName,
-          inheritedTimeControl,
-        );
-
-        await kvSet(`game_${newGameId}`, ensureStateRevision(newGameData));
-        await kvSet(
-          getBattleLogHistoryKey(newGameId),
-          createEmptyBattleLogHistoryStore(newGameId),
-        );
-
         debugLog("Computer rematch created from finished bot game:", {
           sourceGameId,
           newGameId,
@@ -1303,21 +1373,6 @@ export function registerGameRoutes(
 
         return c.json({ gameId: newGameId });
       }
-
-      const newGameData = ensureStateRevision(
-        createFreshGameData(
-          newGameId,
-          playerId,
-          playerName,
-          inheritedTimeControl,
-        ),
-      );
-
-      await kvSet(`game_${newGameId}`, newGameData);
-      await kvSet(
-        getBattleLogHistoryKey(newGameId),
-        createEmptyBattleLogHistoryStore(newGameId),
-      );
 
       try {
         await appendChatEntry(

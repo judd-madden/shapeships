@@ -67,6 +67,11 @@ function createRouteFixture() {
       store.set(args.key, structuredClone(args.value));
       return { status: "updated" as const };
     },
+    async insertIfMissing(key: string, value: any) {
+      if (store.has(key)) return { status: "conflict" as const };
+      store.set(key, structuredClone(value));
+      return { status: "updated" as const };
+    },
   };
 
   registerGameRoutes(

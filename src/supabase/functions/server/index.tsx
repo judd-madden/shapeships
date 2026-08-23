@@ -28,6 +28,7 @@ import { registerTestRoutes } from "./routes/test_routes.ts";
 import { registerGameRoutes } from "./routes/game_routes.ts";
 import { registerIntentRoutes } from "./routes/intent_routes.ts";
 import { createIntentPersistence } from "./routes/intent_persistence.ts";
+import { generateSecureGameId } from "./routes/game_id_allocation.ts";
 
 const app = new Hono();
 
@@ -194,20 +195,6 @@ const requireSession = async (c: any) => {
 };
 
 // ============================================================================
-// HELPER UTILITIES
-// ============================================================================
-
-// Helper function to generate game ID
-const generateGameId = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-};
-
-// ============================================================================
 // MIDDLEWARE
 // ============================================================================
 
@@ -242,7 +229,7 @@ registerGameRoutes(
   kvGet,
   kvSet,
   requireSession,
-  generateGameId,
+  generateSecureGameId,
   intentPersistence,
 );
 registerIntentRoutes(

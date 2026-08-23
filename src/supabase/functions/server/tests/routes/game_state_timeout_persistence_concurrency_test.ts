@@ -8,7 +8,7 @@ import type {
 
 type GameRoutePersistence = Pick<
   IntentPersistence,
-  "load" | "conditionalUpdate"
+  "load" | "conditionalUpdate" | "insertIfMissing"
 >;
 
 class ScriptedGamePersistence implements GameRoutePersistence {
@@ -50,6 +50,17 @@ class ScriptedGamePersistence implements GameRoutePersistence {
     const value = structuredClone(args.value);
     this.store.set(args.key, value);
     this.writes.push({ key: args.key, value });
+    return { status: "updated" };
+  }
+
+  async insertIfMissing(
+    key: string,
+    value: any,
+  ): Promise<ConditionalWriteResult> {
+    if (this.store.has(key)) return { status: "conflict" };
+    const copy = structuredClone(value);
+    this.store.set(key, copy);
+    this.writes.push({ key, value: copy });
     return { status: "updated" };
   }
 }

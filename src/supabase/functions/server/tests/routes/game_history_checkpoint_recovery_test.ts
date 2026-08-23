@@ -69,6 +69,13 @@ function createFixture(history: any = null, readErrorKey: string | null = null) 
       store.set(args.key, value);
       return { status: 'updated' as const };
     },
+    async insertIfMissing(key: string, value: any) {
+      if (store.has(key)) return { status: 'conflict' as const };
+      const copy = structuredClone(value);
+      writes.push({ key, value: copy });
+      store.set(key, copy);
+      return { status: 'updated' as const };
+    },
   };
   registerGameRoutes(
     app,
