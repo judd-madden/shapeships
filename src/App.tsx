@@ -17,12 +17,11 @@ import GraphicsTest from './components/dev/GraphicsTest';
 import GameScreen from './game/display/GameScreen';
 import { usePlayer } from './game/hooks/usePlayer';
 import { BuildKitShowcase } from './components/dev/BuildKitShowcase';
-import AlphaV3E2EHarness from './components/dev/AlphaV3E2EHarness';
 import { ActionPanelsGallery } from './components/dev/ActionPanelsGallery';
 
 
 // Dashboard view type
-type DashboardViewId = 'deployment' | 'auth' | 'alphaE2E' |  'graphicsTest' | 'buildKit' | 'gameScreen' | 'actionPanelsGallery';
+type DashboardViewId = 'deployment' | 'auth' | 'graphicsTest' | 'buildKit' | 'gameScreen' | 'actionPanelsGallery';
 
 type AppMode = 'dev' | 'player' | 'game';
 type PlayerShellId = 'login' | 'menu';
@@ -36,7 +35,6 @@ interface RouteState {
 const DASHBOARD_VIEW_IDS: DashboardViewId[] = [
   'deployment',
   'auth',
-  'alphaE2E',
   'graphicsTest',
   'buildKit',
   'gameScreen',
@@ -51,7 +49,6 @@ const DASHBOARD_ENTRIES: Array<{ id: DashboardViewId; label: string; alphaDisabl
     { id: 'actionPanelsGallery', label: 'Action Panels Gallery' },
     { id: 'deployment', label: 'Deployment Test' },
   { id: 'auth', label: 'Authentication', alphaDisabled: true },
-    { id: 'alphaE2E', label: 'Alpha Harness', alphaDisabled: true },
 ];
 
 // URL helper functions
@@ -458,15 +455,6 @@ export default function App() {
           
           {currentView === 'auth' && (
             <AuthenticationView onBack={() => setView('deployment')} />
-          )}
-          
-          {currentView === 'alphaE2E' && (
-            <div className="container mx-auto max-w-4xl">
-              <Button onClick={() => setView('deployment')} className="mb-4">
-                ← Back to Dashboard
-              </Button>
-              <AlphaV3E2EHarness />
-            </div>
           )}
           
           {currentView === 'graphicsTest' && (

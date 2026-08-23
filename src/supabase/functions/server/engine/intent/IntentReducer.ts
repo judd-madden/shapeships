@@ -82,35 +82,24 @@ import {
   type ComputerBotSpeciesPayload,
   type SpeciesRevealPayload,
   type SpeciesSubmitPayload,
-  type BuildRevealPayload,
   type BuildSubmitPayload,
   type EvolverBuildChoiceEntry,
-  type BattleRevealPayload,
   type ActionPayload,
   type ActionsBatchPayload,
   type ChargeDeclarationSubmitPayload,
-  type BattleWindow,
   RejectionCode,
   getSpeciesCommitKey,
   getBuildCommitKey,
-  getBattleCommitKey,
 } from './IntentTypes.ts';
 import { ancientAtomicDeclarationContractApplies } from './chargeDeclarationEligibility.ts';
 import { resolveChargeDeclarationSubmission } from './chargeDeclarationResolution.ts';
-import { validateReveal } from './Hash.ts';
 import {
   storeCommit,
   storeReveal,
-  getCommitRecord,
   hasCommitted,
   hasRevealed,
-  allPlayersRevealed,
-  allCommittedPlayersRevealed,
 } from './CommitStore.ts';
-import type {
-  ShipActivationCueSource,
-  ShipInstance,
-} from '../state/GameStateTypes.ts';
+import type { ShipActivationCueSource } from '../state/GameStateTypes.ts';
 import {
   chooseDeterministicCentaurBotPlanId,
   getCentaurBotPlanById,
@@ -971,11 +960,7 @@ export async function applyIntent(
     'SPECIES_SUBMIT',
     'SPECIES_COMMIT',
     'SPECIES_REVEAL',
-    'BUILD_COMMIT',
-    'BUILD_REVEAL',
     'BUILD_SUBMIT',
-    'BATTLE_COMMIT',
-    'BATTLE_REVEAL',
     'CHARGE_DECLARATION_SUBMIT',
     'DECLARE_READY',
     'ACTION',
@@ -1167,20 +1152,8 @@ export async function applyIntent(
         }
       };
       
-    case 'BUILD_COMMIT':
-      return await handleBuildCommit(state, sessionPlayerId, intent, nowMs, events);
-      
-    case 'BUILD_REVEAL':
-      return await handleBuildReveal(state, sessionPlayerId, intent, nowMs, events);
-      
     case 'BUILD_SUBMIT':
       return await handleBuildSubmit(state, sessionPlayerId, intent, nowMs, events);
-      
-    case 'BATTLE_COMMIT':
-      return await handleBattleCommit(state, sessionPlayerId, intent, nowMs, events);
-      
-    case 'BATTLE_REVEAL':
-      return await handleBattleReveal(state, sessionPlayerId, intent, nowMs, events);
       
     case 'CHARGE_DECLARATION_SUBMIT':
       return handleChargeDeclarationSubmit(state, sessionPlayerId, intent, nowMs, events);
@@ -1935,403 +1908,8 @@ function handleMissionIntroAck(
   };
 }
 
-// ============================================================================
-// BUILD_COMMIT
-// ============================================================================
-
-async function handleBuildCommit(
-  state: any,
-  playerId: string,
-  intent: IntentRequest,
-  nowMs: number,
-  events: any[]
-): Promise<IntentResult> {
-  const player = state.players.find((p: any) => p.id === playerId);
-  
-  // Only players can commit build
-  if (player.role !== 'player') {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.SPECTATOR_RESTRICTED,
-        message: 'Spectators cannot commit build'
-      }
-    };
-  }
-  
-  if (!intent.commitHash) {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.BAD_PAYLOAD,
-        message: 'Missing commitHash'
-      }
-    };
-  }
-  
-  const commitKey = getBuildCommitKey(intent.turnNumber);
-  
-  // Check for duplicate commit
-  if (hasCommitted(state, commitKey, playerId)) {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.DUPLICATE_COMMIT,
-        message: 'Build already committed for this turn'
-      }
-    };
-  }
-  
-  // Store commit
-  storeCommit(state, commitKey, playerId, intent.commitHash, nowMs);
-  
-  events.push({
-    type: 'BUILD_COMMITTED',
-    playerId,
-    turnNumber: intent.turnNumber,
-    atMs: nowMs
-  });
-  
-  state = syncPhaseFields(state);
-  
-  return {
-    ok: true,
-    state,
-    events
-  };
-}
-
-// ============================================================================
-// BUILD_REVEAL
-// ============================================================================
-
 // Maximum build count per ship type to prevent state bloat
 const MAX_BUILD_COUNT = 50;
-
-async function handleBuildReveal(
-  state: any,
-  playerId: string,
-  intent: IntentRequest,
-  nowMs: number,
-  events: any[]
-): Promise<IntentResult> {
-  const player = state.players.find((p: any) => p.id === playerId);
-  
-  // Only players can reveal build
-  if (player.role !== 'player') {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.SPECTATOR_RESTRICTED,
-        message: 'Spectators cannot reveal build'
-      }
-    };
-  }
-  
-  // Phase gate: BUILD_REVEAL only allowed during battle.reveal
-  const phaseKey = getPhaseKey(state);
-  if (phaseKey !== 'battle.reveal') {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.WRONG_PHASE,
-        message: 'BUILD_REVEAL is only allowed during battle.reveal phase'
-      }
-    };
-  }
-  
-  if (!intent.payload || !intent.nonce) {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.BAD_PAYLOAD,
-        message: 'Missing payload or nonce'
-      }
-    };
-  }
-  
-  const commitKey = getBuildCommitKey(intent.turnNumber);
-  
-  // Check commit exists
-  if (!hasCommitted(state, commitKey, playerId)) {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.MISSING_COMMIT,
-        message: 'No commit found for this player and turn'
-      }
-    };
-  }
-  
-  // Check not already revealed
-  if (hasRevealed(state, commitKey, playerId)) {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.ALREADY_REVEALED,
-        message: 'Build already revealed'
-      }
-    };
-  }
-  
-  // Validate hash
-  const record = getCommitRecord(state, commitKey, playerId);
-  const isValid = await validateReveal(intent.payload, intent.nonce, record!.commitHash!);
-  
-  if (!isValid) {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.HASH_MISMATCH,
-        message: 'Reveal hash does not match commit'
-      }
-    };
-  }
-  
-  // Validate build payload
-  const payload = intent.payload as BuildRevealPayload;
-  
-  if (!payload.builds || !Array.isArray(payload.builds)) {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.BAD_PAYLOAD,
-        message: 'Invalid build payload: must have builds array'
-      }
-    };
-  }
-  
-  // Basic validation of build entries
-  for (const build of payload.builds) {
-    if (!build.shipDefId || typeof build.shipDefId !== 'string') {
-      return {
-        ok: false,
-        state,
-        events: [],
-        rejected: {
-          code: RejectionCode.INVALID_SHIP,
-          message: 'Each build must have a valid shipDefId'
-        }
-      };
-    }
-    
-    // Validate shipDefId exists in authoritative server definitions
-    const shipDef = getShipById(build.shipDefId);
-    if (!shipDef) {
-      return {
-        ok: false,
-        state,
-        events: [],
-        rejected: {
-          code: RejectionCode.INVALID_SHIP,
-          message: `Unknown shipDefId: ${build.shipDefId}`
-        }
-      };
-    }
-
-    if (isEvolvedXeniteShipDefId(build.shipDefId)) {
-      return {
-        ok: false,
-        state,
-        events: [],
-        rejected: {
-          code: RejectionCode.BAD_PAYLOAD,
-          message: 'Invalid build payload: OXI and AST cannot be built directly; use Evolver conversion.'
-        }
-      };
-    }
-    
-    // Validate component ships for Drawing builds (Upgraded ships)
-    // Component ships must exist in player's current fleet at time of validation
-    if (shipDef.componentShips && shipDef.componentShips.length > 0) {
-      const playerFleet = state?.gameData?.ships?.[playerId] || [];
-      const fleetShipDefIds = playerFleet.map((s: any) => s.shipDefId);
-      
-      for (const componentDefId of shipDef.componentShips) {
-        const availableCount = fleetShipDefIds.filter((id: string) => id === componentDefId).length;
-        const requiredCount = shipDef.componentShips.filter((id: string) => id === componentDefId).length;
-        
-        if (availableCount < requiredCount) {
-          return {
-            ok: false,
-            state,
-            events: [],
-            rejected: {
-              code: RejectionCode.INVALID_SHIP,
-              message: `Cannot build ${build.shipDefId}: requires ${requiredCount}× ${componentDefId}, but only ${availableCount} available in fleet`
-            }
-          };
-        }
-      }
-    }
-    
-    // Validate count bounds (FIX 4)
-    if (build.count !== undefined) {
-      // Check if count is an integer
-      if (!Number.isInteger(build.count)) {
-        return {
-          ok: false,
-          state,
-          events: [],
-          rejected: {
-            code: RejectionCode.BAD_PAYLOAD,
-            message: `Invalid build count for ship ${build.shipDefId}: ${build.count}. Must be integer 1..${MAX_BUILD_COUNT}`
-          }
-        };
-      }
-      
-      // Check bounds: 1 <= count <= MAX_BUILD_COUNT
-      if (build.count < 1 || build.count > MAX_BUILD_COUNT) {
-        return {
-          ok: false,
-          state,
-          events: [],
-          rejected: {
-            code: RejectionCode.BAD_PAYLOAD,
-            message: `Invalid build count for ship ${build.shipDefId}: ${build.count}. Must be integer 1..${MAX_BUILD_COUNT}`
-          }
-        };
-      }
-    }
-  }
-  
-  // Store reveal
-  storeReveal(state, commitKey, playerId, intent.payload, intent.nonce, nowMs);
-  
-  events.push({
-    type: 'BUILD_REVEALED',
-    playerId,
-    turnNumber: intent.turnNumber,
-    atMs: nowMs
-  });
-  
-  // Check if all players have revealed
-  if (allCommittedPlayersRevealed(state, commitKey)) {
-    // Resolve builds for all players - create ship instances
-    const activePlayers = state.players.filter((p: any) => p.role === 'player');
-    
-    // Initialize ships storage if needed
-    if (!state.gameData) {
-      state.gameData = {};
-    }
-    if (!state.gameData.ships) {
-      state.gameData.ships = {};
-    }
-    
-    for (const p of activePlayers) {
-      const pRecord = getCommitRecord(state, commitKey, p.id);
-      if (pRecord && pRecord.revealPayload) {
-        const pPayload = pRecord.revealPayload as BuildRevealPayload;
-        
-        // Ensure player has a ship array
-        if (!state.gameData.ships[p.id]) {
-          state.gameData.ships[p.id] = [];
-        }
-        
-        // Create ship instances for each build
-        for (const buildEntry of pPayload.builds) {
-          const count = buildEntry.count ?? 1;
-          
-          for (let i = 0; i < count; i++) {
-            const shipDef = getShipById(buildEntry.shipDefId);
-
-            const shipInstance: ShipInstance = {
-              instanceId: crypto.randomUUID(),
-              shipDefId: buildEntry.shipDefId,
-              createdTurn: state.gameData.turnNumber
-            };
-            
-            // Initialize charges for ships that have them
-            if (shipDef && typeof shipDef.charges === 'number') {
-              shipInstance.chargesCurrent = shipDef.charges;
-            }
-            
-            state.gameData.ships[p.id].push(shipInstance);
-          }
-        }
-      }
-    }
-    
-    events.push({
-      type: 'BUILD_RESOLVED',
-      turnNumber: intent.turnNumber,
-      atMs: nowMs
-    });
-    
-    // Auto-advance from battle.reveal once all required reveals are complete
-    // IMPORTANT: normalize phase fields first (protects against missing/stale gameData phase fields)
-    state = syncPhaseFields(state);
-
-    const currentKey = getPhaseKey(state);
-    if (currentKey === 'battle.reveal' && allCommittedPlayersRevealed(state, commitKey)) {
-      const fromKey = currentKey;
-
-      const adv = advancePhaseCore(state);
-
-      if (!adv.ok) {
-        // Do not silently fail — this is the exact "stuck in battle.reveal" symptom.
-        events.push({
-          type: 'PHASE_ADVANCE_BLOCKED',
-          from: fromKey,
-          reason: adv.error,
-          atMs: nowMs,
-        });
-
-        debugLog(`[IntentReducer] BUILD_REVEAL auto-advance blocked: ${adv.error}`);
-      } else {
-        state = adv.state;
-
-        // Clear readiness on successful phase advance
-        state.gameData.phaseReadiness = [];
-        state = syncPhaseFields(state);
-
-        const toKey = getPhaseKey(state);
-
-        events.push({
-          type: 'PHASE_ADVANCED',
-          from: fromKey,
-          to: toKey,
-          atMs: nowMs
-        });
-
-        if (toKey) {
-          const onEnter = onEnterPhase(state, fromKey, toKey, nowMs);
-          state = onEnter.state;
-          events.push(...onEnter.events);
-        }
-      }
-    }
-  }
-  
-  state = syncPhaseFields(state);
-  
-  return {
-    ok: true,
-    state,
-    events
-  };
-}
-
 // ============================================================================
 // BUILD_SUBMIT
 // ============================================================================
@@ -2705,56 +2283,6 @@ async function handleBuildSubmit(
     ok: true,
     state,
     events
-  };
-}
-
-// ============================================================================
-// BATTLE_COMMIT
-// ============================================================================
-
-async function handleBattleCommit(
-  state: any,
-  playerId: string,
-  intent: IntentRequest,
-  nowMs: number,
-  events: any[]
-): Promise<IntentResult> {
-  // TODO: Implement full battle commit/reveal protocol
-  // For now, return "not yet implemented"
-  return {
-    ok: false,
-    state,
-    events: [],
-    rejected: {
-      code: RejectionCode.INTERNAL_ERROR,
-      message: 'Battle intents not yet implemented'
-    }
-  };
-}
-
-// ============================================================================
-// BATTLE_REVEAL
-// ============================================================================
-
-async function handleBattleReveal(
-  state: any,
-  playerId: string,
-  intent: IntentRequest,
-  nowMs: number,
-  events: any[]
-): Promise<IntentResult> {
-  // TODO: Implement the dormant battle commit/reveal protocol if a future pass
-  // adopts it. The active Charge Declaration path uses ACTION/ACTIONS_SUBMIT and
-  // CHARGE_DECLARATION_SUBMIT instead.
-  
-  return {
-    ok: false,
-    state,
-    events: [],
-    rejected: {
-      code: RejectionCode.INTERNAL_ERROR,
-      message: 'Battle intents not yet implemented'
-    }
   };
 }
 

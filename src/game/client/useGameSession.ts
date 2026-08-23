@@ -129,7 +129,7 @@ import {
   readMinimizeMissionsThisSession,
   writeMinimizeMissionsThisSession,
 } from './gameSession/mission/missionChallengeSession';
-import { runSpeciesConfirmFlow, runReadyToggleFlow, maybeAutoRevealBuild, type CanonicalBuildSubmitPayload } from './gameSession/intents';
+import { runSpeciesConfirmFlow, runReadyToggleFlow } from './gameSession/intents';
 import {
   addShipToBuildDraft,
   canProvisionallyAddShip,
@@ -146,7 +146,7 @@ import {
 } from './gameSession/clienteffects/useDevEffects';
 import { useChatPolling } from './gameSession/clienteffects/useChatPolling';
 import { useAutoJoinEffect, usePollingEffect } from './gameSession/clienteffects/useNetworkingEffects';
-import { useBuildPreviewResetEffect, useAutoRevealBuildEffect } from './gameSession/clienteffects/usePhaseAutomationEffects';
+import { useBuildPreviewResetEffect } from './gameSession/clienteffects/usePhaseAutomationEffects';
 import { useFleetOrder } from './gameSession/clienteffects/useFleetOrder';
 import {
   useFleetAnimTokens,
@@ -1129,10 +1129,6 @@ export function useGameSession(
     setBuildSubmittedByTurn({});
   }, [effectiveGameId]);
   
-  // Reveal-sync latch: true when BUILD_REVEAL submitted but server fleet not yet updated
-  // Prevents flicker by keeping preview overlay active until server catches up
-  const [awaitingBuildRevealSync, setAwaitingBuildRevealSync] = useState(false);
-  
   // ============================================================================
   // SHIP ANIMATION TOKENS (moved to gameSession/clienteffects/useFleetAnimTokens)
   // ============================================================================
@@ -1182,17 +1178,6 @@ export function useGameSession(
   
   // Species commit cache (payload + nonce storage with ref-backed same-tick reliability)
   const speciesCommitCache = usePhaseCommitCache<{ species: SpeciesId; botSpecies?: ComputerBotSpeciesId }>();
-  
-  // ============================================================================
-  // LOCAL COMPLETION TRACKING (Chunk 7: Build commit/reveal)
-  // ============================================================================
-  
-  // Track build submission by phase instance key
-  const [buildCommitDoneByPhase, setBuildCommitDoneByPhase] = useState<Record<string, boolean>>({});
-  const [buildRevealDoneByPhase, setBuildRevealDoneByPhase] = useState<Record<string, boolean>>({});
-  
-  // Build commit cache (payload + nonce storage with ref-backed same-tick reliability)
-  const buildCommitCache = usePhaseCommitCache<CanonicalBuildSubmitPayload>();
   
   // ============================================================================
   // READY UX STATE (CLIENT-ONLY UI TRACKING)
@@ -1248,14 +1233,6 @@ export function useGameSession(
   
   // Track auto-join attempts by gameId (allows new attempt when gameId changes)
   const attemptedJoinForGameRef = useRef<Set<string>>(new Set());
-  
-  // ============================================================================
-  // TASK B: TURN-SCOPED AUTO BUILD_REVEAL TRACKING
-  // ============================================================================
-  
-  // Track which turnNumbers have already had auto-reveal submitted
-  // Prevents duplicate auto-reveal attempts for the same turn (fixes BAD_TURN spam)
-  const autoBuildRevealSubmittedTurnsRef = useRef<Set<number>>(new Set());
   
   // ============================================================================
   // DEV LOGGING: LOG EFFECTIVE NAMES/IDS ON CHANGE ONLY
@@ -2063,8 +2040,6 @@ export function useGameSession(
     setEvolverChoicesByRowId({});
     evolverChoicesByRowIdRef.current = {};
     committedDrawingProjectionRef.current = null;
-    setAwaitingBuildRevealSync(false);
-    
     console.log('[useGameSession] Turn boundary reset: cleared preview state for turn', serverTurnNumber);
   }, [rawState?.gameData?.turnNumber ?? rawState?.turnNumber]);
   
@@ -3767,16 +3742,6 @@ useEffect(() => {
     });
   }, [evolverChoiceSourceRowIdsKey]);
 
-  // ============================================================================
-  // CHUNK 6.2: AUTO-SUBMIT BUILD_REVEAL WHEN ENTERING BATTLE.REVEAL PHASE
-  // ============================================================================
-  
-  // REMOVED: Build reveal automation removed in favor of BUILD_SUBMIT
-  // BUILD_SUBMIT is applied during build.drawing phase only
-  
-  // Check if build reveal is done for this phase instance
-  const buildRevealDoneThisPhase = !!buildRevealDoneByPhase[buildServerKey];
-  
   // ============================================================================
   // B3) STABLE PREVIEW OVERLAY RULE (SIMPLIFIED)
   // ============================================================================
@@ -6044,24 +6009,11 @@ useEffect(() => {
 
           setBuildSubmittedByTurn,
 
-          buildCommitDoneByPhase,
-          buildRevealDoneByPhase,
-          setBuildCommitDoneByPhase,
-          setBuildRevealDoneByPhase,
-
-          buildCommitCache,
-
-          rawState,
-          me,
-          setAwaitingBuildRevealSync,
-
           generateNonce,
-          makeCommitHash,
           submitIntent,
           appendEvents: (events, meta) => appendEventsToTape(setEventTape, events, meta),
           onIntentResult: handleIntentResultForHealthPresentation,
           refreshGameStateOnce,
-          maybeAutoRevealBuild,
           bumpDiceRollSeq: (n: number) => setDiceRollSeq(prev => prev + n),
 
           // Charge panel context (Prompt 9)

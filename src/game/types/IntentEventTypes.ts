@@ -24,9 +24,7 @@ import type {
   ShipInstanceId, 
   PlayerId 
 } from './ShipTypes.engine';
-import type { HiddenBattleActions } from './BattleTypes';
 import type { ActionType } from './ActionTypes';
-import type { ShipDefId } from './ShipTypes.engine';
 
 // ============================================================================
 // INTENT MODEL (CLIENT → SERVER)
@@ -48,91 +46,6 @@ export interface IntentBase {
   // Server overwrites / sets these
   serverReceivedAtMs?: number;
 }
-
-// ============================================================================
-// BUILD PHASE — Hidden Drawing (Commit → Reveal)
-// ============================================================================
-
-/**
- * Build Drawing Payload - atomic submission for hidden build actions
- * This replaces leaking per-ship build actions during drawing
- */
-export interface BuildDrawingPayload {
-  turnNumber: number;
-
-  /**
-   * Ships to build during this drawing phase
-   */
-  buildShips?: Array<{
-    shipDefId: ShipDefId;
-    consumeShipInstanceIds?: ShipInstanceId[];  // Upgraded ships requiring sacrifice
-    lineCost?: number;
-    joiningLineCost?: number;
-  }>;
-
-  /**
-   * Lines to save for future turns
-   */
-  saveLines?: number;
-
-  /**
-   * Ship configurations (e.g., Centaur choosing damage value)
-   */
-  configureShips?: Array<{
-    shipInstanceId: ShipInstanceId;
-    key: string;
-    value: number | string | boolean;
-  }>;
-}
-
-/**
- * BUILD_COMMIT - Player commits hash of their build actions
- * Hidden until both players commit
- */
-export type BuildCommitIntent = IntentBase & {
-  type: 'BUILD_COMMIT';
-  turnNumber: number;
-  commitHash: string;  // sha256(payload + nonce)
-};
-
-/**
- * BUILD_REVEAL - Player reveals their committed build actions
- * Server validates hash matches commit
- */
-export type BuildRevealIntent = IntentBase & {
-  type: 'BUILD_REVEAL';
-  turnNumber: number;
-  payload: BuildDrawingPayload;
-  nonce: string;
-};
-
-// ============================================================================
-// BATTLE PHASE — Hidden Actions (Commit → Reveal)
-// ============================================================================
-
-/**
- * BATTLE_COMMIT - Player commits hash of battle actions
- * Dormant client-side commit/reveal scaffold; the active runtime uses the
- * dedicated Charge Declaration intents instead.
- */
-export type BattleCommitIntent = IntentBase & {
-  type: 'BATTLE_COMMIT';
-  window: 'DECLARATION' | 'RESPONSE';
-  turnNumber: number;
-  commitHash: string;
-};
-
-/**
- * BATTLE_REVEAL - Player reveals their committed battle actions
- * Server validates hash matches commit
- */
-export type BattleRevealIntent = IntentBase & {
-  type: 'BATTLE_REVEAL';
-  window: 'DECLARATION' | 'RESPONSE';
-  turnNumber: number;
-  payload: HiddenBattleActions;
-  nonce: string;
-};
 
 // ============================================================================
 // ATOMIC (Non-hidden) ACTIONS
@@ -190,10 +103,6 @@ export type SurrenderIntent = IntentBase & {
  * This is what clients send to the server
  */
 export type GameIntent =
-  | BuildCommitIntent
-  | BuildRevealIntent
-  | BattleCommitIntent
-  | BattleRevealIntent
   | AtomicActionIntent
   | DeclareReadyIntent
   | SurrenderIntent;

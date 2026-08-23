@@ -52,6 +52,7 @@ import {
   filterDrawingPreludeEventsForViewer,
 } from '../engine/state/drawingPreludeProjection.ts';
 import { stripMissionChallengeAssignment } from '../engine/mission/MissionChallenge.ts';
+import { projectCommitmentsForViewer } from '../engine/intent/CommitStore.ts';
 
 function logAncientCompatibilityRisks(
   boundary: string,
@@ -161,7 +162,23 @@ function sanitizeStateForResponse(
     state,
     requestingParticipantId,
   );
-  const { battleLogScratch: _omitBattleLogScratch, ...responseState } = ancientSafeState;
+  const commitments = ancientSafeState?.gameData?.turnData?.commitments;
+  const commitmentSafeState = commitments
+    ? {
+      ...ancientSafeState,
+      gameData: {
+        ...ancientSafeState.gameData,
+        turnData: {
+          ...ancientSafeState.gameData.turnData,
+          commitments: projectCommitmentsForViewer(
+            commitments,
+            requestingParticipantId,
+          ),
+        },
+      },
+    }
+    : ancientSafeState;
+  const { battleLogScratch: _omitBattleLogScratch, ...responseState } = commitmentSafeState;
   return stripMissionChallengeAssignment(responseState);
 }
 

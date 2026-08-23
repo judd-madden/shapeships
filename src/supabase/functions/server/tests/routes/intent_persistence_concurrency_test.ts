@@ -10,6 +10,7 @@ import { replaceChargeDeclarationVisibilityState } from '../../engine/state/char
 import { applyIntent } from '../../engine/intent/IntentReducer.ts';
 import { filterDrawingPreludeEventsForViewer } from '../../engine/state/drawingPreludeProjection.ts';
 import { buildBattleLogTurnSummaryFromScratch } from '../../engine/state/battleLogHistory.ts';
+import { resolveBuildSubmitAuthoritatively } from '../../engine/intent/buildSubmitResolution.ts';
 
 type Write = { key: string; value: any };
 
@@ -470,6 +471,144 @@ Deno.test('complete requester may submit while opponent Drawing prelude remains 
   assert.equal(storedAfterSubmit.gameData.turnData.drawingPreludeByPlayerId.p2.status, 'awaiting_actions');
   assert.equal(storedAfterSubmit.gameData.currentSubPhase, 'drawing');
   assert.equal(storedAfterSubmit.gameData.ships.p1.some((ship: any) => ship.shipDefId === 'DEF'), false);
+});
+
+Deno.test('two-player BUILD_SUBMIT preserves hidden commitments, resolves once, and stays idempotent', async () => {
+  const gameId = 'two-player-hidden-build-submit';
+  const persistence = new ScriptedPersistence();
+  persistence.store.set(`game_${gameId}`, createBuildState(gameId));
+  const app = createApp(persistence);
+  const p1Payload = { builds: [{ shipDefId: 'DEF', count: 1 }] };
+
+  const p1Response = await intentRequest(app, gameId, 'p1', {
+    intentType: 'BUILD_SUBMIT',
+    nonce: 'p1-hidden-build',
+    payload: p1Payload,
+  });
+  const p1Body = await p1Response.json();
+  assert.equal(p1Response.status, 200);
+  assert.equal(p1Body.ok, true);
+
+  const ownerRecord = p1Body.state.gameData.turnData.commitments.BUILD_1.p1;
+  assert.equal(typeof ownerRecord.commitHash, 'string');
+  assert.equal(typeof ownerRecord.committedAt, 'number');
+  assert.deepEqual(ownerRecord.revealPayload, p1Payload);
+  assert.equal(ownerRecord.nonce, 'p1-hidden-build');
+  assert.equal(typeof ownerRecord.revealedAt, 'number');
+  assert.deepEqual(p1Body.state.gameData.ships.p1, []);
+
+  const storedAfterP1 = structuredClone(persistence.store.get(`game_${gameId}`));
+  assert.equal(storedAfterP1.gameData.turnData.buildAppliedTurnNumber, undefined);
+  assert.deepEqual(storedAfterP1.gameData.ships.p1, []);
+
+  const duplicateResponse = await intentRequest(app, gameId, 'p1', {
+    intentType: 'BUILD_SUBMIT',
+    nonce: 'p1-hidden-build-duplicate',
+    payload: p1Payload,
+  });
+  const duplicateBody = await duplicateResponse.json();
+  assert.equal(duplicateResponse.status, 200);
+  assert.equal(duplicateBody.ok, true);
+  assert.deepEqual(duplicateBody.events, []);
+  assert.deepEqual(persistence.store.get(`game_${gameId}`), storedAfterP1);
+
+  const opponentProbe = await intentRequest(app, gameId, 'p2', {
+    intentType: 'BUILD_REVEAL',
+    nonce: 'obsolete-opponent-probe',
+    payload: { builds: [] },
+  });
+  const opponentBody = await opponentProbe.json();
+  assert.equal(opponentProbe.status, 400);
+  assert.equal(opponentBody.rejected.code, 'BAD_PAYLOAD');
+  const opponentView = opponentBody.state.gameData.turnData.commitments.BUILD_1.p1;
+  assert.equal(Object.hasOwn(opponentView, 'commitHash'), false);
+  assert.equal(Object.hasOwn(opponentView, 'revealPayload'), false);
+  assert.equal(Object.hasOwn(opponentView, 'nonce'), false);
+  assert.deepEqual(opponentView, {
+    hasCommitted: true,
+    hasRevealed: true,
+    committedAt: ownerRecord.committedAt,
+    revealedAt: ownerRecord.revealedAt,
+  });
+  assert.deepEqual(opponentBody.state.gameData.ships.p1, []);
+  assert.deepEqual(persistence.store.get(`game_${gameId}`), storedAfterP1);
+
+  const p2Response = await intentRequest(app, gameId, 'p2', {
+    intentType: 'BUILD_SUBMIT',
+    nonce: 'p2-hidden-build',
+    payload: { builds: [{ shipDefId: 'DEF', count: 1 }] },
+  });
+  const p2Body = await p2Response.json();
+  assert.equal(p2Response.status, 200);
+  assert.equal(p2Body.ok, true);
+
+  const resolvedState = persistence.store.get(`game_${gameId}`);
+  const p2Record = resolvedState.gameData.turnData.commitments.BUILD_1.p2;
+  assert.equal(typeof p2Record.commitHash, 'string');
+  assert.equal(typeof p2Record.committedAt, 'number');
+  assert.deepEqual(p2Record.revealPayload, { builds: [{ shipDefId: 'DEF', count: 1 }] });
+  assert.equal(p2Record.nonce, 'p2-hidden-build');
+  assert.equal(typeof p2Record.revealedAt, 'number');
+  assert.equal(resolvedState.gameData.turnData.buildAppliedTurnNumber, 1);
+  assert.equal(
+    resolvedState.gameData.ships.p1.filter((ship: any) => ship.shipDefId === 'DEF').length,
+    1,
+  );
+  assert.equal(
+    resolvedState.gameData.ships.p2.filter((ship: any) => ship.shipDefId === 'DEF').length,
+    1,
+  );
+  assert.equal(resolvedState.gameData.currentPhase, 'battle');
+  assert.equal(resolvedState.gameData.currentSubPhase, 'reveal');
+  assert.equal(
+    p2Body.events.filter((event: any) => event.type === 'BUILD_RESOLVED').length,
+    1,
+  );
+
+  const reloadedState = JSON.parse(JSON.stringify(resolvedState));
+  const reloadedBeforeReplay = structuredClone(reloadedState);
+  const replayResolution = resolveBuildSubmitAuthoritatively({
+    state: reloadedState,
+    turnNumber: 1,
+    nowMs: Date.now(),
+  });
+  assert.equal(replayResolution.alreadyApplied, true);
+  assert.deepEqual(replayResolution.events, []);
+  assert.deepEqual(replayResolution.state, reloadedBeforeReplay);
+  assert.equal(
+    replayResolution.state.gameData.ships.p1.filter((ship: any) => ship.shipDefId === 'DEF').length,
+    1,
+  );
+});
+
+Deno.test('removed external build and battle intent names reject without mutation', async () => {
+  for (const intentType of [
+    'BUILD_COMMIT',
+    'BUILD_REVEAL',
+    'BATTLE_COMMIT',
+    'BATTLE_REVEAL',
+  ]) {
+    const gameId = `removed-intent-${intentType.toLowerCase()}`;
+    const persistence = new ScriptedPersistence();
+    const initialState = createBuildState(gameId);
+    persistence.store.set(`game_${gameId}`, initialState);
+
+    const response = await intentRequest(createApp(persistence), gameId, 'p1', {
+      intentType,
+      commitHash: 'obsolete-hash',
+      nonce: 'obsolete-nonce',
+      payload: { builds: [] },
+    });
+    const body = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.equal(body.ok, false);
+    assert.equal(body.rejected.code, 'BAD_PAYLOAD');
+    assert.equal(body.rejected.message, `Unknown intent type: ${intentType}`);
+    assert.deepEqual(body.events, []);
+    assert.deepEqual(persistence.store.get(`game_${gameId}`), initialState);
+    assert.equal(persistence.writes.length, 0);
+  }
 });
 
 Deno.test('complete requester may submit while opponent awaits pass 2', async () => {

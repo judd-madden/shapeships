@@ -373,28 +373,12 @@ export async function runReadyToggleFlow(args: {
   // build submitted tracking
   setBuildSubmittedByTurn: React.Dispatch<React.SetStateAction<Record<number, boolean>>>;
 
-  // done flags (legacy, kept for compatibility)
-  buildCommitDoneByPhase: Record<string, boolean>;
-  buildRevealDoneByPhase: Record<string, boolean>;
-  setBuildCommitDoneByPhase: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-  setBuildRevealDoneByPhase: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-
-  // cache
-  buildCommitCache: PhaseCommitCache<CanonicalBuildSubmitPayload>;
-
-  // raw state + reveal sync latch
-  rawState: any;
-  me: any;
-  setAwaitingBuildRevealSync: (value: boolean) => void;
-
   // helpers
   generateNonce: () => string;
-  makeCommitHash: (payload: any, nonce: string) => Promise<string>;
   submitIntent: (body: any, timeoutMs?: number) => Promise<Response>;
   appendEvents: (events: any[], meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
   onIntentResult?: (result: any, meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
   refreshGameStateOnce: () => Promise<void>;
-  maybeAutoRevealBuild: (args: any) => Promise<void>;
   bumpDiceRollSeq: (n: number) => void;
 
   // charge panel context (Prompt 9)
@@ -432,22 +416,12 @@ export async function runReadyToggleFlow(args: {
     evolverChoiceSourceRowIds,
     evolverChoicesByRowId,
     setBuildSubmittedByTurn,
-    buildCommitDoneByPhase,
-    buildRevealDoneByPhase,
-    setBuildCommitDoneByPhase,
-    setBuildRevealDoneByPhase,
-    buildCommitCache,
     generateNonce,
-    makeCommitHash,
     submitIntent,
     appendEvents,
     onIntentResult,
     refreshGameStateOnce,
-    maybeAutoRevealBuild,
     bumpDiceRollSeq,
-    rawState,
-    me,
-    setAwaitingBuildRevealSync,
   } = args;
 
   if (!effectiveGameId) {
@@ -1108,185 +1082,5 @@ export async function runReadyToggleFlow(args: {
     
   } catch (err: any) {
     console.error('[useGameSession] onReadyToggle error:', err);
-  }
-}
-
-export async function maybeAutoRevealBuild(args: {
-  // guards
-  phaseKey: string;
-  effectiveGameId: string | null;
-
-  // core routing
-  turnNumber: number;
-  buildInstanceKey: string;
-
-  // done flags
-  buildCommitDoneByPhase: Record<string, boolean>;
-  buildRevealDoneByPhase: Record<string, boolean>;
-  setBuildRevealDoneByPhase: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-
-  // cache
-  buildCommitCache: PhaseCommitCache<CanonicalBuildSubmitPayload>;
-
-  // server state for truth checking
-  rawState: any;
-  me: any;
-  mySessionId: string | null;
-  
-  // reveal sync latch (prevents fleet flicker)
-  setAwaitingBuildRevealSync?: React.Dispatch<React.SetStateAction<boolean>>;
-
-  // helpers
-  submitIntent: (body: any) => Promise<Response>;
-  appendEvents: (events: any[], meta?: { label?: string; turn?: number; phaseKey?: string }) => void;
-  refreshGameStateOnce: () => Promise<void>;
-  bumpDiceRollSeq: (n: number) => void;
-}): Promise<void> {
-  const {
-    phaseKey,
-    effectiveGameId,
-    turnNumber,
-    buildInstanceKey,
-    buildCommitDoneByPhase,
-    buildRevealDoneByPhase,
-    setBuildRevealDoneByPhase,
-    buildCommitCache,
-    rawState,
-    me,
-    mySessionId,
-    setAwaitingBuildRevealSync,
-    submitIntent,
-    appendEvents,
-    refreshGameStateOnce,
-    bumpDiceRollSeq,
-  } = args;
-
-  try {
-    if (!effectiveGameId) {
-      console.warn('[maybeAutoRevealBuild] Cannot auto-reveal: effectiveGameId is not set');
-      return;
-    }
-
-    // Early guard: mySessionId required for cache key stability
-    if (!mySessionId) {
-      console.warn('[maybeAutoRevealBuild] Cannot auto-reveal: mySessionId is not set');
-      return;
-    }
-    
-    // ========================================================================
-    // SERVER-AUTHORITATIVE GATING FOR BUILD_REVEAL
-    // ========================================================================
-    
-    // Check server state for actual commit existence
-    const commitments = rawState?.gameData?.turnData?.commitments ?? {};
-    const buildCommitKey = `BUILD_${turnNumber}`;
-    const myServerCommit = commitments?.[buildCommitKey]?.[me?.id];
-    const hasServerBuildCommit = !!myServerCommit?.commitHash;
-    const hasServerBuildReveal = !!myServerCommit?.revealPayload || typeof myServerCommit?.revealedAt === 'number';
-    
-    // Gate 1: Server must have a BUILD commit for me for this turn
-    if (!hasServerBuildCommit) {
-      console.log('[maybeAutoRevealBuild] Skip: no server commit found for turn', turnNumber);
-      return;
-    }
-    
-    // Gate 2: Server must NOT already have a reveal
-    if (hasServerBuildReveal) {
-      console.log('[maybeAutoRevealBuild] Skip: already revealed on server for turn', turnNumber);
-      return;
-    }
-    
-    // Retrieve cached payload + nonce from client-side cache
-    const buildCacheKey = `${effectiveGameId}:${mySessionId}:${buildInstanceKey}`;
-    let cached = buildCommitCache.getCache(buildCacheKey);
-    let cachedPayload = cached.payload;
-    let cachedNonce = cached.nonce;
-    
-    // Fallback: Load from localStorage if in-memory cache is missing
-    const storageKey = `shapeships:buildCommit:${effectiveGameId}:${mySessionId}:${buildInstanceKey}`;
-    
-    if (!cachedPayload || !cachedNonce) {
-      try {
-        const raw = localStorage.getItem(storageKey);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed?.nonce && Array.isArray(parsed?.builds)) {
-            cachedPayload = { builds: parsed.builds };
-            cachedNonce = parsed.nonce;
-            // Repopulate in-memory cache for the rest of this session
-            if (cachedNonce) {
-                buildCommitCache.setCache(buildCacheKey, cachedPayload, cachedNonce);
-            }
-            console.log('[maybeAutoRevealBuild] Loaded build cache from localStorage');
-          }
-        }
-      } catch (e) {
-        console.warn('[maybeAutoRevealBuild] Failed to load from localStorage', e);
-      }
-    }
-    
-    if (!cachedPayload || !cachedNonce) {
-      console.error(
-        '[maybeAutoRevealBuild] Cannot auto-reveal: missing cached payload/nonce. ' +
-        'This indicates the client lost its nonce after committing.'
-      );
-      return;
-    }
-    
-    // Set reveal sync latch BEFORE submitting (prevents fleet flicker)
-    if (setAwaitingBuildRevealSync) {
-      setAwaitingBuildRevealSync(true);
-    }
-    
-    const revealResponse = await submitIntent({
-      gameId: effectiveGameId,
-      intentType: 'BUILD_REVEAL',
-      turnNumber,
-      payload: cachedPayload,
-      nonce: cachedNonce,
-    });
-    
-    if (!revealResponse.ok) {
-      const errorText = await revealResponse.text();
-      console.error('[useGameSession] Auto BUILD_REVEAL failed:', errorText);
-      return; // keep cache for retry
-    }
-    
-    const revealResult = await revealResponse.json();
-    
-    if (!revealResult.ok) {
-      logIgnoredIntentState('BUILD_REVEAL rejected', revealResult);
-      console.error('[useGameSession] Auto BUILD_REVEAL rejected:', revealResult.rejected);
-      return; // keep cache for retry
-    }
-    logIgnoredIntentState('BUILD_REVEAL succeeded', revealResult);
-    
-    const events = revealResult.events || [];
-    appendEvents(events, {
-      label: 'BUILD_REVEAL (auto @ battle.reveal)',
-      turn: turnNumber,
-      phaseKey,
-    });
-    
-    const diceCount = countDiceRolledEvents(events);
-    if (diceCount > 0) {
-      bumpDiceRollSeq(diceCount);
-    }
-    
-    setBuildRevealDoneByPhase(prev => ({ ...prev, [buildInstanceKey]: true }));
-    buildCommitCache.clearCache(buildCacheKey);
-    
-    // Clear persisted cache from localStorage (prevent stale data across turns)
-    try {
-      localStorage.removeItem(storageKey);
-    } catch (e) {
-      console.warn('[maybeAutoRevealBuild] Failed to clear localStorage cache', e);
-    }
-    
-    console.log('✅ [useGameSession] Auto BUILD_REVEAL succeeded');
-    
-    await refreshGameStateOnce();
-  } catch (err: any) {
-    console.error('[useGameSession] Auto BUILD_REVEAL error:', err);
   }
 }

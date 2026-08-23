@@ -28,6 +28,38 @@ export interface CommitRecord {
 }
 
 /**
+ * Project commitment records for a client without exposing another player's
+ * committed hash, reveal payload, or nonce.
+ */
+export function projectCommitmentsForViewer(
+  commitments: Record<string, Record<string, CommitRecord>>,
+  requestingPlayerId?: string,
+): Record<string, Record<string, CommitRecord | {
+  hasCommitted: boolean;
+  hasRevealed: boolean;
+  committedAt?: number;
+  revealedAt?: number;
+}>> {
+  const projected: Record<string, Record<string, any>> = {};
+
+  for (const [commitKey, recordsByPlayerId] of Object.entries(commitments)) {
+    projected[commitKey] = {};
+    for (const [playerId, record] of Object.entries(recordsByPlayerId)) {
+      projected[commitKey][playerId] = playerId === requestingPlayerId
+        ? record
+        : {
+          hasCommitted: record.commitHash !== undefined,
+          hasRevealed: record.revealPayload !== undefined,
+          committedAt: record.committedAt,
+          revealedAt: record.revealedAt,
+        };
+    }
+  }
+
+  return projected;
+}
+
+/**
  * Ensure commitments storage exists in state
  */
 export function ensureCommitments(state: any): void {
@@ -160,34 +192,4 @@ export function allPlayersRevealed(
   const revealedPlayers = getRevealedPlayers(state, commitKey);
   
   return activePlayers.every((p: any) => revealedPlayers.includes(p.id));
-}
-
-/**
- * Returns true if every active player who has COMMITTED for `commitKey`
- * has also REVEALED for `commitKey`.
- *
- * - Players who did not commit are NOT required to reveal.
- * - If nobody committed, returns true (no reveals required).
- */
-export function allCommittedPlayersRevealed(state: any, commitKey: string): boolean {
-  const activePlayers = (state.players ?? []).filter((p: any) => p.role === 'player');
-
-  let sawAnyCommit = false;
-
-  for (const p of activePlayers) {
-    const entry = state?.gameData?.turnData?.commitments?.[commitKey]?.[p.id];
-    const hasCommit = !!entry?.commitHash;
-    if (!hasCommit) continue;
-
-    sawAnyCommit = true;
-
-    const hasReveal = !!entry?.revealPayload;
-    if (!hasReveal) return false;
-  }
-
-  // If no one committed, return true (allow auto-advance)
-  if (!sawAnyCommit) return true;
-
-  // All committed players have revealed
-  return true;
 }

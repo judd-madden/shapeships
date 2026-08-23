@@ -15,11 +15,7 @@ export type IntentType =
   | 'SPECIES_COMMIT'
   | 'SPECIES_REVEAL'
   | 'SPECIES_SUBMIT'
-  | 'BUILD_COMMIT'
-  | 'BUILD_REVEAL'
   | 'BUILD_SUBMIT'
-  | 'BATTLE_COMMIT'
-  | 'BATTLE_REVEAL'
   | 'CHARGE_DECLARATION_SUBMIT'
   | 'DECLARE_READY'
   | 'MISSION_INTRO_ACK'
@@ -30,12 +26,6 @@ export type IntentType =
   | 'DRAW_OFFER'
   | 'DRAW_ACCEPT'
   | 'DRAW_REFUSE';
-
-// ============================================================================
-// BATTLE WINDOWS
-// ============================================================================
-
-export type BattleWindow = 'DECLARATION' | 'RESPONSE';
 
 // ============================================================================
 // PAYLOAD SHAPES
@@ -50,10 +40,6 @@ export type SpeciesRevealPayload = {
 
 export type SpeciesSubmitPayload = SpeciesRevealPayload & {
   completedMissionIds?: unknown;
-};
-
-export type BuildRevealPayload = {
-  builds: Array<{ shipDefId: string; count?: number }>;
 };
 
 export type EvolverBuildChoiceId = 'hold' | 'oxite' | 'asterite';
@@ -87,10 +73,6 @@ export type BuildSubmitPayload = {
    * Each non-hold selection authoritatively converts one available XEN into OXI or AST.
    */
   evolverChoices?: EvolverBuildChoiceEntry[];
-};
-
-export type BattleRevealPayload = {
-  declarations: any[]; // Placeholder for now
 };
 
 export type PowerActionId = string;
@@ -233,13 +215,6 @@ export function getSpeciesCommitKey(turnNumber: number): string {
  */
 export function getBuildCommitKey(turnNumber: number): string {
   return `BUILD_${turnNumber}`;
-}
-
-/**
- * Generate commitment key for battle phase
- */
-export function getBattleCommitKey(window: BattleWindow, turnNumber: number): string {
-  return `BATTLE_${window}_${turnNumber}`;
 }
 
 // ============================================================================

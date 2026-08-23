@@ -2551,6 +2551,16 @@ function createBuildDrawingState(gameId: string, committed: boolean, repaired: b
     turnNumber: 1,
     currentMajorPhase: 'build',
     currentSubPhase: 'drawing',
+    drawingPreludeByPlayerId: {
+      p1: {
+        turnNumber: 1,
+        requiredPassCount: 1,
+        activePassIndex: 1,
+        status: 'complete',
+        eligibleSourcePowers: [],
+        resolvedSourcePowerKeysByPass: {},
+      },
+    },
     commitments: committed
       ? { BUILD_1: { p1: { commitHash: 'hash', committedAt: 1 } } }
       : {},
@@ -2567,9 +2577,10 @@ Deno.test('duplicate-safe /intent repairs once and skips a no-op persistence', a
   const repairResponse = await handler(createContext({
     body: {
       gameId: 'duplicate-repair',
-      intentType: 'BUILD_COMMIT',
+      intentType: 'BUILD_SUBMIT',
       turnNumber: 1,
-      commitHash: 'hash',
+      payload: { builds: [] },
+      nonce: 'duplicate-repair',
     },
   }));
   const repairBody = await responseJson(repairResponse);
@@ -2585,9 +2596,10 @@ Deno.test('duplicate-safe /intent repairs once and skips a no-op persistence', a
   const noopResponse = await noopHandler(createContext({
     body: {
       gameId: 'duplicate-noop',
-      intentType: 'BUILD_COMMIT',
+      intentType: 'BUILD_SUBMIT',
       turnNumber: 1,
-      commitHash: 'hash',
+      payload: { builds: [] },
+      nonce: 'duplicate-noop',
     },
   }));
   assert.equal(noopResponse.status, 200);

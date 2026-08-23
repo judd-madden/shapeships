@@ -14,8 +14,6 @@
 import { syncPhaseFields } from './syncPhaseFields.ts';
 import { advancePhase } from './advancePhase.ts';
 import { fleetHasAvailablePowers } from './fleetHasAvailablePowers.ts';
-import { hasCommitted, hasRevealed, allCommittedPlayersRevealed } from '../intent/CommitStore.ts';
-import { getBuildCommitKey } from '../intent/IntentTypes.ts';
 import { computeLineBonusesForPlayer } from '../lines/computeLineBonusForPlayer.ts';
 import {
   resolvePhase,
@@ -261,38 +259,6 @@ function phaseHasAvailableFleetPowers(state: any, phaseKey: PhaseKey): boolean {
   }
   
   return false;
-}
-
-/**
- * Check if any player is missing BUILD_REVEAL for the current turn.
- * 
- * A player "needs reveal" if:
- * - They have a commitHash stored for build::<turnNumber> AND
- * - They do NOT have revealPayload stored for that same key
- * 
- * @param state - Game state
- * @returns true if at least one player still needs to reveal
- */
-function anyPlayerMissingBuildReveal(state: any): boolean {
-  const turnNumber = state.gameData?.turnNumber || 1;
-  const commitKey = getBuildCommitKey(turnNumber);
-  const activePlayers = state.players?.filter((p: any) => p.role === 'player') || [];
-  
-  for (const player of activePlayers) {
-    // Check if this player has committed
-    const committed = hasCommitted(state, commitKey, player.id);
-    if (!committed) {
-      continue; // Player didn't commit, no reveal needed
-    }
-    
-    // Player committed - check if they've revealed
-    const revealed = hasRevealed(state, commitKey, player.id);
-    if (!revealed) {
-      return true; // Found a player who committed but hasn't revealed
-    }
-  }
-  
-  return false; // All committed players have revealed (or no one committed)
 }
 
 /**
