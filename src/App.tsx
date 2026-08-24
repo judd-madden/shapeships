@@ -13,11 +13,18 @@ import { gameFunctionBaseUrl } from './utils/supabase/runtimeConfig';
 import { ensureSession, authenticatedFetch, authenticatedPostWithSessionRecovery, getSessionToken, clearSession } from './utils/sessionManager';
 import ScreenManager from './components/ScreenManager';
 import type { CreatePrivateGameSettings } from './components/panels/CreatePrivateGamePanel';
-import GraphicsTest from './components/dev/GraphicsTest';
 import GameScreen from './game/display/GameScreen';
 import { usePlayer } from './game/hooks/usePlayer';
-import { BuildKitShowcase } from './components/dev/BuildKitShowcase';
-import { ActionPanelsGallery } from './components/dev/ActionPanelsGallery';
+
+const GraphicsTest = React.lazy(() => import('./components/dev/GraphicsTest'));
+const BuildKitShowcase = React.lazy(() =>
+  import('./components/dev/BuildKitShowcase').then(({ BuildKitShowcase }) => ({ default: BuildKitShowcase }))
+);
+const ActionPanelsGallery = React.lazy(() =>
+  import('./components/dev/ActionPanelsGallery').then(({ ActionPanelsGallery }) => ({ default: ActionPanelsGallery }))
+);
+
+const IS_LOCAL_VITE_DEV = import.meta.env.DEV && window.location.hostname === 'localhost';
 
 
 // Dashboard view type
@@ -113,7 +120,7 @@ function readRouteStateFromUrl(hasUsablePlayerIdentity: boolean = hasStoredPlaye
   const view = params.get('view');
   const requestedGameId = params.get('game');
 
-  if (view && DASHBOARD_VIEW_IDS.includes(view as DashboardViewId)) {
+  if (IS_LOCAL_VITE_DEV && view && DASHBOARD_VIEW_IDS.includes(view as DashboardViewId)) {
     return {
       mode: 'dev',
       dashboardView: view as DashboardViewId,
@@ -229,13 +236,17 @@ export default function App() {
   };
 
   const switchToDevMode = () => {
-  const params = new URLSearchParams();
-  params.set('view', 'gameScreen');
-  pushUrl(params);
-  setCurrentView('gameScreen');
-  setMode('dev');
-  setPendingInviteGameId(null);
-};
+    if (!IS_LOCAL_VITE_DEV) {
+      return;
+    }
+
+    const params = new URLSearchParams();
+    params.set('view', 'gameScreen');
+    pushUrl(params);
+    setCurrentView('gameScreen');
+    setMode('dev');
+    setPendingInviteGameId(null);
+  };
 
   const switchToPlayerMode = (initialShell: PlayerShellId = 'login') => {
     pushUrl(new URLSearchParams());
@@ -373,6 +384,7 @@ export default function App() {
           onResetPlayerSession={resetPlayerSession}
           onStartSession={startPlayerSession}
           onSwitchToDevMode={switchToDevMode}
+          isDevModeAvailable={IS_LOCAL_VITE_DEV}
         />
       </>
     );
@@ -457,17 +469,25 @@ export default function App() {
             <AuthenticationView onBack={() => setView('deployment')} />
           )}
           
-          {currentView === 'graphicsTest' && (
-            <div>
-              <GraphicsTest />
-            </div>
-          )}
-          
-          {currentView === 'buildKit' && (
-            <div>
-              <BuildKitShowcase />
-            </div>
-          )}
+          <React.Suspense fallback={<div>Loading development screen...</div>}>
+            {currentView === 'graphicsTest' && (
+              <div>
+                <GraphicsTest />
+              </div>
+            )}
+
+            {currentView === 'buildKit' && (
+              <div>
+                <BuildKitShowcase />
+              </div>
+            )}
+
+            {currentView === 'actionPanelsGallery' && (
+              <div className="container w-1200px">
+                <ActionPanelsGallery />
+              </div>
+            )}
+          </React.Suspense>
           
           {currentView === 'gameScreen' && (
             <div className="container mx-auto max-w-4xl">
@@ -502,11 +522,6 @@ export default function App() {
             </div>
           )}
           
-          {currentView === 'actionPanelsGallery' && (
-            <div className="container w-1200px">
-              <ActionPanelsGallery />
-            </div>
-          )}
         </div>
       </div>
     </div>

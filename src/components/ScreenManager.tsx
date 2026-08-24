@@ -20,6 +20,7 @@ interface ScreenManagerProps {
   onResetPlayerSession: () => void;
   onStartSession: (displayName: string) => Promise<void>;
   onSwitchToDevMode: () => void;
+  isDevModeAvailable: boolean;
 }
 
 export default function ScreenManager({
@@ -32,6 +33,7 @@ export default function ScreenManager({
   onResetPlayerSession,
   onStartSession,
   onSwitchToDevMode,
+  isDevModeAvailable,
 }: ScreenManagerProps) {
   const [currentShell, setCurrentShell] = useState<ShellId>(initialShell);
   const [user, setUser] = useState(null);
@@ -93,8 +95,6 @@ export default function ScreenManager({
     setCurrentShell('login');
   };
 
-  const isLocalhostDevModeVisible = window.location.hostname === 'localhost';
-
   const renderShell = () => {
     switch (currentShell) {
       case 'menu':
@@ -130,7 +130,7 @@ export default function ScreenManager({
     <div
       className="ss-playerRoot min-h-screen relative"
     >
-      {isLocalhostDevModeVisible && (
+      {isDevModeAvailable && (
         <div className="fixed top-4 right-4 z-50">
           <Button
             variant="outline"
