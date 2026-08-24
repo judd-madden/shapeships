@@ -294,11 +294,11 @@ export async function authenticatedFetch(
     console.debug(`[sessionManager] request to ${endpoint} using sessionId=${sessionData.sessionId} token=${tokenPrefix}...`);
   }
 
-  // Use retry-once if timeout is provided, otherwise use normal fetch
+  // Timed authenticated requests are single-attempt. Callers own any retry policy.
   const effectiveTimeout = timeoutMs ?? 0;
 
   if (effectiveTimeout > 0) {
-    return fetchWithTimeoutRetryOnce(
+    return fetchWithTimeout(
       url,
       {
         ...options,

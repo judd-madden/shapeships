@@ -10,6 +10,7 @@ import type {
 } from '../types';
 
 const ACTIVE_POLL_MS = 2000;
+export const LIVE_GAME_STATE_REQUEST_TIMEOUT_MS = 8000;
 const UNTIMED_IDLE_POLL_MS = 12000;
 const SAFETY_FULL_REFRESH_MS = 15000;
 const POLL_JITTER_MAX_MS = 250;
@@ -485,7 +486,10 @@ export function usePollingEffect(args: {
       let nextPollDelayMs = initialDelayMs;
 
       try {
-        const response = await authenticatedGet(`/game-state/${effectiveGameId}`);
+        const response = await authenticatedGet(
+          `/game-state/${effectiveGameId}`,
+          LIVE_GAME_STATE_REQUEST_TIMEOUT_MS,
+        );
 
         if (!response.ok) {
           const errorResult = await handleErrorResponse(response);
@@ -558,7 +562,10 @@ export function usePollingEffect(args: {
       const headRequestToken = latestHeadRequestToken;
 
       try {
-        const response = await authenticatedGet(`/game-state-head/${effectiveGameId}`);
+        const response = await authenticatedGet(
+          `/game-state-head/${effectiveGameId}`,
+          LIVE_GAME_STATE_REQUEST_TIMEOUT_MS,
+        );
 
         if (!response.ok) {
           const errorResult = await handleErrorResponse(response);

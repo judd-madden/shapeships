@@ -147,7 +147,11 @@ import {
   useSpectatorCountDebugEffect,
 } from './gameSession/clienteffects/useDevEffects';
 import { useChatPolling } from './gameSession/clienteffects/useChatPolling';
-import { useAutoJoinEffect, usePollingEffect } from './gameSession/clienteffects/useNetworkingEffects';
+import {
+  LIVE_GAME_STATE_REQUEST_TIMEOUT_MS,
+  useAutoJoinEffect,
+  usePollingEffect,
+} from './gameSession/clienteffects/useNetworkingEffects';
 import { useBuildPreviewResetEffect } from './gameSession/clienteffects/usePhaseAutomationEffects';
 import { useFleetOrder } from './gameSession/clienteffects/useFleetOrder';
 import {
@@ -1494,7 +1498,10 @@ export function useGameSession(
     });
 
     try {
-      const response = await authenticatedGet(`/game-state/${effectiveGameId}`);
+      const response = await authenticatedGet(
+        `/game-state/${effectiveGameId}`,
+        LIVE_GAME_STATE_REQUEST_TIMEOUT_MS,
+      );
       
       if (!response.ok) {
         const errorText = await response.text();
