@@ -2,81 +2,12 @@ import { useEffect } from 'react';
 import type { MutableRefObject } from 'react';
 import type { GameSessionChatEntry } from '../types';
 import type { UntimedPollingMode } from './useUntimedPollingThrottle';
+import { normalizeChatEntries } from '../chatEntries';
 
 const CHAT_BASELINE_POLL_MS = 5000;
 const CHAT_BURST_POLL_MS = 800;
 const CHAT_BURST_WINDOW_MS = 15000;
 const UNTIMED_IDLE_CHAT_POLL_MS = 12000;
-
-function normalizeTimestamp(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
-}
-
-function normalizeOptionalString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
-function getFallbackRematchText(playerName?: string): string {
-  return playerName ? `${playerName} wants to play again` : 'Rematch invite';
-}
-
-function normalizeChatEntry(value: unknown): GameSessionChatEntry | null {
-  if (!value || typeof value !== 'object') {
-    return null;
-  }
-
-  const record = value as Record<string, unknown>;
-  const type = record.type;
-  const id = normalizeOptionalString(record.id);
-  const timestamp = normalizeTimestamp(record.timestamp);
-
-  if (type === 'message') {
-    return {
-      id,
-      type: 'message',
-      playerId: normalizeOptionalString(record.playerId),
-      playerName: normalizeOptionalString(record.playerName),
-      content: typeof record.content === 'string' ? record.content : '',
-      timestamp,
-    };
-  }
-
-  if (type === 'system') {
-    return {
-      id,
-      type: 'system',
-      content: typeof record.content === 'string' ? record.content : '',
-      timestamp,
-    };
-  }
-
-  if (type === 'rematch_invite') {
-    const playerName = normalizeOptionalString(record.playerName);
-    const content =
-      typeof record.content === 'string' && record.content.length > 0
-        ? record.content
-        : getFallbackRematchText(playerName);
-
-    return {
-      id,
-      type: 'rematch_invite',
-      playerId: normalizeOptionalString(record.playerId),
-      playerName,
-      content,
-      newGameId: normalizeOptionalString(record.newGameId) ?? null,
-      timestamp,
-    };
-  }
-
-  return null;
-}
-
-function normalizeChatEntries(entries: unknown[]): GameSessionChatEntry[] {
-  return entries.flatMap((entry) => {
-    const normalizedEntry = normalizeChatEntry(entry);
-    return normalizedEntry ? [normalizedEntry] : [];
-  });
-}
 
 function getLatestChatEntrySignature(entries: GameSessionChatEntry[]): string {
   if (entries.length <= 0) {
@@ -93,20 +24,24 @@ function getLatestChatEntrySignature(entries: GameSessionChatEntry[]): string {
   const senderKey =
     latestEntry.type === 'message'
       ? latestEntry.playerId ?? latestEntry.playerName ?? ''
-      : latestEntry.type === 'rematch_invite'
+      : latestEntry.type === 'rematch_invite' || latestEntry.type === 'spectator_presence'
         ? latestEntry.playerId ?? latestEntry.playerName ?? ''
         : '';
   const newGameKey =
     latestEntry.type === 'rematch_invite'
       ? latestEntry.newGameId ?? ''
       : '';
+  const contentKey =
+    latestEntry.type === 'spectator_presence'
+      ? latestEntry.presence
+      : latestEntry.content;
 
   return [
     `count:${entries.length}`,
     `type:${latestEntry.type}`,
     `timestamp:${latestEntry.timestamp}`,
     `sender:${senderKey}`,
-    `content:${latestEntry.content}`,
+    `content:${contentKey}`,
     `newGameId:${newGameKey}`,
   ].join('|');
 }

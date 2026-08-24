@@ -1470,6 +1470,10 @@ export function registerGameRoutes(
           name: 'JOIN_GAME_ACTIVATED_PLAYER' | 'JOIN_GAME_REACTIVATED_PLAYER';
           details: Record<string, unknown>;
         } | null = null;
+        let addedSpectatorParticipant: {
+          id: string;
+          name: string;
+        } | null = null;
 
       const existingPlayer = gameData.players.find((p: any) => p.id === playerId);
 
@@ -1499,6 +1503,13 @@ export function registerGameRoutes(
 
         gameData.players.push(newPlayer);
         didMutate = true;
+
+        if (finalRole === 'spectator') {
+          addedSpectatorParticipant = {
+            id: newPlayer.id,
+            name: newPlayer.name,
+          };
+        }
 
         // Initialize ship collection for players only (not spectators)
         if (finalRole === 'player') {
@@ -1629,6 +1640,29 @@ export function registerGameRoutes(
           logAncientCompatibilityRisks('join-game', ancientCompatibilityRisks);
         }
 
+        if (addedSpectatorParticipant) {
+          try {
+            await appendChatEntry(
+              gameId,
+              {
+                type: 'spectator_presence',
+                presence: 'joined',
+                playerId: addedSpectatorParticipant.id,
+                playerName: addedSpectatorParticipant.name,
+                timestamp: Date.now(),
+              },
+              kvGet,
+              kvSet,
+            );
+          } catch (error) {
+            console.warn('Failed to append spectator join chat entry:', {
+              gameId,
+              playerId: addedSpectatorParticipant.id,
+              error,
+            });
+          }
+        }
+
         if (joinDebugEvent) {
           debugLog(joinDebugEvent.name, joinDebugEvent.details);
         }
@@ -1645,6 +1679,119 @@ export function registerGameRoutes(
 
     } catch (error) {
       console.error("Join game error:", error);
+      return c.json({ error: "Internal server error" }, 500);
+    }
+  });
+
+  // ============================================================================
+  // LEAVE SPECTATOR
+  // ============================================================================
+  app.post("/make-server-825e19ab/leave-spectator/:gameId", async (c) => {
+    try {
+      const session = await requireSession(c);
+      if (session instanceof Response) return session;
+
+      const gameId = c.req.param('gameId');
+      const playerId = session.sessionId;
+      const gameKey = `game_${gameId}`;
+
+      for (
+        let attempt = 0;
+        attempt <= MAX_GAME_RECORD_CONFLICT_RETRIES;
+        attempt += 1
+      ) {
+        const loaded = await persistence.load(gameKey);
+        if (loaded.status === 'error') {
+          console.error('Leave spectator persistence load error:', loaded.error);
+          return c.json({ error: "Internal server error" }, 500);
+        }
+        if (loaded.status === 'missing') {
+          return c.json({ error: "Game not found" }, 404);
+        }
+
+        const storedState = structuredClone(loaded.value);
+        const revisionToken = getPersistedStateRevisionToken(storedState);
+        if (revisionToken.kind === 'invalid') {
+          console.error('Leave spectator found invalid persisted stateRevision', {
+            gameId,
+            rawValue: revisionToken.rawValue,
+          });
+          return c.json({ error: "Internal server error" }, 500);
+        }
+
+        let gameData = ensureStateRevision(storedState);
+        const participantIndex = gameData.players.findIndex(
+          (participant: any) => participant?.id === playerId,
+        );
+
+        if (participantIndex === -1) {
+          return c.json({ message: "Spectator already left" });
+        }
+
+        const participant = gameData.players[participantIndex];
+        if (participant?.role !== 'spectator') {
+          return c.json({ error: "Only spectators may leave through this route" }, 403);
+        }
+
+        const participantName =
+          typeof participant.name === 'string' && participant.name.length > 0
+            ? participant.name
+            : 'Unknown';
+        gameData = {
+          ...gameData,
+          players: gameData.players.filter(
+            (_participant: any, index: number) => index !== participantIndex,
+          ),
+        };
+        gameData = withStateRevisionFromBase(
+          gameData,
+          getStateRevisionBase(revisionToken),
+        );
+
+        const writeResult = await persistence.conditionalUpdate({
+          key: gameKey,
+          value: gameData,
+          revisionField: 'stateRevision',
+          expected: revisionToken,
+        });
+        if (writeResult.status === 'conflict') {
+          continue;
+        }
+        if (writeResult.status === 'error') {
+          console.error('Leave spectator persistence update error:', writeResult.error);
+          return c.json({ error: "Internal server error" }, 500);
+        }
+
+        try {
+          await appendChatEntry(
+            gameId,
+            {
+              type: 'spectator_presence',
+              presence: 'left',
+              playerId,
+              playerName: participantName,
+              timestamp: Date.now(),
+            },
+            kvGet,
+            kvSet,
+          );
+        } catch (error) {
+          console.warn('Failed to append spectator leave chat entry:', {
+            gameId,
+            playerId,
+            error,
+          });
+        }
+
+        debugLog('Spectator left game:', gameId, participantName);
+        return c.json({ message: "Spectator left successfully" });
+      }
+
+      return c.json({
+        error: "Game changed while leaving; retry the request",
+      }, 409);
+    } catch (error) {
+      console.error("Leave spectator error:", error);
       return c.json({ error: "Internal server error" }, 500);
     }
   });

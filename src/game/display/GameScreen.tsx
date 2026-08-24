@@ -134,6 +134,18 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
     setBoardFlashEnabled((current) => !current);
   }
 
+  async function handleReturnToMainMenu() {
+    if (vm.viewer.isSpectator) {
+      try {
+        await actions.onLeaveSpectator();
+      } catch (error) {
+        console.warn('[GameScreen] Spectator leave failed:', error);
+      }
+    }
+
+    onBack();
+  }
+
   // ============================================================================
   // CHUNK 9.1: BOOT GATING — Show loading screen until valid server state
   // ============================================================================
@@ -202,7 +214,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             onBoardFlashEnabledChange={setBoardFlashEnabled}
             onToggleSound={toggleSound}
             onToggleBoardFlash={toggleBoardFlash}
-            onReturnToMainMenu={onBack}
+            onReturnToMainMenu={handleReturnToMainMenu}
           />
 
           {/* Global Ship Hover Layer (PASS 2) - Portal target for catalogue hover cards */}
@@ -242,7 +254,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             boardFlashEnabled={boardFlashEnabled}
             onSoundEnabledChange={setSoundEnabled}
             onBoardFlashEnabledChange={setBoardFlashEnabled}
-            onReturnToMainMenu={onBack}
+            onReturnToMainMenu={handleReturnToMainMenu}
           />
 
           {/* Global Ship Hover Layer (PASS 2) - Portal target for catalogue hover cards */}

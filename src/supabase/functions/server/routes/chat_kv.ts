@@ -21,10 +21,19 @@ export type RematchInviteChatEntry = {
   timestamp: number;
 };
 
+export type SpectatorPresenceChatEntry = {
+  type: 'spectator_presence';
+  presence: 'joined' | 'left';
+  playerId: string;
+  playerName: string;
+  timestamp: number;
+};
+
 export type ChatEntry =
   | PlayerChatEntry
   | SystemChatEntry
-  | RematchInviteChatEntry;
+  | RematchInviteChatEntry
+  | SpectatorPresenceChatEntry;
 
 export type ChatStore = {
   entries: ChatEntry[];

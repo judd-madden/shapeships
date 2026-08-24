@@ -114,6 +114,19 @@ export function ChatPanelContent({
               <span className="font-bold">{latestMessage.playerName}:</span>{' '}
               <span className="font-normal">{latestMessage.text}</span>
             </>
+          ) : latestMessage?.type === 'spectator_presence' ? (
+            latestMessage.presence === 'joined' ? (
+              <>
+                <span className="font-bold">{latestMessage.playerName}</span>
+                <span className="font-normal"> joined as a spectator.</span>
+              </>
+            ) : (
+              <>
+                <span className="font-normal">Spectator </span>
+                <span className="font-bold">{latestMessage.playerName}</span>
+                <span className="font-normal"> left.</span>
+              </>
+            )
           ) : latestMessage ? (
             <span
               className={
@@ -193,7 +206,7 @@ export function ChatPanelContent({
           }
 
           return (
-            <p key={idx} className="text-[var(--shapeships-grey-20)] leading-[18px]">
+            <p key={idx} className="text-[var(--shapeships-grey-20)] text-[15px] leading-[18px]">
               {msg.type === 'player' && (
                 <>
                   <span className="font-bold">{msg.playerName}:</span>{' '}
@@ -201,13 +214,27 @@ export function ChatPanelContent({
                 </>
               )}
               {msg.type === 'system' && <span className="font-normal">{msg.text}</span>}
+              {msg.type === 'spectator_presence' && (
+                msg.presence === 'joined' ? (
+                  <>
+                    <span className="font-bold">{msg.playerName}</span>
+                    <span className="font-normal"> joined as a spectator.</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="font-normal">Spectator </span>
+                    <span className="font-bold">{msg.playerName}</span>
+                    <span className="font-normal"> left.</span>
+                  </>
+                )
+              )}
             </p>
           );
         })}
 
         {drawOffer && (
           <div className="mt-2">
-            <p className="text-[var(--shapeships-pastel-green)] font-bold leading-[18px] mb-2">
+            <p className="text-[var(--shapeships-pastel-green)] font-bold text-[15px] leading-[18px] mb-2">
               {drawOffer.fromPlayer} offers a draw
             </p>
             {drawOffer.canRespond && (

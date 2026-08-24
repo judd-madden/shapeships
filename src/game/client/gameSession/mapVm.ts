@@ -44,6 +44,7 @@ import type { DrawingStage } from './drawingPrelude';
 import { derivePhasePresentation } from './phaseLabels';
 import { deriveTurnPhaseVm } from './turnPhases';
 import { deriveBuildDrawingReadyNote } from './clienteffects/turnStartPresentationGates';
+import { mapChatEntryToLeftRailMessage } from './chatEntries';
 
 function getNamedGroupHeading(
   phaseKey: string,
@@ -387,24 +388,7 @@ export function mapGameSessionVm(args: {
   const isSpectator = viewer.isSpectator === true;
   
   // Map chat entries to LeftRail VM format
-  const chatMessages = chatEntries.map(entry =>
-    entry.type === 'system'
-      ? {
-          type: 'system' as const,
-          text: entry.content ?? '',
-        }
-      : entry.type === 'rematch_invite'
-        ? {
-            type: 'rematch_invite' as const,
-            text: entry.content ?? (entry.playerName ? `${entry.playerName} wants to play again` : 'Rematch invite'),
-            targetGameId: entry.newGameId ?? null,
-          }
-        : {
-            type: 'player' as const,
-            playerName: entry.playerName ?? 'Unknown',
-            text: entry.content ?? '',
-          }
-  );
+  const chatMessages = chatEntries.map(mapChatEntryToLeftRailMessage);
 
   // ============================================================================
   // E2) DERIVE DISPLAY NAMES (MY NAME FIRST)

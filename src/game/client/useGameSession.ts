@@ -6309,6 +6309,23 @@ useEffect(() => {
         console.error('[useGameSession] onSendChat error:', err.message);
       }
     },
+
+    onLeaveSpectator: async () => {
+      if (!effectiveGameId) {
+        throw new Error('Cannot leave spectator mode without a game ID');
+      }
+
+      const response = await authenticatedPost(
+        `/leave-spectator/${effectiveGameId}`,
+        {},
+      );
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Spectator leave failed (${response.status}): ${errorText}`,
+        );
+      }
+    },
     
     onAcceptDraw: async () => {
       await submitMenuIntent('DRAW_ACCEPT');
@@ -7297,6 +7314,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       onActionPanelTabClick: () => {},
       onShipClick: () => {},
       onSendChat: () => {},
+      onLeaveSpectator: async () => {},
       onAcceptDraw: () => {},
       onRefuseDraw: () => {},
       onOpenBattleLogFullscreen: () => {},

@@ -185,6 +185,14 @@ function switchRequest(
   });
 }
 
+function leaveSpectatorRequest(app: Hono, gameId: string) {
+  return app.request(`/make-server-825e19ab/leave-spectator/${gameId}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({}),
+  });
+}
+
 Deno.test("stale join reloads N+1 and preserves unrelated authoritative state", async () => {
   const gameId = "join-gameplay-race";
   const fixture = createFixture(createState({ gameId, revision: 5 }), "p3");
@@ -201,7 +209,22 @@ Deno.test("stale join reloads N+1 and preserves unrelated authoritative state", 
   assert.equal(response.status, 200);
   assert.equal(fixture.persistence.conditionalAttempts, 2);
   assert.equal(fixture.persistence.writes.length, 1);
-  assert.equal(fixture.kvSetWrites.length, 0);
+  assert.equal(fixture.kvSetWrites.length, 1);
+  assert.equal(fixture.kvSetWrites[0].key, `game_${gameId}_chat`);
+  assert.deepEqual(
+    fixture.kvSetWrites[0].value.entries.map((entry: any) => ({
+      type: entry.type,
+      presence: entry.presence,
+      playerId: entry.playerId,
+      playerName: entry.playerName,
+    })),
+    [{
+      type: "spectator_presence",
+      presence: "joined",
+      playerId: "p3",
+      playerName: "Late Spectator",
+    }],
+  );
 
   const stored = fixture.persistence.store.get(fixture.gameKey);
   assert.equal(stored.stateRevision, 7);
@@ -298,6 +321,149 @@ Deno.test("duplicate join becomes an idempotent success after conflict reload", 
   assert.equal(
     stored.players.filter((player: any) => player.id === "p2").length,
     1,
+  );
+});
+
+Deno.test("spectator rejoin does not append a duplicate presence entry", async () => {
+  const gameId = "spectator-rejoin-chat";
+  const fixture = createFixture(createState({ gameId, revision: 5 }), "p3");
+
+  const firstResponse = await joinRequest(fixture.app, gameId, "Stored Spectator");
+  const secondResponse = await joinRequest(fixture.app, gameId, "Changed Client Name");
+
+  assert.equal(firstResponse.status, 200);
+  assert.equal(secondResponse.status, 200);
+  assert.equal(fixture.persistence.writes.length, 1);
+  assert.equal(fixture.kvSetWrites.length, 1);
+  const chatEntries = fixture.persistence.store.get(`game_${gameId}_chat`).entries;
+  assert.equal(chatEntries.length, 1);
+  assert.equal(chatEntries[0].presence, "joined");
+  assert.equal(chatEntries[0].playerName, "Stored Spectator");
+});
+
+Deno.test("spectator leave removes only the requester and appends once after CAS", async () => {
+  const gameId = "spectator-leave";
+  const state = createState({
+    gameId,
+    revision: 5,
+    players: [
+      { id: "p1", role: "player" },
+      { id: "p2", role: "player" },
+      { id: "p3", role: "spectator" },
+      { id: "p4", role: "spectator" },
+    ],
+  });
+  state.authoritativeMutationMarker = "preserved";
+  const fixture = createFixture(state, "p3");
+
+  const response = await leaveSpectatorRequest(fixture.app, gameId);
+
+  assert.equal(response.status, 200);
+  assert.equal(fixture.persistence.conditionalAttempts, 1);
+  assert.equal(fixture.persistence.writes.length, 1);
+  assert.equal(fixture.kvSetWrites.length, 1);
+  const stored = fixture.persistence.store.get(fixture.gameKey);
+  assert.equal(stored.stateRevision, 6);
+  assert.equal(stored.authoritativeMutationMarker, "preserved");
+  assert.deepEqual(
+    stored.players.map((player: any) => player.id),
+    ["p1", "p2", "p4"],
+  );
+  assert.deepEqual(
+    fixture.persistence.store.get(`game_${gameId}_chat`).entries.map((entry: any) => ({
+      type: entry.type,
+      presence: entry.presence,
+      playerId: entry.playerId,
+      playerName: entry.playerName,
+    })),
+    [{
+      type: "spectator_presence",
+      presence: "left",
+      playerId: "p3",
+      playerName: "Player p3",
+    }],
+  );
+
+  const retryResponse = await leaveSpectatorRequest(fixture.app, gameId);
+  assert.equal(retryResponse.status, 200);
+  assert.equal(fixture.persistence.conditionalAttempts, 1);
+  assert.equal(fixture.persistence.writes.length, 1);
+  assert.equal(fixture.kvSetWrites.length, 1);
+});
+
+Deno.test("player cannot use the spectator leave route", async () => {
+  const gameId = "player-cannot-leave";
+  const fixture = createFixture(createState({ gameId, revision: 5 }), "p1");
+
+  const response = await leaveSpectatorRequest(fixture.app, gameId);
+
+  assert.equal(response.status, 403);
+  assert.equal(fixture.persistence.conditionalAttempts, 0);
+  assert.equal(fixture.persistence.writes.length, 0);
+  assert.equal(fixture.kvSetWrites.length, 0);
+  assert.deepEqual(
+    fixture.persistence.store.get(fixture.gameKey).players.map((player: any) => player.id),
+    ["p1", "p2"],
+  );
+});
+
+Deno.test("stale spectator leave retries from fresh authoritative state", async () => {
+  const gameId = "spectator-leave-race";
+  const players: PlayerSpec[] = [
+    { id: "p1", role: "player" },
+    { id: "p2", role: "player" },
+    { id: "p3", role: "spectator" },
+  ];
+  const fixture = createFixture(createState({ gameId, revision: 5, players }), "p3");
+  const replacement = createState({ gameId, revision: 6, players });
+  replacement.authoritativeMutationMarker = "accepted-at-revision-6";
+  replacement.gameData.ships.p1 = [{
+    instanceId: "concurrent-ship",
+    shipDefId: "DES",
+  }];
+  fixture.persistence.conflictReplacementStates.push(replacement);
+
+  const response = await leaveSpectatorRequest(fixture.app, gameId);
+
+  assert.equal(response.status, 200);
+  assert.equal(fixture.persistence.conditionalAttempts, 2);
+  assert.equal(fixture.kvSetWrites.length, 1);
+  const stored = fixture.persistence.store.get(fixture.gameKey);
+  assert.equal(stored.stateRevision, 7);
+  assert.equal(stored.authoritativeMutationMarker, "accepted-at-revision-6");
+  assert.equal(stored.gameData.ships.p1[0].instanceId, "concurrent-ship");
+  assert.equal(stored.players.some((player: any) => player.id === "p3"), false);
+});
+
+Deno.test("spectator leave conflict exhaustion does not write state or chat", async () => {
+  const gameId = "spectator-leave-conflict-exhaustion";
+  const players: PlayerSpec[] = [
+    { id: "p1", role: "player" },
+    { id: "p2", role: "player" },
+    { id: "p3", role: "spectator" },
+  ];
+  const fixture = createFixture(createState({ gameId, revision: 5, players }), "p3");
+  for (const revision of [6, 7, 8]) {
+    const replacement = createState({ gameId, revision, players });
+    replacement.authoritativeMutationMarker = `revision-${revision}`;
+    fixture.persistence.conflictReplacementStates.push(replacement);
+  }
+
+  const response = await leaveSpectatorRequest(fixture.app, gameId);
+
+  assert.equal(response.status, 409);
+  assert.equal(fixture.persistence.conditionalAttempts, 3);
+  assert.equal(fixture.persistence.writes.length, 0);
+  assert.equal(fixture.kvSetWrites.length, 0);
+  assert.equal(
+    fixture.persistence.store.get(fixture.gameKey).authoritativeMutationMarker,
+    "revision-8",
+  );
+  assert.equal(
+    fixture.persistence.store.get(fixture.gameKey).players.some(
+      (player: any) => player.id === "p3",
+    ),
+    true,
   );
 });
 

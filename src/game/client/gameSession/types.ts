@@ -279,6 +279,14 @@ export type GameSessionChatEntry =
       content: string;
       newGameId: string | null;
       timestamp: number;
+    }
+  | {
+      id?: string;
+      type: 'spectator_presence';
+      presence: 'joined' | 'left';
+      playerId: string;
+      playerName: string;
+      timestamp: number;
     };
 
 export type LeftRailChatMessageVm =
@@ -295,6 +303,11 @@ export type LeftRailChatMessageVm =
       type: 'rematch_invite';
       text: string;
       targetGameId: string | null;
+    }
+  | {
+      type: 'spectator_presence';
+      presence: 'joined' | 'left';
+      playerName: string;
     };
 
 export type BattleLogTokenVm =
@@ -896,6 +909,7 @@ export interface GameSessionActions {
   onActionPanelTabClick: (tabId: ActionPanelTabId) => void;
   onShipClick: (shipId: string) => void;
   onSendChat: (text: string) => void;
+  onLeaveSpectator: () => Promise<void>;
   onAcceptDraw: () => void;
   onRefuseDraw: () => void;
   onOpenBattleLogFullscreen: () => void;
