@@ -347,7 +347,6 @@ export function BoardStage({ vm, matchupIntro, actions, phaseKey }: BoardStagePr
     <div
       className="content-stretch flex gap-[8px] items-start justify-center px-0 py-[12px] relative size-full"
       data-name="Board Stage"
-      onMouseDown={actions.onBoardBackgroundMouseDown}
     >
       <FleetArea 
         title="MY FLEET" 
@@ -366,6 +365,7 @@ export function BoardStage({ vm, matchupIntro, actions, phaseKey }: BoardStagePr
         previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdBySide.my}
         onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
         onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
+        onLiveFleetBackgroundMouseDown={actions.onBoardBackgroundMouseDown}
         onFleetHoverEnter={fleetHover.onEnter}
         onFleetHoverLeave={fleetHover.onLeave}
         turnPulse={leftRevealPulse}
@@ -650,6 +650,7 @@ export function BoardStage({ vm, matchupIntro, actions, phaseKey }: BoardStagePr
         previewShipDefIdByStackKey={vm.destroyTargeting?.previewShipDefIdBySide.opponent}
         onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
         onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
+        onLiveFleetBackgroundMouseDown={actions.onBoardBackgroundMouseDown}
         onFleetHoverEnter={fleetHover.onEnter}
         onFleetHoverLeave={fleetHover.onLeave}
         turnPulse={rightRevealPulse}

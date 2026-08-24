@@ -289,6 +289,7 @@ import {
   type FrozenAncientChargeDeclarationAttempt,
   type FixedAncientManualSolarPowerId,
 } from './gameSession/ancient/ancientChargeDeclaration';
+import { clearAncientBlackHoleTargetSelection } from './gameSession/ancient/ancientChargeDeclarationDraft';
 import {
   ANCIENT_SIPHON_MINIMUM_SPEND,
   isValidAncientSiphonSpend,
@@ -6859,6 +6860,12 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
     onBoardBackgroundMouseDown: () => {
       if (ancientBlackHoleSelectorActive) {
         setAncientBlackHoleHover(null);
+        setAncientChargeDeclarationWorkflow((current) =>
+          clearAncientBlackHoleTargetSelection(
+            current,
+            ancientChargeDeclarationWorkflowKey
+          )
+        );
         return;
       }
       if (ancientSimulacrumSelectorActive) {

@@ -510,6 +510,7 @@ export function FleetArea({
   targetingGlowScale,
   onDestroyTargetHoverChange,
   onDestroyTargetMouseDown,
+  onLiveFleetBackgroundMouseDown,
   onFleetHoverEnter,
   onFleetHoverLeave,
   onFleetShipTap,
@@ -545,6 +546,7 @@ export function FleetArea({
   targetingGlowScale?: number;
   onDestroyTargetHoverChange?: (side: 'my' | 'opponent', stackKey: string | null) => void;
   onDestroyTargetMouseDown?: (side: 'my' | 'opponent', stackKey: string) => void;
+  onLiveFleetBackgroundMouseDown?: () => void;
   onFleetHoverEnter?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
   onFleetHoverLeave?: (shipId: ShipDefId) => void;
   onFleetShipTap?: (shipId: ShipDefId, anchorEl: HTMLElement) => void;
@@ -762,7 +764,10 @@ export function FleetArea({
 
       {/* FleetArea: {title} (title intentionally not rendered) */}
       <div className="relative z-10 flex h-full min-h-0 flex-col">
-        <div className="grow min-h-0">
+        <div
+          className="grow min-h-0"
+          onMouseDown={onLiveFleetBackgroundMouseDown}
+        >
           {species === 'ancient' ? (
             isCompactAncientLayout ? (
               <div
@@ -831,14 +836,16 @@ export function FleetArea({
                   ) : null}
                 </div>
 
-                <AncientSolarLedgerRow
-                  entries={ancientSolarEntries}
-                  compact
-                  hasCopiedShipBand={hasCopiedShipBand}
-                  isBattleReveal={isBattleReveal}
-                  onFleetHoverEnter={onFleetHoverEnter}
-                  onFleetHoverLeave={onFleetHoverLeave}
-                />
+                <div onMouseDown={(event) => event.stopPropagation()}>
+                  <AncientSolarLedgerRow
+                    entries={ancientSolarEntries}
+                    compact
+                    hasCopiedShipBand={hasCopiedShipBand}
+                    isBattleReveal={isBattleReveal}
+                    onFleetHoverEnter={onFleetHoverEnter}
+                    onFleetHoverLeave={onFleetHoverLeave}
+                  />
+                </div>
               </div>
             ) : (
               <FitToBox
@@ -858,12 +865,14 @@ export function FleetArea({
                     {grouped.row1.length > 0 ? renderLiveRow(grouped.row1) : null}
                     {grouped.row2.length > 0 ? renderLiveRow(grouped.row2) : null}
                     {grouped.row3.length > 0 ? renderLiveRow(grouped.row3) : null}
-                    <AncientSolarLedgerRow
-                      entries={ancientSolarEntries}
-                      isBattleReveal={isBattleReveal}
-                      onFleetHoverEnter={onFleetHoverEnter}
-                      onFleetHoverLeave={onFleetHoverLeave}
-                    />
+                    <div onMouseDown={(event) => event.stopPropagation()}>
+                      <AncientSolarLedgerRow
+                        entries={ancientSolarEntries}
+                        isBattleReveal={isBattleReveal}
+                        onFleetHoverEnter={onFleetHoverEnter}
+                        onFleetHoverLeave={onFleetHoverLeave}
+                      />
+                    </div>
                   </div>
                 ) : null}
               </FitToBox>

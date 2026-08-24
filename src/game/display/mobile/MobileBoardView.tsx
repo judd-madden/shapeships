@@ -82,7 +82,6 @@ export function MobileBoardView({
       <div
         aria-label="Opponent fleet area"
         className="flex flex-1 min-h-0 w-full overflow-visible"
-        onMouseDown={onBoardBackgroundMouseDown}
       >
         <FleetArea
           title="OPPONENT FLEET"
@@ -102,6 +101,7 @@ export function MobileBoardView({
           targetingGlowScale={0.85}
           onDestroyTargetHoverChange={onDestroyTargetHoverChange}
           onDestroyTargetMouseDown={onDestroyTargetMouseDown}
+          onLiveFleetBackgroundMouseDown={onBoardBackgroundMouseDown}
           turnPulse={rightRevealPulse}
           fitMinScale={0.25}
           liveFitOverflowVisible
@@ -153,7 +153,6 @@ export function MobileBoardView({
       <div
         aria-label="Player fleet area"
         className="flex flex-1 min-h-0 w-full overflow-visible"
-        onMouseDown={onBoardBackgroundMouseDown}
       >
         <FleetArea
           title="MY FLEET"
@@ -173,6 +172,7 @@ export function MobileBoardView({
           targetingGlowScale={0.85}
           onDestroyTargetHoverChange={onDestroyTargetHoverChange}
           onDestroyTargetMouseDown={onDestroyTargetMouseDown}
+          onLiveFleetBackgroundMouseDown={onBoardBackgroundMouseDown}
           turnPulse={leftRevealPulse}
           fitMinScale={0.2}
           liveFitOverflowVisible
