@@ -1138,12 +1138,12 @@ export function AncientShipCataloguePanel({
                   type="button"
                   className={`absolute cursor-pointer rounded-[10px] border-0 bg-[var(--shapeships-grey-90)] px-[16px] py-[6px] text-[16px] font-normal leading-normal text-white hover:bg-[var(--shapeships-grey-70)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white ${
                     autocastPresentation === 'mobile-under-heading'
-                      ? 'min-h-[62px] min-w-[90px]'
+                      ? 'min-h-[50px] min-w-[90px]'
                       : ''
                   }`}
                   style={{
                     left: `${ANCIENT_CATALOGUE_SECTION_X.solar}px`,
-                    top: autocastPresentation === 'mobile-under-heading' ? '4px' : '24px',
+                    top: autocastPresentation === 'mobile-under-heading' ? '32px' : '24px',
                   }}
                   onClick={(event) => {
                     event.stopPropagation();

@@ -46,8 +46,8 @@ function MobileDiceModifierGroup({
   const diceValues = Array.isArray(slot.diceValues) ? slot.diceValues : [];
   const groupPositionClassName =
     side === 'top'
-      ? 'right-[10px] bottom-full mb-[2px]'
-      : 'right-[10px] top-full';
+      ? 'right-[8px] bottom-full mb-[-12px]'
+      : 'right-[8px] top-full mt-[-12px]';
 
   return (
     <div
