@@ -189,14 +189,25 @@ Deno.test('bot with transferred CUB stages one batch choice then readies and res
   assert.equal(result.state.gameData.turnData.diceFinalized, true);
 });
 
-Deno.test('bot Cube selection keeps Main on ties and stable Cube order otherwise', async () => {
+Deno.test('bot Cube selection keeps a higher Main over lower Cubes', async () => {
+  const result = await runBotsUntilSettled({
+    state: createBotCubeState(6, [5, 4]),
+    nowMs: 100,
+  });
+  assert.equal(
+    result.state.gameData.turnData.cubeDiceSelectionByPlayerId.bot.choiceId,
+    'main',
+  );
+});
+
+Deno.test('bot Cube selection prefers Cube over Main ties and keeps stable Cube order', async () => {
   const mainTie = await runBotsUntilSettled({
     state: createBotCubeState(6, [6, 6]),
     nowMs: 100,
   });
   assert.equal(
     mainTie.state.gameData.turnData.cubeDiceSelectionByPlayerId.bot.choiceId,
-    'main',
+    'cube:transferred-cube-01',
   );
 
   const cubeTie = await runBotsUntilSettled({

@@ -268,6 +268,7 @@ import {
   orderFirstStrikeFamilies,
   speciesToCataloguePanelId,
 } from './gameSession/availableActions';
+import { getCubeDiceChoiceIdForPhase } from './gameSession/cubeDiceChoice';
 import { buildMessageAction } from './gameSession/powerIntents';
 import {
   ANCIENT_BLACK_HOLE_PREVIEW_COST,
@@ -2011,6 +2012,7 @@ export function useGameSession(
   
   const [shipChoiceSelectionByInstanceId, setShipChoiceSelectionByInstanceId] = useState<Record<string, string>>({});
   const explicitShipChoiceBySourceRef = useRef<Record<string, string>>({});
+  const initializedCubeChoicePhaseInstanceKeyRef = useRef<string | null>(null);
   const drawingPreludeSubmissionGuardRef = useRef<string | null>(null);
   const [ancientChargeDeclarationWorkflow, setAncientChargeDeclarationWorkflow] =
     useState<AncientChargeDeclarationWorkflow | null>(null);
@@ -3417,6 +3419,13 @@ export function useGameSession(
       setShipChoiceSelectionByInstanceId({});
       return;
     }
+
+    const shouldInitializeCubeSelection =
+      hasRenderableCubeDiceRollAction &&
+      initializedCubeChoicePhaseInstanceKeyRef.current !== phaseInstanceKey;
+    if (shouldInitializeCubeSelection) {
+      initializedCubeChoicePhaseInstanceKeyRef.current = phaseInstanceKey;
+    }
     
     // Functional update so we can compare with prev and avoid unnecessary state churn.
     setShipChoiceSelectionByInstanceId((prev) => {
@@ -3428,20 +3437,26 @@ export function useGameSession(
         const allowedChoiceIds = getRenderableActionChoiceIds(action);
         
         if (allowedChoiceIds.length === 0) continue;
-        
+
+        const isCubeDiceChoice =
+          action.actionId === 'CUB#0' && action.shipDefId === 'CUB';
         const existing =
           shouldResetDestroyTargetRows && isRenderableTargetedAction(action)
             ? undefined
             : prev[instanceId];
-        if (existing && allowedChoiceIds.includes(existing)) {
-          next[instanceId] = existing;
-        } else {
-          const defaultChoiceId = getDefaultChoiceIdForRenderableAction(action);
-          if (!defaultChoiceId) continue;
+        const nextChoiceId = isCubeDiceChoice
+          ? getCubeDiceChoiceIdForPhase({
+              action,
+              existingChoiceId: existing,
+              initializeFromCurrentAction: shouldInitializeCubeSelection,
+            })
+          : existing && allowedChoiceIds.includes(existing)
+            ? existing
+            : getDefaultChoiceIdForRenderableAction(action);
+        if (!nextChoiceId) continue;
 
-          next[instanceId] = defaultChoiceId;
-          if (prev[instanceId] !== defaultChoiceId) changed = true;
-        }
+        next[instanceId] = nextChoiceId;
+        if (prev[instanceId] !== nextChoiceId) changed = true;
       }
       
       // Also detect removals (prev had keys that are no longer present)
@@ -3469,6 +3484,7 @@ export function useGameSession(
     phaseKey,
     availableActions,
     phaseInstanceKey,
+    hasRenderableCubeDiceRollAction,
     shouldResetDestroyTargetRows,
   ]);
   

@@ -143,6 +143,28 @@ export function getDefaultCubeDiceChoiceId(
   return bestChoice.choiceId;
 }
 
+export function getCubeDiceChoiceIdForPhase(args: {
+  action: CubeDiceChoiceActionInput | null | undefined;
+  existingChoiceId?: string;
+  initializeFromCurrentAction: boolean;
+}): CubeDiceChoiceId | undefined {
+  const validAction = getValidCubeDiceChoiceAction(args.action);
+  if (!validAction) {
+    return undefined;
+  }
+
+  const defaultChoiceId = getDefaultCubeDiceChoiceId(validAction);
+  if (args.initializeFromCurrentAction || !defaultChoiceId) {
+    return defaultChoiceId;
+  }
+
+  return validAction.choices.some(
+    (choice) => choice.choiceId === args.existingChoiceId
+  )
+    ? (args.existingChoiceId as CubeDiceChoiceId)
+    : defaultChoiceId;
+}
+
 export function deriveCubeDiceChoicePanelVm(args: {
   action: CubeDiceChoiceActionInput | null | undefined;
   selectedChoiceId?: string;
