@@ -224,6 +224,11 @@ export function StarsBackground({
         };
 
         if (s.kind === 'star' || s.kind === 'shootingStar') {
+          const isColouredStar = s.kind === 'star' && s.colourCssVariable !== undefined;
+          const starColour = isColouredStar
+            ? `var(${s.colourCssVariable})`
+            : 'var(--shapeships-white)';
+
           return (
             <div
               key={s.id}
@@ -232,7 +237,8 @@ export function StarsBackground({
                 width: `${s.sizePx}px`,
                 height: `${s.sizePx}px`,
                 borderRadius: 9999,
-                background: 'var(--shapeships-white)',
+                background: starColour,
+                boxShadow: isColouredStar ? `0 0 4px ${starColour}` : undefined,
               }}
             />
           );

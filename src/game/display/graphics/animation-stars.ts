@@ -70,10 +70,15 @@ export const STARS_CONFIG: StarsConfig = {
 
 export type StarsViewport = { width: number; height: number };
 export type StarKind = 'star' | 'shootingStar' | 'blackHole' | 'saturn';
+export type ColouredStarCssVariable =
+  | '--shapeships-pastel-red'
+  | '--shapeships-pastel-green'
+  | '--shapeships-pastel-blue';
 
 export type StarSpec = {
   id: string;
   kind: StarKind;
+  colourCssVariable?: ColouredStarCssVariable;
 
   // start position in px (relative to container)
   x: number;
@@ -208,6 +213,23 @@ function createDriftingStarSpec(
   };
 }
 
+function createOrdinaryStarSpec(
+  viewport: StarsViewport,
+  cfg: StarsConfig,
+  idPrefix: string,
+  colourCssVariable?: ColouredStarCssVariable,
+): StarSpec {
+  const star = createDriftingStarSpec(viewport, cfg, {
+    idPrefix,
+    kind: 'star',
+    sizePx: randFloat(cfg.starMinSizePx, cfg.starMaxSizePx),
+    durationMs: randFloat(cfg.minDurationMs, cfg.maxDurationMs),
+    delayMs: randFloat(0, cfg.maxDelayMs),
+  });
+
+  return colourCssVariable ? { ...star, colourCssVariable } : star;
+}
+
 export function computeDriftVector(viewport: StarsViewport, cfg: StarsConfig) {
   const angle = randFloat(0, Math.PI * 2);
   const diagonal = hypot(viewport.width, viewport.height);
@@ -223,15 +245,7 @@ export function generateStars(viewport: StarsViewport, cfg: StarsConfig = STARS_
   const out: StarSpec[] = [];
 
   for (let i = 0; i < count; i++) {
-    out.push(
-      createDriftingStarSpec(viewport, cfg, {
-        idPrefix: `star_${i}`,
-        kind: 'star',
-        sizePx: randFloat(cfg.starMinSizePx, cfg.starMaxSizePx),
-        durationMs: randFloat(cfg.minDurationMs, cfg.maxDurationMs),
-        delayMs: randFloat(0, cfg.maxDelayMs),
-      }),
-    );
+    out.push(createOrdinaryStarSpec(viewport, cfg, `star_${i}`));
   }
 
   // Rare: black hole (independent roll)
@@ -257,6 +271,27 @@ export function generateStars(viewport: StarsViewport, cfg: StarsConfig = STARS_
         durationMs: randFloat(cfg.minDurationMs, cfg.maxDurationMs),
         delayMs: randFloat(0, cfg.maxDelayMs),
       }),
+    );
+  }
+
+  const colouredStarVariants: ReadonlyArray<{
+    idPrefix: string;
+    colourCssVariable: ColouredStarCssVariable;
+  }> = [
+    { idPrefix: 'pastel_red_star', colourCssVariable: '--shapeships-pastel-red' },
+    { idPrefix: 'pastel_green_star', colourCssVariable: '--shapeships-pastel-green' },
+    { idPrefix: 'pastel_blue_star', colourCssVariable: '--shapeships-pastel-blue' },
+  ];
+  const selectedColouredStars = colouredStarVariants.filter(() => rand01() < 1 / 13);
+
+  for (const variant of selectedColouredStars) {
+    out.push(
+      createOrdinaryStarSpec(
+        viewport,
+        cfg,
+        variant.idPrefix,
+        variant.colourCssVariable,
+      ),
     );
   }
 
