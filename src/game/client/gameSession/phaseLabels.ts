@@ -129,7 +129,7 @@ export function derivePhasePresentation(args: {
     return {
       title: 'Turn Resolution',
       titleSuffix: null,
-      subheading: 'Healing and damage are resolved',
+      subheading: 'Healing and damage',
     };
   }
 
@@ -141,7 +141,7 @@ export function derivePhasePresentation(args: {
     return {
       title: 'Turn Resolution',
       titleSuffix: null,
-      subheading: 'Healing and damage are resolved',
+      subheading: 'Healing and damage',
     };
   }
 

@@ -58,7 +58,7 @@ Deno.test('player-facing phase presentation follows authoritative interaction st
     {
       title: 'Turn Resolution',
       titleSuffix: null,
-      subheading: 'Healing and damage are resolved',
+      subheading: 'Healing and damage',
     },
   );
   assertEquals(
@@ -71,7 +71,7 @@ Deno.test('player-facing phase presentation follows authoritative interaction st
     {
       title: 'Turn Resolution',
       titleSuffix: null,
-      subheading: 'Healing and damage are resolved',
+      subheading: 'Healing and damage',
     },
   );
   assertEquals(
@@ -82,7 +82,7 @@ Deno.test('player-facing phase presentation follows authoritative interaction st
     {
       title: 'Turn Resolution',
       titleSuffix: null,
-      subheading: 'Healing and damage are resolved',
+      subheading: 'Healing and damage',
     },
   );
   assertEquals(
@@ -101,7 +101,7 @@ Deno.test('player-facing phase presentation follows authoritative interaction st
     {
       title: 'Turn Resolution',
       titleSuffix: null,
-      subheading: 'Healing and damage are resolved',
+      subheading: 'Healing and damage',
     },
   );
 
