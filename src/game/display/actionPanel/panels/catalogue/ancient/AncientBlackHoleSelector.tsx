@@ -23,7 +23,7 @@ export function AncientBlackHoleSelector({
       </div>
 
       <div
-        className="flex w-[270px] sm:w-[330px] shrink-0 flex-col gap-[16px] text-[18px] font-normal leading-[1.3] text-white"
+        className="flex w-[280px] sm:w-[330px] shrink-0 flex-col gap-[16px] text-[18px] font-normal leading-[1.3] text-white"
       >
         <div className="flex items-baseline gap-[24px] font-bold">
           <span>Black Hole</span>
@@ -32,7 +32,7 @@ export function AncientBlackHoleSelector({
           </span>
         </div>
         <div>
-          <p className='text-[18px]'>Select up to two basic enemy ships on the battlefield to destroy.</p>
+          <p className='text-[var(--shapeships-pastel-red)] font-bold'>Select up to two basic enemy ships on the battlefield to destroy.</p>
           <p className="text-[18px] mt-[16px]">Damage will still occur if no ships are destroyed.</p>
         </div>
       </div>

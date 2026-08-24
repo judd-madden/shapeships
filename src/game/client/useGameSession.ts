@@ -2701,10 +2701,38 @@ export function useGameSession(
           getSuppressedSimulacrumLedgerEntryIds(displayRightPlayer?.id),
       })
     : [];
-  const ancientSolarEntriesForMarkers = [
-    ...displayLeftAncientSolarEntries,
-    ...displayRightAncientSolarEntries,
-  ];
+  // The fleet hold is exposed later by useEndOfTurnPresentation. Keep the
+  // existing suppressed projection above and prepare only the Build-time
+  // unsuppressed alternative here so hook order does not need to change.
+  const displayLeftAncientSolarEntriesDuringFleetMaterialisationHold =
+    majorPhase === 'build'
+      ? deriveAncientSolarDisplayEntries({
+          playerId: displayLeftPlayer?.id,
+          ledger: displayLeftPlayer?.id
+            ? publicAncientSolarLedgers?.[displayLeftPlayer.id]
+            : null,
+          allowLocalPreview: false,
+          currentBattleTurnNumber: turnNumber,
+          localPreviewCasts: [],
+          isAuthoritativelyReady: ancientPlayerReady,
+        })
+      : displayLeftAncientSolarEntries;
+  const displayRightAncientSolarEntriesDuringFleetMaterialisationHold =
+    majorPhase === 'build' && displayRightSpecies === 'ancient'
+      ? deriveAncientSolarDisplayEntries({
+          playerId: displayRightPlayer?.id,
+          ledger: displayRightPlayer?.id
+            ? publicAncientSolarLedgers?.[displayRightPlayer.id]
+            : null,
+          allowLocalPreview: false,
+          currentBattleTurnNumber: turnNumber,
+          localPreviewCasts: [],
+          isAuthoritativelyReady: isPlayerReadyForPhase(
+            rawState,
+            displayRightPlayer?.id
+          ),
+        })
+      : displayRightAncientSolarEntries;
   const showAncientSolarTargetMarkers =
     majorPhase === 'battle' && !isFinished;
   const ancientManualSolarCastReplay = replayAncientManualSolarCasts({
@@ -4325,6 +4353,27 @@ useEffect(() => {
     !isFinished &&
     presentedTurnReleaseTurnNumber === turnNumber &&
     presentedTurnDiceSettledTurnNumber !== turnNumber;
+  const presentedDisplayLeftAncientSolarEntries =
+    shouldSuppressCurrentTurnCreatedLocalShips
+      ? displayLeftAncientSolarEntriesDuringFleetMaterialisationHold
+      : displayLeftAncientSolarEntries;
+  const presentedDisplayRightAncientSolarEntries =
+    shouldSuppressCurrentTurnCreatedLocalShips
+      ? displayRightAncientSolarEntriesDuringFleetMaterialisationHold
+      : displayRightAncientSolarEntries;
+  if (board.mode === 'board' && shouldSuppressCurrentTurnCreatedLocalShips) {
+    board = {
+      ...board,
+      myAncientSolarEntries:
+        displayLeftSpecies === 'ancient'
+          ? presentedDisplayLeftAncientSolarEntries
+          : [],
+      opponentAncientSolarEntries:
+        displayRightSpecies === 'ancient'
+          ? presentedDisplayRightAncientSolarEntries
+          : [],
+    };
+  }
   const materializedSimulacrumFleetInstanceIdsByPlayerId =
     getMaterializedSimulacrumFleetInstanceIdsByPlayerId(rawState);
   const currentTurnLocalSimulacrumInstanceIds =
@@ -4426,6 +4475,10 @@ useEffect(() => {
       opponent: projectedOpponentTargetPresentation.previewShipDefIdByStackKey,
     },
   };
+  const ancientSolarEntriesForMarkers = [
+    ...presentedDisplayLeftAncientSolarEntries,
+    ...presentedDisplayRightAncientSolarEntries,
+  ];
   const persistentAncientSolarTargetMarkers =
     buildPersistentAncientSolarTargetMarkers({
       active: showAncientSolarTargetMarkers,

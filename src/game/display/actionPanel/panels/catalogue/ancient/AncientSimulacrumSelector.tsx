@@ -88,7 +88,7 @@ export function AncientSimulacrumSelector({
             {blueAvailable} blue available
           </span>
         </div>
-        <p className="text-[18px] font-normal leading-[1.2]">
+        <p className="text-[18px] text-[var(--shapeships-pastel-red)] font-bold leading-[1.2]">
           Select a basic enemy ship on the battlefield to copy, up to the value of blue Energy available.
         </p>
       </div>
