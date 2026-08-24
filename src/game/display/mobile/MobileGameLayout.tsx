@@ -921,7 +921,12 @@ export function MobileGameLayout({
             ) : activeTakeover === 'chat' ? (
               <MobileChatTakeover vm={leftRailVm} actions={actions} onClose={handleReturnToBoard} />
             ) : activeTakeover === 'battleLog' ? (
-              <MobileBattleLogTakeover vm={leftRailVm} onClose={handleReturnToBoard} />
+              <MobileBattleLogTakeover
+                vm={leftRailVm}
+                isGameFinished={isGameOver}
+                onDownloadBattleLog={actions.onDownloadBattleLog}
+                onClose={handleReturnToBoard}
+              />
             ) : actionPanelVm.endOfGame != null ? (
               <MobileEndOfGameMenuTakeover
                 endOfGame={actionPanelVm.endOfGame}
