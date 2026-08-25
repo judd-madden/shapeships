@@ -285,6 +285,7 @@ interface AncientShipCataloguePanelProps {
     canOpen: boolean;
     blueAvailable: number;
     hoveredPreviewBlueCost: number | null;
+    hasLegalTargetBeforeAffordability: boolean;
   };
   blackHoleSelector?: {
     canOpen: boolean;
@@ -741,6 +742,15 @@ export function AncientShipCataloguePanel({
 
     return undefined;
   })();
+  const hoveredSolarUnavailableText =
+    hoveredSolarPowerId === 'SSIM' &&
+    isActiveResolvedPowersStage &&
+    !selectorOpen &&
+    simulacrumSelector?.canOpen === false
+      ? simulacrumSelector.hasLegalTargetBeforeAffordability
+        ? 'Not enough Energy'
+        : 'No valid targets'
+      : undefined;
   const hoveredSolarSlot = hover.state.activeShipId
     ? SOLAR_POWER_SLOTS.find((slot) => slot.id === hover.state.activeShipId)
     : undefined;
@@ -1301,6 +1311,7 @@ export function AncientShipCataloguePanel({
             anchorRect={hover.presentState.anchorRect}
             eligibility={hoveredShipEligibility}
             actionHint={hoveredSolarActionHint}
+            unavailableText={hoveredSolarUnavailableText}
             motionState={hover.motionState}
             showCost={!hoveredShipIsSolar}
             headingValue={hoveredSolarHeadingValue}

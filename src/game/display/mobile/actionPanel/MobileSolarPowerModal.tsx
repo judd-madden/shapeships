@@ -104,7 +104,7 @@ export function MobileSolarPowerModal({
       }
       return declarationVm.simulacrumSelector.hasLegalTargetBeforeAffordability
         ? { kind: 'unavailable', label: 'Not enough Energy' }
-        : { kind: 'unavailable', label: 'No eligible targets' };
+        : { kind: 'unavailable', label: 'No valid targets' };
     }
 
     if (declarationVm.blackHoleSelector.canOpen) {

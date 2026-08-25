@@ -44,6 +44,7 @@ interface ShipHoverCardProps {
   anchorRect: DOMRect;
   eligibility: ShipEligibility;
   actionHint?: Exclude<ShipHoverActionHint, 'build'>;
+  unavailableText?: string;
   motionState?: HoverPanelMotionState | null;
   showCost?: boolean;
   headingValue?: ShipHoverHeadingValue;
@@ -153,11 +154,13 @@ function EligibilityFooter({
   eligibility,
   componentShipIds,
   actionHint,
+  unavailableText,
   challengeCondition,
 }: {
   eligibility: ShipEligibility;
   componentShipIds: readonly string[];
   actionHint?: Exclude<ShipHoverActionHint, 'build'>;
+  unavailableText?: string;
   challengeCondition: CatalogueChallengeCondition | null;
 }) {
   const resolvedActionHint: ShipHoverActionHint | undefined =
@@ -167,6 +170,16 @@ function EligibilityFooter({
   const footerContent = (() => {
     if (resolvedActionHint) {
       return <ActionHint kind={resolvedActionHint} />;
+    }
+
+    if (unavailableText) {
+      return (
+        <p
+          className="font-medium leading-[12px] relative shrink-0 text-[var(--shapeships-grey-50)] text-[15px] text-nowrap"
+        >
+          {unavailableText}
+        </p>
+      );
     }
 
     if (eligibility.state === 'REFERENCE_ONLY') {
@@ -280,6 +293,7 @@ export function ShipHoverCard({
   anchorRect,
   eligibility,
   actionHint,
+  unavailableText,
   motionState,
   showCost = true,
   headingValue,
@@ -428,6 +442,7 @@ export function ShipHoverCard({
           eligibility={eligibility}
           componentShipIds={model.componentShipIds}
           actionHint={actionHint}
+          unavailableText={unavailableText}
           challengeCondition={challengeCondition}
         />
         </HoverPanelFrame>
