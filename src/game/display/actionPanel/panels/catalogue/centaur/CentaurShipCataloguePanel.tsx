@@ -17,6 +17,7 @@ import { CatalogueCostNumber } from '../shared/CatalogueCostNumber';
 import { ShipHoverCard } from '../shared/ShipHoverCard';
 import { useShipCatalogueHover } from '../shared/useShipCatalogueHover';
 import {
+  getCatalogueDisplayCost,
   getShipEligibilityForHover,
   shouldDimCatalogueShip,
   shouldEnableCatalogueGraphicHover,
@@ -123,9 +124,7 @@ export function CentaurShipCataloguePanel({
   }
 
   function getDisplayCost(shipId: ShipDefId, fallbackCost: number): number {
-    return isBuildableContext
-      ? (buildCatalogue.displayCostByShipId[shipId] ?? fallbackCost)
-      : fallbackCost;
+    return getCatalogueDisplayCost({ shipId, fallbackCost, buildCatalogue });
   }
 
   const hoveredShipEligibility = hover.presentState.activeShipId

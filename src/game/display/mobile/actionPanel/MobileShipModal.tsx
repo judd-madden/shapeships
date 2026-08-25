@@ -12,6 +12,7 @@ import {
   groupShipCounts,
 } from '../../actionPanel/panels/catalogue/shared/ShipCardModel';
 import {
+  getCatalogueDisplayCost,
   getShipEligibilityForHover,
   type ShipEligibility,
 } from '../../actionPanel/panels/catalogue/shared/ShipBuildEligibility';
@@ -73,7 +74,12 @@ export function MobileShipModal({
     actions.onBuildShip(shipId);
   }
 
-  const displayCost = buildCatalogue.displayCostByShipId[shipId] ?? model.cost;
+  const displayCost = getCatalogueDisplayCost({
+    shipId,
+    fallbackCost: model.cost,
+    buildCatalogue,
+    referenceOnly,
+  });
   const hasRulesNote = Boolean(model.italicNotes);
   const shouldCollapseRules = model.italicNotes
     ? model.italicNotes.includes('\n') || model.italicNotes.length > 86
@@ -107,7 +113,7 @@ export function MobileShipModal({
                 <p
                   className="shrink-0 font-black"
                 >
-                  {model.cost}
+                  {displayCost}
                 </p>
                 <p
                   className="min-w-0 font-bold leading-[26px]"

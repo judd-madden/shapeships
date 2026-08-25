@@ -31,6 +31,7 @@ import {
 } from "../shared/ShipHoverCard";
 import { useShipCatalogueHover } from "../shared/useShipCatalogueHover";
 import {
+  getCatalogueDisplayCost,
   getShipEligibilityForHover,
   shouldDimCatalogueShip,
   shouldEnableCatalogueGraphicHover,
@@ -682,9 +683,7 @@ export function AncientShipCataloguePanel({
   }
 
   function getDisplayCost(shipId: ShipDefId, fallbackCost: number): number {
-    return isBuildableContext
-      ? (buildCatalogue.displayCostByShipId[shipId] ?? fallbackCost)
-      : fallbackCost;
+    return getCatalogueDisplayCost({ shipId, fallbackCost, buildCatalogue });
   }
 
   const hoveredShipIsSolar = hover.presentState.activeShipId

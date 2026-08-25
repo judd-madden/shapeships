@@ -17,6 +17,21 @@ export interface ShipEligibility {
   unavailableExplanation?: ActionPanelBuildCatalogueViewModel['unavailableExplanation'];
 }
 
+export function getCatalogueDisplayCost(args: {
+  shipId: ShipDefId;
+  fallbackCost: number;
+  buildCatalogue: ActionPanelBuildCatalogueViewModel;
+  referenceOnly?: boolean;
+}): number {
+  const { shipId, fallbackCost, buildCatalogue, referenceOnly = false } = args;
+
+  if (referenceOnly || buildCatalogue.context === 'reference_only') {
+    return fallbackCost;
+  }
+
+  return buildCatalogue.displayCostByShipId[shipId] ?? fallbackCost;
+}
+
 export function shouldDimCatalogueShip(args: {
   context: ActionPanelBuildCatalogueViewModel['context'];
   canAddShip: boolean;

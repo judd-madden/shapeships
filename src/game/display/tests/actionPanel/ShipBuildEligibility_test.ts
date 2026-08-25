@@ -3,6 +3,7 @@ declare const Deno: {
 };
 
 import {
+  getCatalogueDisplayCost,
   getShipEligibilityForHover,
   shouldDimCatalogueShip,
 } from '../../actionPanel/panels/catalogue/shared/ShipBuildEligibility';
@@ -20,12 +21,13 @@ function makeBuildCatalogue(args: {
   context: 'buildable' | 'reference_only' | 'unavailable';
   unavailableExplanation: 'build_in_drawing_phase' | null;
   canAddShip?: boolean;
+  displayCost?: number;
 }): ActionPanelBuildCatalogueViewModel {
   return {
     context: args.context,
     unavailableExplanation: args.unavailableExplanation,
     canAddShipById: { FIG: args.canAddShip === true },
-    displayCostByShipId: {},
+    displayCostByShipId: args.displayCost === undefined ? {} : { FIG: args.displayCost },
     eligibilityByShipId: args.canAddShip === undefined
       ? {}
       : {
@@ -36,6 +38,57 @@ function makeBuildCatalogue(args: {
     catalogueChallengeIndicator: null,
   };
 }
+
+Deno.test('catalogue display cost preserves projected cost outside reference mode', () => {
+  const fallbackCost = 8;
+
+  for (const context of ['buildable', 'unavailable'] as const) {
+    assertEquals(
+      getCatalogueDisplayCost({
+        shipId: 'FIG',
+        fallbackCost,
+        buildCatalogue: makeBuildCatalogue({
+          context,
+          unavailableExplanation: context === 'unavailable' ? 'build_in_drawing_phase' : null,
+          displayCost: 5,
+        }),
+      }),
+      5,
+      `${context} catalogues should consume the existing projected display cost`
+    );
+  }
+
+  assertEquals(
+    getCatalogueDisplayCost({
+      shipId: 'FIG',
+      fallbackCost,
+      buildCatalogue: makeBuildCatalogue({
+        context: 'reference_only',
+        unavailableExplanation: null,
+        displayCost: 5,
+      }),
+    }),
+    fallbackCost,
+    'reference-only catalogues should keep the printed cost'
+  );
+});
+
+Deno.test('explicit reference inspection keeps printed cost for mobile presentation', () => {
+  assertEquals(
+    getCatalogueDisplayCost({
+      shipId: 'FIG',
+      fallbackCost: 8,
+      buildCatalogue: makeBuildCatalogue({
+        context: 'unavailable',
+        unavailableExplanation: 'build_in_drawing_phase',
+        displayCost: 5,
+      }),
+      referenceOnly: true,
+    }),
+    8,
+    'explicit reference inspection should override a live projected cost'
+  );
+});
 
 Deno.test('temporary unavailable catalogue dims ships without misleading explanation', () => {
   assertEquals(

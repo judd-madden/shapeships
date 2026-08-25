@@ -4,6 +4,7 @@ declare const Deno: {
 
 import {
   decideAutoPanelRouting,
+  decideStaleWorkflowPanelRouting,
   getDefaultChoiceIdForRenderableAction,
   getSelectedChoiceIdForRenderableAction,
   type RenderableServerAction,
@@ -127,4 +128,71 @@ Deno.test('Carrier Drawing prelude routing remains independent of dice presentat
       'Carrier should route to its prelude action panel'
     );
   }
+});
+
+Deno.test('stale workflow routing falls back to the player self catalogue', () => {
+  const decision = decideStaleWorkflowPanelRouting({
+    hasActionsAvailable: false,
+    activePanelId: 'ap.battle.charges.ancient.black_hole',
+    mySpecies: 'centaur',
+    isPlayerViewer: true,
+  });
+
+  assertEquals(
+    decision.kind,
+    'setActivePanelId',
+    'an empty nested workflow panel should be normalized'
+  );
+  if (decision.kind === 'setActivePanelId') {
+    assertEquals(
+      decision.nextPanelId,
+      'ap.catalog.ships.centaur',
+      'normalization should route to the current player self catalogue'
+    );
+  }
+});
+
+Deno.test('new actions do not steal focus from a deliberately selected catalogue', () => {
+  const decision = decideStaleWorkflowPanelRouting({
+    hasActionsAvailable: true,
+    activePanelId: 'ap.catalog.ships.xenite',
+    mySpecies: 'human',
+    isPlayerViewer: true,
+  });
+
+  assertEquals(decision.kind, 'none', 'one-way normalization should ignore appearing actions');
+});
+
+Deno.test('stale workflow routing preserves passive, terminal, unknown, and spectator surfaces', () => {
+  const preservedSurfaces = [
+    'ap.catalog.ships.human',
+    'ap.menu.root',
+    'ap.idle.blank',
+    'ap.end_of_game.result',
+    'ap.unknown',
+  ];
+
+  for (const activePanelId of preservedSurfaces) {
+    assertEquals(
+      decideStaleWorkflowPanelRouting({
+        hasActionsAvailable: false,
+        activePanelId,
+        mySpecies: 'human',
+        isPlayerViewer: true,
+      }).kind,
+      'none',
+      `${activePanelId} should not be treated as a stale workflow`
+    );
+  }
+
+  assertEquals(
+    decideStaleWorkflowPanelRouting({
+      hasActionsAvailable: false,
+      activePanelId: 'ap.battle.first_strike.human',
+      mySpecies: 'human',
+      isPlayerViewer: false,
+    }).kind,
+    'none',
+    'spectator navigation should remain untouched'
+  );
 });

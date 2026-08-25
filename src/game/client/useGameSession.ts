@@ -254,6 +254,7 @@ import {
   type BuildDrawingRouteRequest,
   classifyRenderableFirstStrikeActions,
   decideAutoPanelRouting,
+  decideStaleWorkflowPanelRouting,
   FIRST_STRIKE_MANDATORY_FAMILIES,
   getDefaultChoiceIdForRenderableAction,
   getFirstStrikePanelIdForFamily,
@@ -5506,6 +5507,30 @@ useEffect(() => {
   // Default to Actions on phase entry if actions are available.
   // Respect user panel clicks within the same phase.
   // ============================================================================
+
+  useLayoutEffect(() => {
+    if (!phaseKey || isFinished || isBootstrapping) return;
+
+    const decision = decideStaleWorkflowPanelRouting({
+      hasActionsAvailable,
+      activePanelId,
+      mySpecies,
+      isPlayerViewer: myRole === 'player',
+    });
+
+    if (decision.kind === 'setActivePanelId' && decision.nextPanelId !== activePanelId) {
+      console.log(decision.log);
+      setActivePanelId(decision.nextPanelId);
+    }
+  }, [
+    activePanelId,
+    hasActionsAvailable,
+    isBootstrapping,
+    isFinished,
+    myRole,
+    mySpecies,
+    phaseKey,
+  ]);
 
   useEffect(() => {
     if (!phaseKey) return;

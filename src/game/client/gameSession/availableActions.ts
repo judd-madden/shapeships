@@ -41,6 +41,13 @@ export type AutoPanelRoutingDecision =
   | { kind: 'none' }
   | { kind: 'setActivePanelId'; nextPanelId: ActionPanelId; log: string };
 
+export interface StaleWorkflowPanelRoutingInput {
+  hasActionsAvailable: boolean;
+  activePanelId: string;
+  mySpecies: SpeciesId | null;
+  isPlayerViewer: boolean;
+}
+
 export type RenderableServerAction = {
   kind: string;
   actionId: string;
@@ -242,6 +249,32 @@ export function speciesToCataloguePanelId(species: SpeciesId): ActionPanelId {
     case 'centaur': return 'ap.catalog.ships.centaur';
     case 'ancient': return 'ap.catalog.ships.ancient';
   }
+}
+
+export function decideStaleWorkflowPanelRouting(
+  input: StaleWorkflowPanelRoutingInput
+): AutoPanelRoutingDecision {
+  const { hasActionsAvailable, activePanelId, mySpecies, isPlayerViewer } = input;
+
+  if (!isPlayerViewer || hasActionsAvailable || !isActionPanelId(activePanelId)) {
+    return { kind: 'none' };
+  }
+
+  if (
+    isCataloguePanel(activePanelId) ||
+    activePanelId === 'ap.menu.root' ||
+    activePanelId === 'ap.idle.blank' ||
+    activePanelId === 'ap.end_of_game.result'
+  ) {
+    return { kind: 'none' };
+  }
+
+  const selfCatalogue = speciesToCataloguePanelId(mySpecies ?? 'human');
+  return {
+    kind: 'setActivePanelId',
+    nextPanelId: selfCatalogue,
+    log: `[useGameSession] Stale workflow has no actions: falling back to self catalogue panel: ${selfCatalogue}`,
+  };
 }
 
 export function isDeferredAutoPanelHandoffPhase(phaseKey: PhaseKey): boolean {
