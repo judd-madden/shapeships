@@ -107,7 +107,7 @@ export function LoginShell({
               rel="noopener noreferrer"
               className="[text-underline-position:from-font] decoration-solid relative shrink-0 underline cursor-pointer hover:opacity-80"
             >
-              Official
+              About
             </a>
             <a
               href="https://discord.gg/MjPtf4G6Gt"

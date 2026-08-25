@@ -125,7 +125,7 @@ export function MenuShell({
                 rel="noopener noreferrer"
                 className="[text-underline-position:from-font] relative shrink-0 cursor-pointer decoration-solid underline hover:opacity-80"
               >
-                Official
+                About
               </a>
               <a 
                 href="https://discord.gg/MjPtf4G6Gt" 
