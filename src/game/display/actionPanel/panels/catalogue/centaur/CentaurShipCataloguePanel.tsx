@@ -339,7 +339,7 @@ export function CentaurShipCataloguePanel({
               }
               {...getSlotProps('TER')}
             >
-              <CatalogueCostNumber cost={getDisplayCost('TER', 7)} className="relative shrink-0 w-full" />
+              <CatalogueCostNumber cost={getDisplayCost('TER', 6)} className="relative shrink-0 w-full" />
             </CatalogueShipSlot>
           </div>
 

@@ -18,7 +18,7 @@
  * - → ShipDefinitions.withStructuredPowers.ts (join layer)
  * - → engine_shared resolution logic
  * 
- * VERSION: 2026-08-06
+ * VERSION: 2026-08-25
  * Last synced with: /game/data/ShipDefinitions.json.ts
  * 
  */
@@ -655,12 +655,12 @@ export const SHIP_DEFINITIONS_JSON = [
     "powers": [
       {
         "subphase": "Automatic",
-        "text": "Heal 3 OR\\nAt the start of this turn, if your health is lower than your opponent's health: Heal 7."
+        "text": "Heal 3 OR\\nAt the start of this turn, if your health is lower than your opponent's health: Heal 6."
       }
     ],
     "energyCost": null,
     "extraRules": "",
-    "stackCaption": "X healing (Number of ships in stack x 3 OR 7)",
+    "stackCaption": "X healing (Number of ships in stack x 3 OR 6)",
     "colour": "Green",
     "numberOfGraphics": 1
   },
@@ -1050,8 +1050,8 @@ export const SHIP_DEFINITIONS_JSON = [
     "species": "Centaur",
     "shipType": "Upgraded",
     "name": "Ark of Terror",
-    "totalLineCost": 7,
-    "joiningLineCost": 3,
+    "totalLineCost": 6,
+    "joiningLineCost": 2,
     "componentShips": [
       "FEA",
       "FEA"
@@ -1706,7 +1706,7 @@ export const SHIP_DEFINITIONS_JSON = [
  * IMPORTANT: This version should match the client-side version when synced.
  * Client version is in: /game/data/ShipDefinitions.json.ts
  */
-export const SHIP_DEFS_VERSION = '2026-08-06';
+export const SHIP_DEFS_VERSION = '2026-08-25';
 
 // ============================================================================
 // TYPE INFERENCE HELPERS

@@ -60,6 +60,31 @@ function cub(instanceId: string) {
   return { instanceId, shipDefId: 'CUB' };
 }
 
+Deno.test('lower-health Defense Swarm branch emits an attributed Automatic Heal 6', () => {
+  const state = createState({
+    p1Ships: [{ instanceId: 'defense-swarm-1', shipDefId: 'DSW' }],
+  });
+  state.players[0].health = 12;
+  state.players[1].health = 20;
+
+  const effects = computePhaseComputedEffects(state, 'battle.end_of_turn_resolution').effects
+    .filter((effect) => (effect.source as any).shipDefId === 'DSW');
+
+  assert.deepEqual(effects, [
+    {
+      id: 'defenseswarm_3_defense-swarm-1',
+      ownerPlayerId: 'p1',
+      source: { type: 'ship', instanceId: 'defense-swarm-1', shipDefId: 'DSW' },
+      timing: 'battle.end_of_turn_resolution',
+      activationTag: EffectTiming.Automatic,
+      survivability: SurvivabilityRule.DiesWithSource,
+      target: { playerId: 'p1' },
+      kind: EffectKind.Heal,
+      amount: 6,
+    },
+  ]);
+});
+
 Deno.test('coherent Cube selection emits one attributed Automatic Damage 3 per live Cube', () => {
   const state = createState({
     p1Ships: [cub('cube-a'), cub('cube-b')],

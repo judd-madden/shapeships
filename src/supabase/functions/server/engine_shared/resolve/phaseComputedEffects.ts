@@ -951,7 +951,7 @@ export function computePhaseComputedEffects(
     }
   }
 
-  // === DEFENSE SWARM (DSW) automatic: Heal 3, or Heal 7 if your health is lower than your opponent's ===
+  // === DEFENSE SWARM (DSW) automatic: Heal 3, or Heal 6 if your health is lower than your opponent's ===
   for (const player of activePlayers) {
     const ownerPlayerId = player.id;
     const opponentId = opponentMap.get(ownerPlayerId);
@@ -961,7 +961,7 @@ export function computePhaseComputedEffects(
     if (!opponent) continue;
 
     const ships = getShips(state, ownerPlayerId);
-    const healPerDefenseSwarm = getPhaseStartHealthConditionalAmount(player.health, opponent.health, 3, 7);
+    const healPerDefenseSwarm = getPhaseStartHealthConditionalAmount(player.health, opponent.health, 3, 6);
 
     for (const ship of ships) {
       if (ship.shipDefId !== 'DSW') continue;
