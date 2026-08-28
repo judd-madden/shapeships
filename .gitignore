@@ -57,6 +57,12 @@ patches/
 # =========================
 imports/
 
+# =========================
+# Promotion Material
+# =========================
+/promo/
+
+
 # Supabase CLI local temp state
 supabase/.temp/
 supabase/functions/.env
