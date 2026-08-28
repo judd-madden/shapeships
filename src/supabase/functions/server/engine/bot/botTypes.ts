@@ -49,7 +49,7 @@ export type OrderedBotBuildPlan = {
 export type CarrierChoiceId = 'defender' | 'fighter' | 'hold';
 export type DamageHealChoiceId = 'damage' | 'heal';
 export type InterceptorChoiceId = DamageHealChoiceId;
-export type FrigateFirstChoiceMode = 'match_current_roll';
+export type FrigateFirstChoiceMode = 'match_current_roll' | 'fixed';
 export type FrigateAdditionalChoiceMode = 'stack_existing' | 'spread_sequence';
 
 export type CarrierPriorityGoal = {
@@ -86,6 +86,7 @@ export type EvolverPolicy = {
 
 export type FrigateTriggerPolicy = {
   firstChoiceMode: FrigateFirstChoiceMode;
+  fixedTrigger?: number;
   additionalChoiceMode?: FrigateAdditionalChoiceMode;
   spreadSequence?: number[];
 };

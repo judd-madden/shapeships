@@ -182,7 +182,7 @@ const XEN_QUEEN_NO_CHRONO_PLAN: AuthoredBotPlan = {
       { shipDefId: 'DSW', saveUntilAffordable: true },
       { shipDefId: 'QUE', saveUntilAffordable: true, fallbackShipDefIds: ['DSW', 'BUG'] },
     ],
-    endLoop: ['BUG', 'DSW', 'ZEN',],
+    endLoop: ['BUG', 'DSW', 'ZEN', 'HEL'],
     fallbacks: {
       default: ['DSW', 'BUG'],
       defensive: ['DSW', 'BUG'],

@@ -132,24 +132,6 @@ const HUMAN_CARRIER_COMMANDER_SOFT_DEF_OPEN_PLAN: AuthoredBotPlan = {
   notes: 'Softer Carrier/Commander opener with one Defender before aggro.',
 };
 
-const HUMAN_CARRIER_COMMANDER_SOFT_FIG_OPEN_PLAN: AuthoredBotPlan = {
-  id: 'hum_carrier_commander_soft_fig_open',
-  speciesId: 'HUM',
-  buildGoals: [
-    { shipDefId: 'FIG', targetCount: 1 },
-    { shipDefId: 'CAR', targetCount: 4 , saveUntilAffordable: true },
-    { shipDefId: 'COM', targetCount: 3 },
-    { shipDefId: 'FIG', targetCount: 6 },
-  ],
-  loopGoals: [{ shipDefId: 'FIG', targetCount: 99 }],
-  drawingPrelude: {
-    CAR: {
-      fallbackChoiceId: 'fighter',
-    },
-  },
-  notes: 'Softer Carrier/Commander opener with one Fighter before aggro.',
-};
-
 const HUMAN_ORBITAL_CARRIER_EARTHSHIP_SHELL_PLAN: AuthoredBotPlan = {
   id: 'hum_orbital_carrier_earthship_shell',
   speciesId: 'HUM',
@@ -165,7 +147,7 @@ const HUMAN_ORBITAL_CARRIER_EARTHSHIP_SHELL_PLAN: AuthoredBotPlan = {
   loopGoals: [
     { shipDefId: 'DEF', targetCount: 2 },
     { shipDefId: 'ORB', targetCount: 1 },
-    { shipDefId: 'EAR', targetCount: 1, saveUntilAffordable: true },
+    { shipDefId: 'EAR', targetCount: 4, saveUntilAffordable: true },
     { shipDefId: 'CAR', targetCount: 1 },
   ],
   drawingPrelude: {
@@ -342,11 +324,12 @@ const HUMAN_LEVIATHAN_PLAN: AuthoredBotPlan = {
     },
   },
   frigatePolicy: {
-    FRI: {
-      firstChoiceMode: 'match_current_roll',
-      additionalChoiceMode: 'stack_existing',
-    },
+  FRI: {
+    firstChoiceMode: 'fixed',
+    fixedTrigger: 6,
+    additionalChoiceMode: 'stack_existing',
   },
+},
   notes:
     'Leviathan line: save for Orbital, save into 3 Carriers, deplete Carriers while making components, complete Leviathan, stack Frigates on the effective 6, add two Science Vessels, then continue Frigate pressure.',
 };
@@ -638,7 +621,6 @@ export const ACTIVE_HUMAN_BOT_PLANS: AuthoredBotPlan[] = [
   HUMAN_CARRIER_COMMANDER_SOFT_DEF_OPEN_PLAN,
   HUMAN_TACTICAL_DREAD_PLAN,
   HUMAN_ORBITAL_CARRIER_EARTHSHIP_SHELL_PLAN,
-  HUMAN_CARRIER_COMMANDER_SOFT_FIG_OPEN_PLAN,
   HUMAN_CARRIER_COMMANDER_AGGRO_PLAN,
   HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN,
   HUMAN_ORBITAL_CARRIER_SCIENCE_SHELL_PLAN,
@@ -656,7 +638,6 @@ const HUMAN_BOT_PLAN_LOOKUP_POOL: AuthoredBotPlan[] = [
   HUMAN_TACTICAL_DREAD_PLAN,
   HUMAN_ORBITAL_CARRIER_TACTICAL_PLAN,
   HUMAN_CARRIER_COMMANDER_SOFT_DEF_OPEN_PLAN,
-  HUMAN_CARRIER_COMMANDER_SOFT_FIG_OPEN_PLAN,
   HUMAN_CARRIER_COMMANDER_AGGRO_PLAN,
   HUMAN_ORBITAL_CARRIER_EARTHSHIP_SHELL_PLAN,
   HUMAN_ORBITAL_CARRIER_SCIENCE_SHELL_PLAN,

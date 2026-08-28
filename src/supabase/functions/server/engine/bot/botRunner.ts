@@ -884,8 +884,15 @@ function chooseFrigateTriggerFromPolicy(args: {
   policy: FrigateTriggerPolicy;
 }): number {
   const { currentRoll, knownTriggers, policy } = args;
-  if (knownTriggers.length === 0 && policy.firstChoiceMode === 'match_current_roll') {
-    return currentRoll;
+
+  if (knownTriggers.length === 0) {
+    if (policy.firstChoiceMode === 'fixed') {
+      return normalizeStrictFrigateTrigger(policy.fixedTrigger) ?? currentRoll;
+    }
+
+    if (policy.firstChoiceMode === 'match_current_roll') {
+      return currentRoll;
+    }
   }
 
   const additionalChoiceMode = policy.additionalChoiceMode ?? 'stack_existing';
