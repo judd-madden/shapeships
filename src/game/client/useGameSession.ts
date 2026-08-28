@@ -4349,6 +4349,7 @@ useEffect(() => {
     presentedCubeDiceValueByPlayerId,
     leftRailChronoswarmAnimateKey: presentedChronoswarmAnimateSeq,
     leftRailCubeAnimateKey: presentedCubeAnimateSeq,
+    turnStartFleetMaterialisationHoldActive,
     presentedTurnReleaseKey,
     presentedTurnReleaseTurnNumber,
     presentedTurnDiceSettledTurnNumber,
@@ -4376,8 +4377,7 @@ useEffect(() => {
     hasMatchingAuthoritativeGameId &&
     !isBootstrapping &&
     !isFinished &&
-    presentedTurnReleaseTurnNumber === turnNumber &&
-    presentedTurnDiceSettledTurnNumber !== turnNumber;
+    turnStartFleetMaterialisationHoldActive;
   const presentedDisplayLeftAncientSolarEntries =
     shouldSuppressCurrentTurnCreatedLocalShips
       ? displayLeftAncientSolarEntriesDuringFleetMaterialisationHold

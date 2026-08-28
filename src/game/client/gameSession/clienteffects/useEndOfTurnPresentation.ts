@@ -17,6 +17,7 @@ import {
   holdTurnStartDiceModifierPresentation,
   normalizeTurnStartDiceModifierPresentation,
   settleTurnStartEconomyPresentation,
+  shouldHoldTurnStartFleetMaterialisation,
   syncTurnStartEconomyPresentation,
   type TurnStartDiceModifierPresentation,
   type TurnStartEconomyPresentation,
@@ -459,6 +460,14 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
   const healthAuthoritativeHoldActive = healthAuthoritativePhaseHold != null;
   const healthResolutionLockActive = healthAuthoritativeHoldActive;
+  const turnStartFleetMaterialisationHoldActive =
+    shouldHoldTurnStartFleetMaterialisation({
+      isSameGame: currentGameIdRef.current === effectiveGameId,
+      turnNumber,
+      previouslyObservedTurnNumber: currentTurnNumberRef.current,
+      releaseTurnNumber: presentedTurnReleaseTurnNumber,
+      settledTurnNumber: presentedTurnDiceSettledTurnNumber,
+    });
   currentGameIdRef.current = effectiveGameId;
   currentTurnNumberRef.current = turnNumber;
   currentFinishedRef.current = isFinished;
@@ -1126,6 +1135,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     leftRailDiceAnimateKey: presentedLeftRailDiceAnimateSeq,
     leftRailChronoswarmAnimateKey: presentedChronoswarmAnimateSeq,
     leftRailCubeAnimateKey: presentedCubeAnimateSeq,
+    turnStartFleetMaterialisationHoldActive,
     presentedTurnReleaseKey,
     presentedTurnReleaseTurnNumber,
     presentedTurnDiceSettledKey,

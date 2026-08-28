@@ -12,6 +12,7 @@ import {
   isNormalDrawingInteractionHeld,
   normalizeTurnStartDiceModifierPresentation,
   settleTurnStartEconomyPresentation,
+  shouldHoldTurnStartFleetMaterialisation,
   shouldHoldSetupTurnDiceCatchUp,
   syncTurnStartEconomyPresentation,
 } from '../../gameSession/clienteffects/turnStartPresentationGates';
@@ -133,6 +134,78 @@ Deno.test('current-turn result UI remains gated until that turn settles', () => 
     isCurrentTurnDicePresentationSettled({ turnNumber: 3, settledTurnNumber: 3 }),
     true,
     'the current result may be exposed after settle'
+  );
+});
+
+Deno.test('turn-start fleet materialisation hold covers the authoritative turn transition continuously', () => {
+  assertEquals(
+    shouldHoldTurnStartFleetMaterialisation({
+      isSameGame: true,
+      turnNumber: 3,
+      previouslyObservedTurnNumber: 3,
+      releaseTurnNumber: null,
+      settledTurnNumber: null,
+    }),
+    false,
+    'initial hydration should not manufacture a fleet hold'
+  );
+  assertEquals(
+    shouldHoldTurnStartFleetMaterialisation({
+      isSameGame: true,
+      turnNumber: 4,
+      previouslyObservedTurnNumber: 3,
+      releaseTurnNumber: null,
+      settledTurnNumber: 3,
+    }),
+    true,
+    'the first authoritative new-turn render should retain the previous fleet footprint'
+  );
+  assertEquals(
+    shouldHoldTurnStartFleetMaterialisation({
+      isSameGame: true,
+      turnNumber: 4,
+      previouslyObservedTurnNumber: 4,
+      releaseTurnNumber: 4,
+      settledTurnNumber: null,
+    }),
+    true,
+    'release bookkeeping catch-up should keep the fleet hold active until settlement'
+  );
+  assertEquals(
+    shouldHoldTurnStartFleetMaterialisation({
+      isSameGame: true,
+      turnNumber: 4,
+      previouslyObservedTurnNumber: 4,
+      releaseTurnNumber: 4,
+      settledTurnNumber: 4,
+    }),
+    false,
+    'the existing current-turn dice settlement should release the fleet once'
+  );
+});
+
+Deno.test('turn-start fleet materialisation hold ignores game changes and stale turns', () => {
+  assertEquals(
+    shouldHoldTurnStartFleetMaterialisation({
+      isSameGame: false,
+      turnNumber: 4,
+      previouslyObservedTurnNumber: 3,
+      releaseTurnNumber: 4,
+      settledTurnNumber: 3,
+    }),
+    false,
+    'presentation bookkeeping from another game must not hide a hydrated fleet'
+  );
+  assertEquals(
+    shouldHoldTurnStartFleetMaterialisation({
+      isSameGame: true,
+      turnNumber: 3,
+      previouslyObservedTurnNumber: 4,
+      releaseTurnNumber: 4,
+      settledTurnNumber: 4,
+    }),
+    false,
+    'backward or stale authoritative turns should not create a new hold'
   );
 });
 

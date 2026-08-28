@@ -82,6 +82,26 @@ export function isCurrentTurnDicePresentationSettled(args: {
   return args.settledTurnNumber === args.turnNumber;
 }
 
+export function shouldHoldTurnStartFleetMaterialisation(args: {
+  isSameGame: boolean;
+  turnNumber: number;
+  previouslyObservedTurnNumber: number | null;
+  releaseTurnNumber: number | null;
+  settledTurnNumber: number | null;
+}): boolean {
+  if (!args.isSameGame || args.settledTurnNumber === args.turnNumber) {
+    return false;
+  }
+
+  const authoritativeTurnJustAdvanced =
+    args.previouslyObservedTurnNumber != null &&
+    args.turnNumber > args.previouslyObservedTurnNumber;
+  const currentTurnReleasePending =
+    args.releaseTurnNumber === args.turnNumber;
+
+  return authoritativeTurnJustAdvanced || currentTurnReleasePending;
+}
+
 export function shouldHoldSetupTurnDiceCatchUp(args: {
   setupTurnDiceCatchUpPending: boolean;
   currentTurnDicePresentationSettled: boolean;
