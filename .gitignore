@@ -60,7 +60,7 @@ imports/
 # =========================
 # Promotion Material
 # =========================
-/promo/
+promo/
 
 
 # Supabase CLI local temp state
