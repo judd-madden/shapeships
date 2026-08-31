@@ -160,6 +160,9 @@ export type BotPlanProgress = {
   simulacrum?: AncientSimulacrumBotProgress;
 };
 
+// `kind: 'human'` is the legacy persisted/internal discriminator for a
+// player-controlled seat. Public/product projections expose `kind: 'player'`;
+// this discriminator is unrelated to the Human (`HUM`) species.
 export type SeatController =
   | { kind: 'human' }
   | {

@@ -41,7 +41,7 @@ function createState(args: {
         joiningLines: 0,
       },
       {
-        id: 'human',
+        id: 'player',
         role: 'player',
         faction: 'human',
         health: 25,
@@ -55,20 +55,20 @@ function createState(args: {
         speciesId: 'ANC',
         chosenPlanId: 'anc_spiral_aggro',
       },
-      human: { kind: 'human' },
+      player: { kind: 'human' },
     },
     gameData: {
       turnNumber: 3,
       currentPhase: 'battle',
       currentSubPhase: 'first_strike',
       phaseReadiness: [{
-        playerId: 'human',
+        playerId: 'player',
         isReady: true,
         currentStep: 'battle.first_strike',
       }],
       ships: {
         bot: [spiral('spi-1', 1), spiral('spi-2', 2), spiral('spi-3')],
-        human: args.targets ?? [{ instanceId: 'target-def', shipDefId: 'DEF' }],
+        player: args.targets ?? [{ instanceId: 'target-def', shipDefId: 'DEF' }],
       },
       powerMemory: {
         onceOnlyFired: args.fired && markerSourceId

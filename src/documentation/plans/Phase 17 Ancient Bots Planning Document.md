@@ -2,7 +2,7 @@
 
 ## Normative Planning and Pass-Decomposition Document
 
-- **Status:** Normative planning baseline
+- **Status:** Server strategy implementation complete through Phase 17F; public product enablement remains gated by §24
 - **Phase type:** Server-authoritative Play Computer bot expansion
 - **Primary species:** Ancient
 - **Architecture baseline:** Current server-authoritative bot framework after Phase 14 and the current Human/Xenite/Centaur bot expansion
@@ -35,10 +35,10 @@ If later implementation instructions conflict with this document, this document 
 16. Vortex and Simulacrum opt-in policy
 17. Targeting and deterministic tactical comparators
 18. Copied foreign ships, ordinary charges, Carrier, and upgrades
-19. Initial Ancient plan catalogue
+19. Ancient plan catalogue
 20. Recommended pass structure
 21. Validation strategy
-22. Risks, tuning points, and deliberately open content decisions
+22. Resolved strategy values and future tuning posture
 23. Completion criteria
 24. Public Play Computer and Mission/Lore follow-up gate
 25. Bottom line
@@ -49,7 +49,7 @@ If later implementation instructions conflict with this document, this document 
 
 ## 1.1 Planning status
 
-This document is the normative Phase 17 planning baseline for Ancient bot support.
+This document is the normative Phase 17 record for Ancient bot support. The scoped server passes 17A–17F are complete; the separate Mission/Lore and public enablement sequence in §24 remains outstanding.
 
 It defines:
 
@@ -103,8 +103,8 @@ Its purpose is to:
 - add the minimum new machinery required for Ancient-specific permanent build configuration and atomic Solar declarations;
 - support baseline intelligent Autocast, Siphon, and guarded Black Hole behavior;
 - keep Vortex and Simulacrum disabled unless an authored plan explicitly allows them;
-- support a first family of approximately eleven Ancient plans ranging from simple aggro to Simulacrum-heavy strategies;
-- isolate the most complex Simulacrum/foreign-upgrade behavior into a later pass instead of burdening the first playable Ancient bot slice.
+- support exactly eleven Ancient plans ranging from simple aggro to Simulacrum-heavy strategies;
+- keep the complex Simulacrum/foreign-upgrade behavior isolated in its authored policy seams.
 
 This is not a new AI architecture. It is an expansion of the current deterministic plan-driven bot system.
 
@@ -939,9 +939,7 @@ When multiple Black Holes are intentionally cast in one declaration, later casts
 
 ## 15.4 Repeat count
 
-Baseline Phase 17 policy should support an authored maximum Black Hole cast count per declaration.
-
-Default strategy may be conservative; exact per-plan cap remains a tuning decision.
+Baseline Phase 17 policy supports an authored maximum Black Hole cast count per declaration. Big Standard Econ and Sol Reach Black Hole both use an Energy-bounded `uncapped` policy, with their distinct health thresholds recorded in §22.1.
 
 Do not hardcode “always exactly one” into the rules helper if plan authoring may reasonably request more later.
 
@@ -971,9 +969,7 @@ When Vortex is allowed:
 - the bot does not need to duplicate the type-count rule to apply damage;
 - the bot may use current public fleet/type count for strategy comparison if needed.
 
-For the first Vortex plans, repeated Vortex use may be represented by an authored maximum cast count.
-
-The rough plan intent “cast 1x and 2x Vortex” can therefore be implemented as affordability plus a plan cap rather than a new state machine.
+Repeated Vortex use is represented by authored policy rather than a new state machine. Vortex No Simulacrum permits up to two casts per declaration; Vortex + Simulacrum is Energy-bounded and otherwise uncapped.
 
 ## 16.3 Simulacrum target eligibility remains authoritative
 
@@ -1088,7 +1084,7 @@ When enabled:
 - select in deterministic authored or tactical priority order;
 - do not manually build foreign Basics to complete an upgrade.
 
-Exact first-version upgrade ranking may be finalized in the Simulacrum pass. It must remain deterministic and narrow.
+The finalized first-version upgrade ranking is highest total line cost, then stable ship-definition ID. It remains deterministic and narrow.
 
 ## 18.4 Do not generalize foreign strategy prematurely
 
@@ -1098,11 +1094,11 @@ Do not turn Phase 17 into a general cross-species strategy framework for all bot
 
 ---
 
-# 19. Initial Ancient plan catalogue
+# 19. Ancient plan catalogue
 
-The first Ancient bot family contains eleven rough plans.
+The production Ancient bot family contains exactly eleven authored plans.
 
-The plan identities and broad strategic shapes are part of Phase 17. Exact health thresholds, some group-switch conditions, and the two complex Simulacrum scripts remain tuning/content decisions that may be refined during their implementation pass without changing the architecture.
+The plan identities, deterministic thresholds, build ordering, and Simulacrum policies below were finalized in Phases 17D and 17E. Later balance changes remain data-oriented tuning and require an intentional follow-up pass.
 
 ## 19.1 CUB-first family — four plans
 
@@ -1118,12 +1114,11 @@ CUB
 
 Then:
 
-- build `MER` or `PLU` in groups of three according to the final health-based policy;
+- at the start of each trio, commit to three `PLU` below 20 health or three `MER` at or above 20 health;
+- finish the committed trio before evaluating health again;
 - use ordinary Ancient baseline Solar policy;
 - no Simulacrum;
 - no Vortex unless later explicitly added.
-
-This plan needs the final deterministic health/group switch rule before authoring is complete.
 
 ### B. `anc_big_standard_econ`
 
@@ -1145,7 +1140,7 @@ Late loop:
 
 - equal PLU/MER growth in groups of three;
 - strong Siphon posture;
-- Black Hole available through baseline policy.
+- Black Hole is available at 12 or more self health and is Energy-bounded but otherwise uncapped per declaration.
 
 ### C. `anc_cube_quantum_solar_snowball`
 
@@ -1162,8 +1157,8 @@ CUB
 
 Then:
 
-- choose among QUA/NEP growth toward max 6 and CUB growth toward max 4;
-- add 3 PLU at the authored low-health threshold;
+- choose the first affordable ship in `QUA`, `NEP`, `CUB` priority order, toward caps of 6, 6, and 4 respectively;
+- at 14 health or lower, complete one three-`PLU` support group;
 - after 6 QUA and 6 NEP, transition to pure SOL growth.
 
 This plan is one of the main users of the generic priority/first-affordable build-step extension.
@@ -1188,7 +1183,7 @@ SOL
 Then:
 
 - Vortex explicitly allowed;
-- target progression should support one Vortex and later two Vortex casts when Energy permits;
+- allow up to two Vortex casts when Energy and legal targets permit;
 - add more SOL after the initial shell;
 - Simulacrum explicitly disabled.
 
@@ -1206,7 +1201,7 @@ NEP x2
 
 Then:
 
-- primarily MER and PLU growth;
+- repeat three `PLU`, then three `MER`;
 - build toward high Siphon values;
 - baseline Siphon-vs-Autocast comparison remains active.
 
@@ -1218,7 +1213,7 @@ Core order:
 
 ```text
 NEP x3
-PLU x3 or x6 adaptively
+PLU x6 below 16 health, otherwise PLU x3
 SOL
 MER x3
 SOL, SOL, SOL ...
@@ -1228,7 +1223,8 @@ Intent:
 
 - establish blue and green foundation;
 - reach Black Hole while still retaining strong Autocast output;
-- health-based rule chooses the 3-PLU vs 6-PLU posture;
+- the chosen PLU group is committed until complete: six below 16 health, otherwise three;
+- Black Hole is available at 10 or more self health and is Energy-bounded but otherwise uncapped per declaration;
 - later mass SOL.
 
 ### G. `anc_sol_blue_snowball`
@@ -1245,7 +1241,7 @@ Then:
 
 - repeatedly prefer SOL when affordable;
 - otherwise build NEP until its cap;
-- add PLU when the authored health/green-support condition requires it.
+- at 15 health or lower, complete one three-`PLU` support group.
 
 This plan is the clearest initial user of `first affordable from [SOL, NEP]`.
 
@@ -1253,7 +1249,7 @@ This plan is the clearest initial user of `first affordable from [SOL, NEP]`.
 
 **Working name:** Vortex + Simulacrum
 
-Rough order:
+Order:
 
 ```text
 NEP x3
@@ -1272,10 +1268,11 @@ Policies:
 
 - Vortex allowed;
 - Simulacrum allowed;
-- initial Simulacrum script aims at low-cost copy goals before normal Solar growth;
+- activate the opening Simulacrum stage at three `NEP`;
+- attempt the ordered cost-2 goal and then the ordered cost-3 goal, persisting progress across Battles and releasing the build gate only after both are complete;
+- Vortex is Energy-bounded but otherwise uncapped per declaration;
+- after the authored shell, build `SOL` indefinitely;
 - Autocast remains fallback when no intended copy is legal.
-
-The rough text “once on a two-cost, once on a three-cost” requires a precise staged goal definition during Pass 17E. The implementation must not guess whether the stop condition is after the first foreign materialisation or after both authored copy goals.
 
 ### I. `anc_silly_simulacrum`
 
@@ -1289,15 +1286,13 @@ NEP x6
 
 Then:
 
-- use Simulacrum aggressively;
-- choose highest-value, highest-charge legal Basic targets;
+- activate Simulacrum at six `NEP` and cast repeatedly while distinct desirable targets remain legal and affordable;
+- rank legal Basic targets by total line cost, then remaining charges, then stable instance ID;
 - never copy a depleted charged ship;
 - if nothing desirable is legal, leave blue for Autocast/Convert;
-- copied Carrier uses deterministic pseudo-random legal choices;
+- copied Carrier uses a deterministic seeded legal choice;
 - later build `SPI x3`, `PLU x3`, then mass SOL;
-- opportunistically complete legal foreign upgrades when copied components make them available.
-
-The exact per-turn maximum number of Simulacrum casts remains a Pass 17E strategy decision and must be deterministic.
+- opportunistically complete legal foreign upgrades in highest-total-line-cost order, with stable ship-definition fallback.
 
 ## 19.3 SPI threshold family — one plan
 
@@ -1457,6 +1452,8 @@ At least Simple Aggro, Spiral Into Aggro, Small Econ Siphon, and one SOL/Black-H
 
 **Pass type:** Server Pass
 
+**Status:** Complete
+
 **Goal:** Author and validate the non-Simulacrum Ancient plans against the completed chooser/build/Solar foundations.
 
 ### Initial target plans
@@ -1497,6 +1494,8 @@ This gets most Ancient bot variety playable before the highest-complexity Simula
 
 **Pass type:** Server Pass
 
+**Status:** Complete
+
 **Goal:** Add the explicitly opt-in Simulacrum strategy layer and finish the two complex Ancient plans.
 
 ### Includes
@@ -1512,20 +1511,18 @@ This gets most Ancient bot variety playable before the highest-complexity Simula
 - Vortex interaction/ordering when the same plan also uses Simulacrum;
 - full tests around target uniqueness, Energy spending order, copied charge state, copied permanent configuration, and foreign upgrade legality.
 
-### Explicit review gate
+### Approved authored values
 
-Before implementation, lock the remaining two authored-content ambiguities:
-
-1. exact completion rule for the “copy one 2-cost and one 3-cost” Vortex + Simulacrum script;
-2. exact per-turn copy count policy for Silly Simulacrum.
-
-These are strategy-authoring decisions, not architecture decisions.
+- Vortex + Simulacrum completes an ordered cost-2 goal and then an ordered cost-3 goal before its opening build gate releases.
+- Silly Simulacrum repeats across distinct ranked targets while each cast remains legal and affordable; it has no artificial numeric per-declaration cap.
 
 ---
 
 ## Phase 17F — Ancient Bot Full-Game Validation, Safety, and Cleanup
 
 **Pass type:** Server Pass / narrow follow-up
+
+**Status:** Complete
 
 **Goal:** Validate Ancient bots as a stable fourth server bot strategy species and remove temporary scaffolding before product enablement.
 
@@ -1662,89 +1659,39 @@ The goal is not to prove balance. It is to prove legal deterministic progression
 
 ---
 
-# 22. Risks, tuning points, and deliberately open content decisions
+# 22. Resolved strategy values and future tuning posture
 
-Phase 17 has several strategy values that should remain authorable rather than being disguised as rules.
+Phases 17D and 17E resolved the authored-content decisions that were previously open. These values are production strategy data, not new gameplay rules.
 
-## 22.1 Black Hole health safety threshold
+## 22.1 Approved Phase 17D values
 
-The mechanism is locked; the exact threshold is not.
+- Simple Cube Red/Green commits to a full trio at each boundary: `PLU x3` below 20 health, otherwise `MER x3`.
+- Big Standard Econ permits Black Hole at 12 or more self health, with casts bounded only by Energy and legality.
+- Small Econ Siphon repeats `PLU x3`, then `MER x3` after its `NEP x2` opening.
+- Sol Reach Black Hole commits to `PLU x6` below 16 health or `PLU x3` otherwise, permits Black Hole at 10 or more self health, and leaves casts Energy-bounded but uncapped.
+- Sol Blue Snowball adds one `PLU x3` support group at 15 health or lower.
+- Cube Quantum Solar Snowball adds one `PLU x3` support group at 14 health or lower, prioritizes `QUA`, then `NEP`, then `CUB`, caps them at 6, 6, and 4, and transitions to `SOL` once those goals are complete.
 
-It should be tuned from gameplay and stored in bot policy.
+## 22.2 Approved Phase 17E values
 
-## 22.2 MER vs PLU group switch
+- Vortex + Simulacrum activates at `NEP x3`, completes an ordered cost-2 copy goal and then an ordered cost-3 copy goal, persists that progress durably, releases its build gate only after both goals, uses uncapped Energy-bounded Vortex, and ends in a `SOL` loop.
+- Silly Simulacrum activates at `NEP x6` and repeats while distinct desirable targets remain legal and affordable rather than using an arbitrary numeric cast cap.
+- Simulacrum target ranking is total line cost, then remaining charges, then stable instance ID; depleted charged targets are excluded.
+- Opportunistic foreign upgrades rank by total line cost and then stable ship-definition ID.
+- Copied Carrier choices use the deterministic seeded legal-choice policy.
+- Silly Simulacrum proceeds through `SPI x3`, `PLU x3`, and then an uncapped `SOL` loop.
 
-Simple Cube Red/Green still needs the exact health comparison that decides which three-ship group to pursue.
+## 22.3 Balance tuning is not architecture churn
 
-Do not guess this during infrastructure passes.
-
-## 22.3 Sol Reach 3 vs 6 PLU threshold
-
-The rough plan requires an adaptive choice between three and six PLU.
-
-The exact health condition remains a plan-tuning value.
-
-## 22.4 Sol Blue Snowball “add PLU if needed”
-
-The exact “needed” condition must become a deterministic authored threshold before the plan is finalized.
-
-## 22.5 Cube Quantum Solar priority details
-
-The architecture supports QUA/NEP/CUB caps and low-health PLU insertion, but exact priority among available QUA/NEP/CUB choices should be finalized during 17D.
-
-## 22.6 Vortex + Simulacrum two-copy script
-
-The rough plan currently says:
-
-```text
-SSIM once on a two-cost, once on a three-cost
-(if available, autocast if not, once foreign ships in fleet don't cast again)
-```
-
-That wording contains an ambiguity because the first copied ship materializes before a later copy goal may be completed.
-
-Pass 17E must lock whether:
-
-- both staged copy goals should be attempted before Simulacrum stops; or
-- materializing the first foreign ship ends the Simulacrum stage.
-
-Do not silently choose one in code.
-
-## 22.7 Silly Simulacrum repeat count
-
-The rough plan says “copy whatever is highest value and most charges.”
-
-It does not yet specify whether the bot should:
-
-- copy one target per Battle;
-- cast Simulacrum repeatedly on distinct targets until blue is exhausted;
-- use an authored maximum greater than one.
-
-This must be locked before 17E implementation.
-
-## 22.8 Foreign upgrade priority
-
-“Make foreign upgrades if any are available” requires deterministic ordering when multiple upgrades are legal.
-
-The first version may use an authored list or a tactical comparator such as highest total line cost then stable ship ID. The implementation pass should choose one explicitly and test it.
-
-## 22.9 Balance tuning is not architecture churn
-
-The following may be tuned after real games without redesigning Phase 17:
-
-- health thresholds;
-- per-plan special-power caps;
-- exact build group ordering;
-- plan family array order/weights if intentionally revised;
-- Simulacrum copy script details.
-
-Plan tuning should remain data-oriented wherever possible.
+Future gameplay evidence may justify a deliberate data-oriented tuning pass. Until then, the thresholds, caps, ordering, activation gates, and copy policies above are the locked Phase 17 values and are not open implementation questions.
 
 ---
 
 # 23. Completion criteria
 
 Phase 17 server bot work is complete when all of the following are true:
+
+As of Phase 17F, the server-side criteria below are satisfied. This does not open the separate public product gate in §24.
 
 - Ancient exists as a supported server bot strategy species;
 - an Ancient bot can begin with an unresolved opening chooser;
@@ -1806,11 +1753,11 @@ Do not solve that narrative/meta-game work inside the Ancient bot engine passes.
 
 Therefore:
 
-- Phase 17A–17F implement and validate Ancient bot strategy server-side;
+- Phase 17A–17F have implemented and validated Ancient bot strategy server-side;
 - normal public/client `ComputerBotSpeciesId` remains unchanged during those passes;
 - the existing production computer-species picker remains Human/Xenite/Centaur;
 - tests may construct Ancient bot controller state directly as needed;
-- after Phase 17F, return to the Mission/Lore pass and add the required Ancient-opponent content/findings behavior;
+- next, complete the Mission/Lore pass and add the required Ancient-opponent content/findings behavior;
 - only then run a narrow Mixed enablement pass that widens the server `ComputerBotSpeciesPayload`, client `ComputerBotSpeciesId`, desktop/mobile species options, and related tests to include Ancient.
 
 This keeps bot engineering independent from narrative content while still giving a clear path to product enablement.

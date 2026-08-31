@@ -307,7 +307,7 @@ Deno.test('legal Xenite Chronoswarm automatics complete both passes before the b
   assert.equal(result.botStepsApplied, 1);
 });
 
-Deno.test('complete bot builds independently while a human opponent awaits its single Carrier pass', async () => {
+Deno.test('complete bot builds independently while a player-controlled opponent awaits its single Carrier pass', async () => {
   const state = createCarrierBotDrawingState({ twoBots: true, charges: 0 });
   state.controllersByPlayerId.p2 = { kind: 'human' };
   state.gameData.ships.p2[0].chargesCurrent = 2;

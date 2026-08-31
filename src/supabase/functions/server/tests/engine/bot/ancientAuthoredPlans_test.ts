@@ -72,7 +72,7 @@ function plan(id: string) {
   return resolved;
 }
 
-Deno.test('Phase 17E authored registry has exact parity across all eleven strategies', () => {
+Deno.test('production authored registry has exact parity across all eleven strategies', () => {
   assert.equal(ACTIVE_ANCIENT_AUTHORED_PLANS.length, 11);
   assert.deepEqual(
     ACTIVE_ANCIENT_AUTHORED_PLANS.map((entry) => entry.id),
@@ -100,7 +100,7 @@ Deno.test('Phase 17E authored registry has exact parity across all eleven strate
   assert.equal(getAncientAuthoredPlanByStrategyId('anc_unknown'), null);
 });
 
-Deno.test('Phase 17D fixed openings, loops, QUA, and SPI policies match authored production data', () => {
+Deno.test('fixed openings, loops, QUA, and SPI policies match authored production data', () => {
   const ordered = (id: string) => plan(id).orderedBuildPlan;
   assert.deepEqual(ordered('anc_big_standard_econ')?.buildOrder, [
     'CUB',
@@ -579,4 +579,54 @@ Deno.test('malformed or stale committed progress fails closed', () => {
     ),
     { ok: false, reason: 'invalid_committed_build_group_progress' },
   );
+});
+
+Deno.test('Ancient Drawing planning replays conditional, priority, and foreign-upgrade choices', () => {
+  const scenarios: Array<{
+    state: ReturnType<typeof state>;
+    planId: string;
+    progress?: BotPlanProgress;
+  }> = [
+    {
+      state: state({ health: 19, lines: 6, ships: fleet({ CUB: 1 }) }),
+      planId: 'anc_cube_red_green',
+    },
+    {
+      state: state({
+        health: 25,
+        lines: 9,
+        ships: fleet({ CUB: 2, QUA: 5, NEP: 5 }),
+      }),
+      planId: 'anc_cube_quantum_solar_snowball',
+    },
+    {
+      state: state({
+        lines: 3,
+        ships: [ship('DEF', 1), ship('FIG', 1)],
+        opponentFaction: 'human',
+      }),
+      planId: 'anc_silly_simulacrum',
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const authored = plan(scenario.planId);
+    const firstState = structuredClone(scenario.state);
+    const secondState = structuredClone(scenario.state);
+    const first = planBotBuildDecision(
+      firstState,
+      'bot',
+      authored,
+      scenario.progress,
+    );
+    const second = planBotBuildDecision(
+      secondState,
+      'bot',
+      authored,
+      scenario.progress,
+    );
+    assert.deepEqual(first, second);
+    assert.deepEqual(firstState, scenario.state);
+    assert.deepEqual(secondState, scenario.state);
+  }
 });

@@ -41,18 +41,21 @@ class TrackingGamePersistence implements GameRoutePersistence {
   }
 }
 
-function createActionableBotDrawingState(): any {
+function createActionableBotDrawingState(
+  species: 'centaur' | 'ancient' = 'centaur',
+): any {
+  const isAncient = species === 'ancient';
   return {
-    gameId: 'bot-get-read-only-test',
+    gameId: `bot-get-read-only-${species}-test`,
     status: 'active',
-    stateRevision: 7,
+    stateRevision: isAncient ? 11 : 7,
     turnNumber: 4,
     currentPhase: 'build',
     currentSubPhase: 'drawing',
     players: [
       {
-        id: 'human',
-        name: 'Human',
+        id: 'player',
+        name: 'Player',
         role: 'player',
         faction: 'human',
         health: 25,
@@ -63,18 +66,32 @@ function createActionableBotDrawingState(): any {
         id: 'bot',
         name: 'Computer',
         role: 'player',
-        faction: 'centaur',
+        faction: species,
         health: 25,
         lines: 0,
         joiningLines: 0,
       },
     ],
     controllersByPlayerId: {
-      human: { kind: 'human' },
+      player: { kind: 'human' },
       bot: {
         kind: 'bot',
-        speciesId: 'CEN',
-        chosenPlanId: 'cen_greed_dom',
+        speciesId: isAncient ? 'ANC' : 'CEN',
+        chosenPlanId: isAncient ? 'anc_cube_red_green' : 'cen_greed_dom',
+        ...(isAncient
+          ? {
+            planProgress: {
+              committedBuildGroup: {
+                planId: 'anc_cube_red_green',
+                groupKey: 'core_trio',
+                branchId: 'mer',
+                shipDefId: 'MER',
+                startingCount: 0,
+                targetCount: 3,
+              },
+            },
+          }
+          : {}),
       },
     },
     gameData: {
@@ -82,13 +99,31 @@ function createActionableBotDrawingState(): any {
       currentPhase: 'build',
       currentSubPhase: 'drawing',
       phaseReadiness: [],
-      ships: { human: [], bot: [] },
-      voidShipsByPlayerId: { human: [], bot: [] },
+      ships: { player: [], bot: [] },
+      voidShipsByPlayerId: { player: [], bot: [] },
       powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
       ancient: {
         schemaVersion: 1,
-        energyByPlayerId: {},
-        acceptedDeclarationByPlayerId: {},
+        energyByPlayerId: isAncient
+          ? {
+            bot: {
+              battleTurnNumber: 3,
+              pool: { green: 2, red: 3, blue: 4 },
+              sources: [],
+            },
+          }
+          : {},
+        acceptedDeclarationByPlayerId: isAncient
+          ? {
+            bot: {
+              contractVersion: 1,
+              declarationId: 'read-only-sentinel',
+              ordinaryChargeActions: [],
+              solarCasts: [],
+              autocastEnabled: true,
+            },
+          }
+          : {},
         solarLedgerByPlayerId: {},
         pendingSimulacrumCopies: [],
         pendingBlackHoleDestructions: [],
@@ -99,11 +134,11 @@ function createActionableBotDrawingState(): any {
         currentSubPhase: 'drawing',
         commitments: {},
         effectiveDiceRoll: 2,
-        effectiveDiceRollByPlayerId: { human: 2, bot: 2 },
+        effectiveDiceRollByPlayerId: { player: 2, bot: 2 },
         chronoswarmRolls: [],
-        chronoswarmCountByPlayerId: { human: 0, bot: 0 },
+        chronoswarmCountByPlayerId: { player: 0, bot: 0 },
         drawingPreludeByPlayerId: {
-          human: {
+          player: {
             turnNumber: 4,
             requiredPassCount: 1,
             activePassIndex: 1,
@@ -120,15 +155,17 @@ function createActionableBotDrawingState(): any {
             status: 'complete',
           },
         },
-        buildDrawingPublicFleetByPlayerId: { human: [], bot: [] },
+        buildDrawingPublicFleetByPlayerId: { player: [], bot: [] },
         buildDrawingPublicSavedResourcesByPlayerId: {
-          human: { savedLines: 0, savedJoiningLines: 0 },
+          player: { savedLines: 0, savedJoiningLines: 0 },
           bot: { savedLines: 0, savedJoiningLines: 0 },
         },
       },
     },
     actions: [],
-    events: [],
+    events: isAncient
+      ? [{ type: 'BOT_DEBUG_SENTINEL', playerId: 'bot' }]
+      : [],
     battleLogScratch: {
       currentTurnCapture: null,
       lastFinalizedTurnNumber: null,
@@ -138,58 +175,67 @@ function createActionableBotDrawingState(): any {
 }
 
 Deno.test('full and head game-state GET polling never executes an actionable bot', async () => {
-  const state = createActionableBotDrawingState();
-  const botProbe = await runBotsUntilSettled({
-    state: structuredClone(state),
-    nowMs: 100,
-  });
-  assert.equal(botProbe.botStepsApplied, 1);
-  assert.equal(
-    botProbe.events.some((event: any) =>
-      event.type === 'BUILD_SUBMITTED' && event.playerId === 'bot'
-    ),
-    true,
-  );
+  for (const species of ['centaur', 'ancient'] as const) {
+    const state = createActionableBotDrawingState(species);
+    const botProbe = await runBotsUntilSettled({
+      state: structuredClone(state),
+      nowMs: 100,
+    });
+    assert.equal(botProbe.botStepsApplied, 1);
+    assert.equal(
+      botProbe.events.some((event: any) =>
+        event.type === 'BUILD_SUBMITTED' && event.playerId === 'bot'
+      ),
+      true,
+    );
 
-  const persistence = new TrackingGamePersistence();
-  const gameKey = `game_${state.gameId}`;
-  persistence.store.set(gameKey, structuredClone(state));
-  const storedBeforePolling = structuredClone(persistence.store.get(gameKey));
-  const kvWrites: Array<{ key: string; value: any }> = [];
-  const app = new Hono();
-  registerGameRoutes(
-    app,
-    async (key) => structuredClone(persistence.store.get(key)),
-    async (key, value) => {
-      kvWrites.push({ key, value: structuredClone(value) });
-    },
-    async () => ({ sessionId: 'human' }),
-    () => 'unused',
-    persistence,
-  );
+    const persistence = new TrackingGamePersistence();
+    const gameKey = `game_${state.gameId}`;
+    persistence.store.set(gameKey, structuredClone(state));
+    const storedBeforePolling = structuredClone(persistence.store.get(gameKey));
+    const kvWrites: Array<{ key: string; value: any }> = [];
+    const app = new Hono();
+    registerGameRoutes(
+      app,
+      async (key) => structuredClone(persistence.store.get(key)),
+      async (key, value) => {
+        kvWrites.push({ key, value: structuredClone(value) });
+      },
+      async () => ({ sessionId: 'player' }),
+      () => 'unused',
+      persistence,
+    );
 
-  const headUrl = `/make-server-825e19ab/game-state-head/${state.gameId}`;
-  const fullUrl = `/make-server-825e19ab/game-state/${state.gameId}`;
-  const responses = [
-    await app.request(headUrl),
-    await app.request(fullUrl),
-    await app.request(headUrl),
-    await app.request(fullUrl),
-  ];
+    const headUrl = `/make-server-825e19ab/game-state-head/${state.gameId}`;
+    const fullUrl = `/make-server-825e19ab/game-state/${state.gameId}`;
+    const responses = [
+      await app.request(headUrl),
+      await app.request(fullUrl),
+      await app.request(headUrl),
+      await app.request(fullUrl),
+    ];
 
-  for (const response of responses) {
-    assert.equal(response.status, 200);
+    for (const response of responses) {
+      assert.equal(response.status, 200);
+    }
+    const finalFullBody = await responses[3].json();
+    assert.equal(finalFullBody.stateRevision, state.stateRevision);
+    assert.equal(finalFullBody.gameData.currentPhase, 'build');
+    assert.equal(finalFullBody.gameData.currentSubPhase, 'drawing');
+    assert.equal(
+      finalFullBody.gameData.phaseReadiness.some((entry: any) => entry.playerId === 'bot'),
+      false,
+    );
+    assert.equal(finalFullBody.gameData.turnData.commitments.BUILD_4, undefined);
+    if (species === 'ancient') {
+      assert.equal(
+        finalFullBody.controllersByPlayerId.bot.chosenPlanId,
+        'anc_cube_red_green',
+      );
+      assert.equal('planProgress' in finalFullBody.controllersByPlayerId.bot, false);
+    }
+    assert.equal(persistence.conditionalAttempts, 0);
+    assert.deepEqual(kvWrites, []);
+    assert.deepEqual(persistence.store.get(gameKey), storedBeforePolling);
   }
-  const finalFullBody = await responses[3].json();
-  assert.equal(finalFullBody.stateRevision, 7);
-  assert.equal(finalFullBody.gameData.currentPhase, 'build');
-  assert.equal(finalFullBody.gameData.currentSubPhase, 'drawing');
-  assert.equal(
-    finalFullBody.gameData.phaseReadiness.some((entry: any) => entry.playerId === 'bot'),
-    false,
-  );
-  assert.equal(finalFullBody.gameData.turnData.commitments.BUILD_4, undefined);
-  assert.equal(persistence.conditionalAttempts, 0);
-  assert.deepEqual(kvWrites, []);
-  assert.deepEqual(persistence.store.get(gameKey), storedBeforePolling);
 });

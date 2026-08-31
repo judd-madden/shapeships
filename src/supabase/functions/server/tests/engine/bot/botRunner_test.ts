@@ -17,11 +17,11 @@ function createBotCubeState(mainValue: number, cubeValues: number[]) {
     status: 'active',
     turnNumber: 2,
     players: [
-      { id: 'human', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'player', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
       { id: 'bot', role: 'player', faction: 'centaur', health: 25, lines: 0, joiningLines: 0 },
     ],
     controllersByPlayerId: {
-      human: { kind: 'human' },
+      player: { kind: 'human' },
       bot: {
         kind: 'bot',
         speciesId: 'CEN',
@@ -34,7 +34,7 @@ function createBotCubeState(mainValue: number, cubeValues: number[]) {
       currentSubPhase: 'dice_roll',
       diceRoll: mainValue,
       ships: {
-        human: [],
+        player: [],
         bot: [...cubeShips, {
           instanceId: 'owned-kno',
           shipDefId: 'KNO',
@@ -42,7 +42,7 @@ function createBotCubeState(mainValue: number, cubeValues: number[]) {
         }],
       },
       phaseReadiness: [{
-        playerId: 'human',
+        playerId: 'player',
         isReady: true,
         currentStep: 'build.dice_roll',
       }],
@@ -64,7 +64,7 @@ function createBotCubeState(mainValue: number, cubeValues: number[]) {
         baseDiceRoll: mainValue,
         effectiveDiceRoll: mainValue,
         diceRoll: mainValue,
-        effectiveDiceRollByPlayerId: { human: mainValue, bot: mainValue },
+        effectiveDiceRollByPlayerId: { player: mainValue, bot: mainValue },
         cubeDiceRollsByPlayerId: {
           bot: cubeShips.map((ship, index) => ({
             sourceInstanceId: ship.instanceId,
@@ -73,7 +73,7 @@ function createBotCubeState(mainValue: number, cubeValues: number[]) {
         },
         visibleCubeDiceValueByPlayerId: { bot: cubeValues[0] },
         chronoswarmRolls: [],
-        chronoswarmCountByPlayerId: { human: 0, bot: 0 },
+        chronoswarmCountByPlayerId: { player: 0, bot: 0 },
         chronoswarmSharedRollCount: 0,
       },
     },
@@ -87,7 +87,7 @@ function createExactCapCentaurBotState(): any {
     turnNumber: 3,
     players: [
       {
-        id: 'human',
+        id: 'player',
         role: 'player',
         faction: 'human',
         health: 25,
@@ -104,7 +104,7 @@ function createExactCapCentaurBotState(): any {
       },
     ],
     controllersByPlayerId: {
-      human: { kind: 'human' },
+      player: { kind: 'human' },
       bot: {
         kind: 'bot',
         speciesId: 'CEN',
@@ -116,15 +116,15 @@ function createExactCapCentaurBotState(): any {
       currentPhase: 'battle',
       currentSubPhase: 'first_strike',
       phaseReadiness: [{
-        playerId: 'human',
+        playerId: 'player',
         isReady: true,
         currentStep: 'battle.first_strike',
       }],
       ships: {
-        human: [
-          { instanceId: 'human-orb', shipDefId: 'ORB', createdTurn: 1 },
-          { instanceId: 'human-int', shipDefId: 'INT', chargesCurrent: 1, createdTurn: 1 },
-          { instanceId: 'human-def', shipDefId: 'DEF', createdTurn: 1 },
+        player: [
+          { instanceId: 'player-orb', shipDefId: 'ORB', createdTurn: 1 },
+          { instanceId: 'player-int', shipDefId: 'INT', chargesCurrent: 1, createdTurn: 1 },
+          { instanceId: 'player-def', shipDefId: 'DEF', createdTurn: 1 },
         ],
         bot: [
           { instanceId: 'bot-dom', shipDefId: 'DOM', createdTurn: 3 },
@@ -134,7 +134,7 @@ function createExactCapCentaurBotState(): any {
           { instanceId: 'bot-fea', shipDefId: 'FEA', createdTurn: 1 },
         ],
       },
-      voidShipsByPlayerId: { human: [], bot: [] },
+      voidShipsByPlayerId: { player: [], bot: [] },
       pendingTurn: { damageByPlayerId: {}, healByPlayerId: {}, breakdownEntries: [] },
       powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
       ancient: {
@@ -152,7 +152,7 @@ function createExactCapCentaurBotState(): any {
         commitments: {},
         chargePowerUsedByInstanceId: {},
         chronoswarmRolls: [],
-        chronoswarmCountByPlayerId: { human: 0, bot: 0 },
+        chronoswarmCountByPlayerId: { player: 0, bot: 0 },
         chronoswarmSharedRollCount: 0,
       },
     },
@@ -226,11 +226,11 @@ Deno.test('bot EQU planning retains declaration-entry targets after hidden canon
     status: 'active',
     turnNumber: 3,
     players: [
-      { id: 'human', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'player', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
       { id: 'bot', role: 'player', faction: 'centaur', health: 25, lines: 0, joiningLines: 0 },
     ],
     controllersByPlayerId: {
-      human: { kind: 'human' },
+      player: { kind: 'human' },
       bot: {
         kind: 'bot',
         speciesId: 'CEN',
@@ -242,28 +242,28 @@ Deno.test('bot EQU planning retains declaration-entry targets after hidden canon
       currentPhase: 'battle',
       currentSubPhase: 'charge_declaration',
       phaseReadiness: [{
-        playerId: 'human',
+        playerId: 'player',
         isReady: true,
         currentStep: 'battle.charge_declaration',
       }],
       ships: {
-        human: [{ instanceId: 'human-def', shipDefId: 'DEF' }],
+        player: [{ instanceId: 'player-def', shipDefId: 'DEF' }],
         bot: [
           { instanceId: 'bot-equ', shipDefId: 'EQU', chargesCurrent: 1 },
           { instanceId: 'bot-def', shipDefId: 'DEF' },
         ],
       },
-      voidShipsByPlayerId: { human: [], bot: [] },
+      voidShipsByPlayerId: { player: [], bot: [] },
       turnData: {
         turnNumber: 3,
         currentMajorPhase: 'battle',
         currentSubPhase: 'charge_declaration',
         chargeDeclarationEligibleSourceIdsByPlayerId: {
-          human: [],
+          player: [],
           bot: ['bot-equ'],
         },
         chargeDeclarationFleetSnapshotByPlayerId: {
-          human: [{ instanceId: 'human-def', shipDefId: 'DEF' }],
+          player: [{ instanceId: 'player-def', shipDefId: 'DEF' }],
           bot: [
             { instanceId: 'bot-equ', shipDefId: 'EQU', chargesCurrent: 1 },
             { instanceId: 'bot-def', shipDefId: 'DEF' },
@@ -284,9 +284,9 @@ Deno.test('bot EQU planning retains declaration-entry targets after hidden canon
     },
   };
   replaceChargeDeclarationVisibilityState(state);
-  state.gameData.ships.human = [];
-  state.gameData.voidShipsByPlayerId.human = [
-    { instanceId: 'human-def', shipDefId: 'DEF' },
+  state.gameData.ships.player = [];
+  state.gameData.voidShipsByPlayerId.player = [
+    { instanceId: 'player-def', shipDefId: 'DEF' },
   ];
 
   const result = await runBotsUntilSettled({ state, nowMs: 1000 });
@@ -312,11 +312,11 @@ Deno.test('multi-EQU bot reserves its accepted pair and settles without repeat-t
     status: 'active',
     turnNumber: 3,
     players: [
-      { id: 'human', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'player', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
       { id: 'bot', role: 'player', faction: 'centaur', health: 25, lines: 0, joiningLines: 0 },
     ],
     controllersByPlayerId: {
-      human: { kind: 'human' },
+      player: { kind: 'human' },
       bot: { kind: 'bot', speciesId: 'CEN', chosenPlanId: 'cen_vigor_power_destruction' },
     },
     gameData: {
@@ -324,12 +324,12 @@ Deno.test('multi-EQU bot reserves its accepted pair and settles without repeat-t
       currentPhase: 'battle',
       currentSubPhase: 'charge_declaration',
       phaseReadiness: [{
-        playerId: 'human',
+        playerId: 'player',
         isReady: true,
         currentStep: 'battle.charge_declaration',
       }],
       ships: {
-        human: [{ instanceId: 'human-def', shipDefId: 'DEF' }],
+        player: [{ instanceId: 'player-def', shipDefId: 'DEF' }],
         bot: [
           { instanceId: 'bot-equ-a', shipDefId: 'EQU', chargesCurrent: 1 },
           { instanceId: 'bot-equ-b', shipDefId: 'EQU', chargesCurrent: 1 },
@@ -337,13 +337,13 @@ Deno.test('multi-EQU bot reserves its accepted pair and settles without repeat-t
           { instanceId: 'bot-def', shipDefId: 'DEF' },
         ],
       },
-      voidShipsByPlayerId: { human: [], bot: [] },
+      voidShipsByPlayerId: { player: [], bot: [] },
       turnData: {
         turnNumber: 3,
         currentMajorPhase: 'battle',
         currentSubPhase: 'charge_declaration',
         chargeDeclarationEligibleSourceIdsByPlayerId: {
-          human: [],
+          player: [],
           bot: ['bot-equ-a', 'bot-equ-b', 'bot-equ-c'],
         },
         chargeDeclarationFleetSnapshotByPlayerId: {},
@@ -376,7 +376,7 @@ Deno.test('multi-EQU bot reserves its accepted pair and settles without repeat-t
     false,
   );
   assert.equal(equalityUses[0].sourceInstanceId, 'bot-equ-a');
-  assert.deepEqual(equalityUses[0].targetInstanceIds, ['bot-def', 'human-def']);
+  assert.deepEqual(equalityUses[0].targetInstanceIds, ['bot-def', 'player-def']);
   assert.equal(
     result.state.gameData.ships.bot.find((ship: any) => ship.instanceId === 'bot-equ-b')
       .chargesCurrent,
@@ -390,11 +390,11 @@ Deno.test('multi-EQU bot spends disjoint sources on every available shared-cost 
     status: 'active',
     turnNumber: 3,
     players: [
-      { id: 'human', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
+      { id: 'player', role: 'player', faction: 'human', health: 25, lines: 0, joiningLines: 0 },
       { id: 'bot', role: 'player', faction: 'centaur', health: 25, lines: 0, joiningLines: 0 },
     ],
     controllersByPlayerId: {
-      human: { kind: 'human' },
+      player: { kind: 'human' },
       bot: { kind: 'bot', speciesId: 'CEN', chosenPlanId: 'cen_vigor_power_destruction' },
     },
     gameData: {
@@ -402,14 +402,14 @@ Deno.test('multi-EQU bot spends disjoint sources on every available shared-cost 
       currentPhase: 'battle',
       currentSubPhase: 'charge_declaration',
       phaseReadiness: [{
-        playerId: 'human',
+        playerId: 'player',
         isReady: true,
         currentStep: 'battle.charge_declaration',
       }],
       ships: {
-        human: [
-          { instanceId: 'human-def', shipDefId: 'DEF' },
-          { instanceId: 'human-int', shipDefId: 'INT' },
+        player: [
+          { instanceId: 'player-def', shipDefId: 'DEF' },
+          { instanceId: 'player-int', shipDefId: 'INT' },
         ],
         bot: [
           { instanceId: 'bot-equ-a', shipDefId: 'EQU', chargesCurrent: 1 },
@@ -419,13 +419,13 @@ Deno.test('multi-EQU bot spends disjoint sources on every available shared-cost 
           { instanceId: 'bot-int', shipDefId: 'INT' },
         ],
       },
-      voidShipsByPlayerId: { human: [], bot: [] },
+      voidShipsByPlayerId: { player: [], bot: [] },
       turnData: {
         turnNumber: 3,
         currentMajorPhase: 'battle',
         currentSubPhase: 'charge_declaration',
         chargeDeclarationEligibleSourceIdsByPlayerId: {
-          human: [],
+          player: [],
           bot: ['bot-equ-a', 'bot-equ-b', 'bot-equ-c'],
         },
         chargeDeclarationFleetSnapshotByPlayerId: {},
@@ -470,11 +470,11 @@ Deno.test('multi-EQU bot spends disjoint sources on every available shared-cost 
     [
       {
         sourceInstanceId: 'bot-equ-a',
-        targetInstanceIds: ['bot-def', 'human-def'],
+        targetInstanceIds: ['bot-def', 'player-def'],
       },
       {
         sourceInstanceId: 'bot-equ-b',
-        targetInstanceIds: ['bot-int', 'human-int'],
+        targetInstanceIds: ['bot-int', 'player-int'],
       },
     ],
   );
@@ -681,7 +681,7 @@ Deno.test('current supported bot ceiling reaches eight accepted intents already 
     'complete',
   );
   assert.equal(
-    settledState.gameData.turnData.commitments.BUILD_4.human,
+    settledState.gameData.turnData.commitments.BUILD_4.player,
     undefined,
   );
 
@@ -700,17 +700,17 @@ Deno.test('current supported bot ceiling reaches eight accepted intents already 
     false,
   );
 
-  const humanBuild = await applyIntent(
+  const playerBuild = await applyIntent(
     structuredClone(settledState),
-    'human',
+    'player',
     {
       gameId: settledState.gameId,
       intentType: 'BUILD_SUBMIT',
       turnNumber: 4,
       payload: { builds: [] },
-      nonce: 'human-after-exact-bot-cap',
+      nonce: 'player-after-exact-bot-cap',
     },
     102,
   );
-  assert.equal(humanBuild.ok, true);
+  assert.equal(playerBuild.ok, true);
 });

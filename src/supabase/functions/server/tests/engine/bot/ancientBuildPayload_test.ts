@@ -43,7 +43,7 @@ function createBuildState(args: {
         joiningLines: 0,
       },
       {
-        id: 'human',
+        id: 'player',
         role: 'player',
         faction: 'human',
         health: 25,
@@ -56,12 +56,12 @@ function createBuildState(args: {
       currentPhase: 'build',
       currentSubPhase: 'drawing',
       phaseReadiness: [],
-      ships: { bot: [], human: [] },
+      ships: { bot: [], player: [] },
       turnData: {
         commitments: {},
         baseDiceRoll: baseDice,
         effectiveDiceRoll: baseDice,
-        effectiveDiceRollByPlayerId: { bot: effectiveDice, human: baseDice },
+        effectiveDiceRollByPlayerId: { bot: effectiveDice, player: baseDice },
         drawingPreludeByPlayerId: {
           bot: {
             turnNumber: 1,
@@ -71,7 +71,7 @@ function createBuildState(args: {
             eligibleSourcePowers: [],
             resolvedSourcePowerKeysByPass: {},
           },
-          human: {
+          player: {
             turnNumber: 1,
             requiredPassCount: 1,
             activePassIndex: 1,
@@ -80,7 +80,7 @@ function createBuildState(args: {
             resolvedSourcePowerKeysByPass: {},
           },
         },
-        buildDrawingPublicFleetByPlayerId: { bot: [], human: [] },
+        buildDrawingPublicFleetByPlayerId: { bot: [], player: [] },
       },
     },
   }).state;
@@ -231,8 +231,8 @@ Deno.test('synthetic Ancient plan flows through planner, QUA completion, and aut
   assert.equal(botSubmitted.ok, true);
   const resolved = await applyIntent(
     botSubmitted.state,
-    'human',
-    buildIntent('human', { builds: [] }),
+    'player',
+    buildIntent('player', { builds: [] }),
     901,
   );
   assert.equal(resolved.ok, true);
@@ -265,8 +265,8 @@ Deno.test('completed QUA payload is accepted and preserves attempt-order selecti
   assert.equal(botSubmitted.ok, true);
   const resolved = await applyIntent(
     botSubmitted.state,
-    'human',
-    buildIntent('human', { builds: [] }),
+    'player',
+    buildIntent('player', { builds: [] }),
     1001,
   );
   assert.equal(resolved.ok, true);

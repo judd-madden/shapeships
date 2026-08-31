@@ -2829,11 +2829,3 @@ export function planBotBuildSubmit(
   const decision = planBotBuildDecision(state, botPlayerId, plan);
   return decision.ok ? decision.payload : { builds: [] };
 }
-
-export function planHumanBuildSubmit(
-  state: any,
-  botPlayerId: string,
-  plan: AuthoredBotPlan,
-): BuildSubmitPayload {
-  return planBotBuildSubmit(state, botPlayerId, plan);
-}

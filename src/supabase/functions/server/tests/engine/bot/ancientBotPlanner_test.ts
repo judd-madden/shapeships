@@ -11,7 +11,10 @@ import { planBotBuildDecision } from '../../../engine/bot/buildPlanner.ts';
 import {
   planDamageHealChargeActions,
 } from '../../../engine/bot/botPowerPlanning.ts';
-import { runBotsUntilSettled } from '../../../engine/bot/botRunner.ts';
+import {
+  advanceAcceptedStagedSimulacrumProgress,
+  runBotsUntilSettled,
+} from '../../../engine/bot/botRunner.ts';
 import { getHumanBotPlanById } from '../../../engine/bot/humanPlans.ts';
 import { applyIntent } from '../../../engine/intent/IntentReducer.ts';
 import { materializeQueuedSimulacrumCopiesAtTurnStart } from '../../../engine/ancient/simulacrumSolarPower.ts';
@@ -47,7 +50,7 @@ function createState(args: {
     turnNumber,
     players: [
       {
-        id: 'human',
+        id: 'player',
         role: 'player',
         faction: args.opponentFaction ?? 'human',
         health: 25,
@@ -64,7 +67,7 @@ function createState(args: {
       },
     ],
     controllersByPlayerId: {
-      human: { kind: 'human' },
+      player: { kind: 'human' },
       bot: {
         kind: 'bot',
         speciesId: 'ANC',
@@ -76,8 +79,8 @@ function createState(args: {
       currentPhase: 'battle',
       currentSubPhase: 'charge_declaration',
       phaseReadiness: [],
-      ships: { human: opponentShips, bot: botShips },
-      voidShipsByPlayerId: { human: [], bot: [] },
+      ships: { player: opponentShips, bot: botShips },
+      voidShipsByPlayerId: { player: [], bot: [] },
       pendingTurn: {
         damageByPlayerId: {},
         healByPlayerId: {},
@@ -87,7 +90,7 @@ function createState(args: {
       ancient: {
         schemaVersion: 1,
         energyByPlayerId: {
-          human: {
+          player: {
             battleTurnNumber: turnNumber,
             pool: { green: 0, red: 0, blue: 0 },
             sources: [],
@@ -104,7 +107,7 @@ function createState(args: {
         },
         acceptedDeclarationByPlayerId: {},
         solarLedgerByPlayerId: {
-          human: { battleTurnNumber: null, entries: [] },
+          player: { battleTurnNumber: null, entries: [] },
           bot: { battleTurnNumber: null, entries: [] },
         },
         pendingSimulacrumCopies: [],
@@ -116,16 +119,16 @@ function createState(args: {
         currentSubPhase: 'charge_declaration',
         commitments: {},
         effectiveDiceRollByPlayerId: {
-          human: 2,
+          player: 2,
           bot: args.effectiveDice ?? 1,
         },
         chargePowerUsedByInstanceId: {},
         chargeDeclarationEligibleSourceIdsByPlayerId: {
-          human: [],
+          player: [],
           bot: [...(args.sourceIds ?? [])],
         },
         chargeDeclarationFleetSnapshotByPlayerId: {
-          human: structuredClone(opponentShips),
+          player: structuredClone(opponentShips),
           bot: structuredClone(botShips),
         },
       },
@@ -240,6 +243,154 @@ Deno.test('Ancient planner fails closed on malformed canonical Energy and accept
   }, 101);
   assert.equal(retry.ok, true);
   assert.deepEqual(retry.state, accepted.state);
+});
+
+Deno.test('rich Ancient declarations remain deterministic and idempotent after acceptance', async () => {
+  const siphonState = createState({
+    gameId: 'ancient-rich-retry-siphon',
+    energy: { green: 8, red: 10, blue: 0 },
+    effectiveDice: 4,
+    botShips: [{ instanceId: 'copied-int', shipDefId: 'INT', chargesCurrent: 1 }],
+    sourceIds: ['copied-int'],
+  });
+  const firstPayload = requirePayload(planAncientChargeDeclaration({
+    state: siphonState,
+    playerId: 'bot',
+    strategy: BASE_STRATEGY,
+  }));
+  const replayedPlan = requirePayload(planAncientChargeDeclaration({
+    state: structuredClone(siphonState),
+    playerId: 'bot',
+    strategy: BASE_STRATEGY,
+  }));
+  assert.deepEqual(replayedPlan, firstPayload);
+  assert.equal(firstPayload.ordinaryChargeActions.length, 1);
+  assert.equal(
+    firstPayload.solarCasts.find((cast) => cast.solarPowerId === 'SSIP')
+      ?.lockedAmount,
+    7,
+  );
+
+  const accepted = await applyIntent(siphonState, 'bot', {
+    gameId: siphonState.gameId,
+    intentType: 'CHARGE_DECLARATION_SUBMIT',
+    turnNumber: 3,
+    payload: firstPayload,
+    nonce: 'rich-siphon-first',
+  }, 100);
+  assert.equal(accepted.ok, true);
+  const acceptedSnapshot = structuredClone(accepted.state);
+  const retried = await applyIntent(accepted.state, 'bot', {
+    gameId: siphonState.gameId,
+    intentType: 'CHARGE_DECLARATION_SUBMIT',
+    turnNumber: 3,
+    payload: firstPayload,
+    nonce: 'rich-siphon-retry',
+  }, 101);
+  assert.equal(retried.ok, true);
+  assert.deepEqual(retried.state, acceptedSnapshot);
+
+  const blackHoleStrategy = getAncientBotStrategyById('anc_big_standard_econ');
+  assert.ok(blackHoleStrategy);
+  const blackHoleState = createState({
+    gameId: 'ancient-rich-retry-black-hole',
+    energy: { green: 4, red: 4, blue: 4 },
+    opponentShips: [
+      { instanceId: 'target-fig', shipDefId: 'FIG' },
+      { instanceId: 'target-def', shipDefId: 'DEF' },
+    ],
+  });
+  const blackHolePayload = requirePayload(planAncientChargeDeclaration({
+    state: blackHoleState,
+    playerId: 'bot',
+    strategy: blackHoleStrategy,
+  }));
+  assert.equal(blackHolePayload.solarCasts[0]?.solarPowerId, 'SBLA');
+  const blackHoleAccepted = await applyIntent(blackHoleState, 'bot', {
+    gameId: blackHoleState.gameId,
+    intentType: 'CHARGE_DECLARATION_SUBMIT',
+    turnNumber: 3,
+    payload: blackHolePayload,
+    nonce: 'rich-black-hole-first',
+  }, 102);
+  assert.equal(blackHoleAccepted.ok, true);
+  const blackHoleSnapshot = structuredClone(blackHoleAccepted.state);
+  const blackHoleRetry = await applyIntent(blackHoleAccepted.state, 'bot', {
+    gameId: blackHoleState.gameId,
+    intentType: 'CHARGE_DECLARATION_SUBMIT',
+    turnNumber: 3,
+    payload: blackHolePayload,
+    nonce: 'rich-black-hole-retry',
+  }, 103);
+  assert.equal(blackHoleRetry.ok, true);
+  assert.deepEqual(blackHoleRetry.state, blackHoleSnapshot);
+});
+
+Deno.test('accepted staged Simulacrum replay does not duplicate queues or progress', async () => {
+  const strategy = getAncientBotStrategyById('anc_vortex_simulacrum');
+  assert.ok(strategy);
+  const state = createState({
+    gameId: 'ancient-staged-retry',
+    energy: { green: 0, red: 0, blue: 5 },
+    botShips: nepFleet(3, 'retry-nep'),
+    opponentShips: [
+      { instanceId: 'retry-def', shipDefId: 'DEF' },
+      { instanceId: 'retry-fig', shipDefId: 'FIG' },
+    ],
+    chosenPlanId: strategy.id,
+  });
+  const payload = requirePayload(planAncientChargeDeclaration({
+    state,
+    playerId: 'bot',
+    strategy,
+  }));
+  assert.deepEqual(payload.solarCasts.map((cast) => cast.solarPowerId), [
+    'SSIM',
+    'SSIM',
+  ]);
+
+  const accepted = await applyIntent(state, 'bot', {
+    gameId: state.gameId,
+    intentType: 'CHARGE_DECLARATION_SUBMIT',
+    turnNumber: 3,
+    payload,
+    nonce: 'staged-retry-first',
+  }, 100);
+  assert.equal(accepted.ok, true);
+  advanceAcceptedStagedSimulacrumProgress({
+    state: accepted.state,
+    playerId: 'bot',
+    strategy,
+    declarationId: payload.declarationId,
+  });
+  const acceptedSnapshot = structuredClone(accepted.state);
+
+  const retried = await applyIntent(accepted.state, 'bot', {
+    gameId: state.gameId,
+    intentType: 'CHARGE_DECLARATION_SUBMIT',
+    turnNumber: 3,
+    payload,
+    nonce: 'staged-retry-second',
+  }, 101);
+  assert.equal(retried.ok, true);
+  advanceAcceptedStagedSimulacrumProgress({
+    state: retried.state,
+    playerId: 'bot',
+    strategy,
+    declarationId: payload.declarationId,
+  });
+  assert.deepEqual(retried.state, acceptedSnapshot);
+  assert.equal(
+    retried.state.gameData.ancient.pendingSimulacrumCopies.length,
+    2,
+  );
+  assert.deepEqual(retried.state.controllersByPlayerId.bot.planProgress, {
+    simulacrum: {
+      strategyId: strategy.id,
+      completedGoalCount: 2,
+      openingComplete: true,
+    },
+  });
 });
 
 Deno.test('present malformed Solar policies are diagnostic configuration failures', () => {
@@ -644,6 +795,44 @@ Deno.test('unsupported snapped ordinary source is omitted without blocking accep
   assert.equal(applied.ok, true);
 });
 
+Deno.test('supported copied source is included beside an omitted unsupported source', async () => {
+  const state = createState({
+    energy: { green: 0, red: 0, blue: 0 },
+    botShips: [
+      { instanceId: 'supported-int', shipDefId: 'INT', chargesCurrent: 1 },
+      { instanceId: 'unsupported-equ', shipDefId: 'EQU', chargesCurrent: 1 },
+      { instanceId: 'own-def', shipDefId: 'DEF' },
+    ],
+    opponentShips: [{ instanceId: 'enemy-def', shipDefId: 'DEF' }],
+    sourceIds: ['supported-int', 'unsupported-equ'],
+  });
+  const payload = requirePayload(planAncientChargeDeclaration({
+    state,
+    playerId: 'bot',
+    strategy: BASE_STRATEGY,
+  }));
+  assert.deepEqual(payload.ordinaryChargeActions, [{
+    actionType: 'power',
+    actionId: 'INT#0',
+    sourceInstanceId: 'supported-int',
+    choiceId: 'damage',
+  }]);
+
+  const result = await runBotsUntilSettled({ state, nowMs: 100 });
+  assert.equal(result.botStepsApplied, 1);
+  assert.equal(
+    result.events.some((event: any) => event.type === 'CHARGE_DECLARATION_ACCEPTED'),
+    true,
+  );
+  assert.equal(
+    result.events.some((event: any) =>
+      event.type === 'BOT_INTENT_REJECTED' ||
+      event.type === 'POWERS_BATCH_SUBMITTED'
+    ),
+    false,
+  );
+});
+
 Deno.test('high blue Energy never creates a Simulacrum path', () => {
   const payload = requirePayload(planAncientChargeDeclaration({
     state: createState({ energy: { green: 0, red: 0, blue: 20 } }),
@@ -1020,13 +1209,7 @@ Deno.test('selected production Ancient plan settles First Strike without a Spira
   state.gameData.turnData.currentSubPhase = 'first_strike';
   const result = await runBotsUntilSettled({ state, nowMs: 100 });
   assert.equal(result.botStepsApplied, 1);
-  assert.equal(
-    result.events.some((event: any) =>
-      event.type === 'BOT_RUNNER_SKIPPED' &&
-      event.reason === 'ancient_strategy_deferred_phase_17e'
-    ),
-    false,
-  );
+  assert.equal(result.events.some((event: any) => event.type === 'BOT_RUNNER_SKIPPED'), false);
 });
 
 Deno.test('representative lightweight strategies repeat atomic Battle progression', async () => {

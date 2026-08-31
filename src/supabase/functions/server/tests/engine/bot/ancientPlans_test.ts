@@ -5,6 +5,10 @@ import {
   chooseAncientOpeningStrategy,
   getAncientBotStrategyById,
 } from '../../../engine/bot/ancientPlans.ts';
+import {
+  ACTIVE_ANCIENT_AUTHORED_PLANS,
+  getAncientAuthoredPlanByStrategyId,
+} from '../../../engine/bot/ancientAuthoredPlans.ts';
 
 const EXPECTED_STRATEGIES = [
   ['anc_cube_red_green', 'Simple Cube Red/Green'],
@@ -25,6 +29,18 @@ Deno.test('Ancient strategy registry exposes eleven stable identities in explici
     ACTIVE_ANCIENT_BOT_STRATEGIES.map((entry) => entry.id),
     EXPECTED_STRATEGIES.map(([id]) => id),
   );
+  assert.equal(
+    new Set(ACTIVE_ANCIENT_BOT_STRATEGIES.map((entry) => entry.id)).size,
+    EXPECTED_STRATEGIES.length,
+  );
+  assert.deepEqual(
+    ACTIVE_ANCIENT_AUTHORED_PLANS.map((entry) => entry.id),
+    EXPECTED_STRATEGIES.map(([id]) => id),
+  );
+  assert.equal(
+    new Set(ACTIVE_ANCIENT_AUTHORED_PLANS.map((entry) => entry.id)).size,
+    EXPECTED_STRATEGIES.length,
+  );
   assert.deepEqual(
     Object.fromEntries(
       Object.entries(ANCIENT_BOT_STRATEGIES_BY_FAMILY).map(([family, entries]) => [
@@ -37,9 +53,12 @@ Deno.test('Ancient strategy registry exposes eleven stable identities in explici
 
   for (const [id, workingName] of EXPECTED_STRATEGIES) {
     const registered = getAncientBotStrategyById(id);
+    const authored = getAncientAuthoredPlanByStrategyId(id);
     assert.equal(registered?.id, id);
     assert.equal(registered?.workingName, workingName);
     assert.equal(registered?.speciesId, 'ANC');
+    assert.equal(authored?.id, id);
+    assert.equal(authored?.speciesId, 'ANC');
     assert.equal('buildGoals' in (registered as unknown as Record<string, unknown>), false);
     if (
       id !== 'anc_big_standard_econ' &&
@@ -52,6 +71,12 @@ Deno.test('Ancient strategy registry exposes eleven stable identities in explici
         'solarPolicy' in (registered as unknown as Record<string, unknown>),
         false,
       );
+    }
+  }
+
+  for (const entries of Object.values(ANCIENT_BOT_STRATEGIES_BY_FAMILY)) {
+    for (const entry of entries) {
+      assert.equal(ACTIVE_ANCIENT_BOT_STRATEGIES.includes(entry), true);
     }
   }
 
@@ -101,6 +126,63 @@ Deno.test('Ancient strategy registry exposes eleven stable identities in explici
   );
 
   assert.equal(getAncientBotStrategyById('anc_unknown'), null);
+});
+
+Deno.test('known Ancient chooser seeds reach every registered family member deterministically', () => {
+  const cases = [
+    ['replay-0', 9, 'anc_vortex_no_simulacrum'],
+    ['replay-1', 9, 'anc_cube_quantum_solar_snowball'],
+    ['replay-2', 9, 'anc_big_standard_econ'],
+    ['replay-3', 9, 'anc_cube_red_green'],
+    ['replay-0', 8, 'anc_sol_blue_snowball'],
+    ['replay-1', 8, 'anc_vortex_simulacrum'],
+    ['replay-18', 8, 'anc_silly_simulacrum'],
+    ['replay-20', 8, 'anc_sol_reach_black_hole'],
+    ['replay-39', 8, 'anc_small_econ_siphon'],
+  ] as const;
+
+  for (const [gameId, availableOrdinaryLines, strategyId] of cases) {
+    const input = { gameId, turnNumber: 1, availableOrdinaryLines };
+    const first = chooseAncientOpeningStrategy(input);
+    assert.deepEqual(first, chooseAncientOpeningStrategy(input));
+    assert.equal(first.kind, 'selected');
+    if (first.kind === 'selected') {
+      assert.equal(first.strategyId, strategyId);
+    }
+  }
+
+  assert.deepEqual(
+    chooseAncientOpeningStrategy({
+      gameId: 'replay-0',
+      turnNumber: 1,
+      availableOrdinaryLines: 6,
+    }),
+    { kind: 'selected', family: 'SPI', strategyId: 'anc_spiral_aggro' },
+  );
+  assert.deepEqual(
+    chooseAncientOpeningStrategy({
+      gameId: 'replay-1',
+      turnNumber: 1,
+      availableOrdinaryLines: 6,
+    }),
+    { kind: 'save', thresholdClass: 'six' },
+  );
+  assert.deepEqual(
+    chooseAncientOpeningStrategy({
+      gameId: 'replay-2',
+      turnNumber: 1,
+      availableOrdinaryLines: 5,
+    }),
+    { kind: 'selected', family: 'MER', strategyId: 'anc_mer_aggro' },
+  );
+  assert.deepEqual(
+    chooseAncientOpeningStrategy({
+      gameId: 'replay-0',
+      turnNumber: 1,
+      availableOrdinaryLines: 5,
+    }),
+    { kind: 'save', thresholdClass: 'low' },
+  );
 });
 
 Deno.test('Ancient chooser deterministically enters the CUB and NEP families', () => {

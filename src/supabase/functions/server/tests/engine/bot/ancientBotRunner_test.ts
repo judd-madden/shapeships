@@ -30,8 +30,8 @@ function createBaseState(args: {
     turnNumber: args.turnNumber,
     players: [
       {
-        id: 'human',
-        name: 'Human',
+        id: 'player',
+        name: 'Player',
         role: 'player',
         faction: args.phase === 'species_selection' ? null : 'human',
         health: 25,
@@ -49,7 +49,7 @@ function createBaseState(args: {
       },
     ],
     controllersByPlayerId: {
-      human: { kind: 'human' },
+      player: { kind: 'human' },
       bot: {
         kind: 'bot',
         speciesId: 'ANC',
@@ -62,7 +62,7 @@ function createBaseState(args: {
       currentSubPhase: subPhase,
       diceRoll: 4,
       phaseReadiness: [],
-      ships: { human: [], bot: botShips },
+      ships: { player: [], bot: botShips },
       powerMemory: { onceOnlyFired: {}, frigateTriggerByInstanceId: {} },
       turnData: {
         turnNumber: args.turnNumber,
@@ -77,7 +77,7 @@ function createBaseState(args: {
             baseDiceRoll: 4,
             effectiveDiceRoll: 4,
             diceRoll: 4,
-            effectiveDiceRollByPlayerId: { human: 4, bot: 4 },
+            effectiveDiceRollByPlayerId: { player: 4, bot: 4 },
             cubeDiceRollsByPlayerId: {
               bot: botShips.map((ship, index) => ({
                 sourceInstanceId: ship.instanceId,
@@ -88,17 +88,17 @@ function createBaseState(args: {
               bot: args.cubeValues?.[0],
             },
             chronoswarmRolls: [],
-            chronoswarmCountByPlayerId: { human: 0, bot: 0 },
+            chronoswarmCountByPlayerId: { player: 0, bot: 0 },
             chronoswarmSharedRollCount: 0,
           }
           : {}),
         ...(args.phase === 'drawing'
           ? {
-            effectiveDiceRollByPlayerId: { human: 4, bot: 4 },
+            effectiveDiceRollByPlayerId: { player: 4, bot: 4 },
             chronoswarmRolls: [],
-            chronoswarmCountByPlayerId: { human: 0, bot: 0 },
+            chronoswarmCountByPlayerId: { player: 0, bot: 0 },
             drawingPreludeByPlayerId: {
-              human: {
+              player: {
                 turnNumber: args.turnNumber,
                 requiredPassCount: 1,
                 activePassIndex: 1,
@@ -115,7 +115,7 @@ function createBaseState(args: {
                 resolvedSourcePowerKeysByPass: {},
               },
             },
-            buildDrawingPublicFleetByPlayerId: { human: [], bot: botShips },
+            buildDrawingPublicFleetByPlayerId: { player: [], bot: botShips },
           }
           : {}),
       },
@@ -158,7 +158,7 @@ Deno.test('internal Ancient controller submits its own species while public bot 
       turnNumber: 0,
       phase: 'species_selection',
     }),
-    'human',
+    'player',
     {
       gameId: 'ancient-public-gate',
       intentType: 'SPECIES_SUBMIT',
@@ -333,13 +333,13 @@ Deno.test('Ancient save submits an empty build and later Drawing reassesses accu
 
   const resolvedSave = await applyIntent(
     saved.state,
-    'human',
+    'player',
     {
       gameId: 'representative-1',
       intentType: 'BUILD_SUBMIT',
       turnNumber: 3,
       payload: { builds: [] },
-      nonce: 'human-empty-build-after-ancient-save',
+      nonce: 'player-empty-build-after-ancient-save',
     },
     101,
   );
@@ -368,10 +368,10 @@ Deno.test('Ancient save submits an empty build and later Drawing reassesses accu
   );
 });
 
-Deno.test('both Phase 17E chooser strategies persist and continue into authored production builds', async () => {
+Deno.test('both Simulacrum chooser strategies persist and continue into authored production builds', async () => {
   for (const [gameId, expectedStrategyId] of [
-    ['deferred-21', 'anc_vortex_simulacrum'],
-    ['deferred-42', 'anc_silly_simulacrum'],
+    ['simulacrum-chooser-32', 'anc_vortex_simulacrum'],
+    ['simulacrum-chooser-20', 'anc_silly_simulacrum'],
   ] as const) {
     const result = await runBotsUntilSettled({
       state: createBaseState({
@@ -606,5 +606,51 @@ Deno.test('Ancient malformed chooser state and unknown stored strategy fail clos
       event.reason === 'missing_matching_ancient_strategy'
     ),
     true,
+  );
+});
+
+Deno.test('authoritative Ancient intent rejection is visible and stops the runner', async () => {
+  const state = createBaseState({
+    gameId: 'ancient-authoritative-rejection',
+    turnNumber: 2,
+    phase: 'drawing',
+    lines: 8,
+    chosenPlanId: 'anc_mer_aggro',
+  });
+  state.gameData.turnData.commitments = {
+    BUILD_2: {
+      bot: {
+        commitHash: 'existing-authoritative-commit',
+        committedAt: 90,
+      },
+    },
+  };
+
+  const result = await runBotsUntilSettled({ state, nowMs: 100 });
+  const rejections = result.events.filter((event: any) =>
+    event.type === 'BOT_INTENT_REJECTED'
+  );
+
+  assert.equal(result.botStepsApplied, 0);
+  assert.equal(rejections.length, 1);
+  assert.deepEqual(
+    {
+      playerId: rejections[0].playerId,
+      phaseKey: rejections[0].phaseKey,
+      intentType: rejections[0].intentType,
+      rejectedCode: rejections[0].rejectedCode,
+    },
+    {
+      playerId: 'bot',
+      phaseKey: 'build.drawing',
+      intentType: 'BUILD_SUBMIT',
+      rejectedCode: 'DUPLICATE_COMMIT',
+    },
+  );
+  assert.equal(typeof rejections[0].rejectedMessage, 'string');
+  assert.notEqual(rejections[0].rejectedMessage.length, 0);
+  assert.equal(
+    result.events.some((event: any) => event.type === 'BOT_RUNNER_SKIPPED'),
+    false,
   );
 });
