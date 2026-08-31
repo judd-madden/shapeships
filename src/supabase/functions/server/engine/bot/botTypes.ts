@@ -1,4 +1,5 @@
-export type BotSpeciesId = 'HUM' | 'XEN' | 'CEN';
+export type BotSpeciesId = 'HUM' | 'XEN' | 'CEN' | 'ANC';
+export type AuthoredBotSpeciesId = Exclude<BotSpeciesId, 'ANC'>;
 
 export type BotPlanId = string;
 
@@ -98,7 +99,7 @@ export type SeatController =
 export type AuthoredBotPlan = {
   id: BotPlanId;
   name?: string;
-  speciesId: BotSpeciesId;
+  speciesId: AuthoredBotSpeciesId;
   buildGoals: BotBuildGoal[];
   loopGoals?: BotBuildGoal[];
   adaptiveBuildRules?: BotAdaptiveBuildRule[];

@@ -1393,6 +1393,15 @@ function fromBotSpeciesId(speciesId: unknown): ComputerBotSpeciesPayload | null 
   }
 }
 
+function fromInternalBotControllerSpeciesId(
+  speciesId: unknown,
+): PlayerSpeciesPayload | null {
+  if (speciesId === 'ANC') {
+    return 'ancient';
+  }
+  return fromBotSpeciesId(speciesId);
+}
+
 function chooseDeterministicBotPlanIdForSpecies(
   species: ComputerBotSpeciesPayload,
   seed: string,
@@ -1595,7 +1604,9 @@ async function handleSpeciesSubmit(
   }
 
   if (isSubmittingBot) {
-    const controllerSpecies = fromBotSpeciesId(botSeat?.controller?.speciesId);
+    const controllerSpecies = fromInternalBotControllerSpeciesId(
+      botSeat?.controller?.speciesId,
+    );
     if (!controllerSpecies) {
       return {
         ok: false,

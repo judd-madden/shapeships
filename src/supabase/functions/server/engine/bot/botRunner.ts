@@ -16,6 +16,10 @@ import {
 import { getCentaurBotPlanById } from './centaurPlans.ts';
 import { getHumanBotPlanById } from './humanPlans.ts';
 import { getXeniteBotPlanById } from './xenitePlans.ts';
+import {
+  chooseAncientOpeningStrategy,
+  getAncientBotStrategyById,
+} from './ancientPlans.ts';
 import { planBotBuildSubmit } from './buildPlanner.ts';
 import type {
   AuthoredBotPlan,
@@ -204,6 +208,7 @@ function getSpeciesPayloadFromBotSpeciesId(speciesId: BotSpeciesId | null | unde
   | 'human'
   | 'xenite'
   | 'centaur'
+  | 'ancient'
   | null {
   switch (speciesId) {
     case 'HUM':
@@ -212,6 +217,8 @@ function getSpeciesPayloadFromBotSpeciesId(speciesId: BotSpeciesId | null | unde
       return 'xenite';
     case 'CEN':
       return 'centaur';
+    case 'ANC':
+      return 'ancient';
     default:
       return null;
   }
@@ -1413,8 +1420,19 @@ function buildBotIntent(args: {
     return { debugReason: 'missing_bot_controller' };
   }
 
+  const isAncientBot = controller.speciesId === 'ANC';
+  if (isAncientBot && controller.chosenPlanId !== null) {
+    if (
+      typeof controller.chosenPlanId !== 'string' ||
+      controller.chosenPlanId.length === 0 ||
+      !getAncientBotStrategyById(controller.chosenPlanId)
+    ) {
+      return { debugReason: 'missing_matching_ancient_strategy' };
+    }
+  }
+
   let plan: AuthoredBotPlan | null = null;
-  if (isAuthoredBotPlanRequiredPhase(phaseKey)) {
+  if (!isAncientBot && isAuthoredBotPlanRequiredPhase(phaseKey)) {
     const resolvedPlan = resolveBotPlan(controller);
     if ('debugReason' in resolvedPlan) {
       return resolvedPlan;
@@ -1444,6 +1462,18 @@ function buildBotIntent(args: {
         playerId,
         intentType: 'SPECIES_SUBMIT',
       }),
+    };
+  }
+
+  if (
+    isAncientBot &&
+    isAuthoredBotPlanRequiredPhase(phaseKey) &&
+    phaseKey !== 'build.dice_roll'
+  ) {
+    return {
+      debugReason: controller.chosenPlanId === null
+        ? 'unresolved_ancient_strategy_outside_drawing'
+        : 'ancient_gameplay_deferred_after_phase_17a',
     };
   }
 
@@ -1494,7 +1524,7 @@ function buildBotIntent(args: {
     };
   }
 
-  if (phaseKey === 'build.dice_roll' && plan) {
+  if (phaseKey === 'build.dice_roll' && (plan || isAncientBot)) {
     const cubeIntent = buildCubeDiceIntentForCurrentPhase({
       state,
       playerId,
@@ -1505,16 +1535,18 @@ function buildBotIntent(args: {
       return cubeIntent;
     }
 
-    const knowledgeIntent = buildKnowledgeDiceIntentForCurrentPhase({
-      state,
-      playerId,
-      phaseKey,
-      loopStep,
-      plan,
-    });
+    if (plan) {
+      const knowledgeIntent = buildKnowledgeDiceIntentForCurrentPhase({
+        state,
+        playerId,
+        phaseKey,
+        loopStep,
+        plan,
+      });
 
-    if (knowledgeIntent) {
-      return knowledgeIntent;
+      if (knowledgeIntent) {
+        return knowledgeIntent;
+      }
     }
   }
 
@@ -1606,12 +1638,81 @@ export async function runBotsUntilSettled(args: {
         continue;
       }
 
-      const botIntent = buildBotIntent({
-        state,
-        playerId: player.id,
-        phaseKey,
-        loopStep: botStepsApplied,
-      });
+      let botIntent: IntentRequest | null | { debugReason: string };
+
+      if (
+        controller.speciesId === 'ANC' &&
+        controller.chosenPlanId === null &&
+        phaseKey === 'build.drawing'
+      ) {
+        const openingDecision = chooseAncientOpeningStrategy({
+          gameId: state?.gameId,
+          turnNumber: state?.gameData?.turnNumber,
+          availableOrdinaryLines: player?.lines,
+        });
+
+        if (openingDecision.kind === 'invalid') {
+          const reason = `invalid_ancient_opening_chooser_input:${openingDecision.reason}`;
+          console.warn('[BotRunner] Ancient opening chooser input is invalid', {
+            gameId: state?.gameId,
+            playerId: player.id,
+            phaseKey,
+            reason: openingDecision.reason,
+          });
+          events.push(createRunnerDebugEvent(player.id, reason, phaseKey));
+          continue;
+        }
+
+        if (openingDecision.kind === 'selected') {
+          controller.chosenPlanId = openingDecision.strategyId;
+          console.info('[BotRunner] Ancient strategy metadata resolved', {
+            gameId: state?.gameId,
+            playerId: player.id,
+            phaseKey,
+            family: openingDecision.family,
+            strategyId: openingDecision.strategyId,
+          });
+          events.push(createRunnerDebugEvent(
+            player.id,
+            'ancient_strategy_resolved_phase_17a_stop',
+            phaseKey,
+          ));
+          continue;
+        }
+
+        const requesterPrelude = projectDrawingPreludeRequesterSummary(
+          state,
+          player.id,
+        );
+        if (!requesterPrelude) {
+          botIntent = { debugReason: 'invalid_drawing_prelude_state' };
+        } else if (requesterPrelude.status !== 'complete') {
+          botIntent = {
+            debugReason: 'ancient_strategy_save_waiting_for_drawing_prelude',
+          };
+        } else {
+          botIntent = {
+            gameId: state.gameId,
+            intentType: 'BUILD_SUBMIT',
+            turnNumber: state?.gameData?.turnNumber ?? 0,
+            payload: { builds: [] },
+            nonce: buildBotNonce({
+              state,
+              phaseKey,
+              loopStep: botStepsApplied,
+              playerId: player.id,
+              intentType: 'BUILD_SUBMIT',
+            }),
+          };
+        }
+      } else {
+        botIntent = buildBotIntent({
+          state,
+          playerId: player.id,
+          phaseKey,
+          loopStep: botStepsApplied,
+        });
+      }
 
       if (!botIntent) {
         continue;
