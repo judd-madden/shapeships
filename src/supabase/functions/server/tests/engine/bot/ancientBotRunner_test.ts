@@ -210,6 +210,34 @@ Deno.test('unresolved Ancient passes Dice Roll and reuses plan-independent Cube 
     'cube:bot-cube-2',
   );
   assert.equal(withCube.botStepsApplied, 2);
+
+  const higherMain = await runBotsUntilSettled({
+    state: createBaseState({
+      gameId: 'ancient-cube-main-higher',
+      turnNumber: 1,
+      phase: 'dice_roll',
+      cubeValues: [3, 2],
+    }),
+    nowMs: 101,
+  });
+  assert.equal(
+    higherMain.state.gameData.turnData.pendingCubeDiceChoiceByPlayerId.bot,
+    'main',
+  );
+
+  const tiedCube = await runBotsUntilSettled({
+    state: createBaseState({
+      gameId: 'ancient-cube-tie',
+      turnNumber: 1,
+      phase: 'dice_roll',
+      cubeValues: [4, 4],
+    }),
+    nowMs: 102,
+  });
+  assert.equal(
+    tiedCube.state.gameData.turnData.pendingCubeDiceChoiceByPlayerId.bot,
+    'cube:bot-cube-1',
+  );
 });
 
 Deno.test('Ancient Drawing selection persists metadata without consuming a bot step', async () => {

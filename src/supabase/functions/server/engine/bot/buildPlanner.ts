@@ -7,6 +7,7 @@ import type {
   BotBuildGoal,
   OrderedBotBuildPlan,
   OrderedBotBuildStep,
+  OrderedBotEndLoopStep,
 } from './botTypes.ts';
 import {
   evaluateForeignBuildLegality,
@@ -61,6 +62,14 @@ type NormalizedOrderedBuildStep = {
   saveUntilAffordable?: boolean;
   fallbackShipDefIds?: string[];
 };
+
+type NormalizedFirstAffordableEndLoopStep = {
+  firstAffordableShipDefIds: string[];
+};
+
+type NormalizedOrderedEndLoopStep =
+  | NormalizedOrderedBuildStep
+  | NormalizedFirstAffordableEndLoopStep;
 
 type EvolverTargetChoiceId = 'oxite' | 'asterite';
 
@@ -576,6 +585,54 @@ function normalizeOrderedBuildSteps(
   return steps
     .map(normalizeOrderedBuildStep)
     .filter((step): step is NormalizedOrderedBuildStep => step !== null);
+}
+
+function normalizeOrderedEndLoopStep(
+  step: OrderedBotEndLoopStep,
+): NormalizedOrderedEndLoopStep | null {
+  if (
+    typeof step === 'object' &&
+    step !== null &&
+    'firstAffordableShipDefIds' in step
+  ) {
+    const firstAffordableShipDefIds = Array.isArray(step.firstAffordableShipDefIds)
+      ? step.firstAffordableShipDefIds
+        .filter((shipDefId) =>
+          typeof shipDefId === 'string' && shipDefId.trim().length > 0
+        )
+        .map((shipDefId) => shipDefId.trim())
+      : [];
+
+    return firstAffordableShipDefIds.length > 0
+      ? { firstAffordableShipDefIds }
+      : null;
+  }
+
+  return normalizeOrderedBuildStep(step);
+}
+
+function normalizeOrderedEndLoopSteps(
+  steps: OrderedBotEndLoopStep[] | undefined,
+): NormalizedOrderedEndLoopStep[] {
+  if (!Array.isArray(steps)) {
+    return [];
+  }
+
+  return steps
+    .map(normalizeOrderedEndLoopStep)
+    .filter((step): step is NormalizedOrderedEndLoopStep => step !== null);
+}
+
+function isNormalizedOrderedBuildStep(
+  step: NormalizedOrderedEndLoopStep,
+): step is NormalizedOrderedBuildStep {
+  return 'shipDefId' in step;
+}
+
+function isNormalizedFirstAffordableEndLoopStep(
+  step: NormalizedOrderedEndLoopStep,
+): step is NormalizedFirstAffordableEndLoopStep {
+  return 'firstAffordableShipDefIds' in step;
 }
 
 function isOrderedBuildOrderSatisfied(
@@ -1369,7 +1426,7 @@ function tryDraftComponentReadyOrderedPrimary(args: {
 }
 
 function tryDraftLaterComponentReadyEndLoopUpgrade(args: {
-  endLoopSteps: NormalizedOrderedBuildStep[];
+  endLoopSteps: NormalizedOrderedEndLoopStep[];
   currentStepIndex: number;
   workingFleet: WorkingShipEntry[];
   draftCounts: Map<string, number>;
@@ -1379,6 +1436,10 @@ function tryDraftLaterComponentReadyEndLoopUpgrade(args: {
   remainingJoiningLines: number;
 }): OrderedBuildStepResult | null {
   for (const candidate of args.endLoopSteps.slice(args.currentStepIndex + 1)) {
+    if (!isNormalizedOrderedBuildStep(candidate)) {
+      continue;
+    }
+
     if (!isUpgradedShipDefId(candidate.shipDefId)) {
       continue;
     }
@@ -1624,6 +1685,48 @@ function processOrderedBuildStep(args: {
   };
 }
 
+function processFirstAffordableEndLoopStep(args: {
+  step: NormalizedFirstAffordableEndLoopStep;
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  nativeSpecies: unknown;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): OrderedBuildStepResult {
+  for (const shipDefId of args.step.firstAffordableShipDefIds) {
+    const attempt = tryDraftShip({
+      workingFleet: args.workingFleet,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+      nativeSpecies: args.nativeSpecies,
+      shipDefId,
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    });
+
+    if (attempt.ok) {
+      return {
+        blockedBySaveUntilAffordable: false,
+        shouldStopOrderedSequence: false,
+        didDraftPrimaryStep: true,
+        didDraftFallbackOrBridge: false,
+        remainingOrdinaryLines: attempt.remainingOrdinaryLines,
+        remainingJoiningLines: attempt.remainingJoiningLines,
+      };
+    }
+  }
+
+  return {
+    blockedBySaveUntilAffordable: false,
+    shouldStopOrderedSequence: true,
+    didDraftPrimaryStep: false,
+    didDraftFallbackOrBridge: false,
+    remainingOrdinaryLines: args.remainingOrdinaryLines,
+    remainingJoiningLines: args.remainingJoiningLines,
+  };
+}
+
 function planOrderedBuildSubmit(args: {
   plan: AuthoredBotPlan;
   orderedPlan: OrderedBotBuildPlan;
@@ -1638,7 +1741,7 @@ function planOrderedBuildSubmit(args: {
   remainingJoiningLines: number;
 }): BuildSubmitPayload {
   const buildOrderSteps = normalizeOrderedBuildSteps(args.orderedPlan.buildOrder);
-  const endLoopSteps = normalizeOrderedBuildSteps(args.orderedPlan.endLoop);
+  const endLoopSteps = normalizeOrderedEndLoopSteps(args.orderedPlan.endLoop);
   const shouldUseEndLoop = isOrderedBuildOrderSatisfied(
     buildOrderSteps,
     args.authoritativeFleet,
@@ -1694,7 +1797,9 @@ function planOrderedBuildSubmit(args: {
 
       for (let stepIndex = 0; stepIndex < endLoopSteps.length; stepIndex += 1) {
         const step = endLoopSteps[stepIndex];
-        const opportunisticUpgradeResult = !isUpgradedShipDefId(step.shipDefId)
+        const ordinaryStep = isNormalizedOrderedBuildStep(step) ? step : null;
+        const opportunisticUpgradeResult =
+          ordinaryStep && !isUpgradedShipDefId(ordinaryStep.shipDefId)
           ? tryDraftLaterComponentReadyEndLoopUpgrade({
             endLoopSteps,
             currentStepIndex: stepIndex,
@@ -1707,21 +1812,45 @@ function planOrderedBuildSubmit(args: {
           })
           : null;
 
-        const result = opportunisticUpgradeResult ?? processOrderedBuildStep({
-          plan: args.plan,
-          orderedPlan: args.orderedPlan,
-          step,
-          player: args.player,
-          opponent: args.opponent,
-          workingFleet: args.workingFleet,
-          draftCounts: args.draftCounts,
-          draftOrder: args.draftOrder,
-          evolverChoices,
-          manualBridgeDraftCounts,
-          nativeSpecies: args.nativeSpecies,
-          remainingOrdinaryLines,
-          remainingJoiningLines,
-        });
+        let result: OrderedBuildStepResult;
+        if (opportunisticUpgradeResult) {
+          result = opportunisticUpgradeResult;
+        } else if (ordinaryStep) {
+          result = processOrderedBuildStep({
+            plan: args.plan,
+            orderedPlan: args.orderedPlan,
+            step: ordinaryStep,
+            player: args.player,
+            opponent: args.opponent,
+            workingFleet: args.workingFleet,
+            draftCounts: args.draftCounts,
+            draftOrder: args.draftOrder,
+            evolverChoices,
+            manualBridgeDraftCounts,
+            nativeSpecies: args.nativeSpecies,
+            remainingOrdinaryLines,
+            remainingJoiningLines,
+          });
+        } else if (isNormalizedFirstAffordableEndLoopStep(step)) {
+          result = processFirstAffordableEndLoopStep({
+            step,
+            workingFleet: args.workingFleet,
+            draftCounts: args.draftCounts,
+            draftOrder: args.draftOrder,
+            nativeSpecies: args.nativeSpecies,
+            remainingOrdinaryLines,
+            remainingJoiningLines,
+          });
+        } else {
+          result = {
+            blockedBySaveUntilAffordable: false,
+            shouldStopOrderedSequence: true,
+            didDraftPrimaryStep: false,
+            didDraftFallbackOrBridge: false,
+            remainingOrdinaryLines,
+            remainingJoiningLines,
+          };
+        }
 
         remainingOrdinaryLines = result.remainingOrdinaryLines;
         remainingJoiningLines = result.remainingJoiningLines;

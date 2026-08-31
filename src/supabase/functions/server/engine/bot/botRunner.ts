@@ -13,6 +13,7 @@ import {
   getValidShipOfEqualityTargets,
   getValidTransferTargets,
 } from '../../engine_shared/resolve/destroyRules.ts';
+import { isThirdSpiralFirstStrikeEligible } from '../../engine_shared/resolve/thirdSpiralFirstStrikeEligibility.ts';
 import { getCentaurBotPlanById } from './centaurPlans.ts';
 import { getHumanBotPlanById } from './humanPlans.ts';
 import { getXeniteBotPlanById } from './xenitePlans.ts';
@@ -21,6 +22,7 @@ import {
   getAncientBotStrategyById,
 } from './ancientPlans.ts';
 import { planBotBuildSubmit } from './buildPlanner.ts';
+import { completeAncientBuildSubmitPayload } from './ancientBuildPayload.ts';
 import type {
   AuthoredBotPlan,
   BotSpeciesId,
@@ -47,7 +49,7 @@ const DEFAULT_MISSING_DAMAGE_HEAL_CHARGE_POLICY: DamageHealChargePolicy = {
   damageOpponentAtOrBelow: 12,
 };
 const DAMAGE_HEAL_CHARGE_SHIP_DEF_IDS = ['INT', 'ANT', 'WIS', 'FAM'] as const;
-const FIRST_STRIKE_TARGET_SHIP_DEF_IDS = ['GUA', 'SAC', 'DOM'] as const;
+const FIRST_STRIKE_TARGET_SHIP_DEF_IDS = ['GUA', 'SAC', 'DOM', 'SPI'] as const;
 
 type DamageHealChargeShipDefId = (typeof DAMAGE_HEAL_CHARGE_SHIP_DEF_IDS)[number];
 type FirstStrikeTargetShipDefId = (typeof FIRST_STRIKE_TARGET_SHIP_DEF_IDS)[number];
@@ -1104,7 +1106,7 @@ export function buildDrawingPreludeCarrierIntentForBot(args: {
   });
 }
 
-function buildFirstStrikeTargetIntentForCurrentPhase(args: {
+export function buildFirstStrikeTargetIntentForCurrentPhase(args: {
   state: any;
   playerId: string;
   phaseKey: string;
@@ -1144,6 +1146,13 @@ function buildFirstStrikeTargetIntentForCurrentPhase(args: {
   );
 
   for (const ship of sourceShips) {
+    if (
+      ship.shipDefId === 'SPI' &&
+      !isThirdSpiralFirstStrikeEligible(state, playerId, ship.instanceId)
+    ) {
+      continue;
+    }
+
     const policy = plan?.targetPolicy?.[ship.shipDefId as FirstStrikeTargetShipDefId];
     if (policy?.mode !== 'highest_cost_basic') {
       continue;
@@ -1502,18 +1511,29 @@ function buildBotIntent(args: {
       };
     }
 
-    const buildSubmitPayload = appendFrigateTriggersToBuildSubmit({
+    const buildSubmitPayloadWithFrigateTriggers = appendFrigateTriggersToBuildSubmit({
       state,
       playerId,
       plan,
       payload: planBotBuildSubmit(state, playerId, plan),
     });
+    const completedBuildSubmitPayload = completeAncientBuildSubmitPayload({
+      state,
+      playerId,
+      plan,
+      payload: buildSubmitPayloadWithFrigateTriggers,
+    });
+    if (!completedBuildSubmitPayload.ok) {
+      return {
+        debugReason: `ancient_build_payload_completion_failed:${completedBuildSubmitPayload.reason}`,
+      };
+    }
 
     return {
       gameId: state.gameId,
       intentType: 'BUILD_SUBMIT',
       turnNumber,
-      payload: buildSubmitPayload,
+      payload: completedBuildSubmitPayload.payload,
       nonce: buildBotNonce({
         state,
         phaseKey,

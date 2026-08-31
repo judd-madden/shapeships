@@ -1,5 +1,4 @@
 export type BotSpeciesId = 'HUM' | 'XEN' | 'CEN' | 'ANC';
-export type AuthoredBotSpeciesId = Exclude<BotSpeciesId, 'ANC'>;
 
 export type BotPlanId = string;
 
@@ -27,6 +26,12 @@ export type OrderedBotBuildStep =
       fallbackShipDefIds?: string[];
     };
 
+export type OrderedBotEndLoopStep =
+  | OrderedBotBuildStep
+  | {
+      firstAffordableShipDefIds: string[];
+    };
+
 export type OrderedBotBuildFallbacks = {
   default?: string[];
   defensive?: string[];
@@ -41,7 +46,7 @@ export type OrderedBotEvolverConversionPlan = {
 
 export type OrderedBotBuildPlan = {
   buildOrder: OrderedBotBuildStep[];
-  endLoop?: OrderedBotBuildStep[];
+  endLoop?: OrderedBotEndLoopStep[];
   fallbacks?: OrderedBotBuildFallbacks;
   manualBridgeLimits?: Partial<Record<string, number>>;
   evolverConversions?: OrderedBotEvolverConversionPlan;
@@ -92,6 +97,12 @@ export type FrigateTriggerPolicy = {
   spreadSequence?: number[];
 };
 
+export type QuantumMysticSelectionMode = 'fixed_6' | 'match_effective_dice';
+
+export type QuantumMysticSelectionPolicy = {
+  mode: QuantumMysticSelectionMode;
+};
+
 export type SeatController =
   | { kind: 'human' }
   | { kind: 'bot'; speciesId: BotSpeciesId | null; chosenPlanId: BotPlanId | null };
@@ -99,7 +110,7 @@ export type SeatController =
 export type AuthoredBotPlan = {
   id: BotPlanId;
   name?: string;
-  speciesId: AuthoredBotSpeciesId;
+  speciesId: BotSpeciesId;
   buildGoals: BotBuildGoal[];
   loopGoals?: BotBuildGoal[];
   adaptiveBuildRules?: BotAdaptiveBuildRule[];
@@ -116,6 +127,9 @@ export type AuthoredBotPlan = {
   frigatePolicy?: {
     FRI?: FrigateTriggerPolicy;
   };
+  quantumMysticPolicy?: {
+    QUA?: QuantumMysticSelectionPolicy;
+  };
   targetPolicy?: {
     GUA?: {
       mode: GuardianTargetMode;
@@ -124,6 +138,9 @@ export type AuthoredBotPlan = {
       mode: HighestCostBasicTargetMode;
     };
     DOM?: {
+      mode: HighestCostBasicTargetMode;
+    };
+    SPI?: {
       mode: HighestCostBasicTargetMode;
     };
     EQU?: {
