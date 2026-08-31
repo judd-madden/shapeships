@@ -163,7 +163,13 @@ export const missionFindings: readonly MissionFinding[] = [
     requiredFindingIds: MULTI_MISSION_FINDING_REQUIREMENTS['ancient-mysteries'],
     topic: 'Sol, Epsilon Eridani, Unknown',
     author: 'juddly',
-    content: <p>Ancients are at war in multiple systems.</p>,
+    content: <p>The Ancients are openly involved in conflicts with Humans, Xenites and Centaurs across multiple systems.</p>,
+  },
+  {
+    id: 'tau-ceti',
+    topic: 'Tau Ceti',
+    author: 'juddly',
+    content: <p>The Watcher Ancients are non-interventionists who oppose Ancient involvement in the galactic war.</p>,
   },
 ];
 

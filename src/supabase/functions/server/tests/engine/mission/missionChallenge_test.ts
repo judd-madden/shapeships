@@ -28,9 +28,11 @@ const MATCHUPS: Array<[MissionSpecies, MissionOpponentSpecies, string[][]]> = [
   ],
   ["human", "xenite", [["mintaka"]]],
   ["human", "centaur", [["delta-aquarii"]]],
+  ["human", "ancient", [["ancient-mysteries-human"]]],
   ["xenite", "human", [["mintaka"]]],
   ["xenite", "xenite", [["betelgeuse"]]],
   ["xenite", "centaur", [["gamma-leporis"]]],
+  ["xenite", "ancient", [["ancient-mysteries-xenite"]]],
   ["centaur", "human", [["delta-aquarii"]]],
   ["centaur", "xenite", [["gamma-leporis"]]],
   [
@@ -38,9 +40,11 @@ const MATCHUPS: Array<[MissionSpecies, MissionOpponentSpecies, string[][]]> = [
     "centaur",
     [["proxima-centauri", "rebel-alliance-centaur"]],
   ],
+  ["centaur", "ancient", [["ancient-mysteries-centaur"]]],
   ["ancient", "human", [["ancient-mysteries-human"]]],
   ["ancient", "xenite", [["ancient-mysteries-xenite"]]],
   ["ancient", "centaur", [["ancient-mysteries-centaur"]]],
+  ["ancient", "ancient", [["tau-ceti"]]],
 ];
 
 function findSeedForBucket(
@@ -94,8 +98,8 @@ function computerState(args: {
 
 Deno.test("Mission registry has the canonical directional content and Finding coverage", () => {
   assert.equal(MISSION_YEAR, 2814);
-  assert.equal(MISSION_STORIES.length, 13);
-  assert.equal(new Set(MISSION_STORIES.map((mission) => mission.id)).size, 13);
+  assert.equal(MISSION_STORIES.length, 17);
+  assert.equal(new Set(MISSION_STORIES.map((mission) => mission.id)).size, 17);
 
   for (const [playerSpecies, opponentSpecies, findingIdsByMission] of MATCHUPS) {
     const pool = getMissionPool(playerSpecies, opponentSpecies);
@@ -132,6 +136,63 @@ Deno.test("Mission registry has the canonical directional content and Finding co
     ],
   });
 
+  const newAncientOpponentMissions = [
+    {
+      id: "mission-human-v-ancient-protect-home-system",
+      playerSpecies: "human",
+      opponentSpecies: "ancient",
+      findingIds: ["ancient-mysteries-human"],
+      title: "Protect Our Home System",
+      location: "Sol",
+      author: "juddly",
+      paragraphs: [
+        "[player], strange Ancient ships have surrounded the Sol system. They push inward from the Oort Cloud. How do they harness solar energy? We don't know yet - but they must be stopped before they reach our colonies on the outer planets.",
+      ],
+    },
+    {
+      id: "mission-xenite-v-ancient-assert-control",
+      playerSpecies: "xenite",
+      opponentSpecies: "ancient",
+      findingIds: ["ancient-mysteries-xenite"],
+      title: "Assert Control",
+      location: "[unknown]",
+      author: "juddly",
+      paragraphs: [
+        "The delusional Ancients have become a nuisance in multiple sectors. This is my galaxy. I control. I remember. They fabricate. - XAMEHBZ",
+      ],
+    },
+    {
+      id: "mission-centaur-v-ancient-prove-superiority",
+      playerSpecies: "centaur",
+      opponentSpecies: "ancient",
+      findingIds: ["ancient-mysteries-centaur"],
+      title: "Prove Our Superiority",
+      location: "Epsilon Eridani",
+      author: "juddly",
+      paragraphs: [
+        "Age does not equal power. The Ancients' time has passed. They are weak and should be put back to sleep for good. Solar energy is ephemeral. Centaur weight is forever.",
+      ],
+    },
+    {
+      id: "mission-ancient-v-ancient-defy-watchers",
+      playerSpecies: "ancient",
+      opponentSpecies: "ancient",
+      findingIds: ["tau-ceti"],
+      title: "Defy the Watchers",
+      location: "Tau Ceti",
+      author: "juddly",
+      paragraphs: [
+        "The Watcher Ancients believe we should never intervene in the affairs of the immature species. They would prefer we slumber while Humans, Xenites and Centaurs destroy the galaxy. We must act. Unfortunately, that includes eliminating some of our own.",
+      ],
+    },
+  ];
+  for (const expectedMission of newAncientOpponentMissions) {
+    assert.deepEqual(
+      MISSION_STORIES.find((mission) => mission.id === expectedMission.id),
+      expectedMission,
+    );
+  }
+
   for (const mission of MISSION_STORIES) {
     assert.equal(mission.author, "juddly");
     assert.ok(mission.id.startsWith("mission-"));
@@ -156,6 +217,7 @@ Deno.test("Mission registry has the canonical directional content and Finding co
       "rebel-alliance-centaur",
       "rebel-alliance-human",
       "sol-1",
+      "tau-ceti",
     ],
   );
   assert.ok(
@@ -166,7 +228,7 @@ Deno.test("Mission registry has the canonical directional content and Finding co
     MISSION_STORIES.filter((mission) =>
       mission.paragraphs.some((text) => text.includes("[player]"))
     ).length,
-    4,
+    5,
   );
 
   const reclaim = MISSION_STORIES.find((mission) =>
@@ -399,6 +461,38 @@ Deno.test("Ancient assignment uses an exact deterministic foreign bucket and ind
       opponentSpecies: "human",
     }).challenge.condition,
     "without",
+  );
+});
+
+Deno.test("Ancient v Ancient uses the ordinary Ancient challenge path", () => {
+  const ancientVsAncientSeed = Array.from(
+    { length: 10_000 },
+    (_, index) => `ancient-v-ancient-${index}`,
+  ).find((seed) =>
+    deterministicBucket(
+        seed,
+        MISSION_ASSIGNMENT_SALTS.ancientForeignBranch,
+        4,
+      ) === 0 &&
+    deterministicBucket(
+        seed,
+        MISSION_ASSIGNMENT_SALTS.challengeCondition,
+        2,
+      ) === 1
+  );
+  assert.ok(ancientVsAncientSeed);
+
+  const assignment = createMissionChallengeAssignment({
+    gameId: ancientVsAncientSeed,
+    playerId: "p1",
+    playerSpecies: "ancient",
+    opponentSpecies: "ancient",
+  });
+  assert.equal(assignment.challenge.condition, "without");
+  assert.ok(
+    getOrdinaryChallengeDefinitions("ancient").some((definition) =>
+      definition.id === assignment.challenge.shipDefId
+    ),
   );
 });
 

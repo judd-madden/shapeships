@@ -1,5 +1,5 @@
 export type MissionSpecies = "human" | "xenite" | "centaur" | "ancient";
-export type MissionOpponentSpecies = Exclude<MissionSpecies, "ancient">;
+export type MissionOpponentSpecies = MissionSpecies;
 
 export type MissionStory = {
   id: string;
@@ -64,6 +64,18 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     ],
   },
   {
+    id: "mission-human-v-ancient-protect-home-system",
+    playerSpecies: "human",
+    opponentSpecies: "ancient",
+    findingIds: ["ancient-mysteries-human"],
+    title: "Protect Our Home System",
+    location: "Sol",
+    author: "juddly",
+    paragraphs: [
+      "[player], strange Ancient ships have surrounded the Sol system. They push inward from the Oort Cloud. How do they harness solar energy? We don't know yet - but they must be stopped before they reach our colonies on the outer planets.",
+    ],
+  },
+  {
     id: "mission-xenite-v-human-reclaim-purify",
     playerSpecies: "xenite",
     opponentSpecies: "human",
@@ -97,6 +109,18 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     author: "juddly",
     paragraphs: [
       "Centaurs are overstepping their lines with increasing frequency. They must pay for this disobedience. Perhaps it's time I eliminated them from this system for good.\n- XAMEHBZ",
+    ],
+  },
+  {
+    id: "mission-xenite-v-ancient-assert-control",
+    playerSpecies: "xenite",
+    opponentSpecies: "ancient",
+    findingIds: ["ancient-mysteries-xenite"],
+    title: "Assert Control",
+    location: "[unknown]",
+    author: "juddly",
+    paragraphs: [
+      "The delusional Ancients have become a nuisance in multiple sectors. This is my galaxy. I control. I remember. They fabricate.\n- XAMEHBZ",
     ],
   },
   {
@@ -136,6 +160,18 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     ],
   },
   {
+    id: "mission-centaur-v-ancient-prove-superiority",
+    playerSpecies: "centaur",
+    opponentSpecies: "ancient",
+    findingIds: ["ancient-mysteries-centaur"],
+    title: "Prove Our Superiority",
+    location: "Epsilon Eridani",
+    author: "juddly",
+    paragraphs: [
+      "Age does not equal power. The Ancients' time has passed. They are weak and should be put back to sleep for good. Solar energy is ephemeral. Centaur weight is forever.",
+    ],
+  },
+  {
     id: "mission-ancient-v-human-quiet-humans",
     playerSpecies: "ancient",
     opponentSpecies: "human",
@@ -169,6 +205,18 @@ export const MISSION_STORIES: readonly MissionStory[] = [
     author: "juddly",
     paragraphs: [
       "Another juvenile species creating far too much noise. They think of themselves as long-lived! The arrogance. Let there be quiet again.",
+    ],
+  },
+  {
+    id: "mission-ancient-v-ancient-defy-watchers",
+    playerSpecies: "ancient",
+    opponentSpecies: "ancient",
+    findingIds: ["tau-ceti"],
+    title: "Defy the Watchers",
+    location: "Tau Ceti",
+    author: "juddly",
+    paragraphs: [
+      "The Watcher Ancients believe we should never intervene in the affairs of the immature species. They would prefer we slumber while Humans, Xenites and Centaurs destroy the galaxy. We must act. Unfortunately, that includes eliminating some of our own.",
     ],
   },
 ];

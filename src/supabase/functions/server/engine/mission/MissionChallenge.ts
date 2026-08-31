@@ -104,7 +104,7 @@ export function getOrdinaryChallengeDefinitions(
 }
 
 export function getAncientForeignChallengeDefinitions(
-  opponentSpecies: MissionOpponentSpecies,
+  opponentSpecies: Exclude<MissionOpponentSpecies, "ancient">,
 ): ShipDefinitionCore[] {
   const definitionSpecies =
     DEFINITION_SPECIES_BY_MISSION_SPECIES[opponentSpecies];
@@ -125,7 +125,8 @@ function isMissionSpecies(value: unknown): value is MissionSpecies {
 function isMissionOpponentSpecies(
   value: unknown,
 ): value is MissionOpponentSpecies {
-  return value === "human" || value === "xenite" || value === "centaur";
+  return value === "human" || value === "xenite" || value === "centaur" ||
+    value === "ancient";
 }
 
 export function createMissionChallengeAssignment(args: {
@@ -167,13 +168,14 @@ export function createMissionChallengeAssignment(args: {
   let condition: MissionChallengeCondition;
 
   const useAncientForeignChallenge = args.playerSpecies === "ancient" &&
+    args.opponentSpecies !== "ancient" &&
     deterministicBucket(
         args.gameId,
         MISSION_ASSIGNMENT_SALTS.ancientForeignBranch,
         4,
       ) === 0;
 
-  if (useAncientForeignChallenge) {
+  if (useAncientForeignChallenge && args.opponentSpecies !== "ancient") {
     challengeDefinition = chooseDeterministically(
       getAncientForeignChallengeDefinitions(args.opponentSpecies),
       args.gameId,
