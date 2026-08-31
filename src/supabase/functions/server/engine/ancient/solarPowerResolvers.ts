@@ -25,6 +25,13 @@ export type MonoColourSolarPowerId = Extract<
   'SLIF' | 'SSTA' | 'SAST' | 'SSUP' | 'SCON'
 >;
 
+export const SIPHON_MINIMUM_SPEND = 4 as const;
+export const VORTEX_SOLAR_COST: Readonly<AncientEnergyPool> = Object.freeze({
+  green: 2,
+  red: 2,
+  blue: 2,
+});
+
 // Shared Solar opponent/effect helpers
 
 export function requireSolarOpponentPlayerId(
@@ -226,7 +233,7 @@ function requireSiphonAmounts(value: unknown): {
     !Number.isFinite(value) ||
     !Number.isInteger(value) ||
     !Number.isSafeInteger(value) ||
-    value < 4
+    value < SIPHON_MINIMUM_SPEND
   ) {
     throw new Error('Siphon lockedAmount must be a safe integer of at least 4');
   }
@@ -321,7 +328,7 @@ export const VORTEX_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
 
     return {
       candidateState: structuredClone(context.state),
-      paidEnergy: { green: 2, red: 2, blue: 2 },
+      paidEnergy: { ...VORTEX_SOLAR_COST },
       effects: [buildSolarHealthEffect({
         castIdentity: context.castIdentity,
         ownerPlayerId: context.playerId,

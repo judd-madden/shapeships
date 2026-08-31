@@ -55,6 +55,7 @@ export type OrderedBotBuildPlan = {
 export type CarrierChoiceId = 'defender' | 'fighter' | 'hold';
 export type DamageHealChoiceId = 'damage' | 'heal';
 export type InterceptorChoiceId = DamageHealChoiceId;
+export type DamageHealChargeShipDefId = 'INT' | 'ANT' | 'WIS' | 'FAM';
 export type FrigateFirstChoiceMode = 'match_current_roll' | 'fixed';
 export type FrigateAdditionalChoiceMode = 'stack_existing' | 'spread_sequence';
 
@@ -74,6 +75,10 @@ export type DamageHealChargePolicy = {
   healSelfAtOrBelow?: number;
   damageOpponentAtOrBelow?: number;
 };
+
+export type DamageHealChargePolicyMap = Partial<
+  Record<DamageHealChargeShipDefId, DamageHealChargePolicy>
+>;
 
 export type InterceptorChargePolicy = DamageHealChargePolicy;
 
@@ -118,12 +123,7 @@ export type AuthoredBotPlan = {
   drawingPrelude?: {
     CAR?: CarrierDrawingPreludePolicy;
   };
-  chargePolicy?: {
-    INT?: DamageHealChargePolicy;
-    ANT?: DamageHealChargePolicy;
-    WIS?: DamageHealChargePolicy;
-    FAM?: DamageHealChargePolicy;
-  };
+  chargePolicy?: DamageHealChargePolicyMap;
   frigatePolicy?: {
     FRI?: FrigateTriggerPolicy;
   };

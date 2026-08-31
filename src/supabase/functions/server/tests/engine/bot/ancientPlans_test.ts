@@ -41,6 +41,7 @@ Deno.test('Ancient strategy registry exposes eleven stable identities in explici
     assert.equal(registered?.workingName, workingName);
     assert.equal(registered?.speciesId, 'ANC');
     assert.equal('buildGoals' in (registered as unknown as Record<string, unknown>), false);
+    assert.equal('solarPolicy' in (registered as unknown as Record<string, unknown>), false);
   }
 
   assert.equal(getAncientBotStrategyById('anc_unknown'), null);

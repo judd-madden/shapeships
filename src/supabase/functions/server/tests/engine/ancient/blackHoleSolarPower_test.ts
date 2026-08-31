@@ -5,6 +5,7 @@ import {
   type ManualSolarResolverRegistry,
 } from '../../../engine/ancient/manualSolarDeclaration.ts';
 import {
+  BLACK_HOLE_SOLAR_COST,
   BLACK_HOLE_SOLAR_RESOLVER,
   resolveCommittedBlackHoleDestructions,
 } from '../../../engine/ancient/blackHoleSolarPower.ts';
@@ -14,6 +15,11 @@ import { replaceChargeDeclarationVisibilityState } from '../../../engine/state/c
 const BLACK_HOLE_REGISTRY: ManualSolarResolverRegistry = {
   SBLA: BLACK_HOLE_SOLAR_RESOLVER,
 };
+
+Deno.test('Black Hole planning cost is the authoritative resolver cost', () => {
+  assert.deepEqual(BLACK_HOLE_SOLAR_COST, { green: 4, red: 4, blue: 4 });
+  assert.equal(Object.isFrozen(BLACK_HOLE_SOLAR_COST), true);
+});
 
 function ship(instanceId: string, shipDefId: string, extra: Record<string, unknown> = {}) {
   return { instanceId, shipDefId, ...extra };

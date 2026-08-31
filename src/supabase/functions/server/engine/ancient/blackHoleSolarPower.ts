@@ -22,6 +22,11 @@ import {
 import { getChargeDeclarationLegalityState } from '../intent/chargeDeclarationEligibility.ts';
 
 const BLACK_HOLE_CORE_IDS = new Set(['PLU', 'MER', 'NEP']);
+export const BLACK_HOLE_SOLAR_COST = Object.freeze({
+  green: 4,
+  red: 4,
+  blue: 4,
+});
 
 function requireBlackHoleTargets(args: {
   state: Readonly<any>;
@@ -126,7 +131,7 @@ export const BLACK_HOLE_SOLAR_RESOLVER: ManualSolarResolverDescriptor = {
 
     return {
       candidateState,
-      paidEnergy: { green: 4, red: 4, blue: 4 },
+      paidEnergy: { ...BLACK_HOLE_SOLAR_COST },
       effects: [buildSolarHealthEffect({
         castIdentity: context.castIdentity,
         ownerPlayerId: context.playerId,

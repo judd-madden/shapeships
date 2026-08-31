@@ -2,11 +2,26 @@ import type { BotPlanId } from './botTypes.ts';
 
 export type AncientBotStrategyFamily = 'CUB' | 'NEP' | 'SPI' | 'MER';
 
+export type AncientBlackHoleBotPolicy = {
+  minSelfHealth: number;
+  maxCastsPerDeclaration: number;
+};
+
+export type AncientVortexBotPolicy = {
+  maxCastsPerDeclaration: number;
+};
+
+export type AncientBotSolarPolicy = {
+  blackHole?: AncientBlackHoleBotPolicy;
+  vortex?: AncientVortexBotPolicy;
+};
+
 export type AncientBotStrategy = {
   id: BotPlanId;
   workingName: string;
   speciesId: 'ANC';
   family: AncientBotStrategyFamily;
+  solarPolicy?: AncientBotSolarPolicy;
 };
 
 export type AncientOpeningChooserInput = {

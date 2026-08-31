@@ -12,7 +12,9 @@ import {
   buildMonoColourAutocastCasts,
   MONO_COLOUR_SOLAR_COSTS,
   PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
+  SIPHON_MINIMUM_SPEND,
   SIPHON_SOLAR_RESOLVER,
+  VORTEX_SOLAR_COST,
   VORTEX_SOLAR_RESOLVER,
 } from '../../../engine/ancient/solarPowerResolvers.ts';
 
@@ -74,6 +76,12 @@ Deno.test('mono-colour costs, registry membership, and fixed Autocast priority a
     ids({ green: 4, red: 4, blue: 2 }),
     ['SSTA', 'SSUP', 'SCON', 'SCON', 'SLIF', 'SAST'],
   );
+});
+
+Deno.test('special Solar planning constants share authoritative resolver values', () => {
+  assert.equal(SIPHON_MINIMUM_SPEND, 4);
+  assert.deepEqual(VORTEX_SOLAR_COST, { green: 2, red: 2, blue: 2 });
+  assert.equal(Object.isFrozen(VORTEX_SOLAR_COST), true);
 });
 
 Deno.test('all mono-colour resolvers use deterministic Solar system effects and authoritative paths', () => {
