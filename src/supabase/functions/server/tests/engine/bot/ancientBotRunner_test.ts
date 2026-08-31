@@ -240,7 +240,7 @@ Deno.test('unresolved Ancient passes Dice Roll and reuses plan-independent Cube 
   );
 });
 
-Deno.test('Ancient Drawing selection persists metadata without consuming a bot step', async () => {
+Deno.test('Ancient Drawing selection continues into an accepted build in the same invocation', async () => {
   const state = createBaseState({
     gameId: 'ancient-cub-resolution',
     turnNumber: 1,
@@ -250,13 +250,12 @@ Deno.test('Ancient Drawing selection persists metadata without consuming a bot s
   const selected = await runBotsUntilSettled({ state, nowMs: 100 });
   const chosenPlanId = selected.state.controllersByPlayerId.bot.chosenPlanId;
 
-  assert.equal(selected.botStepsApplied, 0);
+  assert.equal(selected.botStepsApplied, 1);
   assert.equal(typeof chosenPlanId, 'string');
   assert.equal(chosenPlanId.startsWith('anc_'), true);
   assert.equal(
-    selected.events.some((event: { type?: string; reason?: string }) =>
-      event.type === 'BOT_RUNNER_SKIPPED' &&
-      event.reason === 'ancient_strategy_resolved_phase_17a_stop'
+    selected.events.some((event: { type?: string }) =>
+      event.type === 'BOT_STRATEGY_RESOLVED'
     ),
     true,
   );
@@ -264,7 +263,7 @@ Deno.test('Ancient Drawing selection persists metadata without consuming a bot s
     selected.events.some((event: { type?: string }) =>
       event.type === 'BUILD_SUBMITTED'
     ),
-    false,
+    true,
   );
 
   selected.state.players.find((player: { id?: string; lines?: number }) =>
@@ -273,6 +272,38 @@ Deno.test('Ancient Drawing selection persists metadata without consuming a bot s
   const repeated = await runBotsUntilSettled({ state: selected.state, nowMs: 101 });
   assert.equal(repeated.state.controllersByPlayerId.bot.chosenPlanId, chosenPlanId);
   assert.equal(repeated.botStepsApplied, 0);
+});
+
+Deno.test('runner persists a committed trio proposal before one authoritative build step', async () => {
+  const result = await runBotsUntilSettled({
+    state: createBaseState({
+      gameId: 'committed-cube-trio',
+      turnNumber: 2,
+      phase: 'drawing',
+      lines: 9,
+      chosenPlanId: 'anc_cube_red_green',
+      cubeValues: [4],
+    }),
+    nowMs: 100,
+  });
+  assert.equal(result.botStepsApplied, 1);
+  assert.deepEqual(
+    result.state.controllersByPlayerId.bot.planProgress,
+    {
+      committedBuildGroup: {
+        planId: 'anc_cube_red_green',
+        groupKey: 'core_trio',
+        branchId: 'mer',
+        shipDefId: 'MER',
+        startingCount: 0,
+        targetCount: 3,
+      },
+    },
+  );
+  assert.deepEqual(
+    result.state.gameData.turnData.commitments.BUILD_2.bot.revealPayload.builds,
+    [{ shipDefId: 'MER', count: 2 }],
+  );
 });
 
 Deno.test('Ancient save submits an empty build and later Drawing reassesses accumulated lines', async () => {
@@ -331,6 +362,84 @@ Deno.test('Ancient save submits an empty build and later Drawing reassesses accu
     reassessed.state.controllersByPlayerId.bot.chosenPlanId.startsWith('anc_'),
     true,
   );
+});
+
+Deno.test('both Phase 17E chooser strategies persist and stop with the explicit deferral diagnostic', async () => {
+  for (const [gameId, expectedStrategyId] of [
+    ['deferred-21', 'anc_vortex_simulacrum'],
+    ['deferred-42', 'anc_silly_simulacrum'],
+  ] as const) {
+    const result = await runBotsUntilSettled({
+      state: createBaseState({
+        gameId,
+        turnNumber: 1,
+        phase: 'drawing',
+        lines: 8,
+      }),
+      nowMs: 100,
+    });
+    assert.equal(result.botStepsApplied, 0);
+    assert.equal(
+      result.state.controllersByPlayerId.bot.chosenPlanId,
+      expectedStrategyId,
+    );
+    assert.equal(
+      result.events.some((event: { type?: string; reason?: string }) =>
+        event.type === 'BOT_RUNNER_SKIPPED' &&
+        event.reason === 'ancient_strategy_deferred_phase_17e'
+      ),
+      true,
+    );
+  }
+});
+
+Deno.test('all four chooser families continue directly into legal production builds', async () => {
+  for (const scenario of [
+    {
+      gameId: 'ancient-cub-resolution',
+      lines: 9,
+      strategyId: 'anc_vortex_no_simulacrum',
+      firstShipDefId: 'CUB',
+    },
+    {
+      gameId: 'prod-nep-0',
+      lines: 8,
+      strategyId: 'anc_small_econ_siphon',
+      firstShipDefId: 'NEP',
+    },
+    {
+      gameId: 'representative-3',
+      lines: 6,
+      strategyId: 'anc_spiral_aggro',
+      firstShipDefId: 'SPI',
+    },
+    {
+      gameId: 'representative-0',
+      lines: 5,
+      strategyId: 'anc_mer_aggro',
+      firstShipDefId: 'MER',
+    },
+  ] as const) {
+    const result = await runBotsUntilSettled({
+      state: createBaseState({
+        gameId: scenario.gameId,
+        turnNumber: 1,
+        phase: 'drawing',
+        lines: scenario.lines,
+      }),
+      nowMs: 100,
+    });
+    assert.equal(result.botStepsApplied, 1);
+    assert.equal(
+      result.state.controllersByPlayerId.bot.chosenPlanId,
+      scenario.strategyId,
+    );
+    assert.equal(
+      result.state.gameData.turnData.commitments.BUILD_1.bot.revealPayload
+        .builds[0].shipDefId,
+      scenario.firstShipDefId,
+    );
+  }
 });
 
 Deno.test('Ancient malformed chooser state and unknown stored strategy fail closed', async () => {

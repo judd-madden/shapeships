@@ -36,6 +36,7 @@ import {
   redactDrawingPreludeTurnDataForClient,
 } from './drawingPreludeProjection.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
+import { projectPublicSeatControllers } from '../bot/botControllerProjection.ts';
 import { applyEffects } from '../../engine_shared/effects/applyEffects.ts';
 import {
   EffectKind,
@@ -1215,15 +1216,28 @@ export function sanitizeAncientStateForClient<T = any>(
       })()
     : projectedState;
   const gameData = isObject(responseState.gameData) ? responseState.gameData : null;
+  const hasRootControllers = Object.prototype.hasOwnProperty.call(
+    responseState,
+    'controllersByPlayerId',
+  );
+  const hasNestedControllers = gameData != null &&
+    Object.prototype.hasOwnProperty.call(gameData, 'controllersByPlayerId');
+  const publicControllers = projectPublicSeatControllers(
+    responseState.controllersByPlayerId ?? responseState.gameData?.controllersByPlayerId,
+  );
   if (!gameData) {
     return {
       ...responseState,
+      ...(hasRootControllers ? { controllersByPlayerId: publicControllers } : {}),
       ...(Array.isArray(responseState.players)
         ? { players: sanitizePlayers(responseState.players) }
         : {}),
     } as T;
   }
   const { ancient: _internalAncient, ...safeGameData } = gameData;
+  if (hasNestedControllers) {
+    safeGameData.controllersByPlayerId = publicControllers;
+  }
   if (isObject(safeGameData.ships)) {
     safeGameData.ships = projectPublicShipsForClient(
       projectedState,
@@ -1258,6 +1272,7 @@ export function sanitizeAncientStateForClient<T = any>(
   }
   return {
     ...responseState,
+    ...(hasRootControllers ? { controllersByPlayerId: publicControllers } : {}),
     ...(Array.isArray(responseState.players)
       ? {
           players: sanitizePlayers(

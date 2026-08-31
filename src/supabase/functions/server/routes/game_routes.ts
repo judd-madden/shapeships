@@ -79,6 +79,7 @@ import type { IntentPersistence } from './intent_persistence.ts';
 import { getPlayerMaxHealth } from '../engine_shared/maximumHealth.ts';
 import { getCubeDiceActionForPlayer } from '../engine/phase/cubeDiceManipulation.ts';
 import { projectPublicTurnPhaseProgress } from '../engine/phase/turnPhaseProgress.ts';
+import { projectPublicSeatControllers } from '../engine/bot/botControllerProjection.ts';
 import {
   projectMissionChallengeForRequester,
   stripMissionChallengeAssignment,
@@ -2339,7 +2340,10 @@ export function registerGameRoutes(
           damageByPlayerId: gameData.gameData?.lastTurnDamageByPlayerId ?? {},
           healByPlayerId: gameData.gameData?.lastTurnHealByPlayerId ?? {},
         },
-        controllersByPlayerId: gameData.controllersByPlayerId ?? gameData.gameData?.controllersByPlayerId ?? {},
+        controllersByPlayerId: projectPublicSeatControllers(
+          gameData.controllersByPlayerId ??
+            gameData.gameData?.controllersByPlayerId,
+        ),
         savedLinesByPlayerId,
         joiningLinesByPlayerId,
         bonusLinesByPlayerId,

@@ -14,9 +14,25 @@ export type BotAdaptiveBuildRule = {
   selfHealthAtOrBelow?: number;
   opponentHealthAtOrBelow?: number;
   saveUntilAffordable?: boolean;
+  placement?: 'before_plan' | 'after_ordered_opening';
 };
 
 export type BuildGoal = BotBuildGoal;
+
+export type OrderedBotCommittedGroupBranch = {
+  branchId: string;
+  shipDefId: string;
+  count: number;
+};
+
+export type OrderedBotCommittedHealthGroup = {
+  groupKey: string;
+  selfHealthBelow: number;
+  below: OrderedBotCommittedGroupBranch;
+  atOrAbove: OrderedBotCommittedGroupBranch;
+  repeat?: boolean;
+  completionWitnessShipDefId?: string;
+};
 
 export type OrderedBotBuildStep =
   | string
@@ -24,12 +40,17 @@ export type OrderedBotBuildStep =
       shipDefId: string;
       saveUntilAffordable?: boolean;
       fallbackShipDefIds?: string[];
+    }
+  | {
+      committedHealthGroup: OrderedBotCommittedHealthGroup;
     };
 
 export type OrderedBotEndLoopStep =
   | OrderedBotBuildStep
   | {
       firstAffordableShipDefIds: string[];
+      targetCountByShipDefId?: Record<string, number>;
+      fallbackShipDefIdWhenCandidatesComplete?: string;
     };
 
 export type OrderedBotBuildFallbacks = {
@@ -47,6 +68,7 @@ export type OrderedBotEvolverConversionPlan = {
 export type OrderedBotBuildPlan = {
   buildOrder: OrderedBotBuildStep[];
   endLoop?: OrderedBotEndLoopStep[];
+  endLoopProgress?: 'fleet_counts';
   fallbacks?: OrderedBotBuildFallbacks;
   manualBridgeLimits?: Partial<Record<string, number>>;
   evolverConversions?: OrderedBotEvolverConversionPlan;
@@ -108,9 +130,27 @@ export type QuantumMysticSelectionPolicy = {
   mode: QuantumMysticSelectionMode;
 };
 
+export type CommittedBotBuildGroupProgress = {
+  planId: BotPlanId;
+  groupKey: string;
+  branchId: string;
+  shipDefId: string;
+  startingCount: number;
+  targetCount: number;
+};
+
+export type BotPlanProgress = {
+  committedBuildGroup: CommittedBotBuildGroupProgress;
+};
+
 export type SeatController =
   | { kind: 'human' }
-  | { kind: 'bot'; speciesId: BotSpeciesId | null; chosenPlanId: BotPlanId | null };
+  | {
+      kind: 'bot';
+      speciesId: BotSpeciesId | null;
+      chosenPlanId: BotPlanId | null;
+      planProgress?: BotPlanProgress;
+    };
 
 export type AuthoredBotPlan = {
   id: BotPlanId;

@@ -113,7 +113,10 @@ function validateSolarPolicy(
       !isRecord(candidate) ||
       !hasOnlyKeys(candidate, ['minSelfHealth', 'maxCastsPerDeclaration']) ||
       !isNonNegativeSafeInteger(candidate.minSelfHealth) ||
-      !isPositiveSafeInteger(candidate.maxCastsPerDeclaration)
+      !(
+        candidate.maxCastsPerDeclaration === 'uncapped' ||
+        isPositiveSafeInteger(candidate.maxCastsPerDeclaration)
+      )
     ) {
       return { ok: false, reason: 'invalid_black_hole_policy' };
     }
@@ -375,7 +378,10 @@ export function planAncientChargeDeclaration(args: {
 
       for (
         let castCount = 0;
-        castCount < blackHolePolicy.maxCastsPerDeclaration &&
+        (
+          blackHolePolicy.maxCastsPerDeclaration === 'uncapped' ||
+          castCount < blackHolePolicy.maxCastsPerDeclaration
+        ) &&
         canAfford(remainingEnergy, BLACK_HOLE_SOLAR_COST);
         castCount += 1
       ) {

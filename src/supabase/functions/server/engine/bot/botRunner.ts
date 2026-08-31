@@ -19,8 +19,13 @@ import { getXeniteBotPlanById } from './xenitePlans.ts';
 import {
   chooseAncientOpeningStrategy,
   getAncientBotStrategyById,
+  isDeferredPhase17EAncientStrategyId,
 } from './ancientPlans.ts';
-import { planBotBuildSubmit } from './buildPlanner.ts';
+import { getAncientAuthoredPlanByStrategyId } from './ancientAuthoredPlans.ts';
+import {
+  planBotBuildDecision,
+  planBotBuildSubmit,
+} from './buildPlanner.ts';
 import { completeAncientBuildSubmitPayload } from './ancientBuildPayload.ts';
 import { planAncientChargeDeclaration } from './ancientBotPlanner.ts';
 import type {
@@ -1039,7 +1044,9 @@ function buildBotIntent(args: {
   }
 
   let plan: AuthoredBotPlan | null = null;
-  if (!isAncientBot && isAuthoredBotPlanRequiredPhase(phaseKey)) {
+  if (isAncientBot && ancientStrategy) {
+    plan = getAncientAuthoredPlanByStrategyId(ancientStrategy.id);
+  } else if (!isAncientBot && isAuthoredBotPlanRequiredPhase(phaseKey)) {
     const resolvedPlan = resolveBotPlan(controller);
     if ('debugReason' in resolvedPlan) {
       return resolvedPlan;
@@ -1074,15 +1081,21 @@ function buildBotIntent(args: {
 
   if (
     isAncientBot &&
+    controller.chosenPlanId === null &&
     isAuthoredBotPlanRequiredPhase(phaseKey) &&
-    phaseKey !== 'build.dice_roll' &&
-    !(phaseKey === 'battle.charge_declaration' && ancientStrategy)
+    phaseKey !== 'build.dice_roll'
   ) {
-    return {
-      debugReason: controller.chosenPlanId === null
-        ? 'unresolved_ancient_strategy_outside_drawing'
-        : 'ancient_gameplay_deferred_after_phase_17a',
-    };
+    return { debugReason: 'unresolved_ancient_strategy_outside_drawing' };
+  }
+
+  if (
+    isAncientBot &&
+    ancientStrategy &&
+    !plan &&
+    (phaseKey === 'build.drawing' || phaseKey === FIRST_STRIKE_PHASE_KEY) &&
+    isDeferredPhase17EAncientStrategyId(ancientStrategy.id)
+  ) {
+    return { debugReason: 'ancient_strategy_deferred_phase_17e' };
   }
 
   if (phaseKey === 'build.drawing') {
@@ -1110,11 +1123,35 @@ function buildBotIntent(args: {
       };
     }
 
+    let plannedBuildPayload: BuildSubmitPayload;
+    if (isAncientBot) {
+      const buildDecision = planBotBuildDecision(
+        state,
+        playerId,
+        plan,
+        controller.planProgress,
+      );
+      if (!buildDecision.ok) {
+        return {
+          debugReason: `ancient_build_planning_failed:${buildDecision.reason}`,
+        };
+      }
+      if (buildDecision.proposedPlanProgressUpdate?.kind === 'set') {
+        controller.planProgress =
+          buildDecision.proposedPlanProgressUpdate.progress;
+      } else if (buildDecision.proposedPlanProgressUpdate?.kind === 'clear') {
+        delete controller.planProgress;
+      }
+      plannedBuildPayload = buildDecision.payload;
+    } else {
+      plannedBuildPayload = planBotBuildSubmit(state, playerId, plan);
+    }
+
     const buildSubmitPayloadWithFrigateTriggers = appendFrigateTriggersToBuildSubmit({
       state,
       playerId,
       plan,
-      payload: planBotBuildSubmit(state, playerId, plan),
+      payload: plannedBuildPayload,
     });
     const completedBuildSubmitPayload = completeAncientBuildSubmitPayload({
       state,
@@ -1318,38 +1355,44 @@ export async function runBotsUntilSettled(args: {
             family: openingDecision.family,
             strategyId: openingDecision.strategyId,
           });
-          events.push(createRunnerDebugEvent(
-            player.id,
-            'ancient_strategy_resolved_phase_17a_stop',
+          events.push({
+            type: 'BOT_STRATEGY_RESOLVED',
+            playerId: player.id,
             phaseKey,
-          ));
-          continue;
-        }
-
-        const requesterPrelude = projectDrawingPreludeRequesterSummary(
-          state,
-          player.id,
-        );
-        if (!requesterPrelude) {
-          botIntent = { debugReason: 'invalid_drawing_prelude_state' };
-        } else if (requesterPrelude.status !== 'complete') {
-          botIntent = {
-            debugReason: 'ancient_strategy_save_waiting_for_drawing_prelude',
-          };
+            strategyId: openingDecision.strategyId,
+          });
+          botIntent = buildBotIntent({
+            state,
+            playerId: player.id,
+            phaseKey,
+            loopStep: botStepsApplied,
+          });
         } else {
-          botIntent = {
-            gameId: state.gameId,
-            intentType: 'BUILD_SUBMIT',
-            turnNumber: state?.gameData?.turnNumber ?? 0,
-            payload: { builds: [] },
-            nonce: buildBotNonce({
-              state,
-              phaseKey,
-              loopStep: botStepsApplied,
-              playerId: player.id,
+          const requesterPrelude = projectDrawingPreludeRequesterSummary(
+            state,
+            player.id,
+          );
+          if (!requesterPrelude) {
+            botIntent = { debugReason: 'invalid_drawing_prelude_state' };
+          } else if (requesterPrelude.status !== 'complete') {
+            botIntent = {
+              debugReason: 'ancient_strategy_save_waiting_for_drawing_prelude',
+            };
+          } else {
+            botIntent = {
+              gameId: state.gameId,
               intentType: 'BUILD_SUBMIT',
-            }),
-          };
+              turnNumber: state?.gameData?.turnNumber ?? 0,
+              payload: { builds: [] },
+              nonce: buildBotNonce({
+                state,
+                phaseKey,
+                loopStep: botStepsApplied,
+                playerId: player.id,
+                intentType: 'BUILD_SUBMIT',
+              }),
+            };
+          }
         }
       } else {
         botIntent = buildBotIntent({

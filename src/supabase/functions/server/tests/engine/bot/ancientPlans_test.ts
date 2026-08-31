@@ -41,8 +41,40 @@ Deno.test('Ancient strategy registry exposes eleven stable identities in explici
     assert.equal(registered?.workingName, workingName);
     assert.equal(registered?.speciesId, 'ANC');
     assert.equal('buildGoals' in (registered as unknown as Record<string, unknown>), false);
-    assert.equal('solarPolicy' in (registered as unknown as Record<string, unknown>), false);
+    if (
+      id !== 'anc_big_standard_econ' &&
+      id !== 'anc_sol_reach_black_hole' &&
+      id !== 'anc_vortex_no_simulacrum'
+    ) {
+      assert.equal(
+        'solarPolicy' in (registered as unknown as Record<string, unknown>),
+        false,
+      );
+    }
   }
+
+  assert.deepEqual(
+    getAncientBotStrategyById('anc_big_standard_econ')?.solarPolicy,
+    {
+      blackHole: {
+        minSelfHealth: 12,
+        maxCastsPerDeclaration: 'uncapped',
+      },
+    },
+  );
+  assert.deepEqual(
+    getAncientBotStrategyById('anc_sol_reach_black_hole')?.solarPolicy,
+    {
+      blackHole: {
+        minSelfHealth: 10,
+        maxCastsPerDeclaration: 'uncapped',
+      },
+    },
+  );
+  assert.deepEqual(
+    getAncientBotStrategyById('anc_vortex_no_simulacrum')?.solarPolicy,
+    { vortex: { maxCastsPerDeclaration: 2 } },
+  );
 
   assert.equal(getAncientBotStrategyById('anc_unknown'), null);
 });

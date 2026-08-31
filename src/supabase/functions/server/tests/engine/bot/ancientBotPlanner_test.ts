@@ -319,13 +319,14 @@ Deno.test('Vortex requires valid opt-in and respects affordability and cap', () 
     false,
   );
 
+  const vortexStrategy = getAncientBotStrategyById(
+    'anc_vortex_no_simulacrum',
+  );
+  assert.ok(vortexStrategy);
   const enabled = requirePayload(planAncientChargeDeclaration({
     state,
     playerId: 'bot',
-    strategy: {
-      ...BASE_STRATEGY,
-      solarPolicy: { vortex: { maxCastsPerDeclaration: 3 } },
-    },
+    strategy: vortexStrategy,
   }));
   assert.deepEqual(
     enabled.solarCasts.filter((cast) => cast.solarPowerId === 'SVOR'),
@@ -456,6 +457,58 @@ Deno.test('repeated Black Holes reserve targets and allow later zero-target cast
       { solarPowerId: 'SBLA', targetInstanceIds: ['enemy-def'] },
       { solarPowerId: 'SBLA', targetInstanceIds: [] },
     ],
+  );
+});
+
+Deno.test('production Black Hole policies are explicitly uncapped and health-inclusive', () => {
+  for (const [strategyId, threshold] of [
+    ['anc_big_standard_econ', 12],
+    ['anc_sol_reach_black_hole', 10],
+  ] as const) {
+    const strategy = getAncientBotStrategyById(strategyId);
+    assert.ok(strategy);
+    const eligible = requirePayload(planAncientChargeDeclaration({
+      state: createState({
+        energy: { green: 12, red: 12, blue: 12 },
+        botHealth: threshold,
+      }),
+      playerId: 'bot',
+      strategy,
+    }));
+    assert.equal(
+      eligible.solarCasts.filter((cast) => cast.solarPowerId === 'SBLA').length,
+      3,
+    );
+
+    const below = requirePayload(planAncientChargeDeclaration({
+      state: createState({
+        energy: { green: 12, red: 12, blue: 12 },
+        botHealth: threshold - 1,
+      }),
+      playerId: 'bot',
+      strategy,
+    }));
+    assert.equal(
+      below.solarCasts.some((cast) => cast.solarPowerId === 'SBLA'),
+      false,
+    );
+  }
+
+  assert.deepEqual(
+    planAncientChargeDeclaration({
+      state: createState(),
+      playerId: 'bot',
+      strategy: {
+        ...BASE_STRATEGY,
+        solarPolicy: {
+          blackHole: {
+            minSelfHealth: 10,
+            maxCastsPerDeclaration: 'forever',
+          },
+        },
+      } as unknown as AncientBotStrategy,
+    }),
+    { kind: 'no_input', reason: 'invalid_black_hole_policy' },
   );
 });
 
@@ -590,18 +643,18 @@ Deno.test('runner submits one atomic Ancient declaration as one bot step', async
   );
 });
 
-Deno.test('Phase 17C keeps selected Ancient production First Strike deferred', async () => {
+Deno.test('selected production Ancient plan settles First Strike without a Spiral action', async () => {
   const state = createState();
   state.gameData.currentSubPhase = 'first_strike';
   state.gameData.turnData.currentSubPhase = 'first_strike';
   const result = await runBotsUntilSettled({ state, nowMs: 100 });
-  assert.equal(result.botStepsApplied, 0);
+  assert.equal(result.botStepsApplied, 1);
   assert.equal(
     result.events.some((event: any) =>
       event.type === 'BOT_RUNNER_SKIPPED' &&
-      event.reason === 'ancient_gameplay_deferred_after_phase_17a'
+      event.reason === 'ancient_strategy_deferred_phase_17e'
     ),
-    true,
+    false,
   );
 });
 
@@ -609,19 +662,16 @@ Deno.test('representative lightweight strategies repeat atomic Battle progressio
   const productionStrategyIds = [
     'anc_mer_aggro',
     'anc_spiral_aggro',
+    'anc_cube_red_green',
     'anc_small_econ_siphon',
+    'anc_big_standard_econ',
+    'anc_vortex_no_simulacrum',
+    'anc_cube_quantum_solar_snowball',
   ];
   const strategies: AncientBotStrategy[] = productionStrategyIds.map((id) => {
     const strategy = getAncientBotStrategyById(id);
     assert.ok(strategy);
     return strategy;
-  });
-  strategies.push({
-    ...BASE_STRATEGY,
-    id: 'synthetic-black-hole-capability',
-    solarPolicy: {
-      blackHole: { minSelfHealth: 0, maxCastsPerDeclaration: 1 },
-    },
   });
 
   for (const strategy of strategies) {
@@ -629,7 +679,7 @@ Deno.test('representative lightweight strategies repeat atomic Battle progressio
       const state = createState({
         gameId: `repeat-${strategy.id}`,
         turnNumber,
-        energy: strategy.id === 'synthetic-black-hole-capability'
+        energy: strategy.solarPolicy
           ? { green: 4, red: 4, blue: 4 }
           : { green: 4, red: 4, blue: 0 },
       });
@@ -638,6 +688,10 @@ Deno.test('representative lightweight strategies repeat atomic Battle progressio
         playerId: 'bot',
         strategy,
       }));
+      assert.equal(
+        payload.solarCasts.some((cast) => cast.solarPowerId === 'SSIM'),
+        false,
+      );
       const accepted = await applyIntent(state, 'bot', {
         gameId: state.gameId,
         intentType: 'CHARGE_DECLARATION_SUBMIT',

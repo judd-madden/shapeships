@@ -4,7 +4,7 @@ export type AncientBotStrategyFamily = 'CUB' | 'NEP' | 'SPI' | 'MER';
 
 export type AncientBlackHoleBotPolicy = {
   minSelfHealth: number;
-  maxCastsPerDeclaration: number;
+  maxCastsPerDeclaration: number | 'uncapped';
 };
 
 export type AncientVortexBotPolicy = {
@@ -46,24 +46,43 @@ function strategy(
   id: BotPlanId,
   workingName: string,
   family: AncientBotStrategyFamily,
+  solarPolicy?: AncientBotSolarPolicy,
 ): AncientBotStrategy {
-  return { id, workingName, speciesId: 'ANC', family };
+  return {
+    id,
+    workingName,
+    speciesId: 'ANC',
+    family,
+    ...(solarPolicy ? { solarPolicy } : {}),
+  };
 }
 
 export const ANCIENT_CUB_BOT_STRATEGIES: readonly AncientBotStrategy[] = [
   strategy('anc_cube_red_green', 'Simple Cube Red/Green', 'CUB'),
-  strategy('anc_big_standard_econ', 'Big Standard Econ', 'CUB'),
+  strategy('anc_big_standard_econ', 'Big Standard Econ', 'CUB', {
+    blackHole: {
+      minSelfHealth: 12,
+      maxCastsPerDeclaration: 'uncapped',
+    },
+  }),
   strategy(
     'anc_cube_quantum_solar_snowball',
     'Cube Quantum Solar Snowball',
     'CUB',
   ),
-  strategy('anc_vortex_no_simulacrum', 'Vortex — No Simulacrum', 'CUB'),
+  strategy('anc_vortex_no_simulacrum', 'Vortex — No Simulacrum', 'CUB', {
+    vortex: { maxCastsPerDeclaration: 2 },
+  }),
 ];
 
 export const ANCIENT_NEP_BOT_STRATEGIES: readonly AncientBotStrategy[] = [
   strategy('anc_small_econ_siphon', 'Small Econ Siphon', 'NEP'),
-  strategy('anc_sol_reach_black_hole', 'Sol Reach Black Hole', 'NEP'),
+  strategy('anc_sol_reach_black_hole', 'Sol Reach Black Hole', 'NEP', {
+    blackHole: {
+      minSelfHealth: 10,
+      maxCastsPerDeclaration: 'uncapped',
+    },
+  }),
   strategy('anc_sol_blue_snowball', 'Sol Blue Snowball', 'NEP'),
   strategy('anc_vortex_simulacrum', 'Vortex + Simulacrum', 'NEP'),
   strategy('anc_silly_simulacrum', 'Silly Simulacrum', 'NEP'),
@@ -92,6 +111,17 @@ export const ACTIVE_ANCIENT_BOT_STRATEGIES: readonly AncientBotStrategy[] = [
   ...ANCIENT_SPI_BOT_STRATEGIES,
   ...ANCIENT_MER_BOT_STRATEGIES,
 ];
+
+export const DEFERRED_PHASE_17E_ANCIENT_STRATEGY_IDS = [
+  'anc_vortex_simulacrum',
+  'anc_silly_simulacrum',
+] as const;
+
+export function isDeferredPhase17EAncientStrategyId(
+  strategyId: string,
+): boolean {
+  return DEFERRED_PHASE_17E_ANCIENT_STRATEGY_IDS.some((id) => id === strategyId);
+}
 
 function hashSeed(seed: string): number {
   let hash = 0;

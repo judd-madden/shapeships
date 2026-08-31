@@ -5,8 +5,11 @@ import type {
   AuthoredBotPlan,
   BotAdaptiveBuildRule,
   BotBuildGoal,
+  BotPlanProgress,
+  CommittedBotBuildGroupProgress,
   OrderedBotBuildPlan,
   OrderedBotBuildStep,
+  OrderedBotCommittedHealthGroup,
   OrderedBotEndLoopStep,
 } from './botTypes.ts';
 import {
@@ -63,13 +66,44 @@ type NormalizedOrderedBuildStep = {
   fallbackShipDefIds?: string[];
 };
 
+type NormalizedCommittedHealthGroupStep = {
+  committedHealthGroup: OrderedBotCommittedHealthGroup;
+};
+
+type NormalizedOrderedSequenceStep =
+  | NormalizedOrderedBuildStep
+  | NormalizedCommittedHealthGroupStep;
+
 type NormalizedFirstAffordableEndLoopStep = {
   firstAffordableShipDefIds: string[];
+  targetCountByShipDefId?: Record<string, number>;
+  fallbackShipDefIdWhenCandidatesComplete?: string;
 };
 
 type NormalizedOrderedEndLoopStep =
-  | NormalizedOrderedBuildStep
+  | NormalizedOrderedSequenceStep
   | NormalizedFirstAffordableEndLoopStep;
+
+export type BotPlanProgressUpdate =
+  | { kind: 'set'; progress: BotPlanProgress }
+  | { kind: 'clear' };
+
+export type BotBuildDecision =
+  | {
+      ok: true;
+      payload: BuildSubmitPayload;
+      proposedPlanProgressUpdate?: BotPlanProgressUpdate;
+    }
+  | {
+      ok: false;
+      reason: 'invalid_committed_build_group_progress';
+    };
+
+type BuildPlanProgressContext = {
+  current: CommittedBotBuildGroupProgress | null;
+  proposedUpdate?: BotPlanProgressUpdate;
+  invalid: boolean;
+};
 
 type EvolverTargetChoiceId = 'oxite' | 'asterite';
 
@@ -555,12 +589,73 @@ function isResourceFailureReason(failureReason: DraftFailureReason | undefined):
 
 function normalizeOrderedBuildStep(
   step: OrderedBotBuildStep,
-): NormalizedOrderedBuildStep | null {
+): NormalizedOrderedSequenceStep | null {
   if (typeof step === 'string') {
     return step.trim().length > 0 ? { shipDefId: step.trim() } : null;
   }
 
-  if (!step || typeof step.shipDefId !== 'string' || step.shipDefId.trim().length === 0) {
+  if (!step || typeof step !== 'object') {
+    return null;
+  }
+
+  if ('committedHealthGroup' in step) {
+    const candidate = step.committedHealthGroup;
+    if (
+      !candidate ||
+      typeof candidate.groupKey !== 'string' ||
+      candidate.groupKey.trim().length === 0 ||
+      !Number.isFinite(candidate.selfHealthBelow) ||
+      !candidate.below ||
+      !candidate.atOrAbove ||
+      candidate.below.branchId === candidate.atOrAbove.branchId ||
+      ![candidate.below, candidate.atOrAbove].every((branch) =>
+        typeof branch.branchId === 'string' &&
+        branch.branchId.trim().length > 0 &&
+        typeof branch.shipDefId === 'string' &&
+        branch.shipDefId.trim().length > 0 &&
+        Number.isSafeInteger(branch.count) &&
+        branch.count > 0
+      ) ||
+      (
+        typeof candidate.completionWitnessShipDefId !== 'undefined' &&
+        (
+          typeof candidate.completionWitnessShipDefId !== 'string' ||
+          candidate.completionWitnessShipDefId.trim().length === 0
+        )
+      )
+    ) {
+      return null;
+    }
+
+    return {
+      committedHealthGroup: {
+        ...candidate,
+        groupKey: candidate.groupKey.trim(),
+        below: {
+          ...candidate.below,
+          branchId: candidate.below.branchId.trim(),
+          shipDefId: candidate.below.shipDefId.trim(),
+        },
+        atOrAbove: {
+          ...candidate.atOrAbove,
+          branchId: candidate.atOrAbove.branchId.trim(),
+          shipDefId: candidate.atOrAbove.shipDefId.trim(),
+        },
+        ...(candidate.completionWitnessShipDefId
+          ? {
+            completionWitnessShipDefId:
+              candidate.completionWitnessShipDefId.trim(),
+          }
+          : {}),
+      },
+    };
+  }
+
+  if (
+    !('shipDefId' in step) ||
+    typeof step.shipDefId !== 'string' ||
+    step.shipDefId.trim().length === 0
+  ) {
     return null;
   }
 
@@ -577,14 +672,14 @@ function normalizeOrderedBuildStep(
 
 function normalizeOrderedBuildSteps(
   steps: OrderedBotBuildStep[] | undefined,
-): NormalizedOrderedBuildStep[] {
+): NormalizedOrderedSequenceStep[] {
   if (!Array.isArray(steps)) {
     return [];
   }
 
   return steps
     .map(normalizeOrderedBuildStep)
-    .filter((step): step is NormalizedOrderedBuildStep => step !== null);
+    .filter((step): step is NormalizedOrderedSequenceStep => step !== null);
 }
 
 function normalizeOrderedEndLoopStep(
@@ -603,9 +698,33 @@ function normalizeOrderedEndLoopStep(
         .map((shipDefId) => shipDefId.trim())
       : [];
 
-    return firstAffordableShipDefIds.length > 0
-      ? { firstAffordableShipDefIds }
-      : null;
+    if (firstAffordableShipDefIds.length === 0) {
+      return null;
+    }
+
+    const targetCountByShipDefId = Object.fromEntries(
+      Object.entries(step.targetCountByShipDefId ?? {})
+        .filter(([shipDefId, targetCount]) =>
+          firstAffordableShipDefIds.includes(shipDefId) &&
+          Number.isSafeInteger(targetCount) &&
+          targetCount > 0
+        ),
+    );
+    const fallbackShipDefIdWhenCandidatesComplete =
+      typeof step.fallbackShipDefIdWhenCandidatesComplete === 'string' &&
+        step.fallbackShipDefIdWhenCandidatesComplete.trim().length > 0
+        ? step.fallbackShipDefIdWhenCandidatesComplete.trim()
+        : undefined;
+
+    return {
+      firstAffordableShipDefIds,
+      ...(Object.keys(targetCountByShipDefId).length > 0
+        ? { targetCountByShipDefId }
+        : {}),
+      ...(fallbackShipDefIdWhenCandidatesComplete
+        ? { fallbackShipDefIdWhenCandidatesComplete }
+        : {}),
+    };
   }
 
   return normalizeOrderedBuildStep(step);
@@ -624,9 +743,15 @@ function normalizeOrderedEndLoopSteps(
 }
 
 function isNormalizedOrderedBuildStep(
-  step: NormalizedOrderedEndLoopStep,
+  step: NormalizedOrderedSequenceStep | NormalizedOrderedEndLoopStep,
 ): step is NormalizedOrderedBuildStep {
   return 'shipDefId' in step;
+}
+
+function isNormalizedCommittedHealthGroupStep(
+  step: NormalizedOrderedSequenceStep | NormalizedOrderedEndLoopStep,
+): step is NormalizedCommittedHealthGroupStep {
+  return 'committedHealthGroup' in step;
 }
 
 function isNormalizedFirstAffordableEndLoopStep(
@@ -635,17 +760,103 @@ function isNormalizedFirstAffordableEndLoopStep(
   return 'firstAffordableShipDefIds' in step;
 }
 
+function getCommittedGroupSteps(
+  plan: AuthoredBotPlan,
+): NormalizedCommittedHealthGroupStep[] {
+  return [
+    ...normalizeOrderedBuildSteps(plan.orderedBuildPlan?.buildOrder),
+    ...normalizeOrderedEndLoopSteps(plan.orderedBuildPlan?.endLoop),
+  ].filter(isNormalizedCommittedHealthGroupStep);
+}
+
+function getCommittedGroupBranch(
+  group: OrderedBotCommittedHealthGroup,
+  branchId: string,
+) {
+  if (group.below.branchId === branchId) return group.below;
+  if (group.atOrAbove.branchId === branchId) return group.atOrAbove;
+  return null;
+}
+
+function isCommittedProgressValid(args: {
+  plan: AuthoredBotPlan;
+  progress: CommittedBotBuildGroupProgress;
+}): boolean {
+  const { progress } = args;
+  if (
+    progress.planId !== args.plan.id ||
+    typeof progress.groupKey !== 'string' ||
+    typeof progress.branchId !== 'string' ||
+    typeof progress.shipDefId !== 'string' ||
+    !Number.isSafeInteger(progress.startingCount) ||
+    progress.startingCount < 0 ||
+    !Number.isSafeInteger(progress.targetCount) ||
+    progress.targetCount <= progress.startingCount
+  ) {
+    return false;
+  }
+
+  const step = getCommittedGroupSteps(args.plan).find((candidate) =>
+    candidate.committedHealthGroup.groupKey === progress.groupKey
+  );
+  if (!step) return false;
+
+  const branch = getCommittedGroupBranch(
+    step.committedHealthGroup,
+    progress.branchId,
+  );
+  if (
+    !branch ||
+    branch.shipDefId !== progress.shipDefId ||
+    progress.targetCount !== progress.startingCount + branch.count
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function committedGroupHasCompletionWitness(
+  group: OrderedBotCommittedHealthGroup,
+  authoritativeFleet: WorkingShipEntry[],
+): boolean {
+  return typeof group.completionWitnessShipDefId === 'string' &&
+    countOrderedProgressShips(
+      authoritativeFleet,
+      group.completionWitnessShipDefId,
+    ) > 0;
+}
+
 function isOrderedBuildOrderSatisfied(
-  steps: NormalizedOrderedBuildStep[],
-  workingFleet: WorkingShipEntry[],
+  steps: NormalizedOrderedSequenceStep[],
+  authoritativeFleet: WorkingShipEntry[],
+  committedProgress: CommittedBotBuildGroupProgress | null,
 ): boolean {
   const requiredCounts = new Map<string, number>();
 
   for (const step of steps) {
+    if (isNormalizedCommittedHealthGroupStep(step)) {
+      const group = step.committedHealthGroup;
+      if (committedGroupHasCompletionWitness(group, authoritativeFleet)) {
+        continue;
+      }
+      if (
+        !committedProgress ||
+        committedProgress.groupKey !== group.groupKey ||
+        countWorkingFleetShips(
+          authoritativeFleet,
+          committedProgress.shipDefId,
+        ) < committedProgress.targetCount
+      ) {
+        return false;
+      }
+      continue;
+    }
+
     const requiredCount = (requiredCounts.get(step.shipDefId) ?? 0) + 1;
     requiredCounts.set(step.shipDefId, requiredCount);
 
-    if (countOrderedProgressShips(workingFleet, step.shipDefId) < requiredCount) {
+    if (countOrderedProgressShips(authoritativeFleet, step.shipDefId) < requiredCount) {
       return false;
     }
   }
@@ -729,6 +940,7 @@ function passesAdaptiveBuildRuleHealthThresholds(args: {
 
 function draftAdaptiveBuildRules(args: {
   plan: AuthoredBotPlan;
+  placement: 'before_plan' | 'after_ordered_opening';
   player: any;
   opponent: any;
   workingFleet: WorkingShipEntry[];
@@ -757,6 +969,9 @@ function draftAdaptiveBuildRules(args: {
 
   for (const rule of args.plan.adaptiveBuildRules) {
     if (!rule || typeof rule.shipDefId !== 'string') continue;
+
+    const placement = rule.placement ?? 'before_plan';
+    if (placement !== args.placement) continue;
 
     const shipDefId = rule.shipDefId.trim();
     if (shipDefId.length === 0) continue;
@@ -1685,6 +1900,149 @@ function processOrderedBuildStep(args: {
   };
 }
 
+function proposeCommittedProgress(
+  context: BuildPlanProgressContext,
+  progress: CommittedBotBuildGroupProgress,
+) {
+  context.current = progress;
+  context.proposedUpdate = {
+    kind: 'set',
+    progress: { committedBuildGroup: progress },
+  };
+}
+
+function processCommittedHealthGroupStep(args: {
+  plan: AuthoredBotPlan;
+  step: NormalizedCommittedHealthGroupStep;
+  player: any;
+  authoritativeFleet: WorkingShipEntry[];
+  workingFleet: WorkingShipEntry[];
+  draftCounts: Map<string, number>;
+  draftOrder: string[];
+  nativeSpecies: unknown;
+  progressContext: BuildPlanProgressContext;
+  remainingOrdinaryLines: number;
+  remainingJoiningLines: number;
+}): OrderedBuildStepResult {
+  const group = args.step.committedHealthGroup;
+  const current = args.progressContext.current;
+
+  if (committedGroupHasCompletionWitness(group, args.authoritativeFleet)) {
+    return {
+      blockedBySaveUntilAffordable: false,
+      shouldStopOrderedSequence: false,
+      didDraftPrimaryStep: false,
+      didDraftFallbackOrBridge: false,
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    };
+  }
+
+  let activeProgress = current?.groupKey === group.groupKey ? current : null;
+  const activeAuthoritativeCount = activeProgress
+    ? countWorkingFleetShips(args.authoritativeFleet, activeProgress.shipDefId)
+    : 0;
+
+  if (
+    activeProgress &&
+    activeAuthoritativeCount >= activeProgress.targetCount &&
+    group.repeat !== true
+  ) {
+    return {
+      blockedBySaveUntilAffordable: false,
+      shouldStopOrderedSequence: false,
+      didDraftPrimaryStep: false,
+      didDraftFallbackOrBridge: false,
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    };
+  }
+
+  if (
+    !activeProgress ||
+    (
+      group.repeat === true &&
+      activeAuthoritativeCount >= activeProgress.targetCount
+    )
+  ) {
+    const selfHealth = Number(args.player?.health);
+    if (!Number.isFinite(selfHealth)) {
+      args.progressContext.invalid = true;
+      return {
+        blockedBySaveUntilAffordable: false,
+        shouldStopOrderedSequence: true,
+        didDraftPrimaryStep: false,
+        didDraftFallbackOrBridge: false,
+        remainingOrdinaryLines: args.remainingOrdinaryLines,
+        remainingJoiningLines: args.remainingJoiningLines,
+      };
+    }
+    const branch = selfHealth < group.selfHealthBelow
+      ? group.below
+      : group.atOrAbove;
+    const startingCount = countWorkingFleetShips(
+      args.authoritativeFleet,
+      branch.shipDefId,
+    );
+    activeProgress = {
+      planId: args.plan.id,
+      groupKey: group.groupKey,
+      branchId: branch.branchId,
+      shipDefId: branch.shipDefId,
+      startingCount,
+      targetCount: startingCount + branch.count,
+    };
+    proposeCommittedProgress(args.progressContext, activeProgress);
+  }
+
+  let remainingOrdinaryLines = args.remainingOrdinaryLines;
+  let remainingJoiningLines = args.remainingJoiningLines;
+  let drafted = false;
+  while (
+    countWorkingFleetShips(args.workingFleet, activeProgress.shipDefId) <
+      activeProgress.targetCount
+  ) {
+    const attempt = tryDraftShip({
+      workingFleet: args.workingFleet,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+      nativeSpecies: args.nativeSpecies,
+      shipDefId: activeProgress.shipDefId,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
+    if (!attempt.ok) break;
+
+    drafted = true;
+    remainingOrdinaryLines = attempt.remainingOrdinaryLines;
+    remainingJoiningLines = attempt.remainingJoiningLines;
+  }
+
+  return {
+    blockedBySaveUntilAffordable: false,
+    shouldStopOrderedSequence: true,
+    didDraftPrimaryStep: drafted,
+    didDraftFallbackOrBridge: false,
+    remainingOrdinaryLines,
+    remainingJoiningLines,
+  };
+}
+
+function isFirstAffordableCandidateComplete(args: {
+  step: NormalizedFirstAffordableEndLoopStep;
+  workingFleet: WorkingShipEntry[];
+  shipDefId: string;
+}): boolean {
+  const count = countWorkingFleetShips(args.workingFleet, args.shipDefId);
+  const authoredTarget = args.step.targetCountByShipDefId?.[args.shipDefId];
+  if (typeof authoredTarget === 'number' && count >= authoredTarget) {
+    return true;
+  }
+
+  const canonicalMaximum = getShipById(args.shipDefId)?.maxQuantity;
+  return typeof canonicalMaximum === 'number' && count >= canonicalMaximum;
+}
+
 function processFirstAffordableEndLoopStep(args: {
   step: NormalizedFirstAffordableEndLoopStep;
   workingFleet: WorkingShipEntry[];
@@ -1694,7 +2052,15 @@ function processFirstAffordableEndLoopStep(args: {
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
 }): OrderedBuildStepResult {
-  for (const shipDefId of args.step.firstAffordableShipDefIds) {
+  const eligibleShipDefIds = args.step.firstAffordableShipDefIds.filter((shipDefId) =>
+    !isFirstAffordableCandidateComplete({
+      step: args.step,
+      workingFleet: args.workingFleet,
+      shipDefId,
+    })
+  );
+
+  for (const shipDefId of eligibleShipDefIds) {
     const attempt = tryDraftShip({
       workingFleet: args.workingFleet,
       draftCounts: args.draftCounts,
@@ -1717,6 +2083,31 @@ function processFirstAffordableEndLoopStep(args: {
     }
   }
 
+  if (
+    eligibleShipDefIds.length === 0 &&
+    args.step.fallbackShipDefIdWhenCandidatesComplete
+  ) {
+    const attempt = tryDraftShip({
+      workingFleet: args.workingFleet,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+      nativeSpecies: args.nativeSpecies,
+      shipDefId: args.step.fallbackShipDefIdWhenCandidatesComplete,
+      remainingOrdinaryLines: args.remainingOrdinaryLines,
+      remainingJoiningLines: args.remainingJoiningLines,
+    });
+    if (attempt.ok) {
+      return {
+        blockedBySaveUntilAffordable: false,
+        shouldStopOrderedSequence: false,
+        didDraftPrimaryStep: true,
+        didDraftFallbackOrBridge: false,
+        remainingOrdinaryLines: attempt.remainingOrdinaryLines,
+        remainingJoiningLines: attempt.remainingJoiningLines,
+      };
+    }
+  }
+
   return {
     blockedBySaveUntilAffordable: false,
     shouldStopOrderedSequence: true,
@@ -1725,6 +2116,75 @@ function processFirstAffordableEndLoopStep(args: {
     remainingOrdinaryLines: args.remainingOrdinaryLines,
     remainingJoiningLines: args.remainingJoiningLines,
   };
+}
+
+function getFleetProgressEndLoopStartIndex(args: {
+  buildOrderSteps: NormalizedOrderedSequenceStep[];
+  endLoopSteps: NormalizedOrderedEndLoopStep[];
+  authoritativeFleet: WorkingShipEntry[];
+}): number {
+  if (
+    args.endLoopSteps.length === 0 ||
+    args.endLoopSteps.some((step) => !isNormalizedOrderedBuildStep(step))
+  ) {
+    return 0;
+  }
+
+  const openingCounts = new Map<string, number>();
+  for (const step of args.buildOrderSteps) {
+    if (!isNormalizedOrderedBuildStep(step)) continue;
+    openingCounts.set(
+      step.shipDefId,
+      (openingCounts.get(step.shipDefId) ?? 0) + 1,
+    );
+  }
+
+  const occurrencesPerCycle = new Map<string, number>();
+  for (const step of args.endLoopSteps) {
+    if (!isNormalizedOrderedBuildStep(step)) continue;
+    occurrencesPerCycle.set(
+      step.shipDefId,
+      (occurrencesPerCycle.get(step.shipDefId) ?? 0) + 1,
+    );
+  }
+
+  const loopCounts = new Map<string, number>();
+  for (const [shipDefId] of occurrencesPerCycle) {
+    loopCounts.set(
+      shipDefId,
+      Math.max(
+        0,
+        countOrderedProgressShips(args.authoritativeFleet, shipDefId) -
+          (openingCounts.get(shipDefId) ?? 0),
+      ),
+    );
+  }
+
+  const completedCycles = Math.min(
+    ...[...occurrencesPerCycle.entries()].map(([shipDefId, occurrences]) =>
+      Math.floor((loopCounts.get(shipDefId) ?? 0) / occurrences)
+    ),
+  );
+  const residualCounts = new Map<string, number>();
+  for (const [shipDefId, occurrences] of occurrencesPerCycle) {
+    residualCounts.set(
+      shipDefId,
+      (loopCounts.get(shipDefId) ?? 0) - completedCycles * occurrences,
+    );
+  }
+
+  const requiredResidualCounts = new Map<string, number>();
+  for (let index = 0; index < args.endLoopSteps.length; index += 1) {
+    const step = args.endLoopSteps[index];
+    if (!isNormalizedOrderedBuildStep(step)) return 0;
+    const required = (requiredResidualCounts.get(step.shipDefId) ?? 0) + 1;
+    requiredResidualCounts.set(step.shipDefId, required);
+    if ((residualCounts.get(step.shipDefId) ?? 0) < required) {
+      return index;
+    }
+  }
+
+  return 0;
 }
 
 function planOrderedBuildSubmit(args: {
@@ -1737,6 +2197,7 @@ function planOrderedBuildSubmit(args: {
   draftCounts: Map<string, number>;
   draftOrder: string[];
   nativeSpecies: unknown;
+  progressContext: BuildPlanProgressContext;
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
 }): BuildSubmitPayload {
@@ -1745,6 +2206,7 @@ function planOrderedBuildSubmit(args: {
   const shouldUseEndLoop = isOrderedBuildOrderSatisfied(
     buildOrderSteps,
     args.authoritativeFleet,
+    args.progressContext.current,
   );
   const openingRequiredCounts = new Map<string, number>();
   const evolverChoices: EvolverBuildChoiceEntry[] = [];
@@ -1756,6 +2218,32 @@ function planOrderedBuildSubmit(args: {
 
   if (!shouldUseEndLoop) {
     for (const step of buildOrderSteps) {
+      if (isNormalizedCommittedHealthGroupStep(step)) {
+        const result = processCommittedHealthGroupStep({
+          plan: args.plan,
+          step,
+          player: args.player,
+          authoritativeFleet: args.authoritativeFleet,
+          workingFleet: args.workingFleet,
+          draftCounts: args.draftCounts,
+          draftOrder: args.draftOrder,
+          nativeSpecies: args.nativeSpecies,
+          progressContext: args.progressContext,
+          remainingOrdinaryLines,
+          remainingJoiningLines,
+        });
+        remainingOrdinaryLines = result.remainingOrdinaryLines;
+        remainingJoiningLines = result.remainingJoiningLines;
+        if (
+          args.progressContext.invalid ||
+          result.blockedBySaveUntilAffordable ||
+          result.shouldStopOrderedSequence
+        ) {
+          break;
+        }
+        continue;
+      }
+
       const requiredCount = (openingRequiredCounts.get(step.shipDefId) ?? 0) + 1;
       openingRequiredCounts.set(step.shipDefId, requiredCount);
 
@@ -1787,6 +2275,36 @@ function planOrderedBuildSubmit(args: {
       }
     }
   } else {
+    const adaptiveDraft = draftAdaptiveBuildRules({
+      plan: args.plan,
+      placement: 'after_ordered_opening',
+      player: args.player,
+      opponent: args.opponent,
+      workingFleet: args.workingFleet,
+      draftCounts: args.draftCounts,
+      draftOrder: args.draftOrder,
+      nativeSpecies: args.nativeSpecies,
+      remainingOrdinaryLines,
+      remainingJoiningLines,
+    });
+    remainingOrdinaryLines = adaptiveDraft.remainingOrdinaryLines;
+    remainingJoiningLines = adaptiveDraft.remainingJoiningLines;
+    if (adaptiveDraft.blockedBySaveUntilAffordable) {
+      return buildSubmitFromDraft(
+        args.draftOrder,
+        args.draftCounts,
+        evolverChoices,
+      );
+    }
+
+    const fleetProgressStartIndex =
+      args.orderedPlan.endLoopProgress === 'fleet_counts'
+        ? getFleetProgressEndLoopStartIndex({
+          buildOrderSteps,
+          endLoopSteps,
+          authoritativeFleet: args.authoritativeFleet,
+        })
+        : 0;
     for (
       let passIndex = 0;
       passIndex < MAX_ORDERED_END_LOOP_PASSES_PER_SUBMIT;
@@ -1795,7 +2313,11 @@ function planOrderedBuildSubmit(args: {
       let draftedInPass = false;
       let stoppedByBlock = false;
 
-      for (let stepIndex = 0; stepIndex < endLoopSteps.length; stepIndex += 1) {
+      for (
+        let stepIndex = passIndex === 0 ? fleetProgressStartIndex : 0;
+        stepIndex < endLoopSteps.length;
+        stepIndex += 1
+      ) {
         const step = endLoopSteps[stepIndex];
         const ordinaryStep = isNormalizedOrderedBuildStep(step) ? step : null;
         const opportunisticUpgradeResult =
@@ -1828,6 +2350,20 @@ function planOrderedBuildSubmit(args: {
             evolverChoices,
             manualBridgeDraftCounts,
             nativeSpecies: args.nativeSpecies,
+            remainingOrdinaryLines,
+            remainingJoiningLines,
+          });
+        } else if (isNormalizedCommittedHealthGroupStep(step)) {
+          result = processCommittedHealthGroupStep({
+            plan: args.plan,
+            step,
+            player: args.player,
+            authoritativeFleet: args.authoritativeFleet,
+            workingFleet: args.workingFleet,
+            draftCounts: args.draftCounts,
+            draftOrder: args.draftOrder,
+            nativeSpecies: args.nativeSpecies,
+            progressContext: args.progressContext,
             remainingOrdinaryLines,
             remainingJoiningLines,
           });
@@ -1952,10 +2488,11 @@ function draftGoals(args: {
   };
 }
 
-export function planBotBuildSubmit(
+function planBotBuildPayload(
   state: any,
   botPlayerId: string,
   plan: AuthoredBotPlan,
+  progressContext: BuildPlanProgressContext,
 ): BuildSubmitPayload {
   const players = state?.players ?? [];
   const player = players.find((entry: any) => entry?.id === botPlayerId);
@@ -1974,6 +2511,7 @@ export function planBotBuildSubmit(
 
   const adaptiveDraft = draftAdaptiveBuildRules({
     plan,
+    placement: 'before_plan',
     player,
     opponent,
     workingFleet,
@@ -2001,6 +2539,7 @@ export function planBotBuildSubmit(
       draftCounts,
       draftOrder,
       nativeSpecies,
+      progressContext,
       remainingOrdinaryLines,
       remainingJoiningLines,
     });
@@ -2071,6 +2610,69 @@ export function planBotBuildSubmit(
     draftCounts,
     evolverChoices,
   );
+}
+
+export function planBotBuildDecision(
+  state: any,
+  botPlayerId: string,
+  plan: AuthoredBotPlan,
+  currentPlanProgress?: BotPlanProgress,
+): BotBuildDecision {
+  const authoritativeFleet = buildWorkingFleet(
+    state?.gameData?.ships?.[botPlayerId] ?? [],
+  );
+  let current: CommittedBotBuildGroupProgress | null = null;
+  if (typeof currentPlanProgress !== 'undefined') {
+    if (
+      !currentPlanProgress ||
+      typeof currentPlanProgress !== 'object' ||
+      !currentPlanProgress.committedBuildGroup ||
+      !isCommittedProgressValid({
+        plan,
+        progress: currentPlanProgress.committedBuildGroup,
+      })
+    ) {
+      return {
+        ok: false,
+        reason: 'invalid_committed_build_group_progress',
+      };
+    }
+    current = currentPlanProgress.committedBuildGroup;
+  }
+
+  const progressContext: BuildPlanProgressContext = {
+    current,
+    invalid: false,
+  };
+  const payload = planBotBuildPayload(
+    state,
+    botPlayerId,
+    plan,
+    progressContext,
+  );
+  if (progressContext.invalid) {
+    return {
+      ok: false,
+      reason: 'invalid_committed_build_group_progress',
+    };
+  }
+
+  return {
+    ok: true,
+    payload,
+    ...(progressContext.proposedUpdate
+      ? { proposedPlanProgressUpdate: progressContext.proposedUpdate }
+      : {}),
+  };
+}
+
+export function planBotBuildSubmit(
+  state: any,
+  botPlayerId: string,
+  plan: AuthoredBotPlan,
+): BuildSubmitPayload {
+  const decision = planBotBuildDecision(state, botPlayerId, plan);
+  return decision.ok ? decision.payload : { builds: [] };
 }
 
 export function planHumanBuildSubmit(

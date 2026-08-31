@@ -346,6 +346,111 @@ Deno.test('fresh constructors and join/role routes persist canonical state with 
   assert.ok(rematchState.gameData.ancient);
 });
 
+Deno.test('controller committed-plan progress persists internally and is redacted from state projections', async () => {
+  const fixture = createGameRouteFixture();
+  const state = createSetupState('controller-progress-private');
+  state.players.push({
+    id: 'bot',
+    name: 'Computer',
+    role: 'player',
+    faction: 'ancient',
+    isReady: false,
+    isActive: true,
+    health: 25,
+    lines: 3,
+    joiningLines: 0,
+  } as any);
+  state.players.push({
+    id: 'spectator',
+    name: 'Spectator',
+    role: 'spectator',
+    faction: null,
+    isReady: false,
+    isActive: true,
+    health: 25,
+    lines: 0,
+    joiningLines: 0,
+  } as any);
+  (state.gameData.ships as Record<string, any[]>).bot = [];
+  (state as any).controllersByPlayerId = {
+    p1: { kind: 'human' },
+    bot: {
+      kind: 'bot',
+      speciesId: 'ANC',
+      chosenPlanId: 'anc_cube_red_green',
+      planProgress: {
+        committedBuildGroup: {
+          planId: 'anc_cube_red_green',
+          groupKey: 'core_trio',
+          branchId: 'mer',
+          shipDefId: 'MER',
+          startingCount: 0,
+          targetCount: 3,
+        },
+      },
+    },
+  };
+  (state.gameData as any).controllersByPlayerId = structuredClone(
+    (state as any).controllersByPlayerId,
+  );
+  fixture.store.set('game_controller-progress-private', structuredClone(state));
+
+  const getState = fixture.app.handler(
+    'GET',
+    '/make-server-825e19ab/game-state/:gameId',
+  );
+  const body = await responseJson(await getState(createContext({
+    params: { gameId: 'controller-progress-private' },
+  })));
+
+  assert.equal(
+    fixture.store.get('game_controller-progress-private')
+      .controllersByPlayerId.bot.planProgress.committedBuildGroup.branchId,
+    'mer',
+  );
+  assert.equal(
+    fixture.store.get('game_controller-progress-private')
+      .controllersByPlayerId.p1.kind,
+    'human',
+  );
+  assert.deepEqual(body.controllersByPlayerId.p1, { kind: 'player' });
+  assert.equal('planProgress' in body.controllersByPlayerId.bot, false);
+  assert.equal(
+    'planProgress' in body.gameData.controllersByPlayerId.bot,
+    false,
+  );
+  assert.equal(
+    'planProgress' in body.publicState.controllersByPlayerId.bot,
+    false,
+  );
+  assert.deepEqual(body.publicState.controllersByPlayerId.bot, {
+    kind: 'bot',
+    speciesId: 'ANC',
+    chosenPlanId: 'anc_cube_red_green',
+  });
+
+  fixture.setSessionId('spectator');
+  const spectatorBody = await responseJson(await getState(createContext({
+    params: { gameId: 'controller-progress-private' },
+  })));
+  assert.equal(
+    'planProgress' in spectatorBody.controllersByPlayerId.bot,
+    false,
+  );
+  assert.equal(
+    'planProgress' in spectatorBody.gameData.controllersByPlayerId.bot,
+    false,
+  );
+  assert.equal(
+    'planProgress' in spectatorBody.publicState.controllersByPlayerId.bot,
+    false,
+  );
+  assert.deepEqual(
+    spectatorBody.publicState.controllersByPlayerId.p1,
+    { kind: 'player' },
+  );
+});
+
 Deno.test('/game-state projects curated Ancient data without writes and preserves existing privacy filters', async () => {
   const fixture = createGameRouteFixture();
   const setupState: any = createSetupState();
