@@ -1,7 +1,12 @@
 import { EffectKind } from '../../engine_shared/effects/Effect.ts';
-import { getValidDestroyTargets } from '../../engine_shared/resolve/destroyRules.ts';
+import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
+import {
+  getValidDestroyTargets,
+  isCanonicalBasicOnlyTargetShip,
+} from '../../engine_shared/resolve/destroyRules.ts';
 import { BLACK_HOLE_SOLAR_COST } from '../ancient/blackHoleSolarPower.ts';
 import { resolveSolarCastSequence } from '../ancient/manualSolarDeclaration.ts';
+import { SIMULACRUM_SOLAR_RESOLVER } from '../ancient/simulacrumSolarPower.ts';
 import {
   buildMonoColourAutocastCasts,
   PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
@@ -24,11 +29,17 @@ import {
 import type { AncientEnergyPool } from '../state/GameStateTypes.ts';
 import type {
   AncientBlackHoleBotPolicy,
+  AncientSimulacrumActivationFleetGoal,
+  AncientSimulacrumBotPolicy,
   AncientBotStrategy,
   AncientVortexBotPolicy,
 } from './ancientPlans.ts';
+import type { BotPlanProgress } from './botTypes.ts';
 import { planDamageHealChargeActions } from './botPowerPlanning.ts';
-import { compareTargetsHighestTactical } from './botTargeting.ts';
+import {
+  compareTacticalTargetValues,
+  compareTargetsHighestTactical,
+} from './botTargeting.ts';
 
 export type AncientChargeDeclarationNoInputReason =
   | 'invalid_phase'
@@ -42,6 +53,8 @@ export type AncientChargeDeclarationNoInputReason =
   | 'invalid_solar_policy'
   | 'invalid_black_hole_policy'
   | 'invalid_vortex_policy'
+  | 'invalid_simulacrum_policy'
+  | 'invalid_simulacrum_progress'
   | 'invalid_player_health'
   | 'solar_evaluation_failed';
 
@@ -58,6 +71,15 @@ export type AncientChargeDeclarationPlanResult =
 type ValidatedSolarPolicy = {
   blackHole?: AncientBlackHoleBotPolicy;
   vortex?: AncientVortexBotPolicy;
+  simulacrum?: AncientSimulacrumBotPolicy;
+};
+
+type SimulacrumCandidate = {
+  targetInstanceId: string;
+  shipDefId: string;
+  totalLineCost: number;
+  chargesCurrent: number;
+  hasChargeMechanic: boolean;
 };
 
 const ENERGY_COLOURS = ['green', 'red', 'blue'] as const;
@@ -90,6 +112,24 @@ function hasOnlyKeys(
   return Object.keys(value).every((key) => allowed.has(key));
 }
 
+function validateSimulacrumActivationFleetGoal(
+  value: unknown,
+): AncientSimulacrumActivationFleetGoal | null {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, ['shipDefId', 'targetCount']) ||
+    typeof value.shipDefId !== 'string' ||
+    value.shipDefId.length === 0 ||
+    !isPositiveSafeInteger(value.targetCount)
+  ) {
+    return null;
+  }
+  return {
+    shipDefId: value.shipDefId,
+    targetCount: value.targetCount,
+  };
+}
+
 function validateSolarPolicy(
   strategy: AncientBotStrategy,
 ):
@@ -101,7 +141,7 @@ function validateSolarPolicy(
   }
   if (
     !isRecord(rawPolicy) ||
-    !hasOnlyKeys(rawPolicy, ['blackHole', 'vortex'])
+    !hasOnlyKeys(rawPolicy, ['blackHole', 'vortex', 'simulacrum'])
   ) {
     return { ok: false, reason: 'invalid_solar_policy' };
   }
@@ -132,7 +172,10 @@ function validateSolarPolicy(
     if (
       !isRecord(candidate) ||
       !hasOnlyKeys(candidate, ['maxCastsPerDeclaration']) ||
-      !isPositiveSafeInteger(candidate.maxCastsPerDeclaration)
+      !(
+        candidate.maxCastsPerDeclaration === 'uncapped' ||
+        isPositiveSafeInteger(candidate.maxCastsPerDeclaration)
+      )
     ) {
       return { ok: false, reason: 'invalid_vortex_policy' };
     }
@@ -141,13 +184,213 @@ function validateSolarPolicy(
     };
   }
 
+  let simulacrum: AncientSimulacrumBotPolicy | undefined;
+  if (typeof rawPolicy.simulacrum !== 'undefined') {
+    const candidate = rawPolicy.simulacrum;
+    if (!isRecord(candidate) || typeof candidate.mode !== 'string') {
+      return { ok: false, reason: 'invalid_simulacrum_policy' };
+    }
+    const activationFleetGoal = typeof candidate.activationFleetGoal ===
+        'undefined'
+      ? undefined
+      : validateSimulacrumActivationFleetGoal(
+        candidate.activationFleetGoal,
+      );
+    if (
+      typeof candidate.activationFleetGoal !== 'undefined' &&
+      !activationFleetGoal
+    ) {
+      return { ok: false, reason: 'invalid_simulacrum_policy' };
+    }
+
+    if (candidate.mode === 'staged_cost_goals') {
+      if (
+        !hasOnlyKeys(candidate, [
+          'mode',
+          'costGoals',
+          'activationFleetGoal',
+        ]) ||
+        !Array.isArray(candidate.costGoals) ||
+        candidate.costGoals.length === 0 ||
+        !candidate.costGoals.every(isPositiveSafeInteger)
+      ) {
+        return { ok: false, reason: 'invalid_simulacrum_policy' };
+      }
+      simulacrum = {
+        mode: 'staged_cost_goals',
+        costGoals: [...candidate.costGoals],
+        ...(activationFleetGoal ? { activationFleetGoal } : {}),
+      };
+    } else if (candidate.mode === 'highest_value_highest_charge') {
+      if (
+        !hasOnlyKeys(candidate, [
+          'mode',
+          'maxCastsPerDeclaration',
+          'excludeDepletedChargedTargets',
+          'activationFleetGoal',
+        ]) ||
+        !(
+          candidate.maxCastsPerDeclaration === 'while_legal_affordable' ||
+          isPositiveSafeInteger(candidate.maxCastsPerDeclaration)
+        ) ||
+        candidate.excludeDepletedChargedTargets !== true
+      ) {
+        return { ok: false, reason: 'invalid_simulacrum_policy' };
+      }
+      simulacrum = {
+        mode: 'highest_value_highest_charge',
+        maxCastsPerDeclaration: candidate.maxCastsPerDeclaration,
+        excludeDepletedChargedTargets: true,
+        ...(activationFleetGoal ? { activationFleetGoal } : {}),
+      };
+    } else {
+      return { ok: false, reason: 'invalid_simulacrum_policy' };
+    }
+  }
+
   return {
     ok: true,
     policy: {
       ...(blackHole ? { blackHole } : {}),
       ...(vortex ? { vortex } : {}),
+      ...(simulacrum ? { simulacrum } : {}),
     },
   };
+}
+
+function getStagedCompletedGoalCount(args: {
+  strategy: AncientBotStrategy;
+  policy: Extract<AncientSimulacrumBotPolicy, { mode: 'staged_cost_goals' }>;
+  planProgress?: BotPlanProgress;
+}): number | null {
+  const progress = args.planProgress?.simulacrum;
+  if (typeof progress === 'undefined') return 0;
+  if (
+    !isRecord(progress) ||
+    !hasOnlyKeys(progress, [
+      'strategyId',
+      'completedGoalCount',
+      'openingComplete',
+    ]) ||
+    progress.strategyId !== args.strategy.id ||
+    !isNonNegativeSafeInteger(progress.completedGoalCount) ||
+    progress.completedGoalCount > args.policy.costGoals.length ||
+    progress.openingComplete !==
+      (progress.completedGoalCount === args.policy.costGoals.length)
+  ) {
+    return null;
+  }
+  return progress.completedGoalCount;
+}
+
+function getOpponentSnapshotCandidates(args: {
+  state: any;
+  playerId: string;
+}): SimulacrumCandidate[] {
+  const opponent = (args.state?.players ?? []).find((candidate: any) =>
+    candidate?.role === 'player' && candidate?.id !== args.playerId
+  );
+  if (typeof opponent?.id !== 'string') return [];
+  const snapshot = args.state?.gameData?.turnData
+    ?.chargeDeclarationFleetSnapshotByPlayerId?.[opponent.id];
+  if (!Array.isArray(snapshot)) return [];
+
+  const candidates: SimulacrumCandidate[] = [];
+  for (const ship of snapshot) {
+    if (
+      typeof ship?.instanceId !== 'string' ||
+      typeof ship?.shipDefId !== 'string' ||
+      !isCanonicalBasicOnlyTargetShip(ship.shipDefId)
+    ) {
+      continue;
+    }
+    const definition = getShipById(ship.shipDefId);
+    if (
+      !definition ||
+      !isPositiveSafeInteger(definition.totalLineCost)
+    ) {
+      continue;
+    }
+    const hasChargeMechanic = typeof definition.charges === 'number' &&
+      Number.isFinite(definition.charges);
+    candidates.push({
+      targetInstanceId: ship.instanceId,
+      shipDefId: ship.shipDefId,
+      totalLineCost: definition.totalLineCost,
+      chargesCurrent: isNonNegativeSafeInteger(ship.chargesCurrent)
+        ? ship.chargesCurrent
+        : 0,
+      hasChargeMechanic,
+    });
+  }
+  return candidates;
+}
+
+function isSimulacrumActivationFleetGoalSatisfied(args: {
+  state: any;
+  playerId: string;
+  policy: AncientSimulacrumBotPolicy;
+}): boolean {
+  const goal = args.policy.activationFleetGoal;
+  if (!goal) return true;
+  const snapshot = args.state?.gameData?.turnData
+    ?.chargeDeclarationFleetSnapshotByPlayerId?.[args.playerId];
+  if (!Array.isArray(snapshot)) return false;
+  let matchingCount = 0;
+  for (const ship of snapshot) {
+    if (ship?.shipDefId !== goal.shipDefId) continue;
+    matchingCount += 1;
+    if (matchingCount >= goal.targetCount) return true;
+  }
+  return false;
+}
+
+function compareSimulacrumCandidates(
+  left: SimulacrumCandidate,
+  right: SimulacrumCandidate,
+): number {
+  return compareTacticalTargetValues(
+    {
+      totalLineCost: left.totalLineCost,
+      chargesCurrent: left.chargesCurrent,
+      instanceId: left.targetInstanceId,
+    },
+    {
+      totalLineCost: right.totalLineCost,
+      chargesCurrent: right.chargesCurrent,
+      instanceId: right.targetInstanceId,
+    },
+  );
+}
+
+function trialSimulacrumCandidate(args: {
+  state: any;
+  playerId: string;
+  declarationId: string;
+  battleTurnNumber: number;
+  energy: AncientEnergyPool;
+  candidate: SimulacrumCandidate;
+  castIndex: number;
+}): ReturnType<typeof resolveSolarCastSequence> | null {
+  try {
+    return resolveSolarCastSequence({
+      state: args.state,
+      playerId: args.playerId,
+      declarationId: args.declarationId,
+      battleTurnNumber: args.battleTurnNumber,
+      initialEnergy: args.energy,
+      casts: [{
+        solarPowerId: 'SSIM',
+        targetInstanceId: args.candidate.targetInstanceId,
+      }],
+      resolvers: { SSIM: SIMULACRUM_SOLAR_RESOLVER },
+      sourceMode: 'manual',
+      initialLedgerOrder: args.castIndex,
+      initialCastIndex: args.castIndex,
+    });
+  } catch {
+    return null;
+  }
 }
 
 function readCurrentEnergy(args: {
@@ -280,6 +523,7 @@ export function planAncientChargeDeclaration(args: {
   state: any;
   playerId: string;
   strategy: AncientBotStrategy;
+  planProgress?: BotPlanProgress;
 }): AncientChargeDeclarationPlanResult {
   const { state, playerId, strategy } = args;
   if (getPhaseKey(state) !== 'battle.charge_declaration') {
@@ -340,12 +584,122 @@ export function planAncientChargeDeclaration(args: {
     `bot:${state.gameId}:${battleTurnNumber}:${playerId}:ancient-charge:v1`;
   const remainingEnergy = { ...initialEnergy };
   const solarCasts: SolarCastPayload[] = [];
+  let solarEvaluationState = legalityState;
+
+  const simulacrumPolicy = validatedPolicy.policy.simulacrum;
+  let stagedCompletedGoalCount = 0;
+  if (simulacrumPolicy?.mode === 'staged_cost_goals') {
+    const completedGoalCount = getStagedCompletedGoalCount({
+      strategy,
+      policy: simulacrumPolicy,
+      planProgress: args.planProgress,
+    });
+    if (completedGoalCount === null) {
+      return { kind: 'no_input', reason: 'invalid_simulacrum_progress' };
+    }
+    stagedCompletedGoalCount = completedGoalCount;
+  }
+  if (
+    simulacrumPolicy &&
+    isSimulacrumActivationFleetGoalSatisfied({
+      state: legalityState,
+      playerId,
+      policy: simulacrumPolicy,
+    })
+  ) {
+    const snapshotCandidates = getOpponentSnapshotCandidates({
+      state: legalityState,
+      playerId,
+    });
+
+    if (simulacrumPolicy.mode === 'staged_cost_goals') {
+      for (
+        let goalIndex = stagedCompletedGoalCount;
+        goalIndex < simulacrumPolicy.costGoals.length;
+        goalIndex += 1
+      ) {
+        const goalCost = simulacrumPolicy.costGoals[goalIndex];
+        const orderedCandidates = snapshotCandidates
+          .filter((candidate) =>
+            candidate.totalLineCost === goalCost &&
+            candidate.totalLineCost <= remainingEnergy.blue
+          )
+          .sort(compareSimulacrumCandidates);
+        let accepted = false;
+        for (const candidate of orderedCandidates) {
+          const trial = trialSimulacrumCandidate({
+            state: solarEvaluationState,
+            playerId,
+            declarationId,
+            battleTurnNumber,
+            energy: remainingEnergy,
+            candidate,
+            castIndex: solarCasts.length,
+          });
+          if (!trial) continue;
+          solarCasts.push({
+            solarPowerId: 'SSIM',
+            targetInstanceId: candidate.targetInstanceId,
+          });
+          solarEvaluationState = trial.state;
+          Object.assign(remainingEnergy, trial.remainingEnergy);
+          accepted = true;
+          break;
+        }
+        if (!accepted) break;
+      }
+    } else {
+      const orderedCandidates = snapshotCandidates
+        .filter((candidate) =>
+          candidate.totalLineCost <= remainingEnergy.blue &&
+          !(
+            simulacrumPolicy.excludeDepletedChargedTargets &&
+            candidate.hasChargeMechanic &&
+            candidate.chargesCurrent === 0
+          )
+        )
+        .sort(compareSimulacrumCandidates);
+      const maximumCasts =
+        simulacrumPolicy.maxCastsPerDeclaration === 'while_legal_affordable'
+          ? Number.POSITIVE_INFINITY
+          : simulacrumPolicy.maxCastsPerDeclaration;
+
+      for (let castCount = 0; castCount < maximumCasts; castCount += 1) {
+        let accepted = false;
+        for (const candidate of orderedCandidates) {
+          if (candidate.totalLineCost > remainingEnergy.blue) continue;
+          const trial = trialSimulacrumCandidate({
+            state: solarEvaluationState,
+            playerId,
+            declarationId,
+            battleTurnNumber,
+            energy: remainingEnergy,
+            candidate,
+            castIndex: solarCasts.length,
+          });
+          if (!trial) continue;
+          solarCasts.push({
+            solarPowerId: 'SSIM',
+            targetInstanceId: candidate.targetInstanceId,
+          });
+          solarEvaluationState = trial.state;
+          Object.assign(remainingEnergy, trial.remainingEnergy);
+          accepted = true;
+          break;
+        }
+        if (!accepted) break;
+      }
+    }
+  }
 
   const vortexPolicy = validatedPolicy.policy.vortex;
   if (vortexPolicy) {
     for (
       let castCount = 0;
-      castCount < vortexPolicy.maxCastsPerDeclaration &&
+      (
+        vortexPolicy.maxCastsPerDeclaration === 'uncapped' ||
+        castCount < vortexPolicy.maxCastsPerDeclaration
+      ) &&
       canAfford(remainingEnergy, VORTEX_SOLAR_COST);
       castCount += 1
     ) {
@@ -403,7 +757,7 @@ export function planAncientChargeDeclaration(args: {
 
   try {
     const siphonSpend = chooseSiphonSpend({
-      state,
+      state: solarEvaluationState,
       playerId,
       declarationId,
       battleTurnNumber,

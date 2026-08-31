@@ -34,6 +34,10 @@ export type OrderedBotCommittedHealthGroup = {
   completionWitnessShipDefId?: string;
 };
 
+export type OrderedBotProgressGate = {
+  progressGate: 'simulacrum_opening_complete';
+};
+
 export type OrderedBotBuildStep =
   | string
   | {
@@ -43,7 +47,8 @@ export type OrderedBotBuildStep =
     }
   | {
       committedHealthGroup: OrderedBotCommittedHealthGroup;
-    };
+    }
+  | OrderedBotProgressGate;
 
 export type OrderedBotEndLoopStep =
   | OrderedBotBuildStep
@@ -87,10 +92,15 @@ export type CarrierPriorityGoal = {
   targetCount: number;
 };
 
-export type CarrierDrawingPreludePolicy = {
-  priorityGoals?: CarrierPriorityGoal[];
-  fallbackChoiceId?: CarrierChoiceId;
-};
+export type CarrierDrawingPreludePolicy =
+  | {
+      mode?: 'priority';
+      priorityGoals?: CarrierPriorityGoal[];
+      fallbackChoiceId?: CarrierChoiceId;
+    }
+  | {
+      mode: 'deterministic_seeded_legal_choice';
+    };
 
 export type DamageHealChargePolicy = {
   preferDamageWhen?: 'default';
@@ -139,8 +149,15 @@ export type CommittedBotBuildGroupProgress = {
   targetCount: number;
 };
 
+export type AncientSimulacrumBotProgress = {
+  strategyId: BotPlanId;
+  completedGoalCount: number;
+  openingComplete: boolean;
+};
+
 export type BotPlanProgress = {
-  committedBuildGroup: CommittedBotBuildGroupProgress;
+  committedBuildGroup?: CommittedBotBuildGroupProgress;
+  simulacrum?: AncientSimulacrumBotProgress;
 };
 
 export type SeatController =
@@ -194,6 +211,9 @@ export type AuthoredBotPlan = {
   };
   evolverPolicy?: {
     EVO?: EvolverPolicy;
+  };
+  opportunisticForeignUpgrades?: {
+    mode: 'highest_total_line_cost';
   };
   notes?: string;
 };

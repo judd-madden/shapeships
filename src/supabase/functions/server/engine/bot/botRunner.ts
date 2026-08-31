@@ -13,13 +13,14 @@ import {
   getValidTransferTargets,
 } from '../../engine_shared/resolve/destroyRules.ts';
 import { isThirdSpiralFirstStrikeEligible } from '../../engine_shared/resolve/thirdSpiralFirstStrikeEligibility.ts';
+import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { getCentaurBotPlanById } from './centaurPlans.ts';
 import { getHumanBotPlanById } from './humanPlans.ts';
 import { getXeniteBotPlanById } from './xenitePlans.ts';
 import {
   chooseAncientOpeningStrategy,
   getAncientBotStrategyById,
-  isDeferredPhase17EAncientStrategyId,
+  type AncientBotStrategy,
 } from './ancientPlans.ts';
 import { getAncientAuthoredPlanByStrategyId } from './ancientAuthoredPlans.ts';
 import {
@@ -30,6 +31,7 @@ import { completeAncientBuildSubmitPayload } from './ancientBuildPayload.ts';
 import { planAncientChargeDeclaration } from './ancientBotPlanner.ts';
 import type {
   AuthoredBotPlan,
+  BotPlanProgress,
   BotSpeciesId,
   CarrierChoiceId,
   FrigateTriggerPolicy,
@@ -413,6 +415,7 @@ export function chooseCarrierDrawingPreludeChoiceId(args: {
   playerId: string;
   plan: AuthoredBotPlan;
   legalChoiceIds: CarrierChoiceId[];
+  sourceInstanceId?: string;
 }): CarrierChoiceId | null {
   const { state, playerId, plan, legalChoiceIds } = args;
   if (legalChoiceIds.length === 0) {
@@ -421,6 +424,33 @@ export function chooseCarrierDrawingPreludeChoiceId(args: {
 
   const legalChoiceIdSet = new Set<CarrierChoiceId>(legalChoiceIds);
   const carrierPolicy = plan?.drawingPrelude?.CAR;
+
+  if (carrierPolicy?.mode === 'deterministic_seeded_legal_choice') {
+    const nonHoldChoices = [...legalChoiceIdSet]
+      .filter((choiceId): choiceId is Exclude<CarrierChoiceId, 'hold'> =>
+        choiceId !== 'hold'
+      )
+      .sort((left, right) => left.localeCompare(right));
+    if (nonHoldChoices.length === 0) {
+      return legalChoiceIdSet.has('hold') ? 'hold' : null;
+    }
+    if (nonHoldChoices.length === 1) return nonHoldChoices[0];
+    if (
+      typeof state?.gameId !== 'string' ||
+      !Number.isInteger(state?.gameData?.turnNumber) ||
+      typeof args.sourceInstanceId !== 'string' ||
+      args.sourceInstanceId.length === 0
+    ) {
+      return null;
+    }
+    const seed =
+      `${state.gameId}:${state.gameData.turnNumber}:${args.sourceInstanceId}:carrier-choice:v1`;
+    let hash = 0;
+    for (let index = 0; index < seed.length; index += 1) {
+      hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+    }
+    return nonHoldChoices[hash % nonHoldChoices.length];
+  }
 
   for (const goal of carrierPolicy?.priorityGoals ?? []) {
     if (!legalChoiceIdSet.has(goal.choiceId)) {
@@ -683,6 +713,7 @@ export function buildDrawingPreludeCarrierIntentForBot(args: {
           playerId,
           plan,
           legalChoiceIds,
+          sourceInstanceId: projected.sourceInstanceId,
         })
       : chooseDefaultCarrierChoiceId({ state, playerId, legalChoiceIds });
     if (!choiceId || !legalChoiceIds.includes(choiceId)) return null;
@@ -1088,16 +1119,6 @@ function buildBotIntent(args: {
     return { debugReason: 'unresolved_ancient_strategy_outside_drawing' };
   }
 
-  if (
-    isAncientBot &&
-    ancientStrategy &&
-    !plan &&
-    (phaseKey === 'build.drawing' || phaseKey === FIRST_STRIKE_PHASE_KEY) &&
-    isDeferredPhase17EAncientStrategyId(ancientStrategy.id)
-  ) {
-    return { debugReason: 'ancient_strategy_deferred_phase_17e' };
-  }
-
   if (phaseKey === 'build.drawing') {
     if (!plan) {
       return { debugReason: 'missing_matching_plan' };
@@ -1225,6 +1246,7 @@ function buildBotIntent(args: {
       state,
       playerId,
       strategy: ancientStrategy,
+      planProgress: controller.planProgress,
     });
     if (declarationPlan.kind === 'no_input') {
       return {
@@ -1288,6 +1310,111 @@ function buildBotIntent(args: {
       intentType: 'DECLARE_READY',
     }),
   };
+}
+
+export function advanceAcceptedStagedSimulacrumProgress(args: {
+  state: any;
+  playerId: string;
+  strategy: AncientBotStrategy;
+  declarationId: string;
+}): void {
+  const policy = args.strategy.solarPolicy?.simulacrum;
+  if (policy?.mode !== 'staged_cost_goals') return;
+  const controller = args.state?.controllersByPlayerId?.[args.playerId];
+  if (controller?.kind !== 'bot') return;
+
+  const accepted = args.state?.gameData?.ancient
+    ?.acceptedDeclarationByPlayerId?.[args.playerId];
+  if (
+    accepted?.declarationId !== args.declarationId ||
+    !Array.isArray(accepted?.solarCasts)
+  ) {
+    return;
+  }
+
+  const currentProgress = controller.planProgress?.simulacrum;
+  let completedGoalCount = 0;
+  if (typeof currentProgress !== 'undefined') {
+    if (
+      currentProgress?.strategyId !== args.strategy.id ||
+      !Number.isSafeInteger(currentProgress?.completedGoalCount) ||
+      currentProgress.completedGoalCount < 0 ||
+      currentProgress.completedGoalCount > policy.costGoals.length ||
+      currentProgress.openingComplete !==
+        (currentProgress.completedGoalCount === policy.costGoals.length)
+    ) {
+      return;
+    }
+    completedGoalCount = currentProgress.completedGoalCount;
+  }
+  if (completedGoalCount >= policy.costGoals.length) return;
+
+  const ledgerEntries = args.state?.gameData?.ancient
+    ?.solarLedgerByPlayerId?.[args.playerId]?.entries;
+  const pendingCopies = args.state?.gameData?.ancient
+    ?.pendingSimulacrumCopies;
+  if (!Array.isArray(ledgerEntries) || !Array.isArray(pendingCopies)) return;
+
+  const usedPendingCopyIds = new Set<string>();
+  const acceptedPrimaryEntries = ledgerEntries
+    .filter((entry: any) =>
+      entry?.solarPowerId === 'SSIM' &&
+      entry?.sourceMode === 'manual' &&
+      entry?.simulacrum &&
+      Number.isSafeInteger(entry?.order)
+    )
+    .sort((left: any, right: any) => left.order - right.order)
+    .flatMap((entry: any) => {
+      const acceptedCast = accepted.solarCasts.find((cast: any) =>
+        cast?.solarPowerId === 'SSIM' &&
+        cast?.targetInstanceId === entry.simulacrum.sourceTargetInstanceId
+      );
+      if (!acceptedCast) return [];
+      const pending = pendingCopies.find((record: any) =>
+        record?.declarationId === args.declarationId &&
+        record?.ownerPlayerId === args.playerId &&
+        record?.sourceMode === 'primary' &&
+        record?.queueOrder === entry.order &&
+        record?.sourceTargetInstanceId ===
+          entry.simulacrum.sourceTargetInstanceId &&
+        record?.copiedShipDefId === entry.simulacrum.copiedShipDefId &&
+        typeof record?.pendingCopyId === 'string' &&
+        !usedPendingCopyIds.has(record.pendingCopyId)
+      );
+      if (!pending) return [];
+      usedPendingCopyIds.add(pending.pendingCopyId);
+      return [{ pending }];
+    });
+
+  for (const { pending } of acceptedPrimaryEntries) {
+    if (completedGoalCount >= policy.costGoals.length) break;
+    const definition = getShipById(pending.copiedShipDefId);
+    if (
+      !definition ||
+      definition.totalLineCost !== policy.costGoals[completedGoalCount]
+    ) {
+      break;
+    }
+    completedGoalCount += 1;
+  }
+
+  if (
+    completedGoalCount === (currentProgress?.completedGoalCount ?? 0) &&
+    typeof currentProgress !== 'undefined'
+  ) {
+    return;
+  }
+  if (completedGoalCount === 0) return;
+
+  const nextProgress: BotPlanProgress = {
+    ...(controller.planProgress ?? {}),
+    simulacrum: {
+      strategyId: args.strategy.id,
+      completedGoalCount,
+      openingComplete: completedGoalCount === policy.costGoals.length,
+    },
+  };
+  controller.planProgress = nextProgress;
 }
 
 export async function runBotsUntilSettled(args: {
@@ -1440,6 +1567,22 @@ export async function runBotsUntilSettled(args: {
       }
 
       state = result.state;
+      if (botIntent.intentType === 'CHARGE_DECLARATION_SUBMIT') {
+        const acceptedController = state?.controllersByPlayerId?.[player.id];
+        const acceptedStrategy =
+          typeof acceptedController?.chosenPlanId === 'string'
+            ? getAncientBotStrategyById(acceptedController.chosenPlanId)
+            : null;
+        const declarationId = (botIntent.payload as any)?.declarationId;
+        if (acceptedStrategy && typeof declarationId === 'string') {
+          advanceAcceptedStagedSimulacrumProgress({
+            state,
+            playerId: player.id,
+            strategy: acceptedStrategy,
+            declarationId,
+          });
+        }
+      }
       events.push(...result.events);
       botStepsApplied += 1;
       actionAppliedThisPass = true;

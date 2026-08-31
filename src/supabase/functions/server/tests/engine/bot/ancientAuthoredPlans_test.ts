@@ -33,6 +33,7 @@ function state(args: {
   health?: number;
   lines?: number;
   ships?: any[];
+  opponentFaction?: string;
 }) {
   return {
     players: [
@@ -47,7 +48,7 @@ function state(args: {
       {
         id: 'opponent',
         role: 'player',
-        faction: 'human',
+        faction: args.opponentFaction ?? 'human',
         health: 25,
         lines: 0,
         joiningLines: 0,
@@ -71,8 +72,8 @@ function plan(id: string) {
   return resolved;
 }
 
-Deno.test('Phase 17D authored registry has exact parity and leaves Phase 17E deferred', () => {
-  assert.equal(ACTIVE_ANCIENT_AUTHORED_PLANS.length, 9);
+Deno.test('Phase 17E authored registry has exact parity across all eleven strategies', () => {
+  assert.equal(ACTIVE_ANCIENT_AUTHORED_PLANS.length, 11);
   assert.deepEqual(
     ACTIVE_ANCIENT_AUTHORED_PLANS.map((entry) => entry.id),
     [
@@ -83,6 +84,8 @@ Deno.test('Phase 17D authored registry has exact parity and leaves Phase 17E def
       'anc_small_econ_siphon',
       'anc_sol_reach_black_hole',
       'anc_sol_blue_snowball',
+      'anc_vortex_simulacrum',
+      'anc_silly_simulacrum',
       'anc_spiral_aggro',
       'anc_mer_aggro',
     ],
@@ -94,8 +97,6 @@ Deno.test('Phase 17D authored registry has exact parity and leaves Phase 17E def
     assert.equal(authored.speciesId, 'ANC');
     assert.equal(strategyIds.has(authored.id), true);
   }
-  assert.equal(getAncientAuthoredPlanByStrategyId('anc_vortex_simulacrum'), null);
-  assert.equal(getAncientAuthoredPlanByStrategyId('anc_silly_simulacrum'), null);
   assert.equal(getAncientAuthoredPlanByStrategyId('anc_unknown'), null);
 });
 
@@ -142,6 +143,127 @@ Deno.test('Phase 17D fixed openings, loops, QUA, and SPI policies match authored
   assert.deepEqual(plan('anc_vortex_no_simulacrum').targetPolicy, {
     SPI: { mode: 'highest_cost_basic' },
   });
+  assert.deepEqual(ordered('anc_vortex_simulacrum')?.buildOrder, [
+    'NEP', 'NEP', 'NEP',
+    { progressGate: 'simulacrum_opening_complete' },
+    'PLU', 'PLU',
+    'MER', 'MER',
+    'QUA', 'SPI', 'SOL',
+    'PLU', 'PLU', 'PLU',
+    'NEP',
+    'MER', 'MER',
+  ]);
+  assert.deepEqual(ordered('anc_vortex_simulacrum')?.endLoop, ['SOL']);
+  assert.deepEqual(plan('anc_vortex_simulacrum').quantumMysticPolicy, {
+    QUA: { mode: 'match_effective_dice' },
+  });
+  assert.deepEqual(ordered('anc_silly_simulacrum')?.buildOrder, [
+    'NEP', 'NEP', 'NEP', 'NEP', 'NEP', 'NEP',
+    'SPI', 'SPI', 'SPI',
+    'PLU', 'PLU', 'PLU',
+  ]);
+  assert.deepEqual(ordered('anc_silly_simulacrum')?.endLoop, ['SOL']);
+  assert.deepEqual(plan('anc_silly_simulacrum').drawingPrelude, {
+    CAR: { mode: 'deterministic_seeded_legal_choice' },
+  });
+  assert.deepEqual(plan('anc_silly_simulacrum').opportunisticForeignUpgrades, {
+    mode: 'highest_total_line_cost',
+  });
+});
+
+Deno.test('Vortex Simulacrum build shell pauses after NEP x3 until durable opening progress completes', () => {
+  const vortexPlan = plan('anc_vortex_simulacrum');
+  const openingState = state({
+    lines: 20,
+    ships: fleet({ NEP: 3 }),
+  });
+  assert.deepEqual(
+    planBotBuildSubmit(openingState, 'bot', vortexPlan),
+    { builds: [] },
+  );
+
+  const partial = planBotBuildDecision(openingState, 'bot', vortexPlan, {
+    simulacrum: {
+      strategyId: vortexPlan.id,
+      completedGoalCount: 1,
+      openingComplete: false,
+    },
+  });
+  assert.equal(partial.ok, true);
+  if (partial.ok) assert.deepEqual(partial.payload, { builds: [] });
+
+  const complete = planBotBuildDecision(openingState, 'bot', vortexPlan, {
+    simulacrum: {
+      strategyId: vortexPlan.id,
+      completedGoalCount: 2,
+      openingComplete: true,
+    },
+  });
+  assert.equal(complete.ok, true);
+  if (complete.ok) {
+    assert.deepEqual(expandedBuilds(complete.payload), [
+      'PLU', 'PLU', 'MER', 'MER', 'QUA',
+    ]);
+  }
+});
+
+Deno.test('Silly Simulacrum directly drafts one Human, Xenite, or Centaur upgrade then resumes its plan', () => {
+  const sillyPlan = plan('anc_silly_simulacrum');
+  for (const scenario of [
+    {
+      opponentFaction: 'human',
+      components: [ship('DEF', 1), ship('FIG', 1)],
+      lines: 10,
+      expectedUpgrade: 'FRI',
+    },
+    {
+      opponentFaction: 'xenite',
+      components: [ship('XEN', 1), ship('XEN', 2), ship('XEN', 3)],
+      lines: 10,
+      expectedUpgrade: 'DSW',
+    },
+    {
+      opponentFaction: 'centaur',
+      components: [ship('FEA', 1), ship('FEA', 2)],
+      lines: 9,
+      expectedUpgrade: 'TER',
+    },
+  ]) {
+    const decision = planBotBuildSubmit(
+      state({
+        lines: scenario.lines,
+        ships: scenario.components,
+        opponentFaction: scenario.opponentFaction,
+      }),
+      'bot',
+      sillyPlan,
+    );
+    assert.deepEqual(
+      expandedBuilds(decision),
+      [scenario.expectedUpgrade, 'NEP'],
+    );
+    assert.equal(
+      decision.builds.some((build) =>
+        scenario.components.some((component) =>
+          component.shipDefId === build.shipDefId
+        )
+      ),
+      false,
+    );
+  }
+});
+
+Deno.test('Silly Simulacrum skips higher-ranked incomplete foreign upgrades for a directly legal lower upgrade', () => {
+  const decision = planBotBuildSubmit(
+    state({
+      lines: 3,
+      ships: [ship('DEF', 1), ship('FIG', 1)],
+      opponentFaction: 'human',
+    }),
+    'bot',
+    plan('anc_silly_simulacrum'),
+  );
+  assert.deepEqual(decision.builds, [{ shipDefId: 'FRI', count: 1 }]);
 });
 
 Deno.test('committed Cube trio is pure, survives saving, and ignores later health changes', () => {
@@ -194,7 +316,7 @@ Deno.test('committed Cube trio is pure, survives saving, and ignores later healt
     assert.deepEqual(expandedBuilds(nextGroup.payload), ['PLU', 'PLU', 'PLU']);
     assert.equal(
       nextGroup.proposedPlanProgressUpdate?.kind === 'set' &&
-        nextGroup.proposedPlanProgressUpdate.progress.committedBuildGroup.branchId,
+        nextGroup.proposedPlanProgressUpdate.progress.committedBuildGroup!.branchId,
       'plu',
     );
   }
@@ -227,7 +349,7 @@ Deno.test('Sol Reach locks the PLU target selected at stage entry', () => {
   assert.deepEqual(expandedBuilds(selected.payload), ['PLU']);
   assert.equal(
     selected.proposedPlanProgressUpdate?.kind === 'set' &&
-      selected.proposedPlanProgressUpdate.progress.committedBuildGroup.targetCount,
+      selected.proposedPlanProgressUpdate.progress.committedBuildGroup!.targetCount,
     6,
   );
 
@@ -290,7 +412,7 @@ Deno.test('Sol Reach locks the PLU target selected at stage entry', () => {
   if (healthy.ok) {
     assert.equal(
       healthy.proposedPlanProgressUpdate?.kind === 'set' &&
-        healthy.proposedPlanProgressUpdate.progress.committedBuildGroup.targetCount,
+        healthy.proposedPlanProgressUpdate.progress.committedBuildGroup!.targetCount,
       3,
     );
   }

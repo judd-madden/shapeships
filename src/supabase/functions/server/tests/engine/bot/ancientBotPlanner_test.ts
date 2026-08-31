@@ -6,12 +6,15 @@ import type {
   AncientBotStrategy,
 } from '../../../engine/bot/ancientPlans.ts';
 import { getAncientBotStrategyById } from '../../../engine/bot/ancientPlans.ts';
+import { getAncientAuthoredPlanByStrategyId } from '../../../engine/bot/ancientAuthoredPlans.ts';
+import { planBotBuildDecision } from '../../../engine/bot/buildPlanner.ts';
 import {
   planDamageHealChargeActions,
 } from '../../../engine/bot/botPowerPlanning.ts';
 import { runBotsUntilSettled } from '../../../engine/bot/botRunner.ts';
 import { getHumanBotPlanById } from '../../../engine/bot/humanPlans.ts';
 import { applyIntent } from '../../../engine/intent/IntentReducer.ts';
+import { materializeQueuedSimulacrumCopiesAtTurnStart } from '../../../engine/ancient/simulacrumSolarPower.ts';
 import {
   replaceChargeDeclarationVisibilityState,
 } from '../../../engine/state/chargeDeclarationVisibility.ts';
@@ -148,6 +151,13 @@ function requirePayload(
   assert.fail(`Expected declaration payload, received ${result.reason}`);
 }
 
+function nepFleet(count: number, prefix = 'nep') {
+  return Array.from({ length: count }, (_, index) => ({
+    instanceId: `${prefix}-${index}`,
+    shipDefId: 'NEP',
+  }));
+}
+
 Deno.test('Ancient baseline declaration uses stable identity and authoritative Autocast', () => {
   const state = createState();
   const before = structuredClone(state);
@@ -246,6 +256,30 @@ Deno.test('present malformed Solar policies are diagnostic configuration failure
     [
       { vortex: { maxCastsPerDeclaration: 1.5 } },
       'invalid_vortex_policy',
+    ],
+    [
+      { simulacrum: { mode: 'staged_cost_goals', costGoals: [] } },
+      'invalid_simulacrum_policy',
+    ],
+    [
+      {
+        simulacrum: {
+          mode: 'staged_cost_goals',
+          costGoals: [2, 3],
+          activationFleetGoal: { shipDefId: 'NEP', targetCount: 0 },
+        },
+      },
+      'invalid_simulacrum_policy',
+    ],
+    [
+      {
+        simulacrum: {
+          mode: 'highest_value_highest_charge',
+          maxCastsPerDeclaration: 'until_blue_exhausted',
+          excludeDepletedChargedTargets: true,
+        },
+      },
+      'invalid_simulacrum_policy',
     ],
   ] as const;
 
@@ -618,6 +652,343 @@ Deno.test('high blue Energy never creates a Simulacrum path', () => {
   }));
   assert.equal(payload.solarCasts.some((cast) => cast.solarPowerId === 'SSIM'), false);
   assert.deepEqual(payload.solarCasts, []);
+});
+
+Deno.test('Vortex Simulacrum activates its staged opening only at authoritative NEP x3', () => {
+  const strategy = getAncientBotStrategyById('anc_vortex_simulacrum');
+  assert.ok(strategy);
+  const beforeOpening = requirePayload(planAncientChargeDeclaration({
+    state: createState({
+      energy: { green: 0, red: 0, blue: 10 },
+      botShips: nepFleet(2, 'vortex-before'),
+      opponentShips: [{ instanceId: 'before-def', shipDefId: 'DEF' }],
+    }),
+    playerId: 'bot',
+    strategy,
+  }));
+  assert.equal(
+    beforeOpening.solarCasts.some((cast) => cast.solarPowerId === 'SSIM'),
+    false,
+  );
+
+  const openingComplete = requirePayload(planAncientChargeDeclaration({
+    state: createState({
+      energy: { green: 0, red: 0, blue: 10 },
+      botShips: nepFleet(3, 'vortex-ready'),
+      opponentShips: [{ instanceId: 'ready-def', shipDefId: 'DEF' }],
+    }),
+    playerId: 'bot',
+    strategy,
+  }));
+  assert.deepEqual(
+    openingComplete.solarCasts.filter((cast) =>
+      cast.solarPowerId === 'SSIM'
+    ),
+    [{ solarPowerId: 'SSIM', targetInstanceId: 'ready-def' }],
+  );
+});
+
+Deno.test('Silly Simulacrum activates aggressive casting only at authoritative NEP x6', () => {
+  const strategy = getAncientBotStrategyById('anc_silly_simulacrum');
+  assert.ok(strategy);
+  const beforeOpening = requirePayload(planAncientChargeDeclaration({
+    state: createState({
+      energy: { green: 0, red: 0, blue: 10 },
+      botShips: nepFleet(5, 'silly-before'),
+      opponentShips: [{
+        instanceId: 'before-carrier',
+        shipDefId: 'CAR',
+        chargesCurrent: 4,
+      }],
+    }),
+    playerId: 'bot',
+    strategy,
+  }));
+  assert.equal(
+    beforeOpening.solarCasts.some((cast) => cast.solarPowerId === 'SSIM'),
+    false,
+  );
+
+  const openingComplete = requirePayload(planAncientChargeDeclaration({
+    state: createState({
+      energy: { green: 0, red: 0, blue: 10 },
+      botShips: nepFleet(6, 'silly-ready'),
+      opponentShips: [{
+        instanceId: 'ready-carrier',
+        shipDefId: 'CAR',
+        chargesCurrent: 4,
+      }],
+    }),
+    playerId: 'bot',
+    strategy,
+  }));
+  assert.deepEqual(openingComplete.solarCasts, [{
+    solarPowerId: 'SSIM',
+    targetInstanceId: 'ready-carrier',
+  }]);
+});
+
+Deno.test('Vortex Simulacrum completes ordered 2-cost and 3-cost primary goals before uncapped Vortex', async () => {
+  const strategy = getAncientBotStrategyById('anc_vortex_simulacrum');
+  assert.ok(strategy);
+  const state = createState({
+    energy: { green: 9, red: 9, blue: 9 },
+    botShips: nepFleet(3, 'vortex-main'),
+    opponentShips: [
+      { instanceId: 'fig-z', shipDefId: 'FIG' },
+      { instanceId: 'def-z', shipDefId: 'DEF' },
+      { instanceId: 'def-a', shipDefId: 'DEF' },
+    ],
+    chosenPlanId: strategy.id,
+  });
+  const before = structuredClone(state);
+  const payload = requirePayload(planAncientChargeDeclaration({
+    state,
+    playerId: 'bot',
+    strategy,
+  }));
+  assert.deepEqual(payload.solarCasts.slice(0, 2), [
+    { solarPowerId: 'SSIM', targetInstanceId: 'def-a' },
+    { solarPowerId: 'SSIM', targetInstanceId: 'fig-z' },
+  ]);
+  assert.deepEqual(
+    payload.solarCasts.filter((cast) => cast.solarPowerId === 'SVOR'),
+    [{ solarPowerId: 'SVOR' }, { solarPowerId: 'SVOR' }],
+  );
+  assert.deepEqual(state, before);
+
+  const accepted = await applyIntent(state, 'bot', {
+    gameId: state.gameId,
+    intentType: 'CHARGE_DECLARATION_SUBMIT',
+    turnNumber: 3,
+    payload,
+    nonce: 'staged-simulacrum-accepted',
+  }, 100);
+  assert.equal(accepted.ok, true);
+  if (accepted.ok) {
+    assert.deepEqual(
+      accepted.state.gameData.ancient.pendingSimulacrumCopies.map(
+        (copy: any) => copy.copiedShipDefId,
+      ),
+      ['DEF', 'FIG'],
+    );
+  }
+
+  const runner = await runBotsUntilSettled({
+    state: createState({
+      energy: { green: 0, red: 0, blue: 5 },
+      botShips: Array.from({ length: 3 }, (_, index) => ({
+        instanceId: `runner-nep-${index}`,
+        shipDefId: 'NEP',
+      })),
+      opponentShips: [
+        { instanceId: 'runner-def', shipDefId: 'DEF' },
+        { instanceId: 'runner-fig', shipDefId: 'FIG' },
+      ],
+      chosenPlanId: strategy.id,
+    }),
+    nowMs: 101,
+  });
+  assert.equal(runner.botStepsApplied, 1);
+  assert.deepEqual(
+    runner.state.controllersByPlayerId.bot.planProgress?.simulacrum,
+    {
+      strategyId: strategy.id,
+      completedGoalCount: 2,
+      openingComplete: true,
+    },
+  );
+
+  let copyIndex = 0;
+  const materialized = materializeQueuedSimulacrumCopiesAtTurnStart(
+    runner.state,
+    4,
+    102,
+    () => `runner-copy-${copyIndex++}`,
+  );
+  const materializedState: any = materialized.state;
+  assert.deepEqual(
+    materializedState.gameData.ships.bot
+      .filter((ship: any) => ship.instanceId.startsWith('runner-copy-'))
+      .map((ship: any) => ship.shipDefId),
+    ['DEF', 'FIG'],
+  );
+  materializedState.players.find((player: any) => player.id === 'bot').lines =
+    20;
+  const authoredPlan = getAncientAuthoredPlanByStrategyId(strategy.id);
+  assert.ok(authoredPlan);
+  const continuation = planBotBuildDecision(
+    materializedState,
+    'bot',
+    authoredPlan,
+    materializedState.controllersByPlayerId.bot.planProgress,
+  );
+  assert.equal(continuation.ok, true);
+  if (continuation.ok) {
+    assert.deepEqual(continuation.payload.builds, [
+      { shipDefId: 'PLU', count: 2 },
+      { shipDefId: 'MER', count: 2 },
+      { shipDefId: 'QUA', count: 1 },
+    ]);
+  }
+});
+
+Deno.test('Vortex Simulacrum does not skip an unavailable current staged goal and completed progress disables SSIM', () => {
+  const strategy = getAncientBotStrategyById('anc_vortex_simulacrum');
+  assert.ok(strategy);
+  const blocked = requirePayload(planAncientChargeDeclaration({
+    state: createState({
+      energy: { green: 0, red: 0, blue: 3 },
+      botShips: nepFleet(3, 'vortex-blocked'),
+      opponentShips: [{ instanceId: 'fig-only', shipDefId: 'FIG' }],
+    }),
+    playerId: 'bot',
+    strategy,
+  }));
+  assert.equal(
+    blocked.solarCasts.some((cast) => cast.solarPowerId === 'SSIM'),
+    false,
+  );
+
+  const complete = requirePayload(planAncientChargeDeclaration({
+    state: createState({
+      energy: { green: 2, red: 2, blue: 2 },
+      botShips: nepFleet(3, 'vortex-complete'),
+      opponentShips: [{ instanceId: 'def', shipDefId: 'DEF' }],
+    }),
+    playerId: 'bot',
+    strategy,
+    planProgress: {
+      simulacrum: {
+        strategyId: strategy.id,
+        completedGoalCount: 2,
+        openingComplete: true,
+      },
+    },
+  }));
+  assert.deepEqual(complete.solarCasts, [{ solarPowerId: 'SVOR' }]);
+});
+
+Deno.test('Silly Simulacrum ranks snapshot value and charges, excludes depleted charged targets, and stops with blue remaining', async () => {
+  const strategy = getAncientBotStrategyById('anc_silly_simulacrum');
+  assert.ok(strategy);
+  const state = createState({
+    energy: { green: 0, red: 0, blue: 10 },
+    botShips: nepFleet(6, 'silly-main'),
+    opponentShips: [
+      { instanceId: 'orb', shipDefId: 'ORB' },
+      { instanceId: 'carrier', shipDefId: 'CAR', chargesCurrent: 4 },
+      { instanceId: 'depleted-int', shipDefId: 'INT', chargesCurrent: 0 },
+      { instanceId: 'commander', shipDefId: 'COM' },
+    ],
+    chosenPlanId: strategy.id,
+  });
+  const payload = requirePayload(planAncientChargeDeclaration({
+    state,
+    playerId: 'bot',
+    strategy,
+  }));
+  assert.deepEqual(payload.solarCasts, [
+    { solarPowerId: 'SSIM', targetInstanceId: 'carrier' },
+    { solarPowerId: 'SSIM', targetInstanceId: 'commander' },
+  ]);
+  const accepted = await applyIntent(state, 'bot', {
+    gameId: state.gameId,
+    intentType: 'CHARGE_DECLARATION_SUBMIT',
+    turnNumber: 3,
+    payload,
+    nonce: 'silly-simulacrum-accepted',
+  }, 100);
+  assert.equal(accepted.ok, true);
+
+  const multiTurnRunner = await runBotsUntilSettled({
+    state: createState({
+      energy: { green: 0, red: 0, blue: 6 },
+      botShips: Array.from({ length: 6 }, (_, index) => ({
+        instanceId: `silly-nep-${index}`,
+        shipDefId: 'NEP',
+      })),
+      opponentShips: [{
+        instanceId: 'copied-carrier',
+        shipDefId: 'CAR',
+        chargesCurrent: 4,
+      }],
+      chosenPlanId: strategy.id,
+    }),
+    nowMs: 101,
+  });
+  assert.equal(multiTurnRunner.botStepsApplied, 1);
+  const materializedCarrier = materializeQueuedSimulacrumCopiesAtTurnStart(
+    multiTurnRunner.state,
+    4,
+    102,
+    () => 'silly-copied-carrier',
+  );
+  const materializedCarrierState: any = materializedCarrier.state;
+  assert.equal(
+    materializedCarrierState.gameData.ships.bot.some((ship: any) =>
+      ship.instanceId === 'silly-copied-carrier' && ship.shipDefId === 'CAR'
+    ),
+    true,
+  );
+  materializedCarrierState.players.find((player: any) =>
+    player.id === 'bot'
+  ).lines = 18;
+  const sillyPlan = getAncientAuthoredPlanByStrategyId(strategy.id);
+  assert.ok(sillyPlan);
+  const growth = planBotBuildDecision(
+    materializedCarrierState,
+    'bot',
+    sillyPlan,
+  );
+  assert.equal(growth.ok, true);
+  if (growth.ok) {
+    assert.deepEqual(growth.payload.builds, [{ shipDefId: 'SPI', count: 3 }]);
+  }
+
+  const noDesirableTarget = requirePayload(planAncientChargeDeclaration({
+    state: createState({
+      energy: { green: 0, red: 0, blue: 4 },
+      botShips: nepFleet(6, 'silly-no-target'),
+      opponentShips: [{
+        instanceId: 'depleted-only',
+        shipDefId: 'INT',
+        chargesCurrent: 0,
+      }],
+    }),
+    playerId: 'bot',
+    strategy,
+  }));
+  assert.deepEqual(noDesirableTarget.solarCasts, []);
+  assert.equal(noDesirableTarget.autocastEnabled, true);
+});
+
+Deno.test('Silly Simulacrum trials canonical max quantity with Chronoswarm multiplicity and falls through', () => {
+  const strategy = getAncientBotStrategyById('anc_silly_simulacrum');
+  assert.ok(strategy);
+  const payload = requirePayload(planAncientChargeDeclaration({
+    state: createState({
+      energy: { green: 0, red: 0, blue: 10 },
+      botShips: [
+        ...nepFleet(6, 'silly-chrono'),
+        { instanceId: 'chronoswarm', shipDefId: 'CHR' },
+        ...Array.from({ length: 5 }, (_, index) => ({
+          instanceId: `owned-orb-${index}`,
+          shipDefId: 'ORB',
+        })),
+      ],
+      opponentShips: [
+        { instanceId: 'maxed-orb', shipDefId: 'ORB' },
+        { instanceId: 'fallback-com', shipDefId: 'COM' },
+      ],
+    }),
+    playerId: 'bot',
+    strategy,
+  }));
+  assert.deepEqual(payload.solarCasts, [{
+    solarPowerId: 'SSIM',
+    targetInstanceId: 'fallback-com',
+  }]);
 });
 
 Deno.test('runner submits one atomic Ancient declaration as one bot step', async () => {

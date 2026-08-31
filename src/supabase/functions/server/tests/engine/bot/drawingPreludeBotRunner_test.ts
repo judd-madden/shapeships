@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildDrawingPreludeCarrierIntentForBot,
+  chooseCarrierDrawingPreludeChoiceId,
   MAX_BOT_STEPS_PER_REQUEST,
   runBotsUntilSettled,
 } from '../../../engine/bot/botRunner.ts';
@@ -161,6 +162,54 @@ Deno.test('Drawing-prelude bot intent mirrors projector sources, choices, pass t
     })),
   );
   assert.equal(JSON.stringify(state), before);
+});
+
+Deno.test('seeded Carrier policy chooses stable legal non-Hold production and uses Hold only as fallback', () => {
+  const plan: AuthoredBotPlan = {
+    id: 'test-seeded-carrier',
+    speciesId: 'ANC',
+    buildGoals: [],
+    drawingPrelude: {
+      CAR: { mode: 'deterministic_seeded_legal_choice' },
+    },
+  };
+  const state = {
+    gameId: 'seeded-carrier-game',
+    gameData: { turnNumber: 7 },
+  };
+  const choose = (sourceInstanceId: string) =>
+    chooseCarrierDrawingPreludeChoiceId({
+      state,
+      playerId: 'bot',
+      plan,
+      legalChoiceIds: ['hold', 'fighter', 'defender'],
+      sourceInstanceId,
+    });
+  assert.equal(choose('carrier-a'), choose('carrier-a'));
+  assert.deepEqual(
+    new Set(Array.from({ length: 20 }, (_, index) => choose(`carrier-${index}`))),
+    new Set(['defender', 'fighter']),
+  );
+  assert.equal(
+    chooseCarrierDrawingPreludeChoiceId({
+      state,
+      playerId: 'bot',
+      plan,
+      legalChoiceIds: ['hold', 'fighter'],
+      sourceInstanceId: 'carrier-only',
+    }),
+    'fighter',
+  );
+  assert.equal(
+    chooseCarrierDrawingPreludeChoiceId({
+      state,
+      playerId: 'bot',
+      plan,
+      legalChoiceIds: ['hold'],
+      sourceInstanceId: 'carrier-hold',
+    }),
+    'hold',
+  );
 });
 
 Deno.test('one Human bot submits one Carrier batch and only then submits its Drawing build', async () => {

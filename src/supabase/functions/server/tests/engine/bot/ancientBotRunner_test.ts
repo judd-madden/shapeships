@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import { runBotsUntilSettled } from '../../../engine/bot/botRunner.ts';
+import {
+  advanceAcceptedStagedSimulacrumProgress,
+  runBotsUntilSettled,
+} from '../../../engine/bot/botRunner.ts';
+import { getAncientBotStrategyById } from '../../../engine/bot/ancientPlans.ts';
 import { applyIntent } from '../../../engine/intent/IntentReducer.ts';
 import { getCubeDiceActionForPlayer } from '../../../engine/phase/cubeDiceManipulation.ts';
 import { normalizeAncientGameState } from '../../../engine/state/ancientState.ts';
@@ -357,14 +361,14 @@ Deno.test('Ancient save submits an empty build and later Drawing reassesses accu
     }),
     nowMs: 102,
   });
-  assert.equal(reassessed.botStepsApplied, 0);
+  assert.equal(reassessed.botStepsApplied, 1);
   assert.equal(
     reassessed.state.controllersByPlayerId.bot.chosenPlanId.startsWith('anc_'),
     true,
   );
 });
 
-Deno.test('both Phase 17E chooser strategies persist and stop with the explicit deferral diagnostic', async () => {
+Deno.test('both Phase 17E chooser strategies persist and continue into authored production builds', async () => {
   for (const [gameId, expectedStrategyId] of [
     ['deferred-21', 'anc_vortex_simulacrum'],
     ['deferred-42', 'anc_silly_simulacrum'],
@@ -378,19 +382,143 @@ Deno.test('both Phase 17E chooser strategies persist and stop with the explicit 
       }),
       nowMs: 100,
     });
-    assert.equal(result.botStepsApplied, 0);
+    assert.equal(result.botStepsApplied, 1);
     assert.equal(
       result.state.controllersByPlayerId.bot.chosenPlanId,
       expectedStrategyId,
     );
     assert.equal(
-      result.events.some((event: { type?: string; reason?: string }) =>
-        event.type === 'BOT_RUNNER_SKIPPED' &&
-        event.reason === 'ancient_strategy_deferred_phase_17e'
+      result.events.some((event: { type?: string }) =>
+        event.type === 'BUILD_SUBMITTED'
       ),
       true,
     );
+    assert.deepEqual(
+      result.state.gameData.turnData.commitments.BUILD_1.bot.revealPayload
+        .builds,
+      [{ shipDefId: 'NEP', count: 1 }],
+    );
   }
+});
+
+Deno.test('accepted staged progress counts only ordered manual primary SSIM casts, not copy multiplicity', () => {
+  const strategy = getAncientBotStrategyById('anc_vortex_simulacrum');
+  assert.ok(strategy);
+  const state: any = {
+    controllersByPlayerId: {
+      bot: {
+        kind: 'bot',
+        speciesId: 'ANC',
+        chosenPlanId: strategy.id,
+      },
+    },
+    gameData: {
+      ancient: {
+        acceptedDeclarationByPlayerId: {
+          bot: {
+            declarationId: 'accepted-staged',
+            solarCasts: [
+              { solarPowerId: 'SSIM', targetInstanceId: 'def' },
+              { solarPowerId: 'SSIM', targetInstanceId: 'fig' },
+            ],
+          },
+        },
+        solarLedgerByPlayerId: {
+          bot: {
+            entries: [
+              {
+                order: 0,
+                solarPowerId: 'SSIM',
+                sourceMode: 'manual',
+                simulacrum: {
+                  sourceTargetInstanceId: 'def',
+                  copiedShipDefId: 'DEF',
+                },
+              },
+              {
+                order: 1,
+                solarPowerId: 'SSIM',
+                sourceMode: 'manual',
+                simulacrum: {
+                  sourceTargetInstanceId: 'fig',
+                  copiedShipDefId: 'FIG',
+                },
+              },
+              {
+                order: 2,
+                solarPowerId: 'SSIM',
+                sourceMode: 'autocast',
+                simulacrum: {
+                  sourceTargetInstanceId: 'def',
+                  copiedShipDefId: 'DEF',
+                },
+              },
+            ],
+          },
+        },
+        pendingSimulacrumCopies: [
+          {
+            pendingCopyId: 'primary-def',
+            declarationId: 'accepted-staged',
+            ownerPlayerId: 'bot',
+            sourceTargetInstanceId: 'def',
+            copiedShipDefId: 'DEF',
+            queueOrder: 0,
+            sourceMode: 'primary',
+            materializationMultiplicity: 2,
+          },
+          {
+            pendingCopyId: 'primary-fig',
+            declarationId: 'accepted-staged',
+            ownerPlayerId: 'bot',
+            sourceTargetInstanceId: 'fig',
+            copiedShipDefId: 'FIG',
+            queueOrder: 1,
+            sourceMode: 'primary',
+          },
+        ],
+      },
+    },
+  };
+
+  const mismatched = structuredClone(state);
+  mismatched.gameData.ancient.solarLedgerByPlayerId.bot.entries[0]
+    .simulacrum.copiedShipDefId = 'FIG';
+  mismatched.gameData.ancient.pendingSimulacrumCopies[0].copiedShipDefId =
+    'FIG';
+  advanceAcceptedStagedSimulacrumProgress({
+    state: mismatched,
+    playerId: 'bot',
+    strategy,
+    declarationId: 'accepted-staged',
+  });
+  assert.equal(
+    mismatched.controllersByPlayerId.bot.planProgress,
+    undefined,
+  );
+
+  const rejected = structuredClone(state);
+  advanceAcceptedStagedSimulacrumProgress({
+    state: rejected,
+    playerId: 'bot',
+    strategy,
+    declarationId: 'rejected-staged',
+  });
+  assert.equal(rejected.controllersByPlayerId.bot.planProgress, undefined);
+
+  advanceAcceptedStagedSimulacrumProgress({
+    state,
+    playerId: 'bot',
+    strategy,
+    declarationId: 'accepted-staged',
+  });
+  assert.deepEqual(state.controllersByPlayerId.bot.planProgress, {
+    simulacrum: {
+      strategyId: strategy.id,
+      completedGoalCount: 2,
+      openingComplete: true,
+    },
+  });
 });
 
 Deno.test('all four chooser families continue directly into legal production builds', async () => {

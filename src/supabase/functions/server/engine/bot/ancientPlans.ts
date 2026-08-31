@@ -8,12 +8,31 @@ export type AncientBlackHoleBotPolicy = {
 };
 
 export type AncientVortexBotPolicy = {
-  maxCastsPerDeclaration: number;
+  maxCastsPerDeclaration: number | 'uncapped';
 };
+
+export type AncientSimulacrumActivationFleetGoal = {
+  shipDefId: string;
+  targetCount: number;
+};
+
+export type AncientSimulacrumBotPolicy =
+  | {
+      mode: 'staged_cost_goals';
+      costGoals: readonly number[];
+      activationFleetGoal?: AncientSimulacrumActivationFleetGoal;
+    }
+  | {
+      mode: 'highest_value_highest_charge';
+      maxCastsPerDeclaration: number | 'while_legal_affordable';
+      excludeDepletedChargedTargets: true;
+      activationFleetGoal?: AncientSimulacrumActivationFleetGoal;
+    };
 
 export type AncientBotSolarPolicy = {
   blackHole?: AncientBlackHoleBotPolicy;
   vortex?: AncientVortexBotPolicy;
+  simulacrum?: AncientSimulacrumBotPolicy;
 };
 
 export type AncientBotStrategy = {
@@ -84,8 +103,22 @@ export const ANCIENT_NEP_BOT_STRATEGIES: readonly AncientBotStrategy[] = [
     },
   }),
   strategy('anc_sol_blue_snowball', 'Sol Blue Snowball', 'NEP'),
-  strategy('anc_vortex_simulacrum', 'Vortex + Simulacrum', 'NEP'),
-  strategy('anc_silly_simulacrum', 'Silly Simulacrum', 'NEP'),
+  strategy('anc_vortex_simulacrum', 'Vortex + Simulacrum', 'NEP', {
+    simulacrum: {
+      mode: 'staged_cost_goals',
+      costGoals: [2, 3],
+      activationFleetGoal: { shipDefId: 'NEP', targetCount: 3 },
+    },
+    vortex: { maxCastsPerDeclaration: 'uncapped' },
+  }),
+  strategy('anc_silly_simulacrum', 'Silly Simulacrum', 'NEP', {
+    simulacrum: {
+      mode: 'highest_value_highest_charge',
+      maxCastsPerDeclaration: 'while_legal_affordable',
+      excludeDepletedChargedTargets: true,
+      activationFleetGoal: { shipDefId: 'NEP', targetCount: 6 },
+    },
+  }),
 ];
 
 export const ANCIENT_SPI_BOT_STRATEGIES: readonly AncientBotStrategy[] = [
@@ -111,17 +144,6 @@ export const ACTIVE_ANCIENT_BOT_STRATEGIES: readonly AncientBotStrategy[] = [
   ...ANCIENT_SPI_BOT_STRATEGIES,
   ...ANCIENT_MER_BOT_STRATEGIES,
 ];
-
-export const DEFERRED_PHASE_17E_ANCIENT_STRATEGY_IDS = [
-  'anc_vortex_simulacrum',
-  'anc_silly_simulacrum',
-] as const;
-
-export function isDeferredPhase17EAncientStrategyId(
-  strategyId: string,
-): boolean {
-  return DEFERRED_PHASE_17E_ANCIENT_STRATEGY_IDS.some((id) => id === strategyId);
-}
 
 function hashSeed(seed: string): number {
   let hash = 0;

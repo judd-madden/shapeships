@@ -162,6 +162,58 @@ export const ACTIVE_ANCIENT_AUTHORED_PLANS: readonly AuthoredBotPlan[] = [
     },
   },
   {
+    id: 'anc_vortex_simulacrum',
+    name: 'Vortex + Simulacrum',
+    speciesId: 'ANC',
+    buildGoals: [],
+    loopGoals: [],
+    orderedBuildPlan: {
+      buildOrder: [
+        'NEP', 'NEP', 'NEP',
+        { progressGate: 'simulacrum_opening_complete' },
+        'PLU', 'PLU',
+        'MER', 'MER',
+        'QUA',
+        'SPI',
+        'SOL',
+        'PLU', 'PLU', 'PLU',
+        'NEP',
+        'MER', 'MER',
+      ],
+      endLoop: ['SOL'],
+    },
+    quantumMysticPolicy: {
+      QUA: { mode: 'match_effective_dice' },
+    },
+    targetPolicy: {
+      SPI: { mode: 'highest_cost_basic' },
+    },
+  },
+  {
+    id: 'anc_silly_simulacrum',
+    name: 'Silly Simulacrum',
+    speciesId: 'ANC',
+    buildGoals: [],
+    loopGoals: [],
+    orderedBuildPlan: {
+      buildOrder: [
+        'NEP', 'NEP', 'NEP', 'NEP', 'NEP', 'NEP',
+        'SPI', 'SPI', 'SPI',
+        'PLU', 'PLU', 'PLU',
+      ],
+      endLoop: ['SOL'],
+    },
+    drawingPrelude: {
+      CAR: { mode: 'deterministic_seeded_legal_choice' },
+    },
+    targetPolicy: {
+      SPI: { mode: 'highest_cost_basic' },
+    },
+    opportunisticForeignUpgrades: {
+      mode: 'highest_total_line_cost',
+    },
+  },
+  {
     id: 'anc_spiral_aggro',
     name: 'Spiral Into Aggro',
     speciesId: 'ANC',
