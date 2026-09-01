@@ -29,6 +29,7 @@ const COMPUTER_SPECIES_OPTIONS: Array<{ species: ComputerBotSpeciesId; label: st
   { species: 'human', label: 'HUMAN' },
   { species: 'xenite', label: 'XENITE' },
   { species: 'centaur', label: 'CENTAUR' },
+  { species: 'ancient', label: 'ANCIENT' },
 ];
 
 function getComputerSpeciesLabel(species: ComputerBotSpeciesId): string {

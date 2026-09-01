@@ -938,7 +938,7 @@ export interface GameSessionActions {
   onDestroyTargetStackHoverChange: (side: 'my' | 'opponent', stackKey: string | null) => void;
   onDestroyTargetStackMouseDown: (side: 'my' | 'opponent', stackKey: string) => void;
 }
-export type ComputerBotSpeciesId = Exclude<SpeciesId, 'ancient'>;
+export type ComputerBotSpeciesId = SpeciesId;
 
 export interface MissionChallengeMissionViewModel {
   id: string;

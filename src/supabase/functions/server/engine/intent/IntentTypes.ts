@@ -31,7 +31,7 @@ export type IntentType =
 // PAYLOAD SHAPES
 // ============================================================================
 
-export type ComputerBotSpeciesPayload = 'human' | 'xenite' | 'centaur';
+export type ComputerBotSpeciesPayload = 'human' | 'xenite' | 'centaur' | 'ancient';
 
 export type SpeciesRevealPayload = {
   species: 'human' | 'xenite' | 'centaur' | 'ancient';

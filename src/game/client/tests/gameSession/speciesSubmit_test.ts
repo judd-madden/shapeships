@@ -28,11 +28,11 @@ Deno.test('computer species submit carries transient completed Mission IDs', () 
   assertEquals(
     buildSpeciesSubmitPayload({
       selectedSpecies: 'human',
-      botSpecies: 'xenite',
+      botSpecies: 'ancient',
     }),
     {
       species: 'human',
-      botSpecies: 'xenite',
+      botSpecies: 'ancient',
       completedMissionIds: [],
     },
   );

@@ -77,6 +77,7 @@ const MOBILE_COMPUTER_SPECIES_OPTIONS: Array<{ species: ComputerBotSpeciesId; la
   { species: 'human', label: 'HUMAN' },
   { species: 'xenite', label: 'XENITE' },
   { species: 'centaur', label: 'CENTAUR' },
+  { species: 'ancient', label: 'ANCIENT' },
 ];
 
 export function MobileSpeciesSelectionView({

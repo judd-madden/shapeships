@@ -1366,7 +1366,10 @@ function isPlayerSpeciesPayload(value: unknown): value is PlayerSpeciesPayload {
 }
 
 function isComputerBotSpeciesPayload(value: unknown): value is ComputerBotSpeciesPayload {
-  return value === 'human' || value === 'xenite' || value === 'centaur';
+  return value === 'human' ||
+    value === 'xenite' ||
+    value === 'centaur' ||
+    value === 'ancient';
 }
 
 function toBotSpeciesId(species: ComputerBotSpeciesPayload): BotSpeciesId {
@@ -1377,6 +1380,8 @@ function toBotSpeciesId(species: ComputerBotSpeciesPayload): BotSpeciesId {
       return 'XEN';
     case 'centaur':
       return 'CEN';
+    case 'ancient':
+      return 'ANC';
   }
 }
 
@@ -1388,6 +1393,8 @@ function fromBotSpeciesId(speciesId: unknown): ComputerBotSpeciesPayload | null 
       return 'xenite';
     case 'CEN':
       return 'centaur';
+    case 'ANC':
+      return 'ancient';
     default:
       return null;
   }
@@ -1420,6 +1427,8 @@ function chooseDeterministicBotPlanIdForSpecies(
       return existingPlanId && getCentaurBotPlanById(existingPlanId)
         ? existingPlanId
         : chooseDeterministicCentaurBotPlanId(seed);
+    case 'ancient':
+      return existingPlanId;
   }
 }
 

@@ -131,7 +131,18 @@ function createBaseState(args: {
   return normalizeAncientGameState(state).state;
 }
 
-Deno.test('internal Ancient controller submits its own species while public bot selection stays gated', async () => {
+function createComputerSpeciesSelectionState(gameId: string) {
+  const state: any = createBaseState({
+    gameId,
+    turnNumber: 0,
+    phase: 'species_selection',
+  });
+  state.controllersByPlayerId.bot.speciesId = null;
+  state.players.find((player: { id?: string }) => player.id === 'bot').lines = 9;
+  return state;
+}
+
+Deno.test('public Ancient computer selection assigns the controller and normal runner continues', async () => {
   const internal = await runBotsUntilSettled({
     state: createBaseState({
       gameId: 'ancient-internal-species',
@@ -153,14 +164,10 @@ Deno.test('internal Ancient controller submits its own species while public bot 
   );
 
   const publicAttempt = await applyIntent(
-    createBaseState({
-      gameId: 'ancient-public-gate',
-      turnNumber: 0,
-      phase: 'species_selection',
-    }),
+    createComputerSpeciesSelectionState('ancient-public-selection'),
     'player',
     {
-      gameId: 'ancient-public-gate',
+      gameId: 'ancient-public-selection',
       intentType: 'SPECIES_SUBMIT',
       turnNumber: 0,
       payload: { species: 'human', botSpecies: 'ancient' },
@@ -168,8 +175,168 @@ Deno.test('internal Ancient controller submits its own species while public bot 
     },
     100,
   );
-  assert.equal(publicAttempt.ok, false);
-  assert.equal(publicAttempt.rejected?.code, 'INVALID_SPECIES');
+  assert.equal(publicAttempt.ok, true);
+  assert.equal(
+    publicAttempt.state.players.find((player: { id?: string }) => player.id === 'bot')?.faction,
+    'ancient',
+  );
+  assert.equal(publicAttempt.state.controllersByPlayerId.bot.speciesId, 'ANC');
+  assert.equal(publicAttempt.state.controllersByPlayerId.bot.chosenPlanId, null);
+
+  const acknowledged = await applyIntent(
+    publicAttempt.state,
+    'player',
+    {
+      gameId: 'ancient-public-selection',
+      intentType: 'MISSION_INTRO_ACK',
+      turnNumber: 0,
+      payload: {},
+      nonce: 'public-ancient-mission-ack',
+    },
+    101,
+  );
+  assert.equal(acknowledged.ok, true);
+  assert.equal(acknowledged.state.gameData.currentPhase, 'build');
+  assert.equal(acknowledged.state.gameData.currentSubPhase, 'drawing');
+  assert.equal(acknowledged.state.controllersByPlayerId.bot.chosenPlanId, null);
+
+  const settled = await runBotsUntilSettled({
+    state: acknowledged.state,
+    nowMs: 102,
+  });
+  assert.equal(settled.botStepsApplied, 1);
+  assert.equal(typeof settled.state.controllersByPlayerId.bot.chosenPlanId, 'string');
+  assert.equal(
+    settled.events.some((event: { type?: string }) =>
+      event.type === 'BOT_STRATEGY_RESOLVED'
+    ),
+    true,
+  );
+  assert.equal(
+    settled.events.some((event: { type?: string }) =>
+      event.type === 'BOT_INTENT_REJECTED'
+    ),
+    false,
+  );
+});
+
+Deno.test('Human, Xenite, and Centaur public computer selection remains unchanged', async () => {
+  for (const [botSpecies, expectedSpeciesId] of [
+    ['human', 'HUM'],
+    ['xenite', 'XEN'],
+    ['centaur', 'CEN'],
+  ] as const) {
+    const gameId = `legacy-public-${botSpecies}`;
+    const result = await applyIntent(
+      createComputerSpeciesSelectionState(gameId),
+      'player',
+      {
+        gameId,
+        intentType: 'SPECIES_SUBMIT',
+        turnNumber: 0,
+        payload: { species: 'human', botSpecies },
+        nonce: `public-${botSpecies}-attempt`,
+      },
+      100,
+    );
+
+    assert.equal(result.ok, true);
+    assert.equal(
+      result.state.players.find((player: { id?: string }) => player.id === 'bot')?.faction,
+      botSpecies,
+    );
+    assert.equal(result.state.controllersByPlayerId.bot.speciesId, expectedSpeciesId);
+    assert.equal(typeof result.state.controllersByPlayerId.bot.chosenPlanId, 'string');
+  }
+});
+
+Deno.test('invalid computer species and multiplayer botSpecies semantics remain unchanged', async () => {
+  const invalid = await applyIntent(
+    createComputerSpeciesSelectionState('invalid-public-species'),
+    'player',
+    {
+      gameId: 'invalid-public-species',
+      intentType: 'SPECIES_SUBMIT',
+      turnNumber: 0,
+      payload: { species: 'human', botSpecies: 'invalid' },
+      nonce: 'invalid-public-species-attempt',
+    },
+    100,
+  );
+  assert.equal(invalid.ok, false);
+  assert.equal(invalid.rejected?.code, 'INVALID_SPECIES');
+
+  const multiplayerWithBotSpecies = createComputerSpeciesSelectionState(
+    'multiplayer-with-bot-species',
+  );
+  multiplayerWithBotSpecies.controllersByPlayerId.bot = { kind: 'human' };
+  const rejectedMultiplayer = await applyIntent(
+    multiplayerWithBotSpecies,
+    'player',
+    {
+      gameId: 'multiplayer-with-bot-species',
+      intentType: 'SPECIES_SUBMIT',
+      turnNumber: 0,
+      payload: { species: 'human', botSpecies: 'ancient' },
+      nonce: 'multiplayer-with-bot-species-attempt',
+    },
+    100,
+  );
+  assert.equal(rejectedMultiplayer.ok, false);
+  assert.equal(rejectedMultiplayer.rejected?.code, 'BAD_PAYLOAD');
+
+  const ordinaryMultiplayer = createComputerSpeciesSelectionState('ordinary-multiplayer');
+  ordinaryMultiplayer.controllersByPlayerId.bot = { kind: 'human' };
+  const acceptedMultiplayer = await applyIntent(
+    ordinaryMultiplayer,
+    'player',
+    {
+      gameId: 'ordinary-multiplayer',
+      intentType: 'SPECIES_SUBMIT',
+      turnNumber: 0,
+      payload: { species: 'ancient' },
+      nonce: 'ordinary-multiplayer-attempt',
+    },
+    100,
+  );
+  assert.equal(acceptedMultiplayer.ok, true);
+  assert.equal(
+    acceptedMultiplayer.state.players.find((player: { id?: string }) => player.id === 'player')
+      ?.faction,
+    'ancient',
+  );
+  assert.equal(
+    acceptedMultiplayer.state.players.find((player: { id?: string }) => player.id === 'bot')
+      ?.faction,
+    null,
+  );
+});
+
+Deno.test('idempotent Ancient species submission preserves the selected first-Drawing plan', async () => {
+  const state = createBaseState({
+    gameId: 'ancient-idempotent-species',
+    turnNumber: 0,
+    phase: 'species_selection',
+    chosenPlanId: 'anc_mer_aggro',
+  });
+  state.players.find((player: { id?: string }) => player.id === 'player')!.faction = 'human';
+  state.players.find((player: { id?: string }) => player.id === 'bot')!.faction = 'ancient';
+
+  const repeated = await applyIntent(
+    state,
+    'player',
+    {
+      gameId: 'ancient-idempotent-species',
+      intentType: 'SPECIES_SUBMIT',
+      turnNumber: 0,
+      payload: { species: 'human', botSpecies: 'ancient' },
+      nonce: 'ancient-idempotent-species-attempt',
+    },
+    100,
+  );
+  assert.equal(repeated.ok, true);
+  assert.equal(repeated.state.controllersByPlayerId.bot.speciesId, 'ANC');
+  assert.equal(repeated.state.controllersByPlayerId.bot.chosenPlanId, 'anc_mer_aggro');
 });
 
 Deno.test('unresolved Ancient passes Dice Roll and reuses plan-independent Cube handling', async () => {
@@ -244,7 +411,7 @@ Deno.test('unresolved Ancient passes Dice Roll and reuses plan-independent Cube 
   );
 });
 
-Deno.test('Ancient Drawing selection continues into an accepted build in the same invocation', async () => {
+Deno.test('first-Drawing Ancient chooser selects a plan and continues into an accepted build', async () => {
   const state = createBaseState({
     gameId: 'ancient-cub-resolution',
     turnNumber: 1,
