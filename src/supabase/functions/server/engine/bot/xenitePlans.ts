@@ -15,6 +15,21 @@ const ANT_SUSTAIN = {
   damageOpponentAtOrBelow: 10,
 };
 
+const XEN_MASS_BUG_HEL_PLAN: AuthoredBotPlan = {
+  id: 'xen_mass_bug_hel',
+  name: 'Mass Bug Hell Hornet',
+  speciesId: 'XEN',
+  buildGoals: [],
+  loopGoals: [],
+  adaptiveBuildRules: [
+    { selfHealthAtOrBelow: 16, shipDefId: 'MAN', targetCount: 2, saveUntilAffordable: true },
+  ],
+  orderedBuildPlan: {
+    buildOrder: ['BUG', 'BUG', 'BUG', 'BUG', 'HEL', 'HEL', 'HEL'],
+    endLoop: ['BUG', 'MAN', 'HEL'],
+  },
+};
+
 const XEN_MASS_BUG_BASICS_PLAN: AuthoredBotPlan = {
   id: 'xen_mass_bug_basics',
   name: 'Mass Bug Basics',
@@ -331,6 +346,45 @@ const XEN_AGGRO_PLAN: AuthoredBotPlan = {
   },
 };
 
+const XEN_ANTLION_ARRAY_PLAN: AuthoredBotPlan = {
+  id: 'xen_antlion_array',
+  name: 'Antlion Array',
+  speciesId: 'XEN',
+  buildGoals: [],
+  loopGoals: [],
+  adaptiveBuildRules: [
+    {
+      selfHealthAtOrBelow: 15,
+      shipDefId: 'DSW',
+      targetCount: 1,
+      saveUntilAffordable: true,
+    },
+    {
+      selfHealthAtOrBelow: 10,
+      shipDefId: 'DSW',
+      targetCount: 2,
+      saveUntilAffordable: true,
+    },
+  ],
+  orderedBuildPlan: {
+    buildOrder: [
+      'ZEN',
+      'ZEN',
+      'ZEN',
+      { shipDefId: 'AAR', saveUntilAffordable: true },
+    ],
+    endLoop: [
+      'ANT',
+      'ANT',
+      'ANT',
+      { shipDefId: 'AAR', saveUntilAffordable: true },
+    ],
+  },
+  chargePolicy: {
+    ANT: {},
+  },
+};
+
 // Order is deliberate: deterministic chooser selection hashes into this array by index.
 export const ACTIVE_XENITE_BOT_PLANS: AuthoredBotPlan[] = [
   XEN_MASS_BUG_BASICS_PLAN,
@@ -341,6 +395,8 @@ export const ACTIVE_XENITE_BOT_PLANS: AuthoredBotPlan[] = [
   XEN_HIVE_PLAN,
   XEN_DOUBLE_CHRONO_QUEEN_PLAN,
   XEN_AGGRO_PLAN,
+  XEN_ANTLION_ARRAY_PLAN,
+  XEN_MASS_BUG_HEL_PLAN,
 ];
 
 const XENITE_BOT_PLAN_LOOKUP_POOL: AuthoredBotPlan[] = ACTIVE_XENITE_BOT_PLANS;
