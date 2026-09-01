@@ -320,7 +320,20 @@ type PendingSpeciesConfirmation = {
 };
 
 const EMPTY_BUILD_PREVIEW_COUNTS: Record<string, number> = {};
+const ANCIENT_AUTOCAST_ENABLED_STORAGE_KEY = 'shapeships.ancientAutocastEnabled.v1';
 const MISSION_INTRO_ACK_TIMEOUT_MS = 8000;
+
+function readAncientAutocastEnabledPreference(): boolean {
+  if (typeof window === 'undefined') {
+    return true;
+  }
+
+  try {
+    return window.localStorage.getItem(ANCIENT_AUTOCAST_ENABLED_STORAGE_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
 
 function normalizeBoardStatBreakdownRows(rawRows: unknown): BoardStatBreakdownRowVm[] {
   if (!Array.isArray(rawRows)) {
@@ -2020,7 +2033,7 @@ export function useGameSession(
   const [ancientChargeDeclarationAttempt, setAncientChargeDeclarationAttempt] =
     useState<FrozenAncientChargeDeclarationAttempt | null>(null);
   const [ancientAutocastEnabled, setAncientAutocastEnabled] =
-    useState(false);
+    useState(readAncientAutocastEnabledPreference);
   const [ancientBlackHoleHover, setAncientBlackHoleHover] =
     useState<{ workflowKey: string; stackKey: string } | null>(null);
   const [ancientSimulacrumHover, setAncientSimulacrumHover] =
@@ -6909,6 +6922,11 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
 
     onSetAncientAutocastEnabled: (enabled: boolean) => {
       setAncientAutocastEnabled(enabled);
+      try {
+        window.localStorage.setItem(ANCIENT_AUTOCAST_ENABLED_STORAGE_KEY, String(enabled));
+      } catch {
+        // Keep the preference in memory when browser storage is unavailable.
+      }
     },
 
     onSelectCentaurChargeSubTab: (tabId: CentaurChargeSubTabId) => {
@@ -7341,7 +7359,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         availableActions: [],
         selectedChoiceIdBySourceInstanceId: {},
         healthResolutionOverlay: undefined,
-        ancientAutocastEnabled: false,
+        ancientAutocastEnabled,
       },
     };
     
