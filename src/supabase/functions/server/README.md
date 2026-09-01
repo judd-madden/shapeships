@@ -84,7 +84,7 @@ Code in this directory must remain Edge-compatible:
 
 ## Testing
 
-At the September 1, 2026 snapshot, the centralized server suite contains 53 TypeScript `_test.ts` files. `deno task check` completes successfully with the existing ignored-compiler-option warnings. A full run with the read permission required by current source-inspection tests reported 540 passed tests, 5 failed tests, and 1 ignored test across 16 steps. The remaining failures are expectation mismatches against current Ancient authored plan/chooser behavior and one Mission paragraph-format expectation, so this is not an all-passing suite claim.
+At the September 1, 2026 snapshot, the centralized server suite contains 53 TypeScript `_test.ts` files. `deno task check` completes successfully with the existing ignored-compiler-option warnings. A full run with the read permission required by current source-inspection tests reported 545 passed tests, 0 failed tests, and 1 ignored test across 16 steps, restoring the centralized server suite to an all-passing baseline.
 
 The test suite is centralized under `src/supabase/functions/server/tests/**` and mirrors production ownership areas including:
 

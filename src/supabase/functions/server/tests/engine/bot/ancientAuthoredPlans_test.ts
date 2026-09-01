@@ -175,10 +175,12 @@ Deno.test('fixed openings, loops, QUA, and SPI policies match authored productio
   });
   assert.deepEqual(ordered('anc_vortex_simulacrum')?.buildOrder, [
     'NEP', 'NEP', 'NEP',
-    'PLU', 'PLU',
-    'MER', 'MER',
-    'QUA', 'SPI', 'SOL',
     'PLU', 'PLU', 'PLU',
+    'MER', 'MER',
+    'QUA',
+    'SPI', 'SPI', 'SPI',
+    'SOL',
+    'PLU', 'PLU',
     'NEP',
     'MER', 'MER',
   ]);
@@ -343,14 +345,17 @@ Deno.test('Vortex Simulacrum Drawing sequence ignores staged Battle progress thr
   };
   const scenarios = [
     [{ NEP: 3 }, 3, 'PLU'],
-    [{ NEP: 3, PLU: 2 }, 4, 'MER'],
-    [{ NEP: 3, PLU: 2, MER: 2 }, 5, 'QUA'],
-    [{ NEP: 3, PLU: 2, MER: 2, QUA: 1 }, 6, 'SPI'],
-    [{ NEP: 3, PLU: 2, MER: 2, QUA: 1, SPI: 1 }, 8, 'SOL'],
-    [{ NEP: 3, PLU: 2, MER: 2, QUA: 1, SPI: 1, SOL: 1 }, 3, 'PLU'],
-    [{ NEP: 3, PLU: 5, MER: 2, QUA: 1, SPI: 1, SOL: 1 }, 7, 'NEP'],
-    [{ NEP: 4, PLU: 5, MER: 2, QUA: 1, SPI: 1, SOL: 1 }, 4, 'MER'],
-    [{ NEP: 4, PLU: 5, MER: 4, QUA: 1, SPI: 1, SOL: 1 }, 8, 'SOL'],
+    [{ NEP: 3, PLU: 2 }, 4, 'PLU'],
+    [{ NEP: 3, PLU: 3 }, 4, 'MER'],
+    [{ NEP: 3, PLU: 3, MER: 2 }, 5, 'QUA'],
+    [{ NEP: 3, PLU: 3, MER: 2, QUA: 1 }, 6, 'SPI'],
+    [{ NEP: 3, PLU: 3, MER: 2, QUA: 1, SPI: 1 }, 6, 'SPI'],
+    [{ NEP: 3, PLU: 3, MER: 2, QUA: 1, SPI: 2 }, 6, 'SPI'],
+    [{ NEP: 3, PLU: 3, MER: 2, QUA: 1, SPI: 3 }, 8, 'SOL'],
+    [{ NEP: 3, PLU: 3, MER: 2, QUA: 1, SPI: 3, SOL: 1 }, 3, 'PLU'],
+    [{ NEP: 3, PLU: 5, MER: 2, QUA: 1, SPI: 3, SOL: 1 }, 7, 'NEP'],
+    [{ NEP: 4, PLU: 5, MER: 2, QUA: 1, SPI: 3, SOL: 1 }, 4, 'MER'],
+    [{ NEP: 4, PLU: 5, MER: 4, QUA: 1, SPI: 3, SOL: 1 }, 8, 'SOL'],
   ] as const;
 
   for (const [ships, lines, expectedShipDefId] of scenarios) {

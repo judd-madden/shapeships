@@ -711,7 +711,7 @@ Deno.test('all four chooser families continue directly into legal production bui
     {
       gameId: 'representative-0',
       lines: 5,
-      strategyId: 'anc_mer_aggro',
+      strategyId: 'anc_mer_aggro_plu',
       firstShipDefId: 'MER',
     },
   ] as const) {

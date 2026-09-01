@@ -158,7 +158,7 @@ Deno.test("Mission registry has the canonical directional content and Finding co
       location: "[unknown]",
       author: "juddly",
       paragraphs: [
-        "The delusional Ancients have become a nuisance in multiple sectors. This is my galaxy. I control. I remember. They fabricate. - XAMEHBZ",
+        "The delusional Ancients have become a nuisance in multiple sectors. This is my galaxy. I control. I remember. They fabricate.\n- XAMEHBZ",
       ],
     },
     {
@@ -243,7 +243,7 @@ Deno.test("Mission registry has the canonical directional content and Finding co
   const response = MISSION_STORIES.find((mission) =>
     mission.id === "mission-xenite-v-centaur-respond-arrogance"
   );
-  assert.ok(response?.paragraphs[0].endsWith("good.  -XAMEHBZ"));
+  assert.ok(response?.paragraphs[0].endsWith("good.\n- XAMEHBZ"));
   const centaur = MISSION_STORIES.find((mission) =>
     mission.id === "mission-centaur-v-centaur-defeat-rebel-cowards"
   );

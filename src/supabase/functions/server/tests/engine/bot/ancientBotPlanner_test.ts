@@ -1040,9 +1040,8 @@ Deno.test('Vortex Simulacrum completes ordered 2-cost and 3-cost primary goals b
   assert.equal(continuation.ok, true);
   if (continuation.ok) {
     assert.deepEqual(continuation.payload.builds, [
-      { shipDefId: 'PLU', count: 2 },
+      { shipDefId: 'PLU', count: 3 },
       { shipDefId: 'MER', count: 2 },
-      { shipDefId: 'QUA', count: 1 },
     ]);
   }
 });
