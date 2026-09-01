@@ -145,7 +145,6 @@ Deno.test('fixed openings, loops, QUA, and SPI policies match authored productio
   });
   assert.deepEqual(ordered('anc_vortex_simulacrum')?.buildOrder, [
     'NEP', 'NEP', 'NEP',
-    { progressGate: 'simulacrum_opening_complete' },
     'PLU', 'PLU',
     'MER', 'MER',
     'QUA', 'SPI', 'SOL',
@@ -171,40 +170,57 @@ Deno.test('fixed openings, loops, QUA, and SPI policies match authored productio
   });
 });
 
-Deno.test('Vortex Simulacrum build shell pauses after NEP x3 until durable opening progress completes', () => {
+Deno.test('Vortex Simulacrum Drawing sequence ignores staged Battle progress through its end loop', () => {
   const vortexPlan = plan('anc_vortex_simulacrum');
   const openingState = state({
-    lines: 20,
+    lines: 3,
     ships: fleet({ NEP: 3 }),
   });
   assert.deepEqual(
     planBotBuildSubmit(openingState, 'bot', vortexPlan),
-    { builds: [] },
+    { builds: [{ shipDefId: 'PLU', count: 1 }] },
   );
 
-  const partial = planBotBuildDecision(openingState, 'bot', vortexPlan, {
+  const incompleteProgress: BotPlanProgress = {
+    simulacrum: {
+      strategyId: vortexPlan.id,
+      completedGoalCount: 1,
+      openingComplete: false,
+    },
+  };
+  const scenarios = [
+    [{ NEP: 3 }, 3, 'PLU'],
+    [{ NEP: 3, PLU: 2 }, 4, 'MER'],
+    [{ NEP: 3, PLU: 2, MER: 2 }, 5, 'QUA'],
+    [{ NEP: 3, PLU: 2, MER: 2, QUA: 1 }, 6, 'SPI'],
+    [{ NEP: 3, PLU: 2, MER: 2, QUA: 1, SPI: 1 }, 8, 'SOL'],
+    [{ NEP: 3, PLU: 2, MER: 2, QUA: 1, SPI: 1, SOL: 1 }, 3, 'PLU'],
+    [{ NEP: 3, PLU: 5, MER: 2, QUA: 1, SPI: 1, SOL: 1 }, 7, 'NEP'],
+    [{ NEP: 4, PLU: 5, MER: 2, QUA: 1, SPI: 1, SOL: 1 }, 4, 'MER'],
+    [{ NEP: 4, PLU: 5, MER: 4, QUA: 1, SPI: 1, SOL: 1 }, 8, 'SOL'],
+  ] as const;
+
+  for (const [ships, lines, expectedShipDefId] of scenarios) {
+    const decision = planBotBuildDecision(
+      state({ lines, ships: fleet(ships) }),
+      'bot',
+      vortexPlan,
+      incompleteProgress,
+    );
+    assert.equal(decision.ok, true);
+    if (decision.ok) {
+      assert.deepEqual(decision.payload, {
+        builds: [{ shipDefId: expectedShipDefId, count: 1 }],
+      });
+    }
+  }
+  assert.deepEqual(incompleteProgress, {
     simulacrum: {
       strategyId: vortexPlan.id,
       completedGoalCount: 1,
       openingComplete: false,
     },
   });
-  assert.equal(partial.ok, true);
-  if (partial.ok) assert.deepEqual(partial.payload, { builds: [] });
-
-  const complete = planBotBuildDecision(openingState, 'bot', vortexPlan, {
-    simulacrum: {
-      strategyId: vortexPlan.id,
-      completedGoalCount: 2,
-      openingComplete: true,
-    },
-  });
-  assert.equal(complete.ok, true);
-  if (complete.ok) {
-    assert.deepEqual(expandedBuilds(complete.payload), [
-      'PLU', 'PLU', 'MER', 'MER', 'QUA',
-    ]);
-  }
 });
 
 Deno.test('Silly Simulacrum directly drafts one Human, Xenite, or Centaur upgrade then resumes its plan', () => {

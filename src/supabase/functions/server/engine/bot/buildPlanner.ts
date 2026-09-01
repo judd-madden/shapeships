@@ -5,7 +5,6 @@ import {
   SHIP_DEFINITIONS_CORE_SERVER,
 } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import type {
-  AncientSimulacrumBotProgress,
   AuthoredBotPlan,
   BotAdaptiveBuildRule,
   BotBuildGoal,
@@ -15,13 +14,11 @@ import type {
   OrderedBotBuildStep,
   OrderedBotCommittedHealthGroup,
   OrderedBotEndLoopStep,
-  OrderedBotProgressGate,
 } from './botTypes.ts';
 import {
   evaluateForeignBuildLegality,
   getPlayerNativeSpeciesId,
 } from '../intent/buildForeignLegality.ts';
-import { getAncientBotStrategyById } from './ancientPlans.ts';
 
 type WorkingShipEntry = {
   shipDefId: string;
@@ -76,12 +73,9 @@ type NormalizedCommittedHealthGroupStep = {
   committedHealthGroup: OrderedBotCommittedHealthGroup;
 };
 
-type NormalizedProgressGateStep = OrderedBotProgressGate;
-
 type NormalizedOrderedSequenceStep =
   | NormalizedOrderedBuildStep
-  | NormalizedCommittedHealthGroupStep
-  | NormalizedProgressGateStep;
+  | NormalizedCommittedHealthGroupStep;
 
 type NormalizedFirstAffordableEndLoopStep = {
   firstAffordableShipDefIds: string[];
@@ -110,7 +104,6 @@ export type BotBuildDecision =
 
 type BuildPlanProgressContext = {
   current: CommittedBotBuildGroupProgress | null;
-  simulacrum: AncientSimulacrumBotProgress | null;
   fullProgress: BotPlanProgress;
   proposedUpdate?: BotPlanProgressUpdate;
   invalid: boolean;
@@ -609,12 +602,6 @@ function normalizeOrderedBuildStep(
     return null;
   }
 
-  if ('progressGate' in step) {
-    return step.progressGate === 'simulacrum_opening_complete'
-      ? { progressGate: step.progressGate }
-      : null;
-  }
-
   if ('committedHealthGroup' in step) {
     const candidate = step.committedHealthGroup;
     if (
@@ -771,12 +758,6 @@ function isNormalizedCommittedHealthGroupStep(
   return 'committedHealthGroup' in step;
 }
 
-function isNormalizedProgressGateStep(
-  step: NormalizedOrderedSequenceStep | NormalizedOrderedEndLoopStep,
-): step is NormalizedProgressGateStep {
-  return 'progressGate' in step;
-}
-
 function isNormalizedFirstAffordableEndLoopStep(
   step: NormalizedOrderedEndLoopStep,
 ): step is NormalizedFirstAffordableEndLoopStep {
@@ -839,26 +820,6 @@ function isCommittedProgressValid(args: {
   return true;
 }
 
-function isSimulacrumProgressValid(args: {
-  plan: AuthoredBotPlan;
-  progress: AncientSimulacrumBotProgress;
-}): boolean {
-  if (
-    args.progress?.strategyId !== args.plan.id ||
-    !Number.isSafeInteger(args.progress.completedGoalCount) ||
-    args.progress.completedGoalCount < 0 ||
-    typeof args.progress.openingComplete !== 'boolean'
-  ) {
-    return false;
-  }
-  const strategy = getAncientBotStrategyById(args.plan.id);
-  const policy = strategy?.solarPolicy?.simulacrum;
-  return policy?.mode === 'staged_cost_goals' &&
-    args.progress.completedGoalCount <= policy.costGoals.length &&
-    args.progress.openingComplete ===
-      (args.progress.completedGoalCount === policy.costGoals.length);
-}
-
 function committedGroupHasCompletionWitness(
   group: OrderedBotCommittedHealthGroup,
   authoritativeFleet: WorkingShipEntry[],
@@ -874,15 +835,10 @@ function isOrderedBuildOrderSatisfied(
   steps: NormalizedOrderedSequenceStep[],
   authoritativeFleet: WorkingShipEntry[],
   committedProgress: CommittedBotBuildGroupProgress | null,
-  simulacrumProgress: AncientSimulacrumBotProgress | null,
 ): boolean {
   const requiredCounts = new Map<string, number>();
 
   for (const step of steps) {
-    if (isNormalizedProgressGateStep(step)) {
-      if (!simulacrumProgress?.openingComplete) return false;
-      continue;
-    }
     if (isNormalizedCommittedHealthGroupStep(step)) {
       const group = step.committedHealthGroup;
       if (committedGroupHasCompletionWitness(group, authoritativeFleet)) {
@@ -2315,7 +2271,6 @@ function planOrderedBuildSubmit(args: {
     buildOrderSteps,
     args.authoritativeFleet,
     args.progressContext.current,
-    args.progressContext.simulacrum,
   );
   const openingRequiredCounts = new Map<string, number>();
   const evolverChoices: EvolverBuildChoiceEntry[] = [];
@@ -2327,10 +2282,6 @@ function planOrderedBuildSubmit(args: {
 
   if (!shouldUseEndLoop) {
     for (const step of buildOrderSteps) {
-      if (isNormalizedProgressGateStep(step)) {
-        if (!args.progressContext.simulacrum?.openingComplete) break;
-        continue;
-      }
       if (isNormalizedCommittedHealthGroupStep(step)) {
         const result = processCommittedHealthGroupStep({
           plan: args.plan,
@@ -2752,7 +2703,6 @@ export function planBotBuildDecision(
     state?.gameData?.ships?.[botPlayerId] ?? [],
   );
   let current: CommittedBotBuildGroupProgress | null = null;
-  let simulacrum: AncientSimulacrumBotProgress | null = null;
   let fullProgress: BotPlanProgress = {};
   if (typeof currentPlanProgress !== 'undefined') {
     if (
@@ -2776,26 +2726,12 @@ export function planBotBuildDecision(
         reason: 'invalid_committed_build_group_progress',
       };
     }
-    if (
-      currentPlanProgress.simulacrum &&
-      !isSimulacrumProgressValid({
-        plan,
-        progress: currentPlanProgress.simulacrum,
-      })
-    ) {
-      return {
-        ok: false,
-        reason: 'invalid_committed_build_group_progress',
-      };
-    }
     current = currentPlanProgress.committedBuildGroup ?? null;
-    simulacrum = currentPlanProgress.simulacrum ?? null;
     fullProgress = structuredClone(currentPlanProgress);
   }
 
   const progressContext: BuildPlanProgressContext = {
     current,
-    simulacrum,
     fullProgress,
     invalid: false,
   };

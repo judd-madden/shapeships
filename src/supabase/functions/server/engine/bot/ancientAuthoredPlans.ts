@@ -170,7 +170,6 @@ export const ACTIVE_ANCIENT_AUTHORED_PLANS: readonly AuthoredBotPlan[] = [
     orderedBuildPlan: {
       buildOrder: [
         'NEP', 'NEP', 'NEP',
-        { progressGate: 'simulacrum_opening_complete' },
         'PLU', 'PLU',
         'MER', 'MER',
         'QUA',

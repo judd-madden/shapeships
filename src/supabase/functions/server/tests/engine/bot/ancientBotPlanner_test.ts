@@ -946,6 +946,31 @@ Deno.test('Vortex Simulacrum completes ordered 2-cost and 3-cost primary goals b
   );
   assert.deepEqual(state, before);
 
+  const secondGoal = requirePayload(planAncientChargeDeclaration({
+    state: createState({
+      energy: { green: 0, red: 0, blue: 3 },
+      botShips: nepFleet(3, 'vortex-second-goal'),
+      opponentShips: [
+        { instanceId: 'second-def', shipDefId: 'DEF' },
+        { instanceId: 'second-fig', shipDefId: 'FIG' },
+      ],
+      chosenPlanId: strategy.id,
+    }),
+    playerId: 'bot',
+    strategy,
+    planProgress: {
+      simulacrum: {
+        strategyId: strategy.id,
+        completedGoalCount: 1,
+        openingComplete: false,
+      },
+    },
+  }));
+  assert.deepEqual(secondGoal.solarCasts, [{
+    solarPowerId: 'SSIM',
+    targetInstanceId: 'second-fig',
+  }]);
+
   const accepted = await applyIntent(state, 'bot', {
     gameId: state.gameId,
     intentType: 'CHARGE_DECLARATION_SUBMIT',
@@ -1022,21 +1047,30 @@ Deno.test('Vortex Simulacrum completes ordered 2-cost and 3-cost primary goals b
   }
 });
 
-Deno.test('Vortex Simulacrum does not skip an unavailable current staged goal and completed progress disables SSIM', () => {
+Deno.test('Vortex Simulacrum preserves unavailable staged progress and permits normal Solar fallthrough', () => {
   const strategy = getAncientBotStrategyById('anc_vortex_simulacrum');
   assert.ok(strategy);
+  const blockedState = createState({
+    energy: { green: 0, red: 0, blue: 3 },
+    botShips: nepFleet(3, 'vortex-blocked'),
+    opponentShips: [{ instanceId: 'fig-only', shipDefId: 'FIG' }],
+    chosenPlanId: strategy.id,
+  });
+  const beforeBlocked = structuredClone(blockedState);
   const blocked = requirePayload(planAncientChargeDeclaration({
-    state: createState({
-      energy: { green: 0, red: 0, blue: 3 },
-      botShips: nepFleet(3, 'vortex-blocked'),
-      opponentShips: [{ instanceId: 'fig-only', shipDefId: 'FIG' }],
-    }),
+    state: blockedState,
     playerId: 'bot',
     strategy,
   }));
   assert.equal(
     blocked.solarCasts.some((cast) => cast.solarPowerId === 'SSIM'),
     false,
+  );
+  assert.equal(blocked.autocastEnabled, true);
+  assert.deepEqual(blockedState, beforeBlocked);
+  assert.equal(
+    blockedState.controllersByPlayerId.bot.planProgress,
+    undefined,
   );
 
   const complete = requirePayload(planAncientChargeDeclaration({

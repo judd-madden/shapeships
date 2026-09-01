@@ -187,8 +187,20 @@ export function chooseAncientOpeningStrategy(
   }
 
   if (input.availableOrdinaryLines >= 9) {
-    const selected = selectFamilyStrategy(input.gameId, 'CUB');
-    return { kind: 'selected', family: 'CUB', strategyId: selected.id };
+    const bucket = hashSeed(
+      `${input.gameId}:ancient-opening:nine-plus`,
+    ) % 100;
+
+    const family: AncientBotStrategyFamily =
+      bucket < 25 ? 'NEP' : 'CUB';
+
+    const selected = selectFamilyStrategy(input.gameId, family);
+
+    return {
+      kind: 'selected',
+      family,
+      strategyId: selected.id,
+    };
   }
 
   if (input.availableOrdinaryLines >= 7) {

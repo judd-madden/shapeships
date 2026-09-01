@@ -34,10 +34,6 @@ export type OrderedBotCommittedHealthGroup = {
   completionWitnessShipDefId?: string;
 };
 
-export type OrderedBotProgressGate = {
-  progressGate: 'simulacrum_opening_complete';
-};
-
 export type OrderedBotBuildStep =
   | string
   | {
@@ -47,8 +43,7 @@ export type OrderedBotBuildStep =
     }
   | {
       committedHealthGroup: OrderedBotCommittedHealthGroup;
-    }
-  | OrderedBotProgressGate;
+    };
 
 export type OrderedBotEndLoopStep =
   | OrderedBotBuildStep
