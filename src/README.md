@@ -71,13 +71,14 @@ Species-specific sound coverage remains incomplete.
 - `useGameSession` centralizes auto-join, session-backed networking, authoritative refreshes, chat, history, intent submission, and client-only presentation state.
 - Full state and lightweight head reads support authoritative polling and clock snapshots, chat is polled separately, and battle history is fetched on demand.
 - Server reads return requester-, opponent-, and spectator-safe projections, including available actions and filtered hidden commitments.
+- Server bot code combines phase-aware authoritative orchestration and shared build, power, and targeting helpers with authored Human, Xenite, and Centaur plans. Ancient adds authored opening strategies and plans plus dedicated build-payload and Solar/Energy planning seams.
 - Authoritative server tests are centralized under `supabase/functions/server/tests/**`.
 
 ## Current Product Posture
 
-Shapeships supports private multiplayer and computer games in timed and untimed formats. Human, Xenite, Centaur, and Ancient are available for player-controlled play; Human, Xenite, and Centaur also support computer opponents.
+Shapeships supports private multiplayer and computer games in timed and untimed formats. Human, Xenite, Centaur, and Ancient are available for player-controlled play and as server-controlled computer opponents.
 
-Ancient is implemented for player-controlled play and is entering real-player testing and balance refinement. Ancient computer-opponent support remains deferred.
+All four species remain under real-game balance, matchup, and bot-plan refinement.
 
 See [VERSION.md](VERSION.md) for the detailed holistic product snapshot.
 

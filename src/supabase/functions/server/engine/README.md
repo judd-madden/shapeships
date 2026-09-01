@@ -20,9 +20,15 @@ The current directory includes:
 - `phase/` - phase advancement, phase-entry behavior, phase-field synchronization, and power-availability helpers
 - `clock/` - authoritative clock setup and accrual helpers
 - `lines/` - server-owned line bonus computation
-- `bot/` - current bot planning and runtime helpers
+- `bot/` - phase-aware authoritative bot orchestration, shared planning helpers, and authored species strategies
 - `state/` - server game-state and battle-log history helpers
 - `util/` - smaller server utilities such as dice rolling
+
+## Bot architecture
+
+`bot/botRunner.ts` is the phase-aware orchestration layer. It submits bot choices through the same authoritative intent reducer used for player intents and applies no more than eight bot steps per request. Shared types and build, power, and targeting helpers cover behavior used across species.
+
+Human, Xenite, and Centaur strategy content lives in their authored species plan files. Ancient strategy content is split between opening/strategy selection and authored build plans, with dedicated helpers completing Ancient build payloads and planning its atomic Charge Declaration and Solar/Energy decisions. These species-specific seams extend the shared runtime rather than creating a separate bot game engine.
 
 ## Relationship to `engine_shared/`
 
