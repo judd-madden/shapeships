@@ -21,10 +21,12 @@ const EXPECTED_STRATEGIES = [
   ['anc_vortex_simulacrum', 'Vortex + Simulacrum'],
   ['anc_silly_simulacrum', 'Silly Simulacrum'],
   ['anc_spiral_aggro', 'Spiral Into Aggro'],
+  ['anc_spiral_nep_aggro', 'Spiral NEP Aggro'],
   ['anc_mer_aggro', 'Simple Aggro'],
+  ['anc_mer_aggro_plu', 'Simple Aggro + PLU'],
 ] as const;
 
-Deno.test('Ancient strategy registry exposes eleven stable identities in explicit families', () => {
+Deno.test('Ancient strategy registry exposes thirteen stable identities in explicit families', () => {
   assert.deepEqual(
     ACTIVE_ANCIENT_BOT_STRATEGIES.map((entry) => entry.id),
     EXPECTED_STRATEGIES.map(([id]) => id),
@@ -48,7 +50,7 @@ Deno.test('Ancient strategy registry exposes eleven stable identities in explici
         entries.length,
       ]),
     ),
-    { CUB: 4, NEP: 5, SPI: 1, MER: 1 },
+    { CUB: 4, NEP: 5, SPI: 2, MER: 2 },
   );
 
   for (const [id, workingName] of EXPECTED_STRATEGIES) {
@@ -58,6 +60,7 @@ Deno.test('Ancient strategy registry exposes eleven stable identities in explici
     assert.equal(registered?.workingName, workingName);
     assert.equal(registered?.speciesId, 'ANC');
     assert.equal(authored?.id, id);
+    assert.equal(authored?.name, workingName);
     assert.equal(authored?.speciesId, 'ANC');
     assert.equal('buildGoals' in (registered as unknown as Record<string, unknown>), false);
     if (
@@ -130,15 +133,19 @@ Deno.test('Ancient strategy registry exposes eleven stable identities in explici
 
 Deno.test('known Ancient chooser seeds reach every registered family member deterministically', () => {
   const cases = [
-    ['replay-0', 9, 'anc_vortex_no_simulacrum'],
-    ['replay-1', 9, 'anc_cube_quantum_solar_snowball'],
-    ['replay-2', 9, 'anc_big_standard_econ'],
-    ['replay-3', 9, 'anc_cube_red_green'],
-    ['replay-0', 8, 'anc_sol_blue_snowball'],
-    ['replay-1', 8, 'anc_vortex_simulacrum'],
-    ['replay-18', 8, 'anc_silly_simulacrum'],
-    ['replay-20', 8, 'anc_sol_reach_black_hole'],
-    ['replay-39', 8, 'anc_small_econ_siphon'],
+    ['fixture-1', 9, 'anc_cube_red_green'],
+    ['fixture-0', 9, 'anc_big_standard_econ'],
+    ['fixture-3', 9, 'anc_cube_quantum_solar_snowball'],
+    ['fixture-2', 9, 'anc_vortex_no_simulacrum'],
+    ['fixture-17', 8, 'anc_small_econ_siphon'],
+    ['fixture-0', 8, 'anc_sol_reach_black_hole'],
+    ['fixture-5', 8, 'anc_sol_blue_snowball'],
+    ['fixture-27', 8, 'anc_vortex_simulacrum'],
+    ['fixture-10', 8, 'anc_silly_simulacrum'],
+    ['variant-3', 6, 'anc_spiral_aggro'],
+    ['variant-2', 6, 'anc_spiral_nep_aggro'],
+    ['variant-5', 5, 'anc_mer_aggro'],
+    ['variant-0', 5, 'anc_mer_aggro_plu'],
   ] as const;
 
   for (const [gameId, availableOrdinaryLines, strategyId] of cases) {
@@ -153,15 +160,7 @@ Deno.test('known Ancient chooser seeds reach every registered family member dete
 
   assert.deepEqual(
     chooseAncientOpeningStrategy({
-      gameId: 'replay-0',
-      turnNumber: 1,
-      availableOrdinaryLines: 6,
-    }),
-    { kind: 'selected', family: 'SPI', strategyId: 'anc_spiral_aggro' },
-  );
-  assert.deepEqual(
-    chooseAncientOpeningStrategy({
-      gameId: 'replay-1',
+      gameId: 'variant-0',
       turnNumber: 1,
       availableOrdinaryLines: 6,
     }),
@@ -169,15 +168,7 @@ Deno.test('known Ancient chooser seeds reach every registered family member dete
   );
   assert.deepEqual(
     chooseAncientOpeningStrategy({
-      gameId: 'replay-2',
-      turnNumber: 1,
-      availableOrdinaryLines: 5,
-    }),
-    { kind: 'selected', family: 'MER', strategyId: 'anc_mer_aggro' },
-  );
-  assert.deepEqual(
-    chooseAncientOpeningStrategy({
-      gameId: 'replay-0',
+      gameId: 'variant-1',
       turnNumber: 1,
       availableOrdinaryLines: 5,
     }),
@@ -188,7 +179,7 @@ Deno.test('known Ancient chooser seeds reach every registered family member dete
 Deno.test('Ancient chooser deterministically enters the CUB and NEP families', () => {
   for (const lines of [9, 10, 20]) {
     const decision = chooseAncientOpeningStrategy({
-      gameId: 'family-thresholds',
+      gameId: 'fixture-1',
       turnNumber: 1,
       availableOrdinaryLines: lines,
     });
@@ -201,7 +192,7 @@ Deno.test('Ancient chooser deterministically enters the CUB and NEP families', (
 
   for (const lines of [7, 8]) {
     const decision = chooseAncientOpeningStrategy({
-      gameId: 'family-thresholds',
+      gameId: 'fixture-1',
       turnNumber: 1,
       availableOrdinaryLines: lines,
     });
@@ -215,13 +206,13 @@ Deno.test('Ancient chooser deterministically enters the CUB and NEP families', (
 
 Deno.test('Ancient six-line and low-line percentage branches cover both deterministic outcomes', () => {
   const sixSelected = chooseAncientOpeningStrategy({
-    gameId: 'representative-3',
-    turnNumber: 3,
+    gameId: 'variant-3',
+    turnNumber: 1,
     availableOrdinaryLines: 6,
   });
   const sixSaved = chooseAncientOpeningStrategy({
-    gameId: 'representative-0',
-    turnNumber: 3,
+    gameId: 'variant-0',
+    turnNumber: 1,
     availableOrdinaryLines: 6,
   });
   assert.deepEqual(sixSelected, {
@@ -233,22 +224,22 @@ Deno.test('Ancient six-line and low-line percentage branches cover both determin
 
   const lowSelected = [3, 4, 5].map((availableOrdinaryLines) =>
     chooseAncientOpeningStrategy({
-      gameId: 'representative-0',
-      turnNumber: 3,
+      gameId: 'variant-0',
+      turnNumber: 1,
       availableOrdinaryLines,
     })
   );
   const lowSaved = [3, 4, 5].map((availableOrdinaryLines) =>
     chooseAncientOpeningStrategy({
-      gameId: 'representative-1',
-      turnNumber: 3,
+      gameId: 'variant-1',
+      turnNumber: 1,
       availableOrdinaryLines,
     })
   );
   assert.deepEqual(lowSelected, Array(3).fill({
     kind: 'selected',
     family: 'MER',
-    strategyId: 'anc_mer_aggro',
+    strategyId: 'anc_mer_aggro_plu',
   }));
   assert.deepEqual(
     lowSaved,

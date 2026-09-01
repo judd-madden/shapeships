@@ -72,8 +72,8 @@ function plan(id: string) {
   return resolved;
 }
 
-Deno.test('production authored registry has exact parity across all eleven strategies', () => {
-  assert.equal(ACTIVE_ANCIENT_AUTHORED_PLANS.length, 11);
+Deno.test('production authored registry has exact parity across all thirteen strategies', () => {
+  assert.equal(ACTIVE_ANCIENT_AUTHORED_PLANS.length, 13);
   assert.deepEqual(
     ACTIVE_ANCIENT_AUTHORED_PLANS.map((entry) => entry.id),
     [
@@ -87,7 +87,9 @@ Deno.test('production authored registry has exact parity across all eleven strat
       'anc_vortex_simulacrum',
       'anc_silly_simulacrum',
       'anc_spiral_aggro',
+      'anc_spiral_nep_aggro',
       'anc_mer_aggro',
+      'anc_mer_aggro_plu',
     ],
   );
   const strategyIds = new Set(
@@ -128,7 +130,16 @@ Deno.test('fixed openings, loops, QUA, and SPI policies match authored productio
     'SPI', 'SPI', 'SPI',
   ]);
   assert.deepEqual(ordered('anc_spiral_aggro')?.endLoop, ['MER']);
+  assert.deepEqual(ordered('anc_spiral_nep_aggro')?.buildOrder, [
+    'SPI', 'NEP',
+    'SPI', 'NEP',
+    'SPI', 'NEP',
+  ]);
+  assert.deepEqual(ordered('anc_spiral_nep_aggro')?.endLoop, ['MER']);
+  assert.deepEqual(ordered('anc_mer_aggro')?.buildOrder, []);
   assert.deepEqual(ordered('anc_mer_aggro')?.endLoop, ['MER']);
+  assert.deepEqual(ordered('anc_mer_aggro_plu')?.buildOrder, []);
+  assert.deepEqual(ordered('anc_mer_aggro_plu')?.endLoop, ['MER']);
   assert.deepEqual(
     plan('anc_vortex_no_simulacrum').quantumMysticPolicy,
     { QUA: { mode: 'fixed_6' } },
@@ -140,6 +151,25 @@ Deno.test('fixed openings, loops, QUA, and SPI policies match authored productio
   assert.deepEqual(plan('anc_spiral_aggro').targetPolicy, {
     SPI: { mode: 'highest_cost_basic' },
   });
+  assert.equal(plan('anc_spiral_aggro').adaptiveBuildRules, undefined);
+  assert.deepEqual(plan('anc_spiral_nep_aggro').targetPolicy, {
+    SPI: { mode: 'highest_cost_basic' },
+  });
+  assert.deepEqual(plan('anc_spiral_nep_aggro').adaptiveBuildRules, [{
+    shipDefId: 'PLU',
+    targetCount: 3,
+    selfHealthAtOrBelow: 17,
+    saveUntilAffordable: true,
+    placement: 'after_ordered_opening',
+  }]);
+  assert.equal(plan('anc_mer_aggro').adaptiveBuildRules, undefined);
+  assert.deepEqual(plan('anc_mer_aggro_plu').adaptiveBuildRules, [{
+    shipDefId: 'PLU',
+    targetCount: 3,
+    selfHealthAtOrBelow: 16,
+    saveUntilAffordable: true,
+    placement: 'after_ordered_opening',
+  }]);
   assert.deepEqual(plan('anc_vortex_no_simulacrum').targetPolicy, {
     SPI: { mode: 'highest_cost_basic' },
   });
@@ -168,6 +198,129 @@ Deno.test('fixed openings, loops, QUA, and SPI policies match authored productio
   assert.deepEqual(plan('anc_silly_simulacrum').opportunisticForeignUpgrades, {
     mode: 'highest_total_line_cost',
   });
+});
+
+Deno.test('Spiral NEP Aggro respects its alternating opening before adaptive PLU and MER', () => {
+  const authored = plan('anc_spiral_nep_aggro');
+  const partialOpeningCases = [
+    [{ SPI: 1 }, 7, 'NEP'],
+    [{ SPI: 1, NEP: 1 }, 6, 'SPI'],
+    [{ SPI: 2, NEP: 1 }, 7, 'NEP'],
+    [{ SPI: 2, NEP: 2 }, 6, 'SPI'],
+    [{ SPI: 3, NEP: 2 }, 7, 'NEP'],
+  ] as const;
+
+  for (const [ships, lines, expectedShipDefId] of partialOpeningCases) {
+    assert.deepEqual(
+      expandedBuilds(planBotBuildSubmit(
+        state({ health: 17, lines, ships: fleet(ships) }),
+        'bot',
+        authored,
+      )),
+      [expectedShipDefId],
+    );
+  }
+
+  assert.deepEqual(
+    expandedBuilds(planBotBuildSubmit(
+      state({ health: 17, lines: 3, ships: fleet({ SPI: 3, NEP: 2 }) }),
+      'bot',
+      authored,
+    )),
+    [],
+  );
+  assert.deepEqual(
+    expandedBuilds(planBotBuildSubmit(
+      state({ health: 17, lines: 9, ships: fleet({ SPI: 3, NEP: 3 }) }),
+      'bot',
+      authored,
+    )),
+    ['PLU', 'PLU', 'PLU'],
+  );
+  assert.deepEqual(
+    expandedBuilds(planBotBuildSubmit(
+      state({ health: 17, lines: 2, ships: fleet({ SPI: 3, NEP: 3 }) }),
+      'bot',
+      authored,
+    )),
+    [],
+  );
+  assert.deepEqual(
+    expandedBuilds(planBotBuildSubmit(
+      state({
+        health: 17,
+        lines: 4,
+        ships: fleet({ SPI: 3, NEP: 3, PLU: 3 }),
+      }),
+      'bot',
+      authored,
+    )),
+    ['MER'],
+  );
+  assert.deepEqual(
+    expandedBuilds(planBotBuildSubmit(
+      state({ health: 18, lines: 4, ships: fleet({ SPI: 3, NEP: 3 }) }),
+      'bot',
+      authored,
+    )),
+    ['MER'],
+  );
+});
+
+Deno.test('original and PLU-aware low-line aggro plans retain distinct build behavior', () => {
+  const originalSpiral = plan('anc_spiral_aggro');
+  assert.deepEqual(
+    expandedBuilds(planBotBuildSubmit(
+      state({ health: 17, lines: 4, ships: fleet({ SPI: 3 }) }),
+      'bot',
+      originalSpiral,
+    )),
+    ['MER'],
+  );
+
+  const originalMer = plan('anc_mer_aggro');
+  assert.deepEqual(
+    expandedBuilds(planBotBuildSubmit(
+      state({ health: 16, lines: 4, ships: [] }),
+      'bot',
+      originalMer,
+    )),
+    ['MER'],
+  );
+
+  const pluMer = plan('anc_mer_aggro_plu');
+  assert.deepEqual(
+    expandedBuilds(planBotBuildSubmit(
+      state({ health: 16, lines: 9, ships: [] }),
+      'bot',
+      pluMer,
+    )),
+    ['PLU', 'PLU', 'PLU'],
+  );
+  assert.deepEqual(
+    expandedBuilds(planBotBuildSubmit(
+      state({ health: 16, lines: 2, ships: [] }),
+      'bot',
+      pluMer,
+    )),
+    [],
+  );
+  assert.deepEqual(
+    expandedBuilds(planBotBuildSubmit(
+      state({ health: 16, lines: 4, ships: fleet({ PLU: 3 }) }),
+      'bot',
+      pluMer,
+    )),
+    ['MER'],
+  );
+  assert.deepEqual(
+    expandedBuilds(planBotBuildSubmit(
+      state({ health: 17, lines: 4, ships: [] }),
+      'bot',
+      pluMer,
+    )),
+    ['MER'],
+  );
 });
 
 Deno.test('Vortex Simulacrum Drawing sequence ignores staged Battle progress through its end loop', () => {

@@ -170,12 +170,12 @@ export const ACTIVE_ANCIENT_AUTHORED_PLANS: readonly AuthoredBotPlan[] = [
     orderedBuildPlan: {
       buildOrder: [
         'NEP', 'NEP', 'NEP',
-        'PLU', 'PLU',
+        'PLU', 'PLU', 'PLU',
         'MER', 'MER',
         'QUA',
-        'SPI',
+        'SPI', 'SPI', 'SPI',
         'SOL',
-        'PLU', 'PLU', 'PLU',
+        'PLU', 'PLU',
         'NEP',
         'MER', 'MER',
       ],
@@ -227,11 +227,50 @@ export const ACTIVE_ANCIENT_AUTHORED_PLANS: readonly AuthoredBotPlan[] = [
     },
   },
   {
+    id: 'anc_spiral_nep_aggro',
+    name: 'Spiral NEP Aggro',
+    speciesId: 'ANC',
+    buildGoals: [],
+    loopGoals: [],
+    adaptiveBuildRules: [{
+      shipDefId: 'PLU',
+      targetCount: 3,
+      selfHealthAtOrBelow: 17,
+      saveUntilAffordable: true,
+      placement: 'after_ordered_opening',
+    }],
+    orderedBuildPlan: {
+      buildOrder: ['SPI', 'NEP', 'SPI', 'NEP', 'SPI', 'NEP'],
+      endLoop: ['MER'],
+    },
+    targetPolicy: {
+      SPI: { mode: 'highest_cost_basic' },
+    },
+  },
+  {
     id: 'anc_mer_aggro',
     name: 'Simple Aggro',
     speciesId: 'ANC',
     buildGoals: [],
     loopGoals: [],
+    orderedBuildPlan: {
+      buildOrder: [],
+      endLoop: ['MER'],
+    },
+  },
+  {
+    id: 'anc_mer_aggro_plu',
+    name: 'Simple Aggro + PLU',
+    speciesId: 'ANC',
+    buildGoals: [],
+    loopGoals: [],
+    adaptiveBuildRules: [{
+      shipDefId: 'PLU',
+      targetCount: 3,
+      selfHealthAtOrBelow: 16,
+      saveUntilAffordable: true,
+      placement: 'after_ordered_opening',
+    }],
     orderedBuildPlan: {
       buildOrder: [],
       endLoop: ['MER'],

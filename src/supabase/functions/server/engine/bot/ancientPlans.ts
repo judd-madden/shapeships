@@ -123,10 +123,12 @@ export const ANCIENT_NEP_BOT_STRATEGIES: readonly AncientBotStrategy[] = [
 
 export const ANCIENT_SPI_BOT_STRATEGIES: readonly AncientBotStrategy[] = [
   strategy('anc_spiral_aggro', 'Spiral Into Aggro', 'SPI'),
+  strategy('anc_spiral_nep_aggro', 'Spiral NEP Aggro', 'SPI'),
 ];
 
 export const ANCIENT_MER_BOT_STRATEGIES: readonly AncientBotStrategy[] = [
   strategy('anc_mer_aggro', 'Simple Aggro', 'MER'),
+  strategy('anc_mer_aggro_plu', 'Simple Aggro + PLU', 'MER'),
 ];
 
 export const ANCIENT_BOT_STRATEGIES_BY_FAMILY: Readonly<
@@ -192,7 +194,7 @@ export function chooseAncientOpeningStrategy(
     ) % 100;
 
     const family: AncientBotStrategyFamily =
-      bucket < 25 ? 'NEP' : 'CUB';
+      bucket < 20 ? 'NEP' : 'CUB';
 
     const selected = selectFamilyStrategy(input.gameId, family);
 
@@ -212,11 +214,12 @@ export function chooseAncientOpeningStrategy(
     const bucket = hashSeed(
       `${input.gameId}:ancient-opening:six:${input.turnNumber}`,
     ) % 100;
-    if (bucket < 33) {
+    if (bucket < 37) {
+      const selected = selectFamilyStrategy(input.gameId, 'SPI');
       return {
         kind: 'selected',
         family: 'SPI',
-        strategyId: ANCIENT_SPI_BOT_STRATEGIES[0].id,
+        strategyId: selected.id,
       };
     }
     return { kind: 'save', thresholdClass: 'six' };
@@ -225,11 +228,12 @@ export function chooseAncientOpeningStrategy(
   const bucket = hashSeed(
     `${input.gameId}:ancient-opening:low:${input.turnNumber}`,
   ) % 100;
-  if (bucket < 20) {
+  if (bucket < 26) {
+    const selected = selectFamilyStrategy(input.gameId, 'MER');
     return {
       kind: 'selected',
       family: 'MER',
-      strategyId: ANCIENT_MER_BOT_STRATEGIES[0].id,
+      strategyId: selected.id,
     };
   }
   return { kind: 'save', thresholdClass: 'low' };
