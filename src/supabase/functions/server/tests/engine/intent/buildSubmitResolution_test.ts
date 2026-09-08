@@ -7,13 +7,22 @@ function createResolutionState(args: {
   payload: Record<string, unknown>;
   ships?: any[];
   turnNumber?: number;
+  faction?: string;
+  joiningLines?: number;
 }): any {
   const turnNumber = args.turnNumber ?? 1;
   return {
     gameId: 'build-resolution-qua-test',
     status: 'active',
     players: [
-      { id: 'p1', role: 'player', faction: 'ancient', health: 25, lines: args.lines, joiningLines: 0 },
+      {
+        id: 'p1',
+        role: 'player',
+        faction: args.faction ?? 'ancient',
+        health: 25,
+        lines: args.lines,
+        joiningLines: args.joiningLines ?? 0,
+      },
     ],
     gameData: {
       turnNumber,
@@ -625,4 +634,124 @@ Deno.test('unused copied LEG lines clamp only through ordinary persistence', () 
   assert.equal(materialized.state.players[0].joiningLines, 15);
   resolve(materialized.state);
   assert.equal(materialized.state.players[0].joiningLines, 12);
+});
+
+Deno.test('successful DRE records only current-turn consumed components without changing ships made', () => {
+  const state = createResolutionState({
+    turnNumber: 2,
+    lines: 2,
+    joiningLines: 10,
+    faction: 'human',
+    ships: [
+      { instanceId: 'old-def', shipDefId: 'DEF', createdTurn: 1 },
+      { instanceId: 'old-fig-1', shipDefId: 'FIG', createdTurn: 1 },
+      { instanceId: 'old-fig-2', shipDefId: 'FIG', createdTurn: 1 },
+      { instanceId: 'old-fig-3', shipDefId: 'FIG', createdTurn: 1 },
+      { instanceId: 'old-com', shipDefId: 'COM', createdTurn: 1 },
+    ],
+    payload: {
+      builds: [
+        { shipDefId: 'DEF', count: 1 },
+        { shipDefId: 'DRE', count: 1 },
+      ],
+    },
+  });
+
+  resolve(state);
+
+  assert.equal(state.gameData.turnData.shipsMadeThisTurnByPlayerId.p1, 2);
+  assert.equal(
+    state.gameData.turnData
+      .dreadnoughtConsumedCurrentTurnComponentsByPlayerId.p1,
+    1,
+  );
+  assert.deepEqual(
+    state.gameData.ships.p1.map((ship: any) => ship.shipDefId),
+    ['DRE'],
+  );
+});
+
+Deno.test('DRE records no exclusion when all consumed components are from earlier turns', () => {
+  const state = createResolutionState({
+    lines: 0,
+    joiningLines: 10,
+    faction: 'human',
+    ships: [
+      { instanceId: 'old-def-1', shipDefId: 'DEF', createdTurn: 0 },
+      { instanceId: 'old-def-2', shipDefId: 'DEF', createdTurn: 0 },
+      { instanceId: 'old-fig-1', shipDefId: 'FIG', createdTurn: 0 },
+      { instanceId: 'old-fig-2', shipDefId: 'FIG', createdTurn: 0 },
+      { instanceId: 'old-fig-3', shipDefId: 'FIG', createdTurn: 0 },
+      { instanceId: 'old-com', shipDefId: 'COM', createdTurn: 0 },
+    ],
+    payload: { builds: [{ shipDefId: 'DRE', count: 1 }] },
+  });
+
+  resolve(state);
+
+  assert.equal(state.gameData.turnData.shipsMadeThisTurnByPlayerId.p1, 1);
+  assert.equal(
+    state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByPlayerId,
+    undefined,
+  );
+});
+
+Deno.test('failed DRE does not record reserved current-turn components', () => {
+  const state = createResolutionState({
+    lines: 0,
+    joiningLines: 9,
+    faction: 'human',
+    ships: [
+      { instanceId: 'new-def-1', shipDefId: 'DEF', createdTurn: 1 },
+      { instanceId: 'new-def-2', shipDefId: 'DEF', createdTurn: 1 },
+      { instanceId: 'new-fig-1', shipDefId: 'FIG', createdTurn: 1 },
+      { instanceId: 'new-fig-2', shipDefId: 'FIG', createdTurn: 1 },
+      { instanceId: 'new-fig-3', shipDefId: 'FIG', createdTurn: 1 },
+      { instanceId: 'new-com', shipDefId: 'COM', createdTurn: 1 },
+    ],
+    payload: { builds: [{ shipDefId: 'DRE', count: 1 }] },
+  });
+
+  const result = resolve(state);
+
+  assert.equal(
+    result.events.some((event: any) =>
+      event.type === 'BUILD_ATTEMPT_SKIPPED' &&
+      event.shipDefId === 'DRE' &&
+      event.reason === 'insufficient_joining_lines'
+    ),
+    true,
+  );
+  assert.equal(state.gameData.ships.p1.length, 6);
+  assert.equal(
+    state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByPlayerId,
+    undefined,
+  );
+});
+
+Deno.test('non-DRE upgrades do not record DRE component exclusions', () => {
+  const state = createResolutionState({
+    lines: 0,
+    joiningLines: 3,
+    faction: 'human',
+    ships: [
+      { instanceId: 'new-def', shipDefId: 'DEF', createdTurn: 1 },
+      { instanceId: 'new-fig', shipDefId: 'FIG', createdTurn: 1 },
+    ],
+    payload: {
+      builds: [{ shipDefId: 'FRI', count: 1 }],
+      frigateTriggers: [4],
+    },
+  });
+
+  resolve(state);
+
+  assert.deepEqual(
+    state.gameData.ships.p1.map((ship: any) => ship.shipDefId),
+    ['FRI'],
+  );
+  assert.equal(
+    state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByPlayerId,
+    undefined,
+  );
 });

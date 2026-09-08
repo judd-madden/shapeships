@@ -439,6 +439,13 @@ export type GameData = {
     shipsMadeThisTurnByPlayerId?: Record<string, number>;
 
     /**
+     * Count of current-turn ships consumed as components of successfully
+     * completed Dreadnoughts, keyed by player. Used only to exclude those
+     * component creation events from Dreadnought Reveal production.
+     */
+    dreadnoughtConsumedCurrentTurnComponentsByPlayerId?: Record<string, number>;
+
+    /**
      * Turn-scoped snapshot ledger for ships removed from the live fleet during
      * build by non-destroy paths such as upgrade consumption or conversion.
      * Used only to extend once-only resolution source visibility.

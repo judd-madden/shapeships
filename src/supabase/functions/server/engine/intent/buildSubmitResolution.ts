@@ -316,6 +316,24 @@ function snapshotBuildPhaseNonDestroyRemovedShips(
   };
 }
 
+function incrementDreadnoughtConsumedCurrentTurnComponents(
+  state: any,
+  playerId: string,
+  amount: number,
+) {
+  if (!Number.isInteger(amount) || amount <= 0) return;
+
+  if (!state.gameData) state.gameData = {};
+  if (!state.gameData.turnData) state.gameData.turnData = {};
+
+  const current =
+    state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByPlayerId ?? {};
+  state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByPlayerId = {
+    ...current,
+    [playerId]: (current[playerId] ?? 0) + amount,
+  };
+}
+
 function createNormalBuildShipDuringDrawing(args: {
   state: any;
   playerId: string;
@@ -989,6 +1007,10 @@ function resolveBuildAttempt(args: {
   const consumedInstanceIds = reservation.reservedIndices
     .map((index) => workingFleet[index]?.instanceId)
     .filter((instanceId): instanceId is string => typeof instanceId === 'string');
+  const dreadnoughtConsumedCurrentTurnComponentCount = attempt.shipDefId === 'DRE'
+    ? reservation.reservedIndices.reduce((count, index) =>
+      count + (workingFleet[index]?.createdTurn === turnNumber ? 1 : 0), 0)
+    : 0;
   snapshotBuildPhaseNonDestroyRemovedShips(state, playerId, consumedInstanceIds);
   removeWorkingFleetEntries(state, playerId, workingFleet, reservation.reservedIndices);
   remainingJoiningLines -= joiningSpend;
@@ -1007,6 +1029,12 @@ function resolveBuildAttempt(args: {
     },
   });
   events.push(...created.events);
+
+  incrementDreadnoughtConsumedCurrentTurnComponents(
+    state,
+    playerId,
+    dreadnoughtConsumedCurrentTurnComponentCount,
+  );
 
   return {
     remainingOrdinaryLines,

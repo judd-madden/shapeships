@@ -369,14 +369,21 @@ export function resolveRevealSpecialPowers(
     const dreadnoughts = fleet.filter((ship) => ship.shipDefId === 'DRE');
     const totalShipsMadeThisTurn =
       workingState.gameData.turnData?.shipsMadeThisTurnByPlayerId?.[player.id] ?? 0;
+    const consumedCurrentTurnDreadnoughtComponents =
+      workingState.gameData.turnData
+        ?.dreadnoughtConsumedCurrentTurnComponentsByPlayerId?.[player.id] ?? 0;
+    const eligibleDreadnoughtCountingPool = Math.max(
+      totalShipsMadeThisTurn - consumedCurrentTurnDreadnoughtComponents,
+      0,
+    );
 
-    if (dreadnoughts.length <= 0 || totalShipsMadeThisTurn <= 0) continue;
+    if (dreadnoughts.length <= 0 || eligibleDreadnoughtCountingPool <= 0) continue;
 
     for (const dreadnought of dreadnoughts) {
       const shipsMade =
         (dreadnought.createdTurn ?? 0) === currentTurn
-          ? Math.max(totalShipsMadeThisTurn - 1, 0)
-          : totalShipsMadeThisTurn;
+          ? Math.max(eligibleDreadnoughtCountingPool - 1, 0)
+          : eligibleDreadnoughtCountingPool;
 
       if (shipsMade <= 0) continue;
 
