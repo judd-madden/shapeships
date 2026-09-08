@@ -660,9 +660,12 @@ Deno.test('successful DRE records only current-turn consumed components without 
   resolve(state);
 
   assert.equal(state.gameData.turnData.shipsMadeThisTurnByPlayerId.p1, 2);
+  const dreadnought = state.gameData.ships.p1.find(
+    (ship: any) => ship.shipDefId === 'DRE',
+  );
   assert.equal(
     state.gameData.turnData
-      .dreadnoughtConsumedCurrentTurnComponentsByPlayerId.p1,
+      .dreadnoughtConsumedCurrentTurnComponentsByInstanceId[dreadnought.instanceId],
     1,
   );
   assert.deepEqual(
@@ -691,7 +694,7 @@ Deno.test('DRE records no exclusion when all consumed components are from earlie
 
   assert.equal(state.gameData.turnData.shipsMadeThisTurnByPlayerId.p1, 1);
   assert.equal(
-    state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByPlayerId,
+    state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByInstanceId,
     undefined,
   );
 });
@@ -724,7 +727,7 @@ Deno.test('failed DRE does not record reserved current-turn components', () => {
   );
   assert.equal(state.gameData.ships.p1.length, 6);
   assert.equal(
-    state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByPlayerId,
+    state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByInstanceId,
     undefined,
   );
 });
@@ -751,7 +754,7 @@ Deno.test('non-DRE upgrades do not record DRE component exclusions', () => {
     ['FRI'],
   );
   assert.equal(
-    state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByPlayerId,
+    state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByInstanceId,
     undefined,
   );
 });

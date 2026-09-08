@@ -316,9 +316,9 @@ function snapshotBuildPhaseNonDestroyRemovedShips(
   };
 }
 
-function incrementDreadnoughtConsumedCurrentTurnComponents(
+function recordDreadnoughtConsumedCurrentTurnComponents(
   state: any,
-  playerId: string,
+  dreadnoughtInstanceId: string,
   amount: number,
 ) {
   if (!Number.isInteger(amount) || amount <= 0) return;
@@ -327,10 +327,10 @@ function incrementDreadnoughtConsumedCurrentTurnComponents(
   if (!state.gameData.turnData) state.gameData.turnData = {};
 
   const current =
-    state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByPlayerId ?? {};
-  state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByPlayerId = {
+    state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByInstanceId ?? {};
+  state.gameData.turnData.dreadnoughtConsumedCurrentTurnComponentsByInstanceId = {
     ...current,
-    [playerId]: (current[playerId] ?? 0) + amount,
+    [dreadnoughtInstanceId]: amount,
   };
 }
 
@@ -1030,11 +1030,13 @@ function resolveBuildAttempt(args: {
   });
   events.push(...created.events);
 
-  incrementDreadnoughtConsumedCurrentTurnComponents(
-    state,
-    playerId,
-    dreadnoughtConsumedCurrentTurnComponentCount,
-  );
+  if (attempt.shipDefId === 'DRE') {
+    recordDreadnoughtConsumedCurrentTurnComponents(
+      state,
+      created.ship.instanceId,
+      dreadnoughtConsumedCurrentTurnComponentCount,
+    );
+  }
 
   return {
     remainingOrdinaryLines,

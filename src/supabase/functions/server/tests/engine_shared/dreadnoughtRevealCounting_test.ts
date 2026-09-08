@@ -101,9 +101,12 @@ Deno.test('same-turn component consumed into a new DRE produces no Fighters', ()
 
   submitBuild(state);
   assert.equal(state.gameData.turnData.shipsMadeThisTurnByPlayerId.p1, 2);
+  const dreadnought = state.gameData.ships.p1.find(
+    (ship: any) => ship.shipDefId === 'DRE',
+  );
   assert.equal(
     state.gameData.turnData
-      .dreadnoughtConsumedCurrentTurnComponentsByPlayerId.p1,
+      .dreadnoughtConsumedCurrentTurnComponentsByInstanceId[dreadnought.instanceId],
     1,
   );
 
@@ -138,7 +141,10 @@ Deno.test('new DEF, FIG, and FRI survive older FRI and DRE reservations and prod
   assert.equal(state.gameData.turnData.shipsMadeThisTurnByPlayerId.p1, 4);
   assert.equal(
     state.gameData.turnData
-      .dreadnoughtConsumedCurrentTurnComponentsByPlayerId?.p1 ?? 0,
+      .dreadnoughtConsumedCurrentTurnComponentsByInstanceId?.[
+        state.gameData.ships.p1.find((ship: any) => ship.shipDefId === 'DRE')
+          .instanceId
+      ] ?? 0,
     0,
   );
 
@@ -203,9 +209,12 @@ Deno.test('mixed DRE consumption excludes new components but counts a surviving 
     ['DEF', 'DRE'],
   );
   assert.equal(state.gameData.turnData.shipsMadeThisTurnByPlayerId.p1, 4);
+  const dreadnought = state.gameData.ships.p1.find(
+    (ship: any) => ship.shipDefId === 'DRE',
+  );
   assert.equal(
     state.gameData.turnData
-      .dreadnoughtConsumedCurrentTurnComponentsByPlayerId.p1,
+      .dreadnoughtConsumedCurrentTurnComponentsByInstanceId[dreadnought.instanceId],
     2,
   );
 
@@ -240,21 +249,87 @@ Deno.test('two new DREs exclude all consumed components and count each other onc
 
   submitBuild(state);
   assert.equal(state.gameData.turnData.shipsMadeThisTurnByPlayerId.p1, 14);
-  assert.equal(
-    state.gameData.turnData
-      .dreadnoughtConsumedCurrentTurnComponentsByPlayerId.p1,
-    12,
-  );
-  assert.equal(state.gameData.ships.p1.length, 2);
+  const dreadnoughts = state.gameData.ships.p1;
+  assert.equal(dreadnoughts.length, 2);
+  for (const dreadnought of dreadnoughts) {
+    assert.equal(
+      state.gameData.turnData
+        .dreadnoughtConsumedCurrentTurnComponentsByInstanceId[
+          dreadnought.instanceId
+        ],
+      6,
+    );
+  }
 
   const revealed = resolveRevealSpecialPowers(state);
-  assert.equal(createdFighterEvents(revealed).length, 2);
-  for (const dreadnought of state.gameData.ships.p1) {
+  assert.equal(createdFighterEvents(revealed).length, 14);
+  for (const dreadnought of dreadnoughts) {
     assert.equal(
       createdFighterEvents(revealed).filter((event) =>
         event.effectId.includes(dreadnought.instanceId)
       ).length,
+      7,
+    );
+  }
+});
+
+Deno.test('each DRE excludes only its own new Commander components', () => {
+  const state = createBuildState({
+    lines: 14,
+    joiningLines: 20,
+    ships: [
+      { instanceId: 'existing-dre', shipDefId: 'DRE', createdTurn: 1 },
+      ...Array.from({ length: 4 }, (_, index) => ({
+        instanceId: `old-def-${index + 1}`,
+        shipDefId: 'DEF',
+        createdTurn: 1,
+      })),
+      ...Array.from({ length: 6 }, (_, index) => ({
+        instanceId: `old-fig-${index + 1}`,
+        shipDefId: 'FIG',
+        createdTurn: 1,
+      })),
+    ],
+    builds: [
+      { shipDefId: 'ORB', count: 1 },
+      { shipDefId: 'COM', count: 2 },
+      { shipDefId: 'DRE', count: 2 },
+    ],
+  });
+
+  submitBuild(state);
+  assert.equal(state.gameData.turnData.shipsMadeThisTurnByPlayerId.p1, 5);
+  assert.deepEqual(
+    state.gameData.ships.p1.map((ship: any) => ship.shipDefId),
+    ['DRE', 'ORB', 'DRE', 'DRE'],
+  );
+  const newDreadnoughts = state.gameData.ships.p1.filter(
+    (ship: any) => ship.shipDefId === 'DRE' && ship.createdTurn === TURN_NUMBER,
+  );
+  assert.equal(newDreadnoughts.length, 2);
+  for (const dreadnought of newDreadnoughts) {
+    assert.equal(
+      state.gameData.turnData
+        .dreadnoughtConsumedCurrentTurnComponentsByInstanceId[
+          dreadnought.instanceId
+        ],
       1,
+    );
+  }
+
+  const revealed = resolveRevealSpecialPowers(state);
+  const fighterEvents = createdFighterEvents(revealed);
+  assert.equal(fighterEvents.length, 11);
+  assert.equal(
+    fighterEvents.filter((event) => event.effectId.includes('existing-dre')).length,
+    5,
+  );
+  for (const dreadnought of newDreadnoughts) {
+    assert.equal(
+      fighterEvents.filter((event) =>
+        event.effectId.includes(dreadnought.instanceId)
+      ).length,
+      3,
     );
   }
 });
@@ -301,7 +376,7 @@ Deno.test('both new-turn paths reset DRE component exclusions', () => {
       phaseReadiness: [],
       turnData: {
         turnNumber: 0,
-        dreadnoughtConsumedCurrentTurnComponentsByPlayerId: { p1: 4 },
+        dreadnoughtConsumedCurrentTurnComponentsByInstanceId: { 'stale-dre': 4 },
       },
     },
   };
@@ -310,7 +385,7 @@ Deno.test('both new-turn paths reset DRE component exclusions', () => {
   if (!setupAdvanced.ok) return;
   assert.deepEqual(
     setupAdvanced.state.gameData?.turnData
-      ?.dreadnoughtConsumedCurrentTurnComponentsByPlayerId,
+      ?.dreadnoughtConsumedCurrentTurnComponentsByInstanceId,
     {},
   );
 
@@ -326,7 +401,7 @@ Deno.test('both new-turn paths reset DRE component exclusions', () => {
         currentMajorPhase: 'battle',
         currentSubPhase: 'end_of_turn_resolution',
         turnNumber: TURN_NUMBER,
-        dreadnoughtConsumedCurrentTurnComponentsByPlayerId: { p1: 4 },
+        dreadnoughtConsumedCurrentTurnComponentsByInstanceId: { 'stale-dre': 4 },
       },
     },
   };
@@ -335,7 +410,7 @@ Deno.test('both new-turn paths reset DRE component exclusions', () => {
   if (!turnAdvanced.ok) return;
   assert.deepEqual(
     turnAdvanced.state.gameData?.turnData
-      ?.dreadnoughtConsumedCurrentTurnComponentsByPlayerId,
+      ?.dreadnoughtConsumedCurrentTurnComponentsByInstanceId,
     {},
   );
 });
