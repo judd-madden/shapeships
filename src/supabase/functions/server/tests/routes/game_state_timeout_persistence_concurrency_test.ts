@@ -3,16 +3,22 @@ import { Hono } from "npm:hono";
 import { registerGameRoutes } from "../../routes/game_routes.ts";
 import type {
   ConditionalWriteResult,
+  GameHeadPersistence,
   IntentPersistence,
 } from "../../routes/intent_persistence.ts";
+import {
+  projectGameStateHead,
+  type PersistedGameStateHeadV1,
+} from "../../routes/game_state_head.ts";
 
 type GameRoutePersistence = Pick<
   IntentPersistence,
   "load" | "conditionalUpdate" | "insertIfMissing"
->;
+> & GameHeadPersistence;
 
 class ScriptedGamePersistence implements GameRoutePersistence {
   readonly store = new Map<string, any>();
+  readonly heads = new Map<string, PersistedGameStateHeadV1 | null>();
   readonly writes: Array<{ key: string; value: any }> = [];
   readonly conflictReplacementStates: any[] = [];
   conditionalAttempts = 0;
@@ -48,7 +54,12 @@ class ScriptedGamePersistence implements GameRoutePersistence {
     if (!matches) return { status: "conflict" };
 
     const value = structuredClone(args.value);
+    const projected = projectGameStateHead(value);
+    if (!projected.ok) {
+      return { status: "error", error: { message: projected.error } };
+    }
     this.store.set(args.key, value);
+    this.heads.set(args.key, structuredClone(projected.head));
     this.writes.push({ key: args.key, value });
     return { status: "updated" };
   }
@@ -61,6 +72,26 @@ class ScriptedGamePersistence implements GameRoutePersistence {
     const copy = structuredClone(value);
     this.store.set(key, copy);
     this.writes.push({ key, value: copy });
+    return { status: "updated" };
+  }
+
+  async loadGameHead(key: string) {
+    return this.store.has(key)
+      ? {
+        status: "found" as const,
+        value: structuredClone(this.heads.get(key) ?? null),
+      }
+      : { status: "missing" as const };
+  }
+
+  async conditionalUpdateGameHead(
+    args: Parameters<GameRoutePersistence["conditionalUpdateGameHead"]>[0],
+  ): Promise<ConditionalWriteResult> {
+    const current = this.store.get(args.key);
+    if (!current || current.stateRevision !== args.expectedStateRevision) {
+      return { status: "conflict" };
+    }
+    this.heads.set(args.key, structuredClone(args.gameHead));
     return { status: "updated" };
   }
 }
@@ -136,6 +167,9 @@ function createFixture(state: any) {
   const persistence = new ScriptedGamePersistence();
   const gameKey = `game_${state.gameId}`;
   persistence.store.set(gameKey, structuredClone(state));
+  const projectedHead = projectGameStateHead(state);
+  assert.equal(projectedHead.ok, true);
+  persistence.heads.set(gameKey, structuredClone(projectedHead.head));
   const kvSetWrites: Array<{ key: string; value: any }> = [];
   const app = new Hono();
   registerGameRoutes(

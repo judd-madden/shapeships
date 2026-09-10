@@ -81,6 +81,16 @@ function createFixture(args: {
       store.set(key, copy);
       return Promise.resolve({ status: "updated" as const });
     },
+    loadGameHead(key: string) {
+      return Promise.resolve(
+        store.has(key)
+          ? { status: "found" as const, value: null }
+          : { status: "missing" as const },
+      );
+    },
+    conditionalUpdateGameHead() {
+      return Promise.resolve({ status: "conflict" as const });
+    },
   };
 
   registerGameRoutes(

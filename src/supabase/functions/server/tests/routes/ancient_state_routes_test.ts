@@ -3,7 +3,10 @@ import { replaceChargeDeclarationVisibilityState } from '../../engine/state/char
 import { applyIntent } from '../../engine/intent/IntentReducer.ts';
 import { registerGameRoutes } from '../../routes/game_routes.ts';
 import { registerIntentRoutes } from '../../routes/intent_routes.ts';
-import type { IntentPersistence } from '../../routes/intent_persistence.ts';
+import type {
+  GameStatePersistence,
+  IntentPersistence,
+} from '../../routes/intent_persistence.ts';
 import {
   applyAncientBattleRevealPreparation,
   normalizeAncientGameState,
@@ -147,7 +150,7 @@ function createFakeIntentPersistence(
   store: Map<string, any>,
   writes: any[],
   gameReads: any[],
-): IntentPersistence {
+): GameStatePersistence {
   return {
     async load(key) {
       if (key.startsWith('game_') && !key.startsWith('game_history_') && gameReads.length > 0) {
@@ -181,6 +184,14 @@ function createFakeIntentPersistence(
       store.set(key, copy);
       writes.push({ key, value: copy });
       return { status: 'updated' };
+    },
+    async loadGameHead(key) {
+      return store.has(key)
+        ? { status: 'found', value: null }
+        : { status: 'missing' };
+    },
+    async conditionalUpdateGameHead() {
+      return { status: 'conflict' };
     },
   };
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { registerGameRoutes } from "../../routes/game_routes.ts";
 import { registerIntentRoutes } from "../../routes/intent_routes.ts";
-import type { IntentPersistence } from "../../routes/intent_persistence.ts";
+import type { GameStatePersistence } from "../../routes/intent_persistence.ts";
 import { normalizeAncientGameState } from "../../engine/state/ancientState.ts";
 import { ensureMissionChallengeAssignment } from "../../engine/mission/MissionChallenge.ts";
 
@@ -110,7 +110,7 @@ function missionState() {
 function createPersistence(
   store: Map<string, any>,
   writes: any[],
-): IntentPersistence {
+): GameStatePersistence {
   return {
     async load(key) {
       if (!store.has(key)) return { status: "missing" };
@@ -139,6 +139,14 @@ function createPersistence(
       store.set(key, copy);
       writes.push({ key, value: copy });
       return { status: "updated" };
+    },
+    async loadGameHead(key) {
+      return store.has(key)
+        ? { status: "found", value: null }
+        : { status: "missing" };
+    },
+    async conditionalUpdateGameHead() {
+      return { status: "conflict" };
     },
   };
 }

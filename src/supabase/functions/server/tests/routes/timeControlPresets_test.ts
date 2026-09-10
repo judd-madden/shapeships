@@ -72,6 +72,14 @@ function createRouteFixture() {
       store.set(key, structuredClone(value));
       return { status: "updated" as const };
     },
+    async loadGameHead(key: string) {
+      return store.has(key)
+        ? { status: "found" as const, value: null }
+        : { status: "missing" as const };
+    },
+    async conditionalUpdateGameHead() {
+      return { status: "conflict" as const };
+    },
   };
 
   registerGameRoutes(

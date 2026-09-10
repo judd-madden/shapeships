@@ -75,7 +75,16 @@ import {
   withStateRevisionFromBase,
 } from './state_revision.ts';
 import { debugLog } from '../utils/serverLogger.ts';
-import type { IntentPersistence } from './intent_persistence.ts';
+import type {
+  GameHeadPersistence,
+  IntentPersistence,
+} from './intent_persistence.ts';
+import {
+  parsePersistedGameStateHead,
+  projectGameStateHead,
+  projectStoredGameStateHeadResponse,
+  type GameStateHeadResponse,
+} from './game_state_head.ts';
 import { getPlayerMaxHealth } from '../engine_shared/maximumHealth.ts';
 import { getCubeDiceActionForPlayer } from '../engine/phase/cubeDiceManipulation.ts';
 import { projectPublicTurnPhaseProgress } from '../engine/phase/turnPhaseProgress.ts';
@@ -1017,7 +1026,7 @@ type PreparedGameStateRead =
 type GameRoutePersistence = Pick<
   IntentPersistence,
   'load' | 'conditionalUpdate' | 'insertIfMissing'
->;
+> & GameHeadPersistence;
 
 export function registerGameRoutes(
   app: Hono,
@@ -2431,8 +2440,35 @@ export function registerGameRoutes(
 
       const gameId = c.req.param('gameId');
       const requestingPlayerId = session.sessionId;
-      const preparedRead = await prepareGameStateRead(gameId, requestingPlayerId);
+      const gameKey = `game_${gameId}`;
+      const headLoad = await persistence.loadGameHead(gameKey);
+      if (headLoad.status === 'error') {
+        console.error('Game-state head persistence error:', headLoad.error);
+        return c.json({ error: "Internal server error" }, 500);
+      }
+      if (headLoad.status === 'missing') {
+        return c.json({ error: "Game not found" }, 404);
+      }
 
+      const storedHead = parsePersistedGameStateHead(headLoad.value, gameId);
+      if (storedHead) {
+        const participant = storedHead.participants.find(
+          (candidate) => candidate.id === requestingPlayerId,
+        );
+        if (!participant) {
+          return c.json({ error: "Not authorized to view this game" }, 403);
+        }
+
+        const compactProjection = projectStoredGameStateHeadResponse(
+          storedHead,
+          Date.now(),
+        );
+        if (!compactProjection.possibleTimeout) {
+          return c.json(compactProjection.response);
+        }
+      }
+
+      const preparedRead = await prepareGameStateRead(gameId, requestingPlayerId);
       if (!preparedRead.ok) {
         return gameStateReadErrorResponse(c, preparedRead);
       }
@@ -2440,8 +2476,7 @@ export function registerGameRoutes(
       const { maintainedState, nowMs } = preparedRead;
       const phaseKey = getPhaseKey(maintainedState) ?? 'unknown';
       const clockData = maintainedState?.gameData?.clock;
-
-      return c.json({
+      const response: GameStateHeadResponse = {
         gameId: maintainedState?.gameId ?? gameId,
         stateRevision: maintainedState.stateRevision,
         status: maintainedState?.status ?? 'unknown',
@@ -2454,7 +2489,26 @@ export function registerGameRoutes(
               serverNowMs: nowMs,
             }
           : null,
-      });
+      };
+
+      const projectedHead = projectGameStateHead(maintainedState);
+      if (projectedHead.ok) {
+        const fillResult = await persistence.conditionalUpdateGameHead({
+          key: gameKey,
+          gameHead: projectedHead.head,
+          expectedStateRevision: projectedHead.head.stateRevision,
+        });
+        if (fillResult.status === 'error') {
+          console.warn('Game-state head lazy fill failed:', fillResult.error);
+        }
+      } else {
+        console.warn('Game-state head lazy projection failed:', {
+          gameId,
+          error: projectedHead.error,
+        });
+      }
+
+      return c.json(response);
     } catch (error) {
       console.error("Get game state head error:", error);
       return c.json({ error: "Internal server error" }, 500);

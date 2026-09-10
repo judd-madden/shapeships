@@ -4,13 +4,14 @@ import { normalizeAncientGameState } from "../../engine/state/ancientState.ts";
 import { registerGameRoutes } from "../../routes/game_routes.ts";
 import type {
   ConditionalWriteResult,
+  GameHeadPersistence,
   IntentPersistence,
 } from "../../routes/intent_persistence.ts";
 
 type GameRoutePersistence = Pick<
   IntentPersistence,
   "load" | "conditionalUpdate" | "insertIfMissing"
->;
+> & GameHeadPersistence;
 
 class ScriptedGamePersistence implements GameRoutePersistence {
   readonly store = new Map<string, any>();
@@ -63,6 +64,16 @@ class ScriptedGamePersistence implements GameRoutePersistence {
     this.store.set(key, copy);
     this.writes.push({ key, value: copy });
     return { status: "updated" };
+  }
+
+  async loadGameHead(key: string) {
+    return this.store.has(key)
+      ? { status: "found" as const, value: null }
+      : { status: "missing" as const };
+  }
+
+  async conditionalUpdateGameHead(): Promise<ConditionalWriteResult> {
+    return { status: "conflict" };
   }
 }
 

@@ -4,13 +4,14 @@ import { runBotsUntilSettled } from '../../engine/bot/botRunner.ts';
 import { registerGameRoutes } from '../../routes/game_routes.ts';
 import type {
   ConditionalWriteResult,
+  GameHeadPersistence,
   IntentPersistence,
 } from '../../routes/intent_persistence.ts';
 
 type GameRoutePersistence = Pick<
   IntentPersistence,
   'load' | 'conditionalUpdate' | 'insertIfMissing'
->;
+> & GameHeadPersistence;
 
 class TrackingGamePersistence implements GameRoutePersistence {
   readonly store = new Map<string, any>();
@@ -38,6 +39,16 @@ class TrackingGamePersistence implements GameRoutePersistence {
     if (this.store.has(key)) return { status: 'conflict' };
     this.store.set(key, structuredClone(value));
     return { status: 'updated' };
+  }
+
+  async loadGameHead(key: string) {
+    return this.store.has(key)
+      ? { status: 'found' as const, value: null }
+      : { status: 'missing' as const };
+  }
+
+  async conditionalUpdateGameHead(): Promise<ConditionalWriteResult> {
+    return { status: 'conflict' };
   }
 }
 
