@@ -27,7 +27,6 @@ export function useClockPresentation({
   rawState,
   isFinished,
 }: ClockPresentationArgs): {
-  applyHeadClockSnapshot: (clockSnapshot: GameStateClockSnapshot | null) => void;
   formatPlayerClock: (playerId?: string | null, isReady?: boolean) => string;
 } {
   const [clockAnchor, setClockAnchor] = useState<ClockAnchor | null>(null);
@@ -35,21 +34,6 @@ export function useClockPresentation({
 
   const activeSnapshot =
     clockAnchor?.gameId === effectiveGameId ? clockAnchor.snapshot : null;
-
-  const applyHeadClockSnapshot = useCallback(
-    (clockSnapshot: GameStateClockSnapshot | null): void => {
-      if (!clockSnapshot || !effectiveGameId) {
-        return;
-      }
-
-      setClockAnchor({
-        gameId: effectiveGameId,
-        snapshot: clockSnapshot,
-      });
-      setPresentationNowMs(Date.now());
-    },
-    [effectiveGameId],
-  );
 
   useLayoutEffect(() => {
     const nextPresentationNowMs = Date.now();
@@ -103,7 +87,6 @@ export function useClockPresentation({
   );
 
   return {
-    applyHeadClockSnapshot,
     formatPlayerClock,
   };
 }

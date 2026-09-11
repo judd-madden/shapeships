@@ -1306,7 +1306,7 @@ export function useGameSession(
     foregroundResumeToken,
   } = useUntimedPollingThrottle();
   const isFinished = isGameFinished(rawState);
-  const { applyHeadClockSnapshot, formatPlayerClock } = useClockPresentation({
+  const { formatPlayerClock } = useClockPresentation({
     effectiveGameId,
     rawState,
     isFinished,
@@ -1369,7 +1369,6 @@ export function useGameSession(
     getLastAcceptedFullFingerprint,
     getLastAcceptedFullSyncAtMs,
     isGameStateRequestInFlight,
-    applyHeadClockSnapshot,
     setLoading,
     setError,
     isFinished,

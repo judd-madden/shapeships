@@ -291,7 +291,6 @@ export function usePollingEffect(args: {
   getLastAcceptedFullFingerprint: () => AcceptedFullStateFingerprint | null;
   getLastAcceptedFullSyncAtMs: () => number;
   isGameStateRequestInFlight: () => boolean;
-  applyHeadClockSnapshot: (clockSnapshot: GameStateClockSnapshot | null) => void;
   setLoading: (v: boolean) => void;
   setError: (v: string | null) => void;
 
@@ -316,7 +315,6 @@ export function usePollingEffect(args: {
     getLastAcceptedFullFingerprint,
     getLastAcceptedFullSyncAtMs,
     isGameStateRequestInFlight,
-    applyHeadClockSnapshot,
     setLoading,
     setError,
     isFinished,
@@ -607,8 +605,6 @@ export function usePollingEffect(args: {
             console.warn('[useGameSession] Timed head poll missing usable clock snapshot, forcing immediate full sync');
             return { kind: 'fallback_full', reason: 'missing_timed_clock_snapshot' };
           }
-
-          applyHeadClockSnapshot(data.clock);
         }
 
         if (mounted) {
@@ -806,6 +802,5 @@ export function usePollingEffect(args: {
     getLastAcceptedFullFingerprint,
     getLastAcceptedFullSyncAtMs,
     isGameStateRequestInFlight,
-    applyHeadClockSnapshot,
   ]);
 }
