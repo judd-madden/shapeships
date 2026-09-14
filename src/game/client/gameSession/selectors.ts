@@ -278,6 +278,41 @@ export function getPlayers(state: any): any[] {
   return Array.isArray(state?.players) ? state.players : [];
 }
 
+export type RequesterSelectedSpecies =
+  | 'human'
+  | 'xenite'
+  | 'centaur'
+  | 'ancient';
+
+const REQUESTER_SELECTED_SPECIES = new Set<RequesterSelectedSpecies>([
+  'human',
+  'xenite',
+  'centaur',
+  'ancient',
+]);
+
+export function getRequesterSelectedSpecies(
+  state: any,
+  requesterId: string | null | undefined,
+): RequesterSelectedSpecies | null {
+  if (typeof requesterId !== 'string' || requesterId.length === 0) {
+    return null;
+  }
+
+  const responseRequester = state?.requester;
+  if (
+    typeof responseRequester?.playerId !== 'string' ||
+    responseRequester.playerId !== requesterId
+  ) {
+    return null;
+  }
+
+  const selectedSpecies = responseRequester?.speciesSelection?.selectedSpecies;
+  return REQUESTER_SELECTED_SPECIES.has(selectedSpecies)
+    ? selectedSpecies
+    : null;
+}
+
 export function getPlayerUsers(state: any): any[] {
   return getPlayers(state).filter((player: any) => player?.role === 'player');
 }

@@ -55,6 +55,7 @@ import {
   appendShipActivationCueBatch,
   getShipActivationSourcesFromAppliedEffects,
 } from '../state/shipActivationCues.ts';
+import { hasCompletedSpeciesSelection } from '../state/speciesSelection.ts';
 import { getCurrentDrawingPreludePlayerState } from '../state/drawingPreludeState.ts';
 import {
   resolveDrawingPreludePowerAction,
@@ -228,15 +229,6 @@ function isAllowedWhileMatchupIntroHeld(
   }
 
   return false;
-}
-
-function hasCompletedSpeciesSelection(state: any): boolean {
-  const activePlayers = Array.isArray(state?.players)
-    ? state.players.filter((player: any) => player?.role === 'player')
-    : [];
-
-  return activePlayers.length === 2 &&
-    activePlayers.every((player: any) => player?.faction != null);
 }
 
 function releaseCompletedSpeciesSelectionSetup(

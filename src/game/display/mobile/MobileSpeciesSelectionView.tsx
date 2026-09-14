@@ -334,8 +334,13 @@ function MobileSpeciesStatusRail({
     : boardVm.isSpeciesConfirmedForDisplay
       ? `${selectedSpeciesLabel}`
       : 'Selecting';
-  const currentPlayerStatusTone: HudStatusTone =
-    boardVm.isSpeciesConfirmedForDisplay && !boardVm.isSpectator ? 'ready' : 'neutral';
+  const currentPlayerStatusTone: HudStatusTone = boardVm.isSpectator
+    ? hudVm.p1Species
+      ? 'neutral'
+      : hudVm.p1StatusTone
+    : boardVm.isSpeciesConfirmedForDisplay
+      ? 'ready'
+      : 'neutral';
 
   const topRow: MobileStatusRailRowData = {
     name: hudVm.p2Name,

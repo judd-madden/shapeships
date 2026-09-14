@@ -37,6 +37,10 @@ import {
 } from './drawingPreludeProjection.ts';
 import { debugLog } from '../../utils/serverLogger.ts';
 import { projectPublicSeatControllers } from '../bot/botControllerProjection.ts';
+import {
+  hasCompletedSpeciesSelection,
+  projectPlayerSpeciesForClient,
+} from './speciesSelection.ts';
 import { applyEffects } from '../../engine_shared/effects/applyEffects.ts';
 import {
   EffectKind,
@@ -1132,21 +1136,26 @@ function sanitizePlayers(
     const publicResources = playerId
       ? getDrawingPublicSavedResources(state, playerId)
       : null;
-    if (
+    const resourceSafePlayer = (
       !publicResources ||
       (requesterMaySeeOwnResources && playerId === requestingParticipantId)
-    ) {
-      return safePlayer;
-    }
-    return {
-      ...safePlayer,
-      ...(typeof publicResources.savedLines === 'number'
-        ? { lines: publicResources.savedLines }
-        : {}),
-      ...(typeof publicResources.savedJoiningLines === 'number'
-        ? { joiningLines: publicResources.savedJoiningLines }
-        : {}),
-    };
+    )
+      ? safePlayer
+      : {
+          ...safePlayer,
+          ...(typeof publicResources.savedLines === 'number'
+            ? { lines: publicResources.savedLines }
+            : {}),
+          ...(typeof publicResources.savedJoiningLines === 'number'
+            ? { joiningLines: publicResources.savedJoiningLines }
+            : {}),
+        };
+    return projectPlayerSpeciesForClient(
+      resourceSafePlayer,
+      state,
+      requestingParticipantId,
+      publicOnly,
+    );
   });
 }
 
@@ -1222,15 +1231,23 @@ export function sanitizeAncientStateForClient<T = any>(
   );
   const hasNestedControllers = gameData != null &&
     Object.prototype.hasOwnProperty.call(gameData, 'controllersByPlayerId');
+  const speciesSelectionResolved = hasCompletedSpeciesSelection(responseState);
   const publicControllers = projectPublicSeatControllers(
     responseState.controllersByPlayerId ?? responseState.gameData?.controllersByPlayerId,
+    { speciesSelectionResolved },
   );
   if (!gameData) {
     return {
       ...responseState,
       ...(hasRootControllers ? { controllersByPlayerId: publicControllers } : {}),
       ...(Array.isArray(responseState.players)
-        ? { players: sanitizePlayers(responseState.players) }
+        ? {
+            players: sanitizePlayers(
+              responseState.players,
+              responseState,
+              requestingParticipantId,
+            ),
+          }
         : {}),
     } as T;
   }

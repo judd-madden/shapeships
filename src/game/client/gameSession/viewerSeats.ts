@@ -5,7 +5,11 @@
  * player-relative aliases, and readiness keys.
  */
 
-import { getPlayers, getPlayerUsers } from './selectors';
+import {
+  getPlayers,
+  getPlayerUsers,
+  getRequesterSelectedSpecies,
+} from './selectors';
 import type { ViewerMode, ViewerSeatModel } from './types';
 
 function matchesSessionId(participant: any, sessionId: string | null): boolean {
@@ -49,6 +53,15 @@ export function deriveViewerSeats(rawState: any, sessionId: string | null): View
 
   const isViewerPlayer = viewerMode === 'p1_player' || viewerMode === 'p2_player';
   const isViewerSpectator = viewerMode === 'spectator';
+  const requesterSelectedSpecies = isViewerPlayer
+    ? getRequesterSelectedSpecies(rawState, sessionId)
+    : null;
+  if (requesterSelectedSpecies && me) {
+    me = {
+      ...me,
+      faction: requesterSelectedSpecies,
+    };
+  }
 
   return {
     allPlayers,

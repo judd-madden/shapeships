@@ -436,8 +436,18 @@ Deno.test('controller committed-plan progress persists internally and is redacte
   );
   assert.deepEqual(body.publicState.controllersByPlayerId.bot, {
     kind: 'bot',
-    speciesId: 'ANC',
-    chosenPlanId: 'anc_cube_red_green',
+    speciesId: null,
+    chosenPlanId: null,
+  });
+  assert.deepEqual(body.controllersByPlayerId.bot, {
+    kind: 'bot',
+    speciesId: null,
+    chosenPlanId: null,
+  });
+  assert.deepEqual(body.gameData.controllersByPlayerId.bot, {
+    kind: 'bot',
+    speciesId: null,
+    chosenPlanId: null,
   });
 
   fixture.setSessionId('spectator');
@@ -460,6 +470,16 @@ Deno.test('controller committed-plan progress persists internally and is redacte
     spectatorBody.publicState.controllersByPlayerId.p1,
     { kind: 'player' },
   );
+  assert.deepEqual(spectatorBody.controllersByPlayerId.bot, {
+    kind: 'bot',
+    speciesId: null,
+    chosenPlanId: null,
+  });
+  assert.deepEqual(spectatorBody.gameData.controllersByPlayerId.bot, {
+    kind: 'bot',
+    speciesId: null,
+    chosenPlanId: null,
+  });
 });
 
 Deno.test('/game-state projects curated Ancient data without writes and preserves existing privacy filters', async () => {

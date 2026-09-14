@@ -29,6 +29,10 @@ import type {
 } from '../engine/state/GameStateTypes.ts';
 import { getShipActivationCueBatches } from '../engine/state/shipActivationCues.ts';
 import {
+  hasCompletedSpeciesSelection,
+  projectSpeciesSelectionForRequester,
+} from '../engine/state/speciesSelection.ts';
+import {
   normalizeAncientGameState,
   projectPublicAncientState,
   projectPublicPlayersForClient,
@@ -2326,6 +2330,7 @@ export function registerGameRoutes(
         cubeDiceValueByPlayerId: turnData.visibleCubeDiceValueByPlayerId ?? {},
       };
       const turnPhaseProgress = projectPublicTurnPhaseProgress(gameData);
+      const speciesSelectionResolved = hasCompletedSpeciesSelection(gameData);
       const publicState = {
         players: ((projectPublicPlayersForClient(
           gameData,
@@ -2352,6 +2357,7 @@ export function registerGameRoutes(
         controllersByPlayerId: projectPublicSeatControllers(
           gameData.controllersByPlayerId ??
             gameData.gameData?.controllersByPlayerId,
+          { speciesSelectionResolved },
         ),
         savedLinesByPlayerId,
         joiningLinesByPlayerId,
@@ -2383,6 +2389,10 @@ export function registerGameRoutes(
         gameData,
         requestingPlayerId,
       );
+      const speciesSelection = projectSpeciesSelectionForRequester(
+        gameData,
+        requestingPlayerId,
+      );
       const requesterShipActivationCueBatches = [
         ...projectRequesterShipActivationCueBatches(
           turnData.shipActivationCueBatches,
@@ -2403,6 +2413,7 @@ export function registerGameRoutes(
         availableActions,
         ...(drawingPrelude ? { drawingPrelude } : {}),
         ...(missionChallenge ? { missionChallenge } : {}),
+        ...(speciesSelection ? { speciesSelection } : {}),
         buildEconomy: buildEconomyByPlayerId[requestingPlayerId] ?? null,
         buildEconomyByPlayerId,
         lastTurnDamageDealtBreakdownByPlayerId,

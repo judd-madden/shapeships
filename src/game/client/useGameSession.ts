@@ -2583,25 +2583,7 @@ export function useGameSession(
       Object.values(controllersByPlayerId).some((controller: any) => controller?.kind === 'bot')
     );
   }, [rawState]);
-  const speciesSelectionEntryKey = `${effectiveGameId ?? 'nogame'}::${phaseInstanceKey}`;
 
-  useEffect(() => {
-    if (!isInSpeciesSelection) {
-      lastSpeciesSelectionEntryKeyRef.current = null;
-      speciesConfirmationGuardRef.current = null;
-      setPendingSpeciesConfirmation(null);
-      return;
-    }
-
-    if (lastSpeciesSelectionEntryKeyRef.current === speciesSelectionEntryKey) return;
-
-    lastSpeciesSelectionEntryKeyRef.current = speciesSelectionEntryKey;
-    speciesConfirmationGuardRef.current = null;
-    setPendingSpeciesConfirmation(null);
-    setSelectedSpecies('human');
-    setSelectedBotSpecies('human');
-  }, [isInSpeciesSelection, speciesSelectionEntryKey]);
-  
   // Helper: normalize species from server data
   function normalizeSpecies(serverValue: string | null | undefined): SpeciesId | null {
     if (!serverValue) return null;
@@ -2628,6 +2610,44 @@ export function useGameSession(
   const p2Species = normalizeSpecies(p2?.faction ?? p2?.species);
   const displayLeftSpecies = normalizeSpecies(displayLeftPlayer?.faction ?? displayLeftPlayer?.species);
   const displayRightSpecies = normalizeSpecies(displayRightPlayer?.faction ?? displayRightPlayer?.species);
+  const authoritativeRequesterSpecies =
+    isInSpeciesSelection && isViewerPlayer ? mySpecies : null;
+  const selectedSpeciesForDisplay =
+    authoritativeRequesterSpecies ?? selectedSpecies;
+  const speciesSelectionEntryKey = `${effectiveGameId ?? 'nogame'}::${phaseInstanceKey}`;
+
+  useEffect(() => {
+    if (!isInSpeciesSelection) {
+      lastSpeciesSelectionEntryKeyRef.current = null;
+      speciesConfirmationGuardRef.current = null;
+      setPendingSpeciesConfirmation(null);
+      return;
+    }
+
+    const isNewEntry =
+      lastSpeciesSelectionEntryKeyRef.current !== speciesSelectionEntryKey;
+    if (isNewEntry) {
+      lastSpeciesSelectionEntryKeyRef.current = speciesSelectionEntryKey;
+      speciesConfirmationGuardRef.current = null;
+      setPendingSpeciesConfirmation(null);
+      setSelectedBotSpecies('human');
+    }
+
+    if (authoritativeRequesterSpecies) {
+      setSelectedSpecies((current) =>
+        current === authoritativeRequesterSpecies
+          ? current
+          : authoritativeRequesterSpecies
+      );
+    } else if (isNewEntry) {
+      setSelectedSpecies('human');
+    }
+  }, [
+    authoritativeRequesterSpecies,
+    isInSpeciesSelection,
+    speciesSelectionEntryKey,
+  ]);
+
   const missionIntroSetupGateActive = isCompletedSpeciesMissionIntroSetupGate({
     phaseKey,
     isComputerGame,
@@ -2910,11 +2930,10 @@ export function useGameSession(
     turnNumber,
   ]);
   
-  // Species labels for HUD (show "Selecting Species" if not revealed yet)
-  function getSpeciesLabelForHud(player: any, species: SpeciesId | null): string {
-    // If in species selection and species not yet revealed, show "Selecting Species"
+  // Species labels for HUD remain blank while an unresolved choice is hidden.
+  function getSpeciesLabelForHud(species: SpeciesId | null): string {
     if (isInSpeciesSelection && !species) {
-      return 'Selecting Species';
+      return '';
     }
     
     // Otherwise show the actual species (or default to Human if missing)
@@ -2935,13 +2954,13 @@ export function useGameSession(
   const displayLeftHasJoined = displayLeftPlayer?.role === 'player';
   const displayRightHasJoined = displayRightPlayer?.role === 'player';
   const displayLeftSpeciesLabel = displayLeftPlayer
-    ? getSpeciesLabelForHud(displayLeftPlayer, displayLeftSpecies)
+    ? getSpeciesLabelForHud(displayLeftSpecies)
     : isViewerSpectator
       ? ''
       : 'Human';
   const displayRightSpeciesLabel =
     displayRightHasJoined && displayRightPlayer
-      ? getSpeciesLabelForHud(displayRightPlayer, displayRightSpecies)
+      ? getSpeciesLabelForHud(displayRightSpecies)
       : '';
   
   // ============================================================================
@@ -3968,7 +3987,12 @@ useEffect(() => {
   // Check completion status for this phase instance
   const isCommitDone = speciesCommitDoneByPhase[phaseInstanceKey] || false;
   const isRevealDone = speciesRevealDoneByPhase[phaseInstanceKey] || false;
-  const isSpeciesSelectionComplete = isCommitDone && isRevealDone;
+  const hasAuthoritativeOwnSpeciesSelection =
+    isInSpeciesSelection &&
+    isViewerPlayer &&
+    authoritativeRequesterSpecies !== null;
+  const isSpeciesSelectionComplete =
+    (isCommitDone && isRevealDone) || hasAuthoritativeOwnSpeciesSelection;
   const activePendingSpeciesConfirmation =
     isInSpeciesSelection && pendingSpeciesConfirmation?.entryKey === speciesSelectionEntryKey
       ? pendingSpeciesConfirmation
@@ -4016,7 +4040,7 @@ useEffect(() => {
 
     board = {
       mode: 'choose_species',
-      selectedSpecies,
+      selectedSpecies: selectedSpeciesForDisplay,
       isComputerGame,
       selectedBotSpecies,
       gameUrl: shareGameUrl,
@@ -4024,7 +4048,11 @@ useEffect(() => {
       canConfirmSpecies,
       isSpeciesSelectionComplete,
       speciesConfirmationPending,
-      submittedSpecies: activePendingSpeciesConfirmation?.submittedSpecies ?? null,
+      submittedSpecies:
+        activePendingSpeciesConfirmation?.submittedSpecies ??
+        (hasAuthoritativeOwnSpeciesSelection
+          ? authoritativeRequesterSpecies
+          : null),
       speciesControlsLocked,
       isSpeciesConfirmedForDisplay,
       confirmDisabledReason,
@@ -5052,9 +5080,9 @@ useEffect(() => {
     tabs = [
       {
         tabId: 'tab.catalog.selected',
-        label: getSpeciesLabel(selectedSpecies), // Live updates when user clicks species cards
+        label: getSpeciesLabel(selectedSpeciesForDisplay), // Live updates when user clicks species cards
         visible: true,
-        targetPanelId: speciesToCataloguePanelId(selectedSpecies),
+        targetPanelId: speciesToCataloguePanelId(selectedSpeciesForDisplay),
       },
       {
         tabId: 'tab.menu',

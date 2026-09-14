@@ -8,8 +8,13 @@ export type PublicSeatController =
       chosenPlanId: string | null;
     };
 
+export type PublicSeatControllerProjectionOptions = {
+  speciesSelectionResolved: boolean;
+};
+
 export function projectPublicSeatControllers(
   controllersByPlayerId: unknown,
+  options: PublicSeatControllerProjectionOptions,
 ): Record<string, PublicSeatController> {
   if (
     !controllersByPlayerId ||
@@ -31,9 +36,12 @@ export function projectPublicSeatControllers(
     if (controller?.kind === 'bot') {
       projected[playerId] = {
         kind: 'bot',
-        speciesId: controller.speciesId ?? null,
+        speciesId: options.speciesSelectionResolved
+          ? controller.speciesId ?? null
+          : null,
         chosenPlanId:
-          typeof controller.chosenPlanId === 'string'
+          options.speciesSelectionResolved &&
+            typeof controller.chosenPlanId === 'string'
             ? controller.chosenPlanId
             : null,
       };
