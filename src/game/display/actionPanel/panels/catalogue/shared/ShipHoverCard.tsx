@@ -37,6 +37,7 @@ export type ShipHoverHeadingValue = {
 export type ShipHoverActionHint =
   | 'build'
   | 'cast'
+  | 'use'
   | 'view';
 
 interface ShipHoverCardProps {
@@ -124,7 +125,9 @@ function ActionHint({ kind }: { kind: ShipHoverActionHint }) {
       ? 'Click to Build'
       : kind === 'cast'
         ? 'Click to Cast'
-        : 'Click to View';
+        : kind === 'use'
+          ? 'Click to Use'
+          : 'Click to View';
 
   return (
     <p

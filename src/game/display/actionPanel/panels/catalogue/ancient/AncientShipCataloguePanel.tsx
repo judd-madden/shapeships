@@ -723,20 +723,22 @@ export function AncientShipCataloguePanel({
         onOpenSiphonInspection != null &&
         (isActiveResolvedPowersStage || !isDeclarationPresentation);
 
-      return canOpenSiphonSelector || canInspectSiphon
-        ? 'view'
-        : undefined;
+      return canOpenSiphonSelector
+        ? 'use'
+        : canInspectSiphon
+          ? 'view'
+          : undefined;
     }
 
     if (hoveredSolarPowerId === 'SSIM') {
       return isActiveResolvedPowersStage && canOpenSimulacrumSelector
-        ? 'view'
+        ? 'use'
         : undefined;
     }
 
     if (hoveredSolarPowerId === 'SBLA') {
       return isActiveResolvedPowersStage && canOpenBlackHoleSelector
-        ? 'view'
+        ? 'use'
         : undefined;
     }
 
