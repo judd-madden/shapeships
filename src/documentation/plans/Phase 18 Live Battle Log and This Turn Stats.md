@@ -2,12 +2,12 @@
 
 ## Normative Planning and Pass-Decomposition Document
 
-- **Status:** Planning; no Phase 18 implementation has begun in the supplied snapshot
+- **Status:** Planning; no Phase 18 implementation has begun in the live repository inspected 2026-09-24
 - **Phase type:** Live battle presentation and server-calculated estimates; not a new gameplay phase
-- **Primary scope:** Current-turn ship builds in the Battle Log; estimated current-turn damage and healing; desktop and mobile stat presentation
+- **Primary scope:** A viewer-safe live current-turn Battle Log; estimated and resolved current-turn damage/healing; paired desktop and mobile stat presentation
 - **Architecture baseline:** Server-authoritative Shapeships after the Phase 14 phase simplification, Phase 16 head polling, and current Phase 7 Battle Log / Phase 12 stats implementations
-- **Code snapshot inspected:** Supplied `0918-root(3).zip`, inspected 2026-09-23. Recheck the live repository at the start of every pass.
-- **Design references:** Revised desktop Battle Log / middle stats mockup `003c7cce-0683-4cab-9761-1f6d744ccda3.png` and mobile breakdown modal mockup `81ca32b8-115a-4f48-b6ba-7e16a4af1e83.png`. These show intended structure and examples, not a complete visual specification.
+- **Code baseline inspected:** Current live repository on 2026-09-24; the supplied `0918-root.zip` remains a useful older snapshot only. Recheck live code at the start of every pass.
+- **Design references:** Battle Log sequence, paired desktop stats sequence, paired mobile stats sequence, and corrected turn-resolution mockup supplied 2026-09-24. These lock behavior and grouping described below; their numbers and ship examples are illustrative, not rules or fixtures.
 - **Implementation model:** Seven separately planned, separately reviewed passes, 18A–18G. Codex inspects the live repository and presents a concrete file plan before editing each pass; Judd reviews its plan and result.
 
 If a later approved product decision changes this document, update the relevant contract before implementing a conflicting pass.
@@ -58,13 +58,13 @@ For **existing game rules and implementation facts**, use:
 3. Current client/display code and existing tests.
 4. Phase 7 Battle Log Server Contract, Phase 12 Stats, and Phases 13–17 for relevant historical intent.
 
-Do not overwrite executable rules with an illustrative number from a mockup. The revised desktop example shows `~13` because the two shown Tactical Cruisers contribute 10 and three Fighters contribute 3 in that illustrated state. It does not establish a fixed per-ship formula.
+Do not overwrite executable rules with an illustrative number, ship count, or ship combination from a mockup. For example, `13` and its pictured breakdown describe only that illustrated state; all values must come from current executable rules.
 
 ## 1.3 Working method and design checkpoints
 
 Codex plans and implements **one pass at a time on the live codebase**. Before each pass it reads the applicable architecture and agent files, inspects current source, proposes a narrow file plan, and allows review. After implementation it reports changed files, tests, and remaining risks.
 
-**Visual-spec reminder:** Before starting **18B** (Battle Log display), **18F** (desktop/responsive stats), and **18G** (mobile stats), ask Judd for the detailed visual specification for that surface. The mockups alone are insufficient to lock exact widths, gaps, typography, scroll behavior, popover sizing, or responsive breakpoints. Record the supplied values in that pass’s reviewed file plan.
+**Visual-spec reminder:** Before starting **18E** (Battle Log display), **18F** (desktop/responsive stats), and **18G** (mobile stats), ask Judd for the detailed visual specification for that surface. The mockups alone are insufficient to lock exact widths, gaps, typography, scroll positioning, popover sizing, hover/focus interaction, or responsive behavior. Record the supplied values in that pass’s reviewed file plan.
 
 This is a planned review checkpoint, not permission to improvise layout or to block the earlier server passes.
 
@@ -74,28 +74,29 @@ This is a planned review checkpoint, not permission to improvise layout or to bl
 
 ## 2.1 Purpose
 
-As a player draws ships, the Battle Log should show this turn’s own ship builds. Alongside the existing actual Last Turn damage and healing, the middle stats should show the best available estimate for the current turn. The opponent’s current build and estimates become visible when both builds reveal.
+From the start of each turn, the Battle Log should show a live account of publicly displayable dice/build events, current builds, and later public battle actions. Alongside it, the board should pair each player’s current damage/healing estimate or resolved actual with the previous completed turn’s authoritative values. The opponent’s hidden build and current estimates become visible only when the existing barriers allow them.
 
 The feature should make a live build understandable while preserving simultaneous hidden builds and the server’s authority over all combat.
 
 ## 2.2 In scope
 
-- A distinct, live **This Turn** build area above completed Battle Log turns.
-- Requester-only own builds during Drawing, including server-produced builds as they occur; opponent hidden until Reveal.
-- The same two-sided live build area once both builds have revealed.
+- A grey live **This Turn** section at the start of the existing Battle Log scroll content, above completed turns.
+- Requester-only own draft/build rows during Drawing, plus viewer-safe public dice/build events and produced builds as they occur; opponent build hidden until Reveal.
+- The same live section with revealed builds and public First Strike, charge, and other captured battle actions after their existing visibility barriers open.
 - Server-calculated estimated damage and healing, with grouped breakdown rows.
 - A small, authenticated, read-only build-preview request as the player edits a draft.
 - Frozen own preview after submission and two-sided estimates after reveal.
-- Clear estimated/hidden/pending/actual states.
-- Desktop and responsive middle stats reordering; mobile breakdown modal reordering and own This Turn area.
+- Clear estimated/hidden/pending/resolved-hold/actual states and a turn-keyed rollover handoff.
+- Desktop paired current/Last metrics with combined breakdown cards; mobile paired HUD metrics and phase-sensitive content in the existing two anchored popovers.
 - A single **Final Turn** actual-results treatment when a game ends through a resolved final turn.
+- Bounded recovery through the existing client networking owner when an expected completed-turn history row is delayed or a history fetch fails.
 - Targeted tests for server privacy, calculation parity, lifecycle, and client request races.
 
 ## 2.3 Out of scope
 
 - Combat rebalance, new ship powers, new charges, or altered healing/damage rules.
 - New gameplay subphases or changes to BUILD_SUBMIT’s simultaneous reveal boundary.
-- Server persistence of every unsubmitted draft.
+- Server or client persistence of unsubmitted drafts. An unsubmitted draft may reset on browser refresh.
 - An independent client damage/healing rules engine.
 - Live charge prediction or a prediction of an opponent’s undisclosed choices.
 - A historical Battle Log schema migration or rewrite of completed-turn archive behavior.
@@ -109,47 +110,67 @@ The feature should make a live build understandable while preserving simultaneou
 
 ## 3.1 Battle Log before and after Reveal
 
-During Drawing:
+From the start of every turn, including when no archived turns exist:
 
-- Show the current turn in a clearly separate Battle Log area above completed turns.
-- The viewing player’s side accumulates ships built this turn as they happen. Include automatic and produced ships with their source tags where the established Battle Log format provides them.
-- Opponent side shows the mockup’s concealed state (`???` or the finally specified equivalent), regardless of whether the opponent has already submitted.
-- Do not show opponent build counts, names of new ships, hidden drawing-prelude production, or details inferred from a calculation.
-- Draft display updates without committing the build. Once this player submits, their row reflects the frozen submission.
+- Show a grey **This Turn** section immediately after the player-name header and before completed cards. It is the first item in the **same scrolling content** as history, not a separately pinned row. As it grows, it pushes archived turns down. Apply the same content and scroll rule in the mobile Battle Log takeover.
+- Suppress the existing “battle is about to begin” empty message whenever the live section exists.
+- During Drawing, overlay local manual ship choices immediately as the player clicks while the server preview catches up asynchronously. Include authoritative automatic/produced builds when captured, with source tags where the archive format provides them.
+- Show publicly observable dice modifiers and other build-stage effects as they become public, using the archive’s established language and grouping where possible.
+- Keep the opponent build concealed as `???` (or the later approved equivalent) before Reveal, even after that opponent submits. Do not expose hidden build, prelude, or simultaneous-choice information through row presence, timing, totals, status, or response shape.
+- Once the local player submits, recover the frozen own rows from that authenticated player’s stored server submission, including after refresh while waiting.
 
-At the simultaneous build reveal:
+At and after the simultaneous build reveal:
 
-- Populate both sides from the revealed authoritative builds, including any reveal-time produced ships.
-- Continue to update current-turn ship rows if an actual later action produces or removes an item that belongs in the current-turn build record, following the existing Battle Log capture semantics.
-- Keep completed turns in their normal archive order. The new row is not an archived turn and does not increment completed-turn count.
+- Replace draft/committed projections with both authoritative build summaries, including reveal-produced ships.
+- As First Strike, Charge Declaration, and later battle work becomes public, add the archive-style battle actions above the build summary. Simultaneous declarations remain absent until their existing visibility barrier opens.
+- Preserve creation-event semantics: later produced builds append, while a ship subsequently consumed, upgraded, transferred, or destroyed is not subtracted from its earlier build record.
+- Keep completed cards in their normal newest-first order. The live section is not an archived turn and does not increment `completedTurnCount`.
 
-At resolution/turn rollover, hand the live presentation to the existing completed-turn history exactly once. Refresh/reconnect must not show duplicate turns or briefly reveal an opponent’s build from the wrong turn.
+During an uninterrupted session, retain resolved live turn `N` through the existing end-of-turn presentation. If the matching authoritative archive card—with final health, die, public actions, and build history—arrives during that presentation, treat live `N` and archived `N` as alternatives and swap them once without duplication. On presentation release/turn rollover, show a fresh live section for `N+1`. If archive `N` is still missing, defer that completed card or show a safe turn-keyed pending presentation while the existing networking owner performs a bounded retry; never relabel cached live rows as an archive card or attach them to `N+1`.
 
-## 3.2 This Turn damage and healing
+A hard refresh does not promise to replay the transient live-`N` presentation from archive data. If the loaded authoritative state still carries the matching end-of-turn hold signal, render the supported held state. If it has already entered `N+1`, render fresh live `N+1` with turn `N` in Last stats and show archived `N` only when history supplies it. On surrender, timeout, or another terminal outcome without current-turn resolution, remove the unfinished **This Turn** section from the finished Battle Log; retain genuine completed cards only.
+
+## 3.2 Paired current and Last damage/healing
 
 - While a player edits an unsubmitted build, their own damage and healing estimates update from the newest server preview response.
 - Opponent numbers remain `?` before Reveal.
-- After Reveal, both sides show estimates derived from the now-visible state; subsequent fleet changes may update them until resolution.
-- Display estimates with an approximation marker such as `~13` and an information tooltip using copy in the spirit of: **“This damage may change depending on opponent actions.”** Cover healing too in the final microcopy if needed.
+- After Reveal, both sides show estimates derived from the mutually visible state; subsequent public fleet changes may update them until resolution.
+- During simultaneous Charge Declaration, freeze both estimates at the last mutually public battle snapshot. Do not reflect hidden charge choices or secondary consequences such as newly depleted Solar Grid healing. Once that privacy barrier ends, use newly public state if an estimate is still relevant; actual turn resolution replaces the estimate.
+- On desktop and the compact mobile HUD, each player has a large current Damage value with a smaller, quieter **Last** value directly beneath it, and the same pairing for Healing. Health, Saved Lines, and Bonus Lines retain their established positions.
+- Do not prefix resting board/HUD values with `~`. Put approximation treatment in estimated breakdown headings/totals, for example `THIS TURN (ESTIMATE) ~13` on desktop or `This turn damage ~13` on mobile.
+- Hover/focus on a desktop player metric opens one combined card containing that metric’s This Turn and Last Turn breakdowns wherever each exists. This combined card carries the estimate cue and any concise uncertainty copy; do not add a redundant standalone information-tooltip system.
 - The estimate is **generated damage/healing**, consistent with current Last Turn breakdown semantics. It is not predicted health loss, final net health, or healing after a health-cap clamp.
-- Use `0` with the approximation treatment for a calculated zero, `?` for concealed opponent data, and a distinct pending/unavailable presentation when no valid current estimate exists.
+- Use a prominent `0` for a calculated zero, `?` for concealed opponent current data, and a distinct pending/unavailable presentation when no valid current estimate exists. The smaller Last slot continues to show the previous authoritative value.
 - Charges and Solar casts made or declared for the battle do not appear in the estimate. Their resulting damage/healing appears in the actual Last Turn/Final Turn results.
 
-## 3.3 Last Turn and Final Turn
+## 3.3 Resolution hold, rollover, and Final Turn
 
-Last Turn continues to show the authoritative completed previous turn while a new turn is being played.
+Before resolution, the smaller Last slots show the authoritative previous completed turn. When authoritative resolution for current turn `N` becomes available:
 
-When an end-of-turn resolution **actually produces the final turn’s damage/healing**, remove the parallel estimate presentation, show one set of actuals, and label that set **Final Turn**. Reuse the existing authoritative last-turn totals and breakdowns.
+- replace the large current estimates with actual damage/healing, including applicable charge effects;
+- hold those actual current values and their **This Turn** breakdowns throughout the existing end-of-turn presentation;
+- remove estimate language and `~` from the held breakdown (`THIS TURN 13`, not `THIS TURN (ESTIMATE) ~13`); and
+- keep the smaller Last slots and Last breakdowns on turn `N-1` during that presentation.
 
-If the match ends through surrender, timeout, or another path **without resolving the current turn**, do not relabel an older completed turn as Final Turn. Hide an unresolved current estimate and retain only whatever completed history is actually supported by canonical state.
+Only when the presentation releases into turn `N+1` do turn `N` actuals move into the smaller Last slots. The large current slots then reset to the local player’s new estimate when available and `?` for a concealed opponent. During an uninterrupted session, an early `N+1` DTO must not overwrite the presentation-owned snapshot before release.
 
-Do not treat the presentation hold, delayed archive fetch, or terminal `status` by itself as proof that current-turn damage/healing resolved.
+Hard-refresh recovery is deliberately weaker. Recreate a held display only when the newly loaded authoritative state itself proves the matching end-of-turn hold is still active. If the server has already entered `N+1`, show `N+1` normally with resolved `N` in Last; do not reconstruct or replay the transient hold from archived turns alone, and do not add persisted UI state merely to replay the presentation.
 
-## 3.4 Mobile intent
+When an end-of-turn resolution **actually produces a terminal turn’s damage/healing**, the held current actual becomes one **Final Turn** set rather than rolling into a new-turn Last slot. Reuse the existing one-shot health-resolution presentation and authoritative totals/breakdowns. Show it in finished board stats and the existing mobile stat popovers where accessible; do not add a new Final Turn section to the post-game Stats takeover.
 
-The supplied mobile mockup reorders breakdown content into Saved Lines / Bonus Lines, then Last Turn Damage / Healing, followed by **This Turn Damage / Healing on the local player’s modal**. The opponent modal is not to reveal This Turn before Reveal; the supplied mockup calls for This Turn just for self on mobile. The precise post-Reveal opponent-modal treatment should be checked with Judd at the 18G visual-spec checkpoint rather than inferred from desktop.
+If the match ends through surrender, timeout, or another path **without resolving the current turn**, do not relabel an older completed turn as Final Turn. Hide an unresolved current estimate, remove the unfinished live **This Turn** Battle Log section, and retain only whatever completed history is actually supported by canonical state.
 
-Server data after Reveal may contain both players’ estimates; mobile may present a subset of that already-public data.
+Use the canonical resolved-turn marker as primary evidence. Do not treat the presentation hold, delayed archive fetch, or terminal `status` by itself as proof that current-turn damage/healing resolved, and do not add another persisted final-turn flag without demonstrated need.
+
+## 3.4 Mobile paired HUD and popovers
+
+The live mobile UI already opens the two player-anchored popovers as a pair. Preserve simultaneous opening and independent top/bottom anchoring. The cards may cover Ready or other game controls; controls underneath do not need to remain usable while the pair is open. A tap on either popover or outside the pair dismisses both, while a scroll gesture that begins inside a popover scrolls its content without dismissing. Leave exact geometry, hit areas, and touch thresholds to the 18G visual-spec pass.
+
+- The compact HUD shows each player’s current Damage and Healing with smaller Last values beneath. Prominent HUD values never use `~`.
+- **Before Reveal:** the opponent popover shows Saved/Bonus and Last Turn breakdowns while its current HUD values remain `?`. The local popover shows Saved/Bonus, This Turn estimates, then Last Turn breakdowns.
+- **After Reveal:** the opponent popover intentionally replaces its detailed Last Turn breakdowns with This Turn estimates; its smaller Last HUD values remain visible. The local popover continues to show Saved/Bonus, This Turn, then Last Turn.
+- Put `~` only on estimated breakdown totals. Mobile may use labels such as “This turn damage” without spelling out `ESTIMATE`; desktop and mobile wording need not be identical.
+- During the resolution hold, any shown This Turn breakdown becomes actual and loses `~`; Final Turn uses the terminal treatment from `3.3`.
 
 ---
 
@@ -169,7 +190,11 @@ Server data after Reveal may contain both players’ estimates; mobile may prese
 
 `src/game/client/gameSession/intents.ts` builds the ordered `BUILD_SUBMIT` payload with counts, Frigate triggers, Quantum Mystic selections, and Evolver choices. Use the same choices for a preview request, but do not dispatch `BUILD_SUBMIT` until Ready.
 
+The current client defaults new Frigate and Quantum selections to `1`, and current BUILD_SUBMIT validation accepts those existing semantics. Phase 18 preserves them. An incomplete preview means an actual structural inconsistency under current rules, not a control the player has not manually changed.
+
 `src/game/client/useGameSession.ts` owns the draft buffer, current build preview, authoritative state acceptance, and board view model. Networking remains in the client runtime; display components do not send preview requests.
+
+The unsubmitted draft is session-local client state; there is no draft persistence to recover after browser refresh. The server does retain an authenticated player’s submitted payload while that player waits for the opponent.
 
 ## 4.3 Polling cannot carry each draft
 
@@ -179,54 +204,79 @@ Saving each draft to canonical state to make polling “see” it would add writ
 
 ## 4.4 Existing Battle Log and stats sources
 
-`src/supabase/functions/server/engine/state/battleLogHistory.ts` maintains current-turn capture atoms internally and archives completed `BattleLogTurnSummary` rows. Build capture includes manual and produced ships as well as non-ship presentation events; do not publish the scratch object or reuse all formatted lines wholesale for the ship-only live row.
+`src/supabase/functions/server/engine/state/battleLogHistory.ts` already owns `BattleLogCurrentTurnCapture`, event folding, archive formatting, idempotent finalization, and `BattleLogTurnSummary`. The live capture stores the base die; KNO rerolls, CHR/CUB rolls, manual and produced builds; captured charge, destroy, steal, and Frigate-hit actions; and saved-resource snapshots. `formatBuildLines` and `formatBattleLines` establish grouping and language. Reuse these atoms and formatters rather than introducing a parallel live-event schema or generic renderer.
 
-`src/game/client/gameSession/battleLog.ts` maps separately fetched completed history. `src/game/display/shared/BattleLogPanelContent.tsx` is shared by desktop and mobile Battle Log surfaces. `src/game/client/gameSession/types.ts` and `mapVm.ts` define the presentation seam.
+The demonstrated coverage gap is Ancient Solar battle presentation: `buildBattleLogTurnSummaryFromScratch` currently appends those lines from the final authoritative Solar ledger only while building the archive summary. At 18A, audit all archive-only inputs and choose the narrowest safe live seam: project an already-public ledger entry with the same formatter, or add a capture atom at the existing visibility-opening point. Do not broadly duplicate finalization and do not serialize `battleLogScratch` wholesale.
+
+Before both BUILD_SUBMITs have been applied, scratch does not contain the first submitter’s manual builds. The first server Battle Log pass therefore projects only build events already present in authoritative capture. A later server preview/DTO pass derives committed-own rows from the requester’s stored payload through the isolated canonical build projector.
+
+`src/game/client/gameSession/battleLog.ts` maps separately fetched completed history and already tokenizes archive build/battle language. `src/game/display/shared/BattleLogPanelContent.tsx` is shared by desktop and mobile; it keeps names outside one `LeftRailScrollArea`, which currently contains either archive cards or the empty message. Insert the live section as the first item in that existing scroll area. Do not add a second scroller or sticky/pinned region.
 
 `src/supabase/functions/server/engine_shared/resolve/phaseComputedEffects.ts` collects count-based, tiered, once-only, dice-based, and opponent-sensitive power effects. `resolvePhase.ts` gathers effects, applies Science Vessel modifiers, records breakdown entries, and derives actual Last Turn totals; full turn resolution also performs destruction, health changes, and victory evaluation. The preview must reuse the relevant rules on isolated state without performing a real resolution.
 
-`src/supabase/functions/server/routes/game_routes.ts` builds the full GET DTO, including public fleets and Last Turn stats plus requester breakdowns. `src/supabase/functions/server/routes/intent_routes.ts` has a separate response sanitizer. New projection fields need a deliberate visibility contract on every response surface that carries them.
+`src/supabase/functions/server/routes/game_routes.ts` builds the full GET DTO, including public fleets and Last Turn stats plus requester breakdowns. `src/supabase/functions/server/routes/intent_routes.ts` separately sanitizes state and visibility-sensitive events and already removes `battleLogScratch`. New projection fields need a deliberate visibility contract on every response surface that carries them.
 
-## 4.5 Display seams and layout constraint
+## 4.5 Display seams and layout constraints
 
-`src/game/display/layout/BoardStage.tsx` owns the center stats placement. Its center column becomes narrow at existing breakpoints; simply appending two extra stat rows is likely to overflow or damage readability. The revised desktop design changes the order and grouping of Health, Saved Lines, Bonus Lines, Last Turn, and This Turn.
+`src/game/display/layout/BoardStage.tsx` owns the center stats placement. Its center column is 200px at intermediate desktop widths; the mobile layout begins only below the current 768px cutoff, and the root/fixed action-panel composition can clip content at short heights. The live component currently renders Last Damage/Healing before Bonus; 18F must deliberately restructure this wrapper to the locked Health, Saved Lines, Bonus Lines, paired Damage, paired Healing sequence rather than append more blocks.
 
-`src/game/display/layout/boardStage/useBoardStatHover.tsx` and `src/game/display/layout/boardStage/BoardStatBreakdownHoverCard.tsx` own desktop breakdown hover behavior in the supplied snapshot. `src/game/display/mobile/MobileStatBreakdownPopovers.tsx` and `MobileGameLayout.tsx` own the mobile modal/popover behavior. A longer mobile modal requires viewport and scroll treatment, not an assumed fixed height.
+`src/game/display/layout/boardStage/useBoardStatHover.tsx` and `BoardStatBreakdownHoverCard.tsx` already own metric hover state and cards. Extend that seam so one metric card can group current and Last sections; do not create a separate estimate-info tooltip system. The later display pass must verify keyboard/focus access, touch/click behavior where applicable, and viewport collision/clamping.
+
+`src/game/display/mobile/MobileStatBreakdownPopovers.tsx` and `MobileGameLayout.tsx` already render both anchored cards together from one toggle and provide viewport-dependent heights and internal scrolling. Adapt their section builder and compact status-rail fields; do not replace them with independent modal/popover state.
+
+`src/game/client/gameSession/clienteffects/useEndOfTurnPresentation.ts` and the `healthPresentationBoardOverride` path in `useGameSession.ts` already provide a turn-keyed one-shot health-resolution snapshot. They currently hold newly resolved totals through an early transition but do not preserve the previous Last values or paired breakdown rows. Extend this existing presentation owner for the resolved-current/previous-Last pair during an uninterrupted session.
+
+The only current authoritative reload signal for that hold is the matching `phaseHold` tuple (`battle.end_of_turn_resolution`, `end_of_turn_health`, and `holdUntilMs`). The client already recognizes it, while current servers may clear it during auto-advance. On a fresh load, use that signal when it survives; otherwise accept the authoritative `N+1` state and do not infer or replay the transient hold from `analysisByPlayerId` or archive identity alone. Existing archive analysis remains usable for completed Last values and breakdowns, not as proof that a presentation is still active. Do not introduce a persisted UI store or final-turn flag.
+
+`useGameSession.ts` currently fetches `/game-history/:gameId` once on initial load, turn change, or finish and does not retry a failed or incomplete expected result. The existing GET route already reconciles the private archive checkpoint through `appendBattleLogTurnSummaryIdempotently`. Extend that same client networking owner with a bounded, turn-keyed retry when authoritative state says completed turn `N` should exist but history omits it or the request fails; do not add a second fetch owner, history schema, or persistence mechanism.
 
 ---
 
 # 5. Current-turn Battle Log contract
 
-## 5.1 Live summary is separate from history
+## 5.1 Live projection is separate from completed history
 
-Define a small view-facing live-build model tied to `gameId + turnNumber`. The source must state which sides are visible, and return **ship-build rows only**. The completed-history response retains its existing `turns` and `completedTurnCount` meaning.
+Define one small viewer-safe live-turn projection tied to `gameId + turnNumber`. It exposes already-public dice/build interventions, build summaries, and battle actions in the same section order used by an archived card, but it does not pretend to be a completed `BattleLogTurnSummary`. The completed-history response retains its existing `turns` and `completedTurnCount` meaning.
 
 Suggested semantic shape, not a mandated TypeScript name:
 
 ```text
-currentTurnBuild: {
+currentTurnBattleLog: {
   turnNumber,
-  visibleBuildLinesByPlayerId,  // built ships with source annotation where applicable
-  concealedPlayerIds,           // before Reveal
-  visibility: "requester_only" | "revealed"
+  buildLinesByPlayerId,
+  battleLinesByPlayerId,       // actions already public to this viewer
+  concealedBuildPlayerIds,     // opponent build before Reveal
+  sourceRevision
 }
 ```
 
-The server must derive current-turn rows from its capture/build facts, not from the player’s present fleet alone: an upgraded/consumed ship, a produced ship, and a newly built ship have different Battle Log meanings.
+The exact DTO name is not mandated. Prefer archive-compatible formatted lines and the existing client tokenizer. Preserve capture order and authoritative event identity where it already exists. If capture atoms have no durable row ID, replace a section atomically by `gameId + turnNumber + sourceRevision` rather than inventing global event IDs or deduplicating solely by display text.
+
+The server must derive live rows from capture/build facts, not the present fleet alone: an upgraded/consumed ship, a produced ship, and a newly built ship have different Battle Log meanings. Battle actions render above build rows, matching the archive.
+
+The grey live section is the first child of the same desktop/mobile scroll content as completed cards. It is not sticky or pinned. When it exists, suppress the pre-battle empty-history message.
 
 ## 5.2 Source of instant draft rows
 
-During Drawing, the client can immediately overlay the local draft’s **manual** build choices and existing requester-visible prelude rows, using current client build presentation. The next server preview response can return a canonical ship-only build projection for that exact draft, including legal/skipped attempts, production, configuration, and source tags.
+During Drawing, the client immediately overlays the local draft’s **manual** build choices while retaining requester-visible authoritative prelude, die-modifier, and produced-build rows. The next server preview response returns the canonical build projection for that exact draft, including legal/skipped attempts, production, configuration, and source tags.
 
-The overlay and returned rows must be alternatives for the same draft version, not additive lists; otherwise a clicked ship appears twice.
+The authoritative current-turn capture supplies only events that have actually occurred. Before both submissions resolve, committed manual rows are not reconstructed from scratch; the preview/DTO path projects the authenticated requester’s frozen stored submission on isolated state. After Reveal, captured authoritative rows supersede draft and committed-own projections.
+
+The local manual overlay and returned canonical manual/build projection are alternatives for the same draft version, not additive lists; authoritative public capture rows remain separate. Otherwise a clicked or produced ship can appear twice.
 
 Server-side settled/revealed rows override the local overlay. A rejected or stale preview must not invent completed builds.
 
+Later capture may append produced builds and public battle actions. It does not remove an earlier creation row merely because that ship is later consumed, upgraded, transferred, or destroyed.
+
 ## 5.3 Visibility and lifecycle
 
-Before Reveal, only the authenticated player receives own current-turn build details. A spectator receives no private side; a player cannot see the opponent through the new endpoint, full GET, or an intent response. Submission status is allowed where already public but never implies build content.
+Before Reveal, only the authenticated player receives own draft/committed build details. A spectator receives no private build side; a player cannot see the opponent through the preview endpoint, full GET, intent response, live-row shape, or timing. Submission status is allowed where already public but never implies build content. Public die/intervention rows may appear only after their existing simultaneous-choice barrier has resolved.
 
-After Reveal, both players’ current-turn build rows are public to all authorized viewers. On resolution and archive insertion, coordinate with the existing history fetch so no matching turn appears both live and completed. Handle refresh during Drawing, Ready-waiting, Reveal hold, terminal resolution, and archive-fetch lag.
+After Reveal, both players’ authoritative build rows are public to authorized viewers. Add First Strike, charge, Solar, and other battle lines only once the underlying action is public under current server visibility rules. Raw capture timing is not permission to publish a row.
+
+At resolution, use a turn-keyed handoff between the live projection, the archive finalization event/checkpoint, the separately fetched history row, and the existing presentation hold. During an uninterrupted presentation, cached live `N` and archived `N` are alternatives, never simultaneous duplicates. After release or on a fresh load already at `N+1`, do not treat cached or reconstructed live rows as completed `N`: show a turn-keyed pending state or defer card `N` until history supplies it. The existing client networking owner performs a bounded retry against the idempotent history route when expected `N` is absent or the request fails. Never attach `N` rows to live `N+1`.
+
+Handle Drawing, Ready-waiting, Reveal hold, hidden declarations, uninterrupted resolution hold, hard refresh, terminal resolution, and archive-fetch lag as separate lifecycle cases. A terminal transition without current-turn resolution closes the unfinished live section immediately and produces neither archive `N` nor Final Turn stats.
 
 ---
 
@@ -243,7 +293,7 @@ During Drawing the inputs are:
 - the opponent fleet **already public to this player at this point**, not a newer hidden fleet;
 - only deterministic, currently knowable effects that will be available at end-of-turn under these assumed inputs.
 
-After Reveal the inputs are the actually revealed current fleets and current public battle state, with later changes reflected when available.
+After Reveal the inputs are the actually revealed current fleets and current mutually public battle state, with later public changes reflected when available. While simultaneous Charge Declaration privacy is active, the input remains the last mutually public snapshot from before hidden declarations began. Both players’ estimates freeze on that same snapshot until the barrier exits.
 
 Estimate status and source phase must accompany the numbers. A server-computed estimate is still provisional because its *inputs* cannot predict later opponent actions or charge choices.
 
@@ -257,13 +307,14 @@ Reuse canonical definitions and effect math for:
 - conditional effects with fully known inputs, e.g. Frigate’s configured trigger;
 - Science Vessel adjustments, represented with breakdown rows that sum to the displayed total;
 - reveal-produced Fighter contributions once deterministically known on the temporary build or actually present after Reveal;
-- depleted Solar Grid’s ordinary automatic healing, if it is part of the normal current combat rules;
+- depleted Solar Grid’s ordinary automatic healing when depletion is already mutually public and part of the normal current combat rules;
 - self-damage as a signed sustain/healing breakdown where the canonical Last Turn breakdown uses that convention.
 
 Exclude:
 
 - ordinary charged power uses and pending charge declarations;
 - charged Solar consumption, manual Solar casts, and Autocast’s charged results, even if a related Reveal action has already happened;
+- any secondary effect newly enabled by a hidden Charge Declaration choice, including newly depleted Solar Grid healing, until the privacy barrier exits;
 - speculative First Strike, destruction, steal, Black Hole, or opponent build decisions;
 - direct Reveal health resets such as Redemption as “healing”;
 - capped/uncapped future net health guesses.
@@ -272,11 +323,12 @@ Do not obtain the estimate by reading the current `pendingTurn` total unfiltered
 
 ## 6.3 Nontrivial parity cases
 
-The server calculation must retain per-instance creation turn, removed/void ship history, build-created counters, and component consumption where canonical powers inspect them. Notable tests include:
+The server calculation must retain per-instance creation turn, removed/void ship history, build-created counters, component consumption, and relevant own Reveal consequences where canonical powers inspect them. Notable tests include:
 
 - same-turn once-only powers, including a source later consumed in an upgrade;
 - Queen’s count of ships made this turn and exclusion of its own produced Xenites where current rules require it;
 - multiple Dreadnoughts and the current per-instance consumed-component exclusion when Reveal creates Fighters;
+- Redemption’s Reveal health reset as an input to later health-comparison effects, but never as generated healing;
 - a mixed fleet with Tactical Cruiser type-count effects and Fighter damage;
 - Science Vessel tier multipliers and adjustment rows;
 - opponent-sensitive OXite/Asterite and health-comparison effects using only viewer-visible inputs;
@@ -290,6 +342,8 @@ Avoid manually reconstructing a ship’s effect from its display label. If an ef
 
 The sum of estimate damage breakdown amounts equals displayed estimated damage; the sum of healing/sustain rows equals displayed estimated healing under the existing signed convention. Preserve actual existing row ordering, labels, grouping, and Science Vessel adjustment semantics where possible.
 
+The current metric has an explicit source/status: estimated, privacy-frozen estimate, resolved actual, hidden, pending, or unavailable. The Last metric is always an authoritative completed-turn value. At resolution, use the authoritative actual totals and breakdowns; never cosmetically remove `~` from an estimate and call it actual.
+
 Current actual `lastTurnDamageByPlayerId` is damage **received** by its keyed player. A This Turn player’s damage is damage **dealt to the other player**; map attacker and target correctly instead of reusing the target keyed field as if it meant dealt damage.
 
 No estimate writes `lastTurn...` fields, modifies `powerMemory` on canonical state, creates real ships, spends lines/charges, sets readiness, advances phase, or changes health.
@@ -300,29 +354,37 @@ No estimate writes `lastTurn...` fields, modifies `powerMemory` on canonical sta
 
 ## 7.1 Preferred request
 
-Add one authenticated **read-only POST** for changed build drafts, for example `POST /build-preview/:gameId` in the existing server routes. The exact path can be selected during the reviewed server route pass.
+Use one authenticated **read-only POST** for changed build drafts, for example `POST /build-preview/:gameId` registered in the existing game routes. A dedicated request is justified because the current head/full-state GETs do not upload drafts and `BUILD_SUBMIT` is a mutating final intent; neither can safely carry an unsubmitted advisory calculation. This is a small route on the existing auth/persistence stack, not a new networking subsystem. The exact path can be selected during the reviewed server route pass.
 
-Input should contain the current turn and the same compact build choices later used by `BUILD_SUBMIT`: ship counts, Frigate triggers, Quantum Mystic selections, and Evolver choices; optionally an opaque client request token. Never accept a client-supplied player ID, opponent fleet, raw server state, or requested visibility level.
+Input should contain the current turn and the same compact build choices later used by `BUILD_SUBMIT`: ship counts, Frigate triggers, Quantum Mystic selections, and Evolver choices; optionally an opaque client request token. Preserve the current default-`1` Frigate and Quantum behavior and existing BUILD_SUBMIT validation. Never accept a client-supplied player ID, opponent fleet, raw server state, or requested visibility level.
 
 The endpoint loads the current game once, derives identity from the authenticated session, checks player role, game status, turn, Drawing phase, prelude eligibility, and whether the player has already submitted. Bound and validate payload size/counts and reject malformed or obsolete requests without modifying the game.
 
 For an unsubmitted player, calculate only that player’s estimate and current-turn build projection. For a submitted player, use the frozen **stored own submission** and ignore/reject new editable drafts; normal full-state refresh may carry this frozen projection instead. Do not permit a spectator or the opponent to preview somebody else’s unsubmitted choices.
 
-Response: only the requesting player’s current turn/version identity, estimate status, own damage/healing totals and rows, and own build rows needed for presentation. Return no canonical state, hidden opponent counters, intermediate effect list, secret fleet, or opponent estimate before Reveal.
+Response: only the requesting player’s current turn/version identity, estimate status, own damage/healing totals and rows, and own build rows needed for presentation. Existing full-state GETs remain the transport for viewer-safe live capture/public events and revealed estimates. Return no canonical state, hidden opponent counters, intermediate effect list, secret fleet, or opponent estimate before Reveal.
 
-## 7.2 Simulation seam
+## 7.2 Single canonical simulation seam
 
-Build a preview on a disposable, isolated state. Reuse or narrowly extract the current server build-order, ship-creation, power-collection, modifier, and breakdown helpers. It is acceptable to clone a bounded state and run existing mutation-oriented helpers **only if** no clone change is persisted, no hidden input influences output, and their side effects are understood and tested.
+Use one narrow estimator path rather than a second build or combat engine:
 
-Do not run the complete normal `resolveBattleEndOfTurn` in a live GET/preview request: it also handles pending declarations, Black Hole destruction, actual health/victory and idempotency memory. Do not call `computePhaseComputedEffects` on the canonical in-memory object merely to “read” it; it can update once-only memory.
+1. Load the current game once and construct a viewer-safe state through the existing Charge Declaration and Drawing-prelude visibility projections.
+2. Audit or explicitly reset/project non-fleet hidden inputs needed by effects, including production counters, removed/void history, power memory, capture internals, declaration state, and pending effects.
+3. Clone that safe bounded state once. All mutation-oriented reuse happens only on this disposable clone.
+4. Reuse or narrowly extract the canonical **per-player** build resolver and existing Drawing ship-creation consequences. Do not extend the resolver’s internal legality-lookahead simulations into a parallel preview builder.
+5. Apply the relevant requester-owned Reveal consequences on the clone, preserving Dreadnought Fighter production and its consumed-component/self exclusions. Apply Redemption’s direct health reset only as an input to later known health comparisons; do not count it as healing.
+6. Clear or isolate clone-local `pendingTurn`, collect only allowed requester-owned automatic/once-only Damage and Heal effects, apply the canonical modifiers, and reuse the existing grouped-breakdown rules.
+7. Return only the compact projection and discard the clone.
 
-The estimator can evaluate only the requesting player’s relevant effects after constructing a safe opposing context. In particular, it must not calculate from the canonical opponent fleet and then remove an opponent field from the response: hidden fleet types/health/build counters can leak through the requester’s own totals.
+Do not run the complete normal `resolveBattleEndOfTurn` in a GET/preview request. Preview calculation must not perform Black Hole destruction, aggregate health, victory evaluation, phase advancement, finalization, persistence, or mutation of canonical once-only memory. `applyEffects` may be used only after filtering to the allowed clone-local effects; it is not itself a visibility or inclusion filter.
+
+The estimator evaluates only the requesting player’s relevant effects after constructing the safe opposing context. It must not calculate from the canonical opponent fleet and then remove an opponent field from the response: hidden fleet types, health, counters, charge choices, or memory can leak through the requester’s own totals.
 
 ## 7.3 Request frequency and failure behavior
 
-The client should debounce edits (initial target roughly 150–300 ms, tune in the client pass), send one current payload per settled change, and cancel or ignore obsolete responses. It must not make a fresh request every head poll or persist a draft per click.
+The initial posture is one game load and one isolated clone per settled preview. The client should debounce edits (initial target roughly 150–300 ms, tune in the client pass), suppress identical payload fingerprints, and allow at most one in-flight preview request. A newer edit may abort the current request or wait to send the newest payload; obsolete responses are always ignored. It must not make a fresh request every head poll or persist a draft per click.
 
-Heavy simulations and client requests should remain bounded; the small wire payload does not by itself guarantee low server CPU or database cost. Inspect request latency and server behavior during implementation. Back off on failure/429 and give the player a non-misleading unavailable state; build and Ready must remain functional if this optional estimate fails.
+Heavy simulations and client requests should remain bounded; the small wire payload does not by itself guarantee low server CPU or database cost. Inspect request latency and server behavior during implementation. Back off on failure/429 and give the player a non-misleading unavailable state; build and Ready must remain functional if this optional estimate fails. Do not add a cache, generic rate limiter, or extra persistence without a measured issue and a separately reviewed change.
 
 The preview is advisory. `BUILD_SUBMIT` still independently validates and applies the submitted payload through the authoritative reducer.
 
@@ -332,29 +394,33 @@ The preview is advisory. `BUILD_SUBMIT` still independently validates and applie
 
 ## 8.1 Before Reveal
 
-`requester` may contain the authenticated player’s frozen own build/estimate after submission; a draft preview response contains only that player’s own version. Public DTO fields must not include opponent build details or either player’s private pre-reveal estimates.
+Place authenticated requester-only current-build and estimate data under `requester`; this includes the player’s frozen own projection after submission. A compact draft preview POST response contains only that player’s own version. Put viewer-safe, already-public die/intervention/live-log rows under `publicState`. Public fields must not include opponent build details or either player’s private pre-Reveal estimates.
 
-The current Drawing-prelude fleet projector, `projectDrawingPreludeFleetsForViewer`, returns the viewer’s fleet and the last public snapshot for the other side. Treat that as a **visibility policy**, not a shortcut for a full safe simulation state. Other canonical fields—current-turn production counters, removed ships, power memory, internal capture atoms, temporary declarations—must be audited or explicitly reset/projected before effect calculation.
+The existing public fleet path composes Charge Declaration and Drawing-prelude projections; `projectDrawingPreludeFleetsForViewer` returns the viewer’s fleet and the last public snapshot for the other side during Drawing. Treat these as **visibility policies**, not shortcuts for a full safe simulation state. Other canonical fields—current-turn production counters, removed ships, power memory, internal capture atoms, temporary declarations, and pending effects—must be audited or explicitly reset/projected before effect calculation.
 
-No private output may appear in `publicState`, raw legacy response fields, intent response state/events, a spectator response, or the persisted head. Test all relevant surfaces for the new fields.
+No private output may appear in `publicState`, raw legacy `gameData`, intent response state/events, a spectator response, the history endpoint, or the persisted head. Phase 18 does not add fields to those raw/secondary surfaces by default. The existing history response remains authoritative for completed cards and its existing analysis may be reused for completed Last values and breakdowns, but not as proof that a transient resolution hold is active; do not add a second history schema for the live row. Test all relevant surfaces for absence as well as allowed presence.
 
 ## 8.2 At Reveal and afterward
 
-Once the same existing all-submitted/reveal barrier is satisfied, the full game-state DTO can include a two-sided public `thisTurn` estimate and two-sided current-turn build projection. This public version comes from revealed authoritative fleets and is available to authorized spectators. The client’s changed-head poll causes a full-state refresh; the head itself stays small.
+Once the same existing all-submitted/reveal barrier is satisfied, `publicState` can include a two-sided public `thisTurn` estimate and two-sided current-turn live projection. This public version comes from revealed authoritative fleets/capture and is available to authorized spectators. Later battle rows are projected only when each action’s existing visibility barrier has opened. The client’s changed-head poll causes a full-state refresh; the head itself stays small.
 
-If later authoritative fleet/state changes affect the estimated calculation before resolution, a subsequent full-state refresh may revise the estimates. Still exclude charged effects by origin.
+If later **mutually public** fleet/state changes affect the calculation before resolution, a subsequent full-state refresh may revise the estimates and append newly public live-log actions. During simultaneous Charge Declaration, freeze both sides at the last mutually public pre-declaration snapshot; do not expose hidden declarations or secondary effects through totals, row presence, timing, status, availability, error shape, or build projection. After the barrier exits, use newly public state if an estimate remains relevant and publish allowed action rows. Still exclude charged effects from estimates by origin.
 
-`intent_routes.ts` uses a separate sanitizer from `game_routes.ts`. If implementation adds these projections to any intent response, explicitly apply the same privacy rules there. The simpler default is to keep preview data in the preview response and full-state DTO, then refresh after an accepted submit; never pass new internal preview data through the raw intent state by accident.
+`intent_routes.ts` uses a separate sanitizer from `game_routes.ts`. Keep Phase 18 projections out of intent responses by default: preview data belongs in the compact POST response, requester-only/frozen data under `requester`, and mutually public revealed data under `publicState`. Refresh after an accepted submit; never pass new internal preview data through raw intent state by accident. Prefer the smallest route/module change justified by the live code.
 
 ## 8.3 After resolution and after terminal changes
 
 The client must distinguish:
 
-- **current unsubmitted / frozen / revealed estimate**;
-- **resolved current turn with actual Last Turn data**;
-- **terminal match without a resolved current turn**.
+- **current unsubmitted / frozen / revealed estimate**, paired with previous Last;
+- **resolved turn `N` hold**, with actual current `N` paired with previous Last `N-1`;
+- **new turn `N+1`**, with prior actual `N` moved to Last and a reset current slot;
+- **resolved terminal turn**, represented as one actual Final Turn set; and
+- **terminal match without current-turn resolution**, which must not fabricate actuals.
 
-Use turn identity and canonical resolution/finalization markers, not merely `status === "finished"`, to decide whether the actual label is Final Turn. Completed history and current-turn build presentation should hand off without duplicate rows.
+Integrate these states with the existing one-shot health-resolution presentation. Use turn identity and the canonical resolved-turn marker as primary evidence—not merely `status === "finished"`—and preserve the presentation snapshot until its existing release during an uninterrupted session. Extend that ephemeral snapshot to include actual totals/breakdowns and the previous Last totals/breakdowns.
+
+After a hard refresh, show the held pair only if the loaded authoritative state still exposes the matching `end_of_turn_health` phase hold. Archive analysis may supply completed totals/breakdowns, but it must not be used by itself to prove or replay a transient hold. If the loaded state is already `N+1`, render `N+1` with resolved `N` in Last. If expected archive `N` is delayed, keep only the archive card pending/deferred while bounded history retry runs; do not move the stats back to a held `N`, invent a cached live section, or add a persisted UI store. A terminal match without current-turn resolution has neither a held/Final Turn actual nor a live This Turn section.
 
 ---
 
@@ -362,53 +428,59 @@ Use turn identity and canonical resolution/finalization markers, not merely `sta
 
 ## 9.1 One payload path and one networking owner
 
-Use a shared client helper to produce the build-choice payload for both preview and final `BUILD_SUBMIT`. The preview request may explicitly mark incomplete draft configuration (e.g. QUA number awaiting selection) and return an unavailable estimate until the choice is complete; it must not silently substitute a number or weaken final submission validation.
+Use a shared client helper to produce the build-choice payload for both preview and final `BUILD_SUBMIT` without weakening or changing final validation. Preserve the current default-`1` Frigate and Quantum selection behavior. An incomplete preview is unavailable only for an actual structural inconsistency under current rules, not because the player has not manually touched a defaulted control.
 
-Networking lives under `src/game/client/**`, likely coordinated from `useGameSession.ts` with a small dedicated client runtime hook/helper if that improves isolation. `src/game/display/**` consumes the resulting view model.
+Networking lives under `src/game/client/**`, likely coordinated from `useGameSession.ts` with a small dedicated client runtime hook/helper if that improves isolation. The same owner already fetches completed Battle Log history and should own the bounded retry for an expected missing turn. `src/game/display/**` consumes the resulting view model and does not retry requests itself.
 
-Keep the existing instant local fleet preview for ship rendering and immediate own manual Battle Log updates. Server responses supply the rule-heavy numbers and settled ship rows. The client does **not** reconstruct damage/healing rules locally.
+Keep the existing instant local fleet preview for ship rendering and immediate own manual Battle Log updates. Server responses supply rule-heavy numbers, canonical build rows, and viewer-safe public capture rows. The client does **not** reconstruct damage/healing rules or infer public action timing locally.
+
+Use one runtime-owned Phase 18 presentation model for the live log and paired metrics. It composes the local draft overlay, compact preview response, requester/public full-state projections, existing history, and the current end-of-turn presentation snapshot. Display components receive this model and do not arbitrate source precedence.
 
 ## 9.2 Request and response identity
 
-Tag local requests with `gameId`, `turnNumber`, a locally increasing draft generation/token, and the current payload fingerprint. The server returns its source revision/phase/turn. A response is displayable only if it matches the still-active game/turn/draft and was computed in an appropriate phase.
+Tag local requests with `gameId`, `turnNumber`, a locally increasing draft generation/token, and the current payload fingerprint. Suppress duplicate fingerprints and permit at most one in-flight preview request. The server returns its source revision/phase/turn. A response is displayable only if it matches the still-active game/turn/draft and was computed in an appropriate phase.
 
-If the player edits twice rapidly, submits, the opponent reveals, switches game, or a response arrives after the turn changes, discard the old response. Submission freezes the display from the frozen payload; after reveal, authoritative full-state data supersedes any in-flight private draft result.
+If the player edits twice rapidly, submits, the opponent reveals, switches game, or a response arrives after the turn changes, discard the old response. Submission freezes the display from the frozen payload; after Reveal, authoritative full-state data supersedes any in-flight private draft result.
 
-Do not let a stale preview overwrite an authoritative revealed or actual stat, even if the stale request completes last.
+Apply source precedence by turn: active resolved presentation snapshot > authoritative revealed/public projection > matching submitted requester projection > matching draft preview > local manual overlay. During an uninterrupted session, a newer DTO for turn `N+1` must not erase resolved `N` while the existing presentation owner remains active. After a hard refresh, no prior ephemeral snapshot is assumed: only a surviving authoritative hold can establish the held state; otherwise the loaded `N+1` state wins. A stale preview must never overwrite a revealed or actual value.
 
 ## 9.3 Pending and errors
 
 Own Battle Log manual ship rows should react immediately. Numbers may show a subtle pending indicator during calculation; do not present the previous draft’s amount as if it belongs to the new draft. A failed preview may show `—` / “Estimate unavailable” while the player can still build and submit.
 
-On refresh while unsubmitted, reconstruct the draft according to existing client draft persistence, then request a matching estimate; on refresh while committed, use the server’s own frozen projection. Avoid a flash of opponent details or of a previous turn’s estimate.
+On refresh while unsubmitted, allow the session-local draft to reset; do not add draft persistence. On refresh while committed and waiting for the opponent, recover frozen own rows and estimate from the authenticated player’s stored server submission. Avoid a flash of opponent details or of a previous turn’s estimate.
+
+For the Battle Log, reconcile live and archive by turn identity in one view-model update. During an uninterrupted resolution presentation, retain cached live `N` as the presentation row while history `N` is absent; when history `N` arrives, replace rather than append. At release, render live `N+1`; if archived `N` is still absent, defer that card or show a safe turn-keyed pending placeholder.
+
+Treat “authoritative state has entered `N+1` but history omits `N`” and a failed history request as an expectation mismatch. Through the existing `useGameSession` history owner, retry a small fixed number of times with bounded backoff, cancel/supersede retries on game/turn change or successful arrival, and rely on the existing checkpoint reconciliation/idempotent response. A freshly loaded client must not assume it has cached live `N`. Exhausted retry leaves the card safely unavailable/pending without blocking play; it never duplicates `N` or assigns its rows to `N+1`. On terminal completion without turn resolution, clear live content rather than starting a retry for a turn that should not exist.
 
 ---
 
 # 10. Desktop and mobile presentation gates
 
-## 10.1 18B — Battle Log detailed visual spec required
+## 10.1 18E — Battle Log detailed visual spec required
 
-Before Codex plans the client Battle Log pass, obtain Judd’s spacing, row height, type sizes, separators, padding, own/opponent alignment, concealed placeholder, scroll/pinning behavior, and mobile takeover treatment.
+Before Codex plans the client Battle Log pass, obtain Judd’s spacing, row height, type sizes, separators, padding, own/opponent alignment, concealed placeholder, initial scroll position, and responsive/mobile treatment.
 
-The supplied desktop mockup establishes a separate grey live row directly below Battle Log names, above the completed archive. Decide with Judd whether that row remains pinned while historical turns scroll, and exactly how it appears on small screens.
+The grey live section is locked as the first item in the existing scrolling content below Battle Log names, both on desktop and in the mobile takeover. It scrolls away with history, grows downward, and pushes archived cards; it is not sticky or separately pinned. Hide the existing empty-history message whenever the live section is present. Battle actions appear above the build summary. Exact dimensions and scroll-restoration behavior remain for Judd’s pass-level specification.
 
-Pass 18B should be able to consume the live summary without reaching into server internals.
+Pass 18E should consume the completed live-summary view model without reaching into server internals.
 
 ## 10.2 18F — Desktop and responsive middle stats detailed visual spec required
 
-Before Codex plans the desktop stats pass, obtain exact positions/spacing/typography at the live app’s breakpoints, including the narrow center column, the tooltip trigger/hit area, hover card placement, hidden/pending values, and treatment when Last Turn has no predecessor.
+Before Codex plans the desktop stats pass, obtain exact positions/spacing/typography at the live app’s breakpoints, including the 200px intermediate-width center column, paired-value alignment, metric trigger/hit area, combined-card placement, hidden/pending values, treatment when Last has no predecessor, and behavior in short viewports where the root/fixed action-panel layout can clip content.
 
-The revised mockup establishes the intended **order and grouping**: Health; Saved Lines; Bonus; Last Turn Damage and Healing; This Turn Damage and Healing. It shows `~13`, not the earlier `~14`. Exact coordinates and breakpoint rules remain for Judd’s pass-level spec.
+The revised mockup locks the sequence as Health, Saved Lines, Bonus Lines, paired Damage, then paired Healing. Damage and Healing each use prominent current values for both players, smaller quieter Last values immediately beneath, and center labels for Damage/Last and Healing/Last. Resting values do not use `~`; estimated combined-card headings/totals do.
 
-Review status of the two side columns, varying numerical widths and negative values, long breakdown labels, and very tall/small windows. Preserve accessibility for the information tooltip.
+Hover/focus on one player metric opens its combined This Turn and Last Turn breakdown card, omitting unavailable sections without inventing zero rows. Reuse the existing hover controller/card/frame and incorporate concise estimate messaging there. Verify keyboard/focus access, viewport-edge collision, the two side columns, varying numerical widths and negative values, long labels, the current 768px cutoff, and tall/short windows. Exact interaction details remain a visual-spec checkpoint.
 
-## 10.3 18G — Mobile modal detailed visual spec required
+## 10.3 18G — Mobile anchored-popover detailed visual spec required
 
-Before Codex plans the mobile stats pass, obtain exact modal sections, padding, responsive height/scroll limits, anchor/arrow placement, dismiss behavior, and touch target sizes. Confirm with Judd the opponent modal’s post-Reveal This Turn treatment.
+Before Codex plans the mobile stats pass, obtain exact compact-HUD typography/alignment, popover sections, padding, responsive height/scroll limits, anchor/arrow placement, dismiss behavior, and touch target sizes.
 
-The supplied mobile mockup shows own modal sections in this order: Saved/Bonus, Last Turn Damage/Healing, and separate This Turn Damage/Healing; the own estimate area uses an additional divider and background treatment. The opponent modal is shorter in the example. Keep the actions/game controls usable when the modal is open.
+The existing interaction opens both anchored cards together; preserve that behavior. Before Reveal, the opponent card shows Saved/Bonus then Last Turn while the local card shows Saved/Bonus, This Turn, then Last Turn. After Reveal, the opponent card shows Saved/Bonus then This Turn and drops its detailed Last Turn section, while the local ordering stays unchanged. Smaller Last values remain in both compact HUD rows. The pair may cover Ready or other controls, and covered controls need not remain usable. Tapping either card or outside the pair dismisses both; a scroll gesture inside a card scrolls it without dismissing. Exact geometry and touch thresholds remain a visual-spec checkpoint.
 
-The mobile view consumes the same server-authored numbers and breakdowns; it has no separate damage/healing evaluator.
+Prominent compact-HUD values never use `~`; estimated popover totals do. During resolution hold, current values/breakdowns become actual and keep the prior Last values in the compact HUD until rollover. The mobile view consumes the same server-authored data and has no separate evaluator. A resolved terminal turn shows one actual Final Turn set in the existing popovers where accessible; do not add it to the post-game Stats takeover.
 
 ---
 
@@ -416,145 +488,163 @@ The mobile view consumes the same server-authored numbers and breakdowns; it has
 
 Seven main passes, each planned and reviewed separately. Candidate filenames are audit leads, not blanket editing permission. Tests can be added inside each pass’s corresponding ownership folder.
 
-## Phase 18A — Server current-turn Battle Log projection
+## Phase 18A — Server viewer-safe live Battle Log projection
 
-**Pass type:** Server Pass  
-**Goal:** Create a private/revealed, ship-only current-turn build projection without altering completed history.
+**Pass type:** Server Pass
+**Goal:** Project already-captured current-turn build/intervention/battle content for a viewer, preserving archive language and visibility barriers without altering completed history.
 
 ### Candidate file plan
 
-- `src/supabase/functions/server/engine/state/battleLogHistory.ts`: project current capture/build atoms into ship-only live rows, preserving source tags and turn identity.
-- `src/supabase/functions/server/routes/game_routes.ts`: expose requester-only versus revealed rows through the full-state DTO, or a narrowly factored projection helper.
-- Focused tests in `src/supabase/functions/server/tests/engine/state/**` and `tests/routes/**`.
+- `src/supabase/functions/server/engine/state/battleLogHistory.ts`: reuse current capture atoms plus `formatBuildLines` / `formatBattleLines` for the live projection, preserving grouping, source tags, and turn identity.
+- Existing Drawing-prelude and Charge Declaration visibility helpers for viewer gating; route and DTO exposure wait for 18C.
+- Focused projector tests in `src/supabase/functions/server/tests/engine/state/**`.
 
 ### Required behavior
 
-- Include manual, produced, Drawing-prelude, and Reveal-time build rows when those events have occurred.
-- Filter out reroll/chronoswarm/cube interventions and battle actions from the live ship list.
-- Hide opponent rows before Reveal from players and spectators; publish both only after the existing barrier.
-- Do not alter `BattleLogTurnSummary`, completed-turn count, archived turns, persisted scratch schema, or the head.
+- Include the captured die/intervention rows, manual and produced builds, and battle action rows only when their facts exist and are public to that viewer.
+- Before both submissions are applied, do not invent the first submitter’s manual rows from scratch; committed-own reconstruction belongs to 18C.
+- Keep opponent build rows concealed before Reveal; do not expose simultaneous KNO/CUB/First Strike/charge choices until their current barrier resolves.
+- Order public battle actions above build summaries and reuse archive formatting/token language.
+- Audit archive-only Ancient Solar lines. Prefer viewer-safe projection from an already-public ledger; add a narrowly scoped capture atom at the visibility-opening point only if that cannot preserve live/archive parity safely.
+- Append later produced-build events without subtracting consumed, upgraded, transferred, or destroyed ships.
+- Do not alter `BattleLogTurnSummary`, completed-turn count, archived-turn order, or the head. Any scratch addition requires a demonstrated coverage gap and backward-compatible normalization tests.
 
 ### Validation target
 
-Two independent viewers and a spectator see only allowed rows at Drawing, one-submitted, Reveal, resolution, and refresh. No completed-history duplication.
+Two independent viewers and a spectator see identical allowed public rows and only their authorized private side at Drawing, one-submitted, Reveal, First Strike, hidden declarations, barrier release, resolution, and refresh. Live formatted output matches the eventual archive for the same captured facts; no fabricated first-submitter row.
 
 ### Does not include
 
-Client display, provisional draft ship overlay, or damage/healing preview.
+Route/DTO exposure, committed-own reconstruction, client display, provisional draft overlay, history UI handoff, or damage/healing preview.
 
 ---
 
-## Phase 18B — Client Battle Log live row
+## Phase 18B — Isolated server estimator and parity tests
 
-**Pass type:** Client/UI Pass  
-**Goal:** Display the separate This Turn ship-build area, with immediate own draft updates and safe concealment.
+**Pass type:** Server Pass
+**Goal:** Produce read-only current-turn damage/healing estimates from one isolated viewer-safe simulation seam using canonical server rules.
+
+### Candidate file plan
+
+- Narrow helper under `src/supabase/functions/server/engine/state/**` or `engine_shared/resolve/**`, placed after Codex confirms ownership of the reusable functions.
+- `src/supabase/functions/server/engine/intent/buildSubmitResolution.ts` and `engine_shared/resolve/resolvePhase.ts` only for narrowly justified extraction of the canonical per-player build/effect/breakdown seams.
+- Existing `phaseComputedEffects.ts`, `drawingShipCreation.ts`, and `applyEffects.ts` only where required for canonical parity; avoid broad refactors.
+- Focused estimator and parity fixtures under `src/supabase/functions/server/tests/**`.
+
+### Required behavior
+
+- Construct the viewer-safe state through existing visibility projections, audit/reset non-fleet hidden inputs, then clone once.
+- Apply the requester’s draft through a narrowly exposed canonical per-player build resolver, not a second build engine.
+- Apply relevant own Reveal consequences, including Dreadnought production; treat Redemption’s reset as comparison input rather than healing.
+- Isolate/clear clone-local pending effects, collect only allowed requester-owned automatic/once-only Damage and Heal, apply canonical modifiers, and reuse grouped breakdown rules.
+- Exclude charges, Solar casts, charge-enabled secondary effects during the privacy barrier, and any accumulated canonical pending amount.
+- Identical safe inputs produce identical totals/rows; repeated calculations leave canonical state, history, memory, and head untouched.
+- Parity fixtures compare the estimator with authoritative resolution under matched no-further-action conditions and assert deliberate omissions.
+
+### Does not include
+
+An HTTP endpoint, full end-turn resolution, Black Hole, aggregate health, victory, phase advancement, persistence, client networking, or UI.
+
+---
+
+## Phase 18C — Preview endpoint, committed-own projection, DTO placement, and privacy tests
+
+**Pass type:** Server Pass
+**Goal:** Expose the isolated estimator safely during Drawing, recover a requester’s committed projection, and publish the viewer-safe live log plus mutually public stats through existing DTO boundaries.
+
+### Candidate file plan
+
+- `src/supabase/functions/server/routes/game_routes.ts` or a narrowly registered route module for the authenticated read-only POST and full-state projections.
+- Existing commitment and visibility projection helpers for authenticated stored-own payloads and safe input state.
+- `src/supabase/functions/server/routes/intent_routes.ts` only if needed to prove absence/no leakage; Phase 18 data stays out of intent responses by default.
+- Focused route/privacy tests under `src/supabase/functions/server/tests/routes/**`.
+
+### Required behavior
+
+- Accept the same compact choices and current default-`1` FRI/QUA behavior as BUILD_SUBMIT; authenticated session determines the player.
+- Enforce phase, turn, role, prelude eligibility, commitment state, payload bounds, and existing validation without changing BUILD_SUBMIT.
+- Load the game once and run one isolated clone per request; do not persist previews, increment `stateRevision`, alter clocks/readiness, or change the head.
+- For an unsubmitted player, return only that requester’s compact projection. For a submitted player waiting on the opponent, ignore/reject replacement drafts and derive frozen own rows/estimate from the stored authenticated submission.
+- Put requester-only/frozen build and estimate data under `requester`, viewer-safe public live-log rows and mutually public revealed data under `publicState`, and draft data only in the compact preview response.
+- Add no Phase 18 fields to raw `gameData`, the history endpoint, persisted head, or intent responses by default.
+- Publish captured public dice/build interventions at their current barriers, both build sides after Reveal, and later battle actions only when public. Never serialize raw scratch.
+- During simultaneous Charge Declaration, freeze both estimates at the last mutually public snapshot and withhold declaration action rows until phase exit; then release/recompute/publish only newly public data if still relevant.
+- Prove full-response noninterference: states with identical viewer-visible input but different hidden Drawing, First Strike, or Charge Declaration data produce identical response status, totals, row presence/order, build/live projection, availability, timing-independent field shape, and errors.
+- Reject/drop requests whose phase or turn changed without returning a hidden-derived value.
+
+### Does not include
+
+Client requests, view models, presentation, broad route redesign, caches, generic rate limiting, or extra persistence.
+
+---
+
+## Phase 18D — Client preview networking, draft identity, and view models
+
+**Pass type:** Client/UI Pass, client runtime focused
+**Goal:** Wire settled drafts to the preview endpoint and establish one turn-keyed runtime owner for the live log, paired metrics, resolution hold, and archive rollover before display work.
+
+### Candidate file plan
+
+- `src/game/client/gameSession/intents.ts`: share canonical build-choice serialization without weakening final submit or changing default selections.
+- `src/game/client/gameSession/clienteffects/useBuildDraftSync.ts`: inspect whether its no-op boundary is an appropriate narrow home; do not force a broad refactor.
+- `src/game/client/useGameSession.ts`, `gameSession/types.ts`, `battleLog.ts`, `mapVm.ts`, and the existing `clienteffects/useEndOfTurnPresentation.ts` snapshot seam.
+- Focused client tests for debouncing, fingerprint suppression, supersession, visibility transitions, uninterrupted resolution hold, hard-refresh behavior, bounded history recovery, archive handoff, terminal-without-resolution cleanup, and turn changes.
+
+### Required behavior
+
+- Debounce settled edits, suppress identical fingerprints, and permit at most one in-flight preview request; no polling-upload loop.
+- Tag requests/results by game, turn, phase, draft generation, payload fingerprint, and source revision as applicable.
+- Compose immediate local manual rows, authoritative public live rows, and matching canonical build rows without duplication; preserve archive-style battle-above-build ordering.
+- Ready freezes from the accepted/stored payload; Reveal full-state data supersedes private preview; public battle rows append only from server projection; actual resolution supersedes estimates.
+- On refresh while unsubmitted, allow the draft to reset. On refresh while committed, consume the server’s requester-only frozen projection.
+- Extend the existing one-shot presentation snapshot to hold resolved current actual totals/breakdowns alongside previous Last totals/breakdowns until release in an uninterrupted session. Prevent an early new-turn DTO from erasing that active ephemeral snapshot.
+- On hard refresh, restore a held pair only from a still-active authoritative `end_of_turn_health` hold. If authoritative state is already `N+1`, show `N+1` with actual `N` in Last; do not replay the transient hold from archive data or add persisted UI state.
+- Extend the existing `useGameSession` history-fetch owner with a bounded, turn-keyed retry when archive `N` is expected but absent or the fetch fails. Reuse the server’s archive checkpoint reconciliation and idempotent history response; cancel/supersede safely and expose a pending/deferred card after exhaustion rather than inventing live `N`.
+- Swap live `N` to archive `N` once when both are available, then expose fresh live `N+1` at release. Clear the unfinished live section on terminal completion without turn resolution.
+- Produce explicit desktop/mobile presentation states, including the opponent mobile popover’s pre-Reveal Last versus post-Reveal This Turn swap and the simultaneous-open pair.
+- Distinguish zero, hidden, pending, unavailable, estimated, held actual, Last actual, and Final Turn without wrong-turn flashes. Optional-preview failure never blocks build or Ready.
+
+### Does not include
+
+Display spacing/polish, client combat formulas, server changes, a new client store/networking subsystem, or draft persistence.
+
+---
+
+## Phase 18E — Client Battle Log live section
+
+**Pass type:** Client/UI Pass
+**Goal:** Display the scrolling grey This Turn section from the completed Phase 18 data flow, with immediate local draft updates, public actions, and safe archive handoff.
 
 ### Entry gate
 
-**Remind Judd to supply the detailed Battle Log visual spec before Codex makes its file plan.**
+**Remind Judd to supply the detailed Battle Log visual specification before Codex makes its file plan.**
 
 ### Candidate file plan
 
-- `src/game/client/gameSession/types.ts`, `battleLog.ts`, `mapVm.ts`, and `useGameSession.ts` for live-row view model plus local draft overlay.
-- `src/game/display/shared/BattleLogPanelContent.tsx` and existing desktop/mobile host components for the specified layout.
-- Focused client mapper/display tests if the projection or handoff warrants them.
+- `src/game/display/shared/BattleLogPanelContent.tsx` and existing desktop/mobile Battle Log host components.
+- `src/game/client/gameSession/types.ts`, `battleLog.ts`, `mapVm.ts`, or `useGameSession.ts` only for a small presentation seam left by 18D.
+- Focused mapper/display tests for shared-scroll placement, empty-state suppression, action/build order, concealment, and handoff if warranted.
 
 ### Required behavior
 
-- One live row above archived turns; correct names/orientation for players and spectators.
-- Own draft builds respond to edits without waiting for a server stat request; no accidental duplicate when authoritative rows replace the overlay.
-- Opponent stays concealed before Reveal even if the opponent submits first.
-- When matching archive turn arrives, remove the live row without changing archive count.
+- Render the live section first inside the same `LeftRailScrollArea` as archived cards on desktop and mobile; it scrolls normally and pushes history down.
+- Hide the existing pre-battle empty message whenever the live section exists.
+- Preserve correct names/orientation for players and spectators; opponent stays concealed before Reveal even if submitted first.
+- Own unsubmitted draft rows react immediately; matching server/settled build rows replace rather than duplicate them.
+- Render public dice/build interventions and battle actions using existing tokenization, with actions above builds; never reveal a hidden declaration through row appearance.
+- During an uninterrupted resolution hold, keep live `N` until matching archive `N` is available, then replace atomically. At release show fresh live `N+1`; if archive `N` remains delayed, render the 18D pending/deferred state rather than retaining or reconstructing live `N` as history.
+- On a fresh load already in `N+1`, do not fabricate a live `N` fallback. On terminal completion without current-turn resolution, omit the unfinished This Turn section and show only genuine completed history.
 
 ### Does not include
 
-Client combat formulas, server rules, or final desktop/mobile stat layouts. 18E may later feed canonical draft ship rows from the preview response through this same view model.
-
----
-
-## Phase 18C — Server estimate evaluator and parity tests
-
-**Pass type:** Server Pass  
-**Goal:** Produce read-only current-turn damage/healing estimates from a temporary visible-state simulation using canonical server rules.
-
-### Candidate file plan
-
-- Narrow new helper under `src/supabase/functions/server/engine/state/**` or `engine_shared/resolve/**`, placed after Codex audits which layer owns the existing reusable functions.
-- `src/supabase/functions/server/engine/intent/buildSubmitResolution.ts` and `engine_shared/resolve/resolvePhase.ts` only for narrowly justified helper extraction or safe simulator access.
-- Existing `phaseComputedEffects.ts`, `drawingShipCreation.ts`, and `applyEffects.ts` only where required for a canonical parity seam; avoid broad refactors.
-- New focused `src/supabase/functions/server/tests/**` fixtures.
-
-### Required behavior
-
-- Compute a player’s draft build on an isolated copy, then damage/healing and grouped rows from allowed effects.
-- Project public opponent context **before** applying any opponent-dependent calculation; carry the correct own creation/removal counters.
-- Exclude charges/Solar casts and any already accumulated pending charge amount.
-- Identical safe inputs produce identical estimates; repeated preview calls leave canonical state and history untouched.
-- Parity fixtures compare estimator against actual authoritative resolution under matched, no-further-actions conditions. Where the deliberate omissions cause a difference, assert the difference.
-
-### Does not include
-
-An HTTP endpoint, broad changes to gameplay effects, client networking, or UI.
-
----
-
-## Phase 18D — Server preview endpoint and reveal DTO
-
-**Pass type:** Server Pass  
-**Goal:** Make the estimator available safely to the requester during Drawing and to authorized viewers after Reveal.
-
-### Candidate file plan
-
-- `src/supabase/functions/server/routes/game_routes.ts` or a narrowly registered route module for the authenticated, read-only POST.
-- `src/supabase/functions/server/routes/intent_routes.ts` only if a new projection touches its response; otherwise document its unchanged sanitizer and test no leakage.
-- `src/supabase/functions/server/engine/state/drawingPreludeProjection.ts` or small projection helper if needed for viewer-visible inputs.
-- Route tests under `src/supabase/functions/server/tests/routes/**`.
-
-### Required behavior
-
-- Same small choices as BUILD_SUBMIT; authenticated session determines player.
-- Enforce phase, turn, role, commitment, bounded payload, and visibility.
-- Do not persist previews, increment `stateRevision`, alter clocks/readiness, or change the persisted game head.
-- Requester gets only their own estimate before Reveal, including frozen own estimate while committed if delivered via GET.
-- After Reveal full GET carries both estimates; spectator sees nothing early and both after reveal.
-- Reject/drop a preview requested for a phase or turn that changed; surface no hidden opponent-dependent value.
-
-### Does not include
-
-Client requests or presentation.
-
----
-
-## Phase 18E — Client preview networking and view-model integration
-
-**Pass type:** Client/UI Pass, client runtime focused  
-**Goal:** Wire changed local build choices to the server preview and map returned estimates to board and Battle Log view models.
-
-### Candidate file plan
-
-- `src/game/client/gameSession/intents.ts`: share build-choice payload construction without weakening final submit.
-- `src/game/client/gameSession/clienteffects/useBuildDraftSync.ts`: inspect whether its no-op stub is an appropriate narrow home; do not force a broad refactor.
-- `src/game/client/useGameSession.ts`, `gameSession/types.ts`, `mapVm.ts` and a small networking helper/hook if appropriate.
-- Focused client tests for debouncing, supersession, freeze, reconnect, and turn/phase changes.
-
-### Required behavior
-
-- Debounced direct POST on changed draft; no polling-upload loop.
-- Immediate local ship rows; server-provided numbers and settled ship rows only when identity matches the current draft.
-- Ready freezes own values; reveal full-state data supersedes private preview; actual completed stats supersede estimate.
-- Distinguish zero, hidden, pending, unavailable, and actual; no wrong-turn flashes.
-- Failure of the optional estimate does not block drawing or Ready.
-
-### Does not include
-
-Desktop or mobile spacing/visual polish; no combat formula in client runtime/display.
+Client combat formulas, server rules, or final desktop/mobile stats layouts.
 
 ---
 
 ## Phase 18F — Desktop and responsive stats presentation
 
-**Pass type:** Client/UI Pass  
-**Goal:** Apply the rethought center-column order and desktop breakdown presentation across existing breakpoints.
+**Pass type:** Client/UI Pass
+**Goal:** Apply the paired current/Last desktop metrics and combined breakdown cards across existing breakpoints.
 
 ### Entry gate
 
@@ -563,47 +653,53 @@ Desktop or mobile spacing/visual polish; no combat formula in client runtime/dis
 ### Candidate file plan
 
 - `src/game/display/layout/BoardStage.tsx` and its actual current hover-card/hover-state components.
-- `src/game/client/gameSession/types.ts` / mapping only if 18E left a small presentation seam to finish.
+- `src/game/client/gameSession/types.ts` / mapping only if 18D left a small presentation seam to finish.
 - Existing relevant display styles/tests, without altering Tailwind/Vite config.
 
 ### Required behavior
 
-- Implement ordered groups from `10.2` with both sides’ visibility states.
-- Own estimate and opponent `?` before Reveal; both estimated after Reveal.
-- Breakdown tooltip/hover rows, approximation marker, readable narrow-column layout.
-- When actual final resolution exists, one Final Turn set replaces overlapping Last/This Turn sections.
+- Keep Health, Saved Lines, and Bonus in place; replace Last-only Damage/Healing rows with prominent current values and smaller Last values for both players.
+- Show own estimate and opponent current `?` before Reveal, both current estimates after Reveal, held current actuals during resolution, and rollover into Last only at presentation release. Resting values never use `~`.
+- Consume the 18D lifecycle state as given: after a hard refresh, show a held pair only when the authoritative hold survives; otherwise show the current `N+1`/Last `N` state without reconstructing the presentation in display code.
+- Extend the existing metric hover/focus card to show This Turn and Last Turn breakdowns together when available. Put `~` and estimate messaging there; do not build a second tooltip system.
+- Preserve accessible triggers, viewport-aware placement, and readable 200px/short-height layouts.
+- When the canonical resolved-turn marker proves terminal resolution, show one actual Final Turn set without a false prior/current duplication.
 
 ### Does not include
 
-New server calculations or a mobile modal redesign.
+New server calculations or a mobile anchored-popover redesign.
 
 ---
 
-## Phase 18G — Mobile stat breakdown modals
+## Phase 18G — Mobile paired HUD and stat breakdown popovers
 
-**Pass type:** Client/UI Pass  
-**Goal:** Apply the reordered mobile breakdown modal and own This Turn area without duplicating the estimator.
+**Pass type:** Client/UI Pass
+**Goal:** Apply the paired current/Last compact HUD and phase-sensitive content in the existing simultaneously opened anchored popovers without duplicating the estimator.
 
 ### Entry gate
 
-**Remind Judd to supply the detailed mobile visual spec and confirm opponent post-Reveal treatment before Codex makes its file plan.**
+**Remind Judd to supply the detailed mobile visual specification before Codex makes its file plan.**
 
 ### Candidate file plan
 
 - `src/game/display/mobile/MobileStatBreakdownPopovers.tsx` and `MobileGameLayout.tsx`.
+- `src/game/display/mobile/MobileStatusRail.tsx` for compact paired current/Last fields.
 - Existing mobile anchor/dismissal helpers and presentation tests if needed.
 - View-model changes only if strictly required by the reviewed mobile spec.
 
 ### Required behavior
 
-- Saved/Bonus then Last Turn, with a separate This Turn section on the own modal while estimated.
-- Correct hidden/pending/revealed/final state; no private opponent build or stats leak.
-- Scrollable/anchored content usable at short viewport heights, long labels, and touch sizes.
-- Final Turn actuals appear once with no stale approximate section.
+- Preserve the existing one-toggle behavior that opens both anchored cards together. The pair may cover and block Ready or other underlying controls. A tap on either card or outside dismisses both; a scroll gesture inside a card scrolls its content without dismissing. Defer exact geometry and touch thresholds to the reviewed visual spec.
+- Render prominent current Damage/Healing plus smaller Last values in each compact HUD row, with no HUD `~`.
+- Before Reveal, opponent shows Saved/Bonus + Last Turn while local shows Saved/Bonus + This Turn + Last Turn. After Reveal, opponent swaps detailed Last Turn for This Turn while local remains unchanged.
+- Put `~` only on estimated breakdown totals. During resolution hold, show actual current values/breakdowns without `~` and retain the previous Last HUD values until rollover.
+- Consume the same 18D hard-refresh rule as desktop: no mobile-only replay of a transient hold from archive data, and no persisted popover presentation state.
+- Resolved Final Turn actuals appear once in the existing popovers where accessible, with no stale estimate and no new post-game Stats takeover section.
+- A terminal outcome without current-turn resolution removes unfinished This Turn content and supplies no Final Turn state to the popovers.
 
 ### Does not include
 
-Server changes, separate mobile power math, or unrelated actions/catalogue redesign.
+Server changes, separate mobile power math, post-game Stats takeover changes, or unrelated actions/catalogue redesign.
 
 ---
 
@@ -633,39 +729,56 @@ Follow the current `CodexPassTemplate.md` rule: Codex does not run the Vite dev 
 
 At minimum prove:
 
-1. Both player identities and a spectator receive the correct current-turn rows before/after Reveal, including first-submitter waiting.
-2. Hidden opponent prelude/build information cannot affect a requester’s estimate. Construct two canonical states with identical viewer-visible data but different hidden opponent fleets/counters; their pre-Reveal response must be identical.
-3. Draft simulation causes zero persistent writes, no revision/head changes, no consumed charges, no readiness/clock/health/once-only-memory changes.
-4. No-op draft, a single manual build, mixed produced/manual builds, upgraded/component consumption, configured FRI/QUA, EVO conversions, Queen, multiple Dreadnoughts, Science Vessel modifiers, and opponent-dependent effects give the intended rows.
-5. Automatic depletion healing where applicable is included; charged Solar/ordinary effects are omitted; actual resolved Last Turn includes charge contributions.
-6. Rows sum to totals. Self damage and health-cap cases distinguish generated healing from net health.
-7. Bad role, wrong phase/turn, malformed/oversized payload, submitted replacement attempt, and request racing Reveal return safe behavior.
-8. Refresh and final-turn archiving preserve turn identity; surrender/timeout before current-turn resolution do not fabricate Final Turn actuals.
+1. Both player identities and a spectator receive only capture-backed, viewer-safe live content: public die/intervention rows at their barrier, no opponent build before Reveal, both actual builds after Reveal, and battle actions only when public. The first submitter’s manual rows are absent from scratch but recover through their requester-only committed projection.
+2. Live output uses existing capture order/formatting and matches the eventual archive for the same KNO/CHR/CUB, manual/produced build, First Strike, charge, destroy/steal/Frigate, and Ancient Solar facts. Any narrow Solar addition is covered at its visibility-opening point and by backward-compatible scratch normalization.
+3. Hidden opponent prelude/build information cannot affect a requester’s estimate or live projection. Construct canonical states with identical viewer-visible data but different hidden opponent fleets/counters/selections; compare the complete pre-Reveal response, including status, totals, row presence/order, build/live projection, availability, errors, and field shape.
+4. First Strike and Charge Declaration noninterference use the same full-response comparison with different hidden selections, canonical pending effects, charge-depleted fleets, and secondary SOL healing. No row or estimate changes before the relevant barrier. Both estimates remain identical to the last mutually public snapshot throughout Charge Declaration, then release only newly public state.
+5. Draft simulation causes zero persistent writes, no revision/head changes, no consumed charges, no readiness/clock/health/once-only-memory changes, and no mutation of canonical pending effects.
+6. No-op draft, a single manual build, mixed produced/manual builds, upgraded/component consumption, default and configured FRI/QUA, EVO conversions, Queen, multiple Dreadnoughts, Redemption comparison input, Science Vessel modifiers, and opponent-dependent effects give the intended estimate rows.
+7. Automatic depletion healing is included only when depletion is mutually public; charged Solar/ordinary effects and charge-enabled secondary healing are omitted while private; authoritative resolved current actuals include applicable charge contributions.
+8. Estimate and actual rows sum to their totals. Self damage and health-cap cases distinguish generated healing from net health, and attacker/target orientation preserves damage dealt versus server damage-taken keys.
+9. Bad role, wrong phase/turn, malformed/oversized or structurally inconsistent payload, submitted replacement attempt, and a request racing Reveal return safe behavior without changing existing BUILD_SUBMIT validation/defaults.
+10. Phase 18 fields appear only in the compact preview response, `requester`, or `publicState` as allowed; they remain absent from raw `gameData`, history, head, and intent responses. Existing history analysis remains reusable without a schema fork.
+11. Resolution and final-turn archiving preserve turn identity; surrender/timeout before current-turn resolution do not fabricate current or Final Turn actuals.
 
 ## 12.3 Concrete product walkthrough
 
-| Point | Battle Log | Middle stats | Source |
+| Point | Battle Log | Paired stats and popovers | Source |
 | --- | --- | --- | --- |
-| Drawing, no draft | Own current-turn production if any; opponent concealed | Own estimate once available; opponent `?` | Requester-safe GET/preview |
-| Add two Tactical Cruisers and three Fighters in illustrative mock state | Own build rows change immediately | New valid response can show `~13` damage with 10 + 3 rows | Read-only POST; rule value depends on actual assumed fleet |
+| Turn starts, no archive/draft | Grey This Turn exists in the shared scroller; old empty text is hidden; opponent build concealed | Own current pending/estimate when available, opponent current `?`; smaller Last values remain authoritative | Viewer-safe GET/preview |
+| Public dice modifier occurs | Archive-language intervention row appears without exposing a still-hidden choice | Estimates revise only if the newly public input is allowed | Capture projection after existing barrier |
+| Add illustrative ships | Own manual build rows change immediately; server projection replaces rather than duplicates them | Prominent board/HUD value has no `~`; combined/mobile estimated breakdown may show `~13` with illustrative rows | Local overlay, then read-only POST |
 | Edit while older request is in flight | Show newest own draft | Pending/newest response only; never old response | Client draft generation |
-| Submit first | Own frozen rows, opponent concealed | Own frozen estimate, opponent `?` | Stored own commit via requester projection |
-| Both submit / Reveal | Both players’ actual built-ship rows | Two-sided estimates; `~` remains | Public full GET after changed head |
-| Charge declaration and eventual turn resolution | History receives resolved actions and build summary | Last Turn actuals include charge results | Existing authoritative resolution/archive |
-| Resolved terminal turn | Last completed turn in archive | One actual **Final Turn** set | Canonical last-turn stats and resolved-turn marker |
-| Terminal without resolving current turn | No invented completed current turn | No fabricated Final Turn damage/healing | Canonical completion reason/turn markers |
+| Submit first | Own frozen rows, opponent `???` | Own frozen current estimate, opponent current `?`; Last unchanged | Stored own commit via requester projection |
+| Both submit / Reveal | Both actual build summaries replace projections | Two-sided current estimates, no resting `~`; local mobile keeps This+Last, opponent mobile swaps Last detail for This | Public full GET after changed head |
+| Public First Strike action | Action appears above build summary after its barrier | Mutually public changes may revise current estimates | Viewer-safe capture projection |
+| Simultaneous Charge Declaration | No declaration row until the barrier; prior public live content remains | Both estimates freeze at the last mutually public snapshot; no hidden depletion/SOL change | Existing declaration visibility snapshot |
+| Charge barrier exits | Newly public charge/action rows appear | Estimates may revise only from newly public allowed inputs | Public full GET |
+| Authoritative turn `N` resolution, uninterrupted | Live `N` remains the presentation row; archive `N`, if available, replaces it once | Large current slots and This Turn breakdowns become actual, include charges, and lose `~`; small Last remains `N-1` throughout presentation | Resolution response/marker + ephemeral presentation snapshot |
+| Enter turn `N+1` | Fresh live `N+1` appears; archived `N` appears when history supplies it, otherwise its card is pending/deferred | Actual `N` moves to small Last; local current resets to pending/new estimate and opponent current to `?` | Presentation release + authoritative DTO + history |
+| Hard refresh while hold survives | Held live/stat state appears only when the loaded authoritative `end_of_turn_health` hold proves it remains active | Current actual `N` stays paired with Last `N-1` | Current authoritative hold; no archive-only replay |
+| Hard refresh after server entered `N+1` | Fresh live `N+1`; archive `N` is shown, retried, or deferred by turn identity | Show `N+1` current and actual `N` in Last; do not replay the `N` hold | Current authoritative state + history |
+| Resolved terminal turn | Final archived turn appears once | One actual **Final Turn** set in finished board stats and existing mobile popovers; none added to post-game Stats | Canonical actuals and resolved-turn marker |
+| Terminal without resolving current turn | Unfinished This Turn section closes; genuine earlier cards remain and no current card is invented | No fabricated Final Turn damage/healing | Canonical completion reason/turn markers |
 
 The example `~13` applies only to the pictured test state; never hardcode those numbers.
 
 ## 12.4 Client race and recovery cases
 
 - Rapid add/remove/add with responses arriving in reverse order.
+- Repeated equivalent edits suppress duplicate fingerprints and never create more than one in-flight preview.
 - Submit while debounce timer or preview POST is in flight.
 - Opponent’s Reveal arriving between a preview load and its response.
-- Reload during own Drawing, one-submitted waiting, Reveal hold, and end-of-turn hold.
+- Reload during own unsubmitted Drawing resets the draft without adding persistence; reload during one-submitted waiting recovers the requester’s frozen stored projection.
+- Reload during Reveal hold or hidden First Strike/Charge Declaration preserves the correct visibility snapshot and does not flash a row.
+- Reload while the authoritative `end_of_turn_health` hold still survives shows the supported current `N`/Last `N-1` pair. Reload after authoritative state has entered `N+1` shows `N+1` with `N` in Last and does not replay the transient hold from archive data.
 - Switch game or seat, spectator join, bot opponent, and untimed idle/hidden polling.
-- Network failure and retry/backoff without blocking BUILD_SUBMIT.
-- A new turn while the previous turn’s history refresh is pending.
+- Preview network failure and retry/backoff do not block BUILD_SUBMIT.
+- The initial history request fails, or returns without expected archive `N`: the existing history owner performs bounded retry; success inserts `N` once, while exhaustion leaves a safe pending/deferred card and does not block play.
+- Archive `N` arrives before or after the resolution/new-turn DTO: live/archive swap is once-only during an uninterrupted presentation; a fresh client at `N+1` never assumes a cached live `N`, duplicates `N`, or attaches its rows to `N+1`.
+- An early turn `N+1` DTO arrives while the `N` presentation is active: held actuals and previous Last remain until release, then the pair rolls forward atomically.
+- Mobile popovers are open across pre-Reveal, Reveal, resolution, and rollover updates; both remain open together and each applies its correct section policy. A tap on either card or outside dismisses the pair, while an in-card scroll scrolls without dismissal; covered controls are allowed to remain inaccessible until dismissal.
+- Surrender, timeout, or another non-resolution terminal outcome removes the unfinished live section, retains earlier archive cards, and creates neither retry expectation for the unfinished turn nor Final Turn stats.
 
 ---
 
@@ -673,23 +786,29 @@ The example `~13` applies only to the pictured test state; never hardcode those 
 
 ## 13.1 Main server complication: visibility is an input rule
 
-Returning only own fields is insufficient if own output depends on hidden opposing ships. The server must calculate pre-Reveal estimates in a consciously constructed **viewer-visible** context and prove noninterference with hidden changes. This is the highest priority server test gate.
+Returning only own fields is insufficient if own output depends on hidden opposing ships or declarations. The server must calculate pre-Reveal estimates in a consciously constructed **viewer-visible** context, project live rows only after each existing barrier, and freeze both estimates at the last mutually public snapshot throughout simultaneous Charge Declaration. Full-response noninterference across hidden Drawing, First Strike, and charge changes is the highest-priority server test gate.
 
 ## 13.2 Main calculation complication: read-only reuse
 
-Current build and battle helpers have side effects on the supplied state. Reusing them safely requires isolated state, narrow extraction where appropriate, correct per-instance events, and explicit excluded charge sources. A preview that calls real turn resolution indiscriminately can cause incorrect rows or secret-derived values even without saving the clone.
+Current build and battle helpers have side effects on the supplied state. Reusing them safely requires one viewer-safe state, one disposable clone, narrow access to the canonical per-player builder, correct per-instance events and Reveal consequences, isolated pending effects, and explicit excluded charge sources. A preview that extends the existing legality-lookahead simulations or calls real turn resolution indiscriminately creates a second rule path, incorrect rows, or secret-derived values even without saving the clone.
 
-## 13.3 Main client complication: timing and dual sources
+## 13.3 Main live-log complication: capture coverage and archive parity
 
-The local fleet/log changes immediately, while the numeric estimate arrives asynchronously. Submitted/frozen, revealed, and resolved data arrive through different paths. Tie each to game, turn, visibility phase, and draft generation; design the handoff before writing display conditionals.
+Most required live language already exists in capture atoms and archive formatters. The main demonstrated gap is archive-time Solar-ledger formatting, plus the need to gate raw capture by viewer visibility. Prefer the smallest projection/capture addition that makes live and archive output agree. Never serialize scratch or build a second generic event/history pipeline.
 
-## 13.4 Performance posture
+## 13.4 Main client complication: timing, paired history, and source precedence
 
-An authenticated POST for a settled edit is reasonable; a write on every click or full-state refresh every two seconds is not part of this plan. The code review should measure/query the cost of loading a game and simulating a draft. If the simulation is too costly, optimize the read-only computation or request cadence inside the dedicated pass rather than sacrificing privacy or client/server parity.
+Local draft rows, server previews, public live projections, resolution actuals, and archive history arrive independently. Tie them to game, turn, visibility phase, draft generation, payload fingerprint, source revision, and presentation ownership. During an uninterrupted session, the turn `N` resolution snapshot must retain actual current and previous Last while an early DTO may already say `N+1`; after a hard refresh, only a surviving authoritative hold justifies that transient state. Archive data is not a replay signal.
 
-## 13.5 Visual spec remains deliberately open
+History can also lag or fail after state advances. The current initial/turn/finish fetch is one-shot, so add bounded expectation-driven retry in its existing owner and rely on the server’s checkpoint/idempotent merge. Keep a missing completed card pending/deferred rather than promoting cached live rows, duplicating a turn, or contaminating `N+1`. Resolve these rules in one client-runtime view model, not scattered display conditionals. Unsubmitted refresh deliberately resets rather than adding draft or presentation persistence.
 
-The updated mockups lock order, emphasis, and example content. Judd will supply exact responsive spacing and interaction behavior at 18B, 18F, and 18G. Codex should surface any conflict with actual center-column width, mobile viewport, or existing modal anchors in those pass plans.
+## 13.5 Performance posture
+
+An authenticated POST for a settled edit is reasonable; a write on every click or full-state refresh every two seconds is not part of this plan. Start with one game load and isolated clone per settled, changed payload; debounce, suppress duplicate fingerprints, and allow at most one in-flight preview. Measure the cost before adding optimization. Do not add a cache, generic limiter, or persistence without a measured need and separate review.
+
+## 13.6 Visual spec remains deliberately open
+
+The updated mockups lock sequence, grouping, shared scrolling, paired-value hierarchy, popover state policy, and example content. Judd will supply exact responsive spacing and interaction behavior at 18E, 18F, and 18G. Those pass plans must explicitly check the 200px intermediate-width center column, current 768px mobile cutoff, short-height/root clipping, combined-card keyboard/focus access and viewport collision, scroll restoration, and existing mobile popover anchors.
 
 ---
 
@@ -697,16 +816,23 @@ The updated mockups lock order, emphasis, and example content. Judd will supply 
 
 Phase 18 is complete when:
 
-- own ship builds appear live in a distinct Battle Log current-turn area, including produced builds, with the opponent concealed until Reveal;
-- after Reveal both ship-build sides populate, and the live row hands off to one completed history row without duplication;
+- a grey This Turn section exists from turn start as the first item in the shared desktop/mobile Battle Log scroller, suppresses the empty-history message, grows with content, and is not separately pinned;
+- local manual and produced builds appear live, public dice/build interventions use archive language, opponent builds remain `???` until Reveal, and public battle actions appear above builds only after their barriers;
+- after Reveal both actual build summaries populate, and resolved live turn `N` hands off once to archive `N` when available without duplication, wrong-turn rows, or scroll-container divergence;
+- when expected archive `N` is absent or its fetch fails, the existing client history owner performs bounded turn-keyed retry against the checkpoint-reconciled idempotent route; while waiting or after exhaustion the card is safely pending/deferred, never copied from an assumed cache or attached to `N+1`;
 - a changed unsubmitted build obtains its own server-calculated damage/healing estimate and grouped rows from a read-only request;
+- unsubmitted refresh may reset the draft without adding persistence, while committed waiting refresh recovers frozen own rows/estimate from the authenticated stored submission;
 - no large independent client combat evaluator is introduced;
 - preview requests never commit, persist, advance, consume, or alter canonical game state/head;
 - before Reveal no player or spectator can infer hidden opposing builds from any new row, statistic, endpoint, or response shape;
-- after Reveal both sides receive estimates from public authoritative state; charges remain absent from estimates and appear in actual resolution;
-- stale, failing, and racing requests cannot overwrite a newer draft, Reveal, completed turn, or different game;
-- desktop and responsive stats follow the supplied detailed spec at 18F and preserve readability;
-- mobile modals follow the supplied detailed spec at 18G, with own This Turn breakdown and correct touch/scroll behavior;
-- terminal resolution replaces estimate/Last Turn duplication with a single actual Final Turn set, without mislabeling a prior turn after an unresolved termination;
+- after Reveal both sides receive estimates from mutually public authoritative state; simultaneous Charge Declaration freezes both at the last mutually public snapshot, with full-response noninterference across hidden choices; charges remain absent from estimates and appear in actual resolution;
+- Phase 18 data is placed only in the compact preview response, `requester`, or `publicState` as authorized, not raw `gameData`, history, head, or intent responses by default;
+- stale, failing, and racing requests cannot overwrite a newer draft, Reveal, held resolution, completed turn, or different game;
+- desktop shows paired current/Last Damage and Healing with no resting `~`; one accessible combined metric card shows available This Turn and Last Turn breakdowns and carries approximation treatment only for estimates;
+- the compact mobile HUD shows current plus smaller Last values without `~`; both existing anchored popovers open together, may cover underlying controls, apply the settled before-/after-Reveal section policies, dismiss together on a tap to either card or outside, and allow in-card scrolling without dismissal;
+- during an uninterrupted session, authoritative resolution changes current estimates to held actuals and actual breakdowns without `~`, keeps prior Last throughout the presentation, resists an early new-turn DTO while the presentation owner remains active, and rolls those actuals into Last only on release;
+- after a hard refresh, a held display appears only when current authoritative state still proves the matching hold is active; an already-advanced `N+1` state shows `N+1` with resolved `N` in Last, without archive-only replay or new persisted UI state;
+- resolved terminal resolution becomes one actual Final Turn set in finished board stats and existing mobile popovers, without adding it to post-game Stats or mislabeling a prior turn after unresolved termination;
+- surrender, timeout, or another terminal outcome without current-turn resolution removes the unfinished live This Turn section, retains genuine completed history, and creates neither an archived current-turn card nor Final Turn stats;
 - the focused server/client regression tests and appropriate type/build checks pass; and
 - Judd has been reminded for, supplied, and reviewed the detailed visual specs at the three client presentation checkpoints.
