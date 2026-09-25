@@ -1419,6 +1419,34 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
   ];
 }
 
+/**
+ * Format build capture facts without exposing capture atoms or ship instance IDs.
+ * Preview simulations may create random instance IDs internally; the canonical
+ * formatter uses those identities only to count distinct production sources.
+ */
+export function formatBattleLogBuildLinesFromCaptureEvents(args: {
+  turnNumber: number;
+  playerId: string;
+  events: readonly unknown[];
+}): string[] {
+  const relevantEvents = args.events.filter((event): event is Record<string, unknown> => {
+    if (event === null || typeof event !== "object" || Array.isArray(event)) return false;
+    const record = event as Record<string, unknown>;
+    return record.turnNumber === args.turnNumber && record.playerId === args.playerId;
+  });
+  const scratch = foldBattleLogCaptureEventsIntoScratch(
+    {
+      currentTurnCapture: null,
+      lastFinalizedTurnNumber: args.turnNumber - 1,
+      archiveCheckpoint: null,
+    },
+    relevantEvents,
+  );
+  const capture = scratch.currentTurnCapture;
+  if (!capture || capture.turnNumber !== args.turnNumber) return [];
+  return formatBuildLines(capture.buildAtomsByPlayerId[args.playerId] ?? []);
+}
+
 function formatBattleLines(battleAtoms: BattleCaptureAtom[]): string[] {
   const orderedAtoms = [...battleAtoms].sort((left, right) =>
     left.bucket - right.bucket

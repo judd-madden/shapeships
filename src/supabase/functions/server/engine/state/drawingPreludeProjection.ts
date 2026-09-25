@@ -29,6 +29,18 @@ export type DrawingPreludeCarrierAction = {
   choices: Array<{ choiceId: 'defender' | 'fighter' | 'hold' }>;
 };
 
+export type DrawingPreludeFleetProjectionResult = {
+  fleets: Record<string, ShipInstance[]>;
+  source: 'validated_snapshot' | 'live_fleet_fallback' | 'unavailable';
+  projectionAvailable: boolean;
+  failureReason?:
+    | 'invalid_ships_map'
+    | 'invalid_requester'
+    | 'live_fleet_fallback_not_safe'
+    | 'missing_or_stale_prelude'
+    | 'missing_or_stale_snapshot';
+};
+
 type DrawingPreludeCueKey = {
   turnNumber: number;
   playerId: string;
@@ -123,6 +135,136 @@ export function projectDrawingPreludeFleetsForViewer(
       return [playerId, getValidCurrentSnapshot(state, playerId) ?? []];
     }),
   );
+}
+
+/**
+ * Strict projection for read models that must never inherit the legacy
+ * Drawing live-fleet fallback. The ordinary projector remains backward
+ * compatible for its existing callers.
+ */
+export function projectDrawingPreludeFleetsForViewerWithAvailability(
+  state: Readonly<any>,
+  shipsByPlayerId: unknown,
+  requestingParticipantId?: string,
+): DrawingPreludeFleetProjectionResult {
+  if (!isObject(shipsByPlayerId)) {
+    return {
+      fleets: {},
+      source: 'unavailable',
+      projectionAvailable: false,
+      failureReason: 'invalid_ships_map',
+    };
+  }
+
+  if (!isDrawingPhase(state)) {
+    const gameData = state?.gameData;
+    const major = gameData?.currentPhase ?? gameData?.turnData?.currentMajorPhase;
+    const sub = gameData?.currentSubPhase ?? gameData?.turnData?.currentSubPhase;
+    const turnNumber = getCanonicalTurnNumber(state);
+    const fallbackIsSafe = major === 'battle' &&
+      (sub === 'reveal' || sub === 'first_strike') &&
+      turnNumber !== null &&
+      gameData?.turnData?.endOfTurnResolutionAppliedTurnNumber !== turnNumber;
+    if (!fallbackIsSafe) {
+      return {
+        fleets: {},
+        source: 'unavailable',
+        projectionAvailable: false,
+        failureReason: 'live_fleet_fallback_not_safe',
+      };
+    }
+    const publicPlayerIds = Array.isArray(state?.players)
+      ? state.players
+        .filter((player: any) => player?.role === 'player' && typeof player?.id === 'string')
+        .map((player: any) => player.id as string)
+      : [];
+    if (
+      publicPlayerIds.length !== 2 ||
+      publicPlayerIds.some((playerId) => !Array.isArray(shipsByPlayerId[playerId]))
+    ) {
+      return {
+        fleets: {},
+        source: 'unavailable',
+        projectionAvailable: false,
+        failureReason: 'invalid_ships_map',
+      };
+    }
+    return {
+      fleets: Object.fromEntries(
+        publicPlayerIds.map((playerId) => [
+          playerId,
+          structuredClone(shipsByPlayerId[playerId]),
+        ]),
+      ),
+      source: 'live_fleet_fallback',
+      projectionAvailable: true,
+    };
+  }
+
+  if (getParticipantRole(state, requestingParticipantId) !== 'player') {
+    return {
+      fleets: {},
+      source: 'unavailable',
+      projectionAvailable: false,
+      failureReason: 'invalid_requester',
+    };
+  }
+
+  const turnNumber = getCanonicalTurnNumber(state);
+  const activePlayerIds = Array.isArray(state?.players)
+    ? state.players
+      .filter((player: any) => player?.role === 'player' && typeof player?.id === 'string')
+      .map((player: any) => player.id as string)
+      .sort((left: string, right: string) => left.localeCompare(right))
+    : [];
+  const playerMap = state?.gameData?.turnData?.drawingPreludeByPlayerId;
+  const snapshotMap = state?.gameData?.turnData?.buildDrawingPublicFleetByPlayerId;
+  const hasExactKeys = (value: unknown): value is Record<string, unknown> =>
+    isObject(value) &&
+    Object.keys(value).length === activePlayerIds.length &&
+    activePlayerIds.every((playerId) => Object.prototype.hasOwnProperty.call(value, playerId));
+
+  if (
+    turnNumber === null ||
+    activePlayerIds.length !== 2 ||
+    !hasExactKeys(playerMap) ||
+    activePlayerIds.some((playerId) =>
+      !isStructurallyValidDrawingPreludePlayerState(playerMap[playerId], turnNumber)
+    )
+  ) {
+    return {
+      fleets: {},
+      source: 'unavailable',
+      projectionAvailable: false,
+      failureReason: 'missing_or_stale_prelude',
+    };
+  }
+
+  if (
+    !hasExactKeys(snapshotMap) ||
+    activePlayerIds.some((playerId) => getValidCurrentSnapshot(state, playerId) === null)
+  ) {
+    return {
+      fleets: {},
+      source: 'unavailable',
+      projectionAvailable: false,
+      failureReason: 'missing_or_stale_snapshot',
+    };
+  }
+
+  return {
+    fleets: Object.fromEntries(
+      activePlayerIds.map((playerId) => {
+        const fleet = shipsByPlayerId[playerId];
+        if (playerId === requestingParticipantId) {
+          return [playerId, Array.isArray(fleet) ? structuredClone(fleet) : []];
+        }
+        return [playerId, getValidCurrentSnapshot(state, playerId) ?? []];
+      }),
+    ),
+    source: 'validated_snapshot',
+    projectionAvailable: true,
+  };
 }
 
 function getUnresolvedCurrentPassSources(playerState: DrawingPreludePlayerState) {

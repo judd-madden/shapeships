@@ -49,10 +49,15 @@ type ComponentRequirement = {
   mustBeDepleted: boolean;
 };
 
-type BuildSubmitResolutionArgs = {
+export type BuildSubmitResolutionArgs = {
   state: any;
   turnNumber: number;
   nowMs: number;
+};
+
+export type PlayerBuildSubmitResolutionArgs = BuildSubmitResolutionArgs & {
+  playerId: string;
+  payload: BuildSubmitPayload | null;
 };
 
 export type BuildSubmitResolutionResult = {
@@ -1088,13 +1093,9 @@ function resolveBuildAttemptsStage(args: {
   };
 }
 
-function resolvePlayerBuildSubmit(args: {
-  state: any;
-  playerId: string;
-  turnNumber: number;
-  nowMs: number;
-  payload: BuildSubmitPayload | null;
-}): any[] {
+export function resolvePlayerBuildSubmitAuthoritatively(
+  args: PlayerBuildSubmitResolutionArgs,
+): any[] {
   const { state, playerId, turnNumber, nowMs, payload } = args;
   const events: any[] = [];
 
@@ -1241,7 +1242,7 @@ export function resolveBuildSubmitAuthoritatively(
     const record = getCommitRecord(state, commitKey, player.id);
     const payload = record?.revealPayload as BuildSubmitPayload | undefined;
     events.push(
-      ...resolvePlayerBuildSubmit({
+      ...resolvePlayerBuildSubmitAuthoritatively({
         state,
         playerId: player.id,
         turnNumber,

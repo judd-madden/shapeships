@@ -136,7 +136,7 @@ A hard refresh does not promise to replay the transient live-`N` presentation fr
 - Recalculate when a relevant authoritative estimate input changes even if the draft payload is unchanged. An unchanged head poll or equivalent full-state refresh is not such a change and must not trigger another draft-preview request.
 - Opponent numbers remain `?` before Reveal.
 - After Reveal, both sides show estimates derived from the mutually visible state; subsequent public fleet changes may update them until resolution.
-- During simultaneous Charge Declaration, freeze both estimates at the last mutually public battle snapshot. Do not reflect hidden charge choices or secondary consequences such as newly depleted Solar Grid healing. Once that privacy barrier ends, use newly public state if an estimate is still relevant; actual turn resolution replaces the estimate.
+- During simultaneous Charge Declaration, freeze both estimates at the last mutually public battle snapshot. Do not reflect hidden charge choices or secondary consequences such as Solar Grid healing newly enabled by a hidden Charge Declaration choice. Automatic Battle Reveal Solar spending is already part of the frozen snapshot. Once that privacy barrier ends, use newly public state if an estimate is still relevant; actual turn resolution replaces the estimate.
 - On desktop and the compact mobile HUD, each player has a large current Damage value with a smaller, quieter **Last** value directly beneath it, and the same pairing for Healing. Health, Saved Lines, and Bonus Lines retain their established positions.
 - Do not prefix resting board/HUD values with `~`. Put approximation treatment in estimated breakdown headings/totals, for example `THIS TURN (ESTIMATE) ~13` on desktop or `This turn damage ~13` on mobile.
 - Hover/focus on a desktop player metric opens one combined card containing that metric’s This Turn and Last Turn breakdowns wherever each exists. This combined card carries the estimate cue and any concise uncertainty copy; do not add a redundant standalone information-tooltip system.
@@ -312,14 +312,14 @@ Reuse canonical definitions and effect math for:
 - conditional effects with fully known inputs, e.g. Frigate’s configured trigger;
 - Science Vessel adjustments, represented with breakdown rows that sum to the displayed total;
 - reveal-produced Fighter contributions once deterministically known on the temporary build or actually present after Reveal;
-- depleted Solar Grid’s ordinary automatic healing when depletion is already mutually public and part of the normal current combat rules;
+- depleted Solar Grid’s ordinary automatic healing after deterministic automatic Battle Reveal spending in the requester’s safe draft simulation, from the actual public post-Reveal result, or from the frozen predeclaration snapshot during Charge Declaration;
 - self-damage as a signed sustain/healing breakdown where the canonical Last Turn breakdown uses that convention.
 
 Exclude:
 
 - ordinary charged power uses and pending charge declarations;
-- charged Solar consumption, manual Solar casts, and Autocast’s charged results, even if a related Reveal action has already happened;
-- any secondary effect newly enabled by a hidden Charge Declaration choice, including newly depleted Solar Grid healing, until the privacy barrier exits;
+- chosen ordinary charge actions, manual Solar casts, and Autocast’s charged results; automatic Solar Grid Battle Reveal spending is included and is not restored merely to suppress its ordinary healing;
+- any secondary effect newly enabled by a hidden Charge Declaration choice, including Solar Grid healing caused by that private declaration-driven depletion, until the privacy barrier exits;
 - speculative First Strike, destruction, steal, Black Hole, or opponent build decisions;
 - direct Reveal health resets such as Redemption as “healing”;
 - capped/uncapped future net health guesses.
@@ -775,7 +775,7 @@ At minimum prove:
 4. First Strike and Charge Declaration noninterference use the same full-response comparison with different hidden selections, canonical pending effects, charge-depleted fleets, and secondary SOL healing. No row or estimate changes before the relevant barrier. Both estimates remain identical to the last mutually public snapshot throughout Charge Declaration, then release only newly public state.
 5. Draft simulation causes zero persistent writes, no revision/head changes, no consumed charges, no readiness/clock/health/once-only-memory changes, and no mutation of canonical pending effects. A preview read that discovers an expired clock returns safe unavailable/obsolete output and does not invoke `prepareGameStateRead`’s timeout `conditionalUpdate`; an existing authoritative route remains responsible for maintenance.
 6. The first eligible empty draft, a no-op draft, a single manual build, mixed produced/manual builds, upgraded/component consumption, default and configured FRI/QUA, EVO conversions, Queen, multiple Dreadnoughts, Redemption comparison input, Science Vessel modifiers, and opponent-dependent effects give the intended estimate rows. Existing ships can yield a nonzero empty-draft estimate.
-7. Automatic depletion healing is included only when depletion is mutually public; charged Solar/ordinary effects and charge-enabled secondary healing are omitted while private; authoritative resolved current actuals include applicable charge contributions.
+7. A surviving Solar Grid heals 2 after automatic Battle Reveal spending takes it from `1 → 0`, and an already depleted Grid heals normally; `4 → 3` does not heal. Private declaration-driven depletion, chosen ordinary charge actions, manual Solar casts, and Autocast charged results remain excluded; authoritative resolved current actuals include applicable charge contributions.
 8. Estimate and actual rows sum to their totals. Self damage and health-cap cases distinguish generated healing from net health, and attacker/target orientation preserves damage dealt versus server damage-taken keys.
 9. Bad role, wrong phase/turn, malformed/oversized or structurally inconsistent payload, submitted replacement attempt, and a request racing Reveal return safe behavior without changing existing BUILD_SUBMIT validation/defaults.
 10. Phase 18 fields appear only in the compact preview response, `requester`, or `publicState` as allowed; they remain absent from raw `gameData`, history, head, and intent responses. Existing history analysis remains reusable without a schema fork.

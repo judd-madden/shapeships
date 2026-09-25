@@ -51,14 +51,20 @@ import {
   getAncientSolarPowerDisplayName,
   parseAncientSolarSourceReason,
 } from '../../engine/ancient/ancientSolarPowerPresentation.ts';
-type TurnTotals = {
+export type TurnTotals = {
   damageByPlayerId: Record<string, number>;
   healByPlayerId: Record<string, number>;
 };
 
-type LastTurnBreakdownSnapshots = {
+export type LastTurnBreakdownSnapshots = {
   damageDealtByPlayerId: Record<string, LastTurnBreakdownRow[]>;
   healingReceivedByPlayerId: Record<string, LastTurnBreakdownRow[]>;
+};
+
+export type CanonicalEndOfTurnEffects = {
+  state: GameState;
+  effects: Effect[];
+  baseAmountByEffectId: Record<string, number>;
 };
 
 function buildBaseAmountByEffectId(effects: Effect[]): Record<string, number> {
@@ -218,7 +224,7 @@ function buildRowsForPendingEntries(
   return sortBreakdownRows(rows.filter((row) => row.amount !== 0));
 }
 
-function buildLastTurnBreakdownSnapshots(
+export function buildLastTurnBreakdownSnapshots(
   state: GameState,
   totals: TurnTotals
 ): LastTurnBreakdownSnapshots {
@@ -265,6 +271,24 @@ function buildLastTurnBreakdownSnapshots(
   return {
     damageDealtByPlayerId,
     healingReceivedByPlayerId,
+  };
+}
+
+/**
+ * Collect the canonical end-of-turn effect set without applying it or resolving
+ * Black Hole, aggregate health, victory, or phase advancement.
+ */
+export function collectCanonicalEndOfTurnEffects(
+  state: GameState,
+): CanonicalEndOfTurnEffects {
+  const phaseKey: PhaseKey = 'battle.end_of_turn_resolution';
+  const computed = computePhaseComputedEffects(state, phaseKey);
+  const shipEffects = collectEffectsForPhase(computed.state, phaseKey);
+  const baseEffects = [...computed.effects, ...shipEffects];
+  return {
+    state: computed.state,
+    effects: applyComputedEffectModifiers(computed.state, phaseKey, baseEffects),
+    baseAmountByEffectId: buildBaseAmountByEffectId(baseEffects),
   };
 }
 
@@ -547,23 +571,13 @@ function resolveBattleEndOfTurn(
   );
   state = blackHoleResolution.state;
 
-  // Step 1: Compute all computed effects for this phase (once-only, tiered, triggers, etc.)
-  const computed = computePhaseComputedEffects(state, phaseKey);
-  state = computed.state;
-  const computedEffects = computed.effects;
+  // Steps 1-3.1: collect canonical computed + structured effects and modifiers.
+  const collected = collectCanonicalEndOfTurnEffects(state);
+  state = collected.state;
+  const effects = collected.effects;
+  const baseAmountByEffectId = collected.baseAmountByEffectId;
 
-  // Step 2: Collect all effects from ship powers
-  const shipEffects = collectEffectsForPhase(state, phaseKey);
-
-  debugLog(`[resolveBattleEndOfTurn] Collected ${shipEffects.length} ship effects + ${computedEffects.length} computed effects for ${phaseKey}`);
-
-  // Step 3: Merge computed effects with ship effects
-  const baseEffects = [...computedEffects, ...shipEffects];
-  const baseAmountByEffectId = buildBaseAmountByEffectId(baseEffects);
-  let effects = [...baseEffects];
-
-  // Step 3.1: Apply computed effect modifiers (tiered multipliers, etc.)
-  effects = applyComputedEffectModifiers(state, phaseKey, effects);
+  debugLog(`[resolveBattleEndOfTurn] Collected ${effects.length} canonical effects for ${phaseKey}`);
 
   // Step 4: Apply effects (accumulates Damage/Heal into pendingTurn)
   const applied = applyEffects(state, effects, { baseAmountByEffectId });
