@@ -84,7 +84,7 @@ The feature should make a live build understandable while preserving simultaneou
 - Requester-only own draft/build rows during Drawing, plus viewer-safe public dice/build events and produced builds as they occur; opponent build hidden until Reveal.
 - The same live section with revealed builds and public First Strike, charge, and other captured battle actions after their existing visibility barriers open.
 - Server-calculated estimated damage and healing, with grouped breakdown rows.
-- A small, authenticated, read-only build-preview request as the player edits a draft.
+- A small, authenticated, read-only build-preview request for the initial empty eligible draft and later settled draft/context changes.
 - Frozen own preview after submission and two-sided estimates after reveal.
 - Clear estimated/hidden/pending/resolved-hold/actual states and a turn-keyed rollover handoff.
 - Desktop paired current/Last metrics with combined breakdown cards; mobile paired HUD metrics and phase-sensitive content in the existing two anchored popovers.
@@ -132,7 +132,8 @@ A hard refresh does not promise to replay the transient live-`N` presentation fr
 
 ## 3.2 Paired current and Last damage/healing
 
-- While a player edits an unsubmitted build, their own damage and healing estimates update from the newest server preview response.
+- As soon as the authoritative state says a player is eligible to build in Drawing, request an estimate for the empty draft so their existing fleet can contribute a current value before the first click. While the player edits, update from the newest still-relevant server preview response.
+- Recalculate when a relevant authoritative estimate input changes even if the draft payload is unchanged. An unchanged head poll or equivalent full-state refresh is not such a change and must not trigger another draft-preview request.
 - Opponent numbers remain `?` before Reveal.
 - After Reveal, both sides show estimates derived from the mutually visible state; subsequent public fleet changes may update them until resolution.
 - During simultaneous Charge Declaration, freeze both estimates at the last mutually public battle snapshot. Do not reflect hidden charge choices or secondary consequences such as newly depleted Solar Grid healing. Once that privacy barrier ends, use newly public state if an estimate is still relevant; actual turn resolution replaces the estimate.
@@ -198,9 +199,11 @@ The unsubmitted draft is session-local client state; there is no draft persisten
 
 ## 4.3 Polling cannot carry each draft
 
-`src/game/client/gameSession/clienteffects/useNetworkingEffects.ts` generally polls `/game-state-head/:gameId` about every two seconds while active. It only fetches full `/game-state/:gameId` on a changed head, safety refresh, or other required sync. Neither endpoint uploads draft edits.
+`src/game/client/gameSession/clienteffects/useNetworkingEffects.ts` currently polls compact `/game-state-head/:gameId` about every two seconds while active and performs a safety full `/game-state/:gameId` refresh after roughly 15 seconds even when the head has not materially changed. These are current implementation cadences, not Phase 18 latency or load promises; recheck them when measuring the server passes. Neither endpoint uploads draft edits.
 
-Saving each draft to canonical state to make polling “see” it would add writes, revisions, and privacy hazards. Phase 18 adds an explicit small request on changed drafts, with a direct response; it does **not** use polling as the draft transport or alter the persisted game-state head.
+Saving each draft to canonical state to make polling “see” it would add writes, revisions, and privacy hazards. Phase 18 adds an explicit small request for the initial empty eligible draft and later settled draft/context changes, with a direct response; it does **not** use polling as the draft transport or alter the persisted game-state head. A poll or safety refresh whose relevant authoritative context is unchanged must not trigger another preview POST.
+
+After Reveal, two-sided estimates travel in the normal full-state response rather than the draft POST. The current safety refresh can therefore repeat a two-sided calculation without a relevant state change. Keep the head compact and estimate-free, and include repeated full-GET calculation cost in the 18B/18C performance gate. Hover cards, mobile popovers, and the live Battle Log consume runtime state and never initiate their own estimate requests.
 
 ## 4.4 Existing Battle Log and stats sources
 
@@ -289,9 +292,11 @@ For a player `P`, `thisTurn.damage` is the current best estimate of **P’s gene
 During Drawing the inputs are:
 
 - the server’s current public turn context and authoritative known own state;
-- the player’s submitted draft choices applied on a temporary copy;
+- the player’s current draft choices—including the empty draft immediately upon build eligibility—applied on a temporary copy;
 - the opponent fleet **already public to this player at this point**, not a newer hidden fleet;
 - only deterministic, currently knowable effects that will be available at end-of-turn under these assumed inputs.
+
+The estimate identity includes the game, turn, phase, applicable authoritative source revision/context, and normalized draft payload. The same payload must be recalculated when one of its relevant authoritative inputs changes; merely receiving another unchanged head/full-state read is not a new context.
 
 After Reveal the inputs are the actually revealed current fleets and current mutually public battle state, with later public changes reflected when available. While simultaneous Charge Declaration privacy is active, the input remains the last mutually public snapshot from before hidden declarations began. Both players’ estimates freeze on that same snapshot until the barrier exits.
 
@@ -354,11 +359,13 @@ No estimate writes `lastTurn...` fields, modifies `powerMemory` on canonical sta
 
 ## 7.1 Preferred request
 
-Use one authenticated **read-only POST** for changed build drafts, for example `POST /build-preview/:gameId` registered in the existing game routes. A dedicated request is justified because the current head/full-state GETs do not upload drafts and `BUILD_SUBMIT` is a mutating final intent; neither can safely carry an unsubmitted advisory calculation. This is a small route on the existing auth/persistence stack, not a new networking subsystem. The exact path can be selected during the reviewed server route pass.
+Use one authenticated **read-only POST** for the initial empty eligible draft and later settled draft/context changes, for example `POST /build-preview/:gameId` registered in the existing game routes. A dedicated request is justified because the current head/full-state GETs do not upload drafts and `BUILD_SUBMIT` is a mutating final intent; neither can safely carry an unsubmitted advisory calculation. This is a small route on the existing auth/persistence stack, not a new networking subsystem. The exact path can be selected during the reviewed server route pass.
 
-Input should contain the current turn and the same compact build choices later used by `BUILD_SUBMIT`: ship counts, Frigate triggers, Quantum Mystic selections, and Evolver choices; optionally an opaque client request token. Preserve the current default-`1` Frigate and Quantum behavior and existing BUILD_SUBMIT validation. Never accept a client-supplied player ID, opponent fleet, raw server state, or requested visibility level.
+Input should contain the client-observed turn/phase/source-context identity and the same compact build choices later used by `BUILD_SUBMIT`: ship counts, Frigate triggers, Quantum Mystic selections, and Evolver choices; optionally an opaque client request token. The observed identity is for staleness checking, never authority; the server compares it with its canonical read and returns the actual source identity. Preserve the current default-`1` Frigate and Quantum behavior and existing BUILD_SUBMIT validation. Never accept a client-supplied player ID, opponent fleet, raw server state, or requested visibility level.
 
-The endpoint loads the current game once, derives identity from the authenticated session, checks player role, game status, turn, Drawing phase, prelude eligibility, and whether the player has already submitted. Bound and validate payload size/counts and reject malformed or obsolete requests without modifying the game.
+The endpoint validates the session, performs one canonical game read, derives identity from that session, checks player role, game status, turn, Drawing phase, prelude eligibility, and whether the player has already submitted, then calculates only on disposable state. Bound and validate payload size/counts and reject malformed or obsolete requests without modifying the game.
+
+Do not call `prepareGameStateRead` naively from this POST. That helper applies clock maintenance and can perform a `conditionalUpdate` when its read discovers a timeout, which would violate the preview route’s read-only contract. In 18C, inspect whether to use a lower-level non-mutating canonical load or narrowly split a read-only preparation seam. If the loaded game is expired, terminal, changed, or otherwise no longer preview-eligible, return a safe unavailable/obsolete result and let the existing authoritative head/full-state/intent path perform terminal maintenance. The preview POST never persists that maintenance, changes the head, or stores a draft.
 
 For an unsubmitted player, calculate only that player’s estimate and current-turn build projection. For a submitted player, use the frozen **stored own submission** and ignore/reject new editable drafts; normal full-state refresh may carry this frozen projection instead. Do not permit a spectator or the opponent to preview somebody else’s unsubmitted choices.
 
@@ -382,9 +389,15 @@ The estimator evaluates only the requesting player’s relevant effects after co
 
 ## 7.3 Request frequency and failure behavior
 
-The initial posture is one game load and one isolated clone per settled preview. The client should debounce edits (initial target roughly 150–300 ms, tune in the client pass), suppress identical payload fingerprints, and allow at most one in-flight preview request. A newer edit may abort the current request or wait to send the newest payload; obsolete responses are always ignored. It must not make a fresh request every head poll or persist a draft per click.
+The initial posture is one session validation, one canonical game read, and one isolated calculation per issued preview. Request the empty draft once when build eligibility first becomes current. Thereafter debounce settled edits using an illustrative initial target of roughly 150–300 ms and allow at most one preview request in flight per client. A cluster of clicks inside the settling window may coalesce into one request; clicks separated beyond it may issue separate requests.
 
-Heavy simulations and client requests should remain bounded; the small wire payload does not by itself guarantee low server CPU or database cost. Inspect request latency and server behavior during implementation. Back off on failure/429 and give the player a non-misleading unavailable state; build and Ready must remain functional if this optional estimate fails. Do not add a cache, generic rate limiter, or extra persistence without a measured issue and a separately reviewed change.
+If the draft or applicable authoritative context changes while a request is in flight, retain only the newest candidate. After the current request finishes, send that newest candidate if it is still eligible and differs by preview identity from the accepted/in-flight work. Discard every obsolete response. A browser abort may stop local response handling, but do not rely on it to save server calculation because the server may already be working.
+
+Preview identity and duplicate suppression cover `gameId`, turn, phase, applicable authoritative source revision/context, and normalized payload—not payload alone. A relevant authoritative context change can therefore recalculate an identical draft, while an unchanged head poll or safety full refresh cannot. The client must not persist a draft or issue a fresh POST per poll, hover, popover open, or Battle Log open.
+
+Heavy simulations and client requests should remain bounded; the small wire payload does not by itself guarantee low server CPU or database cost. Back off on failure/429 and give the player a non-misleading unavailable state; build and Ready must remain functional if this optional estimate fails.
+
+Before 18D client rollout, 18B/18C must measure representative and complex late-game draft calculations and repeated two-sided post-Reveal full GET calculations. Report estimator calculation time separately from database-read time and total route time. Use those results to decide whether the simple calculate-on-request/full-GET approach is adequate. The debounce range, current polling cadences, anticipated request counts, and latency discussion are planning assumptions until measured. Any optimization, memoization, cache, limiter, or persistence change requires a separately reviewed decision based on those measurements.
 
 The preview is advisory. `BUILD_SUBMIT` still independently validates and applies the submitted payload through the authoritative reducer.
 
@@ -402,7 +415,7 @@ No private output may appear in `publicState`, raw legacy `gameData`, intent res
 
 ## 8.2 At Reveal and afterward
 
-Once the same existing all-submitted/reveal barrier is satisfied, `publicState` can include a two-sided public `thisTurn` estimate and two-sided current-turn live projection. This public version comes from revealed authoritative fleets/capture and is available to authorized spectators. Later battle rows are projected only when each action’s existing visibility barrier has opened. The client’s changed-head poll causes a full-state refresh; the head itself stays small.
+Once the same existing all-submitted/reveal barrier is satisfied, `publicState` can include a two-sided public `thisTurn` estimate and two-sided current-turn live projection. This public version comes from revealed authoritative fleets/capture and is available to authorized spectators. Later battle rows are projected only when each action’s existing visibility barrier has opened. Changed-head and safety-refresh paths can both cause a full-state read; the latter may repeat the two-sided calculation with unchanged relevant state. The head itself stays compact and estimate-free.
 
 If later **mutually public** fleet/state changes affect the calculation before resolution, a subsequent full-state refresh may revise the estimates and append newly public live-log actions. During simultaneous Charge Declaration, freeze both sides at the last mutually public pre-declaration snapshot; do not expose hidden declarations or secondary effects through totals, row presence, timing, status, availability, error shape, or build projection. After the barrier exits, use newly public state if an estimate remains relevant and publish allowed action rows. Still exclude charged effects from estimates by origin.
 
@@ -432,23 +445,27 @@ Use a shared client helper to produce the build-choice payload for both preview 
 
 Networking lives under `src/game/client/**`, likely coordinated from `useGameSession.ts` with a small dedicated client runtime hook/helper if that improves isolation. The same owner already fetches completed Battle Log history and should own the bounded retry for an expected missing turn. `src/game/display/**` consumes the resulting view model and does not retry requests itself.
 
+That runtime owner also issues the initial empty-draft preview when authoritative Drawing/build eligibility becomes active, observes relevant authoritative context changes, and coalesces later edits. Hover/focus cards, mobile popovers, and Battle Log components never fetch estimates directly.
+
 Keep the existing instant local fleet preview for ship rendering and immediate own manual Battle Log updates. Server responses supply rule-heavy numbers, canonical build rows, and viewer-safe public capture rows. The client does **not** reconstruct damage/healing rules or infer public action timing locally.
 
 Use one runtime-owned Phase 18 presentation model for the live log and paired metrics. It composes the local draft overlay, compact preview response, requester/public full-state projections, existing history, and the current end-of-turn presentation snapshot. Display components receive this model and do not arbitrate source precedence.
 
 ## 9.2 Request and response identity
 
-Tag local requests with `gameId`, `turnNumber`, a locally increasing draft generation/token, and the current payload fingerprint. Suppress duplicate fingerprints and permit at most one in-flight preview request. The server returns its source revision/phase/turn. A response is displayable only if it matches the still-active game/turn/draft and was computed in an appropriate phase.
+Identify local preview candidates with `gameId`, turn, phase, applicable authoritative source revision/context, normalized payload fingerprint, and a locally increasing draft generation/token. The server returns its actual source revision/context, phase, and turn. A response is displayable only if all authoritative and draft identities still match the active view.
 
-If the player edits twice rapidly, submits, the opponent reveals, switches game, or a response arrives after the turn changes, discard the old response. Submission freezes the display from the frozen payload; after Reveal, authoritative full-state data supersedes any in-flight private draft result.
+Debounce each newest candidate using the illustrative 150–300 ms settling target and permit at most one in-flight request. While it runs, replace—not append to—the queued candidate whenever edits or relevant authoritative inputs change. When the request settles, issue only the newest queued candidate if it remains eligible and is not equivalent to accepted/in-flight work. Do not depend on abort for server-side cancellation; ignore obsolete responses by identity.
+
+If the player edits rapidly, submits, the opponent reveals, switches game, or a response arrives after the phase, turn, source context, or draft changes, discard the old response. Submission freezes the display from the frozen payload; after Reveal, authoritative full-state data supersedes any in-flight private draft result. Relevant authoritative input changes can enqueue the same draft payload with a new context identity; unchanged head/full-state reads cannot.
 
 Apply source precedence by turn: active resolved presentation snapshot > authoritative revealed/public projection > matching submitted requester projection > matching draft preview > local manual overlay. During an uninterrupted session, a newer DTO for turn `N+1` must not erase resolved `N` while the existing presentation owner remains active. After a hard refresh, no prior ephemeral snapshot is assumed: only a surviving authoritative hold can establish the held state; otherwise the loaded `N+1` state wins. A stale preview must never overwrite a revealed or actual value.
 
 ## 9.3 Pending and errors
 
-Own Battle Log manual ship rows should react immediately. Numbers may show a subtle pending indicator during calculation; do not present the previous draft’s amount as if it belongs to the new draft. A failed preview may show `—` / “Estimate unavailable” while the player can still build and submit.
+Own Battle Log manual ship rows should react immediately. Numbers may show a subtle pending indicator during calculation; do not present the previous draft’s amount as if it belongs to the new draft. A failed preview may show `—` / “Estimate unavailable” while the player can still build and submit. Failure clears or preserves only safe queued work; it never disables build controls or Ready.
 
-On refresh while unsubmitted, allow the session-local draft to reset; do not add draft persistence. On refresh while committed and waiting for the opponent, recover frozen own rows and estimate from the authenticated player’s stored server submission. Avoid a flash of opponent details or of a previous turn’s estimate.
+On refresh while unsubmitted, allow the session-local draft to reset; do not add draft persistence. Once refreshed authoritative state confirms build eligibility, request the empty draft estimate again. On refresh while committed and waiting for the opponent, recover frozen own rows and estimate from the authenticated player’s stored server submission. Avoid a flash of opponent details or of a previous turn’s estimate.
 
 For the Battle Log, reconcile live and archive by turn identity in one view-model update. During an uninterrupted resolution presentation, retain cached live `N` as the presentation row while history `N` is absent; when history `N` arrives, replace rather than append. At release, render live `N+1`; if archived `N` is still absent, defer that card or show a safe turn-keyed pending placeholder.
 
@@ -529,7 +546,7 @@ Route/DTO exposure, committed-own reconstruction, client display, provisional dr
 - Narrow helper under `src/supabase/functions/server/engine/state/**` or `engine_shared/resolve/**`, placed after Codex confirms ownership of the reusable functions.
 - `src/supabase/functions/server/engine/intent/buildSubmitResolution.ts` and `engine_shared/resolve/resolvePhase.ts` only for narrowly justified extraction of the canonical per-player build/effect/breakdown seams.
 - Existing `phaseComputedEffects.ts`, `drawingShipCreation.ts`, and `applyEffects.ts` only where required for canonical parity; avoid broad refactors.
-- Focused estimator and parity fixtures under `src/supabase/functions/server/tests/**`.
+- Focused estimator, parity, and repeatable measurement fixtures under `src/supabase/functions/server/tests/**`.
 
 ### Required behavior
 
@@ -540,6 +557,11 @@ Route/DTO exposure, committed-own reconstruction, client display, provisional dr
 - Exclude charges, Solar casts, charge-enabled secondary effects during the privacy barrier, and any accumulated canonical pending amount.
 - Identical safe inputs produce identical totals/rows; repeated calculations leave canonical state, history, memory, and head untouched.
 - Parity fixtures compare the estimator with authoritative resolution under matched no-further-action conditions and assert deliberate omissions.
+- Measure estimator-only calculation time for representative fleets/drafts and deliberately complex late-game states, including the empty eligible draft and expensive production/once-only/opponent-sensitive combinations. Record fixture shape, environment, sample method, and results; do not turn an illustrative timing into an acceptance threshold without review.
+
+### Performance evidence gate
+
+18B must report estimator-only timings separately from route/database work. These measurements establish the calculation-cost portion of the gate but do not by themselves authorize client rollout or a cache; 18C completes the route/full-GET measurements.
 
 ### Does not include
 
@@ -554,16 +576,18 @@ An HTTP endpoint, full end-turn resolution, Black Hole, aggregate health, victor
 
 ### Candidate file plan
 
-- `src/supabase/functions/server/routes/game_routes.ts` or a narrowly registered route module for the authenticated read-only POST and full-state projections.
+- `src/supabase/functions/server/routes/game_routes.ts` or a narrowly registered route module for the authenticated read-only POST and full-state projections, including inspection of the mutating `prepareGameStateRead` maintenance seam.
 - Existing commitment and visibility projection helpers for authenticated stored-own payloads and safe input state.
 - `src/supabase/functions/server/routes/intent_routes.ts` only if needed to prove absence/no leakage; Phase 18 data stays out of intent responses by default.
-- Focused route/privacy tests under `src/supabase/functions/server/tests/routes/**`.
+- Focused route/privacy/read-only tests and repeatable route measurements under `src/supabase/functions/server/tests/routes/**`.
 
 ### Required behavior
 
 - Accept the same compact choices and current default-`1` FRI/QUA behavior as BUILD_SUBMIT; authenticated session determines the player.
 - Enforce phase, turn, role, prelude eligibility, commitment state, payload bounds, and existing validation without changing BUILD_SUBMIT.
-- Load the game once and run one isolated clone per request; do not persist previews, increment `stateRevision`, alter clocks/readiness, or change the head.
+- Accept a normalized empty draft as soon as that player is build-eligible; existing ships may therefore produce nonzero current values before any click.
+- Validate the session, load the canonical game once through a genuinely non-mutating read seam, and run one isolated calculation per request. Do not reuse `prepareGameStateRead` in a way that can persist timeout maintenance. If the loaded state is expired, terminal, changed, or ineligible, return safe unavailable/obsolete output and leave maintenance to the existing authoritative routes.
+- Do not persist previews or timeout maintenance, increment `stateRevision`, alter clocks/readiness, store drafts, or change the head.
 - For an unsubmitted player, return only that requester’s compact projection. For a submitted player waiting on the opponent, ignore/reject replacement drafts and derive frozen own rows/estimate from the stored authenticated submission.
 - Put requester-only/frozen build and estimate data under `requester`, viewer-safe public live-log rows and mutually public revealed data under `publicState`, and draft data only in the compact preview response.
 - Add no Phase 18 fields to raw `gameData`, the history endpoint, persisted head, or intent responses by default.
@@ -571,10 +595,18 @@ An HTTP endpoint, full end-turn resolution, Black Hole, aggregate health, victor
 - During simultaneous Charge Declaration, freeze both estimates at the last mutually public snapshot and withhold declaration action rows until phase exit; then release/recompute/publish only newly public data if still relevant.
 - Prove full-response noninterference: states with identical viewer-visible input but different hidden Drawing, First Strike, or Charge Declaration data produce identical response status, totals, row presence/order, build/live projection, availability, timing-independent field shape, and errors.
 - Reject/drop requests whose phase or turn changed without returning a hidden-derived value.
+- Keep `/game-state-head/:gameId` compact and estimate-free. Full `/game-state/:gameId` responses after Reveal may calculate both public sides on changed-head reads and unchanged safety refreshes; no display component gets a separate estimate route.
+
+### Performance evidence and rollout gate
+
+- Combine 18B estimator timings with 18C measurements of session/auth overhead, canonical database-read time, estimator calculation time, and total preview-route time for representative and complex late-game drafts.
+- Measure repeated two-sided post-Reveal full GETs against unchanged representative and complex states, because the current active safety refresh is roughly 15 seconds. Report database-read, two-sided calculation, and total route time separately.
+- Record the measurement environment, fixture shapes, sample count/method, and observed variability. Current cadence, request-count, debounce, and latency statements are illustrative until this report exists.
+- Before 18D begins, review the results and explicitly decide whether the simple calculate-on-request/full-GET approach is adequate. If not, plan any optimization, memoization, caching, or cadence change as a separate reviewed decision rather than silently expanding 18B/18C.
 
 ### Does not include
 
-Client requests, view models, presentation, broad route redesign, caches, generic rate limiting, or extra persistence.
+Client requests, view models, presentation, broad route redesign, caches, memoization, generic rate limiting, cadence changes, or extra persistence.
 
 ---
 
@@ -583,17 +615,23 @@ Client requests, view models, presentation, broad route redesign, caches, generi
 **Pass type:** Client/UI Pass, client runtime focused
 **Goal:** Wire settled drafts to the preview endpoint and establish one turn-keyed runtime owner for the live log, paired metrics, resolution hold, and archive rollover before display work.
 
+### Entry gate
+
+The reviewed 18B/18C performance report must conclude that the simple POST/full-GET calculation posture is adequate, or a separately approved server optimization pass must land first.
+
 ### Candidate file plan
 
 - `src/game/client/gameSession/intents.ts`: share canonical build-choice serialization without weakening final submit or changing default selections.
 - `src/game/client/gameSession/clienteffects/useBuildDraftSync.ts`: inspect whether its no-op boundary is an appropriate narrow home; do not force a broad refactor.
 - `src/game/client/useGameSession.ts`, `gameSession/types.ts`, `battleLog.ts`, `mapVm.ts`, and the existing `clienteffects/useEndOfTurnPresentation.ts` snapshot seam.
-- Focused client tests for debouncing, fingerprint suppression, supersession, visibility transitions, uninterrupted resolution hold, hard-refresh behavior, bounded history recovery, archive handoff, terminal-without-resolution cleanup, and turn changes.
+- Focused client tests for initial empty-draft requests, context-aware identity, debounce/coalescing, fingerprint suppression, supersession, unchanged-poll suppression, visibility transitions, uninterrupted resolution hold, hard-refresh behavior, bounded history recovery, archive handoff, terminal-without-resolution cleanup, and turn changes.
 
 ### Required behavior
 
-- Debounce settled edits, suppress identical fingerprints, and permit at most one in-flight preview request; no polling-upload loop.
-- Tag requests/results by game, turn, phase, draft generation, payload fingerprint, and source revision as applicable.
+- When authoritative Drawing/build eligibility becomes active, enqueue the normalized empty draft without waiting for a click. On refreshed unsubmitted sessions, do the same after eligibility is confirmed.
+- Identify candidates/results by game, turn, phase, applicable authoritative source revision/context, normalized payload fingerprint, and draft generation. Recalculate an identical payload after a relevant context change; suppress unchanged head/full-state observations.
+- Use the illustrative 150–300 ms settling debounce and permit at most one in-flight preview request. While it runs, retain only the newest candidate; after it settles, send that candidate if still relevant. Do not rely on abort to cancel server work, and discard obsolete responses.
+- Closely spaced clicks may coalesce into one request; edits that settle separately may produce separate requests. No head-poll, safety-refresh, hover-card, popover, or Battle Log request loop.
 - Compose immediate local manual rows, authoritative public live rows, and matching canonical build rows without duplication; preserve archive-style battle-above-build ordering.
 - Ready freezes from the accepted/stored payload; Reveal full-state data supersedes private preview; public battle rows append only from server projection; actual resolution supersedes estimates.
 - On refresh while unsubmitted, allow the draft to reset. On refresh while committed, consume the server’s requester-only frozen projection.
@@ -723,6 +761,8 @@ npm run build
 focused client projection/request tests where they verify behavior
 ```
 
+For 18B/18C, also produce the reviewed performance report required by those passes. Keep estimator calculation, database read, and total route time distinct; record environment and fixtures so the results are interpretable rather than presenting an unqualified latency number.
+
 Follow the current `CodexPassTemplate.md` rule: Codex does not run the Vite dev server, browser automation, or manual UI verification unless Judd explicitly requests it. Report: **“Not run — browser/Vite testing handled by user.”** Judd reviews the visual behavior in the live app at the design checkpoints and after the relevant passes.
 
 ## 12.2 Server behavioral matrix
@@ -733,19 +773,20 @@ At minimum prove:
 2. Live output uses existing capture order/formatting and matches the eventual archive for the same KNO/CHR/CUB, manual/produced build, First Strike, charge, destroy/steal/Frigate, and Ancient Solar facts. Any narrow Solar addition is covered at its visibility-opening point and by backward-compatible scratch normalization.
 3. Hidden opponent prelude/build information cannot affect a requester’s estimate or live projection. Construct canonical states with identical viewer-visible data but different hidden opponent fleets/counters/selections; compare the complete pre-Reveal response, including status, totals, row presence/order, build/live projection, availability, errors, and field shape.
 4. First Strike and Charge Declaration noninterference use the same full-response comparison with different hidden selections, canonical pending effects, charge-depleted fleets, and secondary SOL healing. No row or estimate changes before the relevant barrier. Both estimates remain identical to the last mutually public snapshot throughout Charge Declaration, then release only newly public state.
-5. Draft simulation causes zero persistent writes, no revision/head changes, no consumed charges, no readiness/clock/health/once-only-memory changes, and no mutation of canonical pending effects.
-6. No-op draft, a single manual build, mixed produced/manual builds, upgraded/component consumption, default and configured FRI/QUA, EVO conversions, Queen, multiple Dreadnoughts, Redemption comparison input, Science Vessel modifiers, and opponent-dependent effects give the intended estimate rows.
+5. Draft simulation causes zero persistent writes, no revision/head changes, no consumed charges, no readiness/clock/health/once-only-memory changes, and no mutation of canonical pending effects. A preview read that discovers an expired clock returns safe unavailable/obsolete output and does not invoke `prepareGameStateRead`’s timeout `conditionalUpdate`; an existing authoritative route remains responsible for maintenance.
+6. The first eligible empty draft, a no-op draft, a single manual build, mixed produced/manual builds, upgraded/component consumption, default and configured FRI/QUA, EVO conversions, Queen, multiple Dreadnoughts, Redemption comparison input, Science Vessel modifiers, and opponent-dependent effects give the intended estimate rows. Existing ships can yield a nonzero empty-draft estimate.
 7. Automatic depletion healing is included only when depletion is mutually public; charged Solar/ordinary effects and charge-enabled secondary healing are omitted while private; authoritative resolved current actuals include applicable charge contributions.
 8. Estimate and actual rows sum to their totals. Self damage and health-cap cases distinguish generated healing from net health, and attacker/target orientation preserves damage dealt versus server damage-taken keys.
 9. Bad role, wrong phase/turn, malformed/oversized or structurally inconsistent payload, submitted replacement attempt, and a request racing Reveal return safe behavior without changing existing BUILD_SUBMIT validation/defaults.
 10. Phase 18 fields appear only in the compact preview response, `requester`, or `publicState` as allowed; they remain absent from raw `gameData`, history, head, and intent responses. Existing history analysis remains reusable without a schema fork.
 11. Resolution and final-turn archiving preserve turn identity; surrender/timeout before current-turn resolution do not fabricate current or Final Turn actuals.
+12. The 18B/18C measurement report covers representative and complex late-game estimator-only runs, full preview POSTs, and repeated two-sided post-Reveal full GETs against unchanged state. It separates calculation, database-read, and total route time and supports the reviewed go/no-go decision before 18D.
 
 ## 12.3 Concrete product walkthrough
 
 | Point | Battle Log | Paired stats and popovers | Source |
 | --- | --- | --- | --- |
-| Turn starts, no archive/draft | Grey This Turn exists in the shared scroller; old empty text is hidden; opponent build concealed | Own current pending/estimate when available, opponent current `?`; smaller Last values remain authoritative | Viewer-safe GET/preview |
+| Turn starts and build eligibility opens, before any click | Grey This Turn exists in the shared scroller; old empty text is hidden; opponent build concealed | Runtime requests the empty draft; existing own ships may produce a current estimate, opponent remains `?`, and smaller Last values remain authoritative | Viewer-safe GET + read-only POST |
 | Public dice modifier occurs | Archive-language intervention row appears without exposing a still-hidden choice | Estimates revise only if the newly public input is allowed | Capture projection after existing barrier |
 | Add illustrative ships | Own manual build rows change immediately; server projection replaces rather than duplicates them | Prominent board/HUD value has no `~`; combined/mobile estimated breakdown may show `~13` with illustrative rows | Local overlay, then read-only POST |
 | Edit while older request is in flight | Show newest own draft | Pending/newest response only; never old response | Client draft generation |
@@ -766,14 +807,18 @@ The example `~13` applies only to the pictured test state; never hardcode those 
 ## 12.4 Client race and recovery cases
 
 - Rapid add/remove/add with responses arriving in reverse order.
-- Repeated equivalent edits suppress duplicate fingerprints and never create more than one in-flight preview.
+- Rapid clicks inside the illustrative settling window coalesce to the newest draft; clicks that settle separately may issue separate requests.
+- Edits during an in-flight request replace the queued candidate; only the newest still-relevant candidate is sent after completion, there is never more than one in flight, and abort is not assumed to cancel server work.
+- Repeated equivalent drafts in the same authoritative context suppress duplicate work, while the same payload after a relevant phase/source-context change recalculates.
+- An unchanged head poll or safety full refresh triggers no draft POST. A changed relevant authoritative context does; opening a hover card, mobile popover, or Battle Log does not.
+- Initial build eligibility and refreshed unsubmitted eligibility each enqueue the empty draft without a click.
 - Submit while debounce timer or preview POST is in flight.
 - Opponent’s Reveal arriving between a preview load and its response.
 - Reload during own unsubmitted Drawing resets the draft without adding persistence; reload during one-submitted waiting recovers the requester’s frozen stored projection.
 - Reload during Reveal hold or hidden First Strike/Charge Declaration preserves the correct visibility snapshot and does not flash a row.
 - Reload while the authoritative `end_of_turn_health` hold still survives shows the supported current `N`/Last `N-1` pair. Reload after authoritative state has entered `N+1` shows `N+1` with `N` in Last and does not replay the transient hold from archive data.
 - Switch game or seat, spectator join, bot opponent, and untimed idle/hidden polling.
-- Preview network failure and retry/backoff do not block BUILD_SUBMIT.
+- Preview network failure and retry/backoff do not block building or Ready/BUILD_SUBMIT; queued work remains bounded to the newest relevant candidate.
 - The initial history request fails, or returns without expected archive `N`: the existing history owner performs bounded retry; success inserts `N` once, while exhaustion leaves a safe pending/deferred card and does not block play.
 - Archive `N` arrives before or after the resolution/new-turn DTO: live/archive swap is once-only during an uninterrupted presentation; a fresh client at `N+1` never assumes a cached live `N`, duplicates `N`, or attaches its rows to `N+1`.
 - An early turn `N+1` DTO arrives while the `N` presentation is active: held actuals and previous Last remain until release, then the pair rolls forward atomically.
@@ -802,9 +847,13 @@ Local draft rows, server previews, public live projections, resolution actuals, 
 
 History can also lag or fail after state advances. The current initial/turn/finish fetch is one-shot, so add bounded expectation-driven retry in its existing owner and rely on the server’s checkpoint/idempotent merge. Keep a missing completed card pending/deferred rather than promoting cached live rows, duplicating a turn, or contaminating `N+1`. Resolve these rules in one client-runtime view model, not scattered display conditionals. Unsubmitted refresh deliberately resets rather than adding draft or presentation persistence.
 
-## 13.5 Performance posture
+## 13.5 Performance posture and rollout gate
 
-An authenticated POST for a settled edit is reasonable; a write on every click or full-state refresh every two seconds is not part of this plan. Start with one game load and isolated clone per settled, changed payload; debounce, suppress duplicate fingerprints, and allow at most one in-flight preview. Measure the cost before adding optimization. Do not add a cache, generic limiter, or persistence without a measured need and separate review.
+The simple baseline performs session validation, one canonical read, and one isolated calculation for each issued draft preview. It also calculates two public sides in post-Reveal full-state responses; current active clients can request an unchanged safety full refresh after roughly 15 seconds even though compact head polling is roughly two seconds. Those live cadences and the 150–300 ms settling range describe the current code or an initial tuning target, not measured Phase 18 request counts or latency guarantees.
+
+Coalescing limits client concurrency and redundant draft work, but it does not make server CPU free: an aborted browser request may already be calculating, and unchanged post-Reveal full GETs can repeat two-sided work. 18B/18C therefore form a hard evidence gate before 18D. Measure representative and complex late-game estimator-only runs, preview routes, and repeated unchanged two-sided full GETs; report calculation time, database-read time, and total route time separately with environment/fixture/sample context.
+
+Review those results to accept or reject the simple approach before client rollout. Do not pre-emptively add caching, memoization, generic limiting, extra persistence, a head payload, or display-owned requests. If measurements show a problem, make the optimization and its invalidation/privacy contract a separately reviewed decision.
 
 ## 13.6 Visual spec remains deliberately open
 
@@ -820,13 +869,17 @@ Phase 18 is complete when:
 - local manual and produced builds appear live, public dice/build interventions use archive language, opponent builds remain `???` until Reveal, and public battle actions appear above builds only after their barriers;
 - after Reveal both actual build summaries populate, and resolved live turn `N` hands off once to archive `N` when available without duplication, wrong-turn rows, or scroll-container divergence;
 - when expected archive `N` is absent or its fetch fails, the existing client history owner performs bounded turn-keyed retry against the checkpoint-reconciled idempotent route; while waiting or after exhaustion the card is safely pending/deferred, never copied from an assumed cache or attached to `N+1`;
-- a changed unsubmitted build obtains its own server-calculated damage/healing estimate and grouped rows from a read-only request;
-- unsubmitted refresh may reset the draft without adding persistence, while committed waiting refresh recovers frozen own rows/estimate from the authenticated stored submission;
+- initial Drawing/build eligibility requests the empty draft so existing ships can produce a current estimate before any click, and a changed unsubmitted build obtains its own server-calculated damage/healing estimate and grouped rows from the same read-only request;
+- preview identity includes game, turn, phase, relevant authoritative source revision/context, and normalized payload, so an unchanged poll does not retrigger work while a relevant context change can recalculate an identical draft;
+- preview edits use the illustrative settling debounce with one request in flight, retain only the newest queued candidate, issue it after completion only if still relevant, and discard obsolete responses without assuming abort cancels server work;
+- unsubmitted refresh may reset the draft without adding persistence and requests the empty estimate again once eligibility is confirmed, while committed waiting refresh recovers frozen own rows/estimate from the authenticated stored submission;
 - no large independent client combat evaluator is introduced;
-- preview requests never commit, persist, advance, consume, or alter canonical game state/head;
+- preview requests never commit, persist, advance, consume, perform timeout maintenance, store drafts, or alter canonical game state/head; an ineligible/expired preview returns safe unavailable/obsolete output for an existing authoritative route to maintain;
 - before Reveal no player or spectator can infer hidden opposing builds from any new row, statistic, endpoint, or response shape;
 - after Reveal both sides receive estimates from mutually public authoritative state; simultaneous Charge Declaration freezes both at the last mutually public snapshot, with full-response noninterference across hidden choices; charges remain absent from estimates and appear in actual resolution;
 - Phase 18 data is placed only in the compact preview response, `requester`, or `publicState` as authorized, not raw `gameData`, history, head, or intent responses by default;
+- head polling remains compact and estimate-free, full GETs remain the sole post-Reveal estimate transport, and display surfaces add no requests;
+- 18B/18C report representative and complex estimator, preview-route, and repeated two-sided full-GET measurements with calculation, database-read, and total route time separated; the reviewed result approves the simple posture before 18D or triggers a separate optimization decision;
 - stale, failing, and racing requests cannot overwrite a newer draft, Reveal, held resolution, completed turn, or different game;
 - desktop shows paired current/Last Damage and Healing with no resting `~`; one accessible combined metric card shows available This Turn and Last Turn breakdowns and carries approximation treatment only for estimates;
 - the compact mobile HUD shows current plus smaller Last values without `~`; both existing anchored popovers open together, may cover underlying controls, apply the settled before-/after-Reveal section policies, dismiss together on a tap to either card or outside, and allow in-card scrolling without dismissal;
