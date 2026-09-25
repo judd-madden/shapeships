@@ -69,6 +69,14 @@ export type BattleLogTurnSummary = {
   analysisByPlayerId?: Record<string, BattleLogTurnPlayerAnalysis>;
 };
 
+export type BattleLogCurrentTurnProjection = {
+  turnNumber: number;
+  diceValue: number | null;
+  buildLinesByPlayerId: Record<string, string[]>;
+  battleLinesByPlayerId: Record<string, string[]>;
+  concealedBuildPlayerIds: string[];
+};
+
 export type ProducedBuildOccurrence =
   | { stage: "turn_start_materialisation" }
   | { stage: "drawing_prelude"; passIndex: 1 | 2 }
@@ -1471,6 +1479,107 @@ function formatBattleLines(battleAtoms: BattleCaptureAtom[]): string[] {
   );
 
   return [...earlyRows, ...chargeLines, ...frigateHitLines];
+}
+
+function isPublicBuildInterventionAtom(atom: BuildCaptureAtom): boolean {
+  return atom.kind === "reroll" ||
+    atom.kind === "chronoswarm_roll" ||
+    atom.kind === "cube_change" ||
+    atom.kind === "cube_rolls";
+}
+
+function hasBuildRevealOpened(phaseKey: string | null): boolean {
+  return isBattlePhaseKey(phaseKey);
+}
+
+function getViewerSafeBattleAtoms(
+  phaseKey: string | null,
+  battleAtoms: BattleCaptureAtom[],
+): BattleCaptureAtom[] {
+  if (!isBattlePhaseKey(phaseKey) || phaseKey === "battle.reveal") {
+    return [];
+  }
+  if (phaseKey === "battle.first_strike") {
+    return [];
+  }
+  if (phaseKey === "battle.charge_declaration") {
+    return battleAtoms.filter((atom) => atom.bucket === 1);
+  }
+  return battleAtoms;
+}
+
+function hasChargeDeclarationVisibilityOpened(
+  phaseKey: string | null,
+): boolean {
+  return isBattlePhaseKey(phaseKey) &&
+    phaseKey !== "battle.reveal" &&
+    phaseKey !== "battle.first_strike" &&
+    phaseKey !== "battle.charge_declaration";
+}
+
+/**
+ * Projects the active turn's capture without exposing private simultaneous
+ * choices. A null result means callers must not expose a live "This Turn"
+ * section. In particular, completed history owns all finished-game output,
+ * even when unfinished scratch remains after a non-resolution terminal path.
+ */
+export function projectBattleLogCurrentTurnForViewer(
+  state: GameStateLike,
+  requestingParticipantId?: string,
+): BattleLogCurrentTurnProjection | null {
+  const turnNumber = getCurrentTurnNumber(state);
+  if (state?.status !== "active" || turnNumber <= 0) {
+    return null;
+  }
+
+  const activePlayers = getActivePlayers(state);
+  const activePlayerIds = activePlayers.map((player) => player.id);
+  const requesterIsPlayer = typeof requestingParticipantId === "string" &&
+    activePlayerIds.includes(requestingParticipantId);
+  const phaseKey = getPhaseKeyFromState(state);
+  const revealOpened = hasBuildRevealOpened(phaseKey);
+  const normalizedScratch = normalizeBattleLogScratch(state.battleLogScratch);
+  const capture =
+    normalizedScratch.currentTurnCapture?.turnNumber === turnNumber
+      ? normalizedScratch.currentTurnCapture
+      : null;
+
+  const buildLinesByPlayerId: Record<string, string[]> = {};
+  const battleLinesByPlayerId: Record<string, string[]> = {};
+
+  for (const playerId of activePlayerIds) {
+    const capturedBuildAtoms = capture?.buildAtomsByPlayerId[playerId] ?? [];
+    const viewerMaySeePrivateBuild = revealOpened ||
+      (requesterIsPlayer && requestingParticipantId === playerId);
+    const visibleBuildAtoms = viewerMaySeePrivateBuild
+      ? capturedBuildAtoms
+      : capturedBuildAtoms.filter(isPublicBuildInterventionAtom);
+    buildLinesByPlayerId[playerId] = formatBuildLines(visibleBuildAtoms);
+
+    const capturedBattleAtoms = capture?.battleAtomsByPlayerId[playerId] ?? [];
+    const visibleBattleAtoms = getViewerSafeBattleAtoms(
+      phaseKey,
+      capturedBattleAtoms,
+    );
+    battleLinesByPlayerId[playerId] = [
+      ...formatBattleLines(visibleBattleAtoms),
+      ...(hasChargeDeclarationVisibilityOpened(phaseKey)
+        ? formatAncientSolarBattleLines(state, playerId, turnNumber)
+        : []),
+    ];
+  }
+
+  return {
+    turnNumber,
+    diceValue: capture?.diceValue ?? null,
+    buildLinesByPlayerId,
+    battleLinesByPlayerId,
+    concealedBuildPlayerIds: revealOpened
+      ? []
+      : activePlayerIds.filter((playerId) =>
+        !requesterIsPlayer || playerId !== requestingParticipantId
+      ),
+  };
 }
 
 export function getBattleLogHistoryKey(gameId: string): string {
