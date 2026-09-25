@@ -46,13 +46,15 @@ export type CurrentTurnEstimateUnavailableReason =
   | "draft_not_allowed"
   | "turn_already_resolved"
   | "charge_snapshot_unavailable"
-  | "quantum_reveal_facts_unavailable";
+  | "quantum_reveal_facts_unavailable"
+  | "source_context_changed";
 
 export type CurrentTurnEstimateIdentity = {
   gameId: string;
   turnNumber: number;
   sourcePhase: string;
   sourceContextKey: string;
+  draftKey: string;
   evaluatedDraft: BuildSubmitPayload | null;
 };
 
@@ -111,6 +113,7 @@ export type EstimateCurrentTurnForPlayerArgs = {
   requestingParticipantId?: string;
   playerId: string;
   draft: BuildSubmitPayload | null;
+  expectedSourceContextKey?: string;
 };
 
 type PreparedEstimateState = {
@@ -147,6 +150,25 @@ function cloneDraft(
   return draft === null ? null : structuredClone(draft);
 }
 
+function normalizeDraftIdentity(
+  draft: BuildSubmitPayload | null,
+): unknown {
+  if (draft === null) return null;
+  const frigateCount = draft.builds
+    .filter((build) => build.shipDefId === "FRI")
+    .reduce((total, build) => total + build.count, 0);
+  return {
+    builds: draft.builds.map((build) => ({
+      shipDefId: build.shipDefId,
+      count: build.count,
+    })),
+    frigateTriggers: draft.frigateTriggers ??
+      Array.from({ length: frigateCount }, () => 1),
+    quantumMysticSelections: draft.quantumMysticSelections ?? [],
+    evolverChoices: draft.evolverChoices ?? [],
+  };
+}
+
 function stableSerialize(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) {
@@ -176,6 +198,12 @@ function hashStableValue(value: unknown): string {
   return hash.toString(16).padStart(16, "0");
 }
 
+export function getCurrentTurnDraftKey(
+  draft: BuildSubmitPayload | null,
+): string {
+  return hashStableValue(normalizeDraftIdentity(draft));
+}
+
 function baseIdentity(args: {
   state: Readonly<any>;
   phaseKey: string;
@@ -186,10 +214,8 @@ function baseIdentity(args: {
     gameId: typeof args.state?.gameId === "string" ? args.state.gameId : "",
     turnNumber: getTurnNumber(args.state),
     sourcePhase: args.phaseKey,
-    sourceContextKey: hashStableValue({
-      sourceContext: args.sourceContext,
-      draft: args.draft,
-    }),
+    sourceContextKey: hashStableValue(args.sourceContext),
+    draftKey: getCurrentTurnDraftKey(args.draft),
     evaluatedDraft: cloneDraft(args.draft),
   };
 }
@@ -727,6 +753,17 @@ export function estimateCurrentTurnForPlayer(
     draft: args.draft,
     sourceContext: prepared.state,
   });
+  if (
+    typeof args.expectedSourceContextKey === "string" &&
+    args.expectedSourceContextKey !== identity.sourceContextKey
+  ) {
+    return {
+      status: "unavailable",
+      reason: "source_context_changed",
+      playerId: args.playerId,
+      identity,
+    };
+  }
   let workingState = structuredClone(prepared.state);
   const simulationEvents: any[] = [];
   let solarGridChargeTransitions: SolarGridRevealTransition[] = [];

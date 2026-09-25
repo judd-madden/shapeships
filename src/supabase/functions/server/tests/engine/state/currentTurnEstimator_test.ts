@@ -858,3 +858,44 @@ Deno.test("bad roles, phases, draft modes, resolved turns, and missing charge sn
     }
   }
 });
+
+Deno.test("estimate identity excludes canonical revision and separates context from draft", () => {
+  const state: any = createState({
+    p1Fleet: [ship("def", "DEF")],
+    p2Fleet: [ship("fig", "FIG")],
+  });
+  const empty = estimateDrawing(state, { builds: [] });
+  const edited = estimateDrawing(state, {
+    builds: [{ shipDefId: "FIG", count: 1 }],
+  });
+  assert.equal(empty.identity.sourceContextKey, edited.identity.sourceContextKey);
+  assert.notEqual(empty.identity.draftKey, edited.identity.draftKey);
+
+  const revised = structuredClone(state);
+  revised.stateRevision = 900;
+  revised.gameData.turnData.commitments = {
+    BUILD_5: { p2: { commitHash: "hidden" } },
+  };
+  const hiddenOnly = estimateDrawing(revised, { builds: [] });
+  assert.equal(
+    hiddenOnly.identity.sourceContextKey,
+    empty.identity.sourceContextKey,
+  );
+
+  revised.gameData.turnData.effectiveDiceRollByPlayerId.p1 = 6;
+  const stale = estimateCurrentTurnForPlayer({
+    state: revised,
+    requestingParticipantId: "p1",
+    playerId: "p1",
+    draft: EMPTY_DRAFT,
+    expectedSourceContextKey: empty.identity.sourceContextKey,
+  });
+  assert.equal(stale.status, "unavailable");
+  if (stale.status === "unavailable") {
+    assert.equal(stale.reason, "source_context_changed");
+    assert.notEqual(
+      stale.identity.sourceContextKey,
+      empty.identity.sourceContextKey,
+    );
+  }
+});

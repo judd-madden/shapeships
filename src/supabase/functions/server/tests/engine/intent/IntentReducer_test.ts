@@ -648,6 +648,21 @@ Deno.test('BUILD_SUBMIT preserves existing optional Frigate trigger behavior', a
   assert.deepEqual(malformed.state, before);
 });
 
+Deno.test('authoritative BUILD_SUBMIT does not inherit preview-only total-attempt bounds', async () => {
+  const result = await applyIntent(
+    createBuildState(),
+    'p1',
+    buildIntent({
+      builds: Array.from(
+        { length: 5 },
+        () => ({ shipDefId: 'DEF', count: 50 }),
+      ),
+    }),
+    1000,
+  );
+  assert.equal(result.ok, true);
+});
+
 Deno.test('staged Spiral First Strike survives simultaneous Guardian, SAC, and DOM source removal', async () => {
   for (const removalKind of ['guardian', 'sacrificial_pool', 'domination'] as const) {
     let state: any = createFirstStrikeState(removalKind);

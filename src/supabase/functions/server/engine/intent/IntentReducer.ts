@@ -42,9 +42,9 @@ import {
   countVerifiedCreatedShipsByTargetPlayerId,
   matchAppliedCreateShipEffectsOneToOne,
 } from '../../engine_shared/effects/appliedEffectVerification.ts';
-import { getShipById } from '../../engine_shared/defs/ShipDefinitions.core.ts';
 import { rollD6 } from '../util/rollD6.ts';
 import { resolveBuildSubmitAuthoritatively } from './buildSubmitResolution.ts';
+import { validateBuildSubmitPayload } from './buildSubmitValidation.ts';
 import {
   createBattleLogBattleCaptureEventsFromResolution,
   createBattleLogBuildCaptureEventsFromResolution,
@@ -83,8 +83,6 @@ import {
   type ComputerBotSpeciesPayload,
   type SpeciesRevealPayload,
   type SpeciesSubmitPayload,
-  type BuildSubmitPayload,
-  type EvolverBuildChoiceEntry,
   type ActionPayload,
   type ActionsBatchPayload,
   type ChargeDeclarationSubmitPayload,
@@ -328,10 +326,6 @@ function countFleetShipsByDefId(state: any, playerId: string, shipDefId: string)
     if (ship?.shipDefId === shipDefId) count++;
   }
   return count;
-}
-
-function isEvolvedXeniteShipDefId(shipDefId: string): boolean {
-  return shipDefId === 'OXI' || shipDefId === 'AST';
 }
 
 function clearPendingDrawOfferState(state: any) {
@@ -774,101 +768,6 @@ function resolvePendingCubeDiceChoices(state: any, nowMs: number, events: any[])
   delete turnData.diceManipulationStage;
   turnData.diceFinalized = true;
   return state;
-}
-
-function validateEvolverChoicesPayload(
-  payload: BuildSubmitPayload,
-  totalEvolverCount: number,
-  totalXenCount: number
-): { ok: true; choices: EvolverBuildChoiceEntry[] } | { ok: false; message: string } {
-  if (payload.evolverChoices === undefined) {
-    return { ok: true, choices: [] };
-  }
-
-  if (!Array.isArray(payload.evolverChoices)) {
-    return { ok: false, message: 'Invalid build payload: evolverChoices must be an array' };
-  }
-
-  if (payload.evolverChoices.length > totalEvolverCount) {
-    return {
-      ok: false,
-      message: `Invalid evolverChoices length: expected at most ${totalEvolverCount}, got ${payload.evolverChoices.length}`,
-    };
-  }
-
-  const seenSourceKeys = new Set<string>();
-  let nonHoldCount = 0;
-
-  for (const entry of payload.evolverChoices) {
-    if (!entry || typeof entry !== 'object') {
-      return { ok: false, message: 'Invalid evolverChoices entry: expected object' };
-    }
-
-    if (typeof entry.sourceKey !== 'string' || entry.sourceKey.trim() === '') {
-      return { ok: false, message: 'Invalid evolverChoices entry: sourceKey must be a non-empty string' };
-    }
-
-    if (seenSourceKeys.has(entry.sourceKey)) {
-      return { ok: false, message: `Duplicate evolverChoices sourceKey: ${entry.sourceKey}` };
-    }
-    seenSourceKeys.add(entry.sourceKey);
-
-    if (entry.choiceId !== 'hold' && entry.choiceId !== 'oxite' && entry.choiceId !== 'asterite') {
-      return {
-        ok: false,
-        message: `Invalid evolver choiceId: ${String((entry as any).choiceId)}. Must be hold, oxite, or asterite.`,
-      };
-    }
-
-    if (entry.choiceId !== 'hold') {
-      nonHoldCount++;
-    }
-  }
-
-  if (nonHoldCount > totalXenCount) {
-    return {
-      ok: false,
-      message: `Invalid evolverChoices: requested ${nonHoldCount} conversions but only ${totalXenCount} Xenite(s) are available.`,
-    };
-  }
-
-  return { ok: true, choices: payload.evolverChoices };
-}
-
-function validateSelectedNumberArray(args: {
-  raw: unknown;
-  expectedCount: number;
-  fieldName: string;
-  required: boolean;
-}): { ok: true } | { ok: false; message: string } {
-  const { raw, expectedCount, fieldName, required } = args;
-  if (typeof raw === 'undefined') {
-    return required
-      ? { ok: false, message: `Invalid build payload: ${fieldName} is required` }
-      : { ok: true };
-  }
-
-  if (!Array.isArray(raw)) {
-    return { ok: false, message: `Invalid build payload: ${fieldName} must be an array` };
-  }
-
-  if (raw.length !== expectedCount) {
-    return {
-      ok: false,
-      message: `Invalid ${fieldName} length: expected ${expectedCount}, got ${raw.length}`,
-    };
-  }
-
-  for (const selectedNumber of raw) {
-    if (!Number.isInteger(selectedNumber) || selectedNumber < 1 || selectedNumber > 6) {
-      return {
-        ok: false,
-        message: `Invalid ${fieldName} entry: ${selectedNumber}. Must be integer 1..6`,
-      };
-    }
-  }
-
-  return { ok: true };
 }
 
 /**
@@ -1920,8 +1819,6 @@ function handleMissionIntroAck(
   };
 }
 
-// Maximum build count per ship type to prevent state bloat
-const MAX_BUILD_COUNT = 50;
 // ============================================================================
 // BUILD_SUBMIT
 // ============================================================================
@@ -1999,157 +1896,23 @@ async function handleBuildSubmit(
     };
   }
   
-  const payload = intent.payload as BuildSubmitPayload;
-  
-  if (!payload.builds || !Array.isArray(payload.builds)) {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.BAD_PAYLOAD,
-        message: 'Invalid build payload: must have builds array'
-      }
-    };
-  }
-  
-  // Basic validation of build entries
-  for (const build of payload.builds) {
-    if (!build.shipDefId || typeof build.shipDefId !== 'string') {
-      return {
-        ok: false,
-        state,
-        events: [],
-        rejected: {
-          code: RejectionCode.INVALID_SHIP,
-          message: 'Each build must have a valid shipDefId'
-        }
-      };
-    }
-    
-    // Validate shipDefId exists in authoritative server definitions
-    const shipDef = getShipById(build.shipDefId);
-    if (!shipDef) {
-      return {
-        ok: false,
-        state,
-        events: [],
-        rejected: {
-          code: RejectionCode.INVALID_SHIP,
-          message: `Unknown shipDefId: ${build.shipDefId}`
-        }
-      };
-    }
-
-    if (isEvolvedXeniteShipDefId(build.shipDefId)) {
-      return {
-        ok: false,
-        state,
-        events: [],
-        rejected: {
-          code: RejectionCode.BAD_PAYLOAD,
-          message: 'Invalid build payload: OXI and AST cannot be built directly; use Evolver conversion.'
-        }
-      };
-    }
-    
-    // Validate count is positive integer
-    if (!Number.isInteger(build.count) || build.count < 1) {
-      return {
-        ok: false,
-        state,
-        events: [],
-        rejected: {
-          code: RejectionCode.BAD_PAYLOAD,
-          message: `Invalid build count for ship ${build.shipDefId}: ${build.count}. Must be positive integer.`
-        }
-      };
-    }
-    
-    // Check bounds: 1 <= count <= MAX_BUILD_COUNT
-    if (build.count > MAX_BUILD_COUNT) {
-      return {
-        ok: false,
-        state,
-        events: [],
-        rejected: {
-          code: RejectionCode.BAD_PAYLOAD,
-          message: `Invalid build count for ship ${build.shipDefId}: ${build.count}. Must be 1..${MAX_BUILD_COUNT}`
-        }
-      };
-    }
-  }
-
-  // Validate ordered permanent/trigger selected-number payloads.
-  const frigateBuildCount = payload.builds
-    .filter(b => b.shipDefId === 'FRI')
-    .reduce((sum, b) => sum + (b.count ?? 0), 0);
-  const frigateTriggerValidation = validateSelectedNumberArray({
-    raw: payload.frigateTriggers,
-    expectedCount: frigateBuildCount,
-    fieldName: 'frigateTriggers',
-    required: false,
+  const payloadValidation = validateBuildSubmitPayload({
+    state,
+    playerId,
+    payload: intent.payload,
   });
-  if (!frigateTriggerValidation.ok) {
+  if (!payloadValidation.ok) {
     return {
       ok: false,
       state,
       events: [],
       rejected: {
-        code: RejectionCode.BAD_PAYLOAD,
-        message: frigateTriggerValidation.message,
+        code: payloadValidation.code,
+        message: payloadValidation.message,
       },
     };
   }
 
-  const quantumMysticBuildCount = payload.builds
-    .filter((build) => build.shipDefId === 'QUA')
-    .reduce((sum, build) => sum + (build.count ?? 0), 0);
-  const quantumMysticSelectionValidation = validateSelectedNumberArray({
-    raw: payload.quantumMysticSelections,
-    expectedCount: quantumMysticBuildCount,
-    fieldName: 'quantumMysticSelections',
-    required: quantumMysticBuildCount > 0,
-  });
-  if (!quantumMysticSelectionValidation.ok) {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.BAD_PAYLOAD,
-        message: quantumMysticSelectionValidation.message,
-      },
-    };
-  }
-
-  const existingEvolverCount = countFleetShipsByDefId(state, playerId, 'EVO');
-  const existingXenCount = countFleetShipsByDefId(state, playerId, 'XEN');
-  const builtEvolverCount = payload.builds
-    .filter((build) => build.shipDefId === 'EVO')
-    .reduce((sum, build) => sum + build.count, 0);
-  const builtXenCount = payload.builds
-    .filter((build) => build.shipDefId === 'XEN')
-    .reduce((sum, build) => sum + build.count, 0);
-
-  const evolverValidation = validateEvolverChoicesPayload(
-    payload,
-    existingEvolverCount + builtEvolverCount,
-    existingXenCount + builtXenCount
-  );
-
-  if (!evolverValidation.ok) {
-    return {
-      ok: false,
-      state,
-      events: [],
-      rejected: {
-        code: RejectionCode.BAD_PAYLOAD,
-        message: evolverValidation.message,
-      },
-    };
-  }
-  
   // B3) Compute commit hash and store submission
   const turnNumber = intent.turnNumber;
   const commitKey = getBuildCommitKey(turnNumber);

@@ -334,6 +334,11 @@ Deno.test('concurrent duplicate Drawing-prelude Carrier action commits once and 
   assert.equal(rejectedBody.rejected.code, 'BAD_PAYLOAD');
   const acceptedResponse = responses.find((response) => response.status === 200)!;
   const acceptedBody = await acceptedResponse.json();
+  assert.equal(JSON.stringify(acceptedBody).includes('"thisTurn"'), false);
+  assert.equal(
+    JSON.stringify(acceptedBody).includes('"committedProjection"'),
+    false,
+  );
   assert.equal(acceptedBody.events.some((event: any) => event.type === 'EFFECT_APPLIED'), true);
   assert.equal(acceptedBody.events.some((event: any) => event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED'), true);
   assert.equal(acceptedBody.events.some((event: any) => event.type === 'POWER_USED'), true);

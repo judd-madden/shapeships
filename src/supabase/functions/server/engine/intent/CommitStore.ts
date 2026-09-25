@@ -27,6 +27,16 @@ export interface CommitRecord {
   revealedAt?: number;
 }
 
+/** Read a record without creating or normalizing commitment storage. */
+export function peekCommitRecord(
+  state: any,
+  commitKey: string,
+  playerId: string,
+): CommitRecord | null {
+  const record = state?.gameData?.turnData?.commitments?.[commitKey]?.[playerId];
+  return record && typeof record === "object" ? record : null;
+}
+
 /**
  * Project commitment records for a client without exposing another player's
  * committed hash, reveal payload, or nonce.
@@ -83,9 +93,7 @@ export function getCommitRecord(
   playerId: string
 ): CommitRecord | null {
   ensureCommitments(state);
-  const keyRecords = state.gameData.turnData.commitments[commitKey];
-  if (!keyRecords) return null;
-  return keyRecords[playerId] || null;
+  return peekCommitRecord(state, commitKey, playerId);
 }
 
 /**

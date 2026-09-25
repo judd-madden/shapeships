@@ -77,6 +77,11 @@ export type BattleLogCurrentTurnProjection = {
   concealedBuildPlayerIds: string[];
 };
 
+export type BattleLogRequesterCurrentTurnProjection = {
+  turnNumber: number;
+  capturedBuildLines: string[];
+};
+
 export type ProducedBuildOccurrence =
   | { stage: "turn_start_materialisation" }
   | { stage: "drawing_prelude"; passIndex: 1 | 2 }
@@ -1607,6 +1612,81 @@ export function projectBattleLogCurrentTurnForViewer(
       : activePlayerIds.filter((playerId) =>
         !requesterIsPlayer || playerId !== requestingParticipantId
       ),
+  };
+}
+
+/** Viewer-neutral rows that are safe to place under publicState. */
+export function projectBattleLogCurrentTurnPublic(
+  state: GameStateLike,
+): BattleLogCurrentTurnProjection | null {
+  const turnNumber = getCurrentTurnNumber(state);
+  if (state?.status !== "active" || turnNumber <= 0) return null;
+
+  const activePlayerIds = getActivePlayers(state).map((player) => player.id);
+  const phaseKey = getPhaseKeyFromState(state);
+  const revealOpened = hasBuildRevealOpened(phaseKey);
+  const normalizedScratch = normalizeBattleLogScratch(state.battleLogScratch);
+  const capture =
+    normalizedScratch.currentTurnCapture?.turnNumber === turnNumber
+      ? normalizedScratch.currentTurnCapture
+      : null;
+  const buildLinesByPlayerId: Record<string, string[]> = {};
+  const battleLinesByPlayerId: Record<string, string[]> = {};
+
+  for (const playerId of activePlayerIds) {
+    const capturedBuildAtoms = capture?.buildAtomsByPlayerId[playerId] ?? [];
+    buildLinesByPlayerId[playerId] = formatBuildLines(
+      revealOpened
+        ? capturedBuildAtoms
+        : capturedBuildAtoms.filter(isPublicBuildInterventionAtom),
+    );
+    battleLinesByPlayerId[playerId] = [
+      ...formatBattleLines(
+        getViewerSafeBattleAtoms(
+          phaseKey,
+          capture?.battleAtomsByPlayerId[playerId] ?? [],
+        ),
+      ),
+      ...(hasChargeDeclarationVisibilityOpened(phaseKey)
+        ? formatAncientSolarBattleLines(state, playerId, turnNumber)
+        : []),
+    ];
+  }
+
+  return {
+    turnNumber,
+    diceValue: capture?.diceValue ?? null,
+    buildLinesByPlayerId,
+    battleLinesByPlayerId,
+    concealedBuildPlayerIds: revealOpened ? [] : activePlayerIds,
+  };
+}
+
+/** Private captured own-build rows, excluding rows already in publicState. */
+export function projectBattleLogCurrentTurnRequester(
+  state: GameStateLike,
+  requestingParticipantId: string,
+): BattleLogRequesterCurrentTurnProjection | null {
+  const turnNumber = getCurrentTurnNumber(state);
+  if (state?.status !== "active" || turnNumber <= 0) return null;
+  const activePlayerIds = getActivePlayers(state).map((player) => player.id);
+  const phaseKey = getPhaseKeyFromState(state);
+  if (
+    !activePlayerIds.includes(requestingParticipantId) ||
+    hasBuildRevealOpened(phaseKey)
+  ) {
+    return null;
+  }
+  const capture = normalizeBattleLogScratch(state.battleLogScratch)
+    .currentTurnCapture;
+  const capturedBuildAtoms = capture?.turnNumber === turnNumber
+    ? capture.buildAtomsByPlayerId[requestingParticipantId] ?? []
+    : [];
+  return {
+    turnNumber,
+    capturedBuildLines: formatBuildLines(
+      capturedBuildAtoms.filter((atom) => !isPublicBuildInterventionAtom(atom)),
+    ),
   };
 }
 

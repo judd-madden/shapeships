@@ -7,6 +7,8 @@ import { onEnterPhase } from "../../../engine/phase/onEnterPhase.ts";
 import {
   buildBattleLogTurnSummaryFromScratch,
   foldBattleLogCaptureEventsIntoScratch,
+  projectBattleLogCurrentTurnPublic,
+  projectBattleLogCurrentTurnRequester,
   projectBattleLogCurrentTurnForViewer,
 } from "../../../engine/state/battleLogHistory.ts";
 
@@ -663,4 +665,44 @@ Deno.test("ordinary charge and targeted Solar lines release together and match a
   assert.deepEqual(live?.battleLinesByPlayerId, archive.battleLinesByPlayerId);
   assert.equal(JSON.stringify(releasedState.battleLogScratch), scratchBefore);
   assert.equal(JSON.stringify(releasedState.gameData.ancient), ledgerBefore);
+});
+
+Deno.test("public and requester Drawing projections are atomically disjoint", () => {
+  const state = createState({
+    scratch: {
+      currentTurnCapture: buildCapture({
+        buildAtomsByPlayerId: {
+          p1: [
+            { kind: "reroll", sourceShipDefId: "KNO", values: [2, 4] },
+            {
+              kind: "produced_build",
+              shipDefId: "FIG",
+              sourceShipDefId: "DRE",
+              count: 1,
+            },
+          ],
+          p2: [{ kind: "cube_change", fromValue: 2, toValue: 5 }],
+        },
+      }),
+      lastFinalizedTurnNumber: 3,
+      archiveCheckpoint: null,
+    },
+  });
+  const publicProjection = projectBattleLogCurrentTurnPublic(state);
+  const requesterProjection = projectBattleLogCurrentTurnRequester(state, "p1");
+  assert.deepEqual(publicProjection?.buildLinesByPlayerId, {
+    p1: ["KNO rerolled 2 -> 4"],
+    p2: ["CUB rolled 5"],
+  });
+  assert.deepEqual(requesterProjection?.capturedBuildLines, [
+    "1 x FIG (DRE)",
+  ]);
+  assert.deepEqual(publicProjection?.concealedBuildPlayerIds, ["p1", "p2"]);
+
+  const revealed = setPhase(state, "battle.reveal");
+  assert.equal(projectBattleLogCurrentTurnRequester(revealed, "p1"), null);
+  assert.deepEqual(
+    projectBattleLogCurrentTurnPublic(revealed)?.buildLinesByPlayerId.p1,
+    ["KNO rerolled 2 -> 4", "1 x FIG (DRE)"],
+  );
 });

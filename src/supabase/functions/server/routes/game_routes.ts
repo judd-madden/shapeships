@@ -98,6 +98,11 @@ import {
   stripMissionChallengeAssignment,
 } from '../engine/mission/MissionChallenge.ts';
 import { allocateGameId } from './game_id_allocation.ts';
+import {
+  projectCurrentTurnFieldsForFullState,
+  registerCurrentTurnProjectionRoutes,
+  type CurrentTurnRouteTimingObserver,
+} from './current_turn_projection_routes.ts';
 
 const INITIAL_SAVED_LINES = 3;
 const MAX_GAME_RECORD_CONFLICT_RETRIES = 2;
@@ -1039,7 +1044,15 @@ export function registerGameRoutes(
   requireSession: (c: any) => Promise<any>,
   generateGameId: () => string,
   persistence: GameRoutePersistence,
+  currentTurnTimingObserver?: CurrentTurnRouteTimingObserver,
 ) {
+  registerCurrentTurnProjectionRoutes({
+    app,
+    requireSession,
+    persistence,
+    timingObserver: currentTurnTimingObserver,
+  });
+
   async function prepareGameStateRead(
     gameId: string,
     requestingPlayerId: string,
@@ -2058,6 +2071,11 @@ export function registerGameRoutes(
       }
 
       const { maintainedState, nowMs, participant } = preparedRead;
+      const currentTurnFields = projectCurrentTurnFieldsForFullState({
+        state: maintainedState,
+        requestingParticipantId: requestingPlayerId,
+        timingObserver: currentTurnTimingObserver,
+      });
       let gameData = maintainedState;
 
       const phaseKey = getPhaseKey(gameData);
@@ -2377,6 +2395,7 @@ export function registerGameRoutes(
           ),
         },
         ancient: publicAncientState,
+        thisTurn: currentTurnFields.publicThisTurn,
         ...(turnPhaseProgress
           ? { turnPhaseProgress }
           : {}),
@@ -2421,6 +2440,7 @@ export function registerGameRoutes(
         presentationEvents: {
           shipActivationCueBatches: requesterShipActivationCueBatches,
         },
+        thisTurn: currentTurnFields.requesterThisTurn,
       };
       const result = {
         winnerPlayerId: gameData.winnerPlayerId ?? null,
