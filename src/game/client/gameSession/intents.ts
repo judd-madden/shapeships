@@ -144,7 +144,7 @@ async function resolveAvailableActionsOrAbort(args: {
  * Canonical build payload builder
  * Ensures consistent ordering and structure for hash computation
  */
-function makeCanonicalBuildPayload(
+export function makeCanonicalBuildPayload(
   buildPreviewCounts: Record<string, number>,
   frigateTriggers: number[],
   quantumMysticSelections: number[],
@@ -188,6 +188,13 @@ function makeCanonicalBuildPayload(
 
   return payload;
 }
+
+export type BuildSubmitFlowResult =
+  | { kind: 'accepted'; source: 'new'; turnNumber: number; payload: CanonicalBuildSubmitPayload }
+  | { kind: 'accepted'; source: 'stored'; turnNumber: number }
+  | { kind: 'rejected'; turnNumber: number; reason: string }
+  | { kind: 'uncertain'; turnNumber: number; reason: string }
+  | { kind: 'not_attempted' };
 
 export async function runSpeciesConfirmFlow(args: {
   selectedSpecies: SpeciesId;
@@ -392,7 +399,7 @@ export async function runReadyToggleFlow(args: {
   ancientChargeDeclarationAttempt?: FrozenAncientChargeDeclarationAttempt | null;
   onAncientDeclarationExplicitRejection?: () => void;
   onAncientDeclarationEventsHandled?: () => void;
-}): Promise<void> {
+}): Promise<BuildSubmitFlowResult | undefined> {
   const {
     isFinished,
     readyEnabled,
@@ -426,24 +433,24 @@ export async function runReadyToggleFlow(args: {
 
   if (!effectiveGameId) {
     console.warn('[intents] runReadyToggleFlow called without effectiveGameId');
-    return;
+    return phaseKey === 'build.drawing' ? { kind: 'not_attempted' } : undefined;
   }
 
   // Hard stop if game finished
   if (isFinished) {
     console.log('[useGameSession] onReadyToggle ignored: game finished');
-    return;
+    return phaseKey === 'build.drawing' ? { kind: 'not_attempted' } : undefined;
   }
 
   if (resumeSyncLocked) {
     console.log('[useGameSession] onReadyToggle ignored: resume sync lock active');
-    return;
+    return phaseKey === 'build.drawing' ? { kind: 'not_attempted' } : undefined;
   }
   
   // Early guard: mySessionId required for build commit caching
   if (!mySessionId) {
     console.error('[useGameSession] Ready: cannot proceed because mySessionId is not set yet');
-    return;
+    return phaseKey === 'build.drawing' ? { kind: 'not_attempted' } : undefined;
   }
   
   console.log(
@@ -453,7 +460,7 @@ export async function runReadyToggleFlow(args: {
   // Keep existing readyEnabled guard
   if (!readyEnabled) {
     console.log(`[useGameSession] Ready disabled: ${readyDisabledReason}`);
-    return;
+    return phaseKey === 'build.drawing' ? { kind: 'not_attempted' } : undefined;
   }
   
   try {
@@ -908,7 +915,7 @@ export async function runReadyToggleFlow(args: {
         normalizedPrelude: latestNormalizedPrelude,
       })) {
         console.warn('[useGameSession] build.drawing: BUILD_SUBMIT blocked by requester prelude gate');
-        return;
+        return { kind: 'not_attempted' };
       }
 
       if (
@@ -917,7 +924,14 @@ export async function runReadyToggleFlow(args: {
         )
       ) {
         console.log('[useGameSession] build.drawing: requester build is already committed');
-        return;
+        await refreshGameStateOnce();
+        return args.getLatestRawState()?.requester?.thisTurn?.committedProjection != null
+          ? { kind: 'accepted', source: 'stored', turnNumber: serverTurnNumber }
+          : {
+              kind: 'uncertain',
+              turnNumber: serverTurnNumber,
+              reason: 'stored_projection_unavailable',
+            };
       }
 
       console.log('[useGameSession] build.drawing: submitting BUILD_SUBMIT...');
@@ -959,16 +973,30 @@ export async function runReadyToggleFlow(args: {
         if (isRetryableIntentError(err)) {
           console.warn('[useGameSession] BUILD_SUBMIT timed out/aborted - retrying once');
           // One retry only
-          response = await submitIntent(body, INTENT_TIMEOUT_MS);
+          try {
+            response = await submitIntent(body, INTENT_TIMEOUT_MS);
+          } catch (retryError: any) {
+            return {
+              kind: 'uncertain',
+              turnNumber: serverTurnNumber,
+              reason: retryError?.message ?? 'transport_error',
+            };
+          }
         } else {
-          throw err;
+          return {
+            kind: 'uncertain',
+            turnNumber: serverTurnNumber,
+            reason: err?.message ?? 'transport_error',
+          };
         }
       }
       
       if (!response.ok) {
         const errorText = await readFailureResponseText(response);
         console.error('[useGameSession] BUILD_SUBMIT failed:', errorText);
-        return;
+        return response.status >= 400 && response.status < 500
+          ? { kind: 'rejected', turnNumber: serverTurnNumber, reason: errorText || `http_${response.status}` }
+          : { kind: 'uncertain', turnNumber: serverTurnNumber, reason: errorText || `http_${response.status}` };
       }
       
       const result = await response.json();
@@ -998,11 +1026,21 @@ export async function runReadyToggleFlow(args: {
           
           // Refresh state to get latest (server already set readiness via BUILD_SUBMIT)
           await refreshGameStateOnce();
-          return;
+          return args.getLatestRawState()?.requester?.thisTurn?.committedProjection != null
+            ? { kind: 'accepted', source: 'stored', turnNumber: submittedTurnNumber }
+            : {
+                kind: 'uncertain',
+                turnNumber: submittedTurnNumber,
+                reason: 'stored_projection_unavailable',
+              };
         }
         
         console.error('[useGameSession] BUILD_SUBMIT rejected:', result.rejected);
-        return;
+        return {
+          kind: 'rejected',
+          turnNumber: submittedTurnNumber,
+          reason: result.rejected?.code ?? 'rejected',
+        };
       }
       logIgnoredIntentState('BUILD_SUBMIT succeeded', result);
       
@@ -1030,7 +1068,12 @@ export async function runReadyToggleFlow(args: {
       
       // Refresh state to get latest (server already set readiness via BUILD_SUBMIT)
       await refreshGameStateOnce();
-      return;
+      return {
+        kind: 'accepted',
+        source: 'new',
+        turnNumber: submittedTurnNumber,
+        payload: canonicalPayload,
+      };
     }
     
     // A3) All other phases → DECLARE_READY
@@ -1082,5 +1125,12 @@ export async function runReadyToggleFlow(args: {
     
   } catch (err: any) {
     console.error('[useGameSession] onReadyToggle error:', err);
+    if (phaseKey === 'build.drawing') {
+      return {
+        kind: 'uncertain',
+        turnNumber,
+        reason: err?.message ?? 'unexpected_error',
+      };
+    }
   }
 }

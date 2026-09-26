@@ -2,7 +2,7 @@
 
 ## Normative Planning and Pass-Decomposition Document
 
-- **Status:** Planning; no Phase 18 implementation has begun in the live repository inspected 2026-09-24
+- **Status:** Phases 18A-18D are implemented in the live repository as of 2026-09-26; display passes 18E-18G remain planned, and the deployed-equivalent performance/public-rollout gate remains incomplete
 - **Phase type:** Live battle presentation and server-calculated estimates; not a new gameplay phase
 - **Primary scope:** A viewer-safe live current-turn Battle Log; estimated and resolved current-turn damage/healing; paired desktop and mobile stat presentation
 - **Architecture baseline:** Server-authoritative Shapeships after the Phase 14 phase simplification, Phase 16 head polling, and current Phase 7 Battle Log / Phase 12 stats implementations
@@ -397,7 +397,7 @@ Preview identity and duplicate suppression cover `gameId`, turn, phase, applicab
 
 Heavy simulations and client requests should remain bounded; the small wire payload does not by itself guarantee low server CPU or database cost. Back off on failure/429 and give the player a non-misleading unavailable state; build and Ready must remain functional if this optional estimate fails.
 
-Before 18D client rollout, 18B/18C must measure representative and complex late-game draft calculations and repeated two-sided post-Reveal full GET calculations. Report estimator calculation time separately from database-read time and total route time. Use those results to decide whether the simple calculate-on-request/full-GET approach is adequate. The debounce range, current polling cadences, anticipated request counts, and latency discussion are planning assumptions until measured. Any optimization, memoization, cache, limiter, or persistence change requires a separately reviewed decision based on those measurements.
+The local 18D client-runtime integration was provisionally approved on the in-memory evidence. Before Phase 18 completion and public rollout, 18B/18C must still measure representative and complex late-game draft calculations and repeated two-sided post-Reveal full GET calculations against the real session/database stack. Report estimator calculation time separately from database-read time and total route time. Use those results to decide whether the implemented calculate-on-request/full-GET posture remains adequate. The debounce range, current polling cadences, anticipated request counts, and latency discussion are planning assumptions until measured. Any optimization, memoization, cache, limiter, or persistence change requires a separately reviewed decision based on those measurements.
 
 The preview is advisory. `BUILD_SUBMIT` still independently validates and applies the submitted payload through the authoritative reducer.
 
@@ -602,7 +602,7 @@ An HTTP endpoint, full end-turn resolution, Black Hole, aggregate health, victor
 - Combine 18B estimator timings with 18C measurements of session/auth overhead, canonical database-read time, estimator calculation time, and total preview-route time for representative and complex late-game drafts.
 - Measure repeated two-sided post-Reveal full GETs against unchanged representative and complex states, because the current active safety refresh is roughly 15 seconds. Report database-read, two-sided calculation, and total route time separately.
 - Record the measurement environment, fixture shapes, sample count/method, and observed variability. Current cadence, request-count, debounce, and latency statements are illustrative until this report exists.
-- Before 18D begins, review the results and explicitly decide whether the simple calculate-on-request/full-GET approach is adequate. If not, plan any optimization, memoization, caching, or cadence change as a separate reviewed decision rather than silently expanding 18B/18C.
+- Treat the completed in-memory report as provisional approval for local 18D integration. Before Phase 18 completion and public rollout, review deployed-equivalent session/database latency and request-frequency evidence and explicitly decide whether the implemented calculate-on-request/full-GET approach remains adequate. If not, plan any optimization, memoization, caching, or cadence change as a separate reviewed decision rather than silently expanding 18B/18C.
 
 ### Does not include
 
@@ -617,12 +617,22 @@ Client requests, view models, presentation, broad route redesign, caches, memoiz
 
 ### Entry gate
 
-The reviewed 18B/18C performance report must conclude that the simple POST/full-GET calculation posture is adequate, or a separately approved server optimization pass must land first.
+The 2026-09-26 implementation pass was explicitly and provisionally approved for local client-runtime integration from the in-memory report. That approval does not complete the separate deployed-equivalent session/database latency and request-frequency evidence required for Phase 18 completion or public rollout. If that evidence rejects the simple POST/full-GET posture, any optimization remains a separately reviewed pass.
+
+### Implementation record (2026-09-26)
+
+- The production preview scheduler uses a 225 ms debounce, one in-flight request, one newest queued candidate, generation/token acceptance, pause/resume/cleanup, and one immediate stale preview-route context retry. Its route context cache is independent of the public `thisTurn` identity.
+- Full-state observations fingerprint only Drawing eligibility and viewer-safe estimator inputs. Battle Log rows, clocks, ordinary readiness, root revision, and the public `thisTurn` identity do not enqueue preview work.
+- Ready distinguishes pending, newly accepted, stored accepted, rejected, and uncertain outcomes. Pending/uncertain work is paused and invalidated; rejection resumes the unchanged draft; accepted state freezes the exact payload until the requester full-state projection supersedes it.
+- Local and canonical build rows are composed as whole draft units. Matching canonical preview/stored units replace the local draft unit without text deduplication, while public intervention and captured rows remain separate.
+- Resolution actuals use the existing intent-event and observed turn-transition evidence, with hard-refresh recovery only from a surviving `end_of_turn_health` hold. The Phase 18 snapshot releases only when the next turn's dice are actually published, including the immediate path, and remains independent of the four-second health overlay.
+- Missing history is recovered by `{gameId, missingTurnNumber}` with the initial fetch plus 250/750/1500 ms retries. A failed initial fetch keeps recovery active, and advancing to the next current turn does not cancel the prior archive expectation.
 
 ### Candidate file plan
 
 - `src/game/client/gameSession/intents.ts`: share canonical build-choice serialization without weakening final submit or changing default selections.
-- `src/game/client/gameSession/clienteffects/useBuildDraftSync.ts`: inspect whether its no-op boundary is an appropriate narrow home; do not force a broad refactor.
+- `src/game/client/gameSession/currentTurnPreview.ts` and `clienteffects/useCurrentTurnPreview.ts`: one injected-clock production scheduler plus its thin React lifecycle wrapper; remove the obsolete no-op `useBuildDraftSync.ts`.
+- `src/game/client/gameSession/thisTurnPresentation.ts` and `historyRecovery.ts`: normalize/compose presentation sources and own missing-archive retry identity.
 - `src/game/client/useGameSession.ts`, `gameSession/types.ts`, `battleLog.ts`, `mapVm.ts`, and the existing `clienteffects/useEndOfTurnPresentation.ts` snapshot seam.
 - Focused client tests for initial empty-draft requests, context-aware identity, debounce/coalescing, fingerprint suppression, supersession, unchanged-poll suppression, visibility transitions, uninterrupted resolution hold, hard-refresh behavior, bounded history recovery, archive handoff, terminal-without-resolution cleanup, and turn changes.
 
@@ -780,7 +790,7 @@ At minimum prove:
 9. Bad role, wrong phase/turn, malformed/oversized or structurally inconsistent payload, submitted replacement attempt, and a request racing Reveal return safe behavior without changing existing BUILD_SUBMIT validation/defaults.
 10. Phase 18 fields appear only in the compact preview response, `requester`, or `publicState` as allowed; they remain absent from raw `gameData`, history, head, and intent responses. Existing history analysis remains reusable without a schema fork.
 11. Resolution and final-turn archiving preserve turn identity; surrender/timeout before current-turn resolution do not fabricate current or Final Turn actuals.
-12. The 18B/18C measurement report covers representative and complex late-game estimator-only runs, full preview POSTs, and repeated two-sided post-Reveal full GETs against unchanged state. It separates calculation, database-read, and total route time and supports the reviewed go/no-go decision before 18D.
+12. The in-memory 18B/18C report provisionally supported local 18D integration. The remaining deployed-equivalent report covers representative and complex late-game estimator-only runs, full preview POSTs, and repeated two-sided post-Reveal full GETs against unchanged state, separates calculation, database-read, and total route time, and supports the Phase 18 completion/public-rollout decision.
 
 ## 12.3 Concrete product walkthrough
 
@@ -851,9 +861,9 @@ History can also lag or fail after state advances. The current initial/turn/fini
 
 The simple baseline performs session validation, one canonical read, and one isolated calculation for each issued draft preview. It also calculates two public sides in post-Reveal full-state responses; current active clients can request an unchanged safety full refresh after roughly 15 seconds even though compact head polling is roughly two seconds. Those live cadences and the 150–300 ms settling range describe the current code or an initial tuning target, not measured Phase 18 request counts or latency guarantees.
 
-Coalescing limits client concurrency and redundant draft work, but it does not make server CPU free: an aborted browser request may already be calculating, and unchanged post-Reveal full GETs can repeat two-sided work. 18B/18C therefore form a hard evidence gate before 18D. Measure representative and complex late-game estimator-only runs, preview routes, and repeated unchanged two-sided full GETs; report calculation time, database-read time, and total route time separately with environment/fixture/sample context.
+Coalescing limits client concurrency and redundant draft work, but it does not make server CPU free: an aborted browser request may already be calculating, and unchanged post-Reveal full GETs can repeat two-sided work. The in-memory 18B/18C evidence provisionally approved local 18D integration; deployed-equivalent session/database latency and request-frequency evidence remains a hard gate for Phase 18 completion and public rollout. Measure representative and complex late-game estimator-only runs, preview routes, and repeated unchanged two-sided full GETs; report calculation time, database-read time, and total route time separately with environment/fixture/sample context.
 
-Review those results to accept or reject the simple approach before client rollout. Do not pre-emptively add caching, memoization, generic limiting, extra persistence, a head payload, or display-owned requests. If measurements show a problem, make the optimization and its invalidation/privacy contract a separately reviewed decision.
+Review those results to accept or reject the simple approach before public rollout. Do not pre-emptively add caching, memoization, generic limiting, extra persistence, a head payload, or display-owned requests. If measurements show a problem, make the optimization and its invalidation/privacy contract a separately reviewed decision.
 
 ## 13.6 Visual spec remains deliberately open
 
@@ -879,7 +889,7 @@ Phase 18 is complete when:
 - after Reveal both sides receive estimates from mutually public authoritative state; simultaneous Charge Declaration freezes both at the last mutually public snapshot, with full-response noninterference across hidden choices; charges remain absent from estimates and appear in actual resolution;
 - Phase 18 data is placed only in the compact preview response, `requester`, or `publicState` as authorized, not raw `gameData`, history, head, or intent responses by default;
 - head polling remains compact and estimate-free, full GETs remain the sole post-Reveal estimate transport, and display surfaces add no requests;
-- 18B/18C report representative and complex estimator, preview-route, and repeated two-sided full-GET measurements with calculation, database-read, and total route time separated; the reviewed result approves the simple posture before 18D or triggers a separate optimization decision;
+- the in-memory 18B/18C report remains qualified as provisional local-integration evidence, and deployed-equivalent representative and complex estimator, preview-route, repeated two-sided full-GET, session/database latency, and request-frequency measurements are reviewed before Phase 18 completion/public rollout; any rejected posture triggers a separate optimization decision;
 - stale, failing, and racing requests cannot overwrite a newer draft, Reveal, held resolution, completed turn, or different game;
 - desktop shows paired current/Last Damage and Healing with no resting `~`; one accessible combined metric card shows available This Turn and Last Turn breakdowns and carries approximation treatment only for estimates;
 - the compact mobile HUD shows current plus smaller Last values without `~`; both existing anchored popovers open together, may cover underlying controls, apply the settled before-/after-Reveal section policies, dismiss together on a tap to either card or outside, and allow in-card scrolling without dismissal;

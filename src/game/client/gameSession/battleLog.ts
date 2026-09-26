@@ -218,7 +218,7 @@ function mapBattleLogSide(
   };
 }
 
-function mapBattleLogLines(
+export function mapBattleLogLines(
   rawLines: string[] | undefined,
   tokenize: (line: string) => BattleLogTokenVm[]
 ): BattleLogLineVm[] {
@@ -236,7 +236,7 @@ function mapBattleLogLines(
   });
 }
 
-function tokenizeBuildLine(line: string): BattleLogTokenVm[] {
+export function tokenizeBuildLine(line: string): BattleLogTokenVm[] {
   const countedBuildMatch = line.match(
     /^(\d+)\s+x\s+([A-Z0-9]{3,5})(?:\s+\((?:(\d+)\s+)?([A-Z0-9]{3,5})\))?$/
   );
@@ -271,7 +271,7 @@ function tokenizeBuildLine(line: string): BattleLogTokenVm[] {
   return tokens;
 }
 
-function tokenizeBattleLine(line: string): BattleLogTokenVm[] {
+export function tokenizeBattleLine(line: string): BattleLogTokenVm[] {
   return tokenizeGenericLine(line);
 }
 

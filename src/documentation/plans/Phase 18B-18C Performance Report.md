@@ -5,7 +5,7 @@
 - **Environment:** Windows x86_64, Deno 2.7.14, 24 reported hardware threads.
 - **Method:** 25 warm-up runs followed by 200 serial measured runs per fixture.
 - **Adapter:** In-memory structured-clone persistence used by route tests. These numbers are not database latency and are not production-route measurements.
-- **Gate:** **Incomplete.** The calculation shape is provisionally inexpensive in this environment, but Phase 18D client rollout is not approved until deployed-equivalent session validation and real canonical database reads are measured.
+- **Gate:** **Incomplete for public rollout.** The calculation shape is provisionally inexpensive in this environment. The explicitly approved Phase 18D client-runtime implementation landed on 2026-09-26, but deployed-equivalent session validation and real canonical database reads are still required before public rollout.
 
 The provisional recommendation is to retain the simple calculate-on-request/full-GET design for the next measurement. No cache, memoization, limiter, persistence change, or polling-cadence change is justified by the in-memory calculation results alone.
 
@@ -54,7 +54,7 @@ Repeat with:
 deno test --allow-env src/supabase/functions/server/tests/routes/current_turn_projection_performance_test.ts
 ```
 
-## Measurement still required before Phase 18D
+## Measurement still required before Phase 18 public rollout
 
 Run the same zero-, one-, and two-estimator requests in a safe deployed-equivalent environment using the real session-validation and persistence stack. Record separately:
 
@@ -65,4 +65,4 @@ Run the same zero-, one-, and two-estimator requests in a safe deployed-equivale
 - total preview POST, submitted-waiting GET, revealed player GET, and revealed spectator GET latency;
 - warm and cold behavior for representative and complex fixtures, with median, p95, and range.
 
-Only that measurement can complete the 18B/18C load gate and authorize or reject the current request/full-GET posture for Phase 18D.
+Only that measurement can complete the 18B/18C load gate and authorize or reject the implemented request/full-GET posture for public rollout. The client implementation does not change polling cadence, add persistence, or add a cache/limiter as a substitute for this evidence.

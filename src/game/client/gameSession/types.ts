@@ -347,6 +347,85 @@ export interface BattleLogTurnVm {
   opponent: BattleLogTurnSideVm;
 }
 
+export type ThisTurnMetricVm =
+  | { state: 'concealed' | 'pending'; turnNumber: number }
+  | { state: 'unavailable'; turnNumber: number; reason?: string }
+  | {
+      state: 'zero' | 'value';
+      turnNumber: number;
+      source:
+        | 'estimated'
+        | 'privacy_frozen'
+        | 'held_actual'
+        | 'last_actual'
+        | 'final_actual';
+      total: number;
+      rows: BoardStatBreakdownRowVm[];
+    };
+
+export interface ThisTurnMetricPairVm {
+  current: ThisTurnMetricVm;
+  last: ThisTurnMetricVm;
+}
+
+export interface ThisTurnPlayerMetricsVm {
+  playerId: string | null;
+  damage: ThisTurnMetricPairVm;
+  healing: ThisTurnMetricPairVm;
+}
+
+export type ThisTurnBuildRowUnitSource =
+  | 'public'
+  | 'requester_capture'
+  | 'local_draft'
+  | 'canonical_preview'
+  | 'canonical_committed';
+
+export interface ThisTurnBuildRowUnitVm {
+  source: ThisTurnBuildRowUnitSource;
+  draftFingerprint?: string;
+  lines: BattleLogLineVm[];
+}
+
+export interface ThisTurnLiveSideVm {
+  buildRowUnits: ThisTurnBuildRowUnitVm[];
+  battleLines: BattleLogLineVm[];
+  buildVisibility: 'visible' | 'concealed';
+}
+
+export interface ThisTurnLiveLogVm {
+  turnNumber: number;
+  diceValue: number | null;
+  lifecycle: 'live' | 'held' | 'archived';
+  me: ThisTurnLiveSideVm;
+  opponent: ThisTurnLiveSideVm;
+}
+
+export interface ThisTurnResolutionSnapshot {
+  gameId: string;
+  resolvedTurnNumber: number;
+  isTerminalTurn: boolean;
+  me: ThisTurnPlayerMetricsVm;
+  opponent: ThisTurnPlayerMetricsVm;
+  liveLog: ThisTurnLiveLogVm | null;
+}
+
+export interface ThisTurnPresentationVm {
+  turnNumber: number;
+  phaseKey: string;
+  liveLog: ThisTurnLiveLogVm | null;
+  me: ThisTurnPlayerMetricsVm;
+  opponent: ThisTurnPlayerMetricsVm;
+  archiveHandoff: {
+    turnNumber: number;
+    state: 'pending' | 'deferred';
+  } | null;
+  mobile: {
+    pairKey: string;
+    opponentDetail: 'last' | 'this_turn';
+  };
+}
+
 export interface LeftRailDiceManipulationSlotViewModel {
   sourceShipDefId: LeftRailDiceManipulationShipDefId;
   diceValues?: Array<1 | 2 | 3 | 4 | 5 | 6>;
@@ -886,6 +965,7 @@ export interface GameSessionViewModel {
   matchupIntro: MatchupIntroViewModel | null;
   missionChallenge: MissionChallengeViewModel | null;
   gameStats: GameStatsViewModel | null;
+  thisTurn: ThisTurnPresentationVm | null;
   turnPhases: TurnPhaseVm;
   turnPhasePresentation: TurnPhasePresentationVm;
   hud: HudViewModel;

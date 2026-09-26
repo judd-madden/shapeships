@@ -5,6 +5,7 @@ import type {
   FleetAreaHealthDeltaFlashVm,
   HealthResolutionPresentationVm,
   HealthResolutionSideVm,
+  ThisTurnResolutionSnapshot,
 } from '../types';
 import {
   DICE_VISUAL_ROLL_DURATION_MS,
@@ -74,6 +75,28 @@ export function getHealthResolutionPresentationKey(
   return `${gameId}::health::${resolvedTurnKey}`;
 }
 
+export type ThisTurnResolutionSnapshotEvent =
+  | { type: 'capture'; snapshot: ThisTurnResolutionSnapshot }
+  | { type: 'game_changed' }
+  | { type: 'turn_start_published'; gameId: string; turnNumber: number };
+
+export function transitionThisTurnResolutionSnapshot(
+  current: ThisTurnResolutionSnapshot | null,
+  event: ThisTurnResolutionSnapshotEvent,
+): ThisTurnResolutionSnapshot | null {
+  if (event.type === 'capture') return event.snapshot;
+  if (event.type === 'game_changed') return null;
+  if (
+    current &&
+    current.gameId === event.gameId &&
+    !current.isTerminalTurn &&
+    event.turnNumber > current.resolvedTurnNumber
+  ) {
+    return null;
+  }
+  return current;
+}
+
 interface UseEndOfTurnPresentationArgs {
   effectiveGameId: string | null;
   hasMatchingAuthoritativeGameId: boolean;
@@ -85,6 +108,7 @@ interface UseEndOfTurnPresentationArgs {
   authoritativeHoldReason: string | null;
   authoritativeHoldUntilMs: number | null;
   healthResolutionPresentationTrigger?: HealthResolutionPresentationTrigger | null;
+  thisTurnResolutionTrigger?: ThisTurnResolutionSnapshot | null;
   healthPresentation: EndOfTurnHealthPresentationInput;
   leftRail: EndOfTurnLeftRailInput;
   economyPresentation: TurnStartEconomyPresentation<BoardStatBreakdownRowVm> | null;
@@ -308,6 +332,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     authoritativeHoldReason,
     authoritativeHoldUntilMs,
     healthResolutionPresentationTrigger,
+    thisTurnResolutionTrigger,
     healthPresentation,
     leftRail,
     economyPresentation,
@@ -359,6 +384,8 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
   const [healthResolutionOverlay, setHealthResolutionOverlay] =
     useState<HealthResolutionPresentationVm | undefined>(undefined);
+  const [thisTurnResolutionSnapshot, setThisTurnResolutionSnapshot] =
+    useState<ThisTurnResolutionSnapshot | null>(null);
   const [fleetAreaHealthDeltaFlashes, setFleetAreaHealthDeltaFlashes] =
     useState<{
       my?: FleetAreaHealthDeltaFlashVm;
@@ -593,6 +620,9 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     clearTimer(turnStartDicePresentationTimerRef);
     clearTimer(turnStartDiceSettledTimerRef);
     setHealthResolutionOverlay(undefined);
+    setThisTurnResolutionSnapshot((current) =>
+      transitionThisTurnResolutionSnapshot(current, { type: 'game_changed' })
+    );
     setFleetAreaHealthDeltaFlashes({});
     setHealthDeltaPresentationKey(undefined);
     setPresentedLeftRailDiceValue(1);
@@ -625,6 +655,25 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     activeTurnStartDicePresentationRef.current = null;
     scheduledTurnStartDiceSettledRef.current = null;
   }, [effectiveGameId]);
+
+  useLayoutEffect(() => {
+    if (
+      !thisTurnResolutionTrigger ||
+      !effectiveGameId ||
+      thisTurnResolutionTrigger.gameId !== effectiveGameId
+    ) {
+      return;
+    }
+    setThisTurnResolutionSnapshot((current) => {
+      if (JSON.stringify(current) === JSON.stringify(thisTurnResolutionTrigger)) {
+        return current;
+      }
+      return transitionThisTurnResolutionSnapshot(current, {
+        type: 'capture',
+        snapshot: thisTurnResolutionTrigger,
+      });
+    });
+  }, [effectiveGameId, thisTurnResolutionTrigger]);
 
   useLayoutEffect(() => {
     setEconomyPresentationState((current) =>
@@ -764,22 +813,42 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
   }
 
   function releasePresentedTurnStartDice(args: {
+    gameId: string;
+    turnNumber: number;
     value: 1 | 2 | 3 | 4 | 5 | 6;
     modifiers: TurnStartDiceModifierPresentation;
+    animateMainDie: boolean;
     animateChronoswarmDice: boolean;
     animateCubeDice: boolean;
   }): void {
-    const { value, modifiers, animateChronoswarmDice, animateCubeDice } = args;
+    const {
+      gameId,
+      turnNumber: publishedTurnNumber,
+      value,
+      modifiers,
+      animateMainDie,
+      animateChronoswarmDice,
+      animateCubeDice,
+    } = args;
     setPresentedLeftRailDiceValue(value);
     setPresentedChronoswarmRolls(modifiers.chronoswarmRolls);
     setPresentedCubeDiceValueByPlayerId(modifiers.cubeDiceValueByPlayerId);
-    setPresentedLeftRailDiceAnimateSeq((prev) => prev + 1);
+    if (animateMainDie) {
+      setPresentedLeftRailDiceAnimateSeq((prev) => prev + 1);
+    }
     if (animateChronoswarmDice && modifiers.chronoswarmRolls.length > 0) {
       setPresentedChronoswarmAnimateSeq((prev) => prev + 1);
     }
     if (animateCubeDice && Object.keys(modifiers.cubeDiceValueByPlayerId).length > 0) {
       setPresentedCubeAnimateSeq((prev) => prev + 1);
     }
+    setThisTurnResolutionSnapshot((current) =>
+      transitionThisTurnResolutionSnapshot(current, {
+        type: 'turn_start_published',
+        gameId,
+        turnNumber: publishedTurnNumber,
+      })
+    );
   }
 
   function schedulePresentedTurnStartDiceSettled(args: {
@@ -860,8 +929,11 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
         modifiers: identity.modifiers,
       };
       releasePresentedTurnStartDice({
+        gameId: identity.gameId,
+        turnNumber: identity.turnNumber,
         value: identity.value,
         modifiers: identity.modifiers,
+        animateMainDie: true,
         animateChronoswarmDice: true,
         animateCubeDice: true,
       });
@@ -893,9 +965,15 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
     const previousPresentedTurn = lastPresentedLeftRailReleaseTurnRef.current;
 
     if (!animateMainDie) {
-      setPresentedLeftRailDiceValue(value);
-      setPresentedChronoswarmRolls(modifiers.chronoswarmRolls);
-      setPresentedCubeDiceValueByPlayerId(modifiers.cubeDiceValueByPlayerId);
+      releasePresentedTurnStartDice({
+        gameId,
+        turnNumber: nextTurnNumber,
+        value,
+        modifiers,
+        animateMainDie: false,
+        animateChronoswarmDice: false,
+        animateCubeDice: false,
+      });
       setPresentedTurnDiceSettledTurnNumber(nextTurnNumber);
       lastPresentedLeftRailReleaseTurnRef.current = nextTurnNumber;
       return;
@@ -911,8 +989,11 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
     if (!isLaterTurnTransition && !forceTurnStartPresentation) {
       releasePresentedTurnStartDice({
+        gameId,
+        turnNumber: nextTurnNumber,
         value,
         modifiers,
+        animateMainDie: true,
         animateChronoswarmDice: false,
         animateCubeDice: false,
       });
@@ -1125,6 +1206,7 @@ export function useEndOfTurnPresentation(args: UseEndOfTurnPresentationArgs) {
 
   return {
     healthResolutionLockActive,
+    thisTurnResolutionSnapshot,
     healthResolutionOverlay,
     myFleetHealthDeltaFlash: fleetAreaHealthDeltaFlashes.my,
     opponentFleetHealthDeltaFlash: fleetAreaHealthDeltaFlashes.opponent,

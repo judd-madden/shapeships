@@ -22,6 +22,7 @@ import type {
   LeftRailDiceManipulationSlotViewModel,
   PublicTurnPhaseProgress,
   ReadyUxState,
+  ThisTurnPresentationVm,
 } from './types';
 import {
   formatCountedShipChoiceHeading,
@@ -218,6 +219,7 @@ export function mapGameSessionVm(args: {
   currentTurnDicePresentationSettled: boolean;
 
   battleLogHistory: BattleLogHistoryResponse | null;
+  thisTurn: ThisTurnPresentationVm | null;
 
   getMajorPhaseLabel: (phaseKey: string) => string;
   getSubphaseLabelFromPhaseKey: (phaseKey: string) => string;
@@ -348,6 +350,7 @@ export function mapGameSessionVm(args: {
     resumeSyncLocked,
     currentTurnDicePresentationSettled,
     battleLogHistory,
+    thisTurn,
     getMajorPhaseLabel,
     getSubphaseLabelFromPhaseKey,
     chatEntries,
@@ -1398,6 +1401,7 @@ export function mapGameSessionVm(args: {
     matchupIntro,
     missionChallenge,
     gameStats,
+    thisTurn,
     turnPhases,
     turnPhasePresentation: {
       presentedMilestone: turnPhases.currentMilestone,

@@ -131,7 +131,33 @@ import {
   readMinimizeMissionsThisSession,
   writeMinimizeMissionsThisSession,
 } from './gameSession/mission/missionChallengeSession';
-import { runSpeciesConfirmFlow, runReadyToggleFlow } from './gameSession/intents';
+import {
+  makeCanonicalBuildPayload,
+  runSpeciesConfirmFlow,
+  runReadyToggleFlow,
+  type BuildSubmitFlowResult,
+  type CanonicalBuildSubmitPayload,
+} from './gameSession/intents';
+import {
+  buildDrawingPreviewSafeContextFingerprint,
+  type CurrentTurnPreviewCandidateInput,
+  type CurrentTurnPreviewTransport,
+} from './gameSession/currentTurnPreview';
+import { useCurrentTurnPreview } from './gameSession/clienteffects/useCurrentTurnPreview';
+import {
+  buildResolvedThisTurnSnapshot,
+  buildThisTurnPresentation,
+  type LastTurnPresentationInput,
+} from './gameSession/thisTurnPresentation';
+import {
+  createHistoryRecoveryCoordinator,
+  deriveHistoryRecoveryExpectation,
+  historyContainsTurn,
+  type HistoryFetchOutcome,
+  type HistoryRecoveryCoordinator,
+  type HistoryRecoveryExpectation,
+  type HistoryRecoveryState,
+} from './gameSession/historyRecovery';
 import {
   addShipToBuildDraft,
   canProvisionallyAddShip,
@@ -219,6 +245,8 @@ import type {
   TurnPhaseMilestoneId,
   TurnPhasePresentationVm,
   TurnPhaseVm,
+  ThisTurnPresentationVm,
+  ThisTurnResolutionSnapshot,
 } from './gameSession/types';
 
 export type {
@@ -413,6 +441,13 @@ type CommittedDrawingProjection = {
   joining: number;
 };
 
+type BuildSubmissionRuntime =
+  | { kind: 'idle' }
+  | { kind: 'submission_pending'; turnNumber: number; payload: CanonicalBuildSubmitPayload }
+  | { kind: 'accepted'; turnNumber: number; payload: CanonicalBuildSubmitPayload }
+  | { kind: 'accepted_stored'; turnNumber: number }
+  | { kind: 'uncertain'; turnNumber: number; payload: CanonicalBuildSubmitPayload };
+
 type MixedFirstStrikeHandoffState = {
   phaseInstanceKey: string;
   orderedFamilies: FirstStrikeActionFamily[];
@@ -421,6 +456,7 @@ type MixedFirstStrikeHandoffState = {
 
 type HealthPresentationBuildResult = {
   trigger: HealthResolutionPresentationTrigger;
+  thisTurnSnapshot: ThisTurnResolutionSnapshot | null;
   boardOverride: {
     signature: string;
     resolvedTurnKey: string;
@@ -892,11 +928,12 @@ export function useGameSession(
   // Chat state (separate from game state)
   const [chatEntries, setChatEntries] = useState<GameSessionChatEntry[]>([]);
   const [battleLogHistory, setBattleLogHistory] = useState<BattleLogHistoryResponse | null>(null);
-  const battleLogHistoryRequestSeqRef = useRef(0);
-  const lastBattleLogFetchGameIdRef = useRef<string | null>(null);
-  const lastBattleLogFetchTurnNumberRef = useRef<number | null>(null);
-  const lastBattleLogFetchFinishedRef = useRef(false);
-  const isBattleLogHistoryAliveRef = useRef(true);
+  const [historyRecoveryExpectation, setHistoryRecoveryExpectation] =
+    useState<HistoryRecoveryExpectation | null>(null);
+  const [historyRecoveryState, setHistoryRecoveryState] =
+    useState<HistoryRecoveryState | null>(null);
+  const historyRecoveryCoordinatorRef =
+    useRef<HistoryRecoveryCoordinator | null>(null);
   const lastChatEntrySignatureRef = useRef<string | null>(null);
   const hasLoadedChatEntriesRef = useRef(false);
   const chatBurstUntilRef = useRef(0);
@@ -1055,12 +1092,9 @@ export function useGameSession(
   }, [effectiveGameId]);
 
   useEffect(() => {
-    isBattleLogHistoryAliveRef.current = true;
     isChatAliveRef.current = true;
 
     return () => {
-      isBattleLogHistoryAliveRef.current = false;
-      battleLogHistoryRequestSeqRef.current += 1;
       isChatAliveRef.current = false;
       scheduleNextChatPollRef.current = null;
       if (chatPollTimerRef.current) {
@@ -1146,9 +1180,12 @@ export function useGameSession(
   // Build submitted tracking: maps turnNumber → submitted flag
   // Used to gate ship clicks after submission
   const [buildSubmittedByTurn, setBuildSubmittedByTurn] = useState<Record<number, boolean>>({});
+  const [buildSubmissionRuntime, setBuildSubmissionRuntime] =
+    useState<BuildSubmissionRuntime>({ kind: 'idle' });
 
   useEffect(() => {
     setBuildSubmittedByTurn({});
+    setBuildSubmissionRuntime({ kind: 'idle' });
   }, [effectiveGameId]);
   
   // ============================================================================
@@ -1179,10 +1216,8 @@ export function useGameSession(
 
   useEffect(() => {
     setBattleLogHistory(null);
-    battleLogHistoryRequestSeqRef.current += 1;
-    lastBattleLogFetchGameIdRef.current = null;
-    lastBattleLogFetchTurnNumberRef.current = null;
-    lastBattleLogFetchFinishedRef.current = false;
+    setHistoryRecoveryExpectation(null);
+    setHistoryRecoveryState(null);
     currentChatGameIdRef.current = effectiveGameId;
     lastChatEntrySignatureRef.current = null;
     hasLoadedChatEntriesRef.current = false;
@@ -1217,6 +1252,9 @@ export function useGameSession(
   const [presentedOpponentRevealBlurSeq, setPresentedOpponentRevealBlurSeq] = useState(0);
   const [healthResolutionPresentationTrigger, setHealthResolutionPresentationTrigger] =
     useState<HealthResolutionPresentationTrigger | null>(null);
+  const [thisTurnResolutionTrigger, setThisTurnResolutionTrigger] =
+    useState<ThisTurnResolutionSnapshot | null>(null);
+  const lastPresentedThisTurnRef = useRef<ThisTurnPresentationVm | null>(null);
   const [healthPresentationBoardOverride, setHealthPresentationBoardOverride] =
     useState<HealthPresentationBuildResult['boardOverride'] | null>(null);
   const publishedHealthPresentationIdentitiesRef = useRef<Set<string>>(new Set());
@@ -1231,6 +1269,7 @@ export function useGameSession(
   useEffect(() => {
     setPublicMultiChargeByPlayerId({});
     setHealthResolutionPresentationTrigger(null);
+    setThisTurnResolutionTrigger(null);
     setHealthPresentationBoardOverride(null);
     publishedHealthPresentationIdentitiesRef.current.clear();
     previousObservedHealthResolutionRef.current = null;
@@ -1431,69 +1470,116 @@ export function useGameSession(
   
   useSpectatorCountDebugEffect({ rawState, effectiveGameId });
 
-  async function fetchBattleLogHistoryOnce(gameIdToFetch: string, requestSeq: number): Promise<void> {
-    if (!gameIdToFetch) {
-      return;
-    }
+  async function requestBattleLogHistory(
+    gameIdToFetch: string,
+  ): Promise<HistoryFetchOutcome> {
+    if (!gameIdToFetch) return { kind: 'failed' };
 
     try {
       const response = await authenticatedGet(`/game-history/${gameIdToFetch}`);
-
       if (!response.ok) {
         const errorText = await response.text();
         console.warn(`[useGameSession] Battle log history fetch failed: ${response.status} ${errorText}`);
-        return;
+        return { kind: 'failed' };
       }
 
       const data: unknown = await response.json();
       if (!isBattleLogHistoryResponse(data)) {
         console.warn('[useGameSession] Battle log history fetch returned invalid payload');
-        return;
+        return { kind: 'failed' };
       }
-
-      if (
-        !isBattleLogHistoryAliveRef.current ||
-        battleLogHistoryRequestSeqRef.current !== requestSeq ||
-        effectiveGameId !== gameIdToFetch ||
-        data.gameId !== gameIdToFetch
-      ) {
-        return;
+      if (data.gameId !== gameIdToFetch) {
+        return { kind: 'failed' };
       }
-
-      setBattleLogHistory(data);
+      return { kind: 'accepted', history: data };
     } catch (err: any) {
       console.warn('[useGameSession] Battle log history fetch error:', err?.message ?? err);
+      return { kind: 'failed' };
     }
   }
 
   useEffect(() => {
-    if (!effectiveGameId || !rawState) {
+    const coordinator = createHistoryRecoveryCoordinator({
+      request: requestBattleLogHistory,
+      onHistoryAccepted: setBattleLogHistory,
+      onRecoveryStateChange: setHistoryRecoveryState,
+      onExpectationSatisfied: (satisfied) => {
+        setHistoryRecoveryExpectation((current) =>
+          current?.gameId === satisfied.gameId &&
+            current.missingTurnNumber === satisfied.missingTurnNumber
+            ? null
+            : current
+        );
+      },
+    });
+    historyRecoveryCoordinatorRef.current = coordinator;
+    return () => {
+      coordinator.dispose();
+      if (historyRecoveryCoordinatorRef.current === coordinator) {
+        historyRecoveryCoordinatorRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const coordinator = historyRecoveryCoordinatorRef.current;
+    if (!coordinator) return;
+    if (
+      !effectiveGameId ||
+      !rawState ||
+      (typeof rawState.gameId === 'string' && rawState.gameId !== effectiveGameId)
+    ) {
+      coordinator.observe({
+        gameId: effectiveGameId,
+        turnNumber: null,
+        isFinished: false,
+        expectation: null,
+        history: battleLogHistory?.gameId === effectiveGameId
+          ? battleLogHistory
+          : null,
+      });
       return;
     }
 
     const authoritativeTurnNumber = getTurnNumber(rawState);
-    const shouldFetchInitial =
-      lastBattleLogFetchGameIdRef.current !== effectiveGameId;
-    const shouldFetchTurnChange =
-      !shouldFetchInitial &&
-      lastBattleLogFetchTurnNumberRef.current !== authoritativeTurnNumber;
-    const shouldFetchFinished =
-      !shouldFetchInitial &&
-      isFinished &&
-      !lastBattleLogFetchFinishedRef.current;
-
-    if (!shouldFetchInitial && !shouldFetchTurnChange && !shouldFetchFinished) {
-      return;
+    const authoritativeStatus =
+      rawState?.status ?? rawState?.gameData?.status ?? null;
+    const bootstrapExpectation = deriveHistoryRecoveryExpectation({
+      gameId: effectiveGameId,
+      currentTurnNumber: authoritativeTurnNumber,
+      status: authoritativeStatus,
+      resultReason: terminalResultReason,
+      history: battleLogHistory,
+    });
+    if (bootstrapExpectation) {
+      setHistoryRecoveryExpectation((current) =>
+        current?.gameId === bootstrapExpectation.gameId &&
+          current.missingTurnNumber === bootstrapExpectation.missingTurnNumber
+          ? current
+          : bootstrapExpectation
+      );
     }
-
-    lastBattleLogFetchGameIdRef.current = effectiveGameId;
-    lastBattleLogFetchTurnNumberRef.current = authoritativeTurnNumber;
-    lastBattleLogFetchFinishedRef.current = isFinished;
-
-    battleLogHistoryRequestSeqRef.current += 1;
-    const requestSeq = battleLogHistoryRequestSeqRef.current;
-    fetchBattleLogHistoryOnce(effectiveGameId, requestSeq);
-  }, [effectiveGameId, rawState, isFinished]);
+    const coordinatedExpectation = bootstrapExpectation ??
+      (historyRecoveryExpectation?.gameId === effectiveGameId
+        ? historyRecoveryExpectation
+        : null);
+    coordinator.observe({
+      gameId: effectiveGameId,
+      turnNumber: authoritativeTurnNumber,
+      isFinished,
+      expectation: coordinatedExpectation,
+      history: battleLogHistory?.gameId === effectiveGameId
+        ? battleLogHistory
+        : null,
+    });
+  }, [
+    effectiveGameId,
+    rawState,
+    isFinished,
+    terminalResultReason,
+    battleLogHistory,
+    historyRecoveryExpectation,
+  ]);
   
   // ============================================================================
   // CHUNK 7: INTERNAL REFRESH HELPER
@@ -2065,6 +2151,7 @@ export function useGameSession(
     setEvolverChoicesByRowId({});
     evolverChoicesByRowIdRef.current = {};
     committedDrawingProjectionRef.current = null;
+    setBuildSubmissionRuntime({ kind: 'idle' });
     console.log('[useGameSession] Turn boundary reset: cleared preview state for turn', serverTurnNumber);
   }, [rawState?.gameData?.turnNumber ?? rawState?.turnNumber]);
   
@@ -2384,8 +2471,53 @@ export function useGameSession(
       opponentHeal: opponentHeal.value,
       opponentDamageTaken: opponentDamageTaken.value,
     });
+    const previousThisTurn = lastPresentedThisTurnRef.current;
+    const damageBreakdownByPlayerId =
+      getLastTurnDamageDealtBreakdownByPlayerId(state) ?? {};
+    const healingBreakdownByPlayerId =
+      getLastTurnHealingReceivedBreakdownByPlayerId(state) ?? {};
+    const thisTurnSnapshot =
+      previousThisTurn && previousThisTurn.turnNumber === resolvedTurnNumber
+        ? buildResolvedThisTurnSnapshot({
+            gameId: effectiveGameId,
+            resolvedTurnNumber,
+            isTerminalTurn,
+            mePlayerId: localPlayerId,
+            opponentPlayerId,
+            actualMe: {
+              damage: {
+                total: opponentDamageTaken.value,
+                rows: normalizeBoardStatBreakdownRows(
+                  damageBreakdownByPlayerId[localPlayerId],
+                ),
+              },
+              healing: {
+                total: myHeal.value,
+                rows: normalizeBoardStatBreakdownRows(
+                  healingBreakdownByPlayerId[localPlayerId],
+                ),
+              },
+            },
+            actualOpponent: {
+              damage: {
+                total: myDamageTaken.value,
+                rows: normalizeBoardStatBreakdownRows(
+                  damageBreakdownByPlayerId[opponentPlayerId],
+                ),
+              },
+              healing: {
+                total: opponentHeal.value,
+                rows: normalizeBoardStatBreakdownRows(
+                  healingBreakdownByPlayerId[opponentPlayerId],
+                ),
+              },
+            },
+            previous: previousThisTurn,
+          })
+        : null;
 
     return {
+      thisTurnSnapshot,
       trigger: {
         signature,
         resolvedTurnKey,
@@ -2445,6 +2577,13 @@ export function useGameSession(
 
     publishedHealthPresentationIdentitiesRef.current.add(presentationIdentity);
     setHealthResolutionPresentationTrigger(presentation.trigger);
+    if (presentation.thisTurnSnapshot) {
+      setThisTurnResolutionTrigger(presentation.thisTurnSnapshot);
+      setHistoryRecoveryExpectation({
+        gameId: effectiveGameId,
+        missingTurnNumber: presentation.thisTurnSnapshot.resolvedTurnNumber,
+      });
+    }
 
     if (options.useBoardOverride) {
       setHealthPresentationBoardOverride(presentation.boardOverride);
@@ -2468,6 +2607,12 @@ export function useGameSession(
     const resolvedTurnKey = getIntentResolvedTurnKey(result, meta);
     if (!resolvedTurnKey) {
       return;
+    }
+    if (effectiveGameId) {
+      setHistoryRecoveryExpectation({
+        gameId: effectiveGameId,
+        missingTurnNumber: Number(resolvedTurnKey),
+      });
     }
 
     publishHealthResolutionPresentation(
@@ -2549,6 +2694,10 @@ export function useGameSession(
     ) {
       return;
     }
+    setHistoryRecoveryExpectation({
+      gameId: effectiveGameId,
+      missingTurnNumber: Number(resolvedTurnKey),
+    });
 
     publishHealthResolutionPresentation(
       buildHealthPresentationFromState({
@@ -3829,6 +3978,106 @@ useEffect(() => {
     });
   }, [evolverChoiceSourceRowIdsKey]);
 
+  const canonicalBuildDraft = useMemo(
+    () => makeCanonicalBuildPayload(
+      activeBuildPreviewCounts,
+      frigateSelectedTriggers,
+      quantumMysticSelectedNumbers,
+      evolverChoiceSourceRowIds,
+      evolverChoicesByRowId,
+    ),
+    [
+      activeBuildPreviewCounts,
+      frigateSelectedTriggers,
+      quantumMysticSelectedNumbers,
+      evolverChoiceSourceRowIdsKey,
+      evolverChoicesByRowId,
+    ],
+  );
+  const previewRequesterPlayerId = meReadyKey ?? me?.id ?? null;
+  const currentTurnPreviewCandidate = useMemo<CurrentTurnPreviewCandidateInput | null>(() => {
+    const eligible =
+      !!effectiveGameId &&
+      !!previewRequesterPlayerId &&
+      drawingBuildSubmitEligible &&
+      drawingStage.kind === 'normal' &&
+      myRole === 'player' &&
+      !isFinished &&
+      !hasAuthoritativeDrawingCommitment;
+    if (!eligible || !effectiveGameId || !previewRequesterPlayerId || !rawState) return null;
+    return {
+      gameId: effectiveGameId,
+      playerId: previewRequesterPlayerId,
+      turnNumber,
+      phaseKey: 'build.drawing',
+      safeContextFingerprint: buildDrawingPreviewSafeContextFingerprint({
+        state: rawState,
+        requesterPlayerId: previewRequesterPlayerId,
+        eligible,
+      }),
+      draft: canonicalBuildDraft,
+    };
+  }, [
+    effectiveGameId,
+    previewRequesterPlayerId,
+    drawingBuildSubmitEligible,
+    drawingStage.kind,
+    myRole,
+    isFinished,
+    hasAuthoritativeDrawingCommitment,
+    rawState,
+    turnNumber,
+    canonicalBuildDraft,
+  ]);
+  const currentTurnPreviewTransport = useCallback<CurrentTurnPreviewTransport>(
+    async (gameId, envelope) => {
+      const response = await authenticatedPost(`/build-preview/${gameId}`, envelope);
+      const text = await response.text();
+      let body: unknown = {};
+      if (text) {
+        try {
+          body = JSON.parse(text);
+        } catch {
+          body = { reason: `invalid_json_${response.status}` };
+        }
+      }
+      return { status: response.status, body };
+    },
+    [],
+  );
+  const currentTurnPreviewPausedReason =
+    buildSubmissionRuntime.kind === 'submission_pending'
+      ? 'submission_pending'
+      : buildSubmissionRuntime.kind === 'uncertain'
+        ? 'submission_uncertain'
+        : buildSubmissionRuntime.kind === 'accepted' ||
+            buildSubmissionRuntime.kind === 'accepted_stored' ||
+            hasAuthoritativeDrawingCommitment
+          ? 'submission_accepted'
+          : null;
+  const currentTurnPreview = useCurrentTurnPreview({
+    gameId: effectiveGameId,
+    candidate: currentTurnPreviewCandidate,
+    pausedReason: currentTurnPreviewPausedReason,
+    transport: currentTurnPreviewTransport,
+  });
+
+  useEffect(() => {
+    if (
+      !hasAuthoritativeDrawingCommitment ||
+      rawState?.requester?.thisTurn?.committedProjection == null
+    ) return;
+    setBuildSubmissionRuntime((current) =>
+      current.kind === 'accepted_stored' && current.turnNumber === turnNumber
+        ? current
+        : { kind: 'accepted_stored', turnNumber }
+    );
+  }, [
+    hasAuthoritativeDrawingCommitment,
+    rawState?.requester?.thisTurn?.committedProjection,
+    turnNumber,
+  ]);
+
   // ============================================================================
   // B3) STABLE PREVIEW OVERLAY RULE (SIMPLIFIED)
   // ============================================================================
@@ -4377,6 +4626,174 @@ useEffect(() => {
       cubeDicePresentationSignature,
     ]
   );
+  const lastTurnPresentation: LastTurnPresentationInput = board.mode === 'board'
+    ? {
+        turnNumber: Math.max(0, turnNumber - 1),
+        me: {
+          damage: { total: board.myLastTurnDamage, rows: board.myLastDamageBreakdownRows },
+          healing: { total: board.myLastTurnHeal, rows: board.myLastHealingBreakdownRows },
+        },
+        opponent: {
+          damage: {
+            total: board.opponentLastTurnDamage,
+            rows: board.opponentLastDamageBreakdownRows,
+          },
+          healing: {
+            total: board.opponentLastTurnHeal,
+            rows: board.opponentLastHealingBreakdownRows,
+          },
+        },
+      }
+    : {
+        turnNumber: Math.max(0, turnNumber - 1),
+        me: { damage: null, healing: null },
+        opponent: { damage: null, healing: null },
+      };
+  const acceptedBuildDraft =
+    buildSubmissionRuntime.kind === 'accepted' &&
+    buildSubmissionRuntime.turnNumber === turnNumber
+      ? buildSubmissionRuntime.payload
+      : null;
+  const archiveRecoveryVm =
+    historyRecoveryExpectation?.gameId === effectiveGameId && historyRecoveryState
+      ? {
+          turnNumber: historyRecoveryExpectation.missingTurnNumber,
+          state: historyRecoveryState.status,
+        }
+      : null;
+  const buildThisTurnVm = (resolutionSnapshot: ThisTurnResolutionSnapshot | null) =>
+    effectiveGameId
+      ? buildThisTurnPresentation({
+          gameId: effectiveGameId,
+          turnNumber,
+          phaseKey,
+          isFinished,
+          viewerRole: healthResolutionViewerRole,
+          mePlayerId: getPlayerIdentityKey(displayLeftPlayer),
+          opponentPlayerId: getPlayerIdentityKey(displayRightPlayer),
+          localDraft:
+            phaseKey === 'build.drawing' && healthResolutionViewerRole === 'player'
+              ? canonicalBuildDraft
+              : null,
+          acceptedDraft: acceptedBuildDraft,
+          activePreviewCandidate: currentTurnPreviewCandidate,
+          preview: currentTurnPreview,
+          publicThisTurn: rawState?.publicState?.thisTurn,
+          requesterThisTurn: rawState?.requester?.thisTurn,
+          lastTurn: lastTurnPresentation,
+          resolutionSnapshot,
+          history: battleLogHistory,
+          archiveRecovery: archiveRecoveryVm,
+        })
+      : null;
+  const unheldThisTurnPresentation = buildThisTurnVm(null);
+  const hardRefreshThisTurnResolutionSnapshot = useMemo<ThisTurnResolutionSnapshot | null>(() => {
+    if (
+      thisTurnResolutionTrigger ||
+      !effectiveGameId ||
+      authoritativeHoldPhaseKey !== 'battle.end_of_turn_resolution' ||
+      authoritativeHoldReason !== 'end_of_turn_health' ||
+      board.mode !== 'board' ||
+      !unheldThisTurnPresentation
+    ) {
+      return null;
+    }
+    const resolvedTurnNumber = turnNumber;
+    const priorTurnNumber = Math.max(0, resolvedTurnNumber - 1);
+    const priorArchive = battleLogHistory?.turns.find(
+      (candidate) => candidate.turnNumber === priorTurnNumber,
+    );
+    const mePlayerId = getPlayerIdentityKey(displayLeftPlayer);
+    const opponentPlayerId = getPlayerIdentityKey(displayRightPlayer);
+    const priorMe = mePlayerId ? priorArchive?.analysisByPlayerId?.[mePlayerId] : null;
+    const priorOpponent = opponentPlayerId
+      ? priorArchive?.analysisByPlayerId?.[opponentPlayerId]
+      : null;
+    const lastMetric = (
+      total: number | undefined,
+      rows: unknown,
+    ): ThisTurnPresentationVm['me']['damage']['last'] =>
+      typeof total === 'number'
+        ? {
+            state: total === 0 ? 'zero' : 'value',
+            turnNumber: priorTurnNumber,
+            source: 'last_actual',
+            total,
+            rows: normalizeBoardStatBreakdownRows(rows),
+          }
+        : { state: 'unavailable', turnNumber: priorTurnNumber };
+    const previous: ThisTurnPresentationVm = {
+      ...unheldThisTurnPresentation,
+      me: {
+        ...unheldThisTurnPresentation.me,
+        damage: {
+          ...unheldThisTurnPresentation.me.damage,
+          last: lastMetric(
+            priorOpponent?.damageTaken,
+            priorMe?.damageDealtBreakdown,
+          ),
+        },
+        healing: {
+          ...unheldThisTurnPresentation.me.healing,
+          last: lastMetric(
+            priorMe?.healReceived,
+            priorMe?.healingReceivedBreakdown,
+          ),
+        },
+      },
+      opponent: {
+        ...unheldThisTurnPresentation.opponent,
+        damage: {
+          ...unheldThisTurnPresentation.opponent.damage,
+          last: lastMetric(
+            priorMe?.damageTaken,
+            priorOpponent?.damageDealtBreakdown,
+          ),
+        },
+        healing: {
+          ...unheldThisTurnPresentation.opponent.healing,
+          last: lastMetric(
+            priorOpponent?.healReceived,
+            priorOpponent?.healingReceivedBreakdown,
+          ),
+        },
+      },
+    };
+    return buildResolvedThisTurnSnapshot({
+      gameId: effectiveGameId,
+      resolvedTurnNumber,
+      isTerminalTurn: isFinished,
+      mePlayerId,
+      opponentPlayerId,
+      actualMe: {
+        damage: { total: board.myLastTurnDamage, rows: board.myLastDamageBreakdownRows },
+        healing: { total: board.myLastTurnHeal, rows: board.myLastHealingBreakdownRows },
+      },
+      actualOpponent: {
+        damage: {
+          total: board.opponentLastTurnDamage,
+          rows: board.opponentLastDamageBreakdownRows,
+        },
+        healing: {
+          total: board.opponentLastTurnHeal,
+          rows: board.opponentLastHealingBreakdownRows,
+        },
+      },
+      previous,
+    });
+  }, [
+    thisTurnResolutionTrigger,
+    effectiveGameId,
+    authoritativeHoldPhaseKey,
+    authoritativeHoldReason,
+    board,
+    unheldThisTurnPresentation,
+    turnNumber,
+    battleLogHistory,
+    displayLeftPlayer,
+    displayRightPlayer,
+    isFinished,
+  ]);
   const {
     healthResolutionLockActive,
     healthResolutionOverlay,
@@ -4394,6 +4811,7 @@ useEffect(() => {
     presentedTurnReleaseTurnNumber,
     presentedTurnDiceSettledTurnNumber,
     presentedEconomy,
+    thisTurnResolutionSnapshot,
   } = useEndOfTurnPresentation({
     effectiveGameId,
     hasMatchingAuthoritativeGameId,
@@ -4405,12 +4823,36 @@ useEffect(() => {
     authoritativeHoldReason,
     authoritativeHoldUntilMs,
     healthResolutionPresentationTrigger,
+    thisTurnResolutionTrigger:
+      thisTurnResolutionTrigger ?? hardRefreshThisTurnResolutionSnapshot,
     healthPresentation: endOfTurnHealthPresentationInput,
     leftRail: endOfTurnLeftRailInput,
     economyPresentation: boardEconomyPresentation,
     boardFlashEnabled,
     continueAuthoritativePhaseHold,
   });
+  const thisTurnPresentation = buildThisTurnVm(thisTurnResolutionSnapshot);
+  useEffect(() => {
+    if (
+      !hardRefreshThisTurnResolutionSnapshot ||
+      historyContainsTurn(
+        battleLogHistory,
+        hardRefreshThisTurnResolutionSnapshot.resolvedTurnNumber,
+      )
+    ) return;
+    setHistoryRecoveryExpectation((current) =>
+      current?.gameId === hardRefreshThisTurnResolutionSnapshot.gameId &&
+      current.missingTurnNumber === hardRefreshThisTurnResolutionSnapshot.resolvedTurnNumber
+        ? current
+        : {
+            gameId: hardRefreshThisTurnResolutionSnapshot.gameId,
+            missingTurnNumber: hardRefreshThisTurnResolutionSnapshot.resolvedTurnNumber,
+          }
+    );
+  }, [hardRefreshThisTurnResolutionSnapshot, battleLogHistory]);
+  useLayoutEffect(() => {
+    lastPresentedThisTurnRef.current = thisTurnPresentation;
+  }, [thisTurnPresentation]);
   const shouldSuppressCurrentTurnCreatedLocalShips =
     board.mode === 'board' &&
     me?.role === 'player' &&
@@ -5766,6 +6208,7 @@ useEffect(() => {
     currentTurnDicePresentationSettled,
 
     battleLogHistory,
+    thisTurn: thisTurnPresentation,
 
     getMajorPhaseLabel,
     getSubphaseLabelFromPhaseKey,
@@ -6076,20 +6519,15 @@ useEffect(() => {
         drawingPreludeSubmissionGuardRef.current = guardedDrawingPreludeKey;
       }
 
-      if (
-        phaseKey === 'build.drawing' &&
-        drawingStage.kind === 'normal' &&
-        buildDrawingEconomyDisplay != null
-      ) {
-        committedDrawingProjectionRef.current = {
-          key: committedDrawingProjectionKey,
-          ordinary: buildDrawingEconomyDisplay.projectedSavedOrdinary,
-          joining: buildDrawingEconomyDisplay.projectedSavedJoining,
-        };
-      }
-
       // Snapshot build preview before async flow to prevent race conditions
       const buildPreviewSnapshot = { ...getActiveBuildPreviewCountsRefForTurn(turnNumber) };
+      const readyCanonicalBuildPayload = makeCanonicalBuildPayload(
+        buildPreviewSnapshot,
+        frigateSelectedTriggersRef.current,
+        quantumMysticSelectedNumbersRef.current,
+        evolverChoiceSourceRowIds,
+        evolverChoicesByRowIdRef.current,
+      );
       
       // Capture the phase key at click time (important: don't drift if phase advances mid-await)
       const clickedPhaseInstanceKey = phaseInstanceKey;
@@ -6174,9 +6612,20 @@ useEffect(() => {
           },
         }));
       }
+      if (
+        willAttemptSend &&
+        phaseKey === 'build.drawing' &&
+        drawingStage.kind === 'normal'
+      ) {
+        setBuildSubmissionRuntime({
+          kind: 'submission_pending',
+          turnNumber,
+          payload: readyCanonicalBuildPayload,
+        });
+      }
       
       try {
-        await runReadyToggleFlow({
+        const buildSubmitResult: BuildSubmitFlowResult | undefined = await runReadyToggleFlow({
           isFinished,
           readyEnabled,
           readyDisabledReason,
@@ -6250,6 +6699,66 @@ useEffect(() => {
             );
           },
         });
+        if (phaseKey === 'build.drawing' && drawingStage.kind === 'normal') {
+          if (buildSubmitResult?.kind === 'accepted') {
+            if (buildSubmitResult.source === 'new') {
+              setBuildSubmissionRuntime({
+                kind: 'accepted',
+                turnNumber: buildSubmitResult.turnNumber,
+                payload: buildSubmitResult.payload,
+              });
+              if (buildDrawingEconomyDisplay != null) {
+                committedDrawingProjectionRef.current = {
+                  key: committedDrawingProjectionKey,
+                  ordinary: buildDrawingEconomyDisplay.projectedSavedOrdinary,
+                  joining: buildDrawingEconomyDisplay.projectedSavedJoining,
+                };
+              }
+            } else {
+              setBuildSubmissionRuntime({
+                kind: 'accepted_stored',
+                turnNumber: buildSubmitResult.turnNumber,
+              });
+            }
+          } else if (buildSubmitResult?.kind === 'uncertain') {
+            setBuildSubmissionRuntime({
+              kind: 'uncertain',
+              turnNumber: buildSubmitResult.turnNumber,
+              payload: readyCanonicalBuildPayload,
+            });
+            await refreshGameStateOnce();
+            const refreshed = rawStateRef.current;
+            const refreshedCommitted = isCommitmentCommitted(
+              getCommitmentForPlayer(
+                refreshed,
+                `BUILD_${buildSubmitResult.turnNumber}`,
+                meReadyKey ?? me?.id,
+              ),
+            );
+            const hasStoredProjection =
+              refreshed?.requester?.thisTurn?.committedProjection != null;
+            setBuildSubmissionRuntime(
+              refreshedCommitted && hasStoredProjection
+                ? { kind: 'accepted_stored', turnNumber: buildSubmitResult.turnNumber }
+                : refreshedCommitted
+                  ? {
+                      kind: 'uncertain',
+                      turnNumber: buildSubmitResult.turnNumber,
+                      payload: readyCanonicalBuildPayload,
+                    }
+                  : { kind: 'idle' },
+            );
+            if (!refreshedCommitted) {
+              setBuildSubmittedByTurn((current) => ({
+                ...current,
+                [buildSubmitResult.turnNumber]: false,
+              }));
+            }
+          } else {
+            setBuildSubmissionRuntime({ kind: 'idle' });
+            setBuildSubmittedByTurn((current) => ({ ...current, [turnNumber]: false }));
+          }
+        }
       } finally {
         if (drawingPreludeSubmissionGuardRef.current === guardedDrawingPreludeKey) {
           drawingPreludeSubmissionGuardRef.current = null;
@@ -7227,6 +7736,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
       matchupIntro: null,
       missionChallenge: null,
       gameStats: null,
+      thisTurn: null,
       turnPhases: {
         turnNumber: null,
         currentMilestone: null,
