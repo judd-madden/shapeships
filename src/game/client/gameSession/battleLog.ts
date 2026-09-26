@@ -3,16 +3,23 @@ import { getShipDefinitionUI } from '../../data/ShipDefinitionsUI';
 import type {
   BattleLogHistoryResponse,
   BattleLogLineVm,
+  BattleLogThisTurnSideVm,
+  BattleLogThisTurnVm,
   BattleLogTokenVm,
   BattleLogTurnPlayerSummary,
   BattleLogTurnSideVm,
   BattleLogTurnVm,
   LeftRailViewModel,
+  ThisTurnLiveSideVm,
+  ThisTurnPresentationVm,
 } from './types';
 
 type BattleLogVm = Pick<
   LeftRailViewModel,
-  'battleLogNames' | 'battleLogTurns' | 'battleLogCompletedTurnCount'
+  | 'battleLogNames'
+  | 'battleLogThisTurn'
+  | 'battleLogTurns'
+  | 'battleLogCompletedTurnCount'
 >;
 
 type MapBattleLogTurnsArgs = {
@@ -21,6 +28,7 @@ type MapBattleLogTurnsArgs = {
   localPlayerName: string;
   opponentPlayerId: string | null;
   opponentName: string;
+  thisTurn: ThisTurnPresentationVm | null;
 };
 
 type IndexedPlayerSummary = BattleLogTurnPlayerSummary & {
@@ -42,6 +50,9 @@ const EMPTY_SIDE_SOURCE: BattleLogSideSource = {
 };
 
 const SHIP_OR_MULTIPLIER_PATTERN = /\b[A-Z0-9]{3,5}\b|\bx\b/g;
+const CONCEALED_BUILD_LINE: BattleLogLineVm = {
+  tokens: [{ kind: 'text', text: '???' }],
+};
 
 export function mapBattleLogTurns(args: MapBattleLogTurnsArgs): BattleLogVm {
   const battleLogNames = {
@@ -64,11 +75,48 @@ export function mapBattleLogTurns(args: MapBattleLogTurnsArgs): BattleLogVm {
 
   return {
     battleLogNames,
+    battleLogThisTurn: mapBattleLogThisTurn(args.thisTurn),
     battleLogTurns,
     battleLogCompletedTurnCount: Math.max(
       0,
       Math.trunc(args.battleLogHistory?.completedTurnCount ?? 0),
     ),
+  };
+}
+
+export function mapBattleLogThisTurn(
+  presentation: ThisTurnPresentationVm | null,
+): BattleLogThisTurnVm | null {
+  const liveLog = presentation?.liveLog;
+  if (
+    !liveLog ||
+    liveLog.turnNumber !== presentation.turnNumber ||
+    liveLog.lifecycle === 'archived'
+  ) {
+    return null;
+  }
+
+  const mapSide = (side: ThisTurnLiveSideVm): BattleLogThisTurnSideVm => {
+    const buildLines = side.buildRowUnits.flatMap((unit) => unit.lines);
+    if (side.buildVisibility === 'concealed') {
+      buildLines.push(CONCEALED_BUILD_LINE);
+    }
+
+    return {
+      buildLines,
+      battleLines: side.battleLines,
+    };
+  };
+
+  const me = mapSide(liveLog.me);
+  const opponent = mapSide(liveLog.opponent);
+
+  return {
+    turnNumber: liveLog.turnNumber,
+    showBuildSection: me.buildLines.length > 0 || opponent.buildLines.length > 0,
+    showBattleSection: me.battleLines.length > 0 || opponent.battleLines.length > 0,
+    me,
+    opponent,
   };
 }
 

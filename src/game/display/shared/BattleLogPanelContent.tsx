@@ -1,10 +1,14 @@
 import type React from 'react';
 import type { LeftRailViewModel } from '../../client/useGameSession';
-import { BattleLogTurnCard } from '../layout/leftRail/BattleLogTurnCard';
+import {
+  BattleLogThisTurnCard,
+  BattleLogTurnCard,
+} from '../layout/leftRail/BattleLogTurnCard';
 import { LeftRailScrollArea } from '../layout/leftRail/LeftRailScrollArea';
 
 interface BattleLogPanelContentProps {
   battleLogNames: LeftRailViewModel['battleLogNames'];
+  battleLogThisTurn: LeftRailViewModel['battleLogThisTurn'];
   battleLogTurns: LeftRailViewModel['battleLogTurns'];
   layout?: 'desktop' | 'mobile';
   viewportRef?: React.Ref<HTMLDivElement | null>;
@@ -18,6 +22,7 @@ function cx(...parts: Array<string | undefined | false>) {
 
 export function BattleLogPanelContent({
   battleLogNames,
+  battleLogThisTurn,
   battleLogTurns,
   layout = 'desktop',
   viewportRef,
@@ -54,13 +59,15 @@ export function BattleLogPanelContent({
         viewportRef={viewportRef}
         outerClassName={cx('basis-0 flex-1 pb-3', isMobile ? 'rounded-b-[10px]' : 'rounded-b-[10px]')}
       >
-        {battleLogTurns.length > 0 ? (
-          battleLogTurns.map((turn) => <BattleLogTurnCard key={turn.turnNumber} turn={turn} />)
-        ) : (
+        {battleLogThisTurn ? <BattleLogThisTurnCard turn={battleLogThisTurn} /> : null}
+        {battleLogTurns.map((turn) => (
+          <BattleLogTurnCard key={turn.turnNumber} turn={turn} />
+        ))}
+        {!battleLogThisTurn && battleLogTurns.length === 0 ? (
           <p className="px-[20px] py-[24px] text-[16px] leading-[22px] text-[var(--shapeships-grey-50)]">
             The battle is about to begin!<br />May the dice be with you.
           </p>
-        )}
+        ) : null}
       </LeftRailScrollArea>
     </div>
   );

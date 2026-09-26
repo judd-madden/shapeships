@@ -566,6 +566,7 @@ export function LeftRail({
               layout="desktop"
               viewportRef={battleLogViewportRef}
               battleLogNames={vm.battleLogNames}
+              battleLogThisTurn={vm.battleLogThisTurn}
               battleLogTurns={vm.battleLogTurns}
               showPanelTitle={false}
             />

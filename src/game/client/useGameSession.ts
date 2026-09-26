@@ -7796,6 +7796,7 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
           me: 'Player 1',
           opponent: 'Player 2',
         },
+        battleLogThisTurn: null,
         battleLogTurns: [],
         battleLogCompletedTurnCount: 0,
       },

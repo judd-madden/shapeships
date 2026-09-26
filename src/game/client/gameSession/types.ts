@@ -347,6 +347,19 @@ export interface BattleLogTurnVm {
   opponent: BattleLogTurnSideVm;
 }
 
+export interface BattleLogThisTurnSideVm {
+  buildLines: BattleLogLineVm[];
+  battleLines: BattleLogLineVm[];
+}
+
+export interface BattleLogThisTurnVm {
+  turnNumber: number;
+  showBuildSection: boolean;
+  showBattleSection: boolean;
+  me: BattleLogThisTurnSideVm;
+  opponent: BattleLogThisTurnSideVm;
+}
+
 export type ThisTurnMetricVm =
   | { state: 'concealed' | 'pending'; turnNumber: number }
   | { state: 'unavailable'; turnNumber: number; reason?: string }
@@ -497,6 +510,7 @@ export interface LeftRailViewModel {
     me: string;
     opponent: string;
   };
+  battleLogThisTurn: BattleLogThisTurnVm | null;
   battleLogTurns: BattleLogTurnVm[];
   battleLogCompletedTurnCount: number;
 }
