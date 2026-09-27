@@ -72,6 +72,7 @@ function base(
     gameId, turnNumber, phaseKey, isFinished,
     viewerRole, mePlayerId, opponentPlayerId: overrides.opponentPlayerId ?? 'p2',
     localDraft,
+    localEvolverConversions: overrides.localEvolverConversions ?? [],
     acceptedDraft: overrides.acceptedDraft ?? null,
     activePreviewCandidate,
     preview,
@@ -319,6 +320,244 @@ Deno.test('ZEN keeps its produced ANT row through local, preview, frozen, Reveal
     opponentPlayerId: 'p2', opponentName: 'Two',
   });
   assert(JSON.stringify(lineText(archived.battleLogTurns[0].me.buildLines)) === JSON.stringify(expected));
+});
+
+Deno.test('successful EVO conversion survives pending, preview, submission, Reveal, hold, and archive', () => {
+  const initialDraft = {
+    builds: [],
+    evolverChoices: [{ sourceKey: 'evo-1', choiceId: 'oxite' as const }],
+  };
+  const nextDraft = {
+    builds: [{ shipDefId: 'FIG', count: 1 }],
+    buildGroupOrder: [{ shipDefId: 'FIG', afterCaptureSequence: 0 }],
+    evolverChoices: [{ sourceKey: 'evo-1', choiceId: 'oxite' as const }],
+  };
+  const conversions = [{ sourceKey: 'evo-1', shipDefId: 'OXI' as const }];
+  const publicDrawing = {
+    identity: { gameId: 'game-1', turnNumber: 4 },
+    battleLog: {
+      turnNumber: 4, diceValue: 3,
+      buildLinesByPlayerId: { p1: [], p2: [] }, battleLinesByPlayerId: {},
+      concealedBuildPlayerIds: ['p2'],
+    },
+    estimatesByPlayerId: {},
+  };
+  const requesterDrawing = {
+    captureSequence: 0,
+    ownBuildCaptureIdentity: 'capture-evo',
+    capturedBuildLines: [], capturedBuildRows: [], committedProjection: null,
+  };
+  const ownLines = (presentation: ReturnType<typeof buildThisTurnPresentation>) => {
+    const card = mapBattleLogThisTurn(presentation);
+    assert(card !== null);
+    return lineText(card.me.buildLines);
+  };
+
+  const initialInput = previewCandidate({
+    draft: initialDraft,
+    ownBuildCaptureIdentity: 'capture-evo',
+  });
+  const initialCandidate = schedulerCandidate(initialInput);
+  const initialOverrides = {
+    localDraft: initialDraft,
+    localEvolverConversions: conversions,
+    activePreviewCandidate: initialInput,
+    publicThisTurn: publicDrawing,
+    requesterThisTurn: requesterDrawing,
+  };
+  assert(JSON.stringify(ownLines(base({ kind: 'pending', candidate: initialCandidate }, 'build.drawing', 'player', false, initialOverrides))) === JSON.stringify(['OXI (EVO)']));
+
+  const initialSettled: CurrentTurnPreviewState = {
+    kind: 'estimated', candidate: initialCandidate,
+    estimate: {
+      status: 'estimated', requestToken: initialCandidate.requestToken,
+      identity: {
+        gameId: 'game-1', turnNumber: 4, phaseKey: 'build.drawing',
+        sourceContextKey: 'route',
+        draftKey: 'evo-initial',
+        ownBuildCaptureIdentity: 'capture-evo',
+      },
+      playerId: 'p1', damage: { total: 0, rows: [] }, healing: { total: 0, rows: [] },
+      build: {
+        lines: ['1 x OXI (EVO)'], skipped: [],
+        remainingOrdinaryLines: 0, remainingJoiningLines: 0,
+      },
+    },
+  };
+  assert(JSON.stringify(ownLines(base(initialSettled, 'build.drawing', 'player', false, initialOverrides))) === JSON.stringify(['OXI (EVO)']));
+
+  const nextInput = previewCandidate({
+    draft: nextDraft,
+    ownBuildCaptureIdentity: 'capture-evo',
+  });
+  const nextCandidate = schedulerCandidate(nextInput, 2);
+  const nextOverrides = {
+    ...initialOverrides,
+    localDraft: nextDraft,
+    activePreviewCandidate: nextInput,
+  };
+  const expected = ['OXI (EVO)', 'FIG'];
+  assert(JSON.stringify(ownLines(base({ kind: 'pending', candidate: nextCandidate }, 'build.drawing', 'player', false, nextOverrides))) === JSON.stringify(expected));
+
+  const nextSettled: CurrentTurnPreviewState = {
+    kind: 'estimated', candidate: nextCandidate,
+    estimate: {
+      ...initialSettled.estimate,
+      requestToken: nextCandidate.requestToken,
+      identity: {
+        gameId: 'game-1', turnNumber: 4, phaseKey: 'build.drawing',
+        sourceContextKey: 'route',
+        draftKey: 'evo-next',
+        ownBuildCaptureIdentity: 'capture-evo',
+      },
+      build: {
+        lines: ['1 x OXI (EVO)', '1 x FIG'], skipped: [],
+        remainingOrdinaryLines: 0, remainingJoiningLines: 0,
+      },
+    },
+  };
+  assert(JSON.stringify(ownLines(base(nextSettled, 'build.drawing', 'player', false, nextOverrides))) === JSON.stringify(expected));
+  assert(JSON.stringify(ownLines(base({ kind: 'pending', candidate: nextCandidate }, 'build.drawing', 'player', false, {
+    ...nextOverrides,
+    acceptedDraft: nextDraft,
+  }))) === JSON.stringify(expected));
+  assert(JSON.stringify(ownLines(base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    ...nextOverrides,
+    requesterThisTurn: {
+      ...requesterDrawing,
+      committedProjection: {
+        status: 'estimated',
+        build: { lines: ['1 x OXI (EVO)', '1 x FIG'] },
+      },
+    },
+  }))) === JSON.stringify(expected));
+
+  const publicReveal = {
+    ...publicDrawing,
+    battleLog: {
+      ...publicDrawing.battleLog,
+      buildLinesByPlayerId: { p1: ['1 x OXI (EVO)', '1 x FIG'], p2: [] },
+      concealedBuildPlayerIds: [],
+    },
+  };
+  const reveal = base({ kind: 'idle' }, 'build.reveal', 'player', false, {
+    publicThisTurn: publicReveal,
+  });
+  assert(JSON.stringify(ownLines(reveal)) === JSON.stringify(expected));
+
+  const snapshot = buildResolvedThisTurnSnapshot({
+    gameId: 'game-1', resolvedTurnNumber: 4, isTerminalTurn: false,
+    mePlayerId: 'p1', opponentPlayerId: 'p2', previous: reveal,
+    actualMe: { damage: { total: 0, rows: [] }, healing: { total: 0, rows: [] } },
+    actualOpponent: { damage: { total: 0, rows: [] }, healing: { total: 0, rows: [] } },
+  });
+  const held = base({ kind: 'idle' }, 'battle.end_of_turn_resolution', 'player', false, {
+    resolutionSnapshot: snapshot,
+    archiveRecovery: { turnNumber: 4, state: 'pending' },
+  });
+  assert(JSON.stringify(ownLines(held)) === JSON.stringify(expected));
+
+  const history: any = historyFor(4);
+  history.turns[0].buildLinesByPlayerId.p1 = ['1 x OXI (EVO)', '1 x FIG'];
+  const archived = mapBattleLogTurns({
+    battleLogHistory: history, thisTurn: null,
+    localPlayerId: 'p1', localPlayerName: 'One',
+    opponentPlayerId: 'p2', opponentName: 'Two',
+  });
+  assert(JSON.stringify(lineText(archived.battleLogTurns[0].me.buildLines)) === JSON.stringify(expected));
+});
+
+Deno.test('EVO local groups update counts and clear changed or invalid conversions', () => {
+  const draft = {
+    builds: [],
+    evolverChoices: [
+      { sourceKey: 'evo-1', choiceId: 'oxite' as const },
+      { sourceKey: 'evo-2', choiceId: 'oxite' as const },
+      { sourceKey: 'evo-3', choiceId: 'asterite' as const },
+    ],
+  };
+  const overrides = {
+    localDraft: draft,
+    activePreviewCandidate: previewCandidate({ draft }),
+    publicThisTurn: {
+      identity: { gameId: 'game-1', turnNumber: 4 },
+      battleLog: {
+        turnNumber: 4, diceValue: 3,
+        buildLinesByPlayerId: { p1: [], p2: [] }, battleLinesByPlayerId: {},
+        concealedBuildPlayerIds: ['p2'],
+      },
+      estimatesByPlayerId: {},
+    },
+    requesterThisTurn: {
+      captureSequence: 0, ownBuildCaptureIdentity: 'capture-evo',
+      capturedBuildLines: [], capturedBuildRows: [], committedProjection: null,
+    },
+  };
+  const read = (localEvolverConversions: Array<{ sourceKey: string; shipDefId: 'OXI' | 'AST' }>) => {
+    const card = mapBattleLogThisTurn(base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+      ...overrides,
+      localEvolverConversions,
+    }));
+    assert(card !== null);
+    return lineText(card.me.buildLines);
+  };
+
+  assert(JSON.stringify(read([
+    { sourceKey: 'evo-1', shipDefId: 'OXI' },
+    { sourceKey: 'evo-2', shipDefId: 'OXI' },
+    { sourceKey: 'evo-3', shipDefId: 'AST' },
+  ])) === JSON.stringify(['AST (EVO)', '2 x OXI (2 EVO)']));
+  assert(JSON.stringify(read([
+    { sourceKey: 'evo-1', shipDefId: 'OXI' },
+    { sourceKey: 'evo-3', shipDefId: 'AST' },
+  ])) === JSON.stringify(['AST (EVO)', 'OXI (EVO)']));
+  assert(JSON.stringify(read([])) === JSON.stringify([]));
+
+  const selectedDraft = {
+    builds: [],
+    evolverChoices: [{ sourceKey: 'evo-1', choiceId: 'oxite' as const }],
+  };
+  const selectedInput = previewCandidate({ draft: selectedDraft });
+  const selectedCandidate = schedulerCandidate(selectedInput);
+  const selectedPreview: CurrentTurnPreviewState = {
+    kind: 'estimated', candidate: selectedCandidate,
+    estimate: {
+      status: 'estimated', requestToken: selectedCandidate.requestToken,
+      identity: {
+        gameId: 'game-1', turnNumber: 4, phaseKey: 'build.drawing',
+        sourceContextKey: 'route', draftKey: 'selected',
+      },
+      playerId: 'p1', damage: { total: 0, rows: [] }, healing: { total: 0, rows: [] },
+      build: {
+        lines: ['1 x OXI (EVO)'], skipped: [],
+        remainingOrdinaryLines: 0, remainingJoiningLines: 0,
+      },
+    },
+  };
+  const holdDraft = {
+    builds: [],
+    evolverChoices: [{ sourceKey: 'evo-1', choiceId: 'hold' as const }],
+  };
+  const holdCard = mapBattleLogThisTurn(base(selectedPreview, 'build.drawing', 'player', false, {
+    ...overrides,
+    localDraft: holdDraft,
+    activePreviewCandidate: previewCandidate({ draft: holdDraft }),
+    localEvolverConversions: [],
+  }));
+  assert(holdCard !== null);
+  assert(JSON.stringify(lineText(holdCard.me.buildLines)) === JSON.stringify([]));
+
+  const lostXenCard = mapBattleLogThisTurn(base(selectedPreview, 'build.drawing', 'player', false, {
+    ...overrides,
+    localDraft: selectedDraft,
+    activePreviewCandidate: previewCandidate({
+      draft: selectedDraft,
+      safeContextFingerprint: 'after-xen-loss',
+    }),
+    localEvolverConversions: [],
+  }));
+  assert(lostXenCard !== null);
+  assert(JSON.stringify(lineText(lostXenCard.me.buildLines)) === JSON.stringify([]));
 });
 
 Deno.test('ZEN provisional rows group multiples and keep separately paid ANT manual', () => {

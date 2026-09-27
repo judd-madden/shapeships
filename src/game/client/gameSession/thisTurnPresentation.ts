@@ -14,6 +14,7 @@ import {
   getManualBuildGroupCount,
   type CanonicalBuildSubmitPayload,
 } from './intents';
+import type { ProvisionalEvolverConversion } from './provisionalBuild';
 import type {
   BattleLogHistoryResponse,
   BoardStatBreakdownRowVm,
@@ -42,6 +43,7 @@ export interface ThisTurnPresentationArgs {
   mePlayerId: string | null;
   opponentPlayerId: string | null;
   localDraft: CanonicalBuildSubmitPayload | null;
+  localEvolverConversions?: readonly ProvisionalEvolverConversion[];
   acceptedDraft: CanonicalBuildSubmitPayload | null;
   activePreviewCandidate: CurrentTurnPreviewCandidateInput | null;
   preview: CurrentTurnPreviewState;
@@ -155,8 +157,11 @@ function matchingPreview(args: ThisTurnPresentationArgs): Extract<
     : null;
 }
 
-function formatLocalDraftLines(draft: CanonicalBuildSubmitPayload): string[] {
-  return mergeOrderedRows(orderedLocalDraftRows(draft, 0));
+function formatLocalDraftLines(
+  draft: CanonicalBuildSubmitPayload,
+  evolverConversions: readonly ProvisionalEvolverConversion[],
+): string[] {
+  return mergeOrderedRows(orderedLocalDraftRows(draft, 0, evolverConversions));
 }
 
 function rowUnit(
@@ -208,6 +213,7 @@ function normalizedOrderedRows(value: unknown): OrderedBuildRow[] {
 function orderedLocalDraftRows(
   draft: CanonicalBuildSubmitPayload,
   captureSequence: number,
+  evolverConversions: readonly ProvisionalEvolverConversion[] = [],
 ): OrderedBuildRow[] {
   const order = new Map(
     (draft.buildGroupOrder ?? []).map((entry, index, entries) => [
@@ -249,6 +255,27 @@ function orderedLocalDraftRows(
       appearanceRank: zenAppearance.appearanceRank + 0.5,
     });
   }
+  const evolverRows = new Map<
+    ProvisionalEvolverConversion['shipDefId'],
+    OrderedBuildRow & { count: number }
+  >();
+  for (const [index, conversion] of evolverConversions.entries()) {
+    const groupKey = `produced:${conversion.shipDefId}:EVO`;
+    const existing = evolverRows.get(conversion.shipDefId);
+    if (existing) {
+      existing.count += 1;
+      existing.line = `${existing.count} x ${conversion.shipDefId} (${existing.count} EVO)`;
+      continue;
+    }
+    evolverRows.set(conversion.shipDefId, {
+      line: `1 x ${conversion.shipDefId} (EVO)`,
+      groupKey,
+      appearanceAnchor: captureSequence + 1,
+      appearanceRank: index + 1,
+      count: 1,
+    });
+  }
+  rows.push(...evolverRows.values());
   return rows;
 }
 
@@ -296,6 +323,7 @@ function buildLiveLog(args: ThisTurnPresentationArgs): ThisTurnLiveLogVm | null 
   add(opponentUnits, rowUnit('public', args.opponentPlayerId ? publicBuilds[args.opponentPlayerId] : []));
 
   if (isDrawing && args.viewerRole === 'player') {
+    const localEvolverConversions = args.localEvolverConversions ?? [];
     const committed = isRecord(requester?.committedProjection)
       ? requester.committedProjection
       : null;
@@ -326,14 +354,18 @@ function buildLiveLog(args: ThisTurnPresentationArgs): ThisTurnLiveLogVm | null 
             'local_draft',
             mergeOrderedRows(
               capturedRows,
-              orderedLocalDraftRows(draft, captureSequence),
+              orderedLocalDraftRows(draft, captureSequence, localEvolverConversions),
             ),
             draftFingerprint,
           ));
         } else {
           add(meUnits, rowUnit('public', args.mePlayerId ? publicBuilds[args.mePlayerId] : []));
           add(meUnits, rowUnit('requester_capture', requester?.capturedBuildLines));
-          add(meUnits, rowUnit('local_draft', formatLocalDraftLines(draft), draftFingerprint));
+          add(meUnits, rowUnit(
+            'local_draft',
+            formatLocalDraftLines(draft, localEvolverConversions),
+            draftFingerprint,
+          ));
         }
       }
     }

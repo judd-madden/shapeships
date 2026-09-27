@@ -4693,6 +4693,10 @@ useEffect(() => {
             phaseKey === 'build.drawing' && healthResolutionViewerRole === 'player'
               ? canonicalBuildDraft
               : null,
+          localEvolverConversions:
+            phaseKey === 'build.drawing' && healthResolutionViewerRole === 'player'
+              ? provisionalBuild.successfulEvolverConversions
+              : [],
           acceptedDraft: acceptedBuildDraft,
           activePreviewCandidate: currentTurnPreviewCandidate,
           preview: currentTurnPreview,
