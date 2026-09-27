@@ -369,6 +369,7 @@ export type ThisTurnMetricVm =
       turnNumber: number;
       source:
         | 'estimated'
+        | 'turn_start_baseline'
         | 'privacy_frozen'
         | 'held_actual'
         | 'last_actual'

@@ -87,7 +87,9 @@ export function buildBoardStatHoverSections(
     });
   } else if (isAvailableMetric(current)) {
     const isEstimate =
-      current.source === 'estimated' || current.source === 'privacy_frozen';
+      current.source === 'estimated' ||
+      current.source === 'turn_start_baseline' ||
+      current.source === 'privacy_frozen';
     sections.push({
       kind: isEstimate ? 'this_turn_estimate' : 'this_turn',
       heading: 'THIS TURN',

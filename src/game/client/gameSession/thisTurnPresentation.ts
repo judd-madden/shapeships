@@ -96,7 +96,13 @@ function normalizeRows(value: unknown): BoardStatBreakdownRowVm[] {
 function metric(
   input: MetricInput,
   turnNumber: number,
-  source: 'estimated' | 'privacy_frozen' | 'held_actual' | 'last_actual' | 'final_actual',
+  source:
+    | 'estimated'
+    | 'turn_start_baseline'
+    | 'privacy_frozen'
+    | 'held_actual'
+    | 'last_actual'
+    | 'final_actual',
   fallback: 'pending' | 'unavailable' | 'concealed' = 'unavailable',
   unavailableReason?: string,
 ): ThisTurnMetricVm {
@@ -117,12 +123,16 @@ function metric(
 type NormalizedEstimate =
   | {
       status: 'estimated' | 'privacy_frozen';
+      source: 'estimated' | 'turn_start_baseline' | 'privacy_frozen';
       damage: MetricInput;
       healing: MetricInput;
     }
   | { status: 'unavailable'; reason?: string };
 
-function estimateFor(value: unknown): NormalizedEstimate | null {
+function estimateFor(
+  value: unknown,
+  sourceOverride?: 'turn_start_baseline',
+): NormalizedEstimate | null {
   if (!isRecord(value)) return null;
   if (value.status === 'unavailable') {
     return {
@@ -135,6 +145,7 @@ function estimateFor(value: unknown): NormalizedEstimate | null {
   if (typeof value.damage.total !== 'number' || typeof value.healing.total !== 'number') return null;
   return {
     status: value.status,
+    source: sourceOverride ?? value.status,
     damage: { total: value.damage.total, rows: normalizeRows(value.damage.rows) },
     healing: { total: value.healing.total, rows: normalizeRows(value.healing.rows) },
   };
@@ -466,12 +477,16 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
     : {};
   const requester = isRecord(args.requesterThisTurn) ? args.requesterThisTurn : null;
   const committed = estimateFor(requester?.committedProjection);
+  const turnStart = estimateFor(
+    requester?.turnStartProjection,
+    'turn_start_baseline',
+  );
   const activePreview = matchingPreview(args);
   const preview = activePreview?.kind === 'estimated'
     ? estimateFor(activePreview.estimate)
     : null;
   const own = isDrawing
-    ? args.viewerRole === 'player' ? committed ?? preview : null
+    ? args.viewerRole === 'player' ? committed ?? preview ?? turnStart : null
     : estimateFor(args.mePlayerId ? publicEstimates[args.mePlayerId] : null);
   const opponent = isDrawing ? null : estimateFor(
     args.opponentPlayerId ? publicEstimates[args.opponentPlayerId] : null,
@@ -493,12 +508,8 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
     : opponent?.status === 'unavailable'
       ? 'unavailable'
       : 'pending';
-  const ownSource = ownAvailable?.status === 'privacy_frozen'
-    ? 'privacy_frozen'
-    : 'estimated';
-  const opponentSource = opponentAvailable?.status === 'privacy_frozen'
-    ? 'privacy_frozen'
-    : 'estimated';
+  const ownSource = ownAvailable?.source ?? 'estimated';
+  const opponentSource = opponentAvailable?.source ?? 'estimated';
   const ownUnavailableReason = own?.status === 'unavailable'
     ? own.reason
     : activePreview?.kind === 'unavailable'

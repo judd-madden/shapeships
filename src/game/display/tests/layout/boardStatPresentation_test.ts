@@ -79,6 +79,18 @@ Deno.test('estimated and privacy-frozen metrics use estimate hover totals', () =
     buildBoardStatHoverSections(pair(valueMetric(5, 'privacy_frozen')))[0]?.totalText,
     '~5',
   );
+  assertEquals(
+    buildBoardStatHoverSections(
+      pair(valueMetric(2, 'turn_start_baseline', 4, rows)),
+    )[0],
+    {
+      kind: 'this_turn_estimate',
+      heading: 'THIS TURN',
+      showEstimateQualifier: true,
+      totalText: '~2',
+      rows,
+    },
+  );
 });
 
 Deno.test('valid zero remains an available hover section without rows', () => {

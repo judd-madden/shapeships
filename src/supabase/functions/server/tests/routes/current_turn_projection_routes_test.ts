@@ -127,6 +127,31 @@ function createState(phase = "build.drawing") {
   };
 }
 
+function setAwaitingCarrierPrelude(state: any, playerId: "p1" | "p2") {
+  const carrierId = `${playerId}-carrier`;
+  const carrier = ship(carrierId, "CAR", {
+    createdTurn: 4,
+    chargesCurrent: 2,
+  });
+  state.gameData.ships[playerId].push(carrier);
+  state.gameData.turnData.buildDrawingPublicFleetByPlayerId[playerId] =
+    structuredClone(state.gameData.ships[playerId]);
+  state.gameData.turnData.drawingPreludeByPlayerId[playerId] = {
+    turnNumber: 5,
+    requiredPassCount: 1,
+    activePassIndex: 1,
+    status: "awaiting_actions",
+    eligibleSourcePowers: [{
+      key: `${carrierId}:CAR#0`,
+      sourceInstanceId: carrierId,
+      shipDefId: "CAR",
+      rawPowerIndex: 0,
+      mode: "interactive",
+    }],
+    resolvedSourcePowerKeysByPass: {},
+  };
+}
+
 class TrackingPersistence implements GameStatePersistence {
   readonly store = new Map<string, any>();
   loads = 0;
@@ -469,6 +494,85 @@ Deno.test("preview accepts empty drafts, ignores hidden revisions, and supports 
     },
   });
   assert.equal(retry.status, 200);
+});
+
+Deno.test("Drawing prelude full GET supplies only a validated requester turn-start projection", async () => {
+  const state: any = createState();
+  setAwaitingCarrierPrelude(state, "p1");
+  state.gameData.ships.p1.push(
+    ship("p1-carrier-produced-fig", "FIG", { createdTurn: 5 }),
+  );
+  state.gameData.turnData.shipsMadeThisTurnByPlayerId = { p1: 1 };
+
+  const p1Body = await fullStateBody(state, "p1");
+  const baseline = p1Body.requester.thisTurn.turnStartProjection;
+  assert.equal(baseline.status, "estimated");
+  assert.equal(baseline.damage.total, 0);
+  assert.equal(baseline.healing.total, 1);
+  assert.deepEqual(baseline.damage.rows, []);
+  assert.deepEqual(baseline.healing.rows.map((row: any) => row.label), [
+    "Defender",
+  ]);
+  assert.equal("turnStartProjection" in p1Body.publicState.thisTurn, false);
+  assert.equal(
+    JSON.stringify(p1Body.gameData).includes("turnStartProjection"),
+    false,
+  );
+
+  const p2Body = await fullStateBody(state, "p2");
+  assert.equal(p2Body.requester.thisTurn.turnStartProjection, null);
+  const spectatorBody = await fullStateBody(state, "spec");
+  assert.equal(spectatorBody.requester.thisTurn, null);
+
+  const unavailable = structuredClone(state);
+  delete unavailable.gameData.turnData.buildDrawingPublicFleetByPlayerId.p2;
+  const unavailableBody = await fullStateBody(unavailable, "p1");
+  assert.equal(
+    unavailableBody.requester.thisTurn.turnStartProjection.status,
+    "unavailable",
+  );
+  assert.equal(
+    unavailableBody.requester.thisTurn.turnStartProjection.reason,
+    "drawing_snapshot_unavailable",
+  );
+});
+
+Deno.test("turn-start projection is hidden-data invariant and yields to normal preview eligibility", async () => {
+  const left: any = createState();
+  setAwaitingCarrierPrelude(left, "p1");
+  setAwaitingCarrierPrelude(left, "p2");
+  const right = structuredClone(left);
+  right.stateRevision = 101;
+  right.gameData.ships.p2.push(
+    ship("p2-hidden-carrier-choice", "FIG", { createdTurn: 5 }),
+  );
+  right.gameData.turnData.drawingPreludeByPlayerId.p2 = {
+    ...right.gameData.turnData.drawingPreludeByPlayerId.p2,
+    requiredPassCount: 2,
+    activePassIndex: 2,
+    resolvedSourcePowerKeysByPass: { 1: ["p2-carrier:CAR#0"] },
+  };
+  await assertCompleteFullStateNoninterference({
+    label: "Drawing turn-start baseline/p1",
+    viewer: "p1",
+    left,
+    right,
+  });
+
+  const completed = structuredClone(left);
+  completed.gameData.turnData.drawingPreludeByPlayerId.p1.status = "complete";
+  completed.gameData.turnData.drawingPreludeByPlayerId.p1
+    .resolvedSourcePowerKeysByPass = { 1: ["p1-carrier:CAR#0"] };
+  const completedBody = await fullStateBody(completed, "p1");
+  assert.equal(completedBody.requester.thisTurn.turnStartProjection, null);
+
+  const test = fixture(completed);
+  const preview = await previewRequest(test.app, completed.gameId, {
+    observed: { turnNumber: 5, phaseKey: "build.drawing" },
+    draft: { builds: [] },
+  });
+  assert.equal(preview.status, 200);
+  assert.equal((await preview.json()).status, "estimated");
 });
 
 Deno.test("preview accepts validated EVO group ordering metadata", async () => {

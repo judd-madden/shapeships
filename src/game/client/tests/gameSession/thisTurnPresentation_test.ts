@@ -154,6 +154,221 @@ Deno.test('matching canonical preview replaces the complete own ledger without s
   assert(canonical.opponent.damage.current.state === 'concealed');
 });
 
+Deno.test('turn-start baseline supplies Current without copying Last and stays requester-only', () => {
+  const requesterThisTurn = {
+    capturedBuildLines: [],
+    committedProjection: null,
+    turnStartProjection: {
+      status: 'estimated',
+      damage: {
+        total: 2,
+        rows: [{ rowKind: 'ship', label: 'Fighter', count: 2, amount: 2 }],
+      },
+      healing: {
+        total: 1,
+        rows: [{ rowKind: 'ship', label: 'Defender', count: 1, amount: 1 }],
+      },
+    },
+  };
+  const presentation = base(
+    { kind: 'idle' },
+    'build.drawing',
+    'player',
+    false,
+    {
+      activePreviewCandidate: null,
+      requesterThisTurn,
+      lastTurn: {
+        turnNumber: 3,
+        me: {
+          damage: { total: 9, rows: [] },
+          healing: { total: 4, rows: [] },
+        },
+        opponent: {
+          damage: { total: 7, rows: [] },
+          healing: { total: 3, rows: [] },
+        },
+      },
+    },
+  );
+  assert(
+    presentation.me.damage.current.state === 'value' &&
+      presentation.me.damage.current.total === 2 &&
+      presentation.me.damage.current.source === 'turn_start_baseline' &&
+      presentation.me.damage.current.rows[0]?.label === 'Fighter',
+  );
+  assert(
+    presentation.me.healing.current.state === 'value' &&
+      presentation.me.healing.current.total === 1 &&
+      presentation.me.healing.current.rows[0]?.label === 'Defender',
+  );
+  assert(
+    presentation.me.damage.last.state === 'value' &&
+      presentation.me.damage.last.total === 9,
+  );
+  assert(presentation.opponent.damage.current.state === 'concealed');
+
+  const spectator = base(
+    { kind: 'idle' },
+    'build.drawing',
+    'spectator',
+    false,
+    { requesterThisTurn, activePreviewCandidate: null },
+  );
+  assert(spectator.me.damage.current.state === 'concealed');
+  assert(spectator.opponent.damage.current.state === 'concealed');
+});
+
+Deno.test('calculated baseline zero and unavailable fallback remain distinct', () => {
+  const calculatedZero = base(
+    { kind: 'idle' },
+    'build.drawing',
+    'player',
+    false,
+    {
+      activePreviewCandidate: null,
+      requesterThisTurn: {
+        committedProjection: null,
+        turnStartProjection: {
+          status: 'estimated',
+          damage: { total: 0, rows: [] },
+          healing: { total: 0, rows: [] },
+        },
+      },
+    },
+  );
+  assert(
+    calculatedZero.me.damage.current.state === 'zero' &&
+      calculatedZero.me.damage.current.source === 'turn_start_baseline',
+  );
+
+  const unavailable = base(
+    { kind: 'idle' },
+    'build.drawing',
+    'player',
+    false,
+    {
+      activePreviewCandidate: null,
+      requesterThisTurn: {
+        committedProjection: null,
+        turnStartProjection: {
+          status: 'unavailable',
+          reason: 'drawing_snapshot_unavailable',
+        },
+      },
+    },
+  );
+  assert(unavailable.me.damage.current.state === 'unavailable');
+  if (unavailable.me.damage.current.state === 'unavailable') {
+    assert(
+      unavailable.me.damage.current.reason === 'drawing_snapshot_unavailable',
+    );
+  }
+});
+
+Deno.test('turn-start baseline is retained while pending and replaced atomically by fresher projections', () => {
+  const baseline = base(
+    { kind: 'idle' },
+    'build.drawing',
+    'player',
+    false,
+    {
+      activePreviewCandidate: null,
+      requesterThisTurn: {
+        committedProjection: null,
+        turnStartProjection: {
+          status: 'estimated',
+          damage: {
+            total: 2,
+            rows: [{ rowKind: 'ship', label: 'Baseline Fighter', amount: 2 }],
+          },
+          healing: { total: 0, rows: [] },
+        },
+      },
+    },
+  );
+  const previousPresentation = { gameId: 'game-1', presentation: baseline };
+  const input = previewCandidate({ draft: { builds: [] } });
+  const candidate = schedulerCandidate(input);
+  const pending = base(
+    { kind: 'pending', candidate },
+    'build.drawing',
+    'player',
+    false,
+    {
+      localDraft: { builds: [] },
+      activePreviewCandidate: input,
+      requesterThisTurn: {
+        committedProjection: null,
+        turnStartProjection: null,
+      },
+      previousPresentation,
+    },
+  );
+  assert(pending.me.damage.current === baseline.me.damage.current);
+
+  const preview = base({
+    kind: 'estimated',
+    candidate,
+    estimate: {
+      status: 'estimated',
+      requestToken: candidate.requestToken,
+      identity: {
+        gameId: 'game-1', turnNumber: 4, phaseKey: 'build.drawing',
+        sourceContextKey: 'preview', draftKey: 'empty',
+      },
+      playerId: 'p1',
+      damage: {
+        total: 5,
+        rows: [{ rowKind: 'ship', label: 'Preview Fighter', amount: 5 }],
+      },
+      healing: { total: 1, rows: [] },
+      build: {
+        lines: [], skipped: [],
+        remainingOrdinaryLines: 0, remainingJoiningLines: 0,
+      },
+    },
+  }, 'build.drawing', 'player', false, {
+    localDraft: { builds: [] },
+    activePreviewCandidate: input,
+    previousPresentation,
+  });
+  assert(
+    preview.me.damage.current.state === 'value' &&
+      preview.me.damage.current.total === 5 &&
+      preview.me.damage.current.source === 'estimated' &&
+      preview.me.damage.current.rows[0]?.label === 'Preview Fighter',
+  );
+
+  const committed = base(
+    { kind: 'idle' },
+    'build.drawing',
+    'player',
+    false,
+    {
+      activePreviewCandidate: null,
+      previousPresentation,
+      requesterThisTurn: {
+        turnStartProjection: null,
+        committedProjection: {
+          status: 'estimated',
+          damage: {
+            total: 7,
+            rows: [{ rowKind: 'ship', label: 'Committed Fighter', amount: 7 }],
+          },
+          healing: { total: 2, rows: [] },
+        },
+      },
+    },
+  );
+  assert(
+    committed.me.damage.current.state === 'value' &&
+      committed.me.damage.current.total === 7 &&
+      committed.me.damage.current.source === 'estimated' &&
+      committed.me.damage.current.rows[0]?.label === 'Committed Fighter',
+  );
+});
+
 Deno.test('local chronology places a captured row between clicks and a later captured group takes its slot', () => {
   const draft = {
     builds: [{ shipDefId: 'DEF', count: 1 }, { shipDefId: 'FIG', count: 1 }],

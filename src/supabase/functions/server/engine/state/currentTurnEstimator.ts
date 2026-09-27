@@ -115,6 +115,7 @@ export type EstimateCurrentTurnForPlayerArgs = {
   requestingParticipantId?: string;
   playerId: string;
   draft: BuildSubmitPayload | null;
+  drawingMode?: "draft_preview" | "turn_start_baseline";
   expectedSourceContextKey?: string;
 };
 
@@ -124,6 +125,7 @@ type PreparedEstimateState = {
   phaseKey: string;
   turnNumber: number;
   opponentPlayerId: string;
+  drawingMode: "draft_preview" | "turn_start_baseline" | null;
 };
 
 function isObject(value: unknown): value is Record<string, any> {
@@ -437,6 +439,10 @@ function prepareEstimateState(
   )!;
 
   const drawing = phaseKey === "build.drawing";
+  const drawingMode = drawing
+    ? args.drawingMode ?? "draft_preview"
+    : null;
+  const turnStartBaseline = drawingMode === "turn_start_baseline";
   const battlePublic = phaseKey === "battle.reveal" ||
     phaseKey === "battle.first_strike" ||
     phaseKey === "battle.charge_declaration";
@@ -452,8 +458,11 @@ function prepareEstimateState(
   if (drawing && args.requestingParticipantId !== args.playerId) {
     return unavailable({ ...args, phaseKey, reason: "invalid_requester" });
   }
-  if (drawing && args.draft === null) {
+  if (drawing && !turnStartBaseline && args.draft === null) {
     return unavailable({ ...args, phaseKey, reason: "draft_required" });
+  }
+  if (turnStartBaseline && args.draft !== null) {
+    return unavailable({ ...args, phaseKey, reason: "draft_not_allowed" });
   }
   if (!drawing && args.draft !== null) {
     return unavailable({ ...args, phaseKey, reason: "draft_not_allowed" });
@@ -479,7 +488,21 @@ function prepareEstimateState(
         reason: "drawing_snapshot_unavailable",
       });
     }
-    fleets = projection.fleets;
+    if (turnStartBaseline) {
+      const snapshotMap = args.state.gameData?.turnData
+        ?.buildDrawingPublicFleetByPlayerId as Record<
+          string,
+          ShipInstance[]
+        >;
+      fleets = Object.fromEntries(
+        activePlayerIds.map((playerId) => [
+          playerId,
+          structuredClone(snapshotMap[playerId]),
+        ]),
+      );
+    } else {
+      fleets = projection.fleets;
+    }
   } else if (phaseKey === "battle.charge_declaration") {
     const projection = projectChargeDeclarationStateForViewer(
       args.state,
@@ -527,15 +550,19 @@ function prepareEstimateState(
   });
 
   const subjectFleet = fleets[args.playerId] ?? [];
-  const canonicalVoid = drawing
+  const canonicalVoid = turnStartBaseline
+    ? []
+    : drawing
     ? args.state.gameData?.voidShipsByPlayerId?.[args.playerId]
     : visibleSource.gameData?.voidShipsByPlayerId?.[args.playerId];
   const subjectVoid = Array.isArray(canonicalVoid)
     ? structuredClone(canonicalVoid)
     : [];
   const sourceTurnData = args.state.gameData?.turnData ?? {};
-  const removedByInstanceId = sourceTurnData
-    .buildPhaseNonDestroyRemovedShipsByPlayerId?.[args.playerId];
+  const removedByInstanceId = turnStartBaseline
+    ? {}
+    : sourceTurnData.buildPhaseNonDestroyRemovedShipsByPlayerId
+      ?.[args.playerId];
   const subjectRemoved = isObject(removedByInstanceId)
     ? structuredClone(removedByInstanceId)
     : {};
@@ -566,8 +593,9 @@ function prepareEstimateState(
     quantumMysticRevealByInstanceId = recovered;
   }
 
-  const dreadnoughtComponents = sourceTurnData
-    .dreadnoughtConsumedCurrentTurnComponentsByInstanceId;
+  const dreadnoughtComponents = turnStartBaseline
+    ? {}
+    : sourceTurnData.dreadnoughtConsumedCurrentTurnComponentsByInstanceId;
   const filteredDreadnoughtComponents = isObject(dreadnoughtComponents)
     ? Object.fromEntries(
       Object.entries(dreadnoughtComponents).filter(([instanceId, count]) =>
@@ -637,12 +665,15 @@ function prepareEstimateState(
           ? { [args.playerId]: structuredClone(cubeSelection) }
           : {},
         shipsMadeThisTurnByPlayerId: {
-          [args.playerId]:
-            sourceTurnData.shipsMadeThisTurnByPlayerId?.[args.playerId] ?? 0,
+          [args.playerId]: turnStartBaseline
+            ? 0
+            : sourceTurnData.shipsMadeThisTurnByPlayerId?.[args.playerId] ?? 0,
         },
         queenCreatedXenitesThisTurnByPlayerId: {
-          [args.playerId]: sourceTurnData.queenCreatedXenitesThisTurnByPlayerId
-            ?.[args.playerId] ?? 0,
+          [args.playerId]: turnStartBaseline
+            ? 0
+            : sourceTurnData.queenCreatedXenitesThisTurnByPlayerId
+              ?.[args.playerId] ?? 0,
         },
         dreadnoughtConsumedCurrentTurnComponentsByInstanceId:
           filteredDreadnoughtComponents,
@@ -665,6 +696,7 @@ function prepareEstimateState(
     phaseKey,
     turnNumber,
     opponentPlayerId: opponent.id,
+    drawingMode,
   };
 }
 
@@ -771,7 +803,10 @@ export function estimateCurrentTurnForPlayer(
   const simulationEvents: any[] = [];
   let solarGridChargeTransitions: SolarGridRevealTransition[] = [];
 
-  if (prepared.phaseKey === "build.drawing") {
+  if (
+    prepared.phaseKey === "build.drawing" &&
+    prepared.drawingMode === "draft_preview"
+  ) {
     const frozenOpponentFleet = structuredClone(
       workingState.gameData.ships?.[prepared.opponentPlayerId] ?? [],
     );

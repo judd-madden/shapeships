@@ -517,6 +517,25 @@ export function projectCurrentTurnFieldsForFullState(args: {
       state,
       requester.id,
     );
+    const requesterPrelude = getCurrentDrawingPreludePlayerState(
+      state,
+      requester.id,
+    );
+    let turnStartProjection: any = null;
+    if (requesterPrelude?.status === "awaiting_actions") {
+      const estimate = estimateCurrentTurnForPlayer({
+        state,
+        requestingParticipantId: requester.id,
+        playerId: requester.id,
+        draft: null,
+        drawingMode: "turn_start_baseline",
+      });
+      estimateCount++;
+      turnStartProjection = {
+        ...toEstimateDto(estimate, false),
+        identity: toEstimateIdentityDto(estimate.identity),
+      };
+    }
     let committedProjection: any = null;
     const stored = peekCommitRecord(
       state,
@@ -560,6 +579,7 @@ export function projectCurrentTurnFieldsForFullState(args: {
       capturedBuildRows: captured?.capturedBuildRows ?? [],
       captureSequence: captured?.captureSequence ?? 0,
       ownBuildCaptureIdentity: captured?.ownBuildCaptureIdentity ?? null,
+      turnStartProjection,
       committedProjection,
     };
   }

@@ -151,6 +151,20 @@ function estimateDrawing(
   return result as CurrentTurnEstimateAvailableResult;
 }
 
+function estimateTurnStart(
+  state: GameState,
+): CurrentTurnEstimateAvailableResult {
+  const result = estimateCurrentTurnForPlayer({
+    state,
+    requestingParticipantId: "p1",
+    playerId: "p1",
+    draft: null,
+    drawingMode: "turn_start_baseline",
+  });
+  assert.notEqual(result.status, "unavailable");
+  return result as CurrentTurnEstimateAvailableResult;
+}
+
 function estimatePublic(state: GameState, playerId = "p1") {
   return estimateCurrentTurnForPlayer({
     state,
@@ -181,6 +195,90 @@ Deno.test("Drawing simulation includes automatic SOL Reveal spending and deplete
     result.damageRows.reduce((sum, row) => sum + row.amount, 0),
     result.damage,
   );
+});
+
+Deno.test("turn-start baseline uses only validated entry fleets and persistent rows", () => {
+  const state: any = createState({
+    p1Fleet: [
+      ship("entry-fig", "FIG"),
+      ship("entry-def", "DEF"),
+      ship("entry-car", "CAR", { chargesCurrent: 2 }),
+    ],
+  });
+  state.gameData.ships.p1.push(
+    ship("carrier-produced-fig", "FIG", { createdTurn: 5 }),
+  );
+  state.gameData.turnData.shipsMadeThisTurnByPlayerId = { p1: 1 };
+
+  const result = estimateTurnStart(state);
+  assert.equal(result.damage, 1);
+  assert.equal(result.healing, 1);
+  assert.deepEqual(result.damageRows.map((row) => row.label), ["Fighter"]);
+  assert.deepEqual(result.healingRows.map((row) => row.label), ["Defender"]);
+  assert.equal(
+    result.damageRows.reduce((sum, row) => sum + row.amount, 0),
+    result.damage,
+  );
+  assert.equal(
+    result.healingRows.reduce((sum, row) => sum + row.amount, 0),
+    result.healing,
+  );
+});
+
+Deno.test("turn-start baseline distinguishes Carrier-only zero from unavailable snapshots", () => {
+  const carrierOnly = createState({
+    p1Fleet: [ship("entry-car", "CAR", { chargesCurrent: 2 })],
+  });
+  const zero = estimateTurnStart(carrierOnly);
+  assert.equal(zero.damage, 0);
+  assert.equal(zero.healing, 0);
+  assert.deepEqual(zero.damageRows, []);
+  assert.deepEqual(zero.healingRows, []);
+
+  const stale: any = structuredClone(carrierOnly);
+  stale.gameData.turnData.drawingPreludeByPlayerId.p1.turnNumber = 4;
+  const unavailable = estimateCurrentTurnForPlayer({
+    state: stale,
+    requestingParticipantId: "p1",
+    playerId: "p1",
+    draft: null,
+    drawingMode: "turn_start_baseline",
+  });
+  assert.equal(unavailable.status, "unavailable");
+  if (unavailable.status === "unavailable") {
+    assert.equal(unavailable.reason, "drawing_snapshot_unavailable");
+  }
+});
+
+Deno.test("turn-start baseline preserves once-only memory and skips future Reveal assumptions", () => {
+  const state: any = createState({
+    p1Faction: "human",
+    p1Fleet: [
+      ship("spent-fear", "FEA", { createdTurn: 5 }),
+      ship("spent-anger", "ANG", { createdTurn: 5 }),
+      ship("spent-starship", "STA", { createdTurn: 5 }),
+      ship("charged-solar", "SOL", { createdTurn: 4, chargesCurrent: 1 }),
+    ],
+  });
+  state.gameData.powerMemory.onceOnlyFired = {
+    "spent-fear::FEA#0": true,
+    "spent-anger::ANG#0": true,
+    "spent-starship::STA#0": true,
+  };
+
+  const baseline = estimateTurnStart(state);
+  assert.equal(baseline.damage, 0);
+  assert.equal(baseline.healing, 0);
+  assert.deepEqual(baseline.reveal.solarGridChargeTransitions, []);
+
+  const normal = estimateDrawing(createState({
+    p1Faction: "human",
+    p1Lines: 20,
+  }), {
+    builds: [{ shipDefId: "STA", count: 1 }],
+  });
+  assert.equal(normal.damage, 8);
+  assert.equal(normal.damageRows.some((row) => row.label === "Starship"), true);
 });
 
 Deno.test("post-Reveal estimates use public SOL charges without simulating Reveal again", () => {
