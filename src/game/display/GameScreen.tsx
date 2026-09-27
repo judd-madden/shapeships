@@ -245,6 +245,7 @@ export default function GameScreen({ gameId, playerName, onBack, onNavigateToGam
             boardVm={vm.board}
             bottomActionRailVm={vm.bottomActionRail}
             actionPanelVm={vm.actionPanel}
+            thisTurn={vm.thisTurn}
             gameStats={vm.gameStats}
             viewer={vm.viewer}
             matchupIntro={presentedMatchupIntro}

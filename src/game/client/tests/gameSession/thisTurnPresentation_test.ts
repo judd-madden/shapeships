@@ -957,6 +957,28 @@ Deno.test('resolved snapshot keeps previous Last while actual N replaces current
   assert(snapshot.liveLog?.turnNumber === 4 && snapshot.liveLog.lifecycle === 'held');
 });
 
+Deno.test('resolved terminal snapshot marks authoritative metrics as final actuals', () => {
+  const previous = base({ kind: 'idle' });
+  const snapshot = buildResolvedThisTurnSnapshot({
+    gameId: 'game-1', resolvedTurnNumber: 4, isTerminalTurn: true,
+    mePlayerId: 'p1', opponentPlayerId: 'p2', previous,
+    actualMe: {
+      damage: { total: 7, rows: [] }, healing: { total: 0, rows: [] },
+    },
+    actualOpponent: {
+      damage: { total: 3, rows: [] }, healing: { total: 1, rows: [] },
+    },
+  });
+  assert(
+    snapshot.me.damage.current.state === 'value' &&
+    snapshot.me.damage.current.source === 'final_actual',
+  );
+  assert(
+    snapshot.me.healing.current.state === 'zero' &&
+    snapshot.me.healing.current.source === 'final_actual',
+  );
+});
+
 Deno.test('held live N swaps atomically to genuine archive N', () => {
   const previous = base({ kind: 'idle' });
   const snapshot = buildResolvedThisTurnSnapshot({

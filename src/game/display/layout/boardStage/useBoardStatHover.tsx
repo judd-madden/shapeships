@@ -5,10 +5,10 @@ import {
 } from '../../shared/useHoverPanelPresence';
 
 export type BoardStatHoverKey =
-  | 'my-last-damage'
-  | 'opponent-last-damage'
-  | 'my-last-healing'
-  | 'opponent-last-healing'
+  | 'my-damage'
+  | 'opponent-damage'
+  | 'my-healing'
+  | 'opponent-healing'
   | 'my-bonus'
   | 'opponent-bonus';
 
@@ -23,6 +23,8 @@ export interface BoardStatHoverController {
   motionState: HoverPanelMotionState | null;
   onEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
   onLeave: (key: BoardStatHoverKey) => void;
+  onFocus: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
+  onBlur: (key: BoardStatHoverKey) => void;
 }
 
 const EMPTY_BOARD_STAT_HOVER_STATE: BoardStatHoverState = {
@@ -64,5 +66,7 @@ export function useBoardStatHover(): BoardStatHoverController {
     motionState,
     onEnter,
     onLeave,
+    onFocus: onEnter,
+    onBlur: onLeave,
   };
 }
