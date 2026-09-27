@@ -4,7 +4,7 @@
  * NO LOGIC - displays view-model data only (Pass 1.25)
  */
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type {
   BoardViewModel,
   GameSessionActions,
@@ -19,6 +19,7 @@ import { useBoardStatHover, type BoardStatHoverKey } from './boardStage/useBoard
 import {
   buildBoardStatHoverSections,
   formatBoardStatMetric,
+  selectBoardStatHoverAnchor,
   type BoardStatHoverSectionVm,
   type BoardStatMetricTone,
 } from './boardStage/boardStatPresentation';
@@ -188,6 +189,7 @@ function PairedStatTrigger({
   hoverKey,
   hoverTrackable,
   ariaLabel,
+  isActive,
   onHoverEnter,
   onHoverLeave,
   onFocus,
@@ -199,12 +201,20 @@ function PairedStatTrigger({
   hoverKey: BoardStatHoverKey;
   hoverTrackable: boolean;
   ariaLabel: string;
+  isActive: boolean;
   onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
   onHoverLeave: (key: BoardStatHoverKey) => void;
   onFocus: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
   onBlur: (key: BoardStatHoverKey) => void;
 }) {
   const isRight = align === 'right';
+  const numericAnchorRef = useRef<HTMLSpanElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (isActive && numericAnchorRef.current) {
+      onHoverEnter(hoverKey, numericAnchorRef.current);
+    }
+  }, [currentValue, hoverKey, isActive, lastValue, onHoverEnter]);
 
   return (
     <button
@@ -219,7 +229,13 @@ function PairedStatTrigger({
       )}
       onMouseEnter={
         hoverTrackable
-          ? (event) => onHoverEnter(hoverKey, event.currentTarget)
+          ? (event) => onHoverEnter(
+              hoverKey,
+              selectBoardStatHoverAnchor<HTMLElement>(
+                numericAnchorRef.current,
+                event.currentTarget,
+              ),
+            )
           : undefined
       }
       onMouseLeave={
@@ -233,16 +249,24 @@ function PairedStatTrigger({
       }
       onFocus={
         hoverTrackable
-          ? (event) => onFocus(hoverKey, event.currentTarget)
+          ? (event) => onFocus(
+              hoverKey,
+              selectBoardStatHoverAnchor<HTMLElement>(
+                numericAnchorRef.current,
+                event.currentTarget,
+              ),
+            )
           : undefined
       }
       onBlur={hoverTrackable ? () => onBlur(hoverKey) : undefined}
     >
-      <span className="font-bold text-[36px] leading-[36px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px]">
-        {currentValue}
-      </span>
-      <span className="font-bold text-[24px] leading-[24px] opacity-[0.66] min-[768px]:max-[1599px]:text-[20px] min-[768px]:max-[1599px]:leading-[20px]">
-        {lastValue}
+      <span ref={numericAnchorRef} className="inline-flex w-max flex-col gap-[2px]">
+        <span className="font-bold text-[36px] leading-[36px] min-[768px]:max-[1599px]:text-[30px] min-[768px]:max-[1599px]:leading-[30px]">
+          {currentValue}
+        </span>
+        <span className="font-bold text-[24px] leading-[24px] opacity-[0.66] min-[768px]:max-[1599px]:text-[20px] min-[768px]:max-[1599px]:leading-[20px]">
+          {lastValue}
+        </span>
       </span>
     </button>
   );
@@ -255,6 +279,7 @@ function PairedStatGroup({
   rightLast,
   metricLabel,
   toneClass,
+  activeHoverKey,
   leftHoverKey,
   leftHoverTrackable,
   rightHoverKey,
@@ -270,6 +295,7 @@ function PairedStatGroup({
   rightLast: string;
   metricLabel: 'Damage' | 'Healing';
   toneClass: string;
+  activeHoverKey: BoardStatHoverKey | null;
   leftHoverKey: BoardStatHoverKey;
   leftHoverTrackable: boolean;
   rightHoverKey: BoardStatHoverKey;
@@ -288,6 +314,7 @@ function PairedStatGroup({
         hoverKey={leftHoverKey}
         hoverTrackable={leftHoverTrackable}
         ariaLabel={`My ${metricLabel}: ${leftCurrent} this turn, ${leftLast} last turn`}
+        isActive={activeHoverKey === leftHoverKey}
         onHoverEnter={onHoverEnter}
         onHoverLeave={onHoverLeave}
         onFocus={onFocus}
@@ -308,6 +335,7 @@ function PairedStatGroup({
         hoverKey={rightHoverKey}
         hoverTrackable={rightHoverTrackable}
         ariaLabel={`Opponent ${metricLabel}: ${rightCurrent} this turn, ${rightLast} last turn`}
+        isActive={activeHoverKey === rightHoverKey}
         onHoverEnter={onHoverEnter}
         onHoverLeave={onHoverLeave}
         onFocus={onFocus}
@@ -699,6 +727,7 @@ export function BoardStage({ vm, thisTurn, matchupIntro, actions, phaseKey }: Bo
             rightLast={formatBoardStatMetric(opponentDamagePair?.last, 'last')}
             metricLabel="Damage"
             toneClass="text-[var(--shapeships-pastel-red)]"
+            activeHoverKey={statHover.state.activeKey}
             leftHoverKey="my-damage"
             leftHoverTrackable={myDamageHoverTrackable}
             rightHoverKey="opponent-damage"
@@ -715,6 +744,7 @@ export function BoardStage({ vm, thisTurn, matchupIntro, actions, phaseKey }: Bo
             rightLast={formatBoardStatMetric(opponentHealingPair?.last, 'last')}
             metricLabel="Healing"
             toneClass="text-[var(--shapeships-pastel-green)]"
+            activeHoverKey={statHover.state.activeKey}
             leftHoverKey="my-healing"
             leftHoverTrackable={myHealingHoverTrackable}
             rightHoverKey="opponent-healing"

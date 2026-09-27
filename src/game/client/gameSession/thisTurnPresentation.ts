@@ -50,6 +50,10 @@ export interface ThisTurnPresentationArgs {
   publicThisTurn: unknown;
   requesterThisTurn: unknown;
   lastTurn: LastTurnPresentationInput;
+  previousPresentation: {
+    gameId: string;
+    presentation: ThisTurnPresentationVm;
+  } | null;
   resolutionSnapshot: ThisTurnResolutionSnapshot | null;
   history: BattleLogHistoryResponse | null;
   archiveRecovery: { turnNumber: number; state: 'pending' | 'deferred' } | null;
@@ -498,7 +502,7 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
   const opponentUnavailableReason = opponent?.status === 'unavailable'
     ? opponent.reason
     : undefined;
-  return {
+  const fresh = {
     me: {
       damage: metric(
         ownAvailable?.damage ?? null,
@@ -532,6 +536,64 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
       ),
     },
   };
+
+  return {
+    me: {
+      damage: retainSafeCurrentMetric(args, args.mePlayerId, 'damage', fresh.me.damage),
+      healing: retainSafeCurrentMetric(args, args.mePlayerId, 'healing', fresh.me.healing),
+    },
+    opponent: {
+      damage: retainSafeCurrentMetric(
+        args,
+        args.opponentPlayerId,
+        'damage',
+        fresh.opponent.damage,
+      ),
+      healing: retainSafeCurrentMetric(
+        args,
+        args.opponentPlayerId,
+        'healing',
+        fresh.opponent.healing,
+      ),
+    },
+  };
+}
+
+function retainSafeCurrentMetric(
+  args: ThisTurnPresentationArgs,
+  playerId: string | null,
+  metricKey: 'damage' | 'healing',
+  fresh: ThisTurnMetricVm,
+): ThisTurnMetricVm {
+  if (
+    fresh.state === 'zero' ||
+    fresh.state === 'value' ||
+    fresh.state === 'concealed' ||
+    !playerId
+  ) {
+    return fresh;
+  }
+
+  const previous = args.previousPresentation;
+  if (
+    !previous ||
+    previous.gameId !== args.gameId ||
+    previous.presentation.turnNumber !== args.turnNumber
+  ) {
+    return fresh;
+  }
+
+  const previousPlayer = [
+    previous.presentation.me,
+    previous.presentation.opponent,
+  ].find((candidate) => candidate.playerId === playerId);
+  const previousMetric = previousPlayer?.[metricKey].current;
+
+  return previousMetric &&
+      previousMetric.turnNumber === args.turnNumber &&
+      (previousMetric.state === 'zero' || previousMetric.state === 'value')
+    ? previousMetric
+    : fresh;
 }
 
 function withLast(

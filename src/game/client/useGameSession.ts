@@ -1262,7 +1262,10 @@ export function useGameSession(
     useState<HealthResolutionPresentationTrigger | null>(null);
   const [thisTurnResolutionTrigger, setThisTurnResolutionTrigger] =
     useState<ThisTurnResolutionSnapshot | null>(null);
-  const lastPresentedThisTurnRef = useRef<ThisTurnPresentationVm | null>(null);
+  const lastPresentedThisTurnRef = useRef<{
+    gameId: string;
+    presentation: ThisTurnPresentationVm;
+  } | null>(null);
   const [healthPresentationBoardOverride, setHealthPresentationBoardOverride] =
     useState<HealthPresentationBuildResult['boardOverride'] | null>(null);
   const publishedHealthPresentationIdentitiesRef = useRef<Set<string>>(new Set());
@@ -2481,7 +2484,11 @@ export function useGameSession(
       opponentHeal: opponentHeal.value,
       opponentDamageTaken: opponentDamageTaken.value,
     });
-    const previousThisTurn = lastPresentedThisTurnRef.current;
+    const previousThisTurnEntry = lastPresentedThisTurnRef.current;
+    const previousThisTurn =
+      previousThisTurnEntry?.gameId === effectiveGameId
+        ? previousThisTurnEntry.presentation
+        : null;
     const damageBreakdownByPlayerId =
       getLastTurnDamageDealtBreakdownByPlayerId(state) ?? {};
     const healingBreakdownByPlayerId =
@@ -4703,6 +4710,7 @@ useEffect(() => {
           publicThisTurn: rawState?.publicState?.thisTurn,
           requesterThisTurn: rawState?.requester?.thisTurn,
           lastTurn: lastTurnPresentation,
+          previousPresentation: lastPresentedThisTurnRef.current,
           resolutionSnapshot,
           history: battleLogHistory,
           archiveRecovery: archiveRecoveryVm,
@@ -4873,8 +4881,10 @@ useEffect(() => {
     );
   }, [hardRefreshThisTurnResolutionSnapshot, battleLogHistory]);
   useLayoutEffect(() => {
-    lastPresentedThisTurnRef.current = thisTurnPresentation;
-  }, [thisTurnPresentation]);
+    lastPresentedThisTurnRef.current = effectiveGameId && thisTurnPresentation
+      ? { gameId: effectiveGameId, presentation: thisTurnPresentation }
+      : null;
+  }, [effectiveGameId, thisTurnPresentation]);
   const shouldSuppressCurrentTurnCreatedLocalShips =
     board.mode === 'board' &&
     me?.role === 'player' &&

@@ -92,6 +92,7 @@ function base(
       me: { damage: { total: 0, rows: [] }, healing: null },
       opponent: { damage: null, healing: { total: 2, rows: [] } },
     },
+    previousPresentation: overrides.previousPresentation ?? null,
     resolutionSnapshot: overrides.resolutionSnapshot ?? null,
     history: overrides.history ?? null,
     archiveRecovery: overrides.archiveRecovery ?? null,
@@ -675,6 +676,179 @@ Deno.test('cached preview identity is valid even when response token belongs to 
   });
   assert(vm.me.damage.current.state === 'value');
   assert(vm.liveLog?.me.buildRowUnits.some((unit) => unit.source === 'canonical_preview'));
+});
+
+Deno.test('same-turn pending handoffs retain the complete latest safe metric', () => {
+  const input = previewCandidate();
+  const candidate = schedulerCandidate(input);
+  const previous = base({
+    kind: 'estimated', candidate,
+    estimate: {
+      status: 'estimated', requestToken: candidate.requestToken,
+      identity: {
+        gameId: 'game-1', turnNumber: 4, phaseKey: 'build.drawing',
+        sourceContextKey: 'route', draftKey: 'draft',
+      },
+      playerId: 'p1',
+      damage: {
+        total: 6,
+        rows: [{ rowKind: 'ship', label: 'Fighter', count: 3, amount: 6 }],
+      },
+      healing: { total: 2, rows: [] },
+      build: {
+        lines: ['1 x FIG'], skipped: [],
+        remainingOrdinaryLines: 0, remainingJoiningLines: 0,
+      },
+    },
+  });
+  const previousEntry = { gameId: 'game-1', presentation: previous };
+  const nextDraft = { builds: [{ shipDefId: 'FIG', count: 2 }] };
+  const nextInput = previewCandidate({ draft: nextDraft });
+  const pendingDraft = base({
+    kind: 'pending',
+    candidate: schedulerCandidate(nextInput, 2),
+  }, 'build.drawing', 'player', false, {
+    localDraft: nextDraft,
+    activePreviewCandidate: nextInput,
+    previousPresentation: previousEntry,
+  });
+  const submissionHandoff = base({
+    kind: 'paused', reason: 'submission_accepted', candidate: null,
+  }, 'build.drawing', 'player', false, {
+    activePreviewCandidate: null,
+    requesterThisTurn: null,
+    previousPresentation: previousEntry,
+  });
+  const revealHandoff = base({ kind: 'idle' }, 'build.reveal', 'player', false, {
+    previousPresentation: previousEntry,
+  });
+  const pollingHandoff = base({ kind: 'idle' }, 'battle.charge_declaration', 'player', false, {
+    previousPresentation: previousEntry,
+  });
+
+  for (const presentation of [
+    pendingDraft,
+    submissionHandoff,
+    revealHandoff,
+    pollingHandoff,
+  ]) {
+    assert(
+      presentation.me.damage.current === previous.me.damage.current,
+      'retained metric lost its total, rows, or source',
+    );
+    assert(
+      presentation.me.healing.current === previous.me.healing.current,
+      'retention was not metric-complete',
+    );
+  }
+});
+
+Deno.test('fresh metrics replace retention without leaking across game, turn, player, or metric', () => {
+  const input = previewCandidate();
+  const candidate = schedulerCandidate(input);
+  const previous = base({
+    kind: 'estimated', candidate,
+    estimate: {
+      status: 'estimated', requestToken: candidate.requestToken,
+      identity: {
+        gameId: 'game-1', turnNumber: 4, phaseKey: 'build.drawing',
+        sourceContextKey: 'route', draftKey: 'draft',
+      },
+      playerId: 'p1', damage: { total: 6, rows: [] }, healing: { total: 2, rows: [] },
+      build: { lines: [], skipped: [], remainingOrdinaryLines: 0, remainingJoiningLines: 0 },
+    },
+  });
+  const previousEntry = { gameId: 'game-1', presentation: previous };
+  const publicBase = {
+    identity: { gameId: 'game-1', turnNumber: 4 },
+    battleLog: {
+      turnNumber: 4, diceValue: 3,
+      buildLinesByPlayerId: {}, battleLinesByPlayerId: {}, concealedBuildPlayerIds: [],
+    },
+  };
+  const fresh = base({ kind: 'idle' }, 'build.reveal', 'player', false, {
+    previousPresentation: previousEntry,
+    publicThisTurn: {
+      ...publicBase,
+      estimatesByPlayerId: {
+        p1: {
+          status: 'estimated',
+          damage: { total: 9, rows: [] },
+          healing: { total: 4, rows: [] },
+        },
+      },
+    },
+  });
+  assert(fresh.me.damage.current.state === 'value' && fresh.me.damage.current.total === 9);
+
+  const wrongGame = base({ kind: 'idle' }, 'build.reveal', 'player', false, {
+    previousPresentation: { gameId: 'game-2', presentation: previous },
+  });
+  assert(wrongGame.me.damage.current.state === 'pending');
+
+  const wrongTurn = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    turnNumber: 5,
+    activePreviewCandidate: previewCandidate({ turnNumber: 5 }),
+    previousPresentation: previousEntry,
+    lastTurn: {
+      turnNumber: 4,
+      me: { damage: { total: 7, rows: [] }, healing: { total: 1, rows: [] } },
+      opponent: { damage: { total: 3, rows: [] }, healing: { total: 0, rows: [] } },
+    },
+  });
+  assert(wrongTurn.me.damage.current.state === 'pending');
+  assert(wrongTurn.me.damage.last.state === 'value' && wrongTurn.me.damage.last.total === 7);
+
+  const wrongPlayer = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    mePlayerId: 'p9',
+    activePreviewCandidate: previewCandidate({ playerId: 'p9' }),
+    previousPresentation: previousEntry,
+  });
+  assert(wrongPlayer.me.damage.current.state === 'pending');
+
+  const damageOnlyPrevious = {
+    ...previous,
+    me: {
+      ...previous.me,
+      healing: {
+        ...previous.me.healing,
+        current: { state: 'pending' as const, turnNumber: 4 },
+      },
+    },
+  };
+  const metricScoped = base({ kind: 'idle' }, 'build.reveal', 'player', false, {
+    previousPresentation: { gameId: 'game-1', presentation: damageOnlyPrevious },
+  });
+  assert(metricScoped.me.damage.current.state === 'value');
+  assert(metricScoped.me.healing.current.state === 'pending');
+});
+
+Deno.test('concealment and unresolved terminal state override retained current values', () => {
+  const publicThisTurn = {
+    identity: { gameId: 'game-1', turnNumber: 4 },
+    battleLog: {
+      turnNumber: 4, diceValue: 3,
+      buildLinesByPlayerId: {}, battleLinesByPlayerId: {}, concealedBuildPlayerIds: [],
+    },
+    estimatesByPlayerId: {
+      p1: { status: 'estimated', damage: { total: 6, rows: [] }, healing: { total: 2, rows: [] } },
+      p2: { status: 'estimated', damage: { total: 5, rows: [] }, healing: { total: 1, rows: [] } },
+    },
+  };
+  const previous = base({ kind: 'idle' }, 'build.reveal', 'player', false, {
+    publicThisTurn,
+  });
+  const previousEntry = { gameId: 'game-1', presentation: previous };
+  const concealed = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    previousPresentation: previousEntry,
+  });
+  assert(concealed.opponent.damage.current.state === 'concealed');
+
+  const terminal = base({ kind: 'idle' }, 'game.finished', 'player', true, {
+    previousPresentation: previousEntry,
+  });
+  assert(terminal.me.damage.current.state === 'unavailable');
+  assert(terminal.opponent.damage.current.state === 'unavailable');
 });
 
 Deno.test('identical empty draft does not cross a turn boundary', () => {

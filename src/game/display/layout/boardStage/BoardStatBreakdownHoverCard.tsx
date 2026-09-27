@@ -4,8 +4,13 @@ import type { BoardStatBreakdownRowVm } from '../../../client/gameSession/types'
 import { HoverPanelFrame } from '../../shared/HoverPanelFrame';
 import type { HoverPanelMotionState } from '../../shared/useHoverPanelPresence';
 import type {
+  BoardStatHoverLayout,
   BoardStatHoverSectionVm,
   BoardStatMetricTone,
+} from './boardStatPresentation';
+import {
+  calculateBoardStatHoverLayout,
+  formatBoardMetricBreakdownAmount,
 } from './boardStatPresentation';
 
 type BoardStatBreakdownHoverCardContent =
@@ -23,24 +28,15 @@ interface BoardStatBreakdownHoverCardProps {
   motionState?: HoverPanelMotionState | null;
 }
 
-interface CardLayout {
-  left: number;
-  top: number;
-  placement: 'left' | 'right';
-  tailOffset: number;
-}
-
 const VIEWPORT_PADDING_PX = 12;
-const HOVER_GAP_PX = 8;
-const TAIL_SIZE_PX = 12;
-const TAIL_PROTRUSION_PX = TAIL_SIZE_PX / 2;
-const MIN_TAIL_INSET_PX = 18;
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
-
-function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
+function BreakdownRow({
+  row,
+  signlessContribution = false,
+}: {
+  row: BoardStatBreakdownRowVm;
+  signlessContribution?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between gap-[12px]">
       {row.rowKind === 'ship' || row.rowKind === 'solar_power' ? (
@@ -67,7 +63,7 @@ function BreakdownRow({ row }: { row: BoardStatBreakdownRowVm }) {
         className="shrink-0 text-right font-black text-white"
         style={{ fontSize: '14px', lineHeight: 1.4 }}
       >
-        {row.amountText}
+        {signlessContribution ? formatBoardMetricBreakdownAmount(row) : row.amountText}
       </div>
     </div>
   );
@@ -102,6 +98,7 @@ function MetricSection({
         <BreakdownRow
           key={`${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? index : index}`}
           row={row}
+          signlessContribution
         />
       ))}
     </section>
@@ -111,12 +108,20 @@ function MetricSection({
 function contentKey(content: BoardStatBreakdownHoverCardContent): string {
   if (content.kind === 'breakdown') {
     return content.rows
-      .map((row) => `${row.rowKind}:${row.label}:${row.amount}`)
+      .map((row) =>
+        `${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? '' : ''}`
+      )
       .join('|');
   }
 
   return content.sections
-    .map((section) => `${section.kind}:${section.totalText}:${section.rows.length}`)
+    .map((section) => [
+      section.kind,
+      section.totalText,
+      ...section.rows.map((row) =>
+        `${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? '' : ''}`
+      ),
+    ].join('|'))
     .join('|');
 }
 
@@ -127,7 +132,7 @@ export function BoardStatBreakdownHoverCard({
   motionState,
 }: BoardStatBreakdownHoverCardProps) {
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const [layout, setLayout] = useState<CardLayout | null>(null);
+  const [layout, setLayout] = useState<BoardStatHoverLayout | null>(null);
   const measuredContentKey = contentKey(content);
 
   useLayoutEffect(() => {
@@ -137,42 +142,14 @@ export function BoardStatBreakdownHoverCard({
     }
 
     const cardRect = card.getBoundingClientRect();
-    const sideOffset = HOVER_GAP_PX + TAIL_PROTRUSION_PX;
-    const preferredPlacement = side;
-    const leftSpace = anchorRect.left - sideOffset - VIEWPORT_PADDING_PX;
-    const rightSpace = window.innerWidth - VIEWPORT_PADDING_PX - anchorRect.right - sideOffset;
-    const preferredFits = preferredPlacement === 'left'
-      ? leftSpace >= cardRect.width
-      : rightSpace >= cardRect.width;
-    const oppositeFits = preferredPlacement === 'left'
-      ? rightSpace >= cardRect.width
-      : leftSpace >= cardRect.width;
-    const placement = preferredFits
-      ? preferredPlacement
-      : oppositeFits
-        ? preferredPlacement === 'left' ? 'right' : 'left'
-        : leftSpace >= rightSpace ? 'left' : 'right';
-    const desiredLeft = placement === 'left'
-      ? anchorRect.left - sideOffset - cardRect.width
-      : anchorRect.right + sideOffset;
-    const maxLeft = Math.max(
-      VIEWPORT_PADDING_PX,
-      window.innerWidth - VIEWPORT_PADDING_PX - cardRect.width,
-    );
-    const left = clamp(desiredLeft, VIEWPORT_PADDING_PX, maxLeft);
-    const desiredTop = anchorRect.top + (anchorRect.height / 2) - (cardRect.height / 2);
-    const maxTop = Math.max(
-      VIEWPORT_PADDING_PX,
-      window.innerHeight - VIEWPORT_PADDING_PX - cardRect.height,
-    );
-    const top = clamp(desiredTop, VIEWPORT_PADDING_PX, maxTop);
-    const tailMax = Math.max(MIN_TAIL_INSET_PX, cardRect.height - MIN_TAIL_INSET_PX);
-    const tailOffset = clamp(
-      anchorRect.top + (anchorRect.height / 2) - top,
-      MIN_TAIL_INSET_PX,
-      tailMax,
-    );
-    const nextLayout = { left, top, placement, tailOffset };
+    const nextLayout = calculateBoardStatHoverLayout({
+      anchorRect,
+      cardWidth: cardRect.width,
+      cardHeight: cardRect.height,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      preferredPlacement: side,
+    });
 
     setLayout((current) =>
       current &&
