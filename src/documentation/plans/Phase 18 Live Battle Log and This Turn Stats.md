@@ -2,7 +2,7 @@
 
 ## Normative Planning and Pass-Decomposition Document
 
-- **Status:** Phases 18A-18D are implemented in the live repository as of 2026-09-26; display passes 18E-18G remain planned, and the deployed-equivalent performance/public-rollout gate remains incomplete
+- **Status:** Phases 18A-18E are implemented in the live repository as of 2026-09-27; display passes 18F-18G remain planned, and the deployed-equivalent performance/public-rollout gate remains incomplete
 - **Phase type:** Live battle presentation and server-calculated estimates; not a new gameplay phase
 - **Primary scope:** A viewer-safe live current-turn Battle Log; estimated and resolved current-turn damage/healing; paired desktop and mobile stat presentation
 - **Architecture baseline:** Server-authoritative Shapeships after the Phase 14 phase simplification, Phase 16 head polling, and current Phase 7 Battle Log / Phase 12 stats implementations
@@ -686,6 +686,13 @@ Display spacing/polish, client combat formulas, server changes, a new client sto
 ### Does not include
 
 Client combat formulas, server rules, or final desktop/mobile stats layouts.
+
+### 18E refinement addendum (2026-09-27)
+
+- Build-ledger groups use one first-appearance chronology across the local draft, requester preview, authoritative capture, Reveal, and archive. Rows are newest-first; additional ships update an existing group in place. A manual group records the latest observed own-capture sequence when it first appears, and requester-local first-appearance order breaks ties at that anchor.
+- `buildGroupOrder` is private optional submission metadata only. Canonical build counts remain ship-ID sorted and retain their existing legality and resolution meaning. A requester-safe own-capture identity participates in preview matching so a changed captured ledger invalidates an otherwise identical draft preview; neither field is exposed to opponents or spectators before the existing Reveal barrier.
+- The live preview ledger contains captured rows plus successfully simulated manual groups only. Combat estimation may simulate later phases, but future produced rows such as a Dreadnought FIG do not enter the Battle Log until authoritative capture records their actual production.
+- Before Reveal, a player never sees `???` on their own side, while opponents and both spectator sides remain concealed. Accepted empty own builds, action-only revealed sides, and resolved historical sides with no ships show italic *Saved*; produced-only sides do not. Unknown legacy nonempty history is preserved without inferring *Saved*, and unresolved terminal turns remain suppressed.
 
 ---
 

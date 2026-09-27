@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { materializeQueuedSimulacrumCopiesAtTurnStart } from '../../../engine/ancient/simulacrumSolarPower.ts';
 import { resolveBuildSubmitAuthoritatively } from '../../../engine/intent/buildSubmitResolution.ts';
+import {
+  buildBattleLogTurnSummaryFromScratch,
+  foldBattleLogCaptureEventsIntoScratch,
+} from '../../../engine/state/battleLogHistory.ts';
 
 function createResolutionState(args: {
   lines: number;
@@ -45,6 +49,54 @@ function resolve(state: any) {
     nowMs: 1000,
   });
 }
+
+Deno.test('submission carries equal-count manual display order into authoritative archive formatting', () => {
+  const payload = {
+    builds: [
+      { shipDefId: 'DEF', count: 1 },
+      { shipDefId: 'FIG', count: 1 },
+    ],
+    buildGroupOrder: [
+      { shipDefId: 'FIG', afterCaptureSequence: 1 },
+      { shipDefId: 'DEF', afterCaptureSequence: 1 },
+    ],
+  };
+  const state = createResolutionState({ lines: 10, payload, faction: 'human' });
+  const result = resolve(state);
+  const manualEvents = result.events.filter((event: any) =>
+    event.type === 'BATTLE_LOG_CAPTURE_BUILD_MANUAL'
+  );
+  assert.deepEqual(
+    manualEvents.map((event: any) => [event.shipDefId, event.appearanceAnchor, event.appearanceRank]),
+    [['DEF', 1, 1], ['FIG', 1, 2]],
+  );
+
+  const scratch = foldBattleLogCaptureEventsIntoScratch(
+    {
+      currentTurnCapture: {
+        turnNumber: 1,
+        diceValue: 4,
+        buildAtomsByPlayerId: {
+          p1: [{ kind: 'reroll', sourceShipDefId: 'KNO', values: [2, 4] }],
+        },
+        battleAtomsByPlayerId: { p1: [] },
+        savedResourcesByPlayerId: {},
+      },
+      lastFinalizedTurnNumber: 0,
+    },
+    result.events,
+  );
+  const summary = buildBattleLogTurnSummaryFromScratch({
+    scratch,
+    finalizedTurnNumber: 1,
+    finalizedState: state,
+  });
+  assert.deepEqual(summary.buildLinesByPlayerId.p1, [
+    '1 x FIG',
+    '1 x DEF',
+    'KNO rerolled 2 -> 4',
+  ]);
+});
 
 Deno.test('build resolution persists ordered QUA selected numbers on successful creation', () => {
   const state = createResolutionState({
@@ -341,6 +393,7 @@ Deno.test('normal LEG and ZEN builds use shared immediate Drawing consequences',
         { shipDefId: 'ZEN', count: 1 },
         { shipDefId: 'ANT', count: 1 },
       ],
+      buildGroupOrder: [{ shipDefId: 'ZEN', afterCaptureSequence: 0 }],
     },
   });
   zenState.players[0].faction = 'xenite';
@@ -381,6 +434,33 @@ Deno.test('normal LEG and ZEN builds use shared immediate Drawing consequences',
     zenState.gameData.ships.p1.find((entry: any) => entry.shipDefId === 'ZEN')
       ?.instanceId,
   );
+  const zenManualCapture = zenResult.events.find((event: any) =>
+    event.type === 'BATTLE_LOG_CAPTURE_BUILD_MANUAL' && event.shipDefId === 'ZEN'
+  );
+  const zenProducedCapture = zenResult.events.find((event: any) =>
+    event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED' && event.sourceShipDefId === 'ZEN'
+  );
+  assert.deepEqual(
+    [zenManualCapture?.appearanceAnchor, zenManualCapture?.appearanceRank],
+    [0, 1],
+  );
+  assert.deepEqual(
+    [zenProducedCapture?.appearanceAnchor, zenProducedCapture?.appearanceRank],
+    [0, 1.5],
+  );
+  const zenScratch = foldBattleLogCaptureEventsIntoScratch(
+    { currentTurnCapture: null, lastFinalizedTurnNumber: 0 },
+    zenResult.events,
+  );
+  const zenSummary = buildBattleLogTurnSummaryFromScratch({
+    scratch: zenScratch,
+    finalizedTurnNumber: 1,
+    finalizedState: zenState,
+  });
+  assert.deepEqual(zenSummary.buildLinesByPlayerId.p1, [
+    '1 x ANT (ZEN)',
+    '1 x ZEN',
+  ]);
 
   const legState = createResolutionState({
     lines: 8,

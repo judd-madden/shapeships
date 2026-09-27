@@ -32,6 +32,7 @@ export function BattleLogLine({ line, align }: BattleLogLineProps) {
       className={[
         "text-[14px] leading-[18px] font-normal whitespace-pre-wrap break-words",
         align === 'right' ? 'text-right' : 'text-left',
+        line.variant === 'saved' ? 'italic' : '',
       ].join(' ')}
       style={{ color: 'var(--shapeships-grey-20)' }}
     >

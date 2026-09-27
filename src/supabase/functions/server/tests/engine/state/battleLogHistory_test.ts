@@ -270,16 +270,52 @@ Deno.test("Build formatting preserves buckets and groups produced rows across st
       producedBuildOccurrence: { stage: "reveal" } },
   ]);
   assert.deepEqual(summary.buildLinesByPlayerId.p1, [
-    "CHR rolled 2, 5",
-    "KNO rerolled 1 -> 6",
-    "CUB rolled 2, 4, 5",
-    "1 x FIG",
-    "2 x SPI (SSIM)",
-    "4 x DEF (2 CAR)",
+    "3 x FIG (DRE)",
+    "3 x ANT (2 ZEN)",
     "1 x FIG (CAR)",
     "2 x XEN (BUG)",
-    "3 x ANT (2 ZEN)",
-    "3 x FIG (DRE)",
+    "CUB rolled 2, 4, 5",
+    "KNO rerolled 1 -> 6",
+    "CHR rolled 2, 5",
+    "4 x DEF (2 CAR)",
+    "2 x SPI (SSIM)",
+    "1 x FIG",
+  ]);
+});
+
+Deno.test("first appearance anchors place a captured row between local clicks and counts update in place", () => {
+  const summary = buildSummaryForAtoms([
+    {
+      kind: "produced_build",
+      shipDefId: "ANT",
+      sourceShipDefId: "ZEN",
+      count: 1,
+    },
+    { kind: "reroll", sourceShipDefId: "KNO", values: [2, 5] },
+    {
+      kind: "manual_build",
+      shipDefId: "FIG",
+      appearanceAnchor: 1,
+      appearanceRank: 1,
+    },
+    {
+      kind: "manual_build",
+      shipDefId: "DEF",
+      appearanceAnchor: 2,
+      appearanceRank: 2,
+    },
+    {
+      kind: "manual_build",
+      shipDefId: "DEF",
+      appearanceAnchor: 2,
+      appearanceRank: 2,
+    },
+  ]);
+  assert.deepEqual(summary.buildLinesByPlayerId.p1, [
+    "2 x DEF",
+    "KNO rerolled 2 -> 5",
+    "1 x FIG",
+    "1 x ANT (ZEN)",
   ]);
 });
 
@@ -355,8 +391,8 @@ Deno.test("metadata-aware mode rejects partial classification for every authorit
       producedBuildOccurrence: { stage: "reveal" } },
   ]);
   assert.deepEqual(classifiedWithoutPrelude.buildLinesByPlayerId.p1, [
-    "1 x DEF",
     "3 x FIG (DRE)",
+    "1 x DEF",
   ]);
 });
 

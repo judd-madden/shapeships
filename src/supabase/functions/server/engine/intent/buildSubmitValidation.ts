@@ -205,6 +205,65 @@ export function validateBuildSubmitPayload(args: {
     }
   }
 
+  if (payload.buildGroupOrder !== undefined) {
+    if (!Array.isArray(payload.buildGroupOrder)) {
+      return {
+        ok: false,
+        code: RejectionCode.BAD_PAYLOAD,
+        message: "Invalid buildGroupOrder: must be an array",
+      };
+    }
+    const countsByShipDefId = new Map<string, number>();
+    for (const build of payload.builds) {
+      countsByShipDefId.set(
+        build.shipDefId,
+        (countsByShipDefId.get(build.shipDefId) ?? 0) + build.count,
+      );
+    }
+    const zenCount = countsByShipDefId.get("ZEN") ?? 0;
+    const antCount = countsByShipDefId.get("ANT") ?? 0;
+    const manualShipIds = new Set(
+      [...countsByShipDefId.entries()].flatMap(([shipDefId, count]) =>
+        shipDefId === "ANT" && count <= zenCount ? [] : [shipDefId]
+      ),
+    );
+    const captureSequence = Array.isArray(
+        args.state?.battleLogScratch?.currentTurnCapture?.buildAtomsByPlayerId?.[
+          args.playerId
+        ],
+      )
+      ? args.state.battleLogScratch.currentTurnCapture.buildAtomsByPlayerId[
+        args.playerId
+      ].length
+      : 0;
+    const seen = new Set<string>();
+    for (const entry of payload.buildGroupOrder) {
+      if (
+        !entry || typeof entry !== "object" ||
+        typeof entry.shipDefId !== "string" ||
+        !manualShipIds.has(entry.shipDefId) ||
+        seen.has(entry.shipDefId) ||
+        !Number.isInteger(entry.afterCaptureSequence) ||
+        entry.afterCaptureSequence < 0 ||
+        entry.afterCaptureSequence > captureSequence
+      ) {
+        return {
+          ok: false,
+          code: RejectionCode.BAD_PAYLOAD,
+          message: "Invalid buildGroupOrder entry",
+        };
+      }
+      seen.add(entry.shipDefId);
+    }
+    if (seen.size !== manualShipIds.size) {
+      return {
+        ok: false,
+        code: RejectionCode.BAD_PAYLOAD,
+        message: "buildGroupOrder must contain each positive build group exactly once",
+      };
+    }
+  }
+
   const frigateBuildCount = payload.builds
     .filter((build) => build.shipDefId === "FRI")
     .reduce((sum, build) => sum + (build.count ?? 0), 0);

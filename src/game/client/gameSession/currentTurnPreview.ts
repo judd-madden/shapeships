@@ -8,6 +8,7 @@ export interface CurrentTurnPreviewCandidateInput {
   turnNumber: number;
   phaseKey: 'build.drawing';
   safeContextFingerprint: string;
+  ownBuildCaptureIdentity?: string;
   draft: CanonicalBuildSubmitPayload;
 }
 
@@ -27,12 +28,20 @@ export interface CurrentTurnPreviewEstimate {
     phaseKey: string;
     sourceContextKey: string;
     draftKey: string;
+    ownBuildCaptureIdentity?: string;
   };
   playerId: string;
   damage: { total: number; rows: unknown[] };
   healing: { total: number; rows: unknown[] };
   build: {
     lines: string[];
+    rows?: Array<{
+      line: string;
+      groupKey: string;
+      appearanceAnchor: number;
+      appearanceRank: number;
+      kind: 'action' | 'manual' | 'produced';
+    }>;
     skipped: unknown[];
     remainingOrdinaryLines: number;
     remainingJoiningLines: number;
@@ -59,6 +68,7 @@ export interface CurrentTurnPreviewEnvelope {
     turnNumber: number;
     phaseKey: 'build.drawing';
     sourceContextKey?: string;
+    ownBuildCaptureIdentity?: string;
   };
   draft: CanonicalBuildSubmitPayload;
   requestToken: string;
@@ -132,6 +142,7 @@ export function getCurrentTurnPreviewCandidateIdentity(
       turnNumber: input.turnNumber,
       phaseKey: input.phaseKey,
       safeContextFingerprint: input.safeContextFingerprint,
+      ownBuildCaptureIdentity: input.ownBuildCaptureIdentity ?? 'capture:unknown',
       draftFingerprint,
     }),
   };
@@ -263,6 +274,8 @@ function asEstimate(value: unknown): CurrentTurnPreviewEstimate | null {
     typeof value.identity.phaseKey !== 'string' ||
     typeof value.identity.sourceContextKey !== 'string' ||
     typeof value.identity.draftKey !== 'string' ||
+    (value.identity.ownBuildCaptureIdentity !== undefined &&
+      typeof value.identity.ownBuildCaptureIdentity !== 'string') ||
     typeof value.playerId !== 'string' ||
     !isRecord(value.damage) ||
     !isRecord(value.healing) ||
@@ -328,6 +341,9 @@ export function createCurrentTurnPreviewScheduler(args: {
     observed: {
       turnNumber: candidate.turnNumber,
       phaseKey: candidate.phaseKey,
+      ...(candidate.ownBuildCaptureIdentity
+        ? { ownBuildCaptureIdentity: candidate.ownBuildCaptureIdentity }
+        : {}),
       ...(sourceContextKey ? { sourceContextKey } : {}),
     },
     draft: candidate.draft,
@@ -387,6 +403,8 @@ export function createCurrentTurnPreviewScheduler(args: {
           estimate.identity.gameId === candidate.gameId &&
           estimate.identity.turnNumber === candidate.turnNumber &&
           estimate.identity.phaseKey === candidate.phaseKey &&
+          (candidate.ownBuildCaptureIdentity === undefined ||
+            estimate.identity.ownBuildCaptureIdentity === candidate.ownBuildCaptureIdentity) &&
           estimate.playerId === candidate.playerId
         ) {
           routeKeyByScope.set(scope, estimate.identity.sourceContextKey);

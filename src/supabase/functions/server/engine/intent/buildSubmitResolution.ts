@@ -1214,7 +1214,37 @@ export function resolvePlayerBuildSubmitAuthoritatively(
     atMs: nowMs,
   });
 
-  return events;
+  const manualOrder = new Map(
+    (payload?.buildGroupOrder ?? []).map((entry, index, entries) => [
+      entry.shipDefId,
+      {
+        appearanceAnchor: entry.afterCaptureSequence,
+        appearanceRank: entries.length - index,
+      },
+    ]),
+  );
+  return events.map((event) => {
+    if (event?.type === 'BATTLE_LOG_CAPTURE_BUILD_MANUAL') {
+      const order = manualOrder.get(event.shipDefId);
+      return order ? { ...event, ...order } : event;
+    }
+    if (
+      event?.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED' &&
+      event.shipDefId === 'ANT' &&
+      event.sourceShipDefId === 'ZEN' &&
+      event.producedBuildOccurrence?.stage === 'drawing'
+    ) {
+      const sourceOrder = manualOrder.get('ZEN');
+      return sourceOrder
+        ? {
+          ...event,
+          appearanceAnchor: sourceOrder.appearanceAnchor,
+          appearanceRank: sourceOrder.appearanceRank + 0.5,
+        }
+        : event;
+    }
+    return event;
+  });
 }
 
 export function resolveBuildSubmitAuthoritatively(

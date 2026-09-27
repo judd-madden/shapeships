@@ -3,6 +3,7 @@ declare const Deno: { test(name: string, fn: () => void | Promise<void>): void }
 import {
   buildDrawingPreviewSafeContextFingerprint,
   createCurrentTurnPreviewScheduler,
+  getCurrentTurnPreviewCandidateIdentity,
   type CurrentTurnPreviewCandidateInput,
   type CurrentTurnPreviewEnvelope,
   type PreviewSchedulerClock,
@@ -66,6 +67,9 @@ function estimate(envelope: CurrentTurnPreviewEnvelope, sourceContextKey: string
       phaseKey: 'build.drawing',
       sourceContextKey,
       draftKey: 'server-draft',
+      ...(envelope.observed.ownBuildCaptureIdentity
+        ? { ownBuildCaptureIdentity: envelope.observed.ownBuildCaptureIdentity }
+        : {}),
     },
     playerId: 'p1',
     damage: { total: 1, rows: [] },
@@ -73,6 +77,88 @@ function estimate(envelope: CurrentTurnPreviewEnvelope, sourceContextKey: string
     build: { lines: ['1 x DEF'], skipped: [], remainingOrdinaryLines: 0, remainingJoiningLines: 0 },
   };
 }
+
+Deno.test('group order and requester capture identity both participate in preview identity', () => {
+  const shared = {
+    gameId: 'game-1',
+    playerId: 'p1',
+    turnNumber: 4,
+    phaseKey: 'build.drawing' as const,
+    safeContextFingerprint: 'safe-a',
+  };
+  const newestDef = getCurrentTurnPreviewCandidateIdentity({
+    ...shared,
+    ownBuildCaptureIdentity: 'capture-a',
+    draft: {
+      builds: [{ shipDefId: 'DEF', count: 1 }, { shipDefId: 'FIG', count: 1 }],
+      buildGroupOrder: [
+        { shipDefId: 'DEF', afterCaptureSequence: 2 },
+        { shipDefId: 'FIG', afterCaptureSequence: 2 },
+      ],
+    },
+  });
+  const newestFig = getCurrentTurnPreviewCandidateIdentity({
+    ...shared,
+    ownBuildCaptureIdentity: 'capture-a',
+    draft: {
+      builds: [{ shipDefId: 'DEF', count: 1 }, { shipDefId: 'FIG', count: 1 }],
+      buildGroupOrder: [
+        { shipDefId: 'FIG', afterCaptureSequence: 2 },
+        { shipDefId: 'DEF', afterCaptureSequence: 2 },
+      ],
+    },
+  });
+  const changedCapture = getCurrentTurnPreviewCandidateIdentity({
+    ...shared,
+    ownBuildCaptureIdentity: 'capture-b',
+    draft: {
+      builds: [{ shipDefId: 'DEF', count: 1 }, { shipDefId: 'FIG', count: 1 }],
+      buildGroupOrder: [
+        { shipDefId: 'DEF', afterCaptureSequence: 2 },
+        { shipDefId: 'FIG', afterCaptureSequence: 2 },
+      ],
+    },
+  });
+
+  assert(newestDef.draftFingerprint !== newestFig.draftFingerprint, 'group order was omitted');
+  assert(newestDef.identityKey !== newestFig.identityKey, 'order reused a preview candidate');
+  assert(newestDef.identityKey !== changedCapture.identityKey, 'changed own capture reused a preview candidate');
+});
+
+Deno.test('unchanged draft refetches its complete ledger when own capture identity changes', async () => {
+  const clock = new FakeClock();
+  const seenCaptures: string[] = [];
+  const scheduler = createCurrentTurnPreviewScheduler({
+    clock,
+    onStateChange: () => {},
+    transport: async (_gameId, envelope) => {
+      seenCaptures.push(envelope.observed.ownBuildCaptureIdentity ?? 'missing');
+      const result = estimate(envelope, `route-${seenCaptures.length}`);
+      result.build.lines = seenCaptures.length === 1
+        ? ['1 x DEF']
+        : ['1 x FIG (DRE)', '1 x DEF'];
+      return { status: 200, body: result };
+    },
+  });
+  const withCapture = (ownBuildCaptureIdentity: string): CurrentTurnPreviewCandidateInput => ({
+    ...candidate(1),
+    ownBuildCaptureIdentity,
+  });
+
+  scheduler.setCandidate(withCapture('capture-a'));
+  clock.advance(225);
+  await flush();
+  scheduler.setCandidate(withCapture('capture-b'));
+  clock.advance(225);
+  await flush();
+
+  assert(JSON.stringify(seenCaptures) === JSON.stringify(['capture-a', 'capture-b']));
+  const state = scheduler.getState();
+  assert(state.kind === 'estimated', 'refreshed complete ledger was not accepted');
+  if (state.kind === 'estimated') {
+    assert(state.estimate.build.lines[0] === '1 x FIG (DRE)', 'new captured row was missing');
+  }
+});
 
 async function flush(): Promise<void> {
   await Promise.resolve();

@@ -80,6 +80,17 @@ export type BattleLogCurrentTurnProjection = {
 export type BattleLogRequesterCurrentTurnProjection = {
   turnNumber: number;
   capturedBuildLines: string[];
+  capturedBuildRows: BattleLogBuildRowProjection[];
+  captureSequence: number;
+  ownBuildCaptureIdentity: string;
+};
+
+export type BattleLogBuildRowProjection = {
+  line: string;
+  groupKey: string;
+  appearanceAnchor: number;
+  appearanceRank: number;
+  kind: "action" | "manual" | "produced";
 };
 
 export type ProducedBuildOccurrence =
@@ -110,6 +121,8 @@ type BuildCaptureAtom =
   | {
       kind: "manual_build";
       shipDefId: string;
+      appearanceAnchor?: number;
+      appearanceRank?: number;
     }
   | {
       kind: "produced_build";
@@ -118,6 +131,8 @@ type BuildCaptureAtom =
       count: number;
       sourceShipInstanceId?: string;
       producedBuildOccurrence?: ProducedBuildOccurrence;
+      appearanceAnchor?: number;
+      appearanceRank?: number;
     };
 
 type BattleCaptureAtom =
@@ -216,6 +231,8 @@ type BattleLogCaptureEvent =
       turnNumber: number;
       playerId: string;
       shipDefId: string;
+      appearanceAnchor?: number;
+      appearanceRank?: number;
     }
   | {
       type: "BATTLE_LOG_CAPTURE_BUILD_PRODUCED";
@@ -226,6 +243,8 @@ type BattleLogCaptureEvent =
       count: number;
       sourceShipInstanceId?: string;
       producedBuildOccurrence?: ProducedBuildOccurrence;
+      appearanceAnchor?: number;
+      appearanceRank?: number;
     }
   | {
       type: "BATTLE_LOG_CAPTURE_BATTLE_CHARGE_ACTION";
@@ -659,6 +678,12 @@ function cloneBuildCaptureAtom(atom: BuildCaptureAtom): BuildCaptureAtom {
     return {
       kind: "manual_build",
       shipDefId: atom.shipDefId,
+      ...(isFiniteNumber(atom.appearanceAnchor)
+        ? { appearanceAnchor: atom.appearanceAnchor }
+        : {}),
+      ...(isFiniteNumber(atom.appearanceRank)
+        ? { appearanceRank: atom.appearanceRank }
+        : {}),
     };
   }
 
@@ -674,6 +699,12 @@ function cloneBuildCaptureAtom(atom: BuildCaptureAtom): BuildCaptureAtom {
       ? { sourceShipInstanceId: atom.sourceShipInstanceId }
       : {}),
     ...(producedBuildOccurrence ? { producedBuildOccurrence } : {}),
+    ...(isFiniteNumber(atom.appearanceAnchor)
+      ? { appearanceAnchor: atom.appearanceAnchor }
+      : {}),
+    ...(isFiniteNumber(atom.appearanceRank)
+      ? { appearanceRank: atom.appearanceRank }
+      : {}),
   };
 }
 
@@ -1323,57 +1354,7 @@ function formatAncientSolarBattleLines(
   );
 }
 
-function collapseProducedBuildLines(
-  producedBuilds: Array<Extract<BuildCaptureAtom, { kind: "produced_build" }>>,
-): string[] {
-  type ProducedGroup = {
-    sample: Extract<BuildCaptureAtom, { kind: "produced_build" }>;
-    count: number;
-    sourceInstanceIds: Set<string>;
-    hasCompleteSourceIdentity: boolean;
-  };
-
-  const groupsBySourceKind = new Map<string, Map<string, ProducedGroup>>();
-
-  for (const atom of producedBuilds) {
-    let outputGroups = groupsBySourceKind.get(atom.sourceShipDefId);
-    if (!outputGroups) {
-      outputGroups = new Map<string, ProducedGroup>();
-      groupsBySourceKind.set(atom.sourceShipDefId, outputGroups);
-    }
-
-    const key = `${atom.shipDefId}::${atom.sourceShipDefId}`;
-    let group = outputGroups.get(key);
-    if (!group) {
-      group = {
-        sample: atom,
-        count: 0,
-        sourceInstanceIds: new Set<string>(),
-        hasCompleteSourceIdentity: true,
-      };
-      outputGroups.set(key, group);
-    }
-
-    group.count += atom.count;
-    if (isNonEmptyString(atom.sourceShipInstanceId)) {
-      group.sourceInstanceIds.add(atom.sourceShipInstanceId);
-    } else {
-      group.hasCompleteSourceIdentity = false;
-    }
-  }
-
-  return [...groupsBySourceKind.values()].flatMap((outputGroups) =>
-    [...outputGroups.values()].map((group) => {
-      const sourceCount = group.hasCompleteSourceIdentity &&
-          group.sourceInstanceIds.size > 1
-        ? `${group.sourceInstanceIds.size} `
-        : "";
-      return `${group.count} x ${group.sample.shipDefId} (${sourceCount}${group.sample.sourceShipDefId})`;
-    })
-  );
-}
-
-function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
+function formatBuildRows(buildAtoms: BuildCaptureAtom[]): BattleLogBuildRowProjection[] {
   const producedBuilds = buildAtoms.filter(
     (atom): atom is Extract<BuildCaptureAtom, { kind: "produced_build" }> =>
       atom.kind === "produced_build",
@@ -1388,40 +1369,112 @@ function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
     throw new Error("BATTLE_LOG_PRODUCED_OCCURRENCE_INVARIANT");
   }
 
-  const interventionLines: string[] = [];
-  const manualBuilds: Array<
-    Extract<BuildCaptureAtom, { kind: "manual_build" }>
-  > = [];
-  for (const atom of buildAtoms) {
+  type MutableRow = BattleLogBuildRowProjection & {
+    firstIndex: number;
+    count: number;
+    shipDefId?: string;
+    sourceShipDefId?: string;
+    sourceInstanceIds?: Set<string>;
+    hasCompleteSourceIdentity?: boolean;
+  };
+  const rows = new Map<string, MutableRow>();
+  const addAction = (line: string, index: number) => {
+    const groupKey = `action:${index}`;
+    rows.set(groupKey, {
+      line,
+      groupKey,
+      appearanceAnchor: index + 1,
+      appearanceRank: 0,
+      kind: "action",
+      firstIndex: index,
+      count: 1,
+    });
+  };
+
+  for (const [index, atom] of buildAtoms.entries()) {
     if (atom.kind === "reroll") {
-      interventionLines.push(
-        `${atom.sourceShipDefId} rerolled ${atom.values.join(" -> ")}`,
-      );
+      addAction(`${atom.sourceShipDefId} rerolled ${atom.values.join(" -> ")}`, index);
     } else if (atom.kind === "chronoswarm_roll") {
       const rolls = normalizeChronoswarmRolls(atom.rolls);
-      if (rolls.length === 1) interventionLines.push(`CHR rolled ${rolls[0]}`);
-      else if (rolls.length > 1) interventionLines.push(`CHR rolled ${rolls.join(", ")}`);
+      if (rolls.length === 1) addAction(`CHR rolled ${rolls[0]}`, index);
+      else if (rolls.length > 1) addAction(`CHR rolled ${rolls.join(", ")}`, index);
     } else if (atom.kind === "cube_change") {
-      interventionLines.push(`CUB rolled ${atom.toValue}`);
+      addAction(`CUB rolled ${atom.toValue}`, index);
     } else if (atom.kind === "cube_rolls") {
       const rolls = normalizeChronoswarmRolls(atom.rolls);
-      if (rolls.length > 0) interventionLines.push(`CUB rolled ${rolls.join(", ")}`);
+      if (rolls.length > 0) addAction(`CUB rolled ${rolls.join(", ")}`, index);
     } else if (atom.kind === "manual_build") {
-      manualBuilds.push(atom);
+      const groupKey = `manual:${atom.shipDefId}`;
+      const existing = rows.get(groupKey);
+      if (existing) {
+        existing.count += 1;
+        existing.line = `${existing.count} x ${atom.shipDefId}`;
+      } else {
+        rows.set(groupKey, {
+          line: `1 x ${atom.shipDefId}`,
+          groupKey,
+          appearanceAnchor: isFiniteNumber(atom.appearanceAnchor)
+            ? atom.appearanceAnchor
+            : index + 1,
+          appearanceRank: isFiniteNumber(atom.appearanceRank)
+            ? atom.appearanceRank
+            : 0,
+          kind: "manual",
+          firstIndex: index,
+          count: 1,
+          shipDefId: atom.shipDefId,
+        });
+      }
+    } else if (atom.kind === "produced_build") {
+      const groupKey = `produced:${atom.shipDefId}:${atom.sourceShipDefId}`;
+      let group = rows.get(groupKey);
+      if (!group) {
+        group = {
+          line: "",
+          groupKey,
+          appearanceAnchor: isFiniteNumber(atom.appearanceAnchor)
+            ? atom.appearanceAnchor
+            : index + 1,
+          appearanceRank: isFiniteNumber(atom.appearanceRank)
+            ? atom.appearanceRank
+            : 0,
+          kind: "produced",
+          firstIndex: index,
+          count: 0,
+          shipDefId: atom.shipDefId,
+          sourceShipDefId: atom.sourceShipDefId,
+          sourceInstanceIds: new Set<string>(),
+          hasCompleteSourceIdentity: true,
+        };
+        rows.set(groupKey, group);
+      }
+      group.count += atom.count;
+      if (isNonEmptyString(atom.sourceShipInstanceId)) {
+        group.sourceInstanceIds!.add(atom.sourceShipInstanceId);
+      } else {
+        group.hasCompleteSourceIdentity = false;
+      }
+      const sourceCount = group.hasCompleteSourceIdentity &&
+          group.sourceInstanceIds!.size > 1
+        ? `${group.sourceInstanceIds!.size} `
+        : "";
+      group.line = `${group.count} x ${group.shipDefId} (${sourceCount}${group.sourceShipDefId})`;
     }
   }
 
-  const manualLines = collapseCountLines(
-    manualBuilds,
-    (atom) => atom.shipDefId,
-    (atom, count) => `${count} x ${atom.shipDefId}`,
-  );
+  return [...rows.values()]
+    .sort((left, right) =>
+      right.appearanceAnchor - left.appearanceAnchor ||
+      right.appearanceRank - left.appearanceRank ||
+      right.firstIndex - left.firstIndex
+    )
+    .map(({ firstIndex: _firstIndex, count: _count, shipDefId: _shipDefId,
+      sourceShipDefId: _sourceShipDefId, sourceInstanceIds: _sourceInstanceIds,
+      hasCompleteSourceIdentity: _hasCompleteSourceIdentity, ...row }) => row);
+}
 
-  return [
-    ...interventionLines,
-    ...manualLines,
-    ...collapseProducedBuildLines(producedBuilds),
-  ];
+function formatBuildLines(buildAtoms: BuildCaptureAtom[]): string[] {
+  return formatBuildRows(buildAtoms).map((row) => row.line);
 }
 
 /**
@@ -1450,6 +1503,71 @@ export function formatBattleLogBuildLinesFromCaptureEvents(args: {
   const capture = scratch.currentTurnCapture;
   if (!capture || capture.turnNumber !== args.turnNumber) return [];
   return formatBuildLines(capture.buildAtomsByPlayerId[args.playerId] ?? []);
+}
+
+export function formatBattleLogPreviewBuildRows(args: {
+  state: GameStateLike;
+  turnNumber: number;
+  playerId: string;
+  events: readonly unknown[];
+}): BattleLogBuildRowProjection[] {
+  const capture = normalizeBattleLogScratch(args.state.battleLogScratch)
+    .currentTurnCapture;
+  const atoms = capture?.turnNumber === args.turnNumber
+    ? (capture.buildAtomsByPlayerId[args.playerId] ?? []).map(cloneBuildCaptureAtom)
+    : [];
+  const capturedProducedAtoms = atoms.filter(
+    (atom): atom is Extract<BuildCaptureAtom, { kind: "produced_build" }> =>
+      atom.kind === "produced_build",
+  );
+  const includeProducedOccurrence = capturedProducedAtoms.length === 0 ||
+    capturedProducedAtoms.every((atom) =>
+      atom.producedBuildOccurrence !== undefined
+    );
+  for (const event of args.events) {
+    const raw = event as Record<string, unknown> | null;
+    if (
+      !raw || raw.turnNumber !== args.turnNumber ||
+      raw.playerId !== args.playerId || typeof raw.shipDefId !== "string"
+    ) continue;
+    if (raw.type === "BATTLE_LOG_CAPTURE_BUILD_MANUAL") {
+      atoms.push({
+        kind: "manual_build",
+        shipDefId: raw.shipDefId,
+        ...(isFiniteNumber(raw.appearanceAnchor)
+          ? { appearanceAnchor: raw.appearanceAnchor }
+          : {}),
+        ...(isFiniteNumber(raw.appearanceRank)
+          ? { appearanceRank: raw.appearanceRank }
+          : {}),
+      });
+      continue;
+    }
+    const producedBuildOccurrence = readOptionalProducedBuildOccurrence(raw);
+    if (
+      raw.type !== "BATTLE_LOG_CAPTURE_BUILD_PRODUCED" ||
+      producedBuildOccurrence?.stage !== "drawing" ||
+      typeof raw.sourceShipDefId !== "string" ||
+      !isFiniteNumber(raw.count)
+    ) continue;
+    atoms.push({
+      kind: "produced_build",
+      shipDefId: raw.shipDefId,
+      sourceShipDefId: raw.sourceShipDefId,
+      count: raw.count,
+      ...(isNonEmptyString(raw.sourceShipInstanceId)
+        ? { sourceShipInstanceId: raw.sourceShipInstanceId }
+        : {}),
+      ...(includeProducedOccurrence ? { producedBuildOccurrence } : {}),
+      ...(isFiniteNumber(raw.appearanceAnchor)
+        ? { appearanceAnchor: raw.appearanceAnchor }
+        : {}),
+      ...(isFiniteNumber(raw.appearanceRank)
+        ? { appearanceRank: raw.appearanceRank }
+        : {}),
+    });
+  }
+  return formatBuildRows(atoms);
 }
 
 function formatBattleLines(battleAtoms: BattleCaptureAtom[]): string[] {
@@ -1682,11 +1800,28 @@ export function projectBattleLogCurrentTurnRequester(
   const capturedBuildAtoms = capture?.turnNumber === turnNumber
     ? capture.buildAtomsByPlayerId[requestingParticipantId] ?? []
     : [];
+  const capturedBuildRows = formatBuildRows(capturedBuildAtoms);
+  const captureSequence = capturedBuildAtoms.length;
+  const identitySource = JSON.stringify({
+    turnNumber,
+    captureSequence,
+    rows: capturedBuildRows,
+  });
+  let identityHash = 0xcbf29ce484222325n;
+  const identityPrime = 0x100000001b3n;
+  const identityMask = 0xffffffffffffffffn;
+  for (let index = 0; index < identitySource.length; index += 1) {
+    identityHash ^= BigInt(identitySource.charCodeAt(index));
+    identityHash = (identityHash * identityPrime) & identityMask;
+  }
   return {
     turnNumber,
     capturedBuildLines: formatBuildLines(
       capturedBuildAtoms.filter((atom) => !isPublicBuildInterventionAtom(atom)),
     ),
+    capturedBuildRows,
+    captureSequence,
+    ownBuildCaptureIdentity: `${turnNumber}:${identityHash.toString(16).padStart(16, "0")}`,
   };
 }
 
@@ -2062,6 +2197,12 @@ export function foldBattleLogCaptureEventsIntoScratch(
         getOrCreateBuildAtomsForPlayer(capture, rawEvent.playerId).push({
           kind: "manual_build",
           shipDefId: rawEvent.shipDefId,
+          ...(isFiniteNumber(rawEvent.appearanceAnchor)
+            ? { appearanceAnchor: rawEvent.appearanceAnchor }
+            : {}),
+          ...(isFiniteNumber(rawEvent.appearanceRank)
+            ? { appearanceRank: rawEvent.appearanceRank }
+            : {}),
         });
         break;
       case "BATTLE_LOG_CAPTURE_BUILD_PRODUCED":
@@ -2078,6 +2219,12 @@ export function foldBattleLogCaptureEventsIntoScratch(
               ? { sourceShipInstanceId: rawEvent.sourceShipInstanceId }
               : {}),
             ...(producedBuildOccurrence ? { producedBuildOccurrence } : {}),
+            ...(isFiniteNumber(rawEvent.appearanceAnchor)
+              ? { appearanceAnchor: rawEvent.appearanceAnchor }
+              : {}),
+            ...(isFiniteNumber(rawEvent.appearanceRank)
+              ? { appearanceRank: rawEvent.appearanceRank }
+              : {}),
           });
           break;
         }

@@ -10,7 +10,8 @@ import {
   projectDrawingPreludeFleetsForViewerWithAvailability,
 } from "./drawingPreludeProjection.ts";
 import {
-  formatBattleLogBuildLinesFromCaptureEvents,
+  formatBattleLogPreviewBuildRows,
+  type BattleLogBuildRowProjection,
 } from "./battleLogHistory.ts";
 import type {
   GameState,
@@ -69,6 +70,7 @@ export type CurrentTurnBuildSkipFact = {
 
 export type CurrentTurnBuildFacts = {
   lines: string[];
+  rows: BattleLogBuildRowProjection[];
   skipped: CurrentTurnBuildSkipFact[];
   remainingOrdinaryLines: number;
   remainingJoiningLines: number;
@@ -165,6 +167,7 @@ function normalizeDraftIdentity(
     frigateTriggers: draft.frigateTriggers ??
       Array.from({ length: frigateCount }, () => 1),
     quantumMysticSelections: draft.quantumMysticSelections ?? [],
+    buildGroupOrder: draft.buildGroupOrder ?? [],
     evolverChoices: draft.evolverChoices ?? [],
   };
 }
@@ -829,6 +832,12 @@ export function estimateCurrentTurnForPlayer(
   const simulatedPlayer = applied.state.players.find((player) =>
     player.id === args.playerId
   );
+  const buildRows = formatBattleLogPreviewBuildRows({
+    state: args.state,
+    turnNumber: prepared.turnNumber,
+    playerId: args.playerId,
+    events: simulationEvents,
+  });
 
   return {
     status: prepared.status,
@@ -840,11 +849,8 @@ export function estimateCurrentTurnForPlayer(
     damageRows,
     healingRows,
     build: {
-      lines: formatBattleLogBuildLinesFromCaptureEvents({
-        turnNumber: prepared.turnNumber,
-        playerId: args.playerId,
-        events: simulationEvents,
-      }),
+      lines: buildRows.map((row) => row.line),
+      rows: buildRows,
       skipped: collectStableBuildSkips(simulationEvents),
       remainingOrdinaryLines: normalizeFiniteResource(simulatedPlayer?.lines),
       remainingJoiningLines: normalizeFiniteResource(

@@ -46,6 +46,7 @@ type PreviewRequest = {
     turnNumber: number;
     phaseKey: "build.drawing";
     sourceContextKey?: string;
+    ownBuildCaptureIdentity?: string;
   };
   draft: BuildSubmitPayload;
   requestToken?: string;
@@ -104,19 +105,24 @@ function hashStableValue(value: unknown): string {
   return hash.toString(16).padStart(16, "0");
 }
 
-function toEstimateIdentityDto(identity: CurrentTurnEstimateIdentity) {
+function toEstimateIdentityDto(
+  identity: CurrentTurnEstimateIdentity,
+  ownBuildCaptureIdentity?: string,
+) {
   return {
     gameId: identity.gameId,
     turnNumber: identity.turnNumber,
     phaseKey: identity.sourcePhase,
     sourceContextKey: identity.sourceContextKey,
     draftKey: identity.draftKey,
+    ...(ownBuildCaptureIdentity ? { ownBuildCaptureIdentity } : {}),
   };
 }
 
 function toBuildDto(result: CurrentTurnEstimateAvailableResult) {
   return {
     lines: [...result.build.lines],
+    rows: result.build.rows.map((row) => ({ ...row })),
     skipped: result.build.skipped.map((fact) => ({ ...fact })),
     remainingOrdinaryLines: result.build.remainingOrdinaryLines,
     remainingJoiningLines: result.build.remainingJoiningLines,
@@ -126,6 +132,7 @@ function toBuildDto(result: CurrentTurnEstimateAvailableResult) {
 function toEstimateDto(
   result: CurrentTurnEstimateResult,
   includeBuild: boolean,
+  ownBuildCaptureIdentity?: string,
 ) {
   if (result.status === "unavailable") {
     return {
@@ -134,6 +141,7 @@ function toEstimateDto(
       identity: {
         sourceContextKey: result.identity.sourceContextKey,
         draftKey: result.identity.draftKey,
+        ...(ownBuildCaptureIdentity ? { ownBuildCaptureIdentity } : {}),
       },
     };
   }
@@ -142,6 +150,7 @@ function toEstimateDto(
     identity: {
       sourceContextKey: result.identity.sourceContextKey,
       draftKey: result.identity.draftKey,
+      ...(ownBuildCaptureIdentity ? { ownBuildCaptureIdentity } : {}),
     },
     damage: {
       total: result.damage,
@@ -167,12 +176,14 @@ function validatePreviewEnvelope(value: unknown):
       "turnNumber",
       "phaseKey",
       "sourceContextKey",
+      "ownBuildCaptureIdentity",
     ]) ||
     !hasOnlyKeys(value.draft, [
       "builds",
       "frigateTriggers",
       "quantumMysticSelections",
       "evolverChoices",
+      "buildGroupOrder",
     ])
   ) {
     return { ok: false, reason: "invalid_payload" };
@@ -181,7 +192,9 @@ function validatePreviewEnvelope(value: unknown):
     !Number.isInteger(value.observed.turnNumber) ||
     value.observed.phaseKey !== "build.drawing" ||
     (value.observed.sourceContextKey !== undefined &&
-      typeof value.observed.sourceContextKey !== "string")
+      typeof value.observed.sourceContextKey !== "string") ||
+    (value.observed.ownBuildCaptureIdentity !== undefined &&
+      typeof value.observed.ownBuildCaptureIdentity !== "string")
   ) {
     return { ok: false, reason: "invalid_payload" };
   }
@@ -203,6 +216,10 @@ function validatePreviewEnvelope(value: unknown):
     (Array.isArray(draft.evolverChoices) &&
       draft.evolverChoices.some((choice: unknown) =>
         !isObject(choice) || !hasOnlyKeys(choice, ["sourceKey", "choiceId"])
+      )) ||
+    (Array.isArray(draft.buildGroupOrder) &&
+      draft.buildGroupOrder.some((entry: unknown) =>
+        !isObject(entry) || !hasOnlyKeys(entry, ["shipDefId", "afterCaptureSequence"])
       ))
   ) {
     return { ok: false, reason: "invalid_payload" };
@@ -211,6 +228,7 @@ function validatePreviewEnvelope(value: unknown):
     draft.frigateTriggers,
     draft.quantumMysticSelections,
     draft.evolverChoices,
+    draft.buildGroupOrder,
   ].filter((entry) => entry !== undefined);
   if (
     draft.builds.length > MAX_PREVIEW_BUILD_ENTRIES ||
@@ -357,6 +375,22 @@ export function registerCurrentTurnProjectionRoutes(args: {
         }, 400);
       }
 
+      const requesterCapture = projectBattleLogCurrentTurnRequester(
+        state,
+        session.sessionId,
+      );
+      if (
+        observed.ownBuildCaptureIdentity !== undefined &&
+        observed.ownBuildCaptureIdentity !== requesterCapture?.ownBuildCaptureIdentity
+      ) {
+        return c.json({
+          status: "obsolete",
+          reason: "capture_context_changed",
+          ...(requestToken !== undefined ? { requestToken } : {}),
+          retry: { allowed: false },
+        }, 409);
+      }
+
       const estimatorStartedAt = performance.now();
       const result = estimateCurrentTurnForPlayer({
         state,
@@ -379,7 +413,10 @@ export function registerCurrentTurnProjectionRoutes(args: {
         result.status === "unavailable" &&
         result.reason === "source_context_changed"
       ) {
-        const identity = toEstimateIdentityDto(result.identity);
+        const identity = toEstimateIdentityDto(
+          result.identity,
+          requesterCapture?.ownBuildCaptureIdentity,
+        );
         return c.json({
           status: "obsolete",
           reason: "source_context_changed",
@@ -398,13 +435,19 @@ export function registerCurrentTurnProjectionRoutes(args: {
           status: "unavailable",
           reason: result.reason,
           ...(requestToken !== undefined ? { requestToken } : {}),
-          identity: toEstimateIdentityDto(result.identity),
+          identity: toEstimateIdentityDto(
+            result.identity,
+            requesterCapture?.ownBuildCaptureIdentity,
+          ),
         }, 409);
       }
       return c.json({
         status: "estimated",
         ...(requestToken !== undefined ? { requestToken } : {}),
-        identity: toEstimateIdentityDto(result.identity),
+        identity: toEstimateIdentityDto(
+          result.identity,
+          requesterCapture?.ownBuildCaptureIdentity,
+        ),
         playerId: session.sessionId,
         damage: {
           total: result.damage,
@@ -494,8 +537,15 @@ export function projectCurrentTurnFieldsForFullState(args: {
         });
         estimateCount++;
         committedProjection = {
-          ...toEstimateDto(estimate, true),
-          identity: toEstimateIdentityDto(estimate.identity),
+          ...toEstimateDto(
+            estimate,
+            true,
+            captured?.ownBuildCaptureIdentity,
+          ),
+          identity: toEstimateIdentityDto(
+            estimate.identity,
+            captured?.ownBuildCaptureIdentity,
+          ),
         };
       } else {
         committedProjection = {
@@ -506,6 +556,9 @@ export function projectCurrentTurnFieldsForFullState(args: {
     }
     requesterThisTurn = {
       capturedBuildLines: captured?.capturedBuildLines ?? [],
+      capturedBuildRows: captured?.capturedBuildRows ?? [],
+      captureSequence: captured?.captureSequence ?? 0,
+      ownBuildCaptureIdentity: captured?.ownBuildCaptureIdentity ?? null,
       committedProjection,
     };
   }

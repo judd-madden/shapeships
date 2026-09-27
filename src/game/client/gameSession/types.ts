@@ -329,6 +329,7 @@ export type BattleLogTokenVm =
 
 export interface BattleLogLineVm {
   tokens: BattleLogTokenVm[];
+  variant?: 'saved';
 }
 
 export interface BattleLogTurnSideVm {
@@ -398,12 +399,15 @@ export interface ThisTurnBuildRowUnitVm {
   source: ThisTurnBuildRowUnitSource;
   draftFingerprint?: string;
   lines: BattleLogLineVm[];
+  hasShipBuildLine: boolean;
+  hasUnknownBuildLine: boolean;
 }
 
 export interface ThisTurnLiveSideVm {
   buildRowUnits: ThisTurnBuildRowUnitVm[];
   battleLines: BattleLogLineVm[];
   buildVisibility: 'visible' | 'concealed';
+  showSavedWhenEmpty: boolean;
 }
 
 export interface ThisTurnLiveLogVm {

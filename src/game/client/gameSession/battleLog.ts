@@ -53,6 +53,21 @@ const SHIP_OR_MULTIPLIER_PATTERN = /\b[A-Z0-9]{3,5}\b|\bx\b/g;
 const CONCEALED_BUILD_LINE: BattleLogLineVm = {
   tokens: [{ kind: 'text', text: '???' }],
 };
+const SAVED_BUILD_LINE: BattleLogLineVm = {
+  tokens: [{ kind: 'text', text: 'Saved' }],
+  variant: 'saved',
+};
+const COUNTED_BUILD_PATTERN =
+  /^(\d+)\s+x\s+([A-Z0-9]{3,5})(?:\s+\((?:(\d+)\s+)?([A-Z0-9]{3,5})\))?$/;
+const PUBLIC_BUILD_ACTION_PATTERN = /^(?:[A-Z0-9]{3,5})\s+(?:rerolled|rolled)\b/;
+
+export function classifyBattleLogBuildLine(
+  line: string,
+): 'ship' | 'action' | 'unknown' {
+  if (COUNTED_BUILD_PATTERN.test(line.trim())) return 'ship';
+  if (PUBLIC_BUILD_ACTION_PATTERN.test(line.trim())) return 'action';
+  return 'unknown';
+}
 
 export function mapBattleLogTurns(args: MapBattleLogTurnsArgs): BattleLogVm {
   const battleLogNames = {
@@ -100,6 +115,12 @@ export function mapBattleLogThisTurn(
     const buildLines = side.buildRowUnits.flatMap((unit) => unit.lines);
     if (side.buildVisibility === 'concealed') {
       buildLines.push(CONCEALED_BUILD_LINE);
+    } else if (
+      side.showSavedWhenEmpty &&
+      !side.buildRowUnits.some((unit) => unit.hasShipBuildLine) &&
+      !side.buildRowUnits.some((unit) => unit.hasUnknownBuildLine)
+    ) {
+      buildLines.unshift(SAVED_BUILD_LINE);
     }
 
     return {
@@ -258,10 +279,20 @@ function mapBattleLogSide(
   const buildLines = side.playerId ? buildLinesByPlayerId[side.playerId] : [];
   const battleLines = side.playerId ? battleLinesByPlayerId[side.playerId] : [];
 
+  const normalizedBuildLines = mapBattleLogLines(buildLines, tokenizeBuildLine);
+  const shouldShowSaved =
+    !Array.isArray(buildLines) ||
+    buildLines.length === 0 ||
+    buildLines.every((line) =>
+      typeof line === 'string' && classifyBattleLogBuildLine(line) === 'action'
+    );
+
   return {
     healthEnd: side.healthEnd,
     healthDelta: side.healthDelta,
-    buildLines: mapBattleLogLines(buildLines, tokenizeBuildLine),
+    buildLines: shouldShowSaved
+      ? [SAVED_BUILD_LINE, ...normalizedBuildLines]
+      : normalizedBuildLines,
     battleLines: mapBattleLogLines(battleLines, tokenizeBattleLine),
   };
 }
@@ -285,9 +316,7 @@ export function mapBattleLogLines(
 }
 
 export function tokenizeBuildLine(line: string): BattleLogTokenVm[] {
-  const countedBuildMatch = line.match(
-    /^(\d+)\s+x\s+([A-Z0-9]{3,5})(?:\s+\((?:(\d+)\s+)?([A-Z0-9]{3,5})\))?$/
-  );
+  const countedBuildMatch = line.match(COUNTED_BUILD_PATTERN);
   if (!countedBuildMatch) {
     return tokenizeGenericLine(line);
   }

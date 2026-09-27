@@ -52,6 +52,12 @@ export type EvolverBuildChoiceEntry = {
 export type BuildSubmitPayload = {
   builds: Array<{ shipDefId: string; count: number }>;
 
+  /** Presentation-only newest-first manual build-group order. */
+  buildGroupOrder?: Array<{
+    shipDefId: string;
+    afterCaptureSequence: number;
+  }>;
+
   /**
    * Optional Frigate (FRI) trigger selections for Frigates built this turn.
    * Must be length == total number of FRI instances created from builds.

@@ -514,7 +514,7 @@ Deno.test("QUA matching works in a Drawing draft and from public post-Reveal mem
   assert.equal(publicResult.healing, 5);
 });
 
-Deno.test("repeated random manual and Dreadnought-produced creation returns identical complete facts", () => {
+Deno.test("Drawing combat simulates Dreadnought production without publishing its future ledger row", () => {
   const state = createState({
     p1Faction: "human",
     p1Fleet: [ship("dreadnought", "DRE")],
@@ -529,8 +529,68 @@ Deno.test("repeated random manual and Dreadnought-produced creation returns iden
 
   assert.deepEqual(second, first);
   assert.deepEqual(state, before);
-  assert.deepEqual(first.build.lines, ["1 x DEF", "1 x FIG (DRE)"]);
+  assert.deepEqual(first.build.lines, ["1 x DEF"]);
+  assert.equal(first.damage, second.damage);
   assert.equal(JSON.stringify(first).includes("dreadnought_build_"), false);
+
+  const revealed: any = createState({
+    phase: "reveal",
+    p1Faction: "human",
+    p1Fleet: [ship("dreadnought", "DRE"), ship("dre-fig", "FIG", { createdTurn: 5 })],
+  });
+  revealed.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 5;
+  revealed.battleLogScratch = {
+    currentTurnCapture: {
+      turnNumber: 5,
+      diceValue: 4,
+      buildAtomsByPlayerId: {
+        p1: [{ kind: "produced_build", shipDefId: "FIG", sourceShipDefId: "DRE", count: 1 }],
+        p2: [],
+      },
+      battleAtomsByPlayerId: { p1: [], p2: [] },
+      savedResourcesByPlayerId: {},
+    },
+    lastFinalizedTurnNumber: 4,
+  };
+  const afterReveal = estimatePublic(revealed) as CurrentTurnEstimateAvailableResult;
+  assert.deepEqual(afterReveal.build.lines, ["1 x FIG (DRE)"]);
+});
+
+Deno.test("Drawing preview includes immediate ZEN production without merging a paid ANT", () => {
+  const state = createState({ p1Faction: "xenite", p1Lines: 40 });
+  const oneZen = estimateDrawing(state, {
+    builds: [
+      { shipDefId: "ANT", count: 1 },
+      { shipDefId: "ZEN", count: 1 },
+    ],
+    buildGroupOrder: [{ shipDefId: "ZEN", afterCaptureSequence: 0 }],
+  });
+  assert.deepEqual(oneZen.build.lines, ["1 x ANT (ZEN)", "1 x ZEN"]);
+
+  const twoZen = estimateDrawing(state, {
+    builds: [
+      { shipDefId: "ANT", count: 2 },
+      { shipDefId: "ZEN", count: 2 },
+    ],
+    buildGroupOrder: [{ shipDefId: "ZEN", afterCaptureSequence: 0 }],
+  });
+  assert.deepEqual(twoZen.build.lines, ["2 x ANT (2 ZEN)", "2 x ZEN"]);
+
+  const paidAntNewest = estimateDrawing(state, {
+    builds: [
+      { shipDefId: "ANT", count: 2 },
+      { shipDefId: "ZEN", count: 1 },
+    ],
+    buildGroupOrder: [
+      { shipDefId: "ANT", afterCaptureSequence: 0 },
+      { shipDefId: "ZEN", afterCaptureSequence: 0 },
+    ],
+  });
+  assert.deepEqual(paidAntNewest.build.lines, [
+    "1 x ANT",
+    "1 x ANT (ZEN)",
+    "1 x ZEN",
+  ]);
 });
 
 Deno.test("upgrades consume canonical components and multiple Dreadnought facts stay anonymous", () => {
@@ -556,7 +616,7 @@ Deno.test("upgrades consume canonical components and multiple Dreadnought facts 
   const produced = estimateDrawing(dreadnoughtState, {
     builds: [{ shipDefId: "DEF", count: 1 }],
   });
-  assert.equal(produced.build.lines.some((line) => line.includes("2 x FIG")), true);
+  assert.equal(produced.build.lines.some((line) => line.includes("2 x FIG")), false);
   assert.equal(JSON.stringify(produced).includes("dre-a"), false);
   assert.equal(JSON.stringify(produced).includes("dre-b"), false);
 });
@@ -898,4 +958,50 @@ Deno.test("estimate identity excludes canonical revision and separates context f
       empty.identity.sourceContextKey,
     );
   }
+});
+
+Deno.test("identical counts with different buildGroupOrder produce distinct ordered preview ledgers", () => {
+  const state: any = createState({ p1Faction: "human", p1Lines: 20 });
+  state.battleLogScratch = {
+    currentTurnCapture: {
+      turnNumber: 5,
+      diceValue: 4,
+      buildAtomsByPlayerId: {
+        p1: [{ kind: "reroll", sourceShipDefId: "KNO", values: [2, 4] }],
+        p2: [],
+      },
+      battleAtomsByPlayerId: { p1: [], p2: [] },
+      savedResourcesByPlayerId: {},
+    },
+    lastFinalizedTurnNumber: 4,
+  };
+  const builds = [
+    { shipDefId: "DEF", count: 1 },
+    { shipDefId: "FIG", count: 1 },
+  ];
+  const defNewest = estimateDrawing(state, {
+    builds,
+    buildGroupOrder: [
+      { shipDefId: "DEF", afterCaptureSequence: 1 },
+      { shipDefId: "FIG", afterCaptureSequence: 1 },
+    ],
+  });
+  const figNewest = estimateDrawing(state, {
+    builds,
+    buildGroupOrder: [
+      { shipDefId: "FIG", afterCaptureSequence: 1 },
+      { shipDefId: "DEF", afterCaptureSequence: 1 },
+    ],
+  });
+  assert.notEqual(defNewest.identity.draftKey, figNewest.identity.draftKey);
+  assert.deepEqual(defNewest.build.lines, [
+    "1 x DEF",
+    "1 x FIG",
+    "KNO rerolled 2 -> 4",
+  ]);
+  assert.deepEqual(figNewest.build.lines, [
+    "1 x FIG",
+    "1 x DEF",
+    "KNO rerolled 2 -> 4",
+  ]);
 });

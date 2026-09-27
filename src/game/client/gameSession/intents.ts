@@ -68,10 +68,42 @@ export function buildSpeciesSubmitPayload(args: {
 
 export type CanonicalBuildSubmitPayload = {
   builds: Array<{ shipDefId: string; count: number }>;
+  buildGroupOrder?: Array<{ shipDefId: string; afterCaptureSequence: number }>;
   frigateTriggers?: number[];
   quantumMysticSelections?: number[];
   evolverChoices?: Array<{ sourceKey: string; choiceId: EvolverChoiceId }>;
 };
+
+export function getManualBuildGroupCount(
+  counts: Readonly<Record<string, number>>,
+  shipDefId: string,
+): number {
+  const total = Number.isInteger(counts[shipDefId])
+    ? Math.max(0, counts[shipDefId] ?? 0)
+    : 0;
+  if (shipDefId !== 'ANT') return total;
+  const zenCount = Number.isInteger(counts.ZEN) ? Math.max(0, counts.ZEN ?? 0) : 0;
+  return Math.max(0, total - zenCount);
+}
+
+export function reconcileBuildGroupOrder(args: {
+  order: Array<{ shipDefId: string; afterCaptureSequence: number }>;
+  shipDefId: string;
+  previousCount: number;
+  nextCount: number;
+  captureSequence: number;
+}): Array<{ shipDefId: string; afterCaptureSequence: number }> {
+  const withoutGroup = args.order.filter((entry) => entry.shipDefId !== args.shipDefId);
+  if (args.nextCount <= 0) return withoutGroup;
+  if (args.previousCount > 0) return args.order;
+  return [
+    {
+      shipDefId: args.shipDefId,
+      afterCaptureSequence: Math.max(0, Math.trunc(args.captureSequence)),
+    },
+    ...withoutGroup,
+  ];
+}
 
 export type PhaseCommitCache<TPayload extends object> = {
   setCache: (key: string, payload: TPayload, nonce: string) => void;
@@ -146,6 +178,7 @@ async function resolveAvailableActionsOrAbort(args: {
  */
 export function makeCanonicalBuildPayload(
   buildPreviewCounts: Record<string, number>,
+  buildGroupOrder: Array<{ shipDefId: string; afterCaptureSequence: number }>,
   frigateTriggers: number[],
   quantumMysticSelections: number[],
   evolverChoiceSourceRowIds: string[],
@@ -168,6 +201,29 @@ export function makeCanonicalBuildPayload(
   const frigateCount = buildsArray.find(b => b.shipDefId === 'FRI')?.count ?? 0;
   const quantumMysticCount = buildsArray.find(b => b.shipDefId === 'QUA')?.count ?? 0;
   const payload: CanonicalBuildSubmitPayload = { builds: buildsArray };
+
+  const normalizedCounts = Object.fromEntries(
+    buildsArray.map((build) => [build.shipDefId, build.count]),
+  );
+  const manualShipIds = new Set(
+    buildsArray
+      .filter((build) => getManualBuildGroupCount(normalizedCounts, build.shipDefId) > 0)
+      .map((build) => build.shipDefId),
+  );
+  const normalizedBuildGroupOrder = buildGroupOrder.filter((entry, index, entries) =>
+    manualShipIds.has(entry.shipDefId) &&
+    Number.isInteger(entry.afterCaptureSequence) &&
+    entry.afterCaptureSequence >= 0 &&
+    entries.findIndex((candidate) => candidate.shipDefId === entry.shipDefId) === index
+  );
+  for (const shipDefId of [...manualShipIds].sort((left, right) => left.localeCompare(right))) {
+    if (!normalizedBuildGroupOrder.some((entry) => entry.shipDefId === shipDefId)) {
+      normalizedBuildGroupOrder.push({ shipDefId, afterCaptureSequence: 0 });
+    }
+  }
+  if (normalizedBuildGroupOrder.length > 0) {
+    payload.buildGroupOrder = normalizedBuildGroupOrder;
+  }
 
   // Only include frigateTriggers when we are actually building Frigates.
   // Length must match; otherwise omit (server will default triggers to 1).
@@ -372,6 +428,7 @@ export async function runReadyToggleFlow(args: {
   // build commit context
   buildInstanceKey: string;
   buildPreviewCounts: Record<string, number>;
+  buildGroupOrder: Array<{ shipDefId: string; afterCaptureSequence: number }>;
 
   frigateSelectedTriggers: number[];
   quantumMysticSelectedNumbers: number[];
@@ -418,6 +475,7 @@ export async function runReadyToggleFlow(args: {
     turnNumber,
     buildInstanceKey,
     buildPreviewCounts,
+    buildGroupOrder,
     frigateSelectedTriggers,
     quantumMysticSelectedNumbers,
     evolverChoiceSourceRowIds,
@@ -944,6 +1002,7 @@ export async function runReadyToggleFlow(args: {
       // Construct canonical payload from current local preview counts
       const canonicalPayload = makeCanonicalBuildPayload(
         buildPreviewCounts,
+        buildGroupOrder,
         frigateSelectedTriggers,
         quantumMysticSelectedNumbers,
         evolverChoiceSourceRowIds,

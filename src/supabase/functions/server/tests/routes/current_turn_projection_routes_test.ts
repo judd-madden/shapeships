@@ -259,6 +259,7 @@ function createDrawingNoninterferencePair(viewer: FullStateViewer) {
       commitHash: `${hiddenPlayerId}-right-hash`,
       revealPayload: {
         builds: [{ shipDefId: "FRI", count: 1 }],
+        buildGroupOrder: [{ shipDefId: "FRI", afterCaptureSequence: 2 }],
         frigateTriggers: [6],
       },
       committedAt: 100,
@@ -464,6 +465,42 @@ Deno.test("preview accepts empty drafts, ignores hidden revisions, and supports 
   assert.equal(retry.status, 200);
 });
 
+Deno.test("preview rejects an unchanged draft when the requester capture identity has advanced", async () => {
+  const state: any = createState();
+  const test = fixture(state);
+  const getBefore = await test.app.request(
+    `/make-server-825e19ab/game-state/${state.gameId}`,
+  );
+  const beforeBody = await getBefore.json();
+  const captureIdentity = beforeBody.requester.thisTurn.ownBuildCaptureIdentity;
+  assert.equal(typeof captureIdentity, "string");
+
+  const advanced = structuredClone(test.persistence.store.get(test.key));
+  advanced.battleLogScratch.currentTurnCapture.buildAtomsByPlayerId.p1.push({
+    kind: "produced_build",
+    shipDefId: "DEF",
+    sourceShipDefId: "CAR",
+    count: 1,
+  });
+  test.persistence.store.set(test.key, advanced);
+
+  const response = await previewRequest(test.app, state.gameId, {
+    observed: {
+      turnNumber: 5,
+      phaseKey: "build.drawing",
+      ownBuildCaptureIdentity: captureIdentity,
+    },
+    draft: {
+      builds: [{ shipDefId: "FIG", count: 1 }],
+      buildGroupOrder: [{ shipDefId: "FIG", afterCaptureSequence: 2 }],
+    },
+  });
+  const body = await response.json();
+  assert.equal(response.status, 409);
+  assert.equal(body.reason, "capture_context_changed");
+  assert.equal(body.retry.allowed, false);
+});
+
 Deno.test("submitted player recovers a frozen projection only through full GET", async () => {
   const state: any = createState();
   state.gameData.turnData.commitments.BUILD_5 = {
@@ -513,6 +550,31 @@ Deno.test("submitted player recovers a frozen projection only through full GET",
   )).json();
   assert.equal(spectatorBody.requester.thisTurn, null);
   assert.equal(JSON.stringify(spectatorBody).includes("1 x FIG"), false);
+});
+
+Deno.test("submitted ZEN recovers its immediate ANT production in frozen own rows", async () => {
+  const state: any = createState();
+  state.players.find((player: any) => player.id === "p1").faction = "xenite";
+  state.gameData.turnData.commitments.BUILD_5 = {
+    p1: {
+      commitHash: "zen-hash",
+      revealPayload: {
+        builds: [
+          { shipDefId: "ANT", count: 1 },
+          { shipDefId: "ZEN", count: 1 },
+        ],
+        buildGroupOrder: [{ shipDefId: "ZEN", afterCaptureSequence: 2 }],
+      },
+    },
+  };
+  const test = fixture(state);
+  const body = await (await test.app.request(
+    `/make-server-825e19ab/game-state/${state.gameId}`,
+  )).json();
+  assert.deepEqual(
+    body.requester.thisTurn.committedProjection.build.lines.slice(0, 2),
+    ["1 x ANT (ZEN)", "1 x ZEN"],
+  );
 });
 
 Deno.test("Charge projection ignores canonical revision and hidden declaration differences", () => {

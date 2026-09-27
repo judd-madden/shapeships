@@ -249,7 +249,7 @@ Deno.test("Drawing projection keeps private build atoms owner-only and shape-sta
   const spectator = projectBattleLogCurrentTurnForViewer(state, "spec");
 
   assert.deepEqual(p1?.buildLinesByPlayerId, {
-    p1: ["CHR rolled 2, 5", "1 x DEF (CAR)"],
+    p1: ["1 x DEF (CAR)", "CHR rolled 2, 5"],
     p2: ["KNO rerolled 3 -> 6"],
   });
   assert.deepEqual(p2?.buildLinesByPlayerId, {
@@ -703,6 +703,6 @@ Deno.test("public and requester Drawing projections are atomically disjoint", ()
   assert.equal(projectBattleLogCurrentTurnRequester(revealed, "p1"), null);
   assert.deepEqual(
     projectBattleLogCurrentTurnPublic(revealed)?.buildLinesByPlayerId.p1,
-    ["KNO rerolled 2 -> 4", "1 x FIG (DRE)"],
+    ["1 x FIG (DRE)", "KNO rerolled 2 -> 4"],
   );
 });

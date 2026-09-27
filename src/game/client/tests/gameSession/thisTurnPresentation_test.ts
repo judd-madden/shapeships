@@ -119,7 +119,7 @@ function historyFor(turnNumber: number) {
   };
 }
 
-Deno.test('matching canonical draft replaces the whole local unit without text deduplication', () => {
+Deno.test('matching canonical preview replaces the complete own ledger without source concatenation', () => {
   const candidate = schedulerCandidate(previewCandidate(), 2);
   const idle = base({ kind: 'idle' });
   assert(idle.liveLog?.me.buildRowUnits.some((unit) => unit.source === 'local_draft'));
@@ -129,24 +129,240 @@ Deno.test('matching canonical draft replaces the whole local unit without text d
       status: 'estimated', requestToken: '4.1',
       identity: { gameId: 'game-1', turnNumber: 4, phaseKey: 'build.drawing', sourceContextKey: 'route', draftKey: 'draft' },
       playerId: 'p1', damage: { total: 2, rows: [] }, healing: { total: 0, rows: [] },
-      build: { lines: ['1 x FIG (1 DEF)', '1 x EVO'], skipped: [], remainingOrdinaryLines: 0, remainingJoiningLines: 0 },
+      build: {
+        lines: ['1 x EVO', 'Intervention: 1 x FIG', '1 x FIG (1 DEF)'],
+        skipped: [], remainingOrdinaryLines: 0, remainingJoiningLines: 0,
+      },
     },
   });
   const units = canonical.liveLog?.me.buildRowUnits ?? [];
   assert(!units.some((unit) => unit.source === 'local_draft'), 'local unit survived canonical replacement');
   assert(units.some((unit) => unit.source === 'canonical_preview'), 'canonical unit absent');
-  assert(units.some((unit) => unit.source === 'public'), 'equal-looking public row was deduplicated');
-  assert(units.some((unit) => unit.source === 'requester_capture'), 'captured intervention row was merged into draft');
+  assert(!units.some((unit) => unit.source === 'public'), 'public rows were concatenated with a complete ledger');
+  assert(!units.some((unit) => unit.source === 'requester_capture'), 'requester rows were concatenated with a complete ledger');
   const card = mapBattleLogThisTurn(canonical);
   assert(card !== null);
   assert(
     JSON.stringify(lineText(card.me.buildLines)) ===
-      JSON.stringify(['FIG', 'Intervention: 1 x FIG', 'FIG (DEF)', 'EVO']),
+      JSON.stringify(['EVO', 'Intervention: 1 x FIG', 'FIG (DEF)']),
     'display mapping did not preserve the composed unit order',
   );
   assert(canonical.me.damage.current.state === 'value');
   assert(canonical.me.damage.last.state === 'zero');
   assert(canonical.opponent.damage.current.state === 'concealed');
+});
+
+Deno.test('local chronology places a captured row between clicks and a later captured group takes its slot', () => {
+  const draft = {
+    builds: [{ shipDefId: 'DEF', count: 1 }, { shipDefId: 'FIG', count: 1 }],
+    buildGroupOrder: [
+      { shipDefId: 'DEF', afterCaptureSequence: 2 },
+      { shipDefId: 'FIG', afterCaptureSequence: 1 },
+    ],
+  };
+  const local = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    localDraft: draft,
+    activePreviewCandidate: previewCandidate({ draft }),
+    requesterThisTurn: {
+      captureSequence: 2,
+      ownBuildCaptureIdentity: 'capture-2',
+      capturedBuildLines: [],
+      capturedBuildRows: [{
+        line: 'KNO rerolled 2 -> 5', groupKey: 'action:1',
+        appearanceAnchor: 2, appearanceRank: 0, kind: 'action',
+      }],
+      committedProjection: null,
+    },
+    publicThisTurn: {
+      identity: { gameId: 'game-1', turnNumber: 4 },
+      battleLog: {
+        turnNumber: 4, diceValue: 3,
+        buildLinesByPlayerId: { p1: [], p2: [] }, battleLinesByPlayerId: {},
+        concealedBuildPlayerIds: ['p2'],
+      },
+      estimatesByPlayerId: {},
+    },
+  });
+  const localCard = mapBattleLogThisTurn(local);
+  assert(localCard !== null);
+  assert(
+    JSON.stringify(lineText(localCard.me.buildLines)) ===
+      JSON.stringify(['DEF', 'KNO rerolled 2 -> 5', 'FIG']),
+    'captured row did not remain between its surrounding local clicks',
+  );
+
+  const settledCandidate = schedulerCandidate(previewCandidate({
+    draft,
+    ownBuildCaptureIdentity: 'capture-3',
+  }));
+  const settled = base({
+    kind: 'estimated',
+    candidate: settledCandidate,
+    estimate: {
+      status: 'estimated', requestToken: settledCandidate.requestToken,
+      identity: {
+        gameId: 'game-1', turnNumber: 4, phaseKey: 'build.drawing',
+        sourceContextKey: 'route', draftKey: 'ordered', ownBuildCaptureIdentity: 'capture-3',
+      },
+      playerId: 'p1', damage: { total: 0, rows: [] }, healing: { total: 0, rows: [] },
+      build: {
+        lines: ['1 x DEF', '1 x FIG (DRE)', 'KNO rerolled 2 -> 5', '1 x FIG'],
+        skipped: [], remainingOrdinaryLines: 0, remainingJoiningLines: 0,
+      },
+    },
+  }, 'build.drawing', 'player', false, {
+    localDraft: draft,
+    activePreviewCandidate: previewCandidate({ draft, ownBuildCaptureIdentity: 'capture-3' }),
+  });
+  const settledCard = mapBattleLogThisTurn(settled);
+  assert(settledCard !== null);
+  assert(
+    JSON.stringify(lineText(settledCard.me.buildLines)) ===
+      JSON.stringify(['DEF', 'FIG (DRE)', 'KNO rerolled 2 -> 5', 'FIG']),
+    'complete preview reordered existing groups when production was captured',
+  );
+});
+
+Deno.test('ZEN keeps its produced ANT row through local, preview, frozen, Reveal, and archive handoffs', () => {
+  const draft = {
+    builds: [
+      { shipDefId: 'ANT', count: 1 },
+      { shipDefId: 'ZEN', count: 1 },
+    ],
+    buildGroupOrder: [{ shipDefId: 'ZEN', afterCaptureSequence: 0 }],
+  };
+  const candidateInput = previewCandidate({
+    draft,
+    ownBuildCaptureIdentity: 'capture-zen',
+  });
+  const candidate = schedulerCandidate(candidateInput);
+  const publicDrawing = {
+    identity: { gameId: 'game-1', turnNumber: 4 },
+    battleLog: {
+      turnNumber: 4, diceValue: 3,
+      buildLinesByPlayerId: { p1: [], p2: [] }, battleLinesByPlayerId: {},
+      concealedBuildPlayerIds: ['p2'],
+    },
+    estimatesByPlayerId: {},
+  };
+  const requesterDrawing = {
+    captureSequence: 0,
+    ownBuildCaptureIdentity: 'capture-zen',
+    capturedBuildLines: [], capturedBuildRows: [], committedProjection: null,
+  };
+  const drawingOverrides = {
+    localDraft: draft,
+    activePreviewCandidate: candidateInput,
+    publicThisTurn: publicDrawing,
+    requesterThisTurn: requesterDrawing,
+  };
+  const ownLines = (presentation: ReturnType<typeof buildThisTurnPresentation>) => {
+    const card = mapBattleLogThisTurn(presentation);
+    assert(card !== null);
+    return lineText(card.me.buildLines);
+  };
+  const expected = ['ANT (ZEN)', 'ZEN'];
+
+  assert(JSON.stringify(ownLines(base({ kind: 'idle' }, 'build.drawing', 'player', false, drawingOverrides))) === JSON.stringify(expected));
+  assert(JSON.stringify(ownLines(base({ kind: 'pending', candidate }, 'build.drawing', 'player', false, drawingOverrides))) === JSON.stringify(expected));
+
+  const settledPreview: CurrentTurnPreviewState = {
+    kind: 'estimated',
+    candidate,
+    estimate: {
+      status: 'estimated', requestToken: candidate.requestToken,
+      identity: {
+        gameId: 'game-1', turnNumber: 4, phaseKey: 'build.drawing',
+        sourceContextKey: 'route', draftKey: 'zen',
+        ownBuildCaptureIdentity: 'capture-zen',
+      },
+      playerId: 'p1', damage: { total: 0, rows: [] }, healing: { total: 0, rows: [] },
+      build: {
+        lines: ['1 x ANT (ZEN)', '1 x ZEN'],
+        skipped: [], remainingOrdinaryLines: 0, remainingJoiningLines: 0,
+      },
+    },
+  };
+  assert(JSON.stringify(ownLines(base(settledPreview, 'build.drawing', 'player', false, drawingOverrides))) === JSON.stringify(expected));
+  assert(JSON.stringify(ownLines(base({ kind: 'pending', candidate }, 'build.drawing', 'player', false, {
+    ...drawingOverrides,
+    acceptedDraft: draft,
+  }))) === JSON.stringify(expected));
+  assert(JSON.stringify(ownLines(base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    ...drawingOverrides,
+    requesterThisTurn: {
+      ...requesterDrawing,
+      committedProjection: {
+        status: 'estimated',
+        build: { lines: ['1 x ANT (ZEN)', '1 x ZEN'] },
+      },
+    },
+  }))) === JSON.stringify(expected));
+
+  const publicReveal = {
+    ...publicDrawing,
+    battleLog: {
+      ...publicDrawing.battleLog,
+      buildLinesByPlayerId: { p1: ['1 x ANT (ZEN)', '1 x ZEN'], p2: [] },
+      concealedBuildPlayerIds: [],
+    },
+  };
+  assert(JSON.stringify(ownLines(base({ kind: 'idle' }, 'build.reveal', 'player', false, {
+    publicThisTurn: publicReveal,
+  }))) === JSON.stringify(expected));
+
+  const history: any = historyFor(4);
+  history.turns[0].buildLinesByPlayerId.p1 = ['1 x ANT (ZEN)', '1 x ZEN'];
+  const archived = mapBattleLogTurns({
+    battleLogHistory: history, thisTurn: null,
+    localPlayerId: 'p1', localPlayerName: 'One',
+    opponentPlayerId: 'p2', opponentName: 'Two',
+  });
+  assert(JSON.stringify(lineText(archived.battleLogTurns[0].me.buildLines)) === JSON.stringify(expected));
+});
+
+Deno.test('ZEN provisional rows group multiples and keep separately paid ANT manual', () => {
+  const cases = [
+    {
+      draft: {
+        builds: [{ shipDefId: 'ANT', count: 2 }, { shipDefId: 'ZEN', count: 2 }],
+        buildGroupOrder: [{ shipDefId: 'ZEN', afterCaptureSequence: 0 }],
+      },
+      expected: ['2 x ANT (2 ZEN)', '2 x ZEN'],
+    },
+    {
+      draft: {
+        builds: [{ shipDefId: 'ANT', count: 2 }, { shipDefId: 'ZEN', count: 1 }],
+        buildGroupOrder: [
+          { shipDefId: 'ANT', afterCaptureSequence: 0 },
+          { shipDefId: 'ZEN', afterCaptureSequence: 0 },
+        ],
+      },
+      expected: ['ANT', 'ANT (ZEN)', 'ZEN'],
+    },
+  ];
+  for (const testCase of cases) {
+    const presentation = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+      localDraft: testCase.draft,
+      activePreviewCandidate: previewCandidate({ draft: testCase.draft }),
+      publicThisTurn: {
+        identity: { gameId: 'game-1', turnNumber: 4 },
+        battleLog: {
+          turnNumber: 4, diceValue: 3,
+          buildLinesByPlayerId: { p1: [], p2: [] }, battleLinesByPlayerId: {},
+          concealedBuildPlayerIds: ['p2'],
+        },
+        estimatesByPlayerId: {},
+      },
+      requesterThisTurn: {
+        captureSequence: 0, ownBuildCaptureIdentity: 'capture-zen',
+        capturedBuildLines: [], capturedBuildRows: [], committedProjection: null,
+      },
+    });
+    const card = mapBattleLogThisTurn(presentation);
+    assert(card !== null);
+    assert(JSON.stringify(lineText(card.me.buildLines)) === JSON.stringify(testCase.expected));
+  }
 });
 
 Deno.test('rows and metrics reject stale preview identity before pending publishes', () => {
@@ -330,6 +546,131 @@ Deno.test('live card keeps public concealed rows before the placeholder and acti
   assert(JSON.stringify(lineText(card.me.battleLines)) === JSON.stringify(['FIG damages DEF']));
 });
 
+Deno.test('own empty build stays blank until accepted and survives refresh as Saved', () => {
+  const publicThisTurn = {
+    identity: { gameId: 'game-1', turnNumber: 4 },
+    battleLog: {
+      turnNumber: 4, diceValue: 3,
+      buildLinesByPlayerId: { p1: ['CHR rolled 3 3'], p2: ['KNO rerolled 2 -> 3'] },
+      battleLinesByPlayerId: {}, concealedBuildPlayerIds: ['p2'],
+    },
+    estimatesByPlayerId: {},
+  };
+  const requesterThisTurn = {
+    captureSequence: 1,
+    ownBuildCaptureIdentity: 'capture-empty',
+    capturedBuildLines: [],
+    capturedBuildRows: [{
+      line: 'CHR rolled 3 3', groupKey: 'action:0',
+      appearanceAnchor: 1, appearanceRank: 0, kind: 'action',
+    }],
+    committedProjection: null,
+  };
+  const blank = mapBattleLogThisTurn(base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    publicThisTurn, requesterThisTurn, localDraft: { builds: [] },
+  }));
+  assert(blank !== null);
+  assert(JSON.stringify(lineText(blank.me.buildLines)) === JSON.stringify(['CHR rolled 3 3']));
+  assert(!lineText(blank.me.buildLines).includes('???'));
+
+  const accepted = mapBattleLogThisTurn(base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    publicThisTurn, requesterThisTurn, localDraft: { builds: [] }, acceptedDraft: { builds: [] },
+  }));
+  assert(accepted !== null);
+  assert(JSON.stringify(lineText(accepted.me.buildLines)) === JSON.stringify(['Saved', 'CHR rolled 3 3']));
+  assert(accepted.me.buildLines[0]?.variant === 'saved');
+
+  const refreshed = mapBattleLogThisTurn(base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    publicThisTurn,
+    localDraft: { builds: [] },
+    requesterThisTurn: {
+      ...requesterThisTurn,
+      committedProjection: {
+        status: 'estimated',
+        build: { lines: ['CHR rolled 3 3'] },
+      },
+    },
+  }));
+  assert(refreshed !== null);
+  assert(JSON.stringify(lineText(refreshed.me.buildLines)) === JSON.stringify(['Saved', 'CHR rolled 3 3']));
+});
+
+Deno.test('concealment is orientation-safe for players and hides both spectator sides', () => {
+  const publicThisTurn = {
+    identity: { gameId: 'game-1', turnNumber: 4 },
+    battleLog: {
+      turnNumber: 4, diceValue: 3,
+      buildLinesByPlayerId: { p1: [], p2: [] }, battleLinesByPlayerId: {},
+      concealedBuildPlayerIds: ['p1', 'p2'],
+    },
+    estimatesByPlayerId: {},
+  };
+  const p2 = mapBattleLogThisTurn(base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    mePlayerId: 'p2', opponentPlayerId: 'p1', publicThisTurn,
+    localDraft: { builds: [] }, requesterThisTurn: null,
+  }));
+  assert(p2 !== null);
+  assert(!lineText(p2.me.buildLines).includes('???'), 'own p2 side was concealed');
+  assert(lineText(p2.opponent.buildLines).includes('???'), 'opponent p1 side was exposed');
+
+  const spectator = mapBattleLogThisTurn(base({ kind: 'idle' }, 'build.drawing', 'spectator', false, {
+    publicThisTurn, requesterThisTurn: null,
+  }));
+  assert(spectator !== null);
+  assert(lineText(spectator.me.buildLines).includes('???'));
+  assert(lineText(spectator.opponent.buildLines).includes('???'));
+});
+
+Deno.test('Reveal and history distinguish action-only, produced-only, empty, and unknown legacy rows', () => {
+  const reveal = mapBattleLogThisTurn(base({ kind: 'idle' }, 'build.reveal', 'player', false, {
+    publicThisTurn: {
+      identity: { gameId: 'game-1', turnNumber: 4 },
+      battleLog: {
+        turnNumber: 4, diceValue: 3,
+        buildLinesByPlayerId: {
+          p1: ['1 x FIG (DRE)'],
+          p2: ['CHR rolled 3 3'],
+        },
+        battleLinesByPlayerId: {}, concealedBuildPlayerIds: [],
+      },
+      estimatesByPlayerId: {},
+    },
+  }));
+  assert(reveal !== null);
+  assert(JSON.stringify(lineText(reveal.me.buildLines)) === JSON.stringify(['FIG (DRE)']));
+  assert(JSON.stringify(lineText(reveal.opponent.buildLines)) === JSON.stringify(['Saved', 'CHR rolled 3 3']));
+
+  const history: any = {
+    gameId: 'game-1', revision: 1, completedTurnCount: 1,
+    turns: [{
+      turnNumber: 4, diceValue: 3,
+      players: [
+        { playerId: 'p1', name: 'One', healthEnd: 25, healthDelta: 0, fleetValueEnd: 0 },
+        { playerId: 'p2', name: 'Two', healthEnd: 25, healthDelta: 0, fleetValueEnd: 0 },
+      ],
+      buildLinesByPlayerId: { p1: [], p2: ['CHR rolled 3 3'] },
+      battleLinesByPlayerId: { p1: [], p2: [] },
+    }],
+  };
+  const mapped = mapBattleLogTurns({
+    battleLogHistory: history,
+    thisTurn: null,
+    localPlayerId: 'p1', localPlayerName: 'One',
+    opponentPlayerId: 'p2', opponentName: 'Two',
+  });
+  assert(JSON.stringify(lineText(mapped.battleLogTurns[0].me.buildLines)) === JSON.stringify(['Saved']));
+  assert(JSON.stringify(lineText(mapped.battleLogTurns[0].opponent.buildLines)) === JSON.stringify(['Saved', 'CHR rolled 3 3']));
+
+  history.turns[0].buildLinesByPlayerId.p1 = ['legacy nonempty build'];
+  const legacy = mapBattleLogTurns({
+    battleLogHistory: history,
+    thisTurn: null,
+    localPlayerId: 'p1', localPlayerName: 'One',
+    opponentPlayerId: 'p2', opponentName: 'Two',
+  });
+  assert(JSON.stringify(lineText(legacy.battleLogTurns[0].me.buildLines)) === JSON.stringify(['legacy nonempty build']));
+});
+
 Deno.test('an empty live projection still maps to a card and suppresses the empty state', () => {
   const presentation = base({ kind: 'idle' }, 'build.reveal', 'player', false, {
     publicThisTurn: {
@@ -346,7 +687,9 @@ Deno.test('an empty live projection still maps to a card and suppresses the empt
   });
   const card = mapBattleLogThisTurn(presentation);
   assert(card !== null);
-  assert(!card.showBattleSection && !card.showBuildSection);
+  assert(!card.showBattleSection && card.showBuildSection);
+  assert(JSON.stringify(lineText(card.me.buildLines)) === JSON.stringify(['Saved']));
+  assert(JSON.stringify(lineText(card.opponent.buildLines)) === JSON.stringify(['Saved']));
 });
 
 Deno.test('spectators stay concealed during Drawing and unresolved terminal data is unavailable', () => {
@@ -405,6 +748,54 @@ Deno.test('held live N swaps atomically to genuine archive N', () => {
   assert(mapped.battleLogThisTurn === null, 'archived lifecycle remained visible as This Turn');
   assert(mapped.battleLogTurns.length === 1 && mapped.battleLogTurns[0]?.turnNumber === 4);
   assert(mapped.battleLogCompletedTurnCount === 1);
+});
+
+Deno.test('Reveal-to-archive handoff preserves row order for both orientations and spectators', () => {
+  const buildLinesByPlayerId = {
+    p1: ['1 x FIG (DRE)', '2 x DEF', 'CHR rolled 3 3'],
+    p2: ['1 x ANT (ZEN)', '1 x FIG'],
+  };
+  const publicThisTurn = {
+    identity: { gameId: 'game-1', turnNumber: 4 },
+    battleLog: {
+      turnNumber: 4, diceValue: 3, buildLinesByPlayerId,
+      battleLinesByPlayerId: { p1: [], p2: [] }, concealedBuildPlayerIds: [],
+    },
+    estimatesByPlayerId: {},
+  };
+  const history = {
+    gameId: 'game-1', revision: 1, completedTurnCount: 1,
+    turns: [{
+      turnNumber: 4, diceValue: 3,
+      players: [
+        { playerId: 'p1', name: 'One', healthEnd: 25, healthDelta: 0, fleetValueEnd: 0 },
+        { playerId: 'p2', name: 'Two', healthEnd: 25, healthDelta: 0, fleetValueEnd: 0 },
+      ],
+      buildLinesByPlayerId,
+      battleLinesByPlayerId: { p1: [], p2: [] },
+    }],
+  };
+  for (const orientation of [
+    { viewerRole: 'player' as const, mePlayerId: 'p1', opponentPlayerId: 'p2' },
+    { viewerRole: 'player' as const, mePlayerId: 'p2', opponentPlayerId: 'p1' },
+    { viewerRole: 'spectator' as const, mePlayerId: 'p1', opponentPlayerId: 'p2' },
+  ]) {
+    const livePresentation = base({ kind: 'idle' }, 'build.reveal', orientation.viewerRole, false, {
+      ...orientation, publicThisTurn, requesterThisTurn: null,
+    });
+    const live = mapBattleLogThisTurn(livePresentation);
+    assert(live !== null);
+    const archived = mapBattleLogTurns({
+      battleLogHistory: history,
+      thisTurn: null,
+      localPlayerId: orientation.mePlayerId,
+      localPlayerName: orientation.mePlayerId === 'p1' ? 'One' : 'Two',
+      opponentPlayerId: orientation.opponentPlayerId,
+      opponentName: orientation.opponentPlayerId === 'p1' ? 'One' : 'Two',
+    }).battleLogTurns[0];
+    assert(JSON.stringify(lineText(live.me.buildLines)) === JSON.stringify(lineText(archived.me.buildLines)));
+    assert(JSON.stringify(lineText(live.opponent.buildLines)) === JSON.stringify(lineText(archived.opponent.buildLines)));
+  }
 });
 
 Deno.test('released presentation selects live N+1 with actual N in Last', () => {

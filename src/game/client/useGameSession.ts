@@ -132,7 +132,9 @@ import {
   writeMinimizeMissionsThisSession,
 } from './gameSession/mission/missionChallengeSession';
 import {
+  getManualBuildGroupCount,
   makeCanonicalBuildPayload,
+  reconcileBuildGroupOrder,
   runSpeciesConfirmFlow,
   runReadyToggleFlow,
   type BuildSubmitFlowResult,
@@ -1161,6 +1163,9 @@ export function useGameSession(
   // Reset when phase changes away from build.drawing
   const [buildPreviewCounts, setBuildPreviewCounts] = useState<Record<string, number>>({});
   const [buildPreviewTurnNumber, setBuildPreviewTurnNumber] = useState<number | null>(null);
+  const [buildGroupOrder, setBuildGroupOrder] = useState<
+    Array<{ shipDefId: string; afterCaptureSequence: number }>
+  >([]);
   
 
   // Frigate trigger selections for Frigates built THIS TURN (ordered list, length = buildPreviewCounts.FRI)
@@ -1176,6 +1181,9 @@ export function useGameSession(
   // Prevents race condition when Ready is clicked immediately after building
   const buildPreviewCountsRef = useRef<Record<string, number>>({});
   const buildPreviewTurnNumberRef = useRef<number | null>(null);
+  const buildGroupOrderRef = useRef<
+    Array<{ shipDefId: string; afterCaptureSequence: number }>
+  >([]);
   
   // Build submitted tracking: maps turnNumber → submitted flag
   // Used to gate ship clicks after submission
@@ -2140,6 +2148,8 @@ export function useGameSession(
     // Turn boundary: any local build preview is now invalid
     setBuildPreviewCounts({});
     buildPreviewCountsRef.current = {};
+    setBuildGroupOrder([]);
+    buildGroupOrderRef.current = [];
     setBuildPreviewTurnNumber(null);
     buildPreviewTurnNumberRef.current = null;
     setFrigateSelectedTriggers([]);
@@ -3698,6 +3708,8 @@ export function useGameSession(
   useEffect(() => {
     buildPreviewCountsRef.current = {};
     buildPreviewTurnNumberRef.current = null;
+    buildGroupOrderRef.current = [];
+    setBuildGroupOrder([]);
   }, [turnNumber, effectiveGameId]);
 
 // Keep Frigate trigger selections ref in sync
@@ -3981,6 +3993,7 @@ useEffect(() => {
   const canonicalBuildDraft = useMemo(
     () => makeCanonicalBuildPayload(
       activeBuildPreviewCounts,
+      buildGroupOrder,
       frigateSelectedTriggers,
       quantumMysticSelectedNumbers,
       evolverChoiceSourceRowIds,
@@ -3988,6 +4001,7 @@ useEffect(() => {
     ),
     [
       activeBuildPreviewCounts,
+      buildGroupOrder,
       frigateSelectedTriggers,
       quantumMysticSelectedNumbers,
       evolverChoiceSourceRowIdsKey,
@@ -4010,6 +4024,10 @@ useEffect(() => {
       playerId: previewRequesterPlayerId,
       turnNumber,
       phaseKey: 'build.drawing',
+      ownBuildCaptureIdentity:
+        typeof rawState?.requester?.thisTurn?.ownBuildCaptureIdentity === 'string'
+          ? rawState.requester.thisTurn.ownBuildCaptureIdentity
+          : `${turnNumber}:empty`,
       safeContextFingerprint: buildDrawingPreviewSafeContextFingerprint({
         state: rawState,
         requesterPlayerId: previewRequesterPlayerId,
@@ -6523,6 +6541,7 @@ useEffect(() => {
       const buildPreviewSnapshot = { ...getActiveBuildPreviewCountsRefForTurn(turnNumber) };
       const readyCanonicalBuildPayload = makeCanonicalBuildPayload(
         buildPreviewSnapshot,
+        buildGroupOrderRef.current,
         frigateSelectedTriggersRef.current,
         quantumMysticSelectedNumbersRef.current,
         evolverChoiceSourceRowIds,
@@ -6651,6 +6670,7 @@ useEffect(() => {
 
           buildInstanceKey: buildServerKey,
           buildPreviewCounts: buildPreviewSnapshot,
+          buildGroupOrder: buildGroupOrderRef.current,
           frigateSelectedTriggers: frigateSelectedTriggersRef.current,
           quantumMysticSelectedNumbers: quantumMysticSelectedNumbersRef.current,
           evolverChoiceSourceRowIds,
@@ -7111,6 +7131,25 @@ useEffect(() => {
       console.log('[useGameSession] onBuildShip:', shipDefId, 'turn:', uiTurnNumber);
 
       buildPreviewCountsRef.current = nextDraftCounts;
+      const previousManualGroupCount = getManualBuildGroupCount(
+        currentDraftCounts,
+        shipDefId,
+      );
+      const nextManualGroupCount = getManualBuildGroupCount(nextDraftCounts, shipDefId);
+      if (previousManualGroupCount <= 0 && nextManualGroupCount > 0) {
+        const captureSequence = Number.isInteger(rawState?.requester?.thisTurn?.captureSequence)
+          ? rawState.requester.thisTurn.captureSequence
+          : 0;
+        const nextOrder = reconcileBuildGroupOrder({
+          order: buildGroupOrderRef.current,
+          shipDefId,
+          previousCount: previousManualGroupCount,
+          nextCount: nextManualGroupCount,
+          captureSequence,
+        });
+        buildGroupOrderRef.current = nextOrder;
+        setBuildGroupOrder(nextOrder);
+      }
       buildPreviewTurnNumberRef.current = uiTurnNumber;
       setBuildPreviewCounts(() => nextDraftCounts);
       setBuildPreviewTurnNumber(uiTurnNumber);
