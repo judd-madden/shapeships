@@ -119,14 +119,6 @@ export function MenuShell({
           <div className="content-stretch relative flex  flex-col items-center gap-5 lg:max-w-[720px] lg:items-end">
             {/* Social Links */}
             <div className="content-stretch relative flex w-full flex-wrap items-center justify-start gap-x-[24px] gap-y-[12px] text-[12px] font-normal leading-[normal] underline sm:text-[18px] lg:justify-end">
-              <a
-                href="https://juddmadden.com/shapeships/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="[text-underline-position:from-font] relative shrink-0 cursor-pointer decoration-solid underline hover:opacity-80"
-              >
-                About
-              </a>
               <a 
                 href="https://discord.gg/MjPtf4G6Gt" 
                 target="_blank" 
@@ -150,6 +142,14 @@ export function MenuShell({
                 className="[text-underline-position:from-font] relative shrink-0 cursor-pointer decoration-solid hover:opacity-80" 
               >
                 Reddit
+              </a>
+              <a
+                href="https://juddmadden.com/shapeships/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="[text-underline-position:from-font] relative shrink-0 cursor-pointer decoration-solid underline hover:opacity-80"
+              >
+                Pen &amp; Paper
               </a>
             </div>
           </div>

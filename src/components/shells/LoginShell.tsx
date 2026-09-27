@@ -102,14 +102,6 @@ export function LoginShell({
           {/* Footer Links */}
           <div className="content-stretch relative flex w-full flex-wrap items-center justify-center gap-x-[28px] gap-y-[16px] font-normal text-[13.5px] leading-[normal] sm:text-[20px] lg:text-[22px]">
             <a
-              href="https://juddmadden.com/shapeships/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="[text-underline-position:from-font] decoration-solid relative shrink-0 underline cursor-pointer hover:opacity-80"
-            >
-              About
-            </a>
-            <a
               href="https://discord.gg/MjPtf4G6Gt"
               target="_blank"
               rel="noopener noreferrer"
@@ -132,6 +124,14 @@ export function LoginShell({
               className="[text-underline-position:from-font] decoration-solid relative shrink-0 underline cursor-pointer hover:opacity-80"
             >
               Reddit
+            </a>
+            <a
+              href="https://juddmadden.com/shapeships/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="[text-underline-position:from-font] decoration-solid relative shrink-0 underline cursor-pointer hover:opacity-80"
+            >
+              Pen &amp; Paper
             </a>
           </div>
 
