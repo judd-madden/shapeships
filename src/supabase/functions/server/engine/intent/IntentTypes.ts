@@ -52,10 +52,15 @@ export type EvolverBuildChoiceEntry = {
 export type BuildSubmitPayload = {
   builds: Array<{ shipDefId: string; count: number }>;
 
-  /** Presentation-only newest-first manual build-group order. */
+  /**
+   * Presentation-only newest-first build-group order.
+   * sourceShipDefId is omitted for manual groups and is EVO for grouped
+   * Evolver conversion rows.
+   */
   buildGroupOrder?: Array<{
     shipDefId: string;
     afterCaptureSequence: number;
+    sourceShipDefId?: 'EVO';
   }>;
 
   /**

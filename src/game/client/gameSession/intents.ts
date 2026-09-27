@@ -66,9 +66,15 @@ export function buildSpeciesSubmitPayload(args: {
   };
 }
 
+export type BuildGroupOrderEntry = {
+  shipDefId: string;
+  afterCaptureSequence: number;
+  sourceShipDefId?: 'EVO';
+};
+
 export type CanonicalBuildSubmitPayload = {
   builds: Array<{ shipDefId: string; count: number }>;
-  buildGroupOrder?: Array<{ shipDefId: string; afterCaptureSequence: number }>;
+  buildGroupOrder?: BuildGroupOrderEntry[];
   frigateTriggers?: number[];
   quantumMysticSelections?: number[];
   evolverChoices?: Array<{ sourceKey: string; choiceId: EvolverChoiceId }>;
@@ -86,20 +92,44 @@ export function getManualBuildGroupCount(
   return Math.max(0, total - zenCount);
 }
 
+export type EvolverProducedShipDefId = 'OXI' | 'AST';
+
+export function getEvolverProducedShipDefId(
+  choiceId: EvolverChoiceId | undefined,
+): EvolverProducedShipDefId | null {
+  if (choiceId === 'oxite') return 'OXI';
+  if (choiceId === 'asterite') return 'AST';
+  return null;
+}
+
+export function getEvolverProducedBuildGroupCount(
+  choicesByRowId: Readonly<Record<string, EvolverChoiceId>>,
+  shipDefId: EvolverProducedShipDefId,
+): number {
+  return Object.values(choicesByRowId).filter(
+    (choiceId) => getEvolverProducedShipDefId(choiceId) === shipDefId,
+  ).length;
+}
+
 export function reconcileBuildGroupOrder(args: {
-  order: Array<{ shipDefId: string; afterCaptureSequence: number }>;
+  order: BuildGroupOrderEntry[];
   shipDefId: string;
+  sourceShipDefId?: 'EVO';
   previousCount: number;
   nextCount: number;
   captureSequence: number;
-}): Array<{ shipDefId: string; afterCaptureSequence: number }> {
-  const withoutGroup = args.order.filter((entry) => entry.shipDefId !== args.shipDefId);
+}): BuildGroupOrderEntry[] {
+  const withoutGroup = args.order.filter((entry) =>
+    entry.shipDefId !== args.shipDefId ||
+    entry.sourceShipDefId !== args.sourceShipDefId
+  );
   if (args.nextCount <= 0) return withoutGroup;
   if (args.previousCount > 0) return args.order;
   return [
     {
       shipDefId: args.shipDefId,
       afterCaptureSequence: Math.max(0, Math.trunc(args.captureSequence)),
+      ...(args.sourceShipDefId ? { sourceShipDefId: args.sourceShipDefId } : {}),
     },
     ...withoutGroup,
   ];
@@ -178,7 +208,7 @@ async function resolveAvailableActionsOrAbort(args: {
  */
 export function makeCanonicalBuildPayload(
   buildPreviewCounts: Record<string, number>,
-  buildGroupOrder: Array<{ shipDefId: string; afterCaptureSequence: number }>,
+  buildGroupOrder: BuildGroupOrderEntry[],
   frigateTriggers: number[],
   quantumMysticSelections: number[],
   evolverChoiceSourceRowIds: string[],
@@ -210,14 +240,36 @@ export function makeCanonicalBuildPayload(
       .filter((build) => getManualBuildGroupCount(normalizedCounts, build.shipDefId) > 0)
       .map((build) => build.shipDefId),
   );
-  const normalizedBuildGroupOrder = buildGroupOrder.filter((entry, index, entries) =>
-    manualShipIds.has(entry.shipDefId) &&
-    Number.isInteger(entry.afterCaptureSequence) &&
-    entry.afterCaptureSequence >= 0 &&
-    entries.findIndex((candidate) => candidate.shipDefId === entry.shipDefId) === index
+  const evolverProducedShipIds = new Set(
+    evolverChoiceSourceRowIds.flatMap((sourceKey) => {
+      const producedShipDefId = getEvolverProducedShipDefId(
+        evolverChoicesByRowId[sourceKey] ?? 'hold',
+      );
+      return producedShipDefId ? [producedShipDefId] : [];
+    }),
   );
+  const seenBuildGroupKeys = new Set<string>();
+  const normalizedBuildGroupOrder = buildGroupOrder.filter((entry) => {
+    const groupKey = `${entry.sourceShipDefId ?? 'manual'}:${entry.shipDefId}`;
+    const isActiveGroup =
+      entry.sourceShipDefId === undefined
+        ? manualShipIds.has(entry.shipDefId)
+        : entry.sourceShipDefId === 'EVO' &&
+          (entry.shipDefId === 'OXI' || entry.shipDefId === 'AST') &&
+          evolverProducedShipIds.has(entry.shipDefId);
+    if (
+      !isActiveGroup || !Number.isInteger(entry.afterCaptureSequence) ||
+      entry.afterCaptureSequence < 0 || seenBuildGroupKeys.has(groupKey)
+    ) {
+      return false;
+    }
+    seenBuildGroupKeys.add(groupKey);
+    return true;
+  });
   for (const shipDefId of [...manualShipIds].sort((left, right) => left.localeCompare(right))) {
-    if (!normalizedBuildGroupOrder.some((entry) => entry.shipDefId === shipDefId)) {
+    if (!normalizedBuildGroupOrder.some((entry) =>
+      entry.sourceShipDefId === undefined && entry.shipDefId === shipDefId
+    )) {
       normalizedBuildGroupOrder.push({ shipDefId, afterCaptureSequence: 0 });
     }
   }
@@ -428,7 +480,7 @@ export async function runReadyToggleFlow(args: {
   // build commit context
   buildInstanceKey: string;
   buildPreviewCounts: Record<string, number>;
-  buildGroupOrder: Array<{ shipDefId: string; afterCaptureSequence: number }>;
+  buildGroupOrder: BuildGroupOrderEntry[];
 
   frigateSelectedTriggers: number[];
   quantumMysticSelectedNumbers: number[];

@@ -1005,3 +1005,35 @@ Deno.test("identical counts with different buildGroupOrder produce distinct orde
     "KNO rerolled 2 -> 4",
   ]);
 });
+
+Deno.test("EVO order metadata changes preview identity and face/conversion chronology", () => {
+  const state: any = createState({ p1Faction: "xenite", p1Lines: 0 });
+  state.players.find((player: any) => player.id === "p1").joiningLines = 4;
+  state.gameData.ships.p1 = [
+    { instanceId: "evo-1", shipDefId: "EVO" },
+    { instanceId: "xen-1", shipDefId: "XEN" },
+    { instanceId: "oxi-1", shipDefId: "OXI" },
+  ];
+  const shared = {
+    builds: [{ shipDefId: "OXF", count: 1 }],
+    evolverChoices: [{ sourceKey: "evo-1", choiceId: "oxite" as const }],
+  };
+  const faceNewest = estimateDrawing(state, {
+    ...shared,
+    buildGroupOrder: [
+      { shipDefId: "OXF", afterCaptureSequence: 0 },
+      { shipDefId: "OXI", sourceShipDefId: "EVO", afterCaptureSequence: 0 },
+    ],
+  });
+  const conversionNewest = estimateDrawing(state, {
+    ...shared,
+    buildGroupOrder: [
+      { shipDefId: "OXI", sourceShipDefId: "EVO", afterCaptureSequence: 0 },
+      { shipDefId: "OXF", afterCaptureSequence: 0 },
+    ],
+  });
+
+  assert.notEqual(faceNewest.identity.draftKey, conversionNewest.identity.draftKey);
+  assert.deepEqual(faceNewest.build.lines, ["1 x OXF", "1 x OXI (EVO)"]);
+  assert.deepEqual(conversionNewest.build.lines, ["1 x OXI (EVO)", "1 x OXF"]);
+});

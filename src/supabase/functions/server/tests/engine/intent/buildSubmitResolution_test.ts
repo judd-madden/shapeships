@@ -524,6 +524,110 @@ Deno.test('Evolver conversion capture uses authoritative EVO processing order', 
   assert.equal(capture?.sourceShipInstanceId, 'evo-2');
 });
 
+Deno.test('EVO-produced components and later faces use submitted first-appearance order', () => {
+  for (const testCase of [
+    { conversionShipDefId: 'OXI', faceShipDefId: 'OXF', choiceId: 'oxite' },
+    { conversionShipDefId: 'AST', faceShipDefId: 'ASF', choiceId: 'asterite' },
+  ] as const) {
+    const payload = {
+      builds: [
+        { shipDefId: 'BUG', count: 1 },
+        { shipDefId: testCase.faceShipDefId, count: 1 },
+      ],
+      buildGroupOrder: [
+        { shipDefId: testCase.faceShipDefId, afterCaptureSequence: 0 },
+        { shipDefId: 'BUG', afterCaptureSequence: 0 },
+        {
+          shipDefId: testCase.conversionShipDefId,
+          sourceShipDefId: 'EVO',
+          afterCaptureSequence: 0,
+        },
+      ],
+      evolverChoices: [{ sourceKey: 'evo-1', choiceId: testCase.choiceId }],
+    };
+    const state = createResolutionState({
+      lines: 6,
+      joiningLines: 4,
+      faction: 'xenite',
+      ships: [
+        { instanceId: 'evo-1', shipDefId: 'EVO' },
+        { instanceId: 'xen-1', shipDefId: 'XEN' },
+        { instanceId: 'existing-component', shipDefId: testCase.conversionShipDefId },
+      ],
+      payload,
+    });
+    const result = resolve(state);
+    const produced = result.events.find((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED' &&
+      event.sourceShipDefId === 'EVO'
+    );
+    const face = result.events.find((event: any) =>
+      event.type === 'BATTLE_LOG_CAPTURE_BUILD_MANUAL' &&
+      event.shipDefId === testCase.faceShipDefId
+    );
+    assert.deepEqual(
+      [face?.appearanceAnchor, face?.appearanceRank],
+      [0, 3],
+    );
+    assert.deepEqual(
+      [produced?.appearanceAnchor, produced?.appearanceRank],
+      [0, 1],
+    );
+
+    const scratch = foldBattleLogCaptureEventsIntoScratch(
+      { currentTurnCapture: null, lastFinalizedTurnNumber: 0 },
+      result.events,
+    );
+    const summary = buildBattleLogTurnSummaryFromScratch({
+      scratch,
+      finalizedTurnNumber: 1,
+      finalizedState: state,
+    });
+    assert.deepEqual(summary.buildLinesByPlayerId.p1, [
+      `1 x ${testCase.faceShipDefId}`,
+      '1 x BUG',
+      `1 x ${testCase.conversionShipDefId} (EVO)`,
+    ]);
+  }
+});
+
+Deno.test('a later EVO conversion stays above a face built from existing components', () => {
+  const state = createResolutionState({
+    lines: 0,
+    joiningLines: 4,
+    faction: 'xenite',
+    ships: [
+      { instanceId: 'evo-1', shipDefId: 'EVO' },
+      { instanceId: 'xen-1', shipDefId: 'XEN' },
+      { instanceId: 'oxi-1', shipDefId: 'OXI' },
+      { instanceId: 'oxi-2', shipDefId: 'OXI' },
+      { instanceId: 'evo-component', shipDefId: 'EVO' },
+    ],
+    payload: {
+      builds: [{ shipDefId: 'OXF', count: 1 }],
+      buildGroupOrder: [
+        { shipDefId: 'OXI', sourceShipDefId: 'EVO', afterCaptureSequence: 0 },
+        { shipDefId: 'OXF', afterCaptureSequence: 0 },
+      ],
+      evolverChoices: [{ sourceKey: 'evo-1', choiceId: 'oxite' }],
+    },
+  });
+  const result = resolve(state);
+  const scratch = foldBattleLogCaptureEventsIntoScratch(
+    { currentTurnCapture: null, lastFinalizedTurnNumber: 0 },
+    result.events,
+  );
+  const summary = buildBattleLogTurnSummaryFromScratch({
+    scratch,
+    finalizedTurnNumber: 1,
+    finalizedState: state,
+  });
+  assert.deepEqual(summary.buildLinesByPlayerId.p1, [
+    '1 x OXI (EVO)',
+    '1 x OXF',
+  ]);
+});
+
 Deno.test('Drawing build resolution consumes turn-start Simulacrum copies as upgrade components', () => {
   const state = createResolutionState({
     turnNumber: 2,

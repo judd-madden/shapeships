@@ -1214,9 +1214,11 @@ export function resolvePlayerBuildSubmitAuthoritatively(
     atMs: nowMs,
   });
 
-  const manualOrder = new Map(
+  const appearanceOrder = new Map(
     (payload?.buildGroupOrder ?? []).map((entry, index, entries) => [
-      entry.shipDefId,
+      entry.sourceShipDefId === 'EVO'
+        ? `produced:${entry.shipDefId}:EVO`
+        : `manual:${entry.shipDefId}`,
       {
         appearanceAnchor: entry.afterCaptureSequence,
         appearanceRank: entries.length - index,
@@ -1225,7 +1227,7 @@ export function resolvePlayerBuildSubmitAuthoritatively(
   );
   return events.map((event) => {
     if (event?.type === 'BATTLE_LOG_CAPTURE_BUILD_MANUAL') {
-      const order = manualOrder.get(event.shipDefId);
+      const order = appearanceOrder.get(`manual:${event.shipDefId}`);
       return order ? { ...event, ...order } : event;
     }
     if (
@@ -1234,7 +1236,7 @@ export function resolvePlayerBuildSubmitAuthoritatively(
       event.sourceShipDefId === 'ZEN' &&
       event.producedBuildOccurrence?.stage === 'drawing'
     ) {
-      const sourceOrder = manualOrder.get('ZEN');
+      const sourceOrder = appearanceOrder.get('manual:ZEN');
       return sourceOrder
         ? {
           ...event,
@@ -1242,6 +1244,14 @@ export function resolvePlayerBuildSubmitAuthoritatively(
           appearanceRank: sourceOrder.appearanceRank + 0.5,
         }
         : event;
+    }
+    if (
+      event?.type === 'BATTLE_LOG_CAPTURE_BUILD_PRODUCED' &&
+      event.sourceShipDefId === 'EVO' &&
+      event.producedBuildOccurrence?.stage === 'drawing'
+    ) {
+      const order = appearanceOrder.get(`produced:${event.shipDefId}:EVO`);
+      return order ? { ...event, ...order } : event;
     }
     return event;
   });

@@ -219,7 +219,8 @@ function validatePreviewEnvelope(value: unknown):
       )) ||
     (Array.isArray(draft.buildGroupOrder) &&
       draft.buildGroupOrder.some((entry: unknown) =>
-        !isObject(entry) || !hasOnlyKeys(entry, ["shipDefId", "afterCaptureSequence"])
+        !isObject(entry) ||
+        !hasOnlyKeys(entry, ["shipDefId", "afterCaptureSequence", "sourceShipDefId"])
       ))
   ) {
     return { ok: false, reason: "invalid_payload" };

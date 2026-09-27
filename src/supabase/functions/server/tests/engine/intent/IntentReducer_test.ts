@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { replaceChargeDeclarationVisibilityState } from '../../../engine/state/chargeDeclarationVisibility.ts';
 import { applyIntent, type IntentRequest } from '../../../engine/intent/IntentReducer.ts';
+import { makeCommitHash } from '../../../engine/intent/Hash.ts';
 import {
   normalizeAncientGameState,
   sanitizeAncientStateForClient,
@@ -661,6 +662,89 @@ Deno.test('authoritative BUILD_SUBMIT does not inherit preview-only total-attemp
     1000,
   );
   assert.equal(result.ok, true);
+});
+
+Deno.test('BUILD_SUBMIT validates EVO presentation groups without affecting legality', async () => {
+  const validPayload = {
+    builds: [{ shipDefId: 'OXF', count: 1 }],
+    buildGroupOrder: [
+      { shipDefId: 'OXF', afterCaptureSequence: 0 },
+      { shipDefId: 'OXI', sourceShipDefId: 'EVO', afterCaptureSequence: 0 },
+    ],
+    evolverChoices: [{ sourceKey: 'evo-1', choiceId: 'oxite' }],
+  };
+  const validState: any = createBuildState();
+  validState.players[0].faction = 'xenite';
+  validState.gameData.ships.p1 = [
+    { instanceId: 'evo-1', shipDefId: 'EVO' },
+    { instanceId: 'xen-1', shipDefId: 'XEN' },
+  ];
+  const accepted = await applyIntent(validState, 'p1', buildIntent(validPayload), 1000);
+  assert.equal(accepted.ok, true);
+
+  for (const buildGroupOrder of [
+    [{ shipDefId: 'OXI', sourceShipDefId: 'EVO', afterCaptureSequence: 0 }],
+    [
+      { shipDefId: 'OXF', afterCaptureSequence: 0 },
+      { shipDefId: 'AST', sourceShipDefId: 'EVO', afterCaptureSequence: 0 },
+    ],
+    [
+      { shipDefId: 'OXF', afterCaptureSequence: 0 },
+      { shipDefId: 'OXI', sourceShipDefId: 'EVO', afterCaptureSequence: 1 },
+    ],
+    [
+      { shipDefId: 'OXF', afterCaptureSequence: 0 },
+      { shipDefId: 'OXI', sourceShipDefId: 'EVO', afterCaptureSequence: 0 },
+      { shipDefId: 'OXI', sourceShipDefId: 'EVO', afterCaptureSequence: 0 },
+    ],
+  ]) {
+    const state: any = createBuildState();
+    state.players[0].faction = 'xenite';
+    state.gameData.ships.p1 = [
+      { instanceId: 'evo-1', shipDefId: 'EVO' },
+      { instanceId: 'xen-1', shipDefId: 'XEN' },
+    ];
+    const before = structuredClone(state);
+    const result = await applyIntent(state, 'p1', buildIntent({
+      ...validPayload,
+      buildGroupOrder,
+    }), 1000);
+    assert.equal(result.ok, false, JSON.stringify(buildGroupOrder));
+    assert.equal(result.rejected?.code, 'BAD_PAYLOAD');
+    assert.deepEqual(result.state, before);
+  }
+});
+
+Deno.test('EVO ordering metadata participates in BUILD_SUBMIT commit hashing', async () => {
+  const payload = {
+    builds: [{ shipDefId: 'OXF', count: 1 }],
+    buildGroupOrder: [
+      { shipDefId: 'OXF', afterCaptureSequence: 0 },
+      { shipDefId: 'OXI', sourceShipDefId: 'EVO', afterCaptureSequence: 0 },
+    ],
+    evolverChoices: [{ sourceKey: 'evo-1', choiceId: 'oxite' }],
+  };
+  const reversedPayload = {
+    ...payload,
+    buildGroupOrder: [...payload.buildGroupOrder].reverse(),
+  };
+  const state: any = createBuildState();
+  state.players[0].faction = 'xenite';
+  state.gameData.ships.p1 = [
+    { instanceId: 'evo-1', shipDefId: 'EVO' },
+    { instanceId: 'xen-1', shipDefId: 'XEN' },
+  ];
+  const result = await applyIntent(state, 'p1', buildIntent(payload), 1000);
+  assert.equal(result.ok, true);
+  const commitment = result.state.gameData.turnData.commitments.BUILD_1.p1;
+  assert.equal(
+    commitment.commitHash,
+    await makeCommitHash(payload, 'qua-test-nonce'),
+  );
+  assert.notEqual(
+    commitment.commitHash,
+    await makeCommitHash(reversedPayload, 'qua-test-nonce'),
+  );
 });
 
 Deno.test('staged Spiral First Strike survives simultaneous Guardian, SAC, and DOM source removal', async () => {

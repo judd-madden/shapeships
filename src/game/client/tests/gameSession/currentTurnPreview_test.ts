@@ -125,6 +125,43 @@ Deno.test('group order and requester capture identity both participate in previe
   assert(newestDef.identityKey !== changedCapture.identityKey, 'changed own capture reused a preview candidate');
 });
 
+Deno.test('EVO group metadata participates in preview identity', () => {
+  const shared = {
+    gameId: 'game-1',
+    playerId: 'p1',
+    turnNumber: 4,
+    phaseKey: 'build.drawing' as const,
+    safeContextFingerprint: 'safe-a',
+  };
+  const draftBase = {
+    builds: [{ shipDefId: 'OXF', count: 1 }],
+    evolverChoices: [{ sourceKey: 'evo-1', choiceId: 'oxite' as const }],
+  };
+  const faceNewest = getCurrentTurnPreviewCandidateIdentity({
+    ...shared,
+    draft: {
+      ...draftBase,
+      buildGroupOrder: [
+        { shipDefId: 'OXF', afterCaptureSequence: 0 },
+        { shipDefId: 'OXI', sourceShipDefId: 'EVO', afterCaptureSequence: 0 },
+      ],
+    },
+  });
+  const conversionNewest = getCurrentTurnPreviewCandidateIdentity({
+    ...shared,
+    draft: {
+      ...draftBase,
+      buildGroupOrder: [
+        { shipDefId: 'OXI', sourceShipDefId: 'EVO', afterCaptureSequence: 0 },
+        { shipDefId: 'OXF', afterCaptureSequence: 0 },
+      ],
+    },
+  });
+
+  assert(faceNewest.draftFingerprint !== conversionNewest.draftFingerprint);
+  assert(faceNewest.identityKey !== conversionNewest.identityKey);
+});
+
 Deno.test('unchanged draft refetches its complete ledger when own capture identity changes', async () => {
   const clock = new FakeClock();
   const seenCaptures: string[] = [];

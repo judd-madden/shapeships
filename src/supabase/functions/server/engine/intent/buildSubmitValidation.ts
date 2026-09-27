@@ -227,6 +227,16 @@ export function validateBuildSubmitPayload(args: {
         shipDefId === "ANT" && count <= zenCount ? [] : [shipDefId]
       ),
     );
+    const evolverProducedShipIds = new Set(
+      (Array.isArray(payload.evolverChoices) ? payload.evolverChoices : [])
+        .flatMap((choice) =>
+          choice?.choiceId === "oxite"
+            ? ["OXI"]
+            : choice?.choiceId === "asterite"
+            ? ["AST"]
+            : []
+        ),
+    );
     const captureSequence = Array.isArray(
         args.state?.battleLogScratch?.currentTurnCapture?.buildAtomsByPlayerId?.[
           args.playerId
@@ -238,11 +248,16 @@ export function validateBuildSubmitPayload(args: {
       : 0;
     const seen = new Set<string>();
     for (const entry of payload.buildGroupOrder) {
+      const groupKey = `${entry?.sourceShipDefId ?? "manual"}:${entry?.shipDefId}`;
+      const isActiveGroup = entry?.sourceShipDefId === undefined
+        ? manualShipIds.has(entry?.shipDefId)
+        : entry?.sourceShipDefId === "EVO" &&
+          evolverProducedShipIds.has(entry?.shipDefId);
       if (
         !entry || typeof entry !== "object" ||
         typeof entry.shipDefId !== "string" ||
-        !manualShipIds.has(entry.shipDefId) ||
-        seen.has(entry.shipDefId) ||
+        !isActiveGroup ||
+        seen.has(groupKey) ||
         !Number.isInteger(entry.afterCaptureSequence) ||
         entry.afterCaptureSequence < 0 ||
         entry.afterCaptureSequence > captureSequence
@@ -253,9 +268,9 @@ export function validateBuildSubmitPayload(args: {
           message: "Invalid buildGroupOrder entry",
         };
       }
-      seen.add(entry.shipDefId);
+      seen.add(groupKey);
     }
-    if (seen.size !== manualShipIds.size) {
+    if ([...manualShipIds].some((shipDefId) => !seen.has(`manual:${shipDefId}`))) {
       return {
         ok: false,
         code: RejectionCode.BAD_PAYLOAD,

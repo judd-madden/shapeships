@@ -133,10 +133,13 @@ import {
 } from './gameSession/mission/missionChallengeSession';
 import {
   getManualBuildGroupCount,
+  getEvolverProducedBuildGroupCount,
+  getEvolverProducedShipDefId,
   makeCanonicalBuildPayload,
   reconcileBuildGroupOrder,
   runSpeciesConfirmFlow,
   runReadyToggleFlow,
+  type BuildGroupOrderEntry,
   type BuildSubmitFlowResult,
   type CanonicalBuildSubmitPayload,
 } from './gameSession/intents';
@@ -1164,7 +1167,7 @@ export function useGameSession(
   const [buildPreviewCounts, setBuildPreviewCounts] = useState<Record<string, number>>({});
   const [buildPreviewTurnNumber, setBuildPreviewTurnNumber] = useState<number | null>(null);
   const [buildGroupOrder, setBuildGroupOrder] = useState<
-    Array<{ shipDefId: string; afterCaptureSequence: number }>
+    BuildGroupOrderEntry[]
   >([]);
   
 
@@ -1182,7 +1185,7 @@ export function useGameSession(
   const buildPreviewCountsRef = useRef<Record<string, number>>({});
   const buildPreviewTurnNumberRef = useRef<number | null>(null);
   const buildGroupOrderRef = useRef<
-    Array<{ shipDefId: string; afterCaptureSequence: number }>
+    BuildGroupOrderEntry[]
   >([]);
   
   // Build submitted tracking: maps turnNumber → submitted flag
@@ -7289,10 +7292,39 @@ onSelectFrigateTrigger: (frigateIndex: number, triggerNumber: number) => {
         return;
       }
 
+      const previousChoicesByRowId = evolverChoicesByRowIdRef.current;
+      const previousProducedShipDefId = getEvolverProducedShipDefId(
+        previousChoicesByRowId[rowId],
+      );
+      const nextProducedShipDefId = getEvolverProducedShipDefId(choiceId);
       const nextChoicesByRowId = {
-        ...evolverChoicesByRowIdRef.current,
+        ...previousChoicesByRowId,
         [rowId]: choiceId,
       };
+      const captureSequence = Number.isInteger(rawState?.requester?.thisTurn?.captureSequence)
+        ? rawState.requester.thisTurn.captureSequence
+        : 0;
+      let nextOrder = buildGroupOrderRef.current;
+      for (const shipDefId of [previousProducedShipDefId, nextProducedShipDefId]) {
+        if (!shipDefId) continue;
+        if (
+          shipDefId === nextProducedShipDefId &&
+          shipDefId === previousProducedShipDefId
+        ) continue;
+        nextOrder = reconcileBuildGroupOrder({
+          order: nextOrder,
+          shipDefId,
+          sourceShipDefId: 'EVO',
+          previousCount: getEvolverProducedBuildGroupCount(
+            previousChoicesByRowId,
+            shipDefId,
+          ),
+          nextCount: getEvolverProducedBuildGroupCount(nextChoicesByRowId, shipDefId),
+          captureSequence,
+        });
+      }
+      buildGroupOrderRef.current = nextOrder;
+      setBuildGroupOrder(nextOrder);
       evolverChoicesByRowIdRef.current = nextChoicesByRowId;
       setEvolverChoicesByRowId(nextChoicesByRowId);
     },

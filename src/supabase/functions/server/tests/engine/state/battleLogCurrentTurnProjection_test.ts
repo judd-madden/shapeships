@@ -319,6 +319,74 @@ Deno.test("Reveal exposes captured creation history without recounting the curre
   assert.deepEqual(p1?.concealedBuildPlayerIds, []);
 });
 
+Deno.test("ranked EVO and face rows stay private until Reveal and archive identically for both players", () => {
+  const drawing = createState({
+    phase: "build.drawing",
+    scratch: {
+      currentTurnCapture: buildCapture({
+        buildAtomsByPlayerId: {
+          p1: [
+            {
+              kind: "produced_build", shipDefId: "OXI", sourceShipDefId: "EVO",
+              sourceShipInstanceId: "p1-evo", count: 1,
+              appearanceAnchor: 0, appearanceRank: 1,
+            },
+            {
+              kind: "manual_build", shipDefId: "OXF",
+              appearanceAnchor: 0, appearanceRank: 2,
+            },
+          ],
+          p2: [
+            {
+              kind: "produced_build", shipDefId: "AST", sourceShipDefId: "EVO",
+              sourceShipInstanceId: "p2-evo", count: 1,
+              appearanceAnchor: 0, appearanceRank: 1,
+            },
+            {
+              kind: "manual_build", shipDefId: "ASF",
+              appearanceAnchor: 0, appearanceRank: 2,
+            },
+          ],
+        },
+      }),
+      lastFinalizedTurnNumber: 3,
+      archiveCheckpoint: null,
+    },
+  });
+  assert.deepEqual(
+    projectBattleLogCurrentTurnForViewer(drawing, "p1")?.buildLinesByPlayerId,
+    { p1: ["1 x OXF", "1 x OXI (EVO)"], p2: [] },
+  );
+  assert.deepEqual(
+    projectBattleLogCurrentTurnForViewer(drawing, "p2")?.buildLinesByPlayerId,
+    { p1: [], p2: ["1 x ASF", "1 x AST (EVO)"] },
+  );
+
+  const revealed = setPhase(drawing, "battle.reveal");
+  const expected = {
+    p1: ["1 x OXF", "1 x OXI (EVO)"],
+    p2: ["1 x ASF", "1 x AST (EVO)"],
+  };
+  assert.deepEqual(
+    projectBattleLogCurrentTurnForViewer(revealed, "p1")?.buildLinesByPlayerId,
+    expected,
+  );
+  assert.deepEqual(
+    projectBattleLogCurrentTurnForViewer(revealed, "p2")?.buildLinesByPlayerId,
+    expected,
+  );
+  assert.deepEqual(
+    projectBattleLogCurrentTurnForViewer(revealed, "spec")?.buildLinesByPlayerId,
+    expected,
+  );
+  const archive = buildBattleLogTurnSummaryFromScratch({
+    scratch: revealed.battleLogScratch,
+    finalizedTurnNumber: 4,
+    finalizedState: revealed,
+  });
+  assert.deepEqual(archive.buildLinesByPlayerId, expected);
+});
+
 Deno.test("First Strike and Charge Declaration atoms open only at their own barriers", () => {
   const state = createState({
     phase: "battle.first_strike",

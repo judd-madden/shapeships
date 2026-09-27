@@ -221,7 +221,9 @@ function orderedLocalDraftRows(
 ): OrderedBuildRow[] {
   const order = new Map(
     (draft.buildGroupOrder ?? []).map((entry, index, entries) => [
-      entry.shipDefId,
+      entry.sourceShipDefId === 'EVO'
+        ? `produced:${entry.shipDefId}:EVO`
+        : `manual:${entry.shipDefId}`,
       {
         appearanceAnchor: entry.afterCaptureSequence,
         appearanceRank: entries.length - index,
@@ -234,7 +236,7 @@ function orderedLocalDraftRows(
   const rows = draft.builds.flatMap(({ shipDefId }, index): OrderedBuildRow[] => {
     const count = getManualBuildGroupCount(counts, shipDefId);
     if (count <= 0) return [];
-    const appearance = order.get(shipDefId) ?? {
+    const appearance = order.get(`manual:${shipDefId}`) ?? {
       appearanceAnchor: captureSequence,
       appearanceRank: draft.builds.length - index,
     };
@@ -248,7 +250,7 @@ function orderedLocalDraftRows(
   const antCount = Number.isInteger(counts.ANT) ? Math.max(0, counts.ANT) : 0;
   const producedAntCount = Math.min(zenCount, antCount);
   if (producedAntCount > 0) {
-    const zenAppearance = order.get('ZEN') ?? {
+    const zenAppearance = order.get('manual:ZEN') ?? {
       appearanceAnchor: captureSequence,
       appearanceRank: 0,
     };
@@ -271,11 +273,14 @@ function orderedLocalDraftRows(
       existing.line = `${existing.count} x ${conversion.shipDefId} (${existing.count} EVO)`;
       continue;
     }
+    const appearance = order.get(groupKey) ?? {
+      appearanceAnchor: captureSequence + 1,
+      appearanceRank: index + 1,
+    };
     evolverRows.set(conversion.shipDefId, {
       line: `1 x ${conversion.shipDefId} (EVO)`,
       groupKey,
-      appearanceAnchor: captureSequence + 1,
-      appearanceRank: index + 1,
+      ...appearance,
       count: 1,
     });
   }

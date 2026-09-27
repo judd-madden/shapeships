@@ -259,8 +259,12 @@ function createDrawingNoninterferencePair(viewer: FullStateViewer) {
       commitHash: `${hiddenPlayerId}-right-hash`,
       revealPayload: {
         builds: [{ shipDefId: "FRI", count: 1 }],
-        buildGroupOrder: [{ shipDefId: "FRI", afterCaptureSequence: 2 }],
+        buildGroupOrder: [
+          { shipDefId: "OXI", sourceShipDefId: "EVO", afterCaptureSequence: 2 },
+          { shipDefId: "FRI", afterCaptureSequence: 2 },
+        ],
         frigateTriggers: [6],
+        evolverChoices: [{ sourceKey: `${hiddenPlayerId}-evo`, choiceId: "oxite" }],
       },
       committedAt: 100,
       revealedAt: 101,
@@ -275,9 +279,11 @@ function createDrawingNoninterferencePair(viewer: FullStateViewer) {
       ...publicInterventionAtoms,
       {
         kind: "produced_build",
-        shipDefId: "FRI",
-        sourceShipDefId: "DRE",
+        shipDefId: "OXI",
+        sourceShipDefId: "EVO",
         count: 2,
+        appearanceAnchor: 2,
+        appearanceRank: 2,
       },
     ];
   }
@@ -463,6 +469,38 @@ Deno.test("preview accepts empty drafts, ignores hidden revisions, and supports 
     },
   });
   assert.equal(retry.status, 200);
+});
+
+Deno.test("preview accepts validated EVO group ordering metadata", async () => {
+  const state: any = createState();
+  state.players.find((player: any) => player.id === "p1").faction = "xenite";
+  state.gameData.ships.p1 = [
+    ship("p1-evo", "EVO"),
+    ship("p1-xen", "XEN"),
+    ship("p1-oxi", "OXI"),
+  ];
+  state.gameData.turnData.buildDrawingPublicFleetByPlayerId.p1 = structuredClone(
+    state.gameData.ships.p1,
+  );
+  const test = fixture(state);
+  const response = await previewRequest(test.app, state.gameId, {
+    observed: { turnNumber: 5, phaseKey: "build.drawing" },
+    draft: {
+      builds: [{ shipDefId: "OXF", count: 1 }],
+      buildGroupOrder: [
+        { shipDefId: "OXF", afterCaptureSequence: 2 },
+        {
+          shipDefId: "OXI",
+          sourceShipDefId: "EVO",
+          afterCaptureSequence: 2,
+        },
+      ],
+      evolverChoices: [{ sourceKey: "p1-evo", choiceId: "oxite" }],
+    },
+  });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(body.build.lines.slice(0, 2), ["1 x OXF", "1 x OXI (EVO)"]);
 });
 
 Deno.test("preview rejects an unchanged draft when the requester capture identity has advanced", async () => {
