@@ -49,6 +49,7 @@ function valueMetric(
   source: Extract<ThisTurnMetricVm, { total: number }>['source'],
   turnNumber = 4,
   metricRows: BoardStatBreakdownRowVm[] = rows,
+  estimateMode?: Extract<ThisTurnMetricVm, { total: number }>['estimateMode'],
 ): ThisTurnMetricVm {
   return {
     state: total === 0 ? 'zero' : 'value',
@@ -56,6 +57,7 @@ function valueMetric(
     source,
     total,
     rows: metricRows,
+    ...(estimateMode ? { estimateMode } : {}),
   };
 }
 
@@ -104,6 +106,28 @@ Deno.test('estimated and privacy-frozen metrics use estimate hover totals', () =
       rows,
     },
   );
+});
+
+Deno.test('Autocast estimates qualify only the estimated breakdown and keep resting values plain', () => {
+  const metric = valueMetric(8, 'estimated', 4, rows, 'with_autocast');
+  assertEquals(formatBoardStatMetric(metric, 'current'), '8');
+  assertEquals(buildBoardStatHoverSections(pair(metric)), [
+    {
+      kind: 'this_turn_estimate',
+      heading: 'THIS TURN',
+      showEstimateQualifier: true,
+      estimateQualifierText: 'ESTIMATE WITH AUTOCAST',
+      totalText: '~8',
+      rows,
+    },
+    {
+      kind: 'last_turn',
+      heading: 'LAST TURN',
+      showEstimateQualifier: false,
+      totalText: '3',
+      rows,
+    },
+  ]);
 });
 
 Deno.test('valid zero remains an available hover section without rows', () => {

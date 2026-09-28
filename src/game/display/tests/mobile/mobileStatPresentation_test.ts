@@ -44,6 +44,7 @@ function availableMetric(
   source: Extract<ThisTurnMetricVm, { total: number }>['source'],
   turnNumber = 4,
   rows: BoardStatBreakdownRowVm[] = [shipRow],
+  estimateMode?: Extract<ThisTurnMetricVm, { total: number }>['estimateMode'],
 ): ThisTurnMetricVm {
   return {
     state: total === 0 ? 'zero' : 'value',
@@ -51,6 +52,7 @@ function availableMetric(
     source,
     total,
     rows,
+    ...(estimateMode ? { estimateMode } : {}),
   };
 }
 
@@ -185,6 +187,46 @@ Deno.test('mobile HUD fixes stat order and uses desktop value-state formatting',
     lastText: '3',
   });
   assertEquals(buildMobileHudMetricPair(null), { currentText: '0', lastText: '0' });
+});
+
+Deno.test('mobile Autocast qualifier appears below each current estimate only', () => {
+  const autocastMetrics = playerMetrics(
+    pair(
+      availableMetric(8, 'estimated', 4, [shipRow], 'with_autocast'),
+      availableMetric(3, 'last_actual', 3),
+    ),
+    pair(
+      availableMetric(0, 'estimated', 4, [], 'with_autocast'),
+      availableMetric(1, 'last_actual', 3),
+    ),
+  );
+  const groups = buildMobileMetricBreakdownGroups({
+    presentation: presentation({ me: autocastMetrics }),
+    side: 'me',
+  });
+
+  assertEquals(groups.primary.map((section) => ({
+    title: section.title,
+    estimateLabel: section.estimateLabel,
+    totalText: section.totalText,
+  })), [
+    {
+      title: 'This turn damage',
+      estimateLabel: 'ESTIMATE WITH AUTOCAST',
+      totalText: '~8',
+    },
+    {
+      title: 'This turn healing',
+      estimateLabel: 'ESTIMATE WITH AUTOCAST',
+      totalText: '~0',
+    },
+  ]);
+  assertEquals(groups.last.map((section) => section.estimateLabel), [undefined, undefined]);
+  assertEquals(
+    buildMobileMetricBreakdownGroups({ presentation: presentation(), side: 'me' })
+      .primary.map((section) => section.estimateLabel),
+    [undefined, undefined],
+  );
 });
 
 Deno.test('own popover pairs estimated current with genuine Last and preserves calculated zero rows', () => {

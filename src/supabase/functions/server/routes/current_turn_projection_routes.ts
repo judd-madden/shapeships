@@ -164,6 +164,37 @@ function toEstimateDto(
   };
 }
 
+function toRequesterEstimateDto(
+  result: CurrentTurnEstimateResult,
+  includeBuild: boolean,
+  ownBuildCaptureIdentity?: string,
+) {
+  const base = toEstimateDto(
+    result,
+    includeBuild,
+    ownBuildCaptureIdentity,
+  );
+  if (result.status === "unavailable" || !result.withAutocast) return base;
+  return {
+    ...base,
+    withAutocast: {
+      damage: {
+        total: result.withAutocast.damage.total,
+        rows: structuredClone(result.withAutocast.damage.rows),
+      },
+      healing: {
+        total: result.withAutocast.healing.total,
+        rows: structuredClone(result.withAutocast.healing.rows),
+      },
+    },
+  };
+}
+
+function isAncientPlayer(player: Readonly<any>): boolean {
+  const species = player?.faction ?? player?.species;
+  return typeof species === "string" && species.toLowerCase() === "ancient";
+}
+
 function validatePreviewEnvelope(value: unknown):
   | { ok: true; value: PreviewRequest }
   | { ok: false; reason: string } {
@@ -458,6 +489,20 @@ export function registerCurrentTurnProjectionRoutes(args: {
           total: result.healing,
           rows: structuredClone(result.healingRows),
         },
+        ...(result.withAutocast
+          ? {
+            withAutocast: {
+              damage: {
+                total: result.withAutocast.damage.total,
+                rows: structuredClone(result.withAutocast.damage.rows),
+              },
+              healing: {
+                total: result.withAutocast.healing.total,
+                rows: structuredClone(result.withAutocast.healing.rows),
+              },
+            },
+          }
+          : {}),
         build: toBuildDto(result),
       });
     } catch (error) {
@@ -532,7 +577,7 @@ export function projectCurrentTurnFieldsForFullState(args: {
       });
       estimateCount++;
       turnStartProjection = {
-        ...toEstimateDto(estimate, false),
+        ...toRequesterEstimateDto(estimate, false),
         identity: toEstimateIdentityDto(estimate.identity),
       };
     }
@@ -557,7 +602,7 @@ export function projectCurrentTurnFieldsForFullState(args: {
         });
         estimateCount++;
         committedProjection = {
-          ...toEstimateDto(
+          ...toRequesterEstimateDto(
             estimate,
             true,
             captured?.ownBuildCaptureIdentity,
@@ -581,6 +626,26 @@ export function projectCurrentTurnFieldsForFullState(args: {
       ownBuildCaptureIdentity: captured?.ownBuildCaptureIdentity ?? null,
       turnStartProjection,
       committedProjection,
+    };
+  } else if (
+    requester &&
+    isAncientPlayer(requester) &&
+    (phaseKey === "battle.reveal" ||
+      phaseKey === "battle.first_strike" ||
+      phaseKey === "battle.charge_declaration")
+  ) {
+    const estimate = estimateCurrentTurnForPlayer({
+      state,
+      requestingParticipantId: requester.id,
+      playerId: requester.id,
+      draft: null,
+    });
+    estimateCount++;
+    requesterThisTurn = {
+      currentProjection: {
+        ...toRequesterEstimateDto(estimate, false),
+        identity: toEstimateIdentityDto(estimate.identity),
+      },
     };
   }
   const estimatorMs = performance.now() - estimatorStartedAt;

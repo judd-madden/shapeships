@@ -205,6 +205,7 @@ import {
 } from './gameSession/clienteffects/useEndOfTurnPresentation';
 import { useDestroyTargetingRuntime } from './gameSession/destroyTargeting';
 import {
+  deriveAncientCurrentTurnEstimateMode,
   deriveAncientSolarDisplayEntries,
   isLiveRowAncientSolarPowerId,
 } from './gameSession/ancient/ancientSolarDisplay';
@@ -2879,6 +2880,13 @@ export function useGameSession(
   });
   const publicAncientSolarLedgers =
     rawState?.publicState?.ancient?.solarLedgerByPlayerId as Record<string, unknown> | undefined;
+  const ownCurrentTurnEstimateMode = deriveAncientCurrentTurnEstimateMode({
+    viewerIsAncientPlayer: myRole === 'player' && mySpecies === 'ancient',
+    autocastEnabled: ancientAutocastEnabled,
+    hasLocalOrFrozenManualSolarCast: ancientSolarPresentationCasts.length > 0,
+    authoritativeLedger: me?.id ? publicAncientSolarLedgers?.[me.id] : null,
+    turnNumber,
+  });
   const materializedSimulacrumLedgerEntryIdsByPlayerId =
     getMaterializedSimulacrumLedgerEntryIdsByPlayerId(rawState);
   const getSuppressedSimulacrumLedgerEntryIds = (
@@ -4715,6 +4723,7 @@ useEffect(() => {
           preview: currentTurnPreview,
           publicThisTurn: rawState?.publicState?.thisTurn,
           requesterThisTurn: rawState?.requester?.thisTurn,
+          ownEstimateMode: ownCurrentTurnEstimateMode,
           lastTurn: lastTurnPresentation,
           previousPresentation: lastPresentedThisTurnRef.current,
           resolutionSnapshot,

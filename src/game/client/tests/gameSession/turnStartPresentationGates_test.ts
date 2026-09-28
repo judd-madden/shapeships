@@ -49,6 +49,7 @@ function statMetric(
   turnNumber: number,
   source: Extract<ThisTurnMetricVm, { total: number }>['source'] = 'estimated',
   label = 'Fighter',
+  estimateMode?: Extract<ThisTurnMetricVm, { total: number }>['estimateMode'],
 ): ThisTurnMetricVm {
   return {
     state: total === 0 ? 'zero' : 'value',
@@ -58,6 +59,7 @@ function statMetric(
     rows: total === 0
       ? []
       : [{ rowKind: 'ship', label, count: 1, amount: total, amountText: String(total) }],
+    ...(estimateMode ? { estimateMode } : {}),
   };
 }
 
@@ -69,12 +71,14 @@ function statPresentation(args: {
   opponentDetail?: 'this_turn' | 'last';
   opponentConcealed?: boolean;
   label?: string;
+  estimateMode?: Extract<ThisTurnMetricVm, { total: number }>['estimateMode'];
 }): ThisTurnPresentationVm {
   const current = statMetric(
     args.total,
     args.turnNumber,
     'estimated',
     args.label,
+    args.estimateMode,
   );
   const last = statMetric(
     Math.max(0, args.total - 1),
@@ -314,6 +318,51 @@ Deno.test('current-turn result UI remains gated until that turn settles', () => 
     true,
     'the current result may be exposed after settle'
   );
+});
+
+Deno.test('dice settlement holds and releases Autocast totals, rows, source, and qualifier atomically', () => {
+  const orientationKey = getTurnStartStatOrientationKey({
+    viewerRole: 'player', leftPlayerId: 'p1', rightPlayerId: 'p2',
+  });
+  const prior = statPresentation({ turnNumber: 4, total: 6, label: 'Prior' });
+  const autocast = statPresentation({
+    turnNumber: 5,
+    total: 13,
+    label: 'Supernova',
+    estimateMode: 'with_autocast',
+  });
+  let state = createTurnStartStatPresentationState({
+    gameId: 'game-1', orientationKey, turnNumber: 4,
+    presentation: prior, firstTurnRollPresentationActive: false,
+  });
+
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: autocast, settledTurnNumber: 4,
+    firstTurnRollPresentationActive: false,
+  });
+  assertEquals(state.presented, prior, 'the prior complete presentation must remain visible');
+  assertEquals(state.latest, autocast, 'the complete Autocast presentation must remain pending');
+
+  state = syncTurnStartStatPresentation(state, {
+    gameId: 'game-1', orientationKey, turnNumber: 5,
+    presentation: structuredClone(autocast), settledTurnNumber: 5,
+    firstTurnRollPresentationActive: false,
+  });
+  const released = state.presented?.me.damage.current;
+  assertEquals(released?.state === 'value' || released?.state === 'zero'
+    ? {
+        total: released.total,
+        source: released.source,
+        estimateMode: released.estimateMode,
+        rows: released.rows.map((row) => row.label),
+      }
+    : released, {
+    total: 13,
+    source: 'estimated',
+    estimateMode: 'with_autocast',
+    rows: ['Supernova'],
+  }, 'settlement must release the total, rows, source, and qualifier together');
 });
 
 Deno.test('turn stats retain the complete prior presentation and release the newest estimate at settlement', () => {

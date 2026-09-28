@@ -44,6 +44,7 @@ interface StatSectionVm {
   rows: BoardStatBreakdownRowVm[];
   secondaryRows?: Array<{ label: string; amountText: string }>;
   signlessContributions?: boolean;
+  estimateLabel?: 'ESTIMATE WITH AUTOCAST';
 }
 
 const HORIZONTAL_MARGIN_PX = 16;
@@ -386,6 +387,12 @@ function BreakdownSection({
           {section.totalText}
         </span>
       </div>
+
+      {section.estimateLabel ? (
+        <p className="mb-[5px] text-[12px] font-normal leading-[15px] text-[var(--shapeships-grey-20)]">
+          ({section.estimateLabel})
+        </p>
+      ) : null}
 
       {section.rows.length > 0 || section.secondaryRows?.length ? (
         <div className="flex flex-col gap-[3px]">

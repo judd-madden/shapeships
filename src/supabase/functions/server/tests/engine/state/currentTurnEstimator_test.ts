@@ -197,6 +197,116 @@ Deno.test("Drawing simulation includes automatic SOL Reveal spending and deplete
   );
 });
 
+Deno.test("Ancient requester receives complete canonical Base and Autocast variants", () => {
+  const state = createState({
+    p1Fleet: [
+      ship("plu-1", "PLU"),
+      ship("plu-2", "PLU"),
+      ship("plu-3", "PLU"),
+      ship("mer-1", "MER"),
+      ship("mer-2", "MER"),
+      ship("mer-3", "MER"),
+      ship("qua", "QUA", {
+        permanentConfiguration: { selectedNumber: 4 },
+      }),
+      ship("solar", "SOL", { chargesCurrent: 1 }),
+    ],
+  });
+
+  const result = estimateTurnStart(state);
+  assert.ok(result.withAutocast);
+  assert.equal(result.withAutocast.healing.total - result.healing, 8);
+  assert.equal(result.withAutocast.damage.total - result.damage, 8);
+  assert.deepEqual(
+    result.withAutocast.healing.rows
+      .filter((row) => row.rowKind === "solar_power")
+      .map((row) => [row.label, row.amount]),
+    [["Star Birth", 7], ["Life", 1]],
+  );
+  assert.deepEqual(
+    result.withAutocast.damage.rows
+      .filter((row) => row.rowKind === "solar_power")
+      .map((row) => [row.label, row.amount]),
+    [["Supernova", 7], ["Asteroid", 1]],
+  );
+});
+
+Deno.test("Autocast uses single-energy fallbacks and preserves genuine zero health variants", () => {
+  const single = estimateTurnStart(createState({
+    p1Fleet: [ship("plu", "PLU"), ship("mer", "MER")],
+  }));
+  assert.ok(single.withAutocast);
+  assert.equal(single.withAutocast.healing.total, 1);
+  assert.equal(single.withAutocast.damage.total, 1);
+  assert.deepEqual(single.withAutocast.healing.rows.map((row) => row.label), ["Life"]);
+  assert.deepEqual(single.withAutocast.damage.rows.map((row) => row.label), ["Asteroid"]);
+
+  const blueOnly = estimateTurnStart(createState({
+    p1Fleet: [
+      ship("qua", "QUA", { permanentConfiguration: { selectedNumber: 4 } }),
+    ],
+  }));
+  assert.ok(blueOnly.withAutocast);
+  assert.equal(blueOnly.withAutocast.damage.total, blueOnly.damage);
+  assert.equal(blueOnly.withAutocast.healing.total, blueOnly.healing);
+  assert.deepEqual(blueOnly.withAutocast.damage.rows, blueOnly.damageRows);
+  assert.deepEqual(blueOnly.withAutocast.healing.rows, blueOnly.healingRows);
+});
+
+Deno.test("Drawing draft Autocast energy includes newly built MER PLU and charged SOL", () => {
+  const state = createState({ p1Lines: 100 });
+  const result = estimateDrawing(state, {
+    builds: [
+      { shipDefId: "MER", count: 2 },
+      { shipDefId: "PLU", count: 2 },
+      { shipDefId: "SOL", count: 1 },
+    ],
+  });
+  assert.ok(result.withAutocast);
+  assert.equal(result.withAutocast.healing.total - result.healing, 7);
+  assert.equal(result.withAutocast.damage.total - result.damage, 7);
+  assert.equal(
+    result.withAutocast.healing.rows.some((row) => row.rowKind === "solar_power"),
+    true,
+  );
+  assert.equal(
+    result.withAutocast.damage.rows.some((row) => row.rowKind === "solar_power"),
+    true,
+  );
+});
+
+Deno.test("post-Reveal private Autocast uses recorded own Reveal energy", () => {
+  const state: any = createState({
+    phase: "reveal",
+    p1Fleet: [ship("spent-solar", "SOL", { chargesCurrent: 0 })],
+  });
+  state.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 5;
+  state.gameData.ancient.energyByPlayerId.p1 = {
+    battleTurnNumber: 5,
+    pool: { green: 3, red: 3, blue: 0 },
+    sources: [],
+  };
+  const result = estimatePublic(state);
+  assert.notEqual(result.status, "unavailable");
+  if (result.status === "unavailable") return;
+  assert.ok(result.withAutocast);
+  assert.equal(result.healing, 2);
+  assert.equal(result.withAutocast.healing.total, 9);
+  assert.equal(result.withAutocast.damage.total, 7);
+
+  const publicOnly = estimateCurrentTurnForPlayer({
+    state,
+    playerId: "p1",
+    draft: null,
+  });
+  assert.notEqual(publicOnly.status, "unavailable");
+  if (publicOnly.status !== "unavailable") {
+    assert.equal(publicOnly.withAutocast, undefined);
+    assert.equal(publicOnly.healing, result.healing);
+    assert.equal(publicOnly.damage, result.damage);
+  }
+});
+
 Deno.test("turn-start baseline uses only validated entry fleets and persistent rows", () => {
   const state: any = createState({
     p1Fleet: [
@@ -250,7 +360,7 @@ Deno.test("turn-start baseline distinguishes Carrier-only zero from unavailable 
   }
 });
 
-Deno.test("turn-start baseline preserves once-only memory and skips future Reveal assumptions", () => {
+Deno.test("turn-start baseline preserves once-only memory and simulates canonical Reveal", () => {
   const state: any = createState({
     p1Faction: "human",
     p1Fleet: [
@@ -268,8 +378,12 @@ Deno.test("turn-start baseline preserves once-only memory and skips future Revea
 
   const baseline = estimateTurnStart(state);
   assert.equal(baseline.damage, 0);
-  assert.equal(baseline.healing, 0);
-  assert.deepEqual(baseline.reveal.solarGridChargeTransitions, []);
+  assert.equal(baseline.healing, 2);
+  assert.deepEqual(baseline.reveal.solarGridChargeTransitions, [{
+    from: 1,
+    to: 0,
+    count: 1,
+  }]);
 
   const normal = estimateDrawing(createState({
     p1Faction: "human",
@@ -307,11 +421,27 @@ Deno.test("Charge Declaration freezes fleets and ignores acknowledgements, live 
     p1: [ship("sol", "SOL", { chargesCurrent: 1 })],
     p2: [],
   };
+  state.gameData.ancient.energyByPlayerId.p1 = {
+    battleTurnNumber: 5,
+    pool: { green: 0, red: 3, blue: 0 },
+    sources: [],
+  };
   replaceChargeDeclarationVisibilityState(state);
 
   const before = estimatePublic(state);
   const opponentBefore = estimatePublic(state, "p2");
+  const privateBefore = estimateCurrentTurnForPlayer({
+    state,
+    requestingParticipantId: "p1",
+    playerId: "p1",
+    draft: null,
+  });
   state.gameData.ships.p1[0].chargesCurrent = 0;
+  state.gameData.ancient.energyByPlayerId.p1.pool = {
+    green: 3,
+    red: 0,
+    blue: 0,
+  };
   state.gameData.turnData.chargeDeclarationAcknowledgements
     .chargeAfterByPlayerId = {
       p1: { sol: 0 },
@@ -324,9 +454,21 @@ Deno.test("Charge Declaration freezes fleets and ignores acknowledgements, live 
   };
   const after = estimatePublic(state);
   const opponentAfter = estimatePublic(state, "p2");
+  const privateAfter = estimateCurrentTurnForPlayer({
+    state,
+    requestingParticipantId: "p1",
+    playerId: "p1",
+    draft: null,
+  });
 
   assert.deepEqual(after, before);
   assert.deepEqual(opponentAfter, opponentBefore);
+  assert.deepEqual(privateAfter, privateBefore);
+  assert.notEqual(privateBefore.status, "unavailable");
+  if (privateBefore.status !== "unavailable") {
+    assert.ok(privateBefore.withAutocast);
+    assert.ok(privateBefore.withAutocast.damage.total > privateBefore.damage);
+  }
   assert.equal(after.status, "privacy_frozen");
   assert.equal(after.healing, 0);
 });

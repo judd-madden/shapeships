@@ -374,6 +374,7 @@ export type ThisTurnMetricVm =
         | 'held_actual'
         | 'last_actual'
         | 'final_actual';
+      estimateMode?: 'base' | 'with_autocast';
       total: number;
       rows: BoardStatBreakdownRowVm[];
     };

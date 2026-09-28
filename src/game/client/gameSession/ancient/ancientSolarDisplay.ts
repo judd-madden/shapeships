@@ -43,6 +43,52 @@ function isAncientSolarDisplaySourceMode(
   return typeof value === 'string' && ANCIENT_SOLAR_DISPLAY_SOURCE_MODES.has(value);
 }
 
+export function hasCurrentTurnManualAncientSolarCast(args: {
+  ledger: unknown;
+  turnNumber: number;
+}): boolean {
+  if (
+    !args.ledger ||
+    typeof args.ledger !== 'object' ||
+    Array.isArray(args.ledger)
+  ) {
+    return false;
+  }
+  const ledger = args.ledger as Record<string, unknown>;
+  if (ledger.battleTurnNumber !== args.turnNumber || !Array.isArray(ledger.entries)) {
+    return false;
+  }
+  return ledger.entries.some(
+    (entry) =>
+      entry !== null &&
+      typeof entry === 'object' &&
+      !Array.isArray(entry) &&
+      (entry as Record<string, unknown>).sourceMode === 'manual'
+  );
+}
+
+export function deriveAncientCurrentTurnEstimateMode(args: {
+  viewerIsAncientPlayer: boolean;
+  autocastEnabled: boolean;
+  hasLocalOrFrozenManualSolarCast: boolean;
+  authoritativeLedger: unknown;
+  turnNumber: number | null;
+}): 'base' | 'with_autocast' {
+  if (
+    !args.viewerIsAncientPlayer ||
+    !args.autocastEnabled ||
+    args.hasLocalOrFrozenManualSolarCast ||
+    typeof args.turnNumber !== 'number' ||
+    hasCurrentTurnManualAncientSolarCast({
+      ledger: args.authoritativeLedger,
+      turnNumber: args.turnNumber,
+    })
+  ) {
+    return 'base';
+  }
+  return 'with_autocast';
+}
+
 function normalizeTargetMarkerInstanceIds(values: readonly unknown[]): string[] {
   return Array.from(new Set(
     values.filter(

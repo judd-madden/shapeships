@@ -33,6 +33,10 @@ export interface CurrentTurnPreviewEstimate {
   playerId: string;
   damage: { total: number; rows: unknown[] };
   healing: { total: number; rows: unknown[] };
+  withAutocast?: {
+    damage: { total: number; rows: unknown[] };
+    healing: { total: number; rows: unknown[] };
+  };
   build: {
     lines: string[];
     rows?: Array<{
@@ -284,7 +288,16 @@ function asEstimate(value: unknown): CurrentTurnPreviewEstimate | null {
     typeof value.healing.total !== 'number' ||
     !Array.isArray(value.damage.rows) ||
     !Array.isArray(value.healing.rows) ||
-    !Array.isArray(value.build.lines)
+    !Array.isArray(value.build.lines) ||
+    (value.withAutocast !== undefined && (
+      !isRecord(value.withAutocast) ||
+      !isRecord(value.withAutocast.damage) ||
+      !isRecord(value.withAutocast.healing) ||
+      typeof value.withAutocast.damage.total !== 'number' ||
+      typeof value.withAutocast.healing.total !== 'number' ||
+      !Array.isArray(value.withAutocast.damage.rows) ||
+      !Array.isArray(value.withAutocast.healing.rows)
+    ))
   ) {
     return null;
   }

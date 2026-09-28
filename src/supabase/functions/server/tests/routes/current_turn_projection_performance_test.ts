@@ -85,11 +85,27 @@ function createState(complex: boolean, phase: "drawing" | "reveal") {
       powerMemory: {
         onceOnlyFired: {},
         frigateTriggerByInstanceId: { "p1-fri": 4 },
-        quantumMysticRevealByInstanceId: {},
+        quantumMysticRevealByInstanceId:
+          phase === "reveal" && complex
+            ? {
+              "enemy-qua": {
+                battleTurnNumber: turnNumber,
+                controllerPlayerId: "p2",
+              },
+            }
+            : {},
       },
       ancient: {
         schemaVersion: 1,
-        energyByPlayerId: {},
+        energyByPlayerId: phase === "reveal"
+          ? {
+            p2: {
+              battleTurnNumber: turnNumber,
+              pool: { green: 3, red: 3, blue: 1 },
+              sources: [],
+            },
+          }
+          : {},
         acceptedDeclarationByPlayerId: {},
         solarLedgerByPlayerId: {},
         pendingSimulacrumCopies: [],
@@ -250,7 +266,7 @@ async function measure(args: {
   };
 }
 
-Deno.test("Phase 18C in-memory route performance fixtures", async () => {
+Deno.test("Phase 18I in-memory route performance fixtures", async () => {
   const results: any[] = [];
   for (const complex of [false, true]) {
     const label = complex ? "complex" : "representative";
@@ -316,6 +332,17 @@ Deno.test("Phase 18C in-memory route performance fixtures", async () => {
     );
     results.push(
       await measure({
+        name: `${label}-revealed-ancient-private-pair-get`,
+        shape: `${shape}; separate requester-only Base plus With Autocast projection`,
+        state: reveal,
+        sessionId: "p2",
+        method: "GET",
+        path: `/make-server-825e19ab/game-state/${reveal.gameId}`,
+        expectedEstimateCount: 3,
+      }),
+    );
+    results.push(
+      await measure({
         name: `${label}-revealed-spectator-get`,
         shape,
         state: reveal,
@@ -326,6 +353,25 @@ Deno.test("Phase 18C in-memory route performance fixtures", async () => {
       }),
     );
   }
+  const privateBattleProjectionAndPairCost = ["representative", "complex"].map(
+    (label) => {
+      const publicOnly = results.find((entry) =>
+        entry.fixture === `${label}-revealed-player-get`
+      );
+      const paired = results.find((entry) =>
+        entry.fixture === `${label}-revealed-ancient-private-pair-get`
+      );
+      return {
+        fixture: label,
+        publicBaseEstimator: publicOnly.estimator,
+        publicPlusPrivatePairEstimator: paired.estimator,
+        incrementalMedianMs:
+          paired.estimator.medianMs - publicOnly.estimator.medianMs,
+        incrementalP95Ms:
+          paired.estimator.p95Ms - publicOnly.estimator.p95Ms,
+      };
+    },
+  );
   console.log(`CURRENT_TURN_ROUTE_PERFORMANCE ${
     JSON.stringify({
       environment: {
@@ -337,6 +383,7 @@ Deno.test("Phase 18C in-memory route performance fixtures", async () => {
       },
       warmupsPerFixture: WARMUPS,
       samplesPerFixture: SAMPLES,
+      privateBattleProjectionAndPairCost,
       results,
     })
   }`);

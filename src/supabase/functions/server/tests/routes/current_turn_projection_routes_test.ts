@@ -152,6 +152,25 @@ function setAwaitingCarrierPrelude(state: any, playerId: "p1" | "p2") {
   };
 }
 
+function configureAncientProjectionPlayer(
+  state: any,
+  playerId: "p1" | "p2",
+) {
+  const player = state.players.find((candidate: any) => candidate.id === playerId);
+  player.faction = "ancient";
+  state.gameData.ships[playerId] = [
+    ship(`${playerId}-mer`, "MER"),
+    ship(`${playerId}-plu`, "PLU"),
+  ];
+  state.gameData.turnData.buildDrawingPublicFleetByPlayerId[playerId] =
+    structuredClone(state.gameData.ships[playerId]);
+  state.gameData.ancient.energyByPlayerId[playerId] = {
+    battleTurnNumber: state.gameData.turnNumber,
+    pool: { green: 3, red: 3, blue: 0 },
+    sources: [],
+  };
+}
+
 class TrackingPersistence implements GameStatePersistence {
   readonly store = new Map<string, any>();
   loads = 0;
@@ -575,6 +594,60 @@ Deno.test("turn-start projection is hidden-data invariant and yields to normal p
   assert.equal((await preview.json()).status, "estimated");
 });
 
+Deno.test("Ancient preview, accepted submission, committed projection, and Reveal handoff keep the private pair scoped", async () => {
+  const state: any = createState();
+  configureAncientProjectionPlayer(state, "p1");
+  setAwaitingCarrierPrelude(state, "p1");
+
+  const turnStartBody = await fullStateBody(state, "p1");
+  const turnStart = turnStartBody.requester.thisTurn.turnStartProjection;
+  assert.equal(turnStart.status, "estimated");
+  assert.ok(turnStart.withAutocast);
+  assert.equal("identity" in turnStart.withAutocast, false);
+
+  state.gameData.turnData.drawingPreludeByPlayerId.p1.status = "complete";
+  state.gameData.turnData.drawingPreludeByPlayerId.p1.resolvedSourcePowerKeysByPass = {
+    1: ["p1-carrier:CAR#0"],
+  };
+  const previewFixture = fixture(state);
+  const previewResponse = await previewRequest(previewFixture.app, state.gameId, {
+    observed: { turnNumber: 5, phaseKey: "build.drawing" },
+    draft: { builds: [] },
+  });
+  assert.equal(previewResponse.status, 200);
+  const preview = await previewResponse.json();
+  assert.ok(preview.withAutocast);
+  assert.equal("identity" in preview.withAutocast, false);
+
+  state.gameData.turnData.commitments.BUILD_5 = {
+    p1: { commitHash: "ancient-own", revealPayload: { builds: [] } },
+  };
+  const committedBody = await fullStateBody(state, "p1");
+  const committed = committedBody.requester.thisTurn.committedProjection;
+  assert.ok(committed.withAutocast);
+  assert.deepEqual(committed.identity, preview.identity);
+  assert.equal(
+    JSON.stringify(committedBody.publicState.thisTurn).includes("withAutocast"),
+    false,
+  );
+
+  const revealState = structuredClone(state);
+  revealState.gameData.currentPhase = "battle";
+  revealState.gameData.currentSubPhase = "reveal";
+  revealState.gameData.turnData.currentMajorPhase = "battle";
+  revealState.gameData.turnData.currentSubPhase = "reveal";
+  revealState.gameData.turnData.ancientBattleRevealPreparedTurnNumber = 5;
+  const revealBody = await fullStateBody(revealState, "p1");
+  const current = revealBody.requester.thisTurn.currentProjection;
+  assert.equal(current.status, "estimated");
+  assert.ok(current.withAutocast);
+  assert.equal("committedProjection" in revealBody.requester.thisTurn, false);
+  assert.equal(
+    JSON.stringify(revealBody.publicState.thisTurn).includes("withAutocast"),
+    false,
+  );
+});
+
 Deno.test("preview accepts validated EVO group ordering metadata", async () => {
   const state: any = createState();
   state.players.find((player: any) => player.id === "p1").faction = "xenite";
@@ -837,6 +910,36 @@ Deno.test("Reveal is two-sided for players and spectators while later hidden bar
     }),
     { publicThisTurn: null, requesterThisTurn: null },
   );
+});
+
+Deno.test("battle paired estimates are Ancient-requester-only in both orientations and leave public Base independent", async () => {
+  for (const ancientPlayerId of ["p1", "p2"] as const) {
+    const state: any = createState("battle.reveal");
+    configureAncientProjectionPlayer(state, ancientPlayerId);
+    const otherPlayerId = ancientPlayerId === "p1" ? "p2" : "p1";
+    state.players.find((player: any) => player.id === otherPlayerId).faction = "human";
+
+    const ancientBody = await fullStateBody(state, ancientPlayerId);
+    const otherBody = await fullStateBody(state, otherPlayerId);
+    const spectatorBody = await fullStateBody(state, "spec");
+    const requesterProjection = ancientBody.requester.thisTurn.currentProjection;
+
+    assert.equal(requesterProjection.status, "estimated");
+    assert.ok(requesterProjection.withAutocast);
+    assert.equal("identity" in requesterProjection.withAutocast, false);
+    assert.deepEqual(requesterProjection.damage,
+      ancientBody.publicState.thisTurn.estimatesByPlayerId[ancientPlayerId].damage);
+    assert.deepEqual(requesterProjection.healing,
+      ancientBody.publicState.thisTurn.estimatesByPlayerId[ancientPlayerId].healing);
+    assert.equal(otherBody.requester.thisTurn, null);
+    assert.equal(spectatorBody.requester.thisTurn, null);
+    assert.deepEqual(otherBody.publicState.thisTurn, ancientBody.publicState.thisTurn);
+    assert.deepEqual(spectatorBody.publicState.thisTurn, ancientBody.publicState.thisTurn);
+    assert.equal(
+      JSON.stringify(ancientBody.publicState.thisTurn).includes("withAutocast"),
+      false,
+    );
+  }
 });
 
 Deno.test("preview bounds, roles, and expired clocks fail without persistence", async () => {

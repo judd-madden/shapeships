@@ -49,6 +49,7 @@ export interface ThisTurnPresentationArgs {
   preview: CurrentTurnPreviewState;
   publicThisTurn: unknown;
   requesterThisTurn: unknown;
+  ownEstimateMode?: 'base' | 'with_autocast';
   lastTurn: LastTurnPresentationInput;
   previousPresentation: {
     gameId: string;
@@ -105,6 +106,7 @@ function metric(
     | 'final_actual',
   fallback: 'pending' | 'unavailable' | 'concealed' = 'unavailable',
   unavailableReason?: string,
+  estimateMode?: 'base' | 'with_autocast',
 ): ThisTurnMetricVm {
   if (!input) {
     return fallback === 'unavailable' && unavailableReason
@@ -115,6 +117,7 @@ function metric(
     state: input.total === 0 ? 'zero' : 'value',
     turnNumber,
     source,
+    ...(estimateMode ? { estimateMode } : {}),
     total: input.total,
     rows: input.rows,
   };
@@ -124,6 +127,7 @@ type NormalizedEstimate =
   | {
       status: 'estimated' | 'privacy_frozen';
       source: 'estimated' | 'turn_start_baseline' | 'privacy_frozen';
+      estimateMode: 'base' | 'with_autocast';
       damage: MetricInput;
       healing: MetricInput;
     }
@@ -132,6 +136,7 @@ type NormalizedEstimate =
 function estimateFor(
   value: unknown,
   sourceOverride?: 'turn_start_baseline',
+  selectedMode: 'base' | 'with_autocast' = 'base',
 ): NormalizedEstimate | null {
   if (!isRecord(value)) return null;
   if (value.status === 'unavailable') {
@@ -143,11 +148,23 @@ function estimateFor(
   if (value.status !== 'estimated' && value.status !== 'privacy_frozen') return null;
   if (!isRecord(value.damage) || !isRecord(value.healing)) return null;
   if (typeof value.damage.total !== 'number' || typeof value.healing.total !== 'number') return null;
+  const withAutocast = isRecord(value.withAutocast) &&
+      isRecord(value.withAutocast.damage) &&
+      isRecord(value.withAutocast.healing) &&
+      typeof value.withAutocast.damage.total === 'number' &&
+      typeof value.withAutocast.healing.total === 'number' &&
+      Array.isArray(value.withAutocast.damage.rows) &&
+      Array.isArray(value.withAutocast.healing.rows)
+    ? value.withAutocast
+    : null;
+  const useAutocast = selectedMode === 'with_autocast' && withAutocast !== null;
+  const selected = useAutocast ? withAutocast : value;
   return {
     status: value.status,
     source: sourceOverride ?? value.status,
-    damage: { total: value.damage.total, rows: normalizeRows(value.damage.rows) },
-    healing: { total: value.healing.total, rows: normalizeRows(value.healing.rows) },
+    estimateMode: useAutocast ? 'with_autocast' : 'base',
+    damage: { total: selected.damage.total, rows: normalizeRows(selected.damage.rows) },
+    healing: { total: selected.healing.total, rows: normalizeRows(selected.healing.rows) },
   };
 }
 
@@ -471,23 +488,39 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
     };
   }
   const isDrawing = args.phaseKey === 'build.drawing';
+  const ownEstimateMode = args.ownEstimateMode ?? 'base';
   const publicDto = validPublicThisTurn(args.publicThisTurn, args);
   const publicEstimates = isRecord(publicDto?.estimatesByPlayerId)
     ? publicDto.estimatesByPlayerId
     : {};
   const requester = isRecord(args.requesterThisTurn) ? args.requesterThisTurn : null;
-  const committed = estimateFor(requester?.committedProjection);
+  const committed = estimateFor(
+    requester?.committedProjection,
+    undefined,
+    ownEstimateMode,
+  );
   const turnStart = estimateFor(
     requester?.turnStartProjection,
     'turn_start_baseline',
+    ownEstimateMode,
   );
   const activePreview = matchingPreview(args);
   const preview = activePreview?.kind === 'estimated'
-    ? estimateFor(activePreview.estimate)
+    ? estimateFor(activePreview.estimate, undefined, ownEstimateMode)
     : null;
+  const requesterCurrent = estimateFor(
+    requester?.currentProjection,
+    undefined,
+    ownEstimateMode,
+  );
+  const publicOwn = estimateFor(
+    args.mePlayerId ? publicEstimates[args.mePlayerId] : null,
+  );
   const own = isDrawing
     ? args.viewerRole === 'player' ? committed ?? preview ?? turnStart : null
-    : estimateFor(args.mePlayerId ? publicEstimates[args.mePlayerId] : null);
+    : args.viewerRole === 'player' && ownEstimateMode === 'with_autocast'
+      ? requesterCurrent
+      : publicOwn;
   const opponent = isDrawing ? null : estimateFor(
     args.opponentPlayerId ? publicEstimates[args.opponentPlayerId] : null,
   );
@@ -526,6 +559,7 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         ownSource,
         ownFallback,
         ownUnavailableReason,
+        ownAvailable?.estimateMode,
       ),
       healing: metric(
         ownAvailable?.healing ?? null,
@@ -533,6 +567,7 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         ownSource,
         ownFallback,
         ownUnavailableReason,
+        ownAvailable?.estimateMode,
       ),
     },
     opponent: {
@@ -542,6 +577,7 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         opponentSource,
         opponentFallback,
         opponentUnavailableReason,
+        opponentAvailable?.estimateMode,
       ),
       healing: metric(
         opponentAvailable?.healing ?? null,
@@ -549,14 +585,27 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         opponentSource,
         opponentFallback,
         opponentUnavailableReason,
+        opponentAvailable?.estimateMode,
       ),
     },
   };
 
   return {
     me: {
-      damage: retainSafeCurrentMetric(args, args.mePlayerId, 'damage', fresh.me.damage),
-      healing: retainSafeCurrentMetric(args, args.mePlayerId, 'healing', fresh.me.healing),
+      damage: retainSafeCurrentMetric(
+        args,
+        args.mePlayerId,
+        'damage',
+        fresh.me.damage,
+        ownEstimateMode,
+      ),
+      healing: retainSafeCurrentMetric(
+        args,
+        args.mePlayerId,
+        'healing',
+        fresh.me.healing,
+        ownEstimateMode,
+      ),
     },
     opponent: {
       damage: retainSafeCurrentMetric(
@@ -564,12 +613,14 @@ function currentMetrics(args: ThisTurnPresentationArgs): {
         args.opponentPlayerId,
         'damage',
         fresh.opponent.damage,
+        'base',
       ),
       healing: retainSafeCurrentMetric(
         args,
         args.opponentPlayerId,
         'healing',
         fresh.opponent.healing,
+        'base',
       ),
     },
   };
@@ -580,6 +631,7 @@ function retainSafeCurrentMetric(
   playerId: string | null,
   metricKey: 'damage' | 'healing',
   fresh: ThisTurnMetricVm,
+  selectedMode: 'base' | 'with_autocast',
 ): ThisTurnMetricVm {
   if (
     fresh.state === 'zero' ||
@@ -604,6 +656,14 @@ function retainSafeCurrentMetric(
     previous.presentation.opponent,
   ].find((candidate) => candidate.playerId === playerId);
   const previousMetric = previousPlayer?.[metricKey].current;
+
+  if (
+    previousMetric &&
+    (previousMetric.state === 'zero' || previousMetric.state === 'value') &&
+    (previousMetric.estimateMode ?? 'base') !== selectedMode
+  ) {
+    return fresh;
+  }
 
   return previousMetric &&
       previousMetric.turnNumber === args.turnNumber &&

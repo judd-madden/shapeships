@@ -395,3 +395,35 @@ Deno.test('pause invalidates in-flight acceptance and resume recovers the draft'
   clock.advance(1000);
   assert(calls === 2, 'disposed scheduler launched work');
 });
+
+Deno.test('preview accepts a complete paired Autocast variant and rejects malformed pairs', async () => {
+  const clock = new FakeClock();
+  let malformed = false;
+  const scheduler = createCurrentTurnPreviewScheduler({
+    clock,
+    onStateChange: () => {},
+    transport: async (_gameId, envelope) => {
+      const body: any = estimate(envelope, 'route-paired');
+      body.withAutocast = malformed
+        ? { damage: { total: 7, rows: null }, healing: { total: 8, rows: [] } }
+        : { damage: { total: 7, rows: [] }, healing: { total: 8, rows: [] } };
+      return { status: 200, body };
+    },
+  });
+
+  scheduler.setCandidate(candidate(1));
+  clock.advance(225);
+  await flush();
+  const paired = scheduler.getState();
+  assert(paired.kind === 'estimated');
+  if (paired.kind === 'estimated') {
+    assert(paired.estimate.withAutocast?.damage.total === 7);
+    assert(paired.estimate.withAutocast?.healing.total === 8);
+  }
+
+  malformed = true;
+  scheduler.setCandidate(candidate(2));
+  clock.advance(225);
+  await flush();
+  assert(scheduler.getState().kind === 'unavailable');
+});

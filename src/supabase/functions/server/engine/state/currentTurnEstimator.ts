@@ -4,6 +4,7 @@ import {
 } from "../intent/buildSubmitResolution.ts";
 import { applyAncientBattleRevealPreparation } from "./ancientState.ts";
 import {
+  projectChargeDeclarationAncientForViewer,
   projectChargeDeclarationStateForViewer,
 } from "./chargeDeclarationVisibility.ts";
 import {
@@ -14,10 +15,16 @@ import {
   type BattleLogBuildRowProjection,
 } from "./battleLogHistory.ts";
 import type {
+  AncientEnergyPool,
   GameState,
   LastTurnBreakdownRow,
   ShipInstance,
 } from "./GameStateTypes.ts";
+import { resolveSolarCastSequence } from "../ancient/manualSolarDeclaration.ts";
+import {
+  buildMonoColourAutocastCasts,
+  PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
+} from "../ancient/solarPowerResolvers.ts";
 import {
   type Effect,
   EffectKind,
@@ -95,9 +102,21 @@ export type CurrentTurnEstimateAvailableResult = CurrentTurnEstimateBase & {
   healing: number;
   damageRows: LastTurnBreakdownRow[];
   healingRows: LastTurnBreakdownRow[];
+  withAutocast?: CurrentTurnHealthProjection;
   build: CurrentTurnBuildFacts;
   reveal: {
     solarGridChargeTransitions: SolarGridRevealTransition[];
+  };
+};
+
+export type CurrentTurnHealthProjection = {
+  damage: {
+    total: number;
+    rows: LastTurnBreakdownRow[];
+  };
+  healing: {
+    total: number;
+    rows: LastTurnBreakdownRow[];
   };
 };
 
@@ -126,6 +145,7 @@ type PreparedEstimateState = {
   turnNumber: number;
   opponentPlayerId: string;
   drawingMode: "draft_preview" | "turn_start_baseline" | null;
+  includeAutocast: boolean;
 };
 
 function isObject(value: unknown): value is Record<string, any> {
@@ -248,6 +268,19 @@ function normalizeFiniteResource(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value)
     ? Math.max(0, Math.floor(value))
     : 0;
+}
+
+function isAncientPlayer(player: Readonly<any>): boolean {
+  const species = player?.faction ?? player?.species;
+  return typeof species === "string" && species.toLowerCase() === "ancient";
+}
+
+function cloneAncientEnergyPool(value: any): AncientEnergyPool {
+  return {
+    green: normalizeFiniteResource(value?.green),
+    red: normalizeFiniteResource(value?.red),
+    blue: normalizeFiniteResource(value?.blue),
+  };
 }
 
 function cloneSimulationPlayer(player: any, includeResources: boolean): any {
@@ -437,6 +470,9 @@ function prepareEstimateState(
   const opponent = activePlayers.find((player: any) =>
     player.id !== args.playerId
   )!;
+  let includeAutocast =
+    args.requestingParticipantId === args.playerId &&
+    isAncientPlayer(estimatedPlayer);
 
   const drawing = phaseKey === "build.drawing";
   const drawingMode = drawing
@@ -471,6 +507,7 @@ function prepareEstimateState(
   let visibleSource: Readonly<any> = args.state;
   let fleets: Record<string, ShipInstance[]>;
   let estimateStatus: "estimated" | "privacy_frozen" = "estimated";
+  let recordedRequesterAncientEnergy: any = null;
 
   if (drawing) {
     const projection = projectDrawingPreludeFleetsForViewerWithAvailability(
@@ -518,8 +555,34 @@ function prepareEstimateState(
     visibleSource = projection.state;
     fleets = structuredClone(projection.state.gameData?.ships ?? {});
     estimateStatus = "privacy_frozen";
+    if (includeAutocast) {
+      const ancientProjection = projectChargeDeclarationAncientForViewer(
+        args.state,
+      );
+      if (!ancientProjection.projectionAvailable) {
+        includeAutocast = false;
+      } else {
+        recordedRequesterAncientEnergy =
+          ancientProjection.energyByPlayerId[args.playerId] ?? null;
+      }
+    }
   } else {
     fleets = structuredClone(args.state.gameData?.ships ?? {});
+    if (includeAutocast) {
+      recordedRequesterAncientEnergy =
+        args.state.gameData?.ancient?.energyByPlayerId?.[args.playerId] ?? null;
+    }
+  }
+
+  if (
+    includeAutocast &&
+    !drawing &&
+    (!isObject(recordedRequesterAncientEnergy) ||
+      recordedRequesterAncientEnergy.battleTurnNumber !== turnNumber ||
+      !isObject(recordedRequesterAncientEnergy.pool))
+  ) {
+    includeAutocast = false;
+    recordedRequesterAncientEnergy = null;
   }
 
   if (activePlayerIds.some((playerId) => !Array.isArray(fleets[playerId]))) {
@@ -638,7 +701,9 @@ function prepareEstimateState(
       },
       ancient: {
         schemaVersion: 1,
-        energyByPlayerId: {},
+        energyByPlayerId: recordedRequesterAncientEnergy
+          ? { [args.playerId]: structuredClone(recordedRequesterAncientEnergy) }
+          : {},
         acceptedDeclarationByPlayerId: {},
         solarLedgerByPlayerId: {},
         pendingSimulacrumCopies: [],
@@ -697,6 +762,7 @@ function prepareEstimateState(
     turnNumber,
     opponentPlayerId: opponent.id,
     drawingMode,
+    includeAutocast,
   };
 }
 
@@ -776,6 +842,35 @@ function sumRows(rows: readonly LastTurnBreakdownRow[]): number {
   return rows.reduce((total, row) => total + row.amount, 0);
 }
 
+function evaluateHealthProjection(args: {
+  state: GameState;
+  playerId: string;
+  opponentPlayerId: string;
+}): CurrentTurnHealthProjection {
+  const collected = collectCanonicalEndOfTurnEffects(args.state);
+  const allowedEffects = collected.effects.filter((effect) =>
+    isAllowedEstimateEffect(effect, args.playerId, args.opponentPlayerId)
+  );
+  const applied = applyEffects(collected.state, allowedEffects, {
+    baseAmountByEffectId: collected.baseAmountByEffectId,
+  });
+  const totals = {
+    damageByPlayerId: {
+      ...(applied.state.gameData.pendingTurn?.damageByPlayerId ?? {}),
+    },
+    healByPlayerId: {
+      ...(applied.state.gameData.pendingTurn?.healByPlayerId ?? {}),
+    },
+  };
+  const breakdowns = buildLastTurnBreakdownSnapshots(applied.state, totals);
+  const damageRows = breakdowns.damageDealtByPlayerId[args.playerId] ?? [];
+  const healingRows = breakdowns.healingReceivedByPlayerId[args.playerId] ?? [];
+  return {
+    damage: { total: sumRows(damageRows), rows: damageRows },
+    healing: { total: sumRows(healingRows), rows: healingRows },
+  };
+}
+
 export function estimateCurrentTurnForPlayer(
   args: EstimateCurrentTurnForPlayerArgs,
 ): CurrentTurnEstimateResult {
@@ -803,20 +898,19 @@ export function estimateCurrentTurnForPlayer(
   const simulationEvents: any[] = [];
   let solarGridChargeTransitions: SolarGridRevealTransition[] = [];
 
-  if (
-    prepared.phaseKey === "build.drawing" &&
-    prepared.drawingMode === "draft_preview"
-  ) {
+  if (prepared.phaseKey === "build.drawing") {
     const frozenOpponentFleet = structuredClone(
       workingState.gameData.ships?.[prepared.opponentPlayerId] ?? [],
     );
-    simulationEvents.push(...resolvePlayerBuildSubmitAuthoritatively({
-      state: workingState,
-      playerId: args.playerId,
-      turnNumber: prepared.turnNumber,
-      nowMs: 0,
-      payload: args.draft,
-    }));
+    if (prepared.drawingMode === "draft_preview") {
+      simulationEvents.push(...resolvePlayerBuildSubmitAuthoritatively({
+        state: workingState,
+        playerId: args.playerId,
+        turnNumber: prepared.turnNumber,
+        nowMs: 0,
+        payload: args.draft,
+      }));
+    }
 
     const solarBeforeReveal = getSolarChargesByInstanceId(
       workingState,
@@ -846,25 +940,34 @@ export function estimateCurrentTurnForPlayer(
     },
   };
 
-  const collected = collectCanonicalEndOfTurnEffects(workingState);
-  const allowedEffects = collected.effects.filter((effect) =>
-    isAllowedEstimateEffect(effect, args.playerId, prepared.opponentPlayerId)
-  );
-  const applied = applyEffects(collected.state, allowedEffects, {
-    baseAmountByEffectId: collected.baseAmountByEffectId,
+  const baseProjection = evaluateHealthProjection({
+    state: structuredClone(workingState),
+    playerId: args.playerId,
+    opponentPlayerId: prepared.opponentPlayerId,
   });
-  const totals = {
-    damageByPlayerId: {
-      ...(applied.state.gameData.pendingTurn?.damageByPlayerId ?? {}),
-    },
-    healByPlayerId: {
-      ...(applied.state.gameData.pendingTurn?.healByPlayerId ?? {}),
-    },
-  };
-  const breakdowns = buildLastTurnBreakdownSnapshots(applied.state, totals);
-  const damageRows = breakdowns.damageDealtByPlayerId[args.playerId] ?? [];
-  const healingRows = breakdowns.healingReceivedByPlayerId[args.playerId] ?? [];
-  const simulatedPlayer = applied.state.players.find((player) =>
+  let withAutocast: CurrentTurnHealthProjection | undefined;
+  if (prepared.includeAutocast) {
+    const initialEnergy = cloneAncientEnergyPool(
+      workingState.gameData.ancient?.energyByPlayerId?.[args.playerId]?.pool,
+    );
+    const autocast = resolveSolarCastSequence({
+      state: structuredClone(workingState),
+      playerId: args.playerId,
+      declarationId: `current-turn-estimate:${identity.sourceContextKey}`,
+      battleTurnNumber: prepared.turnNumber,
+      initialEnergy,
+      casts: buildMonoColourAutocastCasts(initialEnergy),
+      resolvers: PRODUCTION_MONO_COLOUR_SOLAR_RESOLVERS,
+      sourceMode: "autocast",
+      initialLedgerOrder: 0,
+    });
+    withAutocast = evaluateHealthProjection({
+      state: autocast.state,
+      playerId: args.playerId,
+      opponentPlayerId: prepared.opponentPlayerId,
+    });
+  }
+  const simulatedPlayer = workingState.players.find((player) =>
     player.id === args.playerId
   );
   const buildRows = formatBattleLogPreviewBuildRows({
@@ -879,10 +982,11 @@ export function estimateCurrentTurnForPlayer(
     identity,
     playerId: args.playerId,
     opponentPlayerId: prepared.opponentPlayerId,
-    damage: sumRows(damageRows),
-    healing: sumRows(healingRows),
-    damageRows,
-    healingRows,
+    damage: baseProjection.damage.total,
+    healing: baseProjection.healing.total,
+    damageRows: baseProjection.damage.rows,
+    healingRows: baseProjection.healing.rows,
+    ...(withAutocast ? { withAutocast } : {}),
     build: {
       lines: buildRows.map((row) => row.line),
       rows: buildRows,

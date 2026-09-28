@@ -2,7 +2,80 @@ declare const Deno: {
   test(name: string, fn: () => void | Promise<void>): void;
 };
 
-import { deriveAncientSolarDisplayEntries } from '../../gameSession/ancient/ancientSolarDisplay';
+import {
+  deriveAncientCurrentTurnEstimateMode,
+  deriveAncientSolarDisplayEntries,
+  hasCurrentTurnManualAncientSolarCast,
+} from '../../gameSession/ancient/ancientSolarDisplay';
+
+Deno.test('manual Solar estimate fallback only recognizes current-turn manual ledger entries', () => {
+  const ledger = {
+    battleTurnNumber: 8,
+    entries: [{ sourceMode: 'manual' }, { sourceMode: 'autocast' }],
+  };
+  assertEquals(
+    hasCurrentTurnManualAncientSolarCast({ ledger, turnNumber: 8 }),
+    true,
+    'current-turn manual cast was not recognized',
+  );
+  assertEquals(
+    hasCurrentTurnManualAncientSolarCast({ ledger, turnNumber: 9 }),
+    false,
+    'prior-turn manual cast incorrectly forced Base',
+  );
+  assertEquals(
+    hasCurrentTurnManualAncientSolarCast({
+      ledger: { battleTurnNumber: 8, entries: [{ sourceMode: 'autocast' }] },
+      turnNumber: 8,
+    }),
+    false,
+    'Autocast ledger entry incorrectly counted as manual',
+  );
+});
+
+Deno.test('Autocast estimate mode responds to preference, local selection, authoritative manual casts, and removal', () => {
+  const base = {
+    viewerIsAncientPlayer: true,
+    autocastEnabled: true,
+    hasLocalOrFrozenManualSolarCast: false,
+    authoritativeLedger: null,
+    turnNumber: 5,
+  };
+  assertEquals(deriveAncientCurrentTurnEstimateMode(base), 'with_autocast');
+  assertEquals(deriveAncientCurrentTurnEstimateMode({
+    ...base,
+    autocastEnabled: false,
+  }), 'base');
+  assertEquals(deriveAncientCurrentTurnEstimateMode({
+    ...base,
+    hasLocalOrFrozenManualSolarCast: true,
+  }), 'base');
+  assertEquals(deriveAncientCurrentTurnEstimateMode({
+    ...base,
+    authoritativeLedger: {
+      battleTurnNumber: 5,
+      entries: [{ sourceMode: 'manual' }],
+    },
+  }), 'base');
+  assertEquals(deriveAncientCurrentTurnEstimateMode({
+    ...base,
+    authoritativeLedger: {
+      battleTurnNumber: 4,
+      entries: [{ sourceMode: 'manual' }],
+    },
+  }), 'with_autocast');
+  assertEquals(deriveAncientCurrentTurnEstimateMode({
+    ...base,
+    authoritativeLedger: {
+      battleTurnNumber: 5,
+      entries: [{ sourceMode: 'autocast' }],
+    },
+  }), 'with_autocast');
+  assertEquals(deriveAncientCurrentTurnEstimateMode({
+    ...base,
+    viewerIsAncientPlayer: false,
+  }), 'base');
+});
 import {
   buildPresentationFleetCountsByLiveRenderKey,
   filterFleetSummariesBySuppressedMemberIds,
@@ -19,7 +92,7 @@ interface FleetSummary {
   caption: string | null;
 }
 
-function assertEquals(actual: unknown, expected: unknown, message: string): void {
+function assertEquals(actual: unknown, expected: unknown, message = 'values differ'): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error(
       `${message}\nactual: ${JSON.stringify(actual)}\nexpected: ${JSON.stringify(expected)}`

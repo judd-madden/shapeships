@@ -10,6 +10,7 @@ export interface BoardStatHoverSectionVm {
   kind: 'this_turn_estimate' | 'this_turn' | 'last_turn' | 'final_turn';
   heading: 'THIS TURN' | 'LAST TURN' | 'FINAL TURN';
   showEstimateQualifier: boolean;
+  estimateQualifierText?: 'ESTIMATE WITH AUTOCAST';
   totalText: string;
   rows: BoardStatBreakdownRowVm[];
 }
@@ -94,6 +95,9 @@ export function buildBoardStatHoverSections(
       kind: isEstimate ? 'this_turn_estimate' : 'this_turn',
       heading: 'THIS TURN',
       showEstimateQualifier: isEstimate,
+      ...(isEstimate && current.estimateMode === 'with_autocast'
+        ? { estimateQualifierText: 'ESTIMATE WITH AUTOCAST' as const }
+        : {}),
       totalText: `${isEstimate ? '~' : ''}${current.total}`,
       rows: current.rows,
     });

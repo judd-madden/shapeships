@@ -88,7 +88,10 @@ function MetricSection({
         <p className="min-w-0 text-[12px] leading-[15px] uppercase text-[var(--shapeships-grey-20)]">
           <span className="font-semibold">{section.heading}</span>
           {section.showEstimateQualifier ? (
-            <span className="font-normal"> (ESTIMATE)</span>
+            <span className={section.estimateQualifierText ? 'block font-normal' : 'font-normal'}>
+              {section.estimateQualifierText ? '' : ' '}
+              ({section.estimateQualifierText ?? 'ESTIMATE'})
+            </span>
           ) : null}
         </p>
         <p className={`shrink-0 text-[14px] leading-[15px] font-black ${toneClass}`}>

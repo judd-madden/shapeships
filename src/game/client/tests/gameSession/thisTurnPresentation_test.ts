@@ -92,6 +92,7 @@ function base(
     requesterThisTurn: overrides.requesterThisTurn ?? {
       capturedBuildLines: ['Intervention: 1 x FIG'], committedProjection: null,
     },
+    ownEstimateMode: overrides.ownEstimateMode ?? 'base',
     lastTurn: overrides.lastTurn ?? {
       turnNumber: 3,
       me: { damage: { total: 0, rows: [] }, healing: null },
@@ -1584,6 +1585,11 @@ Deno.test('resolved terminal snapshot marks authoritative metrics as final actua
     snapshot.me.healing.current.state === 'zero' &&
     snapshot.me.healing.current.source === 'final_actual',
   );
+  assert(
+    snapshot.me.damage.current.state === 'value' &&
+    snapshot.me.damage.current.estimateMode === undefined,
+    'actual Final Turn metric carried an estimate mode',
+  );
 });
 
 Deno.test('held live N swaps atomically to genuine archive N', () => {
@@ -1719,4 +1725,141 @@ Deno.test('terminal completion without resolution leaves only genuine history', 
   });
   assert(mapped.battleLogThisTurn === null);
   assert(mapped.battleLogTurns.length === 1 && mapped.battleLogTurns[0]?.turnNumber === 3);
+});
+
+Deno.test('own Ancient metrics select complete Base or Autocast variants without arithmetic', () => {
+  const projection = {
+    status: 'estimated',
+    identity: { gameId: 'game-1', turnNumber: 4, phaseKey: 'build.drawing' },
+    damage: { total: 2, rows: [{ rowKind: 'ship', label: 'Fighter', amount: 2 }] },
+    healing: { total: 3, rows: [{ rowKind: 'ship', label: 'Defender', amount: 3 }] },
+    withAutocast: {
+      damage: { total: 9, rows: [{ rowKind: 'solar_power', solarPowerId: 'SSUP', label: 'Supernova', count: 1, amount: 9 }] },
+      healing: { total: 10, rows: [{ rowKind: 'solar_power', solarPowerId: 'SSTA', label: 'Star Birth', count: 1, amount: 10 }] },
+    },
+  };
+  const requesterThisTurn = { committedProjection: null, turnStartProjection: projection };
+  const baseVm = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    activePreviewCandidate: null,
+    requesterThisTurn,
+    ownEstimateMode: 'base',
+  });
+  const autoVm = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    activePreviewCandidate: null,
+    requesterThisTurn,
+    ownEstimateMode: 'with_autocast',
+  });
+  assert(baseVm.me.damage.current.state === 'value');
+  assert(autoVm.me.damage.current.state === 'value');
+  if (baseVm.me.damage.current.state === 'value' && autoVm.me.damage.current.state === 'value') {
+    assert(baseVm.me.damage.current.total === 2);
+    assert(baseVm.me.damage.current.estimateMode === 'base');
+    assert(autoVm.me.damage.current.total === 9);
+    assert(autoVm.me.damage.current.rows[0]?.label === 'Supernova');
+    assert(autoVm.me.damage.current.estimateMode === 'with_autocast');
+  }
+
+  const malformedVm = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    activePreviewCandidate: null,
+    requesterThisTurn: {
+      committedProjection: null,
+      turnStartProjection: {
+        ...projection,
+        withAutocast: {
+          ...projection.withAutocast,
+          damage: { total: 99, rows: null },
+        },
+      },
+    },
+    ownEstimateMode: 'with_autocast',
+  });
+  assert(malformedVm.me.damage.current.state === 'value');
+  if (malformedVm.me.damage.current.state === 'value') {
+    assert(malformedVm.me.damage.current.total === 2);
+    assert(malformedVm.me.damage.current.estimateMode === 'base');
+  }
+});
+
+Deno.test('mode changes discard cross-mode retention while same-mode pending retains', () => {
+  const projection = {
+    status: 'estimated',
+    damage: { total: 1, rows: [] },
+    healing: { total: 0, rows: [] },
+    withAutocast: {
+      damage: { total: 8, rows: [] },
+      healing: { total: 7, rows: [] },
+    },
+  };
+  const previous = base({ kind: 'idle' }, 'build.drawing', 'player', false, {
+    activePreviewCandidate: null,
+    requesterThisTurn: { turnStartProjection: projection, committedProjection: null },
+    ownEstimateMode: 'with_autocast',
+  });
+  const input = previewCandidate();
+  const pending = { kind: 'pending', candidate: schedulerCandidate(input) } as const;
+  const retained = base(pending, 'build.drawing', 'player', false, {
+    activePreviewCandidate: input,
+    requesterThisTurn: { turnStartProjection: null, committedProjection: null },
+    previousPresentation: { gameId: 'game-1', presentation: previous },
+    ownEstimateMode: 'with_autocast',
+  });
+  assert(retained.me.damage.current.state === 'value');
+  if (retained.me.damage.current.state === 'value') {
+    assert(retained.me.damage.current.total === 8);
+  }
+
+  const switched = base(pending, 'build.drawing', 'player', false, {
+    activePreviewCandidate: input,
+    requesterThisTurn: { turnStartProjection: null, committedProjection: null },
+    previousPresentation: { gameId: 'game-1', presentation: previous },
+    ownEstimateMode: 'base',
+  });
+  assert(switched.me.damage.current.state === 'pending');
+});
+
+Deno.test('post-Reveal Base remains public while Autocast uses requester current projection', () => {
+  const publicThisTurn = {
+    identity: { gameId: 'game-1', turnNumber: 4 },
+    battleLog: {
+      turnNumber: 4,
+      diceValue: 4,
+      buildLinesByPlayerId: {},
+      battleLinesByPlayerId: {},
+      concealedBuildPlayerIds: [],
+    },
+    estimatesByPlayerId: {
+      p1: {
+        status: 'estimated',
+        damage: { total: 2, rows: [] },
+        healing: { total: 3, rows: [] },
+      },
+    },
+  };
+  const requesterThisTurn = {
+    currentProjection: {
+      status: 'estimated',
+      damage: { total: 99, rows: [] },
+      healing: { total: 99, rows: [] },
+      withAutocast: {
+        damage: { total: 8, rows: [] },
+        healing: { total: 9, rows: [] },
+      },
+    },
+  };
+  const baseVm = base({ kind: 'idle' }, 'battle.reveal', 'player', false, {
+    publicThisTurn,
+    requesterThisTurn,
+    ownEstimateMode: 'base',
+  });
+  const autoVm = base({ kind: 'idle' }, 'battle.reveal', 'player', false, {
+    publicThisTurn,
+    requesterThisTurn,
+    ownEstimateMode: 'with_autocast',
+  });
+  assert(baseVm.me.damage.current.state === 'value');
+  assert(autoVm.me.damage.current.state === 'value');
+  if (baseVm.me.damage.current.state === 'value' && autoVm.me.damage.current.state === 'value') {
+    assert(baseVm.me.damage.current.total === 2);
+    assert(autoVm.me.damage.current.total === 8);
+  }
 });
