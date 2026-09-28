@@ -5,6 +5,8 @@ import {
 } from '../../shared/useHoverPanelPresence';
 
 export type BoardStatHoverKey =
+  | 'my-health'
+  | 'opponent-health'
   | 'my-damage'
   | 'opponent-damage'
   | 'my-healing'

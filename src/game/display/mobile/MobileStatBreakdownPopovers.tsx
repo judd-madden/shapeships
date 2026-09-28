@@ -1,4 +1,4 @@
-import { useRef, type PointerEvent, type RefObject } from 'react';
+import { useRef, type PointerEvent, type ReactNode, type RefObject } from 'react';
 import type {
   BoardStatBreakdownRowVm,
   BoardViewModel,
@@ -11,6 +11,7 @@ import {
   isMobilePopoverTapGesture,
   type MobileMetricBreakdownSectionVm,
 } from './mobileStatPresentation';
+import type { HealthBreakdownCardVm } from '../layout/boardStage/healthBreakdownPresentation';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 type PopoverSide = 'top' | 'bottom';
@@ -96,22 +97,69 @@ export function MobileStatBreakdownPopovers({
 
   return (
     <div className="fixed inset-0 z-[52] pointer-events-none">
-      <MobileStatBreakdownCard
+      <MobilePopoverCardFrame
         refEl={topPopoverRef}
         side="top"
         anchorRect={topAnchorRect}
-        primarySections={topSections}
-        lastSections={[]}
         onDismiss={onDismiss}
-      />
-      <MobileStatBreakdownCard
+      >
+        <SectionGrid sections={topSections} className="px-[16px] py-[12px]" />
+      </MobilePopoverCardFrame>
+      <MobilePopoverCardFrame
         refEl={bottomPopoverRef}
         side="bottom"
         anchorRect={bottomAnchorRect}
-        primarySections={bottomSections}
-        lastSections={bottomLastSections}
         onDismiss={onDismiss}
-      />
+      >
+        <SectionGrid sections={bottomSections} className="px-[16px] py-[12px]" />
+        {bottomLastSections.length > 0 ? (
+          <SectionGrid
+            sections={bottomLastSections}
+            className="border-t border-[var(--shapeships-grey-70)] bg-[#101010] px-[16px] py-[12px]"
+          />
+        ) : null}
+      </MobilePopoverCardFrame>
+    </div>
+  );
+}
+
+export function MobileHealthBreakdownPopovers({
+  topCard,
+  bottomCard,
+  topAnchorRect,
+  bottomAnchorRect,
+  topPopoverRef,
+  bottomPopoverRef,
+  onDismiss,
+}: {
+  topCard: HealthBreakdownCardVm;
+  bottomCard: HealthBreakdownCardVm;
+  topAnchorRect: MobileStatAnchorRect;
+  bottomAnchorRect: MobileStatAnchorRect;
+  topPopoverRef?: RefObject<HTMLDivElement | null>;
+  bottomPopoverRef?: RefObject<HTMLDivElement | null>;
+  onDismiss: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[52] pointer-events-none">
+      <MobilePopoverCardFrame
+        refEl={topPopoverRef}
+        side="top"
+        anchorRect={topAnchorRect}
+        widthPx={180}
+        onDismiss={onDismiss}
+      >
+        <MobileHealthBreakdownCardContent card={topCard} />
+      </MobilePopoverCardFrame>
+      <MobilePopoverCardFrame
+        refEl={bottomPopoverRef}
+        side="bottom"
+        anchorRect={bottomAnchorRect}
+        widthPx={180}
+        onDismiss={onDismiss}
+      >
+        <MobileHealthBreakdownCardContent card={bottomCard} />
+      </MobilePopoverCardFrame>
     </div>
   );
 }
@@ -155,20 +203,20 @@ function toStatSection(section: MobileMetricBreakdownSectionVm): StatSectionVm {
   };
 }
 
-function MobileStatBreakdownCard({
+function MobilePopoverCardFrame({
   refEl,
   side,
   anchorRect,
-  primarySections,
-  lastSections,
+  widthPx,
   onDismiss,
+  children,
 }: {
   refEl?: RefObject<HTMLDivElement | null>;
   side: PopoverSide;
   anchorRect: MobileStatAnchorRect;
-  primarySections: StatSectionVm[];
-  lastSections: StatSectionVm[];
+  widthPx?: number;
   onDismiss: () => void;
+  children: ReactNode;
 }) {
   const pointerStartRef = useRef<{
     pointerId: number;
@@ -176,7 +224,8 @@ function MobileStatBreakdownCard({
     clientY: number;
   } | null>(null);
   const viewportWidth = typeof window === 'undefined' ? 360 : window.innerWidth;
-  const width = Math.max(0, viewportWidth - HORIZONTAL_MARGIN_PX * 2);
+  const availableWidth = Math.max(0, viewportWidth - HORIZONTAL_MARGIN_PX * 2);
+  const width = Math.min(widthPx ?? availableWidth, availableWidth);
   const left = HORIZONTAL_MARGIN_PX;
   const anchorCenterX = anchorRect.left + anchorRect.width / 2;
   const tailLeft = clamp(anchorCenterX - left - 6, 18, Math.max(18, width - 30));
@@ -244,16 +293,44 @@ function MobileStatBreakdownCard({
           className="overflow-y-auto overscroll-contain rounded-[10px] border border-[var(--shapeships-grey-70)] bg-[var(--shapeships-grey-90)] shadow-[0_0_60px_20px_rgba(0,0,0,1)]"
           style={{ maxHeight }}
         >
-          <SectionGrid sections={primarySections} className="px-[16px] py-[12px]" />
-          {lastSections.length > 0 ? (
-            <SectionGrid
-              sections={lastSections}
-              className="border-t border-[var(--shapeships-grey-70)] bg-[#101010] px-[16px] py-[12px]"
-            />
-          ) : null}
+          {children}
         </div>
       </div>
     </div>
+  );
+}
+
+function MobileHealthBreakdownCardContent({ card }: { card: HealthBreakdownCardVm }) {
+  const changeToneClass = card.changeTone === 'healing'
+    ? 'text-[var(--shapeships-pastel-green)]'
+    : card.changeTone === 'damage'
+      ? 'text-[var(--shapeships-pastel-red)]'
+      : 'text-[var(--shapeships-grey-50)]';
+
+  return (
+    <section className="px-[16px] py-[12px]">
+      <h3 className="text-[13px] font-semibold leading-[16px] text-[var(--shapeships-grey-20)]">
+        {card.heading}
+      </h3>
+      <div className="my-[6px] h-px bg-[var(--shapeships-grey-70)]" />
+      <div className="flex items-center justify-between gap-[12px] text-[12px] leading-[17px]">
+        <span className="min-w-0 text-white">{card.healingLabel}</span>
+        <span className="shrink-0 font-bold text-[var(--shapeships-pastel-green)]">
+          {card.healingText}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-[12px] text-[12px] leading-[17px]">
+        <span className="min-w-0 text-white">{card.damageLabel}</span>
+        <span className="shrink-0 font-bold text-[var(--shapeships-pastel-red)]">
+          {card.damageText}
+        </span>
+      </div>
+      <div className="my-[6px] h-px bg-[var(--shapeships-grey-70)]" />
+      <div className="flex items-center justify-between gap-[12px] text-[12px] font-semibold leading-[17px]">
+        <span className="min-w-0 text-white">Health Change</span>
+        <span className={`shrink-0 ${changeToneClass}`}>{card.changeText}</span>
+      </div>
+    </section>
   );
 }
 
@@ -302,10 +379,10 @@ function BreakdownSection({
       }`}
     >
       <div className="mb-[5px] flex min-w-0 items-baseline justify-between gap-[8px]">
-        <h3 className={`min-w-0 truncate text-[13px] font-black leading-[15px] ${getToneClassName(section.tone)}`}>
+        <h3 className={`min-w-0 truncate text-[13px] font-regular leading-[15px] ${getToneClassName(section.tone)}`}>
           {section.title}
         </h3>
-        <span className={`shrink-0 text-[15px] font-black leading-[16px] ${getToneClassName(section.tone)}`}>
+        <span className={`shrink-0 text-[13px] font-black leading-[16px] ${getToneClassName(section.tone)}`}>
           {section.totalText}
         </span>
       </div>

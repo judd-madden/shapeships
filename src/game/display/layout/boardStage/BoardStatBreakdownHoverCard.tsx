@@ -8,13 +8,15 @@ import type {
   BoardStatHoverSectionVm,
   BoardStatMetricTone,
 } from './boardStatPresentation';
+import type { HealthBreakdownCardVm } from './healthBreakdownPresentation';
 import {
   calculateBoardStatHoverLayout,
   formatBoardMetricBreakdownAmount,
 } from './boardStatPresentation';
 
-type BoardStatBreakdownHoverCardContent =
+export type BoardStatBreakdownHoverCardContent =
   | { kind: 'breakdown'; rows: BoardStatBreakdownRowVm[] }
+  | { kind: 'health'; card: HealthBreakdownCardVm }
   | {
       kind: 'metric';
       sections: BoardStatHoverSectionVm[];
@@ -105,6 +107,40 @@ function MetricSection({
   );
 }
 
+function HealthSection({ card }: { card: HealthBreakdownCardVm }) {
+  const changeToneClass = card.changeTone === 'healing'
+    ? 'text-[var(--shapeships-pastel-green)]'
+    : card.changeTone === 'damage'
+      ? 'text-[var(--shapeships-pastel-red)]'
+      : 'text-[var(--shapeships-grey-50)]';
+
+  return (
+    <section className="flex flex-col">
+      <h3 className="text-[12px] font-semibold leading-[15px] text-[var(--shapeships-grey-20)]">
+        {card.heading}
+      </h3>
+      <div className="my-[8px] h-px bg-[var(--shapeships-grey-70)]" />
+      <div className="flex items-center justify-between gap-[16px] text-[14px] leading-[20px]">
+        <span className="min-w-0 text-white">{card.healingLabel}</span>
+        <span className="shrink-0 font-bold text-[var(--shapeships-pastel-green)]">
+          {card.healingText}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-[16px] text-[14px] leading-[20px]">
+        <span className="min-w-0 text-white">{card.damageLabel}</span>
+        <span className="shrink-0 font-bold text-[var(--shapeships-pastel-red)]">
+          {card.damageText}
+        </span>
+      </div>
+      <div className="my-[8px] h-px bg-[var(--shapeships-grey-70)]" />
+      <div className="flex items-center justify-between gap-[16px] text-[14px] font-semibold leading-[20px]">
+        <span className="min-w-0 text-white">Health Change</span>
+        <span className={`shrink-0 ${changeToneClass}`}>{card.changeText}</span>
+      </div>
+    </section>
+  );
+}
+
 function contentKey(content: BoardStatBreakdownHoverCardContent): string {
   if (content.kind === 'breakdown') {
     return content.rows
@@ -112,6 +148,16 @@ function contentKey(content: BoardStatBreakdownHoverCardContent): string {
         `${row.rowKind}:${row.label}:${row.amount}:${'count' in row ? row.count ?? '' : ''}`
       )
       .join('|');
+  }
+
+  if (content.kind === 'health') {
+    return [
+      content.card.heading,
+      content.card.turnNumber,
+      content.card.healingText,
+      content.card.damageText,
+      content.card.changeText,
+    ].join('|');
   }
 
   return content.sections
@@ -204,6 +250,8 @@ export function BoardStatBreakdownHoverCard({
                   <MetricSection section={section} tone={content.tone} />
                 </div>
               ))
+            ) : content.kind === 'health' ? (
+              <HealthSection card={content.card} />
             ) : (
               <div className="flex flex-col gap-[4px]">
                 {content.rows.map((row, index) => (

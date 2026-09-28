@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { Dice } from '../../../components/ui/primitives';
 import type {
   BoardViewModel,
@@ -13,10 +13,12 @@ import { toSpeciesKey } from '../layout/boardStage/FleetArea';
 import { MobileDiceModifierSlots } from './MobileDiceModifierSlots';
 import { TurnPhaseStatusStrip } from '../shared/TurnPhaseStatusStrip';
 import { ClockWithIncrement } from '../shared/ClockWithIncrement';
+import { formatHealthChange } from '../layout/boardStage/healthBreakdownPresentation';
 import {
   buildMobileHudMetricPair,
   MOBILE_STATUS_STAT_ORDER,
   type MobileHudMetricPairVm,
+  type MobilePopoverPairKind,
 } from './mobileStatPresentation';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
@@ -33,11 +35,15 @@ interface MobileStatusRailProps {
   firstTurnBuildHelperEligible?: boolean;
   firstTurnBuildHelperDismissSignal?: number;
   onFirstTurnBuildHelperDismiss?: () => void;
-  topRowRef?: RefObject<HTMLDivElement | null>;
-  bottomRowRef?: RefObject<HTMLDivElement | null>;
-  topStatsAnchorRef?: RefObject<HTMLDivElement | null>;
-  bottomStatsAnchorRef?: RefObject<HTMLDivElement | null>;
-  onStatusRowToggle?: () => void;
+  topHealthAnchorRef?: RefObject<HTMLButtonElement | null>;
+  bottomHealthAnchorRef?: RefObject<HTMLButtonElement | null>;
+  topStatsAnchorRef?: RefObject<HTMLButtonElement | null>;
+  bottomStatsAnchorRef?: RefObject<HTMLButtonElement | null>;
+  healthBreakdownAvailable?: boolean;
+  healthDeltaVisible?: boolean;
+  activePopoverKind?: MobilePopoverPairKind | null;
+  onHealthToggle?: () => void;
+  onStatsToggle?: () => void;
 }
 
 export interface MobileStatusRailRowData {
@@ -74,9 +80,14 @@ interface MobileStatusRailFrameProps {
   onFirstTurnBuildHelperDismiss?: () => void;
   topRowRef?: RefObject<HTMLDivElement | null>;
   bottomRowRef?: RefObject<HTMLDivElement | null>;
-  topStatsAnchorRef?: RefObject<HTMLDivElement | null>;
-  bottomStatsAnchorRef?: RefObject<HTMLDivElement | null>;
-  onStatusRowToggle?: () => void;
+  topHealthAnchorRef?: RefObject<HTMLButtonElement | null>;
+  bottomHealthAnchorRef?: RefObject<HTMLButtonElement | null>;
+  topStatsAnchorRef?: RefObject<HTMLButtonElement | null>;
+  bottomStatsAnchorRef?: RefObject<HTMLButtonElement | null>;
+  healthBreakdownAvailable?: boolean;
+  activePopoverKind?: MobilePopoverPairKind | null;
+  onHealthToggle?: () => void;
+  onStatsToggle?: () => void;
 }
 
 const EMPTY_MOBILE_DICE_MODIFIER_SLOTS: MobileBoardViewModel['mobileDiceModifierSlots'] = {
@@ -98,11 +109,15 @@ export function MobileStatusRail({
   firstTurnBuildHelperEligible = false,
   firstTurnBuildHelperDismissSignal = 0,
   onFirstTurnBuildHelperDismiss,
-  topRowRef,
-  bottomRowRef,
+  topHealthAnchorRef,
+  bottomHealthAnchorRef,
   topStatsAnchorRef,
   bottomStatsAnchorRef,
-  onStatusRowToggle,
+  healthBreakdownAvailable = false,
+  healthDeltaVisible,
+  activePopoverKind = null,
+  onHealthToggle,
+  onStatsToggle,
 }: MobileStatusRailProps) {
   const opponentDisplayedBonus =
     toSpeciesKey(boardVm.opponentSpeciesId) === 'centaur'
@@ -158,7 +173,8 @@ export function MobileStatusRail({
       ? boardVm.myDisplayedSavedJoiningLines
       : undefined,
   };
-  const showDeltas = boardVm.turnNumber > 1 || boardVm.healthDeltaPresentationKey != null;
+  const showDeltas = healthDeltaVisible ??
+    (boardVm.turnNumber > 1 || boardVm.healthDeltaPresentationKey != null);
 
   return (
     <MobileStatusRailFrame
@@ -178,11 +194,14 @@ export function MobileStatusRail({
       firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
       firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
       onFirstTurnBuildHelperDismiss={onFirstTurnBuildHelperDismiss}
-      topRowRef={topRowRef}
-      bottomRowRef={bottomRowRef}
+      topHealthAnchorRef={topHealthAnchorRef}
+      bottomHealthAnchorRef={bottomHealthAnchorRef}
       topStatsAnchorRef={topStatsAnchorRef}
       bottomStatsAnchorRef={bottomStatsAnchorRef}
-      onStatusRowToggle={onStatusRowToggle}
+      healthBreakdownAvailable={healthBreakdownAvailable}
+      activePopoverKind={activePopoverKind}
+      onHealthToggle={onHealthToggle}
+      onStatsToggle={onStatsToggle}
     />
   );
 }
@@ -206,9 +225,14 @@ export function MobileStatusRailFrame({
   onFirstTurnBuildHelperDismiss,
   topRowRef,
   bottomRowRef,
+  topHealthAnchorRef,
+  bottomHealthAnchorRef,
   topStatsAnchorRef,
   bottomStatsAnchorRef,
-  onStatusRowToggle,
+  healthBreakdownAvailable = false,
+  activePopoverKind = null,
+  onHealthToggle,
+  onStatsToggle,
 }: MobileStatusRailFrameProps) {
   const [isFirstTurnBuildHelperMounted, setIsFirstTurnBuildHelperMounted] = useState(false);
   const [isFirstTurnBuildHelperVisible, setIsFirstTurnBuildHelperVisible] = useState(false);
@@ -327,11 +351,16 @@ export function MobileStatusRailFrame({
         <div className="flex-1 min-w-0 flex flex-col gap-[3px]">
           <MobilePlayerStatusRow
             rowRef={topRowRef}
+            healthAnchorRef={topHealthAnchorRef}
             statsAnchorRef={topStatsAnchorRef}
             row={topRow}
             position="top"
             showDeltas={showDeltas}
-            onToggle={onStatusRowToggle}
+            healthBreakdownAvailable={healthBreakdownAvailable}
+            healthExpanded={activePopoverKind === 'health'}
+            statsExpanded={activePopoverKind === 'stats'}
+            onHealthToggle={onHealthToggle}
+            onStatsToggle={onStatsToggle}
           />
           {turnPhasesVm && turnPhasePresentation ? (
             <TurnPhaseStatusStrip vm={turnPhasesVm} presentation={turnPhasePresentation} />
@@ -340,11 +369,16 @@ export function MobileStatusRailFrame({
           )}
           <MobilePlayerStatusRow
             rowRef={bottomRowRef}
+            healthAnchorRef={bottomHealthAnchorRef}
             statsAnchorRef={bottomStatsAnchorRef}
             row={bottomRow}
             position="bottom"
             showDeltas={showDeltas}
-            onToggle={onStatusRowToggle}
+            healthBreakdownAvailable={healthBreakdownAvailable}
+            healthExpanded={activePopoverKind === 'health'}
+            statsExpanded={activePopoverKind === 'stats'}
+            onHealthToggle={onHealthToggle}
+            onStatsToggle={onStatsToggle}
           />
         </div>
 
@@ -420,58 +454,60 @@ export function MobileStatusRailFrame({
 
 function MobilePlayerStatusRow({
   rowRef,
+  healthAnchorRef,
   statsAnchorRef,
   row,
   position,
   showDeltas,
-  onToggle,
+  healthBreakdownAvailable,
+  healthExpanded,
+  statsExpanded,
+  onHealthToggle,
+  onStatsToggle,
 }: {
   rowRef?: RefObject<HTMLDivElement | null>;
-  statsAnchorRef?: RefObject<HTMLDivElement | null>;
+  healthAnchorRef?: RefObject<HTMLButtonElement | null>;
+  statsAnchorRef?: RefObject<HTMLButtonElement | null>;
   row: MobileStatusRailRowData;
   position: MobileRowPosition;
   showDeltas: boolean;
-  onToggle?: () => void;
+  healthBreakdownAvailable: boolean;
+  healthExpanded: boolean;
+  statsExpanded: boolean;
+  onHealthToggle?: () => void;
+  onStatsToggle?: () => void;
 }) {
   const health = row.health;
   const netDelta = row.netDelta;
   const hasHealth = health !== undefined;
   const hasNetDelta = netDelta !== undefined;
   const shouldShowNetDelta = hasNetDelta && showDeltas;
-  const isInteractive = onToggle !== undefined;
-
-  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (!isInteractive) {
-      return;
-    }
-
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      onToggle();
-    }
-  }
+  const healthInteractive = healthBreakdownAvailable && onHealthToggle !== undefined;
+  const statsInteractive = onStatsToggle !== undefined;
 
   return (
     <div
       ref={rowRef}
-      role={isInteractive ? 'button' : undefined}
-      tabIndex={isInteractive ? 0 : undefined}
-      onClick={onToggle}
-      onKeyDown={handleKeyDown}
-      className={`${
-        position === 'top' ? 'flex items-end w-full' : 'flex items-start w-full'
-      } ${isInteractive ? 'cursor-pointer touch-manipulation' : ''}`}
+      className={position === 'top' ? 'flex items-end w-full' : 'flex items-start w-full'}
     >
       <div className="flex-1 min-w-0 flex items-center justify-between gap-[6px]">
         <div className="flex flex-1 min-w-0 items-center gap-[5px]">
-          <div className="flex w-[38px] shrink-0 flex-col items-center text-center font-bold whitespace-nowrap">
+          <button
+            ref={healthAnchorRef}
+            type="button"
+            disabled={!healthInteractive}
+            aria-expanded={healthInteractive ? healthExpanded : undefined}
+            aria-label={`Show health breakdown for ${row.name}`}
+            onClick={healthInteractive ? onHealthToggle : undefined}
+            className="flex w-[38px] shrink-0 touch-manipulation flex-col items-center bg-transparent p-0 text-center font-bold whitespace-nowrap disabled:cursor-default"
+          >
             <span className={`text-[26px] leading-[26px] ${hasHealth ? 'text-white' : 'text-transparent'}`}>
               {hasHealth ? health : 0}
             </span>
             <span className={`text-[15px] leading-[16px] ${shouldShowNetDelta ? getNetDeltaClassName(netDelta) : 'text-transparent'}`}>
-              {hasNetDelta ? formatNetDelta(netDelta) : 0}
+              {hasNetDelta ? formatHealthChange(netDelta) : 0}
             </span>
-          </div>
+          </button>
 
           <div className="flex flex-1 min-w-0 flex-col gap-[1px]">
             <div className="flex h-[19px] w-full min-w-0 items-center gap-[4px]">
@@ -488,9 +524,14 @@ function MobilePlayerStatusRow({
           </div>
         </div>
 
-        <div
+        <button
           ref={statsAnchorRef}
-          className="grid shrink-0 grid-cols-[24px_24px_28px_28px] items-start gap-[3px] text-center font-bold whitespace-nowrap"
+          type="button"
+          disabled={!statsInteractive}
+          aria-expanded={statsInteractive ? statsExpanded : undefined}
+          aria-label={`Show stat breakdowns for ${row.name}`}
+          onClick={statsInteractive ? onStatsToggle : undefined}
+          className="grid shrink-0 touch-manipulation grid-cols-[24px_24px_28px_28px] items-start gap-[3px] bg-transparent p-0 text-center font-bold whitespace-nowrap disabled:cursor-default"
         >
           {MOBILE_STATUS_STAT_ORDER.map((stat) => {
             if (stat === 'saved') {
@@ -527,7 +568,7 @@ function MobilePlayerStatusRow({
               />
             );
           })}
-        </div>
+        </button>
       </div>
     </div>
   );
@@ -578,18 +619,6 @@ function OnlineDot({ isOnline }: { isOnline: boolean }) {
       }`}
     />
   );
-}
-
-function formatNetDelta(value: number): string {
-  if (value > 0) {
-    return `+${value}`;
-  }
-
-  if (value < 0) {
-    return String(value);
-  }
-
-  return '±0';
 }
 
 function getNetDeltaClassName(value?: number): string {

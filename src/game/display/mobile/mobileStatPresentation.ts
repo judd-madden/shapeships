@@ -18,6 +18,15 @@ export const MOBILE_STATUS_STAT_ORDER = [
 
 export const MOBILE_POPOVER_TAP_THRESHOLD_PX = 8;
 
+export type MobilePopoverPairKind = 'stats' | 'health';
+
+export function toggleMobilePopoverPair(
+  activeKind: MobilePopoverPairKind | null,
+  requestedKind: MobilePopoverPairKind,
+): MobilePopoverPairKind | null {
+  return activeKind === requestedKind ? null : requestedKind;
+}
+
 export interface MobileHudMetricPairVm {
   currentText: string;
   lastText: string;

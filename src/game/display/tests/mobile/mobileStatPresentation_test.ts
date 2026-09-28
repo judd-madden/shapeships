@@ -15,6 +15,7 @@ import {
   formatMobileBreakdownAmount,
   isMobilePopoverTapGesture,
   MOBILE_STATUS_STAT_ORDER,
+  toggleMobilePopoverPair,
 } from '../../mobile/mobileStatPresentation';
 
 function assertEquals(actual: unknown, expected: unknown): void {
@@ -248,4 +249,12 @@ Deno.test('popover tap threshold distinguishes taps from card scrolling', () => 
   assertEquals(isMobilePopoverTapGesture(start, { clientX: 100, clientY: 208 }), true);
   assertEquals(isMobilePopoverTapGesture(start, { clientX: 100, clientY: 209 }), false);
   assertEquals(isMobilePopoverTapGesture(start, { clientX: 100, clientY: 240 }), false);
+});
+
+Deno.test('mobile popover pairs close on repeat and replace across trigger kinds', () => {
+  assertEquals(toggleMobilePopoverPair(null, 'stats'), 'stats');
+  assertEquals(toggleMobilePopoverPair('stats', 'stats'), null);
+  assertEquals(toggleMobilePopoverPair('stats', 'health'), 'health');
+  assertEquals(toggleMobilePopoverPair('health', 'stats'), 'stats');
+  assertEquals(toggleMobilePopoverPair('health', 'health'), null);
 });

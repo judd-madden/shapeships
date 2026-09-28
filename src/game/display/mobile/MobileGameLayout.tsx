@@ -18,9 +18,15 @@ import { MobileBoardView } from './MobileBoardView';
 import { MobileBottomPhase } from './MobileBottomPhase';
 import { MobileBottomTabs } from './MobileBottomTabs';
 import {
+  MobileHealthBreakdownPopovers,
   MobileStatBreakdownPopovers,
   type MobileStatAnchorRect,
 } from './MobileStatBreakdownPopovers';
+import { buildHealthBreakdownPresentation } from '../layout/boardStage/healthBreakdownPresentation';
+import {
+  toggleMobilePopoverPair,
+  type MobilePopoverPairKind,
+} from './mobileStatPresentation';
 import { MobileActionPanel } from './actionPanel/MobileActionPanel';
 import { MobileAutocastInfoModal } from './actionPanel/MobileAutocastInfoModal';
 import { MobileShipModal } from './actionPanel/MobileShipModal';
@@ -80,7 +86,8 @@ type ActiveTakeover = 'chat' | 'battleLog' | 'menu' | null;
 type ActiveMobileBottomPanel = 'normal' | 'void';
 type PostgameMissionPresentation = { loreUnlocked: boolean } | null;
 
-type MobileStatPopoverAnchors = {
+type MobilePopoverPair = {
+  kind: MobilePopoverPairKind;
   top: MobileStatAnchorRect;
   bottom: MobileStatAnchorRect;
 };
@@ -152,19 +159,19 @@ export function MobileGameLayout({
   const [isAutocastInfoOpen, setIsAutocastInfoOpen] = useState(false);
   const [activeFleetShipHover, setActiveFleetShipHover] =
     useState<ActiveFleetShipHover | null>(null);
-  const [statPopoverAnchors, setStatPopoverAnchors] =
-    useState<MobileStatPopoverAnchors | null>(null);
+  const [activePopoverPair, setActivePopoverPair] =
+    useState<MobilePopoverPair | null>(null);
   const [mobileChatReadState, setMobileChatReadState] = useState<MobileChatReadState>(() => ({
     gameCode: leftRailVm.gameCode,
     lastSeenChatMessageCount: leftRailVm.chatMessages.length,
     baselineEstablished: false,
   }));
-  const topStatusRowRef = useRef<HTMLDivElement | null>(null);
-  const bottomStatusRowRef = useRef<HTMLDivElement | null>(null);
-  const topStatsAnchorRef = useRef<HTMLDivElement | null>(null);
-  const bottomStatsAnchorRef = useRef<HTMLDivElement | null>(null);
-  const topStatPopoverRef = useRef<HTMLDivElement | null>(null);
-  const bottomStatPopoverRef = useRef<HTMLDivElement | null>(null);
+  const topHealthAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const bottomHealthAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const topStatsAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const bottomStatsAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const topPopoverRef = useRef<HTMLDivElement | null>(null);
+  const bottomPopoverRef = useRef<HTMLDivElement | null>(null);
   const fleetShipHoverCardRef = useRef<HTMLDivElement | null>(null);
   const consumeMissionResultAutoOpenRequestRef = useRef(
     actions.onConsumeMissionResultAutoOpenRequest,
@@ -276,8 +283,16 @@ export function MobileGameLayout({
   const turnLabel = isGameOver ? 'Game Over' : `Turn ${leftRailVm.turn}`;
   const activeDestroyTargetSourceInstanceId =
     boardVm.mode === 'board' ? boardVm.destroyTargeting?.activeSourceInstanceId : null;
-  const handleCloseStatPopovers = useCallback(() => {
-    setStatPopoverAnchors(null);
+  const healthBreakdown = boardVm.mode === 'board'
+    ? buildHealthBreakdownPresentation({
+        boardVm,
+        thisTurn,
+        gameStats,
+        viewer,
+      })
+    : null;
+  const handleClosePopoverPair = useCallback(() => {
+    setActivePopoverPair(null);
   }, []);
   const handleCloseFleetShipHover = useCallback(() => {
     setActiveFleetShipHover(null);
@@ -301,7 +316,7 @@ export function MobileGameLayout({
     setIsSiphonInspectionOpen(false);
     setIsAutocastInfoOpen(false);
     setActiveFleetShipHover(null);
-    setStatPopoverAnchors(null);
+    setActivePopoverPair(null);
   }, []);
   const handleFleetShipHoverCardElementChange = useCallback((element: HTMLDivElement | null) => {
     fleetShipHoverCardRef.current = element;
@@ -311,7 +326,7 @@ export function MobileGameLayout({
     anchorEl: HTMLElement,
     side: 'my' | 'opponent'
   ) => {
-    handleCloseStatPopovers();
+    handleClosePopoverPair();
     setActiveShipModalId(null);
     handleCloseSolarModal();
     handleCloseSiphonInspection();
@@ -325,10 +340,10 @@ export function MobileGameLayout({
     handleCloseAutocastInfo,
     handleCloseSiphonInspection,
     handleCloseSolarModal,
-    handleCloseStatPopovers,
+    handleClosePopoverPair,
   ]);
   const handleCatalogueShipInspect = useCallback((shipId: ShipDefId) => {
-    handleCloseStatPopovers();
+    handleClosePopoverPair();
     setActiveFleetShipHover(null);
     handleCloseSolarModal();
     handleCloseSiphonInspection();
@@ -338,12 +353,12 @@ export function MobileGameLayout({
     handleCloseAutocastInfo,
     handleCloseSiphonInspection,
     handleCloseSolarModal,
-    handleCloseStatPopovers,
+    handleClosePopoverPair,
   ]);
   const handleSolarPowerInspect = useCallback((
     solarPowerId: ImplementedAncientManualSolarPowerId
   ) => {
-    handleCloseStatPopovers();
+    handleClosePopoverPair();
     setActiveShipModalId(null);
     setActiveFleetShipHover(null);
     handleCloseAutocastInfo();
@@ -352,10 +367,10 @@ export function MobileGameLayout({
   }, [
     handleCloseAutocastInfo,
     handleCloseSiphonInspection,
-    handleCloseStatPopovers,
+    handleClosePopoverPair,
   ]);
   const handleViewSiphon = useCallback(() => {
-    handleCloseStatPopovers();
+    handleClosePopoverPair();
     setActiveShipModalId(null);
     setActiveFleetShipHover(null);
     handleCloseAutocastInfo();
@@ -364,10 +379,10 @@ export function MobileGameLayout({
   }, [
     handleCloseAutocastInfo,
     handleCloseSolarModal,
-    handleCloseStatPopovers,
+    handleClosePopoverPair,
   ]);
   const handleOpenAutocastInfo = useCallback(() => {
-    handleCloseStatPopovers();
+    handleClosePopoverPair();
     setActiveShipModalId(null);
     handleCloseSolarModal();
     handleCloseSiphonInspection();
@@ -376,7 +391,7 @@ export function MobileGameLayout({
   }, [
     handleCloseSiphonInspection,
     handleCloseSolarModal,
-    handleCloseStatPopovers,
+    handleClosePopoverPair,
   ]);
   const handleReturnToBoard = useCallback(() => {
     setIsGameStatsOpen(false);
@@ -393,7 +408,7 @@ export function MobileGameLayout({
     }
   }, [gameStats]);
   const handleOpenTakeover = useCallback((takeover: Exclude<ActiveTakeover, null>) => {
-    handleCloseStatPopovers();
+    handleClosePopoverPair();
     setActiveMobileBottomPanel('normal');
     setActiveShipModalId(null);
     handleCloseSolarModal();
@@ -406,10 +421,10 @@ export function MobileGameLayout({
     handleCloseAutocastInfo,
     handleCloseSiphonInspection,
     handleCloseSolarModal,
-    handleCloseStatPopovers,
+    handleClosePopoverPair,
   ]);
   const handleVoidTabClick = useCallback(() => {
-    handleCloseStatPopovers();
+    handleClosePopoverPair();
     setActiveShipModalId(null);
     handleCloseSolarModal();
     handleCloseSiphonInspection();
@@ -420,20 +435,27 @@ export function MobileGameLayout({
     handleCloseAutocastInfo,
     handleCloseSiphonInspection,
     handleCloseSolarModal,
-    handleCloseStatPopovers,
+    handleClosePopoverPair,
   ]);
-  const handleToggleStatPopovers = useCallback(() => {
-    if (statPopoverAnchors) {
-      handleCloseStatPopovers();
+  const handleTogglePopoverPair = useCallback((kind: MobilePopoverPairKind) => {
+    const nextKind = toggleMobilePopoverPair(activePopoverPair?.kind ?? null, kind);
+    if (!nextKind) {
+      handleClosePopoverPair();
       return;
     }
 
-    const topRowEl = topStatusRowRef.current;
-    const bottomRowEl = bottomStatusRowRef.current;
-    const topStatsEl = topStatsAnchorRef.current;
-    const bottomStatsEl = bottomStatsAnchorRef.current;
+    if (nextKind === 'health' && !healthBreakdown?.hoverEligible) {
+      return;
+    }
 
-    if (!topRowEl || !bottomRowEl || !topStatsEl || !bottomStatsEl) {
+    const topAnchorEl = nextKind === 'health'
+      ? topHealthAnchorRef.current
+      : topStatsAnchorRef.current;
+    const bottomAnchorEl = nextKind === 'health'
+      ? bottomHealthAnchorRef.current
+      : bottomStatsAnchorRef.current;
+
+    if (!topAnchorEl || !bottomAnchorEl) {
       return;
     }
 
@@ -442,16 +464,18 @@ export function MobileGameLayout({
     handleCloseSiphonInspection();
     setActiveFleetShipHover(null);
     handleCloseAutocastInfo();
-    setStatPopoverAnchors({
-      top: snapshotRect(topStatsEl.getBoundingClientRect()),
-      bottom: snapshotRect(bottomStatsEl.getBoundingClientRect()),
+    setActivePopoverPair({
+      kind: nextKind,
+      top: snapshotRect(topAnchorEl.getBoundingClientRect()),
+      bottom: snapshotRect(bottomAnchorEl.getBoundingClientRect()),
     });
   }, [
+    activePopoverPair?.kind,
     handleCloseAutocastInfo,
     handleCloseSiphonInspection,
     handleCloseSolarModal,
-    handleCloseStatPopovers,
-    statPopoverAnchors,
+    handleClosePopoverPair,
+    healthBreakdown?.hoverEligible,
   ]);
   const handleOpenChat = useCallback(() => {
     setMobileChatReadState({
@@ -500,7 +524,7 @@ export function MobileGameLayout({
   const mobileActions: GameSessionActions = {
     ...actions,
     onReadyToggle: () => {
-      handleCloseStatPopovers();
+      handleClosePopoverPair();
       setActiveShipModalId(null);
       handleCloseSolarModal();
       handleCloseSiphonInspection();
@@ -509,7 +533,7 @@ export function MobileGameLayout({
       actions.onReadyToggle();
     },
     onActionPanelTabClick: (tabId) => {
-      handleCloseStatPopovers();
+      handleClosePopoverPair();
       setActiveMobileBottomPanel('normal');
       setActiveShipModalId(null);
       handleCloseSolarModal();
@@ -686,7 +710,7 @@ export function MobileGameLayout({
       return;
     }
 
-    handleCloseStatPopovers();
+    handleClosePopoverPair();
     setActiveShipModalId(null);
     handleCloseSolarModal();
     handleCloseSiphonInspection();
@@ -697,7 +721,7 @@ export function MobileGameLayout({
     handleCloseAutocastInfo,
     handleCloseSiphonInspection,
     handleCloseSolarModal,
-    handleCloseStatPopovers,
+    handleClosePopoverPair,
   ]);
 
   useEffect(() => {
@@ -706,7 +730,7 @@ export function MobileGameLayout({
     handleCloseSiphonInspection();
     setActiveFleetShipHover(null);
     setActiveMobileBottomPanel('normal');
-    handleCloseStatPopovers();
+    handleClosePopoverPair();
     handleCloseAutocastInfo();
   }, [
     actionPanelVm.menu.phaseKey,
@@ -716,7 +740,7 @@ export function MobileGameLayout({
     handleCloseAutocastInfo,
     handleCloseSiphonInspection,
     handleCloseSolarModal,
-    handleCloseStatPopovers,
+    handleClosePopoverPair,
   ]);
 
   useEffect(() => {
@@ -736,7 +760,17 @@ export function MobileGameLayout({
   ]);
 
   useEffect(() => {
-    if (!statPopoverAnchors) {
+    if (activePopoverPair?.kind === 'health' && !healthBreakdown?.hoverEligible) {
+      handleClosePopoverPair();
+    }
+  }, [
+    activePopoverPair?.kind,
+    handleClosePopoverPair,
+    healthBreakdown?.hoverEligible,
+  ]);
+
+  useEffect(() => {
+    if (!activePopoverPair) {
       return;
     }
 
@@ -744,46 +778,48 @@ export function MobileGameLayout({
       const target = event.target;
 
       if (!(target instanceof Node)) {
-        handleCloseStatPopovers();
+        handleClosePopoverPair();
         return;
       }
 
       const ignoredElements = [
-        topStatusRowRef.current,
-        bottomStatusRowRef.current,
-        topStatPopoverRef.current,
-        bottomStatPopoverRef.current,
+        topHealthAnchorRef.current,
+        bottomHealthAnchorRef.current,
+        topStatsAnchorRef.current,
+        bottomStatsAnchorRef.current,
+        topPopoverRef.current,
+        bottomPopoverRef.current,
       ];
 
       if (ignoredElements.some((element) => element?.contains(target))) {
         return;
       }
 
-      handleCloseStatPopovers();
+      handleClosePopoverPair();
     }
 
     document.addEventListener('pointerdown', handleDocumentPointerDown, true);
     return () => {
       document.removeEventListener('pointerdown', handleDocumentPointerDown, true);
     };
-  }, [handleCloseStatPopovers, statPopoverAnchors]);
+  }, [activePopoverPair, handleClosePopoverPair]);
 
   useEffect(() => {
-    if (!statPopoverAnchors || typeof window === 'undefined') {
+    if (!activePopoverPair || typeof window === 'undefined') {
       return;
     }
 
     const visualViewport = window.visualViewport;
-    window.addEventListener('resize', handleCloseStatPopovers);
-    window.addEventListener('orientationchange', handleCloseStatPopovers);
-    visualViewport?.addEventListener('resize', handleCloseStatPopovers);
+    window.addEventListener('resize', handleClosePopoverPair);
+    window.addEventListener('orientationchange', handleClosePopoverPair);
+    visualViewport?.addEventListener('resize', handleClosePopoverPair);
 
     return () => {
-      window.removeEventListener('resize', handleCloseStatPopovers);
-      window.removeEventListener('orientationchange', handleCloseStatPopovers);
-      visualViewport?.removeEventListener('resize', handleCloseStatPopovers);
+      window.removeEventListener('resize', handleClosePopoverPair);
+      window.removeEventListener('orientationchange', handleClosePopoverPair);
+      visualViewport?.removeEventListener('resize', handleClosePopoverPair);
     };
-  }, [handleCloseStatPopovers, statPopoverAnchors]);
+  }, [activePopoverPair, handleClosePopoverPair]);
 
   useEffect(() => {
     if (!activeFleetShipHover) {
@@ -859,11 +895,15 @@ export function MobileGameLayout({
               onBoardBackgroundMouseDown={actions.onBoardBackgroundMouseDown}
               onDestroyTargetHoverChange={actions.onDestroyTargetStackHoverChange}
               onDestroyTargetMouseDown={actions.onDestroyTargetStackMouseDown}
-              topStatusRowRef={topStatusRowRef}
-              bottomStatusRowRef={bottomStatusRowRef}
+              topHealthAnchorRef={topHealthAnchorRef}
+              bottomHealthAnchorRef={bottomHealthAnchorRef}
               topStatsAnchorRef={topStatsAnchorRef}
               bottomStatsAnchorRef={bottomStatsAnchorRef}
-              onStatusRowToggle={handleToggleStatPopovers}
+              healthBreakdownAvailable={healthBreakdown?.hoverEligible === true}
+              healthDeltaVisible={healthBreakdown?.deltaVisible}
+              activePopoverKind={activePopoverPair?.kind ?? null}
+              onHealthToggle={() => handleTogglePopoverPair('health')}
+              onStatsToggle={() => handleTogglePopoverPair('stats')}
             />
           ) : (
             <MobileSpeciesSelectionView
@@ -1014,15 +1054,34 @@ export function MobileGameLayout({
         </div>
       ) : null}
 
-      {!isMissionInteractionLocked && activeTakeover === null && boardVm.mode === 'board' && statPopoverAnchors ? (
+      {!isMissionInteractionLocked &&
+      activeTakeover === null &&
+      boardVm.mode === 'board' &&
+      activePopoverPair?.kind === 'stats' ? (
         <MobileStatBreakdownPopovers
           boardVm={boardVm}
           thisTurn={thisTurn}
-          topAnchorRect={statPopoverAnchors.top}
-          bottomAnchorRect={statPopoverAnchors.bottom}
-          topPopoverRef={topStatPopoverRef}
-          bottomPopoverRef={bottomStatPopoverRef}
-          onDismiss={handleCloseStatPopovers}
+          topAnchorRect={activePopoverPair.top}
+          bottomAnchorRect={activePopoverPair.bottom}
+          topPopoverRef={topPopoverRef}
+          bottomPopoverRef={bottomPopoverRef}
+          onDismiss={handleClosePopoverPair}
+        />
+      ) : null}
+
+      {!isMissionInteractionLocked &&
+      activeTakeover === null &&
+      activePopoverPair?.kind === 'health' &&
+      healthBreakdown?.my &&
+      healthBreakdown.opponent ? (
+        <MobileHealthBreakdownPopovers
+          topCard={healthBreakdown.opponent}
+          bottomCard={healthBreakdown.my}
+          topAnchorRect={activePopoverPair.top}
+          bottomAnchorRect={activePopoverPair.bottom}
+          topPopoverRef={topPopoverRef}
+          bottomPopoverRef={bottomPopoverRef}
+          onDismiss={handleClosePopoverPair}
         />
       ) : null}
 

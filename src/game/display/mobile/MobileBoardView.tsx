@@ -17,6 +17,7 @@ import {
 } from '../matchup/MatchupIntroPresentation';
 import { usePresentedFleetRevealPulse } from '../layout/boardStage/usePresentedFleetRevealPulse';
 import { MobileStatusRail } from './MobileStatusRail';
+import type { MobilePopoverPairKind } from './mobileStatPresentation';
 
 type MobileBoardViewModel = Extract<BoardViewModel, { mode: 'board' }>;
 
@@ -40,11 +41,15 @@ interface MobileBoardViewProps {
   onBoardBackgroundMouseDown?: GameSessionActions['onBoardBackgroundMouseDown'];
   onDestroyTargetHoverChange?: GameSessionActions['onDestroyTargetStackHoverChange'];
   onDestroyTargetMouseDown?: GameSessionActions['onDestroyTargetStackMouseDown'];
-  topStatusRowRef?: RefObject<HTMLDivElement | null>;
-  bottomStatusRowRef?: RefObject<HTMLDivElement | null>;
-  topStatsAnchorRef?: RefObject<HTMLDivElement | null>;
-  bottomStatsAnchorRef?: RefObject<HTMLDivElement | null>;
-  onStatusRowToggle?: () => void;
+  topHealthAnchorRef?: RefObject<HTMLButtonElement | null>;
+  bottomHealthAnchorRef?: RefObject<HTMLButtonElement | null>;
+  topStatsAnchorRef?: RefObject<HTMLButtonElement | null>;
+  bottomStatsAnchorRef?: RefObject<HTMLButtonElement | null>;
+  healthBreakdownAvailable?: boolean;
+  healthDeltaVisible?: boolean;
+  activePopoverKind?: MobilePopoverPairKind | null;
+  onHealthToggle?: () => void;
+  onStatsToggle?: () => void;
 }
 
 const MOBILE_FLEET_ROW_OVERRIDES = {
@@ -67,11 +72,15 @@ export function MobileBoardView({
   onBoardBackgroundMouseDown,
   onDestroyTargetHoverChange,
   onDestroyTargetMouseDown,
-  topStatusRowRef,
-  bottomStatusRowRef,
+  topHealthAnchorRef,
+  bottomHealthAnchorRef,
   topStatsAnchorRef,
   bottomStatsAnchorRef,
-  onStatusRowToggle,
+  healthBreakdownAvailable,
+  healthDeltaVisible,
+  activePopoverKind,
+  onHealthToggle,
+  onStatsToggle,
 }: MobileBoardViewProps) {
   const opponentSpeciesKey = toSpeciesKey(boardVm.opponentSpeciesId);
   const mySpeciesKey = toSpeciesKey(boardVm.mySpeciesId);
@@ -142,11 +151,15 @@ export function MobileBoardView({
           firstTurnBuildHelperEligible={firstTurnBuildHelperEligible}
           firstTurnBuildHelperDismissSignal={firstTurnBuildHelperDismissSignal}
           onFirstTurnBuildHelperDismiss={onFirstTurnBuildHelperDismiss}
-          topRowRef={topStatusRowRef}
-          bottomRowRef={bottomStatusRowRef}
+          topHealthAnchorRef={topHealthAnchorRef}
+          bottomHealthAnchorRef={bottomHealthAnchorRef}
           topStatsAnchorRef={topStatsAnchorRef}
           bottomStatsAnchorRef={bottomStatsAnchorRef}
-          onStatusRowToggle={onStatusRowToggle}
+          healthBreakdownAvailable={healthBreakdownAvailable}
+          healthDeltaVisible={healthDeltaVisible}
+          activePopoverKind={activePopoverKind}
+          onHealthToggle={onHealthToggle}
+          onStatsToggle={onStatsToggle}
         />
         {matchupIntro ? (
           <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-hidden select-none">

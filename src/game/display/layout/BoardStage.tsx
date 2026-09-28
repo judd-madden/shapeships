@@ -14,14 +14,15 @@ import { ChooseSpeciesStage } from './boardModes/ChooseSpeciesStage';
 import { FleetArea, toSpeciesKey } from './boardStage/FleetArea';
 import { FleetShipHoverCard } from './boardStage/FleetShipHoverCard';
 import { useFleetShipHover } from './boardStage/useFleetShipHover';
-import { BoardStatBreakdownHoverCard } from './boardStage/BoardStatBreakdownHoverCard';
+import {
+  BoardStatBreakdownHoverCard,
+  type BoardStatBreakdownHoverCardContent,
+} from './boardStage/BoardStatBreakdownHoverCard';
 import { useBoardStatHover, type BoardStatHoverKey } from './boardStage/useBoardStatHover';
 import {
   buildBoardStatHoverSections,
   formatBoardStatMetric,
   selectBoardStatHoverAnchor,
-  type BoardStatHoverSectionVm,
-  type BoardStatMetricTone,
 } from './boardStage/boardStatPresentation';
 import { usePresentedFleetRevealPulse } from './boardStage/usePresentedFleetRevealPulse';
 import {
@@ -29,10 +30,13 @@ import {
   MatchupIntroVersus,
 } from '../matchup/MatchupIntroPresentation';
 import type { MatchupIntroViewModel } from '../../client/gameSession/matchupIntro';
+import { buildHealthBreakdownPresentation } from './boardStage/healthBreakdownPresentation';
 
 interface BoardStageProps {
   vm: BoardViewModel;
   thisTurn: GameSessionViewModel['thisTurn'];
+  gameStats: GameSessionViewModel['gameStats'];
+  viewer: GameSessionViewModel['viewer'];
   matchupIntro: MatchupIntroViewModel | null;
   actions: GameSessionActions;
   phaseKey: string;
@@ -345,7 +349,106 @@ function PairedStatGroup({
   );
 }
 
-export function BoardStage({ vm, thisTurn, matchupIntro, actions, phaseKey }: BoardStageProps) {
+function HealthTrigger({
+  health,
+  netDelta,
+  showDelta,
+  deltaKey,
+  animateDelta,
+  align,
+  hoverKey,
+  hoverTrackable,
+  ariaLabel,
+  isActive,
+  onHoverEnter,
+  onHoverLeave,
+  onFocus,
+  onBlur,
+}: {
+  health: number;
+  netDelta: number;
+  showDelta: boolean;
+  deltaKey: string;
+  animateDelta: boolean;
+  align: 'left' | 'right';
+  hoverKey: BoardStatHoverKey;
+  hoverTrackable: boolean;
+  ariaLabel: string;
+  isActive: boolean;
+  onHoverEnter: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
+  onHoverLeave: (key: BoardStatHoverKey) => void;
+  onFocus: (key: BoardStatHoverKey, anchorEl: HTMLElement) => void;
+  onBlur: (key: BoardStatHoverKey) => void;
+}) {
+  const anchorRef = useRef<HTMLButtonElement | null>(null);
+  const isRight = align === 'right';
+  const deltaText = netDelta > 0 ? `+${netDelta}` : netDelta === 0 ? '±0' : `−${Math.abs(netDelta)}`;
+
+  useLayoutEffect(() => {
+    if (isActive && anchorRef.current) {
+      onHoverEnter(hoverKey, anchorRef.current);
+    }
+  }, [deltaText, health, hoverKey, isActive, onHoverEnter, showDelta]);
+
+  return (
+    <button
+      ref={anchorRef}
+      type="button"
+      disabled={!hoverTrackable}
+      aria-label={ariaLabel}
+      className={cx(
+        'inline-flex w-max flex-col rounded-[4px] bg-transparent p-0 font-bold text-inherit',
+        'focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-white',
+        isRight ? 'items-end text-right' : 'items-start text-left',
+      )}
+      onMouseEnter={hoverTrackable ? (event) => onHoverEnter(hoverKey, event.currentTarget) : undefined}
+      onMouseLeave={
+        hoverTrackable
+          ? (event) => {
+              if (event.currentTarget !== document.activeElement) {
+                onHoverLeave(hoverKey);
+              }
+            }
+          : undefined
+      }
+      onFocus={hoverTrackable ? (event) => onFocus(hoverKey, event.currentTarget) : undefined}
+      onBlur={hoverTrackable ? () => onBlur(hoverKey) : undefined}
+    >
+      <span className="text-[64px] leading-[64px] text-white min-[768px]:max-[1599px]:text-[56px] min-[768px]:max-[1599px]:leading-[56px]">
+        {health}
+      </span>
+      <span
+        className="text-[28px] leading-[28px]"
+        style={{
+          color: netDelta > 0
+            ? 'var(--shapeships-pastel-green)'
+            : netDelta < 0
+              ? 'var(--shapeships-pastel-red)'
+              : 'var(--shapeships-grey-50)',
+          opacity: showDelta ? 1 : 0,
+          pointerEvents: showDelta ? 'auto' : 'none',
+        }}
+      >
+        <span
+          key={deltaKey}
+          className={showDelta && animateDelta ? 'ss-health-delta-pop-in' : undefined}
+        >
+          {showDelta ? deltaText : ''}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+export function BoardStage({
+  vm,
+  thisTurn,
+  gameStats,
+  viewer,
+  matchupIntro,
+  actions,
+  phaseKey,
+}: BoardStageProps) {
   const isBattleReveal = phaseKey === 'battle.reveal';
   const fleetHover = useFleetShipHover();
   const statHover = useBoardStatHover();
@@ -383,8 +486,14 @@ export function BoardStage({ vm, thisTurn, matchupIntro, actions, phaseKey }: Bo
       ? vm.opponentBonusLinesOnEven
       : vm.opponentBonusLines;
 
-  // Hide deltas on turn 1 only
-  const showDeltas = vm.turnNumber > 1 || vm.healthDeltaPresentationKey != null;
+  const healthBreakdown = buildHealthBreakdownPresentation({
+    boardVm: vm,
+    thisTurn,
+    gameStats,
+    viewer,
+  });
+  // Preserve the established delta lifecycle, with the confirmed turn-one final exception.
+  const showDeltas = healthBreakdown.deltaVisible;
   const shouldAnimateDeltas = vm.healthDeltaPresentationKey != null;
   const myDeltaKey = !showDeltas
     ? 'my:hidden'
@@ -422,15 +531,25 @@ export function BoardStage({ vm, thisTurn, matchupIntro, actions, phaseKey }: Bo
     vm.opponentJoiningBonusLines > 0 ? opponentBonusJoiningAnchorRef : opponentBonusPrimaryAnchorRef;
   type ActiveStatHover = {
     side: 'left' | 'right';
-    content:
-      | { kind: 'breakdown'; rows: typeof vm.myBonusBreakdownRows }
-      | {
-          kind: 'metric';
-          sections: BoardStatHoverSectionVm[];
-          tone: BoardStatMetricTone;
-        };
+    content: BoardStatBreakdownHoverCardContent;
   };
-  const statHoverContentByKey: Record<BoardStatHoverKey, ActiveStatHover> = {
+  const statHoverContentByKey: Partial<Record<BoardStatHoverKey, ActiveStatHover>> = {
+    ...(healthBreakdown.my
+      ? {
+          'my-health': {
+            side: 'left' as const,
+            content: { kind: 'health' as const, card: healthBreakdown.my },
+          },
+        }
+      : {}),
+    ...(healthBreakdown.opponent
+      ? {
+          'opponent-health': {
+            side: 'right' as const,
+            content: { kind: 'health' as const, card: healthBreakdown.opponent },
+          },
+        }
+      : {}),
     'my-damage': {
       side: 'left',
       content: { kind: 'metric', sections: myDamageHoverSections, tone: 'damage' },
@@ -462,7 +581,9 @@ export function BoardStage({ vm, thisTurn, matchupIntro, actions, phaseKey }: Bo
       : null;
   const shouldRenderActiveStatHover = activeStatHover?.content.kind === 'metric'
     ? activeStatHover.content.sections.length > 0
-    : (activeStatHover?.content.rows.length ?? 0) > 0;
+    : activeStatHover?.content.kind === 'health'
+      ? true
+      : (activeStatHover?.content.rows.length ?? 0) > 0;
 
   // Board mode
   return (
@@ -514,32 +635,22 @@ export function BoardStage({ vm, thisTurn, matchupIntro, actions, phaseKey }: Bo
             className="content-stretch flex flex-col font-bold gap-px items-end relative shrink-0 text-right w-[100px] min-[768px]:max-[1599px]:w-[86px]"
             data-name="P1 Health Group"
           >
-            <p
-              className="leading-[64px] relative shrink-0 text-[64px] text-white w-full min-[768px]:max-[1599px]:text-[56px] min-[768px]:max-[1599px]:leading-[56px]"
-            >
-              {displayedMyHealth}
-            </p>
-
-            {/* Delta (server-authoritative) */}
-            <p
-              className="font-bold leading-[28px] relative shrink-0 text-[28px] w-full text-right"
-              style={{
-                color: vm.myLastTurnNet > 0 
-                  ? 'var(--shapeships-pastel-green)' 
-                  : vm.myLastTurnNet < 0 
-                  ? 'var(--shapeships-pastel-red)' 
-                  : 'var(--shapeships-grey-50)',
-                opacity: showDeltas ? 1 : 0,
-                pointerEvents: showDeltas ? 'auto' : 'none',
-              }}
-            >
-              <span
-                key={myDeltaKey}
-                className={showDeltas && shouldAnimateDeltas ? 'ss-health-delta-pop-in' : undefined}
-              >
-                {showDeltas ? (vm.myLastTurnNet > 0 ? `+${vm.myLastTurnNet}` : vm.myLastTurnNet === 0 ? '±0' : vm.myLastTurnNet) : ''}
-              </span>
-            </p>
+            <HealthTrigger
+              health={displayedMyHealth}
+              netDelta={vm.myLastTurnNet}
+              showDelta={showDeltas}
+              deltaKey={myDeltaKey}
+              animateDelta={shouldAnimateDeltas}
+              align="right"
+              hoverKey="my-health"
+              hoverTrackable={healthBreakdown.hoverEligible}
+              ariaLabel={`Health ${displayedMyHealth}, change ${healthBreakdown.my?.changeText ?? 'unavailable'}. Show health breakdown`}
+              isActive={statHover.state.activeKey === 'my-health'}
+              onHoverEnter={statHover.onEnter}
+              onHoverLeave={statHover.onLeave}
+              onFocus={statHover.onFocus}
+              onBlur={statHover.onBlur}
+            />
           </div>
 
           <div
@@ -571,32 +682,22 @@ export function BoardStage({ vm, thisTurn, matchupIntro, actions, phaseKey }: Bo
             className="content-stretch flex flex-col font-bold items-start relative shrink-0 w-[100px] min-[768px]:max-[1599px]:w-[86px]"
             data-name="P2 Health Group"
           >
-            <p
-              className="leading-[64px] relative shrink-0 text-[64px] text-white w-[100px] text-left min-[768px]:max-[1599px]:w-[86px] min-[768px]:max-[1599px]:text-[56px] min-[768px]:max-[1599px]:leading-[56px]"
-            >
-              {displayedOpponentHealth}
-            </p>
-
-            {/* Delta (server-authoritative) */}
-            <p
-              className="font-bold leading-[28px] relative shrink-0 text-[28px] w-[100px] text-left min-[768px]:max-[1599px]:w-[86px]"
-              style={{
-                color: vm.opponentLastTurnNet > 0 
-                  ? 'var(--shapeships-pastel-green)' 
-                  : vm.opponentLastTurnNet < 0 
-                  ? 'var(--shapeships-pastel-red)' 
-                  : 'var(--shapeships-grey-50)',
-                opacity: showDeltas ? 1 : 0,
-                pointerEvents: showDeltas ? 'auto' : 'none',
-              }}
-            >
-              <span
-                key={opponentDeltaKey}
-                className={showDeltas && shouldAnimateDeltas ? 'ss-health-delta-pop-in' : undefined}
-              >
-                {showDeltas ? (vm.opponentLastTurnNet > 0 ? `+${vm.opponentLastTurnNet}` : vm.opponentLastTurnNet === 0 ? '±0' : vm.opponentLastTurnNet) : ''}
-              </span>
-            </p>
+            <HealthTrigger
+              health={displayedOpponentHealth}
+              netDelta={vm.opponentLastTurnNet}
+              showDelta={showDeltas}
+              deltaKey={opponentDeltaKey}
+              animateDelta={shouldAnimateDeltas}
+              align="left"
+              hoverKey="opponent-health"
+              hoverTrackable={healthBreakdown.hoverEligible}
+              ariaLabel={`Health ${displayedOpponentHealth}, change ${healthBreakdown.opponent?.changeText ?? 'unavailable'}. Show health breakdown`}
+              isActive={statHover.state.activeKey === 'opponent-health'}
+              onHoverEnter={statHover.onEnter}
+              onHoverLeave={statHover.onLeave}
+              onFocus={statHover.onFocus}
+              onBlur={statHover.onBlur}
+            />
           </div>
         </div>
 

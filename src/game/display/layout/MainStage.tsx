@@ -326,6 +326,8 @@ export function MainStage({
         <BoardStage
           vm={boardVm}
           thisTurn={thisTurn}
+          gameStats={gameStats}
+          viewer={viewer}
           matchupIntro={matchupIntro}
           actions={actions}
           phaseKey={actionPanelVm.menu.phaseKey}

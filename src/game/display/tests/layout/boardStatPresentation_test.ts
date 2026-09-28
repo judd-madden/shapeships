@@ -3,9 +3,13 @@ declare const Deno: {
 };
 
 import type {
+  BoardViewModel,
   BoardStatBreakdownRowVm,
+  GameSessionViewerViewModel,
+  GameStatsViewModel,
   ThisTurnMetricPairVm,
   ThisTurnMetricVm,
+  ThisTurnPresentationVm,
 } from '../../../client/gameSession/types';
 import {
   buildBoardStatHoverSections,
@@ -14,6 +18,10 @@ import {
   formatBoardMetricBreakdownAmount,
   selectBoardStatHoverAnchor,
 } from '../../layout/boardStage/boardStatPresentation';
+import {
+  buildHealthBreakdownPresentation,
+  formatHealthChange,
+} from '../../layout/boardStage/healthBreakdownPresentation';
 
 function assertEquals(actual: unknown, expected: unknown): void {
   const actualJson = JSON.stringify(actual);
@@ -212,4 +220,241 @@ Deno.test('hover layout clamps vertically and keeps its tail within the card', (
     cardWidth: 240, cardHeight: 80,
     viewportWidth: 1200, viewportHeight: 200, preferredPlacement: 'left',
   }), { left: 246, top: 108, placement: 'left', tailOffset: 62 });
+});
+
+type BoardModeVm = Extract<BoardViewModel, { mode: 'board' }>;
+
+function healthBoard(overrides: Partial<BoardModeVm> = {}): BoardModeVm {
+  return {
+    mode: 'board',
+    turnNumber: 5,
+    myHealth: 22,
+    opponentHealth: 25,
+    myLastTurnHeal: 5,
+    myLastTurnDamage: 7,
+    myLastTurnNet: -3,
+    opponentLastTurnHeal: 2,
+    opponentLastTurnDamage: 8,
+    opponentLastTurnNet: 1,
+    ...overrides,
+  } as BoardModeVm;
+}
+
+function healthPresentation(
+  source: Extract<ThisTurnMetricVm, { total: number }>['source'],
+  turnNumber = 4,
+  phaseKey = 'build.drawing',
+): ThisTurnPresentationVm {
+  return {
+    turnNumber,
+    phaseKey,
+    liveLog: null,
+    archiveHandoff: null,
+    mobile: { pairKey: `game-1::${turnNumber}`, opponentDetail: 'this_turn' },
+    me: {
+      playerId: 'p1',
+      healing: pair(valueMetric(5, source, turnNumber), valueMetric(0, 'last_actual', 0, [])),
+      damage: pair(valueMetric(7, source, turnNumber), valueMetric(0, 'last_actual', 0, [])),
+    },
+    opponent: {
+      playerId: 'p2',
+      healing: pair(valueMetric(2, source, turnNumber), valueMetric(0, 'last_actual', 0, [])),
+      damage: pair(valueMetric(8, source, turnNumber), valueMetric(0, 'last_actual', 0, [])),
+    },
+  };
+}
+
+const playerViewer: GameSessionViewerViewModel = {
+  viewerMode: 'p1_player',
+  isSpectator: false,
+  isPlayerViewer: true,
+  p1Name: 'Juddly',
+  p2Name: 'Opponent',
+};
+
+function history(turnNumber: number, board = healthBoard()): GameStatsViewModel {
+  return {
+    turnCount: 1,
+    turns: [{
+      turnNumber,
+      viewer: {
+        playerId: 'p1', label: 'You', healthEnd: board.myHealth,
+        healthDelta: board.myLastTurnNet, healingReceived: board.myLastTurnHeal,
+        damageTaken: board.opponentLastTurnDamage, damageDealt: board.myLastTurnDamage,
+        fleetValueEnd: 10,
+      },
+      opponent: {
+        playerId: 'p2', label: 'Opponent', healthEnd: board.opponentHealth,
+        healthDelta: board.opponentLastTurnNet, healingReceived: board.opponentLastTurnHeal,
+        damageTaken: board.myLastTurnDamage, damageDealt: board.opponentLastTurnDamage,
+        fleetValueEnd: 10,
+      },
+      row2Net: 0,
+      row3Net: 0,
+    }],
+    summary: {
+      viewer: { label: 'You', finalHealth: board.myHealth, totalHealing: 5, totalDamage: 7, finalFleetValue: 10 },
+      opponent: { label: 'Opponent', finalHealth: board.opponentHealth, totalHealing: 2, totalDamage: 8, finalFleetValue: 10 },
+    },
+    labels: {
+      viewerHealth: 'Your Health', opponentHealth: 'Opponent Health',
+      viewerHealing: 'Your Healing', opponentDamage: 'Opponent Damage',
+      viewerDamage: 'Your Damage', opponentHealing: 'Opponent Healing',
+      viewerFleetValue: 'Your Fleet Value', opponentFleetValue: 'Opponent Fleet Value',
+    },
+    scaleHints: { pressureMax: 40, fleetValueMax: 10, healthFloor: -10 },
+  };
+}
+
+Deno.test('health breakdown maps each owner healing before incoming damage and preserves authoritative net', () => {
+  const board = healthBoard({ myLastTurnNet: 0, myLastTurnHeal: 8 });
+  const current = healthPresentation('held_actual');
+  current.me.healing.current = valueMetric(8, 'held_actual', 4);
+  const result = buildHealthBreakdownPresentation({
+    boardVm: board,
+    thisTurn: current,
+    gameStats: null,
+    viewer: playerViewer,
+  });
+
+  assertEquals(result.my, {
+    heading: 'LAST TURN', turnNumber: 4,
+    healingLabel: 'Your Healing', healingText: '8',
+    damageLabel: 'Opponent Damage', damageText: '8',
+    changeText: '±0', changeTone: 'neutral',
+  });
+  assertEquals(result.opponent?.healingLabel, 'Opponent Healing');
+  assertEquals(result.opponent?.damageLabel, 'Your Damage');
+  assertEquals(formatHealthChange(-3), '−3');
+  assertEquals(formatHealthChange(2), '+2');
+});
+
+Deno.test('spectator health labels retain left and right player orientation', () => {
+  const result = buildHealthBreakdownPresentation({
+    boardVm: healthBoard(),
+    thisTurn: healthPresentation('held_actual'),
+    gameStats: null,
+    viewer: { ...playerViewer, viewerMode: 'spectator', isSpectator: true, isPlayerViewer: false, p1Name: 'Alpha', p2Name: 'Beta' },
+  });
+  assertEquals([
+    result.my?.healingLabel,
+    result.my?.damageLabel,
+    result.opponent?.healingLabel,
+    result.opponent?.damageLabel,
+  ], ['Alpha Healing', 'Beta Damage', 'Beta Healing', 'Alpha Damage']);
+});
+
+Deno.test('delta visibility remains independent when health breakdown metadata is unavailable', () => {
+  const unavailable = healthPresentation('estimated', 5);
+  const result = buildHealthBreakdownPresentation({
+    boardVm: healthBoard({ turnNumber: 5 }),
+    thisTurn: unavailable,
+    gameStats: null,
+    viewer: playerViewer,
+  });
+  assertEquals({ hover: result.hoverEligible, delta: result.deltaVisible }, { hover: false, delta: true });
+
+  const opening = buildHealthBreakdownPresentation({
+    boardVm: healthBoard({ turnNumber: 1 }),
+    thisTurn: healthPresentation('estimated', 1),
+    gameStats: null,
+    viewer: playerViewer,
+  });
+  assertEquals({ hover: opening.hoverEligible, delta: opening.deltaVisible }, { hover: false, delta: false });
+});
+
+Deno.test('health breakdown follows held, rollover, concealed, zero, and live final lifecycle states', () => {
+  const rolled = healthPresentation('estimated', 5);
+  rolled.me.healing.last = valueMetric(5, 'last_actual', 4);
+  rolled.me.damage.last = valueMetric(7, 'last_actual', 4);
+  rolled.opponent.healing.last = valueMetric(2, 'last_actual', 4);
+  rolled.opponent.damage.last = valueMetric(8, 'last_actual', 4);
+  rolled.opponent.damage.current = { state: 'concealed', turnNumber: 5 };
+  const last = buildHealthBreakdownPresentation({
+    boardVm: healthBoard(),
+    thisTurn: rolled,
+    gameStats: null,
+    viewer: playerViewer,
+  });
+  assertEquals({ heading: last.my?.heading, turn: last.my?.turnNumber }, {
+    heading: 'LAST TURN', turn: 4,
+  });
+
+  const zeroBoard = healthBoard({
+    turnNumber: 2,
+    myLastTurnHeal: 0,
+    myLastTurnDamage: 0,
+    myLastTurnNet: 0,
+    opponentLastTurnHeal: 0,
+    opponentLastTurnDamage: 0,
+    opponentLastTurnNet: 0,
+  });
+  const zeroTurn = healthPresentation('estimated', 2);
+  zeroTurn.me.healing.last = valueMetric(0, 'last_actual', 1, []);
+  zeroTurn.me.damage.last = valueMetric(0, 'last_actual', 1, []);
+  zeroTurn.opponent.healing.last = valueMetric(0, 'last_actual', 1, []);
+  zeroTurn.opponent.damage.last = valueMetric(0, 'last_actual', 1, []);
+  const zero = buildHealthBreakdownPresentation({
+    boardVm: zeroBoard,
+    thisTurn: zeroTurn,
+    gameStats: null,
+    viewer: playerViewer,
+  });
+  assertEquals({ hover: zero.hoverEligible, change: zero.my?.changeText }, {
+    hover: true, change: '±0',
+  });
+
+  const liveFinal = buildHealthBreakdownPresentation({
+    boardVm: healthBoard({ turnNumber: 4 }),
+    thisTurn: healthPresentation('final_actual', 4, 'game.finished'),
+    gameStats: null,
+    viewer: playerViewer,
+  });
+  assertEquals({ heading: liveFinal.my?.heading, final: liveFinal.confirmedFinal }, {
+    heading: 'FINAL TURN', final: true,
+  });
+});
+
+Deno.test('finished reload confirms Final Turn only when latest history matches board totals', () => {
+  const board = healthBoard({ turnNumber: 1 });
+  const unavailable = healthPresentation('estimated', 1, 'game.finished');
+  unavailable.me.damage.current = { state: 'unavailable', turnNumber: 1 };
+  unavailable.me.healing.current = { state: 'unavailable', turnNumber: 1 };
+  unavailable.opponent.damage.current = { state: 'unavailable', turnNumber: 1 };
+  unavailable.opponent.healing.current = { state: 'unavailable', turnNumber: 1 };
+  const confirmed = buildHealthBreakdownPresentation({
+    boardVm: board,
+    thisTurn: unavailable,
+    gameStats: history(1, board),
+    viewer: playerViewer,
+  });
+  assertEquals({ heading: confirmed.my?.heading, delta: confirmed.deltaVisible }, {
+    heading: 'FINAL TURN', delta: true,
+  });
+
+  const mismatchedHistory = history(1, board);
+  mismatchedHistory.turns[0].viewer.healthDelta = 99;
+  const suppressed = buildHealthBreakdownPresentation({
+    boardVm: board,
+    thisTurn: unavailable,
+    gameStats: mismatchedHistory,
+    viewer: playerViewer,
+  });
+  assertEquals({ hover: suppressed.hoverEligible, final: suppressed.confirmedFinal }, {
+    hover: false, final: false,
+  });
+});
+
+Deno.test('finished unresolved terminal retains only a matching earlier Last Turn', () => {
+  const board = healthBoard({ turnNumber: 5 });
+  const unavailable = healthPresentation('estimated', 5, 'game.finished');
+  const result = buildHealthBreakdownPresentation({
+    boardVm: board,
+    thisTurn: unavailable,
+    gameStats: history(4, board),
+    viewer: playerViewer,
+  });
+  assertEquals({ heading: result.my?.heading, turn: result.my?.turnNumber }, {
+    heading: 'LAST TURN', turn: 4,
+  });
 });
